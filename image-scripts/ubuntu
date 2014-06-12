@@ -1,0 +1,63 @@
+#!/bin/bash
+
+OUTPUT=/tmp/ubuntu-14.04-x86_64-vpsfree.tar.gz
+
+INSTALL=$(mktemp -d /tmp/install.XXX)
+
+function cleanup {
+	rm -Rf $INSTALL
+}
+
+trap cleanup SIGINT
+
+debootstrap --arch amd64 trusty $INSTALL http://cz.archive.ubuntu.com/ubuntu/
+
+cat > ${INSTALL}/tmp/setup.sh <<"EOF"
+locale-gen en_US.UTF-8
+
+dpkg-reconfigure locales
+
+usermod -L root
+
+cat > /etc/apt/sources.list <<"SOURCES"
+deb http://cz.archive.ubuntu.com/ubuntu/ trusty main restricted universe multiverse
+deb http://cz.archive.ubuntu.com/ubuntu/ trusty-security main restricted universe multiverse
+deb http://cz.archive.ubuntu.com/ubuntu/ trusty-updates main restricted universe multiverse
+SOURCES
+
+apt-get update
+apt-get upgrade -y
+export DEBIAN_FRONTEND=noninteractive; apt-get purge -y ureadahead eject ntpdate resolvconf
+apt-get install -y vim openssh-server
+
+sed -i -e 's/^\$ModLoad imklog/#\$ModLoad imklog/g' /etc/rsyslog.conf
+sed -i -e 's/^PermitRootLogin\ without-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
+
+cp /usr/share/zoneinfo/Europe/Prague /etc/localtime
+
+rm -f /etc/ssh/ssh_host_*
+
+cat > /etc/init.d/generate_ssh_keys <<"GENSSH"
+#!/bin/bash
+ssh-keygen -f /etc/ssh/ssh_host_rsa_key -t rsa -N ''
+ssh-keygen -f /etc/ssh/ssh_host_dsa_key -t dsa -N ''
+rm -f /etc/init.d/generate_ssh_keys
+GENSSH
+
+chmod a+x /etc/init.d/generate_ssh_keys
+update-rc.d generate_ssh_keys defaults
+
+> /etc/resolv.conf
+
+apt-get clean
+EOF
+
+chmod +x ${INSTALL}/tmp/setup.sh
+
+chroot $INSTALL /tmp/setup.sh
+
+pushd $INSTALL
+tar czvf $OUTPUT .
+popd
+
+cleanup
