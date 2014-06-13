@@ -10,6 +10,10 @@ OUTPUT_PREFIX=/tmp
 . $INCLUDE/common.sh
 
 for template in $*; do
+	[ ! -f $BASEDIR/templates/${template}.sh ] && \
+		echo "Unknown template name: $template" && \
+		exit 1
+
 	DISTNAME=
 	RELVER=
 	RELNAME=
@@ -20,11 +24,6 @@ for template in $*; do
 	INSTALL=$(mktemp -d /tmp/install.XXX)
 	DOWNLOAD=$(mktemp -d /tmp/install.download.XXX)
 	CONFIGURE=$INSTALL/tmp/configure.sh
-
-
-	[ ! -f $BASEDIR/templates/${template}.sh ] && \
-		echo "Unknown template name: $template" && \
-		exit 1
 
 	. $BASEDIR/templates/${template}.sh
 

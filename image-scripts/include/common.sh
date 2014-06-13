@@ -1,4 +1,5 @@
 function cleanup {
+	echo "Cleanup ..."
         rm -Rf $INSTALL
         rm -Rf $DOWNLOAD
 }
