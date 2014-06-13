@@ -50,6 +50,7 @@ EOF
 function configure-fedora {
 	configure-append <<EOF
 usermod -L root
+rm -f /etc/ssh/ssh_host_*
 cp /usr/share/zoneinfo/Europe/Prague /etc/localtime
 EOF
 }
