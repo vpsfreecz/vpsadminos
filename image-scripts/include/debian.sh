@@ -12,6 +12,8 @@ export DEBIAN_FRONTEND=noninteractive;
 PATH=/tmp/:\$PATH apt-get update
 PATH=/tmp/:\$PATH apt-get install -y locales
 
+[ -f /etc/locale.gen ] && echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+
 locale-gen en_US.UTF-8
 
 dpkg-reconfigure locales
