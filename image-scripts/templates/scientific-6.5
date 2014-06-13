@@ -1,0 +1,25 @@
+#!/bin/bash
+
+BASEDIR=$(realpath ../`dirname ${BASH_SOURCE[0]}`)
+
+DISTNAME=scientific
+RELVER=6.5
+RELEASE=http://mirror.vpsfree.cz/scientific/6.5/x86_64/os/Packages/sl-release-6.5-1.x86_64.rpm
+BASEURL=http://mirror.vpsfree.cz/scientific/6.5/x86_64/os
+UPDATES=http://mirror.vpsfree.cz/scientific/6.5/x86_64/updates/security
+GROUPNAME='base'
+EXTRAPKGS='vim'
+
+. $BASEDIR/include/fedora
+
+bootstrap
+
+cat > ${INSTALL}/tmp/setup.sh <<EOF
+cp /usr/share/zoneinfo/Europe/Prague /etc/localtime
+EOF
+
+chmod +x ${INSTALL}/tmp/setup.sh
+chroot $INSTALL /tmp/setup.sh
+
+pack
+cleanup
