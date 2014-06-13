@@ -9,11 +9,25 @@ trap cleanup SIGINT
 
 INSTALL=$(mktemp -d /tmp/install.XXX)
 DOWNLOAD=$(mktemp -d /tmp/install.download.XXX)
+CONFIGURE=$INSTALL/tmp/configure.sh
+
+function configure-append {
+	cat >> $CONFIGURE
+}
 
 OUTPUT=/tmp/$DISTNAME-$RELVER-x86_64-vpsfree.tar.gz
 
-function pack {
-	pushd $INSTALL
-	tar czvf $OUTPUT .
-	popd
+function run-configure {
+	[ ! -f $CONFIGURE ] && touch $CONFIGURE
+	chmod +x $CONFIGURE
+	chroot $INSTALL /tmp/configure.sh
+	rm -f $CONFIGURE
 }
+
+function pack {
+	echo "Packing template into $OUTPUT ..."
+	pushd $INSTALL > /dev/null
+	tar czf $OUTPUT .
+	popd > /dev/null
+}
+

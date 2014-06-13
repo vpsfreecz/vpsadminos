@@ -46,3 +46,9 @@ EOF
 	$YUM clean all
 
 }
+
+function configure-fedora {
+	configure-append <<EOF
+cp /usr/share/zoneinfo/Europe/Prague /etc/localtime
+EOF
+}

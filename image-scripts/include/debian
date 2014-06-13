@@ -3,29 +3,21 @@
 . $BASEDIR/include/common
 
 function bootstrap {
-
 	debootstrap --arch amd64 $RELNAME $INSTALL $BASEURL
+}
 
-	cat > ${INSTALL}/tmp/setup.sh <<EOF
+function configure-debian {
+	configure-append <<EOF
 locale-gen en_US.UTF-8
 
 dpkg-reconfigure locales
 
 usermod -L root
 
-cat > /etc/apt/sources.list <<"SOURCES"
-deb $BASEURL $RELNAME main restricted universe multiverse
-deb $BASEURL $RELNAME-security main restricted universe multiverse
-deb $BASEURL $RELNAME-updates main restricted universe multiverse
-SOURCES
-
 apt-get update
 apt-get upgrade -y
 export DEBIAN_FRONTEND=noninteractive; apt-get purge -y ureadahead eject ntpdate resolvconf
 apt-get install -y vim openssh-server
-
-sed -i -e 's/^\\\$ModLoad imklog/#\\\$ModLoad imklog/g' /etc/rsyslog.conf
-sed -i -e 's/^PermitRootLogin\ without-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
 
 cp /usr/share/zoneinfo/Europe/Prague /etc/localtime
 
@@ -45,8 +37,4 @@ update-rc.d generate_ssh_keys defaults
 
 apt-get clean
 EOF
-
-	chmod +x ${INSTALL}/tmp/setup.sh
-
-	chroot $INSTALL /tmp/setup.sh
 }

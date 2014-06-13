@@ -14,12 +14,8 @@ EXTRAPKGS='vim'
 
 bootstrap
 
-cat > ${INSTALL}/tmp/setup.sh <<EOF
-cp /usr/share/zoneinfo/Europe/Prague /etc/localtime
-EOF
+configure-fedora
 
-chmod +x ${INSTALL}/tmp/setup.sh
-chroot $INSTALL /tmp/setup.sh
-
+run-configure
 pack
 cleanup
