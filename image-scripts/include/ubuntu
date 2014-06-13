@@ -14,9 +14,9 @@ dpkg-reconfigure locales
 usermod -L root
 
 cat > /etc/apt/sources.list <<"SOURCES"
-deb http://cz.archive.ubuntu.com/ubuntu/ $RELNAME main restricted universe multiverse
-deb http://cz.archive.ubuntu.com/ubuntu/ $RELNAME-security main restricted universe multiverse
-deb http://cz.archive.ubuntu.com/ubuntu/ $RELNAME-updates main restricted universe multiverse
+deb $BASEURL $RELNAME main restricted universe multiverse
+deb $BASEURL $RELNAME-security main restricted universe multiverse
+deb $BASEURL $RELNAME-updates main restricted universe multiverse
 SOURCES
 
 apt-get update
