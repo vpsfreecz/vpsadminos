@@ -10,7 +10,7 @@ function bootstrap {
 
 	curl -o $DOWNLOAD/release.rpm $RELEASE
 
-	rpm --root $INSTALL -ivh $DOWNLOAD/release.rpm
+	rpm --root $INSTALL --nodeps -ivh $DOWNLOAD/release.rpm
 
 	cat > $DOWNLOAD/yum.conf << EOF
 [main]
