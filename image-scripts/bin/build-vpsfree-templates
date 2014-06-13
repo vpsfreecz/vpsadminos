@@ -5,14 +5,29 @@ INCLUDE=$BASEDIR/include
 
 OUTPUT_PREFIX=/tmp
 
-[ $# -lt 1 ] && echo "Usage: build-vpsfree-templates <template> [<template2> ...]" && exit 1
+[ $# -lt 1 ] && \
+	echo "Usage: build-vpsfree-templates all|<template> [<template2> ...]" && \
+	echo -e "\nAvailable templates:\n\n$(ls -1 $BASEDIR/templates | sed 's/\.sh$//g')" && \
+	exit 1
+
+[ $EUID != 0 ] && \
+	echo "build-vpsfree-templates needs to run under root" && \
+	exit 1
 
 . $INCLUDE/common.sh
 
-for template in $*; do
+if [ "$*" == "all" ]; then
+	templates=$(ls -1 $BASEDIR/templates | sed 's/\.sh$//g')
+else
+	templates=$*
+fi
+
+for template in $templates; do
 	[ ! -f $BASEDIR/templates/${template}.sh ] && \
 		echo "Unknown template name: $template" && \
 		exit 1
+
+	echo "Building $template ..."
 
 	DISTNAME=
 	RELVER=
