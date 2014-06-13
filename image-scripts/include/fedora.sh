@@ -49,6 +49,7 @@ EOF
 
 function configure-fedora {
 	configure-append <<EOF
+usermod -L root
 cp /usr/share/zoneinfo/Europe/Prague /etc/localtime
 EOF
 }

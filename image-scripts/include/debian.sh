@@ -4,16 +4,22 @@ function bootstrap {
 
 function configure-debian {
 	configure-append <<EOF
+fakefiles="initctl invoke-rc.d restart start stop start-stop-daemon service"
+for f in \$fakefiles; do
+	ln -s /bin/true /tmp/\$f
+done
+export DEBIAN_FRONTEND=noninteractive;
+PATH=/tmp/:\$PATH apt-get update
+PATH=/tmp/:\$PATH apt-get install -y locales
+
 locale-gen en_US.UTF-8
 
 dpkg-reconfigure locales
 
+PATH=/tmp/:\$PATH apt-get upgrade -y
+PATH=/tmp/:\$PATH apt-get purge -y ureadahead eject ntpdate resolvconf
+PATH=/tmp/:\$PATH apt-get install -y vim openssh-server
 usermod -L root
-
-apt-get update
-apt-get upgrade -y
-export DEBIAN_FRONTEND=noninteractive; apt-get purge -y ureadahead eject ntpdate resolvconf
-apt-get install -y vim openssh-server
 
 cp /usr/share/zoneinfo/Europe/Prague /etc/localtime
 
@@ -31,6 +37,9 @@ update-rc.d generate_ssh_keys defaults
 
 > /etc/resolv.conf
 
-apt-get clean
+apt-cache clean
+for f in \$fakefiles; do
+	rm -f /tmp/\$f
+done
 EOF
 }

@@ -6,7 +6,7 @@ UPDATES=http://ftp.fi.muni.cz/pub/linux/fedora/linux/updates/20/x86_64
 GROUPNAME='minimal install'
 EXTRAPKGS='vim'
 
-. $INCLUDE/fedora
+. $INCLUDE/fedora.sh
 
 bootstrap
 

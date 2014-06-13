@@ -3,7 +3,7 @@ RELVER=14.04
 RELNAME=trusty
 BASEURL=http://cz.archive.ubuntu.com/ubuntu/
 
-. $INCLUDE/debian
+. $INCLUDE/debian.sh
 
 bootstrap
 

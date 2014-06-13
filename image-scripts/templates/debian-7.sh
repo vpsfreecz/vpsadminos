@@ -9,7 +9,7 @@ bootstrap
 
 configure-debian
 
-cat > $INSTALL/etc/apt/sources.list <<"SOURCES"
+cat > $INSTALL/etc/apt/sources.list <<SOURCES
 deb $BASEURL $RELNAME main
 deb-src $BASEURL $RELNAME main
 
