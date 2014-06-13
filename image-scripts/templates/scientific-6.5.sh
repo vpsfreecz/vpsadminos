@@ -1,7 +1,3 @@
-#!/bin/bash
-
-BASEDIR=$(realpath ../`dirname ${BASH_SOURCE[0]}`)
-
 DISTNAME=scientific
 RELVER=6.5
 RELEASE=http://mirror.vpsfree.cz/scientific/6.5/x86_64/os/Packages/sl-release-6.5-1.x86_64.rpm
@@ -10,12 +6,10 @@ UPDATES=http://mirror.vpsfree.cz/scientific/6.5/x86_64/updates/security
 GROUPNAME='base'
 EXTRAPKGS='vim'
 
-. $BASEDIR/include/fedora
+. $INCLUDE/fedora
 
 bootstrap
 
 configure-fedora
 
 run-configure
-pack
-cleanup

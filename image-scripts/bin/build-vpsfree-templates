@@ -1,0 +1,34 @@
+#!/bin/bash
+
+BASEDIR=$(realpath ../`dirname ${BASH_SOURCE[0]}`)
+INCLUDE=$BASEDIR/include
+
+OUTPUT_PREFIX=/tmp
+
+[ $# -lt 1 ] && echo "Usage: build-vpsfree-templates <template> [<template2> ...]" && exit 1
+
+. $INCLUDE/common.sh
+
+for template in $*; do
+	DISTNAME=
+	RELVER=
+	RELNAME=
+	BASEURL=
+	UPDATES=
+	GROUPNAME=
+	EXTRAPKGS=
+	INSTALL=$(mktemp -d /tmp/install.XXX)
+	DOWNLOAD=$(mktemp -d /tmp/install.download.XXX)
+	CONFIGURE=$INSTALL/tmp/configure.sh
+
+
+	[ ! -f $BASEDIR/templates/${template}.sh ] && \
+		echo "Unknown template name: $template" && \
+		exit 1
+
+	. $BASEDIR/templates/${template}.sh
+
+	OUTPUT=$OUTPUT_PREFIX/$DISTNAME-$RELVER-x86_64-vpsfree.tar.gz
+	pack
+	cleanup
+done

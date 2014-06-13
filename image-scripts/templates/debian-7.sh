@@ -1,13 +1,9 @@
-#!/bin/bash
-
-BASEDIR=$(realpath ../`dirname ${BASH_SOURCE[0]}`)
-
 DISTNAME=debian
 RELVER=7
 RELNAME=wheezy
 BASEURL=http://ftp.cz.debian.org/debian
 
-. $BASEDIR/include/debian
+. $INCLUDE/debian.sh
 
 bootstrap
 
@@ -25,5 +21,3 @@ deb-src http://security.debian.org/ $RELNAME/updates main
 SOURCES
 
 run-configure
-pack
-cleanup

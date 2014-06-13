@@ -1,13 +1,9 @@
-#!/bin/bash
-
-BASEDIR=$(realpath ../`dirname ${BASH_SOURCE[0]}`)
-
 DISTNAME=ubuntu
 RELVER=14.04
 RELNAME=trusty
 BASEURL=http://cz.archive.ubuntu.com/ubuntu/
 
-. $BASEDIR/include/debian
+. $INCLUDE/debian
 
 bootstrap
 
@@ -25,5 +21,3 @@ sed -i -e 's/^PermitRootLogin\ without-password/PermitRootLogin yes/g' /etc/ssh/
 EOF
 
 run-configure
-pack
-cleanup

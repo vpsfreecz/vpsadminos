@@ -1,7 +1,3 @@
-#!/bin/bash
-
-. $BASEDIR/include/common
-
 function bootstrap {
 	debootstrap --arch amd64 $RELNAME $INSTALL $BASEURL
 }

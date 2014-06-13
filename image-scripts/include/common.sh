@@ -1,5 +1,3 @@
-#!/bin/bash
-
 function cleanup {
         rm -Rf $INSTALL
         rm -Rf $DOWNLOAD
@@ -7,15 +5,9 @@ function cleanup {
 
 trap cleanup SIGINT
 
-INSTALL=$(mktemp -d /tmp/install.XXX)
-DOWNLOAD=$(mktemp -d /tmp/install.download.XXX)
-CONFIGURE=$INSTALL/tmp/configure.sh
-
 function configure-append {
 	cat >> $CONFIGURE
 }
-
-OUTPUT=/tmp/$DISTNAME-$RELVER-x86_64-vpsfree.tar.gz
 
 function run-configure {
 	[ ! -f $CONFIGURE ] && touch $CONFIGURE
