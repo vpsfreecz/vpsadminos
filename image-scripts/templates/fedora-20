@@ -13,5 +13,18 @@ EXTRAPKGS='vim'
 . $BASEDIR/include/fedora
 
 bootstrap
+
+cat > ${INSTALL}/tmp/setup.sh <<EOF
+systemctl disable NetworkManager.service
+systemctl disable NetworkManager-wait-online.service
+systemctl disable NetworkManager-dispatcher.service
+systemctl enable  network.service
+
+cp /usr/share/zoneinfo/Europe/Prague /etc/localtime
+EOF
+
+chmod +x ${INSTALL}/tmp/setup.sh
+chroot $INSTALL /tmp/setup.sh
+
 pack
 cleanup
