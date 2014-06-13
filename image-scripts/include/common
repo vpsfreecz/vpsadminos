@@ -1,0 +1,19 @@
+#!/bin/bash
+
+function cleanup {
+        rm -Rf $INSTALL
+        rm -Rf $DOWNLOAD
+}
+
+trap cleanup SIGINT
+
+INSTALL=$(mktemp -d /tmp/install.XXX)
+DOWNLOAD=$(mktemp -d /tmp/install.download.XXX)
+
+OUTPUT=/tmp/$DISTNAME-$RELVER-x86_64-vpsfree.tar.gz
+
+function pack {
+	pushd $INSTALL
+	tar czvf $OUTPUT .
+	popd
+}

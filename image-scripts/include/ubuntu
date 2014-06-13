@@ -1,18 +1,12 @@
 #!/bin/bash
 
-OUTPUT=/tmp/ubuntu-14.04-x86_64-vpsfree.tar.gz
+. $BASEDIR/include/common
 
-INSTALL=$(mktemp -d /tmp/install.XXX)
+function bootstrap {
 
-function cleanup {
-	rm -Rf $INSTALL
-}
+	debootstrap --arch amd64 $RELNAME $INSTALL $BASEURL
 
-trap cleanup SIGINT
-
-debootstrap --arch amd64 trusty $INSTALL http://cz.archive.ubuntu.com/ubuntu/
-
-cat > ${INSTALL}/tmp/setup.sh <<"EOF"
+	cat > ${INSTALL}/tmp/setup.sh <<EOF
 locale-gen en_US.UTF-8
 
 dpkg-reconfigure locales
@@ -20,9 +14,9 @@ dpkg-reconfigure locales
 usermod -L root
 
 cat > /etc/apt/sources.list <<"SOURCES"
-deb http://cz.archive.ubuntu.com/ubuntu/ trusty main restricted universe multiverse
-deb http://cz.archive.ubuntu.com/ubuntu/ trusty-security main restricted universe multiverse
-deb http://cz.archive.ubuntu.com/ubuntu/ trusty-updates main restricted universe multiverse
+deb http://cz.archive.ubuntu.com/ubuntu/ $RELNAME main restricted universe multiverse
+deb http://cz.archive.ubuntu.com/ubuntu/ $RELNAME-security main restricted universe multiverse
+deb http://cz.archive.ubuntu.com/ubuntu/ $RELNAME-updates main restricted universe multiverse
 SOURCES
 
 apt-get update
@@ -30,7 +24,7 @@ apt-get upgrade -y
 export DEBIAN_FRONTEND=noninteractive; apt-get purge -y ureadahead eject ntpdate resolvconf
 apt-get install -y vim openssh-server
 
-sed -i -e 's/^\$ModLoad imklog/#\$ModLoad imklog/g' /etc/rsyslog.conf
+sed -i -e 's/^\\\$ModLoad imklog/#\\\$ModLoad imklog/g' /etc/rsyslog.conf
 sed -i -e 's/^PermitRootLogin\ without-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
 
 cp /usr/share/zoneinfo/Europe/Prague /etc/localtime
@@ -52,12 +46,7 @@ update-rc.d generate_ssh_keys defaults
 apt-get clean
 EOF
 
-chmod +x ${INSTALL}/tmp/setup.sh
+	chmod +x ${INSTALL}/tmp/setup.sh
 
-chroot $INSTALL /tmp/setup.sh
-
-pushd $INSTALL
-tar czvf $OUTPUT .
-popd
-
-cleanup
+	chroot $INSTALL /tmp/setup.sh
+}

@@ -1,0 +1,14 @@
+#!/bin/bash
+
+BASEDIR=$(realpath ../`dirname ${BASH_SOURCE[0]}`)
+
+DISTNAME=ubuntu
+RELVER=14.04
+RELNAME=trusty
+BASEURL=http://cz.archive.ubuntu.com/ubuntu/
+
+. $BASEDIR/include/ubuntu
+
+bootstrap
+pack
+cleanup
