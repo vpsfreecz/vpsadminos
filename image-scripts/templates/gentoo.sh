@@ -21,14 +21,19 @@ tar xvjpf ${DOWNLOAD}/${STAGE3TARBALL} -C $INSTALL
 
 configure-append <<EOF
 echo 'LANG="en_US.UTF-8"' >/etc/env.d/02locale
-echo 'GENTOO_MIRRORS="http://ftp.fi.muni.cz/pub/linux/gentoo/"' >> /etc/portage/make.conf
+echo 'GENTOO_MIRRORS="$BASEURL/"' >> /etc/portage/make.conf
 echo 'SYNC="rsync://rsync.europe.gentoo.org/gentoo-portage"' >> /etc/portage/make.conf
-emerge-webrsync -v
 echo "Europe/Prague" > /etc/timezone
 cp /usr/share/zoneinfo/Europe/Prague /etc/localtime
 rm -f /etc/mtab
 ln -s /proc/mounts /etc/mtab
-touch /etc/conf.d/net
+cat >/etc/conf.d/net <<CONFDNET
+postup() {
+        [ \\\$IFACE == 'venet0' ] && ip -6 route add default dev venet0
+}
+CONFDNET
+emerge-webrsync -v
+emerge iproute2
 sed -ri 's/^#rc_sys=""/rc_sys="openvz"/' /etc/rc.conf
 sed -ri 's/^([^#].*agetty.*)$/#\1/' /etc/inittab
 rc-update add sshd default
