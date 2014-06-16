@@ -36,6 +36,7 @@ postup() {
 CONFDNET
 emerge-webrsync -v
 emerge iproute2
+emerge vim
 sed -ri 's/^#rc_sys=""/rc_sys="openvz"/' /etc/rc.conf
 sed -ri 's/^([^#].*agetty.*)$/#\1/' /etc/inittab
 rc-update add sshd default
