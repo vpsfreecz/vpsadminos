@@ -19,6 +19,8 @@ fi
 echo "Unpacking Stage3..."
 tar xjpf ${DOWNLOAD}/${STAGE3TARBALL} -C $INSTALL 
 
+cp /etc/resolv.conf $INSTALL/etc/
+
 configure-append <<EOF
 echo 'LANG="en_US.UTF-8"' >/etc/env.d/02locale
 echo 'GENTOO_MIRRORS="$BASEURL/"' >> /etc/portage/make.conf
@@ -39,6 +41,8 @@ sed -ri 's/^([^#].*agetty.*)$/#\1/' /etc/inittab
 rc-update add sshd default
 rc-update delete udev sysinit
 rc-update delete udev-mount sysinit
+
+> /etc/resolv.conf
 EOF
 
 run-configure
