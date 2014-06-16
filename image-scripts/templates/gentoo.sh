@@ -17,7 +17,7 @@ then
 fi	
 
 echo "Unpacking Stage3..."
-tar xvjpf ${DOWNLOAD}/${STAGE3TARBALL} -C $INSTALL 
+tar xjpf ${DOWNLOAD}/${STAGE3TARBALL} -C $INSTALL 
 
 configure-append <<EOF
 echo 'LANG="en_US.UTF-8"' >/etc/env.d/02locale
