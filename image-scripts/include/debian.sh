@@ -23,8 +23,6 @@ PATH=/tmp/:\$PATH apt-get purge -y ureadahead eject ntpdate resolvconf
 PATH=/tmp/:\$PATH apt-get install -y vim openssh-server
 usermod -L root
 
-cp /usr/share/zoneinfo/Europe/Prague /etc/localtime
-
 rm -f /etc/ssh/ssh_host_*
 
 cat > /etc/init.d/generate_ssh_keys <<"GENSSH"

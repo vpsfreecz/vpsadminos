@@ -6,6 +6,7 @@ BASEURL=http://cz.archive.ubuntu.com/ubuntu/
 . $INCLUDE/debian.sh
 
 bootstrap
+configure-common
 
 cat > $INSTALL/etc/apt/sources.list <<SOURCES
 deb $BASEURL $RELNAME main restricted universe multiverse

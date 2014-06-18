@@ -25,7 +25,6 @@ systemctl disable NetworkManager-wait-online.service
 systemctl disable NetworkManager-dispatcher.service
 systemctl enable  network.service
 usermod -L root
-cp /usr/share/zoneinfo/Europe/Prague /etc/localtime
 systemctl enable sshd
 EOF
 }

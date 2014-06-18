@@ -21,14 +21,13 @@ tar xjpf ${DOWNLOAD}/${STAGE3TARBALL} -C $INSTALL
 
 cp /etc/resolv.conf $INSTALL/etc/
 
+configure-common
+
 configure-append <<EOF
 echo 'LANG="en_US.UTF-8"' >/etc/env.d/02locale
 echo 'GENTOO_MIRRORS="$BASEURL/"' >> /etc/portage/make.conf
 echo 'SYNC="rsync://rsync.europe.gentoo.org/gentoo-portage"' >> /etc/portage/make.conf
 echo "Europe/Prague" > /etc/timezone
-cp /usr/share/zoneinfo/Europe/Prague /etc/localtime
-rm -f /etc/mtab
-ln -s /proc/mounts /etc/mtab
 cat >/etc/conf.d/net <<CONFDNET
 postup() {
         [ \\\$IFACE == 'venet0' ] && ip -6 route add default dev venet0

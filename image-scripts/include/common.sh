@@ -10,6 +10,14 @@ function configure-append {
 	cat >> $CONFIGURE
 }
 
+function configure-common {
+	append-configure <<EOF
+rm -f /etc/mtab
+ln -s /proc/mounts /etc/mtab
+cp /usr/share/zoneinfo/Europe/Prague /etc/localtime
+EOF
+}
+
 function run-configure {
 	[ ! -f $CONFIGURE ] && touch $CONFIGURE
 	chmod +x $CONFIGURE

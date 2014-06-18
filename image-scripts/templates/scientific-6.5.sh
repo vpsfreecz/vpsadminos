@@ -9,6 +9,7 @@ EXTRAPKGS='vim'
 . $INCLUDE/fedora.sh
 
 bootstrap
+configure-common
 
 configure-fedora
 

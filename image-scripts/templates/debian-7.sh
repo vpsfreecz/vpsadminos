@@ -7,6 +7,7 @@ BASEURL=http://ftp.cz.debian.org/debian
 
 bootstrap
 
+configure-common
 configure-debian
 
 cat > $INSTALL/etc/apt/sources.list <<SOURCES
