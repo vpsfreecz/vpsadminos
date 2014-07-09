@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. $BASEDIR/include/common
+. $BASEDIR/include/common.sh
 
 YUM="yum -c $DOWNLOAD/yum.conf --installroot=$INSTALL --disablerepo=* --enablerepo=install-$DISTNAME --enablerepo=install-$DISTNAME-updates -y"
 

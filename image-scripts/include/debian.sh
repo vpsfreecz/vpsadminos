@@ -9,13 +9,17 @@ for f in \$fakefiles; do
 	ln -s /bin/true /tmp/\$f
 done
 export DEBIAN_FRONTEND=noninteractive;
-PATH=/tmp/:\$PATH apt-get update
-PATH=/tmp/:\$PATH apt-get install -y locales
 
-[ -f /etc/locale.gen ] && echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+export LANGUAGE=en_US.UTF-8
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+
+echo "en_US.UTF-8 UTF-8" > /etc/locale.gen
+
+PATH=/tmp/:\$PATH apt-get update
+PATH=/tmp/:\$PATH apt-get install -y --force-yes locales
 
 locale-gen en_US.UTF-8
-
 dpkg-reconfigure locales
 
 PATH=/tmp/:\$PATH apt-get upgrade -y
@@ -37,7 +41,7 @@ update-rc.d generate_ssh_keys defaults
 
 > /etc/resolv.conf
 
-apt-cache clean
+apt-get clean
 for f in \$fakefiles; do
 	rm -f /tmp/\$f
 done

@@ -11,7 +11,7 @@ function configure-append {
 }
 
 function configure-common {
-	append-configure <<EOF
+	configure-append <<EOF
 rm -f /etc/mtab
 ln -s /proc/mounts /etc/mtab
 cp /usr/share/zoneinfo/Europe/Prague /etc/localtime
