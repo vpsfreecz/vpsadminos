@@ -40,7 +40,6 @@ EOF
 	mkdir -p $DOWNLOAD/var/cache/yum
 	mkdir -p $DOWNLOAD/var/log
 
-
 	$YUM groupinstall "$GROUPNAME"
 	$YUM install "$EXTRAPKGS"
 	$YUM clean all

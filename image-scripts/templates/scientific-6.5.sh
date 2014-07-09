@@ -13,4 +13,8 @@ configure-common
 
 configure-fedora
 
+cat > $INSTALL/etc/fstab << EOF
+none    /dev/pts        devpts  rw      0       0
+EOF
+
 run-configure
