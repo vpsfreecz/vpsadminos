@@ -1,5 +1,5 @@
 function bootstrap {
-	debootstrap --arch amd64 $RELNAME $INSTALL $BASEURL
+	debootstrap --include locales --arch amd64 $RELNAME $INSTALL $BASEURL
 }
 
 function configure-debian {
@@ -10,18 +10,12 @@ for f in \$fakefiles; do
 done
 export DEBIAN_FRONTEND=noninteractive;
 
-export LANGUAGE=en_US.UTF-8
-export LANG=en_US.UTF-8
-export LC_ALL=en_US.UTF-8
-
-echo "en_US.UTF-8 UTF-8" > /etc/locale.gen
-
-PATH=/tmp/:\$PATH apt-get update
-PATH=/tmp/:\$PATH apt-get install -y --force-yes locales
+[ -f /etc/locale.gen ] && echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
 
 locale-gen en_US.UTF-8
 dpkg-reconfigure locales
 
+PATH=/tmp/:\$PATH apt-get update
 PATH=/tmp/:\$PATH apt-get upgrade -y
 PATH=/tmp/:\$PATH apt-get purge -y ureadahead eject ntpdate resolvconf
 PATH=/tmp/:\$PATH apt-get install -y vim openssh-server
