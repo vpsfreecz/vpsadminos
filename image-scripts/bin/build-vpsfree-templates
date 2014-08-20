@@ -3,7 +3,7 @@
 BASEDIR=$(realpath `dirname ${BASH_SOURCE[0]}`/..)
 INCLUDE=$BASEDIR/include
 
-OUTPUT_PREFIX=/tmp
+OUTPUT_PREFIX=/var/build
 
 [ $# -lt 1 ] && \
 	echo "Usage: build-vpsfree-templates all|<template> [<template2> ...]" && \
@@ -13,6 +13,9 @@ OUTPUT_PREFIX=/tmp
 [ $EUID != 0 ] && \
 	echo "build-vpsfree-templates needs to run under root" && \
 	exit 1
+
+[ ! -d "/var/build" ] && \
+	mkdir /var/build
 
 . $INCLUDE/common.sh
 
@@ -36,8 +39,8 @@ for template in $templates; do
 	UPDATES=
 	GROUPNAME=
 	EXTRAPKGS=
-	INSTALL=$(mktemp -d /tmp/install.XXX)
-	DOWNLOAD=$(mktemp -d /tmp/install.download.XXX)
+	INSTALL=$(mktemp -d /var/build/install.XXX)
+	DOWNLOAD=$(mktemp -d /var/build/install.download.XXX)
 	CONFIGURE=$INSTALL/tmp/configure.sh
 
 	. $BASEDIR/templates/${template}.sh
