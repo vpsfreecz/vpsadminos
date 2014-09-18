@@ -6,7 +6,7 @@ UPDATES=http://mirror.vpsfree.cz/scientific/6.5/x86_64/updates/security
 GROUPNAME='base'
 EXTRAPKGS='vim'
 
-. $INCLUDE/fedora.sh
+. $INCLUDE/redhat-family.sh
 
 bootstrap
 configure-common
