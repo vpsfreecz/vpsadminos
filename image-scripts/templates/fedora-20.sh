@@ -11,7 +11,7 @@ EXTRAPKGS='vim'
 bootstrap
 configure-common
 
-configure-fedora
+configure-redhat-common
 
 configure-append <<EOF
 systemctl disable NetworkManager.service

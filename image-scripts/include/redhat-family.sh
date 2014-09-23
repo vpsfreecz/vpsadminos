@@ -46,7 +46,7 @@ EOF
 
 }
 
-function configure-fedora {
+function configure-redhat-common {
 	configure-append <<EOF
 usermod -L root
 rm -f /etc/ssh/ssh_host_*

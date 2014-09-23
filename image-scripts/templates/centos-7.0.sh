@@ -21,6 +21,7 @@ configure-append <<EOF
 /usr/bin/systemctl disable NetworkManager-dispatcher.service
 /usr/sbin/chkconfig network on
 /usr/bin/systemctl disable firewalld.service
+sed -i "s/\[1\-6\]/\[0\-6\]/" /etc/init/start-ttys.conf
 EOF
 
 run-configure

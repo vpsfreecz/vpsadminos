@@ -19,6 +19,12 @@ configure-debian
 configure-append <<EOF
 sed -i -e 's/^\\\$ModLoad imklog/#\\\$ModLoad imklog/g' /etc/rsyslog.conf
 sed -i -e 's/^PermitRootLogin\ without-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
+cat > /etc/init/tty0.conf <<"TTY0"
+start on stopped rc or RUNLEVEL=[2345]
+stop on runlevel [!2345]
+respawn
+exec /sbin/getty -L 38400 tty0 vt102
+TTY0
 EOF
 
 run-configure

@@ -11,10 +11,14 @@ EXTRAPKGS='vim'
 bootstrap
 configure-common
 
-configure-fedora
+configure-redhat-common
 
 cat > $INSTALL/etc/fstab << EOF
 none    /dev/pts        devpts  rw      0       0
+EOF
+
+configure-append <<EOF
+sed -i "s/\[1\-6\]/\[0\-6\]/" /etc/init/start-ttys.conf
 EOF
 
 run-configure

@@ -17,6 +17,7 @@ configure-redhat-common
 configure-append <<EOF
 /sbin/chkconfig network on
 /sbin/chkconfig iptables off
+sed -i "s/\[1\-6\]/\[0\-6\]/" /etc/init/start-ttys.conf
 EOF
 
 run-configure
