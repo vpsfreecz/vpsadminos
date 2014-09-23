@@ -43,7 +43,6 @@ CHROOT2="$CHROOT arch-chroot /mnt"
 # Downgrade systemd
 mkdir -p $INSTALL2/root/pkgs
 cp $BASEDIR/packages/arch/* $INSTALL2/root/pkgs
-$CHROOT2 pacman -Rnsdd --noconfirm libsystemd
 for lpkg in `cd $INSTALL2/root/pkgs && ls -1 *.pkg.tar.xz`; do
 	$CHROOT2 pacman -U --noconfirm /root/pkgs/$lpkg
 done
