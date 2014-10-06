@@ -53,7 +53,7 @@ $CHROOT2 pacman -Rns --noconfirm linux
 yes | $CHROOT2 pacman -Scc
 $CHROOT2 ln -s /usr/share/zoneinfo/Europe/Prague /etc/localtime
 $CHROOT2 systemctl enable sshd
-sed -ri 's/^#( *IgnorePkg *=.*)$/\1 systemd systemd-sysvcompat python2-systemd/' $INSTALL2/etc/pacman.conf
+sed -ri 's/^#( *IgnorePkg *=.*)$/\1 libsystemd systemd systemd-sysvcompat python2-systemd/' $INSTALL2/etc/pacman.conf
 
 
 cd $INSTALL
