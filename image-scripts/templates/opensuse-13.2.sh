@@ -1,5 +1,5 @@
 DISTNAME=openSUSE
-RELVER=13.1
+RELVER=13.2
 
 . $INCLUDE/opensuse.sh
 
