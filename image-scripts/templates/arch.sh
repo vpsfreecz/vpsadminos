@@ -20,6 +20,7 @@ gzip -dc $DOWNLOAD/$bfile | tar x --preserve-permissions --preserve-order --nume
 INSTALL1=$INSTALL/root.x86_64
 
 sed -ri 's/^#(.*vpsfree\.cz.*)$/\1/' $INSTALL1/etc/pacman.d/mirrorlist
+sed -ri 's/( unshare --fork --pid )/ /' $INSTALL1/usr/bin/arch-chroot
 CHROOT="$INSTALL1/bin/arch-chroot $INSTALL1"
 # Initializing pacman keyring
 $CHROOT pacman-key --init
