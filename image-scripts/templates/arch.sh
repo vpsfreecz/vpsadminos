@@ -21,10 +21,8 @@ INSTALL1=$INSTALL/root.x86_64
 
 sed -ri 's/^#(.*vpsfree\.cz.*)$/\1/' $INSTALL1/etc/pacman.d/mirrorlist
 sed -ri 's/( unshare --fork --pid )/ /' $INSTALL1/usr/bin/arch-chroot
+sed -ri 's/^SigLevel    = Required DatabaseOptional$/SigLevel    = Never/' $INSTALL1/etc/pacman.conf
 CHROOT="$INSTALL1/bin/arch-chroot $INSTALL1"
-# Initializing pacman keyring
-$CHROOT pacman-key --init
-$CHROOT pacman-key --populate archlinux
 
 # Install the base system
 $CHROOT pacstrap -dG /mnt base openssh
