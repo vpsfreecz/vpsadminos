@@ -22,7 +22,8 @@ deb-src http://security.debian.org/ $RELNAME/updates main
 SOURCES
 
 configure-append <<EOF
-echo "1:2345:respawn:/sbin/getty 38400 tty0" >> /etc/inittab
+sed -i -e '/^[2-6]\:/ s/^#*/#/' /etc/inittab
+sed -i 's/tty1/tty0/' /etc/inittab
 EOF
 
 run-configure
