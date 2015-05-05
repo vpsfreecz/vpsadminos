@@ -35,6 +35,8 @@ for template in $templates; do
 	DISTNAME=
 	RELVER=
 	RELNAME=
+	EXTRAVER=
+	OUTPUT_SUFFIX=
 	BASEURL=
 	UPDATES=
 	GROUPNAME=
@@ -45,7 +47,10 @@ for template in $templates; do
 
 	. $BASEDIR/templates/${template}.sh
 
-	OUTPUT=$OUTPUT_PREFIX/$DISTNAME-$RELVER-x86_64-vpsfree.tar.gz
+	[ "$EXTRAVER" != ""] && \
+		OUTPUT_SUFFIX="-$EXTRAVER"
+
+	OUTPUT=$OUTPUT_PREFIX/$DISTNAME-$RELVER-x86_64-vpsfree${OUTPUT_SUFFIX}.tar.gz
 	pack
 	cleanup
 done
