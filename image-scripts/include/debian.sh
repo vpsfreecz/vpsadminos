@@ -18,7 +18,7 @@ dpkg-reconfigure locales
 PATH=/tmp/:\$PATH apt-get update
 PATH=/tmp/:\$PATH apt-get upgrade -y
 PATH=/tmp/:\$PATH apt-get purge -y ureadahead eject ntpdate resolvconf
-PATH=/tmp/:\$PATH apt-get install -y vim openssh-server
+PATH=/tmp/:\$PATH apt-get install -y vim openssh-server ca-certificates
 usermod -L root
 
 rm -f /etc/ssh/ssh_host_*
@@ -27,6 +27,8 @@ cat > /etc/init.d/generate_ssh_keys <<"GENSSH"
 #!/bin/bash
 ssh-keygen -f /etc/ssh/ssh_host_rsa_key -t rsa -N ''
 ssh-keygen -f /etc/ssh/ssh_host_dsa_key -t dsa -N ''
+ssh-keygen -f /etc/ssh/ssh_host_ecdsa_key -t ecdsa -N ''
+ssh-keygen -f /etc/ssh/ssh_host_ed25519_key -t ed25519 -N ''
 rm -f /etc/init.d/generate_ssh_keys
 GENSSH
 
