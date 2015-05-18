@@ -6,7 +6,7 @@ RELEASE=http://vault.centos.org/${RELVER}.${BUILD}/os/x86_64/Packages/centos-rel
 BASEURL=http://vault.centos.org/${RELVER}.${BUILD}/os/x86_64
 UPDATES=http://vault.centos.org/${RELVER}.${BUILD}/updates/x86_64/
 GROUPNAME='core'
-EXTRAPKGS='vim'
+EXTRAPKGS='vim man'
 
 . $INCLUDE/redhat-family.sh
 
