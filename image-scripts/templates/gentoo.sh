@@ -43,7 +43,7 @@ rc-update delete udev sysinit
 rc-update delete udev-mount sysinit
 
 > /etc/resolv.conf
-echo "c0:2345:respawn:/sbin/agetty --noreset 38400 tty0" > /etc/inittab
+echo "c0:2345:respawn:/sbin/agetty --noreset 38400 tty0" >> /etc/inittab
 EOF
 
 run-configure
