@@ -2,15 +2,29 @@
 
 . $BASEDIR/include/common.sh
 
-YUM="yum -c $DOWNLOAD/yum.conf --installroot=$INSTALL --disablerepo=* --enablerepo=install-$DISTNAME --enablerepo=install-$DISTNAME-updates -y"
+if [ "$DISTNAME" == "fedora" ] && [ "$RELVER" -ge 22 ]; then
+	YUM="dnf -c $DOWNLOAD/yum.conf --installroot=$INSTALL \
+		--disablerepo=* --enablerepo=install-$DISTNAME \
+		--enablerepo=install-$DISTNAME-updates -y"
+	YUM_GROUPINSTALL="$YUM group install"
+else
+	YUM="yum -c $DOWNLOAD/yum.conf --installroot=$INSTALL \
+		--disablerepo=* --enablerepo=install-$DISTNAME \
+		--enablerepo=install-$DISTNAME-updates -y"
+	YUM_GROUPINSTALL="$YUM groupinstall"
+fi
 
 function bootstrap {
 	mkdir -p ${INSTALL}/var/lib/rpm
 	rpm --root $INSTALL --initdb
 
-	curl -o $DOWNLOAD/release.rpm $RELEASE
-
-	rpm --root $INSTALL --nodeps -ivh $DOWNLOAD/release.rpm
+	nrpm=0	
+	for rpm in $RELEASE; do
+		nrpm=$(( $nrpm + 1 ))
+		echo "Downloading #${nrpm} $rpm"
+		curl -o $DOWNLOAD/release${nrpm}.rpm $rpm
+		rpm --root $INSTALL --nodeps -ivh $DOWNLOAD/release${nrpm}.rpm
+	done
 
 	cat > $DOWNLOAD/yum.conf << EOF
 [main]
@@ -40,8 +54,11 @@ EOF
 	mkdir -p $DOWNLOAD/var/cache/yum
 	mkdir -p $DOWNLOAD/var/log
 
-	$YUM groupinstall "$GROUPNAME"
-	$YUM install "$EXTRAPKGS"
+	$YUM_GROUPINSTALL "$GROUPNAME"
+	for rpm in $EXTRAPKGS; do
+		$YUM install $rpm
+	done
+
 	$YUM clean all
 
 }
