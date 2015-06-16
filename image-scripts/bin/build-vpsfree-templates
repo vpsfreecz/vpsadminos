@@ -47,7 +47,7 @@ for template in $templates; do
 
 	. $BASEDIR/templates/${template}.sh
 
-	[ "$EXTRAVER" != ""] && \
+	[ "$EXTRAVER" != "" ] && \
 		OUTPUT_SUFFIX="-$EXTRAVER"
 
 	OUTPUT=$OUTPUT_PREFIX/$DISTNAME-$RELVER-x86_64-vpsfree${OUTPUT_SUFFIX}.tar.gz
