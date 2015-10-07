@@ -5,6 +5,7 @@
 REPOSITORY=http://download.opensuse.org/distribution/$RELVER/repo/oss
 UPDATES=http://download.opensuse.org/update/$RELVER/
 EXTRAPKGS='vim'
+REMOVEPKGS='apache2-utils apache2-prefork apache2 postfix'
 
 ZYPPER="zypper -v --root=$INSTALL --non-interactive --no-gpg-checks "
 
@@ -15,6 +16,7 @@ function bootstrap {
         $ZYPPER install openSUSE-release 
         $ZYPPER install -t pattern base sw_management
         $ZYPPER install $EXTRAPKGS
+        $ZYPPER rm $REMOVEPKGS
 	
 }
 
