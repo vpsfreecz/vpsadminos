@@ -2,8 +2,14 @@
 
 . $BASEDIR/include/common.sh
 
-REPOSITORY=http://download.opensuse.org/distribution/$RELVER/repo/oss
-UPDATES=http://download.opensuse.org/update/$RELVER/
+if [ $DISTNAME == "openSUSE-leap" ]; then
+    REPOSITORY=http://download.opensuse.org/distribution/leap/$RELVER/repo/oss/
+    UPDATES=http://download.opensuse.org/update/leap/$RELVER/oss/
+else
+    REPOSITORY=http://download.opensuse.org/distribution/$RELVER/repo/oss/
+    UPDATES=http://download.opensuse.org/update/$RELVER/
+fi
+
 EXTRAPKGS='vim'
 REMOVEPKGS='apache2-utils apache2-prefork apache2 postfix'
 
