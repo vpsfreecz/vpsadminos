@@ -1,4 +1,6 @@
 function bootstrap {
+	mkdir $INSTALL/etc
+	echo nameserver 8.8.8.8 > $INSTALL/etc/resolv.conf
 	debootstrap --include locales --arch amd64 $RELNAME $INSTALL $BASEURL
 }
 
@@ -17,8 +19,8 @@ dpkg-reconfigure locales
 
 PATH=/tmp/:\$PATH apt-get update
 PATH=/tmp/:\$PATH apt-get upgrade -y
-PATH=/tmp/:\$PATH apt-get purge -y ureadahead eject ntpdate resolvconf
 PATH=/tmp/:\$PATH apt-get install -y vim openssh-server ca-certificates man
+PATH=/tmp/:\$PATH apt-get purge -y ureadahead eject ntpdate resolvconf
 usermod -L root
 
 rm -f /etc/ssh/ssh_host_*
