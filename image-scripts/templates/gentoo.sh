@@ -39,7 +39,6 @@ sed -ri 's/^#rc_sys=""/rc_sys="openvz"/' /etc/rc.conf
 sed -ri 's/^([^#].*agetty.*)$/#\1/' /etc/inittab
 rc-update add sshd default
 rc-update delete udev sysinit
-rc-update delete udev-mount sysinit
 
 > /etc/resolv.conf
 echo "c0:2345:respawn:/sbin/agetty --noreset 38400 tty0" >> /etc/inittab
