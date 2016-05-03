@@ -41,6 +41,9 @@ rc-update add sshd default
 rc-update delete udev sysinit
 eselect news read
 
+sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+
 > /etc/resolv.conf
 echo "c0:2345:respawn:/sbin/agetty --noreset 38400 tty0" >> /etc/inittab
 EOF
