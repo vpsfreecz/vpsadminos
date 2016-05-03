@@ -1,5 +1,12 @@
+function umount_install {
+        umount $INSTALL/dev
+        umount $INSTALL/sys
+        umount $INSTALL/proc
+}
+
 function cleanup {
 	echo "Cleanup ..."
+        umount_install
         rm -Rf $INSTALL
         rm -Rf $DOWNLOAD
 }
@@ -21,7 +28,11 @@ EOF
 function run-configure {
 	[ ! -f $CONFIGURE ] && touch $CONFIGURE
 	chmod +x $CONFIGURE
+        mount -t proc proc $INSTALL/proc
+        mount -t sysfs sys $INSTALL/sys
+        mount --bind /dev $INSTALL/dev
 	chroot $INSTALL /tmp/configure.sh
+        umount_install
 	rm -f $CONFIGURE
 }
 
