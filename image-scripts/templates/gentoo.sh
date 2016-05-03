@@ -1,5 +1,5 @@
 DISTNAME=gentoo
-RELVER=13.0
+RELVER=13.0-$(date +%Y%m%d)
 BASEURL=http://mirror.vpsfree.cz/gentoo
 
 
