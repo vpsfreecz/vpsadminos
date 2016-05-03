@@ -1,6 +1,6 @@
 DISTNAME=gentoo
 RELVER=13.0
-BASEURL=http://ftp.fi.muni.cz/pub/linux/gentoo
+BASEURL=http://mirror.vpsfree.cz/gentoo
 
 
 STAGE3BASEURL="${BASEURL}/releases/amd64/autobuilds"
@@ -25,8 +25,7 @@ configure-common
 
 configure-append <<EOF
 echo 'LANG="en_US.UTF-8"' >/etc/env.d/02locale
-echo 'GENTOO_MIRRORS="$BASEURL/"' >> /etc/portage/make.conf
-echo 'SYNC="rsync://rsync.europe.gentoo.org/gentoo-portage"' >> /etc/portage/make.conf
+echo 'GENTOO_MIRRORS="$BASEURL/ http://ftp.fi.muni.cz/pub/linux/gentoo/"' >> /etc/portage/make.conf
 echo "Europe/Prague" > /etc/timezone
 cat >/etc/conf.d/net <<CONFDNET
 postup() {
