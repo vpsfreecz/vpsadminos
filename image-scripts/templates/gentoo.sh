@@ -4,7 +4,7 @@ BASEURL=http://ftp.fi.muni.cz/pub/linux/gentoo
 
 
 STAGE3BASEURL="${BASEURL}/releases/amd64/autobuilds"
-STAGE3TARBALLURL="${STAGE3BASEURL}/$(curl "${STAGE3BASEURL}/latest-stage3-amd64.txt" | grep -m 1 'stage3-amd64.*tar\.bz2$')"
+STAGE3TARBALLURL="${STAGE3BASEURL}/$(curl "${STAGE3BASEURL}/latest-stage3-amd64.txt" | grep -o -m 1 -P '^\d+/stage3-amd64-\d+.tar.bz2')"
 STAGE3TARBALL="$(basename $STAGE3TARBALLURL)"
 
 
