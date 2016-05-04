@@ -1,4 +1,4 @@
-DISTNAME=openSUSE-leap
+DISTNAME=suse-leap
 RELVER=42.1
 
 . $INCLUDE/opensuse.sh

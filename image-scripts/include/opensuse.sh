@@ -2,7 +2,7 @@
 
 . $BASEDIR/include/common.sh
 
-if [ $DISTNAME == "openSUSE-leap" ]; then
+if [ $DISTNAME == "suse-leap" ]; then
     REPOSITORY=http://download.opensuse.org/distribution/leap/$RELVER/repo/oss/
     UPDATES=http://download.opensuse.org/update/leap/$RELVER/oss/
 else

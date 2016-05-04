@@ -1,4 +1,4 @@
-DISTNAME=openSUSE
+DISTNAME=suse
 RELVER=13.2
 
 . $INCLUDE/opensuse.sh
