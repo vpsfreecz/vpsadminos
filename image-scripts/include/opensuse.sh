@@ -34,5 +34,6 @@ systemctl disable NetworkManager-dispatcher.service
 systemctl enable  network.service
 usermod -L root
 systemctl enable sshd
+echo console >> /etc/securetty
 EOF
 }
