@@ -16,6 +16,7 @@ readonly APK_KEYS_SHA256="\
 # <svcname> <runlevel>
 readonly RC_SERVICES="\
 	mdev sysinit
+	cgroups-mount boot
 	bootmisc boot
 	syslog boot
 	networking default
@@ -93,6 +94,9 @@ install-base() {
 	$APK --arch="$ARCH" --root=. --keys-dir="$APK_KEYS_DIR" \
 		--update-cache --initdb add alpine-base \
 		|| die 3 'Failed to install APK packages'
+
+	cp "$BASEDIR"/files/cgroups-mount.initd etc/init.d/cgroups-mount
+	chmod +x etc/init.d/cgroups-mount
 
 	cd - >/dev/null
 }

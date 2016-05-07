@@ -1,0 +1,45 @@
+#!/sbin/openrc-run
+
+description="Mount cgroups inside an OpenVZ container."
+
+cgroups="blkio
+	memory
+	cpu,cpuacct,cpuset
+	freezer,devices"
+mount_opts="nodev,noexec,nosuid"
+
+depend() {
+	keyword openvz
+	need sysfs
+}
+
+start() {
+	[ -e /proc/cgroups ] || return 0
+
+	ebegin "Mounting cgroups"
+
+	local retval=0
+	local name; for name in $cgroups; do
+		mountinfo -q "/sys/fs/cgroup/$name" && continue
+
+		mkdir -p "/sys/fs/cgroup/$name"
+		mount -n -t cgroup -o "$mount_opts,$name" \
+			"$name" "/sys/fs/cgroup/$name" || retval=1
+	done
+
+	eend $retval
+}
+
+stop() {
+	[ -e /proc/cgroups ] || return 0
+
+	ebegin "Unmounting cgroups"
+
+	local retval=0
+	local name; for name in $cgroups; do
+		umount "/sys/fs/cgroup/$name" || retval=1
+		rmdir "/sys/fs/cgroup/$name" 2>/dev/null
+	done
+
+	eend $retval
+}

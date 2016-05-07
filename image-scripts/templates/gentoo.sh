@@ -14,12 +14,15 @@ if ! (cd $DOWNLOAD; sed -rn '/# SHA512/ {N;p}' ${STAGE3TARBALL}.DIGESTS | sha512
 then
 	echo "Stage 3 checksum wrong! Quitting."
 	exit 1
-fi	
+fi
 
 echo "Unpacking Stage3..."
-tar xjpf ${DOWNLOAD}/${STAGE3TARBALL} -C $INSTALL 
+tar xjpf ${DOWNLOAD}/${STAGE3TARBALL} -C $INSTALL
 
 cp /etc/resolv.conf $INSTALL/etc/
+
+cp "$BASEDIR"/files/cgroups-mount.initd "$INSTALL"/etc/init.d/cgroups-mount
+chmod +x "$INSTALL"/etc/init.d/cgroups-mount
 
 configure-common
 
@@ -38,6 +41,7 @@ emerge vim
 sed -ri 's/^#rc_sys=""/rc_sys="openvz"/' /etc/rc.conf
 sed -ri 's/^([^#].*agetty.*)$/#\1/' /etc/inittab
 rc-update add sshd default
+rc-update add cgroups-mount boot
 rc-update delete udev sysinit
 eselect news read
 
