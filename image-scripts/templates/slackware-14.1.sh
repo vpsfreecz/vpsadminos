@@ -253,6 +253,18 @@ EOT
 
 chmod +x /etc/rc.d/rc.vz
 
+# Enable Ctrl-left-arrow and Ctrl-right-arrow navigation in bash
+cat <<EOT >> /etc/inputrc
+
+# mappings for Ctrl-left-arrow and Ctrl-right-arrow for word moving
+"\e[1;5C": forward-word
+"\e[1;5D": backward-word
+"\e[5C": forward-word
+"\e[5D": backward-word
+"\e\e[C": forward-word
+"\e\e[D": backward-word
+EOT
+
 # Lock root account
 usermod -L root
 
