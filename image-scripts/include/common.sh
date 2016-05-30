@@ -1,3 +1,7 @@
+function warn {
+    >&2 echo "$@"
+}
+
 function umount_install {
         umount $INSTALL/dev
         umount $INSTALL/sys
