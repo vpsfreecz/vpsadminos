@@ -209,7 +209,6 @@ tmpfs            /dev/shm         tmpfs       defaults         0   0
 END
 
 # Remote console
-#sed -i -r 's/^c([1-2]):123456/\1:23456/g' /etc/inittab
 sed -i -r 's/^(c[3-6]:)/#\1/g' /etc/inittab
 
 cat <<EOT >> /etc/inittab
