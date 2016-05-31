@@ -1,5 +1,5 @@
 readonly DISTNAME='alpine'
-readonly RELVER='3.3'
+readonly RELVER='3.4'
 readonly ARCH='x86_64'
 readonly BASEURL="http://dl-cdn.alpinelinux.org/alpine/v$RELVER"
 
