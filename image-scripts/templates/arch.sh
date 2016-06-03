@@ -51,6 +51,9 @@ devpts       /dev/pts        devpts  gid=5,mode=620    0       0
 tmpfs        /tmp            tmpfs   nodev,nosuid      0       0
 EOT
 
+pacman-key --init
+pacman-key --populate archlinux
+gpg-connect-agent --homedir /etc/pacman.d/gnupg killagent /bye
 pacman -Rns --noconfirm linux
 yes | pacman -Scc
 ln -s /usr/share/zoneinfo/Europe/Prague /etc/localtime
