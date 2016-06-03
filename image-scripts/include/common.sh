@@ -2,20 +2,31 @@ function warn {
     >&2 echo "$@"
 }
 
-function umount_install {
-        umount $INSTALL/dev
-        umount $INSTALL/sys
-        umount $INSTALL/proc
-}
-
 function cleanup {
 	echo "Cleanup ..."
-        umount_install
         rm -Rf $INSTALL
         rm -Rf $DOWNLOAD
 }
 
 trap cleanup SIGINT
+
+function mount-chroot {
+        mount -t proc proc "$1/proc"
+        mount -t sysfs sys "$1/sys"
+        mount --bind /dev "$1/dev"
+}
+
+function umount-chroot {
+        umount "$1/dev"
+        umount "$1/sys"
+        umount "$1/proc"
+}
+
+function do-chroot {
+        mount-chroot "$1"
+	chroot "$1" "$2"
+        umount-chroot "$1"
+}
 
 function configure-append {
 	cat >> $CONFIGURE
@@ -32,11 +43,7 @@ EOF
 function run-configure {
 	[ ! -f $CONFIGURE ] && touch $CONFIGURE
 	chmod +x $CONFIGURE
-        mount -t proc proc $INSTALL/proc
-        mount -t sysfs sys $INSTALL/sys
-        mount --bind /dev $INSTALL/dev
-	chroot $INSTALL /tmp/configure.sh
-        umount_install
+        do-chroot "$INSTALL" /tmp/configure.sh
 	rm -f $CONFIGURE
 }
 
