@@ -113,8 +113,8 @@ echo "==> Installing Alpine Linux in $INSTALL..."
 install-base
 
 echo '==> Configuring Alpine Linux...'
-
 configure-append <<EOF
+export PATH="/bin:/sbin:$PATH"
 rm -f /etc/mtab
 ln -s /proc/mounts /etc/mtab
 
