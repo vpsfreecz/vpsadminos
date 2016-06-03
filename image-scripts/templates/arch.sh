@@ -1,61 +1,68 @@
 DISTNAME=arch
-RELVER=
+RELVER=$(date +%Y%m%d)
 BASEURL=http://mirror.vpsfree.cz/archlinux/iso/latest
 
+bootstrap-arch() {
+    # Find out the bootstrap archive's name from checksum list
+    rx='archlinux-bootstrap-\d+\.\d+\.\d+-x86_64\.tar\.gz'
+    curl "$BASEURL/sha1sums.txt" | grep -P "$rx" > "$DOWNLOAD/sha1sums.txt"
+    bfile=$(grep -oP "$rx" "$DOWNLOAD/sha1sums.txt")
 
-# Using the Bootstrap Image
-rline=`curl $BASEURL/md5sums.txt | grep bootstrap | grep x86_64`
-bfile=${rline##* }
-RELVER=`echo $bfile | awk -F- '{print $3}'`
+    # Download the bootstrap archive and verify checksum
+    curl -o "$DOWNLOAD/$bfile" "$BASEURL/$bfile"
+    if ! (cd "$DOWNLOAD" ; sha1sum -c sha1sums.txt) ; then
+            echo "Bootstrap checksum wrong! Quitting."
+            exit 1
+    fi
 
-wget -P $DOWNLOAD $BASEURL/$bfile
-md5s=`md5sum $DOWNLOAD/$bfile`
-if [ ${rline%% *} != ${md5s%% *} ]; then
-	echo "Bootstrap checksum wrong! Quitting."
-	exit 1
-fi
-cd $INSTALL
-gzip -dc $DOWNLOAD/$bfile | tar x --preserve-permissions --preserve-order --numeric-owner --one-top-level=$INSTALL
+    # Extract
+    tar -xzf "$DOWNLOAD/$bfile" --preserve-permissions --preserve-order --numeric-owner \
+        -C "$INSTALL"
 
-INSTALL1=$INSTALL/root.x86_64
+    # Bootstrap the base system to $INSTALL/root.x86_64/mnt
+    local BOOTSTRAP="$INSTALL/root.x86_64"
+    local SETUP="/install.sh"
 
-sed -ri 's/^#(.*vpsfree\.cz.*)$/\1/' $INSTALL1/etc/pacman.d/mirrorlist
-sed -ri 's/( unshare --fork --pid )/ /' $INSTALL1/usr/bin/arch-chroot
-sed -ri 's/^SigLevel    = Required DatabaseOptional$/SigLevel    = Never/' $INSTALL1/etc/pacman.conf
-CHROOT="$INSTALL1/bin/arch-chroot $INSTALL1"
+    sed -ri 's/^#(.*vpsfree\.cz.*)$/\1/' "$BOOTSTRAP/etc/pacman.d/mirrorlist"
+    echo nameserver 8.8.8.8 > "$BOOTSTRAP/etc/resolv.conf"
 
-# Install the base system
-$CHROOT pacstrap -dG /mnt base openssh
+    cat <<EOF > "$BOOTSTRAP/$SETUP"
+#!/bin/bash
 
-INSTALL2=$INSTALL1/mnt
+pacman-key --init
+pacman-key --populate archlinux
 
-# Configure the system
-#$CHROOT genfstab -p /mnt >> /mnt/etc/fstab
-cat >> $INSTALL2/etc/fstab <<EOF
-tmpfs           /tmp    tmpfs   nodev,nosuid    0       0
-devpts  /dev/pts        devpts  gid=5,mode=620  0       0
-LABEL=/ /               ext4    defaults
+pacstrap -dG /mnt base openssh
+gpg-connect-agent --homedir /etc/pacman.d/gnupg killagent /bye
 EOF
 
-CHROOT2="$CHROOT arch-chroot /mnt"
+    chmod +x "$BOOTSTRAP/$SETUP"
+    do-chroot "$BOOTSTRAP" "$SETUP"
 
-# Downgrade systemd
-mkdir -p $INSTALL2/root/pkgs
-cp $BASEDIR/packages/arch/* $INSTALL2/root/pkgs
-for lpkg in `cd $INSTALL2/root/pkgs && ls -1 *.pkg.tar.xz`; do
-	$CHROOT2 pacman -U --noconfirm /root/pkgs/$lpkg
-done
-rm -rf $INSTALL2/root/pkgs
+    # Replace bootstrap with the base system
+    mv "$BOOTSTRAP"/mnt/* "$INSTALL/"
+    rm -rf "$BOOTSTRAP"
+}
 
+configure-arch() {
+    configure-append <<EOF
+cat >> /etc/fstab <<EOT
+devpts       /dev/pts        devpts  gid=5,mode=620    0       0
+tmpfs        /tmp            tmpfs   nodev,nosuid      0       0
+EOT
 
-$CHROOT2 pacman -Rns --noconfirm linux
-yes | $CHROOT2 pacman -Scc
-$CHROOT2 ln -s /usr/share/zoneinfo/Europe/Prague /etc/localtime
-$CHROOT2 systemctl enable sshd
-sed -ri 's/^#( *IgnorePkg *=.*)$/\1 libsystemd systemd systemd-sysvcompat python2-systemd/' $INSTALL2/etc/pacman.conf
+pacman -Rns --noconfirm linux
+yes | pacman -Scc
+ln -s /usr/share/zoneinfo/Europe/Prague /etc/localtime
+sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+systemctl enable sshd
+systemctl disable systemd-resolved
+usermod -L root
+sed -ri 's/^#( *IgnorePkg *=.*)$/\1 libsystemd systemd systemd-sysvcompat python2-systemd/' /etc/pacman.conf
 
+EOF
+}
 
-cd $INSTALL
-rm -f $INSTALL2/etc/machine-id $INSTALL2/root/.bash_history
-mv $INSTALL2/* $INSTALL
-rm -r $INSTALL1
+bootstrap-arch
+configure-arch
+run-configure
