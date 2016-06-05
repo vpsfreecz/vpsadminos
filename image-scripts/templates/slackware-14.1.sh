@@ -15,12 +15,12 @@
 #
 # /etc/rc.d/rc.M (multi-user runlevel) starts the original /etc/rc.d/rc.inet1
 # script that brings up the loopback. It has been patched to start our custom
-# script /etc/rc.d/rc.vz. This script can start/stop/restart the venet0
-# interface. It executes /etc/rc.d/rc.vz.start on start and
-# /etc/rc.d/rc.vz.stop on stop.
+# script /etc/rc.d/rc.venet. This script can start/stop/restart the venet0
+# interface. It executes /etc/rc.d/rc.venet.start on start and
+# /etc/rc.d/rc.venet.stop on stop.
 # 
 # These scripts are responsible for configuring the interface and are generated
-# by vzctl -- this is where a patch for vzctl is needed. rc.vz.{start,stop}
+# by vzctl -- this is where a patch for vzctl is needed. rc.venet.{start,stop}
 # scripts configure the interface using /sbin/ip commands (needs package
 # iproute2). The contents of these files is rewritten on VPS start and
 # on vzctl set --ipadd/ipdel commands.
@@ -226,22 +226,22 @@ touch /etc/fastboot
 # Custom network setup script
 sed -i '/^# Start networking daemons:$/i \
 # Setup vz network\n\
-if \[ -x \/etc\/rc.d\/rc.vz \] ; then\n\
-    \/etc\/rc.d\/rc.vz start\n\
+if \[ -x \/etc\/rc.d\/rc.venet \] ; then\n\
+    \/etc\/rc.d\/rc.venet start\n\
 fi\n\
 
 ' /etc/rc.d/rc.M
 
-cat <<EOT > /etc/rc.d/rc.vz
+cat <<EOT > /etc/rc.d/rc.venet
 #!/bin/sh
 case "\\\$1" in
     start|stop)
-        [ -f "/etc/rc.d/rc.vz.\\\$1" ] && . "/etc/rc.d/rc.vz.\\\$1"
+        [ -f "/etc/rc.d/rc.venet.\\\$1" ] && . "/etc/rc.d/rc.venet.\\\$1"
         ;;
     restart)
-        if [ -f /etc/rc.d/rc.vz.start ] && [ -f /etc/rc.d/rc.vz.stop ] ; then
-            . /etc/rc.d/rc.vz.stop
-            . /etc/rc.d/rc.vz.start
+        if [ -f /etc/rc.d/rc.venet.start ] && [ -f /etc/rc.d/rc.venet.stop ] ; then
+            . /etc/rc.d/rc.venet.stop
+            . /etc/rc.d/rc.venet.start
         fi
         ;;
     *)
@@ -251,7 +251,7 @@ esac
 
 EOT
 
-chmod +x /etc/rc.d/rc.vz
+chmod +x /etc/rc.d/rc.venet
 
 # Enable Ctrl-left-arrow and Ctrl-right-arrow navigation in bash
 cat <<EOT >> /etc/inputrc
