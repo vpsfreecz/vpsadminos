@@ -77,11 +77,7 @@ fetch-apk-static() {
 		-signature "$APK.SIGN.RSA.$keyname" \
 		"$APK" || die 2 "Signature verification for $(basename "$APK") failed"
 
-	# Note: apk doesn't return 0 for --version (will be fixed in next release).
-	local out="$("$APK" --version)"
-	echo "$out"
-
-	[ "${out%% *}" = 'apk-tools' ] || die 3 "$(basename "$APK") --version failed"
+	"$APK" --version || die 3 "$(basename "$APK") --version failed"
 }
 
 install-base() {
