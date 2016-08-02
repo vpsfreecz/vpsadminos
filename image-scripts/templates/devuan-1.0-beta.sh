@@ -22,7 +22,7 @@ deb-src $BASEURL $RELNAME main
 deb $BASEURL $RELNAME-updates main
 deb-src $BASEURL $RELNAME-updates main
 
-deb $BASEURL $RELNAME-security main 
+deb $BASEURL $RELNAME-security main
 deb-src $BASEURL $RELNAME-security main
 SOURCES
 

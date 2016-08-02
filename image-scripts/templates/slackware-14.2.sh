@@ -18,7 +18,7 @@
 # script /etc/rc.d/rc.venet. This script can start/stop/restart the venet0
 # interface. It executes /etc/rc.d/rc.venet.start on start and
 # /etc/rc.d/rc.venet.stop on stop.
-# 
+#
 # These scripts are responsible for configuring the interface and are generated
 # by vzctl -- this is where a patch for vzctl is needed. rc.venet.{start,stop}
 # scripts configure the interface using /sbin/ip commands (needs package
@@ -97,51 +97,51 @@ readline
 "
 
 download_repo() {
-    local sumdir="$LOCAL_REPO/mirrors.slackware.com/slackware/slackware64-$RELVER/slackware64"
+	local sumdir="$LOCAL_REPO/mirrors.slackware.com/slackware/slackware64-$RELVER/slackware64"
 
-    mkdir -p "$sumdir"
-    wget -O - "$BASEURL/slackware64-$RELVER/slackware64/CHECKSUMS.md5" \
-        | grep -P '\./(a|ap|l|n)/' \
-        | grep -P '\.t.z$' \
-        > "$sumdir/CHECKSUMS.md5"
-    wget --recursive \
-        --level 1 \
-        --directory-prefix "$LOCAL_REPO" \
-        --accept "*.t?z" \
-        "$BASEURL/slackware64-$RELVER/slackware64/"{a,ap,l,n}
-    
-    if ! (cd "$sumdir" ; cat CHECKSUMS.md5 | md5sum -c) ; then
-        warn "Mirror checksum invalid"
-        exit 1
-    fi
+	mkdir -p "$sumdir"
+	wget -O - "$BASEURL/slackware64-$RELVER/slackware64/CHECKSUMS.md5" \
+		| grep -P '\./(a|ap|l|n)/' \
+		| grep -P '\.t.z$' \
+		> "$sumdir/CHECKSUMS.md5"
+	wget --recursive \
+		--level 1 \
+		--directory-prefix "$LOCAL_REPO" \
+		--accept "*.t?z" \
+		"$BASEURL/slackware64-$RELVER/slackware64/"{a,ap,l,n}
+
+	if ! (cd "$sumdir" ; cat CHECKSUMS.md5 | md5sum -c) ; then
+		warn "Mirror checksum invalid"
+		exit 1
+	fi
 }
 
 find_pkg() {
-    pkg=`find "$DOWNLOAD" -type f -name "$1-*.t?z"`
+	pkg=`find "$DOWNLOAD" -type f -name "$1-*.t?z"`
 
-    if [ "$pkg" == "" ] ; then
-        warn "Package '$1' not found" 
-        exit 1
-    fi
+	if [ "$pkg" == "" ] ; then
+		warn "Package '$1' not found"
+		exit 1
+	fi
 
-    echo $pkg
+	echo $pkg
 }
 
 setup_pkgtools() {
-    mkdir -p "$LOCAL_ROOT"
+	mkdir -p "$LOCAL_ROOT"
 
-    pkg="`find_pkg pkgtools`"
-    [ "$?" != "0" ] && exit 1
+	pkg="`find_pkg pkgtools`"
+	[ "$?" != "0" ] && exit 1
 
-    tar -xJf "$pkg" -C "$LOCAL_ROOT"
-    INSTALLPKG="$LOCAL_ROOT/sbin/installpkg"
+	tar -xJf "$pkg" -C "$LOCAL_ROOT"
+	INSTALLPKG="$LOCAL_ROOT/sbin/installpkg"
 }
 
 install_pkg() {
-    pkg=`find_pkg $1`
-    [ "$?" != "0" ] && exit 1
-    
-    $INSTALLPKG --terse --root "$INSTALL" $pkg
+	pkg=`find_pkg $1`
+	[ "$?" != "0" ] && exit 1
+
+	$INSTALLPKG --terse --root "$INSTALL" $pkg
 }
 
 
@@ -152,13 +152,13 @@ setup_pkgtools || exit 1
 
 # Install all packages in the rootfs
 for pkg in $PKGS ; do
-    echo "Installing $pkg"
-    install_pkg $pkg
+	echo "Installing $pkg"
+	install_pkg $pkg
 
-    if [ "$?" != "0" ] ; then
-        warn "Unable to install '$pkg'"
-        exit 1
-    fi
+	if [ "$?" != "0" ] ; then
+		warn "Unable to install '$pkg'"
+		exit 1
+	fi
 done
 
 configure-common
@@ -237,18 +237,18 @@ fi\n\
 cat <<EOT > /etc/rc.d/rc.venet
 #!/bin/sh
 case "\\\$1" in
-    start|stop)
-        [ -f "/etc/rc.d/rc.venet.\\\$1" ] && . "/etc/rc.d/rc.venet.\\\$1"
-        ;;
-    restart)
-        if [ -f /etc/rc.d/rc.venet.start ] && [ -f /etc/rc.d/rc.venet.stop ] ; then
-            . /etc/rc.d/rc.venet.stop
-            . /etc/rc.d/rc.venet.start
-        fi
-        ;;
-    *)
-        echo "Usage: \\\$0 start|stop|restart"
-        ;;
+	start|stop)
+		[ -f "/etc/rc.d/rc.venet.\\\$1" ] && . "/etc/rc.d/rc.venet.\\\$1"
+		;;
+	restart)
+		if [ -f /etc/rc.d/rc.venet.start ] && [ -f /etc/rc.d/rc.venet.stop ] ; then
+			. /etc/rc.d/rc.venet.stop
+			. /etc/rc.d/rc.venet.start
+		fi
+		;;
+	*)
+		echo "Usage: \\\$0 start|stop|restart"
+		;;
 esac
 
 EOT

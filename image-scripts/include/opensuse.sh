@@ -3,11 +3,11 @@
 . $BASEDIR/include/common.sh
 
 if [ $DISTNAME == "suse-leap" ]; then
-    REPOSITORY=http://download.opensuse.org/distribution/leap/$RELVER/repo/oss/
-    UPDATES=http://download.opensuse.org/update/leap/$RELVER/oss/
+	REPOSITORY=http://download.opensuse.org/distribution/leap/$RELVER/repo/oss/
+	UPDATES=http://download.opensuse.org/update/leap/$RELVER/oss/
 else
-    REPOSITORY=http://download.opensuse.org/distribution/$RELVER/repo/oss/
-    UPDATES=http://download.opensuse.org/update/$RELVER/
+	REPOSITORY=http://download.opensuse.org/distribution/$RELVER/repo/oss/
+	UPDATES=http://download.opensuse.org/update/$RELVER/
 fi
 
 EXTRAPKGS='vim'
@@ -17,13 +17,13 @@ ZYPPER="zypper -v --root=$INSTALL --non-interactive --no-gpg-checks "
 
 function bootstrap {
 
-        $ZYPPER addrepo --refresh $REPOSITORY openSUSE-oss
-        $ZYPPER addrepo --refresh $UPDATES openSUSE-updates
-        $ZYPPER install openSUSE-release 
-        $ZYPPER install -t pattern base sw_management
-        $ZYPPER install $EXTRAPKGS
-        $ZYPPER rm $REMOVEPKGS
-	
+	$ZYPPER addrepo --refresh $REPOSITORY openSUSE-oss
+	$ZYPPER addrepo --refresh $UPDATES openSUSE-updates
+	$ZYPPER install openSUSE-release
+	$ZYPPER install -t pattern base sw_management
+	$ZYPPER install $EXTRAPKGS
+	$ZYPPER rm $REMOVEPKGS
+
 }
 
 function configure-opensuse {
