@@ -101,6 +101,7 @@ install-base() {
 	cd - >/dev/null
 }
 
+
 #=============================  Main  ==============================#
 
 echo '==> Fetching and verifying APK keys...'
@@ -148,3 +149,6 @@ sed -i \
 EOF
 
 run-configure
+
+echo '==> Cleaning up...'
+rm "$APK"*
