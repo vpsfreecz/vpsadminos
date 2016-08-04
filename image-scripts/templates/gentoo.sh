@@ -24,6 +24,10 @@ cp /etc/resolv.conf $INSTALL/etc/
 cp "$BASEDIR"/files/cgroups-mount.initd "$INSTALL"/etc/init.d/cgroups-mount
 chmod +x "$INSTALL"/etc/init.d/cgroups-mount
 
+configure-append <<EOF
+export PATH="/bin:/sbin:/usr/bin:$PATH"
+EOF
+
 configure-common
 
 configure-append <<EOF
