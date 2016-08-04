@@ -53,7 +53,15 @@ sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_
 sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
 
 > /etc/resolv.conf
-echo "c0:2345:respawn:/sbin/agetty --noreset 38400 tty0" >> /etc/inittab
+
+cat >> /etc/inittab <<END
+c0:2345:respawn:/sbin/agetty --noreset 38400 tty0
+
+# Workaround for vzctl's set_console.sh
+#1:2345:respawn:/sbin/agetty console 38400
+#2:2345:respawn:/sbin/agetty tty2 38400
+END
+
 rm -f /usr/portage/distfiles/*
 EOF
 
