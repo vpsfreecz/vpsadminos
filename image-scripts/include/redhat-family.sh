@@ -18,7 +18,7 @@ function bootstrap {
 	mkdir -p ${INSTALL}/var/lib/rpm
 	rpm --root $INSTALL --initdb
 
-	nrpm=0	
+	nrpm=0
 	for rpm in $RELEASE; do
 		nrpm=$(( $nrpm + 1 ))
 		echo "Downloading #${nrpm} $rpm"
