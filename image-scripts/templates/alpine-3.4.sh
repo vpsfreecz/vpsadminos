@@ -127,8 +127,8 @@ sed -ri 's/^([^#].*getty.*)$/#\1/' /etc/inittab
 cat >> /etc/inittab <<_EOF_
 # Does not work on Alpine, but OVZ script set_console.sh insists on these two
 # lines. Luckily it does not mind they are commented out.
-#1:2345:respawn:/sbin/agetty console 38400
-#2:2345:respawn:/sbin/agetty tty2 38400
+#1:2345:respawn:/sbin/getty 38400 console
+#2:2345:respawn:/sbin/getty 38400 tty2
 
 # vpsAdmin console
 ::respawn:/sbin/getty 38400 tty0
