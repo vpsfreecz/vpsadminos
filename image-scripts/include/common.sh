@@ -34,6 +34,7 @@ function configure-append {
 
 function configure-common {
 	configure-append <<EOF
+export PATH="/bin:/sbin:/usr/bin:$PATH"
 rm -f /etc/mtab
 ln -s /proc/mounts /etc/mtab
 cp /usr/share/zoneinfo/Europe/Prague /etc/localtime
