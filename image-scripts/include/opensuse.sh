@@ -35,5 +35,6 @@ systemctl enable  network.service
 usermod -L root
 systemctl enable sshd
 echo console >> /etc/securetty
+sed -i 's/#DefaultTimeoutStartSec=90s/DefaultTimeoutStartSec=900s/' /etc/systemd/system.conf
 EOF
 }

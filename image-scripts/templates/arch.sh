@@ -58,6 +58,7 @@ pacman -Rns --noconfirm linux
 yes | pacman -Scc
 ln -s /usr/share/zoneinfo/Europe/Prague /etc/localtime
 sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+sed -i 's/#DefaultTimeoutStartSec=90s/DefaultTimeoutStartSec=900s/' /etc/systemd/system.conf
 systemctl enable sshd
 systemctl disable systemd-resolved
 usermod -L root

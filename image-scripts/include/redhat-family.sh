@@ -67,5 +67,9 @@ function configure-redhat-common {
 	configure-append <<EOF
 usermod -L root
 rm -f /etc/ssh/ssh_host_*
+
+if [ -f /etc/systemd/system.conf ] ; then
+	sed -i 's/#DefaultTimeoutStartSec=90s/DefaultTimeoutStartSec=900s/' /etc/systemd/system.conf
+fi
 EOF
 }

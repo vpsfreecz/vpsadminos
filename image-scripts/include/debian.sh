@@ -43,5 +43,9 @@ apt-get clean
 for f in \$fakefiles; do
 	rm -f /tmp/\$f
 done
+
+if [ -f /etc/systemd/system.conf ] ; then
+	sed -i 's/#DefaultTimeoutStartSec=90s/DefaultTimeoutStartSec=900s/' /etc/systemd/system.conf
+fi
 EOF
 }
