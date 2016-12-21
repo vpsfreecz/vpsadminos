@@ -51,8 +51,9 @@ fetch-apk-keys() {
 		if [ ! -f "$keyname" ]; then
 			fetch "$APK_KEYS_URI/$keyname" > "$keyname"
 		fi
-		echo "$line" | sha256sum -c -
-	done || die 2 'Failed to fetch or verify APK keys'
+		echo "$line" | sha256sum -c - \
+			|| die 2 'Failed to fetch or verify APK keys'
+	done
 
 	cd - >/dev/null
 }
