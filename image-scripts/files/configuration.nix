@@ -14,6 +14,8 @@ with pkgs.lib;
       ];
 
     services.openssh.enable = true;
+    services.openssh.permitRootLogin = "yes";
+
     networking = {
       hostName = "nixos";
       useHostResolvConf = true;
