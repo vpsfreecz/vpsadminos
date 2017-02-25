@@ -51,6 +51,6 @@ for template in $templates; do
 		OUTPUT_SUFFIX="-$EXTRAVER"
 
 	OUTPUT=$OUTPUT_PREFIX/$DISTNAME-$RELVER-x86_64-vpsfree${OUTPUT_SUFFIX}.tar.gz
-	pack
+	test -f $OUTPUT || pack
 	cleanup
 done
