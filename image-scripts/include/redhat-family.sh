@@ -73,8 +73,8 @@ if [ -f /etc/systemd/system.conf ] ; then
 fi
 
 for i in journald logind; do
-  echo "Patching service file for $i"
-  find . -name "systemd-$i.service" -type 'f' -exec \
+  echo "Patching service file for \$i"
+  find . -name "systemd-\$i.service" -type 'f' -exec \
     sed -i 's/^SystemCallFilter/#SystemCallFilter/;s/^MemoryDenyWriteExecute/#MemoryDenyWriteExecute/' {}  \;
 done
 EOF
