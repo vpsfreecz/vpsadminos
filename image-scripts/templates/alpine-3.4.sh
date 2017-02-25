@@ -5,7 +5,7 @@ readonly BASEURL="http://repository.fit.cvut.cz/mirrors/alpine/v$RELVER"
 
 readonly APK="$INSTALL/apk.static"
 readonly APK_KEYS_DIR="$INSTALL/keys"
-readonly APK_KEYS_URI='http://alpinelinux.org/keys'
+readonly APK_KEYS_URI='https://alpinelinux.org/keys'
 readonly APK_KEYS_SHA256="\
 	9c102bcc376af1498d549b77bdbfa815ae86faa1d2d82f040e616b18ef2df2d4  alpine-devel@lists.alpinelinux.org-4a6a0840.rsa.pub
 	2adcf7ce224f476330b5360ca5edb92fd0bf91c92d83292ed028d7c4e26333ab  alpine-devel@lists.alpinelinux.org-4d07755e.rsa.pub
