@@ -86,6 +86,7 @@ install-base() {
 
 	mkdir -p etc/apk
 	echo "$BASEURL/main" > etc/apk/repositories
+	echo "$BASEURL/community" > etc/apk/repositories
 	cp /etc/resolv.conf etc/
 
 	$APK --arch="$ARCH" --root=. --keys-dir="$APK_KEYS_DIR" \
