@@ -1,3 +1,5 @@
+GENERATES_TARBALL=yes
+
 prepare-fedora() {
     dnf -y install git curl bzip2 tar sudo
 }

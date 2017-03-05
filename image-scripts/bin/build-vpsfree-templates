@@ -44,6 +44,8 @@ for template in $templates; do
 	INSTALL=$(mktemp -d /var/build/install.XXX)
 	DOWNLOAD=$(mktemp -d /var/build/install.download.XXX)
 	CONFIGURE=$INSTALL/tmp/configure.sh
+	# set to yes if your template generates tarball and doesn't need packing
+	GENERATES_TARBALL=
 
 	. $BASEDIR/templates/${template}.sh
 
@@ -51,6 +53,6 @@ for template in $templates; do
 		OUTPUT_SUFFIX="-$EXTRAVER"
 
 	OUTPUT=$OUTPUT_PREFIX/$DISTNAME-$RELVER-x86_64-vpsfree${OUTPUT_SUFFIX}.tar.gz
-	test -f $OUTPUT || pack
+	[ "$GENERATES_TARBALL" != "" ] || pack
 	cleanup
 done
