@@ -13,7 +13,7 @@ else
 	UPDATES=http://download.opensuse.org/update/$RELVER/
 fi
 
-EXTRAPKGS='vim'
+EXTRAPKGS='vim iproute2'
 
 ZYPPER="zypper -v --root=$INSTALL --non-interactive --no-gpg-checks "
 
@@ -21,10 +21,8 @@ function bootstrap {
 
 	$ZYPPER addrepo --refresh $REPOSITORY openSUSE-oss
 	$ZYPPER addrepo --refresh $UPDATES openSUSE-updates
-	$ZYPPER install openSUSE-release
-	# The recommends would pull in the X content
-	$ZYPPER install --no-recommends -t pattern base
-	$ZYPPER install --no-recommends -t pattern sw_management
+	$ZYPPER install --no-recommends -t pattern minimal_base minimal_base-conflicts
+	$ZYPPER install -t pattern sw_management
 	$ZYPPER install $EXTRAPKGS
 
 }
