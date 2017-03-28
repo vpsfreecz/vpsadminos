@@ -14,7 +14,6 @@ else
 fi
 
 EXTRAPKGS='vim'
-REMOVEPKGS='apache2-utils apache2-prefork apache2 postfix NetworkManager'
 
 ZYPPER="zypper -v --root=$INSTALL --non-interactive --no-gpg-checks "
 
@@ -27,16 +26,14 @@ function bootstrap {
 	$ZYPPER install --no-recommends -t pattern base
 	$ZYPPER install --no-recommends -t pattern sw_management
 	$ZYPPER install $EXTRAPKGS
-	$ZYPPER rm $REMOVEPKGS
 
 }
 
 function configure-opensuse {
 	configure-append <<EOF
-systemctl disable NetworkManager.service
 systemctl enable  wicked.service
 usermod -L root
-systemctl enable sshd
+systemctl enable sshd.service
 echo console >> /etc/securetty
 sed -i 's/#DefaultTimeoutStartSec=90s/DefaultTimeoutStartSec=900s/' /etc/systemd/system.conf
 EOF
