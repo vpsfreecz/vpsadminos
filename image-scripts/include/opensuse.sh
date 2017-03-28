@@ -23,7 +23,9 @@ function bootstrap {
 	$ZYPPER addrepo --refresh $REPOSITORY openSUSE-oss
 	$ZYPPER addrepo --refresh $UPDATES openSUSE-updates
 	$ZYPPER install openSUSE-release
-	$ZYPPER install -t pattern base sw_management
+	# The recommends would pull in the X content
+	$ZYPPER install --no-recommends -t pattern base
+	$ZYPPER install --no-recommends -t pattern sw_management
 	$ZYPPER install $EXTRAPKGS
 	$ZYPPER rm $REMOVEPKGS
 
