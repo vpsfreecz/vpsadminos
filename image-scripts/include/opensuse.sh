@@ -13,7 +13,7 @@ else
 	UPDATES=http://download.opensuse.org/update/$RELVER/
 fi
 
-EXTRAPKGS='vim iproute2 iputils command-not-found net-tools procps less psmisc'
+EXTRAPKGS='vim iproute2 iputils net-tools procps less psmisc'
 
 ZYPPER="zypper -v --root=$INSTALL --non-interactive --gpg-auto-import-keys "
 
