@@ -18,7 +18,11 @@ EXTRAPKGS='vim iproute2 iputils command-not-found net-tools procps less psmisc'
 ZYPPER="zypper -v --root=$INSTALL --non-interactive --gpg-auto-import-keys "
 
 function bootstrap {
-
+	if [ $RELVER == "42.2" ]; then
+		# hack to fix wicked until maintenance update is released
+		# will be obsoleted by the next version update
+		$ZYPPER ar -f http://download.opensuse.org/repositories/home:/scarabeus_iv:/branches:/openSUSE:/Leap:/42.2:/Update/standard/home:scarabeus_iv:branches:openSUSE:Leap:42.2:Update.repo
+	fi
 	$ZYPPER addrepo --refresh $REPOSITORY openSUSE-oss
 	$ZYPPER addrepo --refresh $UPDATES openSUSE-updates
 	$ZYPPER install --no-recommends -t pattern minimal_base minimal_base-conflicts
