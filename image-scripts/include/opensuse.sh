@@ -13,7 +13,7 @@ else
 	UPDATES=http://download.opensuse.org/update/$RELVER/
 fi
 
-EXTRAPKGS='vim iproute2 iputils net-tools procps less psmisc'
+EXTRAPKGS='vim iproute2 iputils net-tools procps less psmisc timezone aaa_base-extras'
 
 ZYPPER="zypper -v --root=$INSTALL --non-interactive --gpg-auto-import-keys "
 
@@ -25,6 +25,7 @@ function bootstrap {
 	fi
 	$ZYPPER addrepo --refresh $REPOSITORY openSUSE-oss
 	$ZYPPER addrepo --refresh $UPDATES openSUSE-updates
+	$ZYPPER install --no-recommends aaa_base shadow
 	$ZYPPER install --no-recommends -t pattern minimal_base minimal_base-conflicts
 	$ZYPPER install -t pattern sw_management
 	$ZYPPER install $EXTRAPKGS
