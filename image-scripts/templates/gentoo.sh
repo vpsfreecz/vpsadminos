@@ -40,6 +40,8 @@ postup() {
 }
 CONFDNET
 emerge-webrsync -v
+sed -i 's/USE="bindist"/USE=""/' /etc/portage/make.conf
+emerge --update --deep --newuse --with-bdeps=y --backtrack=120 @system @world
 emerge iproute2
 emerge vim
 sed -ri 's/^#rc_sys=""/rc_sys="openvz"/' /etc/rc.conf
@@ -48,7 +50,6 @@ rc-update add sshd default
 rc-update add cgroups-mount boot
 rc-update delete udev sysinit
 eselect news read
-
 sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
 sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
 
