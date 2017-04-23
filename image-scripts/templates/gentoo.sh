@@ -1,6 +1,6 @@
 DISTNAME=gentoo
 RELVER=13.0-$(date +%Y%m%d)
-BASEURL=http://mirror.vpsfree.cz/gentoo
+BASEURL=https://mirror.vpsfree.cz/gentoo
 
 
 STAGE3BASEURL="${BASEURL}/releases/amd64/autobuilds"
