@@ -1,6 +1,6 @@
 DISTNAME=debian
 RELVER=9
-RELNAME=strech
+RELNAME=stretch
 BASEURL=http://ftp.cz.debian.org/debian
 
 . $INCLUDE/debian.sh

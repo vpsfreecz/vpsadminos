@@ -19,7 +19,7 @@ dpkg-reconfigure locales
 
 PATH=/tmp/:\$PATH apt-get update
 PATH=/tmp/:\$PATH apt-get upgrade -y
-PATH=/tmp/:\$PATH apt-get install -y vim openssh-server ca-certificates man
+PATH=/tmp/:\$PATH apt-get install -y vim openssh-server ca-certificates man net-tools
 PATH=/tmp/:\$PATH apt-get purge -y ureadahead eject ntpdate resolvconf
 usermod -L root
 
