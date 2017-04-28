@@ -23,8 +23,9 @@ PATH=/tmp/:\$PATH apt-get install -y vim openssh-server ca-certificates man
 PATH=/tmp/:\$PATH apt-get purge -y ureadahead eject ntpdate resolvconf
 usermod -L root
 
-rm -f /etc/ssh/ssh_host_*
+if [ $RELVER -lt 9 ]; then
 
+rm -f /etc/ssh/ssh_host_*
 cat > /etc/init.d/generate_ssh_keys <<"GENSSH"
 #!/bin/bash
 ssh-keygen -f /etc/ssh/ssh_host_rsa_key -t rsa -N ''
@@ -36,6 +37,8 @@ GENSSH
 
 chmod a+x /etc/init.d/generate_ssh_keys
 update-rc.d generate_ssh_keys defaults
+
+fi
 
 > /etc/resolv.conf
 
