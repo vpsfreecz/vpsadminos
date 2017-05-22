@@ -22,7 +22,7 @@ deb-src http://security.debian.org/ $RELNAME/updates main
 SOURCES
 
 configure-append <<EOF
-sed -i -e '/^PermitRootLogin/ s/^#*/#/' /etc/ssh/sshd_config
+sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
 ln -s /dev/null /etc/systemd/system/proc-sys-fs-binfmt_misc.automount
 
 cat > /etc/systemd/system/sshd-keygen.service <<"KEYGENSVC"
