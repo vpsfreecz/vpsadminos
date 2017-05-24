@@ -23,7 +23,7 @@ PATH=/tmp/:\$PATH apt-get install -y vim openssh-server ca-certificates man net-
 PATH=/tmp/:\$PATH apt-get purge -y ureadahead eject ntpdate resolvconf
 usermod -L root
 
-if [ $RELVER -lt 9 ]; then
+if [ "$DISTNAME" == "debian" ] && [ $RELVER -lt 9 ]; then
 
 rm -f /etc/ssh/ssh_host_*
 cat > /etc/init.d/generate_ssh_keys <<"GENSSH"

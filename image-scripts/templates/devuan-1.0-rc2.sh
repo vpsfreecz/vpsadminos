@@ -1,5 +1,5 @@
 DISTNAME=devuan
-RELVER=1.0-beta
+RELVER=1.0-rc2
 RELNAME=jessie
 BASEURL=http://auto.mirror.devuan.org/merged
 
