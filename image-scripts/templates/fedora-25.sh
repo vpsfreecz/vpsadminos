@@ -6,6 +6,7 @@ RELEASE="$BASEURL/Packages/f/fedora-release-$RELVER-1.noarch.rpm
 	$BASEURL/Packages/f/fedora-repos-$RELVER-1.noarch.rpm"
 GROUPNAME="minimal install"
 EXTRAPKGS="vim man"
+REMOVEPKGS="plymouth"
 
 . $INCLUDE/redhat-family.sh
 

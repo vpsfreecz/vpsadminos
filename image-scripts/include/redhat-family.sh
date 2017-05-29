@@ -59,6 +59,9 @@ EOF
 		$YUM install $rpm
 	done
 
+	for rpm in $REMOVEPKGS; do
+		$YUM erase $rpm
+	done
 	$YUM clean all
 
 }
