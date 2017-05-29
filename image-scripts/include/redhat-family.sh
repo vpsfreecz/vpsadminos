@@ -72,10 +72,16 @@ if [ -f /etc/systemd/system.conf ] ; then
 	sed -i 's/#DefaultTimeoutStartSec=90s/DefaultTimeoutStartSec=900s/' /etc/systemd/system.conf
 fi
 
-for i in journald logind; do
-  echo "Patching service file for \$i"
-  find . -name "systemd-\$i.service" -type 'f' -exec \
-    sed -i 's/^SystemCallFilter/#SystemCallFilter/;s/^MemoryDenyWriteExecute/#MemoryDenyWriteExecute/' {}  \;
+for i in systemd-journald systemd-logind; do
+  echo "Creating systemd override file for \$i"
+  mkdir /etc/systemd/system/\$i.service.d/
+  cat > /etc/systemd/system/\$i.service.d/override.conf <<_EOF_
+[Service]
+SystemCallFilter=
+MemoryDenyWriteExecute=no
+_EOF_
+
 done
+
 EOF
 }
