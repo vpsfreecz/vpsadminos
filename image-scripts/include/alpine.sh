@@ -2,7 +2,7 @@ readonly RELVER=${RELVER:=3.5}
 readonly ARCH=${ARCH:=x86_64}
 
 readonly DISTNAME='alpine'
-readonly BASEURL="http://repository.fit.cvut.cz/mirrors/alpine/v$RELVER"
+readonly BASEURL="https://cz.alpinelinux.org/alpine/v$RELVER"
 
 readonly APK="$INSTALL/apk.static"
 readonly APK_KEYS_DIR="$INSTALL/keys"
