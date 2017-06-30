@@ -1,6 +1,6 @@
 DISTNAME=arch
 RELVER=$(date +%Y%m%d)
-BASEURL=http://mirror.vpsfree.cz/archlinux/iso/latest
+BASEURL=https://mirror.vpsfree.cz/archlinux/iso/latest
 
 bootstrap-arch() {
 	# Find out the bootstrap archive's name from checksum list
