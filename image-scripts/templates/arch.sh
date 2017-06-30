@@ -33,6 +33,7 @@ pacman-key --init
 pacman-key --populate archlinux
 
 pacstrap -dG /mnt base openssh
+gpg-connect-agent --homedir /etc/pacman.d/gnupg "SCD KILLSCD" "SCD BYE" /bye
 gpg-connect-agent --homedir /etc/pacman.d/gnupg killagent /bye
 EOF
 
