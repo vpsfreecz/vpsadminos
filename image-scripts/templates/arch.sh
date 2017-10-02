@@ -64,8 +64,8 @@ yes | pacman -Scc
 # Newer glibc versions require kernel >= 3.2
 pacman --noconfirm -U https://archive.archlinux.org/packages/g/glibc/glibc-2.25-7-x86_64.pkg.tar.xz
 
-gpg-connect-agent --homedir /etc/pacman.d/gnupg killagent /bye
 gpg-connect-agent --homedir /etc/pacman.d/gnupg "SCD KILLSCD" "SCD BYE" /bye
+gpg-connect-agent --homedir /etc/pacman.d/gnupg killagent /bye
 
 ln -s /usr/share/zoneinfo/Europe/Prague /etc/localtime
 sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
