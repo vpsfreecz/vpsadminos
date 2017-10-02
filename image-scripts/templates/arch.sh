@@ -47,6 +47,10 @@ EOF
 
 configure-arch() {
 	configure-append <<EOF
+cat <<EOF > /etc/resolv.conf
+$(cat /etc/resolv.conf)
+EOF
+
 cat >> /etc/fstab <<EOT
 devpts       /dev/pts        devpts  gid=5,mode=620    0       0
 tmpfs        /tmp            tmpfs   nodev,nosuid      0       0
@@ -57,13 +61,17 @@ pacman-key --populate archlinux
 gpg-connect-agent --homedir /etc/pacman.d/gnupg killagent /bye
 pacman -Rns --noconfirm linux
 yes | pacman -Scc
+
+# Newer glibc versions require kernel >= 3.2
+pacman --noconfirm -U https://archive.archlinux.org/packages/g/glibc/glibc-2.25-7-x86_64.pkg.tar.xz
+
 ln -s /usr/share/zoneinfo/Europe/Prague /etc/localtime
 sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
 sed -i 's/#DefaultTimeoutStartSec=90s/DefaultTimeoutStartSec=900s/' /etc/systemd/system.conf
 systemctl enable sshd
 systemctl disable systemd-resolved
 usermod -L root
-sed -ri 's/^#( *IgnorePkg *=.*)$/\1 libsystemd systemd systemd-sysvcompat python2-systemd/' /etc/pacman.conf
+sed -ri 's/^#( *IgnorePkg *=.*)$/\1 libsystemd systemd systemd-sysvcompat python2-systemd glibc/' /etc/pacman.conf
 
 for i in systemd-journald systemd-logind; do
   echo "Creating systemd override file for \$i"
@@ -74,6 +82,8 @@ SystemCallFilter=
 MemoryDenyWriteExecute=no
 EOT
 done
+
+echo > /etc/resolv.conf
 
 EOF
 }
