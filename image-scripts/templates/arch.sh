@@ -47,9 +47,9 @@ EOF
 
 configure-arch() {
 	configure-append <<EOF
-cat <<EOF > /etc/resolv.conf
+cat <<EOT > /etc/resolv.conf
 $(cat /etc/resolv.conf)
-EOF
+EOT
 
 cat >> /etc/fstab <<EOT
 devpts       /dev/pts        devpts  gid=5,mode=620    0       0
