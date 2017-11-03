@@ -66,10 +66,12 @@ and uncomment `nesting.conf` include line following this line:
 # include = ...
 ```
 
-## Building custom targets:
+## Building specific targets:
 
+```
 nix-build -A config.system.build.tftpdir -o tftpdir
 nix-build -A config.system.build.squashfs
+```
 
 ## Docs:
 
