@@ -47,7 +47,7 @@ let
     :is_correct
     shell
   '';
-  ftpdir = pkgs.runCommand "ftpdir" { buildInputs = [ pkgs.openssl ]; } ''
+  tftpdir = pkgs.runCommand "tftpdir" { buildInputs = [ pkgs.openssl ]; } ''
     mkdir $out
     ln -sv ${config.system.build.dist}/kernel $out/
     ln -sv ${config.system.build.dist}/initrd $out/
@@ -85,12 +85,11 @@ let
   });
   testipxe = pkgs.writeScript "runner" ''
     #!${pkgs.stdenv.shell}
-    exec ${pkgs.qemu_kvm}/bin/qemu-kvm -name not-os -m 512 \
+    exec ${pkgs.qemu_kvm}/bin/qemu-kvm -name vpsadminos -m 512 \
       -kernel ${ipxe}/ipxe.lkrn  \
       -net nic,vlan=0,model=virtio \
-      -net user,vlan=0,net=10.0.2.0/24,host=10.0.2.2,dns=10.0.2.3,hostfwd=tcp::2222-:22,tftp=${ftpdir} \
-      -net dump,vlan=0 \
-      -device virtio-rng-pci -serial stdio
+      -net user,vlan=0,net=10.0.2.0/24,host=10.0.2.2,dns=10.0.2.3,hostfwd=tcp::2222-:22,tftp=${tftpdir} \
+      -serial stdio
   '';
 in
 {
@@ -98,7 +97,7 @@ in
   };
   config = {
     system.build = {
-      inherit ipxe_script ftpdir ipxe testipxe;
+      inherit ipxe_script tftpdir ipxe testipxe;
     };
   };
 }

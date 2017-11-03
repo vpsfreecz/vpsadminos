@@ -2,6 +2,9 @@
 
 with lib;
 
+let
+  kernelModules = lib.concatStringsSep " " config.boot.initrd.kernelModules;
+in
 {
   options = {
     boot = {
@@ -27,6 +30,7 @@ with lib;
       src = ./stage-2-init.sh;
       isExecutable = true;
       path = config.system.path;
+      inherit (config.networking) hostName;
     };
   };
 }

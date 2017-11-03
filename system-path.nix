@@ -5,7 +5,47 @@
 with lib;
 
 let
-  requiredPackages = with pkgs; [ utillinux coreutils iproute iputils procps curl bashInteractive runit ];
+  requiredPackages = with pkgs; [
+    utillinux
+    coreutils
+    iproute
+    iputils
+    iptables
+    criu
+    mingetty
+    procps
+    bashInteractive
+    runit
+    shadow
+    kmod
+    zfstools
+    xz
+    gzip
+    gnused
+    gnugrep
+    gnutar
+    cpio
+    curl
+    diffutils
+    findutils
+    netcat
+    procps
+    rsync
+    time
+    which
+    gawk
+    wget
+    gnupg
+    bzip2
+    bridge-utils
+    nettools
+    bird
+    bird6
+    su
+    lxcfs
+    libcgroup
+    dbus
+  ];
 in
 {
   options = {
