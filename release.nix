@@ -1,4 +1,4 @@
-{ supportedSystems ? [ "x86_64-linux" "i686-linux" ], supportedSystems2 ? [ "x86_64-linux" "i686-linux" "armv6l-linux" ] }:
+{ supportedSystems ? [ "x86_64-linux" ], supportedSystems2 ? [ "x86_64-linux" ] }:
 
 with import <nixpkgs/lib>;
 
