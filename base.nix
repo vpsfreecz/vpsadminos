@@ -98,7 +98,15 @@ with lib;
     };
     environment.systemPackages = lib.optional config.vpsadminos.nix pkgs.nix;
     nixpkgs.config = {
-      packageOverrides = self: {
+      packageOverrides = self: rec {
+        criu = self.criu.overrideAttrs (oldAttrs: rec {
+          src = pkgs.fetchFromGitHub {
+            owner = "sorki";
+            repo = "criu";
+            rev = "b33585cb101fa5d27030e9458394ad8fdf680057";
+            sha256 = "02z3b1h5h1gzlzmw5v0hhvrn352zmkfa4dlmgnc3d8i8a33gnb87";
+          };
+        });
         utillinux = self.utillinux.override { systemd = null; };
         linux_4_13 = self.linux_4_13.override {
           extraConfig = ''
