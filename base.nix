@@ -108,7 +108,7 @@ with lib;
           };
         });
         utillinux = self.utillinux.override { systemd = null; };
-        linux_4_13 = self.linux_4_13.override {
+        linux_4_14 = self.linux_4_14.override {
           extraConfig = ''
             EXPERT y
             CHECKPOINT_RESTORE y
@@ -177,6 +177,8 @@ with lib;
 
     boot.kernelParams = [ "systemConfig=${config.system.build.toplevel}" ];
     boot.kernelPackages = if config.kernel.testing then pkgs.linuxPackages_testing else pkgs.linuxPackages_latest;
+    # to pin you can use something like
+    #boot.kernelPackages = pkgs.linuxPackages_4_14;
     boot.kernelModules = [
       "veth"
       "fuse"
