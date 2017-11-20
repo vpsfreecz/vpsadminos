@@ -9,6 +9,7 @@ with lib;
       fprintd = mkOption { };
       sssd = mkOption { };
       nscd = mkOption { };
+      avahi = mkOption { };
       samba = mkOption { };
       zfs = mkOption { };
     };
@@ -27,11 +28,12 @@ with lib;
   };
   config = {
     services = {
+      avahi = { enable = false; nssmdns = false; };
       cgmanager = { enable = false; };
       sssd = { enable = false; };
       nscd = { enable = false; };
       fprintd = { enable = false; };
-      samba = { enable = false; syncPasswordsByPam = false; };
+      samba = { enable = false; syncPasswordsByPam = false; nsswins = false; };
       zfs = {};
     };
     krb5 = { enable = false; }; 
