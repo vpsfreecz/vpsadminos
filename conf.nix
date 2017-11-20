@@ -16,5 +16,7 @@
     vim
     screen
     strace
+    vpsadmind_srv
+    #    vpsadmindctl
   ];
 }

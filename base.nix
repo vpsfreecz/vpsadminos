@@ -120,6 +120,7 @@ with lib;
             CHECKPOINT_RESTORE y
           '';
         };
+        spl = spl.overrideAttrs (old: { broken = false; });
       };
     };
     environment.etc = {
