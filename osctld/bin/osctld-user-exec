@@ -1,0 +1,7 @@
+#!/usr/bin/env ruby
+require 'bundler'
+Dir.chdir(File.join(File.dirname(__FILE__), '..'))
+Bundler.setup(:default)
+
+require_relative '../lib/osctld/cli'
+OsCtld::Cli::Exec.run
