@@ -1,5 +1,3 @@
-require 'bundler'
-
 module OsCtl::Cli
   class User < Command
     def list
@@ -26,8 +24,14 @@ module OsCtl::Cli
       raise "missing argument" unless args[0]
 
       # TODO: error handling
-      cmd = osctld(:user_su, name: args[0])[:response][:cmd]
-      pid = Process.fork { Bundler.clean_exec(*cmd) }
+      cmd = osctld(:user_su, name: args[0])[:response]
+      pid = Process.fork do
+        cmd[:env].each do |k, v|
+          ENV[k.to_s] = v
+        end
+
+        Process.exec(*cmd[:cmd])
+      end
 
       Process.wait(pid)
     end

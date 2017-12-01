@@ -9,7 +9,7 @@ module OsCtld
       u = UserList.find(opts[:name])
       return error('user not found') unless u
 
-      ok(cmd: user_exec(u, '/bin/bash'))
+      ok(user_exec(u, 'bash'))
     end
   end
 end

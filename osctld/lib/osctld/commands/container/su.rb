@@ -9,7 +9,7 @@ module OsCtld
       ct = ContainerList.find(opts[:id])
       return error('container not found') unless ct
 
-      ok(cmd: user_exec(ct.user, '/bin/bash'))
+      ok(user_exec(ct.user, 'bash'))
     end
   end
 end

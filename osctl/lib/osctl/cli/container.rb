@@ -1,5 +1,3 @@
-require 'bundler'
-
 module OsCtl::Cli
   class Container < Command
     def list
@@ -45,8 +43,14 @@ module OsCtl::Cli
       raise "missing argument" unless args[0]
 
       # TODO: error handling
-      cmd = osctld(:ct_attach, id: args[0])[:response][:cmd]
-      pid = Process.fork { Bundler.clean_exec(*cmd) }
+      cmd = osctld(:ct_attach, id: args[0])[:response]
+      pid = Process.fork do
+        cmd[:env].each do |k, v|
+          ENV[k.to_s] = v
+        end
+
+        Process.exec(*cmd[:cmd])
+      end
 
       Process.wait(pid)
     end
@@ -55,9 +59,14 @@ module OsCtl::Cli
       raise "missing argument" unless args[0]
 
       # TODO: error handling
-      ret = osctld(:ct_su, id: args[0])
-      cmd = ret[:response][:cmd]
-      pid = Process.fork { Bundler.clean_exec(*cmd) }
+      cmd = osctld(:ct_su, id: args[0])[:response]
+      pid = Process.fork do
+        cmd[:env].each do |k, v|
+          ENV[k.to_s] = v
+        end
+
+        Process.exec(*cmd[:cmd])
+      end
 
       Process.wait(pid)
     end
