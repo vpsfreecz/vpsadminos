@@ -214,7 +214,6 @@ with lib;
         '';
         usernetConfig = lib.optionalString config.networking.lxcbr ''
           root veth lxcbr0 10
-          lxc veth lxcbr0 10
         '';
         lxcfs.enable = true;
       };

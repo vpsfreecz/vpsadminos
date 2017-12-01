@@ -96,14 +96,6 @@ in
 
       # Permission fixes
       chmod 777 /tmp
-      chmod 755 /home
-      chmod 755 /home/lxc
-
-      # lxc user tweaks
-      mkdir -p /home/lxc/.config/lxc/
-      if [ ! -f /home/lxc/.config/lxc/default.conf ]; then
-        echo "lxc.include = /etc/lxc/user.conf" > /home/lxc/.config/lxc/default.conf
-      fi
 
       touch /etc/runit/stopit
       chmod 0 /etc/runit/stopit
