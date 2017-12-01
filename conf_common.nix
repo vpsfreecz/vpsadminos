@@ -33,13 +33,30 @@
 
     Welcome to vpsAdminOS
 
-    Start test container with:
+    Create a zpool:
+      dd if=/dev/zero of=/lxc.zpool bs=1M count=4096 && zpool create lxc /lxc.zpool
 
-      lxc-create -n ct_gentoo -t download -- -d gentoo -r current -a amd64
-      lxc-create -n ct_alpine -t download -- -d alpine -r edge -a amd64
-      lxc-create -n ct_fedora -t download -- -d fedora -r 26 -a amd64
-      lxc-create -n ct_arch   -t download -- -d archlinux -r current -a amd64
-      lxc-create -n ct_ubuntu -t download -- -d ubuntu -r zesty -a amd64
+    Run osctld:
+      osctld
+
+    Fetch OS templates:
+      wget https://s.hvfn.cz/~aither/pub/tmp/templates/ubuntu-16.04-x86_64-vpsfree.tar.gz
+      wget https://s.hvfn.cz/~aither/pub/tmp/templates/debian-9-x86_64-vpsfree.tar.gz
+      wget https://s.hvfn.cz/~aither/pub/tmp/templates/centos-7.3-x86_64-vpsfree.tar.gz
+      wget https://s.hvfn.cz/~aither/pub/tmp/templates/alpine-3.6-x86_64-vpsfree.tar.gz
+
+    Create a user:
+      osctl user new --ugid 5000 --offset 666000 --size 65536 myuser01
+
+    Create a container:
+      osctl ct new --user myuser01 --template ubuntu-16.04-x86_64-vpsfree.tar.gz myct01
+
+    Start the container:
+      osctl ct start myct01
+
+    Further information:
+      osctl help user
+      osctl help ct
     '';
 
   programs.ssh.package = pkgs.openssh;
