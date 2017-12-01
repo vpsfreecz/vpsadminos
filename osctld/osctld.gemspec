@@ -4,7 +4,13 @@ require 'osctld/version'
 
 Gem::Specification.new do |s|
   s.name        = 'osctld'
-  s.version     = OsCtld::VERSION
+
+  if ENV['VPSADMIN_ENV'] == 'dev'
+    s.version   = "#{OsCtld::VERSION}.build#{Time.now.strftime('%Y%m%d%H%M%S')}"
+  else
+    s.version   = OsCtld::VERSION
+  end
+
   s.summary     =
   s.description = 'Management daemon for vpsAdmin OS'
   s.authors     = 'Jakub Skokan'
