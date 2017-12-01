@@ -11,21 +11,26 @@ module OsCtld
       ENV['USER'] = sysuser
 
       # CGroups
-      cgroup('blkio', ['osctl', user], attach: true)
-      cgroup('rdma', ['osctl', user], chown: ugid, attach: true)
-      cgroup('freezer', ['osctl', user], chown: ugid, attach: true)
-      cgroup('cpuset', ['osctl', user], attach: true)
-      cgroup('pids', ['osctl', user], attach: true)
-      cgroup('cpu,cpuacct', ['osctl', user], attach: true)
-      cgroup('memory', ['osctl', user], attach: true)
-      cgroup('net_cls,net_prio', ['osctl', user], attach: true)
-      cgroup('devices', ['osctl', user], attach: true)
-      cgroup('systemd', ['osctl', user], chown: ugid, attach: true)
-      cgroup('unified', ['osctl', user], attach: true)
+      chowned = [
+        'freezer', 'cpu,cpuacct', 'net_cls', 'net_cls,net_prio', 'systemd'
+      ]
+
+      cgroup_subsystems.each do |subsys|
+        cgroup(
+          subsys,
+          ['osctl', user],
+          attach: true,
+          chown: chowned.include?(subsys) ? ugid : false
+        )
+      end
 
       # Switch
       Process::Sys.setgid(ugid)
       Process::Sys.setuid(ugid)
+    end
+
+    def self.cgroup_subsystems
+      Dir.entries(CGROUP_FS) - ['.', '..']
     end
 
     def self.cgroup(type, path, chown: nil, attach: false)
