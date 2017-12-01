@@ -6,7 +6,7 @@
 {
   imports = [ ./conf_common.nix ./qemu.nix ];
   networking.hostName = "vpsadminos";
-  networking.static = true;
+  networking.static.enable = true;
   networking.lxcbr = true;
   networking.nat = true;
   networking.dhcpd = true;

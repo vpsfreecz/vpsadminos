@@ -47,10 +47,30 @@ with lib;
       description = "machine hostname";
       default = "default";
     };
-    networking.static = mkOption {
+    networking.static.enable = mkOption {
       type = types.bool;
       description = "use static networking configuration";
       default = false;
+    };
+    networking.static.interface = mkOption {
+      type = types.string;
+      description = "interface for static networking configuration";
+      default = "eth0";
+    };
+    networking.static.ip = mkOption {
+      type = types.string;
+      description = "IP address for static networking configuration";
+      default = "10.0.2.15";
+    };
+    networking.static.route = mkOption {
+      type = types.string;
+      description = "route";
+      default = "10.0.2.0/24";
+    };
+    networking.static.gw = mkOption {
+      type = types.string;
+      description = "gateway IP address for static networking configuration";
+      default = "10.0.2.2";
     };
     networking.dhcp = mkOption {
       type = types.bool;
