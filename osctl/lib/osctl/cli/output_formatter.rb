@@ -31,7 +31,11 @@ module OsCtl::Cli
 
       else
         if @objects.is_a?(::Array) # A list of items
-          @cols ||= parse_cols(@objects.first.keys)
+          if @objects.count == 0
+            @cols = []
+          else
+            @cols ||= parse_cols(@objects.first.keys)
+          end
 
         elsif @objects.is_a?(::Hash) # Single item
           @cols ||= parse_cols(@objects.keys)
