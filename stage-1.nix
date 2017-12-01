@@ -77,7 +77,7 @@ let
   bootStage1 = pkgs.writeScript "stage1" ''
     #!${shell}
     echo
-    echo "[1;32m<<< vpsAdminOs Stage 1 >>>[0m"
+    echo "[1;32m<<< vpsAdminOS Stage 1 >>>[0m"
     echo
 
     export PATH=${extraUtils}/bin/
