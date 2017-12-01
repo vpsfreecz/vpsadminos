@@ -10,6 +10,9 @@
 
   environment.systemPackages = with pkgs; [
     less
+    ruby
+    osctl
+    osctld
     ];
 
   environment.etc = {
