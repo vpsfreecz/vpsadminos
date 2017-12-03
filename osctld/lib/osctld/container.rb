@@ -6,6 +6,7 @@ module OsCtld
     include Utils::Log
     include Utils::System
     include Utils::Zfs
+    include Utils::SwitchUser
 
     attr_reader :id, :user, :distribution, :version
 
@@ -30,6 +31,19 @@ module OsCtld
       end
 
       File.chown(0, 0, config_path)
+    end
+
+    def state
+      inclusively do
+        ret = ct_control(user, :ct_status, ids: [id])
+
+        if ret[:status]
+          ret[:output][id.to_sym][:state].to_sym
+
+        else
+          :unknown
+        end
+      end
     end
 
     def dataset

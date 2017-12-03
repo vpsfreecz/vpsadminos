@@ -42,8 +42,15 @@ module OsCtl::Cli
     def attach
       raise "missing argument" unless args[0]
 
-      # TODO: error handling
-      cmd = osctld(:ct_attach, id: args[0])[:response]
+      ret = osctld(:ct_attach, id: args[0])
+
+      unless ret[:status]
+        warn "Error: #{ret[:message]}"
+        return
+      end
+
+      cmd = ret[:response]
+
       pid = Process.fork do
         cmd[:env].each do |k, v|
           ENV[k.to_s] = v

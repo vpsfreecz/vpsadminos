@@ -9,12 +9,16 @@ module OsCtld
       ct = ContainerList.find(opts[:id])
       return error('container not found') unless ct
 
-      ok(user_exec(
-        ct.user,
-        'lxc-attach', '-P', ct.user.lxc_home,
-        '--clear-env', '--keep-var', 'TERM',
-        '-n', ct.id
-      ))
+      ct.inclusively do
+        next error('container not running') if ct.state != :running
+
+        ok(user_exec(
+          ct.user,
+          'lxc-attach', '-P', ct.user.lxc_home,
+          '--clear-env', '--keep-var', 'TERM',
+          '-n', ct.id
+        ))
+      end
     end
   end
 end
