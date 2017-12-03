@@ -12,6 +12,7 @@ module OsCtld
     def initialize
       Thread.abort_on_exception = true
       UserList.instance
+      ContainerList.instance
 
       mkdatasets
       load_users

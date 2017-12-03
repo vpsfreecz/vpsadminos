@@ -14,6 +14,10 @@ module OsCtld
       load_config if load
     end
 
+    def id
+      @name
+    end
+
     def delete
       unregister
       zfs(:destroy, nil, ct_dataset)
