@@ -11,7 +11,9 @@ module OsCtld
 
       ok(user_exec(
         ct.user,
-        'lxc-attach', '-P', ct.user.lxc_home, '--clear-env', '-n', ct.id
+        'lxc-attach', '-P', ct.user.lxc_home,
+        '--clear-env', '--keep-var', 'TERM',
+        '-n', ct.id
       ))
     end
   end
