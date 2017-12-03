@@ -1,4 +1,3 @@
-require 'erb'
 require 'fileutils'
 
 module OsCtld
@@ -26,17 +25,17 @@ module OsCtld
       u.configure(opts[:ugid], opts[:offset], opts[:size])
 
       # bashrc
-      bashrc = File.join(u.homedir, '.bashrc')
-
-      @user = u
-      @override = %w(attach cgroup console device execute info ls monitor start stop
-        top wait)
-      @disable = %w(autostart checkpoint clone copy create destroy freeze snapshot
-        start-ephemeral unfreeze unshare)
-
-      File.open(bashrc, 'w') do |f|
-        f.write(ERB.new(File.new(OsCtld.tpl('user_bashrc')).read, 0, '-').result(binding))
-      end
+      Template.render_to('user/bashrc', {
+        user: u,
+        override: %w(
+          attach cgroup console device execute info ls monitor start stop
+          top wait
+        ),
+        disable: %w(
+          autostart checkpoint clone copy create destroy freeze snapshot
+          start-ephemeral unfreeze unshare
+        ),
+      }, File.join(u.homedir, '.bashrc'))
 
       u.register
 

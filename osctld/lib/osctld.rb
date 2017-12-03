@@ -22,6 +22,7 @@ module OsCtld
 end
 
 require_relative 'osctld/version'
+require_relative 'osctld/template'
 require_relative 'osctld/utils/log'
 require_relative 'osctld/utils/system'
 require_relative 'osctld/utils/zfs'

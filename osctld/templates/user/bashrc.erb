@@ -5,12 +5,12 @@ use_osctl () {
   echo "lxc-$1 is disabled on vpsAdmin OS. Use osctl instead." >&2
 }
 
-<% @override.each do |cmd| -%>
-alias lxc-<%= cmd%>='lxc-<%= cmd %> -P <%= @user.lxc_home %>'
+<% override.each do |cmd| -%>
+alias lxc-<%= cmd%>='lxc-<%= cmd %> -P <%= user.lxc_home %>'
 <% end -%>
 
-<% @disable.each do |cmd| -%>
+<% disable.each do |cmd| -%>
 alias lxc-<%= cmd%>='use_osctl <%= cmd %>'
 <% end -%>
 
-cd <%= @user.homedir %>
+cd <%= user.homedir %>
