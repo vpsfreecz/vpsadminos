@@ -10,6 +10,7 @@ module OsCtld
 
     def execute
       u = User.new(opts[:name], load: false)
+      return error('user already exists') if UserList.contains?(u.name)
 
       zfs(:create, nil, u.dataset)
       zfs(:create, nil, u.ct_dataset)

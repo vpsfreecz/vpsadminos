@@ -8,6 +8,7 @@ module OsCtld
 
     def execute
       ct = Container.new(opts[:id], opts[:user], load: false)
+      return error('container already exists') if ContainerList.contains?(ct.id)
 
       zfs(:create, nil, ct.dataset)
       Dir.mkdir(ct.rootfs, 0750)
