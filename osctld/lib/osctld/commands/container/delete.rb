@@ -8,10 +8,10 @@ module OsCtld
     include Utils::SwitchUser
 
     def execute
-      ContainerList.sync do
-        ct = ContainerList.find(opts[:id])
-        return error("container not found") unless ct
+      ct = ContainerList.find(opts[:id])
+      return error("container not found") unless ct
 
+      ct.exclusively do
         stop = ct_control(ct.user, :ct_stop, id: ct.id)
         return error('unable to stop the container') unless stop[:status]
 

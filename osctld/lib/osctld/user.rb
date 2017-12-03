@@ -3,6 +3,7 @@ require 'yaml'
 
 module OsCtld
   class User
+    include Lockable
     include Utils::Log
     include Utils::System
     include Utils::Zfs
@@ -10,6 +11,7 @@ module OsCtld
     attr_reader :name, :ugid, :offset, :size
 
     def initialize(name, load: true)
+      init_lock
       @name = name
       load_config if load
     end
@@ -41,19 +43,25 @@ module OsCtld
     end
 
     def registered?
-      return @registered unless @registered.nil?
-      @registered = syscmd("id #{username}", valid_rcs: [1])[:exitstatus] == 0
+      exclusively do
+        next @registered unless @registered.nil?
+        @registered = syscmd("id #{username}", valid_rcs: [1])[:exitstatus] == 0
+      end
     end
 
     def register
-      syscmd("groupadd -g #{ugid} #{groupname}")
-      syscmd("useradd -u #{ugid} -g #{ugid} -d #{homedir} #{username}")
-      @registered = true
+      exclusively do
+        syscmd("groupadd -g #{ugid} #{groupname}")
+        syscmd("useradd -u #{ugid} -g #{ugid} -d #{homedir} #{username}")
+        @registered = true
+      end
     end
 
     def unregister
-      syscmd("userdel #{groupname}")
-      @registered = false
+      exclusively do
+        syscmd("userdel #{groupname}")
+        @registered = false
+      end
     end
 
     def username

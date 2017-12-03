@@ -2,6 +2,7 @@ require 'yaml'
 
 module OsCtld
   class Container
+    include Lockable
     include Utils::Log
     include Utils::System
     include Utils::Zfs
@@ -9,6 +10,8 @@ module OsCtld
     attr_reader :id, :user, :template
 
     def initialize(id, user_name, load: true)
+      init_lock
+
       @id = id
       @user = UserList.find(user_name) || (raise "user not found")
 

@@ -11,8 +11,10 @@ module OsCtld
       ct_infos = {}
 
       ContainerList.get.each do |ct|
+        ct.lock(:inclusive)
+
         user_cts[ct.user] ||= []
-        user_cts[ct.user] << ct.id
+        user_cts[ct.user] << ct
 
         ct_infos[ct.id] = {
           id: ct.id,
@@ -22,8 +24,9 @@ module OsCtld
         }
       end
 
-      user_cts.each do |user, ctids|
-        ret = ct_control(user, :ct_status, ids: ctids)
+      user_cts.each do |user, cts|
+        ret = ct_control(user, :ct_status, ids: cts.map { |ct| ct.id })
+        cts.each { |ct| ct.unlock(:inclusive) }
         next unless ret[:status]
 
         ret[:output].each do |ctid, info|

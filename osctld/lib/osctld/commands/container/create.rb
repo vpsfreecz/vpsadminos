@@ -8,25 +8,30 @@ module OsCtld
 
     def execute
       ct = Container.new(opts[:id], opts[:user], load: false)
-      return error('container already exists') if ContainerList.contains?(ct.id)
 
-      zfs(:create, nil, ct.dataset)
-      Dir.mkdir(ct.rootfs, 0750)
+      ct.user.inclusively do
+        ct.exclusively do
+          return error('container already exists') if ContainerList.contains?(ct.id)
 
-      syscmd("tar -xzf #{opts[:template]} -C #{ct.rootfs}")
+          zfs(:create, nil, ct.dataset)
+          Dir.mkdir(ct.rootfs, 0750)
 
-      zfs(:unmount, nil, ct.dataset)
-      zfs(:set, "uidoffset=#{ct.uid_offset} gidoffset=#{ct.gid_offset}", ct.dataset)
-      zfs(:mount, nil, ct.dataset)
+          syscmd("tar -xzf #{opts[:template]} -C #{ct.rootfs}")
 
-      os = File.basename(opts[:template]).split('-').first
+          zfs(:unmount, nil, ct.dataset)
+          zfs(:set, "uidoffset=#{ct.uid_offset} gidoffset=#{ct.gid_offset}", ct.dataset)
+          zfs(:mount, nil, ct.dataset)
 
-      Template.render_to('ct/config', {
-        os: File.basename(opts[:template]).split('-').first,
-        ct: ct,
-      }, ct.lxc_config_path)
+          os = File.basename(opts[:template]).split('-').first
 
-      ContainerList.add(ct)
+          Template.render_to('ct/config', {
+            os: File.basename(opts[:template]).split('-').first,
+            ct: ct,
+          }, ct.lxc_config_path)
+
+          ContainerList.add(ct)
+        end
+      end
 
       # Create dataset
       # Extract template

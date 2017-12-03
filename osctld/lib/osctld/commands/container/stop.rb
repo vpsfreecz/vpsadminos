@@ -8,7 +8,9 @@ module OsCtld
 
     def execute
       ct = ContainerList.find(opts[:id]) || (raise 'container not found')
-      ct_control(ct.user, :ct_stop, id: ct.id)
+      ct.exclusively do
+        ct_control(ct.user, :ct_stop, id: ct.id)
+      end
     end
   end
 end

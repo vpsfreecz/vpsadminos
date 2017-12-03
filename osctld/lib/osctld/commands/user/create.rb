@@ -12,37 +12,39 @@ module OsCtld
       u = User.new(opts[:name], load: false)
       return error('user already exists') if UserList.contains?(u.name)
 
-      zfs(:create, nil, u.dataset)
-      zfs(:create, nil, u.ct_dataset)
-      File.chown(0, opts[:ugid], u.homedir)
-      File.chmod(0751, u.homedir)
+      u.exclusively do
+        zfs(:create, nil, u.dataset)
+        zfs(:create, nil, u.ct_dataset)
+        File.chown(0, opts[:ugid], u.homedir)
+        File.chmod(0751, u.homedir)
 
-      # Cache dir for LXC
-      cache_dir = File.join(u.homedir, '.cache', 'lxc')
-      FileUtils.mkdir_p(cache_dir)
-      File.chmod(0775, cache_dir)
-      File.chown(0, opts[:ugid], cache_dir)
+        # Cache dir for LXC
+        cache_dir = File.join(u.homedir, '.cache', 'lxc')
+        FileUtils.mkdir_p(cache_dir)
+        File.chmod(0775, cache_dir)
+        File.chown(0, opts[:ugid], cache_dir)
 
-      u.configure(opts[:ugid], opts[:offset], opts[:size])
+        u.configure(opts[:ugid], opts[:offset], opts[:size])
 
-      # bashrc
-      Template.render_to('user/bashrc', {
-        user: u,
-        override: %w(
-          attach cgroup console device execute info ls monitor start stop
-          top wait
-        ),
-        disable: %w(
-          autostart checkpoint clone copy create destroy freeze snapshot
-          start-ephemeral unfreeze unshare
-        ),
-      }, File.join(u.homedir, '.bashrc'))
+        # bashrc
+        Template.render_to('user/bashrc', {
+          user: u,
+          override: %w(
+            attach cgroup console device execute info ls monitor start stop
+            top wait
+          ),
+          disable: %w(
+            autostart checkpoint clone copy create destroy freeze snapshot
+            start-ephemeral unfreeze unshare
+          ),
+        }, File.join(u.homedir, '.bashrc'))
 
-      u.register
+        u.register
 
-      UserList.sync do
-        UserList.add(u)
-        call_cmd(Commands::User::SubUGIds)
+        UserList.sync do
+          UserList.add(u)
+          call_cmd(Commands::User::SubUGIds)
+        end
       end
 
       ok
