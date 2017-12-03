@@ -59,7 +59,7 @@ module OsCtld
     end
 
     def error(err)
-      send_data({:status => false, :error => err})
+      send_data({:status => false, :message => err})
     end
 
     def ok(res)
