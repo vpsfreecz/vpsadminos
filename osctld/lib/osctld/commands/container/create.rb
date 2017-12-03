@@ -22,10 +22,12 @@ module OsCtld
           zfs(:set, "uidoffset=#{ct.uid_offset} gidoffset=#{ct.gid_offset}", ct.dataset)
           zfs(:mount, nil, ct.dataset)
 
-          os = File.basename(opts[:template]).split('-').first
+          distribution, version, *_ = File.basename(opts[:template]).split('-')
+
+          ct.configure(distribution, version)
 
           Template.render_to('ct/config', {
-            os: File.basename(opts[:template]).split('-').first,
+            distribution: distribution,
             ct: ct,
           }, ct.lxc_config_path)
 

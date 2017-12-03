@@ -7,7 +7,7 @@ module OsCtld
     include Utils::System
     include Utils::Zfs
 
-    attr_reader :id, :user, :template
+    attr_reader :id, :user, :distribution, :version
 
     def initialize(id, user_name, load: true)
       init_lock
@@ -18,12 +18,14 @@ module OsCtld
       load_config if load
     end
 
-    def configure(template)
-      @template = template
+    def configure(distribution, version)
+      @distribution = distribution
+      @version = version
 
       File.open(config_path, 'w', 0400) do |f|
         f.write(YAML.dump({
-          'template' => template,
+          'distribution' => distribution,
+          'version' => version,
         }))
       end
 
@@ -72,10 +74,10 @@ module OsCtld
 
     protected
     def load_config
-      # TODO: the config must be created first..
-      #cfg = YAML.load_file(config_path)
+      cfg = YAML.load_file(config_path)
 
-      #@template = cfg['template']
+      @distribution = cfg['distribution']
+      @version = cfg['version']
     end
   end
 end

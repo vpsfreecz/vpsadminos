@@ -21,6 +21,8 @@ module OsCtld
           user: ct.user.name,
           dataset: ct.dataset,
           rootfs: ct.rootfs,
+          distribution: ct.distribution,
+          version: ct.version,
         }
       end
 
