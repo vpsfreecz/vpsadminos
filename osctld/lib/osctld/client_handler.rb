@@ -49,7 +49,7 @@ module OsCtld
         error(output)
 
       else
-        if ret[:status] == :ok
+        if ret[:status]
           ok(ret[:output])
 
         else
@@ -59,11 +59,11 @@ module OsCtld
     end
 
     def error(err)
-      send_data({:status => :failed, :error => err})
+      send_data({:status => false, :error => err})
     end
 
     def ok(res)
-      send_data({:status => :ok, :response => res})
+      send_data({:status => true, :response => res})
     end
 
     def send_data(data)

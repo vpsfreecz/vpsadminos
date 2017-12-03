@@ -24,7 +24,7 @@ module OsCtld
 
       user_cts.each do |user, ctids|
         ret = ct_control(user, :ct_status, ids: ctids)
-        next if ret[:status] != 'ok'
+        next unless ret[:status]
 
         ret[:output].each do |ctid, info|
           ct_infos[ctid.to_s].update({

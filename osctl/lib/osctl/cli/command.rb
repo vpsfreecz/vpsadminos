@@ -25,10 +25,10 @@ module OsCtl::Cli
     def osctld_fmt(*args)
       ret = osctld(*args)
 
-      if ret[:status] == 'ok'
+      if ret[:status]
         OutputFormatter.print(ret[:response]) if ret[:response]
 
-      elsif ret[:status] == 'error'
+      else
         puts "Error occurred: #{ret[:message]}"
       end
     end

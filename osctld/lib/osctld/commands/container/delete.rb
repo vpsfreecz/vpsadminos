@@ -13,7 +13,7 @@ module OsCtld
         return error("container not found") unless ct
 
         stop = ct_control(ct.user, :ct_stop, id: ct.id)
-        return error('unable to stop the container') if stop[:status] != 'ok'
+        return error('unable to stop the container') unless stop[:status]
 
         zfs(:destroy, nil, ct.dataset)
 

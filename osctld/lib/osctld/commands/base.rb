@@ -25,11 +25,11 @@ module OsCtld
     end
 
     def ok(resp = nil)
-      {status: :ok, output: resp}
+      {status: true, output: resp}
     end
 
     def error(msg)
-      {status: :error, message: msg}
+      {status: false, message: msg}
     end
   end
 end
