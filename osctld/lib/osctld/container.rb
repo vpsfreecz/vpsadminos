@@ -24,15 +24,7 @@ module OsCtld
       @distribution = distribution
       @version = version
       @ips = {4 => [], 6 => []}
-
-      File.open(config_path, 'w', 0400) do |f|
-        f.write(YAML.dump({
-          'distribution' => distribution,
-          'version' => version,
-        }))
-      end
-
-      File.chown(0, 0, config_path)
+      save_config
     end
 
     def state
@@ -88,8 +80,25 @@ module OsCtld
       "ct-#{@id}"
     end
 
-    def ip_addresses(v)
+    def ips(v)
       @ips[v].clone
+    end
+
+    def add_ip(addr)
+      v = addr.ipv4? ? 4 : 6
+      @ips[v] << addr.to_string
+      save_config
+    end
+
+    def del_ip(addr)
+      v = addr.ipv4? ? 4 : 6
+      @ips[v].delete_if { |v| v == addr.to_string }
+      save_config
+    end
+
+    def has_ip?(addr)
+      v = addr.ipv4? ? 4 : 6
+      @ips[v].detect { |v| v == addr.to_string } ? true : false
     end
 
     protected
@@ -99,6 +108,23 @@ module OsCtld
       @distribution = cfg['distribution']
       @version = cfg['version']
       @ips = cfg['ip_addresses'] || {4 => [], 6 => []}
+    end
+
+    def save_config
+      data = {
+          'distribution' => distribution,
+          'version' => version,
+      }
+
+      if @ips[4].any? || @ips[6].any?
+        data['ip_addresses'] = @ips
+      end
+
+      File.open(config_path, 'w', 0400) do |f|
+        f.write(YAML.dump(data))
+      end
+
+      File.chown(0, 0, config_path)
     end
   end
 end

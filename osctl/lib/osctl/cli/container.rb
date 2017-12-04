@@ -77,5 +77,22 @@ module OsCtl::Cli
 
       Process.wait(pid)
     end
+
+    def ip_list
+      raise 'missing container id' unless args[0]
+      osctld_fmt(:ct_ip_list, id: args[0])
+    end
+
+    def ip_add
+      raise 'missing container id' unless args[0]
+      raise 'missing addr' unless args[1]
+      osctld_fmt(:ct_ip_add, id: args[0], addr: args[1])
+    end
+
+    def ip_del
+      raise 'missing container id' unless args[0]
+      raise 'missing addr' unless args[1]
+      osctld_fmt(:ct_ip_del, id: args[0], addr: args[1])
+    end
   end
 end

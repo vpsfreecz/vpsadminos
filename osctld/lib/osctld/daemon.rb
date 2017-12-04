@@ -18,6 +18,10 @@ module OsCtld
 
     def setup
       setup_rundir
+
+      # The router needs rundir to be present
+      Routing::Router.instance
+
       mkdatasets
       load_users
       register_users

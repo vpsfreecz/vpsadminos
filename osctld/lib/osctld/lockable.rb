@@ -49,6 +49,8 @@ module OsCtld
       end
 
       def inclusively
+        return yield if @mutex.owned? && @ex == Thread.current
+
         held = false
         sync { held = @in_held.include?(Thread.current) }
 

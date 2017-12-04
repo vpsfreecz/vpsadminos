@@ -127,6 +127,29 @@ module OsCtl::Cli
           su.action &Command.run(Container, :su)
         end
 
+        ct.desc "Manage container's IP addresses"
+        ct.command :ip do |ip|
+          ip.desc 'List IP addresses'
+          ip.arg_name '<id>'
+          ip.command %i(ls list) do |c|
+            c.action &Command.run(Container, :ip_list)
+          end
+
+          ip.desc 'Add IP address'
+          ip.arg_name '<id> <addr>'
+          ip.command :add do |c|
+            c.action &Command.run(Container, :ip_add)
+          end
+
+          ip.desc 'Remove IP address'
+          ip.arg_name '<id> <addr>'
+          ip.command :del do |c|
+            c.action &Command.run(Container, :ip_del)
+          end
+
+          ip.default_command :list
+        end
+
         ct.default_command :list
       end
 

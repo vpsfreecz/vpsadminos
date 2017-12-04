@@ -14,6 +14,16 @@ module OsCtld
       end
 
       ct.veth = opts[:veth]
+
+      [4, 6].each do |v|
+        ips = ct.ips(v)
+        next if ips.empty?
+
+        ips.each do |ip|
+          Routing::Router.add_ip(ct, IPAddress.parse(ip))
+        end
+      end
+
       ok
     end
   end
