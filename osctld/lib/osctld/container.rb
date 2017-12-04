@@ -9,6 +9,7 @@ module OsCtld
     include Utils::SwitchUser
 
     attr_reader :id, :user, :distribution, :version
+    attr_accessor :veth
 
     def initialize(id, user_name, load: true)
       init_lock
@@ -22,6 +23,7 @@ module OsCtld
     def configure(distribution, version)
       @distribution = distribution
       @version = version
+      @ips = {4 => [], 6 => []}
 
       File.open(config_path, 'w', 0400) do |f|
         f.write(YAML.dump({
@@ -86,12 +88,17 @@ module OsCtld
       "ct-#{@id}"
     end
 
+    def ip_addresses(v)
+      @ips[v].clone
+    end
+
     protected
     def load_config
       cfg = YAML.load_file(config_path)
 
       @distribution = cfg['distribution']
       @version = cfg['version']
+      @ips = cfg['ip_addresses'] || {4 => [], 6 => []}
     end
   end
 end

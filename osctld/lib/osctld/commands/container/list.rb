@@ -23,6 +23,7 @@ module OsCtld
           rootfs: ct.rootfs,
           distribution: ct.distribution,
           version: ct.version,
+          veth: ct.veth,
         }
       end
 

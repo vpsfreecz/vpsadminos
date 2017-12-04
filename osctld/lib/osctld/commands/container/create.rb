@@ -33,6 +33,7 @@ module OsCtld
 
           Template.render_to('ct/network', {
             hook_veth_up: OsCtld::hook_run('veth-up'),
+            hook_veth_down: OsCtld::hook_run('veth-down'),
           }, ct.lxc_config_path('network'))
 
           ContainerList.add(ct)

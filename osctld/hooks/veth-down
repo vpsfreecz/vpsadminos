@@ -1,0 +1,24 @@
+#!/usr/bin/env ruby
+require 'json'
+require 'socket'
+
+ctid = ARGV[0]
+veth = ARGV[4]
+
+if ctid.nil? || veth.nil?
+  warn "Expected arguments: <ctid> net down veth <devname>, "+
+       "received #{ARGV.join(' ')}"
+  exit(false)
+end
+
+s = UNIXSocket.new(File.join(Dir.home, '..', '.osctld.sock'))
+s.send({cmd: :veth_down, opts: {
+  id: ARGV[0],
+  veth: ARGV[4],
+}}.to_json + "\n", 0)
+ret = JSON.parse(s.readline, symbolize_names: true)
+s.close
+
+exit(true) if ret[:status]
+warn "Error: #{ret[:message]}"
+exit(false)

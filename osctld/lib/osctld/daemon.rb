@@ -32,8 +32,10 @@ module OsCtld
       Dir.mkdir(RUNDIR, 0711) unless Dir.exists?(RUNDIR)
       Dir.mkdir(HOOKDIR, 0755) unless Dir.exists?(HOOKDIR)
 
-      veth_up = OsCtld.hook_run('veth-up')
-      File.symlink(OsCtld::hook_src('veth-up'), veth_up) unless File.symlink?(veth_up)
+      %w(veth-up veth-down).each do |hook|
+        symlink = OsCtld.hook_run(hook)
+        File.symlink(OsCtld::hook_src(hook), symlink) unless File.symlink?(symlink)
+      end
     end
 
     def mkdatasets
