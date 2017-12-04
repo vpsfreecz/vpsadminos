@@ -15,7 +15,12 @@ module OsCtld
       u.exclusively do
         zfs(:create, nil, u.dataset)
         zfs(:create, nil, u.ct_dataset)
-        File.chown(0, opts[:ugid], u.homedir)
+
+        File.chown(0, opts[:ugid], u.userdir)
+        File.chmod(0751, u.userdir)
+
+        Dir.mkdir(u.homedir) unless Dir.exist?(u.homedir)
+        File.chown(opts[:ugid], opts[:ugid], u.homedir)
         File.chmod(0751, u.homedir)
 
         # Cache dir for LXC
@@ -45,6 +50,8 @@ module OsCtld
           UserList.add(u)
           call_cmd(Commands::User::SubUGIds)
         end
+
+        UserControl::Supervisor.start_server(u)
       end
 
       ok

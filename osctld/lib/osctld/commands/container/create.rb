@@ -31,9 +31,15 @@ module OsCtld
             ct: ct,
           }, ct.lxc_config_path)
 
+          Template.render_to('ct/network', {
+            hook_veth_up: OsCtld::hook_run('veth-up'),
+          }, ct.lxc_config_path('network'))
+
           ContainerList.add(ct)
         end
       end
+
+      call_cmd(Commands::User::LxcUsernet)
 
       # Create dataset
       # Extract template

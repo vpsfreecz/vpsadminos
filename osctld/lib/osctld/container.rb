@@ -62,8 +62,8 @@ module OsCtld
       File.join(ctdir, 'ct.yml')
     end
 
-    def lxc_config_path
-      File.join(ctdir, 'config')
+    def lxc_config_path(cfg = 'config')
+      File.join(ctdir, cfg.to_s)
     end
 
     def uid_offset

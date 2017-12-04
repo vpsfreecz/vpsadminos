@@ -20,6 +20,8 @@ module OsCtld
         ContainerList.remove(ct)
       end
 
+      call_cmd(Commands::User::LxcUsernet)
+
       ok
     end
   end

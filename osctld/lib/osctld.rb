@@ -3,7 +3,10 @@ module OsCtld
     module Container ; end
     module User ; end
   end
+  module Routing ; end
   module Utils ; end
+  module UserControl ; end
+  module UserCommands ; end
 
   POOL = 'lxc'
   USER_DS = "#{POOL}/user"
@@ -14,6 +17,14 @@ module OsCtld
 
   def self.bin(name)
     File.absolute_path(File.join(root, 'bin', name))
+  end
+
+  def self.hook_src(name)
+    File.absolute_path(File.join(root, 'hooks', name))
+  end
+
+  def self.hook_run(name)
+    File.join(Daemon::HOOKDIR, name)
   end
 
   def self.tpl(name)
@@ -29,7 +40,12 @@ require_relative 'osctld/utils/log'
 require_relative 'osctld/utils/system'
 require_relative 'osctld/utils/zfs'
 require_relative 'osctld/utils/switch_user'
+require_relative 'osctld/user_control/client_handler'
+require_relative 'osctld/user_control/server'
+require_relative 'osctld/user_control/supervisor'
+require_relative 'osctld/user_control'
 require_relative 'osctld/command'
+require_relative 'osctld/user_command'
 require_relative 'osctld/client_handler'
 require_relative 'osctld/container_list'
 require_relative 'osctld/container'
@@ -40,15 +56,13 @@ require_relative 'osctld/switch_user'
 require_relative 'osctld/switch_user/container_control'
 
 require_relative 'osctld/commands/base'
-
-#require_relative 'osctld/commands/base'
-#require_relative 'osctld/commands/user/register'
-#require_relative 'osctld/commands/user/subugids'
-#require_relative 'osctld/commands/user/create'
-#require_relative 'osctld/commands/user/delete'
-#require_relative 'osctld/commands/user/list'
-
 Dir.glob(File.join(
   File.dirname(__FILE__),
   'osctld', 'commands', '*', '*.rb'
+)).each { |f| require_relative f }
+
+require_relative 'osctld/user_commands/base'
+Dir.glob(File.join(
+  File.dirname(__FILE__),
+  'osctld', 'user_commands', '*.rb'
 )).each { |f| require_relative f }

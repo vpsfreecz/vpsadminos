@@ -7,19 +7,33 @@ module OsCtld
     include Utils::Zfs
 
     RUNDIR = '/run/osctl'
+    HOOKDIR = File.join(RUNDIR, 'hooks')
     SOCKET = File.join(RUNDIR, 'osctld.sock')
 
     def initialize
       Thread.abort_on_exception = true
       UserList.instance
       ContainerList.instance
+    end
 
+    def setup
+      setup_rundir
       mkdatasets
       load_users
       register_users
       register_subugids
       load_cts
+      configure_lxc_usernet
+      start_user_control
       serve
+    end
+
+    def setup_rundir
+      Dir.mkdir(RUNDIR, 0711) unless Dir.exists?(RUNDIR)
+      Dir.mkdir(HOOKDIR, 0755) unless Dir.exists?(HOOKDIR)
+
+      veth_up = OsCtld.hook_run('veth-up')
+      File.symlink(OsCtld::hook_src('veth-up'), veth_up) unless File.symlink?(veth_up)
     end
 
     def mkdatasets
@@ -63,26 +77,39 @@ module OsCtld
       Commands::User::SubUGIds.run
     end
 
+    def configure_lxc_usernet
+      Commands::User::LxcUsernet.run
+    end
+
+    def start_user_control
+      UserControl.setup
+    end
+
     def serve
       log(:info, :init, "Listening on control socket at #{SOCKET}")
 
-      Dir.mkdir(RUNDIR, 0700) unless Dir.exists?(RUNDIR)
-      srv = UNIXServer.new(SOCKET)
+      @srv = UNIXServer.new(SOCKET)
+      File.chmod(0600, SOCKET)
 
       loop do
         begin
-          c = srv.accept
+          c = @srv.accept
 
-        rescue Interrupt
-          log(:info, :daemon, "Exiting")
-          srv.close
-          File.unlink(SOCKET)
-          exit(false)
+        rescue IOError
+          return
 
         else
           handle_client(c)
         end
       end
+    end
+
+    def stop
+      log(:info, :daemon, "Exiting")
+      @srv.close if @srv
+      File.unlink(SOCKET) if File.exist?(SOCKET)
+      UserControl.stop
+      exit(false)
     end
 
     private

@@ -80,21 +80,29 @@ module OsCtld
       user_ct_ds(name)
     end
 
-    def homedir
+    def userdir
       user_dir(name)
     end
 
+    def homedir
+      File.join(userdir, '.home')
+    end
+
     def lxc_home
-      File.join(user_dir(name), 'ct')
+      File.join(userdir, 'ct')
     end
 
     def config_path
-      "#{homedir}/user.yml"
+      "#{userdir}/user.yml"
     end
 
     def has_containers?
       ct = ContainerList.get.detect { |ct| ct.user.name == name }
       ct ? true : false
+    end
+
+    def containers
+      ContainerList.get { |cts| cts.select { |ct| ct.user == self } }
     end
 
     private
