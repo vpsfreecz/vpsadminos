@@ -53,7 +53,12 @@ module OsCtld
         stdin: opts[:stdin],
         stdout: opts[:stdout],
         stderr: opts[:stderr]
-      ) { LXC.run_command(opts[:cmd]) }
+      ) do
+        ENV.delete_if { |k, _| k != 'TERM' }
+        ENV['PATH'] = %w(/bin /usr/bin /sbin /usr/sbin /run/current-system/sw/bin).join(':')
+
+        LXC.run_command(opts[:cmd])
+      end
 
       Process.wait(pid)
       ok
