@@ -15,8 +15,12 @@ module OsCtld
         next error('address not found') unless ct.has_ip?(addr)
         ct.del_ip(addr)
         Script::Container::Network.run(ct)
-        Routing::Router.del_ip(ct, addr) if ct.state == :running
-        # TODO: remove the IP from the container if it is running
+
+        if ct.state == :running
+          Routing::Router.del_ip(ct, addr)
+          ct_syscmd(ct, "ip addr del #{addr.to_string} dev eth0", valid_rcs: [2])
+        end
+
         ok
       end
     end

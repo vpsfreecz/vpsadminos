@@ -31,5 +31,35 @@ module OsCtld
         env: Hash[ENV.select { |k,_v| k.start_with?('BUNDLE') || k.start_with?('GEM') }]
       }
     end
+
+    # Run a command `cmd` within container `ct`
+    def ct_syscmd(ct, cmd, opts = {})
+      opts[:valid_rcs] ||= []
+      log(:work, "CT #{ct.id}", cmd)
+
+      r, w = IO.pipe
+
+      ret = ct_control(ct.user, :ct_exec, {
+        id: ct.id,
+        cmd: cmd,
+        stdin: nil,
+        stdout: w,
+        stderr: w,
+      })
+
+      w.close
+      out = r.read
+
+      if !ret[:status]
+        fail "Command '#{cmd}' within CT #{ct.id} failed"
+
+      elsif ret[:output][:exitstatus] != 0 && \
+            !opts[:valid_rcs].include?(ret[:output][:exitstatus])
+        fail "Command '#{cmd}' within CT #{ct.id} failed with exit code "+
+             "#{ret[:output][:exitstatus]}: #{out}"
+      end
+
+      {output: out, exitstatus: ret[:exitstatus]}
+    end
   end
 end

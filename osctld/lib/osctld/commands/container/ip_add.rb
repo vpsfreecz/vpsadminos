@@ -24,8 +24,12 @@ module OsCtld
 
         ct.add_ip(addr)
         Script::Container::Network.run(ct)
-        Routing::Router.add_ip(ct, addr) if ct.state == :running
-        # TODO: add the IP in the container if it is running
+
+        if ct.state == :running
+          Routing::Router.add_ip(ct, addr)
+          ct_syscmd(ct, "ip addr add #{addr.to_string} dev eth0", valid_rcs: [2])
+        end
+
         ok
       end
     end

@@ -61,7 +61,7 @@ module OsCtld
       end
 
       Process.wait(pid)
-      ok
+      ok(exitstatus: $?.exitstatus)
     end
 
     def lxc_ct(id)
