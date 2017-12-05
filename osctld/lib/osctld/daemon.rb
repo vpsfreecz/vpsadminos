@@ -37,6 +37,9 @@ module OsCtld
       # Allow containers to create veth interfaces
       Commands::User::LxcUsernet.run
 
+      # Configure container router
+      Routing::Router.setup
+
       # Start user control server, used for lxc hooks
       UserControl.setup
 

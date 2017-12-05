@@ -1,10 +1,20 @@
 module OsCtld
   module Utils::Ip
-    def ip(ip_v, *args)
+    def ip(ip_v, args, opts = {})
       cmd = ['ip']
-      cmd << '-6' if ip_v == 6
+
+      case ip_v
+      when 4
+        cmd << '-4'
+      when 6
+        cmd << '-6'
+      when :all
+      else
+        fail "unknown IP version '#{ip_v}'"
+      end
+
       cmd.concat(args)
-      syscmd(cmd.join(' '))
+      syscmd(cmd.join(' '), opts)
     end
   end
 end
