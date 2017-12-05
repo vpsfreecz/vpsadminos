@@ -6,11 +6,6 @@ module OsCtld
     include Utils::System
     include Utils::Ip
 
-    SUBNETS = [
-      '172.17.98.0/22',
-      'fe80:1234:5678::/48',
-    ]
-
     @@instance = nil
 
     class << self
@@ -29,31 +24,18 @@ module OsCtld
     private
     def initialize
       @mutex = Mutex.new
-      @subnets = {4 => [], 6 => []}
-
-      SUBNETS.each do |v|
-        addr = IPAddress.parse(v)
-        s = addr.ipv4? ? Routing::IPv4Subnet.new(addr) : Routing::IPv6Subnet.new(addr)
-
-        @subnets[s.version] << s
-      end
-
       @allocations = {}
     end
 
     public
     def setup_veth(ct, ip_v)
       sync do
-        net = find_free_subnet(ip_v)
-        raise "no free subnet found for IPv#{ip_v}" unless net
-
-        allocation = net.allocate
+        allocation = via(ct.route_via(ip_v))
 
         @allocations[ct.id] ||= {}
         @allocations[ct.id][ip_v] = allocation
 
         ip(ip_v, :addr, :add, allocation.host_ip.to_string, :dev, ct.veth)
-
         true
       end
     end
@@ -62,9 +44,7 @@ module OsCtld
       sync do
         next(true) unless @allocations.has_key?(ct.id)
 
-        @allocations[ct.id].each do |ip_v, allocation|
-          allocation.release
-        end
+        @allocations.delete(ct.id)
       end
     end
 
@@ -97,8 +77,15 @@ module OsCtld
     end
 
     private
-    def find_free_subnet(ip_v)
-      @subnets[ip_v].detect { |s| s.free? }
+    def via(addr_str)
+      addr = IPAddress.parse(addr_str)
+
+      if addr.ipv4?
+        Routing::ViaIPv4.new(addr)
+
+      else
+        Routing::ViaIPv6.new(addr)
+      end
     end
 
     def setup?(ct, ip_v)

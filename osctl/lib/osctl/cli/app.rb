@@ -88,6 +88,9 @@ module OsCtl::Cli
           new.desc 'Template file'
           new.flag :template, required: true
 
+          new.desc 'Route via network (set one network for IPv4, another for IPv6)'
+          new.flag 'route-via', multiple: true
+
           new.action &Command.run(Container, :create)
         end
 

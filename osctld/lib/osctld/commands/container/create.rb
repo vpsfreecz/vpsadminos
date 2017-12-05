@@ -24,7 +24,11 @@ module OsCtld
 
           distribution, version, *_ = File.basename(opts[:template]).split('-')
 
-          ct.configure(distribution, version)
+          ct.configure(
+            distribution,
+            version,
+            Hash[ opts[:route_via].map { |k,v| [k.to_s.to_i, v] } ]
+          )
 
           Template.render_to('ct/config', {
             distribution: distribution,

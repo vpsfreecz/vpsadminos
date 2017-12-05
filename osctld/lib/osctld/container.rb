@@ -20,10 +20,11 @@ module OsCtld
       load_config if load
     end
 
-    def configure(distribution, version)
+    def configure(distribution, version, route_via)
       @distribution = distribution
       @version = version
       @ips = {4 => [], 6 => []}
+      @route_via = route_via
       save_config
     end
 
@@ -80,6 +81,14 @@ module OsCtld
       "ct-#{@id}"
     end
 
+    def route_via(v)
+      @route_via[v]
+    end
+
+    def can_route?(v)
+      !@route_via[v].nil?
+    end
+
     def ips(v)
       @ips[v].clone
     end
@@ -108,12 +117,14 @@ module OsCtld
       @distribution = cfg['distribution']
       @version = cfg['version']
       @ips = cfg['ip_addresses'] || {4 => [], 6 => []}
+      @route_via = cfg['route_via'] || {}
     end
 
     def save_config
       data = {
-          'distribution' => distribution,
-          'version' => version,
+        'distribution' => distribution,
+        'version' => version,
+        'route_via' => @route_via,
       }
 
       if @ips[4].any? || @ips[6].any?
