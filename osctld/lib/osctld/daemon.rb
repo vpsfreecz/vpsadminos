@@ -11,26 +11,37 @@ module OsCtld
     def initialize
       Thread.abort_on_exception = true
       UserList.instance
+      ContainerList.instance
+      Routing::Router.instance
     end
 
     def setup
-      setup_rundir
-
-      ContainerList.instance
-      Routing::Router.instance
-
-      mkdatasets
-      load_users
-      register_users
-      register_subugids
-      load_cts
-      configure_lxc_usernet
-      start_user_control
-      serve
-    end
-
-    def setup_rundir
+      # Setup /run/osctl
       RunState.create
+
+      # Ensure needed datasets are present
+      mkdatasets
+
+      # Load users from zpool
+      load_users
+
+      # Register loaded users into the system
+      Commands::User::Register.run(all: true)
+
+      # Generate /etc/subuid and /etc/subgid
+      Commands::User::SubUGIds.run
+
+      # Load containers from zpool
+      load_cts
+
+      # Allow containers to create veth interfaces
+      Commands::User::LxcUsernet.run
+
+      # Start user control server, used for lxc hooks
+      UserControl.setup
+
+      # Start accepting client commands
+      serve
     end
 
     def mkdatasets
@@ -71,22 +82,6 @@ module OsCtld
 
         ContainerList.add(ct)
       end
-    end
-
-    def register_users
-      Commands::User::Register.run(all: true)
-    end
-
-    def register_subugids
-      Commands::User::SubUGIds.run
-    end
-
-    def configure_lxc_usernet
-      Commands::User::LxcUsernet.run
-    end
-
-    def start_user_control
-      UserControl.setup
     end
 
     def serve
