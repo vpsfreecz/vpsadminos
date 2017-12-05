@@ -117,14 +117,7 @@ module OsCtld
 
     private
     def via(addr_str)
-      addr = IPAddress.parse(addr_str)
-
-      if addr.ipv4?
-        Routing::ViaIPv4.new(addr)
-
-      else
-        Routing::ViaIPv6.new(addr)
-      end
+      Routing::Via.for(IPAddress.parse(addr_str))
     end
 
     def setup?(ct, ip_v)

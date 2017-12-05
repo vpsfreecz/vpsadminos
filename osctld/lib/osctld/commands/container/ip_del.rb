@@ -14,7 +14,9 @@ module OsCtld
       ct.exclusively do
         next error('address not found') unless ct.has_ip?(addr)
         ct.del_ip(addr)
+        Script::Container::Network.run(ct)
         Routing::Router.del_ip(ct, addr) if ct.state == :running
+        # TODO: remove the IP from the container if it is running
         ok
       end
     end

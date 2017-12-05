@@ -2,6 +2,15 @@ module OsCtld
   class Routing::Via
     attr_reader :net_addr, :host_ip, :ct_ip
 
+    def self.for(net_addr)
+      if net_addr.ipv4?
+        Routing::ViaIPv4.new(net_addr)
+
+      else
+        Routing::ViaIPv6.new(net_addr)
+      end
+    end
+
     def initialize(net_addr)
       @net_addr = net_addr
 

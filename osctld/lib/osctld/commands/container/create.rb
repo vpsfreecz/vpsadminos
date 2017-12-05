@@ -33,6 +33,7 @@ module OsCtld
           Template.render_to('ct/config', {
             distribution: distribution,
             ct: ct,
+            hook_start_host: OsCtld::hook_run('ct-start'),
           }, ct.lxc_config_path)
 
           Template.render_to('ct/network', {

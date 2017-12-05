@@ -4,6 +4,9 @@ module OsCtld
     module User ; end
   end
   module Routing ; end
+  module Script
+    module Container ; end
+  end
   module Utils ; end
   module UserControl ; end
   module UserCommands ; end
@@ -27,6 +30,10 @@ module OsCtld
     File.join(RunState::HOOKDIR, name)
   end
 
+  def self.script(name)
+    File.absolute_path(File.join(root, 'scripts', name))
+  end
+
   def self.tpl(name)
     File.absolute_path(File.join(root, 'templates', "#{name}.erb"))
   end
@@ -42,6 +49,8 @@ require_relative 'osctld/utils/system'
 require_relative 'osctld/utils/zfs'
 require_relative 'osctld/utils/switch_user'
 require_relative 'osctld/utils/ip'
+require_relative 'osctld/script'
+require_relative 'osctld/script/container/network'
 require_relative 'osctld/user_control/client_handler'
 require_relative 'osctld/user_control/server'
 require_relative 'osctld/user_control/supervisor'

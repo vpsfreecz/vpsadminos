@@ -1,0 +1,22 @@
+#!/usr/bin/env ruby
+require 'json'
+require 'socket'
+
+ctid = ARGV[0]
+
+if ctid.nil?
+  warn "Expected arguments: <ctid> lxc start-host, "+
+       "received #{ARGV.join(' ')}"
+  exit(false)
+end
+
+s = UNIXSocket.new(File.join(Dir.home, '..', '.osctld.sock'))
+s.send({cmd: :ct_start, opts: {
+  id: ARGV[0],
+}}.to_json + "\n", 0)
+ret = JSON.parse(s.readline, symbolize_names: true)
+s.close
+
+exit(true) if ret[:status]
+warn "Error: #{ret[:message]}"
+exit(false)

@@ -23,7 +23,9 @@ module OsCtld
         end
 
         ct.add_ip(addr)
+        Script::Container::Network.run(ct)
         Routing::Router.add_ip(ct, addr) if ct.state == :running
+        # TODO: add the IP in the container if it is running
         ok
       end
     end
