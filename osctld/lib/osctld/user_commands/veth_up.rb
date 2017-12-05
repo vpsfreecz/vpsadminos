@@ -14,6 +14,7 @@ module OsCtld
       end
 
       ct.veth = opts[:veth]
+      ContainerList.save_state
 
       [4, 6].each do |v|
         ips = ct.ips(v)

@@ -24,7 +24,7 @@ module OsCtld
   end
 
   def self.hook_run(name)
-    File.join(Daemon::HOOKDIR, name)
+    File.join(RunState::HOOKDIR, name)
   end
 
   def self.tpl(name)
@@ -36,6 +36,7 @@ require_relative 'osctld/version'
 require_relative 'osctld/template'
 require_relative 'osctld/lockable'
 require_relative 'osctld/object_list'
+require_relative 'osctld/run_state'
 require_relative 'osctld/utils/log'
 require_relative 'osctld/utils/system'
 require_relative 'osctld/utils/zfs'

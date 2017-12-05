@@ -6,20 +6,17 @@ module OsCtld
     include Utils::System
     include Utils::Zfs
 
-    RUNDIR = '/run/osctl'
-    HOOKDIR = File.join(RUNDIR, 'hooks')
-    SOCKET = File.join(RUNDIR, 'osctld.sock')
+    SOCKET = File.join(RunState::RUNDIR, 'osctld.sock')
 
     def initialize
       Thread.abort_on_exception = true
       UserList.instance
-      ContainerList.instance
     end
 
     def setup
       setup_rundir
 
-      # The router needs rundir to be present
+      ContainerList.instance
       Routing::Router.instance
 
       mkdatasets
@@ -33,13 +30,7 @@ module OsCtld
     end
 
     def setup_rundir
-      Dir.mkdir(RUNDIR, 0711) unless Dir.exists?(RUNDIR)
-      Dir.mkdir(HOOKDIR, 0755) unless Dir.exists?(HOOKDIR)
-
-      %w(veth-up veth-down).each do |hook|
-        symlink = OsCtld.hook_run(hook)
-        File.symlink(OsCtld::hook_src(hook), symlink) unless File.symlink?(symlink)
-      end
+      RunState.create
     end
 
     def mkdatasets
@@ -60,6 +51,7 @@ module OsCtld
     def load_cts
       log(:info, :init, "Loading containers from data pool")
 
+      state = ContainerList.load_state
       out = zfs(:list, '-H -r -t filesystem -d 3 -o name', USER_DS)[:output]
 
       out.split("\n").map do |line|
@@ -71,7 +63,13 @@ module OsCtld
         user = parts[2]
         ctid = parts[4]
 
-        ContainerList.add(Container.new(ctid, user))
+        ct = Container.new(ctid, user)
+
+        if state.has_key?(ct.id)
+          ct.veth = state[ct.id]['veth']
+        end
+
+        ContainerList.add(ct)
       end
     end
 

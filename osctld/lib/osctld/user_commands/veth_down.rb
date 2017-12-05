@@ -7,6 +7,7 @@ module OsCtld
       return error('container not found') unless ct
       return error('access denied') unless owns_ct?(ct)
       ct.veth = nil
+      ContainerList.save_state
       ok
     end
   end
