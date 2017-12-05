@@ -124,6 +124,12 @@ module OsCtl::Cli
           c.action &Command.run(Container, :attach)
         end
 
+        ct.desc 'Execute a command within the container'
+        ct.arg_name '<id> <cmd...>'
+        ct.command %i(exec) do |c|
+          c.action &Command.run(Container, :exec)
+        end
+
         ct.desc "Get container's user's shell"
         ct.arg_name '<id>'
         ct.command :su do |su|

@@ -4,14 +4,15 @@ module OsCtld
       Command.register(name, self)
     end
 
-    def self.run(opts = {})
-      c = new(opts)
+    def self.run(opts = {}, sock = nil)
+      c = new(sock, opts)
       c.execute
     end
 
-    attr_reader :opts
+    attr_reader :client, :opts
 
-    def initialize(opts)
+    def initialize(sock, opts)
+      @client = sock
       @opts = opts
     end
 

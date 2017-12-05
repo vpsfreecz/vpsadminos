@@ -40,7 +40,7 @@ module OsCtld
       output = {}
 
       begin
-        ret = cmd.run(req[:opts])
+        ret = cmd.run(req[:opts], @sock)
 
       rescue => err
         log(:warn, :server, "Error during command execution: #{err.message}")

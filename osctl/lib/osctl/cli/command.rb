@@ -15,9 +15,14 @@ module OsCtl::Cli
       @args = args
     end
 
-    def osctld(cmd, opts = {})
+    def osctld_open
       c = OsCtl::Client.new
       c.open
+      c
+    end
+
+    def osctld(cmd, opts = {})
+      c = osctld_open
       c.cmd(cmd, opts)
       c.reply
     end

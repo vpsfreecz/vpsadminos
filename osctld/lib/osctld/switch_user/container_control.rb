@@ -48,6 +48,17 @@ module OsCtld
       ok(ret)
     end
 
+    def ct_exec(opts)
+      pid = lxc_ct(opts[:id]).attach(
+        stdin: opts[:stdin],
+        stdout: opts[:stdout],
+        stderr: opts[:stderr]
+      ) { LXC.run_command(opts[:cmd]) }
+
+      Process.wait(pid)
+      ok
+    end
+
     def lxc_ct(id)
       LXC::Container.new(id, @lxc_home)
     end

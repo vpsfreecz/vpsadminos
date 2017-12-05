@@ -65,6 +65,61 @@ module OsCtl::Cli
       Process.wait(pid)
     end
 
+    def exec
+      raise "missing argument" unless args[0]
+      raise "missing command to execute" if args.count < 2
+
+      c = osctld_open
+      c.cmd(:ct_exec, id: args[0], cmd: args[1..-1])
+      ret = c.reply
+
+      if !ret[:status] || ret[:response] != 'continue'
+        warn "exec not available: #{ret[:message]}"
+        exit(false)
+      end
+
+      r_in, w_in = IO.pipe
+      r_out, w_out = IO.pipe
+      r_err, w_err = IO.pipe
+
+      c.send_io(r_in)
+      c.send_io(w_out)
+      c.send_io(w_err)
+
+      r_in.close
+      w_out.close
+      w_err.close
+
+      loop do
+        rs, ws, = IO.select([STDIN, r_out, r_err, c.socket])
+
+        rs.each do |r|
+          case r
+          when r_out
+            data = r.read_nonblock(4096)
+            STDOUT.write(data)
+            STDOUT.flush
+
+          when r_err
+            data = r.read_nonblock(4096)
+            STDERR.write(data)
+            STDERR.flush
+
+          when STDIN
+            data = r.read_nonblock(4096)
+            w_in.write(data)
+
+          when c.socket
+            r_out.close
+            r_err.close
+
+            c.reply
+            return
+          end
+        end
+      end
+    end
+
     def su
       raise "missing argument" unless args[0]
 

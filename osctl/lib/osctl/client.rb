@@ -21,6 +21,10 @@ module OsCtl
       @sock.send({:cmd => cmd, :opts => opts}.to_json + "\n", 0)
     end
 
+    def send_io(io)
+      @sock.send_io(io)
+    end
+
     def reply
       buf = ""
 
@@ -42,6 +46,10 @@ module OsCtl
 
     def parse(raw)
       JSON.parse(raw, symbolize_names: true)
+    end
+
+    def socket
+      @sock
     end
   end
 end

@@ -13,7 +13,7 @@ module OsCtld
 
     def initialize(user, opts)
       @user = user
-      super(opts)
+      @opts = opts
     end
 
     protected
