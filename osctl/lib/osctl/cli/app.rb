@@ -118,6 +118,15 @@ module OsCtl::Cli
           c.action &Command.run(Container, :restart)
         end
 
+        ct.desc "Open container's console"
+        ct.arg_name '<id>'
+        ct.command :console do |c|
+          c.desc 'TTY'
+          c.flag [:t, :tty], type: Integer, default_value: 0
+
+          c.action &Command.run(Container, :console)
+        end
+
         ct.desc 'Attach the container'
         ct.arg_name '<id>'
         ct.command %i(attach enter) do |c|

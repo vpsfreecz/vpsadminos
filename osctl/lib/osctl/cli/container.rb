@@ -42,6 +42,29 @@ module OsCtl::Cli
       osctld_fmt(:ct_restart, id: args[0])
     end
 
+    def console
+      raise "missing argument" unless args[0]
+
+      ret = osctld(:ct_console, id: args[0], tty: opts[:tty])
+
+      unless ret[:status]
+        warn "Error: #{ret[:message]}"
+        return
+      end
+
+      cmd = ret[:response]
+
+      pid = Process.fork do
+        cmd[:env].each do |k, v|
+          ENV[k.to_s] = v
+        end
+
+        Process.exec(*cmd[:cmd])
+      end
+
+      Process.wait(pid)
+    end
+
     def attach
       raise "missing argument" unless args[0]
 
