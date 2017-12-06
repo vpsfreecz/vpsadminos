@@ -1,5 +1,7 @@
 module OsCtld
   module Script::Container::Network
+    include Utils::Log
+
     def self.run(ct)
       env = ENV.to_hash
       env['CT_ROOT'] = ct.rootfs
@@ -17,10 +19,15 @@ module OsCtld
         end
       end
 
+      log(:info, :network, "Configuring network of container #{ct.id}")
+
       Script.run(
         ["network/#{ct.distribution}-#{ct.version}", "network/#{ct.distribution}"],
         env
       )
+
+    rescue Script::NotFound => e
+      log(:warn, :network, "Unable to configure network: #{e.message}")
     end
   end
 end

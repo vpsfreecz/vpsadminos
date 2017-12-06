@@ -1,8 +1,13 @@
 module OsCtld
   module Script
+    class NotFound < StandardError ; end
+
     def self.run(names, env)
       script = find_script(names)
-      fail "script not found at any path: #{names.join(', ')}" unless script
+
+      unless script
+        raise NotFound, "script not found at any path: #{names.join(', ')}"
+      end
 
       pid = Process.fork do
         ENV.clear
