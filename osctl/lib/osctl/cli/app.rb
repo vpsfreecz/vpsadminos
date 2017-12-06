@@ -145,6 +145,15 @@ module OsCtl::Cli
           su.action &Command.run(Container, :su)
         end
 
+        ct.desc 'Configure container'
+        ct.arg_name '<id>'
+        ct.command :set do |set|
+          set.desc 'Route via network (set one network for IPv4, another for IPv6)'
+          set.flag 'route-via', multiple: true
+
+          set.action &Command.run(Container, :set)
+        end
+
         ct.desc "Manage container's IP addresses"
         ct.command :ip do |ip|
           ip.desc 'List IP addresses'

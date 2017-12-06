@@ -159,6 +159,18 @@ module OsCtl::Cli
       Process.wait(pid)
     end
 
+    def set
+      raise "missing argument" unless args[0]
+      params = {id: args[0]}
+
+      rv = parse_route_via
+      params[:route_via] = rv unless rv.empty?
+
+      raise "nothing to do" if params.empty?
+
+      osctld_fmt(:ct_set, params)
+    end
+
     def ip_list
       raise 'missing container id' unless args[0]
       osctld_fmt(:ct_ip_list, id: args[0])

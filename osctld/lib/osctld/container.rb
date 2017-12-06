@@ -89,6 +89,11 @@ module OsCtld
       !@route_via[v].nil?
     end
 
+    def set_route_via(via)
+      @route_via = via
+      save_config
+    end
+
     def ips(v)
       @ips[v].clone
     end
