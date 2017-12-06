@@ -162,6 +162,12 @@ module OsCtl::Cli
             c.action &Command.run(Container, :ip_list)
           end
 
+          ip.desc 'Show container routing subnets'
+          ip.arg_name '<id>'
+          ip.command 'route-via' do |c|
+            c.action &Command.run(Container, :ip_route_via)
+          end
+
           ip.desc 'Add IP address'
           ip.arg_name '<id> <addr>'
           ip.command :add do |c|

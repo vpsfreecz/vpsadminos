@@ -176,6 +176,11 @@ module OsCtl::Cli
       osctld_fmt(:ct_ip_list, id: args[0])
     end
 
+    def ip_route_via
+      raise 'missing container id' unless args[0]
+      osctld_fmt(:ct_ip_route_via_list, id: args[0])
+    end
+
     def ip_add
       raise 'missing container id' unless args[0]
       raise 'missing addr' unless args[1]
