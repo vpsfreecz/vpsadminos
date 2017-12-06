@@ -10,6 +10,7 @@ module OsCtld
       ct = ContainerList.find(opts[:id])
       return error('container not found') unless ct
       addr = IPAddress.parse(opts[:addr])
+      ip_v = addr.ipv4? ? 4 : 6
 
       ct.exclusively do
         next error('address not found') unless ct.has_ip?(addr)
@@ -18,7 +19,11 @@ module OsCtld
 
         if ct.state == :running
           Routing::Router.del_ip(ct, addr)
-          ct_syscmd(ct, "ip addr del #{addr.to_string} dev eth0", valid_rcs: [2])
+          ct_syscmd(
+            ct,
+            "ip -#{ip_v} addr del #{addr.to_string} dev eth0",
+            valid_rcs: [2]
+          )
         end
 
         ok

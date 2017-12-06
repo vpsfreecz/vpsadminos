@@ -27,7 +27,11 @@ module OsCtld
 
         if ct.state == :running
           Routing::Router.add_ip(ct, addr)
-          ct_syscmd(ct, "ip addr add #{addr.to_string} dev eth0", valid_rcs: [2])
+          ct_syscmd(
+            ct,
+            "ip -#{ip_v} addr add #{addr.to_string} dev eth0",
+            valid_rcs: [2]
+          )
         end
 
         ok

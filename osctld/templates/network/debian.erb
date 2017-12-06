@@ -16,10 +16,10 @@ iface eth0 <%= v == 4 ? 'inet' : 'inet6' %> static
   address <%= ip.via.ct_ip.to_s %>
   netmask <%= ip.via.ct_ip.netmask %>
 <% ip.addrs.each do |addr| -%>
-  up ip addr add <%= addr.to_string %> dev eth0
-  down ip addr add <%= addr.to_string %> dev eth0
+  up ip -<%= v %> addr add <%= addr.to_string %> dev eth0
+  down ip -<%= v %> addr del <%= addr.to_string %> dev eth0
 <% end -%>
 <% if ip.addrs.any? -%>
-  up ip route add default via <%= ip.via.host_ip.to_s %> src <%= ip.addrs.first.to_s %>
+  up ip -<%= v %> route add default via <%= ip.via.host_ip.to_s %> src <%= ip.addrs.first.to_s %>
 <% end -%>
 <% end %>
