@@ -2,7 +2,8 @@ readonly RELVER=${RELVER:=3.5}
 readonly ARCH=${ARCH:=x86_64}
 
 readonly DISTNAME='alpine'
-readonly BASEURL="https://cz.alpinelinux.org/alpine/v$RELVER"
+# Don't use https:// for this script, it doesn't work for an unknown reason.
+readonly BASEURL="http://cz.alpinelinux.org/alpine/v$RELVER"
 
 readonly APK="$INSTALL/apk.static"
 readonly APK_KEYS_DIR="$INSTALL/keys"
