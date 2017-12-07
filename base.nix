@@ -230,6 +230,9 @@ with lib;
         '';
         lxcfs.enable = true;
       };
+      lxd = {
+        enable = true;
+      };
     };
 
     system.build.earlyMountScript = pkgs.writeScript "dummy" ''

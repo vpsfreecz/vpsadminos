@@ -11,10 +11,11 @@ let
   };
   baseModules = [
       ./base.nix
+      ./lxd.nix
       ./system-path.nix
+      ./runit.nix
       ./stage-1.nix
       ./stage-2.nix
-      ./runit.nix
       ./zfs.nix
       (nixpkgs + "/nixos/modules/misc/extra-arguments.nix")
       (nixpkgs + "/nixos/modules/system/etc/etc.nix")
