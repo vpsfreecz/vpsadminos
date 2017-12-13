@@ -197,6 +197,7 @@ with lib;
       "e1000e"
       "igb"
       "ixgb"
+      "ahci"
     ] ++ lib.optionals config.networking.nat [
       "ip6_tables"
       "ip6table_filter"
