@@ -87,7 +87,7 @@ in
       # Suids
       chmod 04755 $( which newuidmap )
       chmod 04755 $( which newgidmap )
-      chmod 04755 ${pkgs.lxc}/libexec/lxc/*
+      chmod 04755 ${pkgs.lxc}/libexec/lxc/lxc-user-nic
 
       # CGroups
       mount -t tmpfs -o uid=0,gid=0,mode=0755 cgroup /sys/fs/cgroup
