@@ -120,6 +120,8 @@ with lib;
     nixpkgs.config = {
       packageOverrides = self: rec {
 
+        lxc = self.lxc.override { dbus = null; systemd = null; };
+        gnupg = self.gnupg.override { guiSupport = false; libusb = null; pinentry = null; openldap = null; };
         utillinux = self.utillinux.override { systemd = null; };
         linux_4_14 = self.linux_4_14.override {
           extraConfig = ''

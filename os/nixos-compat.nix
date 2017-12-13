@@ -40,5 +40,6 @@ with lib;
     security.pam.oath.enable = false;
     security.pam.usb.enable = false;
     security.pam.mount.enable = false;
+    security.pam.services.su.forwardXAuth = mkForce false;
   };
 }
