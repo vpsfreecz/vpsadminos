@@ -22,6 +22,7 @@ reusing packages and some modules from [nixpkgs](https://github.com/NixOS/nixpkg
 
 ```bash
 git clone https://github.com/vpsfreecz/vpsadminos/
+cd vpsadminos
 
 # temporarily this needs vpsadminos branch from sorki/nixpkgs
 
