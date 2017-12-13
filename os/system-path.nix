@@ -44,6 +44,7 @@ let
     su
     lxcfs
     libcgroup
+    pciutils
   ];
 in
 {
