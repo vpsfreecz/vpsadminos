@@ -3,7 +3,7 @@
 # Common configuration
 
 {
-  imports = [ ./qemu.nix ];
+  imports = [ ];
   networking.hostName = lib.mkDefault "vpsadminos";
   services.openssh.enable = lib.mkDefault true;
   vpsadminos.nix = lib.mkDefault true;
