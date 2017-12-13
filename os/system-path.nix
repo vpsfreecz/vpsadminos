@@ -45,6 +45,7 @@ let
     lxcfs
     libcgroup
     pciutils
+    eudev
   ];
 in
 {

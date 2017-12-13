@@ -136,6 +136,11 @@ in
       mkdir -p /var/lib/lxcfs
       ${pkgs.lxcfs}/bin/lxcfs /var/lib/lxcfs
     '';
+
+    "service/eudev/run".source = pkgs.writeScript "eudev" ''
+      #!/bin/sh
+      ${pkgs.eudev}/bin/udevd
+    '';
   }
 
   (mkIf (config.vpsadminos.nix) {

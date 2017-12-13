@@ -11,6 +11,7 @@ let
   };
   baseModules = [
       ./base.nix
+      ./eudev.nix
       ./system-path.nix
       ./stage-1.nix
       ./stage-2.nix
