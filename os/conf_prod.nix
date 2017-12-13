@@ -8,7 +8,7 @@
   networking.hostName = "vpsadminos-prod";
   networking.dhcp = true;
 
-  vpsadminos.nix = false;
+  vpsadminos.nix = true;
   environment.systemPackages = with pkgs; [
     nvi
     ipmicfg
