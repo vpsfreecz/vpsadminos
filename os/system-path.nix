@@ -44,7 +44,6 @@ let
     su
     lxcfs
     libcgroup
-    dbus
   ];
 in
 {
