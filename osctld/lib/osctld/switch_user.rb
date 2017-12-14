@@ -42,7 +42,15 @@ module OsCtld
         cgroup = File.join(base, *tmp)
 
         next if Dir.exist?(cgroup)
-        Dir.mkdir(cgroup)
+
+        # Prevent an error if multiple processes attempt to create this cgroup
+        # at a time
+        begin
+          Dir.mkdir(cgroup)
+
+        rescue Errno::EEXIST
+          next
+        end
       end
 
       cgroup = File.join(base, *path)
