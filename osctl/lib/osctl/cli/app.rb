@@ -101,6 +101,18 @@ module OsCtl::Cli
           ls.action &Command.run(Container, :list)
         end
 
+        ct.desc "Show container's info"
+        ct.arg_name '<id>'
+        ct.command %i(show info) do |c|
+          c.desc 'Select parameters to output'
+          c.flag %i(o output)
+
+          c.desc 'List available parameters'
+          c.switch %i(L list), negatable: false
+
+          c.action &Command.run(Container, :show)
+        end
+
         ct.desc 'Create container'
         ct.arg_name '<id>'
         ct.command %i(new create) do |new|

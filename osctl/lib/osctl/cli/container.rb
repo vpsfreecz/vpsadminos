@@ -55,6 +55,26 @@ module OsCtl::Cli
       )
     end
 
+    def show
+      if opts[:list]
+        puts FIELDS.join("\n")
+        return
+      end
+
+      raise "missing argument" unless args[0]
+
+      fmt_opts = {layout: :rows}
+
+      fmt_opts[:header] = false if opts['no-header']
+
+      osctld_fmt(
+        :ct_show,
+        {id: args[0]},
+        opts[:output] ? opts[:output].split(',').map(&:to_sym) : nil,
+        fmt_opts
+      )
+    end
+
     def create
       raise "missing argument" unless args[0]
 
