@@ -22,6 +22,9 @@ module OsCtld
       # Ensure needed datasets are present
       mkdatasets
 
+      # Increase alloed number of open files
+      syscmd("prlimit --nofile=4096 --pid #{Process.pid}")
+
       # Load users from zpool
       load_users
 
