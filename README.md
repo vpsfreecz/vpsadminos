@@ -18,7 +18,7 @@ reusing packages and some modules from [nixpkgs](https://github.com/NixOS/nixpkg
 - runit
 - bird
 
-## Building
+## Building OS
 
 ```bash
 git clone https://github.com/vpsfreecz/vpsadminos/
@@ -29,11 +29,27 @@ cd vpsadminos
 git clone https://github.com/sorki/nixpkgs --branch vpsadminos
 export NIX_PATH=`pwd`
 
-cd vpsadminos
 make
 
 # to run under qemu
 make qemu
+```
+
+## Building osctl/osctld
+`$NIX_PATH` must be exported and contain `nixpkgs`. osctl and osctld are
+installed as gems. By default, the gems are pushed and installed from
+`https://rubygems.vpsfree.cz`. Pushing requires authentication. Rake, bundler
+and bundix must be installed.
+
+```bash
+gem install geminabox
+gem inabox -c
+
+# Build and push gems
+make gems
+
+# Rebuild OS with updated gems
+make
 ```
 
 ## Usage
