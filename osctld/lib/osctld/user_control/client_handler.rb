@@ -16,6 +16,7 @@ module OsCtld
       end
 
       parse(buf)
+      @sock.close
 
     rescue Errno::ECONNRESET
       # pass
