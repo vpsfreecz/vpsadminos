@@ -11,7 +11,7 @@ module OsCtld
         @@instances[self]
       end
 
-      %i(sync get add remove find contains?).each do |v|
+      %i(sync get count add remove find contains?).each do |v|
         define_method(v) do |*args, &block|
           instance.send(v, *args, &block)
         end
@@ -41,6 +41,10 @@ module OsCtld
           @objects.clone
         end
       end
+    end
+
+    def count
+      sync { @objects.count }
     end
 
     def add(obj)

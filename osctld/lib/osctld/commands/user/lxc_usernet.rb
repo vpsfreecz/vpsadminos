@@ -7,10 +7,13 @@ module OsCtld
     def execute
       f = File.open("#{LXC_USERNET}.new", 'w')
 
+      ct_cnt = ContainerList.count
+
       UserList.get do |users|
         users.each do |u|
-          ct_cnt = u.containers.count
-
+          # TODO: we need to investigate why it's not enough to set the number
+          # of allowed veths to the number of user's containers, but why it
+          # has to be the total number of containers.
           f.write("#{u.username} veth none #{ct_cnt}\n")
         end
       end
