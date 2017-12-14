@@ -41,6 +41,18 @@ module OsCtl::Cli
           ls.action &Command.run(User, :list)
         end
 
+        u.desc "Show user info"
+        u.arg_name '<name>'
+        u.command %i(show info) do |c|
+          c.desc 'Select parameters to output'
+          c.flag %i(o output)
+
+          c.desc 'List available parameters'
+          c.switch %i(L list), negatable: false
+
+          c.action &Command.run(User, :show)
+        end
+
         u.desc 'Create a new user with user namespace configuration'
         u.arg_name '<name>'
         u.command %i(new create) do |new|

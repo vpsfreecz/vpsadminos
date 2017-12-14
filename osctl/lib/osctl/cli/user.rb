@@ -46,6 +46,22 @@ module OsCtl::Cli
       )
     end
 
+    def show
+      if opts[:list]
+        puts FIELDS.join("\n")
+        return
+      end
+
+      raise "missing argument" unless args[0]
+
+      osctld_fmt(
+        :user_show,
+        {name: args[0]},
+        opts[:output] ? opts[:output].split(',').map(&:to_sym) : nil,
+        layout: :rows
+      )
+    end
+
     def create
       raise "missing argument" unless args[0]
 
