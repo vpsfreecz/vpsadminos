@@ -109,7 +109,7 @@ module OsCtl::Cli
           ls.flag %i(o output)
 
           ls.desc 'Do not show header'
-          ls.switch %i(H no-header), negatable: false
+          ls.switch %i(H hide-header), negatable: false
 
           ls.desc 'List available parameters'
           ls.switch %i(L list), negatable: false

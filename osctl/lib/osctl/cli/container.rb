@@ -45,7 +45,7 @@ module OsCtl::Cli
       end
 
       cmd_opts[:ids] = args if args.count > 0
-      fmt_opts[:header] = false if opts['no-header']
+      fmt_opts[:header] = false if opts['hide-header']
 
       osctld_fmt(
         :ct_list,
