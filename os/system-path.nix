@@ -30,6 +30,7 @@ let
     findutils
     netcat
     procps
+    psmisc
     rsync
     time
     which
