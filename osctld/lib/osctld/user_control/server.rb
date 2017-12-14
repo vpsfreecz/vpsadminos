@@ -43,7 +43,7 @@ module OsCtld
     end
 
     def socket_path(user)
-      File.join(user.userdir, '.osctld.sock')
+      File.join(RunState::USER_CONTROL_DIR, "#{user.ugid}.sock")
     end
   end
 end

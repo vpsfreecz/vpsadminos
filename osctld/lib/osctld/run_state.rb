@@ -2,10 +2,12 @@ module OsCtld
   module RunState
     RUNDIR = '/run/osctl'
     HOOKDIR = File.join(RUNDIR, 'hooks')
+    USER_CONTROL_DIR = File.join(RUNDIR, 'user-control')
 
     def self.create
       Dir.mkdir(RUNDIR, 0711) unless Dir.exists?(RUNDIR)
       Dir.mkdir(HOOKDIR, 0755) unless Dir.exists?(HOOKDIR)
+      Dir.mkdir(USER_CONTROL_DIR, 0711) unless Dir.exists?(USER_CONTROL_DIR)
 
       %w(veth-up veth-down ct-start).each do |hook|
         symlink = OsCtld.hook_run(hook)

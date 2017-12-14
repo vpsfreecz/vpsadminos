@@ -11,7 +11,7 @@ if ctid.nil? || veth.nil?
   exit(false)
 end
 
-s = UNIXSocket.new(File.join(Dir.home, '..', '.osctld.sock'))
+s = UNIXSocket.new("/run/osctl/user-control/#{Process.uid}.sock")
 s.send({cmd: :veth_down, opts: {
   id: ARGV[0],
   veth: ARGV[4],
