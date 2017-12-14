@@ -32,7 +32,7 @@ module OsCtld
     def monitor(ct)
       sync do
         key = ct.user.name
-        
+
         if @monitors.has_key?(key)
           @monitors[key].cts << ct.id
           update_state(ct)
@@ -90,10 +90,10 @@ module OsCtld
         pid, stdout = Monitor::Process.spawn(ct.user)
         update_state(ct)
         sync { @monitors[ct.user.name] = Entry.new(Thread.current, pid, [ct.id]) }
-        
+
         p = Monitor::Process.new(ct.user, stdout)
         Process.wait(pid) if p.monitor
-        
+
         log(:info, :monitor, "Monitor of user #{ct.user.name} exited")
 
         break if sync { !@monitors.has_key?(ct.user.name) }

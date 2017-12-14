@@ -13,7 +13,7 @@ module OsCtld
         out_r.close
 
         SwitchUser.switch_to(user.name, user.username, user.ugid, user.homedir)
-        
+
         Process.exec('lxc-monitor', '-P', user.lxc_home, '-n', '.*')
       end
 
@@ -32,7 +32,7 @@ module OsCtld
       until @stdout.eof?
         state = parse(@stdout.readline)
         next unless state
-        
+
         update_state(state)
       end
 
@@ -61,7 +61,7 @@ module OsCtld
 
     def update_state(change)
       ct = ContainerList.find(change[:ctid])
-        
+
       unless ct
         log(:warn, :monitor, "Container '#{change[:ctid]}' not found")
         return
