@@ -27,11 +27,11 @@ module OsCtl::Cli
       c.reply
     end
 
-    def osctld_fmt(*args)
-      ret = osctld(*args)
+    def osctld_fmt(cmd, opts = {}, cols = nil, fmt_opts = {})
+      ret = osctld(cmd, opts)
 
       if ret[:status]
-        OutputFormatter.print(ret[:response]) if ret[:response]
+        OutputFormatter.print(ret[:response], cols, fmt_opts) if ret[:response]
 
       else
         puts "Error occurred: #{ret[:message]}"

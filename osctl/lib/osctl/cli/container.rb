@@ -2,8 +2,57 @@ require 'ipaddress'
 
 module OsCtl::Cli
   class Container < Command
+    FIELDS = %i(
+      id
+      user
+      dataset
+      rootfs
+      distribution
+      version
+      state
+      init_pid
+      veth
+    )
+
+    FILTERS = %i(
+      user
+      distribution
+      version
+      state
+    )
+
+    DEFAULT_FIELDS = %i(
+      id
+      user
+      distribution
+      version
+      state
+      init_pid
+    )
+
     def list
-      osctld_fmt(:ct_list)
+      if opts[:list]
+        puts FIELDS.join("\n")
+        return
+      end
+
+      cmd_opts = {}
+      fmt_opts = {layout: :columns}
+
+      FILTERS.each do |v|
+        next unless opts[v]
+        cmd_opts[v] = opts[v].split(',')
+      end
+
+      cmd_opts[:ids] = args if args.count > 0
+      fmt_opts[:header] = false if opts['no-header']
+
+      osctld_fmt(
+        :ct_list,
+        cmd_opts,
+        opts[:output] ? opts[:output].split(',').map(&:to_sym) : DEFAULT_FIELDS,
+        fmt_opts
+      )
     end
 
     def create

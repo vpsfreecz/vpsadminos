@@ -75,7 +75,29 @@ module OsCtl::Cli
       desc 'Manage containers'
       command %i(ct vps) do |ct|
         ct.desc 'List containers'
+        ct.arg_name '[id...]'
         ct.command %i(ls list) do |ls|
+          ls.desc 'Filter by user name, comma separated'
+          ls.flag %i(u user)
+
+          ls.desc 'Filter by distribution, comma separated'
+          ls.flag %i(d distribution)
+
+          ls.desc 'Filter by distribution version, comma separated'
+          ls.flag %i(v version)
+
+          ls.desc 'Filter by state, comma separated'
+          ls.flag %i(s state)
+
+          ls.desc 'Select parameters to output'
+          ls.flag %i(o output)
+
+          ls.desc 'Do not show header'
+          ls.switch %i(H no-header), negatable: false
+
+          ls.desc 'List available parameters'
+          ls.switch %i(L list), negatable: false
+
           ls.action &Command.run(Container, :list)
         end
 
