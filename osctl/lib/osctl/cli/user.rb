@@ -1,7 +1,49 @@
 module OsCtl::Cli
   class User < Command
+    FIELDS = %i(
+      name
+      username
+      groupname
+      ugid
+      ugid_offset
+      ugid_size
+      dataset
+      homedir
+      registered
+    )
+
+    FILTERS = %i(registered)
+
+    DEFAULT_FIELDS = %i(
+      name
+      registered
+    )
+
     def list
-      osctld_fmt(:user_list)
+      if opts[:list]
+        puts FIELDS.join("\n")
+        return
+      end
+
+      cmd_opts = {}
+      fmt_opts = {layout: :columns}
+
+      cmd_opts[:names] = args if args.count > 0
+
+      if opts[:registered]
+        cmd_opts[:registered] = true
+      elsif opts[:unregistered]
+        cmd_opts[:registered] = false
+      end
+
+      fmt_opts[:header] = false if opts['hide-header']
+
+      osctld_fmt(
+        :user_list,
+        cmd_opts,
+        opts[:output] ? opts[:output].split(',').map(&:to_sym) : DEFAULT_FIELDS,
+        fmt_opts
+      )
     end
 
     def create

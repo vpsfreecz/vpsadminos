@@ -3,8 +3,13 @@ module OsCtld
     handle :user_list
 
     def execute
-      ret = UserList.get.map do |u|
-        {
+      ret = []
+
+      UserList.get.each do |u|
+        next if opts[:names] && !opts[:names].include?(u.name)
+        next if opts.has_key?(:registered) && u.registered? != opts[:registered]
+
+        ret << {
           name: u.name,
           username: u.username,
           groupname: u.groupname,

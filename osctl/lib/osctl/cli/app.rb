@@ -21,7 +21,23 @@ module OsCtl::Cli
       desc 'Manage system users and user namespace configuration'
       command :user do |u|
         u.desc 'List available users'
+        u.arg_name '[name...]'
         u.command %i(ls list) do |ls|
+          ls.desc 'Filter registered users'
+          ls.switch 'registered', negatable: false
+
+          ls.desc 'Filter unregistered users'
+          ls.switch 'unregistered', negatable: false
+
+          ls.desc 'Select parameters to output'
+          ls.flag %i(o output)
+
+          ls.desc 'Do not show header'
+          ls.switch %i(H hide-header), negatable: false
+
+          ls.desc 'List available parameters'
+          ls.switch %i(L list), negatable: false
+
           ls.action &Command.run(User, :list)
         end
 
