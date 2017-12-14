@@ -9,13 +9,15 @@ module OsCtld
     include Utils::SwitchUser
 
     attr_reader :id, :user, :distribution, :version
-    attr_accessor :veth
+    attr_accessor :state, :init_pid, :veth
 
     def initialize(id, user_name, load: true)
       init_lock
 
       @id = id
       @user = UserList.find(user_name) || (raise "user not found")
+      @state = :unknown
+      @init_pid = nil
 
       load_config if load
     end
@@ -26,19 +28,6 @@ module OsCtld
       @ips = {4 => [], 6 => []}
       @route_via = route_via
       save_config
-    end
-
-    def state
-      inclusively do
-        ret = ct_control(user, :ct_status, ids: [id])
-
-        if ret[:status]
-          ret[:output][id.to_sym][:state].to_sym
-
-        else
-          :unknown
-        end
-      end
     end
 
     def dataset

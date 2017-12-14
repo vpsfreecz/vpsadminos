@@ -42,6 +42,7 @@ module OsCtld
           }, ct.lxc_config_path('network'))
 
           ContainerList.add(ct)
+          Monitor::Master.monitor(ct)
         end
       end
 

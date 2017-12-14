@@ -78,6 +78,7 @@ module OsCtld
         ctid = parts[4]
 
         ct = Container.new(ctid, user)
+        Monitor::Master.monitor(ct)
 
         if state.has_key?(ct.id)
           ct.veth = state[ct.id]['veth']
@@ -111,6 +112,7 @@ module OsCtld
       @srv.close if @srv
       File.unlink(SOCKET) if File.exist?(SOCKET)
       UserControl.stop
+      Monitor::Master.stop
       exit(false)
     end
 

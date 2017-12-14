@@ -7,40 +7,25 @@ module OsCtld
     include Utils::SwitchUser
 
     def execute
-      user_cts = {}
-      ct_infos = {}
+      ret = []
 
       ContainerList.get.each do |ct|
-        ct.lock(:inclusive)
-
-        user_cts[ct.user] ||= []
-        user_cts[ct.user] << ct
-
-        ct_infos[ct.id] = {
-          id: ct.id,
-          user: ct.user.name,
-          dataset: ct.dataset,
-          rootfs: ct.rootfs,
-          distribution: ct.distribution,
-          version: ct.version,
-          veth: ct.veth,
-        }
-      end
-
-      user_cts.each do |user, cts|
-        ret = ct_control(user, :ct_status, ids: cts.map { |ct| ct.id })
-        cts.each { |ct| ct.unlock(:inclusive) }
-        next unless ret[:status]
-
-        ret[:output].each do |ctid, info|
-          ct_infos[ctid.to_s].update({
-            state: info[:state].to_sym,
-            init_pid: info[:init_pid],
-          })
+        ct.inclusively do
+          ret << {
+            id: ct.id,
+            user: ct.user.name,
+            dataset: ct.dataset,
+            rootfs: ct.rootfs,
+            distribution: ct.distribution,
+            version: ct.version,
+            state: ct.state,
+            init_pid: ct.init_pid,
+            veth: ct.veth,
+          }
         end
       end
 
-      ok(ct_infos.map { |_ctid, info| info })
+      ok(ret)
     end
   end
 end

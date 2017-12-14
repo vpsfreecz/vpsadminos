@@ -10,6 +10,10 @@ module OsCtld
     def execute
       ct = ContainerList.find(opts[:id])
       return error("container not found") unless ct
+      
+      # Remove monitor _before_ acquiring exclusive lock, because monitor
+      # uses inclusive lock, which would result in a deadlock
+      Monitor::Master.demonitor(ct)
 
       ct.exclusively do
         stop = ct_control(ct.user, :ct_stop, id: ct.id)
