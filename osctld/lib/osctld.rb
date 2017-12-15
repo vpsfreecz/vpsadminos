@@ -1,6 +1,7 @@
 module OsCtld
   module Commands
     module Container ; end
+    module NetInterface ; end
     module User ; end
   end
   module Routing ; end
@@ -49,8 +50,6 @@ require_relative 'osctld/utils/system'
 require_relative 'osctld/utils/zfs'
 require_relative 'osctld/utils/switch_user'
 require_relative 'osctld/utils/ip'
-require_relative 'osctld/script'
-require_relative 'osctld/script/container/network'
 require_relative 'osctld/user_control/client_handler'
 require_relative 'osctld/user_control/server'
 require_relative 'osctld/user_control/supervisor'
@@ -68,7 +67,14 @@ require_relative 'osctld/monitor/master'
 require_relative 'osctld/routing/via'
 require_relative 'osctld/routing/via_ipv4'
 require_relative 'osctld/routing/via_ipv6'
-require_relative 'osctld/routing/router'
+require_relative 'osctld/net_interface'
+require_relative 'osctld/net_interface/base'
+require_relative 'osctld/net_interface/routed'
+require_relative 'osctld/dist_config'
+require_relative 'osctld/dist_config/base'
+require_relative 'osctld/dist_config/debian'
+require_relative 'osctld/dist_config/ubuntu'
+require_relative 'osctld/dist_config/unsupported'
 require_relative 'osctld/daemon'
 require_relative 'osctld/switch_user'
 require_relative 'osctld/switch_user/container_control'

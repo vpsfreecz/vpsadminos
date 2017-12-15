@@ -26,8 +26,7 @@ module OsCtld
 
           ct.configure(
             distribution,
-            version,
-            Hash[ opts[:route_via].map { |k,v| [k.to_s.to_i, v] } ]
+            version
           )
 
           Template.render_to('ct/config', {
@@ -36,17 +35,12 @@ module OsCtld
             hook_start_host: OsCtld::hook_run('ct-start'),
           }, ct.lxc_config_path)
 
-          Template.render_to('ct/network', {
-            hook_veth_up: OsCtld::hook_run('veth-up'),
-            hook_veth_down: OsCtld::hook_run('veth-down'),
-          }, ct.lxc_config_path('network'))
+          ct.configure_network
 
           ContainerList.add(ct)
           Monitor::Master.monitor(ct)
         end
       end
-
-      call_cmd(Commands::User::LxcUsernet)
 
       # Create dataset
       # Extract template

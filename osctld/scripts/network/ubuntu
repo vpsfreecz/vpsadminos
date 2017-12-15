@@ -1,2 +1,0 @@
-#!/usr/bin/env ruby
-load File.join(File.dirname(__FILE__), 'debian')

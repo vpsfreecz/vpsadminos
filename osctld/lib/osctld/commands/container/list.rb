@@ -23,7 +23,6 @@ module OsCtld
             version: ct.version,
             state: ct.state,
             init_pid: ct.init_pid,
-            veth: ct.veth,
           }
         end
       end

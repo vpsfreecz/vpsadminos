@@ -1,5 +1,6 @@
 require 'gli'
 require_relative 'container'
+require_relative 'net_interface'
 require_relative 'user'
 
 module OsCtl::Cli
@@ -150,9 +151,6 @@ module OsCtl::Cli
           new.desc 'Template file'
           new.flag :template, required: true
 
-          new.desc 'Route via network (set one network for IPv4, another for IPv6)'
-          new.flag 'route-via', multiple: true
-
           new.action &Command.run(Container, :create)
         end
 
@@ -210,39 +208,68 @@ module OsCtl::Cli
         ct.desc 'Configure container'
         ct.arg_name '<id>'
         ct.command :set do |set|
-          set.desc 'Route via network (set one network for IPv4, another for IPv6)'
-          set.flag 'route-via', multiple: true
-
           set.action &Command.run(Container, :set)
         end
 
-        ct.desc "Manage container's IP addresses"
-        ct.command :ip do |ip|
-          ip.desc 'List IP addresses'
-          ip.arg_name '<id>'
-          ip.command %i(ls list) do |c|
-            c.action &Command.run(Container, :ip_list)
+        ct.desc "Manage container's network interfaces"
+        ct.command %i(netif net) do |net|
+          net.desc "List network interfaces"
+          net.arg_name '<id>'
+          net.command %i(ls list) do |c|
+            c.desc 'Select parameters to output'
+            c.flag %i(o output)
+
+            c.desc 'Do not show header'
+            c.switch %i(H hide-header), negatable: false
+
+            c.desc 'List available parameters'
+            c.switch %i(L list), negatable: false
+
+            c.action &Command.run(NetInterface, :list)
           end
 
-          ip.desc 'Show container routing subnets'
-          ip.arg_name '<id>'
-          ip.command 'route-via' do |c|
-            c.action &Command.run(Container, :ip_route_via)
+          net.desc "Create a new network interface"
+          net.command %i(new create) do |create|
+            create.desc 'Create a new routed veth interface'
+            create.arg_name '<id> <name>'
+            create.command :routed do |c|
+              c.desc 'Route via network'
+              c.flag :via, multiple: true, required: true
+
+              c.action &Command.run(NetInterface, :create_routed)
+            end
           end
 
-          ip.desc 'Add IP address'
-          ip.arg_name '<id> <addr>'
-          ip.command :add do |c|
-            c.action &Command.run(Container, :ip_add)
+          net.desc "Remove network interface"
+          net.arg_name '<id> <name>'
+          net.command %i(del delete) do |c|
+            c.action &Command.run(NetInterface, :delete)
           end
 
-          ip.desc 'Remove IP address'
-          ip.arg_name '<id> <addr>'
-          ip.command :del do |c|
-            c.action &Command.run(Container, :ip_del)
+          net.desc "Manage IP addresses"
+          net.command :ip do |ip|
+            ip.desc 'List IP addresses'
+            ip.arg_name '<id>'
+            ip.command %i(ls list) do |c|
+              c.action &Command.run(NetInterface, :ip_list)
+            end
+
+            ip.desc 'Add IP address'
+            ip.arg_name '<id> <name> <addr>'
+            ip.command :add do |c|
+              c.action &Command.run(NetInterface, :ip_add)
+            end
+
+            ip.desc 'Remove IP address'
+            ip.arg_name '<id> <name> <addr>'
+            ip.command :del do |c|
+              c.action &Command.run(NetInterface, :ip_del)
+            end
+
+            ip.default_command :list
           end
 
-          ip.default_command :list
+          net.default_command :list
         end
 
         ct.default_command :list

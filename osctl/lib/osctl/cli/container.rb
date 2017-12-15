@@ -83,7 +83,6 @@ module OsCtl::Cli
         id: args[0],
         user: opts[:user],
         template: File.absolute_path(opts[:template]),
-        route_via: parse_route_via,
       )
     end
 
@@ -231,63 +230,9 @@ module OsCtl::Cli
     def set
       raise "missing argument" unless args[0]
       params = {id: args[0]}
-
-      rv = parse_route_via
-      params[:route_via] = rv unless rv.empty?
-
       raise "nothing to do" if params.empty?
 
       osctld_fmt(:ct_set, params)
-    end
-
-    def ip_list
-      raise 'missing container id' unless args[0]
-      osctld_fmt(:ct_ip_list, id: args[0])
-    end
-
-    def ip_route_via
-      raise 'missing container id' unless args[0]
-      osctld_fmt(:ct_ip_route_via_list, id: args[0])
-    end
-
-    def ip_add
-      raise 'missing container id' unless args[0]
-      raise 'missing addr' unless args[1]
-      osctld_fmt(:ct_ip_add, id: args[0], addr: args[1])
-    end
-
-    def ip_del
-      raise 'missing container id' unless args[0]
-      raise 'missing addr' unless args[1]
-      osctld_fmt(:ct_ip_del, id: args[0], addr: args[1])
-    end
-
-    protected
-    def parse_route_via
-      ret = {}
-
-      opts['route-via'].each do |net|
-        addr = IPAddress.parse(net)
-        ip_v = addr.ipv4? ? 4 : 6
-
-        if ret.has_key?(ip_v)
-          fail "network for IPv#{ip_v} has already been set to route via #{ret[ip_v]}"
-        end
-
-        case ip_v
-        when 4
-          if addr.prefix > 30
-            fail "cannot route via IPv4 network smaller than /30"
-          end
-
-        when 6
-          # TODO: check?
-        end
-
-        ret[ip_v] = addr.to_string
-      end
-
-      ret
     end
   end
 end

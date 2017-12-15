@@ -9,7 +9,7 @@ module OsCtld
     include Utils::SwitchUser
 
     attr_reader :id, :user, :distribution, :version
-    attr_accessor :state, :init_pid, :veth
+    attr_accessor :state, :init_pid
 
     def initialize(id, user_name, load: true)
       init_lock
@@ -22,12 +22,26 @@ module OsCtld
       load_config if load
     end
 
-    def configure(distribution, version, route_via)
+    def configure(distribution, version)
       @distribution = distribution
       @version = version
-      @ips = {4 => [], 6 => []}
-      @route_via = route_via
+      @netifs = []
       save_config
+    end
+
+    def current_state
+      inclusively do
+        next(state) if state != :unknown
+        ret = ct_control(user, :ct_status, ids: [id])
+
+        if ret[:status]
+          state = ret[:output][id.to_sym][:state].to_sym
+          state
+
+        else
+          :unknown
+        end
+      end
     end
 
     def dataset
@@ -70,38 +84,43 @@ module OsCtld
       "ct-#{@id}"
     end
 
-    def route_via(v)
-      @route_via[v]
+    def netifs
+      @netifs.clone
     end
 
-    def can_route?(v)
-      !@route_via[v].nil?
+    def netif_at(index)
+      @netifs[index]
     end
 
-    def set_route_via(via)
-      @route_via = via
+    def add_netif(netif)
+      @netifs << netif
       save_config
     end
 
-    def ips(v)
-      @ips[v].clone
-    end
-
-    def add_ip(addr)
-      v = addr.ipv4? ? 4 : 6
-      @ips[v] << addr.to_string
+    def del_netif(netif)
+      @netifs.delete(netif)
       save_config
     end
 
-    def del_ip(addr)
-      v = addr.ipv4? ? 4 : 6
-      @ips[v].delete_if { |v| v == addr.to_string }
-      save_config
+    # Generate LXC network configuration
+    def configure_network
+      Template.render_to('ct/network', {
+        netifs: @netifs,
+      }, lxc_config_path('network'))
     end
 
-    def has_ip?(addr)
-      v = addr.ipv4? ? 4 : 6
-      @ips[v].detect { |v| v == addr.to_string } ? true : false
+    def save_config
+      data = {
+        'distribution' => distribution,
+        'version' => version,
+        'net_interfaces' => @netifs.map { |v| v.save },
+      }
+
+      File.open(config_path, 'w', 0400) do |f|
+        f.write(YAML.dump(data))
+      end
+
+      File.chown(0, 0, config_path)
     end
 
     protected
@@ -110,26 +129,15 @@ module OsCtld
 
       @distribution = cfg['distribution']
       @version = cfg['version']
-      @ips = cfg['ip_addresses'] || {4 => [], 6 => []}
-      @route_via = cfg['route_via'] || {}
-    end
 
-    def save_config
-      data = {
-        'distribution' => distribution,
-        'version' => version,
-        'route_via' => @route_via,
-      }
-
-      if @ips[4].any? || @ips[6].any?
-        data['ip_addresses'] = @ips
+      i = 0
+      @netifs = (cfg['net_interfaces'] || []).map do |v|
+        netif = NetInterface.for(v['type'].to_sym).new(self, i)
+        netif.load(v)
+        netif.setup
+        i += 1
+        netif
       end
-
-      File.open(config_path, 'w', 0400) do |f|
-        f.write(YAML.dump(data))
-      end
-
-      File.chown(0, 0, config_path)
     end
   end
 end

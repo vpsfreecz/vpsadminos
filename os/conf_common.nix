@@ -51,9 +51,9 @@
     Create a container:
       osctl ct new --user myuser01 --template ubuntu-16.04-x86_64-vpsfree.tar.gz myct01
 
-    Configure container routing:
-      osctl ct set --route-via 10.100.10.100/30 myct01
-      osctl ct ip add myct01 1.2.3.4
+    Configure container networking:
+      osctl ct netif new routed --via 10.100.10.100/30 myct01 eth0
+      osctl ct netif ip add myct01 eth0 1.2.3.4/32
 
     Start the container:
       osctl ct start myct01

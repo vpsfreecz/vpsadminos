@@ -9,7 +9,7 @@ module OsCtld
       Dir.mkdir(HOOKDIR, 0755) unless Dir.exists?(HOOKDIR)
       Dir.mkdir(USER_CONTROL_DIR, 0711) unless Dir.exists?(USER_CONTROL_DIR)
 
-      %w(veth-up veth-down ct-start).each do |hook|
+      %w(ct-start).each do |hook|
         symlink = OsCtld.hook_run(hook)
         File.symlink(OsCtld::hook_src(hook), symlink) unless File.symlink?(symlink)
       end

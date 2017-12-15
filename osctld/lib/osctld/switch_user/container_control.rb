@@ -64,6 +64,11 @@ module OsCtld
       ok(exitstatus: $?.exitstatus)
     end
 
+    def veth_name(opts)
+      ct = lxc_ct(opts[:id])
+      ok(ct.running_config_item("lxc.net.#{opts[:index]}.veth.pair"))
+    end
+
     def lxc_ct(id)
       LXC::Container.new(id, @lxc_home)
     end

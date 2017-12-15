@@ -12,7 +12,6 @@ module OsCtld
       Thread.abort_on_exception = true
       UserList.instance
       ContainerList.instance
-      Routing::Router.instance
     end
 
     def setup
@@ -40,9 +39,6 @@ module OsCtld
       # Allow containers to create veth interfaces
       Commands::User::LxcUsernet.run
 
-      # Configure container router
-      Routing::Router.setup
-
       # Start user control server, used for lxc hooks
       UserControl.setup
 
@@ -68,7 +64,6 @@ module OsCtld
     def load_cts
       log(:info, :init, "Loading containers from data pool")
 
-      state = ContainerList.load_state
       out = zfs(:list, '-H -r -t filesystem -d 3 -o name', USER_DS)[:output]
 
       out.split("\n").map do |line|
@@ -82,11 +77,6 @@ module OsCtld
 
         ct = Container.new(ctid, user)
         Monitor::Master.monitor(ct)
-
-        if state.has_key?(ct.id)
-          ct.veth = state[ct.id]['veth']
-        end
-
         ContainerList.add(ct)
       end
     end

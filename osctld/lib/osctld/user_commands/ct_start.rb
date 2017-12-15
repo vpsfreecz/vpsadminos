@@ -7,7 +7,7 @@ module OsCtld
       return error('container not found') unless ct
       return error('access denied') unless owns_ct?(ct)
 
-      Script::Container::Network.run(ct)
+      DistConfig.run(ct, :network)
 
       ok
     end

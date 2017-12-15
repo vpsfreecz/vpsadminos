@@ -11,9 +11,23 @@ if ctid.nil? || veth.nil?
   exit(false)
 end
 
+base = File.basename($0)
+ctid2, index = base.split('.')
+
+if ctid != ctid2
+  warn "Expected to handle CT '#{ctid2}', but was called for '#{ctid}' instead"
+  exit(false)
+
+elsif !index
+  warn "Expected to be called via symlink named as: <ctid>.<interface index>, "+
+    "called as '#{base}' instead"
+  exit(false)
+end
+
 s = UNIXSocket.new("/run/osctl/user-control/#{Process.uid}.sock")
 s.send({cmd: :veth_down, opts: {
   id: ARGV[0],
+  index: index.to_i,
   veth: ARGV[4],
 }}.to_json + "\n", 0)
 ret = JSON.parse(s.readline, symbolize_names: true)
