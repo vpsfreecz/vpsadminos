@@ -38,6 +38,19 @@ module OsCtl::Cli
       )
     end
 
+    def create_bridge
+      raise "missing arguments" if args.count < 2
+
+      cmd_opts = {
+        id: args[0],
+        name: args[1],
+        type: 'bridge',
+        link: opts[:link],
+      }
+
+      osctld_fmt(:netif_create, cmd_opts)
+    end
+
     def create_routed
       raise "missing arguments" if args.count < 2
 

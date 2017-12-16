@@ -9,5 +9,8 @@ auto lo
 iface lo inet loopback
 
 <% netifs.each do |netif| -%>
-<%= OsCtld::Template.render('dist_config/network/debian/routed', {netif: netif}) %>
+<%= OsCtld::Template.render(
+  "dist_config/network/debian/#{netif.type}",
+  {netif: netif}
+) %>
 <% end -%>

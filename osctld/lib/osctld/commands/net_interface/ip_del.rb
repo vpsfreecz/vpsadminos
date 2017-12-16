@@ -20,6 +20,7 @@ module OsCtld
         next error('address not found') unless netif.has_ip?(addr)
         netif.del_ip(addr)
         ct.save_config
+        ct.configure_network
 
         DistConfig.run(ct, :network)
 

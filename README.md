@@ -77,8 +77,12 @@ osctl user new --ugid 5000 --offset 666000 --size 65536 myuser01
 osctl ct new --user myuser01 --template ubuntu-16.04-x86_64-vpsfree.tar.gz myct01
 
 # Configure container networking:
-osctl ct netif new routed --via 10.100.10.100/30 myct01 eth0
-osctl ct netif ip add myct01 eth0 1.2.3.4/32
+# Bridged veth
+osctl ct netif new bridge --link lxcbr0 myct01 eth0
+
+# Routed veth
+osctl ct netif new routed --via 10.100.10.100/30 myct01 eth1
+osctl ct netif ip add myct01 eth1 1.2.3.4/32
 
 # Start the container:
 osctl ct start myct01

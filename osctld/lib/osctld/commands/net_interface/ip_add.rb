@@ -28,6 +28,7 @@ module OsCtld
 
         netif.add_ip(addr)
         ct.save_config
+        ct.configure_network
 
         DistConfig.run(ct, :network)
 

@@ -1,0 +1,10 @@
+lxc.net.<%= index %>.type = veth
+lxc.net.<%= index %>.name = <%= name %>
+lxc.net.<%= index %>.link = <%= link %>
+lxc.net.<%= index %>.flags = up
+lxc.net.<%= index %>.hwaddr = 00:16:3e:xx:xx:xx
+<% ips.each do |v, addrs| -%>
+<% addrs.each do |addr| -%>
+lxc.net.<%= index %>.ipv<%= v %>.address = <%= addr.to_string %>
+<% end -%>
+<% end -%>

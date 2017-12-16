@@ -230,6 +230,15 @@ module OsCtl::Cli
 
           net.desc "Create a new network interface"
           net.command %i(new create) do |create|
+            create.desc 'Create a new bridged veth interface'
+            create.arg_name '<id> <name>'
+            create.command :bridge do |c|
+              c.desc 'What bridge should the interface be linked with'
+              c.flag :link, required: true
+
+              c.action &Command.run(NetInterface, :create_bridge)
+            end
+
             create.desc 'Create a new routed veth interface'
             create.arg_name '<id> <name>'
             create.command :routed do |c|

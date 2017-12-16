@@ -54,12 +54,12 @@ module OsCtld
 
     # Called when the interface goes up
     def up(*_args)
-      raise NotImplementedError
+
     end
 
     # Called when the interface goes down
     def down(*_args)
-      raise NotImplementedError
+
     end
 
     # List IP addresses
