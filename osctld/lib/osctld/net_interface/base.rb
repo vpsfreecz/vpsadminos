@@ -70,8 +70,7 @@ module OsCtld
 
     # @return [Boolean]
     def has_ip?(addr)
-      s = addr.to_string
-      ips(addr.ipv4? ? 4 : 6).detect { |v| v == s } ? true : false
+      ips(addr.ipv4? ? 4 : 6).detect { |v| v == addr } ? true : false
     end
 
     def can_add_ip?(addr)
