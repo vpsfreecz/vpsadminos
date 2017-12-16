@@ -3,12 +3,24 @@ require 'ipaddress'
 module OsCtl::Cli
   class NetInterface < Command
     FIELDS = %i(
+      name
+      index
+      type
+      link
+      veth
+      via
     )
 
     FILTERS = %i(
+      type
+      link
     )
 
     DEFAULT_FIELDS = %i(
+      name
+      type
+      link
+      veth
     )
 
     def list
@@ -33,7 +45,7 @@ module OsCtl::Cli
       osctld_fmt(
         :netif_list,
         cmd_opts,
-        opts[:output] ? opts[:output].split(',').map(&:to_sym) : nil,
+        opts[:output] ? opts[:output].split(',').map(&:to_sym) : DEFAULT_FIELDS,
         fmt_opts
       )
     end

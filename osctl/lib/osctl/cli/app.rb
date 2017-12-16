@@ -216,6 +216,12 @@ module OsCtl::Cli
           net.desc "List network interfaces"
           net.arg_name '<id>'
           net.command %i(ls list) do |c|
+            c.desc 'Filter by interface type'
+            c.flag %i(t type)
+
+            c.desc 'Filter by linked bridge'
+            c.flag %i(l link)
+
             c.desc 'Select parameters to output'
             c.flag %i(o output)
 
