@@ -1,3 +1,5 @@
+require 'base64'
+
 module OsCtld
   class Commands::Container::Console < Commands::Base
     handle :ct_console
@@ -10,13 +12,14 @@ module OsCtld
       return error('container not found') unless ct
 
       ct.inclusively do
-        next error('container not running') if ct.state != :running
+        next error('container not running') if ct.state != :running && opts[:tty] != 0
 
-        ok(user_exec(
-          ct.user,
-          'lxc-console', '-P', ct.user.lxc_home,
-          '-t', opts[:tty], '-n', ct.id
-        ))
+        client.send({status: true, response: 'continue'}.to_json + "\n", 0)
+
+        Console.client(ct, opts[:tty], client)
+        next handled
+
+        # cant hold inclusive lock though... stop woudnt work (uses exclusive)
       end
     end
   end

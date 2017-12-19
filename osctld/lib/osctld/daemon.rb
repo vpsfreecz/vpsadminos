@@ -12,6 +12,7 @@ module OsCtld
       Thread.abort_on_exception = true
       UserList.instance
       ContainerList.instance
+      Console.init
     end
 
     def setup
@@ -77,6 +78,7 @@ module OsCtld
 
         ct = Container.new(ctid, user)
         Monitor::Master.monitor(ct)
+        Console.reconnect_tty0(ct) if ct.current_state == :running
         ContainerList.add(ct)
       end
     end

@@ -1,0 +1,128 @@
+#!/usr/bin/env ruby
+# Run a container within a PTY and forward its input/output via stdin/stdout.
+#
+# Usage: $0 <inpipe> <outpipe> lxc-start...
+#
+# `inpipe` and `outpipe` are paths to named pipes, which stdin/stdout
+# is connected to. It is the responsibility of the parent process to connect
+# these pipes to stdin/stdout of the wrapper. This wrapper reads from
+# `inpipe/stdin` and forwards the data to the wrapped process. Data from
+# the wrapped process are written to `outpipe/stdout`.
+#
+# Data read from `inpipe/stdin` are expected to be in the following format:
+#
+#   <command> <args...>\n
+#
+# Available commands:
+#
+#   W <base64 encoded data>   send decoded data to the wrapper process
+#   S <width> <height>        resize the pty
+#
+# Data written to `outpipe/stdout` are in a raw form, just as the wrapped
+# process writes them.
+require 'base64'
+require 'pty'
+require 'timeout'
+
+class Wrapper
+  def initialize(args)
+    @in_pipe = args.shift
+    @out_pipe = args.shift
+    @cmd = args
+    @current_w = 80
+    @current_h = 25
+  end
+
+  def run
+    r_pty, w_pty, pid = PTY.spawn(*@cmd)
+    
+    catch(:stop) do
+      loop do
+        work(r_pty, w_pty)
+      end
+    end
+
+    terminate(pid)
+  end
+
+  protected
+  def work(r_pty, w_pty)
+    rs, _ = IO.select([$stdin, r_pty])
+
+    rs.each do |r|
+      case r
+      when $stdin
+        buf = read_stdin
+        stop if buf.nil?
+
+        buf.split("\n").each do |msg|
+          cmd = msg.split(' ')
+
+          case cmd[0]
+          when 'W'
+            w_pty.write(Base64.strict_decode64(cmd[1]))
+
+          when 'S'
+            w, h = cmd[1..2].map { |v| v.to_i }
+
+            if w != current_w || h != current_h
+              current_w = w
+              current_h = h
+
+              `stty -F #{r_pty.path} rows #{h} cols #{w}`
+              Process.kill('WINCH', pid)
+            end
+          end
+        end
+
+      when r_pty
+        buf = read_nonblock(r_pty)
+        stop if buf.nil?
+
+        $stdout.write(buf)
+        $stdout.flush
+      end
+    end
+  end
+
+  def stop
+    throw(:stop)
+  end
+
+  def terminate(pid)
+    status = nil
+
+    begin
+      Timeout.timeout(3) do
+        _, status = Process.wait2(pid)
+      end
+
+    rescue Timeout::Error
+      Process.kill('KILL', pid)
+      _, status = Process.wait2(pid)
+    end
+  end
+
+  def read_nonblock(io)
+    io.read_nonblock(4096)
+
+  rescue IO::WaitReadable
+    ''
+
+  rescue Errno::EIO
+    nil
+  end
+
+  def read_stdin
+    read_nonblock($stdin)
+
+  rescue EOFError
+    # osctld has crashed/exited, reopen the pipes and wait for it to restart
+    $stdin.reopen(@in_pipe, 'r')
+    $stdout.reopen(@out_pipe, 'w')
+    ''
+  end
+end
+
+w = Wrapper.new(ARGV)
+w.run

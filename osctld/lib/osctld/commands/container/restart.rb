@@ -9,7 +9,8 @@ module OsCtld
     def execute
       ct = ContainerList.find(opts[:id]) || (raise 'container not found')
       ct.exclusively do
-        ct_control(ct.user, :ct_restart, id: ct.id)
+        call_cmd(Commands::Container::Stop, id: ct.id)
+        call_cmd(Commands::Container::Start, id: ct.id)
       end
     end
   end

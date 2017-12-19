@@ -36,6 +36,8 @@ module OsCtl::Cli
       else
         puts "Error occurred: #{ret[:message]}"
       end
+
+      ret[:status]
     end
   end
 end

@@ -35,8 +35,7 @@ module OsCtld
         Template.render_to('user/bashrc', {
           user: u,
           override: %w(
-            attach cgroup console device execute info ls monitor start stop
-            top wait
+            attach cgroup console device execute info ls monitor stop top wait
           ),
           disable: %w(
             autostart checkpoint clone copy create destroy freeze snapshot

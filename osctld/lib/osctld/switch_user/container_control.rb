@@ -16,21 +16,17 @@ module OsCtld
     end
 
     protected
-    def ct_start(opts)
-      # TODO: start using LXC Ruby binding does not work, dunno why
-      #lxc_ct(opts[:id]).start
-      IO.popen("lxc-start -P #{@lxc_home} -n #{opts[:id]} 2>&1") { |io| io.read }
-      ok
-    end
-
     def ct_stop(opts)
-      lxc_ct(opts[:id]).stop
-      ok
-    end
+      ct = lxc_ct(opts[:id])
 
-    def ct_restart(opts)
-      ct_stop(opts)
-      ct_start(opts)
+      begin
+        ct.shutdown(60)
+
+      rescue LXC::Error
+        ct.stop
+      end
+
+      ok
     end
 
     def ct_status(opts)

@@ -5,6 +5,20 @@ use_osctl () {
   echo "lxc-$1 is disabled on vpsAdmin OS. Use osctl instead." >&2
 }
 
+lxc_start () {
+  echo "osctl will not be able to open tty0 of containers started using"
+  echo "lxc-start, i.e. osctl console <ctid> will not work."
+  echo -n "continue? [y/N]: "
+  read cont
+
+  if [ "$cont" == "y" ] ; then
+    cmd=`which lxc-start`
+    $cmd -P <%= user.lxc_home %> $@
+  fi
+}
+
+alias lxc-start='lxc_start'
+
 <% override.each do |cmd| -%>
 alias lxc-<%= cmd%>='lxc-<%= cmd %> -P <%= user.lxc_home %>'
 <% end -%>

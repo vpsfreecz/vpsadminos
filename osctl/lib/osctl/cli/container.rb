@@ -94,43 +94,41 @@ module OsCtl::Cli
 
     def start
       raise "missing argument" unless args[0]
+      return osctld_fmt(:ct_start, id: args[0]) unless opts[:foreground]
 
-      osctld_fmt(:ct_start, id: args[0])
+      open_console(args[0], 0) do |sock|
+        unless osctld_fmt(:ct_start, id: args[0])
+          sock.close
+        end
+      end
     end
 
     def stop
       raise "missing argument" unless args[0]
+      return osctld_fmt(:ct_stop, id: args[0]) unless opts[:foreground]
 
-      osctld_fmt(:ct_stop, id: args[0])
+      open_console(args[0], 0) do |sock|
+        unless osctld_fmt(:ct_stop, id: args[0])
+          sock.close
+        end
+      end
     end
 
     def restart
       raise "missing argument" unless args[0]
+      return osctld_fmt(:ct_restart, id: args[0]) unless opts[:foreground]
 
-      osctld_fmt(:ct_restart, id: args[0])
+      open_console(args[0], 0) do |sock|
+        unless osctld_fmt(:ct_restart, id: args[0])
+          sock.close
+        end
+      end
     end
 
     def console
       raise "missing argument" unless args[0]
 
-      ret = osctld(:ct_console, id: args[0], tty: opts[:tty])
-
-      unless ret[:status]
-        warn "Error: #{ret[:message]}"
-        return
-      end
-
-      cmd = ret[:response]
-
-      pid = Process.fork do
-        cmd[:env].each do |k, v|
-          ENV[k.to_s] = v
-        end
-
-        Process.exec(*cmd[:cmd])
-      end
-
-      Process.wait(pid)
+      open_console(args[0], opts[:tty])
     end
 
     def attach
@@ -233,6 +231,34 @@ module OsCtl::Cli
       raise "nothing to do" if params.empty?
 
       osctld_fmt(:ct_set, params)
+    end
+
+    def open_console(ctid, tty)
+      c = osctld_open
+      c.cmd(:ct_console, id: ctid, tty: tty)
+      ret = c.reply
+
+      unless ret[:status]
+        warn "Error: #{ret[:message]}"
+        return
+      end
+
+      puts "Press Ctrl+a q to detach the console"
+      puts
+
+      state = `stty -g`
+      `stty raw -echo -icanon -isig`
+
+      pid = Process.fork do
+        OsCtl::Console.open(c.socket, STDIN, STDOUT)
+      end
+
+      yield(c) if block_given?
+
+      Process.wait(pid)
+
+      `stty #{state}`
+      puts
     end
   end
 end

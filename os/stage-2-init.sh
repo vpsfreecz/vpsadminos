@@ -13,7 +13,7 @@ mount -t proc proc /proc
 mount -t sysfs sys /sys
 mount -t devtmpfs devtmpfs /dev
 mkdir /dev/pts /dev/shm
-mount -t devpts devpts /dev/pts
+mount -t devpts -ogid=3 devpts /dev/pts
 mount -t tmpfs tmpfs /run
 mount -t tmpfs tmpfs /dev/shm
 

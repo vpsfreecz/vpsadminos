@@ -29,6 +29,10 @@ module OsCtld
       {status: true, output: resp}
     end
 
+    def handled
+      {status: :handled}
+    end
+
     def error(msg)
       {status: false, message: msg}
     end

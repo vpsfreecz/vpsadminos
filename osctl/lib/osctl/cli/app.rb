@@ -163,18 +163,27 @@ module OsCtl::Cli
         ct.desc 'Start container'
         ct.arg_name '<id>'
         ct.command :start do |c|
+          c.desc 'Open container console (can be later detached)'
+          c.switch %i(F foreground)
+
           c.action &Command.run(Container, :start)
         end
 
         ct.desc 'Stop container'
         ct.arg_name '<id>'
         ct.command :stop do |c|
+          c.desc 'Open container console (can be later detached)'
+          c.switch %i(F foreground)
+
           c.action &Command.run(Container, :stop)
         end
 
         ct.desc 'Restart container'
         ct.arg_name '<id>'
         ct.command :restart do |c|
+          c.desc 'Open container console (can be later detached)'
+          c.switch %i(F foreground)
+
           c.action &Command.run(Container, :restart)
         end
 

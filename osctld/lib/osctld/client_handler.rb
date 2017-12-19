@@ -18,8 +18,7 @@ module OsCtld
         break if m.empty? || m.end_with?("\n")
       end
 
-      parse(buf)
-      @sock.close
+      @sock.close if parse(buf)
 
     rescue Errno::ECONNRESET
       # pass
@@ -50,8 +49,11 @@ module OsCtld
         error(output)
 
       else
-        if ret[:status]
+        if ret[:status] === true
           ok(ret[:output])
+
+        elsif ret[:status] == :handled
+          false
 
         else
           error(ret[:message])
@@ -61,10 +63,12 @@ module OsCtld
 
     def error(err)
       send_data({:status => false, :message => err})
+      true
     end
 
     def ok(res)
       send_data({:status => true, :response => res})
+      true
     end
 
     def send_data(data)

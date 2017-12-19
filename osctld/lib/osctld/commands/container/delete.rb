@@ -16,8 +16,10 @@ module OsCtld
       Monitor::Master.demonitor(ct)
 
       ct.exclusively do
-        stop = ct_control(ct.user, :ct_stop, id: ct.id)
+        stop = call_cmd(Commands::Container::Stop, id: ct.id)
         return error('unable to stop the container') unless stop[:status]
+
+        Console.remove(ct)
 
         zfs(:destroy, nil, ct.dataset)
 
