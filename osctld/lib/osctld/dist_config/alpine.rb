@@ -1,0 +1,5 @@
+module OsCtld
+  class DistConfig::Alpine < DistConfig::Debian
+    distribution :alpine
+  end
+end
