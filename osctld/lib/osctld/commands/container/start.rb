@@ -38,7 +38,12 @@ module OsCtld
           STDOUT.reopen(out_w)
           STDERR.reopen(out_w)
 
-          SwitchUser.switch_to(ct.user.name, ct.user.username, ct.user.ugid, ct.user.homedir)
+          SwitchUser.switch_to(
+            ct.user.name,
+            ct.user.sysusername,
+            ct.user.ugid,
+            ct.user.homedir
+          )
           Process.spawn(*cmd, pgroup: true)
         end
 

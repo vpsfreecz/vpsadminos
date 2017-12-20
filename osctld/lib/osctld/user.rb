@@ -44,31 +44,31 @@ module OsCtld
     def registered?
       exclusively do
         next @registered unless @registered.nil?
-        @registered = syscmd("id #{username}", valid_rcs: [1])[:exitstatus] == 0
+        @registered = syscmd("id #{sysusername}", valid_rcs: [1])[:exitstatus] == 0
       end
     end
 
     def register
       exclusively do
-        syscmd("groupadd -g #{ugid} #{groupname}")
-        syscmd("useradd -u #{ugid} -g #{ugid} -d #{homedir} #{username}")
+        syscmd("groupadd -g #{ugid} #{sysgroupname}")
+        syscmd("useradd -u #{ugid} -g #{ugid} -d #{homedir} #{sysusername}")
         @registered = true
       end
     end
 
     def unregister
       exclusively do
-        syscmd("userdel #{groupname}")
+        syscmd("userdel #{sysname}")
         @registered = false
       end
     end
 
-    def username
+    def sysusername
       "uns#{name}"
     end
 
-    def groupname
-      username
+    def sysgroupname
+      sysusername
     end
 
     def dataset

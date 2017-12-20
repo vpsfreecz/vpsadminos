@@ -7,7 +7,7 @@ module OsCtld
         %w(u g).each do |v|
           File.open("/etc/sub#{v}id.new", 'w') do |f|
             users.each do |u|
-              f.write("#{u.username}:#{u.offset}:#{u.size}\n")
+              f.write("#{u.sysusername}:#{u.offset}:#{u.size}\n")
             end
           end
 

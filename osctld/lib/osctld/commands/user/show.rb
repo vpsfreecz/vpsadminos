@@ -8,8 +8,8 @@ module OsCtld
 
       ok({
         name: u.name,
-        username: u.username,
-        groupname: u.groupname,
+        username: u.sysusername,
+        groupname: u.sysgroupname,
         ugid: u.ugid,
         ugid_offset: u.offset,
         ugid_size: u.size,

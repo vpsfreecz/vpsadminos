@@ -8,7 +8,7 @@ module OsCtld
       pid = Process.fork do
         r.close
 
-        SwitchUser.switch_to(user.name, user.username, user.ugid, user.homedir)
+        SwitchUser.switch_to(user.name, user.sysusername, user.ugid, user.homedir)
         ret = SwitchUser::ContainerControl.run(cmd, opts, user.lxc_home)
         w.write(ret.to_json + "\n")
 
@@ -25,7 +25,7 @@ module OsCtld
     def user_exec(user, *args)
       {
         cmd: [
-          ::OsCtld.bin('osctld-user-exec'), user.name, user.username, user.ugid.to_s,
+          ::OsCtld.bin('osctld-user-exec'), user.name, user.sysusername, user.ugid.to_s,
           user.homedir
         ] + args.map(&:to_s),
         env: Hash[ENV.select { |k,_v| k.start_with?('BUNDLE') || k.start_with?('GEM') }]

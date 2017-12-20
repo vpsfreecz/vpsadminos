@@ -12,7 +12,7 @@ module OsCtld
         STDOUT.reopen(out_w)
         out_r.close
 
-        SwitchUser.switch_to(user.name, user.username, user.ugid, user.homedir)
+        SwitchUser.switch_to(user.name, user.sysusername, user.ugid, user.homedir)
 
         Process.exec('lxc-monitor', '-P', user.lxc_home, '-n', '.*')
       end

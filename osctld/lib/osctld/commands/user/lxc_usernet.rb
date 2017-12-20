@@ -14,7 +14,7 @@ module OsCtld
         # TODO: we need to investigate why it's not enough to set the number
         # of allowed veths to the number of user's container's interfaces, but
         # why it has to be the total number interfaces from _all_ containers.
-        f.write("#{u.username} veth none #{net_cnt}\n")
+        f.write("#{u.sysusername} veth none #{net_cnt}\n")
 
         bridges = {}
 
@@ -28,7 +28,7 @@ module OsCtld
         end
 
         bridges.each do |br, _n|
-          f.write("#{u.username} veth #{br} #{net_cnt}\n")
+          f.write("#{u.sysusername} veth #{br} #{net_cnt}\n")
         end
       end
 

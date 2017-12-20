@@ -82,7 +82,7 @@ module OsCtld
 
         SwitchUser.switch_to(
           ct.user.name,
-          ct.user.username,
+          ct.user.sysusername,
           ct.user.ugid,
           ct.user.homedir
         )
