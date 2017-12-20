@@ -11,18 +11,19 @@ module OsCtld
     attr_reader :id, :user, :distribution, :version
     attr_accessor :state, :init_pid
 
-    def initialize(id, user_name, load: true)
+    def initialize(id, user = nil, load: true)
       init_lock
 
       @id = id
-      @user = UserList.find(user_name) || (raise "user not found")
+      @user = user
       @state = :unknown
       @init_pid = nil
 
       load_config if load
     end
 
-    def configure(distribution, version)
+    def configure(user, distribution, version)
+      @user = user
       @distribution = distribution
       @version = version
       @netifs = []
@@ -45,23 +46,27 @@ module OsCtld
     end
 
     def dataset
-      ct_ds(@user.name, @id)
+      File.join(OsCtld::CT_DS, id)
     end
 
-    def ctdir
-      ct_dir(@user.name, @id)
+    def dir
+      "/#{dataset}"
+    end
+
+    def lxc_dir
+      File.join(user.lxc_home, id)
     end
 
     def rootfs
-      File.join(ctdir, 'private')
+      File.join(dir, 'private')
     end
 
     def config_path
-      File.join(ctdir, 'ct.yml')
+      File.join('/', OsCtld::CONF_DS, 'ct', "#{id}.yml")
     end
 
     def lxc_config_path(cfg = 'config')
-      File.join(ctdir, cfg.to_s)
+      File.join(lxc_dir, cfg.to_s)
     end
 
     def uid_offset
@@ -111,6 +116,7 @@ module OsCtld
 
     def save_config
       data = {
+        'user' => user.name,
         'distribution' => distribution,
         'version' => version,
         'net_interfaces' => @netifs.map { |v| v.save },
@@ -127,6 +133,7 @@ module OsCtld
     def load_config
       cfg = YAML.load_file(config_path)
 
+      @user = UserList.find(cfg['user']) || (raise "user not found")
       @distribution = cfg['distribution']
       @version = cfg['version']
 

@@ -14,6 +14,8 @@ module OsCtld
 
   POOL = 'lxc'
   USER_DS = "#{POOL}/user"
+  CT_DS = "#{POOL}/ct"
+  CONF_DS = "#{POOL}/conf"
 
   def self.root
     File.join(File.dirname(__FILE__), '..')

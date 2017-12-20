@@ -22,7 +22,6 @@ module OsCtld
 
     def delete
       unregister
-      zfs(:destroy, nil, ct_dataset)
       zfs(:destroy, nil, dataset)
     end
 
@@ -73,15 +72,11 @@ module OsCtld
     end
 
     def dataset
-      user_ds(name)
-    end
-
-    def ct_dataset
-      user_ct_ds(name)
+      File.join(OsCtld::USER_DS, name)
     end
 
     def userdir
-      user_dir(name)
+      "/#{dataset}"
     end
 
     def homedir
@@ -89,11 +84,11 @@ module OsCtld
     end
 
     def lxc_home
-      File.join(userdir, 'ct')
+      userdir
     end
 
     def config_path
-      "#{userdir}/user.yml"
+      File.join(userdir, 'user.yml')
     end
 
     def has_containers?

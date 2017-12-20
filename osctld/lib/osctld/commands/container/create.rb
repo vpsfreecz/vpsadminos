@@ -7,14 +7,27 @@ module OsCtld
     include Utils::Zfs
 
     def execute
-      ct = Container.new(opts[:id], opts[:user], load: false)
+      user = UserList.find(opts[:user])
+      return error('user not found') unless user
 
-      ct.user.inclusively do
+      ct = Container.new(opts[:id], user, load: false)
+
+      user.inclusively do
         ct.exclusively do
-          return error('container already exists') if ContainerList.contains?(ct.id)
+          next error('container already exists') if ContainerList.contains?(ct.id)
 
+          # Private area
           zfs(:create, nil, ct.dataset)
+
+          # Chown to 0:0, zfs will shift it to the offset
+          File.chown(0, 0, ct.dir)
+          File.chmod(0770, ct.dir)
+
           Dir.mkdir(ct.rootfs, 0750)
+          File.chown(0, 0, ct.rootfs)
+
+          # LXC home
+          Dir.mkdir(ct.lxc_dir, 0755)
 
           syscmd("tar -xzf #{opts[:template]} -C #{ct.rootfs}")
 
@@ -25,6 +38,7 @@ module OsCtld
           distribution, version, *_ = File.basename(opts[:template]).split('-')
 
           ct.configure(
+            user,
             distribution,
             version
           )
@@ -39,18 +53,10 @@ module OsCtld
 
           ContainerList.add(ct)
           Monitor::Master.monitor(ct)
+
+          ok
         end
       end
-
-      # Create dataset
-      # Extract template
-      # Set UID/GID offset
-      # Create LXC config file
-      # Create VPS config for osctl
-      # Ensure writable log file
-      # Register to ContainerList
-
-      ok
     end
   end
 end

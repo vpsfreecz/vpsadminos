@@ -48,8 +48,13 @@ module OsCtld
     end
 
     def mkdatasets
-      log(:info, :init, "Ensuring presence of dataset #{USER_DS}")
+      log(:info, :init, "Ensuring presence of base datasets and directories")
       zfs(:create, '-p', USER_DS)
+      zfs(:create, '-p', CT_DS)
+      zfs(:create, '-p', CONF_DS)
+
+      conf_ct = File.join('/', CONF_DS, 'ct')
+      Dir.mkdir(conf_ct) unless Dir.exist?(conf_ct)
     end
 
     def load_users
@@ -65,18 +70,12 @@ module OsCtld
     def load_cts
       log(:info, :init, "Loading containers from data pool")
 
-      out = zfs(:list, '-H -r -t filesystem -d 3 -o name', USER_DS)[:output]
+      out = zfs(:list, '-H -r -t filesystem -d 1 -o name', CT_DS)[:output]
 
-      out.split("\n").map do |line|
-        parts = line.strip.split('/')
+      out.split("\n")[1..-1].map do |line|
+        ctid = line.strip.split('/').last
 
-        # lxc/user/<user>/ct/<id>
-        next if parts.count < 5
-
-        user = parts[2]
-        ctid = parts[4]
-
-        ct = Container.new(ctid, user)
+        ct = Container.new(ctid)
         Monitor::Master.monitor(ct)
         Console.reconnect_tty0(ct) if ct.current_state == :running
         ContainerList.add(ct)

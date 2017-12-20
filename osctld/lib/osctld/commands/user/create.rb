@@ -14,7 +14,6 @@ module OsCtld
 
       u.exclusively do
         zfs(:create, nil, u.dataset)
-        zfs(:create, nil, u.ct_dataset)
 
         File.chown(0, opts[:ugid], u.userdir)
         File.chmod(0751, u.userdir)
@@ -22,12 +21,6 @@ module OsCtld
         Dir.mkdir(u.homedir) unless Dir.exist?(u.homedir)
         File.chown(opts[:ugid], opts[:ugid], u.homedir)
         File.chmod(0751, u.homedir)
-
-        # Cache dir for LXC
-        cache_dir = File.join(u.homedir, '.cache', 'lxc')
-        FileUtils.mkdir_p(cache_dir)
-        File.chmod(0775, cache_dir)
-        File.chown(0, opts[:ugid], cache_dir)
 
         u.configure(opts[:ugid], opts[:offset], opts[:size])
 

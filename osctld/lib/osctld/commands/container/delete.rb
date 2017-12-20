@@ -22,6 +22,8 @@ module OsCtld
         Console.remove(ct)
 
         zfs(:destroy, nil, ct.dataset)
+        syscmd("rm -rf #{ct.lxc_dir}")
+        File.unlink(ct.config_path)
 
         ContainerList.remove(ct)
       end
