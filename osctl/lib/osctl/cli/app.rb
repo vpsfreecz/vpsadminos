@@ -220,6 +220,18 @@ module OsCtl::Cli
           set.action &Command.run(Container, :set)
         end
 
+        ct.desc "Go to container's rootfs directory"
+        ct.arg_name '<id>'
+        ct.command :cd do |c|
+          c.desc "Go to /proc/<init_pid>/root"
+          c.switch %i(r runtime), negatable: false
+
+          c.desc "Go to LXC config directory"
+          c.switch %i(l lxc), negatable: false
+
+          c.action &Command.run(Container, :cd)
+        end
+
         ct.desc "Manage container's network interfaces"
         ct.command %i(netif net) do |net|
           net.desc "List network interfaces"

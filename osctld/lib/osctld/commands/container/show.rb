@@ -16,6 +16,8 @@ module OsCtld
           user: ct.user.name,
           dataset: ct.dataset,
           rootfs: ct.rootfs,
+          lxc_path: ct.user.lxc_home,
+          lxc_dir: ct.lxc_dir,
           distribution: ct.distribution,
           version: ct.version,
           state: ct.state,

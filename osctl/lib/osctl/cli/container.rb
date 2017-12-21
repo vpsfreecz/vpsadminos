@@ -1,4 +1,5 @@
 require 'ipaddress'
+require 'tempfile'
 
 module OsCtl::Cli
   class Container < Command
@@ -7,6 +8,8 @@ module OsCtl::Cli
       user
       dataset
       rootfs
+      lxc_path,
+      lxc_dir,
       distribution
       version
       state
@@ -231,6 +234,44 @@ module OsCtl::Cli
       raise "nothing to do" if params.empty?
 
       osctld_fmt(:ct_set, params)
+    end
+
+    def cd
+      raise "missing argument" unless args[0]
+
+      ret = osctld(:ct_show, id: args[0])
+
+      unless ret[:status]
+        warn "Error: #{ret[:message]}"
+        return
+      end
+
+      ct = ret[:response]
+
+      if opts[:runtime]
+        raise "container not running" unless ct[:init_pid]
+        path = File.join('/proc/', ct[:init_pid].to_s, 'root', '/')
+
+      elsif opts[:lxc]
+        path = ct[:lxc_dir]
+
+      else
+        path = ct[:rootfs]
+      end
+
+      file = Tempfile.new('osctl-rcfile')
+      file.write(<<-END
+        export PS1="(CT #{ret[:response][:id]}) $PS1"
+        cd "#{path}"
+        END
+      )
+      file.close
+
+      puts "Spawning a new shell, exit when done"
+      pid = Process.spawn(ENV['SHELL'] || 'bash', '--rcfile', file.path)
+      Process.wait(pid)
+
+      file.unlink
     end
 
     def open_console(ctid, tty)
