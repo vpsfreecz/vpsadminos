@@ -98,6 +98,12 @@ module OsCtl::Cli
           sub.action &Command.run(User, :subugids)
         end
 
+        u.desc "List user's assets (datasets, files, directories)"
+        u.arg_name '<name>'
+        u.command :assets do |c|
+          c.action &Command.run(User, :assets)
+        end
+
         u.default_command :list
       end
 
@@ -230,6 +236,12 @@ module OsCtl::Cli
           c.switch %i(l lxc), negatable: false
 
           c.action &Command.run(Container, :cd)
+        end
+
+        ct.desc 'List container assets (datasets, files, directories)'
+        ct.arg_name '<id>'
+        ct.command :assets do |c|
+          c.action &Command.run(Container, :assets)
         end
 
         ct.desc "Manage container's network interfaces"

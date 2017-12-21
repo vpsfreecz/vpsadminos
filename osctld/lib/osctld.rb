@@ -88,6 +88,7 @@ require_relative 'osctld/switch_user'
 require_relative 'osctld/switch_user/container_control'
 
 require_relative 'osctld/commands/base'
+require_relative 'osctld/commands/assets'
 Dir.glob(File.join(
   File.dirname(__FILE__),
   'osctld', 'commands', '*', '*.rb'

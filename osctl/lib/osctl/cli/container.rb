@@ -274,6 +274,12 @@ module OsCtl::Cli
       file.unlink
     end
 
+    def assets
+      raise "missing argument" unless args[0]
+
+      osctld_fmt(:ct_assets, id: args[0])
+    end
+
     def open_console(ctid, tty)
       c = osctld_open
       c.cmd(:ct_console, id: ctid, tty: tty)

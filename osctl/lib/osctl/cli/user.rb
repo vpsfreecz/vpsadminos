@@ -117,5 +117,11 @@ module OsCtl::Cli
     def subugids
       osctld_fmt(:user_subugids)
     end
+
+    def assets
+      raise "missing argument" unless args[0]
+
+      osctld_fmt(:user_assets, name: args[0])
+    end
   end
 end
