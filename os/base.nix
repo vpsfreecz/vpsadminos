@@ -175,6 +175,11 @@ with lib;
           pids = /sys/fs/cgroup/pids;
           "name=systemd" = /sys/fs/cgroup/systemd;
         }
+        group . {
+          memory {
+            memory.use_hierarchy = 1;
+          }
+        }
       '';
       # XXX: defined twice (for default.conf bellow with different idmap), refactor
       "lxc/user.conf".text = ''
