@@ -11,6 +11,7 @@ module OsCtld
     def initialize
       Thread.abort_on_exception = true
       UserList.instance
+      GroupList.instance
       ContainerList.instance
       Console.init
     end
@@ -34,6 +35,9 @@ module OsCtld
       # Generate /etc/subuid and /etc/subgid
       Commands::User::SubUGIds.run
 
+      # Load groups
+      load_groups
+
       # Load containers from zpool
       load_cts
 
@@ -53,8 +57,11 @@ module OsCtld
       zfs(:create, '-p', CT_DS)
       zfs(:create, '-p', CONF_DS)
 
-      conf_ct = File.join('/', CONF_DS, 'ct')
-      Dir.mkdir(conf_ct) unless Dir.exist?(conf_ct)
+      # Configuration directories
+      %w(ct group).each do |dir|
+        path = File.join('/', CONF_DS, dir)
+        Dir.mkdir(path) unless Dir.exist?(path)
+      end
     end
 
     def load_users
@@ -64,6 +71,18 @@ module OsCtld
 
       out.split("\n")[1..-1].map do |line|
         UserList.add(User.new(line.strip.split('/').last))
+      end
+    end
+
+    def load_groups
+      log(:info, :init, "Loading groups from data pool")
+      GroupList.setup
+
+      Dir.glob(File.join('/', CONF_DS, 'group', '*.yml')).each do |grp|
+        name = File.basename(grp)[0..(('.yml'.length+1) * -1)]
+        next if %w(root default).include?(name)
+
+        GroupList.add(Group.new(name))
       end
     end
 

@@ -12,9 +12,9 @@ module OsCtld
       ct.inclusively do
         next error('container not running') if ct.state != :running
 
-        ok(user_exec(
-          ct.user,
-          'lxc-attach', '-P', ct.user.lxc_home,
+        ok(ct_exec(
+          ct,
+          'lxc-attach', '-P', ct.lxc_home,
           '--clear-env', '--keep-var', 'TERM',
           '-n', ct.id
         ))

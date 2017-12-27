@@ -26,6 +26,14 @@ module OsCtld
         File.unlink(ct.config_path)
 
         ContainerList.remove(ct)
+
+        unless ct.group.has_containers?
+          call_cmd(
+            Commands::Group::UserDel,
+            name: ct.group.name,
+            user: ct.user.name
+          )
+        end
       end
 
       call_cmd(Commands::User::LxcUsernet)

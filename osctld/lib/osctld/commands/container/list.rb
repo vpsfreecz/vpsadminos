@@ -17,9 +17,10 @@ module OsCtld
           ret << {
             id: ct.id,
             user: ct.user.name,
+            group: ct.group.name,
             dataset: ct.dataset,
             rootfs: ct.rootfs,
-            lxc_path: ct.user.lxc_home,
+            lxc_path: ct.lxc_home,
             lxc_dir: ct.lxc_dir,
             distribution: ct.distribution,
             version: ct.version,
@@ -35,6 +36,7 @@ module OsCtld
     protected
     def include?(ct)
       return false if opts[:user] && !opts[:user].include?(ct.user.name)
+      return false if opts[:group] && !opts[:group].include?(ct.group.name)
       return false if opts[:distribution] && !opts[:distribution].include?(ct.distribution)
       return false if opts[:version] && !opts[:version].include?(ct.version)
       return false if opts[:state] && !opts[:state].include?(ct.state.to_s)

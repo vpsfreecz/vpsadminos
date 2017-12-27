@@ -13,18 +13,18 @@ lxc_start () {
 
   if [ "$cont" == "y" ] ; then
     cmd=`which lxc-start`
-    $cmd -P <%= user.lxc_home %> $@
+    $cmd -P <%= user.lxc_home(group) %> $@
   fi
 }
 
 alias lxc-start='lxc_start'
 
 <% override.each do |cmd| -%>
-alias lxc-<%= cmd%>='lxc-<%= cmd %> -P <%= user.lxc_home %>'
+alias lxc-<%= cmd%>='lxc-<%= cmd %> -P <%= user.lxc_home(group) %>'
 <% end -%>
 
 <% disable.each do |cmd| -%>
 alias lxc-<%= cmd%>='use_osctl <%= cmd %>'
 <% end -%>
 
-cd <%= user.userdir %>
+cd <%= user.lxc_home(group) %>

@@ -31,10 +31,10 @@ module OsCtld
     public
     def monitor(ct)
       sync do
-        key = ct.user.name
+        k = key(ct)
 
-        if @monitors.has_key?(key)
-          @monitors[key].cts << ct.id
+        if @monitors.has_key?(k)
+          @monitors[k].cts << ct.id
           update_state(ct)
           next
         end
@@ -47,11 +47,13 @@ module OsCtld
 
     def demonitor(ct)
       stop_entry = sync do
-        entry = @monitors[ct.user.name]
+        k = key(ct)
+
+        entry = @monitors[k]
         entry.cts.delete(ct.id)
 
         if entry.cts.empty?
-          @monitors.delete(ct.user.name)
+          @monitors.delete(k)
           entry
         else
           false
@@ -85,18 +87,26 @@ module OsCtld
     private
     def handle_monitor(ct)
       loop do
-        log(:info, :monitor, "Starting user monitor for #{ct.user.name}")
+        log(
+          :info,
+          :monitor,
+          "Starting user/group monitor for #{ct.user.name}/#{ct.group.name}"
+        )
 
-        pid, stdout = Monitor::Process.spawn(ct.user)
+        pid, stdout = Monitor::Process.spawn(ct.user, ct.group)
         update_state(ct)
-        sync { @monitors[ct.user.name] = Entry.new(Thread.current, pid, [ct.id]) }
+        sync { @monitors[key(ct)] = Entry.new(Thread.current, pid, [ct.id]) }
 
-        p = Monitor::Process.new(ct.user, stdout)
+        p = Monitor::Process.new(ct.user, ct.group, stdout)
         Process.wait(pid) if p.monitor
 
-        log(:info, :monitor, "Monitor of user #{ct.user.name} exited")
+        log(
+          :info,
+          :monitor,
+          "Monitor of user/group #{ct.user.name}/#{ct.group.name} exited"
+        )
 
-        break if sync { !@monitors.has_key?(ct.user.name) }
+        break if sync { !@monitors.has_key?(key(ct)) }
 
         # The sleep here is essential when osctld is shutting down. If killed
         # from terminal, all processes, including monitors, receive SIGINT
@@ -108,13 +118,17 @@ module OsCtld
 
     def update_state(ct)
       ct.inclusively do
-        ret = ct_control(ct.user, :ct_status, ids: [ct.id])
+        ret = ct_control(ct, :ct_status, ids: [ct.id])
         next unless ret[:status]
 
         out = ret[:output][ct.id.to_sym]
         ct.state = out[:state].to_sym
         ct.init_pid = out[:init_pid]
       end
+    end
+
+    def key(ct)
+      "#{ct.user.name}/#{ct.group.name}"
     end
 
     def sync

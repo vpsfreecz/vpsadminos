@@ -5,24 +5,30 @@ module OsCtld
     include Utils::Log
     include Utils::SwitchUser
 
-    def self.spawn(user)
+    def self.spawn(user, group)
       out_r, out_w = IO.pipe
 
       pid = Process.fork do
         STDOUT.reopen(out_w)
         out_r.close
 
-        SwitchUser.switch_to(user.name, user.sysusername, user.ugid, user.homedir)
+        SwitchUser.switch_to(
+          user.sysusername,
+          user.ugid,
+          user.homedir,
+          group.full_cgroup_path(user)
+        )
 
-        Process.exec('lxc-monitor', '-P', user.lxc_home, '-n', '.*')
+        Process.exec('lxc-monitor', '-P', user.lxc_home(group), '-n', '.*')
       end
 
       out_w.close
       [pid, out_r]
     end
 
-    def initialize(user, stdout)
+    def initialize(user, group, stdout)
       @user = user
+      @group = group
       @stdout = stdout
     end
 
@@ -72,7 +78,7 @@ module OsCtld
 
         case ct.state
         when :running
-          ret = ct_control(@user, :ct_status, ids: [ct.id])
+          ret = ct_control(ct, :ct_status, ids: [ct.id])
           ct.init_pid = ret[:output][ct.id.to_sym][:init_pid] if ret[:status]
         end
       end

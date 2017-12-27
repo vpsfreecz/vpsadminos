@@ -78,22 +78,6 @@ module OsCtl::Cli
       osctld_fmt(:user_delete, name: args[0])
     end
 
-    def su
-      raise "missing argument" unless args[0]
-
-      # TODO: error handling
-      cmd = osctld(:user_su, name: args[0])[:response]
-      pid = Process.fork do
-        cmd[:env].each do |k, v|
-          ENV[k.to_s] = v
-        end
-
-        Process.exec(*cmd[:cmd])
-      end
-
-      Process.wait(pid)
-    end
-
     def register
       raise "missing argument" unless args[0]
 

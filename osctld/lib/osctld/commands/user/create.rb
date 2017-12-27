@@ -23,19 +23,6 @@ module OsCtld
         File.chmod(0751, u.homedir)
 
         u.configure(opts[:ugid], opts[:offset], opts[:size])
-
-        # bashrc
-        Template.render_to('user/bashrc', {
-          user: u,
-          override: %w(
-            attach cgroup console device execute info ls monitor stop top wait
-          ),
-          disable: %w(
-            autostart checkpoint clone copy create destroy freeze snapshot
-            start-ephemeral unfreeze unshare
-          ),
-        }, File.join(u.homedir, '.bashrc'))
-
         u.register
 
         UserList.sync do

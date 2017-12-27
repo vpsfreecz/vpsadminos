@@ -2,14 +2,19 @@ require 'json'
 
 module OsCtld
   module Utils::SwitchUser
-    def ct_control(user, cmd, opts = {})
+    def ct_control(ct, cmd, opts = {})
       r, w = IO.pipe
 
       pid = Process.fork do
         r.close
 
-        SwitchUser.switch_to(user.name, user.sysusername, user.ugid, user.homedir)
-        ret = SwitchUser::ContainerControl.run(cmd, opts, user.lxc_home)
+        SwitchUser.switch_to(
+          ct.user.sysusername,
+          ct.user.ugid,
+          ct.user.homedir,
+          ct.group.full_cgroup_path(ct.user)
+        )
+        ret = SwitchUser::ContainerControl.run(cmd, opts, ct.lxc_home)
         w.write(ret.to_json + "\n")
 
         exit
@@ -22,11 +27,11 @@ module OsCtld
       ret
     end
 
-    def user_exec(user, *args)
+    def ct_exec(ct, *args)
       {
         cmd: [
-          ::OsCtld.bin('osctld-user-exec'), user.name, user.sysusername, user.ugid.to_s,
-          user.homedir
+          ::OsCtld.bin('osctld-ct-exec'), ct.user.sysusername, ct.user.ugid.to_s,
+          ct.user.homedir, ct.group.full_cgroup_path(ct.user)
         ] + args.map(&:to_s),
         env: Hash[ENV.select { |k,_v| k.start_with?('BUNDLE') || k.start_with?('GEM') }]
       }
@@ -39,7 +44,7 @@ module OsCtld
 
       r, w = IO.pipe
 
-      ret = ct_control(ct.user, :ct_exec, {
+      ret = ct_control(ct, :ct_exec, {
         id: ct.id,
         cmd: cmd,
         stdin: nil,

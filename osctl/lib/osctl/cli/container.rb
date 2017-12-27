@@ -6,6 +6,7 @@ module OsCtl::Cli
     FIELDS = %i(
       id
       user
+      group
       dataset
       rootfs
       lxc_path,
@@ -19,6 +20,7 @@ module OsCtl::Cli
 
     FILTERS = %i(
       user
+      group
       distribution
       version
       state
@@ -27,6 +29,7 @@ module OsCtl::Cli
     DEFAULT_FIELDS = %i(
       id
       user
+      group
       distribution
       version
       state
@@ -81,12 +84,15 @@ module OsCtl::Cli
     def create
       raise "missing argument" unless args[0]
 
-      osctld_fmt(
-        :ct_create,
+      cmd_opts = {
         id: args[0],
         user: opts[:user],
         template: File.absolute_path(opts[:template]),
-      )
+      }
+
+      cmd_opts[:group] = opts[:group] if opts[:group]
+
+      osctld_fmt(:ct_create, cmd_opts)
     end
 
     def delete

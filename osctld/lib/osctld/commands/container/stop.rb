@@ -9,7 +9,7 @@ module OsCtld
     def execute
       ct = ContainerList.find(opts[:id]) || (raise 'container not found')
       ct.exclusively do
-        ret = ct_control(ct.user, :ct_stop, id: ct.id)
+        ret = ct_control(ct, :ct_stop, id: ct.id)
         next ret unless ret[:status]
 
         Console.tty0_pipes(ct.id).each do |pipe|

@@ -10,7 +10,16 @@ module OsCtld
       user = UserList.find(opts[:user])
       return error('user not found') unless user
 
-      ct = Container.new(opts[:id], user, load: false)
+      if opts[:group]
+        group = GroupList.find(opts[:group])
+
+      else
+        group = GroupList.default
+      end
+
+      return error('group not found') unless group
+
+      ct = Container.new(opts[:id], user, group, load: false)
 
       user.inclusively do
         ct.exclusively do
@@ -27,7 +36,18 @@ module OsCtld
           File.chown(0, 0, ct.rootfs)
 
           # LXC home
-          Dir.mkdir(ct.lxc_dir, 0755)
+          unless group.setup_for?(user)
+            ret = call_cmd(
+              Commands::Group::UserAdd,
+              name: group.name,
+              user: user.name
+            )
+
+            next ret unless ret[:status]
+          end
+
+          Dir.mkdir(ct.lxc_dir, 0750)
+          File.chown(0, ct.user.ugid, ct.lxc_dir)
 
           syscmd("tar -xzf #{opts[:template]} -C #{ct.rootfs}")
 
@@ -39,6 +59,7 @@ module OsCtld
 
           ct.configure(
             user,
+            group,
             distribution,
             version
           )

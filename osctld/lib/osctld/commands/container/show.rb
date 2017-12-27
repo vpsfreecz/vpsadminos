@@ -14,9 +14,10 @@ module OsCtld
         ok({
           id: ct.id,
           user: ct.user.name,
+          group: ct.group.name,
           dataset: ct.dataset,
           rootfs: ct.rootfs,
-          lxc_path: ct.user.lxc_home,
+          lxc_path: ct.lxc_home,
           lxc_dir: ct.lxc_dir,
           distribution: ct.distribution,
           version: ct.version,

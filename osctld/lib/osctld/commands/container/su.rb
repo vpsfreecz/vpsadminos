@@ -9,7 +9,7 @@ module OsCtld
       ct = ContainerList.find(opts[:id])
       return error('container not found') unless ct
 
-      ok(user_exec(ct.user, 'bash'))
+      ok(ct_exec(ct, 'bash', '--rcfile', File.join(ct.lxc_home, '.bashrc')))
     end
   end
 end

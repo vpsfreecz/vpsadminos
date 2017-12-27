@@ -1,5 +1,6 @@
 require 'gli'
 require_relative 'container'
+require_relative 'group'
 require_relative 'net_interface'
 require_relative 'user'
 
@@ -75,12 +76,6 @@ module OsCtl::Cli
           del.action &Command.run(User, :delete)
         end
 
-        u.desc 'Get user shell'
-        u.arg_name '<name>'
-        u.command :su do |su|
-          su.action &Command.run(User, :su)
-        end
-
         u.desc 'Register users into the system'
         u.arg_name '[name] | all'
         u.command %i(reg register) do |del|
@@ -107,6 +102,47 @@ module OsCtl::Cli
         u.default_command :list
       end
 
+      desc 'Manage groups used for cgroup-based resource limiting'
+      command :group do |grp|
+        grp.desc 'List available groups'
+        grp.arg_name '[name...]'
+        grp.command %i(ls list) do |ls|
+          ls.desc 'Select parameters to output'
+          ls.flag %i(o output)
+
+          ls.desc 'Do not show header'
+          ls.switch %i(H hide-header), negatable: false
+
+          ls.desc 'List available parameters'
+          ls.switch %i(L list), negatable: false
+
+          ls.action &Command.run(Group, :list)
+        end
+
+        grp.desc 'Create group'
+        grp.arg_name '<name>'
+        grp.command %i(new create) do |new|
+          new.desc 'CGroup path (in all subsystems)'
+          new.flag %i(p path), required: true
+
+          new.action &Command.run(Group, :create)
+        end
+
+        grp.desc 'Delete group'
+        grp.arg_name '<name>'
+        grp.command %i(del delete) do |del|
+          del.action &Command.run(Group, :delete)
+        end
+
+        grp.desc "List group's assets (datasets, files, directories)"
+        grp.arg_name '<name>'
+        grp.command :assets do |c|
+          c.action &Command.run(Group, :assets)
+        end
+
+        grp.default_command :list
+      end
+
       desc 'Manage containers'
       command %i(ct vps) do |ct|
         ct.desc 'List containers'
@@ -114,6 +150,9 @@ module OsCtl::Cli
         ct.command %i(ls list) do |ls|
           ls.desc 'Filter by user name, comma separated'
           ls.flag %i(u user)
+
+          ls.desc 'Filter by group name, comma separated'
+          ls.flag %i(g group)
 
           ls.desc 'Filter by distribution, comma separated'
           ls.flag %i(d distribution)
@@ -153,6 +192,9 @@ module OsCtl::Cli
         ct.command %i(new create) do |new|
           new.desc 'User name'
           new.flag :user, required: true
+
+          new.desc 'Group name'
+          new.flag :group, required: false
 
           new.desc 'Template file'
           new.flag :template, required: true

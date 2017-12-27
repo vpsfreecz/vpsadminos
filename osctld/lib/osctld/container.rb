@@ -8,22 +8,24 @@ module OsCtld
     include Utils::Zfs
     include Utils::SwitchUser
 
-    attr_reader :id, :user, :distribution, :version
+    attr_reader :id, :user, :group, :distribution, :version
     attr_accessor :state, :init_pid
 
-    def initialize(id, user = nil, load: true)
+    def initialize(id, user = nil, group = nil, load: true)
       init_lock
 
       @id = id
       @user = user
+      @group = group
       @state = :unknown
       @init_pid = nil
 
       load_config if load
     end
 
-    def configure(user, distribution, version)
+    def configure(user, group, distribution, version)
       @user = user
+      @group = group
       @distribution = distribution
       @version = version
       @netifs = []
@@ -33,7 +35,7 @@ module OsCtld
     def current_state
       inclusively do
         next(state) if state != :unknown
-        ret = ct_control(user, :ct_status, ids: [id])
+        ret = ct_control(self, :ct_status, ids: [id])
 
         if ret[:status]
           state = ret[:output][id.to_sym][:state].to_sym
@@ -53,8 +55,12 @@ module OsCtld
       "/#{dataset}"
     end
 
+    def lxc_home
+      user.lxc_home(group)
+    end
+
     def lxc_dir
-      File.join(user.lxc_home, id)
+      File.join(lxc_home, id)
     end
 
     def rootfs
@@ -117,6 +123,7 @@ module OsCtld
     def save_config
       data = {
         'user' => user.name,
+        'group' => group.name,
         'distribution' => distribution,
         'version' => version,
         'net_interfaces' => @netifs.map { |v| v.save },
@@ -134,6 +141,7 @@ module OsCtld
       cfg = YAML.load_file(config_path)
 
       @user = UserList.find(cfg['user']) || (raise "user not found")
+      @group = GroupList.find(cfg['group']) || (raise "group not found")
       @distribution = cfg['distribution']
       @version = cfg['version']
 

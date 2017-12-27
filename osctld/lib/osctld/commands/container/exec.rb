@@ -14,7 +14,7 @@ module OsCtld
 
         client.send({status: true, response: 'continue'}.to_json + "\n", 0)
 
-        ct_control(ct.user, :ct_exec, {
+        ct_control(ct, :ct_exec, {
           id: ct.id,
           cmd: opts[:cmd],
           stdin: client.recv_io,

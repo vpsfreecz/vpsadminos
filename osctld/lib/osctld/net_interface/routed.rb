@@ -203,7 +203,7 @@ module OsCtld
     end
 
     def fetch_veth_name
-      ret = ct_control(ct.user, :veth_name, {
+      ret = ct_control(ct, :veth_name, {
         id: ct.id,
         index: index,
       })

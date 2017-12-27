@@ -58,7 +58,7 @@ module OsCtld
 
     def unregister
       exclusively do
-        syscmd("userdel #{sysname}")
+        syscmd("userdel #{sysusername}")
         @registered = false
       end
     end
@@ -83,8 +83,8 @@ module OsCtld
       File.join(userdir, '.home')
     end
 
-    def lxc_home
-      userdir
+    def lxc_home(group)
+      File.join(userdir, group.name)
     end
 
     def config_path

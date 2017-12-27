@@ -1,6 +1,7 @@
 module OsCtld
   module Commands
     module Container ; end
+    module Group ; end
     module NetInterface ; end
     module User ; end
   end
@@ -63,6 +64,8 @@ require_relative 'osctld/container_list'
 require_relative 'osctld/container'
 require_relative 'osctld/user_list'
 require_relative 'osctld/user'
+require_relative 'osctld/group_list'
+require_relative 'osctld/group'
 require_relative 'osctld/monitor'
 require_relative 'osctld/monitor/process'
 require_relative 'osctld/monitor/master'

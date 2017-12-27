@@ -2,7 +2,7 @@ module OsCtld
   module SwitchUser
     CGROUP_FS = '/sys/fs/cgroup'
 
-    def self.switch_to(user, sysuser, ugid, homedir)
+    def self.switch_to(sysuser, ugid, homedir, cgroup_path)
       # Environment
       ENV.delete('XDG_SESSION_ID')
       ENV.delete('XDG_RUNTIME_DIR')
@@ -18,7 +18,7 @@ module OsCtld
       cgroup_subsystems.each do |subsys|
         cgroup(
           subsys,
-          ['osctl', user],
+          cgroup_path.split('/'),
           attach: true,
           chown: chowned.include?(subsys) ? ugid : false
         )

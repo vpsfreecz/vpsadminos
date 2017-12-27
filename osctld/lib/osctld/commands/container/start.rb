@@ -15,7 +15,7 @@ module OsCtld
           OsCtld.bin('osctld-ct-wrapper'),
           in_pipe, out_pipe,
           'lxc-start',
-          '-P', ct.user.lxc_home,
+          '-P', ct.lxc_home,
           '-n', ct.id,
           '-F'
         ]
@@ -39,10 +39,10 @@ module OsCtld
           STDERR.reopen(out_w)
 
           SwitchUser.switch_to(
-            ct.user.name,
             ct.user.sysusername,
             ct.user.ugid,
-            ct.user.homedir
+            ct.user.homedir,
+            ct.group.full_cgroup_path(ct.user)
           )
           Process.spawn(*cmd, pgroup: true)
         end

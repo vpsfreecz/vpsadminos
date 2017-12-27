@@ -81,13 +81,13 @@ module OsCtld
         @wake_w.close
 
         SwitchUser.switch_to(
-          ct.user.name,
           ct.user.sysusername,
           ct.user.ugid,
-          ct.user.homedir
+          ct.user.homedir,
+          ct.group.full_cgroup_path(ct.user)
         )
 
-        lxc_ct = LXC::Container.new(ct.id, ct.user.lxc_home)
+        lxc_ct = LXC::Container.new(ct.id, ct.lxc_home)
         fd = lxc_ct.console_fd(n)
 
         begin
