@@ -192,6 +192,7 @@ with lib;
           lxc.include = ${pkgs.lxcfs}/share/lxc/config/common.conf.d/00-lxcfs.conf
           lxc.apparmor.allow_incomplete = 1 
       '';
+      "lxc/common.conf.d/00-lxcfs.conf".source = "${pkgs.lxcfs}/share/lxc/config/common.conf.d/00-lxcfs.conf";
     };
 
     boot.kernelParams = [ "systemConfig=${config.system.build.toplevel}" ];
