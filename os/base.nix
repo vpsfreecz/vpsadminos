@@ -127,12 +127,14 @@ with lib;
           extraConfig = ''
             EXPERT y
             CHECKPOINT_RESTORE y
+            CFS_BANDWIDTH y
           '';
         };
         linux_testing = self.linux_testing.override {
           extraConfig = ''
             EXPERT y
             CHECKPOINT_RESTORE y
+            CFS_BANDWIDTH y
           '';
         };
         spl = spl.overrideAttrs (old: { broken = false; });
