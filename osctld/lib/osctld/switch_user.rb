@@ -1,7 +1,5 @@
 module OsCtld
   module SwitchUser
-    CGROUP_FS = '/sys/fs/cgroup'
-
     def self.switch_to(sysuser, ugid, homedir, cgroup_path)
       # Environment
       ENV.delete('XDG_SESSION_ID')
@@ -30,11 +28,11 @@ module OsCtld
     end
 
     def self.cgroup_subsystems
-      Dir.entries(CGROUP_FS) - ['.', '..']
+      Dir.entries(OsCtld::CGROUP_FS) - ['.', '..']
     end
 
     def self.cgroup(type, path, chown: nil, attach: false)
-      base = File.join(CGROUP_FS, type)
+      base = File.join(OsCtld::CGROUP_FS, type)
       tmp = []
 
       path.each do |name|

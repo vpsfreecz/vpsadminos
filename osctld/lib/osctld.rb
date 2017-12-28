@@ -17,6 +17,7 @@ module OsCtld
   USER_DS = "#{POOL}/user"
   CT_DS = "#{POOL}/ct"
   CONF_DS = "#{POOL}/conf"
+  CGROUP_FS = '/sys/fs/cgroup'
 
   def self.root
     File.join(File.dirname(__FILE__), '..')
@@ -44,6 +45,7 @@ module OsCtld
 end
 
 require_relative 'osctld/version'
+require_relative 'osctld/exceptions'
 require_relative 'osctld/template'
 require_relative 'osctld/lockable'
 require_relative 'osctld/object_list'

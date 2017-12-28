@@ -20,6 +20,9 @@ module OsCtl::Cli
       subcommand_option_handling :normal
       arguments :strict
 
+      desc 'Show precise values'
+      switch %i(p parsable), negatable: false
+
       desc 'Manage system users and user namespace configuration'
       command :user do |u|
         u.desc 'List available users'
@@ -125,6 +128,9 @@ module OsCtl::Cli
           new.desc 'CGroup path (in all subsystems)'
           new.flag %i(p path), required: true
 
+          new.desc 'Set CGroup parameter'
+          new.flag %i(param), multiple: true
+
           new.action &Command.run(Group, :create)
         end
 
@@ -138,6 +144,47 @@ module OsCtl::Cli
         grp.arg_name '<name>'
         grp.command :assets do |c|
           c.action &Command.run(Group, :assets)
+        end
+
+        grp.desc 'Manage CGroup parameters'
+        grp.command :params do |p|
+          p.desc 'List configured parameters'
+          p.arg_name '<name>'
+          p.command %i(ls list) do |c|
+            c.desc 'Filter by CGroup subsystem (comma separated)'
+            c.flag %i(S subsystem)
+
+            c.desc 'Select parameters to output'
+            c.flag %i(o output)
+
+            c.desc 'Do not show header'
+            c.switch %i(H hide-header), negatable: false
+
+            c.desc 'List available parameters'
+            c.switch %i(L list), negatable: false
+
+            c.action &Command.run(Group, :param_list)
+          end
+
+          p.desc 'Configure parameters'
+          p.arg_name '<name> <parameter> <value>'
+          p.command :set do |c|
+            c.action &Command.run(Group, :param_set)
+          end
+
+          p.desc 'Remove configured parameter'
+          p.arg_name '<name> <parameter>'
+          p.command :unset do |c|
+            c.action &Command.run(Group, :param_unset)
+          end
+
+          p.desc 'Reapply configured parameters'
+          p.arg_name '<name>'
+          p.command :apply do |c|
+            c.action &Command.run(Group, :param_apply)
+          end
+
+          p.default_command :list
         end
 
         grp.default_command :list
