@@ -4,6 +4,7 @@ module OsCtl
       subsystem
       parameter
       value
+      abs_path
     )
 
     PARAM_FILTERS = %i(

@@ -6,7 +6,12 @@ module OsCtld
       groupable.params.each do |p|
         next if opts[:parameters] && !opts[:parameters].include?(p.name)
         next if opts[:subsystem] && !opts[:subsystem].include?(p.subsystem)
-        ret << p.export
+
+        info = p.export
+        info.update({
+          abs_path: File.join(groupable.abs_cgroup_path(p.subsystem), p.name),
+        })
+        ret << info
       end
 
       ok(ret)
