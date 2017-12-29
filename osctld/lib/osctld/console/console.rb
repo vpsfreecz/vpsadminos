@@ -6,7 +6,7 @@ module OsCtld
   # tty0 is opened on container start, at least when it's started by osctld.
   # The tty is accessed using named pipes, one for writing to the tty, one for
   # reading from the tty. These pipes are provided using {#connect}.
-  class Console::Console < Console::Tty
+  class Console::Console < Console::TTY
     def open
       # Does nothing for tty0, it is opened automatically on ct start
     end

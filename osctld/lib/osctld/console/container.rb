@@ -22,7 +22,7 @@ module OsCtld
     def tty(n)
       @mutex.synchronize do
         if !@ttys.has_key?(n)
-          klass = n == 0 ? Console::Console : Console::Tty
+          klass = n == 0 ? Console::Console : Console::TTY
           @ttys[n] = tty = klass.new(ct, n)
           tty.start
           tty

@@ -7,7 +7,7 @@ module OsCtld
   # Each tty has its own thread that passes data between the tty and connected
   # clients. Clients can be connected even if the tty is not available, i.e.
   # the container can be stopped.
-  class Console::Tty
+  class Console::TTY
     include Utils::Log
     include Utils::System
     include Utils::SwitchUser
