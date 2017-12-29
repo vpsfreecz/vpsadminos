@@ -9,14 +9,9 @@ module OsCtld
       add(:file, grp.config_path, "osctld's group config")
 
       grp.users.each do |u|
-        dir = grp.lxc_home(u)
+        dir = grp.userdir(u)
 
         add(:directory, dir, "LXC path for #{u.name}/#{grp.name}")
-        add(
-          :file,
-          File.join(dir, '.bashrc'),
-          'Shell configuration file for osctl ct su'
-        )
       end
 
       ok(assets)
