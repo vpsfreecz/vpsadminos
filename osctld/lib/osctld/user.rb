@@ -83,10 +83,6 @@ module OsCtld
       File.join(userdir, '.home')
     end
 
-    def lxc_home(group)
-      File.join(userdir, group.name)
-    end
-
     def config_path
       File.join(userdir, 'user.yml')
     end

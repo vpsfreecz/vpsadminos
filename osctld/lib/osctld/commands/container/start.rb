@@ -42,7 +42,7 @@ module OsCtld
             ct.user.sysusername,
             ct.user.ugid,
             ct.user.homedir,
-            ct.group.full_cgroup_path(ct.user)
+            ct.cgroup_path
           )
           Process.spawn(*cmd, pgroup: true)
         end

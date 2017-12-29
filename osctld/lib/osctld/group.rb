@@ -31,10 +31,6 @@ module OsCtld
       File.join('/', OsCtld::CONF_DS, 'group', "#{id}.yml")
     end
 
-    def lxc_home(user)
-      user.lxc_home(self)
-    end
-
     def cgroup_path
       if root?
         path
@@ -52,8 +48,12 @@ module OsCtld
       File.join(OsCtld::CGROUP_FS, real_subsystem(subsystem), cgroup_path)
     end
 
+    def userdir(user)
+      File.join(user.userdir, name)
+    end
+
     def setup_for?(user)
-      Dir.exist?(lxc_home(user))
+      Dir.exist?(userdir(user))
     end
 
     def has_containers?

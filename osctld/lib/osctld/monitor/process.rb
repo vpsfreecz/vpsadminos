@@ -5,7 +5,7 @@ module OsCtld
     include Utils::Log
     include Utils::SwitchUser
 
-    def self.spawn(user, group)
+    def self.spawn(ct)
       out_r, out_w = IO.pipe
 
       pid = Process.fork do
@@ -13,22 +13,21 @@ module OsCtld
         out_r.close
 
         SwitchUser.switch_to(
-          user.sysusername,
-          user.ugid,
-          user.homedir,
-          group.full_cgroup_path(user)
+          ct.user.sysusername,
+          ct.user.ugid,
+          ct.user.homedir,
+          ct.group.full_cgroup_path(ct.user)
         )
 
-        Process.exec('lxc-monitor', '-P', user.lxc_home(group), '-n', '.*')
+        Process.exec('lxc-monitor', '-P', ct.lxc_home, '-n', '.*')
       end
 
       out_w.close
       [pid, out_r]
     end
 
-    def initialize(user, group, stdout)
-      @user = user
-      @group = group
+    def initialize(ct, stdout)
+      @ct = ct
       @stdout = stdout
     end
 
@@ -45,7 +44,7 @@ module OsCtld
       true
 
     rescue IOError
-      log(:info, :monitor, "Monitoring of #{@user.name} failed")
+      log(:info, :monitor, "Monitoring of #{@ct.id} failed")
       false
     end
 

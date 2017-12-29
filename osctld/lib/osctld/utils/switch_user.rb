@@ -12,7 +12,7 @@ module OsCtld
           ct.user.sysusername,
           ct.user.ugid,
           ct.user.homedir,
-          ct.group.full_cgroup_path(ct.user)
+          ct.cgroup_path
         )
         ret = SwitchUser::ContainerControl.run(cmd, opts, ct.lxc_home)
         w.write(ret.to_json + "\n")
@@ -31,7 +31,7 @@ module OsCtld
       {
         cmd: [
           ::OsCtld.bin('osctld-ct-exec'), ct.user.sysusername, ct.user.ugid.to_s,
-          ct.user.homedir, ct.group.full_cgroup_path(ct.user)
+          ct.user.homedir, ct.cgroup_path
         ] + args.map(&:to_s),
         env: Hash[ENV.select { |k,_v| k.start_with?('BUNDLE') || k.start_with?('GEM') }]
       }

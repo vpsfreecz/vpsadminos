@@ -93,11 +93,11 @@ module OsCtld
           "Starting user/group monitor for #{ct.user.name}/#{ct.group.name}"
         )
 
-        pid, stdout = Monitor::Process.spawn(ct.user, ct.group)
+        pid, stdout = Monitor::Process.spawn(ct)
         update_state(ct)
         sync { @monitors[key(ct)] = Entry.new(Thread.current, pid, [ct.id]) }
 
-        p = Monitor::Process.new(ct.user, ct.group, stdout)
+        p = Monitor::Process.new(ct, stdout)
         Process.wait(pid) if p.monitor
 
         log(

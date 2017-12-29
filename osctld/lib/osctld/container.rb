@@ -62,7 +62,7 @@ module OsCtld
     end
 
     def lxc_home
-      user.lxc_home(group)
+      group.userdir(user)
     end
 
     def lxc_dir
@@ -120,7 +120,7 @@ module OsCtld
     end
 
     def cgroup_path
-      File.join(group.full_cgroup_path(user), 'lxc', id)
+      File.join(group.full_cgroup_path(user), id)
     end
 
     def abs_cgroup_path(subsystem)

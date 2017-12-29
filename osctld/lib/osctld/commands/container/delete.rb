@@ -27,13 +27,9 @@ module OsCtld
 
         ContainerList.remove(ct)
 
-        unless ct.group.has_containers?
-          call_cmd(
-            Commands::Group::UserDel,
-            name: ct.group.name,
-            user: ct.user.name
-          )
-        end
+        bashrc = File.join(ct.lxc_dir, '.bashrc')
+        File.unlink(bashrc) if File.exist?(bashrc)
+        Dir.rmdir(ct.group.userdir(ct.user)) unless ct.group.has_containers?
       end
 
       call_cmd(Commands::User::LxcUsernet)

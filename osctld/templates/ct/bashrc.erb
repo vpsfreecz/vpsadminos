@@ -13,18 +13,30 @@ lxc_start () {
 
   if [ "$cont" == "y" ] ; then
     cmd=`which lxc-start`
-    $cmd -P <%= user.lxc_home(group) %> $@
+    $cmd -P <%= ct.lxc_home %> -n <%= ct.id %> $@
   fi
 }
 
 alias lxc-start='lxc_start'
 
 <% override.each do |cmd| -%>
-alias lxc-<%= cmd%>='lxc-<%= cmd %> -P <%= user.lxc_home(group) %>'
+alias lxc-<%= cmd%>='lxc-<%= cmd %> -P <%= ct.lxc_home %> -n <%= ct.id %>'
 <% end -%>
 
 <% disable.each do |cmd| -%>
 alias lxc-<%= cmd%>='use_osctl <%= cmd %>'
 <% end -%>
 
-cd <%= user.lxc_home(group) %>
+cd <%= ct.lxc_home %>
+echo "Opened shell for:"
+echo "  User:  <%= ct.user.name %>"
+echo "  Group: <%= ct.group.name %>"
+echo "  CT:    <%= ct.id %>"
+echo
+echo "Available LXC utilities:"
+<% override.each do |cmd| -%>
+echo "  lxc-<%= cmd %>"
+<% end -%>
+echo
+echo "Implicit arguments: -P <%= ct.lxc_home %> -n <%= ct.id %>"
+echo "Do not use this shell to manipulate any other container than <%= ct.id %>."
