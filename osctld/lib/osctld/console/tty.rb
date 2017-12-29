@@ -59,7 +59,14 @@ module OsCtld
         end
 
         sync { @clients.each { |c| c.close } }
-        Process.wait(tty_pid) if tty_pid
+
+        # TODO: why is this happening?
+        begin
+          Process.wait(tty_pid) if tty_pid
+
+        rescue Errno::ECHILD => e
+          log(:warn, "CT #{ct.id}", "Error occurred when closing tty0: #{e.message}")
+        end
       end
     end
 
