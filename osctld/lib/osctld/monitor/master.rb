@@ -39,7 +39,8 @@ module OsCtld
           next
         end
 
-        Thread.new { handle_monitor(ct) }
+        t = Thread.new { handle_monitor(ct) }
+        @monitors[k] = Entry.new(t, nil, [])
       end
 
       true
@@ -60,11 +61,7 @@ module OsCtld
         end
       end
 
-      if stop_entry
-        Process.kill('TERM', stop_entry.pid)
-        stop_entry.thread.join
-      end
-
+      graceful_stop(stop_entry) if stop_entry
       true
     end
 
@@ -74,6 +71,8 @@ module OsCtld
       # code is called.
       sync do
         @monitors.each do |_, entry|
+          next if entry.pid.nil?
+
           begin
             Process.kill('TERM', entry.pid)
 
@@ -95,7 +94,12 @@ module OsCtld
 
         pid, stdout = Monitor::Process.spawn(ct)
         update_state(ct)
-        sync { @monitors[key(ct)] = Entry.new(Thread.current, pid, [ct.id]) }
+
+        sync do
+          entry = @monitors[key(ct)]
+          entry.pid = pid
+          entry.cts << ct.id
+        end
 
         p = Monitor::Process.new(ct, stdout)
         Process.wait(pid) if p.monitor
@@ -136,6 +140,24 @@ module OsCtld
         yield
       else
         @mutex.synchronize { yield }
+      end
+    end
+
+    def graceful_stop(entry)
+      if entry.pid.nil?
+        # PID is nil if the thread is starting
+        3.times do
+          break if entry.pid
+          sleep(1)
+        end
+      end
+
+      if entry.pid.nil?
+        entry.thread.terminate
+
+      else
+        Process.kill('TERM', entry.pid)
+        entry.thread.join
       end
     end
   end
