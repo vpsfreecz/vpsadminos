@@ -391,6 +391,9 @@ module OsCtl::Cli
           c.desc 'Filter by CGroup subsystem (comma separated)'
           c.flag %i(S subsystem)
 
+          c.desc 'Show all parameters from parent groups up to <name>'
+          c.switch %i(a all), negatable: false
+
           c.desc 'Select parameters to output'
           c.flag %i(o output)
 

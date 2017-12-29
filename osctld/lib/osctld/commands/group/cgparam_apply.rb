@@ -10,17 +10,8 @@ module OsCtld
       return error('group not found') unless grp
 
       force = any_container_running?(grp)
-      do_apply(GroupList.root, force)
 
-      path = ''
-
-      grp.path.split('/').each do |name|
-        path = File.join(path, name)
-        path = path[1..-1] if path.start_with?('/')
-
-        g = GroupList.by_path(path)
-        next unless g
-
+      each_group_in(grp.path) do |g|
         do_apply(g, force)
       end
 

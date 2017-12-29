@@ -4,6 +4,7 @@ module OsCtl
       subsystem
       parameter
       value
+      group
       abs_path
     )
 
@@ -26,9 +27,18 @@ module OsCtl
 
       cmd_opts[:parameters] = args[1..-1] if args.count > 1
       cmd_opts[:subsystem] = opts[:subsystem].split(',') if opts[:subsystem]
+      cmd_opts[:all] = true if opts[:all]
       fmt_opts[:header] = false if opts['hide-header']
 
-      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : CGPARAM_DEFAULT_FIELDS
+      if opts[:output]
+        cols = opts[:output].split(',').map(&:to_sym)
+
+      elsif opts[:all]
+        cols = %i(group) + CGPARAM_DEFAULT_FIELDS
+
+      else
+        cols = CGPARAM_DEFAULT_FIELDS
+      end
 
       if i = cols.index(:value)
         cols[i] = {

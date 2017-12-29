@@ -2,17 +2,22 @@ module OsCtld
   module Utils::CGroupParams
     def list(groupable)
       ret = []
+      is_ct = groupable.is_a?(Container)
 
-      groupable.cgparams.each do |p|
-        next if opts[:parameters] && !opts[:parameters].include?(p.name)
-        next if opts[:subsystem] && !opts[:subsystem].include?(p.subsystem)
+      if opts[:all]
+        if is_ct
+          path = groupable.group.path
 
-        info = p.export
-        info.update({
-          abs_path: File.join(groupable.abs_cgroup_path(p.subsystem), p.name),
-        })
-        ret << info
+        else
+          path = groupable.path
+        end
+
+        each_group_in(path) do |g|
+          ret.concat(info(g))
+        end
       end
+
+      ret.concat(info(groupable)) if !opts[:all] || is_ct
 
       ok(ret)
     end
@@ -76,6 +81,40 @@ module OsCtld
       end
 
       ok
+    end
+
+    protected
+    def each_group_in(path)
+      yield(GroupList.root)
+
+      t = ''
+
+      path.split('/').each do |name|
+        t = File.join(t, name)
+        t = t[1..-1] if t.start_with?('/')
+
+        g = GroupList.by_path(t)
+        next unless g
+
+        yield(g)
+      end
+    end
+
+    def info(groupable)
+      ret = []
+
+      groupable.cgparams.each do |p|
+        next if opts[:parameters] && !opts[:parameters].include?(p.name)
+        next if opts[:subsystem] && !opts[:subsystem].include?(p.subsystem)
+
+        info = p.export
+        info[:abs_path] = File.join(groupable.abs_cgroup_path(p.subsystem), p.name)
+        info[:group] = groupable.is_a?(Group) ? groupable.name : nil
+
+        ret << info
+      end
+
+      ret
     end
   end
 end
