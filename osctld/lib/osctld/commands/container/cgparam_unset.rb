@@ -1,14 +1,13 @@
 module OsCtld
-  class Commands::Container::ParamSet < Commands::Base
-    handle :ct_param_set
-    include Utils::Log
+  class Commands::Container::CGParamUnset < Commands::Base
+    handle :ct_cgparam_unset
     include Utils::CGroupParams
 
     def execute
       ct = ContainerList.find(opts[:id])
       return error('container not found') unless ct
 
-      set(ct, opts, apply: ct.running?)
+      unset(ct, opts)
     end
   end
 end

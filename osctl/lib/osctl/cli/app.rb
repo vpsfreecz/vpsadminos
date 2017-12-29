@@ -130,7 +130,7 @@ module OsCtl::Cli
           new.flag %i(p path), required: true
 
           new.desc 'Set CGroup parameter'
-          new.flag %i(param), multiple: true
+          new.flag %i(cgparam), multiple: true
 
           new.action &Command.run(Group, :create)
         end
@@ -384,7 +384,7 @@ module OsCtl::Cli
     protected
     def cg_params(cmd, handler)
       cmd.desc 'Manage CGroup parameters'
-      cmd.command :params do |p|
+      cmd.command :cgparams do |p|
         p.desc 'List configured parameters'
         p.arg_name '<name>'
         p.command %i(ls list) do |c|
@@ -400,25 +400,25 @@ module OsCtl::Cli
           c.desc 'List available parameters'
           c.switch %i(L list), negatable: false
 
-          c.action &Command.run(handler, :param_list)
+          c.action &Command.run(handler, :cgparam_list)
         end
 
         p.desc 'Configure parameters'
         p.arg_name '<name> <parameter> <value>'
         p.command :set do |c|
-          c.action &Command.run(handler, :param_set)
+          c.action &Command.run(handler, :cgparam_set)
         end
 
         p.desc 'Remove configured parameter'
         p.arg_name '<name> <parameter>'
         p.command :unset do |c|
-          c.action &Command.run(handler, :param_unset)
+          c.action &Command.run(handler, :cgparam_unset)
         end
 
         p.desc 'Reapply configured parameters'
         p.arg_name '<name>'
         p.command :apply do |c|
-          c.action &Command.run(handler, :param_apply)
+          c.action &Command.run(handler, :cgparam_apply)
         end
 
         p.default_command :list

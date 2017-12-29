@@ -316,31 +316,31 @@ module OsCtl::Cli
       puts
     end
 
-    def param_list
+    def cgparam_list
       raise "missing argument" unless args[0]
 
-      cgparam_list(:ct_param_list, id: args[0])
+      do_cgparam_list(:ct_cgparam_list, id: args[0])
     end
 
-    def param_set
+    def cgparam_set
       raise "missing container name" unless args[0]
       raise "missing parameter name" unless args[1]
       raise "missing parameter value" unless args[2]
 
-      cgparam_set(:ct_param_set, id: args[0])
+      do_cgparam_set(:ct_cgparam_set, id: args[0])
     end
 
-    def param_unset
+    def cgparam_unset
       raise "missing container name" unless args[0]
       raise "missing parameter name" unless args[1]
 
-      cgparam_unset(:ct_param_unset, id: args[0])
+      do_cgparam_unset(:ct_cgparam_unset, id: args[0])
     end
 
-    def param_apply
+    def cgparam_apply
       raise "missing container name" unless args[0]
 
-      cgparam_apply(:ct_param_apply, id: args[0])
+      do_cgparam_apply(:ct_cgparam_apply, id: args[0])
     end
   end
 end

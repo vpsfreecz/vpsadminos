@@ -1,6 +1,6 @@
 module OsCtld
-  class Commands::Group::ParamSet < Commands::Base
-    handle :group_param_set
+  class Commands::Group::CGParamSet < Commands::Base
+    handle :group_cgparam_set
     include Utils::Log
     include Utils::CGroupParams
 
@@ -12,7 +12,7 @@ module OsCtld
     end
 
     protected
-    # TODO: duplicated method, already in `Commands::Group::ParamApply`
+    # TODO: duplicated method, already in `Commands::Group::CGParamApply`
     def any_container_running?(grp)
       ct = grp.containers.detect { |ct| ct.state == :running }
       ct ? true : false

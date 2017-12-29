@@ -54,7 +54,7 @@ module OsCtl::Cli
       cmd_opts = {
         name: args[0],
         path: opts[:path],
-        params: parse_cgparams,
+        cgparams: parse_cgparams,
       }
 
       osctld_fmt(:group_create, cmd_opts)
@@ -71,31 +71,31 @@ module OsCtl::Cli
       osctld_fmt(:group_assets, name: args[0])
     end
 
-    def param_list
+    def cgparam_list
       raise "missing argument" unless args[0]
 
-      cgparam_list(:group_param_list, name: args[0])
+      do_cgparam_list(:group_cgparam_list, name: args[0])
     end
 
-    def param_set
+    def cgparam_set
       raise "missing group name" unless args[0]
       raise "missing parameter name" unless args[1]
       raise "missing parameter value" unless args[2]
 
-      cgparam_set(:group_param_set, name: args[0])
+      do_cgparam_set(:group_cgparam_set, name: args[0])
     end
 
-    def param_unset
+    def cgparam_unset
       raise "missing group name" unless args[0]
       raise "missing parameter name" unless args[1]
 
-      cgparam_unset(:group_param_unset, name: args[0])
+      do_cgparam_unset(:group_cgparam_unset, name: args[0])
     end
 
-    def param_apply
+    def cgparam_apply
       raise "missing group name" unless args[0]
 
-      cgparam_apply(:group_param_apply, name: args[0])
+      do_cgparam_apply(:group_cgparam_apply, name: args[0])
     end
   end
 end

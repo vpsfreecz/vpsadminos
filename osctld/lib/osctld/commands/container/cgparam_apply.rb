@@ -1,6 +1,6 @@
 module OsCtld
-  class Commands::Container::ParamApply < Commands::Base
-    handle :ct_param_apply
+  class Commands::Container::CGParamApply < Commands::Base
+    handle :ct_cgparam_apply
 
     include Utils::Log
     include Utils::CGroupParams
@@ -11,7 +11,7 @@ module OsCtld
 
       log(:info, "CT #{ct.id}", "Configuring cgroups")
 
-      ret = call_cmd(Commands::Group::ParamApply, name: ct.group.name)
+      ret = call_cmd(Commands::Group::CGParamApply, name: ct.group.name)
       return ret unless ret[:status]
 
       apply(ct, force: ct.running?)

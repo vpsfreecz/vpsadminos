@@ -1,6 +1,6 @@
 module OsCtld
-  class Commands::Group::ParamUnset < Commands::Base
-    handle :group_param_unset
+  class Commands::Group::CGParamUnset < Commands::Base
+    handle :group_cgparam_unset
     include Utils::CGroupParams
 
     def execute

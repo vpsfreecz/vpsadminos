@@ -10,7 +10,7 @@ module OsCtld
       return error('access denied') unless owns_ct?(ct)
 
       # Configure CGroups
-      ret = call_cmd(Commands::Container::ParamApply, id: ct.id)
+      ret = call_cmd(Commands::Container::CGParamApply, id: ct.id)
       return ret unless ret[:status]
 
       # Configure network within the CT

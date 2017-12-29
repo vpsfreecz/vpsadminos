@@ -1,6 +1,6 @@
 module OsCtld
-  class Commands::Container::ParamList < Commands::Base
-    handle :ct_param_list
+  class Commands::Container::CGParamList < Commands::Base
+    handle :ct_cgparam_list
     include Utils::CGroupParams
 
     def execute

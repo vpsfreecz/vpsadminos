@@ -20,7 +20,7 @@ module OsCtld
       @group = group
       @state = :unknown
       @init_pid = nil
-      @params = []
+      @cgparams = []
 
       load_config if load
     end
@@ -141,7 +141,7 @@ module OsCtld
         'distribution' => distribution,
         'version' => version,
         'net_interfaces' => @netifs.map { |v| v.save },
-        'params' => dump_params(params),
+        'cgparams' => dump_cgparams(cgparams),
       }
 
       File.open(config_path, 'w', 0400) do |f|
@@ -169,7 +169,7 @@ module OsCtld
         netif
       end
 
-      @params = load_params(cfg['params'])
+      @cgparams = load_cgparams(cfg['cgparams'])
     end
   end
 end

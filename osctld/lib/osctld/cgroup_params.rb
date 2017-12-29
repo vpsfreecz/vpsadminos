@@ -2,7 +2,7 @@ module OsCtld
   # Shared methods for objects that can have CGroup parameters set.
   #
   # The object must:
-  #  - initialize @params = []
+  #  - initialize @cgparams = []
   #  - have method `save_config`
   #  - have method `abs_cgroup_path(subsystem)`
   module CGroupParams
@@ -32,11 +32,11 @@ module OsCtld
       end
     end
 
-    attr_reader :params
+    attr_reader :cgparams
 
     # Process params from the client and return internal representation.
     # Invalid parameters raise an exception.
-    def import_params(params)
+    def import_cgparams(params)
       params.map do |hash|
         p = Param.import(hash)
 
@@ -65,7 +65,7 @@ module OsCtld
         new_params.each do |new_p|
           replaced = false
 
-          params.map! do |p|
+          cgparams.map! do |p|
             if p.subsystem == new_p.subsystem && p.name == new_p.name
               replaced = true
               new_p
@@ -77,7 +77,7 @@ module OsCtld
 
           next if replaced
 
-          params << new_p
+          cgparams << new_p
         end
       end
 
@@ -89,7 +89,7 @@ module OsCtld
         del_params.each do |del_h|
           del_p = Param.import(del_h)
 
-          params.delete_if do |p|
+          cgparams.delete_if do |p|
             p.subsystem == del_p.subsystem && p.name == del_p.name
           end
         end
@@ -100,13 +100,13 @@ module OsCtld
 
     protected
     # Load params from config
-    def load_params(params)
+    def load_cgparams(params)
       (params || []).map { |v| Param.load(v) }
     end
 
     # Dump params to config
-    def dump_params(params)
-      params.map(&:dump)
+    def dump_cgparams(params)
+      cgparams.map(&:dump)
     end
 
     def real_subsystem(subsys)

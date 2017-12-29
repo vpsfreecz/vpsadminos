@@ -9,7 +9,7 @@ module OsCtld
       grp = Group.new(opts[:name], load: false)
       return error('group already exists') if GroupList.contains?(grp.name)
 
-      params = grp.import_params(opts[:params])
+      params = grp.import_cgparams(opts[:cgparams])
 
       grp.exclusively do
         grp.configure(opts[:path], params)

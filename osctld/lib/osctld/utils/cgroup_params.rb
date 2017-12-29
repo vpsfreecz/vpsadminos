@@ -3,7 +3,7 @@ module OsCtld
     def list(groupable)
       ret = []
 
-      groupable.params.each do |p|
+      groupable.cgparams.each do |p|
         next if opts[:parameters] && !opts[:parameters].include?(p.name)
         next if opts[:subsystem] && !opts[:subsystem].include?(p.subsystem)
 
@@ -18,7 +18,7 @@ module OsCtld
     end
 
     def set(groupable, param, apply: true)
-      params = groupable.import_params([{
+      params = groupable.import_cgparams([{
         subsystem: param[:subsystem],
         parameter: param[:parameter],
         value: param[:value],
@@ -47,7 +47,7 @@ module OsCtld
     end
 
     def apply(groupable, force: true)
-      groupable.params.each do |p|
+      groupable.cgparams.each do |p|
         path = File.join(groupable.abs_cgroup_path(p.subsystem), p.name)
 
         if File.exist?(path)

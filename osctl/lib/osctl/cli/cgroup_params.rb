@@ -1,24 +1,24 @@
 module OsCtl
   module Cli::CGroupParams
-    PARAM_FIELDS = %i(
+    CGPARAM_FIELDS = %i(
       subsystem
       parameter
       value
       abs_path
     )
 
-    PARAM_FILTERS = %i(
+    CGPARAM_FILTERS = %i(
       subsystem
     )
 
-    PARAM_DEFAULT_FIELDS = %i(
+    CGPARAM_DEFAULT_FIELDS = %i(
       parameter
       value
     )
 
-    def cgparam_list(cmd, cmd_opts)
+    def do_cgparam_list(cmd, cmd_opts)
       if opts[:list]
-        puts PARAM_FIELDS.join("\n")
+        puts CGPARAM_FIELDS.join("\n")
         return
       end
 
@@ -28,7 +28,7 @@ module OsCtl
       cmd_opts[:subsystem] = opts[:subsystem].split(',') if opts[:subsystem]
       fmt_opts[:header] = false if opts['hide-header']
 
-      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : PARAM_DEFAULT_FIELDS
+      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : CGPARAM_DEFAULT_FIELDS
 
       if i = cols.index(:value)
         cols[i] = {
@@ -50,7 +50,7 @@ module OsCtl
       )
     end
 
-    def cgparam_set(cmd, cmd_opts)
+    def do_cgparam_set(cmd, cmd_opts)
       cmd_opts.update({
         subsystem: parse_subsystem(args[1]),
         parameter: args[1],
@@ -60,7 +60,7 @@ module OsCtl
       osctld_fmt(cmd, cmd_opts,)
     end
 
-    def cgparam_unset(cmd, cmd_opts)
+    def do_cgparam_unset(cmd, cmd_opts)
       cmd_opts.update({
         subsystem: parse_subsystem(args[1]),
         parameter: args[1],
@@ -69,13 +69,13 @@ module OsCtl
       osctld_fmt(cmd, cmd_opts)
     end
 
-    def cgparam_apply(cmd, cmd_opts)
+    def do_cgparam_apply(cmd, cmd_opts)
       osctld_fmt(cmd, cmd_opts)
     end
 
     protected
     def parse_cgparams
-      opts[:param].map do |v|
+      opts[:cgparam].map do |v|
         parts = v.split('=')
 
         unless parts.count == 2

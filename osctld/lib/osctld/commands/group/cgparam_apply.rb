@@ -1,6 +1,6 @@
 module OsCtld
-  class Commands::Group::ParamApply < Commands::Base
-    handle :group_param_apply
+  class Commands::Group::CGParamApply < Commands::Base
+    handle :group_cgparam_apply
 
     include Utils::Log
     include Utils::CGroupParams

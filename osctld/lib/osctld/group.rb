@@ -9,7 +9,7 @@ module OsCtld
       init_lock
       @name = name
       @root = root
-      @params = []
+      @cgparams = []
       load_config if load
     end
 
@@ -21,9 +21,9 @@ module OsCtld
       @root
     end
 
-    def configure(path, params = [])
+    def configure(path, cgparams = [])
       @path = path
-      set(params, save: false)
+      set(cgparams, save: false)
       save_config
     end
 
@@ -88,14 +88,14 @@ module OsCtld
       cfg = YAML.load_file(config_path)
 
       @path = cfg['path']
-      @params = load_params(cfg['params'])
+      @cgparams = load_cgparams(cfg['cgparams'])
     end
 
     def save_config
       File.open(config_path, 'w', 0400) do |f|
         f.write(YAML.dump({
           'path' => path,
-          'params' => dump_params(params),
+          'cgparams' => dump_cgparams(cgparams),
         }))
       end
 
