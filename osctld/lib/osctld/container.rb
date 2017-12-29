@@ -3,6 +3,7 @@ require 'yaml'
 module OsCtld
   class Container
     include Lockable
+    include CGroupParams
     include Utils::Log
     include Utils::System
     include Utils::Zfs
@@ -19,6 +20,7 @@ module OsCtld
       @group = group
       @state = :unknown
       @init_pid = nil
+      @params = []
 
       load_config if load
     end
@@ -45,6 +47,10 @@ module OsCtld
           :unknown
         end
       end
+    end
+
+    def running?
+      state == :running
     end
 
     def dataset
@@ -113,6 +119,14 @@ module OsCtld
       save_config
     end
 
+    def cgroup_path
+      File.join(group.full_cgroup_path(user), 'lxc', id)
+    end
+
+    def abs_cgroup_path(subsystem)
+      File.join(OsCtld::CGROUP_FS, real_subsystem(subsystem), cgroup_path)
+    end
+
     # Generate LXC network configuration
     def configure_network
       Template.render_to('ct/network', {
@@ -127,6 +141,7 @@ module OsCtld
         'distribution' => distribution,
         'version' => version,
         'net_interfaces' => @netifs.map { |v| v.save },
+        'params' => dump_params(params),
       }
 
       File.open(config_path, 'w', 0400) do |f|
@@ -153,6 +168,8 @@ module OsCtld
         i += 1
         netif
       end
+
+      @params = load_params(cfg['params'])
     end
   end
 end

@@ -1,4 +1,5 @@
 require 'gli'
+require_relative 'cgroup_params'
 require_relative 'container'
 require_relative 'group'
 require_relative 'net_interface'
@@ -146,46 +147,7 @@ module OsCtl::Cli
           c.action &Command.run(Group, :assets)
         end
 
-        grp.desc 'Manage CGroup parameters'
-        grp.command :params do |p|
-          p.desc 'List configured parameters'
-          p.arg_name '<name>'
-          p.command %i(ls list) do |c|
-            c.desc 'Filter by CGroup subsystem (comma separated)'
-            c.flag %i(S subsystem)
-
-            c.desc 'Select parameters to output'
-            c.flag %i(o output)
-
-            c.desc 'Do not show header'
-            c.switch %i(H hide-header), negatable: false
-
-            c.desc 'List available parameters'
-            c.switch %i(L list), negatable: false
-
-            c.action &Command.run(Group, :param_list)
-          end
-
-          p.desc 'Configure parameters'
-          p.arg_name '<name> <parameter> <value>'
-          p.command :set do |c|
-            c.action &Command.run(Group, :param_set)
-          end
-
-          p.desc 'Remove configured parameter'
-          p.arg_name '<name> <parameter>'
-          p.command :unset do |c|
-            c.action &Command.run(Group, :param_unset)
-          end
-
-          p.desc 'Reapply configured parameters'
-          p.arg_name '<name>'
-          p.command :apply do |c|
-            c.action &Command.run(Group, :param_apply)
-          end
-
-          p.default_command :list
-        end
+        cg_params(grp, Group)
 
         grp.default_command :list
       end
@@ -409,11 +371,57 @@ module OsCtl::Cli
           net.default_command :list
         end
 
+        cg_params(ct, Container)
+
         ct.default_command :list
       end
 
       on_error do |exception|
         raise exception
+      end
+    end
+
+    protected
+    def cg_params(cmd, handler)
+      cmd.desc 'Manage CGroup parameters'
+      cmd.command :params do |p|
+        p.desc 'List configured parameters'
+        p.arg_name '<name>'
+        p.command %i(ls list) do |c|
+          c.desc 'Filter by CGroup subsystem (comma separated)'
+          c.flag %i(S subsystem)
+
+          c.desc 'Select parameters to output'
+          c.flag %i(o output)
+
+          c.desc 'Do not show header'
+          c.switch %i(H hide-header), negatable: false
+
+          c.desc 'List available parameters'
+          c.switch %i(L list), negatable: false
+
+          c.action &Command.run(handler, :param_list)
+        end
+
+        p.desc 'Configure parameters'
+        p.arg_name '<name> <parameter> <value>'
+        p.command :set do |c|
+          c.action &Command.run(handler, :param_set)
+        end
+
+        p.desc 'Remove configured parameter'
+        p.arg_name '<name> <parameter>'
+        p.command :unset do |c|
+          c.action &Command.run(handler, :param_unset)
+        end
+
+        p.desc 'Reapply configured parameters'
+        p.arg_name '<name>'
+        p.command :apply do |c|
+          c.action &Command.run(handler, :param_apply)
+        end
+
+        p.default_command :list
       end
     end
   end
