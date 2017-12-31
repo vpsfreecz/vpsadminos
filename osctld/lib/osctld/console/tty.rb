@@ -191,7 +191,7 @@ module OsCtld
     def client_read(io)
       io.read_nonblock(4096)
 
-    rescue IOError
+    rescue IOError, Errno::ECONNRESET
       log(:info, "CT #{ct.id}", "Disconnecting client from TTY #{n}")
       sync { @clients.delete(io) }
       nil
