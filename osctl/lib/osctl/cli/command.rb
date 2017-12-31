@@ -3,7 +3,14 @@ module OsCtl::Cli
     def self.run(klass, method)
       Proc.new do |global_opts, opts, args|
         cmd = klass.new(global_opts, opts, args)
-        cmd.method(method).call
+
+        begin
+          cmd.method(method).call
+
+        rescue OsCtl::Client::Error => e
+          warn "Error occurred: #{e.message}"
+          exit(false)
+        end
       end
     end
 
@@ -21,23 +28,20 @@ module OsCtl::Cli
       c
     end
 
-    def osctld(cmd, opts = {})
+    def osctld_call(cmd, opts = {})
       c = osctld_open
-      c.cmd(cmd, opts)
-      c.reply
+      c.cmd_data!(cmd, opts)
+    end
+
+    def osctld_resp(cmd, opts = {})
+      c = osctld_open
+      c.cmd_response(cmd, opts)
     end
 
     def osctld_fmt(cmd, opts = {}, cols = nil, fmt_opts = {})
-      ret = osctld(cmd, opts)
-
-      if ret[:status]
-        OutputFormatter.print(ret[:response], cols, fmt_opts) if ret[:response]
-
-      else
-        puts "Error occurred: #{ret[:message]}"
-      end
-
-      ret[:status]
+      ret = osctld_call(cmd, opts)
+      OutputFormatter.print(ret, cols, fmt_opts) if ret
+      ret
     end
   end
 end

@@ -108,9 +108,7 @@ module OsCtl::Cli
       return osctld_fmt(:ct_start, id: args[0]) unless opts[:foreground]
 
       open_console(args[0], 0) do |sock|
-        unless osctld_fmt(:ct_start, id: args[0])
-          sock.close
-        end
+        sock.close if osctld_resp(:ct_start, id: args[0]).error?
       end
     end
 
@@ -119,9 +117,7 @@ module OsCtl::Cli
       return osctld_fmt(:ct_stop, id: args[0]) unless opts[:foreground]
 
       open_console(args[0], 0) do |sock|
-        unless osctld_fmt(:ct_stop, id: args[0])
-          sock.close
-        end
+        sock.close if osctld_resp(:ct_stop, id: args[0]).error?
       end
     end
 
@@ -130,9 +126,7 @@ module OsCtl::Cli
       return osctld_fmt(:ct_restart, id: args[0]) unless opts[:foreground]
 
       open_console(args[0], 0) do |sock|
-        unless osctld_fmt(:ct_restart, id: args[0])
-          sock.close
-        end
+        sock.close if osctld_resp(:ct_restart, id: args[0]).error?
       end
     end
 
@@ -145,14 +139,7 @@ module OsCtl::Cli
     def attach
       raise "missing argument" unless args[0]
 
-      ret = osctld(:ct_attach, id: args[0])
-
-      unless ret[:status]
-        warn "Error: #{ret[:message]}"
-        return
-      end
-
-      cmd = ret[:response]
+      cmd = osctld_call(:ct_attach, id: args[0])
 
       pid = Process.fork do
         cmd[:env].each do |k, v|
@@ -170,11 +157,10 @@ module OsCtl::Cli
       raise "missing command to execute" if args.count < 2
 
       c = osctld_open
-      c.cmd(:ct_exec, id: args[0], cmd: args[1..-1])
-      ret = c.reply
+      cont = c.cmd_data!(:ct_exec, id: args[0], cmd: args[1..-1])
 
-      if !ret[:status] || ret[:response] != 'continue'
-        warn "exec not available: #{ret[:message]}"
+      if cont != 'continue'
+        warn "exec not available: invalid response '#{cont}'"
         exit(false)
       end
 
@@ -213,7 +199,7 @@ module OsCtl::Cli
             r_out.close
             r_err.close
 
-            c.reply
+            c.receive
             return
           end
         end
@@ -223,8 +209,7 @@ module OsCtl::Cli
     def su
       raise "missing argument" unless args[0]
 
-      # TODO: error handling
-      cmd = osctld(:ct_su, id: args[0])[:response]
+      cmd = osctld_call(:ct_su, id: args[0])
       pid = Process.fork do
         cmd[:env].each do |k, v|
           ENV[k.to_s] = v
@@ -247,14 +232,7 @@ module OsCtl::Cli
     def cd
       raise "missing argument" unless args[0]
 
-      ret = osctld(:ct_show, id: args[0])
-
-      unless ret[:status]
-        warn "Error: #{ret[:message]}"
-        return
-      end
-
-      ct = ret[:response]
+      ct = osctld_call(:ct_show, id: args[0])
 
       if opts[:runtime]
         raise "container not running" unless ct[:init_pid]
@@ -269,7 +247,7 @@ module OsCtl::Cli
 
       file = Tempfile.new('osctl-rcfile')
       file.write(<<-END
-        export PS1="(CT #{ret[:response][:id]}) $PS1"
+        export PS1="(CT #{ct[:id]}) $PS1"
         cd "#{path}"
         END
       )
@@ -290,13 +268,7 @@ module OsCtl::Cli
 
     def open_console(ctid, tty)
       c = osctld_open
-      c.cmd(:ct_console, id: ctid, tty: tty)
-      ret = c.reply
-
-      unless ret[:status]
-        warn "Error: #{ret[:message]}"
-        return
-      end
+      c.cmd_response!(:ct_console, id: ctid, tty: tty)
 
       puts "Press Ctrl+a q to detach the console"
       puts
