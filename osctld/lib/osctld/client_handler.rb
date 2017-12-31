@@ -9,16 +9,19 @@ module OsCtld
     end
 
     def communicate
-      send_data({:version => OsCtld::VERSION})
+      send_data({version: OsCtld::VERSION})
 
-      buf = ""
+      loop do
+        buf = ""
 
-      while m = @sock.recv(1024)
-        buf = buf + m
-        break if m.empty? || m.end_with?("\n")
+        while m = @sock.recv(1024)
+          buf = buf + m
+          break if m.empty? || m.end_with?("\n")
+        end
+
+        break if buf.empty?
+        break unless parse(buf)
       end
-
-      @sock.close if parse(buf)
 
     rescue Errno::ECONNRESET
       # pass
