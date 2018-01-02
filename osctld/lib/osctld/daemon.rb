@@ -65,17 +65,16 @@ module OsCtld
     end
 
     def load_users
-      log(:info, :init, "Loading users from data pool")
+      log(:info, :init, "Loading users")
 
-      out = zfs(:list, '-H -r -t filesystem -d 1 -o name', USER_DS)[:output]
-
-      out.split("\n")[1..-1].map do |line|
-        DB::Users.add(User.new(line.strip.split('/').last))
+      Dir.glob(File.join('/', OsCtld::CONF_DS, 'user', '*.yml')).each do |f|
+        name = File.basename(f)[0..(('.yml'.length+1) * -1)]
+        DB::Users.add(User.new(name))
       end
     end
 
     def load_groups
-      log(:info, :init, "Loading groups from data pool")
+      log(:info, :init, "Loading groups")
       DB::Groups.setup
 
       Dir.glob(File.join('/', CONF_DS, 'group', '*.yml')).each do |grp|
@@ -87,12 +86,10 @@ module OsCtld
     end
 
     def load_cts
-      log(:info, :init, "Loading containers from data pool")
+      log(:info, :init, "Loading containers")
 
-      out = zfs(:list, '-H -r -t filesystem -d 1 -o name', CT_DS)[:output]
-
-      out.split("\n")[1..-1].map do |line|
-        ctid = line.strip.split('/').last
+      Dir.glob(File.join('/', OsCtld::CONF_DS, 'ct', '*.yml')).each do |f|
+        ctid = File.basename(f)[0..(('.yml'.length+1) * -1)]
 
         ct = Container.new(ctid)
         Monitor::Master.monitor(ct)
