@@ -141,6 +141,17 @@ in
       #!/bin/sh
       ${pkgs.eudev}/bin/udevd
     '';
+
+    "service/osctld/run".source = pkgs.writeScript "osctld" ''
+      #!/bin/sh
+      ${pkgs.osctld}/bin/osctld
+    '';
+
+    "service/osctld/log/run".source = pkgs.writeScript "osctld" ''
+      #!/bin/sh
+      mkdir -p /var/log/osctld
+      exec ${pkgs.runit}/bin/svlogd /var/log/osctld
+    '';
   }
 
   (mkIf (config.vpsadminos.nix) {

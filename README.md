@@ -58,9 +58,6 @@ make
 # Login via ssh or use qemu terminal with autologin
 ssh -p 2222 localhost
 
-# Run osctld:
-osctld
-
 # Create a zpool:
 dd if=/dev/zero of=/tank.zpool bs=1M count=4096 && zpool create tank /tank.zpool
 

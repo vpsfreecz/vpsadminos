@@ -33,9 +33,6 @@
 
     Welcome to vpsAdminOS
 
-    Run osctld:
-      osctld
-
     Create a zpool:
       dd if=/dev/zero of=/tank.zpool bs=1M count=4096 && zpool create tank /tank.zpool
 
