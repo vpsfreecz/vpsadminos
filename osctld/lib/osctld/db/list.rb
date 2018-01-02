@@ -48,13 +48,7 @@ module OsCtld
     end
 
     def add(obj)
-      sync do
-        if @objects.detect { |v| v.id == obj.id }
-          raise "#{obj.id} already is in #{self.class.name}"
-        end
-
-        @objects << obj
-      end
+      sync { @objects << obj }
     end
 
     def remove(obj)
