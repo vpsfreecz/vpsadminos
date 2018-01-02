@@ -17,6 +17,14 @@ module OsCtl
       value
     )
 
+    CGPARAM_STATS = %i(
+      memory
+      kmemory
+      cpu_time
+      cpu_user_time
+      cpu_sys_time
+    )
+
     def do_cgparam_list(cmd, cmd_opts)
       if opts[:list]
         puts CGPARAM_FIELDS.join("\n")
@@ -47,7 +55,7 @@ module OsCtl
           align: 'right',
           display: Proc.new do |v|
             next v if gopts[:parsable] || !v.integer?
-            humanize(v)
+            humanize_data(v)
           end
         }
       end
@@ -64,7 +72,7 @@ module OsCtl
       cmd_opts.update({
         subsystem: parse_subsystem(args[1]),
         parameter: args[1],
-        value: parse_value(args[2])
+        value: parse_data(args[2])
       })
 
       osctld_fmt(cmd, cmd_opts,)
@@ -83,6 +91,95 @@ module OsCtl
       osctld_fmt(cmd, cmd_opts)
     end
 
+    # Read select CGroup parameters
+    # @param subsystems [Hash] subsystem => absolute path
+    # @param path [String] path of chosen group, relative to the subsystem
+    # @param params [Array] parameters to read
+    # @param precise [Boolean] humanize parameter values?
+    # @return [Hash] parameter => value
+    def cg_read_stats(subsystems, path, params, precise)
+      ret = {}
+
+      params.each do |field|
+        begin
+          v = case field
+          when :memory
+            t = read_cgparam(
+              subsystems[:memory],
+              path,
+              'memory.usage_in_bytes'
+            ).to_i
+            precise ? t : humanize_data(t)
+
+          when :kmemory
+            t = read_cgparam(
+              subsystems[:memory],
+              path,
+              'memory.kmem.usage_in_bytes'
+            ).to_i
+            precise ? t : humanize_data(t)
+
+          when :cpu_time
+            t = read_cgparam(
+              subsystems[:cpuacct],
+              path,
+              'cpuacct.usage'
+            ).to_i
+            precise ? t : humanize_time_ns(t)
+
+          when :cpu_user_time
+            t = read_cgparam(
+              subsystems[:cpuacct],
+              path,
+              'cpuacct.usage_user'
+            ).to_i
+            precise ? t : humanize_time_ns(t)
+
+          when :cpu_sys_time
+            t = read_cgparam(
+              subsystems[:cpuacct],
+              path,
+              'cpuacct.usage_sys'
+            ).to_i
+            precise ? t : humanize_time_ns(t)
+
+          else
+            nil
+          end
+
+          next if v.nil?
+          ret[field] = v
+
+        rescue Errno::ENOENT
+          ret[field] = nil
+        end
+      end
+
+      ret
+    end
+
+    # Add runtime stats from CGroup parameters to `data`
+    # @param client [OsCtl::Client]
+    # @param data [Hash, Array] hash/array to which the stats are added
+    # @param path [String] path of the chosen group
+    # @param [Array] selected stat parameters
+    # @param precise [Boolean] humanize parameter values?
+    # @return [Hash, Array] data extended with stats
+    def cg_add_stats(client, data, path, params, precise)
+      subsystems = client.cmd_data!(:group_cgsubsystems)
+      fields = CGPARAM_STATS & params
+
+      if data.is_a?(::Hash)
+        data.update(cg_read_stats(subsystems, path, fields, precise))
+        data
+
+      elsif data.is_a?(::Array)
+        data.map do |v|
+          v.update(cg_read_stats(subsystems, path.call(v), fields, precise))
+        end
+      end
+    end
+
     protected
     def parse_cgparams
       opts[:cgparam].map do |v|
@@ -97,7 +194,7 @@ module OsCtl
         {
           subsystem: parse_subsystem(k),
           parameter: k,
-          value: parse_value(v),
+          value: parse_data(v),
         }
       end
     end
@@ -106,36 +203,8 @@ module OsCtl
       param.split('.').first
     end
 
-    def parse_value(v)
-      units = %w(k m g t)
-
-      if /^\d+$/ =~ v
-        v.to_i
-
-      elsif /^(\d+)(#{units.join('|')})$/i =~ v
-        n = $1.to_i
-        i = units.index($2.downcase)
-
-        n * (2 << (9 + (10*i)))
-
-      else
-        v
-      end
-    end
-
-    def humanize(v)
-      bits = 39
-      units = %i(T G M K)
-
-      units.each do |u|
-        threshold = 2 << bits
-
-        return "#{(v / threshold).round(2)}#{u}" if v >= threshold
-
-        bits -= 10
-      end
-
-      v.round(2).to_s
+    def read_cgparam(subsys_path, group_path, param)
+      File.read(File.join(subsys_path, group_path, param)).strip
     end
   end
 end

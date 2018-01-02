@@ -11,14 +11,14 @@ module OsCtl::Cli
       group
       dataset
       rootfs
-      lxc_path,
-      lxc_dir,
+      lxc_path
+      lxc_dir
+      group_path
       distribution
       version
       state
       init_pid
-      veth
-    )
+    ) + CGroupParams::CGPARAM_STATS
 
     FILTERS = %i(
       user
@@ -36,6 +36,8 @@ module OsCtl::Cli
       version
       state
       init_pid
+      memory
+      cpu_time
     )
 
     def list
@@ -54,13 +56,18 @@ module OsCtl::Cli
 
       cmd_opts[:ids] = args if args.count > 0
       fmt_opts[:header] = false if opts['hide-header']
+      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : DEFAULT_FIELDS
 
-      osctld_fmt(
-        :ct_list,
-        cmd_opts,
-        opts[:output] ? opts[:output].split(',').map(&:to_sym) : DEFAULT_FIELDS,
-        fmt_opts
+      c = osctld_open
+      cts = cg_add_stats(
+        c,
+        c.cmd_data!(:ct_list, cmd_opts),
+        lambda { |ct| ct[:group_path] },
+        cols,
+        gopts[:parsable]
       )
+
+      OutputFormatter.print(cts, cols, fmt_opts)
     end
 
     def show
@@ -71,16 +78,15 @@ module OsCtl::Cli
 
       raise "missing argument" unless args[0]
 
-      fmt_opts = {layout: :rows}
+      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS
 
-      fmt_opts[:header] = false if opts['no-header']
+      c = osctld_open
+      ct = c.cmd_data!(:ct_show, id: args[0])
 
-      osctld_fmt(
-        :ct_show,
-        {id: args[0]},
-        opts[:output] ? opts[:output].split(',').map(&:to_sym) : nil,
-        fmt_opts
-      )
+      cg_add_stats(c, ct, ct[:group_path], cols, gopts[:parsable])
+      c.close
+
+      OutputFormatter.print(ct, cols)
     end
 
     def create

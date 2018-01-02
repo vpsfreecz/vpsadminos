@@ -5,7 +5,7 @@ module OsCtld
   #  - initialize @cgparams = []
   #  - have method `save_config`
   #  - have method `abs_cgroup_path(subsystem)`
-  module CGroupParams
+  module CGroup::Params
     Param = Struct.new(:subsystem, :name, :value) do
       # Load from config
       def self.load(hash)
@@ -41,8 +41,8 @@ module OsCtld
         p = Param.import(hash)
 
         # Check if the subsystem is valid
-        subsys = real_subsystem(p.subsystem)
-        path = File.join(OsCtld::CGROUP_FS, subsys)
+        subsys = CGroup.real_subsystem(p.subsystem)
+        path = File.join(CGroup::FS, subsys)
 
         unless Dir.exist?(path)
           raise CGroupSubsystemNotFound,
@@ -107,12 +107,6 @@ module OsCtld
     # Dump params to config
     def dump_cgparams(params)
       cgparams.map(&:dump)
-    end
-
-    def real_subsystem(subsys)
-      return 'cpu,cpuacct' if %w(cpu cpuacct).include?(subsys)
-      # TODO: net_cls, net_prio?
-      subsys
     end
   end
 end

@@ -123,6 +123,12 @@ module OsCtl::Cli
           ls.action &Command.run(Group, :list)
         end
 
+        grp.desc 'Show group info'
+        grp.arg_name '<name>'
+        grp.command %i(show find) do |c|
+          c.action &Command.run(Group, :show)
+        end
+
         grp.desc 'Create group'
         grp.arg_name '<name>'
         grp.command %i(new create) do |new|

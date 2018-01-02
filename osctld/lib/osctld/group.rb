@@ -1,7 +1,7 @@
 module OsCtld
   class Group
     include Lockable
-    include CGroupParams
+    include CGroup::Params
 
     attr_reader :name, :path
 
@@ -45,7 +45,7 @@ module OsCtld
     end
 
     def abs_cgroup_path(subsystem)
-      File.join(OsCtld::CGROUP_FS, real_subsystem(subsystem), cgroup_path)
+      File.join(CGroup::FS, CGroup.real_subsystem(subsystem), cgroup_path)
     end
 
     def userdir(user)

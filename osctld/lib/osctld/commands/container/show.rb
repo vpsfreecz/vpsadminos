@@ -19,6 +19,7 @@ module OsCtld
           rootfs: ct.rootfs,
           lxc_path: ct.lxc_home,
           lxc_dir: ct.lxc_dir,
+          group_path: ct.cgroup_path,
           distribution: ct.distribution,
           version: ct.version,
           state: ct.state,

@@ -3,7 +3,7 @@ require 'yaml'
 module OsCtld
   class Container
     include Lockable
-    include CGroupParams
+    include CGroup::Params
     include Utils::Log
     include Utils::System
     include Utils::Zfs
@@ -124,7 +124,7 @@ module OsCtld
     end
 
     def abs_cgroup_path(subsystem)
-      File.join(OsCtld::CGROUP_FS, real_subsystem(subsystem), cgroup_path)
+      File.join(CGroup::FS, CGroup.real_subsystem(subsystem), cgroup_path)
     end
 
     # Generate LXC network configuration

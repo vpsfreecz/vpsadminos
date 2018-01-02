@@ -17,7 +17,6 @@ module OsCtld
   USER_DS = "#{POOL}/user"
   CT_DS = "#{POOL}/ct"
   CONF_DS = "#{POOL}/conf"
-  CGROUP_FS = '/sys/fs/cgroup'
 
   def self.root
     File.join(File.dirname(__FILE__), '..')
@@ -60,7 +59,8 @@ require_relative 'osctld/user_control/client_handler'
 require_relative 'osctld/user_control/server'
 require_relative 'osctld/user_control/supervisor'
 require_relative 'osctld/user_control'
-require_relative 'osctld/cgroup_params'
+require_relative 'osctld/cgroup'
+require_relative 'osctld/cgroup/params'
 require_relative 'osctld/command'
 require_relative 'osctld/user_command'
 require_relative 'osctld/client_handler'

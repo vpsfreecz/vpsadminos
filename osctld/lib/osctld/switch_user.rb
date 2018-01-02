@@ -28,11 +28,11 @@ module OsCtld
     end
 
     def self.cgroup_subsystems
-      Dir.entries(OsCtld::CGROUP_FS) - ['.', '..']
+      Dir.entries(CGroup::FS) - ['.', '..']
     end
 
     def self.cgroup(type, path, chown: nil, attach: false)
-      base = File.join(OsCtld::CGROUP_FS, type)
+      base = File.join(CGroup::FS, type)
       tmp = []
 
       path.each do |name|

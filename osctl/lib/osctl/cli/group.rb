@@ -5,11 +5,13 @@ module OsCtl::Cli
     FIELDS = %i(
       name
       path
-    )
+    ) + CGroupParams::CGPARAM_STATS
 
     DEFAULT_FIELDS = %i(
       name
       path
+      memory
+      cpu_time
     )
 
     def list
@@ -23,13 +25,19 @@ module OsCtl::Cli
 
       cmd_opts[:names] = args if args.count > 0
       fmt_opts[:header] = false if opts['hide-header']
+      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : DEFAULT_FIELDS
 
-      osctld_fmt(
-        :group_list,
-        cmd_opts,
-        opts[:output] ? opts[:output].split(',').map(&:to_sym) : DEFAULT_FIELDS,
-        fmt_opts
+      c = osctld_open
+      groups = cg_add_stats(
+        c,
+        c.cmd_data!(:group_list, cmd_opts),
+        lambda { |g| g[:path] },
+        cols,
+        gopts[:parsable]
       )
+      c.close
+
+      OutputFormatter.print(groups, cols, fmt_opts)
     end
 
     def show
@@ -40,12 +48,20 @@ module OsCtl::Cli
 
       raise "missing argument" unless args[0]
 
-      osctld_fmt(
-        :group_show,
-        {name: args[0]},
-        opts[:output] ? opts[:output].split(',').map(&:to_sym) : nil,
-        layout: :rows
+      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS
+
+      c = osctld_open
+      group = c.cmd_data!(:group_show, name: args[0])
+      cg_add_stats(
+        c,
+        group,
+        group[:path],
+        cols,
+        gopts[:parsable]
       )
+      c.close
+
+      OutputFormatter.print(group, cols)
     end
 
     def create

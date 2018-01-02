@@ -1,5 +1,7 @@
 module OsCtl::Cli
  class Command
+    include OsCtl::Utils::Humanize
+
     def self.run(klass, method)
       Proc.new do |global_opts, opts, args|
         cmd = klass.new(global_opts, opts, args)
