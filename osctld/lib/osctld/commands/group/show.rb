@@ -11,6 +11,7 @@ module OsCtld
           pool: grp.pool.name,
           name: grp.name,
           path: grp.path,
+          full_path: grp.cgroup_path,
         })
       end
     end

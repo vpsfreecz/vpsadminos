@@ -6,6 +6,7 @@ module OsCtl::Cli
       pool
       name
       path
+      full_path
     ) + CGroupParams::CGPARAM_STATS
 
     FILTERS = %i(
@@ -45,7 +46,7 @@ module OsCtl::Cli
       groups = cg_add_stats(
         c,
         c.cmd_data!(:group_list, cmd_opts),
-        lambda { |g| g[:path] },
+        lambda { |g| g[:full_path] },
         cols,
         gopts[:parsable]
       )
@@ -69,7 +70,7 @@ module OsCtl::Cli
       cg_add_stats(
         c,
         group,
-        group[:path],
+        group[:full_path],
         cols,
         gopts[:parsable]
       )
