@@ -84,7 +84,7 @@ module OsCtld
     end
 
     def config_path
-      File.join(userdir, 'user.yml')
+      File.join('/', OsCtld::CONF_DS, 'user', "#{name}.yml")
     end
 
     def has_containers?

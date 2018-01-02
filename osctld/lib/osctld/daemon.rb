@@ -58,7 +58,7 @@ module OsCtld
       zfs(:create, '-p', CONF_DS)
 
       # Configuration directories
-      %w(ct group).each do |dir|
+      %w(ct group user).each do |dir|
         path = File.join('/', CONF_DS, dir)
         Dir.mkdir(path) unless Dir.exist?(path)
       end
