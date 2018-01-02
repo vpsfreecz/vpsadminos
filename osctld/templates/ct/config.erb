@@ -2,6 +2,9 @@
 lxc.include = /etc/lxc/config/<%= distribution %>.common.conf
 lxc.include = /etc/lxc/config/<%= distribution %>.userns.conf
 lxc.include = /etc/lxc/common.conf.d/00-lxcfs.conf
+<% if ct.nesting -%>
+lxc.include = /etc/lxc/config/nesting.conf
+<% end -%>
 
 lxc.rootfs.path = <%= ct.rootfs %>
 lxc.arch = x86_64

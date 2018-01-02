@@ -9,7 +9,7 @@ module OsCtld
     include Utils::Zfs
     include Utils::SwitchUser
 
-    attr_reader :pool, :id, :user, :group, :distribution, :version
+    attr_reader :pool, :id, :user, :group, :distribution, :version, :nesting
     attr_accessor :state, :init_pid
 
     def initialize(pool, id, user = nil, group = nil, load: true)
@@ -22,6 +22,7 @@ module OsCtld
       @state = :unknown
       @init_pid = nil
       @cgparams = []
+      @nesting = false
 
       load_config if load
     end
@@ -32,6 +33,7 @@ module OsCtld
       @distribution = distribution
       @version = version
       @netifs = []
+      @nesting = false
       save_config
     end
 
@@ -128,6 +130,31 @@ module OsCtld
       File.join(CGroup::FS, CGroup.real_subsystem(subsystem), cgroup_path)
     end
 
+    def set(opts)
+      opts.each do |k, v|
+        case k
+        when :nesting
+          @nesting = v
+        end
+      end
+
+      save_config
+      configure_base
+    end
+
+    def configure_lxc
+      configure_base
+      configure_network
+    end
+
+    def configure_base
+      Template.render_to('ct/config', {
+        distribution: distribution,
+        ct: self,
+        hook_start_host: OsCtld::hook_run('ct-start'),
+      }, lxc_config_path)
+    end
+
     # Generate LXC network configuration
     def configure_network
       Template.render_to('ct/network', {
@@ -143,6 +170,7 @@ module OsCtld
         'version' => version,
         'net_interfaces' => @netifs.map { |v| v.save },
         'cgparams' => dump_cgparams(cgparams),
+        'nesting' => nesting,
       }
 
       File.open(config_path, 'w', 0400) do |f|
@@ -164,6 +192,7 @@ module OsCtld
       @group = DB::Groups.find(cfg['group']) || (raise "group not found")
       @distribution = cfg['distribution']
       @version = cfg['version']
+      @nesting = cfg['nesting'] || false
 
       i = 0
       @netifs = (cfg['net_interfaces'] || []).map do |v|

@@ -102,12 +102,10 @@ osctl help ct
 
 ### Nested containers
 
-To allow nesting, you need to edit containers `config` file
-and uncomment `nesting.conf` include line following this line:
+To allow nesting, you need to explicitly configure it per container:
 
 ```
-# Uncomment the following line to support nesting containers:
-# include = ...
+osctl ct set nesting <id> enabled/disabled
 ```
 
 ## Building specific targets:

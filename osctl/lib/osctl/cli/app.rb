@@ -348,7 +348,11 @@ module OsCtl::Cli
         ct.desc 'Configure container'
         ct.arg_name '<id>'
         ct.command :set do |set|
-          set.action &Command.run(Container, :set)
+          set.desc 'Allow/disallow container nesting'
+          set.arg_name '<name> enabled|disabled'
+          set.command :nesting do |c|
+            c.action &Command.run(Container, :set_nesting)
+          end
         end
 
         ct.desc "Go to container's rootfs directory"

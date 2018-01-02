@@ -25,6 +25,7 @@ module OsCtld
           version: ct.version,
           state: ct.state,
           init_pid: ct.init_pid,
+          nesting: ct.nesting,
         })
       end
     end

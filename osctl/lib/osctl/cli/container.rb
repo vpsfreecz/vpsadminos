@@ -19,6 +19,7 @@ module OsCtl::Cli
       version
       state
       init_pid
+      nesting
     ) + CGroupParams::CGPARAM_STATS
 
     FILTERS = %i(
@@ -241,12 +242,17 @@ module OsCtl::Cli
       Process.wait(pid)
     end
 
-    def set
-      raise "missing argument" unless args[0]
-      params = {id: args[0], pool: gopts[:pool]}
-      raise "nothing to do" if params.empty?
-
-      osctld_fmt(:ct_set, params)
+    def set_nesting
+      set(:nesting) do |args|
+        case args[0]
+        when 'enabled'
+          true
+        when 'disabled'
+          false
+        else
+          fail 'expected enabled/disabled'
+        end
+      end
     end
 
     def cd
@@ -333,6 +339,15 @@ module OsCtl::Cli
       raise "missing container name" unless args[0]
 
       do_cgparam_apply(:ct_cgparam_apply, id: args[0], pool: gopts[:pool])
+    end
+
+    protected
+    def set(option)
+      raise "missing argument" unless args[0]
+      cmd_opts = {id: args[0], pool: gopts[:pool]}
+      cmd_opts[option] = yield(args[1..-1])
+
+      osctld_fmt(:ct_set, cmd_opts)
     end
   end
 end

@@ -74,13 +74,7 @@ module OsCtld
             version
           )
 
-          Template.render_to('ct/config', {
-            distribution: distribution,
-            ct: ct,
-            hook_start_host: OsCtld::hook_run('ct-start'),
-          }, ct.lxc_config_path)
-
-          ct.configure_network
+          ct.configure_lxc
 
           DB::Containers.add(ct)
           Monitor::Master.monitor(ct)
