@@ -6,8 +6,11 @@ module OsCtld
     include Utils::System
 
     def execute
-      grp = Group.new(opts[:name], load: false)
-      return error('group already exists') if DB::Groups.contains?(grp.name)
+      pool = DB::Pools.get_or_default(opts[:pool])
+      return error('pool not found') unless pool
+
+      grp = Group.new(pool, opts[:name], load: false)
+      return error('group already exists') if DB::Groups.contains?(grp.name, pool)
 
       params = grp.import_cgparams(opts[:cgparams])
 

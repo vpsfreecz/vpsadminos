@@ -33,11 +33,14 @@
 
     Welcome to vpsAdminOS
 
-    Create a zpool:
-      dd if=/dev/zero of=/lxc.zpool bs=1M count=4096 && zpool create lxc /lxc.zpool
-
     Run osctld:
       osctld
+
+    Create a zpool:
+      dd if=/dev/zero of=/tank.zpool bs=1M count=4096 && zpool create tank /tank.zpool
+
+    Configure osctld:
+      osctl pool install tank
 
     Fetch OS templates:
       wget https://s.hvfn.cz/~aither/pub/tmp/templates/ubuntu-16.04-x86_64-vpsfree.tar.gz

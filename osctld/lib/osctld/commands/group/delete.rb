@@ -4,7 +4,7 @@ module OsCtld
 
     def execute
       DB::Groups.sync do
-        grp = DB::Groups.find(opts[:name])
+        grp = DB::Groups.find(opts[:name], opts[:pool])
         return error('group not found') unless grp
         return error('group is used by containers') if grp.has_containers?
 

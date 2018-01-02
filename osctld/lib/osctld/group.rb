@@ -3,10 +3,11 @@ module OsCtld
     include Lockable
     include CGroup::Params
 
-    attr_reader :name, :path
+    attr_reader :pool, :name, :path
 
-    def initialize(name, load: true, root: false)
+    def initialize(pool, name, load: true, root: false)
       init_lock
+      @pool = pool
       @name = name
       @root = root
       @cgparams = []
@@ -28,7 +29,7 @@ module OsCtld
     end
 
     def config_path
-      File.join('/', OsCtld::CONF_DS, 'group', "#{id}.yml")
+      File.join(pool.conf_path, 'group', "#{id}.yml")
     end
 
     def cgroup_path
@@ -36,7 +37,7 @@ module OsCtld
         path
 
       else
-        File.join(DB::Groups.root.path, path)
+        File.join(DB::Groups.root(pool).path, path)
       end
     end
 

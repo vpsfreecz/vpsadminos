@@ -8,10 +8,11 @@ module OsCtld
     include Utils::System
     include Utils::Zfs
 
-    attr_reader :name, :ugid, :offset, :size
+    attr_reader :pool, :name, :ugid, :offset, :size
 
-    def initialize(name, load: true)
+    def initialize(pool, name, load: true)
       init_lock
+      @pool = pool
       @name = name
       load_config if load
     end
@@ -72,7 +73,7 @@ module OsCtld
     end
 
     def dataset
-      File.join(OsCtld::USER_DS, name)
+      File.join(pool.user_ds, name)
     end
 
     def userdir
@@ -84,7 +85,7 @@ module OsCtld
     end
 
     def config_path
-      File.join('/', OsCtld::CONF_DS, 'user', "#{name}.yml")
+      File.join(pool.conf_path, 'user', "#{name}.yml")
     end
 
     def has_containers?

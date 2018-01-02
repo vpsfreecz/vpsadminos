@@ -7,23 +7,26 @@ module OsCtld
     include Utils::Zfs
 
     def execute
-      user = DB::Users.find(opts[:user])
+      pool = DB::Pools.get_or_default(opts[:pool])
+      return error('pool not found') unless pool
+
+      user = DB::Users.find(opts[:user], pool)
       return error('user not found') unless user
 
       if opts[:group]
-        group = DB::Groups.find(opts[:group])
+        group = DB::Groups.find(opts[:group], pool)
 
       else
-        group = DB::Groups.default
+        group = DB::Groups.default(pool)
       end
 
       return error('group not found') unless group
 
-      ct = Container.new(opts[:id], user, group, load: false)
+      ct = Container.new(pool, opts[:id], user, group, load: false)
 
       user.inclusively do
         ct.exclusively do
-          next error('container already exists') if DB::Containers.contains?(ct.id)
+          next error('container already exists') if DB::Containers.contains?(ct.id, pool)
 
           ### Rootfs
           zfs(:create, nil, ct.dataset)

@@ -1,6 +1,7 @@
 module OsCtl::Cli
   class User < Command
     FIELDS = %i(
+      pool
       name
       username
       groupname
@@ -12,9 +13,10 @@ module OsCtl::Cli
       registered
     )
 
-    FILTERS = %i(registered)
+    FILTERS = %i(pool registered)
 
     DEFAULT_FIELDS = %i(
+      pool
       name
       registered
     )
@@ -34,6 +36,13 @@ module OsCtl::Cli
         cmd_opts[:registered] = true
       elsif opts[:unregistered]
         cmd_opts[:registered] = false
+      end
+
+      FILTERS.each do |v|
+        [gopts, opts].each do |options|
+          next unless options[v]
+          cmd_opts[v] = options[v].split(',')
+        end
       end
 
       fmt_opts[:header] = false if opts['hide-header']
@@ -56,7 +65,7 @@ module OsCtl::Cli
 
       osctld_fmt(
         :user_show,
-        {name: args[0]},
+        {name: args[0], pool: gopts[:pool]},
         opts[:output] ? opts[:output].split(',').map(&:to_sym) : nil,
         layout: :rows
       )
@@ -67,6 +76,7 @@ module OsCtl::Cli
 
       osctld_fmt(:user_create, {
         name: args[0],
+        pool: opts[:pool] || gopts[:pool],
         ugid: opts[:ugid],
         offset: opts[:offset],
         size: opts[:size],
@@ -75,7 +85,7 @@ module OsCtl::Cli
 
     def delete
       raise "missing argument" unless args[0]
-      osctld_fmt(:user_delete, name: args[0])
+      osctld_fmt(:user_delete, name: args[0], pool: gopts[:pool])
     end
 
     def register
@@ -84,7 +94,7 @@ module OsCtl::Cli
       if args[0] == 'all'
         osctld_fmt(:user_register, all: true)
       else
-        osctld_fmt(:user_register, name: args[0])
+        osctld_fmt(:user_register, name: args[0], pool: gopts[:pool])
       end
     end
 
@@ -94,7 +104,7 @@ module OsCtl::Cli
       if args[0] == 'all'
         osctld_fmt(:user_unregister, all: true)
       else
-        osctld_fmt(:user_unregister, name: args[0])
+        osctld_fmt(:user_unregister, name: args[0], pool: gopts[:pool])
       end
     end
 
@@ -105,7 +115,7 @@ module OsCtl::Cli
     def assets
       raise "missing argument" unless args[0]
 
-      osctld_fmt(:user_assets, name: args[0])
+      osctld_fmt(:user_assets, name: args[0], pool: gopts[:pool])
     end
   end
 end

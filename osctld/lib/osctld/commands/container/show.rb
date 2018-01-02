@@ -7,11 +7,12 @@ module OsCtld
     include Utils::SwitchUser
 
     def execute
-      ct = DB::Containers.find(opts[:id])
+      ct = DB::Containers.find(opts[:id], opts[:pool])
       return error('container not found') unless ct
 
       ct.inclusively do
         ok({
+          pool: ct.pool.name,
           id: ct.id,
           user: ct.user.name,
           group: ct.group.name,

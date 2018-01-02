@@ -6,6 +6,7 @@ module OsCtl::Cli
     include CGroupParams
 
     FIELDS = %i(
+      pool
       id
       user
       group
@@ -21,6 +22,7 @@ module OsCtl::Cli
     ) + CGroupParams::CGPARAM_STATS
 
     FILTERS = %i(
+      pool
       user
       group
       distribution
@@ -29,6 +31,7 @@ module OsCtl::Cli
     )
 
     DEFAULT_FIELDS = %i(
+      pool
       id
       user
       group
@@ -50,8 +53,10 @@ module OsCtl::Cli
       fmt_opts = {layout: :columns}
 
       FILTERS.each do |v|
-        next unless opts[v]
-        cmd_opts[v] = opts[v].split(',')
+        [gopts, opts].each do |options|
+          next unless options[v]
+          cmd_opts[v] = options[v].split(',')
+        end
       end
 
       cmd_opts[:ids] = args if args.count > 0
@@ -81,7 +86,7 @@ module OsCtl::Cli
       cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS
 
       c = osctld_open
-      ct = c.cmd_data!(:ct_show, id: args[0])
+      ct = c.cmd_data!(:ct_show, id: args[0], pool: gopts[:pool])
 
       cg_add_stats(c, ct, ct[:group_path], cols, gopts[:parsable])
       c.close
@@ -94,6 +99,7 @@ module OsCtl::Cli
 
       cmd_opts = {
         id: args[0],
+        pool: opts[:pool] || gopts[:pool],
         user: opts[:user],
         template: File.absolute_path(opts[:template]),
       }
@@ -106,46 +112,49 @@ module OsCtl::Cli
     def delete
       raise "missing argument" unless args[0]
 
-      osctld_fmt(:ct_delete, id: args[0])
+      osctld_fmt(:ct_delete, id: args[0], pool: gopts[:pool])
     end
 
     def start
       raise "missing argument" unless args[0]
-      return osctld_fmt(:ct_start, id: args[0]) unless opts[:foreground]
+      cmd_opts = {id: args[0], pool: gopts[:pool]}
+      return osctld_fmt(:ct_start, cmd_opts) unless opts[:foreground]
 
-      open_console(args[0], 0) do |sock|
-        sock.close if osctld_resp(:ct_start, id: args[0]).error?
+      open_console(args[0], gopts[:pool], 0) do |sock|
+        sock.close if osctld_resp(:ct_start, cmd_opts).error?
       end
     end
 
     def stop
       raise "missing argument" unless args[0]
-      return osctld_fmt(:ct_stop, id: args[0]) unless opts[:foreground]
+      cmd_opts = {id: args[0], pool: gopts[:pool]}
+      return osctld_fmt(:ct_stop, cmd_opts) unless opts[:foreground]
 
-      open_console(args[0], 0) do |sock|
-        sock.close if osctld_resp(:ct_stop, id: args[0]).error?
+      open_console(args[0], gopts[:pool], 0) do |sock|
+        sock.close if osctld_resp(:ct_stop, cmd_opts).error?
       end
     end
 
     def restart
       raise "missing argument" unless args[0]
-      return osctld_fmt(:ct_restart, id: args[0]) unless opts[:foreground]
+      cmd_opts = {id: args[0], pool: gopts[:pool]}
+      return osctld_fmt(:ct_restart, cmd_opts) unless opts[:foreground]
 
-      open_console(args[0], 0) do |sock|
-        sock.close if osctld_resp(:ct_restart, id: args[0]).error?
+      open_console(args[0], gopts[:pool], 0) do |sock|
+        sock.close if osctld_resp(:ct_restart, cmd_opts).error?
       end
     end
 
     def console
       raise "missing argument" unless args[0]
 
-      open_console(args[0], opts[:tty])
+      open_console(args[0], gopts[:pool], opts[:tty])
     end
 
     def attach
       raise "missing argument" unless args[0]
 
-      cmd = osctld_call(:ct_attach, id: args[0])
+      cmd = osctld_call(:ct_attach, id: args[0], pool: gopts[:pool])
 
       pid = Process.fork do
         cmd[:env].each do |k, v|
@@ -163,7 +172,12 @@ module OsCtl::Cli
       raise "missing command to execute" if args.count < 2
 
       c = osctld_open
-      cont = c.cmd_data!(:ct_exec, id: args[0], cmd: args[1..-1])
+      cont = c.cmd_data!(
+        :ct_exec,
+        id: args[0],
+        pool: gopts[:pool],
+        cmd: args[1..-1]
+      )
 
       if cont != 'continue'
         warn "exec not available: invalid response '#{cont}'"
@@ -215,7 +229,7 @@ module OsCtl::Cli
     def su
       raise "missing argument" unless args[0]
 
-      cmd = osctld_call(:ct_su, id: args[0])
+      cmd = osctld_call(:ct_su, id: args[0], pool: gopts[:pool])
       pid = Process.fork do
         cmd[:env].each do |k, v|
           ENV[k.to_s] = v
@@ -229,7 +243,7 @@ module OsCtl::Cli
 
     def set
       raise "missing argument" unless args[0]
-      params = {id: args[0]}
+      params = {id: args[0], pool: gopts[:pool]}
       raise "nothing to do" if params.empty?
 
       osctld_fmt(:ct_set, params)
@@ -238,7 +252,7 @@ module OsCtl::Cli
     def cd
       raise "missing argument" unless args[0]
 
-      ct = osctld_call(:ct_show, id: args[0])
+      ct = osctld_call(:ct_show, id: args[0], pool: gopts[:pool])
 
       if opts[:runtime]
         raise "container not running" unless ct[:init_pid]
@@ -269,12 +283,12 @@ module OsCtl::Cli
     def assets
       raise "missing argument" unless args[0]
 
-      osctld_fmt(:ct_assets, id: args[0])
+      osctld_fmt(:ct_assets, id: args[0], pool: gopts[:pool])
     end
 
-    def open_console(ctid, tty)
+    def open_console(ctid, pool, tty)
       c = osctld_open
-      c.cmd_response!(:ct_console, id: ctid, tty: tty)
+      c.cmd_response!(:ct_console, id: ctid, pool: pool, tty: tty)
 
       puts "Press Ctrl+a q to detach the console"
       puts
@@ -297,7 +311,7 @@ module OsCtl::Cli
     def cgparam_list
       raise "missing argument" unless args[0]
 
-      do_cgparam_list(:ct_cgparam_list, id: args[0])
+      do_cgparam_list(:ct_cgparam_list, id: args[0], pool: gopts[:pool])
     end
 
     def cgparam_set
@@ -305,20 +319,20 @@ module OsCtl::Cli
       raise "missing parameter name" unless args[1]
       raise "missing parameter value" unless args[2]
 
-      do_cgparam_set(:ct_cgparam_set, id: args[0])
+      do_cgparam_set(:ct_cgparam_set, id: args[0], pool: gopts[:pool])
     end
 
     def cgparam_unset
       raise "missing container name" unless args[0]
       raise "missing parameter name" unless args[1]
 
-      do_cgparam_unset(:ct_cgparam_unset, id: args[0])
+      do_cgparam_unset(:ct_cgparam_unset, id: args[0], pool: gopts[:pool])
     end
 
     def cgparam_apply
       raise "missing container name" unless args[0]
 
-      do_cgparam_apply(:ct_cgparam_apply, id: args[0])
+      do_cgparam_apply(:ct_cgparam_apply, id: args[0], pool: gopts[:pool])
     end
   end
 end

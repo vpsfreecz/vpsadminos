@@ -1,20 +1,11 @@
 module OsCtld
-  class DB::Groups < DB::List
-    # Ensures presence of root and default groups
-    def self.setup
-      instance.setup
-    end
-
-    def self.root
-      instance.find('root')
-    end
-
-    def self.default
-      instance.find('default')
-    end
-
-    def self.by_path(path)
-      instance.by_path(path)
+  class DB::Groups < DB::PooledList
+    class << self
+      %i(setup root default by_path).each do |v|
+        define_method(v) do |*args, &block|
+          instance.send(v, *args, &block)
+        end
+      end
     end
 
     def initialize(*_)
@@ -22,40 +13,54 @@ module OsCtld
       @index = {}
     end
 
-    def setup
-      load_or_create('root', 'osctl')
-      load_or_create('default', 'default')
+    # Ensures presence of root and default groups
+    def setup(pool)
+      load_or_create(pool, 'root', 'osctl')
+      load_or_create(pool, 'default', 'default')
+    end
+
+    def root(pool)
+      find('root', pool)
+    end
+
+    def default(pool)
+      find('default', pool)
     end
 
     def add(grp)
       sync do
         super
-        @index[grp.path] = grp
+        @index[grp.pool.name] ||= {}
+        @index[grp.pool.name][grp.path] = grp
       end
     end
 
     def remove(grp)
       sync do
         super
-        @index.delete(grp.path)
+        @index[grp.pool.name].delete(grp.path)
+        @index.delete(grp.pool.name) if @index[grp.pool.name].empty?
         grp
       end
     end
 
-    def by_path(path)
-      sync { @index[path] }
+    def by_path(pool, path)
+      sync do
+        next nil unless @index.has_key?(pool.name)
+        @index[pool.name][path]
+      end
     end
 
     protected
-    def load_or_create(name, path)
+    def load_or_create(pool, name, path)
       grp = nil
       root = name == 'root'
 
       begin
-        grp = Group.new(name, root: root)
+        grp = Group.new(pool, name, root: root)
 
       rescue Errno::ENOENT
-        grp = Group.new(name, load: false, root: root)
+        grp = Group.new(pool, name, load: false, root: root)
         grp.configure(path)
       end
 

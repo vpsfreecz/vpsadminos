@@ -6,7 +6,7 @@ module OsCtld
     include Utils::System
 
     def execute
-      ct = DB::Containers.find(opts[:id])
+      ct = DB::Containers.find(opts[:id], opts[:pool])
       return error('container not found') unless ct
 
       ct.exclusively do

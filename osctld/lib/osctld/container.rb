@@ -9,12 +9,13 @@ module OsCtld
     include Utils::Zfs
     include Utils::SwitchUser
 
-    attr_reader :id, :user, :group, :distribution, :version
+    attr_reader :pool, :id, :user, :group, :distribution, :version
     attr_accessor :state, :init_pid
 
-    def initialize(id, user = nil, group = nil, load: true)
+    def initialize(pool, id, user = nil, group = nil, load: true)
       init_lock
 
+      @pool = pool
       @id = id
       @user = user
       @group = group
@@ -54,7 +55,7 @@ module OsCtld
     end
 
     def dataset
-      File.join(OsCtld::CT_DS, id)
+      File.join(pool.ct_ds, id)
     end
 
     def dir
@@ -74,7 +75,7 @@ module OsCtld
     end
 
     def config_path
-      File.join('/', OsCtld::CONF_DS, 'ct', "#{id}.yml")
+      File.join(pool.conf_path, 'ct', "#{id}.yml")
     end
 
     def lxc_config_path(cfg = 'config')

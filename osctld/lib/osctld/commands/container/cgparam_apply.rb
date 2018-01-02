@@ -6,7 +6,7 @@ module OsCtld
     include Utils::CGroupParams
 
     def execute
-      ct = DB::Containers.find(opts[:id])
+      ct = DB::Containers.find(opts[:id], opts[:pool])
       return error('container not found') unless ct
 
       log(:info, "CT #{ct.id}", "Configuring cgroups")

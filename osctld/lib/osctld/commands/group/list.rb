@@ -6,10 +6,12 @@ module OsCtld
       ret = []
 
       DB::Groups.get.each do |grp|
+        next if opts[:pool] && !opts[:pool].include?(grp.pool.name)
         next if opts[:names] && !opts[:names].include?(grp.name)
 
         grp.inclusively do
           ret << {
+            pool: grp.pool.name,
             name: grp.name,
             path: grp.path,
           }

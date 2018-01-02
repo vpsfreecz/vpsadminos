@@ -4,7 +4,7 @@ module OsCtld
 
     def execute
       DB::Users.sync do
-        u = DB::Users.find(opts[:name])
+        u = DB::Users.find(opts[:name], opts[:pool])
         return error('user not found') unless u
         return error('user has container(s)') if u.has_containers?
 

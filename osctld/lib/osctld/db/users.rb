@@ -1,3 +1,3 @@
 module OsCtld::DB
-  class Users < List ; end
+  class Users < PooledList ; end
 end

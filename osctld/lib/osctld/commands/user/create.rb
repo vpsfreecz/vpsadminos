@@ -9,8 +9,11 @@ module OsCtld
     include Utils::Zfs
 
     def execute
-      u = User.new(opts[:name], load: false)
-      return error('user already exists') if DB::Users.contains?(u.name)
+      pool = DB::Pools.get_or_default(opts[:pool])
+      return error('pool not found') unless pool
+
+      u = User.new(pool, opts[:name], load: false)
+      return error('user already exists') if DB::Users.contains?(u.name, pool)
 
       u.exclusively do
         zfs(:create, nil, u.dataset)

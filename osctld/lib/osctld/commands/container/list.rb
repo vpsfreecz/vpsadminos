@@ -15,6 +15,7 @@ module OsCtld
 
         ct.inclusively do
           ret << {
+            pool: ct.pool.name,
             id: ct.id,
             user: ct.user.name,
             group: ct.group.name,
@@ -36,6 +37,7 @@ module OsCtld
 
     protected
     def include?(ct)
+      return false if opts[:pool] && !opts[:pool].include?(ct.pool.name)
       return false if opts[:user] && !opts[:user].include?(ct.user.name)
       return false if opts[:group] && !opts[:group].include?(ct.group.name)
       return false if opts[:distribution] && !opts[:distribution].include?(ct.distribution)

@@ -12,7 +12,7 @@ module OsCtld
           path = groupable.path
         end
 
-        each_group_in(path) do |g|
+        each_group_in(groupable.pool, path) do |g|
           ret.concat(info(g))
         end
       end
@@ -84,8 +84,8 @@ module OsCtld
     end
 
     protected
-    def each_group_in(path)
-      yield(DB::Groups.root)
+    def each_group_in(pool, path)
+      yield(DB::Groups.root(pool))
 
       t = ''
 
@@ -93,7 +93,7 @@ module OsCtld
         t = File.join(t, name)
         t = t[1..-1] if t.start_with?('/')
 
-        g = DB::Groups.by_path(t)
+        g = DB::Groups.by_path(pool, t)
         next unless g
 
         yield(g)

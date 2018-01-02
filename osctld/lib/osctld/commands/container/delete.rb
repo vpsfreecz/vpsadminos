@@ -8,7 +8,7 @@ module OsCtld
     include Utils::SwitchUser
 
     def execute
-      ct = DB::Containers.find(opts[:id])
+      ct = DB::Containers.find(opts[:id], opts[:pool])
       return error("container not found") unless ct
 
       # Remove monitor _before_ acquiring exclusive lock, because monitor

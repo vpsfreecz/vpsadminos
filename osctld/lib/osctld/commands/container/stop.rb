@@ -7,7 +7,7 @@ module OsCtld
     include Utils::SwitchUser
 
     def execute
-      ct = DB::Containers.find(opts[:id]) || (raise 'container not found')
+      ct = DB::Containers.find(opts[:id], opts[:pool]) || (raise 'container not found')
       ct.exclusively do
         ret = ct_control(ct, :ct_stop, id: ct.id)
         next ret unless ret[:status]

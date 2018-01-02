@@ -6,10 +6,12 @@ module OsCtld
       ret = []
 
       DB::Users.get.each do |u|
+        next if opts[:pool] && !opts[:pool].include?(u.pool.name)
         next if opts[:names] && !opts[:names].include?(u.name)
         next if opts.has_key?(:registered) && u.registered? != opts[:registered]
 
         ret << {
+          pool: u.pool.name,
           name: u.name,
           username: u.sysusername,
           groupname: u.sysgroupname,

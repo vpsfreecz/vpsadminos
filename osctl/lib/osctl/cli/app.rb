@@ -3,6 +3,7 @@ require_relative 'cgroup_params'
 require_relative 'container'
 require_relative 'group'
 require_relative 'net_interface'
+require_relative 'pool'
 require_relative 'user'
 
 module OsCtl::Cli
@@ -24,11 +25,63 @@ module OsCtl::Cli
       desc 'Show precise values'
       switch %i(p parsable), negatable: false
 
+      desc 'Pool name'
+      flag :pool
+
+      desc 'Manage data pools'
+      command :pool do |p|
+        p.desc 'List imported pools'
+        p.command %i(ls list) do |ls|
+          ls.desc 'Select parameters to output'
+          ls.flag %i(o output)
+
+          ls.desc 'Do not show header'
+          ls.switch %i(H hide-header), negatable: false
+
+          ls.desc 'List available parameters'
+          ls.switch %i(L list), negatable: false
+
+          ls.action &Command.run(Pool, :list)
+        end
+
+        p.desc 'Import pool(s)'
+        p.arg_name '[name]'
+        p.command :import do |c|
+          c.desc 'Import all installed pools'
+          c.switch %i(a all), negatable: false
+
+          c.action &Command.run(Pool, :import)
+        end
+
+        p.desc 'Export imported pool'
+        p.arg_name '<name>'
+        p.command :export do |c|
+          c.action &Command.run(Pool, :export)
+        end
+
+        p.desc 'Install a new pool'
+        p.arg_name '<name>'
+        p.command :install do |c|
+          c.action &Command.run(Pool, :install)
+        end
+
+        p.desc 'Uninstall pool'
+        p.arg_name '<name>'
+        p.command :uninstall do |c|
+          c.action &Command.run(Pool, :uninstall)
+        end
+
+        p.default_command :list
+      end
+
       desc 'Manage system users and user namespace configuration'
       command :user do |u|
         u.desc 'List available users'
         u.arg_name '[name...]'
         u.command %i(ls list) do |ls|
+          ls.desc 'Filter by pool, comma separated'
+          ls.flag :pool
+
           ls.desc 'Filter registered users'
           ls.switch 'registered', negatable: false
 
@@ -62,6 +115,9 @@ module OsCtl::Cli
         u.desc 'Create a new user with user namespace configuration'
         u.arg_name '<name>'
         u.command %i(new create) do |new|
+          new.desc 'Pool name'
+          new.flag :pool
+
           new.desc 'User/group ID'
           new.flag :ugid, type: Integer, required: true
 
@@ -82,14 +138,14 @@ module OsCtl::Cli
 
         u.desc 'Register users into the system'
         u.arg_name '[name] | all'
-        u.command %i(reg register) do |del|
-          del.action &Command.run(User, :register)
+        u.command %i(reg register) do |c|
+          c.action &Command.run(User, :register)
         end
 
         u.desc 'Unregister users from the system'
         u.arg_name '[name] | all'
-        u.command %i(unreg unregister) do |del|
-          del.action &Command.run(User, :unregister)
+        u.command %i(unreg unregister) do |c|
+          c.action &Command.run(User, :unregister)
         end
 
         u.desc 'Generate /etc/subuid and /etc/subgid'
@@ -111,6 +167,9 @@ module OsCtl::Cli
         grp.desc 'List available groups'
         grp.arg_name '[name...]'
         grp.command %i(ls list) do |ls|
+          ls.desc 'Filter by pool, comma separated'
+          ls.flag :pool
+
           ls.desc 'Select parameters to output'
           ls.flag %i(o output)
 
@@ -132,6 +191,9 @@ module OsCtl::Cli
         grp.desc 'Create group'
         grp.arg_name '<name>'
         grp.command %i(new create) do |new|
+          new.desc 'Pool name'
+          new.flag :pool
+
           new.desc 'CGroup path (in all subsystems)'
           new.flag %i(p path), required: true
 
@@ -163,6 +225,9 @@ module OsCtl::Cli
         ct.desc 'List containers'
         ct.arg_name '[id...]'
         ct.command %i(ls list) do |ls|
+          ls.desc 'Filter by pool, comma separated'
+          ls.flag :pool
+
           ls.desc 'Filter by user name, comma separated'
           ls.flag %i(u user)
 
@@ -205,6 +270,9 @@ module OsCtl::Cli
         ct.desc 'Create container'
         ct.arg_name '<id>'
         ct.command %i(new create) do |new|
+          new.desc 'Pool name'
+          new.flag :pool
+
           new.desc 'User name'
           new.flag :user, required: true
 
@@ -219,8 +287,8 @@ module OsCtl::Cli
 
         ct.desc 'Delete container'
         ct.arg_name '<id>'
-        ct.command %i(del delete) do |new|
-          new.action &Command.run(Container, :delete)
+        ct.command %i(del delete) do |c|
+          c.action &Command.run(Container, :delete)
         end
 
         ct.desc 'Start container'

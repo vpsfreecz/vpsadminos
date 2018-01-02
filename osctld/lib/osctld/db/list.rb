@@ -76,5 +76,8 @@ module OsCtld
     def contains?(id)
       !find(id).nil?
     end
+
+    protected
+    attr_reader :objects
   end
 end

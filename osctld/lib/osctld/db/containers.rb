@@ -1,3 +1,3 @@
 module OsCtld::DB
-  class Containers < List ; end
+  class Containers < PooledList ; end
 end

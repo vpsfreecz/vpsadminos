@@ -3,6 +3,7 @@ module OsCtld
     module Container ; end
     module Group ; end
     module NetInterface ; end
+    module Pool ; end
     module User ; end
   end
   module DB ; end
@@ -13,11 +14,6 @@ module OsCtld
   module Utils ; end
   module UserControl ; end
   module UserCommands ; end
-
-  POOL = 'lxc'
-  USER_DS = "#{POOL}/user"
-  CT_DS = "#{POOL}/ct"
-  CONF_DS = "#{POOL}/conf"
 
   def self.root
     File.join(File.dirname(__FILE__), '..')
@@ -65,6 +61,9 @@ require_relative 'osctld/cgroup/params'
 require_relative 'osctld/command'
 require_relative 'osctld/user_command'
 require_relative 'osctld/client_handler'
+require_relative 'osctld/db/pools'
+require_relative 'osctld/pool'
+require_relative 'osctld/db/pooled_list'
 require_relative 'osctld/db/containers'
 require_relative 'osctld/container'
 require_relative 'osctld/db/users'
