@@ -97,6 +97,10 @@ module OsCtld
       DB::Containers.get { |cts| cts.select { |ct| ct.user == self } }
     end
 
+    def log_type
+      "user=#{pool.name}:#{name}"
+    end
+
     private
     def load_config
       cfg = YAML.load_file(config_path)

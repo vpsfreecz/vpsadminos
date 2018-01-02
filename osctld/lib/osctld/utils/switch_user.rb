@@ -40,7 +40,7 @@ module OsCtld
     # Run a command `cmd` within container `ct`
     def ct_syscmd(ct, cmd, opts = {})
       opts[:valid_rcs] ||= []
-      log(:work, "CT #{ct.id}", cmd)
+      log(:work, ct, cmd)
 
       r, w = IO.pipe
 

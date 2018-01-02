@@ -20,14 +20,14 @@ module OsCtld
     # Reconnect tty0 pipes on osctld restart
     def self.reconnect_tty0(ct)
       @mutex.synchronize do
-        log(:info, "CT #{ct.id}", "Reopening TTY0")
+        log(:info, ct, "Reopening TTY0")
         i, o = tty0_pipes(ct.id)
 
         [i, o].each do |path|
           next if File.exist?(path)
           log(
             :warn,
-            "CT #{ct.id}",
+            ct,
             "Pipe '#{path}' for tty0 not found, console will not work"
           )
           return

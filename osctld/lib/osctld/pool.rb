@@ -60,9 +60,13 @@ module OsCtld
       path(CONF_DS)
     end
 
+    def log_type
+      "pool=#{name}"
+    end
+
     protected
     def mkdatasets
-      log(:info, :init, "Ensuring presence of base datasets and directories")
+      log(:info, "Ensuring presence of base datasets and directories")
       zfs(:create, '-p', ds(USER_DS))
       zfs(:create, '-p', ds(CT_DS))
       zfs(:create, '-p', ds(CONF_DS))
@@ -77,7 +81,7 @@ module OsCtld
     def load_users
       # TODO: resolve conflicts when importing users with the same ugid
       #   from multiple pools
-      log(:info, :init, "Loading users")
+      log(:info, "Loading users")
 
       Dir.glob(File.join(conf_path, 'user', '*.yml')).each do |f|
         name = File.basename(f)[0..(('.yml'.length+1) * -1)]
@@ -88,7 +92,7 @@ module OsCtld
     end
 
     def load_groups
-      log(:info, :init, "Loading groups")
+      log(:info, "Loading groups")
       DB::Groups.setup(self)
 
       Dir.glob(File.join(conf_path, 'group', '*.yml')).each do |grp|
@@ -100,7 +104,7 @@ module OsCtld
     end
 
     def load_cts
-      log(:info, :init, "Loading containers")
+      log(:info, "Loading containers")
 
       Dir.glob(File.join(conf_path, 'ct', '*.yml')).each do |f|
         ctid = File.basename(f)[0..(('.yml'.length+1) * -1)]

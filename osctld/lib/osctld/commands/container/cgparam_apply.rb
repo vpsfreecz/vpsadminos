@@ -9,7 +9,7 @@ module OsCtld
       ct = DB::Containers.find(opts[:id], opts[:pool])
       return error('container not found') unless ct
 
-      log(:info, "CT #{ct.id}", "Configuring cgroups")
+      log(:info, ct, "Configuring cgroups")
 
       ret = call_cmd(Commands::Group::CGParamApply, name: ct.group.name)
       return ret unless ret[:status]

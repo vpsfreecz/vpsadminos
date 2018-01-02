@@ -5,7 +5,11 @@ module OsCtld
     include Utils::Log
 
     def network(opts)
-      log(:warn, "CT #{ct.id}", "Unable to configure network: #{ct.distribution} not supported")
+      log(
+        :warn,
+        ct,
+        "Unable to configure network: #{ct.distribution} not supported"
+      )
     end
   end
 end

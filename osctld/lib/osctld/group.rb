@@ -84,6 +84,10 @@ module OsCtld
       ret
     end
 
+    def log_type
+      "group=#{pool.name}:#{name}"
+    end
+
     protected
     def load_config
       cfg = YAML.load_file(config_path)

@@ -76,7 +76,7 @@ module OsCtld
       if iplist[:exitstatus] == 1
         log(
           :info,
-          "CT #{ct.id}",
+          ct,
           "veth '#{veth}' of container '#{ct.id}' no longer exists, "+
           "ignoring"
         )
@@ -93,7 +93,7 @@ module OsCtld
         if /#{inet} #{Regexp.escape(net.host_ip.to_string)}/ =~ iplist[:output]
           log(
             :info,
-            "CT #{ct.id}",
+            ct,
             "Discovered IPv#{ip_v} configuration for routed veth #{name}"
           )
 
@@ -210,7 +210,7 @@ module OsCtld
 
       fail "Unable to get veth name: #{ret[:message]}" unless ret[:status]
 
-      log(:info, "CT #{ct.id}", "Discovered name for veth ##{index}: #{ret[:output]}")
+      log(:info, ct, "Discovered name for veth ##{index}: #{ret[:output]}")
       ret[:output]
     end
 

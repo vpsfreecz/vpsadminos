@@ -152,6 +152,10 @@ module OsCtld
       File.chown(0, 0, config_path)
     end
 
+    def log_type
+      "ct=#{pool.name}:#{id}"
+    end
+
     protected
     def load_config
       cfg = YAML.load_file(config_path)

@@ -65,7 +65,7 @@ module OsCtld
           Process.wait(tty_pid) if tty_pid
 
         rescue Errno::ECHILD => e
-          log(:warn, "CT #{ct.id}", "Error occurred when closing tty0: #{e.message}")
+          log(:warn, ct, "Error occurred when closing tty0: #{e.message}")
         end
       end
     end
@@ -130,7 +130,7 @@ module OsCtld
     end
 
     def add_client(socket)
-      log(:info, "CT #{ct.id}", "Connecting client to TTY #{n}")
+      log(:info, ct, "Connecting client to TTY #{n}")
 
       sync do
         @clients << socket
@@ -171,7 +171,7 @@ module OsCtld
       io.read_nonblock(4096)
 
     rescue IOError
-      log(:info, "CT #{ct.id}", "Closing TTY #{n}")
+      log(:info, ct, "Closing TTY #{n}")
 
       sync do
         @opened = false
@@ -192,7 +192,7 @@ module OsCtld
       io.read_nonblock(4096)
 
     rescue IOError, Errno::ECONNRESET
-      log(:info, "CT #{ct.id}", "Disconnecting client from TTY #{n}")
+      log(:info, ct, "Disconnecting client from TTY #{n}")
       sync { @clients.delete(io) }
       nil
     end
