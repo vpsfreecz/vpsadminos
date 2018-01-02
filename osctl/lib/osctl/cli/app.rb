@@ -453,10 +453,6 @@ module OsCtl::Cli
 
         ct.default_command :list
       end
-
-      on_error do |exception|
-        raise exception
-      end
     end
 
     protected
