@@ -8,9 +8,9 @@ module OsCtld
       f = File.open("#{LXC_USERNET}.new", 'w')
 
       net_cnt = 0
-      ContainerList.get { |cts| cts.each { |ct| net_cnt += ct.netifs.count } }
+      DB::Containers.get { |cts| cts.each { |ct| net_cnt += ct.netifs.count } }
 
-      UserList.get.each do |u|
+      DB::Users.get.each do |u|
         # TODO: we need to investigate why it's not enough to set the number
         # of allowed veths to the number of user's container's interfaces, but
         # why it has to be the total number interfaces from _all_ containers.

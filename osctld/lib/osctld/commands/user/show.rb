@@ -3,7 +3,7 @@ module OsCtld
     handle :user_show
 
     def execute
-      u = UserList.find(opts[:name])
+      u = DB::Users.find(opts[:name])
       return error('user not found') unless u
 
       ok({

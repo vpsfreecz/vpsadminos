@@ -9,7 +9,7 @@ module OsCtld
     def execute
       ret = []
 
-      ContainerList.get.each do |ct|
+      DB::Containers.get.each do |ct|
         next if opts[:ids] && !opts[:ids].include?(ct.id)
         next unless include?(ct)
 

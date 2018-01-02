@@ -7,14 +7,14 @@ module OsCtld
     include Utils::Zfs
 
     def execute
-      user = UserList.find(opts[:user])
+      user = DB::Users.find(opts[:user])
       return error('user not found') unless user
 
       if opts[:group]
-        group = GroupList.find(opts[:group])
+        group = DB::Groups.find(opts[:group])
 
       else
-        group = GroupList.default
+        group = DB::Groups.default
       end
 
       return error('group not found') unless group
@@ -23,7 +23,7 @@ module OsCtld
 
       user.inclusively do
         ct.exclusively do
-          next error('container already exists') if ContainerList.contains?(ct.id)
+          next error('container already exists') if DB::Containers.contains?(ct.id)
 
           ### Rootfs
           zfs(:create, nil, ct.dataset)
@@ -79,7 +79,7 @@ module OsCtld
 
           ct.configure_network
 
-          ContainerList.add(ct)
+          DB::Containers.add(ct)
           Monitor::Master.monitor(ct)
 
           ok

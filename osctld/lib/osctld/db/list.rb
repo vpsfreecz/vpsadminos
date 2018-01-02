@@ -2,7 +2,7 @@ require 'thread'
 
 module OsCtld
   # Thread-safe singleton object list
-  class ObjectList
+  class DB::List
     @@instances = {}
 
     class << self

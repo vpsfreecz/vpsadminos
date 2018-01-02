@@ -4,7 +4,7 @@ module OsCtld
     include Utils::CGroupParams
 
     def execute
-      ct = ContainerList.find(opts[:id])
+      ct = DB::Containers.find(opts[:id])
       return error('container not found') unless ct
 
       list(ct)

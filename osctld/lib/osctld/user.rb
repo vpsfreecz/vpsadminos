@@ -88,12 +88,12 @@ module OsCtld
     end
 
     def has_containers?
-      ct = ContainerList.get.detect { |ct| ct.user.name == name }
+      ct = DB::Containers.get.detect { |ct| ct.user.name == name }
       ct ? true : false
     end
 
     def containers
-      ContainerList.get { |cts| cts.select { |ct| ct.user == self } }
+      DB::Containers.get { |cts| cts.select { |ct| ct.user == self } }
     end
 
     private

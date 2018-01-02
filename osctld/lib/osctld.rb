@@ -5,6 +5,7 @@ module OsCtld
     module NetInterface ; end
     module User ; end
   end
+  module DB ; end
   module Routing ; end
   module Script
     module Container ; end
@@ -47,7 +48,7 @@ require_relative 'osctld/version'
 require_relative 'osctld/exceptions'
 require_relative 'osctld/template'
 require_relative 'osctld/lockable'
-require_relative 'osctld/object_list'
+require_relative 'osctld/db/list'
 require_relative 'osctld/run_state'
 require_relative 'osctld/utils/log'
 require_relative 'osctld/utils/system'
@@ -64,11 +65,11 @@ require_relative 'osctld/cgroup/params'
 require_relative 'osctld/command'
 require_relative 'osctld/user_command'
 require_relative 'osctld/client_handler'
-require_relative 'osctld/container_list'
+require_relative 'osctld/db/containers'
 require_relative 'osctld/container'
-require_relative 'osctld/user_list'
+require_relative 'osctld/db/users'
 require_relative 'osctld/user'
-require_relative 'osctld/group_list'
+require_relative 'osctld/db/groups'
 require_relative 'osctld/group'
 require_relative 'osctld/monitor'
 require_relative 'osctld/monitor/process'

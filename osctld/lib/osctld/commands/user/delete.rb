@@ -3,8 +3,8 @@ module OsCtld
     handle :user_delete
 
     def execute
-      UserList.sync do
-        u = UserList.find(opts[:name])
+      DB::Users.sync do
+        u = DB::Users.find(opts[:name])
         return error('user not found') unless u
         return error('user has container(s)') if u.has_containers?
 
@@ -17,7 +17,7 @@ module OsCtld
           u.delete
         end
 
-        UserList.remove(u)
+        DB::Users.remove(u)
         call_cmd(Commands::User::SubUGIds)
       end
 

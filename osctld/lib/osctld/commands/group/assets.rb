@@ -3,7 +3,7 @@ module OsCtld
     handle :group_assets
 
     def execute
-      grp = GroupList.find(opts[:name])
+      grp = DB::Groups.find(opts[:name])
       return error('group not found') unless grp
 
       add(:file, grp.config_path, "osctld's group config")

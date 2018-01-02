@@ -1,7 +1,7 @@
 module OsCtld
   module UserControl
     def self.setup
-      UserList.get do |users|
+      DB::Users.get do |users|
         users.each { |u| Supervisor.start_server(u) }
       end
     end

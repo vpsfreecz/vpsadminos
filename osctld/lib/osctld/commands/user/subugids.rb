@@ -3,7 +3,7 @@ module OsCtld
     handle :user_subugids
 
     def execute
-      UserList.get do |users|
+      DB::Users.get do |users|
         %w(u g).each do |v|
           File.open("/etc/sub#{v}id.new", 'w') do |f|
             users.each do |u|

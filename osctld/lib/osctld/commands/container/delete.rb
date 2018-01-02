@@ -8,7 +8,7 @@ module OsCtld
     include Utils::SwitchUser
 
     def execute
-      ct = ContainerList.find(opts[:id])
+      ct = DB::Containers.find(opts[:id])
       return error("container not found") unless ct
 
       # Remove monitor _before_ acquiring exclusive lock, because monitor
@@ -25,7 +25,7 @@ module OsCtld
         syscmd("rm -rf #{ct.lxc_dir}")
         File.unlink(ct.config_path)
 
-        ContainerList.remove(ct)
+        DB::Containers.remove(ct)
 
         bashrc = File.join(ct.lxc_dir, '.bashrc')
         File.unlink(bashrc) if File.exist?(bashrc)

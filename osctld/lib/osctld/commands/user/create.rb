@@ -10,7 +10,7 @@ module OsCtld
 
     def execute
       u = User.new(opts[:name], load: false)
-      return error('user already exists') if UserList.contains?(u.name)
+      return error('user already exists') if DB::Users.contains?(u.name)
 
       u.exclusively do
         zfs(:create, nil, u.dataset)
@@ -25,8 +25,8 @@ module OsCtld
         u.configure(opts[:ugid], opts[:offset], opts[:size])
         u.register
 
-        UserList.sync do
-          UserList.add(u)
+        DB::Users.sync do
+          DB::Users.add(u)
           call_cmd(Commands::User::SubUGIds)
         end
 

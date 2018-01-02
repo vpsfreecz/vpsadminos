@@ -1,5 +1,5 @@
 module OsCtld
-  class GroupList < ObjectList
+  class DB::Groups < DB::List
     # Ensures presence of root and default groups
     def self.setup
       instance.setup

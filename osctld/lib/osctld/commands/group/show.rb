@@ -3,7 +3,7 @@ module OsCtld
     handle :group_show
 
     def execute
-      grp = GroupList.find(opts[:name])
+      grp = DB::Groups.find(opts[:name])
       return error('group not found') unless grp
 
       grp.inclusively do

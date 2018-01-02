@@ -9,7 +9,7 @@ module OsCtld
     include Utils::SwitchUser
 
     def execute
-      ct = ContainerList.find(opts[:id])
+      ct = DB::Containers.find(opts[:id])
       return error('container not found') unless ct
 
       netif = ct.netifs.detect { |n| n.name == opts[:name] }

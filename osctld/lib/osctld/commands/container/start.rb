@@ -7,7 +7,7 @@ module OsCtld
     include Utils::SwitchUser
 
     def execute
-      ct = ContainerList.find(opts[:id]) || (raise 'container not found')
+      ct = DB::Containers.find(opts[:id]) || (raise 'container not found')
       ct.exclusively do
         in_pipe, out_pipe = Console.tty0_pipes(ct.id)
 

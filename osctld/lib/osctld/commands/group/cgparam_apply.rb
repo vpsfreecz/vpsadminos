@@ -6,7 +6,7 @@ module OsCtld
     include Utils::CGroupParams
 
     def execute
-      grp = GroupList.find(opts[:name])
+      grp = DB::Groups.find(opts[:name])
       return error('group not found') unless grp
 
       force = any_container_running?(grp)

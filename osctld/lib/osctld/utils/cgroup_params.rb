@@ -85,7 +85,7 @@ module OsCtld
 
     protected
     def each_group_in(path)
-      yield(GroupList.root)
+      yield(DB::Groups.root)
 
       t = ''
 
@@ -93,7 +93,7 @@ module OsCtld
         t = File.join(t, name)
         t = t[1..-1] if t.start_with?('/')
 
-        g = GroupList.by_path(t)
+        g = DB::Groups.by_path(t)
         next unless g
 
         yield(g)

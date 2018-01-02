@@ -155,8 +155,8 @@ module OsCtld
     def load_config
       cfg = YAML.load_file(config_path)
 
-      @user = UserList.find(cfg['user']) || (raise "user not found")
-      @group = GroupList.find(cfg['group']) || (raise "group not found")
+      @user = DB::Users.find(cfg['user']) || (raise "user not found")
+      @group = DB::Groups.find(cfg['group']) || (raise "group not found")
       @distribution = cfg['distribution']
       @version = cfg['version']
 

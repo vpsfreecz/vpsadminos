@@ -5,7 +5,7 @@ module OsCtld
     def execute
       ret = []
 
-      UserList.get.each do |u|
+      DB::Users.get.each do |u|
         next if opts[:names] && !opts[:names].include?(u.name)
         next if opts.has_key?(:registered) && u.registered? != opts[:registered]
 

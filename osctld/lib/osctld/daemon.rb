@@ -10,9 +10,9 @@ module OsCtld
 
     def initialize
       Thread.abort_on_exception = true
-      UserList.instance
-      GroupList.instance
-      ContainerList.instance
+      DB::Users.instance
+      DB::Groups.instance
+      DB::Containers.instance
       Console.init
     end
 
@@ -70,19 +70,19 @@ module OsCtld
       out = zfs(:list, '-H -r -t filesystem -d 1 -o name', USER_DS)[:output]
 
       out.split("\n")[1..-1].map do |line|
-        UserList.add(User.new(line.strip.split('/').last))
+        DB::Users.add(User.new(line.strip.split('/').last))
       end
     end
 
     def load_groups
       log(:info, :init, "Loading groups from data pool")
-      GroupList.setup
+      DB::Groups.setup
 
       Dir.glob(File.join('/', CONF_DS, 'group', '*.yml')).each do |grp|
         name = File.basename(grp)[0..(('.yml'.length+1) * -1)]
         next if %w(root default).include?(name)
 
-        GroupList.add(Group.new(name))
+        DB::Groups.add(Group.new(name))
       end
     end
 
@@ -97,7 +97,7 @@ module OsCtld
         ct = Container.new(ctid)
         Monitor::Master.monitor(ct)
         Console.reconnect_tty0(ct) if ct.current_state == :running
-        ContainerList.add(ct)
+        DB::Containers.add(ct)
       end
     end
 

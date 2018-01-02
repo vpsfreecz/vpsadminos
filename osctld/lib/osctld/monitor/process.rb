@@ -65,7 +65,7 @@ module OsCtld
     end
 
     def update_state(change)
-      ct = ContainerList.find(change[:ctid])
+      ct = DB::Containers.find(change[:ctid])
 
       unless ct
         log(:warn, :monitor, "Container '#{change[:ctid]}' not found")

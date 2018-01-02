@@ -5,7 +5,7 @@ module OsCtld
     def execute
       ret = []
 
-      GroupList.get.each do |grp|
+      DB::Groups.get.each do |grp|
         next if opts[:names] && !opts[:names].include?(grp.name)
 
         grp.inclusively do

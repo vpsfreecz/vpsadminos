@@ -3,8 +3,8 @@ module OsCtld
     handle :group_delete
 
     def execute
-      GroupList.sync do
-        grp = GroupList.find(opts[:name])
+      DB::Groups.sync do
+        grp = DB::Groups.find(opts[:name])
         return error('group not found') unless grp
         return error('group is used by containers') if grp.has_containers?
 
@@ -16,7 +16,7 @@ module OsCtld
           File.unlink(grp.config_path)
         end
 
-        GroupList.remove(grp)
+        DB::Groups.remove(grp)
       end
 
       ok

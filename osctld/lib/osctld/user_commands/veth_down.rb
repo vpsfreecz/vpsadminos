@@ -5,7 +5,7 @@ module OsCtld
     include Utils::Log
 
     def execute
-      ct = ContainerList.find(opts[:id])
+      ct = DB::Containers.find(opts[:id])
       return error('container not found') unless ct
       return error('access denied') unless owns_ct?(ct)
 

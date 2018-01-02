@@ -36,7 +36,7 @@ module OsCtld
         path
 
       else
-        File.join(GroupList.root.path, path)
+        File.join(DB::Groups.root.path, path)
       end
     end
 
@@ -57,14 +57,14 @@ module OsCtld
     end
 
     def has_containers?
-      ct = ContainerList.get.detect { |ct| ct.group.name == name }
+      ct = DB::Containers.get.detect { |ct| ct.group.name == name }
       ct ? true : false
     end
 
     def containers
       ret = []
 
-      ContainerList.get.each do |ct|
+      DB::Containers.get.each do |ct|
         next if ct.group != self || ret.include?(ct)
         ret << ct
       end
@@ -75,7 +75,7 @@ module OsCtld
     def users
       ret = []
 
-      ContainerList.get.each do |ct|
+      DB::Containers.get.each do |ct|
         next if ct.group != self || ret.include?(ct.user)
         ret << ct.user
       end

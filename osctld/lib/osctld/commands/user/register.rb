@@ -4,7 +4,7 @@ module OsCtld
 
     def execute
       if opts[:all]
-        UserList.get do |users|
+        DB::Users.get do |users|
           users.each do |u|
             next if u.registered?
             u.register
@@ -12,8 +12,8 @@ module OsCtld
         end
 
       else
-        UserList.sync do
-          u = UserList.find(opts[:name])
+        DB::Users.sync do
+          u = DB::Users.find(opts[:name])
           return error('user not found') unless u
           return error('already registered') if u.registered?
           u.register

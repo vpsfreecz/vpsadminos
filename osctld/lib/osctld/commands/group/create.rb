@@ -7,13 +7,13 @@ module OsCtld
 
     def execute
       grp = Group.new(opts[:name], load: false)
-      return error('group already exists') if GroupList.contains?(grp.name)
+      return error('group already exists') if DB::Groups.contains?(grp.name)
 
       params = grp.import_cgparams(opts[:cgparams])
 
       grp.exclusively do
         grp.configure(opts[:path], params)
-        GroupList.add(grp)
+        DB::Groups.add(grp)
       end
 
       ok

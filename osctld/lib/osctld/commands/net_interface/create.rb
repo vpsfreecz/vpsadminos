@@ -3,7 +3,7 @@ module OsCtld
     handle :netif_create
 
     def execute
-      ct = ContainerList.find(opts[:id])
+      ct = DB::Containers.find(opts[:id])
       return error('container not found') unless ct
 
       klass = NetInterface.for(opts[:type].to_sym)
