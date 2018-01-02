@@ -24,9 +24,9 @@ module OsCtld
           ok
 
         else
-          next error('pool already imported') if DB::Pools.contains?(name)
+          next error('pool already imported') if DB::Pools.contains?(opts[:name])
 
-          pool = Pool.new(name)
+          pool = Pool.new(opts[:name])
           pool.setup
           DB::Pools.add(pool)
           ok
