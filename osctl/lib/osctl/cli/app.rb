@@ -426,7 +426,7 @@ module OsCtl::Cli
           net.desc "Manage IP addresses"
           net.command :ip do |ip|
             ip.desc 'List IP addresses'
-            ip.arg_name '<id>'
+            ip.arg_name '<id> <name>'
             ip.command %i(ls list) do |c|
               c.action &Command.run(NetInterface, :ip_list)
             end

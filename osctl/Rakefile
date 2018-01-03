@@ -1,1 +1,15 @@
 require 'bundler/gem_tasks'
+require 'md2man/roff/engine'
+
+task :manpages do
+  engine = Redcarpet::Markdown.new(Md2Man::Roff::Engine, {
+    fenced_code_blocks: true,
+    disable_indented_code_blocks: true,
+  })
+
+  Dir.glob('man/man*/*.md').each do |f|
+    File.write(f[0..-4], engine.render(File.read(f)))
+  end
+end
+
+task build: :manpages
