@@ -10,10 +10,11 @@
 
   environment.systemPackages = with pkgs; [
     less
+    manpages
     openssh
-    ruby
     osctl
     osctld
+    ruby
     ];
 
   environment.etc = {
