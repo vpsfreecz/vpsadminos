@@ -1,3 +1,6 @@
 Gemfile.lock
 pkg
+man/style.css
+man/*.html
+man/**/*.html
 man/man?/*.?
