@@ -12,6 +12,9 @@ module OsCtld
       ret = ct.exclusively do
         if ct.state != :stopped
           next error('the container must be stopped to add network interface')
+
+        elsif ct.netifs.detect { |v| v.name == opts[:name] }
+          next error("interface '#{opts[:name]}' already exists")
         end
 
         netif = klass.new(ct, ct.netifs.count)
