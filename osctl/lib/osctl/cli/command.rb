@@ -5,14 +5,7 @@ module OsCtl::Cli
     def self.run(klass, method)
       Proc.new do |global_opts, opts, args|
         cmd = klass.new(global_opts, opts, args)
-
-        begin
-          cmd.method(method).call
-
-        rescue OsCtl::Client::Error => e
-          warn "Error occurred: #{e.message}"
-          exit(false)
-        end
+        cmd.method(method).call
       end
     end
 

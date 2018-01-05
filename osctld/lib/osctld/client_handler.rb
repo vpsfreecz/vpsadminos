@@ -45,11 +45,13 @@ module OsCtld
       begin
         ret = cmd.run(req[:opts], @sock)
 
+      rescue RuntimeError => err
+        error(err.message)
+
       rescue => err
         log(:warn, :server, "Error during command execution: #{err.message}")
         log(:warn, :server, err.backtrace.join("\n"))
-        output[:error] = err.message
-        error(output)
+        error('internal error')
 
       else
         if ret[:status] === true
