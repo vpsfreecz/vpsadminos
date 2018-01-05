@@ -44,6 +44,12 @@ module OsCtl::Cli
       cpu_time
     )
 
+    PRLIMIT_FIELDS = %i(
+      name
+      soft
+      hard
+    )
+
     def list
       if opts[:list]
         puts FIELDS.join("\n")
@@ -339,6 +345,60 @@ module OsCtl::Cli
       raise "missing container name" unless args[0]
 
       do_cgparam_apply(:ct_cgparam_apply, id: args[0], pool: gopts[:pool])
+    end
+
+    def prlimit_list
+      raise "missing argument" unless args[0]
+
+      if opts[:list]
+        puts PRLIMIT_FIELDS.join("\n")
+        return
+      end
+
+      cmd_opts = {id: args[0], pool: gopts[:pool]}
+      fmt_opts = {layout: :columns}
+
+      cmd_opts[:limits] = args[1..-1] if args.count > 1
+      fmt_opts[:header] = false if opts['hide-header']
+
+      if opts[:output]
+        cols = opts[:output].split(',').map(&:to_sym)
+
+      else
+        cols = PRLIMIT_FIELDS
+      end
+
+      osctld_fmt(:ct_prlimit_list, cmd_opts, cols, fmt_opts)
+    end
+
+    def prlimit_set
+      raise "missing container name" unless args[0]
+      raise "missing limit name" unless args[1]
+      raise "missing limit value" unless args[2]
+
+      soft, hard = args[2..3].map { |v| /^\d+$/ =~ v ? v.to_i : v }
+      hard = soft if hard.nil?
+
+      osctld_fmt(
+        :ct_prlimit_set,
+        id: args[0],
+        pool: gopts[:pool],
+        name: args[1],
+        soft: soft,
+        hard: hard
+      )
+    end
+
+    def prlimit_unset
+      raise "missing container name" unless args[0]
+      raise "missing limit name" unless args[1]
+
+      do_cgparam_unset(
+        :ct_prlimit_unset,
+        id: args[0],
+        pool: gopts[:pool],
+        name: args[1]
+      )
     end
 
     protected

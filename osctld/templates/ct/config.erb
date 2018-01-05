@@ -13,4 +13,6 @@ lxc.idmap = u 0 <%= ct.uid_offset %> <%= ct.uid_size %>
 lxc.idmap = g 0 <%= ct.gid_offset %> <%= ct.gid_size %>
 
 lxc.include = <%= ct.lxc_config_path('network') %>
+lxc.include = <%= ct.lxc_config_path('prlimits') %>
+
 lxc.hook.start-host = <%= hook_start_host %>

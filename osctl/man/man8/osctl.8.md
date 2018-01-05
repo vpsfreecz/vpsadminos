@@ -314,6 +314,31 @@ See the `ct` commands.
   Apply all CGroup parameters defined for container *id*, its group and all
   its parent groups, all the way up to the root group.
 
+`ct prlimits ls` *id* [*limits...*]
+  List configured resource limits. If no *limits* are provided, all configured
+  limits are listed.
+
+    `-H`, `--hide-header`
+        Do not show header, useful for scripting.
+
+    `-L`, `--list`
+      List available parameters adn exit.
+
+    `-o`, `--output` *parameters*
+      Select parameters to output.
+
+`ct prlimits set` *id* *limit* *soft\_and\_hard*, `ct prlimits set` *id* *limit* *soft* *hard*
+  Set resource *limit* on container *id*. Limit names and their descriptions
+  can be found in setrlimit(2). The permitted names are the "RLIMIT\_" resource
+  names in lowercase without the "RLIMIT\_" prefix, eg. `RLIMIT_NOFILE` should
+  be specified as **nofile**.
+
+  If *hard* is not provided, it equals to the *soft* limit. The value can be
+  either an integer or **unlimited**.
+
+`ct prlimits unset` *id* *limit*
+  Unset resource *limit* from container *id*.
+
 `ct netif ls` [*options*] *id*
   List configured network interfaces for container *id*.
 

@@ -1,0 +1,3 @@
+<% prlimits.each do |limit| -%>
+lxc.prlimit.<%= limit.name %> = <%= limit.soft %>:<%= limit.hard %>
+<% end -%>

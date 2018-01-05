@@ -9,7 +9,8 @@ module OsCtld
     include Utils::Zfs
     include Utils::SwitchUser
 
-    attr_reader :pool, :id, :user, :group, :distribution, :version, :nesting
+    attr_reader :pool, :id, :user, :group, :distribution, :version, :nesting,
+      :prlimits
     attr_accessor :state, :init_pid
 
     def initialize(pool, id, user = nil, group = nil, load: true)
@@ -22,6 +23,7 @@ module OsCtld
       @state = :unknown
       @init_pid = nil
       @cgparams = []
+      @prlimits = []
       @nesting = false
 
       load_config if load
@@ -142,8 +144,36 @@ module OsCtld
       configure_base
     end
 
+    def prlimit_set(name, soft, hard)
+      exclusively do
+        limit = @prlimits.detect { |v| v.name == name }
+
+        if limit
+          limit.set(soft, hard)
+
+        else
+          @prlimits << PrLimit.new(name, soft, hard)
+        end
+      end
+
+      save_config
+      configure_lxc
+    end
+
+    def prlimit_unset(name)
+      exclusively do
+        limit = @prlimits.detect { |v| v.name == name }
+        next unless limit
+        @prlimits.delete(limit)
+      end
+
+      save_config
+      configure_prlimits
+    end
+
     def configure_lxc
       configure_base
+      configure_prlimits
       configure_network
     end
 
@@ -153,6 +183,12 @@ module OsCtld
         ct: self,
         hook_start_host: OsCtld::hook_run('ct-start'),
       }, lxc_config_path)
+    end
+
+    def configure_prlimits
+      Template.render_to('ct/prlimits', {
+        prlimits: prlimits,
+      }, lxc_config_path('prlimits'))
     end
 
     # Generate LXC network configuration
@@ -170,6 +206,7 @@ module OsCtld
         'version' => version,
         'net_interfaces' => @netifs.map { |v| v.save },
         'cgparams' => dump_cgparams(cgparams),
+        'prlimits' => prlimits.map(&:dump),
         'nesting' => nesting,
       }
 
@@ -204,6 +241,7 @@ module OsCtld
       end
 
       @cgparams = load_cgparams(cfg['cgparams'])
+      @prlimits = (cfg['prlimits'] || []).map { |v| PrLimit.load(v) }
     end
   end
 end

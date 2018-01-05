@@ -451,6 +451,38 @@ module OsCtl::Cli
 
         cg_params(ct, Container)
 
+        ct.desc 'Manage resource limits'
+        ct.command :prlimits do |pr|
+          pr.desc 'List configured limits'
+          pr.arg_name '<name> [limits...]'
+          pr.command %i(ls list) do |c|
+            c.desc 'Select parameters to output'
+            c.flag %i(o output)
+
+            c.desc 'Do not show header'
+            c.switch %i(H hide-header), negatable: false
+
+            c.desc 'List available parameters'
+            c.switch %i(L list), negatable: false
+
+            c.action &Command.run(Container, :prlimit_list)
+          end
+
+          pr.desc 'Configure limit'
+          pr.arg_name '<name> <limit> (<soft_and_hard>| <soft> <hard>)'
+          pr.command :set do |c|
+            c.action &Command.run(Container, :prlimit_set)
+          end
+
+          pr.desc 'Remove configured limit'
+          pr.arg_name '<name> <limit>'
+          pr.command :unset do |c|
+            c.action &Command.run(Container, :prlimit_unset)
+          end
+
+          pr.default_command :list
+        end
+
         ct.default_command :list
       end
     end
