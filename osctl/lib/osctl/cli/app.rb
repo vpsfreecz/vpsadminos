@@ -404,6 +404,9 @@ module OsCtl::Cli
               c.desc 'What bridge should the interface be linked with'
               c.flag :link, required: true
 
+              c.desc "MAC address"
+              c.flag :hwaddr
+
               c.action &Command.run(NetInterface, :create_bridge)
             end
 
@@ -412,6 +415,9 @@ module OsCtl::Cli
             create.command :routed do |c|
               c.desc 'Route via network'
               c.flag :via, multiple: true, required: true
+
+              c.desc "MAC address"
+              c.flag :hwaddr
 
               c.action &Command.run(NetInterface, :create_routed)
             end

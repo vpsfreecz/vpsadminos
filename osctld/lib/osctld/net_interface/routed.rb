@@ -106,6 +106,7 @@ module OsCtld
       {
         name: name,
         index: index,
+        hwaddr: hwaddr,
         hook_veth_up: hook_path('up'),
         hook_veth_down: hook_path('down'),
       }

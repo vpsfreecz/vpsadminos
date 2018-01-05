@@ -1,6 +1,8 @@
 lxc.net.<%= index %>.type = veth
 lxc.net.<%= index %>.name = <%= name %>
 lxc.net.<%= index %>.flags = up
-lxc.net.<%= index %>.hwaddr = 00:16:3e:xx:xx:xx
+<% if hwaddr -%>
+lxc.net.<%= index %>.hwaddr = <%= hwaddr %>
+<% end -%>
 lxc.net.<%= index %>.script.up = <%= hook_veth_up %>
 lxc.net.<%= index %>.script.down = <%= hook_veth_down %>

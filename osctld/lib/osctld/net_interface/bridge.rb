@@ -45,6 +45,7 @@ module OsCtld
       {
         name: name,
         index: index,
+        hwaddr: hwaddr,
         link: link,
         ips: @ips,
       }

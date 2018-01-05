@@ -357,7 +357,7 @@ See the `ct` commands.
     `-t`, `--type` *type*
       Filter by interface type (`bridge` or `routed`)
 
-`ct netif new bridge --link` *bridge* *id* *name*
+`ct netif new bridge` [*options*] `--link` *bridge* *id* *name*
   Create a new bridge network interface in container *id*. This will create
   a pair of veth interfaces, one on the host, one in the container. The veth
   on the host will be linked to *bridge*. The interface will appear as *name*
@@ -367,7 +367,14 @@ See the `ct` commands.
   Currently, the container uses DHCP to configure the interface.
   The container has to be stopped for this command to be allowed.
 
-`ct netif new routed --via` *network* *id* *name*
+    `--link` *bridge*
+      What bridge should the interface be linked with, required.
+
+    `--hwaddr` *addr*
+      Set a custom MAC address. Every **x** in the address is replaced by
+      a random value. By default, the address is dynamically allocated.
+
+`ct netif new routed` [*options*] `--via` *network* *id* *name*
   Create a new routed network interface in container *id*. Like for **bridge**
   interface, a pair veth is created. The difference is that the veth is not part
   of any bridge. Instead, IP addresses are routed to the container via
@@ -376,6 +383,14 @@ See the `ct` commands.
   the container.
   
   The container has to be stopped for this command to be allowed.
+
+    `--via` *network*
+      Route via network, required. Can be used once for IPv4 and once for IPv6,
+      depending what addresses you want to be able to route.
+
+    `--hwaddr` *addr*
+      Set a custom MAC address. Every **x** in the address is replaced by
+      a random value. By default, the address is dynamically allocated.
 
 `ct netif del` *id* *name*
   Remove interface *name* from container *id*.

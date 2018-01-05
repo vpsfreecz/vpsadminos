@@ -10,7 +10,7 @@ module OsCtld
       end
     end
 
-    attr_reader :name, :index
+    attr_reader :name, :index, :hwaddr
 
     def initialize(ct, index)
       @ct = ct
@@ -25,19 +25,21 @@ module OsCtld
     # @param opts [Hash] options, different per interface type, symbol keys
     def create(opts)
       @name = opts[:name]
+      @hwaddr = opts[:hwaddr]
     end
 
     # Load configuration
     # @param cfg [Hash] configuration options, string keys
     def load(cfg)
       @name = cfg['name']
+      @hwaddr = cfg['hwaddr']
     end
 
     # Dump configuration
     # @return [Hash] hash with string keys, given the has that `load` has
     #   then restores the state from
     def save
-      {'type' => type.to_s, 'name' => name}
+      {'type' => type.to_s, 'name' => name, 'hwaddr' => hwaddr}
     end
 
     # Initialize the interface on creation / osctld restart

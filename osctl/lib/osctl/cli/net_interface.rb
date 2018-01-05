@@ -9,6 +9,7 @@ module OsCtl::Cli
       link
       veth
       via
+      hwaddr
     )
 
     FILTERS = %i(
@@ -57,7 +58,8 @@ module OsCtl::Cli
         id: args[0],
         name: args[1],
         type: 'bridge',
-        link: opts[:link],
+        hwaddr: opts[:hwaddr],
+        link: opts[:link]
       }
 
       osctld_fmt(:netif_create, cmd_opts)
@@ -70,7 +72,8 @@ module OsCtl::Cli
         id: args[0],
         name: args[1],
         type: 'routed',
-        via: parse_route_via,
+        hwaddr: opts[:hwaddr],
+        via: parse_route_via
       }
 
       osctld_fmt(:netif_create, cmd_opts)
