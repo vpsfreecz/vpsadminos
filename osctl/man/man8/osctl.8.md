@@ -420,6 +420,40 @@ See the `ct` commands.
 `ct netif ip ls` *id* *name*
   List IP addresses assigned to interface *name* of container *id*.
 
+`ct mounts ls` *id*
+  List mounts of container *id*.
+
+    `-H`, `--hide-header`
+      Do not show header, useful for scripting.
+
+    `-L`, `--list`
+      List available parameters and exit.
+
+    `-o`, `--output` *parameters*
+      Select parameters to output.
+
+`ct mounts new` *options* *id*
+  Create a new mount for container *id* described by *options*. The *fs* is not
+  mounted immediately, but the next time the container starts.
+
+    `--fs` *fs*
+      File system or device to mount, required.
+
+    `--mountpoint` *mountpount*
+      Mountpoint within the container, required. The path has to be relative to
+      the container's root, i.e. no leading slash.
+
+    `--type` *type*
+      File system type, required.
+
+    `--opts` *opts*
+      Options, required. Standard mount options depending on the filesystem
+      type, with two extra options from LXC: `create=file` and `create=dir`.
+
+`ct mounts del` *id* *mountpoint*
+  Remove *mountpoint* from container *id*. The *mountpoint* is not unmounted
+  immediatelly, but when the container stops.
+
 `group new` *options* *name*
   Create a new group for resource management.
 

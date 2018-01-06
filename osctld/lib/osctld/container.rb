@@ -10,7 +10,7 @@ module OsCtld
     include Utils::SwitchUser
 
     attr_reader :pool, :id, :user, :group, :distribution, :version, :nesting,
-      :prlimits
+      :prlimits, :mounts
     attr_accessor :state, :init_pid
 
     def initialize(pool, id, user = nil, group = nil, load: true)
@@ -24,6 +24,7 @@ module OsCtld
       @init_pid = nil
       @cgparams = []
       @prlimits = []
+      @mounts = []
       @nesting = false
 
       load_config if load
@@ -171,10 +172,32 @@ module OsCtld
       configure_prlimits
     end
 
+    def mount_add(mnt)
+      exclusively do
+        mounts << mnt
+      end
+
+      save_config
+      configure_mounts
+    end
+
+    def mount_remove(mountpoint)
+      exclusively do
+        mnt = mounts.detect { |m| m.mountpoint == mountpoint }
+        next unless mnt
+
+        mounts.delete(mnt)
+      end
+
+      save_config
+      configure_mounts
+    end
+
     def configure_lxc
       configure_base
       configure_prlimits
       configure_network
+      configure_mounts
     end
 
     def configure_base
@@ -198,6 +221,12 @@ module OsCtld
       }, lxc_config_path('network'))
     end
 
+    def configure_mounts
+      Template.render_to('ct/mounts', {
+        mounts: mounts,
+      }, lxc_config_path('mounts'))
+    end
+
     def save_config
       data = {
         'user' => user.name,
@@ -207,6 +236,7 @@ module OsCtld
         'net_interfaces' => @netifs.map { |v| v.save },
         'cgparams' => dump_cgparams(cgparams),
         'prlimits' => prlimits.map(&:dump),
+        'mounts' => mounts.map(&:dump),
         'nesting' => nesting,
       }
 
@@ -242,6 +272,7 @@ module OsCtld
 
       @cgparams = load_cgparams(cfg['cgparams'])
       @prlimits = (cfg['prlimits'] || []).map { |v| PrLimit.load(v) }
+      @mounts = (cfg['mounts'] || []).map { |v| Mount.load(v) }
     end
   end
 end

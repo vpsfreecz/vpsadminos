@@ -489,6 +489,48 @@ module OsCtl::Cli
           pr.default_command :list
         end
 
+        ct.desc 'Manage mounts'
+        ct.command :mounts do |m|
+          m.desc 'List configured mounts'
+          m.arg_name '<id>'
+          m.command %i(ls list) do |c|
+            c.desc 'Select parameters to output'
+            c.flag %i(o output)
+
+            c.desc 'Do not show header'
+            c.switch %i(H hide-header), negatable: false
+
+            c.desc 'List available parameters'
+            c.switch %i(L list), negatable: false
+
+            c.action &Command.run(Container, :mount_list)
+          end
+
+          m.desc 'Create a new mount'
+          m.arg_name '<id>'
+          m.command %i(new create) do |c|
+            c.desc 'Filesystem'
+            c.flag :fs, required: true
+
+            c.desc 'Mountpoint'
+            c.flag :mountpoint, required: true
+
+            c.desc 'Type'
+            c.flag :type, required: true
+
+            c.desc 'Options'
+            c.flag :opts, required: true
+
+            c.action &Command.run(Container, :mount_create)
+          end
+
+          m.desc 'Remove mount'
+          m.arg_name '<id> <mountpoint>'
+          m.command %i(del delete) do |c|
+            c.action &Command.run(Container, :mount_delete)
+          end
+        end
+
         ct.default_command :list
       end
     end

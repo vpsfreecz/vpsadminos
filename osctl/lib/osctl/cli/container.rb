@@ -50,6 +50,13 @@ module OsCtl::Cli
       hard
     )
 
+    MOUNT_FIELDS = %i(
+      fs
+      mountpoint
+      type
+      opts
+    )
+
     def list
       if opts[:list]
         puts FIELDS.join("\n")
@@ -398,6 +405,55 @@ module OsCtl::Cli
         id: args[0],
         pool: gopts[:pool],
         name: args[1]
+      )
+    end
+
+    def mount_list
+      raise "missing container id" unless args[0]
+
+      if opts[:list]
+        puts MOUNT_FIELDS.join("\n")
+        return
+      end
+
+      cmd_opts = {id: args[0], pool: gopts[:pool]}
+      fmt_opts = {layout: :columns}
+
+      fmt_opts[:header] = false if opts['hide-header']
+
+      if opts[:output]
+        cols = opts[:output].split(',').map(&:to_sym)
+
+      else
+        cols = MOUNT_FIELDS
+      end
+
+      osctld_fmt(:ct_mount_list, cmd_opts, cols, fmt_opts)
+    end
+
+    def mount_create
+      raise "missing container id" unless args[0]
+
+      osctld_fmt(
+        :ct_mount_create,
+        id: args[0],
+        pool: gopts[:pool],
+        fs: opts[:fs],
+        mountpoint: opts[:mountpoint],
+        type: opts[:type],
+        opts: opts[:opts],
+      )
+    end
+
+    def mount_delete
+      raise "missing container id" unless args[0]
+      raise "missing mountpoint" unless args[1]
+
+      osctld_fmt(
+        :ct_mount_delete,
+        id: args[0],
+        pool: gopts[:pool],
+        mountpoint: args[1]
       )
     end
 

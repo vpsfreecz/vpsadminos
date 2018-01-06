@@ -1,0 +1,3 @@
+<% mounts.each do |m| -%>
+lxc.mount.entry = <%= m.fs %> <%= m.mountpoint %> <%= m.type %> <%= m.opts %>
+<% end -%>
