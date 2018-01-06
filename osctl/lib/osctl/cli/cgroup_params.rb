@@ -53,9 +53,11 @@ module OsCtl
           name: :value,
           label: 'VALUE',
           align: 'right',
-          display: Proc.new do |v|
-            next v if gopts[:parsable] || !v.integer?
-            humanize_data(v)
+          display: Proc.new do |values|
+            values.map do |v|
+              next v if gopts[:parsable] || /^\d+$/ !~ v
+              humanize_data(v)
+            end.join('; ')
           end
         }
       end
@@ -72,7 +74,7 @@ module OsCtl
       cmd_opts.update({
         subsystem: parse_subsystem(args[1]),
         parameter: args[1],
-        value: parse_data(args[2])
+        value: args[2..-1].map { |v| parse_data(v) }
       })
 
       osctld_fmt(cmd, cmd_opts,)

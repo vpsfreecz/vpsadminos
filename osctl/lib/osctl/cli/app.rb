@@ -519,7 +519,7 @@ module OsCtl::Cli
         end
 
         p.desc 'Configure parameters'
-        p.arg_name '<name> <parameter> <value>'
+        p.arg_name '<name> <parameter> <value...>'
         p.command :set do |c|
           c.action &Command.run(handler, :cgparam_set)
         end

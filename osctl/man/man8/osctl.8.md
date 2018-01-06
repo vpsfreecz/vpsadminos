@@ -308,11 +308,16 @@ See the `ct` commands.
     `-a`, `--all`
       Include parameters from parent groups up to root group.
 
-`ct cgparams set` *id* *parameter* *value*
+`ct cgparams set` *id* *parameter* *value...*
   Set CGroup parameter *parameter* of container *id* to *value*. `osctld` will
   make sure this parameter is always set when the container is started. The
   parameter can be for example `cpu.shares` or `memory.limit_in_bytes`. CGroup
   subsystem is derived from the parameter name, you do not need to supply it.
+
+  It is possible to set multiple values for a parameter. The values are written
+  to the parameter file one by one. This can be used for example for the
+  `devices` CGroup subsystem, where you may need to write to `devices.deny` and
+  `devices.allow` multiple times.
 
 `ct cgparams unset` *id* *parameter*
   Unset CGroup parameter *parameter* from container *id*. Value of the parameter
@@ -470,11 +475,16 @@ See the `ct` commands.
     `-a`, `--all`
       Include parameters from parent groups up to root group.
 
-`group cgparams set` *name* *parameter* *value*
+`group cgparams set` *name* *parameter* *value...*
   Set CGroup parameter *parameter* of group *name* to *value*. `osctld` will
   make sure this parameter is always set when the container is started. The
   parameter can be for example `cpu.shares` or `memory.limit_in_bytes`. CGroup
   subsystem is derived from the parameter name, you do not need to supply it.
+
+  It is possible to set multiple values for a parameter. The values are written
+  to the parameter file one by one. This can be used for example for the
+  `devices` CGroup subsystem, where you may need to write to `devices.deny` and
+  `devices.allow` multiple times.
 
 `group cgparams unset` *name* *parameter*
   Unset CGroup parameter *parameter* from group *name*. Value of the parameter

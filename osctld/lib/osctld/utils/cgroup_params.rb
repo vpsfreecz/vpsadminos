@@ -56,17 +56,19 @@ module OsCtld
         path = File.join(groupable.abs_cgroup_path(p.subsystem), p.name)
 
         if File.exist?(path)
-          log(:info, :cgroup, "Set #{path}=#{p.value}")
+          p.value.each do |v|
+            log(:info, :cgroup, "Set #{path}=#{v}")
 
-          begin
-            File.write(path, p.value.to_s)
+            begin
+              File.write(path, v.to_s)
 
-          rescue => e
-            log(
-              :warn,
-              :cgroup,
-              "Unable to set #{path}=#{p.value}: #{e.message}"
-            )
+            rescue => e
+              log(
+                :warn,
+                :cgroup,
+                "Unable to set #{path}=#{v}: #{e.message}"
+              )
+            end
           end
 
           next
