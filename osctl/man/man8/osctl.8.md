@@ -20,7 +20,14 @@ to root.
 in the system has to be persistent.
 
 `osctld` needs at least one zpool to operate, see `pool install`
-and `pool import`.
+and `pool import`. When managing entities such as groups or containers
+with multiple pools, you may need to specify pool name if there are name
+conflicts, e.g. two groups or containers from different pools with the same
+name. Two users with the same name are not allowed, because of system user/group
+conflict. `osctld` by default selects the entity from the first pool that has
+it. If you wish to manage such entities from other pools, you can use global
+option `--pool` *name* or specify the group/container name/id as *pool*:*name*,
+i.e. pool name and group/container name/id separated by colon.
 
 ## USER NAMESPACES
 `osctld` makes it possible to run every container within a different user
@@ -160,7 +167,8 @@ See the `ct` commands.
   List user's assets (datasets, files, directories) and their state.
 
 `ct new` [*options*] *id*
-  Create a new container.
+  Create a new container. Selected user and group have to be from the same pool
+  the container is being created on.
   
     `--pool` *name*
       Pool name. Defaults to the first available pool.
