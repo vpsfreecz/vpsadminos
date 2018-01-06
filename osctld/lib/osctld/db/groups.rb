@@ -15,7 +15,40 @@ module OsCtld
 
     # Ensures presence of root and default groups
     def setup(pool)
-      load_or_create(pool, 'root', 'osctl')
+      root, created = load_or_create(pool, 'root', 'osctl')
+
+      if created
+        root.set(root.import_cgparams([
+          {
+            subsystem: 'devices',
+            parameter: 'devices.deny',
+            value: ['a'],
+          },
+          {
+            subsystem: 'devices',
+            parameter: 'devices.allow',
+            value: [
+              'c 1:3 rwm',    # /dev/null
+              'c 1:5 rwm',    # /dev/zero
+              'c 1:7 rwm',    # /dev/full
+              'c 1:8 rwm',    # /dev/random
+              'c 1:9 rwm',    # /dev/urandom
+              'c 5:0 rwm',    # /dev/tty
+              'c 5:1 rwm',    # /dev/console
+              'c 5:2 rwm',    # /dev/ptmx
+              'c 10:229 rwm', # /dev/fuse
+              'c 136:* rwm',  # /dev/tty*, /dev/console
+            ],
+          },
+        ]))
+      end
+
+      # The devices in the root group have to be configured as soon as possible,
+      # because `echo a > devices.deny` will not work when the root cgroup has
+      # any children.
+      CGroup.mkpath('devices', root.path.split('/'))
+      Commands::Group::CGParamApply.run(name: root.name)
+
       load_or_create(pool, 'default', 'default')
     end
 
@@ -55,6 +88,7 @@ module OsCtld
     def load_or_create(pool, name, path)
       grp = nil
       root = name == 'root'
+      created = false
 
       begin
         grp = Group.new(pool, name, root: root)
@@ -62,9 +96,11 @@ module OsCtld
       rescue Errno::ENOENT
         grp = Group.new(pool, name, load: false, root: root)
         grp.configure(path)
+        created = true
       end
 
       add(grp)
+      [grp, created]
     end
   end
 end
