@@ -96,7 +96,7 @@ module OsCtld
         t = t[1..-1] if t.start_with?('/')
 
         g = DB::Groups.by_path(pool, t)
-        next unless g
+        next if g.nil? || g.root?
 
         yield(g)
       end
