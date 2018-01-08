@@ -59,9 +59,8 @@
     Start the container:
       osctl ct start myct01
 
-    Further information:
-      osctl help user
-      osctl help ct
+    More information:
+      man osctl
     '';
 
   programs.ssh.package = pkgs.openssh;

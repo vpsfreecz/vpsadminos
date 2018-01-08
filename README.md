@@ -93,9 +93,8 @@ osctl ct attach myct01
 osctl ct console myct01
 osctl ct exec myct01 ip addr
 
-# Further information:
-osctl help user
-osctl help ct
+# More information:
+man osctl
 
 # Profit
 ```
