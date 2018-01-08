@@ -144,7 +144,8 @@ in
 
     "service/osctld/run".source = pkgs.writeScript "osctld" ''
       #!/bin/sh
-      ${pkgs.osctld}/bin/osctld
+      exec 2>&1
+      exec ${pkgs.osctld}/bin/osctld
     '';
 
     "service/osctld/log/run".source = pkgs.writeScript "osctld" ''
