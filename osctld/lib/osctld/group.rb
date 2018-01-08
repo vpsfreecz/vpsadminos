@@ -58,7 +58,10 @@ module OsCtld
     end
 
     def has_containers?
-      ct = DB::Containers.get.detect { |ct| ct.group.name == name }
+      ct = DB::Containers.get.detect do |ct|
+        ct.pool.name == pool.name && ct.group.name == name
+      end
+
       ct ? true : false
     end
 
@@ -66,7 +69,7 @@ module OsCtld
       ret = []
 
       DB::Containers.get.each do |ct|
-        next if ct.group != self || ret.include?(ct)
+        next if ct.pool != pool || ct.group != self || ret.include?(ct)
         ret << ct
       end
 
@@ -77,7 +80,7 @@ module OsCtld
       ret = []
 
       DB::Containers.get.each do |ct|
-        next if ct.group != self || ret.include?(ct.user)
+        next if ct.pool != pool || ct.group != self || ret.include?(ct.user)
         ret << ct.user
       end
 

@@ -11,7 +11,7 @@ module OsCtld
 
       log(:info, ct, "Configuring cgroups")
 
-      ret = call_cmd(Commands::Group::CGParamApply, name: ct.group.name)
+      ret = call_cmd(Commands::Group::CGParamApply, name: ct.group.name, pool: ct.pool.name)
       return ret unless ret[:status]
 
       apply(ct, force: ct.running?)

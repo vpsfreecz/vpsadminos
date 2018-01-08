@@ -21,7 +21,7 @@ module OsCtld
     def self.reconnect_tty0(ct)
       @mutex.synchronize do
         log(:info, ct, "Reopening TTY0")
-        i, o = tty0_pipes(ct.id)
+        i, o = tty0_pipes(ct)
 
         [i, o].each do |path|
           next if File.exist?(path)
@@ -64,10 +64,12 @@ module OsCtld
     end
 
     # Return paths for pipes of container `ctid` for tty0 input/output
-    def self.tty0_pipes(ctid)
+    def self.tty0_pipes(ct)
+      base = ct.pool.console_dir
+
       [
-        File.join(OsCtld::RunState::CONSOLE_DIR, "#{ctid}.in"),
-        File.join(OsCtld::RunState::CONSOLE_DIR, "#{ctid}.out"),
+        File.join(base, "#{ct.id}.in"),
+        File.join(base, "#{ct.id}.out"),
       ]
     end
   end

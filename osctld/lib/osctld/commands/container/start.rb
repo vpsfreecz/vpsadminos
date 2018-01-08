@@ -14,7 +14,7 @@ module OsCtld
         File.chmod(0660, ct.log_path)
         File.chown(0, ct.user.ugid, ct.log_path)
 
-        in_pipe, out_pipe = Console.tty0_pipes(ct.id)
+        in_pipe, out_pipe = Console.tty0_pipes(ct)
 
         cmd = [
           OsCtld.bin('osctld-ct-wrapper'),

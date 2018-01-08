@@ -5,12 +5,12 @@ module OsCtld
     include Utils::Log
 
     def execute
-      ct = DB::Containers.find(opts[:id])
+      ct = DB::Containers.find(opts[:id], opts[:pool])
       return error('container not found') unless ct
       return error('access denied') unless owns_ct?(ct)
 
       # Configure CGroups
-      ret = call_cmd(Commands::Container::CGParamApply, id: ct.id)
+      ret = call_cmd(Commands::Container::CGParamApply, id: ct.id, pool: ct.pool.name)
       return ret unless ret[:status]
 
       # Configure network within the CT

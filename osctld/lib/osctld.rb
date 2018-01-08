@@ -27,8 +27,8 @@ module OsCtld
     File.absolute_path(File.join(root, 'hooks', name))
   end
 
-  def self.hook_run(name)
-    File.join(RunState::HOOKDIR, name)
+  def self.hook_run(name, pool)
+    File.join(pool.hook_dir, name)
   end
 
   def self.script(name)

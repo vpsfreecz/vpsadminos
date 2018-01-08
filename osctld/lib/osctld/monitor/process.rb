@@ -26,8 +26,10 @@ module OsCtld
       [pid, out_r]
     end
 
-    def initialize(ct, stdout)
-      @ct = ct
+    def initialize(pool, user, group, stdout)
+      @pool = pool
+      @user = user
+      @group = group
       @stdout = stdout
     end
 
@@ -44,18 +46,18 @@ module OsCtld
       true
 
     rescue IOError
-      log(:info, :monitor, "Monitoring of #{@ct.id} failed")
+      log(:info, :monitor, "Monitoring of #{@user.name}/#{@group.name} failed")
       false
     end
 
     protected
     def parse(line)
       if /'([^']+)' changed state to \[([^\]]+)\]/ =~ line
-        log(:info, :monitor, "Container #{$1} entered state #{$2}")
-        return {ctid: $1, state: $2.downcase.to_sym}
+        log(:info, :monitor, "Container #{@pool.name}:#{$1} entered state #{$2}")
+        return {pool: @pool.name, ctid: $1, state: $2.downcase.to_sym}
 
       elsif /'([^']+)' exited with status \[(\d+)\]/ =~ line
-        log(:info, :monitor, "Container #{$1} exited with #{$2}")
+        log(:info, :monitor, "Container #{@pool.name}:#{$1} exited with #{$2}")
 
       else
         log(:warn, :monitor, "Line from lxc-monitor not recognized: '#{line}'")
@@ -65,10 +67,10 @@ module OsCtld
     end
 
     def update_state(change)
-      ct = DB::Containers.find(change[:ctid])
+      ct = DB::Containers.find(change[:ctid], change[:pool])
 
       unless ct
-        log(:warn, :monitor, "Container '#{change[:ctid]}' not found")
+        log(:warn, :monitor, "Container #{change[:pool]}:#{change[:ctid]} not found")
         return
       end
 

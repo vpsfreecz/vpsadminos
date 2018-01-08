@@ -47,6 +47,9 @@ module OsCtld
       # Load containers from zpool
       load_cts
 
+      # Setup run state, i.e. hooks
+      runstate
+
       # Allow containers to create veth interfaces
       Commands::User::LxcUsernet.run
     end
@@ -71,6 +74,18 @@ module OsCtld
       "pool=#{name}"
     end
 
+    def run_dir
+      File.join(RunState::POOL_DIR, name)
+    end
+
+    def hook_dir
+      File.join(run_dir, 'hooks')
+    end
+
+    def console_dir
+      File.join(RunState::POOL_DIR, name, 'console')
+    end
+
     protected
     def mkdatasets
       log(:info, "Ensuring presence of base datasets and directories")
@@ -90,13 +105,13 @@ module OsCtld
     end
 
     def load_users
-      # TODO: resolve conflicts when importing users with the same ugid
-      #   from multiple pools
       log(:info, "Loading users")
 
       Dir.glob(File.join(conf_path, 'user', '*.yml')).each do |f|
         name = File.basename(f)[0..(('.yml'.length+1) * -1)]
         u = User.new(self, name)
+        next unless check_user_conflict(u)
+
         DB::Users.add(u)
         UserControl::Supervisor.start_server(u)
       end
@@ -125,6 +140,42 @@ module OsCtld
         Console.reconnect_tty0(ct) if ct.current_state == :running
         DB::Containers.add(ct)
       end
+    end
+
+    def runstate
+      Dir.mkdir(run_dir, 0711) unless Dir.exist?(run_dir)
+
+      [console_dir, hook_dir].each do |dir|
+        Dir.mkdir(dir) unless Dir.exist?(dir)
+      end
+
+      %w(ct-start).each do |hook|
+        symlink = OsCtld.hook_run(hook, self)
+        File.symlink(OsCtld::hook_src(hook), symlink) unless File.symlink?(symlink)
+      end
+    end
+
+    def check_user_conflict(user)
+      DB::Users.get.each do |u|
+        if u.name == user.name
+          log(
+            :warn,
+            "Unable to load user '#{user.name}': "+
+            "name already taken by pool '#{u.pool.name}'"
+          )
+          return false
+
+        elsif u.ugid == user.ugid
+          log(
+            :warn,
+            "Unable to load user '#{user.name}': "+
+            "user/group ID #{user.ugid} already taken by pool '#{u.pool.name}'"
+          )
+          return false
+        end
+      end
+
+      true
     end
 
     def ds(path)

@@ -101,7 +101,7 @@ module OsCtld
           entry.cts << ct.id
         end
 
-        p = Monitor::Process.new(ct, stdout)
+        p = Monitor::Process.new(ct.pool, ct.user, ct.group, stdout)
         Process.wait(pid) if p.monitor
 
         log(

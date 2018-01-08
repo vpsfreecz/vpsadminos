@@ -11,6 +11,13 @@ if ctid.nil? || veth.nil?
   exit(false)
 end
 
+if /^\/run\/osctl\/pools\/([^\/]+)\/hooks/ !~ $0
+  warn "Unable to detect pool name from '#{$0}'"
+  exit(false)
+end
+
+pool = $1
+
 base = File.basename($0)
 ctid2, index = base.split('.')
 
@@ -27,6 +34,7 @@ end
 s = UNIXSocket.new("/run/osctl/user-control/#{Process.uid}.sock")
 s.send({cmd: :veth_down, opts: {
   id: ARGV[0],
+  pool: pool,
   index: index.to_i,
   veth: ARGV[4],
 }}.to_json + "\n", 0)

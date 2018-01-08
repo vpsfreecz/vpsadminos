@@ -3,7 +3,6 @@ require 'ipaddress'
 module OsCtld
   class NetInterface::Routed < NetInterface::Base
     type :routed
-    VETH_HOOKDIR = File.join(OsCtld::RunState::HOOKDIR, 'veth')
 
     include Utils::Log
     include Utils::System
@@ -58,7 +57,8 @@ module OsCtld
       # different types, we need to create hooks for specific veth interfaces,
       # so that we can identify which veth was the hook called for. We simply
       # symlink the hook to rundir and the symlink's name identifies the veth.
-      Dir.mkdir(VETH_HOOKDIR) unless Dir.exist?(VETH_HOOKDIR)
+      Dir.mkdir(veth_hook_dir) unless Dir.exist?(veth_hook_dir)
+
       %w(up down).each do |v|
         Dir.mkdir(mode_path(v)) unless Dir.exist?(mode_path(v))
 
@@ -215,8 +215,12 @@ module OsCtld
       ret[:output]
     end
 
+    def veth_hook_dir
+      File.join(ct.pool.hook_dir, 'veth')
+    end
+
     def mode_path(mode)
-      File.join(VETH_HOOKDIR, mode)
+      File.join(veth_hook_dir, mode)
     end
 
     def hook_path(mode)

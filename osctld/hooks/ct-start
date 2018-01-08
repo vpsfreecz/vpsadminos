@@ -10,9 +10,17 @@ if ctid.nil?
   exit(false)
 end
 
+if /^\/run\/osctl\/pools\/([^\/]+)\/hooks/ !~ $0
+  warn "Unable to detect pool name from '#{$0}'"
+  exit(false)
+end
+
+pool = $1
+
 s = UNIXSocket.new("/run/osctl/user-control/#{Process.uid}.sock")
 s.send({cmd: :ct_start, opts: {
   id: ARGV[0],
+  pool: pool,
 }}.to_json + "\n", 0)
 ret = JSON.parse(s.readline, symbolize_names: true)
 s.close

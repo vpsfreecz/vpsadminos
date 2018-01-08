@@ -12,7 +12,7 @@ module OsCtld
         ret = ct_control(ct, :ct_stop, id: ct.id)
         next ret unless ret[:status]
 
-        Console.tty0_pipes(ct.id).each do |pipe|
+        Console.tty0_pipes(ct).each do |pipe|
           File.unlink(pipe) if File.exist?(pipe)
         end
 
