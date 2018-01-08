@@ -29,6 +29,7 @@ module OsCtld
             state: ct.state,
             init_pid: ct.init_pid,
             nesting: ct.nesting,
+            log_file: ct.log_path,
           }
         end
       end

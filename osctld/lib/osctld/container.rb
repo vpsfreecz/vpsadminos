@@ -247,6 +247,10 @@ module OsCtld
       File.chown(0, 0, config_path)
     end
 
+    def log_path
+      File.join(pool.log_path, 'ct', "#{id}.log")
+    end
+
     def log_type
       "ct=#{pool.name}:#{id}"
     end

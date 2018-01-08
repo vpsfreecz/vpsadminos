@@ -9,6 +9,11 @@ module OsCtld
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool]) || (raise 'container not found')
       ct.exclusively do
+        # Reset log file
+        File.open(ct.log_path, 'w').close
+        File.chmod(0660, ct.log_path)
+        File.chown(0, ct.user.ugid, ct.log_path)
+
         in_pipe, out_pipe = Console.tty0_pipes(ct.id)
 
         cmd = [
@@ -17,6 +22,7 @@ module OsCtld
           'lxc-start',
           '-P', ct.lxc_home,
           '-n', ct.id,
+          '-o', ct.log_path,
           '-F'
         ]
 

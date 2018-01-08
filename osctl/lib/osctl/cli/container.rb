@@ -299,6 +299,23 @@ module OsCtl::Cli
       file.unlink
     end
 
+    def log_cat
+      raise "missing argument" unless args[0]
+
+      ct = osctld_call(:ct_show, id: args[0], pool: gopts[:pool])
+
+      File.open(ct[:log_file]) do |f|
+        puts f.readline until f.eof?
+      end
+    end
+
+    def log_path
+      raise "missing argument" unless args[0]
+
+      ct = osctld_call(:ct_show, id: args[0], pool: gopts[:pool])
+      puts ct[:log_file]
+    end
+
     def assets
       raise "missing argument" unless args[0]
 

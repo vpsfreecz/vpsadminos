@@ -20,6 +20,7 @@ module OsCtld
       )
 
       add(:file, ct.config_path, "Container config for osctld")
+      add(:file, ct.log_path, "LXC log file")
 
       ok(assets)
     end

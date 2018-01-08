@@ -367,6 +367,21 @@ module OsCtl::Cli
           c.action &Command.run(Container, :cd)
         end
 
+        ct.desc 'Access container LXC log file'
+        ct.command :log do |log|
+          log.desc 'Cat log file to stdout'
+          log.arg_name '<id>'
+          log.command :cat do |c|
+            c.action &Command.run(Container, :log_cat)
+          end
+
+          log.desc 'Print path to the log file'
+          log.arg_name '<id>'
+          log.command :path do |c|
+            c.action &Command.run(Container, :log_path)
+          end
+        end
+
         ct.desc 'List container assets (datasets, files, directories)'
         ct.arg_name '<id>'
         ct.command :assets do |c|

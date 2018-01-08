@@ -76,6 +76,11 @@ module OsCtld
 
           ct.configure_lxc
 
+          ### Log file
+          File.open(ct.log_path, 'w').close
+          File.chmod(0660, ct.log_path)
+          File.chown(0, ct.user.ugid, ct.log_path)
+
           DB::Containers.add(ct)
           Monitor::Master.monitor(ct)
 

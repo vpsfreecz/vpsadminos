@@ -286,6 +286,12 @@ See the `ct` commands.
       Go to */proc/<init_pid>/root*. The container must be running for the path
       to exist.
 
+`ct log cat` *id*
+  Write the contents of container *id* log to the stdout.
+
+`ct log path` *id*
+  Write the path to the log file of container *id* to stdout.
+
 `ct assets` *id*
   List container assets and their state.
 

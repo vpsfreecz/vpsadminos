@@ -8,6 +8,7 @@ module OsCtld
     USER_DS = 'user'
     CT_DS = 'ct'
     CONF_DS = 'conf'
+    LOG_DS = 'log'
 
     include Lockable
     include Utils::Log
@@ -60,6 +61,10 @@ module OsCtld
       path(CONF_DS)
     end
 
+    def log_path
+      path(LOG_DS)
+    end
+
     def log_type
       "pool=#{name}"
     end
@@ -70,12 +75,16 @@ module OsCtld
       zfs(:create, '-p', ds(USER_DS))
       zfs(:create, '-p', ds(CT_DS))
       zfs(:create, '-p', ds(CONF_DS))
+      zfs(:create, '-p', ds(LOG_DS))
 
       # Configuration directories
       %w(ct group user).each do |dir|
         path = File.join(conf_path, dir)
         Dir.mkdir(path) unless Dir.exist?(path)
       end
+
+      path = File.join(log_path, 'ct')
+      Dir.mkdir(path) unless Dir.exist?(path)
     end
 
     def load_users
