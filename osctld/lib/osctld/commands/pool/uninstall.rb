@@ -10,8 +10,9 @@ module OsCtld
       name = opts[:name]
       return error('export the pool first') if DB::Pools.contains?(name)
 
-      zfs(:set, "#{Pool::PROPERTY}=no", name)
-      zfs(:inherit, Pool::PROPERTY, name)
+      zfs(:set, "#{Pool::PROPERTY_ACTIVE}=no", name)
+      zfs(:inherit, Pool::PROPERTY_ACTIVE, name)
+      zfs(:inherit, Pool::PROPERTY_DATASET, name)
       ok
     end
   end

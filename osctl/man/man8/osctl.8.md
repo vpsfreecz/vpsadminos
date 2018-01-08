@@ -68,11 +68,16 @@ See the `ct` commands.
   Display the program version and exit.
 
 ## COMMANDS
-`pool install` *name*
+`pool install` [*options*] *name*
   Mark zpool *name* to be used with `osctld`.
   User property **org.vpsadminos.osctl:active** is set to **yes**. `osctld` will
   automatically import such marked pools on start. The pool is also immediatelly
   imported, see `pool import`.
+
+    `--dataset` *dataset*
+      Scope osctld to *dataset* on zpool *name*. All osctld's data will be stored
+      in *dataset*. This option can be useful when the pool is used with other
+      applications or data.
 
 `pool uninstall` *name*
   Unmark zpool *name*, i.e. unset the user property set by `pool install`.

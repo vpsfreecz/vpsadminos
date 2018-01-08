@@ -7,11 +7,18 @@ module OsCtld
     include Utils::Zfs
 
     def execute
-      pool = Pool.new(opts[:name])
+      if opts[:dataset] && !opts[:dataset].start_with?("#{opts[:name]}/")
+        return error("dataset '#{opts[:dataset]}' is not from zpool '#{opts[:name]}'")
+      end
+
+      pool = Pool.new(opts[:name], opts[:dataset])
       return error('pool already exists') if DB::Pools.contains?(pool.name)
 
       pool.exclusively do
-        zfs(:set, "#{Pool::PROPERTY}=yes", pool.name)
+        props = ["#{Pool::PROPERTY_ACTIVE}=yes"]
+        props << "#{Pool::PROPERTY_DATASET}=\"#{opts[:dataset]}\"" if opts[:dataset]
+
+        zfs(:set, props.join(' '), pool.name)
         pool.setup
 
         DB::Pools.add(pool)

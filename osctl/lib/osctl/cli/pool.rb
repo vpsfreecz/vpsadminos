@@ -2,6 +2,7 @@ module OsCtl::Cli
   class Pool < Command
     FIELDS = %i(
       name
+      dataset
       users
       groups
       containers
@@ -44,7 +45,10 @@ module OsCtl::Cli
     def install
       raise 'missing pool name' unless args[0]
 
-      osctld_fmt(:pool_install, name: args[0])
+      cmd_opts = {name: args[0]}
+      cmd_opts[:dataset] = opts[:dataset] if opts[:dataset]
+
+      osctld_fmt(:pool_install, cmd_opts)
     end
 
     def uninstall

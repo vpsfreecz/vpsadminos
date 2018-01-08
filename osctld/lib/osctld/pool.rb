@@ -4,7 +4,8 @@ module OsCtld
   # Data pool contains users, groups and containers, both data
   # and configuration. Each user/group/ct belongs to exactly one pool.
   class Pool
-    PROPERTY = 'org.vpsadminos.osctl:active'
+    PROPERTY_ACTIVE = 'org.vpsadminos.osctl:active'
+    PROPERTY_DATASET = 'org.vpsadminos.osctl:dataset'
     USER_DS = 'user'
     CT_DS = 'ct'
     CONF_DS = 'conf'
@@ -15,10 +16,11 @@ module OsCtld
     include Utils::System
     include Utils::Zfs
 
-    attr_reader :name
+    attr_reader :name, :dataset
 
-    def initialize(name)
+    def initialize(name, dataset)
       @name = name
+      @dataset = dataset || name
       init_lock
     end
 
@@ -126,11 +128,11 @@ module OsCtld
     end
 
     def ds(path)
-      File.join(name, path)
+      File.join(dataset, path)
     end
 
     def path(ds = '')
-      File.join('/', name, ds)
+      File.join('/', dataset, ds)
     end
   end
 end

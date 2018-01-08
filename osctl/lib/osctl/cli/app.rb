@@ -62,6 +62,9 @@ module OsCtl::Cli
         p.desc 'Install a new pool'
         p.arg_name '<name>'
         p.command :install do |c|
+          c.desc 'Place osctld datasets into a subdataset'
+          c.flag :dataset
+
           c.action &Command.run(Pool, :install)
         end
 

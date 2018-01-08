@@ -10,6 +10,7 @@ module OsCtld
 
         ret << {
           name: pool.name,
+          dataset: pool.dataset,
           users: DB::Users.get.count { |v| v.pool == pool },
           groups: DB::Groups.get.count { |v| v.pool == pool },
           containers: DB::Containers.get.count { |v| v.pool == pool },
