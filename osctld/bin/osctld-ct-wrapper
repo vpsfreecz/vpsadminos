@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 # Run a container within a PTY and forward its input/output via stdin/stdout.
 #
-# Usage: $0 <inpipe> <outpipe> lxc-start...
+# Usage: $0 <title> <inpipe> <outpipe> lxc-start...
 #
 # `inpipe` and `outpipe` are paths to named pipes, which stdin/stdout
 # is connected to. It is the responsibility of the parent process to connect
@@ -26,11 +26,14 @@ require 'timeout'
 
 class Wrapper
   def initialize(args)
+    ctid = args.shift
     @in_pipe = args.shift
     @out_pipe = args.shift
     @cmd = args
     @current_w = 80
     @current_h = 25
+
+    Process.setproctitle("osctld: CT #{ctid}")
   end
 
   def run

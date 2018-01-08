@@ -11,6 +11,7 @@ module OsCtld
         end
       end
 
+      Process.setproctitle('osctld: main')
       d.setup
     end
   end

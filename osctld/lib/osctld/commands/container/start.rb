@@ -18,6 +18,7 @@ module OsCtld
 
         cmd = [
           OsCtld.bin('osctld-ct-wrapper'),
+          "#{ct.pool.name}:#{ct.id}",
           in_pipe, out_pipe,
           'lxc-start',
           '-P', ct.lxc_home,
