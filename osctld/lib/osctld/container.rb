@@ -10,7 +10,7 @@ module OsCtld
     include Utils::SwitchUser
 
     attr_reader :pool, :id, :user, :group, :distribution, :version, :hostname,
-      :nesting, :prlimits, :mounts
+      :dns_resolvers, :nesting, :prlimits, :mounts
     attr_accessor :state, :init_pid
 
     def initialize(pool, id, user = nil, group = nil, load: true)
@@ -26,6 +26,7 @@ module OsCtld
       @prlimits = []
       @mounts = []
       @hostname = nil
+      @dns_resolvers = nil
       @nesting = false
 
       load_config if load
@@ -138,6 +139,10 @@ module OsCtld
           @hostname = v
           DistConfig.run(self, :set_hostname, original: original)
 
+        when :dns_resolvers
+          @dns_resolvers = v
+          DistConfig.run(self, :dns_resolvers)
+
         when :nesting
           @nesting = v
         end
@@ -152,11 +157,13 @@ module OsCtld
         case k
         when :hostname
           @hostname = nil
+
+        when :dns_resolvers
+          @dns_resolvers = nil
         end
       end
 
       save_config
-      configure_base
     end
 
     def prlimit_set(name, soft, hard)
@@ -252,6 +259,7 @@ module OsCtld
         'prlimits' => prlimits.map(&:dump),
         'mounts' => mounts.map(&:dump),
         'hostname' => hostname,
+        'dns_resolvers' => dns_resolvers,
         'nesting' => nesting,
       }
 
@@ -279,6 +287,7 @@ module OsCtld
       @distribution = cfg['distribution']
       @version = cfg['version']
       @hostname = cfg['hostname']
+      @dns_resolvers = cfg['dns_resolvers']
       @nesting = cfg['nesting'] || false
 
       i = 0

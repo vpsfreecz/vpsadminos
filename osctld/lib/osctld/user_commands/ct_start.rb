@@ -19,6 +19,9 @@ module OsCtld
       # Configure network within the CT
       DistConfig.run(ct, :network)
 
+      # DNS resolvers
+      DistConfig.run(ct, :dns_resolvers) if ct.dns_resolvers
+
       ok
     end
   end

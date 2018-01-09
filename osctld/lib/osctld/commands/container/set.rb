@@ -9,7 +9,8 @@ module OsCtld
       ct.exclusively do
         changes = {}
 
-        %i(hostname nesting).each do |attr|
+        %i(hostname dns_resolvers nesting).each do |attr|
+          next unless opts.has_key?(attr)
           changes[attr] = opts[attr] if opts[attr] != ct.send(attr)
         end
 

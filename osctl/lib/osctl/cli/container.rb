@@ -21,6 +21,7 @@ module OsCtl::Cli
       state
       init_pid
       hostname
+      dns_resolvers
       nesting
     ) + CGroupParams::CGPARAM_STATS
 
@@ -265,6 +266,17 @@ module OsCtl::Cli
 
     def unset_hostname
       unset(:hostname)
+    end
+
+    def set_dns_resolver
+      set(:dns_resolvers) do |args|
+        fail 'expected at least one address' if args.empty?
+        args
+      end
+    end
+
+    def unset_dns_resolver
+      unset(:dns_resolvers)
     end
 
     def set_nesting

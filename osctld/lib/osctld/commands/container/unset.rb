@@ -9,7 +9,7 @@ module OsCtld
       ct.exclusively do
         changes = {}
 
-        %i(hostname).each do |attr|
+        %i(hostname dns_resolvers).each do |attr|
           changes[attr] = opts[attr]
         end
 

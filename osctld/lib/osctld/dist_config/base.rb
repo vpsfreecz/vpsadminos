@@ -31,6 +31,16 @@ module OsCtld
       raise NotImplementedError
     end
 
+    def dns_resolvers(_opts)
+      path = File.join(ct.rootfs, 'etc', 'resolv.conf')
+
+      File.open("#{path}.new", 'w') do |f|
+        ct.dns_resolvers.each { |v| f.puts("nameserver #{v}") }
+      end
+
+      File.rename("#{path}.new", path)
+    end
+
     # @param opts [Hash] options
     # @param opts [String] user
     # @param opts [String] password

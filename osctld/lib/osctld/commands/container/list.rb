@@ -29,6 +29,7 @@ module OsCtld
             state: ct.state,
             init_pid: ct.init_pid,
             hostname: ct.hostname,
+            dns_resolvers: ct.dns_resolvers,
             nesting: ct.nesting,
             log_file: ct.log_path,
           }

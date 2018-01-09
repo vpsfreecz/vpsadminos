@@ -271,6 +271,14 @@ See the `ct` commands.
   within the container and an entry is added to `/etc/hosts`. The hostname
   is configured on every container start.
 
+`ct set dns-resolver` *id* *address...*
+  Configure DNS resolvers for container *id*. At least one DNS resolver is
+  needed. Given DNS resolvers are written to the container's `/etc/resolv.conf`
+  on every start.
+
+  Note that when you assign a bridged veth with DHCP to the container, it will
+  override `/etc/resolv.conf` with DNS servers from DHCP server.
+
 `ct set nesting` *id* `enabled`|`disabled`
   Allow/disallow LXC nesting for container *id*. The container needs to be
   restarted for the change to take effect.
@@ -278,6 +286,10 @@ See the `ct` commands.
 `ct unset hostname` *id*
   Unset container hostname. `osctld` will not touch the container's hostname
   anymore.
+
+`ct unset dns-resolver` *id*
+  Unset container DNS resolvers. `osctld` will no longer manipulate the
+  container's `/etc/resolv.conf`.
 
 `ct passwd` *id* *user* [*password*]
   Change password of *user* in container *id*. The user has to already exist.

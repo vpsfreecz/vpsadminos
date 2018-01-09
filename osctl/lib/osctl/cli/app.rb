@@ -356,6 +356,12 @@ module OsCtl::Cli
             c.action &Command.run(Container, :set_hostname)
           end
 
+          set.desc 'Set DNS resolver'
+          set.arg_name '<id> <address...>'
+          set.command :'dns-resolver' do |c|
+            c.action &Command.run(Container, :set_dns_resolver)
+          end
+
           set.desc 'Allow/disallow container nesting'
           set.arg_name '<id> enabled|disabled'
           set.command :nesting do |c|
@@ -369,6 +375,12 @@ module OsCtl::Cli
           unset.arg_name '<id>'
           unset.command :hostname do |c|
             c.action &Command.run(Container, :unset_hostname)
+          end
+
+          unset.desc 'Disable DNS resolver management'
+          unset.arg_name '<id>'
+          unset.command :'dns-resolver' do |c|
+            c.action &Command.run(Container, :unset_dns_resolver)
           end
         end
 
