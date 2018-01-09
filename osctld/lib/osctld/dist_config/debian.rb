@@ -53,9 +53,19 @@ module OsCtld
     end
 
     def network(_opts)
+      base = File.join(ct.rootfs, 'etc', 'network')
+      vars = {
+        netifs: ct.netifs,
+        interfacesd: Dir.exist?(File.join(base, 'interfaces.d')),
+      }
+
+      %i(head tail).each do |v|
+        vars[v] = File.exist?(File.join(base, "interfaces.#{v}"))
+      end
+
       OsCtld::Template.render_to(
         'dist_config/network/debian/interfaces',
-        {netifs: ct.netifs},
+        vars,
         File.join(ct.rootfs, 'etc', 'network', 'interfaces')
       )
     end
