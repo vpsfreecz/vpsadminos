@@ -9,8 +9,8 @@ module OsCtld
     include Utils::Zfs
     include Utils::SwitchUser
 
-    attr_reader :pool, :id, :user, :group, :distribution, :version, :nesting,
-      :prlimits, :mounts
+    attr_reader :pool, :id, :user, :group, :distribution, :version, :hostname,
+      :nesting, :prlimits, :mounts
     attr_accessor :state, :init_pid
 
     def initialize(pool, id, user = nil, group = nil, load: true)
@@ -25,6 +25,7 @@ module OsCtld
       @cgparams = []
       @prlimits = []
       @mounts = []
+      @hostname = nil
       @nesting = false
 
       load_config if load
@@ -103,10 +104,6 @@ module OsCtld
       @user.size
     end
 
-    def hostname
-      "ct-#{@id}"
-    end
-
     def netifs
       @netifs.clone
     end
@@ -136,8 +133,25 @@ module OsCtld
     def set(opts)
       opts.each do |k, v|
         case k
+        when :hostname
+          original = @hostname
+          @hostname = v
+          DistConfig.run(self, :set_hostname, original: original)
+
         when :nesting
           @nesting = v
+        end
+      end
+
+      save_config
+      configure_base
+    end
+
+    def unset(opts)
+      opts.each do |k, v|
+        case k
+        when :hostname
+          @hostname = nil
         end
       end
 
@@ -237,6 +251,7 @@ module OsCtld
         'cgparams' => dump_cgparams(cgparams),
         'prlimits' => prlimits.map(&:dump),
         'mounts' => mounts.map(&:dump),
+        'hostname' => hostname,
         'nesting' => nesting,
       }
 
@@ -263,6 +278,7 @@ module OsCtld
       @group = DB::Groups.find(cfg['group']) || (raise "group not found")
       @distribution = cfg['distribution']
       @version = cfg['version']
+      @hostname = cfg['hostname']
       @nesting = cfg['nesting'] || false
 
       i = 0

@@ -1,6 +1,6 @@
 module OsCtld
-  class Commands::Container::Set < Commands::Base
-    handle :ct_set
+  class Commands::Container::Unset < Commands::Base
+    handle :ct_unset
 
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])
@@ -9,11 +9,11 @@ module OsCtld
       ct.exclusively do
         changes = {}
 
-        %i(hostname nesting).each do |attr|
-          changes[attr] = opts[attr] if opts[attr] != ct.send(attr)
+        %i(hostname).each do |attr|
+          changes[attr] = opts[attr]
         end
 
-        ct.set(changes)
+        ct.unset(changes)
         ok
       end
     end

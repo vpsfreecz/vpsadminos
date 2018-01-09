@@ -13,6 +13,9 @@ module OsCtld
       ret = call_cmd(Commands::Container::CGParamApply, id: ct.id, pool: ct.pool.name)
       return ret unless ret[:status]
 
+      # Configure hostname
+      DistConfig.run(ct, :set_hostname) if ct.hostname
+
       # Configure network within the CT
       DistConfig.run(ct, :network)
 

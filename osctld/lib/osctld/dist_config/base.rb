@@ -17,7 +17,13 @@ module OsCtld
       @version = ct.version
     end
 
-    def network
+    # @param opts [Hash] options
+    # @option opts [String] original previous hostname
+    def set_hostname(opts)
+      raise NotImplementedError
+    end
+
+    def network(_opts)
       raise NotImplementedError
     end
   end

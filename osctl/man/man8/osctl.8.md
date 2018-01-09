@@ -266,9 +266,18 @@ See the `ct` commands.
   Attach container *id* and execute command *cmd* within a shell.
   stdin/stdout/stderr of *cmd* is piped to your current shell.
 
+`ct set hostname` *id* *hostname*
+  Set container hostname. Depending on distribution, the hostname is configured
+  within the container and an entry is added to `/etc/hosts`. The hostname
+  is configured on every container start.
+
 `ct set nesting` *id* `enabled`|`disabled`
   Allow/disallow LXC nesting for container *id*. The container needs to be
   restarted for the change to take effect.
+
+`ct unset hostname` *id*
+  Unset container hostname. `osctld` will not touch the container's hostname
+  anymore.
 
 `ct su` *id*
   Switch to the user of container *id* and cd to its LXC home. The shell

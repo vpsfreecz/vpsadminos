@@ -19,6 +19,7 @@ module OsCtl::Cli
       version
       state
       init_pid
+      hostname
       nesting
     ) + CGroupParams::CGPARAM_STATS
 
@@ -255,6 +256,16 @@ module OsCtl::Cli
       Process.wait(pid)
     end
 
+    def set_hostname
+      set(:hostname) do |args|
+        args[0] || (fail 'expected hostname')
+      end
+    end
+
+    def unset_hostname
+      unset(:hostname)
+    end
+
     def set_nesting
       set(:nesting) do |args|
         case args[0]
@@ -481,6 +492,14 @@ module OsCtl::Cli
       cmd_opts[option] = yield(args[1..-1])
 
       osctld_fmt(:ct_set, cmd_opts)
+    end
+
+    def unset(option)
+      raise "missing argument" unless args[0]
+      cmd_opts = {id: args[0], pool: gopts[:pool]}
+      cmd_opts[option] = block_given? ? yield(args[1..-1]) : true
+
+      osctld_fmt(:ct_unset, cmd_opts)
     end
   end
 end

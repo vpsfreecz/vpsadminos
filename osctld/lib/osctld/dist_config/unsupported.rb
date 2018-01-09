@@ -4,6 +4,14 @@ module OsCtld
 
     include Utils::Log
 
+    def set_hostname(opts)
+      log(
+        :warn,
+        ct,
+        "Unable to set hostname: #{ct.distribution} not supported"
+      )
+    end
+
     def network(opts)
       log(
         :warn,

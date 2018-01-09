@@ -349,12 +349,26 @@ module OsCtl::Cli
         end
 
         ct.desc 'Configure container'
-        ct.arg_name '<id>'
         ct.command :set do |set|
+          set.desc 'Set hostname'
+          set.arg_name '<id> <hostname>'
+          set.command :hostname do |c|
+            c.action &Command.run(Container, :set_hostname)
+          end
+
           set.desc 'Allow/disallow container nesting'
-          set.arg_name '<name> enabled|disabled'
+          set.arg_name '<id> enabled|disabled'
           set.command :nesting do |c|
             c.action &Command.run(Container, :set_nesting)
+          end
+        end
+
+        ct.desc 'Clear configuration options'
+        ct.command :unset do |unset|
+          unset.desc 'Disable hostname management'
+          unset.arg_name '<id>'
+          unset.command :hostname do |c|
+            c.action &Command.run(Container, :unset_hostname)
           end
         end
 

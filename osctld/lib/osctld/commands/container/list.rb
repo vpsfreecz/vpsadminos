@@ -28,6 +28,7 @@ module OsCtld
             version: ct.version,
             state: ct.state,
             init_pid: ct.init_pid,
+            hostname: ct.hostname,
             nesting: ct.nesting,
             log_file: ct.log_path,
           }
