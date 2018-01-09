@@ -56,8 +56,8 @@ module OsCtld
         LXC.run_command(opts[:cmd])
       end
 
-      Process.wait(pid)
-      ok(exitstatus: $?.exitstatus)
+      _, status = Process.wait2(pid)
+      ok(exitstatus: status.exitstatus)
     end
 
     def veth_name(opts)

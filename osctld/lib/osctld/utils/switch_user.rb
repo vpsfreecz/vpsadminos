@@ -42,29 +42,42 @@ module OsCtld
       opts[:valid_rcs] ||= []
       log(:work, ct, cmd)
 
-      r, w = IO.pipe
+      in_r, in_w = nil
+      out_r, out_w = IO.pipe
+
+      if opts[:stdin].is_a?(String)
+        in_r, in_w = IO.pipe
+        in_w.write(opts[:stdin])
+        in_w.close
+
+      elsif opts[:stdin]
+        in_r = opts[:stdin]
+      end
 
       ret = ct_control(ct, :ct_exec, {
         id: ct.id,
         cmd: cmd,
-        stdin: nil,
-        stdout: w,
-        stderr: w,
+        stdin: in_r,
+        stdout: out_w,
+        stderr: out_w,
       })
 
-      w.close
-      out = r.read
+      in_r.close if in_r && opts[:stdin].is_a?(String)
+      out_w.close
+      out = out_r.read
+      out_r.close
 
       if !ret[:status]
         fail "Command '#{cmd}' within CT #{ct.id} failed"
 
       elsif ret[:output][:exitstatus] != 0 && \
+            opts[:valid_rcs] != :all && \
             !opts[:valid_rcs].include?(ret[:output][:exitstatus])
         fail "Command '#{cmd}' within CT #{ct.id} failed with exit code "+
              "#{ret[:output][:exitstatus]}: #{out}"
       end
 
-      {output: out, exitstatus: ret[:exitstatus]}
+      {output: out, exitstatus: ret[:output][:exitstatus]}
     end
   end
 end

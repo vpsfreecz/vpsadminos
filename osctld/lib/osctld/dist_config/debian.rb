@@ -2,10 +2,6 @@ module OsCtld
   class DistConfig::Debian < DistConfig::Base
     distribution :debian
 
-    include Utils::Log
-    include Utils::System
-    include Utils::SwitchUser
-
     def set_hostname(opts)
       etc = File.join(ct.rootfs, 'etc')
       hostname = File.join(etc, 'hostname')

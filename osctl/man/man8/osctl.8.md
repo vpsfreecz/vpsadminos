@@ -279,6 +279,12 @@ See the `ct` commands.
   Unset container hostname. `osctld` will not touch the container's hostname
   anymore.
 
+`ct passwd` *id* *user* [*password*]
+  Change password of *user* in container *id*. The user has to already exist.
+  If *password* is not given as an argument, it is prompted for on stdin.
+  The container has to be running for this command to work, as it is using
+  `passwd` or `chpasswd` from the container's system.
+
 `ct su` *id*
   Switch to the user of container *id* and cd to its LXC home. The shell
   is tailored only for container *id*, do not use it to manipulate any other

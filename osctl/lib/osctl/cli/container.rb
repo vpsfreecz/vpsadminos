@@ -1,3 +1,4 @@
+require 'highline'
 require 'ipaddress'
 require 'tempfile'
 
@@ -277,6 +278,27 @@ module OsCtl::Cli
           fail 'expected enabled/disabled'
         end
       end
+    end
+
+    def passwd
+      raise "missing container id" unless args[0]
+      raise "missing user name" unless args[1]
+
+      if args[2]
+        password = args[2]
+
+      else
+        cli = HighLine.new
+        password = cli.ask('Password: ') { |q| q.echo = false }.strip
+      end
+
+      osctld_fmt(
+        :ct_passwd,
+        id: args[0],
+        pool: gopts[:pool],
+        user: args[1],
+        password: password
+      )
     end
 
     def cd

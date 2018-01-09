@@ -372,6 +372,12 @@ module OsCtl::Cli
           end
         end
 
+        ct.desc 'Set password for a user within the container'
+        ct.arg_name '<id> <user> [password]'
+        ct.command :passwd do |c|
+          c.action &Command.run(Container, :passwd)
+        end
+
         ct.desc "Go to container's rootfs directory"
         ct.arg_name '<id>'
         ct.command :cd do |c|
