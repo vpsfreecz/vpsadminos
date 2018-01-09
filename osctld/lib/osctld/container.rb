@@ -109,8 +109,8 @@ module OsCtld
       @netifs.clone
     end
 
-    def netif_at(index)
-      @netifs[index]
+    def netif_by(name)
+      @netifs.detect { |netif| netif.name == name }
     end
 
     def add_netif(netif)

@@ -224,7 +224,7 @@ module OsCtld
     end
 
     def hook_path(mode)
-      File.join(mode_path(mode), "#{@ct.id}.#{@index}")
+      File.join(mode_path(mode), "#{@ct.id}.#{name}")
     end
   end
 end

@@ -19,14 +19,14 @@ end
 pool = $1
 
 base = File.basename($0)
-ctid2, index = base.split('.')
+ctid2, ifname = base.split('.')
 
 if ctid != ctid2
   warn "Expected to handle CT '#{ctid2}', but was called for '#{ctid}' instead"
   exit(false)
 
-elsif !index
-  warn "Expected to be called via symlink named as: <ctid>.<interface index>, "+
+elsif !ifname
+  warn "Expected to be called via symlink named as: <ctid>.<interface>, "+
     "called as '#{base}' instead"
   exit(false)
 end
@@ -35,7 +35,7 @@ s = UNIXSocket.new("/run/osctl/user-control/#{Process.uid}.sock")
 s.send({cmd: :veth_down, opts: {
   id: ARGV[0],
   pool: pool,
-  index: index.to_i,
+  interface: ifname,
   veth: ARGV[4],
 }}.to_json + "\n", 0)
 ret = JSON.parse(s.readline, symbolize_names: true)

@@ -12,9 +12,9 @@ module OsCtld
       log(
         :info,
         ct,
-        "veth interface coming up: index=#{opts[:index]}, name=#{opts[:veth]}"
+        "veth interface coming up: ct=#{opts[:interface]}, host=#{opts[:veth]}"
       )
-      ct.netif_at(opts[:index]).up(opts[:veth])
+      ct.netif_by(opts[:interface]).up(opts[:veth])
       ok
     end
   end
