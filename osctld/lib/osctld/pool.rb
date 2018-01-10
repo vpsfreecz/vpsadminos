@@ -32,6 +32,9 @@ module OsCtld
       # Ensure needed datasets are present
       mkdatasets
 
+      # Setup run state, i.e. hooks
+      runstate
+
       # Load users from zpool
       load_users
 
@@ -46,9 +49,6 @@ module OsCtld
 
       # Load containers from zpool
       load_cts
-
-      # Setup run state, i.e. hooks
-      runstate
 
       # Allow containers to create veth interfaces
       Commands::User::LxcUsernet.run
