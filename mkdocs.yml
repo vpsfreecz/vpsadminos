@@ -1,0 +1,12 @@
+site_name: vpsAdminOS
+theme: cosmo
+extra_css: ['extra.css']
+pages:
+- Home: 'index.md'
+- User Guide:
+    - Setup: 'user-guide/setup.md'
+    - User namespaces: 'user-guide/users.md'
+    - Containers: 'user-guide/containers.md'
+    - Networking: 'user-guide/networking.md'
+    - Resources: 'user-guide/resources.md'
+    - Mounts: 'user-guide/mounts.md'

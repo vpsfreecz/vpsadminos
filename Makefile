@@ -14,4 +14,10 @@ osctl:
 osctld:
 	./tools/update_gem.sh "$(NIXPKGS)" osctld
 
-.PHONY: build qemu gems osctl osctld all
+doc:
+	mkdocs build
+
+doc_serve:
+	mkdocs serve
+
+.PHONY: build doc doc_serve qemu gems osctl osctld
