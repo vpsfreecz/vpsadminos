@@ -484,6 +484,18 @@ module OsCtl::Cli
             ip.desc 'List IP addresses'
             ip.arg_name '<id> <name>'
             ip.command %i(ls list) do |c|
+              c.desc 'Filter by IP version'
+              c.flag %i(v version), type: Integer
+
+              c.desc 'Select parameters to output'
+              c.flag %i(o output)
+
+              c.desc 'Do not show header'
+              c.switch %i(H hide-header), negatable: false
+
+              c.desc 'List available parameters'
+              c.switch %i(L list), negatable: false
+
               c.action &Command.run(NetInterface, :ip_list)
             end
 

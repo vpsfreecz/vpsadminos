@@ -24,6 +24,11 @@ module OsCtl::Cli
       veth
     )
 
+    IP_FIELDS = %i(
+      version
+      addr
+    )
+
     def list
       if opts[:list]
         puts FIELDS.join("\n")
@@ -88,7 +93,37 @@ module OsCtl::Cli
     def ip_list
       raise 'missing container id' unless args[0]
       raise 'missing interface name' unless args[1]
-      osctld_fmt(:netif_ip_list, id: args[0], name: args[1])
+
+      if opts[:list]
+        puts IP_FIELDS.join("\n")
+        return
+      end
+
+      cmd_opts = {id: args[0], name: args[1]}
+      fmt_opts = {layout: :columns}
+
+      fmt_opts[:header] = false if opts['hide-header']
+
+      ret = []
+      data = osctld_call(:netif_ip_list, cmd_opts)
+
+      data.each do |v, addrs|
+        ip_v = v.to_s.to_i
+        next if opts[:version] && opts[:version] != ip_v
+
+        addrs.each do |addr|
+          ret << {
+            version: ip_v,
+            addr: addr,
+          }
+        end
+      end
+
+      OutputFormatter.print(
+        ret,
+        opts[:output] ? opts[:output].split(',').map(&:to_sym) : IP_FIELDS,
+        fmt_opts
+      )
     end
 
     def ip_add
