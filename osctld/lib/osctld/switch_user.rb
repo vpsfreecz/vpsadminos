@@ -23,6 +23,7 @@ module OsCtld
       end
 
       # Switch
+      Process.groups = [ugid]
       Process::Sys.setgid(ugid)
       Process::Sys.setuid(ugid)
     end
