@@ -12,6 +12,8 @@ use:
 osctl ct netif new bridge --link lxcbr0 myct01 eth0
 ```
 
+When the container starts, it will have interface `eth0` configured by DHCP.
+
 ## Routed veth
 Routed veth is not linked with any bridge. Instead, the veth is routed on
 a network layer using an interconnecting network, e.g. /30 IPv4 network
@@ -32,7 +34,7 @@ ip address add 10.100.10.101/30 dev $hostveth
 ip route add 1.2.3.4/32 via 10.100.10.102 dev $hostveth
 ```
 
-In the container, we'd add first add the IP addresses from the interconnecting
+In the container, we'd first add the IP addresses from the interconnecting
 network, then the routed IP address and finally set default route through
 the host:
 
@@ -68,8 +70,8 @@ IPv6 is supported as well.
 ## Container configuration
 The commands above make the networking simply work, because *osctld* is also
 managing network configuration inside the container. It generates configs
-based on container's distribution and uses the `ip` utility to configure
-networking at runtime. Supported distributions include:
+based on the container's distribution and uses the `ip` utility to configure
+the network at runtime. Supported distributions include:
 
  - Debian
  - Ubuntu

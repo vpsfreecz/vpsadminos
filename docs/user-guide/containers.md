@@ -40,7 +40,7 @@ file        /tank/log/ct/myct01.log                      true    LXC log file
 ```
 
 The template is extracted into a ZFS dataset that becomes the container's rootfs.
-Then we have a standard LXC configuration, followed by a config for *osctld*.
+Then there is a standard LXC configuration, followed by a config for *osctld*.
 The container's existence is defined by that config. And the last entry is the
 log file, where you can find errors if the container cannot be started.
 
@@ -68,8 +68,8 @@ You can then reopen the console and login:
 osctl ct console myct01
 ```
 
-You can attach the container without knowing any password with `osctl ct attach`,
-which gives you a shell from the container:
+The container's shell can be attached even without knowing any password with
+`osctl ct attach`:
 
 ```bash
 osctl ct attach myct01

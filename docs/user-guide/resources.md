@@ -1,7 +1,8 @@
 # Resource management
 A container's CPU and memory usage, IO throttling, network priorities
 and access to devices are managed using CGroups. Number of processes or open
-files can be set using process resource limits, see man setrlimit(2).
+files can be set using process resource limits, as described in man
+setrlimit(2).
 
 ## CGroup based limits
 *osctld* has a concept of groups, where each group represents a CGroup in all
@@ -14,7 +15,7 @@ one group, i.e. the *default* group or any other. You can also configure CGroup
 parameters of the containers themselves.
 
 What this means is that you can place containers in groups and set *shared*
-limits. On top of that, you set limits on specific containers. For example,
+limits. On top of that, you can set limits on specific containers. For example,
 when you set a limit of 10 GB memory on the *root* group, all containers will
 be affected by this limit. At the same time, you can set a per-container limit
 to 1 GB, which would give you ten 1 GB containers, or allow you to over-commit.
@@ -30,7 +31,7 @@ tank   default   default   32.0M    16s
 
 You can notice that the path to the *default* group does not begin with `osctl`,
 the *root* group. That is correct, the *root* group is prefixed automatically to
-all other groups.
+all other groups and is not mentioned explicitly.
 
 CGroup parameters can be set as follows:
 
@@ -106,7 +107,7 @@ will be set, top to bottom.
 
 ## Process resource limits
 Resource limits can be set only on containers. For a list of available limits,
-see man setrlimit(2). Limit names are expected in a lower case and without
+see man setrlimit(2). Limit names are expected in lower case and without
 the `RLIMIT_` prefix. For example:
 
 ```bash

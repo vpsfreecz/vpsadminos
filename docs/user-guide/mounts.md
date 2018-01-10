@@ -84,9 +84,9 @@ yay
 
 ## ZFS UID/GID offsets
 Changing ownership of all files and directories to share can take a long time,
-depending on how many files you have. In fact, the same applies for the
+depending on how many files you have. In fact, the same rules apply for the
 container's rootfs. To avoid chowning files altogether, we patched our ZFS
-to handle UID/GID mapping at runtime. Let's prepared a shared dataset for the
+to handle UID/GID mapping at runtime. Let's prepare a shared dataset for the
 same user and container as above.
 
 ```bash
@@ -94,7 +94,7 @@ zfs create tank/shared
 ```
 
 To enable UID/GID mapping, you can set `uidoffset` and `gidoffset` properties.
-The value has to be the same as user's `offset`.
+Set both properties to the same value as the user's `offset`.
 
 ```bash
 zfs unmount tank/shared
@@ -110,7 +110,7 @@ mkdir dir1 dir2
 touch file1 file2 dir1/file dir2/file
 ```
 
-Mount into the container:
+Bind-mount the dataset into the container:
 
 ```bash
 osctl ct mounts new \
@@ -140,7 +140,7 @@ yay
 ```
 
 The UID/GID offset can be changed without any cost, except that the dataset has
-to be remounted. ZFS does not store mapped UIDs/GIDs on disk, the offseting
+to be remounted. ZFS does not store mapped UIDs/GIDs on disk, the offsetting
 happens at runtime, based on the properties. If you send/receive the dataset
 elsewhere, UIDs/GIDs will not be offset, unless you set `uidoffset`/`gidoffset`
 properties on the target dataset as well.
