@@ -24,7 +24,7 @@ module OsCtld
 
     def configure(path, cgparams = [])
       @path = path
-      set(cgparams, save: false)
+      set_cgparams(cgparams, save: false)
       save_config
     end
 

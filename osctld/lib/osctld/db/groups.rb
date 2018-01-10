@@ -18,7 +18,7 @@ module OsCtld
       root, created = load_or_create(pool, 'root', 'osctl')
 
       if created
-        root.set(root.import_cgparams([
+        root.set_cgparams(root.import_cgparams([
           {
             subsystem: 'devices',
             parameter: 'devices.deny',

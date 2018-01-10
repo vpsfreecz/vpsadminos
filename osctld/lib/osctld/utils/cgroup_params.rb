@@ -29,7 +29,7 @@ module OsCtld
         value: param[:value],
       }])
 
-      groupable.set(params)
+      groupable.set_cgparams(params)
 
       if apply
         ret = apply(groupable)
@@ -43,7 +43,7 @@ module OsCtld
     end
 
     def unset(groupable, param)
-      groupable.unset([{
+      groupable.unset_cgparams([{
         subsystem: param[:subsystem],
         parameter: param[:parameter],
       }])

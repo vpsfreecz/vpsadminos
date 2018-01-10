@@ -60,7 +60,7 @@ module OsCtld
       end
     end
 
-    def set(new_params, save: true)
+    def set_cgparams(new_params, save: true)
       exclusively do
         new_params.each do |new_p|
           replaced = false
@@ -84,7 +84,7 @@ module OsCtld
       save_config if save
     end
 
-    def unset(del_params, save: true)
+    def unset_cgparams(del_params, save: true)
       exclusively do
         del_params.each do |del_h|
           del_p = Param.import(del_h)
