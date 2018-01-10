@@ -40,24 +40,16 @@ in
       ip addr add 127.0.0.1/8 dev lo
       ip link set lo up
 
-      ip a
-
       ${lib.optionalString static.enable ''
       ip addr add ${static.ip} dev ${static.interface}
       ip link set ${static.interface} up
       ip route add ${static.route} dev ${static.interface}
       ip route add default via ${static.gw} dev ${static.interface}
-
-      ip a
-      ip r
       ''}
 
       ${lib.optionalString config.networking.dhcp ''
       ${pkgs.dhcpcd.override { udev = null; }}/sbin/dhcpcd
       ''}
-      #mkdir /bin/
-      ln -s /etc/service /service
-      #ln -s ${pkgs.stdenv.shell} /bin/sh
 
       ${lib.optionalString config.networking.ntpdate ''
       #${pkgs.ntp}/bin/ntpdate 192.168.2.1
@@ -80,6 +72,9 @@ in
       for x in ${lib.concatStringsSep " " config.boot.kernelModules}; do
         modprobe $x
       done
+
+      # runit
+      ln -s /etc/service /service
 
       # LXC
       mkdir -p /var/lib/lxc/rootfs
