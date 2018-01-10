@@ -49,6 +49,13 @@ module OsCtld
       configure_bashrc
     end
 
+    def chgrp(grp)
+      @group = grp
+      save_config
+      configure_lxc
+      configure_bashrc
+    end
+
     def current_state
       inclusively do
         next(state) if state != :unknown
@@ -76,12 +83,12 @@ module OsCtld
       "/#{dataset}"
     end
 
-    def lxc_home(user = nil)
-      group.userdir(user || self.user)
+    def lxc_home(user: nil, group: nil)
+      (group || self.group).userdir(user || self.user)
     end
 
-    def lxc_dir(user = nil)
-      File.join(lxc_home(user), id)
+    def lxc_dir(user: nil, group: nil)
+      File.join(lxc_home(user: user, group: group), id)
     end
 
     def rootfs

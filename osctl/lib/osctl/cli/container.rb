@@ -296,6 +296,11 @@ module OsCtl::Cli
       osctld_fmt(:ct_chown, id: args[0], pool: gopts[:pool], user: args[1])
     end
 
+    def chgrp
+      require_args!('id', 'group')
+      osctld_fmt(:ct_chgrp, id: args[0], pool: gopts[:pool], group: args[1])
+    end
+
     def passwd
       require_args!('id', 'user')
 

@@ -295,6 +295,9 @@ See the `ct` commands.
   Move container *id* to user namespace *user*. The container has to be stopped
   first.
 
+`ct chgrp` *id* *group*
+  Move container *id* to group *group*. The container has to be stopped first.
+
 `ct passwd` *id* *user* [*password*]
   Change password of *user* in container *id*. The user has to already exist.
   If *password* is not given as an argument, it is prompted for on stdin.

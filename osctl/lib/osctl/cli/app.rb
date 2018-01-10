@@ -390,6 +390,12 @@ module OsCtl::Cli
           c.action &Command.run(Container, :chown)
         end
 
+        ct.desc 'Move the container to another group'
+        ct.arg_name '<id> <group>'
+        ct.command :chgrp do |c|
+          c.action &Command.run(Container, :chgrp)
+        end
+
         ct.desc 'Set password for a user within the container'
         ct.arg_name '<id> <user> [password]'
         ct.command :passwd do |c|
