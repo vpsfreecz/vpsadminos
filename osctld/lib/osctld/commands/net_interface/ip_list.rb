@@ -3,7 +3,7 @@ module OsCtld
     handle :netif_ip_list
 
     def execute
-      ct = DB::Containers.find(opts[:id])
+      ct = DB::Containers.find(opts[:id], opts[:pool])
       return error('container not found') unless ct
 
       netif = ct.netifs.detect { |n| n.name == opts[:name] }

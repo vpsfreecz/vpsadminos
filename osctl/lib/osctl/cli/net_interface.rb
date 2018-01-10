@@ -37,7 +37,7 @@ module OsCtl::Cli
 
       raise "missing arguments" unless args[0]
 
-      cmd_opts = {id: args[0]}
+      cmd_opts = {id: args[0], pool: gopts[:pool]}
       fmt_opts = {layout: :columns}
 
       FILTERS.each do |v|
@@ -61,6 +61,7 @@ module OsCtl::Cli
 
       cmd_opts = {
         id: args[0],
+        pool: gopts[:pool],
         name: args[1],
         type: 'bridge',
         hwaddr: opts[:hwaddr],
@@ -75,6 +76,7 @@ module OsCtl::Cli
 
       cmd_opts = {
         id: args[0],
+        pool: gopts[:pool],
         name: args[1],
         type: 'routed',
         hwaddr: opts[:hwaddr],
@@ -87,7 +89,7 @@ module OsCtl::Cli
     def delete
       raise 'missing container id' unless args[0]
       raise 'missing interface name' unless args[1]
-      osctld_fmt(:netif_delete, id: args[0], name: args[1])
+      osctld_fmt(:netif_delete, id: args[0], pool: gopts[:pool], name: args[1])
     end
 
     def ip_list
@@ -99,7 +101,7 @@ module OsCtl::Cli
         return
       end
 
-      cmd_opts = {id: args[0], name: args[1]}
+      cmd_opts = {id: args[0], pool: gopts[:pool], name: args[1]}
       fmt_opts = {layout: :columns}
 
       fmt_opts[:header] = false if opts['hide-header']
@@ -130,14 +132,28 @@ module OsCtl::Cli
       raise 'missing container id' unless args[0]
       raise 'missing interface name' unless args[1]
       raise 'missing addr' unless args[2]
-      osctld_fmt(:netif_ip_add, id: args[0], name: args[1], addr: args[2])
+
+      osctld_fmt(
+        :netif_ip_add,
+        id: args[0],
+        pool: gopts[:pool],
+        name: args[1],
+        addr: args[2]
+      )
     end
 
     def ip_del
       raise 'missing container id' unless args[0]
       raise 'missing interface name' unless args[1]
       raise 'missing addr' unless args[2]
-      osctld_fmt(:netif_ip_del, id: args[0], name: args[1], addr: args[2])
+
+      osctld_fmt(
+        :netif_ip_del,
+        id: args[0],
+        pool: gopts[:pool],
+        name: args[1],
+        addr: args[2]
+      )
     end
 
     protected
