@@ -42,6 +42,13 @@ module OsCtld
       save_config
     end
 
+    def chown(user)
+      @user = user
+      save_config
+      configure_lxc
+      configure_bashrc
+    end
+
     def current_state
       inclusively do
         next(state) if state != :unknown
@@ -69,12 +76,12 @@ module OsCtld
       "/#{dataset}"
     end
 
-    def lxc_home
-      group.userdir(user)
+    def lxc_home(user = nil)
+      group.userdir(user || self.user)
     end
 
-    def lxc_dir
-      File.join(lxc_home, id)
+    def lxc_dir(user = nil)
+      File.join(lxc_home(user), id)
     end
 
     def rootfs
@@ -246,6 +253,19 @@ module OsCtld
       Template.render_to('ct/mounts', {
         mounts: mounts,
       }, lxc_config_path('mounts'))
+    end
+
+    def configure_bashrc
+      Template.render_to('ct/bashrc', {
+        ct: self,
+        override: %w(
+          attach cgroup console device execute info ls monitor stop top wait
+        ),
+        disable: %w(
+          autostart checkpoint clone copy create destroy freeze snapshot
+          start-ephemeral unfreeze unshare
+        ),
+      }, File.join(lxc_dir, '.bashrc'))
     end
 
     def save_config

@@ -46,16 +46,7 @@ module OsCtld
           File.chown(0, ct.user.ugid, ct.lxc_dir)
 
           # bashrc
-          Template.render_to('ct/bashrc', {
-            ct: ct,
-            override: %w(
-              attach cgroup console device execute info ls monitor stop top wait
-            ),
-            disable: %w(
-              autostart checkpoint clone copy create destroy freeze snapshot
-              start-ephemeral unfreeze unshare
-            ),
-          }, File.join(ct.lxc_dir, '.bashrc'))
+          ct.configure_bashrc
 
           ### Rootfs
           syscmd("tar -xzf #{opts[:template]} -C #{ct.rootfs}")

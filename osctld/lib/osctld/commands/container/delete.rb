@@ -30,7 +30,7 @@ module OsCtld
 
         bashrc = File.join(ct.lxc_dir, '.bashrc')
         File.unlink(bashrc) if File.exist?(bashrc)
-        Dir.rmdir(ct.group.userdir(ct.user)) unless ct.group.has_containers?
+        Dir.rmdir(ct.group.userdir(ct.user)) unless ct.group.has_containers?(ct.user)
       end
 
       call_cmd(Commands::User::LxcUsernet)

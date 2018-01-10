@@ -291,6 +291,11 @@ module OsCtl::Cli
       end
     end
 
+    def chown
+      require_args!('id', 'user')
+      osctld_fmt(:ct_chown, id: args[0], pool: gopts[:pool], user: args[1])
+    end
+
     def passwd
       require_args!('id', 'user')
 

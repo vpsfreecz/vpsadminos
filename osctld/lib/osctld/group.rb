@@ -57,9 +57,9 @@ module OsCtld
       Dir.exist?(userdir(user))
     end
 
-    def has_containers?
+    def has_containers?(user = nil)
       ct = DB::Containers.get.detect do |ct|
-        ct.pool.name == pool.name && ct.group.name == name
+        ct.pool.name == pool.name && ct.group.name == name && (user.nil? || ct.user == user)
       end
 
       ct ? true : false

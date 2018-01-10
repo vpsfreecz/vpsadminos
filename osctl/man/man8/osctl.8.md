@@ -291,6 +291,10 @@ See the `ct` commands.
   Unset container DNS resolvers. `osctld` will no longer manipulate the
   container's `/etc/resolv.conf`.
 
+`ct chown` *id* *user*
+  Move container *id* to user namespace *user*. The container has to be stopped
+  first.
+
 `ct passwd` *id* *user* [*password*]
   Change password of *user* in container *id*. The user has to already exist.
   If *password* is not given as an argument, it is prompted for on stdin.

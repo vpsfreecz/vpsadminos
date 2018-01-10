@@ -384,6 +384,12 @@ module OsCtl::Cli
           end
         end
 
+        ct.desc 'Move the container to another user namespace'
+        ct.arg_name '<id> <user>'
+        ct.command :chown do |c|
+          c.action &Command.run(Container, :chown)
+        end
+
         ct.desc 'Set password for a user within the container'
         ct.arg_name '<id> <user> [password]'
         ct.command :passwd do |c|
