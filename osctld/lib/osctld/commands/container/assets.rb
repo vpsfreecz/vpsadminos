@@ -13,6 +13,8 @@ module OsCtld
       add(:directory, ct.lxc_dir, "LXC configuration")
       add(:file, ct.lxc_config_path, "LXC base config")
       add(:file, ct.lxc_config_path('network'), "LXC network config")
+      add(:file, ct.lxc_config_path('prlimits'), "LXC resource limits")
+      add(:file, ct.lxc_config_path('mounts'), "LXC mounts")
       add(
         :file,
         File.join(ct.lxc_dir, '.bashrc'),
