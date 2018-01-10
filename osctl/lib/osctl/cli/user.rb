@@ -61,7 +61,7 @@ module OsCtl::Cli
         return
       end
 
-      raise "missing argument" unless args[0]
+      require_args!('name')
 
       osctld_fmt(
         :user_show,
@@ -72,7 +72,7 @@ module OsCtl::Cli
     end
 
     def create
-      raise "missing argument" unless args[0]
+      require_args!('name')
 
       osctld_fmt(:user_create, {
         name: args[0],
@@ -84,12 +84,12 @@ module OsCtl::Cli
     end
 
     def delete
-      raise "missing argument" unless args[0]
+      require_args!('name')
       osctld_fmt(:user_delete, name: args[0], pool: gopts[:pool])
     end
 
     def register
-      raise "missing argument" unless args[0]
+      require_args!('name')
 
       if args[0] == 'all'
         osctld_fmt(:user_register, all: true)
@@ -99,7 +99,7 @@ module OsCtl::Cli
     end
 
     def unregister
-      raise "missing argument" unless args[0]
+      require_args!('name')
 
       if args[0] == 'all'
         osctld_fmt(:user_unregister, all: true)
@@ -113,8 +113,7 @@ module OsCtl::Cli
     end
 
     def assets
-      raise "missing argument" unless args[0]
-
+      require_args!('name')
       osctld_fmt(:user_assets, name: args[0], pool: gopts[:pool])
     end
   end

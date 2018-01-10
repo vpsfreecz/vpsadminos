@@ -17,6 +17,20 @@ module OsCtl::Cli
       @args = args
     end
 
+    # @param required [Array] list of required arguments
+    def require_args!(*v)
+      if v.count == 1 && v.first.is_a?(Array)
+        required = v.first
+      else
+        required = v
+      end
+
+      return if args.count >= required.count
+
+      arg = required[ args.count ]
+      raise GLI::BadCommandLine, "missing argument <#{arg}>"
+    end
+
     def osctld_open
       c = OsCtl::Client.new
       c.open

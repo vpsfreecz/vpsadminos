@@ -61,7 +61,7 @@ module OsCtl::Cli
         return
       end
 
-      raise "missing argument" unless args[0]
+      require_args!('name')
 
       cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS
 
@@ -80,7 +80,7 @@ module OsCtl::Cli
     end
 
     def create
-      raise "missing argument" unless args[0]
+      require_args!('name')
 
       cmd_opts = {
         name: args[0],
@@ -93,40 +93,32 @@ module OsCtl::Cli
     end
 
     def delete
-      raise "missing argument" unless args[0]
+      require_args!('name')
       osctld_fmt(:group_delete, name: args[0], pool: gopts[:pool])
     end
 
     def assets
-      raise "missing argument" unless args[0]
-
+      require_args!('name')
       osctld_fmt(:group_assets, name: args[0], pool: gopts[:pool])
     end
 
     def cgparam_list
-      raise "missing argument" unless args[0]
-
+      require_args!('name')
       do_cgparam_list(:group_cgparam_list, name: args[0], pool: gopts[:pool])
     end
 
     def cgparam_set
-      raise "missing group name" unless args[0]
-      raise "missing parameter name" unless args[1]
-      raise "missing parameter value" unless args[2]
-
+      require_args!('name', 'parameter', 'value')
       do_cgparam_set(:group_cgparam_set, name: args[0], pool: gopts[:pool])
     end
 
     def cgparam_unset
-      raise "missing group name" unless args[0]
-      raise "missing parameter name" unless args[1]
-
+      require_args!('name', 'parameter')
       do_cgparam_unset(:group_cgparam_unset, name: args[0], pool: gopts[:pool])
     end
 
     def cgparam_apply
-      raise "missing group name" unless args[0]
-
+      require_args!('name')
       do_cgparam_apply(:group_cgparam_apply, name: args[0], pool: gopts[:pool])
     end
   end

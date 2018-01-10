@@ -35,7 +35,7 @@ module OsCtl::Cli
         return
       end
 
-      raise "missing arguments" unless args[0]
+      require_args!('id')
 
       cmd_opts = {id: args[0], pool: gopts[:pool]}
       fmt_opts = {layout: :columns}
@@ -57,7 +57,7 @@ module OsCtl::Cli
     end
 
     def create_bridge
-      raise "missing arguments" if args.count < 2
+      require_args!('id', 'name')
 
       cmd_opts = {
         id: args[0],
@@ -72,7 +72,7 @@ module OsCtl::Cli
     end
 
     def create_routed
-      raise "missing arguments" if args.count < 2
+      require_args!('id', 'name')
 
       cmd_opts = {
         id: args[0],
@@ -87,14 +87,12 @@ module OsCtl::Cli
     end
 
     def delete
-      raise 'missing container id' unless args[0]
-      raise 'missing interface name' unless args[1]
+      require_args!('id', 'name')
       osctld_fmt(:netif_delete, id: args[0], pool: gopts[:pool], name: args[1])
     end
 
     def ip_list
-      raise 'missing container id' unless args[0]
-      raise 'missing interface name' unless args[1]
+      require_args!('id', 'name')
 
       if opts[:list]
         puts IP_FIELDS.join("\n")
@@ -129,9 +127,7 @@ module OsCtl::Cli
     end
 
     def ip_add
-      raise 'missing container id' unless args[0]
-      raise 'missing interface name' unless args[1]
-      raise 'missing addr' unless args[2]
+      require_args!('id', 'name', 'addr')
 
       osctld_fmt(
         :netif_ip_add,
@@ -143,9 +139,7 @@ module OsCtl::Cli
     end
 
     def ip_del
-      raise 'missing container id' unless args[0]
-      raise 'missing interface name' unless args[1]
-      raise 'missing addr' unless args[2]
+      require_args!('id', 'name', 'addr')
 
       osctld_fmt(
         :netif_ip_del,

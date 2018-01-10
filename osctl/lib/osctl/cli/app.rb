@@ -522,7 +522,7 @@ module OsCtl::Cli
         ct.desc 'Manage resource limits'
         ct.command :prlimits do |pr|
           pr.desc 'List configured limits'
-          pr.arg_name '<name> [limits...]'
+          pr.arg_name '<id> [limits...]'
           pr.command %i(ls list) do |c|
             c.desc 'Select parameters to output'
             c.flag %i(o output)
@@ -537,13 +537,13 @@ module OsCtl::Cli
           end
 
           pr.desc 'Configure limit'
-          pr.arg_name '<name> <limit> (<soft_and_hard>| <soft> <hard>)'
+          pr.arg_name '<id> <limit> (<soft_and_hard>| <soft> <hard>)'
           pr.command :set do |c|
             c.action &Command.run(Container, :prlimit_set)
           end
 
           pr.desc 'Remove configured limit'
-          pr.arg_name '<name> <limit>'
+          pr.arg_name '<id> <limit>'
           pr.command :unset do |c|
             c.action &Command.run(Container, :prlimit_unset)
           end

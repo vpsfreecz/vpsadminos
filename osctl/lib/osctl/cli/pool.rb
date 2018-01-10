@@ -31,19 +31,20 @@ module OsCtl::Cli
     end
 
     def import
-      raise 'specify pool name or --all' if !args[0] && !opts[:all]
+      if !args[0] && !opts[:all]
+        raise GLI::BadCommandLine, 'specify pool name or --all'
+      end
 
       osctld_fmt(:pool_import, name: args[0], all: opts[:all])
     end
 
     def export
-      raise 'missing pool name' unless args[0]
-
+      require_args!('name')
       osctld_fmt(:pool_export, name: args[0])
     end
 
     def install
-      raise 'missing pool name' unless args[0]
+      require_args!('name')
 
       cmd_opts = {name: args[0]}
       cmd_opts[:dataset] = opts[:dataset] if opts[:dataset]
@@ -52,8 +53,7 @@ module OsCtl::Cli
     end
 
     def uninstall
-      raise 'missing pool name' unless args[0]
-
+      require_args!('name')
       osctld_fmt(:pool_uninstall, name: args[0])
     end
   end

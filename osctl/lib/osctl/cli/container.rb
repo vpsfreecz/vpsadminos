@@ -98,7 +98,7 @@ module OsCtl::Cli
         return
       end
 
-      raise "missing argument" unless args[0]
+      require_args!('id')
 
       cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS
 
@@ -112,7 +112,7 @@ module OsCtl::Cli
     end
 
     def create
-      raise "missing argument" unless args[0]
+      require_args!('id')
 
       cmd_opts = {
         id: args[0],
@@ -127,13 +127,13 @@ module OsCtl::Cli
     end
 
     def delete
-      raise "missing argument" unless args[0]
+      require_args!('id')
 
       osctld_fmt(:ct_delete, id: args[0], pool: gopts[:pool])
     end
 
     def start
-      raise "missing argument" unless args[0]
+      require_args!('id')
       cmd_opts = {id: args[0], pool: gopts[:pool]}
       return osctld_fmt(:ct_start, cmd_opts) unless opts[:foreground]
 
@@ -143,7 +143,7 @@ module OsCtl::Cli
     end
 
     def stop
-      raise "missing argument" unless args[0]
+      require_args!('id')
       cmd_opts = {id: args[0], pool: gopts[:pool]}
       return osctld_fmt(:ct_stop, cmd_opts) unless opts[:foreground]
 
@@ -153,7 +153,7 @@ module OsCtl::Cli
     end
 
     def restart
-      raise "missing argument" unless args[0]
+      require_args!('id')
       cmd_opts = {id: args[0], pool: gopts[:pool]}
       return osctld_fmt(:ct_restart, cmd_opts) unless opts[:foreground]
 
@@ -163,13 +163,13 @@ module OsCtl::Cli
     end
 
     def console
-      raise "missing argument" unless args[0]
+      require_args!('id')
 
       open_console(args[0], gopts[:pool], opts[:tty])
     end
 
     def attach
-      raise "missing argument" unless args[0]
+      require_args!('id')
 
       cmd = osctld_call(:ct_attach, id: args[0], pool: gopts[:pool])
 
@@ -185,8 +185,7 @@ module OsCtl::Cli
     end
 
     def exec
-      raise "missing argument" unless args[0]
-      raise "missing command to execute" if args.count < 2
+      require_args!('id', 'command')
 
       c = osctld_open
       cont = c.cmd_data!(
@@ -244,7 +243,7 @@ module OsCtl::Cli
     end
 
     def su
-      raise "missing argument" unless args[0]
+      require_args!('id')
 
       cmd = osctld_call(:ct_su, id: args[0], pool: gopts[:pool])
       pid = Process.fork do
@@ -270,7 +269,7 @@ module OsCtl::Cli
 
     def set_dns_resolver
       set(:dns_resolvers) do |args|
-        fail 'expected at least one address' if args.empty?
+        raise GLI::BadCommandLine, 'expected at least one address' if args.empty?
         args
       end
     end
@@ -287,14 +286,13 @@ module OsCtl::Cli
         when 'disabled'
           false
         else
-          fail 'expected enabled/disabled'
+          raise GLI::BadCommandLine, 'expected enabled/disabled'
         end
       end
     end
 
     def passwd
-      raise "missing container id" unless args[0]
-      raise "missing user name" unless args[1]
+      require_args!('id', 'user')
 
       if args[2]
         password = args[2]
@@ -314,7 +312,7 @@ module OsCtl::Cli
     end
 
     def cd
-      raise "missing argument" unless args[0]
+      require_args!('id')
 
       ct = osctld_call(:ct_show, id: args[0], pool: gopts[:pool])
 
@@ -345,7 +343,7 @@ module OsCtl::Cli
     end
 
     def log_cat
-      raise "missing argument" unless args[0]
+      require_args!('id')
 
       ct = osctld_call(:ct_show, id: args[0], pool: gopts[:pool])
 
@@ -355,14 +353,14 @@ module OsCtl::Cli
     end
 
     def log_path
-      raise "missing argument" unless args[0]
+      require_args!('id')
 
       ct = osctld_call(:ct_show, id: args[0], pool: gopts[:pool])
       puts ct[:log_file]
     end
 
     def assets
-      raise "missing argument" unless args[0]
+      require_args!('id')
 
       osctld_fmt(:ct_assets, id: args[0], pool: gopts[:pool])
     end
@@ -390,39 +388,33 @@ module OsCtl::Cli
     end
 
     def cgparam_list
-      raise "missing argument" unless args[0]
+      require_args!('id')
 
       do_cgparam_list(:ct_cgparam_list, id: args[0], pool: gopts[:pool])
     end
 
     def cgparam_set
-      raise "missing container name" unless args[0]
-      raise "missing parameter name" unless args[1]
-      raise "missing parameter value" unless args[2]
-
+      require_args!('id', 'parameter', 'value')
       do_cgparam_set(:ct_cgparam_set, id: args[0], pool: gopts[:pool])
     end
 
     def cgparam_unset
-      raise "missing container name" unless args[0]
-      raise "missing parameter name" unless args[1]
-
+      require_args!('id', 'parameter')
       do_cgparam_unset(:ct_cgparam_unset, id: args[0], pool: gopts[:pool])
     end
 
     def cgparam_apply
-      raise "missing container name" unless args[0]
-
+      require_args!('id')
       do_cgparam_apply(:ct_cgparam_apply, id: args[0], pool: gopts[:pool])
     end
 
     def prlimit_list
-      raise "missing argument" unless args[0]
-
       if opts[:list]
         puts PRLIMIT_FIELDS.join("\n")
         return
       end
+
+      require_args!('id')
 
       cmd_opts = {id: args[0], pool: gopts[:pool]}
       fmt_opts = {layout: :columns}
@@ -441,9 +433,7 @@ module OsCtl::Cli
     end
 
     def prlimit_set
-      raise "missing container name" unless args[0]
-      raise "missing limit name" unless args[1]
-      raise "missing limit value" unless args[2]
+      require_args!('id', 'limit', 'value')
 
       soft, hard = args[2..3].map { |v| /^\d+$/ =~ v ? v.to_i : v }
       hard = soft if hard.nil?
@@ -459,8 +449,7 @@ module OsCtl::Cli
     end
 
     def prlimit_unset
-      raise "missing container name" unless args[0]
-      raise "missing limit name" unless args[1]
+      require_args!('id', 'limit')
 
       do_cgparam_unset(
         :ct_prlimit_unset,
@@ -471,12 +460,12 @@ module OsCtl::Cli
     end
 
     def mount_list
-      raise "missing container id" unless args[0]
-
       if opts[:list]
         puts MOUNT_FIELDS.join("\n")
         return
       end
+
+      require_args!('id')
 
       cmd_opts = {id: args[0], pool: gopts[:pool]}
       fmt_opts = {layout: :columns}
@@ -494,7 +483,7 @@ module OsCtl::Cli
     end
 
     def mount_create
-      raise "missing container id" unless args[0]
+      require_args!('id')
 
       osctld_fmt(
         :ct_mount_create,
@@ -508,8 +497,7 @@ module OsCtl::Cli
     end
 
     def mount_delete
-      raise "missing container id" unless args[0]
-      raise "missing mountpoint" unless args[1]
+      require_args!('id', 'mountpoint')
 
       osctld_fmt(
         :ct_mount_delete,
@@ -521,7 +509,7 @@ module OsCtl::Cli
 
     protected
     def set(option)
-      raise "missing argument" unless args[0]
+      require_args!('id')
       cmd_opts = {id: args[0], pool: gopts[:pool]}
       cmd_opts[option] = yield(args[1..-1])
 
@@ -529,7 +517,7 @@ module OsCtl::Cli
     end
 
     def unset(option)
-      raise "missing argument" unless args[0]
+      require_args!('id')
       cmd_opts = {id: args[0], pool: gopts[:pool]}
       cmd_opts[option] = block_given? ? yield(args[1..-1]) : true
 
