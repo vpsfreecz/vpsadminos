@@ -48,6 +48,7 @@ let
     libcgroup
     pciutils
     eudev
+    rsyslog-light
   ];
 in
 {

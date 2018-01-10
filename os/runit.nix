@@ -13,6 +13,21 @@ let
     PasswordAuthentication yes
     AuthorizedKeysFile /etc/ssh/authorized_keys.d/%u
   '';
+  syslog_config = pkgs.writeText "syslog.conf" ''
+    $ModLoad imuxsock
+    $WorkDirectory /var/spool/rsyslog
+
+    # "local1" is used for dhcpd messages.
+    local1.*                     -/var/log/dhcpd
+
+    mail.*                       -/var/log/mail
+
+    *.=warning;*.=err            -/var/log/warn
+    *.crit                        /var/log/warn
+
+    *.*;mail.none;local1.none    -/var/log/messages
+  '';
+
   compat = pkgs.runCommand "runit-compat" {} ''
     mkdir -p $out/bin/
     cat << EOF > $out/bin/poweroff
@@ -147,6 +162,12 @@ in
       #!/bin/sh
       mkdir -p /var/log/osctld
       exec ${pkgs.runit}/bin/svlogd /var/log/osctld
+    '';
+
+    "service/rsyslog/run".source = pkgs.writeScript "rsyslog" ''
+      #!/bin/sh
+      mkdir -p /var/spool/rsyslog
+      exec ${pkgs.rsyslog-light}/sbin/rsyslogd -f ${syslog_config} -n -i /run/rsyslog.pid
     '';
   }
 
