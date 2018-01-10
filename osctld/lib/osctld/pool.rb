@@ -146,7 +146,7 @@ module OsCtld
       Dir.mkdir(run_dir, 0711) unless Dir.exist?(run_dir)
 
       [console_dir, hook_dir].each do |dir|
-        Dir.mkdir(dir) unless Dir.exist?(dir)
+        Dir.mkdir(dir, 0711) unless Dir.exist?(dir)
       end
 
       %w(ct-start).each do |hook|
