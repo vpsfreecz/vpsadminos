@@ -113,7 +113,7 @@ in
 
     "service/sshd/run".source = pkgs.writeScript "sshd_run" ''
       #!/bin/sh
-      ${pkgs.openssh}/bin/sshd -f ${sshd_config}
+      ${pkgs.openssh}/bin/sshd -D -f ${sshd_config}
     '';
 
     "service/getty-0/run".source = pkgs.writeScript "getty-0" ''
