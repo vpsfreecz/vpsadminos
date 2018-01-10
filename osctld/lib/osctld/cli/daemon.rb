@@ -1,6 +1,6 @@
 module OsCtld
   class Cli::Daemon
-    def self.run
+    def self.run(opts)
       d = OsCtld::Daemon.new
 
       %w(INT TERM).each do |sig|
@@ -12,6 +12,7 @@ module OsCtld
       end
 
       Process.setproctitle('osctld: main')
+      Logger.setup(opts.log)
       d.setup
     end
   end

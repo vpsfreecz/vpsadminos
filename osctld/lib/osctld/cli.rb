@@ -5,4 +5,5 @@ module OsCtld
 end
 
 require_relative 'cli/daemon'
+require_relative 'cli/supervisor'
 require_relative 'cli/exec'

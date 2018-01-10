@@ -41,6 +41,7 @@ module OsCtld
 end
 
 require_relative 'osctld/version'
+require_relative 'osctld/logger'
 require_relative 'osctld/exceptions'
 require_relative 'osctld/template'
 require_relative 'osctld/lockable'

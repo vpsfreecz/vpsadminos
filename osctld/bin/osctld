@@ -1,3 +1,3 @@
 #!/usr/bin/env ruby
 require_relative '../lib/osctld/cli'
-OsCtld::Cli::Daemon.run
+OsCtld::Cli::Supervisor.run

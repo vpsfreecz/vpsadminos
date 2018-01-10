@@ -1,12 +1,13 @@
 module OsCtld::Utils
   module Log
     module PrivateMethods
-      def self.log_time
-        Time.new.strftime('%Y-%m-%d %H:%M:%S')
-      end
+      LEVELS = %i(debug info warn error fatal unknown)
 
       def self.log(level, type, msg)
-        puts "[#{log_time} #{level.to_s.upcase} #{type}] #{msg}"
+        OsCtld::Logger.log(
+          LEVELS.include?(level) ? level : :unknown,
+          "[#{type}] #{msg}"
+        )
       end
 
       def self.resolve_type(type)
@@ -31,7 +32,7 @@ module OsCtld::Utils
       #
       # If `type` responds to `log_type`, it is called to return the log type.
       #
-      # Log levels: debug, info, work, important, warn, critical, fatal
+      # Log levels: {PrivateMethods::LEVELS}
       # Types: init, general, regular, special types and any other
       def log(*args)
         if args.count == 3
