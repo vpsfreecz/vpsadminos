@@ -8,6 +8,23 @@ module OsCtld
 
     SOCKET = File.join(RunState::RUNDIR, 'osctld.sock')
 
+    class ClientHandler < Generic::ClientHandler
+      def handle_cmd(req)
+        cmd = Command.find(req[:cmd].to_sym)
+        error!("Unsupported command '#{req[:cmd]}'") unless cmd
+
+        cmd.run(req[:opts], socket)
+      end
+
+      def server_version
+        OsCtld::VERSION
+      end
+
+      def log_type
+        self.class.name
+      end
+    end
+
     def initialize
       Thread.abort_on_exception = true
       DB::Users.instance
@@ -31,41 +48,26 @@ module OsCtld
     end
 
     def serve
-      log(:info, :init, "Listening on control socket at #{SOCKET}")
+      log(:info, "Listening on control socket at #{SOCKET}")
 
-      @srv = UNIXServer.new(SOCKET)
+      socket = UNIXServer.new(SOCKET)
       File.chmod(0600, SOCKET)
 
-      loop do
-        begin
-          c = @srv.accept
-
-        rescue IOError
-          return
-
-        else
-          handle_client(c)
-        end
-      end
+      @server = Generic::Server.new(socket, Daemon::ClientHandler)
+      @server.start
     end
 
     def stop
-      log(:info, :daemon, "Exiting")
-      @srv.close if @srv
+      log(:info, 'Exiting')
+      @server.stop if @server
       File.unlink(SOCKET) if File.exist?(SOCKET)
       UserControl.stop
       Monitor::Master.stop
       exit(false)
     end
 
-    private
-    def handle_client(client)
-      log(:info, :server, 'Received a new client connection')
-
-      Thread.new do
-        c = ClientHandler.new(client)
-        c.communicate
-      end
+    def log_type
+      'daemon'
     end
   end
 end

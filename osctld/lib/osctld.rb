@@ -7,6 +7,7 @@ module OsCtld
     module User ; end
   end
   module DB ; end
+  module Generic ; end
   module Routing ; end
   module Script
     module Container ; end
@@ -53,8 +54,8 @@ require_relative 'osctld/utils/zfs'
 require_relative 'osctld/utils/switch_user'
 require_relative 'osctld/utils/ip'
 require_relative 'osctld/utils/cgroup_params'
-require_relative 'osctld/user_control/client_handler'
-require_relative 'osctld/user_control/server'
+require_relative 'osctld/generic/server'
+require_relative 'osctld/generic/client_handler'
 require_relative 'osctld/user_control/supervisor'
 require_relative 'osctld/user_control'
 require_relative 'osctld/cgroup'
@@ -63,7 +64,6 @@ require_relative 'osctld/prlimit'
 require_relative 'osctld/mount'
 require_relative 'osctld/command'
 require_relative 'osctld/user_command'
-require_relative 'osctld/client_handler'
 require_relative 'osctld/db/pools'
 require_relative 'osctld/pool'
 require_relative 'osctld/db/pooled_list'
