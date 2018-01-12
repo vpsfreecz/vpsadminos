@@ -17,15 +17,22 @@ module OsCtld
 
       ct.exclusively do
         stop = call_cmd(Commands::Container::Stop, id: ct.id)
+
+        progress('Stopping container')
         return error('unable to stop the container') unless stop[:status]
 
+        progress('Disconnecting console')
         Console.remove(ct)
 
+        progress('Destroying dataset')
         zfs(:destroy, nil, ct.dataset)
+
+        progress('Removing LXC configuration')
         syscmd("rm -rf #{ct.lxc_dir}")
         File.unlink(ct.log_path) if File.exist?(ct.log_path)
         File.unlink(ct.config_path)
 
+        progress('Unregistering container')
         DB::Containers.remove(ct)
 
         bashrc = File.join(ct.lxc_dir, '.bashrc')
@@ -33,6 +40,7 @@ module OsCtld
         Dir.rmdir(ct.group.userdir(ct.user)) unless ct.group.has_containers?(ct.user)
       end
 
+      progress('Reconfiguring LXC usernet')
       call_cmd(Commands::User::LxcUsernet)
 
       ok

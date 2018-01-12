@@ -32,6 +32,10 @@ module OsCtld
       load_config if load
     end
 
+    def ident
+      "#{pool.name}:#{id}"
+    end
+
     def configure(user, group, distribution, version)
       @user = user
       @group = group

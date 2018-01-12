@@ -9,6 +9,7 @@ module OsCtld
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool]) || (raise 'container not found')
       ct.exclusively do
+        progress('Stopping container')
         ret = ct_control(ct, :ct_stop, id: ct.id)
         next ret unless ret[:status]
 

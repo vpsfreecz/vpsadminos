@@ -9,6 +9,8 @@ module OsCtld
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool]) || (raise 'container not found')
       ct.exclusively do
+        next ok if ct.running? && !opts[:force]
+
         # Reset log file
         File.open(ct.log_path, 'w').close
         File.chmod(0660, ct.log_path)
@@ -37,6 +39,7 @@ module OsCtld
         File.chmod(0640, in_pipe)
         File.chmod(0660, out_pipe)
 
+        progress('Starting container')
         pid = Process.fork do
           in_r = File.open(in_pipe, 'r')
           out_w = File.open(out_pipe, 'w')
@@ -57,6 +60,7 @@ module OsCtld
         in_w = File.open(in_pipe, 'w')
         out_r = File.open(out_pipe, 'r')
 
+        progress('Connecting console')
         Console.connect_tty0(ct, pid, in_w, out_r)
         Process.wait(pid)
         ok

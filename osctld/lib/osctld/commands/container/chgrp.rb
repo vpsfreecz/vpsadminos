@@ -24,6 +24,8 @@ module OsCtld
           # Double check state while having exclusive lock
           next error('container has to be stopped first') if ct.state != :stopped
 
+          progress('Moving LXC configuration')
+
           # Ensure LXC home
           Dir.mkdir(grp.userdir(ct.user), 0751) unless grp.setup_for?(ct.user)
 
@@ -31,13 +33,17 @@ module OsCtld
           syscmd("mv #{ct.lxc_dir} #{ct.lxc_dir(group: grp)}")
 
           # Switch group, regenerate configs
+          progress('Reconfiguring container')
           ct.chgrp(grp)
 
           # Restart monitor
           Monitor::Master.monitor(ct)
 
           # Clear old LXC home if possible
-          Dir.rmdir(old_grp.userdir(ct.user)) unless old_grp.has_containers?(ct.user)
+          unless old_grp.has_containers?(ct.user)
+            progress('Cleaning up original LXC home')
+            Dir.rmdir(old_grp.userdir(ct.user))
+          end
 
           ok
         end

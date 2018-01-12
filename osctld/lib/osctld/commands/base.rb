@@ -23,7 +23,7 @@ module OsCtld
 
     protected
     def call_cmd(klass, opts = {})
-      klass.run(opts)
+      klass.run(opts, @client_handler)
     end
 
     def ok(resp = nil)

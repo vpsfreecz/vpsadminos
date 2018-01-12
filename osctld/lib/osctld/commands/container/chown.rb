@@ -25,6 +25,8 @@ module OsCtld
           # Double check state while having exclusive lock
           next error('container has to be stopped first') if ct.state != :stopped
 
+          progress('Moving LXC configuration')
+
           # Ensure LXC home
           Dir.mkdir(ct.group.userdir(user), 0751) unless ct.group.setup_for?(user)
 
@@ -39,15 +41,23 @@ module OsCtld
           ct.chown(user)
 
           # Configure dataset
+          progress('Unmounting dataset')
           zfs(:unmount, nil, ct.dataset)
+
+          progress('Switching UID/GID offsets')
           zfs(:set, "uidoffset=#{ct.uid_offset} gidoffset=#{ct.gid_offset}", ct.dataset)
+
+          progress('Remounting dataset')
           zfs(:mount, nil, ct.dataset)
 
           # Restart monitor
           Monitor::Master.monitor(ct)
 
           # Clear old LXC home if possible
-          Dir.rmdir(ct.group.userdir(old_user)) unless ct.group.has_containers?(old_user)
+          unless ct.group.has_containers?(old_user)
+            progress('Cleaning up original LXC home')
+            Dir.rmdir(ct.group.userdir(old_user))
+          end
 
           ok
         end
