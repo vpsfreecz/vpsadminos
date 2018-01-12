@@ -59,6 +59,9 @@ See the `ct` commands.
 `-p`, `--parsable`
   Show precise values, useful for parsing in scripts.
 
+`-q`, `--quiet`
+  Surpress output.
+
 `--pool=arg`
   Pool name. Needed only when there is more than one pool installed and you wish
   to work with pools other than the first one, which is taken as the default

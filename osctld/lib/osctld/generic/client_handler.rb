@@ -23,7 +23,13 @@ module OsCtld
   #
   #     {cmd: <command>, opts: <command parameters>}
   #
-  # The client waits for the server to reply, which can be one of:
+  # The client waits for the server to reply. While waiting for the final
+  # response, the client can receive a progress update:
+  #
+  #     {status: true, progress: "message"}
+  #
+  # There can be zero or multiple progress updates, followed by a final
+  # response:
   #
   #     {status: true, response: <command response>}
   #     {status: false, message: "error message"}
@@ -94,6 +100,10 @@ module OsCtld
     # Signal error `msg`, raises an exception
     def error!(msg)
       raise CommandFailed, msg
+    end
+
+    def send_update(msg)
+      send_data({status: true, progress: msg})
     end
 
     def socket

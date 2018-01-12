@@ -4,15 +4,16 @@ module OsCtld
       Command.register(name, self)
     end
 
-    def self.run(opts = {}, sock = nil)
-      c = new(sock, opts)
+    def self.run(opts = {}, handler = nil)
+      c = new(handler, opts)
       c.execute
     end
 
     attr_reader :client, :opts
 
-    def initialize(sock, opts)
-      @client = sock
+    def initialize(handler, opts)
+      @client_handler = handler
+      @client = handler && handler.socket
       @opts = opts
     end
 
@@ -35,6 +36,11 @@ module OsCtld
 
     def error(msg)
       {status: false, message: msg}
+    end
+
+    def progress(msg)
+      return unless @client_handler
+      @client_handler.send_update(msg)
     end
   end
 end

@@ -37,18 +37,18 @@ module OsCtl::Cli
       c
     end
 
-    def osctld_call(cmd, opts = {})
+    def osctld_call(cmd, opts = {}, &block)
       c = osctld_open
-      c.cmd_data!(cmd, opts)
+      c.cmd_data!(cmd, opts, &block)
     end
 
-    def osctld_resp(cmd, opts = {})
+    def osctld_resp(cmd, opts = {}, &block)
       c = osctld_open
-      c.cmd_response(cmd, opts)
+      c.cmd_response(cmd, opts, &block)
     end
 
     def osctld_fmt(cmd, opts = {}, cols = nil, fmt_opts = {})
-      ret = osctld_call(cmd, opts)
+      ret = osctld_call(cmd, opts) { |msg| puts msg unless gopts[:quiet] }
       OutputFormatter.print(ret, cols, fmt_opts) if ret
       ret
     end

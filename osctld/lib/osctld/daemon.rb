@@ -13,7 +13,7 @@ module OsCtld
         cmd = Command.find(req[:cmd].to_sym)
         error!("Unsupported command '#{req[:cmd]}'") unless cmd
 
-        cmd.run(req[:opts], socket)
+        cmd.run(req[:opts], self)
       end
 
       def server_version

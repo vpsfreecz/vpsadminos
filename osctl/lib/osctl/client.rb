@@ -20,8 +20,12 @@ module OsCtl
         !ok?
       end
 
+      def update?
+        ok? && @resp.has_key?(:progress)
+      end
+
       def message
-        @resp[:message]
+        update? ? @resp[:progress] : @resp[:message]
       end
 
       def data
@@ -65,40 +69,46 @@ module OsCtl
         break if m[-1].chr == "\n"
       end
 
-      buf
+      buf.split("\n")
     end
 
     def receive_version
-      parse(receive)
+      parse(receive[0])
     end
 
-    def receive_resp
-      Response.new(parse(receive))
+    def receive_resp(&block)
+      loop do
+        receive.each do |msg|
+          resp = Response.new(parse(msg))
+          return resp unless resp.update?
+          block.call(resp.message) if block
+        end
+      end
     end
 
-    def response!
-      ret = receive_resp
+    def response!(&block)
+      ret = receive_resp(&block)
       raise Error, ret.message if ret.error?
       ret
     end
 
-    def cmd_response(cmd, opts = {})
+    def cmd_response(cmd, opts = {}, &block)
       cmd(cmd, opts)
-      receive_resp
+      receive_resp(&block)
     end
 
-    def cmd_response!(*args)
-      ret = cmd_response(*args)
+    def cmd_response!(*args, &block)
+      ret = cmd_response(*args, &block)
       raise Error, ret.message if ret.error?
       ret
     end
 
-    def data!
-      receive_resp!.data
+    def data!(&block)
+      receive_resp!(&block).data
     end
 
-    def cmd_data!(*args)
-      cmd_response!(*args).data
+    def cmd_data!(*args, &block)
+      cmd_response!(*args, &block).data
     end
 
     def close

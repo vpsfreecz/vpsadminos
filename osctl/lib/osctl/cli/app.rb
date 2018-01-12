@@ -28,6 +28,9 @@ module OsCtl::Cli
       desc 'Pool name'
       flag :pool
 
+      desc 'Surpress output'
+      switch %i(q quiet), negatable: false
+
       desc 'Manage data pools'
       command :pool do |p|
         p.desc 'List imported pools'
