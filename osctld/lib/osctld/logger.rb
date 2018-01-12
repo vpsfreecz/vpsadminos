@@ -14,6 +14,7 @@ module OsCtld
 
     def self.log(severity, msg)
       @logger.send(severity, msg)
+      STDOUT.flush if @logger.is_a?(::Logger)
     end
   end
 end
