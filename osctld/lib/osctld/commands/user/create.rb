@@ -12,6 +12,18 @@ module OsCtld
       pool = DB::Pools.get_or_default(opts[:pool])
       return error('pool not found') unless pool
 
+      rx = /^[a-z_][a-z0-9_-]*$/
+
+      if rx !~ opts[:name]
+        return error("invalid name, allowed format: #{rx.source}")
+
+      elsif opts[:ugid] < 1
+        return error('invalid ugid: must be greater than 0')
+
+      elsif opts[:offset] < 0
+        return error('invalid offset: must be greater or equal to 0')
+      end
+
       u = User.new(pool, opts[:name], load: false)
       return error('user already exists') if DB::Users.contains?(u.name, pool)
 

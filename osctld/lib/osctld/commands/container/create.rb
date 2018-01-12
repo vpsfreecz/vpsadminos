@@ -22,6 +22,9 @@ module OsCtld
 
       return error('group not found') unless group
 
+      rx = /^[a-z0-9_-]{1,100}$/i
+      return error("invalid id, allowed format: #{rx.source}") if rx !~ opts[:id]
+
       ct = Container.new(pool, opts[:id], user, group, load: false)
 
       user.inclusively do

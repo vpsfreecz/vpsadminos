@@ -9,6 +9,14 @@ module OsCtld
       pool = DB::Pools.get_or_default(opts[:pool])
       return error('pool not found') unless pool
 
+      rx = /^[a-z0-9_-]{1,100}$/i
+      return error("invalid name, allowed format: #{rx.source}") if rx !~ opts[:name]
+
+      rx = /^[a-z0-9_\-\.]{1,50}$/i
+      opts[:path].split('/').each do |v|
+        return error("invalid path component, allowed format: #{rx.source}") if rx !~ v
+      end
+
       grp = Group.new(pool, opts[:name], load: false)
       return error('group already exists') if DB::Groups.contains?(grp.name, pool)
 
