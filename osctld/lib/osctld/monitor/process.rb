@@ -31,13 +31,18 @@ module OsCtld
       @user = user
       @group = group
       @stdout = stdout
+      @last_line = nil
     end
 
     def monitor
       # First, get container's current state
 
       until @stdout.eof?
-        state = parse(@stdout.readline)
+        line = @stdout.readline
+        next if line == @last_line
+        @last_line = line
+
+        state = parse(line)
         next unless state
 
         update_state(state)
