@@ -106,6 +106,14 @@ module OsCtld
       send_data({status: true, progress: msg})
     end
 
+    def reply_error(err)
+      send_data({status: false, message: err})
+    end
+
+    def reply_ok(res)
+      send_data({status: true, response: res})
+    end
+
     def socket
       @sock
     end
@@ -157,18 +165,12 @@ module OsCtld
       true
     end
 
-    def reply_error(err)
-      send_data({status: false, message: err})
-    end
-
-    def reply_ok(res)
-      send_data({status: true, response: res})
-    end
-
     def send_data(data)
       @sock.send(data.to_json + "\n", 0)
+      true
 
     rescue Errno::EPIPE
+      false
     end
   end
 end

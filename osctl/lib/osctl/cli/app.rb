@@ -1,6 +1,7 @@
 require 'gli'
 require_relative 'cgroup_params'
 require_relative 'container'
+require_relative 'event'
 require_relative 'group'
 require_relative 'net_interface'
 require_relative 'pool'
@@ -432,6 +433,18 @@ module OsCtl::Cli
           end
         end
 
+        ct.desc 'Monitor container state changes'
+        ct.arg_name '[id...]'
+        ct.command :monitor do |c|
+          c.action &Command.run(Event, :monitor_ct)
+        end
+
+        ct.desc 'Wait for container for container to enter state'
+        ct.arg_name '<id> <state...>'
+        ct.command :wait do |c|
+          c.action &Command.run(Event, :wait_ct)
+        end
+
         ct.desc 'List container assets (datasets, files, directories)'
         ct.arg_name '<id>'
         ct.command :assets do |c|
@@ -609,6 +622,11 @@ module OsCtl::Cli
         end
 
         ct.default_command :list
+      end
+
+      desc 'Monitor'
+      command :monitor do |c|
+        c.action &Command.run(Event, :monitor)
       end
     end
 

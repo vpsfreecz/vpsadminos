@@ -13,7 +13,23 @@ module OsCtld
         cmd = Command.find(req[:cmd].to_sym)
         error!("Unsupported command '#{req[:cmd]}'") unless cmd
 
-        cmd.run(req[:opts], self)
+        id = Command.get_id
+        Eventd.report(:management, id: id, state: :run, cmd: req[:cmd], opts: req[:opts])
+
+        ret = cmd.run(req[:opts], self, id: id)
+
+        if ret.is_a?(Hash) && ret[:status]
+          Eventd.report(:management, id: id, state: :done, cmd: req[:cmd], opts: req[:opts])
+
+        else
+          Eventd.report(:management, id: id, state: :failed, cmd: req[:cmd], opts: req[:opts])
+        end
+
+        ret
+
+      rescue => err
+        Eventd.report(:management, id: id, state: :failed, cmd: req[:cmd], opts: req[:opts])
+        raise
       end
 
       def server_version
@@ -31,6 +47,7 @@ module OsCtld
       DB::Groups.instance
       DB::Containers.instance
       Console.init
+      Eventd.start
     end
 
     def setup
@@ -59,6 +76,7 @@ module OsCtld
 
     def stop
       log(:info, 'Exiting')
+      Eventd.stop
       @server.stop if @server
       File.unlink(SOCKET) if File.exist?(SOCKET)
       UserControl.stop

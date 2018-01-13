@@ -1,6 +1,7 @@
 module OsCtld
   module Commands
     module Container ; end
+    module Event ; end
     module Group ; end
     module NetInterface ; end
     module Pool ; end
@@ -54,6 +55,8 @@ require_relative 'osctld/utils/zfs'
 require_relative 'osctld/utils/switch_user'
 require_relative 'osctld/utils/ip'
 require_relative 'osctld/utils/cgroup_params'
+require_relative 'osctld/event'
+require_relative 'osctld/eventd'
 require_relative 'osctld/generic/server'
 require_relative 'osctld/generic/client_handler'
 require_relative 'osctld/user_control/supervisor'

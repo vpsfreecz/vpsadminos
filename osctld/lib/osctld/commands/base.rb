@@ -4,14 +4,14 @@ module OsCtld
       Command.register(name, self)
     end
 
-    def self.run(opts = {}, handler = nil)
-      c = new(handler, opts)
+    def self.run(opts = {}, handler = nil, id = nil)
+      c = new(id || Command.get_id, handler, opts)
       c.execute
     end
 
-    attr_reader :client, :opts
+    attr_reader :id, :client, :opts
 
-    def initialize(handler, opts)
+    def initialize(id, handler, opts)
       @client_handler = handler
       @client = handler && handler.socket
       @opts = opts
@@ -22,6 +22,8 @@ module OsCtld
     end
 
     protected
+    attr_reader :client_handler
+
     def call_cmd(klass, opts = {})
       klass.run(opts, @client_handler)
     end

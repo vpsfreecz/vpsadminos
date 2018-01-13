@@ -74,6 +74,8 @@ module OsCtld
         return
       end
 
+      Eventd.report(:state, pool: ct.pool.name, id: ct.id, state: change[:state])
+
       ct.inclusively do
         ct.state = change[:state]
 

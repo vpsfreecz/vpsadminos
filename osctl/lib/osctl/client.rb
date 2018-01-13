@@ -45,6 +45,7 @@ module OsCtl
 
     def initialize(sock = SOCKET)
       @sock_path = sock
+      @buffer = []
     end
 
     def open
@@ -79,9 +80,25 @@ module OsCtl
 
     def receive_resp(&block)
       loop do
-        receive.each do |msg|
+        if @buffer.any?
+          msgs = @buffer
+
+        else
+          msgs = receive
+        end
+
+        while msgs.any?
+          msg = msgs.shift
+
           resp = Response.new(parse(msg))
-          return resp unless resp.update?
+
+          # Proper response
+          unless resp.update?
+            @buffer = msgs
+            return resp
+          end
+
+          # Update
           block.call(resp.message) if block
         end
       end

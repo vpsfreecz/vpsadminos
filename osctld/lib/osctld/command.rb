@@ -1,8 +1,11 @@
+require 'concurrent'
+
 module OsCtld
   class Command
     include Utils::Log
 
     @@commands = {}
+    @@cmd_id = Concurrent::AtomicFixnum.new(0)
 
     def self.register(name, klass)
       @@commands[self] ||= {}
@@ -16,6 +19,10 @@ module OsCtld
 
     def self.find(handle)
       @@commands[self][handle]
+    end
+
+    def self.get_id
+      @@cmd_id.increment
     end
   end
 end

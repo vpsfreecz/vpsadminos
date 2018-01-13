@@ -334,6 +334,14 @@ See the `ct` commands.
 `ct log path` *id*
   Write the path to the log file of container *id* to stdout.
 
+`ct monitor` *id*
+  Monitor state changes of container *id* and print them on standard output.
+  If global option `-p`, `--parsable` is used, the state changes are reported
+  in JSON.
+
+`ct wait` *id* *state...*
+  Block until container *id* enters one of given states.
+
 `ct assets` *id*
   List container assets and their state.
 
@@ -578,6 +586,10 @@ See the `ct` commands.
 
 `group assets` *name*
   List group's assets (datasets, files, directories) and their state.
+
+`monitor`
+  Print all events reported by `osctld` to standard output. If global option
+  `-p`, `--parsable` is used, the events are printed in JSON.
 
 `help` [*command...*]
   Shows a list of commands or help for one command
