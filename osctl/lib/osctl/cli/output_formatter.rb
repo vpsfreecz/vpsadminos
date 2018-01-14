@@ -165,7 +165,7 @@ module OsCtl::Cli
 
         @cols.each do |c|
           v = o[ c[:name] ]
-          str = (c[:display] ? c[:display].call(v) : v)
+          str = (c[:display] ? c[:display].call(v, o) : v)
           str = @empty if !str || (str.is_a?(::String) && str.empty?)
 
           arr << str

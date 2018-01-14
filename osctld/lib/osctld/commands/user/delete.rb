@@ -1,13 +1,16 @@
 module OsCtld
-  class Commands::User::Delete < Commands::Base
+  class Commands::User::Delete < Commands::Logged
     handle :user_delete
 
-    def execute
-      DB::Users.sync do
-        u = DB::Users.find(opts[:name], opts[:pool])
-        return error('user not found') unless u
-        return error('user has container(s)') if u.has_containers?
+    def find
+      u = DB::Users.find(opts[:name], opts[:pool])
+      u || error!('user not found')
+    end
 
+    def execute(u)
+      return error('user has container(s)') if u.has_containers?
+
+      DB::Users.sync do
         UserControl::Supervisor.stop_server(u)
 
         u.exclusively do

@@ -1,17 +1,19 @@
 require 'ipaddress'
 
 module OsCtld
-  class Commands::NetInterface::IpAdd < Commands::Base
+  class Commands::NetInterface::IpAdd < Commands::Logged
     handle :netif_ip_add
 
     include Utils::Log
     include Utils::System
     include Utils::SwitchUser
 
-    def execute
+    def find
       ct = DB::Containers.find(opts[:id], opts[:pool])
-      return error('container not found') unless ct
+      ct || error!('container not found')
+    end
 
+    def execute(ct)
       netif = ct.netifs.detect { |n| n.name == opts[:name] }
       return error('network interface not found') unless netif
 

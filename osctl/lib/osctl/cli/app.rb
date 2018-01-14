@@ -3,6 +3,7 @@ require_relative 'cgroup_params'
 require_relative 'container'
 require_relative 'event'
 require_relative 'group'
+require_relative 'history'
 require_relative 'net_interface'
 require_relative 'pool'
 require_relative 'user'
@@ -21,6 +22,7 @@ module OsCtl::Cli
       program_desc 'Management utility for vpsAdmin OS'
       version OsCtl::VERSION
       subcommand_option_handling :normal
+      preserve_argv true
       arguments :strict
 
       desc 'Show precise values'
@@ -627,6 +629,12 @@ module OsCtl::Cli
       desc 'Monitor'
       command :monitor do |c|
         c.action &Command.run(Event, :monitor)
+      end
+
+      desc 'Browse pool management history'
+      arg_name '[pool]'
+      command :history do |c|
+        c.action &Command.run(History, :list)
       end
     end
 

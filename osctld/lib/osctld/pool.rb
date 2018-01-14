@@ -52,6 +52,9 @@ module OsCtld
 
       # Allow containers to create veth interfaces
       Commands::User::LxcUsernet.run
+
+      # Open history
+      History.open(self)
     end
 
     def ct_ds

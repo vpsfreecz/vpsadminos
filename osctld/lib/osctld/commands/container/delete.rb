@@ -1,5 +1,5 @@
 module OsCtld
-  class Commands::Container::Delete < Commands::Base
+  class Commands::Container::Delete < Commands::Logged
     handle :ct_delete
 
     include Utils::Log
@@ -7,10 +7,12 @@ module OsCtld
     include Utils::Zfs
     include Utils::SwitchUser
 
-    def execute
+    def find
       ct = DB::Containers.find(opts[:id], opts[:pool])
-      return error("container not found") unless ct
+      ct || error!("container not found")
+    end
 
+    def execute(ct)
       # Remove monitor _before_ acquiring exclusive lock, because monitor
       # uses inclusive lock, which would result in a deadlock
       Monitor::Master.demonitor(ct)

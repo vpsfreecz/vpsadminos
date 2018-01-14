@@ -1,17 +1,17 @@
 module OsCtld
-  class Commands::Container::Create < Commands::Base
+  class Commands::Container::Create < Commands::Logged
     handle :ct_create
 
     include Utils::Log
     include Utils::System
     include Utils::Zfs
 
-    def execute
+    def find
       pool = DB::Pools.get_or_default(opts[:pool])
-      return error('pool not found') unless pool
+      error!('pool not found') unless pool
 
       user = DB::Users.find(opts[:user], pool)
-      return error('user not found') unless user
+      error!('user not found') unless user
 
       if opts[:group]
         group = DB::Groups.find(opts[:group], pool)
@@ -20,12 +20,18 @@ module OsCtld
         group = DB::Groups.default(pool)
       end
 
-      return error('group not found') unless group
+      error!('group not found') unless group
 
       rx = /^[a-z0-9_-]{1,100}$/i
-      return error("invalid id, allowed format: #{rx.source}") if rx !~ opts[:id]
+      error!("invalid id, allowed format: #{rx.source}") if rx !~ opts[:id]
 
-      ct = Container.new(pool, opts[:id], user, group, load: false)
+      Container.new(pool, opts[:id], user, group, load: false)
+    end
+
+    def execute(ct)
+      pool = ct.pool
+      user = ct.user
+      group = ct.group
 
       user.inclusively do
         ct.exclusively do

@@ -3,6 +3,7 @@ module OsCtld
     module Container ; end
     module Event ; end
     module Group ; end
+    module History ; end
     module NetInterface ; end
     module Pool ; end
     module User ; end
@@ -57,6 +58,7 @@ require_relative 'osctld/utils/ip'
 require_relative 'osctld/utils/cgroup_params'
 require_relative 'osctld/event'
 require_relative 'osctld/eventd'
+require_relative 'osctld/history'
 require_relative 'osctld/generic/server'
 require_relative 'osctld/generic/client_handler'
 require_relative 'osctld/user_control/supervisor'
@@ -102,6 +104,7 @@ require_relative 'osctld/switch_user/container_control'
 
 require_relative 'osctld/commands/base'
 require_relative 'osctld/commands/assets'
+require_relative 'osctld/commands/logged'
 Dir.glob(File.join(
   File.dirname(__FILE__),
   'osctld', 'commands', '*', '*.rb'

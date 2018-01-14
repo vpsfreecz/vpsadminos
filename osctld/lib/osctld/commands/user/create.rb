@@ -1,32 +1,36 @@
 require 'fileutils'
 
 module OsCtld
-  class Commands::User::Create < Commands::Base
+  class Commands::User::Create < Commands::Logged
     handle :user_create
 
     include Utils::Log
     include Utils::System
     include Utils::Zfs
 
-    def execute
+    def find
       pool = DB::Pools.get_or_default(opts[:pool])
-      return error('pool not found') unless pool
+      error!('pool not found') unless pool
 
       rx = /^[a-z_][a-z0-9_-]*$/
 
       if rx !~ opts[:name]
-        return error("invalid name, allowed format: #{rx.source}")
+        error!("invalid name, allowed format: #{rx.source}")
 
       elsif opts[:ugid] < 1
-        return error('invalid ugid: must be greater than 0')
+        error!('invalid ugid: must be greater than 0')
 
       elsif opts[:offset] < 0
-        return error('invalid offset: must be greater or equal to 0')
+        error!('invalid offset: must be greater or equal to 0')
       end
 
       u = User.new(pool, opts[:name], load: false)
-      return error('user already exists') if DB::Users.contains?(u.name, pool)
+      error!('user already exists') if DB::Users.contains?(u.name, pool)
 
+      u
+    end
+
+    def execute(u)
       u.exclusively do
         zfs(:create, nil, u.dataset)
 

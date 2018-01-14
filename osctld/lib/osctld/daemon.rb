@@ -16,7 +16,7 @@ module OsCtld
         id = Command.get_id
         Eventd.report(:management, id: id, state: :run, cmd: req[:cmd], opts: req[:opts])
 
-        ret = cmd.run(req[:opts], self, id: id)
+        ret = cmd.run(req[:opts], id: id, handler: self)
 
         if ret.is_a?(Hash) && ret[:status]
           Eventd.report(:management, id: id, state: :done, cmd: req[:cmd], opts: req[:opts])
@@ -48,6 +48,7 @@ module OsCtld
       DB::Containers.instance
       Console.init
       Eventd.start
+      History.start
     end
 
     def setup

@@ -39,18 +39,26 @@ module OsCtl::Cli
 
     def osctld_call(cmd, opts = {}, &block)
       c = osctld_open
+      opts[:cli] ||= cli_opt
       c.cmd_data!(cmd, opts, &block)
     end
 
     def osctld_resp(cmd, opts = {}, &block)
       c = osctld_open
+      opts[:cli] ||= cli_opt
       c.cmd_response(cmd, opts, &block)
     end
 
     def osctld_fmt(cmd, opts = {}, cols = nil, fmt_opts = {})
+      opts[:cli] ||= cli_opt
       ret = osctld_call(cmd, opts) { |msg| puts msg unless gopts[:quiet] }
       OutputFormatter.print(ret, cols, fmt_opts) if ret
       ret
+    end
+
+    protected
+    def cli_opt
+      "#{File.basename($0)} #{ARGV.join(' ')}"
     end
   end
 end

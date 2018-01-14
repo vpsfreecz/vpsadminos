@@ -1,13 +1,15 @@
 module OsCtld
-  class Commands::Group::CGParamSet < Commands::Base
+  class Commands::Group::CGParamSet < Commands::Logged
     handle :group_cgparam_set
     include Utils::Log
     include Utils::CGroupParams
 
-    def execute
+    def find
       grp = DB::Groups.find(opts[:name], opts[:pool])
-      return error('group not found') unless grp
+      grp || error!('group not found')
+    end
 
+    def execute(grp)
       set(grp, opts, apply: any_container_running?(grp))
     end
 

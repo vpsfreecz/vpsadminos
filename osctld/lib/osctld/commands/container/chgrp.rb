@@ -1,14 +1,16 @@
 module OsCtld
-  class Commands::Container::Chgrp < Commands::Base
+  class Commands::Container::Chgrp < Commands::Logged
     handle :ct_chgrp
 
     include Utils::Log
     include Utils::System
 
-    def execute
+    def find
       ct = DB::Containers.find(opts[:id], opts[:pool])
-      return error('container not found') unless ct
+      ct || error!('container not found')
+    end
 
+    def execute(ct)
       grp = DB::Groups.find(opts[:group], ct.pool)
       return error('group not found') unless grp
 

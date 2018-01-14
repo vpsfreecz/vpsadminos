@@ -1,11 +1,13 @@
 module OsCtld
-  class Commands::NetInterface::Create < Commands::Base
+  class Commands::NetInterface::Create < Commands::Logged
     handle :netif_create
 
-    def execute
+    def find
       ct = DB::Containers.find(opts[:id], opts[:pool])
-      return error('container not found') unless ct
+      ct || error!('container not found')
+    end
 
+    def execute(ct)
       klass = NetInterface.for(opts[:type].to_sym)
       return error("'#{opts[:type]}' is not supported") unless klass
 

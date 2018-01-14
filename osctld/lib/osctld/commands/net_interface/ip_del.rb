@@ -1,15 +1,17 @@
 module OsCtld
-  class Commands::NetInterface::IpDel < Commands::Base
+  class Commands::NetInterface::IpDel < Commands::Logged
     handle :netif_ip_del
 
     include Utils::Log
     include Utils::System
     include Utils::SwitchUser
 
-    def execute
+    def find
       ct = DB::Containers.find(opts[:id], opts[:pool])
-      return error('container not found') unless ct
+      ct || error!('container not found')
+    end
 
+    def execute(ct)
       netif = ct.netifs.detect { |n| n.name == opts[:name] }
       return error('network interface not found') unless netif
 

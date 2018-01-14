@@ -591,6 +591,10 @@ See the `ct` commands.
   Print all events reported by `osctld` to standard output. If global option
   `-p`, `--parsable` is used, the events are printed in JSON.
 
+`history` [*pool...*]
+  Print management history of all or selected pools. If global option
+  `-p`, `--parsable` is used, the events are printed in JSON.
+
 `help` [*command...*]
   Shows a list of commands or help for one command
 

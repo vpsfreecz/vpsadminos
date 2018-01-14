@@ -1,11 +1,13 @@
 module OsCtld
-  class Commands::Container::MountDelete < Commands::Base
+  class Commands::Container::MountDelete < Commands::Logged
     handle :ct_mount_delete
 
-    def execute
+    def find
       ct = DB::Containers.find(opts[:id], opts[:pool])
-      return error('container not found') unless ct
+      ct || error!('container not found')
+    end
 
+    def execute(ct)
       ct.exclusively do
         ct.mount_remove(opts[:mountpoint])
         ok

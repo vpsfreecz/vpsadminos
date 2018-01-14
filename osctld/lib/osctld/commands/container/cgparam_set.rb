@@ -1,13 +1,15 @@
 module OsCtld
-  class Commands::Container::CGParamSet < Commands::Base
+  class Commands::Container::CGParamSet < Commands::Logged
     handle :ct_cgparam_set
     include Utils::Log
     include Utils::CGroupParams
 
-    def execute
+    def find
       ct = DB::Containers.find(opts[:id], opts[:pool])
-      return error('container not found') unless ct
+      ct || error!('container not found')
+    end
 
+    def execute(ct)
       set(ct, opts, apply: ct.running?)
     end
   end

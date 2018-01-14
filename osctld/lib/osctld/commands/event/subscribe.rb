@@ -9,6 +9,8 @@ module OsCtld
       queue = Eventd.subscribe
       client_handler.reply_ok('subscribed')
 
+      opts.delete(:cli)
+
       loop do
         event = queue.pop
         next unless filter?(event)

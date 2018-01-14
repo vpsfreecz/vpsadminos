@@ -32,6 +32,8 @@ module OsCtld
         call_cmd(Commands::User::SubUGIds)
         call_cmd(Commands::User::LxcUsernet)
 
+        History.close(pool)
+
         DB::Pools.remove(pool)
         ok
       end

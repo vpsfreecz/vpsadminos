@@ -1,13 +1,17 @@
 module OsCtld
-  class Commands::Container::Start < Commands::Base
+  class Commands::Container::Start < Commands::Logged
     handle :ct_start
 
     include Utils::Log
     include Utils::System
     include Utils::SwitchUser
 
-    def execute
-      ct = DB::Containers.find(opts[:id], opts[:pool]) || (raise 'container not found')
+    def find
+      ct = DB::Containers.find(opts[:id], opts[:pool])
+      ct || error!('container not found')
+    end
+
+    def execute(ct)
       ct.exclusively do
         next ok if ct.running? && !opts[:force]
 

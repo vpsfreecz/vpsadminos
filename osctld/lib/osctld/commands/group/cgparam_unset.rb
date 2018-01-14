@@ -1,12 +1,14 @@
 module OsCtld
-  class Commands::Group::CGParamUnset < Commands::Base
+  class Commands::Group::CGParamUnset < Commands::Logged
     handle :group_cgparam_unset
     include Utils::CGroupParams
 
-    def execute
+    def find
       grp = DB::Groups.find(opts[:name], opts[:pool])
-      return error('group not found') unless grp
+      grp || error!('group not found')
+    end
 
+    def execute(grp)
       unset(grp, opts)
     end
   end

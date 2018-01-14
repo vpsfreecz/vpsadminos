@@ -1,15 +1,17 @@
 module OsCtld
-  class Commands::Container::Chown < Commands::Base
+  class Commands::Container::Chown < Commands::Logged
     handle :ct_chown
 
     include Utils::Log
     include Utils::System
     include Utils::Zfs
 
-    def execute
+    def find
       ct = DB::Containers.find(opts[:id], opts[:pool])
-      return error('container not found') unless ct
+      ct || error!('container not found')
+    end
 
+    def execute(ct)
       user = DB::Users.find(opts[:user], ct.pool)
       return error('user not found') unless user
 

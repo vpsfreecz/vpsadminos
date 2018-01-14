@@ -1,13 +1,17 @@
 module OsCtld
-  class Commands::Container::Stop < Commands::Base
+  class Commands::Container::Stop < Commands::Logged
     handle :ct_stop
 
     include Utils::Log
     include Utils::System
     include Utils::SwitchUser
 
-    def execute
-      ct = DB::Containers.find(opts[:id], opts[:pool]) || (raise 'container not found')
+    def find
+      ct = DB::Containers.find(opts[:id], opts[:pool])
+      ct || error!('container not found')
+    end
+
+    def execute(ct)
       ct.exclusively do
         progress('Stopping container')
         ret = ct_control(ct, :ct_stop, id: ct.id)
