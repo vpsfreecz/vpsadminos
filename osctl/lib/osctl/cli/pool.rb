@@ -56,5 +56,27 @@ module OsCtl::Cli
       require_args!('name')
       osctld_fmt(:pool_uninstall, name: args[0])
     end
+
+    def healthcheck
+      entities = osctld_call(:pool_healthcheck, pools: args.empty? ? nil : args)
+
+      if gopts[:parsable]
+        puts entities.to_json
+        return
+      end
+
+      if entities.empty?
+        puts 'No errors detected.'
+        return
+      end
+
+      entities.each do |ent|
+        puts "#{ent[:type]} #{ent[:pool]} #{ent[:id]}"
+
+        ent[:assets].each do |asset|
+          puts "\t#{asset[:type]} #{asset[:path]}: #{asset[:errors].join('; ')}"
+        end
+      end
+    end
   end
 end

@@ -81,6 +81,12 @@ module OsCtl::Cli
           c.action &Command.run(Pool, :uninstall)
         end
 
+        p.desc 'Health check'
+        p.arg_name '[name...]'
+        p.command :healthcheck do |c|
+          c.action &Command.run(Pool, :healthcheck)
+        end
+
         p.default_command :list
       end
 

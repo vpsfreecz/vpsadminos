@@ -111,6 +111,9 @@ See the `ct` commands.
     `-o`, `--output` *parameters*
       Select parameters to output, comma separated.
 
+`pool healthcheck` [*names...*]
+  Verify user, group and container assets on all or selected pools.
+
 `user new` *options* *name*
   Create a new user with user namespace configuration.
 
