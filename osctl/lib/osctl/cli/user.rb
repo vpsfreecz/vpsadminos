@@ -1,5 +1,7 @@
 module OsCtl::Cli
   class User < Command
+    include Assets
+
     FIELDS = %i(
       pool
       name
@@ -114,7 +116,7 @@ module OsCtl::Cli
 
     def assets
       require_args!('name')
-      osctld_fmt(:user_assets, name: args[0], pool: gopts[:pool])
+      print_assets(:user_assets, name: args[0], pool: gopts[:pool])
     end
   end
 end

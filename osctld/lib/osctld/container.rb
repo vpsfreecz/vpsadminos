@@ -4,6 +4,7 @@ module OsCtld
   class Container
     include Lockable
     include CGroup::Params
+    include Assets::Definition
     include Utils::Log
     include Utils::System
     include Utils::Zfs
@@ -44,6 +45,77 @@ module OsCtld
       @netifs = []
       @nesting = false
       save_config
+    end
+
+    def assets
+      define_assets do |add|
+        # Datasets
+        add.dataset(
+          dataset,
+          desc: "Container's rootfs",
+          uidoffset: uid_offset,
+          gidoffset: gid_offset
+        )
+
+        # Directories and files
+        add.directory(
+          lxc_dir,
+          desc: 'LXC configuration',
+          owner: 0,
+          group: user.ugid,
+          mode: 40750
+        )
+        add.file(
+          lxc_config_path,
+          desc: 'LXC base config',
+          owner: 0,
+          group: 0,
+          mode: 100644
+        )
+        add.file(
+          lxc_config_path('network'),
+          desc: 'LXC network config',
+          owner: 0,
+          group: 0,
+          mode: 100644
+        )
+        add.file(
+          lxc_config_path('prlimits'),
+          desc: 'LXC resource limits',
+          owner: 0,
+          group: 0,
+          mode: 100644
+        )
+        add.file(
+          lxc_config_path('mounts'),
+          desc: 'LXC mounts',
+          owner: 0,
+          group: 0,
+          mode: 100644
+        )
+        add.file(
+          File.join(lxc_dir, '.bashrc'),
+          desc: 'Shell configuration file for osctl ct su',
+          owner: 0,
+          group: 0,
+          mode: 100644
+        )
+
+        add.file(
+          config_path,
+          desc: 'Container config for osctld',
+          owner: 0,
+          group: 0,
+          mode: 100400
+        )
+        add.file(
+          log_path,
+          desc: 'LXC log file',
+          owner: 0,
+          group: user.ugid,
+          mode: 100660
+        )
+      end
     end
 
     def chown(user)

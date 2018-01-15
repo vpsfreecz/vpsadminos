@@ -1,5 +1,5 @@
 module OsCtld
-  class Commands::History::List < Commands::Assets
+  class Commands::History::List < Commands::Base
     handle :history_list
 
     def execute

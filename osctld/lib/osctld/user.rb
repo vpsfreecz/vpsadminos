@@ -4,6 +4,7 @@ require 'yaml'
 module OsCtld
   class User
     include Lockable
+    include Assets::Definition
     include Utils::Log
     include Utils::System
     include Utils::Zfs
@@ -40,6 +41,54 @@ module OsCtld
       end
 
       File.chown(0, 0, config_path)
+    end
+
+    def assets
+      define_assets do |add|
+        # Datasets
+        add.dataset(dataset, desc: "User's home dataset")
+
+        # Directories and files
+        add.directory(
+          userdir,
+          desc: 'User directory',
+          user: 0,
+          group: ugid,
+          mode: 40751
+        )
+
+        add.directory(
+          homedir,
+          desc: 'Home directory',
+          user: ugid,
+          group: ugid,
+          mode: 40751
+        )
+
+        add.file(
+          config_path,
+          desc: "osctld's user config",
+          user: 0,
+          group: 0,
+          mode: 100400
+        )
+
+        add.entry('/etc/passwd', desc: 'System user') do |asset|
+          asset.validate do
+            if /^#{Regexp.escape(sysusername)}:x:#{ugid}:#{ugid}:/ !~ File.read(asset.path)
+              asset.add_error('entry missing or invalid')
+            end
+          end
+        end
+
+        add.entry('/etc/group', desc: 'System group') do |asset|
+          asset.validate do
+            if /^#{Regexp.escape(sysgroupname)}:x:#{ugid}:$/ !~ File.read(asset.path)
+              asset.add_error('entry missing or invalid')
+            end
+          end
+        end
+      end
     end
 
     def registered?

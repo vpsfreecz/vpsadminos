@@ -1,6 +1,7 @@
 module OsCtl::Cli
   class Group < Command
     include CGroupParams
+    include Assets
 
     FIELDS = %i(
       pool
@@ -99,7 +100,7 @@ module OsCtl::Cli
 
     def assets
       require_args!('name')
-      osctld_fmt(:group_assets, name: args[0], pool: gopts[:pool])
+      print_assets(:group_assets, name: args[0], pool: gopts[:pool])
     end
 
     def cgparam_list

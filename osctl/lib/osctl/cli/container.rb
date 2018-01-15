@@ -5,6 +5,7 @@ require 'tempfile'
 module OsCtl::Cli
   class Container < Command
     include CGroupParams
+    include Assets
 
     FIELDS = %i(
       pool
@@ -372,7 +373,7 @@ module OsCtl::Cli
     def assets
       require_args!('id')
 
-      osctld_fmt(:ct_assets, id: args[0], pool: gopts[:pool])
+      print_assets(:ct_assets, id: args[0], pool: gopts[:pool])
     end
 
     def open_console(ctid, pool, tty)

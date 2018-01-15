@@ -1,5 +1,6 @@
 require 'gli'
 require_relative 'cgroup_params'
+require_relative 'assets'
 require_relative 'container'
 require_relative 'event'
 require_relative 'group'
@@ -164,9 +165,7 @@ module OsCtl::Cli
 
         u.desc "List user's assets (datasets, files, directories)"
         u.arg_name '<name>'
-        u.command :assets do |c|
-          c.action &Command.run(User, :assets)
-        end
+        assets(u, User)
 
         u.default_command :list
       end
@@ -220,9 +219,7 @@ module OsCtl::Cli
 
         grp.desc "List group's assets (datasets, files, directories)"
         grp.arg_name '<name>'
-        grp.command :assets do |c|
-          c.action &Command.run(Group, :assets)
-        end
+        assets(grp, Group)
 
         cg_params(grp, Group)
 
@@ -449,9 +446,7 @@ module OsCtl::Cli
 
         ct.desc 'List container assets (datasets, files, directories)'
         ct.arg_name '<id>'
-        ct.command :assets do |c|
-          c.action &Command.run(Container, :assets)
-        end
+        assets(ct, Container)
 
         ct.desc "Manage container's network interfaces"
         ct.command %i(netif net) do |net|
@@ -639,6 +634,15 @@ module OsCtl::Cli
     end
 
     protected
+    def assets(cmd, handler)
+      cmd.command :assets do |c|
+        c.desc 'Verbose output'
+        c.switch %i(v verbose)
+
+        c.action &Command.run(handler, :assets)
+      end
+    end
+
     def cg_params(cmd, handler)
       cmd.desc 'Manage CGroup parameters'
       cmd.command :cgparams do |p|

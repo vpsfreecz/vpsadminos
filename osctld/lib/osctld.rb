@@ -56,6 +56,7 @@ require_relative 'osctld/utils/zfs'
 require_relative 'osctld/utils/switch_user'
 require_relative 'osctld/utils/ip'
 require_relative 'osctld/utils/cgroup_params'
+require_relative 'osctld/utils/assets'
 require_relative 'osctld/event'
 require_relative 'osctld/eventd'
 require_relative 'osctld/history'
@@ -69,6 +70,16 @@ require_relative 'osctld/prlimit'
 require_relative 'osctld/mount'
 require_relative 'osctld/command'
 require_relative 'osctld/user_command'
+
+require_relative 'osctld/assets'
+require_relative 'osctld/assets/base'
+require_relative 'osctld/assets/base_file'
+Dir.glob(File.join(
+  File.dirname(__FILE__),
+  'osctld', 'assets', '*.rb'
+)).each { |f| require_relative f unless f.end_with?('definition.rb') }
+require_relative 'osctld/assets/definition'
+
 require_relative 'osctld/db/pools'
 require_relative 'osctld/pool'
 require_relative 'osctld/db/pooled_list'
@@ -103,7 +114,6 @@ require_relative 'osctld/switch_user'
 require_relative 'osctld/switch_user/container_control'
 
 require_relative 'osctld/commands/base'
-require_relative 'osctld/commands/assets'
 require_relative 'osctld/commands/logged'
 Dir.glob(File.join(
   File.dirname(__FILE__),

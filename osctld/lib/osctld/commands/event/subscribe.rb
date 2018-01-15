@@ -1,5 +1,5 @@
 module OsCtld
-  class Commands::Event::Subscribe < Commands::Assets
+  class Commands::Event::Subscribe < Commands::Base
     handle :event_subscribe
 
     include Utils::Log

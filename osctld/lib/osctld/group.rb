@@ -1,6 +1,7 @@
 module OsCtld
   class Group
     include Lockable
+    include Assets::Definition
     include CGroup::Params
 
     attr_reader :pool, :name, :path
@@ -26,6 +27,28 @@ module OsCtld
       @path = path
       set_cgparams(cgparams, save: false)
       save_config
+    end
+
+    def assets
+      define_assets do |add|
+        add.file(
+          config_path,
+          desc: "osctld's group config",
+          owner: 0,
+          group: 0,
+          mode: 100400
+        )
+
+        users.each do |u|
+          add.directory(
+            userdir(u),
+            desc: "LXC path for #{u.name}/#{name}",
+            user: 0,
+            group: 0,
+            mode: 40751
+          )
+        end
+      end
     end
 
     def config_path

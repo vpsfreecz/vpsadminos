@@ -171,8 +171,11 @@ See the `ct` commands.
 `user subugids`
   Generate **/etc/subuid** and **/etc/subgid**.
 
-`user assets` *name*
+`user assets` [*options*] *name*
   List user's assets (datasets, files, directories) and their state.
+
+    `-v`, `--verbose`
+      Show detected errors.
 
 `ct new` [*options*] *id*
   Create a new container. Selected user and group have to be from the same pool
@@ -342,8 +345,11 @@ See the `ct` commands.
 `ct wait` *id* *state...*
   Block until container *id* enters one of given states.
 
-`ct assets` *id*
+`ct assets` [*options*] *id*
   List container assets and their state.
+
+    `-v`, `--verbose`
+      Show detected errors.
 
 `ct cgparams ls` [*options*] *id* [*parameters...*]
   List CGroup parameters for container *id*. If no *parameters* are provided,
@@ -584,8 +590,11 @@ See the `ct` commands.
   Apply all CGroup parameters defined for group *name* and all its parent
   groups, all the way up to the root group.
 
-`group assets` *name*
+`group assets` [*options*] *name*
   List group's assets (datasets, files, directories) and their state.
+
+    `-v`, `--verbose`
+      Show detected errors.
 
 `monitor`
   Print all events reported by `osctld` to standard output. If global option

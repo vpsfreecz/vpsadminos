@@ -27,7 +27,7 @@ Let's see what files and directories define the container:
 
 ```
 osctl ct assets myct01
-TYPE        PATH                                        EXIST   PURPOSE
+TYPE        PATH                                         VALID   PURPOSE
 dataset     tank/ct/myct01                               true    Container's rootfs
 directory   /tank/user/myuser01/default/myct01           true    LXC configuration
 file        /tank/user/myuser01/default/myct01/config    true    LXC base config
