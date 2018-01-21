@@ -206,11 +206,27 @@ module OsCtld
     def add_netif(netif)
       @netifs << netif
       save_config
+
+      Eventd.report(
+        :ct_netif,
+        action: :add,
+        pool: pool.name,
+        id: id,
+        name: netif.name,
+      )
     end
 
     def del_netif(netif)
       @netifs.delete(netif)
       save_config
+
+      Eventd.report(
+        :ct_netif,
+        action: :remove,
+        pool: pool.name,
+        id: id,
+        name: netif.name,
+      )
     end
 
     def cgroup_path

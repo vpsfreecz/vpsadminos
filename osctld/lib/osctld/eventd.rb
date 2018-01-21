@@ -49,6 +49,20 @@ module OsCtld
   #       id: object identificator,
   #       action: add/remove
   #     }
+  #
+  # === `:ct_netif`
+  # Reports about container networking interfaces being added, deleted or coming
+  # up and down.
+  #
+  # Options:
+  #
+  #     {
+  #       pool: container's pool name,
+  #       id: container id,
+  #       action: add/remove/up/down,
+  #       name: interface name inside the container,
+  #       veth: interface name on the host
+  #     }
   class Eventd
     @@instance = nil
 

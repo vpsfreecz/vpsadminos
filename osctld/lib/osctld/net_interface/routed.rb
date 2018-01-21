@@ -127,11 +127,28 @@ module OsCtld
           ])
         end
       end
+
+      Eventd.report(
+        :ct_netif,
+        action: :up,
+        pool: ct.pool.name,
+        id: ct.id,
+        name: name,
+        veth: veth,
+      )
     end
 
     def down(veth)
       @veth = nil
       @host_setup = {}
+
+      Eventd.report(
+        :ct_netif,
+        action: :down,
+        pool: ct.pool.name,
+        id: ct.id,
+        name: name,
+      )
     end
 
     def ips(v)
