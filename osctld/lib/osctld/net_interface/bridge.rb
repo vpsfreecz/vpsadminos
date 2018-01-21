@@ -1,5 +1,5 @@
 module OsCtld
-  class NetInterface::Bridge < NetInterface::Base
+  class NetInterface::Bridge < NetInterface::Veth
     type :bridge
 
     include Utils::Log
@@ -42,13 +42,10 @@ module OsCtld
     end
 
     def render_opts
-      {
-        name: name,
-        index: index,
-        hwaddr: hwaddr,
+      super.merge({
         link: link,
         ips: @ips,
-      }
+      })
     end
 
     def ips(v)

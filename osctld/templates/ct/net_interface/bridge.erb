@@ -5,6 +5,8 @@ lxc.net.<%= index %>.flags = up
 <% if hwaddr -%>
 lxc.net.<%= index %>.hwaddr = <%= hwaddr %>
 <% end -%>
+lxc.net.<%= index %>.script.up = <%= hook_veth_up %>
+lxc.net.<%= index %>.script.down = <%= hook_veth_down %>
 <% ips.each do |v, addrs| -%>
 <% addrs.each do |addr| -%>
 lxc.net.<%= index %>.ipv<%= v %>.address = <%= addr.to_string %>
