@@ -38,6 +38,17 @@ module OsCtld
   #       id: container id,
   #       state: new state
   #     }
+  #
+  # === `:db`
+  # Reports about changes in osctld database.
+  # Options:
+  #
+  #     {
+  #       object: pool/user/group/container,
+  #       pool: object's pool name,
+  #       id: object identificator,
+  #       action: add/remove
+  #     }
   class Eventd
     @@instance = nil
 

@@ -49,10 +49,26 @@ module OsCtld
 
     def add(obj)
       sync { @objects << obj }
+
+      Eventd.report(
+        :db,
+        object: obj.class.name.split('::').last.downcase,
+        pool: obj.pool.name,
+        id: obj.id,
+        action: :add
+      )
     end
 
     def remove(obj)
       sync { @objects.delete(obj) }
+
+      Eventd.report(
+        :db,
+        object: obj.class.name.split('::').last.downcase,
+        pool: obj.pool.name,
+        id: obj.id,
+        action: :remove
+      )
     end
 
     def find(id, &block)

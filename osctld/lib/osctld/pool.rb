@@ -28,6 +28,10 @@ module OsCtld
       name
     end
 
+    def pool
+      self
+    end
+
     def setup
       # Ensure needed datasets are present
       mkdatasets
