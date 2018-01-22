@@ -363,6 +363,7 @@ See the `ct` commands.
   `<`, `>`, *left*, *right* | Change sort column
   `r`, `R`                  | Reverse sort order
   `m`                       | Toggle between `realtime` and `cumulative` mode.
+  `?`                       | Show help message.
 
   When global option `-p`, `--parsable` is used, the TUI is replaced by JSON
   being periodically printed on standard output. Every line describing resource

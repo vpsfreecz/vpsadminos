@@ -1,7 +1,7 @@
 require 'json'
 
 module OsCtl::Cli
-  class Top::JsonExporter < Top::Renderer
+  class Top::JsonExporter < Top::View
     def start
       loop do
         sleep(rate)

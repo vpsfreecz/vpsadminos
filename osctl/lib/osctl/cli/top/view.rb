@@ -1,5 +1,5 @@
 module OsCtl::Cli
-  class Top::Renderer
+  class Top::View
     attr_reader :model, :rate
 
     def initialize(model, rate)

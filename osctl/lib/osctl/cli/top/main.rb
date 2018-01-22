@@ -11,8 +11,8 @@ module OsCtl::Cli
         klass = Top::Tui
       end
 
-      renderer = klass.new(model, opts[:rate])
-      renderer.start
+      view = klass.new(model, opts[:rate])
+      view.start
     end
   end
 end
