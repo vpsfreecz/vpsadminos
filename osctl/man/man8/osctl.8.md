@@ -348,6 +348,29 @@ See the `ct` commands.
 `ct wait` *id* *state...*
   Block until container *id* enters one of given states.
 
+`ct top` [*options*]
+  top-like TUI application showing running containers and their CPU, memory,
+  BlkIO and network usage. `ct top` can function in two modes: *realtime* and
+  *cumulative*. *realtime* mode shows CPU usage in percent and other resources
+  as usage per second, except memory and the number of processes. *cumulative*
+  mode shows all resource usage accumulated from the time `ct top` was started.
+
+  Key bindings:
+
+  Keys                      | Action
+  ------------------------- | -------------
+  `q`                       | Quit
+  `<`, `>`, *left*, *right* | Change sort column
+  `r`, `R`                  | Reverse sort order
+  `m`                       | Toggle between `realtime` and `cumulative` mode.
+
+  When global option `-p`, `--parsable` is used, the TUI is replaced by JSON
+  being periodically printed on standard output. Every line describing resource
+  usage at the time of writing.
+
+    `-r`, `--rate` *n*
+      Refresh rate in seconds, defaults to 1 second.
+
 `ct assets` [*options*] *id*
   List container assets and their state.
 

@@ -1,4 +1,5 @@
 require 'gli'
+require 'thread'
 require_relative 'cgroup_params'
 require_relative 'assets'
 require_relative 'container'
@@ -7,6 +8,7 @@ require_relative 'group'
 require_relative 'history'
 require_relative 'net_interface'
 require_relative 'pool'
+require_relative 'top'
 require_relative 'user'
 
 module OsCtl::Cli
@@ -20,6 +22,8 @@ module OsCtl::Cli
     end
 
     def setup
+      Thread.abort_on_exception = true
+
       program_desc 'Management utility for vpsAdmin OS'
       version OsCtl::VERSION
       subcommand_option_handling :normal
@@ -448,6 +452,15 @@ module OsCtl::Cli
         ct.arg_name '<id> <state...>'
         ct.command :wait do |c|
           c.action &Command.run(Event, :wait_ct)
+        end
+
+        ct.desc 'Top-like container monitor'
+        ct.arg_name '[id...]'
+        ct.command :top do |c|
+          c.desc 'Refresh rate, in seconds'
+          c.flag %i(r rate), type: Float, default_value: 1.0
+
+          c.action &Command.run(Top::Main, :start)
         end
 
         ct.desc 'List container assets (datasets, files, directories)'

@@ -23,6 +23,8 @@ module OsCtl
       cpu_time
       cpu_user_time
       cpu_sys_time
+      cpu_stat
+      nproc
     )
 
     def do_cgparam_list(cmd, cmd_opts)
@@ -145,12 +147,36 @@ module OsCtl
             ).to_i
             precise ? t : humanize_time_ns(t)
 
+          when :cpu_stat
+            Hash[
+              read_cgparam(
+                subsystems[:cpuacct],
+                path,
+                'cpuacct.stat'
+              ).split("\n").map do |line|
+                type, hz = line.split(' ')
+                [:"cpu_#{type}_hz", hz.to_i]
+              end
+            ]
+
+          when :nproc
+            read_cgparam(
+              subsystems[:pids],
+              path,
+              'pids.current'
+            ).to_i
+
           else
             nil
           end
 
           next if v.nil?
-          ret[field] = v
+
+          if v.is_a?(Hash)
+            ret.update(v)
+          else
+            ret[field] = v
+          end
 
         rescue Errno::ENOENT
           ret[field] = nil
@@ -160,11 +186,40 @@ module OsCtl
       ret
     end
 
+    # Read and accumulate BlkIO stats
+    # @param subsystems [Hash] subsystem => absolute path
+    # @param path [String] path of chosen group, relative to the subsystem
+    # @param params [Array] parameters to read: `bytes`, `iops`
+    def cg_blkio_stats(subsystems, path, params)
+      file = {
+        bytes: 'blkio.throttle.io_service_bytes',
+        iops: 'blkio.throttle.io_serviced',
+      }
+      ret = {}
+
+      (%i(bytes iops) & params).each do |param|
+        r = w = 0
+
+        read_cgparam(subsystems[:blkio], path, file[param]).split("\n").each do |line|
+          if /^\d+:\d+ Read (\d+)$/ =~ line
+            r += $1.to_i
+
+          elsif /^\d+:\d+ Write (\d+)$/ =~ line
+            w += $1.to_i
+          end
+        end
+
+        ret[param] = {r: r, w: w}
+      end
+
+      ret
+    end
+
     # Add runtime stats from CGroup parameters to `data`
     # @param client [OsCtl::Client]
     # @param data [Hash, Array] hash/array to which the stats are added
     # @param path [String] path of the chosen group
-    # @param [Array] selected stat parameters
+    # @param params [Array] selected stat parameters
     # @param precise [Boolean] humanize parameter values?
     # @return [Hash, Array] data extended with stats
     def cg_add_stats(client, data, path, params, precise)
