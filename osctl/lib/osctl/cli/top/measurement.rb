@@ -47,7 +47,7 @@ module OsCtl::Cli
           ret[k] = do_diff_from(v, mine[k], mode, delta)
 
         elsif %i(memory nproc).include?(k)
-          ret[k] = v
+          ret[k] = mine[k]
 
         else
           if mode == :realtime
