@@ -10,3 +10,5 @@ pages:
     - Networking: 'user-guide/networking.md'
     - Resources: 'user-guide/resources.md'
     - Mounts: 'user-guide/mounts.md'
+- Containers:
+    - Administration: 'containers/administration.md'
