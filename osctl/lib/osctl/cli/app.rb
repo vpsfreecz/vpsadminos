@@ -90,8 +90,6 @@ module OsCtl::Cli
         p.command :healthcheck do |c|
           c.action &Command.run(Pool, :healthcheck)
         end
-
-        p.default_command :list
       end
 
       desc 'Manage system users and user namespace configuration'
@@ -176,8 +174,6 @@ module OsCtl::Cli
         u.desc "List user's assets (datasets, files, directories)"
         u.arg_name '<name>'
         assets(u, User)
-
-        u.default_command :list
       end
 
       desc 'Manage groups used for cgroup-based resource limiting'
@@ -232,8 +228,6 @@ module OsCtl::Cli
         assets(grp, Group)
 
         cg_params(grp, Group)
-
-        grp.default_command :list
       end
 
       desc 'Manage containers'
@@ -554,11 +548,7 @@ module OsCtl::Cli
             ip.command :del do |c|
               c.action &Command.run(NetInterface, :ip_del)
             end
-
-            ip.default_command :list
           end
-
-          net.default_command :list
         end
 
         cg_params(ct, Container)
@@ -591,8 +581,6 @@ module OsCtl::Cli
           pr.command :unset do |c|
             c.action &Command.run(Container, :prlimit_unset)
           end
-
-          pr.default_command :list
         end
 
         ct.desc 'Manage mounts'
@@ -636,8 +624,6 @@ module OsCtl::Cli
             c.action &Command.run(Container, :mount_delete)
           end
         end
-
-        ct.default_command :list
       end
 
       desc 'Monitor'
@@ -703,8 +689,6 @@ module OsCtl::Cli
         p.command :apply do |c|
           c.action &Command.run(handler, :cgparam_apply)
         end
-
-        p.default_command :list
       end
     end
   end
