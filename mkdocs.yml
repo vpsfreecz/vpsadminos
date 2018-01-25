@@ -12,3 +12,6 @@ pages:
     - Mounts: 'user-guide/mounts.md'
 - Containers:
     - Administration: 'containers/administration.md'
+- osctld:
+    - Distribution support: 'osctld/distributions.md'
+    - Interfaces: 'osctld/interfaces.md'
