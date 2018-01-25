@@ -50,7 +50,11 @@ module OsCtld
 
           ### LXC home
           progress('Configuring LXC home')
-          Dir.mkdir(group.userdir(user), 0751) unless group.setup_for?(user)
+
+          unless group.setup_for?(user)
+            Dir.mkdir(group.userdir(user), 0751)
+            File.chown(0, ct.user.ugid, group.userdir(user))
+          end
 
           ## CT dir
           Dir.mkdir(ct.lxc_dir, 0750)

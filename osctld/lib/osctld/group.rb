@@ -44,7 +44,7 @@ module OsCtld
             userdir(u),
             desc: "LXC path for #{u.name}/#{name}",
             user: 0,
-            group: 0,
+            group: u.ugid,
             mode: 40751
           )
         end

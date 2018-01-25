@@ -29,7 +29,10 @@ module OsCtld
           progress('Moving LXC configuration')
 
           # Ensure LXC home
-          Dir.mkdir(grp.userdir(ct.user), 0751) unless grp.setup_for?(ct.user)
+          unless grp.setup_for?(ct.user)
+            Dir.mkdir(grp.userdir(ct.user), 0751)
+            File.chown(0, ct.user.ugid, grp.userdir(ct.user))
+          end
 
           # Move CT dir
           syscmd("mv #{ct.lxc_dir} #{ct.lxc_dir(group: grp)}")
