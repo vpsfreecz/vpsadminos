@@ -26,7 +26,7 @@ module OsCtld
       @opts = cmd_opts
       @id = opts[:id]
       @client_handler = opts[:handler]
-      @client = @client_handle && @client_handler.socket
+      @client = @client_handler && @client_handler.socket
       @indirect = opts[:indirect] || false
     end
 
