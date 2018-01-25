@@ -119,7 +119,7 @@ module OsCtl::Cli
         end
       end
 
-      OutputFormatter.print(
+      format_output(
         ret,
         opts[:output] ? opts[:output].split(',').map(&:to_sym) : IP_FIELDS,
         fmt_opts

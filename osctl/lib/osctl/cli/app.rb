@@ -33,6 +33,9 @@ module OsCtl::Cli
       desc 'Show precise values'
       switch %i(p parsable), negatable: false
 
+      desc 'Format output in JSON'
+      switch %i(j json), negatable: false
+
       desc 'Pool name'
       flag :pool
 

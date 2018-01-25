@@ -66,7 +66,7 @@ module OsCtl::Cli
           next
         end
 
-        if gopts[:parsable]
+        if gopts[:json]
           puts resp.data.to_json
           next
         end

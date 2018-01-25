@@ -56,6 +56,9 @@ See the `ct` commands.
 `--help`
   Show help message
 
+`-j`, `--json`
+  Format output in JSON.
+
 `-p`, `--parsable`
   Show precise values, useful for parsing in scripts.
 
@@ -342,7 +345,7 @@ See the `ct` commands.
 
 `ct monitor` *id*
   Monitor state changes of container *id* and print them on standard output.
-  If global option `-p`, `--parsable` is used, the state changes are reported
+  If global option `-j`, `--json` is used, the state changes are reported
   in JSON.
 
 `ct wait` *id* *state...*
@@ -365,7 +368,7 @@ See the `ct` commands.
   `m`                       | Toggle between `realtime` and `cumulative` mode.
   `?`                       | Show help message.
 
-  When global option `-p`, `--parsable` is used, the TUI is replaced by JSON
+  When global option `-j`, `--json` is used, the TUI is replaced by JSON
   being periodically printed on standard output. Every line describing resource
   usage at the time of writing.
 
@@ -625,11 +628,11 @@ See the `ct` commands.
 
 `monitor`
   Print all events reported by `osctld` to standard output. If global option
-  `-p`, `--parsable` is used, the events are printed in JSON.
+  `-j`, `--json` is used, the events are printed in JSON.
 
 `history` [*pool...*]
   Print management history of all or selected pools. If global option
-  `-p`, `--parsable` is used, the events are printed in JSON.
+  `-j`, `--json` is used, the events are printed in JSON.
 
 `help` [*command...*]
   Shows a list of commands or help for one command

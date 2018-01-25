@@ -23,11 +23,7 @@ module OsCtl::Cli
         }
       end
 
-      if gopts[:parsable]
-        puts data.to_json
-      else
-        OutputFormatter.print(data, cols, layout: :columns)
-      end
+      format_output(data, cols, layout: :columns)
     end
   end
 end

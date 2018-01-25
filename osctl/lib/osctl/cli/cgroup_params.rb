@@ -57,7 +57,12 @@ module OsCtl
           align: 'right',
           display: Proc.new do |values|
             values.map do |v|
-              next v if gopts[:parsable] || (!v.is_a?(Integer) && /^\d+$/ !~ v)
+              if gopts[:parsable] \
+                 || gopts[:json] \
+                 || (!v.is_a?(Integer) && /^\d+$/ !~ v)
+                next v
+              end
+
               humanize_data(v)
             end.join('; ')
           end

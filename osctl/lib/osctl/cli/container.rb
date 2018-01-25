@@ -90,7 +90,7 @@ module OsCtl::Cli
         gopts[:parsable]
       )
 
-      OutputFormatter.print(cts, cols, fmt_opts)
+      format_output(cts, cols, fmt_opts)
     end
 
     def show
@@ -109,7 +109,7 @@ module OsCtl::Cli
       cg_add_stats(c, ct, ct[:group_path], cols, gopts[:parsable])
       c.close
 
-      OutputFormatter.print(ct, cols)
+      format_output(ct, cols)
     end
 
     def create

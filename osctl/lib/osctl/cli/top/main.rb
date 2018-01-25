@@ -4,7 +4,7 @@ module OsCtl::Cli
       model = Top::Model.new
       model.setup
 
-      if gopts[:parsable]
+      if gopts[:json]
         klass = Top::JsonExporter
 
       else

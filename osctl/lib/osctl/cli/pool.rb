@@ -60,7 +60,7 @@ module OsCtl::Cli
     def healthcheck
       entities = osctld_call(:pool_healthcheck, pools: args.empty? ? nil : args)
 
-      if gopts[:parsable]
+      if gopts[:json]
         puts entities.to_json
         return
       end

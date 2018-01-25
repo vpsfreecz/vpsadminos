@@ -1,3 +1,5 @@
+require 'json'
+
 module OsCtl::Cli
  class Command
     include OsCtl::Utils::Humanize
@@ -52,8 +54,17 @@ module OsCtl::Cli
     def osctld_fmt(cmd, opts = {}, cols = nil, fmt_opts = {})
       opts[:cli] ||= cli_opt
       ret = osctld_call(cmd, opts) { |msg| puts msg unless gopts[:quiet] }
-      OutputFormatter.print(ret, cols, fmt_opts) if ret
+      format_output(ret, cols, fmt_opts) if ret
       ret
+    end
+
+    def format_output(data, cols = nil, fmt_opts = {})
+      if gopts[:json]
+        puts data.to_json
+
+      else
+        OutputFormatter.print(data, cols, fmt_opts)
+      end
     end
 
     protected

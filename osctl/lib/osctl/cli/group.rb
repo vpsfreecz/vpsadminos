@@ -53,7 +53,7 @@ module OsCtl::Cli
       )
       c.close
 
-      OutputFormatter.print(groups, cols, fmt_opts)
+      format_output(groups, cols, fmt_opts)
     end
 
     def show
@@ -77,7 +77,7 @@ module OsCtl::Cli
       )
       c.close
 
-      OutputFormatter.print(group, cols)
+      format_output(group, cols)
     end
 
     def create
