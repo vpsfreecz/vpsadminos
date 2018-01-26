@@ -84,7 +84,7 @@ module OsCtl::Cli
         :netif_list,
         id: id,
         pool: pool
-      ).map do |netif_attr|
+      ).map do |netif_attrs|
         Top::Container::NetIf.new(netif_attrs)
       end
 
