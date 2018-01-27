@@ -14,7 +14,7 @@ module OsCtld
       :dns_resolvers, :nesting, :prlimits, :mounts
     attr_accessor :state, :init_pid
 
-    def initialize(pool, id, user = nil, group = nil, load: true)
+    def initialize(pool, id, user = nil, group = nil, load: true, load_from: nil)
       init_lock
 
       @pool = pool
@@ -30,16 +30,14 @@ module OsCtld
       @dns_resolvers = nil
       @nesting = false
 
-      load_config if load
+      load_config(load_from) if load
     end
 
     def ident
       "#{pool.name}:#{id}"
     end
 
-    def configure(user, group, distribution, version)
-      @user = user
-      @group = group
+    def configure(distribution, version)
       @distribution = distribution
       @version = version
       @netifs = []
@@ -398,11 +396,15 @@ module OsCtld
     end
 
     protected
-    def load_config
-      cfg = YAML.load_file(config_path)
+    def load_config(config = nil)
+      if config
+        cfg = YAML.load(config)
+      else
+        cfg = YAML.load_file(config_path)
+      end
 
-      @user = DB::Users.find(cfg['user']) || (raise "user not found")
-      @group = DB::Groups.find(cfg['group']) || (raise "group not found")
+      @user ||= DB::Users.find(cfg['user']) || (raise "user not found")
+      @group ||= DB::Groups.find(cfg['group']) || (raise "group not found")
       @distribution = cfg['distribution']
       @version = cfg['version']
       @hostname = cfg['hostname']

@@ -322,6 +322,33 @@ module OsCtl::Cli
       )
     end
 
+    def export
+      require_args!('id', 'file')
+
+      osctld_fmt(
+        :ct_export,
+        id: args[0],
+        pool: gopts[:pool],
+        file: File.expand_path(args[1]),
+        consistent: opts[:consistent]
+      )
+    end
+
+    def import
+      require_args!('file')
+
+      file = File.expand_path(args[0])
+      fail "#{file}: not found" unless File.exist?(file)
+
+      cmd_opts = {file: file}
+
+      %w(as-id as-user as-group).each do |v|
+        cmd_opts[v.sub('-', '_').to_sym] = opts[v] if opts[v]
+      end
+
+      osctld_fmt(:ct_import, cmd_opts)
+    end
+
     def cd
       require_args!('id')
 

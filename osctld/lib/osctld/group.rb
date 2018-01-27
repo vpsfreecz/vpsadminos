@@ -6,13 +6,13 @@ module OsCtld
 
     attr_reader :pool, :name, :path
 
-    def initialize(pool, name, load: true, root: false)
+    def initialize(pool, name, load: true, config: nil, root: false)
       init_lock
       @pool = pool
       @name = name
       @root = root
       @cgparams = []
-      load_config if load
+      load_config(config) if load
     end
 
     def id
@@ -115,8 +115,12 @@ module OsCtld
     end
 
     protected
-    def load_config
-      cfg = YAML.load_file(config_path)
+    def load_config(config = nil)
+      if config
+        cfg = YAML.load(config)
+      else
+        cfg = YAML.load_file(config_path)
+      end
 
       @path = cfg['path']
       @cgparams = load_cgparams(cfg['cgparams'])

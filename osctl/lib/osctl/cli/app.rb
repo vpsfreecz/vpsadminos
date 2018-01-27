@@ -424,6 +424,30 @@ module OsCtl::Cli
           c.action &Command.run(Container, :cd)
         end
 
+        ct.desc 'Export the container configs and data into a tar archive'
+        ct.arg_name '<id> <file>'
+        ct.command :export do |c|
+          c.desc 'Stop the container during the export'
+          c.switch :consistent, default_value: true
+
+          c.action &Command.run(Container, :export)
+        end
+
+        ct.desc 'Import container from tar archive'
+        ct.arg_name '<file>'
+        ct.command :import do |c|
+          c.desc 'Import as container id'
+          c.flag 'as-id'
+
+          c.desc 'Import as an existing user'
+          c.flag 'as-user'
+
+          c.desc 'Import into an existing group'
+          c.flag 'as-group'
+
+          c.action &Command.run(Container, :import)
+        end
+
         ct.desc 'Access container LXC log file'
         ct.command :log do |log|
           log.desc 'Cat log file to stdout'

@@ -11,11 +11,11 @@ module OsCtld
 
     attr_reader :pool, :name, :ugid, :offset, :size
 
-    def initialize(pool, name, load: true)
+    def initialize(pool, name, load: true, config: nil)
       init_lock
       @pool = pool
       @name = name
-      load_config if load
+      load_config(config) if load
     end
 
     def id
@@ -151,8 +151,12 @@ module OsCtld
     end
 
     private
-    def load_config
-      cfg = YAML.load_file(config_path)
+    def load_config(config)
+      if config
+        cfg = YAML.load(config)
+      else
+        cfg = YAML.load_file(config_path)
+      end
 
       @ugid = cfg['ugid']
       @offset = cfg['offset']
