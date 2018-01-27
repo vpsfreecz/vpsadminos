@@ -430,6 +430,10 @@ module OsCtl::Cli
           c.desc 'Stop the container during the export'
           c.switch :consistent, default_value: true
 
+          c.desc 'Compression'
+          c.flag %i(c compression), must_match: %w(auto off gzip),
+                 default_value: 'auto'
+
           c.action &Command.run(Container, :export)
         end
 

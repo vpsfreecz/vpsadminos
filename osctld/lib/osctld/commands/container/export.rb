@@ -1,6 +1,7 @@
 require 'yaml'
 require 'rubygems'
 require 'rubygems/package'
+require 'zlib'
 
 module OsCtld
   class Commands::Container::Export < Commands::Logged
@@ -53,28 +54,18 @@ module OsCtld
         end
 
         tar.mkdir('rootfs', DIR_MODE)
-        snap1_name, snap1 = snapshot_name(ct, 'base')
-        snap2_name, snap2 = nil
+        snap1 = snapshot_name('base')
+        snap2 = nil
 
-        zfs(:snapshot, '', snap1)
-
-        tar.add_file('rootfs/base.dat', FILE_MODE) do |tf|
-          IO.popen("exec zfs send #{snap1}") do |io|
-            tf.write(io.read(4096)) until io.eof?
-          end
-        end
+        zfs(:snapshot, '', "#{ct.dataset}@#{snap1}")
+        dump_stream(tar, 'base', ct.dataset, snap1)
 
         if ct.state == :running && opts[:consistent]
           call_cmd(Commands::Container::Stop, id: ct.id, pool: ct.pool.name)
 
-          snap2_name, snap2 = snapshot_name(ct, 'incr')
-          zfs(:snapshot, '', snap2)
-
-          tar.add_file('rootfs/incremental.dat', FILE_MODE) do |tf|
-            IO.popen("exec zfs send -I #{snap1} #{snap2}") do |io|
-              tf.write(io.read(4096)) until io.eof?
-            end
-          end
+          snap2 = snapshot_name('incr')
+          zfs(:snapshot, '', "#{ct.dataset}@#{snap2}")
+          dump_stream(tar, 'incremental', ct.dataset, snap2, snap1)
 
           call_cmd(
             Commands::Container::Start,
@@ -82,20 +73,76 @@ module OsCtld
             pool: ct.pool.name,
             force: true
           )
-          zfs(:destroy, '', snap2)
+          zfs(:destroy, '', "#{ct.dataset}@#{snap2}")
         end
 
-        zfs(:destroy, '', snap1)
+        zfs(:destroy, '', "#{ct.dataset}@#{snap1}")
 
         tar.add_file('snapshots.yml', FILE_MODE) do |tf|
-          tf.write(YAML.dump([snap1_name, snap2_name].compact))
+          tf.write(YAML.dump([snap1, snap2].compact))
         end
       end
     end
 
-    def snapshot_name(ct, type)
-      name = "osctl-#{type}-#{Time.now.to_i}"
-      [name, "#{ct.dataset}@#{name}"]
+    def snapshot_name(type)
+      "osctl-#{type}-#{Time.now.to_i}"
+    end
+
+    def dump_stream(tar, name, dataset, snap, from_snap = nil)
+      compression = get_compression(dataset)
+
+      if from_snap
+        cmd = "zfs send -c -I @#{from_snap} #{dataset}@#{snap}"
+      else
+        cmd = "zfs send -c #{dataset}@#{snap}"
+      end
+
+      tar.add_file(dump_file_name(compression, name), FILE_MODE) do |tf|
+        IO.popen("exec #{cmd}") do |io|
+          process_stream(compression, io, tf)
+        end
+      end
+    end
+
+    def process_stream(compression, stream, tf)
+      case compression
+      when :gzip
+        gz = Zlib::GzipWriter.new(tf)
+        gz.write(stream.read(16*1024)) until stream.eof?
+        gz.close
+
+      when :off
+        tf.write(stream.read(16*1024)) until stream.eof?
+
+      else
+        fail "unexpected compression type '#{compression}'"
+      end
+    end
+
+    def get_compression(dataset)
+      case opts[:compression]
+      when 'auto'
+        if zfs(:get, "-H -o value compression", dataset)[:output].strip == 'off'
+          :gzip
+        else
+          :off
+        end
+
+      else
+        opts[:compression].to_sym
+      end
+    end
+
+    def dump_file_name(compression, name)
+      base = "rootfs/#{name}.dat"
+
+      case compression
+      when :gzip
+        "#{base}.gz"
+
+      else
+        base
+      end
     end
   end
 end

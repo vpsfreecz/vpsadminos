@@ -1,6 +1,7 @@
 require 'yaml'
 require 'rubygems'
 require 'rubygems/package'
+require 'zlib'
 
 module OsCtld
   class Commands::Container::Import < Commands::Logged
@@ -105,17 +106,8 @@ module OsCtld
       builder.setup_ct_dir
       builder.setup_lxc_home
 
-      tar.seek('rootfs/base.dat') do |entry|
-        builder.from_stream do |recv|
-          recv.write(entry.read(4096)) until entry.eof?
-        end
-      end
-
-      tar.seek('rootfs/incremental.dat') do |entry|
-        builder.from_stream do |recv|
-          recv.write(entry.read(4096)) until entry.eof?
-        end
-      end
+      load_stream(builder, tar, 'base', true)
+      load_stream(builder, tar, 'incremental', false)
 
       tar.seek('snapshots.yml') do |entry|
         builder.clear_snapshots(YAML.load(entry.read))
@@ -173,6 +165,54 @@ module OsCtld
       end
 
       [db, false]
+    end
+
+    def load_stream(builder, tar, name, required)
+      found = nil
+
+      stream_names(name).each do |file, compression|
+        tf = tar.find { |entry| entry.full_name == file }
+
+        if tf.nil?
+          tar.rewind
+          next
+        end
+
+        found = [tf, compression]
+        break
+      end
+
+      if found.nil?
+        tar.rewind
+        fail "unable to import: #{name} not found" if required
+        return
+      end
+
+      entry, compression = found
+      process_stream(builder, entry, compression)
+      tar.rewind
+    end
+
+    def process_stream(builder, tf, compression)
+      builder.from_stream do |recv|
+        case compression
+        when :gzip
+          gz = Zlib::GzipReader.new(tf)
+          recv.write(gz.readpartial(16*1024)) until gz.eof?
+          gz.close
+
+        when :off
+          recv.write(tf.read(16*1024)) until tf.eof?
+
+        else
+          fail "unexpected compression type '#{compression}'"
+        end
+      end
+    end
+
+    def stream_names(name)
+      base = File.join('rootfs', "#{name}.dat")
+      [[base, :off], ["#{base}.gz", :gzip]]
     end
   end
 end

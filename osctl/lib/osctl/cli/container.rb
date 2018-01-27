@@ -330,7 +330,8 @@ module OsCtl::Cli
         id: args[0],
         pool: gopts[:pool],
         file: File.expand_path(args[1]),
-        consistent: opts[:consistent]
+        consistent: opts[:consistent],
+        compression: opts[:compression]
       )
     end
 
