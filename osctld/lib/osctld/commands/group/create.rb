@@ -23,7 +23,7 @@ module OsCtld
     end
 
     def execute(grp)
-      params = grp.import_cgparams(opts[:cgparams])
+      params = grp.import_cgparams(opts[:cgparams] || [])
 
       grp.exclusively do
         grp.configure(opts[:path], params)
