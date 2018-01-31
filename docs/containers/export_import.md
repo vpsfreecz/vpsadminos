@@ -28,7 +28,7 @@ by *osctld* using *gzip*. One can choose to disable or enforce compression
 using option `--compression auto | off | gzip`.
 
 ## Importing
-To import a previosly exported container, use:
+To import a previously exported container, use:
 
 ```bash
 osctl ct import myct01-export.tar

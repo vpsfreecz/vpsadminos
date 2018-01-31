@@ -11,15 +11,15 @@ Currently supported distributions are:
 
 Unsupported distributions can be used without any restrictions, except that
 *osctld* will be able to configure the network only on the host, containers will
-have to be configured manually. Hostname configuration will, function only
-partially (at runtime, no persistent configuration). DNS resolvers and changing
-passwords should work on most distributions.
+have to be configured manually. Hostname configuration will function only
+partially (at runtime, no persistent configuration). DNS resolvers and password
+changing should work on most distributions.
 
 ## Implementation
 Distribution support code is a part of *osctld*, it's programmed in Ruby,
 see directory `osctld/lib/osctld/dist_config`. *osctld* expects one class for
-each distribution, with `OsCtld::DistConfig::Base` as its superclass. One method
-for each configurable part:
+each distribution, with `OsCtld::DistConfig::Base` as its superclass. There is
+a method for each configurable part:
 
  - `set_hostname`
  - `network`

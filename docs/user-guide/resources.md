@@ -10,7 +10,7 @@ subsystems. There are always two groups: the *root* group and the *default*
 group. The *root* group is the parent of all other groups, its path defaults to
 `osctl`. Newly created containers are put into the *default* group, unless
 configured otherwise. Groups can be nested and you can configure arbitrary
-CGroup subsystem parameters on every group. Every container belongs to exactly
+CGroup subsystem parameters for every group. Every container belongs to exactly
 one group, i.e. the *default* group or any other. You can also configure CGroup
 parameters of the containers themselves.
 
