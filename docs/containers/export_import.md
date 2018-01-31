@@ -86,7 +86,7 @@ been received.
 
 ```yaml
 ---
-type: full
+type: full | skel
 user: <user name>
 group: <group name>
 container: <container id>

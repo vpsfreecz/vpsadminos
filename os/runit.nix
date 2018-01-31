@@ -11,7 +11,13 @@ let
     Protocol 2
     PermitRootLogin yes
     PasswordAuthentication yes
-    AuthorizedKeysFile /etc/ssh/authorized_keys.d/%u
+
+    Match User root
+      AuthorizedKeysFile /etc/ssh/authorized_keys.d/%u
+
+    Match User migration
+      PasswordAuthentication no
+      AuthorizedKeysFile /run/osctl/migration/authorized_keys
   '';
   syslog_config = pkgs.writeText "syslog.conf" ''
     $ModLoad imuxsock

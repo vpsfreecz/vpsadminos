@@ -6,6 +6,7 @@ require_relative 'container'
 require_relative 'event'
 require_relative 'group'
 require_relative 'history'
+require_relative 'migration'
 require_relative 'net_interface'
 require_relative 'pool'
 require_relative 'top'
@@ -452,6 +453,57 @@ module OsCtl::Cli
           c.action &Command.run(Container, :import)
         end
 
+        ct.desc 'Migrate container to another node'
+        ct.command :migrate do |m|
+          m.desc 'Step 1., copy configs to target node'
+          m.arg_name '<id> <dst>'
+          m.command :stage do |c|
+            c.desc 'SSH port'
+            c.flag %i(p port), type: Integer
+
+            c.action &Command.run(Container, :migrate_stage)
+          end
+
+          m.desc 'Step 2., do an initial copy of container dataset'
+          m.arg_name '<id>'
+          m.command :sync do |c|
+            c.action &Command.run(Container, :migrate_sync)
+          end
+
+          m.desc 'Step 3., transfer the container to target node'
+          m.arg_name '<id>'
+          m.command :transfer do |c|
+            c.action &Command.run(Container, :migrate_transfer)
+          end
+
+          m.desc 'Step 4., cleanup the container on the source node'
+          m.arg_name '<id>'
+          m.command :cleanup do |c|
+            c.desc 'Delete the container'
+            c.switch %i(d delete), default_value: true
+
+            c.action &Command.run(Container, :migrate_cleanup)
+          end
+
+          m.desc 'Cancel ongoing migration in mid-step'
+          m.arg_name '<id>'
+          m.command :cancel do |c|
+            c.action &Command.run(Container, :migrate_cancel)
+          end
+
+          m.desc 'Migrate container at once (equals to steps 1-4 in succession)'
+          m.arg_name '<id> <dst>'
+          m.command :now do |c|
+            c.desc 'SSH port'
+            c.flag %i(p port), type: Integer
+
+            c.desc 'Delete the container after migration'
+            c.switch %i(d delete), default_value: true
+
+            c.action &Command.run(Container, :migrate_now)
+          end
+        end
+
         ct.desc 'Access container LXC log file'
         ct.command :log do |log|
           log.desc 'Cat log file to stdout'
@@ -653,6 +705,51 @@ module OsCtl::Cli
           m.arg_name '<id> <mountpoint>'
           m.command %i(del delete) do |c|
             c.action &Command.run(Container, :mount_delete)
+          end
+        end
+      end
+
+      desc 'Migration key chain management'
+      command :migration do |m|
+        m.desc 'Manage local node identity'
+        m.command :key do |k|
+          k.desc 'Generate a new public/private key pair'
+          k.command :gen do |c|
+            c.desc 'Key type'
+            c.flag %i(t type), must_match: %w(rsa ecdsa ed25519)
+
+            c.desc 'Key bit size'
+            c.flag %i(b bits), type: Integer
+
+            c.desc 'Overwrite existing key'
+            c.switch %i(f force), negatable: false
+
+            c.action &Command.run(Migration, :key_gen)
+          end
+
+          k.desc 'Print path to public/private key'
+          k.arg_name '[public | private]'
+          k.command :path do |c|
+            c.action &Command.run(Migration, :key_path)
+          end
+        end
+
+        m.desc 'Manage keys authorized to migrate containers to this node'
+        m.command 'authorized-keys' do |a|
+          a.desc 'List authorized keys'
+          a.command %i(ls list) do |c|
+            c.action &Command.run(Migration, :authorized_keys_list)
+          end
+
+          a.desc 'Authorize a new key'
+          a.command :add do |c|
+            c.action &Command.run(Migration, :authorized_keys_add)
+          end
+
+          a.desc 'Remove authorized key by index'
+          a.arg_name '<index>'
+          a.command %i(del delete) do |c|
+            c.action &Command.run(Migration, :authorized_keys_delete)
           end
         end
       end

@@ -13,6 +13,7 @@ module OsCtld
 
     def execute(ct)
       ct.exclusively do
+        next error('restart not available') unless ct.can_start?
         call_cmd(Commands::Container::Stop, id: ct.id)
         call_cmd(Commands::Container::Start, id: ct.id, force: true)
       end

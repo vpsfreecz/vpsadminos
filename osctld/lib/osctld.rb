@@ -4,6 +4,7 @@ module OsCtld
     module Event ; end
     module Group ; end
     module History ; end
+    module Migration ; end
     module NetInterface ; end
     module Pool ; end
     module User ; end
@@ -86,6 +87,8 @@ require_relative 'osctld/db/pooled_list'
 require_relative 'osctld/db/containers'
 require_relative 'osctld/container'
 require_relative 'osctld/container/builder'
+require_relative 'osctld/container/exporter'
+require_relative 'osctld/container/importer'
 require_relative 'osctld/db/users'
 require_relative 'osctld/user'
 require_relative 'osctld/db/groups'
@@ -105,6 +108,11 @@ require_relative 'osctld/console'
 require_relative 'osctld/console/tty'
 require_relative 'osctld/console/console'
 require_relative 'osctld/console/container'
+require_relative 'osctld/migration'
+require_relative 'osctld/migration/server'
+require_relative 'osctld/migration/key_chain'
+require_relative 'osctld/migration/log'
+require_relative 'osctld/migration/command'
 require_relative 'osctld/dist_config'
 require_relative 'osctld/dist_config/base'
 require_relative 'osctld/dist_config/debian'
@@ -126,4 +134,10 @@ require_relative 'osctld/user_commands/base'
 Dir.glob(File.join(
   File.dirname(__FILE__),
   'osctld', 'user_commands', '*.rb'
+)).each { |f| require_relative f }
+
+require_relative 'osctld/migration/commands/base'
+Dir.glob(File.join(
+  File.dirname(__FILE__),
+  'osctld', 'migration', 'commands', '*.rb'
 )).each { |f| require_relative f }

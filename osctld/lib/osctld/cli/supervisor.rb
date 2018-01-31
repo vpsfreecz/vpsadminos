@@ -91,10 +91,13 @@ module OsCtld
     end
 
     def cleanup
-      path = '/run/osctl/osctld.sock'
-      File.unlink(path) if File.exist?(path)
+      File.unlink(Daemon::SOCKET) if File.exist?(Daemon::SOCKET)
 
-      Dir.glob('/run/osctl/user-control/*.sock').each { |f| File.unlink(f) }
+      Dir.glob(File.join(RunState::USER_CONTROL_DIR, '*.sock')).each do |f|
+        File.unlink(f)
+      end
+
+      File.unlink(Migration::SOCKET) if File.exist?(Migration::SOCKET)
     end
   end
 end

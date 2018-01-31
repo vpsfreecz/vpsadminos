@@ -58,6 +58,9 @@ module OsCtld
       # Increase alloed number of open files
       syscmd("prlimit --nofile=4096 --pid #{Process.pid}")
 
+      # Migration hooks and server
+      Migration.setup
+
       # Load data pools
       Commands::Pool::Import.run(all: true)
 
@@ -81,6 +84,7 @@ module OsCtld
       @server.stop if @server
       File.unlink(SOCKET) if File.exist?(SOCKET)
       UserControl.stop
+      Migration.stop
       Monitor::Master.stop
       exit(false)
     end

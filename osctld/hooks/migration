@@ -1,0 +1,130 @@
+#!/usr/bin/env ruby
+require 'json'
+require 'socket'
+
+class Migration
+  COMMANDS = %w(skel base incremental transfer cancel)
+
+  def initialize(cmdline)
+    error! unless cmdline
+
+    args = cmdline.split(' ')
+    error! if args.count < 2 || args[0] != 'receive' || !COMMANDS.include?(args[1])
+
+    @args = args[2..-1]
+    connect
+    method(args[1].to_sym).call
+  end
+
+  protected
+  attr_reader :args, :client
+
+  def skel
+    send_cmd(:receive_skel, pool: args[0])
+
+    if recv_resp! != 'continue'
+      warn 'Error: invalid response'
+      exit(false)
+    end
+
+    send_stdin
+    recv_resp!
+  end
+
+  def base
+    error! unless args[1]
+    pool, id = parse_pool_id
+    send_cmd(:receive_base, pool: pool, id: id, snapshot: args[1])
+
+    if recv_resp! != 'continue'
+      warn 'Error: invalid response'
+      exit(false)
+    end
+
+    send_stdin
+    recv_resp!
+  end
+
+  def incremental
+    error! unless args[1]
+    pool, id = parse_pool_id
+    send_cmd(:receive_incremental, pool: pool, id: id, snapshot: args[1])
+
+    if recv_resp! != 'continue'
+      warn 'Error: invalid response'
+      exit(false)
+    end
+
+    send_stdin
+    recv_resp!
+  end
+
+  def transfer
+    pool, id = parse_pool_id
+    send_cmd(:receive_transfer, pool: pool, id: id, start: args[1] == 'start')
+    recv_resp!
+  end
+
+  def cancel
+    pool, id = parse_pool_id
+    send_cmd(:receive_cancel, pool: pool, id: id)
+    recv_resp!
+  end
+
+  def connect
+    @client = UNIXSocket.new('/run/osctl/migration/control.sock')
+  end
+
+  def send_cmd(cmd, opts = {})
+    client.send({cmd: cmd, opts: opts}.to_json + "\n", 0)
+  end
+
+  def send_stdin
+    client.send_io(STDIN)
+  end
+
+  def recv_msg
+    JSON.parse(client.readline, symbolize_names: true)
+  end
+
+  def recv_resp!
+    msg = recv_msg
+
+    unless msg[:status]
+      warn "Error: #{msg[:message]}"
+      exit(false)
+    end
+
+    msg[:response]
+  end
+
+  def parse_pool_id
+    error! unless args[0]
+
+    if args[0].index(':')
+      pool, id = args[0].split(':')
+      [pool, id]
+
+    else
+      [nil, args[0]]
+    end
+  end
+
+  def usage
+    warn <<END
+Usage:
+  receive skel [pool]
+  receive base [pool:]<id> <snapshot>
+  receive incremental [pool:]<id> <snapshot>
+  receive transfer [pool:]<id>
+  receive cancel [pool:]<id>
+END
+  end
+
+  def error!
+    usage
+    exit(false)
+  end
+end
+
+Migration.new(ENV['SSH_ORIGINAL_COMMAND'])

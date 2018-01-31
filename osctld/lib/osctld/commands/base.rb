@@ -20,6 +20,19 @@ module OsCtld
       c.base_execute
     end
 
+    def self.run!(*args)
+      ret = run(*args)
+
+      if !ret.is_a?(Hash)
+        fail "invalid return value '#{ret.inspect}'"
+
+      elsif !ret[:status]
+        fail ret[:message]
+      end
+
+      ret
+    end
+
     attr_reader :id, :client, :opts
 
     def initialize(cmd_opts, opts)
@@ -46,6 +59,19 @@ module OsCtld
 
     def call_cmd(klass, opts = {})
       klass.run(opts, handler: client_handler, indirect: true)
+    end
+
+    def call_cmd!(*args)
+      ret = call_cmd(*args)
+
+      if !ret.is_a?(Hash)
+        error!("invalid return value '#{ret.inspect}'")
+
+      elsif !ret[:status]
+        error!(ret[:message])
+      end
+
+      ret
     end
 
     def ok(resp = nil)

@@ -13,6 +13,7 @@ pages:
 - Containers:
     - Administration: 'containers/administration.md'
     - 'Export/Import': 'containers/export_import.md'
+    - Migrations: 'containers/migrations.md'
 - osctld:
     - Distribution support: 'osctld/distributions.md'
     - Interfaces: 'osctld/interfaces.md'

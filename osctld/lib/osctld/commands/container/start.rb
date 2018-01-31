@@ -13,6 +13,7 @@ module OsCtld
 
     def execute(ct)
       ct.exclusively do
+        next error('start not available') unless ct.can_start?
         next ok if ct.running? && !opts[:force]
 
         # Reset log file

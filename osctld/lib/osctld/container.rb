@@ -11,17 +11,27 @@ module OsCtld
     include Utils::SwitchUser
 
     attr_reader :pool, :id, :user, :group, :distribution, :version, :hostname,
-      :dns_resolvers, :nesting, :prlimits, :mounts
+      :dns_resolvers, :nesting, :prlimits, :mounts, :migration_log
     attr_accessor :state, :init_pid
 
-    def initialize(pool, id, user = nil, group = nil, load: true, load_from: nil)
+    # @param pool [Pool]
+    # @param id [String]
+    # @param user [User, nil]
+    # @param group [Group, nil]
+    # @param opts [Hash] options
+    # @option opts [Boolean] load load config
+    # @option opts [String] load_from load from this string instead of config file
+    # @option opts [Boolean] staged create a staged container
+    def initialize(pool, id, user = nil, group = nil, opts = {})
       init_lock
+
+      opts[:load] = true unless opts.has_key?(:load)
 
       @pool = pool
       @id = id
       @user = user
       @group = group
-      @state = :unknown
+      @state = opts[:staged] ? :staged : :unknown
       @init_pid = nil
       @cgparams = []
       @prlimits = []
@@ -30,7 +40,7 @@ module OsCtld
       @dns_resolvers = nil
       @nesting = false
 
-      load_config(load_from) if load
+      load_config(opts[:load_from]) if opts[:load]
     end
 
     def ident
@@ -130,6 +140,24 @@ module OsCtld
       configure_bashrc
     end
 
+    def state=(v)
+      if state == :staged
+        case v
+        when :complete
+          @state = :stopped
+          save_config
+
+        when :running
+          @state = v
+          save_config
+        end
+
+        return
+      end
+
+      @state = v
+    end
+
     def current_state
       inclusively do
         next(state) if state != :unknown
@@ -147,6 +175,10 @@ module OsCtld
 
     def running?
       state == :running
+    end
+
+    def can_start?
+      state != :staged
     end
 
     def dataset
@@ -365,6 +397,16 @@ module OsCtld
       }, File.join(lxc_dir, '.bashrc'))
     end
 
+    def open_migration_log(role, opts = {})
+      @migration_log = Migration::Log.new(role: role, opts: opts)
+      save_config
+    end
+
+    def close_migration_log(save: true)
+      @migration_log = nil
+      save_config if save
+    end
+
     def save_config
       data = {
         'user' => user.name,
@@ -379,6 +421,9 @@ module OsCtld
         'dns_resolvers' => dns_resolvers,
         'nesting' => nesting,
       }
+
+      data['state'] = 'staged' if state == :staged
+      data['migration_log'] = migration_log.dump if migration_log
 
       File.open(config_path, 'w', 0400) do |f|
         f.write(YAML.dump(data))
@@ -403,6 +448,7 @@ module OsCtld
         cfg = YAML.load_file(config_path)
       end
 
+      @state = cfg['state'].to_sym if cfg['state']
       @user ||= DB::Users.find(cfg['user']) || (raise "user not found")
       @group ||= DB::Groups.find(cfg['group']) || (raise "group not found")
       @distribution = cfg['distribution']
@@ -410,6 +456,7 @@ module OsCtld
       @hostname = cfg['hostname']
       @dns_resolvers = cfg['dns_resolvers']
       @nesting = cfg['nesting'] || false
+      @migration_log = Migration::Log.load(cfg['migration_log']) if cfg['migration_log']
 
       i = 0
       @netifs = (cfg['net_interfaces'] || []).map do |v|

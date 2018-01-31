@@ -28,6 +28,13 @@
     subGidRanges = [
         { startGid = 666000; count = 65536; }
       ];
+    };
+
+  users.extraUsers.migration = {
+    isSystemUser = true;
+    description = "User for container migrations";
+    home = "/run/osctl/migration";
+    shell = pkgs.bashInteractive;
   };
 
   users.motd = ''

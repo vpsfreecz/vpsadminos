@@ -16,11 +16,12 @@ module OsCtld
     include Utils::System
     include Utils::Zfs
 
-    attr_reader :name, :dataset
+    attr_reader :name, :dataset, :migration_key_chain
 
     def initialize(name, dataset)
       @name = name
       @dataset = dataset || name
+      @migration_key_chain = Migration::KeyChain.new(self)
       init_lock
     end
 
@@ -56,6 +57,9 @@ module OsCtld
 
       # Allow containers to create veth interfaces
       Commands::User::LxcUsernet.run
+
+      # Load migration keys
+      migration_key_chain.setup
 
       # Open history
       History.open(self)
@@ -102,7 +106,7 @@ module OsCtld
       zfs(:create, '-p', ds(LOG_DS))
 
       # Configuration directories
-      %w(ct group user).each do |dir|
+      %w(ct group user migration).each do |dir|
         path = File.join(conf_path, dir)
         Dir.mkdir(path) unless Dir.exist?(path)
       end

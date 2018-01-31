@@ -27,7 +27,7 @@ module OsCtld
         Console.remove(ct)
 
         progress('Destroying dataset')
-        zfs(:destroy, nil, ct.dataset)
+        zfs(:destroy, '-r', ct.dataset)
 
         progress('Removing LXC configuration')
         syscmd("rm -rf #{ct.lxc_dir}")
