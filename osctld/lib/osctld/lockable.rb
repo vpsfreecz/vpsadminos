@@ -59,9 +59,13 @@ module OsCtld
 
         else
           acquire_inclusive
-          ret = yield
-          release_inclusive
-          ret
+
+          begin
+            yield
+
+          ensure
+            release_inclusive
+          end
         end
       end
 
@@ -108,9 +112,13 @@ module OsCtld
 
         else
           acquire_exclusive
-          ret = yield
-          release_exclusive
-          ret
+
+          begin
+            yield
+
+          ensure
+            release_exclusive
+          end
         end
       end
 
