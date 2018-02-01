@@ -11,6 +11,7 @@ let
     Protocol 2
     PermitRootLogin yes
     PasswordAuthentication yes
+    ChallengeResponseAuthentication no
 
     Match User root
       AuthorizedKeysFile /etc/ssh/authorized_keys.d/%u
