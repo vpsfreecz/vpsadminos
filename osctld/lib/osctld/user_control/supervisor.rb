@@ -4,7 +4,7 @@ module OsCtld
   class UserControl::Supervisor
     class ClientHandler < Generic::ClientHandler
       def handle_cmd(req)
-        cmd = UserCommand.find(req[:cmd].to_sym)
+        cmd = UserControl::Command.find(req[:cmd].to_sym)
         error!("Unsupported command '#{req[:cmd]}'") unless cmd
 
         cmd.run(opts[:user], req[:opts])

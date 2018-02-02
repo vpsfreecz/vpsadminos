@@ -1,5 +1,5 @@
 module OsCtld
-  class UserCommands::CtStart < UserCommands::Base
+  class UserControl::Commands::CtStart < UserControl::Commands::Base
     handle :ct_start
 
     include Utils::Log

@@ -1,7 +1,7 @@
 module OsCtld
-  class UserCommands::Base < Commands::Base
+  class UserControl::Commands::Base < Commands::Base
     def self.handle(name)
-      UserCommand.register(name, self)
+      UserControl::Command.register(name, self)
     end
 
     def self.run(user, opts = {})

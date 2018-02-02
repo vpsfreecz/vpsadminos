@@ -1,6 +1,6 @@
 module OsCtld
-  class UserCommands::VethUp < UserCommands::Base
-    handle :veth_up
+  class UserControl::Commands::VethDown < UserControl::Commands::Base
+    handle :veth_down
 
     include Utils::Log
 
@@ -12,9 +12,9 @@ module OsCtld
       log(
         :info,
         ct,
-        "veth interface coming up: ct=#{opts[:interface]}, host=#{opts[:veth]}"
+        "veth interface coming down: ct=#{opts[:interface]}, host=#{opts[:veth]}"
       )
-      ct.netif_by(opts[:interface]).up(opts[:veth])
+      ct.netif_by(opts[:interface]).down(opts[:veth])
       ok
     end
   end

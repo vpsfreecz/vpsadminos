@@ -16,8 +16,9 @@ module OsCtld
     module Container ; end
   end
   module Utils ; end
-  module UserControl ; end
-  module UserCommands ; end
+  module UserControl
+    module Commands ; end
+  end
 
   def self.root
     File.join(File.dirname(__FILE__), '..')
@@ -70,7 +71,7 @@ require_relative 'osctld/cgroup/params'
 require_relative 'osctld/prlimit'
 require_relative 'osctld/mount'
 require_relative 'osctld/command'
-require_relative 'osctld/user_command'
+require_relative 'osctld/user_control/command'
 
 require_relative 'osctld/assets'
 require_relative 'osctld/assets/base'
@@ -130,10 +131,10 @@ Dir.glob(File.join(
   'osctld', 'commands', '*', '*.rb'
 )).each { |f| require_relative f }
 
-require_relative 'osctld/user_commands/base'
+require_relative 'osctld/user_control/commands/base'
 Dir.glob(File.join(
   File.dirname(__FILE__),
-  'osctld', 'user_commands', '*.rb'
+  'osctld', 'user_control', 'commands', '*.rb'
 )).each { |f| require_relative f }
 
 require_relative 'osctld/migration/commands/base'
