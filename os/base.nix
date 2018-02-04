@@ -133,7 +133,6 @@ with lib;
     boot.supportedFilesystems = [ "zfs" ];
     environment.shellAliases = {
       ll = "ls -l";
-      attach = "lxc-attach --clear-env -n";
     };
     environment.systemPackages = lib.optional config.vpsadminos.nix pkgs.nix;
     nixpkgs.config = {
@@ -183,17 +182,6 @@ with lib;
           }
         }
       '';
-      # XXX: defined twice (for default.conf bellow with different idmap), refactor
-      "lxc/user.conf".text = ''
-          lxc.net.0.type = veth
-          ${lib.optionalString config.networking.lxcbr "lxc.net.0.link = lxcbr0"}
-          lxc.net.0.flags = up
-          lxc.net.0.hwaddr = 00:16:3e:xx:xx:xx
-          lxc.idmap = u 0 100000 65536
-          lxc.idmap = g 0 100000 65536
-          lxc.include = ${pkgs.lxcfs}/share/lxc/config/common.conf.d/00-lxcfs.conf
-          lxc.apparmor.allow_incomplete = 1 
-      '';
       "lxc/common.conf.d/00-lxcfs.conf".source = "${pkgs.lxcfs}/share/lxc/config/common.conf.d/00-lxcfs.conf";
     };
 
@@ -217,21 +205,6 @@ with lib;
     virtualisation = {
       lxc = {
         enable = true;
-        defaultConfig = ''
-          lxc.net.0.type = veth
-          ${lib.optionalString config.networking.lxcbr "lxc.net.0.link = lxcbr0"}
-          lxc.net.0.flags = up
-          lxc.net.0.hwaddr = 00:16:3e:xx:xx:xx
-          lxc.idmap = u 0 666000 65536
-          lxc.idmap = g 0 666000 65536
-          lxc.include = ${pkgs.lxcfs}/share/lxc/config/common.conf.d/00-lxcfs.conf
-          lxc.apparmor.allow_incomplete = 1
-        '';
-        # XXX: need this?
-        systemConfig = ''
-          #lxc.rootfs.backend = zfs
-          #lxc.bdev.zfs.root = vault/sys/atom/var/lib/lxc
-        '';
         usernetConfig = lib.optionalString config.networking.lxcbr ''
           root veth lxcbr0 10
         '';
