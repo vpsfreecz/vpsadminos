@@ -21,9 +21,9 @@ let
   kernel = config.boot.kernelPackages;
 
   packages = {
-    spl = kernel.splUnstable;
-    zfs = kernel.zfsUnstable;
-    zfsUser = pkgs.zfsUnstable;
+    spl = kernel.spl;
+    zfs = kernel.zfs;
+    zfsUser = pkgs.zfs;
   };
 
   datasetToPool = x: elemAt (splitString "/" x) 0;

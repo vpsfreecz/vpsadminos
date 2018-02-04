@@ -37,11 +37,6 @@ with lib;
       type = types.bool;
       description = "enable nix-daemon and a writeable store";
     };
-    kernel.testing = mkOption {
-      type = types.bool;
-      default = false;
-      description = "build with testing kernel";
-    };
     networking.hostName = mkOption {
       type = types.string;
       description = "machine hostname";
@@ -110,7 +105,31 @@ with lib;
 #                  #
 ####################
 
-  config = (lib.mkMerge [{
+  config =
+  let
+    origKernel = pkgs.linux_4_15;
+    myKernel = origKernel.override {
+      extraConfig = ''
+        EXPERT y
+        CHECKPOINT_RESTORE y
+        CFS_BANDWIDTH y
+      '';
+    };
+
+    # we also need to override zfs/spl via linuxPackagesFor
+    myLinuxPackages = (pkgs.linuxPackagesFor myKernel).extend (
+      self: super: {
+        zfs = super.zfsUnstable.overrideAttrs (oldAttrs: rec {
+          name = pkgs.zfs.name;
+          version = pkgs.zfs.version;
+          src = pkgs.zfs.src;
+          spl = self.spl;
+        });
+
+        spl = super.splUnstable;
+      });
+  in
+  (lib.mkMerge [{
     boot.supportedFilesystems = [ "zfs" ];
     environment.shellAliases = {
       ll = "ls -l";
@@ -119,25 +138,6 @@ with lib;
     environment.systemPackages = lib.optional config.vpsadminos.nix pkgs.nix;
     nixpkgs.config = {
       packageOverrides = self: rec {
-
-        lxc = self.lxc.override { dbus = null; systemd = null; };
-        gnupg = self.gnupg.override { guiSupport = false; libusb = null; pinentry = null; openldap = null; };
-        utillinux = self.utillinux.override { systemd = null; };
-        linux_4_14 = self.linux_4_14.override {
-          extraConfig = ''
-            EXPERT y
-            CHECKPOINT_RESTORE y
-            CFS_BANDWIDTH y
-          '';
-        };
-        linux_testing = self.linux_testing.override {
-          extraConfig = ''
-            EXPERT y
-            CHECKPOINT_RESTORE y
-            CFS_BANDWIDTH y
-          '';
-        };
-        spl = spl.overrideAttrs (old: { broken = false; });
       };
     };
     environment.etc = {
@@ -198,9 +198,7 @@ with lib;
     };
 
     boot.kernelParams = [ "systemConfig=${config.system.build.toplevel}" ];
-    boot.kernelPackages = if config.kernel.testing then pkgs.linuxPackages_testing else pkgs.linuxPackages_latest;
-    # to pin you can use something like
-    #boot.kernelPackages = pkgs.linuxPackages_4_14;
+    boot.kernelPackages = myLinuxPackages;
     boot.kernelModules = [
       "veth"
       "fuse"

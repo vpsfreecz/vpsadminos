@@ -7,6 +7,12 @@ let
     key = _file;
     config = {
       nixpkgs.system = pkgs.lib.mkDefault system;
+      nixpkgs.overlays = [
+        (import ./overlays/osctl.nix)
+        (import ./overlays/lxc.nix)
+        (import ./overlays/zfs.nix)
+        (import ./overlays/minify.nix)
+      ];
     };
   };
   baseModules = [
