@@ -41,5 +41,7 @@ with lib;
     security.pam.usb.enable = false;
     security.pam.mount.enable = false;
     security.pam.services.su.forwardXAuth = mkForce false;
+    security.pam.services.sshd.startSession = mkForce false;
+    security.pam.services.login.startSession = mkForce false;
   };
 }
