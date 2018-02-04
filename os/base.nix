@@ -82,11 +82,6 @@ with lib;
       description = "use OpenDNS servers";
       default = true;
     };
-    networking.ntpdate = mkOption {
-      type = types.bool;
-      description = "use ntpdate to sync time";
-      default = false;
-    };
     networking.lxcbr = mkOption {
       type = types.bool;
       description = "create lxc bridge interface";

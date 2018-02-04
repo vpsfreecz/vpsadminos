@@ -75,10 +75,6 @@ in
       ${pkgs.dhcpcd.override { udev = null; }}/sbin/dhcpcd
       ''}
 
-      ${lib.optionalString config.networking.ntpdate ''
-      #${pkgs.ntp}/bin/ntpdate 192.168.2.1
-      ''}
-
       ${lib.optionalString config.networking.lxcbr ''
       brctl addbr lxcbr0
       brctl setfd lxcbr0 0
