@@ -10,7 +10,9 @@ echo
 
 mkdir -p /proc /sys /dev /tmp /var/log /etc /root /run /nix/var/nix/gcroots
 mount -t proc proc /proc
-mount -o remount,rw,hidepid=2 /proc
+if [ @procHidePid@ ]; then
+  mount -o remount,rw,hidepid=2 /proc
+fi
 mount -t sysfs sys /sys
 mount -t devtmpfs devtmpfs /dev
 mkdir /dev/pts /dev/shm
