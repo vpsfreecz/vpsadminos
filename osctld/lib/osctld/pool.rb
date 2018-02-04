@@ -12,6 +12,7 @@ module OsCtld
     LOG_DS = 'log'
 
     include Lockable
+    include Assets::Definition
     include Utils::Log
     include Utils::System
     include Utils::Zfs
@@ -31,6 +32,107 @@ module OsCtld
 
     def pool
       self
+    end
+
+    def assets
+      define_assets do |add|
+        # Datasets
+        add.dataset(
+          ds(USER_DS),
+          desc: 'Contains user homes and LXC configuration',
+          user: 0,
+          group: 0,
+          mode: 0511
+        )
+        add.dataset(
+          ds(CT_DS),
+          desc: 'Contains container root filesystems',
+          user: 0,
+          group: 0,
+          mode: 0511
+        )
+        add.dataset(
+          ds(CONF_DS),
+          desc: 'Configuration files',
+          user: 0,
+          group: 0,
+          mode: 0500
+        )
+        add.dataset(
+          ds(LOG_DS),
+          desc: 'Container log files, pool history',
+          user: 0,
+          group: 0,
+          mode: 0511
+        )
+
+        # Configs
+        add.directory(
+          File.join(conf_path, 'user'),
+          desc: 'User configuration files for osctld',
+          user: 0,
+          group: 0,
+          mode: 0500
+        )
+        add.directory(
+          File.join(conf_path, 'group'),
+          desc: 'Group configuration files for osctld',
+          user: 0,
+          group: 0,
+          mode: 0500
+        )
+        add.directory(
+          File.join(conf_path, 'ct'),
+          desc: 'Container configuration files for osctld',
+          user: 0,
+          group: 0,
+          mode: 0500
+        )
+        add.directory(
+          File.join(conf_path, 'migration'),
+          desc: 'Identity and authorized keys for migrations',
+          user: 0,
+          group: 0,
+          mode: 0500
+        )
+
+        # Logs
+        add.directory(
+          File.join(log_path, 'ct'),
+          desc: 'Container log files',
+          owner: 0,
+          group: 0
+        )
+
+        # Pool history
+        History.assets(pool, add)
+
+        # Migration
+        migration_key_chain.assets(add)
+
+        # Runstate
+        add.directory(
+          run_dir,
+          desc: 'Runtime configuration',
+          owner: 0,
+          group: 0,
+          mode: 0711
+        )
+        add.directory(
+          console_dir,
+          desc: 'Named pipes for container consoles',
+          owner: 0,
+          group: 0,
+          mode: 0711
+        )
+        add.directory(
+          hook_dir,
+          desc: 'Container hooks',
+          owner: 0,
+          group: 0,
+          mode: 0711
+        )
+      end
     end
 
     def setup
@@ -105,10 +207,15 @@ module OsCtld
       zfs(:create, '-p', ds(CONF_DS))
       zfs(:create, '-p', ds(LOG_DS))
 
+      File.chmod(0511, path(USER_DS))
+      File.chmod(0511, path(CT_DS))
+      File.chmod(0500, path(CONF_DS))
+      File.chmod(0511, path(LOG_DS))
+
       # Configuration directories
       %w(ct group user migration).each do |dir|
         path = File.join(conf_path, dir)
-        Dir.mkdir(path) unless Dir.exist?(path)
+        Dir.mkdir(path, 0500) unless Dir.exist?(path)
       end
 
       path = File.join(log_path, 'ct')

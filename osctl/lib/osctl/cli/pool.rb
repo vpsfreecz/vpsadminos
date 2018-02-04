@@ -10,6 +10,8 @@ module OsCtl::Cli
 
     DEFAULT_FIELDS = FIELDS
 
+    include Assets
+
     def list
       if opts[:list]
         puts FIELDS.join("\n")
@@ -55,6 +57,12 @@ module OsCtl::Cli
     def uninstall
       require_args!('name')
       osctld_fmt(:pool_uninstall, name: args[0])
+    end
+
+    def assets
+      require_args!('name')
+
+      print_assets(:pool_assets, name: args[0])
     end
 
     def healthcheck

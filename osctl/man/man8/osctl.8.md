@@ -142,6 +142,12 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-o`, `--output` *parameters*
       Select parameters to output, comma separated.
 
+`pool assets` [*options*] *name*
+  List pool assets and their state.
+
+    `-v`, `--verbose`
+      Show detected errors.
+
 `pool healthcheck` [*names...*]
   Verify user, group and container assets on all or selected pools.
 

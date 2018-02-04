@@ -4,6 +4,33 @@ module OsCtld
       @pool = pool
     end
 
+    def assets(add)
+      add.file(
+        private_key_path,
+        desc: 'Identity private key',
+        user: 0,
+        group: 0,
+        mode: 0400,
+        optional: true
+      )
+      add.file(
+        public_key_path,
+        desc: 'Identity public key',
+        user: 0,
+        group: 0,
+        mode: 0400,
+        optional: true
+      )
+      add.file(
+        authorized_keys_path,
+        desc: 'Keys authorized to migrate to this node',
+        user: 0,
+        group: 0,
+        mode: 0400,
+        optional: true
+      )
+    end
+
     def setup
       deploy
     end
@@ -42,7 +69,7 @@ module OsCtld
     end
 
     def authorize_key(pubkey)
-      regenerate_file(authorized_keys_path) do |new, old|
+      regenerate_file(authorized_keys_path, 0400) do |new, old|
         old.each_line { |line| new.write(line) } if old
         new.puts(pubkey)
       end
@@ -90,10 +117,10 @@ module OsCtld
       File.rename(replacement, path)
     end
 
-    def regenerate_file(path)
+    def regenerate_file(path, mode)
       replacement = "#{path}.new"
 
-      File.open(replacement, 'w') do |new|
+      File.open(replacement, 'w', mode) do |new|
         if File.exist?(path)
           File.open(path, 'r') do |old|
             yield(new, old)

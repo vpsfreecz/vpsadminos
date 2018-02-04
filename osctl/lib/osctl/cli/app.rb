@@ -90,6 +90,10 @@ module OsCtl::Cli
           c.action &Command.run(Pool, :uninstall)
         end
 
+        p.desc "List pool's assets (datasets, files, directories)"
+        p.arg_name '<name>'
+        assets(p, Pool)
+
         p.desc 'Health check'
         p.arg_name '[name...]'
         p.command :healthcheck do |c|

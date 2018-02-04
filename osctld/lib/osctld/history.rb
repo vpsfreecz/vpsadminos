@@ -42,7 +42,7 @@ module OsCtld
         @@instance = new
       end
 
-      %i(start stop open close log read).each do |m|
+      %i(assets start stop open close log read).each do |m|
         define_method(m) do |*args, &block|
           instance.method(m).call(*args, &block)
         end
@@ -56,6 +56,16 @@ module OsCtld
     end
 
     public
+    def assets(pool, add)
+      add.file(
+        log_path(pool),
+        desc: 'Pool history',
+        owner: 0,
+        group: 0,
+        mode: 0400
+      )
+    end
+
     def start
       @thread = Thread.new { main_loop }
     end
@@ -96,7 +106,7 @@ module OsCtld
           pool = args.pop
 
           unless files.has_key?(pool.name)
-            files[pool.name] = File.open(log_path(pool), 'a')
+            files[pool.name] = File.open(log_path(pool), 'a', 0400)
           end
 
         when :close
@@ -117,7 +127,7 @@ module OsCtld
 
     def do_log(files, pool, cmd, opts)
       unless files.has_key?(pool.name)
-        files[pool.name] = File.open(log_path(pool), 'a')
+        files[pool.name] = File.open(log_path(pool), 'a', 0400)
       end
 
       write_log(files[pool.name], cmd, opts)
