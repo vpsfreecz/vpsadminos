@@ -6,6 +6,7 @@ require_relative 'container'
 require_relative 'event'
 require_relative 'group'
 require_relative 'history'
+require_relative 'migrate'
 require_relative 'migration'
 require_relative 'net_interface'
 require_relative 'pool'
@@ -461,19 +462,19 @@ module OsCtl::Cli
             c.desc 'SSH port'
             c.flag %i(p port), type: Integer
 
-            c.action &Command.run(Container, :migrate_stage)
+            c.action &Command.run(Migrate, :stage)
           end
 
           m.desc 'Step 2., do an initial copy of container dataset'
           m.arg_name '<id>'
           m.command :sync do |c|
-            c.action &Command.run(Container, :migrate_sync)
+            c.action &Command.run(Migrate, :sync)
           end
 
           m.desc 'Step 3., transfer the container to target node'
           m.arg_name '<id>'
           m.command :transfer do |c|
-            c.action &Command.run(Container, :migrate_transfer)
+            c.action &Command.run(Migrate, :transfer)
           end
 
           m.desc 'Step 4., cleanup the container on the source node'
@@ -482,13 +483,13 @@ module OsCtl::Cli
             c.desc 'Delete the container'
             c.switch %i(d delete), default_value: true
 
-            c.action &Command.run(Container, :migrate_cleanup)
+            c.action &Command.run(Migrate, :cleanup)
           end
 
           m.desc 'Cancel ongoing migration in mid-step'
           m.arg_name '<id>'
           m.command :cancel do |c|
-            c.action &Command.run(Container, :migrate_cancel)
+            c.action &Command.run(Migrate, :cancel)
           end
 
           m.desc 'Migrate container at once (equals to steps 1-4 in succession)'
@@ -500,7 +501,7 @@ module OsCtl::Cli
             c.desc 'Delete the container after migration'
             c.switch %i(d delete), default_value: true
 
-            c.action &Command.run(Container, :migrate_now)
+            c.action &Command.run(Migrate, :now)
           end
         end
 

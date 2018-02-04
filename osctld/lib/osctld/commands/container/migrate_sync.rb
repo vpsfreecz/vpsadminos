@@ -1,5 +1,3 @@
-require 'open3'
-
 module OsCtld
   class Commands::Container::MigrateSync < Commands::Base
     handle :ct_migrate_sync
@@ -7,6 +5,7 @@ module OsCtld
     include Utils::Log
     include Utils::System
     include Utils::Zfs
+    include Utils::Migration
 
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])
@@ -26,24 +25,31 @@ module OsCtld
         ct.save_config
       end
 
-      m_opts = ct.migration_log.opts
+      stream = Zfs::Stream.new(ct.dataset, snap)
+      stream.progress do |total, changed|
+        progress(type: :progress, data: {
+          time: Time.now.to_i,
+          size: stream.size,
+          transfered: total,
+          changed: changed,
+        })
+      end
 
-      Open3.pipeline(
-        [
-          'zfs', 'send', '-c', "#{ct.dataset}@#{snap}"
-        ],
-        [
-          'ssh',
-          '-o', 'StrictHostKeyChecking=no',
-          '-T',
-          '-p', (m_opts[:port]).to_s,
-          '-i', ct.pool.migration_key_chain.private_key_path,
-          '-l', 'migration',
-          m_opts[:dst],
-          'receive', 'base', ct.id, snap
-        ],
-      ).each do |status|
-        next if status.exitstatus == 0
+      r, send = stream.spawn
+      pid = Process.spawn(
+        *migrate_ssh_cmd(
+          ct.pool.migration_key_chain,
+          ct.migration_log.opts,
+          ['receive', 'base', ct.id, snap]
+        ),
+        in: r
+      )
+      r.close
+      stream.monitor(send)
+
+      _, status = Process.wait2(pid)
+
+      if status.exitstatus != 0
         error!('sync failed')
       end
 

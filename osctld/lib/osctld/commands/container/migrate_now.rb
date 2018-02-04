@@ -6,7 +6,7 @@ module OsCtld
       ct = DB::Containers.find(opts[:id], opts[:pool])
       error!('container not found') unless ct
 
-      progress('Staging migration')
+      progress(type: :step, title: 'Staging migration')
       call_cmd!(
         Commands::Container::MigrateStage,
         id: ct.id,
@@ -15,21 +15,21 @@ module OsCtld
         port: opts[:port]
       )
 
-      progress('Copying base streams')
+      progress(type: :step, title: 'Copying base streams')
       call_cmd!(
         Commands::Container::MigrateSync,
         id: ct.id,
         pool: ct.pool.name
       )
 
-      progress('Transfering container')
+      progress(type: :step, title: 'Transfering container')
       call_cmd!(
         Commands::Container::MigrateTransfer,
         id: ct.id,
         pool: ct.pool.name
       )
 
-      progress('Cleaning up')
+      progress(type: :step, title: 'Cleaning up')
       call_cmd!(
         Commands::Container::MigrateCleanup,
         id: ct.id,

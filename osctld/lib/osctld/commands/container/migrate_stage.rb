@@ -4,6 +4,8 @@ module OsCtld
   class Commands::Container::MigrateStage < Commands::Base
     handle :ct_migrate_stage
 
+    include Utils::Migration
+
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])
       error!('container not found') unless ct
@@ -20,13 +22,13 @@ module OsCtld
           dst: opts[:dst],
         }
 
-        IO.popen(
-          "exec ssh -o StrictHostKeyChecking=no -T -p #{m_opts[:port]} "+
-          "-i #{ct.pool.migration_key_chain.private_key_path} "+
-          "-l migration #{m_opts[:dst]} "+
-          "receive skel",
-          'r+'
-        ) do |io|
+        ssh = migrate_ssh_cmd(
+          ct.pool.migration_key_chain,
+          m_opts,
+          ['receive', 'skel']
+        )
+
+        IO.popen("exec #{ssh.join(' ')}", 'r+') do |io|
           io.write(f.readpartial(16*1024)) until f.eof?
         end
 

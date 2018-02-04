@@ -7,6 +7,7 @@ module OsCtld
     include Utils::Log
     include Utils::System
     include Utils::Zfs
+    include Utils::Migration
 
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])
@@ -17,18 +18,17 @@ module OsCtld
           error!('invalid migration sequence')
         end
 
-        m_opts = ct.migration_log.opts
-
-        system(
-          'ssh',
-          '-o', 'StrictHostKeyChecking=no',
-          '-T',
-          '-p', m_opts[:port].to_s,
-          '-i', ct.pool.migration_key_chain.private_key_path,
-          '-l', 'migration',
-          m_opts[:dst],
-          'receive', 'cancel', ct.id
+        ret = system(
+          *migrate_ssh_cmd(
+            ct.pool.migration_key_chain,
+            ct.migration_log.opts,
+            ['receive', 'cancel', ct.id]
+          )
         )
+
+        if ret.nil? || $?.exitstatus != 0
+          error!('cancel failed')
+        end
 
         ct.migration_log.snapshots.each do |snap|
           zfs(:destroy, nil, "#{ct.dataset}@#{snap}")

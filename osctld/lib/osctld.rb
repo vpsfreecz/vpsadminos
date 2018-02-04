@@ -19,6 +19,7 @@ module OsCtld
   module UserControl
     module Commands ; end
   end
+  module Zfs ; end
 
   def self.root
     File.join(File.dirname(__FILE__), '..')
@@ -59,6 +60,8 @@ require_relative 'osctld/utils/switch_user'
 require_relative 'osctld/utils/ip'
 require_relative 'osctld/utils/cgroup_params'
 require_relative 'osctld/utils/assets'
+require_relative 'osctld/utils/migration'
+require_relative 'osctld/zfs/stream'
 require_relative 'osctld/event'
 require_relative 'osctld/eventd'
 require_relative 'osctld/history'

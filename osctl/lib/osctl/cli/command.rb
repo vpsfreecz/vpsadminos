@@ -51,9 +51,15 @@ module OsCtl::Cli
       c.cmd_response(cmd, opts, &block)
     end
 
-    def osctld_fmt(cmd, opts = {}, cols = nil, fmt_opts = {})
+    def osctld_fmt(cmd, opts = {}, cols = nil, fmt_opts = {}, &block)
       opts[:cli] ||= cli_opt
-      ret = osctld_call(cmd, opts) { |msg| puts msg unless gopts[:quiet] }
+
+      if block
+        ret = osctld_call(cmd, opts, &block)
+      else
+        ret = osctld_call(cmd, opts) { |msg| puts msg unless gopts[:quiet] }
+      end
+
       format_output(ret, cols, fmt_opts) if ret
       ret
     end
