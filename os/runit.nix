@@ -104,6 +104,7 @@ in
       mkdir -p /var/lib/lxc/rootfs
 
       # Suids
+      chmod 04755 $( which su )
       chmod 04755 $( which newuidmap )
       chmod 04755 $( which newgidmap )
       chmod 04755 ${pkgs.lxc}/libexec/lxc/lxc-user-nic
