@@ -36,7 +36,7 @@ module OsCtld
           desc: "osctld's group config",
           owner: 0,
           group: 0,
-          mode: 100400
+          mode: 0400
         )
 
         users.each do |u|
@@ -45,7 +45,7 @@ module OsCtld
             desc: "LXC path for #{u.name}/#{name}",
             user: 0,
             group: u.ugid,
-            mode: 40751
+            mode: 0751
           )
         end
       end

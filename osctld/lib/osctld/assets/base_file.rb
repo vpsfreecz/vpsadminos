@@ -36,7 +36,8 @@ module OsCtld
     end
 
     def mode
-      sprintf('%o', stat.mode).to_i
+      # Extract permission bits, see man inode(7)
+      stat.mode & 07777
     end
   end
 end

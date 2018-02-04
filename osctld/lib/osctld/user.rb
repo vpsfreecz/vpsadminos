@@ -54,7 +54,7 @@ module OsCtld
           desc: 'User directory',
           user: 0,
           group: ugid,
-          mode: 40751
+          mode: 0751
         )
 
         add.directory(
@@ -62,7 +62,7 @@ module OsCtld
           desc: 'Home directory',
           user: ugid,
           group: ugid,
-          mode: 40751
+          mode: 0751
         )
 
         add.file(
@@ -70,7 +70,7 @@ module OsCtld
           desc: "osctld's user config",
           user: 0,
           group: 0,
-          mode: 100400
+          mode: 0400
         )
 
         add.entry('/etc/passwd', desc: 'System user') do |asset|

@@ -71,42 +71,42 @@ module OsCtld
           desc: 'LXC configuration',
           owner: 0,
           group: user.ugid,
-          mode: 40750
+          mode: 0750
         )
         add.file(
           lxc_config_path,
           desc: 'LXC base config',
           owner: 0,
           group: 0,
-          mode: 100644
+          mode: 0644
         )
         add.file(
           lxc_config_path('network'),
           desc: 'LXC network config',
           owner: 0,
           group: 0,
-          mode: 100644
+          mode: 0644
         )
         add.file(
           lxc_config_path('prlimits'),
           desc: 'LXC resource limits',
           owner: 0,
           group: 0,
-          mode: 100644
+          mode: 0644
         )
         add.file(
           lxc_config_path('mounts'),
           desc: 'LXC mounts',
           owner: 0,
           group: 0,
-          mode: 100644
+          mode: 0644
         )
         add.file(
           File.join(lxc_dir, '.bashrc'),
           desc: 'Shell configuration file for osctl ct su',
           owner: 0,
           group: 0,
-          mode: 100644
+          mode: 0644
         )
 
         add.file(
@@ -114,14 +114,14 @@ module OsCtld
           desc: 'Container config for osctld',
           owner: 0,
           group: 0,
-          mode: 100400
+          mode: 0400
         )
         add.file(
           log_path,
           desc: 'LXC log file',
           owner: 0,
           group: user.ugid,
-          mode: 100660
+          mode: 0660
         )
       end
     end
