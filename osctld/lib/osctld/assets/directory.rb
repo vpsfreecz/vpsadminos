@@ -3,7 +3,7 @@ module OsCtld
     register :directory
 
     def valid?
-      add_error('not a directory') unless stat.directory?
+      add_error('not a directory') if exist? && !opts[:optional] && !stat.directory?
       super
 
     rescue Errno::ENOENT

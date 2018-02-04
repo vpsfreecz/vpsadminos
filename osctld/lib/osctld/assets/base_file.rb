@@ -3,14 +3,17 @@ module OsCtld
     register :file
 
     # @param opts [Hash] options
-    # @opt opts [Integer, nil] user
-    # @opt opts [Integer, nil] group
-    # @opt opts [Integer, nil] mode
+    # @option opts [Integer, nil] user
+    # @option opts [Integer, nil] group
+    # @option opts [Integer, nil] mode
+    # @option opts [Boolean] optional
     def initialize(path, opts)
       super
     end
 
     def valid?
+      return true if !exist? && opts[:optional]
+
       if opts[:user] && stat.uid != opts[:user]
         add_error('invalid owner')
       end
@@ -28,6 +31,10 @@ module OsCtld
     rescue Errno::ENOENT
       add_error('does not exist')
       false
+    end
+
+    def exist?
+      File.exist?(path)
     end
 
     protected
