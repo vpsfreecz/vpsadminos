@@ -41,10 +41,9 @@ make qemu
 ```
 
 ## Building osctl/osctld
-`$NIX_PATH` must be exported and contain `nixpkgs`. osctl and osctld are
-installed as gems. By default, the gems are pushed and installed from
-`https://rubygems.vpsfree.cz`. Pushing requires authentication. Rake, bundler
-and bundix must be installed.
+osctl and osctld are installed as gems. By default, the gems are pushed
+and installed from <https://rubygems.vpsfree.cz>. Pushing requires
+authentication. Rake, bundler and bundix must be installed.
 
 ```bash
 gem install geminabox
