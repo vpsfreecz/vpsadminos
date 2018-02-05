@@ -1,4 +1,12 @@
 {
+  concurrent-ruby = {
+    source = {
+      remotes = ["https://rubygems.vpsfree.cz"];
+      sha256 = "183lszf5gx84kcpb779v6a2y0mx9sssy8dgppng1z9a505nj1qcf";
+      type = "gem";
+    };
+    version = "1.0.5";
+  };
   ipaddress = {
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
@@ -16,13 +24,13 @@
     version = "2.1.0";
   };
   osctld = {
-    dependencies = ["ipaddress" "json" "ruby-lxc"];
+    dependencies = ["concurrent-ruby" "ipaddress" "json" "ruby-lxc"];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "06wc5l2lf3lzbv0dp631d2x1vyfr6xvkg1rkqhzhq5zy3rm5c706";
+      sha256 = "1951z3cg09l8a9s8w96iv87l582r283w6kdgv3mxzjcpqc0ssrri";
       type = "gem";
     };
-    version = "0.1.0.build20180112083925";
+    version = "0.1.0.build20180205091851";
   };
   ruby-lxc = {
     source = {

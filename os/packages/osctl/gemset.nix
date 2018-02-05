@@ -1,4 +1,12 @@
 {
+  curses = {
+    source = {
+      remotes = ["https://rubygems.vpsfree.cz"];
+      sha256 = "0hdgz18a21wi2hg5aw8abc012ni055jr1fbam0v2r8nsqsnx8dy2";
+      type = "gem";
+    };
+    version = "1.2.4";
+  };
   gli = {
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
@@ -32,12 +40,20 @@
     version = "2.1.0";
   };
   osctl = {
-    dependencies = ["gli" "highline" "ipaddress" "json"];
+    dependencies = ["curses" "gli" "highline" "ipaddress" "json" "ruby-progressbar"];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1j4x59sgyzqc4wpzwjrdd71zm98dzydhcgh185f41rdsbrw5875i";
+      sha256 = "0017cd44y27yzc5s3xvpscna6f3qyhhg2yva0x9nk72vsqkd9c66";
       type = "gem";
     };
-    version = "0.1.0.build20180112083918";
+    version = "0.1.0.build20180205091845";
+  };
+  ruby-progressbar = {
+    source = {
+      remotes = ["https://rubygems.vpsfree.cz"];
+      sha256 = "1igh1xivf5h5g3y5m9b4i4j2mhz2r43kngh4ww3q1r80ch21nbfk";
+      type = "gem";
+    };
+    version = "1.9.0";
   };
 }

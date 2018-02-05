@@ -1,9 +1,11 @@
 GEM
   remote: https://rubygems.vpsfree.cz/
   specs:
+    concurrent-ruby (1.0.5)
     ipaddress (0.8.3)
     json (2.1.0)
-    osctld (0.1.0.build20180112083925)
+    osctld (0.1.0.build20180205091851)
+      concurrent-ruby (~> 1.0.5)
       ipaddress (~> 0.8.3)
       json
       ruby-lxc (~> 1.2.2)
@@ -13,7 +15,7 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
-  osctld (= 0.1.0.build20180112083925)
+  osctld (= 0.1.0.build20180205091851)
 
 BUNDLED WITH
    1.14.6
