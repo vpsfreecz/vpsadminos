@@ -15,5 +15,39 @@ module OsCtld
         File.chown(Migration::UID, 0, MIGRATION_DIR)
       end
     end
+
+    def self.assets(add)
+      add.directory(
+        RunState::RUNDIR,
+        desc: 'Runtime configuration',
+        owner: 0,
+        group: 0,
+        mode: 0711
+      )
+      add.directory(
+        RunState::POOL_DIR,
+        desc: 'Runtime pool configuration',
+        owner: 0,
+        group: 0,
+        mode: 0711
+      )
+      add.directory(
+        RunState::USER_CONTROL_DIR,
+        desc: 'Runtime user configuration',
+        owner: 0,
+        group: 0,
+        mode: 0711
+      )
+      add.directory(
+        RunState::MIGRATION_DIR,
+        desc: 'Migration configuration',
+        owner: Migration::UID,
+        group: 0,
+        mode: 0100,
+        optional: true
+      )
+
+      Migration.assets(add)
+    end
   end
 end

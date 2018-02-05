@@ -32,5 +32,21 @@ module OsCtld
       File.open(AUTHORIZED_KEYS, 'w', 0400).close
       File.chown(UID, 0, AUTHORIZED_KEYS)
     end
+
+    def self.assets(add)
+      add.symlink(
+        HOOK,
+        desc: 'Command run by remote node'
+      )
+      add.file(
+        AUTHORIZED_KEYS,
+        desc: 'Keys that are authorized to migrate to this node',
+        owner: UID,
+        group: 0,
+        mode: 0400
+      )
+
+      Server.assets(add)
+    end
   end
 end

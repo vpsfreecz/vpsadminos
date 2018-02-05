@@ -1,9 +1,30 @@
 module OsCtld
-  class Commands::Pool::HealthCheck < Commands::Base
-    handle :pool_healthcheck
+  class Commands::Self::HealthCheck < Commands::Base
+    handle :self_healthcheck
 
     def execute
       ret = []
+      errors = []
+
+      Daemon.get.assets.each do |asset|
+        next if asset.valid?
+
+        errors << {
+          type: asset.type,
+          path: asset.path,
+          opts: asset.opts,
+          errors: asset.errors,
+        }
+      end
+
+      unless errors.empty?
+        ret << {
+          pool: nil,
+          type: 'osctld',
+          id: nil,
+          assets: errors,
+        }
+      end
 
       pools.each do |pool|
         filter = ->(v) { v.pool == pool }
@@ -47,8 +68,11 @@ module OsCtld
           DB::Pools.find(name) || (raise CommandFailed, "pool #{name} not found")
         end
 
-      else
+      elsif opts[:all]
         DB::Pools.get
+
+      else
+        []
       end
     end
   end

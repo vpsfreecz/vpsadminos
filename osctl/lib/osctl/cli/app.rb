@@ -10,6 +10,7 @@ require_relative 'migrate'
 require_relative 'migration'
 require_relative 'net_interface'
 require_relative 'pool'
+require_relative 'self'
 require_relative 'top'
 require_relative 'user'
 
@@ -93,12 +94,6 @@ module OsCtl::Cli
         p.desc "List pool's assets (datasets, files, directories)"
         p.arg_name '<name>'
         assets(p, Pool)
-
-        p.desc 'Health check'
-        p.arg_name '[name...]'
-        p.command :healthcheck do |c|
-          c.action &Command.run(Pool, :healthcheck)
-        end
       end
 
       desc 'Manage system users and user namespace configuration'
@@ -768,6 +763,18 @@ module OsCtl::Cli
       arg_name '[pool]'
       command :history do |c|
         c.action &Command.run(History, :list)
+      end
+
+      desc "List osctld's assets (datasets, files, directories)"
+      assets(self, Self)
+
+      desc 'Health check'
+      arg_name '[pool...]'
+      command :healthcheck do |c|
+        c.desc 'Check all pools'
+        c.switch %i(a all), negatable: false
+
+        c.action &Command.run(Self, :healthcheck)
       end
     end
 

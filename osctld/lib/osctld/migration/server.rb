@@ -23,7 +23,7 @@ module OsCtld
     end
 
     class << self
-      %i(start stop).each do |v|
+      %i(start stop assets).each do |v|
         define_method(v) do |*args, &block|
           instance.send(v, *args, &block)
         end
@@ -48,6 +48,16 @@ module OsCtld
       @server.close
       @thread.join
       File.unlink(Migration::SOCKET)
+    end
+
+    def assets(add)
+      add.socket(
+        Migration::SOCKET,
+        desc: 'Socket for migration control',
+        owner: Migration::UID,
+        group: 0,
+        mode: 0600
+      )
     end
   end
 end

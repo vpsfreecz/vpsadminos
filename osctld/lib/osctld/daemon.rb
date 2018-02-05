@@ -5,6 +5,7 @@ module OsCtld
     include Utils::Log
     include Utils::System
     include Utils::Zfs
+    include Assets::Definition
 
     SOCKET = File.join(RunState::RUNDIR, 'osctld.sock')
 
@@ -41,6 +42,15 @@ module OsCtld
       end
     end
 
+    @@instance = nil
+
+    class << self
+      def get
+        @@instance ||= new
+      end
+    end
+
+    private
     def initialize
       Thread.abort_on_exception = true
       DB::Users.instance
@@ -51,6 +61,7 @@ module OsCtld
       History.start
     end
 
+    public
     def setup
       # Setup /run/osctl
       RunState.create
@@ -66,6 +77,20 @@ module OsCtld
 
       # Start accepting client commands
       serve
+    end
+
+    def assets
+      define_assets do |add|
+        RunState.assets(add)
+
+        add.socket(
+          SOCKET,
+          desc: 'Management socket',
+          owner: 0,
+          group: 0,
+          mode: 0600
+        )
+      end
     end
 
     def serve

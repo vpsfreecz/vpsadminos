@@ -2,7 +2,7 @@ require 'json'
 
 module OsCtl::Cli
   module Assets
-    def print_assets(cmd, cmd_opts)
+    def print_assets(cmd, cmd_opts = {})
       data = osctld_call(cmd, cmd_opts)
       cols = [
         :type,

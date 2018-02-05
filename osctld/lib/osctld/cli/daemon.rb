@@ -1,7 +1,7 @@
 module OsCtld
   class Cli::Daemon
     def self.run(opts)
-      d = OsCtld::Daemon.new
+      d = OsCtld::Daemon.get
 
       %w(INT TERM).each do |sig|
         Signal.trap(sig) do

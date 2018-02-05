@@ -7,14 +7,12 @@ module OsCtld
     module Migration ; end
     module NetInterface ; end
     module Pool ; end
+    module Self ; end
     module User ; end
   end
   module DB ; end
   module Generic ; end
   module Routing ; end
-  module Script
-    module Container ; end
-  end
   module Utils ; end
   module UserControl
     module Commands ; end

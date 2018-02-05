@@ -148,9 +148,6 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-v`, `--verbose`
       Show detected errors.
 
-`pool healthcheck` [*names...*]
-  Verify user, group and container assets on all or selected pools.
-
 `user new` *options* *name*
   Create a new user with user namespace configuration.
 
@@ -777,6 +774,19 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 `history` [*pool...*]
   Print management history of all or selected pools. If global option
   `-j`, `--json` is used, the events are printed in JSON.
+
+`assets` [*options*]
+  List `osctld` assets (datasets, files, directories) and their state.
+
+    `-v`, `--verbose`
+      Show detected errors.
+
+`healthcheck` [*options*] [*pool...*]
+  Verify `osctld` assets and optionally also assets of selected pools, which
+  include all user, group and container assets stored on selected pools.
+
+    `-a`, `--all`
+      Verify all pools.
 
 `help` [*command...*]
   Shows a list of commands or help for one command
