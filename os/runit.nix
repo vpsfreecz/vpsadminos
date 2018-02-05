@@ -37,6 +37,12 @@ let
     *.*;mail.none;local1.none    -/var/log/messages
   '';
 
+  chrony_config = pkgs.writeText "chrony_config" ''
+    ${concatMapStringsSep "\n" (server: "server " + server) config.networking.timeServers}
+    initstepslew 1000
+    pidfile /run/chronyd.pid
+  '';
+
   compat = pkgs.runCommand "runit-compat" {} ''
     mkdir -p $out/bin/
     cat << EOF > $out/bin/poweroff
@@ -191,5 +197,13 @@ in
         lxcbr0
     '';
   })
+
+  (mkIf (config.networking.chronyd) {
+    "service/chronyd/run".source = pkgs.writeScript "chronyd" ''
+      #!/bin/sh
+      ${pkgs.chrony}/bin/chronyd -n -m -u chrony -f ${chrony_config}
+    '';
+  })
+
   ]);
 }

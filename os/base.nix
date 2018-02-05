@@ -42,6 +42,7 @@ with lib;
       description = "machine hostname";
       default = "default";
     };
+
     networking.static.enable = mkOption {
       type = types.bool;
       description = "use static networking configuration";
@@ -66,6 +67,22 @@ with lib;
       type = types.string;
       description = "gateway IP address for static networking configuration";
       default = "10.0.2.2";
+    };
+    networking.chronyd = mkOption {
+      type = types.bool;
+      description = "use Chrony daemon for network time synchronization";
+      default = true;
+    };
+    networking.timeServers = mkOption {
+      default = [
+        "0.nixos.pool.ntp.org"
+        "1.nixos.pool.ntp.org"
+        "2.nixos.pool.ntp.org"
+        "3.nixos.pool.ntp.org"
+      ];
+      description = ''
+        The set of NTP servers from which to synchronise.
+      '';
     };
     networking.dhcp = mkOption {
       type = types.bool;
@@ -266,6 +283,22 @@ with lib;
       range 192.168.1.100 192.168.1.200;
     }
     '';
+  })
+
+  (mkIf (config.networking.chronyd) {
+    environment.systemPackages = [ pkgs.chrony ];
+    users.extraGroups = singleton
+      { name = "chrony";
+        gid = config.ids.gids.chrony;
+      };
+
+    users.extraUsers = singleton
+      { name = "chrony";
+        uid = config.ids.uids.chrony;
+        group = "chrony";
+        description = "chrony daemon user";
+        home = "/var/lib/chrony";
+      };
   })
   ]);
 }
