@@ -1,5 +1,5 @@
 module OsCtld
-  class Migration::Commands::Base < Commands::Base
+  class Migration::Commands::Base < OsCtld::Commands::Base
     def self.handle(name)
       Migration::Command.register(name, self)
     end

@@ -1,5 +1,5 @@
 module OsCtld
-  class UserControl::Commands::Base < Commands::Base
+  class UserControl::Commands::Base < OsCtld::Commands::Base
     def self.handle(name)
       UserControl::Command.register(name, self)
     end

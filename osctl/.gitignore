@@ -4,3 +4,5 @@ man/style.css
 man/*.html
 man/**/*.html
 man/man?/*.?
+html_doc
+.yardoc

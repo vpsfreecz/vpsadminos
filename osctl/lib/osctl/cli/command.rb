@@ -19,7 +19,7 @@ module OsCtl::Cli
       @args = args
     end
 
-    # @param required [Array] list of required arguments
+    # @param v [Array] list of required arguments
     def require_args!(*v)
       if v.count == 1 && v.first.is_a?(Array)
         required = v.first

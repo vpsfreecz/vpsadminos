@@ -42,8 +42,8 @@ module OsCtld
     end
 
     # @param opts [Hash] options
-    # @param opts [String] user
-    # @param opts [String] password
+    # @option opts [String] user
+    # @option opts [String] password
     def passwd(opts)
       ret = ct_syscmd(
         ct,

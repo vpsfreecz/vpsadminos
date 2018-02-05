@@ -1,7 +1,7 @@
 module OsCtld
   class PrLimit
     PARAMS = %i(name soft hard)
-    attr_reader *PARAMS
+    attr_reader :name, :soft, :hard
 
     # Load from config
     def self.load(cfg)

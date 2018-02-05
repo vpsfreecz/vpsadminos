@@ -18,3 +18,17 @@ require 'md2man/html/engine'
     disable_indented_code_blocks: true,
   ))
 end
+
+begin
+  require 'yard'
+
+  YARD::Rake::YardocTask.new do |t|
+    t.files   = ['lib/**/*.rb']
+    t.options = [
+      '--protected',
+      '--output-dir=html_doc',
+    ]
+  end
+
+rescue LoadError
+end

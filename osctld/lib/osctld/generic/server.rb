@@ -5,8 +5,8 @@ module OsCtld
   # {Generic::ClientHandler} or its subclass is created to handle the connection.
   class Generic::Server
     # @param socket [BasicSocket] server socket
-    # @param client_handle [Generic::ClientHandler] name of a class that will be
-    #   instantiated for every client
+    # @param client_handler [Generic::ClientHandler] name of a class that will
+    #   be instantiated for every client
     # @param opts [Hash] options
     # @option opts [Hash] opts options passed to the client handler
     def initialize(socket, client_handler, opts = {})

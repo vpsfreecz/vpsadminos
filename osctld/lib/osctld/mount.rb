@@ -1,7 +1,7 @@
 module OsCtld
   class Mount
     PARAMS = %i(fs mountpoint type opts)
-    attr_reader *PARAMS
+    attr_reader :fs, :mountpoint, :type, :opts
 
     # Load from config
     def self.load(cfg)

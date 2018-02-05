@@ -29,7 +29,7 @@ module OsCtld
     include Utils::Zfs
     include Utils::Log
 
-    # @params fs [String] filesystem
+    # @param fs [String] filesystem
     # @param snapshot [String]
     # @param from_snapshot [String]
     def initialize(fs, snapshot, from_snapshot = nil)

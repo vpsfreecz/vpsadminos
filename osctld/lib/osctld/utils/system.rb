@@ -5,13 +5,12 @@ module OsCtld::Utils
     include Timeout
 
     # @param cmd [String]
-    # @param valid_rcs [Array]
     # @param opts [Hash]
-    # @option opts [Array<Integer>] valid_rcs valid exit codes
-    # @option opts [Boolean] stderr include stderr in output?
-    # @option opts [Integer] timeout in seconds
-    # @option opts [Proc] on_timeout
-    # @option opts [String] input data written to the process's stdin
+    # @option opts [Array<Integer>] :valid_rcs valid exit codes
+    # @option opts [Boolean] :stderr include stderr in output?
+    # @option opts [Integer] :timeout in seconds
+    # @option opts [Proc] :on_timeout
+    # @option opts [String] :input data written to the process's stdin
     # @return [Hash]
     def syscmd(cmd, opts = {})
       valid_rcs = opts[:valid_rcs] || []

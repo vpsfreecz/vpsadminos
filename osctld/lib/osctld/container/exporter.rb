@@ -53,7 +53,7 @@ module OsCtld
 
     # Method used to wrap dumping of base and incremental data streams of rootfs
     #
-    # @yield call {#dump_base} and {#dump_incremental} from within the block
+    # @yield [] call {#dump_base} and {#dump_incremental} from within the block
     def dump_rootfs
       tar.mkdir('rootfs', DIR_MODE)
 
