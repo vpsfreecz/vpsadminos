@@ -387,7 +387,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 
     `--compression` *auto* | *off* | *gzip*
       Enable/disable compression of the dumped ZFS data streams. The default is
-      *auto*, which uses compressed stream, if the dataset has ZFS encryption
+      *auto*, which uses compressed stream, if the dataset has ZFS compression
       enabled. If the compression is not enabled on the dataset, the stream
       will be compressed using *gzip*. *off* disables compression, but if
       ZFS compression is enabled, the data is dumped as-is. *gzip* enforces
