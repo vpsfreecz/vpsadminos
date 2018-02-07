@@ -115,8 +115,8 @@ module OsCtl::Cli
     def create
       require_args!('id')
 
-      if !opts[:template] && !opts[:dataset]
-        raise GLI::BadCommandLine, 'provide --template, --dataset or both'
+      if !opts[:template] && !opts[:dataset] && !opts[:stream]
+        raise GLI::BadCommandLine, 'provide --template, --stream or --dataset'
       end
 
       cmd_opts = {
@@ -129,9 +129,38 @@ module OsCtl::Cli
         cmd_opts[v] = opts[v] if opts[v]
       end
 
-      cmd_opts[:template] = File.absolute_path(opts[:template]) if opts[:template]
+      if opts[:template] && opts[:stream]
+        raise GLI::BadCommandLine, 'provide --template or --stream, not both'
 
-      osctld_fmt(:ct_create, cmd_opts)
+      elsif opts[:template]
+        cmd_opts[:template] = File.absolute_path(opts[:template])
+
+      elsif opts[:stream]
+        stdin = opts[:stream] == '-'
+        cmd_opts[:stream] = {
+          type: stdin ? :stdin : :file,
+          path: stdin ? nil : File.absolute_path(opts[:stream])
+        }
+      end
+
+      if !cmd_opts[:stream] || cmd_opts[:stream][:type] == :file
+        osctld_fmt(:ct_create, cmd_opts)
+        return
+      end
+
+      updates = Proc.new { |msg| puts msg unless gopts[:quiet] }
+      c = osctld_open
+      ret = c.cmd_data!(:ct_create, cmd_opts, &updates)
+
+      error!('invalid response, stdin stream not available') if ret != 'continue'
+
+      r_in, w_in = IO.pipe
+      c.send_io(r_in)
+      r_in.close
+      w_in.write(STDIN.read(16*1024)) until STDIN.eof?
+      w_in.close
+
+      c.response!(&updates)
     end
 
     def delete

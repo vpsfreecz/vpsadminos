@@ -293,8 +293,11 @@ module OsCtl::Cli
           new.desc 'Group name'
           new.flag :group, required: false
 
-          new.desc 'Template file'
+          new.desc 'Template in a tar archive'
           new.flag :template
+
+          new.desc 'Template in a ZFS stream'
+          new.flag :stream
 
           new.desc 'Use a custom dataset for the rootfs'
           new.flag :dataset

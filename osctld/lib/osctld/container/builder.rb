@@ -102,7 +102,7 @@ module OsCtld
 
       shift_dataset
 
-      distribution, version, *_ = File.basename(template).split('-')
+      distribution, version = get_distribution_info(template)
 
       configure(
         opts[:distribution] || distribution,
@@ -113,6 +113,10 @@ module OsCtld
     def from_stream
       IO.popen("exec zfs recv -F #{ct.dataset}", 'r+') do |io|
         yield(io)
+      end
+
+      if $?.exitstatus != 0
+        fail "zfs recv failed with exit status #{$?.exitstatus}"
       end
     end
 
@@ -167,6 +171,11 @@ module OsCtld
       progress('Registering container')
       DB::Containers.add(ct)
       Monitor::Master.monitor(ct)
+    end
+
+    def get_distribution_info(template)
+      distribution, version, *_ = File.basename(template).split('-')
+      [distribution, version]
     end
 
     protected

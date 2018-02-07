@@ -228,14 +228,19 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Group name, defaults to group *default* from selected *pool*.
 
     `--template` *file*
-      Template file, required. The *file* must be a **tar.gz** archive, with
-      name in the following format: <*distribution*>-<*version*>\*.tar.gz.
+      Template tar file, required. See `TEMPLATE NAMES` for the naming scheme.
+
+    `--stream` *file*
+      Template ZFS stream, see `TEMPLATE NAMES` for the naming scheme.
+
+      If *file* is `-`, the stream is read from the standard input. In this case,
+      `--distribution` and `--version` have to be provided.
 
     `--dataset` *dataset*
       Use a custom dataset for the container's rootfs. The dataset and all its
       parents are created, if it doesn't already exist. If used without
       `--template`, the dataset is expected to already contain the rootfs
-      and `--distribution` and `--version` has to be provided.
+      and `--distribution` and `--version` have to be provided.
 
     `--distribution` *distribution*
       Distribution name in lower case, e.g. alpine, centos, debian, ubuntu.
@@ -810,6 +815,14 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 
 `help` [*command...*]
   Shows a list of commands or help for one command
+
+## TEMPLATE NAMES
+Template can either be a tar archive with the extension **tar.gz**, or a ZFS
+stream file with extension **dat.gz**. The name then has to match the following
+format: <*distribution*>-<*version*>\*.<*extension*>. *distribution* is
+a distribution name in lower case, e.g. `alpine`, `centos` or `debian`.
+*version* is the distribution release version, e.g. `3.6` for `alpine`,
+`7.0` for `centos` or `9.0` for `debian`.
 
 ## BUGS
 Report bugs to https://github.com/vpsfreecz/vpsadminos/issues.
