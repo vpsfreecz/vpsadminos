@@ -644,8 +644,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       File system or device to mount, required.
 
     `--mountpoint` *mountpount*
-      Mountpoint within the container, required. The path has to be relative to
-      the container's root, i.e. no leading slash.
+      Mountpoint within the container, required.
 
     `--type` *type*
       File system type, required.

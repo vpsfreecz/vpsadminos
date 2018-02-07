@@ -15,6 +15,12 @@ module OsCtld
       @opts = opts
     end
 
+    def lxc_mountpoint
+      ret = String.new(mountpoint)
+      ret.slice!(0) while ret.start_with?('/')
+      ret
+    end
+
     # Export to client
     def export
       Hash[PARAMS.map { |v| [v, instance_variable_get(:"@#{v}")] }]

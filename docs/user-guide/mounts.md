@@ -33,7 +33,7 @@ osctl ct mounts new \
                     --fs /var/shared \
                     --type bind \
                     --opts bind,rw,create=dir \
-                    --mountpoint mnt/shared \
+                    --mountpoint /mnt/shared \
                     myct01
 ```
 
@@ -117,7 +117,7 @@ osctl ct mounts new \
                     --fs /tank/shared \
                     --type bind \
                     --opts bind,rw,create=dir \
-                    --mountpoint mnt/shared \
+                    --mountpoint /mnt/shared \
                     myct01
 osctl ct restart myct01
 ```
