@@ -10,19 +10,24 @@ module OsCtld
     include Utils::Zfs
     include Utils::SwitchUser
 
-    attr_reader :pool, :id, :user, :group, :distribution, :version, :hostname,
-      :dns_resolvers, :nesting, :prlimits, :mounts, :migration_log
+    def self.default_dataset(pool, id)
+      File.join(pool.ct_ds, id)
+    end
+
+    attr_reader :pool, :id, :user, :dataset, :group, :distribution, :version,
+      :hostname, :dns_resolvers, :nesting, :prlimits, :mounts, :migration_log
     attr_accessor :state, :init_pid
 
     # @param pool [Pool]
     # @param id [String]
     # @param user [User, nil]
     # @param group [Group, nil]
+    # @param dataset [String, nil]
     # @param opts [Hash] options
     # @option opts [Boolean] load load config
     # @option opts [String] load_from load from this string instead of config file
     # @option opts [Boolean] staged create a staged container
-    def initialize(pool, id, user = nil, group = nil, opts = {})
+    def initialize(pool, id, user = nil, group = nil, dataset = nil, opts = {})
       init_lock
 
       opts[:load] = true unless opts.has_key?(:load)
@@ -31,6 +36,7 @@ module OsCtld
       @id = id
       @user = user
       @group = group
+      @dataset = dataset
       @state = opts[:staged] ? :staged : :unknown
       @init_pid = nil
       @cgparams = []
@@ -181,12 +187,8 @@ module OsCtld
       state != :staged
     end
 
-    def dataset
-      File.join(pool.ct_ds, id)
-    end
-
     def dir
-      "/#{dataset}"
+      "/#{dataset}" # TODO: gotta get the dataset's mountpoint...
     end
 
     def lxc_home(user: nil, group: nil)
@@ -411,6 +413,7 @@ module OsCtld
       data = {
         'user' => user.name,
         'group' => group.name,
+        'dataset' => dataset,
         'distribution' => distribution,
         'version' => version,
         'net_interfaces' => @netifs.map { |v| v.save },
@@ -451,6 +454,7 @@ module OsCtld
       @state = cfg['state'].to_sym if cfg['state']
       @user ||= DB::Users.find(cfg['user']) || (raise "user not found")
       @group ||= DB::Groups.find(cfg['group']) || (raise "group not found")
+      @dataset ||= cfg['dataset'] || Container.default_dataset(pool, id)
       @distribution = cfg['distribution']
       @version = cfg['version']
       @hostname = cfg['hostname']

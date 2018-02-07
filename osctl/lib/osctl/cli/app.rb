@@ -294,7 +294,16 @@ module OsCtl::Cli
           new.flag :group, required: false
 
           new.desc 'Template file'
-          new.flag :template, required: true
+          new.flag :template
+
+          new.desc 'Use a custom dataset for the rootfs'
+          new.flag :dataset
+
+          new.desc 'Distribution name in lower case'
+          new.flag :distribution
+
+          new.desc 'Distribution version'
+          new.flag :version
 
           new.action &Command.run(Container, :create)
         end
@@ -449,6 +458,9 @@ module OsCtl::Cli
 
           c.desc 'Import into an existing group'
           c.flag 'as-group'
+
+          c.desc 'Use a custom dataset for the rootfs'
+          c.flag :dataset
 
           c.action &Command.run(Container, :import)
         end

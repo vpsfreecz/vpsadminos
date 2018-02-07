@@ -20,11 +20,28 @@ module OsCtld
 
       error!('group not found') unless group
 
-      builder = Container::Builder.create(pool, opts[:id], user, group, cmd: self)
+      if opts[:dataset] && !opts[:template]
+        if !opts[:distribution]
+          error!('provide distribution')
 
-      unless builder.valid?
-        error!("invalid id, allowed format: #{builder.id_chars}")
+        elsif !opts[:version]
+          error!('provide distribution version')
+        end
+
+      elsif !opts[:dataset] && !opts[:template]
+        error!('provide template or existing dataset')
       end
+
+      builder = Container::Builder.create(
+        pool,
+        opts[:id],
+        user,
+        group,
+        opts[:dataset],
+        cmd: self
+      )
+
+      error!(builder.errors.join('; ')) unless builder.valid?
 
       builder
     end
@@ -34,11 +51,32 @@ module OsCtld
         builder.ct.exclusively do
           next error('container already exists') if builder.exist?
 
-          builder.create_dataset(offset: false)
+          if opts[:dataset]
+            builder.create_dataset(offset: false, parents: true)
+
+            if opts[:template]
+              builder.setup_rootfs
+              builder.from_template(
+                opts[:template],
+                distribution: opts[:distribution],
+                version: opts[:version]
+              )
+            else
+              builder.shift_dataset
+              builder.configure(opts[:distribution], opts[:version])
+            end
+
+          elsif opts[:template]
+            builder.create_dataset(offset: false)
+            builder.setup_rootfs
+            builder.from_template(opts[:template])
+
+          else
+            fail 'should not be possible'
+          end
+
           builder.setup_ct_dir
-          builder.setup_rootfs
           builder.setup_lxc_home
-          builder.from_template(opts[:template])
           builder.setup_lxc_configs
           builder.setup_log_file
           builder.register

@@ -6,14 +6,21 @@ module OsCtld
 
     ID_RX = /^[a-z0-9_-]{1,100}$/i
 
-    def self.create(pool, id, user, group, opts = {})
+    def self.create(pool, id, user, group, dataset = nil, opts = {})
       new(
-        Container.new(pool, id, user, group, load: false),
+        Container.new(
+          pool,
+          id,
+          user,
+          group,
+          dataset || Container.default_dataset(pool, id),
+          load: false
+        ),
         opts
       )
     end
 
-    attr_reader :ct
+    attr_reader :ct, :errors
 
     # @param ct [Container]
     # @param opts [Hash]
@@ -21,6 +28,7 @@ module OsCtld
     def initialize(ct, opts)
       @ct = ct
       @opts = opts
+      @errors = []
     end
 
     def pool
@@ -36,11 +44,15 @@ module OsCtld
     end
 
     def valid?
-      ID_RX =~ ct.id
-    end
+      if ID_RX !~ ct.id
+        errors << "invalid ID, allowed characters: #{ID_RX.source}"
+      end
 
-    def id_chars
-      ID_RX.source
+      if !ct.dataset.start_with?("#{ct.pool.name}/")
+        errors << "dataset #{ct.dataset} does not belong to pool #{ct.pool.name}"
+      end
+
+      errors.empty?
     end
 
     def exist?
@@ -48,18 +60,20 @@ module OsCtld
     end
 
     # @param opts [Hash] options
-    # @option opts [Boolean] offset
+    # @option opts [Boolean] :offset
+    # @option opts [Boolean] :parents
     def create_dataset(opts)
       progress('Creating dataset')
 
-      if opts[:offset]
-        opts = "-o uidoffset=#{ct.uid_offset} -o gidoffset=#{ct.gid_offset}"
+      zfs_opts = []
 
-      else
-        opts = nil
+      if opts[:offset]
+        zfs_opts << "-o uidoffset=#{ct.uid_offset} -o gidoffset=#{ct.gid_offset}"
       end
 
-      zfs(:create, opts, ct.dataset)
+      zfs_opts << '-p' if opts[:parents]
+
+      zfs(:create, zfs_opts.join(' '), ct.dataset)
     end
 
     def setup_ct_dir
@@ -69,15 +83,40 @@ module OsCtld
     end
 
     def setup_rootfs
-      Dir.mkdir(ct.rootfs, 0750)
+      if Dir.exist?(ct.rootfs)
+        Dir.chmod(0750, ct.rootfs)
+      else
+        Dir.mkdir(ct.rootfs, 0750)
+      end
+
       File.chown(0, 0, ct.rootfs)
     end
 
     # @param template [String] path
-    def from_template(template)
+    # @param opts [Hash] options
+    # @option opts [String] :distribution
+    # @option opts [String] :version
+    def from_template(template, opts = {})
       progress('Extracting template')
       syscmd("tar -xzf #{template} -C #{ct.rootfs}")
 
+      shift_dataset
+
+      distribution, version, *_ = File.basename(template).split('-')
+
+      configure(
+        opts[:distribution] || distribution,
+        opts[:version] || version
+      )
+    end
+
+    def from_stream
+      IO.popen("exec zfs recv -F #{ct.dataset}", 'r+') do |io|
+        yield(io)
+      end
+    end
+
+    def shift_dataset
       progress('Unmounting dataset')
       zfs(:unmount, nil, ct.dataset)
 
@@ -86,19 +125,10 @@ module OsCtld
 
       progress('Remounting dataset')
       zfs(:mount, nil, ct.dataset)
-
-      distribution, version, *_ = File.basename(template).split('-')
-
-      ct.configure(
-        distribution,
-        version
-      )
     end
 
-    def from_stream
-      IO.popen("exec zfs recv -F #{ct.dataset}", 'r+') do |io|
-        yield(io)
-      end
+    def configure(distribution, version)
+      ct.configure(distribution, version)
     end
 
     def clear_snapshots(snaps)

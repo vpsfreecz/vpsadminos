@@ -231,6 +231,23 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Template file, required. The *file* must be a **tar.gz** archive, with
       name in the following format: <*distribution*>-<*version*>\*.tar.gz.
 
+    `--dataset` *dataset*
+      Use a custom dataset for the container's rootfs. The dataset and all its
+      parents are created, if it doesn't already exist. If used without
+      `--template`, the dataset is expected to already contain the rootfs
+      and `--distribution` and `--version` has to be provided.
+
+    `--distribution` *distribution*
+      Distribution name in lower case, e.g. alpine, centos, debian, ubuntu.
+      If `--template` is provided, this option is not necessary, but can
+      optionally override the template's distribution info.
+
+    `--version` *version*
+      Distribution version. The format can differ among distributions, e.g.
+      alpine `3.6`, centos `7.0`, debian `9.0` or ubuntu `16.04`.
+      If `--template` is provided, this option is not necessary, but can
+      optionally override the template's distribution version info.
+
 `ct del` *id*
   Stop and delete container *id*.
 
@@ -409,6 +426,10 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `--as-group` *name*
       Import the container into an existing group *name*. Group configuration
       from *file* is not used.
+
+    `--dataset` *dataset*
+      Use a custom dataset for the container's rootfs. The dataset and all its
+      parents are created, if it doesn't already exist.
 
 `ct migrate stage` [*options*] *id* *destination*
   Stage migration of container *id* to *destination*. *destination* is a host

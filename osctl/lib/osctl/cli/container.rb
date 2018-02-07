@@ -115,14 +115,21 @@ module OsCtl::Cli
     def create
       require_args!('id')
 
+      if !opts[:template] && !opts[:dataset]
+        raise GLI::BadCommandLine, 'provide --template, --dataset or both'
+      end
+
       cmd_opts = {
         id: args[0],
         pool: opts[:pool] || gopts[:pool],
         user: opts[:user],
-        template: File.absolute_path(opts[:template]),
       }
 
-      cmd_opts[:group] = opts[:group] if opts[:group]
+      %i(group dataset distribution version).each do |v|
+        cmd_opts[v] = opts[v] if opts[v]
+      end
+
+      cmd_opts[:template] = File.absolute_path(opts[:template]) if opts[:template]
 
       osctld_fmt(:ct_create, cmd_opts)
     end
@@ -343,7 +350,7 @@ module OsCtl::Cli
 
       cmd_opts = {file: file}
 
-      %w(as-id as-user as-group).each do |v|
+      %w(as-id as-user as-group dataset).each do |v|
         cmd_opts[v.sub('-', '_').to_sym] = opts[v] if opts[v]
       end
 

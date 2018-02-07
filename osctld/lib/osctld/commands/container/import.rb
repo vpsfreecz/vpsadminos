@@ -40,17 +40,20 @@ module OsCtld
         group = importer.get_or_create_group
       end
 
-      ct = importer.load_ct(id: ctid, user: user, group: group)
+      ct = importer.load_ct(
+        id: ctid,
+        user: user,
+        group: group,
+        dataset: opts[:dataset]
+      )
       builder = Container::Builder.new(ct, cmd: self)
 
       # TODO: check for conflicting configuration
       #   - ip addresses, mac addresses
 
-      unless builder.valid?
-        error!("invalid id, allowed format: #{builder.id_chars}")
-      end
+      error!(builder.errors.join('; ')) unless builder.valid?
 
-      builder.create_dataset(offset: true)
+      builder.create_dataset(offset: true, parents: opts[:dataset] ? true : false)
       builder.setup_ct_dir
       builder.setup_lxc_home
 

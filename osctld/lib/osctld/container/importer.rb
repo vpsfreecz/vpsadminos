@@ -69,6 +69,7 @@ module OsCtld
     # @option opts [String] id defaults to id from the archive
     # @option opts [User] user calls {#get_or_create_user} by default
     # @option opts [Group] group calls {#get_or_create_group} by default
+    # @option opts [String] dataset
     # @option opts [Hash] ct_opts container options
     def load_ct(opts)
       id = opts[:id] || metadata['container']
@@ -82,6 +83,7 @@ module OsCtld
         id,
         user,
         group,
+        opts[:dataset] || Container.default_dataset(pool, id),
         ct_opts
       )
     end
