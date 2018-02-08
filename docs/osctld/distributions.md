@@ -3,7 +3,7 @@
 configuration of hostname, DNS resolvers and changing user passwords from
 the host.
 
-Currently supported distributions are:
+Currently supported distributions within a container are:
 
  - Alpine
  - Debian
