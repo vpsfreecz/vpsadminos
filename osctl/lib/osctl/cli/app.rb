@@ -21,7 +21,7 @@ module OsCtl::Cli
     def self.run
       cli = new
       cli.setup
-      cli.run(ARGV)
+      exit(cli.run(ARGV))
     end
 
     def setup
