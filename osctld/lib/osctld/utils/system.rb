@@ -37,7 +37,7 @@ module OsCtld::Utils
 
             else
               Process.kill('TERM', io.pid)
-              raise "Command '#{cmd}' failed: timeout"
+              raise OsCtld::SystemCommandFailed, "Command '#{cmd}' failed: timeout"
             end
           end
 
@@ -47,7 +47,8 @@ module OsCtld::Utils
       end
 
       if $?.exitstatus != 0 && !valid_rcs.include?($?.exitstatus)
-        raise "Command '#{cmd}' failed with exit code #{$?.exitstatus}: #{out}"
+        raise OsCtld::SystemCommandFailed,
+              "Command '#{cmd}' failed with exit code #{$?.exitstatus}: #{out}"
       end
 
       {output: out, exitstatus: $?.exitstatus}

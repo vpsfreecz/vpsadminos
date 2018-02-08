@@ -42,7 +42,7 @@ module OsCtld
         begin
           ct_syscmd(ct, 'hostname -F /etc/hostname')
 
-        rescue RuntimeError => e
+        rescue SystemCommandFailed => e
           log(:warn, ct, "Unable to apply hostname: #{e.message}")
         end
       end
