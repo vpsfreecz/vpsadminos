@@ -283,6 +283,10 @@ module OsCtld
 
         when :nesting
           @nesting = v
+
+        when :distribution
+          @distribution = v[:name]
+          @version = v[:version]
         end
       end
 

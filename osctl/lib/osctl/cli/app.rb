@@ -390,6 +390,12 @@ module OsCtl::Cli
           set.command :nesting do |c|
             c.action &Command.run(Container, :set_nesting)
           end
+
+          set.desc 'Change distribution and version info'
+          set.arg_name '<id> <distribution> <version>'
+          set.command :distribution do |c|
+            c.action &Command.run(Container, :set_distribution)
+          end
         end
 
         ct.desc 'Clear configuration options'

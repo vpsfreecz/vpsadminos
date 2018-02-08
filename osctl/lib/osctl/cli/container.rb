@@ -328,6 +328,17 @@ module OsCtl::Cli
       end
     end
 
+    def set_distribution
+      set(:distribution) do |args|
+        raise GLI::BadCommandLine, 'expected <distribution> <version>' if args.count != 2
+
+        {
+          name: args[0],
+          version: args[1],
+        }
+      end
+    end
+
     def chown
       require_args!('id', 'user')
       osctld_fmt(:ct_chown, id: args[0], pool: gopts[:pool], user: args[1])
