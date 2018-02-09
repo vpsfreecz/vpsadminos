@@ -54,8 +54,14 @@ module OsCtl::Cli
       hard
     )
 
+    DATASET_FIELDS = %i(
+      name
+      dataset
+    )
+
     MOUNT_FIELDS = %i(
       fs
+      dataset
       mountpoint
       type
       opts
@@ -545,6 +551,54 @@ module OsCtl::Cli
       )
     end
 
+    def dataset_list
+      if opts[:list]
+        puts DATASET_FIELDS.join("\n")
+        return
+      end
+
+      require_args!('id')
+      props = args[1..-1]
+
+      cmd_opts = {id: args[0], pool: gopts[:pool], properties: props}
+      fmt_opts = {layout: :columns}
+
+      fmt_opts[:header] = false if opts['hide-header']
+
+      if opts[:output]
+        cols = (opts[:output].split(',') + props).map(&:to_sym)
+
+      else
+        cols = nil
+      end
+
+      osctld_fmt(:ct_dataset_list, cmd_opts, cols, fmt_opts)
+    end
+
+    def dataset_create
+      require_args!('id', 'name')
+      osctld_fmt(
+        :ct_dataset_create,
+        id: args[0],
+        pool: gopts[:pool],
+        name: args[1],
+        mount: opts[:mount],
+        mountpoint: args[2]
+      )
+    end
+
+    def dataset_delete
+      require_args!('id', 'name')
+      osctld_fmt(
+        :ct_dataset_delete,
+        id: args[0],
+        pool: gopts[:pool],
+        name: args[1],
+        recursive: opts[:recursive],
+        unmount: opts[:unmount]
+      )
+    end
+
     def mount_list
       if opts[:list]
         puts MOUNT_FIELDS.join("\n")
@@ -578,6 +632,19 @@ module OsCtl::Cli
         fs: opts[:fs],
         mountpoint: opts[:mountpoint],
         type: opts[:type],
+        opts: opts[:opts],
+      )
+    end
+
+    def mount_dataset
+      require_args!('id', 'name')
+
+      osctld_fmt(
+        :ct_mount_dataset,
+        id: args[0],
+        pool: gopts[:pool],
+        name: args[1],
+        mountpoint: opts[:mountpoint],
         opts: opts[:opts],
       )
     end

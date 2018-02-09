@@ -44,7 +44,10 @@ module OsCtld
         id: ctid,
         user: user,
         group: group,
-        dataset: opts[:dataset]
+        dataset: opts[:dataset] && Zfs::Dataset.new(
+          opts[:dataset],
+          base: opts[:dataset]
+        )
       )
       builder = Container::Builder.new(ct, cmd: self)
 

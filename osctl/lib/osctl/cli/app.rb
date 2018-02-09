@@ -687,6 +687,45 @@ module OsCtl::Cli
           end
         end
 
+        ct.desc 'Manage container datasets'
+        ct.command :dataset do |ds|
+          ds.desc 'List datasets'
+          ds.arg_name '<id>'
+          ds.command %i(ls list) do |c|
+            c.desc 'Select parameters to output'
+            c.flag %i(o output)
+
+            c.desc 'Do not show header'
+            c.switch %i(H hide-header), negatable: false
+
+            c.desc 'List available parameters'
+            c.switch %i(L list), negatable: false
+
+            c.action &Command.run(Container, :dataset_list)
+          end
+
+          ds.desc 'Create a new dataset'
+          ds.arg_name '<id> <name> [mountpoint]'
+          ds.command %i(new create) do |c|
+            c.desc 'Enable/disable auto mount'
+            c.flag :mount, default_value: true
+
+            c.action &Command.run(Container, :dataset_create)
+          end
+
+          ds.desc 'Delete dataset'
+          ds.arg_name '<id> <name>'
+          ds.command %i(del delete) do |c|
+            c.desc 'Recursively delete all children as well'
+            c.switch %i(r recursive)
+
+            c.desc 'Unmount all affected mountpoints'
+            c.switch %i(u umount unmount)
+
+            c.action &Command.run(Container, :dataset_delete)
+          end
+        end
+
         ct.desc 'Manage mounts'
         ct.command :mounts do |m|
           m.desc 'List configured mounts'
@@ -720,6 +759,18 @@ module OsCtl::Cli
             c.flag :opts, required: true
 
             c.action &Command.run(Container, :mount_create)
+          end
+
+          m.desc 'Mount a dataset'
+          m.arg_name '<id> <name>'
+          m.command :dataset do |c|
+            c.desc 'Mountpoint'
+            c.flag :mountpoint, required: true
+
+            c.desc 'Options'
+            c.flag :opts, required: true
+
+            c.action &Command.run(Container, :mount_dataset)
           end
 
           m.desc 'Remove mount'

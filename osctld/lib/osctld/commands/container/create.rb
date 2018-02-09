@@ -40,7 +40,7 @@ module OsCtld
         opts[:id],
         user,
         group,
-        opts[:dataset],
+        opts[:dataset] && Zfs::Dataset.new(opts[:dataset]),
         cmd: self
       )
 

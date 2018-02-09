@@ -1,6 +1,7 @@
 module OsCtld
   module Commands
     module Container ; end
+    module Dataset ; end
     module Event ; end
     module Group ; end
     module History ; end
@@ -59,6 +60,7 @@ require_relative 'osctld/utils/ip'
 require_relative 'osctld/utils/cgroup_params'
 require_relative 'osctld/utils/assets'
 require_relative 'osctld/utils/migration'
+require_relative 'osctld/zfs/dataset'
 require_relative 'osctld/zfs/stream'
 require_relative 'osctld/event'
 require_relative 'osctld/eventd'

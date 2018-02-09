@@ -18,7 +18,7 @@ module OsCtld
       io = client.recv_io
 
       pid = Process.spawn(
-        'zfs', 'recv', '-F', ct.dataset,
+        'zfs', 'recv', '-F', ct.dataset.name,
         in: io
       )
 

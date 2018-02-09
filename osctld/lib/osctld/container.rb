@@ -11,7 +11,8 @@ module OsCtld
     include Utils::SwitchUser
 
     def self.default_dataset(pool, id)
-      File.join(pool.ct_ds, id)
+      name = File.join(pool.ct_ds, id)
+      Zfs::Dataset.new(name, base: name)
     end
 
     attr_reader :pool, :id, :user, :dataset, :group, :distribution, :version,
@@ -188,7 +189,7 @@ module OsCtld
     end
 
     def dir
-      "/#{dataset}" # TODO: gotta get the dataset's mountpoint...
+      dataset.mountpoint
     end
 
     def lxc_home(user: nil, group: nil)
@@ -201,6 +202,13 @@ module OsCtld
 
     def rootfs
       File.join(dir, 'private')
+    end
+
+    def runtime_rootfs
+      fail 'container is not running' unless running?
+      fail 'init_pid not set' unless init_pid
+
+      File.join('/proc', init_pid.to_s, 'root')
     end
 
     def config_path
@@ -417,7 +425,7 @@ module OsCtld
       data = {
         'user' => user.name,
         'group' => group.name,
-        'dataset' => dataset,
+        'dataset' => dataset.name,
         'distribution' => distribution,
         'version' => version,
         'net_interfaces' => @netifs.map { |v| v.save },
@@ -458,7 +466,15 @@ module OsCtld
       @state = cfg['state'].to_sym if cfg['state']
       @user ||= DB::Users.find(cfg['user']) || (raise "user not found")
       @group ||= DB::Groups.find(cfg['group']) || (raise "group not found")
-      @dataset ||= cfg['dataset'] || Container.default_dataset(pool, id)
+
+      unless @dataset
+        if cfg['dataset']
+          @dataset = Zfs::Dataset.new(cfg['dataset'], base: cfg['dataset'])
+        else
+          @dataset = Container.default_dataset(pool, id)
+        end
+      end
+
       @distribution = cfg['distribution']
       @version = cfg['version']
       @hostname = cfg['hostname']
@@ -477,7 +493,7 @@ module OsCtld
 
       @cgparams = load_cgparams(cfg['cgparams'])
       @prlimits = (cfg['prlimits'] || []).map { |v| PrLimit.load(v) }
-      @mounts = (cfg['mounts'] || []).map { |v| Mount.load(v) }
+      @mounts = (cfg['mounts'] || []).map { |v| Mount.load(self, v) }
     end
   end
 end

@@ -1,18 +1,32 @@
 module OsCtld
   class Mount
-    PARAMS = %i(fs mountpoint type opts)
-    attr_reader :fs, :mountpoint, :type, :opts
+    PARAMS = %i(fs mountpoint type opts dataset)
+    attr_reader :mountpoint, :type, :opts, :dataset
 
     # Load from config
-    def self.load(cfg)
-      new(* PARAMS.map { |v| cfg[v.to_s] })
+    def self.load(ct, cfg)
+      new(
+        cfg['fs'],
+        cfg['mountpoint'],
+        cfg['type'],
+        cfg['opts'],
+        cfg['dataset'] && Zfs::Dataset.new(
+          File.join(ct.dataset.name, cfg['dataset']),
+          base: ct.dataset.name
+        )
+      )
     end
 
-    def initialize(fs, mountpoint, type, opts)
+    def initialize(fs, mountpoint, type, opts, dataset = nil)
       @fs = fs
       @mountpoint = mountpoint
       @type = type
       @opts = opts
+      @dataset = dataset
+    end
+
+    def fs
+      dataset ? dataset.private_path : @fs
     end
 
     def lxc_mountpoint
@@ -23,12 +37,24 @@ module OsCtld
 
     # Export to client
     def export
-      Hash[PARAMS.map { |v| [v, instance_variable_get(:"@#{v}")] }]
+      {
+        fs: fs,
+        mountpoint: mountpoint,
+        type: type,
+        opts: opts,
+        dataset: dataset && dataset.relative_name,
+      }
     end
 
     # Dump to config
     def dump
-      Hash[PARAMS.map { |v| [v.to_s, instance_variable_get(:"@#{v}")] }]
+      {
+        'fs' => dataset ? nil : fs,
+        'mountpoint' => mountpoint,
+        'type' => type,
+        'opts' => opts,
+        'dataset' => dataset && dataset.relative_name,
+      }
     end
   end
 end

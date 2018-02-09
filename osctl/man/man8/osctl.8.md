@@ -650,6 +650,52 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 `ct netif ip ls` *id* *name*
   List IP addresses assigned to interface *name* of container *id*.
 
+`ct dataset ls` [*options*] *id* [*properties...*]
+  List datasets of container *id*. *properties* is a space separated list of
+  ZFS properties to read and print. Listed dataset names are relative to the
+  container's root dataset, the root dataset itself is called `/`.
+
+    `-H`, `--hide-header`
+      Do not show header, useful for scripting.
+
+    `-L`, `--list`
+      List available parameters and exit.
+
+    `-o`, `--output` *parameters*
+      Select parameters to output.
+
+`ct dataset new` [*options*] *id* *name* [*mountpoint*]
+  Create a new subdataset of the container's root dataset. The *name*
+  is relative to the container's root dataset, e.g. in the default configuration,
+  `osctl ct dataset new <id> var` will create ZFS dataset `<pool>/ct/<id>/var`
+  and mount it to directory `/var` within the container. The target *mountpoint*
+  can be optionally provided as an argument.
+
+  Non-existing dataset parents are automatically created and mounted with respect
+  to `--[no-]mount`.
+  
+  Created datasets are automatically shifted into the container's user namespace.
+  Of course, container datasets can be managed using `zfs` directly, but you'd
+  have to set `uidoffset` and `gidoffset` properties manually.
+
+  Datasets should be mounted using `ct mounts dataset`, mounts created with
+  `ct mounts new` might not survive container export/import on different
+  configurations.
+
+    `--[no-]mount`
+      Mount created datasets to the container, under the mountpoint of its
+      parents or `/`. Created datasets are mounted to the container by default.
+
+`ct dataset del` [*options*] *id* *name*
+  Delete container subdataset *name*. The root dataset cannot be deleted.
+
+    `-r`, `--recursive`
+      Recursively delete all children as well. Disabled by default.
+
+    `-u`, `--[no-]umount`, `--[no-]unmount`
+      Unmount selected dataset and all its children when in recursive mode
+      before the deletion. By default, mounted datasets will abort the deletion.
+
 `ct mounts ls` *id*
   List mounts of container *id*.
 
@@ -678,6 +724,26 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `--opts` *opts*
       Options, required. Standard mount options depending on the filesystem
       type, with two extra options from LXC: `create=file` and `create=dir`.
+
+`ct mounts dataset` *options* *id* *name*
+  Mount subdataset *name* into container *id*. Only subdatasets of container
+  *id* can be mounted in this way. Dataset mounts can survive container
+  export/import or migration to a host with different configuration. Mounts
+  created via `ct mounts new` have a fixed *fs* path, which would change
+  on a host with a zpool named differently and the container would refuse to
+  start.
+
+  In addition, `ct mounts dataset` does not mount the top-level directory, but
+  rather a subdirectory called `private`. This prevents the container to access
+  the `.zfs` special directory, which could be used to create or destroy
+  snapshots from within the container.
+
+    `--mountpoint` *mountpount*
+      Mountpoint within the container, required.
+
+    `--opts` *opts*
+      Options, required. Standard mount options for bind mounts, with two extra
+      options from LXC: `create=file` and `create=dir`.
 
 `ct mounts del` *id* *mountpoint*
   Remove *mountpoint* from container *id*. The *mountpoint* is not unmounted

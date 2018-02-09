@@ -19,7 +19,7 @@ module OsCtld
             id: ct.id,
             user: ct.user.name,
             group: ct.group.name,
-            dataset: ct.dataset,
+            dataset: ct.dataset.name,
             rootfs: ct.rootfs,
             lxc_path: ct.lxc_home,
             lxc_dir: ct.lxc_dir,

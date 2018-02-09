@@ -48,7 +48,7 @@ module OsCtld
         errors << "invalid ID, allowed characters: #{ID_RX.source}"
       end
 
-      if !ct.dataset.start_with?("#{ct.pool.name}/")
+      if !ct.dataset.on_pool?(ct.pool.name)
         errors << "dataset #{ct.dataset} does not belong to pool #{ct.pool.name}"
       end
 
@@ -65,15 +65,14 @@ module OsCtld
     def create_dataset(opts)
       progress('Creating dataset')
 
-      zfs_opts = []
+      zfs_opts = {}
+      zfs_opts[:parents] = true if opts[:parents]
+      zfs_opts[:properties] = {
+        uidoffset: ct.uid_offset,
+        gidoffset: ct.gid_offset,
+      } if opts[:offset]
 
-      if opts[:offset]
-        zfs_opts << "-o uidoffset=#{ct.uid_offset} -o gidoffset=#{ct.gid_offset}"
-      end
-
-      zfs_opts << '-p' if opts[:parents]
-
-      zfs(:create, zfs_opts.join(' '), ct.dataset)
+      ct.dataset.create!(zfs_opts)
     end
 
     def setup_ct_dir

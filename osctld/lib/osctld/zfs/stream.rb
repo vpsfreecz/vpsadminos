@@ -72,7 +72,7 @@ module OsCtld
 
     # Send stream to a local filesystem.
     def send_recv(fs)
-      pipe_cmd("zfs recv -F #{path}")
+      pipe_cmd("zfs recv -F #{fs}")
     end
 
     # Get approximate stream size.
