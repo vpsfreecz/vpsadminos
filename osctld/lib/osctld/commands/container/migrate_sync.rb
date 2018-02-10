@@ -18,14 +18,32 @@ module OsCtld
       end
 
       snap = "osctl-migrate-base-#{Time.now.to_i}"
-      zfs(:snapshot, nil, "#{ct.dataset}@#{snap}")
+      zfs(:snapshot, '-r', "#{ct.dataset}@#{snap}")
 
       ct.exclusively do
         ct.migration_log.snapshots << snap
         ct.save_config
       end
 
-      stream = Zfs::Stream.new(ct.dataset, snap)
+      progress("Syncing #{ct.dataset.relative_name}")
+      send_dataset(ct, ct.dataset, snap)
+
+      ct.dataset.descendants.each do |ds|
+        progress("Syncing #{ds.relative_name}")
+        send_dataset(ct, ds, snap)
+      end
+
+      ct.exclusively do
+        ct.migration_log.state = :base
+        ct.save_config
+      end
+
+      ok
+    end
+
+    protected
+    def send_dataset(ct, ds, snap)
+      stream = Zfs::Stream.new(ds, snap)
       stream.progress do |total, changed|
         progress(type: :progress, data: {
           time: Time.now.to_i,
@@ -40,7 +58,7 @@ module OsCtld
         *migrate_ssh_cmd(
           ct.pool.migration_key_chain,
           ct.migration_log.opts,
-          ['receive', 'base', ct.id, snap]
+          ['receive', 'base', ct.id, ds.relative_name, snap]
         ),
         in: r
       )
@@ -49,16 +67,7 @@ module OsCtld
 
       _, status = Process.wait2(pid)
 
-      if status.exitstatus != 0
-        error!('sync failed')
-      end
-
-      ct.exclusively do
-        ct.migration_log.state = :base
-        ct.save_config
-      end
-
-      ok
+      error!('sync failed') if status.exitstatus != 0
     end
   end
 end

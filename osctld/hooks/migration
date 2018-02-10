@@ -32,9 +32,15 @@ class Migration
   end
 
   def base
-    error! unless args[1]
+    error! if args.count != 3
     pool, id = parse_pool_id
-    send_cmd(:receive_base, pool: pool, id: id, snapshot: args[1])
+    send_cmd(
+      :receive_base,
+      pool: pool,
+      id: id,
+      dataset: args[1],
+      snapshot: args[2]
+    )
 
     if recv_resp! != 'continue'
       warn 'Error: invalid response'
@@ -46,9 +52,15 @@ class Migration
   end
 
   def incremental
-    error! unless args[1]
+    error! if args.count != 3
     pool, id = parse_pool_id
-    send_cmd(:receive_incremental, pool: pool, id: id, snapshot: args[1])
+    send_cmd(
+      :receive_incremental,
+      pool: pool,
+      id: id,
+      dataset: args[1],
+      snapshot: args[2]
+    )
 
     if recv_resp! != 'continue'
       warn 'Error: invalid response'
@@ -114,8 +126,8 @@ class Migration
     warn <<END
 Usage:
   receive skel [pool]
-  receive base [pool:]<id> <snapshot>
-  receive incremental [pool:]<id> <snapshot>
+  receive base [pool:]<id> <dataset> <snapshot>
+  receive incremental [pool:]<id> <dataset> <snapshot>
   receive transfer [pool:]<id>
   receive cancel [pool:]<id>
 END

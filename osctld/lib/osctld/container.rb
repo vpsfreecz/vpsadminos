@@ -235,6 +235,18 @@ module OsCtld
       @user.size
     end
 
+    # Return a list of all container datasets
+    # @return [Array<Zfs::Dataset>]
+    def datasets
+      [dataset] + dataset.descendants
+    end
+
+    # Iterate over all container datasets
+    # @yieldparam ds [Zfs::Dataset]
+    def each_dataset(&block)
+      datasets.each(&block)
+    end
+
     def netifs
       @netifs.clone
     end

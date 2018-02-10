@@ -51,7 +51,9 @@ module OsCtld
       return true if next_i > cur_i
 
       # cur_i == next_i at this point, i.e. state == next_state
-      return true if state == :incremental # allow multiple incrementals
+      # allow multiple base syncs -- one for each datasets
+      # there can be multiple incrementals even for a single dataset
+      return true if %i(base incremental).include?(state)
       false
     end
 

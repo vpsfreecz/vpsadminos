@@ -37,15 +37,16 @@ You can verify that by running SSH directly:
 source-node $ ssh -T -i `osctl migration key path private` -l migration destination-node
 Usage:
   receive skel [pool]
-  receive base [pool:]<id> <snapshot>
-  receive incremental [pool:]<id> <snapshot>
+  receive base [pool:]<id> <dataset> <snapshot>
+  receive incremental [pool:]<id> <dataset> <snapshot>
   receive transfer [pool:]<id>
   receive cancel [pool:]<id>
 ```
 
 As you can see, the SSH connection is limited to several commands that are
-handled by *osctld*. The meaning of those commands will become apparent once you
-read the section below.
+handled by *osctld*. The meaning of those commands will become clearer once you
+read the section below, but it's enough to know the shell is restricted for
+migrations only.
 
 ## Migrating containers
 The container migration itself consists of several steps:

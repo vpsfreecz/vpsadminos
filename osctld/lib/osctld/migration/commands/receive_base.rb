@@ -14,26 +14,34 @@ module OsCtld
         end
       end
 
+      ds = Zfs::Dataset.new(dataset_name(ct), base: ct.dataset.name)
+      error!('dataset does not exist') unless ds.exist?
+
       client.send({status: true, response: 'continue'}.to_json + "\n", 0)
       io = client.recv_io
 
-      pid = Process.spawn(
-        'zfs', 'recv', '-F', ct.dataset.name,
-        in: io
-      )
-
+      pid = Process.spawn('zfs', 'recv', '-F', ds.name, in: io)
       Process.wait(pid)
 
       if $?.exitstatus == 0
         ct.exclusively do
           ct.migration_log.state = :base
-          ct.migration_log.snapshots << opts[:snapshot]
+          ct.migration_log.snapshots << [ds.name, opts[:snapshot]]
           ct.save_config
         end
 
         ok
       else
         error("unable to receive stream, zfs recv exited with #{$?.exitstatus}")
+      end
+    end
+
+    protected
+    def dataset_name(ct)
+      if opts[:dataset] == '/'
+        ct.dataset.name
+      else
+        File.join(ct.dataset.name, opts[:dataset])
       end
     end
   end

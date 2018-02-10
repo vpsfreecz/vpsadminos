@@ -19,6 +19,14 @@ module OsCtld
 
         ct.state = :complete
 
+        # FIXME: the datasets are in some strange state, ZFS thinks they're
+        # mounted, but it's not so. First, unmount all of them. Some will report
+        # `umount: <mountpoint>: no mount point specified` and some won't be
+        # mounted at all, so ignore exit code `1`. Then remount them.
+        datasets = ct.datasets
+        datasets.reverse.each { |ds| zfs(:umount, '', ds.name, valid_rcs: [1]) }
+        datasets.each { |ds| zfs(:mount, '', ds.name) }
+
         call_cmd!(
           Commands::Container::Start,
           id: ct.id,
@@ -26,8 +34,9 @@ module OsCtld
           force: true
         ) if opts[:start]
 
-        ct.migration_log.snapshots.each do |snap|
-          zfs(:destroy, nil, "#{ct.dataset}@#{snap}")
+        ct.migration_log.snapshots.each do |v|
+          ds, snap = v
+          zfs(:destroy, nil, "#{ds}@#{snap}")
         end
 
         ct.close_migration_log

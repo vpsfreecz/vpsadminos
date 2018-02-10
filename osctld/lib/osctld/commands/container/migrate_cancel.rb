@@ -30,8 +30,10 @@ module OsCtld
           error!('cancel failed')
         end
 
-        ct.migration_log.snapshots.each do |snap|
-          zfs(:destroy, nil, "#{ct.dataset}@#{snap}")
+        ct.each_dataset do |ds|
+          ct.migration_log.snapshots.each do |snap|
+            zfs(:destroy, nil, "#{ds}@#{snap}")
+          end
         end
 
         ct.close_migration_log

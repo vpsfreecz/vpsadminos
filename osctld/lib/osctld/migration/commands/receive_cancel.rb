@@ -17,8 +17,9 @@ module OsCtld
           error!('invalid migration sequence')
         end
 
-        ct.migration_log.snapshots.each do |snap|
-          zfs(:destroy, nil, "#{ct.dataset}@#{snap}")
+        ct.migration_log.snapshots.each do |v|
+          ds, snap = v
+          zfs(:destroy, nil, "#{ds}@#{snap}")
         end
 
         call_cmd!(

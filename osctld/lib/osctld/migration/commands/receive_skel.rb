@@ -33,7 +33,7 @@ module OsCtld
         error!("invalid id, allowed format: #{builder.id_chars}")
       end
 
-      builder.create_root_dataset(offset: true)
+      importer.create_datasets(builder)
       builder.setup_ct_dir
       builder.setup_lxc_home
 
