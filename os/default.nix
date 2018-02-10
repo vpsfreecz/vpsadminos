@@ -23,6 +23,7 @@ let
       ./stage-2.nix
       ./runit.nix
       ./zfs.nix
+      ./modules/tty.nix
       (nixpkgs + "/nixos/modules/misc/extra-arguments.nix")
       (nixpkgs + "/nixos/modules/system/etc/etc.nix")
       (nixpkgs + "/nixos/modules/system/activation/activation-script.nix")

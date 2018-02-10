@@ -12,6 +12,9 @@
   networking.dhcpd = true;
 
   vpsadminos.nix = true;
+
+  tty.autologin.enable = true;
+
   environment.systemPackages = with pkgs; [
     vim
     screen

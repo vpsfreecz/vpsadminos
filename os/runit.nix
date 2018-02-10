@@ -55,7 +55,7 @@ exec runit-init 6
 EOF
     chmod +x $out/bin/{poweroff,reboot}
   '';
-  gettyCmd = extraArgs: "${pkgs.utillinux}/bin/setsid ${pkgs.utillinux}/sbin/agetty --autologin root --login-program ${pkgs.shadow}/bin/login ${extraArgs}";
+
 
   apparmor_paths = concatMapStrings (s: " -I ${s}/etc/apparmor.d")
           ([ pkgs.apparmor-profiles ] ++ config.security.apparmor.packages);
@@ -141,16 +141,6 @@ in
     "service/sshd/run".source = pkgs.writeScript "sshd_run" ''
       #!/bin/sh
       ${pkgs.openssh}/bin/sshd -D -f ${sshd_config}
-    '';
-
-    "service/getty-0/run".source = pkgs.writeScript "getty-0" ''
-      #!/bin/sh
-      ${gettyCmd "--noclear --keep-baud ttyS0 115200,38400,9600 vt100"}
-    '';
-
-    "service/getty-1/run".source = pkgs.writeScript "getty-1" ''
-      #!/bin/sh
-      ${gettyCmd "--noclear --keep-baud ttyS1 115200,38400,9600 vt100"}
     '';
 
     "service/lxcfs/run".source = pkgs.writeScript "lxcfs" ''
