@@ -56,10 +56,13 @@ module OsCtld
 
       error!(builder.errors.join('; ')) unless builder.valid?
 
-      builder.create_dataset(offset: true, parents: opts[:dataset] ? true : false)
+      progress('Creating datasets')
+      importer.create_datasets(builder)
+
       builder.setup_ct_dir
       builder.setup_lxc_home
 
+      progress('Loading data streams')
       importer.load_streams(builder)
 
       ct.save_config

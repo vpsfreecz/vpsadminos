@@ -55,7 +55,7 @@ module OsCtld
           next error('container already exists') if builder.exist?
 
           if opts[:dataset]
-            builder.create_dataset(offset: false, parents: true)
+            builder.create_root_dataset(offset: false, parents: true)
 
             if opts[:template]
               builder.setup_rootfs
@@ -74,12 +74,12 @@ module OsCtld
             end
 
           elsif opts[:template]
-            builder.create_dataset(offset: false)
+            builder.create_root_dataset(offset: false)
             builder.setup_rootfs
             builder.from_template(opts[:template])
 
           elsif opts[:stream]
-            builder.create_dataset(offset: false)
+            builder.create_root_dataset(offset: false)
             from_stream(builder)
 
           else

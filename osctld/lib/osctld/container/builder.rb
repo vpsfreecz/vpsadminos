@@ -59,12 +59,16 @@ module OsCtld
       DB::Containers.contains?(ct.id, ct.pool)
     end
 
+    def create_root_dataset(opts = {})
+      progress('Creating root dataset')
+      create_dataset(ct.dataset, opts)
+    end
+
+    # @param ds [Zfs::Dataset]
     # @param opts [Hash] options
     # @option opts [Boolean] :offset
     # @option opts [Boolean] :parents
-    def create_dataset(opts)
-      progress('Creating dataset')
-
+    def create_dataset(ds, opts = {})
       zfs_opts = {}
       zfs_opts[:parents] = true if opts[:parents]
       zfs_opts[:properties] = {
@@ -72,7 +76,7 @@ module OsCtld
         gidoffset: ct.gid_offset,
       } if opts[:offset]
 
-      ct.dataset.create!(zfs_opts)
+      ds.create!(zfs_opts)
     end
 
     def setup_ct_dir
@@ -109,8 +113,8 @@ module OsCtld
       )
     end
 
-    def from_stream
-      IO.popen("exec zfs recv -F #{ct.dataset}", 'r+') do |io|
+    def from_stream(ds = nil)
+      IO.popen("exec zfs recv -F #{ds || ct.dataset}", 'r+') do |io|
         yield(io)
       end
 

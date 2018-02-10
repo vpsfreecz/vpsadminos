@@ -58,7 +58,10 @@ The export/import archive must contain the following files:
     │   └── container.yml
     ├── rootfs/
     │   ├── base.dat[.gz]
-    │   └── [incremental.dat[.gz]]
+    │   ├── [incremental.dat[.gz]]
+    │   └── [subdataset]
+    │       ├── base.dat[.gz]
+    │       └── [incremental.dat[.gz]]
     └── snapshots.yml
 
 `metadata.yml` describes the archive, see [below](#metadatayml).
@@ -68,7 +71,8 @@ the same files you can find in `$pool/conf`.
 
 `rootfs/` contains rootfs in the form of ZFS data streams. `base.dat` is a full
 stream. If the export was consistent, `incremental.dat` contains an incremental
-stream from `base.dat`.
+stream from `base.dat`. Subdatasets are exported to subdirectories with the
+dataset's relative name.
 
 The archive is intentionally uncompressed, as the text files are neglidible
 next to the rootfs. Actually, it wouldn't be possible to create a compressed tar
@@ -77,7 +81,7 @@ The ZFS streams can be dumped in a raw form, or they can be compressed using
 *gzip*, in that case `.gz` suffix is appended.
 
 `snapshots.yml` is a list of ZFS snapshots that have been taken to generate
-`rootfs/{base,incremental}.dat`. This is a convenience for when the archive
+ZFS streams stored at `rootfs/`. This is a convenience for when the archive
 is being imported, so that *osctld* can remove the snapshots after they have
 been received.
 
@@ -90,5 +94,6 @@ type: full | skel
 user: <user name>
 group: <group name>
 container: <container id>
+datasets: <list of container subdatasets>
 exported_at: <timestamp>
 ```
