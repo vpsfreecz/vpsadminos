@@ -462,12 +462,19 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Delete the container from the source node. The default is to delete the
       container.
 
-`ct migrate cancel` *id*
+`ct migrate cancel` [*options*] *id*
   Cancel a migration of container *id*. The migration's state is deleted from
   the source node, and all trace of the container is deleted from the
   *destination* node. This command has to be called in-between migration steps
   up until `ct migrate transfer`, it cannot stop the migration if one of the
   steps is still in progress.
+
+    `-f`, `--force`
+      Cancel the migration's state on the local node, even if the remote node
+      refuses to cancel. This is helpful when the migration state between the
+      two nodes gets out of sync. The remote node may remain in an unconsistent
+      state, but from there, the container can be deleted using `osctl ct del`
+      if needed.
 
 `ct migrate now` [*options*] *id* *destination*
   Perform a full container migration in a single step. This is equal to running

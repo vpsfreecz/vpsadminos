@@ -52,7 +52,8 @@ module OsCtl::Cli
       with_progress(
         :ct_migrate_cancel,
         pool: gopts[:pool],
-        id: args[0]
+        id: args[0],
+        force: opts[:force]
       )
     end
 

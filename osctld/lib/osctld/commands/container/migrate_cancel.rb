@@ -26,7 +26,7 @@ module OsCtld
           )
         )
 
-        if ret.nil? || $?.exitstatus != 0
+        if ret.nil? || $?.exitstatus != 0 && !opts[:force]
           error!('cancel failed')
         end
 

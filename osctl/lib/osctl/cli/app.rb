@@ -509,6 +509,9 @@ module OsCtl::Cli
           m.desc 'Cancel ongoing migration in mid-step'
           m.arg_name '<id>'
           m.command :cancel do |c|
+            c.desc 'Cancel the migration on the local node, even if remote fails'
+            c.switch %i(f force), negatable: false
+
             c.action &Command.run(Migrate, :cancel)
           end
 
