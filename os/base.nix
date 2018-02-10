@@ -202,12 +202,36 @@ with lib;
     boot.kernelParams = [ "systemConfig=${config.system.build.toplevel}" ];
     boot.kernelPackages = myLinuxPackages;
     boot.kernelModules = [
-      "veth"
       "fuse"
+      "veth"
+
+      # Net
       "e1000e"
       "igb"
       "ixgb"
+
+      # SATA/PATA
       "ahci"
+      "sata_nv"
+      "sata_via"
+      "sata_uli"
+
+      # Support USB keyboards, in case the boot fails and we only have
+      # a USB keyboard, or for LUKS passphrase prompt.
+      "uhci_hcd"
+      "ehci_hcd"
+      "ehci_pci"
+      "ohci_hcd"
+      "ohci_pci"
+      "xhci_hcd"
+      "xhci_pci"
+      "usbhid"
+      "hid_generic" "hid_lenovo" "hid_apple" "hid_roccat"
+      "hid_logitech_hidpp" "hid_logitech_dj"
+
+      # PS2
+      "pcips2" "atkbd" "i8042"
+
     ] ++ lib.optionals config.networking.nat [
       "ip6_tables"
       "ip6table_filter"
