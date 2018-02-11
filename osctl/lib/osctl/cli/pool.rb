@@ -10,6 +10,12 @@ module OsCtl::Cli
 
     DEFAULT_FIELDS = FIELDS
 
+    AUTOSTART_FIELDS = %i(
+      id
+      priority
+      delay
+    )
+
     include Assets
 
     def list
@@ -37,7 +43,12 @@ module OsCtl::Cli
         raise GLI::BadCommandLine, 'specify pool name or --all'
       end
 
-      osctld_fmt(:pool_import, name: args[0], all: opts[:all])
+      osctld_fmt(
+        :pool_import,
+        name: args[0],
+        all: opts[:all],
+        autostart: opts[:autostart]
+      )
     end
 
     def export
@@ -63,6 +74,35 @@ module OsCtl::Cli
       require_args!('name')
 
       print_assets(:pool_assets, name: args[0])
+    end
+
+    def autostart_queue
+      if opts[:list]
+        puts AUTOSTART_FIELDS.join("\n")
+        return
+      end
+
+      require_args!('name')
+
+      fmt_opts = {layout: :columns}
+      fmt_opts[:header] = false if opts['hide-header']
+
+      osctld_fmt(
+        :pool_autostart_queue,
+        {name: args[0]},
+        opts[:output] ? opts[:output].split(',').map(&:to_sym) : nil,
+        fmt_opts
+      )
+    end
+
+    def autostart_trigger
+      require_args!('name')
+      osctld_fmt(:pool_autostart_trigger, name: args[0])
+    end
+
+    def autostart_cancel
+      require_args!('name')
+      osctld_fmt(:pool_autostart_cancel, name: args[0])
     end
   end
 end

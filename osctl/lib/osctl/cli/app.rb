@@ -67,6 +67,9 @@ module OsCtl::Cli
           c.desc 'Import all installed pools'
           c.switch %i(a all), negatable: false
 
+          c.desc 'Start containers that are configured to be started automatically'
+          c.switch %i(s autostart), default_value: true
+
           c.action &Command.run(Pool, :import)
         end
 
@@ -94,6 +97,36 @@ module OsCtl::Cli
         p.desc "List pool's assets (datasets, files, directories)"
         p.arg_name '<name>'
         assets(p, Pool)
+
+        p.desc 'Check and trigger container auto-starting'
+        p.command :autostart do |as|
+          as.desc 'Check auto-start queue'
+          as.arg_name '<name>'
+          as.command :queue do |c|
+            c.desc 'Select parameters to output'
+            c.flag %i(o output)
+
+            c.desc 'Do not show header'
+            c.switch %i(H hide-header), negatable: false
+
+            c.desc 'List available parameters'
+            c.switch %i(L list), negatable: false
+
+            c.action &Command.run(Pool, :autostart_queue)
+          end
+
+          as.desc 'Start containers that have auto-start enabled'
+          as.arg_name '<name>'
+          as.command :trigger do |c|
+            c.action &Command.run(Pool, :autostart_trigger)
+          end
+
+          as.desc 'Cancel start of containers left in the queue'
+          as.arg_name '<name>'
+          as.command :cancel do |c|
+            c.action &Command.run(Pool, :autostart_cancel)
+          end
+        end
       end
 
       desc 'Manage system users and user namespace configuration'
@@ -373,6 +406,18 @@ module OsCtl::Cli
 
         ct.desc 'Configure container'
         ct.command :set do |set|
+          set.desc 'Start the container when its pool is imported'
+          set.arg_name '<id>'
+          set.command :autostart do |c|
+            c.desc 'Start priority (0 is the highest priority)'
+            c.flag %i(p priority), type: Integer, default_value: 10
+
+            c.desc 'How long to wait before starting another container, in seconds'
+            c.flag %i(d delay), type: Integer, default_value: 5
+
+            c.action &Command.run(Container, :set_autostart)
+          end
+
           set.desc 'Set hostname'
           set.arg_name '<id> <hostname>'
           set.command :hostname do |c|
@@ -400,6 +445,12 @@ module OsCtl::Cli
 
         ct.desc 'Clear configuration options'
         ct.command :unset do |unset|
+          unset.desc 'Disable automatic container starting'
+          unset.arg_name '<id>'
+          unset.command :autostart do |c|
+            c.action &Command.run(Container, :unset_autostart)
+          end
+
           unset.desc 'Disable hostname management'
           unset.arg_name '<id>'
           unset.command :hostname do |c|

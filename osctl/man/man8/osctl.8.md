@@ -125,6 +125,10 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-a`, `--all`
       Import all installed pools. This is what `osctld` does on start.
 
+    `-s`, `--[no-]autostart`
+      Start containers that are configured to be started automatically. Enabled
+      by default.
+
 `pool export` *name*
   Export pool *name* from osctld. Currently, the containers are left running,
   system users are left registered. No data is deleted, the pool and all its
@@ -147,6 +151,28 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 
     `-v`, `--verbose`
       Show detected errors.
+
+`pool autostart queue` [*options*] *name*
+  Print containers waiting in the auto-start queue. The containers are ordered
+  by start priority and id.
+    
+    `-H`, `--hide-header`
+      Do not show header, useful for scripts.
+
+    `-L`, `--list`
+      List available parameters and exit.
+    
+    `-o`, `--output` *parameters*
+      Select parameters to output, comma separated.
+
+`pool autostart trigger` *name*
+  Start all containers from pool *name* that are configured to be started
+  automatically. This can be used to ensure that all containers that are
+  supposed to be running are actually running.
+
+`pool autostart cancel` *name*
+  Cancel starting of containers that are configured to be started automatically
+  and are left in the start queue.
 
 `user new` *options* *name*
   Create a new user with user namespace configuration.
@@ -331,6 +357,19 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   Attach container *id* and execute command *cmd* within a shell.
   stdin/stdout/stderr of *cmd* is piped to your current shell.
 
+`ct set autostart` [*options*] *id*
+  Start the container automatically when `osctld` starts or when its pool is
+  imported.
+
+    `-p`, `--priority` *n*
+      Priority determines container start order. `0` is the highest priority,
+      higher number means lower priority. Containers with the same priority
+      are ordered by their ids. The default priority is `10`.
+
+    `-d`, `--delay` *n*
+      Time in seconds for which `osctld` waits until the next container is
+      started. The default is `5` seconds.
+
 `ct set hostname` *id* *hostname*
   Set container hostname. Depending on distribution, the hostname is configured
   within the container and an entry is added to `/etc/hosts`. The hostname
@@ -347,6 +386,9 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 `ct set nesting` *id* `enabled`|`disabled`
   Allow/disallow LXC nesting for container *id*. The container needs to be
   restarted for the change to take effect.
+
+`ct unset autostart` *id*
+  Do not start the container automatically.
 
 `ct unset hostname` *id*
   Unset container hostname. `osctld` will not touch the container's hostname

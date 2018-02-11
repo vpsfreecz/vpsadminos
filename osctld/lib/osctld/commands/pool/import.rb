@@ -20,6 +20,7 @@ module OsCtld
             pool = Pool.new(name, dataset == '-' ? nil : dataset)
             pool.setup
             DB::Pools.add(pool)
+            pool.autostart if opts[:autostart]
           end
           ok
 
@@ -35,6 +36,7 @@ module OsCtld
           pool = Pool.new(opts[:name], dataset == '-' ? nil : dataset)
           pool.setup
           DB::Pools.add(pool)
+          pool.autostart if opts[:autostart]
           ok
         end
       end

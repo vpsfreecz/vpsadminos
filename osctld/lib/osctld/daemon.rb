@@ -73,7 +73,7 @@ module OsCtld
       Migration.setup
 
       # Load data pools
-      Commands::Pool::Import.run(all: true)
+      Commands::Pool::Import.run(all: true, autostart: true)
 
       # Start accepting client commands
       serve
@@ -110,6 +110,7 @@ module OsCtld
       File.unlink(SOCKET) if File.exist?(SOCKET)
       UserControl.stop
       Migration.stop
+      DB::Pools.get.each { |pool| pool.stop }
       Monitor::Master.stop
       exit(false)
     end

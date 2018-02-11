@@ -1,4 +1,5 @@
 module OsCtld
+  module AutoStart ; end
   module Commands
     module Container ; end
     module Dataset ; end
@@ -90,6 +91,8 @@ require_relative 'osctld/db/pools'
 require_relative 'osctld/pool'
 require_relative 'osctld/db/pooled_list'
 require_relative 'osctld/db/containers'
+require_relative 'osctld/auto_start/config'
+require_relative 'osctld/auto_start/plan'
 require_relative 'osctld/container'
 require_relative 'osctld/container/builder'
 require_relative 'osctld/container/exporter'

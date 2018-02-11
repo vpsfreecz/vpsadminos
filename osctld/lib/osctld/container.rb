@@ -16,7 +16,8 @@ module OsCtld
     end
 
     attr_reader :pool, :id, :user, :dataset, :group, :distribution, :version,
-      :hostname, :dns_resolvers, :nesting, :prlimits, :mounts, :migration_log
+      :autostart, :hostname, :dns_resolvers, :nesting, :prlimits, :mounts,
+      :migration_log
     attr_accessor :state, :init_pid
 
     # @param pool [Pool]
@@ -292,6 +293,9 @@ module OsCtld
     def set(opts)
       opts.each do |k, v|
         case k
+        when :autostart
+          @autostart = AutoStart::Config.new(self, v[:priority], v[:delay])
+
         when :hostname
           original = @hostname
           @hostname = v
@@ -317,6 +321,9 @@ module OsCtld
     def unset(opts)
       opts.each do |k, v|
         case k
+        when :autostart
+          @autostart = false
+
         when :hostname
           @hostname = nil
 
@@ -444,6 +451,7 @@ module OsCtld
         'cgparams' => dump_cgparams(cgparams),
         'prlimits' => prlimits.map(&:dump),
         'mounts' => mounts.map(&:dump),
+        'autostart' => autostart && autostart.dump,
         'hostname' => hostname,
         'dns_resolvers' => dns_resolvers,
         'nesting' => nesting,
@@ -489,6 +497,7 @@ module OsCtld
 
       @distribution = cfg['distribution']
       @version = cfg['version']
+      @autostart = cfg['autostart'] && AutoStart::Config.load(self, cfg['autostart'])
       @hostname = cfg['hostname']
       @dns_resolvers = cfg['dns_resolvers']
       @nesting = cfg['nesting'] || false

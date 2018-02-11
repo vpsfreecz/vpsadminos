@@ -11,6 +11,8 @@ module OsCtld
         #  - don't leave any containers running?
         #  - unregister system users?
 
+        pool.stop
+
         [DB::Containers, DB::Users, DB::Groups].each do |klass|
           klass.get do |objs|
             objs.delete_if do |obj|

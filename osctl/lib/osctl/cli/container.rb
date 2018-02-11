@@ -21,6 +21,9 @@ module OsCtl::Cli
       version
       state
       init_pid
+      autostart
+      autostart_priority
+      autostart_delay
       hostname
       dns_resolvers
       nesting
@@ -298,6 +301,19 @@ module OsCtl::Cli
       end
 
       Process.wait(pid)
+    end
+
+    def set_autostart
+      set(:autostart) do
+        {
+          priority: opts[:priority],
+          delay: opts[:delay],
+        }
+      end
+    end
+
+    def unset_autostart
+      unset(:autostart)
     end
 
     def set_hostname

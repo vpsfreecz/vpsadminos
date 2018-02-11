@@ -17,12 +17,13 @@ module OsCtld
     include Utils::System
     include Utils::Zfs
 
-    attr_reader :name, :dataset, :migration_key_chain
+    attr_reader :name, :dataset, :migration_key_chain, :autostart_plan
 
     def initialize(name, dataset)
       @name = name
       @dataset = dataset || name
       @migration_key_chain = Migration::KeyChain.new(self)
+      @autostart_plan = AutoStart::Plan.new(self)
       init_lock
     end
 
@@ -165,6 +166,15 @@ module OsCtld
 
       # Open history
       History.open(self)
+    end
+
+    def autostart
+      @autostart_plan.generate
+      @autostart_plan.start
+    end
+
+    def stop
+      @autostart_plan && @autostart_plan.stop
     end
 
     def ct_ds
