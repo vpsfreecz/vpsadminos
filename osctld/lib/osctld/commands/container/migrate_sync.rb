@@ -25,11 +25,8 @@ module OsCtld
         ct.save_config
       end
 
-      progress("Syncing #{ct.dataset.relative_name}")
       send_dataset(ct, ct.dataset, snap)
-
       ct.dataset.descendants.each do |ds|
-        progress("Syncing #{ds.relative_name}")
         send_dataset(ct, ds, snap)
       end
 
@@ -42,8 +39,16 @@ module OsCtld
     end
 
     protected
-    def send_dataset(ct, ds, snap)
-      stream = Zfs::Stream.new(ds, snap)
+    def send_dataset(ct, ds, base_snap)
+      progress("Syncing #{ds.relative_name}")
+
+      snaps = ds.snapshots
+      send_snapshot(ct, ds, base_snap, snaps.first)
+      send_snapshot(ct, ds, base_snap, snaps.last, snaps.first) if snaps.count > 1
+    end
+
+    def send_snapshot(ct, ds, base_snap, snap, from_snap = nil)
+      stream = Zfs::Stream.new(ds, snap.snapshot, from_snap && from_snap.snapshot)
       stream.progress do |total, changed|
         progress(type: :progress, data: {
           time: Time.now.to_i,
@@ -58,7 +63,10 @@ module OsCtld
         *migrate_ssh_cmd(
           ct.pool.migration_key_chain,
           ct.migration_log.opts,
-          ['receive', 'base', ct.id, ds.relative_name, snap]
+          [
+            'receive', from_snap ? 'incremental' : 'base',
+            ct.id, ds.relative_name
+          ] + (base_snap == snap.snapshot ? [base_snap] : [])
         ),
         in: r
       )

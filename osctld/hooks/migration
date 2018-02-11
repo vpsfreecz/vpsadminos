@@ -32,7 +32,7 @@ class Migration
   end
 
   def base
-    error! if args.count != 3
+    error! if args.count < 2
     pool, id = parse_pool_id
     send_cmd(
       :receive_base,
@@ -52,7 +52,7 @@ class Migration
   end
 
   def incremental
-    error! if args.count != 3
+    error! if args.count < 2
     pool, id = parse_pool_id
     send_cmd(
       :receive_incremental,
@@ -126,8 +126,8 @@ class Migration
     warn <<END
 Usage:
   receive skel [pool]
-  receive base [pool:]<id> <dataset> <snapshot>
-  receive incremental [pool:]<id> <dataset> <snapshot>
+  receive base [pool:]<id> <dataset> [snapshot]
+  receive incremental [pool:]<id> <dataset> [snapshot]
   receive transfer [pool:]<id>
   receive cancel [pool:]<id>
 END

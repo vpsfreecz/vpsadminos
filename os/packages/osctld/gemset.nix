@@ -27,10 +27,10 @@
     dependencies = ["concurrent-ruby" "ipaddress" "json" "ruby-lxc"];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0mvfd34zj4qjwjd1wci9a312q4d7avsk0122yp0njlilk6xanpi6";
+      sha256 = "1xjg5ihmgbvsfps5i6k1i45yzwg3bznclv3fmw3nldkwgs1x6sjz";
       type = "gem";
     };
-    version = "0.1.0.build20180210184448";
+    version = "0.1.0.build20180211093432";
   };
   ruby-lxc = {
     source = {

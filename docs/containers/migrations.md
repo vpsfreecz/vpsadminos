@@ -37,8 +37,8 @@ You can verify that by running SSH directly:
 source-node $ ssh -T -i `osctl migration key path private` -l migration destination-node
 Usage:
   receive skel [pool]
-  receive base [pool:]<id> <dataset> <snapshot>
-  receive incremental [pool:]<id> <dataset> <snapshot>
+  receive base [pool:]<id> <dataset> [snapshot]
+  receive incremental [pool:]<id> <dataset> [snapshot]
   receive transfer [pool:]<id>
   receive cancel [pool:]<id>
 ```

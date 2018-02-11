@@ -91,6 +91,7 @@ module OsCtld
     # @option opts [Integer] :depth
     # @option opts [:filesystem] :type
     # @option opts [Array<String>, Array<Symbol>] :properties
+    # @option opts [Proc] :create
     # @return [Array<Zfs::Dataset>]
     def list(opts = {})
       zfs_opts = [
@@ -115,7 +116,12 @@ module OsCtld
 
         if !last || last.name != name
           ret << last unless last.nil?
-          last = self.class.new(name, base: base)
+
+          if opts[:create]
+            last = opts[:create].call(name)
+          else
+            last = self.class.new(name, base: base)
+          end
         end
 
         next if property == 'name'
@@ -216,6 +222,15 @@ module OsCtld
     # @return [Boolean]
     def root?
       name == base || !name.index('/')
+    end
+
+    # @return [Array<Zfs::Snapshot>]
+    def snapshots
+      list(
+        type: 'snapshot',
+        depth: 1,
+        create: ->(name) { Zfs::Snapshot.new(self, name.split('@')[1]) }
+      )
     end
 
     # Export to client

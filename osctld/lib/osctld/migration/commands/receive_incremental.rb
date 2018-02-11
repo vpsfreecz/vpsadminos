@@ -26,7 +26,7 @@ module OsCtld
       if $?.exitstatus == 0
         ct.exclusively do
           ct.migration_log.state = :incremental
-          ct.migration_log.snapshots << [ds.name, opts[:snapshot]]
+          ct.migration_log.snapshots << [ds.name, opts[:snapshot]] if opts[:snapshot]
           ct.save_config
         end
         ok

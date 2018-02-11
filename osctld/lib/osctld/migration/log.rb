@@ -41,19 +41,17 @@ module OsCtld
     end
 
     def can_continue?(next_state)
+      syncs = %i(base incremental)
       return false if state == :cancel
 
       next_i = STATES.index(next_state)
       return false unless next_i
 
+      return true if syncs.include?(state) && syncs.include?(next_state)
+
       cur_i = STATES.index(state)
       return false if next_i < cur_i
       return true if next_i > cur_i
-
-      # cur_i == next_i at this point, i.e. state == next_state
-      # allow multiple base syncs -- one for each datasets
-      # there can be multiple incrementals even for a single dataset
-      return true if %i(base incremental).include?(state)
       false
     end
 
