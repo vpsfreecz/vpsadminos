@@ -21,7 +21,7 @@
   };
 
   users.extraUsers.root = {
-    openssh.authorizedKeys.keys = lib.mkDefault (with import ./ssh-keys.nix; [ aither snajpa srk srk_devel ]);
+    openssh.authorizedKeys.keys = lib.mkDefault (with import ./ssh-keys.nix; [ aither snajpa snajpa_devel srk srk_devel ]);
     subUidRanges = [
         { startUid = 666000; count = 65536; }
       ];
