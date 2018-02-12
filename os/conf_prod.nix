@@ -11,6 +11,7 @@
   vpsadminos.nix = true;
   environment.systemPackages = with pkgs; [
     nvi
+    screen
     ipmicfg
   ];
 
