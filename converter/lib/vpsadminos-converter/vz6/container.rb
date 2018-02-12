@@ -27,6 +27,13 @@ module VpsAdminOS::Converter
     def convert(user, group)
       ct = Container.new(ctid, user, group)
 
+      [
+        'VE_ROOT',
+        'VE_PRIVATE',
+        'VE_LAYOUT', # TODO: check?
+        'NETFILTER',
+      ].each { |v| config.consume(v) }
+
       fail 'config missing OSTEMPLATE' unless config['OSTEMPLATE']
       # TODO: we should probably guarantee distribution names and allowed version
       #       specification... e.g. allow debian-9.0, forbid debian-stretch
@@ -34,6 +41,21 @@ module VpsAdminOS::Converter
 
       ct.hostname = config.consume('HOSTNAME')
       ct.dns_resolvers.concat(config.consume('NAMESERVER').map(&:to_s))
+
+      ct.autostart.enabled = true if config.consume('ONBOOT')
+
+      if config['PHYSPAGES']
+        mem = config.consume('PHYSPAGES')[1] * 4 * 1024
+
+        if config['SWAPPAGES']
+          ct.cgparams.set(
+            'memory.memsw.limit_in_bytes',
+            mem + config.consume('SWAPPAGES')[1] * 4 * 1024
+          )
+        end
+
+        ct.cgparams.set('memory.limit_in_bytes', mem)
+      end
 
       ct
     end
