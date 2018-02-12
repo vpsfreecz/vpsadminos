@@ -8,6 +8,9 @@
   services.openssh.enable = lib.mkDefault true;
   vpsadminos.nix = lib.mkDefault true;
 
+  networking.bird.enable = true;
+  #networking.bird6.enable = true;
+
   environment.systemPackages = with pkgs; [
     less
     manpages
