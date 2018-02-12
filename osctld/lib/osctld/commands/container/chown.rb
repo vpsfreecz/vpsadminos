@@ -45,15 +45,21 @@ module OsCtld
           # Switch user, regenerate configs
           ct.chown(user)
 
-          # Configure dataset
-          progress('Unmounting dataset')
-          zfs(:unmount, nil, ct.dataset)
+          # Configure datasets
+          datasets = ct.datasets
 
-          progress('Switching UID/GID offsets')
-          zfs(:set, "uidoffset=#{ct.uid_offset} gidoffset=#{ct.gid_offset}", ct.dataset)
+          datasets.reverse_each do |ds|
+            progress("Unmounting dataset #{ds.relative_name}")
+            zfs(:unmount, nil, ds)
+          end
 
-          progress('Remounting dataset')
-          zfs(:mount, nil, ct.dataset)
+          datasets.each do |ds|
+            progress("Shifting UID/GID offsets of #{ds.relative_name}")
+            zfs(:set, "uidoffset=#{ct.uid_offset} gidoffset=#{ct.gid_offset}", ds)
+
+            progress("Remounting dataset #{ds.relative_name}")
+            zfs(:mount, nil, ds)
+          end
 
           # Restart monitor
           Monitor::Master.monitor(ct)
