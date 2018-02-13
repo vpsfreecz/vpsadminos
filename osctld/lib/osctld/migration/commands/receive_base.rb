@@ -14,7 +14,7 @@ module OsCtld
         end
       end
 
-      ds = Zfs::Dataset.new(dataset_name(ct), base: ct.dataset.name)
+      ds = OsCtl::Lib::Zfs::Dataset.new(dataset_name(ct), base: ct.dataset.name)
       error!('dataset does not exist') unless ds.exist?
 
       client.send({status: true, response: 'continue'}.to_json + "\n", 0)

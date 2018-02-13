@@ -19,7 +19,7 @@ module OsCtld
 
     protected
     def export(ct, io)
-      exporter = Container::Exporter.new(
+      exporter = OsCtl::Lib::Exporter.new(
         ct,
         io,
         compression: opts[:compression] && opts[:compression].to_sym

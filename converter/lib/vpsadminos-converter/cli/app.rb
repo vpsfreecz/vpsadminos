@@ -20,6 +20,9 @@ module VpsAdminOS::Converter::Cli
       preserve_argv true
       arguments :strict
 
+      desc 'Log file'
+      flag 'log-file'
+
       desc 'Convert containers from OpenVZ Legacy'
       command :vz6 do |vz|
         vz.desc 'Export OpenVZ container into vpsAdminOS-compatible archive'

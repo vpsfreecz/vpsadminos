@@ -2,8 +2,8 @@ module OsCtld
   class Commands::Group::Create < Commands::Logged
     handle :group_create
 
-    include Utils::Log
-    include Utils::System
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
 
     def find
       pool = DB::Pools.get_or_default(opts[:pool])

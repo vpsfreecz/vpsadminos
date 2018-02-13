@@ -2,7 +2,7 @@ module OsCtld
   class DistConfig::Unsupported < DistConfig::Base
     distribution :unsupported
 
-    include Utils::Log
+    include OsCtl::Lib::Utils::Log
 
     def set_hostname(opts)
       log(

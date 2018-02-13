@@ -5,14 +5,13 @@ module OsCtld
     include Lockable
     include CGroup::Params
     include Assets::Definition
-    include Utils::Log
-    include Utils::System
-    include Utils::Zfs
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
     include Utils::SwitchUser
 
     def self.default_dataset(pool, id)
       name = File.join(pool.ct_ds, id)
-      Zfs::Dataset.new(name, base: name)
+      OsCtl::Lib::Zfs::Dataset.new(name, base: name)
     end
 
     attr_reader :pool, :id, :user, :dataset, :group, :distribution, :version,
@@ -237,13 +236,13 @@ module OsCtld
     end
 
     # Return a list of all container datasets
-    # @return [Array<Zfs::Dataset>]
+    # @return [Array<OsCtl::Lib::Zfs::Dataset>]
     def datasets
       [dataset] + dataset.descendants
     end
 
     # Iterate over all container datasets
-    # @yieldparam ds [Zfs::Dataset]
+    # @yieldparam ds [OsCtl::Lib::Zfs::Dataset]
     def each_dataset(&block)
       datasets.each(&block)
     end
@@ -489,7 +488,7 @@ module OsCtld
 
       unless @dataset
         if cfg['dataset']
-          @dataset = Zfs::Dataset.new(cfg['dataset'], base: cfg['dataset'])
+          @dataset = OsCtl::Lib::Zfs::Dataset.new(cfg['dataset'], base: cfg['dataset'])
         else
           @dataset = Container.default_dataset(pool, id)
         end

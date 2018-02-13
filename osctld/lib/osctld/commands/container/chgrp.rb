@@ -2,8 +2,8 @@ module OsCtld
   class Commands::Container::Chgrp < Commands::Logged
     handle :ct_chgrp
 
-    include Utils::Log
-    include Utils::System
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
 
     def find
       ct = DB::Containers.find(opts[:id], opts[:pool])

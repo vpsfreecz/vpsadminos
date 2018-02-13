@@ -2,7 +2,7 @@ module OsCtld
   class Commands::Group::CGParamApply < Commands::Base
     handle :group_cgparam_apply
 
-    include Utils::Log
+    include OsCtl::Lib::Utils::Log
     include Utils::CGroupParams
 
     def execute

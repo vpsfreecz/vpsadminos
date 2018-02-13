@@ -16,4 +16,4 @@ lxc.include = <%= ct.lxc_config_path('network') %>
 lxc.include = <%= ct.lxc_config_path('prlimits') %>
 lxc.include = <%= ct.lxc_config_path('mounts') %>
 
-#lxc.hook.start-host = <%= hook_start_host %>
+lxc.hook.start-host = <%= hook_start_host %>

@@ -3,7 +3,7 @@ require 'thread'
 module OsCtld
   # Module holding functions and classes working with container consoles/ttys
   module Console
-    include Utils::Log
+    include OsCtl::Lib::Utils::Log
 
     def self.init
       @mutex = Mutex.new

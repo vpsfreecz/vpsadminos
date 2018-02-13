@@ -2,8 +2,8 @@ module OsCtld
   class NetInterface::Bridge < NetInterface::Veth
     type :bridge
 
-    include Utils::Log
-    include Utils::System
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
     include Utils::Ip
     include Utils::SwitchUser
 

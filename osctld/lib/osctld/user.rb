@@ -5,9 +5,8 @@ module OsCtld
   class User
     include Lockable
     include Assets::Definition
-    include Utils::Log
-    include Utils::System
-    include Utils::Zfs
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
 
     attr_reader :pool, :name, :ugid, :offset, :size
 

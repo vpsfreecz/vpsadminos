@@ -5,8 +5,8 @@ require 'osctld/version'
 Gem::Specification.new do |s|
   s.name        = 'osctld'
 
-  if ENV['VPSADMIN_ENV'] == 'dev'
-    s.version   = "#{OsCtld::VERSION}.build#{Time.now.strftime('%Y%m%d%H%M%S')}"
+  if ENV['VPSADMIN_BUILD_ID']
+    s.version   = "#{OsCtld::VERSION}.build#{ENV['VPSADMIN_BUILD_ID']}"
   else
     s.version   = OsCtld::VERSION
   end
@@ -24,6 +24,7 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency 'concurrent-ruby', '~> 1.0.5'
   s.add_runtime_dependency 'json'
   s.add_runtime_dependency 'ipaddress', '~> 0.8.3'
+  s.add_runtime_dependency 'libosctl', s.version
   s.add_runtime_dependency 'ruby-lxc', '~> 1.2.2'
   s.add_development_dependency 'yard'
 end

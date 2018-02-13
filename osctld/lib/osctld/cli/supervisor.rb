@@ -42,7 +42,7 @@ module OsCtld
 
     def supervise
       Process.setproctitle('osctld: supervisor')
-      Logger.setup(opts.log)
+      OsCtl::Lib::Logger.setup(opts.log)
 
       out_r, out_w = IO.pipe
 
@@ -77,7 +77,7 @@ module OsCtld
 
       begin
         out_r.each_line do |line|
-          Logger.log(:unknown, line)
+          OsCtl::Lib::Logger.log(:unknown, line)
         end
 
       rescue IOError

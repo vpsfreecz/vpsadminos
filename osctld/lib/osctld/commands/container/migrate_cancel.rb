@@ -4,10 +4,9 @@ module OsCtld
   class Commands::Container::MigrateCancel < Commands::Base
     handle :ct_migrate_cancel
 
-    include Utils::Log
-    include Utils::System
-    include Utils::Zfs
-    include Utils::Migration
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
+    include OsCtl::Lib::Utils::Migration
 
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])

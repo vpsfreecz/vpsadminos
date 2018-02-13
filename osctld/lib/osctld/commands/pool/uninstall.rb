@@ -2,9 +2,8 @@ module OsCtld
   class Commands::Pool::Uninstall < Commands::Base
     handle :pool_uninstall
 
-    include Utils::Log
-    include Utils::System
-    include Utils::Zfs
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
 
     def execute
       name = opts[:name]

@@ -2,8 +2,8 @@ module OsCtld
   class Commands::Container::List < Commands::Base
     handle :ct_list
 
-    include Utils::Log
-    include Utils::System
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
     include Utils::SwitchUser
 
     def execute

@@ -1,8 +1,7 @@
 module OsCtld
   class Container::Builder
-    include Utils::Log
-    include Utils::System
-    include Utils::Zfs
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
 
     ID_RX = /^[a-z0-9_-]{1,100}$/i
 
@@ -64,7 +63,7 @@ module OsCtld
       create_dataset(ct.dataset, opts)
     end
 
-    # @param ds [Zfs::Dataset]
+    # @param ds [OsCtl::Lib::Zfs::Dataset]
     # @param opts [Hash] options
     # @option opts [Boolean] :offset
     # @option opts [Boolean] :parents

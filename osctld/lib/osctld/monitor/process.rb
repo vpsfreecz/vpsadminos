@@ -2,7 +2,7 @@ require 'thread'
 
 module OsCtld
   class Monitor::Process
-    include Utils::Log
+    include OsCtl::Lib::Utils::Log
     include Utils::SwitchUser
 
     def self.spawn(ct)

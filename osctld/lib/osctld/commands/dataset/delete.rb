@@ -2,7 +2,7 @@ module OsCtld
   class Commands::Dataset::Delete < Commands::Base
     handle :ct_dataset_delete
 
-    include Utils::Log
+    include OsCtl::Lib::Utils::Log
     include Utils::SwitchUser
 
     def execute
@@ -16,7 +16,7 @@ module OsCtld
       end
 
       ct.exclusively do
-        ds = Zfs::Dataset.new(
+        ds = OsCtl::Lib::Zfs::Dataset.new(
           File.join(ct.dataset.name, name),
           base: ct.dataset.name
         )

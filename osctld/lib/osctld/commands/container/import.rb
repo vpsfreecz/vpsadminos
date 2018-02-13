@@ -44,7 +44,7 @@ module OsCtld
         id: ctid,
         user: user,
         group: group,
-        dataset: opts[:dataset] && Zfs::Dataset.new(
+        dataset: opts[:dataset] && OsCtl::Lib::Zfs::Dataset.new(
           opts[:dataset],
           base: opts[:dataset]
         )

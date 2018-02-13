@@ -2,9 +2,8 @@ module OsCtld
   class Commands::Pool::Import < Commands::Base
     handle :pool_import
 
-    include Utils::Log
-    include Utils::System
-    include Utils::Zfs
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
 
     def execute
       DB::Pools.sync do

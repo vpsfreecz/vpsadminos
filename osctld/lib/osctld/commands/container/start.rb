@@ -2,8 +2,8 @@ module OsCtld
   class Commands::Container::Start < Commands::Logged
     handle :ct_start
 
-    include Utils::Log
-    include Utils::System
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
     include Utils::SwitchUser
 
     def find

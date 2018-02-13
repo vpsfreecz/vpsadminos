@@ -1,4 +1,4 @@
-module OsCtld
+module OsCtl::Lib
   # Class representing a single ZFS snapshot
   class Zfs::Snapshot
     # @return [Zfs::Dataset]

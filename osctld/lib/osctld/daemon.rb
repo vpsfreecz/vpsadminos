@@ -2,9 +2,8 @@ require 'socket'
 
 module OsCtld
   class Daemon
-    include Utils::Log
-    include Utils::System
-    include Utils::Zfs
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
     include Assets::Definition
 
     SOCKET = File.join(RunState::RUNDIR, 'osctld.sock')

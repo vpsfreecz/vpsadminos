@@ -1,7 +1,8 @@
 module VpsAdminOS::Converter
   # Instances represent OpenVZ Legacy containers
   class Vz6::Container
-    include Utils::System
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
 
     attr_reader :ctid, :config
 

@@ -23,14 +23,22 @@
     };
     version = "2.1.0";
   };
-  osctld = {
-    dependencies = ["concurrent-ruby" "ipaddress" "json" "ruby-lxc"];
+  libosctl = {
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1wc7ff368ih2karj68zrlp9inwg69dbmhsv22c4cyl0i0465hzdm";
+      sha256 = "03fz5h3jzyw58wvwsqv6xjvdk14jx8v9gp9z912pblsj67dqlqla";
       type = "gem";
     };
-    version = "0.1.0.build20180212084515";
+    version = "0.1.0.build20180213133040";
+  };
+  osctld = {
+    dependencies = ["concurrent-ruby" "ipaddress" "json" "libosctl" "ruby-lxc"];
+    source = {
+      remotes = ["https://rubygems.vpsfree.cz"];
+      sha256 = "1pr0fj48l2kdqghlai2gwjs0gi1kpnc5r1kxc0b2djg8fzsidvpp";
+      type = "gem";
+    };
+    version = "0.1.0.build20180213133040";
   };
   ruby-lxc = {
     source = {

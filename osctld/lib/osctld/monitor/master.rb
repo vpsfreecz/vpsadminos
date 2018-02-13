@@ -2,7 +2,7 @@ require 'thread'
 
 module OsCtld
   class Monitor::Master
-    include Utils::Log
+    include OsCtl::Lib::Utils::Log
     include Utils::SwitchUser
 
     @@instance = nil

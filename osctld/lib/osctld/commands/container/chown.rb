@@ -2,9 +2,8 @@ module OsCtld
   class Commands::Container::Chown < Commands::Logged
     handle :ct_chown
 
-    include Utils::Log
-    include Utils::System
-    include Utils::Zfs
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
 
     def find
       ct = DB::Containers.find(opts[:id], opts[:pool])

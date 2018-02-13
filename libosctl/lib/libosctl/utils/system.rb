@@ -1,7 +1,7 @@
 require 'timeout'
 
-module VpsAdminOS::Converter::Utils
-  module System
+module OsCtl::Lib
+  module Utils::System
     include Timeout
 
     # @param cmd [String]
@@ -17,6 +17,7 @@ module VpsAdminOS::Converter::Utils
       stderr = opts[:stderr].nil? ? true : opts[:stderr]
 
       out = ""
+      log(:work, 'general', cmd)
 
       IO.popen(
         "exec #{cmd} #{stderr ? '2>&1' : '2> /dev/null'}",
@@ -36,7 +37,7 @@ module VpsAdminOS::Converter::Utils
 
             else
               Process.kill('TERM', io.pid)
-              fail "Command '#{cmd}' failed: timeout"
+              raise Exceptions::SystemCommandFailed, "Command '#{cmd}' failed: timeout"
             end
           end
 
@@ -46,7 +47,8 @@ module VpsAdminOS::Converter::Utils
       end
 
       if $?.exitstatus != 0 && !valid_rcs.include?($?.exitstatus)
-        fail "Command '#{cmd}' failed with exit code #{$?.exitstatus}: #{out}"
+        raise Exceptions::SystemCommandFailed,
+              "Command '#{cmd}' failed with exit code #{$?.exitstatus}: #{out}"
       end
 
       {output: out, exitstatus: $?.exitstatus}

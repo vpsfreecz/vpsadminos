@@ -2,7 +2,7 @@ module OsCtld
   class Commands::Container::Attach < Commands::Base
     handle :ct_attach
 
-    include Utils::Log
+    include OsCtl::Lib::Utils::Log
     include Utils::SwitchUser
 
     def execute

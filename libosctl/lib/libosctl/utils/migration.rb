@@ -1,4 +1,4 @@
-module OsCtld
+module OsCtl::Lib
   module Utils::Migration
     def migrate_ssh_cmd(key_chain, m_opts, cmd)
       [

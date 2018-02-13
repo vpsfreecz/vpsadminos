@@ -1,4 +1,4 @@
-module OsCtld
+module OsCtl::Lib
   # Control class for ZFS send invocation.
   #
   # {Zfs::Stream} uses the `-v` flag of zfs send to monitor how the transfer
@@ -25,9 +25,8 @@ module OsCtld
   # sent data are expected to increment and reset when the next snapshot is being
   # transfered.
   class Zfs::Stream
-    include Utils::System
-    include Utils::Zfs
     include Utils::Log
+    include Utils::System
 
     # @param fs [String] filesystem
     # @param snapshot [String]

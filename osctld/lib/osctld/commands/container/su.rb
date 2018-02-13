@@ -2,7 +2,7 @@ module OsCtld
   class Commands::Container::Su < Commands::Base
     handle :ct_su
 
-    include Utils::Log
+    include OsCtl::Lib::Utils::Log
     include Utils::SwitchUser
 
     def execute

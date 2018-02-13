@@ -4,10 +4,9 @@ module OsCtld
   class Commands::Container::MigrateTransfer < Commands::Base
     handle :ct_migrate_transfer
 
-    include Utils::Log
-    include Utils::System
-    include Utils::Zfs
-    include Utils::Migration
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
+    include OsCtl::Lib::Utils::Migration
 
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])
@@ -69,7 +68,7 @@ module OsCtld
 
     protected
     def send_dataset(ct, ds, snap)
-      stream = Zfs::Stream.new(ds, snap, ct.migration_log.snapshots[-2])
+      stream = OsCtl::Lib::Zfs::Stream.new(ds, snap, ct.migration_log.snapshots[-2])
       stream.progress do |total, changed|
         progress(type: :progress, data: {
           time: Time.now.to_i,

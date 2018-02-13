@@ -14,7 +14,7 @@ module OsCtld
         end
       end
 
-      ds = Zfs::Dataset.new(dataset_name(ct), base: ct.dataset.name)
+      ds = OsCtl::Lib::Zfs::Dataset.new(dataset_name(ct), base: ct.dataset.name)
       # don't check its existence now to save time
 
       client.send({status: true, response: 'continue'}.to_json + "\n", 0)

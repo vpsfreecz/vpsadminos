@@ -4,8 +4,8 @@ module OsCtld
   class Commands::NetInterface::IpAdd < Commands::Logged
     handle :netif_ip_add
 
-    include Utils::Log
-    include Utils::System
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
     include Utils::SwitchUser
 
     def find

@@ -4,7 +4,13 @@ require 'vpsadminos-converter/version'
 
 Gem::Specification.new do |s|
   s.name        = 'vpsadminos-converter'
-  s.version     = VpsAdminOS::Converter::VERSION
+  
+  if ENV['VPSADMIN_BUILD_ID']
+    s.version   = "#{VpsAdminOS::Converter::VERSION}.build#{ENV['VPSADMIN_BUILD_ID']}"
+  else
+    s.version   = VpsAdminOS::Converter::VERSION
+  end
+
   s.summary     =
   s.description = 'Convert OpenVZ containers into vpsAdminOS'
   s.authors     = 'Jakub Skokan'
@@ -18,6 +24,7 @@ Gem::Specification.new do |s|
 
   s.add_runtime_dependency 'highline', '~> 1.7.10'
   s.add_runtime_dependency 'ipaddress', '~> 0.8.3'
+  s.add_runtime_dependency 'libosctl', s.version
   s.add_runtime_dependency 'gli', '~> 2.17.1'
   s.add_development_dependency 'md2man'
   s.add_development_dependency 'yard'

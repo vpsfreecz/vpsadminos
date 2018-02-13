@@ -13,9 +13,8 @@ module OsCtld
 
     include Lockable
     include Assets::Definition
-    include Utils::Log
-    include Utils::System
-    include Utils::Zfs
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
 
     attr_reader :name, :dataset, :migration_key_chain, :autostart_plan
 

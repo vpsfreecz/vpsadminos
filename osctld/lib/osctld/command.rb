@@ -2,7 +2,7 @@ require 'concurrent'
 
 module OsCtld
   class Command
-    include Utils::Log
+    include OsCtl::Lib::Utils::Log
 
     @@commands = {}
     @@cmd_id = Concurrent::AtomicFixnum.new(0)

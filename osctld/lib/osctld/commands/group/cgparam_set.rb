@@ -1,7 +1,7 @@
 module OsCtld
   class Commands::Group::CGParamSet < Commands::Logged
     handle :group_cgparam_set
-    include Utils::Log
+    include OsCtl::Lib::Utils::Log
     include Utils::CGroupParams
 
     def find

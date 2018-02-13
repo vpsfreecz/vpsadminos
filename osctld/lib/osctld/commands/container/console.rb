@@ -4,7 +4,7 @@ module OsCtld
   class Commands::Container::Console < Commands::Base
     handle :ct_console
 
-    include Utils::Log
+    include OsCtl::Lib::Utils::Log
     include Utils::SwitchUser
 
     def execute

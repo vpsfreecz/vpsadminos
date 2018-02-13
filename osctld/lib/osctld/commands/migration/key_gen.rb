@@ -2,8 +2,8 @@ module OsCtld
   class Commands::Migration::KeyGen < Commands::Logged
     handle :migration_key_gen
 
-    include Utils::Log
-    include Utils::System
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
 
     def find
       if opts[:pool]

@@ -1,6 +1,7 @@
 module VpsAdminOS::Converter
   class Cli::Vz6 < Cli::Command
-    include Utils::System
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
 
     def export
       require_args!('ctid', 'file')
@@ -28,7 +29,10 @@ module VpsAdminOS::Converter
       end
 
       target_ct = vz_ct.convert(User.default, Group.default)
-      target_ct.dataset = opts['zfs-dataset']
+      target_ct.dataset = OsCtl::Lib::Zfs::Dataset.new(
+        opts['zfs-dataset'],
+        base: opts['zfs-dataset']
+      )
 
       File.open(args[1], 'w') do |f|
         exporter = Exporter.new(
@@ -45,16 +49,16 @@ module VpsAdminOS::Converter
         exporter.dump_configs
 
         puts 'Exporting rootfs'
-        exporter.dump_rootfs_stream do
+        exporter.dump_rootfs do
           puts '> base stream'
-          exporter.dump_base_stream
+          exporter.dump_base
 
           if vz_ct.state == :running && opts[:consistent]
             puts '> stopping container'
             syscmd("vzctl stop #{vz_ct.ctid}")
 
             puts '> incremental stream'
-            exporter.dump_incremental_stream
+            exporter.dump_incremental
 
             puts '> restarting container'
             syscmd("vzctl start #{vz_ct.ctid}")

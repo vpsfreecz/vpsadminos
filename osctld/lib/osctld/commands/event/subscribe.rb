@@ -2,7 +2,7 @@ module OsCtld
   class Commands::Event::Subscribe < Commands::Base
     handle :event_subscribe
 
-    include Utils::Log
+    include OsCtl::Lib::Utils::Log
 
     def execute
       log(:info, :eventd, 'Subscribing client')

@@ -38,7 +38,7 @@ module OsCtld
   # the connection can be hijacked and another communication protocol may be
   # used.
   class Generic::ClientHandler
-    include Utils::Log
+    include OsCtl::Lib::Utils::Log
 
     attr_reader :opts
 

@@ -8,8 +8,8 @@ module OsCtld
   # clients. Clients can be connected even if the tty is not available, i.e.
   # the container can be stopped.
   class Console::TTY
-    include Utils::Log
-    include Utils::System
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
     include Utils::SwitchUser
 
     attr_reader :ct, :n

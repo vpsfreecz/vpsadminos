@@ -2,9 +2,8 @@ module OsCtld
   class Commands::Container::MigrateCleanup < Commands::Base
     handle :ct_migrate_cleanup
 
-    include Utils::Log
-    include Utils::System
-    include Utils::Zfs
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
 
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])

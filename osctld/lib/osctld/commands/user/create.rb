@@ -4,9 +4,8 @@ module OsCtld
   class Commands::User::Create < Commands::Logged
     handle :user_create
 
-    include Utils::Log
-    include Utils::System
-    include Utils::Zfs
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
 
     def find
       pool = DB::Pools.get_or_default(opts[:pool])

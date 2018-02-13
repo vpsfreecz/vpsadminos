@@ -2,9 +2,8 @@ module OsCtld
   class Assets::Dataset < Assets::Base
     register :dataset
 
-    include Utils::Log
-    include Utils::System
-    include Utils::Zfs
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
 
     # @param opts [Hash] options
     # @option opts [Integer, nil] uidoffset

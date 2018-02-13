@@ -1,10 +1,10 @@
-module OsCtld::Utils
-  module Log
+module OsCtl::Lib
+  module Utils::Log
     module PrivateMethods
       LEVELS = %i(debug info warn error fatal unknown)
 
       def self.log(level, type, msg)
-        OsCtld::Logger.log(
+        Logger.log(
           LEVELS.include?(level) ? level : :unknown,
           "[#{type}] #{msg}"
         )

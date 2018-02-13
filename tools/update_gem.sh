@@ -1,16 +1,20 @@
 #!/bin/sh -x
-# Usage: $0 <nixpkgs> osctl | osctld
+# Usage: $0 <nixpkgs | _nopkg> <osctl | osctld> <build id>
 
 set -e
 
 PKGS="$1"
 GEM="$2"
 
+export VPSADMIN_BUILD_ID="$3"
+
 pushd "$GEM"
-pkg=$(VPSADMIN_ENV=dev rake build | grep -oP "pkg/.+\.gem")
+pkg=$(rake build | grep -oP "pkg/.+\.gem")
 version=$(echo $pkg | grep -oP "\d+\.\d+\.\d+\.build\d+")
 
 gem inabox "$pkg"
+
+[ "$PKGS" == "_nopkg" ] && exit
 
 popd
 pushd "$PKGS/$GEM"

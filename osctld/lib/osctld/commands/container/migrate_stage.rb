@@ -4,7 +4,7 @@ module OsCtld
   class Commands::Container::MigrateStage < Commands::Base
     handle :ct_migrate_stage
 
-    include Utils::Migration
+    include OsCtl::Lib::Utils::Migration
 
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])
@@ -46,7 +46,7 @@ module OsCtld
 
     protected
     def export(ct, io)
-      exporter = Container::Exporter.new(ct, io)
+      exporter = OsCtl::Lib::Exporter.new(ct, io)
       exporter.dump_metadata('skel')
       exporter.dump_configs
       exporter.close

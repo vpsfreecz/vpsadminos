@@ -1,3 +1,5 @@
+require 'libosctl'
+
 module OsCtld
   module AutoStart ; end
   module Commands
@@ -19,7 +21,6 @@ module OsCtld
   module UserControl
     module Commands ; end
   end
-  module Zfs ; end
 
   def self.root
     File.join(File.dirname(__FILE__), '..')
@@ -47,23 +48,15 @@ module OsCtld
 end
 
 require_relative 'osctld/version'
-require_relative 'osctld/logger'
 require_relative 'osctld/exceptions'
 require_relative 'osctld/template'
 require_relative 'osctld/lockable'
 require_relative 'osctld/db/list'
 require_relative 'osctld/run_state'
-require_relative 'osctld/utils/log'
-require_relative 'osctld/utils/system'
-require_relative 'osctld/utils/zfs'
 require_relative 'osctld/utils/switch_user'
 require_relative 'osctld/utils/ip'
 require_relative 'osctld/utils/cgroup_params'
 require_relative 'osctld/utils/assets'
-require_relative 'osctld/utils/migration'
-require_relative 'osctld/zfs/dataset'
-require_relative 'osctld/zfs/snapshot'
-require_relative 'osctld/zfs/stream'
 require_relative 'osctld/event'
 require_relative 'osctld/eventd'
 require_relative 'osctld/history'
@@ -95,7 +88,6 @@ require_relative 'osctld/auto_start/config'
 require_relative 'osctld/auto_start/plan'
 require_relative 'osctld/container'
 require_relative 'osctld/container/builder'
-require_relative 'osctld/container/exporter'
 require_relative 'osctld/container/importer'
 require_relative 'osctld/db/users'
 require_relative 'osctld/user'

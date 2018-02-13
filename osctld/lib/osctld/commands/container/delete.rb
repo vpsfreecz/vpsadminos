@@ -2,9 +2,8 @@ module OsCtld
   class Commands::Container::Delete < Commands::Logged
     handle :ct_delete
 
-    include Utils::Log
-    include Utils::System
-    include Utils::Zfs
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
     include Utils::SwitchUser
 
     def find

@@ -10,7 +10,7 @@ module OsCtld
         cfg['mountpoint'],
         cfg['type'],
         cfg['opts'],
-        cfg['dataset'] && Zfs::Dataset.new(
+        cfg['dataset'] && OsCtl::Lib::Zfs::Dataset.new(
           File.join(ct.dataset.name, cfg['dataset']),
           base: ct.dataset.name
         )

@@ -4,7 +4,7 @@ module OsCtld
   class Commands::Container::Create < Commands::Logged
     handle :ct_create
 
-    include Utils::Log
+    include OsCtl::Lib::Utils::Log
 
     def find
       pool = DB::Pools.get_or_default(opts[:pool])
@@ -40,7 +40,7 @@ module OsCtld
         opts[:id],
         user,
         group,
-        opts[:dataset] && Zfs::Dataset.new(opts[:dataset]),
+        opts[:dataset] && OsCtl::Lib::Zfs::Dataset.new(opts[:dataset]),
         cmd: self
       )
 

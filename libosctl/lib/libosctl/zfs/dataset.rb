@@ -1,9 +1,8 @@
-module OsCtld
+module OsCtl::Lib
   # Class representing a single ZFS dataset
   class Zfs::Dataset
     include Utils::Log
     include Utils::System
-    include Utils::Zfs
 
     # Full dataset name
     # @return [String]

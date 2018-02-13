@@ -3,20 +3,20 @@ require 'rubygems'
 require 'rubygems/package'
 require 'zlib'
 
-module OsCtld
+module OsCtl::Lib
   # Handles dumping containers into tar archives
-  class Container::Exporter
+  class Exporter
     DIR_MODE = 16877 # 0755
     FILE_MODE = 33188 # 0644
 
     include Utils::Log
     include Utils::System
-    include Utils::Zfs
 
     # @param ct [Container]
     # @param io [IO]
     # @param opts [Hash]
     # @option opts [Symbol] compression auto/off/gzip
+    # @option opts [Boolean] compressed_send
     def initialize(ct, io, opts = {})
       @ct = ct
       @tar = Gem::Package::TarWriter.new(io)
@@ -152,9 +152,9 @@ module OsCtld
       compression = get_compression(dataset)
 
       if from_snap
-        cmd = "zfs send -c -I @#{from_snap} #{dataset}@#{snap}"
+        cmd = "#{zfs_send} -I @#{from_snap} #{dataset}@#{snap}"
       else
-        cmd = "zfs send -c #{dataset}@#{snap}"
+        cmd = "#{zfs_send} #{dataset}@#{snap}"
       end
 
       tar.add_file(dump_file_name(compression, name), FILE_MODE) do |tf|
@@ -182,7 +182,9 @@ module OsCtld
     def get_compression(dataset)
       case opts[:compression]
       when :auto
-        if zfs(:get, "-H -o value compression", dataset)[:output].strip == 'off'
+        if !opts[:compressed_send]
+          :gzip
+        elsif zfs(:get, "-H -o value compression", dataset)[:output].strip == 'off'
           :gzip
         else
           :off
@@ -202,6 +204,15 @@ module OsCtld
 
       else
         base
+      end
+    end
+
+    def zfs_send
+      if opts[:compressed_send]
+        'zfs send -c'
+
+      else
+        'zfs send'
       end
     end
   end

@@ -3,7 +3,7 @@ require 'thread'
 
 module OsCtld
   class AutoStart::Plan
-    include Utils::Log
+    include OsCtl::Lib::Utils::Log
 
     attr_reader :pool
 

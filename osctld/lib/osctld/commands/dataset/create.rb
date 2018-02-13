@@ -7,7 +7,7 @@ module OsCtld
       return error('container not found') unless ct
 
       ct.exclusively do
-        ds = Zfs::Dataset.new(
+        ds = OsCtl::Lib::Zfs::Dataset.new(
           File.join(ct.dataset.name, opts[:name]),
           base: ct.dataset.name
         )

@@ -2,9 +2,8 @@ module OsCtld
   class Commands::Pool::Install < Commands::Base
     handle :pool_install
 
-    include Utils::Log
-    include Utils::System
-    include Utils::Zfs
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
 
     def execute
       if opts[:dataset] && !opts[:dataset].start_with?("#{opts[:name]}/")

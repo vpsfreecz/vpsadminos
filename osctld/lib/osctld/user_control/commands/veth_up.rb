@@ -2,7 +2,7 @@ module OsCtld
   class UserControl::Commands::VethUp < UserControl::Commands::Base
     handle :veth_up
 
-    include Utils::Log
+    include OsCtl::Lib::Utils::Log
 
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])

@@ -13,6 +13,12 @@ module VpsAdminOS::Converter
       @gopts = global_opts
       @opts = opts
       @args = args
+
+      if gopts['log-file']
+        OsCtl::Lib::Logger.setup(:io, io: File.open(gopts['log-file'], 'a'))
+      else
+        OsCtl::Lib::Logger.setup(:none)
+      end
     end
 
     # @param v [Array] list of required arguments
