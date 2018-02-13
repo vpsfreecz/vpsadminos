@@ -12,7 +12,7 @@ The converter has to be installed on the OpenVZ node:
 ## Usage
 To export container `101` from the OpenVZ node into `ct-101.tar`:
 
-    openvz-node $ vpsadminos-convert vz6 export --vpsadmin 101 ct-101.tar
+    openvz-node $ vpsadminos-convert vz6 export 101 ct-101.tar
 
 To import the exported archive on vpsAdminOS:
 

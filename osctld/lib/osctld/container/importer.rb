@@ -171,6 +171,19 @@ module OsCtld
       end
     end
 
+    def load_rootfs(builder)
+      case metadata['format']
+      when 'zfs'
+        load_streams(builder)
+
+      when 'tar'
+        unpack_rootfs(builder)
+
+      else
+        fail "unsupported archive format '#{metadata['format']}'"
+      end
+    end
+
     # Load ZFS data streams from the archive and write them to appropriate
     # datasets
     #
@@ -188,6 +201,22 @@ module OsCtld
           snapshots.each { |snap| zfs(:destroy, nil, "#{ds}@#{snap}") }
         end
       end
+    end
+
+    def unpack_rootfs(builder)
+      # Create private/
+      builder.setup_rootfs
+
+      ret = tar.seek('rootfs/base.tar.gz') do |tf|
+        IO.popen("exec tar -xz -C #{builder.ct.rootfs}", 'r+') do |io|
+          io.write(tf.read(16*1024)) until tf.eof?
+        end
+
+        fail "tar failed with exit status #{$?.exitstatus}" if $?.exitstatus != 0
+        true
+      end
+
+      fail 'rootfs archive not found' unless ret === true
     end
 
     # Iterate over all container datasets

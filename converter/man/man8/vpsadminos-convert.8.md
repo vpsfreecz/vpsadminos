@@ -9,7 +9,8 @@
 ## DESCRIPTION
 `vpsadminos-convert` is a tool for converting existing containers into
 vpsAdminOS containers. Currently supported is only OpenVZ Legacy with ZFS,
-as used by [vpsAdmin](https://github.com/vpsfreecz/vpsadmin).
+as used by [vpsAdmin](https://github.com/vpsfreecz/vpsadmin), or containers
+with `VE_LAYOUT=simfs`.
 
 ## OPENVZ LEGACY COMMANDS
 At the moment, `vpsadminos-convert` can be used to export OpenVZ container into
@@ -17,7 +18,9 @@ a tar archive. The archive is then copied to vpsAdminOS node by the user and
 then imported using `osctl ct import` *file*, see osctl(8).
 
 `vz6 export` [*options*] *ctid* *file*
-  Export OpenVZ container *ctid* into a tar archive saved to *file*.
+  Export OpenVZ container *ctid* into a tar archive saved to *file*. By default,
+  the container's root filesystem is packed into a tar archive. If you use ZFS,
+  you should use option `--zfs` to export ZFS streams, which will be much faster.
 
     `--[no-]consistent`
       Enable/disable consistent export. When consistently exporting a running

@@ -62,8 +62,8 @@ module OsCtld
       builder.setup_ct_dir
       builder.setup_lxc_home
 
-      progress('Loading data streams')
-      importer.load_streams(builder)
+      progress('Importing rootfs')
+      importer.load_rootfs(builder)
 
       ct.save_config
       builder.setup_lxc_configs

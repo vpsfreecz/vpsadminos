@@ -1,6 +1,6 @@
 module VpsAdminOS::Converter
   class Container
-    attr_accessor :id, :user, :group, :dataset, :distribution, :version,
+    attr_accessor :id, :user, :group, :dataset, :rootfs, :distribution, :version,
       :hostname, :nesting
     attr_reader :dns_resolvers, :netifs, :cgparams, :autostart
 
@@ -15,6 +15,12 @@ module VpsAdminOS::Converter
       @netifs = []
       @cgparams = CGParams.new
       @autostart = AutoStart.new
+    end
+
+    def datasets
+      return @datasets if @datasets
+
+      @datasets = [dataset] + dataset.descendants
     end
 
     def dump_config

@@ -19,7 +19,7 @@ module OsCtld
 
     protected
     def export(ct, io)
-      exporter = OsCtl::Lib::Exporter.new(
+      exporter = OsCtl::Lib::Exporter::Zfs.new(
         ct,
         io,
         compression: opts[:compression] && opts[:compression].to_sym

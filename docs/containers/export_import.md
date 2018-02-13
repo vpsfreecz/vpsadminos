@@ -57,7 +57,7 @@ The export/import archive must contain the following files:
     │   ├── group.yml
     │   └── container.yml
     ├── rootfs/
-    │   ├── base.dat[.gz]
+    │   ├── base.dat[.gz] | base.tar.gz
     │   ├── [incremental.dat[.gz]]
     │   └── [subdataset]
     │       ├── base.dat[.gz]
@@ -69,10 +69,16 @@ The export/import archive must contain the following files:
 `config/` contains *osctld* config files for the container and its user and group,
 the same files you can find in `$pool/conf`.
 
-`rootfs/` contains rootfs in the form of ZFS data streams. `base.dat` is a full
-stream. If the export was consistent, `incremental.dat` contains an incremental
-stream from `base.dat`. Subdatasets are exported to subdirectories with the
-dataset's relative name.
+`rootfs/` contains rootfs in the form of ZFS data streams or as a tar archive,
+depending on `format` in `metadata.yml`.
+
+For ZFS, `base.dat` is a full stream. If the export was consistent,
+`incremental.dat` contains an incremental stream from `base.dat`. Subdatasets
+are exported to subdirectories with the dataset's relative name.
+
+When the rootfs is exported as a tar archive in `base.tar.gz`, there can be no
+subdatasets, everything is in that one archive. This is used when exporting
+containers from other virtualization technologies into vpsAdminOS.
 
 The archive is intentionally uncompressed, as the text files are neglidible
 next to the rootfs. Actually, it wouldn't be possible to create a compressed tar
@@ -91,6 +97,7 @@ been received.
 ```yaml
 ---
 type: full | skel
+format: zfs | tar
 user: <user name>
 group: <group name>
 container: <container id>

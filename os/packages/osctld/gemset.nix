@@ -26,19 +26,19 @@
   libosctl = {
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0a2fi4la2n499hfyg9ir3f6y7nl9mgfkvd9xbj9a2j9ivyd05zfd";
+      sha256 = "13rzxzjj105bw055b8z6i8qq4d3cniyxhs6q243mirwabpn57sk9";
       type = "gem";
     };
-    version = "0.1.0.build20180213133323";
+    version = "0.1.0.build20180213153721";
   };
   osctld = {
     dependencies = ["concurrent-ruby" "ipaddress" "json" "libosctl" "ruby-lxc"];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "17dbwrqldl0aalqf0xibj8kdn3l8xg920ljwmmf8jd6gs2j7w19l";
+      sha256 = "0cg838h4g6x122gpj7ai4pvyf8w174pkxl9cxf7ja50d7j79wxj6";
       type = "gem";
     };
-    version = "0.1.0.build20180213133323";
+    version = "0.1.0.build20180213153721";
   };
   ruby-lxc = {
     source = {

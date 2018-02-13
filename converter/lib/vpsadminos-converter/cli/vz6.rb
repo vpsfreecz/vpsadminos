@@ -16,9 +16,9 @@ module VpsAdminOS::Converter
         opts['netif-name'] = 'eth0'
       end
 
-      if !opts[:zfs] || opts['zfs-subdir'] != 'private'
+      if opts[:zfs] && opts['zfs-subdir'] != 'private'
         # TODO
-        fail "unsupported configuration, only '--zfs --zfs-subdir private' is implemented"
+        fail "unsupported configuration, only '--zfs-subdir private' is implemented"
       end
 
       vz_ct = Vz6::Container.new(args[0])
@@ -49,7 +49,7 @@ module VpsAdminOS::Converter
       )
 
       File.open(args[1], 'w') do |f|
-        exporter = Exporter.new(
+        exporter = exporter_class.new(
           target_ct,
           f,
           compression: opts[:compression].to_sym,
@@ -63,20 +63,12 @@ module VpsAdminOS::Converter
         exporter.dump_configs
 
         puts 'Exporting rootfs'
-        exporter.dump_rootfs do
-          puts '> base stream'
-          exporter.dump_base
 
-          if vz_ct.state == :running && opts[:consistent]
-            puts '> stopping container'
-            syscmd("vzctl stop #{vz_ct.ctid}")
+        if opts[:zfs]
+          export_streams(vz_ct, exporter)
 
-            puts '> incremental stream'
-            exporter.dump_incremental
-
-            puts '> restarting container'
-            syscmd("vzctl start #{vz_ct.ctid}")
-          end
+        else
+          export_tar(vz_ct, exporter)
         end
       end
 
@@ -99,6 +91,46 @@ module VpsAdminOS::Converter
     end
 
     protected
+    def exporter_class
+      opts[:zfs] ? Exporter::Zfs : Exporter::Tar
+    end
+
+    def export_streams(vz_ct, exporter)
+      exporter.dump_rootfs do
+        puts '> base stream'
+        exporter.dump_base
+
+        if vz_ct.state == :running && opts[:consistent]
+          puts '> stopping container'
+          syscmd("vzctl stop #{vz_ct.ctid}")
+
+          puts '> incremental stream'
+          exporter.dump_incremental
+
+          puts '> restarting container'
+          syscmd("vzctl start #{vz_ct.ctid}")
+        end
+      end
+    end
+
+    def export_tar(vz_ct, exporter)
+      running = vz_ct.state == :running && opts[:consistent]
+
+      if running
+        puts '> stopping container'
+        syscmd("vzctl stop #{vz_ct.ctid}")
+      end
+
+      puts '> packing rootfs'
+      exporter.pack_rootfs
+
+    ensure
+      if running
+        puts '> restarting container'
+        syscmd("vzctl start #{vz_ct.ctid}")
+      end
+    end
+
     def parse_route_via(list)
       ret = {}
 

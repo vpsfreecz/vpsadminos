@@ -46,7 +46,7 @@ module OsCtld
 
     protected
     def export(ct, io)
-      exporter = OsCtl::Lib::Exporter.new(ct, io)
+      exporter = OsCtl::Lib::Exporter::Base.new(ct, io)
       exporter.dump_metadata('skel')
       exporter.dump_configs
       exporter.close

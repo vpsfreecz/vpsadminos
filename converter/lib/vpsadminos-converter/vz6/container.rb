@@ -34,10 +34,11 @@ module VpsAdminOS::Converter
 
       [
         'VE_ROOT',
-        'VE_PRIVATE',
         'VE_LAYOUT', # TODO: check?
         'NETFILTER',
       ].each { |v| config.consume(v) }
+
+      ct.rootfs = config.consume('VE_PRIVATE')
 
       fail 'config missing OSTEMPLATE' unless config['OSTEMPLATE']
       # TODO: we should probably guarantee distribution names and allowed version
