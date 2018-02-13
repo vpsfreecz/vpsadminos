@@ -47,7 +47,22 @@ module VpsAdminOS::Converter::Cli
           c.desc 'Enable ZFS compressed send (zfs send -c)'
           c.switch 'zfs-compressed-send', negatable: false
 
-          c.desc 'Assumes --zfs --zfs-dataset vz/private/%{veid} --zfs-subdir private'
+          c.desc 'Network interface type'
+          c.flag 'netif-type', must_match: %w(bridge routed), default_value: 'bridge'
+
+          c.desc 'Network interface name within the container'
+          c.flag 'netif-name', default_value: 'eth0'
+
+          c.desc 'Network interface hwaddr (MAC)'
+          c.flag 'netif-hwaddr'
+
+          c.desc 'Bridge name (for bridged network interface)'
+          c.flag 'bridge-link', default_value: 'lxcbr0'
+
+          c.desc 'Route via network (for routed network interface)'
+          c.flag 'route-via', multiple: true
+
+          c.desc 'Overrides options to conform to vpsAdmin settings, see the manual'
           c.switch :vpsadmin, negatable: false
 
           c.action &Command.run(Vz6, :export)

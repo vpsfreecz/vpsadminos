@@ -24,8 +24,12 @@ module VpsAdminOS::Converter
       @config = Vz6::Config.parse(ctid, "/etc/vz/conf/#{ctid}.conf")
     end
 
+    # @param user [User]
+    # @param group [Group]
+    # @param opts [Hash]
+    # @option opts [Hash] :netif
     # @return [Container]
-    def convert(user, group)
+    def convert(user, group, opts = {})
       ct = Container.new(ctid, user, group)
 
       [
@@ -56,6 +60,35 @@ module VpsAdminOS::Converter
         end
 
         ct.cgparams.set('memory.limit_in_bytes', mem)
+      end
+
+      if config['IP_ADDRESS'] && opts[:netif]
+        netif = NetInterface.for(opts[:netif][:type]).new(
+          opts[:netif][:name],
+          opts[:netif][:hwaddr]
+        )
+
+        case netif.type
+        when :bridge
+          netif.link = opts[:netif][:link]
+
+        when :routed
+          netif.via = opts[:netif][:via]
+        end
+
+        all_ips = config.consume('IP_ADDRESS')
+
+        [4, 6].each do |ip_v|
+          netif.ip_addresses[ip_v] = all_ips.select do |ip|
+            ip.send("ipv#{ip_v}?")
+          end
+
+          if netif.type == :routed && netif.ip_addresses[ip_v].any? && !netif.via[ip_v]
+            raise RouteViaMissing, ip_v
+          end
+        end
+
+        ct.netifs << netif
       end
 
       ct

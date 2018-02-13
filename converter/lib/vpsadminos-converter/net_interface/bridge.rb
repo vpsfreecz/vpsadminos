@@ -1,0 +1,11 @@
+module VpsAdminOS::Converter
+  class NetInterface::Bridge < NetInterface::Base
+    type :bridge
+
+    attr_accessor :link
+
+    def dump
+      super.merge('link' => link)
+    end
+  end
+end

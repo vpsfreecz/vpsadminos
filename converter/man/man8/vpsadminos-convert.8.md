@@ -57,9 +57,41 @@ then imported using `osctl ct import` *file*, see osctl(8).
       feature is available since ZFS on Linux 0.7. Compressed send is disabled
       by default.
 
+    `--netif-type` `bridge`|`routed`
+      vpsAdminOS supports two veth interfaces types: `bridge` and `routed`.
+      Container's IP addresses are assigned to a network interface of the
+      selected type. See vpsAdminOS documentation for more information about
+      network configuration.
+
+    `--netif-name` *name*
+      Name of the network interface within the container. Defaults to `eth0`.
+
+    `--netif-hwaddr` *addr*
+      MAC address for the network interface. By default, the address is generated
+      dynamically when the container is being started.
+
+    `--bridge-link` *interface*
+      What bridge should the network interface be linked with. This option
+      applies only when `--netif-type bridge` is set. By default, vpsAdminOS
+      has bridge named `lxcbr0`, so the converter uses it.
+
+    `--route-via` *network*
+      Interconnecting network via which the container's IP addresses are routed.
+      Applies only when `--netif-type routed` is set. Can be used once for IPv4
+      and once for IPv6. This option has to be specified for all IP versions
+      that the container is using.
+
     `--vpsadmin`
-      Assume the container is being managed by vpsAdmin, this implies options
-      `--zfs`, `--zfs-dataset vz/private/%{veid}` and `--zfs-subdir private`.
+      Assume the container is being managed by vpsAdmin, this implies the
+      following options:
+
+      `--zfs`
+      `--zfs-dataset vz/private/%{veid}`
+      `--zfs-subdir private`
+      `--netif-type routed`
+      `--netif-name eth0`
+
+      `--route-via` has to be provided.
 
 ### Example usage
 To export container `101` from the OpenVZ node into `ct-101.tar`:

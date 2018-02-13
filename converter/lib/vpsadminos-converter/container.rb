@@ -2,7 +2,7 @@ module VpsAdminOS::Converter
   class Container
     attr_accessor :id, :user, :group, :dataset, :distribution, :version,
       :hostname, :nesting
-    attr_reader :dns_resolvers, :cgparams, :autostart
+    attr_reader :dns_resolvers, :netifs, :cgparams, :autostart
 
     def initialize(id, user, group)
       @id = id
@@ -12,6 +12,7 @@ module VpsAdminOS::Converter
       @hostname = 'ct'
       @nesting = false
       @dns_resolvers = []
+      @netifs = []
       @cgparams = CGParams.new
       @autostart = AutoStart.new
     end
@@ -22,7 +23,7 @@ module VpsAdminOS::Converter
         'group' => group.name,
         'distribution' => distribution,
         'version' => version,
-        'net_interfaces' => [], # TODO
+        'net_interfaces' => netifs.map(&:dump),
         'cgparams' => cgparams.dump,
         'prlimits' => [], # TODO
         'mounts' => [], # TODO
