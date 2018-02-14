@@ -35,7 +35,7 @@ module VpsAdminOS::Converter
         'mounts' => [], # TODO
         'autostart' => autostart.dump,
         'hostname' => hostname,
-        'dns_resolvers' => dns_resolvers,
+        'dns_resolvers' => dns_resolvers.empty? ? nil : dns_resolvers,
         'nesting' => nesting,
       }
     end

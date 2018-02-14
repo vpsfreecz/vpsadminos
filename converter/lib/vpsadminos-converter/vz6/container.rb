@@ -45,8 +45,11 @@ module VpsAdminOS::Converter
       #       specification... e.g. allow debian-9.0, forbid debian-stretch
       ct.distribution, ct.version = config.consume('OSTEMPLATE').split('-')
 
-      ct.hostname = config.consume('HOSTNAME')
-      ct.dns_resolvers.concat(config.consume('NAMESERVER').map(&:to_s))
+      ct.hostname = config.consume('HOSTNAME') || 'vps'
+
+      if config['NAMESERVER']
+        ct.dns_resolvers.concat(config.consume('NAMESERVER').map(&:to_s))
+      end
 
       ct.autostart.enabled = true if config.consume('ONBOOT')
 
