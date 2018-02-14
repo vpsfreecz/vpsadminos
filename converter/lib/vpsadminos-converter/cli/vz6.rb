@@ -32,6 +32,10 @@ module VpsAdminOS::Converter
         warn "unable to parse config: #{e.message}"
       end
 
+      if opts[:zfs] && vz_ct.ploop?
+        fail "container uses ploop, but ZFS was enabled"
+      end
+
       target_ct = vz_ct.convert(
         User.default,
         Group.default,
@@ -43,10 +47,13 @@ module VpsAdminOS::Converter
           via: parse_route_via(opts['route-via']),
         }
       )
-      target_ct.dataset = OsCtl::Lib::Zfs::Dataset.new(
-        opts['zfs-dataset'],
-        base: opts['zfs-dataset']
-      )
+
+      if opts[:zfs]
+        target_ct.dataset = OsCtl::Lib::Zfs::Dataset.new(
+          opts['zfs-dataset'],
+          base: opts['zfs-dataset']
+        )
+      end
 
       File.open(args[1], 'w') do |f|
         exporter = exporter_class.new(
@@ -67,8 +74,11 @@ module VpsAdminOS::Converter
         if opts[:zfs]
           export_streams(vz_ct, exporter)
 
+        elsif vz_ct.ploop?
+          export_tar_ploop(vz_ct, exporter)
+
         else
-          export_tar(vz_ct, exporter)
+          export_tar_simfs(vz_ct, exporter)
         end
       end
 
@@ -100,7 +110,7 @@ module VpsAdminOS::Converter
         puts '> base stream'
         exporter.dump_base
 
-        if vz_ct.state == :running && opts[:consistent]
+        if vz_ct.running? && opts[:consistent]
           puts '> stopping container'
           syscmd("vzctl stop #{vz_ct.ctid}")
 
@@ -113,8 +123,33 @@ module VpsAdminOS::Converter
       end
     end
 
-    def export_tar(vz_ct, exporter)
-      running = vz_ct.state == :running && opts[:consistent]
+    def export_tar_ploop(vz_ct, exporter)
+      status = vz_ct.status
+
+      if status[:running] && opts[:consistent]
+        puts '> stopping container'
+        syscmd("vzctl stop #{vz_ct.ctid}")
+        syscmd("vzctl mount #{vz_ct.ctid}")
+
+      elsif !status[:mounted]
+        syscmd("vzctl mount #{vz_ct.ctid}")
+      end
+
+      puts '> packing rootfs'
+      exporter.pack_rootfs
+
+    ensure
+      if status[:running] && opts[:consistent]
+        puts '> restarting container'
+        syscmd("vzctl start #{vz_ct.ctid}")
+
+      elsif !status[:mounted]
+        syscmd("vzctl umount #{vz_ct.ctid}")
+      end
+    end
+
+    def export_tar_simfs(vz_ct, exporter)
+      running = vz_ct.running? && opts[:consistent]
 
       if running
         puts '> stopping container'

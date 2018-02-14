@@ -15,8 +15,18 @@ module VpsAdminOS::Converter
       ret[:exitstatus] == 0
     end
 
-    def state
-      syscmd("vzctl status #{ctid}")[:output].strip.split(' ')[4].to_sym
+    def status
+      stats = syscmd("vzctl status #{ctid}")[:output].strip.split(' ')
+
+      {
+        exist: stats[2] == 'exist',
+        mounted: stats[3] == 'mounted',
+        running: stats[4] == 'running',
+      }
+    end
+
+    def running?
+      status[:running]
     end
 
     # Load config from `/etc/vz/conf/%{ctid}.conf`
@@ -34,11 +44,16 @@ module VpsAdminOS::Converter
 
       [
         'VE_ROOT',
+        'VE_PRIVATE',
         'VE_LAYOUT', # TODO: check?
         'NETFILTER',
       ].each { |v| config.consume(v) }
 
-      ct.rootfs = config.consume('VE_PRIVATE')
+      if ploop?
+        ct.rootfs = config.consume('VE_ROOT')
+      else
+        ct.rootfs = config.consume('VE_PRIVATE')
+      end
 
       fail 'config missing OSTEMPLATE' unless config['OSTEMPLATE']
       # TODO: we should probably guarantee distribution names and allowed version
@@ -96,6 +111,15 @@ module VpsAdminOS::Converter
       end
 
       ct
+    end
+
+    def layout
+      fail 'unable to determine VE_LAYOUT' unless config['VE_LAYOUT']
+      config['VE_LAYOUT'].value
+    end
+
+    def ploop?
+      layout.start_with?('ploop')
     end
   end
 end
