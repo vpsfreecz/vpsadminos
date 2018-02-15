@@ -6,7 +6,7 @@ build:
 qemu:
 	$(MAKE) -C os qemu
 
-gems: libosctl osctl osctld
+gems: libosctl osctl osctld converter
 
 libosctl:
 	./tools/update_gem.sh _nopkg libosctl $(BUILD_ID)
@@ -17,10 +17,13 @@ osctl:
 osctld:
 	./tools/update_gem.sh os/packages osctld $(BUILD_ID)
 
+converter:
+	./tools/update_gem.sh _nopkg converter $(BUILD_ID)
+
 doc:
 	mkdocs build
 
 doc_serve:
 	mkdocs serve
 
-.PHONY: build doc doc_serve qemu gems libosctl osctl osctld
+.PHONY: build converter doc doc_serve qemu gems libosctl osctl osctld
