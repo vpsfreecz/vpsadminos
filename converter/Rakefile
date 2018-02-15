@@ -2,6 +2,7 @@ require 'bundler/gem_tasks'
 require 'md2man/rakefile'
 require 'md2man/roff/engine'
 require 'md2man/html/engine'
+require 'yard'
 
 # Override markdown engine to add extra parameter
 [Md2Man::Roff, Md2Man::HTML].each do |mod|
@@ -19,16 +20,10 @@ require 'md2man/html/engine'
   ))
 end
 
-begin
-  require 'yard'
-
-  YARD::Rake::YardocTask.new do |t|
-    t.files   = ['lib/**/*.rb']
-    t.options = [
-      '--protected',
-      '--output-dir=html_doc',
-    ]
-  end
-
-rescue LoadError
+YARD::Rake::YardocTask.new do |t|
+  t.files   = ['lib/**/*.rb']
+  t.options = [
+    '--protected',
+    "--output-dir=#{ENV['YARD_OUTPUT'] || 'html_doc'}",
+  ]
 end
