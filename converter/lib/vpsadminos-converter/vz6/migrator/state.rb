@@ -1,26 +1,28 @@
 module VpsAdminOS::Converter
   # Store/load migration state to/from disk
-  class Cli::Vz6::State < Cli::Command
+  class Vz6::Migrator::State
     DIR = '~/.vpsadminos-converter'
     STEPS = %i(stage sync cancel transfer cleanup)
 
     # Create a new migration state, save it to disk and return it
     # @param vz_ct [Vz6::Container]
     # @param target_ct [Container]
-    # @param m_opts [Hash] migration options
-    # @param cli_opts [Hash] CLI options
+    # @param opts [Hash] migration options
+    # @option opts [String] :dst
+    # @option opts [Integer] :port
+    # @option opts [Boolean] :zfs
+    # @option opts [String] :zfs_dataset
+    # @option opts [String] :zfs_subdir
+    # @option opts [Boolean] :zfs_compressed_send
     # @return [Cli::Vz6::State]
-    def self.create(vz_ct, target_ct, m_opts, cli_opts)
-      s = new(target_ct.id, {
+    def self.create(vz_ct, target_ct, opts)
+      new(target_ct.id, {
         step: :stage,
         vz_ct: vz_ct,
         target_ct: target_ct,
-        m_opts: m_opts,
-        cli_opts: cli_opts,
+        opts: opts,
         snapshots: [],
       })
-      s.save
-      s
     end
 
     # Load migration state from disk
@@ -55,13 +57,9 @@ module VpsAdminOS::Converter
     # @return [Container]
     attr_reader :target_ct
 
-    # Migration options (passed to {OsCtl::Lib::Utils::Migration#migrate_ssh_cmd)
+    # Migration options
     # @return [Hash]
-    attr_reader :m_opts
-
-    # Command-line options
-    # @return [Hash]
-    attr_reader :cli_opts
+    attr_reader :opts
 
     # List of created snapshots
     # @return [Array<String>]
@@ -106,8 +104,7 @@ module VpsAdminOS::Converter
           step: step,
           vz_ct: vz_ct,
           target_ct: target_ct,
-          m_opts: m_opts,
-          cli_opts: cli_opts,
+          opts: opts,
           snapshots: snapshots,
         }, f)
       end

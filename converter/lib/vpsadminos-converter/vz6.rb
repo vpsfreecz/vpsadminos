@@ -5,3 +5,4 @@ end
 require_relative 'vz6/container'
 require_relative 'vz6/config'
 require_relative 'vz6/config_item'
+require_relative 'vz6/migrator'
