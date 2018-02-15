@@ -37,3 +37,5 @@ end
 require_relative 'migrator/state'
 require_relative 'migrator/base'
 require_relative 'migrator/zfs'
+require_relative 'migrator/simfs'
+require_relative 'migrator/ploop'

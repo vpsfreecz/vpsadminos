@@ -24,6 +24,7 @@ Gem::Specification.new do |s|
 
   s.add_runtime_dependency 'highline', '~> 1.7.10'
   s.add_runtime_dependency 'ipaddress', '~> 0.8.3'
+  s.add_runtime_dependency 'json'
   s.add_runtime_dependency 'libosctl', s.version
   s.add_runtime_dependency 'gli', '~> 2.17.1'
   s.add_runtime_dependency 'ruby-progressbar', '~> 1.9.0'

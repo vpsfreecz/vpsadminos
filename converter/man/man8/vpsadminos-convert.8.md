@@ -162,7 +162,7 @@ It can also migrate containers to vpsAdminOS nodes directly, similarly to
 
   `--route-via` has to be provided.
 
-### Example of export/import
+### Example export/import of simfs/ploop
 To export container `101` from the OpenVZ node into `ct-101.tar`:
 
 ```
@@ -175,7 +175,22 @@ To import the exported archive on vpsAdminOS:
 vpsadminos-node $ osctl ct import ct-101.tar
 ```
 
-### Example migration using ZFS
+### Example export from ZFS
+
+```
+openvz-node $ vpsadminos-convert vz6 export \
+                                            --zfs \
+                                            --zfs-dataset vz/private/101 \
+                                            --zfs-subdir private \
+                                            101 ct-101.tar
+```
+
+The container's rootfs is expected to be in
+`<mountpoint of zfs-dataset>/<zfs-subdir>`, i.e. by default
+`/vz/private/101/private`. No other `zfs-subdir` than `private` is supported
+at the moment.
+
+### Example migration
 You have to have vpsAdminOS node prepared and running. On the OpenVZ node,
 generate a public/private key pair for `root`, if you don't already have one:
 
@@ -191,14 +206,39 @@ vpsadminos-node $ osctl migration authorized-keys add
 <here you enter the public key>
 ```
 
-Now you can initiate the migration from the OpenVZ node:
+Now you can continue with migration from either `simfs`/`ploop` or `ZFS`.
+
+#### Migration from simfs/ploop
+Migration from `simfs`/`ploop` cannot be completely realized through the migration
+protocol, because it works only with ZFS streams. Instead, migration from
+`simfs`/`ploop` uses `rsync` to copy data to the destination node. `rsync` needs
+to connect to the destination vpsAdminOS node as a root, so you have to authorize
+your key to login as root by adding the public key to
+`/etc/ssh/authorized_keys.d/root` on the vpsAdminOS node.
+
+When you have SSH configured, you can initiate the migration from the OpenVZ
+node:
 
 ```
-openvz-node $ vpsadminos-convert vz6 migrate 101 vpsadminos-node
+openvz-node $ vpsadminos-convert vz6 migrate now 101 vpsadminos-node
 ```
 
 Where `vpsadminos-node` is a resolvable hostname or an IP address of the target
 node.
+
+#### Migration using ZFS
+Initiate the migration from the OpenVZ node:
+
+```
+openvz-node $ vpsadminos-convert vz6 migrate now \
+                                             --zfs \
+                                             --zfs-dataset vz/private/101 \
+                                             --zfs-subdir private \
+                                             101 vpsadminos-node
+```
+
+If you forget to use `--zfs`, `rsync` will be used to migrate the container even
+if it is stored in a ZFS dataset.
 
 ## BUGS
 Report bugs to https://github.com/vpsfreecz/vpsadminos/issues.
