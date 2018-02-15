@@ -15,6 +15,10 @@ module VpsAdminOS::Converter
       end
     end
 
+    class Base < OsCtl::Lib::Exporter::Base
+      include Mixin
+    end
+
     class Zfs < OsCtl::Lib::Exporter::Zfs
       include Mixin
     end
