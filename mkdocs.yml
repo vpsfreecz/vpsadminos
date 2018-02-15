@@ -14,6 +14,9 @@ pages:
     - Administration: 'containers/administration.md'
     - 'Export/Import': 'containers/export_import.md'
     - Migrations: 'containers/migrations.md'
+- Migration Paths:
+    - Converter: 'migration-paths/converter.md'
+    - OpenVZ Legacy: 'migration-paths/openvz-legacy.md'
 - osctld:
     - Distribution support: 'osctld/distributions.md'
     - Interfaces: 'osctld/interfaces.md'
