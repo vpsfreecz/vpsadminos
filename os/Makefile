@@ -1,6 +1,8 @@
 # default build (conf.nix and conf_common.nix)
 build:
-	nix-build --cores 0
+	nix-build \
+	 --arg configuration "import ./conf.nix" \
+	 --cores 0
 
 # production build (conf_prod.nix and conf_common.nix)
 prod:
