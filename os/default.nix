@@ -1,4 +1,4 @@
-{ configuration ? import ./conf.nix, nixpkgs ? <nixpkgs>, extraModules ? [], system ? builtins.currentSystem, platform ? null }:
+{ configuration ? import ./conf_common.nix, nixpkgs ? <nixpkgs>, extraModules ? [], system ? builtins.currentSystem, platform ? null }:
 
 let
   pkgs = import nixpkgs { inherit system; platform = platform; config = {}; };
