@@ -1,5 +1,5 @@
 site_name: vpsAdminOS
-theme: cosmo
+theme: readthedocs
 extra_css: ['extra.css']
 pages:
 - Home: 'index.md'
