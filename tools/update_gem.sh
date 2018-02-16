@@ -4,11 +4,12 @@
 set -e
 
 PKGS="$1"
-GEM="$2"
+GEMDIR="$2"
+GEM="$(basename $2)"
 
 export VPSADMIN_BUILD_ID="$3"
 
-pushd "$GEM"
+pushd "$GEMDIR"
 pkg=$(rake build | grep -oP "pkg/.+\.gem")
 version=$(echo $pkg | grep -oP "\d+\.\d+\.\d+\.build\d+")
 

@@ -20,10 +20,13 @@ osctld:
 converter:
 	./tools/update_gem.sh _nopkg converter $(BUILD_ID)
 
+osctl-env-exec:
+	./tools/update_gem.sh os/packages tools/osctl-env-exec $(BUILD_ID)
+
 doc:
 	mkdocs build
 
 doc_serve:
 	mkdocs serve
 
-.PHONY: build converter doc doc_serve qemu gems libosctl osctl osctld
+.PHONY: build converter doc doc_serve qemu gems libosctl osctl osctld osctl-env-exec
