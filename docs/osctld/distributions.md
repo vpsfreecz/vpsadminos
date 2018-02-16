@@ -17,9 +17,9 @@ changing should work on most distributions.
 
 ## Implementation
 Distribution support code is a part of *osctld*, it's programmed in Ruby,
-see directory `osctld/lib/osctld/dist_config`. *osctld* expects one class for
-each distribution, with `OsCtld::DistConfig::Base` as its superclass. There is
-a method for each configurable part:
+see directory [osctld/lib/osctld/dist\_config][dist config dir].
+*osctld* expects one class for each distribution, with [OsCtld::DistConfig::Base]
+as its superclass. There is a method for each configurable part:
 
  - `set_hostname`
  - `network`
@@ -33,7 +33,7 @@ the container from the outside, as it has access to the rootfs and can run
 commands within the container, if it is running.
 
 In case you're using a container with an unsupported distribution, class
-`OsCtld::DistConfig::Unsupported` is used. Network and hostname configuration
+[OsCtld::DistConfig::Unsupported] is used. Network and hostname configuration
 log warnings, DNS resolvers and password changing should work everywhere.
 
 ## Adding support for a new distribution
@@ -52,14 +52,14 @@ module OsCtld
 end
 ```
 
-The file defines class `MyDebian` in module `OsCtld::DistConfig`.
+The file defines class `MyDebian` in module [OsCtld::DistConfig].
 `distribution :mydebian` says that this class is for a distribution named
 `mydebian`, i.e. this class will be used for containers whose distribution is
 `mydebian`, which is determined at the time of container creation from
 the template name. We're using `mydebian` instead of `debian`, because
 the support for `debian` is already there.
 
-`DistConfig::Base` implements generic support for DNS configuration (i.e.
+[OsCtld::DistConfig::Base] implements generic support for DNS configuration (i.e.
 `/etc/resolv.conf`) and user password manipulation via `chpasswd`, these should
 work on most distributions. Hostname and network configuration can differ.
 
@@ -175,10 +175,17 @@ is handled by *osctld* itself using `/sbin/ip`.
 ## Guidelines
 *osctld* has methods for generating files from ERB templates, as you can see by
 looking at existing distribution-support code, which utilizes templates instead
-of mixing strings with code. Templates are stored in `osctld/templates/`,
-methods for using them are in module `OsCtld::Template`.
+of mixing strings with code. Templates are stored in [osctld/templates/],
+methods for using them are in module [OsCtld::Template].
 
 When generating the network configuration, depending on the distribution,
 the owner of the container should be able to add his own configuration. For
 example, the included Debian configuration can be extended by creating
 `/etc/network/interfaces.{head,tail}` or files in `/etc/network/interfaces.d/`.
+
+[dist config dir]: https://github.com/vpsfreecz/vpsadminos/tree/master/osctld/lib/osctld/dist_config
+[OsCtld::DistConfig::Base]: https://ref.vpsadminos.org/osctld/OsCtld/DistConfig/Base.html
+[OsCtld::DistConfig::Unsupported]: https://ref.vpsadminos.org/osctld/OsCtld/DistConfig/Unsupported.html
+[OsCtld::DistConfig]: https://ref.vpsadminos.org/osctld/OsCtld/DistConfig.html
+[osctld/templates/]: https://github.com/vpsfreecz/vpsadminos/tree/master/osctld/templates
+[OsCtld::Template]: https://ref.vpsadminos.org/osctld/OsCtld/Template.html
