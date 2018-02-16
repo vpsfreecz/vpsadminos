@@ -5,8 +5,8 @@ function parse_opts {
 		exit 1
 	fi
 
-	local OPTIONS=o:b:d:r:vh
-	local LONGOPTIONS=output-dir:,build-dir:,build-dataset:,vendor:,verbose,help
+	local OPTIONS=o:b:d:r:vLh
+	local LONGOPTIONS=output-dir:,build-dir:,build-dataset:,vendor:,verbose,list-templates,help
 
 	local PARSED=$(getopt --options=$OPTIONS --longoptions=$LONGOPTIONS --name "$0" -- "$@")
 	[ $? -ne 0 ] && exit 2
@@ -33,6 +33,10 @@ function parse_opts {
 			-r|--vendor)
 				VENDOR="$2"
 				shift 2
+				;;
+			-L|--list-templates)
+				list_templates
+				exit
 				;;
 			-h|--help)
 				usage
@@ -69,6 +73,7 @@ Usage: $SELF [options] all|<template...>
 
 Options:
 
+  -L, --list-templates      List available templates and exit
   -v, --verbose             Print build log
   -o, --output-dir DIR      Directory where the built templates are placed
   -b, --build-dir DIR       Directory where the templates are built
@@ -77,7 +82,11 @@ Options:
   -h, --help                Show this message and exit
 EOF
 	echo -e "\nAvailable templates:\n"
-	echo "$(ls -1 $BASEDIR/templates | sed -e 's/\.sh$//g' -e 's/^/  /')"
+	list_templates | sed -e 's/^/  /'
+}
+
+function list_templates {
+	ls -1 "$BASEDIR/templates" | sed -e 's/\.sh$//g'
 }
 
 function build_templates {
