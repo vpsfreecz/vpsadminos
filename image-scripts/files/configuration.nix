@@ -104,9 +104,4 @@ with pkgs.lib;
           ExecStop = "${pkgs.bash}/bin/bash /ifcfg.stop";
         };
       };
-
-    systemd.services.systemd-journald.serviceConfig.SystemCallFilter = "";
-    systemd.services.systemd-journald.serviceConfig.MemoryDenyWriteExecute = false;
-    systemd.services.systemd-logind.serviceConfig.SystemCallFilter = "";
-    systemd.services.systemd-logind.serviceConfig.MemoryDenyWriteExecute = false;
 }

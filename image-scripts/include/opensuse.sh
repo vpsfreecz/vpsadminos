@@ -34,11 +34,5 @@ usermod -L root
 systemctl enable sshd.service
 echo console >> /etc/securetty
 sed -i 's/#DefaultTimeoutStartSec=90s/DefaultTimeoutStartSec=900s/' /etc/systemd/system.conf
-
-for i in journald logind; do
-  echo "Patching service file for \$i"
-  find . -name "systemd-\$i.service" -type 'f' -exec \
-    sed -i 's/^SystemCallFilter/#SystemCallFilter/;s/^MemoryDenyWriteExecute/#MemoryDenyWriteExecute/' {}  \;
-done
 EOF
 }

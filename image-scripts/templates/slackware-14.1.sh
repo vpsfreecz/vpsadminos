@@ -211,12 +211,6 @@ END
 # Remote console
 sed -i -r 's/^(c[3-6]:)/#\1/g' /etc/inittab
 
-cat <<EOT >> /etc/inittab
-# Make vzctl's script set_console.sh happy
-# 1:2345:respawn:/sbin/agetty console 38400
-# 2:2345:respawn:/sbin/agetty tty2 38400
-EOT
-
 # Configure SSH
 sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
 
