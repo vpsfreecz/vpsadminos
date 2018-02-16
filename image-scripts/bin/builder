@@ -1,0 +1,38 @@
+#!/bin/bash -x
+# This is internal builder, do not use this directly!
+# Use build-vpsadminos-templates to build the templates.
+
+if [ $# != 5 ] ; then
+	echo "Usage: builder <basedir> <install-dir> <download-dir> <builder-output-dir> <template-name>"
+	exit 1
+fi
+
+BASEDIR="$1"
+INSTALL="$2"
+DOWNLOAD="$3"
+OUTPUT_DIR="$4"
+TEMPLATE="$5"
+
+INCLUDE="$BASEDIR/include"
+CONFIGURE="$INSTALL/tmp/configure.sh"
+
+DISTNAME=
+RELVER=
+RELNAME=
+EXTRAVER=
+ARCH=x86_64
+OUTPUT_SUFFIX=
+BASEURL=
+UPDATES=
+GROUPNAME=
+EXTRAPKGS=
+
+. "$BASEDIR/include/common.sh"
+. "$BASEDIR/templates/$TEMPLATE.sh"
+
+echo "$DISTNAME" > "$OUTPUT_DIR/DISTNAME"
+echo "$RELVER" > "$OUTPUT_DIR/RELVER"
+echo "$RELNAME" > "$OUTPUT_DIR/RELNAME"
+echo "$EXTRAVER" > "$OUTPUT_DIR/EXTRAVER"
+echo "$ARCH" > "$OUTPUT_DIR/ARCH"
+echo "$OUTPUT_SUFFIX" > "$OUTPUT_DIR/OUTPUT_SUFFIX"

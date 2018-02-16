@@ -1,15 +1,3 @@
-function warn {
-	>&2 echo "$@"
-}
-
-function cleanup {
-	echo "Cleanup ..."
-	rm -Rf $INSTALL
-	rm -Rf $DOWNLOAD
-}
-
-trap cleanup SIGINT
-
 function mount-chroot {
 	mount -t proc proc "$1/proc"
 	mount -t sysfs sys "$1/sys"
@@ -49,9 +37,19 @@ function run-configure {
 }
 
 function pack {
-	echo "Packing template into $OUTPUT ..."
-	pushd $INSTALL > /dev/null
-	tar czf $OUTPUT .
-	popd > /dev/null
+	local TARBALL="$1"
+	local SRCDIR="$2"
+
+	echo "Packing template into $TARBALL"
+	tar -czf "$TARBALL" -C "$SRCDIR" .
+}
+
+function dump_stream {
+	local DATFILE="$1"
+	local SNAPSHOT="$2"
+
+	echo "Dumping stream into $DATFILE"
+	zfs snapshot "$SNAPSHOT"
+	zfs send "$SNAPSHOT" | gzip > "$DATFILE"
 }
 
