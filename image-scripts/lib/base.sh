@@ -5,8 +5,8 @@ function parse_opts {
 		exit 1
 	fi
 
-	local OPTIONS=o:b:d:vh
-	local LONGOPTIONS=output-dir:,build-dir:,build-dataset:,verbose,help
+	local OPTIONS=o:b:d:r:vh
+	local LONGOPTIONS=output-dir:,build-dir:,build-dataset:,vendor:,verbose,help
 
 	local PARSED=$(getopt --options=$OPTIONS --longoptions=$LONGOPTIONS --name "$0" -- "$@")
 	[ $? -ne 0 ] && exit 2
@@ -28,6 +28,10 @@ function parse_opts {
 				;;
 			-d|--build-dataset)
 				BUILD_DATASET="$2"
+				shift 2
+				;;
+			-r|--vendor)
+				VENDOR="$2"
 				shift 2
 				;;
 			-h|--help)
@@ -69,6 +73,7 @@ Options:
   -o, --output-dir DIR      Directory where the built templates are placed
   -b, --build-dir DIR       Directory where the templates are built
   -d, --build-dataset NAME  Build the templates inside given ZFS dataset
+  -r, --vendor NAME         The last part of the template name
   -h, --help                Show this message and exit
 EOF
 	echo -e "\nAvailable templates:\n"

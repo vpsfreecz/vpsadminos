@@ -5,7 +5,7 @@ BASEDIR="$(realpath `dirname ${BASH_SOURCE[0]}`/..)"
 LIBDIR="$BASEDIR/lib"
 INCLUDE="$BASEDIR/include"
 
-VENDOR=vpsfree
+VENDOR=vpsadminos
 VERBOSE=n
 BUILD_DIR=
 OUTPUT_DIR=
