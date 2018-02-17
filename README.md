@@ -100,12 +100,14 @@ osctl ct exec myct01 ip addr
 # More information:
 man osctl
 
-# Profit
+# https://vpsadminos.org/user-guide/setup/
+# https://vpsadminos.org/containers/administration/
 ```
 
 ### Converting OpenVZ Legacy containers into vpsAdminOS
 [vpsAdminOS Converter](converter) can be used to convert OpenVZ Legacy
-containers containers into vpsAdminOS.
+containers containers into vpsAdminOS. See the
+[documentation](https://vpsadminos.org/migration-paths/converter/).
 
 ### Nested containers
 
@@ -124,7 +126,9 @@ nix-build -A config.system.build.squashfs
 
 ## Docs
 
-* [docs/](docs/)
+* [vpsAdminOS documentation](https://vpsadminos.org)
+* [Manual pages](https://man.vpsadminos.org)
+* [Reference documentation](https://ref.vpsadminos.org)
 * https://linuxcontainers.org/
 * http://containerops.org/2013/11/19/lxc-networking/
 * http://blog.benoitblanchon.fr/lxc-unprivileged-container/
