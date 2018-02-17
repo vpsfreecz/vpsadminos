@@ -3,11 +3,15 @@
 . $BASEDIR/include/common.sh
 
 if [ "$DISTNAME" == "fedora" ] && [ "$RELVER" -ge 22 ]; then
+	require_cmd dnf
+
 	YUM="dnf -c $DOWNLOAD/yum.conf --installroot=$INSTALL \
 		--disablerepo=* --enablerepo=install-$DISTNAME \
 		--enablerepo=install-$DISTNAME-updates -y"
 	YUM_GROUPINSTALL="$YUM group install"
 else
+	require_cmd yum
+
 	YUM="yum -c $DOWNLOAD/yum.conf --installroot=$INSTALL \
 		--disablerepo=* --enablerepo=install-$DISTNAME \
 		--enablerepo=install-$DISTNAME-updates -y"

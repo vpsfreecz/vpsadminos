@@ -1,6 +1,5 @@
 #!/bin/bash
-
-. $BASEDIR/include/common.sh
+require_cmd zypper
 
 if [ $DISTNAME == "suse-leap" ]; then
 	REPOSITORY=http://download.opensuse.org/distribution/leap/$RELVER/repo/oss/

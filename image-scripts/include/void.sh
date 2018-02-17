@@ -1,3 +1,5 @@
+require_cmd wget
+
 DISTNAME="void-$VARIANT"
 RELVER=$(date +%Y%m%d)
 BASEURL=https://repo.voidlinux.eu/live/current

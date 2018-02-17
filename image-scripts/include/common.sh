@@ -1,3 +1,13 @@
+function require_cmd {
+	for cmd in $@ ; do
+		command -v "$cmd" > /dev/null
+		[ $? == 0 ] && continue
+
+		echo "$cmd not found in PATH"
+		exit 1
+	done
+}
+
 function mount-chroot {
 	mount -t proc proc "$1/proc"
 	mount -t sysfs sys "$1/sys"

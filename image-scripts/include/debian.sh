@@ -1,3 +1,5 @@
+require_cmd debootstrap
+
 function bootstrap {
 	mkdir $INSTALL/etc
 	echo nameserver 8.8.8.8 > $INSTALL/etc/resolv.conf

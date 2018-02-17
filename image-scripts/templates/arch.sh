@@ -2,6 +2,8 @@ DISTNAME=arch
 RELVER=$(date +%Y%m%d)
 BASEURL=https://mirror.vpsfree.cz/archlinux/iso/latest
 
+require_cmd curl
+
 bootstrap-arch() {
 	# Find out the bootstrap archive's name from checksum list
 	rx='archlinux-bootstrap-\d+\.\d+\.\d+-x86_64\.tar\.gz'

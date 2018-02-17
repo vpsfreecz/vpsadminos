@@ -2,6 +2,7 @@ DISTNAME=gentoo
 RELVER=13.0-$(date +%Y%m%d)
 BASEURL=https://mirror.vpsfree.cz/gentoo
 
+require_cmd curl
 
 STAGE3BASEURL="${BASEURL}/releases/amd64/autobuilds"
 STAGE3TARBALLURL="${STAGE3BASEURL}/$(curl "${STAGE3BASEURL}/latest-stage3-amd64.txt" | grep -o -m 1 -P '^\d+/stage3-amd64-\d+.tar.bz2')"

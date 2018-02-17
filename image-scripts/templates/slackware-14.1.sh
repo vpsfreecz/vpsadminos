@@ -94,6 +94,8 @@ python
 readline
 "
 
+require_cmd wget
+
 download_repo() {
 	local sumdir="$LOCAL_REPO/mirrors.slackware.com/slackware/slackware64-$RELVER/slackware64"
 
