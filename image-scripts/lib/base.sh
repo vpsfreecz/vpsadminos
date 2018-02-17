@@ -205,3 +205,20 @@ function zfs_mountpoint {
 	local DS="$1"
 	zfs get -H -o value mountpoint $DS
 }
+
+function pack {
+	local TARBALL="$1"
+	local SRCDIR="$2"
+
+	echo "Packing template into $TARBALL"
+	tar -czf "$TARBALL" -C "$SRCDIR" .
+}
+
+function dump_stream {
+	local DATFILE="$1"
+	local SNAPSHOT="$2"
+
+	echo "Dumping stream into $DATFILE"
+	zfs snapshot "$SNAPSHOT"
+	zfs send "$SNAPSHOT" | gzip > "$DATFILE"
+}
