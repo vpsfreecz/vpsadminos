@@ -12,7 +12,7 @@ pages:
     - Mounts: 'user-guide/mounts.md'
 - Containers:
     - Administration: 'containers/administration.md'
-    - 'Export/Import': 'containers/export_import.md'
+    - 'Export/Import': 'containers/export-import.md'
     - Migrations: 'containers/migrations.md'
 - Migration Paths:
     - Converter: 'migration-paths/converter.md'

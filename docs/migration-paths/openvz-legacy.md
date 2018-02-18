@@ -182,7 +182,7 @@ openvz-node $ vpsadminos-convert vz6 export --netif-type routed \
 ## Importing
 The exported tarball has to be copied over to vpsAdminOS node by the user and
 then imported, like if it were exported by
-[osctl ct export](/containers/export_import.md):
+[osctl ct export](/containers/export-import.md):
 
 ```shell
 vpsadminos-node $ osctl ct import ct-101.tar
