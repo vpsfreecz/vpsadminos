@@ -1,11 +1,11 @@
 DISTNAME=gentoo
-RELVER=13.0-$(date +%Y%m%d)
+RELVER=17.0-$(date +%Y%m%d)
 BASEURL=https://mirror.vpsfree.cz/gentoo
 
 require_cmd curl
 
 STAGE3BASEURL="${BASEURL}/releases/amd64/autobuilds"
-STAGE3TARBALLURL="${STAGE3BASEURL}/$(curl "${STAGE3BASEURL}/latest-stage3-amd64.txt" | grep -o -m 1 -P '^\d+/stage3-amd64-\d+.tar.bz2')"
+STAGE3TARBALLURL="${STAGE3BASEURL}/$(curl "${STAGE3BASEURL}/latest-stage3-amd64.txt" | grep -o -m 1 -P '^[\dTZ]+/stage3-amd64-[\dTZ]+.tar.xz')"
 STAGE3TARBALL="$(basename $STAGE3TARBALLURL)"
 
 
@@ -18,7 +18,7 @@ then
 fi
 
 echo "Unpacking Stage3..."
-tar xjpf ${DOWNLOAD}/${STAGE3TARBALL} -C $INSTALL
+tar xJpf ${DOWNLOAD}/${STAGE3TARBALL} -C $INSTALL
 
 cp /etc/resolv.conf $INSTALL/etc/
 
