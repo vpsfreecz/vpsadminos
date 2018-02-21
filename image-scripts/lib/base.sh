@@ -124,8 +124,11 @@ function build_template {
 	local RAND_NAME=$(random_string 5)
 
 	if [ "$BUILD_DATASET" == "" ] ; then
-		INSTALL=$(mkdir "$BUILD_DIR/install.$template.$RAND_NAME")
-		DOWNLOAD=$(mkdir "$BUILD_DIR/install.download.$template.$RAND_NAME")
+		INSTALL="$BUILD_DIR/install.$template.$RAND_NAME"
+		DOWNLOAD="$BUILD_DIR/install.download.$template.$RAND_NAME"
+
+		mkdir "$INSTALL"
+		mkdir "$DOWNLOAD"
 	else
 		INSTALL_DATASET="$BUILD_DATASET/install.$template.$RAND_NAME"
 		DOWNLOAD_DATASET="$BUILD_DATASET/install.download.$template.$RAND_NAME"
