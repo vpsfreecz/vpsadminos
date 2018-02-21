@@ -78,17 +78,6 @@ sed -i 's/#DefaultTimeoutStartSec=90s/DefaultTimeoutStartSec=900s/' /etc/systemd
 systemctl enable sshd
 systemctl disable systemd-resolved
 usermod -L root
-sed -ri 's/^#( *IgnorePkg *=.*)$/\1 libsystemd systemd systemd-sysvcompat python2-systemd glibc/' /etc/pacman.conf
-
-for i in systemd-journald systemd-logind; do
-  echo "Creating systemd override file for \$i"
-  mkdir /etc/systemd/system/\$i.service.d/
-  cat > /etc/systemd/system/\$i.service.d/override.conf <<EOT
-[Service]
-SystemCallFilter=
-MemoryDenyWriteExecute=no
-EOT
-done
 
 echo > /etc/resolv.conf
 
