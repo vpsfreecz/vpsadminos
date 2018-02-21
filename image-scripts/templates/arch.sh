@@ -25,6 +25,7 @@ bootstrap-arch() {
 	local BOOTSTRAP="$INSTALL/root.x86_64"
 	local SETUP="/install.sh"
 
+	sed -i 's/CheckSpace/#CheckSpace/' "$BOOTSTRAP/etc/pacman.conf"
 	sed -ri 's/^#(.*vpsfree\.cz.*)$/\1/' "$BOOTSTRAP/etc/pacman.d/mirrorlist"
 	echo nameserver 8.8.8.8 > "$BOOTSTRAP/etc/resolv.conf"
 
@@ -61,12 +62,6 @@ EOT
 pacman-key --init
 pacman-key --populate archlinux
 pacman -Rns --noconfirm linux
-
-# Newer glibc versions require kernel >= 3.2
-sed -i 's/CheckSpace/#CheckSpace/' /etc/pacman.conf
-pacman --noconfirm -U https://archive.archlinux.org/packages/g/glibc/glibc-2.25-7-x86_64.pkg.tar.xz
-sed -i 's/#CheckSpace/CheckSpace/' /etc/pacman.conf
-
 pacman -Scc --noconfirm
 
 gpg-connect-agent --homedir /etc/pacman.d/gnupg "SCD KILLSCD" "SCD BYE" /bye
