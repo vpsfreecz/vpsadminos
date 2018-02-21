@@ -190,9 +190,9 @@ function build_template {
 	TPL_NAME=$DISTNAME-$RELVER-$ARCH-${VENDOR}${OUTPUT_SUFFIX}
 
 	# Generate outputs
-	pack "$TPL_NAME.tar.gz" "$INSTALL"
+	pack "$OUTPUT_DIR/$TPL_NAME.tar.gz" "$INSTALL"
 	[ "$BUILD_DATASET" != "" ] && \
-		dump_stream "$TPL_NAME.dat.gz" "$INSTALL_DATASET"@template
+		dump_stream "$OUTPUT_DIR/$TPL_NAME.dat.gz" "$INSTALL_DATASET"@template
 	cleanup
 }
 
