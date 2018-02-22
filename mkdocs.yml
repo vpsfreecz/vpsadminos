@@ -13,6 +13,7 @@ pages:
 - Containers:
     - Administration: 'containers/administration.md'
     - Templates: 'containers/templates.md'
+    - Datasets: 'containers/datasets.md'
     - 'Export/Import': 'containers/export-import.md'
     - Migrations: 'containers/migrations.md'
 - Migration Paths:
