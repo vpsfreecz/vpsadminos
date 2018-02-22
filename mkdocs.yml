@@ -21,7 +21,7 @@ pages:
 - osctld:
     - Distribution support: 'osctld/distributions.md'
     - Interfaces: 'osctld/interfaces.md'
-    - 'OS requirements': 'osctld/os_requirements.md'
+    - OS requirements: 'osctld/os-requirements.md'
 - Specifications:
     - Container image: 'specifications/container-image.md'
     - Template repository: 'specifications/template-repository.md'
