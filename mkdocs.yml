@@ -14,6 +14,7 @@ pages:
     - Administration: 'containers/administration.md'
     - Templates: 'containers/templates.md'
     - Datasets: 'containers/datasets.md'
+    - Auto starting: 'containers/auto-starting.md'
     - 'Export/Import': 'containers/export-import.md'
     - Migrations: 'containers/migrations.md'
 - Migration Paths:
