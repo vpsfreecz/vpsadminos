@@ -243,6 +243,21 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 `ct new` [*options*] *id*
   Create a new container. Selected user and group have to be from the same pool
   the container is being created on.
+
+  Containers are usually created from templates. Templates are by default
+  downloaded from remote repositories. The desired template can be selected
+  using option `--template` or specified by `--distribution` and optionally
+  also `--version`, `--arch`, `--vendor` or `--variant`. All configured
+  repositories are searched by default.
+
+  Templates can also be supplied as local files, use option `--from-archive` for
+  tar archives, `--from-stream` for ZFS streams.
+
+  Containers can be created in custom datasets, located anywhere on the pool.
+  The dataset can be selected using option `--dataset`. If the dataset already
+  containers rootfs and you do not wish to use any template, signal this with
+  option `--no-template`. Otherwise, the template to be used can be selected
+  using any of the methods above.
   
     `--pool` *name*
       Pool name. Defaults to the first available pool.
@@ -253,11 +268,15 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `--group` *name*
       Group name, defaults to group *default* from selected *pool*.
 
-    `--template` *file*
+    `--template` *name*
       Template tar file, required. See `TEMPLATE NAMES` for the naming scheme.
 
-    `--stream` *file*
-      Template ZFS stream, see `TEMPLATE NAMES` for the naming scheme.
+    `--from-archive` *file*
+      Create the container from a tar archive available in the filesystem.
+
+    `--from-stream` *file*
+      Create the container from a ZFS stream, either in a file available in the
+      filesystem, or the stream can be fed into `osctl` via standard input.
 
       If *file* is `-`, the stream is read from the standard input. In this case,
       `--distribution` and `--version` have to be provided.
@@ -278,6 +297,20 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       alpine `3.6`, centos `7.0`, debian `9.0` or ubuntu `16.04`.
       If `--template` is provided, this option is not necessary, but can
       optionally override the template's distribution version info.
+
+    `--arch` *arch*
+      Container architecture, e.g. `x86_64` or `x86`. Defaults to the host system
+      architecture.
+
+    `--vendor` *vendor*
+      Vendor to be selected from the remote template repository.
+
+    `--variant` *variant*
+      Vendor variant to be selected from the remote template repository.
+
+    `--repository` *name*
+      Instead of searching all configured repositories from appropriate pool,
+      use only repository *name*. The selected repository can be disabled.
 
 `ct del` *id*
   Stop and delete container *id*.
@@ -906,6 +939,36 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 `migration authorized-keys del` *index*
   Remove the key identified by its *index*, which can be obtained by
   `migration authorized-keys ls`.
+
+`repository ls`
+  List configured repositories, from which container templates are downloaded.
+
+    `-H`, `--hide-header`
+      Do not show header, useful for scripting.
+
+    `-L`, `--list`
+      List available parameters adn exit.
+    
+    `-o`, `--output` *parameters*
+      Select parameters to output.
+
+`repository add` *name* *url*
+  Add repository at *url* as *name* to the default or the selected pool.
+  The pool can be selected using global option `--pool`.
+
+`repository del` *name*
+  Remove repository *name* from the default or the selected pool.
+
+`repository enable` *name*
+  Enable repository *name*. Enabled repositories are searched for templates
+  when creating containers. Repositories are enabled by default upon addition.
+
+`repository disable` *name*
+  Disable repository *name*. Disabled repositories are not searched for templates,
+  until reenabled.
+
+`repository assets` *name*
+  Show repository's assets and their state.
 
 `monitor`
   Print all events reported by `osctld` to standard output. If global option

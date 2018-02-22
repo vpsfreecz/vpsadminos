@@ -10,6 +10,7 @@ module OsCtld
     CT_DS = 'ct'
     CONF_DS = 'conf'
     LOG_DS = 'log'
+    REPOSITORY_DS = 'repository'
 
     include Lockable
     include Assets::Definition
@@ -64,6 +65,13 @@ module OsCtld
           user: 0,
           group: 0,
           mode: 0511
+        )
+        add.dataset(
+          ds(REPOSITORY_DS),
+          desc: 'Local template repository cache',
+          user: 0,
+          group: 0,
+          mode: 0500
         )
 
         # Configs
@@ -163,6 +171,9 @@ module OsCtld
       # Load migration keys
       migration_key_chain.setup
 
+      # Load repositories
+      load_repositories
+
       # Open history
       History.open(self)
     end
@@ -192,6 +203,10 @@ module OsCtld
       path(LOG_DS)
     end
 
+    def repo_path
+      path(REPOSITORY_DS)
+    end
+
     def log_type
       "pool=#{name}"
     end
@@ -215,14 +230,18 @@ module OsCtld
       zfs(:create, '-p', ds(CT_DS))
       zfs(:create, '-p', ds(CONF_DS))
       zfs(:create, '-p', ds(LOG_DS))
+      zfs(:create, '-p', ds(REPOSITORY_DS))
 
       File.chmod(0511, path(USER_DS))
       File.chmod(0511, path(CT_DS))
       File.chmod(0500, path(CONF_DS))
       File.chmod(0511, path(LOG_DS))
 
+      File.chown(Repository::UID, 0, path(REPOSITORY_DS))
+      File.chmod(0500, path(REPOSITORY_DS))
+
       # Configuration directories
-      %w(ct group user migration).each do |dir|
+      %w(ct group user migration repository).each do |dir|
         path = File.join(conf_path, dir)
         Dir.mkdir(path, 0500) unless Dir.exist?(path)
       end
@@ -266,6 +285,19 @@ module OsCtld
         Monitor::Master.monitor(ct)
         Console.reconnect_tty0(ct) if ct.current_state == :running
         DB::Containers.add(ct)
+      end
+    end
+
+    def load_repositories
+      log(:info, "Loading repositories")
+      DB::Repositories.setup(self)
+
+      Dir.glob(File.join(conf_path, 'repository', '*.yml')).each do |f|
+        name = File.basename(f)[0..(('.yml'.length+1) * -1)]
+        next if name == 'default'
+
+        repo = Repository.new(self, name)
+        DB::Repositories.add(repo)
       end
     end
 

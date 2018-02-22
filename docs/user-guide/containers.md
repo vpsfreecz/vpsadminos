@@ -1,27 +1,25 @@
 # Containers
 When you have created at least one [user](users.md), you can start creating
 containers. To create a container, you need an OS template. Template is
-a gzipped tar archive containing the root file system. Until we get
-the template machinery going, you can use one of these templates:
+a gzipped tar archive containing the root file system, or a ZFS stream.
+OS templates can be automatically downloaded from repositories, or
+you can use template from a file on your local file system.
 
- - https://s.hvfn.cz/~aither/pub/tmp/templates/ubuntu-16.04-x86_64-vpsfree.tar.gz
- - https://s.hvfn.cz/~aither/pub/tmp/templates/debian-9-x86_64-vpsfree.tar.gz
- - https://s.hvfn.cz/~aither/pub/tmp/templates/centos-7.3-x86_64-vpsfree.tar.gz
- - https://s.hvfn.cz/~aither/pub/tmp/templates/alpine-3.6-x86_64-vpsfree.tar.gz
-
-These templates are used in production at [vpsFree.cz](https://vpsfree.org),
-they were generated using
+Without any configuration, you'll be able to use templates from the *default*
+repository. These templates are built using
 [build-vpsfree-templates](https://github.com/vpsfreecz/build-vpsfree-templates)
-scripts. The intent is to reuse these scripts for vpsAdminOS and have them
-available on some more official server. Alternatively, you can use templates
-from OpenVZ Legacy or LXC, they should be fully compatible, unless there are
-some hacks for specific environments.
+scripts and are used in production at [vpsFree.cz](https://vpsfree.org),
+Alternatively, you can use templates from OpenVZ Legacy or LXC, they should be
+fully compatible, unless there are some hacks for specific environments.
 
-When you have a template ready, you can create a container:
+Let's create a container using a template from the *default* repository:
 
 ```bash
-osctl ct new --user myuser01 --template ubuntu-16.04-x86_64-vpsfree.tar.gz myct01
+osctl ct new --user myuser01 --distribution ubuntu --version 16.04 myct01
 ```
+
+For now, available distributions are: `alpine`, `centos`, `debian`, `devuan`,
+`gentoo`, `slackware` and `ubuntu`.
 
 Let's see what files and directories define the container:
 

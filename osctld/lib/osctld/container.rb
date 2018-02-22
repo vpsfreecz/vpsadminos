@@ -15,7 +15,7 @@ module OsCtld
     end
 
     attr_reader :pool, :id, :user, :dataset, :group, :distribution, :version,
-      :autostart, :hostname, :dns_resolvers, :nesting, :prlimits, :mounts,
+      :arch, :autostart, :hostname, :dns_resolvers, :nesting, :prlimits, :mounts,
       :migration_log
     attr_accessor :state, :init_pid
 
@@ -54,9 +54,10 @@ module OsCtld
       "#{pool.name}:#{id}"
     end
 
-    def configure(distribution, version)
+    def configure(distribution, version, arch)
       @distribution = distribution
       @version = version
+      @arch = arch
       @netifs = []
       @nesting = false
       save_config
@@ -446,6 +447,7 @@ module OsCtld
         'dataset' => dataset.name,
         'distribution' => distribution,
         'version' => version,
+        'arch' => arch,
         'net_interfaces' => @netifs.map { |v| v.save },
         'cgparams' => dump_cgparams(cgparams),
         'prlimits' => prlimits.map(&:dump),
@@ -496,6 +498,7 @@ module OsCtld
 
       @distribution = cfg['distribution']
       @version = cfg['version']
+      @arch = cfg['arch']
       @autostart = cfg['autostart'] && AutoStart::Config.load(self, cfg['autostart'])
       @hostname = cfg['hostname']
       @dns_resolvers = cfg['dns_resolvers']

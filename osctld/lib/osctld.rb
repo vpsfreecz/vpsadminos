@@ -11,6 +11,7 @@ module OsCtld
     module Migration ; end
     module NetInterface ; end
     module Pool ; end
+    module Repository ; end
     module Self ; end
     module User ; end
   end
@@ -57,6 +58,7 @@ require_relative 'osctld/utils/switch_user'
 require_relative 'osctld/utils/ip'
 require_relative 'osctld/utils/cgroup_params'
 require_relative 'osctld/utils/assets'
+require_relative 'osctld/utils/repository'
 require_relative 'osctld/event'
 require_relative 'osctld/eventd'
 require_relative 'osctld/history'
@@ -113,6 +115,8 @@ require_relative 'osctld/migration/server'
 require_relative 'osctld/migration/key_chain'
 require_relative 'osctld/migration/log'
 require_relative 'osctld/migration/command'
+require_relative 'osctld/db/repositories'
+require_relative 'osctld/repository'
 require_relative 'osctld/dist_config'
 require_relative 'osctld/dist_config/base'
 require_relative 'osctld/dist_config/debian'

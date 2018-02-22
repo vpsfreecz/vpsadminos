@@ -53,7 +53,7 @@ Let's create a container and see it in action:
 ```bash
 # Create a one user namespace and a container
 osctl user new --ugid 5000 --offset 666000 --size 65536 myuser01
-osctl ct new --user myuser01 --template ubuntu-16.04-x86_64-vpsfree.tar.gz myct01
+osctl ct new --user myuser01 --from-archive ubuntu-16.04-x86_64-vpsfree.tar.gz myct01
 
 # Review pool layout
 NAME                UIDOFFSET  GIDOFFSET  MOUNTPOINT

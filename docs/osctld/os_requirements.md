@@ -45,3 +45,9 @@ Match User migration
   PasswordAuthentication no
   AuthorizedKeysFile /run/osctl/migration/authorized_keys
 ```
+
+Another system user is used for template repository management:
+
+```bash
+useradd -r -d /run/osctl/repository -s /sbin/nologin repository
+```

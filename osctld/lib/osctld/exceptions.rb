@@ -4,4 +4,5 @@ module OsCtld
   class CommandFailed < StandardError ; end
   class CGroupSubsystemNotFound < StandardError ; end
   class CGroupParameterNotFound < StandardError ; end
+  class TemplateNotFound < StandardError ; end
 end

@@ -37,6 +37,12 @@
     shell = pkgs.bashInteractive;
   };
 
+  users.extraUsers.repository = {
+    isSystemUser = true;
+    description = "User for remote repository access/cache";
+    home = "/run/osctl/repository";
+  };
+
   users.motd = ''
 
     Welcome to vpsAdminOS
@@ -47,17 +53,11 @@
     Configure osctld:
       osctl pool install tank
 
-    Fetch OS templates:
-      wget https://s.hvfn.cz/~aither/pub/tmp/templates/ubuntu-16.04-x86_64-vpsfree.tar.gz
-      wget https://s.hvfn.cz/~aither/pub/tmp/templates/debian-9-x86_64-vpsfree.tar.gz
-      wget https://s.hvfn.cz/~aither/pub/tmp/templates/centos-7.3-x86_64-vpsfree.tar.gz
-      wget https://s.hvfn.cz/~aither/pub/tmp/templates/alpine-3.6-x86_64-vpsfree.tar.gz
-
     Create a user:
       osctl user new --ugid 5000 --offset 666000 --size 65536 myuser01
 
     Create a container:
-      osctl ct new --user myuser01 --template ubuntu-16.04-x86_64-vpsfree.tar.gz myct01
+      osctl ct new --user myuser01 --distribution ubuntu --version 16.04 myct01
 
     Configure container networking:
       osctl ct netif new routed --via 10.100.10.100/30 myct01 eth0

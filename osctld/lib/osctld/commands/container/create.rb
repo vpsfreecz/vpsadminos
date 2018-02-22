@@ -22,16 +22,19 @@ module OsCtld
 
       error!('group not found') unless group
 
-      if (opts[:dataset] && !opts[:template] && !opts[:stream]) \
-         || (opts[:stream] && opts[:stream][:type] == 'stdin')
+      if (opts[:dataset] && opts[:no_template]) \
+          || (opts[:template] && opts[:template][:type] == :stream && opts[:template][:path].nil?)
         if !opts[:distribution]
           error!('provide distribution')
 
         elsif !opts[:version]
           error!('provide distribution version')
+
+        elsif !opts[:arch]
+          error!('provide architecture')
         end
 
-      elsif !opts[:dataset] && !opts[:template] && !opts[:stream]
+      elsif !opts[:dataset] && !opts[:template]
         error!('provide template archive, stream or existing dataset')
       end
 
@@ -55,32 +58,10 @@ module OsCtld
           next error('container already exists') if builder.exist?
 
           if opts[:dataset]
-            builder.create_root_dataset(offset: false, parents: true)
-
-            if opts[:template]
-              builder.setup_rootfs
-              builder.from_template(
-                opts[:template],
-                distribution: opts[:distribution],
-                version: opts[:version]
-              )
-
-            elsif opts[:stream]
-              from_stream(builder)
-
-            else # the rootfs is already there
-              builder.shift_dataset
-              builder.configure(opts[:distribution], opts[:version])
-            end
+            custom_dataset(builder)
 
           elsif opts[:template]
-            builder.create_root_dataset(offset: false)
-            builder.setup_rootfs
-            builder.from_template(opts[:template])
-
-          elsif opts[:stream]
-            builder.create_root_dataset(offset: false)
-            from_stream(builder)
+            from_local_template(builder)
 
           else
             fail 'should not be possible'
@@ -98,33 +79,115 @@ module OsCtld
     end
 
     protected
+    def custom_dataset(builder)
+      builder.create_root_dataset(offset: false, parents: true)
+
+      if opts[:no_template]
+        # the rootfs is already there
+        builder.shift_dataset
+        builder.configure(opts[:distribution], opts[:version], opts[:arch])
+        return
+      end
+
+      case opts[:template][:type].to_sym
+      when :remote
+        from_remote_template(builder)
+
+      when :archive
+        builder.setup_rootfs
+        builder.from_local_archive(
+          opts[:template][:path],
+          distribution: opts[:distribution],
+          version: opts[:version]
+        )
+
+      when :stream
+        from_stream(builder)
+
+      else
+        fail "unsupported template type #{opts[:template][:type]}"
+      end
+    end
+
+    def from_local_template(builder)
+      case opts[:template][:type].to_sym
+      when :remote
+        builder.create_root_dataset(offset: false)
+        from_remote_template(builder)
+
+      when :archive
+        builder.create_root_dataset(offset: false)
+        builder.setup_rootfs
+        builder.from_local_template(opts[:template])
+
+      when :stream
+        builder.create_root_dataset(offset: false)
+        from_stream(builder)
+
+      else
+        fail "unknown template type '#{opts[:template][:type]}'"
+      end
+    end
+
     def from_stream(builder)
-      case opts[:stream][:type].to_sym
-      when :file
-        File.open(opts[:stream][:path]) do |f|
+      if opts[:template][:path]
+        File.open(opts[:template][:path]) do |f|
           gz = Zlib::GzipReader.new(f)
           recv_stream(builder, gz)
           gz.close
         end
 
         builder.shift_dataset
-        distribution, version = builder.get_distribution_info(opts[:stream][:path])
+        distribution, version, arch = builder.get_distribution_info(opts[:template][:path])
 
         builder.configure(
           opts[:distribution] || distribution,
-          opts[:version] || version
+          opts[:version] || version,
+          opts[:arch] || arch
         )
 
-      when :stdin
+      else
         client.send({status: true, response: 'continue'}.to_json + "\n", 0)
         recv_stream(builder, client.recv_io)
 
         builder.shift_dataset
-        builder.configure(opts[:distribution], opts[:version])
+        builder.configure(opts[:distribution], opts[:version], opts[:arch])
+      end
+    end
+
+    def from_remote_template(builder)
+      # TODO: this check is done too late -- the dataset has already been created
+      #       and the repo may not exist
+      if opts[:repository]
+        repo = DB::Repositories.find(opts[:repository], builder.pool)
+        error!('repository not found') unless repo
+        repos = [repo]
 
       else
-        error!("unsupported stream type '#{opts[:stream][:type]}'")
+        repos = DB::Repositories.get.select do |repo|
+          repo.enabled? && repo.pool == builder.pool
+        end
       end
+
+      # Rootfs (private/) has to be set up both before and after
+      # template application. Before, to prepare the directory for tar -x,
+      # after to ensure correct permission.
+      builder.setup_rootfs
+
+      repo = repos.detect do |repo|
+        begin
+          builder.from_repo_template(repo, opts[:template][:template])
+
+        rescue TemplateNotFound
+          next
+        end
+
+        true
+      end
+
+      error!('template not found') unless repo
+
+      builder.setup_rootfs
     end
 
     def recv_stream(builder, io)

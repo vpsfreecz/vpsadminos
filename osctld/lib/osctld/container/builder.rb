@@ -2,6 +2,8 @@ module OsCtld
   class Container::Builder
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
+    include Utils::SwitchUser
+    include Utils::Repository
 
     ID_RX = /^[a-z0-9_-]{1,100}$/i
 
@@ -86,7 +88,7 @@ module OsCtld
 
     def setup_rootfs
       if Dir.exist?(ct.rootfs)
-        Dir.chmod(0750, ct.rootfs)
+        File.chmod(0750, ct.rootfs)
       else
         Dir.mkdir(ct.rootfs, 0750)
       end
@@ -94,21 +96,90 @@ module OsCtld
       File.chown(0, 0, ct.rootfs)
     end
 
+    # @param repo [Repository]
+    # @param tpl [Hash]
+    # @option tpl [String] :vendor
+    # @option tpl [String] :variant
+    # @option tpl [String] :arch
+    # @option tpl [String] :distribution
+    # @option tpl [String] :version
+    def from_repo_template(repo, tpl)
+      created = %i(from_repo_stream from_repo_archive).detect do |m|
+        method(m).call(repo, tpl)
+      end
+
+      unless created
+        raise TemplateNotFound, 'no supported template format available'
+      end
+
+      shift_dataset
+
+      configure(
+        tpl[:distribution],
+        tpl[:version],
+        tpl[:arch]
+      )
+    end
+
+    def from_repo_archive(repo, tpl)
+      r, w = IO.pipe
+      tar = Process.spawn('tar', '-xz', '-C', ct.rootfs, in: r)
+      r.close
+
+      get = osctl_repo_get(repo, tpl, 'tar', w)
+
+      _, tar_status = Process.wait2(tar)
+
+      if get === false
+        # format not found
+        return false
+
+      elsif tar_status.exitstatus != 0
+        fail "unable to untar the template, exited with #{tar_status.exitstatus}"
+      end
+
+      true
+    end
+
+    def from_repo_stream(repo, tpl)
+      get = nil
+      wait_threads = nil
+
+      Open3.pipeline_w(
+        ['gunzip'],
+        ['zfs', 'recv', '-F', ct.dataset.name]
+      ) do |input, ts|
+        get = osctl_repo_get(repo, tpl, 'zfs', input)
+        wait_threads = ts
+      end
+
+      # format not found
+      return false if get === false
+
+      wait_threads.map(&:value).each do |st|
+        next if st.exitstatus == 0
+        fail "unable to recv the template, process exited with #{st.exitstatus}"
+      end
+
+      true
+    end
+
     # @param template [String] path
     # @param opts [Hash] options
     # @option opts [String] :distribution
     # @option opts [String] :version
-    def from_template(template, opts = {})
+    def from_local_archive(template, opts = {})
       progress('Extracting template')
       syscmd("tar -xzf #{template} -C #{ct.rootfs}")
 
       shift_dataset
 
-      distribution, version = get_distribution_info(template)
+      distribution, version, arch = get_distribution_info(template)
 
       configure(
         opts[:distribution] || distribution,
-        opts[:version] || version
+        opts[:version] || version,
+        opts[:arch] || arch
       )
     end
 
@@ -133,8 +204,8 @@ module OsCtld
       zfs(:mount, nil, ct.dataset)
     end
 
-    def configure(distribution, version)
-      ct.configure(distribution, version)
+    def configure(distribution, version, arch)
+      ct.configure(distribution, version, arch)
     end
 
     def clear_snapshots(snaps)
@@ -176,8 +247,8 @@ module OsCtld
     end
 
     def get_distribution_info(template)
-      distribution, version, *_ = File.basename(template).split('-')
-      [distribution, version]
+      distribution, version, arch, *_ = File.basename(template).split('-')
+      [distribution, version, arch]
     end
 
     protected

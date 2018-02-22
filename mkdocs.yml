@@ -12,6 +12,7 @@ pages:
     - Mounts: 'user-guide/mounts.md'
 - Containers:
     - Administration: 'containers/administration.md'
+    - Templates: 'containers/templates.md'
     - 'Export/Import': 'containers/export-import.md'
     - Migrations: 'containers/migrations.md'
 - Migration Paths:
@@ -23,3 +24,4 @@ pages:
     - 'OS requirements': 'osctld/os_requirements.md'
 - Specifications:
     - Container image: 'specifications/container-image.md'
+    - Template repository: 'specifications/template-repository.md'

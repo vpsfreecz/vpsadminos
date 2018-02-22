@@ -29,7 +29,7 @@ module OsCtld
       pools.each do |pool|
         filter = ->(v) { v.pool == pool }
 
-        [DB::Pools, DB::Users, DB::Groups, DB::Containers].each do |klass|
+        [DB::Pools, DB::Repositories, DB::Users, DB::Groups, DB::Containers].each do |klass|
           entities = klass.get.select(&filter)
 
           entities.each do |ent|

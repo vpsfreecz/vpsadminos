@@ -10,6 +10,7 @@ require_relative 'migrate'
 require_relative 'migration'
 require_relative 'net_interface'
 require_relative 'pool'
+require_relative 'repository'
 require_relative 'self'
 require_relative 'top'
 require_relative 'user'
@@ -326,20 +327,38 @@ module OsCtl::Cli
           new.desc 'Group name'
           new.flag :group, required: false
 
-          new.desc 'Template in a tar archive'
+          new.desc 'Template from a repository'
           new.flag :template
 
+          new.desc 'Template in a tar archive'
+          new.flag 'from-archive'
+
           new.desc 'Template in a ZFS stream'
-          new.flag :stream
+          new.flag 'from-stream'
 
           new.desc 'Use a custom dataset for the rootfs'
           new.flag :dataset
+
+          new.desc 'Do not extract any template (use together with --dataset)'
+          new.switch 'no-template', negatable: false
 
           new.desc 'Distribution name in lower case'
           new.flag :distribution
 
           new.desc 'Distribution version'
           new.flag :version
+
+          new.desc 'Architecture'
+          new.flag :arch
+
+          new.desc 'Vendor (used only when downloading the template)'
+          new.flag :vendor
+
+          new.desc 'Variant (used only when downloading the template)'
+          new.flag :variant
+
+          new.desc 'Repository'
+          new.flag :repository
 
           new.action &Command.run(Container, :create)
         end
@@ -878,6 +897,51 @@ module OsCtl::Cli
             c.action &Command.run(Migration, :authorized_keys_delete)
           end
         end
+      end
+
+      desc 'Manage template repositories'
+      command %i(repo repository) do |r|
+        r.desc 'List repositories'
+        r.command %i(ls list) do |c|
+          c.desc 'Select parameters to output'
+          c.flag %i(o output)
+
+          c.desc 'Do not show header'
+          c.switch %i(H hide-header), negatable: false
+
+          c.desc 'List available parameters'
+          c.switch %i(L list), negatable: false
+
+          c.action &Command.run(Repository, :list)
+        end
+
+        r.desc 'Add a new repository'
+        r.arg_name '<name> <url>'
+        r.command :add do |c|
+          c.action &Command.run(Repository, :add)
+        end
+
+        r.desc 'Remove a repository'
+        r.arg_name '<name>'
+        r.command :del do |c|
+          c.action &Command.run(Repository, :delete)
+        end
+
+        r.desc 'Enable a repository'
+        r.arg_name '<name>'
+        r.command :enable do |c|
+          c.action &Command.run(Repository, :enable)
+        end
+
+        r.desc 'Disable a repository'
+        r.arg_name '<name>'
+        r.command :disable do |c|
+          c.action &Command.run(Repository, :disable)
+        end
+
+        r.desc 'List repository assets (datasets, files, directories)'
+        r.arg_name '<name>'
+        assets(r, Repository)
       end
 
       desc 'Monitor'
