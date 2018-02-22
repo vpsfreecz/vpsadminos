@@ -8,6 +8,22 @@
   networking.hostName = "vpsadminos-prod";
   networking.dhcp = true;
 
+  networking.bird =
+    enable = true;
+    routerId = "1.2.3.4";
+    protocol.bgp = {
+      bgp1 = rec {
+        as = 65000;
+        nextHopSelf = true;
+        neighbor = { "172.17.4.1" = as; };
+        extraConfig = ''
+          export all;
+          import all;
+        '';
+      }; 
+    };
+  };
+
   vpsadminos.nix = true;
   environment.systemPackages = with pkgs; [
     nvi
