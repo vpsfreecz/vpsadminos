@@ -25,3 +25,4 @@ pages:
 - Specifications:
     - Container image: 'specifications/container-image.md'
     - Template repository: 'specifications/template-repository.md'
+    - Distributions: 'specifications/distributions.md'
