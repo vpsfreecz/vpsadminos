@@ -4,19 +4,24 @@ require 'time'
 
 module OsCtl::Repo
   # Download template in a specified format and cache it locally
-  class Downloader::Cached
-    def initialize(repo)
-      @repo = repo
+  class Downloader::Cached < Downloader::Base
+    # @return [Array<Remote::Template>]
+    def list
+      connect do |http|
+        index = nil
+
+        repo.lock_index do
+          update_index(http)
+          index = Remote::Index.from_file(repo, repo.index_path)
+        end
+
+        index.templates
+      end
     end
 
     # yieldparam [String] downloaded data
     def download(vendor, variant, arch, dist, vtag, format, &block)
-      uri = URI(File.join(repo.url, 'INDEX.json'))
-
-      http = Net::HTTP.new(uri.host, uri.port)
-      http.use_ssl = (uri.scheme == 'https')
-
-      http.start do |http|
+      connect do |http|
         index = nil
 
         repo.lock_index do
@@ -41,7 +46,7 @@ module OsCtl::Repo
     attr_reader :repo
 
     def update_index(http)
-      uri = URI(repo.index_url)
+      uri = index_uri
 
       if repo.has_index?
         headers = {'If-Modified-Since' => File.stat(repo.index_path).mtime.httpdate}

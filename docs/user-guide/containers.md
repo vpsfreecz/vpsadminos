@@ -19,7 +19,8 @@ osctl ct new --user myuser01 --distribution ubuntu --version 16.04 myct01
 ```
 
 For now, available distributions are: `alpine`, `centos`, `debian`, `devuan`,
-`gentoo`, `slackware` and `ubuntu`.
+`gentoo`, `slackware` and `ubuntu`. You can use `osctl repo templates ls default`
+to get the full list of templates.
 
 Let's see what files and directories define the container:
 

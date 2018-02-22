@@ -1,3 +1,5 @@
+require 'json'
+
 module OsCtl::Repo
   class Cli::Repo < Cli::Command
     def init
@@ -57,6 +59,21 @@ module OsCtl::Repo
       else
         raise GLI::BadCommandLine, 'too many aguments'
       end
+    end
+
+    def list
+      require_args!('repo')
+
+      repo = Remote::Repository.new(args[0])
+
+      if opts[:cache]
+        repo.path = opts[:cache]
+        dl = Downloader::Cached.new(repo)
+      else
+        dl = Downloader::Direct.new(repo)
+      end
+
+      puts dl.list.map(&:dump).to_json
     end
 
     def fetch

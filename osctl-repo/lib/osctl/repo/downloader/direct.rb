@@ -2,19 +2,18 @@ require 'net/http'
 
 module OsCtl::Repo
   # Download template in a specified format, no caching involved
-  class Downloader::Direct
-    def initialize(repo)
-      @repo = repo
+  class Downloader::Direct < Downloader::Base
+    # @return [Array<Remote::Template>]
+    def list
+      connect do |http|
+        index = Remote::Index.from_string(repo, http.get(index_uri.path).body)
+        index.templates
+      end
     end
 
     # yieldparam [String] downloaded data
     def download(vendor, variant, arch, dist, vtag, format)
-      uri = URI(File.join(repo.url, 'INDEX.json'))
-
-      http = Net::HTTP.new(uri.host, uri.port)
-      http.use_ssl = (uri.scheme == 'https')
-
-      http.start do |http|
+      connect do |http|
         index = Remote::Index.from_string(repo, http.get(uri.path).body)
         t = index.lookup(vendor, variant, arch, dist, vtag)
 
@@ -31,8 +30,5 @@ module OsCtl::Repo
         end
       end
     end
-
-    protected
-    attr_reader :repo
   end
 end

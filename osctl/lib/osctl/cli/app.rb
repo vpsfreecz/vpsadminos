@@ -942,6 +942,48 @@ module OsCtl::Cli
         r.desc 'List repository assets (datasets, files, directories)'
         r.arg_name '<name>'
         assets(r, Repository)
+
+        r.desc 'Browse repository templates'
+        r.command :templates do |t|
+          t.desc 'List available templates'
+          t.arg_name '<name>'
+          t.command %i(ls list) do |c|
+            c.desc 'Select parameters to output'
+            c.flag %i(o output)
+
+            c.desc 'Do not show header'
+            c.switch %i(H hide-header), negatable: false
+
+            c.desc 'List available parameters'
+            c.switch %i(L list), negatable: false
+
+            c.desc 'Filter by vendor'
+            c.flag :vendor
+
+            c.desc 'Filter by variant'
+            c.flag :variant
+
+            c.desc 'Filter by architecture'
+            c.flag :arch
+
+            c.desc 'Filter by distribution'
+            c.flag :distribution
+
+            c.desc 'Filter by distribution version'
+            c.flag :version
+
+            c.desc 'Filter by version tag'
+            c.flag :tag
+
+            c.desc 'Filter locally cached templates'
+            c.switch :cached, negatable: false
+
+            c.desc 'Filter locally uncached templates'
+            c.switch :uncached, negatable: false
+
+            c.action &Command.run(Repository, :template_list)
+          end
+        end
       end
 
       desc 'Monitor'

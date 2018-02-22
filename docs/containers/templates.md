@@ -36,6 +36,24 @@ To download the template from a repository, you can:
 To use template from a local file, the file must either conform to the naming
 scheme, or the required template parameters have to be provided as options.
 
+## Available templates
+Templates from remote repositories can be listed with `osctl repo templates ls`:
+
+```shell
+[root@vpsadminos:~]# osctl repo templates ls default
+VENDOR       VARIANT   ARCH     DISTRIBUTION   VERSION         TAGS            CACHED 
+vpsadminos   minimal   x86_64   alpine         3.6             -               -      
+vpsadminos   minimal   x86_64   alpine         3.7             -               -      
+vpsadminos   minimal   x86_64   centos         7.0             -               -      
+vpsadminos   minimal   x86_64   debian         8.0             -               -      
+vpsadminos   minimal   x86_64   debian         9.0             latest,stable   -      
+vpsadminos   minimal   x86_64   devuan         1.0             -               -      
+vpsadminos   minimal   x86_64   gentoo         17.0-20180221   -               -      
+vpsadminos   minimal   x86_64   slackware      14.2            -               -      
+vpsadminos   minimal   x86_64   ubuntu         14.04           -               -      
+vpsadminos   minimal   x86_64   ubuntu         16.04           latest,stable   -
+```
+
 ## Examples
 When `osctl ct new` is run without any options, *osctl* will interactively ask
 the user to select a template from one of the configured remote repositories:

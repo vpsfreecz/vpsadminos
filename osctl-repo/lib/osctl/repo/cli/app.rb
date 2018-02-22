@@ -48,6 +48,15 @@ module OsCtl::Repo::Cli
 
       desc 'Interact with remote repositories'
       command :remote do |remote|
+        remote.desc 'List available templates'
+        remote.arg_name '<repo>'
+        remote.command %i(ls list) do |c|
+          c.desc 'Cache directory'
+          c.flag :cache
+
+          c.action &Command.run(Repo, :list)
+        end
+
         remote.desc 'Fetch file from the repository and store it in a local cache'
         remote.arg_name '<repo> <vendor> <variant> <arch> <distribution> <version>|<tag> tar|zfs'
         remote.command :fetch do |c|

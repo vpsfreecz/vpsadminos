@@ -16,5 +16,13 @@ module OsCtl::Repo
         timeout: 60*60
       ) { yield }
     end
+
+    def dump
+      ret = super
+      ret[:cached] = ret[:rootfs].select do |format, path|
+        cached?(format)
+      end.map { |format, path| format }
+      ret
+    end
   end
 end

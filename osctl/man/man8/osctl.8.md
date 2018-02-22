@@ -970,6 +970,42 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 `repository assets` *name*
   Show repository's assets and their state.
 
+`repository templates ls` [*option*] *name*
+  List templates available in repository *name*.
+
+    `-H`, `--hide-header`
+      Do not show header, useful for scripting.
+
+    `-L`, `--list`
+      List available parameters adn exit.
+    
+    `-o`, `--output` *parameters*
+      Select parameters to output.
+
+    `--vendor` *vendor*
+      Filter by vendor.
+
+    `--variant` *variant*
+      Filter by variant.
+
+    `--arch` *arch*
+      Filter by architecture.
+
+    `--distribution` *distribution*
+      Filter by distribution.
+
+    `--version` *version*
+      Filter by distribution version.
+
+    `--tag` *tag*
+      Filter by version tag.
+
+    `--cached`
+      Show only locally cached templates.
+
+    `--uncached`
+      Show only locally uncached templates.
+
 `monitor`
   Print all events reported by `osctld` to standard output. If global option
   `-j`, `--json` is used, the events are printed in JSON.
