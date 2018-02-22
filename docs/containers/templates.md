@@ -117,23 +117,23 @@ web server to serve this directory, then cd into it and initiate the repository:
 
 ```shell
 cd /var/www/vpsadminos-repo
-osctl-repo init
+osctl-repo local init
 ```
 
-Templates can then be added using `osctl-repo add`:
+Templates can then be added using `osctl-repo local add`:
 
 ```shell
-osctl-repo add --archive debian.tar.gz --zfs debian.dat.gz vpsadminos minimal x86_64 debian 9.0
+osctl-repo local add --archive debian.tar.gz --zfs debian.dat.gz vpsadminos minimal x86_64 debian 9.0
 ```
 
 Default *vendor* and *variant* can be set with:
 
 ```shell
 # Set vendor `vpsadminos` as default
-osctl-repo default vpsadminos
+osctl-repo local default vpsadminos
 
 # Set variant `minimal` of vendor `vpsadminos` as default
-osctl-repo default vpsadminos minimal
+osctl-repo local default vpsadminos minimal
 ```
 
 ## Accessing repository
@@ -145,30 +145,30 @@ from remote repositories and optionally cache them in a local directory.
 All client commands work with remote repositories, so you always have to provide
 the repository's URL as an argument.
 
-To list available templates, use command `ls`:
+To list available templates, use command `remote ls`:
 
 ```shell
-osctl-repo ls https://repo.domain.tld
+osctl-repo remote ls https://repo.domain.tld
 ```
 
-Templates can be downloaded using command `get`, which will fetch the template
-and write its contents to standard output:
+Templates can be downloaded using command `remote get`, which will fetch the
+template and write its contents to standard output:
 
 ```shell
-osctl-repo get https://repo.domain.tld \
-               vpsadminos minimal x86_64 debian 9.0 archive \
-               > debian-9.0-x86_64-vpsadminos-minimal.dat.gz
+osctl-repo remote get https://repo.domain.tld \
+                      vpsadminos minimal x86_64 debian 9.0 archive \
+                      > debian-9.0-x86_64-vpsadminos-minimal.dat.gz
 ```
 
 If option `--cache <writable directory>` is provided, the template will be
-saved in the cache directory. Subsequent calls of `osctl-repo get` with the same
-cache directory will use the local version, unless the repository has a newer
-version.
+saved in the cache directory. Subsequent calls of `osctl-repo remote get` with
+the same cache directory will use the local version, unless the repository has
+a newer version.
 
 If you only wish to cache the selected template, use `osctl-repo fetch`:
 
 ```shell
-osctl-repo fetch --cache /var/vpsadminos-templates \
-                 https://repo.domain.tld \
-                 vpsadminos minimal x86_64 debian 9.0 zfs
+osctl-repo remote fetch --cache /var/vpsadminos-templates \
+                        https://repo.domain.tld \
+                        vpsadminos minimal x86_64 debian 9.0 zfs
 ```

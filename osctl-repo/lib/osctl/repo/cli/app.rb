@@ -17,48 +17,54 @@ module OsCtl::Repo::Cli
       preserve_argv true
       arguments :strict
 
-      desc 'Create a new empty repository in the current directory'
-      command :init do |c|
-        c.action &Command.run(Repo, :init)
+      desc 'Create and manage a local repository'
+      command :local do |local|
+        local.desc 'Create a new empty repository in the current directory'
+        local.command :init do |c|
+          c.action &Command.run(Repo, :init)
+        end
+
+        local.desc 'Add file into the repository'
+        local.arg_name '<vendor> <variant> <arch> <distribution> <version>'
+        local.command :add do |c|
+          c.desc 'Tag'
+          c.flag :tag, must_match: %w(stable latest testing), multiple: true
+
+          c.desc 'Rootfs archive'
+          c.flag :archive
+
+          c.desc 'Rootfs stream'
+          c.flag :stream
+
+          c.action &Command.run(Repo, :add)
+        end
+
+        local.desc "Set default vendor or default vendor's variant"
+        local.arg_name '<vendor> [variant]'
+        local.command :default do |c|
+          c.action &Command.run(Repo, :set_default)
+        end
       end
 
-      desc 'Add file into the repository'
-      arg_name '<vendor> <variant> <arch> <distribution> <version>'
-      command :add do |c|
-        c.desc 'Tag'
-        c.flag :tag, must_match: %w(stable latest testing), multiple: true
+      desc 'Interact with remote repositories'
+      command :remote do |remote|
+        remote.desc 'Fetch file from the repository and store it in a local cache'
+        remote.arg_name '<repo> <vendor> <variant> <arch> <distribution> <version>|<tag> tar|zfs'
+        remote.command :fetch do |c|
+          c.desc 'Cache directory'
+          c.flag :cache, required: true
 
-        c.desc 'Rootfs archive'
-        c.flag :archive
+          c.action &Command.run(Repo, :fetch)
+        end
 
-        c.desc 'Rootfs stream'
-        c.flag :stream
+        remote.desc 'Find a file within the repository and write its contents to stdout'
+        remote.arg_name '<repo> <vendor> <variant> <arch> <distribution> <version>|<tag> tar|zfs'
+        remote.command :get do |c|
+          c.desc 'Cache directory'
+          c.flag :cache
 
-        c.action &Command.run(Repo, :add)
-      end
-
-      desc "Set default vendor or default vendor's variant"
-      arg_name '<vendor> [variant]'
-      command :default do |c|
-        c.action &Command.run(Repo, :set_default)
-      end
-
-      desc 'Fetch file from the repository and store it in a local cache'
-      arg_name '<repo> <vendor> <variant> <arch> <distribution> <version>|<tag> tar|zfs'
-      command :fetch do |c|
-        c.desc 'Cache directory'
-        c.flag :cache, required: true
-
-        c.action &Command.run(Repo, :fetch)
-      end
-
-      desc 'Find a file within the repository and write its contents to stdout'
-      arg_name '<repo> <vendor> <variant> <arch> <distribution> <version>|<tag> tar|zfs'
-      command :get do |c|
-        c.desc 'Cache directory'
-        c.flag :cache
-
-        c.action &Command.run(Repo, :get)
+          c.action &Command.run(Repo, :get)
+        end
       end
     end
   end

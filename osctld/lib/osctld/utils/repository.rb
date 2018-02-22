@@ -18,7 +18,7 @@ module OsCtld
         Process.exec(
           #File.join(OsCtl::Repo.root, 'bin', 'osctl-repo-dev'),
           File.join(OsCtl::Repo.root, 'bin', 'osctl-repo'),
-          'get',
+          'remote', 'get',
           '--cache', repo.cache_path,
           repo.url,
           tpl[:vendor], tpl[:variant], tpl[:arch], tpl[:distribution], tpl[:version],
