@@ -1,5 +1,5 @@
 module OsCtld
-  include OsCtl::Lib::Exceptions
+  SystemCommandFailed = OsCtl::Lib::Exceptions::SystemCommandFailed
 
   class CommandFailed < StandardError ; end
   class CGroupSubsystemNotFound < StandardError ; end
