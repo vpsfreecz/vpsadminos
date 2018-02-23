@@ -108,7 +108,6 @@ in
               fi
             done
             echo
-            if [[ -n "$msg" ]]; then echo "$msg"; fi
         '') allPools));
       };
 
