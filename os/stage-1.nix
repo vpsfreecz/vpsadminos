@@ -4,7 +4,6 @@ let
   modulesTree = config.system.modulesTree;
   modules = pkgs.makeModulesClosure {
     rootModules = config.boot.initrd.availableKernelModules ++ config.boot.initrd.kernelModules;
-    allowMissing = true;
     kernel = modulesTree;
   };
   dhcpcd = pkgs.dhcpcd.override { udev = null; };
@@ -26,6 +25,10 @@ let
     for BIN in ${pkgs.busybox}/{s,}bin/*; do
       copy_bin_and_libs $BIN
     done
+
+    # Copy modprobe
+    copy_bin_and_libs ${pkgs.kmod}/bin/kmod
+    ln -sf kmod $out/bin/modprobe
 
     copy_bin_and_libs ${pkgs.dhcpcd}/bin/dhcpcd
     copy_bin_and_libs ${udev}/bin/udevd

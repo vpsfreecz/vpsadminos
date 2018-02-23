@@ -52,6 +52,7 @@ mount -t sysfs sysfs /sys
 ln -sv @shell@ /bin/sh
 ln -s @modules@/lib/modules /lib/modules
 
+echo @extraUtils@/bin/modprobe > /proc/sys/kernel/modprobe
 for x in @modprobeList@; do
   modprobe $x
 done
