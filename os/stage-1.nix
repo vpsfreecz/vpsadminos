@@ -33,6 +33,9 @@ let
     # Copy dhcpcd
     copy_bin_and_libs ${pkgs.dhcpcd}/bin/dhcpcd
 
+    # SAD
+    copy_bin_and_libs ${pkgs.strace}/bin/strace
+
     # Copy eudev
     copy_bin_and_libs ${udev}/bin/udevd
     copy_bin_and_libs ${udev}/bin/udevadm
