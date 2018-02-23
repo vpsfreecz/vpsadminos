@@ -70,6 +70,8 @@ in
       ip addr add 127.0.0.1/8 dev lo
       ip link set lo up
 
+      echo 1 > /proc/sys/net/ipv4/ip_forward
+
       ${lib.optionalString static.enable ''
       ip addr add ${static.ip} dev ${static.interface}
       ip link set ${static.interface} up
@@ -88,7 +90,6 @@ in
       ip link set promisc on lxcbr0
       ip link set lxcbr0 up
       ip route add 192.168.1.0/24 dev lxcbr0
-      echo 1 > /proc/sys/net/ipv4/ip_forward
       iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
       ''}
 
