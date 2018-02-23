@@ -30,9 +30,15 @@ let
     copy_bin_and_libs ${pkgs.kmod}/bin/kmod
     ln -sf kmod $out/bin/modprobe
 
+    # Copy dhcpcd
     copy_bin_and_libs ${pkgs.dhcpcd}/bin/dhcpcd
+
+    # Copy eudev
     copy_bin_and_libs ${udev}/bin/udevd
     copy_bin_and_libs ${udev}/bin/udevadm
+    for BIN in ${udev}/lib/udev/*_id; do
+      copy_bin_and_libs $BIN
+    done
 
     ${config.boot.initrd.extraUtilsCommands}
 
@@ -97,6 +103,9 @@ let
 
       for i in $out/*.rules; do
           substituteInPlace $i \
+            --replace ata_id ${extraUtils}/bin/ata_id \
+            --replace scsi_id ${extraUtils}/bin/scsi_id \
+            --replace cdrom_id ${extraUtils}/bin/cdrom_id \
             --replace ${pkgs.utillinux}/sbin/blkid ${extraUtils}/bin/blkid \
             --replace /sbin/blkid ${extraUtils}/bin/blkid \
             --replace ${pkgs.bash}/bin/sh ${extraUtils}/bin/sh \
