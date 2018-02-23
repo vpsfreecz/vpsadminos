@@ -45,6 +45,11 @@ echo
 export LD_LIBRARY_PATH=@extraUtils@/lib
 export PATH=@extraUtils@/bin/
 mkdir -p /proc /sys /dev /etc/udev /tmp /run/ /lib/ /mnt/ /var/log /bin
+
+touch /etc/fstab # to shut up mount
+touch /etc/udev/hwdb.bin # to shut up udev
+touch /etc/initrd-release
+
 mount -t devtmpfs devtmpfs /dev/
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
