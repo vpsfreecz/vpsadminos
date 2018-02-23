@@ -105,13 +105,14 @@ let
             --replace ${udev}/bin/udevadm ${extraUtils}/bin/udevadm
       done
     '';
+  udevHwdb = config.environment.etc."udev/hwdb.bin".source;
 
   newPoolCmd = "zpool create ${config.boot.zfs.poolName} ${config.boot.zfs.poolLayout}";
 
   bootStage1 = pkgs.substituteAll {
     src = ./stage-1-init.sh;
     isExecutable = true;
-    inherit shell modules modprobeList extraUtils dhcpHook udevRules newPoolCmd;
+    inherit shell modules modprobeList extraUtils dhcpHook udevRules udevHwdb newPoolCmd;
 
     inherit (config.boot.initrd) postDeviceCommands;
   };

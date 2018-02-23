@@ -89,6 +89,7 @@ done
 echo "running udev..."
 mkdir -p /etc/udev
 ln -sfn @udevRules@ /etc/udev/rules.d
+ln -sfn @udevHwdb@ /etc/udev/hwdb.bin
 udevd --daemon
 udevadm trigger --action=add
 udevadm settle
