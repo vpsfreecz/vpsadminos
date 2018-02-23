@@ -33,6 +33,9 @@
     '';
   };
 
+  boot.initrd.supportedFilesystems = [ "zfs" ];
+  boot.zfs.poolLayout = "mirror sda sdb";
+
   vpsadminos.nix = true;
   environment.systemPackages = with pkgs; [
     nvi

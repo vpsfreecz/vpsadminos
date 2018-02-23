@@ -28,6 +28,10 @@ let
     done
 
     copy_bin_and_libs ${pkgs.dhcpcd}/bin/dhcpcd
+    copy_bin_and_libs ${udev}/bin/udevd
+    copy_bin_and_libs ${udev}/bin/udevadm
+
+    ${config.boot.initrd.extraUtilsCommands}
 
     # Copy ld manually since it isn't detected correctly
     cp -pv ${pkgs.glibc.out}/lib/ld*.so.? $out/lib
@@ -69,67 +73,46 @@ let
     $out/bin/ash -c 'echo hello world' | grep "hello world"
     export LD_LIBRARY_PATH=$out/lib
     $out/bin/mount --help 2>&1 | grep -q "BusyBox"
+
+    ${config.boot.initrd.extraUtilsCommandsTest}
   '';
   shell = "${extraUtils}/bin/ash";
+  modprobeList = lib.concatStringsSep " " config.boot.initrd.kernelModules;
   dhcpHook = pkgs.writeScript "dhcpHook" ''
   #!${shell}
   '';
-  bootStage1 = pkgs.writeScript "stage1" ''
-    #!${shell}
-    echo
-    echo "[1;32m<<< vpsAdminOS Stage 1 >>>[0m"
-    echo
 
-    export PATH=${extraUtils}/bin/
-    mkdir -p /proc /sys /dev /etc/udev /tmp /run/ /lib/ /mnt/ /var/log /bin
-    mount -t devtmpfs devtmpfs /dev/
-    mount -t proc proc /proc
-    mount -t sysfs sysfs /sys
+  udev = pkgs.eudev;
+  udevRules = pkgs.runCommand "udev-rules"
+    { allowedReferences = [ extraUtils ]; }
+    ''
+      mkdir -p $out
 
-    ln -sv ${shell} /bin/sh
-    ln -s ${modules}/lib/modules /lib/modules
+      echo 'ENV{LD_LIBRARY_PATH}="${extraUtils}/lib"' > $out/00-env.rules
 
-    for x in ${lib.concatStringsSep " " config.boot.initrd.kernelModules}; do
-      modprobe $x
-    done
+      cp -v ${udev}/var/lib/udev/rules.d/60-persistent-storage.rules $out/
 
-    root=/dev/vda
-    for o in $(cat /proc/cmdline); do
-      case $o in
-        systemConfig=*)
-          set -- $(IFS==; echo $o)
-          sysconfig=$2
-          ;;
-        root=*)
-          set -- $(IFS==; echo $o)
-          root=$2
-          ;;
-        netroot=*)
-          set -- $(IFS==; echo $o)
-          mkdir -pv /var/run /var/db
-          sleep 5
-          dhcpcd eth0 -c ${dhcpHook}
-          tftp -g -r "$3" "$2"
-          root=/root.squashfs
-          ;;
-      esac
-    done
+      for i in $out/*.rules; do
+          substituteInPlace $i \
+            --replace ${pkgs.utillinux}/sbin/blkid ${extraUtils}/bin/blkid \
+            --replace /sbin/blkid ${extraUtils}/bin/blkid \
+            --replace ${pkgs.bash}/bin/sh ${extraUtils}/bin/sh \
+            --replace /usr/bin/readlink ${extraUtils}/bin/readlink \
+            --replace /usr/bin/basename ${extraUtils}/bin/basename \
+            --replace ${udev}/bin/udevadm ${extraUtils}/bin/udevadm
+      done
+    '';
 
-    mount -t tmpfs root /mnt/ -o size=6G || exec ${shell}
-    chmod 755 /mnt/
-    mkdir -p /mnt/nix/store/
+  newPoolCmd = "zpool create ${config.boot.zfs.poolName} ${config.boot.zfs.poolLayout}";
 
-    # make the store writeable
-    mkdir -p /mnt/nix/.ro-store /mnt/nix/.overlay-store /mnt/nix/store
-    mount $root /mnt/nix/.ro-store -t squashfs
-    mount tmpfs -t tmpfs /mnt/nix/.overlay-store -o size=1G
-    mkdir -pv /mnt/nix/.overlay-store/work /mnt/nix/.overlay-store/rw
-    modprobe overlay
-    mount -t overlay overlay -o lowerdir=/mnt/nix/.ro-store,upperdir=/mnt/nix/.overlay-store/rw,workdir=/mnt/nix/.overlay-store/work /mnt/nix/store
+  bootStage1 = pkgs.substituteAll {
+    src = ./stage-1-init.sh;
+    isExecutable = true;
+    inherit shell modules modprobeList extraUtils dhcpHook udevRules newPoolCmd;
 
-    exec env -i $(type -P switch_root) /mnt/ $sysconfig/init
-    exec ${shell}
-  '';
+    inherit (config.boot.initrd) postDeviceCommands;
+  };
+
   initialRamdisk = pkgs.makeInitrd {
     contents = [ { object = bootStage1; symlink = "/init"; } ];
   };
@@ -178,7 +161,6 @@ in
     system.build.bootStage1 = bootStage1;
     system.build.initialRamdisk = initialRamdisk;
     system.build.extraUtils = extraUtils;
-    boot.initrd.extraUtilsCommands = extraUtilsCommands;
     boot.initrd.availableKernelModules = [ ];
     boot.initrd.kernelModules = [ "tun" "loop" "squashfs" "overlay"];
   };

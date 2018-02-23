@@ -26,19 +26,7 @@ let
     zfsUser = pkgs.zfs;
   };
 
-  datasetToPool = x: elemAt (splitString "/" x) 0;
-
-  fsToPool = fs: datasetToPool fs.device;
-
-  zfsFilesystems = filter (x: x.fsType == "zfs") config.system.build.fileSystems;
-
-  allPools = unique ((map fsToPool zfsFilesystems) ++ cfgZfs.extraPools);
-
-  rootPools = unique (map fsToPool (filter fsNeededForBoot zfsFilesystems));
-
-  dataPools = unique (filter (pool: !(elem pool rootPools)) allPools);
-
-  snapshotNames = [ "frequent" "hourly" "daily" "weekly" "monthly" ];
+  allPools = unique (cfgZfs.extraPools);
 
 in
 
@@ -48,69 +36,35 @@ in
 
   options = {
     boot.zfs = {
+      poolName = mkOption {
+        type = types.str;
+        default = "tank";
+        description = ''
+          Name of the default pool.
+        '';
+      };
+
+      poolLayout = mkOption {
+        type = types.str;
+        default = "# specify layout with boot.zfs.poolLayout";
+        example = ''
+          mirror sda sdb
+        '';
+        description = ''
+          Pool layout to pass to zpool create. Pool is not created automatically
+          and this is only used as a hint in stage-1 handler allowing to run
+          creation manually.
+        '';
+      };
+
       extraPools = mkOption {
         type = types.listOf types.str;
-        default = [];
+        default = [ cfgZfs.poolName ];
         example = [ "tank" "data" ];
         description = ''
           Name or GUID of extra ZFS pools that you wish to import during boot.
 
-          Usually this is not necessary. Instead, you should set the mountpoint property
-          of ZFS filesystems to <literal>legacy</literal> and add the ZFS filesystems to
-          NixOS's <option>fileSystems</option> option, which makes NixOS automatically
-          import the associated pool.
-
-          However, in some cases (e.g. if you have many filesystems) it may be preferable
-          to exclusively use ZFS commands to manage filesystems. If so, since NixOS/systemd
-          will not be managing those filesystems, you will need to specify the ZFS pool here
-          so that NixOS automatically imports it on every boot.
-        '';
-      };
-
-      devNodes = mkOption {
-        type = types.path;
-        default = "/dev/disk/by-id";
-        example = "/dev/disk/by-id";
-        description = ''
-          Name of directory from which to import ZFS devices.
-
-          This should be a path under /dev containing stable names for all devices needed, as
-          import may fail if device nodes are renamed concurrently with a device failing.
-        '';
-      };
-
-      forceImportRoot = mkOption {
-        type = types.bool;
-        default = true;
-        description = ''
-          Forcibly import the ZFS root pool(s) during early boot.
-
-          This is enabled by default for backwards compatibility purposes, but it is highly
-          recommended to disable this option, as it bypasses some of the safeguards ZFS uses
-          to protect your ZFS pools.
-
-          If you set this option to <literal>false</literal> and NixOS subsequently fails to
-          boot because it cannot import the root pool, you should boot with the
-          <literal>zfs_force=1</literal> option as a kernel parameter (e.g. by manually
-          editing the kernel params in grub during boot). You should only need to do this
-          once.
-        '';
-      };
-
-      forceImportAll = mkOption {
-        type = types.bool;
-        default = true;
-        description = ''
-          Forcibly import all ZFS pool(s).
-
-          This is enabled by default for backwards compatibility purposes, but it is highly
-          recommended to disable this option, as it bypasses some of the safeguards ZFS uses
-          to protect your ZFS pools.
-
-          If you set this option to <literal>false</literal> and NixOS subsequently fails to
-          import your non-root ZFS pool(s), you should manually import each pool with
-          "zpool import -f &lt;pool-name&gt;", and then reboot. You should only need to do
-          this once.
+          This imports boot.zfs.poolName (tank) by default, you can add extra pools if needed.
         '';
       };
     };
@@ -120,17 +74,6 @@ in
 
   config = mkMerge [
     (mkIf enableZfs {
-      assertions = [
-        {
-          assertion = config.networking.hostId != null;
-          message = "ZFS requires config.networking.hostId to be set";
-        }
-        {
-          assertion = !cfgZfs.forceImportAll || cfgZfs.forceImportRoot;
-          message = "If you enable boot.zfs.forceImportAll, you must also enable boot.zfs.forceImportRoot";
-        }
-      ];
-
       boot = {
         kernelModules = [ "spl" "zfs" ] ;
         extraModulePackages = with packages; [ spl zfs ];
@@ -150,29 +93,23 @@ in
             $out/bin/zpool --help >/dev/null 2>&1
           '';
         postDeviceCommands = concatStringsSep "\n" ([''
-            ZFS_FORCE="${optionalString cfgZfs.forceImportRoot "-f"}"
 
-            for o in $(cat /proc/cmdline); do
-              case $o in
-                zfs_force|zfs_force=1)
-                  ZFS_FORCE="-f"
-                  ;;
-              esac
-            done
             ''] ++ (map (pool: ''
-            echo -n "importing root ZFS pool \"${pool}\"..."
+            echo -n "importing ZFS pool \"${pool}\" "
             trial=0
-            until msg="$(zpool import -d ${cfgZfs.devNodes} -N $ZFS_FORCE '${pool}' 2>&1)"; do
+            until msg="$(zpool import -N '${pool}' 2>&1)"; do
               sleep 0.25
               echo -n .
               trial=$(($trial + 1))
-              if [[ $trial -eq 60 ]]; then
+              if [[ $trial -eq 10 ]]; then
+                echo
+                fail "$msg"
                 break
               fi
             done
             echo
             if [[ -n "$msg" ]]; then echo "$msg"; fi
-        '') rootPools));
+        '') allPools));
       };
 
       environment.etc."zfs/zed.d".source = "${packages.zfsUser}/etc/zfs/zed.d/";
