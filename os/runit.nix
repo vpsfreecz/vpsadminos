@@ -124,6 +124,9 @@ in
       # Permission fixes
       chmod 777 /tmp
 
+      # ZFS
+      zpool status ${config.boot.zfs.poolName} &> /dev/null && zfs mount -a
+
       touch /etc/runit/stopit
       chmod 0 /etc/runit/stopit
     '';
