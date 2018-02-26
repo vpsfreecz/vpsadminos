@@ -11,6 +11,8 @@
   networking.nat = true;
   networking.dhcpd = true;
 
+  boot.zfs.poolLayout = "mirror sda sdb";
+
   vpsadminos.nix = true;
 
   tty.autologin.enable = true;
