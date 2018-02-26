@@ -16,7 +16,7 @@ ZFS pool and then start stage 2. Press one
 of the following keys:
 
   i) to launch an interactive shell
-  n) to create pool with "@newPoolCmd@"
+  n) to create pool with "zpool create @poolName@ @poolLayout@"
   r) to reboot immediately
   *) to ignore the error and continue
 EOF
@@ -30,7 +30,12 @@ EOF
         echo "Rebooting..."
         reboot -f
     elif [ "$reply" = n ]; then
-        @newPoolCmd@
+        echo "Creating pool"
+        # zpool creation command ignores mount error message as it doesn't have correct path to mount
+        # we check status with zpool status and mount with zfs mount -a in stage-2
+        zpool create @poolName@ @poolLayout@ 2>&1 | grep -v mount
+        zpool status @poolName@ &> /dev/null || fail "Can't create pool"
+        echo "Done"
     else
         echo "Continuing..."
     fi

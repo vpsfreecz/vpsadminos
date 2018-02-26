@@ -117,14 +117,13 @@ let
     '';
   udevHwdb = config.environment.etc."udev/hwdb.bin".source;
 
-  newPoolCmd = "zpool create ${config.boot.zfs.poolName} ${config.boot.zfs.poolLayout}";
-
   bootStage1 = pkgs.substituteAll {
     src = ./stage-1-init.sh;
     isExecutable = true;
-    inherit shell modules modprobeList extraUtils dhcpHook udevRules udevHwdb newPoolCmd;
+    inherit shell modules modprobeList extraUtils dhcpHook udevRules udevHwdb;
 
     inherit (config.boot.initrd) postDeviceCommands;
+    inherit (config.boot.zfs) poolName poolLayout;
   };
 
   initialRamdisk = pkgs.makeInitrd {
