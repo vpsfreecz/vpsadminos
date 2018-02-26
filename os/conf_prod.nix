@@ -33,6 +33,8 @@
     '';
   };
 
+
+  boot.initrd.withHwSupport = true;
   boot.zfs.poolLayout = "mirror sda sdb";
 
   vpsadminos.nix = true;
