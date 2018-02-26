@@ -142,7 +142,6 @@ with lib;
       });
   in
   (lib.mkMerge [{
-    boot.supportedFilesystems = [ "zfs" ];
     environment.shellAliases = {
       ll = "ls -l";
     };

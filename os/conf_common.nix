@@ -8,6 +8,8 @@
   services.openssh.enable = lib.mkDefault true;
   vpsadminos.nix = lib.mkDefault true;
 
+  boot.initrd.supportedFilesystems = [ "zfs" ];
+
   environment.systemPackages = with pkgs; [
     less
     manpages
