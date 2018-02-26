@@ -29,7 +29,7 @@ module OsCtld
         value: param[:value],
       }])
 
-      groupable.set_cgparams(params)
+      groupable.set_cgparams(params, append: param[:append])
 
       if apply
         ret = apply(groupable)

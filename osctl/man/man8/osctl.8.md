@@ -631,6 +631,10 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   `devices` CGroup subsystem, where you may need to write to `devices.deny` and
   `devices.allow` multiple times.
 
+    `-a`, `--append`
+      Append new values, do not overwrite previously configured values for
+      *parameter*.
+
 `ct cgparams unset` *id* *parameter*
   Unset CGroup parameter *parameter* from container *id*. Value of the parameter
   is not changed, the parameter is merely removed from `osctld` config.
@@ -896,6 +900,10 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   to the parameter file one by one. This can be used for example for the
   `devices` CGroup subsystem, where you may need to write to `devices.deny` and
   `devices.allow` multiple times.
+
+    `-a`, `--append`
+      Append new values, do not overwrite previously configured values for
+      *parameter*.
 
 `group cgparams unset` *name* *parameter*
   Unset CGroup parameter *parameter* from group *name*. Value of the parameter

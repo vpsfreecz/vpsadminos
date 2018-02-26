@@ -60,7 +60,7 @@ module OsCtld
       end
     end
 
-    def set_cgparams(new_params, save: true)
+    def set_cgparams(new_params, append: false, save: true)
       exclusively do
         new_params.each do |new_p|
           replaced = false
@@ -68,6 +68,8 @@ module OsCtld
           cgparams.map! do |p|
             if p.subsystem == new_p.subsystem && p.name == new_p.name
               replaced = true
+
+              new_p.value = p.value + new_p.value if append
               new_p
 
             else

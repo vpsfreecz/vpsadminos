@@ -1047,6 +1047,9 @@ module OsCtl::Cli
         p.desc 'Configure parameters'
         p.arg_name '<name> <parameter> <value...>'
         p.command :set do |c|
+          c.desc 'Append new values, do not overwrite previous values'
+          c.switch %i(a append), negatable: false
+
           c.action &Command.run(handler, :cgparam_set)
         end
 

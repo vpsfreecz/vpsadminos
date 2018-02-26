@@ -81,10 +81,11 @@ module OsCtl
       cmd_opts.update({
         subsystem: parse_subsystem(args[1]),
         parameter: args[1],
-        value: args[2..-1].map { |v| parse_data(v) }
+        value: args[2..-1].map { |v| parse_data(v) },
+        append: opts[:append]
       })
 
-      osctld_fmt(cmd, cmd_opts,)
+      osctld_fmt(cmd, cmd_opts)
     end
 
     def do_cgparam_unset(cmd, cmd_opts)
