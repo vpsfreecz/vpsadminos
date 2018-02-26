@@ -173,9 +173,11 @@ with lib;
       ];
 
   in
+
   (lib.mkMerge [{
     environment.shellAliases = {
       ll = "ls -l";
+      vim = "vi";
     };
     environment.systemPackages = lib.optional config.vpsadminos.nix pkgs.nix;
     nixpkgs.config = {
