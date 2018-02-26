@@ -107,6 +107,10 @@ in
                 break
               fi
             done
+
+            stat="$( zpool status ${pool} )"
+            test $? && echo "$stat" | grep DEGRADED &> /dev/null && \
+              echo -e "\n\n[1;31m>>> Pool is DEGRADED!! <<<[0m"
             echo
         '') allPools));
       };
