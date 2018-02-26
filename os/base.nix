@@ -255,12 +255,20 @@ with lib;
 
     system.build.earlyMountScript = pkgs.writeScript "dummy" ''
     '';
+
     system.build.runvm = pkgs.writeScript "runner" ''
       #!${pkgs.stdenv.shell}
-      exec ${pkgs.qemu_kvm}/bin/qemu-kvm -name vpsadminos -m 10240 \
+      truncate -s1G sda.img
+      truncate -s1G sdb.img
+      exec ${pkgs.qemu_kvm}/bin/qemu-kvm -name vpsadminos -m 2048 \
         -drive index=0,id=drive1,file=${config.system.build.squashfs},readonly,media=cdrom,format=raw,if=virtio \
         -kernel ${config.system.build.kernel}/bzImage -initrd ${config.system.build.initialRamdisk}/initrd -nographic \
         -append "console=ttyS0 ${toString config.boot.kernelParams} quiet panic=-1" -no-reboot \
+        -device ahci,id=ahci \
+        -drive id=diskA,file=sda.img,if=none \
+        -drive id=diskB,file=sdb.img,if=none \
+        -device ide-drive,drive=diskA,bus=ahci.0 \
+        -device ide-drive,drive=diskB,bus=ahci.1 \
         -device virtio-net,netdev=net0 \
         -netdev user,id=net0,net=10.0.2.0/24,host=10.0.2.2,dns=10.0.2.3,hostfwd=tcp::2222-:22
     '';

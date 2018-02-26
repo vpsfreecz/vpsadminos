@@ -12,10 +12,11 @@ prod:
 	 -o result_prod \
 	 --cores 0 || exit 1
 
-# production build for local testing in QEMU
+# production build for local testing in QEMU (conf_prod_qemu.nix including conf_prod.nix)
 prod-local:
 	nix-build \
-	 --arg configuration "import ./conf_prod.nix" \
+	 --arg configuration "import ./conf_prod_qemu.nix" \
+	 -A config.system.build.runvm \
 	 --cores 0 || exit 1
 
 qemu-prod: prod-local

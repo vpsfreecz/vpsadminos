@@ -40,6 +40,10 @@ make
 make qemu
 ```
 
+QEMU runner creates two disk images - `sda.img` and `sdb.img` which are added
+as QEMU ATA drives and can be used to create a mirrored ZFS pool which persists
+across reboots.
+
 ## Building osctl/osctld
 osctl and osctld are installed as gems. By default, the gems are pushed
 and installed from <https://rubygems.vpsfree.cz>. Pushing requires
