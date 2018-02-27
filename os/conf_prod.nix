@@ -40,9 +40,14 @@
 
   vpsadminos.nix = true;
   environment.systemPackages = with pkgs; [
-    nvi
-    screen
+    dmidecode
     ipmicfg
+    lm_sensors
+    nvi
+    pciutils
+    screen
+    smartmontools
+    usbutils
   ];
 
   # to be able to include ipmicfg
