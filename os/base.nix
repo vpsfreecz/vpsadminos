@@ -23,8 +23,11 @@ with lib;
       type = types.bool;
       default = false;
     };
-    boot.initrd.withHwSupport = mkEnableOption "Include hardware support kernel modules in initrd (so e.g. zfs sees disks)";
-
+    boot.initrd.withHwSupport = mkOption {
+      type = types.bool;
+      default = true;
+      description = "Include hardware support kernel modules in initrd (so e.g. zfs sees disks)";
+    };
     hardware.firmware = mkOption {
       type = types.listOf types.package;
       default = [];

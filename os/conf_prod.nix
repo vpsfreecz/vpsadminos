@@ -35,7 +35,6 @@
 
 
   boot.kernelModules = [ "ipmi_si" "ipmi_devintf" ];
-  boot.initrd.withHwSupport = true;
   boot.zfs.poolLayout = "mirror sda sdb";
 
   vpsadminos.nix = true;
