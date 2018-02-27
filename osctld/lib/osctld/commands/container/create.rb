@@ -143,7 +143,7 @@ module OsCtld
       when :archive
         builder.create_root_dataset(offset: false)
         builder.setup_rootfs
-        builder.from_local_template(opts[:template])
+        builder.from_local_archive(opts[:template][:path])
 
       when :stream
         builder.create_root_dataset(offset: false)

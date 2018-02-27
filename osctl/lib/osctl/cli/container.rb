@@ -146,7 +146,7 @@ module OsCtl::Cli
         raise GLI::BadCommandLine,
               'provide either --template or one of --from-archive, --from-stream'
 
-      elsif opts['from-archive'] && opts['from-archive']
+      elsif opts['from-archive'] && opts['from-stream']
         raise GLI::BadCommandLine,
               'provide either --from-archive or --from-stream, not both'
       end
