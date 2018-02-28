@@ -286,19 +286,24 @@ with lib;
       echo "${builtins.unsafeDiscardStringContext (toString config.boot.kernelParams)}" > $out/command-line
     '';
 
-    system.build.toplevel = pkgs.runCommand "vpsadminos" {
-      activationScript = config.system.activationScripts.script;
-    } ''
-      mkdir $out
-      cp ${config.system.build.bootStage2} $out/init
-      substituteInPlace $out/init --subst-var-by systemConfig $out
-      ln -s ${config.system.path} $out/sw
-      ln -s ${config.system.modulesTree} $out/kernel-modules
-      echo "$activationScript" > $out/activate
-      substituteInPlace $out/activate --subst-var out
-      chmod u+x $out/activate
-      unset activationScript
-    '';
+    system.build.toplevel = let
+      name = let hn = config.networking.hostName;
+                 nn = if (hn != "") then hn else "unnamed";
+             in "vpsadminos-system-${nn}-${config.system.osLabel}";
+      in
+        pkgs.runCommand name {
+          activationScript = config.system.activationScripts.script;
+        } ''
+          mkdir $out
+          cp ${config.system.build.bootStage2} $out/init
+          substituteInPlace $out/init --subst-var-by systemConfig $out
+          ln -s ${config.system.path} $out/sw
+          ln -s ${config.system.modulesTree} $out/kernel-modules
+          echo "$activationScript" > $out/activate
+          substituteInPlace $out/activate --subst-var out
+          chmod u+x $out/activate
+          unset activationScript
+        '';
 
     system.build.squashfs = pkgs.callPackage <nixpkgs/nixos/lib/make-squashfs.nix> {
       storeContents = [ config.system.build.toplevel ];

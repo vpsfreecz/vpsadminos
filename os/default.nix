@@ -16,10 +16,11 @@ let
       ./stage-1.nix
       ./stage-2.nix
       ./runit.nix
-      ./modules/eudev.nix
       ./modules/bird.nix
+      ./modules/eudev.nix
       ./modules/tty.nix
       ./modules/zfs.nix
+      ./modules/version.nix
       (nixpkgs + "/nixos/modules/misc/extra-arguments.nix")
       (nixpkgs + "/nixos/modules/system/etc/etc.nix")
       (nixpkgs + "/nixos/modules/system/activation/activation-script.nix")
