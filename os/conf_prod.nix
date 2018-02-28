@@ -39,6 +39,8 @@
 
   vpsadminos.nix = true;
   environment.systemPackages = with pkgs; [
+    config.boot.kernelPackages.bcc
+    dstat
     dmidecode
     ipmicfg
     lm_sensors
