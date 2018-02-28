@@ -3,7 +3,8 @@
 # Common configuration
 
 {
-  imports = [ ];
+  # import local configuration (conf_local.nix) if it exists
+  imports = [ ] ++ lib.optionals (lib.pathExists ./conf_local.nix) [ ./conf_local.nix ];
   networking.hostName = lib.mkDefault "vpsadminos";
   services.openssh.enable = lib.mkDefault true;
   vpsadminos.nix = lib.mkDefault true;
@@ -23,7 +24,6 @@
   };
 
   users.extraUsers.root = {
-    openssh.authorizedKeys.keys = lib.mkDefault (with import ./ssh-keys.nix; [ aither snajpa snajpa_devel srk srk_devel ]);
     subUidRanges = [
         { startUid = 666000; count = 65536; }
       ];

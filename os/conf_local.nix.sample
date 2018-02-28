@@ -1,0 +1,7 @@
+{ config, pkgs, lib, ... }:
+
+{
+  users.extraUsers.root = {
+    openssh.authorizedKeys.keys = with import ./ssh-keys.nix; [ aither snajpa snajpa_devel srk srk_devel ];
+  };
+}
