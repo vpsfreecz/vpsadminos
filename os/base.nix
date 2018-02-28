@@ -19,10 +19,6 @@ with lib;
       type = types.bool;
       default = false;
     };
-    boot.loader.grub.zfsSupport = mkOption {
-      type = types.bool;
-      default = false;
-    };
     boot.initrd.withHwSupport = mkOption {
       type = types.bool;
       default = true;
