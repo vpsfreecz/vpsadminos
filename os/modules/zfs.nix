@@ -53,7 +53,8 @@ in
         description = ''
           Pool layout to pass to zpool create. Pool is not created automatically
           and this is only used as a hint in stage-1 handler allowing to run
-          creation manually.
+          creation manually. Pool can be created in either interactive shell
+          or after the system boots.
         '';
       };
 
