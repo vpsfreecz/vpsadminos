@@ -76,8 +76,16 @@ for o in $(cat /proc/cmdline); do
       sysconfig=$2
       ;;
     root=*)
+      # Use root device specified on the kernel command line
+      # Recognise LABEL= and UUID= to support UNetbootin.
       set -- $(IFS==; echo $o)
-      root=$2
+      if [ $2 = "LABEL" ]; then
+          root="/dev/disk/by-label/$3"
+      elif [ $2 = "UUID" ]; then
+          root="/dev/disk/by-uuid/$3"
+      else
+          root=$2
+      fi
       ;;
     netroot=*)
       set -- $(IFS==; echo $o)

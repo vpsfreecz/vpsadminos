@@ -35,6 +35,11 @@ with lib;
       default = true;
       description = "Include hardware support kernel modules in initrd (so e.g. zfs sees disks)";
     };
+    boot.loader.timeout = mkOption {
+      type = types.ints.positive;
+      default = 10;
+      description = "syslinux timeout in seconds (ISO only)";
+    };
     hardware.firmware = mkOption {
       type = types.listOf types.package;
       default = [];

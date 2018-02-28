@@ -19,14 +19,38 @@ prod-local:
 	 -A config.system.build.runvm \
 	 --cores 0 || exit 1
 
-qemu-prod: prod-local
-	./result
+# build iso image
+iso:
+	nix-build \
+	 --arg configuration "import ./conf_iso.nix" \
+	 -A config.system.build.isoImage \
+	 --cores 0 || exit 1
 
-deploy: prod
-	scp -r result_prod/* root@pxe:/srv/www/vpsadminos/
+# build iso image runner
+iso-local:
+	nix-build \
+	 --arg configuration "import ./conf_iso_qemu.nix" \
+	 -A config.system.build.runvm \
+	 --cores 0 || exit 1
 
 qemu: build
 	./result
+
+# boot conf_prod.nix configuration in qemu
+qemu-prod: prod-local
+	./result
+
+# boot ISO in qemu
+qemu-iso: iso-local
+	./result
+
+# flash ISO to /dev/disk/by-label/VPSADMINOS_BOOT_CD
+flash: iso
+	sudo dd if=result/iso/vpsadminos.iso of=/dev/disk/by-label/VPSADMINOS_BOOT_CD bs=1M
+
+# boot iso image in qemu
+deploy: prod
+	scp -r result_prod/* root@pxe:/srv/www/vpsadminos/
 
 test:
 	nix-build \
