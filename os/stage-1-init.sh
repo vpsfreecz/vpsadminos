@@ -95,9 +95,9 @@ echo "running udev..."
 mkdir -p /etc/udev
 ln -sfn @udevRules@ /etc/udev/rules.d
 ln -sfn @udevHwdb@ /etc/udev/hwdb.bin
-udevd --daemon
-udevadm trigger --action=add
-udevadm settle
+udevd --daemon --resolve-names=never
+udevadm trigger
+udevadm settle --timeout=30 || fail "udevadm settle timed-out"
 
 @postDeviceCommands@
 
