@@ -49,9 +49,6 @@
 
     Welcome to vpsAdminOS
 
-    Create a zpool:
-      dd if=/dev/zero of=/tank.zpool bs=1M count=4096 && zpool create tank /tank.zpool
-
     Configure osctld:
       osctl pool install tank
 
@@ -59,7 +56,7 @@
       osctl user new --ugid 5000 --offset 666000 --size 65536 myuser01
 
     Create a container:
-      osctl ct new --user myuser01 --distribution ubuntu --version 16.04 myct01
+      osctl ct new --user myuser01 --distribution alpine --version 3.7 myct01
 
     Configure container networking:
       osctl ct netif new routed --via 10.100.10.100/30 myct01 eth0
