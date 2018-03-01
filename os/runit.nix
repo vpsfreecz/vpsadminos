@@ -122,6 +122,9 @@ in
       mount -t securityfs securityfs /sys/kernel/security
       ${pkgs.apparmor-parser}/bin/apparmor_parser -rKv ${apparmor_paths} "${profile}"
 
+      # DebugFS
+      mount -t debugfs none /sys/kernel/debug/
+
       # Permission fixes
       chmod 777 /tmp
 
