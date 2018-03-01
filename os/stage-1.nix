@@ -5,6 +5,7 @@ let
   modules = pkgs.makeModulesClosure {
     rootModules = config.boot.initrd.availableKernelModules ++ config.boot.initrd.kernelModules;
     kernel = modulesTree;
+    allowMissing = true;
   };
   dhcpcd = pkgs.dhcpcd.override { udev = null; };
   extraUtils = pkgs.runCommandCC "extra-utils"
