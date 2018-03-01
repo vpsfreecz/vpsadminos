@@ -74,7 +74,8 @@ in
     nixpkgsRevision = mkOption {
       internal = true;
       type = types.str;
-      default = lib.substring 0 7 (commitIdFromGitRepo nixpkgsRepo);
+      default = if pathIsDirectory nixpkgsRepo then lib.substring 0 7 (commitIdFromGitRepo nixpkgsRepo)
+                else "master";
       description = "The nixpkgs Git revision from which this vpsAdminOS configuration was built.";
     };
 
