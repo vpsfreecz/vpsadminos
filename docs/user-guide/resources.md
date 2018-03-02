@@ -1,6 +1,6 @@
 # Resource management
 A container's CPU and memory usage, IO throttling, network priorities
-and access to devices are managed using CGroups. Number of processes or open
+and access to devices is managed using CGroups. Number of processes or open
 files can be set using process resource limits, as described in man
 setrlimit(2).
 
@@ -80,7 +80,7 @@ and place it in the new group:
 osctl ct new \
              --user myuser01 \
              --group mygroup01 \
-             --template ubuntu-16.04-x86_64-vpsfree.tar.gz \
+             --distribution ubuntu --version 16.04 \
              myct02
 ```
 

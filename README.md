@@ -14,7 +14,7 @@ and a squashfs root while reusing packages and some modules from
 
 ## Technologies
 
-- Vanilla kernel (currently 4.14)
+- Vanilla kernel
 - AppArmor
 - LXC, LXCFS
 - CRIU

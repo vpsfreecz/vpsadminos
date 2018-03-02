@@ -7,12 +7,13 @@ you can use template from a file on your local file system.
 
 Without any configuration, you'll be able to use templates from the *default*
 repository. These templates are built using
-[build-vpsfree-templates](https://github.com/vpsfreecz/build-vpsfree-templates)
+[vpsadminos-templates](https://github.com/vpsfreecz/build-vpsfree-templates/tree/vpsadminos)
 scripts and are used in production at [vpsFree.cz](https://vpsfree.org),
 Alternatively, you can use templates from OpenVZ Legacy or LXC, they should be
 fully compatible, unless there are some hacks for specific environments.
 
-Let's create a container using a template from the *default* repository:
+Let's create a container using a template from the
+[default repository](https://templates.vpsadminos.org):
 
 ```bash
 osctl ct new --user myuser01 --distribution ubuntu --version 16.04 myct01

@@ -20,14 +20,14 @@ When the zpool is ready, let *osctld* use it:
 osctl pool install tank
 ```
 
-`pool install` will mark the pool so that *osctld* will always import it on start.
-It works by settings a custom user property called `org.vpsadminos.osctl:active`
-to `yes`. All configuration is stored on installed zpools, the rest
-of the system does not have to be persistent between reboots.
-`osctl pool install` will also automatically import the pool into *osctld*.
+`osctl pool install` will mark the pool so that *osctld* will always import it
+on start. It works by settings a custom user property called
+`org.vpsadminos.osctl:active` to `yes`. All configuration and data is stored on
+installed zpools, the rest of the system does not have to be persistent between
+reboots. `osctl pool install` will also automatically import the pool into *osctld*.
 
-*osctld* will create several datasets and will generally assume the zpool is
-not using anyone else. If you'd like, it is possible to scope *osctld* to
+*osctld* will create several datasets and will generally assume that no one else
+is using the zpool. If you'd like, it is possible to scope *osctld* to
 a subdataset on your zpool, so that it will ignore all datasets above its own.
 The following command will scope *osctld* to dataset `tank/data/osctld`:
 
