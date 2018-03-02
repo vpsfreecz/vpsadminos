@@ -104,6 +104,8 @@ module OsCtld
     # @option tpl [String] :distribution
     # @option tpl [String] :version
     def from_repo_template(repo, tpl)
+      progress('Fetching and applying template')
+
       created = %i(from_repo_stream from_repo_archive).detect do |m|
         method(m).call(repo, tpl)
       end
@@ -184,6 +186,8 @@ module OsCtld
     end
 
     def from_stream(ds = nil)
+      progress('Writing template stream')
+
       IO.popen("exec zfs recv -F #{ds || ct.dataset}", 'r+') do |io|
         yield(io)
       end
