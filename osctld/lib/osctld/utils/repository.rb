@@ -38,6 +38,9 @@ module OsCtld
       when OsCtl::Repo::EXIT_OK
         JSON.parse(data, symbolize_names: true).map { |v| Repository::Template.new(v) }
 
+      when OsCtl::Repo::EXIT_HTTP_ERROR, OsCtl::Repo::EXIT_NETWORK_ERROR
+        raise TemplateRepositoryUnavailable
+
       else
         fail "osctl-repo remote ls failed with exit status #{$?.exitstatus}"
       end
@@ -77,6 +80,9 @@ module OsCtld
 
       when OsCtl::Repo::EXIT_TEMPLATE_NOT_FOUND
         raise TemplateNotFound
+
+      when OsCtl::Repo::EXIT_HTTP_ERROR, OsCtl::Repo::EXIT_NETWORK_ERROR
+        raise TemplateRepositoryUnavailable
 
       else
         fail "osctl-repo remote get failed with exit status #{$?.exitstatus}"

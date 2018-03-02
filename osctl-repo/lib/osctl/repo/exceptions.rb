@@ -17,5 +17,11 @@ module OsCtl
         super("HTTP server returned #{code}")
       end
     end
+
+    class NetworkError < StandardError
+      def initialize(exception)
+        super(exception.message)
+      end
+    end
   end
 end

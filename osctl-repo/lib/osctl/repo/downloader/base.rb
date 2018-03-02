@@ -14,6 +14,9 @@ module OsCtl::Repo
       http = Net::HTTP.new(uri.host, uri.port)
       http.use_ssl = (uri.scheme == 'https')
       http.start { |http| yield(http) }
+
+    rescue SystemCallError => e
+      raise NetworkError, e
     end
 
     def index_uri

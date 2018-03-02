@@ -205,6 +205,10 @@ module OsCtld
 
         rescue TemplateNotFound
           next
+
+        rescue TemplateRepositoryUnavailable
+          progress("Repository #{repo.name} is unreachable")
+          next
         end
 
         true

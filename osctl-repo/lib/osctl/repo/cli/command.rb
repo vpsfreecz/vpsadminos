@@ -24,6 +24,12 @@ module OsCtl::Repo::Cli
             "Unexpected HTTP error: #{e.message}",
             OsCtl::Repo::EXIT_HTTP_ERROR
           )
+
+        rescue OsCtl::Repo::NetworkError => e
+          raise GLI::CustomExit.new(
+            "Unexpected network error: #{e.message}",
+            OsCtl::Repo::EXIT_NETWORK_ERROR
+          )
         end
       end
     end
