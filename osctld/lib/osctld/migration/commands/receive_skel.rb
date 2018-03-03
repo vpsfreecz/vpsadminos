@@ -26,12 +26,21 @@ module OsCtld
         error!("container #{pool.name}:#{data['container']} already exists")
       end
 
-      ct = importer.load_ct(ct_opts: {staged: true})
+      ct = importer.load_ct(ct_opts: {staged: true, devices: false})
       builder = Container::Builder.new(ct, cmd: self)
 
       unless builder.valid?
         error!("invalid id, allowed format: #{builder.id_chars}")
       end
+
+      begin
+        ct.devices.check_all_available!
+
+      rescue DeviceNotAvailable, DeviceModeInsufficient => e
+        error!(e.message)
+      end
+
+      ct.devices.init(mknod: false)
 
       importer.create_datasets(builder)
       builder.setup_ct_dir

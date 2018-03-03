@@ -3,7 +3,6 @@ require 'yaml'
 module OsCtld
   class Container
     include Lockable
-    include CGroup::Params
     include Assets::Definition
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
@@ -16,7 +15,7 @@ module OsCtld
 
     attr_reader :pool, :id, :user, :dataset, :group, :distribution, :version,
       :arch, :autostart, :hostname, :dns_resolvers, :nesting, :prlimits, :mounts,
-      :migration_log
+      :migration_log, :cgparams, :devices
     attr_accessor :state, :init_pid
 
     # @param pool [Pool]
@@ -28,6 +27,7 @@ module OsCtld
     # @option opts [Boolean] load load config
     # @option opts [String] load_from load from this string instead of config file
     # @option opts [Boolean] staged create a staged container
+    # @option opts [Boolean] devices determines whether devices are initialized
     def initialize(pool, id, user = nil, group = nil, dataset = nil, opts = {})
       init_lock
 
@@ -40,7 +40,8 @@ module OsCtld
       @dataset = dataset
       @state = opts[:staged] ? :staged : :unknown
       @init_pid = nil
-      @cgparams = []
+      @cgparams = nil
+      @devices = nil
       @prlimits = []
       @mounts = []
       @hostname = nil
@@ -48,6 +49,7 @@ module OsCtld
       @nesting = false
 
       load_config(opts[:load_from]) if opts[:load]
+      devices.init if devices && (!opts.has_key?(:devices) || opts[:devices])
     end
 
     def ident
@@ -60,6 +62,9 @@ module OsCtld
       @arch = arch
       @netifs = []
       @nesting = false
+      @cgparams = CGroup::Params.new(self)
+      @devices = Devices::ContainerManager.new(self)
+      devices.init
       save_config
     end
 
@@ -449,7 +454,8 @@ module OsCtld
         'version' => version,
         'arch' => arch,
         'net_interfaces' => @netifs.map { |v| v.save },
-        'cgparams' => dump_cgparams(cgparams),
+        'cgparams' => cgparams.dump,
+        'devices' => devices.dump,
         'prlimits' => prlimits.map(&:dump),
         'mounts' => mounts.map(&:dump),
         'autostart' => autostart && autostart.dump,
@@ -514,7 +520,8 @@ module OsCtld
         netif
       end
 
-      @cgparams = load_cgparams(cfg['cgparams'])
+      @cgparams = CGroup::Params.load(self, cfg['cgparams'])
+      @devices = Devices::ContainerManager.load(self, cfg['devices'] || [])
       @prlimits = (cfg['prlimits'] || []).map { |v| PrLimit.load(v) }
       @mounts = (cfg['mounts'] || []).map { |v| Mount.load(self, v) }
     end

@@ -10,7 +10,7 @@ module OsCtld
 
       # CGroups
       chowned = [
-        'freezer', 'cpu,cpuacct', 'net_cls', 'net_cls,net_prio', 'systemd'
+        'freezer', 'cpu,cpuacct', 'net_cls', 'net_cls,net_prio', 'systemd',
       ]
 
       CGroup.subsystems.each do |subsys|

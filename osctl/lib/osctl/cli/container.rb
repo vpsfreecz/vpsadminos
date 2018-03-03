@@ -5,6 +5,7 @@ require 'tempfile'
 module OsCtl::Cli
   class Container < Command
     include CGroupParams
+    include Devices
     include Assets
 
     FIELDS = %i(
@@ -431,7 +432,7 @@ module OsCtl::Cli
 
       cmd_opts = {file: file}
 
-      %w(as-id as-user as-group dataset).each do |v|
+      %w(as-id as-user as-group dataset missing-devices).each do |v|
         cmd_opts[v.sub('-', '_').to_sym] = opts[v] if opts[v]
       end
 
@@ -533,6 +534,46 @@ module OsCtl::Cli
     def cgparam_apply
       require_args!('id')
       do_cgparam_apply(:ct_cgparam_apply, id: args[0], pool: gopts[:pool])
+    end
+
+    def device_list
+      require_args!('id')
+      do_device_list(:ct_device_list, id: args[0], pool: gopts[:pool])
+    end
+
+    def device_add
+      require_args!('id', 'type', 'major', 'minor', 'mode')
+      do_device_add(:ct_device_add, id: args[0], pool: gopts[:pool])
+    end
+
+    def device_delete
+      require_args!('id', 'type', 'major', 'minor')
+      do_device_delete(:ct_device_delete, id: args[0], pool: gopts[:pool])
+    end
+
+    def device_chmod
+      require_args!('id', 'type', 'major', 'minor', 'mode')
+      do_device_chmod(:ct_device_chmod, id: args[0], pool: gopts[:pool])
+    end
+
+    def device_promote
+      require_args!('id', 'type', 'major', 'minor')
+      do_device_chmod(:ct_device_promote, id: args[0], pool: gopts[:pool])
+    end
+
+    def device_inherit
+      require_args!('id', 'type', 'major', 'minor')
+      do_device_inherit(:ct_device_inherit, id: args[0], pool: gopts[:pool])
+    end
+
+    def device_set_inherit
+      require_args!('id', 'type', 'major', 'minor')
+      do_device_set_inherit(:ct_device_set_inherit, id: args[0], pool: gopts[:pool])
+    end
+
+    def device_unset_inherit
+      require_args!('id', 'type', 'major', 'minor')
+      do_device_unset_inherit(:ct_device_unset_inherit, id: args[0], pool: gopts[:pool])
     end
 
     def prlimit_list

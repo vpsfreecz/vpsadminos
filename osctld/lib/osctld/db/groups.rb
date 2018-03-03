@@ -18,36 +18,59 @@ module OsCtld
       root, created = load_or_create(pool, 'root', 'osctl')
 
       if created
-        root.set_cgparams(root.import_cgparams([
-          {
-            subsystem: 'devices',
-            parameter: 'devices.deny',
-            value: ['a'],
-          },
-          {
-            subsystem: 'devices',
-            parameter: 'devices.allow',
-            value: [
-              'c 1:3 rwm',    # /dev/null
-              'c 1:5 rwm',    # /dev/zero
-              'c 1:7 rwm',    # /dev/full
-              'c 1:8 rwm',    # /dev/random
-              'c 1:9 rwm',    # /dev/urandom
-              'c 5:0 rwm',    # /dev/tty
-              'c 5:1 rwm',    # /dev/console
-              'c 5:2 rwm',    # /dev/ptmx
-              'c 10:229 rwm', # /dev/fuse
-              'c 136:* rwm',  # /dev/tty*, /dev/console
-            ],
-          },
-        ]))
-      end
+        root.devices.init
 
-      # The devices in the root group have to be configured as soon as possible,
-      # because `echo a > devices.deny` will not work when the root cgroup has
-      # any children.
-      CGroup.mkpath('devices', root.path.split('/'))
-      Commands::Group::CGParamApply.run(name: root.name)
+        root.devices.add_new(
+          :char, 1, 3, 'rwm',
+          name: '/dev/null',
+          inherit: true,
+        )
+        root.devices.add_new(
+          :char, 1, 5, 'rwm',
+          name: '/dev/zero',
+          inherit: true,
+        )
+        root.devices.add_new(
+          :char, 1, 7, 'rwm',
+          name: '/dev/full',
+          inherit: true,
+        )
+        root.devices.add_new(
+          :char, 1, 8, 'rwm',
+          name: '/dev/random',
+          inherit: true,
+        )
+        root.devices.add_new(
+          :char, 1, 9, 'rwm',
+          name: '/dev/urandom',
+          inherit: true,
+        )
+        root.devices.add_new(
+          :char, 5, 0, 'rwm',
+          name: '/dev/tty',
+          inherit: true,
+        )
+        root.devices.add_new(
+          :char, 5, 1, 'rwm',
+        #  name: '/dev/console', # setup by lxc
+          inherit: true,
+        )
+        root.devices.add_new(
+          :char, 5, 2, 'rwm',
+        #  name: '/dev/ptmx', # setup by lxc
+          inherit: true,
+        )
+        root.devices.add_new(
+          :char, 136, :all, 'rwm',
+        #  name: '/dev/tty*', # setup by lxc
+          inherit: true,
+        )
+        root.devices.apply
+        root.save_config
+
+      else
+        root.devices.init
+      end
 
       load_or_create(pool, 'default', 'default')
     end
@@ -91,11 +114,11 @@ module OsCtld
       created = false
 
       begin
-        grp = Group.new(pool, name, root: root)
+        grp = Group.new(pool, name, root: root, devices: false)
 
       rescue Errno::ENOENT
         grp = Group.new(pool, name, load: false, root: root)
-        grp.configure(path)
+        grp.configure(path, [], devices: false)
         created = true
       end
 

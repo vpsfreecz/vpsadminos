@@ -1,19 +1,20 @@
 module OsCtld
   module Utils::CGroupParams
+    # @param groupable [Group, Container]
     def list(groupable)
       ret = []
       is_ct = groupable.is_a?(Container)
 
       if opts[:all]
         if is_ct
-          path = groupable.group.path
+          groupable.group.groups_in_path.each do |g|
+            ret.concat(info(g))
+          end
 
         else
-          path = groupable.path
-        end
-
-        each_group_in(groupable.pool, path) do |g|
-          ret.concat(info(g))
+          groupable.groups_in_path.each do |g|
+            ret.concat(info(g))
+          end
         end
       end
 
@@ -23,13 +24,13 @@ module OsCtld
     end
 
     def set(groupable, param, apply: true)
-      params = groupable.import_cgparams([{
+      params = groupable.cgparams.import([{
         subsystem: param[:subsystem],
         parameter: param[:parameter],
         value: param[:value],
       }])
 
-      groupable.set_cgparams(params, append: param[:append])
+      groupable.cgparams.set(params, append: param[:append])
 
       if apply
         ret = apply(groupable)
@@ -43,7 +44,7 @@ module OsCtld
     end
 
     def unset(groupable, param)
-      groupable.unset_cgparams([{
+      groupable.cgparams.unset([{
         subsystem: param[:subsystem],
         parameter: param[:parameter],
       }])
@@ -52,56 +53,14 @@ module OsCtld
     end
 
     def apply(groupable, force: true)
-      groupable.cgparams.each do |p|
-        path = File.join(groupable.abs_cgroup_path(p.subsystem), p.name)
-
-        if File.exist?(path)
-          p.value.each do |v|
-            log(:info, :cgroup, "Set #{path}=#{v}")
-
-            begin
-              File.write(path, v.to_s)
-
-            rescue => e
-              log(
-                :warn,
-                :cgroup,
-                "Unable to set #{path}=#{v}: #{e.message}"
-              )
-            end
-          end
-
-          next
-        end
-
-        fail "Unable to set #{path}=#{p.value}: parameter not found" if force
-        log(
-          :info,
-          :cgroup,
-          "Skip #{path}, group does not exist and no container is running"
-        )
+      groupable.cgparams.apply(keep_going: force) do |subsystem|
+        groupable.abs_cgroup_path(subsystem)
       end
 
       ok
     end
 
     protected
-    def each_group_in(pool, path)
-      yield(DB::Groups.root(pool))
-
-      t = ''
-
-      path.split('/').each do |name|
-        t = File.join(t, name)
-        t = t[1..-1] if t.start_with?('/')
-
-        g = DB::Groups.by_path(pool, t)
-        next if g.nil? || g.root?
-
-        yield(g)
-      end
-    end
-
     def info(groupable)
       ret = []
 

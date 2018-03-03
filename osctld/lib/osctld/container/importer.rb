@@ -60,7 +60,8 @@ module OsCtld
       Group.new(
         pool,
         metadata['group'],
-        config: tar.seek('config/group.yml') { |entry| entry.read }
+        config: tar.seek('config/group.yml') { |entry| entry.read },
+        devices: false
       )
     end
 

@@ -511,6 +511,14 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Use a custom dataset for the container's rootfs. The dataset and all its
       parents are created, if it doesn't already exist.
 
+    `--missing-devices` `check`|`provide`|`remove`
+      The imported container may require access to devices that are not configured
+      on this system. This option determines how should `osctld` treat those missing
+      devices. `check` means that if a missing device is found, an error is returned
+      and the import is aborted. `provide` will add missing devices to all parent
+      groups and ensure sufficient access mode. `remove` will remove all unconfigured
+      devices from the container. The default mode is `check`.
+
 `ct migrate stage` [*options*] *id* *destination*
   Stage migration of container *id* to *destination*. *destination* is a host
   name or an IP address of another vpsAdminOS node. The container's user, group
@@ -642,6 +650,75 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 `ct cgparams apply` *id*
   Apply all CGroup parameters defined for container *id*, its group and all
   its parent groups, all the way up to the root group.
+
+`ct devices ls` [*options*] *id*
+  List configured devices.
+
+    `-H`, `--hide-header`
+      Do not show header, useful for scripts.
+
+    `-L`, `--list`
+      List available parameters and exit.
+
+    `-o`, `--output` *parameters*
+      Select parameters to output, comma separated. Defaults to a selected
+      subset of available parameters.
+
+`ct devices add` [*options*] *id* `block`|`char` *major* *minor* *mode* [*device*]
+  Allow container *id* to use `block`/`char` device identified by the *major*
+  and *minor* numbers, see mknod(1) for more information. *mode* determines
+  what is the container allowed to do: `r` to read, `w` to write, `m` to call
+  `mknod`. For now, unprivileged containers cannot call `mknod`, so allowing it
+  here doesn't do anything.
+
+  If *device* is provided, `osctld` will prepare the device node within the
+  container's `/dev` during every container start.
+
+  Devices added in this way are always promoted, see `ct devices promote`.
+
+    `-p`, `--[no-]parents`
+      The device that is being added has to be provided by all parent groups,
+      up to the *root* group. When this switch is enabled, `osctld` will add
+      the device to all parent groups that do not already have it.
+
+`ct devices del` *id* `block`|`char` *major* *minor*
+  Forbid the container to use specified device and remove its device node, if it
+  exists.
+
+`ct devices chmod` [*options*] *id* `block`|`char` *major* *minor* *mode*
+  Change the access mode of the specified device to *mode*. The mode can be
+  changed only if the container's group provides the device with all necessary
+  access modes, or `-p`, `--parents` is used.
+
+  If the device was inherited, it is promoted to a standalone device and saved
+  into the config file with the modified access mode.
+
+    `-p`, `--parents`
+       Ensure that all parent groups provide the device with the required
+       access mode. Parents that do not provide correct access modes are updated.
+
+`ct devices promote` *id* `block`|`char` *major* *minor*
+  Promoting a device will ensure that parent groups will have to provide it,
+  it is a declaration of an explicit requirement. It will no longer be possible
+  to remove the device from parent groups, without explicitly removing it from
+  the container as well, e.g. using `group devices del -r`.
+
+  Promoted devices are also exported together with the container, and on import,
+  the target vpsAdminOS has to provide these devices as well, or forcefully
+  remove them, see `ct export` and `ct import`.
+
+  When migrating containers with promoted devices, the target node has to
+  provide those devices, otherwise the migration process will fail in the first
+  step, i.e. `ct migrate stage`.
+
+`ct devices inherit` *id* `block`|`char` *major* *minor*
+  Inherit the device from the parent group. This removes the explicit requirement
+  on the pecified device, i.e. reverses `ct devices promote`. The access mode,
+  if different from the group, will revert to the acess mode defined by the
+  parent group.
+
+  Note that if the parent group does not have the device set as inheritable,
+  it will be removed from the container.
 
 `ct prlimits ls` *id* [*limits...*]
   List configured resource limits. If no *limits* are provided, all configured
@@ -912,6 +989,90 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 `group cgparams apply` *name*
   Apply all CGroup parameters defined for group *name* and all its parent
   groups, all the way up to the root group.
+
+`group devices ls` [*options*] *id*
+  List configured devices.
+
+    `-H`, `--hide-header`
+      Do not show header, useful for scripts.
+
+    `-L`, `--list`
+      List available parameters and exit.
+
+    `-o`, `--output` *parameters*
+      Select parameters to output, comma separated. Defaults to a selected
+      subset of available parameters.
+
+`group devices add` [*options*] *id* `block`|`char` *major* *minor* *mode* [*device*]
+  Allow container *id* to use `block`/`char` device identified by the *major*
+  and *minor* numbers, see mknod(1) for more information. *mode* determines
+  what is the container allowed to do: `r` to read, `w` to write, `m` to call
+  `mknod`. For now, unprivileged containers cannot call `mknod`, so allowing it
+  here doesn't do anything.
+
+  If *device* is provided, `osctld` will prepare the device node within the
+  container's `/dev` during every container start.
+
+    `-i`, `--[no-]inherit`
+      Determines whether child groups and containers should inherit the device,
+      i.e. be allowed to use it with the same access *mode*.
+
+    `-p`, `--[no-]parents`
+      The device that is being added has to be provided by all parent groups,
+      up to the *root* group. When this switch is enabled, `osctld` will add
+      the device to all parent groups that do not already have it.
+
+`group devices del` *id* `block`|`char` *major* *minor*
+  Forbid the container to use specified device and remove its device node, if it
+  exists. If the device is used by any descendant groups or containers, it can be
+  deleted only with the `-r`, `--recursive` switch.
+
+    `-r`, `--recursive`
+      Delete the device from all child groups and containers.
+
+`group devices chmod` [*options*] *id* `block`|`char` *major* *minor* *mode*
+  Change the access mode of the specified device to *mode*. The mode can be
+  changed only if all parent groups provide the device with all necessary
+  access modes and if no child group or container has broader access mode
+  requirements. Use `-p`, `--parents` or `-r`, `--recursive` to override
+  parent or child groups and containers.
+
+  If the device was inherited, it is promoted to a standalone device and saved
+  into the config file with the modified access mode.
+
+    `-p`, `--parents`
+      Ensure that all parent groups provide the device with the required
+      access mode. Parent groups that do not provide correct access modes
+      are updated and the missing access modes are set.
+
+    `-r`, `--recursive`
+      Change the access mode of all child groups and containers.
+
+`group devices promote` *name* `block`|`char` *major* *minor*
+  Promoting a device will ensure that parent groups will have to provide it,
+  it is a declaration of an explicit requirement. It will no longer be possible
+  to remove the device from parent groups, without explicitly removing it from
+  this group as well, e.g. using `group devices del -r`.
+
+`group devices inherit` *name* `block`|`char` *major* *minor*
+  Inherit the device from the parent group. This removes the explicit requirement
+  on the pecified device, i.e. reverses `ct devices promote`. The access mode,
+  if different from the parent, will revert to the acess mode defined by the
+  parent group.
+
+  Note that if the parent group does not have the device set as inheritable,
+  the device will be removed. This command cannot be used for the `root` group,
+  as it has no parent to inherit from.
+
+`group devices set inherit` *name* `block`|`char` *major* *minor*
+  Set specified device as inheritable. Child groups and container will inherit
+  this device immediately.
+
+`group devices unset inherit` *name* `block`|`char` *major* *minor*
+  Prevent the specified device from being automatically inherited by child
+  groups and containers. The device is immediately removed from all child groups
+  and containers, that have previously inherited it. Promoted devices are left
+  alone.
 
 `group assets` [*options*] *name*
   List group's assets (datasets, files, directories) and their state.

@@ -1,5 +1,7 @@
 module OsCtld
   module CGroup
+    include OsCtl::Lib::Utils::Log
+
     FS = '/sys/fs/cgroup'
 
     # Convert a single subsystem name to the mountpoint name, because some
@@ -58,6 +60,25 @@ module OsCtld
           File.open(tasks_path, 'a') do |f|
             f.write("#{Process.pid}\n")
           end
+        end
+      end
+    end
+
+    def self.set_param(path, value)
+      raise CGroupFileNotFound.new(path, value) unless File.exist?(path)
+
+      value.each do |v|
+        log(:info, :cgroup, "Set #{path}=#{v}")
+
+        begin
+          File.write(path, v.to_s)
+
+        rescue => e
+          log(
+            :warn,
+            :cgroup,
+            "Unable to set #{path}=#{v}: #{e.message}"
+          )
         end
       end
     end

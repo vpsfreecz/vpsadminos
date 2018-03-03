@@ -1,6 +1,7 @@
 require 'gli'
 require 'thread'
 require_relative 'cgroup_params'
+require_relative 'devices'
 require_relative 'assets'
 require_relative 'container'
 require_relative 'event'
@@ -266,6 +267,7 @@ module OsCtl::Cli
         assets(grp, Group)
 
         cg_params(grp, Group)
+        devices(grp, Group)
       end
 
       desc 'Manage containers'
@@ -541,6 +543,9 @@ module OsCtl::Cli
           c.desc 'Use a custom dataset for the rootfs'
           c.flag :dataset
 
+          c.desc 'Provide or remove missing devices'
+          c.flag 'missing-devices', must_match: %w(provide remove check)
+
           c.action &Command.run(Container, :import)
         end
 
@@ -729,6 +734,7 @@ module OsCtl::Cli
         end
 
         cg_params(ct, Container)
+        devices(ct, Container)
 
         ct.desc 'Manage resource limits'
         ct.command :prlimits do |pr|
@@ -1063,6 +1069,89 @@ module OsCtl::Cli
         p.arg_name '<name>'
         p.command :apply do |c|
           c.action &Command.run(handler, :cgparam_apply)
+        end
+      end
+    end
+
+    def devices(cmd, handler)
+      cmd.desc 'Manage devices'
+      cmd.command :devices do |dev|
+        dev.desc 'List allowed devices'
+        dev.arg_name '<name>'
+        dev.command %i(ls list) do |c|
+          c.desc 'Select parameters to output'
+          c.flag %i(o output)
+
+          c.desc 'Do not show header'
+          c.switch %i(H hide-header), negatable: false
+
+          c.desc 'List available parameters'
+          c.switch %i(L list), negatable: false
+
+          c.action &Command.run(handler, :device_list)
+        end
+
+        dev.desc 'Grant access to device'
+        dev.arg_name '<name> block|char <major> <minor> <mode> [device]'
+        dev.command :add do |c|
+          c.desc 'Should subgroups and containers inherit the device?'
+          c.switch %i(i inherit), default_value: true
+
+          c.desc 'Grant access to the device to all parent groups'
+          c.switch %i(p parents)
+
+          c.action &Command.run(handler, :device_add)
+        end
+
+        dev.desc 'Revoke access to device'
+        dev.arg_name '<name> block|char <major> <minor>'
+        dev.command %i(del delete) do |c|
+          c.desc 'Remove device from all child groups and containers'
+          c.switch %i(r recursive), negatable: false
+
+          c.action &Command.run(handler, :device_delete)
+        end
+
+        dev.desc 'Change device access mode'
+        dev.arg_name '<name> block|char <major> <minor> <mode>|-'
+        dev.command :chmod do |c|
+          c.desc "Extend the parents' device access if necessary"
+          c.switch %i(p parents)
+
+          c.desc 'Change device access mode in all child groups and containers that use it'
+          c.switch %i(r recursive), negatable: false
+
+          c.action &Command.run(handler, :device_chmod)
+        end
+
+        dev.desc 'Promote an inherited device, declaring an explicit requirement'
+        dev.arg_name '<name> block|char <major> <minor>'
+        dev.command :promote do |c|
+          c.action &Command.run(handler, :device_promote)
+        end
+
+        dev.desc 'Inherit a promoted device'
+        dev.arg_name '<name> block|char <major> <minor>'
+        dev.command :inherit do |c|
+          c.action &Command.run(handler, :device_inherit)
+        end
+
+        dev.desc 'Set inheritance'
+        dev.command :set do |set|
+          set.desc 'Let child groups and containers inherit specified device'
+          set.arg_name '<name> block|char <major> <minor>'
+          set.command :inherit do |c|
+            c.action &Command.run(handler, :device_set_inherit)
+          end
+        end
+
+        dev.desc 'Unset inheritance'
+        dev.command :unset do |unset|
+          unset.desc 'Prevent child groups and containers from inheriting specified device'
+          unset.arg_name '<name> block|char <major> <minor>'
+          unset.command :inherit do |c|
+            c.action &Command.run(handler, :device_unset_inherit)
+          end
         end
       end
     end

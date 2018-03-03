@@ -16,6 +16,7 @@ module OsCtld
     module User ; end
   end
   module DB ; end
+  module Devices ; end
   module Generic ; end
   module Routing ; end
   module Utils ; end
@@ -57,6 +58,7 @@ require_relative 'osctld/run_state'
 require_relative 'osctld/utils/switch_user'
 require_relative 'osctld/utils/ip'
 require_relative 'osctld/utils/cgroup_params'
+require_relative 'osctld/utils/devices'
 require_relative 'osctld/utils/assets'
 require_relative 'osctld/utils/repository'
 require_relative 'osctld/event'
@@ -67,7 +69,13 @@ require_relative 'osctld/generic/client_handler'
 require_relative 'osctld/user_control/supervisor'
 require_relative 'osctld/user_control'
 require_relative 'osctld/cgroup'
+require_relative 'osctld/cgroup/param'
 require_relative 'osctld/cgroup/params'
+require_relative 'osctld/devices/mode'
+require_relative 'osctld/devices/device'
+require_relative 'osctld/devices/manager'
+require_relative 'osctld/devices/group_manager'
+require_relative 'osctld/devices/container_manager'
 require_relative 'osctld/prlimit'
 require_relative 'osctld/mount'
 require_relative 'osctld/command'

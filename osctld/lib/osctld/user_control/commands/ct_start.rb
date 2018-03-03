@@ -13,6 +13,12 @@ module OsCtld
       ret = call_cmd(Commands::Container::CGParamApply, id: ct.id, pool: ct.pool.name)
       return ret unless ret[:status]
 
+      # Configure devices cgroup
+      ct.devices.apply
+
+      # Create device nodes
+      DistConfig.run(ct, :create_devnodes)
+
       # Configure hostname
       DistConfig.run(ct, :set_hostname) if ct.hostname
 

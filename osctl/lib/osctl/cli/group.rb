@@ -1,6 +1,7 @@
 module OsCtl::Cli
   class Group < Command
     include CGroupParams
+    include Devices
     include Assets
 
     FIELDS = %i(
@@ -121,6 +122,46 @@ module OsCtl::Cli
     def cgparam_apply
       require_args!('name')
       do_cgparam_apply(:group_cgparam_apply, name: args[0], pool: gopts[:pool])
+    end
+
+    def device_list
+      require_args!('name')
+      do_device_list(:group_device_list, name: args[0], pool: gopts[:pool])
+    end
+
+    def device_add
+      require_args!('name', 'type', 'major', 'minor', 'mode')
+      do_device_add(:group_device_add, name: args[0], pool: gopts[:pool])
+    end
+
+    def device_delete
+      require_args!('name', 'type', 'major', 'minor')
+      do_device_delete(:group_device_delete, name: args[0], pool: gopts[:pool])
+    end
+
+    def device_chmod
+      require_args!('name', 'type', 'major', 'minor', 'mode')
+      do_device_chmod(:group_device_chmod, name: args[0], pool: gopts[:pool])
+    end
+
+    def device_promote
+      require_args!('name', 'type', 'major', 'minor')
+      do_device_chmod(:group_device_promote, name: args[0], pool: gopts[:pool])
+    end
+
+    def device_inherit
+      require_args!('name', 'type', 'major', 'minor')
+      do_device_inherit(:group_device_inherit, name: args[0], pool: gopts[:pool])
+    end
+
+    def device_set_inherit
+      require_args!('name', 'type', 'major', 'minor')
+      do_device_set_inherit(:group_device_set_inherit, name: args[0], pool: gopts[:pool])
+    end
+
+    def device_unset_inherit
+      require_args!('name', 'type', 'major', 'minor')
+      do_device_unset_inherit(:group_device_unset_inherit, name: args[0], pool: gopts[:pool])
     end
   end
 end

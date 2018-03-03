@@ -11,7 +11,7 @@ module OsCtld
 
       force = any_container_running?(grp)
 
-      each_group_in(grp.pool, grp.path) do |g|
+      grp.groups_in_path.each do |g|
         do_apply(g, force)
       end
 

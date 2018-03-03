@@ -2,17 +2,18 @@ module OsCtld
   class Group
     include Lockable
     include Assets::Definition
-    include CGroup::Params
 
-    attr_reader :pool, :name, :path
+    attr_reader :pool, :name, :path, :cgparams, :devices
 
-    def initialize(pool, name, load: true, config: nil, root: false)
+    def initialize(pool, name, load: true, config: nil, devices: true, root: false)
       init_lock
       @pool = pool
       @name = name
       @root = root
-      @cgparams = []
+      @cgparams = nil
+      @devices = nil
       load_config(config) if load
+      devices.init if load && devices
     end
 
     def id
@@ -23,9 +24,12 @@ module OsCtld
       @root
     end
 
-    def configure(path, cgparams = [])
+    def configure(path, cgparams = [], devices: true)
       @path = path
-      set_cgparams(cgparams, save: false)
+      @cgparams = CGroup::Params.new(self)
+      @cgparams.set(cgparams, save: false)
+      @devices = Devices::GroupManager.new(self)
+      @devices.init if devices
       save_config
     end
 
@@ -80,6 +84,55 @@ module OsCtld
       Dir.exist?(userdir(user))
     end
 
+    # Return all parent groups, from the root group to the closest parent
+    # @return [Array<Group>]
+    def parents
+      return [] if root?
+
+      ret = [DB::Groups.root(pool)]
+      t = ''
+
+      path.split('/').each do |name|
+        t = File.join(t, name)
+        t = t[1..-1] if t.start_with?('/')
+
+        g = DB::Groups.by_path(pool, t)
+        next if g.nil? || g.root?
+        return ret if g == self
+
+        ret << g
+      end
+
+      ret
+    end
+
+    # Return the closest parent group
+    # @return [Group, nil]
+    def parent
+      return if root?
+      parents.last
+    end
+
+    # Return all groups leading to this group's path, i.e. all parents and
+    # the group itself.
+    # @return [Array<Group>]
+    def groups_in_path
+      parents + [self]
+    end
+
+    # Return all groups below the current group's path
+    # @return [Array<Group>]
+    def descendants
+      groups = DB::Groups.get.select { |grp| grp.pool == pool }
+
+      if root?
+        groups.drop(1) # remove the root group, which is first
+
+      else
+        groups.select { |grp| grp.path.start_with?("#{path}/") }
+      end.sort! { |a, b| a.path <=> b.path }
+    end
+
     def has_containers?(user = nil)
       ct = DB::Containers.get.detect do |ct|
         ct.pool.name == pool.name && ct.group.name == name && (user.nil? || ct.user == user)
@@ -114,6 +167,18 @@ module OsCtld
       "group=#{pool.name}:#{name}"
     end
 
+    def save_config
+      File.open(config_path, 'w', 0400) do |f|
+        f.write(YAML.dump({
+          'path' => path,
+          'cgparams' => cgparams.dump,
+          'devices' => devices.dump,
+        }))
+      end
+
+      File.chown(0, 0, config_path)
+    end
+
     protected
     def load_config(config = nil)
       if config
@@ -123,18 +188,8 @@ module OsCtld
       end
 
       @path = cfg['path']
-      @cgparams = load_cgparams(cfg['cgparams'])
-    end
-
-    def save_config
-      File.open(config_path, 'w', 0400) do |f|
-        f.write(YAML.dump({
-          'path' => path,
-          'cgparams' => dump_cgparams(cgparams),
-        }))
-      end
-
-      File.chown(0, 0, config_path)
+      @cgparams = CGroup::Params.load(self, cfg['cgparams'])
+      @devices = Devices::GroupManager.load(self, cfg['devices'] || [])
     end
   end
 end

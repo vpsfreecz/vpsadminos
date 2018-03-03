@@ -1,44 +1,26 @@
 module OsCtld
-  # Shared methods for objects that can have CGroup parameters set.
-  #
-  # The object must:
-  #  - initialize @cgparams = []
-  #  - have method `save_config`
-  #  - have method `abs_cgroup_path(subsystem)`
-  module CGroup::Params
-    Param = Struct.new(:subsystem, :name, :value) do
-      # Load from config
-      def self.load(hash)
-        new(hash['subsystem'], hash['name'], hash['value'])
-      end
+  class CGroup::Params
+    include Lockable
+    include OsCtl::Lib::Utils::Log
 
-      # Load from client
-      def self.import(hash)
-        new(hash[:subsystem], hash[:parameter], hash[:value])
-      end
-
-      # Dump to config
-      def dump
-        Hash[to_h.map { |k,v| [k.to_s, v] }]
-      end
-
-      # Export to client
-      def export
-        {
-          subsystem: subsystem,
-          parameter: name,
-          value: value,
-        }
-      end
+    # Load CGroup parameters from config
+    def self.load(owner, cfg)
+      new(owner, params: (cfg || []).map { |v| CGroup::Param.load(v) })
     end
 
-    attr_reader :cgparams
+    # @param owner [Group, Container]
+    # @param params [Array<CGroup::Param>]
+    def initialize(owner, params: [])
+      init_lock
+      @owner = owner
+      @params = params
+    end
 
     # Process params from the client and return internal representation.
     # Invalid parameters raise an exception.
-    def import_cgparams(params)
-      params.map do |hash|
-        p = Param.import(hash)
+    def import(new_params)
+      new_params.map do |hash|
+        p = CGroup::Param.import(hash)
 
         # Check if the subsystem is valid
         subsys = CGroup.real_subsystem(p.subsystem)
@@ -60,12 +42,12 @@ module OsCtld
       end
     end
 
-    def set_cgparams(new_params, append: false, save: true)
+    def set(new_params, append: false, save: true)
       exclusively do
         new_params.each do |new_p|
           replaced = false
 
-          cgparams.map! do |p|
+          params.map! do |p|
             if p.subsystem == new_p.subsystem && p.name == new_p.name
               replaced = true
 
@@ -79,36 +61,65 @@ module OsCtld
 
           next if replaced
 
-          cgparams << new_p
+          params << new_p
         end
       end
 
-      save_config if save
+      owner.save_config if save
     end
 
-    def unset_cgparams(del_params, save: true)
+    def unset(del_params, save: true)
       exclusively do
         del_params.each do |del_h|
-          del_p = Param.import(del_h)
+          del_p = CGroup::Param.import(del_h)
 
-          cgparams.delete_if do |p|
+          params.delete_if do |p|
             p.subsystem == del_p.subsystem && p.name == del_p.name
           end
         end
       end
 
-      save_config if save
+      owner.save_config if save
     end
 
-    protected
-    # Load params from config
-    def load_cgparams(params)
-      (params || []).map { |v| Param.load(v) }
+    def each(&block)
+      params.each(&block)
+    end
+
+    def detect(&block)
+      params.detect(&block)
+    end
+
+    # Apply configured cgroup parameters into the system
+    # @param keep_going [Boolean] skip parameters that do not exist
+    # @yieldparam subsystem [String] cgroup subsystem
+    # @yieldreturn [String] absolute path to the cgroup directory
+    def apply(keep_going: false)
+      params.each do |p|
+        path = File.join(yield(p.subsystem), p.name)
+
+        begin
+          CGroup.set_param(path, p.value)
+
+        rescue CGroupFileNotFound
+          raise unless keep_going
+
+          log(
+            :info,
+            :cgroup,
+            "Skip #{path}, group or parameter does not exist"
+          )
+          next
+        end
+      end
     end
 
     # Dump params to config
-    def dump_cgparams(params)
-      cgparams.map(&:dump)
+    def dump
+      params.select(&:persistent).map(&:dump)
     end
+
+    protected
+    attr_reader :owner, :params
   end
 end

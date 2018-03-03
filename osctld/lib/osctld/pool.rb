@@ -271,7 +271,17 @@ module OsCtld
         name = File.basename(grp)[0..(('.yml'.length+1) * -1)]
         next if %w(root default).include?(name)
 
-        DB::Groups.add(Group.new(self, name))
+        DB::Groups.add(Group.new(self, name, devices: false))
+      end
+
+      # The devices in the root group have to be configured as soon as possible,
+      # because `echo a > devices.deny` will not work when the root cgroup has
+      # any children.
+      root = DB::Groups.root(self)
+
+      # Initialize devices of all groups, from the root group down
+      root.descendants.each do |grp|
+        grp.devices.init
       end
     end
 
