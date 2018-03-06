@@ -1,8 +1,10 @@
+CORES = 0
+
 # default build (conf.nix and conf_common.nix)
 build:
 	nix-build \
 	 --arg configuration "import ./conf.nix" \
-	 --cores 0
+	 --cores $(CORES)
 
 # production build (conf_prod.nix and conf_common.nix)
 prod:
@@ -10,28 +12,28 @@ prod:
 	 --arg configuration "import ./conf_prod.nix" \
 	 -A config.system.build.tftpdir \
 	 -o result_prod \
-	 --cores 0 || exit 1
+	 --cores $(CORES) || exit 1
 
 # production build for local testing in QEMU (conf_prod_qemu.nix including conf_prod.nix)
 prod-local:
 	nix-build \
 	 --arg configuration "import ./conf_prod_qemu.nix" \
 	 -A config.system.build.runvm \
-	 --cores 0 || exit 1
+	 --cores $(CORES) || exit 1
 
 # build iso image
 iso:
 	nix-build \
 	 --arg configuration "import ./conf_iso.nix" \
 	 -A config.system.build.isoImage \
-	 --cores 0 || exit 1
+	 --cores $(CORES) || exit 1
 
 # build iso image runner
 iso-local:
 	nix-build \
 	 --arg configuration "import ./conf_iso_qemu.nix" \
 	 -A config.system.build.runvm \
-	 --cores 0 || exit 1
+	 --cores $(CORES) || exit 1
 
 qemu: build
 	./result
