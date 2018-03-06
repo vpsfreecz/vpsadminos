@@ -59,7 +59,11 @@ with lib;
       description = "machine hostname";
       default = "default";
     };
-
+    networking.preConfig = mkOption {
+      type = types.lines;
+      description = "Set of commands run prior to any other network configuration";
+      default = "";
+    };
     networking.static.enable = mkOption {
       type = types.bool;
       description = "use static networking configuration";

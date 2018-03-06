@@ -72,6 +72,8 @@ in
 
       echo 1 > /proc/sys/net/ipv4/ip_forward
 
+      ${config.networking.preConfig}
+
       ${lib.optionalString static.enable ''
       ip addr add ${static.ip} dev ${static.interface}
       ip link set ${static.interface} up
