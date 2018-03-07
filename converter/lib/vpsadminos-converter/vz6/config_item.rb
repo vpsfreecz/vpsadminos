@@ -6,6 +6,23 @@ module VpsAdminOS::Converter
       def to_s
         "#{type}:#{major}:#{minor}:#{mode}"
       end
+
+      def to_ct_device
+        Devices::Device.new(
+          case type
+          when 'b'
+            'block'
+          when 'c'
+            'char'
+          else
+            fail "unsupported device type '#{type}'"
+          end,
+          major,
+          minor,
+          # q is for quota management, not supported in vpsAdminOS
+          mode == 'none' ? '' : mode.gsub('q', '')
+        )
+      end
     end
 
     attr_reader :key, :value

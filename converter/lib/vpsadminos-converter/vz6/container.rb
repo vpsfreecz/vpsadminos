@@ -110,6 +110,12 @@ module VpsAdminOS::Converter
         ct.netifs << netif
       end
 
+      if config['DEVICES']
+        config.consume('DEVICES').each do |dev|
+          ct.devices << dev.to_ct_device
+        end
+      end
+
       ct
     end
 
