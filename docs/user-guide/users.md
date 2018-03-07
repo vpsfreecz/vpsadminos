@@ -32,6 +32,6 @@ This is what *osctld* will manage for you regarding users:
  - user home directories, safe access permissions
 
 It is up to you how many users you create. You can use one user for all
-containers, one user for every container or anything in between. When you have
-created at least one user, you can continue
+containers, a different user for every container or anything in between. When
+you have created at least one user, you can continue
 with [container management](containers.md).
