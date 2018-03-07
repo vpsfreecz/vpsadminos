@@ -12,12 +12,9 @@ restarting *osctld* from the updated code mounted over NFS.
 
 ## Software
 - Kernel >=4.13
-- LXC 2.1 with [custom patches](https://github.com/aither64/lxc/tree/vpsadminos-2.1)
+- LXC 2.1 with [custom patch](https://github.com/aither64/lxc/tree/vpsadminos-2.1)
     - enable network script.up hook for unprivileged containers:
       <https://github.com/aither64/lxc/commit/f4e86dfad30099bae3ab093b81d147280996d29e>
-    - backport `start-host` hook from LXC master (needed for proper distribution
-      support):
-      <https://github.com/aither64/lxc/commit/1481f1145635be19867736c453820e0b0fd44b30>
 - ZFS on Linux >=0.7 with uid/gid offset [patch](https://github.com/aither64/zfs/tree/uid_offset)
 
 ## System changes
