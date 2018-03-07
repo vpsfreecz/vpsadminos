@@ -45,6 +45,9 @@ as QEMU ATA drives and can be used to create a mirrored ZFS pool which persists
 across reboots.
 
 ## Building osctl/osctld
+You can skip this section unless you'd like to modify osctl/osctld and try out
+your version.
+
 osctl and osctld are installed as gems. By default, the gems are pushed
 and installed from <https://rubygems.vpsfree.cz>. Pushing requires
 authentication. Rake, bundler and bundix must be installed.
