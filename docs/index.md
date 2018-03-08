@@ -33,3 +33,10 @@ system users, LXC homes, CGroups and system containers. ZFS is currently
 the only supported file system, in which we have our custom patches for seamless
 integration with user namespaces, i.e. user/group id mapping on the file system
 level.
+
+## Links
+
+* IRC: #vpsadminos @ irc.freenode.net
+* Git: <https://github.com/vpsfreecz/vpsadminos>
+* Man pages: <https://man.vpsadminos.org/>
+* Code reference: <https://ref.vpsadminos.org/>

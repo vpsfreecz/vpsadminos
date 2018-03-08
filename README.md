@@ -12,6 +12,12 @@ It is also based on NixOS, but compiles down to a custom kernel, initrd,
 and a squashfs root while reusing packages and some modules from
 [nixpkgs](https://github.com/NixOS/nixpkgs/).
 
+## Links
+
+* IRC: #vpsadminos @ irc.freenode.net
+* Man pages: <https://man.vpsadminos.org/>
+* Code reference: <https://ref.vpsadminos.org/>
+
 ## Technologies
 
 - Vanilla kernel
