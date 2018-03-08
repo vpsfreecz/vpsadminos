@@ -15,6 +15,7 @@ and a squashfs root while reusing packages and some modules from
 ## Links
 
 * IRC: #vpsadminos @ irc.freenode.net
+* Documentation: <https://vpsadminos.org/>
 * Man pages: <https://man.vpsadminos.org/>
 * Code reference: <https://ref.vpsadminos.org/>
 
