@@ -713,15 +713,28 @@ module OsCtl::Cli
     end
 
     def mount_dataset
-      require_args!('id', 'name')
+      require_args!('id', 'name', 'mountpoint')
+
+      if opts[:ro] && opts[:rw]
+        raise GLI::BadCommandLine, 'use either --ro or --rw, not both'
+
+      elsif opts[:ro]
+        mode = 'ro'
+
+      elsif opts[:rw]
+        mode = 'rw'
+
+      else
+        mode = 'rw'
+      end
 
       osctld_fmt(
         :ct_mount_dataset,
         id: args[0],
         pool: gopts[:pool],
         name: args[1],
-        mountpoint: opts[:mountpoint],
-        opts: opts[:opts],
+        mountpoint: args[2],
+        mode: mode,
       )
     end
 

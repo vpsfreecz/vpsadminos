@@ -888,7 +888,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Options, required. Standard mount options depending on the filesystem
       type, with two extra options from LXC: `create=file` and `create=dir`.
 
-`ct mounts dataset` *options* *id* *name*
+`ct mounts dataset` *options* *id* *name* *mountpoint*
   Mount subdataset *name* into container *id*. Only subdatasets of container
   *id* can be mounted in this way. Dataset mounts can survive container
   export/import or migration to a host with different configuration. Mounts
@@ -901,12 +901,11 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   the `.zfs` special directory, which could be used to create or destroy
   snapshots from within the container.
 
-    `--mountpoint` *mountpount*
-      Mountpoint within the container, required.
+    `--ro`, `--read-only`
+      Mount the dataset in read-only mode.
 
-    `--opts` *opts*
-      Options, required. Standard mount options for bind mounts, with two extra
-      options from LXC: `create=file` and `create=dir`.
+    `--rw`, `--read-write`
+      Mount the dataset in read-write mode. This is the default.
 
 `ct mounts del` *id* *mountpoint*
   Remove *mountpoint* from container *id*. The *mountpoint* is not unmounted

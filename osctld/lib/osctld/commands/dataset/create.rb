@@ -66,7 +66,7 @@ module OsCtld
         pool: ct.pool.name,
         name: ds.relative_name,
         mountpoint: mountpoint,
-        opts: 'bind,rw,create=dir'
+        mode: 'rw'
       )
     end
 

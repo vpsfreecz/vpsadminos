@@ -130,7 +130,7 @@ as a subdataset mount, which could prevent successful container export/import
 or migration, as mentioned above.
 
 ```shell
-osctl ct mount dataset --mountpoint /mnt/custom --opts bind,rw,create=dir myct01 custom
+osctl ct mount dataset myct01 custom /mnt/custom
 
 osctl ct mount ls myct01
 FS                                 DATASET    MOUNTPOINT    TYPE   OPTS               

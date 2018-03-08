@@ -15,7 +15,10 @@ module OsCtld
         )
         error!("dataset #{ds.name} does not exist") unless ds.exist?
 
-        mnt = Mount.new(nil, opts[:mountpoint], 'bind', opts[:opts], ds)
+        m_opts = %w(bind create=dir)
+        m_opts << opts[:mode]
+
+        mnt = Mount.new(nil, opts[:mountpoint], 'bind', m_opts.join(','), ds)
 
         if ct.mounts.detect { |m| m.mountpoint == mnt.mountpoint }
           next error("mountpoint '#{mnt.mountpoint}' is already mounted")

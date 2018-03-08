@@ -841,13 +841,13 @@ module OsCtl::Cli
           end
 
           m.desc 'Mount a dataset'
-          m.arg_name '<id> <name>'
+          m.arg_name '<id> <name> <mountpoint>'
           m.command :dataset do |c|
-            c.desc 'Mountpoint'
-            c.flag :mountpoint, required: true
+            c.desc 'Mount the dataset read-only'
+            c.switch %i(ro read-only), negatable: false
 
-            c.desc 'Options'
-            c.flag :opts, required: true
+            c.desc 'Mount the dataset read-write'
+            c.switch %i(rw read-write), negatable: false
 
             c.action &Command.run(Container, :mount_dataset)
           end
