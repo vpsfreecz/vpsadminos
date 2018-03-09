@@ -8,8 +8,8 @@ setrlimit(2).
 *osctld* has a concept of groups, where each group represents a CGroup in all
 subsystems. There are always two groups: the *root* group and the *default*
 group. The *root* group is the parent of all other groups, its path defaults to
-`osctl`. Newly created containers are put into the *default* group, unless
-configured otherwise. Groups can be nested and you can configure arbitrary
+`osctl/<pool name>`. Newly created containers are put into the *default* group,
+unless configured otherwise. Groups can be nested and you can configure arbitrary
 CGroup subsystem parameters for every group. Every container belongs to exactly
 one group, i.e. the *default* group or any other. You can also configure CGroup
 parameters of the containers themselves.
@@ -24,14 +24,14 @@ Groups are managed by `osctl group` commands:
 
 ```bash
 osctl group ls
-POOL   NAME      PATH      MEMORY   CPU_TIME 
-tank   root      osctl     32.0M    16s
-tank   default   default   32.0M    16s
+POOL   NAME      PATH         MEMORY   CPU_TIME
+tank   root      osctl/tank   -        -
+tank   default   default      -        -
 ```
 
-You can notice that the path to the *default* group does not begin with `osctl`,
-the *root* group. That is correct, the *root* group is prefixed automatically to
-all other groups and is not mentioned explicitly.
+You can notice that the path to the *default* group does not begin with
+`osctl/tank`, the *root* group. That is correct, the *root* group is prefixed
+automatically to all other groups and is not mentioned explicitly.
 
 CGroup parameters can be set as follows:
 

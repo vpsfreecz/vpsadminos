@@ -15,7 +15,7 @@ module OsCtld
 
     # Ensures presence of root and default groups
     def setup(pool)
-      root, created = load_or_create(pool, 'root', 'osctl')
+      root, created = load_or_create(pool, 'root', File.join('osctl', pool.name))
 
       if created
         root.devices.init
