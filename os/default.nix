@@ -1,4 +1,4 @@
-{ configuration ? import ./conf_common.nix, nixpkgs ? <nixpkgs>, extraModules ? [], system ? builtins.currentSystem, platform ? null }:
+{ configuration ? import ./conf_common.nix, nixpkgs ? <nixpkgs>, extraModules ? [], system ? builtins.currentSystem, platform ? null, vpsadmin ? null }:
 
 let
   pkgs = import nixpkgs { inherit system; platform = platform; config = {}; };
@@ -7,7 +7,7 @@ let
     key = _file;
     config = {
       nixpkgs.system = pkgs.lib.mkDefault system;
-      nixpkgs.overlays = import ./overlays.nix { lib = pkgs.lib; };
+      nixpkgs.overlays = import ./overlays.nix { lib = pkgs.lib; inherit vpsadmin; };
     };
   };
   baseModules = [
@@ -53,7 +53,7 @@ let
       ./ipxe.nix
       ./nixos-compat.nix
       pkgsModule
-  ] ++ pkgs.lib.optionals (pkgs.lib.pathExists ../../vpsadmin) [./modules/vpsadmin.nix];
+  ] ++ pkgs.lib.optionals (vpsadmin != null && pkgs.lib.pathExists vpsadmin) [./modules/vpsadmin.nix];
   evalConfig = modules: pkgs.lib.evalModules {
     prefix = [];
     check = true;

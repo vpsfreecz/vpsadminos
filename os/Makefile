@@ -1,15 +1,19 @@
 CORES = 0
+VPSADMIN = ../../vpsadmin
+VPSADMIN_ABSPATH := $(shell readlink -m "$(VPSADMIN)")
 
 # default build (conf.nix and conf_common.nix)
 build:
 	nix-build \
 	 --arg configuration "import ./conf.nix" \
+	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 --cores $(CORES)
 
 # production build (conf_prod.nix and conf_common.nix)
 prod:
 	nix-build \
 	 --arg configuration "import ./conf_prod.nix" \
+	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 -A config.system.build.tftpdir \
 	 -o result_prod \
 	 --cores $(CORES) || exit 1
@@ -18,6 +22,7 @@ prod:
 prod-local:
 	nix-build \
 	 --arg configuration "import ./conf_prod_qemu.nix" \
+	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 -A config.system.build.runvm \
 	 --cores $(CORES) || exit 1
 
@@ -25,6 +30,7 @@ prod-local:
 iso:
 	nix-build \
 	 --arg configuration "import ./conf_iso.nix" \
+	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 -A config.system.build.isoImage \
 	 --cores $(CORES) || exit 1
 
@@ -32,6 +38,7 @@ iso:
 iso-local:
 	nix-build \
 	 --arg configuration "import ./conf_iso_qemu.nix" \
+	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 -A config.system.build.runvm \
 	 --cores $(CORES) || exit 1
 
