@@ -7,7 +7,7 @@ let
     key = _file;
     config = {
       nixpkgs.system = pkgs.lib.mkDefault system;
-      nixpkgs.overlays = import ./overlays.nix {};
+      nixpkgs.overlays = import ./overlays.nix { lib = pkgs.lib; };
     };
   };
   baseModules = [
@@ -53,7 +53,7 @@ let
       ./ipxe.nix
       ./nixos-compat.nix
       pkgsModule
-  ];
+  ] ++ pkgs.lib.optionals (pkgs.lib.pathExists ../../vpsadmin) [./modules/vpsadmin.nix];
   evalConfig = modules: pkgs.lib.evalModules {
     prefix = [];
     check = true;
