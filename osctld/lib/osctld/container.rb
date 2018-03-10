@@ -73,12 +73,23 @@ module OsCtld
         # Datasets
         add.dataset(
           dataset,
-          desc: "Container's rootfs",
+          desc: "Container's rootfs dataset",
           uidoffset: uid_offset,
-          gidoffset: gid_offset
+          gidoffset: gid_offset,
+          user: uid_offset,
+          group: gid_offset,
+          mode: 0770
         )
 
         # Directories and files
+        add.directory(
+          rootfs,
+          desc: "Container's rootfs",
+          user: uid_offset,
+          group: gid_offset,
+          mode: 0755
+        )
+
         add.directory(
           lxc_dir,
           desc: 'LXC configuration',

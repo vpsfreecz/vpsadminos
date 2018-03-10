@@ -108,7 +108,8 @@ where our container resides. Let's review the container:
 ```console
 osctl ct assets myct01
 TYPE        PATH                                          VALID   PURPOSE
-dataset     tank/ct/myct01                                true    Container's rootfs
+dataset     tank/ct/myct01                                true    Container's rootfs dataset
+directory   /tank/ct/myct01/private                       true    Container's rootfs
 directory   /tank/user/myuser01/default/myct01            true    LXC configuration
 file        /tank/user/myuser01/default/myct01/config     true    LXC base config
 file        /tank/user/myuser01/default/myct01/network    true    LXC network config

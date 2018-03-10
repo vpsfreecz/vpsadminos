@@ -88,9 +88,9 @@ module OsCtld
 
     def setup_rootfs
       if Dir.exist?(ct.rootfs)
-        File.chmod(0750, ct.rootfs)
+        File.chmod(0755, ct.rootfs)
       else
-        Dir.mkdir(ct.rootfs, 0750)
+        Dir.mkdir(ct.rootfs, 0755)
       end
 
       File.chown(0, 0, ct.rootfs)
