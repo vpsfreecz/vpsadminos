@@ -38,7 +38,7 @@ module OsCtld
         add.file(
           config_path,
           desc: "osctld's group config",
-          owner: 0,
+          user: 0,
           group: 0,
           mode: 0400
         )

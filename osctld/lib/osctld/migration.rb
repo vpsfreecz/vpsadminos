@@ -41,7 +41,7 @@ module OsCtld
       add.file(
         AUTHORIZED_KEYS,
         desc: 'Keys that are authorized to migrate to this node',
-        owner: UID,
+        user: UID,
         group: 0,
         mode: 0400
       )

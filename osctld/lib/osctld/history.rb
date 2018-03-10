@@ -60,7 +60,7 @@ module OsCtld
       add.file(
         log_path(pool),
         desc: 'Pool history',
-        owner: 0,
+        user: 0,
         group: 0,
         mode: 0400
       )

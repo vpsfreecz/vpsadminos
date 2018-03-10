@@ -85,7 +85,7 @@ module OsCtld
         add.socket(
           SOCKET,
           desc: 'Management socket',
-          owner: 0,
+          user: 0,
           group: 0,
           mode: 0600
         )

@@ -27,28 +27,28 @@ module OsCtld
       add.directory(
         RunState::RUNDIR,
         desc: 'Runtime configuration',
-        owner: 0,
+        user: 0,
         group: 0,
         mode: 0711
       )
       add.directory(
         RunState::POOL_DIR,
         desc: 'Runtime pool configuration',
-        owner: 0,
+        user: 0,
         group: 0,
         mode: 0711
       )
       add.directory(
         RunState::USER_CONTROL_DIR,
         desc: 'Runtime user configuration',
-        owner: 0,
+        user: 0,
         group: 0,
         mode: 0711
       )
       add.directory(
         RunState::MIGRATION_DIR,
         desc: 'Migration configuration',
-        owner: Migration::UID,
+        user: Migration::UID,
         group: 0,
         mode: 0100,
         optional: true
@@ -56,7 +56,7 @@ module OsCtld
       add.directory(
         RunState::REPOSITORY_DIR,
         desc: 'Home directory for the repository user',
-        owner: Repository::UID,
+        user: Repository::UID,
         group: 0,
         mode: 0700
       )

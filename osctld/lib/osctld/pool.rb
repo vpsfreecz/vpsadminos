@@ -69,7 +69,7 @@ module OsCtld
         add.dataset(
           ds(REPOSITORY_DS),
           desc: 'Local template repository cache',
-          user: 0,
+          user: Repository::UID,
           group: 0,
           mode: 0500
         )
@@ -108,7 +108,7 @@ module OsCtld
         add.directory(
           File.join(log_path, 'ct'),
           desc: 'Container log files',
-          owner: 0,
+          user: 0,
           group: 0
         )
 
@@ -122,21 +122,21 @@ module OsCtld
         add.directory(
           run_dir,
           desc: 'Runtime configuration',
-          owner: 0,
+          user: 0,
           group: 0,
           mode: 0711
         )
         add.directory(
           console_dir,
           desc: 'Named pipes for container consoles',
-          owner: 0,
+          user: 0,
           group: 0,
           mode: 0711
         )
         add.directory(
           hook_dir,
           desc: 'Container hooks',
-          owner: 0,
+          user: 0,
           group: 0,
           mode: 0711
         )

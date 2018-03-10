@@ -33,7 +33,7 @@ module OsCtld
         add.directory(
           cache_path,
           desc: 'Local cache',
-          owner: UID,
+          user: UID,
           group: 0,
           mode: 0700
         )

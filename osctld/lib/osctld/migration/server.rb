@@ -54,7 +54,7 @@ module OsCtld
       add.socket(
         Migration::SOCKET,
         desc: 'Socket for migration control',
-        owner: Migration::UID,
+        user: Migration::UID,
         group: 0,
         mode: 0600
       )
