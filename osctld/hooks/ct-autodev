@@ -1,0 +1,56 @@
+#!/usr/bin/env ruby
+require 'json'
+require 'socket'
+
+ctid = ARGV[0]
+
+if ctid.nil?
+  warn "Expected arguments: <ctid> lxc autodev, "+
+       "received #{ARGV.join(' ')}"
+  exit(false)
+end
+
+if /^\/run\/osctl\/pools\/([^\/]+)\/hooks/ !~ $0
+  warn "Unable to detect pool name from '#{$0}'"
+  exit(false)
+end
+
+pool = $1
+
+s = UNIXSocket.new("/run/osctl/user-control/namespaced.sock")
+s.send({cmd: :ct_autodev, opts: {
+  id: ARGV[0],
+  pool: pool,
+}}.to_json + "\n", 0)
+ret = JSON.parse(s.readline, symbolize_names: true)
+s.close
+
+unless ret[:status]
+  warn "Error: #{ret[:message]}"
+  exit(false)
+end
+
+src = ret[:response][:source]
+dst = ENV['LXC_ROOTFS_MOUNT']
+
+ret[:response][:devices].each do |dev|
+  dstdev = File.join(dst, dev)
+  devdir = File.dirname(dstdev)
+  FileUtils.mkdir_p(devdir) unless Dir.exist?(devdir)
+
+  begin
+    stat = File.stat(dstdev)
+
+    # Skip if the device is already present
+    next if dst.blockdev? || dst.chardev?
+
+  rescue Errno::ENOENT
+    # Create an empty file to be bind-mounted over
+    File.open(dstdev, 'w') {}
+  end
+
+  next if system("mount -o bind #{File.join(src, dev)} #{dstdev}")
+  fail "unable to bind-mount device '#{dev}'"
+end
+
+exit(true)

@@ -15,6 +15,40 @@ module OsCtld
       end
     end
 
+    # Client handler for commands called from a container's user namespace.
+    #
+    # The handler finds appropriate osctld user and passes control to standard
+    # client handler. Namespaced UID/GID of the client can be obtained from the
+    # socket, user with a matching uid offset is searched for.
+    class NamespacedClientHandler < Generic::ClientHandler
+      def handle_cmd(req)
+        return error('invalid input') unless req.is_a?(Hash)
+
+        # For now, allow only ct_autodev
+        return error('invalid cmd') if req[:cmd] != 'ct_autodev'
+
+        # Find out which user has connected
+        cred = @sock.getsockopt(Socket::SOL_SOCKET, Socket::SO_PEERCRED)
+        pid, uid, gid = cred.unpack('LLL')
+
+        # Locate the user in DB using its offset
+        user = DB::Users.get.detect do |u|
+          u.pool.name == req[:opts][:pool] && u.offset == uid
+        end
+
+        return error('invalid user') unless user
+
+        # Forward to a real client handler
+        log(:info, "Forwarding request to user #{user.name}")
+        handler = ClientHandler.new(@sock, user: user)
+        handler.handle_cmd(req)
+      end
+
+      def log_type
+        self.class.name
+      end
+    end
+
     @@instance = nil
 
     def self.instance
@@ -34,6 +68,8 @@ module OsCtld
     def initialize
       @mutex = Mutex.new
       @servers = {}
+
+      start_namespaced
     end
 
     public
@@ -63,11 +99,30 @@ module OsCtld
       end
     end
 
+    def start_namespaced
+      sync do
+        path = File.join(RunState::USER_CONTROL_DIR, 'namespaced.sock')
+        socket = UNIXServer.new(path)
+
+        File.chown(0, 0, path)
+        File.chmod(0666, path)
+
+        s = Generic::Server.new(socket, NamespacedClientHandler)
+        t = Thread.new { s.start }
+
+        @servers[:namespaced] = [s, t]
+      end
+    end
+
     def stop_all
       sync do
         @servers.each { |user, st| st[0].stop }
         @servers.each { |user, st| st[1].join }
       end
+
+      s, t = @servers[:namespaced]
+      s.stop
+      t.join
     end
 
     private

@@ -66,11 +66,9 @@ then be able to use it:
 osctl group devices add --inherit root char 10 200 rw /dev/net/tun
 ```
 
-The device is immediately made available to all containers and respective
-device nodes are created, i.e. in this case, `/dev/net/tun` is created in
-all containers. This is important, because the containers are unprivileged
-and cannot call `mknod` on their own. The device nodes have to be provided
-by the host.
+Access to the device is permitted immediately, but the device node is created
+the next time the container starts. Containers are unprivileged and cannot call
+`mknod` on their own. The device nodes have to be provided by the host.
 
 ## Adding a new device to one group/container
 When adding a new device to a non-root group or a container, the device has

@@ -134,6 +134,13 @@ module OsCtld
           mode: 0711
         )
         add.directory(
+          devices_dir,
+          desc: 'Device nodes for containers',
+          user: 0,
+          group: 0,
+          mode: 0711
+        )
+        add.directory(
           hook_dir,
           desc: 'Container hooks',
           user: 0,
@@ -213,6 +220,10 @@ module OsCtld
 
     def run_dir
       File.join(RunState::POOL_DIR, name)
+    end
+
+    def devices_dir
+      File.join(run_dir, 'devices')
     end
 
     def hook_dir
@@ -314,11 +325,11 @@ module OsCtld
     def runstate
       Dir.mkdir(run_dir, 0711) unless Dir.exist?(run_dir)
 
-      [console_dir, hook_dir].each do |dir|
+      [console_dir, devices_dir, hook_dir].each do |dir|
         Dir.mkdir(dir, 0711) unless Dir.exist?(dir)
       end
 
-      %w(ct-start).each do |hook|
+      %w(ct-autodev ct-start).each do |hook|
         symlink = OsCtld.hook_run(hook, self)
         File.symlink(OsCtld::hook_src(hook), symlink) unless File.symlink?(symlink)
       end

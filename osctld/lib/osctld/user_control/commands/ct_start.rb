@@ -16,9 +16,6 @@ module OsCtld
       # Configure devices cgroup
       ct.devices.apply
 
-      # Create device nodes
-      DistConfig.run(ct, :create_devnodes)
-
       # Configure hostname
       DistConfig.run(ct, :set_hostname) if ct.hostname
 

@@ -3,7 +3,6 @@ module OsCtld
     include OsCtl::Lib::Utils::Log
 
     # @param opts [Hash]
-    # @option opts [Boolean] :mknod create device nodes?
     def init(opts = {})
       super()
       inherit_all_from(ct.group, opts)
@@ -21,31 +20,6 @@ module OsCtld
 
       # NOTE: if the devices cgroup would be chowned to the user, we would also
       # need to handle cgroup <group>/<user>/<ct>/lxc and lxc/<ct>!
-    end
-
-    def add(device, parent = nil)
-      super
-      DistConfig.run(ct, :create_devnode, device) if device.name
-    end
-
-    # @param opts [Hash]
-    # @option opts [Boolean] :mknod create device nodes?
-    def inherit(device, opts = {})
-      super
-
-      if device.name && (!opts.has_key?(:mknod) || opts[:mknod])
-        DistConfig.run(ct, :create_devnode, device)
-      end
-    end
-
-    def remove(device)
-      super
-      return unless device.name
-
-      devnode = File.join(ct.rootfs, device.name)
-      return unless File.exist?(devnode)
-
-      File.unlink(devnode)
     end
 
     # @param opts [Hash]

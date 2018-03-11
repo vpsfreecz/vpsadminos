@@ -236,6 +236,10 @@ module OsCtld
       File.join(lxc_dir, cfg.to_s)
     end
 
+    def devices_dir
+      File.join(pool.devices_dir, id)
+    end
+
     def uid_offset
       @user.offset
     end
@@ -410,6 +414,7 @@ module OsCtld
       Template.render_to('ct/config', {
         distribution: distribution,
         ct: self,
+        hook_autodev: OsCtld::hook_run('ct-autodev', pool),
         hook_start_host: OsCtld::hook_run('ct-start', pool),
       }, lxc_config_path)
     end

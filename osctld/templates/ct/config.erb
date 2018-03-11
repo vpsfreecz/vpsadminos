@@ -12,7 +12,9 @@ lxc.arch = <%= ct.arch %>
 lxc.uts.name = <%= ct.hostname || ct.id %>
 lxc.idmap = u 0 <%= ct.uid_offset %> <%= ct.uid_size %>
 lxc.idmap = g 0 <%= ct.gid_offset %> <%= ct.gid_size %>
-lxc.autodev = 0
+
+lxc.autodev = 1
+lxc.hook.autodev = <%= hook_autodev %>
 
 lxc.include = <%= ct.lxc_config_path('network') %>
 lxc.include = <%= ct.lxc_config_path('prlimits') %>

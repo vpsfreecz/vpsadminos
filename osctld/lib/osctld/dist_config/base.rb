@@ -23,27 +23,6 @@ module OsCtld
       @version = ct.version
     end
 
-    # Create device nodes in the container's /dev
-    def create_devnodes(_opts)
-      devfs = File.join(ct.rootfs, 'dev')
-      Dir.mkdir(devfs) unless Dir.exist?(devfs)
-
-      ct.devices.each do |dev|
-        create_devnode(dev) if dev.name
-      end
-    end
-
-    # Create a device node in the container's /dev for a specific device
-    # @param device [Devices::Device]
-    def create_devnode(device)
-      devname = File.join(ct.rootfs, device.name)
-      return if File.exist?(devname)
-
-      devdir = File.dirname(devname)
-      FileUtils.mkdir_p(devdir) unless Dir.exist?(devdir)
-      syscmd("mknod #{devname} #{device.type_s} #{device.major} #{device.minor}")
-    end
-
     # @param opts [Hash] options
     # @option opts [String] original previous hostname
     def set_hostname(opts)

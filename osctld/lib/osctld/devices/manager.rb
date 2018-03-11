@@ -188,6 +188,10 @@ module OsCtld
       devices.detect(&block)
     end
 
+    def select(&block)
+      devices.select(&block)
+    end
+
     # Export devices to clients
     # @return [Array<Hash>]
     def export

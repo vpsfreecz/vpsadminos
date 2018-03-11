@@ -5,7 +5,7 @@ require 'socket'
 ctid = ARGV[0]
 
 if ctid.nil?
-  warn "Expected arguments: <ctid> lxc start-host, "+
+  warn "Expected arguments: <ctid> lxc pre-start, "+
        "received #{ARGV.join(' ')}"
   exit(false)
 end

@@ -40,7 +40,7 @@ module OsCtld
         error!(e.message)
       end
 
-      ct.devices.init(mknod: false)
+      ct.devices.init
 
       importer.create_datasets(builder)
       builder.setup_ct_dir

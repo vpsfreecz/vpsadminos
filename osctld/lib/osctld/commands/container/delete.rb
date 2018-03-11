@@ -25,6 +25,9 @@ module OsCtld
         progress('Disconnecting console')
         Console.remove(ct)
 
+        progress('Removing devices')
+        syscmd("rm -rf #{ct.devices_dir}") if Dir.exist?(ct.devices_dir)
+
         progress('Destroying dataset')
         zfs(:destroy, '-r', ct.dataset)
 
