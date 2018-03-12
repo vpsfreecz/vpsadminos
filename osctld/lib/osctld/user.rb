@@ -108,6 +108,7 @@ module OsCtld
     def unregister
       exclusively do
         syscmd("userdel -f #{sysusername}")
+        syscmd("groupdel #{sysgroupname}", valid_rcs: [6])
         @registered = false
       end
     end
