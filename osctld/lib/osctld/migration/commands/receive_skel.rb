@@ -15,6 +15,7 @@ module OsCtld
 
       pool = DB::Pools.get_or_default(opts[:pool])
       error!('pool not found') unless pool
+      error!('the pool is disabled') unless pool.active?
 
       importer = Container::Importer.new(pool, f)
       data = importer.load_metadata

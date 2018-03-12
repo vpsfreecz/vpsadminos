@@ -130,9 +130,15 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       by default.
 
 `pool export` *name*
-  Export pool *name* from osctld. Currently, the containers are left running,
-  system users are left registered. No data is deleted, the pool and all its
-  content are merely removed from `osctld`.
+  Export pool *name* from `osctld`. No data is deleted, the pool and all its
+  content is merely removed from `osctld`.
+
+    `-s`, `--[no-]stop-containers`
+      Stop all containers from pool *name*. Enabled by default.
+
+    `-u`, `--[no-]unregister-users`
+      Unregister users from pool *name* from the system, i.e. remove entries
+      from `/etc/passwd` and `/etc/group`. Enabled by default.
 
 `pool ls` [*names...*]
   List imported pools. If no *names* are provided, all pools are listed.

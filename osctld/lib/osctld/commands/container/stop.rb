@@ -13,7 +13,7 @@ module OsCtld
 
     def execute(ct)
       ct.exclusively do
-        progress('Stopping container')
+        progress('Stopping container') if opts[:progress].nil? || opts[:progress]
         ret = ct_control(ct, :ct_stop, id: ct.id)
         next ret unless ret[:status]
 

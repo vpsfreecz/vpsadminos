@@ -17,11 +17,12 @@ module OsCtld
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
 
-    attr_reader :name, :dataset, :migration_key_chain, :autostart_plan
+    attr_reader :name, :dataset, :state, :migration_key_chain, :autostart_plan
 
     def initialize(name, dataset)
       @name = name
       @dataset = dataset || name
+      @state = :active
       @migration_key_chain = Migration::KeyChain.new(self)
       @autostart_plan = AutoStart::Plan.new(self)
       init_lock
@@ -192,6 +193,14 @@ module OsCtld
 
     def stop
       @autostart_plan && @autostart_plan.stop
+    end
+
+    def active?
+      state == :active
+    end
+
+    def disable
+      @state = :disabled
     end
 
     def ct_ds

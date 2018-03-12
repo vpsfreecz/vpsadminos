@@ -7,6 +7,8 @@ module OsCtld
     end
 
     def execute(pool)
+      error!('the pool is disabled') unless pool.active?
+
       File.open(opts[:file], 'r') do |f|
         import(pool, f)
       end

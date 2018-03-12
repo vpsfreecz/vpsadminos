@@ -202,7 +202,7 @@ module OsCtld
     end
 
     def can_start?
-      state != :staged
+      state != :staged && pool.active?
     end
 
     def dir

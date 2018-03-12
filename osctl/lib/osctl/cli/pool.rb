@@ -3,6 +3,7 @@ module OsCtl::Cli
     FIELDS = %i(
       name
       dataset
+      state
       users
       groups
       containers
@@ -53,7 +54,12 @@ module OsCtl::Cli
 
     def export
       require_args!('name')
-      osctld_fmt(:pool_export, name: args[0])
+      osctld_fmt(
+        :pool_export,
+        name: args[0],
+        stop_containers: opts['stop-containers'],
+        unregister_users: opts['unregister-users']
+      )
     end
 
     def install

@@ -8,6 +8,7 @@ module OsCtld
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])
       error!('container not found') unless ct
+      error!('the pool is disabled') unless ct.pool.active?
 
       ct.exclusively do
         error!('this container is not staged') if ct.state != :staged

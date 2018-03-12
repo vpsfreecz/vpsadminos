@@ -78,6 +78,12 @@ module OsCtl::Cli
         p.desc 'Export imported pool'
         p.arg_name '<name>'
         p.command :export do |c|
+          c.desc 'Stop all containers from the exported pool'
+          c.switch %i(s stop-containers), default_value: true
+
+          c.desc 'Unregister system users that come from the exported pool'
+          c.switch %i(u unregister-users), default_value: true
+
           c.action &Command.run(Pool, :export)
         end
 
