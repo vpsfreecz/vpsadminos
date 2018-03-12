@@ -58,6 +58,14 @@ module OsCtl::Repo
               res.read_body { |fragment| f.write(fragment) }
             end
 
+            if res['last-modified']
+              # Save the modtime for later requests
+              FileUtils.touch(
+                repo.index_path,
+                mtime: Time.httpdate(res['last-modified'])
+              )
+            end
+
           when '304'
             # index unchanged
 
@@ -67,8 +75,22 @@ module OsCtl::Repo
         end
 
       else
-        File.open(repo.index_path, 'w') do |f|
-          f.write(http.get(uri.path).body)
+        http.request_get(uri.path) do |res|
+          raise BadHttpResponse, res.code if res.code != '200'
+
+          File.open(repo.index_path, 'w') do |f|
+            res.read_body do |fragment|
+              f.write(fragment)
+            end
+          end
+
+          if res['last-modified']
+            # Save the modtime for later requests
+            FileUtils.touch(
+              repo.index_path,
+              mtime: Time.httpdate(res['last-modified'])
+            )
+          end
         end
       end
     end
@@ -90,6 +112,11 @@ module OsCtl::Repo
               end
             end
 
+            if res['last-modified']
+              # Save the modtime for later requests
+              FileUtils.touch(t_path, mtime: Time.httpdate(res['last-modified']))
+            end
+
             return
 
           when '304'
@@ -106,14 +133,19 @@ module OsCtl::Repo
         end
 
       else # download it
-        File.open(t_path, 'w') do |f|
-          http.request_get(uri.path) do |res|
+        http.request_get(uri.path) do |res|
+          File.open(t_path, 'w') do |f|
             raise BadHttpResponse, res.code if res.code != '200'
 
             res.read_body do |fragment|
               f.write(fragment)
               yield(fragment) if block_given?
             end
+          end
+
+          if res['last-modified']
+            # Save the modtime for later requests
+            FileUtils.touch(t_path, mtime: Time.httpdate(res['last-modified']))
           end
         end
       end
