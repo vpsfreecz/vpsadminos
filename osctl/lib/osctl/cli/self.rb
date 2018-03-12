@@ -31,5 +31,9 @@ module OsCtl::Cli
         end
       end
     end
+
+    def shutdown
+      osctld_fmt(:self_shutdown)
+    end
   end
 end

@@ -1020,6 +1020,11 @@ module OsCtl::Cli
 
         c.action &Command.run(Self, :healthcheck)
       end
+
+      desc 'Export all pools and stop all containers'
+      command :shutdown do |c|
+        c.action &Command.run(Self, :shutdown)
+      end
     end
 
     protected

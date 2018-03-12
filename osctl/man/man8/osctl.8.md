@@ -1201,6 +1201,12 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-a`, `--all`
       Verify all pools.
 
+`shutdown`
+  Export all pools and stop all containers. This command should be used at
+  system shutdown. Since all pools are immediately disabled, no container can be
+  started. All running containers are stopped. System users and groups are left
+  alone. This action can be reversed by reimporting selected pools.
+
 `help` [*command...*]
   Shows a list of commands or help for one command
 

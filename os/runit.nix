@@ -144,6 +144,7 @@ in
 
     "runit/3".source = pkgs.writeScript "3" ''
       #!/bin/sh
+      osctl shutdown
       echo and down we go
     '';
 
