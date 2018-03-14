@@ -1,0 +1,2 @@
+#!/usr/bin/env ruby
+Process.exec('osctl', File.basename(__FILE__), *ARGV)
