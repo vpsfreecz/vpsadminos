@@ -18,6 +18,8 @@
   tty.autologin.enable = true;
 
   environment.systemPackages = with pkgs; [
+    glibc
+    ipset
     vim
     screen
     strace
