@@ -17,7 +17,7 @@ module OsCtl::Lib
       stderr = opts[:stderr].nil? ? true : opts[:stderr]
 
       out = ""
-      log(:work, 'general', cmd)
+      log(:work, cmd)
 
       IO.popen(
         "exec #{cmd} #{stderr ? '2>&1' : '2> /dev/null'}",
@@ -37,7 +37,7 @@ module OsCtl::Lib
 
             else
               Process.kill('TERM', io.pid)
-              raise Exceptions::SystemCommandFailed, "Command '#{cmd}' failed: timeout"
+              raise Exceptions::SystemCommandFailed.new(cmd, 1, '')
             end
           end
 
@@ -47,8 +47,7 @@ module OsCtl::Lib
       end
 
       if $?.exitstatus != 0 && !valid_rcs.include?($?.exitstatus)
-        raise Exceptions::SystemCommandFailed,
-              "Command '#{cmd}' failed with exit code #{$?.exitstatus}: #{out}"
+        raise Exceptions::SystemCommandFailed.new(cmd, $?.exitstatus, out)
       end
 
       {output: out, exitstatus: $?.exitstatus}
