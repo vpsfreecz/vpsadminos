@@ -321,6 +321,64 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 `ct del` *id*
   Stop and delete container *id*.
 
+`ct reinstall` [*options*] *id*
+  Reinstall container from template. The container's rootfs is deleted
+  and an OS template is applied again. The container's configuration
+  and subdatasets remain unaffected.
+
+  If no template info is given via command-line options, `osctld` will attempt
+  to find appropriate template for the container's distribution version in
+  remote repositories. This may not work if the container was created
+  from a local file, stream or if the distribution is too old and no longer
+  supported.
+
+  As the applied template can be a ZFS stream, it is necessary to delete all
+  snapshots of the container's root dataset. By default, `ct reinstall` will
+  abort if there are snapshots present. You can use option `-r`,
+  `--remove-snapshots` to remove them.
+
+    `--template` *name*
+      Template tar file, required. See `TEMPLATE NAMES` for the naming scheme.
+
+    `--from-archive` *file*
+      Create the container from a tar archive available in the filesystem.
+
+    `--from-stream` *file*
+      Create the container from a ZFS stream, either in a file available in the
+      filesystem, or the stream can be fed into `osctl` via standard input.
+
+      If *file* is `-`, the stream is read from the standard input. In this case,
+      `--distribution` and `--version` have to be provided.
+
+    `--distribution` *distribution*
+      Distribution name in lower case, e.g. alpine, centos, debian, ubuntu.
+      If `--template` is provided, this option is not necessary, but can
+      optionally override the template's distribution info.
+
+    `--version` *version*
+      Distribution version. The format can differ among distributions, e.g.
+      alpine `3.6`, centos `7.0`, debian `9.0` or ubuntu `16.04`.
+      If `--template` is provided, this option is not necessary, but can
+      optionally override the template's distribution version info.
+
+    `--arch` *arch*
+      Container architecture, e.g. `x86_64` or `x86`. Defaults to the host system
+      architecture.
+
+    `--vendor` *vendor*
+      Vendor to be selected from the remote template repository.
+
+    `--variant` *variant*
+      Vendor variant to be selected from the remote template repository.
+
+    `--repository` *name*
+      Instead of searching all configured repositories from appropriate pool,
+      use only repository *name*. The selected repository can be disabled.
+
+    `-r`, `--remove-snapshots`
+      Remove all snapshots of the container's root dataset. `ct reinstall`
+      cannot proceed if there are snapshots present.
+
 `ct ls` [*options*] [*ids...*]
   List containers. If no *ids* are provided, all containers matching filters
   are listed.

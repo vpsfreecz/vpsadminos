@@ -331,6 +331,7 @@ module OsCtld
         when :distribution
           @distribution = v[:name]
           @version = v[:version]
+          @arch = v[:arch] if v[:arch]
         end
       end
 

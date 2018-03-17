@@ -377,6 +377,42 @@ module OsCtl::Cli
           c.action &Command.run(Container, :delete)
         end
 
+        ct.desc 'Reinstall container'
+        ct.arg_name '<id>'
+        ct.command :reinstall do |c|
+          c.desc 'Template from a repository'
+          c.flag :template
+
+          c.desc 'Template in a tar archive'
+          c.flag 'from-archive'
+
+          c.desc 'Template in a ZFS stream'
+          c.flag 'from-stream'
+
+          c.desc 'Distribution name in lower case'
+          c.flag :distribution
+
+          c.desc 'Distribution version'
+          c.flag :version
+
+          c.desc 'Architecture'
+          c.flag :arch
+
+          c.desc 'Vendor (used only when downloading the template)'
+          c.flag :vendor
+
+          c.desc 'Variant (used only when downloading the template)'
+          c.flag :variant
+
+          c.desc 'Repository'
+          c.flag :repository
+
+          c.desc 'Remove snapshots of the root dataset'
+          c.switch %i(r remove-snapshots)
+
+          c.action &Command.run(Container, :reinstall)
+        end
+
         ct.desc 'Start container'
         ct.arg_name '<id>'
         ct.command :start do |c|

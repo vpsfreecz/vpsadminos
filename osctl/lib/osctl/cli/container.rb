@@ -172,7 +172,7 @@ module OsCtl::Cli
         }
       end
 
-      if !cmd_opts[:template][:type] != :stream || cmd_opts[:stream][:path]
+      if cmd_opts[:template][:type] != :stream || cmd_opts[:stream][:path]
         osctld_fmt(:ct_create, cmd_opts)
         return
       end
@@ -196,6 +196,71 @@ module OsCtl::Cli
       require_args!('id')
 
       osctld_fmt(:ct_delete, id: args[0], pool: gopts[:pool])
+    end
+
+    def reinstall
+      require_args!('id')
+
+      cmd_opts = {
+        id: args[0],
+        pool: opts[:pool] || gopts[:pool],
+        repository: opts[:repository],
+        remove_snapshots: opts['remove-snapshots'],
+      }
+
+      %i(distribution version arch vendor variant).each do |v|
+        cmd_opts[v] = opts[v] if opts[v]
+      end
+
+      if opts[:template] && (opts['from-archive'] || opts['from-archive'])
+        raise GLI::BadCommandLine,
+              'provide either --template or one of --from-archive, --from-stream'
+
+      elsif opts['from-archive'] && opts['from-stream']
+        raise GLI::BadCommandLine,
+              'provide either --from-archive or --from-stream, not both'
+      end
+
+      if opts[:template] || (!opts['from-archive'] && !opts['from-stream'])
+        cmd_opts[:template] = {
+          type: :remote,
+          template: repo_template_attrs(defaults: false),
+        }
+
+      elsif opts['from-archive']
+        cmd_opts[:template] = {
+          type: :archive,
+          path: File.absolute_path(opts['from-archive'])
+        }
+
+      elsif opts['from-stream']
+        stdin = opts['from-stream'] == '-'
+        cmd_opts[:template] = {
+          type: :stream,
+          path: stdin ? nil : File.absolute_path(opts['from-stream'])
+        }
+      end
+
+      if !cmd_opts[:template] \
+         || cmd_opts[:template][:type] != :stream \
+         || cmd_opts[:stream][:path]
+        osctld_fmt(:ct_reinstall, cmd_opts)
+        return
+      end
+
+      updates = Proc.new { |msg| puts msg unless gopts[:quiet] }
+      c = osctld_open
+      ret = c.cmd_data!(:ct_reinstall, cmd_opts, &updates)
+
+      error!('invalid response, stdin stream not available') if ret != 'continue'
+
+      r_in, w_in = IO.pipe
+      c.send_io(r_in)
+      r_in.close
+      w_in.write(STDIN.read(16*1024)) until STDIN.eof?
+      w_in.close
+tt
+      c.response!(&updates)
     end
 
     def start
@@ -766,7 +831,7 @@ module OsCtl::Cli
       osctld_fmt(:ct_unset, cmd_opts)
     end
 
-    def repo_template_attrs
+    def repo_template_attrs(defaults: true)
       ret = {}
 
       if opts[:template]
@@ -788,15 +853,19 @@ module OsCtl::Cli
         }
       end
 
-      ret[:vendor] ||= opts[:vendor] || 'default'
-      ret[:variant] ||= opts[:variant] || 'default'
-      ret[:arch] ||= opts[:arch] || `uname -m`.strip
-      ret[:distribution] ||= opts[:distribution]
-      ret[:version] ||= opts[:version] || 'stable'
+      if defaults
+        ret[:vendor] ||= opts[:vendor] || 'default'
+        ret[:variant] ||= opts[:variant] || 'default'
+        ret[:arch] ||= opts[:arch] || `uname -m`.strip
+        ret[:distribution] ||= opts[:distribution]
+        ret[:version] ||= opts[:version] || 'stable'
 
-      unless ret[:distribution]
-        raise GLI::BadCommandLine,
-              'no distribution specified, use either --template or --distribution'
+      else
+        ret[:vendor] ||= opts[:vendor]
+        ret[:variant] ||= opts[:variant]
+        ret[:arch] ||= opts[:arch]
+        ret[:distribution] ||= opts[:distribution]
+        ret[:version] ||= opts[:version]
       end
 
       ret
