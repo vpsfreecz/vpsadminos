@@ -1,4 +1,5 @@
 BUILD_ID := $(shell date +%Y%m%d%H%M%S)
+VERSION := $(shell cat .version)
 
 build:
 	$(MAKE) -C os build
@@ -33,4 +34,14 @@ doc:
 doc_serve:
 	mkdocs serve
 
+version:
+	@echo "$(VERSION)" > .version
+	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" osctld/lib/osctld/version.rb
+	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" osctl/lib/osctl/version.rb
+	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" libosctl/lib/libosctl/version.rb
+	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" converter/lib/vpsadminos-converter/version.rb
+	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" osctl-repo/lib/osctl/repo/version.rb
+
+
 .PHONY: build converter doc doc_serve qemu gems libosctl osctl osctld osctl-repo osctl-env-exec
+.PHONY: version

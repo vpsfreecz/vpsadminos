@@ -1,3 +1,3 @@
 module OsCtld
-  VERSION = '0.1.0'
+  VERSION = '18.03.0'
 end
