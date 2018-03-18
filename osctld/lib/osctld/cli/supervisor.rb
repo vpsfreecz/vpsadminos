@@ -2,7 +2,7 @@ require 'optparse'
 
 module OsCtld
   class Cli::Supervisor
-    Options = Struct.new(:supervisor, :log)
+    Options = Struct.new(:supervisor, :log, :log_facility)
 
     def self.run
       s = new
@@ -16,7 +16,7 @@ module OsCtld
     attr_reader :opts
 
     def parse
-      @opts = Options.new(true, :stdout)
+      @opts = Options.new(true, :stdout, 'daemon')
 
       OptionParser.new do |opts|
         opts.on('--[no-]supervisor', 'Toggle osctld supervisor process (enabled by default)') do |v|
@@ -25,6 +25,13 @@ module OsCtld
 
         opts.on('-l', '--log LOGGER', %w(syslog stdout)) do |v|
           @opts.log = v.to_sym
+        end
+
+        opts.on(
+          '--log-facility FACILITY',
+          'Syslog facility, see man syslog(3), lowercase without LOG_ prefix'
+        ) do |v|
+          @opts.log_facility = v
         end
 
         opts.on('-h', '--help', 'Prints help message and exit') do
@@ -42,7 +49,7 @@ module OsCtld
 
     def supervise
       Process.setproctitle('osctld: supervisor')
-      OsCtl::Lib::Logger.setup(opts.log)
+      OsCtl::Lib::Logger.setup(opts.log, facility: opts.log_facility)
 
       out_r, out_w = IO.pipe
 
@@ -56,7 +63,8 @@ module OsCtld
         Process.exec(
           File.expand_path($0),
           '--no-supervisor',
-          '--log', opts.log.to_s
+          '--log', opts.log.to_s,
+          '--log-facility', opts.log_facility
         )
       end
 

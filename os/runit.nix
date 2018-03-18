@@ -167,7 +167,7 @@ in
     "service/osctld/run".source = pkgs.writeScript "osctld" ''
       #!/bin/sh
       exec 2>&1
-      exec ${pkgs.osctld}/bin/osctld --log syslog
+      exec ${pkgs.osctld}/bin/osctld --log syslog --log-facility local2
     '';
 
     "service/rsyslog/run".source = pkgs.writeScript "rsyslog" ''

@@ -4,6 +4,8 @@ module OsCtl::Lib
     # @param opts [Hash]
     # @option opts [IO] :io
     # @option opts [String] :name program name for syslog
+    # @option opts [String] :facility syslog facility, see man syslog(3), in lower case,
+    #                                 without `LOG_` prefix
     def self.setup(type, opts = {})
       case type
       when :stdout
@@ -18,7 +20,7 @@ module OsCtl::Lib
         require 'syslog/logger'
         @logger = Syslog::Logger.new(
           opts[:name] || File.basename($0),
-          Syslog::LOG_LOCAL2
+          Syslog.const_get(:"LOG_#{(opts[:facility] || 'daemon').upcase}")
         )
 
       when :none

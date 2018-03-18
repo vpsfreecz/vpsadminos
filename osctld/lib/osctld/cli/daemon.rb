@@ -12,7 +12,7 @@ module OsCtld
       end
 
       Process.setproctitle('osctld: main')
-      OsCtl::Lib::Logger.setup(opts.log)
+      OsCtl::Lib::Logger.setup(opts.log, facility: opts.log_facility)
       d.setup
     end
   end
