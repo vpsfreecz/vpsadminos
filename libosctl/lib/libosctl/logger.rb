@@ -3,6 +3,7 @@ module OsCtl::Lib
     # @param type [Symbol] `:stdout`, `:io`, `:syslog` or `:none`
     # @param opts [Hash]
     # @option opts [IO] :io
+    # @option opts [String] :name program name for syslog
     def self.setup(type, opts = {})
       case type
       when :stdout
@@ -15,7 +16,10 @@ module OsCtl::Lib
 
       when :syslog
         require 'syslog/logger'
-        @logger = Syslog::Logger.new('osctld', Syslog::LOG_LOCAL2)
+        @logger = Syslog::Logger.new(
+          opts[:name] || File.basename($0),
+          Syslog::LOG_LOCAL2
+        )
 
       when :none
         @logger = :none
