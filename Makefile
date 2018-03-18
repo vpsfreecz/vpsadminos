@@ -8,7 +8,7 @@ qemu:
 	$(MAKE) -C os qemu
 
 gems: libosctl osctl-repo osctl osctld converter
-	echo "$(BUILD_ID)" > .build_id
+	echo "$(VERSION).build$(BUILD_ID)" > .build_id
 
 libosctl:
 	./tools/update_gem.sh _nopkg libosctl $(BUILD_ID)
