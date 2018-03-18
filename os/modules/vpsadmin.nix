@@ -79,7 +79,7 @@ in
       environment.etc."service/nodectld/run".source = pkgs.writeScript "nodectld-service" ''
         #!/bin/sh
         exec 2>&1
-        exec ${pkgs.nodectld}/bin/nodectld --log syslog
+        exec ${pkgs.nodectld}/bin/nodectld --log syslog --log-facility local3
       '';
         
       environment.systemPackages = [ pkgs.nodectl ];
