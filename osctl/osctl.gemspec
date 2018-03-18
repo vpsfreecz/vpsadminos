@@ -5,8 +5,8 @@ require 'osctl/version'
 Gem::Specification.new do |s|
   s.name        = 'osctl'
 
-  if ENV['VPSADMIN_BUILD_ID']
-    s.version   = "#{OsCtl::VERSION}.build#{ENV['VPSADMIN_BUILD_ID']}"
+  if ENV['OS_BUILD_ID']
+    s.version   = "#{OsCtl::VERSION}.build#{ENV['OS_BUILD_ID']}"
   else
     s.version   = OsCtl::VERSION
   end

@@ -3,8 +3,8 @@ VERSION = '0.1.0'
 Gem::Specification.new do |s|
   s.name        = 'osctl-env-exec'
 
-  if ENV['VPSADMIN_BUILD_ID']
-    s.version   = "#{VERSION}.build#{ENV['VPSADMIN_BUILD_ID']}"
+  if ENV['OS_BUILD_ID']
+    s.version   = "#{VERSION}.build#{ENV['OS_BUILD_ID']}"
   else
     s.version   = VERSION
   end

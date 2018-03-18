@@ -5,8 +5,8 @@ require 'libosctl/version'
 Gem::Specification.new do |s|
   s.name        = 'libosctl'
 
-  if ENV['VPSADMIN_BUILD_ID']
-    s.version   = "#{OsCtl::Lib::VERSION}.build#{ENV['VPSADMIN_BUILD_ID']}"
+  if ENV['OS_BUILD_ID']
+    s.version   = "#{OsCtl::Lib::VERSION}.build#{ENV['OS_BUILD_ID']}"
   else
     s.version   = OsCtl::Lib::VERSION
   end
