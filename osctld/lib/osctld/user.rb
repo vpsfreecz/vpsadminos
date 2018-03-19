@@ -31,6 +31,8 @@ module OsCtld
       repeat_on_failure(attempts: 3, wait: 25) do
         zfs(:destroy, nil, dataset)
       end
+
+      File.unlink(config_path)
     end
 
     def configure(ugid, offset, size)
