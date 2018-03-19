@@ -23,7 +23,14 @@ module OsCtld
 
     def delete
       unregister
-      zfs(:destroy, nil, dataset)
+
+      # If we had just deleted the user's container, there may be lxc-monitord
+      # still running/exiting. It's making the user's dataset busy, so we try
+      # to remove the dataset several times. It can take up to 60 seconds for
+      # the lxc-monitord to exit.
+      repeat_on_failure(attempts: 3, wait: 25) do
+        zfs(:destroy, nil, dataset)
+      end
     end
 
     def configure(ugid, offset, size)

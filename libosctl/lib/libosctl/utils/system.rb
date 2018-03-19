@@ -56,5 +56,35 @@ module OsCtl::Lib
     def zfs(cmd, opts, component, cmd_opts = {})
       syscmd("zfs #{cmd} #{opts} #{component}", cmd_opts)
     end
+
+    # Attempt to run a block several times
+    #
+    # Given block is run repeatedle until it either succeeds, or the number
+    # of attempts has been reached. The block is considered successful if it
+    # does not raise any exceptions. {#repeat_on_failure} makes another attempt
+    # at calling the block, if it raises {Exceptions::SystemCommandFailed}.
+    # Any other exception will cause an immediate failure.
+    #
+    # @param attempts [Integer] number of attempts
+    # @param wait [Integer] time to wait after a failed attempt, in seconds
+    # @yield [] the block to be called
+    def repeat_on_failure(attempts: 3, wait: 5)
+      ret = []
+
+      attempts.times do |i|
+        begin
+          return yield
+
+        rescue Exceptions::SystemCommandFailed => err
+          log(:warn, "Attempt #{i+1} of #{attempts} failed for '#{err.cmd}'")
+          raise err if i == attempts - 1
+
+          ret << err
+          sleep(wait)
+        end
+      end
+
+      ret
+    end
   end
 end
