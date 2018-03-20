@@ -303,7 +303,7 @@ module OsCtld
     end
 
     def cgroup_path
-      File.join(group.full_cgroup_path(user), id)
+      File.join(group.full_cgroup_path(user), "ct.#{id}")
     end
 
     def abs_cgroup_path(subsystem)

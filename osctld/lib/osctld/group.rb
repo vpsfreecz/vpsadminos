@@ -63,16 +63,27 @@ module OsCtld
         path
 
       else
-        File.join(DB::Groups.root(pool).path, path)
+        File.join(
+          DB::Groups.root(pool).path,
+          path.split('/').map { |v| "group.#{v}" }
+        )
       end
     end
 
     def full_cgroup_path(user)
-      File.join(cgroup_path, user.name)
+      File.join(cgroup_path, "user.#{user.name}")
     end
 
     def abs_cgroup_path(subsystem)
       File.join(CGroup::FS, CGroup.real_subsystem(subsystem), cgroup_path)
+    end
+
+    def abs_full_cgroup_path(subsystem, user)
+      File.join(
+        CGroup::FS,
+        CGroup.real_subsystem(subsystem),
+        full_cgroup_path(user)
+      )
     end
 
     def userdir(user)

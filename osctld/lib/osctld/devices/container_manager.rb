@@ -38,7 +38,7 @@ module OsCtld
       if opts[:group_changes] # for recursive chmod from the group down
         do_apply_changes(
           opts[:group_changes],
-          path: File.join(ct.group.abs_cgroup_path('devices'), ct.user.name)
+          path: ct.group.abs_full_cgroup_path('devices', ct.user)
         )
 
       else # when chmodding the container itself
@@ -63,7 +63,7 @@ module OsCtld
           # <group>/<user>
           do_apply_changes(
             changes,
-            path: File.join(ct.group.abs_cgroup_path('devices'), ct.user.name)
+            path: ct.group.abs_full_cgroup_path('devices', ct.user)
           )
 
           # <group>/<user>/<ct>
@@ -134,8 +134,7 @@ module OsCtld
       ct.group.devices.each do |dev|
         CGroup.set_param(
           File.join(
-            ct.group.abs_cgroup_path('devices'),
-            ct.user.name,
+            ct.group.abs_full_cgroup_path('devices', ct.user),
             'devices.allow'
           ),
           [dev.to_s]
