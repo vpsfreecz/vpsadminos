@@ -7,28 +7,32 @@ module OsCtld
     def execute
       f = File.open("#{LXC_USERNET}.new", 'w')
 
-      net_cnt = 0
-      DB::Containers.get { |cts| cts.each { |ct| net_cnt += ct.netifs.count } }
-
       DB::Users.get.each do |u|
-        # TODO: we need to investigate why it's not enough to set the number
-        # of allowed veths to the number of user's container's interfaces, but
-        # why it has to be the total number interfaces from _all_ containers.
-        f.write("#{u.sysusername} veth none #{net_cnt}\n")
-
         bridges = {}
+        routed_cnt = 0
 
+        # Count interfaces per type
         u.containers.each do |ct|
           ct.netifs.each do |netif|
-            next unless netif.type == :bridge
+            case netif.type
+            when :bridge
+              bridges[netif.link] ||= 0
+              bridges[netif.link] += 1
 
-            bridges[netif.link] ||= 0
-            bridges[netif.link] += 1
+            when :routed
+              routed_cnt += 1
+
+            else
+              fail "unknown netif type '#{netif.type}'"
+            end
           end
         end
 
-        bridges.each do |br, _n|
-          f.write("#{u.sysusername} veth #{br} #{net_cnt}\n")
+        # Write results
+        f.write("#{u.sysusername} veth none #{routed_cnt}\n")
+
+        bridges.each do |br, n|
+          f.write("#{u.sysusername} veth #{br} #{n}\n")
         end
       end
 

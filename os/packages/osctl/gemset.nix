@@ -43,10 +43,10 @@
     dependencies = ["curses" "gli" "highline" "ipaddress" "json" "ruby-progressbar"];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0kxiqwwz56wawmcf582m2igwklqkxz3a8sv09f4f4m924j78s2gd";
+      sha256 = "0rjqiy7ja1qqcczh6afc1kzs51hscd6xaa65440y08fg55n7vgnr";
       type = "gem";
     };
-    version = "18.03.0.build20180319111714";
+    version = "18.03.0.build20180320093912";
   };
   ruby-progressbar = {
     source = {
