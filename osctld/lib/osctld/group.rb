@@ -24,10 +24,9 @@ module OsCtld
       @root
     end
 
-    def configure(path, cgparams = [], devices: true)
+    def configure(path, devices: true)
       @path = path
       @cgparams = CGroup::Params.new(self)
-      @cgparams.set(cgparams, save: false)
       @devices = Devices::GroupManager.new(self)
       @devices.init if devices
       save_config

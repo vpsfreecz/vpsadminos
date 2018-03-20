@@ -23,10 +23,10 @@ module OsCtld
     end
 
     def execute(grp)
-      params = grp.import_cgparams(opts[:cgparams] || [])
-
       grp.exclusively do
-        grp.configure(opts[:path], params)
+        grp.configure(opts[:path])
+        grp.cgparams.set(grp.cgparams.import(opts[:cgparams] || []))
+
         DB::Groups.add(grp)
       end
 
