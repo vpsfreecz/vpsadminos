@@ -1,6 +1,6 @@
 module OsCtld
   module SwitchUser
-    def self.switch_to(sysuser, ugid, homedir, cgroup_path)
+    def self.switch_to(sysuser, ugid, homedir, cgroup_path, chown_cgroups: true)
       # Environment
       ENV.delete('XDG_SESSION_ID')
       ENV.delete('XDG_RUNTIME_DIR')
@@ -18,7 +18,7 @@ module OsCtld
           subsys,
           cgroup_path.split('/'),
           attach: true,
-          chown: chowned.include?(subsys) ? ugid : false
+          chown: (chown_cgroups && chowned.include?(subsys)) ? ugid : false
         )
       end
 

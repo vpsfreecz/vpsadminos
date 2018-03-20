@@ -16,7 +16,8 @@ module OsCtld
           ct.user.sysusername,
           ct.user.ugid,
           ct.user.homedir,
-          ct.group.full_cgroup_path(ct.user)
+          File.join(ct.group.full_cgroup_path(ct.user), 'monitor'),
+          chown_cgroups: false
         )
 
         Process.exec('lxc-monitor', '-P', ct.lxc_home, '-n', '.*')
