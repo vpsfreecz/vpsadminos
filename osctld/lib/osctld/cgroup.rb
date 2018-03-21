@@ -82,5 +82,32 @@ module OsCtld
         end
       end
     end
+
+    # Remove cgroup path
+    # @param subsystem [String]
+    # @param path [String] path to remove, relative to the subsystem
+    def self.rmpath(subsystem, path)
+      abs_path = File.join(FS, subsystem, path)
+
+      # Remove subdirectories recursively
+      Dir.entries(abs_path).each do |dir|
+        next if dir == '.' || dir == '..'
+        next unless Dir.exist?(File.join(abs_path, dir))
+
+        rmpath(subsystem, File.join(path, dir))
+      end
+
+      # Remove directory
+      Dir.rmdir(abs_path)
+
+    rescue Errno::ENOENT
+      # pass
+    end
+
+    # Remove cgroup path in all subsystems
+    # @param path [String] path to remove, relative to subsystem
+    def self.rmpath_all(path)
+      subsystems.each { |subsys| rmpath(subsys, path) }
+    end
   end
 end

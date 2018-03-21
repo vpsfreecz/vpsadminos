@@ -39,9 +39,24 @@ module OsCtld
         progress('Unregistering container')
         DB::Containers.remove(ct)
 
+        progress('Removing cgroups')
+        begin
+          if ct.group.has_containers?(ct.user)
+            CGroup.rmpath_all(ct.base_cgroup_path)
+
+          else
+            CGroup.rmpath_all(ct.group.full_cgroup_path(ct.user))
+          end
+        rescue SystemCallError
+          # If some of the cgroups are busy, just leave them be
+        end
+
         bashrc = File.join(ct.lxc_dir, '.bashrc')
         File.unlink(bashrc) if File.exist?(bashrc)
-        Dir.rmdir(ct.group.userdir(ct.user)) unless ct.group.has_containers?(ct.user)
+
+        unless ct.group.has_containers?(ct.user)
+          Dir.rmdir(ct.group.userdir(ct.user))
+        end
       end
 
       progress('Reconfiguring LXC usernet')
