@@ -61,7 +61,7 @@ module OsCtld
         end
       end
 
-      graceful_stop(stop_entry) if stop_entry
+      graceful_stop(stop_entry, ct) if stop_entry
       true
     end
 
@@ -143,7 +143,7 @@ module OsCtld
       end
     end
 
-    def graceful_stop(entry)
+    def graceful_stop(entry, ct)
       if entry.pid.nil?
         # PID is nil if the thread is starting
         3.times do
@@ -159,6 +159,8 @@ module OsCtld
         Process.kill('TERM', entry.pid)
         entry.thread.join
       end
+
+      Monitor::Process.stop_monitord(ct)
     end
   end
 end

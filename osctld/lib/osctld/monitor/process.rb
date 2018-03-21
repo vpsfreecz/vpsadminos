@@ -27,6 +27,29 @@ module OsCtld
       [pid, out_r]
     end
 
+    def self.stop_monitord(ct)
+      pid = Process.fork do
+        SwitchUser.switch_to(
+          ct.user.sysusername,
+          ct.user.ugid,
+          ct.user.homedir,
+          File.join(ct.group.full_cgroup_path(ct.user), 'monitor'),
+          chown_cgroups: false
+        )
+
+        Process.exec('lxc-monitor', '-P', ct.lxc_home, '--quit')
+      end
+
+      Process.wait(pid)
+
+      if $?.exitstatus == 0
+        log(:info, :monitor, 'Stopped lxc-monitord')
+
+      else
+        log(:info, :monitor, 'Failed to stop lxc-monitord')
+      end
+    end
+
     def initialize(pool, user, group, stdout)
       @pool = pool
       @user = user
