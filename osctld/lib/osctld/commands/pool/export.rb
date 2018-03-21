@@ -31,6 +31,9 @@ module OsCtld
       # Unregister all entities
       progress('Unregistering users, groups and containers')
 
+      # Preserve root group
+      root_group = DB::Groups.root(pool)
+
       [DB::Containers, DB::Users, DB::Groups].each do |klass|
         klass.get.each do |obj|
           next if obj.pool != pool
@@ -50,6 +53,16 @@ module OsCtld
           end
 
           klass.remove(obj)
+        end
+      end
+
+      # Remove all cgroups
+      if opts[:stop_containers]
+        progress('Removing cgroups')
+        begin
+          CGroup.rmpath_all(root_group.cgroup_path)
+        rescue SystemCallError
+          # If some of the cgroups are busy, just leave them be
         end
       end
 
