@@ -9,16 +9,12 @@ module OsCtld
       ENV['USER'] = sysuser
 
       # CGroups
-      chowned = [
-        'freezer', 'cpu,cpuacct', 'net_cls', 'net_cls,net_prio', 'systemd',
-      ]
-
       CGroup.subsystems.each do |subsys|
         CGroup.mkpath(
           subsys,
           cgroup_path.split('/'),
           attach: true,
-          chown: (chown_cgroups && chowned.include?(subsys)) ? ugid : false
+          chown: chown_cgroups ? ugid : false
         )
       end
 

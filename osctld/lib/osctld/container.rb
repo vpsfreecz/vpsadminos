@@ -48,8 +48,9 @@ module OsCtld
       @dns_resolvers = nil
       @nesting = false
 
-      load_config(opts[:load_from]) if opts[:load]
-      devices.init if devices && (!opts.has_key?(:devices) || opts[:devices])
+      if opts[:load]
+       load_config(opts[:load_from], !opts.has_key?(:devices) || opts[:devices])
+      end
     end
 
     def ident
@@ -302,12 +303,20 @@ module OsCtld
       )
     end
 
-    def cgroup_path
+    def base_cgroup_path
       File.join(group.full_cgroup_path(user), "ct.#{id}")
+    end
+
+    def cgroup_path
+      File.join(base_cgroup_path, 'user-owned')
     end
 
     def abs_cgroup_path(subsystem)
       File.join(CGroup::FS, CGroup.real_subsystem(subsystem), cgroup_path)
+    end
+
+    def abs_apply_cgroup_path(subsystem)
+      File.join(CGroup::FS, CGroup.real_subsystem(subsystem), base_cgroup_path)
     end
 
     def set(opts)
@@ -500,7 +509,7 @@ module OsCtld
     end
 
     protected
-    def load_config(config = nil)
+    def load_config(config = nil, init_devices = true)
       if config
         cfg = YAML.load(config)
       else
@@ -527,6 +536,16 @@ module OsCtld
       @dns_resolvers = cfg['dns_resolvers']
       @nesting = cfg['nesting'] || false
       @migration_log = Migration::Log.load(cfg['migration_log']) if cfg['migration_log']
+      @cgparams = CGroup::Params.load(self, cfg['cgparams'])
+      @prlimits = (cfg['prlimits'] || []).map { |v| PrLimit.load(v) }
+
+      # It's necessary to load devices _before_ netifs. The device manager needs
+      # to create cgroups first, in order for echo a > devices.deny to work.
+      # If the container has a veth interface, the setup code switches to the
+      # container's user, which creates cgroups in all subsystems. Devices then
+      # can't be initialized properly.
+      @devices = Devices::ContainerManager.load(self, cfg['devices'] || [])
+      @devices.init if init_devices
 
       i = 0
       @netifs = (cfg['net_interfaces'] || []).map do |v|
@@ -537,9 +556,6 @@ module OsCtld
         netif
       end
 
-      @cgparams = CGroup::Params.load(self, cfg['cgparams'])
-      @devices = Devices::ContainerManager.load(self, cfg['devices'] || [])
-      @prlimits = (cfg['prlimits'] || []).map { |v| PrLimit.load(v) }
       @mounts = (cfg['mounts'] || []).map { |v| Mount.load(self, v) }
     end
   end

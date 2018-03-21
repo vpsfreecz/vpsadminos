@@ -54,7 +54,12 @@ module OsCtld
 
     def apply(groupable, force: true)
       groupable.cgparams.apply(keep_going: force) do |subsystem|
-        groupable.abs_cgroup_path(subsystem)
+        if groupable.respond_to?(:abs_apply_cgroup_path)
+          groupable.abs_apply_cgroup_path(subsystem)
+
+        else
+          groupable.abs_cgroup_path(subsystem)
+        end
       end
 
       ok

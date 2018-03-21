@@ -23,6 +23,7 @@ pages:
     - OpenVZ Legacy: 'migration-paths/openvz-legacy.md'
 - osctld:
     - Distribution support: 'osctld/distributions.md'
+    - cgroups: 'osctld/cgroups.md'
     - Interfaces: 'osctld/interfaces.md'
     - OS requirements: 'osctld/os-requirements.md'
 - Specifications:
