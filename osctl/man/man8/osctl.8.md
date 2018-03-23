@@ -505,8 +505,17 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   Move container *id* to user namespace *user*. The container has to be stopped
   first.
 
-`ct chgrp` *id* *group*
+`ct chgrp` [*options*] *id* *group*
   Move container *id* to group *group*. The container has to be stopped first.
+
+    `--missing-devices` `check`|`provide`|`remove`
+      The container may require access to devices that are not available in the
+      target group. This option determines how should `osctld` treat those
+      missing devices. `check` means that if a missing device is found, an error
+      is returned and the operation is aborted. `provide` will add missing
+      devices to the target group and all its parent groups, it will also ensure
+      sufficient access mode. `remove` will remove all unavailable devices from
+      the container. The default mode is `check`.
 
 `ct passwd` *id* *user* [*password*]
   Change password of *user* in container *id*. The user has to already exist.

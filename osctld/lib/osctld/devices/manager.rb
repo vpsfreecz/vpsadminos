@@ -129,10 +129,10 @@ module OsCtld
     def check_availability!(device, group, mode: nil)
       ([group] + group.parents.reverse).each do |grp|
         dev = grp.devices.detect { |v| v == device }
-        raise DeviceNotAvailable, grp unless dev
+        raise DeviceNotAvailable.new(device, grp) unless dev
 
         unless dev.mode.compatible?(mode || device.mode)
-          raise DeviceModeInsufficient.new(grp, dev.mode)
+          raise DeviceModeInsufficient.new(device, grp, dev.mode)
         end
       end
     end

@@ -15,14 +15,14 @@ module OsCtld
   class TemplateRepositoryUnavailable < StandardError ; end
 
   class DeviceNotAvailable < StandardError
-    def initialize(grp)
-      super("device not available in group '#{grp.name}'")
+    def initialize(dev, grp)
+      super("device '#{dev}' not available in group '#{grp.name}'")
     end
   end
 
   class DeviceModeInsufficient < StandardError
-    def initialize(grp, mode)
-      super("group '#{grp.name}' provides only mode '#{mode}'")
+    def initialize(dev, grp, mode)
+      super("group '#{grp.name}' provides only mode '#{mode}' for device '#{dev}'")
     end
   end
 

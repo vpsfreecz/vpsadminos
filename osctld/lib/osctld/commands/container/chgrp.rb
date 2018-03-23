@@ -15,9 +15,7 @@ module OsCtld
       return error('group not found') unless grp
 
       return error("already in group #{grp.name}") if ct.group == grp
-
       return error('container has to be stopped first') if ct.state != :stopped
-      Monitor::Master.demonitor(ct)
 
       old_grp = ct.group
 
@@ -25,6 +23,19 @@ module OsCtld
         ct.exclusively do
           # Double check state while having exclusive lock
           next error('container has to be stopped first') if ct.state != :stopped
+
+          # Check that devices are available in the new group
+          unless %w(provide remove).include?(opts[:missing_devices])
+            begin
+              ct.devices.check_all_available!(grp)
+
+            rescue DeviceNotAvailable, DeviceModeInsufficient => e
+              error!(e.message)
+            end
+          end
+
+          # Stop monitor for old user/group
+          Monitor::Master.demonitor(ct)
 
           progress('Moving LXC configuration')
 
@@ -39,7 +50,7 @@ module OsCtld
 
           # Switch group, regenerate configs
           progress('Reconfiguring container')
-          ct.chgrp(grp)
+          ct.chgrp(grp, missing_devices: opts[:missing_devices])
 
           # Restart monitor
           Monitor::Master.monitor(ct)

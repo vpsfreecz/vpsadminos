@@ -158,8 +158,22 @@ module OsCtld
       configure_bashrc
     end
 
-    def chgrp(grp)
+    def chgrp(grp, missing_devices: nil)
       @group = grp
+
+      case missing_devices
+      when 'provide'
+        devices.ensure_all
+        devices.create
+
+      when 'remove'
+        devices.remove_missing
+        devices.create
+
+      else
+        fail "unsupported action for missing devices: '#{missing_devices}'"
+      end
+
       save_config
       configure_lxc
       configure_bashrc

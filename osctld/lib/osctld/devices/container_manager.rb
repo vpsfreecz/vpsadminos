@@ -8,8 +8,11 @@ module OsCtld
       inherit_all_from(ct.group, opts)
 
       log(:info, ct, "Configuring cgroup #{ct.cgroup_path} for devices")
+      create
+    end
 
-      ### Create cgroups & configure parameters
+    # Create cgroups and apply device settings
+    def create
       rel_group_cgroup_paths.zip(abs_group_cgroup_paths).each do |rel, abs|
         next if !rel[1] || !abs[1]
 
@@ -125,8 +128,10 @@ module OsCtld
     end
 
     # Check that all devices are provided by parents, or raise an exception
-    def check_all_available!
-      devices.each { |dev| check_availability!(dev, ct.group) }
+    # @param group [Group, nil] which group to use as the container's parent,
+    #                           defaults to the container's group
+    def check_all_available!(group = nil)
+      devices.each { |dev| check_availability!(dev, group || ct.group) }
     end
 
     # Ensure that all required devices are provided by parent groups
@@ -139,7 +144,7 @@ module OsCtld
     def remove_missing
       devices.delete_if do |dev|
         pdev = ct.group.devices.get(dev)
-        pdev.nil? || !pdev.mode.compatible?(dev)
+        pdev.nil? || !pdev.mode.compatible?(dev.mode)
       end
     end
 

@@ -453,7 +453,13 @@ tt
 
     def chgrp
       require_args!('id', 'group')
-      osctld_fmt(:ct_chgrp, id: args[0], pool: gopts[:pool], group: args[1])
+      osctld_fmt(
+        :ct_chgrp,
+        id: args[0],
+        pool: gopts[:pool],
+        group: args[1],
+        missing_devices: opts['missing-devices']
+      )
     end
 
     def passwd

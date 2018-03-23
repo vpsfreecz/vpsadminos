@@ -539,6 +539,9 @@ module OsCtl::Cli
         ct.desc 'Move the container to another group'
         ct.arg_name '<id> <group>'
         ct.command :chgrp do |c|
+          c.desc 'Provide or remove missing devices'
+          c.flag 'missing-devices', must_match: %w(provide remove check)
+
           c.action &Command.run(Container, :chgrp)
         end
 
