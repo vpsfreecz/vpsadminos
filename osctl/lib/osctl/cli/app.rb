@@ -78,6 +78,9 @@ module OsCtl::Cli
         p.desc 'Export imported pool'
         p.arg_name '<name>'
         p.command :export do |c|
+          c.desc 'Export the pool even if there are containers running'
+          c.switch %i(f force)
+
           c.desc 'Stop all containers from the exported pool'
           c.switch %i(s stop-containers), default_value: true
 

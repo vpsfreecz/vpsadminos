@@ -57,6 +57,7 @@ module OsCtl::Cli
       osctld_fmt(
         :pool_export,
         name: args[0],
+        force: opts[:force],
         stop_containers: opts['stop-containers'],
         unregister_users: opts['unregister-users']
       )

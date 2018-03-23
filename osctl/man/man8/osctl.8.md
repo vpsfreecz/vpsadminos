@@ -129,9 +129,15 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Start containers that are configured to be started automatically. Enabled
       by default.
 
-`pool export` *name*
+`pool export` [*options*] *name*
   Export pool *name* from `osctld`. No data is deleted, the pool and all its
-  content is merely removed from `osctld`.
+  content is merely removed from `osctld`. `pool export` aborts if any container
+  from the exported pool is running, unless option `-f`, `--force` is given.
+
+    `-f`, `--force`
+      Export the pool even if there are containers running or an autostart plan
+      is still in progress. Running containers are stopped if `-s`,
+      `--stop-containers` is set, otherwise they're left alone.
 
     `-s`, `--[no-]stop-containers`
       Stop all containers from pool *name*. Enabled by default.

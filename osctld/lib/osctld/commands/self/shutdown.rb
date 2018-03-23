@@ -15,6 +15,7 @@ module OsCtld
         call_cmd!(
           Commands::Pool::Export,
           name: pool.name,
+          force: true,
           stop_containers: true,
           unregister_users: false
         )

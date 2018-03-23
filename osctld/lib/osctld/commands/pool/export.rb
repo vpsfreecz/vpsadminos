@@ -6,6 +6,16 @@ module OsCtld
       pool = DB::Pools.find(opts[:name])
       error!('pool not imported') unless pool
 
+      # Check for running containers
+      unless opts[:force]
+        if pool.autostart_plan.running?
+          error!('the pool has autostart plan in progress')
+
+        elsif DB::Containers.get.detect { |ct| ct.pool == pool && ct.running? }
+          error!('the pool has running containers')
+        end
+      end
+
       # Stop autostart plan, if active
       pool.stop
 
