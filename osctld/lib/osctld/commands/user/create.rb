@@ -23,11 +23,21 @@ module OsCtld
         error!('invalid offset: must be greater or equal to 0')
       end
 
-      db_u = DB::Users.get.detect { |u| u.ugid == opts[:ugid] }
-      error!(
-        "ugid #{opts[:ugid]} already taken by user "+
-        "#{db_u.pool.name}:#{db_u.name}"
-      ) if db_u
+      # Check for duplicities
+      DB::Users.get.each do |u|
+        if u.ugid == opts[:ugid]
+          error!(
+            "ugid #{opts[:ugid]} already taken by user "+
+            "#{u.pool.name}:#{u.name}"
+          )
+
+        elsif u.offset == opts[:offset]
+          error!(
+            "offset #{opts[:offset]} already taken by user "+
+            "#{u.pool.name}:#{u.name}"
+          )
+        end
+      end
 
       u = User.new(pool, opts[:name], load: false)
       error!('user already exists') if DB::Users.contains?(u.name, pool)
