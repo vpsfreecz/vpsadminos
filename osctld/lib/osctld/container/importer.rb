@@ -142,22 +142,10 @@ module OsCtld
         # The group does not exist, create it
         Commands::Group::Create.run!(
           pool: pool.name,
-          name: grp.name,
-          path: grp.path
+          name: grp.name
         )
 
         return DB::Groups.find(name, pool) || (fail 'expected group')
-      end
-
-      %i(path).each do |param|
-        mine = db.send(param)
-        other = grp.send(param)
-        next if mine == other
-
-        error!(
-          "group #{pool.name}:#{name} already exists: #{param} mismatch: "+
-          "existing #{mine}, trying to import #{other}"
-        )
       end
 
       db

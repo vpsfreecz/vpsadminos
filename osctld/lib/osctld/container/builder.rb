@@ -1,3 +1,5 @@
+require 'fileutils'
+
 module OsCtld
   class Container::Builder
     include OsCtl::Lib::Utils::Log
@@ -228,8 +230,10 @@ module OsCtld
       progress('Configuring LXC home')
 
       unless ct.group.setup_for?(ct.user)
-        Dir.mkdir(ct.group.userdir(ct.user), 0751)
-        File.chown(0, ct.user.ugid, ct.group.userdir(user))
+        dir = ct.group.userdir(ct.user)
+
+        FileUtils.mkdir_p(dir, mode: 0751)
+        File.chown(0, ct.user.ugid, dir)
       end
 
       Dir.mkdir(ct.lxc_dir, 0750)

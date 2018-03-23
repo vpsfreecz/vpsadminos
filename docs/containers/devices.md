@@ -2,7 +2,7 @@
 Every container needs access to basic devices, such as `/dev/null`, `/dev/zero`,
 TTYs, console, etc. Although access to these devices is managed through the
 *devices* CGroup, manipulating the CGroup directly is tricky. You'd have to
-add devices to the *root* group and then manually propagate them to child groups
+add devices to the root group and then manually propagate them to child groups
 and containers. To make device management and manipulation simpler, *osctld*
 manages the devices itself. Use `osctl ct/group devices` instead of
 `osctl ct/group cgparams` for device management.
@@ -13,13 +13,13 @@ Since every container needs access to a minimal set of devices, we're utilizing
 containers. Like with the *devices* CGroup, child groups can access only those
 devices that the parent group has access to. Child groups can only restrict
 access granted by the parent, not expand it. Therefore, every device that some
-container wants to use must be enabled in the *root* group and then in all groups,
+container wants to use must be enabled in the root group and then in all groups,
 that are a direct or an indirect parent to that container.
 
-Let's review the default device access list for the *root* group:
+Let's review the default device access list for the root group:
 
 ```shell
-osctl group devices ls root
+osctl group devices ls /
 TYPE   MAJOR   MINOR   MODE   NAME           INHERIT   INHERITED 
 char   1       3       rwm    /dev/null      true      -         
 char   1       5       rwm    /dev/zero      true      -         
@@ -36,11 +36,11 @@ This is the minimal set of devices that all containers have to have access to.
 Child groups will inherit all devices where the `INHERIT` column is `true`,
 making them available to their own child groups and containers.
 
-If we look at the *default* group, which is a direct descendant of the *root*
+If we look at the default group, which is a direct descendant of the root
 group, we can see that all those devices were in fact inherited:
 
 ```shell
-osctl group devices ls default
+osctl group devices ls /default
 TYPE   MAJOR   MINOR   MODE   NAME           INHERIT   INHERITED 
 char   1       3       rwm    /dev/null      true      true      
 char   1       5       rwm    /dev/zero      true      true      
@@ -59,11 +59,11 @@ created.
 
 ## Adding a new device to all containers
 If you wish to add device to all containers, all you have to do is add it to
-the *root* group and make it inheritable. All child groups and containers will
+the root group and make it inheritable. All child groups and containers will
 then be able to use it:
 
 ```shell
-osctl group devices add --inherit root char 10 200 rw /dev/net/tun
+osctl group devices add --inherit / char 10 200 rw /dev/net/tun
 ```
 
 Access to the device is permitted immediately, but the device node is created
@@ -150,7 +150,7 @@ osctl ct devices chmod --parents myct01 char 10 229 rw
 Devices can be removed only if no group or container uses them:
 
 ```shell
-osctl group devices del root char 10 229
+osctl group devices del / char 10 229
 error: device is used by child groups/containers, use recursive mode
 ```
 
@@ -158,10 +158,10 @@ To remove the device from all child groups and containers, you can use switch
 `-r`, `--recursive`:
 
 ```shell
-osctl group devices del --recursive root char 10 229
+osctl group devices del --recursive / char 10 229
 ```
 
-By removing the device from the *root* group, we have removed it from all child
+By removing the device from the root group, we have removed it from all child
 groups and all containers. If you remove a device from a non-root group or
 a specific container, the parent groups can still use it.
 

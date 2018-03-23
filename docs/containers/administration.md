@@ -61,8 +61,6 @@ osctl user new --ugid 5000 --offset 666000 --size 65536 myuser01
 osctl ct new --user myuser01 --distribution ubuntu --version 16.04 myct01
 
 # Review pool layout
-
-
 NAME                UIDOFFSET  GIDOFFSET  MOUNTPOINT
 tank                        0          0  /tank
 tank/conf                   0          0  /tank/conf
@@ -97,27 +95,28 @@ Because we haven't selected a group when creating the container, *osctld* put
 it into the *default* group. Let's see its assets:
 
 ```console
-TYPE        PATH                           VALID   PURPOSE                       
-file        /tank/conf/group/default.yml   true    osctld's group config         
-directory   /tank/user/myuser01/default    true    LXC path for myuser01/default
+group assets /default
+TYPE        PATH                                    VALID   PURPOSE                        
+file        /tank/conf/group/default/config.yml     true    osctld's group config          
+directory   /tank/user/myuser01/group.default/cts   true    LXC path for myuser01:/default
 ```
 
 As you can see, there is one LXC path for user `myuser01` and group `default`,
 where our container resides. Let's review the container:
 
-```console
-osctl ct assets myct01
-TYPE        PATH                                          VALID   PURPOSE
-dataset     tank/ct/myct01                                true    Container's rootfs dataset
-directory   /tank/ct/myct01/private                       true    Container's rootfs
-directory   /tank/user/myuser01/default/myct01            true    LXC configuration
-file        /tank/user/myuser01/default/myct01/config     true    LXC base config
-file        /tank/user/myuser01/default/myct01/network    true    LXC network config
-file        /tank/user/myuser01/default/myct01/prlimits   true    LXC resource limits
-file        /tank/user/myuser01/default/myct01/mounts     true    LXC mounts
-file        /tank/user/myuser01/default/myct01/.bashrc    true    Shell configuration file for osctl ct su
-file        /tank/conf/ct/myct01.yml                      true    Container config for osctld
-file        /tank/log/ct/myct01.log                       true    LXC log file
+```bash
+ct assets myct01
+TYPE        PATH                                                    VALID   PURPOSE
+dataset     tank/ct/myct01                                          true    Container's rootfs dataset
+directory   /tank/ct/myct01/private                                 true    Container's rootfs
+directory   /tank/user/myuser01/group.default/cts/myct01            true    LXC configuration
+file        /tank/user/myuser01/group.default/cts/myct01/config     true    LXC base config
+file        /tank/user/myuser01/group.default/cts/myct01/network    true    LXC network config
+file        /tank/user/myuser01/group.default/cts/myct01/prlimits   true    LXC resource limits
+file        /tank/user/myuser01/group.default/cts/myct01/mounts     true    LXC mounts
+file        /tank/user/myuser01/group.default/cts/myct01/.bashrc    true    Shell configuration file for osctl ct su
+file        /tank/conf/ct/myct01.yml                                true    Container config for osctld
+file        /tank/log/ct/myct01.log                                 true    LXC log file
 ```
 
 ## cd helpers
@@ -151,7 +150,7 @@ environment as *osctld* itself is using to start the container.
 osctl ct su myct01
 Opened shell for:
   User:  myuser01
-  Group: default
+  Group: /default
   CT:    myct01
 
 Available LXC utilities:
@@ -170,10 +169,10 @@ Available LXC utilities:
 Implicit arguments: -P /tank/user/myuser01/default -n myct01
 Do not use this shell to manipulate any other container than myct01.
 
-[unsmyuser01@vpsadminos:/tank/user/myuser01/default]$ 
+[unsmyuser01@vpsadminos:/tank/user/myuser01/group.default/cts]$ 
 ```
 
-The shell uses `/tank/user/myuser01/default/myct01/.bashrc` instead of
+The shell uses `/tank/user/myuser01/group.default/cts/myct01/.bashrc` instead of
 `~/.bashrc`, see user assets above. The shell can be used to manipulate only
 the chosen container, because every container has a specific CGroup path,
 so running other containers would put them to a wrong group.

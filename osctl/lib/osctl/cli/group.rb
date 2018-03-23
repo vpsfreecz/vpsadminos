@@ -18,7 +18,6 @@ module OsCtl::Cli
     DEFAULT_FIELDS = %i(
       pool
       name
-      path
       memory
       cpu_time
     )
@@ -87,7 +86,7 @@ module OsCtl::Cli
       cmd_opts = {
         name: args[0],
         pool: opts[:pool] || gopts[:pool],
-        path: opts[:path],
+        parents: opts[:parents],
         cgparams: parse_cgparams,
       }
 

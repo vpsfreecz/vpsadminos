@@ -3,7 +3,7 @@ module OsCtld
     include Lockable
     include Assets::Definition
 
-    attr_reader :pool, :name, :path, :cgparams, :devices
+    attr_reader :pool, :name, :cgparams, :devices
 
     def initialize(pool, name, load: true, config: nil, devices: true, root: false)
       init_lock
@@ -24,8 +24,12 @@ module OsCtld
       @root
     end
 
-    def configure(path, devices: true)
-      @path = path
+    def path
+      root? ? @path : File.join(DB::Groups.root(pool).path, name)
+    end
+
+    def configure(path: nil, devices: true)
+      @path = path if root?
       @cgparams = CGroup::Params.new(self)
       @devices = Devices::GroupManager.new(self)
       @devices.init if devices
@@ -45,7 +49,7 @@ module OsCtld
         users.each do |u|
           add.directory(
             userdir(u),
-            desc: "LXC path for #{u.name}/#{name}",
+            desc: "LXC path for #{u.name}:#{name}",
             user: 0,
             group: u.ugid,
             mode: 0751
@@ -54,8 +58,12 @@ module OsCtld
       end
     end
 
+    def config_dir
+      File.join(pool.conf_path, 'group', id)
+    end
+
     def config_path
-      File.join(pool.conf_path, 'group', "#{id}.yml")
+      File.join(pool.conf_path, 'group', id, 'config.yml')
     end
 
     def cgroup_path
@@ -65,7 +73,7 @@ module OsCtld
       else
         File.join(
           DB::Groups.root(pool).path,
-          path.split('/').map { |v| "group.#{v}" }
+          *name.split('/').drop(1).map { |v| "group.#{v}" }
         )
       end
     end
@@ -87,7 +95,11 @@ module OsCtld
     end
 
     def userdir(user)
-      File.join(user.userdir, name)
+      File.join(
+        user.userdir,
+        *name.split('/').drop(1).map { |v| "group.#{v}" },
+        'cts'
+      )
     end
 
     def setup_for?(user)
@@ -99,16 +111,14 @@ module OsCtld
     def parents
       return [] if root?
 
-      ret = [DB::Groups.root(pool)]
+      ret = []
       t = ''
 
-      path.split('/').each do |name|
-        t = File.join(t, name)
-        t = t[1..-1] if t.start_with?('/')
+      name.split('/')[0..-2].each do |n|
+        t = File.join('/', t, n)
 
         g = DB::Groups.by_path(pool, t)
-        next if g.nil? || g.root?
-        return ret if g == self
+        raise GroupNotFound, "group '#{t}' not found" if g.nil?
 
         ret << g
       end
@@ -130,6 +140,23 @@ module OsCtld
       parents + [self]
     end
 
+    # Return all groups that are direct descendants
+    # @return [Array<Group>]
+    def children
+      DB::Groups.get.select do |grp|
+        next if grp.pool != pool || grp.name == name
+
+        if root?
+          s = '/'
+        else
+          s = "#{name}/"
+        end
+
+        grp.name.start_with?(s) && grp.name[s.size..-1].index('/').nil?
+
+      end.sort! { |a, b| a.name <=> b.name }
+    end
+
     # Return all groups below the current group's path
     # @return [Array<Group>]
     def descendants
@@ -139,8 +166,8 @@ module OsCtld
         groups.drop(1) # remove the root group, which is first
 
       else
-        groups.select { |grp| grp.path.start_with?("#{path}/") }
-      end.sort! { |a, b| a.path <=> b.path }
+        groups.select { |grp| grp.name.start_with?("#{name}/") }
+      end.sort! { |a, b| a.name <=> b.name }
     end
 
     def has_containers?(user = nil)
@@ -178,12 +205,17 @@ module OsCtld
     end
 
     def save_config
+      Dir.mkdir(config_dir) unless Dir.exist?(config_dir)
+
+      cfg = {
+        'cgparams' => cgparams.dump,
+        'devices' => devices.dump,
+      }
+
+      cfg['path'] = path if root?
+
       File.open(config_path, 'w', 0400) do |f|
-        f.write(YAML.dump({
-          'path' => path,
-          'cgparams' => cgparams.dump,
-          'devices' => devices.dump,
-        }))
+        f.write(YAML.dump(cfg))
       end
 
       File.chown(0, 0, config_path)
@@ -197,7 +229,7 @@ module OsCtld
         cfg = YAML.load_file(config_path)
       end
 
-      @path = cfg['path']
+      @path = cfg['path'] if root?
       @cgparams = CGroup::Params.load(self, cfg['cgparams'])
       @devices = Devices::GroupManager.load(self, cfg['devices'] || [])
     end

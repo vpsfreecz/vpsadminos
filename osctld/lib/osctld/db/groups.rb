@@ -17,7 +17,7 @@ module OsCtld
     def setup(pool)
       root, created = load_or_create(
         pool,
-        'root',
+        '/',
         File.join('osctl', "pool.#{pool.name}")
       )
 
@@ -76,45 +76,45 @@ module OsCtld
         root.devices.init
       end
 
-      load_or_create(pool, 'default', 'default')
+      load_or_create(pool, '/default')
     end
 
     def root(pool)
-      find('root', pool)
+      find('/', pool)
     end
 
     def default(pool)
-      find('default', pool)
+      find('/default', pool)
     end
 
     def add(grp)
       sync do
         super
         @index[grp.pool.name] ||= {}
-        @index[grp.pool.name][grp.path] = grp
+        @index[grp.pool.name][grp.name] = grp
       end
     end
 
     def remove(grp)
       sync do
         super
-        @index[grp.pool.name].delete(grp.path)
+        @index[grp.pool.name].delete(grp.name)
         @index.delete(grp.pool.name) if @index[grp.pool.name].empty?
         grp
       end
     end
 
-    def by_path(pool, path)
+    def by_path(pool, name)
       sync do
         next nil unless @index.has_key?(pool.name)
-        @index[pool.name][path]
+        @index[pool.name][name]
       end
     end
 
     protected
-    def load_or_create(pool, name, path)
+    def load_or_create(pool, name, path = nil)
       grp = nil
-      root = name == 'root'
+      root = name == '/'
       created = false
 
       begin
@@ -122,7 +122,7 @@ module OsCtld
 
       rescue Errno::ENOENT
         grp = Group.new(pool, name, load: false, root: root)
-        grp.configure(path, [], devices: false)
+        grp.configure(path: path, devices: false)
         created = true
       end
 

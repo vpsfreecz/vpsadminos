@@ -256,8 +256,8 @@ module OsCtl::Cli
           new.desc 'Pool name'
           new.flag :pool
 
-          new.desc 'CGroup path (in all subsystems)'
-          new.flag %i(p path), required: true
+          new.desc 'Create missing parent groups'
+          new.switch %i(p parents)
 
           new.desc 'Set CGroup parameter'
           new.flag %i(cgparam), multiple: true

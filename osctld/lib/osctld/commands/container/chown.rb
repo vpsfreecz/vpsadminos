@@ -1,3 +1,5 @@
+require 'fileutils'
+
 module OsCtld
   class Commands::Container::Chown < Commands::Logged
     handle :ct_chown
@@ -30,8 +32,10 @@ module OsCtld
 
           # Ensure LXC home
           unless ct.group.setup_for?(user)
-            Dir.mkdir(ct.group.userdir(user), 0751)
-            File.chown(0, ct.user.ugid, ct.group.userdir(user))
+            dir = ct.group.userdir(user)
+
+            FileUtils.mkdir_p(dir, mode: 0751)
+            File.chown(0, user.ugid, dir)
           end
 
           # Move CT dir

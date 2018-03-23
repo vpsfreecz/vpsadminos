@@ -996,9 +996,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `--pool` *name*
       Pool name, optional.
 
-    `-p`, `--path` *path*
-      CGroup path in all subsystems, required. The path is relative to the root
-      group.
+    `-p`, `--parents`
+      Create all missing parent groups.
 
     `--cgparam` *parameter*=*value*
       Set CGroup parameter, may be used more than once. See `group cgparams set`

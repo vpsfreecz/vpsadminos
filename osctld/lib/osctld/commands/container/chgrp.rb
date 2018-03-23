@@ -1,3 +1,5 @@
+require 'fileutils'
+
 module OsCtld
   class Commands::Container::Chgrp < Commands::Logged
     handle :ct_chgrp
@@ -41,8 +43,10 @@ module OsCtld
 
           # Ensure LXC home
           unless grp.setup_for?(ct.user)
-            Dir.mkdir(grp.userdir(ct.user), 0751)
-            File.chown(0, ct.user.ugid, grp.userdir(ct.user))
+            dir = grp.userdir(ct.user)
+
+            FileUtils.mkdir_p(dir, mode: 0751)
+            File.chown(0, ct.user.ugid, dir)
           end
 
           # Move CT dir

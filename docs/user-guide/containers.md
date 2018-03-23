@@ -25,18 +25,19 @@ to get the full list of templates.
 
 Let's see what files and directories define the container:
 
-```
-osctl ct assets myct01
-TYPE        PATH                                         VALID   PURPOSE
-dataset     tank/ct/myct01                               true    Container's rootfs
-directory   /tank/user/myuser01/default/myct01           true    LXC configuration
-file        /tank/user/myuser01/default/myct01/config    true    LXC base config
-file        /tank/user/myuser01/default/myct01/network   true    LXC network config
-file        /tank/user/myuser03/default/myct01/prlimits  true    LXC resource limits                      
-file        /tank/user/myuser03/default/myct01/mounts    true    LXC mounts
-file        /tank/user/myuser01/default/myct01/.bashrc   true    Shell configuration file for osctl ct su
-file        /tank/conf/ct/myct01.yml                     true    Container config for osctld
-file        /tank/log/ct/myct01.log                      true    LXC log file
+```bash
+ct assets myct01
+TYPE        PATH                                                    VALID   PURPOSE
+dataset     tank/ct/myct01                                          true    Container's rootfs dataset
+directory   /tank/ct/myct01/private                                 true    Container's rootfs
+directory   /tank/user/myuser01/group.default/cts/myct01            true    LXC configuration
+file        /tank/user/myuser01/group.default/cts/myct01/config     true    LXC base config
+file        /tank/user/myuser01/group.default/cts/myct01/network    true    LXC network config
+file        /tank/user/myuser01/group.default/cts/myct01/prlimits   true    LXC resource limits
+file        /tank/user/myuser01/group.default/cts/myct01/mounts     true    LXC mounts
+file        /tank/user/myuser01/group.default/cts/myct01/.bashrc    true    Shell configuration file for osctl ct su
+file        /tank/conf/ct/myct01.yml                                true    Container config for osctld
+file        /tank/log/ct/myct01.log                                 true    LXC log file
 ```
 
 The template is extracted into a ZFS dataset that becomes the container's rootfs.
@@ -87,8 +88,8 @@ You can view container states using by listing all containers:
 
 ```bash
 osctl ct ls
-POOL   ID       USER       GROUP     DISTRIBUTION   VERSION   STATE     INIT_PID   MEMORY   CPU_TIME 
-tank   myct01   myuser01   default   ubuntu         16.04     running   7894       36.0M    1s
+POOL   ID       USER       GROUP      DISTRIBUTION   VERSION   STATE     INIT_PID   MEMORY   CPU_TIME 
+tank   myct01   myuser01   /default   ubuntu         16.04     running   7894       36.0M    1s
 ```
 
 Or just one specific container, showing all container parameters:
@@ -98,12 +99,12 @@ osctl ct show myct01
           POOL:  tank
             ID:  myct01
           USER:  myuser01
-         GROUP:  default
+         GROUP:  /default
        DATASET:  tank/ct/myct01
         ROOTFS:  /tank/ct/myct01/private
-      LXC_PATH:  /tank/user/myuser01/default
-       LXC_DIR:  /tank/user/myuser01/default/myct01
-    GROUP_PATH:  osctl/default/myuser01/myct01
+      LXC_PATH:  /tank/user/myuser01/group.default/cts
+       LXC_DIR:  /tank/user/myuser01/group.default/cts/myct01
+    GROUP_PATH:  osctl/pool.tank/group.default/user.myuser01/ct.myct01/user-owned
   DISTRIBUTION:  ubuntu
        VERSION:  16.04
          STATE:  running

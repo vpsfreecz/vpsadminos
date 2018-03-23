@@ -287,9 +287,12 @@ module OsCtld
       log(:info, "Loading groups")
       DB::Groups.setup(self)
 
-      Dir.glob(File.join(conf_path, 'group', '*.yml')).each do |grp|
-        name = File.basename(grp)[0..(('.yml'.length+1) * -1)]
-        next if %w(root default).include?(name)
+      rx = /^#{Regexp.escape(File.join(conf_path, 'group'))}(.*)\/config\.yml$/
+
+      Dir.glob(File.join(conf_path, 'group', '**', 'config.yml')).each do |file|
+        next unless rx =~ file
+        name = $1
+        next if ['', '/default'].include?(name)
 
         DB::Groups.add(Group.new(self, name, devices: false))
       end

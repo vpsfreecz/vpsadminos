@@ -281,11 +281,7 @@ module OsCtld
 
     def do_update_inherited_descendants(device, mode, changes)
       # Update access modes in child groups that inherit this device
-      group.descendants.each do |grp|
-        # This is crude... but we have no other way of finding direct
-        # children
-        next if grp.parent != group
-
+      group.children.each do |grp|
         cdev = grp.devices.get(device)
         next unless cdev.inherited?
 
