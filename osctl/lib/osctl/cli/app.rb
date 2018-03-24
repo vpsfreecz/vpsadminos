@@ -321,6 +321,12 @@ module OsCtl::Cli
           ls.action &Command.run(Container, :list)
         end
 
+        ct.desc 'Print tree of containers and groups'
+        ct.arg_name '<pool>'
+        ct.command :tree do |c|
+          c.action &Command.run(Container, :tree)
+        end
+
         ct.desc "Show container's info"
         ct.arg_name '<id>'
         ct.command %i(show info) do |c|

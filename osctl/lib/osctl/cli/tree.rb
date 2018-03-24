@@ -22,9 +22,10 @@ module OsCtl::Cli
       tree.print
     end
 
-    def initialize(pool, parsable: false)
+    def initialize(pool, parsable: false, containers: false)
       @pool = pool
       @parsable = parsable
+      @containers = containers
     end
 
     def render
@@ -80,7 +81,7 @@ module OsCtl::Cli
     end
 
     protected
-    attr_reader :pool, :parsable, :client, :groups
+    attr_reader :pool, :parsable, :client, :groups, :cts
 
     def fetch
       @client = OsCtl::Client.new
@@ -89,6 +90,8 @@ module OsCtl::Cli
       @groups = @client.cmd_data!(:group_list, pool: pool).sort! do |a, b|
         a[:name] <=> b[:name]
       end
+
+      @cts = @client.cmd_data!(:ct_list, pool: pool) if @containers
     end
 
     def preprocess
@@ -114,8 +117,27 @@ module OsCtl::Cli
           grp[:parent] = '/' if grp[:parent].empty?
         end
 
-        grp
-      end
+        next grp unless cts
+
+        group_cts = cts.select { |ct| ct[:group] == grp[:name] }.sort! do |a, b|
+          a[:id] <=> b[:id]
+        end.map! do |ct|
+          cg_add_stats(
+            client,
+            ct,
+            ct[:group_path],
+            %i(memory cpu_time),
+            parsable
+          )
+
+          ct[:parts] = ct[:group].split('/') << ct[:id]
+          ct[:shortname] = ct[:id]
+          ct[:parent] = ct[:group]
+          ct
+        end
+
+        [grp, group_cts]
+      end.flatten!
     end
 
     def decorations

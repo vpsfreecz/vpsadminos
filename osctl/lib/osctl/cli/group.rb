@@ -1,5 +1,3 @@
-require 'pp'
-
 module OsCtl::Cli
   class Group < Command
     include CGroupParams

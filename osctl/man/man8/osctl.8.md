@@ -419,6 +419,9 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-v`, `--version` *versions*
       Filter by distribution version, comma separated.
 
+`ct tree` *pool*
+  Print the group and container hierarchy from *pool* in a tree.
+
 `ct show` [*options*] *id*
   Show all or selected parameters of container *id*.
 

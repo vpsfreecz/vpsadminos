@@ -103,6 +103,11 @@ module OsCtl::Cli
       format_output(cts, cols, fmt_opts)
     end
 
+    def tree
+      require_args!('pool')
+      Tree.print(args[0], parsable: gopts[:parsable], containers: true)
+    end
+
     def show
       if opts[:list]
         puts FIELDS.join("\n")
