@@ -105,7 +105,12 @@ module OsCtl::Cli
 
     def tree
       require_args!('pool')
-      Tree.print(args[0], parsable: gopts[:parsable], containers: true)
+      Tree.print(
+        args[0],
+        parsable: gopts[:parsable],
+        color: gopts[:color],
+        containers: true
+      )
     end
 
     def show

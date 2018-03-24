@@ -1,3 +1,5 @@
+require 'rainbow'
+
 module OsCtl::Cli
   class Tree
     DECORATIONS = {
@@ -22,10 +24,12 @@ module OsCtl::Cli
       tree.print
     end
 
-    def initialize(pool, parsable: false, containers: false)
+    def initialize(pool, parsable: false, color: true, containers: false)
       @pool = pool
       @parsable = parsable
       @containers = containers
+
+      Rainbow.enabled = color
     end
 
     def render
@@ -63,7 +67,13 @@ module OsCtl::Cli
         end
 
         res << dir_indent if grp[:parent]
-        res << grp[:shortname]
+
+        if grp.has_key?(:name)
+          res << Rainbow(grp[:shortname]).blue.bright
+
+        else
+          res << Rainbow(grp[:shortname]).red.bright
+        end
 
         grp[:branch] = res
 

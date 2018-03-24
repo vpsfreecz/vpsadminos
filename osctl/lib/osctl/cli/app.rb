@@ -42,6 +42,9 @@ module OsCtl::Cli
       desc 'Format output in JSON'
       switch %i(j json), negatable: false
 
+      desc 'Toggle colorized output'
+      switch :color, default_value: true
+
       desc 'Pool name'
       flag :pool
 

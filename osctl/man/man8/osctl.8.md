@@ -90,6 +90,9 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 `-p`, `--parsable`
   Show precise values, useful for parsing in scripts.
 
+`--[no-]color`
+  Toggle colorized output for commands that support it. Enabled by default.
+
 `-q`, `--quiet`
   Surpress output.
 
