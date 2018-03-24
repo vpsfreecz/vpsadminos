@@ -1022,6 +1022,9 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `--pool` *names*
       Filter by pool, comma separated.
 
+`group tree` *pool*
+  Print the group hierarchy from *pool* in a tree.
+
 `group show` *name*
   Show group info.
 

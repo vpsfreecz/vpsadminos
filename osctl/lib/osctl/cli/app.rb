@@ -14,6 +14,7 @@ require_relative 'pool'
 require_relative 'repository'
 require_relative 'self'
 require_relative 'top'
+require_relative 'tree'
 require_relative 'user'
 
 module OsCtl::Cli
@@ -242,6 +243,12 @@ module OsCtl::Cli
           ls.switch %i(L list), negatable: false
 
           ls.action &Command.run(Group, :list)
+        end
+
+        grp.desc 'Print group tree'
+        grp.arg_name '<pool>'
+        grp.command :tree do |c|
+          c.action &Command.run(Group, :tree)
         end
 
         grp.desc 'Show group info'

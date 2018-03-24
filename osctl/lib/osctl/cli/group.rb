@@ -1,3 +1,5 @@
+require 'pp'
+
 module OsCtl::Cli
   class Group < Command
     include CGroupParams
@@ -54,6 +56,11 @@ module OsCtl::Cli
       c.close
 
       format_output(groups, cols, fmt_opts)
+    end
+
+    def tree
+      require_args!('pool')
+      Tree.print(args[0], parsable: gopts[:parsable])
     end
 
     def show
