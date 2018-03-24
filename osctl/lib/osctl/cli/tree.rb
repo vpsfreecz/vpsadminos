@@ -106,6 +106,7 @@ module OsCtl::Cli
 
     def preprocess
       groups.map! do |grp|
+        # Read cgroup params
         cg_add_stats(
           client,
           grp,
@@ -114,6 +115,7 @@ module OsCtl::Cli
           parsable
         )
 
+        # Supply parameters for renderer
         if grp[:name] == '/'
           grp[:parts] = ['/']
           grp[:shortname] = '/'
@@ -127,8 +129,13 @@ module OsCtl::Cli
           grp[:parent] = '/' if grp[:parent].empty?
         end
 
+        # If containers aren't included, we're done
         next grp unless cts
 
+        # Skip the group if it has no direct nor indirect containers
+        next unless cts.detect { |ct| ct[:group].start_with?(grp[:name]) }
+
+        # Include group's containers
         group_cts = cts.select { |ct| ct[:group] == grp[:name] }.sort! do |a, b|
           a[:id] <=> b[:id]
         end.map! do |ct|
@@ -147,7 +154,9 @@ module OsCtl::Cli
         end
 
         [grp, group_cts]
-      end.flatten!
+      end
+      groups.compact!
+      groups.flatten!
     end
 
     def decorations
