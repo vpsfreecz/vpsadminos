@@ -1,3 +1,5 @@
+require 'rainbow'
+
 module OsCtl::Cli
   class OutputFormatter
     def self.format(*args)
@@ -10,12 +12,13 @@ module OsCtl::Cli
       f.print
     end
 
-    def initialize(objects, cols = nil, header: true, sort: nil, layout: nil, empty: '-')
+    def initialize(objects, cols = nil, header: true, sort: nil, layout: nil, empty: '-', color: false)
       @objects = objects
       @header = header
       @sort = sort
       @layout = layout
       @empty = empty
+      @color = color
 
       if @layout.nil?
         if many?
@@ -103,25 +106,59 @@ module OsCtl::Cli
 
     # Each object is printed on one line, it's parameters aligned into columns.
     def columns
-      i = 0
+      # Calculate column widths
+      @cols.each_with_index do |c, i|
+        c[:width] = col_width(i, c)
+      end
 
-      formatters = @cols.map do |c|
-        ret = case c[:align].to_sym
-        when :right
-          "%#{col_width(i, c)}s"
+      # Print header
+      if @header
+        line(@cols.map do |c|
+          fmt = case c[:align].to_sym
+          when :right
+            "%#{c[:width]}s"
 
-        else
-          "%-#{col_width(i, c)}s"
-        end
+          else
+            "%-#{c[:width]}s"
+          end
 
-        i += 1
-        ret
-      end.join('  ')
+          sprintf(fmt, c[:label])
+        end.join('  '))
+      end
 
-      line sprintf(formatters, * @cols.map { |c| c[:label] }) if @header
-
+      # Print data
       @str_objects.each do |o|
-        line sprintf(formatters, *o)
+        line(@cols.map.with_index do |c, i|
+          s = o[i].to_s
+
+          if @color
+            # If there are colors in the string, they affect the string size
+            # and thus sprintf formatting. sprintf is working with characters
+            # that the terminal will consume and not display (escape sequences).
+            # The format string needs to be changed to accomodate for those
+            # unprintable characters.
+            s_nocolor = Rainbow::StringUtils.uncolor(s)
+
+            if s_nocolor.length == s.length
+              w = c[:width]
+
+            else
+              w = c[:width] + (s.length - s_nocolor.length)
+            end
+          else
+            w = c[:width]
+          end
+
+          fmt = case c[:align].to_sym
+          when :right
+            "%#{w}s"
+
+          else
+            "%-#{w}s"
+          end
+
+          sprintf(fmt, s)
+        end.join('  '))
       end
     end
 
@@ -196,7 +233,12 @@ module OsCtl::Cli
       w = c[:label].to_s.length
 
       @str_objects.each do |o|
-        len = o[i].to_s.length
+        if @color
+          len = Rainbow::StringUtils.uncolor(o[i].to_s).length
+        else
+          len = o[i].to_s.length
+        end
+
         w = len if len > w
       end
 
