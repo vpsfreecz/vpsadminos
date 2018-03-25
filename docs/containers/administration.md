@@ -143,7 +143,7 @@ osctl ct log path <id>
 ## User shell
 Should you want to switch to a container's user and use LXC utilities directly,
 you have to use `osctl ct su <id>`. Using `/bin/su` is insufficient, because standard
-`su` does not manage CGroups. `osctl ct su` will open a shell with the same
+`su` does not manage cgroups. `osctl ct su` will open a shell with the same
 environment as *osctld* itself is using to start the container.
 
 ```bash
@@ -174,7 +174,7 @@ Do not use this shell to manipulate any other container than myct01.
 
 The shell uses `/tank/user/myuser01/group.default/cts/myct01/.bashrc` instead of
 `~/.bashrc`, see user assets above. The shell can be used to manipulate only
-the chosen container, because every container has a specific CGroup path,
+the chosen container, because every container has a specific cgroup path,
 so running other containers would put them to a wrong group.
 
 The LXC utilities are unmodified except for the implicit arguments, which let

@@ -26,10 +26,10 @@ on newer kernels. vpsAdminOS is built on:
 - osctl/osctld (userspace tools bundled with vpsAdminOS)
 
 vpsAdminOS especially focuses on user namespaces (e.g. one namespace per
-container) and CGroups for resource management. One can set resource limits
+container) and cgroups for resource management. One can set resource limits
 on single container or groups of containers, allowing for fine-grained control
 and resource sharing. *osctl*/*osctld* is an abstraction on top of LXC, managing
-system users, LXC homes, CGroups and system containers. ZFS is currently
+system users, LXC homes, cgroups and system containers. ZFS is currently
 the only supported file system, in which we have our custom patches for seamless
 integration with user namespaces, i.e. user/group id mapping on the file system
 level.

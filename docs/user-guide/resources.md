@@ -1,18 +1,18 @@
 # Resource management
 A container's CPU and memory usage, IO throttling, network priorities
-and access to devices is managed using CGroups. Number of processes or open
+and access to devices is managed using cgroups. Number of processes or open
 files can be set using process resource limits, as described in man
 setrlimit(2).
 
-## CGroup based limits
-*osctld* has a concept of groups, where each group represents a CGroup in all
+## cgroup based limits
+*osctld* has a concept of groups, where each group represents a cgroup in all
 subsystems. There are always two groups: the *root* group and the *default*
 group. The *root* group is the parent of all other groups, its called `/`. Newly
 created containers are put into the *default* group, unless configured otherwise.
 The *default* group is called `/default`. Groups can be nested and you can
-configure arbitrary CGroup subsystem parameters for every one of them. Every
+configure arbitrary cgroup subsystem parameters for every one of them. Every
 container belongs to exactly one group, i.e. the *default* group or any other.
-You can also configure CGroup parameters of the containers themselves.
+You can also configure cgroup parameters of the containers themselves.
 
 What this means is that you can place containers in groups and set *shared*
 limits. On top of that, you can set limits on specific containers. For example,
@@ -29,7 +29,7 @@ tank   /          -        -
 tank   /default   -        -
 ```
 
-CGroup parameters can be set as follows:
+cgroup parameters can be set as follows:
 
 ```bash
 osctl group cgparams set / cpu.shares 768
@@ -45,7 +45,7 @@ PARAMETER                VALUE
 memory.limit_in_bytes     5.0G
 ```
 
-In this way, you can configure any available CGroup parameter.
+In this way, you can configure any available cgroup parameter.
 
 Since the groups are nested, it is useful to see what parameters are set for
 a particular group including all its parents, up to the *root* group. That's
@@ -77,7 +77,7 @@ osctl ct new \
              myct02
 ```
 
-Container CGroup parameters are managed in the same way as for groups, the
+Container cgroup parameters are managed in the same way as for groups, the
 subcommands are exactly the same:
 
 ```

@@ -1,7 +1,7 @@
 # Devices
 Every container needs access to basic devices, such as `/dev/null`, `/dev/zero`,
 TTYs, console, etc. Although access to these devices is managed through the
-*devices* CGroup, manipulating the CGroup directly is tricky. You'd have to
+*devices* cgroup, manipulating the cgroup directly is tricky. You'd have to
 add devices to the root group and then manually propagate them to child groups
 and containers. To make device management and manipulation simpler, *osctld*
 manages the devices itself. Use `osctl ct/group devices` instead of
@@ -10,7 +10,7 @@ manages the devices itself. Use `osctl ct/group devices` instead of
 ## Device access trees
 Since every container needs access to a minimal set of devices, we're utilizing
 [groups](../user-guide/resources.md) to provide a common set of devices to
-containers. Like with the *devices* CGroup, child groups can access only those
+containers. Like with the *devices* cgroup, child groups can access only those
 devices that the parent group has access to. Child groups can only restrict
 access granted by the parent, not expand it. Therefore, every device that some
 container wants to use must be enabled in the root group and then in all groups,
@@ -54,7 +54,7 @@ char   136     all     rwm    -              true      true
 ```
 
 *osctld* makes sure that all these listed devices are actually enabled in the
-*devices* CGroups and that the containers have corresponding device nodes
+*devices* cgroups and that the containers have corresponding device nodes
 created.
 
 ## Adding a new device to all containers
