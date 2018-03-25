@@ -85,7 +85,11 @@ module OsCtl::Cli
     def print
       OutputFormatter.print(
         groups,
-        [{label: 'GROUP', name: :branch}, :memory, :cpu_time],
+        [
+          {label: cts ? 'GROUP/CONTAINER' : 'GROUP', name: :branch},
+          :memory,
+          :cpu_time
+        ],
         layout: :columns, color: Rainbow.enabled
       )
     end
