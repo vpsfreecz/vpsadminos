@@ -68,15 +68,15 @@ module OsCtl::Cli
 
         if gopts[:json]
           puts resp.data.to_json
-          next
-        end
 
-        if %w(management state).include?(resp.data[:type])
+        elsif %w(management state).include?(resp.data[:type])
           send(:"print_#{resp.data[:type]}", resp.data[:opts])
 
         else
           p resp.data
         end
+
+        STDOUT.flush
       end
     end
 
