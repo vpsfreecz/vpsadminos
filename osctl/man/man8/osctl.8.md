@@ -441,10 +441,25 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Open container console (can be later detached), see `ct console`.
 
 `ct stop` [*options*] *id*
-  Stop container *id*.
+  Stop container *id*. By default, `osctld` will send a signal to the container's
+  init process to cleanly shutdown and wait until it finishes or *timeout*
+  seconds passes. If it time outs, the container is killed. This behaviour can
+  be changed with options `--timeout`, `--kill` and `--dont-kill`.
 
     `-F`, `--[no-]foreground`
       Open container console (can be later detached), see `ct console`.
+
+    `-k`, `--kill`
+      Do not request a clean shutdown, kill the container immediately.
+
+    `--dont-kill`
+      If the clean shutdown does not finish in *timeout* seconds, exit with
+      error, do not kill the container.
+
+    `-t`, `--timeout` *timeout*
+      How many seconds to wait for the container to cleanly shutdown before
+      killing it or failing, depending on whether option `--no-kill` is set.
+      The default timeout is *60* seconds.
 
 `ct restart` [*options*] *id*
   Restart container *id*.

@@ -447,6 +447,15 @@ module OsCtl::Cli
           c.desc 'Open container console (can be later detached)'
           c.switch %i(F foreground)
 
+          c.desc 'How many seconds to wait before killing the container'
+          c.flag %i(t timeout), type: Integer, default_value: 60
+
+          c.desc 'Do not request a clean shutdown, kill the container'
+          c.switch %i(k kill), negatable: false
+
+          c.desc 'Do not kill the container if clean shutdown fails'
+          c.switch 'dont-kill', negatable: false
+
           c.action &Command.run(Container, :stop)
         end
 

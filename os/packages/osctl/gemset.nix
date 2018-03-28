@@ -43,10 +43,10 @@
     dependencies = ["curses" "gli" "highline" "ipaddress" "json" "rainbow" "ruby-progressbar"];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1jnxx5vbf33qjk8qy4hk6a13ndh6daxcriz4a8zfw2rqq5fjqk5f";
+      sha256 = "075jvqhh5yixkiwvq3wm52fxsimlkrzbq2sss9699phvh2849pww";
       type = "gem";
     };
-    version = "18.03.0.build20180328120216";
+    version = "18.03.0.build20180328173126";
   };
   rainbow = {
     source = {

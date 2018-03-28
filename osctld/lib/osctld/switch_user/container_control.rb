@@ -16,17 +16,46 @@ module OsCtld
     end
 
     protected
+    # Attempt a clean shutdown, fallback to kill
+    # @param opts [Hash]
+    # @option opts [String] :id container id
+    # @option opts [Integer] :timeout how long to wait for clean shutdown
     def ct_stop(opts)
       ct = lxc_ct(opts[:id])
 
-      begin
-        ct.shutdown(60)
+      if ct_shutdown(opts, ct)[:status]
+        ok
 
-      rescue LXC::Error
-        ct.stop
+      else
+        ct_kill(opts, ct)
       end
+    end
 
+    # Kill container immediately
+    # @param opts [Hash]
+    # @option opts [String] :id container id
+    # @param ct [SwitchUser::ContainerControl, nil]
+    def ct_kill(opts, ct = nil)
+      ct ||= lxc_ct(opts[:id])
+      ct.stop
       ok
+
+    rescue LXC::Error
+      error('unable to kill container')
+    end
+
+    # Shutdown container cleanly or fail
+    # @param opts [Hash]
+    # @option opts [String] :id container id
+    # @option opts [Integer] :timeout how long to wait for clean shutdown
+    # @param ct [SwitchUser::ContainerControl, nil]
+    def ct_shutdown(opts, ct = nil)
+      ct ||= lxc_ct(opts[:id])
+      ct.shutdown(opts[:timeout])
+      ok
+
+    rescue LXC::Error
+      error('unable to shutdown container')
     end
 
     def ct_status(opts)

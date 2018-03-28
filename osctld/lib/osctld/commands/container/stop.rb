@@ -14,7 +14,22 @@ module OsCtld
     def execute(ct)
       ct.exclusively do
         progress('Stopping container') if opts[:progress].nil? || opts[:progress]
-        ret = ct_control(ct, :ct_stop, id: ct.id)
+
+        case (opts[:method] || 'shutdown_or_kill')
+        when 'shutdown_or_kill'
+          cmd = :ct_stop
+
+        when 'shutdown_or_fail'
+          cmd = :ct_shutdown
+
+        when 'kill'
+          cmd = :ct_kill
+
+        else
+          error!("unknown stop method '#{opts[:method]}'")
+        end
+
+        ret = ct_control(ct, cmd, id: ct.id, timeout: opts[:timeout] || 60)
         next ret unless ret[:status]
 
         Console.tty0_pipes(ct).each do |pipe|
