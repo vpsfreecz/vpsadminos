@@ -34,10 +34,8 @@ module OsCtld
           ct = DB::Containers.find(it.id, pool)
           next if ct.nil? || ct.running?
 
-          ct.exclusively do
-            log(:info, ct, 'Auto-starting container')
-            Commands::Container::Start.run(pool: ct.pool.name, id: ct.id)
-          end
+          log(:info, ct, 'Auto-starting container')
+          Commands::Container::Start.run(pool: ct.pool.name, id: ct.id)
 
           sleep(it.delay)
         end
