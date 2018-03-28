@@ -458,7 +458,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 
     `-t`, `--timeout` *timeout*
       How many seconds to wait for the container to cleanly shutdown before
-      killing it or failing, depending on whether option `--no-kill` is set.
+      killing it or failing, depending on whether option `--dont-kill` is set.
       The default timeout is *60* seconds.
 
 `ct restart` [*options*] *id*
@@ -487,9 +487,9 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       error, do not kill the container.
 
     `-t`, `--timeout` *timeout*
-      How many seconds to wait for the container to cleanly shutdown or reboot
-      before killing it or failing, depending on whether option `--no-kill` is
-      set. The default timeout is *60* seconds.
+      How many seconds to wait for the container to cleanly shutdown before
+      killing it or failing, depending on whether option `--dont-kill` is set.
+      The default timeout is *60* seconds.
 
 `ct attach` *id*, `ct enter` *id*
   Attach container *id* and open a shell.
