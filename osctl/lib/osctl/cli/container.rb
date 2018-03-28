@@ -315,7 +315,31 @@ tt
 
     def restart
       require_args!('id')
-      cmd_opts = {id: args[0], pool: gopts[:pool]}
+
+      if opts[:kill] && opts['dont-kill']
+        raise GLI::BadCommandLine, '--kill and --dont-kill cannot be used together'
+
+      elsif (opts[:kill] || opts['dont-kill']) && opts[:reboot]
+        raise GLI::BadCommandLine, '--kill and --dont-kill cannot be used with --reboot'
+
+      elsif opts[:kill]
+        m = :kill
+
+      elsif opts['dont-kill']
+        m = :shutdown_or_fail
+
+      else
+        m = :shutdown_or_kill
+      end
+
+      cmd_opts = {
+        id: args[0],
+        pool: gopts[:pool],
+        reboot: opts[:reboot],
+        stop_timeout: opts[:timeout],
+        stop_method: m,
+      }
+
       return osctld_fmt(:ct_restart, cmd_opts) unless opts[:foreground]
 
       open_console(args[0], gopts[:pool], 0) do |sock|

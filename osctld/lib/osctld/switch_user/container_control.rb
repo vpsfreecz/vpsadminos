@@ -58,6 +58,14 @@ module OsCtld
       error('unable to shutdown container')
     end
 
+    # Request container reboot
+    # @param opts [Hash]
+    # @option opts [String] :id container id
+    def ct_reboot(opts)
+      ct = lxc_ct(opts[:id])
+      ct.reboot
+    end
+
     def ct_status(opts)
       ret = {}
 

@@ -462,10 +462,34 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       The default timeout is *60* seconds.
 
 `ct restart` [*options*] *id*
-  Restart container *id*.
+  Restart container *id*. By default, `ct restart` calls `ct stop` and `ct start`
+  in succession. Like with `ct stop`, if the container does not cleanly shutdown
+  in *timeout* seconds, it is killed. This behaviour can be changed with options
+  `--timeout`, `--kill` and `--dont-kill`.
+
+  If option `--reboot` is used, the container's init process is signaled to
+  reboot the system. `osctld` has no way of knowing whether the init process
+  responds and the reboot actually takes place.
 
     `-F`, `--[no-]foreground`
       Open container console (can be later detached), see `ct console`.
+
+    `-r`, `--reboot`
+      Request a reboot of the container by signaling its init process. 
+      If the init process does not respond to the configured signal, nothing
+      happens.
+
+    `-k`, `--kill`
+      Do not request a clean shutdown, kill the container immediately.
+
+    `--dont-kill`
+      If the clean shutdown does not finish in *timeout* seconds, exit with
+      error, do not kill the container.
+
+    `-t`, `--timeout` *timeout*
+      How many seconds to wait for the container to cleanly shutdown or reboot
+      before killing it or failing, depending on whether option `--no-kill` is
+      set. The default timeout is *60* seconds.
 
 `ct attach` *id*, `ct enter` *id*
   Attach container *id* and open a shell.

@@ -12,8 +12,19 @@ module OsCtld
     end
 
     def execute(ct)
-      call_cmd!(Commands::Container::Stop, id: ct.id)
-      call_cmd!(Commands::Container::Start, id: ct.id, force: true)
+      if opts[:reboot]
+        ct_control(ct, :ct_reboot, id: ct.id)
+        ok
+
+      else
+        call_cmd!(
+          Commands::Container::Stop,
+          id: ct.id,
+          timeout: opts[:stop_timeout],
+          method: opts[:stop_method]
+        )
+        call_cmd!(Commands::Container::Start, id: ct.id, force: true)
+      end
     end
   end
 end
