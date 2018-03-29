@@ -78,7 +78,7 @@ in
   };
   config = {
     environment.systemPackages = requiredPackages;
-    environment.pathsToLink = [ "/bin" "/man" "/share/man" ];
+    environment.pathsToLink = [ "/bin" "/lib" "/man" "/share/man" ];
     system.path = pkgs.buildEnv {
       name = "system-path";
       paths = config.environment.systemPackages;

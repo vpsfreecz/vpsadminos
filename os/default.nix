@@ -50,6 +50,7 @@ let
       <nixpkgs/nixos/modules/misc/lib.nix>
       <nixpkgs/nixos/modules/config/sysctl.nix>
       <nixpkgs/nixos/modules/config/users-groups.nix>
+      <nixpkgs/nixos/modules/config/i18n.nix>
       ./ipxe.nix
       ./nixos-compat.nix
       pkgsModule

@@ -203,6 +203,10 @@ with lib;
       packageOverrides = self: rec {
       };
     };
+    i18n = {
+      defaultLocale = "en_US.UTF-8";
+      supportedLocales = [ "en_US.UTF-8/UTF-8" ];
+    };
     environment.etc = {
       "nix/nix.conf".source = pkgs.runCommand "nix.conf" {} ''
         extraPaths=$(for i in $(cat ${pkgs.writeReferencesToFile pkgs.stdenv.shell}); do if test -d $i; then echo $i; fi; done)
