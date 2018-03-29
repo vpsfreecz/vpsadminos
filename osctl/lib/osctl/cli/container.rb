@@ -612,6 +612,19 @@ tt
       puts ct[:log_file]
     end
 
+    def pid
+      require_args!('pid|-')
+
+      finder = PidFinder.new(header: !opts['hide-header'])
+
+      if args[0] == '-'
+        finder.find(STDIN.readline.strip) until STDIN.eof?
+
+      else
+        args.each { |pid| finder.find(pid) }
+      end
+    end
+
     def assets
       require_args!('id')
 

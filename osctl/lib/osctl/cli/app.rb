@@ -10,6 +10,7 @@ require_relative 'history'
 require_relative 'migrate'
 require_relative 'migration'
 require_relative 'net_interface'
+require_relative 'pid_finder'
 require_relative 'pool'
 require_relative 'repository'
 require_relative 'self'
@@ -722,6 +723,15 @@ module OsCtl::Cli
           c.flag %i(r rate), type: Float, default_value: 1.0
 
           c.action &Command.run(Top::Main, :start)
+        end
+
+        ct.desc 'Find containers by PID'
+        ct.arg_name '[pid...] | -'
+        ct.command :pid do |c|
+          c.desc 'Do not show header'
+          c.switch %i(H hide-header), negatable: false
+
+          c.action &Command.run(Container, :pid)
         end
 
         ct.desc 'List container assets (datasets, files, directories)'

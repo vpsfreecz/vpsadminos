@@ -727,6 +727,14 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-r`, `--rate` *n*
       Refresh rate in seconds, defaults to 1 second.
 
+`ct pid` [*pid...*] | `-`
+  Find containers by process IDs. By default, the process IDs are passed as
+  command-line arguments. If the first PID is `-`, the PIDs are read from
+  standard input, one PID per line.
+
+    `-H`, `--hide-header`
+      Do not show header, useful for scripting.
+
 `ct assets` [*options*] *id*
   List container assets and their state.
 
@@ -738,7 +746,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   all configured parameters are listed.
 
     `-H`, `--hide-header`
-        Do not show header, useful for scripting.
+      Do not show header, useful for scripting.
 
     `-L`, `--list`
       List available parameters adn exit.
