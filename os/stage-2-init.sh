@@ -24,4 +24,6 @@ hostname @hostName@
 
 $systemConfig/activate
 
+@postActivate@
+
 exec runit

@@ -25,6 +25,7 @@ pages:
     - Distribution support: 'osctld/distributions.md'
     - cgroups: 'osctld/cgroups.md'
     - Interfaces: 'osctld/interfaces.md'
+    - Development: 'osctld/development.md'
     - OS requirements: 'osctld/os-requirements.md'
 - Specifications:
     - Container image: 'specifications/container-image.md'

@@ -1,2 +1,5 @@
 source 'https://rubygems.org'
 gemspec
+
+gem 'libosctl', path: '../libosctl'
+gem 'osctl-repo', path: '../osctl-repo'

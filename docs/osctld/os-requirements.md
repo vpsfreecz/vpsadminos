@@ -4,12 +4,6 @@ of effort, it can be run on any other distribution with the appropriate
 software. Of course, you'd have to do a lot of things manually, so it's not
 recommended nor supported.
 
-One use case for this is the development of *osctl*/*osctld*, which is done
-on Ubuntu first, because vpsAdminOS is not so good with live code reloading.
-For every change in the code, you'd have to build gems, deploy them to
-a repository, rebuild the entire OS and boot it. That's much slower than just
-restarting *osctld* from the updated code mounted over NFS.
-
 ## Software
 - Kernel >=4.13
 - LXC 2.1 with [custom patch](https://github.com/aither64/lxc/tree/vpsadminos-2.1)
