@@ -16,6 +16,9 @@ module OsCtld
           ct,
           'lxc-attach', '-P', ct.lxc_home,
           '--clear-env', '--keep-var', 'TERM',
+          '-v', 'USER=root',
+          '-v', 'LOGNAME=root',
+          '-v', 'HOME=/root',
           '-n', ct.id
         ))
       end
