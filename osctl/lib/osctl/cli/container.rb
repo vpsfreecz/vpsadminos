@@ -356,14 +356,19 @@ tt
     def attach
       require_args!('id')
 
-      cmd = osctld_call(:ct_attach, id: args[0], pool: gopts[:pool])
+      shell = osctld_call(
+        :ct_attach,
+        id: args[0],
+        pool: gopts[:pool],
+        user_shell: opts['user-shell']
+      )
 
       pid = Process.fork do
-        cmd[:env].each do |k, v|
+        shell[:env].each do |k, v|
           ENV[k.to_s] = v
         end
 
-        Process.exec(*cmd[:cmd])
+        Process.exec(*shell[:cmd])
       end
 
       Process.wait(pid)

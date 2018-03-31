@@ -493,6 +493,9 @@ module OsCtl::Cli
         ct.desc 'Attach the container'
         ct.arg_name '<id>'
         ct.command %i(attach enter) do |c|
+          c.desc 'Run shell as configured in the container'
+          c.switch %i(u user-shell), negatable: false
+
           c.action &Command.run(Container, :attach)
         end
 

@@ -491,8 +491,16 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       killing it or failing, depending on whether option `--dont-kill` is set.
       The default timeout is *60* seconds.
 
-`ct attach` *id*, `ct enter` *id*
-  Attach container *id* and open a shell.
+`ct attach` [*options*] *id*, `ct enter` [*options*] *id*
+  Attach container *id* and open a shell. `osctld` tries to open `bash`,
+  `busybox` and falls back to `/bin/sh`. The shell is not reading any personal
+  configuration files from within the container in order to provide a unified
+  shell interface across all containers. Use option `--user-shell` to change
+  this behaviour.
+
+    `-u`, `--user-shell`
+      Load the shell that's configured in the container's `/etc/passwd` for
+      `root` and read personal configuration files, such as `.bashrc`.
 
 `ct console` [*options*] *id*
   Attach container console. Unlike in LXC, this console is persistent across
