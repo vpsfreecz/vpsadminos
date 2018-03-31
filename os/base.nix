@@ -50,6 +50,13 @@ with lib;
       type = types.addCheck types.int (n: n >= 1);
       description = "Number of available CPU sockets";
     };
+    system.qemuDiskSize = mkOption {
+      default = 1;
+      type = types.addCheck types.int (n: n >= 1);
+      description = ''
+        Size of zpool vdev in GB. Two vdevs are created and put into mirror.
+      '';
+    };
     boot.isContainer = mkOption {
       type = types.bool;
       default = false;
@@ -316,8 +323,8 @@ with lib;
 
     system.build.runvm = pkgs.writeScript "runner" ''
       #!${pkgs.stdenv.shell}
-      truncate -s1G sda.img
-      truncate -s1G sdb.img
+      truncate -s${toString cfg.qemuDiskSize}G sda.img
+      truncate -s${toString cfg.qemuDiskSize}G sdb.img
       exec ${pkgs.qemu_kvm}/bin/qemu-kvm -name vpsadminos -m ${toString cfg.qemuRAM} \
         -smp cpus=${toString cfg.qemuCpus},cores=${toString cfg.qemuCpuCores},threads=${toString cfg.qemuCpuThreads},sockets=${toString cfg.qemuCpuSockets} \
         -no-reboot \
