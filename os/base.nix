@@ -26,6 +26,30 @@ with lib;
       type = types.addCheck types.int (n: n > 256);
       description = "QEMU RAM in megabytes";
     };
+    system.qemuCpus = mkOption {
+      internal = true;
+      default = 1;
+      type = types.addCheck types.int (n: n >= 1);
+      description = "Number of available CPUs";
+    };
+    system.qemuCpuCores = mkOption {
+      internal = true;
+      default = 1;
+      type = types.addCheck types.int (n: n >= 1);
+      description = "Number of available CPU cores";
+    };
+    system.qemuCpuThreads = mkOption {
+      internal = true;
+      default = 1;
+      type = types.addCheck types.int (n: n >= 1);
+      description = "Number of available threads";
+    };
+    system.qemuCpuSockets = mkOption {
+      internal = true;
+      default = 1;
+      type = types.addCheck types.int (n: n >= 1);
+      description = "Number of available CPU sockets";
+    };
     boot.isContainer = mkOption {
       type = types.bool;
       default = false;
@@ -189,7 +213,9 @@ with lib;
 
       # PS2
       "pcips2" "atkbd" "i8042"
-      ];
+    ];
+
+    cfg = config.system;
 
   in
 
@@ -292,7 +318,8 @@ with lib;
       #!${pkgs.stdenv.shell}
       truncate -s1G sda.img
       truncate -s1G sdb.img
-      exec ${pkgs.qemu_kvm}/bin/qemu-kvm -name vpsadminos -m ${toString config.system.qemuRAM} \
+      exec ${pkgs.qemu_kvm}/bin/qemu-kvm -name vpsadminos -m ${toString cfg.qemuRAM} \
+        -smp cpus=${toString cfg.qemuCpus},cores=${toString cfg.qemuCpuCores},threads=${toString cfg.qemuCpuThreads},sockets=${toString cfg.qemuCpuSockets} \
         -no-reboot \
         -device ahci,id=ahci \
         -drive id=diskA,file=sda.img,if=none \
@@ -301,7 +328,7 @@ with lib;
         -device ide-drive,drive=diskB,bus=ahci.1 \
         -device virtio-net,netdev=net0 \
         -netdev user,id=net0,net=10.0.2.0/24,host=10.0.2.2,dns=10.0.2.3,hostfwd=tcp::2222-:22 \
-        ${config.system.qemuParams}
+        ${cfg.qemuParams}
     '';
 
     system.build.dist = pkgs.runCommand "vpsadminos-dist" {} ''
