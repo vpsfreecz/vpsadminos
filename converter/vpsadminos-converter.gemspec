@@ -18,7 +18,7 @@ Gem::Specification.new do |s|
   s.files       = `git ls-files -z`.split("\x0")
   s.files      += Dir['man/man?/*.?']
   s.executables = s.files.grep(%r{^bin/}) { |f| File.basename(f) }
-  s.license     = 'GPL'
+  s.license     = 'Apache-2.0'
 
   s.required_ruby_version = '>= 2.0.0'
 
