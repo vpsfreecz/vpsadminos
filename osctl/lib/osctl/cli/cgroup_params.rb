@@ -159,6 +159,75 @@ module OsCtl
       )
     end
 
+    def do_set_memory(cmd, cmd_opts)
+      mem = parse_data(args[1])
+      swap = parse_data(args[2]) if args[2]
+
+      limits = [
+        {
+          subsystem: 'memory',
+          parameter: 'memory.limit_in_bytes',
+          value: [mem],
+        },
+      ]
+
+      limits << {
+        subsystem: 'memory',
+        parameter: 'memory.memsw.limit_in_bytes',
+        value: [mem+swap],
+      } if swap
+
+      do_cgparam_set(cmd, cmd_opts, limits)
+    end
+
+    def do_unset_memory(set_cmd, unset_cmd, cmd_opts)
+      # First reset cgroup limits
+      #
+      # It has to be done in two separate calls, because the cgroup parameters
+      # are applied in the order they have been added to osctld, which is
+      # 1) memory.limit_in_bytes 2) memory.memsw.limit_in_bytes. However, then
+      # need to be reset to unlimited in reverse order.
+      do_cgparam_set(
+        set_cmd,
+        cmd_opts,
+        [
+          {
+            subsystem: 'memory',
+            parameter: 'memory.memsw.limit_in_bytes',
+            value: [-1],
+          },
+        ]
+      )
+
+      do_cgparam_set(
+        set_cmd,
+        cmd_opts,
+        [
+          {
+            subsystem: 'memory',
+            parameter: 'memory.limit_in_bytes',
+            value: [-1],
+          },
+        ]
+      )
+
+      # Then remove limits from osctld
+      do_cgparam_unset(
+        unset_cmd,
+        cmd_opts,
+        [
+          {
+            subsystem: 'memory',
+            parameter: 'memory.limit_in_bytes',
+          },
+          {
+            subsystem: 'memory',
+            parameter: 'memory.memsw.limit_in_bytes',
+          },
+        ]
+      )
+    end
+
     # Read select CGroup parameters
     # @param subsystems [Hash] subsystem => absolute path
     # @param path [String] path of chosen group, relative to the subsystem

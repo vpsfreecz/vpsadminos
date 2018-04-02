@@ -520,6 +520,21 @@ tt
       )
     end
 
+    def set_memory
+      require_args!('id', 'memory')
+      do_set_memory(:ct_cgparam_set, id: args[0], pool: gopts[:pool])
+    end
+
+    def unset_memory
+      require_args!('id')
+      do_unset_memory(
+        :ct_cgparam_set,
+        :ct_cgparam_unset,
+        id: args[0],
+        pool: gopts[:pool]
+      )
+    end
+
     def chown
       require_args!('id', 'user')
       osctld_fmt(:ct_chown, id: args[0], pool: gopts[:pool], user: args[1])

@@ -556,6 +556,15 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Length of measured period in microseconds, defaults to `100000`,
       i.e. `100 ms`.
 
+`ct set memory` *id* *memory* [*swap*]
+  Configure the maximum amount of memory and swap the container will be able to
+  use. This command is a shortcut to `ct cgparams set`. Memory limit is set
+  with cgroup parameter `memory.limit_in_bytes`. If swap limit is given as well,
+  parameter `memory.memsw.limit_in_bytes` is set to *memory* + *swap*.
+
+  *memory* and *swap* can be given in bytes, or with an appropriate suffix, i.e.
+  `k`, `m`, `g`, or `t`.
+
 `ct unset autostart` *id*
   Do not start the container automatically.
 
@@ -572,6 +581,10 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   with an additional logic. First, it sets `cpu.cfs_quota_us` to `-1`,
   effectively disabling limits. Then both `cpu.cfs_quota_us`
   and `cpu.cfs_period_us` are removed from `osctld` database.
+
+`ct unset memory` *id*
+  Unset memory limits. Memory limits are first reset to unlimited and then
+  removed from `osctld` database.
 
 `ct chown` *id* *user*
   Move container *id* to user namespace *user*. The container has to be stopped
@@ -1247,11 +1260,24 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Length of measured period in microseconds, defaults to `100000`,
       i.e. `100 ms`.
 
+`group set memory` *name* *memory* [*swap*]
+  Configure the maximum amount of memory and swap the group will be able to
+  use. This command is a shortcut to `group cgparams set`. Memory limit is set
+  with cgroup parameter `memory.limit_in_bytes`. If swap limit is given as well,
+  parameter `memory.memsw.limit_in_bytes` is set to *memory* + *swap*.
+
+  *memory* and *swap* can be given in bytes, or with an appropriate suffix, i.e.
+  `k`, `m`, `g`, or `t`.
+
 `group unset cpu-limit` *name*
   Unset CPU limit. This command is a shortcut to `group cgparams unset`, but
   with an additional logic. First, it sets `cpu.cfs_quota_us` to `-1`,
   effectively disabling limits. Then both `cpu.cfs_quota_us`
   and `cpu.cfs_period_us` are removed from `osctld` database.
+
+`group unset memory` *name*
+  Unset memory limits. Memory limits are first reset to unlimited and then
+  removed from `osctld` database.
 
 `group assets` [*options*] *name*
   List group's assets (datasets, files, directories) and their state.
