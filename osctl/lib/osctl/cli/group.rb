@@ -120,7 +120,12 @@ module OsCtl::Cli
 
     def set_memory
       require_args!('name', 'memory')
-      do_set_memory(:group_cgparam_set, name: args[0], pool: gopts[:pool])
+      do_set_memory(
+        :group_cgparam_set,
+        :group_cgparam_unset,
+        name: args[0],
+        pool: gopts[:pool]
+      )
     end
 
     def unset_memory

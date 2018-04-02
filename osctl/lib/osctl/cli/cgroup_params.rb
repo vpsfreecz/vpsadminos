@@ -145,7 +145,7 @@ module OsCtl
       )
     end
 
-    def do_set_memory(cmd, cmd_opts)
+    def do_set_memory(set_cmd, unset_cmd, cmd_opts)
       mem = parse_data(args[1])
       swap = parse_data(args[2]) if args[2]
 
@@ -157,13 +157,23 @@ module OsCtl
         },
       ]
 
-      limits << {
-        subsystem: 'memory',
-        parameter: 'memory.memsw.limit_in_bytes',
-        value: [mem+swap],
-      } if swap
+      if swap
+        limits << {
+          subsystem: 'memory',
+          parameter: 'memory.memsw.limit_in_bytes',
+          value: [mem+swap],
+        }
 
-      do_cgparam_set(cmd, cmd_opts, limits)
+      else
+        # When no swap limit is to be set, we have to remove existing swap
+        # limits
+        do_cgparam_unset(unset_cmd, cmd_opts, [{
+          subsystem: 'memory',
+          parameter: 'memory.memsw.limit_in_bytes',
+        }])
+      end
+
+      do_cgparam_set(set_cmd, cmd_opts, limits)
     end
 
     def do_unset_memory(unset_cmd, cmd_opts)
