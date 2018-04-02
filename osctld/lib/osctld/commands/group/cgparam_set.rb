@@ -10,15 +10,7 @@ module OsCtld
     end
 
     def execute(grp)
-      set(grp, opts, apply: any_container_running?(grp))
-    end
-
-    protected
-    # TODO: duplicated method, already in `Commands::Group::CGParamApply`
-    # TODO: check also containers from child groups
-    def any_container_running?(grp)
-      ct = grp.containers.detect { |ct| ct.state == :running }
-      ct ? true : false
+      set(grp, opts, apply: grp.any_container_running?)
     end
   end
 end

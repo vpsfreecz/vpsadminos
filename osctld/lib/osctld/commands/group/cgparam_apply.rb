@@ -9,7 +9,7 @@ module OsCtld
       grp = DB::Groups.find(opts[:name], opts[:pool])
       return error('group not found') unless grp
 
-      force = any_container_running?(grp)
+      force = grp.any_container_running?
 
       grp.groups_in_path.each do |g|
         do_apply(g, force)
@@ -22,11 +22,6 @@ module OsCtld
     def do_apply(grp, force)
       log(:info, grp, "Configuring group '#{grp.path}'")
       apply(grp, force: force)
-    end
-
-    def any_container_running?(grp)
-      ct = grp.containers.detect { |ct| ct.state == :running }
-      ct ? true : false
     end
   end
 end

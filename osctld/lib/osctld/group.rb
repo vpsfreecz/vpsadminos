@@ -189,6 +189,18 @@ module OsCtld
       ret
     end
 
+    # Return `true` if any container from this or any descendant group is
+    # running.
+    def any_container_running?
+      groups = [self] + descendants
+
+      DB::Containers.get.each do |ct|
+        return true if ct.pool == pool && groups.include?(self) && ct.running?
+      end
+
+      false
+    end
+
     def users
       ret = []
 
