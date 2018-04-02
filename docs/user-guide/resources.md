@@ -1,24 +1,21 @@
 # Resource management
 A container's CPU and memory usage, IO throttling, network priorities
-and access to devices is managed using cgroups. Number of processes or open
-files can be set using process resource limits, as described in man
-setrlimit(2).
+and access to devices is managed using cgroups.
 
-## cgroup based limits
-*osctld* has a concept of groups, where each group represents a cgroup in all
-subsystems. There are always two groups: the *root* group and the *default*
-group. The *root* group is the parent of all other groups, its called `/`. Newly
-created containers are put into the *default* group, unless configured otherwise.
-The *default* group is called `/default`. Groups can be nested and you can
-configure arbitrary cgroup subsystem parameters for every one of them. Every
-container belongs to exactly one group, i.e. the *default* group or any other.
-You can also configure cgroup parameters of the containers themselves.
+## Groups
+*osctld* is managing all cgroup subsystems and lets you configure individual
+cgroup parameters. Since cgroups are hierarchic, but spread into multiple
+subsystems, *osctld* provides a concept of unified *groups*. These groups are
+defined once using *osctl*, but they are created in all cgroup subsystems,
+so every subsystem has the same hierarchy. Every container belongs to one of
+the groups. There are always two groups present: the *root* group
+and the *default* group. The *root* group is the parent of all groups,
+it's called `/`. The *default* group is where new containers are put, unless
+a different group is specified. Its name is `/default`.
 
-What this means is that you can place containers in groups and set *shared*
-limits. On top of that, you can set limits on specific containers. For example,
-when you set a limit of 10 GB memory on the *root* group, all containers will
-be affected by this limit. At the same time, you can set a per-container limit
-to 1 GB, which would give you ten 1 GB containers, or allow you to over-commit.
+cgroup parameters can be configured both for groups and containers. This let's
+you put several containers into one group and set shared limits, or limit entire
+group hierarchies.
 
 Groups are managed by `osctl group` commands:
 
@@ -29,84 +26,57 @@ tank   /          -        -
 tank   /default   -        -
 ```
 
-cgroup parameters can be set as follows:
+## Configuring limits
+Two of the most frequently wanted limits are for memory and CPU usage.
 
-```bash
-osctl group cgparams set / cpu.shares 768
-osctl group cgparams set / memory.limit_in_bytes 10G
-osctl group cgparams ls /
-PARAMETER                VALUE
-cpu.shares               768.0
-memory.limit_in_bytes    10.0G
+## Memory limits
+Memory limits can be set using `osctl group/ct set memory`, depending on whether
+you wish to configure limits for entire groups or specific containers. When you
+set a limit on a group, no child group or container can exceed it.
 
-osctl group cgparams set /default memory.limit_in_bytes 5G
-osctl group cgparams ls /default
-PARAMETER                VALUE
-memory.limit_in_bytes     5.0G
+Let's set a limit on the *root* group, which will limit the total amount of
+memory your containers can use. The command below will let all containers
+together use up to 16 GB memory a 4 GB swap:
+
+```shell
+osctl group set memory / 16G 4G
 ```
 
-In this way, you can configure any available cgroup parameter.
+You can also set limits on your containers:
 
-Since the groups are nested, it is useful to see what parameters are set for
-a particular group including all its parents, up to the *root* group. That's
-what `-a`, `--all` switch is for:
-
-```bash
-osctl group cgparams ls -a /default
-GROUP      PARAMETER                VALUE
-/          cpu.shares               768.0
-/          memory.limit_in_bytes    10.0G
-/default   memory.limit_in_bytes     5.0G
+```shell
+osctl ct set memory myct01 2G 1G
 ```
 
-Let's create a new group, create a new container within it and set some limits:
+You could create many such containers, even if the sum of their memory limits
+exceed that of the *root* group, i.e. >16 GB. But the sum of the used memory
+couldn't go over 16 GB.
 
-```
-osctl group new /mygroup01
-osctl group cgparams set /mygroup01 memory.limit_in_bytes 2G
-```
+Configured limits can be removed using `osctl group/ct unset memory`.
 
-The group's path can be nested, groups are separated using slash (`/`). Now,
-let's create a container and place it in the new group:
+## CPU limits
+Similar to memory limits, it is possible to limit CPU usage in percents, where
+100 % means that the group/container can utilize one CPU core. Let's configure
+some CPU limits:
 
-```bash
-osctl ct new \
-             --user myuser01 \
-             --group /mygroup01 \
-             --distribution ubuntu --version 16.04 \
-             myct02
+```shell
+osctl group set cpu-limit / 800
+osctl ct set cpu-limit myct01 200
 ```
 
-Container cgroup parameters are managed in the same way as for groups, the
-subcommands are exactly the same:
+The commands above will ensure that all containers use 8 cores at max
+and container `myct01` can use up to 2 cores.
 
-```
-osctl ct cgparams set myct02 memory.limit_in_bytes 512M
-```
+CPU limits can be removed using `osctl group/ct unset cpu-limit`.
 
-Let's see what we have configured:
+## Other cgroup parameters
+Configuration of memory and CPU limits as described on this page is actually
+just an abstraction on top of `osctl group/ct cgparams` commands, using which
+you can configure individual cgroup parameters. `osctl group/ct set memory`
+is configuring parameters `memory.limit_in_bytes`
+and `memory.memsw.limit_in_bytes`, where as CPU limits configure
+`cpu.cfs_period_us` and `cpu.cfs_quota_us`. If you'd like to configure other
+cgroup parameters, see [resource management](/containers/resources.md).
 
-```bash
-osctl ct cgparams ls -a myct02
-GROUP        PARAMETER                 VALUE
-/            memory.limit_in_bytes     10.0G
-/            cpu.shares                768.0
-/mygroup01   memory.limit_in_bytes      2.0G
--            memory.limit_in_bytes    512.0M
-```
-
-Before the container is started, parameters from all the groups listed above
-will be set, top to bottom.
-
-## Process resource limits
-Resource limits can be set only on containers. For a list of available limits,
-see man setrlimit(2). Limit names are expected in lower case and without
-the `RLIMIT_` prefix. For example:
-
-```bash
-osctl ct prlimit set myct02 nproc 4096
-osctl ct prlimit set myct02 nofile 1024
-```
-
-The commands above will limit the container to 4096 processes and 1024 open
-files.
+Note that access to devices using the `device` cgroup is managed independently,
+see [device management](/containers/devices.md).
