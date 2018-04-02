@@ -54,7 +54,7 @@ module OsCtld
 
           # Switch group, regenerate configs
           progress('Reconfiguring container')
-          ct.chgrp(grp, missing_devices: opts[:missing_devices])
+          ct.chgrp(grp, missing_devices: opts[:missing_devices] || 'check')
 
           # Restart monitor
           Monitor::Master.monitor(ct)

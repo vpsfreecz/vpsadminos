@@ -170,6 +170,9 @@ module OsCtld
         devices.remove_missing
         devices.create
 
+      when 'check'
+        devices.check_all_available!(grp)
+
       else
         fail "unsupported action for missing devices: '#{missing_devices}'"
       end
