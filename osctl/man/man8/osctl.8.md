@@ -526,10 +526,17 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Time in seconds for which `osctld` waits until the next container is
       started. The default is `5` seconds.
 
+`ct unset autostart` *id*
+  Do not start the container automatically.
+
 `ct set hostname` *id* *hostname*
   Set container hostname. Depending on distribution, the hostname is configured
   within the container and an entry is added to `/etc/hosts`. The hostname
   is configured on every container start.
+
+`ct unset hostname` *id*
+  Unset container hostname. `osctld` will not touch the container's hostname
+  anymore.
 
 `ct set dns-resolver` *id* *address...*
   Configure DNS resolvers for container *id*. At least one DNS resolver is
@@ -538,6 +545,10 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 
   Note that when you assign a bridged veth with DHCP to the container, it will
   override `/etc/resolv.conf` with DNS servers from DHCP server.
+
+`ct unset dns-resolver` *id*
+  Unset container DNS resolvers. `osctld` will no longer manipulate the
+  container's `/etc/resolv.conf`.
 
 `ct set nesting` *id* `enabled`|`disabled`
   Allow/disallow LXC nesting for container *id*. The container needs to be
@@ -556,6 +567,12 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Length of measured period in microseconds, defaults to `100000`,
       i.e. `100 ms`.
 
+`ct unset cpu-limit` *id*
+  Unset CPU limit. This command is a shortcut to `ct cgparams unset`, but
+  with an additional logic. First, it sets `cpu.cfs_quota_us` to `-1`,
+  effectively disabling limits. Then both `cpu.cfs_quota_us`
+  and `cpu.cfs_period_us` are removed from `osctld` database.
+
 `ct set memory` *id* *memory* [*swap*]
   Configure the maximum amount of memory and swap the container will be able to
   use. This command is a shortcut to `ct cgparams set`. Memory limit is set
@@ -564,23 +581,6 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 
   *memory* and *swap* can be given in bytes, or with an appropriate suffix, i.e.
   `k`, `m`, `g`, or `t`.
-
-`ct unset autostart` *id*
-  Do not start the container automatically.
-
-`ct unset hostname` *id*
-  Unset container hostname. `osctld` will not touch the container's hostname
-  anymore.
-
-`ct unset dns-resolver` *id*
-  Unset container DNS resolvers. `osctld` will no longer manipulate the
-  container's `/etc/resolv.conf`.
-
-`ct unset cpu-limit` *id*
-  Unset CPU limit. This command is a shortcut to `ct cgparams unset`, but
-  with an additional logic. First, it sets `cpu.cfs_quota_us` to `-1`,
-  effectively disabling limits. Then both `cpu.cfs_quota_us`
-  and `cpu.cfs_period_us` are removed from `osctld` database.
 
 `ct unset memory` *id*
   Unset memory limits. Memory limits are first reset to unlimited and then
@@ -1260,6 +1260,12 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Length of measured period in microseconds, defaults to `100000`,
       i.e. `100 ms`.
 
+`group unset cpu-limit` *name*
+  Unset CPU limit. This command is a shortcut to `group cgparams unset`, but
+  with an additional logic. First, it sets `cpu.cfs_quota_us` to `-1`,
+  effectively disabling limits. Then both `cpu.cfs_quota_us`
+  and `cpu.cfs_period_us` are removed from `osctld` database.
+
 `group set memory` *name* *memory* [*swap*]
   Configure the maximum amount of memory and swap the group will be able to
   use. This command is a shortcut to `group cgparams set`. Memory limit is set
@@ -1268,12 +1274,6 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 
   *memory* and *swap* can be given in bytes, or with an appropriate suffix, i.e.
   `k`, `m`, `g`, or `t`.
-
-`group unset cpu-limit` *name*
-  Unset CPU limit. This command is a shortcut to `group cgparams unset`, but
-  with an additional logic. First, it sets `cpu.cfs_quota_us` to `-1`,
-  effectively disabling limits. Then both `cpu.cfs_quota_us`
-  and `cpu.cfs_period_us` are removed from `osctld` database.
 
 `group unset memory` *name*
   Unset memory limits. Memory limits are first reset to unlimited and then
