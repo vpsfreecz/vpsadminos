@@ -282,6 +282,16 @@ module OsCtl::Cli
           del.action &Command.run(Group, :delete)
         end
 
+        grp.desc 'Configure group'
+        grp.command :set do |set|
+          set_limits(set, Group)
+        end
+
+        grp.desc 'Clear configuration options'
+        grp.command :unset do |unset|
+          unset_limits(unset, Group)
+        end
+
         grp.desc "List group's assets (datasets, files, directories)"
         grp.arg_name '<name>'
         assets(grp, Group)
@@ -548,6 +558,8 @@ module OsCtl::Cli
           set.command :distribution do |c|
             c.action &Command.run(Container, :set_distribution)
           end
+
+          set_limits(set, Container)
         end
 
         ct.desc 'Clear configuration options'
@@ -569,6 +581,8 @@ module OsCtl::Cli
           unset.command :'dns-resolver' do |c|
             c.action &Command.run(Container, :unset_dns_resolver)
           end
+
+          unset_limits(unset, Container)
         end
 
         ct.desc 'Move the container to another user namespace'
@@ -1173,6 +1187,25 @@ module OsCtl::Cli
         p.command :apply do |c|
           c.action &Command.run(handler, :cgparam_apply)
         end
+      end
+    end
+
+    def set_limits(set, handler)
+      set.desc 'Set CPU limit'
+      set.arg_name '<id> <limit>'
+      set.command 'cpu-limit' do |c|
+        c.desc 'Length of period for CFS bandwidth control, in microseconds'
+        c.flag %i(p period), type: Integer, default_value: 100*1000
+
+        c.action &Command.run(handler, :set_cpu_limit)
+      end
+    end
+
+    def unset_limits(unset, handler)
+      unset.desc 'Unset CPU limit'
+      unset.arg_name '<id>'
+      unset.command 'cpu-limit' do |c|
+        c.action &Command.run(handler, :unset_cpu_limit)
       end
     end
 

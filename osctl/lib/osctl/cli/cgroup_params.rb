@@ -77,28 +77,86 @@ module OsCtl
       )
     end
 
-    def do_cgparam_set(cmd, cmd_opts)
-      cmd_opts.update({
+    def do_cgparam_set(cmd, cmd_opts, params = nil)
+      params ||= [{
         subsystem: parse_subsystem(args[1]),
         parameter: args[1],
         value: args[2..-1].map { |v| parse_data(v) },
-        append: opts[:append]
+      }]
+
+      cmd_opts.update({
+        parameters: params,
+        append: opts[:append],
       })
 
       osctld_fmt(cmd, cmd_opts)
     end
 
-    def do_cgparam_unset(cmd, cmd_opts)
-      cmd_opts.update({
+    def do_cgparam_unset(cmd, cmd_opts, params = nil)
+      params ||= [{
         subsystem: parse_subsystem(args[1]),
         parameter: args[1],
-      })
+      }]
+
+      cmd_opts.update(parameters: params)
 
       osctld_fmt(cmd, cmd_opts)
     end
 
     def do_cgparam_apply(cmd, cmd_opts)
       osctld_fmt(cmd, cmd_opts)
+    end
+
+    def do_set_cpu_limit(cmd, cmd_opts)
+      quota = args[1].to_f / 100 * opts[:period]
+
+      do_cgparam_set(
+        cmd,
+        cmd_opts,
+        [
+          {
+            subsystem: 'cpu',
+            parameter: 'cpu.cfs_period_us',
+            value: [opts[:period]],
+          },
+          {
+            subsystem: 'cpu',
+            parameter: 'cpu.cfs_quota_us',
+            value: [quota.round],
+          },
+        ]
+      )
+    end
+
+    def do_unset_cpu_limit(set_cmd, unset_cmd, cmd_opts)
+      # First, unset quota
+      do_cgparam_set(
+        set_cmd,
+        cmd_opts,
+        [
+          {
+            subsystem: 'cpu',
+            parameter: 'cpu.cfs_quota_us',
+            value: [-1],
+          },
+        ]
+      )
+
+      # Remove cgroup parameters
+      do_cgparam_unset(
+        unset_cmd,
+        cmd_opts,
+        [
+          {
+            subsystem: 'cpu',
+            parameter: 'cpu.cfs_period_us',
+          },
+          {
+            subsystem: 'cpu',
+            parameter: 'cpu.cfs_quota_us',
+          },
+        ]
+      )
     end
 
     # Read select CGroup parameters

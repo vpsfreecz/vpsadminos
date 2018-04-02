@@ -543,6 +543,19 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   Allow/disallow LXC nesting for container *id*. The container needs to be
   restarted for the change to take effect.
 
+`ct set cpu-limit` *id* *limit*
+  Configure CFS bandwidth control cgroup parameters to enforce CPU limit. *limit*
+  represents maximum CPU usage in percents, e.g. `100` means the container can
+  fully utilize one CPU core.
+
+  This command is just a shortcut to `ct cgparams set`, two parameters are
+  configured: `cpu.cfs_period_us` and `cpu.cfs_quota_us`. The quota is calculated
+  as: *limit* / 100 \* *period*.
+
+    `-p`, `--period` *period*
+      Length of measured period in microseconds, defaults to `100000`,
+      i.e. `100 ms`.
+
 `ct unset autostart` *id*
   Do not start the container automatically.
 
@@ -553,6 +566,12 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 `ct unset dns-resolver` *id*
   Unset container DNS resolvers. `osctld` will no longer manipulate the
   container's `/etc/resolv.conf`.
+
+`ct unset cpu-limit` *id*
+  Unset CPU limit. This command is a shortcut to `ct cgparams unset`, but
+  with an additional logic. First, it sets `cpu.cfs_quota_us` to `-1`,
+  effectively disabling limits. Then both `cpu.cfs_quota_us`
+  and `cpu.cfs_period_us` are removed from `osctld` database.
 
 `ct chown` *id* *user*
   Move container *id* to user namespace *user*. The container has to be stopped
@@ -1214,6 +1233,25 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   groups and containers. The device is immediately removed from all child groups
   and containers, that have previously inherited it. Promoted devices are left
   alone.
+
+`group set cpu-limit` *name* *limit*
+  Configure CFS bandwidth control cgroup parameters to enforce CPU limit. *limit*
+  represents maximum CPU usage in percents, e.g. `100` means the container can
+  fully utilize one CPU core.
+
+  This command is just a shortcut to `group cgparams set`, two parameters are
+  configured: `cpu.cfs_period_us` and `cpu.cfs_quota_us`. The quota is calculated
+  as: *limit* / 100 \* *period*.
+
+    `-p`, `--period` *period*
+      Length of measured period in microseconds, defaults to `100000`,
+      i.e. `100 ms`.
+
+`group unset cpu-limit` *name*
+  Unset CPU limit. This command is a shortcut to `group cgparams unset`, but
+  with an additional logic. First, it sets `cpu.cfs_quota_us` to `-1`,
+  effectively disabling limits. Then both `cpu.cfs_quota_us`
+  and `cpu.cfs_period_us` are removed from `osctld` database.
 
 `group assets` [*options*] *name*
   List group's assets (datasets, files, directories) and their state.

@@ -505,6 +505,21 @@ tt
       end
     end
 
+    def set_cpu_limit
+      require_args!('id', 'limit')
+      do_set_cpu_limit(:ct_cgparam_set, id: args[0], pool: gopts[:pool])
+    end
+
+    def unset_cpu_limit
+      require_args!('id')
+      do_unset_cpu_limit(
+        :ct_cgparam_set,
+        :ct_cgparam_unset,
+        id: args[0],
+        pool: gopts[:pool]
+      )
+    end
+
     def chown
       require_args!('id', 'user')
       osctld_fmt(:ct_chown, id: args[0], pool: gopts[:pool], user: args[1])

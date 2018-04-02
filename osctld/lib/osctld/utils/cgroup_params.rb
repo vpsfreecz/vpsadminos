@@ -23,14 +23,10 @@ module OsCtld
       ok(ret)
     end
 
-    def set(groupable, param, apply: true)
-      params = groupable.cgparams.import([{
-        subsystem: param[:subsystem],
-        parameter: param[:parameter],
-        value: param[:value],
-      }])
+    def set(groupable, opts, apply: true)
+      params = groupable.cgparams.import(opts[:parameters])
 
-      groupable.cgparams.set(params, append: param[:append])
+      groupable.cgparams.set(params, append: opts[:append])
 
       if apply
         ret = apply(groupable)
@@ -43,12 +39,8 @@ module OsCtld
       error(e.message)
     end
 
-    def unset(groupable, param)
-      groupable.cgparams.unset([{
-        subsystem: param[:subsystem],
-        parameter: param[:parameter],
-      }])
-
+    def unset(groupable, opts)
+      groupable.cgparams.unset(opts[:parameters])
       ok
     end
 
