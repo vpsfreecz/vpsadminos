@@ -128,21 +128,7 @@ module OsCtl
       )
     end
 
-    def do_unset_cpu_limit(set_cmd, unset_cmd, cmd_opts)
-      # First, unset quota
-      do_cgparam_set(
-        set_cmd,
-        cmd_opts,
-        [
-          {
-            subsystem: 'cpu',
-            parameter: 'cpu.cfs_quota_us',
-            value: [-1],
-          },
-        ]
-      )
-
-      # Remove cgroup parameters
+    def do_unset_cpu_limit(unset_cmd, cmd_opts)
       do_cgparam_unset(
         unset_cmd,
         cmd_opts,
@@ -180,49 +166,18 @@ module OsCtl
       do_cgparam_set(cmd, cmd_opts, limits)
     end
 
-    def do_unset_memory(set_cmd, unset_cmd, cmd_opts)
-      # First reset cgroup limits
-      #
-      # It has to be done in two separate calls, because the cgroup parameters
-      # are applied in the order they have been added to osctld, which is
-      # 1) memory.limit_in_bytes 2) memory.memsw.limit_in_bytes. However, then
-      # need to be reset to unlimited in reverse order.
-      do_cgparam_set(
-        set_cmd,
-        cmd_opts,
-        [
-          {
-            subsystem: 'memory',
-            parameter: 'memory.memsw.limit_in_bytes',
-            value: [-1],
-          },
-        ]
-      )
-
-      do_cgparam_set(
-        set_cmd,
-        cmd_opts,
-        [
-          {
-            subsystem: 'memory',
-            parameter: 'memory.limit_in_bytes',
-            value: [-1],
-          },
-        ]
-      )
-
-      # Then remove limits from osctld
+    def do_unset_memory(unset_cmd, cmd_opts)
       do_cgparam_unset(
         unset_cmd,
         cmd_opts,
         [
           {
             subsystem: 'memory',
-            parameter: 'memory.limit_in_bytes',
+            parameter: 'memory.memsw.limit_in_bytes',
           },
           {
             subsystem: 'memory',
-            parameter: 'memory.memsw.limit_in_bytes',
+            parameter: 'memory.limit_in_bytes',
           },
         ]
       )

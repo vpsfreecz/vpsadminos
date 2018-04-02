@@ -39,8 +39,20 @@ module OsCtld
       error(e.message)
     end
 
-    def unset(groupable, opts)
-      groupable.cgparams.unset(opts[:parameters])
+    def unset(groupable, opts, reset: true, keep_going: false)
+      groupable.cgparams.unset(
+        opts[:parameters],
+        reset: reset,
+        keep_going: keep_going
+      ) do |subsystem|
+        if groupable.respond_to?(:abs_apply_cgroup_path)
+          groupable.abs_apply_cgroup_path(subsystem)
+
+        else
+          groupable.abs_cgroup_path(subsystem)
+        end
+      end
+
       ok
     end
 

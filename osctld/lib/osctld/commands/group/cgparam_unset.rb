@@ -9,7 +9,7 @@ module OsCtld
     end
 
     def execute(grp)
-      unset(grp, opts)
+      unset(grp, opts, reset: true, keep_going: true)
     end
   end
 end

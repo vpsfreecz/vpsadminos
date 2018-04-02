@@ -512,12 +512,7 @@ tt
 
     def unset_cpu_limit
       require_args!('id')
-      do_unset_cpu_limit(
-        :ct_cgparam_set,
-        :ct_cgparam_unset,
-        id: args[0],
-        pool: gopts[:pool]
-      )
+      do_unset_cpu_limit(:ct_cgparam_unset, id: args[0], pool: gopts[:pool])
     end
 
     def set_memory
@@ -527,12 +522,7 @@ tt
 
     def unset_memory
       require_args!('id')
-      do_unset_memory(
-        :ct_cgparam_set,
-        :ct_cgparam_unset,
-        id: args[0],
-        pool: gopts[:pool]
-      )
+      do_unset_memory(:ct_cgparam_unset, id: args[0], pool: gopts[:pool])
     end
 
     def chown

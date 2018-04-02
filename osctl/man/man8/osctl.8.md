@@ -568,10 +568,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       i.e. `100 ms`.
 
 `ct unset cpu-limit` *id*
-  Unset CPU limit. This command is a shortcut to `ct cgparams unset`, but
-  with an additional logic. First, it sets `cpu.cfs_quota_us` to `-1`,
-  effectively disabling limits. Then both `cpu.cfs_quota_us`
-  and `cpu.cfs_period_us` are removed from `osctld` database.
+  Unset CPU limit. This command is a shortcut to `ct cgparams unset`.
 
 `ct set memory` *id* *memory* [*swap*]
   Configure the maximum amount of memory and swap the container will be able to
@@ -583,8 +580,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   `k`, `m`, `g`, or `t`.
 
 `ct unset memory` *id*
-  Unset memory limits. Memory limits are first reset to unlimited and then
-  removed from `osctld` database.
+  Unset memory limits. This command is a shortcut to `ct cgparams unset`.
 
 `ct chown` *id* *user*
   Move container *id* to user namespace *user*. The container has to be stopped
@@ -816,8 +812,15 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       *parameter*.
 
 `ct cgparams unset` *id* *parameter*
-  Unset CGroup parameter *parameter* from container *id*. Value of the parameter
-  is not changed, the parameter is merely removed from `osctld` config.
+  Unset CGroup parameter *parameter* from container *id*. Selected cgroup
+  parameters are reset, the rest is left alone and merely removed from `osctld`
+  config.
+
+  The following parameters are reset:
+
+  - `cpu.cfs_quota_us`
+  - `memory.limit_in_bytes`
+  - `memory.memsw.limit_in_bytes`
 
 `ct cgparams apply` *id*
   Apply all CGroup parameters defined for container *id*, its group and all
@@ -1156,8 +1159,15 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       *parameter*.
 
 `group cgparams unset` *name* *parameter*
-  Unset CGroup parameter *parameter* from group *name*. Value of the parameter
-  is not changed, the parameter is merely removed from `osctld` config.
+  Unset CGroup parameter *parameter* from group *name*. Selected cgroup
+  parameters are reset, the rest is left alone and merely removed from `osctld`
+  config.
+
+  The following parameters are reset:
+
+  - `cpu.cfs_quota_us`
+  - `memory.limit_in_bytes`
+  - `memory.memsw.limit_in_bytes`
 
 `group cgparams apply` *name*
   Apply all CGroup parameters defined for group *name* and all its parent
@@ -1261,10 +1271,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       i.e. `100 ms`.
 
 `group unset cpu-limit` *name*
-  Unset CPU limit. This command is a shortcut to `group cgparams unset`, but
-  with an additional logic. First, it sets `cpu.cfs_quota_us` to `-1`,
-  effectively disabling limits. Then both `cpu.cfs_quota_us`
-  and `cpu.cfs_period_us` are removed from `osctld` database.
+  Unset CPU limit. This command is a shortcut to `group cgparams unset`.
 
 `group set memory` *name* *memory* [*swap*]
   Configure the maximum amount of memory and swap the group will be able to
@@ -1276,8 +1283,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   `k`, `m`, `g`, or `t`.
 
 `group unset memory` *name*
-  Unset memory limits. Memory limits are first reset to unlimited and then
-  removed from `osctld` database.
+  Unset memory limits.
 
 `group assets` [*options*] *name*
   List group's assets (datasets, files, directories) and their state.

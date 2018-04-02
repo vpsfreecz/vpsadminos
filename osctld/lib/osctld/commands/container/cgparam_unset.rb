@@ -9,7 +9,7 @@ module OsCtld
     end
 
     def execute(ct)
-      unset(ct, opts)
+      unset(ct, opts, reset: true, keep_going: true)
     end
   end
 end
