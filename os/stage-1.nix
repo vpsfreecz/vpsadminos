@@ -2,10 +2,12 @@
 with lib;
 let
   modulesTree = config.system.modulesTree;
+  firmware = config.hardware.firmware;
   modules = pkgs.makeModulesClosure {
     rootModules = config.boot.initrd.availableKernelModules ++ config.boot.initrd.kernelModules;
     kernel = modulesTree;
     allowMissing = true;
+    firmware = firmware;
   };
   dhcpcd = pkgs.dhcpcd.override { udev = null; };
   extraUtils = pkgs.runCommandCC "extra-utils"

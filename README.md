@@ -36,9 +36,9 @@ and a squashfs root while reusing packages and some modules from
 git clone https://github.com/vpsfreecz/vpsadminos/
 cd vpsadminos
 
-# temporarily this needs vpsadminos branch from sorki/nixpkgs
+# temporarily this needs vpsadminos branch from vpsfreecz/nixpkgs
 
-git clone https://github.com/sorki/nixpkgs --branch vpsadminos
+git clone https://github.com/vpsfreecz/nixpkgs --branch vpsadminos
 export NIX_PATH=`pwd`
 
 make
