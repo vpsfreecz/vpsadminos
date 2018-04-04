@@ -618,6 +618,12 @@ module OsCtl::Cli
           c.action &Command.run(Container, :cd)
         end
 
+        ct.desc 'Regenerate LXC configuration'
+        ct.arg_name '<id>'
+        ct.command :reconfigure do |c|
+          c.action &Command.run(Container, :reconfigure)
+        end
+
         ct.desc 'Export the container configs and data into a tar archive'
         ct.arg_name '<id> <file>'
         ct.command :export do |c|

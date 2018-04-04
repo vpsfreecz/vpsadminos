@@ -642,6 +642,11 @@ tt
       puts ct[:log_file]
     end
 
+    def reconfigure
+      require_args!('id')
+      osctld_fmt(:ct_reconfigure, id: args[0], pool: gopts[:pool])
+    end
+
     def pid
       require_args!('pid|-')
 

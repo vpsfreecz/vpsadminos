@@ -6,26 +6,26 @@ GEM
     gli (2.17.1)
     ipaddress (0.8.3)
     json (2.1.0)
-    libosctl (18.03.0.build20180402193000)
-    osctl-repo (18.03.0.build20180402193000)
+    libosctl (18.03.0.build20180404091929)
+    osctl-repo (18.03.0.build20180404091929)
       filelock
       gli (~> 2.17.1)
       json
-      libosctl (= 18.03.0.build20180402193000)
-    osctld (18.03.0.build20180402193000)
+      libosctl (= 18.03.0.build20180404091929)
+    osctld (18.03.0.build20180404091929)
       concurrent-ruby (~> 1.0.5)
       ipaddress (~> 0.8.3)
       json
-      libosctl (= 18.03.0.build20180402193000)
-      osctl-repo (= 18.03.0.build20180402193000)
+      libosctl (= 18.03.0.build20180404091929)
+      osctl-repo (= 18.03.0.build20180404091929)
       ruby-lxc (~> 1.2.2)
-    ruby-lxc (1.2.2)
+    ruby-lxc (1.2.99)
 
 PLATFORMS
   ruby
 
 DEPENDENCIES
-  osctld (= 18.03.0.build20180402193000)
+  osctld (= 18.03.0.build20180404091929)
 
 BUNDLED WITH
    1.14.6

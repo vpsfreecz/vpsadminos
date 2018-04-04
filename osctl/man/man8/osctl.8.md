@@ -631,6 +631,9 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 `ct log path` *id*
   Write the path to the log file of container *id* to stdout.
 
+`ct reconfigure` *id*
+  Regenerate LXC configuration.
+
 `ct export` [*options*] *id* *file*
   Export container *id* into a tar archive *file*. The archive will contain
   the container's configuration, its user, group and data. The exported archive
