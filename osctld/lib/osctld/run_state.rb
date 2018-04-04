@@ -5,6 +5,8 @@ module OsCtld
     USER_CONTROL_DIR = File.join(RUNDIR, 'user-control')
     MIGRATION_DIR = File.join(RUNDIR, 'migration')
     REPOSITORY_DIR = File.join(RUNDIR, 'repository')
+    CONFIG_DIR = File.join(RUNDIR, 'configs')
+    LXC_CONFIG_DIR = File.join(CONFIG_DIR, 'lxc')
 
     def self.create
       Dir.mkdir(RUNDIR, 0711) unless Dir.exists?(RUNDIR)
@@ -21,6 +23,12 @@ module OsCtld
         Dir.mkdir(REPOSITORY_DIR, 0700)
         File.chown(Repository::UID, 0, REPOSITORY_DIR)
       end
+
+      # LXC configs
+      Dir.mkdir(CONFIG_DIR, 0755) unless Dir.exists?(CONFIG_DIR)
+      Dir.mkdir(LXC_CONFIG_DIR, 0755) unless Dir.exists?(LXC_CONFIG_DIR)
+
+      Lxc.install_lxc_configs(LXC_CONFIG_DIR)
     end
 
     def self.assets(add)
@@ -59,6 +67,13 @@ module OsCtld
         user: Repository::UID,
         group: 0,
         mode: 0700
+      )
+      add.directory(
+        RunState::CONFIG_DIR,
+        desc: 'Global LXC configuration files',
+        user: 0,
+        group: 0,
+        mode: 0755
       )
 
       Migration.assets(add)

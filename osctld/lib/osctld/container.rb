@@ -439,6 +439,7 @@ module OsCtld
     def configure_base
       Template.render_to('ct/config', {
         distribution: distribution,
+        version: version,
         ct: self,
         hook_autodev: OsCtld::hook_run('ct-autodev', pool),
         hook_start_host: OsCtld::hook_run('ct-start', pool),
