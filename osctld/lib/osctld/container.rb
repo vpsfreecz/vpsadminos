@@ -206,11 +206,10 @@ module OsCtld
         ret = ct_control(self, :ct_status, ids: [id])
 
         if ret[:status]
-          state = ret[:output][id.to_sym][:state].to_sym
-          state
+          self.state = ret[:output][id.to_sym][:state].to_sym
 
         else
-          :unknown
+          self.state = :error
         end
       end
     end
@@ -220,7 +219,7 @@ module OsCtld
     end
 
     def can_start?
-      state != :staged && pool.active?
+      state != :staged && state != :error && pool.active?
     end
 
     def dir

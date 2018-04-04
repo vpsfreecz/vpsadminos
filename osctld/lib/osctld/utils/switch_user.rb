@@ -22,9 +22,15 @@ module OsCtld
 
       w.close
 
-      ret = JSON.parse(r.readline, symbolize_names: true)
-      Process.wait(pid)
-      ret
+      begin
+        ret = JSON.parse(r.readline, symbolize_names: true)
+        Process.wait(pid)
+        ret
+
+      rescue EOFError
+        Process.wait(pid)
+        {status: false, message: 'user runner failed'}
+      end
     end
 
     def ct_exec(ct, *args)
