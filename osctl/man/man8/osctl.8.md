@@ -761,7 +761,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 
   When global option `-j`, `--json` is used, the TUI is replaced by JSON
   being periodically printed on standard output. Every line describing resource
-  usage at the time of writing.
+  usage at the time of writing. `ct top` with JSON output can be manually
+  refreshed by sending it `SIGUSR1`.
 
     `-r`, `--rate` *n*
       Refresh rate in seconds, defaults to 1 second.
