@@ -1,5 +1,8 @@
+require 'base64'
+require 'json'
 require 'lxc'
 require 'thread'
+require 'io/console'
 
 module OsCtld
   # Represents a container's tty.
@@ -45,8 +48,13 @@ module OsCtld
                 next if data.nil?
 
                 clients.each do |c|
-                  c.write(data)
-                  c.flush
+                  begin
+                    c.write(data)
+                    c.flush
+
+                  rescue SystemCallError
+                    remove_client(c)
+                  end
                 end
 
               elsif io == @wake_r
@@ -73,6 +81,8 @@ module OsCtld
     def open
       sync { @opened = true }
 
+      log(:info, ct, "Opening TTY #{n}")
+
       in_r, in_w = IO.pipe
       out_r, out_w = IO.pipe
 
@@ -96,6 +106,9 @@ module OsCtld
 
         lxc_ct = LXC::Container.new(ct.id, ct.lxc_home)
         fd = lxc_ct.console_fd(n)
+        rows, cols = fd.winsize
+
+        buf = ''
 
         begin
           loop do
@@ -104,8 +117,28 @@ module OsCtld
             rs.each do |io|
               case io
               when STDIN
-                fd.write(STDIN.read_nonblock(4096))
-                fd.flush
+                buf << STDIN.read_nonblock(4096)
+
+                while i = buf.index("\n")
+                  cmd = JSON.parse(buf[0..i], symbolize_names: true)
+
+                  if cmd[:keys]
+                    fd.write(Base64.strict_decode64(cmd[:keys]))
+                    fd.flush
+                  end
+
+                  if cmd[:rows] && cmd[:cols]
+                    new_rows = cmd[:rows].to_i
+                    new_cols = cmd[:cols].to_i
+
+                    if new_rows > 0 && new_cols > 0 \
+                      && (new_rows != rows || new_cols != cols)
+                      fd.winsize = [cmd[:rows], cmd[:cols]]
+                    end
+                  end
+
+                  buf = buf[i+1..-1]
+                end
 
               when fd
                 STDOUT.write(fd.read_nonblock(4096))
@@ -139,6 +172,7 @@ module OsCtld
           wake
         elsif ct.state == :running
           open
+          wake
         end
       end
     end
@@ -192,9 +226,13 @@ module OsCtld
       io.read_nonblock(4096)
 
     rescue IOError, Errno::ECONNRESET
+      remove_client(io)
+      nil
+    end
+
+    def remove_client(io)
       log(:info, ct, "Disconnecting client from TTY #{n}")
       sync { @clients.delete(io) }
-      nil
     end
 
     def sync

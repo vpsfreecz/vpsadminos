@@ -9,18 +9,22 @@
 # `inpipe/stdin` and forwards the data to the wrapped process. Data from
 # the wrapped process are written to `outpipe/stdout`.
 #
-# Data read from `inpipe/stdin` are expected to be in the following format:
+# Data read from `inpipe/stdin` are expected to be in JSON, one command on every
+# line.
 #
-#   <command> <args...>\n
+#   {
+#     "keys": base64 encoded input data,
+#     "rows": terminal height,
+#     "cols": terminal width
+#   }
 #
-# Available commands:
-#
-#   W <base64 encoded data>   send decoded data to the wrapper process
-#   S <width> <height>        resize the pty
+# The command can contain just `keys`, `rows` and `cols` together, or all three
+# keys.
 #
 # Data written to `outpipe/stdout` are in a raw form, just as the wrapped
 # process writes them.
 require 'base64'
+require 'json'
 require 'pty'
 require 'timeout'
 
@@ -30,14 +34,15 @@ class Wrapper
     @in_pipe = args.shift
     @out_pipe = args.shift
     @cmd = args
-    @current_w = 80
-    @current_h = 25
+    @current_rows = 25
+    @current_cols = 80
+    @buf = ''
 
     Process.setproctitle("osctld: CT #{ctid}")
   end
 
   def run
-    r_pty, w_pty, pid = PTY.spawn(*@cmd)
+    r_pty, w_pty, @pid = PTY.spawn(*@cmd)
     
     catch(:stop) do
       loop do
@@ -49,30 +54,52 @@ class Wrapper
   end
 
   protected
+  attr_reader :pid, :buf, :current_rows, :current_cols
+
   def work(r_pty, w_pty)
     rs, _ = IO.select([$stdin, r_pty])
 
     rs.each do |r|
       case r
       when $stdin
-        buf = read_stdin
-        stop if buf.nil?
+        str = read_stdin
+        stop if str.nil?
 
-        buf.split("\n").each do |msg|
-          cmd = msg.split(' ')
+        buf << str
 
-          case cmd[0]
-          when 'W'
-            w_pty.write(Base64.strict_decode64(cmd[1]))
+        while i = buf.index("\n")
+          t = buf[0..i]
+          @buf = buf[i+1..-1]
 
-          when 'S'
-            w, h = cmd[1..2].map { |v| v.to_i }
+          begin
+            cmd = JSON.parse(t, symbolize_names: true)
 
-            if w != current_w || h != current_h
-              current_w = w
-              current_h = h
+          rescue JSON::ParserError
+            next
+          end
 
-              `stty -F #{r_pty.path} rows #{h} cols #{w}`
+          if cmd[:keys]
+            begin
+              keys = Base64.strict_decode64(cmd[:keys])
+
+            rescue ArgumentError
+              next
+            end
+
+            w_pty.write(keys)
+            w_pty.flush
+          end
+
+          if cmd[:rows] && cmd[:cols]
+            new_rows = cmd[:rows].to_i
+            new_cols = cmd[:cols].to_i
+
+            if new_rows > 0 && new_cols > 0 \
+              && (new_rows != current_rows || new_cols != current_cols)
+              @current_rows = new_rows
+              @current_cols = new_cols
+
+              `stty -F #{r_pty.path} rows #{current_rows} cols #{current_cols}`
               Process.kill('WINCH', pid)
             end
           end

@@ -1,3 +1,6 @@
+require 'base64'
+require 'json'
+
 module OsCtl
   class Console
     END_SEQ = ["\x01", "q"]
@@ -7,10 +10,11 @@ module OsCtl
       c.open
     end
 
-    def initialize(socket, input, output)
+    def initialize(socket, input, output, raw: false)
       @socket = socket
       @in = input
       @out = output
+      @raw = raw
       @private_buffer = ''
       @buffer = ''
       @end_i = 0
@@ -35,13 +39,27 @@ module OsCtl
     rescue IOError
     end
 
+    def resize(rows, cols)
+      send_cmd(rows: rows, cols: cols)
+    end
+
     def close
       @socket.close
     end
 
     protected
+    def raw?
+      @raw
+    end
+
     def read_in
       data = @in.read_nonblock(4096)
+
+      if raw?
+        @socket.write(data)
+        @socket.flush
+        return
+      end
 
       data.each_char do |char|
         if char == END_SEQ[ @end_i ]
@@ -74,9 +92,13 @@ module OsCtl
         end
       end
 
-      @socket.write(@buffer)
-      @socket.flush
+      send_cmd(keys: Base64.strict_encode64(@buffer))
       @buffer.clear
+    end
+
+    def send_cmd(hash)
+      @socket.write(hash.to_json + "\n")
+      @socket.flush
     end
   end
 end

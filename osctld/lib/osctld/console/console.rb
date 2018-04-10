@@ -1,7 +1,7 @@
 require 'base64'
 
 module OsCtld
-  # Special case for tty0
+  # Special case for tty0 (/dev/console)
   #
   # tty0 is opened on container start, at least when it's started by osctld.
   # The tty is accessed using named pipes, one for writing to the tty, one for
@@ -19,11 +19,6 @@ module OsCtld
         self.tty_out_io = output
         wake
       end
-    end
-
-    def tty_write(io, data)
-      io.write("W #{Base64.strict_encode64(data)}\n")
-      io.flush
     end
   end
 end

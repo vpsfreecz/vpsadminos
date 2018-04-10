@@ -507,7 +507,13 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   container reboots. It can be attached even when the container is stopped.
   The console can be detached using **Ctrl-a q**.
 
-  `-t`, `--tty` *n* - Select which TTY to attach, defaults to **0**.
+  If global option `-j`, `--json` is set, the console will not manipulate the
+  TTY, but instead will accept JSON commands on standard input. Output from the
+  console will be written to standard output as-is. To detach the console, send
+  `SIGTERM` to `osctl`. To learn more about the JSON commands, see
+  `CONSOLE INTERFACE`.
+
+    `-t`, `--tty` *n* - Select which TTY to attach, defaults to **0**.
 
 `ct exec` *id* *cmd...*
   Attach container *id* and execute command *cmd* within a shell.
@@ -1427,6 +1433,32 @@ format: <*distribution*>-<*version*>\*.<*extension*>. *distribution* is
 a distribution name in lower case, e.g. `alpine`, `centos` or `debian`.
 *version* is the distribution release version, e.g. `3.6` for `alpine`,
 `7.0` for `centos` or `9.0` for `debian`.
+
+## CONSOLE INTERFACE
+`osctl --json ct console` accepts JSON commands on standard input. Commands
+are separated by line breaks (`\n`). Each JSON command can contain the following
+values:
+
+```
+{
+  "keys": base64 encoded data,
+  "rows": number of terminal rows,
+  "cols": number of terminal columns
+}
+```
+
+`keys` is the data to be written to the console. `rows` and `cols` control
+terminal size. Example commands:
+
+```
+{"keys": "Cg=="}\n
+{"keys": "Cg==", "rows": 25, "cols": 80}\n
+{"rows": 50, "cols": 120}\n
+```
+
+Where `Cg==` is `\n` (enter/return key) encoded in Base64. All values
+are optional, but `rows` and `cols` have to be together and empty command
+doesn't do anything.
 
 ## BUGS
 Report bugs to https://github.com/vpsfreecz/vpsadminos/issues.

@@ -1,4 +1,5 @@
 require 'highline'
+require 'io/console'
 require 'ipaddress'
 require 'tempfile'
 
@@ -686,7 +687,13 @@ tt
       `stty raw -echo -icanon -isig`
 
       pid = Process.fork do
-        OsCtl::Console.open(c.socket, STDIN, STDOUT)
+        console = OsCtl::Console.new(c.socket, STDIN, STDOUT)
+
+        Signal.trap('WINCH') do
+          console.resize(*STDIN.winsize)
+        end
+
+        console.open
       end
 
       yield(c) if block_given?
@@ -701,7 +708,7 @@ tt
       c = osctld_open
       c.cmd_response!(:ct_console, id: ctid, pool: pool, tty: tty)
 
-      console = OsCtl::Console.new(c.socket, STDIN, STDOUT)
+      console = OsCtl::Console.new(c.socket, STDIN, STDOUT, raw: true)
 
       Signal.trap('TERM') do
         console.close
