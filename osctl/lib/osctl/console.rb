@@ -35,6 +35,10 @@ module OsCtl
     rescue IOError
     end
 
+    def close
+      @socket.close
+    end
+
     protected
     def read_in
       data = @in.read_nonblock(4096)

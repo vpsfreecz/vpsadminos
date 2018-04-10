@@ -278,7 +278,7 @@ tt
       cmd_opts = {id: args[0], pool: gopts[:pool]}
       return osctld_fmt(:ct_start, cmd_opts) unless opts[:foreground]
 
-      open_console(args[0], gopts[:pool], 0) do |sock|
+      open_console(args[0], gopts[:pool], 0, gopts[:json]) do |sock|
         sock.close if osctld_resp(:ct_start, cmd_opts).error?
       end
     end
@@ -308,7 +308,7 @@ tt
 
       return osctld_fmt(:ct_stop, cmd_opts) unless opts[:foreground]
 
-      open_console(args[0], gopts[:pool], 0) do |sock|
+      open_console(args[0], gopts[:pool], 0, gopts[:json]) do |sock|
         sock.close if osctld_resp(:ct_stop, cmd_opts).error?
       end
     end
@@ -342,7 +342,7 @@ tt
 
       return osctld_fmt(:ct_restart, cmd_opts) unless opts[:foreground]
 
-      open_console(args[0], gopts[:pool], 0) do |sock|
+      open_console(args[0], gopts[:pool], 0, gopts[:json]) do |sock|
         sock.close if osctld_resp(:ct_restart, cmd_opts).error?
       end
     end
@@ -350,7 +350,7 @@ tt
     def console
       require_args!('id')
 
-      open_console(args[0], gopts[:pool], opts[:tty])
+      open_console(args[0], gopts[:pool], opts[:tty], gopts[:json])
     end
 
     def attach
@@ -666,7 +666,16 @@ tt
       print_assets(:ct_assets, id: args[0], pool: gopts[:pool])
     end
 
-    def open_console(ctid, pool, tty)
+    def open_console(ctid, pool, tty, raw, &block)
+      if raw
+        open_console_raw(ctid, pool, tty)
+
+      else
+        open_console_tty(ctid, pool, tty, &block)
+      end
+    end
+
+    def open_console_tty(ctid, pool, tty)
       c = osctld_open
       c.cmd_response!(:ct_console, id: ctid, pool: pool, tty: tty)
 
@@ -686,6 +695,19 @@ tt
 
       `stty #{state}`
       puts
+    end
+
+    def open_console_raw(ctid, pool, tty)
+      c = osctld_open
+      c.cmd_response!(:ct_console, id: ctid, pool: pool, tty: tty)
+
+      console = OsCtl::Console.new(c.socket, STDIN, STDOUT)
+
+      Signal.trap('TERM') do
+        console.close
+      end
+
+      console.open
     end
 
     def cgparam_list
