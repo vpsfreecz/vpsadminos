@@ -27,6 +27,21 @@ module OsCtld
       @veth = fetch_veth_name
     end
 
+    def rename(new_name)
+      %w(up down).each do |v|
+        begin
+          File.unlink(hook_path(v, name))
+
+        rescue Errno::ENOENT
+          # pass
+        end
+
+        File.symlink(OsCtld::hook_src("veth-#{v}"), hook_path(v, new_name))
+      end
+
+      super
+    end
+
     def render_opts
       {
         name: name,
@@ -83,8 +98,8 @@ module OsCtld
       File.join(veth_hook_dir, mode)
     end
 
-    def hook_path(mode)
-      File.join(mode_path(mode), "#{@ct.id}.#{name}")
+    def hook_path(mode, name = nil)
+      File.join(mode_path(mode), "#{@ct.id}.#{name || self.name}")
     end
   end
 end

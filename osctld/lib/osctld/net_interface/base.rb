@@ -42,6 +42,12 @@ module OsCtld
       {'type' => type.to_s, 'name' => name, 'hwaddr' => hwaddr}
     end
 
+    # Rename the interface within the container
+    # @param new_name [String]
+    def rename(new_name)
+      @name = new_name
+    end
+
     # Initialize the interface on creation / osctld restart
     def setup
 

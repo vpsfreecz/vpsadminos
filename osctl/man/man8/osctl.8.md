@@ -987,6 +987,10 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   Remove interface *name* from container *id*.
   The container has to be stopped for this command to be allowed.
 
+`ct netif rename` *id* *old-name* *new-name*
+  Rename network interface. The container has to be stopped for this operation
+  to pass.
+
 `ct netif ip add` *id* *name* *addr*
   Add IP address *addr* to interface *name* of container *id*. `osctld` will
   setup routing in case of **routed** interface and add the IP address to the

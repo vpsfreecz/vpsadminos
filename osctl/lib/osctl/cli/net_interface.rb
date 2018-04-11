@@ -91,6 +91,17 @@ module OsCtl::Cli
       osctld_fmt(:netif_delete, id: args[0], pool: gopts[:pool], name: args[1])
     end
 
+    def rename
+      require_args!('id', 'old-name', 'new-name')
+      osctld_fmt(
+        :netif_rename,
+        id: args[0],
+        pool: gopts[:pool],
+        old_name: args[1],
+        new_name: args[2]
+      )
+    end
+
     def ip_list
       require_args!('id', 'name')
 

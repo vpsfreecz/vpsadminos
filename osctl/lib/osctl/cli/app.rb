@@ -817,6 +817,12 @@ module OsCtl::Cli
             c.action &Command.run(NetInterface, :delete)
           end
 
+          net.desc "Rename network interface"
+          net.arg_name '<id> <old-name> <new-name>'
+          net.command :rename do |c|
+            c.action &Command.run(NetInterface, :rename)
+          end
+
           net.desc "Manage IP addresses"
           net.command :ip do |ip|
             ip.desc 'List IP addresses'
