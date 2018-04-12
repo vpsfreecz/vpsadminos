@@ -60,6 +60,7 @@ with lib;
     boot.isContainer = mkOption {
       type = types.bool;
       default = false;
+      description = "Whether this vpsadminOS machine is a lightweight container running in another vpsadminOS system.";
     };
     boot.initrd.withHwSupport = mkOption {
       type = types.bool;
@@ -80,6 +81,13 @@ with lib;
         pathsToLink = [ "/lib/firmware" ];
         ignoreCollisions = true;
       };
+      description = ''
+        List of packages containing firmware files. Such files will be loaded automatically if the
+        kernel asks for them (i.e., when it has detected specific hardware that requires firmware
+        to function). If multiple packages contain firmware files with the same name, the first
+        package in the list takes precedence. Note that you must rebuild your system if you add
+        files to any of these directories.
+      '';
     };
     vpsadminos.nix = mkOption {
       type = types.bool;

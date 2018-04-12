@@ -9,21 +9,21 @@ in
   options = {
     boot = {
       # *Size are unused for now
-      devSize = mkOption {
-        default = "5%";
-        example = "32m";
-        type = types.str;
-      };
-      devShmSize = mkOption {
-        default = "50%";
-        example = "256m";
-        type = types.str;
-      };
-      runSize = mkOption {
-        default = "25%";
-        example = "256m";
-        type = types.str;
-       };
+      #devSize = mkOption {
+      #  default = "5%";
+      #  example = "32m";
+      #  type = types.str;
+      #};
+      #devShmSize = mkOption {
+      #  default = "50%";
+      #  example = "256m";
+      #  type = types.str;
+      #};
+      #runSize = mkOption {
+      #  default = "25%";
+      #  example = "256m";
+      #  type = types.str;
+      # };
 
       procHidePid = mkOption {
         type = types.bool;

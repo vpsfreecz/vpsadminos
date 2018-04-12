@@ -57,26 +57,65 @@ let
           enable = mkEnableOption "BIRD Internet Routing Daemon";
           routerId = mkOption {
             type = types.string;
+            description = ''
+              Set BIRD's router ID. It's a world-wide unique identification of your router,
+              usually one of router's IPv4 addresses.
+
+              Default: in IPv4 version, the lowest IP address of a non-loopback interface.
+              In IPv6 version, this option is mandatory.
+            '';
           };
           logFile = mkOption {
             type = types.string;
             default = "/var/log/${variant}.log";
+            description = ''
+              Path to log file.
+            '';
           };
           logVerbosity = mkOption {
             type = types.string;
             default = "all";
+            example = "error";
+            description = ''
+              Set logging of messages having the given class (either all or { error|trace [, ...] } etc.) into selected destination
+              (a file specified as a filename string, syslog with optional name argument, or the stderr output).
+
+              Classes are: `info`, `warning`, `error` and `fatal` for messages about local problems, `debug` for debugging messages,
+              `trace` when you want to know what happens in the network, `remote` for messages about misbehavior of remote machines,
+              `auth` about authentication failures, `bug` for internal BIRD bugs.
+              Default: log everything to the system log.
+            '';
           };
           protocol = {
             kernel = {
-              persist = mkEnableOption "";
-              learn = mkEnableOption "";
+              persist = mkOption {
+                type = types.bool;
+                default = true;
+                description = ''
+                  Tell BIRD to leave all its routes in the routing tables when it exits (instead of cleaning them up).
+                '';
+              };
+              learn = mkOption {
+                type = types.bool;
+                default = true;
+                description = ''
+                  Enable learning of routes added to the kernel routing tables by other routing daemons or by the system administrator.
+                  This is possible only on systems which support identification of route authorship.
+                '';
+              };
               scanTime = mkOption {
                 type = types.ints.positive;
                 default = 10;
+                description = ''
+                  Time in seconds between two scans of the network interface list.
+                '';
               };
               extraConfig = mkOption {
                 type = types.lines;
                 default = "";
+                description = ''
+                  Extra configuration for kernel protocol
+                '';
               };
 
             };
@@ -84,15 +123,24 @@ let
               scanTime = mkOption {
                 type = types.ints.positive;
                 default = 10;
+                description = ''
+                  Time in seconds between two scans of the network interface list.
+                '';
               };
               extraConfig = mkOption {
                 type = types.lines;
                 default = "";
+                description = ''
+                  Extra configuration for device protocol
+                '';
               };
 
             };
             bgp = mkOption {
               type = types.unspecified;
+              description = ''
+                BGP protocol configuration
+              '';
             };
 
           };

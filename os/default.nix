@@ -17,6 +17,7 @@ let
       ./stage-2.nix
       ./runit.nix
       ./modules/bird.nix
+      ./modules/doc.nix
       ./modules/eudev.nix
       ./modules/tty.nix
       ./modules/zfs.nix

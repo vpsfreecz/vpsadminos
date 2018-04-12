@@ -58,6 +58,9 @@ in
         type = types.listOf types.package;
         default = [];
         example = literalExample "[ pkgs.firefox pkgs.thunderbird ]";
+        description = ''
+          The set of packages that appear in /run/current-system/sw.
+        '';
       };
       pathsToLink = mkOption {
         type = types.listOf types.str;
