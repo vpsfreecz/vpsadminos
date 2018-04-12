@@ -2,12 +2,13 @@
 require 'json'
 require 'socket'
 
-ctid = ARGV[0]
-veth = ARGV[4]
+ctid = ENV['LXC_NAME']
+veth = ENV['LXC_NET_PEER']
 
 if ctid.nil? || veth.nil?
-  warn "Expected arguments: <ctid> net up veth <devname>, "+
-       "received #{ARGV.join(' ')}"
+  warn 'Expected environment variables:'
+  warn '  LXC_NAME'
+  warn '  LXC_NET_PEER'
   exit(false)
 end
 
@@ -33,10 +34,10 @@ end
 
 s = UNIXSocket.new("/run/osctl/user-control/#{Process.uid}.sock")
 s.send({cmd: :veth_up, opts: {
-  id: ARGV[0],
+  id: ctid,
   pool: pool,
   interface: ifname,
-  veth: ARGV[4],
+  veth: veth,
 }}.to_json + "\n", 0)
 ret = JSON.parse(s.readline, symbolize_names: true)
 s.close

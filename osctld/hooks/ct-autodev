@@ -2,11 +2,11 @@
 require 'json'
 require 'socket'
 
-ctid = ARGV[0]
+ctid = ENV['LXC_NAME']
 
 if ctid.nil?
-  warn "Expected arguments: <ctid> lxc autodev, "+
-       "received #{ARGV.join(' ')}"
+  warn 'Expected environment variables:'
+  warn '  LXC_NAME'
   exit(false)
 end
 
@@ -19,7 +19,7 @@ pool = $1
 
 s = UNIXSocket.new("/run/osctl/user-control/namespaced.sock")
 s.send({cmd: :ct_autodev, opts: {
-  id: ARGV[0],
+  id: ctid,
   pool: pool,
 }}.to_json + "\n", 0)
 ret = JSON.parse(s.readline, symbolize_names: true)
