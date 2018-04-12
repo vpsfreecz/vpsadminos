@@ -2,10 +2,10 @@ self: super:
 {
   lxc = super.lxc.overrideAttrs (oldAttrs: rec {
     src = super.fetchFromGitHub {
-      owner = "sorki";
+      owner = "vpsfreecz";
       repo = "lxc";
-      rev = "fbe92e013a569327513fc7028134a6a740a2e51e";
-      sha256 = "13hnyn08yrd1m2pk2229n2lb4v7cwd3829jqgqmi201s52wz6w0b";
+      rev = "29d65251472dd02a79688e2bd88939ed334df444";
+      sha256 = "1b2wfqi0kfpws8icp8kq5xwbd3sna8ixnxnm7whc52pq7rsz7b2b";
     };
   });
 }

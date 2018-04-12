@@ -179,6 +179,6 @@ in
     system.build.initialRamdisk = initialRamdisk;
     system.build.extraUtils = extraUtils;
     boot.initrd.availableKernelModules = [ ];
-    boot.initrd.kernelModules = [ "tun" "loop" "squashfs" "overlay"];
+    boot.initrd.kernelModules = [ "tun" "loop" "squashfs" "overlay" ];
   };
 }

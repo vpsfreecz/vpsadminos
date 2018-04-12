@@ -51,6 +51,7 @@ let
       <nixpkgs/nixos/modules/config/sysctl.nix>
       <nixpkgs/nixos/modules/config/users-groups.nix>
       <nixpkgs/nixos/modules/config/i18n.nix>
+      ./modules/rename.nix
       ./ipxe.nix
       ./nixos-compat.nix
       pkgsModule
