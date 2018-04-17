@@ -5,7 +5,7 @@ module OsCtld
     FS = '/sys/fs/cgroup'
 
     # Convert a single subsystem name to the mountpoint name, because some
-    # CGroup subsystems are mounted in a single mountpoint.
+    # CGroup subsystems are mounted in a shared mountpoint.
     def self.real_subsystem(subsys)
       return 'cpu,cpuacct' if %w(cpu cpuacct).include?(subsys)
       # TODO: net_cls, net_prio?
@@ -47,6 +47,8 @@ module OsCtld
         rescue Errno::EEXIST
           next
         end
+
+        init_cgroup(type, base, cgroup)
       end
 
       cgroup = File.join(base, *path)
@@ -62,6 +64,42 @@ module OsCtld
           end
         end
       end
+    end
+
+    # Initialize cgroup after it was created.
+    #
+    # This is used to ensure that `cpuset` cgroups have parameters `cpuset.cpus`
+    # and `cpuset.mems` set.
+    #
+    # @param type [String] cgroup subsystem
+    # @param base [String] absolute path to the root cgroup
+    # @param cgroup [String] absolute path of the created cgroup
+    def self.init_cgroup(type, base, cgroup)
+      case type
+      when 'cpuset'
+        inherit_param(base, cgroup, 'cpuset.cpus')
+        inherit_param(base, cgroup, 'cpuset.mems')
+      end
+    end
+
+    # Inherit cgroup parameter from the parent cgroup
+    #
+    # The parameter is considered to be set if it isn't empty. If the parent
+    # cgroup does not have the parameter set, it is inherited from its own
+    # parent and so on, all the way to the root cgroup defined by `base`.
+    # All parents will inherit the parameter as well.
+    #
+    # @param base [String] absolute path to the root cgroup
+    # @param cgroup [String] absolute path of the created cgroup
+    # @param param [String] parameter name
+    def self.inherit_param(base, cgroup, param)
+      v = File.read(File.join(cgroup, param)).strip
+      return v unless v.empty?
+      fail "parameter #{param} not set in root cgroup #{base}" if base == cgroup
+
+      v = inherit_param(base, File.dirname(cgroup), param)
+      set_param(File.join(cgroup, param), [v])
+      v
     end
 
     def self.set_param(path, value)
