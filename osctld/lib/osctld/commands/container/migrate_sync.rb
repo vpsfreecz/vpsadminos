@@ -48,7 +48,7 @@ module OsCtld
 
     def send_snapshot(ct, ds, base_snap, snap, from_snap = nil)
       stream = OsCtl::Lib::Zfs::Stream.new(ds, snap.snapshot, from_snap && from_snap.snapshot)
-      stream.progress do |total, changed|
+      stream.progress do |total, transfered, changed|
         progress(type: :progress, data: {
           time: Time.now.to_i,
           size: stream.size,

@@ -69,7 +69,7 @@ module OsCtld
     protected
     def send_dataset(ct, ds, snap)
       stream = OsCtl::Lib::Zfs::Stream.new(ds, snap, ct.migration_log.snapshots[-2])
-      stream.progress do |total, changed|
+      stream.progress do |total, transfered, changed|
         progress(type: :progress, data: {
           time: Time.now.to_i,
           size: stream.size,

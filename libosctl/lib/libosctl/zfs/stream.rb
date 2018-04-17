@@ -86,6 +86,7 @@ module OsCtl::Lib
     end
 
     # @yieldparam total [Integer] total number of transfered data
+    # @yieldparam transfered [Integer] number transfered data of the current snapshot
     # @yieldparam sent [Integer] transfered data since the last call
     def progress(&block)
       @progress << block
@@ -115,6 +116,7 @@ module OsCtl::Lib
       w.close
 
       log(:info, :zfs, @pipeline.join(' | '))
+      notify_exec(@pipeline)
       monitor_progress(err)
       err.close
 
@@ -127,6 +129,7 @@ module OsCtl::Lib
       zfs_pid, err = zfs_send(io)
 
       log(:info, :zfs, @pipeline.join(' | '))
+      notify_exec(@pipeline)
       monitor_progress(err)
       err.close
 
@@ -178,7 +181,7 @@ module OsCtl::Lib
         end
 
         @progress.each do |block|
-          block.call(transfered, change)
+          block.call(total, transfered, change)
         end
       end
     end
@@ -252,6 +255,10 @@ module OsCtl::Lib
       else
         'zfs send'
       end
+    end
+
+    def notify_exec(pipeline)
+
     end
   end
 end

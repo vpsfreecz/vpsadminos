@@ -92,7 +92,7 @@ module VpsAdminOS::Converter
         from_snap,
         compressed: opts[:zfs_compressed_send]
       )
-      stream.progress do |total, changed|
+      stream.progress do |total, transfered, changed|
         progress(:transfer, [stream.size, total])
       end
 
