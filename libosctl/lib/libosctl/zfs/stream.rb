@@ -191,11 +191,14 @@ module OsCtl::Lib
     end
 
     def approximate_size
+      opts = ['n', 'v']
+      opts << 'c' if @opts[:compressed]
+
       if @from_snapshot
-        cmd = zfs(:send, "-nv -I @#{@from_snapshot}", "#{path}@#{@snapshot}")
+        cmd = zfs(:send, "-#{opts.join} -I @#{@from_snapshot}", "#{path}@#{@snapshot}")
 
       else
-        cmd = zfs(:send, '-nv', "#{path}@#{@snapshot}")
+        cmd = zfs(:send, "-#{opts.join}", "#{path}@#{@snapshot}")
       end
 
       rx = /^total estimated size is ([^$]+)$/
