@@ -71,7 +71,7 @@ module OsCtl::Lib
 
     # Send stream over a socket.
     def send_to(addr, port: nil)
-      pipe_cmd("nc #{addr} #{port}")
+      pipe_cmd("nc -q 0 #{addr} #{port}")
     end
 
     # Send stream to a local filesystem.
