@@ -118,7 +118,7 @@ let
             touch ${cfg.logFile}
             chown ${variant}:${variant} ${cfg.logFile}
             chmod 660 ${cfg.logFile}
-            ${pkg}/bin/${variant} -c ${configFile} -u ${variant} -g ${variant} -f
+            exec ${pkg}/bin/${variant} -c ${configFile} -u ${variant} -g ${variant} -f
           '';
         };
 

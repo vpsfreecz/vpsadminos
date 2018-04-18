@@ -153,18 +153,18 @@ in
 
     "service/sshd/run".source = pkgs.writeScript "sshd_run" ''
       #!/bin/sh
-      ${pkgs.openssh}/bin/sshd -D -f ${sshd_config}
+      exec ${pkgs.openssh}/bin/sshd -D -f ${sshd_config}
     '';
 
     "service/lxcfs/run".source = pkgs.writeScript "lxcfs" ''
       #!/bin/sh
       mkdir -p /var/lib/lxcfs
-      ${pkgs.lxcfs}/bin/lxcfs /var/lib/lxcfs
+      exec ${pkgs.lxcfs}/bin/lxcfs /var/lib/lxcfs
     '';
 
     "service/eudev/run".source = pkgs.writeScript "eudev" ''
       #!/bin/sh
-      ${pkgs.eudev}/bin/udevd
+      exec ${pkgs.eudev}/bin/udevd
     '';
 
     "service/osctld/run".source = pkgs.writeScript "osctld" ''
@@ -184,7 +184,7 @@ in
      "service/nix/run".source = pkgs.writeScript "nix" ''
       #!/bin/sh
       nix-store --load-db < /nix/store/nix-path-registration
-      nix-daemon
+      exec nix-daemon
     '';
   })
 
@@ -193,7 +193,7 @@ in
       #!/bin/sh
       mkdir -p /var/lib/dhcp
       touch /var/lib/dhcp/dhcpd4.leases
-      ${pkgs.dhcp}/sbin/dhcpd -4 -f \
+      exec ${pkgs.dhcp}/sbin/dhcpd -4 -f \
         -pf /run/dhcpd4.pid \
         -cf /etc/dhcpd/dhcpd4.conf \
         -lf /var/lib/dhcp/dhcpd4.leases \
@@ -204,7 +204,7 @@ in
   (mkIf (config.networking.chronyd) {
     "service/chronyd/run".source = pkgs.writeScript "chronyd" ''
       #!/bin/sh
-      ${pkgs.chrony}/bin/chronyd -n -m -u chrony -f ${chrony_config}
+      exec ${pkgs.chrony}/bin/chronyd -n -m -u chrony -f ${chrony_config}
     '';
   })
 
