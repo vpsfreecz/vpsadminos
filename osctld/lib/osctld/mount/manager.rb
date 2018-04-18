@@ -6,16 +6,17 @@ module OsCtld
     # @param ct [Container]
     # @param cfg [Array<Hash>]
     def self.load(ct, cfg)
-      manager = new(ct)
-      cfg.each { |v| manager << Mount::Entry.load(ct, v) }
-      manager
+      new(ct, entries: cfg.map { |v| Mount::Entry.load(ct, v) })
     end
 
+    attr_reader :shared_dir
+
     # @param ct [Container]
-    def initialize(ct)
+    def initialize(ct, entries: [])
       init_lock
       @ct = ct
-      @entries = []
+      @entries = entries
+      @shared_dir = Mount::SharedDir.new(ct)
     end
 
     # @param mnt [Mount::Entry]
@@ -26,6 +27,11 @@ module OsCtld
 
       ct.save_config
       ct.configure_mounts
+
+      ct.exclusively do
+        next unless ct.current_state == :running
+        shared_dir.propagate(mnt)
+      end
     end
 
     # @param mnt [Mount::Entry]
@@ -64,6 +70,19 @@ module OsCtld
     # Dump mounts into config
     def dump
       map(&:dump)
+    end
+
+    # Return all mount entries, including internal entries
+    # @return [Array<Mount::Entry>]
+    def all_entries
+      inclusively do
+        [Mount::Entry.new(
+          shared_dir.path,
+          shared_dir.mountpoint,
+          'none',
+          'bind,create=dir,ro'
+        )] + entries
+      end
     end
 
     protected

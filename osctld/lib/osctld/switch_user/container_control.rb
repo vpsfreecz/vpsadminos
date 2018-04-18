@@ -1,3 +1,4 @@
+require 'fileutils'
 require 'lxc'
 
 module OsCtld
@@ -100,6 +101,64 @@ module OsCtld
     def veth_name(opts)
       ct = lxc_ct(opts[:id])
       ok(ct.running_config_item("lxc.net.#{opts[:index]}.veth.pair"))
+    end
+
+    # Relocate mount from the host-shared directory into the correct place
+    # @param opts [Hash]
+    # @option opts [String] :id container id
+    # @option opts [String] :shared_dir path to the host-shared directory
+    # @option opts [String] :src directory inside `:shared_dir` to relocate
+    # @option opts [String] :dst target mountpoint
+    def mount(opts)
+      ct = lxc_ct(opts[:id])
+
+      r, w = IO.pipe
+
+      pid = ct.attach(stdout: w) do
+        r.close
+
+        begin
+          src = File.join(opts[:shared_dir], opts[:src])
+
+          if !Dir.exist?(opts[:shared_dir])
+            puts "error:Shared dir not found at: #{opts[:shared_dir]}"
+
+          elsif !Dir.exist?(src)
+            puts "error:Source directory not found at: #{src}"
+
+          else
+            FileUtils.mkpath(opts[:dst])
+            Mount::Sys.move_mount(src, opts[:dst])
+            puts 'ok:done'
+          end
+
+        rescue => e
+          puts "error:Exception (#{e.class}): #{e.message}"
+
+        ensure
+          STDOUT.flush
+        end
+      end
+
+      w.close
+
+      line = r.readline
+      Process.wait(pid)
+      r.close
+      log(:warn, ct, "Mounter exited with #{$?.exitstatus}") if $?.exitstatus != 0
+
+      i = line.index(':')
+      return error("invalid return value: #{line.inspect}") unless i
+
+      status = line[0..i-1]
+      msg = line[i+1..-1]
+
+      if status == 'ok'
+        ok
+
+      else
+        error(msg)
+      end
     end
 
     def lxc_ct(id)

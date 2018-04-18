@@ -9,6 +9,7 @@ module OsCtld
 
     def execute(ct)
       ct.exclusively do
+        # TODO: umount from container if it is running
         ct.mounts.delete_at(opts[:mountpoint])
         ok
       end

@@ -148,6 +148,13 @@ module OsCtld
           group: 0,
           mode: 0711
         )
+        add.directory(
+          mount_dir,
+          desc: 'Mount helper directories for containers',
+          user: 0,
+          group: 0,
+          mode: 0711
+        )
       end
     end
 
@@ -240,7 +247,11 @@ module OsCtld
     end
 
     def console_dir
-      File.join(RunState::POOL_DIR, name, 'console')
+      File.join(run_dir, 'console')
+    end
+
+    def mount_dir
+      File.join(run_dir, 'mounts')
     end
 
     protected
@@ -337,7 +348,7 @@ module OsCtld
     def runstate
       Dir.mkdir(run_dir, 0711) unless Dir.exist?(run_dir)
 
-      [console_dir, devices_dir, hook_dir].each do |dir|
+      [console_dir, devices_dir, hook_dir, mount_dir].each do |dir|
         Dir.mkdir(dir, 0711) unless Dir.exist?(dir)
       end
 

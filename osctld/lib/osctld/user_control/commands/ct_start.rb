@@ -16,6 +16,9 @@ module OsCtld
       # Configure devices cgroup
       ct.devices.apply
 
+      # Prepared shared mount directory
+      ct.mounts.shared_dir.create
+
       # Configure hostname
       DistConfig.run(ct, :set_hostname) if ct.hostname
 

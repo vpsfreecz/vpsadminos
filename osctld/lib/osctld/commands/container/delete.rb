@@ -28,6 +28,9 @@ module OsCtld
         progress('Removing devices')
         syscmd("rm -rf #{ct.devices_dir}") if Dir.exist?(ct.devices_dir)
 
+        progress('Removing shared mount directory')
+        ct.mounts.shared_dir.remove
+
         progress('Destroying dataset')
         zfs(:destroy, '-r', ct.dataset)
 

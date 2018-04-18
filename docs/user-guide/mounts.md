@@ -37,12 +37,6 @@ osctl ct mounts new \
                     myct01
 ```
 
-Note that for the mount to appear, you need to restart the container.
-
-```
-osctl ct restart myct01
-```
-
 When you attempt to access those files from the container, you will not have
 permission:
 
@@ -119,10 +113,9 @@ osctl ct mounts new \
                     --opts bind,rw,create=dir \
                     --mountpoint /mnt/shared \
                     myct01
-osctl ct restart myct01
 ```
 
-And the container has access to those files immediatelly:
+And the container has access to those files immediately:
 
 ```bash
 osctl ct attach myct01

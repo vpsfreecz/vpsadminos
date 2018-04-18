@@ -441,7 +441,7 @@ module OsCtld
 
     def configure_mounts
       Template.render_to('ct/mounts', {
-        mounts: mounts,
+        mounts: mounts.all_entries,
       }, lxc_config_path('mounts'))
     end
 
