@@ -41,4 +41,6 @@ module OsCtld
   end
 
   class DeviceInUse < StandardError ; end
+
+  class UnmountError < StandardError ; end
 end

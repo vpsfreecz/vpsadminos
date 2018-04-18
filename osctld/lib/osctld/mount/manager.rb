@@ -1,6 +1,8 @@
 module OsCtld
   class Mount::Manager
     include Lockable
+    include OsCtl::Lib::Utils::Log
+    include Utils::SwitchUser
 
     # Load mounts from config
     # @param ct [Container]
@@ -51,6 +53,13 @@ module OsCtld
       exclusively do
         mnt = entries.detect { |m| m.mountpoint == mountpoint }
         next unless mnt
+
+        ct.exclusively do
+          next unless ct.current_state == :running
+
+          ret = ct_control(ct, :unmount, id: ct.id, mountpoint: mnt.mountpoint)
+          raise UnmountError unless ret[:status]
+        end
 
         entries.delete(mnt)
       end

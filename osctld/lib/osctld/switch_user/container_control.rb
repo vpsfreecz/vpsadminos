@@ -3,6 +3,8 @@ require 'lxc'
 
 module OsCtld
   class SwitchUser::ContainerControl
+    include OsCtl::Lib::Utils::Log
+
     def self.run(cmd, opts, lxc_home)
       ur = new(lxc_home)
       ur.execute(cmd, opts)
@@ -158,6 +160,35 @@ module OsCtld
 
       else
         error(msg)
+      end
+    end
+
+    # Unmount directory from a container
+    # @param opts [Hash]
+    # @option opts [String] :id container id
+    # @option opts [String] :mountpoint
+    def unmount(opts)
+      ct = lxc_ct(opts[:id])
+
+      pid = ct.attach do
+        next unless Dir.exist?(opts[:mountpoint])
+
+        begin
+          Mount::Sys.unmount(opts[:mountpoint])
+
+        rescue Errno::EINVAL
+          # Not mounted, pass
+        end
+      end
+
+      Process.wait(pid)
+
+      if $?.exitstatus == 0
+        ok
+
+      else
+        log(:warn, ct, "Unmounter exited with #{$?.exitstatus}")
+        error('unmount failed')
       end
     end
 

@@ -9,10 +9,12 @@ module OsCtld
 
     def execute(ct)
       ct.exclusively do
-        # TODO: umount from container if it is running
         ct.mounts.delete_at(opts[:mountpoint])
         ok
       end
+
+    rescue UnmountError
+      error('unable to unmount the directory from the container')
     end
   end
 end
