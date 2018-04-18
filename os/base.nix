@@ -299,6 +299,8 @@ with lib;
       "iptable_nat"
     ];
 
+    boot.kernel.sysctl."kernel.dmesg_restrict" = true;
+
     security.apparmor.enable = true;
 
     virtualisation = {
