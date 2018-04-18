@@ -9,7 +9,7 @@ module OsCtld
 
     def execute(ct)
       ct.exclusively do
-        ct.mount_remove(opts[:mountpoint])
+        ct.mounts.delete_at(opts[:mountpoint])
         ok
       end
     end

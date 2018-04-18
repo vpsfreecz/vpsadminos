@@ -18,13 +18,19 @@ module OsCtld
         m_opts = %w(bind create=dir)
         m_opts << opts[:mode]
 
-        mnt = Mount.new(nil, opts[:mountpoint], 'bind', m_opts.join(','), ds)
+        mnt = Mount::Entry.new(
+          nil,
+          opts[:mountpoint],
+          'bind',
+          m_opts.join(','),
+          ds
+        )
 
-        if ct.mounts.detect { |m| m.mountpoint == mnt.mountpoint }
+        if ct.mounts.find_at(mnt.mountpoint)
           next error("mountpoint '#{mnt.mountpoint}' is already mounted")
         end
 
-        ct.mount_add(mnt)
+        ct.mounts.add(mnt)
         ok
       end
     end

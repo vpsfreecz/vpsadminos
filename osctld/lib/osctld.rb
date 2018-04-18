@@ -18,6 +18,7 @@ module OsCtld
   module DB ; end
   module Devices ; end
   module Generic ; end
+  module Mount ; end
   module Routing ; end
   module Utils ; end
   module UserControl
@@ -78,7 +79,8 @@ require_relative 'osctld/devices/manager'
 require_relative 'osctld/devices/group_manager'
 require_relative 'osctld/devices/container_manager'
 require_relative 'osctld/prlimit'
-require_relative 'osctld/mount'
+require_relative 'osctld/mount/entry'
+require_relative 'osctld/mount/manager'
 require_relative 'osctld/command'
 require_relative 'osctld/user_control/command'
 

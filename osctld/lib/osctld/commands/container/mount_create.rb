@@ -9,13 +9,18 @@ module OsCtld
 
     def execute(ct)
       ct.exclusively do
-        mnt = Mount.new(opts[:fs], opts[:mountpoint], opts[:type], opts[:opts])
+        mnt = Mount::Entry.new(
+          opts[:fs],
+          opts[:mountpoint],
+          opts[:type],
+          opts[:opts]
+        )
 
-        if ct.mounts.detect { |m| m.mountpoint == mnt.mountpoint }
+        if ct.mounts.find_at(mnt.mountpoint)
           next error("mountpoint '#{mnt.mountpoint}' is already mounted")
         end
 
-        ct.mount_add(mnt)
+        ct.mounts.add(mnt)
         ok
       end
     end

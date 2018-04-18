@@ -43,7 +43,7 @@ module OsCtld
       @cgparams = nil
       @devices = nil
       @prlimits = []
-      @mounts = []
+      @mounts = nil
       @hostname = nil
       @dns_resolvers = nil
       @nesting = false
@@ -65,6 +65,7 @@ module OsCtld
       @nesting = false
       @cgparams = CGroup::Params.new(self)
       @devices = Devices::ContainerManager.new(self)
+      @mounts = Mount::Manager.new(self)
       devices.init
       save_config
     end
@@ -408,27 +409,6 @@ module OsCtld
       configure_prlimits
     end
 
-    def mount_add(mnt)
-      exclusively do
-        mounts << mnt
-      end
-
-      save_config
-      configure_mounts
-    end
-
-    def mount_remove(mountpoint)
-      exclusively do
-        mnt = mounts.detect { |m| m.mountpoint == mountpoint }
-        next unless mnt
-
-        mounts.delete(mnt)
-      end
-
-      save_config
-      configure_mounts
-    end
-
     def configure_lxc
       configure_base
       configure_prlimits
@@ -500,7 +480,7 @@ module OsCtld
         'cgparams' => cgparams.dump,
         'devices' => devices.dump,
         'prlimits' => prlimits.map(&:dump),
-        'mounts' => mounts.map(&:dump),
+        'mounts' => mounts.dump,
         'autostart' => autostart && autostart.dump,
         'hostname' => hostname,
         'dns_resolvers' => dns_resolvers,
@@ -573,7 +553,7 @@ module OsCtld
         netif
       end
 
-      @mounts = (cfg['mounts'] || []).map { |v| Mount.load(self, v) }
+      @mounts = Mount::Manager.load(self, cfg['mounts'] || [])
     end
   end
 end

@@ -1,5 +1,5 @@
 module OsCtld
-  class Mount
+  class Mount::Entry
     PARAMS = %i(fs mountpoint type opts dataset)
     attr_reader :mountpoint, :type, :opts, :dataset
 
