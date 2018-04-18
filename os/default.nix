@@ -19,6 +19,7 @@ let
       ./modules/bird.nix
       ./modules/eudev.nix
       ./modules/nfs.nix
+      ./modules/node_exporter.nix
       ./modules/rpcbind.nix
       ./modules/tty.nix
       ./modules/zfs.nix
