@@ -20,6 +20,8 @@ mount -t devpts -ogid=3 devpts /dev/pts
 mount -t tmpfs tmpfs /run
 mount -t tmpfs tmpfs /dev/shm
 
+ln -s /run /var/run
+
 hostname @hostName@
 
 $systemConfig/activate
