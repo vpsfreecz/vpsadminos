@@ -18,6 +18,8 @@ let
       ./runit.nix
       ./modules/bird.nix
       ./modules/eudev.nix
+      ./modules/nfs.nix
+      ./modules/rpcbind.nix
       ./modules/tty.nix
       ./modules/zfs.nix
       ./modules/version.nix
