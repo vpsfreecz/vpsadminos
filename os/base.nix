@@ -17,7 +17,7 @@ with lib;
     };
     system.qemuParams = mkOption {
       internal = true;
-      type = types.lines;
+      type = types.listOf types.str;
       description = "QEMU parameters";
     };
     system.qemuRAM = mkOption {
@@ -314,12 +314,12 @@ with lib;
     system.build.earlyMountScript = pkgs.writeScript "dummy" ''
     '';
 
-    system.qemuParams = lib.mkDefault ''
-      -drive index=0,id=drive1,file=${config.system.build.squashfs},readonly,media=cdrom,format=raw,if=virtio \
-      -kernel ${config.system.build.kernel}/bzImage -initrd ${config.system.build.initialRamdisk}/initrd \
-      -append "console=ttyS0 ${toString config.boot.kernelParams} quiet panic=-1" \
-      -nographic
-    '';
+    system.qemuParams = lib.mkDefault [
+      "-drive index=0,id=drive1,file=${config.system.build.squashfs},readonly,media=cdrom,format=raw,if=virtio"
+      "-kernel ${config.system.build.kernel}/bzImage -initrd ${config.system.build.initialRamdisk}/initrd"
+      ''-append "console=ttyS0 ${toString config.boot.kernelParams} quiet panic=-1"''
+      "-nographic"
+    ];
 
     system.build.runvm = pkgs.writeScript "runner" ''
       #!${pkgs.stdenv.shell}
@@ -335,7 +335,7 @@ with lib;
         -device ide-drive,drive=diskB,bus=ahci.1 \
         -device virtio-net,netdev=net0 \
         -netdev user,id=net0,net=10.0.2.0/24,host=10.0.2.2,dns=10.0.2.3,hostfwd=tcp::2222-:22 \
-        ${cfg.qemuParams}
+        ${lib.concatStringsSep " \\\n  " cfg.qemuParams}
     '';
 
     system.build.dist = pkgs.runCommand "vpsadminos-dist" {} ''
