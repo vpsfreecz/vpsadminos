@@ -67,6 +67,9 @@ in
     "runit/1".source = pkgs.writeScript "1" ''
       #!${pkgs.stdenv.shell}
 
+      # Apply kernel parameters
+      sysctl -p /etc/sysctl.d/nixos.conf
+
       ip addr add 127.0.0.1/8 dev lo
       ip link set lo up
 
