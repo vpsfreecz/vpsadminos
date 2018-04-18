@@ -113,8 +113,6 @@ let
         environment.etc = {
           "service/${variant}/run".source = pkgs.writeScript "${variant}" ''
             #!/bin/sh
-            mkdir -p /var/run/
-            mkdir -p /var/log/
             touch ${cfg.logFile}
             chown ${variant}:${variant} ${cfg.logFile}
             chmod 660 ${cfg.logFile}
