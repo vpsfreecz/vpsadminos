@@ -21,6 +21,7 @@ mount -t tmpfs tmpfs /run
 mount -t tmpfs tmpfs /dev/shm
 
 ln -s /run /var/run
+ln -s /proc/mounts /etc/mtab
 
 hostname @hostName@
 
