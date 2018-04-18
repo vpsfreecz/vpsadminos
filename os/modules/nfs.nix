@@ -66,6 +66,9 @@ in
 
       environment.etc."service/nfsd/run".source = pkgs.writeScript "nfsd_run" ''
         #!/bin/sh
+
+        sv check statd >/dev/null || exit 1
+
         mkdir -p ${rpcMountpoint}
         if ! mountpoint -q ${rpcMountpoint}; then
           mount -t rpc_pipefs rpc_pipefs ${rpcMountpoint} -o defaults || exit 1
