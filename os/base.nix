@@ -258,7 +258,6 @@ with lib;
         hosts:     files  dns   myhostname mymachines
         networks:  files dns
       '';
-      "services".source = pkgs.iana_etc + "/etc/services";
       # XXX: generate these on start
       "ssh/ssh_host_rsa_key.pub".source = ./ssh/ssh_host_rsa_key.pub;
       "ssh/ssh_host_rsa_key" = { mode = "0600"; source = ./ssh/ssh_host_rsa_key; };
@@ -286,6 +285,13 @@ with lib;
       "lxc/common.conf.d/00-lxcfs.conf".source = "${pkgs.lxcfs}/share/lxc/config/common.conf.d/00-lxcfs.conf";
       # needed for osctl to access distro specific configs
       "lxc/config".source = "${pkgs.lxc}/share/lxc/config";
+
+       # /etc/services: TCP/UDP port assignments.
+      "services".source = pkgs.iana-etc + "/etc/services";
+      # /etc/protocols: IP protocol numbers.
+      "protocols".source  = pkgs.iana-etc + "/etc/protocols";
+      # /etc/rpc: RPC program numbers.
+      "rpc".source = pkgs.glibc.out + "/etc/rpc";
     };
 
     boot.kernelParams = [ "systemConfig=${config.system.build.toplevel}" ];
