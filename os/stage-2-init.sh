@@ -23,6 +23,8 @@ mount -t tmpfs tmpfs /dev/shm
 ln -s /run /var/run
 ln -s /proc/mounts /etc/mtab
 
+touch /run/{u,w}tmp
+
 hostname @hostName@
 
 $systemConfig/activate
