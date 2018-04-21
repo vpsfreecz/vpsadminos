@@ -71,6 +71,7 @@ module OsCtld
           builder.setup_lxc_home
           builder.setup_lxc_configs
           builder.setup_log_file
+          builder.setup_user_hook_script_dir
           builder.register
 
           ok
@@ -84,7 +85,7 @@ module OsCtld
       Console.remove(ct)
       zfs(:destroy, '-r', ct.dataset, valid_rcs: [1]) unless opts[:dataset]
 
-      syscmd("rm -rf #{ct.lxc_dir}")
+      syscmd("rm -rf #{ct.lxc_dir} #{ct.user_hook_script_dir}")
       File.unlink(ct.log_path) if File.exist?(ct.log_path)
       File.unlink(ct.config_path) if File.exist?(ct.config_path)
 

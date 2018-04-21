@@ -93,6 +93,13 @@ module OsCtld
         )
 
         add.directory(
+          user_hook_script_dir,
+          desc: 'User supplied hook scripts',
+          user: 0,
+          group: 0,
+          mode: 0700
+        )
+        add.directory(
           lxc_dir,
           desc: 'LXC configuration',
           user: 0,
@@ -258,6 +265,10 @@ module OsCtld
       File.join(pool.devices_dir, id)
     end
 
+    def user_hook_script_dir
+      File.join(pool.user_hook_script_dir, 'ct', id)
+    end
+
     def uid_offset
       @user.offset
     end
@@ -421,8 +432,6 @@ module OsCtld
         distribution: distribution,
         version: version,
         ct: self,
-        hook_autodev: OsCtld::hook_run('ct-autodev', pool),
-        hook_start_host: OsCtld::hook_run('ct-start', pool),
       }, lxc_config_path)
     end
 

@@ -1,6 +1,6 @@
 module OsCtld
-  class UserControl::Commands::CtStart < UserControl::Commands::Base
-    handle :ct_start
+  class UserControl::Commands::CtPreStart < UserControl::Commands::Base
+    handle :ct_pre_start
 
     include OsCtl::Lib::Utils::Log
 
@@ -28,7 +28,13 @@ module OsCtld
       # DNS resolvers
       DistConfig.run(ct, :dns_resolvers) if ct.dns_resolvers
 
+      # User-defined hook
+      Container::Hook.run(ct, :pre_start)
+
       ok
+
+    rescue HookFailed => e
+      error(e.message)
     end
   end
 end

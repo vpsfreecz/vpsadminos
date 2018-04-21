@@ -43,4 +43,12 @@ module OsCtld
   class DeviceInUse < StandardError ; end
 
   class UnmountError < StandardError ; end
+
+  class HookFailed < StandardError
+    # @param hook [Container::Hook::Base]
+    # @param exitstatus [Integer]
+    def initialize(hook, exitstatus)
+      super("hook #{hook.class.hook_name} at #{hook.hook_path} exited with #{exitstatus}")
+    end
+  end
 end

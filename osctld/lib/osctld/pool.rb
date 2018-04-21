@@ -9,6 +9,7 @@ module OsCtld
     USER_DS = 'user'
     CT_DS = 'ct'
     CONF_DS = 'conf'
+    HOOK_DS = 'hook'
     LOG_DS = 'log'
     REPOSITORY_DS = 'repository'
 
@@ -56,6 +57,13 @@ module OsCtld
         add.dataset(
           ds(CONF_DS),
           desc: 'Configuration files',
+          user: 0,
+          group: 0,
+          mode: 0500
+        )
+        add.dataset(
+          ds(HOOK_DS),
+          desc: 'User supplied hook scripts',
           user: 0,
           group: 0,
           mode: 0500
@@ -109,6 +117,14 @@ module OsCtld
         add.directory(
           File.join(log_path, 'ct'),
           desc: 'Container log files',
+          user: 0,
+          group: 0
+        )
+
+        # Hooks
+        add.directory(
+          File.join(user_hook_script_dir, 'ct'),
+          desc: 'User supplied container hook scripts',
           user: 0,
           group: 0
         )
@@ -226,6 +242,10 @@ module OsCtld
       path(LOG_DS)
     end
 
+    def user_hook_script_dir
+      path(HOOK_DS)
+    end
+
     def repo_path
       path(REPOSITORY_DS)
     end
@@ -260,12 +280,14 @@ module OsCtld
       zfs(:create, '-p', ds(USER_DS))
       zfs(:create, '-p', ds(CT_DS))
       zfs(:create, '-p', ds(CONF_DS))
+      zfs(:create, '-p', ds(HOOK_DS))
       zfs(:create, '-p', ds(LOG_DS))
       zfs(:create, '-p', ds(REPOSITORY_DS))
 
       File.chmod(0511, path(USER_DS))
       File.chmod(0511, path(CT_DS))
       File.chmod(0500, path(CONF_DS))
+      File.chmod(0500, path(HOOK_DS))
       File.chmod(0511, path(LOG_DS))
 
       File.chown(Repository::UID, 0, path(REPOSITORY_DS))
@@ -277,8 +299,12 @@ module OsCtld
         Dir.mkdir(path, 0500) unless Dir.exist?(path)
       end
 
-      path = File.join(log_path, 'ct')
-      Dir.mkdir(path) unless Dir.exist?(path)
+      [
+        File.join(user_hook_script_dir, 'ct'),
+        File.join(log_path, 'ct'),
+      ].each do |path|
+        Dir.mkdir(path) unless Dir.exist?(path)
+      end
     end
 
     def load_users
@@ -352,7 +378,13 @@ module OsCtld
         Dir.mkdir(dir, 0711) unless Dir.exist?(dir)
       end
 
-      %w(ct-autodev ct-start).each do |hook|
+      %w(
+        ct-pre-start
+        ct-pre-mount
+        ct-post-mount
+        ct-autodev
+        ct-on-start
+      ).each do |hook|
         symlink = OsCtld.hook_run(hook, self)
         File.symlink(OsCtld::hook_src(hook), symlink) unless File.symlink?(symlink)
       end

@@ -25,7 +25,9 @@ module OsCtld
         return error('invalid input') unless req.is_a?(Hash)
 
         # For now, allow only ct_autodev
-        return error('invalid cmd') if req[:cmd] != 'ct_autodev'
+        if !%w(ct_autodev ct_pre_mount ct_post_mount).include?(req[:cmd])
+          return error('invalid cmd')
+        end
 
         # Find out which user has connected
         cred = @sock.getsockopt(Socket::SOL_SOCKET, Socket::SO_PEERCRED)
@@ -37,6 +39,8 @@ module OsCtld
         end
 
         return error('invalid user') unless user
+
+        req[:opts].update(client_pid: pid) if req[:opts].is_a?(Hash)
 
         # Forward to a real client handler
         log(:info, "Forwarding request to user #{user.name}")

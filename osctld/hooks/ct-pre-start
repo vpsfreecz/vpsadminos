@@ -1,0 +1,30 @@
+#!/usr/bin/env ruby
+require 'json'
+require 'socket'
+
+ctid = ENV['LXC_NAME']
+
+if ctid.nil?
+  warn 'Expected environment variables:'
+  warn '  LXC_NAME'
+  exit(false)
+end
+
+if /^\/run\/osctl\/pools\/([^\/]+)\/hooks/ !~ $0
+  warn "Unable to detect pool name from '#{$0}'"
+  exit(false)
+end
+
+pool = $1
+
+s = UNIXSocket.new("/run/osctl/user-control/#{Process.uid}.sock")
+s.send({cmd: :ct_pre_start, opts: {
+  id: ctid,
+  pool: pool,
+}}.to_json + "\n", 0)
+ret = JSON.parse(s.readline, symbolize_names: true)
+s.close
+
+exit(true) if ret[:status]
+warn "Error: #{ret[:message]}"
+exit(false)

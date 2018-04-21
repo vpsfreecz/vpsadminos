@@ -254,6 +254,13 @@ module OsCtld
       File.chown(0, ct.user.ugid, ct.log_path)
     end
 
+    def setup_user_hook_script_dir
+      return if Dir.exist?(ct.user_hook_script_dir)
+
+      progress('Preparing user hook script dir')
+      Dir.mkdir(ct.user_hook_script_dir, 0700)
+    end
+
     def register
       progress('Registering container')
       DB::Containers.add(ct)

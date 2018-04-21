@@ -29,6 +29,13 @@ module OsCtld
           error!("unknown stop method '#{opts[:method]}'")
         end
 
+        begin
+          Container::Hook.run(ct, :pre_stop)
+
+        rescue HookFailed => e
+          error!(e.message)
+        end
+
         ret = ct_control(ct, cmd, id: ct.id, timeout: opts[:timeout] || 60)
         next ret unless ret[:status]
 

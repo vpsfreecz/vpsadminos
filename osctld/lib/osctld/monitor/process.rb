@@ -112,6 +112,14 @@ module OsCtld
         when :running
           ret = ct_control(ct, :ct_status, ids: [ct.id])
           ct.init_pid = ret[:output][ct.id.to_sym][:init_pid] if ret[:status]
+
+          Container::Hook.run(ct, :post_start, init_pid: ct.init_pid)
+
+        when :stopping
+          Container::Hook.run(ct, :on_stop)
+
+        when :stopped
+          Container::Hook.run(ct, :post_stop)
         end
       end
     end

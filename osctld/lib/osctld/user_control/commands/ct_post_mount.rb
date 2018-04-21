@@ -1,6 +1,6 @@
 module OsCtld
-  class UserControl::Commands::VethUp < UserControl::Commands::Base
-    handle :veth_up
+  class UserControl::Commands::CtPostMount < UserControl::Commands::Base
+    handle :ct_post_mount
 
     include OsCtl::Lib::Utils::Log
 
@@ -9,18 +9,11 @@ module OsCtld
       return error('container not found') unless ct
       return error('access denied') unless owns_ct?(ct)
 
-      log(
-        :info,
-        ct,
-        "veth interface coming up: ct=#{opts[:interface]}, host=#{opts[:veth]}"
-      )
-      ct.netif_by(opts[:interface]).up(opts[:veth])
-
       Container::Hook.run(
         ct,
-        :veth_up,
-        ct_veth: opts[:interface],
-        host_veth: opts[:veth]
+        :post_mount,
+        rootfs_mount: opts[:rootfs_mount],
+        ns_pid: opts[:client_pid],
       )
       ok
 

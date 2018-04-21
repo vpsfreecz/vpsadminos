@@ -104,6 +104,8 @@ require_relative 'osctld/auto_start/plan'
 require_relative 'osctld/container'
 require_relative 'osctld/container/builder'
 require_relative 'osctld/container/importer'
+require_relative 'osctld/container/hook'
+require_relative 'osctld/container/hooks'
 require_relative 'osctld/db/users'
 require_relative 'osctld/user'
 require_relative 'osctld/db/groups'
@@ -159,4 +161,10 @@ require_relative 'osctld/migration/commands/base'
 Dir.glob(File.join(
   File.dirname(__FILE__),
   'osctld', 'migration', 'commands', '*.rb'
+)).each { |f| require_relative f }
+
+require_relative 'osctld/container/hooks/base'
+Dir.glob(File.join(
+  File.dirname(__FILE__),
+  'osctld', 'container', 'hooks', '*.rb'
 )).each { |f| require_relative f }

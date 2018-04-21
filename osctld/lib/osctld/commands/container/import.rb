@@ -92,6 +92,7 @@ module OsCtld
       ct.save_config
       builder.setup_lxc_configs
       builder.setup_log_file
+      builder.setup_user_hook_script_dir
       builder.register
 
       if ct.netifs.any?

@@ -1438,6 +1438,90 @@ a distribution name in lower case, e.g. `alpine`, `centos` or `debian`.
 *version* is the distribution release version, e.g. `3.6` for `alpine`,
 `7.0` for `centos` or `9.0` for `debian`.
 
+## HOOK SCRIPTS
+`osctld` can execute user-defined scripts when containers are being started
+or stopped. Hook scripts are located at `/<pool>/hook/ct/<ctid>/<hook>`, use
+`ct assets` to get the exact path for your container. In order for hook scripts
+to be called, they need to be executable. All hook scripts are run as `root`
+on the host, but mount namespace may differ, see below.
+
+Note that many `osctl` commands called from hook scripts will not work as expected
+and may cause deadlocks. The hooks are run when the container is locked within
+`osctld`, so if another `osctl` process called from a hook needs the lock,
+a deadlock occurs. You should avoid calling `osctl` from hooks.
+
+`pre-start`
+  `pre-start` hook is run in the host's namespace before the container is mounted.
+  The container's cgroups have already been configured and distribution-support
+  code has been run. If `pre-start` exits with a non-zero status, the container's
+  start is aborted.
+
+`veth-up`
+  `veth-up` hook is run in the host's namespace when the veth pair is created.
+  Names of created veth interfaces are available in environment variables
+  `OSCTL_HOST_VETH` and `OSCTL_CT_VETH`. If `veth-up` exits with a non-zero
+  status, the container's start is aborted.
+
+`pre-mount`
+  `pre-mount` is run in the container's mount namespace, before its rootfs is
+  mounted. The path to the container's runtime rootfs is in environment variable
+  `OSCTL_CT_ROOTFS_MOUNT`. If `pre-mount` exits with a non-zero status, the
+  container's start is aborted.
+
+`post-mount`
+  `post-mount` is run in the container's mount namespace, after its rootfs
+  and all LXC mount entries are mounted. The path to the container's runtime
+  rootfs is in environment variable `OSCTL_CT_ROOTFS_MOUNT`. If `post-mount`
+  exits with a non-zero status, the container's start is aborted.
+
+`on-start`
+  `on-start` is run in the host's namespace, after the container has been
+  mounted and right before its init process is executed. If `on-start` exits
+  with a non-zero status, the container's start is aborted.
+
+`post-start`
+  `post-start` is run in the host's namespace after the container entered state
+  `running`. The container's init PID is passed in environment varible
+  `OSCTL_CT_INIT_PID`. The hook script's exit status is not evaluated.
+
+`pre-stop`
+  `pre-stop` hook is run in the host's namespace when the container is being
+  stopped using `ct stop`. If `pre-stop` exits with a non-zero exit status,
+  the container will not be stopped. This hook is not called when the container
+  is shutdown from the inside.
+
+`on-stop`
+  `on-stop` is run in the host's namespace when the container enters state
+  `stopping`. The hook's exit status is not evaluated.
+
+`veth-down`
+  `veth-down` hook is run in the host's namespace when the veth pair is removed.
+  Names of the removed veth interfaces are available in environment variables
+  `OSCTL_HOST_VETH` and `OSCTL_CT_VETH`. The hook's exit status is not
+  evaluated.
+
+`post-stop`
+  `post-stop` is run in the host's namespace when the container enters state
+  `stopped`. The hook's exit status is not evaluated.
+
+## Environment variables
+All hooks have the following environment variables set:
+
+- `OSCTL_HOOK_NAME`
+- `OSCTL_POOL_NAME`
+- `OSCTL_CT_ID`
+- `OSCTL_CT_USER`
+- `OSCTL_CT_GROUP`
+- `OSCTL_CT_DATASET`
+- `OSCTL_CT_ROOTFS`
+- `OSCTL_CT_LXC_PATH`
+- `OSCTL_CT_LXC_DIR`
+- `OSCTL_CT_CGROUP_PATH`
+- `OSCTL_CT_DISTRIBUTION`
+- `OSCTL_CT_VERSION`
+- `OSCTL_CT_HOSTNAME`
+- `OSCTL_CT_LOG_FILE`
+
 ## CONSOLE INTERFACE
 `osctl --json ct console` accepts JSON commands on standard input. Commands
 are separated by line breaks (`\n`). Each JSON command can contain the following
