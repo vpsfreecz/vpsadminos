@@ -93,6 +93,7 @@ module OsCtld
       builder.setup_lxc_configs
       builder.setup_log_file
       builder.setup_user_hook_script_dir
+      importer.install_user_hook_scripts(ct)
       builder.register
 
       if ct.netifs.any?

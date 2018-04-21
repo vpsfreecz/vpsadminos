@@ -10,6 +10,17 @@ module OsCtld
       @hooks[name] = klass
     end
 
+    # @return [Array<Symbol>]
+    def self.hooks
+      @hooks
+    end
+
+    # Check if a hook with given name exists
+    # @param name [Symbol]
+    def self.exist?(name)
+      @hooks.has_key?(name)
+    end
+
     # Run user-defined hook script for container
     #
     # See module {Container::Hooks} for available hook names and options.

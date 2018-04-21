@@ -54,6 +54,28 @@ module OsCtl::Lib
       end
     end
 
+    # Dump user hook scripts, if there is at least one present
+    # @param supported_hooks [Array<Symbol>]
+    def dump_user_hook_scripts(supported_hooks)
+      dir = ct.user_hook_script_dir
+      hooks = Dir.entries(dir).map do |f|
+        path = File.join(dir, f)
+
+        [path, f, File.lstat(path)]
+
+      end.select do |path, name, st|
+        supported_hooks.include?(name.gsub(/-/, '_').to_sym) && st.file?
+      end
+
+      return if hooks.empty?
+
+      tar.mkdir('hooks', DIR_MODE)
+
+      hooks.each do |path, name, _st|
+        add_file_from_disk(path, File.join('hooks', name))
+      end
+    end
+
     def close
       tar.close
     end
@@ -62,5 +84,16 @@ module OsCtl::Lib
 
     protected
     attr_reader :ct, :tar, :opts, :datasets, :base_snap
+
+    # Add file from disk to the created tar archive
+    # @param src [String] path on disk
+    # @param dst [String] path in tar
+    def add_file_from_disk(src, dst)
+      st = File.stat(src)
+
+      tar.add_file(dst, st.mode) do |tf|
+        File.open(src, 'r') { |df| IO.copy_stream(df, tf) }
+      end
+    end
   end
 end

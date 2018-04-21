@@ -49,6 +49,7 @@ module OsCtld
       exporter = OsCtl::Lib::Exporter::Base.new(ct, io)
       exporter.dump_metadata('skel')
       exporter.dump_configs
+      exporter.dump_user_hook_scripts(Container::Hook.hooks)
       exporter.close
     end
   end

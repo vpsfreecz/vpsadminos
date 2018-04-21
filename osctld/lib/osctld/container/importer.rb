@@ -151,6 +151,20 @@ module OsCtld
       db
     end
 
+    # Load user-defined hook scripts from the archive and install them
+    # @param ct [Container]
+    def install_user_hook_scripts(ct)
+      tar.each do |entry|
+        next if !entry.full_name.start_with?('hooks/') || !entry.file? \
+                || entry.full_name.count('/') > 1
+
+        name = File.basename(entry.full_name)
+        next unless Container::Hook.exist?(name.gsub(/-/, '_').to_sym)
+
+        copy_file_to_disk(entry, File.join(ct.user_hook_script_dir, name))
+      end
+    end
+
     # Create the root and all descendants datasets
     #
     # @param builder [Container::Builder]
@@ -278,6 +292,15 @@ module OsCtld
     def stream_names(name)
       base = File.join('rootfs', "#{name}.dat")
       [[base, :off], ["#{base}.gz", :gzip]]
+    end
+
+    # Copy file from the tar archive to disk
+    # @param entry [Gem::Package::TarReader::Entry]
+    # @param dst [String]
+    def copy_file_to_disk(entry, dst)
+      File.open(dst, 'w', entry.header.mode & 07777) do |df|
+        df.write(entry.read(16*1024)) until entry.eof?
+      end
     end
   end
 end
