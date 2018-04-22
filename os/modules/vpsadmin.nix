@@ -78,6 +78,7 @@ in
 
       environment.etc."service/nodectld/run".source = pkgs.writeScript "nodectld-service" ''
         #!/bin/sh
+        export HOME=${config.users.extraUsers.root.home}
         exec 2>&1
         exec ${pkgs.nodectld}/bin/nodectld --log syslog --log-facility local3
       '';
