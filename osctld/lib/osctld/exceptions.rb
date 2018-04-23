@@ -42,6 +42,8 @@ module OsCtld
 
   class DeviceInUse < StandardError ; end
 
+  class MountNotFound < StandardError ; end
+
   class UnmountError < StandardError ; end
 
   class HookFailed < StandardError

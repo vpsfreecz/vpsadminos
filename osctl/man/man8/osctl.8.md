@@ -1077,6 +1077,9 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Options, required. Standard mount options depending on the filesystem
       type, with two extra options from LXC: `create=file` and `create=dir`.
 
+    `--[no-]automount`
+      Activate this mount when the container starts. Enabled by default.
+
 `ct mounts dataset` *options* *id* *name* *mountpoint*
   Mount subdataset *name* into container *id*. Only subdatasets of container
   *id* can be mounted in this way. Dataset mounts can survive container
@@ -1095,6 +1098,17 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 
     `--rw`, `--read-write`
       Mount the dataset in read-write mode. This is the default.
+
+    `--[no-]automount`
+      Activate this mount when the container starts. Enabled by default.
+
+`ct mounts activate` *id* *mountpoint*
+  Mount the directory inside the container. The container has to be running.
+  Note that this command will mount the directory multiple times if called
+  when the directory is already mounted.
+
+`ct mounts deactivate` *id* *mountpoint*
+  Unmount the directory from the running container.
 
 `ct mounts del` *id* *mountpoint*
   Remove *mountpoint* from container *id*. The *mountpoint* is not unmounted

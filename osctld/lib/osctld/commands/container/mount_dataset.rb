@@ -23,6 +23,7 @@ module OsCtld
           opts[:mountpoint],
           'bind',
           m_opts.join(','),
+          opts[:automount],
           ds
         )
 

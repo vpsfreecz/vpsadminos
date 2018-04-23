@@ -70,6 +70,7 @@ module OsCtl::Cli
       mountpoint
       type
       opts
+      automount
     )
 
     def list
@@ -911,6 +912,7 @@ tt
         mountpoint: opts[:mountpoint],
         type: opts[:type],
         opts: opts[:opts],
+        automount: opts[:automount],
       )
     end
 
@@ -937,6 +939,29 @@ tt
         name: args[1],
         mountpoint: args[2],
         mode: mode,
+        automount: opts[:automount],
+      )
+    end
+
+    def mount_activate
+      require_args!('id', 'mountpoint')
+
+      osctld_fmt(
+        :ct_mount_activate,
+        id: args[0],
+        pool: gopts[:pool],
+        mountpoint: args[1]
+      )
+    end
+
+    def mount_deactivate
+      require_args!('id', 'mountpoint')
+
+      osctld_fmt(
+        :ct_mount_deactivate,
+        id: args[0],
+        pool: gopts[:pool],
+        mountpoint: args[1]
       )
     end
 

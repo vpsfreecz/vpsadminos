@@ -961,6 +961,9 @@ module OsCtl::Cli
             c.desc 'Options'
             c.flag :opts, required: true
 
+            c.desc 'Activate this mount when the container starts'
+            c.switch :automount, default_value: true
+
             c.action &Command.run(Container, :mount_create)
           end
 
@@ -973,7 +976,22 @@ module OsCtl::Cli
             c.desc 'Mount the dataset read-write'
             c.switch %i(rw read-write), negatable: false
 
+            c.desc 'Activate this mount when the container starts'
+            c.switch :automount, default_value: true
+
             c.action &Command.run(Container, :mount_dataset)
+          end
+
+          m.desc 'Activate a mount'
+          m.arg_name '<id> <mountpoint>'
+          m.command :activate do |c|
+            c.action &Command.run(Container, :mount_activate)
+          end
+
+          m.desc 'Deactivate a mount'
+          m.arg_name '<id> <mountpoint>'
+          m.command :deactivate do |c|
+            c.action &Command.run(Container, :mount_deactivate)
           end
 
           m.desc 'Remove mount'

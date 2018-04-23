@@ -13,7 +13,8 @@ module OsCtld
           opts[:fs],
           opts[:mountpoint],
           opts[:type],
-          opts[:opts]
+          opts[:opts],
+          opts[:automount],
         )
 
         if ct.mounts.find_at(mnt.mountpoint)

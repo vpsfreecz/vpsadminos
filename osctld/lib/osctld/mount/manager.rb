@@ -30,6 +30,8 @@ module OsCtld
       ct.save_config
       ct.configure_mounts
 
+      return unless mnt.automount?
+
       ct.exclusively do
         next unless ct.current_state == :running
         shared_dir.propagate(mnt)
@@ -56,9 +58,7 @@ module OsCtld
 
         ct.exclusively do
           next unless ct.current_state == :running
-
-          ret = ct_control(ct, :unmount, id: ct.id, mountpoint: mnt.mountpoint)
-          raise UnmountError unless ret[:status]
+          unmount(mnt)
         end
 
         entries.delete(mnt)
@@ -89,12 +89,40 @@ module OsCtld
           shared_dir.path,
           shared_dir.mountpoint,
           'none',
-          'bind,create=dir,ro'
-        )] + entries
+          'bind,create=dir,ro',
+          true
+        )] + entries.select(&:automount?)
       end
+    end
+
+    # Mount the directory inside the container
+    #
+    # WARNING: this method can mount the directory multiple times! It is the
+    # caller's responsibility to ensure that the container is running.
+    #
+    # @param mountpoint [String]
+    def activate(mountpoint)
+      mnt = find_at(mountpoint)
+      raise MountNotFound, mountpoint unless mnt
+
+      shared_dir.propagate(mnt)
+    end
+
+    # Unmount the directory from the container
+    # @param mountpoint [String]
+    def deactivate(mountpoint)
+      mnt = find_at(mountpoint)
+      raise MountNotFound, mountpoint unless mnt
+
+      unmount(mnt)
     end
 
     protected
     attr_reader :ct, :entries
+
+    def unmount(mnt)
+      ret = ct_control(ct, :unmount, id: ct.id, mountpoint: mnt.mountpoint)
+      raise UnmountError unless ret[:status]
+    end
   end
 end
