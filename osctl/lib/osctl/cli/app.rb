@@ -982,6 +982,24 @@ module OsCtl::Cli
             c.action &Command.run(Container, :mount_dataset)
           end
 
+          m.desc 'Register manually created mounts'
+          m.arg_name '<id> <mountpoint>'
+          m.command %i(reg register) do |c|
+            c.desc 'Filesystem'
+            c.flag :fs
+
+            c.desc 'Type'
+            c.flag :type
+
+            c.desc 'Options'
+            c.flag :opts
+
+            c.desc 'Skip container locking to prevent deadlocks'
+            c.switch 'on-ct-start', negatable: false
+
+            c.action &Command.run(Container, :mount_register)
+          end
+
           m.desc 'Activate a mount'
           m.arg_name '<id> <mountpoint>'
           m.command :activate do |c|

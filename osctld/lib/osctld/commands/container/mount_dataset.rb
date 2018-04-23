@@ -24,7 +24,7 @@ module OsCtld
           'bind',
           m_opts.join(','),
           opts[:automount],
-          ds
+          dataset: ds
         )
 
         if ct.mounts.find_at(mnt.mountpoint)

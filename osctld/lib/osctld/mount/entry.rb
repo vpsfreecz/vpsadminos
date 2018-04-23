@@ -1,7 +1,7 @@
 module OsCtld
   class Mount::Entry
-    PARAMS = %i(fs mountpoint type opts automount dataset)
-    attr_reader :mountpoint, :type, :opts, :automount, :dataset
+    PARAMS = %i(fs mountpoint type opts automount dataset temp)
+    attr_reader :mountpoint, :type, :opts, :automount, :dataset, :temp
 
     # Load from config
     def self.load(ct, cfg)
@@ -11,20 +11,22 @@ module OsCtld
         cfg['type'],
         cfg['opts'],
         cfg['automount'],
-        cfg['dataset'] && OsCtl::Lib::Zfs::Dataset.new(
+        dataset: cfg['dataset'] && OsCtl::Lib::Zfs::Dataset.new(
           File.join(ct.dataset.name, cfg['dataset']),
           base: ct.dataset.name
-        )
+        ),
+        temp: cfg['temporary'],
       )
     end
 
-    def initialize(fs, mountpoint, type, opts, automount, dataset = nil)
+    def initialize(fs, mountpoint, type, opts, automount, dataset: nil, temp: false)
       @fs = fs
       @mountpoint = mountpoint
       @type = type
       @opts = opts
       @automount = automount
       @dataset = dataset
+      @temp = temp
     end
 
     def fs
@@ -46,6 +48,7 @@ module OsCtld
         opts: opts,
         automount: automount,
         dataset: dataset && dataset.relative_name,
+        temporary: temp,
       }
     end
 
@@ -58,9 +61,11 @@ module OsCtld
         'opts' => opts,
         'automount' => automount,
         'dataset' => dataset && dataset.relative_name,
+        'temporary' => temp,
       }
     end
 
     alias_method :automount?, :automount
+    alias_method :temp?, :temp
   end
 end

@@ -19,6 +19,9 @@ module OsCtld
 
     rescue MountNotFound
       error!('mount not found')
+
+    rescue MountInvalid
+      error!('incomplete mount: missing fs, type or opts')
     end
   end
 end

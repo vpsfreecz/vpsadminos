@@ -1102,6 +1102,32 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `--[no-]automount`
       Activate this mount when the container starts. Enabled by default.
 
+`ct mounts register` [*options*] *id* *mountpoint*
+  Register a manually created mount. This can be used to register mounts created
+  in `pre-mount` or `post-mount` hook scripts (see `HOOK SCRIPTS`) or any other
+  mount within the container that you wish to control. All options are optional,
+  but unless you provide *fs* and *type*, you won't be able to use command
+  `ct mounts activate`.
+
+  `ct mounts register` works only on starting or running container. All mounts
+  registered using this command will be forgotten once the container is stopped.
+
+    `--fs` *fs*
+      File system or device to mount.
+
+    `--type` *type*
+      File system type.
+
+    `--opts` *opts*
+      Mount options. Standard mount options depending on the filesystem
+      type, with two extra options from LXC: `create=file` and `create=dir`.
+
+    `--on-ct-start`
+      Use this option if you're calling `ct mounts register` from hook scripts,
+      see `HOOK SCRIPTS`. Without this option, calling this command from hook
+      scripts will cause a deadlock -- the container won't start and `osctld`
+      will be tainted as well.
+
 `ct mounts activate` *id* *mountpoint*
   Mount the directory inside the container. The container has to be running.
   Note that this command will mount the directory multiple times if called

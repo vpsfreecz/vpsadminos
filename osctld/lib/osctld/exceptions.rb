@@ -44,6 +44,8 @@ module OsCtld
 
   class MountNotFound < StandardError ; end
 
+  class MountInvalid < StandardError ; end
+
   class UnmountError < StandardError ; end
 
   class HookFailed < StandardError

@@ -43,6 +43,16 @@ module OsCtld
       add(mnt)
     end
 
+    # @param mnt [Mount::Entry]
+    def register(mnt)
+      exclusively do
+        entries << mnt
+      end
+
+      ct.save_config
+      ct.configure_mounts
+    end
+
     # @param mountpoint [String]
     def find_at(mountpoint)
       inclusively do
@@ -68,6 +78,13 @@ module OsCtld
       ct.configure_mounts
     end
 
+    # Remote temporal mounts
+    def prune
+      exclusively do
+        entries.delete_if { |m| m.temp? }
+      end
+    end
+
     def each(&block)
       inclusively do
         entries.each(&block)
@@ -91,7 +108,7 @@ module OsCtld
           'none',
           'bind,create=dir,ro',
           true
-        )] + entries.select(&:automount?)
+        )] + entries.select { |m| m.automount? && !m.temp? }
       end
     end
 
@@ -104,6 +121,7 @@ module OsCtld
     def activate(mountpoint)
       mnt = find_at(mountpoint)
       raise MountNotFound, mountpoint unless mnt
+      raise MountInvalid if !mnt.fs || !mnt.type || !mnt.opts
 
       shared_dir.propagate(mnt)
     end

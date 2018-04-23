@@ -71,6 +71,7 @@ module OsCtl::Cli
       type
       opts
       automount
+      temporary
     )
 
     def list
@@ -940,6 +941,21 @@ tt
         mountpoint: args[2],
         mode: mode,
         automount: opts[:automount],
+      )
+    end
+
+    def mount_register
+      require_args!('id', 'mountpoint')
+
+      osctld_fmt(
+        :ct_mount_register,
+        id: args[0],
+        pool: gopts[:pool],
+        fs: opts[:fs],
+        mountpoint: args[1],
+        type: opts[:type],
+        opts: opts[:opts],
+        lock: !opts['on-ct-start'],
       )
     end
 
