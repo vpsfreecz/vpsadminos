@@ -18,6 +18,9 @@ module OsCtld
         next error('start not available') unless ct.can_start?
         next ok if ct.running? && !opts[:force]
 
+        # Remove any left-over temporary mounts
+        ct.mounts.prune
+
         event_queue = Eventd.subscribe
 
         # Reset log file
