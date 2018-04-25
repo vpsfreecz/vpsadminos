@@ -137,6 +137,11 @@ in
       # ZFS
       zpool status ${config.boot.zfs.poolName} &> /dev/null && zfs mount -a
 
+      if ${if config.vpsadmin.enable then "true" else "false"} ; then
+        mkdir -m 0700 /run/nodectl
+        ln -s /run/current-system/sw/bin/nodectl /run/nodectl/nodectl
+      fi
+
       touch /etc/runit/stopit
       chmod 0 /etc/runit/stopit
     '';
