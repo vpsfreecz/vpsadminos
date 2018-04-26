@@ -22,14 +22,14 @@ module OsCtld
     def load(cfg)
       super
 
-      @via = Hash[ (cfg['via'] || {}).map do |k, v|
-        [k, Routing::Via.for(IPAddress.parse(v))]
-      end]
+      @via = load_ip_list(cfg['via'] || {}) do |v|
+        Routing::Via.for(IPAddress.parse(v))
+      end
     end
 
     def save
       super.merge({
-        'via' => Hash[@via.map { |k,v| [k, v.net_addr.to_string] }],
+        'via' => save_ip_list(@via) { |v| v.net_addr.to_string },
       })
     end
 

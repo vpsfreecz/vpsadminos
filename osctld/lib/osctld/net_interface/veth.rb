@@ -16,9 +16,9 @@ module OsCtld
       super
 
       if cfg['ip_addresses']
-        @ips = Hash[ cfg['ip_addresses'].map do |v, ips|
-          [v, ips.map { |ip| IPAddress.parse(ip) }]
-        end]
+        @ips = load_ip_list(cfg['ip_addresses']) do |ips|
+          ips.map { |ip| IPAddress.parse(ip) }
+        end
 
       else
         @ips = {4 => [], 6 => []}
@@ -27,7 +27,7 @@ module OsCtld
 
     def save
       super.merge(
-        'ip_addresses' => Hash[@ips.map { |v, ips| [v, ips.map(&:to_string)] }],
+        'ip_addresses' => save_ip_list(@ips) { |v| v.map(&:to_string) },
       )
     end
 
@@ -139,6 +139,44 @@ module OsCtld
 
     def hook_path(mode, name = nil)
       File.join(mode_path(mode), "#{@ct.id}.#{name || self.name}")
+    end
+
+    # Take an internal representation of an IP list and return a version to
+    # store in the config file.
+    #
+    # The internal representation is a hash, where keys are IP versions as
+    # integer and the yielded value is either a list of addresses, i.e. an array
+    # of string, or just one address (string). The caller decides how to encode
+    # the value.
+    #
+    # The returned hash has IP versions in the hash encoded as strings, i.e.
+    # `v4` or v6`. This is to allow storing the config in JSON, which does not
+    # support integer object keys.
+    #
+    # @yieldparam value [String, Array<String>]
+    # @return [Hash<String, String>, Hash<String, Array<String>>]
+    def save_ip_list(ip_list)
+      Hash[ip_list.map { |ip_v, value| ["v#{ip_v}", yield(value)] }]
+    end
+
+    # Take an IP list stored in a config file and return an internal
+    # representation, see #{save_ip_list}.
+    #
+    # @yieldparam value [String, Array<String>]
+    # @return [Hash<Integer, String>, Hash<Integer, Array<String>>]
+    def load_ip_list(ip_list)
+      Hash[ ip_list.map do |ip_v, value|
+        # Load also integer keys for backward compatibility
+        if [4, 6].include?(ip_v)
+          [ip_v, yield(value)]
+
+        elsif /^v(4|6)$/ =~ ip_v
+          [$1.to_i, yield(value)]
+
+        else
+          fail "unsupported IP version '#{ip_v}': expected v4 or v6"
+        end
+      end]
     end
   end
 end
