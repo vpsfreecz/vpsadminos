@@ -6,6 +6,31 @@ module OsCtld
 
     attr_reader :veth
 
+    def create(opts)
+      super
+
+      @ips = {4 => [], 6 => []}
+    end
+
+    def load(cfg)
+      super
+
+      if cfg['ip_addresses']
+        @ips = Hash[ cfg['ip_addresses'].map do |v, ips|
+          [v, ips.map { |ip| IPAddress.parse(ip) }]
+        end]
+
+      else
+        @ips = {4 => [], 6 => []}
+      end
+    end
+
+    def save
+      super.merge(
+        'ip_addresses' => Hash[@ips.map { |v, ips| [v, ips.map(&:to_string)] }],
+      )
+    end
+
     def setup
       # Setup links for veth up/down hooks in rundir
       #
@@ -75,6 +100,20 @@ module OsCtld
         id: ct.id,
         name: name,
       )
+    end
+
+    def ips(v)
+      @ips[v].clone
+    end
+
+    # @param addr [IPAddress]
+    def add_ip(addr)
+      @ips[addr.ipv4? ? 4 : 6] << addr
+    end
+
+    # @param addr [IPAddress]
+    def del_ip(addr)
+      @ips[addr.ipv4? ? 4 : 6].delete_if { |v| v == addr }
     end
 
     protected

@@ -14,31 +14,20 @@ module OsCtld
     # @option opts [String] link
     def create(opts)
       super
+
       @link = opts[:link]
-      @ips = {4 => [], 6 => []}
     end
 
     def load(cfg)
       super
+
       @link = cfg['link']
-
-      if cfg['ip_addresses']
-        @ips = Hash[ cfg['ip_addresses'].map do |v, ips|
-          [v, ips.map { |ip| IPAddress.parse(ip) }]
-        end]
-
-      else
-        @ips = {4 => [], 6 => []}
-      end
     end
 
     def save
-      ret = super
-      ret.update({
+      super.merge({
         'link' => link,
-        'ip_addresses' => Hash[@ips.map { |v, ips| [v, ips.map(&:to_string)] }],
       })
-      ret
     end
 
     def render_opts
@@ -48,13 +37,10 @@ module OsCtld
       })
     end
 
-    def ips(v)
-      @ips[v].clone
-    end
-
     def add_ip(addr)
+      super
+
       v = addr.ipv4? ? 4 : 6
-      @ips[v] << addr
 
       ct.inclusively do
         next if ct.state != :running
@@ -69,8 +55,9 @@ module OsCtld
     end
 
     def del_ip(addr)
+      super
+
       v = addr.ipv4? ? 4 : 6
-      @ips[v].delete_if { |v| v == addr }
 
       ct.inclusively do
         next if ct.state != :running

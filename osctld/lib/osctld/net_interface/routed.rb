@@ -13,10 +13,10 @@ module OsCtld
     # @option opts [String] via
     def create(opts)
       super
+
       @via = Hash[ opts[:via].map do |k, v|
         [k, Routing::Via.for(IPAddress.parse(v))]
       end]
-      @ips = {4 => [], 6 => []}
     end
 
     def load(cfg)
@@ -25,24 +25,12 @@ module OsCtld
       @via = Hash[ (cfg['via'] || {}).map do |k, v|
         [k, Routing::Via.for(IPAddress.parse(v))]
       end]
-
-      if cfg['ip_addresses']
-        @ips = Hash[ cfg['ip_addresses'].map do |v, ips|
-          [v, ips.map { |ip| IPAddress.parse(ip) }]
-        end]
-
-      else
-        @ips = {4 => [], 6 => []}
-      end
     end
 
     def save
-      ret = super
-      ret.update({
+      super.merge({
         'via' => Hash[@via.map { |k,v| [k, v.net_addr.to_string] }],
-        'ip_addresses' => Hash[@ips.map { |v, ips| [v, ips.map(&:to_string)] }],
       })
-      ret
     end
 
     def setup
@@ -104,10 +92,6 @@ module OsCtld
       @host_setup = {}
     end
 
-    def ips(v)
-      @ips[v].clone
-    end
-
     def can_add_ip?(addr)
       !@via[addr.ipv4? ? 4 : 6].nil?
     end
@@ -117,8 +101,9 @@ module OsCtld
     end
 
     def add_ip(addr)
+      super
+
       v = addr.ipv4? ? 4 : 6
-      @ips[v] << addr
 
       ct.inclusively do
         next if ct.state != :running
@@ -141,8 +126,9 @@ module OsCtld
     end
 
     def del_ip(addr)
+      super
+
       v = addr.ipv4? ? 4 : 6
-      @ips[v].delete_if { |v| v == addr }
 
       ct.inclusively do
         next if ct.state != :running
