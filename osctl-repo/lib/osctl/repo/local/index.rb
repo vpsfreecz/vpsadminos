@@ -33,10 +33,11 @@ module OsCtl::Repo
       if template.tags.any?
         # Remove the template's tags from previous distribution templates
         contents.each do |t|
-          next if t.vendor != template.vendor \
+          next if t == template \
+                  || t.vendor != template.vendor \
                   || t.variant != template.variant \
                   || t.arch != template.arch \
-                  || t.distribution != template.distribution
+                  || t.distribution != template.distribution \
 
           t.tags.delete_if { |tag| template.tags.include?(tag) }
         end
