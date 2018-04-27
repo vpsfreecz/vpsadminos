@@ -4,6 +4,7 @@ module OsCtld
   class DistConfig::Base
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
+    include OsCtl::Lib::Utils::File
     include Utils::SwitchUser
 
     def self.distribution(n = nil)
@@ -56,6 +57,36 @@ module OsCtld
 
       return true if ret[:exitstatus] == 0
       log(:warn, ct, "Unable to set password: #{ret[:output]}")
+    end
+
+    protected
+    # Update hostname in /etc/hosts, optionally removing configuration of old
+    # hostname.
+    # @param old_hostname [String, nil]
+    def update_etc_hosts(old_hostname = nil)
+      regenerate_file(File.join(ct.rootfs, 'etc', 'hosts'), 0644) do |new, old|
+        old.each_line do |line|
+          if (/^127\.0\.0\.1\s/ =~ line || /^::1\s/ =~ line) \
+             && !includes_hostname?(line, ct.hostname)
+
+            if old_hostname && includes_hostname?(line, old_hostname)
+              line.sub!(/\s#{Regexp.escape(old_hostname)}/, '')
+            end
+
+            new.puts("#{line.rstrip} #{ct.hostname}")
+
+          else
+            new.write(line)
+          end
+        end
+      end
+    end
+
+    # Check if a line of string contains specific hostname
+    # @param line [String]
+    # @param hostname [String]
+    def includes_hostname?(line, hostname)
+      /\s#{Regexp.escape(hostname)}(\s|$)/ =~ line
     end
   end
 end

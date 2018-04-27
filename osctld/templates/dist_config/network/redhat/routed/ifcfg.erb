@@ -1,0 +1,17 @@
+DEVICE=<%= netif.name %>
+BOOTPROTO=static
+ONBOOT=yes
+<% netif.active_ip_versions.each do |v| -%>
+<% if v == 4 -%>
+IPADDR0=<%= netif.via[v].ct_ip.to_s %>
+NETMASK0=<%= netif.via[v].ct_ip.netmask %>
+<% netif.ips(v).each_with_index do |addr, i| -%>
+IPADDR<%= i+1 %>=<%= addr.to_s %>
+NETMASK<%= i+1 %>=<%= addr.netmask %>
+<% end -%>
+<% elsif v == 6 -%>
+IPV6INIT="yes"
+IPV6ADDR=<%= netif.via[v].ct_ip.to_string %>
+IPV6ADDR_SECONDARIES="<%= netif.ips(v).map { |addr| addr.to_string }.join(' ') %>"
+<% end -%>
+<% end -%>

@@ -6,7 +6,9 @@ the host.
 Currently supported distributions within a container are:
 
  - Alpine
+ - CentOS
  - Debian
+ - Fedora
  - Ubuntu
 
 Unsupported distributions can be used without any restrictions, except that

@@ -3,39 +3,13 @@ module OsCtld
     distribution :debian
 
     def set_hostname(opts)
-      etc = File.join(ct.rootfs, 'etc')
-      hostname = File.join(etc, 'hostname')
-      hosts = File.join(etc, 'hosts')
-
       # /etc/hostname
-      File.open("#{hostname}.new", 'w') do |f|
+      regenerate_file(File.join(ct.rootfs, 'etc', 'hostname'), 0644) do |f|
         f.puts(ct.hostname)
       end
 
-      File.rename("#{hostname}.new", hostname)
-
       # Entry in /etc/hosts
-      dst = File.open("#{hosts}.new", 'w')
-
-      File.open(hosts, 'r') do |src|
-        src.each_line do |line|
-          if (/^127\.0\.0\.1\s/ =~ line || /^::1\s/ =~ line) \
-             && !includes_hostname?(line, ct.hostname)
-
-            if opts[:original] && includes_hostname?(line, opts[:original])
-              line.sub!(/\s#{Regexp.escape(opts[:original])}/, '')
-            end
-
-            dst.puts("#{line.rstrip} #{ct.hostname}")
-          else
-            dst.write(line)
-          end
-        end
-      end
-
-      dst.close
-
-      File.rename("#{hosts}.new", hosts)
+      update_etc_hosts(opts[:original])
 
       # Apply hostname if the container is running
       if ct.running?
@@ -64,11 +38,6 @@ module OsCtld
         vars,
         File.join(ct.rootfs, 'etc', 'network', 'interfaces')
       )
-    end
-
-    protected
-    def includes_hostname?(line, hostname)
-      /\s#{Regexp.escape(hostname)}(\s|$)/ =~ line
     end
   end
 end

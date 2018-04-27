@@ -73,9 +73,11 @@ managing network configuration inside the container. It generates configs
 based on the container's distribution and uses the `ip` utility to configure
 the network at runtime. Supported distributions include:
 
+ - Alpine
+ - CentOS
  - Debian
+ - Fedora
  - Ubuntu
- - Alpine Linux
 
 Unless your distribution is supported by *osctld*, only the host will be
 configured and you will have to configure the container networking on your own.
