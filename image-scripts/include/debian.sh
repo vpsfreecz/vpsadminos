@@ -43,6 +43,7 @@ update-rc.d generate_ssh_keys defaults
 fi
 
 > /etc/resolv.conf
+rm -f /etc/hostname
 
 apt-get clean
 for f in \$fakefiles; do
