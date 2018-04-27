@@ -34,6 +34,28 @@ module OsCtld
       raise NotImplementedError
     end
 
+    # Called when a new network interface is added to a container
+    # @param opts [Hash]
+    # @option opts [NetInterface::Base] :netif
+    def add_netif(opts)
+
+    end
+
+    # Called when a network interface is removed from a container
+    # @param opts [Hash]
+    # @option opts [NetInterface::Base] :netif
+    def remove_netif(opts)
+
+    end
+
+    # Called when an existing network interface is renamed
+    # @param opts [Hash]
+    # @option opts [NetInterface::Base] :netif
+    # @option opts [String] :original_name
+    def rename_netif(opts)
+
+    end
+
     def dns_resolvers(_opts)
       path = File.join(ct.rootfs, 'etc', 'resolv.conf')
 

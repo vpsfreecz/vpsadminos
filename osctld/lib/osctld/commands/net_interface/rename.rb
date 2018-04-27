@@ -17,10 +17,13 @@ module OsCtld
         next error('network interface not found') unless netif
         next ok if netif.name == opts[:new_name]
 
+        orig_name = netif.name
         netif.rename(opts[:new_name])
 
         ct.save_config
         ct.configure_network
+
+        DistConfig.run(ct, :rename_netif, netif: netif, original_name: orig_name)
 
         ok
       end

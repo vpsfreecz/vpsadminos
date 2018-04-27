@@ -18,6 +18,7 @@ module OsCtld
 
         ct.del_netif(netif)
         ct.configure_network
+        DistConfig.run(ct, :remove_netif, netif: netif)
         ok
       end
 

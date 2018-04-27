@@ -23,10 +23,13 @@ see directory [osctld/lib/osctld/dist\_config][dist config dir].
 *osctld* expects one class for each distribution, with [OsCtld::DistConfig::Base]
 as its superclass. There is a method for each configurable part:
 
- - `set_hostname`
- - `network`
- - `dns_resolvers`
- - `passwd`
+ - `set_hostname` to set hostname,
+ - `network` to configure the network with all assigned network interfaces,
+ - `add_netif` is called when a new interface is created,
+ - `remove_netif` is called when an interface is removed,
+ - `rename_netif` to change interface's name,
+ - `dns_resolvers` to configure `/etc/resolv.conf`
+ - `passwd` to set password for a system user.
 
 *osctld* will call appropriate methods to configure the container at the correct
 time in the container's life cycle. The methods are called from the host, as

@@ -30,6 +30,7 @@ module OsCtld
 
         ct.add_netif(netif)
         ct.configure_network
+        DistConfig.run(ct, :add_netif, netif: netif)
         ok
       end
 

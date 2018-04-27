@@ -50,6 +50,42 @@ module OsCtld
       end
     end
 
+    # Cleanup old config files
+    def remove_netif(opts)
+      base = File.join(ct.rootfs, 'etc', 'sysconfig', 'network-scripts')
+      files = [
+        "ifcfg-#{opts[:netif].name}",
+        "route-#{opts[:netif].name}",
+        "route6-#{opts[:netif].name}"
+      ]
+
+      files.each do |f|
+        path = File.join(base, f)
+        next unless File.exist?(path)
+
+        File.unlink(path)
+      end
+    end
+
+    # Rename config files
+    def rename_netif(opts)
+      base = File.join(ct.rootfs, 'etc', 'sysconfig', 'network-scripts')
+      files = [
+        "ifcfg-%{name}",
+        "route-%{name}",
+        "route6-%{name}",
+      ]
+
+      files.each do |f|
+        orig = File.join(base, f % {name: opts[:original_name]})
+        new = File.join(base, f % {name: opts[:netif].name})
+
+        next unless File.exist?(orig)
+
+        File.rename(orig, new)
+      end
+    end
+
     protected
     # @param file [String]
     # @param params [Hash]
