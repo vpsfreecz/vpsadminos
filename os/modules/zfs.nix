@@ -112,7 +112,7 @@ in
               };
             };
           }));
-          default = [];
+          default = {};
           example = {
             sde = {
               p1 = { sizeGB=20; };

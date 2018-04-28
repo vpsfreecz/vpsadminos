@@ -17,6 +17,7 @@ let
       ./stage-2.nix
       ./runit.nix
       ./modules/bird.nix
+      ./modules/containers.nix
       ./modules/eudev.nix
       ./modules/nfs.nix
       ./modules/node_exporter.nix
