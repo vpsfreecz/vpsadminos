@@ -185,7 +185,7 @@ with lib;
 
   config =
   let
-    origKernel = pkgs.linux_4_15;
+    origKernel = pkgs.linux_4_14;
     myKernel = origKernel.override {
       extraConfig = ''
         EXPERT y
