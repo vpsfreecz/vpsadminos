@@ -1,4 +1,4 @@
-{ config, pkgs, ... }:
+{ config, pkgs, lib, ... }:
 
 # Development (QEMU) configuration
 # uses static IP, creates lxcbr bridge with DHCP and NAT for containers
@@ -11,7 +11,7 @@
   networking.nat = true;
   networking.dhcpd = true;
 
-  boot.zfs.poolLayout = "mirror sda sdb";
+  boot.zfs.pool.layout = lib.mkDefault "mirror sda sdb";
 
   vpsadminos.nix = true;
 

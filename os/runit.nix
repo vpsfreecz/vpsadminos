@@ -138,7 +138,7 @@ in
       chmod 777 /tmp
 
       # ZFS
-      zpool status ${config.boot.zfs.poolName} &> /dev/null && zfs mount -a
+      zpool status ${config.boot.zfs.pool.name} &> /dev/null && zfs mount -a
 
       if ${if config.vpsadmin.enable then "true" else "false"} ; then
         mkdir -m 0700 /run/nodectl

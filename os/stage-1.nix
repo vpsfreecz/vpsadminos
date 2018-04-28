@@ -127,7 +127,7 @@ let
     inherit shell modules modprobeList extraUtils dhcpHook udevRules udevHwdb;
 
     inherit (config.boot.initrd) postDeviceCommands;
-    inherit (config.boot.zfs) poolName poolLayout;
+    inherit (config.boot.zfs.pool) name layout logs caches partition wipe;
   };
 
   initialRamdisk = pkgs.makeInitrd {

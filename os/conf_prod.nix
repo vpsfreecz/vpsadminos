@@ -35,7 +35,7 @@
 
 
   boot.kernelModules = [ "ipmi_si" "ipmi_devintf" ];
-  boot.zfs.poolLayout = "mirror sda sdb";
+  boot.zfs.pool.layout = "mirror sda sdb";
 
   vpsadminos.nix = true;
   environment.systemPackages = with pkgs; [
