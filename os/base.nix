@@ -378,6 +378,8 @@ with lib;
     system.build.squashfs = pkgs.callPackage <nixpkgs/nixos/lib/make-squashfs.nix> {
       storeContents = [ config.system.build.toplevel ];
     };
+
+    system.build.kernelParams = config.boot.kernelParams;
   }
 
   (mkIf (config.networking.openDNS) {
