@@ -71,6 +71,11 @@ in
       # Apply kernel parameters
       sysctl -p /etc/sysctl.d/nixos.conf
 
+      # load kernel modules
+      for x in ${lib.concatStringsSep " " config.boot.kernelModules}; do
+        modprobe $x
+      done
+
       ip addr add 127.0.0.1/8 dev lo
       ip link set lo up
 
@@ -101,10 +106,6 @@ in
 
       # disable DPMS on tty's
       echo -ne "\033[9;0]" > /dev/tty0
-
-      for x in ${lib.concatStringsSep " " config.boot.kernelModules}; do
-        modprobe $x
-      done
 
       # runit
       ln -s /etc/service /service
