@@ -79,7 +79,9 @@ in
       ip addr add 127.0.0.1/8 dev lo
       ip link set lo up
 
+      # enable IP forwarding
       echo 1 > /proc/sys/net/ipv4/ip_forward
+      echo 1 > /proc/sys/net/ipv6/conf/all/forwarding
 
       ${config.networking.preConfig}
 
