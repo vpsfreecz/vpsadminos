@@ -159,7 +159,7 @@ with lib;
     networking.nat = mkOption {
       type = types.bool;
       description = "enable NAT for containers";
-      default = false;
+      default = true;
     };
   };
 
@@ -300,9 +300,10 @@ with lib;
       "fuse"
       "veth"
     ] ++ lib.optionals config.networking.nat [
-      "ip6_tables"
-      "ip6table_filter"
+      "ip_tables"
       "iptable_nat"
+      "ip6_tables"
+      "ip6table_nat"
     ];
 
     boot.kernel.sysctl."kernel.dmesg_restrict" = true;
