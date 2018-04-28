@@ -65,3 +65,10 @@ test:
 	nix-build \
 	--arg system \"x86_64-linux\" \
 	tests/boot.nix
+
+# build nixos container template (rootfs tarball)
+template:
+	nix-build \
+	'<nixpkgs/nixos>' \
+	--arg configuration ./lib/nixos-container/configuration.nix \
+	-A config.system.build.tarball
