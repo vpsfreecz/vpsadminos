@@ -199,11 +199,12 @@ with lib;
       "igb"
       "ixgb"
 
-      # SATA/PATA
+      # SATA/PATA/NVME
       "ahci"
       "sata_nv"
       "sata_via"
       "sata_uli"
+      "nvme"
 
       # Support USB keyboards, in case the boot fails and we only have
       # a USB keyboard, or for LUKS passphrase prompt.
