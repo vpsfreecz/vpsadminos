@@ -21,7 +21,12 @@ of the following keys:
   *) to ignore the error and continue
 EOF
 
-    read reply
+    if [ -n "@predefinedFailAction@" ]; then
+      echo "Failure action is predefined, using '@predefinedFailAction@'"
+      reply="@predefinedFailAction@"
+    else
+      read reply
+    fi
 
     if [ "$reply" = i ]; then
         echo "Starting interactive shell..."

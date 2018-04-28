@@ -61,6 +61,20 @@ with lib;
       type = types.bool;
       default = false;
     };
+    boot.predefinedFailAction = mkOption {
+      type = types.enum ["" "n" "i" "r" "*" ];
+      default = "";
+      description = ''
+        Action to take automatically if stage-1 fails.
+
+        n - create new pool (may also erase disks and run partitioning if configured)
+        i - interactive shell
+        r - reboot
+        * - ignore
+
+        Useful for unattended installations and testing.
+      '';
+    };
     boot.initrd.withHwSupport = mkOption {
       type = types.bool;
       default = true;
