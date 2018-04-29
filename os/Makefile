@@ -2,26 +2,26 @@ CORES = 0
 VPSADMIN = ../../vpsadmin
 VPSADMIN_ABSPATH := $(shell readlink -m "$(VPSADMIN)")
 
-# default build (conf.nix and conf_common.nix)
+# default build (configs/default.nix)
 build:
 	nix-build \
-	 --arg configuration "import ./conf.nix" \
+	 --arg configuration ./configs/default.nix \
 	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 --cores $(CORES)
 
-# production build (conf_prod.nix and conf_common.nix)
+# production build (configs/prod.nix)
 prod:
 	nix-build \
-	 --arg configuration "import ./conf_prod.nix" \
+	 --arg configuration "{ imports  = [ ./configs/prod.nix ]; }" \
 	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 -A config.system.build.tftpdir \
 	 -o result_prod \
 	 --cores $(CORES) || exit 1
 
-# production build for local testing in QEMU (conf_prod_qemu.nix including conf_prod.nix)
+# production build for local testing in QEMU (configs/prod.nix)
 prod-local:
 	nix-build \
-	 --arg configuration "import ./conf_prod_qemu.nix" \
+	 --arg configuration "{ imports  = [ ./configs/prod.nix ./configs/qemu.nix ]; }" \
 	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 -A config.system.build.runvm \
 	 --cores $(CORES) || exit 1
@@ -29,7 +29,7 @@ prod-local:
 # build iso image
 iso:
 	nix-build \
-	 --arg configuration "import ./conf_iso.nix" \
+	 --arg configuration "{ imports  = [ ./configs/iso.nix ]; }" \
 	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 -A config.system.build.isoImage \
 	 --cores $(CORES) || exit 1
@@ -37,7 +37,7 @@ iso:
 # build iso image runner
 iso-local:
 	nix-build \
-	 --arg configuration "import ./conf_iso_qemu.nix" \
+	 --arg configuration "{ imports  = [ ./configs/iso.nix ./configs/qemu.nix ]; }" \
 	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 -A config.system.build.runvm \
 	 --cores $(CORES) || exit 1
@@ -45,7 +45,7 @@ iso-local:
 qemu: build
 	./result
 
-# boot conf_prod.nix configuration in qemu
+# boot configs/prod.nix configuration in qemu
 qemu-prod: prod-local
 	./result
 

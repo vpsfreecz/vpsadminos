@@ -3,7 +3,11 @@
 # ISO image configuration
 
 {
-  imports = [ ./conf_common.nix ./modules/iso-image.nix ];
+  imports = [
+    ./common.nix
+    ../modules/iso-image.nix
+  ];
+
   networking.hostName = "vpsadminos";
   networking.lxcbr = true;
   networking.nat = true;

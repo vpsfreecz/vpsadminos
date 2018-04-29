@@ -1,0 +1,21 @@
+{ config, pkgs, lib, ... }:
+
+{
+  imports = [
+    ./devel.nix
+    ./containers/webserver.nix
+  ];
+
+  users.extraUsers.root = {
+    openssh.authorizedKeys.keys = with import ../ssh-keys.nix; [ aither snajpa snajpa_devel srk srk_devel ];
+    #initialHashedPassword = lib.mkOptionDefault "...";
+  };
+
+  system.qemuDiskSize = 5;
+
+  environment.systemPackages = [
+    config.boot.kernelPackages.bcc
+  ];
+
+  services.node_exporter.enable = true;
+}
