@@ -4,7 +4,7 @@
 # uses static IP, creates lxcbr bridge with DHCP and NAT for containers
 
 {
-  imports = [ ./conf_common.nix ./qemu.nix ];
+  imports = [ ./common.nix ./qemu.nix ];
   networking.hostName = "vpsadminos";
   networking.static.enable = true;
   networking.lxcbr = true;

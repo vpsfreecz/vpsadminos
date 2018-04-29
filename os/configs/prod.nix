@@ -4,7 +4,7 @@
 # no bridge, NAT, dhcpd
 
 {
-  imports = [ ./conf_common.nix ];
+  imports = [ ./common.nix ];
   networking.hostName = "vpsadminos-prod";
   networking.dhcp = true;
 

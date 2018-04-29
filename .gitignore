@@ -4,4 +4,4 @@ result*
 site
 .*.swp
 *.img
-os/conf_local.nix
+os/configs/local.nix
