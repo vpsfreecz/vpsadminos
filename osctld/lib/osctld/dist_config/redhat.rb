@@ -22,41 +22,59 @@ module OsCtld
     end
 
     def network(_opts)
-      tpl_base = 'dist_config/network/redhat'
-      ct_base = File.join(ct.rootfs, 'etc', 'sysconfig')
-
-      set_params(File.join(ct_base, 'network'), {'NETWORKING' => 'yes'})
+      set_params(
+        File.join(ct.rootfs, 'etc/sysconfig/network'),
+        {'NETWORKING' => 'yes'}
+      )
 
       ct.netifs.each do |netif|
-        OsCtld::Template.render_to(
-          File.join(tpl_base, netif.type.to_s, 'ifcfg'),
-          {netif: netif},
-          File.join(ct_base, 'network-scripts', "ifcfg-#{netif.name}")
-        )
-
-        if netif.type == :routed
-          netif.active_ip_versions.each do |ip_v|
-            OsCtld::Template.render_to(
-              File.join(tpl_base, netif.type.to_s, "route_v#{ip_v}"),
-              {netif: netif},
-              File.join(
-                ct_base,
-                'network-scripts',
-                "route#{ip_v == 6 ? '6' : ''}-#{netif.name}"
-              )
-            )
-          end
-        end
+        do_create_netif(netif)
       end
     end
 
     # Cleanup old config files
     def remove_netif(opts)
+      do_remove_netif(opts[:netif].name)
+    end
+
+    # Rename config files
+    def rename_netif(opts)
+      do_remove_netif(opts[:original_name])
+      do_create_netif(opts[:netif])
+    end
+
+    protected
+    def do_create_netif(netif)
+      tpl_base = 'dist_config/network/redhat'
+      ct_base = File.join(ct.rootfs, 'etc', 'sysconfig')
+
+      OsCtld::Template.render_to(
+        File.join(tpl_base, netif.type.to_s, 'ifcfg'),
+        {netif: netif},
+        File.join(ct_base, 'network-scripts', "ifcfg-#{netif.name}")
+      )
+
+      if netif.type == :routed
+        netif.active_ip_versions.each do |ip_v|
+          OsCtld::Template.render_to(
+            File.join(tpl_base, netif.type.to_s, "route_v#{ip_v}"),
+            {netif: netif},
+            File.join(
+              ct_base,
+              'network-scripts',
+              "route#{ip_v == 6 ? '6' : ''}-#{netif.name}"
+            )
+          )
+        end
+      end
+    end
+
+    def do_remove_netif(name)
       base = File.join(ct.rootfs, 'etc', 'sysconfig', 'network-scripts')
       files = [
-        "ifcfg-#{opts[:netif].name}",
-        "route-#{opts[:netif].name}",
-        "route6-#{opts[:netif].name}"
+        "ifcfg-#{name}",
+        "route-#{name}",
+        "route6-#{name}"
       ]
 
       files.each do |f|
@@ -67,26 +85,6 @@ module OsCtld
       end
     end
 
-    # Rename config files
-    def rename_netif(opts)
-      base = File.join(ct.rootfs, 'etc', 'sysconfig', 'network-scripts')
-      files = [
-        "ifcfg-%{name}",
-        "route-%{name}",
-        "route6-%{name}",
-      ]
-
-      files.each do |f|
-        orig = File.join(base, f % {name: opts[:original_name]})
-        new = File.join(base, f % {name: opts[:netif].name})
-
-        next unless File.exist?(orig)
-
-        File.rename(orig, new)
-      end
-    end
-
-    protected
     # @param file [String]
     # @param params [Hash]
     def set_params(file, params)
