@@ -1,0 +1,7 @@
+<% [4, 6].each do |v| -%>
+
+<% netif.ips(v).each do |addr| -%>
+  ip -<%= v %> addr <%= op %> <%= addr.to_string %> dev <%= netif.name %> &> /dev/null || true
+<% end -%>
+
+<% end -%>

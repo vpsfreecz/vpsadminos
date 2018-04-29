@@ -77,6 +77,7 @@ the network at runtime. Supported distributions include:
  - CentOS
  - Debian
  - Fedora
+ - NixOS
  - Ubuntu
 
 Unless your distribution is supported by *osctld*, only the host will be

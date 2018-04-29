@@ -9,6 +9,7 @@ Currently supported distributions within a container are:
  - CentOS
  - Debian
  - Fedora
+ - NixOS
  - Ubuntu
 
 Unsupported distributions can be used without any restrictions, except that
