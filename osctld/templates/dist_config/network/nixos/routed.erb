@@ -1,0 +1,12 @@
+echo "Configuring <%= netif.name %>"
+
+<% netif.active_ip_versions.each do |v| -%>
+  ip -<%= v %> addr <%= op %> <%= netif.via[v].ct_ip.to_string %> dev <%= netif.name %>
+
+<% netif.ips(v).each do |addr| -%>
+  ip -<%= v %> addr <%= op %> <%= addr.to_string %> dev <%= netif.name %>
+<% end -%>
+<% if netif.ips(v).any? -%>
+  ip -<%= v %> route <%= op %> default via <%= netif.via[v].host_ip.to_s %> src <%= netif.ips(v).first.to_s %> <%= op == "del" ? '|| true' : ''  %>
+<% end -%>
+<% end -%>
