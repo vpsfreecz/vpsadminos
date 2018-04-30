@@ -5,6 +5,8 @@ module OsCtld
   class SwitchUser::ContainerControl
     include OsCtl::Lib::Utils::Log
 
+    PATH = %w(/bin /usr/bin /sbin /usr/sbin /run/current-system/sw/bin)
+
     def self.run(cmd, opts, lxc_home)
       ur = new(lxc_home)
       ur.execute(cmd, opts)
@@ -91,7 +93,7 @@ module OsCtld
         stderr: opts[:stderr]
       ) do
         ENV.delete_if { |k, _| k != 'TERM' }
-        ENV['PATH'] = %w(/bin /usr/bin /sbin /usr/sbin /run/current-system/sw/bin).join(':')
+        ENV['PATH'] = PATH.join(':')
 
         LXC.run_command(opts[:cmd])
       end

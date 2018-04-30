@@ -81,6 +81,12 @@ module OsCtld
       log(:warn, ct, "Unable to set password: #{ret[:output]}")
     end
 
+    # Return path to `/bin` or an alternative, where a shell is looked up
+    # @return [String]
+    def bin_path(_opts)
+      '/bin'
+    end
+
     protected
     # Update hostname in /etc/hosts, optionally removing configuration of old
     # hostname.
