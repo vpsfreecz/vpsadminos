@@ -5,6 +5,8 @@ module OsCtld
     include OsCtl::Lib::Utils::Log
     include Utils::SwitchUser
 
+    Shell = Struct.new(:type, :executable)
+
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])
       return error('container not found') unless ct
@@ -20,6 +22,7 @@ module OsCtld
           '-v', 'USER=root',
           '-v', 'LOGNAME=root',
           '-v', 'HOME=/root',
+          '-v', "PATH=#{SwitchUser::ContainerControl::PATH.join(':')}"
         ]
 
         if opts[:user_shell]
@@ -44,32 +47,34 @@ module OsCtld
     def find_shell(ct)
       rootfs = File.join('/proc', ct.init_pid.to_s, 'root')
 
-      %i(bash busybox sh).detect do |shell|
+      %i(bash busybox sh).each do |type|
+        path = DistConfig.run(ct, :bin_path)
+
         begin
-          File.lstat(File.join(rootfs, '/bin', shell.to_s))
-          true
+          File.lstat(File.join(rootfs, path, type.to_s))
 
         rescue Errno::ENOENT
-          false
+          next
         end
+
+        return Shell.new(type, File.join(path, type.to_s))
       end
+
+      nil
     end
 
     def shell_args(shell)
-      case shell
+      case shell.type
       when :bash
-        ['/bin/bash', '--norc']
+        [shell.executable, '--norc']
 
-      when :busybox
-        ['/bin/sh']
-
-      else
-        ["/bin/#{shell}"]
+      when :busybox, :sh
+        [shell.executable]
       end
     end
 
     def prompt(ct, shell)
-      case shell
+      case shell.type
       when :bash
         "\\n\\[\\033[1;31m\\][CT #{ct.id}]\\[\\033[0m\\] "+
         "\\[\\033[1;95m\\]\\u@\\h:\\w\\$\\[\\033[0m\\] "

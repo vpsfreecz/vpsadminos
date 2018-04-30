@@ -25,5 +25,11 @@ module OsCtld
 
       end
     end
+
+    def bin_path(_opts)
+      system = File.readlink(File.join(ct.rootfs, '/run/current-system'))
+      sw = File.readlink(File.join(ct.rootfs, system, 'sw'))
+      File.join(sw, 'bin')
+    end
   end
 end
