@@ -175,6 +175,12 @@ with lib;
       description = "enable NAT for containers";
       default = true;
     };
+    boot.kernelPackage = mkOption {
+      type = types.package;
+      description = "base linux kernel package";
+      default = pkgs.linux_4_14;
+      example = pkgs.linux_4_16;
+    };
   };
 
 ####################
@@ -185,7 +191,7 @@ with lib;
 
   config =
   let
-    origKernel = pkgs.linux_4_14;
+    origKernel = config.boot.kernelPackage;
     myKernel = origKernel.override {
       extraConfig = ''
         EXPERT y
