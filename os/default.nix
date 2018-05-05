@@ -25,6 +25,7 @@ let
       ./modules/tty.nix
       ./modules/zfs.nix
       ./modules/version.nix
+      ./modules/vpsadmin.nix
       (nixpkgs + "/nixos/modules/misc/extra-arguments.nix")
       (nixpkgs + "/nixos/modules/system/etc/etc.nix")
       (nixpkgs + "/nixos/modules/system/activation/activation-script.nix")
@@ -59,7 +60,7 @@ let
       ./ipxe.nix
       ./nixos-compat.nix
       pkgsModule
-  ] ++ pkgs.lib.optionals (vpsadmin != null && pkgs.lib.pathExists vpsadmin) [./modules/vpsadmin.nix];
+  ];
   evalConfig = modules: pkgs.lib.evalModules {
     prefix = [];
     check = true;
