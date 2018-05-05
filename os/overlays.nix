@@ -5,4 +5,5 @@
         (import ./overlays/lxc.nix)
         (import ./overlays/zfs.nix)
         (import ./overlays/minify.nix)
-] ++ lib.optionals (vpsadmin != null && lib.pathExists vpsadmin) [(import ./overlays/vpsadmin.nix vpsadmin)]
+] ++ lib.optionals (vpsadmin != null && (lib.isStorePath vpsadmin || lib.pathExists vpsadmin))
+        [(import ./overlays/vpsadmin.nix vpsadmin)]
