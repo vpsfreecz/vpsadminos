@@ -1,5 +1,8 @@
 { config, ...}:
 {
+  # import local configuration (local.nix) if it exists
+  imports = [ ] ++ lib.optionals (lib.pathExists ./local.nix) [ ./local.nix ];
+
   system.qemuParams = [
     "-drive index=0,id=drive1,file=${config.system.build.squashfs},readonly,media=cdrom,format=raw,if=virtio"
     "-kernel ${config.system.build.kernel}/bzImage -initrd ${config.system.build.initialRamdisk}/initrd"
