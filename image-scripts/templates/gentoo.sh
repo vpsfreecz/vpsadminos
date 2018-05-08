@@ -22,9 +22,6 @@ tar xJpf ${DOWNLOAD}/${STAGE3TARBALL} -C $INSTALL
 
 cp /etc/resolv.conf $INSTALL/etc/
 
-cp "$BASEDIR"/files/cgroups-mount.initd "$INSTALL"/etc/init.d/cgroups-mount
-chmod +x "$INSTALL"/etc/init.d/cgroups-mount
-
 configure-append <<EOF
 export PATH="/bin:/sbin:/usr/bin:$PATH"
 EOF
@@ -37,6 +34,7 @@ echo 'GENTOO_MIRRORS="$BASEURL/ http://ftp.fi.muni.cz/pub/linux/gentoo/"' >> /et
 echo "Europe/Prague" > /etc/timezone
 emerge-webrsync -v
 sed -i 's/USE="bindist"/USE=""/' /etc/portage/make.conf
+echo "=sys-apps/openrc-0.35* ~amd64" > /etc/portage/package.keywords/template
 emerge --update --deep --newuse --with-bdeps=y --backtrack=120 @system @world
 emerge iproute2
 emerge vim
@@ -44,7 +42,6 @@ emerge dhcpcd
 sed -ri 's/^#rc_sys=""/rc_sys="lxc"/' /etc/rc.conf
 sed -ri 's/^([^#].*agetty.*)$/#\1/' /etc/inittab
 rc-update add sshd default
-rc-update add cgroups-mount boot
 rc-update delete udev sysinit
 eselect news read
 sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
