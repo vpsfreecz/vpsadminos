@@ -24,6 +24,11 @@ module OsCtl::Repo::Cli
           c.action &Command.run(Repo, :init)
         end
 
+        local.desc 'List templates'
+        local.command %i(ls list) do |c|
+          c.action &Command.run(Repo, :local_list)
+        end
+
         local.desc 'Add file into the repository'
         local.arg_name '<vendor> <variant> <arch> <distribution> <version>'
         local.command :add do |c|
@@ -60,7 +65,7 @@ module OsCtl::Repo::Cli
           c.desc 'Cache directory'
           c.flag :cache
 
-          c.action &Command.run(Repo, :list)
+          c.action &Command.run(Repo, :remote_list)
         end
 
         remote.desc 'Fetch file from the repository and store it in a local cache'

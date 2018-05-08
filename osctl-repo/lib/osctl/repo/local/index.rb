@@ -75,6 +75,10 @@ module OsCtl::Repo
       end
     end
 
+    def templates
+      contents.clone
+    end
+
     protected
     attr_reader :repo, :vendors, :contents
 

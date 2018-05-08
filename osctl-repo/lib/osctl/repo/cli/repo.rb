@@ -9,6 +9,30 @@ module OsCtl::Repo
       repo.create
     end
 
+    def local_list
+      repo = Local::Repository.new(Dir.pwd)
+      fail 'repository not found' unless repo.exist?
+
+      fmt = '%-18s %-18s %-10s %-20s %-10s %s'
+
+      puts sprintf(
+        fmt,
+        'VENDOR', 'VARIANT', 'ARCH', 'DISTRIBUTION', 'VERSION', 'TAGS'
+      )
+
+      repo.templates.each do |t|
+        puts sprintf(
+          fmt,
+          t.vendor,
+          t.variant,
+          t.arch,
+          t.distribution,
+          t.version,
+          t.tags.join(',')
+        )
+      end
+    end
+
     def add
       require_args!('vendor', 'variant', 'arch', 'distribution', 'version')
 
@@ -73,7 +97,7 @@ module OsCtl::Repo
       repo.remove(tpl)
     end
 
-    def list
+    def remote_list
       require_args!('repo')
 
       repo = Remote::Repository.new(args[0])

@@ -107,6 +107,10 @@ module OsCtl::Repo
       index.save
     end
 
+    def templates
+      index.templates
+    end
+
     protected
     attr_reader :index
 
