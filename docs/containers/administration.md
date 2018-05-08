@@ -182,6 +182,12 @@ PID        CONTAINER
 23292      tank:myct01
 ```
 
+## Container resource monitor
+`osctl ct top` is a top-like TUI application that monitors real-time resource
+usage. Instead of processes it monitors containers.
+
+![osctl ct top](../img/osctl-ct-top.png)
+
 ## Log file
 You don't need to remember the path to a container's log file, because *osctl*
 can either dump it for you or just print the path:
