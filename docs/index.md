@@ -16,7 +16,7 @@ have different needs than what LXC/LXD provided, so decided to create our custom
 toolset to manage the containers to bring us closer to the experience of OpenVZ
 on newer kernels. vpsAdminOS is built on:
 
-- Vanilla kernel
+- Upstream kernel
 - AppArmor
 - LXC, LXCFS
 - CRIU
@@ -25,14 +25,15 @@ on newer kernels. vpsAdminOS is built on:
 - ZFS
 - osctl/osctld (userspace tools bundled with vpsAdminOS)
 
-vpsAdminOS especially focuses on user namespaces (e.g. one namespace per
-container) and cgroups for resource management. One can set resource limits
-on single container or groups of containers, allowing for fine-grained control
+vpsAdminOS especially focuses on user namespace management (e.g. one namespace
+per container) and cgroups for resource management. One can set resource limits
+on a single container or groups of containers, allowing for fine-grained control
 and resource sharing. *osctl*/*osctld* is an abstraction on top of LXC, managing
-system users, LXC homes, cgroups and system containers. ZFS is currently
-the only supported file system, in which we have our custom patches for seamless
-integration with user namespaces, i.e. user/group id mapping on the file system
-level.
+system users, LXC homes, cgroups and system containers. vpsAdminOS uses ZFS to
+store containers and configuration. We have patched ZFS for seamless integration
+with user namespaces, i.e. user/group id mapping on the file system level, until
+a proper solution is provided in upstream to avoid chowning all containers'
+files into appropriate user namespaces.
 
 ## Links
 

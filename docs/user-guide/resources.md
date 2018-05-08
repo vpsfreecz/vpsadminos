@@ -36,7 +36,7 @@ set a limit on a group, no child group or container can exceed it.
 
 Let's set a limit on the *root* group, which will limit the total amount of
 memory your containers can use. The command below will let all containers
-together use up to 16 GB memory a 4 GB swap:
+together use up to 16 GB memory and 4 GB swap:
 
 ```shell
 osctl group set memory / 16G 4G

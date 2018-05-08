@@ -58,7 +58,7 @@ char   136     all     rwm    -              true      true
 created.
 
 ## Adding a new device to all containers
-If you wish to add device to all containers, all you have to do is add it to
+If you wish to add a device to all containers, all you have to do is add it to
 the root group and make it inheritable. All child groups and containers will
 then be able to use it:
 
@@ -68,7 +68,8 @@ osctl group devices add --inherit / char 10 200 rw /dev/net/tun
 
 Access to the device is permitted immediately, but the device node is created
 the next time the container starts. Containers are unprivileged and cannot call
-`mknod` on their own. The device nodes have to be provided by the host.
+`mknod` on their own. The device nodes have to be provided by the host, which
+happens every time a container starts.
 
 ## Adding a new device to one group/container
 When adding a new device to a non-root group or a container, the device has

@@ -8,8 +8,8 @@ would allow users to leave their containers. If all containers are using
 a different user namespace, they don't have access to each other's data, even
 when the container is breached.
 
-Every container belongs to one user, only unprivileged containers are supported.
-Let's create a user:
+Every container belongs to one user and all containers are running as
+unprivileged. Let's create a new user:
 
 ```bash
 osctl user new --ugid 5000 --offset 666000 --size 65536 myuser01

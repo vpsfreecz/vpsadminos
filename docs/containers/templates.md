@@ -44,6 +44,7 @@ Templates from remote repositories can be listed with `osctl repo templates ls`:
 VENDOR       VARIANT   ARCH     DISTRIBUTION   VERSION         TAGS            CACHED 
 vpsadminos   minimal   x86_64   alpine         3.6             -               -      
 vpsadminos   minimal   x86_64   alpine         3.7             -               -      
+vpsadminos   minimal   x86_64   arch           20180221        -               -      
 vpsadminos   minimal   x86_64   centos         7.0             -               -      
 vpsadminos   minimal   x86_64   debian         8.0             -               -      
 vpsadminos   minimal   x86_64   debian         9.0             latest,stable   -      
@@ -51,7 +52,12 @@ vpsadminos   minimal   x86_64   devuan         1.0             -               -
 vpsadminos   minimal   x86_64   gentoo         17.0-20180221   -               -      
 vpsadminos   minimal   x86_64   slackware      14.2            -               -      
 vpsadminos   minimal   x86_64   ubuntu         14.04           -               -      
-vpsadminos   minimal   x86_64   ubuntu         16.04           latest,stable   -
+vpsadminos   minimal   x86_64   ubuntu         16.04           -               -      
+vpsadminos   minimal   x86_64   arch           20180222        latest          -      
+vpsadminos   minimal   x86_64   ubuntu         18.04           -               -      
+vpsadminos   minimal   x86_64   centos         7.4             stable,latest   -      
+vpsadminos   minimal   x86_64   fedora         27              -               -      
+vpsadminos   minimal   x86_64   fedora         28              latest,stable   -
 ```
 
 ## Examples

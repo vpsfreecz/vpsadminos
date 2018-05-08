@@ -74,6 +74,7 @@ based on the container's distribution and uses the `ip` utility to configure
 the network at runtime. Supported distributions include:
 
  - Alpine
+ - Arch
  - CentOS
  - Debian
  - Fedora

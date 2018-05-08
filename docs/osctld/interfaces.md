@@ -16,7 +16,7 @@ Useful list options:
  - `-L` print available fields
 
 *osctl* also includes a Ruby client library [OsCtl::Client]. You can use this
-class to connect to `*osctld* and issue commands.
+class to connect to *osctld* and issue commands.
 
 ## Management socket
 *osctl* interacts with *osctld* using a local socket at

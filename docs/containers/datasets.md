@@ -96,7 +96,7 @@ mounted into the container:
 # Create the dataset
 zfs create tank/ct/myct01/custom
 
-# osctld will see it immediatelly
+# osctld will see it immediately
 osctl ct dataset ls myct01
 NAME       DATASET                 
 /          tank/ct/myct01          
