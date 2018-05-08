@@ -34,7 +34,7 @@ module OsCtl::Repo
         arch: arch,
         distribution: distribution,
         version: version,
-        tags: tags,
+        tags: tags.sort,
         rootfs: Hash[rootfs.map { |v| [v, rootfs_path(v)] } ],
       }
     end
