@@ -53,7 +53,7 @@ sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/ssh
 > /etc/resolv.conf
 
 cat >> /etc/inittab <<END
-c0:2345:respawn:/sbin/agetty --noreset 38400 tty0
+c0:2345:respawn:/sbin/agetty --noreset 38400 console
 END
 
 rm -f /usr/portage/distfiles/*
