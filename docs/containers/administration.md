@@ -131,6 +131,31 @@ into the container's directory. *osctl* has helpers for that:
 A new shell with a modified prompt is spawned. Simply exit the shell to return
 to your previous session.
 
+## Attaching containers
+Administrators can use `osctl ct attach` to enter containers and get root shell,
+without the need of knowing password for SSH or `osctl ct console`. *osctl*
+is by default trying to unify the shell interface from the administrator's
+point of view, so that whatever container you enter, you always get the same
+prompt and behaviour.
+
+```bash
+ct attach myct01
+[CT myct01] root@myct01:/# cat /etc/alpine-release
+3.7.0
+
+ct attach myct02
+[CT myct02] root@myct02:/# lsb_release -a
+No LSB modules are available.
+Distributor ID: Ubuntu
+Description:    Ubuntu 18.04 LTS
+Release:        18.04
+Codename:       bionic
+```
+
+This is done by ignoring shell configuration from the container and configuring
+the shell from the host. If you wish to open the shell and load configuration
+from the container, you can use option `-u, --user-shell`.
+
 ## Log file
 You don't need to remember the path to a container's log file, because *osctl*
 can either dump it for you or just print the path:
