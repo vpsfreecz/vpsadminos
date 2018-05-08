@@ -33,16 +33,18 @@ echo 'LANG="en_US.UTF-8"' >/etc/env.d/02locale
 echo 'GENTOO_MIRRORS="$BASEURL/ http://ftp.fi.muni.cz/pub/linux/gentoo/"' >> /etc/portage/make.conf
 echo "Europe/Prague" > /etc/timezone
 emerge-webrsync -v
-sed -i 's/USE="bindist"/USE=""/' /etc/portage/make.conf
+sed -i '/^USE=/d' /etc/portage/make.conf
+echo 'USE="-udev"' >> /etc/portage/make.conf
 echo "=sys-apps/openrc-0.35* ~amd64" > /etc/portage/package.keywords/template
+echo "sys-apps/busybox mdev" > /etc/portage/package.use/template
+emerge --unmerge udev
 emerge --update --deep --newuse --with-bdeps=y --backtrack=120 @system @world
-emerge iproute2
-emerge vim
-emerge dhcpcd
+emerge busybox dhcpcd iproute2 vim
 sed -ri 's/^#rc_sys=""/rc_sys="lxc"/' /etc/rc.conf
 sed -ri 's/^([^#].*agetty.*)$/#\1/' /etc/inittab
 rc-update add sshd default
-rc-update delete udev sysinit
+rc-update del udev sysinit
+rc-update add mdev sysinit
 eselect news read
 sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
 sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
