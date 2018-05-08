@@ -44,6 +44,20 @@ module OsCtl::Repo
       end
     end
 
+    def find(vendor, variant, arch, distribution, version)
+      contents.detect do |t|
+        t.vendor == vendor \
+          && t.variant == variant \
+          && t.arch == arch \
+          && t.distribution == distribution \
+          && (t.version == version || t.tags.include?(version))
+      end
+    end
+
+    def delete(template)
+      contents.delete(template)
+    end
+
     def set_default_vendor(name)
       vendors[:default] = name
     end

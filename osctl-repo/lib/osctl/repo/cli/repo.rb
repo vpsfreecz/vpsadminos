@@ -61,6 +61,18 @@ module OsCtl::Repo
       end
     end
 
+    def rm
+      require_args!('vendor', 'variant', 'arch', 'distribution', 'version')
+
+      repo = Local::Repository.new(Dir.pwd)
+      fail 'repository not found' unless repo.exist?
+
+      tpl = repo.find(*args)
+      fail 'template not found' unless tpl
+
+      repo.remove(tpl)
+    end
+
     def list
       require_args!('repo')
 

@@ -44,6 +44,12 @@ module OsCtl::Repo::Cli
         local.command :default do |c|
           c.action &Command.run(Repo, :set_default)
         end
+
+        local.desc 'Remove template from the repository'
+        local.arg_name '<vendor> <variant> <arch> <distribution> <version>'
+        local.command :rm do |c|
+          c.action &Command.run(Repo, :rm)
+        end
       end
 
       desc 'Interact with remote repositories'

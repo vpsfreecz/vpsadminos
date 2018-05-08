@@ -53,6 +53,48 @@ module OsCtl::Repo
       index.save
     end
 
+    # @return [Base::Template, nil]
+    def find(vendor, variant, arch, distribution, version)
+      index.find(vendor, variant, arch, distribution, version)
+    end
+
+    # Remove template from the repository
+    # @param template [Base::Template]
+    def remove(template)
+      # Remove template from the index
+      index.delete(template)
+      index.save
+
+      # Remove rootfs
+      template.rootfs.each do |v|
+        path = template.abs_rootfs_path(v)
+
+        File.unlink(path) if File.exist?(path)
+      end
+
+      # Remove tags
+      template.tags.each do |v|
+        path = template.abs_tag_path(v)
+
+        File.unlink(path) if File.symlink?(path)
+      end
+
+      # Remove empty dir from the version dir up to the repository root
+      version_dir = template.abs_dir_path
+
+      5.times.map do |i|
+        File.absolute_path(File.join(version_dir, *Array.new(i, '..')))
+
+      end.each do |dir|
+        if Dir.empty?(dir)
+          Dir.rmdir(dir)
+
+        else
+          break
+        end
+      end
+    end
+
     def set_default_vendor(vendor)
       install_symlink('vendor', path, 'default', vendor)
       index.set_default_vendor(vendor)
