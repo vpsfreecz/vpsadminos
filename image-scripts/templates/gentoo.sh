@@ -41,7 +41,7 @@ emerge --update --deep --newuse --with-bdeps=y --backtrack=120 @system @world
 emerge iproute2
 emerge vim
 emerge dhcpcd
-sed -ri 's/^#rc_sys=""/rc_sys="openvz"/' /etc/rc.conf
+sed -ri 's/^#rc_sys=""/rc_sys="lxc"/' /etc/rc.conf
 sed -ri 's/^([^#].*agetty.*)$/#\1/' /etc/inittab
 rc-update add sshd default
 rc-update add cgroups-mount boot
