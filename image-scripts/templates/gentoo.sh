@@ -35,11 +35,6 @@ configure-append <<EOF
 echo 'LANG="en_US.UTF-8"' >/etc/env.d/02locale
 echo 'GENTOO_MIRRORS="$BASEURL/ http://ftp.fi.muni.cz/pub/linux/gentoo/"' >> /etc/portage/make.conf
 echo "Europe/Prague" > /etc/timezone
-cat >/etc/conf.d/net <<CONFDNET
-postup() {
-        [ \\\$IFACE == 'venet0' ] && ip -6 route add default dev venet0
-}
-CONFDNET
 emerge-webrsync -v
 sed -i 's/USE="bindist"/USE=""/' /etc/portage/make.conf
 emerge --update --deep --newuse --with-bdeps=y --backtrack=120 @system @world
