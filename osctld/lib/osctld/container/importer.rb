@@ -151,7 +151,7 @@ module OsCtld
       db
     end
 
-    # Load user-defined hook scripts from the archive and install them
+    # Load user-defined script hooks from the archive and install them
     # @param ct [Container]
     def install_user_hook_scripts(ct)
       tar.each do |entry|

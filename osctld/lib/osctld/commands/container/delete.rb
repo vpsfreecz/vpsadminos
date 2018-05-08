@@ -34,7 +34,7 @@ module OsCtld
         progress('Destroying dataset')
         zfs(:destroy, '-r', ct.dataset)
 
-        progress('Removing LXC configuration and hook scripts')
+        progress('Removing LXC configuration and script hooks')
         syscmd("rm -rf #{ct.lxc_dir} #{ct.user_hook_script_dir}")
         File.unlink(ct.log_path) if File.exist?(ct.log_path)
         File.unlink(ct.config_path)

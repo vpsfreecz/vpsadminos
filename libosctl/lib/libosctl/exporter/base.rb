@@ -54,7 +54,7 @@ module OsCtl::Lib
       end
     end
 
-    # Dump user hook scripts, if there is at least one present
+    # Dump user script hooks, if there is at least one present
     # @param supported_hooks [Array<Symbol>]
     def dump_user_hook_scripts(supported_hooks)
       dir = ct.user_hook_script_dir

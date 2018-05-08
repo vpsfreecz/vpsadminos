@@ -63,7 +63,7 @@ module OsCtld
         )
         add.dataset(
           ds(HOOK_DS),
-          desc: 'User supplied hook scripts',
+          desc: 'User supplied script hooks',
           user: 0,
           group: 0,
           mode: 0500
@@ -124,7 +124,7 @@ module OsCtld
         # Hooks
         add.directory(
           File.join(user_hook_script_dir, 'ct'),
-          desc: 'User supplied container hook scripts',
+          desc: 'User supplied container script hooks',
           user: 0,
           group: 0
         )

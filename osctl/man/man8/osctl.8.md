@@ -1104,7 +1104,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 
 `ct mounts register` [*options*] *id* *mountpoint*
   Register a manually created mount. This can be used to register mounts created
-  in `pre-mount` or `post-mount` hook scripts (see `HOOK SCRIPTS`) or any other
+  in `pre-mount` or `post-mount` script hooks (see `SCRIPT HOOKS`) or any other
   mount within the container that you wish to control. All options are optional,
   but unless you provide *fs* and *type*, you won't be able to use command
   `ct mounts activate`.
@@ -1123,8 +1123,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       type, with two extra options from LXC: `create=file` and `create=dir`.
 
     `--on-ct-start`
-      Use this option if you're calling `ct mounts register` from hook scripts,
-      see `HOOK SCRIPTS`. Without this option, calling this command from hook
+      Use this option if you're calling `ct mounts register` from script hooks,
+      see `SCRIPT HOOKS`. Without this option, calling this command from hook
       scripts will cause a deadlock -- the container won't start and `osctld`
       will be tainted as well.
 
@@ -1478,14 +1478,14 @@ a distribution name in lower case, e.g. `alpine`, `centos` or `debian`.
 *version* is the distribution release version, e.g. `3.6` for `alpine`,
 `7.0` for `centos` or `9.0` for `debian`.
 
-## HOOK SCRIPTS
+## SCRIPT HOOKS
 `osctld` can execute user-defined scripts when containers are being started
-or stopped. Hook scripts are located at `/<pool>/hook/ct/<ctid>/<hook>`, use
-`ct assets` to get the exact path for your container. In order for hook scripts
-to be called, they need to be executable. All hook scripts are run as `root`
+or stopped. Script hooks are located at `/<pool>/hook/ct/<ctid>/<hook>`, use
+`ct assets` to get the exact path for your container. In order for script hooks
+to be called, they need to be executable. All script hooks are run as `root`
 on the host, but mount namespace may differ, see below.
 
-Note that many `osctl` commands called from hook scripts will not work as expected
+Note that many `osctl` commands called from script hooks will not work as expected
 and may cause deadlocks. The hooks are run when the container is locked within
 `osctld`, so if another `osctl` process called from a hook needs the lock,
 a deadlock occurs. You should avoid calling `osctl` from hooks.
@@ -1522,7 +1522,7 @@ a deadlock occurs. You should avoid calling `osctl` from hooks.
 `post-start`
   `post-start` is run in the host's namespace after the container entered state
   `running`. The container's init PID is passed in environment varible
-  `OSCTL_CT_INIT_PID`. The hook script's exit status is not evaluated.
+  `OSCTL_CT_INIT_PID`. The script hook's exit status is not evaluated.
 
 `pre-stop`
   `pre-stop` hook is run in the host's namespace when the container is being

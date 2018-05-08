@@ -94,7 +94,7 @@ module OsCtld
 
         add.directory(
           user_hook_script_dir,
-          desc: 'User supplied hook scripts',
+          desc: 'User supplied script hooks',
           user: 0,
           group: 0,
           mode: 0700

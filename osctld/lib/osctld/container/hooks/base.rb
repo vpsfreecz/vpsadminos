@@ -46,9 +46,9 @@ module OsCtld
       @opts = opts
     end
 
-    # Execute the user hook script.
+    # Execute the user script hook.
     #
-    # For blocking hooks, this method waits for the hook script to exit. If it
+    # For blocking hooks, this method waits for the script hook to exit. If it
     # exits with non-zero exit status, exception {HookFailed} is raised. Async
     # hooks return immediately and their exit status has no meaning.
     def exec
@@ -96,7 +96,7 @@ module OsCtld
     # @return [Hash]
     attr_reader :opts
 
-    # Override this method to define environment variables that the hook script
+    # Override this method to define environment variables that the script hook
     # will have set.
     # @return [Hash<String, String>]
     def environment
@@ -119,7 +119,7 @@ module OsCtld
     end
 
     # Override this method to define the program and its arguments that will be
-    # execed to invoke the user hook script.
+    # execed to invoke the user script hook.
     # @return [Array<String>]
     def executable
       [hook_path]

@@ -21,7 +21,7 @@ module OsCtld
       @hooks.has_key?(name)
     end
 
-    # Run user-defined hook script for container
+    # Run user-defined script hook for container
     #
     # See module {Container::Hooks} for available hook names and options.
     #

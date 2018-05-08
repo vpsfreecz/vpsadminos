@@ -257,7 +257,7 @@ module OsCtld
     def setup_user_hook_script_dir
       return if Dir.exist?(ct.user_hook_script_dir)
 
-      progress('Preparing user hook script dir')
+      progress('Preparing user script hook dir')
       Dir.mkdir(ct.user_hook_script_dir, 0700)
     end
 

@@ -43,10 +43,10 @@ from ZFS stream on the fly, because we don't know the stream's size beforehand.
 The ZFS streams can be dumped in a raw form, or they can be compressed using
 *gzip*, in that case `.gz` suffix is appended.
 
-Directory `hooks` can contain user-defined hook scripts that are run by *osctld*
+Directory `hooks` can contain user-defined script hooks that are run by *osctld*
 when the container is started or stopped. This directory is optional. See
-[man osctl(8)](https://man.vpsadminos.org/osctl/man8/osctl.8.html#hook-scripts)
-for a list of supported hook scripts.
+[man osctl(8)](https://man.vpsadminos.org/osctl/man8/osctl.8.html#script-hooks)
+for a list of supported script hooks.
 
 `snapshots.yml` is a list of ZFS snapshots that have been taken to generate
 ZFS streams stored at `rootfs/`. This is a convenience for when the archive
