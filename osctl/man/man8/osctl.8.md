@@ -10,7 +10,7 @@ vpsAdminOS.
 ## DESCRIPTION
 `osctl` is a command line interface for `osctld`. `osctld` is a daemon from
 vpsAdminOS that is used to manage unprivileged Linux containers, including
-storage pools, user namespaces and CGroups for resource management.
+storage pools, user namespaces and cgroups for resource management.
 `osctld` must be running before `osctl` can be used. `osctl` is available only
 to root.
 
@@ -37,7 +37,7 @@ unprivileged containers. `osctld` manages all important system files, such as
 **/etc/lxc/lxc-usernet**. See the `user` commands.
 
 ## GROUPS
-Groups represent the CGroup hierarchy. It is possible to define groups that
+Groups represent the cgroup hierarchy. It is possible to define groups that
 `osctld` will manage and configure their parameters. There are always at least
 two groups: **root** and **default**. **root** group is the parent of all
 managed groups and **default** is the group that containers are placed in unless
@@ -614,7 +614,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   Switch to the user of container *id* and cd to its LXC home. The shell
   is tailored only for container *id*, do not use it to manipulate any other
   containers, even in the same LXC home. Every container can have a different
-  CGroup configuration, which would be broken.
+  cgroup configuration, which would be broken.
 
   Also not that when a container is started from this shell using `lxc-start`,
   `ct console` for tty0 will not be functional.
@@ -788,7 +788,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Show detected errors.
 
 `ct cgparams ls` [*options*] *id* [*parameters...*]
-  List CGroup parameters for container *id*. If no *parameters* are provided,
+  List cgroup parameters for container *id*. If no *parameters* are provided,
   all configured parameters are listed.
 
     `-H`, `--hide-header`
@@ -801,20 +801,20 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Select parameters to output.
 
     `-S`, `--subsystem` *subsystem*
-      Filter by CGroup subsystem, comma separated.
+      Filter by cgroup subsystem, comma separated.
 
     `-a`, `--all`
       Include parameters from parent groups up to root group.
 
 `ct cgparams set` *id* *parameter* *value...*
-  Set CGroup parameter *parameter* of container *id* to *value*. `osctld` will
+  Set cgroup parameter *parameter* of container *id* to *value*. `osctld` will
   make sure this parameter is always set when the container is started. The
-  parameter can be for example `cpu.shares` or `memory.limit_in_bytes`. CGroup
+  parameter can be for example `cpu.shares` or `memory.limit_in_bytes`. cgroup
   subsystem is derived from the parameter name, you do not need to supply it.
 
   It is possible to set multiple values for a parameter. The values are written
   to the parameter file one by one. This can be used for example for the
-  `devices` CGroup subsystem, where you may need to write to `devices.deny` and
+  `devices` cgroup subsystem, where you may need to write to `devices.deny` and
   `devices.allow` multiple times.
 
     `-a`, `--append`
@@ -822,7 +822,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       *parameter*.
 
 `ct cgparams unset` *id* *parameter*
-  Unset CGroup parameter *parameter* from container *id*. Selected cgroup
+  Unset cgroup parameter *parameter* from container *id*. Selected cgroup
   parameters are reset, the rest is left alone and merely removed from `osctld`
   config.
 
@@ -833,7 +833,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   - `memory.memsw.limit_in_bytes`
 
 `ct cgparams apply` *id*
-  Apply all CGroup parameters defined for container *id*, its group and all
+  Apply all cgroup parameters defined for container *id*, its group and all
   its parent groups, all the way up to the root group.
 
 `ct devices ls` [*options*] *id*
@@ -1150,7 +1150,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Create all missing parent groups.
 
     `--cgparam` *parameter*=*value*
-      Set CGroup parameter, may be used more than once. See `group cgparams set`
+      Set cgroup parameter, may be used more than once. See `group cgparams set`
       for what the parameter is.
 
 `group del` *name*
@@ -1179,7 +1179,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   Show group info.
 
 `group cgparams ls` [*options*] *name* [*parameters...*]
-  List CGroup parameters for group *name*. If no *parameters* are provided,
+  List cgroup parameters for group *name*. If no *parameters* are provided,
   all configured parameters are listed.
 
     `-H`, `--hide-header`
@@ -1192,20 +1192,20 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Select parameters to output.
 
     `-S`, `--subsystem` *subsystem*
-      Filter by CGroup subsystem, comma separated.
+      Filter by cgroup subsystem, comma separated.
 
     `-a`, `--all`
       Include parameters from parent groups up to root group.
 
 `group cgparams set` *name* *parameter* *value...*
-  Set CGroup parameter *parameter* of group *name* to *value*. `osctld` will
+  Set cgroup parameter *parameter* of group *name* to *value*. `osctld` will
   make sure this parameter is always set when the container is started. The
-  parameter can be for example `cpu.shares` or `memory.limit_in_bytes`. CGroup
+  parameter can be for example `cpu.shares` or `memory.limit_in_bytes`. cgroup
   subsystem is derived from the parameter name, you do not need to supply it.
 
   It is possible to set multiple values for a parameter. The values are written
   to the parameter file one by one. This can be used for example for the
-  `devices` CGroup subsystem, where you may need to write to `devices.deny` and
+  `devices` cgroup subsystem, where you may need to write to `devices.deny` and
   `devices.allow` multiple times.
 
     `-a`, `--append`
@@ -1213,7 +1213,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       *parameter*.
 
 `group cgparams unset` *name* *parameter*
-  Unset CGroup parameter *parameter* from group *name*. Selected cgroup
+  Unset cgroup parameter *parameter* from group *name*. Selected cgroup
   parameters are reset, the rest is left alone and merely removed from `osctld`
   config.
 
@@ -1224,7 +1224,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   - `memory.memsw.limit_in_bytes`
 
 `group cgparams apply` *name*
-  Apply all CGroup parameters defined for group *name* and all its parent
+  Apply all cgroup parameters defined for group *name* and all its parent
   groups, all the way up to the root group.
 
 `group devices ls` [*options*] *id*
