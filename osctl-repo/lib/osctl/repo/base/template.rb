@@ -80,6 +80,12 @@ module OsCtl::Repo
         && version == other.version
     end
 
+    def <=>(other)
+      [vendor, variant, arch, distribution, version] \
+      <=> \
+      [other.vendor, other.variant, other.arch, other.distribution, other.version]
+    end
+
     def to_s
       "#{distribution}-#{version}-#{arch}-#{vendor}-#{variant}"
     end

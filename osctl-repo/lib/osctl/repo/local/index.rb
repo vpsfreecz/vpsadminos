@@ -70,7 +70,7 @@ module OsCtl::Repo
       regenerate_file(path, 0644) do |f|
         f.write({
           vendors: vendors,
-          templates: contents.map(&:dump)
+          templates: contents.sort.map(&:dump)
         }.to_json)
       end
     end
