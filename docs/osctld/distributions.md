@@ -10,6 +10,7 @@ Currently supported distributions within a container are:
  - CentOS
  - Debian
  - Fedora
+ - Gentoo
  - NixOS
  - Ubuntu
 

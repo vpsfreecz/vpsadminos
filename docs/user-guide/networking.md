@@ -78,6 +78,7 @@ the network at runtime. Supported distributions include:
  - CentOS
  - Debian
  - Fedora
+ - Gentoo
  - NixOS
  - Ubuntu
 
