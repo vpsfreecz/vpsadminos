@@ -68,7 +68,10 @@ module OsCtld
       when :bash
         [shell.executable, '--norc']
 
-      when :busybox, :sh
+      when :busybox
+        [shell.executable, 'sh']
+
+      when :sh
         [shell.executable]
       end
     end
