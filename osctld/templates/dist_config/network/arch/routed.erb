@@ -11,10 +11,10 @@ ForceConnect=yes
 <% if v == 4 -%>
 IP=static
 Address=( "<%= netif.via[v].ct_ip.to_string %>" <%= netif.ips(v).map { |addr| "\"#{addr.to_string}\"" }.join(' ') %> )
-Routes=( "default via <%= netif.via[v].host_ip.to_s %> src <%= netif.ips(v).first.to_s %>" )
+Routes=( <% if netif.ips(v).any? %>"default via <%= netif.via[v].host_ip.to_s %> src <%= netif.ips(v).first.to_s %>"<% end %> )
 <% elsif v == 6 -%>
 IP6=static
 Address6=( "<%= netif.via[v].ct_ip.to_string %>" <%= netif.ips(v).map { |addr| "\"#{addr.to_string}\"" }.join(' ') %> )
-Routes6=( "default via <%= netif.via[v].host_ip.to_s %> src <%= netif.ips(v).first.to_s %>" )
+Routes6=( <% if netif.ips(v).any? %>"default via <%= netif.via[v].host_ip.to_s %> src <%= netif.ips(v).first.to_s %>"<% end %> )
 <% end %>
 <% end -%>
