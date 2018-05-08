@@ -86,7 +86,8 @@ module OsCtl::Repo
         File.absolute_path(File.join(version_dir, *Array.new(i, '..')))
 
       end.each do |dir|
-        if Dir.empty?(dir)
+        # Use Dir.empty?(dir) when we don't care for Ruby < 2.4
+        if (Dir.entries(dir) - %w{ . .. }).empty?
           Dir.rmdir(dir)
 
         else
