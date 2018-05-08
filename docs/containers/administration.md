@@ -156,6 +156,32 @@ This is done by ignoring shell configuration from the container and configuring
 the shell from the host. If you wish to open the shell and load configuration
 from the container, you can use option `-u, --user-shell`.
 
+## Identifying container processes from the host
+When you find a misbehaving process on the host, you need to identify to which
+container the process belongs to, so that you may notify its owner or set
+a limit. You could do this manually by looking at `/proc/<pid>/cgroup` and
+identifying the container by the cgroup path. This is what `osctl ct pid` does.
+You give it process IDs as seen on the host and it will tell you what containers
+they belong to.
+
+```bash
+osctl ct pid 22690 23292
+PID        CONTAINER
+22690      tank:myct01
+23292      tank:myct01
+```
+
+*osctl* can also read process IDs from standard input:
+
+```bash
+osctl ct pid -
+PID        CONTAINER
+> 22690
+22690      tank:myct01
+> 23292
+23292      tank:myct01
+```
+
 ## Log file
 You don't need to remember the path to a container's log file, because *osctl*
 can either dump it for you or just print the path:
