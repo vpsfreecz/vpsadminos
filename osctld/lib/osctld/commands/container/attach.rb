@@ -22,7 +22,8 @@ module OsCtld
           '-v', 'USER=root',
           '-v', 'LOGNAME=root',
           '-v', 'HOME=/root',
-          '-v', "PATH=#{SwitchUser::ContainerControl::PATH.join(':')}"
+          '-v', "PATH=#{SwitchUser::ContainerControl::PATH.join(':')}",
+          '-v', 'HISTFILE=/root/.osctl_ct_attach_history',
         ]
 
         if opts[:user_shell]
