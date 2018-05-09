@@ -4,10 +4,10 @@ module OsCtl::Cli
  class Command
     include OsCtl::Utils::Humanize
 
-    def self.run(klass, method)
+    def self.run(klass, method, method_args = [])
       Proc.new do |global_opts, opts, args|
         cmd = klass.new(global_opts, opts, args)
-        cmd.method(method).call
+        cmd.method(method).call(*method_args)
       end
     end
 

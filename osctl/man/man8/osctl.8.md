@@ -189,6 +189,24 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   Cancel starting of containers that are configured to be started automatically
   and are left in the start queue.
 
+`pool set parallel-start` *name* *n*
+  Configure how many containers should be started simultaneously by auto-start
+  on pool import. Defaults to *2*.
+
+  The default value is suitable for HDD-based zpools. For SSD zpools, you might
+  want to increase the value together with `parallel-stop`, as the storage won't
+  be a bottleneck.
+
+`pool unset parallel-start` *name*
+  Reset `parallel-start` to the default value.
+
+`pool set parallel-stop` *name* *n*
+  Configure how many containers should be stopped simultaneously on pool export,
+  usually via `osctl shutdown`. Defaults to *4*.
+
+`pool unset parallel-stop` *name*
+  Reset `parallel-stop` to the default value.
+
 `user new` *options* *name*
   Create a new user with user namespace configuration.
 

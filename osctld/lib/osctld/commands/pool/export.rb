@@ -1,3 +1,5 @@
+require 'thread'
+
 module OsCtld
   class Commands::Pool::Export < Commands::Base
     handle :pool_export
@@ -25,17 +27,7 @@ module OsCtld
       # Stop all containers
       if opts[:stop_containers]
         progress('Stopping all containers')
-        cts = DB::Containers.get.select { |ct| ct.pool == pool }
-
-        cts.each_with_index do |ct, i|
-          progress("[#{i+1}/#{cts.count}] Stopping container #{ct.ident}")
-          call_cmd!(
-            Commands::Container::Stop,
-            pool: pool.name,
-            id: ct.id,
-            progress: false
-          )
-        end
+        stop_cts(pool)
       end
 
       # Unregister all entities
@@ -87,6 +79,51 @@ module OsCtld
       DB::Pools.remove(pool)
 
       ok
+    end
+
+    protected
+    def stop_cts(pool)
+      # Sort containers by reversed autostart priority -- containers with
+      # the lowest priority are stopped first
+      cts = DB::Containers.get.select { |ct| ct.pool == pool }
+      cts.sort! do |a, b|
+        if a.autostart && b.autostart
+          a.autostart <=> b.autostart
+
+        elsif a.autostart
+          -1
+
+        elsif b.autostart
+          1
+
+        else
+          0
+        end
+      end
+      cts.reverse!
+
+      total = cts.count
+      done = 0
+      mutex = Mutex.new
+
+      plan = ExecutionPlan.new
+      cts.each { |ct| plan << ct }
+
+      plan.run(pool.parallel_stop) do |ct|
+        mutex.synchronize do
+          done += 1
+          progress("[#{done}/#{total}] Stopping container #{ct.ident}")
+        end
+
+        call_cmd!(
+          Commands::Container::Stop,
+          pool: pool.name,
+          id: ct.id,
+          progress: false
+        )
+      end
+
+      plan.wait
     end
   end
 end

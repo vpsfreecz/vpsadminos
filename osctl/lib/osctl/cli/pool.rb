@@ -7,9 +7,18 @@ module OsCtl::Cli
       users
       groups
       containers
+      parallel_start
+      parallel_stop
     )
 
-    DEFAULT_FIELDS = FIELDS
+    DEFAULT_FIELDS = %i(
+      name
+      dataset
+      state
+      users
+      groups
+      containers
+    )
 
     AUTOSTART_FIELDS = %i(
       id
@@ -110,6 +119,18 @@ module OsCtl::Cli
     def autostart_cancel
       require_args!('name')
       osctld_fmt(:pool_autostart_cancel, name: args[0])
+    end
+
+    def set(key)
+      require_args!('name', 'n')
+
+      osctld_fmt(:pool_set, name: args[0], key => args[1])
+    end
+
+    def unset(key)
+      require_args!('name')
+
+      osctld_fmt(:pool_unset, name: args[0], options: [key])
     end
   end
 end

@@ -143,6 +143,36 @@ module OsCtl::Cli
             c.action &Command.run(Pool, :autostart_cancel)
           end
         end
+
+        p.desc 'Configure pool options'
+        p.command :set do |set|
+          set.desc 'How many containers should be simultaneously started at pool import'
+          set.arg_name '<name> <n>'
+          set.command 'parallel-start' do |c|
+            c.action &Command.run(Pool, :set, [:parallel_start])
+          end
+
+          set.desc 'How many containers should be simultaneously stopped at pool export'
+          set.arg_name '<name> <n>'
+          set.command 'parallel-stop' do |c|
+            c.action &Command.run(Pool, :set, [:parallel_stop])
+          end
+        end
+
+        p.desc 'Reset pool options'
+        p.command :unset do |unset|
+          unset.desc 'How many containers should be simultaneously started at pool import'
+          unset.arg_name '<name>'
+          unset.command 'parallel-start' do |c|
+            c.action &Command.run(Pool, :unset, [:parallel_start])
+          end
+
+          unset.desc 'How many containers should be simultaneously stopped at pool export'
+          unset.arg_name '<name>'
+          unset.command 'parallel-stop' do |c|
+            c.action &Command.run(Pool, :unset, [:parallel_stop])
+          end
+        end
       end
 
       desc 'Manage system users and user namespace configuration'

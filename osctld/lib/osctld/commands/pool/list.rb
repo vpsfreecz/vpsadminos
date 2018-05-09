@@ -15,6 +15,8 @@ module OsCtld
           users: DB::Users.get.count { |v| v.pool == pool },
           groups: DB::Groups.get.count { |v| v.pool == pool },
           containers: DB::Containers.get.count { |v| v.pool == pool },
+          parallel_start: pool.parallel_start,
+          parallel_stop: pool.parallel_stop,
         }
       end
 

@@ -83,6 +83,7 @@ require_relative 'osctld/mount/entry'
 require_relative 'osctld/mount/shared_dir'
 require_relative 'osctld/mount/manager'
 require_relative 'osctld/mount/sys'
+require_relative 'osctld/execution_plan'
 require_relative 'osctld/command'
 require_relative 'osctld/user_control/command'
 

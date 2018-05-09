@@ -13,10 +13,13 @@ module OsCtld
     LOG_DS = 'log'
     REPOSITORY_DS = 'repository'
 
+    OPTIONS = %i(parallel_start parallel_stop)
+
     include Lockable
     include Assets::Definition
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
+    include OsCtl::Lib::Utils::File
 
     attr_reader :name, :dataset, :state, :migration_key_chain, :autostart_plan
 
@@ -27,6 +30,7 @@ module OsCtld
       @migration_key_chain = Migration::KeyChain.new(self)
       @autostart_plan = AutoStart::Plan.new(self)
       init_lock
+      load_config
     end
 
     def id
@@ -84,6 +88,18 @@ module OsCtld
         )
 
         # Configs
+        add.directory(
+          File.join(conf_path, 'pool'),
+          desc: 'Pool configuration files for osctld',
+          user: 0,
+          group: 0,
+          mode: 0500
+        )
+        add.file(
+          config_path,
+          desc: 'Pool configuration file for osctld',
+          optional: true
+        )
         add.directory(
           File.join(conf_path, 'user'),
           desc: 'User configuration files for osctld',
@@ -209,6 +225,36 @@ module OsCtld
       History.open(self)
     end
 
+    # Set pool options
+    # @param opts [Hash]
+    # @option opts [Integer] :parallel_start
+    # @option opts [Integer] :parallel_stop
+    def set(opts)
+      opts.each do |k, v|
+        case k
+        when :parallel_start, :parallel_stop
+          instance_variable_set(:"@#{k}", opts[k])
+
+        else
+          fail "unsupported option '#{k}'"
+        end
+      end
+
+      save_config
+    end
+
+    # Reset pool options
+    # @param opts [Array<Symbol>] options to reset
+    def unset(opts)
+      %i(parallel_start parallel_stop).each do |k|
+        next unless opts.include?(k)
+
+        remove_instance_variable(:"@#{k}")
+      end
+
+      save_config
+    end
+
     def autostart
       @autostart_plan.generate
       @autostart_plan.start
@@ -274,7 +320,52 @@ module OsCtld
       File.join(run_dir, 'mounts')
     end
 
+    def config_path
+      File.join(conf_path, 'pool', 'config.yml')
+    end
+
+    # Pool option accessors
+    OPTIONS.each do |k|
+      define_method(k) do
+        v = instance_variable_get("@#{k}")
+        v.nil? ? default_opts[k] : v
+      end
+    end
+
     protected
+    def load_config
+      return unless File.exist?(config_path)
+
+      cfg = YAML.load_file(config_path)
+
+      @parallel_start = cfg['parallel_start']
+      @parallel_stop = cfg['parallel_stop']
+    end
+
+    def default_opts
+      {
+        parallel_start: 2,
+        parallel_stop: 4,
+      }
+    end
+
+    def dump_opts
+      ret = {}
+
+      OPTIONS.each do |k|
+        v = instance_variable_get("@#{k}")
+        ret[k.to_s] = v unless v.nil?
+      end
+
+      ret
+    end
+
+    def save_config
+      regenerate_file(config_path, 0400) do |f|
+        f.write(YAML.dump(dump_opts))
+      end
+    end
+
     def mkdatasets
       log(:info, "Ensuring presence of base datasets and directories")
       zfs(:create, '-p', ds(USER_DS))
@@ -294,7 +385,7 @@ module OsCtld
       File.chmod(0500, path(REPOSITORY_DS))
 
       # Configuration directories
-      %w(ct group user migration repository).each do |dir|
+      %w(pool ct group user migration repository).each do |dir|
         path = File.join(conf_path, dir)
         Dir.mkdir(path, 0500) unless Dir.exist?(path)
       end

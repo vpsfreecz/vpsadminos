@@ -14,8 +14,7 @@ module OsCtld
 
     # Sort by priority and container id
     def <=>(other)
-      cmp = priority <=> other.priority
-      cmp == 0 ? ct.id <=> other.ct.id : cmp
+      [priority, ct.id] <=> [other.priority, other.ct.id]
     end
 
     def dump
