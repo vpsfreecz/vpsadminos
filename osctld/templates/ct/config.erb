@@ -13,6 +13,7 @@ lxc.uts.name = <%= ct.hostname || ct.id %>
 lxc.idmap = u 0 <%= ct.uid_offset %> <%= ct.uid_size %>
 lxc.idmap = g 0 <%= ct.gid_offset %> <%= ct.gid_size %>
 
+lxc.seccomp.profile = <%= File.join(OsCtld::Lxc::CONFIGS, 'common.seccomp') %>
 lxc.autodev = 1
 
 lxc.hook.version = 1
