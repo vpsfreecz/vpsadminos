@@ -36,6 +36,7 @@ module OsCtld
           else
             # Device already exists
             File.chown(ct.uid_offset, ct.gid_offset, path)
+            chmod_device(dev.name, path)
             next
           end
 
@@ -47,9 +48,27 @@ module OsCtld
         FileUtils.mkdir_p(devdir) unless Dir.exist?(devdir)
         syscmd("mknod #{path} #{dev.type_s} #{dev.major} #{dev.minor}")
         File.chown(ct.uid_offset, ct.gid_offset, path)
+        chmod_device(dev.name, path)
       end
 
       ok(source: ct.devices_dir, devices: devices.map(&:name))
+    end
+
+    protected
+    # Set access mode of the device as is on the host
+    # @param dev_name [String] absolute device name
+    # @param ct_dev_path [String] path of the device in /run/osctl/pools/.../devices/...
+    def chmod_device(dev_name, ct_dev_path)
+      File.chmod(device_access_mode(dev_name), ct_dev_path)
+    end
+
+    # Return device access mode for the device on the host, if it exists
+    def device_access_mode(dev_name)
+      st = File.stat(File.join('/', dev_name))
+      st.mode & 07777
+
+    rescue Errno::ENOENT
+      0644
     end
   end
 end
