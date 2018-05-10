@@ -1,6 +1,6 @@
 DISTNAME=centos
-RELVER=7.4
-BUILD=1708
+RELVER=7.5
+BUILD=1804
 RELEASE=http://mirror.centos.org/centos/${RELVER}.${BUILD}/os/x86_64/Packages/centos-release-${RELVER//./-}.${BUILD}.el7.centos.x86_64.rpm
 BASEURL=http://mirror.centos.org/centos/${RELVER}.${BUILD}/os/x86_64
 UPDATES=http://mirror.centos.org/centos/${RELVER}.${BUILD}/updates/x86_64/
