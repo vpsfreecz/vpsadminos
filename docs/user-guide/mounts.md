@@ -76,7 +76,7 @@ root@myct01:/# cat /mnt/shared/file1
 yay
 ```
 
-## ZFS UID/GID offsets
+## ZFS UID/GID mapping
 Changing ownership of all files and directories to share can take a long time,
 depending on how many files you have. In fact, the same rules apply for the
 container's rootfs. To avoid chowning files altogether, we patched our ZFS
@@ -87,16 +87,21 @@ same user and container as above.
 zfs create tank/shared
 ```
 
-To enable UID/GID mapping, you can set `uidoffset` and `gidoffset` properties.
-Set both properties to the same value as the user's `offset`.
+To enable UID/GID mapping, you can set `uidmap` and `gidmap` properties.
+Set both properties to map user/group IDs based on the *osctl*'s user
+configuration:
 
 ```bash
 zfs unmount tank/shared
-zfs set uidoffset=888000 gidoffset=888000 tank/shared
+zfs set uidmap="0:888000:666000" gidmap="0:888000:65536" tank/shared
 zfs mount tank/shared
 ```
 
-Again, prepare some test files:
+The format for `uidmap` and `gidmap` properties is:
+`<uid within user namespace>:<uid as seen on the host>:<number of mapped ids>`.
+Multiple mappings can be separated by a comma.
+
+Now, prepare some test files:
 
 ```bash
 cd /tank/shared
@@ -132,8 +137,8 @@ root@myct01:/# cat /mnt/shared/file1
 yay
 ```
 
-The UID/GID offset can be changed without any cost, except that the dataset has
-to be remounted. ZFS does not store mapped UIDs/GIDs on disk, the offsetting
+The UID/GID mapping can be changed without any cost, except that the dataset has
+to be remounted. ZFS does not store mapped UIDs/GIDs on disk, the shifting
 happens at runtime, based on the properties. If you send/receive the dataset
-elsewhere, UIDs/GIDs will not be offset, unless you set `uidoffset`/`gidoffset`
+elsewhere, UIDs/GIDs will not be shifted, unless you set `uidmap`/`gidmap`
 properties on the target dataset as well.

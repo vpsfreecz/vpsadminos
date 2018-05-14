@@ -1045,8 +1045,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   to `--[no-]mount`.
   
   Created datasets are automatically shifted into the container's user namespace.
-  Of course, container datasets can be managed using `zfs` directly, but you'd
-  have to set `uidoffset` and `gidoffset` properties manually.
+  Of course, container datasets can be managed using `zfs` directly. Required
+  properties `uidmap` and `gidmap` are inherited by default.
 
   Datasets should be mounted using `ct mounts dataset`, mounts created with
   `ct mounts new` might not survive container export/import on different

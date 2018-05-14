@@ -57,8 +57,13 @@ module OsCtld
           end
 
           datasets.each do |ds|
-            progress("Shifting UID/GID offsets of #{ds.relative_name}")
-            zfs(:set, "uidoffset=#{ct.uid_offset} gidoffset=#{ct.gid_offset}", ds)
+            progress("Shifting UID/GID mapping of #{ds.relative_name}")
+            zfs(
+              :set,
+              "uidmap=\"0:#{ct.uid_offset}:#{ct.user.size}\" "+
+              "gidmap=\"0:#{ct.gid_offset}:#{ct.user.size}\"",
+              ds
+            )
 
             progress("Remounting dataset #{ds.relative_name}")
             zfs(:mount, nil, ds)

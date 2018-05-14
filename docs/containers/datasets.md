@@ -75,12 +75,12 @@ FS                                 DATASET    MOUNTPOINT   TYPE   OPTS
 Subdatasets are automatically shifted into the container's user namespace:
 
 ```shell
-zfs list -r -oname,uidoffset,gidoffset tank/ct/myct01
-NAME                     UIDOFFSET  GIDOFFSET
-tank/ct/myct01              666000     666000
-tank/ct/myct01/srv          666000     666000
-tank/ct/myct01/srv/data     666000     666000
-tank/ct/myct01/srv/www      666000     666000
+zfs list -r -oname,uidmap,gidmap tank/ct/myct01
+NAME                     UIDMAP          GIDMAP
+tank/ct/myct01           0:666000:65536  0:666000:65536
+tank/ct/myct01/srv       0:666000:65536  0:666000:65536
+tank/ct/myct01/srv/data  0:666000:65536  0:666000:65536
+tank/ct/myct01/srv/www   0:666000:65536  0:666000:65536
 ```
 
 All container's subdatasets are considered an integral part of the container,
@@ -112,15 +112,15 @@ FS                                 DATASET    MOUNTPOINT   TYPE   OPTS
 /tank/ct/myct01/srv/data/private   srv/data   /srv/data    bind   bind,rw,create=dir 
 /tank/ct/myct01/srv/www/private    srv/www    /var/www     bind   bind,rw,create=dir 
 
-# Because uidoffset/gidoffset properties are inherited, the subdataset is shifted
+# Because uidmap/gidmap properties are inherited, the subdataset is shifted
 # into the container's user namespace
-zfs list -r -oname,uidoffset,gidoffset tank/ct/myct01
-NAME                     UIDOFFSET  GIDOFFSET
-tank/ct/myct01              666000     666000
-tank/ct/myct01/custom       666000     666000
-tank/ct/myct01/srv          666000     666000
-tank/ct/myct01/srv/data     666000     666000
-tank/ct/myct01/srv/www      666000     666000
+zfs list -r -oname,uidmap,gidmap tank/ct/myct01
+NAME                     UIDMAP          GIDMAP
+tank/ct/myct01           0:666000:65536  0:666000:65536
+tank/ct/myct01/custom    0:666000:65536  0:666000:65536
+tank/ct/myct01/srv       0:666000:65536  0:666000:65536
+tank/ct/myct01/srv/data  0:666000:65536  0:666000:65536
+tank/ct/myct01/srv/www   0:666000:65536  0:666000:65536
 ```
 
 ## Mounting datasets

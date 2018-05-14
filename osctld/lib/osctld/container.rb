@@ -76,8 +76,8 @@ module OsCtld
         add.dataset(
           dataset,
           desc: "Container's rootfs dataset",
-          uidoffset: uid_offset,
-          gidoffset: gid_offset,
+          uidmap: [[0, uid_offset, user.size]],
+          gidmap: [[0, gid_offset, user.size]],
           user: uid_offset,
           group: gid_offset,
           mode: 0770

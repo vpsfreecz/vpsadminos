@@ -2,12 +2,12 @@ self: super:
 {
   zfs = super.zfsUnstable.overrideAttrs (oldAttrs: rec {
     name = "zfs-${version}";
-    version = "2018-04-13.vpsfree";
+    version = "2018-05-14.vpsfree";
     src = super.fetchFromGitHub {
       owner = "vpsfreecz";
       repo = "zfs";
-      rev = "8ee1788253e766f43c26b9790a357cf00e7a9ede";
-      sha256 = "16did4bzx5hk6qgylxxvx0idawi8s0kw8l71rqkr311k1qgvah94";
+      rev = "7978e2638a0e05567044a09c979d1cce4916c412";
+      sha256 = "1wp7nd2i9jnig6cmlxqllf7bnlrw9sknqbdfgvym42hllmm6p2k2";
     };
   });
 }

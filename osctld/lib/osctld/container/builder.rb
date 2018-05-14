@@ -76,8 +76,8 @@ module OsCtld
       zfs_opts = {}
       zfs_opts[:parents] = true if opts[:parents]
       zfs_opts[:properties] = {
-        uidoffset: ct.uid_offset,
-        gidoffset: ct.gid_offset,
+        uidmap: "0:#{ct.uid_offset}:#{ct.user.size}",
+        gidmap: "0:#{ct.gid_offset}:#{ct.user.size}",
       } if opts[:offset]
 
       ds.create!(zfs_opts)
@@ -204,8 +204,13 @@ module OsCtld
       progress('Unmounting dataset')
       zfs(:unmount, nil, ct.dataset)
 
-      progress('Configuring UID/GID offsets')
-      zfs(:set, "uidoffset=#{ct.uid_offset} gidoffset=#{ct.gid_offset}", ct.dataset)
+      progress('Configuring UID/GID mapping')
+      zfs(
+        :set,
+        "uidmap=\"0:#{ct.uid_offset}:#{ct.user.size}\" "+
+        "gidmap=\"0:#{ct.gid_offset}:#{ct.user.size}\"",
+        ct.dataset
+      )
 
       progress('Remounting dataset')
       zfs(:mount, nil, ct.dataset)

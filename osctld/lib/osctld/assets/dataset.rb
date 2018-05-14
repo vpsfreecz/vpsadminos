@@ -6,8 +6,8 @@ module OsCtld
     include OsCtl::Lib::Utils::System
 
     # @param opts [Hash] options
-    # @option opts [Integer, nil] uidoffset
-    # @option opts [Integer, nil] gidoffset
+    # @option opts [Array, nil] uidmap
+    # @option opts [Array, nil] gidmap
     # @option opts [Integer, nil] user
     # @option opts [Integer, nil] group
     # @option opts [Integer, nil] mode
@@ -18,7 +18,7 @@ module OsCtld
     def valid?
       ret = zfs(
         :get,
-        '-H -ovalue mountpoint,uidoffset,gidoffset',
+        '-H -ovalue mountpoint,uidmap,gidmap',
         path,
         valid_rcs: [1]
       )
@@ -28,7 +28,7 @@ module OsCtld
         return super
       end
 
-      @mountpoint, uidoffset, gidoffset = ret[:output].split("\n")
+      @mountpoint, uidmap, gidmap = ret[:output].split("\n")
 
       if opts[:user] && stat.uid != opts[:user]
         add_error('invalid owner')
@@ -42,12 +42,12 @@ module OsCtld
         add_error('invalid mode')
       end
 
-      if opts[:uidoffset] && opts[:uidoffset] != uidoffset.to_i
-        add_error('invalid uidoffset')
+      if opts[:uidmap] && make_ugid_map(opts[:uidmap]) != uidmap
+        add_error('invalid uidmap')
       end
 
-      if opts[:gidoffset] && opts[:gidoffset] != gidoffset.to_i
-        add_error('invalid gidoffset')
+      if opts[:gidmap] && make_ugid_map(opts[:gidmap]) != gidmap
+        add_error('invalid gidmap')
       end
 
       super
@@ -61,6 +61,12 @@ module OsCtld
     def mode
       # Extract permission bits, see man inode(7)
       stat.mode & 07777
+    end
+
+    def make_ugid_map(arr)
+      arr.map do |entry|
+        entry.join(':')
+      end.join(',')
     end
   end
 end
