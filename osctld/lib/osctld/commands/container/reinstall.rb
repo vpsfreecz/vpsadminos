@@ -30,7 +30,7 @@ module OsCtld
         apply_template(builder, opts[:template])
 
         # Remount all subdatasets (subdatasets are unmounted because the builder
-        # unmounted them to configure uid/gid offset again)
+        # unmounted them to configure uid/gid mapping again)
         ct.dataset.descendants.each { |ds| zfs(:mount, nil, ds) }
 
         ok

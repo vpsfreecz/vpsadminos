@@ -109,14 +109,14 @@ module OsCtld
           pool: pool.name,
           name: u.name,
           ugid: u.ugid,
-          offset: u.offset,
-          size: u.size
+          uid_map: u.uid_map.export,
+          gid_map: u.gid_map.export,
         )
 
         return DB::Users.find(name, pool) || (fail 'expected user')
       end
 
-      %i(ugid offset size).each do |param|
+      %i(ugid uid_map gid_map).each do |param|
         mine = db.send(param)
         other = u.send(param)
         next if mine == other
@@ -170,7 +170,7 @@ module OsCtld
     # @param builder [Container::Builder]
     def create_datasets(builder)
       each_dataset(builder) do |ds|
-        builder.create_dataset(ds, offset: true, parents: ds.root?)
+        builder.create_dataset(ds, mapping: true, parents: ds.root?)
       end
     end
 

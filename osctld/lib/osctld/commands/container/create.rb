@@ -116,7 +116,7 @@ module OsCtld
 
     protected
     def custom_dataset(builder)
-      builder.create_root_dataset(offset: false, parents: true)
+      builder.create_root_dataset(mapping: false, parents: true)
 
       if opts[:no_template]
         # the rootfs is already there
@@ -148,16 +148,16 @@ module OsCtld
     def from_local_template(builder)
       case opts[:template][:type].to_sym
       when :remote
-        builder.create_root_dataset(offset: false)
+        builder.create_root_dataset(mapping: false)
         from_remote_template(builder, opts[:template])
 
       when :archive
-        builder.create_root_dataset(offset: false)
+        builder.create_root_dataset(mapping: false)
         builder.setup_rootfs
         builder.from_local_archive(opts[:template][:path])
 
       when :stream
-        builder.create_root_dataset(offset: false)
+        builder.create_root_dataset(mapping: false)
         from_stream(builder)
 
       else

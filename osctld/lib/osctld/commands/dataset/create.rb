@@ -20,8 +20,8 @@ module OsCtld
 
             ds.create!(
               properties: {
-                uidmap: "0:#{ct.uid_offset}:#{ct.user.size}",
-                gidmap: "0:#{ct.gid_offset}:#{ct.user.size}",
+                uidmap: ct.uid_map.map(&:to_s).join(','),
+                gidmap: ct.gid_map.map(&:to_s).join(','),
               }
             )
 

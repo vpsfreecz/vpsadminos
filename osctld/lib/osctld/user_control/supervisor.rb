@@ -19,7 +19,7 @@ module OsCtld
     #
     # The handler finds appropriate osctld user and passes control to standard
     # client handler. Namespaced UID/GID of the client can be obtained from the
-    # socket, user with a matching uid offset is searched for.
+    # socket, user with a matching root uid mapping is searched for.
     class NamespacedClientHandler < Generic::ClientHandler
       def handle_cmd(req)
         return error('invalid input') unless req.is_a?(Hash)
@@ -33,9 +33,9 @@ module OsCtld
         cred = @sock.getsockopt(Socket::SOL_SOCKET, Socket::SO_PEERCRED)
         pid, uid, gid = cred.unpack('LLL')
 
-        # Locate the user in DB using its offset
+        # Locate the user in DB using its root uid (0) mapping
         user = DB::Users.get.detect do |u|
-          u.pool.name == req[:opts][:pool] && u.offset == uid
+          u.pool.name == req[:opts][:pool] && u.uid_map.ns_to_host(0) == uid
         end
 
         return error('invalid user') unless user

@@ -57,11 +57,11 @@ module OsCtld
           end
 
           datasets.each do |ds|
-            progress("Shifting UID/GID mapping of #{ds.relative_name}")
+            progress("Setting UID/GID mapping of #{ds.relative_name}")
             zfs(
               :set,
-              "uidmap=\"0:#{ct.uid_offset}:#{ct.user.size}\" "+
-              "gidmap=\"0:#{ct.gid_offset}:#{ct.user.size}\"",
+              "uidmap=\"#{ct.uid_map.map(&:to_s).join(',')}\" "+
+              "gidmap=\"#{ct.gid_map.map(&:to_s).join(',')}\"",
               ds
             )
 

@@ -1,23 +1,24 @@
 module VpsAdminOS::Converter
   class User
     def self.default
-      new('default', 1000, 666000, 65536)
+      map = ['0:666000:65536']
+      new('default', 1000, map, map)
     end
 
-    attr_accessor :name, :ugid, :offset, :size
+    attr_accessor :name, :ugid, :uid_map, :gid_map
 
-    def initialize(name, ugid, offset, size)
+    def initialize(name, ugid, uid_map, gid_map)
       @name = name
       @ugid = ugid
-      @offset = offset
-      @size = size
+      @uid_map = uid_map
+      @gid_map = gid_map
     end
 
     def dump_config
       {
         'ugid' => ugid,
-        'offset' => offset,
-        'size' => size,
+        'uid_map' => uid_map,
+        'gid_map' => gid_map,
       }
     end
   end

@@ -57,19 +57,20 @@ Let's create a container and see it in action:
 
 ```bash
 # Create a one user namespace and a container
-osctl user new --ugid 5000 --offset 666000 --size 65536 myuser01
+osctl user new --ugid 5000 --map 0:666000:65536 myuser01
 osctl ct new --user myuser01 --distribution ubuntu --version 16.04 myct01
 
 # Review pool layout
-NAME                UIDOFFSET  GIDOFFSET  MOUNTPOINT
-tank                        0          0  /tank
-tank/conf                   0          0  /tank/conf
-tank/ct                     0          0  /tank/ct
-tank/ct/myct01         666000     666000  /tank/ct/myct01      # Container rootfs
-tank/log                    0          0  /tank/log
-tank/repository             0          0  /tank/repository
-tank/user                   0          0  /tank/user
-tank/user/myuser01          0          0  /tank/user/myuser01  # User dataset/directory
+zfs list -oname,uidmap,gidmap,mountpoint
+NAME                UIDMAP          GIDMAP          MOUNTPOINT
+tank                none            none            /tank
+tank/conf           none            none            /tank/conf
+tank/ct             none            none            /tank/ct
+tank/ct/myct01      0:666000:65536  0:666000:65536  /tank/ct/myct01      # Container rootfs
+tank/log            none            none            /tank/log
+tank/repository     none            none            /tank/repository
+tank/user           none            none            /tank/user
+tank/user/myuser01  none            none            /tank/user/myuser01  # User dataset/directory
 ```
 
 Because every user, group and container is defined by multiple datasets, files

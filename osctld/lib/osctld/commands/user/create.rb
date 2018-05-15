@@ -19,29 +19,53 @@ module OsCtld
       elsif opts[:ugid] < 1
         error!('invalid ugid: must be greater than 0')
 
-      elsif opts[:offset] < 0
-        error!('invalid offset: must be greater or equal to 0')
+      elsif !opts[:uid_map] || opts[:uid_map].empty?
+        error!('missing UID map')
+
+      elsif !opts[:gid_map] || opts[:gid_map].empty?
+        error!('missing GID map')
       end
 
+      users = DB::Users.get
+
       # Check for duplicities
-      DB::Users.get.each do |u|
+      users.each do |u|
         if u.ugid == opts[:ugid]
           error!(
             "ugid #{opts[:ugid]} already taken by user "+
             "#{u.pool.name}:#{u.name}"
           )
+        end
+      end
 
-        elsif u.offset == opts[:offset]
-          error!(
-            "offset #{opts[:offset]} already taken by user "+
-            "#{u.pool.name}:#{u.name}"
-          )
+      # Check UID/GID maps
+      uid_map = IdMap.load(opts[:uid_map])
+      gid_map = IdMap.load(opts[:gid_map])
+
+      if !uid_map.valid?
+        error!('UID map is not valid')
+
+      elsif !gid_map.valid?
+        error!('GID map is not valid')
+      end
+
+      # Check that root mapping is unique, this is necessary for
+      # {UserControl::Supervisor::NamespacedClientHandler} to work.
+      {uid_map: uid_map, gid_map: gid_map}.each do |type, map|
+        root_id = map.ns_to_host(0)
+
+        users.each do |u|
+          if u.send(type).ns_to_host(0) == root_id
+            error!(
+              "#{type}: root mapping to #{root_id} is already taken by user "+
+              "#{u.pool.name}:#{u.name}"
+            )
+          end
         end
       end
 
       u = User.new(pool, opts[:name], load: false)
       error!('user already exists') if DB::Users.contains?(u.name, pool)
-
       u
     end
 
@@ -56,7 +80,7 @@ module OsCtld
         File.chown(opts[:ugid], opts[:ugid], u.homedir)
         File.chmod(0751, u.homedir)
 
-        u.configure(opts[:ugid], opts[:offset], opts[:size])
+        u.configure(opts[:ugid], opts[:uid_map], opts[:gid_map])
         u.register
 
         DB::Users.sync do

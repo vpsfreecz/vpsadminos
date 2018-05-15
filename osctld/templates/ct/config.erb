@@ -10,8 +10,13 @@ lxc.include = /etc/lxc/config/nesting.conf
 lxc.rootfs.path = <%= ct.rootfs %>
 lxc.arch = <%= ct.arch %>
 lxc.uts.name = <%= ct.hostname || ct.id %>
-lxc.idmap = u 0 <%= ct.uid_offset %> <%= ct.uid_size %>
-lxc.idmap = g 0 <%= ct.gid_offset %> <%= ct.gid_size %>
+
+<% ct.user.uid_map.each do |entry| -%>
+lxc.idmap = u <%= entry.ns_id %> <%= entry.host_id %> <%= entry.count %>
+<% end -%>
+<% ct.user.gid_map.each do |entry| -%>
+lxc.idmap = g <%= entry.ns_id %> <%= entry.host_id %> <%= entry.count %>
+<% end -%>
 
 lxc.seccomp.profile = <%= File.join(OsCtld::Lxc::CONFIGS, 'common.seccomp') %>
 lxc.autodev = 1

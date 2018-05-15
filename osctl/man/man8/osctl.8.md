@@ -208,20 +208,35 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   Reset `parallel-stop` to the default value.
 
 `user new` *options* *name*
-  Create a new user with user namespace configuration.
+  Create a new user with user namespace configuration. Option `--ugid` is
+  required. UID/GID mapping has to be configured either via option `--map`
+  if you have the same mapping for user and group IDs, or via options `--map-uid`
+  and `--map-gid` for different user/group mappings. There must be at least one
+  mapping for user IDs and one for group IDs.
 
     `--pool` *name*
       Pool name.
     
     `--ugid` *ugid*
-      User/group ID, required.
+      User/group ID, used for system user/group. Required.
 
-    `--offset` *offset*
-      Offset of user/group IDs from zero used for UID/GID mapping, required.
+    `--map` *id*:*lowerid*:*count*
+      Provide UID/GID mapping for user namespace. *id* is the beginning of
+      the range inside the user namespace, *lowerid* is the range beginning
+      on the host and *count* is the number of mapped IDs both inside and
+      outside the user namespace. This option can be used mutiple times.
 
-    `--size` *size*
-      Number of user/group IDs available within the user namespace, required.
-      Should be 65536 or more.
+    `--map-uid` *uid*:*loweruid*:*count*
+      Provide UID mapping for user namespace. *uid* is the beginning of
+      the range inside the user namespace, *loweruid* is the range beginning
+      on the host and *count* is the number of mapped UIDs both inside and
+      outside the user namespace. This option can be used mutiple times.
+
+    `--map-gid` *gid*:*lowergid*:*count*
+      Provide GID mapping for user namespace. *gid* is the beginning of
+      the range inside the user namespace, *lowergid* is the range beginning
+      on the host and *count* is the number of mapped GIDs both inside and
+      outside the user namespace. This option can be used mutiple times.
 
 `user del` *name*
   Delete user *name*.
@@ -272,6 +287,18 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 
     `-v`, `--verbose`
       Show detected errors.
+
+`user map` *name* [`uid` | `gid` | `both`]
+  List configured UID/GID mappings.
+
+    `-H`, `--hide-header`
+      Do not show header, useful for scripts.
+
+    `-L`, `--list`
+      List available parameters and exit.
+    
+    `-o`, `--output` *parameters*
+      Select parameters to output, comma separated.
 
 `ct new` [*options*] *id*
   Create a new container. Selected user and group have to be from the same pool

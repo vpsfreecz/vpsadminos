@@ -13,7 +13,7 @@ module OsCtld
       # Ensure the devices dir exist
       unless Dir.exist?(ct.devices_dir)
         Dir.mkdir(ct.devices_dir, 0550)
-        File.chown(ct.uid_offset, ct.gid_offset, ct.devices_dir)
+        File.chown(ct.root_host_uid, ct.root_host_gid, ct.devices_dir)
       end
 
       # Filter out devices that have to be created
@@ -35,7 +35,7 @@ module OsCtld
 
           else
             # Device already exists
-            File.chown(ct.uid_offset, ct.gid_offset, path)
+            File.chown(ct.root_host_uid, ct.root_host_gid, path)
             chmod_device(dev.name, path)
             next
           end
@@ -47,7 +47,7 @@ module OsCtld
         devdir = File.dirname(path)
         FileUtils.mkdir_p(devdir) unless Dir.exist?(devdir)
         syscmd("mknod #{path} #{dev.type_s} #{dev.major} #{dev.minor}")
-        File.chown(ct.uid_offset, ct.gid_offset, path)
+        File.chown(ct.root_host_uid, ct.root_host_gid, path)
         chmod_device(dev.name, path)
       end
 

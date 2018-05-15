@@ -76,10 +76,10 @@ module OsCtld
         add.dataset(
           dataset,
           desc: "Container's rootfs dataset",
-          uidmap: [[0, uid_offset, user.size]],
-          gidmap: [[0, gid_offset, user.size]],
-          user: uid_offset,
-          group: gid_offset,
+          uidmap: uid_map.map(&:to_a),
+          gidmap: gid_map.map(&:to_a),
+          user: root_host_uid,
+          group: root_host_gid,
           mode: 0770
         )
 
@@ -87,8 +87,8 @@ module OsCtld
         add.directory(
           rootfs,
           desc: "Container's rootfs",
-          user: uid_offset,
-          group: gid_offset,
+          user: root_host_uid,
+          group: root_host_gid,
           mode: 0755
         )
 
@@ -269,20 +269,20 @@ module OsCtld
       File.join(pool.user_hook_script_dir, 'ct', id)
     end
 
-    def uid_offset
-      @user.offset
+    def uid_map
+      user.uid_map
     end
 
-    def gid_offset
-      @user.offset
+    def gid_map
+      user.gid_map
     end
 
-    def uid_size
-      @user.size
+    def root_host_uid
+      @user.uid_map.ns_to_host(0)
     end
 
-    def gid_size
-      @user.size
+    def root_host_gid
+      @user.gid_map.ns_to_host(0)
     end
 
     # Return a list of all container datasets

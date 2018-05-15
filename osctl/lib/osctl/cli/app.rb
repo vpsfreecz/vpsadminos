@@ -219,14 +219,17 @@ module OsCtl::Cli
           new.desc 'Pool name'
           new.flag :pool
 
-          new.desc 'User/group ID'
+          new.desc 'User/group ID, used for system user/group'
           new.flag :ugid, type: Integer, required: true
 
-          new.desc 'Offset of user/group IDs from zero'
-          new.flag :offset, type: Integer, required: true
+          new.desc 'UID/GID mapping'
+          new.flag 'map', multiple: true
 
-          new.desc 'Number of user/group IDs available'
-          new.flag :size, type: Integer, required: true
+          new.desc 'UID mapping'
+          new.flag 'map-uid', multiple: true
+
+          new.desc 'GID mapping'
+          new.flag 'map-gid', multiple: true
 
           new.action &Command.run(User, :create)
         end
@@ -257,6 +260,21 @@ module OsCtl::Cli
         u.desc "List user's assets (datasets, files, directories)"
         u.arg_name '<name>'
         assets(u, User)
+
+        u.desc "List UID/GID mappings"
+        u.arg_name '<name> [uid|gid|both]'
+        u.command :map do |c|
+          c.desc 'Select parameters to output'
+          c.flag %i(o output)
+
+          c.desc 'Do not show header'
+          c.switch %i(H hide-header), negatable: false
+
+          c.desc 'List available parameters'
+          c.switch %i(L list), negatable: false
+
+          c.action &Command.run(User, :idmap_ls)
+        end
       end
 
       desc 'Manage groups used for cgroup-based resource limiting'

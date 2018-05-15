@@ -55,4 +55,12 @@ module OsCtld
       super("hook #{hook.class.hook_name} at #{hook.hook_path} exited with #{exitstatus}")
     end
   end
+
+  class IdMappingError < StandardError
+    # @param idmap [IdMap]
+    # @param id [Integer]
+    def initialize(idmap, id)
+      super("unable to map id #{id} using #{idmap.to_s}")
+    end
+  end
 end

@@ -16,8 +16,6 @@ module OsCtld
           username: u.sysusername,
           groupname: u.sysgroupname,
           ugid: u.ugid,
-          ugid_offset: u.offset,
-          ugid_size: u.size,
           dataset: u.dataset,
           homedir: u.homedir,
           registered: u.registered?,

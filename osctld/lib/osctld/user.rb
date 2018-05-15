@@ -8,7 +8,7 @@ module OsCtld
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
 
-    attr_reader :pool, :name, :ugid, :offset, :size
+    attr_reader :pool, :name, :ugid, :uid_map, :gid_map
 
     def initialize(pool, name, load: true, config: nil)
       init_lock
@@ -27,16 +27,16 @@ module OsCtld
       File.unlink(config_path)
     end
 
-    def configure(ugid, offset, size)
+    def configure(ugid, uid_map, gid_map)
       @ugid = ugid
-      @offset = offset
-      @size = size
+      @uid_map = IdMap.new(uid_map)
+      @gid_map = IdMap.new(gid_map)
 
       File.open(config_path, 'w', 0400) do |f|
         f.write(YAML.dump({
           'ugid' => ugid,
-          'offset' => offset,
-          'size' => size,
+          'uid_map' => @uid_map.dump,
+          'gid_map' => @gid_map.dump,
         }))
       end
 
@@ -160,8 +160,8 @@ module OsCtld
       end
 
       @ugid = cfg['ugid']
-      @offset = cfg['offset']
-      @size = cfg['size']
+      @uid_map = IdMap.load(cfg['uid_map'], cfg)
+      @gid_map = IdMap.load(cfg['gid_map'], cfg)
     end
   end
 end

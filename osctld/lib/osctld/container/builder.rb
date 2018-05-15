@@ -70,21 +70,21 @@ module OsCtld
 
     # @param ds [OsCtl::Lib::Zfs::Dataset]
     # @param opts [Hash] options
-    # @option opts [Boolean] :offset
+    # @option opts [Boolean] :mapping
     # @option opts [Boolean] :parents
     def create_dataset(ds, opts = {})
       zfs_opts = {}
       zfs_opts[:parents] = true if opts[:parents]
       zfs_opts[:properties] = {
-        uidmap: "0:#{ct.uid_offset}:#{ct.user.size}",
-        gidmap: "0:#{ct.gid_offset}:#{ct.user.size}",
-      } if opts[:offset]
+        uidmap: ct.uid_map.map(&:to_s).join(','),
+        gidmap: ct.gid_map.map(&:to_s).join(','),
+      } if opts[:mapping]
 
       ds.create!(zfs_opts)
     end
 
     def setup_ct_dir
-      # Chown to 0:0, zfs will shift it to the offset
+      # Chown to 0:0, zfs will shift it using the mapping
       File.chown(0, 0, ct.dir)
       File.chmod(0770, ct.dir)
     end
@@ -207,8 +207,8 @@ module OsCtld
       progress('Configuring UID/GID mapping')
       zfs(
         :set,
-        "uidmap=\"0:#{ct.uid_offset}:#{ct.user.size}\" "+
-        "gidmap=\"0:#{ct.gid_offset}:#{ct.user.size}\"",
+        "uidmap=\"#{ct.uid_map.map(&:to_s).join(',')}\" "+
+        "gidmap=\"#{ct.gid_map.map(&:to_s).join(',')}\"",
         ct.dataset
       )
 

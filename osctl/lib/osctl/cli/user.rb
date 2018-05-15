@@ -8,8 +8,6 @@ module OsCtl::Cli
       username
       groupname
       ugid
-      ugid_offset
-      ugid_size
       dataset
       homedir
       registered
@@ -22,6 +20,8 @@ module OsCtl::Cli
       name
       registered
     )
+
+    IDMAP_FIELDS = %i(type ns_id host_id count)
 
     def list
       if opts[:list]
@@ -76,12 +76,32 @@ module OsCtl::Cli
     def create
       require_args!('name')
 
+      if opts['map'].any? && (opts['map-uid'].any? || opts['map-gid'].any?)
+        raise GLI::BadCommandLine, 'use either --map, or --map-uid and --map-gid'
+
+      elsif (opts['map'] + opts['map-uid']).empty?
+        raise GLI::BadCommandLine, 'provide at least one UID mapping with --map '+
+          'or --map-uid'
+
+      elsif (opts['map'] + opts['map-gid']).empty?
+        raise GLI::BadCommandLine, 'provide at least one GID mapping with --map '+
+          'or --map-gid'
+      end
+
+      if opts['map'].any?
+        uid_map = gid_map = opts['map']
+
+      else
+        uid_map = opts['map-uid']
+        gid_map = opts['map-gid']
+      end
+
       osctld_fmt(:user_create, {
         name: args[0],
         pool: opts[:pool] || gopts[:pool],
         ugid: opts[:ugid],
-        offset: opts[:offset],
-        size: opts[:size],
+        uid_map: uid_map,
+        gid_map: gid_map,
       })
     end
 
@@ -117,6 +137,38 @@ module OsCtl::Cli
     def assets
       require_args!('name')
       print_assets(:user_assets, name: args[0], pool: gopts[:pool])
+    end
+
+    def idmap_ls
+      if opts[:list]
+        puts FIELDS.join("\n")
+        return
+      end
+
+      require_args!('name')
+
+      cmd_opts = {name: args[0], uid: true, gid: true}
+      fmt_opts = {layout: :columns}
+
+      case args[1]
+      when 'uid'
+        cmd_opts[:gid] = false
+      when 'gid'
+        cmd_opts[:uid] = false
+      when nil, 'both'
+        # pass
+      else
+        raise GLI::BadCommandLine, "expected uid|gid|both, got '#{args[1]}'"
+      end
+
+      fmt_opts[:header] = false if opts['hide-header']
+
+      osctld_fmt(
+        :user_idmap_list,
+        cmd_opts,
+        opts[:output] ? opts[:output].split(',').map(&:to_sym) : IDMAP_FIELDS,
+        fmt_opts
+      )
     end
   end
 end
