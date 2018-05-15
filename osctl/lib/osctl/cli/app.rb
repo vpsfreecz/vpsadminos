@@ -1211,6 +1211,9 @@ module OsCtl::Cli
 
       desc 'Export all pools and stop all containers'
       command :shutdown do |c|
+        c.desc 'Do not ask for confirmation, shutdown immediately'
+        c.switch %i(f force), negatable: false
+
         c.action &Command.run(Self, :shutdown)
       end
     end

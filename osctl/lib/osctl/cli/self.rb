@@ -36,6 +36,18 @@ module OsCtl::Cli
     end
 
     def shutdown
+      unless opts[:force]
+        STDOUT.write(
+          'Do you really wish to stop all containers and export all pools? '+
+          '[y/N]: '
+        )
+
+        if !%w(y yes).include?(STDIN.readline.strip.downcase)
+          puts 'Aborting'
+          return
+        end
+      end
+
       osctld_fmt(:self_shutdown)
     end
   end
