@@ -212,7 +212,7 @@ module OsCtl::Cli
     def delete
       require_args!('id')
 
-      osctld_fmt(:ct_delete, id: args[0], pool: gopts[:pool])
+      osctld_fmt(:ct_delete, id: args[0], pool: gopts[:pool], force: opts[:force])
     end
 
     def reinstall

@@ -14,6 +14,12 @@ module OsCtld
     end
 
     def execute(ct)
+      if !opts[:force]
+        ct.exclusively do
+          error!('the container is running') if ct.running?
+        end
+      end
+
       # Remove monitor _before_ acquiring exclusive lock, because monitor
       # uses inclusive lock, which would result in a deadlock
       Monitor::Master.demonitor(ct)

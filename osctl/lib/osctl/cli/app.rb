@@ -435,6 +435,9 @@ module OsCtl::Cli
         ct.desc 'Delete container'
         ct.arg_name '<id>'
         ct.command %i(del delete) do |c|
+          c.desc 'Stop and delete running container'
+          c.switch %i(f force), negatable: false
+
           c.action &Command.run(Container, :delete)
         end
 

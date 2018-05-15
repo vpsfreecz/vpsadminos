@@ -375,6 +375,10 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 `ct del` *id*
   Stop and delete container *id*.
 
+    `-f`, `--force`
+      Delete the container even if it is running. By default, running containers
+      cannot be deleted.
+
 `ct reinstall` [*options*] *id*
   Reinstall container from template. The container's rootfs is deleted
   and an OS template is applied again. The container's configuration
