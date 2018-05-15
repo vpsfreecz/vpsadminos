@@ -1,12 +1,13 @@
-require_relative '../vpsadminos-converter'
+require 'vpsadminos-converter'
 
 module VpsAdminOS::Converter
   module Cli
+    module Vz6 ; end
+
     def self.run
       App.run
     end
   end
 end
 
-require_relative 'cli/command'
-require_relative 'cli/app'
+require_rel 'cli'

@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   # Command template for commands that are to be logged to pool's history
   #

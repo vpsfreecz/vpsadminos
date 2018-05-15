@@ -1,5 +1,4 @@
-require_relative '../repo'
-require 'gli'
+require 'osctl/repo'
 
 module OsCtl::Repo
   module Cli
@@ -9,6 +8,4 @@ module OsCtl::Repo
   end
 end
 
-require_relative 'cli/command'
-require_relative 'cli/repo'
-require_relative 'cli/app'
+require_rel 'cli'

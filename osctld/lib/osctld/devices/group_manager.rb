@@ -1,3 +1,6 @@
+require 'libosctl'
+require 'osctld/devices/manager'
+
 module OsCtld
   class Devices::GroupManager < Devices::Manager
     include OsCtl::Lib::Utils::Log

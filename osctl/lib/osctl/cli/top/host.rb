@@ -1,3 +1,5 @@
+require 'osctl/cli/top/container'
+
 module OsCtl::Cli
   class Top::Host < Top::Container
     Cpu = Struct.new(

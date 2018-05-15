@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Pool::Import < Commands::Base
     handle :pool_import

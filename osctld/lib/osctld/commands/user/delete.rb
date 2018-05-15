@@ -1,3 +1,5 @@
+require 'osctld/commands/logged'
+
 module OsCtld
   class Commands::User::Delete < Commands::Logged
     handle :user_delete

@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Event::Subscribe < Commands::Base
     handle :event_subscribe

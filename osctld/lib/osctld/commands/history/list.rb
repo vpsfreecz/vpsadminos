@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::History::List < Commands::Base
     handle :history_list

@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Container::MigrateCleanup < Commands::Base
     handle :ct_migrate_cleanup

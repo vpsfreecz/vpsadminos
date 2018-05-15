@@ -1,3 +1,6 @@
+require 'libosctl'
+require 'osctld/user_control/commands/base'
+
 module OsCtld
   class UserControl::Commands::VethUp < UserControl::Commands::Base
     handle :veth_up

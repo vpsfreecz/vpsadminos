@@ -1,3 +1,5 @@
+require 'vpsadminos-converter/vz6/migrator/base'
+
 module VpsAdminOS::Converter
   class Vz6::Migrator::Zfs < Vz6::Migrator::Base
     def sync(&block)

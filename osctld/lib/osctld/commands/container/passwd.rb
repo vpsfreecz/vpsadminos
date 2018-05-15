@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Container::Passwd < Commands::Base
     handle :ct_passwd

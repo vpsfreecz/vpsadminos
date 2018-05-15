@@ -1,4 +1,5 @@
 require 'etc'
+require 'osctld/run_state'
 
 module OsCtld
   module Migration

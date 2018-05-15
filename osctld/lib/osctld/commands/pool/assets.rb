@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Pool::Assets < Commands::Base
     handle :pool_assets

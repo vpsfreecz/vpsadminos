@@ -1,4 +1,6 @@
 require 'ipaddress'
+require 'libosctl'
+require 'vpsadminos-converter/cli/vz6/base'
 
 module VpsAdminOS::Converter
   class Cli::Vz6::Export < Cli::Vz6::Base

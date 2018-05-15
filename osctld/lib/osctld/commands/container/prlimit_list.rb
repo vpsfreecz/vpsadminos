@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Container::PrLimitList < Commands::Base
     handle :ct_prlimit_list

@@ -1,4 +1,5 @@
 require 'json'
+require 'osctl/cli/command'
 
 module OsCtl::Cli
   class History < Command

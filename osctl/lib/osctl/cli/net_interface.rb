@@ -1,4 +1,5 @@
 require 'ipaddress'
+require 'osctl/cli/command'
 
 module OsCtl::Cli
   class NetInterface < Command

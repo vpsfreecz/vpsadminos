@@ -1,3 +1,5 @@
+require 'osctld/commands/logged'
+
 module OsCtld
   class Commands::Container::Restart < Commands::Logged
     handle :ct_restart

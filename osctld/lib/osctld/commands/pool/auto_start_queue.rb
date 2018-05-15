@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Pool::AutoStartQueue < Commands::Base
     handle :pool_autostart_queue

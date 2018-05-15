@@ -1,3 +1,5 @@
+require 'osctld/commands/logged'
+
 module OsCtld
   class Commands::Container::PrLimitUnset < Commands::Logged
     handle :ct_prlimit_unset

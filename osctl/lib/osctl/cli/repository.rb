@@ -1,3 +1,5 @@
+require 'osctl/cli/command'
+
 module OsCtl::Cli
   class Repository < Command
     include Assets

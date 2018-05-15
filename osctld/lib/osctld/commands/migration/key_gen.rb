@@ -1,3 +1,5 @@
+require 'osctld/commands/logged'
+
 module OsCtld
   class Commands::Migration::KeyGen < Commands::Logged
     handle :migration_key_gen

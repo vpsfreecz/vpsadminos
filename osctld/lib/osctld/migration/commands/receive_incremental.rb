@@ -1,3 +1,5 @@
+require 'osctld/migration/commands/base'
+
 module OsCtld
   class Migration::Commands::ReceiveIncremental < Migration::Commands::Base
     handle :receive_incremental

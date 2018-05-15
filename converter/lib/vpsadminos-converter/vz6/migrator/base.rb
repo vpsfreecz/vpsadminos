@@ -1,4 +1,6 @@
+require 'libosctl'
 require 'tempfile'
+require 'vpsadminos-converter/vz6/migrator'
 
 module VpsAdminOS::Converter
   class Vz6::Migrator::Base

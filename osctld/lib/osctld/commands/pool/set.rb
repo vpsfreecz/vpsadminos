@@ -1,3 +1,5 @@
+require 'osctld/commands/logged'
+
 module OsCtld
   class Commands::Pool::Set < Commands::Logged
     handle :pool_set

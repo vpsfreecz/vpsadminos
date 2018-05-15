@@ -1,3 +1,5 @@
+require 'osctld/commands/logged'
+
 module OsCtld
   class Commands::Container::Reinstall < Commands::Logged
     handle :ct_reinstall

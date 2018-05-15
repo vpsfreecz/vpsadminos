@@ -1,4 +1,5 @@
 require 'json'
+require 'libosctl'
 
 module OsCtl::Repo
   class Local::Index

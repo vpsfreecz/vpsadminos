@@ -1,3 +1,5 @@
+require 'libosctl'
+
 module VpsAdminOS::Converter
   module Exporter
     module Mixin

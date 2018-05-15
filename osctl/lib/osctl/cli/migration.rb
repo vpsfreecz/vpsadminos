@@ -1,3 +1,5 @@
+require 'osctl/cli/command'
+
 module OsCtl::Cli
   class Migration < Command
     def key_gen

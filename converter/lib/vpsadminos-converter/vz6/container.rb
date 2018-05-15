@@ -1,3 +1,5 @@
+require 'libosctl'
+
 module VpsAdminOS::Converter
   # Instances represent OpenVZ Legacy containers
   class Vz6::Container

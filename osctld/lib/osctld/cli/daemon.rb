@@ -1,3 +1,5 @@
+require 'libosctl'
+
 module OsCtld
   class Cli::Daemon
     def self.run(opts)

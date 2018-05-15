@@ -1,3 +1,5 @@
+require 'libosctl'
+
 module OsCtld
   module Container::Hook
     extend OsCtl::Lib::Utils::Log

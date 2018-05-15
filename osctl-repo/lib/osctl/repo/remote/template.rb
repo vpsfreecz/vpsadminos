@@ -1,4 +1,5 @@
 require 'filelock'
+require 'osctl/repo/base/template'
 
 module OsCtl::Repo
   class Remote::Template < Base::Template

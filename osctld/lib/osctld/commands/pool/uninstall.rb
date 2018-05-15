@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Pool::Uninstall < Commands::Base
     handle :pool_uninstall

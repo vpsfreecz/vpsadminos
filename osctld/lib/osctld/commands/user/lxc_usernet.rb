@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::User::LxcUsernet < Commands::Base
     handle :user_lxc_usernet

@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Group::DeviceList < Commands::Base
     handle :group_device_list

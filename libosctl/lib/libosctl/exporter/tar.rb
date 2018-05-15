@@ -1,3 +1,5 @@
+require 'libosctl/exporter/base'
+
 module OsCtl::Lib
   # Handles dumping containers into tar archives
   #

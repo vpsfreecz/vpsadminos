@@ -1,3 +1,5 @@
+require 'osctld/db/pooled_list'
+
 module OsCtld
   class DB::Groups < DB::PooledList
     class << self

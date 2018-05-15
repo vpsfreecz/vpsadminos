@@ -1,3 +1,5 @@
+require 'osctld/container/hooks/base'
+
 module OsCtld
   class Container::Hooks::PostMount < Container::Hooks::Base
     hook :post_mount

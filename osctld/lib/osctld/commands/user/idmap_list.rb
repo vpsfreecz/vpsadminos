@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::User::IdMapList < Commands::Base
     handle :user_idmap_list

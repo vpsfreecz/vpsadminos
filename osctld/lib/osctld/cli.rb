@@ -1,9 +1,8 @@
-require_relative '../osctld'
+require 'osctld'
+require 'require_all'
 
 module OsCtld
   module Cli ; end
 end
 
-require_relative 'cli/daemon'
-require_relative 'cli/supervisor'
-require_relative 'cli/exec'
+require_rel 'cli'

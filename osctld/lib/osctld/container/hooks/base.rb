@@ -1,3 +1,5 @@
+require 'libosctl'
+
 module OsCtld
   class Container::Hooks::Base
     class << self

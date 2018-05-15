@@ -1,3 +1,5 @@
+require 'libosctl'
+
 module OsCtld
   SystemCommandFailed = OsCtl::Lib::Exceptions::SystemCommandFailed
 

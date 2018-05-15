@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Container::MigrateSync < Commands::Base
     handle :ct_migrate_sync

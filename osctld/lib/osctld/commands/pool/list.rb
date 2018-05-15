@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Pool::List < Commands::Base
     handle :pool_list

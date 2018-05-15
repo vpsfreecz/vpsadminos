@@ -1,4 +1,5 @@
 require 'net/http'
+require 'osctl/repo/downloader/base'
 
 module OsCtl::Repo
   # Download template in a specified format, no caching involved

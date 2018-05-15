@@ -1,3 +1,5 @@
+require 'vpsadminos-converter/vz6/migrator'
+
 module VpsAdminOS::Converter
   # Store/load migration state to/from disk
   class Vz6::Migrator::State

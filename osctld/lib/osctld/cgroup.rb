@@ -1,3 +1,5 @@
+require 'libosctl'
+
 module OsCtld
   module CGroup
     include OsCtl::Lib::Utils::Log

@@ -1,3 +1,6 @@
+require 'libosctl'
+require 'osctld/user_control/commands/base'
+
 module OsCtld
   class UserControl::Commands::CtPreMount < UserControl::Commands::Base
     handle :ct_pre_mount

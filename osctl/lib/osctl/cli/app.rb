@@ -1,22 +1,5 @@
 require 'gli'
 require 'thread'
-require_relative 'cgroup_params'
-require_relative 'devices'
-require_relative 'assets'
-require_relative 'container'
-require_relative 'event'
-require_relative 'group'
-require_relative 'history'
-require_relative 'migrate'
-require_relative 'migration'
-require_relative 'net_interface'
-require_relative 'pid_finder'
-require_relative 'pool'
-require_relative 'repository'
-require_relative 'self'
-require_relative 'top'
-require_relative 'tree'
-require_relative 'user'
 
 module OsCtl::Cli
   class App

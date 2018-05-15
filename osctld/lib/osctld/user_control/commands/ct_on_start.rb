@@ -1,3 +1,6 @@
+require 'libosctl'
+require 'osctld/user_control/commands/base'
+
 module OsCtld
   class UserControl::Commands::CtOnStart < UserControl::Commands::Base
     handle :ct_on_start

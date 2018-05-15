@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::User::SubUGIds < Commands::Base
     handle :user_subugids

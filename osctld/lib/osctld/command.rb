@@ -1,4 +1,5 @@
 require 'concurrent'
+require 'libosctl'
 
 module OsCtld
   class Command

@@ -1,3 +1,5 @@
+require 'osctld/commands/logged'
+
 module OsCtld
   class Commands::Group::CGParamUnset < Commands::Logged
     handle :group_cgparam_unset

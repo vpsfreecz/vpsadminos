@@ -1,3 +1,5 @@
+require 'osctld/db/list'
+
 module OsCtld
   class DB::PooledList < DB::List
     # Find object by `id` and `pool`.

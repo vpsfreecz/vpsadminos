@@ -1,4 +1,5 @@
 require 'json'
+require 'osctl/cli/top/view'
 
 module OsCtl::Cli
   class Top::JsonExporter < Top::View

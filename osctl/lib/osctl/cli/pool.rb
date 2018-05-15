@@ -1,3 +1,5 @@
+require 'osctl/cli/command'
+
 module OsCtl::Cli
   class Pool < Command
     FIELDS = %i(

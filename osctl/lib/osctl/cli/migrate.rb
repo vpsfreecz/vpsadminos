@@ -1,5 +1,6 @@
 require 'json'
 require 'ruby-progressbar'
+require 'osctl/cli/command'
 
 module OsCtl::Cli
   class Migrate < Command

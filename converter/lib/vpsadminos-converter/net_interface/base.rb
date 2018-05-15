@@ -1,3 +1,5 @@
+require 'vpsadminos-converter/net_interface'
+
 module VpsAdminOS::Converter
   class NetInterface::Base
     def self.type(name = nil)

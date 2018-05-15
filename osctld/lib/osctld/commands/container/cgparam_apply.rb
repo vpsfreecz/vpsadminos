@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Container::CGParamApply < Commands::Base
     handle :ct_cgparam_apply

@@ -1,3 +1,5 @@
+require 'thread'
+
 module OsCtld
   # Generic socket server
   #

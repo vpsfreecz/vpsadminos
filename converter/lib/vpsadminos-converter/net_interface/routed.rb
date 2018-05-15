@@ -1,3 +1,5 @@
+require 'vpsadminos-converter/net_interface/base'
+
 module VpsAdminOS::Converter
   class NetInterface::Routed < NetInterface::Base
     type :routed

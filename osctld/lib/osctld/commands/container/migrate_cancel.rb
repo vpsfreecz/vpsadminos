@@ -1,3 +1,4 @@
+require 'osctld/commands/base'
 require 'open3'
 
 module OsCtld

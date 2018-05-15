@@ -1,3 +1,4 @@
+require 'libosctl'
 require 'yaml'
 require 'rubygems'
 require 'rubygems/package'

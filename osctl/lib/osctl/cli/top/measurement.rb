@@ -1,4 +1,5 @@
 require 'pp'
+require 'osctl/cli/cgroup_params'
 
 module OsCtl::Cli
   class Top::Measurement

@@ -1,3 +1,8 @@
+require 'osctl/cli/command'
+require 'osctl/cli/cgroup_params'
+require 'osctl/cli/devices'
+require 'osctl/cli/assets'
+
 module OsCtl::Cli
   class Group < Command
     include CGroupParams

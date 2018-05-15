@@ -1,3 +1,5 @@
+require 'vpsadminos-converter/cli/command'
+
 module VpsAdminOS::Converter
   class Cli::Vz6::Base < Cli::Command
     protected

@@ -1,3 +1,5 @@
+require 'osctld/net_interface/veth'
+
 module OsCtld
   class NetInterface::Bridge < NetInterface::Veth
     type :bridge

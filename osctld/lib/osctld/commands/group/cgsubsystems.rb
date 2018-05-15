@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Group::CGSubsystems < Commands::Base
     handle :group_cgsubsystems

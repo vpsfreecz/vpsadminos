@@ -1,3 +1,5 @@
+require 'osctld/routing/via'
+
 module OsCtld
   class Routing::ViaIPv6 < Routing::Via
     def uint_to_addr(uint)

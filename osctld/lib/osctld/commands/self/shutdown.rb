@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Self::Shutdown < Commands::Base
     handle :self_shutdown

@@ -1,3 +1,5 @@
+require 'osctld/commands/logged'
+
 module OsCtld
   class Commands::Group::DevicePromote < Commands::Logged
     handle :group_device_promote

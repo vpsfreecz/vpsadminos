@@ -1,3 +1,6 @@
+require 'libosctl'
+require 'osctld/migration/commands/base'
+
 module OsCtld
   class Migration::Commands::Transfer < Migration::Commands::Base
     handle :receive_transfer

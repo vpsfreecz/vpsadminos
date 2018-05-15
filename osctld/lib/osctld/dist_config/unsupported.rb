@@ -1,3 +1,6 @@
+require 'libosctl'
+require 'osctld/dist_config/base'
+
 module OsCtld
   class DistConfig::Unsupported < DistConfig::Base
     distribution :unsupported

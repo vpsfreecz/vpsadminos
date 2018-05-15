@@ -1,4 +1,5 @@
 require 'fileutils'
+require 'libosctl'
 require 'lxc'
 
 module OsCtld

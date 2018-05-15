@@ -1,3 +1,5 @@
+require 'osctld/commands/logged'
+
 module OsCtld
   class Commands::Migration::AuthKeyAdd < Commands::Logged
     handle :migration_authkey_add

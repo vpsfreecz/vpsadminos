@@ -1,3 +1,5 @@
+require 'osctld/dist_config/base'
+
 module OsCtld
   class DistConfig::RedHat < DistConfig::Base
     def set_hostname(opts)

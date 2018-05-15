@@ -1,12 +1,13 @@
-require_relative '../osctl'
-require_relative 'cli/output_formatter'
-require_relative 'cli/command'
-require_relative 'cli/app'
+require 'osctl'
 
 module OsCtl
   module Cli
+    module Top ; end
+
     def self.run
       App.run
     end
   end
 end
+
+require_rel 'cli'

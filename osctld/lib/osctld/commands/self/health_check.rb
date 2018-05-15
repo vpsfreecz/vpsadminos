@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Self::HealthCheck < Commands::Base
     handle :self_healthcheck

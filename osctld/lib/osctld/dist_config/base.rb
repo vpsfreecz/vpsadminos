@@ -1,4 +1,5 @@
 require 'fileutils'
+require 'libosctl'
 
 module OsCtld
   class DistConfig::Base

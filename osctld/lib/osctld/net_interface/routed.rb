@@ -1,4 +1,5 @@
 require 'ipaddress'
+require 'osctld/net_interface/veth'
 
 module OsCtld
   class NetInterface::Routed < NetInterface::Veth

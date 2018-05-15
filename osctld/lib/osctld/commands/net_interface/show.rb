@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::NetInterface::Show < Commands::Base
     handle :netif_show

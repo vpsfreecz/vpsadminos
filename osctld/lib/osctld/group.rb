@@ -1,3 +1,6 @@
+require 'osctld/lockable'
+require 'osctld/assets/definition'
+
 module OsCtld
   class Group
     include Lockable

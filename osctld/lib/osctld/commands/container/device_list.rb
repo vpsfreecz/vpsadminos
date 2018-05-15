@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Container::DeviceList < Commands::Base
     handle :ct_device_list

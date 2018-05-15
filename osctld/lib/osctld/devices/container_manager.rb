@@ -1,3 +1,6 @@
+require 'libosctl'
+require 'osctld/devices/manager'
+
 module OsCtld
   class Devices::ContainerManager < Devices::Manager
     include OsCtl::Lib::Utils::Log

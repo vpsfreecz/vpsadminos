@@ -1,3 +1,6 @@
+require 'libosctl'
+require 'osctld/net_interface/base'
+
 module OsCtld
   class NetInterface::Veth < NetInterface::Base
     include OsCtl::Lib::Utils::Log

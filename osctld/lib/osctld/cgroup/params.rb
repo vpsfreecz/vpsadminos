@@ -1,3 +1,6 @@
+require 'libosctl'
+require 'osctld/lockable'
+
 module OsCtld
   class CGroup::Params
     include Lockable

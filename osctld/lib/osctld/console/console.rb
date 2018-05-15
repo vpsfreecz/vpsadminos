@@ -1,4 +1,5 @@
 require 'base64'
+require 'osctld/console/tty'
 
 module OsCtld
   # Special case for tty0 (/dev/console)

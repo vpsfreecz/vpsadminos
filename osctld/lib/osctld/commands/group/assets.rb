@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Group::Assets < Commands::Base
     handle :group_assets

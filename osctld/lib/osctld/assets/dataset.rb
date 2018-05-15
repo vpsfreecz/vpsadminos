@@ -1,3 +1,6 @@
+require 'libosctl'
+require 'osctld/assets/base'
+
 module OsCtld
   class Assets::Dataset < Assets::Base
     register :dataset

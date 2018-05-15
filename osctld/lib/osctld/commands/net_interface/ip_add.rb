@@ -1,3 +1,4 @@
+require 'osctld/commands/logged'
 require 'ipaddress'
 
 module OsCtld

@@ -1,3 +1,5 @@
+require 'osctld/commands/logged'
+
 module OsCtld
   class Commands::Repository::Enable < Commands::Logged
     handle :repo_enable

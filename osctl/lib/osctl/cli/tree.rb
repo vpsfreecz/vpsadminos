@@ -1,4 +1,5 @@
 require 'rainbow'
+require 'osctl/cli/cgroup_params'
 
 module OsCtl::Cli
   class Tree

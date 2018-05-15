@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Container::MountList < Commands::Base
     handle :ct_mount_list

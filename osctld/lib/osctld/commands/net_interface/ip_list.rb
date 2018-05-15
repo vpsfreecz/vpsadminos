@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::NetInterface::IpList < Commands::Base
     handle :netif_ip_list

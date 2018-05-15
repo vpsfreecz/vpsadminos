@@ -1,3 +1,6 @@
+require 'require_all'
+require_rel '*.rb'
+
 module OsCtld
   module Assets::Definition
     class Scope

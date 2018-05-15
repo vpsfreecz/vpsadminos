@@ -10,7 +10,3 @@ module VpsAdminOS::Converter
     end
   end
 end
-
-require_relative 'net_interface/base'
-require_relative 'net_interface/bridge'
-require_relative 'net_interface/routed'

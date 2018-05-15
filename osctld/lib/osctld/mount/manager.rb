@@ -1,3 +1,6 @@
+require 'libosctl'
+require 'osctld/lockable'
+
 module OsCtld
   class Mount::Manager
     include Lockable

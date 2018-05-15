@@ -1,3 +1,5 @@
+require 'osctld/db/pooled_list'
+
 module OsCtld
   class DB::Repositories < DB::PooledList
     def self.setup(pool)

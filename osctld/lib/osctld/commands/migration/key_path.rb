@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Migration::KeyPath < Commands::Base
     handle :migration_key_path

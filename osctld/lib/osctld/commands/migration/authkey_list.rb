@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Migration::AuthKeyList < Commands::Base
     handle :migration_authkey_list

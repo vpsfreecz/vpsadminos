@@ -1,3 +1,5 @@
+require 'osctld/db/list'
+
 module OsCtld
   class DB::Pools < DB::List
     class << self

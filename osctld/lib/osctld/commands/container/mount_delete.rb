@@ -1,3 +1,5 @@
+require 'osctld/commands/logged'
+
 module OsCtld
   class Commands::Container::MountDelete < Commands::Logged
     handle :ct_mount_delete

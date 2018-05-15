@@ -1,3 +1,5 @@
+require 'osctld/dist_config/base'
+
 module OsCtld
   class DistConfig::Gentoo < DistConfig::Base
     distribution :gentoo

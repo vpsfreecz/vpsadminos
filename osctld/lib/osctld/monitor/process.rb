@@ -1,3 +1,4 @@
+require 'libosctl'
 require 'thread'
 
 module OsCtld

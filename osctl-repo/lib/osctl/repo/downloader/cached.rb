@@ -1,6 +1,7 @@
 require 'fileutils'
 require 'net/http'
 require 'time'
+require 'osctl/repo/downloader/base'
 
 module OsCtl::Repo
   # Download template in a specified format and cache it locally

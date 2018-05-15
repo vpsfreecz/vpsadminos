@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::User::Unregister < Commands::Base
     handle :user_unregister

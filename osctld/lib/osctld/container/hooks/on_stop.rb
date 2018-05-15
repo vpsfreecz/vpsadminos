@@ -1,3 +1,5 @@
+require 'osctld/container/hooks/base'
+
 module OsCtld
   class Container::Hooks::OnStop < Container::Hooks::Base
     hook :on_stop

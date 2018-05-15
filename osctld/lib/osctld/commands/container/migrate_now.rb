@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Container::MigrateNow < Commands::Base
     handle :ct_migrate_now

@@ -1,3 +1,4 @@
+require 'osctld/commands/base'
 require 'tempfile'
 
 module OsCtld

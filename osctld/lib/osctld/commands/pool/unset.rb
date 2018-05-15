@@ -1,3 +1,5 @@
+require 'osctld/commands/logged'
+
 module OsCtld
   class Commands::Pool::Unset < Commands::Logged
     handle :pool_unset

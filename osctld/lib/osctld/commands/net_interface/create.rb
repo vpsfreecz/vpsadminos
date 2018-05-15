@@ -1,3 +1,5 @@
+require 'osctld/commands/logged'
+
 module OsCtld
   class Commands::NetInterface::Create < Commands::Logged
     handle :netif_create

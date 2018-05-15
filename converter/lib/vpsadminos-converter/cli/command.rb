@@ -1,3 +1,5 @@
+require 'libosctl'
+
 module VpsAdminOS::Converter
  class Cli::Command
     def self.run(klass, method)

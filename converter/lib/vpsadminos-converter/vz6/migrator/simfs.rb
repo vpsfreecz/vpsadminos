@@ -1,4 +1,5 @@
 require 'json'
+require 'vpsadminos-converter/vz6/migrator/base'
 
 module VpsAdminOS::Converter
   class Vz6::Migrator::Simfs < Vz6::Migrator::Base

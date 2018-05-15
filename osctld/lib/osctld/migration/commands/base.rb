@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Migration::Commands::Base < OsCtld::Commands::Base
     def self.handle(name)

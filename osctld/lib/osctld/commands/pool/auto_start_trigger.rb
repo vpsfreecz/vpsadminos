@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Pool::AutoStartTrigger < Commands::Base
     handle :pool_autostart_trigger

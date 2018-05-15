@@ -1,3 +1,5 @@
+require 'osctld/commands/logged'
+
 module OsCtld
   class Commands::Container::MountRegister < Commands::Logged
     handle :ct_mount_register

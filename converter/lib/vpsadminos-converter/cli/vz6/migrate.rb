@@ -1,5 +1,6 @@
 require 'ruby-progressbar'
 require 'tempfile'
+require 'vpsadminos-converter/cli/vz6/base'
 
 module VpsAdminOS::Converter
   class Cli::Vz6::Migrate < Cli::Vz6::Base

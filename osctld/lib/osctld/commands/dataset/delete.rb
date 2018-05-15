@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Dataset::Delete < Commands::Base
     handle :ct_dataset_delete

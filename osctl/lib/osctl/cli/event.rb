@@ -1,5 +1,6 @@
 require 'json'
 require 'pp'
+require 'osctl/cli/command'
 
 module OsCtl::Cli
   class Event < Command

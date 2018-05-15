@@ -1,3 +1,5 @@
+require 'vpsadminos-converter/vz6/migrator/simfs'
+
 module VpsAdminOS::Converter
   class Vz6::Migrator::Ploop < Vz6::Migrator::Simfs
     def sync

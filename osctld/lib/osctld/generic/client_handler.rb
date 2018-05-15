@@ -1,3 +1,5 @@
+require 'libosctl'
+
 module OsCtld
   # Generic client handler for {Generic::Server}
   #

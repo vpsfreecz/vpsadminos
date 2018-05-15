@@ -1,3 +1,5 @@
+require 'osctld/commands/logged'
+
 module OsCtld
   class Commands::Group::DeviceChmod < Commands::Logged
     handle :group_device_chmod

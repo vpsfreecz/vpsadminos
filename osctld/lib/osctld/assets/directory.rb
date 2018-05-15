@@ -1,3 +1,5 @@
+require 'osctld/assets/base_file'
+
 module OsCtld
   class Assets::Directory < Assets::BaseFile
     register :directory

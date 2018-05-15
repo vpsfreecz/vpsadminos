@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Repository::Assets < Commands::Base
     handle :repo_assets

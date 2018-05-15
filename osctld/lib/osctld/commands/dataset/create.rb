@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Dataset::Create < Commands::Base
     handle :ct_dataset_create

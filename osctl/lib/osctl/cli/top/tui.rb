@@ -1,4 +1,5 @@
 require 'curses'
+require 'osctl/cli/top/view'
 
 module OsCtl::Cli
   class Top::Tui < Top::View

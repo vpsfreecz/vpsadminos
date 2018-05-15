@@ -1,4 +1,5 @@
 require 'libosctl'
+require 'require_all'
 
 module OsCtl
   module Repo
@@ -14,15 +15,8 @@ module OsCtl
   end
 end
 
-require_relative 'repo/version'
-require_relative 'repo/constants'
-require_relative 'repo/exceptions'
-require_relative 'repo/base/template'
-require_relative 'repo/local/index'
-require_relative 'repo/local/repository'
-require_relative 'repo/remote/template'
-require_relative 'repo/remote/index'
-require_relative 'repo/remote/repository'
-require_relative 'repo/downloader/base'
-require_relative 'repo/downloader/direct'
-require_relative 'repo/downloader/cached'
+require_rel 'repo/*.rb'
+require_rel 'repo/base'
+require_rel 'repo/local'
+require_rel 'repo/remote'
+require_rel 'repo/downloader'

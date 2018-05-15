@@ -1,3 +1,5 @@
+require 'osctld/commands/logged'
+
 module OsCtld
   class Commands::Container::CGParamSet < Commands::Logged
     handle :ct_cgparam_set

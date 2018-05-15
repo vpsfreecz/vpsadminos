@@ -1,3 +1,4 @@
+require 'osctld/commands/base'
 require 'base64'
 
 module OsCtld

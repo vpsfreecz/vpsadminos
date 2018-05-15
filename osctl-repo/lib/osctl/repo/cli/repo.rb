@@ -1,4 +1,5 @@
 require 'json'
+require 'osctl/repo/cli/command'
 
 module OsCtl::Repo
   class Cli::Repo < Cli::Command

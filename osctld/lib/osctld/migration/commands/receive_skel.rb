@@ -1,4 +1,5 @@
 require 'tempfile'
+require 'osctld/migration/commands/base'
 
 module OsCtld
   class Migration::Commands::ReceiveSkel < Migration::Commands::Base

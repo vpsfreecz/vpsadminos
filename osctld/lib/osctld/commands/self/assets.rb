@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Self::Assets < Commands::Base
     handle :self_assets

@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Container::Reconfigure < Commands::Base
     handle :ct_reconfigure

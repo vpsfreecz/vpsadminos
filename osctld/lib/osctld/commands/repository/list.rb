@@ -1,3 +1,5 @@
+require 'osctld/commands/base'
+
 module OsCtld
   class Commands::Repository::List < Commands::Base
     handle :repo_list

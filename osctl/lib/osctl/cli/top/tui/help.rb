@@ -1,4 +1,5 @@
 require 'curses'
+require 'osctl/cli/top/tui/screen'
 
 module OsCtl::Cli::Top
   class Tui::Help < Tui::Screen

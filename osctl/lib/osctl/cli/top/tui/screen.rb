@@ -1,3 +1,5 @@
+require 'osctl/cli/top/view'
+
 module OsCtl::Cli::Top
   class Tui < View
     class Screen

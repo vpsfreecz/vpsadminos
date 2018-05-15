@@ -1,3 +1,5 @@
+require 'libosctl'
+
 module OsCtld
   class AutoStart::Plan
     include OsCtl::Lib::Utils::Log

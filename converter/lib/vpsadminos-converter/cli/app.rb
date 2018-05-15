@@ -1,5 +1,5 @@
 require 'gli'
-require_relative 'vz6'
+require 'vpsadminos-converter/vz6'
 
 module VpsAdminOS::Converter::Cli
   class App

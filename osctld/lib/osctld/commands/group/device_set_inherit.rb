@@ -1,3 +1,5 @@
+require 'osctld/commands/logged'
+
 module OsCtld
   class Commands::Group::DeviceSetInherit < Commands::Logged
     handle :group_device_set_inherit

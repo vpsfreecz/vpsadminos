@@ -1,4 +1,7 @@
+require 'libosctl'
 require 'yaml'
+require 'osctld/lockable'
+require 'osctld/assets/definition'
 
 module OsCtld
   class Container

@@ -1,3 +1,6 @@
+require 'osctl/cli/command'
+require 'osctl/cli/assets'
+
 module OsCtl::Cli
   class Self < Command
     include Assets
