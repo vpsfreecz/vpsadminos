@@ -46,6 +46,14 @@ module OsCtld
           # Chown assets
           File.chown(0, user.ugid, ct.log_path) if File.exist?(ct.log_path)
 
+          if Dir.exist?(ct.devices_dir)
+            File.chown(
+              user.uid_map.ns_to_host(0),
+              user.gid_map.ns_to_host(0),
+              ct.devices_dir
+            )
+          end
+
           # Switch user, regenerate configs
           ct.chown(user)
 
