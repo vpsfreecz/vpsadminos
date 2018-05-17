@@ -39,7 +39,7 @@ module OsCtld
       end
 
       abs_ct_chowned_cgroup_paths.each do |abs, req|
-        next if !req && !Dir.exist?(abs)
+        next unless prepare_cgroup(abs, req)
         File.chown(ct.user.ugid, ct.user.ugid, abs)
       end
     end
@@ -59,13 +59,13 @@ module OsCtld
       # <group>/<user>
       if opts[:group_changes] # for recursive chmod from the group down
         abs_group_cgroup_paths.each do |cgpath, req|
-          next if !req && !Dir.exist?(cgpath)
+          next unless prepare_cgroup(cgpath, req)
           do_apply_changes(opts[:group_changes], path: cgpath)
         end
 
       else # when chmodding the container itself
         abs_group_cgroup_paths.each do |cgpath, req|
-          next if !req && !Dir.exist?(cgpath)
+          next unless prepare_cgroup(cgpath, req)
           apply_devices(ct.group.devices, cgpath)
         end
       end
@@ -76,7 +76,7 @@ module OsCtld
       ct.save_config
 
       abs_ct_cgroup_paths.each do |cgpath, req|
-        next if !req && !Dir.exist?(cgpath)
+        next unless prepare_cgroup(cgpath, req)
         do_apply_changes(changes, path: cgpath)
       end
     end
@@ -93,7 +93,7 @@ module OsCtld
           changes = device.chmod(pdev.mode.clone)
 
           abs_all_cgroup_paths.each do |cgpath, req|
-            next if !req && !Dir.exist?(cgpath)
+            next unless prepare_cgroup(cgpath, req)
             do_apply_changes(changes, path: cgpath)
           end
         end
@@ -108,7 +108,7 @@ module OsCtld
 
     def update_inherited_mode(device, mode, changes)
       abs_all_cgroup_paths.each do |cgpath, req|
-        next if !req && !Dir.exist?(cgpath)
+        next unless prepare_cgroup(cgpath, req)
         do_apply_changes(changes, path: cgpath)
       end
     end
@@ -119,13 +119,13 @@ module OsCtld
       ct.group.devices.apply
 
       abs_group_cgroup_paths.each do |cgpath, req|
-        next if !req && !Dir.exist?(cgpath)
+        next unless prepare_cgroup(cgpath, req)
         apply_devices(ct.group.devices, cgpath)
       end
 
       # container groups
       abs_ct_cgroup_paths.each do |cgpath, req|
-        next if !req && !Dir.exist?(cgpath)
+        next unless prepare_cgroup(cgpath, req)
         apply_devices(self, cgpath)
       end
     end
@@ -246,6 +246,32 @@ module OsCtld
     def to_abs_paths(rel_paths)
       rel_paths.map do |path, req|
         [File.join(CGroup::FS, CGroup.real_subsystem('devices'), path), req]
+      end
+    end
+
+    # @param cgpath [String] absolute cgroup path
+    # @param create [Boolean] create the cgroup or not
+    # @return [Boolean] `true` if the cgroup exists or was created
+    def prepare_cgroup(cgpath, create)
+      exists = Dir.exist?(cgpath)
+
+      if exists
+        true
+
+      elsif create
+        begin
+          Dir.mkdir(cgpath)
+
+        rescue Errno::EEXIST
+          true
+        end
+
+        # uid/gid is inherited from the parent cgroup
+        st = File.stat(File.dirname(cgpath))
+        File.chown(st.uid, st.gid, cgpath)
+
+      else
+        false
       end
     end
   end
