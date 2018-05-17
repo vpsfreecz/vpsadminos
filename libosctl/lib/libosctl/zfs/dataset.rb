@@ -193,7 +193,7 @@ module OsCtl::Lib
         '/'
 
       elsif !name.start_with?("#{base}/")
-        fail 'invalid base'
+        fail "invalid base '#{base}' for '#{name}'"
 
       else
         name[(base.length+1)..-1]
