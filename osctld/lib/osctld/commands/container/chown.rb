@@ -15,11 +15,11 @@ module OsCtld
 
     def execute(ct)
       user = DB::Users.find(opts[:user], ct.pool)
-      return error('user not found') unless user
+      error!('user not found') unless user
 
-      return error("already owned by #{user.name}") if ct.user == user
+      error!("already owned by #{user.name}") if ct.user == user
 
-      return error('container has to be stopped first') if ct.state != :stopped
+      error!('container has to be stopped first') if ct.state != :stopped
       Monitor::Master.demonitor(ct)
 
       old_user = ct.user
@@ -27,7 +27,7 @@ module OsCtld
       user.inclusively do
         ct.exclusively do
           # Double check state while having exclusive lock
-          next error('container has to be stopped first') if ct.state != :stopped
+          error!('container has to be stopped first') if ct.state != :stopped
 
           progress('Moving LXC configuration')
 
@@ -86,10 +86,11 @@ module OsCtld
             progress('Cleaning up original LXC home')
             Dir.rmdir(ct.group.userdir(old_user))
           end
-
-          ok
         end
       end
+
+      call_cmd(Commands::User::LxcUsernet)
+      ok
     end
   end
 end
