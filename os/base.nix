@@ -315,7 +315,11 @@ with lib;
       "rpc".source = pkgs.glibc.out + "/etc/rpc";
     };
 
-    boot.kernelParams = [ "systemConfig=${config.system.build.toplevel}" ];
+    boot.kernelParams = [
+      "systemConfig=${config.system.build.toplevel}"
+      "net.ifnames=0"
+    ];
+
     boot.kernelPackages = myLinuxPackages;
     boot.kernelModules = hwSupportModules ++ [
       "fuse"
