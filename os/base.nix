@@ -214,10 +214,6 @@ with lib;
       });
 
     hwSupportModules = [
-      # Net
-      "e1000e"
-      "igb"
-      "ixgb"
 
       # SATA/PATA/NVME
       "ahci"
