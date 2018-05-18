@@ -280,7 +280,7 @@ with lib;
       '';
       bashrc.text = "export PATH=/run/current-system/sw/bin";
       profile.text = "export PATH=/run/current-system/sw/bin";
-      "resolv.conf".text = "nameserver 10.0.2.3";
+      "resolv.conf".text = lib.mkDefault "nameserver 10.0.2.3";
       "nsswitch.conf".text = ''
         hosts:     files  dns   myhostname mymachines
         networks:  files dns
