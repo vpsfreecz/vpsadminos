@@ -221,6 +221,7 @@ with lib;
       "sata_via"
       "sata_uli"
       "nvme"
+      "isci"
 
       # Support USB keyboards, in case the boot fails and we only have
       # a USB keyboard, or for LUKS passphrase prompt.
