@@ -4,7 +4,7 @@
 config_<%= netif.name %>="
 <% netif.active_ip_versions.each do |v| -%>
 <%= netif.via[v].ct_ip.to_string %>
-<%= netif.ips(v).map { |addr| addr.to_string }.join("\n") -%>
+<%= netif.ips(v).map { |addr| addr.to_string }.join("\n") %>
 <% end -%>
 "
 
