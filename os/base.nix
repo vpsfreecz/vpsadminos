@@ -331,6 +331,8 @@ with lib;
       "ip6table_nat"
     ];
 
+    boot.initrd.kernelModules = lib.optionals config.boot.initrd.withHwSupport hwSupportModules;
+
     boot.kernel.sysctl."kernel.dmesg_restrict" = true;
 
     security.apparmor.enable = true;
