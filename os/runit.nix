@@ -83,28 +83,6 @@ in
       echo 1 > /proc/sys/net/ipv4/ip_forward
       echo 1 > /proc/sys/net/ipv6/conf/all/forwarding
 
-      ${config.networking.preConfig}
-
-      ${lib.optionalString static.enable ''
-      ip addr add ${static.ip} dev ${static.interface}
-      ip link set ${static.interface} up
-      ip route add ${static.route} dev ${static.interface}
-      ip route add default via ${static.gw} dev ${static.interface}
-      ''}
-
-      ${lib.optionalString config.networking.dhcp ''
-      ${pkgs.dhcpcd.override { udev = null; }}/sbin/dhcpcd
-      ''}
-
-      ${lib.optionalString config.networking.lxcbr ''
-      brctl addbr lxcbr0
-      brctl setfd lxcbr0 0
-      ip addr add 192.168.1.1 dev lxcbr0
-      ip link set promisc on lxcbr0
-      ip link set lxcbr0 up
-      ip route add 192.168.1.0/24 dev lxcbr0
-      iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
-      ''}
 
       # disable DPMS on tty's
       echo -ne "\033[9;0]" > /dev/tty0
@@ -171,6 +149,41 @@ in
       exec ${pkgs.lxcfs}/bin/lxcfs /var/lib/lxcfs
     '';
 
+    "service/networking/run".source = pkgs.writeScript "networking" ''
+      #!/bin/sh -e
+      sv check eudev-trigger >/dev/null || exit 1
+
+      ${config.networking.preConfig}
+
+      ${lib.optionalString static.enable ''
+      ip addr add ${static.ip} dev ${static.interface}
+      ip link set ${static.interface} up
+      ip route add ${static.route} dev ${static.interface}
+      ip route add default via ${static.gw} dev ${static.interface}
+      ''}
+
+      ${lib.optionalString config.networking.dhcp ''
+      ${pkgs.dhcpcd.override { udev = null; }}/sbin/dhcpcd
+      ''}
+
+      ${lib.optionalString config.networking.lxcbr ''
+      brctl addbr lxcbr0
+      brctl setfd lxcbr0 0
+      ip addr add 192.168.1.1 dev lxcbr0
+      ip link set promisc on lxcbr0
+      ip link set lxcbr0 up
+      ip route add 192.168.1.0/24 dev lxcbr0
+      iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+      ''}
+
+      touch /run/net-done
+      exec sleep inf
+    '';
+
+    "service/networking/check".source = pkgs.writeScript "networking" ''
+      #!/bin/sh -e
+      test -f /run/net-done
+    '';
 
     "service/osctld/run".source = pkgs.writeScript "osctld" ''
       #!/bin/sh
@@ -196,6 +209,7 @@ in
   (mkIf (config.networking.dhcpd) {
     "service/dhcpd/run".source = pkgs.writeScript "dhcpd" ''
       #!/bin/sh
+      sv check networking >/dev/null || exit 1
       mkdir -p /var/lib/dhcp
       touch /var/lib/dhcp/dhcpd4.leases
       exec ${pkgs.dhcp}/sbin/dhcpd -4 -f \
