@@ -171,10 +171,6 @@ in
       exec ${pkgs.lxcfs}/bin/lxcfs /var/lib/lxcfs
     '';
 
-    "service/eudev/run".source = pkgs.writeScript "eudev" ''
-      #!/bin/sh
-      exec ${pkgs.eudev}/bin/udevd
-    '';
 
     "service/osctld/run".source = pkgs.writeScript "osctld" ''
       #!/bin/sh
