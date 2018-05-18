@@ -75,9 +75,6 @@ in
           :node_id: ${toString cfg.nodeId}
           :net_interfaces: [${lib.concatStringsSep ", " cfg.netInterfaces}]
 
-        :storage:
-          :update_status: false
-
         :console:
           :host: ${cfg.consoleHost}
       '';
