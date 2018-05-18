@@ -48,6 +48,11 @@ in
         description = "Node ID";
       };
 
+      netInterfaces = mkOption {
+        type = types.listOf types.str;
+        description = "Network interfaces";
+      };
+
       consoleHost = mkOption {
         type = types.str;
         description = "Address for console server to listen on";
@@ -68,6 +73,7 @@ in
 
         :vpsadmin:
           :node_id: ${toString cfg.nodeId}
+          :net_interfaces: [${lib.concatStringsSep ", " cfg.netInterfaces}]
 
         :storage:
           :update_status: false
