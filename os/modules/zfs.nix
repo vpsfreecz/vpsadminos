@@ -92,7 +92,7 @@ in
           '';
           apply = map (d: ''
             dd if=/dev/zero of=/dev/${d} count=1024
-            sectors="$( sfdisk -l /dev/${d} | egrep -o "([[:digit:]]+) sectors" | cut -d' ' -f0 )"
+            sectors="$( sfdisk -l /dev/${d} | egrep -o "([[:digit:]]+) sectors" | cut -d' ' -f1 )"
             dd if=/dev/zero of=/dev/${d} seek="$(( $sectors - 1024 ))" count=1024
           '');
         };
