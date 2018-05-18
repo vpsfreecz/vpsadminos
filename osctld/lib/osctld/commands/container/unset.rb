@@ -14,7 +14,7 @@ module OsCtld
         changes = {}
 
         %i(autostart hostname dns_resolvers).each do |attr|
-          changes[attr] = opts[attr]
+          changes[attr] = opts[attr] if opts.has_key?(attr)
         end
 
         ct.unset(changes)
