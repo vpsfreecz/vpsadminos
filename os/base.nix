@@ -109,6 +109,15 @@ with lib;
       description = "Set of commands run prior to any other network configuration";
       default = "";
     };
+    networking.custom = mkOption {
+      type = types.lines;
+      description = "Custom set of commands used to set-up networking";
+      default = "";
+      example = "
+        ip addr add 10.0.0.1 dev ix0
+        ip link set ix0 up
+      ";
+    };
     networking.static.enable = mkOption {
       type = types.bool;
       description = "use static networking configuration";

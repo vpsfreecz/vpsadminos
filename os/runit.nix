@@ -176,6 +176,8 @@ in
       iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
       ''}
 
+      ${config.networking.custom}
+
       touch /run/net-done
       exec sleep inf
     '';
