@@ -135,7 +135,7 @@ into the repository, ready to be served to clients by your web server.
 gem install --source https://rubygems.vpsfree.cz --prerelease osctl-repo libosctl
 ```
 
-To create a repository, you have to create a directory that is served by a web
+To create a repository, you have to prepare a directory that is served by a web
 server. Let's put the repository in `/var/www/vpsadminos-repo`. Configure your
 web server to serve this directory, then cd into it and initiate the repository:
 

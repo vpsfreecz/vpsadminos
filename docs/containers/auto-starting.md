@@ -21,9 +21,9 @@ osctl ct show -o autostart,autostart_priority,autostart_delay myct01
 ```
 
 `AUTOSTART_PRIORITY` determines the order in which containers are started.
-`0` is the highest priority, higher numbers have lower priority. Containers
+`0` is the highest priority, greater numbers have lower priority. Containers
 with higher priority are started first. `AUTOSTART_DELAY` signifies how many
-seconds should *osctld* wait, before starting another container, thus giving
+seconds should *osctld* wait before starting another container, thus giving
 the container time to start, or at least dampen the load. Autostart priority
 defaults to `10` and delay to `5` seconds.
 
@@ -42,7 +42,7 @@ The container was given higher priority and its start time prolonged to
 10 seconds.
 
 ## Auto start queue
-When the auto start process is in progress, it is possible to monitor its progress.
+When the auto start process is in progress, it is possible to monitor it.
 `osctl ct pool autostart queue` will list the queue of containers that are about
 to be started.
 
