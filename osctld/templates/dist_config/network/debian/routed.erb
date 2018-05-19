@@ -3,6 +3,9 @@ auto <%= netif.name %>
 iface <%= netif.name %> <%= v == 4 ? 'inet' : 'inet6' %> static
   address <%= netif.via[v].ct_ip.to_s %>
   netmask <%= v == 4 ? netif.via[v].ct_ip.netmask : netif.via[v].ct_ip.prefix %>
+<% if v == 6 -%>
+  up echo 0 > /proc/sys/net/ipv6/conf/<%= netif.name %>/accept_dad
+<% end -%>
 <% netif.ips(v).each do |addr| -%>
   up ip -<%= v %> addr add <%= addr.to_string %> dev <%= netif.name %>
   down ip -<%= v %> addr del <%= addr.to_string %> dev <%= netif.name %>

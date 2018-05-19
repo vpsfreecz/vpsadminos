@@ -1,4 +1,8 @@
 echo "Configuring <%= netif.name %>"
+<% if op == 'add' -%>
+
+echo 0 > /proc/sys/net/ipv6/conf/<%= netif.name %>/accept_dad
+<% end -%>
 
 <% netif.active_ip_versions.each do |v| -%>
   ip -<%= v %> addr <%= op %> <%= netif.via[v].ct_ip.to_string %> dev <%= netif.name %>
