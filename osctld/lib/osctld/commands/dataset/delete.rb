@@ -86,7 +86,7 @@ module OsCtld
       end
 
       mounts.each do |mnt|
-        ct.mount_remove(mnt.mountpoint)
+        ct.mounts.delete_at(mnt.mountpoint)
       end
     end
   end
