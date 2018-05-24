@@ -105,6 +105,7 @@ module OsCtl::Cli::Top
     end
 
     def status_bar(pos, data)
+      # CPU
       cpu = data[:cpu]
 
       Curses.setpos(pos, 0)
@@ -130,7 +131,40 @@ module OsCtl::Cli::Top
         Curses.addstr('calculating')
       end
 
-      Curses.setpos(pos+1, 0)
+      # Memory
+      mem = data[:memory]
+
+      Curses.setpos(pos += 1, 0)
+      Curses.addstr('Memory: ')
+
+      if mem
+        bold { Curses.addstr(sprintf('%8s', humanize_data(mem[:total]))) }
+        Curses.addstr(' total, ')
+        bold { Curses.addstr(sprintf('%8s', humanize_data(mem[:free]))) }
+        Curses.addstr(' free, ')
+        bold { Curses.addstr(sprintf('%8s', humanize_data(mem[:used]))) }
+        Curses.addstr(' used, ')
+        bold { Curses.addstr(sprintf('%8s', humanize_data(mem[:buffers] + mem[:cached]))) }
+        Curses.addstr(' buff/cache')
+
+        if mem[:swap_total] > 0
+          Curses.setpos(pos += 1, 0)
+          Curses.addstr('Swap:   ')
+
+          bold { Curses.addstr(sprintf('%8s', humanize_data(mem[:swap_total]))) }
+          Curses.addstr(' total, ')
+          bold { Curses.addstr(sprintf('%8s', humanize_data(mem[:swap_free]))) }
+          Curses.addstr(' free, ')
+          bold { Curses.addstr(sprintf('%8s', humanize_data(mem[:swap_used]))) }
+          Curses.addstr(' used')
+        end
+
+      else
+        Curses.addstr('calculating')
+      end
+
+      # Containers
+      Curses.setpos(pos += 1, 0)
       Curses.addstr('Containers: ')
       bold { Curses.addstr(sprintf('%3d', model.containers.count)) }
       Curses.addstr(' total, ')
@@ -139,7 +173,7 @@ module OsCtl::Cli::Top
       bold { Curses.addstr(sprintf('%3d', model.containers.count{ |ct| ct.state == :stopped })) }
       Curses.addstr(' stopped')
 
-      pos+2
+      pos + 1
     end
 
     def header(pos)
@@ -147,7 +181,7 @@ module OsCtl::Cli::Top
         ret = []
 
         ret << sprintf(
-          '%-14s %7s %7s %6s %27s %27s',
+          '%-14s %7s %8s %6s %27s %27s',
           'Container',
           'CPU',
           'Memory',
@@ -218,7 +252,7 @@ module OsCtl::Cli::Top
     end
 
     def print_row_data(values)
-      fmts = %w(%7s %7s %6s %6s %6s %6s %6s %6s %6s %6s %6s)
+      fmts = %w(%7s %8s %6s %6s %6s %6s %6s %6s %6s %6s %6s)
 
       fmts.zip(values).each_with_index do |pair, i|
         f, v = pair

@@ -7,7 +7,7 @@ module OsCtl
       units.each do |u|
         threshold = 2 << bits
 
-        return "#{(v / threshold).round(2)}#{u}" if v >= threshold
+        return "#{(v / threshold.to_f).round(1)}#{u}" if v >= threshold
 
         bits -= 10
       end

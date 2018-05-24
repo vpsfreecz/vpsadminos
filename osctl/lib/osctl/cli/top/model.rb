@@ -35,7 +35,8 @@ module OsCtl::Cli
     def data
       return [] unless host.setup?
 
-      host_result = host.result(mode)
+      mem = Top::MemInfo.new
+      host_result = host.result(mode, mem)
       host_cpu = host.cpu_result
       sum_ct_cpu_hz = 0
       cts = []
@@ -73,6 +74,16 @@ module OsCtl::Cli
 
       {
         cpu: calc_host_cpu_usage(host_cpu),
+        memory: {
+          total: mem.total * 1024,
+          used: mem.used * 1024,
+          free: mem.free * 1024,
+          buffers: mem.buffers * 1024,
+          cached: mem.cached * 1024,
+          swap_total: mem.swap_total * 1024,
+          swap_used: mem.swap_cached * 1024,
+          swap_free: mem.swap_free * 1024,
+        },
         containers: cts,
       }
     end

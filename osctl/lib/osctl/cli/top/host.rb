@@ -69,11 +69,15 @@ module OsCtl::Cli
       measure_host_cpu_hz
     end
 
-    def result(mode)
-      ret = super
+    def result(mode, meminfo)
+      ret = super(mode)
+
+      # memory from the root cgroup does not account for all used memory
+      ret[:memory] = meminfo.used * 1024
 
       # root pids cgroup does not have process counter
       ret[:nproc] = `ps axh -opid | wc -l`.strip.to_i
+
       ret
     end
 
