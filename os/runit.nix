@@ -146,7 +146,7 @@ in
     "service/lxcfs/run".source = pkgs.writeScript "lxcfs" ''
       #!/bin/sh
       mkdir -p /var/lib/lxcfs
-      exec ${pkgs.lxcfs}/bin/lxcfs /var/lib/lxcfs
+      exec ${pkgs.lxcfs}/bin/lxcfs -l /var/lib/lxcfs
     '';
 
     "service/networking/run".source = pkgs.writeScript "networking" ''
