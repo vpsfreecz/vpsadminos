@@ -163,6 +163,26 @@ module OsCtl::Cli::Top
         Curses.addstr('calculating')
       end
 
+      # ZFS ARC
+      arc = data[:zfs] && data[:zfs][:arc]
+
+      Curses.setpos(pos += 1, 0)
+      Curses.addstr('ARC:    ')
+
+      if arc
+        bold { Curses.addstr(sprintf('%8s', humanize_data(arc[:c_max]))) }
+        Curses.addstr(' c_max, ')
+        bold { Curses.addstr(sprintf('%8s', humanize_data(arc[:c]))) }
+        Curses.addstr(' c,    ')
+        bold { Curses.addstr(sprintf('%8s', humanize_data(arc[:size]))) }
+        Curses.addstr(' size, ')
+        bold { Curses.addstr(sprintf('%8.2f', format_percent(arc[:hit_rate]))) }
+        Curses.addstr(' hitrate ')
+
+      else
+        Curses.addstr('calculating')
+      end
+
       # Containers
       Curses.setpos(pos += 1, 0)
       Curses.addstr('Containers: ')
