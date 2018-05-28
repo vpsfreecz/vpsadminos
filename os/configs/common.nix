@@ -19,7 +19,7 @@
     osctl
     osctld
     ruby
-    ];
+  ];
 
   environment.etc = {
   };
@@ -71,4 +71,5 @@
     '';
 
   programs.ssh.package = pkgs.openssh;
+  programs.htop.enable = true;
 }
