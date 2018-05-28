@@ -72,6 +72,9 @@ module OsCtl::Cli::Top
         when ' '
           selection_yank
 
+        when Curses::Key::ENTER, 10
+          selection_open
+
         when 'r', 'R'
           Curses.clear
           sort_inverse
@@ -473,6 +476,34 @@ module OsCtl::Cli::Top
       else
         yanked_cts << ctid
       end
+    end
+
+    def selection_open
+      return unless @current_row
+
+      ct = last_data[:containers][@current_row]
+      return unless ct
+
+      if ct[:id] == '[host]'
+        ctid = 'host'
+
+      else
+        ctid = "#{ct[:pool]}:#{ct[:id]}"
+      end
+
+      pid = Process.fork do
+        Process.exec('htop', '-c', ctid)
+      end
+
+      Process.wait(pid)
+
+      # The screen needs to be reinitialized after htop
+      Curses.init_screen
+      Curses.start_color
+      Curses.crmode
+      Curses.stdscr.keypad = true
+      Curses.curs_set(0)  # hide cursor
+      Curses.clear
     end
 
     def sum(cts, field, host)
