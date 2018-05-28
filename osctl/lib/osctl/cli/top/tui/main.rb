@@ -12,6 +12,8 @@ module OsCtl::Cli::Top
       @last_count = nil
       @sort_index = 0
       @sort_desc = true
+      @current_row = nil
+      @yanked_cts = []
     end
 
     def open
@@ -19,6 +21,11 @@ module OsCtl::Cli::Top
         render(Time.now, {containers: []})
         sleep(0.5)
       end
+
+      # At each loop pass, model is queried for data, unless `hold_data` is
+      # greater than zero. In that case, `hold_data` is decremented by 1
+      # on each pass.
+      hold_data = 0
 
       loop do
         now = Time.now
@@ -28,7 +35,13 @@ module OsCtl::Cli::Top
           self.last_measurement = now
         end
 
-        data = get_data
+        if !last_data || hold_data == 0
+          @last_data = data = get_data
+
+        elsif hold_data > 0
+          hold_data -= 1
+          data = last_data
+        end
 
         Curses.clear if last_count != data[:containers].count
         self.last_count = data[:containers].count
@@ -47,6 +60,17 @@ module OsCtl::Cli::Top
         when Curses::Key::RIGHT, '>'
           Curses.clear
           sort_next(+1)
+
+        when Curses::Key::UP
+          selection_up
+          hold_data = 1
+
+        when Curses::Key::DOWN
+          selection_down
+          hold_data = 1
+
+        when ' '
+          selection_yank
 
         when 'r', 'R'
           Curses.clear
@@ -76,8 +100,8 @@ module OsCtl::Cli::Top
     end
 
     protected
-    attr_reader :model, :rate
-    attr_accessor :last_measurement, :last_count
+    attr_reader :model, :rate, :yanked_cts
+    attr_accessor :last_measurement, :last_count, :last_data, :current_row
 
     def render(t, data)
       Curses.setpos(0, 0)
@@ -90,9 +114,25 @@ module OsCtl::Cli::Top
       i = header(i+1)
       Curses.attroff(Curses.color_pair(1))
 
-      data[:containers].each do |ct|
+      data[:containers].each_with_index do |ct, j|
         Curses.setpos(i, 0)
+
+        if current_row == j && yanked_cts.include?(ct[:id])
+          attr = Curses.color_pair(Tui::SELECTED_YANKED)
+
+        elsif current_row == j
+          attr = Curses.color_pair(Tui::SELECTED)
+
+        elsif yanked_cts.include?(ct[:id])
+          attr = Curses.color_pair(Tui::YANKED)
+
+        else
+          attr = nil
+        end
+
+        Curses.attron(attr) if attr
         print_row(ct)
+        Curses.attroff(attr) if attr
 
         i += 1
 
@@ -273,14 +313,20 @@ module OsCtl::Cli::Top
 
     def print_row_data(values)
       fmts = %w(%7s %8s %6s %6s %6s %6s %6s %6s %6s %6s %6s)
+      w = 15 # container ID is printed in {#print_row}
 
       fmts.zip(values).each_with_index do |pair, i|
         f, v = pair
+        s = sprintf("#{f} ", v)
+        w += s.length
 
         Curses.attron(Curses::A_BOLD) if i == @sort_index
-        Curses.addstr(sprintf("#{f} ", v))
+        Curses.addstr(s)
         Curses.attroff(Curses::A_BOLD) if i == @sort_index
       end
+
+      # Fill space to the edge of the screen, needed for selected rows
+      Curses.addstr(' ' * (Curses.cols - w)) if Curses.cols > w
     end
 
     def stats(cts)
@@ -373,6 +419,62 @@ module OsCtl::Cli::Top
       ])
     end
 
+    def selection_up
+      last_row = [max_rows, last_data[:containers].size - 1].min
+
+      if @current_row
+        new_row = @current_row - 1
+
+        if new_row >= 0
+          @current_row = new_row
+
+        elsif last_data[:containers].any?
+          @current_row = last_row
+
+        else
+          @current_row = nil
+        end
+
+      elsif last_data[:containers].any?
+        @current_row = last_row
+      end
+    end
+
+    def selection_down
+      if @current_row
+        new_row = @current_row + 1
+
+        if new_row < last_data[:containers].size && new_row < max_rows
+          @current_row = new_row
+
+        elsif last_data[:containers].any?
+          @current_row = 0
+
+        else
+          @current_row = nil
+        end
+
+      elsif last_data[:containers].any?
+        @current_row = 0
+      end
+    end
+
+    def selection_yank
+      return unless @current_row
+
+      ct = last_data[:containers][@current_row]
+      return unless ct
+
+      ctid = ct[:id]
+
+      if yanked_cts.include?(ctid)
+        yanked_cts.delete(ctid)
+
+      else
+        yanked_cts << ctid
+      end
+    end
+
     def sum(cts, field, host)
       cts.inject(0) do |acc, ct|
         if ct[:id] == '[host]' && !host
@@ -409,6 +511,10 @@ module OsCtl::Cli::Top
       Curses.attron(Curses::A_BOLD)
       yield
       Curses.attroff(Curses::A_BOLD)
+    end
+
+    def max_rows
+      Curses.lines - 12 # screen without header and footer
     end
   end
 end

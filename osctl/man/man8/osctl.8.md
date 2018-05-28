@@ -811,6 +811,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   `q`                       | Quit
   `<`, `>`, *left*, *right* | Change sort column
   `r`, `R`                  | Reverse sort order
+  *up*, *down*              | Select containers
+  *space*                   | Yank selected container
   `m`                       | Toggle between `realtime` and `cumulative` mode.
   `?`                       | Show help message.
 

@@ -30,6 +30,8 @@ module OsCtl::Cli::Top
         ['q', 'Quit'],
         ['<, >, left, right', 'Change sort column'],
         ['r, R', 'Reverse sort order'],
+        ['up, down', 'Select containers'],
+        ['space', 'Yank selected container'],
         ['m', 'Toggle between realtime and cumulative mode'],
         ['?', 'Show/hide this help message'],
       ].each_with_index do |arr, i|
