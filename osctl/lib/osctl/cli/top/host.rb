@@ -115,14 +115,14 @@ module OsCtl::Cli
           c_max: current.c_max,
           c: current.c,
           size: current.size,
-          hit_rate: current.hit_rate,
-          misses: current.misses - previous.misses,
+          hit_rate: current.hit_rate(previous),
+          misses: current.misses(previous),
         },
         l2arc: {
           size: current.l2_size,
           asize: current.l2_asize,
-          hit_rate: current.l2_hit_rate,
-          misses: current.l2_misses - previous.l2_misses,
+          hit_rate: current.l2_hit_rate(previous),
+          misses: current.l2_misses(previous),
         },
       }
     end

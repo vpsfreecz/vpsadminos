@@ -4,20 +4,37 @@ module OsCtl::Cli
       parse(file)
     end
 
-    def hit_rate
-      sum = @data[:hits] + @data[:misses]
-      @data[:hits].to_f / sum * 100
-    end
+    # @param since [ArcStats, nil]
+    def hit_rate(since = nil)
+      hits = since ? @data[:hits] - since.hits : @data[:hits]
+      misses = since ? @data[:misses] - since.misses : @data[:misses]
 
-    def l2_hit_rate
-      sum = @data[:l2_hits] + @data[:l2_misses]
+      sum = hits + misses
       return 0.0 if sum == 0
 
-      @data[:l2_hits].to_f / sum * 100
+      hits.to_f / sum * 100
+    end
+
+    # @param since [ArcStats, nil]
+    def l2_hit_rate(since = nil)
+      hits = since ? @data[:l2_hits] - since.l2_hits : @data[:l2_hits]
+      misses = since ? @data[:l2_misses] - since.l2_misses : @data[:l2_misses]
+
+      sum = hits + misses
+      return 0.0 if sum == 0
+
+      hits.to_f / sum * 100
     end
 
     def method_missing(name, *args)
-      return @data[name] if @data.has_key?(name) && args.empty?
+      if @data.has_key?(name) && args.size <= 1
+        if args[0]
+          return @data[name] - args[0].send(name)
+        else
+          return @data[name]
+        end
+      end
+
       super(name, *args)
     end
 
