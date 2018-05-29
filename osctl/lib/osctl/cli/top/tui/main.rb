@@ -14,6 +14,7 @@ module OsCtl::Cli::Top
       @sort_desc = true
       @current_row = nil
       @yanked_cts = []
+      @status_bar_cols = 0
     end
 
     def open
@@ -147,7 +148,10 @@ module OsCtl::Cli::Top
       Curses.refresh
     end
 
-    def status_bar(pos, data)
+    def status_bar(orig_pos, data)
+      pos = orig_pos
+      @status_bar_cols = 0
+
       # CPU
       cpu = data[:cpu]
 
@@ -254,6 +258,7 @@ module OsCtl::Cli::Top
       bold { Curses.addstr(sprintf('%3d', model.containers.count{ |ct| ct.state == :stopped })) }
       Curses.addstr(' stopped')
 
+      @status_bar_cols += pos - orig_pos + 1
       pos + 1
     end
 
@@ -562,8 +567,9 @@ module OsCtl::Cli::Top
       Curses.attroff(Curses::A_BOLD)
     end
 
+    # Screen without header and footer
     def max_rows
-      Curses.lines - 12 # screen without header and footer
+      Curses.lines - @status_bar_cols - 1 - @header.size - 3 - 1
     end
   end
 end
