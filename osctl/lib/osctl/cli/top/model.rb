@@ -36,9 +36,9 @@ module OsCtl::Cli
       return [] unless host.setup?
 
       mem = Top::MemInfo.new
-      arc = Top::ArcStats.new
       host_result = host.result(mode, mem)
       host_cpu = host.cpu_result
+      host_zfs = host.zfs_result
       sum_ct_cpu_hz = 0
       cts = []
 
@@ -85,19 +85,7 @@ module OsCtl::Cli
           swap_used: mem.swap_cached * 1024,
           swap_free: mem.swap_free * 1024,
         },
-        zfs: {
-          arc: {
-            c_max: arc.c_max,
-            c: arc.c,
-            size: arc.size,
-            hit_rate: arc.hit_rate,
-          },
-          l2arc: {
-            size: arc.l2_size,
-            asize: arc.l2_asize,
-            hit_rate: arc.l2_hit_rate,
-          },
-        },
+        zfs: host_zfs,
         containers: cts,
       }
     end

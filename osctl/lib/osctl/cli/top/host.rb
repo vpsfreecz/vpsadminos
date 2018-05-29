@@ -54,6 +54,7 @@ module OsCtl::Cli
     def initialize
       super(id: '[host]', pool: nil, group_path: '', state: 'running')
       @cpu = []
+      @zfs = []
     end
 
     def running?
@@ -67,6 +68,7 @@ module OsCtl::Cli
     def measure(subsystems)
       super
       measure_host_cpu_hz
+      measure_zfs
     end
 
     def result(mode, meminfo)
@@ -85,6 +87,10 @@ module OsCtl::Cli
       @cpu[1].diff(@cpu[0])
     end
 
+    def zfs_result
+      diff_zfs(@zfs[1], @zfs[0])
+    end
+
     protected
     def measure_host_cpu_hz
       f = File.open('/proc/stat')
@@ -94,6 +100,31 @@ module OsCtl::Cli
       values = str.strip.split
       @cpu << Cpu.new(* values[1..-1].map(&:to_i))
       @cpu.shift if @cpu.size > 2
+    end
+
+    def measure_zfs
+      @zfs << Top::ArcStats.new
+      @zfs.shift if @zfs.size > 2
+    end
+
+    # @param current [Top::ArcStats]
+    # @param previous [Top::ArcStats]
+    def diff_zfs(current, previous)
+      {
+        arc: {
+          c_max: current.c_max,
+          c: current.c,
+          size: current.size,
+          hit_rate: current.hit_rate,
+          misses: current.misses - previous.misses,
+        },
+        l2arc: {
+          size: current.l2_size,
+          asize: current.l2_asize,
+          hit_rate: current.l2_hit_rate,
+          misses: current.l2_misses - previous.l2_misses,
+        },
+      }
     end
   end
 end

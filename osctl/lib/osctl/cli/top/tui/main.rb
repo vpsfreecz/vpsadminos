@@ -220,7 +220,9 @@ module OsCtl::Cli::Top
         bold { Curses.addstr(sprintf('%8s', humanize_data(arc[:size]))) }
         Curses.addstr(' size, ')
         bold { Curses.addstr(sprintf('%8.2f', format_percent(arc[:hit_rate]))) }
-        Curses.addstr(' hitrate ')
+        Curses.addstr(' hitrate, ')
+        bold { Curses.addstr(sprintf('%6d', arc[:misses])) }
+        Curses.addstr(' missed ')
 
       else
         Curses.addstr('calculating')
@@ -237,7 +239,9 @@ module OsCtl::Cli::Top
         bold { Curses.addstr(sprintf('%8s', humanize_data(l2arc[:asize]))) }
         Curses.addstr(' asize,')
         bold { Curses.addstr(sprintf('%8.2f', humanize_data(l2arc[:hit_rate]))) }
-        Curses.addstr(' hitrate')
+        Curses.addstr(' hitrate, ')
+        bold { Curses.addstr(sprintf('%6d', l2arc[:misses])) }
+        Curses.addstr(' missed ')
       end
 
       # Containers
