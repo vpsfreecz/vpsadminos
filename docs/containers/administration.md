@@ -189,6 +189,30 @@ usage. Instead of processes it monitors containers.
 
 ![osctl ct top](../img/osctl-ct-top.png)
 
+It can work in two modes: real-time and cumulative. Real-time shows resource
+consumption since the last update, i.e. 1 second by default. Cumulative shows
+resource usage since the program was started. Mode can be switched by pressing
+`m`.
+
+Left and right arrows can be used to change the sort column, `r` to reverse
+sort order. Up and down arrows move selection cursor up and down, spacebar will
+highlight selected container for easier spotting. Enter/return key will open
+*htop* focused on the selected container, see below. Press `?` to show all key
+bindings.
+
+## Process monitor
+*htop* in vpsAdminOS is patched to be able to identify to which containers
+processes belong. It has three extra columns: `POOL`, `CTID` and `NSUID`. For
+container processes, `NSUID` shows the process user ID as it is seen inside the
+container, i.e. its user namespace.
+
+![htop](../img/htop.png)
+
+Our *htop* can filter processes by container ID. You can use CLI option
+`-c`, `--container` to select which container to filter at start, e.g.:
+`htop -c tank:10796`. Filters can also be changed at runtime, press `n`
+and select a container, the host, or all processes.
+
 ## Log file
 You don't need to remember the path to a container's log file, because *osctl*
 can either dump it for you or just print the path:
