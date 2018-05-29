@@ -26,6 +26,8 @@ module OsCtl::Cli::Top
       Curses.setpos(0, 0)
       Curses.addstr('Key bindings:')
 
+      pos = 0
+
       [
         ['q', 'Quit'],
         ['<, >, left, right', 'Change sort column'],
@@ -40,9 +42,11 @@ module OsCtl::Cli::Top
 
         Curses.setpos(i+2, 4)
         Curses.addstr(sprintf('%20s - %s', key, desc))
+
+        pos = i+2
       end
 
-      Curses.setpos(8, 0)
+      Curses.setpos(pos+2, 0)
       Curses.addstr("Press 'q', '?' or <Esc> to continue")
     end
   end
