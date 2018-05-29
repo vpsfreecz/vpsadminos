@@ -9,6 +9,13 @@ module OsCtl::Cli
       @data[:hits].to_f / sum * 100
     end
 
+    def l2_hit_rate
+      sum = @data[:l2_hits] + @data[:l2_misses]
+      return 0.0 if sum == 0
+
+      @data[:l2_hits].to_f / sum * 100
+    end
+
     def method_missing(name, *args)
       return @data[name] if @data.has_key?(name) && args.empty?
       super(name, *args)

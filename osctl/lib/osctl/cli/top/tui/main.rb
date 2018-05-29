@@ -226,6 +226,20 @@ module OsCtl::Cli::Top
         Curses.addstr('calculating')
       end
 
+      l2arc = data[:zfs] && data[:zfs][:l2arc]
+
+      if l2arc && l2arc[:size] > 0
+        Curses.setpos(pos += 1, 0)
+        Curses.addstr('L2ARC:  ' + ' ' * 16)
+
+        bold { Curses.addstr(sprintf('%8s', humanize_data(l2arc[:size]))) }
+        Curses.addstr(' size, ')
+        bold { Curses.addstr(sprintf('%8s', humanize_data(l2arc[:asize]))) }
+        Curses.addstr(' asize,')
+        bold { Curses.addstr(sprintf('%8.2f', humanize_data(l2arc[:hit_rate]))) }
+        Curses.addstr(' hitrate')
+      end
+
       # Containers
       Curses.setpos(pos += 1, 0)
       Curses.addstr('Containers: ')

@@ -92,6 +92,11 @@ module OsCtl::Cli
             size: arc.size,
             hit_rate: arc.hit_rate,
           },
+          l2arc: {
+            size: arc.l2_size,
+            asize: arc.l2_asize,
+            hit_rate: arc.l2_hit_rate,
+          },
         },
         containers: cts,
       }
