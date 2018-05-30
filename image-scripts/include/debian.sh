@@ -19,6 +19,9 @@ export DEBIAN_FRONTEND=noninteractive;
 locale-gen en_US.UTF-8
 dpkg-reconfigure locales
 
+# dpkg-reconfigure locales will not se the default system locale by itself
+echo LANG=en_US.UTF-8 >> /etc/default/locale
+
 PATH=/tmp/:\$PATH apt-get update
 PATH=/tmp/:\$PATH apt-get upgrade -y
 PATH=/tmp/:\$PATH apt-get install -y vim openssh-server ca-certificates man net-tools ifupdown less

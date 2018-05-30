@@ -4,6 +4,13 @@
 
 { config, pkgs, ... }:
 with pkgs.lib;
+let pkgsSnapshot = (import (pkgs.fetchFromGitHub {
+       owner = "NixOS";
+       repo = "nixpkgs";
+       rev = "300fa462b31ad2106d37fcdb4b504ec60dfd62aa";
+       sha256 = "1cbjmi34ll5xa2nafz0jlsciivj62mq78qr3zl4skgdk6scl328s";
+   }) {});
+in
 {
     imports =
       [
@@ -104,4 +111,6 @@ with pkgs.lib;
           ExecStop = "${pkgs.bash}/bin/bash /ifcfg.stop";
         };
       };
+
+    nix.package = pkgsSnapshot.nix;
 }
