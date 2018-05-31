@@ -13,8 +13,11 @@
   boot.initrd.supportedFilesystems = [ "zfs" ];
 
   environment.systemPackages = with pkgs; [
+    glibc
+    iotop
     less
     manpages
+    ncurses
     openssh
     osctl
     osctld
