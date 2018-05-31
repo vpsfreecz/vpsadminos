@@ -17,13 +17,6 @@
 
   tty.autologin.enable = true;
 
-  environment.systemPackages = with pkgs; [
-    ipset
-    vim
-    screen
-    strace
-  ];
-
   users.motd = ''
 
     Welcome to vpsAdminOS

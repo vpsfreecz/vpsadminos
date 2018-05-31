@@ -44,9 +44,7 @@
     dmidecode
     ipmicfg
     lm_sensors
-    nvi
     pciutils
-    screen
     smartmontools
     usbutils
   ];

@@ -15,6 +15,7 @@
   environment.systemPackages = with pkgs; [
     glibc
     iotop
+    ipset
     less
     manpages
     ncurses
@@ -22,6 +23,9 @@
     osctl
     osctld
     ruby
+    screen
+    strace
+    vim
   ];
 
   environment.etc = {
