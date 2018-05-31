@@ -21,7 +21,6 @@
     ncurses
     openssh
     osctl
-    osctld
     ruby
     screen
     strace
