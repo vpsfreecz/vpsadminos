@@ -27,15 +27,6 @@
   environment.etc = {
   };
 
-  users.extraUsers.root = {
-    subUidRanges = [
-        { startUid = 666000; count = 65536; }
-      ];
-    subGidRanges = [
-        { startGid = 666000; count = 65536; }
-      ];
-    };
-
   users.extraUsers.migration = {
     isSystemUser = true;
     description = "User for container migrations";
