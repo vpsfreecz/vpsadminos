@@ -1,11 +1,18 @@
 profile osctl-ct-docker-vfs flags=(attach_disconnected,mediate_deleted) {
   #include <abstractions/lxc/container-base>
-  #include <abstractions/lxc/start-container>
 
-  deny /dev/.lxc/proc/** rw,
-  deny /dev/.lxc/sys/** rw,
-  mount fstype=proc -> /var/cache/lxc/**,
-  mount fstype=sysfs -> /var/cache/lxc/**,
+  network,
+  capability,
+  file,
+  dbus,
+  signal,
+  ptrace,
+
+  mount options=bind /dev/pts/ptmx/ -> /dev/ptmx/,
+  mount options=bind /dev/pts/** -> /dev/**,
+  mount options=(rw, make-slave) -> **,
+  mount options=(rw, make-rslave) -> **,
+
   mount options=(rw,bind),
   mount options=(rw,rbind),
   mount fstype=proc options=(rw,nosuid,nodev,noexec),
