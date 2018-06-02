@@ -1,0 +1,34 @@
+profile osctl-ct-nesting flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/lxc/container-base>
+
+  network,
+  capability,
+  file,
+  dbus,
+  signal,
+  ptrace,
+
+  mount -> /usr/lib/*/lxc/{**,},
+  mount -> /usr/lib/lxc/{**,},
+  mount fstype=devpts -> /dev/pts/,
+  mount options=bind /dev/pts/ptmx/ -> /dev/ptmx/,
+  mount options=bind /dev/pts/** -> /dev/**,
+  mount options=(rw, make-slave) -> **,
+  mount options=(rw, make-rslave) -> **,
+  mount fstype=debugfs,
+  # allow pre-mount hooks to stage mounts under /var/lib/lxc/<container>/
+  mount -> /var/lib/lxc/{**,},
+  pivot_root /usr/lib/lxc/,
+  pivot_root /usr/lib/*/lxc/,
+  pivot_root /usr/lib/lxc/**,
+  pivot_root /usr/lib/*/lxc/**,
+  change_profile -> osctl-ct-nesting,
+  change_profile -> lxc-container-default-cgns,
+
+  deny /dev/.lxc/proc/** rw,
+  deny /dev/.lxc/sys/** rw,
+  mount fstype=proc -> /var/cache/lxc/**,
+  mount fstype=sysfs -> /var/cache/lxc/**,
+  mount options=(rw,bind),
+  mount fstype=cgroup -> /sys/fs/cgroup/**,
+}

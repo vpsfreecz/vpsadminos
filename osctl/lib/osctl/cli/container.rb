@@ -492,15 +492,12 @@ tt
 
     def set_nesting
       set(:nesting) do |args|
-        case args[0]
-        when 'enabled'
-          true
-        when 'disabled'
-          false
-        else
-          raise GLI::BadCommandLine, 'expected enabled/disabled'
-        end
+        true
       end
+    end
+
+    def unset_nesting
+      unset(:nesting)
     end
 
     def set_distribution

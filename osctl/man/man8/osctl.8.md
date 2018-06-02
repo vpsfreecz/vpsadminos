@@ -605,9 +605,15 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   Unset container DNS resolvers. `osctld` will no longer manipulate the
   container's `/etc/resolv.conf`.
 
-`ct set nesting` *id* `enabled`|`disabled`
-  Allow/disallow LXC nesting for container *id*. The container needs to be
-  restarted for the change to take effect.
+`ct set nesting` *id*
+  Enable LXC nesting for container *id*. The container needs to be restarted for
+  the change to take effect. This command also sets AppArmor profile to
+  `osctl-ct-nesting`.
+
+`ct unset nesting` *id*
+  Disable LXC nesting for container *id*. The container needs to be restarted for
+  the change to take effect. If AppArmor profile `osctl-ct-nesting` is set, it
+  is changed to `lxc-container-default-cgns`.
 
 `ct set seccomp` *id* *profile*
   Configure path to the seccomp profile. The container needs to be restarted

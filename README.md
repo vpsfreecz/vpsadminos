@@ -100,7 +100,7 @@ containers containers into vpsAdminOS. See the
 To allow nesting, you need to explicitly configure it per container:
 
 ```
-osctl ct set nesting <id> enabled/disabled
+osctl ct set nesting <id>
 ```
 
 ## Building specific targets

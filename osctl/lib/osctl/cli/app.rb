@@ -581,8 +581,8 @@ module OsCtl::Cli
             c.action &Command.run(Container, :set_dns_resolver)
           end
 
-          set.desc 'Allow/disallow container nesting'
-          set.arg_name '<id> enabled|disabled'
+          set.desc 'Enable container nesting'
+          set.arg_name '<id>'
           set.command :nesting do |c|
             c.action &Command.run(Container, :set_nesting)
           end
@@ -626,6 +626,12 @@ module OsCtl::Cli
           unset.arg_name '<id>'
           unset.command :'dns-resolver' do |c|
             c.action &Command.run(Container, :unset_dns_resolver)
+          end
+
+          unset.desc 'Disable container nesting'
+          unset.arg_name '<id>'
+          unset.command :nesting do |c|
+            c.action &Command.run(Container, :unset_nesting)
           end
 
           unset.desc 'Use the default seccomp profile'

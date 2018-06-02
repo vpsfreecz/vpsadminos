@@ -148,7 +148,7 @@ To allow LXC nesting, i.e. creating LXC containers inside the containers, you
 have to enable it:
 
 ```
-osctl ct set nesting myct01 enabled
+osctl ct set nesting myct01
 ```
 
 Continue by reading more about container [networking](networking.md),

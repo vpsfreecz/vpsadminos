@@ -370,7 +370,8 @@ module OsCtld
           DistConfig.run(self, :dns_resolvers)
 
         when :nesting
-          @nesting = v
+          @nesting = true
+          @apparmor_profile = 'osctl-ct-nesting'
 
         when :distribution
           @distribution = v[:name]
@@ -400,6 +401,13 @@ module OsCtld
 
         when :dns_resolvers
           @dns_resolvers = nil
+
+        when :nesting
+          @nesting = false
+
+          if apparmor_profile == 'osctl-ct-nesting'
+            @apparmor_profile = 'lxc-container-default-cgns'
+          end
 
         when :seccomp_profile
           @seccomp_profile = default_seccomp_profile

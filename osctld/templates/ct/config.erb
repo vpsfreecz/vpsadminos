@@ -4,7 +4,7 @@ lxc.include = <%= cfg %>
 <% end -%>
 lxc.include = /etc/lxc/common.conf.d/00-lxcfs.conf
 <% if ct.nesting -%>
-lxc.include = /etc/lxc/config/nesting.conf
+lxc.include = <%= File.join(Lxc::CONFIGS, 'nesting.conf') %>
 <% end -%>
 
 lxc.rootfs.path = <%= ct.rootfs %>
