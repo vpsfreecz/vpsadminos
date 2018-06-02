@@ -609,6 +609,14 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   Allow/disallow LXC nesting for container *id*. The container needs to be
   restarted for the change to take effect.
 
+`ct set seccomp` *id* *profile*
+  Configure path to the seccomp profile. The container needs to be restarted
+  to use the new profile.
+
+`ct unset seccomp` *id*
+  Reset the seccomp profile to the default value, i.e.
+  `/run/osctl/configs/lxc/common.seccomp`.
+
 `ct set cpu-limit` *id* *limit*
   Configure CFS bandwidth control cgroup parameters to enforce CPU limit. *limit*
   represents maximum CPU usage in percents, e.g. `100` means the container can

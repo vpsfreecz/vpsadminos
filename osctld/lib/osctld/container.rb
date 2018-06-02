@@ -18,7 +18,7 @@ module OsCtld
 
     attr_reader :pool, :id, :user, :dataset, :group, :distribution, :version,
       :arch, :autostart, :hostname, :dns_resolvers, :nesting, :prlimits, :mounts,
-      :migration_log, :cgparams, :devices
+      :migration_log, :cgparams, :devices, :seccomp_profile
     attr_accessor :state, :init_pid
 
     # @param pool [Pool]
@@ -50,6 +50,7 @@ module OsCtld
       @hostname = nil
       @dns_resolvers = nil
       @nesting = false
+      @seccomp_profile = nil
 
       if opts[:load]
        load_config(opts[:load_from], !opts.has_key?(:devices) || opts[:devices])
@@ -66,6 +67,7 @@ module OsCtld
       @arch = arch
       @netifs = []
       @nesting = false
+      @seccomp_profile = default_seccomp_profile
       @cgparams = CGroup::Params.new(self)
       @devices = Devices::ContainerManager.new(self)
       @mounts = Mount::Manager.new(self)
@@ -372,6 +374,9 @@ module OsCtld
           @distribution = v[:name]
           @version = v[:version]
           @arch = v[:arch] if v[:arch]
+
+        when :seccomp_profile
+          @seccomp_profile = v
         end
       end
 
@@ -390,10 +395,14 @@ module OsCtld
 
         when :dns_resolvers
           @dns_resolvers = nil
+
+        when :seccomp_profile
+          @seccomp_profile = default_seccomp_profile
         end
       end
 
       save_config
+      configure_base
     end
 
     def prlimit_set(name, soft, hard)
@@ -497,6 +506,7 @@ module OsCtld
         'hostname' => hostname,
         'dns_resolvers' => dns_resolvers,
         'nesting' => nesting,
+        'seccomp_profile' => seccomp_profile == default_seccomp_profile ? nil : seccomp_profile,
       }
 
       data['state'] = 'staged' if state == :staged
@@ -544,6 +554,7 @@ module OsCtld
       @hostname = cfg['hostname']
       @dns_resolvers = cfg['dns_resolvers']
       @nesting = cfg['nesting'] || false
+      @seccomp_profile = cfg['seccomp_profile'] || default_seccomp_profile
       @migration_log = Migration::Log.load(cfg['migration_log']) if cfg['migration_log']
       @cgparams = CGroup::Params.load(self, cfg['cgparams'])
       @prlimits = (cfg['prlimits'] || []).map { |v| PrLimit.load(v) }
@@ -566,6 +577,10 @@ module OsCtld
       end
 
       @mounts = Mount::Manager.load(self, cfg['mounts'] || [])
+    end
+
+    def default_seccomp_profile
+      File.join(Lxc::CONFIGS, 'common.seccomp')
     end
   end
 end

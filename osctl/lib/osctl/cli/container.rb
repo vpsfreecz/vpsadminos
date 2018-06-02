@@ -33,6 +33,7 @@ module OsCtl::Cli
       hostname
       dns_resolvers
       nesting
+      seccomp_profile
     ) + CGroupParams::CGPARAM_STATS
 
     FILTERS = %i(
@@ -510,6 +511,24 @@ tt
           version: args[1],
         }
       end
+    end
+
+    def set_seccomp_profile
+      set(:seccomp_profile) do |args|
+        if args.count != 1
+          raise GLI::BadCommandLine, 'expected <profile>'
+
+        elsif !File.exist?(args[0])
+          raise GLI::BadCommandLine, "file '#{args[0]}' does not exist"
+
+        else
+          File.absolute_path(args[0])
+        end
+      end
+    end
+
+    def unset_seccomp_profile
+      unset(:seccomp_profile)
     end
 
     def set_cpu_limit

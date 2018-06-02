@@ -593,6 +593,12 @@ module OsCtl::Cli
             c.action &Command.run(Container, :set_distribution)
           end
 
+          set.desc 'Set path to seccomp profile'
+          set.arg_name '<id> <profile>'
+          set.command :seccomp do |c|
+            c.action &Command.run(Container, :set_seccomp_profile)
+          end
+
           set_limits(set, Container)
         end
 
@@ -614,6 +620,12 @@ module OsCtl::Cli
           unset.arg_name '<id>'
           unset.command :'dns-resolver' do |c|
             c.action &Command.run(Container, :unset_dns_resolver)
+          end
+
+          unset.desc 'Use the default seccomp profile'
+          unset.arg_name '<id>'
+          unset.command :seccomp do |c|
+            c.action &Command.run(Container, :unset_seccomp_profile)
           end
 
           unset_limits(unset, Container)
