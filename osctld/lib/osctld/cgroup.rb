@@ -10,7 +10,7 @@ module OsCtld
     # CGroup subsystems are mounted in a shared mountpoint.
     def self.real_subsystem(subsys)
       return 'cpu,cpuacct' if %w(cpu cpuacct).include?(subsys)
-      # TODO: net_cls, net_prio?
+      return 'net_cls,net_prio' if %w(net_cls net_prio).include?(subsys)
       subsys
     end
 

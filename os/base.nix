@@ -299,7 +299,8 @@ with lib;
           memory = /sys/fs/cgroup/memory;
           devices = /sys/fs/cgroup/devices;
           freezer = /sys/fs/cgroup/freezer;
-          net_cls = /sys/fs/cgroup/net_cls;
+          net_cls = /sys/fs/cgroup/net_cls,net_prio;
+          net_prio = /sys/fs/cgroup/net_cls,net_prio;
           pids = /sys/fs/cgroup/pids;
           "name=systemd" = /sys/fs/cgroup/systemd;
         }
