@@ -1,0 +1,27 @@
+profile osctl-ct-docker-vfs flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/lxc/container-base>
+  #include <abstractions/lxc/start-container>
+
+  deny /dev/.lxc/proc/** rw,
+  deny /dev/.lxc/sys/** rw,
+  mount fstype=proc -> /var/cache/lxc/**,
+  mount fstype=sysfs -> /var/cache/lxc/**,
+  mount options=(rw,bind),
+  mount options=(rw,rbind),
+  mount fstype=proc options=(rw,nosuid,nodev,noexec),
+  mount fstype=devpts options=(rw,nosuid,noexec),
+  mount fstype=sysfs options=(ro,nosuid,nodev,noexec),
+  mount options=(ro,nosuid,nodev,noexec,remount,rbind) -> /var/lib/docker/vfs/dir/*/sys/fs/cgroup/*/,
+  mount options=(ro,nosuid,nodev,noexec,remount,bind) -> /var/lib/docker/vfs/dir/*/sys/fs/cgroup/,
+  mount options=(rw,rprivate) -> /var/lib/docker/vfs/dir/*/etc/resolv.conf,
+  mount options=(rw,rprivate) -> /var/lib/docker/vfs/dir/*/etc/hostname,
+  mount options=(rw,rprivate) -> /var/lib/docker/vfs/dir/*/etc/hosts,
+  mount options=(rw,rprivate) -> /var/lib/docker/vfs/dir/*/dev/shm/,
+  mount options=(ro,remount,rbind) -> /proc/bus/,
+  mount options=(ro,remount,rbind) -> /proc/fs/,
+  mount options=(ro,remount,rbind) -> /proc/irq/,
+  mount options=(ro,remount,rbind) -> /proc/sys/,
+  mount options=(ro,remount,rbind) -> /proc/sysrq-trigger,
+  pivot_root /var/lib/docker/vfs/dir/*/,
+  mount fstype=cgroup -> /sys/fs/cgroup/**,
+}

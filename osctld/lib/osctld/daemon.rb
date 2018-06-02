@@ -73,6 +73,9 @@ module OsCtld
       # Increase alloed number of open files
       syscmd("prlimit --nofile=4096 --pid #{Process.pid}")
 
+      # Load AppArmor profiles
+      AppArmor.setup
+
       # Migration hooks and server
       Migration.setup
 

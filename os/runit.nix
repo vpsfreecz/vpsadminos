@@ -58,8 +58,9 @@ EOF
   '';
 
 
-  apparmor_paths = concatMapStrings (s: " -I ${s}/etc/apparmor.d")
-          ([ pkgs.apparmor-profiles ] ++ config.security.apparmor.packages);
+  apparmor_paths = [ pkgs.apparmor-profiles ] ++ config.security.apparmor.packages;
+  apparmor_paths_include = concatMapStrings (s: " -I ${s}/etc/apparmor.d") apparmor_paths;
+  apparmor_paths_joined = concatMapStringsSep ":" (s: "${s}/etc/apparmor.d") apparmor_paths;
   profile = "${pkgs.lxc}/etc/apparmor.d/lxc-containers";
 in
 {
@@ -107,7 +108,7 @@ in
 
       # AppArmor
       mount -t securityfs securityfs /sys/kernel/security
-      ${pkgs.apparmor-parser}/bin/apparmor_parser -rKv ${apparmor_paths} "${profile}"
+      ${pkgs.apparmor-parser}/bin/apparmor_parser -rKv ${apparmor_paths_include} "${profile}"
 
       # DebugFS
       mount -t debugfs none /sys/kernel/debug/
@@ -189,6 +190,10 @@ in
 
     "service/osctld/run".source = pkgs.writeScript "osctld" ''
       #!/bin/sh
+
+      export PATH="$PATH:${pkgs.apparmor-parser}/bin"
+      export OSCTLD_APPARMOR_PATHS="${apparmor_paths_joined}"
+
       exec 2>&1
       exec ${pkgs.osctld}/bin/osctld --log syslog --log-facility local2
     '';

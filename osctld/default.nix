@@ -1,6 +1,8 @@
 let  
   pkgs = import <nixpkgs> {};
   stdenv = pkgs.stdenv;
+  apparmor_paths = pkgs.lib.concatMapStringsSep ":" (s: "${s}/etc/apparmor.d")
+          [ pkgs.apparmor-profiles pkgs.lxc ];
 
 in stdenv.mkDerivation rec {  
   name = "osctld";
@@ -11,6 +13,7 @@ in stdenv.mkDerivation rec {
     pkgs.git
     pkgs.zlib
     pkgs.openssl
+    pkgs.apparmor-parser
   ];
 
   shellHook = ''
@@ -29,6 +32,8 @@ in stdenv.mkDerivation rec {
     $BUNDLE install
 
     export RUBYOPT=-rbundler/setup
+
+    export OSCTLD_APPARMOR_PATHS="${apparmor_paths}"
 
     # Suids
     chmod 04755 ${pkgs.lxc}/libexec/lxc/lxc-user-nic
