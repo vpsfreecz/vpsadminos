@@ -13,7 +13,8 @@ module OsCtld
       ct.exclusively do
         changes = {}
 
-        %i(autostart hostname dns_resolvers seccomp_profile).each do |attr|
+        %i(autostart hostname dns_resolvers seccomp_profile
+           apparmor_profile).each do |attr|
           changes[attr] = opts[attr] if opts.has_key?(attr)
         end
 

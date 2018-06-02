@@ -19,6 +19,7 @@ lxc.idmap = g <%= entry.ns_id %> <%= entry.host_id %> <%= entry.count %>
 <% end -%>
 
 lxc.seccomp.profile = <%= ct.seccomp_profile %>
+lxc.apparmor.profile = <%= ct.apparmor_profile %>
 lxc.autodev = 1
 
 lxc.hook.version = 1

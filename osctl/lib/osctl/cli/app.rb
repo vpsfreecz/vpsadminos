@@ -599,6 +599,12 @@ module OsCtl::Cli
             c.action &Command.run(Container, :set_seccomp_profile)
           end
 
+          set.desc 'Set AppArmor profile name'
+          set.arg_name '<id> <profile>'
+          set.command :apparmor do |c|
+            c.action &Command.run(Container, :set_apparmor_profile)
+          end
+
           set_limits(set, Container)
         end
 
@@ -626,6 +632,12 @@ module OsCtl::Cli
           unset.arg_name '<id>'
           unset.command :seccomp do |c|
             c.action &Command.run(Container, :unset_seccomp_profile)
+          end
+
+          unset.desc 'Use the default AppArmor profile'
+          unset.arg_name '<id>'
+          unset.command :apparmor do |c|
+            c.action &Command.run(Container, :unset_apparmor_profile)
           end
 
           unset_limits(unset, Container)

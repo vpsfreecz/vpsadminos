@@ -37,6 +37,7 @@ module OsCtld
             dns_resolvers: ct.dns_resolvers,
             nesting: ct.nesting,
             seccomp_profile: ct.seccomp_profile,
+            apparmor_profile: ct.apparmor_profile,
             log_file: ct.log_path,
           }
         end

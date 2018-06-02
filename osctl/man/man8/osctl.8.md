@@ -617,6 +617,14 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   Reset the seccomp profile to the default value, i.e.
   `/run/osctl/configs/lxc/common.seccomp`.
 
+`ct set apparmor` *id* *profile*
+  Configure AppArmor profile name to use for this container. The new profile
+  will be used after the container is restarted.
+
+`ct unset apparmor` *id*
+  Reset the AppArmor profile to the default value, i.e.
+  `lxc-container-default-cgns`.
+
 `ct set cpu-limit` *id* *limit*
   Configure CFS bandwidth control cgroup parameters to enforce CPU limit. *limit*
   represents maximum CPU usage in percents, e.g. `100` means the container can

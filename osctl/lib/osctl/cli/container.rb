@@ -34,6 +34,7 @@ module OsCtl::Cli
       dns_resolvers
       nesting
       seccomp_profile
+      apparmor_profile
     ) + CGroupParams::CGPARAM_STATS
 
     FILTERS = %i(
@@ -529,6 +530,17 @@ tt
 
     def unset_seccomp_profile
       unset(:seccomp_profile)
+    end
+
+    def set_apparmor_profile
+      set(:apparmor_profile) do |args|
+        raise GLI::BadCommandLine, 'expected <profile>' if args.count != 1
+        args[0].strip
+      end
+    end
+
+    def unset_apparmor_profile
+      unset(:apparmor_profile)
     end
 
     def set_cpu_limit
