@@ -27,10 +27,12 @@ PATH=/tmp/:\$PATH apt-get upgrade -y
 PATH=/tmp/:\$PATH apt-get install -y vim openssh-server ca-certificates man net-tools ifupdown less
 PATH=/tmp/:\$PATH apt-get purge -y ureadahead eject ntpdate resolvconf
 usermod -L root
-
-if [ "$DISTNAME" == "devuan" ] || [ $RELVER -lt 9 ]; then
-
 rm -f /etc/ssh/ssh_host_*
+
+if [ "$DISTNAME" == "devuan" ] \
+   || ([ "$DISTNAME" == "debian" ] && [ $RELVER -lt 9 ]) \
+   || ([ "$DISTNAME" == "ubuntu" ] && [ "$RELVER" == "14.04" ]) ; then
+
 cat > /etc/init.d/generate_ssh_keys <<"GENSSH"
 #!/bin/bash
 ssh-keygen -f /etc/ssh/ssh_host_rsa_key -t rsa -N ''
@@ -42,6 +44,23 @@ GENSSH
 
 chmod a+x /etc/init.d/generate_ssh_keys
 update-rc.d generate_ssh_keys defaults
+
+else
+
+cat > /etc/systemd/system/sshd-keygen.service <<"KEYGENSVC"
+[Unit]
+Description=OpenSSH Server Key Generation
+ConditionPathExistsGlob=!/etc/ssh/ssh_host_*
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/ssh-keygen -A
+
+[Install]
+WantedBy=multi-user.target
+KEYGENSVC
+
+ln -s /etc/systemd/system/sshd-keygen.service /etc/systemd/system/multi-user.target.wants/sshd-keygen.service
 
 fi
 
