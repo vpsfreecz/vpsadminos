@@ -51,21 +51,6 @@ module OsCtld
         error!('GID map is not valid')
       end
 
-      # Check that root mapping is unique, this is necessary for
-      # {UserControl::Supervisor::NamespacedClientHandler} to work.
-      {uid_map: uid_map, gid_map: gid_map}.each do |type, map|
-        root_id = map.ns_to_host(0)
-
-        users.each do |u|
-          if u.send(type).ns_to_host(0) == root_id
-            error!(
-              "#{type}: root mapping to #{root_id} is already taken by user "+
-              "#{u.pool.name}:#{u.name}"
-            )
-          end
-        end
-      end
-
       u = User.new(pool, opts[:name], load: false)
       error!('user already exists') if DB::Users.contains?(u.name, pool)
       u

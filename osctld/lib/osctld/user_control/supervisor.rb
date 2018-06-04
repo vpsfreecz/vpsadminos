@@ -19,8 +19,7 @@ module OsCtld
     # Client handler for commands called from a container's user namespace.
     #
     # The handler finds appropriate osctld user and passes control to standard
-    # client handler. Namespaced UID/GID of the client can be obtained from the
-    # socket, user with a matching root uid mapping is searched for.
+    # client handler.
     class NamespacedClientHandler < Generic::ClientHandler
       def handle_cmd(req)
         return error('invalid input') unless req.is_a?(Hash)
@@ -34,12 +33,37 @@ module OsCtld
         cred = @sock.getsockopt(Socket::SOL_SOCKET, Socket::SO_PEERCRED)
         pid, uid, gid = cred.unpack('LLL')
 
-        # Locate the user in DB using its root uid (0) mapping
+        # Locate the user in DB using the uid of the caller process' grandparent:
+        # - caller: lxc hook
+        # - parent: lxc-start, future /sbin/init
+        # - grandparent: lxc-start running within the host namespace
+        process = OsProcess.new(pid)
+        gpuid = process.grandparent.real_uid
+
         user = DB::Users.get.detect do |u|
-          u.pool.name == req[:opts][:pool] && u.uid_map.ns_to_host(0) == uid
+          u.pool.name == req[:opts][:pool] && u.ugid == gpuid
         end
 
-        return error('invalid user') unless user
+        unless user
+          log(:warn, "Unable to find user for pid=#{pid},uid=#{uid},gid=#{gid}")
+          return error('invalid user')
+        end
+
+        # Just to be sure that we have the right user, compare the caller's
+        # uid/gid with the user's uid/gid within user namespace.
+        {
+          uid: [user.uid_map.ns_to_host(0), uid],
+          gid: [user.gid_map.ns_to_host(0), gid],
+        }.each do |type, ids|
+          expected, got = ids
+
+          if expected != got
+            log(:warn, "Caller's #{type} does not match the located user: "+
+                       "user=#{user.ident}, expected #{type}=#{expected}, "+
+                       "got #{type}=#{got}")
+            return error('invalid user')
+          end
+        end
 
         req[:opts].update(client_pid: pid) if req[:opts].is_a?(Hash)
 
