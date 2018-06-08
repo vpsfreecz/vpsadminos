@@ -18,6 +18,7 @@ profile osctl-ct-docker-vfs flags=(attach_disconnected,mediate_deleted) {
   mount fstype=proc options=(rw,nosuid,nodev,noexec),
   mount fstype=devpts options=(rw,nosuid,noexec),
   mount fstype=sysfs options=(ro,nosuid,nodev,noexec),
+  mount options=(rw,shared) -> /var/lib/docker/,
   mount options=(ro,nosuid,nodev,noexec,remount,rbind) -> /var/lib/docker/vfs/dir/*/sys/fs/cgroup/*/,
   mount options=(ro,nosuid,nodev,noexec,remount,bind) -> /var/lib/docker/vfs/dir/*/sys/fs/cgroup/,
   mount options=(rw,rprivate) -> /var/lib/docker/vfs/dir/*/etc/resolv.conf,
@@ -31,4 +32,9 @@ profile osctl-ct-docker-vfs flags=(attach_disconnected,mediate_deleted) {
   mount options=(ro,remount,rbind) -> /proc/sysrq-trigger,
   pivot_root /var/lib/docker/vfs/dir/*/,
   mount fstype=cgroup -> /sys/fs/cgroup/**,
+  mount fstype=cgroup2 -> /sys/fs/cgroup/**,
+
+  # Needed by GitLab runner, it tries to bind-mount
+  # /var/lib/docker/vfs/dir/*/builds/root
+  mount options=(rw,rprivate) -> /var/lib/docker/vfs/dir/**,
 }
