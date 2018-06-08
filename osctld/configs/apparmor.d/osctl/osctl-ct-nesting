@@ -31,4 +31,5 @@ profile osctl-ct-nesting flags=(attach_disconnected,mediate_deleted) {
   mount fstype=sysfs -> /var/cache/lxc/**,
   mount options=(rw,bind),
   mount fstype=cgroup -> /sys/fs/cgroup/**,
+  mount fstype=cgroup2 -> /sys/fs/cgroup/**,
 }
