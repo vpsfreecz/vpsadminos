@@ -41,7 +41,8 @@
         pkgs.nvi
       ];
 
-      #services.openssh.enable = true;
+      services.openssh.enable = true;
+      services.openssh.permitRootLogin = "yes";
       #users.extraUsers.root.openssh.authorizedKeys.keys =
       #  [ "..." ];
 
@@ -63,6 +64,9 @@
 
   environment.systemPackages = [ pkgs.nvi ];
   time.timeZone = "Europe/Amsterdam";
+
+  services.openssh.enable = lib.mkDefault true;
+  services.openssh.permitRootLogin = lib.mkDefault "yes";
 
   boot.postBootCommands =
     ''
