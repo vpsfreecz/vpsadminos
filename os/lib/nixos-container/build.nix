@@ -1,5 +1,13 @@
 { config, pkgs, lib, ...}: {
 
+  services.resolved = lib.mkDefault {
+    enable = true;
+    fallbackDns = [
+      "37.205.9.100"
+      "37.205.10.88"
+      "1.1.1.1" ];
+  };
+
   systemd.services.systemd-sysctl.enable = false;
   systemd.sockets."systemd-journald-audit".enable = false;
 
