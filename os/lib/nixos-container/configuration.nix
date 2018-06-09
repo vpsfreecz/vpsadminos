@@ -47,6 +47,7 @@
       #  [ "..." ];
 
       time.timeZone = "Europe/Amsterdam";
+      system.nixos.stateVersion = "18.03";
     }
     '';
 
@@ -64,6 +65,7 @@
 
   environment.systemPackages = [ pkgs.nvi ];
   time.timeZone = "Europe/Amsterdam";
+  system.nixos.stateVersion = "18.03";
 
   services.openssh.enable = lib.mkDefault true;
   services.openssh.permitRootLogin = lib.mkDefault "yes";
