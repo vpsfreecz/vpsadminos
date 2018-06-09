@@ -10,6 +10,7 @@
 
   systemd.services.systemd-sysctl.enable = false;
   systemd.sockets."systemd-journald-audit".enable = false;
+  systemd.mounts = [ {where = "/sys/kernel/debug"; enable = false;} ];
 
   boot.isContainer = true;
   boot.specialFileSystems."/run/keys".fsType = lib.mkForce "tmpfs";
