@@ -1,6 +1,7 @@
 require 'highline'
 require 'io/console'
 require 'ipaddress'
+require 'libosctl'
 require 'tempfile'
 require 'osctl/cli/command'
 require 'osctl/cli/cgroup_params'
@@ -35,6 +36,7 @@ module OsCtl::Cli
       nesting
       seccomp_profile
       apparmor_profile
+      loadavg
     ) + CGroupParams::CGPARAM_STATS
 
     FILTERS = %i(
@@ -109,6 +111,8 @@ module OsCtl::Cli
         gopts[:parsable]
       )
 
+      add_loadavgs(cts)
+
       format_output(cts, cols, fmt_opts)
     end
 
@@ -137,6 +141,8 @@ module OsCtl::Cli
 
       cg_add_stats(c, ct, ct[:group_path], cols, gopts[:parsable])
       c.close
+
+      add_loadavg(ct)
 
       format_output(ct, cols)
     end
@@ -1079,6 +1085,42 @@ tt
       end
 
       ret
+    end
+
+    def add_loadavg(ct)
+      if ct[:state] != 'running'
+        ct[:loadavg] = nil
+        return
+      end
+
+      lavgs = OsCtl::Lib::LoadAvgReader.read_for(["#{ct[:pool]}:#{ct[:id]}"])
+
+      if lavgs.empty?
+        ct[:loadavg] = nil
+
+      else
+        ct[:loadavg] = lavgs.first.averages
+      end
+    end
+
+    def add_loadavgs(cts)
+      lavgs = OsCtl::Lib::LoadAvgReader.read_all_hash
+
+      cts.each do |ct|
+        if ct[:state] != 'running'
+          ct[:loadavg] = nil
+          next
+        end
+
+        lavg = lavgs[ "#{ct[:pool]}:#{ct[:id]}" ]
+
+        if lavg
+          ct[:loadavg] = lavg.averages
+
+        else
+          ct[:loadavg] = nil
+        end
+      end
     end
   end
 end
