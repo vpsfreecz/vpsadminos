@@ -85,10 +85,17 @@ module OsCtld
       return ret if ret != :wait
 
       # Wait for the container to enter state `running`
+      progress('Waiting for the container to start')
       started = wait_for_ct(event_queue, ct)
       Eventd.unsubscribe(event_queue)
 
       if started
+        # Access `/proc/loadavg` within the container, so that LXCFS starts
+        # tracking it immediately.
+        ct.inclusively do
+          ct_syscmd(ct, 'cat /proc/loadavg', valid_rcs: :all)
+        end
+
         ok
 
       else
