@@ -38,9 +38,9 @@ module OsCtld
         apply_devices(self, abs_path)
       end
 
-      abs_ct_chowned_cgroup_paths.each do |abs, req|
+      abs_ct_chowned_cgroup_paths.each do |abs, req, uid, gid|
         next unless prepare_cgroup(abs, req)
-        File.chown(ct.user.ugid, ct.user.ugid, abs)
+        File.chown(uid || ct.user.ugid, gid || ct.user.ugid, abs)
       end
     end
 
@@ -234,7 +234,8 @@ module OsCtld
         [File.join(ct.cgroup_path, 'lxc'), true],
 
         # <group>/<user>/<ct>/user-owned/lxc/<ct>
-        [File.join(ct.cgroup_path, 'lxc', ct.id), false],
+        [File.join(ct.cgroup_path, 'lxc', ct.id), false,
+         ct.user.ugid, ct.gid_map.ns_to_host(0)],
       ])
     end
 
@@ -244,8 +245,8 @@ module OsCtld
     end
 
     def to_abs_paths(rel_paths)
-      rel_paths.map do |path, req|
-        [File.join(CGroup::FS, CGroup.real_subsystem('devices'), path), req]
+      rel_paths.map do |path, req, *args|
+        [File.join(CGroup::FS, CGroup.real_subsystem('devices'), path), req, *args]
       end
     end
 
