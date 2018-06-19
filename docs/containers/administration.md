@@ -167,20 +167,20 @@ they belong to.
 
 ```bash
 osctl ct pid 22690 23292
-PID        CONTAINER
-22690      tank:myct01
-23292      tank:myct01
+PID        CONTAINER            CTPID      NAME
+22690      tank:myct01          226        agetty
+23292      tank:myct01          228        agetty
 ```
 
 *osctl* can also read process IDs from standard input:
 
 ```bash
 osctl ct pid -
-PID        CONTAINER
+PID        CONTAINER            CTPID      NAME
 > 22690
-22690      tank:myct01
+22690      tank:myct01          226        agetty
 > 23292
-23292      tank:myct01
+23292      tank:myct01          228        agetty
 ```
 
 ## Container resource monitor

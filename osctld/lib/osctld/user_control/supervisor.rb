@@ -1,3 +1,4 @@
+require 'libosctl'
 require 'thread'
 require 'osctld/generic/client_handler'
 
@@ -37,7 +38,7 @@ module OsCtld
         # - caller: lxc hook
         # - parent: lxc-start, future /sbin/init
         # - grandparent: lxc-start running within the host namespace
-        process = OsProcess.new(pid)
+        process = OsCtl::Lib::OsProcess.new(pid)
         gpuid = process.grandparent.real_uid
 
         user = DB::Users.get.detect do |u|

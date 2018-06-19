@@ -1,7 +1,9 @@
+require 'libosctl'
+
 module OsCtl::Cli
   class PidFinder
     def initialize(header: true)
-      print('PID', 'CONTAINER') if header
+      print('PID', 'CONTAINER', 'CTPID', 'NAME') if header
     end
 
     def find(pid)
@@ -24,8 +26,7 @@ module OsCtl::Cli
       end
 
       ct = $1
-
-      print(pid, "#{pool}:#{ct}")
+      in_ct(pid, pool, ct)
 
     rescue Errno::ENOENT
       not_found(pid)
@@ -36,12 +37,20 @@ module OsCtl::Cli
       print(pid, '[host]')
     end
 
+    def in_ct(pid, pool, ctid)
+      process = OsCtl::Lib::OsProcess.new(pid)
+      print(pid, "#{pool}:#{ctid}", process.ctpid, process.name)
+
+    rescue Errno::ENOENT
+      print(pid, "#{pool}:#{ctid}")
+    end
+
     def not_found(pid)
       print(pid, '-')
     end
 
-    def print(pid, ct)
-      puts sprintf('%-10s %s', pid, ct)
+    def print(pid, ct, ctpid = '-', name = '-')
+      puts sprintf('%-10s %-20s %-10s %s', pid, ct, ctpid.to_s, name)
     end
   end
 end
