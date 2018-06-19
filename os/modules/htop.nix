@@ -30,7 +30,7 @@ in
   config = mkMerge [
     (mkIf cfg.enable {
       environment.etc."htoprc".source = pkgs.writeText "htoprc" ''
-        fields=119 0 120 17 18 38 39 40 2 46 47 49 1
+        fields=119 0 121 120 17 18 38 39 40 2 46 47 49 1
         sort_key=46
         sort_direction=1
         hide_threads=0

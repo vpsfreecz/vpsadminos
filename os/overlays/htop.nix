@@ -4,8 +4,8 @@ self: super:
     src = super.fetchFromGitHub {
       owner = "vpsfreecz";
       repo = "htop";
-      rev = "96de2f898977af132d505a9ff5ee47dd55c26031";
-      sha256 = "1kgq2d5xpbmziffkx4dggkixa0815sjjc3c38z403074csljygly";
+      rev = "328f7bb4caa682b10988e2c99116daddf65184ce";
+      sha256 = "1hnyvyw6vl19vdshg12fbnfw18x85fn5ahzjn16y0gwj3lgbphrr";
     };
 
     nativeBuildInputs = oldAttrs.nativeBuildInputs ++ [
