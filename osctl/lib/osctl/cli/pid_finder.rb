@@ -3,54 +3,35 @@ require 'libosctl'
 module OsCtl::Cli
   class PidFinder
     def initialize(header: true)
+      @finder = OsCtl::Lib::PidFinder.new
       print('PID', 'CONTAINER', 'CTPID', 'NAME') if header
     end
 
+    # @param pid [Integer]
     def find(pid)
-      f = File.open(File.join('/proc', pid, 'cgroup'), 'r')
-      line = f.readline
-      f.close
+      ret = finder.find(pid.to_i)
 
-      _id, _subsys, path = line.split(':')
+      if ret.nil?
+        print(pid, '-')
 
-      if /^\/osctl\/pool\.([^\/]+)/ !~ path
-        on_host(pid)
-        return
+      elsif ret.ctid == :host
+        print(pid, '[host]', '-', ret.os_process.name)
+
+      else
+        print(
+          pid,
+          "#{ret.pool}:#{ret.ctid}",
+          ret.os_process.ctpid,
+          ret.os_process.name
+        )
       end
-
-      pool = $1
-
-      if /ct\.([^\/]+)\/user\-owned\// !~ path
-        not_found(pid)
-        return
-      end
-
-      ct = $1
-      in_ct(pid, pool, ct)
-
-    rescue Errno::ENOENT
-      not_found(pid)
     end
 
     protected
-    def on_host(pid)
-      print(pid, '[host]')
-    end
-
-    def in_ct(pid, pool, ctid)
-      process = OsCtl::Lib::OsProcess.new(pid)
-      print(pid, "#{pool}:#{ctid}", process.ctpid, process.name)
-
-    rescue Errno::ENOENT
-      print(pid, "#{pool}:#{ctid}")
-    end
-
-    def not_found(pid)
-      print(pid, '-')
-    end
+    attr_reader :finder
 
     def print(pid, ct, ctpid = '-', name = '-')
-      puts sprintf('%-10s %-20s %-10s %s', pid, ct, ctpid.to_s, name)
+      puts sprintf('%-10s %-20s %-10s %s', pid.to_s, ct, ctpid.to_s, name)
     end
   end
 end

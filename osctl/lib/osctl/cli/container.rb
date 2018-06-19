@@ -694,10 +694,10 @@ tt
       finder = PidFinder.new(header: !opts['hide-header'])
 
       if args[0] == '-'
-        finder.find(STDIN.readline.strip) until STDIN.eof?
+        finder.find(STDIN.readline.strip.to_i) until STDIN.eof?
 
       else
-        args.each { |pid| finder.find(pid) }
+        args.each { |pid| finder.find(pid.to_i) }
       end
     end
 
