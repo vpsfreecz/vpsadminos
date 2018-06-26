@@ -90,9 +90,10 @@ module OsCtld
       Eventd.unsubscribe(event_queue)
 
       if started
-        # Access `/proc/loadavg` within the container, so that LXCFS starts
-        # tracking it immediately.
+        # Access `/proc/stat` and `/proc/loadavg` within the container, so that
+        # LXCFS starts tracking it immediately.
         ct.inclusively do
+          ct_syscmd(ct, 'cat /proc/stat', valid_rcs: :all)
           ct_syscmd(ct, 'cat /proc/loadavg', valid_rcs: :all)
         end
 
