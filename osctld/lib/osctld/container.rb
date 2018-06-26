@@ -128,6 +128,13 @@ module OsCtld
           mode: 0644
         )
         add.file(
+          lxc_config_path('cgparams'),
+          desc: 'LXC cgroup parameters',
+          user: 0,
+          group: 0,
+          mode: 0644
+        )
+        add.file(
           lxc_config_path('prlimits'),
           desc: 'LXC resource limits',
           user: 0,
@@ -450,6 +457,7 @@ module OsCtld
 
     def configure_lxc
       configure_base
+      configure_cgparams
       configure_prlimits
       configure_network
       configure_mounts
@@ -461,6 +469,12 @@ module OsCtld
         version: version,
         ct: self,
       }, lxc_config_path)
+    end
+
+    def configure_cgparams
+      Template.render_to('ct/cgparams', {
+        cgparams: cgparams,
+      }, lxc_config_path('cgparams'))
     end
 
     def configure_prlimits
