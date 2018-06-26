@@ -70,7 +70,7 @@ module OsCtld
       @nesting = false
       @seccomp_profile = default_seccomp_profile
       @apparmor_profile = default_apparmor_profile
-      @cgparams = CGroup::Params.new(self)
+      @cgparams = CGroup::ContainerParams.new(self)
       @devices = Devices::ContainerManager.new(self)
       @mounts = Mount::Manager.new(self)
       devices.init
@@ -590,7 +590,7 @@ module OsCtld
       @seccomp_profile = cfg['seccomp_profile'] || default_seccomp_profile
       @apparmor_profile = cfg['apparmor_profile'] || default_apparmor_profile
       @migration_log = Migration::Log.load(cfg['migration_log']) if cfg['migration_log']
-      @cgparams = CGroup::Params.load(self, cfg['cgparams'])
+      @cgparams = CGroup::ContainerParams.load(self, cfg['cgparams'])
       @prlimits = (cfg['prlimits'] || []).map { |v| PrLimit.load(v) }
 
       # It's necessary to load devices _before_ netifs. The device manager needs
