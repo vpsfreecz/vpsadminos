@@ -447,6 +447,7 @@ module OsCtld
         ctid = File.basename(f)[0..(('.yml'.length+1) * -1)]
 
         ct = Container.new(self, ctid)
+        ct.configure_lxc
         Monitor::Master.monitor(ct)
         Console.reconnect_tty0(ct) if ct.current_state == :running
         DB::Containers.add(ct)
