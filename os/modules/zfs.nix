@@ -152,12 +152,12 @@ in
   config = mkMerge [
     (mkIf enableZfs {
       boot = {
-        kernelModules = [ "spl" "zfs" ] ;
-        extraModulePackages = with packages; [ spl zfs ];
+        kernelModules = [ "zfs" ] ;
+        extraModulePackages = with packages; [ zfs ];
       };
 
       boot.initrd = mkIf inInitrd {
-        kernelModules = [ "spl" "zfs" ];
+        kernelModules = [ "zfs" ];
         extraUtilsCommands =
           ''
             copy_bin_and_libs ${packages.zfsUser}/sbin/zfs

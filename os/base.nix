@@ -187,7 +187,7 @@ with lib;
     boot.kernelPackage = mkOption {
       type = types.package;
       description = "base linux kernel package";
-      default = pkgs.linux_4_14;
+      default = pkgs.linux_4_17;
       example = pkgs.linux_4_16;
     };
   };
@@ -216,10 +216,8 @@ with lib;
           name = pkgs.zfs.name;
           version = pkgs.zfs.version;
           src = pkgs.zfs.src;
-          spl = self.spl;
+          spl = null;
         });
-
-        spl = super.splUnstable;
       });
 
     hwSupportModules = [
