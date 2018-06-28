@@ -187,7 +187,7 @@ with lib;
     boot.kernelPackage = mkOption {
       type = types.package;
       description = "base linux kernel package";
-      default = pkgs.linux_4_17;
+      default = (import ./packages/linux/default.nix { inherit pkgs; });
       example = pkgs.linux_4_16;
     };
   };
