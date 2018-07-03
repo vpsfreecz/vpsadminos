@@ -35,6 +35,10 @@ module OsCtl::Cli
       end
     end
 
+    def activate
+      osctld_fmt(:self_activate, system: opts[:system], lxcfs: opts[:lxcfs])
+    end
+
     def shutdown
       unless opts[:force]
         STDOUT.write(

@@ -74,12 +74,12 @@ module OsCtld
       out_r.close
 
       if !ret[:status]
-        raise SystemCommandFailed "Command '#{cmd}' within CT #{ct.id} failed"
+        raise OsCtld::SystemCommandFailed "Command '#{cmd}' within CT #{ct.id} failed"
 
       elsif ret[:output][:exitstatus] != 0 && \
             opts[:valid_rcs] != :all && \
             !opts[:valid_rcs].include?(ret[:output][:exitstatus])
-        raise SystemCommandFailed,
+        raise OsCtld::SystemCommandFailed,
               "Command '#{cmd}' within CT #{ct.id} failed with exit code "+
               "#{ret[:output][:exitstatus]}: #{out}"
       end

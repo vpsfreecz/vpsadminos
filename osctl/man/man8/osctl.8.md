@@ -1535,6 +1535,20 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-a`, `--all`
       Verify all pools.
 
+`activate` [*options*]
+  Configure the system after it was upgraded, i.e. the new system closure
+  has been activated.
+
+    `--[no-]system`
+      NixOS overwrites files it thinks it manages, such as
+      `/etc/sub{u,g}id` and `/etc/lxc/lxc-usernet`. If this option is enabled,
+      the required files are regenerated. Enabled by default.
+
+    `--[no-]lxcfs`
+      In case LXCFS was reloaded, it is necessary to access `/proc/stat` and
+      `/proc/loadavg` in all containers, in order for LXCFS to start tracking
+      them. Enabled by default.
+
 `shutdown` [`-f`|`--force`]
   Export all pools and stop all containers. This command should be used at
   system shutdown. Since all pools are immediately disabled, no container can be

@@ -1239,6 +1239,17 @@ module OsCtl::Cli
         c.action &Command.run(Self, :healthcheck)
       end
 
+      desc 'Configure the system after it was upgraded'
+      command :activate do |c|
+        c.desc 'Regenerate system files'
+        c.switch :system, default_value: true
+
+        c.desc 'Ensure all containers are tracked by LXCFS'
+        c.switch :lxcfs, default_value: true
+
+        c.action &Command.run(Self, :activate)
+      end
+
       desc 'Export all pools and stop all containers'
       command :shutdown do |c|
         c.desc 'Do not ask for confirmation, shutdown immediately'
