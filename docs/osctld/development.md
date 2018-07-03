@@ -88,14 +88,17 @@ able to build the OS with your changes, without the need to setup the developmen
 environment themselves.
 
 By default, the gems are pushed and installed from <https://rubygems.vpsfree.cz>.
-Pushing requires authentication, you'll have to ask for credentials. Rake,
-bundler and bundix must be installed.
+Pushing requires authentication, you'll have to ask for credentials.
+Use `nix-shell` to enter a prepared environment.
 
 ```shell
-# Install geminabox, which handles pushing to the custom rubygems repository
-$ gem install geminabox
+# Configure remote repository for geminabox
 $ gem inabox -c
+```
 
+Within `nix-shell`, you can use `make` to build gems and the OS:
+
+```shell
 # Build and push gems
 $ make gems
 
