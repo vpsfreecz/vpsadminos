@@ -23,24 +23,42 @@ in
         '';
       };
 
-      dbHost = mkOption {
-        type = types.str;
-        description = "Database hostname";
-      };
+      db = mkOption {
+        type = types.submodule {
+          options = {
+            host = mkOption {
+              type = types.str;
+              description = "Database hostname";
+            };
 
-      dbUser = mkOption {
-        type = types.str;
-        description = "Database user";
-      };
+            user = mkOption {
+              type = types.str;
+              description = "Database user";
+            };
 
-      dbPassword = mkOption {
-        type = types.str;
-        description = "Database password";
-      };
+            password = mkOption {
+              type = types.str;
+              description = "Database password";
+            };
 
-      dbName = mkOption {
-        type = types.str;
-        description = "Database name";
+            name = mkOption {
+              type = types.str;
+              description = "Database name";
+            };
+          };
+        };
+        default = {
+          host = "";
+          user = "";
+          password = "";
+          name = "";
+        };
+        description = ''
+          Database credentials. Don't use this for production deployments, as
+          the credentials would be world readable in the Nix store.
+          Pass the database credentials through deployment.keys.nodectld-config
+          in NixOps.
+        '';
       };
 
       nodeId = mkOption {
@@ -65,12 +83,13 @@ in
   config = mkMerge [
     (mkIf cfg.enable {
       environment.etc."vpsadmin/nodectld.yml".source = pkgs.writeText "nodectld-conf" ''
+        ${lib.optionalString (cfg.db.host != "") ''
         :db:
-          :host: ${cfg.dbHost}
-          :user: ${cfg.dbUser}
-          :pass: ${cfg.dbPassword}
-          :name: ${cfg.dbName}
-
+          :host: ${cfg.db.host}
+          :user: ${cfg.db.user}
+          :pass: ${cfg.db.password}
+          :name: ${cfg.db.name}
+        ''}
         :vpsadmin:
           :node_id: ${toString cfg.nodeId}
           :net_interfaces: [${lib.concatStringsSep ", " cfg.netInterfaces}]
