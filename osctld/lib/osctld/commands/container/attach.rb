@@ -38,6 +38,7 @@ module OsCtld
           ok(ct_exec(
             ct,
             *base_args,
+            '--keep-var', 'LANG',
             '-v', "PS1=#{prompt(ct, shell)}",
             '--',
             *shell_args(shell)
