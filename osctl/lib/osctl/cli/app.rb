@@ -910,13 +910,55 @@ module OsCtl::Cli
             ip.desc 'Add IP address'
             ip.arg_name '<id> <name> <addr>'
             ip.command :add do |c|
+              c.desc 'Add route for addr'
+              c.switch :route, default_value: true
+
+              c.desc 'Add route for a different network than addr'
+              c.flag 'route-as'
+
               c.action &Command.run(NetInterface, :ip_add)
             end
 
             ip.desc 'Remove IP address'
             ip.arg_name '<id> <name> <addr>'
             ip.command :del do |c|
+              c.desc 'Remove route for addr'
+              c.switch 'keep-route'
+
               c.action &Command.run(NetInterface, :ip_del)
+            end
+          end
+
+          net.desc "Manage routes"
+          net.command :route do |ip|
+            ip.desc 'List routes'
+            ip.arg_name '<id> <name>'
+            ip.command %i(ls list) do |c|
+              c.desc 'Filter by IP version'
+              c.flag %i(v version), type: Integer
+
+              c.desc 'Select parameters to output'
+              c.flag %i(o output)
+
+              c.desc 'Do not show header'
+              c.switch %i(H hide-header), negatable: false
+
+              c.desc 'List available parameters'
+              c.switch %i(L list), negatable: false
+
+              c.action &Command.run(NetInterface, :route_list)
+            end
+
+            ip.desc 'Add route'
+            ip.arg_name '<id> <name> <addr>'
+            ip.command :add do |c|
+              c.action &Command.run(NetInterface, :route_add)
+            end
+
+            ip.desc 'Remove route'
+            ip.arg_name '<id> <name> <addr>'
+            ip.command :del do |c|
+              c.action &Command.run(NetInterface, :route_del)
             end
           end
         end

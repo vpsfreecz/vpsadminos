@@ -1065,16 +1065,43 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   Rename network interface. The container has to be stopped for this operation
   to pass.
 
-`ct netif ip add` *id* *name* *addr*
+`ct netif ip add` [*options*] *id* *name* *addr*
   Add IP address *addr* to interface *name* of container *id*. `osctld` will
   setup routing in case of **routed** interface and add the IP address to the
   container's interface.
 
+    `--no-route`
+      For routed interfaces, a new route is created automatically, unless
+      there is already a route that includes *addr*. This option prevents
+      the route from being created. You will have to configure routing
+      on your own using `ct netif route` commands.
+
+    `--route-as` *network*
+      Instead of routing *addr*, setup a route for *network* instead. This
+      is useful when you're adding an IP address from a larger network
+      and wish the entire network to be routed to the container.
+      Applicable only for routed interfaces.
+
 `ct netif ip del` *id* *name* *addr*
   Remove IP address *addr* from interface *name* of container *id*.
 
+    `--[no-]keep-route`
+      If there is a route that exactly matches the removed IP address, then this
+      option determines whether the route is removed or not. Routes are removed
+      by default. Applicable only for routed interfaces.
+
 `ct netif ip ls` *id* *name*
   List IP addresses assigned to interface *name* of container *id*.
+
+`ct netif route add` *id* *name* *addr*
+  Route *addr* into the container via an interconnecting network that has been
+  set up for interface *name*. Applicable only for routed interfaces.
+
+`ct netif route del` *id* *name* *addr*
+  Remove routed address from a routed interface.
+
+`ct netif route ls` *id* *name*
+  List configured routes on a routed interface.
 
 `ct dataset ls` [*options*] *id* [*properties...*]
   List datasets of container *id*. *properties* is a space separated list of

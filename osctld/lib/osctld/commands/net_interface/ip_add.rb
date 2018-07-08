@@ -29,13 +29,41 @@ module OsCtld
           next error("network interface not configured for IPv#{ip_v}")
         end
 
-        netif.add_ip(addr)
+        case netif.type
+        when :routed
+          netif.add_ip(addr, route(netif, addr))
+        else
+          netif.add_ip(addr)
+        end
+
         ct.save_config
         ct.configure_network
 
         DistConfig.run(ct, :network)
 
         ok
+      end
+    end
+
+    protected
+    def route(netif, addr)
+      if opts[:route] === true
+        addr
+
+      elsif opts[:route]
+        ret = IPAddress.parse(opts[:route])
+
+        if ret.class != addr.class
+          error!('IP version mismatch')
+
+        elsif !ret.include?(addr)
+          error!("#{ret.to_string} does not include #{addr.to_string}")
+        end
+
+        ret
+
+      else
+        nil
       end
     end
   end

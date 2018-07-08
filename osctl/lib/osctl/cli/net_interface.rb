@@ -30,6 +30,11 @@ module OsCtl::Cli
       addr
     )
 
+    ROUTE_FIELDS = %i(
+      version
+      addr
+    )
+
     def list
       if opts[:list]
         puts FIELDS.join("\n")
@@ -146,7 +151,8 @@ module OsCtl::Cli
         id: args[0],
         pool: gopts[:pool],
         name: args[1],
-        addr: args[2]
+        addr: args[2],
+        route: opts['route-as'] || opts[:route],
       )
     end
 
@@ -155,6 +161,66 @@ module OsCtl::Cli
 
       osctld_fmt(
         :netif_ip_del,
+        id: args[0],
+        pool: gopts[:pool],
+        name: args[1],
+        addr: args[2],
+        keep_route: opts['keep-route'],
+      )
+    end
+
+    def route_list
+      require_args!('id', 'name')
+
+      if opts[:list]
+        puts ROUTE_FIELDS.join("\n")
+        return
+      end
+
+      cmd_opts = {id: args[0], pool: gopts[:pool], name: args[1]}
+      fmt_opts = {layout: :columns}
+
+      fmt_opts[:header] = false if opts['hide-header']
+
+      ret = []
+      data = osctld_call(:netif_route_list, cmd_opts)
+
+      data.each do |v, addrs|
+        ip_v = v.to_s.to_i
+        next if opts[:version] && opts[:version] != ip_v
+
+        addrs.each do |addr|
+          ret << {
+            version: ip_v,
+            addr: addr,
+          }
+        end
+      end
+
+      format_output(
+        ret,
+        opts[:output] ? opts[:output].split(',').map(&:to_sym) : IP_FIELDS,
+        fmt_opts
+      )
+    end
+
+    def route_add
+      require_args!('id', 'name', 'addr')
+
+      osctld_fmt(
+        :netif_route_add,
+        id: args[0],
+        pool: gopts[:pool],
+        name: args[1],
+        addr: args[2]
+      )
+    end
+
+    def route_del
+      require_args!('id', 'name', 'addr')
+
+      osctld_fmt(
+        :netif_route_del,
         id: args[0],
         pool: gopts[:pool],
         name: args[1],

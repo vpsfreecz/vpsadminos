@@ -1,8 +1,8 @@
 require 'osctld/commands/logged'
 
 module OsCtld
-  class Commands::NetInterface::IpDel < Commands::Logged
-    handle :netif_ip_del
+  class Commands::NetInterface::RouteDel < Commands::Logged
+    handle :netif_route_del
 
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
@@ -15,21 +15,15 @@ module OsCtld
 
     def execute(ct)
       netif = ct.netifs.detect { |n| n.name == opts[:name] }
-      return error('network interface not found') unless netif
+      netif || error!('network interface not found')
+      netif.type == :routed || error!('not a routed interface')
 
       addr = IPAddress.parse(opts[:addr])
       ip_v = addr.ipv4? ? 4 : 6
 
       ct.exclusively do
-        next error('address not found') unless netif.has_ip?(addr)
-
-        case netif.type
-        when :routed
-          netif.del_ip(addr, opts[:keep_route])
-        else
-          netif.del_ip(addr)
-        end
-
+        next error('route not found') unless netif.has_route?(addr)
+        netif.del_route(addr)
         ct.save_config
         ct.configure_network
 
