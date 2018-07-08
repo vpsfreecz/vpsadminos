@@ -868,6 +868,12 @@ module OsCtl::Cli
               c.desc 'Route via network'
               c.flag :via, multiple: true, required: true
 
+              c.desc 'Interconnecting address for the host'
+              c.flag 'host-addr', multiple: true
+
+              c.desc 'Interconnecting address for the container'
+              c.flag 'ct-addr', multiple: true
+
               c.desc "MAC address"
               c.flag :hwaddr
 

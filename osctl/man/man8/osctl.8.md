@@ -1053,6 +1053,18 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Route via network, required. Can be used once for IPv4 and once for IPv6,
       depending what addresses you want to be able to route.
 
+    `--host-addr` *addr*
+      Address from the interconnecting network that should be used on the host's
+      veth interface. Can be used once for IPv4 and once for IPv6. Has to be used
+      in conjunction with `--ct-addr`. Defaults to the first address from the
+      interconnecting network.
+
+    `--ct-addr` *addr*
+      Address from the interconnecting network that should be used on
+      the container's veth interface. Can be used once for IPv4 and once for
+      IPv6. Has to be used in conjunction with `--host-addr`. Defaults to
+      the second address from the interconnecting network.
+
     `--hwaddr` *addr*
       Set a custom MAC address. Every **x** in the address is replaced by
       a random value. By default, the address is dynamically allocated.

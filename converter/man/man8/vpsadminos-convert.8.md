@@ -150,6 +150,18 @@ It can also migrate containers to vpsAdminOS nodes directly, similarly to
   and once for IPv6. This option has to be specified for all IP versions
   that the container is using.
 
+`--route-host-addr` *addr*
+  Address from the interconnecting network that should be used on the host's
+  veth interface. Can be used once for IPv4 and once for IPv6. Has to be used
+  in conjunction with `--route-ct-addr`. Defaults to the first address from the
+  interconnecting network.
+
+`--route-ct-addr` *addr*
+  Address from the interconnecting network that should be used on
+  the container's veth interface. Can be used once for IPv4 and once for
+  IPv6. Has to be used in conjunction with `--route-host-addr`. Defaults to
+  the second address from the interconnecting network.
+
 `--vpsadmin`
   Assume the container is being managed by vpsAdmin, this implies the
   following options:

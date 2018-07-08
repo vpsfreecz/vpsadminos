@@ -143,6 +143,12 @@ module VpsAdminOS::Converter::Cli
       c.desc 'Route via network (for routed network interface)'
       c.flag 'route-via', multiple: true
 
+      c.desc 'Interconnecting address for the host (on routed network interface)'
+      c.flag 'route-host-addr', multiple: true
+
+      c.desc 'Interconnecting address for the container (on routed network interface)'
+      c.flag 'route-ct-addr', multiple: true
+
       c.desc 'Overrides options to conform to vpsAdmin settings, see the manual'
       c.switch :vpsadmin, negatable: false
     end

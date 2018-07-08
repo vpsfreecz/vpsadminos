@@ -16,7 +16,15 @@ module OsCtld
       super
 
       @via = Hash[ opts[:via].map do |k, v|
-        [k, Routing::Via.for(IPAddress.parse(v))]
+        net_addr = IPAddress.parse(v[:network])
+        [
+          k,
+          Routing::Via.for(net_addr).new(
+            net_addr,
+            v[:host_addr] && IPAddress.parse(v[:host_addr]),
+            v[:ct_addr] && IPAddress.parse(v[:ct_addr]),
+          )
+        ]
       end]
 
       @routes = Routing::Table.new
@@ -26,7 +34,7 @@ module OsCtld
       super
 
       @via = load_ip_list(cfg['via'] || {}) do |v|
-        Routing::Via.for(IPAddress.parse(v))
+        Routing::Via.load(v)
       end
 
       @routes = Routing::Table.load(cfg['routes'] || {})
@@ -34,7 +42,7 @@ module OsCtld
 
     def save
       super.merge({
-        'via' => save_ip_list(@via) { |v| v.net_addr.to_string },
+        'via' => save_ip_list(@via) { |v| v.dump },
         'routes' => @routes.dump,
       })
     end

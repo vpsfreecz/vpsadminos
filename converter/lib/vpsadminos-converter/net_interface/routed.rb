@@ -8,7 +8,12 @@ module VpsAdminOS::Converter
 
     def dump
       super.merge(
-        'via' => Hash[via.map { |k,v| [k, v.to_string] }]
+        'via' => Hash[via.map do |ip_v, net|
+          [
+            "v#{ip_v}",
+            Hash[ net.map { |k, v| [k.to_s, v.nil? ? v : v.to_string] } ]
+          ]
+        end]
       )
     end
   end
