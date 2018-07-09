@@ -27,7 +27,9 @@ module VpsAdminOS::Converter
         'type' => type.to_s,
         'name' => name,
         'hwaddr' => hwaddr,
-        'ip_addresses' => Hash[ip_addresses.map { |v, ips| [v, ips.map(&:to_string)] }],
+        'ip_addresses' => Hash[ip_addresses.map do |v, ips|
+          ["v#{v}", ips.map(&:to_string)]
+        end],
       }
     end
   end
