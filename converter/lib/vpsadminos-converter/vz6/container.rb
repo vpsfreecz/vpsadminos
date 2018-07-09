@@ -95,6 +95,7 @@ module VpsAdminOS::Converter
 
         when :routed
           netif.via = opts[:netif][:via]
+          netif.routes = {4 => [], 6 => []}
         end
 
         all_ips = config.consume('IP_ADDRESS')
@@ -107,6 +108,8 @@ module VpsAdminOS::Converter
           if netif.type == :routed && netif.ip_addresses[ip_v].any? && !netif.via[ip_v]
             raise RouteViaMissing, ip_v
           end
+
+          netif.routes[ip_v] = netif.ip_addresses[ip_v] if netif.type == :routed
         end
 
         ct.netifs << netif
