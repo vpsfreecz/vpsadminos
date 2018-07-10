@@ -1138,6 +1138,18 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   List IP addresses from all network interfaces, only those assigned to
   container *id* or only those of interface *name*.
 
+    `-H`, `--hide-header`
+      Do not show header, useful for scripting.
+
+    `-L`, `--list`
+      List available parameters and exit.
+
+    `-o`, `--output` *parameters*
+      Select parameters to output.
+
+    `-v`, `--version` *version*
+      Filter by IP version.
+
 `ct netif route add` *id* *name* *addr*
   Route *addr* into the container via an interconnecting network that has been
   set up for interface *name*. Applicable only for routed interfaces.
@@ -1148,6 +1160,18 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 `ct netif route ls` [*id* [*name*]]
   List configured routes from all routed interfaces, only those assigned to
   container *id* or only those of interface *name*.
+
+    `-H`, `--hide-header`
+      Do not show header, useful for scripting.
+
+    `-L`, `--list`
+      List available parameters and exit.
+
+    `-o`, `--output` *parameters*
+      Select parameters to output.
+
+    `-v`, `--version` *version*
+      Filter by IP version.
 
 `ct dataset ls` [*options*] *id* [*properties...*]
   List datasets of container *id*. *properties* is a space separated list of
