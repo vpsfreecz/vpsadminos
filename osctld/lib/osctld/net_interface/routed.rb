@@ -47,6 +47,25 @@ module OsCtld
       })
     end
 
+    # @param opts [Hash] options
+    # @option opts [Hash<Integer, Hash>] :via
+    def set(opts)
+      super
+
+      if opts[:via]
+        @via = Hash[ opts[:via].map do |ip_v, net|
+          [
+            ip_v,
+            Routing::Via.for(net[:network]).new(
+              net[:network],
+              net[:host_addr],
+              net[:ct_addr],
+            )
+          ]
+        end]
+      end
+    end
+
     def setup
       super
       @host_setup = {}

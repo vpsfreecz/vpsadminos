@@ -108,6 +108,22 @@ module OsCtl::Cli
       )
     end
 
+    def set
+      require_args!('id', 'name')
+
+      cmd_opts = {
+        id: args[0],
+        pool: gopts[:pool],
+        name: args[1],
+      }
+
+      cmd_opts[:hwaddr] = (opts[:hwaddr] == '-' ? nil : opts[:hwaddr]) if opts[:hwaddr]
+      cmd_opts[:link] = opts[:link] if opts[:link]
+      cmd_opts[:via] = parse_route_via if opts[:via].any?
+
+      osctld_fmt(:netif_set, cmd_opts)
+    end
+
     def ip_list
       require_args!('id', 'name')
 

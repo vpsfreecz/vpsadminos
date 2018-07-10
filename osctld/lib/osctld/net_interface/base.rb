@@ -48,6 +48,13 @@ module OsCtld
       @name = new_name
     end
 
+    # Change interface properties
+    # @param opts [Hash] options, see subclasses for more information
+    # @option opts [String] :hwaddr
+    def set(opts)
+      @hwaddr = opts[:hwaddr] if opts.has_key?(:hwaddr)
+    end
+
     # Initialize the interface on creation / osctld restart
     def setup
 

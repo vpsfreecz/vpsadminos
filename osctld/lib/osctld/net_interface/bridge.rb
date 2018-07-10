@@ -32,6 +32,13 @@ module OsCtld
       })
     end
 
+    # @param opts [Hash] options
+    # @option opts [String] :link
+    def set(opts)
+      super
+      @link = opts[:link] if opts[:link]
+    end
+
     def render_opts
       super.merge({
         link: link,

@@ -1077,6 +1077,37 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   Rename network interface. The container has to be stopped for this operation
   to pass.
 
+`ct netif set` *id* *name*
+  Change network interface properties. The container has to be stopped for this
+  command to be allowed. Available options depend on interface type.
+
+    `--link` *bridge*
+      What bridge should the interface be linked with. Applicable only for
+      bridged interfaces.
+
+    `--via` *network*
+      Change the interconnecting network for a routed interface. Can be used
+      once for IPv4 and once for IPv6, depending what addresses you want to be
+      able to route. `--via` drops any previous routing configuration and
+      replaces it with the new one. You have to provide `--via` for IP versions
+      that you wish to route and optionally also `--host-addr` and `--ct-addr`.
+
+    `--host-addr` *addr*
+      Address from the interconnecting network that should be used on the host's
+      veth interface. Can be used once for IPv4 and once for IPv6.
+      If `--host-addr` is used, `--via` has to be provided for the same IP
+      version as well. Applicable only for routed interfaces.
+
+    `--ct-addr` *addr*
+      Address from the interconnecting network that should be used on
+      the container's veth interface. Can be used once for IPv4 and once for
+      IPv6. If `--ct-addr` is used, `--via` has to be provided for the same IP
+      version as well. Applicable only for routed interfaces.
+
+    `--hwaddr` *addr*
+      Change MAC address. Every **x** in the address is replaced by
+      a random value. Use `-` to assign the MAC address dynamically.
+
 `ct netif ip add` [*options*] *id* *name* *addr*
   Add IP address *addr* to interface *name* of container *id*. `osctld` will
   setup routing in case of **routed** interface and add the IP address to the

@@ -893,6 +893,27 @@ module OsCtl::Cli
             c.action &Command.run(NetInterface, :rename)
           end
 
+          net.desc "Configure network interface"
+          net.arg_name '<id> <name>'
+          net.command :set do |c|
+            c.desc 'What bridge should the interface be linked with'
+            c.flag :link
+
+            c.desc 'Route via network'
+            c.flag :via, multiple: true
+
+            c.desc 'Interconnecting address for the host'
+            c.flag 'host-addr', multiple: true
+
+            c.desc 'Interconnecting address for the container'
+            c.flag 'ct-addr', multiple: true
+
+            c.desc "MAC address"
+            c.flag :hwaddr
+
+            c.action &Command.run(NetInterface, :set)
+          end
+
           net.desc "Manage IP addresses"
           net.command :ip do |ip|
             ip.desc 'List IP addresses'
