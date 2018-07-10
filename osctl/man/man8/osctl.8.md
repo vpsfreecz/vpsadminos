@@ -1136,7 +1136,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 
 `ct netif ip ls` [*id* [*name*]]
   List IP addresses from all network interfaces, only those assigned to
-  container *id* or only those of a certain interface *name*.
+  container *id* or only those of interface *name*.
 
 `ct netif route add` *id* *name* *addr*
   Route *addr* into the container via an interconnecting network that has been
@@ -1145,8 +1145,9 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 `ct netif route del` *id* *name* *addr*
   Remove routed address from a routed interface.
 
-`ct netif route ls` *id* *name*
-  List configured routes on a routed interface.
+`ct netif route ls` [*id* [*name*]]
+  List configured routes from all routed interfaces, only those assigned to
+  container *id* or only those of interface *name*.
 
 `ct dataset ls` [*options*] *id* [*properties...*]
   List datasets of container *id*. *properties* is a space separated list of
