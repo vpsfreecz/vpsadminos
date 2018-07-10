@@ -1134,8 +1134,9 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       option determines whether the route is removed or not. Routes are removed
       by default. Applicable only for routed interfaces.
 
-`ct netif ip ls` *id* *name*
-  List IP addresses assigned to interface *name* of container *id*.
+`ct netif ip ls` [*id* [*name*]]
+  List IP addresses from all network interfaces, only those assigned to
+  container *id* or only those of a certain interface *name*.
 
 `ct netif route add` *id* *name* *addr*
   Route *addr* into the container via an interconnecting network that has been

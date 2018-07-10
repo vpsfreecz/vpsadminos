@@ -28,6 +28,9 @@ module OsCtl::Cli
     )
 
     IP_FIELDS = %i(
+      pool
+      ctid
+      netif
       version
       addr
     )
@@ -132,38 +135,52 @@ module OsCtl::Cli
     end
 
     def ip_list
-      require_args!('id', 'name')
-
       if opts[:list]
         puts IP_FIELDS.join("\n")
         return
       end
 
-      cmd_opts = {id: args[0], pool: gopts[:pool], name: args[1]}
+      cmd_opts = {pool: gopts[:pool]}
       fmt_opts = {layout: :columns}
+
+      cmd_opts[:id] = args[0] if args[0]
+      cmd_opts[:name] = args[1] if args[1]
 
       fmt_opts[:header] = false if opts['hide-header']
 
       ret = []
       data = osctld_call(:netif_ip_list, cmd_opts)
 
-      data.each do |v, addrs|
-        ip_v = v.to_s.to_i
-        next if opts[:version] && opts[:version] != ip_v
+      data.each do |netif|
+        [4, 6].each do |ip_v|
+          next if opts[:version] && opts[:version] != ip_v
 
-        addrs.each do |addr|
-          ret << {
-            version: ip_v,
-            addr: addr,
-          }
+          netif[ip_v.to_s.to_sym].each do |addr|
+            ret << {
+              pool: netif[:pool],
+              ctid: netif[:ctid],
+              netif: netif[:netif],
+              version: ip_v,
+              addr: addr,
+            }
+          end
         end
       end
 
-      format_output(
-        ret,
-        opts[:output] ? opts[:output].split(',').map(&:to_sym) : IP_FIELDS,
-        fmt_opts
-      )
+      if opts[:output]
+        cols = opts[:output].split(',').map(&:to_sym)
+
+      elsif args.count >= 2
+        cols = %i(version addr)
+
+      elsif args.count >= 1
+        cols = %i(netif version addr)
+
+      else
+        cols = IP_FIELDS
+      end
+
+      format_output(ret, cols, fmt_opts)
     end
 
     def ip_add

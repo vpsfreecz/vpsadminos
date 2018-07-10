@@ -5,13 +5,59 @@ module OsCtld
     handle :netif_ip_list
 
     def execute
-      ct = DB::Containers.find(opts[:id], opts[:pool])
-      return error('container not found') unless ct
+      ok(netifs.map do |ct, netif|
+        add_netif(ct, netif)
+      end)
+    end
 
-      netif = ct.netifs.detect { |n| n.name == opts[:name] }
-      return error('network interface not found') unless netif
+    protected
+    def netifs
+      ret = []
 
-      ok(4 => netif.ips(4).map(&:to_string), 6 => netif.ips(6).map(&:to_string))
+      if opts[:id]
+        ct = DB::Containers.find(opts[:id], opts[:pool])
+        ct || error!('container not found')
+
+        ct.inclusively do
+          if opts[:name]
+            netif = ct.netifs.detect { |n| n.name == opts[:name] }
+            netif || error!('network interface not found')
+
+            ret << [ct, netif]
+
+          else
+            ct.netifs.each { |netif| ret << [ct, netif] }
+          end
+        end
+
+      elsif opts[:pool]
+        DB::Container.get.each do |ct|
+          next if ct.pool.name != opts[:pool]
+
+          ct.inclusively do
+            ct.netifs.each { |netif| ret << [ct, netif] }
+          end
+        end
+
+      else
+        DB::Containers.get.map do |ct|
+          ct.inclusively do
+            ct.netifs.each { |netif| ret << [ct, netif] }
+          end
+        end
+      end
+
+      ret
+    end
+
+    def add_netif(ct, netif)
+      {
+        :pool => ct.pool.name,
+        :ctid => ct.id,
+        :netif => netif.name,
+        4 => netif.ips(4).map(&:to_string),
+        6 => netif.ips(6).map(&:to_string),
+      }
     end
   end
 end
