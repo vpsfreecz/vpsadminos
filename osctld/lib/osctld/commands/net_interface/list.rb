@@ -14,11 +14,33 @@ module OsCtld
     )
 
     def execute
-      ct = DB::Containers.find(opts[:id], opts[:pool])
-      return error('container not found') unless ct
+      ret = []
 
+      cts.each do |ct|
+        ret.concat(add_ct(ct))
+      end
+
+      ok(ret)
+    end
+
+    protected
+    def cts
+      if opts[:id]
+        ct = DB::Containers.find(opts[:id], opts[:pool])
+        ct || error!('container not found')
+        [ct]
+
+      elsif opts[:pool]
+        DB::Container.get.select { |ct| ct.pool.name == opts[:pool] }
+
+      else
+        DB::Containers.get
+      end
+    end
+
+    def add_ct(ct)
       ct.inclusively do
-        ok(ct.netifs.map do |netif|
+        ct.netifs.map do |netif|
           next if opts[:type] && !opts[:type].include?(netif.type.to_s)
           next if opts[:link] && (netif.type != :bridge || !opts[:link].include?(netif.link))
 
@@ -35,8 +57,11 @@ module OsCtld
                 end
 
             [f, v]
-          end]
-        end.compact)
+          end].merge(
+            pool: ct.pool.name,
+            ctid: ct.id,
+          )
+        end.compact
       end
     end
   end

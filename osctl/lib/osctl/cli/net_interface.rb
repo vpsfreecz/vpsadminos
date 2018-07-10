@@ -4,6 +4,8 @@ require 'osctl/cli/command'
 module OsCtl::Cli
   class NetInterface < Command
     FIELDS = %i(
+      pool
+      ctid
       name
       index
       type
@@ -41,10 +43,10 @@ module OsCtl::Cli
         return
       end
 
-      require_args!('id')
-
-      cmd_opts = {id: args[0], pool: gopts[:pool]}
+      cmd_opts = {pool: gopts[:pool]}
       fmt_opts = {layout: :columns}
+
+      cmd_opts[:id] = args[0] if args[0]
 
       FILTERS.each do |v|
         next unless opts[v]
@@ -54,12 +56,17 @@ module OsCtl::Cli
       cmd_opts[:ids] = args if args.count > 0
       fmt_opts[:header] = false if opts['hide-header']
 
-      osctld_fmt(
-        :netif_list,
-        cmd_opts,
-        opts[:output] ? opts[:output].split(',').map(&:to_sym) : DEFAULT_FIELDS,
-        fmt_opts
-      )
+      if opts[:output]
+        cols = opts[:output].split(',').map(&:to_sym)
+
+      elsif opts[:id]
+        cols = DEFAULT_FIELDS
+
+      else
+        cols = %i(pool ctid) + DEFAULT_FIELDS
+      end
+
+      osctld_fmt(:netif_list, cmd_opts, cols, fmt_opts)
     end
 
     def create_bridge

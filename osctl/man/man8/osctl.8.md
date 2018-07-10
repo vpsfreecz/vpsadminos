@@ -1004,8 +1004,9 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 `ct prlimits unset` *id* *limit*
   Unset resource *limit* from container *id*.
 
-`ct netif ls` [*options*] *id*
-  List configured network interfaces for container *id*.
+`ct netif ls` [*options*] [*id*]
+  List configured network interfaces for all containers or a selected container
+  *id*.
 
     `-H`, `--hide-header`
       Do not show header, useful for scripting.
