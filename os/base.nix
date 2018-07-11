@@ -394,6 +394,8 @@ with lib;
       in
         pkgs.runCommand name {
           activationScript = config.system.activationScripts.script;
+          ruby = pkgs.ruby;
+          etc = config.system.build.etc;
         } ''
           mkdir $out
           cp ${config.system.build.bootStage2} $out/init
@@ -404,6 +406,10 @@ with lib;
           substituteInPlace $out/activate --subst-var out
           chmod u+x $out/activate
           unset activationScript
+
+          mkdir $out/bin
+          substituteAll ${./lib/switch-to-configuration.rb} $out/bin/switch-to-configuration
+          chmod +x $out/bin/switch-to-configuration
         '';
 
     system.build.squashfs = pkgs.callPackage <nixpkgs/nixos/lib/make-squashfs.nix> {
