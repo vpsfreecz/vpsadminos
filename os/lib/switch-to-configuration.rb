@@ -7,12 +7,40 @@ class Configuration
   BIN = '/run/current-system/sw/bin'
 
   def self.switch
-    new.switch
+    new(dry_run: false).switch
+  end
+
+  def self.dry_run
+    new(dry_run: true).dry_run
+  end
+
+  def initialize(dry_run: true)
+    @opts = {dry_run: dry_run}
+  end
+
+  def dry_run
+    puts 'probing runit services...'
+    services = Services.new(opts)
+
+    puts 'would stop deprecated services...'
+    services.stop.each(&:stop)
+
+    puts 'would activate the configuration...'
+    activate
+
+    puts 'would reload changed services...'
+    services.reload.each(&:reload)
+
+    puts 'would restart changed services...'
+    services.restart.each(&:restart)
+
+    puts 'would start new services...'
+    services.start.each(&:start)
   end
 
   def switch
     puts 'probing runit services...'
-    services = Services.new
+    services = Services.new(opts)
 
     puts 'stopping deprecated services...'
     services.stop.each(&:stop)
@@ -31,13 +59,17 @@ class Configuration
   end
 
   def activate
+    return if opts[:dry_run]
     system(File.join(OUT, 'activate'))
   end
+
+  protected
+  attr_reader :opts
 end
 
 class Services
   RELOADABLE = %w(lxcfs)
-  Service = Struct.new(:name, :path) do
+  Service = Struct.new(:name, :path, :opts) do
     def ==(other)
       path == other.path
     end
@@ -45,15 +77,20 @@ class Services
     %i(start stop restart).each do |m|
       define_method(m) do
         puts "> sv #{m} #{name}"
-        system(File.join(Configuration::BIN, 'sv'), m.to_s, name)
+
+        unless opts[:dry_run]
+          system(File.join(Configuration::BIN, 'sv'), m.to_s, name)
+        end
       end
     end
 
     def reload
       m = reload_method
-
       puts "> sv #{m} #{name}"
-      system(File.join(Configuration::BIN, 'sv'), m, name)
+
+      unless opts[:dry_run]
+        system(File.join(Configuration::BIN, 'sv'), m, name)
+      end
     end
 
     def reload_method
@@ -66,7 +103,8 @@ class Services
     end
   end
 
-  def initialize
+  def initialize(dry_run: true)
+    @opts = {dry_run: dry_run}
     @old_services = read(Configuration::SERVICE_DIR)
     @new_services = read(File.join(Configuration::ETC, Configuration::SERVICE_DIR))
   end
@@ -100,7 +138,7 @@ class Services
   end
 
   protected
-  attr_reader :old_services, :new_services
+  attr_reader :old_services, :new_services, :opts
 
   # Read service directory
   # @return [Hash<String, Service>]
@@ -113,11 +151,21 @@ class Services
       path = File.join(dir, f)
       next unless Dir.exist?(path)
 
-      ret[f] = Service.new(f, File.realpath(File.join(path, 'run')))
+      ret[f] = Service.new(f, File.realpath(File.join(path, 'run')), opts)
     end
 
     ret
   end
 end
 
-Configuration.switch
+case ARGV[0]
+when 'switch', 'boot', 'test'
+  Configuration.switch
+
+when 'dry-activate'
+  Configuration.dry_run
+
+else
+  warn "Usage: #{$0} switch|dry-activate"
+  exit(false)
+end
