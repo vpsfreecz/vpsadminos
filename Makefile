@@ -7,7 +7,7 @@ build:
 qemu:
 	$(MAKE) -C os qemu
 
-gems: libosctl osctl-repo osctl osctld converter
+gems: libosctl osctl-repo osctl osctld osup converter
 	echo "$(VERSION).build$(BUILD_ID)" > .build_id
 
 libosctl:
@@ -21,6 +21,9 @@ osctld:
 
 osctl-repo:
 	./tools/update_gem.sh _nopkg osctl-repo $(BUILD_ID)
+
+osup:
+	./tools/update_gem.sh os/packages osup $(BUILD_ID)
 
 converter:
 	./tools/update_gem.sh _nopkg converter $(BUILD_ID)
@@ -41,7 +44,8 @@ version:
 	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" libosctl/lib/libosctl/version.rb
 	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" converter/lib/vpsadminos-converter/version.rb
 	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" osctl-repo/lib/osctl/repo/version.rb
+	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" osup/lib/osup/version.rb
 
 
-.PHONY: build converter doc doc_serve qemu gems libosctl osctl osctld osctl-repo osctl-env-exec
+.PHONY: build converter doc doc_serve qemu gems libosctl osctl osctld osctl-repo osup osctl-env-exec
 .PHONY: version
