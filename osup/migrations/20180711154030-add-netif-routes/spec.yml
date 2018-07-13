@@ -1,0 +1,10 @@
+description: |
+  IP address and route management for routed interfaces has been separated.
+  It is now possible to route larger networks and assign only selected host
+  addresses to the container's interfaces. As a consequence, all IP addresses
+  must have a route in order to be reachable. osctld can create routes
+  automatically for newly assigned addresses, but existing containers need to
+  be reconfigured so that its addresses are routed as expected. This migration
+  creates routes for all container IP addresses assigned to routed interfaces.
+snapshot:
+  - conf
