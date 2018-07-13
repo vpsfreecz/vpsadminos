@@ -11,6 +11,7 @@ module OsCtl::Lib
     # @option opts [Integer] :timeout in seconds
     # @option opts [Proc] :on_timeout
     # @option opts [String] :input data written to the process's stdin
+    # @option opts [Hash] :env environment variables
     # @return [Hash]
     def syscmd(cmd, opts = {})
       valid_rcs = opts[:valid_rcs] || []
@@ -20,6 +21,7 @@ module OsCtl::Lib
       log(:work, cmd)
 
       IO.popen(
+        opts[:env] || ENV,
         "exec #{cmd} #{stderr ? '2>&1' : '2> /dev/null'}",
         opts[:input] ? 'r+' : 'r'
       ) do |io|
