@@ -65,4 +65,17 @@ module OsCtld
       super("unable to map id #{id} using #{idmap.to_s}")
     end
   end
+
+  class PoolUpgradeError < StandardError
+    attr_reader :pool, :exception
+
+    # @param pool [String]
+    # @param exception [Exception]
+    def initialize(pool, exception)
+      @pool = pool
+      @exception = exception
+
+      super("unable to upgrade pool #{pool}: #{exception.message}")
+    end
+  end
 end

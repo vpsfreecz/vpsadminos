@@ -1,4 +1,5 @@
 require 'osctld/commands/base'
+require 'osup'
 
 module OsCtld
   class Commands::Pool::Install < Commands::Base
@@ -20,6 +21,7 @@ module OsCtld
         props << "#{Pool::PROPERTY_DATASET}=\"#{opts[:dataset]}\"" if opts[:dataset]
 
         zfs(:set, props.join(' '), pool.name)
+        OsUp.init(pool.name, force: true)
         pool.setup
 
         DB::Pools.add(pool)

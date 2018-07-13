@@ -3,3 +3,4 @@ gemspec
 
 gem 'libosctl', path: '../libosctl'
 gem 'osctl-repo', path: '../osctl-repo'
+gem 'osup', path: '../osup'

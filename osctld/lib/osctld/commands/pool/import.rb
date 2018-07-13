@@ -1,4 +1,5 @@
 require 'osctld/commands/base'
+require 'osup'
 
 module OsCtld
   class Commands::Pool::Import < Commands::Base
@@ -18,11 +19,15 @@ module OsCtld
             name, active, dataset = line.split
             next if active != 'yes' || DB::Pools.contains?(name)
 
-            pool = Pool.new(name, dataset == '-' ? nil : dataset)
-            pool.setup
-            DB::Pools.add(pool)
-            pool.autostart if opts[:autostart]
+            begin
+              import(name, dataset)
+
+            rescue PoolUpgradeError => e
+              log(:warn, "Pool upgrade failed: #{e.message}")
+              next
+            end
           end
+
           ok
 
         else
@@ -34,13 +39,34 @@ module OsCtld
             opts[:name]
           )[:output].strip
 
-          pool = Pool.new(opts[:name], dataset == '-' ? nil : dataset)
-          pool.setup
-          DB::Pools.add(pool)
-          pool.autostart if opts[:autostart]
-          ok
+          begin
+            import(opts[:name], dataset)
+            ok
+
+          rescue PoolUpgradeError => e
+            next error(e.message)
+          end
         end
       end
+    end
+
+    protected
+    def import(name, dataset)
+      upgrade(name)
+      pool = Pool.new(name, dataset == '-' ? nil : dataset)
+      pool.setup
+      DB::Pools.add(pool)
+      pool.autostart if opts[:autostart]
+    end
+
+    def upgrade(name)
+      OsUp.upgrade(name)
+
+    rescue OsUp::PoolUpToDate
+      # pass
+
+    rescue => e
+      raise PoolUpgradeError.new(name, e)
     end
   end
 end
