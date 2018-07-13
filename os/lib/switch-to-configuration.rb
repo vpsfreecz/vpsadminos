@@ -46,6 +46,8 @@ class Configuration
 
     puts 'would start new services...'
     services.start.each(&:start)
+
+    activate_osctl(services)
   end
 
   def switch
@@ -75,6 +77,8 @@ class Configuration
 
     puts 'starting new services...'
     services.start.each(&:start)
+
+    activate_osctl(services)
   end
 
   def activate
@@ -84,6 +88,26 @@ class Configuration
 
   protected
   attr_reader :opts
+
+  def activate_osctl(services)
+    return unless services.reload.detect { |s| s.name == 'lxcfs' }
+
+    args = ['--lxcfs']
+
+    if services.restart.detect { |s| s.name == 'osctld' }
+      # osctld has been restarted, so system files are already regenerated
+      # and we just have to refresh LXCFS
+      args << '--no-system'
+
+    else
+      args << '--system'
+    end
+
+    puts "> osctl activate #{args.join(' ')}"
+    return if opts[:dry_run]
+
+    system(File.join(CURRENT_BIN, 'osctl'), 'activate', *args)
+  end
 end
 
 class Services
