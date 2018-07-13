@@ -124,7 +124,7 @@ module OsCtld
     # Iterate over all routes
     # @yieldparam version [Integer] IP version
     # @yieldparam addr [IPAddress::IPv4, IPAddress::IPV6]
-    def each(&block)
+    def each(ip_v, &block)
       ret = []
 
       tables.each do |version, table|
@@ -132,6 +132,12 @@ module OsCtld
       end
 
       Hash[ret].each(&block)
+    end
+
+    # Iterate over all routes for IP version
+    # @param ip_v [Integer]
+    def each_version(ip_v, &block)
+      tables[ip_v].get.each(&block)
     end
 
     # Export the table to clients

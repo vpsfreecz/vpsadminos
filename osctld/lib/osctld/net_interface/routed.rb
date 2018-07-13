@@ -111,7 +111,7 @@ module OsCtld
 
         setup_routing(v) unless @host_setup[v]
 
-        @routes.each do |v, addr|
+        @routes.each_version(v) do |addr|
           ip(v, [
             :route, :add,
             addr.to_string, :via, via[v].ct_ip.to_s, :dev, veth
