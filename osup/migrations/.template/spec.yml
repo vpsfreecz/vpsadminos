@@ -1,0 +1,11 @@
+# Optional name, shown in `osup status`
+# name:
+
+description: |
+  Describe what your migration is doing.
+
+# What datasets should be protected
+snapshot:
+ - conf
+# - log
+# - hook

@@ -46,6 +46,8 @@ version:
 	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" osctl-repo/lib/osctl/repo/version.rb
 	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" osup/lib/osup/version.rb
 
+migration:
+	$(MAKE) -C osup migration
 
 .PHONY: build converter doc doc_serve qemu gems libosctl osctl osctld osctl-repo osup osctl-env-exec
-.PHONY: version
+.PHONY: version migration
