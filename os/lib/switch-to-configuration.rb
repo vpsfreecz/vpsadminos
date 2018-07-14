@@ -99,6 +99,9 @@ class Configuration
       # and we just have to refresh LXCFS
       args << '--no-system'
 
+      # It takes time for osctld to start
+      wait_for_osctld
+
     else
       args << '--system'
     end
@@ -107,6 +110,22 @@ class Configuration
     return if opts[:dry_run]
 
     system(File.join(CURRENT_BIN, 'osctl'), 'activate', *args)
+  end
+
+  def wait_for_osctld
+    if opts[:dry_run]
+      puts 'would wait for osctld to start...'
+      return
+    end
+
+    puts 'waiting for osctld to start...'
+
+    60.times do
+      return if File.exist?('/run/osctl/osctld.sock')
+      sleep(1)
+    end
+
+    fail 'timeout while waiting for osctld'
   end
 end
 
