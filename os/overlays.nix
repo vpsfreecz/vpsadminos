@@ -1,6 +1,7 @@
 {lib, vpsadmin}:
 
 [
+        (import ./overlays/gem-config.nix)
         (import ./overlays/osctl.nix)
         (import ./overlays/lxc.nix)
         (import ./overlays/lxcfs.nix)

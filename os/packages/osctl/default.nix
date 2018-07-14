@@ -1,4 +1,4 @@
-{ lib, bundlerApp }:
+{ pkgs, lib, bundlerApp }:
 
 bundlerApp {
   pname = "osctl";

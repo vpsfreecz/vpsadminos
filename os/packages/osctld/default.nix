@@ -1,14 +1,9 @@
-{ pkgs, lib, bundlerApp, defaultGemConfig }:
+{ pkgs, lib, bundlerApp }:
 
 bundlerApp {
   pname = "osctld";
   gemdir = ./.;
   exes = [ "osctld" ];
-  gemConfig = lib.mergeAttrs defaultGemConfig {
-    osctld = attrs: {
-      buildInputs = [ pkgs.apparmor-parser ];
-    };
-  };
 
   meta = with lib; {
     description = "";
