@@ -119,13 +119,7 @@ class Configuration
     end
 
     puts 'waiting for osctld to start...'
-
-    60.times do
-      return if File.exist?('/run/osctl/osctld.sock')
-      sleep(1)
-    end
-
-    fail 'timeout while waiting for osctld'
+    system(File.join(CURRENT_BIN, 'osctl'), 'ping', '0')
   end
 end
 

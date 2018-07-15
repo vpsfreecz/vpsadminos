@@ -58,10 +58,7 @@ let
   mkService = commands: pkgs.writeScript "containers" ''
       #!/bin/sh
       sv check osctld >/dev/null || exit 1
-      while true; do
-        ${osctl} healthcheck &>/dev/null && break
-        sleep 1
-      done
+      ${osctl} ping 0
       poolCount=$( ${osctl} pool ls -H | wc -l )
       test $poolCount == "0" && ${osctl} pool install ${config.boot.zfs.pool.name}
 
