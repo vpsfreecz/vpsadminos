@@ -1308,6 +1308,12 @@ module OsCtl::Cli
         c.action &Command.run(Self, :healthcheck)
       end
 
+      desc 'Check if osctld is running'
+      arg_name '[wait]'
+      command :ping do |c|
+        c.action &Command.run(Self, :ping)
+      end
+
       desc 'Configure the system after it was upgraded'
       command :activate do |c|
         c.desc 'Regenerate system files'

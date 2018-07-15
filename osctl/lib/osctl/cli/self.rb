@@ -35,6 +35,26 @@ module OsCtl::Cli
       end
     end
 
+    def ping
+      if args[0]
+        secs = args[0].to_i
+
+        (0..Float::INFINITY).each do |i|
+          begin
+            return if do_ping
+
+          rescue GLI::CustomExit
+            raise if secs > 0 && i >= secs
+          end
+
+          sleep(1)
+        end
+
+      else
+        puts 'pong' if do_ping
+      end
+    end
+
     def activate
       osctld_fmt(:self_activate, system: opts[:system], lxcfs: opts[:lxcfs])
     end
@@ -53,6 +73,18 @@ module OsCtl::Cli
       end
 
       osctld_fmt(:self_shutdown)
+    end
+
+    protected
+    def do_ping
+      return true if osctld_call(:self_ping) == 'pong'
+      raise GLI::CustomExit.new('unexpected response', 3)
+
+    rescue Errno::ENOENT
+      raise GLI::CustomExit.new('unable to connect', 2)
+
+    rescue OsCtl::Client::Error
+      raise GLI::CustomExit.new('invalid response', 3)
     end
   end
 end

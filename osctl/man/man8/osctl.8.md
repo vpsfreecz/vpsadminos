@@ -1632,6 +1632,19 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-a`, `--all`
       Verify all pools.
 
+`ping` [*wait*]
+  Attempt to connect to `osctld` to check if it is running. Without *wait*,
+  `osctl ping` either succeeds or fails immediately. If *wait* is `0`, `osctl`
+  will block until `osctld` becomes responsive. If *wait* is a positive number,
+  `osctl` will wait for `osctld` for up to *wait* seconds.
+
+  Exit values:
+
+  - `0` Success
+  - `1` Unspecified error
+  - `2` Unable to connect to `osctld`
+  - `3` Connected, but received unexpected response
+
 `activate` [*options*]
   Configure the system after it was upgraded, i.e. the new system closure
   has been activated.
