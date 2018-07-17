@@ -139,12 +139,12 @@ chmod 755 /mnt/
 mkdir -p /mnt/nix/store/
 
 # make the store writeable
-mkdir -p /mnt/nix/.ro-store /mnt/nix/.overlay-store /mnt/nix/store
-mount $root /mnt/nix/.ro-store -t squashfs || fail "Can't mount root from $root"
+mkdir -p /.ro-store /mnt/nix/.overlay-store /mnt/nix/store
+mount $root /.ro-store -t squashfs || fail "Can't mount root from $root"
 mount tmpfs -t tmpfs /mnt/nix/.overlay-store -o size=1G
 mkdir -pv /mnt/nix/.overlay-store/work /mnt/nix/.overlay-store/rw
 modprobe overlay
-mount -t overlay overlay -o lowerdir=/mnt/nix/.ro-store,upperdir=/mnt/nix/.overlay-store/rw,workdir=/mnt/nix/.overlay-store/work /mnt/nix/store
+mount -t overlay overlay -o lowerdir=/.ro-store,upperdir=/mnt/nix/.overlay-store/rw,workdir=/mnt/nix/.overlay-store/work /mnt/nix/store
 
 exec env -i $(type -P switch_root) /mnt/ $sysconfig/init
 exec ${shell}
