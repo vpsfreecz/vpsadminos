@@ -146,5 +146,9 @@ mkdir -pv /mnt/nix/.overlay-store/work /mnt/nix/.overlay-store/rw
 modprobe overlay
 mount -t overlay overlay -o lowerdir=/.ro-store,upperdir=/mnt/nix/.overlay-store/rw,workdir=/mnt/nix/.overlay-store/work /mnt/nix/store
 
+if [ -d /mnt/nix/store/secrets ] ; then
+  chmod 0500 /mnt/nix/store/secrets
+fi
+
 exec env -i $(type -P switch_root) /mnt/ $sysconfig/init
 exec ${shell}

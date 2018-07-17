@@ -57,6 +57,15 @@ with lib;
         Size of zpool vdev in GB. Two vdevs are created and put into mirror.
       '';
     };
+    system.secretsDir = mkOption {
+      type = types.string;
+      default = "";
+      description = ''
+        Path to a directory containing secret keys and other files that should
+        not be stored in the Nix store. The directory's base name has to be
+        `secrets`.
+      '';
+    };
     boot.isContainer = mkOption {
       type = types.bool;
       default = false;
@@ -387,6 +396,16 @@ with lib;
       echo "${builtins.unsafeDiscardStringContext (toString config.boot.kernelParams)}" > $out/command-line
     '';
 
+    system.activationScripts.secrets = {
+      text = ''
+        if [ -d /nix/store/secrets ] ; then
+          [ -d /var/secrets ] && rm -rf /var/secrets
+          mv /nix/store/secrets /var/secrets
+        fi
+      '';
+      deps = [];
+    };
+
     system.build.toplevel = let
       name = let hn = config.networking.hostName;
                  nn = if (hn != "") then hn else "unnamed";
@@ -412,8 +431,9 @@ with lib;
           chmod +x $out/bin/switch-to-configuration
         '';
 
-    system.build.squashfs = pkgs.callPackage <nixpkgs/nixos/lib/make-squashfs.nix> {
+    system.build.squashfs = pkgs.callPackage ./lib/make-squashfs.nix {
       storeContents = [ config.system.build.toplevel ];
+      secretsDir = config.system.secretsDir;
     };
 
     system.build.kernelParams = config.boot.kernelParams;
