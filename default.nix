@@ -8,6 +8,7 @@ in stdenv.mkDerivation rec {
   buildInputs = with pkgs; [
     git
     gnumake
+    mkdocs
     ruby
   ];
 
