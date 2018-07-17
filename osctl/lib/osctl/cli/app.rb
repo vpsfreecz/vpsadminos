@@ -988,6 +988,9 @@ module OsCtl::Cli
             ip.desc 'Remove route'
             ip.arg_name '<id> <name> <addr>'
             ip.command :del do |c|
+              c.desc 'IP versions to remove'
+              c.flag %i(v version), type: Integer
+
               c.action &Command.run(NetInterface, :route_del)
             end
           end

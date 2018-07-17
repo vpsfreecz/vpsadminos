@@ -1159,8 +1159,13 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   Route *addr* into the container via an interconnecting network that has been
   set up for interface *name*. Applicable only for routed interfaces.
 
-`ct netif route del` *id* *name* *addr*
+`ct netif route del` [*options*] *id* *name* *addr*|`all`
   Remove routed address from a routed interface.
+
+    `-v`, `--version` *n*
+      If *addr* is `all`, these options can specify which IP versions should
+      be removed. If no option is given, both IPv4 and IPv6 routes are
+      removed.
 
 `ct netif route ls` [*id* [*name*]]
   List configured routes from all routed interfaces, only those assigned to

@@ -18,19 +18,25 @@ module OsCtld
       netif || error!('network interface not found')
       netif.type == :routed || error!('not a routed interface')
 
-      addr = IPAddress.parse(opts[:addr])
-      ip_v = addr.ipv4? ? 4 : 6
-
       ct.exclusively do
-        next error('route not found') unless netif.has_route?(addr)
-        netif.del_route(addr)
+        if opts[:addr] == 'all'
+          netif.del_all_routes(opts[:version] && opts[:version].to_i)
+
+        else
+          addr = IPAddress.parse(opts[:addr])
+          ip_v = addr.ipv4? ? 4 : 6
+
+          error!('route not found') unless netif.has_route?(addr)
+          netif.del_route(addr)
+        end
+
         ct.save_config
         ct.configure_network
 
         DistConfig.run(ct, :network)
-
-        ok
       end
+
+      ok
     end
   end
 end

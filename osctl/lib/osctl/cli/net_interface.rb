@@ -282,7 +282,8 @@ module OsCtl::Cli
         id: args[0],
         pool: gopts[:pool],
         name: args[1],
-        addr: args[2]
+        addr: args[2],
+        version: opts[:version],
       )
     end
 

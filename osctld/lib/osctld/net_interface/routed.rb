@@ -231,6 +231,24 @@ module OsCtld
       end
     end
 
+    # @param ip_v [Integer, nil]
+    def del_all_routes(ip_v = nil)
+      removed = @routes.remove_all(ip_v)
+
+      ct.inclusively do
+        next if ct.state != :running
+
+        removed.each do |route|
+          v = route.ipv4? ? 4 : 6
+
+          ip(v, [
+            :route, :del,
+            route.to_string, :via, via[v].ct_ip.to_s, :dev, veth
+          ])
+        end
+      end
+    end
+
     protected
     def setup_routing(v)
       unless veth

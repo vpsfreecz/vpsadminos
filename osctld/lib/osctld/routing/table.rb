@@ -54,6 +54,10 @@ module OsCtld
         !empty?
       end
 
+      def clear
+        exclusively { routes.clear }
+      end
+
       # Get all routed addresses
       # @return [Array]
       def get
@@ -96,6 +100,19 @@ module OsCtld
     # @return [IPAddress::IPv4, IPAddress::IPv6, nil]
     def remove(addr)
       t(addr).remove(addr)
+    end
+
+    # @param ip_v [Integer, nil]
+    # @return [Array<IPAddress::IPv4, IPAddress::IPv6>]
+    def remove_all(ip_v = nil)
+      ret = []
+
+      (ip_v ? [ip_v] : [4, 6]).each do |v|
+        ret.concat(tables[v].get)
+        tables[v].clear
+      end
+
+      ret
     end
 
     # Check if the table routes `addr`
