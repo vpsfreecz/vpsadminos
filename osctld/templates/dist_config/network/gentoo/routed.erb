@@ -3,8 +3,7 @@
 
 config_<%= netif.name %>="
 <% netif.active_ip_versions.each do |v| -%>
-<%= netif.via[v].ct_ip.to_string %>
-<%= netif.ips(v).map do |addr|
+<%= netif.all_ips(v).map do |addr|
   case v
   when 4
     addr.to_string
@@ -19,6 +18,6 @@ end.join("\n") %>
 
 routes_<%= netif.name %>="
 <% netif.active_ip_versions.each do |v| -%>
-<% if netif.ips(v).any? %>default via <%= netif.via[v].host_ip.to_s %> src <%= netif.ips(v).first.to_s %><% end %>
+<% if netif.all_ips(v).count > 1 %>default via <%= netif.via[v].host_ip.to_s %> src <%= netif.source_ip(v).to_s %><% end %>
 <% end -%>
 "

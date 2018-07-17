@@ -3,15 +3,14 @@ BOOTPROTO=static
 ONBOOT=yes
 <% netif.active_ip_versions.each do |v| -%>
 <% if v == 4 -%>
-IPADDR0=<%= netif.via[v].ct_ip.to_s %>
-NETMASK0=<%= netif.via[v].ct_ip.netmask %>
-<% netif.ips(v).each_with_index do |addr, i| -%>
-IPADDR<%= i+1 %>=<%= addr.to_s %>
-NETMASK<%= i+1 %>=<%= addr.netmask %>
+<% netif.all_ips(v).each_with_index do |addr, i| -%>
+IPADDR<%= i %>=<%= addr.to_s %>
+NETMASK<%= i %>=<%= addr.netmask %>
 <% end -%>
 <% elsif v == 6 -%>
+<% first_ip, *rest_ips = netif.all_ips(v) -%>
 IPV6INIT="yes"
-IPV6ADDR=<%= netif.via[v].ct_ip.to_string %>
-IPV6ADDR_SECONDARIES="<%= netif.ips(v).map { |addr| addr.to_string }.join(' ') %>"
+IPV6ADDR=<%= first_ip.to_string %>
+IPV6ADDR_SECONDARIES="<%= rest_ips.map { |addr| addr.to_string }.join(' ') %>"
 <% end -%>
 <% end -%>

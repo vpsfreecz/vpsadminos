@@ -1066,6 +1066,10 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       IPv6. Has to be used in conjunction with `--host-addr`. Defaults to
       the second address from the interconnecting network.
 
+      By default, the interconnecting address will be added to the container's
+      interface as the first IP address. If you wish to change its position,
+      add the address explicitly using `osctl ct netif ip add`.
+
     `--hwaddr` *addr*
       Set a custom MAC address. Every **x** in the address is replaced by
       a random value. By default, the address is dynamically allocated.
@@ -1104,6 +1108,10 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       the container's veth interface. Can be used once for IPv4 and once for
       IPv6. If `--ct-addr` is used, `--via` has to be provided for the same IP
       version as well. Applicable only for routed interfaces.
+
+      By default, the interconnecting address will be added to the container's
+      interface as the first IP address. If you wish to change its position,
+      add the address explicitly using `osctl ct netif ip add`.
 
     `--hwaddr` *addr*
       Change MAC address. Every **x** in the address is replaced by

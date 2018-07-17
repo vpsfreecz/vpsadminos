@@ -1,16 +1,17 @@
 auto <%= netif.name %>
 <% netif.active_ip_versions.each do |v| -%>
 iface <%= netif.name %> <%= v == 4 ? 'inet' : 'inet6' %> static
-  address <%= netif.via[v].ct_ip.to_s %>
-  netmask <%= v == 4 ? netif.via[v].ct_ip.netmask : netif.via[v].ct_ip.prefix %>
+<% first_ip, *rest_ips = netif.all_ips(v) -%>
+  address <%= first_ip.to_s %>
+  netmask <%= v == 4 ? first_ip.netmask : first_ip.prefix %>
 <% if v == 6 -%>
   up echo 0 > /proc/sys/net/ipv6/conf/<%= netif.name %>/accept_dad
 <% end -%>
-<% netif.ips(v).each do |addr| -%>
+<% rest_ips.each do |addr| -%>
   up ip -<%= v %> addr add <%= addr.to_string %> dev <%= netif.name %>
   down ip -<%= v %> addr del <%= addr.to_string %> dev <%= netif.name %>
 <% end -%>
-<% if netif.ips(v).any? -%>
-  up ip -<%= v %> route add default via <%= netif.via[v].host_ip.to_s %> src <%= netif.ips(v).first.to_s %>
+<% if rest_ips.any? -%>
+  up ip -<%= v %> route add default via <%= netif.via[v].host_ip.to_s %> src <%= netif.source_ip(v).to_s %>
 <% end -%>
 <% end -%>

@@ -133,11 +133,25 @@ module OsCtld
       [4, 6].delete_if { |v| @via[v].nil? }
     end
 
+    # Return all IPs, including the container's interconnecting address
+    def all_ips(v)
+      ret = @ips[v].clone
+      ret.insert(0, via[v].ct_ip) unless ret.include?(via[v].ct_ip)
+      ret
+    end
+
+    # Return the IP that should be used as a source address
+    def source_ip(v)
+      @ips[v].first
+    end
+
     def add_ip(addr, route)
       super(addr)
-      @routes << route if route && !@routes.contains?(route)
 
       v = addr.ipv4? ? 4 : 6
+      return if addr == via[v].ct_ip
+
+      @routes << route if route && !@routes.contains?(route)
 
       ct.inclusively do
         next if ct.state != :running
