@@ -209,6 +209,7 @@ module OsCtl::Cli
         name: args[1],
         addr: args[2],
         keep_route: opts['keep-route'],
+        version: opts[:version],
       )
     end
 

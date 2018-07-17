@@ -1126,13 +1126,18 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       and wish the entire network to be routed to the container.
       Applicable only for routed interfaces.
 
-`ct netif ip del` *id* *name* *addr*
+`ct netif ip del` [*options*] *id* *name* *addr*|`all`
   Remove IP address *addr* from interface *name* of container *id*.
 
     `--[no-]keep-route`
       If there is a route that exactly matches the removed IP address, then this
       option determines whether the route is removed or not. Routes are removed
       by default. Applicable only for routed interfaces.
+
+    `-v`, `--version` *n*
+      If *addr* is `all`, these options can specify which IP versions should
+      be removed. If no option is given, both IPv4 and IPv6 addresses are
+      removed.
 
 `ct netif ip ls` [*id* [*name*]]
   List IP addresses from all network interfaces, only those assigned to

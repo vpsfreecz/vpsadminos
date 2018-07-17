@@ -187,6 +187,13 @@ module OsCtld
       end
     end
 
+    # @param ip_v [Integer, nil]
+    def del_all_ips(ip_v, keep_routes)
+      (ip_v ? [ip_v] : [4, 6]).each do |v|
+        @ips[v].clone.each { |addr| del_ip(addr, keep_routes) }
+      end
+    end
+
     def can_route_ip?(addr)
       !@via[addr.ipv4? ? 4 : 6].nil?
     end

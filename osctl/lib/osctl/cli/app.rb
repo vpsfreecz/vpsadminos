@@ -952,6 +952,9 @@ module OsCtl::Cli
               c.desc 'Remove route for addr'
               c.switch 'keep-route'
 
+              c.desc 'IP versions to remove'
+              c.flag %i(v version), type: Integer
+
               c.action &Command.run(NetInterface, :ip_del)
             end
           end

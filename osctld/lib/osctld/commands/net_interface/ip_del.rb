@@ -17,26 +17,38 @@ module OsCtld
       netif = ct.netifs.detect { |n| n.name == opts[:name] }
       return error('network interface not found') unless netif
 
-      addr = IPAddress.parse(opts[:addr])
-      ip_v = addr.ipv4? ? 4 : 6
-
       ct.exclusively do
-        next error('address not found') unless netif.has_ip?(addr)
+        if opts[:addr] == 'all'
+          v = opts[:version] && opts[:version].to_i
 
-        case netif.type
-        when :routed
-          netif.del_ip(addr, opts[:keep_route])
+          case netif.type
+          when :routed
+            netif.del_all_ips(v, opts[:keep_route])
+          else
+            netif.del_all_ips(v)
+          end
+
         else
-          netif.del_ip(addr)
+          addr = IPAddress.parse(opts[:addr])
+          ip_v = addr.ipv4? ? 4 : 6
+
+          error!('address not found') unless netif.has_ip?(addr)
+
+          case netif.type
+          when :routed
+            netif.del_ip(addr, opts[:keep_route])
+          else
+            netif.del_ip(addr)
+          end
         end
 
         ct.save_config
         ct.configure_network
 
         DistConfig.run(ct, :network)
-
-        ok
       end
+
+      ok
     end
   end
 end

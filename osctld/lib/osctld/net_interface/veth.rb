@@ -119,6 +119,13 @@ module OsCtld
       @ips[addr.ipv4? ? 4 : 6].delete_if { |v| v == addr }
     end
 
+    # @param ip_v [Integer, nil]
+    def del_all_ips(ip_v = nil)
+      (ip_v ? [ip_v] : [4, 6]).each do |v|
+        @ips[v].clone.each { |addr| del_ip(addr) }
+      end
+    end
+
     protected
     def fetch_veth_name
       ret = ct_control(ct, :veth_name, {
