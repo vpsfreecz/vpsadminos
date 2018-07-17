@@ -48,7 +48,7 @@ module OsCtld
     protected
     def route(netif, addr)
       if opts[:route] === true
-        addr
+        addr.network
 
       elsif opts[:route]
         ret = IPAddress.parse(opts[:route])
