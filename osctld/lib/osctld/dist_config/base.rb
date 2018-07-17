@@ -58,13 +58,13 @@ module OsCtld
     end
 
     def dns_resolvers(_opts)
-      path = File.join(ct.rootfs, 'etc', 'resolv.conf')
+      writable?(File.join(ct.rootfs, 'etc', 'resolv.conf')) do |path|
+        File.open("#{path}.new", 'w') do |f|
+          ct.dns_resolvers.each { |v| f.puts("nameserver #{v}") }
+        end
 
-      File.open("#{path}.new", 'w') do |f|
-        ct.dns_resolvers.each { |v| f.puts("nameserver #{v}") }
+        File.rename("#{path}.new", path)
       end
-
-      File.rename("#{path}.new", path)
     end
 
     # @param opts [Hash] options
@@ -93,7 +93,10 @@ module OsCtld
     # hostname.
     # @param old_hostname [String, nil]
     def update_etc_hosts(old_hostname = nil)
-      regenerate_file(File.join(ct.rootfs, 'etc', 'hosts'), 0644) do |new, old|
+      hosts = File.join(ct.rootfs, 'etc', 'hosts')
+      return unless writable?(hosts)
+
+      regenerate_file(hosts, 0644) do |new, old|
         old.each_line do |line|
           if (/^127\.0\.0\.1\s/ =~ line || /^::1\s/ =~ line) \
              && !includes_hostname?(line, ct.hostname)
@@ -116,6 +119,24 @@ module OsCtld
     # @param hostname [String]
     def includes_hostname?(line, hostname)
       /\s#{Regexp.escape(hostname)}(\s|$)/ =~ line
+    end
+
+    # Check if the file at `path` si writable by its user
+    #
+    # If the file doesn't exist, we take it as writable. If a block is given,
+    # it is called if `path` is writable.
+    #
+    # @yieldparam path [String]
+    def writable?(path)
+      begin
+        return if (File.stat(path).mode & 0200) != 0200
+
+      rescue Errno::ENOENT
+        # pass
+      end
+
+      yield(path) if block_given?
+      true
     end
   end
 end

@@ -11,7 +11,7 @@ module OsCtld
     def network(_opts)
       tpl_base = 'dist_config/network/nixos'
 
-      ["add", "del"].each do |operation|
+      %w(add del).each do |operation|
 
         cmds = ct.netifs.map do |netif|
           OsCtld::Template.render(
@@ -20,10 +20,9 @@ module OsCtld
           )
         end
 
-        File.write(
-          File.join(ct.rootfs, "ifcfg.#{operation}"),
-          cmds.join("\n")
-        )
+        writable?(File.join(ct.rootfs, "ifcfg.#{operation}")) do |path|
+          File.write(path, cmds.join("\n"))
+        end
 
       end
     end

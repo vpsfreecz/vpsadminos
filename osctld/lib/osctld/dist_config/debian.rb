@@ -6,8 +6,10 @@ module OsCtld
 
     def set_hostname(opts)
       # /etc/hostname
-      regenerate_file(File.join(ct.rootfs, 'etc', 'hostname'), 0644) do |f|
-        f.puts(ct.hostname)
+      writable?(File.join(ct.rootfs, 'etc', 'hostname')) do |path|
+        regenerate_file(path, 0644) do |f|
+          f.puts(ct.hostname)
+        end
       end
 
       # Entry in /etc/hosts
@@ -26,6 +28,9 @@ module OsCtld
 
     def network(_opts)
       base = File.join(ct.rootfs, 'etc', 'network')
+      config = File.join(base, 'interfaces')
+      return unless writable?(config)
+
       vars = {
         netifs: ct.netifs,
         interfacesd: Dir.exist?(File.join(base, 'interfaces.d')),
@@ -38,7 +43,7 @@ module OsCtld
       OsCtld::Template.render_to(
         'dist_config/network/debian/interfaces',
         vars,
-        File.join(ct.rootfs, 'etc', 'network', 'interfaces')
+        config
       )
     end
   end

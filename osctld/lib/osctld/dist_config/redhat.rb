@@ -49,11 +49,14 @@ module OsCtld
     def do_create_netif(netif)
       tpl_base = 'dist_config/network/redhat'
       ct_base = File.join(ct.rootfs, 'etc', 'sysconfig')
+      ifcfg = File.join(ct_base, 'network-scripts', "ifcfg-#{netif.name}")
+
+      return unless writable?(ifcfg)
 
       OsCtld::Template.render_to(
         File.join(tpl_base, netif.type.to_s, 'ifcfg'),
         {netif: netif},
-        File.join(ct_base, 'network-scripts', "ifcfg-#{netif.name}")
+        ifcfg
       )
 
       if netif.type == :routed
@@ -81,7 +84,7 @@ module OsCtld
 
       files.each do |f|
         path = File.join(base, f)
-        next unless File.exist?(path)
+        next if !File.exist?(path) || !writable?(path)
 
         File.unlink(path)
       end
@@ -90,6 +93,8 @@ module OsCtld
     # @param file [String]
     # @param params [Hash]
     def set_params(file, params)
+      return unless writable?(file)
+
       regenerate_file(file, 0644) do |new, old|
         if old
           # Overwrite existing params and keep unchanged ones

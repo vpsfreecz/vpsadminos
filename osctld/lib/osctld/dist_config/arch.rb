@@ -6,8 +6,10 @@ module OsCtld
 
     def set_hostname(opts)
       # /etc/hostname
-      regenerate_file(File.join(ct.rootfs, 'etc', 'hostname'), 0644) do |f|
-        f.puts(ct.hostname)
+      writable?(File.join(ct.rootfs, 'etc', 'hostname')) do |path|
+        regenerate_file(path, 0644) do |f|
+          f.puts(ct.hostname)
+        end
       end
 
       # Entry in /etc/hosts
@@ -46,11 +48,14 @@ module OsCtld
 
     protected
     def do_create_netif(netif)
+      profile = netctl_profile(netif.name)
+      return unless writable?(profile)
+
       # Create netctl profile
       OsCtld::Template.render_to(
         File.join('dist_config/network/arch', netif.type.to_s),
         {netif: netif},
-        netctl_profile(netif.name)
+        profile
       )
 
       s_name = service_name(netif.name)
@@ -72,6 +77,9 @@ module OsCtld
     end
 
     def do_remove_netif(name)
+      profile = netctl_profile(name)
+      return unless writable?(profile)
+
       # Disable the service
       s_link = service_symlink(name)
       File.unlink(s_link) if File.symlink?(s_link)
@@ -81,7 +89,6 @@ module OsCtld
       File.unlink(s_path) if File.symlink?(s_path)
 
       # Remove netctl profile
-      profile = netctl_profile(name)
       File.unlink(profile) if File.exist?(profile)
     end
 
