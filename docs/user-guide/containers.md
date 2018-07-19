@@ -1,7 +1,7 @@
 # Containers
 When you have created at least one [user](users.md), you can start creating
 containers. To create a container, you need an OS template. Template is
-a gzipped tar archive containing the root file system, or a ZFS stream.
+a gzipped tar archive or a ZFS stream containing a root file system.
 OS templates can be automatically downloaded from repositories, or
 you can use template from a file on your local file system.
 
@@ -20,8 +20,8 @@ osctl ct new --user myuser01 --distribution ubuntu --version 16.04 myct01
 ```
 
 For now, available distributions are: `alpine`, `centos`, `debian`, `devuan`,
-`gentoo`, `slackware` and `ubuntu`. You can use `osctl repo templates ls default`
-to get the full list of templates.
+`fedora`, `gentoo`, `slackware` and `ubuntu`. You can use
+`osctl repo templates ls default` to get the full list of templates.
 
 Let's see what files and directories define the container:
 
