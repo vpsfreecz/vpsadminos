@@ -3,12 +3,6 @@ To use vpsAdminOS, you need to install [Nix]. Nix is
 a functional package manager around which vpsAdminOS is built. Please follow
 the [installation instructions][install-nix].
 
-For the purposes of this user guide, you don't need to be familiar with Nix
-and NixOS, but it certainly helps. It's also good know the basics of ZFS -- e.g.
-what is a zpool, dataset, or a snapshot. To use vpsAdminOS in production, you
-definitely need to know how to use [Nix] with [nixpkgs], [NixOS] and most likely
-[NixOps] as well.
-
 # Downloading vpsAdminOS
 Clone the git repositories of vpsAdminOS and our version of nixpkgs:
 
@@ -79,6 +73,4 @@ to [user](users.md) and [container](containers.md) management.
 [Nix]: https://nixos.org/nix/
 [install-nix]: https://nixos.org/nixpkgs/
 [nixpkgs]: https://nixos.org/nixpkgs/
-[NixOs]: https://nixos.org/
-[NixOps]: https://nixos.org/nixops/
 [man osctl]: https://man.vpsadminos.org/osctl/man8/osctl.8.html

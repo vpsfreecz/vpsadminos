@@ -4,6 +4,7 @@ extra_css: ['extra.css']
 pages:
 - Home: 'index.md'
 - User Guide:
+    - Introduction: 'user-guide/introduction.md'
     - Setup: 'user-guide/setup.md'
     - User namespaces: 'user-guide/users.md'
     - Containers: 'user-guide/containers.md'
