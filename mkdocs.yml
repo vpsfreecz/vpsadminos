@@ -19,6 +19,9 @@ pages:
     - Devices: 'containers/devices.md'
     - 'Export/Import': 'containers/export-import.md'
     - Migrations: 'containers/migrations.md'
+- Networking:
+    - Bridged veth: 'networking/veth-bridge.md'
+    - Routed veth: 'networking/veth-routed.md'
 - Migration Paths:
     - Converter: 'migration-paths/converter.md'
     - OpenVZ Legacy: 'migration-paths/openvz-legacy.md'
