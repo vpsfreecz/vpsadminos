@@ -25,15 +25,18 @@ on newer kernels. vpsAdminOS is built on:
 - ZFS
 - osctl/osctld (userspace tools bundled with vpsAdminOS)
 
-vpsAdminOS especially focuses on user namespace management (e.g. one namespace
-per container) and cgroups for resource management. One can set resource limits
-on a single container or groups of containers, allowing for fine-grained control
-and resource sharing. *osctl*/*osctld* is an abstraction on top of LXC, managing
-system users, LXC homes, cgroups and system containers. vpsAdminOS uses ZFS to
-store containers and configuration. We have patched ZFS for seamless integration
-with user namespaces, i.e. user/group id mapping on the file system level, until
-a proper solution is provided in upstream to avoid chowning all containers'
-files into appropriate user namespaces.
+vpsAdminOS provides means to create and manage system containers, which look
+and feel as much as a virtual machine as possible. It focuses on user
+namespace and cgroup management to isolate containers, all containers are
+running as unprivileged. One can set resource limits on a single container
+or groups of containers, allowing for fine-grained control and resource sharing.
+
+*osctl*/*osctld* is an abstraction on top of LXC, managing system users, LXC
+homes, cgroups and system containers. vpsAdminOS uses ZFS to store containers
+and configuration. We have patched ZFS for seamless integration with user
+namespaces, i.e. user/group id mapping on the file system level, until a proper
+solution is provided in upstream to avoid chowning all containers' files into
+appropriate user namespaces.
 
 ## Links
 
