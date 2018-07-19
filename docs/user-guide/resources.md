@@ -7,15 +7,17 @@ and access to devices is managed using cgroups.
 cgroup parameters. Since cgroups are hierarchic, but spread into multiple
 subsystems, *osctld* provides a concept of unified *groups*. These groups are
 defined once using *osctl*, but they are created in all cgroup subsystems,
-so every subsystem has the same hierarchy. Every container belongs to one of
-the groups. There are always two groups present: the *root* group
-and the *default* group. The *root* group is the parent of all groups,
-it's called `/`. The *default* group is where new containers are put, unless
-a different group is specified. Its name is `/default`.
+so each subsystem has the same hierarchy. Every container belongs to one of
+the groups.
 
-cgroup parameters can be configured both for groups and containers. This let's
-you put several containers into one group and set shared limits, or limit entire
-group hierarchies.
+There are always two groups present: the *root* group and the *default* group.
+The *root* group is the parent of all groups, it's called `/`. The *default*
+group is where new containers are put, unless a different group is specified.
+Its name is `/default`.
+
+cgroup parameters can be configured both for groups and containers. This lets
+you to put several containers into one group and set shared limits, or limit
+entire group hierarchies.
 
 Groups are managed by `osctl group` commands:
 
