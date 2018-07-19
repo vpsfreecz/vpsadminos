@@ -19,11 +19,30 @@ Let's create a container using a template from the
 osctl ct new --user myuser01 --distribution ubuntu --version 16.04 myct01
 ```
 
-For now, available distributions are: `alpine`, `centos`, `debian`, `devuan`,
-`fedora`, `gentoo`, `slackware` and `ubuntu`. You can use
-`osctl repo templates ls default` to get the full list of templates.
+Available distributions from the default repository can be listed using *osctl*:
 
-Let's see what files and directories define the container:
+```bash
+osctl repo template ls default
+VENDOR       VARIANT   ARCH     DISTRIBUTION   VERSION    TAGS            CACHED
+vpsadminos   minimal   x86_64   alpine         3.6        -               -
+vpsadminos   minimal   x86_64   alpine         3.7        latest,stable   -
+vpsadminos   minimal   x86_64   arch           20180222   latest,stable   -
+vpsadminos   minimal   x86_64   centos         6.9        -               -
+vpsadminos   minimal   x86_64   centos         7.4        -               -
+vpsadminos   minimal   x86_64   centos         7.5        latest,stable   -
+vpsadminos   minimal   x86_64   debian         8.0        -               -
+vpsadminos   minimal   x86_64   debian         9.0        latest,stable   -
+vpsadminos   minimal   x86_64   devuan         1.0        latest,stable   -
+vpsadminos   minimal   x86_64   fedora         27         -               -
+vpsadminos   minimal   x86_64   fedora         28         latest,stable   -
+vpsadminos   minimal   x86_64   gentoo         20180508   latest,stable   -
+vpsadminos   minimal   x86_64   nixos          unstable   latest,stable   -
+vpsadminos   minimal   x86_64   slackware      14.2       latest,stable   -
+vpsadminos   minimal   x86_64   ubuntu         14.04      -               -
+vpsadminos   minimal   x86_64   ubuntu         16.04      -               -
+vpsadminos   minimal   x86_64   ubuntu         18.04      latest,stable   -
+```
+Let's see what files and directories define the created container:
 
 ```bash
 ct assets myct01
