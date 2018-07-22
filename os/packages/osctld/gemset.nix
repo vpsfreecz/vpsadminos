@@ -43,37 +43,37 @@
     dependencies = ["require_all"];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "08xndfjk9crqc4hhkkfi9r7ybj3a31hsv82c3n20ih9b164r1n9g";
+      sha256 = "1s0dhljjyqygsg6pw4sb90wkvi5lpi3az2xx9qxdrkzj5g16d0sd";
       type = "gem";
     };
-    version = "18.03.0.build20180722143502";
+    version = "18.03.0.build20180722144623";
   };
   osctl-repo = {
     dependencies = ["filelock" "gli" "json" "libosctl" "require_all"];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0vs89fw92kqfmq05fzxx0mra1f7l951808qhlgsbv3dzn18y91pj";
+      sha256 = "1bb3yppsi351a1vp2x9g0a9dapis2qk2kfxnwjhymrnlz7rjbyqk";
       type = "gem";
     };
-    version = "18.03.0.build20180722143502";
+    version = "18.03.0.build20180722144623";
   };
   osctld = {
     dependencies = ["concurrent-ruby" "ipaddress" "json" "libosctl" "osctl-repo" "osup" "require_all" "ruby-lxc"];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "01jl55hb2rkcklp1jx9qlwqkr4a02lf4izj5zzw3s38y7g3p92hx";
+      sha256 = "1inlrlw8zhaba3bzc12cxah677axn7yqgqh2kld8r8xqhh5vnwjd";
       type = "gem";
     };
-    version = "18.03.0.build20180722143502";
+    version = "18.03.0.build20180722144623";
   };
   osup = {
     dependencies = ["gli" "json" "libosctl" "require_all"];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1ckc7spq3748a2cpdsdmdf3kx6wjy47d74cbxrcmxvzvi1qy6s6n";
+      sha256 = "1nyblsrnkff6n3g51fma1hckzw6h4ssrcanjla3n5qb2nqgg8pdh";
       type = "gem";
     };
-    version = "18.03.0.build20180722143502";
+    version = "18.03.0.build20180722144623";
   };
   require_all = {
     source = {
@@ -86,9 +86,9 @@
   ruby-lxc = {
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0zpmgqldjikpda73za1ppi8z6pywvdv7kml71qri6a875mrn23fp";
+      sha256 = "08pnghqp15fwylq6w2qh7x1ikkiq87irpy0z03n0gma4gdzzx2qa";
       type = "gem";
     };
-    version = "1.2.3.vpsadminos.1";
+    version = "1.2.3";
   };
 }
