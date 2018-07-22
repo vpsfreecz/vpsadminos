@@ -8,7 +8,7 @@ module OsCtld
       # /etc/hostname
       writable?(File.join(ct.rootfs, 'etc', 'hostname')) do |path|
         regenerate_file(path, 0644) do |f|
-          f.puts(ct.hostname)
+          f.puts(ct.hostname.local)
         end
       end
 

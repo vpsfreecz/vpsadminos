@@ -26,7 +26,7 @@ module OsCtld
     end
 
     # @param opts [Hash] options
-    # @option opts [String] original previous hostname
+    # @option opts [OsCtl::Lib::Hostname] :original previous hostname
     def set_hostname(opts)
       raise NotImplementedError
     end
@@ -91,7 +91,7 @@ module OsCtld
     protected
     # Update hostname in /etc/hosts, optionally removing configuration of old
     # hostname.
-    # @param old_hostname [String, nil]
+    # @param old_hostname [OsCtl::Lib::Hostname, nil]
     def update_etc_hosts(old_hostname = nil)
       hosts = File.join(ct.rootfs, 'etc', 'hosts')
       return unless writable?(hosts)
@@ -117,9 +117,9 @@ module OsCtld
 
     # Check if a line of string contains specific hostname
     # @param line [String]
-    # @param hostname [String]
+    # @param hostname [OsCtl::Lib::Hostname]
     def includes_hostname?(line, hostname)
-      /\s#{Regexp.escape(hostname)}(\s|$)/ =~ line
+      /\s#{Regexp.escape(hostname.fqdn)}(\s|$)/ =~ line
     end
 
     # Add `hostname` to `line` from `/etc/hosts`
@@ -127,20 +127,23 @@ module OsCtld
     # The hostname is put into the first position.
     #
     # @param line [String]
-    # @param hostname [String]
+    # @param hostname [OsCtl::Lib::Hostname]
     def add_host(line, hostname)
       return if line !~ /^([^\s]+)(\s+)/
 
       i = $~.end(2)
-      "#{$1}#{$2}#{hostname} #{line[i..-1]}"
+      "#{$1}#{$2}#{hostname.fqdn} #{line[i..-1]}"
     end
 
     # Remove `hostname` from `line` read from `/etc/hosts`
     #
     # @param line [String]
-    # @param hostname [String]
+    # @param hostname [OsCtl::Lib::Hostname]
     def replace_host(line, old_hostname, new_hostname)
-      line.sub(/(\s)#{Regexp.escape(old_hostname)}(\s|$)/, "\\1#{new_hostname}\\2")
+      line.sub(
+        /(\s)#{Regexp.escape(old_hostname.fqdn)}(\s|$)/,
+        "\\1#{new_hostname.fqdn}\\2"
+      )
     end
 
     # Check if the file at `path` si writable by its user

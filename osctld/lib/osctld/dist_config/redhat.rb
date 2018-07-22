@@ -6,7 +6,7 @@ module OsCtld
       # /etc/sysconfig/network
       set_params(
         File.join(ct.rootfs, 'etc', 'sysconfig', 'network'),
-        {'HOSTNAME' => ct.hostname}
+        {'HOSTNAME' => ct.hostname.local}
       )
 
       # Entry in /etc/hosts

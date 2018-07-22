@@ -369,7 +369,7 @@ module OsCtld
 
         when :hostname
           original = @hostname
-          @hostname = v
+          @hostname = OsCtl::Lib::Hostname.new(v)
           DistConfig.run(self, :set_hostname, original: original)
 
         when :dns_resolvers
@@ -533,7 +533,7 @@ module OsCtld
         'prlimits' => prlimits.map(&:dump),
         'mounts' => mounts.dump,
         'autostart' => autostart && autostart.dump,
-        'hostname' => hostname,
+        'hostname' => hostname.to_s,
         'dns_resolvers' => dns_resolvers,
         'nesting' => nesting,
         'seccomp_profile' => seccomp_profile == default_seccomp_profile \
@@ -584,7 +584,7 @@ module OsCtld
       @version = cfg['version']
       @arch = cfg['arch']
       @autostart = cfg['autostart'] && AutoStart::Config.load(self, cfg['autostart'])
-      @hostname = cfg['hostname']
+      @hostname = cfg['hostname'] && OsCtl::Lib::Hostname.new(cfg['hostname'])
       @dns_resolvers = cfg['dns_resolvers']
       @nesting = cfg['nesting'] || false
       @seccomp_profile = cfg['seccomp_profile'] || default_seccomp_profile

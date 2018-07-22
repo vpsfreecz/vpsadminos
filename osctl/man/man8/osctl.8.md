@@ -598,8 +598,9 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   Do not start the container automatically.
 
 `ct set hostname` *id* *hostname*
-  Set container hostname. Depending on distribution, the hostname is configured
-  within the container and an entry is added to `/etc/hosts`. The hostname
+  Set container hostname. *hostname* should be a FQDN (Fully Qualified Domain
+  Name). Depending on distribution, the hostname is configured within
+  the container and an entry is added to `/etc/hosts`. The hostname
   is configured on every container start.
 
 `ct unset hostname` *id*
