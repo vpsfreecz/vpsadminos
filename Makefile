@@ -7,6 +7,9 @@ build:
 qemu:
 	$(MAKE) -C os qemu
 
+toplevel:
+	$(MAKE) -C os toplevel
+
 gems: libosctl osctl-repo osctl osctld osup converter
 	echo "$(VERSION).build$(BUILD_ID)" > .build_id
 
