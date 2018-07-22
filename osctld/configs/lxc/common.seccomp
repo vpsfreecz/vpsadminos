@@ -1,9 +1,7 @@
 2
 blacklist
-
 # Comment this to allow umount -f;  not recommended
 reject_force_umount
-
 [all]
 # Default rules inherited from LXC
 kexec_load errno 1
@@ -11,7 +9,6 @@ open_by_handle_at errno 1
 init_module errno 1
 finit_module errno 1
 delete_module errno 1
-
 # Disable keyring syscalls, as the keyring is not namespaced
 add_key errno 1
 keyctl errno 1
