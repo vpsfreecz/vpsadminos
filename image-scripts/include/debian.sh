@@ -1,9 +1,15 @@
 require_cmd debootstrap
 
+CONFIGURE_DEBIAN="$CONFIGURE.debian"
+
 function bootstrap {
 	mkdir $INSTALL/etc
 	echo nameserver 8.8.8.8 > $INSTALL/etc/resolv.conf
 	debootstrap --include locales --arch amd64 $RELNAME $INSTALL $BASEURL
+}
+
+function configure-debian-append {
+	cat >> "$CONFIGURE_DEBIAN"
 }
 
 function configure-debian {
@@ -63,6 +69,8 @@ KEYGENSVC
 ln -s /etc/systemd/system/sshd-keygen.service /etc/systemd/system/multi-user.target.wants/sshd-keygen.service
 
 fi
+
+$([ -f "$CONFIGURE_DEBIAN" ] && cat "$CONFIGURE_DEBIAN")
 
 > /etc/resolv.conf
 rm -f /etc/hostname
