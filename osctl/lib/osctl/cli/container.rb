@@ -290,7 +290,7 @@ tt
 
     def start
       require_args!('id')
-      cmd_opts = {id: args[0], pool: gopts[:pool]}
+      cmd_opts = {id: args[0], pool: gopts[:pool], debug: opts[:debug]}
       return osctld_fmt(:ct_start, cmd_opts) unless opts[:foreground]
 
       open_console(args[0], gopts[:pool], 0, gopts[:json]) do |sock|

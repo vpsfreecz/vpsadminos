@@ -40,6 +40,7 @@ module OsCtld
           '-P', ct.lxc_home,
           '-n', ct.id,
           '-o', ct.log_path,
+          '-l', opts[:debug] ? 'DEBUG' : 'ERROR',
           '-F'
         ]
 

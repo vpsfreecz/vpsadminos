@@ -483,6 +483,9 @@ module OsCtl::Cli
           c.desc 'Open container console (can be later detached)'
           c.switch %i(F foreground)
 
+          c.desc 'Enable debug messages in LXC'
+          c.switch %i(D debug)
+
           c.action &Command.run(Container, :start)
         end
 

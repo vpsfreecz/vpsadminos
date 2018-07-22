@@ -489,6 +489,10 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-F`, `--[no-]foreground`
       Open container console (can be later detached), see `ct console`.
 
+    `-D`, `--[no-]debug`
+      Configure LXC to write debug messages to the container's log file, see
+      `ct log` commands.
+
 `ct stop` [*options*] *id*
   Stop container *id*. By default, `osctld` will send a signal to the container's
   init process to cleanly shutdown and wait until it finishes or *timeout*

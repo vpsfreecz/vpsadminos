@@ -222,6 +222,9 @@ osctl ct log cat <id>
 osctl ct log path <id>
 ```
 
+When debugging a container that's failing to start, you can enable LXC debug
+messages using `osctl ct start --debug`.
+
 ## User shell
 Should you want to switch to a container's user and use LXC utilities directly,
 you have to use `osctl ct su <id>`. Using `/bin/su` is insufficient, because standard
