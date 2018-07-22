@@ -23,15 +23,30 @@ module OsCtl::Lib
     #
     # If `block` is `true`, this method will block until there is something
     # to return. If `block` is `false` and the queue is empty, `nil` is
-    # returned.
+    # returned. If `timeout` is set and passes, `nil` is returned.
     #
     # @param block [Boolean] block if the queue is empty
-    def shift(block: true)
+    # @param timeout [Integer, nil] how many seconds to wait
+    def shift(block: true, timeout: nil)
       sync do
-        @cond.wait(@mutex) while block && @queue.empty?
-        @queue.shift
+        if @queue.any?
+          @queue.shift
+
+        elsif block # Wait for something to be pushed
+          loop do
+            @cond.wait(@mutex, timeout)
+            break if @queue.any? || timeout
+          end
+
+          @queue.shift
+
+        else
+          nil
+        end
       end
     end
+
+    alias_method :pop, :shift
 
     # Clear the queue
     def clear
