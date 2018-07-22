@@ -1,4 +1,5 @@
 require 'concurrent'
+require 'libosctl'
 require 'thread'
 
 module OsCtld
@@ -109,7 +110,7 @@ module OsCtld
     # Subscribe a client to all events
     # @return [Queue]
     def subscribe
-      q = Queue.new
+      q = OsCtl::Lib::Queue.new
       @subscribers << q
       q
     end
