@@ -480,6 +480,9 @@ module OsCtl::Cli
         ct.desc 'Start container'
         ct.arg_name '<id>'
         ct.command :start do |c|
+          c.desc 'How long to wait for the container to start'
+          c.flag %i(w wait), type: Integer, default_value: 60
+
           c.desc 'Open container console (can be later detached)'
           c.switch %i(F foreground)
 
@@ -510,6 +513,9 @@ module OsCtl::Cli
         ct.desc 'Restart container'
         ct.arg_name '<id>'
         ct.command :restart do |c|
+          c.desc 'How long to wait for the container to start'
+          c.flag %i(w wait), type: Integer, default_value: 60
+
           c.desc 'Open container console (can be later detached)'
           c.switch %i(F foreground)
 

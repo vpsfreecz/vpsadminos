@@ -83,7 +83,12 @@ module OsCtld
       end
 
       # Exit if we don't need to wait
-      return ret if ret != :wait
+      if ret != :wait
+        return ret
+
+      elsif opts[:wait] === false
+        return ok
+      end
 
       # Wait for the container to enter state `running`
       progress('Waiting for the container to start')
@@ -116,7 +121,7 @@ module OsCtld
       last_i = nil
 
       loop do
-        event = event_queue.pop(timeout: 60)
+        event = event_queue.pop(timeout: opts[:wait] || 60)
         return false if event.nil?
 
         # Ignore irrelevant events

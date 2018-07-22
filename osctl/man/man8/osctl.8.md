@@ -486,6 +486,10 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 `ct start` [*options*] *id*
   Start container *id*.
 
+    `-w`, `--wait` *seconds*
+      How many seconds to wait for the container to enter state `running`.
+      Defaults to `60` seconds. Set to `0` to return immediately.
+
     `-F`, `--[no-]foreground`
       Open container console (can be later detached), see `ct console`.
 
@@ -523,6 +527,11 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   If option `--reboot` is used, the container's init process is signaled to
   reboot the system. `osctld` has no way of knowing whether the init process
   responds and the reboot actually takes place.
+
+    `-w`, `--wait` *seconds*
+      How many seconds to wait for the container to enter state `running`.
+      Applicable only for full restarts, i.e. when `--reboot` is not set.
+      Defaults to `60` seconds. Set to `0` to return immediately.
 
     `-F`, `--[no-]foreground`
       Open container console (can be later detached), see `ct console`.

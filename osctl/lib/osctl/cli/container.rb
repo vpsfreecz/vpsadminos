@@ -290,7 +290,12 @@ tt
 
     def start
       require_args!('id')
-      cmd_opts = {id: args[0], pool: gopts[:pool], debug: opts[:debug]}
+      cmd_opts = {
+        id: args[0],
+        pool: gopts[:pool],
+        wait: get_ct_wait(opts[:wait]),
+        debug: opts[:debug],
+      }
       return osctld_fmt(:ct_start, cmd_opts) unless opts[:foreground]
 
       open_console(args[0], gopts[:pool], 0, gopts[:json]) do |sock|
@@ -350,6 +355,7 @@ tt
       cmd_opts = {
         id: args[0],
         pool: gopts[:pool],
+        wait: get_ct_wait(opts[:wait]),
         reboot: opts[:reboot],
         stop_timeout: opts[:timeout],
         stop_method: m,
@@ -1120,6 +1126,16 @@ tt
         else
           ct[:loadavg] = nil
         end
+      end
+    end
+
+    def get_ct_wait(v)
+      if v < 0
+        raise GLI::BadCommandLine, 'invalid value for --wait'
+      elsif v == 0
+        false
+      else
+        v
       end
     end
   end

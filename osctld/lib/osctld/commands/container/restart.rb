@@ -25,7 +25,12 @@ module OsCtld
           timeout: opts[:stop_timeout],
           method: opts[:stop_method]
         )
-        call_cmd!(Commands::Container::Start, id: ct.id, force: true)
+        call_cmd!(
+          Commands::Container::Start,
+          id: ct.id,
+          force: true,
+          wait: opts[:wait],
+        )
       end
     end
   end
