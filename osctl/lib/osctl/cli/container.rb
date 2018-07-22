@@ -1134,6 +1134,8 @@ tt
         raise GLI::BadCommandLine, 'invalid value for --wait'
       elsif v == 0
         false
+      elsif opts[:foreground]
+        false
       else
         v
       end
