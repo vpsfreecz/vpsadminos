@@ -106,9 +106,6 @@ module OsCtld
 
     protected
     # Wait for the container to start or fail
-    #
-    # TODO: if, for some reason, no relevant state change event is received,
-    # this method is going to block. It would be best to add a timeout.
     def wait_for_ct(event_queue, ct)
       # Sequence of events that lead to the container being started.
       # We're accepting even `stopping` and `stopped`, since when the container
@@ -118,7 +115,8 @@ module OsCtld
       last_i = nil
 
       loop do
-        event = event_queue.pop
+        event = event_queue.pop(timeout: 60)
+        return false if event.nil?
 
         # Ignore irrelevant events
         next if event.type != :state \
