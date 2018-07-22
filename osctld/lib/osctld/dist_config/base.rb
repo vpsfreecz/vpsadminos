@@ -102,10 +102,11 @@ module OsCtld
              && !includes_hostname?(line, ct.hostname)
 
             if old_hostname && includes_hostname?(line, old_hostname)
-              line.sub!(/\s#{Regexp.escape(old_hostname)}/, '')
-            end
+              new.puts(replace_host(line, old_hostname, ct.hostname))
 
-            new.puts("#{line.rstrip} #{ct.hostname}")
+            else
+              new.puts(add_host(line.strip, ct.hostname))
+            end
 
           else
             new.write(line)
@@ -119,6 +120,27 @@ module OsCtld
     # @param hostname [String]
     def includes_hostname?(line, hostname)
       /\s#{Regexp.escape(hostname)}(\s|$)/ =~ line
+    end
+
+    # Add `hostname` to `line` from `/etc/hosts`
+    #
+    # The hostname is put into the first position.
+    #
+    # @param line [String]
+    # @param hostname [String]
+    def add_host(line, hostname)
+      return if line !~ /^([^\s]+)(\s+)/
+
+      i = $~.end(2)
+      "#{$1}#{$2}#{hostname} #{line[i..-1]}"
+    end
+
+    # Remove `hostname` from `line` read from `/etc/hosts`
+    #
+    # @param line [String]
+    # @param hostname [String]
+    def replace_host(line, old_hostname, new_hostname)
+      line.sub(/(\s)#{Regexp.escape(old_hostname)}(\s|$)/, "\\1#{new_hostname}\\2")
     end
 
     # Check if the file at `path` si writable by its user
