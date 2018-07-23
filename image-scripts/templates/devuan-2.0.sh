@@ -27,6 +27,14 @@ deb-src $BASEURL $RELNAME-security main
 SOURCES
 
 configure-append <<EOF
+sed -ri 's/^([^#].*getty.*)$/#\1/' /etc/inittab
+
+cat >> /etc/inittab <<END
+
+# Start getty on /dev/console
+c0:2345:respawn:/sbin/agetty --noreset 38400 console
+END
+
 sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
 EOF
 
