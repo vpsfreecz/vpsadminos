@@ -27,6 +27,7 @@ deb-src $BASEURL $RELNAME-security main
 SOURCES
 
 configure-append <<EOF
+sed -i 's|pf::powerwait:/etc/init.d/powerfail start|pf::powerwait:/sbin/halt|' /etc/inittab
 sed -ri 's/^([^#].*getty.*)$/#\1/' /etc/inittab
 
 cat >> /etc/inittab <<END
