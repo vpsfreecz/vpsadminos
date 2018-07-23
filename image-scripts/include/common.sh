@@ -26,6 +26,18 @@ function do-chroot {
 	umount-chroot "$1"
 }
 
+function configure-shebang {
+	local shebang="$1"
+
+	if [ -f "$CONFIGURE" ] ; then
+		echo "$shebang" > "$CONFIGURE.shebang"
+		cat "$CONFIGURE" >>  "$CONFIGURE.shebang"
+		mv "$CONFIGURE.shebang" "$CONFIGURE"
+	else
+		echo "$shebang" > "$CONFIGURE"
+	fi
+}
+
 function configure-append {
 	cat >> $CONFIGURE
 }

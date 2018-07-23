@@ -13,6 +13,7 @@ function configure-debian-append {
 }
 
 function configure-debian {
+	configure-shebang "#!/bin/bash"
 	configure-append <<EOF
 fakefiles="initctl invoke-rc.d restart start stop start-stop-daemon service"
 for f in \$fakefiles; do
