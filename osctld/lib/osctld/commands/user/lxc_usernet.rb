@@ -6,7 +6,18 @@ module OsCtld
 
     LXC_USERNET = '/etc/lxc/lxc-usernet'
 
+    @@mutex = Mutex.new
+
     def execute
+      @@mutex.synchronize do
+        generate
+      end
+
+      ok
+    end
+
+    protected
+    def generate
       f = File.open("#{LXC_USERNET}.new", 'w')
 
       net_cnt = 0
@@ -47,8 +58,6 @@ module OsCtld
 
       f.close
       File.rename("#{LXC_USERNET}.new", LXC_USERNET)
-
-      ok
     end
   end
 end

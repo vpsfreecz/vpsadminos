@@ -4,7 +4,18 @@ module OsCtld
   class Commands::User::SubUGIds < Commands::Base
     handle :user_subugids
 
+    @@mutex = Mutex.new
+
     def execute
+      @@mutex.synchronize do
+        generate
+      end
+
+      ok
+    end
+
+    protected
+    def generate
       DB::Users.get do |users|
         %w(u g).each do |v|
           File.open("/etc/sub#{v}id.new", 'w') do |f|
@@ -18,8 +29,6 @@ module OsCtld
           File.rename("/etc/sub#{v}id.new", "/etc/sub#{v}id")
         end
       end
-
-      ok
     end
   end
 end
