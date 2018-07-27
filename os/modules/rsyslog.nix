@@ -5,7 +5,10 @@ with lib;
 let
   syslog_config = pkgs.writeText "syslog.conf" ''
     $ModLoad imuxsock
+    $ModLoad imklog
     $WorkDirectory /var/spool/rsyslog
+
+    kern.*                       -/var/log/kern.log
 
     # "local1" is used for dhcpd messages.
     local1.*                     -/var/log/dhcpd
