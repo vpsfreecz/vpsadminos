@@ -32,8 +32,5 @@
     mount -a
   '';
 
-  # Set NIX_PATH
-  environment.variables = {
-    NIX_PATH = "/mnt/nix-path";
-  };
+  nix.nixPath = [ "/mnt/nix-path" ];
 }

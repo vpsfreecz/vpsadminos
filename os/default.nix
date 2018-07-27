@@ -51,6 +51,7 @@ let
       <nixpkgs/nixos/modules/misc/ids.nix>
       <nixpkgs/nixos/modules/virtualisation/lxc.nix>
       <nixpkgs/nixos/modules/virtualisation/lxcfs.nix>
+      <nixpkgs/nixos/modules/services/misc/nix-daemon.nix>
       <nixpkgs/nixos/modules/services/networking/dhcpd.nix>
       <nixpkgs/nixos/modules/services/networking/ssh/sshd.nix>
       <nixpkgs/nixos/modules/system/boot/kernel.nix>

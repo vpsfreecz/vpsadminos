@@ -11,6 +11,7 @@ with lib;
       nscd = mkOption { };
       avahi = mkOption { };
       samba = mkOption { };
+      xserver = mkOption { };
       zfs = mkOption { };
     };
     meta = {
