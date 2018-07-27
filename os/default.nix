@@ -35,6 +35,7 @@ let
       <nixpkgs/nixos/modules/config/swap.nix>
       <nixpkgs/nixos/modules/config/shells-environment.nix>
       <nixpkgs/nixos/modules/config/system-environment.nix>
+      <nixpkgs/nixos/modules/config/timezone.nix>
       <nixpkgs/nixos/modules/tasks/filesystems.nix>
 #     <nixpkgs/nixos/modules/tasks/filesystems/zfs.nix>
 #                                                  ^ we use custom, minimal zfs.nix implementation

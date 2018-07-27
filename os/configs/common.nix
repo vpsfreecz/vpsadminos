@@ -9,6 +9,8 @@
   services.openssh.enable = lib.mkDefault true;
   vpsadminos.nix = lib.mkDefault true;
 
+  time.timeZone = lib.mkDefault "Europe/Amsterdam";
+
   boot.supportedFilesystems = [ "nfs" ];
   boot.initrd.supportedFilesystems = [ "zfs" ];
 
