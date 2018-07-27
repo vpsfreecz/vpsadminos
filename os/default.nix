@@ -1,4 +1,9 @@
-{ configuration ? import ./configs/common.nix, nixpkgs ? <nixpkgs>, extraModules ? [], system ? builtins.currentSystem, platform ? null, vpsadmin ? null }:
+{ configuration ? let cfg = builtins.getEnv "VPSADMINOS_CONFIG"; in if cfg == "" then import ./configs/common.nix else import cfg
+, nixpkgs ? <nixpkgs>
+, extraModules ? []
+, system ? builtins.currentSystem
+, platform ? null
+, vpsadmin ? null }:
 
 let
   pkgs = import nixpkgs { inherit system; platform = platform; config = {}; };
