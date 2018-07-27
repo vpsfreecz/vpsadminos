@@ -3,7 +3,6 @@
 {
   environment.etc = {
     runit.services.backdoor.run = ''
-      #!/bin/sh
       export USER=root
       export HOME=/root
       export DISPLAY=:0.0

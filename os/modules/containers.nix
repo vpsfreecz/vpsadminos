@@ -56,7 +56,6 @@ let
   osctl = "${pkgs.osctl}/bin/osctl";
 
   mkService = commands: ''
-      #!/bin/sh
       sv check osctld >/dev/null || exit 1
       ${osctl} ping 0
       poolCount=$( ${osctl} pool ls -H | wc -l )

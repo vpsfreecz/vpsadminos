@@ -152,30 +152,9 @@ with lib;
       description = "gateway IP address for static networking configuration";
       default = "10.0.2.2";
     };
-    networking.chronyd = mkOption {
-      type = types.bool;
-      description = "use Chrony daemon for network time synchronization";
-      default = true;
-    };
-    networking.timeServers = mkOption {
-      default = [
-        "0.nixos.pool.ntp.org"
-        "1.nixos.pool.ntp.org"
-        "2.nixos.pool.ntp.org"
-        "3.nixos.pool.ntp.org"
-      ];
-      description = ''
-        The set of NTP servers from which to synchronise.
-      '';
-    };
     networking.dhcp = mkOption {
       type = types.bool;
       description = "use DHCP to obtain IP";
-      default = false;
-    };
-    networking.dhcpd = mkOption {
-      type = types.bool;
-      description = "enable dhcpd to provide DHCP for guests";
       default = false;
     };
     networking.openDNS = mkOption {
@@ -275,16 +254,6 @@ with lib;
       supportedLocales = [ "en_US.UTF-8/UTF-8" ];
     };
     environment.etc = {
-      "nix/nix.conf".source = pkgs.runCommand "nix.conf" {} ''
-        extraPaths=$(for i in $(cat ${pkgs.writeReferencesToFile pkgs.stdenv.shell}); do if test -d $i; then echo $i; fi; done)
-        cat > $out << EOF
-        build-use-sandbox = true
-        build-users-group = nixbld
-        build-sandbox-paths = /bin/sh=${pkgs.stdenv.shell} $(echo $extraPaths)
-        build-max-jobs = 1
-        build-cores = 4
-        EOF
-      '';
       bashrc.text = "export PATH=/run/current-system/sw/bin";
       profile.text = "export PATH=/run/current-system/sw/bin";
       "resolv.conf".text = lib.mkDefault "nameserver 10.0.2.3";
@@ -292,11 +261,6 @@ with lib;
         hosts:     files  dns   myhostname mymachines
         networks:  files dns
       '';
-      # XXX: generate these on start
-      "ssh/ssh_host_rsa_key.pub".source = ./ssh/ssh_host_rsa_key.pub;
-      "ssh/ssh_host_rsa_key" = { mode = "0600"; source = ./ssh/ssh_host_rsa_key; };
-      "ssh/ssh_host_ed25519_key.pub".source = ./ssh/ssh_host_ed25519_key.pub;
-      "ssh/ssh_host_ed25519_key" = { mode = "0600"; source = ./ssh/ssh_host_ed25519_key; };
       "cgconfig.conf".text = ''
         mount {
           cpuset = /sys/fs/cgroup/cpuset;
@@ -444,35 +408,6 @@ with lib;
     nameserver 208.67.222.222
     nameserver 208.67.220.220
     '';
-  })
-
-  (mkIf (config.networking.dhcpd) {
-    environment.etc."dhcpd/dhcpd4.conf".text = ''
-    authoritative;
-    option routers 192.168.1.1;
-    option domain-name-servers 208.67.222.222, 208.67.220.220;
-    option subnet-mask 255.255.255.0;
-    option broadcast-address 192.168.1.255;
-    subnet 192.168.1.0 netmask 255.255.255.0 {
-      range 192.168.1.100 192.168.1.200;
-    }
-    '';
-  })
-
-  (mkIf (config.networking.chronyd) {
-    environment.systemPackages = [ pkgs.chrony ];
-    users.extraGroups = singleton
-      { name = "chrony";
-        gid = config.ids.gids.chrony;
-      };
-
-    users.extraUsers = singleton
-      { name = "chrony";
-        uid = config.ids.uids.chrony;
-        group = "chrony";
-        description = "chrony daemon user";
-        home = "/var/lib/chrony";
-      };
   })
   ]);
 }

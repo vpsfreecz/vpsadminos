@@ -19,11 +19,20 @@ let
       ./modules/runit.nix
       ./modules/bird.nix
       ./modules/containers.nix
+      ./modules/chronyd.nix
+      ./modules/dhcpd.nix
       ./modules/eudev.nix
       ./modules/htop.nix
+      ./modules/lxcfs.nix
       ./modules/nfs.nix
+      ./modules/nix-daemon.nix
       ./modules/node_exporter.nix
+      ./modules/networking.nix
+      ./modules/osctld.nix
       ./modules/rpcbind.nix
+      ./modules/runit.nix
+      ./modules/rsyslog.nix
+      ./modules/sshd.nix
       ./modules/tty.nix
       ./modules/zfs.nix
       ./modules/version.nix

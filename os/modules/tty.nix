@@ -9,12 +9,11 @@ let
   gettyCmd = extraArgs: "${pkgs.utillinux}/bin/setsid ${pkgs.utillinux}/sbin/agetty ${gettyAutoLogin} --login-program ${pkgs.shadow}/bin/login ${extraArgs}";
 
   mkGetty = extraArgs: termtype: tty: lib.nameValuePair "getty-${tty}"
-    ({
+    {
       run = ''
-        #!/bin/sh
         ${gettyCmd "${extraArgs} --keep-baud ${tty} 115200,38400,9600 ${termtype}"}
       '';
-    });
+    };
 
   tty1 = mkGetty "--noclear" "linux" "tty1";
   mkTTY = mkGetty "" "linux";

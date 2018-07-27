@@ -51,7 +51,6 @@ in
       environment.systemPackages = [ pkgs.nfs-utils ];
 
       runit.services.statd.run = ''
-        #!/bin/sh
         sv check rpcbind >/dev/null || exit 1
         mkdir -p ${nfsStateDir}/{sm,sm.bak}
         exec ${pkgs.nfs-utils}/bin/rpc.statd -F
@@ -65,8 +64,6 @@ in
       environment.etc."exports".source = exports;
 
       runit.services.nfsd.run = ''
-        #!/bin/sh
-
         sv check statd >/dev/null || exit 1
 
         mkdir -p ${rpcMountpoint}

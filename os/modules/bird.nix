@@ -112,7 +112,6 @@ let
         environment.systemPackages = [ pkg ];
 
         runit.services."${variant}".run = ''
-          #!/bin/sh
           touch ${cfg.logFile}
           chown ${variant}:${variant} ${cfg.logFile}
           chmod 660 ${cfg.logFile}

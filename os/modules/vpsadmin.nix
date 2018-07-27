@@ -99,7 +99,6 @@ in
       '';
 
       runit.services.nodectld.run = ''
-        #!/bin/sh
         export HOME=${config.users.extraUsers.root.home}
         exec 2>&1
         exec ${pkgs.nodectld}/bin/nodectld --log syslog --log-facility local3 --export-console

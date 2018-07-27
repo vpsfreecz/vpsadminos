@@ -128,19 +128,16 @@ in
       };
 
       runit.services.eudev.run = ''
-        #!/bin/sh
         exec ${pkgs.eudev}/bin/udevd
       '';
 
       runit.services.eudev-trigger.run = ''
-        #!/bin/sh
         ${pkgs.eudev}/bin/udevadm trigger --action=add --type=subsystems
         ${pkgs.eudev}/bin/udevadm trigger --action=add --type=devices
         exec sv once .
       '';
 
       runit.services.eudev-trigger.check = ''
-        #!/bin/sh
         ${pkgs.eudev}/bin/udevadm settle
       '';
     })

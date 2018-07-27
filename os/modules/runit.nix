@@ -14,7 +14,7 @@ let
         type = types.str;
         description = "Called to start the service.";
       };
-      
+
       check = mkOption {
         type = types.str;
         default = "";
@@ -29,11 +29,15 @@ let
     else
       service.directory;
 
-  mkScript = name: script: pkgs.writeScript name script;
+  mkScript = name: script: pkgs.writeScript name
+    ''
+    #!${pkgs.stdenv.shell}
+    ${script}
+    '';
 
   mkStage = type: script: mkScript "runit-stage-${type}" script;
 
-  mkService = name: type: script: pkgs.writeScript "sv-${name}-${type}" script;
+  mkService = name: type: script: mkScript "sv-${name}-${type}" script;
 
   mkEnvironment = mkMerge (mapAttrsToList (name: service:
     mkMerge [
@@ -62,7 +66,7 @@ in
         stage 2 and enter stage 3.  
       '';
     };
-    
+
     runit.stage2 = mkOption {
       type = types.str;
       description = ''
@@ -72,7 +76,7 @@ in
         request in stage 2.
       '';
     };
-    
+
     runit.stage3 = mkOption {
       type = types.str;
       description = ''
