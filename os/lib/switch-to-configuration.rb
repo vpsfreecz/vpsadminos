@@ -204,10 +204,11 @@ class Services
     Dir.entries(dir).each do |f|
       next if %w(. ..).include?(f)
 
-      path = File.join(dir, f)
-      next unless Dir.exist?(path)
-
-      ret[f] = Service.new(f, File.realpath(File.join(path, 'run')), opts)
+      begin
+        ret[f] = Service.new(f, File.realpath(File.join(dir, f, 'run')), opts)
+      rescue Errno::ENOENT
+        next
+      end
     end
 
     ret
