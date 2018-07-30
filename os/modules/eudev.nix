@@ -125,24 +125,24 @@ in
       environment.etc = {
         "udev/rules.d".source = udevRules;
         "udev/hwdb.bin".source = hwdbBin;
-
-        "service/eudev/run".source = pkgs.writeScript "eudev" ''
-          #!/bin/sh
-          exec ${pkgs.eudev}/bin/udevd
-        '';
-
-        "service/eudev-trigger/run".source = pkgs.writeScript "eudev-trigger" ''
-          #!/bin/sh
-          ${pkgs.eudev}/bin/udevadm trigger --action=add --type=subsystems
-          ${pkgs.eudev}/bin/udevadm trigger --action=add --type=devices
-          exec sv once .
-        '';
-
-        "service/eudev-trigger/check".source = pkgs.writeScript "eudev-trigger-check" ''
-          #!/bin/sh
-          ${pkgs.eudev}/bin/udevadm settle
-        '';
       };
+
+      runit.services.eudev.run = ''
+        #!/bin/sh
+        exec ${pkgs.eudev}/bin/udevd
+      '';
+
+      runit.services.eudev-trigger.run = ''
+        #!/bin/sh
+        ${pkgs.eudev}/bin/udevadm trigger --action=add --type=subsystems
+        ${pkgs.eudev}/bin/udevadm trigger --action=add --type=devices
+        exec sv once .
+      '';
+
+      runit.services.eudev-trigger.check = ''
+        #!/bin/sh
+        ${pkgs.eudev}/bin/udevadm settle
+      '';
     })
   ];
 }

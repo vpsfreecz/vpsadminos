@@ -98,7 +98,7 @@ in
           :host: ${cfg.consoleHost}
       '';
 
-      environment.etc."service/nodectld/run".source = pkgs.writeScript "nodectld-service" ''
+      runit.services.nodectld.run = ''
         #!/bin/sh
         export HOME=${config.users.extraUsers.root.home}
         exec 2>&1

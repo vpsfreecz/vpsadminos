@@ -55,7 +55,7 @@ let
 
   osctl = "${pkgs.osctl}/bin/osctl";
 
-  mkService = commands: pkgs.writeScript "containers" ''
+  mkService = commands: ''
       #!/bin/sh
       sv check osctld >/dev/null || exit 1
       ${osctl} ping 0
@@ -571,7 +571,7 @@ in
 
   config = mkMerge [
     (mkIf (config.containers != {}) {
-      environment.etc."service/containers/run".source = mkService importStartCTs;
+      runit.services.containers.run = mkService importStartCTs;
     })
   ];
 }

@@ -48,7 +48,7 @@ in
 
   config = mkMerge [
     (mkIf cfg.enable {
-      environment.etc."service/node_exporter/run".source = pkgs.writeScript "node_exporter_run" ''
+      runit.services.node_exporter.run = ''
         #!/bin/sh
         exec ${pkgs.prometheus-node-exporter}/bin/node_exporter \
           ${concatMapStringsSep " " (x: "--collector." + x) cfg.enabledCollectors} \

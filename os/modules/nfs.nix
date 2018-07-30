@@ -50,7 +50,7 @@ in
 
       environment.systemPackages = [ pkgs.nfs-utils ];
 
-      environment.etc."service/statd/run".source = pkgs.writeScript "statd_run" ''
+      runit.services.statd.run = ''
         #!/bin/sh
         sv check rpcbind >/dev/null || exit 1
         mkdir -p ${nfsStateDir}/{sm,sm.bak}
@@ -64,7 +64,7 @@ in
 
       environment.etc."exports".source = exports;
 
-      environment.etc."service/nfsd/run".source = pkgs.writeScript "nfsd_run" ''
+      runit.services.nfsd.run = ''
         #!/bin/sh
 
         sv check statd >/dev/null || exit 1
@@ -81,7 +81,7 @@ in
         exportfs -ra &> /dev/null || exit 1
         ${pkgs.nfs-utils}/bin/rpc.nfsd -- ${toString cfg.server.nproc}
         exec ${pkgs.nfs-utils}/bin/rpc.mountd --foreground &> /dev/null
-        '';
+      '';
     })
   ];
 }

@@ -8,9 +8,9 @@ let
   gettyAutoLogin = if cfg.autologin.enable then "--autologin ${cfg.autologin.user}" else "";
   gettyCmd = extraArgs: "${pkgs.utillinux}/bin/setsid ${pkgs.utillinux}/sbin/agetty ${gettyAutoLogin} --login-program ${pkgs.shadow}/bin/login ${extraArgs}";
 
-  mkGetty = extraArgs: termtype: tty: lib.nameValuePair "service/getty-${tty}/run"
+  mkGetty = extraArgs: termtype: tty: lib.nameValuePair "getty-${tty}"
     ({
-      source = pkgs.writeScript "getty-${tty}" ''
+      run = ''
         #!/bin/sh
         ${gettyCmd "${extraArgs} --keep-baud ${tty} 115200,38400,9600 ${termtype}"}
       '';
@@ -49,7 +49,7 @@ in
 
   ###### implementation
   config = {
-    environment.etc = lib.listToAttrs (
+    runit.services = lib.listToAttrs (
       lib.optional (cfg.spawnStandard != 0) tty1
       ++ map mkTTY (map (x: "tty" + toString x) (lib.range 2 cfg.spawnStandard))  # [ "tty2", "tty3" ... ]
       ++ map mkSTTY (map (x: "ttyS" + toString x) (lib.range 0 cfg.spawnSerial)) # [ "ttyS0", .. ]

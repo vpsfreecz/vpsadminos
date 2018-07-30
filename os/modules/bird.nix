@@ -110,15 +110,14 @@ let
       ###### implementation
       config = mkIf cfg.enable {
         environment.systemPackages = [ pkg ];
-        environment.etc = {
-          "service/${variant}/run".source = pkgs.writeScript "${variant}" ''
-            #!/bin/sh
-            touch ${cfg.logFile}
-            chown ${variant}:${variant} ${cfg.logFile}
-            chmod 660 ${cfg.logFile}
-            exec ${pkg}/bin/${variant} -c ${configFile} -u ${variant} -g ${variant} -f
-          '';
-        };
+
+        runit.services."${variant}".run = ''
+          #!/bin/sh
+          touch ${cfg.logFile}
+          chown ${variant}:${variant} ${cfg.logFile}
+          chmod 660 ${cfg.logFile}
+          exec ${pkg}/bin/${variant} -c ${configFile} -u ${variant} -g ${variant} -f
+        '';
 
         users = {
           extraUsers.${variant} = {

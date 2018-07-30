@@ -18,7 +18,7 @@ in
 
   config = mkMerge [
     (mkIf cfg.enable {
-      environment.etc."service/rpcbind/run".source = pkgs.writeScript "rpcbind_run" ''
+      runit.services.rpcbind.run = ''
         #!/bin/sh
         exec ${pkgs.rpcbind}/bin/rpcbind -f
       '';
