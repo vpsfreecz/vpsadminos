@@ -3,6 +3,8 @@ with utils;
 with lib;
 
 let
+  cfg = config.services.rsyslogd;
+  forwardHosts = concatMapStringsSep "\n" (hostPort: "*.* @@${hostPort};RSYSLOG_SyslogProtocol23Format") cfg.forward;
   syslog_config = pkgs.writeText "syslog.conf" ''
     $ModLoad imuxsock
     $ModLoad imklog
@@ -22,12 +24,40 @@ let
     *.crit                        /var/log/warn
 
     *.*;mail.none;local1.none    -/var/log/messages
+
+    ${ optionalString (cfg.forward != []) ''
+    $ActionQueueFileName fwdRule1 # unique name prefix for spool files
+    $ActionQueueMaxDiskSpace 1g   # 1gb space limit (use as much as possible)
+    $ActionQueueType LinkedList   # run asynchronously
+    $ActionResumeRetryCount -1    # infinite retries if host is down
+
+    ''}
+    ${forwardHosts}
+
+    ${cfg.extraConfig}
   '';
 in
 {
   ###### interface
 
   options = {
+    services = {
+      rsyslogd = {
+        forward = mkOption {
+          type = types.listOf types.string;
+          description = "Forward logs over TCP to a set of hosts";
+          example = [ "10.0.0.1:11514" ];
+          default = [];
+        };
+
+        extraConfig = mkOption {
+          type = types.string;
+          default = "";
+          example = "news.* -/var/log/news";
+          description = "Additional text to append to syslog.conf";
+        };
+      };
+    };
   };
 
   ###### implementation
