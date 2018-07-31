@@ -23,6 +23,11 @@ pages:
 - Networking:
     - Bridged veth: 'networking/veth-bridge.md'
     - Routed veth: 'networking/veth-routed.md'
+- vpsAdminOS:
+    - Quickstart: 'os/quickstart.md'
+    - Configuration: 'os/configuration.md'
+    - Updates: 'os/updates.md'
+    - Deployment: 'os/deployment.md'
 - Migration Paths:
     - Converter: 'migration-paths/converter.md'
     - OpenVZ Legacy: 'migration-paths/openvz-legacy.md'
