@@ -6,7 +6,10 @@
   # import local configuration (local.nix) if it exists
   imports = [ ] ++ lib.optionals (lib.pathExists ./local.nix) [ ./local.nix ];
   networking.hostName = lib.mkDefault "vpsadminos";
+
+  services.logrotate.enable = lib.mkDefault true;
   services.openssh.enable = lib.mkDefault true;
+
   vpsadminos.nix = lib.mkDefault true;
 
   nix.daemon.enable = lib.mkDefault true;

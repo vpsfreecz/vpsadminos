@@ -29,6 +29,7 @@ let
       ./modules/dhcpd.nix
       ./modules/eudev.nix
       ./modules/htop.nix
+      ./modules/logrotate.nix
       ./modules/lxcfs.nix
       ./modules/nfs.nix
       ./modules/nix-daemon.nix
