@@ -39,6 +39,7 @@ let
       ./modules/runit.nix
       ./modules/rsyslog.nix
       ./modules/sshd.nix
+      ./modules/tools/tools.nix
       ./modules/tty.nix
       ./modules/zfs.nix
       ./modules/version.nix

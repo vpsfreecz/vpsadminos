@@ -80,3 +80,10 @@ template:
 	'<nixpkgs/nixos>' \
 	--arg configuration ./lib/nixos-container/configuration.nix \
 	-A config.system.build.tarball
+
+os-rebuild:
+	nix-build \
+	 --arg configuration ./configs/default.nix \
+	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
+	 --cores $(CORES) \
+	 -A config.system.build.os-rebuild
