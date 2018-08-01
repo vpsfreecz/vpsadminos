@@ -403,6 +403,7 @@ with lib;
           ruby = pkgs.ruby;
           etc = config.system.build.etc;
           installBootLoader = config.system.build.installBootLoader or "none";
+          inherit (config.boot) kernelParams;
         } ''
           mkdir $out
           cp ${config.system.build.bootStage2} $out/init
@@ -411,6 +412,7 @@ with lib;
           ln -s ${kernelPath} $out/kernel
           ln -s ${initrdPath} $out/initrd
           ln -s ${config.system.modulesTree} $out/kernel-modules
+          echo -n "$kernelParams" > $out/kernel-params
           echo "$activationScript" > $out/activate
           substituteInPlace $out/activate --subst-var out
           chmod u+x $out/activate
