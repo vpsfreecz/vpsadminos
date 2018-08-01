@@ -6,9 +6,12 @@ class Configuration
   SERVICE_DIR = '/etc/service'
   CURRENT_BIN = '/run/current-system/sw/bin'
   NEW_BIN = File.join(OUT, 'sw', 'bin')
+  INSTALL_BOOTLOADER = '@installBootLoader@'
 
-  def self.switch
-    new(dry_run: false).switch
+  class << self
+    %i(boot switch test).each do |m|
+      define_method(m) { new(dry_run: false).send(m) }
+    end
   end
 
   def self.dry_run
@@ -50,7 +53,21 @@ class Configuration
     activate_osctl(services)
   end
 
+  def boot
+    if INSTALL_BOOTLOADER == 'none'
+      puts 'no bootloader active'
+      return
+    end
+
+    system(INSTALL_BOOTLOADER, OUT) || (fail 'unable to install boot loader')
+  end
+
   def switch
+    boot
+    test
+  end
+
+  def test
     puts 'probing runit services...'
     services = Services.new(opts)
 
@@ -317,12 +334,14 @@ class Pools
 end
 
 case ARGV[0]
-when 'switch', 'boot', 'test'
+when 'boot'
+  Configuration.boot
+when 'switch'
   Configuration.switch
-
+when 'test'
+  Configuration.test
 when 'dry-activate'
   Configuration.dry_run
-
 else
   warn "Usage: #{$0} switch|dry-activate"
   exit(false)

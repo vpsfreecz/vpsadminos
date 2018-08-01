@@ -379,6 +379,7 @@ with lib;
           activationScript = config.system.activationScripts.script;
           ruby = pkgs.ruby;
           etc = config.system.build.etc;
+          installBootLoader = config.system.build.installBootLoader or "none";
         } ''
           mkdir $out
           cp ${config.system.build.bootStage2} $out/init
