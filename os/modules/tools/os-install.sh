@@ -93,7 +93,7 @@ if [[ -z $system ]]; then
     outLink="$tmpdir/system"
     nix build --out-link "$outLink" --store "$mountPoint" "${extraBuildFlags[@]}" \
         --extra-substituters "$sub" \
-        -f '<vpsadminos/os>' config.system.build.toplevel -I "configuration=$VPSADMINOS_CONFIG"
+        -f '<vpsadminos/os>' config.system.build.toplevel --arg configuration "$VPSADMINOS_CONFIG"
     system=$(readlink -f $outLink)
 fi
 
