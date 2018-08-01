@@ -89,10 +89,28 @@ with lib;
       default = true;
       description = "Include hardware support kernel modules in initrd (so e.g. zfs sees disks)";
     };
-    boot.loader.timeout = mkOption {
-      type = types.ints.positive;
-      default = 10;
-      description = "syslinux timeout in seconds (ISO only)";
+    system.boot.loader.id = mkOption {
+      internal = true;
+      default = "";
+      description = ''
+        Id string of the used bootloader.
+      '';
+    };
+    system.boot.loader.kernelFile = mkOption {
+      internal = true;
+      default = pkgs.stdenv.platform.kernelTarget;
+      type = types.str;
+      description = ''
+        Name of the kernel file to be passed to the bootloader.
+      '';
+    };
+    system.boot.loader.initrdFile = mkOption {
+      internal = true;
+      default = "initrd";
+      type = types.str;
+      description = ''
+        Name of the initrd file to be passed to the bootloader.
+      '';
     };
     hardware.firmware = mkOption {
       type = types.listOf types.package;
