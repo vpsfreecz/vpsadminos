@@ -157,7 +157,7 @@ if [ "$live" == "yes" ] ; then
 
 else
   if [ -b "$root" ] ; then
-    mount "$root" /mnt
+    mount "$root" /mnt || fail "Can't mount rootfs from $root"
   else
    echo "$root does not exist, unable to mount rootfs"
    @shell@
