@@ -51,9 +51,10 @@ grep vpsadminos $mountPoint/etc/os-release || {
     exit 126
 }
 
-mkdir -m 0755 -p "$mountPoint/dev" "$mountPoint/sys"
+mkdir -m 0755 -p "$mountPoint/dev" "$mountPoint/sys" "$mountPoint/proc"
 mount --rbind /dev "$mountPoint/dev"
 mount --rbind /sys "$mountPoint/sys"
+mount --rbind /proc "$mountPoint/proc"
 
 # Run the activation script. Set $LOCALE_ARCHIVE to supress some Perl locale warnings.
 LOCALE_ARCHIVE=$system/sw/lib/locale/locale-archive chroot "$mountPoint" "$system/activate" >&2 || true
