@@ -392,6 +392,13 @@ with lib;
       name = let hn = config.networking.hostName;
                  nn = if (hn != "") then hn else "unnamed";
              in "vpsadminos-system-${nn}-${config.system.osLabel}";
+             
+      kernelPath = "${config.boot.kernelPackages.kernel}/" +
+        "${config.system.boot.loader.kernelFile}";
+        
+      initrdPath = "${config.system.build.initialRamdisk}/" +
+        "${config.system.boot.loader.initrdFile}";
+
       in
         pkgs.runCommand name {
           activationScript = config.system.activationScripts.script;
@@ -403,6 +410,8 @@ with lib;
           cp ${config.system.build.bootStage2} $out/init
           substituteInPlace $out/init --subst-var-by systemConfig $out
           ln -s ${config.system.path} $out/sw
+          ln -s ${kernelPath} $out/kernel
+          ln -s ${initrdPath} $out/initrd
           ln -s ${config.system.modulesTree} $out/kernel-modules
           echo "$activationScript" > $out/activate
           substituteInPlace $out/activate --subst-var out
