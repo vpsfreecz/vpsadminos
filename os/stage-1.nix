@@ -126,6 +126,7 @@ let
     isExecutable = true;
     inherit shell modules modprobeList extraUtils dhcpHook udevRules udevHwdb;
 
+    bootloader = config.system.boot.loader.id;
     inherit (config.boot) predefinedFailAction;
     inherit (config.boot.initrd) postDeviceCommands;
     inherit (config.boot.zfs.pool) name layout logs caches partition wipe;

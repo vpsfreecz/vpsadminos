@@ -86,6 +86,7 @@ for x in @modprobeList@; do
 done
 
 root=/dev/vda
+live=yes
 for o in $(cat /proc/cmdline); do
   case $o in
     console=*)
@@ -118,6 +119,9 @@ for o in $(cat /proc/cmdline); do
       tftp -g -r "$3" "$2"
       root=/root.squashfs
       ;;
+    nolive)
+      live=no
+      ;;
   esac
 done
 
@@ -134,20 +138,30 @@ udevadm settle --timeout=30 || fail "udevadm settle timed-out"
 
 udevadm control --exit
 
-mount -t tmpfs root /mnt/ -o size=6G || fail "Can't mount root tmpfs"
-chmod 755 /mnt/
-mkdir -p /mnt/nix/store/
+if [ "$live" == "yes" ] ; then
+  mount -t tmpfs root /mnt/ -o size=6G || fail "Can't mount root tmpfs"
+  chmod 755 /mnt/
+  mkdir -p /mnt/nix/store/
 
-# make the store writeable
-mkdir -p /.ro-store /mnt/nix/.overlay-store /mnt/nix/store
-mount $root /.ro-store -t squashfs || fail "Can't mount root from $root"
-mount tmpfs -t tmpfs /mnt/nix/.overlay-store -o size=1G
-mkdir -pv /mnt/nix/.overlay-store/work /mnt/nix/.overlay-store/rw
-modprobe overlay
-mount -t overlay overlay -o lowerdir=/.ro-store,upperdir=/mnt/nix/.overlay-store/rw,workdir=/mnt/nix/.overlay-store/work /mnt/nix/store
+  # make the store writeable
+  mkdir -p /.ro-store /mnt/nix/.overlay-store /mnt/nix/store
+  mount $root /.ro-store -t squashfs || fail "Can't mount root from $root"
+  mount tmpfs -t tmpfs /mnt/nix/.overlay-store -o size=1G
+  mkdir -pv /mnt/nix/.overlay-store/work /mnt/nix/.overlay-store/rw
+  modprobe overlay
+  mount -t overlay overlay -o lowerdir=/.ro-store,upperdir=/mnt/nix/.overlay-store/rw,workdir=/mnt/nix/.overlay-store/work /mnt/nix/store
 
-if [ -d /mnt/nix/store/secrets ] ; then
-  chmod 0500 /mnt/nix/store/secrets
+  if [ -d /mnt/nix/store/secrets ] ; then
+    chmod 0500 /mnt/nix/store/secrets
+  fi
+
+else
+  if [ -b "$root" ] ; then
+    mount "$root" /mnt
+  else
+   echo "$root does not exist, unable to mount rootfs"
+   @shell@
+  fi
 fi
 
 exec env -i $(type -P switch_root) /mnt/ $sysconfig/init
