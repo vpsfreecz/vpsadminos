@@ -14,7 +14,7 @@
   networking.dhcp = true;
   networking.dhcpd = true;
 
-  vpsadminos.nix = false;
+  vpsadminos.nix = true;
 
   tty.autologin.enable = true;
 
