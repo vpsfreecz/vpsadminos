@@ -3,7 +3,7 @@
   system.qemuParams = [
     "-drive index=0,id=drive1,file=${config.system.build.squashfs},readonly,media=cdrom,format=raw,if=virtio"
     "-kernel ${config.system.build.kernel}/bzImage -initrd ${config.system.build.initialRamdisk}/initrd"
-    "-append \"console=ttyS0 ${toString config.boot.kernelParams} quiet panic=-1\""
+    "-append \"console=ttyS0 systemConfig=${config.system.build.toplevel} ${toString config.boot.kernelParams} quiet panic=-1\""
     "-nographic"
     "-virtfs local,path=../../,mount_tag=hostNixPath,security_model=passthrough,id=hostNixPath"
     "-virtfs local,path=../,mount_tag=hostOs,security_model=passthrough,id=hostOs"

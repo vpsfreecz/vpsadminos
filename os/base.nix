@@ -312,7 +312,6 @@ with lib;
     };
 
     boot.kernelParams = [
-      "systemConfig=${config.system.build.toplevel}"
       "net.ifnames=0"
     ];
 
@@ -349,7 +348,7 @@ with lib;
     system.qemuParams = lib.mkDefault [
       "-drive index=0,id=drive1,file=${config.system.build.squashfs},readonly,media=cdrom,format=raw,if=virtio"
       "-kernel ${config.system.build.kernel}/bzImage -initrd ${config.system.build.initialRamdisk}/initrd"
-      ''-append "console=ttyS0 ${toString config.boot.kernelParams} quiet panic=-1"''
+      ''-append "console=ttyS0 systemConfig=${config.system.build.toplevel} ${toString config.boot.kernelParams} quiet panic=-1"''
       "-nographic"
     ];
 
@@ -375,7 +374,7 @@ with lib;
       cp ${config.system.build.squashfs} $out/root.squashfs
       cp ${config.system.build.kernel}/*zImage $out/kernel
       cp ${config.system.build.initialRamdisk}/initrd $out/initrd
-      echo "${builtins.unsafeDiscardStringContext (toString config.boot.kernelParams)}" > $out/command-line
+      echo "systemConfig=${config.system.build.toplevel} ${builtins.unsafeDiscardStringContext (toString config.boot.kernelParams)}" > $out/command-line
     '';
 
     system.activationScripts.secrets = {
@@ -398,7 +397,6 @@ with lib;
         
       initrdPath = "${config.system.build.initialRamdisk}/" +
         "${config.system.boot.loader.initrdFile}";
-
       in
         pkgs.runCommand name {
           activationScript = config.system.activationScripts.script;
