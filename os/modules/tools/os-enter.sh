@@ -46,7 +46,7 @@ while [ "$#" -gt 0 ]; do
     esac
 done
 
-grep vpsadminos $mountPoint/etc/os-release || {
+test -f $mountPoint/etc/VPSADMINOS || {
     echo "$0: '$mountPoint' is not a vpsadminOS installation" >&2
     exit 126
 }
