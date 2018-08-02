@@ -124,6 +124,7 @@ with lib;
     };
     vpsadminos.nix = mkOption {
       type = types.bool;
+      default = true;
       description = "enable nix-daemon and a writeable store";
     };
     networking.hostName = mkOption {
