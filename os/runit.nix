@@ -42,7 +42,7 @@ in
     echo -ne "\033[9;0]" > /dev/tty0
 
     # runit
-    ln -s /etc/service /service
+    ln -sfn /etc/service /service
 
     # LXC
     mkdir -p /var/lib/lxc/rootfs
@@ -74,7 +74,7 @@ in
 
     if ${if config.vpsadmin.enable then "true" else "false"} ; then
       mkdir -m 0700 /run/nodectl
-      ln -s /run/current-system/sw/bin/nodectl /run/nodectl/nodectl
+      ln -sfn /run/current-system/sw/bin/nodectl /run/nodectl/nodectl
     fi
 
     touch /etc/runit/stopit

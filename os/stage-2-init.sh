@@ -20,8 +20,8 @@ mount -t devpts -ogid=3 devpts /dev/pts
 mount -t tmpfs tmpfs /run
 mount -t tmpfs tmpfs /dev/shm
 
-ln -s /run /var/run
-ln -s /proc/mounts /etc/mtab
+ln -sfn /run /var/run
+ln -sf /proc/mounts /etc/mtab
 
 touch /run/{u,w}tmp
 
