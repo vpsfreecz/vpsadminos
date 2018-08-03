@@ -249,7 +249,7 @@ trap cleanup EXIT
 # switch to the new configuration.
 # If --repair is given, don't try to use the Nix daemon, because the
 # flag can only be used directly.
-if [ -z "$repair" ] && sv status nix; then
+if [ -z "$repair" ] && [ -S /nix/var/nix/daemon-socket/socket ]; then
     export NIX_REMOTE=${NIX_REMOTE-daemon}
 fi
 
