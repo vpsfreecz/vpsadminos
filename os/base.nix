@@ -430,6 +430,9 @@ with lib;
     };
 
     system.build.kernelParams = config.boot.kernelParams;
+
+    # Needed for nixops send-keys
+    users.groups.keys.gid = config.ids.gids.keys;
   }
 
   (mkIf (config.networking.openDNS) {
