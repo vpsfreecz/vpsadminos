@@ -107,9 +107,13 @@ class Configuration
   attr_reader :opts
 
   def activate_osctl(services)
-    return unless services.reload.detect { |s| s.name == 'lxcfs' }
+    args = []
 
-    args = ['--lxcfs']
+    if services.reload.detect { |s| s.name == 'lxcfs' }
+      args << '--lxcfs'
+    else
+      args << '--no-lxcfs'
+    end
 
     if services.restart.detect { |s| s.name == 'osctld' }
       # osctld has been restarted, so system files are already regenerated
