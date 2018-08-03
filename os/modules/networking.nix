@@ -6,11 +6,57 @@ with lib;
   ###### interface
 
   options = {
+    networking.hosts = lib.mkOption {
+      type = types.attrsOf ( types.listOf types.str );
+      default = {};
+      example = literalExample ''
+        {
+          "127.0.0.1" = [ "foo.bar.baz" ];
+          "192.168.0.2" = [ "fileserver.local" "nameserver.local" ];
+        };
+      '';
+      description = ''
+        Locally defined maps of hostnames to IP addresses.
+      '';
+    };
+
+    networking.extraHosts = lib.mkOption {
+      type = types.lines;
+      default = "";
+      example = "192.168.0.1 lanlocalhost";
+      description = ''
+        Additional verbatim entries to be appended to <filename>/etc/hosts</filename>.
+      '';
+    };
   };
 
   ###### implementation
 
   config = {
+    environment.etc = {
+      # /etc/hosts: Hostname-to-IP mappings.
+      "hosts".text =
+        let cfg = config.networking;
+            oneToString = set : ip : ip + " " + concatStringsSep " " ( getAttr ip set );
+            allToString = set : concatMapStringsSep "\n" ( oneToString set ) ( attrNames set );
+            userLocalHosts = optionalString
+              ( builtins.hasAttr "127.0.0.1" cfg.hosts )
+              ( concatStringsSep " " ( remove "localhost" cfg.hosts."127.0.0.1" ));
+            userLocalHosts6 = optionalString
+              ( builtins.hasAttr "::1" cfg.hosts )
+              ( concatStringsSep " " ( remove "localhost" cfg.hosts."::1" ));
+            otherHosts = allToString ( removeAttrs cfg.hosts [ "127.0.0.1" "::1" ]);
+        in
+        ''
+          127.0.0.1 ${userLocalHosts} localhost
+          ${optionalString cfg.enableIPv6 ''
+            ::1 ${userLocalHosts6} localhost
+          ''}
+          ${otherHosts}
+          ${cfg.extraHosts}
+        '';
+    };
+
     runit.services = {
       networking.run = with config.networking; ''
         sv check eudev-trigger >/dev/null || exit 1
