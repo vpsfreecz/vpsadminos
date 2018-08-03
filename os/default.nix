@@ -95,9 +95,7 @@ let
   };
 in
 rec {
-  test1 = evalConfig [
-    configuration
-  ];
+  test1 = evalConfig (if configuration != null then [configuration] else []);
   runner = test1.config.system.build.runvm;
   config = test1.config;
 }
