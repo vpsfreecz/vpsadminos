@@ -93,6 +93,7 @@ class Configuration
     services.restart.each(&:restart)
 
     puts 'starting new services...'
+    services.start.each(&:wait_for_runit)
     services.start.each(&:start)
 
     activate_osctl(services)
@@ -177,6 +178,18 @@ class Services
       else
         'reload'
       end
+    end
+
+    # Wait until runit registers the service
+    def wait_for_runit
+      check = File.join(Configuration::SERVICE_DIR, name, 'supervise', 'ok')
+
+      100.times do
+        return if File.exist?(check)
+        sleep(0.2)
+      end
+
+      fail "service #{name} not registered by runit"
     end
   end
 
