@@ -29,7 +29,6 @@ prod-local:
 # build the system closure without building the squashfs image
 toplevel:
 	nix-build \
-	 --arg configuration ./configs/default.nix \
 	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 --attr config.system.build.toplevel \
 	 --cores $(CORES)
