@@ -134,6 +134,7 @@ udevd --daemon --resolve-names=never
 udevadm trigger
 udevadm settle --timeout=30 || fail "udevadm settle timed-out"
 
+@preLVMCommands@
 @postDeviceCommands@
 
 udevadm control --exit

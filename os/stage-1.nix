@@ -36,6 +36,10 @@ let
     # Copy dhcpcd
     copy_bin_and_libs ${pkgs.dhcpcd}/bin/dhcpcd
 
+    # Copy dmsetup and lvm.
+    copy_bin_and_libs ${pkgs.lvm2}/sbin/dmsetup
+    copy_bin_and_libs ${pkgs.lvm2}/sbin/lvm
+
     # Copy eudev
     copy_bin_and_libs ${udev}/bin/udevd
     copy_bin_and_libs ${udev}/bin/udevadm
@@ -105,6 +109,7 @@ let
       cp -v ${udev}/var/lib/udev/rules.d/60-cdrom_id.rules $out/
       cp -v ${udev}/var/lib/udev/rules.d/60-persistent-storage.rules $out/
       cp -v ${udev}/var/lib/udev/rules.d/80-drivers.rules $out/
+      cp -v ${pkgs.lvm2}/lib/udev/rules.d/*.rules $out/
 
       for i in $out/*.rules; do
           substituteInPlace $i \
@@ -113,6 +118,7 @@ let
             --replace cdrom_id ${extraUtils}/bin/cdrom_id \
             --replace ${pkgs.utillinux}/sbin/blkid ${extraUtils}/bin/blkid \
             --replace /sbin/blkid ${extraUtils}/bin/blkid \
+            --replace ${pkgs.lvm2}/sbin ${extraUtils}/bin \
             --replace ${pkgs.bash}/bin/sh ${extraUtils}/bin/sh \
             --replace /usr/bin/readlink ${extraUtils}/bin/readlink \
             --replace /usr/bin/basename ${extraUtils}/bin/basename \
@@ -128,7 +134,7 @@ let
 
     bootloader = config.system.boot.loader.id;
     inherit (config.boot) predefinedFailAction;
-    inherit (config.boot.initrd) postDeviceCommands;
+    inherit (config.boot.initrd) preLVMCommands postDeviceCommands;
     inherit (config.boot.zfs.pool) name layout logs caches partition wipe;
   };
 
@@ -164,6 +170,15 @@ in
         extra-utils derivation after patchelf has done its
         job.  This can be used to test additional utilities
         copied in extraUtilsCommands.
+      '';
+    };
+    boot.initrd.preLVMCommands = mkOption {
+      default = "";
+      type = types.lines;
+      description = ''
+        Shell commands to be executed immediately before LVM discovery.
+        vpsAdminOS actually does not support LVM, this is just for compatibility
+        with other modules.
       '';
     };
     boot.initrd.postDeviceCommands = mkOption {

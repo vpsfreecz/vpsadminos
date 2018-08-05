@@ -54,6 +54,7 @@ let
       <nixpkgs/nixos/modules/system/boot/loader/efi.nix>
       <nixpkgs/nixos/modules/system/boot/loader/generations-dir/generations-dir.nix>
       <nixpkgs/nixos/modules/system/boot/loader/loader.nix>
+      <nixpkgs/nixos/modules/system/boot/luksroot.nix>
       <nixpkgs/nixos/modules/misc/nixpkgs.nix>
       <nixpkgs/nixos/modules/config/swap.nix>
       <nixpkgs/nixos/modules/config/shells-environment.nix>
