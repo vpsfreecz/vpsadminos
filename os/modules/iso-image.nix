@@ -308,7 +308,7 @@ in
 
     # Create the ISO image.
     system.build.isoImage = pkgs.callPackage <nixpkgs/nixos/lib/make-iso9660-image.nix> ({
-      inherit (pkgs) stdenv perl xorriso syslinux;
+      inherit (pkgs) stdenv xorriso syslinux;
 
       inherit (config.isoImage) isoName compressImage volumeID contents;
 
