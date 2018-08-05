@@ -413,6 +413,7 @@ with lib;
           ln -s ${kernelPath} $out/kernel
           ln -s ${initrdPath} $out/initrd
           ln -s ${config.system.modulesTree} $out/kernel-modules
+          echo -n "${config.system.osLabel}" > $out/os-version
           echo -n "$kernelParams" > $out/kernel-params
           echo "$activationScript" > $out/activate
           substituteInPlace $out/activate --subst-var out
