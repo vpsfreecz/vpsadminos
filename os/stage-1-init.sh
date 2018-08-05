@@ -73,11 +73,24 @@ echo
 export LD_LIBRARY_PATH=@extraUtils@/lib
 export PATH=@extraUtils@/bin/
 mkdir -p /proc /sys /dev /etc/udev /tmp /run/ /lib/ /mnt/ /var/log /bin
+
 mount -t devtmpfs devtmpfs /dev/
+mkdir /dev/pts
+mount -t devpts devpts /dev/pts
+
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
 
+# Copy the secrets to their needed location
+if [ -d "@extraUtils@/secrets" ]; then
+    for secret in $(cd "@extraUtils@/secrets"; find . -type f); do
+        mkdir -p $(dirname "/$secret")
+        ln -s "@extraUtils@/secrets/$secret" "$secret"
+    done
+fi
+
 ln -sv @shell@ /bin/sh
+ln -sv @shell@ /bin/ash
 ln -s @modules@/lib/modules /lib/modules
 
 echo @extraUtils@/bin/modprobe > /proc/sys/kernel/modprobe

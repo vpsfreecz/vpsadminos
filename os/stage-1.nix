@@ -47,6 +47,17 @@ let
       copy_bin_and_libs $BIN
     done
 
+    # Copy secrets if needed.
+    ${optionalString (!config.boot.loader.supportsInitrdSecrets)
+        (concatStringsSep "\n" (mapAttrsToList (dest: source:
+           let source' = if source == null then dest else source; in
+             ''
+                mkdir -p $(dirname "$out/secrets/${dest}")
+                cp -a ${source'} "$out/secrets/${dest}"
+              ''
+        ) config.boot.initrd.secrets))
+     }
+
     ${config.boot.initrd.extraUtilsCommands}
 
     # Copy ld manually since it isn't detected correctly
@@ -189,6 +200,35 @@ in
         boot has loaded kernel modules and created device nodes in
         <filename>/dev</filename>.
       '';
+    };
+    boot.initrd.secrets = mkOption {
+      internal = true;
+      default = {};
+      type = types.attrsOf (types.nullOr types.path);
+      description =
+        ''
+          Secrets to append to the initrd. The attribute name is the
+          path the secret should have inside the initrd, the value
+          is the path it should be copied from (or null for the same
+          path inside and out).
+        '';
+      example = literalExample
+        ''
+          { "/etc/dropbear/dropbear_rsa_host_key" =
+              ./secret-dropbear-key;
+          }
+        '';
+    };
+    boot.loader.supportsInitrdSecrets = mkOption {
+      internal = true;
+      default = false;
+      type = types.bool;
+      description =
+        ''
+          Whether the bootloader setup runs append-initrd-secrets.
+          If not, any needed secrets must be copied into the initrd
+          and thus added to the store.
+        '';
     };
   };
   config = {
