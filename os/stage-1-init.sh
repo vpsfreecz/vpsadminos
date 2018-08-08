@@ -98,7 +98,7 @@ for x in @modprobeList@; do
   modprobe $x
 done
 
-root=/dev/vda
+root=/root.squashfs
 live=yes
 for o in $(cat /proc/cmdline); do
   case $o in
