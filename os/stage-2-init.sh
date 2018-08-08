@@ -15,7 +15,7 @@ if [ @procHidePid@ ]; then
 fi
 mount -t sysfs sys /sys
 mount -t devtmpfs devtmpfs /dev
-mkdir /dev/pts /dev/shm
+mkdir -p /dev/pts /dev/shm
 mount -t devpts -ogid=3 devpts /dev/pts
 mount -t tmpfs tmpfs /run
 mount -t tmpfs tmpfs /dev/shm
