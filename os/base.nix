@@ -57,6 +57,14 @@ with lib;
         Size of zpool vdev in GB. Two vdevs are created and put into mirror.
       '';
     };
+    system.storeOverlaySize = mkOption {
+      default = "2G";
+      type = types.str;
+      description = ''
+        Size of the tmpfs filesystems used as an overlay for /nix/store.
+        See option size in man tmpfs(5) for possible values.
+      '';
+    };
     system.secretsDir = mkOption {
       type = types.string;
       default = "";
