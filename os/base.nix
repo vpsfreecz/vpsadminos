@@ -406,6 +406,10 @@ with lib;
         
       initrdPath = "${config.system.build.initialRamdisk}/" +
         "${config.system.boot.loader.initrdFile}";
+
+      serviceList = pkgs.writeText "services.json" (builtins.toJSON (lib.mapAttrs (k: v: {
+        inherit (v) directory;
+      }) config.runit.services));
       in
         pkgs.runCommand name {
           activationScript = config.system.activationScripts.script;
@@ -423,6 +427,7 @@ with lib;
           ln -s ${config.system.modulesTree} $out/kernel-modules
           echo -n "${config.system.osLabel}" > $out/os-version
           echo -n "$kernelParams" > $out/kernel-params
+          ln -s ${serviceList} $out/services
           echo "$activationScript" > $out/activate
           substituteInPlace $out/activate --subst-var out
           chmod u+x $out/activate

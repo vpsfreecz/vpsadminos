@@ -1,10 +1,11 @@
 #!@ruby@/bin/ruby
+require 'json'
 
 class Configuration
   OUT = '@out@'
   ETC = '@etc@'
-  SERVICE_DIR = '/etc/service'
-  CURRENT_BIN = '/run/current-system/sw/bin'
+  CURRENT_SYSTEM = '/run/current-system'
+  CURRENT_BIN = File.join(CURRENT_SYSTEM, 'sw/bin')
   NEW_BIN = File.join(OUT, 'sw', 'bin')
   INSTALL_BOOTLOADER = '@installBootLoader@'
 
@@ -147,9 +148,17 @@ end
 
 class Services
   RELOADABLE = %w(lxcfs)
-  Service = Struct.new(:name, :path, :opts) do
+  Service = Struct.new(:name, :base_path, :service_path, :opts) do
+    attr_reader :run_path
+
+    def initialize(*_)
+      super
+
+      @run_path = File.realpath(File.join(base_path, service_path, 'run'))
+    end
+
     def ==(other)
-      path == other.path
+      run_path == other.run_path
     end
 
     %i(start stop restart).each do |m|
@@ -182,7 +191,9 @@ class Services
 
     # Wait until runit registers the service
     def wait_for_runit
-      check = File.join(Configuration::SERVICE_DIR, name, 'supervise', 'ok')
+      # This method is called after activation, so we use / instead
+      # of the original base_path.
+      check = File.join('/', service_path, 'supervise', 'ok')
 
       100.times do
         return if File.exist?(check)
@@ -195,8 +206,14 @@ class Services
 
   def initialize(dry_run: true)
     @opts = {dry_run: dry_run}
-    @old_services = read(Configuration::SERVICE_DIR)
-    @new_services = read(File.join(Configuration::ETC, Configuration::SERVICE_DIR))
+    @old_services = read(
+      File.join(Configuration::CURRENT_SYSTEM, '/services'),
+      '/',
+    )
+    @new_services = read(
+      File.join(Configuration::OUT, '/services'),
+      Configuration::ETC,
+    )
   end
 
   # Services that are new and should be started
@@ -231,16 +248,25 @@ class Services
   attr_reader :old_services, :new_services, :opts
 
   # Read service directory
+  # @param list [String] Path to service list
+  # @param base_dir [String] absolute path to a directory containing the system's
+  #                          `/etc`
   # @return [Hash<String, Service>]
-  def read(dir)
+  def read(list, base_dir)
     ret = {}
 
-    Dir.entries(dir).each do |f|
-      next if %w(. ..).include?(f)
-
+    JSON.parse(File.read(list)).each do |name, service|
       begin
-        ret[f] = Service.new(f, File.realpath(File.join(dir, f, 'run')), opts)
+        ret[name] = Service.new(
+          name,
+          base_dir,
+          File.join(service['directory'], name),
+          opts,
+        )
+
       rescue Errno::ENOENT
+        warn "service '#{name}' not found at "+
+             "'#{File.join(base_dir, service['directory'])}'"
         next
       end
     end
