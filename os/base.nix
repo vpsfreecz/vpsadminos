@@ -355,8 +355,8 @@ with lib;
 
     system.build.runvm = pkgs.writeScript "runner" ''
       #!${pkgs.stdenv.shell}
-      truncate -s${toString cfg.qemuDiskSize}G sda.img
-      truncate -s${toString cfg.qemuDiskSize}G sdb.img
+      [ ! -f sda.img ] && truncate -s${toString cfg.qemuDiskSize}G sda.img
+      [ ! -f sdb.img ] && truncate -s${toString cfg.qemuDiskSize}G sdb.img
       exec ${pkgs.qemu_kvm}/bin/qemu-kvm -name vpsadminos -m ${toString cfg.qemuRAM} \
         -smp cpus=${toString cfg.qemuCpus},cores=${toString cfg.qemuCpuCores},threads=${toString cfg.qemuCpuThreads},sockets=${toString cfg.qemuCpuSockets} \
         -no-reboot \
