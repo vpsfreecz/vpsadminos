@@ -5,7 +5,7 @@ VPSADMIN_ABSPATH := $(shell readlink -m "$(VPSADMIN)")
 # default build (configs/default.nix)
 build:
 	nix-build \
-	 --arg configuration ./configs/default.nix \
+	 --arg configuration $(or $(VPSADMINOS_CONFIG),./configs/default.nix) \
 	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 --cores $(CORES)
 
@@ -29,6 +29,7 @@ prod-local:
 # build the system closure without building the squashfs image
 toplevel:
 	nix-build \
+	 --arg configuration $(or $(VPSADMINOS_CONFIG),./configs/default.nix) \
 	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 --attr config.system.build.toplevel \
 	 --cores $(CORES)
@@ -36,7 +37,7 @@ toplevel:
 # build iso image
 iso:
 	nix-build \
-	 --arg configuration "{ imports  = [ ./configs/iso.nix ]; }" \
+	 --arg configuration $(or $(VPSADMINOS_CONFIG),"{ imports  = [ ./configs/iso.nix ]; }") \
 	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 -A config.system.build.isoImage \
 	 --cores $(CORES) || exit 1
@@ -44,7 +45,10 @@ iso:
 # build iso image runner
 iso-local:
 	nix-build \
-	 --arg configuration "{ imports  = [ ./configs/iso.nix ./configs/qemu.nix ]; }" \
+	 --arg configuration $(or $(VPSADMINOS_CONFIG),"{ imports  = [ \
+	     ./configs/iso.nix \
+	     ./configs/qemu.nix \
+	   ]; }") \
 	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 -A config.system.build.runvm \
 	 --cores $(CORES) || exit 1
