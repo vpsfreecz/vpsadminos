@@ -3,47 +3,51 @@ VPSADMIN = ../../vpsadmin
 VPSADMIN_ABSPATH := $(shell readlink -m "$(VPSADMIN)")
 
 # default build (configs/default.nix)
-build:
+build: result
 	nix-build \
 	 --arg configuration $(or $(VPSADMINOS_CONFIG),./configs/default.nix) \
 	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
+	 --out-link result/qemu \
 	 --cores $(CORES)
 
 # production build (configs/prod.nix)
-prod:
+prod: result
 	nix-build \
 	 --arg configuration "{ imports  = [ ./configs/prod.nix ]; }" \
 	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 -A config.system.build.tftpdir \
-	 -o result_prod \
+	 --out-link result/prod \
 	 --cores $(CORES) || exit 1
 
 # production build for local testing in QEMU (configs/prod.nix)
-prod-local:
+prod-local: result
 	nix-build \
 	 --arg configuration "{ imports  = [ ./configs/prod.nix ./configs/qemu.nix ]; }" \
 	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 -A config.system.build.runvm \
+	 --out-link result/prod \
 	 --cores $(CORES) || exit 1
 
 # build the system closure without building the squashfs image
-toplevel:
+toplevel: result
 	nix-build \
 	 --arg configuration $(or $(VPSADMINOS_CONFIG),./configs/default.nix) \
 	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 --attr config.system.build.toplevel \
+	 --out-link result/toplevel \
 	 --cores $(CORES)
 
 # build iso image
-iso:
+iso: result
 	nix-build \
 	 --arg configuration $(or $(VPSADMINOS_CONFIG),"{ imports  = [ ./configs/iso.nix ]; }") \
 	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 -A config.system.build.isoImage \
+	 --out-link result/iso \
 	 --cores $(CORES) || exit 1
 
 # build iso image runner
-iso-local:
+iso-local: result
 	nix-build \
 	 --arg configuration $(or $(VPSADMINOS_CONFIG),"{ imports  = [ \
 	     ./configs/iso.nix \
@@ -51,18 +55,19 @@ iso-local:
 	   ]; }") \
 	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 -A config.system.build.runvm \
+	 --out-link result/iso \
 	 --cores $(CORES) || exit 1
 
 qemu: build
-	./result
+	./result/qemu
 
 # boot configs/prod.nix configuration in qemu
 qemu-prod: prod-local
-	./result
+	./result/prod
 
 # boot ISO in qemu
 qemu-iso: iso-local
-	./result
+	./result/iso
 
 # flash ISO to /dev/disk/by-label/VPSADMINOS_BOOT_CD
 flash: iso
@@ -70,7 +75,7 @@ flash: iso
 
 # boot iso image in qemu
 deploy: prod
-	scp -r result_prod/* root@pxe:/srv/www/vpsadminos/
+	scp -r result/prod/* root@pxe:/srv/www/vpsadminos/
 
 test:
 	nix-build \
@@ -82,11 +87,16 @@ template:
 	nix-build \
 	'<nixpkgs/nixos>' \
 	--arg configuration ./lib/nixos-container/configuration.nix \
-	-A config.system.build.tarball
+	-A config.system.build.tarball \
+	--out-link result/template
 
 os-rebuild:
 	nix-build \
 	 --arg configuration ./configs/default.nix \
 	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
+	 --out-link result/os-rebuild \
 	 --cores $(CORES) \
 	 -A config.system.build.os-rebuild
+
+result:
+	mkdir -p result

@@ -10,7 +10,7 @@ make os-rebuild
 which builds `config.system.build.os-rebuild` target. You can then use this tool to upgrade a `QEMU` instance with:
 
 ```bash
-NIX_SSHOPTS="-p2222 -i~/.ssh/correctKey" ./result/bin/os-rebuild switch \
+NIX_SSHOPTS="-p2222 -i~/.ssh/correctKey" ./result/os-rebuild/bin/os-rebuild switch \
   --build-host localhost \
   --target-host root@127.0.0.1
 ```
