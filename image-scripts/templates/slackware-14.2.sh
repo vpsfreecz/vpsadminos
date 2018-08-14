@@ -39,6 +39,7 @@ attr
 bash
 bin
 bzip2
+ca-certificates
 coreutils
 cpio
 dcron
@@ -68,6 +69,7 @@ net-tools
 nettle
 network-scripts
 openssh
+openssl
 openssl-solibs
 pkgtools
 procps
