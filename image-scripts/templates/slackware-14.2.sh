@@ -179,6 +179,10 @@ chown root.shadow /etc/shadow /etc/gshadow
 
 echo nameserver 8.8.8.8 > /etc/resolv.conf
 
+# Slackware ships with old certificates that don't work with current https
+# mirror
+/usr/sbin/update-ca-certificates --fresh
+
 # Setup slackpkg
 sed -i -r 's/^# (http:\/\/mirrors.slackware.com\/slackware\/slackware64-$RELVER\/)$/\1/' /etc/slackpkg/mirrors
 slackpkg -batch=on -default_answer=y update
