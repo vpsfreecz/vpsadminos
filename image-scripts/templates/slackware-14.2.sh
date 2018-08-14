@@ -64,6 +64,7 @@ less
 libmpc
 libffi
 libtermcap
+libunistring
 logrotate
 man
 man-pages
