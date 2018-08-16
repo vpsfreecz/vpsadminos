@@ -533,7 +533,7 @@ module OsCtld
         'prlimits' => prlimits.map(&:dump),
         'mounts' => mounts.dump,
         'autostart' => autostart && autostart.dump,
-        'hostname' => hostname.to_s,
+        'hostname' => hostname && hostname.to_s,
         'dns_resolvers' => dns_resolvers,
         'nesting' => nesting,
         'seccomp_profile' => seccomp_profile == default_seccomp_profile \
