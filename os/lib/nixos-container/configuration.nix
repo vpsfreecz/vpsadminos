@@ -37,8 +37,8 @@
     ${clonedImports}
       ];
 
-      environment.systemPackages = [
-        pkgs.nvi
+      environment.systemPackages = with pkgs; [
+        vim
       ];
 
       services.openssh.enable = true;
@@ -47,6 +47,10 @@
       #  [ "..." ];
 
       time.timeZone = "Europe/Amsterdam";
+
+      documentation.enable = true;
+      services.nixosManual.enable = true;
+
       system.stateVersion = "18.09";
     }
     '';
@@ -63,12 +67,15 @@
   {
   imports = cloneImports;
 
-  environment.systemPackages = [ pkgs.nvi ];
+  environment.systemPackages = with pkgs; [ vim ];
   time.timeZone = "Europe/Amsterdam";
   system.stateVersion = "18.09";
 
   services.openssh.enable = lib.mkDefault true;
   services.openssh.permitRootLogin = lib.mkDefault "yes";
+
+  documentation.enable = true;
+  services.nixosManual.enable = true;
 
   boot.postBootCommands =
     ''
