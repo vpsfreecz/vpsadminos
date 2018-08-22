@@ -42,6 +42,8 @@ class Configuration
     puts 'would activate the configuration...'
     activate
 
+    services.switch_runlevel
+
     puts 'would reload changed services...'
     services.reload.each(&:reload)
 
@@ -86,6 +88,8 @@ class Configuration
 
     puts 'activating the configuration...'
     activate
+
+    services.switch_runlevel
 
     puts 'reloading changed services...'
     services.reload.each(&:reload)
@@ -206,14 +210,15 @@ class Services
 
   def initialize(dry_run: true)
     @opts = {dry_run: dry_run}
-    @old_services = read(
-      File.join(Configuration::CURRENT_SYSTEM, '/services'),
-      '/',
-    )
-    @new_services = read(
-      File.join(Configuration::OUT, '/services'),
-      Configuration::ETC,
-    )
+
+    @old_cfg = read_cfg(File.join(Configuration::CURRENT_SYSTEM, '/services'))
+    @new_cfg = read_cfg(File.join(Configuration::OUT, '/services'))
+
+    @old_runlevel = File.basename(File.realpath('/service'))
+    @new_runlevel = get_runlevel(@new_cfg, @old_runlevel)
+
+    @old_services = get_services(@old_cfg, @old_runlevel, '/')
+    @new_services = get_services(@new_cfg, @new_runlevel, Configuration::ETC)
   end
 
   # Services that are new and should be started
@@ -244,18 +249,46 @@ class Services
     end.map { |s| new_services[s] }
   end
 
-  protected
-  attr_reader :old_services, :new_services, :opts
+  def switch_runlevel
+    return if old_runlevel == new_runlevel
 
-  # Read service directory
-  # @param list [String] Path to service list
+    if opts[:dry_run]
+      puts 'would switch runlevel...'
+    else
+      puts 'switching runlevel...'
+    end
+
+    puts "> runsvchdir #{new_runlevel}"
+    return if opts[:dry_run]
+
+    system(File.join(Configuration::CURRENT_BIN, 'runsvchdir'), new_runlevel)
+  end
+
+  protected
+  attr_reader :old_cfg, :new_cfg
+  attr_reader :old_services, :new_services
+  attr_reader :old_runlevel, :new_runlevel
+  attr_reader :opts
+
+  # Parse service config
+  # @param path [String]
+  # @return [Hash]
+  def read_cfg(path)
+    JSON.parse(File.read(path))
+  end
+
+  # Return services from a selected runlevel
+  # @param cfg [Hash] service config
+  # @param runlevel [String] include only services from this runlevel
   # @param base_dir [String] absolute path to a directory containing the system's
   #                          `/etc`
   # @return [Hash<String, Service>]
-  def read(list, base_dir)
+  def get_services(cfg, runlevel, base_dir)
     ret = {}
 
-    JSON.parse(File.read(list)).each do |name, service|
+    cfg['services'].each do |name, service|
+      next unless service['runlevels'].include?(runlevel)
+
       begin
         ret[name] = Service.new(
           name,
@@ -270,6 +303,19 @@ class Services
     end
 
     ret
+  end
+
+  # Return target runlevel
+  def get_runlevel(cfg, old_runlevel)
+    if cfg['defaultRunlevel'] == old_runlevel
+      old_runlevel
+
+    elsif cfg['services'].map { |k,v| v['runlevels']}.flatten.include?(old_runlevel)
+      old_runlevel
+
+    else
+      cfg['defaultRunlevel']
+    end
   end
 end
 

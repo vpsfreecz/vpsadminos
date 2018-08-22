@@ -407,9 +407,13 @@ with lib;
       initrdPath = "${config.system.build.initialRamdisk}/" +
         "${config.system.boot.loader.initrdFile}";
 
-      serviceList = pkgs.writeText "services.json" (builtins.toJSON (lib.mapAttrs (k: v: {
-        inherit (v) runlevels;
-      }) config.runit.services));
+      serviceList = pkgs.writeText "services.json" (builtins.toJSON {
+        defaultRunlevel = config.runit.defaultRunlevel;
+
+        services = lib.mapAttrs (k: v: {
+          inherit (v) runlevels;
+        }) config.runit.services;
+      });
       in
         pkgs.runCommand name {
           activationScript = config.system.activationScripts.script;
