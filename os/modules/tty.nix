@@ -13,6 +13,8 @@ let
       run = ''
         ${gettyCmd "${extraArgs} --keep-baud ${tty} 115200,38400,9600 ${termtype}"}
       '';
+
+      runlevels = [ "single" "default" ];
     };
 
   tty1 = mkGetty "--noclear" "linux" "tty1";
