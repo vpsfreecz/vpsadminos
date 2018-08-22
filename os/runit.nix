@@ -42,7 +42,20 @@ in
     echo -ne "\033[9;0]" > /dev/tty0
 
     # runit
-    ln -sfn /etc/runit/runsvdir/${config.runit.defaultRunlevel} /etc/runit/runsvdir/current
+    runlevel=${config.runit.defaultRunlevel}
+    for o in $(cat /proc/cmdline); do
+      case $o in
+        1)
+          runlevel=single
+          ;;
+        runlevel=*)
+          set -- $(IFS==; echo $o)
+          runlevel=$2
+          ;;
+      esac
+    done
+
+    ln -sfn /etc/runit/runsvdir/$runlevel /etc/runit/runsvdir/current
     ln -sfn /etc/runit/runsvdir/current /service
 
     # LXC
