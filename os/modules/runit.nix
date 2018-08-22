@@ -4,10 +4,10 @@ with lib;
 let
   service = {
     options = {
-      directory = mkOption {
-        type = types.str;
-        default = "/etc/service";
-        description = "Service directory";
+      runlevels = mkOption {
+        type = types.listOf types.str;
+        default = [ "default" ];
+        description = "Runlevels the service is started in.";
       };
 
       run = mkOption {
@@ -23,12 +23,6 @@ let
     };
   };
 
-  svDir = service:
-    if hasPrefix "/etc/" service.directory then
-      removePrefix "/etc/" service.directory
-    else
-      service.directory;
-
   mkScript = name: script: pkgs.writeScript name
     ''
     #!${pkgs.stdenv.shell}
@@ -39,17 +33,34 @@ let
 
   mkService = name: type: script: mkScript "sv-${name}-${type}" script;
 
-  mkEnvironment = mkMerge (mapAttrsToList (name: service:
+  runlevels = lib.unique (lib.flatten (mapAttrsToList (name: service: service.runlevels) config.runit.services));
+
+  runlevelServices = rv: lib.remove null (mapAttrsToList (name: service:
+    if elem rv service.runlevels then
+      name
+    else
+      null
+  ) config.runit.services);
+
+  mkServices = mkMerge (mapAttrsToList (name: service:
     mkMerge [
       {
-        "${svDir service}/${name}/run".source = mkService name "run" service.run;
+        "runit/services/${name}/run".source = mkService name "run" service.run;
       }
 
       (mkIf (service.check != "") {
-        "${svDir service}/${name}/check".source = mkService name "check" service.check;
+        "runit/services/${name}/check".source = mkService name "check" service.check;
       })
     ]
   ) config.runit.services);
+
+  mkRunlevels = mkMerge (flatten (map (rv:
+    map (name:
+      { "runit/runsvdir/${rv}/${name}".source = "/etc/runit/services/${name}"; }
+    ) (runlevelServices rv)
+  ) runlevels));
+
+  mkEnvironment = mkMerge [mkServices mkRunlevels];
 
 in
 
@@ -87,6 +98,12 @@ in
         and has the execute by owner permission set. If so, the system
         is rebooted, it’s halted otherwise.
       '';
+    };
+
+    runit.defaultRunlevel = mkOption {
+      type = types.str;
+      default = "default";
+      description = "Name of a runlevel that is entered by default on boot.";
     };
 
     runit.services = mkOption {

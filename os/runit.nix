@@ -42,7 +42,8 @@ in
     echo -ne "\033[9;0]" > /dev/tty0
 
     # runit
-    ln -sfn /etc/service /service
+    ln -sfn /etc/runit/runsvdir/${config.runit.defaultRunlevel} /etc/runit/runsvdir/current
+    ln -sfn /etc/runit/runsvdir/current /service
 
     # LXC
     mkdir -p /var/lib/lxc/rootfs
@@ -82,7 +83,7 @@ in
   '';
 
   runit.stage2 = ''
-    exec runsvdir -P /etc/service
+    exec runsvdir -P /service
   '';
 
   runit.stage3 = ''

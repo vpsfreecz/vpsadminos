@@ -148,13 +148,13 @@ end
 
 class Services
   RELOADABLE = %w(lxcfs)
-  Service = Struct.new(:name, :base_path, :service_path, :opts) do
+  Service = Struct.new(:name, :base_path, :opts) do
     attr_reader :run_path
 
     def initialize(*_)
       super
 
-      @run_path = File.realpath(File.join(base_path, service_path, 'run'))
+      @run_path = File.realpath(File.join(base_path, 'etc/runit/services', name, 'run'))
     end
 
     def ==(other)
@@ -260,13 +260,11 @@ class Services
         ret[name] = Service.new(
           name,
           base_dir,
-          File.join(service['directory'], name),
           opts,
         )
 
       rescue Errno::ENOENT
-        warn "service '#{name}' not found at "+
-             "'#{File.join(base_dir, service['directory'])}'"
+        warn "service '#{name}' not found"
         next
       end
     end

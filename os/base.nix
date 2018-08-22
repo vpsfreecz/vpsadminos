@@ -408,7 +408,7 @@ with lib;
         "${config.system.boot.loader.initrdFile}";
 
       serviceList = pkgs.writeText "services.json" (builtins.toJSON (lib.mapAttrs (k: v: {
-        inherit (v) directory;
+        inherit (v) runlevels;
       }) config.runit.services));
       in
         pkgs.runCommand name {
