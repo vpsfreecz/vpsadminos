@@ -26,6 +26,8 @@ let
     zfsUser = pkgs.zfs;
   };
 
+  osctl = "${pkgs.osctl}/bin/osctl";
+
   partitioningSupport = elem true (mapAttrsToList (name: pool:
     pool.partition != []
   ) config.boot.zfs.pools);
@@ -77,10 +79,10 @@ let
       active=$(zfs get -Hp -o value org.vpsadminos.osctl:active ${name})
 
       if [ "$active" == "yes" ] ; then
-        osctl pool show -o name ${name} 2>&1 > /dev/null || osctl pool import ${name}
+        ${osctl} pool show -o name ${name} 2>&1 > /dev/null || ${osctl} pool import ${name}
 
       elif ${if pool.install then "true" else "false"} ; then
-        osctl pool install ${name}
+        ${osctl} pool install ${name}
       fi
 
       # TODO: this could be option runit.services.<service>.autoRestart = always/on-failure;
