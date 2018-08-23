@@ -50,7 +50,7 @@ class Configuration
     puts 'would restart changed services...'
     services.restart.each(&:restart)
 
-    puts 'would start new services...'
+    puts 'runit would start new services...'
     services.start.each(&:start)
 
     activate_osctl(services)
@@ -97,9 +97,7 @@ class Configuration
     puts 'restarting changed services...'
     services.restart.each(&:restart)
 
-    puts 'starting new services...'
-    services.start.each(&:wait_for_runit)
-    services.start.each(&:start)
+    puts 'runit will start new services...'
 
     activate_osctl(services)
   end
@@ -191,20 +189,6 @@ class Services
       else
         'reload'
       end
-    end
-
-    # Wait until runit registers the service
-    def wait_for_runit
-      # This method is called after activation, so we use / instead
-      # of the original base_path.
-      check = File.join('/', service_path, 'supervise', 'ok')
-
-      100.times do
-        return if File.exist?(check)
-        sleep(0.2)
-      end
-
-      fail "service #{name} not registered by runit"
     end
   end
 
