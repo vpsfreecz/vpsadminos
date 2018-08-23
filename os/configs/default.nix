@@ -11,7 +11,11 @@
   networking.nat = true;
   networking.dhcpd = true;
 
-  boot.zfs.pool.layout = lib.mkDefault "mirror sda sdb";
+  boot.zfs.pools = lib.mkDefault {
+    tank = {
+      layout = "mirror sda sdb";
+    };
+  };
 
   vpsadminos.nix = true;
 

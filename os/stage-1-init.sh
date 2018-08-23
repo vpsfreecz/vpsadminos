@@ -11,12 +11,10 @@ fail() {
 
 Error: [1;31m ${1} [0m
 
-An error occurred in stage 1 of the boot process, which must import the
-ZFS pool and then start stage 2. Press one
-of the following keys:
+An error occurred in stage 1 of the boot process. Press one of the following
+keys:
 
   i) to launch an interactive shell
-  n) to create pool with "zpool create @name@ @layout@"
   r) to reboot immediately
   *) to ignore the error and continue
 EOF
@@ -34,31 +32,6 @@ EOF
     elif [ "$reply" = r ]; then
         echo "Rebooting..."
         reboot -f
-    elif [ "$reply" = n ]; then
-        if [ -n "@wipe@" ]; then
-            echo "Wiping disks"
-            @wipe@
-        fi
-        if [ -n "@partition@" ]; then
-            echo "Partitioning"
-            @partition@
-        fi
-        echo "Creating pool"
-        # zpool creation command ignores mount error message as it doesn't have correct path to mount
-        # we check status with zpool status and mount with zfs mount -a in stage-2
-        zpool create @name@ @layout@ 2>&1 | grep -v mount
-        zpool status @name@ &> /dev/null || fail "Can't create pool"
-
-        if [ "@logs@" ]; then
-            echo "Adding logs"
-            zpool add @name@ log @logs@ || fail "Can't add logs"
-        fi
-        if [ "@caches@" ]; then
-            echo "Adding caches"
-            zpool add @name@ cache @caches@ || fail "Can't add caches"
-        fi
-
-        echo "Done"
     else
         echo "Continuing..."
     fi

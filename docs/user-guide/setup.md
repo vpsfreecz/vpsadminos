@@ -34,25 +34,16 @@ compile the kernel and ZFS.
 When the build finishes, a virtual machine is started, its console is in your
 terminal. The OS creates two files on disk which are used as disk devices for
 a zpool within the virtual matchine. The zpool will be used to store
-configuration and containers. On the first run, the disks are unitilized, so you
-will see the following message:
+configuration and containers.
 
-```
-An error occurred in stage 1 of the boot process, which must import the
-ZFS pool and then start stage 2. Press one
-of the following keys:
+Once the system starts, you will be automatically logged in as root. As the
+disks are empty, you need to create the zpool first.
 
-  i) to launch an interactive shell
-  n) to create pool with "zpool create tank mirror sda sdb"
-  r) to reboot immediately
-  *) to ignore the error and continue
+```bash
+zpool create tank mirror sda sdb
 ```
 
-Choose `n` and hit enter to create the zpool. On the following boots, the zpool
-will be automatically imported.
-
-The system should continue to boot and log you in as root. With the system
-booted and zpool created, *osctld* has to be configured to use the zpool:
+Next, the zpool has to be installed into *osctld*:
 
 ```bash
 osctl pool install tank

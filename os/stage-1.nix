@@ -146,7 +146,6 @@ let
     bootloader = config.system.boot.loader.id;
     inherit (config.boot) predefinedFailAction;
     inherit (config.boot.initrd) preLVMCommands postDeviceCommands;
-    inherit (config.boot.zfs.pool) name layout logs caches partition wipe;
     inherit (config.system) storeOverlaySize;
   };
 

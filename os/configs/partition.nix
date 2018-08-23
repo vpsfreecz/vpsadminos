@@ -2,8 +2,7 @@
 
 {
   # This is an example of customizing
-  # pool creation and partitiong
-  # for stage 1.
+  # pool creation and partitiong.
   #
   # We allow disk wipe for sda and sdb,
   # configure sfdisk partitioning to
@@ -11,7 +10,8 @@
   # and we use these for mirrored zfs
   # with logs and caches
 
-  boot.zfs.pool = {
+  boot.zfs.pools.tank = {
+    doCreate = true;
     wipe = [ "sda" "sdb" ];
     layout = "mirror sda1 sdb1";
     logs = "mirror sda2 sdb2";
@@ -29,14 +29,5 @@
       };
     };
   };
-
-  # It is also possible to define an action
-  # to take if failure occurs in stage 1.
-  # This allows for completely unattended installations
-  # if pool is not present on the device.
-  #
-  # Be careful not to destroy your data with
-  # wipe and this option enabled!
-  #boot.predefinedFailAction = "n";
 
 }
