@@ -79,6 +79,9 @@ let
       if [ "$active" == "yes" ] ; then
         # TODO: check if the pool is not already imported
         osctl pool import ${name}
+
+      elif ${if pool.install then "true" else "false"} ; then
+        osctl pool install ${name}
       fi
 
       # TODO: this could be option runit.services.<service>.autoRestart = always/on-failure;
@@ -186,6 +189,14 @@ let
           Do not enable this in production, existing pools might fail to import
           for unforeseen reasons and recreating them will result in data loss. 
         ''; 
+      };
+
+      install = mkOption {
+        type = types.bool;
+        default = false;
+        description = ''
+          Import the pool into osctld to be used for containers.
+        '';
       };
     };
   };
