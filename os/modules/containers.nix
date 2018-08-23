@@ -55,32 +55,29 @@ let
 
   osctl = "${pkgs.osctl}/bin/osctl";
 
-  mkService = commands: ''
+  mkService = name: cfg: {
+    run = ''
       sv check osctld >/dev/null || exit 1
-      ${osctl} ping 0
-      poolCount=$( ${osctl} pool ls -H | wc -l )
-      test $poolCount == "0" && ${osctl} pool install ${config.boot.zfs.pool.name}
+      ${osctl} pool show -o name ${cfg.pool} 2>&1 >/dev/null || exit 1
 
-      ${commands}
-      # act like a daemon!
-      while true; do sleep 666d; done
-    '';
-
-  importStartCTs = concatStrings (mapAttrsToList (name: cfg:
-    ''
       ${osctl} ct show ${name} &> /dev/null
       hasCT=$?
       if [ "$hasCT" != "0" ]; then
         echo "Importing container '${name}'"
-        ${osctl} ct import ${osctlTarball name cfg}/*.tar
+        ${osctl} --pool ${cfg.pool} ct import ${osctlTarball name cfg}/*.tar
         ${optionalString (cfg.autostart != null) ''
           echo "Starting container '${name}'"
           ${osctl} ct start ${name}
-          ${osctl} ct wait ${name} running
         ''}
       fi
-    '')
-    config.containers);
+
+      sv once ct-${name}
+    '';
+  };
+
+  mkServices = mapAttrs' (name: cfg:
+    nameValuePair "ct-${name}" (mkService name cfg)
+  ) config.containers;
 
   addrOpts = v:
     assert v == 4 || v == 6;
@@ -484,6 +481,15 @@ let
         '';
       };
 
+      pool = mkOption {
+        type = types.str;
+        example = "tank";
+        description = ''
+          Name of a zpool installed into osctl that the container should be
+          stored on.
+        '';
+      };
+
       user = {
         name = mkOption {
           type = types.str;
@@ -570,7 +576,7 @@ in
 
   config = mkMerge [
     (mkIf (config.containers != {}) {
-      runit.services.containers.run = mkService importStartCTs;
+      runit.services = mkServices;
     })
   ];
 }

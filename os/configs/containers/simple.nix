@@ -23,6 +23,7 @@
           {
             # not much here
           };
+        pool = "tank";
         user = sampleUser;
         interfaces = [ ifbr ];
         autostart.enable = true;

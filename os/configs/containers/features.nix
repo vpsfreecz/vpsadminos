@@ -47,6 +47,7 @@
           {
             # not much here
           };
+        pool = "tank";
         user = sampleUser;
         autostart.enable = true;
       };
@@ -59,6 +60,7 @@
             services.openssh.enable = true;
             networking.firewall.allowedTCPPorts = [ 80 ];
           };
+        pool = "tank";
         user = sampleUser;
         group = deviceGroup;
         interfaces = [ ifbr ];
@@ -72,6 +74,7 @@
           {
             services.nginx.enable = true;
           };
+        pool = "tank";
         user = largeUser;
         group = limitedGroup;
         nesting = true;
@@ -85,6 +88,7 @@
           {
             # not much
           };
+        pool = "tank";
         user = largeUser;
         mounts = [ mount ];
       };

@@ -39,6 +39,7 @@
             services.openssh.enable = true;
             networking.firewall.allowedTCPPorts = [ 80 ];
           };
+        pool = "tank";
         user = sampleUser;
         interfaces = [ ifbr ];
         autostart.enable = true;
