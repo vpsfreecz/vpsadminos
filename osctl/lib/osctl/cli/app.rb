@@ -52,6 +52,18 @@ module OsCtl::Cli
           ls.action &Command.run(Pool, :list)
         end
 
+        p.desc 'Show information about imported pool'
+        p.arg_name '<name>'
+        p.command :show do |c|
+          c.desc 'Select parameters to output'
+          c.flag %i(o output)
+
+          c.desc 'List available parameters'
+          c.switch %i(L list), negatable: false
+
+          c.action &Command.run(Pool, :show)
+        end
+
         p.desc 'Import pool(s)'
         p.arg_name '[name]'
         p.command :import do |c|

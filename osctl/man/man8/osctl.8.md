@@ -161,6 +161,15 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-o`, `--output` *parameters*
       Select parameters to output, comma separated.
 
+`pool show` *name*
+  Show information about imported pool *name*.
+
+    `-L`, `--list`
+      List available parameters and exit.
+    
+    `-o`, `--output` *parameters*
+      Select parameters to output, comma separated.
+
 `pool assets` [*options*] *name*
   List pool assets and their state.
 

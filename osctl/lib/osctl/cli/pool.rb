@@ -50,6 +50,25 @@ module OsCtl::Cli
       )
     end
 
+    def show
+      if opts[:list]
+        puts FIELDS.join("\n")
+        return
+      end
+
+      require_args!('name')
+
+      cmd_opts = {name: args[0]}
+      fmt_opts = {layout: :rows}
+
+      osctld_fmt(
+        :pool_show,
+        cmd_opts,
+        opts[:output] ? opts[:output].split(',').map(&:to_sym) : DEFAULT_FIELDS,
+        fmt_opts
+      )
+    end
+
     def import
       if !args[0] && !opts[:all]
         raise GLI::BadCommandLine, 'specify pool name or --all'
