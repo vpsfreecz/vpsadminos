@@ -38,6 +38,7 @@ module OsCtl::Cli
       desc 'Manage data pools'
       command :pool do |p|
         p.desc 'List imported pools'
+        p.arg_name '[names...]'
         p.command %i(ls list) do |ls|
           ls.desc 'Select parameters to output'
           ls.flag %i(o output)

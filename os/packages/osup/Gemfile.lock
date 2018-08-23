@@ -1,14 +1,14 @@
 GEM
   remote: https://rubygems.vpsfree.cz/
   specs:
-    gli (2.17.1)
+    gli (2.17.2)
     json (2.1.0)
-    libosctl (18.03.0.build20180816191759)
+    libosctl (18.03.0.build20180823190602)
       require_all (~> 2.0.0)
-    osup (18.03.0.build20180816191759)
+    osup (18.03.0.build20180823190602)
       gli (~> 2.17.1)
       json
-      libosctl (= 18.03.0.build20180816191759)
+      libosctl (= 18.03.0.build20180823190602)
       require_all (~> 2.0.0)
     require_all (2.0.0)
 
@@ -16,7 +16,7 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
-  osup (= 18.03.0.build20180816191759)
+  osup (= 18.03.0.build20180823190602)
 
 BUNDLED WITH
    1.14.6
