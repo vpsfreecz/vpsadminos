@@ -77,8 +77,7 @@ let
       active=$(zfs get -Hp -o value org.vpsadminos.osctl:active ${name})
 
       if [ "$active" == "yes" ] ; then
-        # TODO: check if the pool is not already imported
-        osctl pool import ${name}
+        osctl pool show -o name ${name} 2>&1 > /dev/null || osctl pool import ${name}
 
       elif ${if pool.install then "true" else "false"} ; then
         osctl pool install ${name}
