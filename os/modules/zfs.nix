@@ -79,10 +79,12 @@ let
       active=$(zfs get -Hp -o value org.vpsadminos.osctl:active ${name})
 
       if [ "$active" == "yes" ] ; then
-        ${osctl} pool show -o name ${name} 2>&1 > /dev/null || ${osctl} pool import ${name}
+        ${osctl} pool show -o name ${name} 2>&1 > /dev/null \
+          || ${osctl} pool import ${name} \
+          || exit 1
 
       elif ${if pool.install then "true" else "false"} ; then
-        ${osctl} pool install ${name}
+        ${osctl} pool install ${name} || exit 1
       fi
 
       # TODO: this could be option runit.services.<service>.autoRestart = always/on-failure;
