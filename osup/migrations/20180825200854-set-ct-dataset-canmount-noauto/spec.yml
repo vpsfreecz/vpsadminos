@@ -1,0 +1,10 @@
+description: |
+  Until now, all datasets had `canmount=on`, which meant that all datasets
+  were mounted either on `zpool import` or `zfs mount -a`. This is not great
+  when you have a large and fragmented pool, the mounting can take a lot
+  of time. Futhermore, containers would not start until *all* datasets were
+  mounted. This migration changes existing container datasets so that they are
+  not mounted automatically, but on-demand by osctld. The remaining datasets
+  (e.g. for user home directories, logs and configuration) are insignificant
+  and thus still always mounted.
+snapshot: []

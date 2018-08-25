@@ -144,6 +144,21 @@ module OsCtl::Lib
       end
     end
 
+    # Ensure the dataset is mounted
+    # @param recursive [Boolean] mount subdatasets as well
+    def mount(recursive: false)
+      zfs(
+        :list,
+        "-H -o name,mounted -t filesystem #{recursive ? '-r' : ''}",
+        name,
+      )[:output].split("\n").each do |line|
+        ds, mounted = line.split
+        next if mounted == 'yes'
+
+        zfs(:mount, nil, ds)
+      end
+    end
+
     # Return the direct parent
     # @return [Zfs::Dataset]
     def parent

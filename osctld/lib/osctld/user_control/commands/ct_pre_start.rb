@@ -12,6 +12,9 @@ module OsCtld
       return error('container not found') unless ct
       return error('access denied') unless owns_ct?(ct)
 
+      # Mount datasets
+      ct.dataset.mount(recursive: true)
+
       # Configure CGroups
       ret = call_cmd(Commands::Container::CGParamApply, id: ct.id, pool: ct.pool.name)
       return ret unless ret[:status]

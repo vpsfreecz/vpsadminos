@@ -74,14 +74,17 @@ module OsCtld
     # @option opts [Boolean] :mapping
     # @option opts [Boolean] :parents
     def create_dataset(ds, opts = {})
-      zfs_opts = {}
+      zfs_opts = {properties: {
+        canmount: 'noauto',
+      }}
       zfs_opts[:parents] = true if opts[:parents]
-      zfs_opts[:properties] = {
+      zfs_opts[:properties].update({
         uidmap: ct.uid_map.map(&:to_s).join(','),
         gidmap: ct.gid_map.map(&:to_s).join(','),
-      } if opts[:mapping]
+      }) if opts[:mapping]
 
       ds.create!(zfs_opts)
+      ds.mount(recursive: true)
     end
 
     def setup_ct_dir
