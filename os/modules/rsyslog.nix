@@ -8,7 +8,11 @@ let
   syslog_config = pkgs.writeText "syslog.conf" ''
     $ModLoad imuxsock
     $ModLoad imklog
+    $ModLoad imudp
     $WorkDirectory /var/spool/rsyslog
+
+    $UDPServerAddress 127.0.0.1
+    $UDPServerRun 514
 
     kern.*                       -/var/log/kern.log
 
