@@ -93,6 +93,8 @@ with lib;
       networking.check = ''
         test -f /run/net-done
       '';
+
+      networking.onChange = "ignore";
     };
   };
 }
