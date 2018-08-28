@@ -11,8 +11,6 @@
     #initialHashedPassword = lib.mkOptionDefault "...";
   };
 
-  system.qemuDiskSize = 5;
-
   environment.systemPackages = [
     config.boot.kernelPackages.bcc
   ];

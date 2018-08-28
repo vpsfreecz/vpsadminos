@@ -9,7 +9,37 @@ with lib;
 ####################
 
 {
-  options = {
+  options =
+  let
+    qemuDisk = {
+      options = {
+        device = mkOption {
+          type = types.str;
+          description = "Path to the disk device";
+        };
+
+        type = mkOption {
+          type = types.enum [ "file" "blockdev" ];
+          description = "Device type";
+        };
+
+        size = mkOption {
+          type = types.str;
+          default = "";
+          description = "Device size";
+        };
+
+        create = mkOption {
+          type = types.bool;
+          description = ''
+            Create the device if it does not exist. Applicable only
+            for file-backed devices.
+          '';
+        };
+      };
+    };
+  in
+  {
     system.build = mkOption {
       internal = true;
       default = {};
@@ -50,12 +80,13 @@ with lib;
       type = types.addCheck types.int (n: n >= 1);
       description = "Number of available CPU sockets";
     };
-    system.qemuDiskSize = mkOption {
-      default = 1;
-      type = types.addCheck types.int (n: n >= 1);
-      description = ''
-        Size of zpool vdev in GB. Two vdevs are created and put into mirror.
-      '';
+    system.qemuDisks = mkOption {
+      type = types.listOf (types.submodule qemuDisk);
+      default = [
+        { device = "sda.img"; type = "file"; create = true; }
+        { device = "sdb.img"; type = "file"; create = true; }
+      ];
+      description = "Disks available within the VM";
     };
     system.storeOverlaySize = mkOption {
       default = "2G";
@@ -264,6 +295,14 @@ with lib;
 
     cfg = config.system;
 
+    allQemuParams =
+      (flatten (imap0 (i: disk: [
+        "-drive id=disk${toString i},file=${disk.device},if=none"
+        "-device ide-drive,drive=disk${toString i},bus=ahci.${toString i}"
+      ]) cfg.qemuDisks))
+      ++
+      cfg.qemuParams;
+
   in
 
   (lib.mkMerge [{
@@ -363,19 +402,16 @@ with lib;
 
     system.build.runvm = pkgs.writeScript "runner" ''
       #!${pkgs.stdenv.shell}
-      [ ! -f sda.img ] && truncate -s${toString cfg.qemuDiskSize}G sda.img
-      [ ! -f sdb.img ] && truncate -s${toString cfg.qemuDiskSize}G sdb.img
+      ${concatStringsSep "\n" (map (disk:
+        ''[ ! -f "${disk.device}" ] && truncate -s${toString disk.size} "${disk.device}"''
+      ) (filter (disk: disk.type == "file" && disk.create) cfg.qemuDisks))}
       exec ${pkgs.qemu_kvm}/bin/qemu-kvm -name vpsadminos -m ${toString cfg.qemuRAM} \
         -smp cpus=${toString cfg.qemuCpus},cores=${toString cfg.qemuCpuCores},threads=${toString cfg.qemuCpuThreads},sockets=${toString cfg.qemuCpuSockets} \
         -no-reboot \
         -device ahci,id=ahci \
-        -drive id=diskA,file=sda.img,if=none \
-        -drive id=diskB,file=sdb.img,if=none \
-        -device ide-drive,drive=diskA,bus=ahci.0 \
-        -device ide-drive,drive=diskB,bus=ahci.1 \
         -device virtio-net,netdev=net0 \
         -netdev user,id=net0,net=10.0.2.0/24,host=10.0.2.2,dns=10.0.2.3,hostfwd=tcp::2222-:22 \
-        ${lib.concatStringsSep " \\\n  " cfg.qemuParams}
+        ${lib.concatStringsSep " \\\n  " allQemuParams}
     '';
 
     system.build.dist = pkgs.runCommand "vpsadminos-dist" {} ''
