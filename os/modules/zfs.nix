@@ -90,6 +90,9 @@ let
       # TODO: this could be option runit.services.<service>.autoRestart = always/on-failure;
       sv once pool-${name}
     '';
+
+    log.enable = true;
+    log.sendTo = "127.0.0.1";
   };
 
   pools = {
