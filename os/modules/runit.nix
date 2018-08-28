@@ -21,6 +21,24 @@ let
         description = "Called to check service status.";
       };
 
+      onChange = mkOption {
+        type = types.enum [ "restart" "reload" "ignore" ];
+        default = "restart";
+        description = ''
+          The action switch-to-configuration should perform when the service is
+          changed.
+        '';
+      };
+
+      reloadMethod = mkOption {
+        type = types.str;
+        default = "reload";
+        description = ''
+          Defines how should the service be reloaded. The value is the command
+          given to runit's sv. See man sv(8) for available options.
+        '';
+      };
+
       log = {
         enable = mkEnableOption "Start svlogd for the service.";
 

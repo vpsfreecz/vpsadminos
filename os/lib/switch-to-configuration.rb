@@ -149,14 +149,15 @@ class Configuration
 end
 
 class Services
-  RELOADABLE = %w(lxcfs)
-  Service = Struct.new(:name, :base_path, :opts) do
-    attr_reader :run_path
+  Service = Struct.new(:name, :base_path, :cfg, :opts) do
+    attr_reader :run_path, :on_change, :reload_method
 
     def initialize(*_)
       super
 
       @run_path = File.realpath(File.join(base_path, 'etc/runit/services', name, 'run'))
+      @on_change = cfg['onChange'].to_sym
+      @reload_method = cfg['reloadMethod']
     end
 
     def ==(other)
@@ -174,20 +175,10 @@ class Services
     end
 
     def reload
-      m = reload_method
-      puts "> sv #{m} #{name}"
+      puts "> sv #{reload_method} #{name}"
 
       unless opts[:dry_run]
-        system(File.join(Configuration::CURRENT_BIN, 'sv'), m, name)
-      end
-    end
-
-    def reload_method
-      case name
-      when 'lxcfs'
-        '1'
-      else
-        'reload'
+        system(File.join(Configuration::CURRENT_BIN, 'sv'), reload_method, name)
       end
     end
   end
@@ -221,7 +212,7 @@ class Services
   # @return [Array<Service>]
   def restart
     (old_services.keys & new_services.keys).select do |s|
-      old_services[s] != new_services[s] && !RELOADABLE.include?(s)
+      old_services[s] != new_services[s] && new_services[s].on_change == :restart
     end.map { |s| new_services[s] }
   end
 
@@ -229,7 +220,7 @@ class Services
   # @return [Array<Service>]
   def reload
     (old_services.keys & new_services.keys).select do |s|
-      old_services[s] != new_services[s] && RELOADABLE.include?(s)
+      old_services[s] != new_services[s] && new_services[s].on_change == :reload
     end.map { |s| new_services[s] }
   end
 
@@ -277,6 +268,7 @@ class Services
         ret[name] = Service.new(
           name,
           base_dir,
+          service,
           opts,
         )
 

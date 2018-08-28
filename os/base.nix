@@ -411,7 +411,7 @@ with lib;
         defaultRunlevel = config.runit.defaultRunlevel;
 
         services = lib.mapAttrs (k: v: {
-          inherit (v) runlevels;
+          inherit (v) runlevels onChange reloadMethod;
         }) config.runit.services;
       });
       in
