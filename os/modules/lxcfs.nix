@@ -17,6 +17,9 @@ with lib;
         exec ${pkgs.lxcfs}/bin/lxcfs -l /var/lib/lxcfs
       '';
 
+      onChange = "reload";
+      reloadMethod = "1";
+
       log.enable = true;
       log.sendTo = "127.0.0.1";
     };
