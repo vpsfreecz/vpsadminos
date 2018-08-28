@@ -32,27 +32,13 @@ compile the kernel and ZFS.
 
 # Setup
 When the build finishes, a virtual machine is started, its console is in your
-terminal. The OS creates two files on disk which are used as disk devices for
-a zpool within the virtual matchine. The zpool will be used to store
+terminal. By default, the OS creates a file on disk which is used as disk device
+for zpool called `tank` within the virtual machine. The zpool is used to store
 configuration and containers.
 
-Once the system starts, you will be automatically logged in as root. As the
-disks are empty, you need to create the zpool first.
-
-```bash
-zpool create tank mirror sda sdb
-```
-
-Next, the zpool has to be installed into *osctld*:
-
-```bash
-osctl pool install tank
-```
-
-`osctl pool install` will mark the pool so that *osctld* will always import it
-on start. All configuration and data is stored on installed zpools, the rest
-of the system is not persistent between reboots. `osctl pool install` will also
-automatically import the pool into *osctld*, so that you can immediately use it.
+On the first boot, the zpool will be automatically created and installed into
+*osctld*. You can use your own zpools, simply use `zpool create <name>` and
+then `osctl pool install <name>`.
 
 *osctld* will create several ZFS datasets and will generally assume that no one
 else is using the zpool. For more complicated use-cases, it is possible to scope

@@ -83,8 +83,7 @@ with lib;
     system.qemuDisks = mkOption {
       type = types.listOf (types.submodule qemuDisk);
       default = [
-        { device = "sda.img"; type = "file"; create = true; }
-        { device = "sdb.img"; type = "file"; create = true; }
+        { device = "sda.img"; type = "file"; size = "8G"; create = true; }
       ];
       description = "Disks available within the VM";
     };

@@ -12,13 +12,14 @@
   networking.dhcpd = true;
 
   system.qemuDisks = lib.mkDefault [
-    { device = "sda.img"; type = "file"; size = "4G"; create = true; }
-    { device = "sdb.img"; type = "file"; size = "4G"; create = true; }
+    { device = "sda.img"; type = "file"; size = "8G"; create = true; }
   ];
 
   boot.zfs.pools = lib.mkDefault {
     tank = {
-      layout = "mirror sda sdb";
+      layout = "sda";
+      doCreate = true;
+      install = true;
     };
   };
 
