@@ -212,17 +212,21 @@ module OsCtl::Cli
       end
 
       if @sort
-        col_i = @cols.index { |c| c[:name] == @sort }
-        fail "unknown column '#{@sort}'" unless col_i
+        col_indexes = @sort.map do |s|
+          i = @cols.index { |c| c[:name] == s }
+          fail "unknown sort column '#{s}'" unless i
+          i
+        end
 
         @str_objects.sort! do |a, b|
-          a_i = a[col_i]
-          b_i = b[col_i]
+          a_vals = col_indexes.map { |i| a[i] }
+          b_vals = col_indexes.map { |i| b[i] }
+          cmp = a_vals <=> b_vals
+          next(cmp) if cmp
 
-          next 0 if a_i == @empty && b_i == @empty
-          next -1 if a_i == @empty && b_i != @empty
-          next 1 if a_i != @empty && b_i == @empty
-          a_i <=> b_i
+          next(-1) if [nil, @empty].detect { |v| a_vals.include?(v) }
+          next(1) if [nil, @empty].detect { |v| b_vals.include?(v) }
+          0
         end
       end
 
