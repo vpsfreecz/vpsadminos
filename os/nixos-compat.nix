@@ -12,7 +12,6 @@ with lib;
       avahi = mkOption { };
       samba = mkOption { };
       xserver = mkOption { };
-      zfs = mkOption { };
     };
     meta = {
       mainainers = mkOption { };
@@ -37,7 +36,6 @@ with lib;
       nscd = { enable = false; };
       fprintd = { enable = false; };
       samba = { enable = false; syncPasswordsByPam = false; nsswins = false; };
-      zfs = {};
     };
     krb5 = { enable = false; }; 
     security.pam.oath.enable = false;

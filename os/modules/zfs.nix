@@ -17,6 +17,7 @@ let
   inSystem = any (fs: fs == "zfs") config.boot.supportedFilesystems;
 
   enableZfs = inInitrd || inSystem;
+  enableAutoScrub = cfgScrub.enable;
 
   kernel = config.boot.kernelPackages;
 
@@ -219,6 +220,36 @@ in
         type = types.attrsOf (types.submodule pools);
       };
     };
+
+    services.zfs.autoScrub = {
+      enable = mkOption {
+        default = false;
+        type = types.bool;
+        description = ''
+          Enables periodic scrubbing of ZFS pools.
+        '';
+      };
+
+      interval = mkOption {
+        default = "0 4 */14 * *";
+        type = types.str;
+        description = ''
+          Date and time expression for when to scrub ZFS pools in a crontab
+          format, i.e. minute, hour, day of month, month and day of month
+          separated by spaces.
+        '';
+      };
+
+      pools = mkOption {
+        default = [];
+        type = types.listOf types.str;
+        example = [ "tank" ];
+        description = ''
+          List of ZFS pools to periodically scrub. If empty, all pools
+          will be scrubbed.
+        '';
+      };
+    };
   };
 
   ###### implementation
@@ -260,6 +291,16 @@ in
       system.fsPackages = [ packages.zfsUser ]; # XXX: needed? zfs doesn't have (need) a fsck
       environment.systemPackages = [ packages.zfsUser ];
 
+    })
+
+    (mkIf enableAutoScrub {
+      services.cron.systemCronJobs =
+        let
+          zpools = if cfgScrub.pools == [] then
+              "$(${packages.zfsUser}/bin/zpool list -H -o name)"
+            else
+              concatStringsSep " " cfgScrub.pools;
+        in ["${cfgScrub.interval} root ${packages.zfsUser}/bin/zpool scrub ${zpools}"];
     })
   ];
 }

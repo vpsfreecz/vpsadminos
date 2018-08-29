@@ -9,6 +9,7 @@
 
   services.logrotate.enable = lib.mkDefault true;
   services.openssh.enable = lib.mkDefault true;
+  services.zfs.autoScrub.enable = lib.mkDefault true;
 
   vpsadminos.nix = lib.mkDefault true;
 
