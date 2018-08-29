@@ -89,7 +89,10 @@ module OsCtl::Cli
       end
 
       cmd_opts = {}
-      fmt_opts = {layout: :columns}
+      fmt_opts = {
+        layout: :columns,
+        sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
+      }
 
       FILTERS.each do |v|
         [gopts, opts].each do |options|

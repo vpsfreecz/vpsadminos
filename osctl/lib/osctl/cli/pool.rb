@@ -37,7 +37,10 @@ module OsCtl::Cli
       end
 
       cmd_opts = {}
-      fmt_opts = {layout: :columns}
+      fmt_opts = {
+        layout: :columns,
+        sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
+      }
 
       cmd_opts[:names] = args if args.count > 0
       fmt_opts[:header] = false if opts['hide-header']

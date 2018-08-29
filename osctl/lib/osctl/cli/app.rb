@@ -49,6 +49,9 @@ module OsCtl::Cli
           ls.desc 'List available parameters'
           ls.switch %i(L list), negatable: false
 
+          ls.desc 'Sort by parameter(s)'
+          ls.flag %i(s sort)
+
           ls.action &Command.run(Pool, :list)
         end
 
@@ -194,6 +197,9 @@ module OsCtl::Cli
           ls.desc 'List available parameters'
           ls.switch %i(L list), negatable: false
 
+          ls.desc 'Sort by parameter(s)'
+          ls.flag %i(s sort)
+
           ls.action &Command.run(User, :list)
         end
 
@@ -290,6 +296,9 @@ module OsCtl::Cli
           ls.desc 'List available parameters'
           ls.switch %i(L list), negatable: false
 
+          ls.desc 'Sort by parameter(s)'
+          ls.flag %i(s sort)
+
           ls.action &Command.run(Group, :list)
         end
 
@@ -365,7 +374,7 @@ module OsCtl::Cli
           ls.flag %i(v version)
 
           ls.desc 'Filter by state, comma separated'
-          ls.flag %i(s state)
+          ls.flag %i(S state)
 
           ls.desc 'Select parameters to output'
           ls.flag %i(o output)
@@ -375,6 +384,9 @@ module OsCtl::Cli
 
           ls.desc 'List available parameters'
           ls.switch %i(L list), negatable: false
+
+          ls.desc 'Sort by parameter(s)'
+          ls.flag %i(s sort)
 
           ls.action &Command.run(Container, :list)
         end
@@ -867,6 +879,9 @@ module OsCtl::Cli
             c.desc 'List available parameters'
             c.switch %i(L list), negatable: false
 
+            c.desc 'Sort by parameter(s)'
+            c.flag %i(s sort)
+
             c.action &Command.run(NetInterface, :list)
           end
 
@@ -953,6 +968,9 @@ module OsCtl::Cli
               c.desc 'List available parameters'
               c.switch %i(L list), negatable: false
 
+              c.desc 'Sort by parameter(s)'
+              c.flag %i(s sort)
+
               c.action &Command.run(NetInterface, :ip_list)
             end
 
@@ -997,6 +1015,9 @@ module OsCtl::Cli
 
               c.desc 'List available parameters'
               c.switch %i(L list), negatable: false
+
+              c.desc 'Sort by parameter(s)'
+              c.flag %i(s sort)
 
               c.action &Command.run(NetInterface, :route_list)
             end
@@ -1283,6 +1304,9 @@ module OsCtl::Cli
 
             c.desc 'List available parameters'
             c.switch %i(L list), negatable: false
+
+            c.desc 'Sort by parameter(s)'
+            c.flag %i(s sort)
 
             c.desc 'Filter by vendor'
             c.flag :vendor

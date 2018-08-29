@@ -161,6 +161,9 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-o`, `--output` *parameters*
       Select parameters to output, comma separated.
 
+    `-s`, `--sort` *parameters*
+      Sort output by parameters, comma separated.
+
 `pool show` *name*
   Show information about imported pool *name*.
 
@@ -261,6 +264,9 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     
     `-o`, `--output` *parameters*
       Select parameters to output, comma separated.
+
+    `-s`, `--sort` *parameters*
+      Sort output by parameters, comma separated.
 
     `--pool` *names*
       Filter by pool name, comma separated.
@@ -460,6 +466,9 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Select parameters to output, comma separated. Defaults to a selected
       subset of available parameters.
 
+    `-s`, `--sort` *parameters*
+      Sort output by parameters, comma separated.
+
     `--pool` *names*
       Filter by pool, comma separated.
 
@@ -469,7 +478,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-g`, `--group` *groups*
       Filter by group name, comma separated.
 
-    `-s`, `--state` *states*
+    `-S`, `--state` *states*
       Filter by state, comma separated. Available states:
       **stopped**, **starting**, **running**, **stopping**, **aborting**, **freezing**,
       **frozen**, **thawed**.
@@ -1040,6 +1049,9 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-o`, `--output` *parameters*
       Select parameters to output.
 
+    `-s`, `--sort` *parameters*
+      Sort output by parameters, comma separated.
+
     `-l`, `--link` *bridge*
       Filter by linked bridge.
 
@@ -1183,6 +1195,9 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-o`, `--output` *parameters*
       Select parameters to output.
 
+    `-s`, `--sort` *parameters*
+      Sort output by parameters, comma separated.
+
     `-v`, `--version` *version*
       Filter by IP version.
 
@@ -1210,6 +1225,9 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 
     `-o`, `--output` *parameters*
       Select parameters to output.
+
+    `-s`, `--sort` *parameters*
+      Sort output by parameters, comma separated.
 
     `-v`, `--version` *version*
       Filter by IP version.
@@ -1380,6 +1398,9 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-o`, `--output` *parameters*
       Select parameters to output, comma separated. Defaults to a selected
       subset of available parameters.
+
+    `-s`, `--sort` *parameters*
+      Sort output by parameters, comma separated.
 
     `--pool` *names*
       Filter by pool, comma separated.
@@ -1627,6 +1648,9 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     
     `-o`, `--output` *parameters*
       Select parameters to output.
+
+    `-s`, `--sort` *parameters*
+      Sort output by parameters, comma separated.
 
     `--vendor` *vendor*
       Filter by vendor.

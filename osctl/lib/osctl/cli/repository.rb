@@ -65,7 +65,10 @@ module OsCtl::Cli
       cmd_opts[:cached] = true if opts[:cached]
       cmd_opts[:cached] = false if opts[:uncached]
 
-      fmt_opts = {layout: :columns}
+      fmt_opts = {
+        layout: :columns,
+        sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
+      }
       fmt_opts[:header] = false if opts['hide-header']
       cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : TEMPLATE_FIELDS
 

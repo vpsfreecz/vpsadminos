@@ -50,7 +50,10 @@ module OsCtl::Cli
       end
 
       cmd_opts = {pool: gopts[:pool]}
-      fmt_opts = {layout: :columns}
+      fmt_opts = {
+        layout: :columns,
+        sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
+      }
 
       cmd_opts[:id] = args[0] if args[0]
 
@@ -144,7 +147,10 @@ module OsCtl::Cli
       end
 
       cmd_opts = {pool: gopts[:pool]}
-      fmt_opts = {layout: :columns}
+      fmt_opts = {
+        layout: :columns,
+        sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
+      }
 
       cmd_opts[:id] = args[0] if args[0]
       cmd_opts[:name] = args[1] if args[1]
@@ -220,7 +226,10 @@ module OsCtl::Cli
       end
 
       cmd_opts = {pool: gopts[:pool]}
-      fmt_opts = {layout: :columns}
+      fmt_opts = {
+        layout: :columns,
+        sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
+      }
 
       cmd_opts[:id] = args[0] if args[0]
       cmd_opts[:name] = args[1] if args[1]
