@@ -4,8 +4,8 @@ self: super:
     src = super.fetchFromGitHub {
       owner = "vpsfreecz";
       repo = "lxc";
-      rev = "6f94c2d2b1212756f6449c32928d485d1869d05d";
-      sha256 = "0r88qw3lrankykcmml46h3gd9hjmp3vamh372k58w0160vyqzqjy";
+      rev = "44b80445dd8c6b8218afb62c56f752b418a858e8";
+      sha256 = "19jkqmnr4ss5jmjdk7dr05bavd0d7jjimzlhfizr93wz7glzwp20";
     };
   });
 }
