@@ -11,5 +11,7 @@ in
         kernelPatches.modinst_arg_list_too_long
         { name = "sched_getaffinity_cfs_quota";
           patch = ./sched_getaffinity_cfs_quota.patch; }
+        { name = "allow_mknod";
+          patch = ./allow_mknod.patch; }
       ];
   }

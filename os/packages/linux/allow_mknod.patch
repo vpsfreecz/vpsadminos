@@ -1,0 +1,26 @@
+diff --git a/fs/namei.c b/fs/namei.c
+index 734cef54fdf8..460e5f3c5580 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -3712,7 +3712,7 @@ int vfs_mknod(struct inode *dir, struct dentry *dentry, umode_t mode, dev_t dev)
+ 		return error;
+ 
+ 	if ((S_ISCHR(mode) || S_ISBLK(mode)) &&
+-	    !ns_capable(dentry->d_sb->s_user_ns, CAP_MKNOD))
++	    !ns_capable(get_task_cred(current)->user_ns, CAP_MKNOD))
+ 		return -EPERM;
+ 
+ 	if (!dir->i_op->mknod)
+diff --git a/fs/super.c b/fs/super.c
+index 50728d9c1a05..dd63f904f3ea 100644
+--- a/fs/super.c
++++ b/fs/super.c
+@@ -234,8 +234,6 @@ static struct super_block *alloc_super(struct file_system_type *type, int flags,
+ 	init_waitqueue_head(&s->s_writers.wait_unfrozen);
+ 	s->s_bdi = &noop_backing_dev_info;
+ 	s->s_flags = flags;
+-	if (s->s_user_ns != &init_user_ns)
+-		s->s_iflags |= SB_I_NODEV;
+ 	INIT_HLIST_NODE(&s->s_instances);
+ 	INIT_HLIST_BL_HEAD(&s->s_roots);
+ 	mutex_init(&s->s_sync_lock);
