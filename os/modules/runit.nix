@@ -256,7 +256,7 @@ in
   config = mkMerge [
     {
       users.extraUsers.log = {
-        isSystemUser = true;
+        uid = 497;
       };
 
       environment.etc = {

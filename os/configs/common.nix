@@ -40,14 +40,14 @@
   };
 
   users.extraUsers.migration = {
-    isSystemUser = true;
+    uid = 499;
     description = "User for container migrations";
     home = "/run/osctl/migration";
     shell = pkgs.bashInteractive;
   };
 
   users.extraUsers.repository = {
-    isSystemUser = true;
+    uid = 498;
     description = "User for remote repository access/cache";
     home = "/run/osctl/repository";
   };
