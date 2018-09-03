@@ -28,7 +28,13 @@ module OsCtld
     end
 
     def bin_path(_opts)
-      system = File.readlink(File.join(ct.rootfs, '/run/current-system'))
+      begin
+        system = File.readlink(File.join(ct.runtime_rootfs, '/run/current-system'))
+
+      rescue RuntimeError
+        system = File.readlink(File.join(ct.rootfs, '/run/current-system'))
+      end
+
       sw = File.readlink(File.join(ct.rootfs, system, 'sw'))
       File.join(sw, 'bin')
     end
