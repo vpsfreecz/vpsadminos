@@ -145,7 +145,7 @@ let
 
     bootloader = config.system.boot.loader.id;
     inherit (config.boot) predefinedFailAction;
-    inherit (config.boot.initrd) preLVMCommands postDeviceCommands;
+    inherit (config.boot.initrd) preFailCommands preLVMCommands postDeviceCommands;
     inherit (config.system) storeOverlaySize;
   };
 
@@ -181,6 +181,13 @@ in
         extra-utils derivation after patchelf has done its
         job.  This can be used to test additional utilities
         copied in extraUtilsCommands.
+      '';
+    };
+    boot.initrd.preFailCommands = mkOption {
+      default = "";
+      type = types.lines;
+      description = ''
+        Shell commands to be executed before the failure prompt is shown.
       '';
     };
     boot.initrd.preLVMCommands = mkOption {
