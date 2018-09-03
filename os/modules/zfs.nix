@@ -143,7 +143,7 @@ let
 
           Uses dd to erase first and last 1024 sectors of the device.
         '';
-        apply = map (d: ''
+        apply = concatMapStringsSep "\n" (d: ''
           dd if=/dev/zero of=/dev/${d} count=1024
           sectors="$( sfdisk -l /dev/${d} | egrep -o "([[:digit:]]+) sectors" | cut -d' ' -f1 )"
           dd if=/dev/zero of=/dev/${d} seek="$(( $sectors - 1024 ))" count=1024
