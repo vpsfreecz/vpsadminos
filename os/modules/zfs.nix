@@ -64,15 +64,25 @@ let
       stat="$( zpool status ${name} )"
       test $? && echo "$stat" | grep DEGRADED &> /dev/null && \
         echo -e "\n\n[1;31m>>> Pool is DEGRADED!! <<<[0m"
-        echo
 
       echo "Mounting datasets..."
-      zfs mount -a || exit 1
+      datasets="$(zfs list -Hr -o name,canmount,mounted ${name} \
+        | grep $'\ton' `# canmount=on` \
+        | grep $'\tno' `# mounted=no` \
+        | awk '{ print $1; }')"
+      count=$(printf %04d $(echo "$datasets" | wc -l))
+      i=1
+
+      for ds in $datasets ; do
+        echo "[$(printf %04d $i)/$count] Mounting $ds"
+        zfs mount $ds
+        i=$(($i+1))
+      done
 
       active=$(zfs get -Hp -o value org.vpsadminos.osctl:active ${name})
 
       if [ "$active" == "yes" ] ; then
-        ${osctl} pool show -o name ${name} 2>&1 > /dev/null \
+        ${osctl} pool show -o name ${name} &> /dev/null \
           || ${osctl} pool import ${name} \
           || exit 1
 
