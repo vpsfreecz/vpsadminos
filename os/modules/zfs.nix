@@ -33,6 +33,19 @@ let
     pool.partition != []
   ) config.boot.zfs.pools);
 
+  doWipe = concatMapStringsSep "\n" (d: ''
+    dd if=/dev/zero of=/dev/${d} count=1024
+    sectors="$( sfdisk -l /dev/${d} | egrep -o "([[:digit:]]+) sectors" | cut -d' ' -f1 )"
+    dd if=/dev/zero of=/dev/${d} seek="$(( $sectors - 1024 ))" count=1024
+  '');
+
+  doPartition =
+    let
+      toSectorSize = x: if x == null then "" else "size=${toString (x * 2048 * 1024)},";
+      mkParts = x: concatStrings (intersperse "\n" (mapAttrsToList (n: v: "${replaceStrings ["p"] [""] n}:${toSectorSize v.sizeGB}type=${v.type}") x));
+    in
+      x: concatStrings (mapAttrsToList (k: v: "echo '${mkParts v};' | sfdisk /dev/${k}\n") x);
+
   poolService = name: pool: {
     run = ''
       zpool list ${name} > /dev/null
@@ -43,28 +56,7 @@ let
 
         if [ "$?" != "0" ] ; then
           ${if pool.doCreate then ''
-            ${optionalString (pool.wipe != []) ''
-              echo "Wiping disks"
-              ${pool.wipe}
-            ''}
-
-            ${optionalString (pool.partition != {}) ''
-              echo "Partitioning disks"
-              ${pool.partition}
-            ''}
-
-            echo "Creating pool \"${name}\""
-            zpool create ${name} ${pool.layout} || exit 1
-            
-            ${optionalString (pool.logs != "") ''
-              echo "Adding logs"
-              zpool add ${name} log ${pool.logs} || exit 1 
-            ''}
-            
-            ${optionalString (pool.caches != "") ''
-              echo "Adding caches"
-              zpool add ${name} cache ${pool.caches} || exit 1 
-            ''}
+            ${zpoolCreateScript name pool}/bin/do-create-pool-${name} --force || exit 1
           '' else "exit 1"}
         fi
       fi
@@ -95,6 +87,68 @@ let
     log.enable = true;
     log.sendTo = "127.0.0.1";
   };
+
+  zpoolCreateScript = name: pool: pkgs.writeScriptBin "do-create-pool-${name}" ''
+    #!/bin/sh
+    if [ "$1" != "-f" ] && [ "$1" != "--force" ] ; then
+      echo "WARNING: this program creates zpool ${name} and may destroy existing"
+      echo "data on configured disks in the process. Use at own risk!"
+      echo
+
+      ${optionalString (pool.wipe != []) ''
+        echo "Disks to wipe:"
+        echo "  ${concatStringsSep " " pool.wipe}"
+        echo
+      ''}
+
+      ${optionalString (pool.partition != {}) ''
+        echo "Disks to partition:"
+        echo "  ${concatStringsSep " " (mapAttrsToList (disk: _: disk) pool.partition)}"
+        echo
+      ''}
+
+      echo "zpool to create:"
+      echo "  zpool create ${name} ${pool.layout}"
+      ${optionalString (pool.logs != "") ''
+        echo "  zpool add ${name} log ${pool.logs}"
+      ''}
+      ${optionalString (pool.caches != "") ''
+        echo "  zpool add ${name} cache ${pool.caches}"
+      ''}
+      echo
+
+      read -p "Write uppercase 'yes' to continue: " input
+      if [ "$input" != "YES" ] ; then
+        echo "Aborting"
+        exit 1
+      fi
+    fi
+
+    ${optionalString (pool.wipe != []) ''
+      echo "Wiping disks"
+      ${doWipe pool.wipe}
+    ''}
+
+    ${optionalString (pool.partition != {}) ''
+      echo "Partitioning disks"
+      ${doPartition pool.partition}
+    ''}
+
+    echo "Creating pool \"${name}\""
+    zpool create ${name} ${pool.layout} || exit 1
+
+    ${optionalString (pool.logs != "") ''
+      echo "Adding logs"
+      zpool add ${name} log ${pool.logs} || exit 1
+    ''}
+
+    ${optionalString (pool.caches != "") ''
+      echo "Adding caches"
+      zpool add ${name} cache ${pool.caches} || exit 1
+    ''}
+  '';
+
+  zpoolCreateScripts = mapAttrsToList zpoolCreateScript;
 
   pools = {
     options = {
@@ -143,11 +197,6 @@ let
 
           Uses dd to erase first and last 1024 sectors of the device.
         '';
-        apply = concatMapStringsSep "\n" (d: ''
-          dd if=/dev/zero of=/dev/${d} count=1024
-          sectors="$( sfdisk -l /dev/${d} | egrep -o "([[:digit:]]+) sectors" | cut -d' ' -f1 )"
-          dd if=/dev/zero of=/dev/${d} seek="$(( $sectors - 1024 ))" count=1024
-        '');
       };
 
       partition = mkOption {
@@ -179,11 +228,6 @@ let
           This creates a sfdisk input for simple partitioning, X in 'pX' means partition number.
           If sizeGB is not specified the rest of the dist will be used for this partition.
         '';
-        apply = let
-            toSectorSize = x: if x == null then "" else "size=${toString (x * 2048 * 1024)},";
-              mkParts = x: concatStrings (intersperse "\n" (mapAttrsToList (n: v: "${replaceStrings ["p"] [""] n}:${toSectorSize v.sizeGB}type=${v.type}") x));
-          in
-            x: concatStrings (mapAttrsToList (k: v: "echo '${mkParts v};' | sfdisk /dev/${k}\n") x);
       };
       
       doCreate = mkOption {
@@ -289,8 +333,7 @@ in
       environment.etc."zfs/zed.d".source = "${packages.zfsUser}/etc/zfs/zed.d/";
 
       system.fsPackages = [ packages.zfsUser ]; # XXX: needed? zfs doesn't have (need) a fsck
-      environment.systemPackages = [ packages.zfsUser ];
-
+      environment.systemPackages = [ packages.zfsUser ] ++ (zpoolCreateScripts cfgZfs.pools);
     })
 
     (mkIf enableAutoScrub {
