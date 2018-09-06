@@ -47,6 +47,7 @@ let
       ./modules/zfs.nix
       ./modules/version.nix
       ./modules/vpsadmin.nix
+      ./modules/bash.nix
       <nixpkgs/nixos/modules/misc/extra-arguments.nix>
       <nixpkgs/nixos/modules/system/etc/etc.nix>
       <nixpkgs/nixos/modules/system/activation/activation-script.nix>
