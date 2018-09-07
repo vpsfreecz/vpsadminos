@@ -51,6 +51,12 @@
   mount options=(rw,noexec,nosuid,remount),
   mount options=(rw,nodev,noexec,nosuid,remount),
 
+  # Wanted for /dev remounts
+  mount options=(rw,nosuid,silent,remount),
+  mount options=(ro,nosuid,silent,remount),
+  mount options=(rw,nosuid,strictatime,remount),
+  mount options=(ro,nosuid,noexec,strictatime,remount),
+
   # Allow changing of proc.hidepid
   mount options=(rw,nosuid,nodev,noexec,relatime,remount),
 
