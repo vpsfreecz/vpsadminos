@@ -51,6 +51,9 @@
   mount options=(rw,noexec,nosuid,remount),
   mount options=(rw,nodev,noexec,nosuid,remount),
 
+  # Allow changing of proc.hidepid
+  mount options=(rw,nosuid,nodev,noexec,relatime,remount),
+
   # Allow standard cgroup mounts
   mount fstype=cgroup -> /sys/fs/cgroup/**,
   mount fstype=cgroup2 -> /sys/fs/cgroup/**,
