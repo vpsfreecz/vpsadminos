@@ -14,10 +14,12 @@
   mount options=(rw,bind),
   mount options=(rw,rbind),
 
-  # Allow remounting things read-only
+  # Allow remounting things
   mount options=(ro,remount),
   mount options=(ro,bind,remount),
   mount options=(ro,rbind,remount),
+  mount options=(rw,bind,remount),
+  mount options=(rw,rbind,remount),
 
   # Allow standard cgroup mounts
   mount fstype=cgroup -> /sys/fs/cgroup/**,
