@@ -618,7 +618,7 @@ module OsCtld
     end
 
     def default_apparmor_profile
-      'lxc-container-default-cgns'
+      'osctl-ct-default'
     end
   end
 end
