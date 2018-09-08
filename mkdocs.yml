@@ -29,6 +29,7 @@ pages:
     - Updates: 'os/updates.md'
     - Deployment: 'os/deployment.md'
     - Runlevels: 'os/runlevels.md'
+    - Pools: 'os/pools.md'
 - Migration Paths:
     - Converter: 'migration-paths/converter.md'
     - OpenVZ Legacy: 'migration-paths/openvz-legacy.md'
