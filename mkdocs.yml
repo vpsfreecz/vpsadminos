@@ -30,6 +30,7 @@ pages:
     - Deployment: 'os/deployment.md'
     - Runlevels: 'os/runlevels.md'
     - Pools: 'os/pools.md'
+    - Shell history: 'os/shell-history.md'
 - Migration Paths:
     - Converter: 'migration-paths/converter.md'
     - OpenVZ Legacy: 'migration-paths/openvz-legacy.md'
