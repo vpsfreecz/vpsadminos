@@ -20,6 +20,6 @@ os-generate-config --root=/mnt
 
 After adjustments of generated configs in `/mnt/vpsadminos/` OS can beinstalled using
 
-``bash
+```bash
 os-install --root=/mnt
 ```

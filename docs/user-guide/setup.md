@@ -36,9 +36,8 @@ terminal. By default, the OS creates a file on disk which is used as disk device
 for zpool called `tank` within the virtual machine. The zpool is used to store
 configuration and containers.
 
-On the first boot, the zpool will be automatically created and installed into
-*osctld*. You can use your own zpools, simply use `zpool create <name>` and
-then `osctl pool install <name>`.
+On the first boot, the pool will be automatically created and installed into
+*osctld*.
 
 *osctld* will create several ZFS datasets and will generally assume that no one
 else is using the zpool. For more complicated use-cases, it is possible to scope

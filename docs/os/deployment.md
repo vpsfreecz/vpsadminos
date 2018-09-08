@@ -23,8 +23,8 @@ let
       repo = "nixops";
 
       # You might need to change rev and sha256 in case the docs is outdated
-      rev = "d93cc1abe57c0a1796017deafbde22c8ed9bab99";
-      sha256 = "18lkxplbx5p1dxfk47s5lh18qfrmx5nmddk5y7v6li0wj7g71h6j";
+      rev = "510485dee43cc959eb758ce61b38fc94c3e9a29e";
+      sha256 = "1sn4j3wyz5y1s0nnk5ahwym3qppqm03ygd78cixwdbic0kij6p1i";
     };
 
   release = (import "${git}/release.nix" { nixpkgs = self.path; });

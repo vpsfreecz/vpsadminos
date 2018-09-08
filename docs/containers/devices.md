@@ -67,9 +67,8 @@ osctl group devices add --inherit / char 10 200 rw /dev/net/tun
 ```
 
 Access to the device is permitted immediately, but the device node is created
-the next time the container starts. Containers are unprivileged and cannot call
-`mknod` on their own. The device nodes have to be provided by the host, which
-happens every time a container starts.
+the next time the container starts, when all the device nodes will be provided
+by *osctld*. You can call `mknod` at any time though.
 
 ## Adding a new device to one group/container
 When adding a new device to a non-root group or a container, the device has
