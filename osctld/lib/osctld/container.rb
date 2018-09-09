@@ -173,6 +173,24 @@ module OsCtld
       end
     end
 
+    # Duplicate the container with a different ID
+    #
+    # The returned container has `state` set to `:staged` and its assets will
+    # not exist, so the caller has to build the container and call
+    # `ct.state = :complete` for the container to become usable.
+    #
+    # @param id [String] new container id
+    # @param opts [Hash] options
+    # @option opts [Pool] :pool target pool, optional
+    # @option opts [User] :user target user, optional
+    # @option opts [Group] :group target group, optional
+    # @option opts [String] :dataset target dataset, optional
+    def dup(id, opts = {})
+      ct = clone
+      ct.send(:clone_from, self, id, opts)
+      ct
+    end
+
     def chown(user)
       @user = user
       save_config
@@ -611,6 +629,43 @@ module OsCtld
       end
 
       @mounts = Mount::Manager.load(self, cfg['mounts'] || [])
+    end
+
+    # Change the container so that it becomes a clone of `ct` with a different id
+    # @param ct [Container] the source container
+    # @param id [String] new container id
+    # @param opts [Hash] options
+    # @option opts [Pool] :pool target pool, optional
+    # @option opts [User] :user target user, optional
+    # @option opts [Group] :group target group, optional
+    # @option opts [String] :dataset target dataset, optional
+    def clone_from(ct, id, opts = {})
+      @id = id
+      @pool = opts[:pool] if opts[:pool]
+      @user = opts[:user] if opts[:user]
+      @group = opts[:group] if opts[:group]
+      @init_pid = nil
+      @state = :staged
+      @migration_log = nil
+
+      if opts[:dataset]
+        @dataset = OsCtl::Lib::Zfs::Dataset.new(
+          opts[:dataset],
+          base: opts[:dataset],
+        )
+      else
+        @dataset = Container.default_dataset(@pool, @id)
+      end
+
+      @autostart = @autostart && @autostart.dup(self)
+      @cgparams = cgparams.dup(self)
+      @mounts = mounts.dup(self)
+
+      @devices = devices.dup(self)
+      devices.init
+
+      @netifs = netifs.map { |netif| netif.dup(self) }
+      netifs.each(&:setup)
     end
 
     def default_seccomp_profile

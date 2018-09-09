@@ -138,6 +138,14 @@ module OsCtld
       unmount(mnt)
     end
 
+    def dup(new_ct)
+      ret = super()
+      ret.instance_variable_set('@ct', new_ct)
+      ret.instance_variable_set('@entries', entries.map(&:clone))
+      ret.instance_variable_set('@shared_dir', shared_dir.dup(new_ct))
+      ret
+    end
+
     protected
     attr_reader :ct, :entries
 

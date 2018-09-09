@@ -580,6 +580,31 @@ tt
       do_unset_memory(:ct_cgparam_unset, id: args[0], pool: gopts[:pool])
     end
 
+    def copy
+      require_args!('id', 'new-id')
+
+      if args[1].include?(':')
+        target_pool, target_id = args[1].split(':')
+      else
+        target_pool = opts[:pool]
+        target_id = args[1]
+      end
+
+      cmd_opts = {
+        pool: gopts[:pool],
+        id: args[0],
+        target_pool: target_pool,
+        target_id: target_id,
+        consistent: opts[:consistent],
+      }
+
+      cmd_opts[:target_user] = opts[:user] if opts[:user]
+      cmd_opts[:target_group] = opts[:group] if opts[:group]
+      cmd_opts[:target_dataset] = opts[:dataset] if opts[:dataset]
+
+      osctld_fmt(:ct_copy, cmd_opts)
+    end
+
     def chown
       require_args!('id', 'user')
       osctld_fmt(:ct_chown, id: args[0], pool: gopts[:pool], user: args[1])

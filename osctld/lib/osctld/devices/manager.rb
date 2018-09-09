@@ -204,6 +204,13 @@ module OsCtld
       devices.reject(&:inherited?).map { |dev| dev.dump }
     end
 
+    def dup(new_owner)
+      ret = super()
+      ret.instance_variable_set('@owner', new_owner)
+      ret.instance_variable_set('@devices', devices.map(&:clone))
+      ret
+    end
+
     protected
     attr_reader :owner, :devices
 

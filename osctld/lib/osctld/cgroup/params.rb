@@ -153,6 +153,13 @@ module OsCtld
       params.select(&:persistent).map(&:dump)
     end
 
+    def dup(new_owner)
+      ret = super()
+      ret.instance_variable_set('@owner', new_owner)
+      ret.instance_variable_set('@params', params.map(&:clone))
+      ret
+    end
+
     protected
     attr_reader :owner, :params
 

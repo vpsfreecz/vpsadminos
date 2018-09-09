@@ -87,6 +87,25 @@ module OsCtld
       ds.mount(recursive: true)
     end
 
+    # @param src [Array<OsCtl::Lib::Zfs::Dataset>]
+    # @param dst [Array<OsCtl::Lib::Zfs::Dataset>]
+    # @param from [String, nil] base snapshot
+    # @return [String] snapshot name
+    def copy_datasets(src, dst, from: nil)
+      snap = "osctl-copy-#{from ? 'incr' : 'base'}-#{Time.now.to_i}"
+      zfs(:snapshot, nil, src.map { |ds| "#{ds}@#{snap}" }.join(' '))
+
+      zipped = src.zip(dst)
+
+      zipped.each do |src_ds, dst_ds|
+        progress("Copying dataset #{src_ds.relative_name}")
+        syscmd("zfs send -c #{from ? "-i @#{from}" : ''} #{src_ds}@#{snap} "+
+               "| zfs recv -F #{dst_ds}")
+      end
+
+      snap
+    end
+
     def setup_ct_dir
       # Chown to 0:0, zfs will shift it using the mapping
       File.chown(0, 0, ct.dir)
@@ -274,6 +293,41 @@ module OsCtld
       progress('Registering container')
       DB::Containers.add(ct)
       Monitor::Master.monitor(ct)
+    end
+
+    # Remove a partially created container when the building process failed
+    #
+    # @param opts [Hash] options
+    # @param opts [Boolean] :dataset destroy dataset or not
+    def cleanup(opts = {})
+      Console.remove(ct)
+      zfs(:destroy, '-r', ct.dataset, valid_rcs: [1]) if opts[:dataset]
+
+      syscmd("rm -rf #{ct.lxc_dir} #{ct.user_hook_script_dir}")
+      File.unlink(ct.log_path) if File.exist?(ct.log_path)
+      File.unlink(ct.config_path) if File.exist?(ct.config_path)
+
+      DB::Containers.remove(ct)
+
+      begin
+        if ct.group.has_containers?(ct.user)
+          CGroup.rmpath_all(ct.base_cgroup_path)
+
+        else
+          CGroup.rmpath_all(ct.group.full_cgroup_path(ct.user))
+        end
+      rescue SystemCallError
+        # If some of the cgroups are busy, just leave them be
+      end
+
+      bashrc = File.join(ct.lxc_dir, '.bashrc')
+      File.unlink(bashrc) if File.exist?(bashrc)
+
+      grp_dir = ct.group.userdir(ct.user)
+
+      if !ct.group.has_containers?(ct.user) && Dir.exist?(grp_dir)
+        Dir.rmdir(grp_dir)
+      end
     end
 
     def get_distribution_info(template)

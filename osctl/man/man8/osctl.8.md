@@ -691,6 +691,33 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 `ct unset memory` *id*
   Unset memory limits. This command is a shortcut to `ct cgparams unset`.
 
+`ct cp` *id* *new-id*
+  Copy container *id* to *new-id*.
+
+    `--[no-]consistent`
+      When cloning a running container, it has to be stopped if the copy is to
+      be consitent. Inconsistent copy will not contain data that the running
+      container has in memory and have not yet been saved to disk by its
+      applications. Enabled by default.
+
+    `--pool` *pool*
+      Name of the target pool. By default, container *new-id* is created on
+      the same pool as container *id*.
+
+    `--user` *user*
+      Name of the target user. By default, the user of container *id* is used.
+      When copying to a different pool, the target user has to exist before
+      `ct cp` is run.
+
+    `--group` *group*
+      Name of the target group. By default, the group of container *id* is used.
+      When copying to a different pool, the target group has to exist before
+      `ct cp` is run.
+
+    `--dataset` *name*
+      Custom name of a dataset from the target pool, where the new container's
+      root filesystem will be stored.
+
 `ct chown` *id* *user*
   Move container *id* to user namespace *user*. The container has to be stopped
   first.

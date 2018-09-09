@@ -104,6 +104,12 @@ module OsCtld
       raise NotImplementedError
     end
 
+    def dup(new_ct)
+      ret = super()
+      ret.instance_variable_set('@ct', new_ct)
+      ret
+    end
+
     protected
     attr_reader :ct
   end

@@ -683,6 +683,27 @@ module OsCtl::Cli
           unset_limits(unset, Container)
         end
 
+        ct.desc 'Copy container'
+        ct.arg_name '<id> [pool:]<new-id>'
+        ct.command %i(cp copy) do |c|
+          c.desc 'Stop the container during the copy'
+          c.switch :consistent, default_value: true
+
+          c.desc 'Target pool'
+          c.flag :pool
+
+          c.desc 'Target user'
+          c.flag :user
+
+          c.desc 'Target group'
+          c.flag :group
+
+          c.desc 'Target dataset'
+          c.flag :dataset
+
+          c.action &Command.run(Container, :copy)
+        end
+
         ct.desc 'Move the container to another user namespace'
         ct.arg_name '<id> <user>'
         ct.command :chown do |c|

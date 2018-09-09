@@ -23,5 +23,11 @@ module OsCtld
         'delay' => delay,
       }
     end
+
+    def dup(new_ct)
+      ret = super()
+      ret.instance_variable_set('@ct', new_ct)
+      ret
+    end
   end
 end

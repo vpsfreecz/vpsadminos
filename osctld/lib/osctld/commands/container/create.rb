@@ -82,37 +82,7 @@ module OsCtld
 
     rescue
       progress('Error occurred, cleaning up')
-      ct = builder.ct
-
-      Console.remove(ct)
-      zfs(:destroy, '-r', ct.dataset, valid_rcs: [1]) unless opts[:dataset]
-
-      syscmd("rm -rf #{ct.lxc_dir} #{ct.user_hook_script_dir}")
-      File.unlink(ct.log_path) if File.exist?(ct.log_path)
-      File.unlink(ct.config_path) if File.exist?(ct.config_path)
-
-      DB::Containers.remove(ct)
-
-      begin
-        if ct.group.has_containers?(ct.user)
-          CGroup.rmpath_all(ct.base_cgroup_path)
-
-        else
-          CGroup.rmpath_all(ct.group.full_cgroup_path(ct.user))
-        end
-      rescue SystemCallError
-        # If some of the cgroups are busy, just leave them be
-      end
-
-      bashrc = File.join(ct.lxc_dir, '.bashrc')
-      File.unlink(bashrc) if File.exist?(bashrc)
-
-      grp_dir = ct.group.userdir(ct.user)
-
-      if !ct.group.has_containers?(ct.user) && Dir.exist?(grp_dir)
-        Dir.rmdir(grp_dir)
-      end
-
+      builder.cleanup(dataset: !opts[:dataset])
       raise
     end
 
