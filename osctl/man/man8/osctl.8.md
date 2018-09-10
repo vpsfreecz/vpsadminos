@@ -331,7 +331,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   Containers can be created in custom datasets, located anywhere on the pool.
   The dataset can be selected using option `--dataset`. If the dataset already
   containers rootfs and you do not wish to use any template, signal this with
-  option `--no-template`. Otherwise, the template to be used can be selected
+  option `--skip-template`. Otherwise, the template to be used can be selected
   using any of the methods above.
   
     `--pool` *name*
@@ -361,6 +361,10 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       parents are created, if it doesn't already exist. If used without
       `--template`, the dataset is expected to already contain the rootfs
       and `--distribution` and `--version` have to be provided.
+
+    `--skip-template`
+      Do not apply any template, leave the container's root filesystem empty.
+      Useful for when you wish to setup the container manually.
 
     `--distribution` *distribution*
       Distribution name in lower case, e.g. alpine, centos, debian, ubuntu.

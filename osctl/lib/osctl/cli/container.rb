@@ -157,7 +157,7 @@ module OsCtl::Cli
         id: args[0],
         pool: opts[:pool] || gopts[:pool],
         user: opts[:user],
-        no_template: opts['no-template'],
+        no_template: opts['skip-template'],
         repository: opts[:repository],
       }
 

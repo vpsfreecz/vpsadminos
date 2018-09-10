@@ -433,8 +433,8 @@ module OsCtl::Cli
           new.desc 'Use a custom dataset for the rootfs'
           new.flag :dataset
 
-          new.desc 'Do not extract any template (use together with --dataset)'
-          new.switch 'no-template', negatable: false
+          new.desc 'Do not extract any template'
+          new.switch 'skip-template', negatable: false
 
           new.desc 'Distribution name in lower case'
           new.flag :distribution

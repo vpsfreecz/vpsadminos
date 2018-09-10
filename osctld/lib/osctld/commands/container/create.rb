@@ -24,7 +24,7 @@ module OsCtld
 
       error!('group not found') unless group
 
-      if (opts[:dataset] && opts[:no_template]) \
+      if opts[:no_template] \
           || (opts[:template] && opts[:template][:type] == :stream && opts[:template][:path].nil?)
         if !opts[:distribution]
           error!('provide distribution')
@@ -118,6 +118,13 @@ module OsCtld
     end
 
     def from_local_template(builder)
+      if opts[:no_template]
+        builder.create_root_dataset(mapping: true)
+        builder.setup_rootfs
+        builder.configure(opts[:distribution], opts[:version], opts[:arch])
+        return
+      end
+
       case opts[:template][:type].to_sym
       when :remote
         builder.create_root_dataset(mapping: false)
