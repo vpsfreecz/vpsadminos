@@ -570,6 +570,16 @@ module OsCtld
       File.chown(0, 0, config_path)
     end
 
+    def reload_config
+      load_config
+    end
+
+    # @param config [String]
+    def replace_config(config)
+      load_config(config)
+      save_config
+    end
+
     def log_path
       File.join(pool.log_path, 'ct', "#{id}.log")
     end

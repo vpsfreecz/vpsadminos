@@ -755,6 +755,21 @@ module OsCtl::Cli
           c.action &Command.run(Container, :chgrp)
         end
 
+        ct.desc "Manipulate the container's config file"
+        ct.command %i(cfg config) do |cfg|
+          cfg.desc "Reload the container's configuration file"
+          cfg.arg_name '<id>'
+          cfg.command :reload do |c|
+            c.action &Command.run(Container, :config_reload)
+          end
+
+          cfg.desc "Replace the container's configuration file"
+          cfg.arg_name '<id>'
+          cfg.command :replace do |c|
+            c.action &Command.run(Container, :config_replace)
+          end
+        end
+
         ct.desc 'Set password for a user within the container'
         ct.arg_name '<id> <user> [password]'
         ct.command :passwd do |c|

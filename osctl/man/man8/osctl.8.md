@@ -769,6 +769,19 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       sufficient access mode. `remove` will remove all unavailable devices from
       the container. The default mode is `check`.
 
+`ct config reload` *id*
+  Reload the container's configuration file from disk. The container has to be
+  stopped for the reload to be allowed.
+
+`ct config replace` *id*
+  Replace the container's configuration file by data read from standard input.
+  The entire configuration file is replaced and reloaded by *osctld*. The config
+  file has to be in the correct format for the current `osctld` version and has
+  to contain required options, otherwise errors may occur. This is considered
+  a low level interface, since a lot of runtime checks is bypassed.
+
+  The container has to be stopped when `ct config replace` is called.
+
 `ct passwd` *id* *user* [*password*]
   Change password of *user* in container *id*. The user has to already exist.
   If *password* is not given as an argument, it is prompted for on stdin.

@@ -645,6 +645,25 @@ tt
       )
     end
 
+    def config_reload
+      require_args!('id')
+      osctld_fmt(
+        :ct_cfg_reload,
+        id: args[0],
+        pool: gopts[:pool],
+      )
+    end
+
+    def config_replace
+      require_args!('id')
+      osctld_fmt(
+        :ct_cfg_replace,
+        id: args[0],
+        pool: gopts[:pool],
+        config: STDIN.read,
+      )
+    end
+
     def passwd
       require_args!('id', 'user')
 
