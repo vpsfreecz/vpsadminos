@@ -147,7 +147,7 @@ module OsCtl::Cli
 
       add_loadavg(ct)
 
-      format_output(ct, cols)
+      format_output(ct, cols, header: !opts['hide-header'])
     end
 
     def create

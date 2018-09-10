@@ -61,6 +61,9 @@ module OsCtl::Cli
           c.desc 'Select parameters to output'
           c.flag %i(o output)
 
+          c.desc 'Do not show header'
+          c.switch %i(H hide-header), negatable: false
+
           c.desc 'List available parameters'
           c.switch %i(L list), negatable: false
 
@@ -209,6 +212,9 @@ module OsCtl::Cli
           c.desc 'Select parameters to output'
           c.flag %i(o output)
 
+          c.desc 'Do not show header'
+          c.switch %i(H hide-header), negatable: false
+
           c.desc 'List available parameters'
           c.switch %i(L list), negatable: false
 
@@ -311,6 +317,15 @@ module OsCtl::Cli
         grp.desc 'Show group info'
         grp.arg_name '<name>'
         grp.command %i(show find) do |c|
+          c.desc 'Select parameters to output'
+          c.flag %i(o output)
+
+          c.desc 'Do not show header'
+          c.switch %i(H hide-header), negatable: false
+
+          c.desc 'List available parameters'
+          c.switch %i(L list), negatable: false
+
           c.action &Command.run(Group, :show)
         end
 
@@ -402,6 +417,9 @@ module OsCtl::Cli
         ct.command %i(show info) do |c|
           c.desc 'Select parameters to output'
           c.flag %i(o output)
+
+          c.desc 'Do not show header'
+          c.switch %i(H hide-header), negatable: false
 
           c.desc 'List available parameters'
           c.switch %i(L list), negatable: false

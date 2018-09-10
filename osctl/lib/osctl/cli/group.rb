@@ -79,6 +79,9 @@ module OsCtl::Cli
 
       cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS
 
+      fmt_opts = {layout: :rows}
+      fmt_opts[:header] = false if opts['hide-header']
+
       c = osctld_open
       group = c.cmd_data!(:group_show, name: args[0], pool: gopts[:pool])
       cg_add_stats(
@@ -90,7 +93,7 @@ module OsCtl::Cli
       )
       c.close
 
-      format_output(group, cols)
+      format_output(group, cols, fmt_opts)
     end
 
     def create

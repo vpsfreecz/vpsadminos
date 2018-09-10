@@ -71,11 +71,14 @@ module OsCtl::Cli
 
       require_args!('name')
 
+      fmt_opts = {layout: :rows}
+      fmt_opts[:header] = false if opts['hide-header']
+
       osctld_fmt(
         :user_show,
         {name: args[0], pool: gopts[:pool]},
         opts[:output] ? opts[:output].split(',').map(&:to_sym) : nil,
-        layout: :rows
+        fmt_opts
       )
     end
 

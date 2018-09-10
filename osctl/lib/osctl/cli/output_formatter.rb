@@ -164,11 +164,16 @@ module OsCtl::Cli
 
     # Each object is printed on multiple lines, one parameter per line.
     def rows
-      w = heading_width
+      w = heading_width if @header
 
       @str_objects.each do |o|
         @cols.each_index do |i|
           c = @cols[i]
+
+          unless @header
+            line o[i]
+            next
+          end
 
           if o[i].is_a?(::String) && o[i].index("\n")
             lines = o[i].split("\n")

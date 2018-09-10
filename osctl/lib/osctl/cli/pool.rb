@@ -63,6 +63,7 @@ module OsCtl::Cli
 
       cmd_opts = {name: args[0]}
       fmt_opts = {layout: :rows}
+      fmt_opts[:header] = false if opts['hide-header']
 
       osctld_fmt(
         :pool_show,

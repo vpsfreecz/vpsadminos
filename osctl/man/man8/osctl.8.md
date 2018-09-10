@@ -173,6 +173,9 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-o`, `--output` *parameters*
       Select parameters to output, comma separated.
 
+    `-H`, `--hide-header`
+      Do not show header, useful for scripts.
+
 `pool assets` [*options*] *name*
   List pool assets and their state.
 
@@ -285,6 +288,9 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 
     `-o`, `--output` *parameters*
       Select parameters to output.
+
+    `-H`, `--hide-header`
+      Do not show header, useful for scripts.
 
 `user reg` `all`|*name*
   Register all users or a selected user into the system, i.e. add records
@@ -504,6 +510,9 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 
     `-o`, `--output` *parameters*
       Select parameters to output.
+
+    `-H`, `--hide-header`
+      Do not show header, useful for scripts.
 
 `ct start` [*options*] *id*
   Start container *id*.
@@ -1463,6 +1472,15 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 
 `group show` *name*
   Show group info.
+
+    `-L`, `--list`
+      List available parameters and exit.
+
+    `-o`, `--output` *parameters*
+      Select parameters to output.
+
+    `-H`, `--hide-header`
+      Do not show header, useful for scripts.
 
 `group cgparams ls` [*options*] *name* [*parameters...*]
   List cgroup parameters for group *name*. If no *parameters* are provided,
