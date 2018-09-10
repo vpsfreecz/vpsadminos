@@ -1,4 +1,4 @@
-{ config, lib, pkgs, utils, ... }:
+{ config, lib, pkgs, utils, shared, ... }:
 with utils;
 with lib;
 
@@ -11,76 +11,188 @@ let
   addrToStr = a: "${a.address}/${toString a.prefixLength}";
   boolToStr = x: if x then "true" else "false";
 
-  osctlTarball = name: cfg:
-    assert hasPrefix "/" cfg.group.name;
-    import ../lib/make-osctl-tarball.nix {
-      inherit (pkgs) stdenv writeText;
-      rootFs = cfg.path;
-      metadata = {
-        type = "full";
-        format = "tar";
-        user = cfg.user.name;
-        group = cfg.group.name;
-        container = name;
-        datasets = [];
-        exported_at = 1;
-      };
-      ctconf = {
-        user = cfg.user.name;
-        group = cfg.group.name;
-        dataset = "tank/ct/${name}";
+  mkService = pool: name: cfg: (
+    let
+      osctl = "${pkgs.osctl}/bin/osctl";
+      osctlPool = "${osctl} --pool ${pool}";
+      toplevel = cfg.path;
+      closureInfo = pkgs.closureInfo { rootPaths = [ toplevel ]; };
+
+      conf = {
+        user = cfg.user;
+        group = cfg.group;
+        dataset = "${pool}/ct/${name}";
         distribution = "nixos";
         version = "18.09";
         arch = "${toString (head (splitString "-" system))}";
         net_interfaces = cfg.interfaces;
-        cgparams = cfg.cgparams;
+        cgparams = shared.buildCGroupParams cfg.cgparams;
         devices = cfg.devices;
         prlimits = cfg.prlimits;
         mounts = cfg.mounts;
-        autostart = cfg.autostart;
+        autostart = null; # autostart is handled by the runit service
         hostname = name;
         dns_resolvers = cfg.resolvers;
         nesting = boolToStr cfg.nesting;
       };
-      userconf = {
-        ugid = cfg.user.ugid;
-        offset = cfg.user.offset;
-        size = cfg.user.size;
-      };
-      groupconf = {
-        cgparams = cfg.group.cgparams;
-        devices = cfg.group.devices;
-      };
-    };
+      
+      yml = pkgs.writeText "container-${name}.yml" (builtins.toJSON conf);
+      
+    in {
+      run = ''
+        ${osctl} pool show ${pool} &> /dev/null
+        hasPool=$?
+        if [ "$hasPool" != "0" ] ; then
+          echo "Waiting for pool ${pool}"
+          exit 1
+        fi
+        
+        ${osctlPool} user show ${cfg.user} &> /dev/null
+        hasUser=$?
+        if [ "$hasUser" != "0" ] ; then
+          echo "Waiting for user ${pool}:${cfg.user}"
+          exit 1
+        fi
+        
+        ${osctlPool} group show ${cfg.group} &> /dev/null
+        hasGroup=$?
+        if [ "$hasGroup" != "0" ] ; then
+          echo "Waiting for group ${pool}:${cfg.group}"
+          exit 1
+        fi
 
-  osctl = "${pkgs.osctl}/bin/osctl";
+        mkdir -p /nix/var/nix/profiles/per-container
+        mkdir -p /nix/var/nix/gcroots/per-container
 
-  mkService = name: cfg: {
-    run = ''
-      sv check osctld >/dev/null || exit 1
-      ${osctl} pool show -o name ${cfg.pool} 2>&1 >/dev/null || exit 1
+        ln -sf ${toplevel} /nix/var/nix/profiles/per-container/${name}
+        ln -sf ${toplevel} /nix/var/nix/gcroots/per-container/${name}
+        
+        ${osctlPool} ct show ${name} &> /dev/null
+        hasCT=$?
+        if [ "$hasCT" == "0" ] ; then
+          echo "Container ${pool}:${name} already exists"
+          
+          lines=( $(${osctlPool} ct show -H -o rootfs,state,user,group,org.vpsadminos.osctl:config ${name}) )
+          if [ "$?" != 0 ] ; then
+            echo "Unable to get the container's status"
+            exit 1
+          fi
 
-      ${osctl} ct show ${name} &> /dev/null
-      hasCT=$?
-      if [ "$hasCT" != "0" ]; then
-        echo "Importing container '${name}'"
-        ${osctl} --pool ${cfg.pool} ct import ${osctlTarball name cfg}/*.tar
-        ${optionalString (cfg.autostart != null) ''
-          echo "Starting container '${name}'"
-          ${osctl} ct start ${name}
-        ''}
-      fi
+          rootfs="''${lines[0]}"
+          currentState="''${lines[1]}"
+          currentUser="''${lines[2]}"
+          currentGroup="''${lines[3]}"
+          currentConfig="''${lines[4]}"
 
-      sv once ct-${name}
-    '';
+          if [ "${cfg.user}" != "$currentUser" ] \
+             || [ "${cfg.group}" != "$currentGroup" ] \
+             || [ "${yml}" != "$currentConfig" ] ; then
+            echo "Reconfiguring the container"
 
-    log.enable = true;
-    log.sendTo = "127.0.0.1";
-  };
+            if [ "$currentState" != "stopped" ] ; then
+              ${osctlPool} ct stop ${name}
+              originalState="$currentState"
+              currentState="stopped"
+            fi
 
-  mkServices = mapAttrs' (name: cfg:
-    nameValuePair "ct-${name}" (mkService name cfg)
-  ) config.containers;
+            if [ "${cfg.user}" != "$currentUser" ] ; then
+              echo "Changing user from $currentUser to ${cfg.user}"
+              ${osctlPool} ct chown ${name} ${cfg.user} || exit 1
+            fi
+
+            if [ "${cfg.group}" != "$currentGroup" ] ; then
+              echo "Changing group from $currentGroup to ${cfg.group}"
+              ${osctlPool} ct chgrp ${name} ${cfg.group} || exit 1
+            fi
+
+            if [ "${yml}" != "$currentConfig" ] ; then
+              echo "Replacing config"
+              cat ${yml} | ${osctlPool} ct config replace ${name} || exit 1
+              ${osctlPool} ct set attr ${name} org.vpsadminos.osctl:config ${yml}
+              ${osctlPool} ct set attr ${name} org.vpsadminos.osctl:declarative yes
+            fi
+          fi
+
+        else
+          echo "Creating container '${name}'"
+          ${osctlPool} ct new \
+                              --user ${cfg.user} \
+                              --group ${cfg.group} \
+                              --distribution nixos \
+                              --version ${conf.version} \
+                              --arch ${conf.arch} \
+                              --skip-template \
+                              ${name} || exit 1
+
+          cat ${yml} | ${osctlPool} ct config replace ${name} || exit 1
+          ${osctlPool} ct set attr ${name} org.vpsadminos.osctl:declarative yes
+          ${osctlPool} ct set attr ${name} org.vpsadminos.osctl:config ${yml}
+
+          rootfs="$(${osctlPool} ct show -H -o rootfs ${name})"
+          mkdir "$rootfs/dev" "$rootfs/etc" "$rootfs/proc" "$rootfs/run" \
+                "$rootfs/sbin" "$rootfs/sys"
+          ln -sf /nix/var/nix/profiles/system "$rootfs/run/current-system"
+          ln -sf "${toplevel}/init" "$rootfs/sbin/init"
+        fi
+
+        echo "Populating /nix/store"
+        mkdir -p "$rootfs/nix/store" \
+                 "$rootfs/nix/var/nix/gcroots" \
+                 "$rootfs/nix/var/nix/profiles"
+
+        ln -sf /run/current-system "$rootfs/nix/var/nix/gcroots/current-system"
+
+        count=$(cat ${closureInfo}/store-paths | wc -l)
+        i=1
+
+        for storePath in $(cat ${closureInfo}/store-paths) ; do
+          dst="$rootfs/''${storePath:1}"
+
+          if [ -e "$dst" ] ; then
+            echo "[$i/$count] Found $storePath"
+
+          else
+            echo "[$i/$count] Copying $storePath"
+            cp -a $storePath $dst
+          fi
+          
+          i=$(($i+1))
+        done
+
+        currentSystem=$(realpath "$rootfs/nix/var/nix/profiles/system")
+
+        if [ "$?" != "0" ] || [ "$currentSystem" != "${toplevel}" ] ; then
+          echo "Configuring current system"
+          cat ${closureInfo}/registration >> "$rootfs/nix-path-registration"
+          ln -sf ${toplevel} "$rootfs/nix/var/nix/profiles/system"
+          ln -sf ${toplevel}/init "$rootfs/sbin/init"
+          
+          if [ "$currentState" == "running" ] ; then
+            echo "Switching to ${toplevel}"
+            ${osctlPool} ct exec ${name} ${toplevel}/bin/switch-to-configuration switch
+          fi
+
+        else
+          echo "System up-to-date"
+        fi
+
+        if [ "$originalState" == "running" ] \
+           || ${boolToStr (cfg.autostart != null)} ; then
+          echo "Starting container ${pool}:${name}"
+          ${osctlPool} ct start ${name}
+        fi
+
+        sv once ct-${pool}-${name}
+      '';
+
+      log.enable = true;
+      log.sendTo = "127.0.0.1";
+    }
+  );
+
+  mkServices = pool: containers: mapAttrs' (name: cfg:
+    nameValuePair "ct-${pool}-${name}" (mkService pool name cfg)
+  ) containers;
 
   addrOpts = v:
     assert v == 4 || v == 6;
@@ -216,96 +328,6 @@ let
             else {})
           ))
           (map _filter x);
-  };
-
-  device = { lib, pkgs, ... }: {
-    options = {
-      name = mkOption {
-        type = types.str;
-        example = "/dev/fuse";
-        description = "Device name";
-      };
-
-      type = mkOption {
-        type = types.str;
-        example = "char";
-        description = "Device type";
-      };
-
-      major = mkOption {
-        type = types.ints.positive;
-        example = 229;
-        description = "Device major ID";
-      };
-
-      minor = mkOption {
-        type = types.ints.positive;
-        example = 10;
-        description = "Device minor ID";
-      };
-
-      mode = mkOption {
-        type = types.enum ["r" "rw" "w"];
-        example = "rw";
-      };
-    };
-  };
-
-  mkDevicesOption = mkOption {
-    type = types.listOf (types.submodule device);
-    default = [];
-    example = [
-      { name = "/dev/fuse";
-        major = 10;
-        minor = 229;
-        mode = "rw";
-      }
-    ];
-    apply = x: map _filter x;
-    description = ''
-      Devices allowed in this group
-
-      See also https://vpsadminos.org/containers/devices/
-    '';
-  };
-
-  cgparam = { lib, pkgs, ...}: {
-    options = {
-      name = mkOption {
-        type = types.str;
-        example = "memory.limit_in_bytes";
-        description = "CGroup parameter name";
-      };
-      value = mkOption {
-        type = types.str;
-        example = "10G";
-        apply = x: [ x ];
-        description = "CGroup parameter value";
-      };
-      subsystem =  mkOption {
-        type = types.str;
-        example = "memory";
-        description = "CGroup subsystem name";
-      };
-    };
-  };
-
-  mkCGParamsOption = mkOption {
-    type = types.listOf (types.submodule cgparam);
-    default = [];
-    example = [
-      { name = "memory.limit_in_bytes";
-        value = "10G";
-        subsystem = "memory";
-      }
-    ];
-
-    apply = x: map _filter x;
-    description = ''
-      CGroup parameters
-
-      See also https://vpsadminos.org/containers/resources/
-    '';
   };
 
   prlimit = { lib, pkgs, ...}: {
@@ -464,7 +486,7 @@ let
                     networking.hostName = mkDefault name;
                     networking.useDHCP = hasBridge;
 
-                    imports = [ ../lib/nixos-container/configuration.nix ];
+                    imports = [ ../../lib/nixos-container/configuration.nix ];
 
                   };
               in [ extraConfig ] ++ (map (x: x.value) defs);
@@ -484,61 +506,27 @@ let
         '';
       };
 
-      pool = mkOption {
+      user = mkOption {
         type = types.str;
-        example = "tank";
+        example = "myuser01";
         description = ''
-          Name of a zpool installed into osctl that the container should be
-          stored on.
+          Name of an osctl user declared by <option>osctl.users</option> that
+          the container belongs to.
         '';
       };
 
-      user = {
-        name = mkOption {
-          type = types.str;
-          example = "myuser01";
-          description = "User this container should belong to";
-        };
-        ugid = mkOption {
-          type = types.ints.positive;
-          example = 5000;
-          description = "UID/GID of the system user that is used to run containers";
-        };
-        offset = mkOption {
-          type = types.ints.positive;
-          example = 666000;
-          description = "Mapping for user and group IDs (maps container UID 0 to this offset";
-        };
-        size = mkOption {
-          type = types.ints.positive;
-          example = 65536;
-          description = "number of mapped user and group IDs";
-        };
-      };
-
-      group = {
-        name = mkOption {
-          type = types.strMatching "^/.*";
-          default = "/default";
-          example = "/custom";
-          description = ''
-            Name of the osctl group.
-
-            Each group represents a cgroup in all subsystems.
-            There are always two groups present: the root group and the default group.
-
-            See also https://vpsadminos.org/containers/resources/
-          '';
-        };
-
-        # per group
-        cgparams = mkCGParamsOption;
-        devices = mkDevicesOption;
+      group = mkOption {
+        type = types.str;
+        default = "/default";
+        description = ''
+          Name of an osctl group declared by <option>osctl.groups</option> that
+          the container belongs to.
+        '';
       };
 
       # per container
-      cgparams = mkCGParamsOption;
-      devices = mkDevicesOption;
+      cgparams = shared.mkCGParamsOption;
+      devices = shared.mkDevicesOption;
       prlimits = mkPrlimitsOption;
       mounts = mkMountsOption;
 
@@ -556,30 +544,15 @@ let
       autostart = mkAutostartOption;
       nesting = mkEnableOption "Enable container nesting";
     };
+    
     config = mkMerge [
       (mkIf options.config.isDefined {
-        path = config.config.system.build.tarball;
+        path = config.config.system.build.toplevel;
       })
     ];
   };
 in
 {
-  ###### interface
-
-  options = {
-    containers = mkOption {
-      type = types.attrsOf (types.submodule container);
-      default = {};
-      example = literalExample "";
-      description = "CTs to include";
-    };
-  };
-
-  ###### implementation
-
-  config = mkMerge [
-    (mkIf (config.containers != {}) {
-      runit.services = mkServices;
-    })
-  ];
+  type = container;
+  mkServices = mkServices;
 }

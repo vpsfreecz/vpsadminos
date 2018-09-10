@@ -23,7 +23,7 @@ let
       ./runit.nix
       ./modules/runit.nix
       ./modules/bird.nix
-      ./modules/containers.nix
+      ./modules/osctl/pools.nix
       ./modules/chronyd.nix
       ./modules/crond.nix
       ./modules/dhcpd.nix
