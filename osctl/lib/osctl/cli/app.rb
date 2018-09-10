@@ -704,6 +704,24 @@ module OsCtl::Cli
           c.action &Command.run(Container, :copy)
         end
 
+        ct.desc 'Move container'
+        ct.arg_name '<id> [pool:]<new-id>'
+        ct.command %i(mv move) do |c|
+          c.desc 'Target pool'
+          c.flag :pool
+
+          c.desc 'Target user'
+          c.flag :user
+
+          c.desc 'Target group'
+          c.flag :group
+
+          c.desc 'Target dataset'
+          c.flag :dataset
+
+          c.action &Command.run(Container, :move)
+        end
+
         ct.desc 'Move the container to another user namespace'
         ct.arg_name '<id> <user>'
         ct.command :chown do |c|

@@ -718,6 +718,28 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Custom name of a dataset from the target pool, where the new container's
       root filesystem will be stored.
 
+`ct mv` *id* *new-id*
+  Move container *id* to *new-id*. Can be used to move containers between pools
+  or just to rename containers.
+
+    `--pool` *pool*
+      Name of the target pool. By default, container *new-id* is created on
+      the same pool as container *id*.
+
+    `--user` *user*
+      Name of the target user. By default, the user of container *id* is used.
+      When copying to a different pool, the target user has to exist before
+      `ct cp` is run.
+
+    `--group` *group*
+      Name of the target group. By default, the group of container *id* is used.
+      When copying to a different pool, the target group has to exist before
+      `ct cp` is run.
+
+    `--dataset` *name*
+      Custom name of a dataset from the target pool, where the new container's
+      root filesystem will be stored.
+
 `ct chown` *id* *user*
   Move container *id* to user namespace *user*. The container has to be stopped
   first.

@@ -99,7 +99,7 @@ module OsCtld
           pool: ct.pool.name,
           force: true,
           wait: false,
-        )
+        ) if opts[:restart].nil? || opts[:restart]
       end
 
       # Cleanup snapshots
