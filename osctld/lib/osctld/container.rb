@@ -587,8 +587,8 @@ module OsCtld
       end
 
       @state = cfg['state'].to_sym if cfg['state']
-      @user ||= DB::Users.find(cfg['user']) || (raise "user not found")
-      @group ||= DB::Groups.find(cfg['group']) || (raise "group not found")
+      @user ||= DB::Users.find(cfg['user'], pool) || (raise "user not found")
+      @group ||= DB::Groups.find(cfg['group'], pool) || (raise "group not found")
 
       unless @dataset
         if cfg['dataset']

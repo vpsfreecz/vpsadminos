@@ -173,9 +173,12 @@ module OsCtld
       end.sort! { |a, b| a.name <=> b.name }
     end
 
+    # @param user [User, nil]
     def has_containers?(user = nil)
       ct = DB::Containers.get.detect do |ct|
-        ct.pool.name == pool.name && ct.group.name == name && (user.nil? || ct.user == user)
+        ct.pool.name == pool.name \
+          && ct.group.name == name \
+          && (user.nil? || ct.user.name == user.name)
       end
 
       ct ? true : false
