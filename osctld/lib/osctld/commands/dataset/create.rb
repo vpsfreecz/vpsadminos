@@ -24,9 +24,10 @@ module OsCtld
               properties: {
                 uidmap: ct.uid_map.map(&:to_s).join(','),
                 gidmap: ct.gid_map.map(&:to_s).join(','),
+                canmount: 'noauto',
               }
             )
-
+            ds.mount
             ds.create_private!
 
             created << ds
