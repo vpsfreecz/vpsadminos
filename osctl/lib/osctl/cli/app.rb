@@ -367,11 +367,13 @@ module OsCtl::Cli
         grp.desc 'Configure group'
         grp.command :set do |set|
           set_limits(set, Group)
+          set_attr(set, Group)
         end
 
         grp.desc 'Clear configuration options'
         grp.command :unset do |unset|
           unset_limits(unset, Group)
+          unset_attr(unset, Group)
         end
 
         grp.desc "List group's assets (datasets, files, directories)"

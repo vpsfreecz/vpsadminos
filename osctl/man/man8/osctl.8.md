@@ -1535,6 +1535,18 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-H`, `--hide-header`
       Do not show header, useful for scripts.
 
+`group set attr` *name* *vendor*:*key* *value*
+  Set custom user attribute *vendor*:*key* for group *name*. Configured
+  attributes can be read with `group ls` or `group show` using the `-o`, `--output`
+  option.
+
+  The intended attribute naming is *vendor*:*key*, where *vendor* is a reversed
+  domain name and *key* an arbitrary string, e.g.
+  `org.vpsadminos.osctl:declarative`.
+
+`group unset attr` *name* *vendor*:*key*
+  Unset custom user attribute *vendor*:*key* of group *name*.
+
 `group cgparams ls` [*options*] *name* [*parameters...*]
   List cgroup parameters for group *name*. If no *parameters* are provided,
   all configured parameters are listed.

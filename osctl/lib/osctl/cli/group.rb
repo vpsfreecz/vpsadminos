@@ -8,6 +8,7 @@ module OsCtl::Cli
     include CGroupParams
     include Devices
     include Assets
+    include Attributes
 
     FIELDS = %i(
       pool
@@ -146,6 +147,25 @@ module OsCtl::Cli
         :group_cgparam_unset,
         name: args[0],
         pool: gopts[:pool]
+      )
+    end
+
+    def set_attr
+      require_args!('name', 'attribute', 'value')
+      do_set_attr(
+        :group_set,
+        {name: args[0], pool: gopts[:pool]},
+        args[1],
+        args[2],
+      )
+    end
+
+    def unset_attr
+      require_args!('name', 'attribute')
+      do_unset_attr(
+        :group_unset,
+        {name: args[0], pool: gopts[:pool]},
+        args[1],
       )
     end
 

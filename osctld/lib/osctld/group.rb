@@ -6,7 +6,7 @@ module OsCtld
     include Lockable
     include Assets::Definition
 
-    attr_reader :pool, :name, :cgparams, :devices
+    attr_reader :pool, :name, :cgparams, :devices, :attrs
 
     def initialize(pool, name, load: true, config: nil, devices: true, root: false)
       init_lock
@@ -15,6 +15,7 @@ module OsCtld
       @root = root
       @cgparams = nil
       @devices = nil
+      @attrs = Attributes.new
       load_config(config) if load
       devices.init if load && devices
     end
@@ -59,6 +60,38 @@ module OsCtld
           )
         end
       end
+    end
+
+    # @param opts [Hash]
+    # @option opts [Hash] :attrs
+    def set(opts)
+      opts.each do |k, v|
+        case k
+        when :attrs
+          attrs.update(v)
+
+        else
+          fail "unsupported option '#{k}'"
+        end
+      end
+
+      save_config
+    end
+
+    # @param opts [Hash]
+    # @option opts [Array<String>] :attrs
+    def unset(opts)
+      opts.each do |k, v|
+        case k
+        when :attrs
+          v.each { |attr| attrs.unset(attr) }
+
+        else
+          fail "unsupported option '#{k}'"
+        end
+      end
+
+      save_config
     end
 
     def config_dir
@@ -228,6 +261,7 @@ module OsCtld
       cfg = {
         'cgparams' => cgparams.dump,
         'devices' => devices.dump,
+        'attrs' => attrs.dump,
       }
 
       cfg['path'] = path if root?
@@ -250,6 +284,7 @@ module OsCtld
       @path = cfg['path'] if root?
       @cgparams = CGroup::Params.load(self, cfg['cgparams'])
       @devices = Devices::GroupManager.load(self, cfg['devices'] || [])
+      @attrs = Attributes.load(cfg['attrs'] || {})
     end
   end
 end
