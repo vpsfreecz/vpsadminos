@@ -4,6 +4,7 @@ require 'osctl/cli/assets'
 module OsCtl::Cli
   class User < Command
     include Assets
+    include Attributes
 
     FIELDS = %i(
       pool
@@ -177,6 +178,25 @@ module OsCtl::Cli
         cmd_opts,
         opts[:output] ? opts[:output].split(',').map(&:to_sym) : IDMAP_FIELDS,
         fmt_opts
+      )
+    end
+
+    def set_attr
+      require_args!('name', 'attribute', 'value')
+      do_set_attr(
+        :user_set,
+        {name: args[0], pool: gopts[:pool]},
+        args[1],
+        args[2],
+      )
+    end
+
+    def unset_attr
+      require_args!('name', 'attribute')
+      do_unset_attr(
+        :user_unset,
+        {name: args[0], pool: gopts[:pool]},
+        args[1],
       )
     end
   end

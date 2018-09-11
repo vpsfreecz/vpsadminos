@@ -287,6 +287,16 @@ module OsCtl::Cli
 
           c.action &Command.run(User, :idmap_ls)
         end
+
+        u.desc 'Configure user options'
+        u.command :set do |set|
+          set_attr(set, User)
+        end
+
+        u.desc 'Reset user options'
+        u.command :unset do |unset|
+          unset_attr(unset, User)
+        end
       end
 
       desc 'Manage groups used for cgroup-based resource limiting'

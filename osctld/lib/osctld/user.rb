@@ -11,12 +11,13 @@ module OsCtld
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
 
-    attr_reader :pool, :name, :ugid, :uid_map, :gid_map
+    attr_reader :pool, :name, :ugid, :uid_map, :gid_map, :attrs
 
     def initialize(pool, name, load: true, config: nil)
       init_lock
       @pool = pool
       @name = name
+      @attrs = Attributes.new
       load_config(config) if load
     end
 
@@ -35,15 +36,7 @@ module OsCtld
       @uid_map = IdMap.new(uid_map)
       @gid_map = IdMap.new(gid_map)
 
-      File.open(config_path, 'w', 0400) do |f|
-        f.write(YAML.dump({
-          'ugid' => ugid,
-          'uid_map' => @uid_map.dump,
-          'gid_map' => @gid_map.dump,
-        }))
-      end
-
-      File.chown(0, 0, config_path)
+      save_config
     end
 
     def assets
@@ -117,6 +110,38 @@ module OsCtld
       end
     end
 
+    # @param opts [Hash]
+    # @option opts [Hash] :attrs
+    def set(opts)
+      opts.each do |k, v|
+        case k
+        when :attrs
+          attrs.update(v)
+
+        else
+          fail "unsupported option '#{k}'"
+        end
+      end
+
+      save_config
+    end
+
+    # @param opts [Hash]
+    # @option opts [Array<String>] :attrs
+    def unset(opts)
+      opts.each do |k, v|
+        case k
+        when :attrs
+          v.each { |attr| attrs.unset(attr) }
+
+        else
+          fail "unsupported option '#{k}'"
+        end
+      end
+
+      save_config
+    end
+
     def sysusername
       "uns#{name}"
     end
@@ -155,6 +180,19 @@ module OsCtld
     end
 
     private
+    def save_config
+      File.open(config_path, 'w', 0400) do |f|
+        f.write(YAML.dump({
+          'ugid' => ugid,
+          'uid_map' => uid_map.dump,
+          'gid_map' => gid_map.dump,
+          'attrs' => attrs.dump,
+        }))
+      end
+
+      File.chown(0, 0, config_path)
+    end
+
     def load_config(config)
       if config
         cfg = YAML.load(config)
@@ -165,6 +203,7 @@ module OsCtld
       @ugid = cfg['ugid']
       @uid_map = IdMap.load(cfg['uid_map'], cfg)
       @gid_map = IdMap.load(cfg['gid_map'], cfg)
+      @attrs = Attributes.load(cfg['attrs'] || {})
     end
   end
 end

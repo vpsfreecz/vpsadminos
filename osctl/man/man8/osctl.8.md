@@ -333,6 +333,18 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-o`, `--output` *parameters*
       Select parameters to output, comma separated.
 
+`user set attr` *name* *vendor*:*key* *value*
+  Set custom user attribute *vendor*:*key* for user *name*. Configured
+  attributes can be read with `user ls` or `user show` using the `-o`, `--output`
+  option.
+
+  The intended attribute naming is *vendor*:*key*, where *vendor* is a reversed
+  domain name and *key* an arbitrary string, e.g.
+  `org.vpsadminos.osctl:declarative`.
+
+`user unset attr` *name* *vendor*:*key*
+  Unset custom user attribute *vendor*:*key* of user *name*.
+
 `ct new` [*options*] *id*
   Create a new container. Selected user and group have to be from the same pool
   the container is being created on.

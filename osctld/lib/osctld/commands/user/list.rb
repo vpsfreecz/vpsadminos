@@ -21,7 +21,7 @@ module OsCtld
           dataset: u.dataset,
           homedir: u.homedir,
           registered: u.registered?,
-        }
+        }.merge!(u.attrs.export)
       end
 
       ok(ret)
