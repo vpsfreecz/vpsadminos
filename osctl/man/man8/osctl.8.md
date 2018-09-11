@@ -222,6 +222,18 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 `pool unset parallel-stop` *name*
   Reset `parallel-stop` to the default value.
 
+`pool set attr` *name* *vendor*:*key* *value*
+  Set custom user attribute *vendor*:*key* for pool *name*. Configured
+  attributes can be read with `pool ls` or `pool show` using the `-o`, `--output`
+  option.
+
+  The intended attribute naming is *vendor*:*key*, where *vendor* is a reversed
+  domain name and *key* an arbitrary string, e.g.
+  `org.vpsadminos.osctl:declarative`.
+
+`pool unset attr` *name* *vendor*:*key*
+  Unset custom user attribute *vendor*:*key* of pool *name*.
+
 `user new` *options* *name*
   Create a new user with user namespace configuration. Option `--ugid` is
   required. UID/GID mapping has to be configured either via option `--map`

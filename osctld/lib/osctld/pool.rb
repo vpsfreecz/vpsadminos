@@ -25,7 +25,8 @@ module OsCtld
     include OsCtl::Lib::Utils::System
     include OsCtl::Lib::Utils::File
 
-    attr_reader :name, :dataset, :state, :migration_key_chain, :autostart_plan
+    attr_reader :name, :dataset, :state, :migration_key_chain, :autostart_plan,
+      :attrs
 
     def initialize(name, dataset)
       @name = name
@@ -33,6 +34,7 @@ module OsCtld
       @state = :active
       @migration_key_chain = Migration::KeyChain.new(self)
       @autostart_plan = AutoStart::Plan.new(self)
+      @attrs = Attributes.new
       init_lock
       load_config
     end
@@ -233,11 +235,15 @@ module OsCtld
     # @param opts [Hash]
     # @option opts [Integer] :parallel_start
     # @option opts [Integer] :parallel_stop
+    # @option opts [Hash] :attrs
     def set(opts)
       opts.each do |k, v|
         case k
         when :parallel_start, :parallel_stop
           instance_variable_set(:"@#{k}", opts[k])
+
+        when :attrs
+          attrs.update(v)
 
         else
           fail "unsupported option '#{k}'"
@@ -248,12 +254,22 @@ module OsCtld
     end
 
     # Reset pool options
-    # @param opts [Array<Symbol>] options to reset
+    # @param opts [Hash]
+    # @option opts [Array<Symbol>] :options
+    # @option opts [Array<String>] :attrs
     def unset(opts)
-      %i(parallel_start parallel_stop).each do |k|
-        next unless opts.include?(k)
+      opts.each do |k, v|
+        case k
+        when :options
+          OPTIONS.each do |opt|
+            next unless v.include?(opt)
 
-        remove_instance_variable(:"@#{k}")
+            remove_instance_variable(:"@#{opt}")
+          end
+
+        when :attrs
+          v.each { |attr| attrs.unset(attr) }
+        end
       end
 
       save_config
@@ -344,6 +360,7 @@ module OsCtld
 
       @parallel_start = cfg['parallel_start']
       @parallel_stop = cfg['parallel_stop']
+      @attrs = Attributes.load(cfg['attrs'] || {})
     end
 
     def default_opts
@@ -366,7 +383,7 @@ module OsCtld
 
     def save_config
       regenerate_file(config_path, 0400) do |f|
-        f.write(YAML.dump(dump_opts))
+        f.write(YAML.dump(dump_opts.merge(attrs.dump)))
       end
     end
 

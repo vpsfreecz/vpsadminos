@@ -159,6 +159,8 @@ module OsCtl::Cli
           set.command 'parallel-stop' do |c|
             c.action &Command.run(Pool, :set, [:parallel_stop])
           end
+
+          set_attr(set, Pool)
         end
 
         p.desc 'Reset pool options'
@@ -174,6 +176,8 @@ module OsCtl::Cli
           unset.command 'parallel-stop' do |c|
             c.action &Command.run(Pool, :unset, [:parallel_stop])
           end
+
+          unset_attr(unset, Pool)
         end
       end
 

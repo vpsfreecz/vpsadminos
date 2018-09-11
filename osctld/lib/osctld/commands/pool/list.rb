@@ -19,7 +19,7 @@ module OsCtld
           containers: DB::Containers.get.count { |v| v.pool == pool },
           parallel_start: pool.parallel_start,
           parallel_stop: pool.parallel_stop,
-        }
+        }.merge!(pool.attrs.export)
       end
 
       ok(ret)

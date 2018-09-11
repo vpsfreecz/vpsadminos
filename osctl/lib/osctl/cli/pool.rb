@@ -29,6 +29,7 @@ module OsCtl::Cli
     )
 
     include Assets
+    include Attributes
 
     def list
       if opts[:list]
@@ -156,6 +157,25 @@ module OsCtl::Cli
       require_args!('name')
 
       osctld_fmt(:pool_unset, name: args[0], options: [key])
+    end
+
+    def set_attr
+      require_args!('name', 'attribute', 'value')
+      do_set_attr(
+        :pool_set,
+        {name: args[0]},
+        args[1],
+        args[2],
+      )
+    end
+
+    def unset_attr
+      require_args!('name', 'attribute')
+      do_unset_attr(
+        :pool_unset,
+        {name: args[0]},
+        args[1],
+      )
     end
   end
 end

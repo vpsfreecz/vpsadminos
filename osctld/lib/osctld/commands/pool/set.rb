@@ -13,18 +13,16 @@ module OsCtld
       pool.exclusively do
         changes = {}
 
-        %i(parallel_start parallel_stop).each do |k|
-          next unless opts[k]
-
+        opts.each do |k, v|
           case k
           when :parallel_start, :parallel_stop
-            v = opts[k].to_i
-            error!("#{k} has to be greater than 0") if v < 1
+            i = opts[k].to_i
+            error!("#{k} has to be greater than 0") if i < 1
 
+            changes[k] = i
+
+          when :attrs
             changes[k] = v
-
-          else
-            fail 'programming error'
           end
         end
 
