@@ -676,6 +676,22 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   Reset the AppArmor profile to the default value, i.e.
   `lxc-container-default-cgns`.
 
+`ct set attr` *id* *vendor*:*key* *value*
+  Set custom user attribute *vendor*:*key* for container *id*. Configured
+  attributes can be read with `ct ls` or `ct show` using the `-o`, `--output`
+  option.
+
+  The intended attribute naming is *vendor*:*key*, where *vendor* is a reversed
+  domain name and *key* an arbitrary string, e.g.
+  `org.vpsadminos.osctl:declarative`.
+
+  User attributes are stored in the container's config file. They are included
+  in the tarball produced by `ct export` and transfered to other nodes by
+  `ct migrate`.
+
+`ct unset attr` *id* *vendor*:*key*
+  Unset custom user attribute *vendor*:*key* of container *id*.
+
 `ct set cpu-limit` *id* *limit*
   Configure CFS bandwidth control cgroup parameters to enforce CPU limit. *limit*
   represents maximum CPU usage in percents, e.g. `100` means the container can

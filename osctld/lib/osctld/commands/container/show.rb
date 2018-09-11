@@ -36,7 +36,7 @@ module OsCtld
           seccomp_profile: ct.seccomp_profile,
           apparmor_profile: ct.apparmor_profile,
           log_file: ct.log_path,
-        })
+        }.merge!(ct.attrs.export))
       end
     end
   end

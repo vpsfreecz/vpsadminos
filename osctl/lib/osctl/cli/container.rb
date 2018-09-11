@@ -13,6 +13,7 @@ module OsCtl::Cli
     include CGroupParams
     include Devices
     include Assets
+    include Attributes
 
     FIELDS = %i(
       pool
@@ -578,6 +579,25 @@ tt
     def unset_memory
       require_args!('id')
       do_unset_memory(:ct_cgparam_unset, id: args[0], pool: gopts[:pool])
+    end
+
+    def set_attr
+      require_args!('id', 'attribute', 'value')
+      do_set_attr(
+        :ct_set,
+        {id: args[0], pool: gopts[:pool]},
+        args[1],
+        args[2],
+      )
+    end
+
+    def unset_attr
+      require_args!('id', 'attribute')
+      do_unset_attr(
+        :ct_unset,
+        {id: args[0], pool: gopts[:pool]},
+        args[1],
+      )
     end
 
     def copy

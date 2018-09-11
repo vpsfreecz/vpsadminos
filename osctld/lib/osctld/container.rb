@@ -18,7 +18,8 @@ module OsCtld
 
     attr_reader :pool, :id, :user, :dataset, :group, :distribution, :version,
       :arch, :autostart, :hostname, :dns_resolvers, :nesting, :prlimits, :mounts,
-      :migration_log, :cgparams, :devices, :seccomp_profile, :apparmor_profile
+      :migration_log, :cgparams, :devices, :seccomp_profile, :apparmor_profile,
+      :attrs
     attr_accessor :state, :init_pid
 
     # @param pool [Pool]
@@ -52,6 +53,7 @@ module OsCtld
       @nesting = false
       @seccomp_profile = nil
       @apparmor_profile = nil
+      @attrs = Attributes.new
 
       if opts[:load]
        load_config(opts[:load_from], !opts.has_key?(:devices) || opts[:devices])
@@ -408,6 +410,9 @@ module OsCtld
 
         when :apparmor_profile
           @apparmor_profile = v
+
+        when :attrs
+          attrs.update(v)
         end
       end
 
@@ -439,6 +444,9 @@ module OsCtld
 
         when :apparmor_profile
           @apparmor_profile = default_apparmor_profile
+
+        when :attrs
+          v.each { |attr| attrs.unset(attr) }
         end
       end
 
@@ -558,6 +566,7 @@ module OsCtld
                              ? nil : seccomp_profile,
         'apparmor_profile' => apparmor_profile == default_apparmor_profile \
                               ? nil : apparmor_profile,
+        'attrs' => attrs.dump,
       }
 
       data['state'] = 'staged' if state == :staged
@@ -620,6 +629,7 @@ module OsCtld
       @migration_log = Migration::Log.load(cfg['migration_log']) if cfg['migration_log']
       @cgparams = CGroup::ContainerParams.load(self, cfg['cgparams'])
       @prlimits = (cfg['prlimits'] || []).map { |v| PrLimit.load(v) }
+      @attrs = Attributes.load(cfg['attrs'] || {})
 
       # It's necessary to load devices _before_ netifs. The device manager needs
       # to create cgroups first, in order for echo a > devices.deny to work.

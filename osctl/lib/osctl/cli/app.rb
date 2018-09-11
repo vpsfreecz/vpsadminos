@@ -657,6 +657,7 @@ module OsCtl::Cli
             c.action &Command.run(Container, :set_apparmor_profile)
           end
 
+          set_attr(set, Container)
           set_limits(set, Container)
         end
 
@@ -698,6 +699,7 @@ module OsCtl::Cli
             c.action &Command.run(Container, :unset_apparmor_profile)
           end
 
+          unset_attr(unset, Container)
           unset_limits(unset, Container)
         end
 
@@ -1543,6 +1545,22 @@ module OsCtl::Cli
       unset.arg_name '<id>'
       unset.command :memory do |c|
         c.action &Command.run(handler, :unset_memory)
+      end
+    end
+
+    def set_attr(set, handler)
+      set.desc 'Set user attribute'
+      set.arg_name '<id> <name> <value>'
+      set.command :attr do |c|
+        c.action &Command.run(handler, :set_attr)
+      end
+    end
+
+    def unset_attr(unset, handler)
+      unset.desc 'Unset user attribute'
+      unset.arg_name '<id> <name>'
+      unset.command :attr do |c|
+        c.action &Command.run(handler, :unset_attr)
       end
     end
 
