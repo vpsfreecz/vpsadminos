@@ -71,6 +71,14 @@ module OsCtld
         #  name: '/dev/tty*', # setup by lxc
           inherit: true,
         )
+        root.devices.add_new(
+          :block, '*', '*', 'm',
+          inherit: true,
+        )
+        root.devices.add_new(
+          :char, '*', '*', 'm',
+          inherit: true,
+        )
         root.devices.apply
         root.save_config
 
