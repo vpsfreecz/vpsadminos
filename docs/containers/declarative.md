@@ -1,0 +1,169 @@
+# Declarative containers
+Declarative containers are defined in Nix configuration along with your
+vpsAdminOS nodes, like [NixOS containers] are. Declarative containers
+are not created and configured imperatively using *osctl* in the terminal.
+When you wish to create or change a declarative container, you edit your Nix
+configuration files and [redeploy][deployment] or [update][updates] the host
+node. Once deployed, declarative containers can be controlled along with your
+imperative containers using *osctl*.
+
+## Example configuration
+Declarative configuration mirrors the imperative approach. You can define and
+configure users, groups and containers. Configurations are bound to specific
+ZFS pools. First make sure that you have [defined some ZFS pool][pools], this
+document uses pool `tank`. The following example configuration defines one user
+and a container:
+
+```nix
+osctl.pools.tank = {
+  # This is equivalent to
+  #   osctl --pool tank user new --ugid 5000 --map 0:666000:65536 sample
+  users.sample = let mapping = [ "0:666000:65536" ]; in {
+    ugid = 5000;
+    uidMap = mapping;
+    gidMap = mapping;
+  };
+
+  containers.myct01 = {
+    # Equivalent to
+    #   osctl --pool tank ct new --user sample
+    user = "sample";
+
+    # Nix configuration
+    config =
+      { config, pkgs, ... }:
+      {
+        # Here you'd put the container's configuration
+      };
+
+    # Equivalent to
+    #   osctl ct netif new bridge --link lxcbr0 tank:myct01 eth0
+    interfaces = [
+      {
+        name = "eth0";
+        type = "bridge";
+        link = "lxcbr0";
+      }
+    ];
+
+    # Start the container when the host boots, equivalent to
+    #   osctl ct set autostart tank:myct01
+    autostart.enable = true;
+  };
+};
+```
+
+When you deploy the vpsAdminOS node with this configuration, container
+`myct01` will be created on pool `tank`.
+
+For more examples, see directory [os/configs/containers][examples] in vpsAdminOS
+source repository.
+
+## Inner workings
+All declared users, groups and containers are represented by runit services.
+For users, there is service `users-<pool>`, for groups there is `groups-<pool>`
+and for containers there are services named as `ct-<pool>-<id>`. For the example
+above, the names would be `users-tank`, `groups-tank` and `ct-tank-myct01`.
+These services create and modify declared users, groups and containers. Their
+logs can be found either in syslog or in an appropriate folder in `/var/log`.
+
+## Removing undeclared entities
+If you declare a container, deploy, then remove it from configuration
+and redeploy the system, the created container will be stopped, but not destroyed.
+This is the default behaviour to prevent accidental data loss. Destroying
+of undeclared containers is controlled by option
+`osctl.pools.<pool>.destroyUndeclared`:
+
+```nix
+osctl.pools.tank = {
+  ...
+  destroyUndeclared = true/false;
+  ...
+};
+```
+
+If your pool should contain **only** declarative containers. To remove all
+imperatively created users, groups and containers, you can set option
+`osctl.pools.<pool>.pure`:
+
+```nix
+osctl.pools.tank = {
+  ...
+  pure = true/false;
+  ...
+};
+```
+
+`destroyUndeclared` and `pure` control all users, groups and containers on
+the specified pool. Undeclared and imperatively created entities are cleared
+by runit services called `gc-<pool>`, e.g. `gc-tank`.
+
+## Declarative devices
+In order to grant access to devices declaratively, you need to understand
+the [devices access trees][devices]. To give a container access to a device,
+it needs to be allowed in all parent groups, starting from the root group.
+
+The simplest approach is to allow access to a device in the root group and let
+all other groups and containers inherit it. The root group, however, is
+a special kind of group that grants access to a basic set of devices that every
+container needs. Thus, when you're configuring devices of the root group, you
+must also include the standard devices. List of these devices is stored in
+`<vpsadminos/os/modules/osctl/standard-devices.nix>`. For example, to allow
+access to `/dev/fuse` for all containers, you could do:
+
+```nix
+osctl.pools.tank = {
+  groups."/" = {
+    devices = (import <vpsadminos/os/modules/osctl/standard-devices.nix>) ++ [
+      {
+        name = "/dev/fuse";
+        type = "char";
+        major = "229";
+        minor = "10";
+        mode = "rwm";
+      }
+    ];
+  };
+}
+```
+
+To give access only to a selected group, you'd have to prevent other groups
+from inheriting the device by setting `provide = false`:
+
+```nix
+osctl.pools.tank = {
+  groups."/" = {
+    devices = (import <vpsadminos/os/modules/osctl/standard-devices.nix>) ++ [
+      {
+        name = "/dev/fuse";
+        type = "char";
+        major = "229";
+        minor = "10";
+        mode = "rwm";
+        provide = false;  # Do not let child groups to inherit this device
+      }
+    ];
+  };
+
+  groups."/with-fuse" = {
+    devices = [
+      {
+        name = "/dev/fuse";
+        type = "char";
+        major = "229";
+        minor = "10";
+        mode = "rwm";
+      }
+    ];
+  };
+}
+```
+
+Now, only containers in group `/with-fuse` will have access to the device.
+
+[NixOS containers]: https://nixos.org/nixos/manual/index.html#sec-declarative-containers
+[deployment]: ../os/deployment.md
+[updates]: ../os/updates.md
+[pools]: ../os/pools.md
+[examples]: https://github.com/vpsfreecz/vpsadminos/tree/master/os/configs/containers
+[devices]: ./devices.md
