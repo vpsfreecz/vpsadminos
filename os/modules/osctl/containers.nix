@@ -10,10 +10,11 @@ let
 
   addrToStr = a: "${a.address}/${toString a.prefixLength}";
   boolToStr = x: if x then "true" else "false";
+  nullIfEmpty = s: if s == "" then null else s;
 
   buildDevices = devices: map (dev: {
     inherit (dev) type major minor mode;
-    name = if dev.name == "" then null else dev.name;
+    name = nullIfEmpty dev.name;
   }) devices;
 
   mkService = pool: name: cfg: (
@@ -39,6 +40,8 @@ let
         hostname = name;
         dns_resolvers = cfg.resolvers;
         nesting = boolToStr cfg.nesting;
+        seccomp_profile = nullIfEmpty cfg.seccomp;
+        apparmor_profile = nullIfEmpty cfg.apparmor;
       };
       
       yml = pkgs.writeText "container-${name}.yml" (builtins.toJSON conf);
@@ -548,6 +551,20 @@ let
 
       autostart = mkAutostartOption;
       nesting = mkEnableOption "Enable container nesting";
+
+      seccomp = mkOption {
+        type = types.str;
+        default = "";
+        example = "/run/osctl/configs/lxc/common.seccomp";
+        description = "Path to seccomp profile";
+      };
+
+      apparmor = mkOption {
+        type = types.str;
+        default = "";
+        example = "osctl-ct-default";
+        description = "Name of AppArmor profile";
+      };
     };
     
     config = mkMerge [
