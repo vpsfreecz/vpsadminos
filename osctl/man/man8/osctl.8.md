@@ -1057,6 +1057,23 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   Apply all cgroup parameters defined for container *id*, its group and all
   its parent groups, all the way up to the root group.
 
+`ct cgparams replace` *id*
+  Replace all configured cgroup parameters by data in JSON read from standard
+  input. The data has to be in the following format:
+
+```
+{
+  "parameters": [
+    {
+      "subsystem": <cgroup subsystem>,
+      "parameter": <parameter name>,
+      "value": [ values ]
+    }
+    ...
+  ]
+}
+```
+
 `ct devices ls` [*options*] *id*
   List configured devices.
 

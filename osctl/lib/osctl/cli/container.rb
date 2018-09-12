@@ -875,6 +875,11 @@ tt
       do_cgparam_apply(:ct_cgparam_apply, id: args[0], pool: gopts[:pool])
     end
 
+    def cgparam_replace
+      require_args!('name')
+      do_cgparam_replace(:ct_cgparam_replace, id: args[0], pool: gopts[:pool])
+    end
+
     def device_list
       require_args!('id')
       do_device_list(:ct_device_list, id: args[0], pool: gopts[:pool])
