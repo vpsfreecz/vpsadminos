@@ -238,5 +238,10 @@ module OsCtl::Cli
       require_args!('name', 'type', 'major', 'minor')
       do_device_unset_inherit(:group_device_unset_inherit, name: args[0], pool: gopts[:pool])
     end
+
+    def device_replace
+      require_args!('name')
+      do_device_replace(:group_device_replace, name: args[0], pool: gopts[:pool])
+    end
   end
 end

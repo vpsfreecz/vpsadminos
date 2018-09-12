@@ -1714,6 +1714,32 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   and containers, that have previously inherited it. Promoted devices are left
   alone.
 
+`group devices replace` *name*
+  Replace the configured devices by a new set of devices read from standard
+  input in JSON. All devices read from the JSON will be promoted. The user
+  is responsible for ensuring that the configured devices are provided by
+  parent groups and that removed devices are not needed by child groups or
+  containers. Use other `group devices` commands if you wish for `osctld`
+  to enforce these rules.
+
+  The data has to be in the following format:
+
+```
+{
+  "devices": [
+    {
+      "dev_name": <optional device node>,
+      "type": block|char,
+      "major": <major number or asterisk>,
+      "minor": <minor number or asterisk>,
+      "mode": <combinations of r,w,m>,
+      "inherit": true|false
+    }
+    ...
+  ]
+}
+```
+
 `group set cpu-limit` *name* *limit*
   Configure CFS bandwidth control cgroup parameters to enforce CPU limit. *limit*
   represents maximum CPU usage in percents, e.g. `100` means the container can

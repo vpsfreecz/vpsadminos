@@ -1666,6 +1666,12 @@ module OsCtl::Cli
             c.action &Command.run(handler, :device_unset_inherit)
           end
         end
+
+        dev.desc 'Replace configured devices by a new set'
+        dev.arg_name '<name>'
+        dev.command :replace do |c|
+          c.action &Command.run(handler, :device_replace)
+        end
       end
     end
   end

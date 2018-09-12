@@ -118,5 +118,11 @@ module OsCtl
         minor: args[3],
       ))
     end
+
+    def do_device_replace(cmd, cmd_opts)
+      osctld_fmt(cmd, cmd_opts.merge(
+        devices: JSON.parse(STDIN.read)['devices'],
+      ))
+    end
   end
 end

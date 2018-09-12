@@ -102,6 +102,16 @@ module OsCtld
       error(e.message)
     end
 
+    def replace(entity)
+      devices = opts[:devices].map { |v| Devices::Device.import(v) }
+
+      entity.devices.replace(devices)
+      ok
+
+    rescue DeviceNotAvailable, DeviceModeInsufficient => e
+      error(e.message)
+    end
+
     protected
     def check_mode!
       if /^[rwm]{1,3}$/ !~ opts[:mode] || /(.)\1+/ =~ opts[:mode]

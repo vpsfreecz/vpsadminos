@@ -122,9 +122,9 @@ module OsCtld
     end
 
     def inherit_promoted(device)
-      pdev = group.parent.devices.get(device)
+      pdev = group.parent.devices.get(device) unless group.root?
 
-      if pdev.inherit?
+      if pdev && pdev.inherit?
         # We can keep the device and descendants unchanged
         device.inherited = true
 

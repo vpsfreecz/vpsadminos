@@ -125,6 +125,56 @@ module OsCtld
       devices.each { |dev| do_allow_dev(dev) }
     end
 
+    # Replace configured devices by a new set
+    #
+    # `new_devices` has to contain devices that are to be promoted. Devices
+    # that were promoted but are no longer in `new_devices` will be removed.
+    # Devices that are inherited from parent groups are promoted if they're
+    # in `new_devices`, otherwire they're left alone.
+    #
+    # Note that this method does not enforce nor manage proper parent/descendant
+    # dependencies. It is possible to add a device which is not provided by
+    # parents or to remove a device that is needed by descendants.
+    #
+    # @param devices [Array<Devices::Device>]
+    def replace(new_devices)
+      to_add = []
+      to_inherit = []
+      to_promote = []
+      to_chmod = []
+
+      # Find devices to promote, chmod and remove/inherit
+      devices.each do |cur_dev|
+        found = new_devices.detect { |new_dev| new_dev == cur_dev }
+
+        if found.nil?
+          to_inherit << cur_dev unless cur_dev.inherited?
+
+        elsif found.inherited?
+          if found.mode == cur_dev.mode
+            to_promote << cur_dev
+          else
+            to_chmod << [cur_dev, found.mode]
+          end
+
+        elsif found.mode != cur_dev.mode
+          to_chmod << [cur_dev, found.mode]
+        end
+      end
+
+      # Find devices to add
+      new_devices.each do |new_dev|
+        found = devices.detect { |cur_dev| cur_dev == new_dev }
+        to_add << new_dev if found.nil?
+      end
+
+      # Apply changes
+      to_add.each { |dev| add(dev) }
+      to_promote.each { |dev| promote(dev) }
+      to_chmod.each { |dev, mode| chmod(dev, mode, promote: true) }
+      to_inherit.each { |dev| inherit_promoted(dev) }
+    end
+
     # Check whether the device is available in parent groups
     def check_availability!(device, group, mode: nil)
       ([group] + group.parents.reverse).each do |grp|
