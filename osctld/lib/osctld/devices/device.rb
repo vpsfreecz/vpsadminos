@@ -2,10 +2,12 @@ module OsCtld
   class Devices::Device
     # Load from config
     def self.load(hash)
+      major = hash['major'].to_s
+      minor = hash['minor'].to_s
       new(
         hash['type'].to_sym,
-        hash['major'],
-        hash['minor'],
+        major == 'all' ? '*' : major,
+        minor == 'all' ? '*' : minor,
         hash['mode'],
         name: hash['name'],
         inherit: hash['inherit']
@@ -16,8 +18,8 @@ module OsCtld
     def self.import(hash)
       new(
         hash[:type].to_sym,
-        hash[:major],
-        hash[:minor],
+        hash[:major].to_s,
+        hash[:minor].to_s,
         hash[:mode],
         name: hash[:dev_name],
         inherit: hash[:inherit]
@@ -111,15 +113,7 @@ module OsCtld
     # @param opts [Hash]
     # @option opts [Devices::Mode, String] :mode
     def to_s(opts = {})
-      n = [major, minor].map do |v|
-        if v == :all
-          '*'
-        else
-          v
-        end
-      end
-
-      "#{type_s} #{n[0]}:#{n[1]} #{opts[:mode] || mode || 'rwm'}"
+      "#{type_s} #{major}:#{minor} #{opts[:mode] || mode || 'rwm'}"
     end
 
     def ==(other)

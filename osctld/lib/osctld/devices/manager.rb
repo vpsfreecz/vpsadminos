@@ -29,7 +29,7 @@ module OsCtld
     end
 
     def add_new(type, major, minor, mode, opts = {})
-      add(Devices::Device.new(type, major, minor, mode, opts))
+      add(Devices::Device.new(type, major.to_s, minor.to_s, mode, opts))
     end
 
     # Add new device and ensure that parent groups provide it
