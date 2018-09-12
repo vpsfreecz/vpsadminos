@@ -1143,6 +1143,31 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   Note that if the parent group does not have the device set as inheritable,
   it will be removed from the container.
 
+`ct devices replace` *name*
+  Replace the configured devices by a new set of devices read from standard
+  input in JSON. All devices read from the JSON will be promoted. The user
+  is responsible for ensuring that the configured devices are provided by
+  parent groups. Use other `ct devices` commands if you wish for `osctld`
+  to enforce this rule.
+
+  The data has to be in the following format:
+
+```
+{
+  "devices": [
+    {
+      "dev_name": <optional device node>,
+      "type": block|char,
+      "major": <major number or asterisk>,
+      "minor": <minor number or asterisk>,
+      "mode": <combinations of r,w,m>,
+      "inherit": true|false
+    }
+    ...
+  ]
+}
+```
+
 `ct prlimits ls` *id* [*limits...*]
   List configured resource limits. If no *limits* are provided, all configured
   limits are listed.

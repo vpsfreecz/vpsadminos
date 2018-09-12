@@ -920,6 +920,11 @@ tt
       do_device_unset_inherit(:ct_device_unset_inherit, id: args[0], pool: gopts[:pool])
     end
 
+    def device_replace
+      require_args!('id')
+      do_device_replace(:ct_device_replace, id: args[0], pool: gopts[:pool])
+    end
+
     def prlimit_list
       if opts[:list]
         puts PRLIMIT_FIELDS.join("\n")
