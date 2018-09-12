@@ -171,8 +171,12 @@ module OsCtld
       # Apply changes
       to_add.each { |dev| add(dev) }
       to_promote.each { |dev| promote(dev) }
-      to_chmod.each { |dev, mode| chmod(dev, mode, promote: true) }
+      to_chmod.each do |dev, mode|
+        chmod(dev, mode, promote: true, descendants: true, containers: true)
+      end
       to_inherit.each { |dev| inherit_promoted(dev) }
+
+      apply(descendants: true, containers: true)
     end
 
     # Check whether the device is available in parent groups
