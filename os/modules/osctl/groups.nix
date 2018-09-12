@@ -26,7 +26,7 @@ let
       devices = {
         devices = map (dev: {
           inherit (dev) type major minor mode;
-          dev_name = dev.name;
+          dev_name = if dev.name == "" then null else dev.name;
           "inherit" = dev.provide;
         }) cfg.devices;
       };

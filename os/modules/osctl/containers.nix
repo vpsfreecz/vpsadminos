@@ -11,6 +11,11 @@ let
   addrToStr = a: "${a.address}/${toString a.prefixLength}";
   boolToStr = x: if x then "true" else "false";
 
+  buildDevices = devices: map (dev: {
+    inherit (dev) type major minor mode;
+    name = if dev.name == "" then null else dev.name;
+  }) devices;
+
   mkService = pool: name: cfg: (
     let
       osctl = "${pkgs.osctl}/bin/osctl";
@@ -27,7 +32,7 @@ let
         arch = "${toString (head (splitString "-" system))}";
         net_interfaces = cfg.interfaces;
         cgparams = shared.buildCGroupParams cfg.cgparams;
-        devices = cfg.devices;
+        devices = buildDevices cfg.devices;
         prlimits = cfg.prlimits;
         mounts = cfg.mounts;
         autostart = null; # autostart is handled by the runit service
