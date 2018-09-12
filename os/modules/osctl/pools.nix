@@ -10,6 +10,22 @@ let
 
   pool = {
     options = {
+      parallelStart = mkOption {
+        type = types.ints.positive;
+        default = 2;
+        description = ''
+          Number of containers to start in parallel during pool import.
+        '';
+      };
+
+      parallelStop = mkOption {
+        type = types.ints.positive;
+        default = 4;
+        description = ''
+          Number of containers to stop in parallel during pool export.
+        '';
+      };
+
       users = mkOption {
         type = types.attrsOf (types.submodule users.type);
         default = {};

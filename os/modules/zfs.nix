@@ -90,6 +90,12 @@ let
         ${osctl} pool install ${name} || exit 1
       fi
 
+      ${optionalString (hasAttr name config.osctl.pools) ''
+      echo "Configuring osctl pool"
+      ${osctl} pool set parallel-start ${name} ${toString config.osctl.pools.${name}.parallelStart}
+      ${osctl} pool set parallel-stop ${name} ${toString config.osctl.pools.${name}.parallelStop}
+      ''}
+
       # TODO: this could be option runit.services.<service>.autoRestart = always/on-failure;
       sv once pool-${name}
     '';
