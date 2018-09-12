@@ -63,7 +63,7 @@ module OsCtl
                 next v
               end
 
-              humanize_data(v)
+              humanize_data(v.to_i)
             end.join('; ')
           end
         }
