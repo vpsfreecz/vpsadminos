@@ -125,6 +125,22 @@ module OsCtld
       end
     end
 
+    # Replace all parameters by a new list of parameters
+    # @param new_params [Array<CGroup::Param>]
+    # @param save [Boolean] update the owner's config file
+    def replace(new_params, save: true, &block)
+      @params.each do |p|
+        found = new_params.detect do |n|
+          n.subsystem == p.subsystem && n.name == p.name
+        end
+
+        reset(p, true, &block) unless found
+      end
+
+      @params = new_params
+      owner.save_config if save
+    end
+
     # Reset cgroup parameter to its initial/unlimited value.
     #
     # Only a limited subset of cgroup parameters is supported.
@@ -137,7 +153,8 @@ module OsCtld
       v = reset_value(param)
       return unless v
 
-      CGroup.set_param(File.join(yield(param.subsystem), param.name), v)
+      path = File.join(yield(param.subsystem), param.name)
+      CGroup.set_param(path, v)
 
     rescue CGroupFileNotFound
       raise unless keep_going

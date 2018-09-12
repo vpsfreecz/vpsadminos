@@ -107,6 +107,12 @@ module OsCtl
       osctld_fmt(cmd, cmd_opts)
     end
 
+    def do_cgparam_replace(cmd, cmd_opts)
+      osctld_fmt(cmd, cmd_opts.merge(
+        parameters: JSON.parse(STDIN.read)['parameters'],
+      ))
+    end
+
     def do_set_cpu_limit(cmd, cmd_opts)
       quota = args[1].to_f / 100 * opts[:period]
 

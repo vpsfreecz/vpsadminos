@@ -69,6 +69,24 @@ module OsCtld
       ok
     end
 
+    def replace(groupable)
+      groupable.cgparams.replace(
+        groupable.cgparams.import(opts[:parameters])
+      ) do |subsystem|
+        if groupable.respond_to?(:abs_apply_cgroup_path)
+          groupable.abs_apply_cgroup_path(subsystem)
+
+        else
+          groupable.abs_cgroup_path(subsystem)
+        end
+      end
+
+      apply(groupable)
+
+    rescue CGroupSubsystemNotFound, CGroupParameterNotFound => e
+      error(e.message)
+    end
+
     protected
     def info(groupable)
       ret = []

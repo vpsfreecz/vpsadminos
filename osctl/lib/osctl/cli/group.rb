@@ -194,6 +194,11 @@ module OsCtl::Cli
       do_cgparam_apply(:group_cgparam_apply, name: args[0], pool: gopts[:pool])
     end
 
+    def cgparam_replace
+      require_args!('name')
+      do_cgparam_replace(:group_cgparam_replace, name: args[0], pool: gopts[:pool])
+    end
+
     def device_list
       require_args!('name')
       do_device_list(:group_device_list, name: args[0], pool: gopts[:pool])

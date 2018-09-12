@@ -1530,6 +1530,12 @@ module OsCtl::Cli
         p.command :apply do |c|
           c.action &Command.run(handler, :cgparam_apply)
         end
+
+        p.desc 'Replace configured parameters by a new set'
+        p.arg_name '<name>'
+        p.command :replace do |c|
+          c.action &Command.run(handler, :cgparam_replace)
+        end
       end
     end
 
