@@ -1,4 +1,4 @@
-{ config, lib, pkgs, utils, shared, ... }:
+{ config, lib, pkgs, utils, shared, ... }@args:
 with utils;
 with lib;
 
@@ -17,12 +17,21 @@ let
     name = nullIfEmpty dev.name;
   }) devices;
 
+  backends = {
+    nixos = import ./containers/nixos.nix args;
+    template = import ./containers/template.nix args;
+  };
+
+  backendFor = cfg:
+    if cfg.distribution == null && cfg.template.type == "remote" then
+      backends.nixos
+    else
+      backends.template;
+
   mkService = pool: name: cfg: (
     let
       osctl = "${pkgs.osctl}/bin/osctl";
       osctlPool = "${osctl} --pool ${pool}";
-      toplevel = cfg.path;
-      closureInfo = pkgs.closureInfo { rootPaths = [ toplevel ]; };
 
       osHooks = [ "pre-create" "on-create" "post-create" ];
 
@@ -74,9 +83,9 @@ let
         user = cfg.user;
         group = cfg.group;
         dataset = "${pool}/ct/${name}";
-        distribution = "nixos";
-        version = "18.09";
-        arch = "${toString (head (splitString "-" system))}";
+        distribution = if cfg.distribution == null then "nixos" else cfg.distribution;
+        version = if cfg.version == null then "18.09" else cfg.version;
+        arch = if cfg.arch == null then (toString (head (splitString "-" system))) else cfg.arch;
         net_interfaces = cfg.interfaces;
         cgparams = shared.buildCGroupParams cfg.cgparams;
         devices = buildDevices cfg.devices;
@@ -91,200 +100,17 @@ let
       };
       
       yml = pkgs.writeText "container-${name}.yml" (builtins.toJSON conf);
-      
+
+      backend = backendFor cfg;
+
+      backendArgs = {
+        inherit pool name cfg;
+        inherit osctl osctlPool hooks hookCaller conf yml;
+        inherit boolToStr;
+      };
+
     in {
-      run = ''
-        ${osctl} pool show ${pool} &> /dev/null
-        hasPool=$?
-        if [ "$hasPool" != "0" ] ; then
-          echo "Waiting for pool ${pool}"
-          exit 1
-        fi
-        
-        ${osctlPool} user show ${cfg.user} &> /dev/null
-        hasUser=$?
-        if [ "$hasUser" != "0" ] ; then
-          echo "Waiting for user ${pool}:${cfg.user}"
-          exit 1
-        fi
-        
-        ${osctlPool} group show ${cfg.group} &> /dev/null
-        hasGroup=$?
-        if [ "$hasGroup" != "0" ] ; then
-          echo "Waiting for group ${pool}:${cfg.group}"
-          exit 1
-        fi
-
-        mkdir -p /nix/var/nix/profiles/per-container
-        mkdir -p /nix/var/nix/gcroots/per-container
-
-        ln -sf ${toplevel} /nix/var/nix/profiles/per-container/${name}
-        ln -sf ${toplevel} /nix/var/nix/gcroots/per-container/${name}
-        
-        ${osctlPool} ct show ${name} &> /dev/null
-        hasCT=$?
-        if [ "$hasCT" == "0" ] ; then
-          echo "Container ${pool}:${name} already exists"
-          lines=( $(${osctlPool} ct show -H -o rootfs,state,user,group,org.vpsadminos.osctl:config ${name}) )
-          if [ "$?" != 0 ] ; then
-            echo "Unable to get the container's status"
-            exit 1
-          fi
-
-          rootfs="''${lines[0]}"
-          currentState="''${lines[1]}"
-          currentUser="''${lines[2]}"
-          currentGroup="''${lines[3]}"
-          currentConfig="''${lines[4]}"
-
-          if [ "${cfg.user}" != "$currentUser" ] \
-             || [ "${cfg.group}" != "$currentGroup" ] \
-             || [ "${yml}" != "$currentConfig" ] ; then
-            echo "Reconfiguring the container"
-
-            if [ "$currentState" != "stopped" ] ; then
-              ${osctlPool} ct stop ${name}
-              originalState="$currentState"
-              currentState="stopped"
-            fi
-
-            if [ "${cfg.user}" != "$currentUser" ] ; then
-              echo "Changing user from $currentUser to ${cfg.user}"
-              ${osctlPool} ct chown ${name} ${cfg.user} || exit 1
-            fi
-
-            if [ "${cfg.group}" != "$currentGroup" ] ; then
-              echo "Changing group from $currentGroup to ${cfg.group}"
-              ${osctlPool} ct chgrp ${name} ${cfg.group} || exit 1
-            fi
-
-            if [ "${yml}" != "$currentConfig" ] ; then
-              echo "Replacing config"
-              cat ${yml} | ${osctlPool} ct config replace ${name} || exit 1
-              ${osctlPool} ct set attr ${name} org.vpsadminos.osctl:config ${yml}
-              ${osctlPool} ct set attr ${name} org.vpsadminos.osctl:declarative yes
-            fi
-          fi
-
-        else
-          echo "Creating container '${name}'"
-
-          ${optionalString (cfg.hooks.pre-create != null) ''
-            echo "Executing pre-create script hook"
-            ${hookCaller "pre-create" cfg.hooks.pre-create}
-            preStartStatus=$?
-            case $preStartStatus in
-              0) ;;
-              2)
-                echo "pre-create hook exited with 2, aborting"
-                sv once ct-${pool}-${name}
-                exit 1
-                ;;
-              *)
-                echo "pre-create hook exited with $preStartStatus, restarting"
-                exit 1
-                ;;
-            esac
-          ''}
-
-          ${osctlPool} ct new \
-                              --user ${cfg.user} \
-                              --group ${cfg.group} \
-                              --distribution nixos \
-                              --version ${conf.version} \
-                              --arch ${conf.arch} \
-                              --skip-template \
-                              ${name} || exit 1
-
-          cat ${yml} | ${osctlPool} ct config replace ${name} || exit 1
-          ${osctlPool} ct set attr ${name} org.vpsadminos.osctl:declarative yes
-          ${osctlPool} ct set attr ${name} org.vpsadminos.osctl:config ${yml}
-
-          rootfs="$(${osctlPool} ct show -H -o rootfs ${name})"
-          mkdir "$rootfs/dev" "$rootfs/etc" "$rootfs/proc" "$rootfs/run" \
-                "$rootfs/sbin" "$rootfs/sys"
-          ln -sf /nix/var/nix/profiles/system "$rootfs/run/current-system"
-          ln -sf "${toplevel}/init" "$rootfs/sbin/init"
-
-          createdContainer=y
-        fi
-
-        echo "Populating /nix/store"
-        mkdir -p "$rootfs/nix/store" \
-                 "$rootfs/nix/var/nix/gcroots" \
-                 "$rootfs/nix/var/nix/profiles"
-
-        ln -sf /run/current-system "$rootfs/nix/var/nix/gcroots/current-system"
-
-        count=$(cat ${closureInfo}/store-paths | wc -l)
-        i=1
-
-        for storePath in $(cat ${closureInfo}/store-paths) ; do
-          dst="$rootfs/''${storePath:1}"
-
-          if [ -e "$dst" ] ; then
-            echo "[$i/$count] Found $storePath"
-
-          else
-            echo "[$i/$count] Copying $storePath"
-            cp -a $storePath $dst
-          fi
-          
-          i=$(($i+1))
-        done
-
-        echo "Installing user script hooks"
-        lines=( $(zfs get -Hp -o value mountpoint,org.vpsadminos.osctl:dataset ${pool}) )
-        mountpoint="''${lines[0]}"
-        osctlDataset="''${lines[1]}"
-
-        [ "$osctlDataset" != "-" ] \
-          && mountpoint="$(zfs get -Hp -o value mountpoint $osctlDataset)"
-
-        hookDir="$mountpoint/hook/ct/${name}"
-
-        rm -f "$hookDir/*"
-        ${hooks}
-
-        currentSystem=$(realpath "$rootfs/nix/var/nix/profiles/system")
-
-        if [ "$?" != "0" ] || [ "$currentSystem" != "${toplevel}" ] ; then
-          echo "Configuring current system"
-          cat ${closureInfo}/registration >> "$rootfs/nix-path-registration"
-          ln -sf ${toplevel} "$rootfs/nix/var/nix/profiles/system"
-          ln -sf ${toplevel}/init "$rootfs/sbin/init"
-          
-          if [ "$currentState" == "running" ] ; then
-            echo "Switching to ${toplevel}"
-            ${osctlPool} ct exec ${name} ${toplevel}/bin/switch-to-configuration switch
-          fi
-
-        else
-          echo "System up-to-date"
-        fi
-
-        if [ "$createdContainer" == "y" ] ; then
-          ${optionalString (cfg.hooks.on-create != null) ''
-            echo "Executing on-create script hook"
-            ${hookCaller "on-create" cfg.hooks.on-create}
-          ''}
-        fi
-
-        if [ "$originalState" == "running" ] \
-           || ${boolToStr (cfg.autostart != null)} ; then
-          echo "Starting container ${pool}:${name}"
-          ${osctlPool} ct start ${name}
-        fi
-
-        if [ "$createdContainer" == "y" ] ; then
-          ${optionalString (cfg.hooks.post-create != null) ''
-            echo "Executing post-create script hook"
-            ${hookCaller "post-create" cfg.hooks.post-create}
-          ''}
-        fi
-
-        sv once ct-${pool}-${name}
-      '';
+      run = backend.serviceRun backendArgs;
 
       log.enable = true;
       log.sendTo = "127.0.0.1";
@@ -626,6 +452,76 @@ let
       };
 
       # per container
+      distribution = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = ''
+          Name of the distribution to install.
+        '';
+      };
+
+      version = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = ''
+          Version of the distribution to install.
+        '';
+      };
+
+      arch = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = ''
+          Architecture of the distribution to install, must be compatible with
+          the host's architecture.
+        '';
+      };
+
+      vendor = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = ''
+          Template vendor for use with osctl remote repositories.
+        '';
+      };
+
+      variant = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = ''
+          Template variant for use with osctl remote repositories.
+        '';
+      };
+
+      template = {
+        type = mkOption {
+          type = types.enum [ "remote" "archive" "stream" ];
+          default = "remote";
+          description = ''
+            Defines where to get the distribution template. Use
+            <literal>remote</literal> to download templates from vpsAdminOS
+            repositories, <literal>archive</literal> to use your own tar archive
+            and <literal>stream</literal> to use your own gzipped ZFS stream.
+
+            When set to <literal>archive</literal> or <literal>stream</literal>,
+            option
+            <option>osctl.pools.<pool>.containters.<container>.template.path</option>
+            has to be set as well.
+          '';
+        };
+
+        path = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          description = ''
+            Path to tar archive or ZFS stream file containing the container's
+            template if option
+            <option>osctl.pools.<pool>.containters.<container>.template.type</option>
+            is set to <literal>archive</literal> or <literal>stream</literal>.
+          '';
+        };
+      };
+
       cgparams = shared.mkCGParamsOption;
       devices = shared.mkDevicesOption;
       prlimits = mkPrlimitsOption;
