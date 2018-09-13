@@ -63,6 +63,11 @@ module OsCtl::Cli
       osctld_fmt(:repo_disable, pool: gopts[:pool], name: args[0])
     end
 
+    def set_url
+      require_args!('name', 'url')
+      osctld_fmt(:repo_set, name: args[0], pool: gopts[:pool], url: args[1])
+    end
+
     def set_attr
       require_args!('name', 'attribute', 'value')
       do_set_attr(

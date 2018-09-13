@@ -15,7 +15,7 @@ module OsCtld
 
         opts.each do |k, v|
           case k
-          when :attrs
+          when :url, :attrs
             changes[k] = v
           end
         end

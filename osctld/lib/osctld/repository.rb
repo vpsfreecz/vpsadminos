@@ -66,6 +66,9 @@ module OsCtld
     def set(opts)
       opts.each do |k, v|
         case k
+        when :url
+          @url = v
+
         when :attrs
           attrs.update(v)
 

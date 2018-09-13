@@ -1395,6 +1395,12 @@ module OsCtl::Cli
 
         r.desc 'Configure repository'
         r.command :set do |set|
+          set.desc 'Change repository URL'
+          set.arg_name '<name> <url>'
+          set.command :url do |c|
+            c.action &Command.run(Repository, :set_url)
+          end
+
           set_attr(set, Repository)
         end
 
