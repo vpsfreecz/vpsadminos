@@ -1016,7 +1016,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Do not show header, useful for scripting.
 
     `-L`, `--list`
-      List available parameters adn exit.
+      List available parameters and exit.
     
     `-o`, `--output` *parameters*
       Select parameters to output.
@@ -1176,7 +1176,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
         Do not show header, useful for scripting.
 
     `-L`, `--list`
-      List available parameters adn exit.
+      List available parameters and exit.
 
     `-o`, `--output` *parameters*
       Select parameters to output.
@@ -1597,7 +1597,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Do not show header, useful for scripting.
 
     `-L`, `--list`
-      List available parameters adn exit.
+      List available parameters and exit.
     
     `-o`, `--output` *parameters*
       Select parameters to output.
@@ -1835,7 +1835,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Do not show header, useful for scripting.
 
     `-L`, `--list`
-      List available parameters adn exit.
+      List available parameters and exit.
     
     `-o`, `--output` *parameters*
       Select parameters to output.
@@ -1889,7 +1889,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Do not show header, useful for scripting.
 
     `-L`, `--list`
-      List available parameters adn exit.
+      List available parameters and exit.
     
     `-o`, `--output` *parameters*
       Select parameters to output.
