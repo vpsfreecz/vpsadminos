@@ -155,11 +155,13 @@ more powerful configuration management like Ansible, Salt or Puppet.
 
 ## Inner workings
 All declared users, groups and containers are represented by runit services.
-For users, there is service `users-<pool>`, for groups there is `groups-<pool>`
-and for containers there are services named as `ct-<pool>-<id>`. For the example
-above, the names would be `users-tank`, `groups-tank` and `ct-tank-myct01`.
-These services create and modify declared users, groups and containers. Their
-logs can be found either in syslog or in an appropriate folder in `/var/log`.
+For users, there is service `users-<pool>`, for groups there is `groups-<pool>`,
+for template repositories `repositories-<pool>` and for containers there are
+services named as `ct-<pool>-<id>`. For the example above, the names would be
+`users-tank`, `groups-tank`, `repositories-tank` and `ct-tank-myct01`.
+These services create and modify declared users, groups, repositories and
+containers. Their logs can be found either in syslog or in an appropriate folder
+in `/var/log`.
 
 ## Removing undeclared entities
 If you declare a container, deploy, then remove it from configuration
@@ -177,8 +179,8 @@ osctl.pools.tank = {
 ```
 
 If your pool should contain **only** declarative containers. To remove all
-imperatively created users, groups and containers, you can set option
-`osctl.pools.<pool>.pure`:
+imperatively created users, groups, repositories and containers, you can set
+option `osctl.pools.<pool>.pure`:
 
 ```nix
 osctl.pools.tank = {

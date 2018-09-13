@@ -7,6 +7,7 @@ let
   users = import ./users.nix modArgs;
   groups = import ./groups.nix modArgs;
   containers = import ./containers.nix modArgs;
+  repositories = import ./repositories.nix modArgs;
   gc = import ./garbage-collector.nix modArgs;
 
   pool = {
@@ -50,6 +51,12 @@ let
         description = "osctl containers to include";
       };
 
+      repositories = mkOption {
+        type = types.attrsOf (types.submodule repositories.type);
+        default = {};
+        description = "Remote osctl repositories for container templates";
+      };
+
       pure = mkOption {
         type = types.bool;
         default = false;
@@ -90,6 +97,8 @@ let
     (mapAttrsToList (name: pool: groups.mkServices name pool.groups) pools)
     ++
     (mapAttrsToList (name: pool: containers.mkServices name pool.containers) pools)
+    ++
+    (mapAttrsToList (name: pool: repositories.mkServices name pool.repositories) pools)
     ++
     (mapAttrsToList (name: pool: gc.mkService name pool) pools)
   );

@@ -520,6 +520,18 @@ let
             is set to <literal>archive</literal> or <literal>stream</literal>.
           '';
         };
+
+        repository = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          description = ''
+            Name of the remote repository the container's template is searched for
+            if option
+            <option>osctl.pools.<pool>.containters.<container>.template.type</option>
+            is set to <literal>remote</literal>. When set to <literal>null</literal>,
+            all pool's repositories are searched.
+          '';
+        };
       };
 
       cgparams = shared.mkCGParamsOption;

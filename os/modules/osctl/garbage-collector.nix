@@ -11,7 +11,7 @@ with lib;
       writeList = type: list:
         pkgs.writeText "gc-${pool}-${type}" (concatStringsSep "\n" list);
 
-      entities = [ "containers" "groups" "users" ];
+      entities = [ "containers" "groups" "users" "repositories" ];
 
       definitions = listToAttrs (map (ent:
         nameValuePair ent (writeList ent (mapAttrsToList (k: v: k) cfg.${ent}))
@@ -26,6 +26,34 @@ with lib;
 
             grep -w "$value" "$list" &> /dev/null || return 1
           }
+
+          ### Repositories
+          ${osctlPool} repository ls -H -o name,org.vpsadminos.osctl:declarative \
+            | while read line ; do
+            repo=($line)
+            name="''${repo[0]}"
+            declarative="''${repo[1]}"
+
+            [ "$name" == "default" ] && continue
+            defined "${definitions.repositories}" "$name" && continue
+
+            if [ "$declarative" == "yes" ] ; then
+              echo "Found leftover declarative repository ${pool}:$name"
+
+              ${optionalString cfg.destroyUndeclared ''
+                echo "Removing repository ${pool}:$name"
+                ${osctlPool} repo del "$name"
+              ''}
+
+            else
+              echo "Repository ${pool}:$name exists, but is not declarative"
+
+              ${optionalString cfg.pure ''
+                echo "Removing repository ${pool}:$name"
+                ${osctlPool} repository del "$name"
+              ''}
+            fi
+          done
 
           ### Containers
           ${osctlPool} ct ls -H -o id,state,org.vpsadminos.osctl:declarative \

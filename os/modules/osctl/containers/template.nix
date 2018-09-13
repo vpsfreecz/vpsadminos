@@ -8,6 +8,9 @@ let
           (map (v: "--${v} ${cfg.${v}}")
                (filter (v: cfg.${v} != null) [ "distribution" "version" "arch" "vendor" "variant" ]))
           ++
+          (optional (cfg.template.type == "remote" && cfg.template.repository != null)
+                    ''--repository "${cfg.template.repository}"'')
+          ++
           (optional (cfg.template.type == "archive") ''--from-archive "${cfg.template.path}"'')
           ++
           (optional (cfg.template.type == "stream") ''--from-stream "${cfg.template.path}"'');
@@ -35,6 +38,15 @@ let
           echo "Waiting for group ${pool}:${cfg.group}"
           exit 1
         fi
+
+        ${optionalString (cfg.template.type == "remote" && cfg.template.repository != null) ''
+        ${osctlPool} repository show ${cfg.template.repository} &> /dev/null
+        hasRepo=$?
+        if [ "$hasRepo" != "0" ] ; then
+          echo "Waiting for repository ${pool}:${cfg.template.repository}"
+          exit 1
+        fi
+        ''}
         
         ${osctlPool} ct show ${name} &> /dev/null
         hasCT=$?
