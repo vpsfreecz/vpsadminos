@@ -1828,7 +1828,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   Remove the key identified by its *index*, which can be obtained by
   `migration authorized-keys ls`.
 
-`repository ls`
+`repository ls` [*options*] [*names...*]
   List configured repositories, from which container templates are downloaded.
 
     `-H`, `--hide-header`

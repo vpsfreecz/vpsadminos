@@ -18,6 +18,8 @@ module OsCtl::Cli
       cmd_opts = {pool: gopts[:pool]}
       fmt_opts = {layout: :columns}
 
+      cmd_opts[:names] = args if args.count > 0
+
       fmt_opts[:header] = false if opts['hide-header']
       cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS
 

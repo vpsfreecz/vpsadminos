@@ -5,19 +5,21 @@ module OsCtld
     handle :repo_list
 
     def execute
-      ok(
-        DB::Repositories.get.select do |repo|
-          opts[:pool] ? opts[:pool] == repo.pool.name : true
+      ret = []
 
-        end.map do |repo|
-          {
-            pool: repo.pool.name,
-            name: repo.name,
-            url: repo.url,
-            enabled: repo.enabled?,
-          }.merge!(repo.attrs.export)
-        end
-      )
+      DB::Repositories.get.each do |repo|
+        next if opts[:pool] && !opts[:pool].include?(repo.pool.name)
+        next if opts[:names] && !opts[:names].include?(repo.name)
+
+        ret << {
+          pool: repo.pool.name,
+          name: repo.name,
+          url: repo.url,
+          enabled: repo.enabled?,
+        }.merge!(repo.attrs.export)
+      end
+
+      ok(ret)
     end
   end
 end

@@ -1340,6 +1340,7 @@ module OsCtl::Cli
       desc 'Manage template repositories'
       command %i(repo repository) do |r|
         r.desc 'List repositories'
+        r.arg_name '[names...]'
         r.command %i(ls list) do |c|
           c.desc 'Select parameters to output'
           c.flag %i(o output)
