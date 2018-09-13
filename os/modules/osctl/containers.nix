@@ -24,7 +24,9 @@ let
       toplevel = cfg.path;
       closureInfo = pkgs.closureInfo { rootPaths = [ toplevel ]; };
 
-      configuredHooks = filter ({hook, script}: script != null)
+      osHooks = [ "pre-create" "on-create" "post-create" ];
+
+      configuredHooks = filter ({hook, script}: script != null && !(elem hook osHooks))
                                (mapAttrsToList (hook: script:
                                { inherit hook script; }
                                ) cfg.hooks);
@@ -32,6 +34,41 @@ let
       hooks = concatStringsSep "\n" (map ({hook, script}:
         ''ln -sf ${script} "$hookDir/${hook}"''
       ) configuredHooks);
+
+      hookCaller = hook: script: pkgs.writeScript "container-${name}-${hook}-caller" ''
+        #!${pkgs.stdenv.shell}
+
+        lines=( $(${osctlPool} ct show -Ho dataset,rootfs,lxc_path,lxc_dir,group_path,distribution,version,hostname ${name}) )
+        ctExists=$?
+
+        export OSCTL_HOOK_NAME="${hook}"
+        export OSCTL_POOL_NAME="${pool}"
+        export OSCTL_CT_ID="${name}"
+        export OSCTL_CT_USER="${cfg.user}"
+        export OSCTL_CT_GROUP="${cfg.group}"
+
+        if [ "$ctExists" == "0" ] ; then
+          export OSCTL_CT_DATASET="''${lines[0]}"
+          export OSCTL_CT_ROOTFS="''${lines[1]}"
+          export OSCTL_CT_LXC_PATH="''${lines[2]}"
+          export OSCTL_CT_LXC_DIR="''${lines[3]}"
+          export OSCTL_CT_CGROUP_PATH="''${lines[4]}"
+          export OSCTL_CT_DISTRIBUTION="''${lines[5]}"
+          export OSCTL_CT_VERSION="''${lines[6]}"
+          export OSCTL_CT_HOSTNAME="''${lines[7]}"
+
+          lines=( $(zfs get -Hp -o value mountpoint,org.vpsadminos.osctl:dataset ${pool}) )
+          mountpoint="''${lines[0]}"
+          osctlDataset="''${lines[1]}"
+
+          [ "$osctlDataset" != "-" ] \
+            && mountpoint="$(zfs get -Hp -o value mountpoint $osctlDataset)"
+
+          export OSCTL_CT_LOG_FILE="$mountpoint/log/ct/${name}.log"
+        fi
+
+        ${script}
+      '';
 
       conf = {
         user = cfg.user;
@@ -88,7 +125,6 @@ let
         hasCT=$?
         if [ "$hasCT" == "0" ] ; then
           echo "Container ${pool}:${name} already exists"
-          
           lines=( $(${osctlPool} ct show -H -o rootfs,state,user,group,org.vpsadminos.osctl:config ${name}) )
           if [ "$?" != 0 ] ; then
             echo "Unable to get the container's status"
@@ -132,6 +168,25 @@ let
 
         else
           echo "Creating container '${name}'"
+
+          ${optionalString (cfg.hooks.pre-create != null) ''
+            echo "Executing pre-create script hook"
+            ${hookCaller "pre-create" cfg.hooks.pre-create}
+            preStartStatus=$?
+            case $preStartStatus in
+              0) ;;
+              2)
+                echo "pre-create hook exited with 2, aborting"
+                sv once ct-${pool}-${name}
+                exit 1
+                ;;
+              *)
+                echo "pre-create hook exited with $preStartStatus, restarting"
+                exit 1
+                ;;
+            esac
+          ''}
+
           ${osctlPool} ct new \
                               --user ${cfg.user} \
                               --group ${cfg.group} \
@@ -150,6 +205,8 @@ let
                 "$rootfs/sbin" "$rootfs/sys"
           ln -sf /nix/var/nix/profiles/system "$rootfs/run/current-system"
           ln -sf "${toplevel}/init" "$rootfs/sbin/init"
+
+          createdContainer=y
         fi
 
         echo "Populating /nix/store"
@@ -206,10 +263,24 @@ let
           echo "System up-to-date"
         fi
 
+        if [ "$createdContainer" == "y" ] ; then
+          ${optionalString (cfg.hooks.on-create != null) ''
+            echo "Executing on-create script hook"
+            ${hookCaller "on-create" cfg.hooks.on-create}
+          ''}
+        fi
+
         if [ "$originalState" == "running" ] \
            || ${boolToStr (cfg.autostart != null)} ; then
           echo "Starting container ${pool}:${name}"
           ${osctlPool} ct start ${name}
+        fi
+
+        if [ "$createdContainer" == "y" ] ; then
+          ${optionalString (cfg.hooks.post-create != null) ''
+            echo "Executing post-create script hook"
+            ${hookCaller "post-create" cfg.hooks.post-create}
+          ''}
         fi
 
         sv once ct-${pool}-${name}
@@ -589,6 +660,41 @@ let
       };
 
       hooks = {
+        pre-create = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = ''
+            <literal>pre-create</literal> hook is run in the host's namespace
+            before the container is created. If <literal>pre-create</literal>
+            exits with status `1`, the creation attempt will be aborted
+            and retried repeatedly, as the container's runit service restarts
+            until the hook script exits with `0`. If
+            <literal>pre-create</literal> exits with status `2`, the container
+            will not be created and the runit service will not be automatically
+            restarted.
+          '';
+        };
+
+        on-create = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = ''
+            <literal>on-create</literal> hook is run in the host's namespace
+            after the container was created and configured, but before it is
+            started. The script hook's exit status is not evaluated.
+          '';
+        };
+
+        post-create = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = ''
+            <literal>post-create</literal> hook is run in the host's namespace
+            after the container was created, configured and started. The script
+            hook's exit status is not evaluated.
+          '';
+        };
+
         pre-start = mkOption {
           type = types.nullOr types.path;
           default = null;

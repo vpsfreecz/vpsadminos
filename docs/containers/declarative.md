@@ -161,9 +161,63 @@ osctl.pools.tank = {
 
 Now, only containers in group `/with-fuse` will have access to the device.
 
+## Script hooks
+All user hook scripts as supported by *osctl* can also be defined declaratively,
+for example:
+
+```nix
+osctl.pools.tank = {
+  containers.myct01 = {
+    ...
+    hooks.post-start = pkgs.writeScript "myct01-post-start" ''
+      #!/bin/sh
+      echo "Called after the container is started"
+    '';
+    ...
+  };
+};
+```
+
+See [man osctl(8)][man osctl] for a list of all hooks and available environment
+variables.
+
+In addition to these *osctl* hooks, declarative containers have three more hooks:
+*pre-create*, *on-create* and *post-create*. *pre-create* is called before
+the container is created and can control whether it should be created or not.
+*on-create* is called after the container was created, but before it is started.
+*post-create* is called when the container was started. These script hooks can
+be used to perform one-time tasks when creating the container.
+
+```nix
+osctl.pools.tank = {
+  containers.myct01 = {
+    ...
+    hooks.pre-create = pkgs.writeScript "myct01-pre-create" ''
+      #!/bin/sh
+
+      exit 0 # to create the container
+      exit 1 # to stop and retry
+      exit 2 # to abort creation
+    '';
+
+    hooks.on-create = pkgs.writeScript "myct01-on-create" ''
+      #!/bin/sh
+      echo "Called when the container is created, but when it's not running yet"
+    '';
+
+    hooks.post-create = pkgs.writeScript "myct01-post-create" ''
+      #!/bin/sh
+      echo "Called the first time the container has started"
+    '';
+    ...
+  };
+};
+```
+
 [NixOS containers]: https://nixos.org/nixos/manual/index.html#sec-declarative-containers
 [deployment]: ../os/deployment.md
 [updates]: ../os/updates.md
 [pools]: ../os/pools.md
 [examples]: https://github.com/vpsfreecz/vpsadminos/tree/master/os/configs/containers
 [devices]: ./devices.md
+[man osctl]: https://man.vpsadminos.org/osctl/man8/osctl.8.html#script-hooks
