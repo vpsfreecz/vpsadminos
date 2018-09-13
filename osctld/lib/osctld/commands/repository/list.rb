@@ -15,7 +15,7 @@ module OsCtld
             name: repo.name,
             url: repo.url,
             enabled: repo.enabled?,
-          }
+          }.merge!(repo.attrs.export)
         end
       )
     end

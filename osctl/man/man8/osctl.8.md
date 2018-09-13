@@ -1855,6 +1855,18 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   Disable repository *name*. Disabled repositories are not searched for templates,
   until reenabled.
 
+`repository set attr` *name* *vendor*:*key* *value*
+  Set custom user attribute *vendor*:*key* for repository *name*. Configured
+  attributes can be read with `repository ls` or `repository show` using
+  the `-o`, `--output` option.
+
+  The intended attribute naming is *vendor*:*key*, where *vendor* is a reversed
+  domain name and *key* an arbitrary string, e.g.
+  `org.vpsadminos.osctl:declarative`.
+
+`repository unset attr` *name* *vendor*:*key*
+  Unset custom user attribute *vendor*:*key* of repository *name*.
+
 `repository assets` *name*
   Show repository's assets and their state.
 

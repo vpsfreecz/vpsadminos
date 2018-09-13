@@ -11,13 +11,14 @@ module OsCtld
     USER = 'repository'
     UID = Etc.getpwnam(USER).uid
 
-    attr_reader :pool, :name, :url
+    attr_reader :pool, :name, :url, :attrs
 
     def initialize(pool, name, load: true)
       init_lock
       @pool = pool
       @name = name
       @enabled = true
+      @attrs = Attributes.new
       load_config if load
     end
 
@@ -60,6 +61,38 @@ module OsCtld
       save_config
     end
 
+    # @param opts [Hash]
+    # @option opts [Hash] :attrs
+    def set(opts)
+      opts.each do |k, v|
+        case k
+        when :attrs
+          attrs.update(v)
+
+        else
+          fail "unsupported option '#{k}'"
+        end
+      end
+
+      save_config
+    end
+
+    # @param opts [Hash]
+    # @option opts [Array<String>] :attrs
+    def unset(opts)
+      opts.each do |k, v|
+        case k
+        when :attrs
+          v.each { |attr| attrs.unset(attr) }
+
+        else
+          fail "unsupported option '#{k}'"
+        end
+      end
+
+      save_config
+    end
+
     def templates
       # TODO
     end
@@ -80,6 +113,7 @@ module OsCtld
 
       @url = cfg['url']
       @enabled = cfg['enabled']
+      @attrs = Attributes.load(cfg['attrs'] || {})
     end
 
     def save_config
@@ -87,6 +121,7 @@ module OsCtld
         f.write(YAML.dump({
           'url' => url,
           'enabled' => enabled?,
+          'attrs' => attrs.dump,
         }))
       end
 

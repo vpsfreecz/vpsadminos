@@ -1377,6 +1377,16 @@ module OsCtl::Cli
           c.action &Command.run(Repository, :disable)
         end
 
+        r.desc 'Configure repository'
+        r.command :set do |set|
+          set_attr(set, Repository)
+        end
+
+        r.desc 'Clear configuration options'
+        r.command :unset do |unset|
+          unset_attr(unset, Repository)
+        end
+
         r.desc 'List repository assets (datasets, files, directories)'
         r.arg_name '<name>'
         assets(r, Repository)

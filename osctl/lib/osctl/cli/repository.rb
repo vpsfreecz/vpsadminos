@@ -3,6 +3,7 @@ require 'osctl/cli/command'
 module OsCtl::Cli
   class Repository < Command
     include Assets
+    include Attributes
 
     FIELDS = %i(pool name url enabled)
     TEMPLATE_FIELDS = %i(vendor variant arch distribution version tags cached)
@@ -41,6 +42,25 @@ module OsCtl::Cli
     def disable
       require_args!('name')
       osctld_fmt(:repo_disable, pool: gopts[:pool], name: args[0])
+    end
+
+    def set_attr
+      require_args!('name', 'attribute', 'value')
+      do_set_attr(
+        :repo_set,
+        {name: args[0], pool: gopts[:pool]},
+        args[1],
+        args[2],
+      )
+    end
+
+    def unset_attr
+      require_args!('name', 'attribute')
+      do_unset_attr(
+        :repo_unset,
+        {name: args[0], pool: gopts[:pool]},
+        args[1],
+      )
     end
 
     def assets
