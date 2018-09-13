@@ -1353,6 +1353,21 @@ module OsCtl::Cli
           c.action &Command.run(Repository, :list)
         end
 
+        r.desc 'Show information about a repository'
+        r.arg_name '<name>'
+        r.command :show do |c|
+          c.desc 'Select parameters to output'
+          c.flag %i(o output)
+
+          c.desc 'Do not show header'
+          c.switch %i(H hide-header), negatable: false
+
+          c.desc 'List available parameters'
+          c.switch %i(L list), negatable: false
+
+          c.action &Command.run(Repository, :show)
+        end
+
         r.desc 'Add a new repository'
         r.arg_name '<name> <url>'
         r.command :add do |c|

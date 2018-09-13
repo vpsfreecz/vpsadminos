@@ -24,6 +24,23 @@ module OsCtl::Cli
       osctld_fmt(:repo_list, cmd_opts, cols, fmt_opts)
     end
 
+    def show
+      if opts[:list]
+        puts FIELDS.join("\n")
+        return
+      end
+
+      require_args!('name')
+
+      cmd_opts = {name: args[0], pool: gopts[:pool]}
+      fmt_opts = {layout: :rows}
+
+      fmt_opts[:header] = false if opts['hide-header']
+      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS
+
+      osctld_fmt(:repo_show, cmd_opts, cols, fmt_opts)
+    end
+
     def add
       require_args!('name', 'url')
       osctld_fmt(:repo_add, pool: gopts[:pool], name: args[0], url: args[1])

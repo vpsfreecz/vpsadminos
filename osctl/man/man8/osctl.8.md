@@ -1840,6 +1840,18 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-o`, `--output` *parameters*
       Select parameters to output.
 
+`repository show` *name*
+  Show repository parameters.
+
+    `-H`, `--hide-header`
+      Do not show header, useful for scripting.
+
+    `-L`, `--list`
+      List available parameters and exit.
+
+    `-o`, `--output` *parameters*
+      Select parameters to output.
+
 `repository add` *name* *url*
   Add repository at *url* as *name* to the default or the selected pool.
   The pool can be selected using global option `--pool`.
