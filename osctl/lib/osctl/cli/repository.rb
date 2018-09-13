@@ -19,7 +19,7 @@ module OsCtl::Cli
       fmt_opts = {layout: :columns}
 
       fmt_opts[:header] = false if opts['hide-header']
-      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : nil
+      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS
 
       osctld_fmt(:repo_list, cmd_opts, cols, fmt_opts)
     end
