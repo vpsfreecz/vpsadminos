@@ -24,6 +24,15 @@ let
       toplevel = cfg.path;
       closureInfo = pkgs.closureInfo { rootPaths = [ toplevel ]; };
 
+      configuredHooks = filter ({hook, script}: script != null)
+                               (mapAttrsToList (hook: script:
+                               { inherit hook script; }
+                               ) cfg.hooks);
+
+      hooks = concatStringsSep "\n" (map ({hook, script}:
+        ''ln -sf ${script} "$hookDir/${hook}"''
+      ) configuredHooks);
+
       conf = {
         user = cfg.user;
         group = cfg.group;
@@ -166,6 +175,19 @@ let
           
           i=$(($i+1))
         done
+
+        echo "Installing user script hooks"
+        lines=( $(zfs get -Hp -o value mountpoint,org.vpsadminos.osctl:dataset ${pool}) )
+        mountpoint="''${lines[0]}"
+        osctlDataset="''${lines[1]}"
+
+        [ "$osctlDataset" != "-" ] \
+          && mountpoint="$(zfs get -Hp -o value mountpoint $osctlDataset)"
+
+        hookDir="$mountpoint/hook/ct/${name}"
+
+        rm -f "$hookDir/*"
+        ${hooks}
 
         currentSystem=$(realpath "$rootfs/nix/var/nix/profiles/system")
 
@@ -564,6 +586,126 @@ let
         default = "";
         example = "osctl-ct-default";
         description = "Name of AppArmor profile";
+      };
+
+      hooks = {
+        pre-start = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = ''
+            <literal>pre-start</literal> hook is run in the host's namespace
+            before the container is mounted. The container's cgroups have
+            already been configured and distribution-support code has been run.
+            If <literal>pre-start</literal> exits with a non-zero status, the
+            container's start is aborted.
+          '';
+        };
+
+        veth-up = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = ''
+            <literal>veth-up</literal> hook is run in the host's namespace when
+            the veth pair is created. Names of created veth interfaces are
+            available in environment variables <literal>OSCTL_HOST_VETH</literal>
+            and <literal>OSCTL_CT_VETH</literal>. If <literal>veth-up</literal>
+            exits with a non-zero status, the container's start is aborted.
+          '';
+        };
+
+        pre-mount = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = ''
+            <literal>pre-mount</literal> is run in the container's mount
+            namespace, before its rootfs is mounted. The path to the container's
+            runtime rootfs is in environment variable
+            <literal>OSCTL_CT_ROOTFS_MOUNT</literal>. If
+            <literal>pre-mount</literal> exits with a non-zero status, the
+            container's start is aborted.
+          '';
+        };
+
+        post-mount = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = ''
+            <literal>post-mount</literal> is run in the container's mount
+            namespace, after its rootfs and all LXC mount entries are mounted.
+            The path to the container's runtime rootfs is in environment variable
+            <literal>OSCTL_CT_ROOTFS_MOUNT</literal>. If
+            <literal>post-mount</literal> exits with a non-zero status, the
+            container's start is aborted.
+          '';
+        };
+
+        on-start = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = ''
+            <literal>on-start</literal> is run in the host's namespace, after
+            the container has been mounted and right before its init process is
+            executed. If <literal>on-start</literal> exits with a non-zero
+            status, the container's start is aborted.
+          '';
+        };
+
+        post-start = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = ''
+            <literal>post-start</literal> is run in the host's namespace after
+            the container entered state <literal>running</literal>. The
+            container's init PID is passed in environment varible
+            <literal>OSCTL_CT_INIT_PID</literal>. The script hook's exit status
+            is not evaluated.
+          '';
+        };
+
+        pre-stop = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = ''
+            <literal>pre-stop</literal> hook is run in the host's namespace when
+            the container is being stopped using <literal>ct stop</literal>. If
+            <literal>pre-stop</literal> exits with a non-zero exit status,
+            the container will not be stopped. This hook is not called when the
+            container is shutdown from the inside.
+          '';
+        };
+
+        on-stop = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = ''
+            <literal>on-stop</literal> is run in the host's namespace when the
+            container enters state <literal>stopping</literal>. The hook's exit
+            status is not evaluated.
+          '';
+        };
+
+        veth-down = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = ''
+            <literal>veth-down</literal> hook is run in the host's namespace
+            when the veth pair is removed. Names of the removed veth interfaces
+            are available in environment variables
+            <literal>OSCTL_HOST_VETH</literal> and
+            <literal>OSCTL_CT_VETH</literal>. The hook's exit status is not
+            evaluated.
+          '';
+        };
+
+        post-stop = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+          description = ''
+            <literal>post-stop</literal> is run in the host's namespace when
+            the container enters state <literal>stopped</literal>. The hook's
+            exit status is not evaluated.
+          '';
+        };
       };
     };
     
