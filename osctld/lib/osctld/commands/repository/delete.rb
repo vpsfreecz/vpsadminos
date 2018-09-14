@@ -17,7 +17,7 @@ module OsCtld
       end
 
       repo.exclusively do
-        syscmd("rm -rf #{repo.cache_dir}")
+        syscmd("rm -rf #{repo.cache_path}")
         DB::Repositories.remove(repo)
       end
 
