@@ -60,7 +60,12 @@ module OsCtl::Cli
         ret = osctld_call(cmd, opts) { |msg| puts msg unless gopts[:quiet] }
       end
 
-      format_output(ret, cols, fmt_opts) if ret
+      if ret.is_a?(String)
+        puts ret
+      elsif ret
+        format_output(ret, cols, fmt_opts)
+      end
+
       ret
     end
 

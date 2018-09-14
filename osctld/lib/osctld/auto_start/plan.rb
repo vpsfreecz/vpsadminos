@@ -35,6 +35,36 @@ module OsCtld
       end)
     end
 
+    def enqueue(ct, priority: 10, start_opts: {})
+      plan << (
+        ContinuousExecutor::Command.new(id: ct.id, priority: priority) do |cmd|
+          cur_ct = DB::Containers.find(cmd.id, pool)
+          next if cur_ct.nil? || cur_ct.running?
+
+          log(:info, ct, 'Starting enqueued container')
+          Commands::Container::Start.run(
+            start_opts.merge(pool: cur_ct.pool.name, id: cur_ct.id, queue: false)
+          )
+        end
+      )
+    end
+
+    def start_ct(ct, priority: 10, start_opts: {}, client_handler: nil)
+      plan.execute(
+        ContinuousExecutor::Command.new(id: ct.id, priority: priority) do |cmd|
+          cur_ct = DB::Containers.find(cmd.id, pool)
+          next if cur_ct.nil? || cur_ct.running?
+
+          log(:info, ct, 'Starting enqueued container')
+          Commands::Container::Start.run(
+            start_opts.merge(pool: cur_ct.pool.name, id: cur_ct.id, queue: false),
+            {handler: client_handler},
+          )
+        end,
+        timeout: start_opts ? (start_opts[:wait] || 60) : nil,
+      )
+    end
+
     def clear
       plan.clear
     end
@@ -53,5 +83,9 @@ module OsCtld
 
     protected
     attr_reader :plan
+
+    def queue_cmd_for(ct)
+
+    end
   end
 end

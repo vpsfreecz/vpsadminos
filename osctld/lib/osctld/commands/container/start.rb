@@ -14,6 +14,8 @@ module OsCtld
     end
 
     def execute(ct)
+      return start_queued(ct) if opts[:queue]
+
       event_queue = nil
 
       ret = ct.exclusively do
@@ -108,6 +110,33 @@ module OsCtld
     end
 
     protected
+    def start_queued(ct)
+      progress('Joining the queue')
+
+      if opts[:wait] === false
+        ct.pool.autostart_plan.enqueue(
+          ct,
+          priority: opts[:priority],
+          start_opts: opts,
+        )
+        return ok
+      end
+
+      ret = ct.pool.autostart_plan.start_ct(
+        ct,
+        priority: opts[:priority],
+        start_opts: opts,
+        client_handler: client_handler,
+      )
+
+      if ret.nil?
+        ok('Timed out')
+
+      else
+        ret
+      end
+    end
+
     # Wait for the container to start or fail
     def wait_for_ct(event_queue, ct)
       # Sequence of events that lead to the container being started.

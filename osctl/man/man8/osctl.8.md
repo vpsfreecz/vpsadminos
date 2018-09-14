@@ -548,6 +548,16 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-F`, `--[no-]foreground`
       Open container console (can be later detached), see `ct console`.
 
+    `-q`, `--queue`
+      Enqueue the start operation using the pools autostart facility. The pool
+      is configured to start a certain number of containers in parallel. Use
+      this option, to add the container to the queue. This is useful when you're
+      manually starting a large number of containers.
+
+    `-p`, `--priority` *n*
+      Priority for the autostart queue. This option can be used together with
+      `-q`, `--queue`. See `ct set autostart` for more information.
+
     `-D`, `--[no-]debug`
       Configure LXC to write debug messages to the container's log file, see
       `ct log` commands.

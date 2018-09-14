@@ -298,6 +298,8 @@ tt
         id: args[0],
         pool: gopts[:pool],
         wait: get_ct_wait(opts[:wait]),
+        queue: opts[:queue],
+        priority: opts[:priority],
         debug: opts[:debug],
       }
       return osctld_fmt(:ct_start, cmd_opts) unless opts[:foreground]

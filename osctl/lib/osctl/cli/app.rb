@@ -545,6 +545,12 @@ module OsCtl::Cli
           c.desc 'Open container console (can be later detached)'
           c.switch %i(F foreground)
 
+          c.desc 'Enqueue the start operation using pool autostart facility'
+          c.switch %i(q queue)
+
+          c.desc 'Priority for the autostart queue'
+          c.flag %i(p priority), type: Integer, default_value: 10
+
           c.desc 'Enable debug messages in LXC'
           c.switch %i(D debug)
 
