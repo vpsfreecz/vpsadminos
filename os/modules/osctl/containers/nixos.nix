@@ -80,6 +80,9 @@ let
             fi
           fi
 
+          echo "Mounting the container"
+          ${osctlPool} ct mount ${name} || exit 1
+
         else
           echo "Creating container '${name}'"
 
