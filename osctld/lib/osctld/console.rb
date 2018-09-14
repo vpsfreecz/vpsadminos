@@ -11,10 +11,10 @@ module OsCtld
       @cts = {}
     end
 
-    # Connect i/o named pipes with tty0 to container `ct`
-    def self.connect_tty0(ct, pid, input, output)
+    # Connect to tty0 of container `ct`
+    def self.connect_tty0(ct, pid)
       @mutex.synchronize do
-        container(ct).connect_tty0(pid, input, output)
+        container(ct).connect_tty0(pid, socket_path(ct))
       end
     end
 
@@ -22,23 +22,19 @@ module OsCtld
     def self.reconnect_tty0(ct)
       @mutex.synchronize do
         log(:info, ct, "Reopening TTY0")
-        i, o = tty0_pipes(ct)
 
-        [i, o].each do |path|
-          next if File.exist?(path)
+        socket = socket_path(ct)
+
+        unless File.exist?(socket)
           log(
             :warn,
             ct,
-            "Pipe '#{path}' for tty0 not found, console will not work"
+            "Socket '#{socket}' for tty0 not found, console will not work"
           )
           return
         end
 
-        container(ct).connect_tty0(
-          nil,
-          File.open(i, 'w'),
-          File.open(o, 'r')
-        )
+        container(ct).connect_tty0(nil, socket)
       end
     end
 
@@ -64,14 +60,9 @@ module OsCtld
       end
     end
 
-    # Return paths for pipes of container `ctid` for tty0 input/output
-    def self.tty0_pipes(ct)
-      base = ct.pool.console_dir
-
-      [
-        File.join(base, "#{ct.id}.in"),
-        File.join(base, "#{ct.id}.out"),
-      ]
+    # Return path of the socket to the container's tty0
+    def self.socket_path(ct)
+      File.join(ct.pool.console_dir, ct.id, 'tty0.sock')
     end
   end
 end

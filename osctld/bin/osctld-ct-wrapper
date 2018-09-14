@@ -1,15 +1,13 @@
 #!/usr/bin/env ruby
-# Run a container within a PTY and forward its input/output via stdin/stdout.
+# Run a container within a PTY and forward its input/output via UNIX socket.
 #
-# Usage: $0 <title> <inpipe> <outpipe> lxc-start...
+# Usage: $0 <title> <socket> lxc-start...
 #
-# `inpipe` and `outpipe` are paths to named pipes, which stdin/stdout
-# is connected to. It is the responsibility of the parent process to connect
-# these pipes to stdin/stdout of the wrapper. This wrapper reads from
-# `inpipe/stdin` and forwards the data to the wrapped process. Data from
-# the wrapped process are written to `outpipe/stdout`.
+# `socket` is a path where a UNIX server socket will be created. This wrapper
+# accepts one client on the UNIX server, accepts commands and forwards data
+# to/from the wrapped process.
 #
-# Data read from `inpipe/stdin` are expected to be in JSON, one command on every
+# Data read from the client are expected to be in JSON, one command on every
 # line.
 #
 #   {
@@ -21,55 +19,74 @@
 # The command can contain just `keys`, `rows` and `cols` together, or all three
 # keys.
 #
-# Data written to `outpipe/stdout` are in a raw form, just as the wrapped
-# process writes them.
+# Data sent to the client are in a raw form, just as the wrapped process writes
+# them.
 require 'base64'
 require 'json'
 require 'pty'
+require 'socket'
 require 'timeout'
 
 class Wrapper
   def initialize(args)
     ctid = args.shift
-    @in_pipe = args.shift
-    @out_pipe = args.shift
+    @socket = args.shift
     @cmd = args
     @current_rows = 25
     @current_cols = 80
-    @buf = ''
+    @cmd_buf = ''
+    @read_buf = ''
 
     Process.setproctitle("osctld: CT #{ctid}")
   end
 
   def run
+    @server = UNIXServer.new(socket)
     r_pty, w_pty, @pid = PTY.spawn(*@cmd)
-    
+
     catch(:stop) do
       loop do
         work(r_pty, w_pty)
       end
     end
 
+    @server.close
+    File.unlink(socket)
     terminate(pid)
   end
 
   protected
-  attr_reader :pid, :buf, :current_rows, :current_cols
+  attr_reader :server, :socket, :client
+  attr_reader :pid, :cmd_buf, :read_buf, :current_rows, :current_cols
 
   def work(r_pty, w_pty)
-    rs, _ = IO.select([$stdin, r_pty])
+    rs, _ = IO.select([server, client, r_pty].compact)
 
     rs.each do |r|
       case r
-      when $stdin
-        str = read_stdin
+      when server # new client connects
+        c = server.accept
+
+        if client_valid?(c)
+          client.close if client
+          @client = c
+
+          # Send buffer contents, if any
+          send_to_client('')
+
+        elsif
+          c.close
+        end
+
+      when client # command from client
+        str = read_from_client
         stop if str.nil?
 
-        buf << str
+        cmd_buf << str
 
-        while i = buf.index("\n")
-          t = buf[0..i]
-          @buf = buf[i+1..-1]
+        while i = cmd_buf.index("\n")
+          t = cmd_buf[0..i]
+          @cmd_buf = cmd_buf[i+1..-1]
 
           begin
             cmd = JSON.parse(t, symbolize_names: true)
@@ -105,12 +122,10 @@ class Wrapper
           end
         end
 
-      when r_pty
+      when r_pty # the container has written something to the console
         buf = read_nonblock(r_pty)
         stop if buf.nil?
-
-        $stdout.write(buf)
-        $stdout.flush
+        send_to_client(buf)
       end
     end
   end
@@ -143,16 +158,51 @@ class Wrapper
     nil
   end
 
-  def read_stdin
-    read_nonblock($stdin)
+  # Only connections from root are accepted
+  def client_valid?(sock)
+    cred = sock.getsockopt(Socket::SOL_SOCKET, Socket::SO_PEERCRED)
+    pid, uid, gid = cred.unpack('LLL')
+    uid == 0
+  end
 
-  rescue EOFError
-    # osctld has crashed/exited, reopen the pipes and wait for it to restart
-    $stdin.reopen(@in_pipe, 'r')
-    $stdout.reopen(@out_pipe, 'w')
+  def read_from_client
+    read_nonblock(client)
+
+  rescue SystemCallError, EOFError
+    # osctld has crashed/exited
+    @client.close
+    @client = nil
     ''
+  end
+
+  def send_to_client(data)
+    if client
+      to_send = read_buf + data
+
+      unless to_send.empty?
+        client.send(to_send, 0)
+        read_buf.clear
+      end
+    else
+      read_buf << data
+    end
+
+  rescue SystemCallError
+    # osctld has crashed/exited
+    @client.close
+    @client = nil
+    read_buf << data
   end
 end
 
+begin
 w = Wrapper.new(ARGV)
 w.run
+
+rescue Exception => e
+  File.open('/tmp/dafuq', 'w') do |f|
+    f.puts(e.class)
+    f.puts(e.message)
+    f.puts(e.backtrace.join("\n"))
+  end
+end

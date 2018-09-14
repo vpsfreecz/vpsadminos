@@ -41,10 +41,6 @@ module OsCtld
         ret = ct_control(ct, cmd, id: ct.id, timeout: opts[:timeout] || 60)
         next ret unless ret[:status]
 
-        Console.tty0_pipes(ct).each do |pipe|
-          File.unlink(pipe) if File.exist?(pipe)
-        end
-
         ok
       end
     end

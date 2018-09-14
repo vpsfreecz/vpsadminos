@@ -15,8 +15,8 @@ module OsCtld
       tty(tty_n).add_client(io)
     end
 
-    def connect_tty0(pid, input, output)
-      tty(0).connect(pid, input, output)
+    def connect_tty0(pid, socket)
+      tty(0).connect(pid, socket)
     end
 
     def tty(n)

@@ -30,12 +30,23 @@ module OsCtld
         File.chmod(0660, ct.log_path)
         File.chown(0, ct.user.ugid, ct.log_path)
 
-        in_pipe, out_pipe = Console.tty0_pipes(ct)
+        # Console dir
+        console_dir = File.join(ct.pool.console_dir, ct.id)
+        Dir.mkdir(console_dir) unless Dir.exist?(console_dir)
+        File.chown(ct.user.ugid, 0, console_dir)
+        File.chmod(0700, console_dir)
+
+        # Remove stray sockets
+        sock_path = Console.socket_path(ct)
+        if File.exist?(sock_path)
+          log(:info, ct, "Removing leftover tty0 socket at #{sock_path}")
+          File.unlink(sock_path)
+        end
 
         cmd = [
           OsCtld.bin('osctld-ct-wrapper'),
           "#{ct.pool.name}:#{ct.id}",
-          in_pipe, out_pipe,
+          Console.socket_path(ct),
           'lxc-start',
           '-P', ct.lxc_home,
           '-n', ct.id,
@@ -44,39 +55,25 @@ module OsCtld
           '-F'
         ]
 
-        mkfifo(in_pipe, 'w')
-        mkfifo(out_pipe, 'r')
-
-        [in_pipe, out_pipe].each do |pipe|
-          File.chown(0, ct.user.ugid, pipe)
-        end
-
-        File.chmod(0640, in_pipe)
-        File.chmod(0660, out_pipe)
-
         progress('Starting container')
         pid = Process.fork do
-          in_r = File.open(in_pipe, 'r')
-          out_w = File.open(out_pipe, 'w')
-
-          STDIN.reopen(in_r)
-          STDOUT.reopen(out_w)
-          STDERR.reopen(out_w)
-
           SwitchUser.switch_to(
             ct.user.sysusername,
             ct.user.ugid,
             ct.user.homedir,
             ct.cgroup_path
           )
-          Process.spawn(*cmd, pgroup: true)
+          Process.spawn(*cmd, pgroup: true, in: :close, out: :close, err: :close)
         end
 
-        in_w = File.open(in_pipe, 'w')
-        out_r = File.open(out_pipe, 'r')
-
         progress('Connecting console')
-        Console.connect_tty0(ct, pid, in_w, out_r)
+
+        begin
+          Console.connect_tty0(ct, pid)
+        rescue Errno::ENOENT
+          log(:warn, ct, "Unable to connect to tty0")
+        end
+
         Process.wait(pid)
 
         :wait
@@ -137,10 +134,6 @@ module OsCtld
 
         last_i = cur_i
       end
-    end
-
-    def mkfifo(path, mode)
-      syscmd("mkfifo \"#{path}\"") unless File.exist?(path)
     end
   end
 end

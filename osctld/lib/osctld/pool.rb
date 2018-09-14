@@ -167,7 +167,7 @@ module OsCtld
         )
         add.directory(
           console_dir,
-          desc: 'Named pipes for container consoles',
+          desc: 'Sockets for container consoles',
           user: 0,
           group: 0,
           mode: 0711
