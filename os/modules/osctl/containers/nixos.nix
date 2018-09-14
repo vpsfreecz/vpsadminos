@@ -188,7 +188,9 @@ let
         if [ "$originalState" == "running" ] \
            || ${boolToStr (cfg.autostart != null)} ; then
           echo "Starting container ${pool}:${name}"
-          ${osctlPool} ct start ${name}
+          ${osctlPool} ct start --queue \
+                                ${optionalString (cfg.autostart != null) "--priority ${toString cfg.autostart.priority}"} \
+                                ${name}
         fi
 
         if [ "$createdContainer" == "y" ] ; then
