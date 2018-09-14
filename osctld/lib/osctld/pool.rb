@@ -29,14 +29,17 @@ module OsCtld
       :attrs
 
     def initialize(name, dataset)
+      init_lock
+
       @name = name
       @dataset = dataset || name
       @state = :active
+      @attrs = Attributes.new
+
+      load_config
+
       @migration_key_chain = Migration::KeyChain.new(self)
       @autostart_plan = AutoStart::Plan.new(self)
-      @attrs = Attributes.new
-      init_lock
-      load_config
     end
 
     def id
