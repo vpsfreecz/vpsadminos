@@ -9,13 +9,8 @@ module OsCtld
       error!('pool not found') unless pool
 
       pool.inclusively do
-        if pool.autostart_plan.running?
-          pool.autostart_plan.stop
-          ok
-
-        else
-          error('auto-starting plan is not running')
-        end
+        pool.autostart_plan.clear
+        ok
       end
     end
   end

@@ -239,7 +239,11 @@ module OsCtld
     def set(opts)
       opts.each do |k, v|
         case k
-        when :parallel_start, :parallel_stop
+        when :parallel_start
+          instance_variable_set(:"@#{k}", opts[k])
+          pool.autostart_plan.resize(opts[k])
+
+        when :parallel_stop
           instance_variable_set(:"@#{k}", opts[k])
 
         when :attrs
@@ -276,7 +280,6 @@ module OsCtld
     end
 
     def autostart
-      @autostart_plan.generate
       @autostart_plan.start
     end
 

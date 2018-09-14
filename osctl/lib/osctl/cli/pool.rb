@@ -25,7 +25,6 @@ module OsCtl::Cli
     AUTOSTART_FIELDS = %i(
       id
       priority
-      delay
     )
 
     include Assets

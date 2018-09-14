@@ -8,57 +8,50 @@ module OsCtld
 
     def initialize(pool)
       @pool = pool
-      @plan = ExecutionPlan.new
-    end
-
-    def generate
-      cts = DB::Containers.get.select { |ct| ct.pool == pool && ct.autostart }
-      cts.sort! { |a, b| a.autostart <=> b.autostart }
-      cts.each do |ct|
-        plan << Item.new(ct.id, ct.autostart.priority, ct.autostart.delay)
-      end
+      @plan = ContinuousExecutor.new(pool.parallel_start)
     end
 
     def start
-      fail 'autostart already in progress' if plan.running?
+      log(
+        :info, pool,
+        "Auto-starting containers, #{pool.parallel_start} containers at a time"
+      )
 
-      plan.on_start do
-        log(
-          :info, pool,
-          "Auto-starting containers, #{pool.parallel_start} containers at a time"
-        )
-      end
+      cts = DB::Containers.get.select { |ct| ct.pool == pool && ct.autostart }
 
-      plan.on_done do
-        log(:info, pool, 'Auto-starting containers finished')
-      end
+      plan << (cts.map do |ct|
+        ContinuousExecutor::Command.new(
+          id: ct.id,
+          priority: ct.autostart.priority,
+        ) do |cmd|
+          cur_ct = DB::Containers.find(cmd.id, pool)
+          next if cur_ct.nil? || cur_ct.running?
 
-      plan.run(pool.parallel_start) do |it|
-        ct = DB::Containers.find(it.id, pool)
-        next if ct.nil? || ct.running?
+          log(:info, ct, 'Auto-starting container')
+          Commands::Container::Start.run(pool: cur_ct.pool.name, id: cur_ct.id)
 
-        log(:info, ct, 'Auto-starting container')
-        Commands::Container::Start.run(pool: ct.pool.name, id: ct.id)
+          sleep(cur_ct.autostart.delay)
+        end
+      end)
+    end
 
-        sleep(it.delay)
-      end
+    def clear
+      plan.clear
+    end
+
+    def resize(new_size)
+      plan.resize(new_size)
     end
 
     def stop
       plan.stop
     end
 
-    def running?
-      plan.running?
-    end
-
-    def get_queue
+    def queue
       plan.queue
     end
 
     protected
-    Item = Struct.new(:id, :priority, :delay)
-
     attr_reader :plan
   end
 end
