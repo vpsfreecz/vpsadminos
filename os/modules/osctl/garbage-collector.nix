@@ -34,9 +34,18 @@ with lib;
             exit 1
           fi
 
+          entryList="$(mktemp -t gc-entries.XXXXXX)"
+
           ### Repositories
-          ${osctlPool} repository ls -H -o name,org.vpsadminos.osctl:declarative \
-            | while read line ; do
+          ${osctlPool} repository ls -H -o name,org.vpsadminos.osctl:declarative > "$entryList"
+
+          if [ "$?" != "0" ] ; then
+            echo "Unable to list repositories"
+            rm -f "$entryList"
+            exit 1
+          fi
+
+          cat "$entryList" | while read line ; do
             repo=($line)
             name="''${repo[0]}"
             declarative="''${repo[1]}"
@@ -63,8 +72,15 @@ with lib;
           done
 
           ### Containers
-          ${osctlPool} ct ls -H -o id,state,org.vpsadminos.osctl:declarative \
-            | while read line ; do
+          ${osctlPool} ct ls -H -o id,state,org.vpsadminos.osctl:declarative > "$entryList"
+
+          if [ "$?" != "0" ] ; then
+            echo "Unable to list containers"
+            rm -f "$entryList"
+            exit 1
+          fi
+
+          cat "$entryList" | while read line ; do
             ct=($line)
             ctid="''${ct[0]}"
             state="''${ct[1]}"
@@ -98,8 +114,15 @@ with lib;
           done
 
           ### Groups
-          ${osctlPool} group ls -H -o name,org.vpsadminos.osctl:declarative \
-            | sort -r -k 1,1 | while read line ; do
+          ${osctlPool} group ls -H -o name,org.vpsadminos.osctl:declarative > "$entryList"
+
+          if [ "$?" != "0" ] ; then
+            echo "Unable to list groups"
+            rm -f "$entryList"
+            exit 1
+          fi
+
+          cat "$entryList" | sort -r -k 1,1 | while read line ; do
             grp=($line)
             name="''${grp[0]}"
             declarative="''${grp[1]}"
@@ -126,8 +149,15 @@ with lib;
           done
 
           ### Users
-          ${osctlPool} user ls -H -o name,org.vpsadminos.osctl:declarative \
-            | while read line ; do
+          ${osctlPool} user ls -H -o name,org.vpsadminos.osctl:declarative > "$entryList"
+
+          if [ "$?" != "0" ] ; then
+            echo "Unable to list users"
+            rm -f "$entryList"
+            exit 1
+          fi
+
+          cat "$entryList" | while read line ; do
             user=($line)
             name="''${user[0]}"
             declarative="''${user[1]}"
@@ -151,6 +181,8 @@ with lib;
               ''}
             fi
           done
+
+          rm -f "$entryList"
 
           sv once gc-${pool}
         '';
