@@ -8,7 +8,7 @@ let
       osctlPool = "${osctl} --pool ${pool}";
 
       enabledToStr = enabled: if enabled then "true" else "-";
-      
+
     in ''
       ### Repository ${pool}:${repo}
       lines=( $(${osctlPool} repository show -H -o url,enabled ${repo} 2> /dev/null) )
@@ -54,7 +54,7 @@ in
         example = "https://templates.vpsadminos.org";
         description = "HTTP URL to the remote repository";
       };
-      
+
       enabled = mkOption {
         type = types.bool;
         default = true;
@@ -63,7 +63,7 @@ in
 
           Disabled repositories are included in the system, but they are not
           search for templates until reenabled, which may be done manually
-          using <literal>osctl</literal>.  
+          using <literal>osctl</literal>.
         '';
       };
     };
@@ -78,12 +78,12 @@ in
           echo "Waiting for pool ${pool}"
           exit 1
         fi
-        
+
         ${createRepos pool repos}
 
         sv once repositories-${pool}
       '';
-      
+
       log.enable = true;
       log.sendTo = "127.0.0.1";
     };

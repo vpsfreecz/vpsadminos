@@ -98,7 +98,7 @@ let
         seccomp_profile = nullIfEmpty cfg.seccomp;
         apparmor_profile = nullIfEmpty cfg.apparmor;
       };
-      
+
       yml = pkgs.writeText "container-${name}.yml" (builtins.toJSON conf);
 
       backend = backendFor cfg;
@@ -722,7 +722,7 @@ let
         };
       };
     };
-    
+
     config = mkMerge [
       (mkIf options.config.isDefined {
         path = config.config.system.build.toplevel;

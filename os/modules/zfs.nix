@@ -245,17 +245,17 @@ let
           If sizeGB is not specified the rest of the dist will be used for this partition.
         '';
       };
-      
+
       doCreate = mkOption {
         type = types.bool;
         default = false;
         description = ''
           Determines whether disks are partitioned and zpool is created when
           the pool cannot be imported, suggesting it does not exist.
-          
+
           Do not enable this in production, existing pools might fail to import
-          for unforeseen reasons and recreating them will result in data loss. 
-        ''; 
+          for unforeseen reasons and recreating them will result in data loss.
+        '';
       };
 
       install = mkOption {

@@ -212,7 +212,7 @@ in
         time tasks are done here. /etc/runit/1 has full control of /dev/console
         to be able to start an emergency shell if the one time initialization
         tasks fail. If /etc/runit/1 crashes, or exits 100, runit will skip
-        stage 2 and enter stage 3.  
+        stage 2 and enter stage 3.
       '';
     };
 

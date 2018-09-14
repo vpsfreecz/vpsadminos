@@ -24,14 +24,14 @@ let
           echo "Waiting for pool ${pool}"
           exit 1
         fi
-        
+
         ${osctlPool} user show ${cfg.user} &> /dev/null
         hasUser=$?
         if [ "$hasUser" != "0" ] ; then
           echo "Waiting for user ${pool}:${cfg.user}"
           exit 1
         fi
-        
+
         ${osctlPool} group show ${cfg.group} &> /dev/null
         hasGroup=$?
         if [ "$hasGroup" != "0" ] ; then
@@ -47,7 +47,7 @@ let
           exit 1
         fi
         ''}
-        
+
         ${osctlPool} ct show ${name} &> /dev/null
         hasCT=$?
         if [ "$hasCT" == "0" ] ; then

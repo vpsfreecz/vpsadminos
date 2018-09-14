@@ -435,10 +435,10 @@ with lib;
       name = let hn = config.networking.hostName;
                  nn = if (hn != "") then hn else "unnamed";
              in "vpsadminos-system-${nn}-${config.system.osLabel}";
-             
+
       kernelPath = "${config.boot.kernelPackages.kernel}/" +
         "${config.system.boot.loader.kernelFile}";
-        
+
       initrdPath = "${config.system.build.initialRamdisk}/" +
         "${config.system.boot.loader.initrdFile}";
 

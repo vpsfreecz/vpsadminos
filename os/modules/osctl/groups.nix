@@ -6,7 +6,7 @@ let
   sortGroups = groups:
     sort (a: b: a.group < b.group)
          (mapAttrsToList (group: cfg: { inherit group cfg; }) groups);
- 
+
   createGroups = pool: groups: concatStringsSep "\n\n" (map ({group, cfg}: (
     let
       osctlPool = "${osctl} --pool ${pool}";
@@ -32,7 +32,7 @@ let
       };
 
       devicesJson = pkgs.writeText "group-${safeName}-devices.json" (builtins.toJSON devices);
-      
+
     in ''
       ### Group ${pool}:${group}
       ${osctlPool} group show ${group} &> /dev/null
@@ -62,11 +62,11 @@ let
         echo "Creating group ${pool}:${group}"
         ${osctlPool} group new ${group}
         ${osctlPool} group set attr ${group} org.vpsadminos.osctl:declarative yes
-        
+
         echo "Configuring cgroup parameters"
         cat ${cgparamsJson} | ${osctlPool} group cgparams replace ${group} \
           && ${osctlPool} group set attr ${group} org.vpsadminos.osctl:cgparams ${cgparamsJson}
-        
+
         echo "Configuring devices"
         cat ${devicesJson} | ${osctlPool} group devices replace ${group} \
           && ${osctlPool} group set attr ${group} org.vpsadminos.osctl:devices ${devicesJson}
@@ -90,12 +90,12 @@ in
           echo "Waiting for pool ${pool}"
           exit 1
         fi
-        
+
         ${createGroups pool groups}
 
         sv once groups-${pool}
       '';
-      
+
       log.enable = true;
       log.sendTo = "127.0.0.1";
     };

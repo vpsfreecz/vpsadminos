@@ -14,14 +14,14 @@ let
           echo "Waiting for pool ${pool}"
           exit 1
         fi
-        
+
         ${osctlPool} user show ${cfg.user} &> /dev/null
         hasUser=$?
         if [ "$hasUser" != "0" ] ; then
           echo "Waiting for user ${pool}:${cfg.user}"
           exit 1
         fi
-        
+
         ${osctlPool} group show ${cfg.group} &> /dev/null
         hasGroup=$?
         if [ "$hasGroup" != "0" ] ; then
@@ -34,7 +34,7 @@ let
 
         ln -sf ${toplevel} /nix/var/nix/profiles/per-container/${name}
         ln -sf ${toplevel} /nix/var/nix/gcroots/per-container/${name}
-        
+
         ${osctlPool} ct show ${name} &> /dev/null
         hasCT=$?
         if [ "$hasCT" == "0" ] ; then
@@ -146,7 +146,7 @@ let
             echo "[$i/$count] Copying $storePath"
             cp -a $storePath $dst
           fi
-          
+
           i=$(($i+1))
         done
 
@@ -170,7 +170,7 @@ let
           cat ${closureInfo}/registration >> "$rootfs/nix-path-registration"
           ln -sf ${toplevel} "$rootfs/nix/var/nix/profiles/system"
           ln -sf ${toplevel}/init "$rootfs/sbin/init"
-          
+
           if [ "$currentState" == "running" ] ; then
             echo "Switching to ${toplevel}"
             ${osctlPool} ct exec ${name} ${toplevel}/bin/switch-to-configuration switch

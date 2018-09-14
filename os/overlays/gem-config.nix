@@ -12,7 +12,7 @@ self: super:
             "--with-ldflags=-L${ncurses.out}/lib"
           ];
         };
-        
+
         osctld = attrs: {
           buildInputs = [ apparmor-parser ];
         };

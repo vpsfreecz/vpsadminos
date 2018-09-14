@@ -11,7 +11,7 @@ let
   createUsers = pool: users: concatStringsSep "\n\n" (mapAttrsToList (user: cfg: (
     let
       osctlPool = "${osctl} --pool ${pool}";
-      
+
     in ''
       ### User ${pool}:${user}
       ugid=$(${osctlPool} user show -H -o ugid ${user} 2> /dev/null)
@@ -67,12 +67,12 @@ in
           echo "Waiting for pool ${pool}"
           exit 1
         fi
-        
+
         ${createUsers pool users}
 
         sv once users-${pool}
       '';
-      
+
       log.enable = true;
       log.sendTo = "127.0.0.1";
     };
