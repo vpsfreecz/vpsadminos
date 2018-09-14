@@ -27,6 +27,13 @@ with lib;
             grep -w "$value" "$list" &> /dev/null || return 1
           }
 
+          ${osctl} pool show ${pool} &> /dev/null
+          hasPool=$?
+          if [ "$hasPool" != "0" ] ; then
+            echo "Waiting for pool ${pool}"
+            exit 1
+          fi
+
           ### Repositories
           ${osctlPool} repository ls -H -o name,org.vpsadminos.osctl:declarative \
             | while read line ; do
