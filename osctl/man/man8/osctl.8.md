@@ -538,6 +538,9 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-H`, `--hide-header`
       Do not show header, useful for scripts.
 
+`ct mount` *id*
+  Mount all container's datasets if they are not already mounted.
+
 `ct start` [*options*] *id*
   Start container *id*.
 

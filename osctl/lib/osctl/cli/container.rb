@@ -292,6 +292,11 @@ tt
       c.response!(&updates)
     end
 
+    def mount
+      require_args!('id')
+      osctld_fmt(:ct_mount, id: args[0], pool: gopts[:pool])
+    end
+
     def start
       require_args!('id')
       cmd_opts = {

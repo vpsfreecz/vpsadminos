@@ -536,6 +536,12 @@ module OsCtl::Cli
           c.action &Command.run(Container, :reinstall)
         end
 
+        ct.desc "Mount the container's datasets"
+        ct.arg_name '<id>'
+        ct.command :mount do |c|
+          c.action &Command.run(Container, :mount)
+        end
+
         ct.desc 'Start container'
         ct.arg_name '<id>'
         ct.command :start do |c|
