@@ -1,194 +1,244 @@
 { config, lib, pkgs, utils, shared, ... }:
 with lib;
-{
-  mkService = pool: cfg:
-    let
-      boolToStr = x: if x then "true" else "false";
 
-      osctl = "${pkgs.osctl}/bin/osctl";
+let
+  boolToStr = x: if x then "true" else "false";
+
+  osctl = "${pkgs.osctl}/bin/osctl";
+
+  entities = [ "containers" "groups" "users" "repositories" ];
+
+  sweepScript = pool: cfg:
+    let
       osctlPool = "${osctl} --pool ${pool}";
 
       writeList = type: list:
         pkgs.writeText "gc-${pool}-${type}" (concatStringsSep "\n" list);
 
-      entities = [ "containers" "groups" "users" "repositories" ];
-
       definitions = listToAttrs (map (ent:
         nameValuePair ent (writeList ent (mapAttrsToList (k: v: k) cfg.${ent}))
       ) entities);
-      
-    in {
-      "gc-${pool}" = {
-        run = ''
-          defined () {
-            local list="$1"
-            local value="$2"
 
-            grep -w "$value" "$list" &> /dev/null || return 1
-          }
+    in pkgs.writeScriptBin "gc-sweep-${pool}" ''
+      #!${pkgs.bash}/bin/bash
 
-          ${osctl} pool show ${pool} &> /dev/null
-          hasPool=$?
-          if [ "$hasPool" != "0" ] ; then
-            echo "Waiting for pool ${pool}"
+      destroyUndeclared=n
+      destroyImperative=n
+
+      usage () {
+        cat <<EOF
+      Usage: gc-sweep-${pool} [--destroy-undeclared] [--destroy-imperative]
+
+      Options:
+
+        --destroy-undeclared      Destroy declarative containers that are not part
+                                  of the configuration
+        --destroy-imperative      Destroy all imperatively created containers
+
+      EOF
+      }
+
+      for arg in "$@" ; do
+        case "$arg" in
+          --destroy-undeclared)
+            destroyUndeclared=y
+            ;;
+          --destroy-imperative)
+            destroyImperative=y
+            ;;
+          -h|--help)
+            usage
+            exit
+            ;;
+          *)
+            echo "Unknown option '$arg'"
+            echo
+            usage
             exit 1
+        esac
+      done
+
+      defined () {
+        local list="$1"
+        local value="$2"
+
+        grep -w "$value" "$list" &> /dev/null || return 1
+      }
+
+      entryList="$(mktemp -t gc-entries.XXXXXX)"
+
+      ### Repositories
+      ${osctlPool} repository ls -H -o name,org.vpsadminos.osctl:declarative > "$entryList"
+
+      if [ "$?" != "0" ] ; then
+        echo "Unable to list repositories"
+        rm -f "$entryList"
+        exit 1
+      fi
+
+      cat "$entryList" | while read line ; do
+        repo=($line)
+        name="''${repo[0]}"
+        declarative="''${repo[1]}"
+
+        [ "$name" == "default" ] && continue
+        defined "${definitions.repositories}" "$name" && continue
+
+        if [ "$declarative" == "yes" ] ; then
+          echo "Found leftover declarative repository ${pool}:$name"
+
+          if [ "$destroyUndeclared" == "y" ] ; then
+            echo "Removing repository ${pool}:$name"
+            ${osctlPool} repo del "$name"
           fi
 
-          entryList="$(mktemp -t gc-entries.XXXXXX)"
+        else
+          echo "Repository ${pool}:$name exists, but is not declarative"
 
-          ### Repositories
-          ${osctlPool} repository ls -H -o name,org.vpsadminos.osctl:declarative > "$entryList"
+          if [ "$destroyImperative" == "y" ] ; then
+            echo "Removing repository ${pool}:$name"
+            ${osctlPool} repository del "$name"
+          fi
+        fi
+      done
 
-          if [ "$?" != "0" ] ; then
-            echo "Unable to list repositories"
-            rm -f "$entryList"
-            exit 1
+      ### Containers
+      ${osctlPool} ct ls -H -o id,state,org.vpsadminos.osctl:declarative > "$entryList"
+
+      if [ "$?" != "0" ] ; then
+        echo "Unable to list containers"
+        rm -f "$entryList"
+        exit 1
+      fi
+
+      cat "$entryList" | while read line ; do
+        ct=($line)
+        ctid="''${ct[0]}"
+        state="''${ct[1]}"
+        declarative="''${ct[2]}"
+
+        defined "${definitions.containers}" "$ctid" && continue
+
+        if [ "$declarative" == "yes" ] ; then
+          if [ "$state" != "stopped" ] ; then
+            echo "Stopping removed declarative container ${pool}:$ctid"
+            ${osctlPool} ct stop "$ctid"
+          else
+            echo "Found leftover declarative container ${pool}:$ctid"
           fi
 
-          cat "$entryList" | while read line ; do
-            repo=($line)
-            name="''${repo[0]}"
-            declarative="''${repo[1]}"
-
-            [ "$name" == "default" ] && continue
-            defined "${definitions.repositories}" "$name" && continue
-
-            if [ "$declarative" == "yes" ] ; then
-              echo "Found leftover declarative repository ${pool}:$name"
-
-              ${optionalString cfg.destroyUndeclared ''
-                echo "Removing repository ${pool}:$name"
-                ${osctlPool} repo del "$name"
-              ''}
-
-            else
-              echo "Repository ${pool}:$name exists, but is not declarative"
-
-              ${optionalString cfg.pure ''
-                echo "Removing repository ${pool}:$name"
-                ${osctlPool} repository del "$name"
-              ''}
-            fi
-          done
-
-          ### Containers
-          ${osctlPool} ct ls -H -o id,state,org.vpsadminos.osctl:declarative > "$entryList"
-
-          if [ "$?" != "0" ] ; then
-            echo "Unable to list containers"
-            rm -f "$entryList"
-            exit 1
+          if [ "$destroyUndeclared" == "y" ] ; then
+            echo "Removing container ${pool}:$ctid"
+            ${osctlPool} ct del --force "$ctid"
+            rm -f "/nix/var/nix/profiles/per-container/$ctid" \
+                  "/nix/var/nix/gcroots/per-container/$ctid"
           fi
 
-          cat "$entryList" | while read line ; do
-            ct=($line)
-            ctid="''${ct[0]}"
-            state="''${ct[1]}"
-            declarative="''${ct[2]}"
+        else
+          echo "Container ${pool}:$ctid exists, but is not declarative"
 
-            defined "${definitions.containers}" "$ctid" && continue
+          if [ "$destroyImperative" == "y" ] ; then
+            echo "Removing container ${pool}:$ctid"
+            ${osctlPool} ct del --force "$ctid"
+          fi
+        fi
+      done
 
-            if [ "$declarative" == "yes" ] ; then
-              if [ "$state" != "stopped" ] ; then
-                echo "Stopping removed declarative container ${pool}:$ctid"
-                ${osctlPool} ct stop "$ctid"
-              else
-                echo "Found leftover declarative container ${pool}:$ctid"
-              fi
+      ### Groups
+      ${osctlPool} group ls -H -o name,org.vpsadminos.osctl:declarative > "$entryList"
 
-              ${optionalString cfg.destroyUndeclared ''
-                echo "Removing container ${pool}:$ctid"
-                ${osctlPool} ct del --force "$ctid"
-                rm -f "/nix/var/nix/profiles/per-container/$ctid" \
-                      "/nix/var/nix/gcroots/per-container/$ctid"
-              ''}
+      if [ "$?" != "0" ] ; then
+        echo "Unable to list groups"
+        rm -f "$entryList"
+        exit 1
+      fi
 
-            else
-              echo "Container ${pool}:$ctid exists, but is not declarative"
+      cat "$entryList" | sort -r -k 1,1 | while read line ; do
+        grp=($line)
+        name="''${grp[0]}"
+        declarative="''${grp[1]}"
 
-              ${optionalString cfg.pure ''
-                echo "Removing container ${pool}:$ctid"
-                ${osctlPool} ct del --force "$ctid"
-              ''}
-            fi
-          done
+        ([ "$name" == "/" ] || [ "$name" == "/default" ]) && continue
+        defined "${definitions.groups}" "$name" && continue
 
-          ### Groups
-          ${osctlPool} group ls -H -o name,org.vpsadminos.osctl:declarative > "$entryList"
+        if [ "$declarative" == "yes" ] ; then
+          echo "Found leftover declarative group ${pool}:$name"
 
-          if [ "$?" != "0" ] ; then
-            echo "Unable to list groups"
-            rm -f "$entryList"
-            exit 1
+          if [ "$destroyUndeclared" == "y" ] ; then
+            echo "Removing group ${pool}:$name"
+            ${osctlPool} group del "$name"
           fi
 
-          cat "$entryList" | sort -r -k 1,1 | while read line ; do
-            grp=($line)
-            name="''${grp[0]}"
-            declarative="''${grp[1]}"
+        else
+          echo "Group ${pool}:$name exists, but is not declarative"
 
-            ([ "$name" == "/" ] || [ "$name" == "/default" ]) && continue
-            defined "${definitions.groups}" "$name" && continue
+          if [ "$destroyImperative" == "y" ] ; then
+            echo "Removing group ${pool}:$name"
+            ${osctlPool} group del "$name"
+          fi
+        fi
+      done
 
-            if [ "$declarative" == "yes" ] ; then
-              echo "Found leftover declarative group ${pool}:$name"
+      ### Users
+      ${osctlPool} user ls -H -o name,org.vpsadminos.osctl:declarative > "$entryList"
 
-              ${optionalString cfg.destroyUndeclared ''
-                echo "Removing group ${pool}:$name"
-                ${osctlPool} group del "$name"
-              ''}
+      if [ "$?" != "0" ] ; then
+        echo "Unable to list users"
+        rm -f "$entryList"
+        exit 1
+      fi
 
-            else
-              echo "Group ${pool}:$name exists, but is not declarative"
+      cat "$entryList" | while read line ; do
+        user=($line)
+        name="''${user[0]}"
+        declarative="''${user[1]}"
 
-              ${optionalString cfg.pure ''
-                echo "Removing group ${pool}:$name"
-                ${osctlPool} group del "$name"
-              ''}
-            fi
-          done
+        defined "${definitions.users}" "$name" && continue
 
-          ### Users
-          ${osctlPool} user ls -H -o name,org.vpsadminos.osctl:declarative > "$entryList"
+        if [ "$declarative" == "yes" ] ; then
+          echo "Found leftover declarative user ${pool}:$name"
 
-          if [ "$?" != "0" ] ; then
-            echo "Unable to list users"
-            rm -f "$entryList"
-            exit 1
+          if [ "$destroyUndeclared" == "y" ] ; then
+            echo "Removing user ${pool}:$name"
+            ${osctlPool} user del "$name"
           fi
 
-          cat "$entryList" | while read line ; do
-            user=($line)
-            name="''${user[0]}"
-            declarative="''${user[1]}"
+        else
+          echo "User ${pool}:$name exists, but is not declarative"
 
-            defined "${definitions.users}" "$name" && continue
+          if [ "$destroyImperative" == "y" ] ; then
+            echo "Removing user ${pool}:$name"
+            ${osctlPool} user del "$name"
+          fi
+        fi
+      done
 
-            if [ "$declarative" == "yes" ] ; then
-              echo "Found leftover declarative user ${pool}:$name"
+      rm -f "$entryList"
+    '';
 
-              ${optionalString cfg.destroyUndeclared ''
-                echo "Removing user ${pool}:$name"
-                ${osctlPool} user del "$name"
-              ''}
+in
+{
+  mkService = pool: cfg: mkIf (cfg.destroyMethod == "auto") {
+    "gc-${pool}" = {
+      run = ''
+        ${osctl} pool show ${pool} &> /dev/null
+        hasPool=$?
+        if [ "$hasPool" != "0" ] ; then
+          echo "Waiting for pool ${pool}"
+          exit 1
+        fi
 
-            else
-              echo "User ${pool}:$name exists, but is not declarative"
+        ${sweepScript pool cfg}/bin/gc-sweep-${pool} \
+          ${optionalString cfg.destroyUndeclared "--destroy-undeclared"} \
+          ${optionalString cfg.pure "--destroy-imperative"} \
+          || exit 1
+        sv once gc-${pool}
+      '';
 
-              ${optionalString cfg.pure ''
-                echo "Removing user ${pool}:$name"
-                ${osctlPool} user del "$name"
-              ''}
-            fi
-          done
-
-          rm -f "$entryList"
-
-          sv once gc-${pool}
-        '';
-        
-        log.enable = true;
-        log.sendTo = "127.0.0.1";
-      };
+      log.enable = true;
+      log.sendTo = "127.0.0.1";
     };
+  };
+
+  systemPackages = pool: cfg: [ (sweepScript pool cfg) ];
 }

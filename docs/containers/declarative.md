@@ -165,7 +165,7 @@ in `/var/log`.
 
 ## Removing undeclared entities
 If you declare a container, deploy, then remove it from configuration
-and redeploy the system, the created container will be stopped, but not destroyed.
+and redeploy the system, the created container will be left alone.
 This is the default behaviour to prevent accidental data loss. Destroying
 of undeclared containers is controlled by option
 `osctl.pools.<pool>.destroyUndeclared`:
@@ -192,7 +192,10 @@ osctl.pools.tank = {
 
 `destroyUndeclared` and `pure` control all users, groups and containers on
 the specified pool. Undeclared and imperatively created entities are cleared
-by runit services called `gc-<pool>`, e.g. `gc-tank`.
+either by running `gc-sweep-<pool>` or by runit services called `gc-<pool>`,
+e.g. `gc-tank`. Presence of the runit services is determined by option
+`osctl.pools.<pool>.destroyMethod`, which is set to `manual` by default --
+the garbage collector has to be run manually.
 
 ## Declarative devices
 In order to grant access to devices declaratively, you need to understand

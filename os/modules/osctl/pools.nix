@@ -88,6 +88,22 @@ let
           destroyed.
         '';
       };
+
+      destroyMethod = mkOption {
+        type = types.enum [ "manual" "auto" ];
+        default = "manual";
+        description = ''
+          If set to <literal>manual</literal>, the garbage collector has to be
+          run manually for every pool by the user by calling script
+          <literal>gc-sweep-<pool></literal>. When set to <literal>auto</literal>,
+          the garbage collector is run in the background by runit service
+          <literal>gc-<pool></literal>. Options
+          <option>osctl.pools.<pool>.pure</option> and
+          <option>osctl.pools.<pool>.destroyUndeclared</option> are honored
+          in the automated mode. Destructive operations using the manual
+          invocation have to be enabled using command-line options.
+        '';
+      };
     };
   };
 
@@ -102,6 +118,8 @@ let
     ++
     (mapAttrsToList (name: pool: gc.mkService name pool) pools)
   );
+
+  buildSystemPackages = pools: flatten (mapAttrsToList gc.systemPackages pools);
 in
 {
   ###### interface
@@ -120,6 +138,7 @@ in
   config = mkMerge [
     (mkIf (config.osctl.pools != {}) {
       runit.services = buildServices config.osctl.pools;
+      environment.systemPackages = buildSystemPackages config.osctl.pools;
     })
   ];
 }
