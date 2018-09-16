@@ -58,7 +58,7 @@ in
     };
   };
 
-  mkServices = pool: users: {
+  mkServices = pool: users: mkIf (users != {}) {
     "users-${pool}" = {
       run = ''
         ${osctl} pool show ${pool} &> /dev/null

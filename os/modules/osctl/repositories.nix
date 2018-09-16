@@ -69,7 +69,7 @@ in
     };
   };
 
-  mkServices = pool: repos: {
+  mkServices = pool: repos: mkIf (repos != {}) {
     "repositories-${pool}" = {
       run = ''
         ${osctl} pool show ${pool} &> /dev/null

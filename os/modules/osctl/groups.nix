@@ -81,7 +81,7 @@ in
     };
   };
 
-  mkServices = pool: groups: {
+  mkServices = pool: groups: mkIf (groups != {}) {
     "groups-${pool}" = {
       run = ''
         ${osctl} pool show ${pool} &> /dev/null
