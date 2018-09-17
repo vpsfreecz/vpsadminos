@@ -1,0 +1,15 @@
+GEM
+  remote: https://rubygems.vpsfree.cz/
+  specs:
+    gli (2.17.2)
+    svctl (18.09.0.build20180917192438)
+      gli (~> 2.17.1)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  svctl (= 18.09.0.build20180917192438)
+
+BUNDLED WITH
+   1.14.6

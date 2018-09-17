@@ -268,6 +268,7 @@ in
 
     (mkIf (config.runit.services != {}) {
       environment.etc = mkEnvironment;
+      environment.systemPackages = [ pkgs.svctl ];
     })
   ];
 }

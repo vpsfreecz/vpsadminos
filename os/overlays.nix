@@ -3,6 +3,7 @@
 [
         (import ./overlays/gem-config.nix)
         (import ./overlays/osctl.nix)
+        (import ./overlays/tools.nix)
         (import ./overlays/lxc.nix)
         (import ./overlays/lxcfs.nix)
         (import ./overlays/htop.nix)
