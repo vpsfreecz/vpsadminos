@@ -19,5 +19,31 @@ in
           name = "010-allow_mknod";
           patch = ./patches + "/${name}.patch";
         }
+
+        # AppArmor patches
+        rec {
+          name = "0001-apparmor-patch-to-provide-compatibility-with-v2.x-ne";
+          patch = (pkgs.fetchpatch {
+            name = "${name}.patch";
+            url = "https://gitlab.com/apparmor/apparmor/raw/master/kernel-patches/v4.17/${name}.patch";
+            sha256 = "02ivm4wsjn14gvbry99g2kaykvmx6yjwsz5dzlmql2ms00szw2z2";
+          });
+        }
+        rec {
+          name = "0002-apparmor-af_unix-mediation";
+          patch = (pkgs.fetchpatch {
+            name = "${name}.patch";
+            url = "https://gitlab.com/apparmor/apparmor/raw/master/kernel-patches/v4.17/${name}.patch";
+            sha256 = "0dala2kx2yp6k7fbw2ca5zby7mppmd1mb0bkadi2fhr4ingb61kg";
+          });
+        }
+        rec {
+          name = "0003-apparmor-fix-use-after-free-in-sk_peer_label";
+          patch = (pkgs.fetchpatch {
+            name = "${name}.patch";
+            url = "https://gitlab.com/apparmor/apparmor/raw/master/kernel-patches/v4.17/${name}.patch";
+            sha256 = "1hqyl7im4yidvpc25fy04vyijvs9p4my8ja230l8hh01vq44nl2j";
+          });
+        }
       ];
   }
