@@ -503,6 +503,7 @@ module OsCtld
         ct-post-mount
         ct-autodev
         ct-on-start
+        ct-post-stop
       ).each do |hook|
         symlink = OsCtld.hook_run(hook, self)
         File.symlink(OsCtld::hook_src(hook), symlink) unless File.symlink?(symlink)
