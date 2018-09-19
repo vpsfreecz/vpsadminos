@@ -18,8 +18,7 @@ module OsCtld
 
     attr_reader :pool, :id, :user, :dataset, :group, :distribution, :version,
       :arch, :autostart, :hostname, :dns_resolvers, :nesting, :prlimits, :mounts,
-      :migration_log, :cgparams, :devices, :seccomp_profile, :apparmor_profile,
-      :apparmor, :attrs
+      :migration_log, :cgparams, :devices, :seccomp_profile, :apparmor, :attrs
     attr_accessor :state, :init_pid
 
     # @param pool [Pool]
@@ -52,7 +51,6 @@ module OsCtld
       @dns_resolvers = nil
       @nesting = false
       @seccomp_profile = nil
-      @apparmor_profile = nil
       @apparmor = AppArmor.new(self)
       @attrs = Attributes.new
 
@@ -72,7 +70,6 @@ module OsCtld
       @netifs = []
       @nesting = false
       @seccomp_profile = default_seccomp_profile
-      @apparmor_profile = default_apparmor_profile
       @cgparams = CGroup::ContainerParams.new(self)
       @devices = Devices::ContainerManager.new(self)
       @mounts = Mount::Manager.new(self)
@@ -399,7 +396,6 @@ module OsCtld
 
         when :nesting
           @nesting = true
-          @apparmor_profile = 'osctl-ct-nesting'
 
         when :distribution
           @distribution = v[:name]
@@ -408,9 +404,6 @@ module OsCtld
 
         when :seccomp_profile
           @seccomp_profile = v
-
-        when :apparmor_profile
-          @apparmor_profile = v
 
         when :attrs
           attrs.update(v)
@@ -436,15 +429,8 @@ module OsCtld
         when :nesting
           @nesting = false
 
-          if apparmor_profile == 'osctl-ct-nesting'
-            @apparmor_profile = 'lxc-container-default-cgns'
-          end
-
         when :seccomp_profile
           @seccomp_profile = default_seccomp_profile
-
-        when :apparmor_profile
-          @apparmor_profile = default_apparmor_profile
 
         when :attrs
           v.each { |attr| attrs.unset(attr) }
@@ -565,8 +551,6 @@ module OsCtld
         'nesting' => nesting,
         'seccomp_profile' => seccomp_profile == default_seccomp_profile \
                              ? nil : seccomp_profile,
-        'apparmor_profile' => apparmor_profile == default_apparmor_profile \
-                              ? nil : apparmor_profile,
         'attrs' => attrs.dump,
       }
 
@@ -626,7 +610,6 @@ module OsCtld
       @dns_resolvers = cfg['dns_resolvers']
       @nesting = cfg['nesting'] || false
       @seccomp_profile = cfg['seccomp_profile'] || default_seccomp_profile
-      @apparmor_profile = cfg['apparmor_profile'] || default_apparmor_profile
       @migration_log = Migration::Log.load(cfg['migration_log']) if cfg['migration_log']
       @cgparams = CGroup::ContainerParams.load(self, cfg['cgparams'])
       @prlimits = (cfg['prlimits'] || []).map { |v| PrLimit.load(v) }
@@ -692,10 +675,6 @@ module OsCtld
 
     def default_seccomp_profile
       File.join(Lxc::CONFIGS, 'common.seccomp')
-    end
-
-    def default_apparmor_profile
-      'osctl-ct-default'
     end
   end
 end

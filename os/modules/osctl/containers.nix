@@ -96,7 +96,6 @@ let
         dns_resolvers = cfg.resolvers;
         nesting = boolToStr cfg.nesting;
         seccomp_profile = nullIfEmpty cfg.seccomp;
-        apparmor_profile = nullIfEmpty cfg.apparmor;
       };
 
       yml = pkgs.writeText "container-${name}.yml" (builtins.toJSON conf);
@@ -558,13 +557,6 @@ let
         default = "";
         example = "/run/osctl/configs/lxc/common.seccomp";
         description = "Path to seccomp profile";
-      };
-
-      apparmor = mkOption {
-        type = types.str;
-        default = "";
-        example = "osctl-ct-default";
-        description = "Name of AppArmor profile";
       };
 
       hooks = {
