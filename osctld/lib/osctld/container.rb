@@ -19,7 +19,7 @@ module OsCtld
     attr_reader :pool, :id, :user, :dataset, :group, :distribution, :version,
       :arch, :autostart, :hostname, :dns_resolvers, :nesting, :prlimits, :mounts,
       :migration_log, :cgparams, :devices, :seccomp_profile, :apparmor_profile,
-      :attrs
+      :apparmor, :attrs
     attr_accessor :state, :init_pid
 
     # @param pool [Pool]
@@ -53,6 +53,7 @@ module OsCtld
       @nesting = false
       @seccomp_profile = nil
       @apparmor_profile = nil
+      @apparmor = AppArmor.new(self)
       @attrs = Attributes.new
 
       if opts[:load]
@@ -677,6 +678,7 @@ module OsCtld
         @dataset = Container.default_dataset(@pool, @id)
       end
 
+      @apparmor = @apparmor.dup(self)
       @autostart = @autostart && @autostart.dup(self)
       @cgparams = cgparams.dup(self)
       @mounts = mounts.dup(self)

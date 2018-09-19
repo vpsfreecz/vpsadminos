@@ -15,6 +15,9 @@ module OsCtld
       # Mount datasets
       ct.dataset.mount(recursive: true)
 
+      # Load AppArmor profile
+      ct.apparmor.setup
+
       # Configure CGroups
       ret = call_cmd(Commands::Container::CGParamApply, id: ct.id, pool: ct.pool.name)
       return ret unless ret[:status]

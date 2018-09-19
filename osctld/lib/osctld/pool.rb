@@ -196,6 +196,15 @@ module OsCtld
           group: 0,
           mode: 0711
         )
+        add.directory(
+          apparmor_dir,
+          desc: 'AppArmor files',
+          user: 0,
+          group: 0,
+          mode: 0700
+        )
+
+        AppArmor.assets(add, pool)
       end
     end
 
@@ -220,6 +229,9 @@ module OsCtld
 
       # Load containers from zpool
       load_cts
+
+      # Setup AppArmor profiles
+      AppArmor.setup_pool(pool)
 
       # Allow containers to create veth interfaces
       Commands::User::LxcUsernet.run
@@ -344,6 +356,10 @@ module OsCtld
 
     def mount_dir
       File.join(run_dir, 'mounts')
+    end
+
+    def apparmor_dir
+      File.join(run_dir, 'apparmor')
     end
 
     def config_path
@@ -495,6 +511,10 @@ module OsCtld
 
       [console_dir, devices_dir, hook_dir, mount_dir].each do |dir|
         Dir.mkdir(dir, 0711) unless Dir.exist?(dir)
+      end
+
+      [apparmor_dir].each do |dir|
+        Dir.mkdir(dir, 0700) unless Dir.exist?(dir)
       end
 
       %w(

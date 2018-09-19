@@ -7,6 +7,7 @@ module OsCtld
     REPOSITORY_DIR = File.join(RUNDIR, 'repository')
     CONFIG_DIR = File.join(RUNDIR, 'configs')
     LXC_CONFIG_DIR = File.join(CONFIG_DIR, 'lxc')
+    APPARMOR_DIR = File.join(CONFIG_DIR, 'apparmor')
 
     def self.create
       Dir.mkdir(RUNDIR, 0711) unless Dir.exists?(RUNDIR)
@@ -29,6 +30,9 @@ module OsCtld
       Dir.mkdir(LXC_CONFIG_DIR, 0755) unless Dir.exists?(LXC_CONFIG_DIR)
 
       Lxc.install_lxc_configs(LXC_CONFIG_DIR)
+
+      # AppArmor files
+      Dir.mkdir(APPARMOR_DIR, 0755) unless Dir.exists?(APPARMOR_DIR)
     end
 
     def self.assets(add)
@@ -71,6 +75,13 @@ module OsCtld
       add.directory(
         RunState::CONFIG_DIR,
         desc: 'Global LXC configuration files',
+        user: 0,
+        group: 0,
+        mode: 0755
+      )
+      add.directory(
+        RunState::APPARMOR_DIR,
+        desc: 'Shared AppArmor files',
         user: 0,
         group: 0,
         mode: 0755

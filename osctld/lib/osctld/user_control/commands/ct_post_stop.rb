@@ -12,6 +12,10 @@ module OsCtld
       return error('container not found') unless ct
       return error('access denied') unless owns_ct?(ct)
 
+      # Unload AppArmor profile and destroy namespace
+      ct.apparmor.destroy_namespace
+      ct.apparmor.unload_profile
+
       # User-defined hook
       Container::Hook.run(ct, :post_stop)
 
