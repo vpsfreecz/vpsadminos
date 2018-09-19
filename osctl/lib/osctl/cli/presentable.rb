@@ -43,5 +43,10 @@ module OsCtl
     def to_s
       formatted
     end
+
+    # Returns the raw value in JSON
+    def to_json(*args)
+      raw.to_json(*args)
+    end
   end
 end
