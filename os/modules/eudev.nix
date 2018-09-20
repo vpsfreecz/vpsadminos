@@ -136,11 +136,12 @@ in
         ${pkgs.eudev}/bin/udevadm trigger --action=add --type=subsystems
         ${pkgs.eudev}/bin/udevadm trigger --action=add --type=devices
         ${pkgs.eudev}/bin/udevadm settle
+        touch /run/eudev-done
         sv once .
       '';
 
       runit.services.eudev-trigger.check = ''
-        ${pkgs.eudev}/bin/udevadm settle
+        test -f /run/eudev-done
       '';
     })
   ];
