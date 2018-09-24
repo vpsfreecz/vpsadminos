@@ -1,0 +1,41 @@
+diff --git a/include/linux/memcontrol.h b/include/linux/memcontrol.h
+index 6c6fb116e925..b5f02b156713 100644
+--- a/include/linux/memcontrol.h
++++ b/include/linux/memcontrol.h
+@@ -73,8 +73,13 @@ struct mem_cgroup_reclaim_cookie {
+ 
+ #ifdef CONFIG_MEMCG
+ 
++#if defined(__x86_64__) && defined(MEMCG_32BIT_IDS)
++#define MEM_CGROUP_ID_SHIFT	32
++#define MEM_CGROUP_ID_MAX	INT_MAX
++#else
+ #define MEM_CGROUP_ID_SHIFT	16
+ #define MEM_CGROUP_ID_MAX	USHRT_MAX
++#endif
+ 
+ struct mem_cgroup_id {
+ 	int id;
+diff --git a/init/Kconfig b/init/Kconfig
+index 041f3a022122..1e71f377a5a8 100644
+--- a/init/Kconfig
++++ b/init/Kconfig
+@@ -678,6 +678,18 @@ config MEMCG_SWAP_ENABLED
+ 	  select this option (if, for some reason, they need to disable it
+ 	  then swapaccount=0 does the trick).
+ 
++config MEMCG_32BIT_IDS
++	bool "Use 32 bit IDs"
++	depends on MEMCG && X86_64
++	default n
++	help
++	  Extends the default limit of max 65536 memory cgroups to
++	  2147483647. This may cause an increase of bucket_order in
++	  mm/workingset.c, having TODO consequences.
++
++	  See https://lore.kernel.org/patchwork/patch/690171/ for original
++	  reasoning behind 16 bit limit.
++
+ config BLK_CGROUP
+ 	bool "IO controller"
+ 	depends on BLOCK

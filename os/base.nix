@@ -251,6 +251,7 @@ with lib;
         EXPERT y
         CHECKPOINT_RESTORE y
         CFS_BANDWIDTH y
+        MEMCG_32BIT_IDS y
       '';
     };
 
