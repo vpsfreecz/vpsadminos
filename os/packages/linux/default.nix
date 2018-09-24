@@ -45,5 +45,13 @@ in
             sha256 = "1hqyl7im4yidvpc25fy04vyijvs9p4my8ja230l8hh01vq44nl2j";
           });
         }
+        rec {
+          name = "0001-UBUNTU-SAUCE-apparmor-fix-apparmor-mediating-locking";
+          patch = (pkgs.fetchpatch {
+            name = "${name}.patch";
+            url = "https://launchpadlibrarian.net/380390953/${name}.patch";
+            sha256 = "1119q8akhxsqdp7yf18257kzp9nhz2cjm5ivsj8krrxg026q0nwb";
+          });
+        }
       ];
   }
