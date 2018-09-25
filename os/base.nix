@@ -252,6 +252,7 @@ with lib;
         CHECKPOINT_RESTORE y
         CFS_BANDWIDTH y
         MEMCG_32BIT_IDS y
+        CGROUP_CGLIMIT y
       '';
     };
 
@@ -339,6 +340,7 @@ with lib;
           net_cls = /sys/fs/cgroup/net_cls,net_prio;
           net_prio = /sys/fs/cgroup/net_cls,net_prio;
           pids = /sys/fs/cgroup/pids;
+          cglimit = /sys/fs/cgroup/cglimit;
           "name=systemd" = /sys/fs/cgroup/systemd;
         }
         group . {

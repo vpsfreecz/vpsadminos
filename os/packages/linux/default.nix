@@ -23,6 +23,10 @@ in
           name = "020-cgroup_increase_max_css_id_to_32_bit_int";
           patch = ./patches + "/${name}.patch";
         }
+        rec {
+          name = "030-cglimit_controller_v1";
+          patch = ./patches + "/${name}.patch";
+        }
 
         # AppArmor patches
         rec {
