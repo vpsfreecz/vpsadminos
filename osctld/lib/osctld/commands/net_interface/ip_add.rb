@@ -25,10 +25,6 @@ module OsCtld
         # TODO: check that no other container has this IP
         next error('this address is already assigned') if netif.has_ip?(addr)
 
-        unless netif.can_add_ip?(addr)
-          next error("network interface not configured for IPv#{ip_v}")
-        end
-
         case netif.type
         when :routed
           netif.add_ip(addr, route(netif, addr))

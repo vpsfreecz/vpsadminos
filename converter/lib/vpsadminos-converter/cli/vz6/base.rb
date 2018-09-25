@@ -40,7 +40,6 @@ module VpsAdminOS::Converter
           name: opts['netif-name'],
           hwaddr: opts['netif-hwaddr'],
           link: opts['bridge-link'],
-          via: parse_route_via(opts['route-via']),
         }
       )
 
@@ -70,61 +69,6 @@ module VpsAdminOS::Converter
 
     def exporter_class
       opts[:zfs] ? Exporter::Zfs : Exporter::Tar
-    end
-
-    def parse_route_via(list)
-      ret = {}
-
-      host_addrs = opts['route-host-addr'].map { |v| IPAddress.parse(v) }
-      ct_addrs = opts['route-ct-addr'].map { |v| IPAddress.parse(v) }
-
-      list.each do |addr|
-        network = IPAddress.parse(addr)
-        ip_v = network.ipv4? ? 4 : 6
-
-        if ret.has_key?(ip_v)
-          raise GLI::BadCommandLine,
-                "network for IPv#{ip_v} has already been set to route via #{ret[ip_v]}"
-        end
-
-        case ip_v
-        when 4
-          if network.prefix > 30
-            raise GLI::BadCommandLine, 'cannot route via IPv4 network smaller than /30'
-          end
-
-        when 6
-          if network.prefix > 126
-            raise GLI::BadCommandLine, "cannot route via IPv6 network smaller than /126"
-          end
-        end
-
-        host_addr = get_net_addr(network, host_addrs, 'host')
-        ct_addr = get_net_addr(network, ct_addrs, 'container')
-
-        if (host_addr && !ct_addr) || (!host_addr && ct_addr)
-          raise GLI::BadCommandLine, 'provide both host and container address'
-
-        elsif host_addr && host_addr == ct_addr
-          raise GLI::BadCommandLine, 'use different addresses for host and container'
-        end
-
-        ret[ip_v] = {
-          network: network,
-          host: host_addr,
-          ct: ct_addr,
-        }
-      end
-
-      ret
-    end
-
-    def get_net_addr(network, list, type)
-      addr = list.detect { |v| v.class == network.class }
-      return addr if addr.nil? || network.include?(addr)
-
-      raise GLI::BadCommandLine, "network #{network.to_string} does not "+
-                                 "include #{type} address #{addr.to_string}"
     end
   end
 end

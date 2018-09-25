@@ -42,9 +42,6 @@ module VpsAdminOS::Converter
       puts 'Export done'
       puts
       print_convert_status(vz_ct)
-
-    rescue RouteViaMissing => e
-      raise GLI::BadCommandLine, "provide --route-via for IPv#{e.ip_v}"
     end
 
     protected

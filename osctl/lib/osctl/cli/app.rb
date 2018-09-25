@@ -992,15 +992,6 @@ module OsCtl::Cli
             create.desc 'Create a new routed veth interface'
             create.arg_name '<id> <name>'
             create.command :routed do |c|
-              c.desc 'Route via network'
-              c.flag :via, multiple: true, required: true
-
-              c.desc 'Interconnecting address for the host'
-              c.flag 'host-addr', multiple: true
-
-              c.desc 'Interconnecting address for the container'
-              c.flag 'ct-addr', multiple: true
-
               c.desc "MAC address"
               c.flag :hwaddr
 
@@ -1025,15 +1016,6 @@ module OsCtl::Cli
           net.command :set do |c|
             c.desc 'What bridge should the interface be linked with'
             c.flag :link
-
-            c.desc 'Route via network'
-            c.flag :via, multiple: true
-
-            c.desc 'Interconnecting address for the host'
-            c.flag 'host-addr', multiple: true
-
-            c.desc 'Interconnecting address for the container'
-            c.flag 'ct-addr', multiple: true
 
             c.desc "MAC address"
             c.flag :hwaddr

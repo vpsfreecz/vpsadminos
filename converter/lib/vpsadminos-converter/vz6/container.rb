@@ -94,7 +94,6 @@ module VpsAdminOS::Converter
           netif.link = opts[:netif][:link]
 
         when :routed
-          netif.via = opts[:netif][:via]
           netif.routes = {4 => [], 6 => []}
         end
 
@@ -103,10 +102,6 @@ module VpsAdminOS::Converter
         [4, 6].each do |ip_v|
           netif.ip_addresses[ip_v] = all_ips.select do |ip|
             ip.send("ipv#{ip_v}?")
-          end
-
-          if netif.type == :routed && netif.ip_addresses[ip_v].any? && !netif.via[ip_v]
-            raise RouteViaMissing, ip_v
           end
 
           netif.routes[ip_v] = netif.ip_addresses[ip_v] if netif.type == :routed

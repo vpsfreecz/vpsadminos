@@ -7,25 +7,12 @@ module OsCtld
 
     include Utils::Ip
 
-    attr_reader :via, :routes
+    attr_reader :routes
 
     # @param opts [Hash]
     # @option opts [String] name
-    # @option opts [String] via
     def create(opts)
       super
-
-      @via = Hash[ opts[:via].map do |k, v|
-        net_addr = IPAddress.parse(v[:network])
-        [
-          k,
-          Routing::Via.for(net_addr).new(
-            net_addr,
-            v[:host_addr] && IPAddress.parse(v[:host_addr]),
-            v[:ct_addr] && IPAddress.parse(v[:ct_addr]),
-          )
-        ]
-      end]
 
       @routes = Routing::Table.new
     end
@@ -33,42 +20,17 @@ module OsCtld
     def load(cfg)
       super
 
-      @via = load_ip_list(cfg['via'] || {}) do |v|
-        Routing::Via.load(v)
-      end
-
       @routes = Routing::Table.load(cfg['routes'] || {})
     end
 
     def save
       super.merge({
-        'via' => save_ip_list(@via) { |v| v.dump },
         'routes' => @routes.dump,
       })
     end
 
-    # @param opts [Hash] options
-    # @option opts [Hash<Integer, Hash>] :via
-    def set(opts)
-      super
-
-      if opts[:via]
-        @via = Hash[ opts[:via].map do |ip_v, net|
-          [
-            ip_v,
-            Routing::Via.for(net[:network]).new(
-              net[:network],
-              net[:host_addr],
-              net[:ct_addr],
-            )
-          ]
-        end]
-      end
-    end
-
     def setup
       super
-      @host_setup = {}
 
       return if ct.current_state != :running
 
@@ -84,23 +46,6 @@ module OsCtld
         @veth = nil
         return
       end
-
-      [4, 6].each do |ip_v|
-        net = via[ip_v]
-        next unless net
-
-        inet = ip_v == 4 ? 'inet' : 'inet6'
-
-        if /#{inet} #{Regexp.escape(net.host_ip.to_string)}/ =~ iplist[:output]
-          log(
-            :info,
-            ct,
-            "Discovered IPv#{ip_v} configuration for routed veth #{name}"
-          )
-
-          @host_setup[ip_v] = true
-        end
-      end
     end
 
     def up(veth)
@@ -109,61 +54,29 @@ module OsCtld
       [4, 6].each do |v|
         next if @routes.empty?(v)
 
-        setup_routing(v) unless @host_setup[v]
-
         @routes.each_version(v) do |addr|
-          ip(v, [
-            :route, :add,
-            addr.to_string, :via, via[v].ct_ip.to_s, :dev, veth
-          ])
+          ip(v, [:route, :add, addr.to_string, :dev, veth])
         end
       end
     end
 
-    def down(veth)
-      super
-      @host_setup = {}
-    end
-
-    def can_add_ip?(addr)
-      !@via[addr.ipv4? ? 4 : 6].nil?
-    end
-
     def active_ip_versions
-      [4, 6].delete_if { |v| @via[v].nil? }
-    end
-
-    # Return all IPs, including the container's interconnecting address
-    def all_ips(v)
-      ret = @ips[v].clone
-      ret.insert(0, via[v].ct_ip) unless ret.include?(via[v].ct_ip)
-      ret
-    end
-
-    # Return the IP that should be used as a source address
-    def source_ip(v)
-      @ips[v].first
+      [4, 6].delete_if { |v| @ips[v].empty? }
     end
 
     def add_ip(addr, route)
       super(addr)
 
       v = addr.ipv4? ? 4 : 6
-      return if addr == via[v].ct_ip
 
       @routes << route if route && !@routes.contains?(route)
 
       ct.inclusively do
         next if ct.state != :running
 
-        setup_routing(v) unless @host_setup[v]
-
         # Add host route
         if route
-          ip(v, [
-            :route, :add,
-            route.to_string, :via, via[v].ct_ip.to_s, :dev, veth
-          ])
+          ip(v, [:route, :add, route.to_string, :dev, veth])
         end
 
         # Add IP within the CT
@@ -186,10 +99,7 @@ module OsCtld
 
         # Remove host route
         if route
-          ip(v, [
-            :route, :del,
-            route.to_string, :via, via[v].ct_ip.to_s, :dev, veth
-          ])
+          ip(v, [:route, :del, route.to_string, :dev, veth])
         end
 
         # Remove IP from within the CT
@@ -208,10 +118,6 @@ module OsCtld
       end
     end
 
-    def can_route_ip?(addr)
-      !@via[addr.ipv4? ? 4 : 6].nil?
-    end
-
     def has_route?(addr)
       @routes.contains?(addr)
     end
@@ -223,10 +129,7 @@ module OsCtld
       ct.inclusively do
         next if ct.state != :running
 
-        ip(v, [
-          :route, :add,
-          addr.to_string, :via, via[v].ct_ip.to_s, :dev, veth
-        ])
+        ip(v, [:route, :add, addr.to_string, :dev, veth])
       end
     end
 
@@ -238,10 +141,7 @@ module OsCtld
       ct.inclusively do
         next if ct.state != :running
 
-        ip(v, [
-          :route, :del,
-          route.to_string, :via, via[v].ct_ip.to_s, :dev, veth
-        ])
+        ip(v, [:route, :del, route.to_string, :dev, veth])
       end
     end
 
@@ -255,23 +155,9 @@ module OsCtld
         removed.each do |route|
           v = route.ipv4? ? 4 : 6
 
-          ip(v, [
-            :route, :del,
-            route.to_string, :via, via[v].ct_ip.to_s, :dev, veth
-          ])
+          ip(v, [:route, :del, route.to_string, :dev, veth])
         end
       end
-    end
-
-    protected
-    def setup_routing(v)
-      unless veth
-        fail "Unable to setup routing for IPv#{v}: name of the veth "+
-             "interface is not known"
-      end
-
-      ip(v, [:addr, :add, via[v].host_ip.to_string, :dev, veth])
-      @host_setup[v] = true
     end
   end
 end

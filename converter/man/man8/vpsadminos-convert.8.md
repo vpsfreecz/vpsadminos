@@ -144,24 +144,6 @@ It can also migrate containers to vpsAdminOS nodes directly, similarly to
   applies only when `--netif-type bridge` is set. By default, vpsAdminOS
   has bridge named `lxcbr0`, so the converter uses it.
 
-`--route-via` *network*
-  Interconnecting network via which the container's IP addresses are routed.
-  Applies only when `--netif-type routed` is set. Can be used once for IPv4
-  and once for IPv6. This option has to be specified for all IP versions
-  that the container is using.
-
-`--route-host-addr` *addr*
-  Address from the interconnecting network that should be used on the host's
-  veth interface. Can be used once for IPv4 and once for IPv6. Has to be used
-  in conjunction with `--route-ct-addr`. Defaults to the first address from the
-  interconnecting network.
-
-`--route-ct-addr` *addr*
-  Address from the interconnecting network that should be used on
-  the container's veth interface. Can be used once for IPv4 and once for
-  IPv6. Has to be used in conjunction with `--route-host-addr`. Defaults to
-  the second address from the interconnecting network.
-
 `--vpsadmin`
   Assume the container is being managed by vpsAdmin, this implies the
   following options:
@@ -171,8 +153,6 @@ It can also migrate containers to vpsAdminOS nodes directly, similarly to
   `--zfs-subdir private`
   `--netif-type routed`
   `--netif-name eth0`
-
-  `--route-via` has to be provided.
 
 ### Example export/import of simfs/ploop
 To export container `101` from the OpenVZ node into `ct-101.tar`:

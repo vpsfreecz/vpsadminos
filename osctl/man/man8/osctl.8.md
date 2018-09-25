@@ -1237,35 +1237,17 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Set a custom MAC address. Every **x** in the address is replaced by
       a random value. By default, the address is dynamically allocated.
 
-`ct netif new routed` [*options*] `--via` *network* *id* *name*
+`ct netif new routed` [*options*] *id* *name*
   Create a new routed network interface in container *id*. Like for **bridge**
   interface, a pair veth is created. The difference is that the veth is not part
-  of any bridge. Instead, IP addresses are routed to the container via
-  an interconnecting *network*. `osctld` will automatically setup appropriate
-  routes on the host veth interface. The interface will appear as *name* within
-  the container.
+  of any bridge. Instead, IP addresses and networks are routed to the container
+  by configuring routes. For the routed addresses to be accessible in your
+  network, you need to configure either static or dynamic routing on your
+  machines. `osctld` will automatically setup appropriate routes on the host
+  veth interface and generate configuration files for the container's network
+  system. The interface will appear as *name* within the container.
   
   The container has to be stopped for this command to be allowed.
-
-    `--via` *network*
-      Route via network, required. Can be used once for IPv4 and once for IPv6,
-      depending what addresses you want to be able to route.
-
-    `--host-addr` *addr*
-      Address from the interconnecting network that should be used on the host's
-      veth interface. Can be used once for IPv4 and once for IPv6. Has to be used
-      in conjunction with `--ct-addr`. Defaults to the first address from the
-      interconnecting network.
-
-    `--ct-addr` *addr*
-      Address from the interconnecting network that should be used on
-      the container's veth interface. Can be used once for IPv4 and once for
-      IPv6. Has to be used in conjunction with `--host-addr`. Defaults to
-      the second address from the interconnecting network.
-
-      By default, the interconnecting address will be added to the container's
-      interface as the first IP address. If you wish to change its position,
-      add the address explicitly using `osctl ct netif ip add`.
 
     `--hwaddr` *addr*
       Set a custom MAC address. Every **x** in the address is replaced by
@@ -1286,29 +1268,6 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `--link` *bridge*
       What bridge should the interface be linked with. Applicable only for
       bridged interfaces.
-
-    `--via` *network*
-      Change the interconnecting network for a routed interface. Can be used
-      once for IPv4 and once for IPv6, depending what addresses you want to be
-      able to route. `--via` drops any previous routing configuration and
-      replaces it with the new one. You have to provide `--via` for IP versions
-      that you wish to route and optionally also `--host-addr` and `--ct-addr`.
-
-    `--host-addr` *addr*
-      Address from the interconnecting network that should be used on the host's
-      veth interface. Can be used once for IPv4 and once for IPv6.
-      If `--host-addr` is used, `--via` has to be provided for the same IP
-      version as well. Applicable only for routed interfaces.
-
-    `--ct-addr` *addr*
-      Address from the interconnecting network that should be used on
-      the container's veth interface. Can be used once for IPv4 and once for
-      IPv6. If `--ct-addr` is used, `--via` has to be provided for the same IP
-      version as well. Applicable only for routed interfaces.
-
-      By default, the interconnecting address will be added to the container's
-      interface as the first IP address. If you wish to change its position,
-      add the address explicitly using `osctl ct netif ip add`.
 
     `--hwaddr` *addr*
       Change MAC address. Every **x** in the address is replaced by
@@ -1364,8 +1323,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Filter by IP version.
 
 `ct netif route add` *id* *name* *addr*
-  Route *addr* into the container via an interconnecting network that has been
-  set up for interface *name*. Applicable only for routed interfaces.
+  Route *addr* into the container. Applicable only for routed interfaces.
 
 `ct netif route del` [*options*] *id* *name* *addr*|`all`
   Remove routed address from a routed interface.

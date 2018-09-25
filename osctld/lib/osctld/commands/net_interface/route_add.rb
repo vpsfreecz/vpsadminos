@@ -26,10 +26,6 @@ module OsCtld
         # TODO: check that no other container routes this IP
         error!('this address is already routed') if netif.routes.route?(addr)
 
-        unless netif.can_route_ip?(addr)
-          error!("network interface not configured for IPv#{ip_v}")
-        end
-
         netif.add_route(addr)
         ct.save_config
         ct.configure_network

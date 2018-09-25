@@ -10,14 +10,14 @@ Connection=ethernet
 ForceConnect=yes
 
 <% netif.active_ip_versions.each do |v| -%>
-<% all_ips = netif.all_ips(v) -%>
+<% all_ips = netif.ips(v) -%>
 <% if v == 4 -%>
 IP=static
 Address=( <%= all_ips.map { |addr| "\"#{addr.to_string}\"" }.join(' ') %> )
-Routes=( <% if all_ips.count > 1 %>"default via <%= netif.via[v].host_ip.to_s %> src <%= netif.source_ip(v).to_s %>"<% end %> )
+Routes=( <% if all_ips.count > 1 %>"default dev <%= netif.name %>"<% end %> )
 <% elsif v == 6 -%>
 IP6=static
 Address6=( <%= all_ips.map { |addr| "\"#{addr.to_string}\"" }.join(' ') %> )
-Routes6=( <% if all_ips.count > 1 %>"default via <%= netif.via[v].host_ip.to_s %> src <%= netif.source_ip(v).to_s %>"<% end %> )
+Routes6=( <% if all_ips.count > 1 %>"default dev <%= netif.name %>"<% end %> )
 <% end %>
 <% end -%>

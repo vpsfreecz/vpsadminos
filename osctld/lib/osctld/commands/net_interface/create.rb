@@ -22,11 +22,6 @@ module OsCtld
         end
 
         netif = klass.new(ct, ct.netifs.count)
-
-        if opts[:via]
-          opts[:via] = Hash[ opts[:via].map { |k,v| [k.to_s.to_i, v] } ]
-        end
-
         netif.create(opts)
         netif.setup
 

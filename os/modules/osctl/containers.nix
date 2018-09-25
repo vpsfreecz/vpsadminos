@@ -181,16 +181,6 @@ let
         apply = x: map addrToStr x;
       };
 
-      ipv4.via = mkOption {
-        type =  types.nullOr (types.submodule (addrOpts 4));
-        default = null;
-        apply = x: if x != null then addrToStr x else x;
-        description = ''
-          IPv4 address of the interconnecting network (/30)
-
-          (type = "routed" only)
-        '';
-      };
       ipv6.addresses = mkOption {
         type =  types.listOf (types.submodule (addrOpts 6));
         default = [];
@@ -201,16 +191,6 @@ let
           List of IPv6 addresses that will be statically assigned to the interface.
         '';
         apply = x: map addrToStr x;
-      };
-      ipv6.via = mkOption {
-        type =  types.nullOr (types.submodule (addrOpts 6));
-        default = null;
-        apply = x: if x != null then addrToStr x else x;
-        description = ''
-          IPv6 address of the interconnecting network (/30)
-
-          (type = "routed" only)
-        '';
       };
     };
   };
@@ -227,11 +207,9 @@ let
       { name = "eth1";
         type = "routed";
         ipv4 =  {
-          via = { address = "172.17.77.76"; prefixLength=30; };
           addresses = [ { address = "172.17.66.66"; prefixLength = 32; } ];
         };
         ipv6 = {
-          via = { address = "2a03:3b40:7:666::"; prefixLength=64; };
           addresses = [ { address = "2a03:3b40:7:667::1"; prefixLength=64; } ];
         };
       }
@@ -246,12 +224,7 @@ let
     apply = x: map (iface: filterAttrs (n: v: !(n == "ipv4" || n == "ipv6")) (iface //
           { ip_addresses.v4 = iface.ipv4.addresses;
             ip_addresses.v6 = iface.ipv6.addresses;
-          } //
-            (if iface.type == "routed" then
-            { via.v4 = iface.ipv4.via;
-              via.v6 = iface.ipv6.via;
-            }
-            else {})
+          }
           ))
           (map _filter x);
   };

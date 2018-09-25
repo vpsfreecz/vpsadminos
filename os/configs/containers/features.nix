@@ -48,11 +48,9 @@
           name = "eth1";
           type = "routed";
           ipv4 =  {
-            via = { address = "172.17.77.76"; prefixLength=30; };
             addresses = [ { address = "172.17.66.66"; prefixLength = 32; } ];
           };
           ipv6 = {
-            via = { address = "2a03:3b40:7:666::"; prefixLength=64; };
             addresses = [ { address = "2a03:3b40:7:667::1"; prefixLength=64; } ];
           };
         };

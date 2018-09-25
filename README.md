@@ -71,7 +71,7 @@ osctl ct new --user myuser01 --distribution alpine --version 3.7 myct01
 osctl ct netif new bridge --link lxcbr0 myct01 eth0
 
 # Routed veth
-osctl ct netif new routed --via 10.100.10.100/30 myct01 eth1
+osctl ct netif new routed myct01 eth1
 osctl ct netif ip add myct01 eth1 1.2.3.4/32
 
 # Start the container:

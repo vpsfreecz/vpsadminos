@@ -10,7 +10,6 @@ module OsCtld
       type
       link
       veth
-      via
     )
 
     def execute
@@ -46,17 +45,7 @@ module OsCtld
 
           Hash[FIELDS.map do |f|
             next [f, nil] unless netif.respond_to?(f)
-
-            v = case f
-                when :via
-                  Hash[netif.send(f).map do |ip_v, via|
-                    [ip_v, via.net_addr.to_string]
-                  end]
-                else
-                  netif.send(f)
-                end
-
-            [f, v]
+            [f, netif.send(f)]
           end].merge(
             pool: ct.pool.name,
             ctid: ct.id,

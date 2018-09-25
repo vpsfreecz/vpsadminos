@@ -1,7 +1,7 @@
 auto <%= netif.name %>
 <% netif.active_ip_versions.each do |v| -%>
 iface <%= netif.name %> <%= v == 4 ? 'inet' : 'inet6' %> static
-<% first_ip, *rest_ips = netif.all_ips(v) -%>
+<% first_ip, *rest_ips = netif.ips(v) -%>
   address <%= first_ip.to_s %>
   netmask <%= v == 4 ? first_ip.netmask : first_ip.prefix %>
 <% if v == 6 -%>
@@ -11,7 +11,5 @@ iface <%= netif.name %> <%= v == 4 ? 'inet' : 'inet6' %> static
   up ip -<%= v %> addr add <%= addr.to_string %> dev <%= netif.name %>
   down ip -<%= v %> addr del <%= addr.to_string %> dev <%= netif.name %>
 <% end -%>
-<% if rest_ips.any? -%>
-  up ip -<%= v %> route add default via <%= netif.via[v].host_ip.to_s %> src <%= netif.source_ip(v).to_s %>
-<% end -%>
+  up ip -<%= v %> route add default dev <%= netif.name %>
 <% end -%>
