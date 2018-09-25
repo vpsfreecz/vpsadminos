@@ -18,6 +18,7 @@ end.join("\n") %>
 
 routes_<%= netif.name %>="
 <% netif.active_ip_versions.each do |v| -%>
-<% if netif.ips(v).count > 1 %>default dev <%= netif.name %><% end %>
+<%= netif.default_via(v) %> dev <%= netif.name %>
+default via <%= netif.default_via(v) %> dev <%= netif.name %>
 <% end -%>
 "

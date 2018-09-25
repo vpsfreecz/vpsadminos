@@ -9,7 +9,6 @@ echo 0 > /proc/sys/net/ipv6/conf/<%= netif.name %>/accept_dad
 <% all_ips.each do |addr| -%>
   ip -<%= v %> addr <%= op %> <%= addr.to_string %> dev <%= netif.name %>
 <% end -%>
-<% if all_ips.count > 1 -%>
-  ip -<%= v %> route <%= op %> default dev <%= netif.name %> <%= op == "del" ? '|| true' : ''  %>
-<% end -%>
+  ip -<%= v %> route <%= op %> <%= netif.default_via(v) %> dev <%= netif.name %> <%= op == "del" ? '|| true' : ''  %>
+  ip -<%= v %> route <%= op %> default via <%= netif.default_via(v) %> dev <%= netif.name %> <%= op == "del" ? '|| true' : ''  %>
 <% end -%>

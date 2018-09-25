@@ -14,10 +14,10 @@ ForceConnect=yes
 <% if v == 4 -%>
 IP=static
 Address=( <%= all_ips.map { |addr| "\"#{addr.to_string}\"" }.join(' ') %> )
-Routes=( <% if all_ips.count > 1 %>"default dev <%= netif.name %>"<% end %> )
+Routes=( "<%= netif.default_via(v) %> dev <%= netif.name %>" "default via <%= netif.default_via(v) %> dev <%= netif.name %>" )
 <% elsif v == 6 -%>
 IP6=static
 Address6=( <%= all_ips.map { |addr| "\"#{addr.to_string}\"" }.join(' ') %> )
-Routes6=( <% if all_ips.count > 1 %>"default dev <%= netif.name %>"<% end %> )
+Routes6=( "<%= netif.default_via(v) %> dev <%= netif.name %>" "default via <%= netif.default_via(v) %> dev <%= netif.name %>" )
 <% end %>
 <% end -%>

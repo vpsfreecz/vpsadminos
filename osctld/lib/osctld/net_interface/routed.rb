@@ -5,6 +5,31 @@ module OsCtld
   class NetInterface::Routed < NetInterface::Veth
     type :routed
 
+    extend OsCtl::Lib::Utils::System
+    extend Utils::Ip
+
+    INTERFACE = 'osrtr0'
+    DEFAULT_IPS = {
+      4 => IPAddress.parse('255.255.255.254/32'),
+      6 => IPAddress.parse('fe80:ffff:ffff:ffff:ffff:ffff:ffff:fffe/128'),
+    }
+
+    def self.setup
+      begin
+        ip(:all, [:link, :show, :dev, INTERFACE])
+        return
+
+      rescue SystemCommandFailed => e
+        raise if e.rc != 1
+      end
+
+      ip(:all, [:link, :add, INTERFACE, :type, :dummy])
+
+      [4, 6].each do |ip_v|
+        ip(ip_v, [:addr, :add, DEFAULT_IPS[ip_v].to_string, :dev, INTERFACE])
+      end
+    end
+
     include Utils::Ip
 
     attr_reader :routes
@@ -158,6 +183,10 @@ module OsCtld
           ip(v, [:route, :del, route.to_string, :dev, veth])
         end
       end
+    end
+
+    def default_via(v)
+      DEFAULT_IPS[v]
     end
   end
 end

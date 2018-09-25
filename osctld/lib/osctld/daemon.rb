@@ -79,6 +79,9 @@ module OsCtld
       # Migration hooks and server
       Migration.setup
 
+      # Setup network interfaces
+      NetInterface.setup
+
       # Load data pools
       Commands::Pool::Import.run(all: true, autostart: true)
 

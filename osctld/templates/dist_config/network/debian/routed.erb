@@ -11,5 +11,6 @@ iface <%= netif.name %> <%= v == 4 ? 'inet' : 'inet6' %> static
   up ip -<%= v %> addr add <%= addr.to_string %> dev <%= netif.name %>
   down ip -<%= v %> addr del <%= addr.to_string %> dev <%= netif.name %>
 <% end -%>
-  up ip -<%= v %> route add default dev <%= netif.name %>
+  up ip -<%= v %> route add <%= netif.default_via(v) %> dev <%= netif.name %>
+  up ip -<%= v %> route add default via <%= netif.default_via(v) %> dev <%= netif.name %>
 <% end -%>

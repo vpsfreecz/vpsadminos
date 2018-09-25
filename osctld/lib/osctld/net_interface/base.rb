@@ -10,6 +10,10 @@ module OsCtld
       end
     end
 
+    def self.setup
+
+    end
+
     attr_reader :name, :index, :hwaddr
 
     def initialize(ct, index)
