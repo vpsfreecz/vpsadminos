@@ -1,3 +1,23 @@
 DEVICE=<%= netif.name %>
+<% if netif.dhcp -%>
 BOOTPROTO=dhcp
 ONBOOT=yes
+<% else -%>
+BOOTPROTO=static
+ONBOOT=yes
+<% netif.active_ip_versions.each do |v| -%>
+<% if v == 4 -%>
+<% netif.ips(v).each_with_index do |addr, i| -%>
+IPADDR<%= i %>=<%= addr.to_s %>
+NETMASK<%= i %>=<%= addr.netmask %>
+<% end -%>
+GATEWAY=<%= netif.gateway(v) %>
+<% elsif v == 6 -%>
+<% first_ip, *rest_ips = netif.ips(v) -%>
+IPV6INIT="yes"
+IPV6ADDR=<%= first_ip.to_string %>
+IPV6ADDR_SECONDARIES="<%= rest_ips.map { |addr| addr.to_string }.join(' ') %>"
+IPV6_DEFAULTGW=<%= netif.gateway(v) %>
+<% end -%>
+<% end -%>
+<% end -%>

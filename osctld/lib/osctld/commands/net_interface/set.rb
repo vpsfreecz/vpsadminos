@@ -33,7 +33,9 @@ module OsCtld
 
     protected
     def bridge_opts(netif)
-      {link: opts[:link]}
+      ret = {link: opts[:link]}
+      ret[:dhcp] = opts[:dhcp] if opts.has_key?(:dhcp)
+      ret
     end
 
     def routed_opts(netif)

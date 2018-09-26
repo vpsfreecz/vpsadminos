@@ -9,6 +9,7 @@ module OsCtld
       index
       type
       link
+      dhcp
       veth
     )
 

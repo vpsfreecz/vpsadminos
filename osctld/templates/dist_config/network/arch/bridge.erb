@@ -8,4 +8,19 @@ Interface=<%= netif.name %>
 BindToInterfaces=()
 Connection=ethernet
 ForceConnect=yes
+<% if netif.dhcp -%>
 IP=dhcp
+<% else -%>
+<% netif.active_ip_versions.each do |v| -%>
+<% all_ips = netif.ips(v) -%>
+<% if v == 4 -%>
+IP=static
+Address=( <%= all_ips.map { |addr| "\"#{addr.to_string}\"" }.join(' ') %> )
+Routes=( "default via <%= netif.gateway(v) %> dev <%= netif.name %>" )
+<% elsif v == 6 -%>
+IP6=static
+Address6=( <%= all_ips.map { |addr| "\"#{addr.to_string}\"" }.join(' ') %> )
+Routes6=( "default via <%= netif.gateway(v) %> dev <%= netif.name %>" )
+<% end %>
+<% end -%>
+<% end -%>

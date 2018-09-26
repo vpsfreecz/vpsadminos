@@ -1233,6 +1233,17 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `--link` *bridge*
       What bridge should the interface be linked with, required.
 
+    `--[no-]dhcp`
+      If enabled, the container's interface will be setup by DHCP. This option
+      controls DHCP client within the container for supported distributions.
+      DHCP server must be provided by the host, e.g. using Nix option
+      `networking.dhcpd`.
+
+      When DHCP is disabled, you can assign IP addresses manually using
+      `ct netif ip` commands.
+
+      Enabled by default.
+
     `--hwaddr` *addr*
       Set a custom MAC address. Every **x** in the address is replaced by
       a random value. By default, the address is dynamically allocated.
@@ -1268,6 +1279,16 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `--link` *bridge*
       What bridge should the interface be linked with. Applicable only for
       bridged interfaces.
+
+    `--enable-dhcp`
+      Enables DHCP client within the container for supported distributions.
+      DHCP server must be provided by the host, e.g. using Nix option
+      `networking.dhcpd`. Applicable only for bridged interfaces.
+
+    `--disable-dhcp`
+      Disables DHCP client within the container. When disabled, IP addresses
+      can be assigned manually using `ct netif ip` commands. Applicable only
+      for bridged interfaces.
 
     `--hwaddr` *addr*
       Change MAC address. Every **x** in the address is replaced by

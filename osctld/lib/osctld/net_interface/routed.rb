@@ -85,10 +85,6 @@ module OsCtld
       end
     end
 
-    def active_ip_versions
-      [4, 6].delete_if { |v| @ips[v].empty? }
-    end
-
     def add_ip(addr, route)
       super(addr)
 

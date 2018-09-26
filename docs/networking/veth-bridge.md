@@ -15,7 +15,20 @@ osctl ct netif new bridge --link lxcbr0 myct01 eth0
 ```
 
 If you wish to assign static IP addresses, you can set static MAC addresses
-for container interfaces and use a MAC filter in the DHCP server. While
-*osctl* makes it possible to assign static addresses using `osctl ct netif up`
-commands, their availability is not guaranteed. The addresses are assigned
-before the DHCP is run, so it will most likely override them.
+for container interfaces and use a MAC filter in the DHCP server. Another option
+is to disable DHCP altogether and configure the interface statically.
+
+To create an interface without DHCP, use the `--no-dhcp` switch:
+
+```bash
+osctl ct netif new bridge --link lxcbr0 --no-dhcp myct01 eth0
+```
+
+DHCP can also be toggled on an already existing interface:
+
+```bash
+osctl ct netif set --enable-dhcp|--disable-dhcp myct01 eth0
+```
+
+When DHCP is disabled, you can manage IP addresses statically using
+`osctl ct netif ip` commands.

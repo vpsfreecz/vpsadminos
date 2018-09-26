@@ -983,6 +983,9 @@ module OsCtl::Cli
               c.desc 'What bridge should the interface be linked with'
               c.flag :link, required: true
 
+              c.desc 'Use DHCP client within the container'
+              c.switch :dhcp, default_value: true
+
               c.desc "MAC address"
               c.flag :hwaddr
 
@@ -1016,6 +1019,12 @@ module OsCtl::Cli
           net.command :set do |c|
             c.desc 'What bridge should the interface be linked with'
             c.flag :link
+
+            c.desc 'Use DHCP client within the container'
+            c.switch 'enable-dhcp', negatable: false
+
+            c.desc 'Do not use DHCP client within the container'
+            c.switch 'disable-dhcp', negatable: false
 
             c.desc "MAC address"
             c.flag :hwaddr

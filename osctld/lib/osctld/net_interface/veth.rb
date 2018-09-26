@@ -105,6 +105,10 @@ module OsCtld
       )
     end
 
+    def active_ip_versions
+      [4, 6].delete_if { |v| @ips[v].empty? }
+    end
+
     def ips(v)
       @ips[v].clone
     end

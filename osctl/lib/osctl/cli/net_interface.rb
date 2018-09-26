@@ -10,6 +10,7 @@ module OsCtl::Cli
       index
       type
       link
+      dhcp
       veth
       hwaddr
     )
@@ -86,7 +87,8 @@ module OsCtl::Cli
         name: args[1],
         type: 'bridge',
         hwaddr: opts[:hwaddr],
-        link: opts[:link]
+        link: opts[:link],
+        dhcp: opts[:dhcp],
       }
 
       osctld_fmt(:netif_create, cmd_opts)
@@ -133,6 +135,12 @@ module OsCtl::Cli
 
       cmd_opts[:hwaddr] = (opts[:hwaddr] == '-' ? nil : opts[:hwaddr]) if opts[:hwaddr]
       cmd_opts[:link] = opts[:link] if opts[:link]
+
+      if opts['enable-dhcp']
+        cmd_opts[:dhcp] = true
+      elsif opts['disable-dhcp']
+        cmd_opts[:dhcp] = false
+      end
 
       osctld_fmt(:netif_set, cmd_opts)
     end
