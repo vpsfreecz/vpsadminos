@@ -1244,6 +1244,14 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 
       Enabled by default.
 
+    `--gateway-v4` `auto`|`none`|*address*
+      IPv4 gateway to use when DHCP is disabled. If set to `auto`, the primary
+      address of the linked *bridge* is used as a gateway.
+
+    `--gateway-v6` `auto`|`none`|*address*
+      IPv6 gateway to use when DHCP is disabled. If set to `auto`, the primary
+      address of the linked *bridge* is used as a gateway.
+
     `--hwaddr` *addr*
       Set a custom MAC address. Every **x** in the address is replaced by
       a random value. By default, the address is dynamically allocated.
@@ -1289,6 +1297,16 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Disables DHCP client within the container. When disabled, IP addresses
       can be assigned manually using `ct netif ip` commands. Applicable only
       for bridged interfaces.
+
+    `--gateway-v4` `auto`|`none`|*address*
+      IPv4 gateway to use when DHCP is disabled. If set to `auto`, the primary
+      address of the linked *bridge* is used as a gateway. Applicable only for
+      bridged interfaces.
+
+    `--gateway-v6` `auto`|`none`|*address*
+      IPv6 gateway to use when DHCP is disabled. If set to `auto`, the primary
+      address of the linked *bridge* is used as a gateway. Applicable only for
+      bridged interfaces.
 
     `--hwaddr` *addr*
       Change MAC address. Every **x** in the address is replaced by

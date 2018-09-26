@@ -4,7 +4,7 @@
   ip -<%= v %> addr <%= op %> <%= addr.to_string %> dev <%= netif.name %> &> /dev/null || true
 <% end -%>
 
-<% if !netif.dhcp -%>
+<% if !netif.dhcp && netif.has_gateway?(v) -%>
   ip -<%= v %> route <%= op %> default via <%= netif.gateway(v) %> dev <%= netif.name %> <%= op == "del" ? '|| true' : ''  %>
 <% end -%>
 

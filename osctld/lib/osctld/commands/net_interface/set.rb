@@ -35,6 +35,11 @@ module OsCtld
     def bridge_opts(netif)
       ret = {link: opts[:link]}
       ret[:dhcp] = opts[:dhcp] if opts.has_key?(:dhcp)
+
+      if opts[:gateways]
+        ret[:gateways] = Hash[ opts[:gateways].map { |k,v| [k.to_s.to_i, v] } ]
+      end
+
       ret
     end
 

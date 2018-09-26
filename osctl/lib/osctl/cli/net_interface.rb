@@ -11,6 +11,7 @@ module OsCtl::Cli
       type
       link
       dhcp
+      gateways
       veth
       hwaddr
     )
@@ -91,6 +92,8 @@ module OsCtl::Cli
         dhcp: opts[:dhcp],
       }
 
+      parse_gateway(cmd_opts)
+
       osctld_fmt(:netif_create, cmd_opts)
     end
 
@@ -135,6 +138,7 @@ module OsCtl::Cli
 
       cmd_opts[:hwaddr] = (opts[:hwaddr] == '-' ? nil : opts[:hwaddr]) if opts[:hwaddr]
       cmd_opts[:link] = opts[:link] if opts[:link]
+      parse_gateway(cmd_opts)
 
       if opts['enable-dhcp']
         cmd_opts[:dhcp] = true
@@ -299,6 +303,16 @@ module OsCtl::Cli
         addr: args[2],
         version: opts[:version],
       )
+    end
+
+    protected
+    def parse_gateway(cmd_opts)
+      gws = [4, 6].map { |v| [v, "gateway-v#{v}"] }.select { |v, opt| opts[opt] }
+      return if gws.empty?
+
+      cmd_opts[:gateways] = Hash[gws.map do |v, opt|
+        [v, opts[opt]]
+      end]
     end
   end
 end

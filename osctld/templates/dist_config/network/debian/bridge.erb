@@ -7,7 +7,9 @@ iface <%= netif.name %> <%= v == 4 ? 'inet' : 'inet6' %> static
 <% first_ip, *rest_ips = netif.ips(v) -%>
   address <%= first_ip.to_s %>
   netmask <%= v == 4 ? first_ip.netmask : first_ip.prefix %>
+<% if netif.has_gateway?(v) -%>
   gateway <%= netif.gateway(v) %>
+<% end -%>
 <% rest_ips.each do |addr| -%>
   up ip -<%= v %> addr add <%= addr.to_string %> dev <%= netif.name %>
   down ip -<%= v %> addr del <%= addr.to_string %> dev <%= netif.name %>

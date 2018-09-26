@@ -10,6 +10,7 @@ module OsCtld
       type
       link
       dhcp
+      gateways
       veth
     )
 

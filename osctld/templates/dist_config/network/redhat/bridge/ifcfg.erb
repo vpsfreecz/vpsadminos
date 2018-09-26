@@ -11,13 +11,17 @@ ONBOOT=yes
 IPADDR<%= i %>=<%= addr.to_s %>
 NETMASK<%= i %>=<%= addr.netmask %>
 <% end -%>
+<% if netif.has_gateway?(v) -%>
 GATEWAY=<%= netif.gateway(v) %>
+<% end -%>
 <% elsif v == 6 -%>
 <% first_ip, *rest_ips = netif.ips(v) -%>
 IPV6INIT="yes"
 IPV6ADDR=<%= first_ip.to_string %>
 IPV6ADDR_SECONDARIES="<%= rest_ips.map { |addr| addr.to_string }.join(' ') %>"
+<% if netif.has_gateway?(v) -%>
 IPV6_DEFAULTGW=<%= netif.gateway(v) %>
+<% end -%>
 <% end -%>
 <% end -%>
 <% end -%>

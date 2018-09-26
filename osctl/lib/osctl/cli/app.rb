@@ -986,6 +986,12 @@ module OsCtl::Cli
               c.desc 'Use DHCP client within the container'
               c.switch :dhcp, default_value: true
 
+              c.desc 'IPv4 gateway to use when DHCP is disabled'
+              c.flag 'gateway-v4'
+
+              c.desc 'IPv6 gateway to use when DHCP is disabled'
+              c.flag 'gateway-v6'
+
               c.desc "MAC address"
               c.flag :hwaddr
 
@@ -1025,6 +1031,12 @@ module OsCtl::Cli
 
             c.desc 'Do not use DHCP client within the container'
             c.switch 'disable-dhcp', negatable: false
+
+            c.desc 'IPv4 gateway to use when DHCP is disabled'
+            c.flag 'gateway-v4'
+
+            c.desc 'IPv6 gateway to use when DHCP is disabled'
+            c.flag 'gateway-v6'
 
             c.desc "MAC address"
             c.flag :hwaddr

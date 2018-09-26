@@ -12,7 +12,7 @@ config_<%= netif.name %>="
 
 routes_<%= netif.name %>="
 <% netif.active_ip_versions.each do |v| -%>
-default via <%= netif.gateway(v) %> dev <%= netif.name %>
+<% if netif.has_gateway?(v) %>default via <%= netif.gateway(v) %> dev <%= netif.name %><% end %>
 <% end -%>
 "
 <% end -%>
