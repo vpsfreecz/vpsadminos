@@ -13,7 +13,7 @@ module OsCtld
       return error('access denied') unless owns_ct?(ct)
 
       # Mount datasets
-      ct.dataset.mount(recursive: true)
+      ct.mount(force: true)
 
       # Load AppArmor profile
       ct.apparmor.setup

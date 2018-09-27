@@ -9,7 +9,7 @@ module OsCtld
       error!('container not found') unless ct
 
       ct.exclusively do
-        ct.dataset.mount(recursive: true)
+        ct.mount(force: true)
       end
 
       ok

@@ -191,6 +191,15 @@ module OsCtld
       ct
     end
 
+    # Mount the container's dataset
+    # @param force [Boolean] ensure the datasets are mounted even if osctld
+    #                        already mounted them
+    def mount(force: false)
+      return if !force && @mounted
+      dataset.mount(recursive: true)
+      @mounted = true
+    end
+
     def chown(user)
       @user = user
       save_config
