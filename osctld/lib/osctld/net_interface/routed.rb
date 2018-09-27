@@ -111,6 +111,7 @@ module OsCtld
 
     def del_ip(addr, keep_route)
       super(addr)
+
       route = @routes.remove(addr) unless keep_route
 
       v = addr.ipv4? ? 4 : 6
@@ -134,8 +135,10 @@ module OsCtld
 
     # @param ip_v [Integer, nil]
     def del_all_ips(ip_v, keep_routes)
-      (ip_v ? [ip_v] : [4, 6]).each do |v|
-        @ips[v].clone.each { |addr| del_ip(addr, keep_routes) }
+      exclusively do
+        (ip_v ? [ip_v] : [4, 6]).each do |v|
+          @ips[v].clone.each { |addr| del_ip(addr, keep_routes) }
+        end
       end
     end
 

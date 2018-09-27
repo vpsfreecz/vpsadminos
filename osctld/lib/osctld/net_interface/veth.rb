@@ -29,9 +29,11 @@ module OsCtld
     end
 
     def save
-      super.merge(
-        'ip_addresses' => save_ip_list(@ips) { |v| v.map(&:to_string) },
-      )
+      inclusively do
+        super.merge(
+          'ip_addresses' => save_ip_list(@ips) { |v| v.map(&:to_string) },
+        )
+      end
     end
 
     def setup
@@ -71,17 +73,19 @@ module OsCtld
     end
 
     def render_opts
-      {
-        name: name,
-        index: index,
-        hwaddr: hwaddr,
-        hook_veth_up: hook_path('up'),
-        hook_veth_down: hook_path('down'),
-      }
+      inclusively do
+        {
+          name: name,
+          index: index,
+          hwaddr: hwaddr,
+          hook_veth_up: hook_path('up'),
+          hook_veth_down: hook_path('down'),
+        }
+      end
     end
 
     def up(veth)
-      @veth = veth
+      exclusively { @veth = veth }
 
       Eventd.report(
         :ct_netif,
@@ -94,7 +98,7 @@ module OsCtld
     end
 
     def down(veth)
-      @veth = nil
+      exclusively { @veth = nil }
 
       Eventd.report(
         :ct_netif,
@@ -106,27 +110,29 @@ module OsCtld
     end
 
     def active_ip_versions
-      [4, 6].delete_if { |v| @ips[v].empty? }
+      inclusively { [4, 6].delete_if { |v| @ips[v].empty? } }
     end
 
     def ips(v)
-      @ips[v].clone
+      inclusively { @ips[v].clone }
     end
 
     # @param addr [IPAddress]
     def add_ip(addr)
-      @ips[addr.ipv4? ? 4 : 6] << addr
+      exclusively { @ips[addr.ipv4? ? 4 : 6] << addr }
     end
 
     # @param addr [IPAddress]
     def del_ip(addr)
-      @ips[addr.ipv4? ? 4 : 6].delete_if { |v| v == addr }
+      exclusively { @ips[addr.ipv4? ? 4 : 6].delete_if { |v| v == addr } }
     end
 
     # @param ip_v [Integer, nil]
     def del_all_ips(ip_v = nil)
-      (ip_v ? [ip_v] : [4, 6]).each do |v|
-        @ips[v].clone.each { |addr| del_ip(addr) }
+      exclusively do
+        (ip_v ? [ip_v] : [4, 6]).each do |v|
+          @ips[v].clone.each { |addr| del_ip(addr) }
+        end
       end
     end
 

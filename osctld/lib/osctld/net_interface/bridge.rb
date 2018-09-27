@@ -40,11 +40,13 @@ module OsCtld
     end
 
     def save
-      super.merge({
-        'link' => link,
-        'dhcp' => dhcp,
-        'gateways' => gateways.any? ? Hash[gateways.map { |k,v| ["v#{k}", v] }] : nil,
-      })
+      inclusively do
+        super.merge({
+          'link' => link,
+          'dhcp' => dhcp,
+          'gateways' => gateways.any? ? Hash[gateways.map { |k,v| ["v#{k}", v] }] : nil,
+        })
+      end
     end
 
     # @param opts [Hash] options
@@ -52,20 +54,24 @@ module OsCtld
     # @option opts [Boolean] :dhcp
     # @option opts [Hash<Integer, String>] :gateways
     def set(opts)
-      super
-      @link = opts[:link] if opts[:link]
-      @dhcp = opts[:dhcp] if opts.has_key?(:dhcp)
+      exclusively do
+        super
+        @link = opts[:link] if opts[:link]
+        @dhcp = opts[:dhcp] if opts.has_key?(:dhcp)
 
-      if opts[:gateways]
-        @gateways.update(opts[:gateways])
-        @gateway_cache = nil
+        if opts[:gateways]
+          @gateways.update(opts[:gateways])
+          @gateway_cache = nil
+        end
       end
     end
 
     def render_opts
-      super.merge({
-        link: link,
-      })
+      inclusively do
+        super.merge({
+          link: link,
+        })
+      end
     end
 
     def add_ip(addr)
@@ -116,25 +122,27 @@ module OsCtld
 
     protected
     def get_gateway(v)
-      @gateway_cache ||= {}
-      return @gateway_cache[v] if @gateway_cache.has_key?(v)
+      inclusively do
+        @gateway_cache ||= {}
+        return @gateway_cache[v] if @gateway_cache.has_key?(v)
 
-      gw = case gateways[v]
-      when nil, 'auto'
-        ifaddr = Socket.getifaddrs.detect do |ifaddr|
-          ifaddr.name == link && ifaddr.addr.ip? && ifaddr.addr.send(:"ipv#{v}?")
+        gw = case gateways[v]
+        when nil, 'auto'
+          ifaddr = Socket.getifaddrs.detect do |ifaddr|
+            ifaddr.name == link && ifaddr.addr.ip? && ifaddr.addr.send(:"ipv#{v}?")
+          end
+
+          ifaddr ? ifaddr.addr.ip_address : nil
+
+        when 'none'
+          nil
+
+        else
+          gateways[v]
         end
 
-        ifaddr ? ifaddr.addr.ip_address : nil
-
-      when 'none'
-        nil
-
-      else
-        gateways[v]
+        @gateway_cache[v] = gw
       end
-
-      @gateway_cache[v] = gw
     end
   end
 end

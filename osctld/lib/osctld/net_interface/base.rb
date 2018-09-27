@@ -14,11 +14,14 @@ module OsCtld
 
     end
 
+    include Lockable
+
     attr_reader :name, :index, :hwaddr
 
     def initialize(ct, index)
       @ct = ct
       @index = index
+      init_lock
     end
 
     def type
@@ -43,20 +46,24 @@ module OsCtld
     # @return [Hash] hash with string keys, given the has that `load` has
     #   then restores the state from
     def save
-      {'type' => type.to_s, 'name' => name, 'hwaddr' => hwaddr}
+      inclusively do
+        {'type' => type.to_s, 'name' => name, 'hwaddr' => hwaddr}
+      end
     end
 
     # Rename the interface within the container
     # @param new_name [String]
     def rename(new_name)
-      @name = new_name
+      exclusively { @name = new_name }
     end
 
     # Change interface properties
     # @param opts [Hash] options, see subclasses for more information
     # @option opts [String] :hwaddr
     def set(opts)
-      @hwaddr = opts[:hwaddr] if opts.has_key?(:hwaddr)
+      exclusively do
+        @hwaddr = opts[:hwaddr] if opts.has_key?(:hwaddr)
+      end
     end
 
     # Initialize the interface on creation / osctld restart
