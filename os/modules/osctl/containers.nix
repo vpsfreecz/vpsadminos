@@ -126,15 +126,14 @@ let
         address = mkOption {
           type = types.str;
           description = ''
-            IPv${toString v} address of the interface. Leave empty to configure the
-            interface using DHCP.
+            IPv${toString v} address.
           '';
         };
 
         prefixLength = mkOption {
           type = types.addCheck types.int (n: n >= 0 && n <= (if v == 4 then 32 else 128));
           description = ''
-            Subnet mask of the interface, specified as the number of
+            Subnet mask of the address, specified as the number of
             bits in the prefix (<literal>${if v == 4 then "24" else "64"}</literal>).
           '';
         };
@@ -168,29 +167,56 @@ let
           (type = "bridge" only)
         '';
       };
-      ipv4.addresses = mkOption {
-        type =  types.listOf (types.submodule (addrOpts 4));
-        default = [];
-        example = [
-          { address = "10.0.0.1"; prefixLength = 16; }
-          { address = "192.168.1.1"; prefixLength = 24; }
-        ];
-        description = ''
-          List of IPv4 addresses that will be statically assigned to the interface.
-        '';
-        apply = x: map addrToStr x;
+      ipv4 = {
+        routes = mkOption {
+          type =  types.listOf (types.submodule (addrOpts 4));
+          default = [];
+          example = [
+            { address = "10.0.0.0"; prefixLength = 16; }
+            { address = "192.168.1.0"; prefixLength = 24; }
+          ];
+          description = ''
+            List of IPv4 addresses that will be routed to the interface.
+          '';
+          apply = x: map addrToStr x;
+        };
+        addresses = mkOption {
+          type =  types.listOf (types.submodule (addrOpts 4));
+          default = [];
+          example = [
+            { address = "10.0.0.1"; prefixLength = 16; }
+            { address = "192.168.1.1"; prefixLength = 24; }
+          ];
+          description = ''
+            List of IPv4 addresses that will be statically assigned to the interface.
+          '';
+          apply = x: map addrToStr x;
+        };
       };
 
-      ipv6.addresses = mkOption {
-        type =  types.listOf (types.submodule (addrOpts 6));
-        default = [];
-        example = [
-          { address = "2a03:3b40:7:666::"; prefixLength = 64; }
-        ];
-        description = ''
-          List of IPv6 addresses that will be statically assigned to the interface.
-        '';
-        apply = x: map addrToStr x;
+      ipv6 = {
+        routes = mkOption {
+          type =  types.listOf (types.submodule (addrOpts 4));
+          default = [];
+          example = [
+            { address = "2a03:3b40:7:666::"; prefixLength = 64; }
+          ];
+          description = ''
+            List of IPv6 addresses that will be routed to the interface.
+          '';
+          apply = x: map addrToStr x;
+        };
+        addresses = mkOption {
+          type =  types.listOf (types.submodule (addrOpts 6));
+          default = [];
+          example = [
+            { address = "2a03:3b40:7:666::"; prefixLength = 64; }
+          ];
+          description = ''
+            List of IPv6 addresses that will be statically assigned to the interface.
+          '';
+          apply = x: map addrToStr x;
+        };
       };
     };
   };
@@ -222,7 +248,9 @@ let
     '';
 
     apply = x: map (iface: filterAttrs (n: v: !(n == "ipv4" || n == "ipv6")) (iface //
-          { ip_addresses.v4 = iface.ipv4.addresses;
+          { routes.v4 = iface.ipv4.routes;
+            routes.v6 = iface.ipv6.routes;
+            ip_addresses.v4 = iface.ipv4.addresses;
             ip_addresses.v6 = iface.ipv6.addresses;
           }
           ))
