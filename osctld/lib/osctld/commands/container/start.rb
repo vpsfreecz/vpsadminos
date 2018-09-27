@@ -42,7 +42,12 @@ module OsCtld
         sock_path = Console.socket_path(ct)
         if File.exist?(sock_path)
           log(:info, ct, "Removing leftover tty0 socket at #{sock_path}")
-          File.unlink(sock_path)
+
+          begin
+            File.unlink(sock_path)
+          rescue Errno::ENOENT
+            # Continue if the socket was already deleted
+          end
         end
 
         cmd = [
