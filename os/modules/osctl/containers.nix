@@ -202,6 +202,18 @@ let
           '';
           apply = x: map addrToStr x;
         };
+        gateway = mkOption {
+          type = types.str;
+          default = "auto";
+          description = ''
+            IPv4 gateway for statically configured bridged interfaces.
+            Set to <literal>auto</literal> to use the primary address from
+            the linked interface, <literal>none</literal> to do not set any
+            gateway or an IPv4 address.
+
+            (type = "bridge" only)
+          '';
+        };
       };
 
       ipv6 = {
@@ -226,6 +238,18 @@ let
             List of IPv6 addresses that will be statically assigned to the interface.
           '';
           apply = x: map addrToStr x;
+        };
+        gateway = mkOption {
+          type = types.str;
+          default = "auto";
+          description = ''
+            IPv6 gateway for statically configured bridged interfaces.
+            Set to <literal>auto</literal> to use the primary address from
+            the linked interface, <literal>none</literal> to do not set any
+            gateway or an IPv6 address.
+
+            (type = "bridge" only)
+          '';
         };
       };
     };
@@ -268,6 +292,8 @@ let
             routes.v6 = iface.ipv6.routes;
             ip_addresses.v4 = iface.ipv4.addresses;
             ip_addresses.v6 = iface.ipv6.addresses;
+            gateways.v4 = iface.ipv4.gateway;
+            gateways.v6 = iface.ipv6.gateway;
           }
           ))
           (map _filter x);
