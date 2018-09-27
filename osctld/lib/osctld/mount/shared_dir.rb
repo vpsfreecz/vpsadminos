@@ -69,7 +69,7 @@ module OsCtld
     # Mountpoint relative to the container's rootfs
     # @return [String]
     def mountpoint
-      '.osctl-mount-helper'
+      'dev/.osctl-mount-helper'
     end
 
     def dup(new_ct)
@@ -89,9 +89,9 @@ module OsCtld
       File.write(
         readme_path,
         <<END
-Directory `.osctl-mount-helper` is used by osctl from vpsAdminOS to propagate
-new mounts into this container. Do not remove nor unmount this directory, or
-you'll have to restart your container to create new mounts!
+Directory `#{File.join('/', mountpoint)}` is used by osctl from vpsAdminOS to
+propagate new mounts into this container. Do not remove nor unmount this
+directory, or you'll have to restart your container to create new mounts!
 END
       )
     end
