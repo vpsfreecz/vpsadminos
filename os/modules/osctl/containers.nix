@@ -140,7 +140,7 @@ let
       };
     };
 
-  netInterface = { lib, pkgs, ...}: {
+  netInterface = { config, lib, pkgs, ...}: {
     options = {
       type = mkOption {
         type = types.enum [ "bridge" "routed" ];
@@ -163,6 +163,16 @@ let
         default = "";
         description = ''
           Link this network interface to bridge
+
+          (type = "bridge" only)
+        '';
+      };
+      dhcp = mkOption {
+        type = types.nullOr types.bool;
+        default = null;
+        description = ''
+          Determines whether the interface is configured using DHCP client
+          within the container,
 
           (type = "bridge" only)
         '';
@@ -219,6 +229,12 @@ let
         };
       };
     };
+
+    config = mkMerge [
+      (mkIf (config.type == "bridge") {
+        dhcp = mkDefault true;
+      })
+    ];
   };
 
   mkNetInterfacesOption = mkOption {
