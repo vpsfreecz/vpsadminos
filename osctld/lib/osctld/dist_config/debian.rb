@@ -40,7 +40,7 @@ module OsCtld
         vars[v] = File.exist?(File.join(base, "interfaces.#{v}"))
       end
 
-      OsCtld::Template.render_to(
+      OsCtld::ErbTemplate.render_to(
         'dist_config/network/debian/interfaces',
         vars,
         config

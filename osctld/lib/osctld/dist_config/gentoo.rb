@@ -58,7 +58,7 @@ module OsCtld
       return unless writable?(netifrc_conf(netif.name))
 
       # Create netifrc config
-      OsCtld::Template.render_to(
+      OsCtld::ErbTemplate.render_to(
         File.join('dist_config/network/gentoo', netif.type.to_s),
         {netif: netif},
         netifrc_conf(netif.name)

@@ -14,7 +14,7 @@ module OsCtld
       %w(add del).each do |operation|
 
         cmds = ct.netifs.map do |netif|
-          OsCtld::Template.render(
+          OsCtld::ErbTemplate.render(
             File.join(tpl_base, netif.type.to_s),
             {netif: netif, op: operation}
           )

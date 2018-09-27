@@ -477,7 +477,7 @@ module OsCtld
     end
 
     def configure_base
-      Template.render_to('ct/config', {
+      ErbTemplate.render_to('ct/config', {
         distribution: distribution,
         version: version,
         ct: self,
@@ -485,32 +485,32 @@ module OsCtld
     end
 
     def configure_cgparams
-      Template.render_to('ct/cgparams', {
+      ErbTemplate.render_to('ct/cgparams', {
         cgparams: cgparams,
       }, lxc_config_path('cgparams'))
     end
 
     def configure_prlimits
-      Template.render_to('ct/prlimits', {
+      ErbTemplate.render_to('ct/prlimits', {
         prlimits: prlimits,
       }, lxc_config_path('prlimits'))
     end
 
     # Generate LXC network configuration
     def configure_network
-      Template.render_to('ct/network', {
+      ErbTemplate.render_to('ct/network', {
         netifs: @netifs,
       }, lxc_config_path('network'))
     end
 
     def configure_mounts
-      Template.render_to('ct/mounts', {
+      ErbTemplate.render_to('ct/mounts', {
         mounts: mounts.all_entries,
       }, lxc_config_path('mounts'))
     end
 
     def configure_bashrc
-      Template.render_to('ct/bashrc', {
+      ErbTemplate.render_to('ct/bashrc', {
         ct: self,
         override: %w(
           attach cgroup console device execute info ls monitor stop top wait

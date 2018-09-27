@@ -2,7 +2,7 @@ require 'erb'
 require 'fileutils'
 
 module OsCtld
-  class Template
+  class ErbTemplate
     def self.render(name, vars)
       t = new(name, vars)
       t.render

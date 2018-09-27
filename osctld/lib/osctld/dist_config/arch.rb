@@ -52,7 +52,7 @@ module OsCtld
       return unless writable?(profile)
 
       # Create netctl profile
-      OsCtld::Template.render_to(
+      OsCtld::ErbTemplate.render_to(
         File.join('dist_config/network/arch', netif.type.to_s),
         {netif: netif},
         profile
@@ -62,7 +62,7 @@ module OsCtld
       s_path = service_path(netif.name)
 
       # Create systemd service for netctl
-      OsCtld::Template.render_to(
+      OsCtld::ErbTemplate.render_to(
         'dist_config/network/arch/service',
         {netif: netif},
         s_path

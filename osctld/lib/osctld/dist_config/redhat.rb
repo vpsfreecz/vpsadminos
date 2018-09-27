@@ -53,7 +53,7 @@ module OsCtld
 
       return unless writable?(ifcfg)
 
-      OsCtld::Template.render_to(
+      OsCtld::ErbTemplate.render_to(
         File.join(tpl_base, netif.type.to_s, 'ifcfg'),
         {netif: netif},
         ifcfg
@@ -61,7 +61,7 @@ module OsCtld
 
       if netif.type == :routed
         netif.active_ip_versions.each do |ip_v|
-          OsCtld::Template.render_to(
+          OsCtld::ErbTemplate.render_to(
             File.join(tpl_base, netif.type.to_s, "route_v#{ip_v}"),
             {netif: netif},
             File.join(

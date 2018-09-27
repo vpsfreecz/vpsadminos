@@ -23,7 +23,7 @@ module OsCtld
         Dir.mkdir(dir, 0755) unless Dir.exist?(dir)
       end
 
-      Template.render_to(
+      ErbTemplate.render_to(
         'apparmor/features/nesting',
         {},
         File.join(features, 'nesting')
@@ -106,7 +106,7 @@ module OsCtld
     # The profile is generated only if it has been changed to let
     # `apparmor_parser` use cached profiles for faster container startup times.
     def generate_profile
-      Template.render_to_if_changed('apparmor/profile', {
+      ErbTemplate.render_to_if_changed('apparmor/profile', {
         name: profile_name,
         namespace: namespace,
         ct: ct,
