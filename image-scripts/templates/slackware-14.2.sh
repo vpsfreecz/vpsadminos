@@ -1,6 +1,7 @@
 # Slackware 14.2
 #
-# 1. Download categories a, ab, l and n from a remote repository (~300 MB)
+# 1. Download FILELIST.txt and CHECKSUMS.md5 from remote repository, use these
+#    to download installed packages
 # 2. Install pkgtools to the $DOWNLOAD directory (not in the new rootfs)
 # 3. Use the installpkg from pkgtools to install the base system within
 #    the rootfs
@@ -39,6 +40,7 @@ attr
 bash
 bin
 bzip2
+ca-certificates
 coreutils
 cpio
 dcron
@@ -59,18 +61,28 @@ gzip
 iproute2
 iputils
 less
+libmpc
+libffi
+libtermcap
+libunistring
 logrotate
 man
 man-pages
 mpfr
 nano
+ncurses
 net-tools
 nettle
 network-scripts
 openssh
-openssl-solibs
+n/openssl
+a/openssl-solibs
+p11-kit
+perl
 pkgtools
 procps
+python
+readline
 sed
 shadow
 slackpkg
@@ -85,54 +97,53 @@ which
 xz
 "
 
-EXTRA_PKGS="
-libmpc
-libffi
-libtermcap
-ncurses
-p11-kit
-perl
-python
-readline
-"
-
 require_cmd wget
 
-download_repo() {
-	local sumdir="$LOCAL_REPO/mirrors.slackware.com/slackware/slackware64-$RELVER/slackware64"
-
-	mkdir -p "$sumdir"
-	wget -O - "$BASEURL/slackware64-$RELVER/slackware64/CHECKSUMS.md5" \
-		| grep -P '\./(a|ap|l|n)/' \
-		| grep -P '\.t.z$' \
-		> "$sumdir/CHECKSUMS.md5"
-	wget --recursive \
-		--level 1 \
-		--directory-prefix "$LOCAL_REPO" \
-		--accept "*.t?z" \
-		"$BASEURL/slackware64-$RELVER/slackware64/"{a,ap,l,n}
-
-	if ! (cd "$sumdir" ; cat CHECKSUMS.md5 | md5sum -c) ; then
-		warn "Mirror checksum invalid"
-		exit 1
-	fi
+download_index() {
+	mkdir -p "$LOCAL_REPO"
+	wget -O "$LOCAL_REPO/FILELIST.txt" $BASEURL/slackware64-$RELVER/FILELIST.TXT
+	wget -O "$LOCAL_REPO/CHECKSUMS.md5" $BASEURL/slackware64-$RELVER/CHECKSUMS.md5
 }
 
-find_pkg() {
-	pkg=`find "$DOWNLOAD" -type f -name "$1-*.t?z"`
+download_pkg() {
+	if [[ "$1" == *"/"* ]] ; then
+		local pkg=`find "$LOCAL_REPO" -type f -wholename "*/$1-*.t?z" | head -n1`
+	else
+		local pkg=`find "$LOCAL_REPO" -type f -name "$1-*.t?z" | head -n1`
+	fi
 
-	if [ "$pkg" == "" ] ; then
+	if [ "$pkg" != "" ] ; then
+		echo $pkg
+		exit
+	fi
+
+	if [[ "$1" == *"/"* ]] ; then
+		local path=`grep -P "./slackware64/$1\-.+\.t.z$" "$LOCAL_REPO/FILELIST.txt" | awk '{ print $8; }' | head -n1`
+	else
+		local path=`grep -P "./slackware64/[^/]+/$1\-.+\.t.z$" "$LOCAL_REPO/FILELIST.txt" | awk '{ print $8; }' | head -n1`
+	fi
+
+	if [ "$path" == "" ] ; then
 		warn "Package '$1' not found"
 		exit 1
 	fi
 
-	echo $pkg
+	mkdir -p "$LOCAL_REPO/$(dirname $path)"
+	wget -O "$LOCAL_REPO/$path" $BASEURL/slackware64-$RELVER/$path
+
+	if ! (cd "$LOCAL_REPO" ; grep "$path$" CHECKSUMS.md5 | md5sum -c > /dev/null)
+	then
+		warn "$1 checksum invalid"
+		exit 1
+	fi
+
+	echo "$LOCAL_REPO/$path"
 }
 
 setup_pkgtools() {
 	mkdir -p "$LOCAL_ROOT"
 
-	pkg="`find_pkg pkgtools`"
+	pkg="`download_pkg pkgtools`"
 	[ "$?" != "0" ] && exit 1
 
 	tar -xJf "$pkg" -C "$LOCAL_ROOT"
@@ -140,14 +151,14 @@ setup_pkgtools() {
 }
 
 install_pkg() {
-	pkg=`find_pkg $1`
+	pkg=`download_pkg $1`
 	[ "$?" != "0" ] && exit 1
 
 	$INSTALLPKG --terse --root "$INSTALL" $pkg
 }
 
 
-download_repo || exit 1
+download_index || exit 1
 
 # Install pkgtools outside the rootfs
 setup_pkgtools || exit 1
@@ -171,6 +182,10 @@ chown root.shadow /etc/shadow /etc/gshadow
 
 echo nameserver 8.8.8.8 > /etc/resolv.conf
 
+# Slackware ships with old certificates that don't work with current https
+# mirror
+/usr/sbin/update-ca-certificates --fresh
+
 # Setup slackpkg
 sed -i -r 's/^# (http:\/\/mirrors.slackware.com\/slackware\/slackware64-$RELVER\/)$/\1/' /etc/slackpkg/mirrors
 slackpkg -batch=on -default_answer=y update
@@ -191,9 +206,6 @@ echo O | slackpkg new-config
 
 # Delete old configuration files
 find /etc -name "*.orig" -delete
-
-# Install extra packages
-slackpkg -batch=on -default_answer=y install `echo $EXTRA_PKGS | tr '\n' ' '`
 
 # hwclock is not available
 sed -i -e '/^if \[ -x \/sbin\/hwclock/,/^fi$/s/^/#/' /etc/rc.d/rc.S

@@ -10,8 +10,7 @@ mount_opts="nodev,noexec,nosuid"
 
 depend() {
 	keyword openvz
-	need sysfs
-	provide cgroups
+	need sysfs cgroups
 }
 
 start() {
