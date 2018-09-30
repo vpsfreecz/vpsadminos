@@ -295,11 +295,11 @@ module OsCtld
     end
 
     def autostart
-      @autostart_plan.start
+      autostart_plan.start
     end
 
     def stop
-      @autostart_plan && @autostart_plan.stop
+      autostart_plan.stop
     end
 
     def active?
