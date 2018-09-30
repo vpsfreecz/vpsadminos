@@ -16,6 +16,8 @@ module OsCtld
       ct.apparmor.destroy_namespace
       ct.apparmor.unload_profile
 
+      ct.stopped
+
       # User-defined hook
       Container::Hook.run(ct, :post_stop)
 

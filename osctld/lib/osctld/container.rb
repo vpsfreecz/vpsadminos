@@ -53,6 +53,7 @@ module OsCtld
       @seccomp_profile = nil
       @apparmor = AppArmor.new(self)
       @attrs = Attributes.new
+      @dist_network_configured = false
 
       if opts[:load]
        load_config(opts[:load_from], !opts.has_key?(:devices) || opts[:devices])
@@ -269,6 +270,32 @@ module OsCtld
 
     def can_start?
       state != :staged && state != :error && pool.active?
+    end
+
+    def starting
+      @dist_network_configured = false
+    end
+
+    def stopped
+      @dist_network_configured = false
+    end
+
+    def can_dist_configure_network?
+      inclusively do
+        next false if netifs.detect { |netif| !netif.can_run_distconfig? }
+        true
+      end
+    end
+
+    def dist_configure_network?
+      !@dist_network_configured && can_dist_configure_network?
+    end
+
+    def dist_configure_network
+      return unless dist_configure_network?
+
+      DistConfig.run(self, :network)
+      @dist_network_configured = true
     end
 
     def dir

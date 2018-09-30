@@ -9,10 +9,7 @@ module OsCtld
     extend Utils::Ip
 
     INTERFACE = 'osrtr0'
-    DEFAULT_IPS = {
-      4 => IPAddress.parse('255.255.255.254/32'),
-      6 => IPAddress.parse('fe80:ffff:ffff:ffff:ffff:ffff:ffff:fffe/128'),
-    }
+    DEFAULT_IPV4 = IPAddress.parse('255.255.255.254/32')
 
     def self.setup
       begin
@@ -24,10 +21,7 @@ module OsCtld
       end
 
       ip(:all, [:link, :add, INTERFACE, :type, :dummy])
-
-      [4, 6].each do |ip_v|
-        ip(ip_v, [:addr, :add, DEFAULT_IPS[ip_v].to_string, :dev, INTERFACE])
-      end
+      ip(4, [:addr, :add, DEFAULT_IPV4.to_string, :dev, INTERFACE])
     end
 
     include Utils::Ip
@@ -83,6 +77,11 @@ module OsCtld
           ip(v, [:route, :add, addr.to_string, :dev, veth])
         end
       end
+    end
+
+    # DistConfig can be run only after the interface has been created
+    def can_run_distconfig?
+      exclusively { !veth.nil? }
     end
 
     def add_ip(addr, route)
@@ -185,7 +184,25 @@ module OsCtld
     end
 
     def default_via(v)
-      DEFAULT_IPS[v]
+      case v
+      when 4
+        DEFAULT_IPV4
+      when 6
+        get_ipv6_link_local
+      end
+    end
+
+    protected
+    def get_ipv6_link_local
+      link = exclusively { veth.clone }
+
+      ifaddr = Socket.getifaddrs.detect do |ifaddr|
+        ifaddr.name == link && ifaddr.addr.ip? && ifaddr.addr.ipv6?
+      end
+
+      fail "unable to find link-local IPv6 address for #{veth}" unless ifaddr
+
+      return ifaddr.addr.ip_address.split('%').first
     end
   end
 end

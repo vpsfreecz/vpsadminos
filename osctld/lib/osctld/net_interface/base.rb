@@ -88,6 +88,12 @@ module OsCtld
 
     end
 
+    # Called to check if DistConfig for network can be run
+    # @return [Boolean]
+    def can_run_distconfig?
+      true
+    end
+
     # List IP addresses
     # @return [Array]
     def ips(v)

@@ -12,6 +12,9 @@ module OsCtld
       return error('container not found') unless ct
       return error('access denied') unless owns_ct?(ct)
 
+      # Configure network within the CT
+      ct.dist_configure_network
+
       Container::Hook.run(ct, :on_start)
       ok
 

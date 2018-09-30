@@ -12,6 +12,8 @@ module OsCtld
       return error('container not found') unless ct
       return error('access denied') unless owns_ct?(ct)
 
+      ct.starting
+
       # Mount datasets
       ct.mount(force: true)
 
@@ -32,7 +34,7 @@ module OsCtld
       DistConfig.run(ct, :set_hostname) if ct.hostname
 
       # Configure network within the CT
-      DistConfig.run(ct, :network)
+      ct.dist_configure_network
 
       # DNS resolvers
       DistConfig.run(ct, :dns_resolvers) if ct.dns_resolvers
