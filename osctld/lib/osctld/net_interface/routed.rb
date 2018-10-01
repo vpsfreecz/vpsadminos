@@ -105,6 +105,20 @@ module OsCtld
           "ip -#{v} addr add #{addr.to_string} dev #{name}",
           valid_rcs: [2]
         )
+
+        # Ensure the default route exists
+        via = default_via(v)
+
+        ct_syscmd(
+          ct,
+          "ip -#{v} route add #{via} dev #{name}",
+          valid_rcs: [2]
+        )
+        ct_syscmd(
+          ct,
+          "ip -#{v} route add default via #{via} dev #{name}",
+          valid_rcs: [2]
+        )
       end
     end
 
