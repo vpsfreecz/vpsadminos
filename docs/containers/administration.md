@@ -225,6 +225,18 @@ osctl ct log path <id>
 When debugging a container that's failing to start, you can enable LXC debug
 messages using `osctl ct start --debug`.
 
+## Reloading config file
+Container config files are meant to be edited through *osctl*. *osctld* reads
+all config files on start and does not check them for changes after that. If
+you've manually edited some container config, you can tell *osctld* to reload
+it:
+
+```bash
+osctl ct cfg reload <id>
+```
+
+Note that the container has to be stopped for the reload to be allowed.
+
 ## User shell
 Should you want to switch to a container's user and use LXC utilities directly,
 you have to use `osctl ct su <id>`. Using `/bin/su` is insufficient, because standard
