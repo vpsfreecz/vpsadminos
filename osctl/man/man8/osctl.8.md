@@ -108,7 +108,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 `pool install` [*options*] *name*
   Mark zpool *name* to be used with `osctld`.
   User property **org.vpsadminos.osctl:active** is set to **yes**. `osctld` will
-  automatically import such marked pools on start. The pool is also immediatelly
+  automatically import such marked pools on start. The pool is also immediately
   imported, see `pool import`.
 
     `--dataset` *dataset*
@@ -1526,8 +1526,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   Unmount the directory from the running container.
 
 `ct mounts del` *id* *mountpoint*
-  Remove *mountpoint* from container *id*. The *mountpoint* is not unmounted
-  immediatelly, but when the container stops.
+  Remove *mountpoint* from container *id*.
 
 `group new` *options* *name*
   Create a new group for resource management.

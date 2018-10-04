@@ -202,9 +202,9 @@ bindings.
 
 ## Process monitor
 *htop* in vpsAdminOS is patched to be able to identify to which containers
-processes belong. It has three extra columns: `POOL`, `CTID` and `NSUID`. For
-container processes, `NSUID` shows the process user ID as it is seen inside the
-container, i.e. its user namespace.
+processes belong. It has four extra columns: `POOL`, `CTID`, `NSPID` and `NSUID`.
+For container processes, `NSPID` shows the process ID and `NSUID` the process
+user ID as it is seen inside the container, i.e. its user namespace.
 
 ![htop](../img/htop.png)
 

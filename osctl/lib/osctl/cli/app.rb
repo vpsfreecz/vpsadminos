@@ -14,7 +14,7 @@ module OsCtl::Cli
     def setup
       Thread.abort_on_exception = true
 
-      program_desc 'Management utility for vpsAdmin OS'
+      program_desc 'Management utility for vpsAdminOS'
       version OsCtl::VERSION
       subcommand_option_handling :normal
       preserve_argv true

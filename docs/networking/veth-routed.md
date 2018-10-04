@@ -62,8 +62,9 @@ ip route add <routed address> dev $hostveth
 
 However, routing *from* the container is more complicated. The container's
 default route has to be routed via the host's IP address. For this purpose,
-*osctld* creates a dummy interface on the host and adds one IPv4 and one IPv6
-address. All container default routes are then routed via these addresses.
+*osctld* creates a dummy interface on the host and adds one IPv4 address through
+which all IPv4 traffic is routed. IPv6 traffic is routed through link-local
+addresses assigned to veth interfaces on the host.
 
 ```
 # Host

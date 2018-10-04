@@ -12,7 +12,7 @@ Gem::Specification.new do |s|
   end
 
   s.summary     =
-  s.description = 'System upgrade manager for vpsAdmin OS'
+  s.description = 'System upgrade manager for vpsAdminOS'
   s.authors     = 'Jakub Skokan'
   s.email       = 'jakub.skokan@vpsfree.cz'
   s.files       = `git ls-files -z`.split("\x0")

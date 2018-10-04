@@ -178,9 +178,9 @@ osctl.pools.tank = {
 };
 ```
 
-If your pool should contain **only** declarative containers. To remove all
-imperatively created users, groups, repositories and containers, you can set
-option `osctl.pools.<pool>.pure`:
+To remove all imperatively created users, groups, repositories and containers,
+you can set option `osctl.pools.<pool>.pure`. You can use it if your pool should
+contain **only** declarative containers.
 
 ```nix
 osctl.pools.tank = {

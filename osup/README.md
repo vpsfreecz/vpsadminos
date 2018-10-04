@@ -13,7 +13,7 @@ version of `osctld` is compatible with the data pools.
 ## Migrations
 Migrations are the cornerstone of `osup`. Migrations are used to upgrade
 the pool to a newer state, or rollback to an older state. Migrations are stored
-as directories in (migrations/)[migrations/]:
+as directories in [migrations/](migrations/):
 
     migrations/
     └── <timestamp>-<name>
