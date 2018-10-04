@@ -30,7 +30,7 @@ module OsCtld
         ct.save_config
         ct.configure_network
 
-        DistConfig.run(ct, :network)
+        DistConfig.run(ct, :network) if ct.can_dist_configure_network?
 
         ok
       end
