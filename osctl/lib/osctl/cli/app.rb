@@ -5,9 +5,14 @@ module OsCtl::Cli
   class App
     include GLI::App
 
-    def self.run
+    def self.get
       cli = new
       cli.setup
+      cli
+    end
+
+    def self.run
+      cli = get
       exit(cli.run(ARGV))
     end
 
@@ -19,6 +24,7 @@ module OsCtl::Cli
       subcommand_option_handling :normal
       preserve_argv true
       arguments :strict
+      hide_commands_without_desc true
 
       desc 'Show precise values'
       switch %i(p parsable), negatable: false
@@ -1508,6 +1514,12 @@ module OsCtl::Cli
         c.switch %i(f force), negatable: false
 
         c.action &Command.run(Self, :shutdown)
+      end
+
+      command 'gen-completion' do |g|
+        g.command :bash do |c|
+          c.action &Command.run(GenCompletion, :bash)
+        end
       end
     end
 

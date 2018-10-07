@@ -1,0 +1,260 @@
+<% each_command do |c, path| -%>
+function <%= app_prefix %>_comp_cmd_<%= path.join('_') %>()
+{
+  local prefix="$1" fn cur prev cmd
+  _get_comp_words_by_ref cur prev
+
+  # Command option
+  if [[ "$prev" == -* ]] ; then
+    fn="<%= app_prefix %>_comp_opt_<%= path.join('_') %>__${prev//[-]/_}"
+    if <%= app_prefix %>_is_fn "$fn" ; then
+      $fn "$prefix"
+      return 0
+    fi
+  fi
+
+  # Remove prefix from cmd
+  cmd=(<%= path.join(' ') %>)
+  for _ in $prefix ; do cmd=(${cmd[@]:1}); done
+
+  # Positional arguments
+  <%= app_prefix %>_process_args <%= path.join('_') %> _cmd ${cmd[@]} _flags <%= flags(c).join(' ') %> _args <%= arguments(c).join(' ') %>
+
+  local haveArgs=$?
+  local cmdList=(<%= commands(c).each_value.map(&:name).join(' ') %>)
+  local optList=(<%= options(c).join(' ') %>)
+  local choiceList=(${COMPREPLY[@]} ${cmdList[@]})
+  [ $haveArgs != 0 ] && choiceList+=(${optList[@]})
+
+  COMPREPLY=(`compgen -W "${choiceList[*]}" -- $cur`)
+  return $?
+}
+
+<% each_flag(c) do |name, opt, arg| -%>
+function <%= app_prefix %>_comp_opt_<%= path.join('_') %>__<%= opt %>()
+{
+  local cur
+  cur=${COMP_WORDS[COMP_CWORD]}
+<% if arg -%>
+  COMPREPLY=(`compgen -W "$(<%= app_prefix %>_comp_opt_word_list_<%= path.join('_') %>__<%= opt %>)" -- $cur`)
+  return $?
+<% else -%>
+  return 1
+<% end -%>
+}
+
+function <%= app_prefix %>_comp_opt_word_list_<%= path.join('_') %>__<%= opt %>()
+{
+<% s = opt_word_list(c, path, name, opt, arg) -%>
+<%= s.empty? ? ':' : s %>
+}
+<% end -%>
+
+<% arguments(c).each do |arg| -%>
+function <%= app_prefix %>_comp_arg_<%= path.join('_') %>__<%= arg %>()
+{
+  local cur
+  cur=${COMP_WORDS[COMP_CWORD]}
+<% if arg -%>
+  COMPREPLY=(`compgen -W "$(<%= app_prefix %>_comp_arg_word_list_<%= path.join('_') %>__<%= arg %> $@)" -- $cur`)
+  return $?
+<% else -%>
+  return 1
+<% end -%>
+}
+
+function <%= app_prefix %>_comp_arg_word_list_<%= path.join('_') %>__<%= arg %>()
+{
+<% s = arg_word_list(c, path, arg) -%>
+<%= s.empty? ? ':' : s %>
+}
+
+<% end -%>
+<% end -%>
+
+function <%= app_prefix %>_join_by()
+{
+  local IFS="$1"
+  shift
+  echo "$*"
+}
+
+function <%= app_prefix %>_cmd_fn_name()
+{
+  local cmd=($1) globalOpts=n flagArg=n
+  shift
+
+  # osctl -j ct
+  # osctl ct
+  # osctl ct ls -o
+  # osctl ct netig new bridge --link lxcbr0 myct01
+  # osctl -j ct netif new bridge --link lxcbr0 myct01
+  # osctl --pool tank ct netif new bridge --link lxcbr0 myct01 eth0
+
+  [ ${#cmd[@]} -eq 0 ] && globalOpts=y
+
+  while [ $# -gt 0 ] ; do
+    if [[ "$1" == -* ]] ; then
+      if [[ "$globalOpts" == "y" ]] ; then
+        flagArg=y
+        shift
+        continue
+      else
+        break
+      fi
+
+    elif [ "$flagArg" == "y" ] ; then
+      for c in <%= global_commands.join(' ') %> ; do
+        [ "$1" == "$c" ] && flagArg=n
+      done
+
+      if [ "$flagArg" == "y" ] ; then
+        shift
+        continue
+      fi
+
+    elif [ "$1" != "<%= app_exe %>" ] ; then
+      globalOpts=n
+    fi
+
+    cmd+=($1)
+    shift
+  done
+
+  str="$(<%= app_prefix %>_join_by '_' ${cmd[@]})"
+  echo "${str//[-]/_}"
+}
+
+function <%= app_prefix %>_find_cmd_fn()
+{
+  local prefix="$1" i fn tmp
+
+  if [ -z "$2" ]; then
+    i=0
+  else
+    i=1
+  fi
+
+  while true ; do
+    tmp=(${COMP_WORDS[@]:0:$((${#COMP_WORDS[@]}-$i))})
+    [ -z "$tmp" ] && return 1
+
+    fn="<%= app_prefix %>_comp_cmd_$(<%= app_prefix %>_cmd_fn_name "$prefix" ${tmp[@]})"
+    <%= app_prefix %>_is_fn "$fn" && echo "$fn" && return 0
+
+    i=$((i+1))
+  done
+}
+
+function <%= app_prefix %>_process_args()
+{
+  local state= cmds=() flags=() args=() flagOpen= curArg= argVals=() fn
+  local cmd=$1
+  shift
+
+  while [ $# -gt 0 ] ; do
+    case $1 in
+      _cmd) state=c ;;
+      _flags) state=f ;;
+      _args) state=a ;;
+      *)
+        case $state in
+          c) cmds+=($1) ;;
+          f) flags+=($1) ;;
+          a) args+=($1) ;;
+        esac
+        ;;
+    esac
+    shift
+  done
+
+  set -- ${COMP_WORDS[@]:0:$COMP_CWORD}
+
+  while [ $# -gt 0 ] ; do
+    if [ "$flagOpen" == "y" ] ; then
+      flagOpen=n
+      shift
+      continue
+    fi
+
+    if [ ${#cmds[@]} -gt 0 ] ; then
+      if [ "$1" == "${cmds[0]}" ] ; then
+        cmds=(${cmds[@]:1})
+      fi
+      shift
+      continue
+    fi
+
+    if [ ${#flags[@]} -gt 0 ] && [[ "$1" == -* ]] ; then
+      for flag in $flags ; do
+        if [ "$1" == "$flag" ] ; then
+          flagOpen=y
+          flags=(${flags[@]:1})
+          break
+        fi
+      done
+      shift
+      continue
+    fi
+
+    if [ ${#args[@]} -gt 0 ] ; then
+      curArg=${args[0]}
+      argVals+=($1)
+      args=(${args[@]:1})
+      shift
+      continue
+    fi
+  done
+
+  if [ ${#cmds[@]} -eq 0 ]; then
+    fn="<%= app_prefix %>_comp_arg_${cmd}__${args[0]}"
+    <%= app_prefix %>_is_fn "$fn" && $fn ${argVals[@]}
+  fi
+
+  if [ "${#argVals[@]}" -gt 0 ] ; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+function <%= app_prefix %>_is_fn()
+{
+  type -t "$1" 2> /dev/null | grep -q 'function'
+}
+
+function <%= app_prefix %>_completion()
+{
+  local prefix="$1" fn
+
+  # Don't break words at ':'
+  COMP_WORDBREAKS=${COMP_WORDBREAKS//[:]}
+  compopt +o nospace
+
+  fn=$(<%= app_prefix %>_find_cmd_fn "$prefix")
+
+  if [ "$fn" != "" ] ; then
+    $fn "$prefix"
+
+    # Backtrack to parent completioner
+    if [ "$?" != "0" ] ; then
+      fn="$(<%= app_prefix %>_find_cmd_fn "$prefix" 1)"
+      [ "$fn" != "" ] && $fn "$prefix"
+    fi
+  fi
+}
+
+function <%= app_prefix %>_completion_global()
+{
+  <%= app_prefix %>_completion "" $@
+}
+
+function <%= app_prefix %>_completion_short()
+{
+  <%= app_prefix %>_completion <%= app_exe %> $@
+}
+
+complete -F <%= app_prefix %>_completion_global <%= app_exe %>
+<% shortcuts.each do |c| -%>
+complete -F <%= app_prefix %>_completion_short <%= c %>
+<% end -%>
