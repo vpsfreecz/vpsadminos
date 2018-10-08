@@ -30,7 +30,7 @@ module OsCtl::Cli
       switch :color, default_value: true
 
       desc 'Pool name'
-      flag :pool
+      flag :pool, arg_name: 'pool'
 
       desc 'Surpress output'
       switch %i(q quiet), negatable: false
@@ -38,10 +38,10 @@ module OsCtl::Cli
       desc 'Manage data pools'
       command :pool do |p|
         p.desc 'List imported pools'
-        p.arg_name '[names...]'
+        p.arg_name '[pools...]'
         p.command %i(ls list) do |ls|
           ls.desc 'Select parameters to output'
-          ls.flag %i(o output)
+          ls.flag %i(o output), arg_name: 'parameters'
 
           ls.desc 'Do not show header'
           ls.switch %i(H hide-header), negatable: false
@@ -50,16 +50,16 @@ module OsCtl::Cli
           ls.switch %i(L list), negatable: false
 
           ls.desc 'Sort by parameter(s)'
-          ls.flag %i(s sort)
+          ls.flag %i(s sort), arg_name: 'parameters'
 
           ls.action &Command.run(Pool, :list)
         end
 
         p.desc 'Show information about imported pool'
-        p.arg_name '<name>'
+        p.arg_name '<pool>'
         p.command :show do |c|
           c.desc 'Select parameters to output'
-          c.flag %i(o output)
+          c.flag %i(o output), arg_name: 'parameters'
 
           c.desc 'Do not show header'
           c.switch %i(H hide-header), negatable: false
@@ -71,7 +71,7 @@ module OsCtl::Cli
         end
 
         p.desc 'Import pool(s)'
-        p.arg_name '[name]'
+        p.arg_name '[pool]'
         p.command :import do |c|
           c.desc 'Import all installed pools'
           c.switch %i(a all), negatable: false
@@ -83,7 +83,7 @@ module OsCtl::Cli
         end
 
         p.desc 'Export imported pool'
-        p.arg_name '<name>'
+        p.arg_name '<pool>'
         p.command :export do |c|
           c.desc 'Export the pool even if there are containers running'
           c.switch %i(f force)
@@ -98,31 +98,31 @@ module OsCtl::Cli
         end
 
         p.desc 'Install a new pool'
-        p.arg_name '<name>'
+        p.arg_name '<pool>'
         p.command :install do |c|
           c.desc 'Place osctld datasets into a subdataset'
-          c.flag :dataset
+          c.flag :dataset, arg_name: 'dataset'
 
           c.action &Command.run(Pool, :install)
         end
 
         p.desc 'Uninstall pool'
-        p.arg_name '<name>'
+        p.arg_name '<pool>'
         p.command :uninstall do |c|
           c.action &Command.run(Pool, :uninstall)
         end
 
         p.desc "List pool's assets (datasets, files, directories)"
-        p.arg_name '<name>'
+        p.arg_name '<pool>'
         assets(p, Pool)
 
         p.desc 'Check and trigger container auto-starting'
         p.command :autostart do |as|
           as.desc 'Check auto-start queue'
-          as.arg_name '<name>'
+          as.arg_name '<pool>'
           as.command :queue do |c|
             c.desc 'Select parameters to output'
-            c.flag %i(o output)
+            c.flag %i(o output), arg_name: 'parameters'
 
             c.desc 'Do not show header'
             c.switch %i(H hide-header), negatable: false
@@ -134,13 +134,13 @@ module OsCtl::Cli
           end
 
           as.desc 'Start containers that have auto-start enabled'
-          as.arg_name '<name>'
+          as.arg_name '<pool>'
           as.command :trigger do |c|
             c.action &Command.run(Pool, :autostart_trigger)
           end
 
           as.desc 'Cancel start of containers left in the queue'
-          as.arg_name '<name>'
+          as.arg_name '<pool>'
           as.command :cancel do |c|
             c.action &Command.run(Pool, :autostart_cancel)
           end
@@ -149,45 +149,45 @@ module OsCtl::Cli
         p.desc 'Configure pool options'
         p.command :set do |set|
           set.desc 'How many containers should be simultaneously started at pool import'
-          set.arg_name '<name> <n>'
+          set.arg_name '<pool> <n>'
           set.command 'parallel-start' do |c|
             c.action &Command.run(Pool, :set, [:parallel_start])
           end
 
           set.desc 'How many containers should be simultaneously stopped at pool export'
-          set.arg_name '<name> <n>'
+          set.arg_name '<pool> <n>'
           set.command 'parallel-stop' do |c|
             c.action &Command.run(Pool, :set, [:parallel_stop])
           end
 
-          set_attr(set, Pool)
+          set_attr(set, Pool, 'pool')
         end
 
         p.desc 'Reset pool options'
         p.command :unset do |unset|
           unset.desc 'How many containers should be simultaneously started at pool import'
-          unset.arg_name '<name>'
+          unset.arg_name '<pool>'
           unset.command 'parallel-start' do |c|
             c.action &Command.run(Pool, :unset, [:parallel_start])
           end
 
           unset.desc 'How many containers should be simultaneously stopped at pool export'
-          unset.arg_name '<name>'
+          unset.arg_name '<pool>'
           unset.command 'parallel-stop' do |c|
             c.action &Command.run(Pool, :unset, [:parallel_stop])
           end
 
-          unset_attr(unset, Pool)
+          unset_attr(unset, Pool, 'pool')
         end
       end
 
       desc 'Manage system users and user namespace configuration'
       command :user do |u|
         u.desc 'List available users'
-        u.arg_name '[name...]'
+        u.arg_name '[user...]'
         u.command %i(ls list) do |ls|
           ls.desc 'Filter by pool, comma separated'
-          ls.flag :pool
+          ls.flag :pool, arg_name: 'pool'
 
           ls.desc 'Filter registered users'
           ls.switch 'registered', negatable: false
@@ -196,7 +196,7 @@ module OsCtl::Cli
           ls.switch 'unregistered', negatable: false
 
           ls.desc 'Select parameters to output'
-          ls.flag %i(o output)
+          ls.flag %i(o output), arg_name: 'parameters'
 
           ls.desc 'Do not show header'
           ls.switch %i(H hide-header), negatable: false
@@ -205,16 +205,16 @@ module OsCtl::Cli
           ls.switch %i(L list), negatable: false
 
           ls.desc 'Sort by parameter(s)'
-          ls.flag %i(s sort)
+          ls.flag %i(s sort), arg_name: 'parameters'
 
           ls.action &Command.run(User, :list)
         end
 
         u.desc "Show user info"
-        u.arg_name '<name>'
+        u.arg_name '<user>'
         u.command %i(show info) do |c|
           c.desc 'Select parameters to output'
-          c.flag %i(o output)
+          c.flag %i(o output), arg_name: 'parameters'
 
           c.desc 'Do not show header'
           c.switch %i(H hide-header), negatable: false
@@ -226,40 +226,40 @@ module OsCtl::Cli
         end
 
         u.desc 'Create a new user with user namespace configuration'
-        u.arg_name '<name>'
+        u.arg_name '<user>'
         u.command %i(new create) do |new|
           new.desc 'Pool name'
-          new.flag :pool
+          new.flag :pool, arg_name: 'pool'
 
           new.desc 'User/group ID, used for system user/group'
-          new.flag :ugid, type: Integer, required: true
+          new.flag :ugid, type: Integer, required: true, arg_name: 'n'
 
           new.desc 'UID/GID mapping'
-          new.flag 'map', multiple: true
+          new.flag 'map', multiple: true, arg_name: 'id_map'
 
           new.desc 'UID mapping'
-          new.flag 'map-uid', multiple: true
+          new.flag 'map-uid', multiple: true, arg_name: 'uid_map'
 
           new.desc 'GID mapping'
-          new.flag 'map-gid', multiple: true
+          new.flag 'map-gid', multiple: true, arg_name: 'gid_map'
 
           new.action &Command.run(User, :create)
         end
 
         u.desc 'Delete user'
-        u.arg_name '<name>'
+        u.arg_name '<user>'
         u.command %i(del delete) do |del|
           del.action &Command.run(User, :delete)
         end
 
         u.desc 'Register users into the system'
-        u.arg_name '[name] | all'
+        u.arg_name '<user>|all'
         u.command %i(reg register) do |c|
           c.action &Command.run(User, :register)
         end
 
         u.desc 'Unregister users from the system'
-        u.arg_name '[name] | all'
+        u.arg_name '<user>|all'
         u.command %i(unreg unregister) do |c|
           c.action &Command.run(User, :unregister)
         end
@@ -270,14 +270,14 @@ module OsCtl::Cli
         end
 
         u.desc "List user's assets (datasets, files, directories)"
-        u.arg_name '<name>'
+        u.arg_name '<user>'
         assets(u, User)
 
         u.desc "List UID/GID mappings"
-        u.arg_name '<name> [uid|gid|both]'
+        u.arg_name '<user> [uid|gid|both]'
         u.command :map do |c|
           c.desc 'Select parameters to output'
-          c.flag %i(o output)
+          c.flag %i(o output), arg_name: 'parameters'
 
           c.desc 'Do not show header'
           c.switch %i(H hide-header), negatable: false
@@ -290,25 +290,25 @@ module OsCtl::Cli
 
         u.desc 'Configure user options'
         u.command :set do |set|
-          set_attr(set, User)
+          set_attr(set, User, 'user')
         end
 
         u.desc 'Reset user options'
         u.command :unset do |unset|
-          unset_attr(unset, User)
+          unset_attr(unset, User, 'user')
         end
       end
 
       desc 'Manage groups used for cgroup-based resource limiting'
       command :group do |grp|
         grp.desc 'List available groups'
-        grp.arg_name '[name...]'
+        grp.arg_name '[group...]'
         grp.command %i(ls list) do |ls|
           ls.desc 'Filter by pool, comma separated'
-          ls.flag :pool
+          ls.flag :pool, arg_name: 'pool'
 
           ls.desc 'Select parameters to output'
-          ls.flag %i(o output)
+          ls.flag %i(o output), arg_name: 'parameters'
 
           ls.desc 'Do not show header'
           ls.switch %i(H hide-header), negatable: false
@@ -317,7 +317,7 @@ module OsCtl::Cli
           ls.switch %i(L list), negatable: false
 
           ls.desc 'Sort by parameter(s)'
-          ls.flag %i(s sort)
+          ls.flag %i(s sort), arg_name: 'parameters'
 
           ls.action &Command.run(Group, :list)
         end
@@ -329,10 +329,10 @@ module OsCtl::Cli
         end
 
         grp.desc 'Show group info'
-        grp.arg_name '<name>'
+        grp.arg_name '<group>'
         grp.command %i(show find) do |c|
           c.desc 'Select parameters to output'
-          c.flag %i(o output)
+          c.flag %i(o output), arg_name: 'parameters'
 
           c.desc 'Do not show header'
           c.switch %i(H hide-header), negatable: false
@@ -344,10 +344,10 @@ module OsCtl::Cli
         end
 
         grp.desc 'Create group'
-        grp.arg_name '<name>'
+        grp.arg_name '<group>'
         grp.command %i(new create) do |new|
           new.desc 'Pool name'
-          new.flag :pool
+          new.flag :pool, arg_name: 'pool'
 
           new.desc 'Create missing parent groups'
           new.switch %i(p parents)
@@ -359,56 +359,56 @@ module OsCtl::Cli
         end
 
         grp.desc 'Delete group'
-        grp.arg_name '<name>'
+        grp.arg_name '<group>'
         grp.command %i(del delete) do |del|
           del.action &Command.run(Group, :delete)
         end
 
         grp.desc 'Configure group'
         grp.command :set do |set|
-          set_limits(set, Group)
-          set_attr(set, Group)
+          set_limits(set, Group, 'group')
+          set_attr(set, Group, 'group')
         end
 
         grp.desc 'Clear configuration options'
         grp.command :unset do |unset|
-          unset_limits(unset, Group)
-          unset_attr(unset, Group)
+          unset_limits(unset, Group, 'group')
+          unset_attr(unset, Group, 'group')
         end
 
         grp.desc "List group's assets (datasets, files, directories)"
-        grp.arg_name '<name>'
+        grp.arg_name '<group>'
         assets(grp, Group)
 
-        cg_params(grp, Group)
-        devices(grp, Group)
+        cg_params(grp, Group, 'group')
+        devices(grp, Group, 'group')
       end
 
       desc 'Manage containers'
       command %i(ct vps) do |ct|
         ct.desc 'List containers'
-        ct.arg_name '[id...]'
+        ct.arg_name '[ctid...]'
         ct.command %i(ls list) do |ls|
           ls.desc 'Filter by pool, comma separated'
-          ls.flag :pool
+          ls.flag :pool, arg_name: 'pool'
 
           ls.desc 'Filter by user name, comma separated'
-          ls.flag %i(u user)
+          ls.flag %i(u user), arg_name: 'user'
 
           ls.desc 'Filter by group name, comma separated'
-          ls.flag %i(g group)
+          ls.flag %i(g group), arg_name: 'group'
 
           ls.desc 'Filter by distribution, comma separated'
-          ls.flag %i(d distribution)
+          ls.flag %i(d distribution), arg_name: 'distribution'
 
           ls.desc 'Filter by distribution version, comma separated'
-          ls.flag %i(v version)
+          ls.flag %i(v version), arg_name: 'version'
 
           ls.desc 'Filter by state, comma separated'
-          ls.flag %i(S state)
+          ls.flag %i(S state), arg_name: 'state'
 
           ls.desc 'Select parameters to output'
-          ls.flag %i(o output)
+          ls.flag %i(o output), arg_name: 'parameters'
 
           ls.desc 'Do not show header'
           ls.switch %i(H hide-header), negatable: false
@@ -417,7 +417,7 @@ module OsCtl::Cli
           ls.switch %i(L list), negatable: false
 
           ls.desc 'Sort by parameter(s)'
-          ls.flag %i(s sort)
+          ls.flag %i(s sort), arg_name: 'parameters'
 
           ls.action &Command.run(Container, :list)
         end
@@ -429,10 +429,10 @@ module OsCtl::Cli
         end
 
         ct.desc "Show container's info"
-        ct.arg_name '<id>'
+        ct.arg_name '<ctid>'
         ct.command %i(show info) do |c|
           c.desc 'Select parameters to output'
-          c.flag %i(o output)
+          c.flag %i(o output), arg_name: 'parameters'
 
           c.desc 'Do not show header'
           c.switch %i(H hide-header), negatable: false
@@ -444,55 +444,55 @@ module OsCtl::Cli
         end
 
         ct.desc 'Create container'
-        ct.arg_name '<id>'
+        ct.arg_name '<ctid>'
         ct.command %i(new create) do |new|
           new.desc 'Pool name'
-          new.flag :pool
+          new.flag :pool, arg_name: 'pool'
 
           new.desc 'User name'
-          new.flag :user, required: true
+          new.flag :user, required: true, arg_name: 'user'
 
           new.desc 'Group name'
-          new.flag :group, required: false
+          new.flag :group, required: false, arg_name: 'group'
 
           new.desc 'Template from a repository'
-          new.flag :template
+          new.flag :template, arg_name: 'template'
 
           new.desc 'Template in a tar archive'
-          new.flag 'from-archive'
+          new.flag 'from-archive', arg_name: 'archive'
 
           new.desc 'Template in a ZFS stream'
-          new.flag 'from-stream'
+          new.flag 'from-stream', arg_name: 'stream'
 
           new.desc 'Use a custom dataset for the rootfs'
-          new.flag :dataset
+          new.flag :dataset, arg_name: 'dataset'
 
           new.desc 'Do not extract any template'
           new.switch 'skip-template', negatable: false
 
           new.desc 'Distribution name in lower case'
-          new.flag :distribution
+          new.flag :distribution, arg_name: 'distribution'
 
           new.desc 'Distribution version'
-          new.flag :version
+          new.flag :version, arg_name: 'version'
 
           new.desc 'Architecture'
-          new.flag :arch
+          new.flag :arch, arg_name: 'arch'
 
           new.desc 'Vendor (used only when downloading the template)'
-          new.flag :vendor
+          new.flag :vendor, arg_name: 'vendor'
 
           new.desc 'Variant (used only when downloading the template)'
-          new.flag :variant
+          new.flag :variant, arg_name: 'variant'
 
           new.desc 'Repository'
-          new.flag :repository
+          new.flag :repository, arg_name: 'repository'
 
           new.action &Command.run(Container, :create)
         end
 
         ct.desc 'Delete container'
-        ct.arg_name '<id>'
+        ct.arg_name '<ctid>'
         ct.command %i(del delete) do |c|
           c.desc 'Stop and delete running container'
           c.switch %i(f force), negatable: false
@@ -501,34 +501,34 @@ module OsCtl::Cli
         end
 
         ct.desc 'Reinstall container'
-        ct.arg_name '<id>'
+        ct.arg_name '<ctid>'
         ct.command :reinstall do |c|
           c.desc 'Template from a repository'
-          c.flag :template
+          c.flag :template, arg_name: 'template'
 
           c.desc 'Template in a tar archive'
-          c.flag 'from-archive'
+          c.flag 'from-archive', arg_name: 'archive'
 
           c.desc 'Template in a ZFS stream'
-          c.flag 'from-stream'
+          c.flag 'from-stream', arg_name: 'stream'
 
           c.desc 'Distribution name in lower case'
-          c.flag :distribution
+          c.flag :distribution, arg_name: 'distribution'
 
           c.desc 'Distribution version'
-          c.flag :version
+          c.flag :version, arg_name: 'version'
 
           c.desc 'Architecture'
-          c.flag :arch
+          c.flag :arch, arg_name: 'arch'
 
           c.desc 'Vendor (used only when downloading the template)'
-          c.flag :vendor
+          c.flag :vendor, arg_name: 'vendor'
 
           c.desc 'Variant (used only when downloading the template)'
-          c.flag :variant
+          c.flag :variant, arg_name: 'variant'
 
           c.desc 'Repository'
-          c.flag :repository
+          c.flag :repository, arg_name: 'repository'
 
           c.desc 'Remove snapshots of the root dataset'
           c.switch %i(r remove-snapshots)
@@ -537,16 +537,16 @@ module OsCtl::Cli
         end
 
         ct.desc "Mount the container's datasets"
-        ct.arg_name '<id>'
+        ct.arg_name '<ctid>'
         ct.command :mount do |c|
           c.action &Command.run(Container, :mount)
         end
 
         ct.desc 'Start container'
-        ct.arg_name '<id>'
+        ct.arg_name '<ctid>'
         ct.command :start do |c|
           c.desc 'How long to wait for the container to start'
-          c.flag %i(w wait), type: Integer, default_value: 60
+          c.flag %i(w wait), type: Integer, default_value: 60, arg_name: 'n'
 
           c.desc 'Open container console (can be later detached)'
           c.switch %i(F foreground)
@@ -555,7 +555,7 @@ module OsCtl::Cli
           c.switch %i(q queue)
 
           c.desc 'Priority for the autostart queue'
-          c.flag %i(p priority), type: Integer, default_value: 10
+          c.flag %i(p priority), type: Integer, default_value: 10, arg_name: 'n'
 
           c.desc 'Enable debug messages in LXC'
           c.switch %i(D debug)
@@ -564,13 +564,13 @@ module OsCtl::Cli
         end
 
         ct.desc 'Stop container'
-        ct.arg_name '<id>'
+        ct.arg_name '<ctid>'
         ct.command :stop do |c|
           c.desc 'Open container console (can be later detached)'
           c.switch %i(F foreground)
 
           c.desc 'How many seconds to wait before killing the container'
-          c.flag %i(t timeout), type: Integer, default_value: 60
+          c.flag %i(t timeout), type: Integer, default_value: 60, arg_name: 'n'
 
           c.desc 'Do not request a clean shutdown, kill the container'
           c.switch %i(k kill), negatable: false
@@ -582,10 +582,10 @@ module OsCtl::Cli
         end
 
         ct.desc 'Restart container'
-        ct.arg_name '<id>'
+        ct.arg_name '<ctid>'
         ct.command :restart do |c|
           c.desc 'How long to wait for the container to start'
-          c.flag %i(w wait), type: Integer, default_value: 60
+          c.flag %i(w wait), type: Integer, default_value: 60, arg_name: 'n'
 
           c.desc 'Open container console (can be later detached)'
           c.switch %i(F foreground)
@@ -594,7 +594,7 @@ module OsCtl::Cli
           c.switch %i(r reboot)
 
           c.desc 'How many seconds to wait before killing the container'
-          c.flag %i(t timeout), type: Integer, default_value: 60
+          c.flag %i(t timeout), type: Integer, default_value: 60, arg_name: 'n'
 
           c.desc 'Do not request a clean shutdown, kill the container'
           c.switch %i(k kill), negatable: false
@@ -606,16 +606,16 @@ module OsCtl::Cli
         end
 
         ct.desc "Open container's console"
-        ct.arg_name '<id>'
+        ct.arg_name '<ctid>'
         ct.command :console do |c|
           c.desc 'TTY'
-          c.flag [:t, :tty], type: Integer, default_value: 0
+          c.flag [:t, :tty], type: Integer, default_value: 0, arg_name: 'ttyN'
 
           c.action &Command.run(Container, :console)
         end
 
         ct.desc 'Attach the container'
-        ct.arg_name '<id>'
+        ct.arg_name '<ctid>'
         ct.command %i(attach enter) do |c|
           c.desc 'Run shell as configured in the container'
           c.switch %i(u user-shell), negatable: false
@@ -624,13 +624,13 @@ module OsCtl::Cli
         end
 
         ct.desc 'Execute a command within the container'
-        ct.arg_name '<id> <cmd...>'
+        ct.arg_name '<ctid> <cmd...>'
         ct.command %i(exec) do |c|
           c.action &Command.run(Container, :exec)
         end
 
         ct.desc "Get container's user's shell"
-        ct.arg_name '<id>'
+        ct.arg_name '<ctid>'
         ct.command :su do |su|
           su.action &Command.run(Container, :su)
         end
@@ -638,134 +638,134 @@ module OsCtl::Cli
         ct.desc 'Configure container'
         ct.command :set do |set|
           set.desc 'Start the container when its pool is imported'
-          set.arg_name '<id>'
+          set.arg_name '<ctid>'
           set.command :autostart do |c|
             c.desc 'Start priority (0 is the highest priority)'
-            c.flag %i(p priority), type: Integer, default_value: 10
+            c.flag %i(p priority), type: Integer, default_value: 10, arg_name: 'n'
 
             c.desc 'How long to wait before starting another container, in seconds'
-            c.flag %i(d delay), type: Integer, default_value: 5
+            c.flag %i(d delay), type: Integer, default_value: 5, arg_name: 'n'
 
             c.action &Command.run(Container, :set_autostart)
           end
 
           set.desc 'Set hostname'
-          set.arg_name '<id> <hostname>'
+          set.arg_name '<ctid> <hostname>'
           set.command :hostname do |c|
             c.action &Command.run(Container, :set_hostname)
           end
 
           set.desc 'Set DNS resolver'
-          set.arg_name '<id> <address...>'
+          set.arg_name '<ctid> <address...>'
           set.command :'dns-resolver' do |c|
             c.action &Command.run(Container, :set_dns_resolver)
           end
 
           set.desc 'Enable container nesting'
-          set.arg_name '<id>'
+          set.arg_name '<ctid>'
           set.command :nesting do |c|
             c.action &Command.run(Container, :set_nesting)
           end
 
           set.desc 'Change distribution and version info'
-          set.arg_name '<id> <distribution> <version>'
+          set.arg_name '<ctid> <distribution> <version>'
           set.command :distribution do |c|
             c.action &Command.run(Container, :set_distribution)
           end
 
           set.desc 'Set path to seccomp profile'
-          set.arg_name '<id> <profile>'
+          set.arg_name '<ctid> <profile>'
           set.command :seccomp do |c|
             c.action &Command.run(Container, :set_seccomp_profile)
           end
 
-          set_attr(set, Container)
-          set_limits(set, Container)
+          set_attr(set, Container, 'ctid')
+          set_limits(set, Container, 'ctid')
         end
 
         ct.desc 'Clear configuration options'
         ct.command :unset do |unset|
           unset.desc 'Disable automatic container starting'
-          unset.arg_name '<id>'
+          unset.arg_name '<ctid>'
           unset.command :autostart do |c|
             c.action &Command.run(Container, :unset_autostart)
           end
 
           unset.desc 'Disable hostname management'
-          unset.arg_name '<id>'
+          unset.arg_name '<ctid>'
           unset.command :hostname do |c|
             c.action &Command.run(Container, :unset_hostname)
           end
 
           unset.desc 'Disable DNS resolver management'
-          unset.arg_name '<id>'
+          unset.arg_name '<ctid>'
           unset.command :'dns-resolver' do |c|
             c.action &Command.run(Container, :unset_dns_resolver)
           end
 
           unset.desc 'Disable container nesting'
-          unset.arg_name '<id>'
+          unset.arg_name '<ctid>'
           unset.command :nesting do |c|
             c.action &Command.run(Container, :unset_nesting)
           end
 
           unset.desc 'Use the default seccomp profile'
-          unset.arg_name '<id>'
+          unset.arg_name '<ctid>'
           unset.command :seccomp do |c|
             c.action &Command.run(Container, :unset_seccomp_profile)
           end
 
-          unset_attr(unset, Container)
-          unset_limits(unset, Container)
+          unset_attr(unset, Container, 'ctid')
+          unset_limits(unset, Container, 'ctid')
         end
 
         ct.desc 'Copy container'
-        ct.arg_name '<id> [pool:]<new-id>'
+        ct.arg_name '<ctid> [pool:]<new-id>'
         ct.command %i(cp copy) do |c|
           c.desc 'Stop the container during the copy'
           c.switch :consistent, default_value: true
 
           c.desc 'Target pool'
-          c.flag :pool
+          c.flag :pool, arg_name: 'pool'
 
           c.desc 'Target user'
-          c.flag :user
+          c.flag :user, arg_name: 'user'
 
           c.desc 'Target group'
-          c.flag :group
+          c.flag :group, arg_name: 'group'
 
           c.desc 'Target dataset'
-          c.flag :dataset
+          c.flag :dataset, arg_name: 'dataset'
 
           c.action &Command.run(Container, :copy)
         end
 
         ct.desc 'Move container'
-        ct.arg_name '<id> [pool:]<new-id>'
+        ct.arg_name '<ctid> [pool:]<new-id>'
         ct.command %i(mv move) do |c|
           c.desc 'Target pool'
-          c.flag :pool
+          c.flag :pool, arg_name: 'pool'
 
           c.desc 'Target user'
-          c.flag :user
+          c.flag :user, arg_name: 'user'
 
           c.desc 'Target group'
-          c.flag :group
+          c.flag :group, arg_name: 'group'
 
           c.desc 'Target dataset'
-          c.flag :dataset
+          c.flag :dataset, arg_name: 'dataset'
 
           c.action &Command.run(Container, :move)
         end
 
         ct.desc 'Move the container to another user namespace'
-        ct.arg_name '<id> <user>'
+        ct.arg_name '<ctid> <user>'
         ct.command :chown do |c|
           c.action &Command.run(Container, :chown)
         end
 
         ct.desc 'Move the container to another group'
-        ct.arg_name '<id> <group>'
+        ct.arg_name '<ctid> <group>'
         ct.command :chgrp do |c|
           c.desc 'Provide or remove missing devices'
           c.flag 'missing-devices', must_match: %w(provide remove check)
@@ -776,26 +776,26 @@ module OsCtl::Cli
         ct.desc "Manipulate the container's config file"
         ct.command %i(cfg config) do |cfg|
           cfg.desc "Reload the container's configuration file"
-          cfg.arg_name '<id>'
+          cfg.arg_name '<ctid>'
           cfg.command :reload do |c|
             c.action &Command.run(Container, :config_reload)
           end
 
           cfg.desc "Replace the container's configuration file"
-          cfg.arg_name '<id>'
+          cfg.arg_name '<ctid>'
           cfg.command :replace do |c|
             c.action &Command.run(Container, :config_replace)
           end
         end
 
         ct.desc 'Set password for a user within the container'
-        ct.arg_name '<id> <user> [password]'
+        ct.arg_name '<ctid> <username> [password]'
         ct.command :passwd do |c|
           c.action &Command.run(Container, :passwd)
         end
 
         ct.desc "Go to container's rootfs directory"
-        ct.arg_name '<id>'
+        ct.arg_name '<ctid>'
         ct.command :cd do |c|
           c.desc "Go to /proc/<init_pid>/root"
           c.switch %i(r runtime), negatable: false
@@ -807,13 +807,13 @@ module OsCtl::Cli
         end
 
         ct.desc 'Regenerate LXC configuration'
-        ct.arg_name '<id>'
+        ct.arg_name '<ctid>'
         ct.command :reconfigure do |c|
           c.action &Command.run(Container, :reconfigure)
         end
 
         ct.desc 'Export the container configs and data into a tar archive'
-        ct.arg_name '<id> <file>'
+        ct.arg_name '<ctid> <file>'
         ct.command :export do |c|
           c.desc 'Stop the container during the export'
           c.switch :consistent, default_value: true
@@ -838,7 +838,7 @@ module OsCtl::Cli
           c.flag 'as-group'
 
           c.desc 'Use a custom dataset for the rootfs'
-          c.flag :dataset
+          c.flag :dataset, arg_name: 'dataset'
 
           c.desc 'Provide or remove missing devices'
           c.flag 'missing-devices', must_match: %w(provide remove check)
@@ -849,28 +849,28 @@ module OsCtl::Cli
         ct.desc 'Migrate container to another node'
         ct.command :migrate do |m|
           m.desc 'Step 1., copy configs to target node'
-          m.arg_name '<id> <dst>'
+          m.arg_name '<ctid> <dst>'
           m.command :stage do |c|
             c.desc 'SSH port'
-            c.flag %i(p port), type: Integer
+            c.flag %i(p port), type: Integer, arg_name: 'port'
 
             c.action &Command.run(Migrate, :stage)
           end
 
           m.desc 'Step 2., do an initial copy of container dataset'
-          m.arg_name '<id>'
+          m.arg_name '<ctid>'
           m.command :sync do |c|
             c.action &Command.run(Migrate, :sync)
           end
 
           m.desc 'Step 3., transfer the container to target node'
-          m.arg_name '<id>'
+          m.arg_name '<ctid>'
           m.command :transfer do |c|
             c.action &Command.run(Migrate, :transfer)
           end
 
           m.desc 'Step 4., cleanup the container on the source node'
-          m.arg_name '<id>'
+          m.arg_name '<ctid>'
           m.command :cleanup do |c|
             c.desc 'Delete the container'
             c.switch %i(d delete), default_value: true
@@ -879,7 +879,7 @@ module OsCtl::Cli
           end
 
           m.desc 'Cancel ongoing migration in mid-step'
-          m.arg_name '<id>'
+          m.arg_name '<ctid>'
           m.command :cancel do |c|
             c.desc 'Cancel the migration on the local node, even if remote fails'
             c.switch %i(f force), negatable: false
@@ -888,10 +888,10 @@ module OsCtl::Cli
           end
 
           m.desc 'Migrate container at once (equals to steps 1-4 in succession)'
-          m.arg_name '<id> <dst>'
+          m.arg_name '<ctid> <dst>'
           m.command :now do |c|
             c.desc 'SSH port'
-            c.flag %i(p port), type: Integer
+            c.flag %i(p port), type: Integer, arg_name: 'port'
 
             c.desc 'Delete the container after migration'
             c.switch %i(d delete), default_value: true
@@ -903,35 +903,35 @@ module OsCtl::Cli
         ct.desc 'Access container LXC log file'
         ct.command :log do |log|
           log.desc 'Cat log file to stdout'
-          log.arg_name '<id>'
+          log.arg_name '<ctid>'
           log.command :cat do |c|
             c.action &Command.run(Container, :log_cat)
           end
 
           log.desc 'Print path to the log file'
-          log.arg_name '<id>'
+          log.arg_name '<ctid>'
           log.command :path do |c|
             c.action &Command.run(Container, :log_path)
           end
         end
 
         ct.desc 'Monitor container state changes'
-        ct.arg_name '[id...]'
+        ct.arg_name '[ctid...]'
         ct.command :monitor do |c|
           c.action &Command.run(Event, :monitor_ct)
         end
 
         ct.desc 'Wait for container for container to enter state'
-        ct.arg_name '<id> <state...>'
+        ct.arg_name '<ctid> <state...>'
         ct.command :wait do |c|
           c.action &Command.run(Event, :wait_ct)
         end
 
         ct.desc 'Top-like container monitor'
-        ct.arg_name '[id...]'
+        ct.arg_name '[ctid...]'
         ct.command :top do |c|
           c.desc 'Refresh rate, in seconds'
-          c.flag %i(r rate), type: Float, default_value: 1.0
+          c.flag %i(r rate), type: Float, default_value: 1.0, arg_name: 'n'
 
           c.action &Command.run(Top::Main, :start)
         end
@@ -946,22 +946,22 @@ module OsCtl::Cli
         end
 
         ct.desc 'List container assets (datasets, files, directories)'
-        ct.arg_name '<id>'
+        ct.arg_name '<ctid>'
         assets(ct, Container)
 
         ct.desc "Manage container's network interfaces"
         ct.command %i(netif net) do |net|
           net.desc "List network interfaces"
-          net.arg_name '<id>'
+          net.arg_name '<ctid>'
           net.command %i(ls list) do |c|
             c.desc 'Filter by interface type'
-            c.flag %i(t type)
+            c.flag %i(t type), arg_name: 'netif_type'
 
             c.desc 'Filter by linked bridge'
-            c.flag %i(l link)
+            c.flag %i(l link), arg_name: 'netif_bridge'
 
             c.desc 'Select parameters to output'
-            c.flag %i(o output)
+            c.flag %i(o output), arg_name: 'parameters'
 
             c.desc 'Do not show header'
             c.switch %i(H hide-header), negatable: false
@@ -970,7 +970,7 @@ module OsCtl::Cli
             c.switch %i(L list), negatable: false
 
             c.desc 'Sort by parameter(s)'
-            c.flag %i(s sort)
+            c.flag %i(s sort), arg_name: 'parameters'
 
             c.action &Command.run(NetInterface, :list)
           end
@@ -978,53 +978,53 @@ module OsCtl::Cli
           net.desc "Create a new network interface"
           net.command %i(new create) do |create|
             create.desc 'Create a new bridged veth interface'
-            create.arg_name '<id> <name>'
+            create.arg_name '<ctid> <ifname>'
             create.command :bridge do |c|
               c.desc 'What bridge should the interface be linked with'
-              c.flag :link, required: true
+              c.flag :link, required: true, arg_name: 'host_netif'
 
               c.desc 'Use DHCP client within the container'
               c.switch :dhcp, default_value: true
 
               c.desc 'IPv4 gateway to use when DHCP is disabled'
-              c.flag 'gateway-v4'
+              c.flag 'gateway-v4', arg_name: 'ipv4'
 
               c.desc 'IPv6 gateway to use when DHCP is disabled'
-              c.flag 'gateway-v6'
+              c.flag 'gateway-v6', arg_name: 'ipv6'
 
               c.desc "MAC address"
-              c.flag :hwaddr
+              c.flag :hwaddr, arg_name: 'hwaddr'
 
               c.action &Command.run(NetInterface, :create_bridge)
             end
 
             create.desc 'Create a new routed veth interface'
-            create.arg_name '<id> <name>'
+            create.arg_name '<ctid> <ifname>'
             create.command :routed do |c|
               c.desc "MAC address"
-              c.flag :hwaddr
+              c.flag :hwaddr, arg_name: 'hwaddr'
 
               c.action &Command.run(NetInterface, :create_routed)
             end
           end
 
           net.desc "Remove network interface"
-          net.arg_name '<id> <name>'
+          net.arg_name '<ctid> <ifname>'
           net.command %i(del delete) do |c|
             c.action &Command.run(NetInterface, :delete)
           end
 
           net.desc "Rename network interface"
-          net.arg_name '<id> <old-name> <new-name>'
+          net.arg_name '<ctid> <ifname> <new-ifname>'
           net.command :rename do |c|
             c.action &Command.run(NetInterface, :rename)
           end
 
           net.desc "Configure network interface"
-          net.arg_name '<id> <name>'
+          net.arg_name '<ctid> <ifname>'
           net.command :set do |c|
             c.desc 'What bridge should the interface be linked with'
-            c.flag :link
+            c.flag :link, arg_name: 'host_netif'
 
             c.desc 'Use DHCP client within the container'
             c.switch 'enable-dhcp', negatable: false
@@ -1033,13 +1033,13 @@ module OsCtl::Cli
             c.switch 'disable-dhcp', negatable: false
 
             c.desc 'IPv4 gateway to use when DHCP is disabled'
-            c.flag 'gateway-v4'
+            c.flag 'gateway-v4', arg_name: 'ipv4'
 
             c.desc 'IPv6 gateway to use when DHCP is disabled'
-            c.flag 'gateway-v6'
+            c.flag 'gateway-v6', arg_name: 'ipv6'
 
             c.desc "MAC address"
-            c.flag :hwaddr
+            c.flag :hwaddr, arg_name: 'hwaddr'
 
             c.action &Command.run(NetInterface, :set)
           end
@@ -1047,13 +1047,13 @@ module OsCtl::Cli
           net.desc "Manage IP addresses"
           net.command :ip do |ip|
             ip.desc 'List IP addresses'
-            ip.arg_name '<id> <name>'
+            ip.arg_name '[ctid] [ifname]'
             ip.command %i(ls list) do |c|
               c.desc 'Filter by IP version'
               c.flag %i(v version), type: Integer
 
               c.desc 'Select parameters to output'
-              c.flag %i(o output)
+              c.flag %i(o output), arg_name: 'parameters'
 
               c.desc 'Do not show header'
               c.switch %i(H hide-header), negatable: false
@@ -1062,25 +1062,25 @@ module OsCtl::Cli
               c.switch %i(L list), negatable: false
 
               c.desc 'Sort by parameter(s)'
-              c.flag %i(s sort)
+              c.flag %i(s sort), arg_name: 'parameters'
 
               c.action &Command.run(NetInterface, :ip_list)
             end
 
             ip.desc 'Add IP address'
-            ip.arg_name '<id> <name> <addr>'
+            ip.arg_name '<ctid> <ifname> <addr>'
             ip.command :add do |c|
               c.desc 'Add route for addr'
               c.switch :route, default_value: true
 
               c.desc 'Add route for a different network than addr'
-              c.flag 'route-as'
+              c.flag 'route-as', arg_name: 'addr'
 
               c.action &Command.run(NetInterface, :ip_add)
             end
 
             ip.desc 'Remove IP address'
-            ip.arg_name '<id> <name> <addr>'
+            ip.arg_name '<ctid> <ifname> <addr>'
             ip.command :del do |c|
               c.desc 'Remove route for addr'
               c.switch 'keep-route'
@@ -1095,13 +1095,13 @@ module OsCtl::Cli
           net.desc "Manage routes"
           net.command :route do |ip|
             ip.desc 'List routes'
-            ip.arg_name '<id> <name>'
+            ip.arg_name '[ctid] [ifname]'
             ip.command %i(ls list) do |c|
               c.desc 'Filter by IP version'
               c.flag %i(v version), type: Integer
 
               c.desc 'Select parameters to output'
-              c.flag %i(o output)
+              c.flag %i(o output), arg_name: 'parameters'
 
               c.desc 'Do not show header'
               c.switch %i(H hide-header), negatable: false
@@ -1110,19 +1110,19 @@ module OsCtl::Cli
               c.switch %i(L list), negatable: false
 
               c.desc 'Sort by parameter(s)'
-              c.flag %i(s sort)
+              c.flag %i(s sort), arg_name: 'parameters'
 
               c.action &Command.run(NetInterface, :route_list)
             end
 
             ip.desc 'Add route'
-            ip.arg_name '<id> <name> <addr>'
+            ip.arg_name '<ctid> <ifname> <addr>'
             ip.command :add do |c|
               c.action &Command.run(NetInterface, :route_add)
             end
 
             ip.desc 'Remove route'
-            ip.arg_name '<id> <name> <addr>'
+            ip.arg_name '<ctid> <ifname> <addr>'
             ip.command :del do |c|
               c.desc 'IP versions to remove'
               c.flag %i(v version), type: Integer
@@ -1132,16 +1132,16 @@ module OsCtl::Cli
           end
         end
 
-        cg_params(ct, Container)
-        devices(ct, Container)
+        cg_params(ct, Container, 'ctid')
+        devices(ct, Container, 'ctid')
 
         ct.desc 'Manage resource limits'
         ct.command :prlimits do |pr|
           pr.desc 'List configured limits'
-          pr.arg_name '<id> [limits...]'
+          pr.arg_name '<ctid> [limits...]'
           pr.command %i(ls list) do |c|
             c.desc 'Select parameters to output'
-            c.flag %i(o output)
+            c.flag %i(o output), arg_name: 'parameters'
 
             c.desc 'Do not show header'
             c.switch %i(H hide-header), negatable: false
@@ -1153,13 +1153,13 @@ module OsCtl::Cli
           end
 
           pr.desc 'Configure limit'
-          pr.arg_name '<id> <limit> (<soft_and_hard>| <soft> <hard>)'
+          pr.arg_name '<ctid> <limit> (<soft_and_hard>| <soft> <hard>)'
           pr.command :set do |c|
             c.action &Command.run(Container, :prlimit_set)
           end
 
           pr.desc 'Remove configured limit'
-          pr.arg_name '<id> <limit>'
+          pr.arg_name '<ctid> <limit>'
           pr.command :unset do |c|
             c.action &Command.run(Container, :prlimit_unset)
           end
@@ -1168,10 +1168,10 @@ module OsCtl::Cli
         ct.desc 'Manage container datasets'
         ct.command :dataset do |ds|
           ds.desc 'List datasets'
-          ds.arg_name '<id>'
+          ds.arg_name '<ctid>'
           ds.command %i(ls list) do |c|
             c.desc 'Select parameters to output'
-            c.flag %i(o output)
+            c.flag %i(o output), arg_name: 'parameters'
 
             c.desc 'Do not show header'
             c.switch %i(H hide-header), negatable: false
@@ -1183,16 +1183,16 @@ module OsCtl::Cli
           end
 
           ds.desc 'Create a new dataset'
-          ds.arg_name '<id> <name> [mountpoint]'
+          ds.arg_name '<ctid> <dataset> [mountpoint]'
           ds.command %i(new create) do |c|
             c.desc 'Enable/disable auto mount'
-            c.flag :mount, default_value: true
+            c.switch :mount, default_value: true
 
             c.action &Command.run(Container, :dataset_create)
           end
 
           ds.desc 'Delete dataset'
-          ds.arg_name '<id> <name>'
+          ds.arg_name '<ctid> <dataset>'
           ds.command %i(del delete) do |c|
             c.desc 'Recursively delete all children as well'
             c.switch %i(r recursive)
@@ -1207,10 +1207,10 @@ module OsCtl::Cli
         ct.desc 'Manage mounts'
         ct.command :mounts do |m|
           m.desc 'List configured mounts'
-          m.arg_name '<id>'
+          m.arg_name '<ctid>'
           m.command %i(ls list) do |c|
             c.desc 'Select parameters to output'
-            c.flag %i(o output)
+            c.flag %i(o output), arg_name: 'parameters'
 
             c.desc 'Do not show header'
             c.switch %i(H hide-header), negatable: false
@@ -1222,7 +1222,7 @@ module OsCtl::Cli
           end
 
           m.desc 'Create a new mount'
-          m.arg_name '<id>'
+          m.arg_name '<ctid>'
           m.command %i(new create) do |c|
             c.desc 'Filesystem'
             c.flag :fs, required: true
@@ -1243,7 +1243,7 @@ module OsCtl::Cli
           end
 
           m.desc 'Mount a dataset'
-          m.arg_name '<id> <name> <mountpoint>'
+          m.arg_name '<ctid> <dataset> <mountpoint>'
           m.command :dataset do |c|
             c.desc 'Mount the dataset read-only'
             c.switch %i(ro read-only), negatable: false
@@ -1276,19 +1276,19 @@ module OsCtl::Cli
           end
 
           m.desc 'Activate a mount'
-          m.arg_name '<id> <mountpoint>'
+          m.arg_name '<ctid> <mountpoint>'
           m.command :activate do |c|
             c.action &Command.run(Container, :mount_activate)
           end
 
           m.desc 'Deactivate a mount'
-          m.arg_name '<id> <mountpoint>'
+          m.arg_name '<ctid> <mountpoint>'
           m.command :deactivate do |c|
             c.action &Command.run(Container, :mount_deactivate)
           end
 
           m.desc 'Remove mount'
-          m.arg_name '<id> <mountpoint>'
+          m.arg_name '<ctid> <mountpoint>'
           m.command %i(del delete) do |c|
             c.action &Command.run(Container, :mount_delete)
           end
@@ -1305,7 +1305,7 @@ module OsCtl::Cli
             c.flag %i(t type), must_match: %w(rsa ecdsa ed25519)
 
             c.desc 'Key bit size'
-            c.flag %i(b bits), type: Integer
+            c.flag %i(b bits), type: Integer, arg_name: 'n'
 
             c.desc 'Overwrite existing key'
             c.switch %i(f force), negatable: false
@@ -1343,10 +1343,10 @@ module OsCtl::Cli
       desc 'Manage template repositories'
       command %i(repo repository) do |r|
         r.desc 'List repositories'
-        r.arg_name '[names...]'
+        r.arg_name '[repository...]'
         r.command %i(ls list) do |c|
           c.desc 'Select parameters to output'
-          c.flag %i(o output)
+          c.flag %i(o output), arg_name: 'parameters'
 
           c.desc 'Do not show header'
           c.switch %i(H hide-header), negatable: false
@@ -1358,10 +1358,10 @@ module OsCtl::Cli
         end
 
         r.desc 'Show information about a repository'
-        r.arg_name '<name>'
+        r.arg_name '<repository>'
         r.command :show do |c|
           c.desc 'Select parameters to output'
-          c.flag %i(o output)
+          c.flag %i(o output), arg_name: 'parameters'
 
           c.desc 'Do not show header'
           c.switch %i(H hide-header), negatable: false
@@ -1373,25 +1373,25 @@ module OsCtl::Cli
         end
 
         r.desc 'Add a new repository'
-        r.arg_name '<name> <url>'
+        r.arg_name '<repository> <url>'
         r.command :add do |c|
           c.action &Command.run(Repository, :add)
         end
 
         r.desc 'Remove a repository'
-        r.arg_name '<name>'
+        r.arg_name '<repository>'
         r.command :del do |c|
           c.action &Command.run(Repository, :delete)
         end
 
         r.desc 'Enable a repository'
-        r.arg_name '<name>'
+        r.arg_name '<repository>'
         r.command :enable do |c|
           c.action &Command.run(Repository, :enable)
         end
 
         r.desc 'Disable a repository'
-        r.arg_name '<name>'
+        r.arg_name '<repository>'
         r.command :disable do |c|
           c.action &Command.run(Repository, :disable)
         end
@@ -1399,30 +1399,30 @@ module OsCtl::Cli
         r.desc 'Configure repository'
         r.command :set do |set|
           set.desc 'Change repository URL'
-          set.arg_name '<name> <url>'
+          set.arg_name '<repository> <url>'
           set.command :url do |c|
             c.action &Command.run(Repository, :set_url)
           end
 
-          set_attr(set, Repository)
+          set_attr(set, Repository, 'repository')
         end
 
         r.desc 'Clear configuration options'
         r.command :unset do |unset|
-          unset_attr(unset, Repository)
+          unset_attr(unset, Repository, 'repository')
         end
 
         r.desc 'List repository assets (datasets, files, directories)'
-        r.arg_name '<name>'
+        r.arg_name '<repository>'
         assets(r, Repository)
 
         r.desc 'Browse repository templates'
         r.command :templates do |t|
           t.desc 'List available templates'
-          t.arg_name '<name>'
+          t.arg_name '<repository>'
           t.command %i(ls list) do |c|
             c.desc 'Select parameters to output'
-            c.flag %i(o output)
+            c.flag %i(o output), arg_name: 'parameters'
 
             c.desc 'Do not show header'
             c.switch %i(H hide-header), negatable: false
@@ -1434,22 +1434,22 @@ module OsCtl::Cli
             c.flag %i(s sort)
 
             c.desc 'Filter by vendor'
-            c.flag :vendor
+            c.flag :vendor, arg_name: 'vendor'
 
             c.desc 'Filter by variant'
-            c.flag :variant
+            c.flag :variant, arg_name: 'variant'
 
             c.desc 'Filter by architecture'
-            c.flag :arch
+            c.flag :arch, arg_name: 'arch'
 
             c.desc 'Filter by distribution'
-            c.flag :distribution
+            c.flag :distribution, arg_name: 'distribution'
 
             c.desc 'Filter by distribution version'
-            c.flag :version
+            c.flag :version, arg_name: 'version'
 
             c.desc 'Filter by version tag'
-            c.flag :tag
+            c.flag :tag, arg_name: 'tag'
 
             c.desc 'Filter locally cached templates'
             c.switch :cached, negatable: false
@@ -1521,20 +1521,20 @@ module OsCtl::Cli
       end
     end
 
-    def cg_params(cmd, handler)
+    def cg_params(cmd, handler, arg_name)
       cmd.desc 'Manage CGroup parameters'
       cmd.command :cgparams do |p|
         p.desc 'List configured parameters'
-        p.arg_name '<name>'
+        p.arg_name "<#{arg_name}>"
         p.command %i(ls list) do |c|
           c.desc 'Filter by CGroup subsystem (comma separated)'
-          c.flag %i(S subsystem)
+          c.flag %i(S subsystem), arg_name: 'cgroup_subsys'
 
           c.desc 'Show all parameters from parent groups up to <name>'
           c.switch %i(a all), negatable: false
 
           c.desc 'Select parameters to output'
-          c.flag %i(o output)
+          c.flag %i(o output), arg_name: 'parameters'
 
           c.desc 'Do not show header'
           c.switch %i(H hide-header), negatable: false
@@ -1546,7 +1546,7 @@ module OsCtl::Cli
         end
 
         p.desc 'Configure parameters'
-        p.arg_name '<name> <parameter> <value...>'
+        p.arg_name "<#{arg_name}> <parameter> <value...>"
         p.command :set do |c|
           c.desc 'Append new values, do not overwrite previous values'
           c.switch %i(a append), negatable: false
@@ -1555,77 +1555,77 @@ module OsCtl::Cli
         end
 
         p.desc 'Remove configured parameter'
-        p.arg_name '<name> <parameter>'
+        p.arg_name "<#{arg_name}> <parameter>"
         p.command :unset do |c|
           c.action &Command.run(handler, :cgparam_unset)
         end
 
         p.desc 'Reapply configured parameters'
-        p.arg_name '<name>'
+        p.arg_name "<#{arg_name}>"
         p.command :apply do |c|
           c.action &Command.run(handler, :cgparam_apply)
         end
 
         p.desc 'Replace configured parameters by a new set'
-        p.arg_name '<name>'
+        p.arg_name "<#{arg_name}>"
         p.command :replace do |c|
           c.action &Command.run(handler, :cgparam_replace)
         end
       end
     end
 
-    def set_limits(set, handler)
+    def set_limits(set, handler, arg_name)
       set.desc 'Set CPU limit'
-      set.arg_name '<id> <limit>'
+      set.arg_name "<#{arg_name}> <limit>"
       set.command 'cpu-limit' do |c|
         c.desc 'Length of period for CFS bandwidth control, in microseconds'
-        c.flag %i(p period), type: Integer, default_value: 100*1000
+        c.flag %i(p period), type: Integer, default_value: 100*1000, arg_name: 'msec'
 
         c.action &Command.run(handler, :set_cpu_limit)
       end
 
       set.desc 'Set memory/swap limits'
-      set.arg_name '<id> <memory> [swap]'
+      set.arg_name "<#{arg_name}> <memory> [swap]"
       set.command :memory do |c|
         c.action &Command.run(handler, :set_memory)
       end
     end
 
-    def unset_limits(unset, handler)
+    def unset_limits(unset, handler, arg_name)
       unset.desc 'Unset CPU limit'
-      unset.arg_name '<id>'
+      unset.arg_name "<#{arg_name}>"
       unset.command 'cpu-limit' do |c|
         c.action &Command.run(handler, :unset_cpu_limit)
       end
 
       unset.desc 'Unset memory/swap limits'
-      unset.arg_name '<id>'
+      unset.arg_name "<#{arg_name}>"
       unset.command :memory do |c|
         c.action &Command.run(handler, :unset_memory)
       end
     end
 
-    def set_attr(set, handler)
+    def set_attr(set, handler, arg_name)
       set.desc 'Set user attribute'
-      set.arg_name '<id> <name> <value>'
+      set.arg_name "<#{arg_name}> <attribute> <value>"
       set.command :attr do |c|
         c.action &Command.run(handler, :set_attr)
       end
     end
 
-    def unset_attr(unset, handler)
+    def unset_attr(unset, handler, arg_name)
       unset.desc 'Unset user attribute'
-      unset.arg_name '<id> <name>'
+      unset.arg_name "<#{arg_name}> <attribute>"
       unset.command :attr do |c|
         c.action &Command.run(handler, :unset_attr)
       end
     end
 
-    def devices(cmd, handler)
+    def devices(cmd, handler, arg_name)
       cmd.desc 'Manage devices'
       cmd.command :devices do |dev|
         dev.desc 'List allowed devices'
-        dev.arg_name '<name>'
+        dev.arg_name "<#{arg_name}>"
         dev.command %i(ls list) do |c|
           c.desc 'Select parameters to output'
           c.flag %i(o output)
@@ -1640,7 +1640,7 @@ module OsCtl::Cli
         end
 
         dev.desc 'Grant access to device'
-        dev.arg_name '<name> block|char <major> <minor> <mode> [device]'
+        dev.arg_name "<#{arg_name}> block|char <major> <minor> <mode> [device]"
         dev.command :add do |c|
           c.desc 'Should subgroups and containers inherit the device?'
           c.switch %i(i inherit), default_value: true
@@ -1652,7 +1652,7 @@ module OsCtl::Cli
         end
 
         dev.desc 'Revoke access to device'
-        dev.arg_name '<name> block|char <major> <minor>'
+        dev.arg_name "<#{arg_name}> block|char <major> <minor>"
         dev.command %i(del delete) do |c|
           c.desc 'Remove device from all child groups and containers'
           c.switch %i(r recursive), negatable: false
@@ -1661,7 +1661,7 @@ module OsCtl::Cli
         end
 
         dev.desc 'Change device access mode'
-        dev.arg_name '<name> block|char <major> <minor> <mode>|-'
+        dev.arg_name "<#{arg_name}> block|char <major> <minor> <mode>|-"
         dev.command :chmod do |c|
           c.desc "Extend the parents' device access if necessary"
           c.switch %i(p parents)
@@ -1673,13 +1673,13 @@ module OsCtl::Cli
         end
 
         dev.desc 'Promote an inherited device, declaring an explicit requirement'
-        dev.arg_name '<name> block|char <major> <minor>'
+        dev.arg_name "<#{arg_name}> block|char <major> <minor>"
         dev.command :promote do |c|
           c.action &Command.run(handler, :device_promote)
         end
 
         dev.desc 'Inherit a promoted device'
-        dev.arg_name '<name> block|char <major> <minor>'
+        dev.arg_name "<#{arg_name}> block|char <major> <minor>"
         dev.command :inherit do |c|
           c.action &Command.run(handler, :device_inherit)
         end
@@ -1687,7 +1687,7 @@ module OsCtl::Cli
         dev.desc 'Set inheritance'
         dev.command :set do |set|
           set.desc 'Let child groups and containers inherit specified device'
-          set.arg_name '<name> block|char <major> <minor>'
+          set.arg_name "<#{arg_name}> block|char <major> <minor>"
           set.command :inherit do |c|
             c.action &Command.run(handler, :device_set_inherit)
           end
@@ -1696,14 +1696,14 @@ module OsCtl::Cli
         dev.desc 'Unset inheritance'
         dev.command :unset do |unset|
           unset.desc 'Prevent child groups and containers from inheriting specified device'
-          unset.arg_name '<name> block|char <major> <minor>'
+          unset.arg_name "<#{arg_name}> block|char <major> <minor>"
           unset.command :inherit do |c|
             c.action &Command.run(handler, :device_unset_inherit)
           end
         end
 
         dev.desc 'Replace configured devices by a new set'
-        dev.arg_name '<name>'
+        dev.arg_name "<#{arg_name}>"
         dev.command :replace do |c|
           c.action &Command.run(handler, :device_replace)
         end

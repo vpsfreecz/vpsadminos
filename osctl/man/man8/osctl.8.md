@@ -26,8 +26,9 @@ conflicts, e.g. two groups or containers from different pools with the same
 name. Two users with the same name are not allowed, because of system user/group
 conflict. `osctld` by default selects the entity from the first pool that has
 it. If you wish to manage such entities from other pools, you can use global
-option `--pool` *name* or specify the group/container name/id as *pool*:*name*,
-i.e. pool name and group/container name/id separated by colon.
+option `--pool` *pool* or specify the group/container name/id as
+*pool*:*ctid|user|group*, i.e. pool name and group/container name/id separated
+by colon.
 
 ## USER NAMESPACES
 `osctld` makes it possible to run every container within a different user
@@ -105,24 +106,24 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   Display the program version and exit.
 
 ## COMMANDS
-`pool install` [*options*] *name*
-  Mark zpool *name* to be used with `osctld`.
+`pool install` [*options*] *pool*
+  Mark zpool *pool* to be used with `osctld`.
   User property **org.vpsadminos.osctl:active** is set to **yes**. `osctld` will
   automatically import such marked pools on start. The pool is also immediately
   imported, see `pool import`.
 
     `--dataset` *dataset*
-      Scope osctld to *dataset* on zpool *name*. All osctld's data will be stored
+      Scope osctld to *dataset* on zpool *pool*. All osctld's data will be stored
       in *dataset*. This option can be useful when the pool is used with other
       applications or data.
 
-`pool uninstall` *name*
-  Unmark zpool *name*, i.e. unset the user property set by `pool install`.
+`pool uninstall` *pool*
+  Unmark zpool *pool*, i.e. unset the user property set by `pool install`.
   No data is deleted from the pool, it will simply not be automatically imported
   when `osctld` starts.
 
-`pool import` `-a`,`--all`|*name*
-  Import zpool *name* into `osctld`. `osctld` will load all users, groups and
+`pool import` `-a`,`--all`|*pool*
+  Import zpool *pool* into `osctld`. `osctld` will load all users, groups and
   containers from the pool.
 
     `-a`, `--all`
@@ -132,8 +133,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Start containers that are configured to be started automatically. Enabled
       by default.
 
-`pool export` [*options*] *name*
-  Export pool *name* from `osctld`. No data is deleted, the pool and all its
+`pool export` [*options*] *pool*
+  Export pool *pool* from `osctld`. No data is deleted, the pool and all its
   content is merely removed from `osctld`. `pool export` aborts if any container
   from the exported pool is running, unless option `-f`, `--force` is given.
 
@@ -143,10 +144,10 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       `--stop-containers` is set, otherwise they're left alone.
 
     `-s`, `--[no-]stop-containers`
-      Stop all containers from pool *name*. Enabled by default.
+      Stop all containers from pool *pool*. Enabled by default.
 
     `-u`, `--[no-]unregister-users`
-      Unregister users from pool *name* from the system, i.e. remove entries
+      Unregister users from pool *pool* from the system, i.e. remove entries
       from `/etc/passwd` and `/etc/group`. Enabled by default.
 
 `pool ls` [*names...*]
@@ -164,8 +165,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-s`, `--sort` *parameters*
       Sort output by parameters, comma separated.
 
-`pool show` *name*
-  Show information about imported pool *name*.
+`pool show` *pool*
+  Show information about imported pool *pool*.
 
     `-L`, `--list`
       List available parameters and exit.
@@ -176,13 +177,13 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-H`, `--hide-header`
       Do not show header, useful for scripts.
 
-`pool assets` [*options*] *name*
+`pool assets` [*options*] *pool*
   List pool assets and their state.
 
     `-v`, `--verbose`
       Show detected errors.
 
-`pool autostart queue` [*options*] *name*
+`pool autostart queue` [*options*] *pool*
   Print containers waiting in the auto-start queue. The containers are ordered
   by start priority and id.
     
@@ -195,16 +196,16 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-o`, `--output` *parameters*
       Select parameters to output, comma separated.
 
-`pool autostart trigger` *name*
-  Start all containers from pool *name* that are configured to be started
+`pool autostart trigger` *pool*
+  Start all containers from pool *pool* that are configured to be started
   automatically. This can be used to ensure that all containers that are
   supposed to be running are actually running.
 
-`pool autostart cancel` *name*
+`pool autostart cancel` *pool*
   Cancel starting of containers that are configured to be started automatically
   and are left in the start queue.
 
-`pool set parallel-start` *name* *n*
+`pool set parallel-start` *pool* *n*
   Configure how many containers should be started simultaneously by auto-start
   on pool import. Defaults to *2*.
 
@@ -212,18 +213,18 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   want to increase the value together with `parallel-stop`, as the storage won't
   be a bottleneck.
 
-`pool unset parallel-start` *name*
+`pool unset parallel-start` *pool*
   Reset `parallel-start` to the default value.
 
-`pool set parallel-stop` *name* *n*
+`pool set parallel-stop` *pool* *n*
   Configure how many containers should be stopped simultaneously on pool export,
   usually via `osctl shutdown`. Defaults to *4*.
 
-`pool unset parallel-stop` *name*
+`pool unset parallel-stop` *pool*
   Reset `parallel-stop` to the default value.
 
-`pool set attr` *name* *vendor*:*key* *value*
-  Set custom user attribute *vendor*:*key* for pool *name*. Configured
+`pool set attr` *pool* *vendor*:*key* *value*
+  Set custom user attribute *vendor*:*key* for pool *pool*. Configured
   attributes can be read with `pool ls` or `pool show` using the `-o`, `--output`
   option.
 
@@ -231,17 +232,17 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   domain name and *key* an arbitrary string, e.g.
   `org.vpsadminos.osctl:declarative`.
 
-`pool unset attr` *name* *vendor*:*key*
-  Unset custom user attribute *vendor*:*key* of pool *name*.
+`pool unset attr` *pool* *vendor*:*key*
+  Unset custom user attribute *vendor*:*key* of pool *pool*.
 
-`user new` *options* *name*
+`user new` *options* *user*
   Create a new user with user namespace configuration. Option `--ugid` is
   required. UID/GID mapping has to be configured either via option `--map`
   if you have the same mapping for user and group IDs, or via options `--map-uid`
   and `--map-gid` for different user/group mappings. There must be at least one
   mapping for user IDs and one for group IDs.
 
-    `--pool` *name*
+    `--pool` *pool*
       Pool name.
     
     `--ugid` *ugid*
@@ -265,8 +266,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       on the host and *count* is the number of mapped GIDs both inside and
       outside the user namespace. This option can be used mutiple times.
 
-`user del` *name*
-  Delete user *name*.
+`user del` *user*
+  Delete user *user*.
 
 `user ls` [*options*] [*names...*]
   List available users. If no *names* are provided, all users are listed.
@@ -292,7 +293,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `--unregistered`
       List only unregistered users
 
-`user show` [*options*] *name*
+`user show` [*options*] *user*
   Show user info.
 
     `-L`, `--list`
@@ -304,24 +305,24 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-H`, `--hide-header`
       Do not show header, useful for scripts.
 
-`user reg` `all`|*name*
+`user reg` `all`|*user*
   Register all users or a selected user into the system, i.e. add records
   to **/etc/passwd** and **/etc/group**.
 
-`user unreg` `all`|*name*
+`user unreg` `all`|*user*
   Unregister all users or a selected user from the system, i.e. remove records
   from **/etc/passwd** and **/etc/group**.
 
 `user subugids`
   Generate **/etc/subuid** and **/etc/subgid**.
 
-`user assets` [*options*] *name*
+`user assets` [*options*] *user*
   List user's assets (datasets, files, directories) and their state.
 
     `-v`, `--verbose`
       Show detected errors.
 
-`user map` *name* [`uid` | `gid` | `both`]
+`user map` *user* [`uid` | `gid` | `both`]
   List configured UID/GID mappings.
 
     `-H`, `--hide-header`
@@ -333,8 +334,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-o`, `--output` *parameters*
       Select parameters to output, comma separated.
 
-`user set attr` *name* *vendor*:*key* *value*
-  Set custom user attribute *vendor*:*key* for user *name*. Configured
+`user set attr` *user* *vendor*:*key* *value*
+  Set custom user attribute *vendor*:*key* for user *user*. Configured
   attributes can be read with `user ls` or `user show` using the `-o`, `--output`
   option.
 
@@ -342,10 +343,10 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   domain name and *key* an arbitrary string, e.g.
   `org.vpsadminos.osctl:declarative`.
 
-`user unset attr` *name* *vendor*:*key*
-  Unset custom user attribute *vendor*:*key* of user *name*.
+`user unset attr` *user* *vendor*:*key*
+  Unset custom user attribute *vendor*:*key* of user *user*.
 
-`ct new` [*options*] *id*
+`ct new` [*options*] *ctid*
   Create a new container. Selected user and group have to be from the same pool
   the container is being created on.
 
@@ -364,16 +365,16 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   option `--skip-template`. Otherwise, the template to be used can be selected
   using any of the methods above.
   
-    `--pool` *name*
+    `--pool` *pool*
       Pool name. Defaults to the first available pool.
 
-    `--user` *name*
+    `--user` *user*
       User name, required.
 
-    `--group` *name*
+    `--group` *group*
       Group name, defaults to group *default* from selected *pool*.
 
-    `--template` *name*
+    `--template` *template*
       Template tar file, required. See `TEMPLATE NAMES` for the naming scheme.
 
     `--from-archive` *file*
@@ -417,18 +418,18 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `--variant` *variant*
       Vendor variant to be selected from the remote template repository.
 
-    `--repository` *name*
+    `--repository` *repository*
       Instead of searching all configured repositories from appropriate pool,
       use only repository *name*. The selected repository can be disabled.
 
-`ct del` *id*
-  Stop and delete container *id*.
+`ct del` *ctid*
+  Stop and delete container *ctid*.
 
     `-f`, `--force`
       Delete the container even if it is running. By default, running containers
       cannot be deleted.
 
-`ct reinstall` [*options*] *id*
+`ct reinstall` [*options*] *ctid*
   Reinstall container from template. The container's rootfs is deleted
   and an OS template is applied again. The container's configuration
   and subdatasets remain unaffected.
@@ -444,7 +445,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   abort if there are snapshots present. You can use option `-r`,
   `--remove-snapshots` to remove them.
 
-    `--template` *name*
+    `--template` *template*
       Template tar file, required. See `TEMPLATE NAMES` for the naming scheme.
 
     `--from-archive` *file*
@@ -478,7 +479,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `--variant` *variant*
       Vendor variant to be selected from the remote template repository.
 
-    `--repository` *name*
+    `--repository` *repository*
       Instead of searching all configured repositories from appropriate pool,
       use only repository *name*. The selected repository can be disabled.
 
@@ -486,7 +487,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Remove all snapshots of the container's root dataset. `ct reinstall`
       cannot proceed if there are snapshots present.
 
-`ct ls` [*options*] [*ids...*]
+`ct ls` [*options*] [*ctids...*]
   List containers. If no *ids* are provided, all containers matching filters
   are listed.
 
@@ -503,7 +504,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-s`, `--sort` *parameters*
       Sort output by parameters, comma separated.
 
-    `--pool` *names*
+    `--pool` *pools*
       Filter by pool, comma separated.
 
     `-u`, `--user` *users*
@@ -526,8 +527,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 `ct tree` *pool*
   Print the group and container hierarchy from *pool* in a tree.
 
-`ct show` [*options*] *id*
-  Show all or selected parameters of container *id*.
+`ct show` [*options*] *ctid*
+  Show all or selected parameters of container *ctid*.
 
     `-L`, `--list`
       List available parameters and exit.
@@ -538,11 +539,11 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-H`, `--hide-header`
       Do not show header, useful for scripts.
 
-`ct mount` *id*
+`ct mount` *ctid*
   Mount all container's datasets if they are not already mounted.
 
-`ct start` [*options*] *id*
-  Start container *id*.
+`ct start` [*options*] *ctid*
+  Start container *ctid*.
 
     `-w`, `--wait` *seconds*
       How many seconds to wait for the container to enter state `running`.
@@ -565,8 +566,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Configure LXC to write debug messages to the container's log file, see
       `ct log` commands.
 
-`ct stop` [*options*] *id*
-  Stop container *id*. By default, `osctld` will send a signal to the container's
+`ct stop` [*options*] *ctid*
+  Stop container *ctid*. By default, `osctld` will send a signal to the container's
   init process to cleanly shutdown and wait until it finishes or *timeout*
   seconds passes. If it time outs, the container is killed. This behaviour can
   be changed with options `--timeout`, `--kill` and `--dont-kill`.
@@ -586,8 +587,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       killing it or failing, depending on whether option `--dont-kill` is set.
       The default timeout is *60* seconds.
 
-`ct restart` [*options*] *id*
-  Restart container *id*. By default, `ct restart` calls `ct stop` and `ct start`
+`ct restart` [*options*] *ctid*
+  Restart container *ctid*. By default, `ct restart` calls `ct stop` and `ct start`
   in succession. Like with `ct stop`, if the container does not cleanly shutdown
   in *timeout* seconds, it is killed. This behaviour can be changed with options
   `--timeout`, `--kill` and `--dont-kill`.
@@ -621,8 +622,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       killing it or failing, depending on whether option `--dont-kill` is set.
       The default timeout is *60* seconds.
 
-`ct attach` [*options*] *id*, `ct enter` [*options*] *id*
-  Attach container *id* and open a shell. `osctld` tries to open `bash`,
+`ct attach` [*options*] *ctid*, `ct enter` [*options*] *ctid*
+  Attach container *ctid* and open a shell. `osctld` tries to open `bash`,
   `busybox` and falls back to `/bin/sh`. The shell is not reading any personal
   configuration files from within the container in order to provide a unified
   shell interface across all containers. Use option `--user-shell` to change
@@ -632,7 +633,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Load the shell that's configured in the container's `/etc/passwd` for
       `root` and read personal configuration files, such as `.bashrc`.
 
-`ct console` [*options*] *id*
+`ct console` [*options*] *ctid*
   Attach container console. Unlike in LXC, this console is persistent across
   container reboots. It can be attached even when the container is stopped.
   The console can be detached using **Ctrl-a q**.
@@ -645,11 +646,11 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 
     `-t`, `--tty` *n* - Select which TTY to attach, defaults to **0**.
 
-`ct exec` *id* *cmd...*
-  Attach container *id* and execute command *cmd* within a shell.
+`ct exec` *ctid* *cmd...*
+  Attach container *ctid* and execute command *cmd* within a shell.
   stdin/stdout/stderr of *cmd* is piped to your current shell.
 
-`ct set autostart` [*options*] *id*
+`ct set autostart` [*options*] *ctid*
   Start the container automatically when `osctld` starts or when its pool is
   imported.
 
@@ -662,51 +663,51 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Time in seconds for which `osctld` waits until the next container is
       started. The default is `5` seconds.
 
-`ct unset autostart` *id*
+`ct unset autostart` *ctid*
   Do not start the container automatically.
 
-`ct set hostname` *id* *hostname*
+`ct set hostname` *ctid* *hostname*
   Set container hostname. *hostname* should be a FQDN (Fully Qualified Domain
   Name). Depending on distribution, the hostname is configured within
   the container and an entry is added to `/etc/hosts`. The hostname
   is configured on every container start.
 
-`ct unset hostname` *id*
+`ct unset hostname` *ctid*
   Unset container hostname. `osctld` will not touch the container's hostname
   anymore.
 
-`ct set dns-resolver` *id* *address...*
-  Configure DNS resolvers for container *id*. At least one DNS resolver is
+`ct set dns-resolver` *ctid* *address...*
+  Configure DNS resolvers for container *ctid*. At least one DNS resolver is
   needed. Given DNS resolvers are written to the container's `/etc/resolv.conf`
   on every start.
 
   Note that when you assign a bridged veth with DHCP to the container, it will
   override `/etc/resolv.conf` with DNS servers from DHCP server.
 
-`ct unset dns-resolver` *id*
+`ct unset dns-resolver` *ctid*
   Unset container DNS resolvers. `osctld` will no longer manipulate the
   container's `/etc/resolv.conf`.
 
-`ct set nesting` *id*
-  Enable LXC nesting for container *id*. The container needs to be restarted for
+`ct set nesting` *ctid*
+  Enable LXC nesting for container *ctid*. The container needs to be restarted for
   the change to take effect. This command also sets AppArmor profile to
   `osctl-ct-nesting`.
 
-`ct unset nesting` *id*
-  Disable LXC nesting for container *id*. The container needs to be restarted for
+`ct unset nesting` *ctid*
+  Disable LXC nesting for container *ctid*. The container needs to be restarted for
   the change to take effect. If AppArmor profile `osctl-ct-nesting` is set, it
   is changed to `lxc-container-default-cgns`.
 
-`ct set seccomp` *id* *profile*
+`ct set seccomp` *ctid* *profile*
   Configure path to the seccomp profile. The container needs to be restarted
   to use the new profile.
 
-`ct unset seccomp` *id*
+`ct unset seccomp` *ctid*
   Reset the seccomp profile to the default value, i.e.
   `/run/osctl/configs/lxc/common.seccomp`.
 
-`ct set attr` *id* *vendor*:*key* *value*
-  Set custom user attribute *vendor*:*key* for container *id*. Configured
+`ct set attr` *ctid* *vendor*:*key* *value*
+  Set custom user attribute *vendor*:*key* for container *ctid*. Configured
   attributes can be read with `ct ls` or `ct show` using the `-o`, `--output`
   option.
 
@@ -718,10 +719,10 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   in the tarball produced by `ct export` and transfered to other nodes by
   `ct migrate`.
 
-`ct unset attr` *id* *vendor*:*key*
-  Unset custom user attribute *vendor*:*key* of container *id*.
+`ct unset attr` *ctid* *vendor*:*key*
+  Unset custom user attribute *vendor*:*key* of container *ctid*.
 
-`ct set cpu-limit` *id* *limit*
+`ct set cpu-limit` *ctid* *limit*
   Configure CFS bandwidth control cgroup parameters to enforce CPU limit. *limit*
   represents maximum CPU usage in percents, e.g. `100` means the container can
   fully utilize one CPU core.
@@ -734,10 +735,10 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Length of measured period in microseconds, defaults to `100000`,
       i.e. `100 ms`.
 
-`ct unset cpu-limit` *id*
+`ct unset cpu-limit` *ctid*
   Unset CPU limit. This command is a shortcut to `ct cgparams unset`.
 
-`ct set memory` *id* *memory* [*swap*]
+`ct set memory` *ctid* *memory* [*swap*]
   Configure the maximum amount of memory and swap the container will be able to
   use. This command is a shortcut to `ct cgparams set`. Memory limit is set
   with cgroup parameter `memory.limit_in_bytes`. If swap limit is given as well,
@@ -746,11 +747,11 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   *memory* and *swap* can be given in bytes, or with an appropriate suffix, i.e.
   `k`, `m`, `g`, or `t`.
 
-`ct unset memory` *id*
+`ct unset memory` *ctid*
   Unset memory limits. This command is a shortcut to `ct cgparams unset`.
 
-`ct cp` *id* *new-id*
-  Copy container *id* to *new-id*.
+`ct cp` *ctid* *new-id*
+  Copy container *ctid* to *new-id*.
 
     `--[no-]consistent`
       When cloning a running container, it has to be stopped if the copy is to
@@ -760,15 +761,15 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 
     `--pool` *pool*
       Name of the target pool. By default, container *new-id* is created on
-      the same pool as container *id*.
+      the same pool as container *ctid*.
 
     `--user` *user*
-      Name of the target user. By default, the user of container *id* is used.
+      Name of the target user. By default, the user of container *ctid* is used.
       When copying to a different pool, the target user has to exist before
       `ct cp` is run.
 
     `--group` *group*
-      Name of the target group. By default, the group of container *id* is used.
+      Name of the target group. By default, the group of container *ctid* is used.
       When copying to a different pool, the target group has to exist before
       `ct cp` is run.
 
@@ -776,21 +777,21 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Custom name of a dataset from the target pool, where the new container's
       root filesystem will be stored.
 
-`ct mv` *id* *new-id*
-  Move container *id* to *new-id*. Can be used to move containers between pools
+`ct mv` *ctid* *new-id*
+  Move container *ctid* to *new-id*. Can be used to move containers between pools
   or just to rename containers.
 
     `--pool` *pool*
       Name of the target pool. By default, container *new-id* is created on
-      the same pool as container *id*.
+      the same pool as container *ctid*.
 
     `--user` *user*
-      Name of the target user. By default, the user of container *id* is used.
+      Name of the target user. By default, the user of container *ctid* is used.
       When copying to a different pool, the target user has to exist before
       `ct cp` is run.
 
     `--group` *group*
-      Name of the target group. By default, the group of container *id* is used.
+      Name of the target group. By default, the group of container *ctid* is used.
       When copying to a different pool, the target group has to exist before
       `ct cp` is run.
 
@@ -798,12 +799,12 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Custom name of a dataset from the target pool, where the new container's
       root filesystem will be stored.
 
-`ct chown` *id* *user*
-  Move container *id* to user namespace *user*. The container has to be stopped
+`ct chown` *ctid* *user*
+  Move container *ctid* to user namespace *user*. The container has to be stopped
   first.
 
-`ct chgrp` [*options*] *id* *group*
-  Move container *id* to group *group*. The container has to be stopped first.
+`ct chgrp` [*options*] *ctid* *group*
+  Move container *ctid* to group *group*. The container has to be stopped first.
 
     `--missing-devices` `check`|`provide`|`remove`
       The container may require access to devices that are not available in the
@@ -814,11 +815,11 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       sufficient access mode. `remove` will remove all unavailable devices from
       the container. The default mode is `check`.
 
-`ct config reload` *id*
+`ct config reload` *ctid*
   Reload the container's configuration file from disk. The container has to be
   stopped for the reload to be allowed.
 
-`ct config replace` *id*
+`ct config replace` *ctid*
   Replace the container's configuration file by data read from standard input.
   The entire configuration file is replaced and reloaded by *osctld*. The config
   file has to be in the correct format for the current `osctld` version and has
@@ -827,22 +828,22 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 
   The container has to be stopped when `ct config replace` is called.
 
-`ct passwd` *id* *user* [*password*]
-  Change password of *user* in container *id*. The user has to already exist.
+`ct passwd` *ctid* *user* [*password*]
+  Change password of *user* in container *ctid*. The user has to already exist.
   If *password* is not given as an argument, it is prompted for on stdin.
   The container has to be running for this command to work, as it is using
   `passwd` or `chpasswd` from the container's system.
 
-`ct su` *id*
-  Switch to the user of container *id* and cd to its LXC home. The shell
-  is tailored only for container *id*, do not use it to manipulate any other
+`ct su` *ctid*
+  Switch to the user of container *ctid* and cd to its LXC home. The shell
+  is tailored only for container *ctid*, do not use it to manipulate any other
   containers, even in the same LXC home. Every container can have a different
   cgroup configuration, which would be broken.
 
   Also not that when a container is started from this shell using `lxc-start`,
   `ct console` for tty0 will not be functional.
 
-`ct cd` [*options*] *id*
+`ct cd` [*options*] *ctid*
   Opens a new shell with changed current working directory, based on *options*.
   When no option is specified, the directory is changed to the container's
   rootfs. Close the shell to return to your previous session.
@@ -854,17 +855,17 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Go to */proc/<init_pid>/root*. The container must be running for the path
       to exist.
 
-`ct log cat` *id*
-  Write the contents of container *id* log to the stdout.
+`ct log cat` *ctid*
+  Write the contents of container *ctid* log to the stdout.
 
-`ct log path` *id*
-  Write the path to the log file of container *id* to stdout.
+`ct log path` *ctid*
+  Write the path to the log file of container *ctid* to stdout.
 
-`ct reconfigure` *id*
+`ct reconfigure` *ctid*
   Regenerate LXC configuration.
 
-`ct export` [*options*] *id* *file*
-  Export container *id* into a tar archive *file*. The archive will contain
+`ct export` [*options*] *ctid* *file*
+  Export container *ctid* into a tar archive *file*. The archive will contain
   the container's configuration, its user, group and data. The exported archive
   can later be imported on the same or a different node.
 
@@ -886,8 +887,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   Import a container defined in archive *file*, which can be generated by
   `ct export`.
 
-    `--as-id` *id*
-      Import the container and change its id to *id*. Using this option, it is
+    `--as-id` *ctid*
+      Import the container and change its id to *ctid*. Using this option, it is
       possible to import the same *file* multiple times, essentially cloning
       the containers.
 
@@ -911,34 +912,34 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       groups and ensure sufficient access mode. `remove` will remove all unconfigured
       devices from the container. The default mode is `check`.
 
-`ct migrate stage` [*options*] *id* *destination*
-  Stage migration of container *id* to *destination*. *destination* is a host
+`ct migrate stage` [*options*] *ctid* *destination*
+  Stage migration of container *ctid* to *destination*. *destination* is a host
   name or an IP address of another vpsAdminOS node. The container's user, group
   and config files are copied over SSH to *destination*.
 
     `-p`, `--port` *port*
       SSH port, defaults to `22`.
 
-`ct migrate sync` *id*
-  Continue staged migration of container *id* to previously configured
+`ct migrate sync` *ctid*
+  Continue staged migration of container *ctid* to previously configured
   *destination*. During sync, a snapshot of the container's dataset is taken
   and sent to the *destination*.
 
-`ct migrate transfer` *id*
+`ct migrate transfer` *ctid*
   This command stops the container if it is running, makes another snapshot
   of the container's dataset, sends it to *destination*. The container is then
   started on the *destination* node.
 
-`ct migrate cleanup` [*options*] *id*
-  Perform a cleanup after migration of container *id*. The migration state is
+`ct migrate cleanup` [*options*] *ctid*
+  Perform a cleanup after migration of container *ctid*. The migration state is
   reset and the container is by default deleted.
 
     `-d`, `--[no-]delete`
       Delete the container from the source node. The default is to delete the
       container.
 
-`ct migrate cancel` [*options*] *id*
-  Cancel a migration of container *id*. The migration's state is deleted from
+`ct migrate cancel` [*options*] *ctid*
+  Cancel a migration of container *ctid*. The migration's state is deleted from
   the source node, and all trace of the container is deleted from the
   *destination* node. This command has to be called in-between migration steps
   up until `ct migrate transfer`, it cannot stop the migration if one of the
@@ -951,7 +952,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       state, but from there, the container can be deleted using `osctl ct del`
       if needed.
 
-`ct migrate now` [*options*] *id* *destination*
+`ct migrate now` [*options*] *ctid* *destination*
   Perform a full container migration in a single step. This is equal to running
   `ct migrate stage`, `ct migrate sync`, `ct migrate transfer` and
   `ct migrate cleanup` in succession.
@@ -963,13 +964,13 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Delete the container from the source node. The default is to delete the
       container.
 
-`ct monitor` *id*
-  Monitor state changes of container *id* and print them on standard output.
+`ct monitor` *ctid*
+  Monitor state changes of container *ctid* and print them on standard output.
   If global option `-j`, `--json` is used, the state changes are reported
   in JSON.
 
-`ct wait` *id* *state...*
-  Block until container *id* enters one of given states.
+`ct wait` *ctid* *state...*
+  Block until container *ctid* enters one of given states.
 
 `ct top` [*options*]
   top-like TUI application showing running containers and their CPU, memory,
@@ -1007,14 +1008,14 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-H`, `--hide-header`
       Do not show header, useful for scripting.
 
-`ct assets` [*options*] *id*
+`ct assets` [*options*] *ctid*
   List container assets and their state.
 
     `-v`, `--verbose`
       Show detected errors.
 
-`ct cgparams ls` [*options*] *id* [*parameters...*]
-  List cgroup parameters for container *id*. If no *parameters* are provided,
+`ct cgparams ls` [*options*] *ctid* [*parameters...*]
+  List cgroup parameters for container *ctid*. If no *parameters* are provided,
   all configured parameters are listed.
 
     `-H`, `--hide-header`
@@ -1032,8 +1033,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-a`, `--all`
       Include parameters from parent groups up to root group.
 
-`ct cgparams set` *id* *parameter* *value...*
-  Set cgroup parameter *parameter* of container *id* to *value*. `osctld` will
+`ct cgparams set` *ctid* *parameter* *value...*
+  Set cgroup parameter *parameter* of container *ctid* to *value*. `osctld` will
   make sure this parameter is always set when the container is started. The
   parameter can be for example `cpu.shares` or `memory.limit_in_bytes`. cgroup
   subsystem is derived from the parameter name, you do not need to supply it.
@@ -1047,8 +1048,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Append new values, do not overwrite previously configured values for
       *parameter*.
 
-`ct cgparams unset` *id* *parameter*
-  Unset cgroup parameter *parameter* from container *id*. Selected cgroup
+`ct cgparams unset` *ctid* *parameter*
+  Unset cgroup parameter *parameter* from container *ctid*. Selected cgroup
   parameters are reset, the rest is left alone and merely removed from `osctld`
   config.
 
@@ -1058,11 +1059,11 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   - `memory.limit_in_bytes`
   - `memory.memsw.limit_in_bytes`
 
-`ct cgparams apply` *id*
-  Apply all cgroup parameters defined for container *id*, its group and all
+`ct cgparams apply` *ctid*
+  Apply all cgroup parameters defined for container *ctid*, its group and all
   its parent groups, all the way up to the root group.
 
-`ct cgparams replace` *id*
+`ct cgparams replace` *ctid*
   Replace all configured cgroup parameters by data in JSON read from standard
   input. The data has to be in the following format:
 
@@ -1079,7 +1080,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 }
 ```
 
-`ct devices ls` [*options*] *id*
+`ct devices ls` [*options*] *ctid*
   List configured devices.
 
     `-H`, `--hide-header`
@@ -1092,8 +1093,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Select parameters to output, comma separated. Defaults to a selected
       subset of available parameters.
 
-`ct devices add` [*options*] *id* `block`|`char` *major* *minor* *mode* [*device*]
-  Allow container *id* to use `block`/`char` device identified by the *major*
+`ct devices add` [*options*] *ctid* `block`|`char` *major* *minor* *mode* [*device*]
+  Allow container *ctid* to use `block`/`char` device identified by the *major*
   and *minor* numbers, see mknod(1) for more information. *mode* determines
   what is the container allowed to do: `r` to read, `w` to write, `m` to call
   `mknod`. For now, unprivileged containers cannot call `mknod`, so allowing it
@@ -1109,11 +1110,11 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       up to the *root* group. When this switch is enabled, `osctld` will add
       the device to all parent groups that do not already have it.
 
-`ct devices del` *id* `block`|`char` *major* *minor*
+`ct devices del` *ctid* `block`|`char` *major* *minor*
   Forbid the container to use specified device and remove its device node, if it
   exists.
 
-`ct devices chmod` [*options*] *id* `block`|`char` *major* *minor* *mode*
+`ct devices chmod` [*options*] *ctid* `block`|`char` *major* *minor* *mode*
   Change the access mode of the specified device to *mode*. The mode can be
   changed only if the container's group provides the device with all necessary
   access modes, or `-p`, `--parents` is used.
@@ -1125,7 +1126,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
        Ensure that all parent groups provide the device with the required
        access mode. Parents that do not provide correct access modes are updated.
 
-`ct devices promote` *id* `block`|`char` *major* *minor*
+`ct devices promote` *ctid* `block`|`char` *major* *minor*
   Promoting a device will ensure that parent groups will have to provide it,
   it is a declaration of an explicit requirement. It will no longer be possible
   to remove the device from parent groups, without explicitly removing it from
@@ -1139,7 +1140,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   provide those devices, otherwise the migration process will fail in the first
   step, i.e. `ct migrate stage`.
 
-`ct devices inherit` *id* `block`|`char` *major* *minor*
+`ct devices inherit` *ctid* `block`|`char` *major* *minor*
   Inherit the device from the parent group. This removes the explicit requirement
   on the pecified device, i.e. reverses `ct devices promote`. The access mode,
   if different from the group, will revert to the acess mode defined by the
@@ -1173,7 +1174,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 }
 ```
 
-`ct prlimits ls` *id* [*limits...*]
+`ct prlimits ls` *ctid* [*limits...*]
   List configured resource limits. If no *limits* are provided, all configured
   limits are listed.
 
@@ -1186,8 +1187,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-o`, `--output` *parameters*
       Select parameters to output.
 
-`ct prlimits set` *id* *limit* *soft\_and\_hard*, `ct prlimits set` *id* *limit* *soft* *hard*
-  Set resource *limit* on container *id*. Limit names and their descriptions
+`ct prlimits set` *ctid* *limit* *soft\_and\_hard*, `ct prlimits set` *ctid* *limit* *soft* *hard*
+  Set resource *limit* on container *ctid*. Limit names and their descriptions
   can be found in setrlimit(2). The permitted names are the "RLIMIT\_" resource
   names in lowercase without the "RLIMIT\_" prefix, eg. `RLIMIT_NOFILE` should
   be specified as **nofile**.
@@ -1195,12 +1196,12 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   If *hard* is not provided, it equals to the *soft* limit. The value can be
   either an integer or **unlimited**.
 
-`ct prlimits unset` *id* *limit*
-  Unset resource *limit* from container *id*.
+`ct prlimits unset` *ctid* *limit*
+  Unset resource *limit* from container *ctid*.
 
-`ct netif ls` [*options*] [*id*]
+`ct netif ls` [*options*] [*ctid*]
   List configured network interfaces for all containers or a selected container
-  *id*.
+  *ctid*.
 
     `-H`, `--hide-header`
       Do not show header, useful for scripting.
@@ -1220,10 +1221,10 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-t`, `--type` *type*
       Filter by interface type (`bridge` or `routed`)
 
-`ct netif new bridge` [*options*] `--link` *bridge* *id* *name*
-  Create a new bridge network interface in container *id*. This will create
+`ct netif new bridge` [*options*] `--link` *bridge* *ctid* *ifname*
+  Create a new bridge network interface in container *ctid*. This will create
   a pair of veth interfaces, one on the host, one in the container. The veth
-  on the host will be linked to *bridge*. The interface will appear as *name*
+  on the host will be linked to *bridge*. The interface will appear as *ifname*
   within the container. *bridge* is not managed by `osctld`, it must be provided
   by the system administrator in advance.
 
@@ -1256,15 +1257,15 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Set a custom MAC address. Every **x** in the address is replaced by
       a random value. By default, the address is dynamically allocated.
 
-`ct netif new routed` [*options*] *id* *name*
-  Create a new routed network interface in container *id*. Like for **bridge**
+`ct netif new routed` [*options*] *ctid* *ifname*
+  Create a new routed network interface in container *ctid*. Like for **bridge**
   interface, a pair veth is created. The difference is that the veth is not part
   of any bridge. Instead, IP addresses and networks are routed to the container
   by configuring routes. For the routed addresses to be accessible in your
   network, you need to configure either static or dynamic routing on your
   machines. `osctld` will automatically setup appropriate routes on the host
   veth interface and generate configuration files for the container's network
-  system. The interface will appear as *name* within the container.
+  system. The interface will appear as *ifname* within the container.
   
   The container has to be stopped for this command to be allowed.
 
@@ -1272,15 +1273,15 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Set a custom MAC address. Every **x** in the address is replaced by
       a random value. By default, the address is dynamically allocated.
 
-`ct netif del` *id* *name*
-  Remove interface *name* from container *id*.
+`ct netif del` *ctid* *ifname*
+  Remove interface *name* from container *ctid*.
   The container has to be stopped for this command to be allowed.
 
-`ct netif rename` *id* *old-name* *new-name*
+`ct netif rename` *ctid* *ifname* *new-ifname*
   Rename network interface. The container has to be stopped for this operation
   to pass.
 
-`ct netif set` *id* *name*
+`ct netif set` *ctid* *ifname*
   Change network interface properties. The container has to be stopped for this
   command to be allowed. Available options depend on interface type.
 
@@ -1312,8 +1313,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Change MAC address. Every **x** in the address is replaced by
       a random value. Use `-` to assign the MAC address dynamically.
 
-`ct netif ip add` [*options*] *id* *name* *addr*
-  Add IP address *addr* to interface *name* of container *id*. `osctld` will
+`ct netif ip add` [*options*] *ctid* *ifname* *addr*
+  Add IP address *addr* to interface *ifname* of container *ctid*. `osctld` will
   setup routing in case of **routed** interface and add the IP address to the
   container's interface.
 
@@ -1329,8 +1330,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       and wish the entire network to be routed to the container.
       Applicable only for routed interfaces.
 
-`ct netif ip del` [*options*] *id* *name* *addr*|`all`
-  Remove IP address *addr* from interface *name* of container *id*.
+`ct netif ip del` [*options*] *ctid* *ifname* *addr*|`all`
+  Remove IP address *addr* from interface *name* of container *ctid*.
 
     `--[no-]keep-route`
       If there is a route that exactly matches the removed IP address, then this
@@ -1342,9 +1343,9 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       be removed. If no option is given, both IPv4 and IPv6 addresses are
       removed.
 
-`ct netif ip ls` [*id* [*name*]]
+`ct netif ip ls` [*ctid* [*ifname*]]
   List IP addresses from all network interfaces, only those assigned to
-  container *id* or only those of interface *name*.
+  container *ctid* or only those of interface *ifname*.
 
     `-H`, `--hide-header`
       Do not show header, useful for scripting.
@@ -1361,10 +1362,10 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-v`, `--version` *version*
       Filter by IP version.
 
-`ct netif route add` *id* *name* *addr*
+`ct netif route add` *ctid* *ifname* *addr*
   Route *addr* into the container. Applicable only for routed interfaces.
 
-`ct netif route del` [*options*] *id* *name* *addr*|`all`
+`ct netif route del` [*options*] *ctid* *ifname* *addr*|`all`
   Remove routed address from a routed interface.
 
     `-v`, `--version` *n*
@@ -1372,9 +1373,9 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       be removed. If no option is given, both IPv4 and IPv6 routes are
       removed.
 
-`ct netif route ls` [*id* [*name*]]
+`ct netif route ls` [*ctid* [*ifname*]]
   List configured routes from all routed interfaces, only those assigned to
-  container *id* or only those of interface *name*.
+  container *ctid* or only those of interface *name*.
 
     `-H`, `--hide-header`
       Do not show header, useful for scripting.
@@ -1391,8 +1392,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-v`, `--version` *version*
       Filter by IP version.
 
-`ct dataset ls` [*options*] *id* [*properties...*]
-  List datasets of container *id*. *properties* is a space separated list of
+`ct dataset ls` [*options*] *ctid* [*properties...*]
+  List datasets of container *ctid*. *properties* is a space separated list of
   ZFS properties to read and print. Listed dataset names are relative to the
   container's root dataset, the root dataset itself is called `/`.
 
@@ -1405,8 +1406,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-o`, `--output` *parameters*
       Select parameters to output.
 
-`ct dataset new` [*options*] *id* *name* [*mountpoint*]
-  Create a new subdataset of the container's root dataset. The *name*
+`ct dataset new` [*options*] *ctid* *dataset* [*mountpoint*]
+  Create a new subdataset of the container's root dataset. The *dataset*
   is relative to the container's root dataset, e.g. in the default configuration,
   `osctl ct dataset new <id> var` will create ZFS dataset `<pool>/ct/<id>/var`
   and mount it to directory `/var` within the container. The target *mountpoint*
@@ -1427,8 +1428,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Mount created datasets to the container, under the mountpoint of its
       parents or `/`. Created datasets are mounted to the container by default.
 
-`ct dataset del` [*options*] *id* *name*
-  Delete container subdataset *name*. The root dataset cannot be deleted.
+`ct dataset del` [*options*] *ctid* *dataset*
+  Delete container subdataset *dataset*. The root dataset cannot be deleted.
 
     `-r`, `--recursive`
       Recursively delete all children as well. Disabled by default.
@@ -1437,8 +1438,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Unmount selected dataset and all its children when in recursive mode
       before the deletion. By default, mounted datasets will abort the deletion.
 
-`ct mounts ls` *id*
-  List mounts of container *id*.
+`ct mounts ls` *ctid*
+  List mounts of container *ctid*.
 
     `-H`, `--hide-header`
       Do not show header, useful for scripting.
@@ -1449,8 +1450,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-o`, `--output` *parameters*
       Select parameters to output.
 
-`ct mounts new` *options* *id*
-  Create a new mount for container *id* described by *options*. The *fs* is not
+`ct mounts new` *options* *ctid*
+  Create a new mount for container *ctid* described by *options*. The *fs* is not
   mounted immediately, but the next time the container starts.
 
     `--fs` *fs*
@@ -1469,9 +1470,9 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `--[no-]automount`
       Activate this mount when the container starts. Enabled by default.
 
-`ct mounts dataset` *options* *id* *name* *mountpoint*
-  Mount subdataset *name* into container *id*. Only subdatasets of container
-  *id* can be mounted in this way. Dataset mounts can survive container
+`ct mounts dataset` *options* *ctid* *dataset* *mountpoint*
+  Mount subdataset *dataset* into container *ctid*. Only subdatasets of container
+  *ctid* can be mounted in this way. Dataset mounts can survive container
   export/import or migration to a host with different configuration. Mounts
   created via `ct mounts new` have a fixed *fs* path, which would change
   on a host with a zpool named differently and the container would refuse to
@@ -1491,7 +1492,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `--[no-]automount`
       Activate this mount when the container starts. Enabled by default.
 
-`ct mounts register` [*options*] *id* *mountpoint*
+`ct mounts register` [*options*] *ctid* *mountpoint*
   Register a manually created mount. This can be used to register mounts created
   in `pre-mount` or `post-mount` script hooks (see `SCRIPT HOOKS`) or any other
   mount within the container that you wish to control. All options are optional,
@@ -1517,21 +1518,21 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       scripts will cause a deadlock -- the container won't start and `osctld`
       will be tainted as well.
 
-`ct mounts activate` *id* *mountpoint*
+`ct mounts activate` *ctid* *mountpoint*
   Mount the directory inside the container. The container has to be running.
   Note that this command will mount the directory multiple times if called
   when the directory is already mounted.
 
-`ct mounts deactivate` *id* *mountpoint*
+`ct mounts deactivate` *ctid* *mountpoint*
   Unmount the directory from the running container.
 
-`ct mounts del` *id* *mountpoint*
-  Remove *mountpoint* from container *id*.
+`ct mounts del` *ctid* *mountpoint*
+  Remove *mountpoint* from container *ctid*.
 
-`group new` *options* *name*
+`group new` *options* *group*
   Create a new group for resource management.
 
-    `--pool` *name*
+    `--pool` *pool*
       Pool name, optional.
 
     `-p`, `--parents`
@@ -1541,11 +1542,11 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Set cgroup parameter, may be used more than once. See `group cgparams set`
       for what the parameter is.
 
-`group del` *name*
-  Delete group *name*. The group musn't be used by any container.
+`group del` *group*
+  Delete group *group*. The group musn't be used by any container.
 
-`group ls` [*options*] [*names...*]
-  List available groups. If no *names* are provided, all groups are listed.
+`group ls` [*options*] [*groups...*]
+  List available groups. If no *groups* are provided, all groups are listed.
     
     `-H`, `--hide-header`
       Do not show header, useful for scripts.
@@ -1566,7 +1567,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 `group tree` *pool*
   Print the group hierarchy from *pool* in a tree.
 
-`group show` *name*
+`group show` *group*
   Show group info.
 
     `-L`, `--list`
@@ -1578,8 +1579,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-H`, `--hide-header`
       Do not show header, useful for scripts.
 
-`group set attr` *name* *vendor*:*key* *value*
-  Set custom user attribute *vendor*:*key* for group *name*. Configured
+`group set attr` *group* *vendor*:*key* *value*
+  Set custom user attribute *vendor*:*key* for group *group*. Configured
   attributes can be read with `group ls` or `group show` using the `-o`, `--output`
   option.
 
@@ -1587,11 +1588,11 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   domain name and *key* an arbitrary string, e.g.
   `org.vpsadminos.osctl:declarative`.
 
-`group unset attr` *name* *vendor*:*key*
-  Unset custom user attribute *vendor*:*key* of group *name*.
+`group unset attr` *group* *vendor*:*key*
+  Unset custom user attribute *vendor*:*key* of group *group*.
 
-`group cgparams ls` [*options*] *name* [*parameters...*]
-  List cgroup parameters for group *name*. If no *parameters* are provided,
+`group cgparams ls` [*options*] *group* [*parameters...*]
+  List cgroup parameters for group *group*. If no *parameters* are provided,
   all configured parameters are listed.
 
     `-H`, `--hide-header`
@@ -1609,8 +1610,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-a`, `--all`
       Include parameters from parent groups up to root group.
 
-`group cgparams set` *name* *parameter* *value...*
-  Set cgroup parameter *parameter* of group *name* to *value*. `osctld` will
+`group cgparams set` *group* *parameter* *value...*
+  Set cgroup parameter *parameter* of group *group* to *value*. `osctld` will
   make sure this parameter is always set when the container is started. The
   parameter can be for example `cpu.shares` or `memory.limit_in_bytes`. cgroup
   subsystem is derived from the parameter name, you do not need to supply it.
@@ -1624,8 +1625,8 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Append new values, do not overwrite previously configured values for
       *parameter*.
 
-`group cgparams unset` *name* *parameter*
-  Unset cgroup parameter *parameter* from group *name*. Selected cgroup
+`group cgparams unset` *group* *parameter*
+  Unset cgroup parameter *parameter* from group *group*. Selected cgroup
   parameters are reset, the rest is left alone and merely removed from `osctld`
   config.
 
@@ -1635,11 +1636,11 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   - `memory.limit_in_bytes`
   - `memory.memsw.limit_in_bytes`
 
-`group cgparams apply` *name*
-  Apply all cgroup parameters defined for group *name* and all its parent
+`group cgparams apply` *group*
+  Apply all cgroup parameters defined for group *group* and all its parent
   groups, all the way up to the root group.
 
-`group cgparams replace` *name*
+`group cgparams replace` *group*
   Replace all configured cgroup parameters by data in JSON read from standard
   input. The data has to be in the following format:
 
@@ -1656,7 +1657,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 }
 ```
 
-`group devices ls` [*options*] *id*
+`group devices ls` [*options*] *group*
   List configured devices.
 
     `-H`, `--hide-header`
@@ -1669,12 +1670,11 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Select parameters to output, comma separated. Defaults to a selected
       subset of available parameters.
 
-`group devices add` [*options*] *id* `block`|`char` *major* *minor* *mode* [*device*]
-  Allow container *id* to use `block`/`char` device identified by the *major*
-  and *minor* numbers, see mknod(1) for more information. *mode* determines
-  what is the container allowed to do: `r` to read, `w` to write, `m` to call
-  `mknod`. For now, unprivileged containers cannot call `mknod`, so allowing it
-  here doesn't do anything.
+`group devices add` [*options*] *group* `block`|`char` *major* *minor* *mode* [*device*]
+  Allow containers in *group* to use `block`/`char` device identified by
+  the *major* and *minor* numbers, see mknod(1) for more information. *mode*
+  determines what is the container allowed to do: `r` to read, `w` to write,
+  `m` to call `mknod`.
 
   If *device* is provided, `osctld` will prepare the device node within the
   container's `/dev` during every container start.
@@ -1688,15 +1688,15 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       up to the *root* group. When this switch is enabled, `osctld` will add
       the device to all parent groups that do not already have it.
 
-`group devices del` *id* `block`|`char` *major* *minor*
-  Forbid the container to use specified device and remove its device node, if it
-  exists. If the device is used by any descendant groups or containers, it can be
-  deleted only with the `-r`, `--recursive` switch.
+`group devices del` *group* `block`|`char` *major* *minor*
+  Forbid containers in *group* to use specified device and remove its device node,
+  if it exists. If the device is used by any descendant groups or containers, it
+  can be deleted only with the `-r`, `--recursive` switch.
 
     `-r`, `--recursive`
       Delete the device from all child groups and containers.
 
-`group devices chmod` [*options*] *id* `block`|`char` *major* *minor* *mode*
+`group devices chmod` [*options*] *group* `block`|`char` *major* *minor* *mode*
   Change the access mode of the specified device to *mode*. The mode can be
   changed only if all parent groups provide the device with all necessary
   access modes and if no child group or container has broader access mode
@@ -1714,13 +1714,13 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-r`, `--recursive`
       Change the access mode of all child groups and containers.
 
-`group devices promote` *name* `block`|`char` *major* *minor*
+`group devices promote` *group* `block`|`char` *major* *minor*
   Promoting a device will ensure that parent groups will have to provide it,
   it is a declaration of an explicit requirement. It will no longer be possible
   to remove the device from parent groups, without explicitly removing it from
   this group as well, e.g. using `group devices del -r`.
 
-`group devices inherit` *name* `block`|`char` *major* *minor*
+`group devices inherit` *group* `block`|`char` *major* *minor*
   Inherit the device from the parent group. This removes the explicit requirement
   on the pecified device, i.e. reverses `ct devices promote`. The access mode,
   if different from the parent, will revert to the acess mode defined by the
@@ -1730,17 +1730,17 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   the device will be removed. This command cannot be used for the `root` group,
   as it has no parent to inherit from.
 
-`group devices set inherit` *name* `block`|`char` *major* *minor*
+`group devices set inherit` *group* `block`|`char` *major* *minor*
   Set specified device as inheritable. Child groups and container will inherit
   this device immediately.
 
-`group devices unset inherit` *name* `block`|`char` *major* *minor*
+`group devices unset inherit` *group* `block`|`char` *major* *minor*
   Prevent the specified device from being automatically inherited by child
   groups and containers. The device is immediately removed from all child groups
   and containers, that have previously inherited it. Promoted devices are left
   alone.
 
-`group devices replace` *name*
+`group devices replace` *group*
   Replace the configured devices by a new set of devices read from standard
   input in JSON. All devices read from the JSON will be promoted. The user
   is responsible for ensuring that the configured devices are provided by
@@ -1766,7 +1766,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 }
 ```
 
-`group set cpu-limit` *name* *limit*
+`group set cpu-limit` *group* *limit*
   Configure CFS bandwidth control cgroup parameters to enforce CPU limit. *limit*
   represents maximum CPU usage in percents, e.g. `100` means the container can
   fully utilize one CPU core.
@@ -1779,10 +1779,10 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       Length of measured period in microseconds, defaults to `100000`,
       i.e. `100 ms`.
 
-`group unset cpu-limit` *name*
+`group unset cpu-limit` *group*
   Unset CPU limit. This command is a shortcut to `group cgparams unset`.
 
-`group set memory` *name* *memory* [*swap*]
+`group set memory` *group* *memory* [*swap*]
   Configure the maximum amount of memory and swap the group will be able to
   use. This command is a shortcut to `group cgparams set`. Memory limit is set
   with cgroup parameter `memory.limit_in_bytes`. If swap limit is given as well,
@@ -1791,10 +1791,10 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   *memory* and *swap* can be given in bytes, or with an appropriate suffix, i.e.
   `k`, `m`, `g`, or `t`.
 
-`group unset memory` *name*
+`group unset memory` *group*
   Unset memory limits.
 
-`group assets` [*options*] *name*
+`group assets` [*options*] *group*
   List group's assets (datasets, files, directories) and their state.
 
     `-v`, `--verbose`
@@ -1829,7 +1829,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   Remove the key identified by its *index*, which can be obtained by
   `migration authorized-keys ls`.
 
-`repository ls` [*options*] [*names...*]
+`repository ls` [*options*] [*repository...*]
   List configured repositories, from which container templates are downloaded.
 
     `-H`, `--hide-header`
@@ -1841,7 +1841,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-o`, `--output` *parameters*
       Select parameters to output.
 
-`repository show` *name*
+`repository show` *repository*
   Show repository parameters.
 
     `-H`, `--hide-header`
@@ -1853,26 +1853,26 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-o`, `--output` *parameters*
       Select parameters to output.
 
-`repository add` *name* *url*
-  Add repository at *url* as *name* to the default or the selected pool.
-  The pool can be selected using global option `--pool`.
+`repository add` *repository* *url*
+  Add *repository* with *url* to the default or the selected pool. The pool can
+  be selected using global option `--pool`.
 
-`repository del` *name*
-  Remove repository *name* from the default or the selected pool.
+`repository del` *repository*
+  Remove *repository* from the default or the selected pool.
 
-`repository enable` *name*
-  Enable repository *name*. Enabled repositories are searched for templates
+`repository enable` *repository*
+  Enable *repository*. Enabled repositories are searched for templates
   when creating containers. Repositories are enabled by default upon addition.
 
-`repository disable` *name*
-  Disable repository *name*. Disabled repositories are not searched for templates,
+`repository disable` *repository*
+  Disable *repository*. Disabled repositories are not searched for templates,
   until reenabled.
 
-`repository set url` *name* *url*
-  Change URL of repository *name* to *url*.
+`repository set url` *repository* *url*
+  Change URL of *repository* to *url*.
 
-`repository set attr` *name* *vendor*:*key* *value*
-  Set custom user attribute *vendor*:*key* for repository *name*. Configured
+`repository set attr` *repository* *vendor*:*key* *value*
+  Set custom user attribute *vendor*:*key* for *repository*. Configured
   attributes can be read with `repository ls` or `repository show` using
   the `-o`, `--output` option.
 
@@ -1880,14 +1880,14 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   domain name and *key* an arbitrary string, e.g.
   `org.vpsadminos.osctl:declarative`.
 
-`repository unset attr` *name* *vendor*:*key*
-  Unset custom user attribute *vendor*:*key* of repository *name*.
+`repository unset attr` *repository* *vendor*:*key*
+  Unset custom user attribute *vendor*:*key* of *repository*.
 
-`repository assets` *name*
+`repository assets` *repository*
   Show repository's assets and their state.
 
-`repository templates ls` [*option*] *name*
-  List templates available in repository *name*.
+`repository templates ls` [*option*] *repository*
+  List templates available in *repository*.
 
     `-H`, `--hide-header`
       Do not show header, useful for scripting.
