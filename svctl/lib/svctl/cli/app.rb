@@ -4,10 +4,14 @@ module SvCtl::Cli
   class App
     include GLI::App
 
-    def self.run
+    def self.get
       cli = new
       cli.setup
-      exit(cli.run(ARGV))
+      cli
+    end
+
+    def self.run
+      exit(get.run(ARGV))
     end
 
     def setup
@@ -56,6 +60,12 @@ module SvCtl::Cli
       arg_name '<runlevel>'
       command 'switch' do |c|
         c.action &Command.run(:switch)
+      end
+
+      command 'gen-completion' do |g|
+        g.command :bash do |c|
+          c.action &Command.run(:gen_bash_completion)
+        end
       end
 
       default_command 'list-all'

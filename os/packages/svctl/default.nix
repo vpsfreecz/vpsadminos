@@ -5,6 +5,11 @@ bundlerApp {
   gemdir = ./.;
   exes = [ "svctl" ];
   manpages = [ "man8/svctl.8" ];
+  postBuild = ''
+    mkdir -p $out/share/bash-completion/completions $out/etc
+    ln -sf $out/share/bash-completion/completions $out/etc/bash_completion.d
+    $out/bin/svctl gen-completion bash > $out/share/bash-completion/completions/svctl
+  '';
 
   meta = with lib; {
     description = "";

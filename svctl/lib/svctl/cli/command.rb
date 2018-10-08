@@ -1,3 +1,5 @@
+require 'libosctl'
+
 module SvCtl
   class Cli::Command
     def self.run(method)
@@ -60,6 +62,18 @@ module SvCtl
     def switch
       raise GLI::BadCommandLine, 'missing argument <runlevel>' unless args[0]
       SvCtl.switch(args[0])
+    end
+
+    def gen_bash_completion
+      c = OsCtl::Lib::Cli::Completion::Bash.new(Cli::App.get)
+
+      services = 'ls -1 /etc/runit/services'
+      runlevels = 'ls -1 /etc/runit/runsvdir | grep -v previous'
+
+      c.arg(cmd: :all, name: :service, expand: services)
+      c.arg(cmd: :all, name: :runlevel, expand: runlevels)
+
+      puts c.generate
     end
   end
 end
