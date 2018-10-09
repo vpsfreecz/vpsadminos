@@ -24,8 +24,8 @@
   };
 
   vpsadminos.nix = true;
-
   tty.autologin.enable = true;
+  services.haveged.enable = true;
 
   users.motd = ''
 

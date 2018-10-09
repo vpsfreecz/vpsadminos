@@ -48,6 +48,7 @@ let
       ./modules/version.nix
       ./modules/vpsadmin.nix
       ./modules/bash.nix
+      ./modules/haveged.nix
       <nixpkgs/nixos/modules/misc/extra-arguments.nix>
       <nixpkgs/nixos/modules/system/etc/etc.nix>
       <nixpkgs/nixos/modules/system/activation/activation-script.nix>
