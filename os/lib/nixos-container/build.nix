@@ -1,11 +1,18 @@
-{ config, pkgs, lib, ...}: {
+{ config, pkgs, lib, ...}:
+
+let
+  nameservers = [
+    "37.205.9.100"
+    "37.205.10.88"
+    "1.1.1.1"
+  ];
+in
+{
+
+  networking.nameservers = lib.mkDefault nameservers;
 
   services.resolved = lib.mkDefault {
-    enable = true;
-    fallbackDns = [
-      "37.205.9.100"
-      "37.205.10.88"
-      "1.1.1.1" ];
+    fallbackDns = nameservers;
   };
 
   systemd.services.systemd-sysctl.enable = false;
