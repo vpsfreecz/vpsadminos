@@ -15,7 +15,7 @@ in
     fallbackDns = nameservers;
   };
 
-  services.dhcpd4.extraFlags = [ "--noipv4ll" ];
+  networking.dhcpcd.extraConfig = "noipv4ll";
   systemd.services.systemd-sysctl.enable = false;
   systemd.sockets."systemd-journald-audit".enable = false;
   systemd.mounts = [ {where = "/sys/kernel/debug"; enable = false;} ];
