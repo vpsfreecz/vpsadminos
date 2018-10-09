@@ -52,7 +52,8 @@ let
           --replace \"/sbin/blkid \"${pkgs.utillinux}/sbin/blkid \
           --replace \"/bin/mount \"${pkgs.utillinux}/bin/mount \
           --replace /usr/bin/readlink ${pkgs.coreutils}/bin/readlink \
-          --replace /usr/bin/basename ${pkgs.coreutils}/bin/basename
+          --replace /usr/bin/basename ${pkgs.coreutils}/bin/basename \
+          --subst-var-by rootbindir ${pkgs.eudev}/bin
       done
 
       echo -n "Checking that all programs called by relative paths in udev rules exist in ${pkgs.eudev}/lib/udev... "
