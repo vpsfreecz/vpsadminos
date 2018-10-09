@@ -49,7 +49,7 @@
       time.timeZone = "Europe/Amsterdam";
 
       documentation.enable = true;
-      services.nixosManual.enable = true;
+      documentation.nixos.enable = true;
 
       system.stateVersion = "18.09";
     }
@@ -75,7 +75,7 @@
   services.openssh.permitRootLogin = lib.mkDefault "yes";
 
   documentation.enable = true;
-  services.nixosManual.enable = true;
+  documentation.nixos.enable = true;
 
   boot.postBootCommands =
     ''
