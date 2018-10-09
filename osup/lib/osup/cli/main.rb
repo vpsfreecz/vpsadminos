@@ -85,6 +85,11 @@ module OsUp
       end
     end
 
+    def gen_bash_completion
+      c = OsCtl::Lib::Cli::Completion::Bash.new(Cli::App.get)
+      puts c.generate
+    end
+
     protected
     def global_status
       puts sprintf(

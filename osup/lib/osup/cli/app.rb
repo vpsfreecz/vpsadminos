@@ -5,10 +5,14 @@ module OsUp::Cli
   class App
     include GLI::App
 
-    def self.run
+    def self.get
       cli = new
       cli.setup
-      exit(cli.run(ARGV))
+      cli
+    end
+
+    def self.run
+      exit(get.run(ARGV))
     end
 
     def setup
@@ -73,6 +77,12 @@ module OsUp::Cli
       arg_name '[version]'
       command 'rollback-all' do |c|
         c.action &Command.run(Main, :rollback_all)
+      end
+
+      command 'gen-completion' do |g|
+        g.command :bash do |c|
+          c.action &Command.run(Main, :gen_bash_completion)
+        end
       end
 
       # desc 'Execute migration' (do not uncomment this line to hide it from help)

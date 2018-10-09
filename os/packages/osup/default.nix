@@ -5,6 +5,11 @@ bundlerApp {
   gemdir = ./.;
   exes = [ "osup" ];
   manpages = [ "man8/osup.8" ];
+  postBuild = ''
+    mkdir -p $out/share/bash-completion/completions $out/etc
+    ln -sf $out/share/bash-completion/completions $out/etc/bash_completion.d
+    $out/bin/osup gen-completion bash > $out/share/bash-completion/completions/osup
+  '';
 
   meta = with lib; {
     description = "";
