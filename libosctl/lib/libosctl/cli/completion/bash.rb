@@ -26,7 +26,11 @@ module OsCtl::Lib
         return false if name != arg
         return true if cmd == :all
 
-        cmd.zip(cmd_path).take_while { |x, y| x == y }.map(&:first).any?
+        cmd.zip(cmd_path).each do |x, y|
+          return false if y.nil? || x != y
+        end
+
+        true
       end
     end
 
@@ -98,8 +102,9 @@ module OsCtl::Lib
       else
         parent.commands.each_value do |c|
           ([c.name] + (c.aliases || [])).each do |name|
-            block.call(c, path + [name])
-            each_command(parent: c, path: path + [name], &block)
+            name_s = name.to_s
+            block.call(c, path + [name_s])
+            each_command(parent: c, path: path + [name_s], &block)
           end
         end
       end
