@@ -45,8 +45,12 @@ module OsCtl
       ct_netifs = "#{$0} ct netif ls -H -o name $1"
       ct_ips = "#{$0} ct netif ip ls -H -o addr $1"
       ct_routes = "#{$0} ct netif route ls -H -o addr $1"
+      ct_datasets = "#{$0} ct dataset ls -H -o name $1"
 
       zfs_pools = 'zpool list -H -o name'
+      zfs_datasets = 'zfs list -Hr -o name'
+
+      c.opt(cmd: %i(osctl pool install), name: :dataset, expand: zfs_datasets)
 
       c.opt(cmd: :all, name: :pool, expand: pools)
       c.opt(cmd: :all, name: :ctid, expand: ctids)
@@ -69,6 +73,9 @@ module OsCtl
       c.arg(cmd: %i(osctl user new), name: :user, expand: '')
       c.arg(cmd: %i(osctl repo add), name: :repository, expand: '')
 
+      c.arg(cmd: %i(osctl ct dataset), name: :dataset, expand: ct_datasets)
+      c.arg(cmd: %i(osctl vps dataset), name: :dataset, expand: ct_datasets)
+      c.arg(cmd: %i(osctl ct mounts), name: :dataset, expand: ct_datasets)
       c.arg(cmd: %i(osctl ct netif), name: :ifname, expand: ct_netifs)
       c.arg(cmd: %i(osctl vps netif), name: :ifname, expand: ct_netifs)
       c.arg(cmd: %i(osctl ct netif ip), name: :addr, expand: ct_ips)
