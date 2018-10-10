@@ -50,6 +50,15 @@ module OsCtl
       zfs_pools = 'zpool list -H -o name'
       zfs_datasets = 'zfs list -Hr -o name'
 
+      all_cgparams = <<-END
+        find /sys/fs/cgroup -maxdepth 2 -type f -printf "%f\\n" \\
+          | grep -v -e '^cgroup\\.' -e '^devices\\.' -e '^cpuacct\\.' \\
+          | grep '\\.'
+      END
+
+      ct_cgparams = "#{$0} ct cgparams ls -H -o parameter $1"
+      group_cgparams = "#{$0} group cgparams ls -H -o parameter $1"
+
       c.opt(cmd: %i(osctl pool install), name: :dataset, expand: zfs_datasets)
 
       c.opt(cmd: :all, name: :pool, expand: pools)
@@ -82,6 +91,13 @@ module OsCtl
       c.arg(cmd: %i(osctl vps netif ip), name: :addr, expand: ct_ips)
       c.arg(cmd: %i(osctl ct netif route), name: :addr, expand: ct_routes)
       c.arg(cmd: %i(osctl vps netif route), name: :addr, expand: ct_routes)
+
+      c.arg(cmd: %i(osctl ct cgparams set), name: :parameter, expand: all_cgparams)
+      c.arg(cmd: %i(osctl ct cgparams unset), name: :parameter, expand: ct_cgparams)
+      c.arg(cmd: %i(osctl vps cgparams set), name: :parameter, expand: all_cgparams)
+      c.arg(cmd: %i(osctl vps cgparams unset), name: :parameter, expand: ct_cgparams)
+      c.arg(cmd: %i(osctl group cgparams set), name: :parameter, expand: all_cgparams)
+      c.arg(cmd: %i(osctl group cgparams unset), name: :parameter, expand: group_cgparams)
 
       c.arg(cmd: :all, name: :pool, expand: pools)
       c.arg(cmd: :all, name: :ctid, expand: ctids)
