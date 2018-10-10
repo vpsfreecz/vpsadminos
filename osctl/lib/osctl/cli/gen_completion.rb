@@ -43,9 +43,10 @@ module OsCtl
       netif_types = 'echo bridge routed'
 
       ct_netifs = "#{$0} ct netif ls -H -o name $1"
-
       ct_ips = "#{$0} ct netif ip ls -H -o addr $1"
       ct_routes = "#{$0} ct netif route ls -H -o addr $1"
+
+      zfs_pools = 'zpool list -H -o name'
 
       c.opt(cmd: :all, name: :pool, expand: pools)
       c.opt(cmd: :all, name: :ctid, expand: ctids)
@@ -55,6 +56,18 @@ module OsCtl
       c.opt(cmd: :all, name: :tag, expand: tags)
       c.opt(cmd: :all, name: :host_netif, expand: host_netifs)
       c.opt(cmd: :all, name: :netif_type, expand: netif_types)
+
+      # Do not suggest existing names when creating new cts/users/...
+      c.arg(cmd: %i(osctl pool install), name: :pool, expand: zfs_pools)
+      c.arg(cmd: %i(osctl pool import), name: :pool, expand: zfs_pools)
+      c.arg(cmd: %i(osctl ct new), name: :ctid, expand: '')
+      c.arg(cmd: %i(osctl vps new), name: :ctid, expand: '')
+      c.arg(cmd: %i(osctl ct netif new), name: :ifname, expand: '')
+      c.arg(cmd: %i(osctl vps netif new), name: :ifname, expand: '')
+      c.arg(cmd: %i(osctl ct netif ip add), name: :addr, expand: '')
+      c.arg(cmd: %i(osctl vps netif ip add), name: :addr, expand: '')
+      c.arg(cmd: %i(osctl user new), name: :user, expand: '')
+      c.arg(cmd: %i(osctl repo add), name: :repository, expand: '')
 
       c.arg(cmd: %i(osctl ct netif), name: :ifname, expand: ct_netifs)
       c.arg(cmd: %i(osctl vps netif), name: :ifname, expand: ct_netifs)
