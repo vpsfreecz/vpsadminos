@@ -105,7 +105,7 @@ function <%= app_prefix %>_cmd_fn_name()
 
     elif [ "$flagArg" == "y" ] ; then
       for c in <%= global_commands.join(' ') %> ; do
-        [ "$1" == "$c" ] && flagArg=n
+        [ "$1" == "$c" ] && flagArg=n && break
       done
 
       if [ "$flagArg" == "y" ] ; then
@@ -204,6 +204,8 @@ function <%= app_prefix %>_process_args()
       shift
       continue
     fi
+
+    break
   done
 
   if [ ${#cmds[@]} -eq 0 ]; then
