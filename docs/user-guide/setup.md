@@ -47,6 +47,6 @@ When you have at least one zpool imported and installed, you can proceed
 to [user](users.md) and [container](containers.md) management.
 
 [Nix]: https://nixos.org/nix/
-[install-nix]: https://nixos.org/nixpkgs/
+[install-nix]: https://nixos.org/nix/download.html
 [nixpkgs]: https://nixos.org/nixpkgs/
 [man osctl]: https://man.vpsadminos.org/osctl/man8/osctl.8.html
