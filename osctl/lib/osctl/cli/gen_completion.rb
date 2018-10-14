@@ -51,9 +51,11 @@ module OsCtl
       zfs_datasets = 'zfs list -Hr -o name'
 
       all_cgparams = <<-END
-        find /sys/fs/cgroup -maxdepth 2 -type f -printf "%f\\n" \\
-          | grep -v -e '^cgroup\\.' -e '^devices\\.' -e '^cpuacct\\.' \\
-          | grep '\\.'
+        for subsys in `find /sys/fs/cgroup -maxdepth 1 -type d` ; do
+          find "$subsys/osctl" -maxdepth 1 -type f -printf "%f\\n" 2> /dev/null \\
+            | grep -v -e '^cgroup\\.' -e '^devices\\.' -e '^cpuacct\\.' \\
+            | grep '\\.'
+        done
       END
 
       ct_cgparams = "#{$0} ct cgparams ls -H -o parameter $1"

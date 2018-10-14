@@ -35,7 +35,7 @@ module OsCtld
         end
 
         # Check parameter
-        param = File.join(path, p.name)
+        param = File.join(path, 'osctl', p.name)
 
         unless File.exist?(param)
           raise CGroupParameterNotFound, "CGroup parameter '#{param}' not found"
