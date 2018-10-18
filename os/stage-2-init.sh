@@ -29,6 +29,7 @@ hostname @hostName@
 
 $systemConfig/activate
 
-@postActivate@
+# Run any user-specified commands.
+@shell@ @postBootCommands@
 
 exec runit

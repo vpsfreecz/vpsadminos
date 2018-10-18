@@ -4,10 +4,22 @@ with lib;
 
 let
   kernelModules = lib.concatStringsSep " " config.boot.initrd.kernelModules;
+  postBootCommands = pkgs.writeText "local-cmds" ''
+    ${config.boot.postBootCommands}
+  '';
 in
 {
   options = {
     boot = {
+      postBootCommands = mkOption {
+        default = "";
+        example = "rm -f /var/log/messages";
+        type = types.lines;
+        description = ''
+          Shell commands to be executed just before runit is started.
+        '';
+      };
+
       # *Size are unused for now
       devSize = mkOption {
         default = "5%";
@@ -30,15 +42,6 @@ in
         default = false;
         description = "mount proc with hidepid=2";
       };
-
-      postActivate = mkOption {
-        type = types.str;
-        default = "";
-        description = ''
-          Shell commands executed after system activation, right before the
-          control is given to runit.
-        '';
-      };
     };
   };
   config = {
@@ -48,7 +51,7 @@ in
       path = config.system.path;
       inherit (config.networking) hostName;
       inherit (config.boot) procHidePid;
-      inherit (config.boot) postActivate;
+      inherit postBootCommands;
     };
   };
 }

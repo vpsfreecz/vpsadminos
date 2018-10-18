@@ -23,7 +23,7 @@
   };
 
   # These commands will be run right before runit is executed
-  boot.postActivate = ''
+  boot.postBootCommands = ''
     # Module 9pnet_virtio is needed for the mounts to work
     modprobe 9pnet_virtio
 
