@@ -140,14 +140,14 @@ in syslog.
 cat /var/log/pool-tank/current
 2018-09-08_08:50:27.42316 Importing ZFS pool "tank"
 2018-09-08_08:50:28.40121 Mounting datasets...
-2018-09-08_08:50:28.44760 [0001/0008] Mounting tank
-2018-09-08_08:50:28.51206 [0002/0008] Mounting tank/conf
-2018-09-08_08:50:28.54664 [0003/0008] Mounting tank/ct
-2018-09-08_08:50:28.56254 [0004/0008] Mounting tank/hook
-2018-09-08_08:50:28.57755 [0005/0008] Mounting tank/log
-2018-09-08_08:50:28.59338 [0006/0008] Mounting tank/repository
-2018-09-08_08:50:28.60851 [0007/0008] Mounting tank/user
-2018-09-08_08:50:28.62394 [0008/0008] Mounting tank/user/sample
+2018-09-08_08:50:28.44760 [1/8] Mounting tank
+2018-09-08_08:50:28.51206 [2/8] Mounting tank/conf
+2018-09-08_08:50:28.54664 [3/8] Mounting tank/ct
+2018-09-08_08:50:28.56254 [4/8] Mounting tank/hook
+2018-09-08_08:50:28.57755 [5/8] Mounting tank/log
+2018-09-08_08:50:28.59338 [6/8] Mounting tank/repository
+2018-09-08_08:50:28.60851 [7/8] Mounting tank/user
+2018-09-08_08:50:28.62394 [8/8] Mounting tank/user/sample
 ```
 
 ## Periodic scrubs

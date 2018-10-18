@@ -70,11 +70,11 @@ let
         | grep $'\ton' `# canmount=on` \
         | grep $'\tno' `# mounted=no` \
         | awk '{ print $1; }')"
-      count=$(printf %04d $(echo "$datasets" | wc -l))
+      count=$(echo "$datasets" | wc -l)
       i=1
 
       for ds in $datasets ; do
-        echo "[$(printf %04d $i)/$count] Mounting $ds"
+        echo "[''${i}/''${count}] Mounting $ds"
         zfs mount $ds
         i=$(($i+1))
       done
