@@ -39,6 +39,9 @@ class Configuration
     puts 'would stop deprecated services...'
     services.stop.each(&:stop)
 
+    puts 'would stop changed services...'
+    services.restart.each(&:stop)
+
     puts 'would activate the configuration...'
     activate
 
@@ -48,7 +51,7 @@ class Configuration
     services.reload.each(&:reload)
 
     puts 'would restart changed services...'
-    services.restart.each(&:restart)
+    services.restart.each(&:start)
 
     puts 'runit would start new services...'
     services.start.each(&:start)
@@ -86,6 +89,9 @@ class Configuration
     puts 'stopping deprecated services...'
     services.stop.each(&:stop)
 
+    puts 'stopping changed services...'
+    services.restart.each(&:stop)
+
     puts 'activating the configuration...'
     activate
 
@@ -95,7 +101,7 @@ class Configuration
     services.reload.each(&:reload)
 
     puts 'restarting changed services...'
-    services.restart.each(&:restart)
+    services.restart.each(&:start)
 
     puts 'runit will start new services...'
 
