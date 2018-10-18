@@ -39,7 +39,7 @@ in
 
       procHidePid = mkOption {
         type = types.bool;
-        default = false;
+        default = true;
         description = "mount proc with hidepid=2";
       };
     };
