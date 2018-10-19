@@ -122,6 +122,7 @@ fi
 
 # Mark the target as a NixOS installation, otherwise switch-to-configuration will chicken out.
 mkdir -m 0755 -p "$mountPoint/etc"
+mkdir -m 0755 -p "$mountPoint/run"
 touch "$mountPoint/etc/VPSADMINOS"
 
 # Switch to the new system configuration.  This will install Grub with
