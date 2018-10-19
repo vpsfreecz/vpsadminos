@@ -1,4 +1,4 @@
-{ config, pkgs, ... }:
+{ config, lib, pkgs, ... }:
 
 # ISO image configuration
 
@@ -23,6 +23,13 @@
     screen
     strace
   ];
+
+  boot.zfs.pools = lib.mkDefault {
+    tank = {
+      layout = "sda";
+      install = true;
+    };
+  };
 
   isoImage.makeUsbBootable = true;
   isoImage.makeEfiBootable = true;
