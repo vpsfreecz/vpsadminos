@@ -5,6 +5,7 @@
 {
   imports = [
     ./common.nix
+    ../modules/channel.nix
     ../modules/iso-image.nix
   ];
 
