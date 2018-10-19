@@ -26,6 +26,7 @@ let
       ./modules/osctl/pools.nix
       ./modules/chronyd.nix
       ./modules/crond.nix
+      ./modules/cpufreq.nix
       ./modules/dhcpd.nix
       ./modules/eudev.nix
       ./modules/grub/grub.nix
