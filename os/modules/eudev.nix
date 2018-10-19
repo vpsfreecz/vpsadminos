@@ -134,9 +134,13 @@ in
 
       runit.services.eudev-trigger.run = ''
         sv start eudev
+        sleep 1 # try to avoid races
         ${pkgs.eudev}/bin/udevadm trigger --action=add --type=subsystems
         ${pkgs.eudev}/bin/udevadm trigger --action=add --type=devices
+        ${pkgs.eudev}/bin/udevadm trigger --action=add
         ${pkgs.eudev}/bin/udevadm settle
+        # to be sure..
+        ${pkgs.eudev}/bin/udevadm trigger --action=add
         touch /run/eudev-done
         sv once .
       '';

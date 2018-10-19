@@ -119,7 +119,7 @@ mkdir -p /etc/udev
 ln -sfn @udevRules@ /etc/udev/rules.d
 ln -sfn @udevHwdb@ /etc/udev/hwdb.bin
 udevd --daemon --resolve-names=never
-udevadm trigger
+udevadm trigger --action=add
 udevadm settle --timeout=30 || fail "udevadm settle timed-out"
 
 @preLVMCommands@
