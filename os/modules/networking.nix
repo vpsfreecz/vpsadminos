@@ -87,7 +87,7 @@ with lib;
         ${config.networking.custom}
 
         touch /run/net-done
-        exec sleep inf
+        sv once .
       '';
 
       networking.check = ''
