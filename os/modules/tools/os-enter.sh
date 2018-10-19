@@ -47,7 +47,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 test -f $mountPoint/etc/VPSADMINOS || {
-    echo "$0: '$mountPoint' is not a vpsadminOS installation" >&2
+    echo "$0: '$mountPoint' is not a vpsAdminOS installation" >&2
     exit 126
 }
 

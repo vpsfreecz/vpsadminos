@@ -120,7 +120,7 @@ if [[ -z $noChannelCopy ]]; then
     fi
 fi
 
-# Mark the target as a NixOS installation, otherwise switch-to-configuration will chicken out.
+# Mark the target look like as a NixOS installation, otherwise switch-to-configuration will chicken out.
 mkdir -m 0755 -p "$mountPoint/etc"
 mkdir -m 0755 -p "$mountPoint/run"
 touch "$mountPoint/etc/VPSADMINOS"
