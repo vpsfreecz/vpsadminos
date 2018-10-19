@@ -75,6 +75,9 @@ module OsCtl::Cli
           when :remove
             ct.netif_rm(opts[:name])
 
+          when :rename
+            ct.netif_rename(opts[:name], opts[:new_name])
+
           when :up
             ct.netif_up(opts[:name], opts[:veth])
 

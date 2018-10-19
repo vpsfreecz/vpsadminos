@@ -66,6 +66,11 @@ module OsCtl::Cli
       netifs.delete(netif)
     end
 
+    def netif_rename(name, new_name)
+      netif = find_netif(name)
+      netif.name = new_name
+    end
+
     protected
     attr_reader :measurements, :initial
 

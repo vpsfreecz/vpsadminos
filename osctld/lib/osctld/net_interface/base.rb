@@ -54,7 +54,17 @@ module OsCtld
     # Rename the interface within the container
     # @param new_name [String]
     def rename(new_name)
+      old_name = inclusively { @name }
       exclusively { @name = new_name }
+
+      Eventd.report(
+        :ct_netif,
+        action: :rename,
+        pool: ct.pool.name,
+        id: ct.id,
+        name: old_name,
+        new_name: new_name,
+      )
     end
 
     # Change interface properties

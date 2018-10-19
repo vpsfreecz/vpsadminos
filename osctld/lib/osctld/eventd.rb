@@ -60,8 +60,9 @@ module OsCtld
   #     {
   #       pool: container's pool name,
   #       id: container id,
-  #       action: add/remove/up/down,
+  #       action: add/remove/rename/up/down,
   #       name: interface name inside the container,
+  #       new_name: net interface name when action is rename,
   #       veth: interface name on the host
   #     }
   class Eventd
