@@ -16,7 +16,14 @@ module OsCtld
       ct.mount
 
       d = (klass || self.for(:unsupported)).new(ct)
-      d.method(cmd).call(opts)
+
+      begin
+        d.method(cmd).call(opts)
+
+      rescue Exception => e
+        ct.log(:warn, "DistConfig.#{cmd} failed: #{e.message}")
+        ct.log(:warn, e.backtrace.join("\n"))
+      end
     end
   end
 end
