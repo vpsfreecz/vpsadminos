@@ -424,14 +424,25 @@ with lib;
       echo "systemConfig=${config.system.build.toplevel} ${builtins.unsafeDiscardStringContext (toString config.boot.kernelParams)}" > $out/command-line
     '';
 
-    system.activationScripts.secrets = {
-      text = ''
-        if [ -d /nix/store/secrets ] ; then
-          [ -d /var/secrets ] && rm -rf /var/secrets
-          mv /nix/store/secrets /var/secrets
-        fi
-      '';
-      deps = [];
+    system.activationScripts = {
+      suids = {
+        text = ''
+          chmod 04755 ${config.system.path}/bin/su
+          chmod 04755 ${config.system.path}/bin/newuidmap
+          chmod 04755 ${config.system.path}/bin/newgidmap
+          chmod 04755 ${pkgs.lxc}/libexec/lxc/lxc-user-nic
+        '';
+        deps = [];
+      };
+      secrets = {
+        text = ''
+          if [ -d /nix/store/secrets ] ; then
+            [ -d /var/secrets ] && rm -rf /var/secrets
+            mv /nix/store/secrets /var/secrets
+          fi
+        '';
+        deps = [];
+      };
     };
 
     system.build.toplevel = let
