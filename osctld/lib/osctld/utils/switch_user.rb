@@ -14,7 +14,11 @@ module OsCtld
           ct.user.homedir,
           ct.cgroup_path
         )
-        ret = SwitchUser::ContainerControl.run(cmd, opts, ct.lxc_home)
+        ret = SwitchUser::ContainerControl.run(cmd, opts, {
+          lxc_home: ct.lxc_home,
+          user_home: ct.user.homedir,
+          log_file: ct.log_path,
+        })
         w.write(ret.to_json + "\n")
 
         exit
@@ -60,7 +64,7 @@ module OsCtld
         in_r = opts[:stdin]
       end
 
-      ret = ct_control(ct, :ct_exec, {
+      ret = ct_control(ct, :ct_exec_running, {
         id: ct.id,
         cmd: cmd,
         stdin: in_r,

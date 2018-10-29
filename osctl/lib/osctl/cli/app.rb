@@ -632,6 +632,9 @@ module OsCtl::Cli
         ct.desc 'Execute a command within the container'
         ct.arg_name '<ctid> <cmd...>'
         ct.command %i(exec) do |c|
+          c.desc "Run the container if it isn't running already"
+          c.switch %i(r run-container), negatable: false
+
           c.action &Command.run(Container, :exec)
         end
 

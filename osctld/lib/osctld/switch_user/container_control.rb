@@ -8,13 +8,21 @@ module OsCtld
 
     PATH = %w(/bin /usr/bin /sbin /usr/sbin /run/current-system/sw/bin)
 
-    def self.run(cmd, opts, lxc_home)
-      ur = new(lxc_home)
-      ur.execute(cmd, opts)
+    # @param cmd [Symbol] command to call
+    # @param cmd_opts [Hash] command options
+    # @param ct_opts [Hash] container options
+    # @option ct_opts [String] :lxc_home
+    # @option ct_opts [String] :user_home
+    # @option ct_opts [String] :log_file
+    def self.run(cmd, cmd_opts, ct_opts)
+      ur = new(ct_opts)
+      ur.execute(cmd, cmd_opts)
     end
 
-    def initialize(lxc_home)
-      @lxc_home = lxc_home
+    def initialize(opts)
+      @lxc_home = opts[:lxc_home]
+      @user_home = opts[:user_home]
+      @log_file = opts[:log_file]
     end
 
     def execute(cmd, opts)
@@ -87,16 +95,55 @@ module OsCtld
       ok(ret)
     end
 
-    def ct_exec(opts)
+    # Execute command in a running container
+    # @param opts [Hash]
+    # @option opts [String] :id container id
+    # @option opts [String] :cmd command to execute
+    # @option opts [IO] :stdin
+    # @option opts [IO] :stdout
+    # @option opts [IO] :stderr
+    def ct_exec_running(opts)
       pid = lxc_ct(opts[:id]).attach(
         stdin: opts[:stdin],
         stdout: opts[:stdout],
         stderr: opts[:stderr]
       ) do
-        ENV.delete_if { |k, _| k != 'TERM' }
-        ENV['PATH'] = PATH.join(':')
-
+        setup_exec_env
         LXC.run_command(opts[:cmd])
+      end
+
+      _, status = Process.wait2(pid)
+      ok(exitstatus: status.exitstatus)
+    end
+
+    # Execute command in a stopped container
+    # @param opts [Hash]
+    # @option opts [String] :id container id
+    # @option opts [String] :cmd command to execute
+    # @option opts [IO] :stdin
+    # @option opts [IO] :stdout
+    # @option opts [IO] :stderr
+    def ct_exec_run(opts)
+      pid = Process.fork do
+        STDIN.reopen(opts[:stdin])
+        STDOUT.reopen(opts[:stdout])
+        STDERR.reopen(opts[:stderr])
+
+        setup_exec_env
+
+        cmd = [
+          'lxc-execute',
+          '-P', @lxc_home,
+          '-n', opts[:id],
+          '-o', @log_file,
+          '--',
+          opts[:cmd],
+        ]
+
+        # opts[:cmd] can contain an arbitrary command with multiple arguments
+        # and quotes, so the mapping to process arguments is not clear. We use
+        # the shell to handle this.
+        Process.exec("exec #{cmd.join(' ')}")
       end
 
       _, status = Process.wait2(pid)
@@ -197,6 +244,12 @@ module OsCtld
 
     def lxc_ct(id)
       LXC::Container.new(id, @lxc_home)
+    end
+
+    def setup_exec_env
+      ENV.delete_if { |k, _| k != 'TERM' }
+      ENV['PATH'] = PATH.join(':')
+      ENV['HOME'] = @user_home
     end
 
     def ok(out = nil)

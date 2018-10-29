@@ -413,7 +413,8 @@ tt
         :ct_exec,
         id: args[0],
         pool: gopts[:pool],
-        cmd: args[1..-1]
+        cmd: args[1..-1],
+        run: opts['run-container'],
       )
 
       if cont != 'continue'

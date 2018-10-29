@@ -646,9 +646,14 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 
     `-t`, `--tty` *n* - Select which TTY to attach, defaults to **0**.
 
-`ct exec` *ctid* *cmd...*
+`ct exec` [*options*] *ctid* *cmd...*
   Attach container *ctid* and execute command *cmd* within a shell.
   stdin/stdout/stderr of *cmd* is piped to your current shell.
+
+    `-r`, `--run-container`
+      If the container isn't already running, start it, but run *cmd* instead
+      of the container's init system. `lxc-init` is run as PID 1 to reap child
+      processes and run *cmd*. The container is stopped when *cmd* finishes.
 
 `ct set autostart` [*options*] *ctid*
   Start the container automatically when `osctld` starts or when its pool is
