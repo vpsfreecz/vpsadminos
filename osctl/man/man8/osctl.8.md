@@ -653,7 +653,16 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-r`, `--run-container`
       If the container isn't already running, start it, but run *cmd* instead
       of the container's init system. `lxc-init` is run as PID 1 to reap child
-      processes and run *cmd*. The container is stopped when *cmd* finishes.
+      processes and to run *cmd*. The container is stopped when *cmd* finishes.
+
+`ct runscript` [*options*] *ctid* *script*
+  Execute *script* within the context of container *ctid*.
+
+    `-r`, `--run-container`
+      If the container isn't already running, start it, but run *script* instead
+      of the container's init system. `lxc-init` is run as PID 1 to reap child
+      processes and to run *script*. The container is stopped when *script*
+      finishes.
 
 `ct set autostart` [*options*] *ctid*
   Start the container automatically when `osctld` starts or when its pool is

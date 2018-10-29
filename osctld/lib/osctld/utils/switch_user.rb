@@ -1,4 +1,5 @@
 require 'json'
+require 'tempfile'
 
 module OsCtld
   module Utils::SwitchUser
@@ -45,6 +46,31 @@ module OsCtld
         ] + args.map(&:to_s),
         env: Hash[ENV.select { |k,_v| k.start_with?('BUNDLE') || k.start_with?('GEM') }]
       }
+    end
+
+    def ct_runscript(ct, script)
+      tmp = Tempfile.create(['.runscript', '.sh'], ct.rootfs)
+      tmp.chmod(0500)
+
+      File.open(script, 'r') { |f| IO.copy_stream(f, tmp) }
+      tmp.close
+
+      ct_control(ct, ct.running? ? :ct_runscript_running : :ct_runscript_run, {
+        id: ct.id,
+        script: File.join('/', File.basename(tmp.path)),
+        stdin: client.recv_io,
+        stdout: client.recv_io,
+        stderr: client.recv_io,
+      })
+
+    ensure
+      tmp.close
+
+      begin
+        File.unlink(tmp.path)
+      rescue SystemCallError
+        # pass
+      end
     end
 
     # Run a command `cmd` within container `ct`

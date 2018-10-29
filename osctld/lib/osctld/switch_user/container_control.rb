@@ -150,6 +150,61 @@ module OsCtld
       ok(exitstatus: status.exitstatus)
     end
 
+    # Execute script in a running container
+    # @param opts [Hash]
+    # @option opts [String] :id container id
+    # @option opts [String] :script path to the script relative to the rootfs
+    # @option opts [IO] :stdin
+    # @option opts [IO] :stdout
+    # @option opts [IO] :stderr
+    def ct_runscript_running(opts)
+      pid = lxc_ct(opts[:id]).attach(
+        stdin: opts[:stdin],
+        stdout: opts[:stdout],
+        stderr: opts[:stderr]
+      ) do
+        setup_exec_env
+        LXC.run_command(opts[:script])
+      end
+
+      _, status = Process.wait2(pid)
+      ok(exitstatus: status.exitstatus)
+    end
+
+    # Execute command in a stopped container
+    # @param opts [Hash]
+    # @option opts [String] :id container id
+    # @option opts [String] :script path to the script relative to the rootfs
+    # @option opts [IO] :stdin
+    # @option opts [IO] :stdout
+    # @option opts [IO] :stderr
+    def ct_runscript_run(opts)
+      pid = Process.fork do
+        STDIN.reopen(opts[:stdin])
+        STDOUT.reopen(opts[:stdout])
+        STDERR.reopen(opts[:stderr])
+
+        setup_exec_env
+
+        cmd = [
+          'lxc-execute',
+          '-P', @lxc_home,
+          '-n', opts[:id],
+          '-o', @log_file,
+          '--',
+          opts[:script],
+        ]
+
+        # opts[:cmd] can contain an arbitrary command with multiple arguments
+        # and quotes, so the mapping to process arguments is not clear. We use
+        # the shell to handle this.
+        Process.exec("exec #{cmd.join(' ')}")
+      end
+
+      _, status = Process.wait2(pid)
+      ok(exitstatus: status.exitstatus)
+    end
+
     def veth_name(opts)
       ct = lxc_ct(opts[:id])
       ok(ct.running_config_item("lxc.net.#{opts[:index]}.veth.pair"))

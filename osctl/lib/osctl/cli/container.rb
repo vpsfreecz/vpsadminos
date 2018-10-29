@@ -464,6 +464,65 @@ tt
       end
     end
 
+    def runscript
+      require_args!('id', 'script')
+
+      c = osctld_open
+      cont = c.cmd_data!(
+        :ct_runscript,
+        id: args[0],
+        pool: gopts[:pool],
+        script: File.realpath(args[1]),
+        run: opts['run-container'],
+      )
+
+      if cont != 'continue'
+        warn "runscript not available: invalid response '#{cont}'"
+        exit(false)
+      end
+
+      r_in, w_in = IO.pipe
+      r_out, w_out = IO.pipe
+      r_err, w_err = IO.pipe
+
+      c.send_io(r_in)
+      c.send_io(w_out)
+      c.send_io(w_err)
+
+      r_in.close
+      w_out.close
+      w_err.close
+
+      loop do
+        rs, ws, = IO.select([STDIN, r_out, r_err, c.socket])
+
+        rs.each do |r|
+          case r
+          when r_out
+            data = r.read_nonblock(4096)
+            STDOUT.write(data)
+            STDOUT.flush
+
+          when r_err
+            data = r.read_nonblock(4096)
+            STDERR.write(data)
+            STDERR.flush
+
+          when STDIN
+            data = r.read_nonblock(4096)
+            w_in.write(data)
+
+          when c.socket
+            r_out.close
+            r_err.close
+
+            c.receive
+            return
+          end
+        end
+      end
+    end
+
     def su
       require_args!('id')
 

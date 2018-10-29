@@ -638,6 +638,15 @@ module OsCtl::Cli
           c.action &Command.run(Container, :exec)
         end
 
+        ct.desc 'Run script within the container'
+        ct.arg_name '<ctid> <script>'
+        ct.command %i(runscript) do |c|
+          c.desc "Run the container if it isn't running already"
+          c.switch %i(r run-container), negatable: false
+
+          c.action &Command.run(Container, :runscript)
+        end
+
         ct.desc "Get container's user's shell"
         ct.arg_name '<ctid>'
         ct.command :su do |su|
