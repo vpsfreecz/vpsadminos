@@ -29,13 +29,13 @@ module OsCtld
         ]
 
         if opts[:user_shell]
-          ok(ct_exec(ct, *base_args))
+          ok(ct_attach(ct, *base_args))
 
         else
           shell = find_shell(ct)
           next error('no supported shell located') unless shell
 
-          ok(ct_exec(
+          ok(ct_attach(
             ct,
             *base_args,
             '--keep-var', 'LANG',

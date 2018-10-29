@@ -415,6 +415,7 @@ tt
         pool: gopts[:pool],
         cmd: args[1..-1],
         run: opts['run-container'],
+        network: opts['network'],
       )
 
       if cont != 'continue'

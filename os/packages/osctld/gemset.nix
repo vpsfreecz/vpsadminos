@@ -43,37 +43,45 @@
     dependencies = ["require_all"];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1zjykb8g5xwdpimazjjdl46ca011zsxys4zjf6cnzkc103ifil8z";
+      sha256 = "1wxk9qhblf8rqydkdb0srb6y7mc027v060nsixdq2aav0q52r4lz";
       type = "gem";
     };
-    version = "18.09.0.build20181101083355";
+    version = "18.09.0.build20181101083416";
+  };
+  netlinkrb = {
+    source = {
+      remotes = ["https://rubygems.vpsfree.cz"];
+      sha256 = "0lhy9jdvwa9ywj63a7cvmiqx3nxccl7vllsawwmqrwaqgxnqc5ii";
+      type = "gem";
+    };
+    version = "0.18.vpsadminos.0";
   };
   osctl-repo = {
     dependencies = ["filelock" "gli" "json" "libosctl" "require_all"];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "16k2fg9dmsp1zq0b09nkcly1df96gnz5visyrisp1d1jkq945sv3";
+      sha256 = "1y98dc48fgcrh1pacimpz6fm6fbagkc1gsjhb5jc3camz26824bn";
       type = "gem";
     };
-    version = "18.09.0.build20181101083355";
+    version = "18.09.0.build20181101083416";
   };
   osctld = {
-    dependencies = ["concurrent-ruby" "ipaddress" "json" "libosctl" "osctl-repo" "osup" "require_all" "ruby-lxc"];
+    dependencies = ["concurrent-ruby" "ipaddress" "json" "libosctl" "netlinkrb" "osctl-repo" "osup" "require_all" "ruby-lxc"];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0dcp86hkmr4wzc0g9rifhga3c1iv5p0m5fny6kn2fqd7q9mhlk1b";
+      sha256 = "1czq8453fxibp6xk45gp6252gxrldnxlqrafgrcgq073d6lhjkdn";
       type = "gem";
     };
-    version = "18.09.0.build20181101083355";
+    version = "18.09.0.build20181101083416";
   };
   osup = {
     dependencies = ["gli" "json" "libosctl" "require_all"];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "00rzday5dyhjz9wiyq8m80k0kxl18id6m3s7gypvqa8lrm7gp34l";
+      sha256 = "0k2x38vpv30kn0kk6dz5iw93iwypkndnkv68r1cyfa7gbwd4g8k1";
       type = "gem";
     };
-    version = "18.09.0.build20181101083355";
+    version = "18.09.0.build20181101083416";
   };
   require_all = {
     source = {

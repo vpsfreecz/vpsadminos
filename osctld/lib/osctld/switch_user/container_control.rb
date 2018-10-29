@@ -150,6 +150,62 @@ module OsCtld
       ok(exitstatus: status.exitstatus)
     end
 
+    # Execute command in a stopped container with the network configured
+    #
+    # opts[:script] has to contain path to a script that will be executed by
+    # lxc-init. The purpose of this script is to keep the container running
+    # while the network is being configured and the user command is executed.
+    # The script has to write `ready\n` to standard output, then block on read
+    # from standard input and exit.
+    #
+    # @param opts [Hash]
+    # @option opts [String] :id container id
+    # @option opts [String] :script path to the script used to control the container
+    # @option opts [String] :cmd command to execute
+    # @option opts [IO] :stdin
+    # @option opts [IO] :stdout
+    # @option opts [IO] :stderr
+    def ct_exec_network(opts)
+      # Pipes for communicating with opts[:script]
+      in_r, in_w = IO.pipe
+      out_r, out_w = IO.pipe
+
+      # Start the container with lxc-init
+      init_pid = ct_runscript_run(
+        id: opts[:id],
+        script: opts[:script],
+        stdin: in_r,
+        stdout: out_w,
+        stderr: out_w,
+        close_fds: [in_w, out_r],
+        wait: false,
+      )
+
+      in_r.close
+      out_w.close
+
+      # Wait for the container to be started
+      if out_r.readline.strip == 'ready'
+        # Configure network
+        pid = lxc_ct(opts[:id]).attach do
+          setup_exec_env
+          opts[:net_config].setup
+        end
+
+        Process.wait2(pid)
+
+        # Execute user command
+        ct_exec_running(opts)
+      end
+
+      # Closing in_w will bring down opts[:script] and stop the container
+      in_w.close
+      out_r.close
+
+      _, status = Process.wait2(init_pid)
+      ok(exitstatus: status.exitstatus)
+    end
+
     # Execute script in a running container
     # @param opts [Hash]
     # @option opts [String] :id container id
@@ -178,11 +234,15 @@ module OsCtld
     # @option opts [IO] :stdin
     # @option opts [IO] :stdout
     # @option opts [IO] :stderr
+    # @option opts [Array<IO>] :close_fds
+    # @option opts [Boolean] :wait
     def ct_runscript_run(opts)
       pid = Process.fork do
         STDIN.reopen(opts[:stdin])
         STDOUT.reopen(opts[:stdout])
         STDERR.reopen(opts[:stderr])
+
+        opts[:close_fds] && opts[:close_fds].each { |fd| fd.close }
 
         setup_exec_env
 
@@ -201,8 +261,12 @@ module OsCtld
         Process.exec("exec #{cmd.join(' ')}")
       end
 
-      _, status = Process.wait2(pid)
-      ok(exitstatus: status.exitstatus)
+      if opts[:wait] === false
+        pid
+      else
+        _, status = Process.wait2(pid)
+        ok(exitstatus: status.exitstatus)
+      end
     end
 
     def veth_name(opts)

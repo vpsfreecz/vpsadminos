@@ -25,6 +25,7 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency 'json'
   s.add_runtime_dependency 'ipaddress', '~> 0.8.3'
   s.add_runtime_dependency 'libosctl', s.version
+  s.add_runtime_dependency 'netlinkrb', '0.18.vpsadminos.0'
   s.add_runtime_dependency 'osctl-repo', s.version
   s.add_runtime_dependency 'osup', s.version
   s.add_runtime_dependency 'require_all', '~> 2.0.0'

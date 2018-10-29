@@ -38,7 +38,7 @@ module OsCtld
       end
     end
 
-    def ct_exec(ct, *args)
+    def ct_attach(ct, *args)
       {
         cmd: [
           ::OsCtld.bin('osctld-ct-exec'), ct.user.sysusername, ct.user.ugid.to_s,
@@ -46,6 +46,53 @@ module OsCtld
         ] + args.map(&:to_s),
         env: Hash[ENV.select { |k,_v| k.start_with?('BUNDLE') || k.start_with?('GEM') }]
       }
+    end
+
+    def ct_exec(ct, opts)
+      if ct.running?
+        ct_control(ct, :ct_exec_running, {
+          id: ct.id,
+          cmd: opts[:cmd],
+          stdin: opts[:stdin],
+          stdout: opts[:stdout],
+          stderr: opts[:stderr],
+        })
+
+      elsif !ct.running? && opts[:network]
+        tmp = Tempfile.create(['.runscript', '.sh'], ct.rootfs)
+        tmp.chmod(0500)
+        tmp.puts('#!/bin/sh')
+        tmp.puts('echo ready')
+        tmp.puts('read _')
+        tmp.close
+
+        begin
+          ct_control(ct, :ct_exec_network, {
+            id: ct.id,
+            script: File.join('/', File.basename(tmp.path)),
+            net_config: NetConfig.create(ct),
+            cmd: opts[:cmd],
+            stdin: opts[:stdin],
+            stdout: opts[:stdout],
+            stderr: opts[:stderr],
+          })
+        ensure
+          begin
+            File.unlink(tmp.path)
+          rescue SystemCallError
+            # pass
+          end
+        end
+
+      else
+        ct_control(ct, :ct_exec_run, {
+          id: ct.id,
+          cmd: opts[:cmd],
+          stdin: opts[:stdin],
+          stdout: opts[:stdout],
+          stderr: opts[:stderr],
+        })
+      end
     end
 
     def ct_runscript(ct, script)

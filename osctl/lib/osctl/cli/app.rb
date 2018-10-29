@@ -635,6 +635,9 @@ module OsCtl::Cli
           c.desc "Run the container if it isn't running already"
           c.switch %i(r run-container), negatable: false
 
+          c.desc 'Configure network'
+          c.switch %i(n network), negatable: false
+
           c.action &Command.run(Container, :exec)
         end
 

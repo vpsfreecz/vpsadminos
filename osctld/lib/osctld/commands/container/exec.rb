@@ -16,13 +16,14 @@ module OsCtld
 
         client.send({status: true, response: 'continue'}.to_json + "\n", 0)
 
-        ct_control(ct, ct.running? ? :ct_exec_running : :ct_exec_run, {
-          id: ct.id,
+        ct_exec(
+          ct,
           cmd: opts[:cmd],
+          network: opts[:network],
           stdin: client.recv_io,
           stdout: client.recv_io,
           stderr: client.recv_io,
-        })
+        )
       end
     end
   end

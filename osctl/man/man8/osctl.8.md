@@ -655,6 +655,17 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       of the container's init system. `lxc-init` is run as PID 1 to reap child
       processes and to run *cmd*. The container is stopped when *cmd* finishes.
 
+    `-n`, `--network`
+      If the container is started using the `-r`, `--run-container` option,
+      configure the network before running *cmd*. Normally the network is
+      brought up by the container's init system, for which `osctld` generates
+      configuration files. Since `ct exec` does not use the container's init
+      system when starting the container, the network is by default not
+      configured.
+
+      Note that only static IP address and route configuration can be setup
+      in this way. DHCP client is not run.
+
 `ct runscript` [*options*] *ctid* *script*
   Execute *script* within the context of container *ctid*.
 
