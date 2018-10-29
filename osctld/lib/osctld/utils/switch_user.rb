@@ -59,17 +59,12 @@ module OsCtld
         })
 
       elsif !ct.running? && opts[:network]
-        tmp = Tempfile.create(['.runscript', '.sh'], ct.rootfs)
-        tmp.chmod(0500)
-        tmp.puts('#!/bin/sh')
-        tmp.puts('echo ready')
-        tmp.puts('read _')
-        tmp.close
+        init = init_script(ct)
 
         begin
           ct_control(ct, :ct_exec_network, {
             id: ct.id,
-            script: File.join('/', File.basename(tmp.path)),
+            init_script: File.join('/', File.basename(init.path)),
             net_config: NetConfig.create(ct),
             cmd: opts[:cmd],
             stdin: opts[:stdin],
@@ -77,11 +72,7 @@ module OsCtld
             stderr: opts[:stderr],
           })
         ensure
-          begin
-            File.unlink(tmp.path)
-          rescue SystemCallError
-            # pass
-          end
+          unlink_file(init.path)
         end
 
       else
@@ -95,29 +86,52 @@ module OsCtld
       end
     end
 
-    def ct_runscript(ct, script)
-      tmp = Tempfile.create(['.runscript', '.sh'], ct.rootfs)
-      tmp.chmod(0500)
+    def ct_runscript(ct, opts)
+      script = Tempfile.create(['.runscript', '.sh'], ct.rootfs)
+      script.chmod(0500)
 
-      File.open(script, 'r') { |f| IO.copy_stream(f, tmp) }
-      tmp.close
+      File.open(opts[:script], 'r') { |f| IO.copy_stream(f, script) }
+      script.close
 
-      ct_control(ct, ct.running? ? :ct_runscript_running : :ct_runscript_run, {
-        id: ct.id,
-        script: File.join('/', File.basename(tmp.path)),
-        stdin: client.recv_io,
-        stdout: client.recv_io,
-        stderr: client.recv_io,
-      })
+      if ct.running?
+        ct_control(ct, :ct_runscript_running, {
+          id: ct.id,
+          script: File.join('/', File.basename(script.path)),
+          stdin: opts[:stdin],
+          stdout: opts[:stdout],
+          stderr: opts[:stderr],
+        })
+
+      elsif !ct.running? && opts[:network]
+        init = init_script(ct)
+
+        begin
+          ct_control(ct, :ct_runscript_network, {
+            id: ct.id,
+            init_script: File.join('/', File.basename(init.path)),
+            net_config: NetConfig.create(ct),
+            script: File.join('/', File.basename(script.path)),
+            stdin: opts[:stdin],
+            stdout: opts[:stdout],
+            stderr: opts[:stderr],
+          })
+        ensure
+          unlink_file(init.path)
+        end
+
+      else
+        ct_control(ct, :ct_runscript_run, {
+          id: ct.id,
+          script: File.join('/', File.basename(script.path)),
+          stdin: opts[:stdin],
+          stdout: opts[:stdout],
+          stderr: opts[:stderr],
+        })
+      end
 
     ensure
-      tmp.close
-
-      begin
-        File.unlink(tmp.path)
-      rescue SystemCallError
-        # pass
-      end
+      script.close
+      unlink_file(script.path)
     end
 
     # Run a command `cmd` within container `ct`
@@ -162,6 +176,22 @@ module OsCtld
       end
 
       {output: out, exitstatus: ret[:output][:exitstatus]}
+    end
+
+    def init_script(ct)
+      f = Tempfile.create(['.runscript', '.sh'], ct.rootfs)
+      f.chmod(0500)
+      f.puts('#!/bin/sh')
+      f.puts('echo ready')
+      f.puts('read _')
+      f.close
+      f
+    end
+
+    def unlink_file(path)
+      File.unlink(path)
+    rescue SystemCallError
+      # pass
     end
   end
 end

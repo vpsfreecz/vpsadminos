@@ -675,6 +675,17 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       processes and to run *script*. The container is stopped when *script*
       finishes.
 
+    `-n`, `--network`
+      If the container is started using the `-r`, `--run-container` option,
+      configure the network before running *cmd*. Normally the network is
+      brought up by the container's init system, for which `osctld` generates
+      configuration files. Since `ct exec` does not use the container's init
+      system when starting the container, the network is by default not
+      configured.
+
+      Note that only static IP address and route configuration can be setup
+      in this way. DHCP client is not run.
+
 `ct set autostart` [*options*] *ctid*
   Start the container automatically when `osctld` starts or when its pool is
   imported.

@@ -475,6 +475,7 @@ tt
         pool: gopts[:pool],
         script: File.realpath(args[1]),
         run: opts['run-container'],
+        network: opts['network'],
       )
 
       if cont != 'continue'

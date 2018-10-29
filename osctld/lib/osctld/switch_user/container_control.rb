@@ -151,59 +151,21 @@ module OsCtld
     end
 
     # Execute command in a stopped container with the network configured
-    #
-    # opts[:script] has to contain path to a script that will be executed by
-    # lxc-init. The purpose of this script is to keep the container running
-    # while the network is being configured and the user command is executed.
-    # The script has to write `ready\n` to standard output, then block on read
-    # from standard input and exit.
-    #
     # @param opts [Hash]
     # @option opts [String] :id container id
-    # @option opts [String] :script path to the script used to control the container
+    # @option opts [String] :init_script path to the script used to control
+    #                                    the container
+    # @option opts [NetConfig] :net_config
     # @option opts [String] :cmd command to execute
     # @option opts [IO] :stdin
     # @option opts [IO] :stdout
     # @option opts [IO] :stderr
     def ct_exec_network(opts)
-      # Pipes for communicating with opts[:script]
-      in_r, in_w = IO.pipe
-      out_r, out_w = IO.pipe
-
-      # Start the container with lxc-init
-      init_pid = ct_runscript_run(
+      with_configured_network(
         id: opts[:id],
-        script: opts[:script],
-        stdin: in_r,
-        stdout: out_w,
-        stderr: out_w,
-        close_fds: [in_w, out_r],
-        wait: false,
-      )
-
-      in_r.close
-      out_w.close
-
-      # Wait for the container to be started
-      if out_r.readline.strip == 'ready'
-        # Configure network
-        pid = lxc_ct(opts[:id]).attach do
-          setup_exec_env
-          opts[:net_config].setup
-        end
-
-        Process.wait2(pid)
-
-        # Execute user command
-        ct_exec_running(opts)
-      end
-
-      # Closing in_w will bring down opts[:script] and stop the container
-      in_w.close
-      out_r.close
-
-      _, status = Process.wait2(init_pid)
-      ok(exitstatus: status.exitstatus)
+        init_script: opts[:init_script],
+        net_config: opts[:net_config],
+      ) { ct_exec_running(opts) }
     end
 
     # Execute script in a running container
@@ -267,6 +229,24 @@ module OsCtld
         _, status = Process.wait2(pid)
         ok(exitstatus: status.exitstatus)
       end
+    end
+
+    # Execute script in a stopped container
+    # @param opts [Hash]
+    # @option opts [String] :id container id
+    # @option opts [String] :init_script path to the script used to control
+    #                                    the container
+    # @option opts [NetConfig] :net_config
+    # @option opts [String] :script path to the script relative to the rootfs
+    # @option opts [IO] :stdin
+    # @option opts [IO] :stdout
+    # @option opts [IO] :stderr
+    def ct_runscript_network(opts)
+      with_configured_network(
+        id: opts[:id],
+        init_script: opts[:init_script],
+        net_config: opts[:net_config],
+      ) { ct_runscript_running(opts) }
     end
 
     def veth_name(opts)
@@ -369,6 +349,60 @@ module OsCtld
       ENV.delete_if { |k, _| k != 'TERM' }
       ENV['PATH'] = PATH.join(':')
       ENV['HOME'] = @user_home
+    end
+
+    # Start container with lxc-init, configure network and yield
+    #
+    # opts[:init_script] has to contain path to a script that will be executed
+    # by lxc-init. The purpose of this script is to keep the container running
+    # while the network is being configured and the user command is executed.
+    # The script has to write `ready\n` to standard output, then block on read
+    # from standard input and exit.
+    #
+    # @param opts [Hash]
+    # @option opts [String] :id container id
+    # @option opts [String] :init_script path to the script used to control
+    #                                    the container
+    # @option opts [NetConfig] :net_config
+    def with_configured_network(opts)
+      # Pipes for communicating with opts[:init_script]
+      in_r, in_w = IO.pipe
+      out_r, out_w = IO.pipe
+
+      # Start the container with lxc-init
+      init_pid = ct_runscript_run(
+        id: opts[:id],
+        script: opts[:init_script],
+        stdin: in_r,
+        stdout: out_w,
+        stderr: out_w,
+        close_fds: [in_w, out_r],
+        wait: false,
+      )
+
+      in_r.close
+      out_w.close
+
+      # Wait for the container to be started
+      if out_r.readline.strip == 'ready'
+        # Configure network
+        pid = lxc_ct(opts[:id]).attach do
+          setup_exec_env
+          opts[:net_config].setup
+        end
+
+        Process.wait2(pid)
+
+        # Execute user command
+        yield
+      end
+
+      # Closing in_w will bring down opts[:init_script] and stop the container
+      in_w.close
+      out_r.close
+
+      _, status = Process.wait2(init_pid)
+      ok(exitstatus: status.exitstatus)
     end
 
     def ok(out = nil)

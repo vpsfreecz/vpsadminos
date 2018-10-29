@@ -16,7 +16,14 @@ module OsCtld
 
         client.send({status: true, response: 'continue'}.to_json + "\n", 0)
 
-        ct_runscript(ct, opts[:script])
+        ct_runscript(
+          ct,
+          script: opts[:script],
+          network: opts[:network],
+          stdin: client.recv_io,
+          stdout: client.recv_io,
+          stderr: client.recv_io,
+        )
       end
     end
   end
