@@ -59,6 +59,8 @@ module OsCtld
         })
 
       elsif !ct.running? && opts[:network]
+        ct.mount
+
         init = init_script(ct)
 
         begin
@@ -103,6 +105,8 @@ module OsCtld
         })
 
       elsif !ct.running? && opts[:network]
+        ct.mount
+
         init = init_script(ct)
 
         begin
