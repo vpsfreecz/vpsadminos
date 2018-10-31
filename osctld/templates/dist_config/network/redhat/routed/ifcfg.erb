@@ -1,6 +1,7 @@
 DEVICE=<%= netif.name %>
 BOOTPROTO=static
 ONBOOT=yes
+DEFROUTE=no
 <% netif.active_ip_versions.each do |v| -%>
 <% if v == 4 -%>
 <% netif.ips(v).each_with_index do |addr, i| -%>
