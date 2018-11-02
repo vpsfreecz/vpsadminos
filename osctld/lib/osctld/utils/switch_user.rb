@@ -139,6 +139,15 @@ module OsCtld
     end
 
     # Run a command `cmd` within container `ct`
+    # @param ct [Container]
+    # @param cmd [String] command to execute in shell
+    # @param opts [Hash] options
+    # @option opts [IO] :stdin
+    # @option opts [IO] :stdout
+    # @option opts [IO] :stderr
+    # @option opts [Boolean] :run run the container if it is stopped?
+    # @option opts [Boolean] :network setup network if the container is run?
+    # @option opts [Array<Integer>, Symbol] :valid_rcs
     def ct_syscmd(ct, cmd, opts = {})
       opts[:valid_rcs] ||= []
       log(:work, ct, cmd)
@@ -155,7 +164,20 @@ module OsCtld
         in_r = opts[:stdin]
       end
 
-      ret = ct_control(ct, :ct_exec_running, {
+      if ct.running?
+        ct_cmd = :ct_exec_running
+
+      elsif opts[:run] && opts[:network]
+        ct_cmd = :ct_exec_network
+
+      elsif opts[:run]
+        ct_cmd = :ct_exec_run
+
+      else
+        raise OsCtld::SystemCommandFailed, 'Container is not running'
+      end
+
+      ret = ct_control(ct, ct_cmd, {
         id: ct.id,
         cmd: cmd,
         stdin: in_r,
