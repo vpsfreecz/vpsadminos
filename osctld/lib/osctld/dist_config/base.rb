@@ -75,6 +75,7 @@ module OsCtld
         ct,
         'chpasswd',
         stdin: "#{opts[:user]}:#{opts[:password]}\n",
+        run: true,
         valid_rcs: :all
       )
 

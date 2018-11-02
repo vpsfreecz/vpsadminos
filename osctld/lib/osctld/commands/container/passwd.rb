@@ -9,8 +9,6 @@ module OsCtld
       return error('container not found') unless ct
 
       ct.inclusively do
-        next error('container not running') if ct.state != :running
-
         ret = DistConfig.run(
           ct,
           :passwd,
