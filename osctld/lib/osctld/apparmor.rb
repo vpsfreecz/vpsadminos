@@ -110,6 +110,11 @@ module OsCtld
         name: profile_name,
         namespace: namespace,
         ct: ct,
+        all_combinations_of: ->(arr) do
+          ret = []
+          arr.count.times { |i| ret.concat(arr.combination(i+1).to_a) }
+          ret
+        end,
       }, profile_path)
     end
 

@@ -228,50 +228,19 @@ profile "<%= name %>" flags=(attach_disconnected,mediate_deleted) {
   mount options=(rw,bind,remount),
   mount options=(rw,rbind,remount),
 
-  mount options=(ro,bind,nodev,remount),
-  mount options=(ro,bind,noexec,remount),
-  mount options=(ro,bind,nosuid,remount),
-  mount options=(ro,bind,nodev,noexec,remount),
-  mount options=(ro,bind,nodev,nosuid,remount),
-  mount options=(ro,bind,noexec,nosuid,remount),
-  mount options=(ro,bind,nodev,noexec,nosuid,remount),
-  mount options=(rw,bind,nodev,remount),
-  mount options=(rw,bind,noexec,remount),
-  mount options=(rw,bind,nosuid,remount),
-  mount options=(rw,bind,nodev,noexec,remount),
-  mount options=(rw,bind,nodev,nosuid,remount),
-  mount options=(rw,bind,noexec,nosuid,remount),
-  mount options=(rw,bind,nodev,noexec,nosuid,remount),
+<% %w(ro rw).each do |mode| -%>
+<% %w(bind rbind).each do |bind| -%>
+<% all_combinations_of(%w(nodev noexec nosuid)).each do |v| -%>
+  mount options=(<%= mode %>,<%= bind %>,<%= v.join(',') %>,remount),
+<% end -%>
+<% end -%>
+<% end -%>
 
-  mount options=(ro,rbind,nodev,remount),
-  mount options=(ro,rbind,noexec,remount),
-  mount options=(ro,rbind,nosuid,remount),
-  mount options=(ro,rbind,nodev,noexec,remount),
-  mount options=(ro,rbind,nodev,nosuid,remount),
-  mount options=(ro,rbind,noexec,nosuid,remount),
-  mount options=(ro,rbind,nodev,noexec,nosuid,remount),
-  mount options=(rw,rbind,nodev,remount),
-  mount options=(rw,rbind,noexec,remount),
-  mount options=(rw,rbind,nosuid,remount),
-  mount options=(rw,rbind,nodev,noexec,remount),
-  mount options=(rw,rbind,nodev,nosuid,remount),
-  mount options=(rw,rbind,noexec,nosuid,remount),
-  mount options=(rw,rbind,nodev,noexec,nosuid,remount),
-
-  mount options=(ro,nodev,remount),
-  mount options=(ro,noexec,remount),
-  mount options=(ro,nosuid,remount),
-  mount options=(ro,nodev,noexec,remount),
-  mount options=(ro,nodev,nosuid,remount),
-  mount options=(ro,noexec,nosuid,remount),
-  mount options=(ro,nodev,noexec,nosuid,remount),
-  mount options=(rw,nodev,remount),
-  mount options=(rw,noexec,remount),
-  mount options=(rw,nosuid,remount),
-  mount options=(rw,nodev,noexec,remount),
-  mount options=(rw,nodev,nosuid,remount),
-  mount options=(rw,noexec,nosuid,remount),
-  mount options=(rw,nodev,noexec,nosuid,remount),
+<% %w(ro rw).each do |mode| -%>
+<% all_combinations_of(%w(nodev noexec nosuid)).each do |v| -%>
+  mount options=(<%= mode %>,<%= v.join(',') %>,remount),
+<% end -%>
+<% end -%>
 
   # Wanted for /dev remounts
   mount options=(rw,nosuid,silent,remount),
