@@ -136,6 +136,7 @@ module OsCtld
           '-P', @lxc_home,
           '-n', opts[:id],
           '-o', @log_file,
+          '-s', "lxc.environment=PATH=#{PATH.join(':')}",
           '--',
           opts[:cmd],
         ]
@@ -213,6 +214,7 @@ module OsCtld
           '-P', @lxc_home,
           '-n', opts[:id],
           '-o', @log_file,
+          '-s', "lxc.environment=PATH=#{PATH.join(':')}",
           '--',
           opts[:script],
         ]
