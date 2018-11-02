@@ -279,6 +279,9 @@ profile "<%= name %>" flags=(attach_disconnected,mediate_deleted) {
   mount options=(rw,nosuid,strictatime,remount),
   mount options=(ro,nosuid,noexec,strictatime,remount),
 
+  # NixOS /run & /dev/shm
+  mount options=(rw,nosuid,nodev,strictatime,remount),
+
   # Allow changing of proc.hidepid
   mount options=(rw,nosuid,nodev,noexec,relatime,remount),
 
