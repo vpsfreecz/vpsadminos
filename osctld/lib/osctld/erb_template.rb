@@ -29,7 +29,11 @@ module OsCtld
       @_tpl = ERB.new(File.new(OsCtld.tpl(name)).read, 0, '-')
 
       vars.each do |k, v|
-        define_singleton_method(k) { v }
+        if v.is_a?(Proc)
+          define_singleton_method(k, &v)
+        else
+          define_singleton_method(k) { v }
+        end
       end
     end
 
