@@ -423,46 +423,7 @@ tt
         exit(false)
       end
 
-      r_in, w_in = IO.pipe
-      r_out, w_out = IO.pipe
-      r_err, w_err = IO.pipe
-
-      c.send_io(r_in)
-      c.send_io(w_out)
-      c.send_io(w_err)
-
-      r_in.close
-      w_out.close
-      w_err.close
-
-      loop do
-        rs, ws, = IO.select([STDIN, r_out, r_err, c.socket])
-
-        rs.each do |r|
-          case r
-          when r_out
-            data = r.read_nonblock(4096)
-            STDOUT.write(data)
-            STDOUT.flush
-
-          when r_err
-            data = r.read_nonblock(4096)
-            STDERR.write(data)
-            STDERR.flush
-
-          when STDIN
-            data = r.read_nonblock(4096)
-            w_in.write(data)
-
-          when c.socket
-            r_out.close
-            r_err.close
-
-            c.receive
-            return
-          end
-        end
-      end
+      handle_exec_io(c)
     end
 
     def runscript
@@ -483,46 +444,7 @@ tt
         exit(false)
       end
 
-      r_in, w_in = IO.pipe
-      r_out, w_out = IO.pipe
-      r_err, w_err = IO.pipe
-
-      c.send_io(r_in)
-      c.send_io(w_out)
-      c.send_io(w_err)
-
-      r_in.close
-      w_out.close
-      w_err.close
-
-      loop do
-        rs, ws, = IO.select([STDIN, r_out, r_err, c.socket])
-
-        rs.each do |r|
-          case r
-          when r_out
-            data = r.read_nonblock(4096)
-            STDOUT.write(data)
-            STDOUT.flush
-
-          when r_err
-            data = r.read_nonblock(4096)
-            STDERR.write(data)
-            STDERR.flush
-
-          when STDIN
-            data = r.read_nonblock(4096)
-            w_in.write(data)
-
-          when c.socket
-            r_out.close
-            r_err.close
-
-            c.receive
-            return
-          end
-        end
-      end
+      handle_exec_io(c)
     end
 
     def su
@@ -1296,6 +1218,63 @@ tt
         false
       else
         v
+      end
+    end
+
+    def handle_exec_io(c)
+      r_in, w_in = IO.pipe
+      r_out, w_out = IO.pipe
+      r_err, w_err = IO.pipe
+
+      c.send_io(r_in)
+      c.send_io(w_out)
+      c.send_io(w_err)
+
+      r_in.close
+      w_out.close
+      w_err.close
+
+      loop do
+        rs, ws, = IO.select([STDIN, r_out, r_err, c.socket])
+
+        rs.each do |r|
+          case r
+          when r_out
+            data = r.read_nonblock(4096)
+            STDOUT.write(data)
+            STDOUT.flush
+
+          when r_err
+            data = r.read_nonblock(4096)
+            STDERR.write(data)
+            STDERR.flush
+
+          when STDIN
+            data = r.read_nonblock(4096)
+            w_in.write(data)
+
+          when c.socket
+            r_out.close
+            r_err.close
+
+            handle_exec_response(c)
+            return
+          end
+        end
+      end
+
+    rescue IOError
+      handle_exec_response(c)
+    end
+
+    def handle_exec_response(c)
+      resp = c.receive_resp
+
+      if resp.error?
+        fail (resp['message'] || 'exec failed')
+
+      elsif resp[:exitstatus] && resp[:exitstatus] > 0
+        raise GLI::CustomExit.new('executed command failed', resp[:exitstatus])
       end
     end
   end
