@@ -18,6 +18,7 @@ and a squashfs root while reusing packages and some modules from
 * Documentation: <https://vpsadminos.org/>
 * Man pages: <https://man.vpsadminos.org/>
 * Code reference: <https://ref.vpsadminos.org/>
+* ISO images: <https://iso.vpsadminos.org/>
 
 ## Technologies
 

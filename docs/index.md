@@ -44,3 +44,4 @@ appropriate user namespaces.
 * Git: <https://github.com/vpsfreecz/vpsadminos>
 * Man pages: <https://man.vpsadminos.org/>
 * Code reference: <https://ref.vpsadminos.org/>
+* ISO images: <https://iso.vpsadminos.org/>
