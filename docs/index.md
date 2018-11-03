@@ -11,10 +11,11 @@ and NixOS.
 vpsAdminOS was designed for purposes of [vpsFree.cz](https://vpsfree.org),
 a non-profit association that provides virtual servers to its members. We were
 using OpenVZ Legacy since 2009, but needed to upgrade to a newer kernel,
-as modern Linux distributions stopped supporting the OpenVZ kernel. We seemed to
-have different needs than what LXC/LXD provided, so decided to create our custom
-toolset to manage the containers to bring us closer to the experience of OpenVZ
-on newer kernels. vpsAdminOS is built on:
+as modern Linux distributions stopped supporting the OpenVZ Legacy kernel.
+We didn't like the new OpenVZ 7 and seemed to have different needs than what
+LXC/LXD provided, so we decided to create our custom toolset to manage
+the containers to bring us closer to the experience of OpenVZ on upstream
+kernels. vpsAdminOS is built on:
 
 - Upstream kernel with [several patches](https://github.com/vpsfreecz/vpsadminos/blob/master/os/packages/linux/default.nix)
 - AppArmor
