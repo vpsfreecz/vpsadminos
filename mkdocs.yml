@@ -32,6 +32,8 @@ pages:
     - Runlevels: 'os/runlevels.md'
     - Pools: 'os/pools.md'
     - Shell history: 'os/shell-history.md'
+- Services:
+    - Docker: 'services/docker.md'
 - Migration Paths:
     - Converter: 'migration-paths/converter.md'
     - OpenVZ Legacy: 'migration-paths/openvz-legacy.md'
