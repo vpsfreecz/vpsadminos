@@ -1,9 +1,14 @@
 # What is vpsAdminOS
 vpsAdminOS is a lightweight operating system that serves as a hypervisor
-for unprivileged Linux system containers. Running application containers is not
-our goal. vpsAdminOS is purely a *live* distribution. It does not install
-on disk, there's no system state stored anywhere. It's usually booted via
-network using PXE.
+for unprivileged Linux system containers. System containers run the entire
+userspace part of a Linux system and should look and feel like a virtual
+machine. You can create a container with many distributions, such as CentOS,
+Debian, Ubuntu and of course NixOS. Running application containers like Docker
+is not one of our goals, because they can be run inside the system containers.
+
+vpsAdminOS is intended to be used as a *live* distribution and to boot via
+network using PXE. For use-cases where booting over network is not practical, it
+can also be installed on disk.
 
 # Architecture
 vpsAdminOS is built on top of [Nix], [NixOS] and [nixpkgs]. Nix is a package
