@@ -96,9 +96,8 @@ man osctl
 containers containers into vpsAdminOS. See the
 [documentation](https://vpsadminos.org/migration-paths/converter/).
 
-### Nested containers
-
-To allow nesting, you need to explicitly configure it per container:
+### Nested LXC/LXD containers
+Nested LXC/LXD containers can be enabled per container:
 
 ```
 osctl ct set nesting <id>
