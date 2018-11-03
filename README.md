@@ -22,7 +22,7 @@ and a squashfs root while reusing packages and some modules from
 
 ## Technologies
 
-- Vanilla kernel
+- Upstream kernel with [several patches](os/packages/linux/default.nix)
 - AppArmor
 - LXC, LXCFS
 - CRIU
