@@ -103,6 +103,17 @@ Nested LXC/LXD containers can be enabled per container:
 osctl ct set nesting <id>
 ```
 
+### Docker
+Docker within containers works with a modified seccomp profile:
+
+```
+osctl ct set seccomp <id> /etc/lxc/config/common.seccomp
+```
+
+Then you can install the latest Docker version within container `<id>` by
+following the manual, e.g.
+<https://docs.docker.com/install/linux/docker-ce/ubuntu/>.
+
 ## Building specific targets
 
 ```
