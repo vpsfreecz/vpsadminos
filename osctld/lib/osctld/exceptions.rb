@@ -78,4 +78,26 @@ module OsCtld
       super("unable to upgrade pool #{pool}: #{exception.message}")
     end
   end
+
+  class ResourceLocked < StandardError
+    attr_reader :resource, :holder
+
+    def initialize(resource, holder)
+      @resource = resource
+      @holder = holder
+
+      resource_ident = ['resource', resource.class.name]
+      holder_ident = holder.class.name
+
+      if resource.respond_to?(:manipulation_resource)
+        resource_ident = resource.manipulation_resource
+      end
+
+      if holder.respond_to?(:manipulation_holder)
+        holder_ident = holder.manipulation_holder
+      end
+
+      super("#{resource_ident[0]} #{resource_ident[1]} is held by #{holder_ident}")
+    end
+  end
 end

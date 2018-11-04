@@ -155,7 +155,7 @@ module OsCtld
           reply_error(ret[:message])
         end
 
-      rescue CommandFailed => e
+      rescue CommandFailed, ResourceLocked => e
         reply_error(e.message)
 
       rescue => err

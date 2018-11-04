@@ -3,6 +3,12 @@ require 'thread'
 module OsCtld
   # This module adds support for inclusive/exclusive object locking.
   #
+  # {Lockable} should be used for synchronization of osctld state. The locks
+  # should be held only for a short time to read/modify the state.
+  # Use {Manipulable} for long operations that require locking. Ideally, the
+  # included methods should be treated as protected, i.e. should not be used
+  # from the outside.
+  #
   # Before the locks can be used, `init_lock()` has to be called. Locks can then
   # be acquired using `lock()` and released using `unlock()`. You can also use
   # `inclusively()` and `exclusively()` to execute a block within the lock.

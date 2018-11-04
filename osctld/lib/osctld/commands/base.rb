@@ -74,6 +74,42 @@ module OsCtld
       ret
     end
 
+    # @param manipulable [Object, Array<Object>]
+    # @yield [] block called with the lock held
+    def manipulate(manipulable, &codeblock)
+      block = opts[:manipulation_lock] == 'wait'
+
+      if opts[:manipulation_lock] == 'ignore'
+        codeblock.call
+
+      elsif manipulable.is_a?(Array)
+        locked = []
+
+        # Acquire all locks
+        begin
+          manipulable.each do |m|
+            m.acquire_manipulation_lock(self, block: block) || (fail 'unable to lock')
+            locked << m
+          end
+
+        rescue ResourceLocked
+          locked.reverse_each(&:release_manipulation_lock)
+          raise
+        end
+
+        # Call the block and release locks
+        begin
+          codeblock.call
+
+        ensure
+          locked.reverse_each(&:release_manipulation_lock)
+        end
+
+      else
+        manipulable.manipulate(self, block: block, &codeblock)
+      end
+    end
+
     def ok(resp = nil)
       {status: true, output: resp}
     end
