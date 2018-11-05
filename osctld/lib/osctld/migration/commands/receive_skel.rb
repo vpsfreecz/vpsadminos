@@ -23,9 +23,6 @@ module OsCtld
 
       if data['type'] != 'skel'
         error!("expected archive type to be 'skel', got '#{data['type']}'")
-
-      elsif DB::Containers.find(data['container'], pool)
-        error!("container #{pool.name}:#{data['container']} already exists")
       end
 
       ct = importer.load_ct(ct_opts: {staged: true, devices: false})
@@ -43,6 +40,10 @@ module OsCtld
           error!(e.message)
         end
 
+        unless builder.register
+          error!("container #{pool.name}:#{ct.id} already exists")
+        end
+
         ct.devices.init
 
         importer.create_datasets(builder)
@@ -54,7 +55,7 @@ module OsCtld
         builder.setup_log_file
         builder.setup_user_hook_script_dir
         importer.install_user_hook_scripts(ct)
-        builder.register
+        builder.monitor
 
         if ct.netifs.any?
           progress('Reconfiguring LXC usernet')

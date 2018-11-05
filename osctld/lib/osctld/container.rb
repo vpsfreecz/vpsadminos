@@ -46,6 +46,7 @@ module OsCtld
       @dataset = dataset
       @state = opts[:staged] ? :staged : :unknown
       @init_pid = nil
+      @netifs = []
       @cgparams = nil
       @devices = nil
       @prlimits = []

@@ -45,18 +45,20 @@ module OsCtld
       builder = Container::Builder.new(new_ct, cmd: self)
       error!(builder.errors.join('; ')) unless builder.valid?
 
-      ct.exclusively do
-        new_ct.exclusively do
-          copy_datasets_from(builder, ct)
-          new_ct.save_config
-          builder.setup_ct_dir
-          builder.setup_lxc_home
-          builder.setup_lxc_configs
-          builder.setup_log_file
-          builder.setup_user_hook_script_dir
-          builder.register
-          new_ct.state = :complete
+      manipulate([ct, new_ct]) do
+        unless builder.register
+          error!("container #{new_ct.pool.name}:#{new_ct.id} already exists")
         end
+
+        copy_datasets_from(builder, ct)
+        new_ct.save_config
+        builder.setup_ct_dir
+        builder.setup_lxc_home
+        builder.setup_lxc_configs
+        builder.setup_log_file
+        builder.setup_user_hook_script_dir
+        builder.monitor
+        new_ct.state = :complete
       end
 
       call_cmd(Commands::User::LxcUsernet)

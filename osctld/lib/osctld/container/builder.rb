@@ -290,8 +290,17 @@ module OsCtld
     end
 
     def register
-      progress('Registering container')
-      DB::Containers.add(ct)
+      DB::Containers.sync do
+        if DB::Containers.contains?(ct.id, ct.pool)
+          false
+        else
+          DB::Containers.add(ct)
+          true
+        end
+      end
+    end
+
+    def monitor
       Monitor::Master.monitor(ct)
     end
 

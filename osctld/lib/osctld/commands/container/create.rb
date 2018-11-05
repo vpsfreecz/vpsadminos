@@ -56,7 +56,7 @@ module OsCtld
 
     def execute(builder)
       manipulate(builder.ct) do
-        error!('container already exists') if builder.exist?
+        error!('container already exists') unless builder.register
 
         if opts[:dataset]
           custom_dataset(builder)
@@ -73,7 +73,7 @@ module OsCtld
         builder.setup_lxc_configs
         builder.setup_log_file
         builder.setup_user_hook_script_dir
-        builder.register
+        builder.monitor
 
         ok
       end
