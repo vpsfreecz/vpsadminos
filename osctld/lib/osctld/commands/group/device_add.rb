@@ -13,7 +13,7 @@ module OsCtld
     end
 
     def execute(grp)
-      grp.exclusively do
+      manipulate(grp) do
         add(grp, grp.root? ? nil : grp.parent)
       end
     end

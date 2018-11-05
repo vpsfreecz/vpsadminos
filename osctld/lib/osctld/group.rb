@@ -1,15 +1,18 @@
 require 'osctld/lockable'
+require 'osctld/manipulable'
 require 'osctld/assets/definition'
 
 module OsCtld
   class Group
     include Lockable
+    include Manipulable
     include Assets::Definition
 
     attr_reader :pool, :name, :cgparams, :devices, :attrs
 
     def initialize(pool, name, load: true, config: nil, devices: true, root: false)
       init_lock
+      init_manipulable
       @pool = pool
       @name = name
       @root = root
@@ -253,6 +256,10 @@ module OsCtld
 
     def log_type
       "group=#{pool.name}:#{name}"
+    end
+
+    def manipulation_resource
+      ['group', "#{pool.name}:#{name}"]
     end
 
     def save_config

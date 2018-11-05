@@ -13,7 +13,7 @@ module OsCtld
     end
 
     def execute(grp)
-      grp.exclusively do
+      manipulate(grp) do
         dev = grp.devices.find(opts[:type].to_sym, opts[:major], opts[:minor])
         error!('device not found') unless dev
 

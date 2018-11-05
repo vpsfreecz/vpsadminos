@@ -13,7 +13,7 @@ module OsCtld
     end
 
     def execute(grp)
-      grp.exclusively do
+      manipulate(grp) do
         promote(grp)
       end
     end

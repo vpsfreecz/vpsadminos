@@ -37,7 +37,7 @@ module OsCtld
     end
 
     def execute(grp)
-      grp.exclusively do
+      manipulate(grp) do
         # Create parent groups
         if opts[:parents]
           t = ''

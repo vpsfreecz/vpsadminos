@@ -13,7 +13,7 @@ module OsCtld
     end
 
     def execute(grp)
-      grp.exclusively do
+      manipulate(grp) do
         error!('the root group cannot inherit devices') if grp.root?
 
         inherit(grp)

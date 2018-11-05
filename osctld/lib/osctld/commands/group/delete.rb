@@ -13,7 +13,7 @@ module OsCtld
     end
 
     def execute(grp)
-      DB::Groups.sync do
+      manipulate(grp) do
         grp.exclusively do
           # Double-check user's containers, for only within the lock
           # can we be sure

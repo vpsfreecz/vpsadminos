@@ -10,7 +10,7 @@ module OsCtld
     end
 
     def execute(grp)
-      grp.exclusively do
+      manipulate(grp) do
         changes = {}
 
         opts.each do |k, v|
