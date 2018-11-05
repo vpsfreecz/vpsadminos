@@ -14,7 +14,7 @@ module OsCtld
     end
 
     def execute(ct)
-      ct.exclusively do
+      manipulate(ct) do
         progress('Stopping container') if opts[:progress].nil? || opts[:progress]
 
         case (opts[:method] || 'shutdown_or_kill')

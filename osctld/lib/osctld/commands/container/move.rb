@@ -12,24 +12,26 @@ module OsCtld
     def execute(ct)
       state = ct.exclusively { ct.state }
 
-      call_cmd!(
-        Commands::Container::Copy,
-        opts.merge(consistent: true, restart: false)
-      )
+      manipulate(ct) do
+        call_cmd!(
+          Commands::Container::Copy,
+          opts.merge(consistent: true, restart: false)
+        )
 
-      call_cmd!(
-        Commands::Container::Start,
-          id: opts[:target_id],
-          pool: opts[:target_pool] || ct.pool.name,
+        call_cmd!(
+          Commands::Container::Start,
+            id: opts[:target_id],
+            pool: opts[:target_pool] || ct.pool.name,
+            force: true,
+        ) if state == :running
+
+        call_cmd!(
+          Commands::Container::Delete,
+          id: opts[:id],
+          pool: opts[:pool],
           force: true,
-      ) if state == :running
-
-      call_cmd!(
-        Commands::Container::Delete,
-        id: opts[:id],
-        pool: opts[:pool],
-        force: true,
-      )
+        )
+      end
     end
   end
 end

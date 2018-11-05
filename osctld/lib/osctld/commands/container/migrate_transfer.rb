@@ -14,57 +14,59 @@ module OsCtld
       error!('container not found') unless ct
       running = false
 
-      ct.exclusively do
-        if !ct.migration_log || !ct.migration_log.can_continue?(:incremental)
-          error!('invalid migration sequence')
+      manipulate(ct) do
+        ct.exclusively do
+          if !ct.migration_log || !ct.migration_log.can_continue?(:incremental)
+            error!('invalid migration sequence')
+          end
+
+          running = ct.state == :running
+          call_cmd(Commands::Container::Stop, id: ct.id, pool: ct.pool.name)
         end
 
-        running = ct.state == :running
-        call_cmd(Commands::Container::Stop, id: ct.id, pool: ct.pool.name)
-      end
+        snap = "osctl-migrate-incr-#{Time.now.to_i}"
+        zfs(:snapshot, '-r', "#{ct.dataset}@#{snap}")
 
-      snap = "osctl-migrate-incr-#{Time.now.to_i}"
-      zfs(:snapshot, '-r', "#{ct.dataset}@#{snap}")
-
-      ct.exclusively do
-        ct.migration_log.snapshots << snap
-        ct.save_config
-      end
-
-      progress("Syncing #{ct.dataset.relative_name}")
-      send_dataset(ct, ct.dataset, snap)
-
-      ct.dataset.descendants.each do |ds|
-        progress("Syncing #{ds.relative_name}")
-        send_dataset(ct, ds, snap)
-      end
-
-      ct.exclusively do
-        ct.migration_log.state = :incremental
-        ct.save_config
-
-        if !ct.migration_log.can_continue?(:transfer)
-          error!('invalid migration sequence')
+        ct.exclusively do
+          ct.migration_log.snapshots << snap
+          ct.save_config
         end
-      end
 
-      progress('Starting on the target node')
-      ret = system(
-        *migrate_ssh_cmd(
-          ct.pool.migration_key_chain,
-          ct.migration_log.opts,
-          ['receive', 'transfer', ct.id] + (running ? ['start'] : [])
+        progress("Syncing #{ct.dataset.relative_name}")
+        send_dataset(ct, ct.dataset, snap)
+
+        ct.dataset.descendants.each do |ds|
+          progress("Syncing #{ds.relative_name}")
+          send_dataset(ct, ds, snap)
+        end
+
+        ct.exclusively do
+          ct.migration_log.state = :incremental
+          ct.save_config
+
+          if !ct.migration_log.can_continue?(:transfer)
+            error!('invalid migration sequence')
+          end
+        end
+
+        progress('Starting on the target node')
+        ret = system(
+          *migrate_ssh_cmd(
+            ct.pool.migration_key_chain,
+            ct.migration_log.opts,
+            ['receive', 'transfer', ct.id] + (running ? ['start'] : [])
+          )
         )
-      )
 
-      error!('transfer failed') if ret.nil? || $?.exitstatus != 0
+        error!('transfer failed') if ret.nil? || $?.exitstatus != 0
 
-      ct.exclusively do
-        ct.migration_log.state = :transfer
-        ct.save_config
+        ct.exclusively do
+          ct.migration_log.state = :transfer
+          ct.save_config
+        end
+
+        ok
       end
-
-      ok
     end
 
     protected

@@ -11,7 +11,7 @@ module OsCtld
     end
 
     def execute(ct)
-      ct.exclusively do
+      manipulate(ct) do
         if ct.state != :stopped
           error!('the container must be stopped to change network interface')
         end

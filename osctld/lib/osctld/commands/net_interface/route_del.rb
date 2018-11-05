@@ -18,7 +18,7 @@ module OsCtld
       netif || error!('network interface not found')
       netif.type == :routed || error!('not a routed interface')
 
-      ct.exclusively do
+      manipulate(ct) do
         if opts[:addr] == 'all'
           netif.del_all_routes(opts[:version] && opts[:version].to_i)
 

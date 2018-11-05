@@ -8,7 +8,7 @@ module OsCtld
       ct = DB::Containers.find(opts[:id], opts[:pool])
       return error('container not found') unless ct
 
-      ct.exclusively do
+      manipulate(ct) do
         ds = OsCtl::Lib::Zfs::Dataset.new(
           File.join(ct.dataset.name, opts[:name]),
           base: ct.dataset.name

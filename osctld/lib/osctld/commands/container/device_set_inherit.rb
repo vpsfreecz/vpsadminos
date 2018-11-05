@@ -13,9 +13,7 @@ module OsCtld
     end
 
     def execute(ct)
-      ct.exclusively do
-        set_inherit(ct)
-      end
+      manipulate(ct) { set_inherit(ct) }
     end
   end
 end

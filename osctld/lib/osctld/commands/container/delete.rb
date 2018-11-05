@@ -24,7 +24,7 @@ module OsCtld
       # uses inclusive lock, which would result in a deadlock
       Monitor::Master.demonitor(ct)
 
-      ct.exclusively do
+      manipulate(ct) do
         stop = call_cmd(Commands::Container::Stop, id: ct.id)
 
         progress('Stopping container')

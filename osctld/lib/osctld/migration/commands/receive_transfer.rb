@@ -13,7 +13,7 @@ module OsCtld
       error!('container not found') unless ct
       error!('the pool is disabled') unless ct.pool.active?
 
-      ct.exclusively do
+      ct.manipulate(self, block: true) do
         error!('this container is not staged') if ct.state != :staged
 
         if !ct.migration_log || !ct.migration_log.can_continue?(:transfer)

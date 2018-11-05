@@ -13,7 +13,7 @@ module OsCtld
       klass = NetInterface.for(opts[:type].to_sym)
       return error("'#{opts[:type]}' is not supported") unless klass
 
-      ret = ct.exclusively do
+      ret = manipulate(ct) do
         if ct.state != :stopped
           next error('the container must be stopped to add network interface')
 

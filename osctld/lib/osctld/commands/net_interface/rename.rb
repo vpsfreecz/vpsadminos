@@ -10,7 +10,7 @@ module OsCtld
     end
 
     def execute(ct)
-      ct.exclusively do
+      manipulate(ct) do
         if ct.state != :stopped
           next error('the container must be stopped to rename network interface')
         end

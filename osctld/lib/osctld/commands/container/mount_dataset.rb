@@ -10,7 +10,7 @@ module OsCtld
     end
 
     def execute(ct)
-      ct.exclusively do
+      manipulate(ct) do
         ds = OsCtl::Lib::Zfs::Dataset.new(
           File.join(ct.dataset.name, opts[:name]),
           base: ct.dataset.name

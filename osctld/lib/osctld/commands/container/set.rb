@@ -10,7 +10,7 @@ module OsCtld
     end
 
     def execute(ct)
-      ct.exclusively do
+      manipulate(ct) do
         changes = {}
 
         %i(autostart hostname dns_resolvers nesting distribution

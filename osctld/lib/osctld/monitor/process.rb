@@ -106,19 +106,17 @@ module OsCtld
 
       Eventd.report(:state, pool: ct.pool.name, id: ct.id, state: change[:state])
 
-      ct.inclusively do
-        ct.state = change[:state]
+      ct.state = change[:state]
 
-        case ct.state
-        when :running
-          ret = ct_control(ct, :ct_status, ids: [ct.id])
-          ct.init_pid = ret[:output][ct.id.to_sym][:init_pid] if ret[:status]
+      case ct.state
+      when :running
+        ret = ct_control(ct, :ct_status, ids: [ct.id])
+        ct.init_pid = ret[:output][ct.id.to_sym][:init_pid] if ret[:status]
 
-          Container::Hook.run(ct, :post_start, init_pid: ct.init_pid)
+        Container::Hook.run(ct, :post_start, init_pid: ct.init_pid)
 
-        when :stopping
-          Container::Hook.run(ct, :on_stop)
-        end
+      when :stopping
+        Container::Hook.run(ct, :on_stop)
       end
     end
   end

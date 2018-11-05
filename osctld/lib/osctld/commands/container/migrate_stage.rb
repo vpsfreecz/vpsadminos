@@ -11,7 +11,7 @@ module OsCtld
       ct = DB::Containers.find(opts[:id], opts[:pool])
       error!('container not found') unless ct
 
-      ct.exclusively do
+      manipulate(ct) do
         next error('this container is already being migrated') if ct.migration_log
 
         f = Tempfile.open("ct-#{ct.id}-skel")

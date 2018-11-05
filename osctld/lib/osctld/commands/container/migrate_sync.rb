@@ -12,28 +12,30 @@ module OsCtld
       ct = DB::Containers.find(opts[:id], opts[:pool])
       error!('container not found') unless ct
 
-      ct.exclusively do
-        if !ct.migration_log || !ct.migration_log.can_continue?(:base)
-          error!('invalid migration sequence')
+      manipulate(ct) do
+        ct.exclusively do
+          if !ct.migration_log || !ct.migration_log.can_continue?(:base)
+            error!('invalid migration sequence')
+          end
         end
-      end
 
-      snap = "osctl-migrate-base-#{Time.now.to_i}"
-      zfs(:snapshot, '-r', "#{ct.dataset}@#{snap}")
+        snap = "osctl-migrate-base-#{Time.now.to_i}"
+        zfs(:snapshot, '-r', "#{ct.dataset}@#{snap}")
 
-      ct.exclusively do
-        ct.migration_log.snapshots << snap
-        ct.save_config
-      end
+        ct.exclusively do
+          ct.migration_log.snapshots << snap
+          ct.save_config
+        end
 
-      send_dataset(ct, ct.dataset, snap)
-      ct.dataset.descendants.each do |ds|
-        send_dataset(ct, ds, snap)
-      end
+        send_dataset(ct, ct.dataset, snap)
+        ct.dataset.descendants.each do |ds|
+          send_dataset(ct, ds, snap)
+        end
 
-      ct.exclusively do
-        ct.migration_log.state = :base
-        ct.save_config
+        ct.exclusively do
+          ct.migration_log.state = :base
+          ct.save_config
+        end
       end
 
       ok

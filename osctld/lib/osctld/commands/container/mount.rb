@@ -8,10 +8,7 @@ module OsCtld
       ct = DB::Containers.find(opts[:id], opts[:pool])
       error!('container not found') unless ct
 
-      ct.exclusively do
-        ct.mount(force: true)
-      end
-
+      manipulate(ct) { ct.mount(force: true) }
       ok
     end
   end

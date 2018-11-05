@@ -11,7 +11,7 @@ module OsCtld
       ct = DB::Containers.find(opts[:id], opts[:pool])
       error!('container not found') unless ct
 
-      ct.exclusively do
+      ct.manipulate(self, block: true) do
         error!('this container is not staged') if ct.state != :staged
 
         if !ct.migration_log || !ct.migration_log.can_continue?(:cancel)

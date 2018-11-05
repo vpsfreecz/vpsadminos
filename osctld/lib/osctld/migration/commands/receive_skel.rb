@@ -29,35 +29,37 @@ module OsCtld
       end
 
       ct = importer.load_ct(ct_opts: {staged: true, devices: false})
-      builder = Container::Builder.new(ct, cmd: self)
+      ct.manipulate(self) do
+        builder = Container::Builder.new(ct, cmd: self)
 
-      unless builder.valid?
-        error!("invalid id, allowed format: #{builder.id_chars}")
-      end
+        unless builder.valid?
+          error!("invalid id, allowed format: #{builder.id_chars}")
+        end
 
-      begin
-        ct.devices.check_all_available!
+        begin
+          ct.devices.check_all_available!
 
-      rescue DeviceNotAvailable, DeviceModeInsufficient => e
-        error!(e.message)
-      end
+        rescue DeviceNotAvailable, DeviceModeInsufficient => e
+          error!(e.message)
+        end
 
-      ct.devices.init
+        ct.devices.init
 
-      importer.create_datasets(builder)
-      builder.setup_ct_dir
-      builder.setup_lxc_home
+        importer.create_datasets(builder)
+        builder.setup_ct_dir
+        builder.setup_lxc_home
 
-      ct.open_migration_log(:destination, save: true)
-      builder.setup_lxc_configs
-      builder.setup_log_file
-      builder.setup_user_hook_script_dir
-      importer.install_user_hook_scripts(ct)
-      builder.register
+        ct.open_migration_log(:destination, save: true)
+        builder.setup_lxc_configs
+        builder.setup_log_file
+        builder.setup_user_hook_script_dir
+        importer.install_user_hook_scripts(ct)
+        builder.register
 
-      if ct.netifs.any?
-        progress('Reconfiguring LXC usernet')
-        call_cmd(Commands::User::LxcUsernet)
+        if ct.netifs.any?
+          progress('Reconfiguring LXC usernet')
+          call_cmd(Commands::User::LxcUsernet)
+        end
       end
 
       ok

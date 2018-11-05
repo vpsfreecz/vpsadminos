@@ -122,14 +122,12 @@ module OsCtld
     end
 
     def update_state(ct)
-      ct.inclusively do
-        ret = ct_control(ct, :ct_status, ids: [ct.id])
-        next unless ret[:status]
+      ret = ct_control(ct, :ct_status, ids: [ct.id])
+      return unless ret[:status]
 
-        out = ret[:output][ct.id.to_sym]
-        ct.state = out[:state].to_sym
-        ct.init_pid = out[:init_pid]
-      end
+      out = ret[:output][ct.id.to_sym]
+      ct.state = out[:state].to_sym
+      ct.init_pid = out[:init_pid]
     end
 
     def key(ct)

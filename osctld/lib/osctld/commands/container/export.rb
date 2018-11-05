@@ -10,7 +10,7 @@ module OsCtld
     end
 
     def execute(ct)
-      ct.exclusively do
+      manipulate(ct) do
         File.open(opts[:file], 'w') do |f|
           export(ct, f)
         end

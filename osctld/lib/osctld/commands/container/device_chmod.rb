@@ -13,9 +13,7 @@ module OsCtld
     end
 
     def execute(ct)
-      ct.exclusively do
-        chmod(ct, ct.group)
-      end
+      manipulate(ct) { chmod(ct, ct.group) }
     end
   end
 end

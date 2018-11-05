@@ -1,11 +1,13 @@
 require 'libosctl'
 require 'yaml'
 require 'osctld/lockable'
+require 'osctld/manipulable'
 require 'osctld/assets/definition'
 
 module OsCtld
   class Container
     include Lockable
+    include Manipulable
     include Assets::Definition
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
@@ -18,8 +20,8 @@ module OsCtld
 
     attr_reader :pool, :id, :user, :dataset, :group, :distribution, :version,
       :arch, :autostart, :hostname, :dns_resolvers, :nesting, :prlimits, :mounts,
-      :migration_log, :cgparams, :devices, :seccomp_profile, :apparmor, :attrs
-    attr_accessor :state, :init_pid
+      :migration_log, :cgparams, :devices, :seccomp_profile, :apparmor, :attrs,
+      :state, :init_pid
 
     # @param pool [Pool]
     # @param id [String]
@@ -33,6 +35,7 @@ module OsCtld
     # @option opts [Boolean] devices determines whether devices are initialized
     def initialize(pool, id, user = nil, group = nil, dataset = nil, opts = {})
       init_lock
+      init_manipulable
 
       opts[:load] = true unless opts.has_key?(:load)
 
@@ -65,17 +68,19 @@ module OsCtld
     end
 
     def configure(distribution, version, arch)
-      @distribution = distribution
-      @version = version
-      @arch = arch
-      @netifs = []
-      @nesting = false
-      @seccomp_profile = default_seccomp_profile
-      @cgparams = CGroup::ContainerParams.new(self)
-      @devices = Devices::ContainerManager.new(self)
-      @mounts = Mount::Manager.new(self)
-      devices.init
-      save_config
+      exclusively do
+        @distribution = distribution
+        @version = version
+        @arch = arch
+        @netifs = []
+        @nesting = false
+        @seccomp_profile = default_seccomp_profile
+        @cgparams = CGroup::ContainerParams.new(self)
+        @devices = Devices::ContainerManager.new(self)
+        @mounts = Mount::Manager.new(self)
+        devices.init
+        save_config
+      end
     end
 
     def assets
@@ -202,14 +207,14 @@ module OsCtld
     end
 
     def chown(user)
-      @user = user
+      exclusively { @user = user }
       save_config
       configure_lxc
       configure_bashrc
     end
 
     def chgrp(grp, missing_devices: nil)
-      @group = grp
+      exclusively { @group = grp }
 
       case missing_devices
       when 'provide'
@@ -233,43 +238,49 @@ module OsCtld
     end
 
     def state=(v)
-      if state == :staged
-        case v
-        when :complete
-          @state = :stopped
-          save_config
+      exclusively do
+        if state == :staged
+          case v
+          when :complete
+            @state = :stopped
+            save_config
 
-        when :running
-          @state = v
-          save_config
+          when :running
+            @state = v
+            save_config
+          end
+
+          return
         end
 
-        return
+        @state = v
       end
+    end
 
-      @state = v
+    def init_pid=(v)
+      exclusively { @init_pid = v }
     end
 
     def current_state
-      inclusively do
-        next(state) if state != :unknown
-        ret = ct_control(self, :ct_status, ids: [id])
+      s = inclusively { state }
+      return s if s != :unknown
 
-        if ret[:status]
-          self.state = ret[:output][id.to_sym][:state].to_sym
+      ret = ct_control(self, :ct_status, ids: [id])
 
-        else
-          self.state = :error
-        end
+      if ret[:status]
+        self.state = ret[:output][id.to_sym][:state].to_sym
+
+      else
+        self.state = :error
       end
     end
 
     def running?
-      state == :running
+      inclusively { state == :running }
     end
 
     def can_start?
-      state != :staged && state != :error && pool.active?
+      inclusively { state != :staged && state != :error && pool.active? }
     end
 
     def starting
@@ -616,6 +627,10 @@ module OsCtld
 
     def log_type
       "ct=#{pool.name}:#{id}"
+    end
+
+    def manipulation_resource
+      ['container', ident]
     end
 
     protected

@@ -13,9 +13,7 @@ module OsCtld
     end
 
     def execute(ct)
-      ct.exclusively do
-        replace(ct)
-      end
+      manipulate(ct) { replace(ct) }
     end
   end
 end

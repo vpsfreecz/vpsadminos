@@ -18,99 +18,34 @@ module OsCtld
 
       event_queue = nil
 
-      ret = ct.exclusively do
-        next error('start not available') unless ct.can_start?
-        next ok if ct.running? && !opts[:force]
-
-        # Remove any left-over temporary mounts
-        ct.mounts.prune
-
+      manipulate(ct) do
         event_queue = Eventd.subscribe
+        ret = start_now(ct)
 
-        # Reset log file
-        File.open(ct.log_path, 'w').close
-        File.chmod(0660, ct.log_path)
-        File.chown(0, ct.user.ugid, ct.log_path)
+        # Exit if we don't need to wait
+        if ret != :wait
+          return ret
 
-        # Console dir
-        console_dir = File.join(ct.pool.console_dir, ct.id)
-        Dir.mkdir(console_dir) unless Dir.exist?(console_dir)
-        File.chown(ct.user.ugid, 0, console_dir)
-        File.chmod(0700, console_dir)
-
-        # Remove stray sockets
-        sock_path = Console.socket_path(ct)
-        if File.exist?(sock_path)
-          log(:info, ct, "Removing leftover tty0 socket at #{sock_path}")
-
-          begin
-            File.unlink(sock_path)
-          rescue Errno::ENOENT
-            # Continue if the socket was already deleted
-          end
+        elsif opts[:wait] === false
+          return ok
         end
 
-        cmd = [
-          OsCtld.bin('osctld-ct-wrapper'),
-          "#{ct.pool.name}:#{ct.id}",
-          Console.socket_path(ct),
-          'lxc-start',
-          '-P', ct.lxc_home,
-          '-n', ct.id,
-          '-o', ct.log_path,
-          '-l', opts[:debug] ? 'DEBUG' : 'ERROR',
-          '-F'
-        ]
+        # Wait for the container to enter state `running`
+        progress('Waiting for the container to start')
+        started = wait_for_ct(event_queue, ct)
+        Eventd.unsubscribe(event_queue)
 
-        progress('Starting container')
-        pid = Process.fork do
-          SwitchUser.switch_to(
-            ct.user.sysusername,
-            ct.user.ugid,
-            ct.user.homedir,
-            ct.cgroup_path
-          )
-          Process.spawn(*cmd, pgroup: true, in: :close, out: :close, err: :close)
-        end
-
-        progress('Connecting console')
-
-        begin
-          Console.connect_tty0(ct, pid)
-        rescue Errno::ENOENT
-          log(:warn, ct, "Unable to connect to tty0")
-        end
-
-        Process.wait(pid)
-
-        :wait
-      end
-
-      # Exit if we don't need to wait
-      if ret != :wait
-        return ret
-
-      elsif opts[:wait] === false
-        return ok
-      end
-
-      # Wait for the container to enter state `running`
-      progress('Waiting for the container to start')
-      started = wait_for_ct(event_queue, ct)
-      Eventd.unsubscribe(event_queue)
-
-      if started
-        # Access `/proc/stat` and `/proc/loadavg` within the container, so that
-        # LXCFS starts tracking it immediately.
-        ct.inclusively do
+        if started
+          # Access `/proc/stat` and `/proc/loadavg` within the container, so that
+          # LXCFS starts tracking it immediately.
           ct_syscmd(ct, 'cat /proc/stat', valid_rcs: :all)
           ct_syscmd(ct, 'cat /proc/loadavg', valid_rcs: :all)
+
+          ok
+
+        else
+          error('container failed to start')
         end
-
-        ok
-
-      else
-        error('container failed to start')
       end
     end
 
@@ -140,6 +75,72 @@ module OsCtld
       else
         ret
       end
+    end
+
+    def start_now(ct)
+      error!('start not available') unless ct.can_start?
+      return ok if ct.running? && !opts[:force]
+
+      # Remove any left-over temporary mounts
+      ct.mounts.prune
+
+      # Reset log file
+      File.open(ct.log_path, 'w').close
+      File.chmod(0660, ct.log_path)
+      File.chown(0, ct.user.ugid, ct.log_path)
+
+      # Console dir
+      console_dir = File.join(ct.pool.console_dir, ct.id)
+      Dir.mkdir(console_dir) unless Dir.exist?(console_dir)
+      File.chown(ct.user.ugid, 0, console_dir)
+      File.chmod(0700, console_dir)
+
+      # Remove stray sockets
+      sock_path = Console.socket_path(ct)
+      if File.exist?(sock_path)
+        log(:info, ct, "Removing leftover tty0 socket at #{sock_path}")
+
+        begin
+          File.unlink(sock_path)
+        rescue Errno::ENOENT
+          # Continue if the socket was already deleted
+        end
+      end
+
+      cmd = [
+        OsCtld.bin('osctld-ct-wrapper'),
+        "#{ct.pool.name}:#{ct.id}",
+        Console.socket_path(ct),
+        'lxc-start',
+        '-P', ct.lxc_home,
+        '-n', ct.id,
+        '-o', ct.log_path,
+        '-l', opts[:debug] ? 'DEBUG' : 'ERROR',
+        '-F'
+      ]
+
+      progress('Starting container')
+      pid = Process.fork do
+        SwitchUser.switch_to(
+          ct.user.sysusername,
+          ct.user.ugid,
+          ct.user.homedir,
+          ct.cgroup_path
+        )
+        Process.spawn(*cmd, pgroup: true, in: :close, out: :close, err: :close)
+      end
+
+      progress('Connecting console')
+
+      begin
+        Console.connect_tty0(ct, pid)
+      rescue Errno::ENOENT
+        log(:warn, ct, "Unable to connect to tty0")
+      end
+
+      Process.wait(pid)
+
+      :wait
     end
 
     # Wait for the container to start or fail

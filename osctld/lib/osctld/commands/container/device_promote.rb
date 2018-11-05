@@ -13,9 +13,7 @@ module OsCtld
     end
 
     def execute(ct)
-      ct.exclusively do
-        promote(ct)
-      end
+      manipulate(ct) { promote(ct) }
     end
   end
 end

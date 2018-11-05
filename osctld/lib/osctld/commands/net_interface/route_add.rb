@@ -22,7 +22,7 @@ module OsCtld
       addr = IPAddress.parse(opts[:addr])
       ip_v = addr.ipv4? ? 4 : 6
 
-      ct.exclusively do
+      manipulate(ct) do
         # TODO: check that no other container routes this IP
         error!('this address is already routed') if netif.routes.route?(addr)
 

@@ -32,7 +32,7 @@ module OsCtld
     protected
     def lock(ct)
       if opts[:lock]
-        ct.exclusively { yield }
+        manipulate(ct) { yield }
 
       else
         yield

@@ -17,7 +17,7 @@ module OsCtld
         return error('cannot delete the root dataset')
       end
 
-      ct.exclusively do
+      manipulate(ct) do
         ds = OsCtl::Lib::Zfs::Dataset.new(
           File.join(ct.dataset.name, name),
           base: ct.dataset.name

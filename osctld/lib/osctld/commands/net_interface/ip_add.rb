@@ -21,7 +21,7 @@ module OsCtld
       addr = IPAddress.parse(opts[:addr])
       ip_v = addr.ipv4? ? 4 : 6
 
-      ct.exclusively do
+      manipulate(ct) do
         # TODO: check that no other container has this IP
         next error('this address is already assigned') if netif.has_ip?(addr)
 

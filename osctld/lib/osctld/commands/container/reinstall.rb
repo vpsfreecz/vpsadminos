@@ -14,7 +14,7 @@ module OsCtld
     end
 
     def execute(ct)
-      ct.exclusively do
+      manipulate(ct) do
         error!('container is running') if ct.running?
 
         builder = Container::Builder.new(ct, cmd: self, reinstall: true)

@@ -55,29 +55,27 @@ module OsCtld
     end
 
     def execute(builder)
-      builder.user.inclusively do
-        builder.ct.exclusively do
-          next error('container already exists') if builder.exist?
+      manipulate(builder.ct) do
+        error!('container already exists') if builder.exist?
 
-          if opts[:dataset]
-            custom_dataset(builder)
+        if opts[:dataset]
+          custom_dataset(builder)
 
-          elsif opts[:template]
-            from_local_template(builder)
+        elsif opts[:template]
+          from_local_template(builder)
 
-          else
-            fail 'should not be possible'
-          end
-
-          builder.setup_ct_dir
-          builder.setup_lxc_home
-          builder.setup_lxc_configs
-          builder.setup_log_file
-          builder.setup_user_hook_script_dir
-          builder.register
-
-          ok
+        else
+          fail 'should not be possible'
         end
+
+        builder.setup_ct_dir
+        builder.setup_lxc_home
+        builder.setup_lxc_configs
+        builder.setup_log_file
+        builder.setup_user_hook_script_dir
+        builder.register
+
+        ok
       end
 
     rescue

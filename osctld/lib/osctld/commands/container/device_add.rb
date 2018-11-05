@@ -13,9 +13,7 @@ module OsCtld
     end
 
     def execute(ct)
-      ct.exclusively do
-        add(ct, ct.group)
-      end
+      manipulate(ct) { add(ct, ct.group) }
     end
   end
 end

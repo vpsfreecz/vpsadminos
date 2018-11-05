@@ -17,7 +17,7 @@ module OsCtld
       netif = ct.netifs.detect { |n| n.name == opts[:name] }
       return error('network interface not found') unless netif
 
-      ct.exclusively do
+      manipulate(ct) do
         if opts[:addr] == 'all'
           v = opts[:version] && opts[:version].to_i
 

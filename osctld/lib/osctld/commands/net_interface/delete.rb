@@ -10,7 +10,7 @@ module OsCtld
     end
 
     def execute(ct)
-      ret = ct.exclusively do
+      ret = manipulate(ct) do
         if ct.state != :stopped
           next error('the container must be stopped to remove network interface')
         end
