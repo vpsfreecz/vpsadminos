@@ -54,6 +54,14 @@ module OsCtld
       raise NotImplementedError
     end
 
+    def manipulation_holder
+      if opts[:cli]
+        "'#{opts[:cli]}'"
+      else
+        self.class.cmd.to_s
+      end
+    end
+
     protected
     attr_reader :client_handler
 
