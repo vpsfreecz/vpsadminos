@@ -7,40 +7,44 @@ module OsCtld
 
     # @param opts [Hash]
     def init(opts = {})
-      super
-      inherit_all_from(ct.group, opts)
+      sync do
+        super
+        inherit_all_from(ct.group, opts)
 
-      log(:info, ct, "Configuring cgroup #{ct.cgroup_path} for devices")
-      create
+        log(:info, ct, "Configuring cgroup #{ct.cgroup_path} for devices")
+        create
+      end
     end
 
     # Create cgroups and apply device settings
     def create
-      rel_group_cgroup_paths.zip(abs_group_cgroup_paths).each do |rel, abs|
-        next if !rel[1] || !abs[1]
+      sync do
+        rel_group_cgroup_paths.zip(abs_group_cgroup_paths).each do |rel, abs|
+          next if !rel[1] || !abs[1]
 
-        rel_path = rel[0]
-        abs_path = abs[0]
+          rel_path = rel[0]
+          abs_path = abs[0]
 
-        CGroup.mkpath('devices', rel_path.split('/'))
-        clear_devices(abs_path)
-        apply_devices(ct.group.devices, abs_path)
-      end
+          CGroup.mkpath('devices', rel_path.split('/'))
+          clear_devices(abs_path)
+          apply_devices(ct.group.devices, abs_path)
+        end
 
-      rel_ct_cgroup_paths.zip(abs_ct_cgroup_paths).each do |rel, abs|
-        next if !rel[1] || !abs[1]
+        rel_ct_cgroup_paths.zip(abs_ct_cgroup_paths).each do |rel, abs|
+          next if !rel[1] || !abs[1]
 
-        rel_path = rel[0]
-        abs_path = abs[0]
+          rel_path = rel[0]
+          abs_path = abs[0]
 
-        CGroup.mkpath('devices', rel_path.split('/'))
-        clear_devices(abs_path)
-        apply_devices(self, abs_path)
-      end
+          CGroup.mkpath('devices', rel_path.split('/'))
+          clear_devices(abs_path)
+          apply_devices(self, abs_path)
+        end
 
-      abs_ct_chowned_cgroup_paths.each do |abs, req, uid, gid|
-        next unless prepare_cgroup(abs, req)
-        File.chown(uid || ct.user.ugid, gid || ct.user.ugid, abs)
+        abs_ct_chowned_cgroup_paths.each do |abs, req, uid, gid|
+          next unless prepare_cgroup(abs, req)
+          File.chown(uid || ct.user.ugid, gid || ct.user.ugid, abs)
+        end
       end
     end
 
@@ -48,85 +52,93 @@ module OsCtld
     # @option opts [Boolean] :parents
     # @option opts [Hash] :group_changes
     def chmod(device, mode, opts = {})
-      # Parents
-      if opts[:parents]
-        dev = device.clone
-        dev.mode = mode
+      sync do
+        # Parents
+        if opts[:parents]
+          dev = device.clone
+          dev.mode = mode
 
-        ct.group.devices.provide(dev)
-      end
-
-      # <group>/<user>
-      if opts[:group_changes] # for recursive chmod from the group down
-        abs_group_cgroup_paths.each do |cgpath, req|
-          next unless prepare_cgroup(cgpath, req)
-          do_apply_changes(opts[:group_changes], path: cgpath)
+          ct.group.devices.provide(dev)
         end
 
-      else # when chmodding the container itself
-        abs_group_cgroup_paths.each do |cgpath, req|
-          next unless prepare_cgroup(cgpath, req)
-          apply_devices(ct.group.devices, cgpath)
+        # <group>/<user>
+        if opts[:group_changes] # for recursive chmod from the group down
+          abs_group_cgroup_paths.each do |cgpath, req|
+            next unless prepare_cgroup(cgpath, req)
+            do_apply_changes(opts[:group_changes], path: cgpath)
+          end
+
+        else # when chmodding the container itself
+          abs_group_cgroup_paths.each do |cgpath, req|
+            next unless prepare_cgroup(cgpath, req)
+            apply_devices(ct.group.devices, cgpath)
+          end
         end
-      end
 
-      # Container cgroups
-      changes = device.chmod(mode)
-      device.inherited = false if opts[:promote] && device.inherited?
-      ct.save_config
+        # Container cgroups
+        changes = device.chmod(mode)
+        device.inherited = false if opts[:promote] && device.inherited?
+        ct.save_config
 
-      abs_ct_cgroup_paths.each do |cgpath, req|
-        next unless prepare_cgroup(cgpath, req)
-        do_apply_changes(changes, path: cgpath)
+        abs_ct_cgroup_paths.each do |cgpath, req|
+          next unless prepare_cgroup(cgpath, req)
+          do_apply_changes(changes, path: cgpath)
+        end
       end
     end
 
     def inherit_promoted(device)
-      pdev = ct.group.devices.get(device)
+      sync do
+        pdev = ct.group.devices.get(device)
 
-      if pdev.inherit?
-        # We can keep the device and descendants unchanged
-        device.inherited = true
+        if pdev.inherit?
+          # We can keep the device and descendants unchanged
+          device.inherited = true
 
-        # Parent group can have broader access mode, so we need to expand it
-        if device.mode != pdev.mode
-          changes = device.chmod(pdev.mode.clone)
+          # Parent group can have broader access mode, so we need to expand it
+          if device.mode != pdev.mode
+            changes = device.chmod(pdev.mode.clone)
 
-          abs_all_cgroup_paths.each do |cgpath, req|
-            next unless prepare_cgroup(cgpath, req)
-            do_apply_changes(changes, path: cgpath)
+            abs_all_cgroup_paths.each do |cgpath, req|
+              next unless prepare_cgroup(cgpath, req)
+              do_apply_changes(changes, path: cgpath)
+            end
           end
+
+          ct.save_config
+          return
         end
 
-        ct.save_config
-        return
+        # Parent does not provide the device, remove it
+        remove(device)
       end
-
-      # Parent does not provide the device, remove it
-      remove(device)
     end
 
     def update_inherited_mode(device, mode, changes)
-      abs_all_cgroup_paths.each do |cgpath, req|
-        next unless prepare_cgroup(cgpath, req)
-        do_apply_changes(changes, path: cgpath)
+      sync do
+        abs_all_cgroup_paths.each do |cgpath, req|
+          next unless prepare_cgroup(cgpath, req)
+          do_apply_changes(changes, path: cgpath)
+        end
       end
     end
 
     # Apply the container's device cgroup settings
     def apply(_opts = {})
-      # group
-      ct.group.devices.apply
+      sync do
+        # group
+        ct.group.devices.apply
 
-      abs_group_cgroup_paths.each do |cgpath, req|
-        next unless prepare_cgroup(cgpath, req)
-        apply_devices(ct.group.devices, cgpath)
-      end
+        abs_group_cgroup_paths.each do |cgpath, req|
+          next unless prepare_cgroup(cgpath, req)
+          apply_devices(ct.group.devices, cgpath)
+        end
 
-      # container groups
-      abs_ct_cgroup_paths.each do |cgpath, req|
-        next unless prepare_cgroup(cgpath, req)
-        apply_devices(self, cgpath)
+        # container groups
+        abs_ct_cgroup_paths.each do |cgpath, req|
+          next unless prepare_cgroup(cgpath, req)
+          apply_devices(self, cgpath)
+        end
       end
     end
 
@@ -134,20 +146,26 @@ module OsCtld
     # @param group [Group, nil] which group to use as the container's parent,
     #                           defaults to the container's group
     def check_all_available!(group = nil)
-      devices.each { |dev| check_availability!(dev, group || ct.group) }
+      sync do
+        devices.each { |dev| check_availability!(dev, group || ct.group) }
+      end
     end
 
     # Ensure that all required devices are provided by parent groups
     def ensure_all
-      devices.each { |dev| ct.group.devices.provide(dev) }
+      sync do
+        devices.each { |dev| ct.group.devices.provide(dev) }
+      end
     end
 
     # Remove devices that aren't provided by the parent, or have insufficient
     # access mode
     def remove_missing
-      devices.delete_if do |dev|
-        pdev = ct.group.devices.get(dev)
-        pdev.nil? || !pdev.mode.compatible?(dev.mode)
+      sync do
+        devices.delete_if do |dev|
+          pdev = ct.group.devices.get(dev)
+          pdev.nil? || !pdev.mode.compatible?(dev.mode)
+        end
       end
     end
 

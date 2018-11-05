@@ -6,55 +6,71 @@ module OsCtld
     include OsCtl::Lib::Utils::Log
 
     def init(opts = {})
-      super
-      inherit_all_from(group.parent, opts) unless group.root?
+      sync do
+        super
+        inherit_all_from(group.parent, opts) unless group.root?
 
-      log(:info, group, "Configuring cgroup #{group.cgroup_path} for devices")
-      CGroup.mkpath('devices', group.cgroup_path.split('/'))
-      apply(parents: false)
+        log(:info, group, "Configuring cgroup #{group.cgroup_path} for devices")
+        CGroup.mkpath('devices', group.cgroup_path.split('/'))
+        apply(parents: false)
+      end
     end
 
     # Add device to make it available to child groups
     # @param device [Device]
     def provide(device)
-      dev = get(device)
+      sync do
+        dev = get(device)
 
-      if dev
-        # Check if we have compatible modes
-        return if dev.mode.compatible?(device.mode)
+        if dev
+          # Check if we have compatible modes
+          return if dev.mode.compatible?(device.mode)
 
-        # Broader access mode is required
-        dev.mode.complement(device.mode)
+          # Broader access mode is required
+          dev.mode.complement(device.mode)
 
-        # Propagate the mode change to parent groups
+          # Propagate the mode change to parent groups
+          group.parent.devices.provide(device) unless group.root?
+
+          # Apply cgroup
+          # Since the mode was complemented, we don't have to deny existing
+          # access modes, only allow new ones
+          apply(parents: false)
+
+          # Save it
+          group.save_config
+
+          return
+        end
+
+        # Device does not exist, ask the parent to provide it and create it
         group.parent.devices.provide(device) unless group.root?
 
-        # Apply cgroup
-        # Since the mode was complemented, we don't have to deny existing
-        # access modes, only allow new ones
+        dev = device.clone
+        dev.inherit = false
+        do_add(dev)
         apply(parents: false)
-
-        # Save it
         group.save_config
-
-        return
       end
-
-      # Device does not exist, ask the parent to provide it and create it
-      group.parent.devices.provide(device) unless group.root?
-
-      dev = device.clone
-      dev.inherit = false
-      do_add(dev)
-      apply(parents: false)
-      group.save_config
     end
 
     def add(device, parent = nil)
-      super
+      sync do
+        super
 
-      if device.inherit?
-        group.descendants.each { |grp| grp.devices.inherit(device) }
+        if device.inherit?
+          group.descendants.each { |grp| grp.devices.inherit(device) }
+
+          group.containers.each do |ct|
+            ct.devices.inherit(device)
+          end
+        end
+      end
+    end
+
+    def inherit(device, opts = {})
+      sync do
+        super
 
         group.containers.each do |ct|
           ct.devices.inherit(device)
@@ -62,31 +78,27 @@ module OsCtld
       end
     end
 
-    def inherit(device, opts = {})
-      super
-
-      group.containers.each do |ct|
-        ct.devices.inherit(device)
-      end
-    end
-
     def remove(device)
-      super
+      sync do
+        super
 
-      group.containers.each do |ct|
-        ct.devices.remove(device)
+        group.containers.each do |ct|
+          ct.devices.remove(device)
+        end
       end
     end
 
     # Remove device from self and all descendants
     # @param device [Device]
     def remove_recursive(device)
-      group.descendants.reverse_each do |grp|
-        dev = grp.devices.get(device)
-        grp.devices.remove(dev) if dev
-      end
+      sync do
+        group.descendants.reverse_each do |grp|
+          dev = grp.devices.get(device)
+          grp.devices.remove(dev) if dev
+        end
 
-      remove(device)
+        remove(device)
+      end
     end
 
     # @param opts [Hash]
@@ -94,182 +106,202 @@ module OsCtld
     # @option opts [Boolean] :descendants
     # @option opts [Boolean] :containers
     def chmod(device, mode, opts = {})
-      # Parents
-      if opts[:parents]
-        dev = device.clone
-        dev.mode = mode
+      sync do
+        # Parents
+        if opts[:parents]
+          dev = device.clone
+          dev.mode = mode
 
-        group.parent.devices.provide(dev)
-      end
-
-      # Self
-      changes = super
-
-      # Descendants
-      if opts[:descendants]
-        group.descendants.each do |grp|
-          dev = grp.devices.get(device)
-          grp.devices.chmod(dev, mode, containers: true) if dev
+          group.parent.devices.provide(dev)
         end
-      end
 
-      if opts[:containers]
-        group.containers.each do |ct|
-          dev = ct.devices.get(device)
-          ct.devices.chmod(dev, mode, group_changes: changes) if dev
+        # Self
+        changes = super
+
+        # Descendants
+        if opts[:descendants]
+          group.descendants.each do |grp|
+            dev = grp.devices.get(device)
+            grp.devices.chmod(dev, mode, containers: true) if dev
+          end
+        end
+
+        if opts[:containers]
+          group.containers.each do |ct|
+            dev = ct.devices.get(device)
+            ct.devices.chmod(dev, mode, group_changes: changes) if dev
+          end
         end
       end
     end
 
     def inherit_promoted(device)
-      pdev = group.parent.devices.get(device) unless group.root?
+      sync do
+        pdev = group.parent.devices.get(device) unless group.root?
 
-      if pdev && pdev.inherit?
-        # We can keep the device and descendants unchanged
-        device.inherited = true
+        if pdev && pdev.inherit?
+          # We can keep the device and descendants unchanged
+          device.inherited = true
 
-        # Parent group can have broader access mode, so we need to expand it
-        if device.mode != pdev.mode
-          changes = device.chmod(pdev.mode.clone)
-          do_apply_changes(changes)
+          # Parent group can have broader access mode, so we need to expand it
+          if device.mode != pdev.mode
+            changes = device.chmod(pdev.mode.clone)
+            do_apply_changes(changes)
 
-          # Update descendants that inherit the device as well
-          do_update_inherited_descendants(device, pdev.mode, changes)
+            # Update descendants that inherit the device as well
+            do_update_inherited_descendants(device, pdev.mode, changes)
+          end
+
+          group.save_config
+          return
         end
 
-        group.save_config
-        return
-      end
+        # Parent does not provide the device, remove it
+        if used_by_descendants?(device)
+          raise DeviceInUse,
+                'the device would be removed, but child groups or containers '+
+                'are using it'
+        end
 
-      # Parent does not provide the device, remove it
-      if used_by_descendants?(device)
-        raise DeviceInUse,
-              'the device would be removed, but child groups or containers '+
-              'are using it'
+        remove_recursive(device)
       end
-
-      remove_recursive(device)
     end
 
     def update_inherited_mode(device, mode, changes)
-      # Update self
-      super
+      sync do
+        # Update self
+        super
 
-      # Update descendants that inherit the device as well
-      do_update_inherited_descendants(device, mode, changes)
+        # Update descendants that inherit the device as well
+        do_update_inherited_descendants(device, mode, changes)
+      end
     end
 
     def set_inherit(device)
-      device.inherit = true
-      inherit_recursive(device)
-      owner.save_config
+      sync do
+        device.inherit = true
+        inherit_recursive(device)
+        owner.save_config
+      end
     end
 
     def unset_inherit(device)
-      unless can_unset_inherit?(device)
-        raise DeviceInUse,
-              'unsetting inheritance would break device access requirements'
-      end
+      sync do
+        unless can_unset_inherit?(device)
+          raise DeviceInUse,
+                'unsetting inheritance would break device access requirements'
+        end
 
-      device.inherit = false
-      uninherit_recursive(device)
-      owner.save_config
+        device.inherit = false
+        uninherit_recursive(device)
+        owner.save_config
+      end
     end
 
     # Add the device to all direct child groups and containers, then let the
     # child groups do the same
     def inherit_recursive(device)
-      # Add the device to direct children
-      group.descendants.each do |grp|
-        next if grp.parent != group || grp.devices.include?(device)
+      sync do
+        # Add the device to direct children
+        group.descendants.each do |grp|
+          next if grp.parent != group || grp.devices.include?(device)
 
-        # Add from the top down
-        grp.devices.inherit(device)
-        grp.devices.apply(parents: false)
-        grp.devices.inherit_recursive(device)
-      end
+          # Add from the top down
+          grp.devices.inherit(device)
+          grp.devices.apply(parents: false)
+          grp.devices.inherit_recursive(device)
+        end
 
-      # Add the device to containers
-      group.containers.each do |ct|
-        # grp.devices.inherit will also pass the device to all containers
-        ct.devices.apply
+        # Add the device to containers
+        group.containers.each do |ct|
+          # grp.devices.inherit will also pass the device to all containers
+          ct.devices.apply
+        end
       end
     end
 
     # Remove the device from all direct child groups and containers, then let
     # the child groups do the same
     def uninherit_recursive(device)
-      # Remove the device from direct children
-      group.descendants.each do |grp|
-        next if grp.parent != group || grp.devices.used?(device)
+      sync do
+        # Remove the device from direct children
+        group.descendants.each do |grp|
+          next if grp.parent != group || grp.devices.used?(device)
 
-        # Remove from the bottom up
-        grp.devices.uninherit_recursive(device)
-        grp.devices.remove(device)
-      end
+          # Remove from the bottom up
+          grp.devices.uninherit_recursive(device)
+          grp.devices.remove(device)
+        end
 
-      # Remove the device from containers
-      group.containers.each do |ct|
-        next if ct.devices.used?(device)
-        ct.devices.remove(device)
+        # Remove the device from containers
+        group.containers.each do |ct|
+          next if ct.devices.used?(device)
+          ct.devices.remove(device)
+        end
       end
     end
 
     # Apply cgroup parameters of the group and all its parents
     def apply(parents: true, descendants: false, containers: false)
-      if parents
-        group.parents.each do |grp|
-          grp.devices.apply(parents: false)
+      sync do
+        if parents
+          group.parents.each do |grp|
+            grp.devices.apply(parents: false)
+          end
         end
-      end
 
-      super()
+        super()
 
-      if descendants
-        group.descendants.each do |grp|
-          grp.devices.apply(parents: false, descendants: false, containers: containers)
+        if descendants
+          group.descendants.each do |grp|
+            grp.devices.apply(parents: false, descendants: false, containers: containers)
+          end
         end
-      end
 
-      if containers
-        group.containers.each do |ct|
-          ct.devices.apply
+        if containers
+          group.containers.each do |ct|
+            ct.devices.apply
+          end
         end
       end
     end
 
     def check_descendants!(device, mode: nil)
-      # Check child groups and their containers
-      group.descendants.each do |grp|
-        check_descendant_mode!(grp, device, mode || device.mode)
+      sync do
+        # Check child groups and their containers
+        group.descendants.each do |grp|
+          check_descendant_mode!(grp, device, mode || device.mode)
 
-        grp.containers.each do |ct|
+          grp.containers.each do |ct|
+            check_descendant_mode!(ct, device, mode || device.mode)
+          end
+        end
+
+        # Check containers in self
+        group.containers.each do |ct|
           check_descendant_mode!(ct, device, mode || device.mode)
         end
-      end
-
-      # Check containers in self
-      group.containers.each do |ct|
-        check_descendant_mode!(ct, device, mode || device.mode)
       end
     end
 
     # @param device [Device]
     # @return [Boolean]
     def used_by_descendants?(device)
-      group.descendants.each do |grp|
-        return true if grp.devices.used?(device)
+      sync do
+        group.descendants.each do |grp|
+          return true if grp.devices.used?(device)
 
-        grp.containers.each do |ct|
+          grp.containers.each do |ct|
+            return true if ct.devices.used?(device)
+          end
+        end
+
+        group.containers.each do |ct|
           return true if ct.devices.used?(device)
         end
-      end
 
-      group.containers.each do |ct|
-        return true if ct.devices.used?(device)
+        false
       end
-
-      false
     end
 
     protected

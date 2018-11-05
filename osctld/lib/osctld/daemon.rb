@@ -63,6 +63,7 @@ module OsCtld
       Console.init
       Eventd.start
       History.start
+      Devices::Lock.instance
     end
 
     public
