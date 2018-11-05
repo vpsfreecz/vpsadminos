@@ -696,6 +696,9 @@ module OsCtld
     # @option opts [Group] :group target group, optional
     # @option opts [String] :dataset target dataset, optional
     def clone_from(ct, id, opts = {})
+      init_lock
+      init_manipulable
+
       @id = id
       @pool = opts[:pool] if opts[:pool]
       @user = opts[:user] if opts[:user]
