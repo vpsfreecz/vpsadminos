@@ -10,7 +10,7 @@ module OsCtld
     end
 
     def execute(pool)
-      pool.exclusively do
+      manipulate(pool) do
         changes = {}
 
         opts.each do |k, v|

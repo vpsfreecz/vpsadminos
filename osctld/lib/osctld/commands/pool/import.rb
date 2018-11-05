@@ -54,9 +54,11 @@ module OsCtld
     def import(name, dataset)
       upgrade(name)
       pool = Pool.new(name, dataset == '-' ? nil : dataset)
-      pool.setup
-      DB::Pools.add(pool)
-      pool.autostart if opts[:autostart]
+      manipulate(pool) do
+        pool.setup
+        DB::Pools.add(pool)
+        pool.autostart if opts[:autostart]
+      end
     end
 
     def upgrade(name)

@@ -10,16 +10,15 @@ module OsCtld
     end
 
     def execute(pool)
-      pool.exclusively do
+      manipulate(pool) do
         changes = {}
 
         changes[:options] = opts[:options].map(&:to_sym) if opts[:options]
         changes[:attrs] = opts[:attrs] if opts[:attrs]
 
         pool.unset(changes)
+        ok
       end
-
-      ok
     end
   end
 end

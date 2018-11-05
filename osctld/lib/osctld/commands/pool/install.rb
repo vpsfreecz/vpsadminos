@@ -16,7 +16,7 @@ module OsCtld
       pool = Pool.new(opts[:name], opts[:dataset])
       return error('pool already exists') if DB::Pools.contains?(pool.name)
 
-      pool.exclusively do
+      manipulate(pool) do
         props = ["#{Pool::PROPERTY_ACTIVE}=yes"]
         props << "#{Pool::PROPERTY_DATASET}=\"#{opts[:dataset]}\"" if opts[:dataset]
 

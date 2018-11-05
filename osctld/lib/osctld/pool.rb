@@ -1,5 +1,6 @@
 require 'libosctl'
 require 'osctld/lockable'
+require 'osctld/manipulable'
 require 'osctld/assets/definition'
 
 module OsCtld
@@ -20,6 +21,7 @@ module OsCtld
     OPTIONS = %i(parallel_start parallel_stop)
 
     include Lockable
+    include Manipulable
     include Assets::Definition
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
@@ -30,6 +32,7 @@ module OsCtld
 
     def initialize(name, dataset)
       init_lock
+      init_manipulable
 
       @name = name
       @dataset = dataset || name
@@ -336,6 +339,10 @@ module OsCtld
 
     def log_type
       "pool=#{name}"
+    end
+
+    def manipulation_resource
+      ['pool', name]
     end
 
     def run_dir

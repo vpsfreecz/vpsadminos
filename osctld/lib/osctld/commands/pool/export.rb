@@ -14,67 +14,69 @@ module OsCtld
         error!('the pool has running containers')
       end
 
-      # Do not autostart any more containers
-      pool.stop
+      manipulate(pool) do
+        # Do not autostart any more containers
+        pool.stop
 
-      # Disable the pool
-      pool.exclusively { pool.disable }
+        # Disable the pool
+        pool.exclusively { pool.disable }
 
-      # Stop all containers
-      if opts[:stop_containers]
-        progress('Stopping all containers')
-        stop_cts(pool)
-      end
+        # Stop all containers
+        if opts[:stop_containers]
+          progress('Stopping all containers')
+          stop_cts(pool)
+        end
 
-      # Unregister all entities
-      progress('Unregistering users, groups and containers')
+        # Unregister all entities
+        progress('Unregistering users, groups and containers')
 
-      # Preserve root group
-      root_group = DB::Groups.root(pool)
+        # Preserve root group
+        root_group = DB::Groups.root(pool)
 
-      [DB::Containers, DB::Users, DB::Groups, DB::Repositories].each do |klass|
-        klass.get.each do |obj|
-          next if obj.pool != pool
+        [DB::Containers, DB::Users, DB::Groups, DB::Repositories].each do |klass|
+          klass.get.each do |obj|
+            next if obj.pool != pool
 
-          if obj.is_a?(User)
-            obj.exclusively { UserControl::Supervisor.stop_server(obj) }
+            if obj.is_a?(User)
+              obj.exclusively { UserControl::Supervisor.stop_server(obj) }
 
-            call_cmd!(
-              Commands::User::Unregister,
-              pool: pool.name,
-              name: obj.name
-            ) if opts[:unregister_users]
+              call_cmd!(
+                Commands::User::Unregister,
+                pool: pool.name,
+                name: obj.name
+              ) if opts[:unregister_users]
 
-          elsif obj.is_a?(Container)
-            Monitor::Master.demonitor(obj)
-            obj.exclusively { Console.remove(obj) }
+            elsif obj.is_a?(Container)
+              Monitor::Master.demonitor(obj)
+              obj.exclusively { Console.remove(obj) }
+            end
+
+            klass.remove(obj)
           end
-
-          klass.remove(obj)
         end
-      end
 
-      # Remove all cgroups
-      if opts[:stop_containers]
-        progress('Removing cgroups')
-        begin
-          CGroup.rmpath_all(root_group.cgroup_path)
-        rescue SystemCallError
-          # If some of the cgroups are busy, just leave them be
+        # Remove all cgroups
+        if opts[:stop_containers]
+          progress('Removing cgroups')
+          begin
+            CGroup.rmpath_all(root_group.cgroup_path)
+          rescue SystemCallError
+            # If some of the cgroups are busy, just leave them be
+          end
         end
+
+        # Regenerate /etc/sub{u,g}ids and lxc-usernet
+        call_cmd!(Commands::User::SubUGIds)
+        call_cmd!(Commands::User::LxcUsernet)
+
+        # Close history
+        History.close(pool)
+
+        # Remove pool from the database
+        DB::Pools.remove(pool)
+
+        ok
       end
-
-      # Regenerate /etc/sub{u,g}ids and lxc-usernet
-      call_cmd!(Commands::User::SubUGIds)
-      call_cmd!(Commands::User::LxcUsernet)
-
-      # Close history
-      History.close(pool)
-
-      # Remove pool from the database
-      DB::Pools.remove(pool)
-
-      ok
     end
 
     protected
