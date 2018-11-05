@@ -10,15 +10,15 @@ module OsCtld
     end
 
     def execute(u)
-      return error('user has container(s)') if u.has_containers?
+      error!('user has container(s)') if u.has_containers?
 
-      DB::Users.sync do
+      manipulate(u) do
         UserControl::Supervisor.stop_server(u)
 
         u.exclusively do
           # Double-check user's containers, for only within the lock
           # can we be sure
-          return error('user has container(s)') if u.has_containers?
+          error!('user has container(s)') if u.has_containers?
           u.delete
         end
 

@@ -10,7 +10,7 @@ module OsCtld
     end
 
     def execute(user)
-      user.exclusively do
+      manipulate(user) do
         changes = {}
 
         opts.each do |k, v|

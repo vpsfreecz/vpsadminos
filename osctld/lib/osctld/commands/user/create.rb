@@ -57,7 +57,7 @@ module OsCtld
     end
 
     def execute(u)
-      u.exclusively do
+      manipulate(u) do
         zfs(:create, nil, u.dataset)
 
         File.chown(0, opts[:ugid], u.userdir)

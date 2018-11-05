@@ -2,11 +2,13 @@ require 'fileutils'
 require 'libosctl'
 require 'yaml'
 require 'osctld/lockable'
+require 'osctld/manipulable'
 require 'osctld/assets/definition'
 
 module OsCtld
   class User
     include Lockable
+    include Manipulable
     include Assets::Definition
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
@@ -15,6 +17,7 @@ module OsCtld
 
     def initialize(pool, name, load: true, config: nil)
       init_lock
+      init_manipulable
       @pool = pool
       @name = name
       @attrs = Attributes.new
@@ -177,6 +180,10 @@ module OsCtld
 
     def log_type
       "user=#{pool.name}:#{name}"
+    end
+
+    def manipulation_resource
+      ['user', "#{pool.name}:#{name}"]
     end
 
     private
