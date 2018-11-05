@@ -1,11 +1,13 @@
 require 'etc'
 require 'yaml'
 require 'osctld/lockable'
+require 'osctld/manipulable'
 require 'osctld/assets/definition'
 
 module OsCtld
   class Repository
     include Lockable
+    include Manipulable
     include Assets::Definition
 
     USER = 'repository'
@@ -15,6 +17,7 @@ module OsCtld
 
     def initialize(pool, name, load: true)
       init_lock
+      init_manipulable
       @pool = pool
       @name = name
       @enabled = true
@@ -106,6 +109,10 @@ module OsCtld
 
     def cache_path
       File.join(pool.repo_path, name)
+    end
+
+    def manipulation_resource
+      ['repository', "#{pool.name}:#{name}"]
     end
 
     protected

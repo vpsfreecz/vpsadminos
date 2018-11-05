@@ -16,7 +16,7 @@ module OsCtld
         error!('the default repository cannot be deleted, only disabled')
       end
 
-      repo.exclusively do
+      manipulate(repo) do
         syscmd("rm -rf #{repo.cache_path}")
         DB::Repositories.remove(repo)
       end

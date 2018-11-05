@@ -10,7 +10,7 @@ module OsCtld
     end
 
     def execute(repo)
-      repo.exclusively do
+      manipulate(repo) do
         changes = {}
 
         opts.each do |k, v|

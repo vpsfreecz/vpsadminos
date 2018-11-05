@@ -9,7 +9,7 @@ module OsCtld
     end
 
     def execute(repo)
-      repo.exclusively do
+      manipulate(repo) do
         repo.enable
         ok
       end
