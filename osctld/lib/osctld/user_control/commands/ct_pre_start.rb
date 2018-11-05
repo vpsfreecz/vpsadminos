@@ -21,7 +21,12 @@ module OsCtld
       ct.apparmor.setup
 
       # Configure CGroups
-      ret = call_cmd(Commands::Container::CGParamApply, id: ct.id, pool: ct.pool.name)
+      ret = call_cmd(
+        Commands::Container::CGParamApply,
+        id: ct.id,
+        pool: ct.pool.name,
+        manipulation_lock: 'ignore',
+      )
       return ret unless ret[:status]
 
       # Configure devices cgroup

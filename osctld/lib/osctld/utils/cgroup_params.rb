@@ -26,62 +26,70 @@ module OsCtld
     def set(groupable, opts, apply: true)
       params = groupable.cgparams.import(opts[:parameters])
 
-      groupable.cgparams.set(params, append: opts[:append])
+      manipulate(groupable) do
+        groupable.cgparams.set(params, append: opts[:append])
 
-      if apply
-        ret = apply(groupable)
-        return ret unless ret[:status]
+        if apply
+          ret = apply(groupable)
+          return ret unless ret[:status]
+        end
+
+        ok
       end
-
-      ok
 
     rescue CGroupSubsystemNotFound, CGroupParameterNotFound => e
       error(e.message)
     end
 
     def unset(groupable, opts, reset: true, keep_going: false)
-      groupable.cgparams.unset(
-        opts[:parameters],
-        reset: reset,
-        keep_going: keep_going
-      ) do |subsystem|
-        if groupable.respond_to?(:abs_apply_cgroup_path)
-          groupable.abs_apply_cgroup_path(subsystem)
+      manipulate(groupable) do
+        groupable.cgparams.unset(
+          opts[:parameters],
+          reset: reset,
+          keep_going: keep_going
+        ) do |subsystem|
+          if groupable.respond_to?(:abs_apply_cgroup_path)
+            groupable.abs_apply_cgroup_path(subsystem)
 
-        else
-          groupable.abs_cgroup_path(subsystem)
+          else
+            groupable.abs_cgroup_path(subsystem)
+          end
         end
-      end
 
-      ok
+        ok
+      end
     end
 
     def apply(groupable, force: true)
-      groupable.cgparams.apply(keep_going: force) do |subsystem|
-        if groupable.respond_to?(:abs_apply_cgroup_path)
-          groupable.abs_apply_cgroup_path(subsystem)
+      manipulate(groupable) do
+        groupable.cgparams.apply(keep_going: force) do |subsystem|
+          if groupable.respond_to?(:abs_apply_cgroup_path)
+            groupable.abs_apply_cgroup_path(subsystem)
 
-        else
-          groupable.abs_cgroup_path(subsystem)
+          else
+            groupable.abs_cgroup_path(subsystem)
+          end
         end
-      end
 
-      ok
+        ok
+      end
     end
 
     def replace(groupable)
-      groupable.cgparams.replace(
-        groupable.cgparams.import(opts[:parameters])
-      ) do |subsystem|
-        if groupable.respond_to?(:abs_apply_cgroup_path)
-          groupable.abs_apply_cgroup_path(subsystem)
+      manipulate(groupable) do
+        groupable.cgparams.replace(
+          groupable.cgparams.import(opts[:parameters])
+        ) do |subsystem|
+          if groupable.respond_to?(:abs_apply_cgroup_path)
+            groupable.abs_apply_cgroup_path(subsystem)
 
-        else
-          groupable.abs_cgroup_path(subsystem)
+          else
+            groupable.abs_cgroup_path(subsystem)
+          end
         end
-      end
 
-      apply(groupable)
+        apply(groupable)
+      end
 
     rescue CGroupSubsystemNotFound, CGroupParameterNotFound => e
       error(e.message)
