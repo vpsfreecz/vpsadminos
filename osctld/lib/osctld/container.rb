@@ -324,6 +324,11 @@ module OsCtld
 
     def rootfs
       File.join(dir, 'private')
+
+    rescue SystemCommandFailed
+      # Dataset for staged containers does not have to exist yet, relevant
+      # primarily for ct show/list
+      nil
     end
 
     def runtime_rootfs
