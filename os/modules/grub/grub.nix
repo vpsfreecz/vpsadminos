@@ -577,11 +577,6 @@ in
           message = "Only GRUB version 2 provides ZFS support";
         }
         {
-          assertion = cfg.mirroredBoots != [ ];
-          message = "You must set the option ‘boot.loader.grub.devices’ or "
-            + "'boot.loader.grub.mirroredBoots' to make the system bootable.";
-        }
-        {
           assertion = cfg.efiSupport || all (c: c < 2) (mapAttrsToList (_: c: c) bootDeviceCounters);
           message = "You cannot have duplicated devices in mirroredBoots";
         }

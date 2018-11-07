@@ -463,33 +463,45 @@ with lib;
           inherit (v) runlevels onChange reloadMethod;
         }) config.runit.services;
       });
-      in
-        pkgs.runCommand name {
-          activationScript = config.system.activationScripts.script;
-          ruby = pkgs.ruby;
-          etc = config.system.build.etc;
-          installBootLoader = config.system.build.installBootLoader or "none";
-          inherit (config.boot) kernelParams;
-        } ''
-          mkdir $out
-          cp ${config.system.build.bootStage2} $out/init
-          substituteInPlace $out/init --subst-var-by systemConfig $out
-          ln -s ${config.system.path} $out/sw
-          ln -s ${kernelPath} $out/kernel
-          ln -s ${initrdPath} $out/initrd
-          ln -s ${config.system.modulesTree} $out/kernel-modules
-          echo -n "${config.system.osLabel}" > $out/os-version
-          echo -n "$kernelParams" > $out/kernel-params
-          ln -s ${serviceList} $out/services
-          echo "$activationScript" > $out/activate
-          substituteInPlace $out/activate --subst-var out
-          chmod u+x $out/activate
-          unset activationScript
 
-          mkdir $out/bin
-          substituteAll ${./lib/switch-to-configuration.rb} $out/bin/switch-to-configuration
-          chmod +x $out/bin/switch-to-configuration
-        '';
+      baseSystem = pkgs.runCommand name {
+        activationScript = config.system.activationScripts.script;
+        ruby = pkgs.ruby;
+        etc = config.system.build.etc;
+        installBootLoader = config.system.build.installBootLoader or "none";
+        inherit (config.boot) kernelParams;
+      } ''
+        mkdir $out
+        cp ${config.system.build.bootStage2} $out/init
+        substituteInPlace $out/init --subst-var-by systemConfig $out
+        ln -s ${config.system.path} $out/sw
+        ln -s ${kernelPath} $out/kernel
+        ln -s ${initrdPath} $out/initrd
+        ln -s ${config.system.modulesTree} $out/kernel-modules
+        echo -n "${config.system.osLabel}" > $out/os-version
+        echo -n "$kernelParams" > $out/kernel-params
+        ln -s ${serviceList} $out/services
+        echo "$activationScript" > $out/activate
+        substituteInPlace $out/activate --subst-var out
+        chmod u+x $out/activate
+        unset activationScript
+
+        mkdir $out/bin
+        substituteAll ${./lib/switch-to-configuration.rb} $out/bin/switch-to-configuration
+        chmod +x $out/bin/switch-to-configuration
+      '';
+
+      failedAssertions = map (x: x.message) (filter (x: !x.assertion) config.assertions);
+
+      showWarnings = res: fold (w: x: builtins.trace "[1;31mwarning: ${w}[0m" x) res config.warnings;
+
+      baseSystemAssertWarn = if failedAssertions != []
+        then throw "\nFailed assertions:\n${concatStringsSep "\n" (map (x: "- ${x}") failedAssertions)}"
+        else showWarnings baseSystem;
+
+      system = baseSystemAssertWarn;
+
+      in system;
 
     system.build.squashfs = pkgs.callPackage ./lib/make-squashfs.nix {
       storeContents = [ config.system.build.toplevel ];
