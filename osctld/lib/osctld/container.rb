@@ -18,10 +18,10 @@ module OsCtld
       OsCtl::Lib::Zfs::Dataset.new(name, base: name)
     end
 
-    attr_reader :pool, :id, :user, :dataset, :group, :distribution, :version,
-      :arch, :autostart, :hostname, :dns_resolvers, :nesting, :prlimits, :mounts,
-      :migration_log, :netifs, :cgparams, :devices, :seccomp_profile, :apparmor,
-      :attrs, :state, :init_pid
+    attr_inclusive_reader :pool, :id, :user, :dataset, :group, :distribution,
+      :version, :arch, :autostart, :hostname, :dns_resolvers, :nesting, :prlimits,
+      :mounts, :migration_log, :netifs, :cgparams, :devices, :seccomp_profile,
+      :apparmor, :attrs, :state, :init_pid
 
     # @param pool [Pool]
     # @param id [String]
@@ -65,7 +65,7 @@ module OsCtld
     end
 
     def ident
-      "#{pool.name}:#{id}"
+      inclusively { "#{pool.name}:#{id}" }
     end
 
     def configure(distribution, version, arch)
@@ -202,20 +202,20 @@ module OsCtld
     # @param force [Boolean] ensure the datasets are mounted even if osctld
     #                        already mounted them
     def mount(force: false)
-      return if !force && @mounted
+      return if !force && mounted
       dataset.mount(recursive: true)
-      @mounted = true
+      self.mounted = true
     end
 
     def chown(user)
-      exclusively { @user = user }
+      self.user = user
       save_config
       configure_lxc
       configure_bashrc
     end
 
     def chgrp(grp, missing_devices: nil)
-      exclusively { @group = grp }
+      self.group = grp
 
       case missing_devices
       when 'provide'
@@ -239,31 +239,25 @@ module OsCtld
     end
 
     def state=(v)
-      exclusively do
-        if state == :staged
-          case v
-          when :complete
-            @state = :stopped
-            save_config
+      if state == :staged
+        case v
+        when :complete
+          exclusively { @state = :stopped }
+          save_config
 
-          when :running
-            @state = v
-            save_config
-          end
-
-          return
+        when :running
+          exclusively { @state = v }
+          save_config
         end
 
-        @state = v
+        return
       end
-    end
 
-    def init_pid=(v)
-      exclusively { @init_pid = v }
+      exclusively { @state = v }
     end
 
     def current_state
-      s = inclusively { state }
+      s = state
       return s if s != :unknown
 
       ret = ct_control(self, :ct_status, ids: [id])
@@ -277,7 +271,7 @@ module OsCtld
     end
 
     def running?
-      inclusively { state == :running }
+      state == :running
     end
 
     def can_start?
@@ -285,11 +279,11 @@ module OsCtld
     end
 
     def starting
-      @dist_network_configured = false
+      self.dist_network_configured = false
     end
 
     def stopped
-      @dist_network_configured = false
+      self.dist_network_configured = false
     end
 
     def can_dist_configure_network?
@@ -300,14 +294,16 @@ module OsCtld
     end
 
     def dist_configure_network?
-      !@dist_network_configured && can_dist_configure_network?
+      inclusively do
+        !dist_network_configured && can_dist_configure_network?
+      end
     end
 
     def dist_configure_network
       return unless dist_configure_network?
 
       DistConfig.run(self, :network)
-      @dist_network_configured = true
+      self.dist_network_configured = true
     end
 
     def dir
@@ -315,11 +311,11 @@ module OsCtld
     end
 
     def lxc_home(user: nil, group: nil)
-      (group || self.group).userdir(user || self.user)
+      inclusively { (group || self.group).userdir(user || self.user) }
     end
 
     def lxc_dir(user: nil, group: nil)
-      File.join(lxc_home(user: user, group: group), id)
+      inclusively { File.join(lxc_home(user: user, group: group), id) }
     end
 
     def rootfs
@@ -333,13 +329,15 @@ module OsCtld
 
     def runtime_rootfs
       fail 'container is not running' unless running?
-      fail 'init_pid not set' unless init_pid
 
-      File.join('/proc', init_pid.to_s, 'root')
+      pid = inclusively { init_pid }
+      fail 'init_pid not set' unless pid
+
+      File.join('/proc', pid.to_s, 'root')
     end
 
     def config_path
-      File.join(pool.conf_path, 'ct', "#{id}.yml")
+      inclusively { File.join(pool.conf_path, 'ct', "#{id}.yml") }
     end
 
     def lxc_config_path(cfg = 'config')
@@ -347,11 +345,11 @@ module OsCtld
     end
 
     def devices_dir
-      File.join(pool.devices_dir, id)
+      inclusively { File.join(pool.devices_dir, id) }
     end
 
     def user_hook_script_dir
-      File.join(pool.user_hook_script_dir, 'ct', id)
+      inclusively { File.join(pool.user_hook_script_dir, 'ct', id) }
     end
 
     def uid_map
@@ -363,17 +361,18 @@ module OsCtld
     end
 
     def root_host_uid
-      @user.uid_map.ns_to_host(0)
+      user.uid_map.ns_to_host(0)
     end
 
     def root_host_gid
-      @user.gid_map.ns_to_host(0)
+      user.gid_map.ns_to_host(0)
     end
 
     # Return a list of all container datasets
     # @return [Array<OsCtl::Lib::Zfs::Dataset>]
     def datasets
-      [dataset] + dataset.descendants
+      ds = inclusively { dataset }
+      [ds] + ds.descendants
     end
 
     # Iterate over all container datasets
@@ -383,7 +382,7 @@ module OsCtld
     end
 
     def base_cgroup_path
-      File.join(group.full_cgroup_path(user), "ct.#{id}")
+      inclusively { File.join(group.full_cgroup_path(user), "ct.#{id}") }
     end
 
     def cgroup_path
@@ -402,30 +401,37 @@ module OsCtld
       opts.each do |k, v|
         case k
         when :autostart
-          @autostart = AutoStart::Config.new(self, v[:priority], v[:delay])
+          self.autostart = AutoStart::Config.new(self, v[:priority], v[:delay])
 
         when :hostname
-          original = @hostname
-          @hostname = OsCtl::Lib::Hostname.new(v)
+          original = nil
+
+          exclusively do
+            original = @hostname
+            @hostname = OsCtl::Lib::Hostname.new(v)
+          end
+
           DistConfig.run(self, :set_hostname, original: original)
 
         when :dns_resolvers
-          @dns_resolvers = v
+          self.dns_resolvers = v
           DistConfig.run(self, :dns_resolvers)
 
         when :nesting
-          @nesting = true
+          self.nesting = true
 
         when :distribution
-          @distribution = v[:name]
-          @version = v[:version]
-          @arch = v[:arch] if v[:arch]
+          exclusively do
+            @distribution = v[:name]
+            @version = v[:version]
+            @arch = v[:arch] if v[:arch]
+          end
 
         when :seccomp_profile
-          @seccomp_profile = v
+          self.seccomp_profile = v
 
         when :attrs
-          attrs.update(v)
+          exclusively { attrs.update(v) }
         end
       end
 
@@ -437,22 +443,22 @@ module OsCtld
       opts.each do |k, v|
         case k
         when :autostart
-          @autostart = false
+          self.autostart = false
 
         when :hostname
-          @hostname = nil
+          self.hostname = nil
 
         when :dns_resolvers
-          @dns_resolvers = nil
+          self.dns_resolvers = nil
 
         when :nesting
-          @nesting = false
+          self.nesting = false
 
         when :seccomp_profile
-          @seccomp_profile = default_seccomp_profile
+          self.seccomp_profile = default_seccomp_profile
 
         when :attrs
-          v.each { |attr| attrs.unset(attr) }
+          exclusively { v.each { |attr| attrs.unset(attr) } }
         end
       end
 
@@ -542,39 +548,46 @@ module OsCtld
     end
 
     def open_migration_log(role, opts = {})
-      @migration_log = Migration::Log.new(role: role, opts: opts)
+      self.migration_log = Migration::Log.new(role: role, opts: opts)
       save_config
     end
 
     def close_migration_log(save: true)
-      @migration_log = nil
+      self.migration_log = nil
       save_config if save
     end
 
-    def save_config
-      data = {
-        'user' => user.name,
-        'group' => group.name,
-        'dataset' => dataset.name,
-        'distribution' => distribution,
-        'version' => version,
-        'arch' => arch,
-        'net_interfaces' => netifs.dump,
-        'cgparams' => cgparams.dump,
-        'devices' => devices.dump,
-        'prlimits' => prlimits.map(&:dump),
-        'mounts' => mounts.dump,
-        'autostart' => autostart && autostart.dump,
-        'hostname' => hostname && hostname.to_s,
-        'dns_resolvers' => dns_resolvers,
-        'nesting' => nesting,
-        'seccomp_profile' => seccomp_profile == default_seccomp_profile \
-                             ? nil : seccomp_profile,
-        'attrs' => attrs.dump,
-      }
+    # Export to clients
+    def export
+      inclusively do
+        {
+          pool: pool.name,
+          id: id,
+          user: user.name,
+          group: group.name,
+          dataset: dataset.name,
+          rootfs: rootfs,
+          lxc_path: lxc_home,
+          lxc_dir: lxc_dir,
+          group_path: cgroup_path,
+          distribution: distribution,
+          version: version,
+          state: state,
+          init_pid: init_pid,
+          autostart: autostart ? true : false,
+          autostart_priority: autostart && autostart.priority,
+          autostart_delay: autostart && autostart.delay,
+          hostname: hostname,
+          dns_resolvers: dns_resolvers,
+          nesting: nesting,
+          seccomp_profile: seccomp_profile,
+          log_file: log_path,
+        }.merge!(attrs.export)
+      end
+    end
 
-      data['state'] = 'staged' if state == :staged
-      data['migration_log'] = migration_log.dump if migration_log
+    def save_config
+      data = dump
 
       File.open(config_path, 'w', 0400) do |f|
         f.write(YAML.dump(data))
@@ -594,11 +607,11 @@ module OsCtld
     end
 
     def log_path
-      File.join(pool.log_path, 'ct', "#{id}.log")
+      inclusively { File.join(pool.log_path, 'ct', "#{id}.log") }
     end
 
     def log_type
-      "ct=#{pool.name}:#{id}"
+      inclusively { "ct=#{pool.name}:#{id}" }
     end
 
     def manipulation_resource
@@ -606,6 +619,12 @@ module OsCtld
     end
 
     protected
+    attr_exclusive_writer :pool, :id, :user, :dataset, :group, :distribution,
+      :version, :arch, :autostart, :hostname, :dns_resolvers, :nesting, :prlimits,
+      :mounts, :migration_log, :netifs, :cgparams, :devices, :seccomp_profile,
+      :apparmor, :attrs, :init_pid
+    attr_synchronized_accessor :mounted, :dist_network_configured
+
     def load_config(config = nil, init_devices = true)
       if config
         cfg = YAML.load(config)
@@ -613,41 +632,74 @@ module OsCtld
         cfg = YAML.load_file(config_path)
       end
 
-      @state = cfg['state'].to_sym if cfg['state']
-      @user ||= DB::Users.find(cfg['user'], pool) || (raise "user not found")
-      @group ||= DB::Groups.find(cfg['group'], pool) || (raise "group not found")
+      exclusively do
+        @state = cfg['state'].to_sym if cfg['state']
+        @user ||= DB::Users.find(cfg['user'], pool) || (raise "user not found")
+        @group ||= DB::Groups.find(cfg['group'], pool) || (raise "group not found")
 
-      unless @dataset
-        if cfg['dataset']
-          @dataset = OsCtl::Lib::Zfs::Dataset.new(cfg['dataset'], base: cfg['dataset'])
-        else
-          @dataset = Container.default_dataset(pool, id)
+        unless @dataset
+          if cfg['dataset']
+            @dataset = OsCtl::Lib::Zfs::Dataset.new(cfg['dataset'], base: cfg['dataset'])
+          else
+            @dataset = Container.default_dataset(pool, id)
+          end
         end
+
+        @distribution = cfg['distribution']
+        @version = cfg['version']
+        @arch = cfg['arch']
+        @autostart = cfg['autostart'] && AutoStart::Config.load(self, cfg['autostart'])
+        @hostname = cfg['hostname'] && OsCtl::Lib::Hostname.new(cfg['hostname'])
+        @dns_resolvers = cfg['dns_resolvers']
+        @nesting = cfg['nesting'] || false
+        @seccomp_profile = cfg['seccomp_profile'] || default_seccomp_profile
+        @migration_log = Migration::Log.load(cfg['migration_log']) if cfg['migration_log']
+        @cgparams = CGroup::ContainerParams.load(self, cfg['cgparams'])
+        @prlimits = (cfg['prlimits'] || []).map { |v| PrLimit.load(v) }
+        @attrs = Attributes.load(cfg['attrs'] || {})
+
+        # It's necessary to load devices _before_ netifs. The device manager needs
+        # to create cgroups first, in order for echo a > devices.deny to work.
+        # If the container has a veth interface, the setup code switches to the
+        # container's user, which creates cgroups in all subsystems. Devices then
+        # can't be initialized properly.
+        @devices = Devices::ContainerManager.load(self, cfg['devices'] || [])
+        @devices.init if init_devices
+
+        @netifs = NetInterface::Manager.load(self, cfg['net_interfaces'] || [])
+        @mounts = Mount::Manager.load(self, cfg['mounts'] || [])
       end
+    end
 
-      @distribution = cfg['distribution']
-      @version = cfg['version']
-      @arch = cfg['arch']
-      @autostart = cfg['autostart'] && AutoStart::Config.load(self, cfg['autostart'])
-      @hostname = cfg['hostname'] && OsCtl::Lib::Hostname.new(cfg['hostname'])
-      @dns_resolvers = cfg['dns_resolvers']
-      @nesting = cfg['nesting'] || false
-      @seccomp_profile = cfg['seccomp_profile'] || default_seccomp_profile
-      @migration_log = Migration::Log.load(cfg['migration_log']) if cfg['migration_log']
-      @cgparams = CGroup::ContainerParams.load(self, cfg['cgparams'])
-      @prlimits = (cfg['prlimits'] || []).map { |v| PrLimit.load(v) }
-      @attrs = Attributes.load(cfg['attrs'] || {})
+    # Dump to config
+    def dump
+      inclusively do
+        data = {
+          'user' => user.name,
+          'group' => group.name,
+          'dataset' => dataset.name,
+          'distribution' => distribution,
+          'version' => version,
+          'arch' => arch,
+          'net_interfaces' => netifs.dump,
+          'cgparams' => cgparams.dump,
+          'devices' => devices.dump,
+          'prlimits' => prlimits.map(&:dump),
+          'mounts' => mounts.dump,
+          'autostart' => autostart && autostart.dump,
+          'hostname' => hostname && hostname.to_s,
+          'dns_resolvers' => dns_resolvers,
+          'nesting' => nesting,
+          'seccomp_profile' => seccomp_profile == default_seccomp_profile \
+                               ? nil : seccomp_profile,
+          'attrs' => attrs.dump,
+        }
 
-      # It's necessary to load devices _before_ netifs. The device manager needs
-      # to create cgroups first, in order for echo a > devices.deny to work.
-      # If the container has a veth interface, the setup code switches to the
-      # container's user, which creates cgroups in all subsystems. Devices then
-      # can't be initialized properly.
-      @devices = Devices::ContainerManager.load(self, cfg['devices'] || [])
-      @devices.init if init_devices
+        data['state'] = 'staged' if state == :staged
+        data['migration_log'] = migration_log.dump if migration_log
 
-      @netifs = NetInterface::Manager.load(self, cfg['net_interfaces'] || [])
-      @mounts = Mount::Manager.load(self, cfg['mounts'] || [])
+        data
+      end
     end
 
     # Change the container so that it becomes a clone of `ct` with a different id

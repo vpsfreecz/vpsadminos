@@ -10,33 +10,9 @@ module OsCtld
 
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])
-      return error('container not found') unless ct
+      ct || error!('container not found')
 
-      ct.inclusively do
-        ok({
-          pool: ct.pool.name,
-          id: ct.id,
-          user: ct.user.name,
-          group: ct.group.name,
-          dataset: ct.dataset.name,
-          rootfs: ct.rootfs,
-          lxc_path: ct.lxc_home,
-          lxc_dir: ct.lxc_dir,
-          group_path: ct.cgroup_path,
-          distribution: ct.distribution,
-          version: ct.version,
-          state: ct.state,
-          init_pid: ct.init_pid,
-          autostart: ct.autostart ? true : false,
-          autostart_priority: ct.autostart && ct.autostart.priority,
-          autostart_delay: ct.autostart && ct.autostart.delay,
-          hostname: ct.hostname,
-          dns_resolvers: ct.dns_resolvers,
-          nesting: ct.nesting,
-          seccomp_profile: ct.seccomp_profile,
-          log_file: ct.log_path,
-        }.merge!(ct.attrs.export))
-      end
+      ok(ct.export)
     end
   end
 end
