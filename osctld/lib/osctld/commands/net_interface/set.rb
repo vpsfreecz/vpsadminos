@@ -25,7 +25,7 @@ module OsCtld
         netif.set(change_opts)
 
         ct.save_config
-        ct.configure_network
+        ct.lxc_config.configure_network
 
         ok
       end

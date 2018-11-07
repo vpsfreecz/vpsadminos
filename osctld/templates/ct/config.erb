@@ -30,7 +30,7 @@ lxc.hook.autodev = <%= OsCtld::hook_run('ct-autodev', ct.pool) %>
 lxc.hook.start-host = <%= OsCtld::hook_run('ct-on-start', ct.pool) %>
 lxc.hook.post-stop = <%= OsCtld::hook_run('ct-post-stop', ct.pool) %>
 
-lxc.include = <%= ct.lxc_config_path('network') %>
-lxc.include = <%= ct.lxc_config_path('cgparams') %>
-lxc.include = <%= ct.lxc_config_path('prlimits') %>
-lxc.include = <%= ct.lxc_config_path('mounts') %>
+lxc.include = <%= config_path('network') %>
+lxc.include = <%= config_path('cgparams') %>
+lxc.include = <%= config_path('prlimits') %>
+lxc.include = <%= config_path('mounts') %>

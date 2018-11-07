@@ -10,11 +10,11 @@ module OsCtld
     end
 
     def execute(ct)
-      ct.exclusively do
+      manipulate(ct) do
         error!('the container has to be stopped') if ct.current_state != :stopped
 
         ct.reload_config
-        ct.configure_lxc
+        ct.lxc_config.configure
       end
 
       progress('Reconfiguring LXC usernet')

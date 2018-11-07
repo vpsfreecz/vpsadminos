@@ -5,7 +5,7 @@ module OsCtld
     def set(*args)
       owner.exclusively do
         super
-        owner.configure_cgparams
+        owner.lxc_config.configure_cgparams
       end
     end
 

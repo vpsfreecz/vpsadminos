@@ -19,7 +19,7 @@ module OsCtld
         next error('network interface not found') unless netif
 
         ct.netifs.delete(netif)
-        ct.configure_network
+        ct.lxc_config.configure_network
         DistConfig.run(ct, :remove_netif, netif: netif)
         ok
       end

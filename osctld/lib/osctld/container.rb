@@ -21,7 +21,7 @@ module OsCtld
     attr_inclusive_reader :pool, :id, :user, :dataset, :group, :distribution,
       :version, :arch, :autostart, :hostname, :dns_resolvers, :nesting, :prlimits,
       :mounts, :migration_log, :netifs, :cgparams, :devices, :seccomp_profile,
-      :apparmor, :attrs, :state, :init_pid
+      :apparmor, :attrs, :state, :init_pid, :lxc_config
 
     # @param pool [Pool]
     # @param id [String]
@@ -56,6 +56,7 @@ module OsCtld
       @nesting = false
       @seccomp_profile = nil
       @apparmor = AppArmor.new(self)
+      @lxc_config = Container::LxcConfig.new(self)
       @attrs = Attributes.new
       @dist_network_configured = false
 
@@ -120,41 +121,9 @@ module OsCtld
           group: user.ugid,
           mode: 0750
         )
-        add.file(
-          lxc_config_path,
-          desc: 'LXC base config',
-          user: 0,
-          group: 0,
-          mode: 0644
-        )
-        add.file(
-          lxc_config_path('network'),
-          desc: 'LXC network config',
-          user: 0,
-          group: 0,
-          mode: 0644
-        )
-        add.file(
-          lxc_config_path('cgparams'),
-          desc: 'LXC cgroup parameters',
-          user: 0,
-          group: 0,
-          mode: 0644
-        )
-        add.file(
-          lxc_config_path('prlimits'),
-          desc: 'LXC resource limits',
-          user: 0,
-          group: 0,
-          mode: 0644
-        )
-        add.file(
-          lxc_config_path('mounts'),
-          desc: 'LXC mounts',
-          user: 0,
-          group: 0,
-          mode: 0644
-        )
+
+        lxc_config.assets(add)
+
         add.file(
           File.join(lxc_dir, '.bashrc'),
           desc: 'Shell configuration file for osctl ct su',
@@ -210,7 +179,7 @@ module OsCtld
     def chown(user)
       self.user = user
       save_config
-      configure_lxc
+      lxc_config.configure
       configure_bashrc
     end
 
@@ -234,7 +203,7 @@ module OsCtld
       end
 
       save_config
-      configure_lxc
+      lxc_config.configure
       configure_bashrc
     end
 
@@ -340,10 +309,6 @@ module OsCtld
       inclusively { File.join(pool.conf_path, 'ct', "#{id}.yml") }
     end
 
-    def lxc_config_path(cfg = 'config')
-      File.join(lxc_dir, cfg.to_s)
-    end
-
     def devices_dir
       inclusively { File.join(pool.devices_dir, id) }
     end
@@ -436,7 +401,7 @@ module OsCtld
       end
 
       save_config
-      configure_base
+      lxc_config.configure_base
     end
 
     def unset(opts)
@@ -463,7 +428,7 @@ module OsCtld
       end
 
       save_config
-      configure_base
+      lxc_config.configure_base
     end
 
     def prlimit_set(name, soft, hard)
@@ -479,7 +444,7 @@ module OsCtld
       end
 
       save_config
-      configure_lxc
+      lxc_config.configure
     end
 
     def prlimit_unset(name)
@@ -490,48 +455,7 @@ module OsCtld
       end
 
       save_config
-      configure_prlimits
-    end
-
-    def configure_lxc
-      configure_base
-      configure_cgparams
-      configure_prlimits
-      configure_network
-      configure_mounts
-    end
-
-    def configure_base
-      ErbTemplate.render_to('ct/config', {
-        distribution: distribution,
-        version: version,
-        ct: self,
-      }, lxc_config_path)
-    end
-
-    def configure_cgparams
-      ErbTemplate.render_to('ct/cgparams', {
-        cgparams: cgparams,
-      }, lxc_config_path('cgparams'))
-    end
-
-    def configure_prlimits
-      ErbTemplate.render_to('ct/prlimits', {
-        prlimits: prlimits,
-      }, lxc_config_path('prlimits'))
-    end
-
-    # Generate LXC network configuration
-    def configure_network
-      ErbTemplate.render_to('ct/network', {
-        netifs: netifs,
-      }, lxc_config_path('network'))
-    end
-
-    def configure_mounts
-      ErbTemplate.render_to('ct/mounts', {
-        mounts: mounts.all_entries,
-      }, lxc_config_path('mounts'))
+      lxc_config.configure_prlimits
     end
 
     def configure_bashrc
@@ -622,7 +546,7 @@ module OsCtld
     attr_exclusive_writer :pool, :id, :user, :dataset, :group, :distribution,
       :version, :arch, :autostart, :hostname, :dns_resolvers, :nesting, :prlimits,
       :mounts, :migration_log, :netifs, :cgparams, :devices, :seccomp_profile,
-      :apparmor, :attrs, :init_pid
+      :apparmor, :attrs, :init_pid, :lxc_config
     attr_synchronized_accessor :mounted, :dist_network_configured
 
     def load_config(config = nil, init_devices = true)
@@ -735,6 +659,7 @@ module OsCtld
       @autostart = @autostart && @autostart.dup(self)
       @cgparams = cgparams.dup(self)
       @mounts = mounts.dup(self)
+      @lxc_config = lxc_config.dup(self)
 
       @devices = devices.dup(self)
       devices.init

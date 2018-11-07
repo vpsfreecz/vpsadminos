@@ -23,7 +23,7 @@ module OsCtld
         netif.rename(opts[:new_name])
 
         ct.save_config
-        ct.configure_network
+        ct.lxc_config.configure_network
 
         DistConfig.run(ct, :rename_netif, netif: netif, original_name: orig_name)
 

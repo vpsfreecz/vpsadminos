@@ -9,7 +9,7 @@ module OsCtld
       return error('container not found') unless ct
 
       manipulate(ct) do
-        ct.configure_lxc
+        ct.lxc_config.configure
         ok
       end
     end

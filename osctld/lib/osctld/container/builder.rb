@@ -272,7 +272,7 @@ module OsCtld
 
     def setup_lxc_configs
       progress('Generating LXC configuration')
-      ct.configure_lxc
+      ct.lxc_config.configure
     end
 
     def setup_log_file

@@ -26,7 +26,7 @@ module OsCtld
         netif.setup
 
         ct.netifs << netif
-        ct.configure_network
+        ct.lxc_config.configure_network
         DistConfig.run(ct, :add_netif, netif: netif)
         ok
       end

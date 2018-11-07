@@ -31,7 +31,7 @@ module OsCtld
       end
 
       ct.save_config
-      ct.configure_mounts
+      ct.lxc_config.configure_mounts
 
       return unless mnt.automount?
 
@@ -53,7 +53,7 @@ module OsCtld
       end
 
       ct.save_config
-      ct.configure_mounts
+      ct.lxc_config.configure_mounts
     end
 
     # @param mountpoint [String]
@@ -78,7 +78,7 @@ module OsCtld
       end
 
       ct.save_config
-      ct.configure_mounts
+      ct.lxc_config.configure_mounts
     end
 
     # Remote temporal mounts
