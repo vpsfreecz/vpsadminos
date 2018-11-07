@@ -6,7 +6,7 @@
 
   # Directory containing secret files that shouldn't be present in the nix
   # store. The directory's basename has to be `secrets`.
-  secretsDir ? ""
+  secretsDir ? null
 }:
 
 stdenv.mkDerivation {
@@ -23,7 +23,7 @@ stdenv.mkDerivation {
 
       # Generate the squashfs image.
       mksquashfs nix-path-registration $(cat $closureInfo/store-paths) \
-        ${lib.optionalString ((baseNameOf secretsDir) == "secrets" && lib.pathExists secretsDir) secretsDir} \
+        ${lib.optionalString (secretsDir != null) secretsDir} \
         $out -keep-as-directory -all-root -b 1048576 -comp xz -Xdict-size 100%
     '';
 }

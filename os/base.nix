@@ -96,12 +96,22 @@ with lib;
       '';
     };
     system.secretsDir = mkOption {
-      type = types.string;
-      default = "";
+      type = types.nullOr types.string;
+      default = null;
       description = ''
         Path to a directory containing secret keys and other files that should
         not be stored in the Nix store. The directory's base name has to be
-        `secrets`.
+        <literal>secrets</literal>.
+
+        If the sandbox is enabled (<literal>nix.useSandbox = true;</literal>)
+        on the build machine, you need to add your directory with secrets
+        to <literal>nix.sandboxPaths</literal> and then set this option to the
+        path within the sandbox. For example, if your secrets on the build
+        machine are stored in <literal>/home/vpsadminos/secrets</literal>, you
+        could set
+        <literal>nix.sandboxPaths = [ "/secrets=/home/vpsadminos/secrets" ];</literal>
+        on the build machine and <literal>system.secretsDir = "/secrets";</literal>
+        in vpsAdminOS config.
       '';
     };
     boot.isContainer = mkOption {
@@ -307,6 +317,14 @@ with lib;
   in
 
   (lib.mkMerge [{
+    assertions = [
+      {
+        assertion = config.system.secretsDir == null
+                    || (baseNameOf config.system.secretsDir) == "secrets";
+        message = "Base name of system.secretsDir has to be 'secrets'";
+      }
+    ];
+
     environment.shellAliases = {
       ll = "ls -l";
       vim = "vi";
