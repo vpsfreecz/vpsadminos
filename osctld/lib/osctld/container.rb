@@ -396,7 +396,7 @@ module OsCtld
           self.seccomp_profile = v
 
         when :attrs
-          exclusively { attrs.update(v) }
+          attrs.update(v)
         end
       end
 
@@ -423,7 +423,7 @@ module OsCtld
           self.seccomp_profile = default_seccomp_profile
 
         when :attrs
-          exclusively { v.each { |attr| attrs.unset(attr) } }
+          v.each { |attr| attrs.unset(attr) }
         end
       end
 
@@ -660,6 +660,7 @@ module OsCtld
       @cgparams = cgparams.dup(self)
       @mounts = mounts.dup(self)
       @lxc_config = lxc_config.dup(self)
+      @attrs = attrs.dup
 
       @devices = devices.dup(self)
       devices.init

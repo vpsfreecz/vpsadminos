@@ -1,3 +1,5 @@
+require 'osctld/lockable'
+
 module OsCtld
   # Storage of user attributes
   class Attributes
@@ -9,7 +11,10 @@ module OsCtld
       ret
     end
 
+    include Lockable
+
     def initialize
+      init_lock
       @attrs = {}
     end
 
@@ -18,18 +23,18 @@ module OsCtld
       k = key(name)
       fail 'invalid attribute name' if /^[^:]+:.+$/ !~ k
 
-      attrs[k] = value
+      exclusively { attrs[k] = value }
     end
 
     # Unset an attribute
     def unset(name)
-      attrs.delete(key(name))
+      exclusively { attrs.delete(key(name)) }
     end
 
     # Update attributes
     # @param new_attrs [Hash]
     def update(new_attrs)
-      new_attrs.each { |k, v| set(key(k), v) }
+      exclusively { new_attrs.each { |k, v| set(key(k), v) } }
     end
 
     def []=(name, value)
@@ -37,17 +42,23 @@ module OsCtld
     end
 
     def [](name)
-      attrs[key(name)]
+      inclusively { attrs[key(name)] }
     end
 
     # Dump to config
     def dump
-      attrs
+      inclusively { attrs.clone }
     end
 
     # Export attributes to client
     def export
-      Hash[ attrs.map { |k, v| [k.to_sym, v] } ]
+      inclusively { Hash[ attrs.map { |k, v| [k.to_sym, v] } ] }
+    end
+
+    def dup
+      ret = super
+      ret.init_lock
+      ret
     end
 
     protected
