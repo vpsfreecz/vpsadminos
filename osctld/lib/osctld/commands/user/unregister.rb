@@ -27,7 +27,7 @@ module OsCtld
         DB::Users.sync do
           u = DB::Users.find(opts[:name], opts[:pool])
           return error('user not found') unless u
-          return error('not registered') unless u.registered?
+          return ok unless u.registered?
 
           unregister_user(u)
         end
