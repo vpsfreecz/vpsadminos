@@ -140,6 +140,7 @@ module OsCtld
 
     def dup(new_ct)
       ret = super()
+      ret.init_lock
       ret.instance_variable_set('@ct', new_ct)
       ret.instance_variable_set('@entries', entries.map(&:clone))
       ret.instance_variable_set('@shared_dir', shared_dir.dup(new_ct))

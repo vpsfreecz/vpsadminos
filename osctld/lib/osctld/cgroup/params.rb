@@ -172,6 +172,7 @@ module OsCtld
 
     def dup(new_owner)
       ret = super()
+      ret.init_lock
       ret.instance_variable_set('@owner', new_owner)
       ret.instance_variable_set('@params', params.map(&:clone))
       ret
