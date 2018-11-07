@@ -13,7 +13,8 @@ module OsCtld
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
 
-    attr_reader :pool, :name, :ugid, :uid_map, :gid_map, :attrs
+    attr_inclusive_reader :pool, :name, :ugid, :uid_map, :gid_map, :attrs
+    attr_exclusive_writer :registered
 
     def initialize(pool, name, load: true, config: nil)
       init_lock
@@ -25,19 +26,19 @@ module OsCtld
     end
 
     def id
-      @name
+      name
     end
 
-    def delete
-      unregister
-      zfs(:destroy, nil, dataset)
-      File.unlink(config_path)
+    def ident
+      inclusively { "#{pool.name}:#{name}" }
     end
 
     def configure(ugid, uid_map, gid_map)
-      @ugid = ugid
-      @uid_map = IdMap.new(uid_map)
-      @gid_map = IdMap.new(gid_map)
+      exclusively do
+        @ugid = ugid
+        @uid_map = IdMap.new(uid_map)
+        @gid_map = IdMap.new(gid_map)
+      end
 
       save_config
     end
@@ -92,25 +93,10 @@ module OsCtld
 
     def registered?
       exclusively do
-        next @registered unless @registered.nil?
-        @registered = syscmd("id #{sysusername}", valid_rcs: [1])[:exitstatus] == 0
+        return @registered unless @registered.nil?
       end
-    end
 
-    def register
-      exclusively do
-        syscmd("groupadd -g #{ugid} #{sysgroupname}")
-        syscmd("useradd -u #{ugid} -g #{ugid} -d #{homedir} #{sysusername}")
-        @registered = true
-      end
-    end
-
-    def unregister
-      exclusively do
-        syscmd("userdel -f #{sysusername}")
-        syscmd("groupdel #{sysgroupname}", valid_rcs: [6])
-        @registered = false
-      end
+      self.registered = syscmd("id #{sysusername}", valid_rcs: [1])[:exitstatus] == 0
     end
 
     # @param opts [Hash]
@@ -154,7 +140,7 @@ module OsCtld
     end
 
     def dataset
-      File.join(pool.user_ds, name)
+      inclusively { File.join(pool.user_ds, name) }
     end
 
     def userdir
@@ -166,35 +152,45 @@ module OsCtld
     end
 
     def config_path
-      File.join(pool.conf_path, 'user', "#{name}.yml")
+      inclusively { File.join(pool.conf_path, 'user', "#{name}.yml") }
     end
 
     def has_containers?
-      ct = DB::Containers.get.detect { |ct| ct.user.name == name }
+      ct = DB::Containers.get.detect do |ct|
+        ct.user.name == name && ct.pool.name == pool.name
+      end
       ct ? true : false
     end
 
     def containers
-      DB::Containers.get { |cts| cts.select { |ct| ct.user == self } }
+      DB::Containers.get do |cts|
+        cts.select { |ct| ct.user == self && ct.pool.name == pool.name }
+      end
     end
 
     def log_type
-      "user=#{pool.name}:#{name}"
+      "user=#{ident}"
     end
 
     def manipulation_resource
-      ['user', "#{pool.name}:#{name}"]
+      ['user', ident]
     end
 
     private
-    def save_config
-      File.open(config_path, 'w', 0400) do |f|
-        f.write(YAML.dump({
+    def dump
+      inclusively do
+        {
           'ugid' => ugid,
           'uid_map' => uid_map.dump,
           'gid_map' => gid_map.dump,
           'attrs' => attrs.dump,
-        }))
+        }
+      end
+    end
+
+    def save_config
+      File.open(config_path, 'w', 0400) do |f|
+        f.write(YAML.dump(dump))
       end
 
       File.chown(0, 0, config_path)

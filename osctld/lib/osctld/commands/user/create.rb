@@ -68,14 +68,11 @@ module OsCtld
         File.chmod(0751, u.homedir)
 
         u.configure(opts[:ugid], opts[:uid_map], opts[:gid_map])
-        u.register
-
-        DB::Users.sync do
-          DB::Users.add(u)
-          call_cmd(Commands::User::SubUGIds)
-        end
-
+        DB::Users.add(u)
         UserControl::Supervisor.start_server(u)
+
+        call_cmd!(Commands::User::Register, name: u.name, pool: u.pool.name)
+        call_cmd!(Commands::User::SubUGIds)
       end
 
       ok
