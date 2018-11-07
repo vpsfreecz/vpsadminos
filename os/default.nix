@@ -12,7 +12,7 @@ let
     key = _file;
     config = {
       nixpkgs.system = pkgs.lib.mkDefault system;
-      nixpkgs.overlays = import ./overlays.nix { lib = pkgs.lib; inherit vpsadmin; };
+      nixpkgs.overlays = import ./overlays { lib = pkgs.lib; inherit vpsadmin; };
     };
   };
   baseModules = [

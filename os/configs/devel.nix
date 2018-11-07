@@ -32,5 +32,8 @@
     mount -a
   '';
 
-  nix.nixPath = [ "/mnt/nix-path" ];
+  nix.nixPath = [
+    "nixpkgs=/mnt/nix-path/nixpkgs"
+    "nixpkgs-overlays=/mnt/vpsadminos/os/overlays/common.nix"
+  ];
 }

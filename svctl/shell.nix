@@ -1,5 +1,5 @@
 let
-  pkgs = import <nixpkgs> {};
+  pkgs = import <nixpkgs> { overlays = (import ../os/overlays/common.nix); };
   stdenv = pkgs.stdenv;
 
 in stdenv.mkDerivation rec {

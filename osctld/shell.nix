@@ -1,12 +1,12 @@
-let  
-  pkgs = import <nixpkgs> {};
+let
+  pkgs = import <nixpkgs> { overlays = (import ../os/overlays/common.nix); };
   stdenv = pkgs.stdenv;
   apparmor_paths = pkgs.lib.concatMapStringsSep ":" (s: "${s}/etc/apparmor.d")
           [ pkgs.apparmor-profiles pkgs.lxc ];
 
-in stdenv.mkDerivation rec {  
+in stdenv.mkDerivation rec {
   name = "osctld";
-  
+
   buildInputs = [
     pkgs.ruby
     pkgs.lxc

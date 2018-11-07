@@ -1,10 +1,10 @@
-let  
-  pkgs = import <nixpkgs> {};
+let
+  pkgs = import <nixpkgs> { overlays = (import ../os/overlays/common.nix); };
   stdenv = pkgs.stdenv;
 
-in stdenv.mkDerivation rec {  
+in stdenv.mkDerivation rec {
   name = "libosctl";
-  
+
   buildInputs = [
     pkgs.ruby
     pkgs.git
