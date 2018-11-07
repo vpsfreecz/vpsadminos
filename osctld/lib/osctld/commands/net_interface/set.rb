@@ -16,7 +16,7 @@ module OsCtld
           error!('the container must be stopped to change network interface')
         end
 
-        netif = ct.netif_by(opts[:name])
+        netif = ct.netifs[opts[:name]]
         netif || error!('network interface not found')
 
         change_opts = generic_opts

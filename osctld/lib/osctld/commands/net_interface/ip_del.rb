@@ -14,7 +14,7 @@ module OsCtld
     end
 
     def execute(ct)
-      netif = ct.netifs.detect { |n| n.name == opts[:name] }
+      netif = ct.netifs[opts[:name]]
       return error('network interface not found') unless netif
 
       manipulate(ct) do

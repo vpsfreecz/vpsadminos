@@ -17,7 +17,7 @@ module OsCtld
         ct,
         "veth interface coming up: ct=#{opts[:interface]}, host=#{opts[:veth]}"
       )
-      ct.netif_by(opts[:interface]).up(opts[:veth])
+      ct.netifs[opts[:interface]].up(opts[:veth])
 
       Container::Hook.run(
         ct,

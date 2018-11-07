@@ -20,7 +20,7 @@ module OsCtld
 
         ct.inclusively do
           if opts[:name]
-            netif = ct.netifs.detect { |n| n.name == opts[:name] }
+            netif = ct.netifs[opts[:name]]
             netif || error!('network interface not found')
 
             ret << [ct, netif]

@@ -17,7 +17,7 @@ module OsCtld
         if ct.state != :stopped
           next error('the container must be stopped to add network interface')
 
-        elsif ct.netifs.detect { |v| v.name == opts[:name] }
+        elsif ct.netifs.contains?(opts[:name])
           next error("interface '#{opts[:name]}' already exists")
         end
 
@@ -25,7 +25,7 @@ module OsCtld
         netif.create(opts)
         netif.setup
 
-        ct.add_netif(netif)
+        ct.netifs << netif
         ct.configure_network
         DistConfig.run(ct, :add_netif, netif: netif)
         ok

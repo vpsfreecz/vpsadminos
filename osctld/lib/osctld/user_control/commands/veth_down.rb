@@ -18,7 +18,7 @@ module OsCtld
         ct,
         "veth interface coming down: ct=#{opts[:interface]}, host=#{opts[:veth]}"
       )
-      ct.netif_by(opts[:interface]).down(opts[:veth])
+      ct.netifs[opts[:interface]].down(opts[:veth])
 
       # TODO: Removing the veth should be done with LXC, but it doesn't work on
       # os/osctl

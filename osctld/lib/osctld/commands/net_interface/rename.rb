@@ -15,7 +15,7 @@ module OsCtld
           next error('the container must be stopped to rename network interface')
         end
 
-        netif = ct.netif_by(opts[:old_name])
+        netif = ct.netifs[opts[:old_name]]
         next error('network interface not found') unless netif
         next ok if netif.name == opts[:new_name]
 

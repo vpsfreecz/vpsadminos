@@ -18,7 +18,7 @@ module OsCtld
       return error('container not found') unless ct
 
       ct.inclusively do
-        netif = ct.netifs.detect { |v| v.name == opts[:name] }
+        netif = ct.netifs[opts[:name]]
         next error('interface not found') unless netif
 
         ok(

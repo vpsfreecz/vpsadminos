@@ -15,10 +15,10 @@ module OsCtld
           next error('the container must be stopped to remove network interface')
         end
 
-        netif = ct.netifs.detect { |n| n.name == opts[:name] }
+        netif = ct.netifs[opts[:name]]
         next error('network interface not found') unless netif
 
-        ct.del_netif(netif)
+        ct.netifs.delete(netif)
         ct.configure_network
         DistConfig.run(ct, :remove_netif, netif: netif)
         ok

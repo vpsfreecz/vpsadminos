@@ -20,8 +20,8 @@ module OsCtld
 
     attr_reader :pool, :id, :user, :dataset, :group, :distribution, :version,
       :arch, :autostart, :hostname, :dns_resolvers, :nesting, :prlimits, :mounts,
-      :migration_log, :cgparams, :devices, :seccomp_profile, :apparmor, :attrs,
-      :state, :init_pid
+      :migration_log, :netifs, :cgparams, :devices, :seccomp_profile, :apparmor,
+      :attrs, :state, :init_pid
 
     # @param pool [Pool]
     # @param id [String]
@@ -46,7 +46,7 @@ module OsCtld
       @dataset = dataset
       @state = opts[:staged] ? :staged : :unknown
       @init_pid = nil
-      @netifs = []
+      @netifs = NetInterface::Manager.new(self)
       @cgparams = nil
       @devices = nil
       @prlimits = []
@@ -73,7 +73,7 @@ module OsCtld
         @distribution = distribution
         @version = version
         @arch = arch
-        @netifs = []
+        @netifs = NetInterface::Manager.new(self)
         @nesting = false
         @seccomp_profile = default_seccomp_profile
         @cgparams = CGroup::ContainerParams.new(self)
@@ -382,40 +382,6 @@ module OsCtld
       datasets.each(&block)
     end
 
-    def netifs
-      @netifs.clone
-    end
-
-    def netif_by(name)
-      @netifs.detect { |netif| netif.name == name }
-    end
-
-    def add_netif(netif)
-      @netifs << netif
-      save_config
-
-      Eventd.report(
-        :ct_netif,
-        action: :add,
-        pool: pool.name,
-        id: id,
-        name: netif.name,
-      )
-    end
-
-    def del_netif(netif)
-      @netifs.delete(netif)
-      save_config
-
-      Eventd.report(
-        :ct_netif,
-        action: :remove,
-        pool: pool.name,
-        id: id,
-        name: netif.name,
-      )
-    end
-
     def base_cgroup_path
       File.join(group.full_cgroup_path(user), "ct.#{id}")
     end
@@ -552,7 +518,7 @@ module OsCtld
     # Generate LXC network configuration
     def configure_network
       ErbTemplate.render_to('ct/network', {
-        netifs: @netifs,
+        netifs: netifs,
       }, lxc_config_path('network'))
     end
 
@@ -593,7 +559,7 @@ module OsCtld
         'distribution' => distribution,
         'version' => version,
         'arch' => arch,
-        'net_interfaces' => @netifs.map { |v| v.save },
+        'net_interfaces' => netifs.dump,
         'cgparams' => cgparams.dump,
         'devices' => devices.dump,
         'prlimits' => prlimits.map(&:dump),
@@ -680,15 +646,7 @@ module OsCtld
       @devices = Devices::ContainerManager.load(self, cfg['devices'] || [])
       @devices.init if init_devices
 
-      i = 0
-      @netifs = (cfg['net_interfaces'] || []).map do |v|
-        netif = NetInterface.for(v['type'].to_sym).new(self, i)
-        netif.load(v)
-        netif.setup
-        i += 1
-        netif
-      end
-
+      @netifs = NetInterface::Manager.load(self, cfg['net_interfaces'] || [])
       @mounts = Mount::Manager.load(self, cfg['mounts'] || [])
     end
 
@@ -729,7 +687,7 @@ module OsCtld
       @devices = devices.dup(self)
       devices.init
 
-      @netifs = netifs.map { |netif| netif.dup(self) }
+      @netifs = netifs.dup(self)
       netifs.each(&:setup)
     end
 
