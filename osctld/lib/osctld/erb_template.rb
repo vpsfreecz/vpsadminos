@@ -31,6 +31,8 @@ module OsCtld
       vars.each do |k, v|
         if v.is_a?(Proc)
           define_singleton_method(k, &v)
+        elsif v.is_a?(Method)
+          define_singleton_method(k) { |*args| v.call(*args) }
         else
           define_singleton_method(k) { v }
         end
