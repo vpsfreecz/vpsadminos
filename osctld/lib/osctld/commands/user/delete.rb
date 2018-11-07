@@ -22,7 +22,7 @@ module OsCtld
         # can we be sure
         error!('user has container(s)') if u.has_containers?
 
-        call_cmd(Commands::User::Unregister, name: u.name, pool: u.pool.name)
+        call_cmd!(Commands::User::Unregister, name: u.name, pool: u.pool.name)
 
         zfs(:destroy, nil, u.dataset)
         File.unlink(u.config_path)
