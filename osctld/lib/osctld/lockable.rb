@@ -9,13 +9,20 @@ module OsCtld
   # included methods should be treated as protected, i.e. should not be used
   # from the outside.
   #
+  # Multiple threads can hold inclusive locks at the same time, but only one
+  # thread can hold an exclusive one. When a thread has acquired an exclusive
+  # lock, no other thread can get inclusive, nor exclusive lock.
+  #
   # Before the locks can be used, `init_lock()` has to be called. Locks can then
   # be acquired using `lock()` and released using `unlock()`. You can also use
   # `inclusively()` and `exclusively()` to execute a block within the lock.
   #
-  # Multiple threads can hold inclusive locks at the same time, but only one
-  # thread can hold an exclusive one. When a thread has acquired an exclusive
-  # lock, no other thread can get inclusive, nor exclusive lock.
+  # {Lockable} provides helpers for synchronized alternatives to `attr_reader`,
+  # `attr_writer` and `attr_accessor`:
+  #
+  #     attr_inclusive_reader :attr1, :attr2, ...
+  #     attr_exclusive_writer :attr1, :attr2, ...
+  #     attr_synchronized_accessor :attr1, :attr2, ...
   module Lockable
     class Lock
       def initialize
@@ -132,6 +139,33 @@ module OsCtld
       def sync
         @mutex.synchronize { yield }
       end
+    end
+
+    module ClassMethods
+      def attr_inclusive_reader(*attrs)
+        attrs.each do |attr|
+          define_method(attr) do
+            inclusively { instance_variable_get("@#{attr}") }
+          end
+        end
+      end
+
+      def attr_exclusive_writer(*attrs)
+        attrs.each do |attr|
+          define_method(:"#{attr}=") do |v|
+            exclusively { instance_variable_set("@#{attr}", v) }
+          end
+        end
+      end
+
+      def attr_synchronized_accessor(*attrs)
+        attr_inclusive_reader(*attrs)
+        attr_exclusive_writer(*attrs)
+      end
+    end
+
+    def self.included(klass)
+      klass.extend(ClassMethods)
     end
 
     def init_lock
