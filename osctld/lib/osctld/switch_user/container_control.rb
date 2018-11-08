@@ -367,6 +367,8 @@ module OsCtld
     #                                    the container
     # @option opts [NetConfig] :net_config
     def with_configured_network(opts)
+      ret = nil
+
       # Pipes for communicating with opts[:init_script]
       in_r, in_w = IO.pipe
       out_r, out_w = IO.pipe
@@ -396,7 +398,7 @@ module OsCtld
         Process.wait2(pid)
 
         # Execute user command
-        yield
+        ret = yield
       end
 
       # Closing in_w will bring down opts[:init_script] and stop the container
@@ -404,7 +406,7 @@ module OsCtld
       out_r.close
 
       _, status = Process.wait2(init_pid)
-      ok(exitstatus: status.exitstatus)
+      ret || ok(exitstatus: status.exitstatus)
     end
 
     def ok(out = nil)
