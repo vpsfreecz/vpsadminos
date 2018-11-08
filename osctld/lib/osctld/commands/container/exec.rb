@@ -10,21 +10,18 @@ module OsCtld
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])
       error!('container not found') unless ct
+      error!('container not running') if !ct.running? && !opts[:run]
 
-      ct.inclusively do
-        error!('container not running') if !ct.running? && !opts[:run]
+      client.send({status: true, response: 'continue'}.to_json + "\n", 0)
 
-        client.send({status: true, response: 'continue'}.to_json + "\n", 0)
-
-        ct_exec(
-          ct,
-          cmd: opts[:cmd],
-          network: opts[:network],
-          stdin: client.recv_io,
-          stdout: client.recv_io,
-          stderr: client.recv_io,
-        )
-      end
+      ct_exec(
+        ct,
+        cmd: opts[:cmd],
+        network: opts[:network],
+        stdin: client.recv_io,
+        stdout: client.recv_io,
+        stderr: client.recv_io,
+      )
     end
   end
 end
