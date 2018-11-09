@@ -33,7 +33,7 @@ in
           networking.firewall.allowedTCPPorts = [ 80 ];
         };
 
-      user = "sampleuser";
+      user = "webuser";
 
       interfaces = [
         {
