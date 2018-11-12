@@ -67,7 +67,7 @@ module OsCtld
           inherit: true,
         )
         root.devices.add_new(
-          :char, 136, :all, 'rwm',
+          :char, 136, '*', 'rwm',
         #  name: '/dev/tty*', # setup by lxc
           inherit: true,
         )
