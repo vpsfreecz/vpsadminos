@@ -20,13 +20,18 @@ module OsCtld
       netif.type == :routed || error!('not a routed interface')
 
       addr = IPAddress.parse(opts[:addr])
-      ip_v = addr.ipv4? ? 4 : 6
+      via = opts[:via] && IPAddress.parse(opts[:via])
 
       manipulate(ct) do
         # TODO: check that no other container routes this IP
-        error!('this address is already routed') if netif.routes.route?(addr)
+        if netif.routes.route?(addr)
+          error!('this address is already routed')
 
-        netif.add_route(addr)
+        elsif via && !netif.has_ip?(via, prefix: false)
+          error!("host address #{via.to_s} not found on #{netif.name}")
+        end
+
+        netif.add_route(addr, via: via)
         ct.save_config
         ct.lxc_config.configure_network
 

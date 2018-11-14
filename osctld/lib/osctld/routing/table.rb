@@ -9,7 +9,7 @@ module OsCtld
 
       # @param cfg [Array<String>]
       def self.load(cfg)
-        new(addrs: cfg.map { |addr| IPAddress.parse(addr) })
+        new(addrs: cfg.map { |route| Routing::Route.load(route) })
       end
 
       def initialize(addrs: nil)
@@ -19,21 +19,39 @@ module OsCtld
 
       # @param addr [IPAddress::IPv4, IPAddress::IPv6]
       def <<(addr)
-        exclusively { routes << addr }
+        add(addr)
+        self
       end
 
       # @param addr [IPAddress::IPv4, IPAddress::IPv6]
-      # @return [IPAddress::IPv4, IPAddress::IPv6, nil]
+      # @param via [IPAddress::IPv4, IPAddress::IPv6]
+      # @return [Routing::Route]
+      def add(addr, via: nil)
+        exclusively do
+          r = Routing::Route.new(addr, via: via)
+          routes << r
+          r
+        end
+      end
+
+      # @param addr [IPAddress::IPv4, IPAddress::IPv6]
+      # @return [Routing::Route, nil]
       def remove(addr)
-        exclusively { routes.delete(addr) }
+        exclusively do
+          r = routes.detect { |r| r.addr == addr }
+          routes.delete(r) if r
+          r
+        end
+      end
+
+      def remove_if(&block)
+        exclusively { routes.delete_if(&block) }
       end
 
       # @param addr [IPAddress::IPv4, IPAddress::IPv6]
       def route?(addr)
         ret = exclusively do
-          routes.detect do |r|
-            r == addr || (r.network? && r.include?(addr))
-          end
+          routes.detect { |r| r.route?(addr) }
         end
 
         ret ? true : false
@@ -42,7 +60,7 @@ module OsCtld
       # @param addr [IPAddress::IPv4, IPAddress::IPv6]
       def contains?(addr)
         exclusively do
-          routes.detect { |r| r == addr } ? true : false
+          routes.detect { |r| r.addr == addr } ? true : false
         end
       end
 
@@ -66,12 +84,12 @@ module OsCtld
 
       # @return [Array<String>]
       def export
-        exclusively { routes.map(&:to_string) }
+        exclusively { routes.map(&:export) }
       end
 
       # @return [Array<String>]
       def dump
-        export
+        exclusively { routes.map(&:dump) }
       end
 
       protected
@@ -93,17 +111,25 @@ module OsCtld
 
     # @param addr [IPAddress::IPv4, IPAddress::IPv6]
     def <<(addr)
-      t(addr) << addr
+      add(addr)
+      self
     end
 
     # @param addr [IPAddress::IPv4, IPAddress::IPv6]
-    # @return [IPAddress::IPv4, IPAddress::IPv6, nil]
+    # @param via [IPAddress::IPv4, IPAddress::IPv6]
+    # @return [Routing::Route]
+    def add(addr, via: nil)
+      t(addr).add(addr, via: via)
+    end
+
+    # @param addr [IPAddress::IPv4, IPAddress::IPv6]
+    # @return [Routing::Route, nil]
     def remove(addr)
       t(addr).remove(addr)
     end
 
     # @param ip_v [Integer, nil]
-    # @return [Array<IPAddress::IPv4, IPAddress::IPv6>]
+    # @return [Array<Routing::Route>]
     def remove_all(ip_v = nil)
       ret = []
 
@@ -140,12 +166,12 @@ module OsCtld
 
     # Iterate over all routes
     # @yieldparam version [Integer] IP version
-    # @yieldparam addr [IPAddress::IPv4, IPAddress::IPV6]
+    # @yieldparam addr [Routing::Route]
     def each(ip_v, &block)
       ret = []
 
       tables.each do |version, table|
-        ret.concat(table.get.map { |addr| [version, addr] })
+        ret.concat(table.get.map { |route| [version, route] })
       end
 
       Hash[ret].each(&block)
@@ -153,8 +179,17 @@ module OsCtld
 
     # Iterate over all routes for IP version
     # @param ip_v [Integer]
+    # @yieldparam addr [Routing::Route]
     def each_version(ip_v, &block)
       tables[ip_v].get.each(&block)
+    end
+
+    # Remove routes for which the block returns truthy value
+    # @param ip_v [Integer]
+    # @yieldparam addr [Routing::Route]
+    # @yieldreturn [Boolean]
+    def remove_version_if(ip_v, &block)
+      tables[ip_v].remove_if(&block)
     end
 
     # Export the table to clients

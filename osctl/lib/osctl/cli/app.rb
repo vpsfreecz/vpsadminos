@@ -1142,6 +1142,9 @@ module OsCtl::Cli
             ip.desc 'Add route'
             ip.arg_name '<ctid> <ifname> <addr>'
             ip.command :add do |c|
+              c.desc 'Route via specific address'
+              c.flag :via, arg_name: 'hostaddr'
+
               c.action &Command.run(NetInterface, :route_add)
             end
 

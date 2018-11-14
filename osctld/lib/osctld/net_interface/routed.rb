@@ -73,8 +73,8 @@ module OsCtld
       [4, 6].each do |v|
         next if @routes.empty?(v)
 
-        @routes.each_version(v) do |addr|
-          ip(v, [:route, :add, addr.to_string, :dev, veth])
+        @routes.each_version(v) do |route|
+          ip(v, [:route, :add] + route.ip_spec + [:dev, veth])
         end
       end
     end
@@ -88,16 +88,13 @@ module OsCtld
       super(addr)
 
       v = addr.ipv4? ? 4 : 6
-
-      @routes << route if route && !@routes.contains?(route)
+      r = @routes.add(route) if route && !@routes.contains?(route)
 
       ct.inclusively do
         next if ct.state != :running
 
         # Add host route
-        if route
-          ip(v, [:route, :add, route.to_string, :dev, veth])
-        end
+        ip(v, [:route, :add] + r.ip_spec + [:dev, veth]) if r
 
         # Add IP within the CT
         ct_syscmd(
@@ -125,16 +122,30 @@ module OsCtld
     def del_ip(addr, keep_route)
       super(addr)
 
-      route = @routes.remove(addr) unless keep_route
-
+      routes_to_remove = []
       v = addr.ipv4? ? 4 : 6
+
+      unless keep_route
+        r = @routes.remove(addr)
+        routes_to_remove << r if r
+      end
+
+      # Remove all routes that are routed _via_ `addr`
+      @routes.remove_version_if(v) do |route|
+        if route.via && route.via.to_s == addr.to_s
+          routes_to_remove << route
+          true
+        else
+          false
+        end
+      end
 
       ct.inclusively do
         next if ct.state != :running
 
         # Remove host route
-        if route
-          ip(v, [:route, :del, route.to_string, :dev, veth])
+        routes_to_remove.each do |route|
+          ip(v, [:route, :del] + route.ip_spec + [:dev, veth])
         end
 
         # Remove IP from within the CT
@@ -159,26 +170,24 @@ module OsCtld
       @routes.contains?(addr)
     end
 
-    def add_route(addr)
-      @routes << addr
-      v = addr.ipv4? ? 4 : 6
+    def add_route(addr, via: nil)
+      route = @routes.add(addr, via: via)
 
       ct.inclusively do
         next if ct.state != :running
 
-        ip(v, [:route, :add, addr.to_string, :dev, veth])
+        ip(route.ip_version, [:route, :add] + route.ip_spec + [:dev, veth])
       end
     end
 
     def del_route(addr)
       route = @routes.remove(addr)
       return unless route
-      v = route.ipv4? ? 4 : 6
 
       ct.inclusively do
         next if ct.state != :running
 
-        ip(v, [:route, :del, route.to_string, :dev, veth])
+        ip(route.ip_version, [:route, :del] + route.ip_spec + [:dev, veth])
       end
     end
 
@@ -190,9 +199,7 @@ module OsCtld
         next if ct.state != :running
 
         removed.each do |route|
-          v = route.ipv4? ? 4 : 6
-
-          ip(v, [:route, :del, route.to_string, :dev, veth])
+          ip(route.ip_version, [:route, :del] + route.ip_spec + [:dev, veth])
         end
       end
     end

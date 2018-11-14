@@ -24,7 +24,6 @@ module OsCtld
 
         else
           addr = IPAddress.parse(opts[:addr])
-          ip_v = addr.ipv4? ? 4 : 6
 
           error!('route not found') unless netif.has_route?(addr)
           netif.del_route(addr)

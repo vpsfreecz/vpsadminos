@@ -42,6 +42,7 @@ module OsCtl::Cli
       netif
       version
       addr
+      via
     )
 
     def list
@@ -258,7 +259,8 @@ module OsCtl::Cli
               ctid: netif[:ctid],
               netif: netif[:netif],
               version: ip_v,
-              addr: addr,
+              addr: addr[:address],
+              via: addr[:via],
             }
           end
         end
@@ -268,10 +270,10 @@ module OsCtl::Cli
         cols = opts[:output].split(',').map(&:to_sym)
 
       elsif args.count >= 2
-        cols = %i(version addr)
+        cols = %i(version addr via)
 
       elsif args.count >= 1
-        cols = %i(netif version addr)
+        cols = %i(netif version addr via)
 
       else
         cols = ROUTE_FIELDS
@@ -288,7 +290,8 @@ module OsCtl::Cli
         id: args[0],
         pool: gopts[:pool],
         name: args[1],
-        addr: args[2]
+        addr: args[2],
+        via: opts[:via],
       )
     end
 

@@ -118,6 +118,20 @@ module OsCtld
     end
 
     # @param addr [IPAddress]
+    # @param prefix [Boolean] check also address prefix
+    def has_ip?(addr, prefix: true)
+      ip_v = addr.ipv4? ? 4 : 6
+
+      exclusively do
+        if prefix
+          @ips[ip_v].include?(addr)
+        else
+          @ips[ip_v].detect { |v| v.to_s == addr.to_s } ? true : false
+        end
+      end
+    end
+
+    # @param addr [IPAddress]
     def add_ip(addr)
       exclusively { @ips[addr.ipv4? ? 4 : 6] << addr }
     end

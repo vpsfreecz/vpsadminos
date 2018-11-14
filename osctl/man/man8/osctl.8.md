@@ -1369,6 +1369,9 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 `ct netif ip del` [*options*] *ctid* *ifname* *addr*|`all`
   Remove IP address *addr* from interface *name* of container *ctid*.
 
+  For routed interfaces, all routes that are routed via *addr* are deleted
+  as well.
+
     `--[no-]keep-route`
       If there is a route that exactly matches the removed IP address, then this
       option determines whether the route is removed or not. Routes are removed
@@ -1398,8 +1401,15 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-v`, `--version` *version*
       Filter by IP version.
 
-`ct netif route add` *ctid* *ifname* *addr*
-  Route *addr* into the container. Applicable only for routed interfaces.
+`ct netif route add` [*options*] *ctid* *ifname* *addr*
+  Route *addr* into the container. For the routed address to be reachable,
+  one address from the network has to be added to *ifname* (`ct netif ip add`),
+  or you can route *addr* via another *hostaddr* that is already on *ifname*
+  using option `--via`. Applicable only for routed interfaces.
+
+    `--via` *hostaddr*
+      Route *addr* via *hostaddr*. *hostaddr* must be a host IP address on
+      *ifname* that has already been added using `ct netif ip add`.
 
 `ct netif route del` [*options*] *ctid* *ifname* *addr*|`all`
   Remove routed address from a routed interface.
