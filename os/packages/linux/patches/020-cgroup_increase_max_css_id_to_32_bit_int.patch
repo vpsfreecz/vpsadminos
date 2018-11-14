@@ -1,12 +1,22 @@
+From 3c97bd85f09331b7881405de2f6eef2e9b438934 Mon Sep 17 00:00:00 2001
+From: Pavel Snajdr <snajpa@snajpa.net>
+Date: Wed, 14 Nov 2018 22:04:56 +0100
+Subject: [PATCH] Allow 32 bit memory control IDs
+
+---
+ include/linux/memcontrol.h |  5 +++++
+ init/Kconfig               | 11 +++++++++++
+ 2 files changed, 16 insertions(+)
+
 diff --git a/include/linux/memcontrol.h b/include/linux/memcontrol.h
-index 6c6fb116e925..b5f02b156713 100644
+index 652f602167df..363102d2d8fd 100644
 --- a/include/linux/memcontrol.h
 +++ b/include/linux/memcontrol.h
 @@ -73,8 +73,13 @@ struct mem_cgroup_reclaim_cookie {
  
  #ifdef CONFIG_MEMCG
  
-+#if defined(__x86_64__) && defined(MEMCG_32BIT_IDS)
++#if defined(__x86_64__) && defined(CONFIG_MEMCG_32BIT_IDS)
 +#define MEM_CGROUP_ID_SHIFT	32
 +#define MEM_CGROUP_ID_MAX	INT_MAX
 +#else
@@ -17,12 +27,12 @@ index 6c6fb116e925..b5f02b156713 100644
  struct mem_cgroup_id {
  	int id;
 diff --git a/init/Kconfig b/init/Kconfig
-index 041f3a022122..1e71f377a5a8 100644
+index 1e234e2f1cba..2dc7250d0efc 100644
 --- a/init/Kconfig
 +++ b/init/Kconfig
-@@ -678,6 +678,18 @@ config MEMCG_SWAP_ENABLED
- 	  select this option (if, for some reason, they need to disable it
- 	  then swapaccount=0 does the trick).
+@@ -713,6 +713,17 @@ config MEMCG_KMEM
+ 	depends on MEMCG && !SLOB
+ 	default y
  
 +config MEMCG_32BIT_IDS
 +	bool "Use 32 bit IDs"
@@ -32,10 +42,12 @@ index 041f3a022122..1e71f377a5a8 100644
 +	  Extends the default limit of max 65536 memory cgroups to
 +	  2147483647. This may cause an increase of bucket_order in
 +	  mm/workingset.c, having TODO consequences.
-+
 +	  See https://lore.kernel.org/patchwork/patch/690171/ for original
 +	  reasoning behind 16 bit limit.
 +
  config BLK_CGROUP
  	bool "IO controller"
  	depends on BLOCK
+-- 
+2.15.0
+
