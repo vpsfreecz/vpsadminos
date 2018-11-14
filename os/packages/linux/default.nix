@@ -2,7 +2,7 @@
 let
   kernelPatches = pkgs.kernelPatches;
 in
-  pkgs.callPackage <nixpkgs/pkgs/os-specific/linux/kernel/linux-4.18.nix> {
+  pkgs.callPackage <nixpkgs/pkgs/os-specific/linux/kernel/linux-4.19.nix> {
     kernelPatches =
       [ kernelPatches.bridge_stp_helper
         # See pkgs/os-specific/linux/kernel/cpu-cgroup-v2-patches/README.md
