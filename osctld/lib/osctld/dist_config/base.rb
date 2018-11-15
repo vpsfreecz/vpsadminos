@@ -94,57 +94,16 @@ module OsCtld
     # hostname.
     # @param old_hostname [OsCtl::Lib::Hostname, nil]
     def update_etc_hosts(old_hostname = nil)
-      hosts = File.join(ct.rootfs, 'etc', 'hosts')
-      return unless writable?(hosts)
+      path = File.join(ct.rootfs, 'etc', 'hosts')
+      return unless writable?(path)
 
-      regenerate_file(hosts, 0644) do |new, old|
-        old.each_line do |line|
-          if (/^127\.0\.0\.1\s/ =~ line || /^::1\s/ =~ line) \
-             && !includes_hostname?(line, ct.hostname)
+      hosts = EtcHosts.new(path)
 
-            if old_hostname && includes_hostname?(line, old_hostname)
-              new.puts(replace_host(line, old_hostname, ct.hostname))
-
-            else
-              new.puts(add_host(line.strip, ct.hostname))
-            end
-
-          else
-            new.write(line)
-          end
-        end
+      if old_hostname
+        hosts.replace(old_hostname, ct.hostname)
+      else
+        hosts.set(ct.hostname)
       end
-    end
-
-    # Check if a line of string contains specific hostname
-    # @param line [String]
-    # @param hostname [OsCtl::Lib::Hostname]
-    def includes_hostname?(line, hostname)
-      /\s#{Regexp.escape(hostname.fqdn)}(\s|$)/ =~ line
-    end
-
-    # Add `hostname` to `line` from `/etc/hosts`
-    #
-    # The hostname is put into the first position.
-    #
-    # @param line [String]
-    # @param hostname [OsCtl::Lib::Hostname]
-    def add_host(line, hostname)
-      return if line !~ /^([^\s]+)(\s+)/
-
-      i = $~.end(2)
-      "#{$1}#{$2}#{hostname.fqdn} #{line[i..-1]}"
-    end
-
-    # Remove `hostname` from `line` read from `/etc/hosts`
-    #
-    # @param line [String]
-    # @param hostname [OsCtl::Lib::Hostname]
-    def replace_host(line, old_hostname, new_hostname)
-      line.sub(
-        /(\s)#{Regexp.escape(old_hostname.fqdn)}(\s|$)/,
-        "\\1#{new_hostname.fqdn}\\2"
-      )
     end
 
     # Check if the file at `path` si writable by its user
