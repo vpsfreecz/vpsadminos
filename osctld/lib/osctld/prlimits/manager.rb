@@ -19,6 +19,14 @@ module OsCtld
       new(ct, entries: Hash[entries])
     end
 
+    # Create new resource limits with default values
+    # @param ct [Container]
+    def self.default(ct)
+      new(ct, entries: {
+        'nofile': PrLimits::PrLimit.new('nofile', 1024, SystemLimits::FILE_MAX_DEFAULT),
+      })
+    end
+
     # @param ct [Container]
     def initialize(ct, entries: {})
       init_lock

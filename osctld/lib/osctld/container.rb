@@ -79,7 +79,7 @@ module OsCtld
         @seccomp_profile = default_seccomp_profile
         @cgparams = CGroup::ContainerParams.new(self)
         @devices = Devices::ContainerManager.new(self)
-        @prlimits = PrLimits::Manager.new(self)
+        @prlimits = PrLimits::Manager.default(self)
         @mounts = Mount::Manager.new(self)
         devices.init
         save_config
