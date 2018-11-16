@@ -493,6 +493,7 @@ module OsCtld
         ctid = File.basename(f)[0..(('.yml'.length+1) * -1)]
 
         ct = Container.new(self, ctid)
+        ensure_limits(ct)
         ct.lxc_config.configure
         Monitor::Master.monitor(ct)
         Console.reconnect_tty0(ct) if ct.current_state == :running
@@ -558,6 +559,12 @@ module OsCtld
       end
 
       true
+    end
+
+    def ensure_limits(ct)
+      if ct.prlimits.contains?('nofile')
+        SystemLimits.ensure_nofile(ct.prlimits['nofile'].hard)
+      end
     end
 
     def ds(path)

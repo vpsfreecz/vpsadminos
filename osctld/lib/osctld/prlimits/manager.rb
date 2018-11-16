@@ -41,6 +41,7 @@ module OsCtld
 
       ct.save_config
       ct.lxc_config.configure_prlimits
+      SystemLimits.ensure_nofile(hard) if name == 'nofile'
     end
 
     # @param name [String]
@@ -53,6 +54,11 @@ module OsCtld
     # @return [PrLimits::PrLimit, nil]
     def [](name)
       inclusively { prlimits[name] }
+    end
+
+    # @param name [String]
+    def contains?(name)
+      inclusively { prlimits.has_key?(name) }
     end
 
     # @yieldparam name [String]

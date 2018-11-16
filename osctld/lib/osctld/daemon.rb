@@ -71,6 +71,8 @@ module OsCtld
       # Setup /run/osctl
       RunState.create
 
+      SystemLimits.instance
+
       # Increase alloed number of open files
       syscmd("prlimit --nofile=4096 --pid #{Process.pid}")
 
