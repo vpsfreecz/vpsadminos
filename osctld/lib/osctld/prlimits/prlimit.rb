@@ -1,11 +1,10 @@
 module OsCtld
-  class PrLimit
-    PARAMS = %i(name soft hard)
+  class PrLimits::PrLimit
     attr_reader :name, :soft, :hard
 
     # Load from config
-    def self.load(cfg)
-      new(* PARAMS.map { |v| cfg[v.to_s] })
+    def self.load(name, cfg)
+      new(name, cfg['soft'], cfg['hard'])
     end
 
     def initialize(name, soft, hard)
@@ -21,12 +20,12 @@ module OsCtld
 
     # Export to client
     def export
-      Hash[PARAMS.map { |v| [v, instance_variable_get(:"@#{v}")] }]
+      {soft: soft, hard: hard}
     end
 
     # Dump to config
     def dump
-      Hash[PARAMS.map { |v| [v.to_s, instance_variable_get(:"@#{v}")] }]
+      {'soft' => soft, 'hard' => hard}
     end
   end
 end

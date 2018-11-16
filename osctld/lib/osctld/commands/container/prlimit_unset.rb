@@ -10,10 +10,8 @@ module OsCtld
     end
 
     def execute(ct)
-      ct.exclusively do
-        ct.prlimit_unset(opts[:name])
-        ok
-      end
+      ct.prlimit_unset(opts[:name])
+      ok
     end
   end
 end

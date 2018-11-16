@@ -49,7 +49,7 @@ module OsCtld
       @netifs = NetInterface::Manager.new(self)
       @cgparams = nil
       @devices = nil
-      @prlimits = []
+      @prlimits = nil
       @mounts = nil
       @hostname = nil
       @dns_resolvers = nil
@@ -79,6 +79,7 @@ module OsCtld
         @seccomp_profile = default_seccomp_profile
         @cgparams = CGroup::ContainerParams.new(self)
         @devices = Devices::ContainerManager.new(self)
+        @prlimits = PrLimits::Manager.new(self)
         @mounts = Mount::Manager.new(self)
         devices.init
         save_config
@@ -579,7 +580,7 @@ module OsCtld
         @seccomp_profile = cfg['seccomp_profile'] || default_seccomp_profile
         @migration_log = Migration::Log.load(cfg['migration_log']) if cfg['migration_log']
         @cgparams = CGroup::ContainerParams.load(self, cfg['cgparams'])
-        @prlimits = (cfg['prlimits'] || []).map { |v| PrLimit.load(v) }
+        @prlimits = PrLimits::Manager.load(self, cfg['prlimits'] || {})
         @attrs = Attributes.load(cfg['attrs'] || {})
 
         # It's necessary to load devices _before_ netifs. The device manager needs
@@ -608,7 +609,7 @@ module OsCtld
           'net_interfaces' => netifs.dump,
           'cgparams' => cgparams.dump,
           'devices' => devices.dump,
-          'prlimits' => prlimits.map(&:dump),
+          'prlimits' => prlimits.dump,
           'mounts' => mounts.dump,
           'autostart' => autostart && autostart.dump,
           'hostname' => hostname && hostname.to_s,
@@ -658,6 +659,7 @@ module OsCtld
       @apparmor = @apparmor.dup(self)
       @autostart = @autostart && @autostart.dup(self)
       @cgparams = cgparams.dup(self)
+      @prlimits = prlimits.dup(self)
       @mounts = mounts.dup(self)
       @lxc_config = lxc_config.dup(self)
       @attrs = attrs.dup

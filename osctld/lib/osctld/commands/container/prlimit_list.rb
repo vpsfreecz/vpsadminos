@@ -8,14 +8,15 @@ module OsCtld
       ct = DB::Containers.find(opts[:id], opts[:pool])
       return error('container not found') unless ct
 
-      ct.inclusively do
-        ret = ct.prlimits.select do |limit|
-          next(false) if opts[:limits] && !opts[:limits].include?(limit.name)
-          true
-        end.map(&:export)
+      ret = {}
 
-        ok(ret)
+      ct.prlimits.each do |name, limit|
+        next if opts[:limits] && !opts[:limits].include?(name)
+
+        ret[name] = limit.export
       end
+
+      ok(ret)
     end
   end
 end

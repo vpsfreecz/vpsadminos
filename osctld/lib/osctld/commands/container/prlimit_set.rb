@@ -32,11 +32,8 @@ module OsCtld
       hard = parse(opts[:hard])
 
       validate(opts[:name], soft, hard)
-
-      ct.exclusively do
-        ct.prlimit_set(opts[:name], soft, hard)
-        ok
-      end
+      ct.prlimits.set(opts[:name], soft, hard)
+      ok
     end
 
     protected

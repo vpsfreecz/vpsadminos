@@ -19,6 +19,7 @@ module OsCtld
   module Devices ; end
   module Generic ; end
   module Mount ; end
+  module PrLimits ; end
   module Routing ; end
   module Utils ; end
   module UserControl
@@ -64,6 +65,7 @@ require_rel 'osctld/generic'
 require_rel 'osctld/monitor'
 require_rel 'osctld/mount'
 require_rel 'osctld/net_interface'
+require_rel 'osctld/prlimits'
 require_rel 'osctld/repository'
 require_rel 'osctld/routing'
 require_rel 'osctld/switch_user'

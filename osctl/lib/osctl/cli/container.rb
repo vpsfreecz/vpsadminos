@@ -925,7 +925,8 @@ tt
         cols = PRLIMIT_FIELDS
       end
 
-      osctld_fmt(:ct_prlimit_list, cmd_opts, cols, fmt_opts)
+      data = osctld_call(:ct_prlimit_list, cmd_opts)
+      format_output(data.map { |k, v| v.merge(name: k)}, cols, fmt_opts)
     end
 
     def prlimit_set
