@@ -6,15 +6,15 @@ module OsCtld
     def ct_control(ct, cmd, opts = {})
       r, w = IO.pipe
 
-      pid = Process.fork do
+      pid = SwitchUser.fork_and_switch_to(
+        ct.user.sysusername,
+        ct.user.ugid,
+        ct.user.homedir,
+        ct.cgroup_path,
+        prlimits: ct.prlimits.export,
+      ) do
         r.close
 
-        SwitchUser.switch_to(
-          ct.user.sysusername,
-          ct.user.ugid,
-          ct.user.homedir,
-          ct.cgroup_path
-        )
         ret = SwitchUser::ContainerControl.run(cmd, opts, {
           lxc_home: ct.lxc_home,
           user_home: ct.user.homedir,
@@ -40,11 +40,16 @@ module OsCtld
 
     def ct_attach(ct, *args)
       {
-        cmd: [
-          ::OsCtld.bin('osctld-ct-exec'), ct.user.sysusername, ct.user.ugid.to_s,
-          ct.user.homedir, ct.cgroup_path
-        ] + args.map(&:to_s),
-        env: Hash[ENV.select { |k,_v| k.start_with?('BUNDLE') || k.start_with?('GEM') }]
+        cmd: ::OsCtld.bin('osctld-ct-exec'),
+        args: args.map(&:to_s),
+        env: Hash[ENV.select { |k,_v| k.start_with?('BUNDLE') || k.start_with?('GEM') }],
+        settings: {
+          user: ct.user.sysusername,
+          ugid: ct.user.ugid,
+          homedir: ct.user.homedir,
+          cgroup_path: ct.cgroup_path,
+          prlimits: ct.prlimits.export,
+        },
       }
     end
 
@@ -191,7 +196,7 @@ module OsCtld
       out_r.close
 
       if !ret[:status]
-        raise OsCtld::SystemCommandFailed "Command '#{cmd}' within CT #{ct.id} failed"
+        raise OsCtld::SystemCommandFailed, "Command '#{cmd}' within CT #{ct.id} failed"
 
       elsif ret[:output][:exitstatus] != 0 && \
             opts[:valid_rcs] != :all && \

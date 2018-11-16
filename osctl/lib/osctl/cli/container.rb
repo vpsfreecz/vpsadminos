@@ -387,22 +387,14 @@ tt
     def attach
       require_args!('id')
 
-      shell = osctld_call(
+      cmd = osctld_call(
         :ct_attach,
         id: args[0],
         pool: gopts[:pool],
-        user_shell: opts['user-shell']
+        user_shell: opts['user-shell'],
       )
 
-      pid = Process.fork do
-        shell[:env].each do |k, v|
-          ENV[k.to_s] = v
-        end
-
-        Process.exec(*shell[:cmd])
-      end
-
-      Process.wait(pid)
+      handle_ct_attach(cmd)
     end
 
     def exec
@@ -451,15 +443,7 @@ tt
       require_args!('id')
 
       cmd = osctld_call(:ct_su, id: args[0], pool: gopts[:pool])
-      pid = Process.fork do
-        cmd[:env].each do |k, v|
-          ENV[k.to_s] = v
-        end
-
-        Process.exec(*cmd[:cmd])
-      end
-
-      Process.wait(pid)
+      handle_ct_attach(cmd)
     end
 
     def set_autostart
@@ -1276,6 +1260,29 @@ tt
 
       elsif resp[:exitstatus] && resp[:exitstatus] > 0
         raise GLI::CustomExit.new('executed command failed', resp[:exitstatus])
+      end
+    end
+
+    def handle_ct_attach(cmd)
+      f = Tempfile.create(['osctl-ct-attach-settings', '.json'], '/tmp')
+      f.puts(cmd[:settings].to_json)
+      f.close
+
+      pid = Process.fork do
+        cmd[:env].each do |k, v|
+          ENV[k.to_s] = v
+        end
+
+        Process.exec(cmd[:cmd], f.path, '--', *cmd[:args])
+      end
+
+      Process.wait(pid)
+
+    ensure
+      begin
+        f && File.unlink(f.path)
+      rescue Errno::ENOENT
+        # pass
       end
     end
   end

@@ -120,13 +120,13 @@ module OsCtld
       ]
 
       progress('Starting container')
-      pid = Process.fork do
-        SwitchUser.switch_to(
-          ct.user.sysusername,
-          ct.user.ugid,
-          ct.user.homedir,
-          ct.cgroup_path
-        )
+      pid = SwitchUser.fork_and_switch_to(
+        ct.user.sysusername,
+        ct.user.ugid,
+        ct.user.homedir,
+        ct.cgroup_path,
+        prlimits: ct.prlimits.export,
+      ) do
         Process.spawn(*cmd, pgroup: true, in: :close, out: :close, err: :close)
       end
 
@@ -138,7 +138,11 @@ module OsCtld
         log(:warn, ct, "Unable to connect to tty0")
       end
 
-      Process.wait(pid)
+      begin
+        Process.wait(pid)
+      rescue Errno::ECHILD
+        log(:warn, 'sad panda')
+      end
 
       :wait
     end

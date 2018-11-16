@@ -66,6 +66,12 @@ module OsCtld
       inclusively { Hash[prlimits.map { |k, v| [k, v.dump] }] }
     end
 
+    def export
+      inclusively do
+        Hash[prlimits.map { |k, v| [k, v.export] }]
+      end
+    end
+
     def dup(new_ct)
       ret = super()
       ret.instance_variable_set('@ct', new_ct)
