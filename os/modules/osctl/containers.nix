@@ -17,6 +17,10 @@ let
     name = nullIfEmpty dev.name;
   }) devices;
 
+  buildPrlimits = prlimits:
+    mapAttrs (name: cfg: _filter cfg)
+             (filterAttrs (name: cfg: cfg != null) prlimits);
+
   backends = {
     nixos = import ./containers/nixos.nix args;
     template = import ./containers/template.nix args;
@@ -89,7 +93,7 @@ let
         net_interfaces = cfg.interfaces;
         cgparams = shared.buildCGroupParams cfg.cgparams;
         devices = buildDevices cfg.devices;
-        prlimits = cfg.prlimits;
+        prlimits = buildPrlimits cfg.prlimits;
         mounts = cfg.mounts;
         autostart = null; # autostart is handled by the runit service
         hostname = name;
@@ -299,36 +303,57 @@ let
           (map _filter x);
   };
 
-  prlimit = { lib, pkgs, ...}: {
+  prlimit = { lib, pkgs, ... }: {
     options = {
       soft = mkOption {
         type = with types; either ints.positive (enum [ "unlimited" ]);
-        example = 2048;
         description = "Soft limit";
-        apply = toString;
       };
 
       hard = mkOption {
         type = with types; either ints.positive (enum [ "unlimited" ]);
-        example = 4096;
         description = "Hard limit";
-        apply = toString;
       };
     };
   };
 
-  mkPrlimitsOption = mkOption {
-    type = types.attrsOf (types.submodule prlimit);
-    default = {
-      nofile = {soft = 1024; hard = 1024*1024; };
-    };
-    apply = x: mapAttrs (k: v: _filter v) x;
-    description = ''
-      Process resource limits
+  mkPrlimitsOption =
+    let
+      limitNames = [
+        "as"
+        "core"
+        "cpu"
+        "data"
+        "fsize"
+        "memlock"
+        "msgqueue"
+        "nice"
+        "nofile"
+        "nproc"
+        "rss"
+        "rtprio"
+        "rttime"
+        "sigpending"
+        "stack"
+      ];
 
-      See also https://vpsadminos.org/containers/resources/#process-resource-limits
-    '';
-  };
+      defaultValues = {
+        nofile = { soft = 1024; hard = 1024*1024; };
+      };
+
+      defaultFor = name: defaultValues.${name} or null;
+
+      optionFor = name: mkOption {
+        type = types.nullOr (types.submodule prlimit);
+        default = defaultFor name;
+        description = ''
+          Process resource limit, see man prlimit(2) and
+          https://vpsadminos.org/containers/resources/#process-resource-limits
+        '';
+      };
+
+      optionList = map (name: { "${name}" = optionFor name; }) limitNames;
+    in fold (v: acc: acc // v) {} optionList;
 
   mount = { lib, pkgs, ...}: {
     options = {
