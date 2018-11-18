@@ -55,8 +55,6 @@
           };
         };
 
-        filelim = { name = "nofile"; soft = 1024; hard = 4096; };
-
         resolv = "1.1.1.1";
 
         mount = { fs = "/var/share"; mountpoint = "/mnt"; };
@@ -96,7 +94,7 @@
             group = "/limited";
             nesting = true;
             interfaces = [ ifrt ];
-            prlimits = [ filelim ];
+            prlimits.nofile = { soft = 1024; hard = 1024*1024; };
           };
 
         hasmounts =

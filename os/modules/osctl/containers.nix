@@ -301,12 +301,6 @@ let
 
   prlimit = { lib, pkgs, ...}: {
     options = {
-      name = mkOption {
-        type = types.str;
-        example = "nproc";
-        description = "Process resource limit name";
-      };
-
       soft = mkOption {
         type = with types; either ints.positive (enum [ "unlimited" ]);
         example = 2048;
@@ -324,16 +318,11 @@ let
   };
 
   mkPrlimitsOption = mkOption {
-    type = types.listOf (types.submodule prlimit);
-    default = [];
-    example = [
-      { name = "nofile";
-        soft = 1024;
-        hard = 4096;
-      }
-    ];
-
-    apply = x: map _filter x;
+    type = types.attrsOf (types.submodule prlimit);
+    default = {
+      nofile = {soft = 1024; hard = 1024*1024; };
+    };
+    apply = x: mapAttrs (k: v: _filter v) x;
     description = ''
       Process resource limits
 
