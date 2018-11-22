@@ -54,7 +54,16 @@ module OsCtld
       end
 
       cgroup = File.join(base, *path)
-      File.chown(chown, chown, cgroup) if chown
+
+      if chown
+        File.chown(chown, chown, cgroup)
+
+        if type == 'unified'
+          %w(cgroup.procs cgroup.threads cgroup.subtree_control).each do |f|
+            File.chown(chown, chown, File.join(cgroup, f))
+          end
+        end
+      end
 
       if attach
         ['tasks', 'cgroup.procs'].each do |tasks|
