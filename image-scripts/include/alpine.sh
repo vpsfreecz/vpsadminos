@@ -141,7 +141,7 @@ echo tty0 >> /etc/securetty
 
 sed -i \
 	-e 's/^#*rc_logger=.*/rc_logger="YES"/' \
-	-e 's/^#*rc_sys=.*/rc_sys="openvz"/' \
+	-e 's/^#*rc_sys=.*/rc_sys="lxc"/' \
 	-e 's/^#*rc_controller_cgroups=.*/rc_controller_cgroups="NO"/' \
 	/etc/rc.conf
 
