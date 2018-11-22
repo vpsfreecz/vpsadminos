@@ -11,39 +11,36 @@ module OsCtld
 
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])
-      return error('container not found') unless ct
+      error!('container not found') unless ct
+      error!('container not running') if ct.state != :running
 
-      ct.inclusively do
-        next error('container not running') if ct.state != :running
+      base_args = [
+        'lxc-attach', '-P', ct.lxc_home,
+        '-n', ct.id,
+        '--clear-env',
+        '--keep-var', 'TERM',
+        '-v', 'USER=root',
+        '-v', 'LOGNAME=root',
+        '-v', 'HOME=/root',
+        '-v', "PATH=#{SwitchUser::ContainerControl::PATH.join(':')}",
+        '-v', 'HISTFILE=/root/.osctl_ct_attach_history',
+      ]
 
-        base_args = [
-          'lxc-attach', '-P', ct.lxc_home,
-          '-n', ct.id,
-          '--clear-env',
-          '--keep-var', 'TERM',
-          '-v', 'USER=root',
-          '-v', 'LOGNAME=root',
-          '-v', 'HOME=/root',
-          '-v', "PATH=#{SwitchUser::ContainerControl::PATH.join(':')}",
-          '-v', 'HISTFILE=/root/.osctl_ct_attach_history',
-        ]
+      if opts[:user_shell]
+        ok(ct_attach(ct, *base_args))
 
-        if opts[:user_shell]
-          ok(ct_attach(ct, *base_args))
+      else
+        shell = find_shell(ct)
+        error!('no supported shell located') unless shell
 
-        else
-          shell = find_shell(ct)
-          next error('no supported shell located') unless shell
-
-          ok(ct_attach(
-            ct,
-            *base_args,
-            '--keep-var', 'LANG',
-            '-v', "PS1=#{prompt(ct, shell)}",
-            '--',
-            *shell_args(shell)
-          ))
-        end
+        ok(ct_attach(
+          ct,
+          *base_args,
+          '--keep-var', 'LANG',
+          '-v', "PS1=#{prompt(ct, shell)}",
+          '--',
+          *shell_args(shell)
+        ))
       end
     end
 
