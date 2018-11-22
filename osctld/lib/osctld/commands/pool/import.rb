@@ -40,11 +40,13 @@ module OsCtld
         else
           next error('pool already imported') if DB::Pools.contains?(opts[:name])
 
-          dataset = zfs(
+          mounted, dataset = zfs(
             :get,
-            "-H -o value #{Pool::PROPERTY_DATASET}",
+            "-H -o value mounted,#{Pool::PROPERTY_DATASET}",
             opts[:name]
-          )[:output].strip
+          )[:output].strip.split
+
+          next error('the pool is not mounted') if mounted != 'yes'
 
           begin
             import(opts[:name], dataset)
