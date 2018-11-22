@@ -11,13 +11,20 @@ module OsCtld
     def execute
       DB::Pools.sync do
         if opts[:all]
+          props = [
+            'name',
+            'mounted',
+            Pool::PROPERTY_ACTIVE,
+            Pool::PROPERTY_DATASET,
+          ]
+
           zfs(
             :list,
-            "-H -d0 -o name,#{Pool::PROPERTY_ACTIVE},#{Pool::PROPERTY_DATASET}",
+            "-H -d0 -o #{props.join(',')}",
             ''
           )[:output].split("\n").each do |line|
-            name, active, dataset = line.split
-            next if active != 'yes' || DB::Pools.contains?(name)
+            name, mounted, active, dataset = line.split
+            next if active != 'yes' || mounted != 'yes' || DB::Pools.contains?(name)
 
             begin
               import(name, dataset)
