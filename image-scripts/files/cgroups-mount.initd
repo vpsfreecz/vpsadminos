@@ -1,15 +1,19 @@
 #!/sbin/openrc-run
 
-description="Mount cgroups inside an OpenVZ container."
+description="Mount cgroups inside LXC container."
 
 cgroups="blkio
+	cpu,cpuacct
+	cpuset
+	devices
+	freezer
 	memory
-	cpu,cpuacct,cpuset
-	freezer,devices"
+	net_cls,net_prio
+	pids"
 mount_opts="nodev,noexec,nosuid"
 
 depend() {
-	keyword openvz
+	keyword lxc
 	need sysfs cgroups
 }
 
