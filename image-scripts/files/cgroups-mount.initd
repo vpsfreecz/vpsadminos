@@ -11,6 +11,7 @@ cgroups="blkio
 	memory
 	net_cls,net_prio
 	pids"
+named_cgroups="systemd"
 mount_opts="nodev,noexec,nosuid"
 
 depend() {
@@ -24,11 +25,21 @@ start() {
 	ebegin "Mounting cgroups"
 
 	local retval=0
-	local name; for name in $cgroups; do
+	local name
+
+	for name in $cgroups; do
 		mountinfo -q "/sys/fs/cgroup/$name" && continue
 
 		mkdir -p "/sys/fs/cgroup/$name"
 		mount -n -t cgroup -o "$mount_opts,$name" \
+			"$name" "/sys/fs/cgroup/$name" || retval=1
+	done
+
+	for name in $named_cgroups; do
+		mountinfo -q "/sys/fs/cgroup/$name" && continue
+
+		mkdir -p "/sys/fs/cgroup/$name"
+		mount -n -t cgroup -o "none,$mount_opts,name=$name" \
 			"$name" "/sys/fs/cgroup/$name" || retval=1
 	done
 
