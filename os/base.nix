@@ -360,7 +360,6 @@ with lib;
           pids = /sys/fs/cgroup/pids;
           cglimit = /sys/fs/cgroup/cglimit;
           "name=systemd" = /sys/fs/cgroup/systemd;
-          "name=openrc" = /sys/fs/cgroup/openrc;
         }
         group . {
           memory {
