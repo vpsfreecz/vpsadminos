@@ -3,6 +3,7 @@
 description="Mount cgroups inside LXC container."
 
 cgroups="blkio
+	cglimit
 	cpu,cpuacct
 	cpuset
 	devices
