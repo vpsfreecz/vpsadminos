@@ -4,7 +4,7 @@ module OsCtl::Lib
   # Replacement for stock Queue
   class Queue
     def initialize
-      @mutex = Mutex.new
+      @mutex = ::Mutex.new
       @cond = ConditionVariable.new
       @queue = []
     end

@@ -79,6 +79,12 @@ module OsCtld
     end
   end
 
+  class DeadlockDetected < StandardError
+    def initialize(object, type)
+      super("deadlock detected while trying to lock #{object} #{type}ly")
+    end
+  end
+
   class ResourceLocked < StandardError
     attr_reader :resource, :holder
 

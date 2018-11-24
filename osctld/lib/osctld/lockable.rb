@@ -9,6 +9,9 @@ module OsCtld
   # included methods should be treated as protected, i.e. should not be used
   # from the outside.
   #
+  # If the thread waits for {Lockable::Lock::TIMEOUT} seconds to acquire
+  # the lock, an exception is raised.
+  #
   # Multiple threads can hold inclusive locks at the same time, but only one
   # thread can hold an exclusive one. When a thread has acquired an exclusive
   # lock, no other thread can get inclusive, nor exclusive lock.
@@ -25,14 +28,18 @@ module OsCtld
   #     attr_synchronized_accessor :attr1, :attr2, ...
   module Lockable
     class Lock
-      def initialize
-        @mutex = Mutex.new
+      TIMEOUT = 90
+
+      # @param object [Object]
+      def initialize(object)
+        @mutex = OsCtl::Lib::Mutex.new
         @in_held = []
         @in_queued = []
         @ex_queued = []
         @ex = nil
         @cond_ex = ConditionVariable.new
         @cond_in = ConditionVariable.new
+        @object = object
       end
 
       def acquire_inclusive
@@ -41,10 +48,14 @@ module OsCtld
             @in_queued << Thread.current
 
             # Wait for the exclusive lock to finish, if there is one
-            @cond_in.wait(@mutex)
+            @cond_in.wait(@mutex, TIMEOUT)
 
-            @in_queued.delete(Thread.current)
-            @in_held << Thread.current
+            if @ex
+              raise OsCtld::DeadlockDetected.new(@object, :inclusive)
+            else
+              @in_queued.delete(Thread.current)
+              @in_held << Thread.current
+            end
 
           else
             @in_held << Thread.current
@@ -84,7 +95,12 @@ module OsCtld
 
       def acquire_exclusive
         return if @mutex.owned? && @ex == Thread.current
-        @mutex.lock
+
+        begin
+          @mutex.lock(TIMEOUT)
+        rescue OsCtl::Lib::Mutex::Timeout
+          raise OsCtld::DeadlockDetected.new(@object, :exclusive)
+        end
 
         if @in_held.empty?
           @ex = Thread.current
@@ -93,9 +109,13 @@ module OsCtld
           @ex_queued << Thread.current
 
           # Wait for all inclusive blocks to finish
-          @cond_ex.wait(@mutex)
+          @cond_ex.wait(@mutex, TIMEOUT)
 
-          @ex = @ex_queued.shift
+          if !@in_held.empty?
+            raise OsCtld::DeadlockDetected.new(@object, :exclusive)
+          else
+            @ex = @ex_queued.shift
+          end
         end
       end
 
@@ -137,7 +157,17 @@ module OsCtld
 
       private
       def sync
-        @mutex.synchronize { yield }
+        begin
+          @mutex.lock(TIMEOUT)
+        rescue OsCtl::Lib::Mutex::Timeout
+          raise OsCtld::DeadlockDetected.new(@object, :any)
+        end
+
+        begin
+          yield
+        ensure
+          @mutex.unlock
+        end
       end
     end
 
@@ -169,7 +199,7 @@ module OsCtld
     end
 
     def init_lock
-      @lock = Lock.new
+      @lock = Lock.new(self)
     end
 
     def lock(type)
