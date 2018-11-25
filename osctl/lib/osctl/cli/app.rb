@@ -1537,6 +1537,20 @@ module OsCtl::Cli
         c.action &Command.run(Self, :shutdown)
       end
 
+      command :debug do |dbg|
+        dbg.command 'locks' do |locks|
+          locks.command :ls do |c|
+            c.switch %i(v verbose), negatable: false
+            c.action &Command.run(Debug, :locks_ls)
+          end
+
+          locks.arg_name '<id>'
+          locks.command :show do |c|
+            c.action &Command.run(Debug, :locks_show)
+          end
+        end
+      end
+
       command 'gen-completion' do |g|
         g.command :bash do |c|
           c.action &Command.run(GenCompletion, :bash)

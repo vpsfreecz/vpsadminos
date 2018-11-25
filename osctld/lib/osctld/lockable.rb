@@ -48,17 +48,21 @@ module OsCtld
             @in_queued << Thread.current
 
             # Wait for the exclusive lock to finish, if there is one
+            LockRegistry.register(@object, :inclusive, :waiting)
             @cond_in.wait(@mutex, TIMEOUT)
 
             if @ex
+              LockRegistry.register(@object, :inclusive, :timeout)
               raise OsCtld::DeadlockDetected.new(@object, :inclusive)
             else
               @in_queued.delete(Thread.current)
               @in_held << Thread.current
+              LockRegistry.register(@object, :inclusive, :locked)
             end
 
           else
             @in_held << Thread.current
+            LockRegistry.register(@object, :inclusive, :locked)
           end
         end
       end
@@ -66,6 +70,7 @@ module OsCtld
       def release_inclusive
         sync do
           @in_held.delete(Thread.current)
+          LockRegistry.register(@object, :inclusive, :unlocked)
 
           # Start exclusive block, if there is one waiting
           @cond_ex.signal if @in_held.empty? && @ex_queued.any?
@@ -96,25 +101,32 @@ module OsCtld
       def acquire_exclusive
         return if @mutex.owned? && @ex == Thread.current
 
+        LockRegistry.register(@object, :exclusive, :waiting)
+
         begin
           @mutex.lock(TIMEOUT)
         rescue OsCtl::Lib::Mutex::Timeout
+          LockRegistry.register(@object, :exclusive, :timeout)
           raise OsCtld::DeadlockDetected.new(@object, :exclusive)
         end
 
         if @in_held.empty?
           @ex = Thread.current
+          LockRegistry.register(@object, :exclusive, :locked)
 
         else
           @ex_queued << Thread.current
 
           # Wait for all inclusive blocks to finish
+          LockRegistry.register(@object, :exclusive, :waiting)
           @cond_ex.wait(@mutex, TIMEOUT)
 
           if !@in_held.empty?
+            LockRegistry.register(@object, :exclusive, :timeout)
             raise OsCtld::DeadlockDetected.new(@object, :exclusive)
           else
             @ex = @ex_queued.shift
+            LockRegistry.register(@object, :exclusive, :locked)
           end
         end
       end
@@ -126,6 +138,7 @@ module OsCtld
 
         # Leave exlusive block, signal waiting inclusive blocks to continue
         @ex = nil
+        LockRegistry.register(@object, :exclusive, :unlocked)
 
         # Give the first chance to a round of inclusive locks, then exclusive
         # ones

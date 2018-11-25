@@ -5,6 +5,7 @@ module OsCtld
   module Commands
     module Container ; end
     module Dataset ; end
+    module Debug ; end
     module Event ; end
     module Group ; end
     module History ; end

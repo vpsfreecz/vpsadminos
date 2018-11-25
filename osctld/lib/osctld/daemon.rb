@@ -64,6 +64,14 @@ module OsCtld
       Eventd.start
       History.start
       Devices::Lock.instance
+      LockRegistry.start
+
+      at_exit do
+        if $!.is_a?(DeadlockDetected)
+          log(:fatal, 'Possible deadlock detected')
+          LockRegistry.dump
+        end
+      end
     end
 
     public
@@ -125,6 +133,7 @@ module OsCtld
       Migration.stop
       DB::Pools.get.each { |pool| pool.stop }
       Monitor::Master.stop
+      LockRegistry.stop
       exit(false)
     end
 

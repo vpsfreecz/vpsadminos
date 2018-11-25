@@ -158,6 +158,12 @@ module OsCtld
       rescue CommandFailed, ResourceLocked => e
         reply_error(e.message)
 
+      rescue DeadlockDetected => e
+        log(:fatal, self, 'Possible deadlock detected')
+        log(:fatal, self, e.backtrace.join("\n"))
+        LockRegistry.dump
+        reply_error('internal error')
+
       rescue => err
         log(:fatal, self, "Error during command execution: #{err.message}")
         log(:fatal, self, err.backtrace.join("\n"))

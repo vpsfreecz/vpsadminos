@@ -43,19 +43,19 @@
     dependencies = ["require_all"];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0schgnhknvnbhsbbkprwwgw5rqpyrmrc9p0503rh9vbh5q2z5nc0";
+      sha256 = "0hhha3wp045pmmxs4v1i9a6ka7a0k6g4m58jh9bsjmpvzynqrjia";
       type = "gem";
     };
-    version = "18.09.0.build20181127101326";
+    version = "18.09.0.build20181127101349";
   };
   osctl = {
     dependencies = ["curses" "gli" "highline" "ipaddress" "json" "libosctl" "rainbow" "require_all" "ruby-progressbar"];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1f6g5yah6sfh4blw7zdl8vy18641hi0vv3320cj9dn0w2p8ar4x6";
+      sha256 = "00pbdb8kqacbn4sjgy7zgn62rgfj8v007lyyg07si46cgn3fqbdp";
       type = "gem";
     };
-    version = "18.09.0.build20181127101326";
+    version = "18.09.0.build20181127101349";
   };
   rainbow = {
     source = {
