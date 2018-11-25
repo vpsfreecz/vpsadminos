@@ -86,11 +86,14 @@ module OsCtld
     # @param pid [Integer]
     # @param prlimits [Hash]
     def self.apply_prlimits(pid, prlimits)
-      args = prlimits.map do |name, limit|
-        "--#{name}=#{limit[:soft]}:#{limit[:hard]}"
+      prlimits.each do |name, limit|
+        PrLimits.set(
+          pid,
+          PrLimits.resource_to_const(name),
+          limit[:soft],
+          limit[:hard]
+        )
       end
-
-      syscmd("prlimit --pid #{pid} #{args.join(' ')}")
     end
   end
 end
