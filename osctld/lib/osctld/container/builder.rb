@@ -307,7 +307,7 @@ module OsCtld
     # Remove a partially created container when the building process failed
     #
     # @param opts [Hash] options
-    # @param opts [Boolean] :dataset destroy dataset or not
+    # @option opts [Boolean] :dataset destroy dataset or not
     def cleanup(opts = {})
       Console.remove(ct)
       zfs(:destroy, '-r', ct.dataset, valid_rcs: [1]) if opts[:dataset]

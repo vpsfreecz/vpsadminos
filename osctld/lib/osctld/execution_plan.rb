@@ -38,7 +38,7 @@ module OsCtld
     # The given block is called for every executed item. The calls can be made
     # in parallel from different threads.
     #
-    # @param thread [Integer] number of threads to spawn
+    # @param threads [Integer] number of threads to spawn
     # @yieldparam [v] queued item
     def run(threads, &block)
       fail 'already in progress' if running?

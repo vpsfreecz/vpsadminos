@@ -146,7 +146,7 @@ module OsCtld
     # dependencies. It is possible to add a device which is not provided by
     # parents or to remove a device that is needed by descendants.
     #
-    # @param devices [Array<Devices::Device>]
+    # @param new_devices [Array<Devices::Device>]
     def replace(new_devices)
       sync do
         to_add = []
