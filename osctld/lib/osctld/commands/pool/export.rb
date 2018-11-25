@@ -48,7 +48,7 @@ module OsCtld
 
             elsif obj.is_a?(Container)
               Monitor::Master.demonitor(obj)
-              obj.exclusively { Console.remove(obj) }
+              Console.remove(obj)
             end
 
             klass.remove(obj)

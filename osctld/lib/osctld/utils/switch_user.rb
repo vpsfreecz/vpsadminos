@@ -6,6 +6,12 @@ module OsCtld
     def ct_control(ct, cmd, opts = {})
       r, w = IO.pipe
 
+      ct_opts = {
+        lxc_home: ct.lxc_home,
+        user_home: ct.user.homedir,
+        log_file: ct.log_path,
+      }
+
       pid = SwitchUser.fork_and_switch_to(
         ct.user.sysusername,
         ct.user.ugid,
@@ -15,11 +21,7 @@ module OsCtld
       ) do
         r.close
 
-        ret = SwitchUser::ContainerControl.run(cmd, opts, {
-          lxc_home: ct.lxc_home,
-          user_home: ct.user.homedir,
-          log_file: ct.log_path,
-        })
+        ret = SwitchUser::ContainerControl.run(cmd, opts, ct_opts)
         w.write(ret.to_json + "\n")
 
         exit
