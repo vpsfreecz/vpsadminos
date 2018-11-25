@@ -11,13 +11,15 @@ Gem::Specification.new do |s|
     s.version   = OsCtld::VERSION
   end
 
-  s.summary     =
-  s.description = 'Management daemon for vpsAdminOS'
-  s.authors     = 'Jakub Skokan'
-  s.email       = 'jakub.skokan@vpsfree.cz'
-  s.files       = `git ls-files -z`.split("\x0")
-  s.executables = s.files.grep(%r{^bin/}) { |f| File.basename(f) }
-  s.license     = 'Apache-2.0'
+  s.summary       =
+  s.description   = 'Management daemon for vpsAdminOS'
+  s.authors       = 'Jakub Skokan'
+  s.email         = 'jakub.skokan@vpsfree.cz'
+  s.files         = `git ls-files -z`.split("\x0")
+  s.executables   = s.files.grep(%r{^bin/}) { |f| File.basename(f) }
+  s.extensions   << 'ext/osctld/extconf.rb'
+  s.require_paths = ['lib', 'ext']
+  s.license       = 'Apache-2.0'
 
   s.required_ruby_version = '>= 2.0.0'
 
@@ -30,5 +32,7 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency 'osup', s.version
   s.add_runtime_dependency 'require_all', '~> 2.0.0'
   s.add_runtime_dependency 'ruby-lxc', '1.2.3'
+  s.add_development_dependency 'rake'
+  s.add_development_dependency 'rake-compiler'
   s.add_development_dependency 'yard'
 end

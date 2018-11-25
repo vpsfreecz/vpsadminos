@@ -1,4 +1,5 @@
 require 'require_all'
+require 'osctld/native'
 
 module OsCtld
   module AutoStart ; end
