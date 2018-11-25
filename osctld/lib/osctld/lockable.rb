@@ -43,15 +43,31 @@ module OsCtld
       end
 
       def acquire_inclusive
+        t = Time.now
+        is_timeout = false
+
         sync do
           if @ex_queued.any?
             @in_queued << Thread.current
 
             # Wait for the exclusive lock to finish, if there is one
             LockRegistry.register(@object, :inclusive, :waiting)
-            @cond_in.wait(@mutex, TIMEOUT)
 
-            if @ex
+            loop do
+              now = Time.now
+
+              if (now - t) >= TIMEOUT
+                is_timeout = true
+                break
+
+              elsif @ex.nil?
+                break
+              end
+
+              @cond_in.wait(@mutex, TIMEOUT - (now - t))
+            end
+
+            if @ex && is_timeout
               LockRegistry.register(@object, :inclusive, :timeout)
               raise OsCtld::DeadlockDetected.new(@object, :inclusive)
             else
@@ -101,6 +117,9 @@ module OsCtld
       def acquire_exclusive
         return if @mutex.owned? && @ex == Thread.current
 
+        t = Time.now
+        is_timeout = false
+
         LockRegistry.register(@object, :exclusive, :waiting)
 
         begin
@@ -119,10 +138,24 @@ module OsCtld
 
           # Wait for all inclusive blocks to finish
           LockRegistry.register(@object, :exclusive, :waiting)
-          @cond_ex.wait(@mutex, TIMEOUT)
 
-          if !@in_held.empty?
+          loop do
+            now = Time.now
+
+            if (now - t) >= TIMEOUT
+              is_timeout = true
+              break
+
+            elsif @in_held.empty? && @ex.nil?
+              break
+            end
+
+            @cond_ex.wait(@mutex, TIMEOUT - (now - t))
+          end
+
+          if (!@in_held.empty? || @ex) && is_timeout
             LockRegistry.register(@object, :exclusive, :timeout)
+            @mutex.unlock
             raise OsCtld::DeadlockDetected.new(@object, :exclusive)
           else
             @ex = @ex_queued.shift
