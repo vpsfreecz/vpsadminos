@@ -7,7 +7,7 @@ module OsCtl::Cli
       cols = [
         :type,
         :path,
-        :valid,
+        :state,
         {
           name: :purpose,
           label: 'PURPOSE',

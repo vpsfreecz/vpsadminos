@@ -159,6 +159,16 @@ module OsCtl::Lib
       end
     end
 
+    # Check if the dataset is mounted
+    # @param recursive [Boolean] check all subdatasets as well
+    def mounted?(recursive: false)
+      zfs(
+        :get,
+        "-H #{recursive ? '-r' : ''} -o value mounted",
+        name
+      )[:output].split("\n").all? { |v| v == 'yes' }
+    end
+
     # Return the direct parent
     # @return [Zfs::Dataset]
     def parent

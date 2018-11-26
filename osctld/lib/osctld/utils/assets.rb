@@ -6,7 +6,7 @@ module OsCtld
           type: asset.type,
           path: asset.path,
           opts: asset.opts,
-          valid: asset.valid?,
+          state: asset.state,
           errors: asset.errors,
         }
       end

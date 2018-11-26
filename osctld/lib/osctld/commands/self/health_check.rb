@@ -9,7 +9,7 @@ module OsCtld
       errors = []
 
       Daemon.get.assets.each do |asset|
-        next if asset.valid?
+        next if %i(valid unknown).include?(asset.state)
 
         errors << {
           type: asset.type,
@@ -38,7 +38,7 @@ module OsCtld
             errors = []
 
             ent.assets.each do |asset|
-              next if asset.valid?
+              next if %i(valid unknown).include?(asset.state)
 
               errors << {
                 type: asset.type,

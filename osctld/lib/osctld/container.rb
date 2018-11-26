@@ -96,7 +96,8 @@ module OsCtld
           gidmap: gid_map.map(&:to_a),
           user: root_host_uid,
           group: root_host_gid,
-          mode: 0770
+          mode: 0770,
+          validate_if: mounted?,
         )
 
         # Directories and files
@@ -105,7 +106,8 @@ module OsCtld
           desc: "Container's rootfs",
           user: root_host_uid,
           group: root_host_gid,
-          mode: 0755
+          mode: 0755,
+          validate_if: mounted?,
         )
 
         add.directory(
@@ -175,6 +177,17 @@ module OsCtld
       return if !force && mounted
       dataset.mount(recursive: true)
       self.mounted = true
+    end
+
+    # Check if the container's dataset is mounted
+    # @param force [Boolean] check if the dataset is mounted even if osctld
+    #                        already mounted it
+    def mounted?(force: false)
+      if force || mounted.nil?
+        self.mounted = dataset.mounted?(recursive: true)
+      else
+        mounted
+      end
     end
 
     def chown(user)
