@@ -8,21 +8,13 @@
     };
     version = "5.1.0";
   };
-  curses = {
-    source = {
-      remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0hdgz18a21wi2hg5aw8abc012ni055jr1fbam0v2r8nsqsnx8dy2";
-      type = "gem";
-    };
-    version = "1.2.4";
-  };
   gli = {
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0g7g3lxhh2b4h4im58zywj9vcfixfgndfsvp84cr3x67b5zm4kaq";
+      sha256 = "1sgfc8czb7xk0sdnnz7vn61q4ixbkrpz2mkvcgchfkll94rlqhal";
       type = "gem";
     };
-    version = "2.17.1";
+    version = "2.17.2";
   };
   highline = {
     source = {
@@ -66,21 +58,30 @@
     version = "0.1.0";
   };
   osctl-env-exec = {
-    dependencies = ["curses" "gli" "highline" "ipaddress" "json" "md2man" "rake" "ruby-progressbar" "yard"];
+    dependencies = ["gli" "highline" "ipaddress" "json" "md2man" "rake" "rake-compiler" "ruby-progressbar" "yard"];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0zifh8ygvdm3jvb5a622crhldyiv72nmd7j5yk4adza2ihwk8mpx";
+      sha256 = "1ai20vazrilk76lrxi0dqkslvxf6wb1051vv3vli32azm5finizi";
       type = "gem";
     };
-    version = "0.1.0.build20180216183755";
+    version = "0.1.0.build20181126195036";
   };
   rake = {
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "190p7cs8zdn07mjj6xwwsdna3g0r98zs4crz7jh2j2q5b0nbxgjf";
+      sha256 = "1idi53jay34ba9j68c3mfr9wwkg3cd9qh0fn9cg42hv72c6q8dyg";
       type = "gem";
     };
-    version = "12.3.0";
+    version = "12.3.1";
+  };
+  rake-compiler = {
+    dependencies = ["rake"];
+    source = {
+      remotes = ["https://rubygems.vpsfree.cz"];
+      sha256 = "17h608mpdscafbbaszzs0rhj9k5gsicrn9qw25f2qk12lgp7drmm";
+      type = "gem";
+    };
+    version = "1.0.5";
   };
   redcarpet = {
     source = {
@@ -93,10 +94,10 @@
   rouge = {
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1sfhy0xxqjnzqa7qxmpz1bmy0mzcr55qyvi410gsb6d6i4ialbw3";
+      sha256 = "1digsi2s8wyzx8vsqcxasw205lg6s7izx8jypl8rrpjwshmv83ql";
       type = "gem";
     };
-    version = "3.1.1";
+    version = "3.3.0";
   };
   ruby-progressbar = {
     source = {
@@ -109,9 +110,9 @@
   yard = {
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "11x58w0ccayvgy0lmhfyrzxd33ya1v41prh5zzhvaajhw8vr74lh";
+      sha256 = "0lmmr1839qgbb3zxfa7jf5mzy17yjl1yirwlgzdhws4452gqhn67";
       type = "gem";
     };
-    version = "0.9.12";
+    version = "0.9.16";
   };
 }
