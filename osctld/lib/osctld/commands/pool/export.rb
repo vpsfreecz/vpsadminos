@@ -21,6 +21,9 @@ module OsCtld
         # Disable the pool
         pool.exclusively { pool.disable }
 
+        # Grab manipulation locks of all containers
+        grab_cts(pool) unless opts[:grab_containers] === false
+
         # Stop all containers
         if opts[:stop_containers]
           progress('Stopping all containers')
@@ -52,6 +55,7 @@ module OsCtld
             end
 
             klass.remove(obj)
+            obj.release_manipulation_lock if obj.is_a?(Container)
           end
         end
 
@@ -80,6 +84,27 @@ module OsCtld
     end
 
     protected
+    def grab_cts(pool)
+      progress('Grabbing all containers')
+      cts = DB::Containers.get.select { |ct| ct.pool == pool }
+
+      loop do
+        cts.delete_if do |ct|
+          begin
+            ct.acquire_manipulation_lock(self)
+            true
+
+          rescue ResourceLocked => e
+            progress(e.message)
+            false
+          end
+        end
+
+        break if cts.empty?
+        sleep(1)
+      end
+    end
+
     def stop_cts(pool)
       # Sort containers by reversed autostart priority -- containers with
       # the lowest priority are stopped first
@@ -117,7 +142,8 @@ module OsCtld
           Commands::Container::Stop,
           pool: pool.name,
           id: ct.id,
-          progress: false
+          progress: false,
+          manipulation_lock: 'ignore',
         )
       end
 
