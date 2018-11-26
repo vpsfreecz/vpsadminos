@@ -23,7 +23,7 @@ module OsCtl::Cli
         }
       end
 
-      format_output(data, cols, layout: :columns)
+      format_output(data, cols, layout: opts[:verbose] ? :rows : :columns)
     end
   end
 end

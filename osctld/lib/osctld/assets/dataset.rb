@@ -34,23 +34,31 @@ module OsCtld
       @mountpoint, uidmap, gidmap = ret[:output].split("\n")
 
       if opts[:user] && stat.uid != opts[:user]
-        add_error('invalid owner')
+        add_error("invalid owner: expected #{opts[:user]}, got #{stat.uid}")
       end
 
       if opts[:group] && stat.gid != opts[:group]
-        add_error('invalid group')
+        add_error("invalid group: expected #{opts[:group]}, got #{state.gid}")
       end
 
       if opts[:mode] && mode != opts[:mode]
-        add_error('invalid mode')
+        add_error("invalid mode: expected #{opts[:mode].to_s(8)}, got #{mode.to_s(8)}")
       end
 
-      if opts[:uidmap] && make_ugid_map(opts[:uidmap]) != uidmap
-        add_error('invalid uidmap')
+      if opts[:uidmap]
+        expected_uidmap = make_ugid_map(opts[:uidmap])
+
+        if expected_uidmap != uidmap
+          add_error("invalid uidmap: expected #{expected_uidmap}, got #{uidmap}")
+        end
       end
 
-      if opts[:gidmap] && make_ugid_map(opts[:gidmap]) != gidmap
-        add_error('invalid gidmap')
+      if opts[:gidmap]
+        expected_gidmap = make_ugid_map(opts[:gidmap])
+
+        if expected_gidmap != gidmap
+          add_error("invalid gidmap: expected #{expected_gidmap}, got #{gidmap}")
+        end
       end
 
       super

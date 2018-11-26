@@ -17,15 +17,15 @@ module OsCtld
       return true if !exist? && opts[:optional]
 
       if opts[:user] && stat.uid != opts[:user]
-        add_error('invalid owner')
+        add_error("invalid owner: expected #{opts[:user]}, got #{stat.uid}")
       end
 
       if opts[:group] && stat.gid != opts[:group]
-        add_error('invalid group')
+        add_error("invalid group: expected #{opts[:group]}, got #{state.gid}")
       end
 
       if opts[:mode] && mode != opts[:mode]
-        add_error('invalid mode')
+        add_error("invalid mode: expected #{opts[:mode].to_s(8)}, got #{mode.to_s(8)}")
       end
 
       super
