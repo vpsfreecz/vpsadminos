@@ -72,7 +72,6 @@ module OsCtld
         # TODO: why is this happening?
         begin
           Process.wait(tty_pid) if tty_pid
-
         rescue Errno::ECHILD => e
           log(:warn, ct, "Error occurred when closing tty0: #{e.message}")
         end

@@ -119,6 +119,8 @@ module OsCtld
         '-F'
       ]
 
+      r, w = IO.pipe
+
       progress('Starting container')
       pid = SwitchUser.fork_and_switch_to(
         ct.user.sysusername,
@@ -127,23 +129,29 @@ module OsCtld
         ct.cgroup_path,
         prlimits: ct.prlimits.export,
       ) do
-        Process.spawn(*cmd, pgroup: true, in: :close, out: :close, err: :close)
+        r.close
+
+        wrapper_pid = Process.spawn(
+          *cmd,
+          pgroup: true, in: :close, out: :close, err: :close
+        )
+
+        w.puts(wrapper_pid.to_s)
       end
+
+      w.close
+      wrapper_pid = r.readline.strip.to_i
+      r.close
 
       progress('Connecting console')
 
       begin
-        Console.connect_tty0(ct, pid)
+        Console.connect_tty0(ct, wrapper_pid)
       rescue Errno::ENOENT
         log(:warn, ct, "Unable to connect to tty0")
       end
 
-      begin
-        Process.wait(pid)
-      rescue Errno::ECHILD
-        log(:warn, 'sad panda')
-      end
-
+      Process.wait(pid)
       :wait
     end
 
