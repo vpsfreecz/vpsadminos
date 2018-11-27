@@ -13,7 +13,7 @@ module OsCtld
       manipulate(ct) do
         changes = {}
 
-        %i(autostart hostname dns_resolvers nesting seccomp_profile
+        %i(autostart ephemeral hostname dns_resolvers nesting seccomp_profile
            attrs).each do |attr|
           changes[attr] = opts[attr] if opts.has_key?(attr)
         end

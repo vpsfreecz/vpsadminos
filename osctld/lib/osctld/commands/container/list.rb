@@ -29,6 +29,7 @@ module OsCtld
       return false if opts[:distribution] && !opts[:distribution].include?(ct.distribution)
       return false if opts[:version] && !opts[:version].include?(ct.version)
       return false if opts[:state] && !opts[:state].include?(ct.state.to_s)
+      return false if opts.has_key?(:ephemeral) && !!ct.ephemeral != !!opts[:ephemeral]
       true
     end
   end

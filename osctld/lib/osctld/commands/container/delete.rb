@@ -25,10 +25,14 @@ module OsCtld
       Monitor::Master.demonitor(ct)
 
       manipulate(ct) do
-        stop = call_cmd(Commands::Container::Stop, id: ct.id)
-
         progress('Stopping container')
-        return error('unable to stop the container') unless stop[:status]
+        call_cmd!(
+          Commands::Container::Stop,
+          pool: ct.pool.name,
+          id: ct.id,
+          manipulation_lock: opts[:manipulation_lock],
+          progress: opts[:progress],
+        )
 
         progress('Disconnecting console')
         Console.remove(ct)

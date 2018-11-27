@@ -69,6 +69,10 @@ module OsCtld
         self.holder = nil
       end
 
+      def locked?
+        @hold.locked?
+      end
+
       def holder
         @meta.synchronize { @holder }
       end
@@ -120,6 +124,11 @@ module OsCtld
     # Get lock holder
     def manipulated_by
       @manipulation_lock.holder
+    end
+
+    # Check if any thread holds the lock
+    def is_being_manipulated?
+      @manipulation_lock.locked?
     end
   end
 end

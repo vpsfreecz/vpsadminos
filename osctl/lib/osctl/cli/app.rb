@@ -413,6 +413,12 @@ module OsCtl::Cli
           ls.desc 'Filter by state, comma separated'
           ls.flag %i(S state), arg_name: 'state'
 
+          ls.desc 'Filter ephemeral containers'
+          ls.switch %i(e ephemeral), negatable: false
+
+          ls.desc 'Filter persistent (non-ephemeral) containers'
+          ls.switch %i(p persistent), negatable: false
+
           ls.desc 'Select parameters to output'
           ls.flag %i(o output), arg_name: 'parameters'
 
@@ -673,6 +679,12 @@ module OsCtl::Cli
             c.action &Command.run(Container, :set_autostart)
           end
 
+          set.desc 'Destroy the container after it is stopped'
+          set.arg_name '<ctid>'
+          set.command :ephemeral do |c|
+            c.action &Command.run(Container, :set_ephemeral)
+          end
+
           set.desc 'Set hostname'
           set.arg_name '<ctid> <hostname>'
           set.command :hostname do |c|
@@ -713,6 +725,12 @@ module OsCtl::Cli
           unset.arg_name '<ctid>'
           unset.command :autostart do |c|
             c.action &Command.run(Container, :unset_autostart)
+          end
+
+          unset.desc 'Do not destroy the container after it is stopped'
+          unset.arg_name '<ctid>'
+          unset.command :ephemeral do |c|
+            c.action &Command.run(Container, :unset_ephemeral)
           end
 
           unset.desc 'Disable hostname management'

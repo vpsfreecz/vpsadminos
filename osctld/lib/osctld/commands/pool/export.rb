@@ -135,16 +135,31 @@ module OsCtld
       plan.run(pool.parallel_stop) do |ct|
         mutex.synchronize do
           done += 1
-          progress("[#{done}/#{total}] Stopping container #{ct.ident}")
+          progress(
+            "[#{done}/#{total}] "+
+            (ct.ephemeral? ? 'Deleting ephemeral container' : 'Stopping container')+
+            " #{ct.ident}"
+          )
         end
 
-        call_cmd!(
-          Commands::Container::Stop,
-          pool: pool.name,
-          id: ct.id,
-          progress: false,
-          manipulation_lock: 'ignore',
-        )
+        if ct.ephemeral?
+          call_cmd!(
+            Commands::Container::Delete,
+            pool: pool.name,
+            id: ct.id,
+            force: true,
+            progress: false,
+            manipulation_lock: 'ignore',
+          )
+        else
+          call_cmd!(
+            Commands::Container::Stop,
+            pool: pool.name,
+            id: ct.id,
+            progress: false,
+            manipulation_lock: 'ignore',
+          )
+        end
       end
 
       plan.wait

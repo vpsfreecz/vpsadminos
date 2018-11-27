@@ -32,6 +32,7 @@ module OsCtl::Cli
       autostart
       autostart_priority
       autostart_delay
+      ephemeral
       hostname
       dns_resolvers
       nesting
@@ -99,6 +100,12 @@ module OsCtl::Cli
           next unless options[v]
           cmd_opts[v] = options[v].split(',')
         end
+      end
+
+      if opts[:ephemeral]
+        cmd_opts[:ephemeral] = true
+      elsif opts[:persistent]
+        cmd_opts[:ephemeral] = false
       end
 
       cmd_opts[:ids] = args if args.count > 0
@@ -457,6 +464,14 @@ tt
 
     def unset_autostart
       unset(:autostart)
+    end
+
+    def set_ephemeral
+      set(:ephemeral) { true }
+    end
+
+    def unset_ephemeral
+      unset(:ephemeral)
     end
 
     def set_hostname

@@ -24,6 +24,9 @@ module OsCtld
       ok
 
     rescue HookFailed => e
+      log(:warn, ct, 'Error during post-stop hook')
+      log(:warn, ct, "#{e.class}: #{e.message}")
+      log(:warn, ct, e.backtrace.join("\n"))
       error(e.message)
     end
   end

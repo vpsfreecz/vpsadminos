@@ -41,6 +41,15 @@ module OsCtld
         ret = ct_control(ct, cmd, id: ct.id, timeout: opts[:timeout] || 60)
         next ret unless ret[:status]
 
+        if ct.ephemeral? && !indirect?
+          call_cmd!(
+            Commands::Container::Delete,
+            pool: ct.pool.name,
+            id: ct.id,
+            force: true,
+          )
+        end
+
         ok
       end
     end

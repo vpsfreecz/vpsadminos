@@ -214,6 +214,7 @@ module OsCtld
         self.tty_out_io = nil
       end
 
+      on_close
       nil
     end
 
@@ -233,6 +234,10 @@ module OsCtld
     def remove_client(io)
       log(:info, ct, "Disconnecting client from TTY #{n}")
       sync { @clients.delete(io) }
+    end
+
+    def on_close
+
     end
 
     def sync

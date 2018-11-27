@@ -19,9 +19,12 @@ module OsCtld
     end
 
     attr_inclusive_reader :pool, :id, :user, :dataset, :group, :distribution,
-      :version, :arch, :autostart, :hostname, :dns_resolvers, :nesting, :prlimits,
-      :mounts, :migration_log, :netifs, :cgparams, :devices, :seccomp_profile,
-      :apparmor, :attrs, :state, :init_pid, :lxc_config
+      :version, :arch, :autostart, :ephemeral, :hostname, :dns_resolvers,
+      :nesting, :prlimits, :mounts, :migration_log, :netifs, :cgparams,
+      :devices, :seccomp_profile, :apparmor, :attrs, :state, :init_pid,
+      :lxc_config
+
+    alias_method :ephemeral?, :ephemeral
 
     # @param pool [Pool]
     # @param id [String]
@@ -45,6 +48,7 @@ module OsCtld
       @group = group
       @dataset = dataset
       @state = opts[:staged] ? :staged : :unknown
+      @ephemeral = false
       @init_pid = nil
       @netifs = NetInterface::Manager.new(self)
       @cgparams = nil
@@ -382,6 +386,9 @@ module OsCtld
         when :autostart
           self.autostart = AutoStart::Config.new(self, v[:priority], v[:delay])
 
+        when :ephemeral
+          self.ephemeral = true
+
         when :hostname
           original = nil
 
@@ -423,6 +430,9 @@ module OsCtld
         case k
         when :autostart
           self.autostart = false
+
+        when :ephemeral
+          self.ephemeral = false
 
         when :hostname
           self.hostname = nil
@@ -515,6 +525,7 @@ module OsCtld
           autostart: autostart ? true : false,
           autostart_priority: autostart && autostart.priority,
           autostart_delay: autostart && autostart.delay,
+          ephemeral: ephemeral,
           hostname: hostname,
           dns_resolvers: dns_resolvers,
           nesting: nesting,
@@ -558,9 +569,9 @@ module OsCtld
 
     protected
     attr_exclusive_writer :pool, :id, :user, :dataset, :group, :distribution,
-      :version, :arch, :autostart, :hostname, :dns_resolvers, :nesting, :prlimits,
-      :mounts, :migration_log, :netifs, :cgparams, :devices, :seccomp_profile,
-      :apparmor, :attrs, :init_pid, :lxc_config
+      :version, :arch, :autostart, :ephemeral, :hostname, :dns_resolvers,
+      :nesting, :prlimits, :mounts, :migration_log, :netifs, :cgparams,
+      :devices, :seccomp_profile, :apparmor, :attrs, :init_pid, :lxc_config
     attr_synchronized_accessor :mounted, :dist_network_configured
 
     def load_config(config = nil, init_devices = true)
@@ -587,6 +598,7 @@ module OsCtld
         @version = cfg['version']
         @arch = cfg['arch']
         @autostart = cfg['autostart'] && AutoStart::Config.load(self, cfg['autostart'])
+        @ephemeral = cfg['ephemeral']
         @hostname = cfg['hostname'] && OsCtl::Lib::Hostname.new(cfg['hostname'])
         @dns_resolvers = cfg['dns_resolvers']
         @nesting = cfg['nesting'] || false
@@ -625,6 +637,7 @@ module OsCtld
           'prlimits' => prlimits.dump,
           'mounts' => mounts.dump,
           'autostart' => autostart && autostart.dump,
+          'ephemeral' => ephemeral,
           'hostname' => hostname && hostname.to_s,
           'dns_resolvers' => dns_resolvers,
           'nesting' => nesting,

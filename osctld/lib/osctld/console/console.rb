@@ -33,5 +33,22 @@ module OsCtld
         wake
       end
     end
+
+    protected
+    def on_close
+      if ct.state == :stopped && ct.ephemeral? && !ct.is_being_manipulated?
+        # The container deletion has to be invoked from another thread, because
+        # the current thread is used to handle the console and has to exit when
+        # the container is being deleted.
+        Thread.new do
+          Commands::Container::Delete.run({
+            pool: ct.pool.name,
+            id: ct.id,
+            force: true,
+            manipulation_lock: 'wait',
+          })
+        end
+      end
+    end
   end
 end

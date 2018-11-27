@@ -518,6 +518,12 @@ Up until `ct migrate transfer`, the migration can be cancelled using
       **stopped**, **starting**, **running**, **stopping**, **aborting**, **freezing**,
       **frozen**, **thawed**.
 
+    `-e`, `--ephemeral`
+      Filter ephemeral containers.
+
+    `-p`, `--persistent`
+      Filter persistent (non-ephemeral) containers.
+
     `-d`, `--distribution` *distributions*
       Filter by distribution, comma separated.
 
@@ -701,6 +707,21 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 
 `ct unset autostart` *ctid*
   Do not start the container automatically.
+
+`ct set ephemeral` *ctid*
+  Mark the container as ephemeral. An ephemeral container is destroyed when:
+
+   - it is stopped using `ct stop`,
+   - it is shutdown from within the container, e.g. using `halt`,
+   - its pool is exported.
+
+  An ephemeral container will not be destroyed when it is being stopped as
+  a part of another `osctl` operation, such as `ct export`.
+
+  Disabled by default.
+
+`ct unset ephemeral` *ctid*
+  Do not destroy the container after it is stopped.
 
 `ct set hostname` *ctid* *hostname*
   Set container hostname. *hostname* should be a FQDN (Fully Qualified Domain
