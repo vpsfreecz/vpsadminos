@@ -135,8 +135,9 @@ module OsCtld
     end
 
     def progress(msg)
-      return unless @client_handler
-      @client_handler.send_update(msg)
+      if @client_handler && (opts[:progress].nil? || opts[:progress])
+        @client_handler.send_update(msg)
+      end
     end
 
     def indirect?

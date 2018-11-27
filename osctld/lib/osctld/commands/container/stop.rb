@@ -15,7 +15,7 @@ module OsCtld
 
     def execute(ct)
       manipulate(ct) do
-        progress('Stopping container') if opts[:progress].nil? || opts[:progress]
+        progress('Stopping container')
 
         case (opts[:method] || 'shutdown_or_kill')
         when 'shutdown_or_kill'
