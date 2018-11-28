@@ -40,7 +40,7 @@ module OsCtld
         # The container deletion has to be invoked from another thread, because
         # the current thread is used to handle the console and has to exit when
         # the container is being deleted.
-        Thread.new do
+        t = Thread.new do
           Commands::Container::Delete.run({
             pool: ct.pool.name,
             id: ct.id,
@@ -48,6 +48,8 @@ module OsCtld
             manipulation_lock: 'wait',
           })
         end
+
+        ThreadReaper.add(t, nil)
       end
     end
   end
