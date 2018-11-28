@@ -50,27 +50,26 @@ module OsCtld
           error!("container #{new_ct.pool.name}:#{new_ct.id} already exists")
         end
 
-        copy_datasets_from(builder, ct)
-        new_ct.save_config
-        builder.setup_ct_dir
-        builder.setup_lxc_home
-        builder.setup_lxc_configs
-        builder.setup_log_file
-        builder.setup_user_hook_script_dir
-        builder.monitor
-        new_ct.state = :complete
+        begin
+          copy_datasets_from(builder, ct)
+          new_ct.save_config
+          builder.setup_ct_dir
+          builder.setup_lxc_home
+          builder.setup_lxc_configs
+          builder.setup_log_file
+          builder.setup_user_hook_script_dir
+          builder.monitor
+          new_ct.state = :complete
+
+        rescue
+          progress('Error occurred, cleaning up')
+          builder.cleanup(dataset: !opts[:target_dataset])
+          raise
+        end
       end
 
-      call_cmd(Commands::User::LxcUsernet)
+      call_cmd!(Commands::User::LxcUsernet)
       ok
-
-    rescue CommandFailed
-      raise
-
-    rescue
-      progress('Error occurred, cleaning up')
-      builder.cleanup(dataset: !opts[:target_dataset])
-      raise
     end
 
     protected

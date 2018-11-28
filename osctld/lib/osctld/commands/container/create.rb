@@ -58,30 +58,31 @@ module OsCtld
       manipulate(builder.ct) do
         error!('container already exists') unless builder.register
 
-        if opts[:dataset]
-          custom_dataset(builder)
+        begin
+          if opts[:dataset]
+            custom_dataset(builder)
 
-        elsif opts[:template]
-          from_local_template(builder)
+          elsif opts[:template]
+            from_local_template(builder)
 
-        else
-          fail 'should not be possible'
+          else
+            fail 'should not be possible'
+          end
+
+          builder.setup_ct_dir
+          builder.setup_lxc_home
+          builder.setup_lxc_configs
+          builder.setup_log_file
+          builder.setup_user_hook_script_dir
+          builder.monitor
+          ok
+
+        rescue
+          progress('Error occurred, cleaning up')
+          builder.cleanup(dataset: !opts[:dataset])
+          raise
         end
-
-        builder.setup_ct_dir
-        builder.setup_lxc_home
-        builder.setup_lxc_configs
-        builder.setup_log_file
-        builder.setup_user_hook_script_dir
-        builder.monitor
-
-        ok
       end
-
-    rescue
-      progress('Error occurred, cleaning up')
-      builder.cleanup(dataset: !opts[:dataset])
-      raise
     end
 
     protected
