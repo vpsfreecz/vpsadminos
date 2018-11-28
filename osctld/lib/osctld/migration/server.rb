@@ -47,7 +47,7 @@ module OsCtld
     end
 
     def stop
-      @server.close
+      @server.stop
       @thread.join
       File.unlink(Migration::SOCKET)
     end

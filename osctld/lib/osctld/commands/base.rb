@@ -54,6 +54,11 @@ module OsCtld
       raise NotImplementedError
     end
 
+    # Implement to prematurely stop the client thread
+    def request_stop
+
+    end
+
     def manipulation_holder
       if opts[:cli]
         "'#{opts[:cli]}'"

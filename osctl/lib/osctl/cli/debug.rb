@@ -43,5 +43,14 @@ module OsCtl::Cli
       lock[:backtrace] = lock[:backtrace].join("\n")
       format_output(lock)
     end
+
+    def threads_ls
+      data = osctld_call(:debug_thread_list)
+      data.map do |thread|
+        thread[:backtrace] = thread[:backtrace] && thread[:backtrace].join("\n")
+        thread
+      end
+      format_output(data, nil, {layout: :rows})
+    end
   end
 end

@@ -37,10 +37,9 @@ module OsCtld
 
     protected
     def handle_client(socket)
-      Thread.new do
-        c = @client_handler.new(socket, @opts[:opts] || {})
-        c.communicate
-      end
+      c = @client_handler.new(socket, @opts[:opts] || {})
+      t = Thread.new { c.communicate }
+      ThreadReaper.add(t, c)
     end
   end
 end

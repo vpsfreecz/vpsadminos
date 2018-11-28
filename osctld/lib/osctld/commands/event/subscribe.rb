@@ -14,14 +14,27 @@ module OsCtld
       opts.delete(:cli)
 
       loop do
-        event = queue.pop
-        next unless filter?(event)
-        break unless client_handler.reply_ok(export_event(event))
+        event = queue.pop(timeout: 0.2)
+
+        if event.nil?
+          if @do_stop
+            Eventd.unsubscribe(queue)
+            return error('osctld is shutting down')
+          end
+        elsif !filter?(event)
+          next
+        elsif !client_handler.reply_ok(export_event(event))
+          break
+        end
       end
 
       log(:info, :eventd, 'Unsubscribing client')
       Eventd.unsubscribe(queue)
       ok
+    end
+
+    def request_stop
+      @do_stop = true
     end
 
     protected

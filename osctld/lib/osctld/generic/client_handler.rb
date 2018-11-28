@@ -89,6 +89,14 @@ module OsCtld
       raise NotImplementedError
     end
 
+    # Stop the client thread if possible
+    #
+    # This method is not called from the client thread, so the implementation
+    # has to communicate with the thread and tell it to quit.
+    def request_stop
+
+    end
+
     # Signal command success, send `output` to the client
     def ok(output = nil)
       {status: true, output: output}

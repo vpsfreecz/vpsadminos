@@ -1567,6 +1567,12 @@ module OsCtl::Cli
             c.action &Command.run(Debug, :locks_show)
           end
         end
+
+        dbg.command 'threads' do |threads|
+          threads.command :ls do |c|
+            c.action &Command.run(Debug, :threads_ls)
+          end
+        end
       end
 
       command 'gen-completion' do |g|

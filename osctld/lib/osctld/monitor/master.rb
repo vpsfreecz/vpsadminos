@@ -67,20 +67,19 @@ module OsCtld
     end
 
     def stop
-      # When osctld is run in a terminal and interrupted using Ctrl+C, the
-      # subprocesses receive SIGINT also, so they may no longer exist, when this
-      # code is called.
+      tmp = nil
+
       sync do
-        @monitors.each do |_, entry|
-          next if entry.pid.nil?
+        tmp = @monitors.clone
+        @monitors.clear
+      end
 
-          begin
-            Process.kill('TERM', entry.pid)
+      tmp.each_value do |entry|
+        Process.kill('TERM', entry.pid) if entry.pid
+      end
 
-          rescue Errno::ESRCH
-            next
-          end
-        end
+      tmp.each_value do |entry|
+        entry.thread.join
       end
     end
 
@@ -112,12 +111,6 @@ module OsCtld
         )
 
         break if sync { !@monitors.has_key?(key(ct)) }
-
-        # The sleep here is essential when osctld is shutting down. If killed
-        # from terminal, all processes, including monitors, receive SIGINT
-        # on interrupt, so monitors exit and we do not want to restart them.
-        # The sleep is here to ensure that osctld has time to call `stop` first.
-        sleep(1)
       end
     end
 

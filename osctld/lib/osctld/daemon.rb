@@ -15,13 +15,14 @@ module OsCtld
 
     class ClientHandler < Generic::ClientHandler
       def handle_cmd(req)
-        cmd = Command.find(req[:cmd].to_sym)
-        error!("Unsupported command '#{req[:cmd]}'") unless cmd
+        cmd_class = Command.find(req[:cmd].to_sym)
+        error!("Unsupported command '#{req[:cmd]}'") unless cmd_class
 
         id = Command.get_id
         Eventd.report(:management, id: id, state: :run, cmd: req[:cmd], opts: req[:opts])
 
-        ret = cmd.run(req[:opts], id: id, handler: self)
+        @cmd = cmd = cmd_class.new(req[:opts], id: id, handler: self)
+        ret = cmd.base_execute
 
         if ret.is_a?(Hash) && ret[:status]
           Eventd.report(:management, id: id, state: :done, cmd: req[:cmd], opts: req[:opts])
@@ -35,6 +36,10 @@ module OsCtld
       rescue => err
         Eventd.report(:management, id: id, state: :failed, cmd: req[:cmd], opts: req[:opts])
         raise
+      end
+
+      def request_stop
+        @cmd && @cmd.request_stop
       end
 
       def server_version
@@ -60,6 +65,7 @@ module OsCtld
       DB::Users.instance
       DB::Groups.instance
       DB::Containers.instance
+      ThreadReaper.start
       Console.init
       Eventd.start
       History.start
@@ -125,15 +131,17 @@ module OsCtld
     end
 
     def stop
-      log(:info, 'Exiting')
+      log(:info, 'Shutting down')
       Eventd.stop
       @server.stop if @server
       File.unlink(SOCKET) if File.exist?(SOCKET)
       UserControl.stop
       Migration.stop
       DB::Pools.get.each { |pool| pool.stop }
+      ThreadReaper.stop
       Monitor::Master.stop
       LockRegistry.stop
+      log(:info, 'Shutdown successful')
       exit(false)
     end
 

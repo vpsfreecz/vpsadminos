@@ -64,7 +64,8 @@ module OsCtld
           File.expand_path($0),
           '--no-supervisor',
           '--log', opts.log.to_s,
-          '--log-facility', opts.log_facility
+          '--log-facility', opts.log_facility,
+          pgroup: true
         )
       end
 
@@ -77,9 +78,6 @@ module OsCtld
       %w(INT TERM HUP).each do |sig|
         Signal.trap(sig) do
           Process.kill(sig, pid)
-          sleep(1)
-          cleanup
-          exit
         end
       end
 
