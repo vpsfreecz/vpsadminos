@@ -1,5 +1,9 @@
+require 'libosctl'
+
 module OsCtld
   module DistConfig
+    extend OsCtl::Lib::Utils::Exception
+
     def self.register(distribution, klass)
       @dists ||= {}
       @dists[distribution] = klass
@@ -22,7 +26,7 @@ module OsCtld
 
       rescue Exception => e
         ct.log(:warn, "DistConfig.#{cmd} failed: #{e.message}")
-        ct.log(:warn, e.backtrace.join("\n"))
+        ct.log(:warn, denixstorify(e.backtrace).join("\n"))
       end
     end
   end

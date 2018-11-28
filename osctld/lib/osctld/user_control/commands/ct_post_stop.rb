@@ -6,6 +6,7 @@ module OsCtld
     handle :ct_post_stop
 
     include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::Exception
 
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])
@@ -26,7 +27,7 @@ module OsCtld
     rescue HookFailed => e
       log(:warn, ct, 'Error during post-stop hook')
       log(:warn, ct, "#{e.class}: #{e.message}")
-      log(:warn, ct, e.backtrace.join("\n"))
+      log(:warn, ct, denixstorify(e.backtrace).join("\n"))
       error(e.message)
     end
   end

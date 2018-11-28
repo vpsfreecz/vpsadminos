@@ -54,6 +54,7 @@ module OsCtld
     end
 
     include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::Exception
 
     # @param size [Integer] initial number of workers
     def initialize(size)
@@ -185,7 +186,7 @@ module OsCtld
 
         rescue Exception => e
           log(:warn, 'cont', "Exception raised during command execution: #{e.message}")
-          puts e.backtrace.join("\n")
+          puts denixstorify(e.backtrace).join("\n")
 
         ensure
           @front_queue << Thread.current

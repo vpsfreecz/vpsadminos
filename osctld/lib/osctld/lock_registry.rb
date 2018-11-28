@@ -17,6 +17,7 @@ module OsCtld
     end
 
     include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::Exception
     include Singleton
 
     class << self
@@ -75,7 +76,7 @@ module OsCtld
           "id=#{lock[:id]},thread=#{lock[:thread]},type=#{lock[:type]},"+
           "state=#{lock[:state]}"
         )
-        log(:debug, lock[:backtrace].join("\n"))
+        log(:debug, denixstorify(lock[:backtrace]).join("\n"))
       end
 
       log(:debug, 'locks', 'End of dump')

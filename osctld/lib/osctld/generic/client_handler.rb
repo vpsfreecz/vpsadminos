@@ -41,6 +41,7 @@ module OsCtld
   # used.
   class Generic::ClientHandler
     include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::Exception
 
     attr_reader :opts
 
@@ -168,13 +169,13 @@ module OsCtld
 
       rescue DeadlockDetected => e
         log(:fatal, self, 'Possible deadlock detected')
-        log(:fatal, self, e.backtrace.join("\n"))
+        log(:fatal, self, denixstorify(e.backtrace).join("\n"))
         LockRegistry.dump
         reply_error('internal error')
 
       rescue => err
         log(:fatal, self, "Error during command execution: #{err.message}")
-        log(:fatal, self, err.backtrace.join("\n"))
+        log(:fatal, self, denixstorify(err.backtrace).join("\n"))
         reply_error('internal error')
       end
 
