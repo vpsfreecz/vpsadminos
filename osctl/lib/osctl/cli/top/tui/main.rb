@@ -253,8 +253,12 @@ module OsCtl::Cli::Top
       Curses.addstr('Containers: ')
       bold { Curses.addstr(sprintf('%3d', model.containers.count)) }
       Curses.addstr(' total, ')
+      bold { Curses.addstr(sprintf('%3d', model.containers.count{ |ct| ct.state == :starting })) }
+      Curses.addstr(' starting, ')
       bold { Curses.addstr(sprintf('%3d', data[:containers].count-1)) } # -1 for [host]
       Curses.addstr(' running, ')
+      bold { Curses.addstr(sprintf('%3d', model.containers.count{ |ct| ct.state == :stopping })) }
+      Curses.addstr(' stopping, ')
       bold { Curses.addstr(sprintf('%3d', model.containers.count{ |ct| ct.state == :stopped })) }
       Curses.addstr(' stopped')
 
