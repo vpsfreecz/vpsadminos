@@ -71,6 +71,10 @@ module OsCtl::Cli
       netif.name = new_name
     end
 
+    def has_netif?(name)
+      !find_netif(name).nil?
+    end
+
     protected
     attr_reader :measurements, :initial
 

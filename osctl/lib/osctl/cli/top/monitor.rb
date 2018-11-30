@@ -4,9 +4,11 @@ module OsCtl::Cli
   class Top::Monitor
     def initialize(model)
       @model = model
+      @started = false
+      @buffer = []
     end
 
-    def start
+    def subscribe
       @client = OsCtl::Client.new
       client.open
 
@@ -15,9 +17,18 @@ module OsCtl::Cli
 
       @thread = Thread.new do
         monitor_loop do |event|
-          process_event(event[:type].to_sym, event[:opts])
+          if started?
+            process_saved_events
+            process_event(event[:type].to_sym, event[:opts])
+          else
+            save_event(event)
+          end
         end
       end
+    end
+
+    def start
+      @started = true
     end
 
     def stop
@@ -42,7 +53,7 @@ module OsCtl::Cli
       when :state
         model.sync do
           ct = model.find_ct(opts[:pool], opts[:id])
-          fail "container #{opts[:pool]}:#{opts[:id]} not found" unless ct
+          next unless ct
 
           ct.state = opts[:state].to_sym
         end
@@ -50,16 +61,16 @@ module OsCtl::Cli
       when :db
         return if opts[:object] != 'container'
 
-        case opts[:action].to_sym
-        when :add
-          model.add_ct(opts[:pool], opts[:id])
+        model.sync do
+          case opts[:action].to_sym
+          when :add
+            unless model.has_ct?(opts[:pool], opts[:id])
+              model.add_ct(opts[:pool], opts[:id])
+            end
 
-        when :remove
-          model.sync do
+          when :remove
             ct = model.find_ct(opts[:pool], opts[:id])
-            next unless ct
-
-            model.remove_ct(ct)
+            model.remove_ct(ct) if ct
           end
         end
 
@@ -70,22 +81,42 @@ module OsCtl::Cli
 
           case opts[:action].to_sym
           when :add
-            model.add_ct_netif(ct, opts[:name])
+            model.add_ct_netif(ct, opts[:name]) unless ct.has_netif?(opts[:name])
 
           when :remove
-            ct.netif_rm(opts[:name])
+            ct.netif_rm(opts[:name]) if ct.has_netif?(opts[:name])
 
           when :rename
-            ct.netif_rename(opts[:name], opts[:new_name])
+            if ct.has_netif?(opts[:name])
+              ct.netif_rename(opts[:name], opts[:new_name])
+            end
 
           when :up
-            ct.netif_up(opts[:name], opts[:veth])
+            if ct.has_netif?(opts[:name])
+              ct.netif_up(opts[:name], opts[:veth])
+            end
 
           when :down
-            ct.netif_down(opts[:name])
+            if ct.has_netif?(opts[:name])
+              ct.netif_down(opts[:name])
+            end
           end
         end
       end
+    end
+
+    def save_event(event)
+      @buffer << event
+    end
+
+    def process_saved_events
+      return if @buffer.empty?
+      @buffer.each { |event| process_event(event[:type].to_sym, event[:opts]) }
+      @buffer.clear
+    end
+
+    def started?
+      @started
     end
   end
 end

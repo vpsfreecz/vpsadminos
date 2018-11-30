@@ -13,6 +13,8 @@ module OsCtl::Cli
       @monitor = Top::Monitor.new(self)
       @host = Top::Host.new
       @mode = :realtime
+
+      @monitor.subscribe
       open
     end
 
@@ -120,6 +122,10 @@ module OsCtl::Cli
 
     def find_ct(pool, id)
       sync { index["#{pool}:#{id}"] }
+    end
+
+    def has_ct?(pool, id)
+      !find_ct(pool, id).nil?
     end
 
     def add_ct_netif(ct, name)
