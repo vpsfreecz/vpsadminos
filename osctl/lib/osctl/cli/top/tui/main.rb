@@ -13,7 +13,7 @@ module OsCtl::Cli::Top
       @sort_index = 0
       @sort_desc = true
       @current_row = nil
-      @yanked_cts = []
+      @highlighted_cts = []
       @status_bar_cols = 0
     end
 
@@ -71,7 +71,7 @@ module OsCtl::Cli::Top
           hold_data = 1
 
         when ' '
-          selection_yank
+          selection_highlight
 
         when Curses::Key::ENTER, 10
           selection_open
@@ -104,7 +104,7 @@ module OsCtl::Cli::Top
     end
 
     protected
-    attr_reader :model, :rate, :yanked_cts
+    attr_reader :model, :rate, :highlighted_cts
     attr_accessor :last_measurement, :last_count, :last_data, :current_row
 
     def render(t, data)
@@ -121,14 +121,14 @@ module OsCtl::Cli::Top
       data[:containers].each_with_index do |ct, j|
         Curses.setpos(i, 0)
 
-        if current_row == j && yanked_cts.include?(ct[:id])
-          attr = Curses.color_pair(Tui::SELECTED_YANKED)
+        if current_row == j && highlighted_cts.include?(ct[:id])
+          attr = Curses.color_pair(Tui::SELECTED_HIGHLIGHTED)
 
         elsif current_row == j
           attr = Curses.color_pair(Tui::SELECTED)
 
-        elsif yanked_cts.include?(ct[:id])
-          attr = Curses.color_pair(Tui::YANKED)
+        elsif highlighted_cts.include?(ct[:id])
+          attr = Curses.color_pair(Tui::HIGHLIGHTED)
 
         else
           attr = nil
@@ -489,7 +489,7 @@ module OsCtl::Cli::Top
       end
     end
 
-    def selection_yank
+    def selection_highlight
       return unless @current_row
 
       ct = last_data[:containers][@current_row]
@@ -497,11 +497,11 @@ module OsCtl::Cli::Top
 
       ctid = ct[:id]
 
-      if yanked_cts.include?(ctid)
-        yanked_cts.delete(ctid)
+      if highlighted_cts.include?(ctid)
+        highlighted_cts.delete(ctid)
 
       else
-        yanked_cts << ctid
+        highlighted_cts << ctid
       end
     end
 
