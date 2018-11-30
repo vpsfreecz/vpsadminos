@@ -140,7 +140,7 @@ module OsCtl::Cli::Top
 
         i += 1
 
-        break if i >= (Curses.lines - 3)
+        break if i >= (Curses.lines - 5)
       end
 
       stats(data[:containers])
@@ -360,11 +360,11 @@ module OsCtl::Cli::Top
     end
 
     def stats(cts)
-      Curses.setpos(Curses.lines - 3, 0)
+      Curses.setpos(Curses.lines - 5, 0)
       Curses.addstr('─' * Curses.cols)
       #Curses.addstr('-' * Curses.cols)
 
-      Curses.setpos(Curses.lines - 2, 0)
+      Curses.setpos(Curses.lines - 4, 0)
       Curses.addstr(sprintf('%-14s ', 'Containers:'))
       print_row_data([
         rt? ? format_percent(sum(cts, :cpu_usage, false)) \
@@ -381,7 +381,7 @@ module OsCtl::Cli::Top
         humanize_data(sum(cts, [:rx, :packets], false))
       ])
 
-      Curses.setpos(Curses.lines - 1, 0)
+      Curses.setpos(Curses.lines - 3, 0)
       Curses.addstr(sprintf('%-14s ', 'All:'))
       print_row_data([
         rt? ? format_percent(sum(cts, :cpu_usage, true)) \
@@ -397,6 +397,23 @@ module OsCtl::Cli::Top
         humanize_data(sum(cts, [:rx, :bytes], true)),
         humanize_data(sum(cts, [:rx, :packets], true))
       ])
+
+      Curses.setpos(Curses.lines - 2, 0)
+      Curses.addstr('─' * Curses.cols)
+      Curses.setpos(Curses.lines - 1, 0)
+      fillRow do
+        Curses.addstr('Selected container: ')
+
+        if @current_row && (ct = last_data[:containers][@current_row])
+          if ct[:id] == '[host]'
+            Curses.addstr('host system')
+          else
+            Curses.addstr("#{ct[:pool]}:#{ct[:id]}")
+          end
+        else
+          Curses.addstr('none')
+        end
+      end
     end
 
     def get_data
@@ -571,9 +588,30 @@ module OsCtl::Cli::Top
       Curses.attroff(Curses::A_BOLD)
     end
 
+    def fillRow
+      yield
+      x, y = cursor
+      Curses.addstr(' ' * (Curses.cols - x))
+    end
+
+    def cursor
+      res = ''
+
+      $stdin.raw do |stdin|
+        $stdout << "\e[6n"
+        $stdout.flush
+        while (c = stdin.getc) != 'R'
+          res << c if c
+        end
+      end
+
+      m = res.match /(?<row>\d+);(?<column>\d+)/
+      [m[:column].to_i, m[:row].to_i]
+    end
+
     # Screen without header and footer
     def max_rows
-      Curses.lines - @status_bar_cols - 1 - @header.size - 3 - 1
+      Curses.lines - @status_bar_cols - 1 - @header.size - 5 - 1
     end
   end
 end
