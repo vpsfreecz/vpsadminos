@@ -1,3 +1,4 @@
+require 'libosctl'
 require 'thread'
 
 module OsCtl::Cli
@@ -101,14 +102,24 @@ module OsCtl::Cli
         Top::Container::NetIf.new(netif_attrs)
       end
 
-      sync { containers << ct }
+      sync do
+        containers << ct
+        index << ct
+      end
 
     rescue OsCtl::Client::Error
       fail "Container #{pool}:#{id} announced, but not found"
     end
 
     def remove_ct(ct)
-      sync { containers.delete(ct) }
+      sync do
+        containers.delete(ct)
+        index.delete(ct)
+      end
+    end
+
+    def find_ct(pool, id)
+      sync { index["#{pool}:#{id}"] }
     end
 
     def add_ct_netif(ct, name)
@@ -128,20 +139,23 @@ module OsCtl::Cli
     end
 
     protected
-    attr_reader :client, :nproc, :host, :subsystems, :monitor
+    attr_reader :client, :nproc, :host, :subsystems, :monitor, :index
 
     def open
       @client = OsCtl::Client.new
       @client.open
       @subsystems = client.cmd_data!(:group_cgsubsystems)
+      @index = OsCtl::Lib::Index.new { |ct| "#{ct.pool}:#{ct.id}" }
       @containers = client.cmd_data!(:ct_list).map do |ct_attrs|
         ct = Top::Container.new(ct_attrs)
-        ct.netifs = client.cmd_data!(
-          :netif_list,
-          id: ct.id,
-          pool: ct.pool
-        ).map { |netif_attrs| Top::Container::NetIf.new(netif_attrs) }
+        index << ct
         ct
+      end
+
+      client.cmd_data!(:netif_list).each do |netif_attrs|
+        ct = index["#{netif_attrs[:pool]}:#{netif_attrs[:ctid]}"]
+        next if ct.nil?
+        ct.netifs << Top::Container::NetIf.new(netif_attrs)
       end
     end
 

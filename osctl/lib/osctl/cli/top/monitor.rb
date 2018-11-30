@@ -41,7 +41,7 @@ module OsCtl::Cli
       case type
       when :state
         model.sync do
-          ct = find_ct(opts[:pool], opts[:id])
+          ct = model.find_ct(opts[:pool], opts[:id])
           fail "container #{opts[:pool]}:#{opts[:id]} not found" unless ct
 
           ct.state = opts[:state].to_sym
@@ -56,7 +56,7 @@ module OsCtl::Cli
 
         when :remove
           model.sync do
-            ct = find_ct(opts[:pool], opts[:id])
+            ct = model.find_ct(opts[:pool], opts[:id])
             next unless ct
 
             model.remove_ct(ct)
@@ -65,7 +65,7 @@ module OsCtl::Cli
 
       when :ct_netif
         model.sync do
-          ct = find_ct(opts[:pool], opts[:id])
+          ct = model.find_ct(opts[:pool], opts[:id])
           next unless ct
 
           case opts[:action].to_sym
@@ -84,14 +84,6 @@ module OsCtl::Cli
           when :down
             ct.netif_down(opts[:name])
           end
-        end
-      end
-    end
-
-    def find_ct(pool, id)
-      model.sync do
-        model.containers.detect do |ct|
-          ct.pool == pool && ct.id == id
         end
       end
     end
