@@ -1047,6 +1047,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
   *space*                   | Highlight selected container
   *enter*                   | Open htop and filter container processes
   `m`                       | Toggle between `realtime` and `cumulative` mode.
+  `p`                       | Pause/unpause resource tracking.
   `?`                       | Show help message.
 
   When global option `-j`, `--json` is used, the TUI is replaced by JSON

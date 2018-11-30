@@ -31,7 +31,7 @@ module OsCtl::Cli::Top
       loop do
         now = Time.now
 
-        if last_measurement.nil? || (now - last_measurement) >= rate
+        if !paused? && (last_measurement.nil? || (now - last_measurement) >= rate)
           model.measure
           self.last_measurement = now
         end
@@ -93,6 +93,9 @@ module OsCtl::Cli::Top
 
           @header = nil
           Curses.clear
+
+        when 'p'
+          paused? ? unpause : pause
 
         when '?'
           return Tui::Help.new(self)
@@ -620,6 +623,18 @@ module OsCtl::Cli::Top
     # Screen without header and footer
     def max_rows
       Curses.lines - @status_bar_cols - 1 - @header.size - 5 - 1
+    end
+
+    def pause
+      @paused = true
+    end
+
+    def unpause
+      @paused = false
+    end
+
+    def paused?
+      @paused
     end
   end
 end

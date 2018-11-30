@@ -36,6 +36,7 @@ module OsCtl::Cli::Top
         ['space', 'Highlight selected container'],
         ['enter', 'Open htop and filter container processes'],
         ['m', 'Toggle between realtime and cumulative mode'],
+        ['p', 'Pause/unpause resource tracking'],
         ['?', 'Show/hide this help message'],
       ].each_with_index do |arr, i|
         key, desc = arr
