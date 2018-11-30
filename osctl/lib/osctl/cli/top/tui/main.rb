@@ -324,7 +324,7 @@ module OsCtl::Cli::Top
     end
 
     def print_row(ct)
-      Curses.addstr(sprintf('%-14s ', ct[:id]))
+      Curses.addstr(sprintf('%-14s ', format_ctid(ct[:id])))
 
       print_row_data([
         rt? ? format_percent(ct[:cpu_usage]) : humanize_time_ns(ct[:cpu_time]),
@@ -580,6 +580,14 @@ module OsCtl::Cli::Top
 
     def rt?
       model.mode == :realtime
+    end
+
+    def format_ctid(ctid)
+      if ctid.length > 12
+        ctid[0..11] + '..'
+      else
+        ctid
+      end
     end
 
     def bold
