@@ -133,6 +133,10 @@ module OsCtld
           @ex = Thread.current
           LockRegistry.register(@object, :exclusive, :locked)
 
+        elsif @in_held.include?(Thread.current)
+          @mutex.unlock
+          fail 'attempted to acquire exclusive lock while holding inclusive lock'
+
         else
           @ex_queued << Thread.current
 
