@@ -54,6 +54,7 @@ module OsCtl::Lib
     end
 
     # Release the lock
+    # @raise [ThreadError] when the current thread does not own the mutex
     def unlock
       sync do
         if @thread == Thread.current
@@ -61,7 +62,7 @@ module OsCtl::Lib
           @cond.signal if @queue > 0
 
         else
-          fail 'attempted to unlock mutex owned by another thread'
+          raise ThreadError, 'attempted to unlock mutex owned by another thread'
         end
       end
 
@@ -73,10 +74,24 @@ module OsCtl::Lib
     # @raise [Timeout] when timeout has passed while waiting for the lock
     def synchronize(timeout = nil)
       lock(timeout)
-      yield
 
-    ensure
-      unlock if owned?
+      begin
+        yield
+      ensure
+        unlock
+      end
+    end
+
+    # Release the lock and sleep, then reaquire it
+    # @param timeout [Integer, nil] how long to sleep, in seconds
+    # @param lock_timeout [Integer, nil] timeout when reaquiring the lock,
+    #                                    in seconds
+    # @raise [ThreadError] when the current thread does not own the mutex
+    # @raise [Timeout] when timeout has passed while waiting for the lock
+    def sleep(timeout = nil, lock_timeout = nil)
+      unlock
+      Kernel.sleep(*(timeout ? [timeout] : []))
+      lock(lock_timeout)
     end
 
     # Returns true if this lock is currently held by some thread
