@@ -28,16 +28,18 @@ module OsCtld
         error!('missing GID map')
       end
 
-      users = DB::Users.get
-
       # Check for duplicities
-      users.each do |u|
-        if u.ugid == opts[:ugid]
-          error!(
-            "ugid #{opts[:ugid]} already taken by user "+
-            "#{u.pool.name}:#{u.name}"
-          )
-        end
+      if u = DB::Users.by_ugid(opts[:ugid])
+        error!(
+          "ugid #{opts[:ugid]} already taken by user "+
+          "#{u.pool.name}:#{u.name}"
+        )
+
+      elsif u = DB::Users.by_name(opts[:name])
+        error!(
+          "name #{opts[:ugid]} already taken by user "+
+          "#{u.pool.name}:#{u.name}"
+        )
       end
 
       # Check UID/GID maps
