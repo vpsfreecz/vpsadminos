@@ -470,13 +470,16 @@ module OsCtl::Cli::Top
     end
 
     def selection_up
-      last_row = [max_rows, last_data[:containers].size - 1].min
+      last_row = [max_rows - 1, last_data[:containers].size - 1].min
 
       if @current_row
         new_row = @current_row - 1
 
         if new_row >= 0
           @current_row = new_row
+
+        elsif new_row == -1
+          @current_row = nil
 
         elsif last_data[:containers].any?
           @current_row = last_row
