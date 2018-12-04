@@ -1,5 +1,6 @@
 require 'fileutils'
 require 'libosctl'
+require 'tempfile'
 
 module OsCtld
   class Container::Builder
@@ -224,10 +225,9 @@ module OsCtld
     end
 
     def shift_dataset
-      progress('Unmounting dataset')
-      zfs(:unmount, nil, ct.dataset)
-
       progress('Configuring UID/GID mapping')
+
+      zfs(:unmount, nil, ct.dataset)
       zfs(
         :set,
         "uidmap=\"#{ct.uid_map.map(&:to_s).join(',')}\" "+
@@ -235,8 +235,22 @@ module OsCtld
         ct.dataset
       )
 
-      progress('Remounting dataset')
-      zfs(:mount, nil, ct.dataset)
+      5.times do |i|
+        zfs(:mount, nil, ct.dataset)
+
+        f = Tempfile.create(['.ugid-map-test'], ct.dir)
+        f.close
+
+        st = File.stat(f.path)
+        File.unlink(f.path)
+
+        return if st.uid == ct.root_host_uid && st.gid == ct.root_host_gid
+
+        zfs(:unmount, nil, ct.dataset)
+        sleep(1 + i)
+      end
+
+      fail 'unable to configure UID/GID mapping'
     end
 
     def configure(distribution, version, arch)
