@@ -4,9 +4,6 @@ module OsCtld
   class Commands::User::Register < Commands::Base
     handle :user_register
 
-    include OsCtl::Lib::Utils::Log
-    include OsCtl::Lib::Utils::System
-
     def execute
       if opts[:all]
         DB::Users.get do |users|
@@ -40,8 +37,7 @@ module OsCtld
     def register_user(u)
       manipulate(u) do
         progress("Registering user #{u.ident}")
-        syscmd("groupadd -g #{u.ugid} #{u.sysgroupname}")
-        syscmd("useradd -u #{u.ugid} -g #{u.ugid} -d #{u.homedir} #{u.sysusername}")
+        SystemUsers.add(u.sysusername, u.ugid, u.homedir)
         u.registered = true
       end
     end

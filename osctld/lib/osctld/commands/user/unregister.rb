@@ -4,9 +4,6 @@ module OsCtld
   class Commands::User::Unregister < Commands::Base
     handle :user_unregister
 
-    include OsCtl::Lib::Utils::Log
-    include OsCtl::Lib::Utils::System
-
     def execute
       if opts[:all]
         DB::Users.get do |users|
@@ -40,8 +37,7 @@ module OsCtld
     def unregister_user(u)
       manipulate(u) do
         progress("Unregistering user #{u.ident}")
-        syscmd("userdel -f #{u.sysusername}")
-        syscmd("groupdel #{u.sysgroupname}", valid_rcs: [6])
+        SystemUsers.remove(u.sysusername)
         u.registered = false
       end
     end

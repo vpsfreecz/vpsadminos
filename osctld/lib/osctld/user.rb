@@ -11,7 +11,6 @@ module OsCtld
     include Manipulable
     include Assets::Definition
     include OsCtl::Lib::Utils::Log
-    include OsCtl::Lib::Utils::System
 
     attr_inclusive_reader :pool, :name, :ugid, :uid_map, :gid_map, :attrs
     attr_exclusive_writer :registered
@@ -92,11 +91,10 @@ module OsCtld
     end
 
     def registered?
-      exclusively do
-        return @registered unless @registered.nil?
-      end
-
-      self.registered = syscmd("id #{sysusername}", valid_rcs: [1])[:exitstatus] == 0
+      inclusively { return registered unless registered.nil? }
+      v = SystemUsers.include?(sysusername)
+      exclusively { self.registered = v }
+      v
     end
 
     # @param opts [Hash]
@@ -132,7 +130,7 @@ module OsCtld
     end
 
     def sysusername
-      "uns#{name}"
+      "#{SystemUsers::PREFIX}#{name}"
     end
 
     def sysgroupname
@@ -177,6 +175,8 @@ module OsCtld
     end
 
     private
+    attr_inclusive_reader :registered
+
     def dump
       inclusively do
         {

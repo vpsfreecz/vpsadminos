@@ -3,6 +3,8 @@ require 'libosctl'
 module OsCtld
   class Cli::Daemon
     def self.run(opts)
+      Process.setproctitle('osctld: main')
+      OsCtl::Lib::Logger.setup(opts.log, facility: opts.log_facility)
       d = OsCtld::Daemon.get
       stopping = false
 
@@ -17,8 +19,6 @@ module OsCtld
         end
       end
 
-      Process.setproctitle('osctld: main')
-      OsCtl::Lib::Logger.setup(opts.log, facility: opts.log_facility)
       d.setup
     end
   end

@@ -71,6 +71,7 @@ module OsCtld
       History.start
       Devices::Lock.instance
       LockRegistry.start
+      SystemUsers.instance
 
       at_exit do
         if $!.is_a?(DeadlockDetected)
