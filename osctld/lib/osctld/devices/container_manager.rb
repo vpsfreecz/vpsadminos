@@ -25,9 +25,10 @@ module OsCtld
           rel_path = rel[0]
           abs_path = abs[0]
 
-          CGroup.mkpath('devices', rel_path.split('/'))
-          clear_devices(abs_path)
-          apply_devices(ct.group.devices, abs_path)
+          if CGroup.mkpath('devices', rel_path.split('/'))
+            clear_devices(abs_path)
+            apply_devices(ct.group.devices, abs_path)
+          end
         end
 
         rel_ct_cgroup_paths.zip(abs_ct_cgroup_paths).each do |rel, abs|
@@ -36,9 +37,10 @@ module OsCtld
           rel_path = rel[0]
           abs_path = abs[0]
 
-          CGroup.mkpath('devices', rel_path.split('/'))
-          clear_devices(abs_path)
-          apply_devices(self, abs_path)
+          if CGroup.mkpath('devices', rel_path.split('/'))
+            clear_devices(abs_path)
+            apply_devices(self, abs_path)
+          end
         end
 
         abs_ct_chowned_cgroup_paths.each do |abs, req, uid, gid|

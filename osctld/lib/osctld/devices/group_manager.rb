@@ -11,8 +11,9 @@ module OsCtld
         inherit_all_from(group.parent, opts) unless group.root?
 
         log(:info, group, "Configuring cgroup #{group.cgroup_path} for devices")
-        CGroup.mkpath('devices', group.cgroup_path.split('/'))
-        apply(parents: false)
+        if CGroup.mkpath('devices', group.cgroup_path.split('/'))
+          apply(parents: false)
+        end
       end
     end
 

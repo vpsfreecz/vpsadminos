@@ -31,9 +31,12 @@ module OsCtld
     # @param path [Array<String>] paths to create
     # @param chown [Integer] chown the last group to `chown`:`chown`
     # @param attach [Boolean] attach the current process to the last group
+    # @return [Boolean] `true` if the last component was created, `false` if it
+    #                   already existed
     def self.mkpath(type, path, chown: nil, attach: false)
       base = File.join(FS, type)
       tmp = []
+      created = false
 
       path.each do |name|
         tmp << name
@@ -45,8 +48,10 @@ module OsCtld
         # at a time
         begin
           Dir.mkdir(cgroup)
+          created = true
 
         rescue Errno::EEXIST
+          created = false
           next
         end
 
@@ -75,6 +80,8 @@ module OsCtld
           end
         end
       end
+
+      created
     end
 
     # Initialize cgroup after it was created.
