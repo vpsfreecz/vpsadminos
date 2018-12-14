@@ -4,10 +4,43 @@ with lib;
 
 let
   cfg = config.services.logrotate;
+
+  fileNames = map (v: "\"${v}\"");
+
+  genLogFiles = logFiles: concatStringsSep "\n\n" (map (log: ''
+    ${concatStringsSep "\n" (fileNames log.files)}
+    {
+      ${log.config}
+    }
+  '') logFiles);
+
   configFile = pkgs.writeText "logrotate.conf" ''
-    ${cfg.defaultConfig}
+    ${genLogFiles cfg.logFiles}
     ${cfg.extraConfig}
   '';
+
+  mkLogFiles = {
+    options = {
+      files = mkOption {
+        type = types.listOf types.str;
+        example = [ "/var/log/messages" "/var/log/*.log" ];
+        description = "Files to rotate";
+      };
+
+      config = mkOption {
+        type = types.str;
+        example = ''
+          daily
+          rotate 7
+          dateext
+          copytruncate
+          notifempty
+          nocompress
+        '';
+        description = "logrotate configuration";
+      };
+    };
+  };
 in
 {
   ###### interface
@@ -17,18 +50,9 @@ in
       logrotate = {
         enable = mkEnableOption "Enable log rotation";
 
-        defaultConfig = mkOption {
-          type = types.string;
-          default = ''
-            /var/log/* {
-              daily
-              rotate 7
-              dateext
-              copytruncate
-              notifempty
-              nocompress
-            }
-          '';
+        logFiles = mkOption {
+          type = types.listOf (types.submodule mkLogFiles);
+          default = [];
         };
 
         extraConfig = mkOption {
@@ -53,7 +77,7 @@ in
   config = mkIf cfg.enable {
     services.cron.enable = true;
     services.cron.systemCronJobs = [
-      "* * * 05 00  root  exec ${pkgs.logrotate}/sbin/logrotate ${configFile}"
+      "*/15 * * * *  root  exec ${pkgs.logrotate}/sbin/logrotate ${configFile}"
     ];
   };
 }

@@ -40,6 +40,7 @@ let
 
     ${cfg.extraConfig}
   '';
+  pidFile = "/run/rsyslog.pid";
 in
 {
   ###### interface
@@ -69,7 +70,31 @@ in
   config = {
     runit.services.rsyslog.run = ''
       mkdir -p /var/spool/rsyslog
-      exec ${pkgs.rsyslog-light}/sbin/rsyslogd -f ${syslog_config} -n -i /run/rsyslog.pid
+      exec ${pkgs.rsyslog-light}/sbin/rsyslogd -f ${syslog_config} -n -i ${pidFile}
     '';
+
+    services.logrotate.logFiles = [
+      {
+        files = [
+          "/var/log/messages"
+          "/var/log/kern.log"
+          "/var/log/warn"
+          "/var/log/osctld"
+          "/var/log/nodectld"
+        ];
+        config = ''
+          daily
+          rotate 2
+          nodateext
+          copytruncate
+          notifempty
+          nocompress
+          maxsize 100M
+          postrotate
+            kill -HUP `cat /var/run/rsyslog.pid`
+          endscript
+        '';
+      }
+    ];
   };
 }
