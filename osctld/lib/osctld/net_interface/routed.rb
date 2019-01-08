@@ -77,6 +77,8 @@ module OsCtld
           ip(v, [:route, :add] + route.ip_spec + [:dev, veth])
         end
       end
+
+      File.write(File.join('/proc/sys/net/ipv4/conf', veth, 'rp_filter'), '1')
     end
 
     # DistConfig can be run only after the interface has been created

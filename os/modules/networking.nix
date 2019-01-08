@@ -63,6 +63,8 @@ with lib;
 
         ${config.networking.preConfig}
 
+        ip6tables -t raw -I PREROUTING -m rpfilter --invert -j DROP
+
         ${lib.optionalString static.enable ''
         ip addr add ${static.ip} dev ${static.interface}
         ip link set ${static.interface} up
