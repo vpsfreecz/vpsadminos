@@ -49,7 +49,8 @@
       time.timeZone = "Europe/Amsterdam";
 
       documentation.enable = true;
-      documentation.nixos.enable = true;
+      services.nixosManual.enable = true;
+      # in 19.03 change services.nixosManual.enable to documentation.nixos.enable = true;
 
       system.stateVersion = "18.09";
     }
@@ -75,7 +76,7 @@
   services.openssh.permitRootLogin = lib.mkDefault "yes";
 
   documentation.enable = true;
-  documentation.nixos.enable = true;
+  services.nixosManual.enable = true;
 
   boot.postBootCommands =
     ''
