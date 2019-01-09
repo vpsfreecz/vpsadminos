@@ -11,7 +11,6 @@ let
     iproute
     iputils
     iptables
-    criu
     mingetty
     procps
     bashInteractive
