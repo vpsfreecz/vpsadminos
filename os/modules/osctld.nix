@@ -16,7 +16,7 @@ in
 
   config = {
     runit.services.osctld.run = ''
-      export PATH="$PATH:${pkgs.apparmor-parser}/bin"
+      export PATH="${pkgs.lxc}/bin:${pkgs.apparmor-parser}/bin:$PATH"
       export OSCTLD_APPARMOR_PATHS="${apparmor_paths_joined}"
 
       exec 2>&1
