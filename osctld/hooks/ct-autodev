@@ -30,27 +30,40 @@ unless ret[:status]
   exit(false)
 end
 
-src = ret[:response][:source]
 dst = ENV['LXC_ROOTFS_MOUNT']
 
 ret[:response][:devices].each do |dev|
-  dstdev = File.join(dst, dev)
+  dstdev = File.join(dst, dev[:name])
   devdir = File.dirname(dstdev)
   FileUtils.mkdir_p(devdir) unless Dir.exist?(devdir)
 
   begin
-    stat = File.stat(dstdev)
+    st = File.stat(dstdev)
 
-    # Skip if the device is already present
-    next if dst.blockdev? || dst.chardev?
+    if (dev[:type] == 'char' && !st.chardev?) \
+       || (dev[:type] == 'block' && !st.blockdev?) \
+       || dev[:major] != st.rdev_major.to_s \
+       || dev[:minor] != st.rdev_minor.to_s
+      # The device is of an incorrect type
+      File.unlink(dstdev)
+
+    else
+      # Device already exists
+      File.chown(0, 0, dstdev)
+      File.chmod(dev[:permission], dstdev)
+      next
+    end
 
   rescue Errno::ENOENT
-    # Create an empty file to be bind-mounted over
-    File.open(dstdev, 'w') {}
+    # pass
   end
 
-  next if system("mount -o bind #{File.join(src, dev)} #{dstdev}")
-  fail "unable to bind-mount device '#{dev}'"
+  unless system("mknod #{dstdev} #{dev[:type_s]} #{dev[:major]} #{dev[:minor]}")
+    fail "unable to create device '#{dstdev}'"
+  end
+
+  File.chown(0, 0, dstdev)
+  File.chmod(dev[:permission], dstdev)
 end
 
 exit(true)

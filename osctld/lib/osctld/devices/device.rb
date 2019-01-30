@@ -119,5 +119,10 @@ module OsCtld
     def ==(other)
       type == other.type && major == other.major && minor == other.minor
     end
+
+    %i(read write create).each do |v|
+      m = :"can_#{v}?"
+      define_method(m) { mode.send(m) }
+    end
   end
 end

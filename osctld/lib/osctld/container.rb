@@ -327,10 +327,6 @@ module OsCtld
       inclusively { File.join(pool.conf_path, 'ct', "#{id}.yml") }
     end
 
-    def devices_dir
-      inclusively { File.join(pool.devices_dir, id) }
-    end
-
     def user_hook_script_dir
       inclusively { File.join(pool.user_hook_script_dir, 'ct', id) }
     end

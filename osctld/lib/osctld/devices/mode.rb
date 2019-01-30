@@ -74,5 +74,13 @@ module OsCtld
     def ==(other)
       other.mode == mode
     end
+
+    {
+      read: 'r',
+      write: 'w',
+      create: 'm',
+    }.each do |k, v|
+      define_method(:"can_#{k}?") { mode.include?(v) }
+    end
   end
 end
