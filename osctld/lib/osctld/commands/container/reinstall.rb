@@ -28,6 +28,9 @@ module OsCtld
 
         snaps.each { |snap| zfs(:destroy, nil, snap) }
 
+        # Ensure the container is mounted
+        ct.mount(force: true)
+
         # Apply new template
         apply_template(builder, opts[:template])
 
