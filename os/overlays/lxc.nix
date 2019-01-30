@@ -16,8 +16,8 @@ self: super:
         src = super.fetchFromGitHub {
           owner = "vpsfreecz";
           repo = "lxc";
-          rev = "2063f5387178d29085f946d1eaf99346352c9fa3";
-          sha256 = "1nl6an18rg6m21sl8ajn7xq9b0g82v7w8wg95wh2yjpzq9kj50vl";
+          rev = "2bac30f83f26433cf225212cd99f352065806ea7";
+          sha256 = "0kdmc5q2gvhvihs97y2by8qig8k3xpr356b5nl7lm3b702x882pj";
         };
 
         buildInputs = oldAttrs.buildInputs ++ [ super.glibc super.glibc.static ];
