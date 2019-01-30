@@ -48,9 +48,18 @@ module OsCtld
       %w(up down).each do |v|
         Dir.mkdir(mode_path(v), 0711) unless Dir.exist?(mode_path(v))
 
-        unless File.exist?(hook_path(v))
-          File.symlink(OsCtld::hook_src("veth-#{v}"), hook_path(v))
+        symlink = hook_path(v)
+        hook_src = OsCtld::hook_src("veth-#{v}")
+
+        if File.symlink?(symlink)
+          if File.readlink(symlink) == hook_src
+            next
+          else
+            File.unlink(symlink)
+          end
         end
+
+        File.symlink(hook_src, symlink)
       end
 
       return if ct.current_state != :running

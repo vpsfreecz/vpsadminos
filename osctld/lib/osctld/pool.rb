@@ -523,7 +523,17 @@ module OsCtld
         ct-post-stop
       ).each do |hook|
         symlink = OsCtld.hook_run(hook, self)
-        File.symlink(OsCtld::hook_src(hook), symlink) unless File.symlink?(symlink)
+        hook_src = OsCtld::hook_src(hook)
+
+        if File.symlink?(symlink)
+          if File.readlink(symlink) == hook_src
+            next
+          else
+            File.unlink(symlink)
+          end
+        end
+
+        File.symlink(hook_src, symlink)
       end
     end
 
