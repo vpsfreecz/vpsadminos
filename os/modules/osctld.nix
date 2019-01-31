@@ -3,8 +3,23 @@ with utils;
 with lib;
 
 let
-  apparmor_paths = [ pkgs.apparmor-profiles ] ++ config.security.apparmor.packages;
-  apparmor_paths_joined = concatMapStringsSep ":" (s: "${s}/etc/apparmor.d") apparmor_paths;
+  path = with pkgs; [
+    apparmor-parser
+    coreutils
+    iproute
+    glibc.bin
+    gzip
+    lxc
+    nettools
+    gnutar
+    openssh
+    shadow
+    utillinux
+    zfs
+  ];
+  pathJoined = concatMapStringsSep ":" (s: "${s}/bin") path;
+  apparmorPaths = [ pkgs.apparmor-profiles ] ++ config.security.apparmor.packages;
+  apparmorPathsJoined = concatMapStringsSep ":" (s: "${s}/etc/apparmor.d") apparmorPaths;
 in
 {
   ###### interface
@@ -16,8 +31,8 @@ in
 
   config = {
     runit.services.osctld.run = ''
-      export PATH="${pkgs.lxc}/bin:${pkgs.apparmor-parser}/bin:$PATH"
-      export OSCTLD_APPARMOR_PATHS="${apparmor_paths_joined}"
+      export PATH="${pathJoined}"
+      export OSCTLD_APPARMOR_PATHS="${apparmorPathsJoined}"
 
       exec 2>&1
       exec ${pkgs.osctld}/bin/osctld --log syslog --log-facility local2
