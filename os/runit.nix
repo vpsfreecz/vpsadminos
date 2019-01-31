@@ -87,6 +87,7 @@ in
   '';
 
   runit.stage2 = ''
+    export PATH=/run/current-system/sw/bin
     exec runsvdir -P /service
   '';
 
