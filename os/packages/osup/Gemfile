@@ -1,2 +1,2 @@
 source 'https://rubygems.vpsfree.cz'
-gem 'osup', '18.09.0.build20190130170137'
+gem 'osup', '18.09.0.build20190215101158'
