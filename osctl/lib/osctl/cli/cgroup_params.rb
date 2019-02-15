@@ -212,11 +212,7 @@ module OsCtl
         begin
           v = case field
           when :memory
-            t = read_cgparam(
-              subsystems[:memory],
-              path,
-              'memory.usage_in_bytes'
-            ).to_i
+            t = read_memory_usage(subsystems[:memory], path)
             Cli::Presentable.new(t, formatted: precise ? nil : humanize_data(t))
 
           when :kmemory
@@ -319,6 +315,15 @@ module OsCtl
       ret
     end
 
+    # @param memory [String] absolute path to memory subsystem
+    # @param path [String] path of chosen group, relative to the subsystem
+    # @return [Integer]
+    def read_memory_usage(memory, path)
+      st = parse_memory_stat(memory, path)
+      to_sum = %i(rss shmem active_anon inactive_anon)
+      to_sum.inject(0) { |sum, v| st[:"total_#{v}"] + sum }
+    end
+
     # Add runtime stats from CGroup parameters to `data`
     # @param client [OsCtl::Client]
     # @param data [Hash, Array] hash/array to which the stats are added
@@ -342,6 +347,15 @@ module OsCtl
     end
 
     protected
+    def parse_memory_stat(memory, path)
+      Hash[
+        read_cgparam(memory, path, 'memory.stat').split("\n").map do |line|
+          param, value = line.split
+          [param.to_sym, value.to_i]
+        end
+      ]
+    end
+
     def parse_cgparams
       opts[:cgparam].map do |v|
         parts = v.split('=')
