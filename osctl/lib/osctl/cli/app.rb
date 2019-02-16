@@ -1341,6 +1341,12 @@ module OsCtl::Cli
 
         ct.desc 'Recover container from errors'
         ct.command :recover do |r|
+          r.desc 'Check current container state'
+          r.arg_name '<ctid>'
+          r.command :state do |c|
+            c.action &Command.run(Container, :recover_state)
+          end
+
           r.desc 'Clean up leftover cgroups and network interfaces'
           r.arg_name '<ctid>'
           r.command :cleanup do |c|

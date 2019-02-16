@@ -1597,6 +1597,14 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 `ct mounts del` *ctid* *mountpoint*
   Remove *mountpoint* from container *ctid*.
 
+`ct recover state` *ctid*
+  Force `osctld` to check status of container *ctid*.
+
+  `osctld` checks container status only on startup and then watches for events
+  from `lxc-monitor`. If the container dies in a way that the monitor does not
+  report anything, `osctld` will not notice the change on its own and this
+  command can be used to recover from such a state.
+
 `ct recover cleanup` *ctid*
   Remove any leftover cgroups and network interfaces that might have belonged
   to container *ctid*. This is useful when the container's management process

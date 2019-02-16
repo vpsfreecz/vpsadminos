@@ -61,6 +61,18 @@ module OsCtld
       )
     end
 
+    def take_down
+      inclusively do
+        netifs.each do |n|
+          if n.is_a?(NetInterface::Veth)
+            n.down(n.veth) if n.veth
+          else
+            n.down
+          end
+        end
+      end
+    end
+
     # @param name [String]
     def contains?(name)
       inclusively { !(netifs.detect { |n| n.name == name }).nil? }
