@@ -1116,6 +1116,16 @@ tt
       )
     end
 
+    def recover_cleanup
+      require_args!('id')
+
+      osctld_fmt(
+        :ct_recover_cleanup,
+        id: args[0],
+        pool: gopts[:pool],
+      )
+    end
+
     protected
     def set(option)
       require_args!('id')

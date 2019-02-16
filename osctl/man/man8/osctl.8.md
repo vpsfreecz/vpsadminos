@@ -1597,6 +1597,12 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 `ct mounts del` *ctid* *mountpoint*
   Remove *mountpoint* from container *ctid*.
 
+`ct recover cleanup` *ctid*
+  Remove any leftover cgroups and network interfaces that might have belonged
+  to container *ctid*. This is useful when the container's management process
+  crashes for some reason and does not cleanup after itself. This operation
+  can be used only on stopped containers.
+
 `group new` *options* *group*
   Create a new group for resource management.
 

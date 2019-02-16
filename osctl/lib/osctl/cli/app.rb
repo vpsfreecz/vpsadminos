@@ -1338,6 +1338,15 @@ module OsCtl::Cli
             c.action &Command.run(Container, :mount_delete)
           end
         end
+
+        ct.desc 'Recover container from errors'
+        ct.command :recover do |r|
+          r.desc 'Clean up leftover cgroups and network interfaces'
+          r.arg_name '<ctid>'
+          r.command :cleanup do |c|
+            c.action &Command.run(Container, :recover_cleanup)
+          end
+        end
       end
 
       desc 'Migration key chain management'
