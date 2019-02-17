@@ -271,6 +271,7 @@ module OsCtld
 
     def stopped
       self.dist_network_configured = false
+      self.init_pid = nil
     end
 
     def can_dist_configure_network?
