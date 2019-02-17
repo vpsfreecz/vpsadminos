@@ -987,6 +987,24 @@ module OsCtl::Cli
           c.action &Command.run(Container, :pid)
         end
 
+        ct.desc 'List container processes'
+        ct.arg_name '<ctid>'
+        ct.command :ps do |c|
+          c.desc 'Select parameters to output'
+          c.flag %i(o output), arg_name: 'parameters'
+
+          c.desc 'Do not show header'
+          c.switch %i(H hide-header), negatable: false
+
+          c.desc 'List available parameters'
+          c.switch %i(L list), negatable: false
+
+          c.desc 'Sort by parameter(s)'
+          c.flag %i(s sort), arg_name: 'parameters'
+
+          c.action &Command.run(Ps::Main, :run)
+        end
+
         ct.desc 'List container assets (datasets, files, directories)'
         ct.arg_name '<ctid>'
         assets(ct, Container)

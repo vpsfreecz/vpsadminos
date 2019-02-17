@@ -1066,6 +1066,44 @@ Up until `ct migrate transfer`, the migration can be cancelled using
     `-H`, `--hide-header`
       Do not show header, useful for scripting.
 
+`ct ps` *ctid*
+  Filter processes belonging to container *ctid* without entering the container.
+
+  Available parameters:
+
+  - `pool` - pool name
+  - `ctid` - container id
+  - `pid` - process ID as seen on the host
+  - `ctpid` - process ID as seen inside the container
+  - `ruid` - real UID as seen on the host
+  - `rgid` - real GID as seen on the host
+  - `euid` - effective UID as seen on the host
+  - `egid` - effective GID as seen on the host
+  - `ctruid` - real user ID as seen inside the container
+  - `ctrgid` - real group ID as seen inside the container
+  - `cteuid` - effective user ID as seen inside the container
+  - `ctegid` - effective group ID as seen inside the container
+  - `vmsize` - virtual memory size
+  - `rss` - resident set size
+  - `state` - current process state, see proc(5)
+  - `start` - process start time
+  - `time` - time spent using CPU
+  - `command` - full command string with arguments
+  - `name` - command name (only executable)
+
+    `-H`, `--hide-header`
+      Do not show header, useful for scripts.
+
+    `-L`, `--list`
+      List available parameters and exit.
+
+    `-o`, `--output` *parameters*
+      Select parameters to output, comma separated. Defaults to a selected
+      subset of available parameters.
+
+    `-s`, `--sort` *parameters*
+      Sort output by parameters, comma separated.
+
 `ct assets` [*options*] *ctid*
   List container assets and their state.
 

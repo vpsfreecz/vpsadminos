@@ -39,7 +39,7 @@ module OsCtld
         # - parent: lxc-start, future /sbin/init
         # - grandparent: lxc-start running within the host namespace
         process = OsCtl::Lib::OsProcess.new(pid)
-        gpuid = process.grandparent.real_uid
+        gpuid = process.grandparent.ruid
 
         user = DB::Users.get.detect do |u|
           u.pool.name == req[:opts][:pool] && u.ugid == gpuid

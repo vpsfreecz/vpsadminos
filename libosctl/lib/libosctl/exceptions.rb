@@ -11,5 +11,11 @@ module OsCtl::Lib
         super("command '#{cmd}' exited with code '#{rc}', output: '#{output}'")
       end
     end
+
+    class OsProcessNotFound < StandardError
+      def initialize(pid)
+        super("process #{pid} not found")
+      end
+    end
   end
 end

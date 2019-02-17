@@ -183,6 +183,30 @@ PID        CONTAINER            CTPID      NAME
 23292      tank:myct01          228        agetty
 ```
 
+## Listing container processes
+*osctl* provides a way of filtering processes that belong to a particular
+container without entering the container:
+
+```bash
+osctl ct ps myct01
+   PID  CTPID    CTEUID   VMSIZE    RSS  STATE   START    TIME  COMMAND
+ 10140  1             0    75.4M   1.6K  S       11:07      0s  /sbin/init
+ 10272  53            0    76.6M   2.0K  S       11:07      0s  /lib/systemd/systemd-journald
+ 10283  62            0    41.1M    621  S       11:07      0s  /lib/systemd/systemd-udevd
+ 10342  120         101    69.0M    880  S       11:07      0s  /lib/systemd/systemd-resolved
+ 10343  121           0    60.6M    982  S       11:07      0s  /lib/systemd/systemd-logind
+ 10344  122           0    29.3M    475  S       11:07      0s  /usr/sbin/cron-f
+ 10345  123           0   165.2M   3.3K  S       11:07      0s  /usr/bin/python3/usr/bin/networkd-dispatcher--run-startup-triggers
+ 10346  124         103    48.8M    674  S       11:07      0s  /usr/bin/dbus-daemon--system--address=systemd:--nofork--nopidfile--systemd-activation--syslog-only
+ 10347  125         102   188.9M    681  S       11:07      0s  /usr/sbin/rsyslogd-n
+ 10354  132           0    14.3M    350  S       11:07      0s  /sbin/agetty-o-p -- \u--noclear--keep-baudconsole115200,38400,9600vt220
+ 10355  133           0    14.3M    341  S       11:07      0s  /sbin/agetty-o-p -- \u--noclear--keep-baudpts/3115200,38400,9600vt220
+ 10356  134           0    14.3M    344  S       11:07      0s  /sbin/agetty-o-p -- \u--noclear--keep-baudpts/2115200,38400,9600vt220
+ 10357  135           0    14.3M    347  S       11:07      0s  /sbin/agetty-o-p -- \u--noclear--keep-baudpts/0115200,38400,9600vt220
+ 10358  136           0    14.3M    345  S       11:07      0s  /sbin/agetty-o-p -- \u--noclear--keep-baudpts/1115200,38400,9600vt220
+ 10359  137           0    70.6M    917  S       11:07      0s  /usr/sbin/sshd-D
+```
+
 ## Container resource monitor
 `osctl ct top` is a top-like TUI application that monitors real-time resource
 usage. Instead of processes it monitors containers.

@@ -21,7 +21,7 @@ module OsCtl::Cli
         print(
           pid,
           "#{ret.pool}:#{ret.ctid}",
-          ret.os_process.ctpid,
+          ret.os_process.ct_pid,
           ret.os_process.name
         )
       end

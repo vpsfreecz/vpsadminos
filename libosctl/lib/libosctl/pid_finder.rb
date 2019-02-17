@@ -7,24 +7,16 @@ module OsCtl::Lib
     # @return [Result, nil]
     def find(pid)
       os_proc = OsProcess.new(pid)
-      f = File.open(File.join('/proc', pid.to_s, 'cgroup'), 'r')
-      line = f.readline
-      f.close
+      ctid = os_proc.ct_id
 
-      _id, _subsys, path = line.split(':')
-
-      if /^\/osctl\/pool\.([^\/]+)/ !~ path
-        return Result.new(nil, :host, os_proc)
+      if ctid.nil?
+        Result.new(nil, :host, os_proc)
+      else
+        pool, id = ctid
+        Result.new(pool, id, os_proc)
       end
 
-      pool = $1
-
-      return if /ct\.([^\/]+)\/user\-owned\// !~ path
-
-      ctid = $1
-      Result.new(pool, ctid, os_proc)
-
-    rescue Errno::ENOENT
+    rescue Exceptions::OsProcessNotFound
       nil
     end
   end
