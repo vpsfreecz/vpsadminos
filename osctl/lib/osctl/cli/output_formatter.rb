@@ -113,14 +113,15 @@ module OsCtl::Cli
 
       # Print header
       if @header
-        line(@cols.map do |c|
-          fmt = case c[:align].to_sym
-          when :right
-            "%#{c[:width]}s"
-
-          else
-            "%-#{c[:width]}s"
-          end
+        line(@cols.map.with_index do |c, i|
+          fmt =
+            if i == (@cols.count-1)
+              '%s'
+            elsif c[:align].to_sym == :right
+              "%#{c[:width]}s"
+            else
+              "%-#{c[:width]}s"
+            end
 
           sprintf(fmt, c[:label])
         end.join('  '))
@@ -149,13 +150,14 @@ module OsCtl::Cli
             w = c[:width]
           end
 
-          fmt = case c[:align].to_sym
-          when :right
-            "%#{w}s"
-
-          else
-            "%-#{w}s"
-          end
+          fmt =
+            if i == (@cols.count-1)
+              '%s'
+            elsif c[:align].to_sym == :right
+              "%#{w}s"
+            else
+              "%-#{w}s"
+            end
 
           sprintf(fmt, s)
         end.join('  '))
