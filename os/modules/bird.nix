@@ -34,6 +34,10 @@ let
                 scan time 1;
         }
 
+        protocol direct {
+                interface "${cfg.protocol.direct.interface}";
+        }
+
         ${bgps}
 
         ${cfg.extraConfig}
@@ -90,6 +94,12 @@ let
                 default = "";
               };
 
+            };
+            direct = {
+              interface = mkOption {
+                type = types.str;
+                default = "*";
+              };
             };
             bgp = mkOption {
               type = types.unspecified;
