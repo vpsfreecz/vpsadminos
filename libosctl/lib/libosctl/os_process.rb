@@ -76,6 +76,8 @@ module OsCtl::Lib
     def initialize(pid)
       @path = File.join('/proc', pid.to_s)
       @pid = pid
+      @cache = {}
+      @id_maps = {}
 
       volatile do
         parse_stat
@@ -102,20 +104,22 @@ module OsCtl::Lib
     # Return container pool and id as a tuple or nil
     # @return [Array, nil]
     def ct_id
-      volatile do
-        f = File.open(File.join(path, 'cgroup'), 'r')
-        line = f.readline
-        f.close
+      cache(:ct_id) do
+        volatile do
+          f = File.open(File.join(path, 'cgroup'), 'r')
+          line = f.readline
+          f.close
 
-        _id, _subsys, path = line.split(':')
+          _id, _subsys, path = line.split(':')
 
-        return if /^\/osctl\/pool\.([^\/]+)/ !~ path
-        pool = $1
+          return if /^\/osctl\/pool\.([^\/]+)/ !~ path
+          pool = $1
 
-        return if /ct\.([^\/]+)\/user\-owned\// !~ path
-        ctid = $1
+          return if /ct\.([^\/]+)\/user\-owned\// !~ path
+          ctid = $1
 
-        [pool, ctid]
+          [pool, ctid]
+        end
       end
     end
 
@@ -143,6 +147,12 @@ module OsCtl::Lib
     # @return [String]
     def cmdline
       volatile { File.read(File.join(path, 'cmdline')).gsub("\0", " ").strip }
+    end
+
+    # Flush cache and read fresh information from `/proc`
+    def flush
+      @cache.clear
+      @id_maps.clear
     end
 
     protected
@@ -196,19 +206,24 @@ module OsCtl::Lib
     end
 
     def uns_host_to_ns(type, host_id)
+      id_map(type).host_to_ns(host_id)
+    end
+
+    def id_map(type)
+      @id_maps[type] ||= parse_id_map(type)
+    end
+
+    def parse_id_map(type)
       volatile do
-        f = File.open(File.join(path, "#{type}_map"), 'r')
+        id_map = OsCtl::Lib::IdMap.new
 
-        f.each_line do |line|
-          cols = line.strip.split
-          return if cols.count != 3
-
-          ns_start, host_start, count = cols.map(&:to_i)
-
-          if host_id >= host_start && host_id < (host_start + count)
-            return (host_id - host_start) + ns_start
+        File.open(File.join(path, "#{type}_map"), 'r') do |f|
+          f.each_line do |line|
+            id_map.add_from_string(line, separator: ' ')
           end
         end
+
+        id_map
       end
     end
 
@@ -216,6 +231,14 @@ module OsCtl::Lib
       yield
     rescue Errno::ENOENT
       raise Exceptions::OsProcessNotFound, pid
+    end
+
+    def cache(key)
+      if @cache.has_key?(key)
+        @cache[key]
+      else
+        @cache[key] = yield
+      end
     end
   end
 end
