@@ -17,5 +17,13 @@ module OsCtl::Lib
         super("process #{pid} not found")
       end
     end
+
+    class IdMappingError < StandardError
+      # @param idmap [IdMap]
+      # @param id [Integer]
+      def initialize(idmap, id)
+        super("unable to map id #{id} using #{idmap.to_s}")
+      end
+    end
   end
 end
