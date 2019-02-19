@@ -1,3 +1,5 @@
+require 'libosctl'
+
 module OsCtl::Cli
   class Ps::Columns
     COLS = %i(
@@ -54,19 +56,27 @@ module OsCtl::Cli
     # @param precise [Boolean]
     # @return [Array<Hash>]
     def self.generate(process_list, cols, precise)
-      [
-        cols.map do |c|
-          {
-            name: c,
-            label: c.to_s.upcase,
-            align: ALIGN_RIGHT.include?(c) ? :right : :left,
-          }
-        end,
-        process_list.map do |os_proc|
-          row = new(os_proc, precise)
-          Hash[cols.map { |c| [c, row.send(c)] }]
-        end,
-      ]
+      spec = cols.map do |c|
+        {
+          name: c,
+          label: c.to_s.upcase,
+          align: ALIGN_RIGHT.include?(c) ? :right : :left,
+        }
+      end
+
+      data = []
+
+      process_list.each do |os_proc|
+        row = new(os_proc, precise)
+
+        begin
+          data << Hash[cols.map { |c| [c, row.send(c)] }]
+        rescue OsCtl::Lib::Exceptions::OsProcessNotFound
+          next
+        end
+      end
+
+      [spec, data]
     end
 
     include OsCtl::Utils::Humanize
