@@ -31,7 +31,7 @@ module OsCtld
 
         Dir.chdir(cfg_root)
 
-        Dir.glob('**/*.{conf,seccomp}').each do |cfg|
+        Dir.glob('**/*.conf').each do |cfg|
           link_path = File.join(dst, cfg)
 
           if File.symlink?(link_path) || File.exist?(link_path)

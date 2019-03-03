@@ -695,7 +695,7 @@ module OsCtld
     end
 
     def default_seccomp_profile
-      File.join(Lxc::CONFIGS, 'common.seccomp')
+      '/etc/lxc/config/common.seccomp'
     end
   end
 end
