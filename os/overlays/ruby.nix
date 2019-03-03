@@ -12,6 +12,8 @@ let
   });
 in
 {
+  ruby = super.ruby_2_6;
+
   defaultGemConfig =
     super.callPackage (
       { lib, apparmor-parser, ncurses, openssl, zlib }:
