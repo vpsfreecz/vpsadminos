@@ -1,3 +1,4 @@
+# nix build -f ci.nix
 { pkgs ? import ./nixpkgs.nix }:
 let
   overrides = {
