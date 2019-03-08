@@ -358,6 +358,9 @@ with lib;
           net_cls = /sys/fs/cgroup/net_cls,net_prio;
           net_prio = /sys/fs/cgroup/net_cls,net_prio;
           pids = /sys/fs/cgroup/pids;
+          perf_event = /sys/fs/cgroup/perf_event;
+          rdma = /sys/fs/cgroup/rdma;
+          hugetlb = /sys/fs/cgroup/hugetlb;
           cglimit = /sys/fs/cgroup/cglimit;
           "name=systemd" = /sys/fs/cgroup/systemd;
         }
