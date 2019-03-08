@@ -1,5 +1,5 @@
 [
-  (import ./gem-config.nix)
+  (import ./ruby.nix)
   (import ./osctl.nix)
   (import ./tools.nix)
   (import ./lxc.nix)
