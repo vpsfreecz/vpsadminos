@@ -41,6 +41,13 @@ in
           Address to listen on.
         '';
       };
+      extraFlags = mkOption {
+        type = types.listOf types.str;
+        default = [];
+        description = ''
+          Extra commandline options to pass to node_exporter.
+        '';
+      };
     };
   };
 
@@ -52,7 +59,9 @@ in
         exec ${pkgs.prometheus-node-exporter}/bin/node_exporter \
           ${concatMapStringsSep " " (x: "--collector." + x) cfg.enabledCollectors} \
           ${concatMapStringsSep " " (x: "--no-collector." + x) cfg.disabledCollectors} \
-          --web.listen-address ${cfg.listenAddress}:${toString cfg.port} &>/dev/null
+          --web.listen-address ${cfg.listenAddress}:${toString cfg.port} \
+          --collector.runit.servicedir=/service \
+          ${concatStringsSep " \\\n  " cfg.extraFlags} &>/dev/null
       '';
     })
   ];
