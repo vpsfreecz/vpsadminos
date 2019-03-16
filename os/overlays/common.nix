@@ -7,4 +7,5 @@
   (import ./htop.nix)
   (import ./zfs.nix)
   (import ./minify.nix)
+  (import ./nfs.nix)
 ]

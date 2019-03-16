@@ -27,6 +27,10 @@ in
           name = "030-cglimit_controller_v1";
           patch = ./patches + "/${name}.patch";
         }
+        rec {
+          name = "040-nfs_userns_root";
+          patch = ./patches + "/${name}.patch";
+        }
 
         # AppArmor patches
         rec {

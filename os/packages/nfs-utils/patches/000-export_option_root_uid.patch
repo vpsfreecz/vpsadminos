@@ -1,0 +1,75 @@
+diff --git a/support/include/nfs/export.h b/support/include/nfs/export.h
+index 0eca828..8fa2a09 100644
+--- a/support/include/nfs/export.h
++++ b/support/include/nfs/export.h
+@@ -28,6 +28,7 @@
+ #define NFSEXP_NOACL		0x8000 /* reserved for possible ACL related use */
+ #define NFSEXP_V4ROOT		0x10000
+ #define NFSEXP_PNFS            0x20000
++#define NFSEXP_ROOTUID         0x40000
+ /*
+  * All flags supported by the kernel before addition of the
+  * export_features interface:
+diff --git a/support/include/nfslib.h b/support/include/nfslib.h
+index b09fce4..b289269 100644
+--- a/support/include/nfslib.h
++++ b/support/include/nfslib.h
+@@ -84,6 +84,7 @@ struct exportent {
+ 	char *		e_uuid;
+ 	struct sec_entry e_secinfo[SECFLAVOR_COUNT+1];
+ 	unsigned int	e_ttl;
++	unsigned int    e_root_uid;
+ };
+ 
+ struct rmtabent {
+diff --git a/support/nfs/exports.c b/support/nfs/exports.c
+index b59d187..63e3e0f 100644
+--- a/support/nfs/exports.c
++++ b/support/nfs/exports.c
+@@ -286,6 +286,9 @@ putexportent(struct exportent *ep)
+ 	if (ep->e_mountpoint)
+ 		fprintf(fp, "mountpoint%s%s,",
+ 			ep->e_mountpoint[0]?"=":"", ep->e_mountpoint);
++	if (ep->e_flags & NFSEXP_ROOTUID) {
++		fprintf(fp, "root_uid=%d,", ep->e_root_uid);
++	}
+ 	switch (ep->e_fslocmethod) {
+ 	case FSLOC_NONE:
+ 		break;
+@@ -662,6 +665,10 @@ bad_option:
+ 			active = parse_flavors(opt+4, ep);
+ 			if (!active)
+ 				goto bad_option;
++		} else if (strncmp(opt, "root_uid=", 9) == 0) {
++			char *oe;
++			setflags(NFSEXP_ROOTUID, active, ep);
++			ep->e_root_uid = strtoul(opt+9, &oe, 0);
+ 		} else {
+ 			xlog(L_ERROR, "%s:%d: unknown keyword \"%s\"\n",
+ 					flname, flline, opt);
+diff --git a/utils/exportfs/exportfs.c b/utils/exportfs/exportfs.c
+index 333eadc..6b362e0 100644
+--- a/utils/exportfs/exportfs.c
++++ b/utils/exportfs/exportfs.c
+@@ -501,7 +501,7 @@ static int test_export(nfs_export *exp, int with_fsid)
+ 	qword_add(&bp, &len, path);
+ 	if (len < 1)
+ 		return 0;
+-	snprintf(bp, len, " 3 %d 65534 65534 0\n", flags);
++	snprintf(bp, len, " 3 %d 65534 65534 0 0\n", flags);
+ 	fd = open("/proc/net/rpc/nfsd.export/channel", O_WRONLY);
+ 	if (fd < 0)
+ 		return 0;
+diff --git a/utils/mountd/cache.c b/utils/mountd/cache.c
+index 2cb370f..a4d0b4e 100644
+--- a/utils/mountd/cache.c
++++ b/utils/mountd/cache.c
+@@ -903,6 +903,8 @@ static int dump_to_cache(int f, char *buf, int buflen, char *domain,
+ 		qword_addint(&bp, &blen, exp->e_anonuid);
+ 		qword_addint(&bp, &blen, exp->e_anongid);
+ 		qword_addint(&bp, &blen, exp->e_fsid);
++		qword_adduint(&bp, &blen, (exp->e_flags & NFSEXP_ROOTUID)
++				         ? exp->e_root_uid : 0);
+ 		write_fsloc(&bp, &blen, exp);
+ 		write_secinfo(&bp, &blen, exp, flag_mask);
+ 		if (exp->e_uuid == NULL || different_fs) {
