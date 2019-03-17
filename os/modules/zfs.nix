@@ -66,7 +66,7 @@ let
         echo -e "\n\n[1;31m>>> Pool is DEGRADED!! <<<[0m"
 
       echo "Mounting datasets..."
-      datasets="$(zfs list -Hr -o name,canmount,mounted ${name} \
+      datasets="$(zfs list -Hr -t filesystem -o name,canmount,mounted ${name} \
         | grep $'\ton' `# canmount=on` \
         | grep $'\tno' `# mounted=no` \
         | awk '{ print $1; }')"
@@ -94,6 +94,24 @@ let
       echo "Configuring osctl pool"
       ${osctl} pool set parallel-start ${name} ${toString config.osctl.pools.${name}.parallelStart}
       ${osctl} pool set parallel-stop ${name} ${toString config.osctl.pools.${name}.parallelStop}
+      ''}
+
+      ${optionalString config.services.nfs.server.enable ''
+      echo "Sharing datasets..."
+      sv check nfsd > /dev/null || exit 1
+
+      datasets="$(zfs list -Hr -t filesystem -o name,mounted,sharenfs ${name} \
+        | grep $'\tyes' `# mounted=yes` \
+        | grep -v $'\toff' `# sharenfs!=off` \
+        | awk '{ print $1; }')"
+      count=$(echo "$datasets" | wc -l)
+      i=1
+
+      for ds in $datasets ; do
+        echo "[''${i}/''${count}] Sharing $ds"
+        zfs share $ds
+        i=$(($i+1))
+      done
       ''}
 
       # TODO: this could be option runit.services.<service>.autoRestart = always/on-failure;
