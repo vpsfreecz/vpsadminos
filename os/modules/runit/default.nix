@@ -21,6 +21,14 @@ let
         description = "Called to check service status.";
       };
 
+      includeHelpers = mkOption {
+        type = types.bool;
+        default = true;
+        description = ''
+          Include helper functions, see <literal>./helpers.sh</literal>.
+        '';
+      };
+
       onChange = mkOption {
         type = types.enum [ "restart" "reload" "ignore" ];
         default = "restart";
@@ -133,6 +141,12 @@ let
     };
   };
 
+  helpers = name: pkgs.substituteAll {
+    src = ./helpers.sh;
+    name = "service-helpers";
+    osctl = "${pkgs.osctl}/bin/osctl";
+  };
+
   mkScript = name: script: pkgs.writeScript name
     ''
     #!${pkgs.stdenv.shell}
@@ -146,6 +160,7 @@ let
   mkServiceRun = name: service:
     mkService name "run" ''
       ${optionalString (service.log.enable && service.log.logStandardError) "exec 2>&1"}
+      ${optionalString service.includeHelpers "source ./helpers"}
       ${service.run}
     '';
 
@@ -184,6 +199,10 @@ let
 
       (mkIf (service.check != "") {
         "runit/services/${name}/check".source = mkService name "check" service.check;
+      })
+
+      (mkIf service.includeHelpers {
+        "runit/services/${name}/helpers".source = helpers name;
       })
 
       (mkIf (service.log.enable) {

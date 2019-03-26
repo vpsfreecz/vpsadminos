@@ -21,7 +21,6 @@ let
       ./stage-1.nix
       ./stage-2.nix
       ./runit.nix
-      ./modules/runit.nix
       ./modules/bird.nix
       ./modules/osctl/pools.nix
       ./modules/chronyd.nix
@@ -40,7 +39,7 @@ let
       ./modules/networking.nix
       ./modules/osctld.nix
       ./modules/rpcbind.nix
-      ./modules/runit.nix
+      ./modules/runit
       ./modules/rsyslog.nix
       ./modules/sshd.nix
       ./modules/tools/tools.nix
