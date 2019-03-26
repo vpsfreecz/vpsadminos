@@ -21,7 +21,7 @@ module OsCtl::Repo
     end
 
     # yieldparam [String] downloaded data
-    def download(vendor, variant, arch, dist, vtag, format, &block)
+    def get(vendor, variant, arch, dist, vtag, format, &block)
       connect do |http|
         index = nil
 

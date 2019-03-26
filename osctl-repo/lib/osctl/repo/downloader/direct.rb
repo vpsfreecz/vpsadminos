@@ -13,7 +13,7 @@ module OsCtl::Repo
     end
 
     # yieldparam [String] downloaded data
-    def download(vendor, variant, arch, dist, vtag, format)
+    def get(vendor, variant, arch, dist, vtag, format)
       connect do |http|
         index = Remote::Index.from_string(repo, http.get(uri.path).body)
         t = index.lookup(vendor, variant, arch, dist, vtag)

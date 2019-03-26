@@ -123,7 +123,7 @@ module OsCtl::Repo
       repo.path = opts[:cache]
 
       dl = Downloader::Cached.new(repo)
-      dl.download(*args[1..-1])
+      dl.get(*args[1..-1])
     end
 
     def get
@@ -141,7 +141,7 @@ module OsCtl::Repo
         dl = Downloader::Direct.new(repo)
       end
 
-      dl.download(*args[1..-1]) do |fragment|
+      dl.get(*args[1..-1]) do |fragment|
         STDOUT.write(fragment)
       end
     end
