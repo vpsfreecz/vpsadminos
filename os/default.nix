@@ -21,34 +21,6 @@ let
       ./stage-1.nix
       ./stage-2.nix
       ./runit.nix
-      ./modules/bird.nix
-      ./modules/osctl/pools.nix
-      ./modules/chronyd.nix
-      ./modules/crond.nix
-      ./modules/cpufreq.nix
-      ./modules/dhcpd.nix
-      ./modules/eudev.nix
-      ./modules/grub/grub.nix
-      ./modules/grub/ipxe.nix
-      ./modules/htop.nix
-      ./modules/logrotate.nix
-      ./modules/lxcfs.nix
-      ./modules/nfs.nix
-      ./modules/nix-daemon.nix
-      ./modules/node_exporter.nix
-      ./modules/networking.nix
-      ./modules/osctld.nix
-      ./modules/rpcbind.nix
-      ./modules/runit
-      ./modules/rsyslog.nix
-      ./modules/sshd.nix
-      ./modules/tools/tools.nix
-      ./modules/tty.nix
-      ./modules/zfs.nix
-      ./modules/version.nix
-      ./modules/vpsadmin.nix
-      ./modules/bash.nix
-      ./modules/haveged.nix
       <nixpkgs/nixos/modules/misc/extra-arguments.nix>
       <nixpkgs/nixos/modules/system/etc/etc.nix>
       <nixpkgs/nixos/modules/system/activation/activation-script.nix>
@@ -88,11 +60,10 @@ let
       <nixpkgs/nixos/modules/config/sysctl.nix>
       <nixpkgs/nixos/modules/config/users-groups.nix>
       <nixpkgs/nixos/modules/config/i18n.nix>
-      ./modules/rename.nix
       ./ipxe.nix
       ./nixos-compat.nix
       pkgsModule
-  ];
+  ] ++ (import ./modules/module-list.nix);
   evalConfig = modules: pkgs.lib.evalModules {
     prefix = [];
     check = true;
