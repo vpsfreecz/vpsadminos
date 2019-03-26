@@ -86,6 +86,9 @@ module OsCtl::Repo::Cli
           c.desc 'Cache directory'
           c.flag :cache
 
+          c.desc 'Force remote repository check'
+          c.switch 'force-check', default_value: false
+
           c.action &Command.run(Repo, :get)
         end
       end

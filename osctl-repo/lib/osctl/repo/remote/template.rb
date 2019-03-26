@@ -7,8 +7,12 @@ module OsCtl::Repo
       File.join(repo.url, rootfs_path(format))
     end
 
+    def abs_cache_path(format)
+      abs_rootfs_path(format)
+    end
+
     def cached?(format)
-      File.exist?(abs_rootfs_path(format))
+      File.exist?(abs_cache_path(format))
     end
 
     def lock(format)

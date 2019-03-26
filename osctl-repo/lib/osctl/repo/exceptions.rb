@@ -23,5 +23,7 @@ module OsCtl
         super(exception.message)
       end
     end
+
+    class CacheMiss < StandardError ; end
   end
 end

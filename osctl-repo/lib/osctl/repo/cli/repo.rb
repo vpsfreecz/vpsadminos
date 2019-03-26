@@ -141,7 +141,7 @@ module OsCtl::Repo
         dl = Downloader::Direct.new(repo)
       end
 
-      dl.get(*args[1..-1]) do |fragment|
+      dl.get(*args[1..-1], force_check: opts['force-check']) do |fragment|
         STDOUT.write(fragment)
       end
     end

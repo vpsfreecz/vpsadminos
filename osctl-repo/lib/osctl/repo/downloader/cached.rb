@@ -20,8 +20,43 @@ module OsCtl::Repo
       end
     end
 
+    # param opts [Hash]
+    # @option opts [Boolean] :force_check
     # yieldparam [String] downloaded data
-    def get(vendor, variant, arch, dist, vtag, format, &block)
+    def get(vendor, variant, arch, dist, vtag, format, opts = {}, &block)
+      if opts.has_key?(:force_check)
+        force_check = opts[:force_check]
+      else
+        force_check = false
+      end
+
+      begin
+        fh = download(vendor, variant, arch, dist, vtag, format, block ? true : false)
+      rescue SystemCallError,
+             OpenSSL::SSL::SSLError,
+             BadHttpResponse => dl_e
+        if force_check
+          raise
+        elsif block
+          begin
+            fh = read_from_cache(vendor, variant, arch, dist, vtag, format)
+          rescue CacheMiss => cache_e
+            fail "Unable to reach remote repository: #{dl_e.message}; "+
+                 "not found in cache: #{cache_e.message}"
+          end
+        end
+      end
+
+      if block
+        block.call(fh.read(16*1024)) until fh.eof?
+        fh.close
+      end
+    end
+
+    protected
+    attr_reader :repo
+
+    def download(vendor, variant, arch, dist, vtag, format, open)
       fh = nil
 
       connect do |http|
@@ -40,19 +75,41 @@ module OsCtl::Repo
         FileUtils.mkdir_p(t.abs_dir_path)
 
         t.lock(format) do
-          path = fetch_template(http, t, format, &block)
-          fh = File.open(path, 'r') if block
+          path = fetch_template(http, t, format)
+          fh = File.open(path, 'r') if open
         end
       end
 
-      if block
-        block.call(fh.read(16*1024)) until fh.eof?
-        fh.close
-      end
+      fh
     end
 
-    protected
-    attr_reader :repo
+    def read_from_cache(vendor, variant, arch, dist, vtag, format)
+      fh = nil
+      index = nil
+
+      repo.lock_index do
+        begin
+          index = Remote::Index.from_file(repo, repo.index_path)
+        rescue Errno::ENOENT
+          raise CacheMiss, 'Repository index not found in cache'
+        end
+      end
+
+      t = index.lookup(vendor, variant, arch, dist, vtag)
+
+      raise TemplateNotFound, t unless t
+      raise FormatNotFound.new(t, format) unless t.has_rootfs?(format)
+
+      t.lock(format) do
+        unless t.cached?(format)
+          raise CacheMiss, "Template #{t} not found in cache"
+        end
+
+        fh = File.open(t.abs_cache_path(format), 'r')
+      end
+
+      fh
+    end
 
     def update_index(http)
       uri = index_uri
@@ -106,7 +163,7 @@ module OsCtl::Repo
 
     def fetch_template(http, t, format)
       uri = URI(t.abs_rootfs_url(format))
-      t_path = t.abs_rootfs_path(format)
+      t_path = t.abs_cache_path(format)
 
       if t.cached?(format)
         headers = {'If-Modified-Since' => File.stat(t_path).mtime.httpdate}
