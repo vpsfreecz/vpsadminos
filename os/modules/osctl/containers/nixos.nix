@@ -8,26 +8,10 @@ let
         closureInfo = pkgs.closureInfo { rootPaths = [ toplevel ]; };
 
       in ''
-        ${osctl} pool show ${pool} &> /dev/null
-        hasPool=$?
-        if [ "$hasPool" != "0" ] ; then
-          echo "Waiting for pool ${pool}"
-          exit 1
-        fi
-
-        ${osctlPool} user show ${cfg.user} &> /dev/null
-        hasUser=$?
-        if [ "$hasUser" != "0" ] ; then
-          echo "Waiting for user ${pool}:${cfg.user}"
-          exit 1
-        fi
-
-        ${osctlPool} group show ${cfg.group} &> /dev/null
-        hasGroup=$?
-        if [ "$hasGroup" != "0" ] ; then
-          echo "Waiting for group ${pool}:${cfg.group}"
-          exit 1
-        fi
+        waitForOsctld
+        waitForOsctlEntity pool "${pool}"
+        waitForOsctlEntity user "${cfg.user}"
+        waitForOsctlEntity group "${cfg.group}"
 
         mkdir -p /nix/var/nix/profiles/per-container
         mkdir -p /nix/var/nix/gcroots/per-container
@@ -35,9 +19,7 @@ let
         ln -sf ${toplevel} /nix/var/nix/profiles/per-container/${name}
         ln -sf ${toplevel} /nix/var/nix/gcroots/per-container/${name}
 
-        ${osctlPool} ct show ${name} &> /dev/null
-        hasCT=$?
-        if [ "$hasCT" == "0" ] ; then
+        if osctlEntityExists ct "${name}" ; then
           echo "Container ${pool}:${name} already exists"
           lines=( $(${osctlPool} ct show -H -o rootfs,state,user,group,org.vpsadminos.osctl:config ${name}) )
           if [ "$?" != 0 ] ; then

@@ -61,15 +61,9 @@ in
   mkServices = pool: users: mkIf (users != {}) {
     "users-${pool}" = {
       run = ''
-        ${osctl} pool show ${pool} &> /dev/null
-        hasPool=$?
-        if [ "$hasPool" != "0" ] ; then
-          echo "Waiting for pool ${pool}"
-          exit 1
-        fi
-
+        waitForOsctld
+        waitForOsctlEntity pool ${pool}
         ${createUsers pool users}
-
         sv once users-${pool}
       '';
 

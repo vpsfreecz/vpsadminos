@@ -84,15 +84,9 @@ in
   mkServices = pool: groups: mkIf (groups != {}) {
     "groups-${pool}" = {
       run = ''
-        ${osctl} pool show ${pool} &> /dev/null
-        hasPool=$?
-        if [ "$hasPool" != "0" ] ; then
-          echo "Waiting for pool ${pool}"
-          exit 1
-        fi
-
+        waitForOsctld
+        waitForOsctlEntity pool ${pool}
         ${createGroups pool groups}
-
         sv once groups-${pool}
       '';
 

@@ -72,15 +72,9 @@ in
   mkServices = pool: repos: mkIf (repos != {}) {
     "repositories-${pool}" = {
       run = ''
-        ${osctl} pool show ${pool} &> /dev/null
-        hasPool=$?
-        if [ "$hasPool" != "0" ] ; then
-          echo "Waiting for pool ${pool}"
-          exit 1
-        fi
-
+        waitForOsctld
+        waitForOsctlEntity pool ${pool}
         ${createRepos pool repos}
-
         sv once repositories-${pool}
       '';
 

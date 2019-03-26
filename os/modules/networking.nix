@@ -59,7 +59,7 @@ with lib;
 
     runit.services = {
       networking.run = with config.networking; ''
-        sv check eudev-trigger >/dev/null || exit 1
+        ensureServiceStarted eudev-trigger
 
         ${config.networking.preConfig}
 

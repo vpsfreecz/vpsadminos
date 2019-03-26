@@ -56,8 +56,9 @@ let
 
         if [ "$?" != "0" ] ; then
           ${if pool.doCreate then ''
-            ${zpoolCreateScript name pool}/bin/do-create-pool-${name} --force || exit 1
-          '' else "exit 1"}
+            ${zpoolCreateScript name pool}/bin/do-create-pool-${name} --force \
+            || fail "unable to create zpool ${name}"
+          '' else ''fail "unable to import zpool ${name}"''}
         fi
       fi
 
@@ -81,13 +82,16 @@ let
 
       active=$(zfs get -Hp -o value org.vpsadminos.osctl:active ${name})
 
+      waitForOsctld
+
       if [ "$active" == "yes" ] ; then
-        ${osctl} pool show -o name ${name} &> /dev/null \
+        osctlEntityExists pool ${name} \
           || ${osctl} pool import ${name} \
-          || exit 1
+          || fail "unable to import osctl pool ${name}"
 
       elif ${if pool.install then "true" else "false"} ; then
-        ${osctl} pool install ${name} || exit 1
+        ${osctl} pool install ${name} \
+        || fail "unable to install zpool ${name} into osctld"
       fi
 
       ${optionalString (hasAttr name config.osctl.pools) ''
@@ -98,7 +102,7 @@ let
 
       ${optionalString config.services.nfs.server.enable ''
       echo "Sharing datasets..."
-      sv check nfsd > /dev/null || exit 1
+      waitForService nfsd
 
       datasets="$(zfs list -Hr -t filesystem -o name,mounted,sharenfs ${name} \
         | grep $'\tyes' `# mounted=yes` \
