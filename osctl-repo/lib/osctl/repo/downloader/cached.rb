@@ -22,6 +22,8 @@ module OsCtl::Repo
 
     # yieldparam [String] downloaded data
     def get(vendor, variant, arch, dist, vtag, format, &block)
+      fh = nil
+
       connect do |http|
         index = nil
 
@@ -38,8 +40,14 @@ module OsCtl::Repo
         FileUtils.mkdir_p(t.abs_dir_path)
 
         t.lock(format) do
-          get_template(http, t, format, &block)
+          path = fetch_template(http, t, format, &block)
+          fh = File.open(path, 'r') if block
         end
+      end
+
+      if block
+        block.call(fh.read(16*1024)) until fh.eof?
+        fh.close
       end
     end
 
@@ -96,7 +104,7 @@ module OsCtl::Repo
       end
     end
 
-    def get_template(http, t, format)
+    def fetch_template(http, t, format)
       uri = URI(t.abs_rootfs_url(format))
       t_path = t.abs_rootfs_path(format)
 
@@ -109,7 +117,6 @@ module OsCtl::Repo
             File.open(t_path, 'w') do |f|
               res.read_body do |fragment|
                 f.write(fragment)
-                yield(fragment) if block_given?
               end
             end
 
@@ -118,15 +125,10 @@ module OsCtl::Repo
               FileUtils.touch(t_path, mtime: Time.httpdate(res['last-modified']))
             end
 
-            return
+            return t_path
 
           when '304'
             # template unchanged
-            if block_given?
-              File.open(t_path, 'r') do |f|
-                yield(f.read(16*1024)) until f.eof?
-              end
-            end
 
           else
             raise BadHttpResponse, res.code
@@ -140,7 +142,6 @@ module OsCtl::Repo
 
             res.read_body do |fragment|
               f.write(fragment)
-              yield(fragment) if block_given?
             end
           end
 
@@ -150,6 +151,8 @@ module OsCtl::Repo
           end
         end
       end
+
+      t_path
     end
   end
 end
