@@ -388,6 +388,7 @@ with lib;
 
     boot.kernelPackages = myLinuxPackages;
     boot.kernelModules = hwSupportModules ++ [
+      "br_netfilter"
       "fuse"
       "veth"
     ] ++ lib.optionals config.networking.nat [

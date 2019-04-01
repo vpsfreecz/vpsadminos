@@ -31,5 +31,20 @@ in
           name = "040-nfs_userns_root";
           patch = ./patches + "/${name}.patch";
         }
+
+        # br_netfilter in non-initial network namespaces
+        # See:
+        #   https://lkml.org/lkml/2018/11/7/681
+        #   https://lore.kernel.org/patchwork/patch/1007863/
+        #   https://lore.kernel.org/patchwork/patch/1007864/
+        #   https://github.com/lxc/lxd/issues/5193
+        rec {
+          name = "101-br_netfilter-add-struct-netns_brnf";
+          patch = ./patches + "/${name}.patch";
+        }
+        rec {
+          name = "102-br_netfilter-namespace-bridge-netfilter-sysctls";
+          patch = ./patches + "/${name}.patch";
+        }
       ];
   }
