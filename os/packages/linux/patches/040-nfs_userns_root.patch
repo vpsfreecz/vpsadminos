@@ -18,7 +18,7 @@ index fdf2aad73470..80ee577dc8d4 100644
  	else
  		new->cap_effective = cap_raise_nfsd_set(new->cap_effective,
 diff --git a/fs/nfsd/export.c b/fs/nfsd/export.c
-index a1143f7c2201..6965350ea114 100644
+index 802993d8912f..f0c93d35c9ff 100644
 --- a/fs/nfsd/export.c
 +++ b/fs/nfsd/export.c
 @@ -517,6 +517,7 @@ static int svc_export_parse(struct cache_detail *cd, char *mesg, int mlen)
@@ -54,14 +54,14 @@ index a1143f7c2201..6965350ea114 100644
  	item->ex_devid_map = NULL;
  	new->ex_uuid = item->ex_uuid;
 diff --git a/fs/nfsd/export.h b/fs/nfsd/export.h
-index c8b74126ddaa..8ae14e5b2533 100644
+index e7daa1f246f0..9a4266dd9d10 100644
 --- a/fs/nfsd/export.h
 +++ b/fs/nfsd/export.h
-@@ -61,6 +61,7 @@ struct svc_export {
- 	u32			ex_layout_types;
+@@ -62,6 +62,7 @@ struct svc_export {
  	struct nfsd4_deviceid_map *ex_devid_map;
  	struct cache_detail	*cd;
-+	kuid_t                   ex_root_uid;
+ 	struct rcu_head		ex_rcu;
++	kuid_t                  ex_root_uid;
  };
  
  /* an "export key" (expkey) maps a filehandlefragement to an
