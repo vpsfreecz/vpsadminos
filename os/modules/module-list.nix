@@ -27,5 +27,5 @@
   ./tty.nix
   ./version.nix
   ./vpsadmin.nix
-  ./zfs.nix
+  ./zfs
 ]

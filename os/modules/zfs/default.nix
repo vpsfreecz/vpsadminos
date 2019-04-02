@@ -1,4 +1,4 @@
-{ config, lib, pkgs, utils, ... }:
+{ config, lib, pkgs, utils, ... }@args:
 #
 # todo:
 #   - crontab for scrubs, etc
@@ -27,164 +27,18 @@ let
     zfsUser = pkgs.zfs;
   };
 
-  osctl = "${pkgs.osctl}/bin/osctl";
-
   partitioningSupport = elem true (mapAttrsToList (name: pool:
     pool.partition != []
   ) config.boot.zfs.pools);
 
-  doWipe = concatMapStringsSep "\n" (d: ''
-    dd if=/dev/zero of=/dev/${d} count=1024
-    sectors="$( sfdisk -l /dev/${d} | egrep -o "([[:digit:]]+) sectors" | cut -d' ' -f1 )"
-    dd if=/dev/zero of=/dev/${d} seek="$(( $sectors - 1024 ))" count=1024
-  '');
 
-  doPartition =
-    let
-      toSectorSize = x: if x == null then "" else "size=${toString (x * 2048 * 1024)},";
-      mkParts = x: concatStrings (intersperse "\n" (mapAttrsToList (n: v: "${replaceStrings ["p"] [""] n}:${toSectorSize v.sizeGB}type=${v.type}") x));
-    in
-      x: concatStrings (mapAttrsToList (k: v: "echo '${mkParts v};' | sfdisk /dev/${k}\n") x);
-
-  poolService = name: pool: {
-    run = ''
-      zpool list ${name} > /dev/null
-
-      if [ "$?" != "0" ] ; then
-        echo "Importing ZFS pool \"${name}\""
-        zpool import -N ${name}
-
-        if [ "$?" != "0" ] ; then
-          ${if pool.doCreate then ''
-            ${zpoolCreateScript name pool}/bin/do-create-pool-${name} --force \
-            || fail "unable to create zpool ${name}"
-          '' else ''fail "unable to import zpool ${name}"''}
-        fi
-      fi
-
-      stat="$( zpool status ${name} )"
-      test $? && echo "$stat" | grep DEGRADED &> /dev/null && \
-        echo -e "\n\n[1;31m>>> Pool is DEGRADED!! <<<[0m"
-
-      echo "Mounting datasets..."
-      datasets="$(zfs list -Hr -t filesystem -o name,canmount,mounted ${name} \
-        | grep $'\ton' `# canmount=on` \
-        | grep $'\tno' `# mounted=no` \
-        | awk '{ print $1; }')"
-      count=$(echo "$datasets" | wc -l)
-      i=1
-
-      for ds in $datasets ; do
-        echo "[''${i}/''${count}] Mounting $ds"
-        zfs mount $ds
-        i=$(($i+1))
-      done
-
-      active=$(zfs get -Hp -o value org.vpsadminos.osctl:active ${name})
-
-      waitForOsctld
-
-      if [ "$active" == "yes" ] ; then
-        osctlEntityExists pool ${name} \
-          || ${osctl} pool import ${name} \
-          || fail "unable to import osctl pool ${name}"
-
-      elif ${if pool.install then "true" else "false"} ; then
-        ${osctl} pool install ${name} \
-        || fail "unable to install zpool ${name} into osctld"
-      fi
-
-      ${optionalString (hasAttr name config.osctl.pools) ''
-      echo "Configuring osctl pool"
-      ${osctl} pool set parallel-start ${name} ${toString config.osctl.pools.${name}.parallelStart}
-      ${osctl} pool set parallel-stop ${name} ${toString config.osctl.pools.${name}.parallelStop}
-      ''}
-
-      ${optionalString config.services.nfs.server.enable ''
-      echo "Sharing datasets..."
-      waitForService nfsd
-
-      datasets="$(zfs list -Hr -t filesystem -o name,mounted,sharenfs ${name} \
-        | grep $'\tyes' `# mounted=yes` \
-        | grep -v $'\toff' `# sharenfs!=off` \
-        | awk '{ print $1; }')"
-      count=$(echo "$datasets" | wc -l)
-      i=1
-
-      for ds in $datasets ; do
-        echo "[''${i}/''${count}] Sharing $ds"
-        zfs share $ds
-        i=$(($i+1))
-      done
-      ''}
-
-      # TODO: this could be option runit.services.<service>.autoRestart = always/on-failure;
-      sv once pool-${name}
-    '';
-
-    log.enable = true;
-    log.sendTo = "127.0.0.1";
+  poolService = name: pool: (import ./pool-service.nix args) {
+    inherit name pool zpoolCreateScript;
   };
 
-  zpoolCreateScript = name: pool: pkgs.writeScriptBin "do-create-pool-${name}" ''
-    #!/bin/sh
-    if [ "$1" != "-f" ] && [ "$1" != "--force" ] ; then
-      echo "WARNING: this program creates zpool ${name} and may destroy existing"
-      echo "data on configured disks in the process. Use at own risk!"
-      echo
-
-      ${optionalString (pool.wipe != []) ''
-        echo "Disks to wipe:"
-        echo "  ${concatStringsSep " " pool.wipe}"
-        echo
-      ''}
-
-      ${optionalString (pool.partition != {}) ''
-        echo "Disks to partition:"
-        echo "  ${concatStringsSep " " (mapAttrsToList (disk: _: disk) pool.partition)}"
-        echo
-      ''}
-
-      echo "zpool to create:"
-      echo "  zpool create ${name} ${pool.layout}"
-      ${optionalString (pool.logs != "") ''
-        echo "  zpool add ${name} log ${pool.logs}"
-      ''}
-      ${optionalString (pool.caches != "") ''
-        echo "  zpool add ${name} cache ${pool.caches}"
-      ''}
-      echo
-
-      read -p "Write uppercase 'yes' to continue: " input
-      if [ "$input" != "YES" ] ; then
-        echo "Aborting"
-        exit 1
-      fi
-    fi
-
-    ${optionalString (pool.wipe != []) ''
-      echo "Wiping disks"
-      ${doWipe pool.wipe}
-    ''}
-
-    ${optionalString (pool.partition != {}) ''
-      echo "Partitioning disks"
-      ${doPartition pool.partition}
-    ''}
-
-    echo "Creating pool \"${name}\""
-    zpool create ${name} ${pool.layout} || exit 1
-
-    ${optionalString (pool.logs != "") ''
-      echo "Adding logs"
-      zpool add ${name} log ${pool.logs} || exit 1
-    ''}
-
-    ${optionalString (pool.caches != "") ''
-      echo "Adding caches"
-      zpool add ${name} cache ${pool.caches} || exit 1
-    ''}
-  '';
+  zpoolCreateScript = name: pool: (import ./pool-create.nix args) {
+    inherit name pool;
+  };
 
   zpoolCreateScripts = mapAttrsToList zpoolCreateScript;
 
