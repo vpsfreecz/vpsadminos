@@ -31,6 +31,10 @@ in
           name = "040-nfs_userns_root";
           patch = ./patches + "/${name}.patch";
         }
+        rec {
+          name = "050-fpu_exports";
+          patch = ./patches + "/${name}.patch";
+        }
 
         # br_netfilter in non-initial network namespaces
         # See:
