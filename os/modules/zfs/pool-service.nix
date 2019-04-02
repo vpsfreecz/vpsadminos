@@ -3,9 +3,17 @@
 with lib;
 let
   osctl = "${pkgs.osctl}/bin/osctl";
+
   mount = pkgs.substituteAll {
     name = "mount.rb";
     src = ./mount.rb;
+    isExecutable = true;
+    ruby = pkgs.ruby;
+  };
+
+  share = pkgs.substituteAll {
+    name = "share.rb";
+    src = ./share.rb;
     isExecutable = true;
     ruby = pkgs.ruby;
   };
@@ -55,19 +63,7 @@ in {
     ${optionalString config.services.nfs.server.enable ''
     echo "Sharing datasets..."
     waitForService nfsd
-
-    datasets="$(zfs list -Hr -t filesystem -o name,mounted,sharenfs ${name} \
-      | grep $'\tyes' `# mounted=yes` \
-      | grep -v $'\toff' `# sharenfs!=off` \
-      | awk '{ print $1; }')"
-    count=$(echo "$datasets" | wc -l)
-    i=1
-
-    for ds in $datasets ; do
-      echo "[''${i}/''${count}] Sharing $ds"
-      zfs share $ds
-      i=$(($i+1))
-    done
+    ${share} ${name}
     ''}
 
     # TODO: this could be option runit.services.<service>.autoRestart = always/on-failure;
