@@ -3,6 +3,12 @@
 with lib;
 let
   osctl = "${pkgs.osctl}/bin/osctl";
+  mount = pkgs.substituteAll {
+    name = "mount.rb";
+    src = ./mount.rb;
+    isExecutable = true;
+    ruby = pkgs.ruby;
+  };
 in {
   run = ''
     zpool list ${name} > /dev/null
@@ -24,18 +30,7 @@ in {
       echo -e "\n\n[1;31m>>> Pool is DEGRADED!! <<<[0m"
 
     echo "Mounting datasets..."
-    datasets="$(zfs list -Hr -t filesystem -o name,canmount,mounted ${name} \
-      | grep $'\ton' `# canmount=on` \
-      | grep $'\tno' `# mounted=no` \
-      | awk '{ print $1; }')"
-    count=$(echo "$datasets" | wc -l)
-    i=1
-
-    for ds in $datasets ; do
-      echo "[''${i}/''${count}] Mounting $ds"
-      zfs mount $ds
-      i=$(($i+1))
-    done
+    ${mount} ${name}
 
     active=$(zfs get -Hp -o value org.vpsadminos.osctl:active ${name})
 
