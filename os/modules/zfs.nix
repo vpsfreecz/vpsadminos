@@ -197,10 +197,10 @@ let
           mirror sda sdb
         '';
         description = ''
-          Pool layout to pass to zpool create. Pool is not created automatically
-          and this is only used as a hint in stage-1 handler allowing to run
-          creation manually. Pool can be created in either interactive shell
-          or after the system boots.
+          Pool layout to pass to zpool create. The pool can be created either
+          manually using script <literal>do-create-pool-&lt;pool&gt;</literal>
+          or automatically when <option>boot.zfs.pools.&lt;pool&gt;.doCreate</option>
+          is set and the pool cannot be imported.
         '';
       };
 
