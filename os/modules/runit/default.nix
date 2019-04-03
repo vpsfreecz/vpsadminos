@@ -15,10 +15,31 @@ let
         description = "Called to start the service.";
       };
 
+      finish = mkOption {
+        type = types.str;
+        default = "";
+        description = ''
+          Called after <option>services.runit.&lt;service&gt;.run</option>
+          exits.
+        '';
+      };
+
       check = mkOption {
         type = types.str;
         default = "";
         description = "Called to check service status.";
+      };
+
+      killMode = mkOption {
+        type = types.enum [ "control-group" "process" ];
+        default = "control-group";
+        description = ''
+          Specifies how should processes started by this service be killed.
+
+          If set to <literal>control-group</literal>, all processes are sent
+          <literal>SIGTERM</literal>. If set to <literal>process</literal>,
+          only the main process receives <literal>SIGTERM</literal>.
+        '';
       };
 
       includeHelpers = mkOption {
@@ -147,6 +168,8 @@ let
     osctl = "${pkgs.osctl}/bin/osctl";
   };
 
+  serviceCGroup = name: "/sys/fs/cgroup/systemd/runit/${name}";
+
   mkScript = name: script: pkgs.writeScript name
     ''
     #!${pkgs.stdenv.shell}
@@ -159,9 +182,30 @@ let
 
   mkServiceRun = name: service:
     mkService name "run" ''
+      mkdir -p "${serviceCGroup name}"
+      echo $$ >> "${serviceCGroup name}/cgroup.procs"
       ${optionalString (service.log.enable && service.log.logStandardError) "exec 2>&1"}
       ${optionalString service.includeHelpers "source ./helpers"}
       ${service.run}
+    '';
+
+  killCGroup = pkgs.writeScript "kill-cgroup" ''
+    #!${pkgs.stdenv.shell}
+    cgroup="$1"
+    procs="$cgroup/cgroup.procs"
+
+    [ ! -e "$procs" ] && exit 0
+
+    pids=$(cat "$procs")
+    [ -n "$pids" ] && kill -SIGTERM $pids
+  '';
+
+  mkServiceFinish = name: service:
+    mkService name "finish" ''
+      ${optionalString (service.killMode == "control-group") ''
+      ${killCGroup} ${serviceCGroup name}
+      ''}
+      ${service.finish}
     '';
 
   mkLogRun = name: service:
@@ -196,6 +240,10 @@ let
       {
         "runit/services/${name}/run".source = mkServiceRun name service;
       }
+
+      (mkIf (service.finish != "" || service.killMode == "control-group") {
+        "runit/services/${name}/finish".source = mkServiceFinish name service;
+      })
 
       (mkIf (service.check != "") {
         "runit/services/${name}/check".source = mkService name "check" service.check;
