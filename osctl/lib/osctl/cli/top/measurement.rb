@@ -3,6 +3,8 @@ require 'osctl/cli/cgroup_params'
 
 module OsCtl::Cli
   class Top::Measurement
+    class Error < StandardError ; end
+
     include CGroupParams
 
     attr_reader :time, :data
@@ -31,6 +33,9 @@ module OsCtl::Cli
       )
 
       data.update(netif_stats)
+
+    rescue SystemCallError => e
+      raise Error, e.message
     end
 
     def diff_from(other, mode)

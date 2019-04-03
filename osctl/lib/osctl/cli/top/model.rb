@@ -30,7 +30,12 @@ module OsCtl::Cli
       sync do
         containers.each do |ct|
           next unless ct.running?
-          ct.measure(subsystems)
+
+          begin
+            ct.measure(subsystems)
+          rescue Top::Measurement::Error
+            ct.state = :error
+          end
         end
       end
     end
