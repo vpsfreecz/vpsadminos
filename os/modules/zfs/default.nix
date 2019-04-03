@@ -42,6 +42,22 @@ let
 
   zpoolCreateScripts = mapAttrsToList zpoolCreateScript;
 
+  datasets = {
+    options = {
+      type = mkOption {
+        type = types.enum [ "filesystem" "volume" ];
+        default = "filesystem";
+        description = "Dataset type";
+      };
+
+      properties = mkOption {
+        type = types.attrs;
+        default = {};
+        description = "ZFS properties, see man zfs(8).";
+      };
+    };
+  };
+
   pools = {
     options = {
       layout = mkOption {
@@ -141,6 +157,31 @@ let
           Import the pool into osctld to be used for containers.
         '';
       };
+
+      datasets = mkOption {
+        type = types.attrsOf (types.submodule datasets);
+        default = {};
+        example = {
+          "/".properties.sharenfs = "on";
+          "data".properties.quota = "100G";
+          "volume" = {
+            type = "volume";
+            properties.volsize = "50G";
+          };
+        };
+        description = ''
+          Declaratively create ZFS file systems or volumes and configure
+          properties.
+
+          Dataset names are relative to the pool and optionally may start with
+          a slash. Configured properties are passed directly to ZFS, see
+          man zfs(8) for more information.
+
+          No dataset is ever destroyed and properties removed from
+          the configuration are not unset once deployed. To reset a property,
+          set its value to `inherit`.
+        '';
+      };
     };
   };
 
@@ -192,6 +233,30 @@ in
 
   config = mkMerge [
     (mkIf enableZfs {
+      assertions = [
+        (
+          let
+            filterDatasets = pool: foldr ({k,v}: acc:
+              if v.type == "volume" && !(hasAttr "volsize" v.properties) then
+                acc ++ [(concatStringsSep "/" [pool k])]
+              else
+                acc
+            ) [];
+
+            filterPools = foldr ({k,v}: acc:
+              acc ++ (filterDatasets k (mapAttrsToList (k: v: {inherit k v;}) v))
+            ) [];
+
+            pools = filterPools (mapAttrsToList (k: v: {k = k; v = v.datasets;}) cfgZfs.pools);
+
+            msg = concatMapStringsSep ", " (v: v) pools;
+          in {
+            assertion = length pools == 0;
+            message = "These volumes are missing the volsize property: " + msg;
+          }
+        )
+      ];
+
       boot = {
         kernelModules = [ "zfs" ] ;
         extraModulePackages = with packages; [ zfs ];

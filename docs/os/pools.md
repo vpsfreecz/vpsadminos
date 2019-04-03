@@ -131,6 +131,42 @@ config:
 errors: No known data errors
 ```
 
+## Declarative pool structure
+Datasets and properties can be configured either manually after the pool is
+imported, or it is possible to define them within the configuration.
+For example:
+
+```nix
+boot.zfs.pools.tank = {
+  datasets = {
+    "/" = {
+      properties = {
+        compression = "on";
+	acltype = "posixacl";
+	sharenfs = "on";
+      };
+    };
+
+    "backup/alfa".properties.quota = "10G";
+    "backup/beta".properties.quota = "20G";
+
+    "myvolume" = {
+      type = "volume";
+      properties.volsize = "5G";
+    };
+  };
+};
+```
+
+Dataset names are relative to the pool and optionally may start with a slash.
+Two kinds of datasets are supported: `filesystem` (the default) and `volume`.
+The ZFS properties are passed directly to ZFS, see man zfs(8) for more
+information.
+
+The datasets are created and configured by the runit service. No dataset is
+ever destroyed and properties removed from the configuration are not unset
+once deployed. To reset a property, set its value to `inherit`.
+
 ## Monitoring import progress
 Large pools can take several minutes to import and mount all datasets.
 The progress can be monitored either in `/var/log/pool-<nam>/current` or

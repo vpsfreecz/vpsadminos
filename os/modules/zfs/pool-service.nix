@@ -2,6 +2,9 @@
 { name, pool, zpoolCreateScript }:
 with lib;
 let
+  # Get a submodule without any embedded metadata
+  _filter = x: filterAttrsRecursive (k: v: k != "_module") x;
+
   osctl = "${pkgs.osctl}/bin/osctl";
 
   mount = pkgs.substituteAll {
@@ -17,6 +20,9 @@ let
     isExecutable = true;
     ruby = pkgs.ruby;
   };
+
+  datasets = pkgs.writeText "pool-${name}-datasets.json"
+                            (builtins.toJSON (_filter pool.datasets));
 in {
   run = ''
     zpool list ${name} > /dev/null
@@ -38,7 +44,7 @@ in {
       echo -e "\n\n[1;31m>>> Pool is DEGRADED!! <<<[0m"
 
     echo "Mounting datasets..."
-    ${mount} ${name}
+    ${mount} ${name} ${datasets}
 
     active=$(zfs get -Hp -o value org.vpsadminos.osctl:active ${name})
 
