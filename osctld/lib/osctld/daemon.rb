@@ -89,7 +89,7 @@ module OsCtld
       SystemLimits.instance
 
       # Increase allowed number of open files
-      PrLimits.set(Process.pid, PrLimits::NOFILE, 4096, 4096)
+      PrLimits.set(Process.pid, PrLimits::NOFILE, 16384, 16384)
 
       # Setup shared AppArmor files
       AppArmor.setup
