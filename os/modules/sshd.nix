@@ -32,9 +32,12 @@ in
 
   config = mkMerge [
     (mkIf (config.services.openssh.enable) {
-      runit.services.sshd.run = ''
-        exec ${pkgs.openssh}/bin/sshd -D -f ${sshd_config}
-      '';
+      runit.services.sshd = {
+        run = ''
+          exec ${pkgs.openssh}/bin/sshd -D -f ${sshd_config}
+        '';
+        killMode = "process";
+      };
 
       environment.etc = {
         "ssh/ssh_host_rsa_key.pub".source = ../ssh/ssh_host_rsa_key.pub;
