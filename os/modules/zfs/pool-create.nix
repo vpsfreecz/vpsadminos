@@ -14,8 +14,10 @@ let
       mkParts = x: concatStrings (intersperse "\n" (mapAttrsToList (n: v: "${replaceStrings ["p"] [""] n}:${toSectorSize v.sizeGB}type=${v.type}") x));
     in
       x: concatStrings (mapAttrsToList (k: v: "echo '${mkParts v};' | sfdisk /dev/${k}\n") x);
-in
-pkgs.writeScriptBin "do-create-pool-${name}" ''
+
+  properties = concatStringsSep " " (mapAttrsToList (k: v: "-o \"${k}=${v}\"") pool.properties);
+
+in pkgs.writeScriptBin "do-create-pool-${name}" ''
   #!/bin/sh
   if [ "$1" != "-f" ] && [ "$1" != "--force" ] ; then
     echo "WARNING: this program creates zpool ${name} and may destroy existing"
@@ -35,7 +37,7 @@ pkgs.writeScriptBin "do-create-pool-${name}" ''
     ''}
 
     echo "zpool to create:"
-    echo "  zpool create ${name} ${pool.layout}"
+    echo "  zpool create ${properties} ${name} ${pool.layout}"
     ${optionalString (pool.logs != "") ''
       echo "  zpool add ${name} log ${pool.logs}"
     ''}
@@ -62,7 +64,7 @@ pkgs.writeScriptBin "do-create-pool-${name}" ''
   ''}
 
   echo "Creating pool \"${name}\""
-  zpool create ${name} ${pool.layout} || exit 1
+  zpool create ${properties} ${name} ${pool.layout} || exit 1
 
   ${optionalString (pool.logs != "") ''
     echo "Adding logs"

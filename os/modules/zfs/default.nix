@@ -158,6 +158,17 @@ let
         '';
       };
 
+      properties = mkOption {
+        type = types.attrs;
+        default = {};
+        example = {
+          readonly = on;
+        };
+        description = ''
+          zpool properties, see man zpool(8) for more information.
+        '';
+      };
+
       datasets = mkOption {
         type = types.attrsOf (types.submodule datasets);
         default = {};

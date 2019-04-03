@@ -161,7 +161,6 @@ class Pool
     list = datasets.sorted_by_mountpoint.select do |ds|
       !ds.exist? || ds.mount? || ds.configure?
     end
-    cnt = list.length
 
     each_with_progress(list) do |ds|
       if !ds.valid?

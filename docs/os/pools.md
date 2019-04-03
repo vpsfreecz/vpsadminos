@@ -48,6 +48,11 @@ boot.zfs.pools.tank = {
   # Caches passed to zpool add tank logs
   logs = "sdc2 sdd2";
 
+  # zpool properties, see man zpool(8)
+  properties = {
+    comment = "my pool";
+  };
+
   # Once created, install the pool into osctld
   install = true;
 
@@ -83,7 +88,7 @@ Disks to partition:
   sdc sdd
 
 zpool to create:
-  zpool create tank mirror sda sdb
+  zpool create -o "comment=my pool" tank mirror sda sdb
   zpool add tank log sdc2 sdd2
   zpool add tank cache sdc1 sdd1
 

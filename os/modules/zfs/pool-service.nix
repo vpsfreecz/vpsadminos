@@ -21,6 +21,8 @@ let
     ruby = pkgs.ruby;
   };
 
+  properties = mapAttrsToList (k: v: "\"${k}=${v}\"") pool.properties;
+
   datasets = pkgs.writeText "pool-${name}-datasets.json"
                             (builtins.toJSON (_filter pool.datasets));
 in {
@@ -42,6 +44,11 @@ in {
     stat="$( zpool status ${name} )"
     test $? && echo "$stat" | grep DEGRADED &> /dev/null && \
       echo -e "\n\n[1;31m>>> Pool is DEGRADED!! <<<[0m"
+
+    ${optionalString ((length properties) > 0) ''
+    echo "Configuring zpool"
+    ${concatMapStringsSep "\n" (v: "zpool set ${v} ${name}") properties}
+    ''}
 
     echo "Mounting datasets..."
     ${mount} ${name} ${datasets}
