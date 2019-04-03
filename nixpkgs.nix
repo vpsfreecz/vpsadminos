@@ -3,8 +3,8 @@
 #
 import (
   fetchTarball {
-    url = https://github.com/NixOS/nixpkgs/archive/26d8a8c0eb2a88d55694249b099cdd2c89b2b06d.tar.gz;
-    sha256 = "0ag0hvwv98imxbbbg73qdf2dr4llp6vxykg24jc2j6l2zcsz3kc4";
+    url = https://github.com/vpsfreecz/nixpkgs/archive/5dd15a4181fb260d1c006c4d00e4cc978cd89989.tar.gz;
+    sha256 = "0yg9059n08469mndvpq1f5x3lcnj9zrynkckwh9pii1ihimj6xyl";
   }
 ) {
   config = {};
