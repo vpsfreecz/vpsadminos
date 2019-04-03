@@ -30,12 +30,15 @@ in
   ###### implementation
 
   config = {
-    runit.services.osctld.run = ''
-      export PATH="${pathJoined}"
-      export OSCTLD_APPARMOR_PATHS="${apparmorPathsJoined}"
+    runit.services.osctld = {
+      run = ''
+        export PATH="${pathJoined}"
+        export OSCTLD_APPARMOR_PATHS="${apparmorPathsJoined}"
 
-      exec 2>&1
-      exec ${pkgs.osctld}/bin/osctld --log syslog --log-facility local2
-    '';
+        exec 2>&1
+        exec ${pkgs.osctld}/bin/osctld --log syslog --log-facility local2
+      '';
+      killMode = "process";
+    };
   };
 }
