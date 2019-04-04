@@ -13,9 +13,13 @@
   boot.zfs.pools.tank = {
     doCreate = true;
     wipe = [ "sda" "sdb" ];
-    layout = "mirror sda1 sdb1";
-    logs = "mirror sda2 sdb2";
-    caches = "sda3 sdb3";
+    layout = [
+      { type = "mirror"; devices = [ "sda1" "sdb1" ]; }
+    ];
+    log = [
+      { mirror = true; devices = [ "sda2" "sdb2" ]; }
+    ];
+    cache = [ "sda3" "sdb3" ];
     partition = {
       sda = {
         p1 = { sizeGB=3; };

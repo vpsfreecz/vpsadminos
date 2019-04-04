@@ -36,11 +36,66 @@ let
     inherit name pool zpoolCreateScript;
   };
 
-  zpoolCreateScript = name: pool: (import ./pool-create.nix args) {
-    inherit name pool;
-  };
+  poolConfig = name: pool: pkgs.writeText "pool-${name}-config.json" (builtins.toJSON {
+    inherit (pool) layout spare log cache partition wipe properties install;
+  });
+
+  zpoolCreateScript = name: pool: pkgs.runCommand "do-create-pool-${name}" {
+    ruby = pkgs.ruby;
+    poolName = name;
+    poolConfig = poolConfig name pool;
+  } ''
+    mkdir -p $out/bin
+    substituteAll ${./create.rb} $out/bin/do-create-pool-${name}
+    chmod +x $out/bin/do-create-pool-${name}
+  '';
 
   zpoolCreateScripts = mapAttrsToList zpoolCreateScript;
+
+  layoutVdev = {
+    options = {
+      type = mkOption {
+        type = types.enum [
+          "stripe"
+          "mirror"
+          "raidz"
+          "raidz1"
+          "raidz2"
+          "raidz3"
+        ];
+        default = "stripe";
+        example = "mirror";
+        description = ''
+          Virtual device type, see man zpool(8) for more information.
+        '';
+      };
+
+      devices = mkOption {
+        type = types.listOf types.str;
+        description = ''
+          List of device names.
+        '';
+      };
+    };
+  };
+
+  logVdev = {
+    options = {
+      mirror = mkOption {
+        type = types.bool;
+        description = ''
+          Determines whether the log devices will be mirrored or not.
+        '';
+      };
+
+      devices = mkOption {
+        type = types.listOf types.str;
+        description = ''
+          List of device names.
+        '';
+      };
+    };
+  };
 
   datasets = {
     options = {
@@ -61,11 +116,8 @@ let
   pools = {
     options = {
       layout = mkOption {
-        type = types.str;
-        default = "# specify layout with boot.zfs.pools.<pool>.layout";
-        example = ''
-          mirror sda sdb
-        '';
+        type = types.listOf (types.submodule layoutVdev);
+        default = [];
         description = ''
           Pool layout to pass to zpool create. The pool can be created either
           manually using script <literal>do-create-pool-&lt;pool&gt;</literal>
@@ -74,25 +126,32 @@ let
         '';
       };
 
-      logs = mkOption {
-        type = types.str;
-        default = "";
-        example = ''
-          mirror sde1 sdf1
-        '';
+      log = mkOption {
+        type = types.listOf (types.submodule logVdev);
+        default = [];
+        example = {
+          mirror = true;
+          devices = [ "sde1" "sdf1" ];
+        };
         description = ''
-          ZFS logs layout to pass to zpool add $pool log.
+          Devices used for ZFS Intent Log (ZIL).
         '';
       };
 
-      caches = mkOption {
-        type = types.str;
-        default = "";
-        example = ''
-          mirror sde2 sdf2
-        '';
+      cache = mkOption {
+        type = types.listOf types.str;
+        default = [];
+        example = [ "sde2" "sdf2" ];
         description = ''
-          ZFS caches layout to pass to zpool add $pool cache.
+          Devices used for secondary read cache (L2ARC).
+        '';
+      };
+
+      spare = mkOption {
+        type = types.listOf types.str;
+        default = [];
+        description = ''
+          List of devices to be used as hot spares.
         '';
       };
 

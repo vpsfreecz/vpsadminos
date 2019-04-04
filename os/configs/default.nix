@@ -17,7 +17,9 @@
 
   boot.zfs.pools = lib.mkDefault {
     tank = {
-      layout = "sda";
+      layout = [
+        { devices = [ "sda" ]; }
+      ];
       doCreate = true;
       install = true;
     };

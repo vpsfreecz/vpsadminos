@@ -39,14 +39,16 @@ boot.zfs.pools.tank = {
     };
   };
 
-  # Pool layout as passed to zpool create
-  layout = "mirror sda sdb";
+  # Pool layout passed to zpool create
+  layout = [
+    { vdev = "mirror"; devices = [ "sda" "sdb" ]; }
+  ];
 
-  # Caches passed to zpool add tank caches
-  caches = "sdc1 sdd1";
+  # Devices for secondary read cache (L2ARC)
+  cache = [ "sdc1" "sdd1" ];
 
-  # Caches passed to zpool add tank logs
-  logs = "sdc2 sdd2";
+  # Devices for ZFS Intent Log (ZIL)
+  log = { mirror = true; devices = [ "sdc2" "sdd2"]; };
 
   # zpool properties, see man zpool(8)
   properties = {
@@ -89,7 +91,7 @@ Disks to partition:
 
 zpool to create:
   zpool create -o "comment=my pool" tank mirror sda sdb
-  zpool add tank log sdc2 sdd2
+  zpool add tank log mirror sdc2 sdd2
   zpool add tank cache sdc1 sdd1
 
 Write uppercase 'yes' to continue:
