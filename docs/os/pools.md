@@ -149,8 +149,8 @@ boot.zfs.pools.tank = {
     "/" = {
       properties = {
         compression = "on";
-	acltype = "posixacl";
-	sharenfs = "on";
+        acltype = "posixacl";
+        sharenfs = "on";
       };
     };
 
