@@ -10,24 +10,6 @@ build: result
 	 --out-link result/qemu \
 	 --cores $(CORES)
 
-# production build (configs/prod.nix)
-prod: result
-	nix-build \
-	 --arg configuration "{ imports  = [ ./configs/prod.nix ]; }" \
-	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
-	 -A config.system.build.tftpdir \
-	 --out-link result/prod \
-	 --cores $(CORES) || exit 1
-
-# production build for local testing in QEMU (configs/prod.nix)
-prod-local: result
-	nix-build \
-	 --arg configuration "{ imports  = [ ./configs/prod.nix ./configs/qemu.nix ]; }" \
-	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
-	 -A config.system.build.runvm \
-	 --out-link result/prod \
-	 --cores $(CORES) || exit 1
-
 # build the system closure without building the squashfs image
 toplevel: result
 	nix-build \
@@ -61,10 +43,6 @@ iso-local: result
 qemu: build
 	./result/qemu
 
-# boot configs/prod.nix configuration in qemu
-qemu-prod: prod-local
-	./result/prod
-
 # boot ISO in qemu
 qemu-iso: iso-local
 	./result/iso
@@ -72,10 +50,6 @@ qemu-iso: iso-local
 # flash ISO to /dev/disk/by-label/VPSADMINOS_BOOT_CD
 flash: iso
 	sudo dd if=result/iso/vpsadminos.iso of=/dev/disk/by-label/VPSADMINOS_BOOT_CD bs=1M
-
-# boot iso image in qemu
-deploy: prod
-	scp -r result/prod/* root@pxe:/srv/www/vpsadminos/
 
 test:
 	nix-build \
