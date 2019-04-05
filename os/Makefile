@@ -2,10 +2,10 @@ CORES = 0
 VPSADMIN = ../../vpsadmin
 VPSADMIN_ABSPATH := $(shell readlink -m "$(VPSADMIN)")
 
-# default build (configs/default.nix)
+# default build (configs/qemu.nix)
 build: result
 	nix-build \
-	 --arg configuration $(or $(VPSADMINOS_CONFIG),./configs/default.nix) \
+	 --arg configuration $(or $(VPSADMINOS_CONFIG),./configs/qemu.nix) \
 	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 --out-link result/qemu \
 	 --cores $(CORES)
@@ -13,7 +13,7 @@ build: result
 # build the system closure without building the squashfs image
 toplevel: result
 	nix-build \
-	 --arg configuration $(or $(VPSADMINOS_CONFIG),./configs/default.nix) \
+	 --arg configuration $(or $(VPSADMINOS_CONFIG),./configs/qemu.nix) \
 	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 --attr config.system.build.toplevel \
 	 --out-link result/toplevel \
@@ -66,7 +66,7 @@ template:
 
 os-rebuild:
 	nix-build \
-	 --arg configuration ./configs/default.nix \
+	 --arg configuration ./configs/qemu.nix \
 	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 --out-link result/os-rebuild \
 	 --cores $(CORES) \
