@@ -15,49 +15,186 @@ storage pools, user namespaces and cgroups for resource management.
 to root.
 
 ## POOLS
-`osctld` fully utilizes ZFS and currently does not support any other file system.
-`osctld` stores its data and configuration on provided zpools, no other path
-in the system has to be persistent.
+`osctld` uses ZFS for persistent storage and it is the only supported file
+system. ZFS pools are created and imported by the administrator or the OS,
+then they have to be installed into `osctld`, see commands `pool install`
+and `pool import`. One `osctl pool` corresponds to one ZFS pool, `osctld`
+requires at least one pool to operate.
 
-`osctld` needs at least one zpool to operate, see `pool install`
-and `pool import`. When managing entities such as groups or containers
-with multiple pools, you may need to specify pool name if there are name
-conflicts, e.g. two groups or containers from different pools with the same
-name. Two users with the same name are not allowed, because of system user/group
-conflict. `osctld` by default selects the entity from the first pool that has
-it. If you wish to manage such entities from other pools, you can use global
-option `--pool` *pool* or specify the group/container name/id as
-*pool*:*ctid|user|group*, i.e. pool name and group/container name/id separated
-by colon.
+Pools are independent entities carrying their own configuration and data, such
+as users, groups, containers, templates, log files and other configuration
+files. Pools can be imported and exported at runtime, taking all associated
+entities with them.
+
+When managing entities such as groups or containers with multiple pools, you may
+need to specify pool name if there are name conflicts, e.g. two groups or
+containers from different pools with the same name. Two users with the same name
+are not allowed, because of system user/group conflict. `osctld` by default
+selects the entity from the first pool that has it. If you wish to manage such
+entities from other pools, you can use global option `--pool` *pool* or specify
+the group/container name/id as *pool*:*ctid|user|group*, i.e. pool name
+and group/container name/id separated by colon.
 
 ## USER NAMESPACES
-`osctld` makes it possible to run every container within a different user
-namespace. It makes it possible by managing system users that are used to spawn
-unprivileged containers. `osctld` manages all important system files, such as
-**/etc/passwd**, **/etc/group**, **/etc/subuid**, **/etc/subgid** or
-**/etc/lxc/lxc-usernet**. See the `user` commands.
+`osctld` makes it possible to run every container with a different user
+namespace mapping to increate isolation. For each mapping, `osctld` manages
+an unprivileged system user and takes care of all important system files, such
+as **/etc/passwd**, **/etc/group**, **/etc/subuid**, **/etc/subgid** or
+**/etc/lxc/lxc-usernet**.
+
+See the `user` command family.
 
 ## GROUPS
-Groups represent the cgroup hierarchy. It is possible to define groups that
-`osctld` will manage and configure their parameters. There are always at least
-two groups: **root** and **default**. **root** group is the parent of all
-managed groups and **default** is the group that containers are placed in unless
-configured otherwise. Every container belongs to exactly one group.
+Groups represent the cgroup hierarchy and are used for system resource
+accounting and control. Each pool has two groups by default: `/` and `/default`.
+`/` is the parent of all managed groups and `/default` is the group that new
+containers are placed in, unless configured otherwise. Every container belongs
+to exactly one group.
 
-See the `group` commands.
+See the `group` command family.
 
 ## CONTAINERS
-`osctld` utilizes LXC to setup and run containers. Each container can belong
-to a different user namespace and resource group. `osctld` set's up the
-container's environment and LXC homes.
+Every container uses user namespace mapping, resource control groups
+and resides in its own ZFS dataset. Containers are usually created from
+templates, see `TEMPLATES`.
 
-See the `ct` commands.
+Under the hood, `osctld` utilizes LXC to setup and run containers.
 
-## CONTAINER MIGRATIONS
-`osctld` has support for migrating containers between different vpsAdminOS nodes
-with SSH used as a transport channel. Each vpsAdminOS node has a system user
-called `migration`. The source node is connecting to the `migration` user on
-the destination node. Authentication is based on public/private keys.
+### TEMPLATES
+A template can be a gzip compressed tar archive or a ZFS stream, which is simply
+extracted or received using `zfs recv` into to the new container's dataset.
+A template's name carries important information such as its distribution,
+version and architecture. See `TEMPLATE NAMES` for more information.
+
+Templates can be provided as files to `ct new`, or automatically downloaded from
+remote repositories over HTTP. vpsAdminOS comes with one such repository
+preconfigured, it can be browsed at <https://templates.vpsadminos.org> or
+using command `repository templates ls default`.
+
+See the `repository` command family.
+
+### MANIPULATION
+Commands for container manipulation:
+
+ - `ct new` - create a new container
+ - `ct reinstall` - remove root file system content and extract template
+ - `ct cp` - copy container to another to the same or a different pool
+ - `ct mv` - move container to a different pool or change its id
+ - `ct chown` - change container user
+ - `ct chgrp` - change container group
+ - `ct set`, `ct unset` - configure container properties
+
+### INTERACTION
+ - `ct start`, `ct stop`, `ct restart` - control containers
+ - `ct attach` - enter a container and open an interactive shell
+ - `ct console` - attach a container's console
+ - `ct exec` - execute an arbitrary command within a container
+ - `ct runscript` - execute a script from the host within a container
+ - `ct passwd` - set password for a user within a container
+
+### AUTO-STARTING
+By default, created containers have to be started manually. It is possible to
+mark containers that should be automatically started when their pool is imported
+using command `ct set autostart`.
+
+When a pool is imported, its containers marked for start are sorted in a queue
+based on their priority. Containers are then started in order, usually several
+containers at once in parallel. The start queue can be accessed using command
+`pool autostart queue`, cancelled by `pool autostart cancel` and manually
+triggered using `pool autostart trigger`.
+
+The number of containers started at once in parallel can be set by
+`pool set parallel-start`. There is also `pool set parallel-stop` which
+controls how many containers at once are being stopped when the pool is being
+exported from `osctld`.
+
+### CONTAINER NETWORKING
+`osctld` supports the veth device in two configurations: bridged and routed.
+
+Bridge interfaces are simpler to configure, but do not provide a great isolation
+of the network layer. The interfaces can be configured either statically or
+using DHCP. See command `ct netif new bridge` for more information.
+
+Routed interfaces rely on other routing protocols such as OSFP or BGP. `osctld`
+adds configured routes to the container's network interfaces and it is up to
+the routing protocol to propagate them wherever needed. Routed interfaces
+are harder to configure, but provide a proper isolation of the network layer.
+See command `ct netif new routed` for more information.
+
+### DISTRIBUTION CONFIGURATION
+`osctld` is generating config files inside the container, which are then read
+and evaluated by its init system on boot. This is used primarily for hostname
+and network configuration. Supported distributions are:
+
+ - Alpine
+ - Arch
+ - CentOS
+ - Debian
+ - Devuan
+ - Fedora
+ - Gentoo
+ - NixOS
+ - Ubuntu
+
+Other distributions have to be configured manually from the inside.
+
+### CGROUP LIMITS
+cgroup limits can be set either on groups, where they apply to all containers
+in a group and also to all child groups, or directly on containers. cgroup
+parameters can be managed by commands  `group cgparams` and `ct cgparams`.
+To make frequently used limits simpler to configure, there are several commands
+built on top of `group|ct cgparams`:
+
+ - `group|ct set memory` to configure memory and swap limits
+ - `group|ct set cpu-limit` to limit CPU usage using CPU quotas
+
+### DEVICES
+Access to devices is managed using the `devices` cgroup controller. Groups
+and containers can be given permission to read, write or mknod configured
+block and character devices. If a container wants to access a device, access
+to the device has to be allowed in its group and all its parent groups up to the
+root group. This is why managing devices using `group|ct cgparams` commands
+would be impractical and special commands `group|ct devices` exist.
+
+The root group by default allows access to fundamental devices such as
+`/dev/null`, `/dev/urandom`, TTYs, etc. These devices are marked as inheritable
+and all child groups automatically inherit them and pass them to their
+containers. Additional devices can be added in two ways:
+
+ - add the devices too the root group and let all other groups inherit them,
+   this will let all containers to access the new devices
+ - add the devices just to the selected group or container, but all parent
+   groups must still provide it, except no other group or container will
+   automatically inherit it
+
+See the `group|ct devices` command family.
+
+### DATASETS
+Every container resides in its own ZFS dataset. It is also possible to create
+additional subdatasets and mount them within the container. See the
+`ct dataset` command family for more information.
+
+### MOUNTS
+Arbitrary directories from the host can be mounted inside containers. Mounted
+directories should use the same user namespace mapping as the container,
+otherwise their contents will appear be owned by `nobody:nogroup` and access
+permission will not work as they should.
+
+See the `ct mounts` family of commands.
+
+### EXPORT/IMPORT
+Existing containers can be exported to a tar archive and later imported
+to the same or a different vpsAdminOS instance. The tar archive contains
+the container's root file system including all subdatasets and osctl
+configuration.
+
+See commands `ct export` and `ct import` for more information.
+
+### MIGRATIONS
+`osctld` has support for migrating containers between different vpsAdminOS
+instances with SSH used as a transport channel. Each vpsAdminOS node has
+a system user called `migration`. The source node is connecting to the `migration`
+user on the destination node. Authentication is based on public/private keys.
 
 On the source node, a public/private key pair is needed. It can be generated by
 `migration key gen`, or the keys can be manually installed to paths given by
@@ -81,6 +218,40 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 
 `ct migrate now` will perform all necessary migration steps in succession.
 
+### ADMINISTRATION
+Useful commands:
+
+ - `ct top` - interactive container monitor
+ - `ct ps` - list container processes
+ - `ct pid` - identify containers by PID
+ - `ct log cat`, `ct log path` - view container log file
+ - `ct su` - switch to the container user
+ - `ct cd` - switch to the container root file system directory
+
+### TROUBLESHOOTING
+ - Check `ct log cat`
+ - Check `ct assets`
+ - Check `healthcheck -a`
+ - Command `ct reconfigure` can be used to regenerate LXC configuration
+ - Command `ct recover cleanup` can be used to cleanup after a container crashed
+ - Command `ct recover state` can be used to re-check container status
+
+## ASSETS AND HEALTH CHECKS
+To keep track of all the datasets, directories and files `osctld` is managing,
+each entity has command `assets`. It prints a list of all managed resources,
+their purpose and state. Command `healthcheck` then checks the state
+of all assets of selected pools and reports errors.
+
+## USER ATTRIBUTES
+All entities support custom user attributes that can be used to store
+additional data, i.e. a simple key-value store. Attribute names and values
+are stored as a string. The intended attribute naming is *vendor*:*key*, where
+*vendor* is a reversed domain name and *key* an arbitrary string, e.g.
+`org.vpsadminos.osctl:declarative`.
+
+Attributes can be set with command `set attr`, unset with `unset attr` and
+read by `ls` or `show` commands.
+
 ## GLOBAL OPTIONS
 `--help`
   Show help message
@@ -97,7 +268,7 @@ Up until `ct migrate transfer`, the migration can be cancelled using
 `-q`, `--quiet`
   Surpress output.
 
-`--pool=arg`
+`--pool` *pool*
   Pool name. Needed only when there is more than one pool installed and you wish
   to work with pools other than the first one, which is taken as the default
   one.
@@ -2226,6 +2397,50 @@ terminal size. Example commands:
 Where `Cg==` is `\n` (enter/return key) encoded in Base64. All values
 are optional, but `rows` and `cols` have to be together and empty command
 doesn't do anything.
+
+## DEBUGGING
+Exception backtraces in `osctl` can be enabled by settings environment variable
+`GLI_DEBUG=true`, e.g. `GLI_DEBUG=true osctl ct ls`. This will not make `osctl`
+more verbose, only print exceptions when it crashes.
+
+`osctld` is logging either to syslog or to `/var/log/osctld`, depending on your
+system configuration. `osctl` provides several commands you can use for
+debugging purposes. These commands are not shown in `osctl` help message.
+
+`debug threads ls`
+  Print a list of threads in `osctld` and their backtraces. This can be useful
+  to check if some operation hangs.
+
+`debug locks ls` [`-v`]
+  Print a list of internal locks that are held by threads. Useful for deadlock
+  analysis.
+
+    `-v`, `--verbose`
+      Include also backtraces of lock holding threads.
+
+`debug locks show` *id*
+  Print information about a specific internal lock and the thread holding it.
+
+## EXAMPLES
+Install zpool `tank` into `osctld`:
+
+`osctl pool install tank`
+
+Create a user:
+
+`osctl user new --ugid 5000 --map 0:666000:65536 myuser01`
+
+Create a container:
+
+`osctl ct new --user myuser01 --distribution alpine --version latest myct01`
+
+Add bridged veth interface:
+
+`osctl ct netif new bridge --link lxcbr0 myct01 eth0`
+
+Start the container:
+
+`osctl ct start myct01`
 
 ## BUGS
 Report bugs to https://github.com/vpsfreecz/vpsadminos/issues.
