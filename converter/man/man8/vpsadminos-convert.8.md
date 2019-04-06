@@ -1,4 +1,4 @@
-# vpsadminos-convert 8            2018-09-15                             18.09.0
+# vpsadminos-convert 8            2019-04-06                             19.03.0
 
 ## NAME
 `vpsadminos-convert` - convert existing containers into vpsAdminOS.

@@ -1,2 +1,2 @@
 source 'https://rubygems.vpsfree.cz'
-gem 'svctl', '18.09.0.build20190403201923'
+gem 'svctl', '19.03.0.build20190406095130'
