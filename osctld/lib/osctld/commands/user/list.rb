@@ -18,7 +18,6 @@ module OsCtld
           username: u.sysusername,
           groupname: u.sysgroupname,
           ugid: u.ugid,
-          dataset: u.dataset,
           homedir: u.homedir,
           registered: u.registered?,
         }.merge!(u.attrs.export)

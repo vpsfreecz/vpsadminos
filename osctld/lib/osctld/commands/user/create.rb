@@ -60,19 +60,9 @@ module OsCtld
 
     def execute(u)
       manipulate(u) do
-        zfs(:create, nil, u.dataset)
-
-        File.chown(0, opts[:ugid], u.userdir)
-        File.chmod(0751, u.userdir)
-
-        Dir.mkdir(u.homedir) unless Dir.exist?(u.homedir)
-        File.chown(opts[:ugid], opts[:ugid], u.homedir)
-        File.chmod(0751, u.homedir)
-
         u.configure(opts[:ugid], opts[:uid_map], opts[:gid_map])
-        DB::Users.add(u)
-        UserControl::Supervisor.start_server(u)
 
+        call_cmd!(Commands::User::Setup, user: u)
         call_cmd!(Commands::User::Register, name: u.name, pool: u.pool.name)
         call_cmd!(Commands::User::SubUGIds)
       end
