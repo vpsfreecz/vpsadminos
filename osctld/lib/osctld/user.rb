@@ -127,7 +127,7 @@ module OsCtld
     end
 
     def sysusername
-      "#{SystemUsers::PREFIX}#{name}"
+      "#{pool.name}-#{name}"
     end
 
     def sysgroupname
