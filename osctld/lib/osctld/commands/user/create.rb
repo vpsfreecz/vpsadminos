@@ -13,7 +13,7 @@ module OsCtld
       pool = DB::Pools.get_or_default(opts[:pool])
       error!('pool not found') unless pool
 
-      rx = /^[a-z0-9_-]{1,29}$/
+      rx = /^[a-z0-9_-]{1,#{32 - 1 - pool.name.length}}$/
 
       if rx !~ opts[:name]
         error!("invalid name, allowed format: #{rx.source}")

@@ -5,7 +5,7 @@ require 'singleton'
 module OsCtld
   # Cache for existing system users
   class SystemUsers
-    PREFIX = 'uns'
+    COMMENT = 'osctl'
 
     include Lockable
     include Singleton
@@ -33,7 +33,7 @@ module OsCtld
     def add(name, ugid, homedir)
       fail 'user already exists' if include?(name)
       syscmd("groupadd -g #{ugid} #{name}")
-      syscmd("useradd -u #{ugid} -g #{ugid} -d #{homedir} #{name}")
+      syscmd("useradd -u #{ugid} -g #{ugid} -d #{homedir} -c #{COMMENT} #{name}")
       exclusively { users << name }
     end
 
@@ -63,8 +63,10 @@ module OsCtld
         users.clear
 
         syscmd('getent passwd')[:output].split("\n").each do |line|
-          name = line.split(':').first
-          users << name if name.start_with?(PREFIX)
+          fields = line.split(':')
+          name = fields.first
+          comment = fields[4]
+          users << name if comment == COMMENT
         end
       end
     end
