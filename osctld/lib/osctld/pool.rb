@@ -1,3 +1,4 @@
+require 'fileutils'
 require 'libosctl'
 require 'osctld/lockable'
 require 'osctld/manipulable'
@@ -11,7 +12,6 @@ module OsCtld
   class Pool
     PROPERTY_ACTIVE = 'org.vpsadminos.osctl:active'
     PROPERTY_DATASET = 'org.vpsadminos.osctl:dataset'
-    USER_DS = 'user'
     CT_DS = 'ct'
     CONF_DS = 'conf'
     HOOK_DS = 'hook'
@@ -56,13 +56,6 @@ module OsCtld
     def assets
       define_assets do |add|
         # Datasets
-        add.dataset(
-          ds(USER_DS),
-          desc: 'Contains user homes and LXC configuration',
-          user: 0,
-          group: 0,
-          mode: 0511
-        )
         add.dataset(
           ds(CT_DS),
           desc: 'Contains container root filesystems',
@@ -170,6 +163,13 @@ module OsCtld
           user: 0,
           group: 0,
           mode: 0711
+        )
+        add.directory(
+          user_dir,
+          desc: 'Contains user homes and LXC configuration',
+          user: 0,
+          group: 0,
+          mode: 0511
         )
         add.directory(
           console_dir,
@@ -310,10 +310,6 @@ module OsCtld
       ds(CT_DS)
     end
 
-    def user_ds
-      ds(USER_DS)
-    end
-
     def conf_path
       path(CONF_DS)
     end
@@ -340,6 +336,10 @@ module OsCtld
 
     def run_dir
       File.join(RunState::POOL_DIR, name)
+    end
+
+    def user_dir
+      File.join(run_dir, 'users')
     end
 
     def hook_dir
@@ -407,14 +407,12 @@ module OsCtld
 
     def mkdatasets
       log(:info, "Ensuring presence of base datasets and directories")
-      zfs(:create, '-p', ds(USER_DS))
       zfs(:create, '-p', ds(CT_DS))
       zfs(:create, '-p', ds(CONF_DS))
       zfs(:create, '-p', ds(HOOK_DS))
       zfs(:create, '-p', ds(LOG_DS))
       zfs(:create, '-p', ds(REPOSITORY_DS))
 
-      File.chmod(0511, path(USER_DS))
       File.chmod(0511, path(CT_DS))
       File.chmod(0500, path(CONF_DS))
       File.chmod(0500, path(HOOK_DS))
@@ -445,8 +443,7 @@ module OsCtld
         u = User.new(self, name)
         next unless check_user_conflict(u)
 
-        DB::Users.add(u)
-        UserControl::Supervisor.start_server(u)
+        Commands::User::Setup.run!(user: u)
       end
     end
 
@@ -483,6 +480,10 @@ module OsCtld
 
         ct = Container.new(self, ctid)
         ensure_limits(ct)
+
+        builder = Container::Builder.new(ct)
+        builder.setup_lxc_home
+
         ct.lxc_config.configure
         Monitor::Master.monitor(ct)
         Console.reconnect_tty0(ct) if ct.current_state == :running
@@ -505,6 +506,13 @@ module OsCtld
 
     def runstate
       Dir.mkdir(run_dir, 0711) unless Dir.exist?(run_dir)
+
+      if Dir.exist?(user_dir)
+        File.chmod(0511, user_dir)
+      else
+        Dir.mkdir(user_dir, 0511)
+      end
+      File.chown(0, 0, user_dir)
 
       [console_dir, hook_dir, mount_dir].each do |dir|
         Dir.mkdir(dir, 0711) unless Dir.exist?(dir)

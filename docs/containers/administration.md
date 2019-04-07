@@ -24,7 +24,6 @@ tank/conf           30.5K   874M  30.5K  /tank/conf
 tank/ct               24K   874M    24K  /tank/ct
 tank/log              30K   874M    30K  /tank/log
 tank/repository     5.03M   874M  5.03M  /tank/repository
-tank/user           55.5K   874M    24K  /tank/user
 ```
 
 Dataset `tank/conf` is used to store configuration files for users, groups,
@@ -43,15 +42,13 @@ container.
 Whenever you create a container using a template from a remote repository,
 the downloaded template is cached for later use.
 
-Users representing user namespaces are stored in dataset `tank/user`. Each
-user has a subdataset bearing the user's name. We're calling these subdatasets
-*user dataset* or *user dir* (they are not the user's *home* directory). User
-directories contain subdirectories for every user/group combination that any
-containers are using. These directories are what LXC calls *LXC home* or
-*LXC path*, which by default in LXC is `/var/lib/lxc`. In vpsAdminOS, there is
-one *LXC path* for every user/group combination used by containers.
-Inside *LXC path* are directories representing containers, containing config
-files read by LXC.
+Users representing user namespaces are stored in directory
+`/run/osctl/pools/tank/users`. User directories contain subdirectories for every
+user/group combination that any containers are using. These directories are what
+LXC calls *LXC home* or *LXC path*, which by default in LXC is `/var/lib/lxc`.
+In vpsAdminOS, there is one *LXC path* for every user/group combination used
+by containers. Inside *LXC path* are directories representing containers,
+containing config files read by LXC.
 
 Let's create a container and see it in action:
 
@@ -69,8 +66,6 @@ tank/ct             none            none            /tank/ct
 tank/ct/myct01      0:666000:65536  0:666000:65536  /tank/ct/myct01      # Container rootfs
 tank/log            none            none            /tank/log
 tank/repository     none            none            /tank/repository
-tank/user           none            none            /tank/user
-tank/user/myuser01  none            none            /tank/user/myuser01  # User dataset/directory
 ```
 
 Because every user, group and container is defined by multiple datasets, files
@@ -79,13 +74,12 @@ is their state. First, review the user namespace:
 
 ```console
 osctl user assets myuser01
-TYPE        PATH                           VALID   PURPOSE              
-dataset     tank/user/myuser01             true    User's home dataset  
-directory   /tank/user/myuser01            true    User directory       
-directory   /tank/user/myuser01/.home      true    Home directory       
-file        /tank/conf/user/myuser01.yml   true    osctld's user config 
-entry       /etc/passwd                    true    System user          
-entry       /etc/group                     true    System group
+TYPE        PATH                                         STATE   PURPOSE
+directory   /run/osctl/pools/tank/users/myuser01         valid   User directory
+directory   /run/osctl/pools/tank/users/myuser01/.home   valid   Home directory
+file        /tank/conf/user/myuser01.yml                 valid   osctld's user config
+entry       /etc/passwd                                  valid   System user
+entry       /etc/group                                   valid   System group
 ```
 
 If `VALID` is not `true` for some asset, it means that either it does not exist
@@ -97,9 +91,9 @@ it into the *default* group. Let's see its assets:
 
 ```console
 group assets /default
-TYPE        PATH                                    VALID   PURPOSE                        
-file        /tank/conf/group/default/config.yml     true    osctld's group config          
-directory   /tank/user/myuser01/group.default/cts   true    LXC path for myuser01:/default
+TYPE        PATH                                                     STATE   PURPOSE
+file        /tank/conf/group/default/config.yml                      valid   osctld's group config
+directory   /run/osctl/pools/tank/users/myuser01/group.default/cts   valid   LXC path for myuser01:/default
 ```
 
 As you can see, there is one LXC path for user `myuser01` and group `default`,
@@ -107,17 +101,19 @@ where our container resides. Let's review the container:
 
 ```bash
 ct assets myct01
-TYPE        PATH                                                    VALID   PURPOSE
-dataset     tank/ct/myct01                                          true    Container's rootfs dataset
-directory   /tank/ct/myct01/private                                 true    Container's rootfs
-directory   /tank/user/myuser01/group.default/cts/myct01            true    LXC configuration
-file        /tank/user/myuser01/group.default/cts/myct01/config     true    LXC base config
-file        /tank/user/myuser01/group.default/cts/myct01/network    true    LXC network config
-file        /tank/user/myuser01/group.default/cts/myct01/prlimits   true    LXC resource limits
-file        /tank/user/myuser01/group.default/cts/myct01/mounts     true    LXC mounts
-file        /tank/user/myuser01/group.default/cts/myct01/.bashrc    true    Shell configuration file for osctl ct su
-file        /tank/conf/ct/myct01.yml                                true    Container config for osctld
-file        /tank/log/ct/myct01.log                                 true    LXC log file
+TYPE        PATH                                                                     STATE     PURPOSE
+dataset     tank/ct/myct01                                                           valid     Container's rootfs dataset
+directory   /tank/ct/myct01/private                                                  valid     Container's rootfs
+directory   /tank/hook/ct/myct01                                                     valid     User supplied script hooks
+directory   /run/osctl/pools/tank/users/myuser01/group.default/cts/myct01            valid     LXC configuration
+file        /run/osctl/pools/tank/users/myuser01/group.default/cts/myct01/config     valid     LXC base config
+file        /run/osctl/pools/tank/users/myuser01/group.default/cts/myct01/network    valid     LXC network config
+file        /run/osctl/pools/tank/users/myuser01/group.default/cts/myct01/cgparams   valid     LXC cgroup parameters
+file        /run/osctl/pools/tank/users/myuser01/group.default/cts/myct01/prlimits   valid     LXC resource limits
+file        /run/osctl/pools/tank/users/myuser01/group.default/cts/myct01/mounts     valid     LXC mounts
+file        /run/osctl/pools/tank/users/myuser01/group.default/cts/myct01/.bashrc    valid     Shell configuration file for osctl ct su
+file        /tank/conf/ct/myct01.yml                                                 valid     Container config for osctld
+file        /tank/log/ct/myct01.log                                                  valid     LXC log file
 ```
 
 ## cd helpers
@@ -287,15 +283,15 @@ Available LXC utilities:
   lxc-top
   lxc-wait
 
-Implicit arguments: -P /tank/user/myuser01/default -n myct01
+Implicit arguments: -P /run/osctl/pools/tank/users/myuser01/default -n myct01
 Do not use this shell to manipulate any other container than myct01.
 
-[unsmyuser01@vpsadminos:/tank/user/myuser01/group.default/cts]$ 
+[unsmyuser01@vpsadminos:/run/osctl/pools/tank/users/myuser01/group.default/cts]$ 
 ```
 
-The shell uses `/tank/user/myuser01/group.default/cts/myct01/.bashrc` instead of
-`~/.bashrc`, see user assets above. The shell can be used to manipulate only
-the chosen container, because every container has a specific cgroup path,
+The shell uses `/run/osctl/pools/tank/users/myuser01/group.default/cts/myct01/.bashrc`
+instead of `~/.bashrc`, see user assets above. The shell can be used to manipulate
+only the chosen container, because every container has a specific cgroup path,
 so running other containers would put them to a wrong group.
 
 The LXC utilities are unmodified except for the implicit arguments, which let

@@ -46,17 +46,19 @@ Let's see what files and directories define the created container:
 
 ```bash
 ct assets myct01
-TYPE        PATH                                                    VALID   PURPOSE
-dataset     tank/ct/myct01                                          true    Container's rootfs dataset
-directory   /tank/ct/myct01/private                                 true    Container's rootfs
-directory   /tank/user/myuser01/group.default/cts/myct01            true    LXC configuration
-file        /tank/user/myuser01/group.default/cts/myct01/config     true    LXC base config
-file        /tank/user/myuser01/group.default/cts/myct01/network    true    LXC network config
-file        /tank/user/myuser01/group.default/cts/myct01/prlimits   true    LXC resource limits
-file        /tank/user/myuser01/group.default/cts/myct01/mounts     true    LXC mounts
-file        /tank/user/myuser01/group.default/cts/myct01/.bashrc    true    Shell configuration file for osctl ct su
-file        /tank/conf/ct/myct01.yml                                true    Container config for osctld
-file        /tank/log/ct/myct01.log                                 true    LXC log file
+TYPE        PATH                                                                     STATE     PURPOSE
+dataset     tank/ct/myct01                                                           valid     Container's rootfs dataset
+directory   /tank/ct/myct01/private                                                  valid     Container's rootfs
+directory   /tank/hook/ct/myct01                                                     valid     User supplied script hooks
+directory   /run/osctl/pools/tank/users/myuser01/group.default/cts/myct01            valid     LXC configuration
+file        /run/osctl/pools/tank/users/myuser01/group.default/cts/myct01/config     valid     LXC base config
+file        /run/osctl/pools/tank/users/myuser01/group.default/cts/myct01/network    valid     LXC network config
+file        /run/osctl/pools/tank/users/myuser01/group.default/cts/myct01/cgparams   valid     LXC cgroup parameters
+file        /run/osctl/pools/tank/users/myuser01/group.default/cts/myct01/prlimits   valid     LXC resource limits
+file        /run/osctl/pools/tank/users/myuser01/group.default/cts/myct01/mounts     valid     LXC mounts
+file        /run/osctl/pools/tank/users/myuser01/group.default/cts/myct01/.bashrc    valid     Shell configuration file for osctl ct su
+file        /tank/conf/ct/myct01.yml                                                 valid     Container config for osctld
+file        /tank/log/ct/myct01.log                                                  valid     LXC log file
 ```
 
 The template is extracted into a ZFS dataset that becomes the container's rootfs.
@@ -121,8 +123,8 @@ osctl ct show myct01
          GROUP:  /default
        DATASET:  tank/ct/myct01
         ROOTFS:  /tank/ct/myct01/private
-      LXC_PATH:  /tank/user/myuser01/group.default/cts
-       LXC_DIR:  /tank/user/myuser01/group.default/cts/myct01
+      LXC_PATH:  /run/osctl/pools/tank/users/myuser01/group.default/cts
+       LXC_DIR:  /run/osctl/pools/tank/users/myuser01/group.default/cts/myct01
     GROUP_PATH:  osctl/pool.tank/group.default/user.myuser01/ct.myct01/user-owned
   DISTRIBUTION:  ubuntu
        VERSION:  16.04

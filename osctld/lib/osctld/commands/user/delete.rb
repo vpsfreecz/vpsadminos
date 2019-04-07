@@ -24,7 +24,7 @@ module OsCtld
 
         call_cmd!(Commands::User::Unregister, name: u.name, pool: u.pool.name)
 
-        zfs(:destroy, nil, u.dataset)
+        syscmd("rm -rf \"#{u.userdir}\"")
         File.unlink(u.config_path)
 
         DB::Users.remove(u)

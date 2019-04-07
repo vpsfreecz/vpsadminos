@@ -44,9 +44,6 @@ module OsCtld
 
     def assets
       define_assets do |add|
-        # Datasets
-        add.dataset(dataset, desc: "User's home dataset")
-
         # Directories and files
         add.directory(
           userdir,
@@ -137,12 +134,8 @@ module OsCtld
       sysusername
     end
 
-    def dataset
-      inclusively { File.join(pool.user_ds, name) }
-    end
-
     def userdir
-      "/#{dataset}"
+      inclusively { File.join(pool.user_dir, name) }
     end
 
     def homedir

@@ -31,7 +31,7 @@ module OsCtld
     # @param opts [Hash]
     # @option opts [Command::Base] :cmd
     # @option opts [Boolean] :reinstall
-    def initialize(ct, opts)
+    def initialize(ct, opts = {})
       @ct = ct
       @opts = opts
       @errors = []
@@ -278,7 +278,11 @@ module OsCtld
         File.chown(0, ct.user.ugid, dir)
       end
 
-      Dir.mkdir(ct.lxc_dir, 0750)
+      if Dir.exist?(ct.lxc_dir)
+        File.chmod(0750, ct.lxc_dir)
+      else
+        Dir.mkdir(ct.lxc_dir, 0750)
+      end
       File.chown(0, ct.user.ugid, ct.lxc_dir)
 
       ct.configure_bashrc
