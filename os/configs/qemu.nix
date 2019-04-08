@@ -38,7 +38,7 @@
       osctl pool install tank
 
     Create a user:
-      osctl user new --ugid 5000 --map 0:666000:65536 myuser01
+      osctl user new --map 0:666000:65536 myuser01
 
     Create a container:
       osctl ct new --user myuser01 --distribution alpine --version latest myct01

@@ -238,7 +238,7 @@ module OsCtl::Cli
           new.flag :pool, arg_name: 'pool'
 
           new.desc 'User/group ID, used for system user/group'
-          new.flag :ugid, type: Integer, required: true, arg_name: 'n'
+          new.flag :ugid, type: Integer, arg_name: 'n'
 
           new.desc 'UID/GID mapping'
           new.flag 'map', multiple: true, arg_name: 'id_map'
@@ -1604,6 +1604,13 @@ module OsCtl::Cli
         dbg.command 'threads' do |threads|
           threads.command :ls do |c|
             c.action &Command.run(Debug, :threads_ls)
+          end
+        end
+
+        dbg.command 'ugids' do |ugids|
+          ugids.arg_name '[all|taken|free]'
+          ugids.command :ls do |c|
+            c.action &Command.run(Debug, :ugids_ls)
           end
         end
       end

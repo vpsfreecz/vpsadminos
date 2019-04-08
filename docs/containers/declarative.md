@@ -23,9 +23,8 @@ and a container:
 ```nix
 osctl.pools.tank = {
   # This is equivalent to
-  #   osctl --pool tank user new --ugid 5000 --map 0:666000:65536 sample
+  #   osctl --pool tank user new --map 0:666000:65536 sample
   users.sample = let mapping = [ "0:666000:65536" ]; in {
-    ugid = 5000;
     uidMap = mapping;
     gidMap = mapping;
   };

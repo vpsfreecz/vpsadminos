@@ -19,14 +19,19 @@ let
       if [ "$hasUser" == "0" ] ; then
         echo "User ${pool}:${user} already exists"
 
+        ${optionalString (cfg.ugid != null) ''
         if [ "${toString cfg.ugid}" != "$ugid" ] ; then
           echo "Warning: ugid has been changed in configuration, but" \
                "an existing user cannot be manipulated"
         fi
+        ''}
 
       else
         echo "Creating user ${pool}:${user}"
-        ${osctlPool} user new --ugid ${toString cfg.ugid} ${ugidMapOpts cfg} ${user}
+        ${osctlPool} user new \
+          ${optionalString (cfg.ugid != null) "--ugid ${toString cfg.ugid}"} \
+          ${ugidMapOpts cfg} \
+          ${user}
         ${osctlPool} user set attr ${user} org.vpsadminos.osctl:declarative yes
       fi
     '')) users);
@@ -35,7 +40,8 @@ in
   type = {
     options = {
       ugid = mkOption {
-        type = types.ints.positive;
+        type = types.nullOr types.ints.positive;
+        default = null;
         example = 5000;
         description = "UID/GID of the system user that is used to run containers";
       };

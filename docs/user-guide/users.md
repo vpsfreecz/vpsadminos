@@ -12,16 +12,14 @@ Every container belongs to one user and all containers are running as
 unprivileged. Let's create a new user:
 
 ```bash
-osctl user new --ugid 5000 --map 0:666000:65536 myuser01
+osctl user new --map 0:666000:65536 myuser01
 ```
 
-`--ugid` is UID/GID of the system user that is used to run containers. It is
-the administrator's responsibility to keep the IDs unique. `--map` specifies
-a mapping for user and group IDs. In this example, root within the container
-will have UID `0`, which will be mapped to UID `666000` on the host. There will
-be `65536` mapped user/group IDs, i.e. the container will have IDs in range from
-`666000` to `666000+65536`. And finally, `myuser01` is the user's name, which
-has to also be unique. The name is the user's identifier within *osctld*,
+Option `--map` specifies a mapping for user and group IDs. In this example, root
+within the container will have UID `0`, which will be mapped to UID `666000`
+on the host. There will be `65536` mapped user/group IDs, i.e. the container
+will have IDs in range from `666000` to `666000+65536`. And finally, `myuser01`
+is the user's name. The name is the user's identifier within *osctld*,
 the system user's name is derived from it.
 
 This is what *osctld* will manage for you regarding users:

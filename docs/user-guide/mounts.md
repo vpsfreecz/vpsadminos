@@ -12,7 +12,7 @@ Let's prepare a shared directory for containers using the same user namespace:
 
 ```bash
 # Create a user
-osctl user new --ugid 10000 --map 0:888000:65536 shareduserns
+osctl user new --map 0:888000:65536 shareduserns
 
 # Create a container
 osctl ct new --user shareduserns --from-archive ubuntu-16.04-x86_64-vpsfree.tar.gz myct01

@@ -71,6 +71,7 @@ module OsCtld
       History.start
       Devices::Lock.instance
       LockRegistry.start
+      UGidRegistry.instance
       SystemUsers.instance
 
       at_exit do

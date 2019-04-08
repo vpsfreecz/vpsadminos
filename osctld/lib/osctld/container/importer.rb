@@ -109,6 +109,7 @@ module OsCtld
         Commands::User::Create.run!(
           pool: pool.name,
           name: u.name,
+          type: u.type,
           ugid: u.ugid,
           uid_map: u.uid_map.export,
           gid_map: u.gid_map.export,

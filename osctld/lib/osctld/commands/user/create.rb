@@ -18,7 +18,10 @@ module OsCtld
       if rx !~ opts[:name]
         error!("invalid name, allowed format: #{rx.source}")
 
-      elsif opts[:ugid] < 1
+      elsif !%w(static dynamic).include?(opts[:type])
+        error!('invalid type: must be either static or dynamic')
+
+      elsif opts[:ugid] && opts[:ugid] < 1
         error!('invalid ugid: must be greater than 0')
 
       elsif !opts[:uid_map] || opts[:uid_map].empty?
@@ -60,7 +63,7 @@ module OsCtld
 
     def execute(u)
       manipulate(u) do
-        u.configure(opts[:ugid], opts[:uid_map], opts[:gid_map])
+        u.configure(opts[:type], opts[:ugid], opts[:uid_map], opts[:gid_map])
 
         call_cmd!(Commands::User::Setup, user: u)
         call_cmd!(Commands::User::Register, name: u.name, pool: u.pool.name)

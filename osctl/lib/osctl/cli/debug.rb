@@ -52,5 +52,31 @@ module OsCtl::Cli
       end
       format_output(data, nil, {layout: :rows})
     end
+
+    def ugids_ls
+      data = osctld_call(:debug_ugid_registry)
+
+      if args[0].nil? || args[0] == 'all'
+        format_output(
+          (data[:allocated] + data[:free]).sort!.map! do |ugid|
+            {
+              ugid: ugid,
+              free: !data[:allocated].include?(ugid),
+            }
+          end,
+          nil,
+          {layout: :columns}
+        )
+
+      elsif args[0] == 'taken'
+        data[:allocated].each { |ugid| puts ugid }
+
+      elsif args[0] == 'free'
+        data[:free].each { |ugid| puts ugid }
+
+      else
+        raise GLI::BadCommandLine
+      end
+    end
   end
 end
