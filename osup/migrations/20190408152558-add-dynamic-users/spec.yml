@@ -1,0 +1,6 @@
+description: |
+  Dynamic users don't have a constant user/group ID. The ID is assigned
+  at runtime by osctld when its pool is imported or it's created.
+
+snapshot:
+ - conf
