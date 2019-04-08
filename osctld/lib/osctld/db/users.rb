@@ -19,6 +19,7 @@ module OsCtld::DB
 
     def add(user)
       sync do
+        OsCtld::UGidRegistry << user.ugid
         super
         @name_index << user
         @ugid_index << user
@@ -27,6 +28,10 @@ module OsCtld::DB
 
     def remove(user)
       sync do
+        unless OsCtld::SystemUsers.include?(user.sysusername)
+          OsCtld::UGidRegistry.remove(user.ugid)
+        end
+
         super
         @name_index.delete(user)
         @ugid_index.delete(user)

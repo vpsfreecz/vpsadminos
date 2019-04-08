@@ -407,8 +407,13 @@ read by `ls` or `show` commands.
   Unset custom user attribute *vendor*:*key* of pool *pool*.
 
 `user new` *options* *user*
-  Create a new user with user namespace configuration. Option `--ugid` is
-  required. UID/GID mapping has to be configured either via option `--map`
+  Create a new user with user namespace configuration.
+
+  Users can be either static or dynamic. Static users have constant user/group
+  ID, which is set using option `--ugid`. Dynamic users have their user/group
+  IDs assigned at runtime by `osctld`.
+
+  UID/GID mapping has to be configured either via option `--map`
   if you have the same mapping for user and group IDs, or via options `--map-uid`
   and `--map-gid` for different user/group mappings. There must be at least one
   mapping for user IDs and one for group IDs.
@@ -417,7 +422,8 @@ read by `ls` or `show` commands.
       Pool name.
     
     `--ugid` *ugid*
-      User/group ID, used for system user/group. Required.
+      Set a static user/group ID, used for system user/group. Defaults to dynamic
+      user/group ID assignment.
 
     `--map` *id*:*lowerid*:*count*
       Provide UID/GID mapping for user namespace. *id* is the beginning of
@@ -2428,7 +2434,7 @@ Install zpool `tank` into `osctld`:
 
 Create a user:
 
-`osctl user new --ugid 5000 --map 0:666000:65536 myuser01`
+`osctl user new --map 0:666000:65536 myuser01`
 
 Create a container:
 

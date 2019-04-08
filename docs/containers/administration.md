@@ -54,7 +54,7 @@ Let's create a container and see it in action:
 
 ```bash
 # Create a one user namespace and a container
-osctl user new --ugid 5000 --map 0:666000:65536 myuser01
+osctl user new --map 0:666000:65536 myuser01
 osctl ct new --user myuser01 --distribution ubuntu --version 16.04 myct01
 
 # Review pool layout

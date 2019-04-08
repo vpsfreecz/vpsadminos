@@ -483,6 +483,7 @@ module OsCtld
 
         builder = Container::Builder.new(ct)
         builder.setup_lxc_home
+        builder.setup_log_file
 
         ct.lxc_config.configure
         Monitor::Master.monitor(ct)

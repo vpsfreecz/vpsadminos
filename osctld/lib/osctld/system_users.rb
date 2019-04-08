@@ -13,7 +13,7 @@ module OsCtld
     include OsCtl::Lib::Utils::System
 
     class << self
-      %i(add remove include?).each do |m|
+      %i(add remove include? uid_of).each do |m|
         define_method(m) do |*args, &block|
           instance.send(m, *args, &block)
         end
@@ -22,7 +22,7 @@ module OsCtld
 
     def initialize
       init_lock
-      @users = []
+      @users = {}
       load_users
     end
 
@@ -34,7 +34,7 @@ module OsCtld
       fail 'user already exists' if include?(name)
       syscmd("groupadd -g #{ugid} #{name}")
       syscmd("useradd -u #{ugid} -g #{ugid} -d #{homedir} -c #{COMMENT} #{name}")
-      exclusively { users << name }
+      exclusively { users[name] = ugid }
     end
 
     # Remove user from the system
@@ -48,7 +48,13 @@ module OsCtld
     # Check if a system user exists
     # @param name [String]
     def include?(name)
-      inclusively { users.include?(name) }
+      inclusively { users.has_key?(name) }
+    end
+
+    # @param name [String]
+    # @return [Integer]
+    def uid_of(name)
+      inclusively { users[name] }
     end
 
     def log_type
@@ -65,8 +71,11 @@ module OsCtld
         syscmd('getent passwd')[:output].split("\n").each do |line|
           fields = line.split(':')
           name = fields.first
+          uid = fields[2].to_i
           comment = fields[4]
-          users << name if comment == COMMENT
+
+          UGidRegistry << uid
+          users[name] = uid if comment == COMMENT
         end
       end
     end
