@@ -5,6 +5,9 @@ module OsCtld
   class Commands::Pool::Export < Commands::Base
     handle :pool_export
 
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
+
     def execute
       pool = DB::Pools.find(opts[:name])
       error!('pool not imported') unless pool
@@ -48,6 +51,13 @@ module OsCtld
                 pool: pool.name,
                 name: obj.name
               ) if opts[:unregister_users]
+
+              if opts[:stop_containers]
+                # When a user with the same name is going to be imported again,
+                # he may have a different ugid then before. All files in his
+                # directory would that have an incorrect owner.
+                syscmd("rm -rf \"#{obj.userdir}\"")
+              end
 
             elsif obj.is_a?(Container)
               Monitor::Master.demonitor(obj)
