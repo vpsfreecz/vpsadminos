@@ -21,7 +21,7 @@ module OsCtld
       end
 
       if opts[:group] && stat.gid != opts[:group]
-        add_error("invalid group: expected #{opts[:group]}, got #{state.gid}")
+        add_error("invalid group: expected #{opts[:group]}, got #{stat.gid}")
       end
 
       if opts[:mode] && mode != opts[:mode]
