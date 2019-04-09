@@ -108,7 +108,7 @@ module OsCtld
       end
 
       cmd = [
-        OsCtld.bin('osctld-ct-wrapper'),
+        'pty-wrapper',
         "#{ct.pool.name}:#{ct.id}",
         Console.socket_path(ct),
         'lxc-start',
