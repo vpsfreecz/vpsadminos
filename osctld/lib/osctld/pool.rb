@@ -133,6 +133,13 @@ module OsCtld
           group: 0,
           mode: 0500
         )
+        add.directory(
+          File.join(conf_path, 'repository'),
+          desc: 'Repository configuration files for osctld',
+          user: 0,
+          group: 0,
+          mode: 0500
+        )
 
         # Logs
         add.directory(
