@@ -36,6 +36,13 @@ module OsCtld
 
     def assets
       define_assets do |add|
+        add.file(
+          config_path,
+          desc: 'Configuration file',
+          user: 0,
+          group: 0,
+          mode: 0400
+        )
         add.directory(
           cache_path,
           desc: 'Local cache',
