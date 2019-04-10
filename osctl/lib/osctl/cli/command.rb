@@ -42,13 +42,17 @@ module OsCtl::Cli
     def osctld_call(cmd, opts = {}, &block)
       c = osctld_open
       opts[:cli] ||= cli_opt
-      c.cmd_data!(cmd, opts, &block)
+      ret = c.cmd_data!(cmd, opts, &block)
+      c.close
+      ret
     end
 
     def osctld_resp(cmd, opts = {}, &block)
       c = osctld_open
       opts[:cli] ||= cli_opt
-      c.cmd_response(cmd, opts, &block)
+      ret = c.cmd_response(cmd, opts, &block)
+      c.close
+      ret
     end
 
     def osctld_fmt(cmd, opts = {}, cols = nil, fmt_opts = {}, &block)
