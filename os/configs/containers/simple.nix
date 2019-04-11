@@ -4,7 +4,6 @@
 
   osctl.pools.tank = {
     users.sampleuser = let mapping = [ "0:666000:65536" ]; in {
-      ugid = 5000;
       uidMap = mapping;
       gidMap = mapping;
     };

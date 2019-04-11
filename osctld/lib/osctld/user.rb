@@ -12,7 +12,7 @@ module OsCtld
     include Assets::Definition
     include OsCtl::Lib::Utils::Log
 
-    attr_inclusive_reader :pool, :name, :type, :ugid, :uid_map, :gid_map, :attrs
+    attr_inclusive_reader :pool, :name, :ugid, :uid_map, :gid_map, :attrs
     attr_exclusive_writer :registered
 
     def initialize(pool, name, load: true, config: nil)
@@ -32,18 +32,9 @@ module OsCtld
       inclusively { "#{pool.name}:#{name}" }
     end
 
-    def configure(type, ugid, uid_map, gid_map)
+    def configure(uid_map, gid_map, ugid: nil)
       exclusively do
-        @type = type.to_sym
-        @ugid =
-          if @type == :static
-            ugid
-          elsif @type == :dynamic
-            ugid || UGidRegistry.get
-          else
-            raise ArgumentError, 'type has to be either static or dynamic'
-          end
-
+        @ugid = ugid || UGidRegistry.get
         @uid_map = IdMap.new(uid_map)
         @gid_map = IdMap.new(gid_map)
       end
@@ -182,8 +173,6 @@ module OsCtld
     def dump
       inclusively do
         {
-          'type' => type.to_s,
-          'ugid' => type == :static ? ugid : nil,
           'uid_map' => uid_map.dump,
           'gid_map' => gid_map.dump,
           'attrs' => attrs.dump,
@@ -206,23 +195,7 @@ module OsCtld
         cfg = YAML.load_file(config_path)
       end
 
-      if cfg['type']
-        if cfg['type'] == 'static'
-          @type = :static
-          @ugid = cfg['ugid']
-        else
-          @type = :dynamic
-          @ugid = SystemUsers.uid_of(sysusername) || UGidRegistry.get
-        end
-
-      elsif cfg['ugid']
-        @type = :static
-        @ugid = cfg['ugid']
-
-      else
-        fail 'invalid user config: expected the user to be dynamic or have ugid'
-      end
-
+      @ugid = SystemUsers.uid_of(sysusername) || UGidRegistry.get
       @uid_map = IdMap.load(cfg['uid_map'], cfg)
       @gid_map = IdMap.load(cfg['gid_map'], cfg)
       @attrs = Attributes.load(cfg['attrs'] || {})

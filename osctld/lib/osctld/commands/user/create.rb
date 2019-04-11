@@ -18,31 +18,11 @@ module OsCtld
       if rx !~ opts[:name]
         error!("invalid name, allowed format: #{rx.source}")
 
-      elsif !%w(static dynamic).include?(opts[:type])
-        error!('invalid type: must be either static or dynamic')
-
-      elsif opts[:ugid] && opts[:ugid] < 1
-        error!('invalid ugid: must be greater than 0')
-
       elsif !opts[:uid_map] || opts[:uid_map].empty?
         error!('missing UID map')
 
       elsif !opts[:gid_map] || opts[:gid_map].empty?
         error!('missing GID map')
-      end
-
-      # Check for duplicities
-      if u = DB::Users.by_ugid(opts[:ugid])
-        error!(
-          "ugid #{opts[:ugid]} already taken by user "+
-          "#{u.pool.name}:#{u.name}"
-        )
-
-      elsif u = DB::Users.by_name(opts[:name])
-        error!(
-          "name #{opts[:ugid]} already taken by user "+
-          "#{u.pool.name}:#{u.name}"
-        )
       end
 
       # Check UID/GID maps
@@ -63,7 +43,7 @@ module OsCtld
 
     def execute(u)
       manipulate(u) do
-        u.configure(opts[:type], opts[:ugid], opts[:uid_map], opts[:gid_map])
+        u.configure(opts[:uid_map], opts[:gid_map], ugid: opts[:ugid])
 
         call_cmd!(Commands::User::Setup, user: u)
         call_cmd!(Commands::User::Register, name: u.name, pool: u.pool.name)

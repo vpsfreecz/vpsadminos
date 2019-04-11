@@ -109,8 +109,6 @@ module OsCtl::Cli
       osctld_fmt(:user_create, {
         name: args[0],
         pool: opts[:pool] || gopts[:pool],
-        type: opts[:ugid] ? 'static' : 'dynamic',
-        ugid: opts[:ugid],
         uid_map: uid_map,
         gid_map: gid_map,
       })

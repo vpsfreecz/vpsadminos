@@ -13,7 +13,6 @@ module OsCtld
         name: u.name,
         username: u.sysusername,
         groupname: u.sysgroupname,
-        type: u.type.to_s,
         ugid: u.ugid,
         homedir: u.homedir,
         registered: u.registered?,
