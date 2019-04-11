@@ -156,7 +156,7 @@ module OsUp
 
       pid = Process.fork do
         ENV.keep_if do |k, v|
-          %w(HOME LANG LOGNAME PATH PWD USER).include?(k)
+          %w(GLI_DEBUG HOME LANG LOGNAME PATH PWD USER).include?(k)
         end
 
         # osup is intentionally run from /run/current-system, as we don't want
