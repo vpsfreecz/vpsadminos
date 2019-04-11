@@ -51,4 +51,7 @@ snapshot:
 migration. These scripts can use whatever dependencies `osup` has. Each
 migration should be tailored to the pool version it is supposed to work on.
 Don't use functions whose behaviour can change over time based on other
-migrations. The pool's name is passed via global variable `$POOL`.
+migrations. Global variables:
+
+ - `$MIGRATION_ID` - ID of the migration
+ - `$POOL` - name of the ZFS pool to migrate
