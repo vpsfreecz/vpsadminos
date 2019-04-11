@@ -35,6 +35,15 @@ entities from other pools, you can use global option `--pool` *pool* or specify
 the group/container name/id as *pool*:*ctid|user|group*, i.e. pool name
 and group/container name/id separated by colon.
 
+## ID RANGES
+ID ranges are used to track user/group ID allocations into user namespace maps.
+There is one default ID range on each pool, with the possibility of creating
+custom ID ranges. User namespace maps allocated from one ID range are guaranteed
+to be unique, i.e. no two containers can share the same user/group IDs, making
+them isolated.
+
+See the `id-range` command family.
+
 ## USER NAMESPACES
 `osctld` makes it possible to run every container with a different user
 namespace mapping to increate isolation. For each mapping, `osctld` manages
@@ -405,6 +414,118 @@ read by `ls` or `show` commands.
 
 `pool unset attr` *pool* *vendor*:*key*
   Unset custom user attribute *vendor*:*key* of pool *pool*.
+
+`id-range new` *options* *id-range*
+  Create a new ID range.
+
+    `--start-id` *start-id*
+      The first user/group ID. Required.
+
+    `--block-size` *block-size*
+      Number of user/group IDs that make up the minimum allocation unit.
+      Should be set to `65536` or more.
+
+    `--block-count` *count*
+      How many blocks from *start-id* should the range include. Defines the
+      maximum number of user namespace maps that can be allocated from this
+      range. Required.
+
+`id-range del` *id-range*
+  Delete ID range *id-range*. Only ranges with empty allocation table can be
+  deleted.
+
+`id-range ls` [*id-ranges...*]
+  List configured ID ranges.
+
+    `-H`, `--hide-header`
+      Do not show header, useful for scripts.
+
+    `-L`, `--list`
+      List available parameters and exit.
+
+    `-o`, `--output` *parameters*
+      Select parameters to output, comma separated.
+
+    `-s`, `--sort` *parameters*
+      Sort output by parameters, comma separated.
+
+`id-range show` *id-range*
+  Show information about a specific ID range.
+
+    `-L`, `--list`
+      List available parameters and exit.
+
+    `-o`, `--output` *parameters*
+      Select parameters to output, comma separated.
+
+    `-H`, `--hide-header`
+      Do not show header, useful for scripts.
+
+`id-range table ls` [*options*] *id-range* [`all`|`allocated`|`free`]
+  Print the allocation table.
+
+    `-H`, `--hide-header`
+      Do not show header, useful for scripts.
+
+    `-L`, `--list`
+      List available parameters and exit.
+
+    `-o`, `--output` *parameters*
+      Select parameters to output, comma separated.
+
+    `-s`, `--sort` *parameters*
+      Sort output by parameters, comma separated.
+
+`id-range table show` [*options*] *id-range* *block-index*
+  Print information about block allocation.
+
+    `-H`, `--hide-header`
+      Do not show header, useful for scripts.
+
+    `-L`, `--list`
+      List available parameters and exit.
+
+    `-o`, `--output` *parameters*
+      Select parameters to output, comma separated.
+
+`id-range allocate` *id-range*
+  Allocate one or more blocks from ID range *id-range*.
+
+    `--block-count` *n*
+      How many blocks to allocate. Defaults to 1 block.
+
+    `--block-index` *n*
+      Optional index of the first allocated block in the allocation table.
+
+    `--owner` *string*
+      Optional owner of the allocated blocks.
+
+`id-range free` *id-range*
+  Free block allocation from ID range *id-range*.
+
+    `--block-index` *n*
+      Index of the first allocated block to free.
+
+    `--owner` *owner*
+      Free allocations belonging to *owner*.
+
+`id-range assets` [*options*] *id-range*
+  List ID range assets and their state.
+
+    `-v`, `--verbose`
+      Show detected errors.
+
+`id-range set attr` *id-range* *vendor*:*key* *value*
+  Set custom user attribute *vendor*:*key* for ID range *id-range*. Configured
+  attributes can be read with `id-range ls` or `id-range show` using the `-o`,
+  `--output` option.
+
+  The intended attribute naming is *vendor*:*key*, where *vendor* is a reversed
+  domain name and *key* an arbitrary string, e.g.
+  `org.vpsadminos.osctl:declarative`.
+
+`id-range unset attr` *id-range* *vendor*:*key*
+  Unset custom user attribute *vendor*:*key* of ID range *id-range*.
 
 `user new` *options* *user*
   Create a new user with user namespace configuration.

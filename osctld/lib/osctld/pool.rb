@@ -140,6 +140,13 @@ module OsCtld
           group: 0,
           mode: 0500
         )
+        add.directory(
+          File.join(conf_path, 'id-range'),
+          desc: 'ID range configuration files for osctld',
+          user: 0,
+          group: 0,
+          mode: 0500
+        )
 
         # Logs
         add.directory(
@@ -217,6 +224,9 @@ module OsCtld
 
       # Setup run state, i.e. hooks
       runstate
+
+      # Load ID ranges
+      load_id_ranges
 
       # Load users from zpool
       load_users
@@ -429,7 +439,7 @@ module OsCtld
       File.chmod(0500, path(REPOSITORY_DS))
 
       # Configuration directories
-      %w(pool ct group user migration repository).each do |dir|
+      %w(pool ct group user migration repository id-range).each do |dir|
         path = File.join(conf_path, dir)
         Dir.mkdir(path, 0500) unless Dir.exist?(path)
       end
@@ -439,6 +449,19 @@ module OsCtld
         File.join(log_path, 'ct'),
       ].each do |path|
         Dir.mkdir(path) unless Dir.exist?(path)
+      end
+    end
+
+    def load_id_ranges
+      log(:info, "Loading ID ranges")
+      DB::IdRanges.setup(self)
+
+      Dir.glob(File.join(conf_path, 'id-range', '*.yml')).each do |f|
+        name = File.basename(f)[0..(('.yml'.length+1) * -1)]
+        next if name == 'default'
+
+        range = IdRange.new(self, name)
+        DB::IdRanges.add(range)
       end
     end
 

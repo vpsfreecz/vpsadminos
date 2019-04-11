@@ -4,7 +4,7 @@ module OsCtl
   class Cli::GenCompletion < Cli::Command
     def bash
       c = OsCtl::Lib::Cli::Completion::Bash.new(Cli::App.get)
-      c.shortcuts = %w(ct group healthcheck pool repo user)
+      c.shortcuts = %w(ct group healthcheck id-range pool repo user)
 
       pools = "#{$0} pool ls -H -o name"
 
@@ -31,6 +31,13 @@ module OsCtl
 
       repos = <<-END
         #{$0} repository ls -H -o pool,name | while read line ; do
+          arr=($line)
+          echo ${arr[0]}:${arr[1]}
+        done
+      END
+
+      id_ranges = <<-END
+        #{$0} id-range ls -H -o pool,name | while read line ; do
           arr=($line)
           echo ${arr[0]}:${arr[1]}
         done
@@ -68,6 +75,7 @@ module OsCtl
       c.opt(cmd: :all, name: :user, expand: usernames)
       c.opt(cmd: :all, name: :group, expand: groupnames)
       c.opt(cmd: :all, name: :repository, expand: repos)
+      c.opt(cmd: :all, name: :'id-range', expand: id_ranges)
       c.opt(cmd: :all, name: :tag, expand: tags)
       c.opt(cmd: :all, name: :host_netif, expand: host_netifs)
       c.opt(cmd: :all, name: :netif_type, expand: netif_types)
@@ -83,6 +91,7 @@ module OsCtl
       c.arg(cmd: %i(osctl vps netif ip add), name: :addr, expand: '')
       c.arg(cmd: %i(osctl user new), name: :user, expand: '')
       c.arg(cmd: %i(osctl repo add), name: :repository, expand: '')
+      c.arg(cmd: %i(osctl id-range new), name: :'id-range', expand: '')
 
       c.arg(cmd: %i(osctl ct dataset), name: :dataset, expand: ct_datasets)
       c.arg(cmd: %i(osctl vps dataset), name: :dataset, expand: ct_datasets)
@@ -106,6 +115,7 @@ module OsCtl
       c.arg(cmd: :all, name: :user, expand: usernames)
       c.arg(cmd: :all, name: :group, expand: groupnames)
       c.arg(cmd: :all, name: :repository, expand: repos)
+      c.arg(cmd: :all, name: :'id-range', expand: repos)
       c.arg(cmd: :all, name: :tag, expand: tags)
       c.arg(cmd: :all, name: :host_netif, expand: host_netifs)
       c.arg(cmd: :all, name: :netif_type, expand: netif_types)
