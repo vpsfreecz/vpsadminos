@@ -17,6 +17,7 @@ module OsCtld
     HOOK_DS = 'hook'
     LOG_DS = 'log'
     REPOSITORY_DS = 'repository'
+    MIGRATION_DS = 'migration'
 
     OPTIONS = %i(parallel_start parallel_stop)
 
@@ -88,6 +89,13 @@ module OsCtld
           ds(REPOSITORY_DS),
           desc: 'Local template repository cache',
           user: Repository::UID,
+          group: 0,
+          mode: 0500
+        )
+        add.dataset(
+          ds(MIGRATION_DS),
+          desc: 'Data for OS migrations',
+          user: 0,
           group: 0,
           mode: 0500
         )
@@ -429,6 +437,7 @@ module OsCtld
       zfs(:create, '-p', ds(HOOK_DS))
       zfs(:create, '-p', ds(LOG_DS))
       zfs(:create, '-p', ds(REPOSITORY_DS))
+      zfs(:create, '-p', ds(MIGRATION_DS))
 
       File.chmod(0511, path(CT_DS))
       File.chmod(0500, path(CONF_DS))
@@ -437,6 +446,8 @@ module OsCtld
 
       File.chown(Repository::UID, 0, path(REPOSITORY_DS))
       File.chmod(0500, path(REPOSITORY_DS))
+
+      File.chmod(0500, path(MIGRATION_DS))
 
       # Configuration directories
       %w(pool ct group user migration repository id-range).each do |dir|
