@@ -6,6 +6,7 @@ module OsUp
       m = Migration.load(OsUp.migration_dir, args[1])
       Process.setproctitle("osup: #{args[0]} #{m.id} up")
 
+      $MIGRATION_ID = m.id
       $POOL = args[0]
       load(m.action_script(args[2]))
     end
