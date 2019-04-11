@@ -187,6 +187,140 @@ module OsCtl::Cli
         end
       end
 
+      desc 'Manage ID ranges'
+      command 'id-ranges' do |idr|
+        idr.desc 'Create a new ID range'
+        idr.arg_name '<id-range>'
+        idr.command %i(new create) do |c|
+          c.desc 'The first user/group ID'
+          c.flag 'start-id', arg_name: 'n', required: true, type: Integer
+
+          c.desc 'Number of user/group IDs making up the minimum allocation unit'
+          c.flag 'block-size', arg_name: 'n', required: true, type: Integer
+
+          c.desc 'How many blocks should the range include'
+          c.flag 'block-count', arg_name: 'n', required: true, type: Integer
+
+          c.action &Command.run(IdRange, :create)
+        end
+
+        idr.desc 'Delete ID range'
+        idr.arg_name '<id-range>'
+        idr.command %i(del delete) do |c|
+          c.action &Command.run(IdRange, :delete)
+        end
+
+        idr.desc 'List configured ID ranges'
+        idr.arg_name '[id-range...]'
+        idr.command %i(ls list) do |ls|
+          ls.desc 'Select parameters to output'
+          ls.flag %i(o output), arg_name: 'parameters'
+
+          ls.desc 'Do not show header'
+          ls.switch %i(H hide-header), negatable: false
+
+          ls.desc 'List available parameters'
+          ls.switch %i(L list), negatable: false
+
+          ls.desc 'Sort by parameter(s)'
+          ls.flag %i(s sort), arg_name: 'parameters'
+
+          ls.action &Command.run(IdRange, :list)
+        end
+
+        idr.desc "Show ID range info"
+        idr.arg_name '<id-range>'
+        idr.command %i(show info) do |c|
+          c.desc 'Select parameters to output'
+          c.flag %i(o output), arg_name: 'parameters'
+
+          c.desc 'Do not show header'
+          c.switch %i(H hide-header), negatable: false
+
+          c.desc 'List available parameters'
+          c.switch %i(L list), negatable: false
+
+          c.action &Command.run(IdRange, :show)
+        end
+
+        idr.desc 'Access allocation table'
+        idr.command :table do |tbl|
+          tbl.desc 'List entries in the allocation table'
+          tbl.arg_name '<id-range> [all|allocated|free]'
+          tbl.command %i(ls list) do |c|
+            c.desc 'Select parameters to output'
+            c.flag %i(o output), arg_name: 'parameters'
+
+            c.desc 'Do not show header'
+            c.switch %i(H hide-header), negatable: false
+
+            c.desc 'List available parameters'
+            c.switch %i(L list), negatable: false
+
+            c.desc 'Sort by parameter(s)'
+            c.flag %i(s sort), arg_name: 'parameters'
+
+            c.action &Command.run(IdRange, :table_list)
+          end
+
+          tbl.desc 'Show information about entry in the allocation table'
+          tbl.arg_name '<id-range> <block-index>'
+          tbl.command %i(show info) do |c|
+            c.desc 'Select parameters to output'
+            c.flag %i(o output), arg_name: 'parameters'
+
+            c.desc 'Do not show header'
+            c.switch %i(H hide-header), negatable: false
+
+            c.desc 'List available parameters'
+            c.switch %i(L list), negatable: false
+
+            c.action &Command.run(IdRange, :table_show)
+          end
+        end
+
+        idr.desc 'Allocate blocks from ID range'
+        idr.arg_name '<id-range>'
+        idr.command :allocate do |c|
+          c.desc 'Number of blocks to allocate'
+          c.flag 'block-count', arg_name: 'n', default_value: 1, type: Integer
+
+          c.desc 'Optional index of the starting block'
+          c.flag 'block-index', arg_name: 'n', type: Integer
+
+          c.desc 'Identify owner of the allocation'
+          c.flag 'owner'
+
+          c.action &Command.run(IdRange, :allocate)
+        end
+
+        idr.desc 'Free allocated blocks from ID range'
+        idr.arg_name '<id-range>'
+        idr.command :free do |c|
+          c.desc 'Index of a block to free'
+          c.flag 'block-index', type: Integer
+
+          c.desc 'Free allocations belonging to owner'
+          c.flag 'owner'
+
+          c.action &Command.run(IdRange, :free)
+        end
+
+        idr.desc "List ID range assets (datasets, files, directories)"
+        idr.arg_name '<id-range>'
+        assets(idr, IdRange)
+
+        idr.desc 'Configure ID range options'
+        idr.command :set do |set|
+          set_attr(set, IdRange, 'id-range')
+        end
+
+        idr.desc 'Reset ID range options'
+        idr.command :unset do |unset|
+          unset_attr(unset, IdRange, 'id-range')
+        end
+      end
+
       desc 'Manage system users and user namespace configuration'
       command :user do |u|
         u.desc 'List available users'

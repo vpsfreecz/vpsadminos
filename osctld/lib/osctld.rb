@@ -10,6 +10,7 @@ module OsCtld
     module Event ; end
     module Group ; end
     module History ; end
+    module IdRange ; end
     module Migration ; end
     module NetInterface ; end
     module Pool ; end
@@ -64,6 +65,7 @@ require_rel 'osctld/db'
 require_rel 'osctld/devices'
 require_rel 'osctld/dist_config'
 require_rel 'osctld/generic'
+require_rel 'osctld/id_range'
 require_rel 'osctld/monitor'
 require_rel 'osctld/mount'
 require_rel 'osctld/net_interface'
