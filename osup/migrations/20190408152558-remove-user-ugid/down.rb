@@ -2,7 +2,7 @@ require 'libosctl'
 require 'yaml'
 
 class Rollback
-  User = Struct.new(:name, :type, :ugid, :config, :opts)
+  User = Struct.new(:name, :config, :opts)
 
   include OsCtl::Lib::Utils::Log
   include OsCtl::Lib::Utils::System
@@ -19,20 +19,14 @@ class Rollback
     last_ugid = 100_000
 
     users.each do |user|
-      if user.type == 'static'
-        user.opts.delete('type')
-        File.write(user.config, YAML.dump(user.opts))
+      ugid = get_free_ugid(last_ugid)
+      fail "unable to assign static ugid to user '#{user.name}'" unless ugid
 
-      elsif user.type == 'dynamic'
-        ugid = get_free_ugid(last_ugid)
-        fail "unable to assign static ugid to user '#{user.name}'" unless ugid
+      last_ugid = ugid
 
-        last_ugid = ugid
-
-        user.opts.delete('type')
-        user.opts['ugid'] = ugid
-        File.write(user.config, YAML.dump(user.opts))
-      end
+      user.opts.delete('type')
+      user.opts['ugid'] = ugid
+      File.write(user.config, YAML.dump(user.opts))
     end
   end
 
@@ -59,13 +53,7 @@ class Rollback
       name = File.basename(f)[0..(('.yml'.length+1) * -1)]
       cfg = YAML.load_file(f)
 
-      User.new(
-        name,
-        cfg['type'] || 'static',
-        cfg['ugid'],
-        f,
-        cfg
-      )
+      User.new(name, f, cfg)
     end
   end
 

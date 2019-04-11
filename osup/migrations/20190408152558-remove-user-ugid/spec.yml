@@ -1,0 +1,7 @@
+description: |
+  Static user/group ID configuration for system users osctld is creating is
+  unnecessary. User/group IDs for system users can be assigned at runtime
+  by osctld.
+
+snapshot:
+ - conf

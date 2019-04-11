@@ -10,7 +10,6 @@ in
 
   osctl.pools.tank = {
     users.webuser = let mapping = [ "0:999000:65536" ]; in {
-      ugid = 6000;
       uidMap = mapping;
       gidMap = mapping;
     };

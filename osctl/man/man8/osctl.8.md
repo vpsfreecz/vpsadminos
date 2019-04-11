@@ -530,10 +530,6 @@ read by `ls` or `show` commands.
 `user new` *options* *user*
   Create a new user with user namespace configuration.
 
-  Users can be either static or dynamic. Static users have constant user/group
-  ID, which is set using option `--ugid`. Dynamic users have their user/group
-  IDs assigned at runtime by `osctld`.
-
   UID/GID mapping has to be configured either via option `--map`
   if you have the same mapping for user and group IDs, or via options `--map-uid`
   and `--map-gid` for different user/group mappings. There must be at least one
@@ -541,10 +537,6 @@ read by `ls` or `show` commands.
 
     `--pool` *pool*
       Pool name.
-    
-    `--ugid` *ugid*
-      Set a static user/group ID, used for system user/group. Defaults to dynamic
-      user/group ID assignment.
 
     `--map` *id*:*lowerid*:*count*
       Provide UID/GID mapping for user namespace. *id* is the beginning of

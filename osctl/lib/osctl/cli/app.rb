@@ -371,9 +371,6 @@ module OsCtl::Cli
           new.desc 'Pool name'
           new.flag :pool, arg_name: 'pool'
 
-          new.desc 'User/group ID, used for system user/group'
-          new.flag :ugid, type: Integer, arg_name: 'n'
-
           new.desc 'UID/GID mapping'
           new.flag 'map', multiple: true, arg_name: 'id_map'
 

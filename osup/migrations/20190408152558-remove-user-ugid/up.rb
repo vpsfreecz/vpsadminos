@@ -7,6 +7,6 @@ conf_dir = zfs(:get, '-Hp -o value mountpoint', File.join($POOL, 'conf'))[:outpu
 
 Dir.glob(File.join(conf_dir, 'user', '*.yml')).each do |f|
   cfg = YAML.load_file(f)
-  cfg['type'] = 'static'
+  cfg.delete('ugid')
   File.write(f, YAML.dump(cfg))
 end
