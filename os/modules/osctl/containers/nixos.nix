@@ -2,7 +2,8 @@
 with lib;
 let
   serviceRun =
-    { pool, name, cfg, osctl, osctlPool, hooks, hookCaller, conf, yml, boolToStr }:
+    { pool, name, cfg, osctl, osctlPool, hooks, hookCaller, conf, yml, boolToStr
+    , hasUser, user }:
       let
         toplevel = cfg.path;
         closureInfo = pkgs.closureInfo { rootPaths = [ toplevel ]; };
@@ -10,7 +11,7 @@ let
       in ''
         waitForOsctld
         waitForOsctlEntity pool "${pool}"
-        waitForOsctlEntity user "${cfg.user}"
+        ${optionalString hasUser ''waitForOsctlEntity user "${user}"''}
         waitForOsctlEntity group "${cfg.group}"
 
         mkdir -p /nix/var/nix/profiles/per-container
@@ -33,7 +34,7 @@ let
           currentGroup="''${lines[3]}"
           currentConfig="''${lines[4]}"
 
-          if [ "${cfg.user}" != "$currentUser" ] \
+          if [ "${user}" != "$currentUser" ] \
              || [ "${cfg.group}" != "$currentGroup" ] \
              || [ "${yml}" != "$currentConfig" ] ; then
             echo "Reconfiguring the container"
@@ -44,9 +45,9 @@ let
               currentState="stopped"
             fi
 
-            if [ "${cfg.user}" != "$currentUser" ] ; then
-              echo "Changing user from $currentUser to ${cfg.user}"
-              ${osctlPool} ct chown ${name} ${cfg.user} || exit 1
+            if [ "${user}" != "$currentUser" ] ; then
+              echo "Changing user from $currentUser to ${user}"
+              ${osctlPool} ct chown ${name} ${user} || exit 1
             fi
 
             if [ "${cfg.group}" != "$currentGroup" ] ; then
@@ -87,7 +88,7 @@ let
           ''}
 
           ${osctlPool} ct new \
-                              --user ${cfg.user} \
+                              ${optionalString hasUser "--user ${user}"} \
                               --group ${cfg.group} \
                               --distribution nixos \
                               --version ${conf.version} \

@@ -599,7 +599,7 @@ module OsCtl::Cli
           new.flag :pool, arg_name: 'pool'
 
           new.desc 'User name'
-          new.flag :user, required: true, arg_name: 'user'
+          new.flag :user, arg_name: 'user'
 
           new.desc 'Group name'
           new.flag :group, required: false, arg_name: 'group'

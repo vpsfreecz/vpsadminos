@@ -37,6 +37,9 @@ let
       osctl = "${pkgs.osctl}/bin/osctl";
       osctlPool = "${osctl} --pool ${pool}";
 
+      hasUser = cfg.user != null;
+      user = if hasUser then cfg.user else name;
+
       osHooks = [ "pre-create" "on-create" "post-create" ];
 
       configuredHooks = filter ({hook, script}: script != null && !(elem hook osHooks))
@@ -57,7 +60,7 @@ let
         export OSCTL_HOOK_NAME="${hook}"
         export OSCTL_POOL_NAME="${pool}"
         export OSCTL_CT_ID="${name}"
-        export OSCTL_CT_USER="${cfg.user}"
+        export OSCTL_CT_USER="${user}"
         export OSCTL_CT_GROUP="${cfg.group}"
 
         if [ "$ctExists" == "0" ] ; then
@@ -84,7 +87,7 @@ let
       '';
 
       conf = {
-        user = cfg.user;
+        user = user;
         group = cfg.group;
         dataset = "${pool}/ct/${name}";
         distribution = if cfg.distribution == null then "nixos" else cfg.distribution;
@@ -110,6 +113,7 @@ let
         inherit pool name cfg;
         inherit osctl osctlPool hooks hookCaller conf yml;
         inherit boolToStr;
+        inherit hasUser user;
       };
 
     in {
@@ -490,11 +494,14 @@ let
       };
 
       user = mkOption {
-        type = types.str;
+        type = types.nullOr types.str;
+        default = null;
         example = "myuser01";
         description = ''
           Name of an osctl user declared by <option>osctl.users</option> that
-          the container belongs to.
+          the container belongs to. If not provided, a new user is created with
+          its name matching the container ID. If such user already exists, it
+          is used instead.
         '';
       };
 

@@ -37,11 +37,8 @@
     Configure osctld:
       osctl pool install tank
 
-    Create a user:
-      osctl user new --map 0:666000:65536 myuser01
-
     Create a container:
-      osctl ct new --user myuser01 --distribution alpine --version latest myct01
+      osctl ct new --distribution alpine myct01
 
     Configure container networking:
       osctl ct netif new routed myct01 eth0

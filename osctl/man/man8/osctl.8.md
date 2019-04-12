@@ -671,7 +671,7 @@ read by `ls` or `show` commands.
       Pool name. Defaults to the first available pool.
 
     `--user` *user*
-      User name, required.
+      User name. If not provided, a new user is created.
 
     `--group` *group*
       Group name, defaults to group *default* from selected *pool*.
