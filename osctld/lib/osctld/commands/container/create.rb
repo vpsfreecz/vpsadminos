@@ -12,8 +12,12 @@ module OsCtld
       pool = DB::Pools.get_or_default(opts[:pool])
       error!('pool not found') unless pool
 
-      user = DB::Users.find(opts[:user], pool)
-      error!('user not found') unless user
+      if opts[:user]
+        user = DB::Users.find(opts[:user], pool)
+        error!('user not found') unless user
+      else
+        user = create_user(pool)
+      end
 
       if opts[:group]
         group = DB::Groups.find(opts[:group], pool)
@@ -86,6 +90,21 @@ module OsCtld
     end
 
     protected
+    def create_user(pool)
+      name = opts[:id]
+
+      user = DB::Users.find(name, pool)
+      return user if user
+
+      call_cmd!(
+        Commands::User::Create,
+        pool: pool.name,
+        name: name,
+      )
+
+      return DB::Users.find(name, pool) || (fail 'expected user')
+    end
+
     def custom_dataset(builder)
       builder.create_root_dataset(mapping: false, parents: true)
 
