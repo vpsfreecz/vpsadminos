@@ -27,6 +27,10 @@ module OsCtld
         syscmd("rm -rf \"#{u.userdir}\"")
         File.unlink(u.config_path)
 
+        DB::IdRanges.get.each do |range|
+          range.free_by(u.id_range_allocation_owner) if range.pool == u.pool
+        end
+
         DB::Users.remove(u)
         call_cmd(Commands::User::SubUGIds)
       end

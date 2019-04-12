@@ -32,11 +32,14 @@ module OsCtld
       inclusively { "#{pool.name}:#{name}" }
     end
 
+    # @param uid_map [IdMap]
+    # @param gid_map [IdMap]
+    # @param ugid [Integer, nil]
     def configure(uid_map, gid_map, ugid: nil)
       exclusively do
         @ugid = ugid || UGidRegistry.get
-        @uid_map = IdMap.new(uid_map)
-        @gid_map = IdMap.new(gid_map)
+        @uid_map = uid_map
+        @gid_map = gid_map
       end
 
       save_config
@@ -157,6 +160,10 @@ module OsCtld
       DB::Containers.get do |cts|
         cts.select { |ct| ct.user == self && ct.pool.name == pool.name }
       end
+    end
+
+    def id_range_allocation_owner
+      "user:#{name}"
     end
 
     def log_type
