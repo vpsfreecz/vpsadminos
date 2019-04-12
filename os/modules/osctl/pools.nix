@@ -8,6 +8,7 @@ let
   groups = import ./groups.nix modArgs;
   containers = import ./containers.nix modArgs;
   repositories = import ./repositories.nix modArgs;
+  idRanges = import ./id-ranges.nix modArgs;
   gc = import ./garbage-collector.nix modArgs;
 
   pool = {
@@ -55,6 +56,21 @@ let
         type = types.attrsOf (types.submodule repositories.type);
         default = {};
         description = "Remote osctl repositories for container templates";
+      };
+
+      idRanges = mkOption {
+        type = types.attrsOf (types.submodule idRanges.type);
+        default = {};
+        description = ''
+          ID ranges are used to track user/group ID allocations into user namespace maps.
+          There is one default ID range on each pool, with the possibility of creating
+          custom ID ranges. User namespace maps allocated from one ID range are guaranteed
+          to be unique, i.e. no two containers can share the same user/group IDs, making
+          them isolated.
+
+          Created ID ranges cannot be declaratively modified. Delete them manually
+          or using the garbage collector, then recreate them if changes are needed.
+        '';
       };
 
       pure = mkOption {
@@ -115,6 +131,8 @@ let
     (mapAttrsToList (name: pool: containers.mkServices name pool.containers) pools)
     ++
     (mapAttrsToList (name: pool: repositories.mkServices name pool.repositories) pools)
+    ++
+    (mapAttrsToList (name: pool: idRanges.mkServices name pool.idRanges) pools)
     ++
     (mapAttrsToList (name: pool: gc.mkService name pool) pools)
   );

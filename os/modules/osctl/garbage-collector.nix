@@ -6,7 +6,7 @@ let
 
   osctl = "${pkgs.osctl}/bin/osctl";
 
-  entities = [ "containers" "groups" "users" "repositories" ];
+  entities = [ "containers" "groups" "users" "repositories" "idRanges" ];
 
   sweepScript = pool: cfg:
     let
@@ -209,6 +209,44 @@ let
           if [ "$destroyImperative" == "y" ] ; then
             echo "Removing user ${pool}:$name"
             ${osctlPool} user del "$name"
+          fi
+        fi
+      done
+
+      ### ID ranges
+      ${osctlPool} id-range ls -H -o name,org.vpsadminos.osctl:declarative > "$entryList"
+
+      if [ "$?" != "0" ] ; then
+        echo "Unable to list ID ranges"
+        rm -f "$entryList"
+        exit 1
+      fi
+
+      cat "$entryList" | while read line ; do
+        range=($line)
+        name="''${range[0]}"
+        declarative="''${range[1]}"
+
+        [ "$name" == "default" ] && continue
+        defined "${definitions.idRanges}" "$name" && continue
+
+        if [ "$declarative" == "yes" ] ; then
+          echo "Found leftover declarative ID range ${pool}:$name"
+
+          if [ "$destroyUndeclared" == "y" ] ; then
+            echo "Removing ID range ${pool}:$name"
+            ${osctlPool} id-range del "$name"
+          fi
+
+        elif [ "$name" == "default" ] ; then
+          echo "Ignoring the default ID range"
+
+        else
+          echo "ID range ${pool}:$name exists, but is not declarative"
+
+          if [ "$destroyImperative" == "y" ] ; then
+            echo "Removing ID range ${pool}:$name"
+            ${osctlPool} id-range del "$name"
           fi
         fi
       done
