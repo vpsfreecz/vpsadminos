@@ -86,18 +86,6 @@ module OsCtl::Cli
     def create
       require_args!('name')
 
-      if opts['map'].any? && (opts['map-uid'].any? || opts['map-gid'].any?)
-        raise GLI::BadCommandLine, 'use either --map, or --map-uid and --map-gid'
-
-      elsif (opts['map'] + opts['map-uid']).empty?
-        raise GLI::BadCommandLine, 'provide at least one UID mapping with --map '+
-          'or --map-uid'
-
-      elsif (opts['map'] + opts['map-gid']).empty?
-        raise GLI::BadCommandLine, 'provide at least one GID mapping with --map '+
-          'or --map-gid'
-      end
-
       if opts['map'].any?
         uid_map = gid_map = opts['map']
 
@@ -109,8 +97,10 @@ module OsCtl::Cli
       osctld_fmt(:user_create, {
         name: args[0],
         pool: opts[:pool] || gopts[:pool],
-        uid_map: uid_map,
-        gid_map: gid_map,
+        id_range: opts['id-range'],
+        block_index: opts['id-range-block-index'],
+        uid_map: uid_map.any? ? uid_map : nil,
+        gid_map: gid_map.any? ? gid_map : nil,
       })
     end
 

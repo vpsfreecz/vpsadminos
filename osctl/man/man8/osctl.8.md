@@ -528,19 +528,31 @@ read by `ls` or `show` commands.
   Unset custom user attribute *vendor*:*key* of ID range *id-range*.
 
 `user new` *options* *user*
-  Create a new user with user namespace configuration.
+  Create a new user with user namespace mapping configuration.
 
-  UID/GID mapping has to be configured either via option `--map`
-  if you have the same mapping for user and group IDs, or via options `--map-uid`
-  and `--map-gid` for different user/group mappings. There must be at least one
-  mapping for user IDs and one for group IDs.
+  If option `--id-range` is used, or no mapping is set using options
+  `--map`, `--map-uid` and `--map-gid`, a new UID/GID range is allocated from
+  *id-range* and a default mapping is created.
+
+  To use ID range block allocation with a custom mapping, allocate the block
+  first using command `id-range allocate` and then use option
+  `--id-range-block-index` together with `--map`, `--map-uid` or `--map-gid`.
 
     `--pool` *pool*
       Pool name.
 
+    `--id-range` *id-range*
+      Name of an ID range to allocate UID/GID from. Defaults to ID range
+      called `default`.
+
+    `--id-range-block-index` *n*
+      Use an existing UID/GID allocation from *id-range*, or allocate a new
+      block at index *n*. The owner of the allocated block is not changed, so
+      existing blocks will not get automatically freed when the user is deleted.
+
     `--map` *id*:*lowerid*:*count*
-      Provide UID/GID mapping for user namespace. *id* is the beginning of
-      the range inside the user namespace, *lowerid* is the range beginning
+      Provide both UID and GID mapping for user namespace. *id* is the beginning
+      of the range inside the user namespace, *lowerid* is the range beginning
       on the host and *count* is the number of mapped IDs both inside and
       outside the user namespace. This option can be used mutiple times.
 

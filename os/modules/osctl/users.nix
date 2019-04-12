@@ -3,6 +3,16 @@ with lib;
 let
   osctl = "${pkgs.osctl}/bin/osctl";
 
+  idRangeName = name: if name == null then "default" else name;
+
+  isBlockIndexDeclared = pool: idRange:
+    let
+      range = idRangeName idRange.name;
+      cfg = config.osctl.pools.${pool}.idRanges;
+      rangeExists = hasAttr range cfg;
+      indexExists = any (alloc: alloc.index == idRange.blockIndex) cfg.${range}.table;
+    in idRange.blockIndex != null && rangeExists && indexExists;
+
   mapOpts = type: idMap: map (v: "--map-${type} ${v}") idMap;
 
   ugidMapOpts = cfg:
@@ -19,8 +29,22 @@ let
       if [ "$hasUser" == "0" ] ; then
         echo "User ${pool}:${user} already exists"
       else
+        ${optionalString (isBlockIndexDeclared pool cfg.idRange) ''
+        while true ; do
+          type=$(${osctlPool} id-range table show -H -o type ${idRangeName cfg.idRange.name} ${toString cfg.idRange.blockIndex} 2> /dev/null)
+          [ "$type" == "allocated" ] && break
+          echo "Waiting for block allocation at" \
+               "${idRangeName cfg.idRange.name}:#${toString cfg.idRange.blockIndex}"
+          sleep 1
+        done
+        ''}
+
         echo "Creating user ${pool}:${user}"
-        ${osctlPool} user new ${ugidMapOpts cfg} ${user}
+        ${osctlPool} user new \
+          ${optionalString (cfg.idRange.name != null) "--id-range ${cfg.idRange.name}"} \
+          ${optionalString (cfg.idRange.blockIndex != null) "--id-range-block-index ${toString cfg.idRange.blockIndex}"} \
+          ${ugidMapOpts cfg} \
+          ${user}
         ${osctlPool} user set attr ${user} org.vpsadminos.osctl:declarative yes
       fi
     '')) users);
@@ -30,6 +54,7 @@ in
     options = {
       uidMap = mkOption {
         type = types.listOf types.str;
+        default = [];
         example = [ "0:666000:65536" ];
         description = ''
           UID mapping for the user namespace, see man subuid(5).
@@ -38,10 +63,31 @@ in
 
       gidMap = mkOption {
         type = types.listOf types.str;
+        default = [];
         example = [ "0:666000:65536" ];
         description = ''
           GID mapping for the user namespace, see man subgid(5).
         '';
+      };
+
+      idRange = {
+        name = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          description = ''
+            Name of an ID range from the same pool that should be used to allocate
+            UID/GID IDs.
+          '';
+        };
+
+        blockIndex = mkOption {
+          type = types.nullOr types.ints.unsigned;
+          default = null;
+          description = ''
+            Block index from the ID range that should be used to create UID/GID
+            mapping.
+          '';
+        };
       };
     };
   };

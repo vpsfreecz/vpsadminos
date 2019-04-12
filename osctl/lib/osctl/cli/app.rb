@@ -371,6 +371,12 @@ module OsCtl::Cli
           new.desc 'Pool name'
           new.flag :pool, arg_name: 'pool'
 
+          new.desc 'ID range to allocate UID/GID block from'
+          new.flag 'id-range', arg_name: 'id-range'
+
+          new.desc 'Specify allocated block index from ID range'
+          new.flag 'id-range-block-index', type: Integer, arg_name: 'n'
+
           new.desc 'UID/GID mapping'
           new.flag 'map', multiple: true, arg_name: 'id_map'
 
