@@ -27,7 +27,7 @@ function osctlEntityExists {
   local ident="$2"
 
   case "$entity" in
-    pool|user|group|repository)
+    pool|user|group|repository|id-range)
       @osctl@ "$entity" show -o name "$ident" &> /dev/null
       return $?
       ;;
