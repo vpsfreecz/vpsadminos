@@ -15,25 +15,14 @@ but are created when the host node boots or is redeployed.
 
 ## Example configuration
 Declarative configuration mirrors the imperative approach. You can define and
-configure users, groups and containers. Configurations are bound to specific
-ZFS pools. First make sure that you have [defined some ZFS pool][pools], this
-document uses pool `tank`. The following example configuration defines one user
-and a container:
+configure pools, users, groups, containers, repositories and ID ranges.
+Configurations are bound to specific ZFS pools. First make sure that you have
+[defined some ZFS pool][pools], this document uses pool `tank`. The following
+example configuration defines one container:
 
 ```nix
 osctl.pools.tank = {
-  # This is equivalent to
-  #   osctl --pool tank user new --map 0:666000:65536 sample
-  users.sample = let mapping = [ "0:666000:65536" ]; in {
-    uidMap = mapping;
-    gidMap = mapping;
-  };
-
   containers.myct01 = {
-    # Equivalent to
-    #   osctl --pool tank ct new --user sample
-    user = "sample";
-
     # Nix configuration
     config =
       { config, pkgs, ... }:
@@ -64,6 +53,54 @@ When you deploy the vpsAdminOS node with this configuration, container
 For more examples, see directory [os/configs/containers][examples] in vpsAdminOS
 source repository.
 
+## Configuring user namespaces
+If you don't configure user namespaces at all, each container will end up with
+a unique UID/GID mapping, making all containers perfetly isolated. When more
+control is needed, it is possible to declaratively configure ID ranges
+and user namespace mappings.
+
+```nix
+osctl.pools.tank = {
+  # Create a custom user namespace mapping, this is equivalent to
+  #   osctl --pool tank user new --map 0:666000:65536 sample
+  users.custom = let mapping = [ "0:666000:65536" ]; in {
+    uidMap = mapping;
+    gidMap = mapping;
+  };
+
+  # Optionally, you can allocate mapping from ID ranges, which ensures that no
+  # other container, perhaps imperatively created, will use the same mapping.
+  users.allocated.idRange = "default";
+
+  # ID range `default` is created by `osctld` and exists on all pools. If needed,
+  # custom ID ranges can be declared:
+  idRanges.myrange = {
+    startId = 500000;
+    blockSize = 65536;
+    blockCount = 1024;
+  };
+
+  users.frommyrange.idRange.name = "myrange";
+
+  # Blocks from ID ranges can be allocated statically:
+  idRanges.myrange.table = [
+    { index = 0; count = 4; }
+  ];
+
+  # Users can then select which block to use
+  users.frommyrange.idRange.blockIndex = 0;
+
+  # Finally, create a container with a specific user namespace mapping
+  containers.myct01 = {
+    # Equivalent to
+    #   osctl --pool tank ct new --user frommyrange
+    user = "frommyrange";
+
+    # Other options...
+  };
+};
+```
+
 ## Template-based containers
 To create containers with distributions other than NixOS, you can use the
 distribution templates vpsAdminOS provides:
@@ -71,8 +108,6 @@ distribution templates vpsAdminOS provides:
 ```nix
 osctl.pools.tank = {
   containers.myct02 = {
-    user = "sample";
-
     distribution = "ubuntu";
     version = "18.04";
 

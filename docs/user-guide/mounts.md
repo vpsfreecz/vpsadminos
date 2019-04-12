@@ -1,11 +1,11 @@
 # Mounts
 
 It is possible to mount directories from the host to containers. What makes this
-complicated are [user namespaces](users.md). If the containers are to have
-access to directories and files in the mountpoint, you need change their
-ownership to match the container's user namespace. Sharing data between
-containers in different user namespaces is not possible, as they cannot access
-each other's data.
+complicated are [user namespaces](../containers/user-namespaces.md). If the
+containers are to have access to directories and files in the mountpoint, you
+need change their ownership to match the container's user namespace. Sharing
+data between containers in different user namespaces is not possible, as they
+cannot access each other's data.
 
 ## Changing ownerships
 Let's prepare a shared directory for containers using the same user namespace:
@@ -15,7 +15,7 @@ Let's prepare a shared directory for containers using the same user namespace:
 osctl user new --map 0:888000:65536 shareduserns
 
 # Create a container
-osctl ct new --user shareduserns --from-archive ubuntu-16.04-x86_64-vpsfree.tar.gz myct01
+osctl ct new --user shareduserns --distribution ubuntu myct01
 
 # Prepare directory
 mkdir -p /var/shared

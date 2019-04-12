@@ -44,7 +44,7 @@ else is using the zpool. For more complicated use-cases, it is possible to scope
 *osctld* to a subdataset, see [man osctl].
 
 When you have at least one zpool imported and installed, you can proceed
-to [user](users.md) and [container](containers.md) management.
+to [container](containers.md) management.
 
 [Nix]: https://nixos.org/nix/
 [install-nix]: https://nixos.org/nix/download.html
