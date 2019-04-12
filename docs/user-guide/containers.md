@@ -1,9 +1,8 @@
 # Containers
-When you have created at least one [user](users.md), you can start creating
-containers. To create a container, you need an OS template. Template is
-a gzipped tar archive or a ZFS stream containing a root file system.
-OS templates can be automatically downloaded from repositories, or
-you can use template from a file on your local file system.
+To create a container, you need an OS template. Template is a gzipped tar
+archive or a ZFS stream containing a root file system. OS templates can be
+automatically downloaded from repositories, or you can use template from a file
+on your local file system.
 
 Without any configuration, you'll be able to use templates from the *default*
 repository. These templates are built using
@@ -16,7 +15,7 @@ Let's create a container using a template from the
 [default repository](https://templates.vpsadminos.org):
 
 ```bash
-osctl ct new --user myuser01 --distribution ubuntu --version 16.04 myct01
+osctl ct new --distribution ubuntu --version 16.04 myct01
 ```
 
 Available distributions from the default repository can be listed using *osctl*:
@@ -50,13 +49,13 @@ TYPE        PATH                                                                
 dataset     tank/ct/myct01                                                           valid     Container's rootfs dataset
 directory   /tank/ct/myct01/private                                                  valid     Container's rootfs
 directory   /tank/hook/ct/myct01                                                     valid     User supplied script hooks
-directory   /run/osctl/pools/tank/users/myuser01/group.default/cts/myct01            valid     LXC configuration
-file        /run/osctl/pools/tank/users/myuser01/group.default/cts/myct01/config     valid     LXC base config
-file        /run/osctl/pools/tank/users/myuser01/group.default/cts/myct01/network    valid     LXC network config
-file        /run/osctl/pools/tank/users/myuser01/group.default/cts/myct01/cgparams   valid     LXC cgroup parameters
-file        /run/osctl/pools/tank/users/myuser01/group.default/cts/myct01/prlimits   valid     LXC resource limits
-file        /run/osctl/pools/tank/users/myuser01/group.default/cts/myct01/mounts     valid     LXC mounts
-file        /run/osctl/pools/tank/users/myuser01/group.default/cts/myct01/.bashrc    valid     Shell configuration file for osctl ct su
+directory   /run/osctl/pools/tank/users/myct01/group.default/cts/myct01            valid     LXC configuration
+file        /run/osctl/pools/tank/users/myct01/group.default/cts/myct01/config     valid     LXC base config
+file        /run/osctl/pools/tank/users/myct01/group.default/cts/myct01/network    valid     LXC network config
+file        /run/osctl/pools/tank/users/myct01/group.default/cts/myct01/cgparams   valid     LXC cgroup parameters
+file        /run/osctl/pools/tank/users/myct01/group.default/cts/myct01/prlimits   valid     LXC resource limits
+file        /run/osctl/pools/tank/users/myct01/group.default/cts/myct01/mounts     valid     LXC mounts
+file        /run/osctl/pools/tank/users/myct01/group.default/cts/myct01/.bashrc    valid     Shell configuration file for osctl ct su
 file        /tank/conf/ct/myct01.yml                                                 valid     Container config for osctld
 file        /tank/log/ct/myct01.log                                                  valid     LXC log file
 ```
@@ -109,8 +108,8 @@ You can view container states using by listing all containers:
 
 ```bash
 osctl ct ls
-POOL   ID       USER       GROUP      DISTRIBUTION   VERSION   STATE     INIT_PID   MEMORY   CPU_TIME 
-tank   myct01   myuser01   /default   ubuntu         16.04     running   7894       36.0M    1s
+POOL   ID       USER     GROUP      DISTRIBUTION   VERSION   STATE     INIT_PID   MEMORY   CPU_TIME 
+tank   myct01   myct01   /default   ubuntu         16.04     running   7894       36.0M    1s
 ```
 
 Or just one specific container, showing all container parameters:
@@ -119,13 +118,13 @@ Or just one specific container, showing all container parameters:
 osctl ct show myct01
           POOL:  tank
             ID:  myct01
-          USER:  myuser01
+          USER:  myct01
          GROUP:  /default
        DATASET:  tank/ct/myct01
         ROOTFS:  /tank/ct/myct01/private
-      LXC_PATH:  /run/osctl/pools/tank/users/myuser01/group.default/cts
-       LXC_DIR:  /run/osctl/pools/tank/users/myuser01/group.default/cts/myct01
-    GROUP_PATH:  osctl/pool.tank/group.default/user.myuser01/ct.myct01/user-owned
+      LXC_PATH:  /run/osctl/pools/tank/users/myct01/group.default/cts
+       LXC_DIR:  /run/osctl/pools/tank/users/myct01/group.default/cts/myct01
+    GROUP_PATH:  osctl/pool.tank/group.default/user.myct01/ct.myct01/user-owned
   DISTRIBUTION:  ubuntu
        VERSION:  16.04
          STATE:  running

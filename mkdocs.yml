@@ -6,12 +6,12 @@ pages:
 - User Guide:
     - Introduction: 'user-guide/introduction.md'
     - Setup: 'user-guide/setup.md'
-    - User namespaces: 'user-guide/users.md'
     - Containers: 'user-guide/containers.md'
     - Networking: 'user-guide/networking.md'
     - Resources: 'user-guide/resources.md'
     - Mounts: 'user-guide/mounts.md'
 - Containers:
+    - User namespaces: 'containers/user-namespaces.md'
     - Administration: 'containers/administration.md'
     - Templates: 'containers/templates.md'
     - Datasets: 'containers/datasets.md'
