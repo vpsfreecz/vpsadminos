@@ -22,6 +22,10 @@ let
     let
       osctlPool = "${osctl} --pool ${pool}";
 
+      hasRange = cfg.idRange.name != null;
+
+      hasBlockIndex = cfg.idRange.blockIndex != null;
+
     in ''
       ### User ${pool}:${user}
       ugid=$(${osctlPool} user show -H -o ugid ${user} 2> /dev/null)
@@ -29,6 +33,7 @@ let
       if [ "$hasUser" == "0" ] ; then
         echo "User ${pool}:${user} already exists"
       else
+        ${optionalString hasRange "waitForOsctlEntity id-range ${pool}:${cfg.idRange.name}"}
         ${optionalString (isBlockIndexDeclared pool cfg.idRange) ''
         while true ; do
           type=$(${osctlPool} id-range table show -H -o type ${idRangeName cfg.idRange.name} ${toString cfg.idRange.blockIndex} 2> /dev/null)
@@ -41,8 +46,8 @@ let
 
         echo "Creating user ${pool}:${user}"
         ${osctlPool} user new \
-          ${optionalString (cfg.idRange.name != null) "--id-range ${cfg.idRange.name}"} \
-          ${optionalString (cfg.idRange.blockIndex != null) "--id-range-block-index ${toString cfg.idRange.blockIndex}"} \
+          ${optionalString (hasRange) "--id-range ${cfg.idRange.name}"} \
+          ${optionalString hasBlockIndex "--id-range-block-index ${toString cfg.idRange.blockIndex}"} \
           ${ugidMapOpts cfg} \
           ${user}
         ${osctlPool} user set attr ${user} org.vpsadminos.osctl:declarative yes
