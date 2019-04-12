@@ -3,7 +3,7 @@
 bundlerApp {
   pname = "osctl";
   gemdir = ./.;
-  exes = [ "osctl" "ct" "group" "healthcheck" "pool" "repo" "user" ];
+  exes = [ "osctl" "ct" "group" "healthcheck" "id-range" "pool" "repo" "user" ];
   postBuild = ''
     mkdir -p $out/share/bash-completion/completions $out/etc
     ln -sf $out/share/bash-completion/completions $out/etc/bash_completion.d
