@@ -1,18 +1,22 @@
 { configuration ? let cfg = builtins.getEnv "VPSADMINOS_CONFIG"; in if cfg == "" then import ./configs/common.nix else import cfg
-, nixpkgs ? <nixpkgs>
-, extraModules ? []
+, pkgs ? <nixpkgs>
+  # extra modules to include
+, modules ? []
+  # extra arguments to be passed to modules
+, extraArgs ? {}
+  # target system
 , system ? builtins.currentSystem
 , platform ? null
 , vpsadmin ? null }:
 
 let
-  pkgs = import nixpkgs { inherit system; platform = platform; config = {}; };
+  pkgs_ = import pkgs { inherit system; platform = platform; config = {}; };
   pkgsModule = rec {
     _file = ./default.nix;
     key = _file;
     config = {
-      nixpkgs.system = pkgs.lib.mkDefault system;
-      nixpkgs.overlays = import ./overlays { lib = pkgs.lib; inherit vpsadmin; };
+      nixpkgs.system = pkgs_.lib.mkDefault system;
+      nixpkgs.overlays = import ./overlays { lib = pkgs_.lib; inherit vpsadmin; };
     };
   };
   baseModules = [
@@ -64,11 +68,11 @@ let
       ./nixos-compat.nix
       pkgsModule
   ] ++ (import ./modules/module-list.nix);
-  evalConfig = modules: pkgs.lib.evalModules {
+  evalConfig = modulesArgs: pkgs_.lib.evalModules {
     prefix = [];
     check = true;
-    modules = modules ++ baseModules ++ [ pkgsModule ] ++ extraModules;
-    args = {};
+    modules = baseModules ++ [ pkgsModule ] ++ modules ++ modulesArgs;
+    args = extraArgs;
   };
 in
 rec {
