@@ -45,6 +45,15 @@ with lib;
       default = {};
       description = "Attribute set of derivations used to setup the system.";
     };
+    system.extraDependencies = mkOption {
+      type = types.listOf types.package;
+      default = [];
+      description = ''
+        A list of packages that should be included in the system
+        closure but not otherwise made available to users. This is
+        primarily used by the installation tests.
+      '';
+    };
     system.qemuParams = mkOption {
       internal = true;
       type = types.listOf types.str;
@@ -520,6 +529,8 @@ with lib;
         mkdir $out/bin
         substituteAll ${./lib/switch-to-configuration.rb} $out/bin/switch-to-configuration
         chmod +x $out/bin/switch-to-configuration
+
+        echo -n "${toString config.system.extraDependencies}" > $out/extra-dependencies
       '';
 
       failedAssertions = map (x: x.message) (filter (x: !x.assertion) config.assertions);
