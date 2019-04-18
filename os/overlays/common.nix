@@ -9,4 +9,5 @@
   (import ./minify.nix)
   (import ./nfs.nix)
   (import ./pty-wrapper.nix)
+  (import ./machine-check.nix)
 ]
