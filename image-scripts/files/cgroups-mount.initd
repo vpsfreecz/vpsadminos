@@ -43,6 +43,11 @@ start() {
 			"$name" "/sys/fs/cgroup/$name" || retval=1
 	done
 
+	if ! mountinfo -q /sys/fs/cgroup/openrc ; then
+		rm -rf /sys/fs/cgroup/openrc
+		ln -sf /sys/fs/cgroup/systemd /sys/fs/cgroup/openrc
+	fi
+
 	eend $retval
 }
 
