@@ -8,9 +8,12 @@ cgroups="blkio
 	cpuset
 	devices
 	freezer
+	hugetlb
 	memory
 	net_cls,net_prio
-	pids"
+	perf_event
+	pids
+	rdma"
 named_cgroups="systemd"
 mount_opts="nodev,noexec,nosuid"
 
