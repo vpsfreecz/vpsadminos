@@ -117,7 +117,7 @@ module OsCtld
         return DB::Users.find(name, pool) || (fail 'expected user')
       end
 
-      %i(ugid uid_map gid_map).each do |param|
+      %i(uid_map gid_map).each do |param|
         mine = db.send(param)
         other = u.send(param)
         next if mine == other
