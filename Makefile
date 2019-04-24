@@ -17,22 +17,22 @@ gems: libosctl osctl-repo osctl osctld osup converter svctl
 libosctl:
 	./tools/update_gem.sh _nopkg libosctl $(BUILD_ID)
 
-osctl:
+osctl: libosctl
 	./tools/update_gem.sh os/packages osctl $(BUILD_ID)
 
-osctld:
+osctld: libosctl osup
 	./tools/update_gem.sh os/packages osctld $(BUILD_ID)
 
-osctl-repo:
+osctl-repo: libosctl
 	./tools/update_gem.sh _nopkg osctl-repo $(BUILD_ID)
 
-osup:
+osup: libosctl
 	./tools/update_gem.sh os/packages osup $(BUILD_ID)
 
-converter:
+converter: libosctl
 	./tools/update_gem.sh _nopkg converter $(BUILD_ID)
 
-svctl:
+svctl: libosctl
 	./tools/update_gem.sh os/packages svctl $(BUILD_ID)
 
 osctl-env-exec:
