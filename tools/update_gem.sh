@@ -10,7 +10,9 @@ GEM="$(basename $2)"
 export OS_BUILD_ID="$3"
 
 pushd "$GEMDIR"
-pkg=$(rake build | grep -oP "pkg/.+\.gem")
+[ -f Gemfile.lock ] && rm -f Gemfile.lock
+bundle install
+pkg=$(bundle exec rake build | grep -oP "pkg/.+\.gem")
 version=$(echo $pkg | grep -oP "\d+\.\d+\.\d+\.build\d+")
 
 gem inabox "$pkg"

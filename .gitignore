@@ -5,3 +5,4 @@ site
 .*.swp
 *.img
 os/configs/local.nix
+.gems
