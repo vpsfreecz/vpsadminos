@@ -117,6 +117,9 @@ module OsCtld
         return DB::Users.find(name, pool) || (fail 'expected user')
       end
 
+      # Free the newly allocated ugid, use ugid from the existing user
+      UGidRegistry.remove(u.ugid) if u.ugid != db.ugid
+
       %i(uid_map gid_map).each do |param|
         mine = db.send(param)
         other = u.send(param)
