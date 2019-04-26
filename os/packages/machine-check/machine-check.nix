@@ -1,23 +1,21 @@
 { mkDerivation, atomic-write, attoparsec, base, bytestring
-, containers, data-prometheus, fetchgit, hspec, pretty-simple
-, process, stdenv, text
+, config-ini, containers, data-prometheus, dns, fetchgit, hspec
+, iproute, pretty-simple, process, stdenv, text
 }:
 mkDerivation {
   pname = "machine-check";
   version = "0.1.0.0";
   src = fetchgit {
     url = "https://github.com/vpsfreecz/machine-check";
-    sha256 = "066b12dnlvwa97bf3hprckcwh8vh5zlb4l3j7rnpx7hwasrwkvpm";
-    rev = "36f88b6e24fa59b8f4c27f410b2381945acdf7af";
+    sha256 = "1b9g5w9xz4bbgy4frggg6qjkb17y490rpdcrn7l51y3a20bdv03a";
+    rev = "740e0ba38b83f5af78597e3e35b7ceafbe070326";
     fetchSubmodules = true;
   };
-  isLibrary = false;
+  isLibrary = true;
   isExecutable = true;
-  enableSharedExecutables = false;
-  enableSharedLibraries = false;
   libraryHaskellDepends = [
-    atomic-write attoparsec base bytestring containers data-prometheus
-    pretty-simple process text
+    atomic-write attoparsec base bytestring config-ini containers
+    data-prometheus dns iproute pretty-simple process text
   ];
   executableHaskellDepends = [ base bytestring pretty-simple ];
   testHaskellDepends = [ attoparsec base hspec text ];

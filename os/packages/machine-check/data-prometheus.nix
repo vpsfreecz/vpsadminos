@@ -6,8 +6,8 @@ mkDerivation {
   version = "0.1.0.0";
   src = fetchgit {
     url = "https://github.com/vpsfreecz/data-prometheus";
-    sha256 = "06xmcn27agi1vjbw9jvd2r27lnqnb958vmf6wa13xjkmn4k3qp3v";
-    rev = "baf7779db12be3b96645cbbf12102d238fbd188e";
+    sha256 = "17f8dbyis1wgsqsgsyiz2lsg7hik51lcrw8kyv4lcnijjnyzqbf3";
+    rev = "cc0125074d8d7053be61392458a4b476dc866134";
     fetchSubmodules = true;
   };
   isLibrary = true;

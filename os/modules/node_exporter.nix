@@ -4,6 +4,18 @@ with lib;
 
 let
   cfg = config.services.node_exporter;
+
+  machineCheckConf = pkgs.writeText "machine-check.conf" ''
+    [DNS_EXAMPLE]
+    domain = example.org
+    v4resolver = 1.1.1.1
+    v6resolver = 2606:4700:4700::1111
+
+    [DNS_EXT]
+    domain = vpsfree.cz
+    v4resolver = 77.93.223.251
+    v6resolver = 2a01:430:17:1::ffff:179
+  '';
 in
 {
   ###### interface
@@ -68,7 +80,7 @@ in
       '';
 
       services.cron.systemCronJobs = [
-        "* * * * *  root  exec ${pkgs.machine-check}/bin/machine-check"
+        "* * * * *  root  MCCFG=${machineCheckConf} ${pkgs.machine-check}/bin/machine-check"
       ];
     })
   ];
