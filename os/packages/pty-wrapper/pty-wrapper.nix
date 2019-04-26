@@ -12,8 +12,6 @@ mkDerivation {
   };
   isLibrary = false;
   isExecutable = true;
-  enableSharedExecutables = false;
-  enableSharedLibraries = false;
   libraryHaskellDepends = [
     aeson async base base64-bytestring bytestring network posix-pty stm
     text
