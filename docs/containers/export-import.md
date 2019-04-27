@@ -2,7 +2,7 @@
 A container can be exported into a single tar archive and later imported
 on the same or a different host. The tar archive contains all needed data,
 such as user/group/container configuration and rootfs, see
-[container image specification](/specifications/container-image.md) for more
+[container image specification](../specifications/container-image.md) for more
 information about its contents.
 
 ## Exporting

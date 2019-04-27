@@ -78,7 +78,7 @@ you can configure individual cgroup parameters. `osctl group/ct set memory`
 is configuring parameters `memory.limit_in_bytes`
 and `memory.memsw.limit_in_bytes`, where as CPU limits configure
 `cpu.cfs_period_us` and `cpu.cfs_quota_us`. If you'd like to configure other
-cgroup parameters, see [resource management](/containers/resources.md).
+cgroup parameters, see [resource management](../containers/resources.md).
 
 Note that access to devices using the `device` cgroup is managed independently,
-see [device management](/containers/devices.md).
+see [device management](../containers/devices.md).

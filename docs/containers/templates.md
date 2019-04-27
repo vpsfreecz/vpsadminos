@@ -125,7 +125,7 @@ osctl --pool mypool repo add myrepo  https://repo.domain.tld
 # Creating a repository
 vpsAdminOS comes with a tool for creating and maintaining template repositories
 called *osctl-repo*. *osctl-repo* creates a directory structure according to the
-[repository scheme](/specifications/template-repository.md). *osctl-repo* is not
+[repository scheme](../specifications/template-repository.md). *osctl-repo* is not
 building the templates, it only accepts pre-built templates and places them
 into the repository, ready to be served to clients by your web server.
 

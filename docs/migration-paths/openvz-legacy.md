@@ -157,7 +157,7 @@ The converter can so far work only with [venet](https://openvz.org/Virtual_netwo
 By default, `venet0` from OpenVZ will be `eth0` in vpsAdminOS. It will be
 a bridged veth, linked with `lxcbr0`. You have the option to rename the interface,
 set MAC address, change the link device or use routed veth instead, see
-the [user guide](/user-guide/networking.md) for more information.
+the [user guide](../user-guide/networking.md) for more information.
 
 To change bridged veth:
 
@@ -182,7 +182,7 @@ openvz-node $ vpsadminos-convert vz6 export --netif-type routed \
 ## Importing
 The exported tarball has to be copied over to vpsAdminOS node by the user and
 then imported, like if it were exported by
-[osctl ct export](/containers/export-import.md):
+[osctl ct export](../containers/export-import.md):
 
 ```shell
 vpsadminos-node $ osctl ct import ct-101.tar
@@ -218,7 +218,7 @@ vpsadminos-node $ osctl migration authorized-keys add
 
 ### Migration stages
 The migration is split into several steps, exactly like
-[osctl ct migrate](/containers/migrations.md) is:
+[osctl ct migrate](../containers/migrations.md) is:
  
  - `vpsadminos-converter vz6 migrate stage` is used to prepare environment on
    the destination node and copy the converted configuration
