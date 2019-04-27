@@ -400,7 +400,11 @@ with lib;
 
     boot.initrd.kernelModules = lib.optionals config.boot.initrd.withHwSupport hwSupportModules;
 
-    boot.kernel.sysctl."kernel.dmesg_restrict" = true;
+    boot.kernel.sysctl = {
+      "kernel.dmesg_restrict" = true;
+      "kernel.threads-max" = mkDefault 1048576;
+      "kernel.pid_max" = mkDefault 1048576;
+    };
 
     security.apparmor.enable = true;
 
