@@ -46,8 +46,12 @@ module OsCtld
     end
 
     protected
+    def template_dir
+      raise NotImplementedError
+    end
+
     def do_create_netif(netif)
-      tpl_base = 'dist_config/network/redhat'
+      tpl_base = File.join('dist_config/network', template_dir)
       ct_base = File.join(ct.rootfs, 'etc', 'sysconfig')
       ifcfg = File.join(ct_base, 'network-scripts', "ifcfg-#{netif.name}")
 
