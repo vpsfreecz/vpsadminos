@@ -247,6 +247,7 @@ profile "<%= name %>" flags=(attach_disconnected,mediate_deleted) {
   mount options=(ro,nosuid,silent,remount),
   mount options=(rw,nosuid,strictatime,remount),
   mount options=(ro,nosuid,noexec,strictatime,remount),
+  mount options=(ro,nosuid,noexec,strictatime,remount,bind),
 
   # NixOS /run & /dev/shm
   mount options=(rw,nosuid,nodev,strictatime,remount),
