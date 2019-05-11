@@ -1,5 +1,5 @@
 DISTNAME=gentoo
-RELVER=17.0-$(date +%Y%m%d)
+RELVER=$(date +%Y%m%d)
 BASEURL=https://mirror.vpsfree.cz/gentoo
 
 require_cmd curl
