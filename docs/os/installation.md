@@ -15,7 +15,7 @@ and mount it to `/mnt`.
 Configs can be generated using
 
 ```bash
-os-generate-config --root=/mnt
+os-generate-config --root /mnt
 ```
 
 In `/mnt/vpsadminos/configuration.nix` make sure to set `boot.loader.grub.device` option to
@@ -27,7 +27,7 @@ You can also configure your [ZFS pools](pools.md) at this point.
 After adjustments of generated configs in `/mnt/vpsadminos/` OS can be installed using
 
 ```bash
-os-install --root=/mnt
+os-install --root /mnt
 ```
 
 After setting the password your installation is completed and you can reboot your machine.
