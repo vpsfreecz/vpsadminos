@@ -13,12 +13,11 @@ module VpsAdminOS::Converter
     end
 
     def exist?
-      ret = syscmd("vzlist #{ctid}", valid_rcs: [1])
-      ret[:exitstatus] == 0
+      syscmd("vzlist #{ctid}", valid_rcs: [1]).success?
     end
 
     def status
-      stats = syscmd("vzctl status #{ctid}")[:output].strip.split(' ')
+      stats = syscmd("vzctl status #{ctid}").output.strip.split(' ')
 
       {
         exist: stats[2] == 'exist',

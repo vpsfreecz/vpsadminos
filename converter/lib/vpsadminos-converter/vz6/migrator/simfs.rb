@@ -41,7 +41,7 @@ module VpsAdminOS::Converter
 
     def dst_rootfs
       @dst_rootfs ||= JSON.parse(
-        root_sshcmd("osctl -j ct show #{target_ct.id}")[:output].strip
+        root_sshcmd("osctl -j ct show #{target_ct.id}").output.strip
       )['rootfs']
     end
 
