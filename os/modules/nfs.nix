@@ -12,6 +12,13 @@ let
 
   nfsConfFile = pkgs.writeText "nfs.conf" cfg.extraConfig;
 
+  waitForRpcBind = ''
+    until rpcinfo -s > /dev/null 2>&1 ; do
+      warn "Waiting for rpcbind to start"
+      sleep 1
+    done
+  '';
+
 in
 {
 
@@ -52,6 +59,7 @@ in
 
       runit.services.statd.run = ''
         ensureServiceStarted rpcbind
+        ${waitForRpcBind}
         mkdir -p ${nfsStateDir}/{sm,sm.bak}
         exec ${pkgs.nfs-utils}/bin/rpc.statd -F
       '';
@@ -64,7 +72,9 @@ in
       environment.etc."exports".source = exports;
 
       runit.services.nfsd.run = ''
+        ensureServiceStarted rpcbind
         ensureServiceStarted statd
+        ${waitForRpcBind}
 
         mkdir -p ${rpcMountpoint}
         if ! mountpoint -q ${rpcMountpoint}; then
