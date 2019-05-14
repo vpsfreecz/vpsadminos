@@ -67,7 +67,7 @@ module OsCtld
       def initialize(ip_v)
         @index = {}
 
-        JSON.parse(syscmd("ip -#{ip_v} -json route list")[:output]).each do |route|
+        JSON.parse(syscmd("ip -#{ip_v} -json route list").output).each do |route|
           next unless route['dev'].start_with?('veth')
 
           index[route['dst']] = route['dev']

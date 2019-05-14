@@ -22,7 +22,7 @@ module OsCtld
             :list,
             "-H -d0 -o #{props.join(',')}",
             ''
-          )[:output].split("\n").each do |line|
+          ).output.split("\n").each do |line|
             name, mounted, active, dataset = line.split
             next if active != 'yes' || mounted != 'yes' || DB::Pools.contains?(name)
 
@@ -44,7 +44,7 @@ module OsCtld
             :get,
             "-H -o value mounted,#{Pool::PROPERTY_DATASET}",
             opts[:name]
-          )[:output].strip.split
+          ).output.strip.split
 
           next error('the pool is not mounted') if mounted != 'yes'
 

@@ -68,7 +68,7 @@ module OsCtld
       exclusively do
         users.clear
 
-        syscmd('getent passwd')[:output].split("\n").each do |line|
+        syscmd('getent passwd').output.split("\n").each do |line|
           fields = line.split(':')
           name = fields.first
           uid = fields[2].to_i

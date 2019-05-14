@@ -26,12 +26,12 @@ module OsCtld
         valid_rcs: [1]
       )
 
-      if ret[:exitstatus] > 0
+      if ret.error?
         add_error('does not exist')
         return super
       end
 
-      @mountpoint, uidmap, gidmap = ret[:output].split("\n")
+      @mountpoint, uidmap, gidmap = ret.output.split("\n")
 
       if opts[:user] && stat.uid != opts[:user]
         add_error("invalid owner: expected #{opts[:user]}, got #{stat.uid}")

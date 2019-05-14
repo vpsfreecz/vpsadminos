@@ -55,7 +55,7 @@ module OsCtld
 
       iplist = ip(:all, [:addr, :show, :dev, veth], valid_rcs: [1])
 
-      if iplist[:exitstatus] == 1
+      if iplist.exitstatus == 1
         log(
           :info,
           ct,

@@ -1,5 +1,6 @@
 module OsCtld
   module Utils::Ip
+    # @return [OsCtl::Lib::SystemCommandResult]
     def ip(ip_v, args, opts = {})
       cmd = ['ip']
 

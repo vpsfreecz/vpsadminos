@@ -78,7 +78,7 @@ module OsCtld
     end
 
     def snapshots(ct)
-      zfs(:list, '-H -r -d 1 -o name -t snapshot', ct.dataset)[:output].split("\n")
+      zfs(:list, '-H -r -d 1 -o name -t snapshot', ct.dataset).output.split("\n")
     end
   end
 end
