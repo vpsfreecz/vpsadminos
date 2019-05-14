@@ -15,7 +15,7 @@ class Rollback
   def initialize
     @users_ds = File.join($POOL, 'user')
     @conf_ds = File.join($POOL, 'conf')
-    @conf_dir = zfs(:get, '-Hp -o value mountpoint', conf_ds)[:output].strip
+    @conf_dir = zfs(:get, '-Hp -o value mountpoint', conf_ds).output.strip
 
     @users = load_users
     @groups = load_groups
@@ -25,7 +25,7 @@ class Rollback
   def run
     # Create root dataset for users
     zfs(:create, nil, users_ds)
-    @users_dir = zfs(:get, '-Hp -o value mountpoint', users_ds)[:output].strip
+    @users_dir = zfs(:get, '-Hp -o value mountpoint', users_ds).output.strip
 
     users.each do |user|
       # Create dataset for every user

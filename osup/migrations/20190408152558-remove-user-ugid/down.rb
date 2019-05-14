@@ -12,11 +12,11 @@ class Rollback
 
   def initialize
     @migration_dir = File.join(
-      zfs(:get, '-Hp -o value mountpoint', File.join($POOL, 'migration'))[:output].strip,
+      zfs(:get, '-Hp -o value mountpoint', File.join($POOL, 'migration')).output.strip,
       $MIGRATION_ID.to_s
     )
     @ugid_map = load_ugid_map
-    @conf_dir = zfs(:get, '-Hp -o value mountpoint', File.join($POOL, 'conf'))[:output].strip
+    @conf_dir = zfs(:get, '-Hp -o value mountpoint', File.join($POOL, 'conf')).output.strip
     @users = load_users
     @system_uids = load_passwd
     @assigned_ugids = []
@@ -99,7 +99,7 @@ class Rollback
   end
 
   def load_passwd
-    syscmd('getent passwd')[:output].split("\n").map do |line|
+    syscmd('getent passwd').output.split("\n").map do |line|
       fields = line.split(':')
       fields[2].to_i
     end

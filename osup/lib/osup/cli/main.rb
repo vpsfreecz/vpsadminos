@@ -153,7 +153,7 @@ module OsUp
       zfs(
         :list,
         '-r -d0 -H -o name,org.vpsadminos.osctl:active', ''
-      )[:output].strip.split("\n").each do |line|
+      ).output.strip.split("\n").each do |line|
         pool, active = line.split
         ret << pool if active == 'yes'
       end

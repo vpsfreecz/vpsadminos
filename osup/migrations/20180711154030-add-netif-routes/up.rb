@@ -5,7 +5,7 @@ include OsCtl::Lib::Utils::Log
 include OsCtl::Lib::Utils::System
 include OsCtl::Lib::Utils::File
 
-conf_dir = zfs(:get, '-Hp -o value mountpoint', File.join($POOL, 'conf'))[:output].strip
+conf_dir = zfs(:get, '-Hp -o value mountpoint', File.join($POOL, 'conf')).output.strip
 conf_ct = File.join(conf_dir, 'ct')
 
 Dir.glob(File.join(conf_ct, '*.yml')).each do |cfg_path|

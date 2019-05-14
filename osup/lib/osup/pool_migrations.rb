@@ -111,12 +111,12 @@ module OsUp
         :get,
         '-Hp -ovalue mountpoint,org.vpsadminos.osctl:active,org.vpsadminos.osctl:dataset',
         pool
-      )[:output].strip.split
+      ).output.strip.split
 
       fail "pool #{pool} is not used by osctld" if active != 'yes'
 
       if dataset != '-'
-        mountpoint = zfs(:get, '-Hp -ovalue mountpoint', dataset)[:output].strip
+        mountpoint = zfs(:get, '-Hp -ovalue mountpoint', dataset).output.strip
       end
 
       @version_file = File.join(mountpoint, FILE)

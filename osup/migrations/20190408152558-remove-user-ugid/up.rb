@@ -6,12 +6,12 @@ include OsCtl::Lib::Utils::System
 zfs(:create, '-p', File.join($POOL, 'migration'))
 
 mig_dir = File.join(
-  zfs(:get, '-Hp -o value mountpoint', File.join($POOL, 'migration'))[:output].strip,
+  zfs(:get, '-Hp -o value mountpoint', File.join($POOL, 'migration')).output.strip,
   $MIGRATION_ID.to_s
 )
 Dir.mkdir(mig_dir)
 
-conf_dir = zfs(:get, '-Hp -o value mountpoint', File.join($POOL, 'conf'))[:output].strip
+conf_dir = zfs(:get, '-Hp -o value mountpoint', File.join($POOL, 'conf')).output.strip
 ugid_map = {}
 
 Dir.glob(File.join(conf_dir, 'user', '*.yml')).each do |f|
