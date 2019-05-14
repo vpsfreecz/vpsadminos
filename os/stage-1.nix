@@ -1,8 +1,9 @@
-{ lib, pkgs, config, ... }:
+{ lib, utils, pkgs, config, ... }:
 with lib;
 let
   modulesTree = config.system.modulesTree;
   firmware = config.hardware.firmware;
+  fileSystems = filter utils.fsNeededForBoot config.system.build.fileSystems;
   modules = pkgs.makeModulesClosure {
     rootModules = config.boot.initrd.availableKernelModules ++ config.boot.initrd.kernelModules;
     kernel = modulesTree;
@@ -144,6 +145,10 @@ let
     inherit shell modules modprobeList extraUtils dhcpHook udevRules udevHwdb;
 
     bootloader = config.system.boot.loader.id;
+    fsInfo =
+      let f = fs: [ fs.mountPoint (if fs.device != null then fs.device else "/dev/disk/by-label/${fs.label}") fs.fsType (builtins.concatStringsSep "," fs.options) ];
+      in pkgs.writeText "initrd-fsinfo" (concatStringsSep "\n" (concatMap f fileSystems));
+
     inherit (config.boot) predefinedFailAction;
     inherit (config.boot.initrd) preFailCommands preLVMCommands postDeviceCommands;
     inherit (config.system) storeOverlaySize;
@@ -236,6 +241,20 @@ in
           If not, any needed secrets must be copied into the initrd
           and thus added to the store.
         '';
+    };
+    fileSystems = mkOption {
+      type = with lib.types; loaOf (submodule {
+        options.neededForBoot = mkOption {
+          default = false;
+          type = types.bool;
+          description = ''
+            If set, this file system will be mounted in the initial
+            ramdisk.  By default, this applies to the root file system
+            and to the file system containing
+            <filename>/nix/store</filename>.
+          '';
+        };
+      });
     };
   };
   config = {

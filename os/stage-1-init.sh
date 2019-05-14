@@ -148,8 +148,23 @@ else
   if [ -b "$root" ] ; then
     mount "$root" /mnt || fail "Can't mount rootfs from $root"
   else
-   echo "$root does not exist, unable to mount rootfs"
-   @shell@
+    exec 3< @fsInfo@
+    while read -u 3 mountPoint; do
+      read -u 3 device
+      read -u 3 fsType
+      read -u 3 options
+
+      echo "mounting $device on $mountPoint..."
+      echo "$device /mnt$mountPoint $fsType $options" >> /etc/fstab
+      mkdir -p "/mnt$mountPoint"
+      mount "/mnt$mountPoint"
+    done
+    exec 3>&-
+
+    if [ ! -x "/mnt/$sysconfig/init" ]; then
+      echo "$root does not exist, unable to mount rootfs"
+      @shell@
+    fi
   fi
 fi
 
