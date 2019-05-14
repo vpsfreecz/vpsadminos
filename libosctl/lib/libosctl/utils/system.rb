@@ -12,7 +12,7 @@ module OsCtl::Lib
     # @option opts [Proc] :on_timeout
     # @option opts [String] :input data written to the process's stdin
     # @option opts [Hash] :env environment variables
-    # @return [Hash]
+    # @return [SystemCommandResult]
     def syscmd(cmd, opts = {})
       valid_rcs = opts[:valid_rcs] || []
       stderr = opts[:stderr].nil? ? true : opts[:stderr]
@@ -52,9 +52,20 @@ module OsCtl::Lib
         raise Exceptions::SystemCommandFailed.new(cmd, $?.exitstatus, out)
       end
 
-      {output: out, exitstatus: $?.exitstatus}
+      SystemCommandResult.new($?.exitstatus, out)
     end
 
+    # @param cmd [String] zfs command
+    # @param opts [String] zfs options
+    # @param component [String] zfs dataset
+    # @param cmd_opts [Hash]
+    # @option cmd_opts [Array<Integer>] :valid_rcs valid exit codes
+    # @option cmd_opts [Boolean] :stderr include stderr in output?
+    # @option cmd_opts [Integer] :timeout in seconds
+    # @option cmd_opts [Proc] :on_timeout
+    # @option cmd_opts [String] :input data written to the process's stdin
+    # @option cmd_opts [Hash] :env environment variables
+    # @return [SystemCommandResult]
     def zfs(cmd, opts, component, cmd_opts = {})
       syscmd("zfs #{cmd} #{opts} #{component}", cmd_opts)
     end
