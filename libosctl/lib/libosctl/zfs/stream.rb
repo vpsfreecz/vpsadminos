@@ -202,7 +202,7 @@ module OsCtl::Lib
       end
 
       rx = /^total estimated size is ([^$]+)$/
-      m = rx.match(cmd[:output])
+      m = rx.match(cmd.output)
 
       raise ArgumentError, 'unable to estimate size' if m.nil?
 

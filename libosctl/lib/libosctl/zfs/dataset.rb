@@ -77,7 +77,7 @@ module OsCtl::Lib
 
     # @return [Boolean]
     def exist?
-      zfs(:get, '-o value name', name, valid_rcs: [1])[:exitstatus] == 0
+      zfs(:get, '-o value name', name, valid_rcs: [1]).success?
     end
 
     # @return [String]
@@ -110,7 +110,7 @@ module OsCtl::Lib
       ret = []
       last = nil
 
-      zfs(:get, zfs_opts.join(' '), name)[:output].strip.split("\n").each do |line|
+      zfs(:get, zfs_opts.join(' '), name).output.strip.split("\n").each do |line|
         name, property, value = line.split
 
         if !last || last.name != name
@@ -140,7 +140,7 @@ module OsCtl::Lib
         @mountpoint = properties[:mountpoint]
 
       else
-        @mountpoint = zfs(:get, '-H -o value mountpoint', name)[:output].strip
+        @mountpoint = zfs(:get, '-H -o value mountpoint', name).output.strip
       end
     end
 
@@ -151,7 +151,7 @@ module OsCtl::Lib
         :list,
         "-H -o name,mounted -t filesystem #{recursive ? '-r' : ''}",
         name,
-      )[:output].split("\n").each do |line|
+      ).output.split("\n").each do |line|
         ds, mounted = line.split
         next if mounted == 'yes'
 
@@ -166,7 +166,7 @@ module OsCtl::Lib
         :get,
         "-H #{recursive ? '-r' : ''} -o value mounted",
         name
-      )[:output].split("\n").all? { |v| v == 'yes' }
+      ).output.split("\n").all? { |v| v == 'yes' }
     end
 
     # Return the direct parent

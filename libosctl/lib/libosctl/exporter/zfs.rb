@@ -155,7 +155,7 @@ module OsCtl::Lib
       when :auto
         if !opts[:compressed_send]
           :gzip
-        elsif zfs(:get, "-H -o value compression", dataset)[:output].strip == 'off'
+        elsif zfs(:get, "-H -o value compression", dataset).output.strip == 'off'
           :gzip
         else
           :off
