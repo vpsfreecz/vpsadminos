@@ -283,9 +283,14 @@ with lib;
       "ahci"
       "sata_nv"
       "sata_via"
+      "sata_sis"
       "sata_uli"
       "nvme"
       "isci"
+
+      # Standard SCSI stuff.
+      "sd_mod"
+      "sr_mod"
 
       # Support USB keyboards, in case the boot fails and we only have
       # a USB keyboard, or for LUKS passphrase prompt.
