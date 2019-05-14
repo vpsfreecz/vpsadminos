@@ -75,8 +75,8 @@ module OsCtld
               valid_rcs: [1]
             )
 
-            if ret[:exitstatus] == 1 && /not mounted/ !~ ret[:output]
-              error!("unable to unmount #{mnt.mountpoint}: #{ret[:output]}")
+            if ret.exitstatus == 1 && /not mounted/ !~ ret.output
+              error!("unable to unmount #{mnt.mountpoint}: #{ret.output}")
             end
 
           rescue SystemCommandFailed => e

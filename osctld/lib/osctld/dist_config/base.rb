@@ -79,8 +79,8 @@ module OsCtld
         valid_rcs: :all
       )
 
-      return true if ret[:exitstatus] == 0
-      log(:warn, ct, "Unable to set password: #{ret[:output]}")
+      return true if ret.success?
+      log(:warn, ct, "Unable to set password: #{ret.output}")
     end
 
     # Return path to `/bin` or an alternative, where a shell is looked up

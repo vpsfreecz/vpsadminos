@@ -155,6 +155,7 @@ module OsCtld
     # @option opts [Boolean] :run run the container if it is stopped?
     # @option opts [Boolean] :network setup network if the container is run?
     # @option opts [Array<Integer>, Symbol] :valid_rcs
+    # @return [OsCtl::Lib::SystemCommandResult]
     def ct_syscmd(ct, cmd, opts = {})
       opts[:valid_rcs] ||= []
       log(:work, ct, cmd)
@@ -208,7 +209,7 @@ module OsCtld
               "#{ret[:output][:exitstatus]}: #{out}"
       end
 
-      {output: out, exitstatus: ret[:output][:exitstatus]}
+      OsCtl::Lib::SystemCommandResult.new(ret[:output][:exitstatus], out)
     end
 
     def init_script(ct)
