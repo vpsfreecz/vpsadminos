@@ -31,6 +31,37 @@ let
     pool.partition != []
   ) config.boot.zfs.pools);
 
+  zfsFilesystems = filter (x: x.fsType == "zfs") config.system.build.fileSystems;
+
+  datasetToPool = x: elemAt (splitString "/" x) 0;
+
+  fsToPool = fs: datasetToPool fs.device;
+
+  rootPools = unique (map fsToPool (filter fsNeededForBoot zfsFilesystems));
+
+  # safe import of ZFS pool
+  # according to https://github.com/NixOS/nixpkgs/commit/cfd8c4ee88fec3a7f989663e09d8e39513b8488e
+  importLib = {zpoolCmd, awkCmd, cfgZfs}: ''
+    poolReady() {
+      pool="$1"
+      state="$("${zpoolCmd}" import 2>/dev/null | "${awkCmd}" "/pool: $pool/ { found = 1 }; /state:/ { if (found == 1) { print \$2; exit } }; END { if (found == 0) { print \"MISSING\" } }")"
+      if [[ "$state" = "ONLINE" ]]; then
+        return 0
+      else
+        echo "Pool $pool in state $state, waiting"
+        return 1
+      fi
+    }
+    poolImported() {
+      pool="$1"
+      "${zpoolCmd}" list "$pool" >/dev/null 2>/dev/null
+    }
+    poolImport() {
+      pool="$1"
+      "${zpoolCmd}" import -d "${cfgZfs.devNodes}" -N $ZFS_FORCE "$pool"
+    }
+  '';
+
 
   poolService = name: pool: (import ./pool-service.nix args) {
     inherit name pool zpoolCreateScript;
@@ -266,6 +297,24 @@ in
       pools = mkOption {
         type = types.attrsOf (types.submodule pools);
       };
+      forceImportRoot = mkOption {
+        type = types.bool;
+        default = false;
+        description = ''
+          Forcibly import the ZFS root pool(s) during early boot.
+        '';
+      };
+      devNodes = mkOption {
+        type = types.path;
+        default = "/dev/disk/by-id";
+        example = "/dev/disk/by-id";
+        description = ''
+          Name of directory from which to import ZFS devices.
+
+          This should be a path under /dev containing stable names for all devices needed, as
+          import may fail if device nodes are renamed concurrently with a device failing.
+        '';
+      };
     };
 
     services.zfs.autoScrub = {
@@ -351,6 +400,38 @@ in
               $out/bin/sfdisk --help >/dev/null 2>&1
             ''}
           '';
+         postDeviceCommands = concatStringsSep "\n" ([''
+            ZFS_FORCE="${optionalString cfgZfs.forceImportRoot "-f"}"
+
+            for o in $(cat /proc/cmdline); do
+              case $o in
+                zfs_force|zfs_force=1)
+                  ZFS_FORCE="-f"
+                  ;;
+              esac
+            done
+          ''] ++ [(importLib {
+            # See comments at importLib definition.
+            zpoolCmd = "zpool";
+            awkCmd = "awk";
+            inherit cfgZfs;
+          })] ++ (map (pool: ''
+            echo -n "importing root ZFS pool \"${pool}\"..."
+            # Loop across the import until it succeeds, because the devices needed may not be discovered yet.
+            if ! poolImported "${pool}"; then
+              for trial in `seq 1 60`; do
+                poolReady "${pool}" > /dev/null && msg="$(poolImport "${pool}" 2>&1)" && break
+                sleep 1
+                echo -n .
+              done
+              echo
+              if [[ -n "$msg" ]]; then
+                echo "$msg";
+              fi
+              poolImported "${pool}" || poolImport "${pool}"  # Try one last time, e.g. to import a degraded pool.
+              poolImported "${pool}" || fail "Unable to import pool"
+            fi
+         '') rootPools));
       };
 
       runit.services = mapAttrs' (name: pool:
