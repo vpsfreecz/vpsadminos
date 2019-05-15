@@ -17,19 +17,17 @@ module OsCtld
       manipulate(ct) do
         progress('Stopping container')
 
-        case (opts[:method] || 'shutdown_or_kill')
-        when 'shutdown_or_kill'
-          cmd = :ct_stop
-
-        when 'shutdown_or_fail'
-          cmd = :ct_shutdown
-
-        when 'kill'
-          cmd = :ct_kill
-
-        else
-          error!("unknown stop method '#{opts[:method]}'")
-        end
+        mode =
+          case (opts[:method] || 'shutdown_or_kill')
+          when 'shutdown_or_kill'
+            :stop
+          when 'shutdown_or_fail'
+            :shutdown
+          when 'kill'
+            :kill
+          else
+            error!("unknown stop method '#{opts[:method]}'")
+          end
 
         begin
           Container::Hook.run(ct, :pre_stop)
@@ -38,8 +36,15 @@ module OsCtld
           error!(e.message)
         end
 
-        ret = ct_control(ct, cmd, id: ct.id, timeout: opts[:timeout] || 60)
-        next ret unless ret[:status]
+        begin
+          ContainerControl::Commands::Stop.run!(
+            ct,
+            mode,
+            timeout: opts[:timeout] || 60,
+          )
+        rescue ContainerControl::Error => e
+          error!(e.message)
+        end
 
         remove_cgroups(ct)
 
