@@ -3,43 +3,6 @@ require 'tempfile'
 
 module OsCtld
   module Utils::SwitchUser
-    def ct_control(ct, cmd, opts = {})
-      r, w = IO.pipe
-
-      ct_opts = {
-        lxc_home: ct.lxc_home,
-        user_home: ct.user.homedir,
-        log_file: ct.log_path,
-      }
-
-      pid = SwitchUser.fork_and_switch_to(
-        ct.user.sysusername,
-        ct.user.ugid,
-        ct.user.homedir,
-        ct.cgroup_path,
-        prlimits: ct.prlimits.export,
-      ) do
-        r.close
-
-        ret = SwitchUser::ContainerControl.run(cmd, opts, ct_opts)
-        w.write(ret.to_json + "\n")
-
-        exit
-      end
-
-      w.close
-
-      begin
-        ret = JSON.parse(r.readline, symbolize_names: true)
-        Process.wait(pid)
-        ret
-
-      rescue EOFError
-        Process.wait(pid)
-        {status: false, message: 'user runner failed'}
-      end
-    end
-
     def ct_attach(ct, *args)
       {
         cmd: ::OsCtld.bin('osctld-ct-exec'),
@@ -53,96 +16,6 @@ module OsCtld
           prlimits: ct.prlimits.export,
         },
       }
-    end
-
-    def ct_exec(ct, opts)
-      if ct.running?
-        ct_control(ct, :ct_exec_running, {
-          id: ct.id,
-          cmd: opts[:cmd],
-          stdin: opts[:stdin],
-          stdout: opts[:stdout],
-          stderr: opts[:stderr],
-        })
-
-      elsif !ct.running? && opts[:network]
-        ct.mount
-
-        init = init_script(ct)
-
-        begin
-          ct_control(ct, :ct_exec_network, {
-            id: ct.id,
-            init_script: File.join('/', File.basename(init.path)),
-            net_config: NetConfig.create(ct),
-            cmd: opts[:cmd],
-            stdin: opts[:stdin],
-            stdout: opts[:stdout],
-            stderr: opts[:stderr],
-          })
-        ensure
-          unlink_file(init.path)
-        end
-
-      else
-        ct_control(ct, :ct_exec_run, {
-          id: ct.id,
-          cmd: opts[:cmd],
-          stdin: opts[:stdin],
-          stdout: opts[:stdout],
-          stderr: opts[:stderr],
-        })
-      end
-    end
-
-    def ct_runscript(ct, opts)
-      script = Tempfile.create(['.runscript', '.sh'], ct.rootfs)
-      script.chmod(0500)
-
-      File.open(opts[:script], 'r') { |f| IO.copy_stream(f, script) }
-      script.close
-
-      if ct.running?
-        ct_control(ct, :ct_runscript_running, {
-          id: ct.id,
-          script: File.join('/', File.basename(script.path)),
-          stdin: opts[:stdin],
-          stdout: opts[:stdout],
-          stderr: opts[:stderr],
-        })
-
-      elsif !ct.running? && opts[:network]
-        ct.mount
-
-        init = init_script(ct)
-
-        begin
-          ct_control(ct, :ct_runscript_network, {
-            id: ct.id,
-            init_script: File.join('/', File.basename(init.path)),
-            net_config: NetConfig.create(ct),
-            script: File.join('/', File.basename(script.path)),
-            stdin: opts[:stdin],
-            stdout: opts[:stdout],
-            stderr: opts[:stderr],
-          })
-        ensure
-          unlink_file(init.path)
-        end
-
-      else
-        ct_control(ct, :ct_runscript_run, {
-          id: ct.id,
-          script: File.join('/', File.basename(script.path)),
-          stdin: opts[:stdin],
-          stdout: opts[:stdout],
-          stderr: opts[:stderr],
-        })
-      end
-
-    ensure
-      script.close
-      unlink_file(script.path)
     end
 
     # Run a command `cmd` within container `ct`
@@ -161,22 +34,6 @@ module OsCtld
       log(:work, ct, cmd)
 
       ContainerControl::Commands::Syscmd.run!(ct, cmd, opts)
-    end
-
-    def init_script(ct)
-      f = Tempfile.create(['.runscript', '.sh'], ct.rootfs)
-      f.chmod(0500)
-      f.puts('#!/bin/sh')
-      f.puts('echo ready')
-      f.puts('read _')
-      f.close
-      f
-    end
-
-    def unlink_file(path)
-      File.unlink(path)
-    rescue SystemCallError
-      # pass
     end
   end
 end
