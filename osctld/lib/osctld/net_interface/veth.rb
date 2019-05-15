@@ -161,15 +161,9 @@ module OsCtld
 
     protected
     def fetch_veth_name
-      ret = ct_control(ct, :veth_name, {
-        id: ct.id,
-        index: index,
-      })
-
-      fail "Unable to get veth name: #{ret[:message]}" unless ret[:status]
-
-      log(:info, ct, "Discovered name for veth ##{index}: #{ret[:output]}")
-      ret[:output]
+      v = ContainerControl::Commands::VethName.run!(ct, index)
+      log(:info, ct, "Discovered name for veth ##{index}: #{v}")
+      v
     end
 
     def veth_hook_dir
