@@ -44,17 +44,15 @@ module OsCtld
       syscmd("mount --bind \"#{mnt.fs}\" \"#{host_path}\"")
 
       # Move the mount inside the container to the right place
-      ret = ct_control(
-        ct,
-        :mount,
-        id: ct.id,
-        shared_dir: File.join('/', mountpoint),
-        src: tmp,
-        dst: File.join('/', mnt.mountpoint)
-      )
-
-      unless ret[:status]
-        log(:warn, ct, "Failed to mount #{mnt.mountpoint} at runtime")
+      begin
+        ContainerControl::Commands::Mount.run!(
+          ct,
+          shared_dir: File.join('/', mountpoint),
+          src: tmp,
+          dst: File.join('/', mnt.mountpoint)
+        )
+      rescue ContainerControl::Error => e
+        log(:warn, ct, "Failed to mount #{mnt.mountpoint} at runtime: #{e.message}")
       end
 
       syscmd("umount \"#{host_path}\"")

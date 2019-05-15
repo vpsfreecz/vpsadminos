@@ -151,8 +151,9 @@ module OsCtld
     attr_reader :ct, :entries
 
     def unmount(mnt)
-      ret = ct_control(ct, :unmount, id: ct.id, mountpoint: mnt.mountpoint)
-      raise UnmountError unless ret[:status]
+      ContainerControl::Commands::Unmount.run!(ct, mnt.mountpoint)
+    rescue ContainerControl::Error => e
+      raise UnmountError, e.message
     end
   end
 end
