@@ -16,8 +16,12 @@ module OsCtld
     def execute(ct)
       manipulate(ct) do
         if opts[:reboot]
-          ct_control(ct, :ct_reboot, id: ct.id)
-          ok
+          begin
+            ContainerControl::Commands::Reboot.run!(ct)
+            ok
+          rescue ContainerControl::Error => e
+            error!(e.message)
+          end
 
         else
           call_cmd!(
