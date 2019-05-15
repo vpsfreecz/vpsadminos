@@ -5,6 +5,8 @@ module OsCtld
     include OsCtl::Lib::Utils::Log
     extend OsCtl::Lib::Utils::System
 
+    SYSTEM_PATH = %w(/bin /usr/bin /sbin /usr/sbin /run/current-system/sw/bin)
+
     # Fork a process running as unprivileged user
     # @param sysuser [String]
     # @param ugid [Integer]

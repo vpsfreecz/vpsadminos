@@ -37,7 +37,7 @@ module OsCtld
     end
 
     def system_path
-      %w(/bin /usr/bin /sbin /usr/sbin /run/current-system/sw/bin)
+      SwitchUser::SYSTEM_PATH
     end
 
     def setup_exec_env

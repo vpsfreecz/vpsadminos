@@ -22,7 +22,7 @@ module OsCtld
         '-v', 'USER=root',
         '-v', 'LOGNAME=root',
         '-v', 'HOME=/root',
-        '-v', "PATH=#{SwitchUser::ContainerControl::PATH.join(':')}",
+        '-v', "PATH=#{SwitchUser::SYSTEM_PATH.join(':')}",
         '-v', 'HISTFILE=/root/.osctl_ct_attach_history',
       ]
 
