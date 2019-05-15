@@ -4,7 +4,6 @@ require 'thread'
 module OsCtld
   class Monitor::Master
     include OsCtl::Lib::Utils::Log
-    include Utils::SwitchUser
 
     @@instance = nil
 
@@ -115,12 +114,11 @@ module OsCtld
     end
 
     def update_state(ct)
-      ret = ct_control(ct, :ct_status, ids: [ct.id])
-      return unless ret[:status]
-
-      out = ret[:output][ct.id.to_sym]
-      ct.state = out[:state].to_sym
-      ct.init_pid = out[:init_pid]
+      st = ContainerControl::Commands::State.run!(ct)
+      ct.state = st.state
+      ct.init_pid = st.init_pid
+    rescue ContainerControl::Error => e
+      log(:warn, :monitor, "Unable to get state of container #{ct.ident}: #{e.message}")
     end
 
     def key(ct)

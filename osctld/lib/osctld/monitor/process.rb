@@ -4,7 +4,6 @@ require 'thread'
 module OsCtld
   class Monitor::Process
     include OsCtl::Lib::Utils::Log
-    include Utils::SwitchUser
 
     def self.spawn(ct)
       out_r, out_w = IO.pipe
@@ -110,8 +109,11 @@ module OsCtld
 
       case ct.state
       when :running
-        ret = ct_control(ct, :ct_status, ids: [ct.id])
-        ct.init_pid = ret[:output][ct.id.to_sym][:init_pid] if ret[:status]
+        begin
+          ct.init_pid = ContainerControl::Commands::State.run!(ct).init_pid
+        rescue ContainerControl::Error => e
+          log(:warn, :monitor, "Unable to get state of container #{ct.ident}: #{e.message}")
+        end
 
         Container::Hook.run(ct, :post_start, init_pid: ct.init_pid)
 

@@ -247,12 +247,9 @@ module OsCtld
       s = state
       return s if s != :unknown
 
-      ret = ct_control(self, :ct_status, ids: [id])
-
-      if ret[:status]
-        self.state = ret[:output][id.to_sym][:state].to_sym
-
-      else
+      begin
+        self.state = ContainerControl::Commands::State.run!(self).state
+      rescue ContainerControl::Error
         self.state = :error
       end
     end
