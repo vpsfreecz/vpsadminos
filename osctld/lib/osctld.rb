@@ -28,6 +28,10 @@ module OsCtld
   module UserControl
     module Commands ; end
   end
+  module ContainerControl
+    module Commands ; end
+    module Utils ; end
+  end
 
   def self.root
     File.join(File.dirname(__FILE__), '..')
@@ -77,3 +81,4 @@ require_rel 'osctld/switch_user'
 require_rel 'osctld/commands'
 require_rel 'osctld/migration'
 require_rel 'osctld/user_control'
+require_rel 'osctld/container_control'
