@@ -14,14 +14,19 @@ module OsCtld
 
       client.send({status: true, response: 'continue'}.to_json + "\n", 0)
 
-      ct_runscript(
+      st = ContainerControl::Commands::Runscript.run!(
         ct,
         script: opts[:script],
+        run: opts[:run],
         network: opts[:network],
         stdin: client.recv_io,
         stdout: client.recv_io,
         stderr: client.recv_io,
       )
+      ok(exitstatus: st)
+
+    rescue ContainerControl::Error => e
+      error(e.message)
     end
   end
 end
