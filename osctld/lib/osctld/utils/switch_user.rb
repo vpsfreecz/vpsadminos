@@ -160,56 +160,7 @@ module OsCtld
       opts[:valid_rcs] ||= []
       log(:work, ct, cmd)
 
-      in_r, in_w = nil
-      out_r, out_w = IO.pipe
-
-      if opts[:stdin].is_a?(String)
-        in_r, in_w = IO.pipe
-        in_w.write(opts[:stdin])
-        in_w.close
-
-      elsif opts[:stdin]
-        in_r = opts[:stdin]
-      end
-
-      if ct.running?
-        ct_cmd = :ct_exec_running
-
-      elsif opts[:run] && opts[:network]
-        ct_cmd = :ct_exec_network
-
-      elsif opts[:run]
-        ct_cmd = :ct_exec_run
-
-      else
-        raise OsCtld::SystemCommandFailed, 'Container is not running'
-      end
-
-      ret = ct_control(ct, ct_cmd, {
-        id: ct.id,
-        cmd: cmd,
-        stdin: in_r,
-        stdout: out_w,
-        stderr: out_w,
-      })
-
-      in_r.close if in_r && opts[:stdin].is_a?(String)
-      out_w.close
-      out = out_r.read
-      out_r.close
-
-      if !ret[:status]
-        raise OsCtld::SystemCommandFailed, "Command '#{cmd}' within CT #{ct.id} failed"
-
-      elsif ret[:output][:exitstatus] != 0 && \
-            opts[:valid_rcs] != :all && \
-            !opts[:valid_rcs].include?(ret[:output][:exitstatus])
-        raise OsCtld::SystemCommandFailed,
-              "Command '#{cmd}' within CT #{ct.id} failed with exit code "+
-              "#{ret[:output][:exitstatus]}: #{out}"
-      end
-
-      OsCtl::Lib::SystemCommandResult.new(ret[:output][:exitstatus], out)
+      ContainerControl::Commands::Syscmd.run!(ct, cmd, opts)
     end
 
     def init_script(ct)
