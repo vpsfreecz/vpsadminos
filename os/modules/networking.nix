@@ -2,6 +2,9 @@
 with utils;
 with lib;
 
+let
+  cfg = config.networking;
+in
 {
   ###### interface
 
@@ -28,6 +31,33 @@ with lib;
         Additional verbatim entries to be appended to <filename>/etc/hosts</filename>.
       '';
     };
+
+    networking.nameservers = mkOption {
+      type = types.listOf types.str;
+      default = [];
+      example = ["208.67.222.222" "208.67.220.220"];
+      description = ''
+        The list of nameservers.  It can be left empty if it is auto-detected through DHCP.
+      '';
+    };
+
+    networking.search = mkOption {
+      default = [];
+      example = [ "example.com" "local.domain" ];
+      type = types.listOf types.str;
+      description = ''
+        The list of search paths used when resolving domain names.
+      '';
+    };
+
+    networking.domain = mkOption {
+      default = null;
+      example = "home";
+      type = types.nullOr types.str;
+      description = ''
+        The domain.  It can be left empty if it is auto-detected through DHCP.
+      '';
+    };
   };
 
   ###### implementation
@@ -36,7 +66,7 @@ with lib;
     environment.etc = {
       # /etc/hosts: Hostname-to-IP mappings.
       "hosts".text =
-        let cfg = config.networking;
+        let
             oneToString = set : ip : ip + " " + concatStringsSep " " ( getAttr ip set );
             allToString = set : concatMapStringsSep "\n" ( oneToString set ) ( attrNames set );
             userLocalHosts = optionalString
@@ -54,6 +84,16 @@ with lib;
           ''}
           ${otherHosts}
           ${cfg.extraHosts}
+        '';
+
+      "resolv.conf".text = lib.mkDefault ''
+          ${optionalString (cfg.nameservers != [] && cfg.domain != null) ''
+            domain ${cfg.domain}
+          ''}
+          ${optionalString (cfg.search != []) ("search " + concatStringsSep " " cfg.search)}
+          ${flip concatMapStrings cfg.nameservers (ns: ''
+            nameserver ${ns}
+          '')}
         '';
     };
 
