@@ -233,11 +233,6 @@ with lib;
       description = "use DHCP to obtain IP";
       default = false;
     };
-    networking.openDNS = mkOption {
-      type = types.bool;
-      description = "use OpenDNS servers";
-      default = true;
-    };
     networking.lxcbr = mkOption {
       type = types.bool;
       description = "create lxc bridge interface";
@@ -555,12 +550,5 @@ with lib;
     # Needed for nixops send-keys
     users.groups.keys.gid = config.ids.gids.keys;
   }
-
-  (mkIf (config.networking.openDNS) {
-    environment.etc."resolv.conf.tail".text = ''
-    nameserver 208.67.222.222
-    nameserver 208.67.220.220
-    '';
-  })
   ]);
 }
