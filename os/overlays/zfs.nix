@@ -6,8 +6,8 @@ self: super:
     src = super.fetchFromGitHub {
       owner = "vpsfreecz";
       repo = "zfs";
-      rev = "5bb0af8289de1a1e660bb1bd6263cd910eceac63";
-      sha256 = "0wgwxhkf9di67jd5hyj2yylb9016iv90hlqb5xsimn0amfbdm15q";
+      rev = "40a7e41454a7092238417849e72c9deb0b7be12a";
+      sha256 = "1mipcgd12aprakf2xqy8ir8n2k6rmkfx5v9p8vhjk69ysrhm8fc4";
     };
   });
 }

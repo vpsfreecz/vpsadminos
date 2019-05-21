@@ -1,14 +1,26 @@
-{ pkgs }:
+{ pkgs, fetchpatch, ... }:
 let
   kernelPatches = pkgs.kernelPatches;
 in
-  pkgs.callPackage <nixpkgs/pkgs/os-specific/linux/kernel/linux-5.0.nix> {
+  pkgs.callPackage <nixpkgs/pkgs/os-specific/linux/kernel/linux-5.1.nix> {
     kernelPatches =
       [ kernelPatches.bridge_stp_helper
         # See pkgs/os-specific/linux/kernel/cpu-cgroup-v2-patches/README.md
         # when adding a new linux version
         # kernelPatches.cpu-cgroup-v2."4.11"
         kernelPatches.modinst_arg_list_too_long
+
+        {
+          name = "vpsadminos-kernel-config";
+          patch = null;
+          extraConfig = ''
+            EXPERT y
+            CHECKPOINT_RESTORE y
+            CFS_BANDWIDTH y
+            MEMCG_32BIT_IDS y
+            CGROUP_CGLIMIT y
+          '';
+        }
 
         # Patch syscall sched_getaffinity() to limit the number of returned CPUs
         # based on CPU quota. This approach is rather flawed as the calling
@@ -71,12 +83,12 @@ in
         #   https://lore.kernel.org/patchwork/patch/1007864/
         #   https://github.com/lxc/lxd/issues/5193
         rec {
-          name = "101-br_netfilter-add-struct-netns_brnf";
-          patch = ./patches + "/${name}.patch";
-        }
-        rec {
-          name = "102-br_netfilter-namespace-bridge-netfilter-sysctls";
-          patch = ./patches + "/${name}.patch";
+          name = "br_netfilter_namespace";
+          patch = fetchpatch {
+            name = name + ".patch";
+            url = https://github.com/vpsfreecz/linux/compare/e93c9c99a629c61837d5a7fc2120cd2b6c70dbdd...b78bce45f60a80c3eacfe4b10aeab48e11d29eeb.patch;
+            sha256 = "1dvlhqbj3c7ml5gqgnpy0xmcbc9k0plnh7v23kjijjz9zpadw1hz";
+          };
         }
       ];
   }

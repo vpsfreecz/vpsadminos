@@ -246,7 +246,7 @@ with lib;
     boot.kernelPackage = mkOption {
       type = types.package;
       description = "base linux kernel package";
-      default = (import ./packages/linux/default.nix { inherit pkgs; });
+      default = pkgs.callPackage (import ./packages/linux/default.nix) {};
       example = pkgs.linux_4_16;
     };
   };
@@ -260,18 +260,9 @@ with lib;
   config =
   let
     origKernel = config.boot.kernelPackage;
-    myKernel = origKernel.override {
-      extraConfig = ''
-        EXPERT y
-        CHECKPOINT_RESTORE y
-        CFS_BANDWIDTH y
-        MEMCG_32BIT_IDS y
-        CGROUP_CGLIMIT y
-      '';
-    };
 
     # we also need to override zfs/spl via linuxPackagesFor
-    myLinuxPackages = (pkgs.linuxPackagesFor myKernel).extend (
+    myLinuxPackages = (pkgs.linuxPackagesFor origKernel).extend (
       self: super: {
         zfs = super.zfsUnstable.overrideAttrs (oldAttrs: rec {
           name = pkgs.zfs.name;
