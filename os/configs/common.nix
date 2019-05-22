@@ -4,7 +4,9 @@
 
 {
   # import local configuration (local.nix) if it exists
-  imports = [ ] ++ lib.optionals (lib.pathExists ./local.nix) [ ./local.nix ];
+  imports = [
+    ./tunables.nix
+  ] ++ lib.optionals (lib.pathExists ./local.nix) [ ./local.nix ];
   networking.hostName = lib.mkDefault "vpsadminos";
 
   services.logrotate.enable = lib.mkDefault true;
