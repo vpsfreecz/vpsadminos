@@ -168,15 +168,15 @@ module OsCtl::Cli
     attr_reader :os_proc
 
     def present_data(v)
-      Presentable.new(v, formatted: precise? ? nil : humanize_data(v))
+      OsCtl::Lib::Cli::Presentable.new(v, formatted: precise? ? nil : humanize_data(v))
     end
 
     def present_time(v)
-      Presentable.new(v, formatted: precise? ? nil : format_time(v))
+      OsCtl::Lib::Cli::Presentable.new(v, formatted: precise? ? nil : format_time(v))
     end
 
     def present_duration(v)
-      Presentable.new(v, formatted: precise? ? nil : format_short_duration(v))
+      OsCtl::Lib::Cli::Presentable.new(v, formatted: precise? ? nil : format_short_duration(v))
     end
 
     def format_time(v)

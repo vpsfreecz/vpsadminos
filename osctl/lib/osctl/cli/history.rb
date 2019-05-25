@@ -1,4 +1,5 @@
 require 'json'
+require 'libosctl'
 require 'osctl/cli/command'
 
 module OsCtl::Cli
@@ -34,7 +35,7 @@ module OsCtl::Cli
         data.each { puts data.to_json }
 
       else
-        OutputFormatter.print(data, cols, layout: :columns)
+        OsCtl::Lib::Cli::OutputFormatter.print(data, cols, layout: :columns)
       end
     end
   end

@@ -1,4 +1,5 @@
 require 'json'
+require 'libosctl'
 
 module OsCtl::Cli
  class Command
@@ -78,7 +79,7 @@ module OsCtl::Cli
         puts data.to_json
 
       else
-        OutputFormatter.print(data, cols, fmt_opts)
+        OsCtl::Lib::Cli::OutputFormatter.print(data, cols, fmt_opts)
       end
     end
 

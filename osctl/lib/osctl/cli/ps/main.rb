@@ -30,7 +30,7 @@ module OsCtl::Cli
       cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : Ps::Columns::DEFAULT
       out_cols, out_data = Ps::Columns.generate(pl, cols, gopts[:parsable])
 
-      OutputFormatter.print(
+      OsCtl::Lib::Cli::OutputFormatter.print(
         out_data,
         out_cols,
         layout: :columns,

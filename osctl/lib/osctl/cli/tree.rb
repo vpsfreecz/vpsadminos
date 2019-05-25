@@ -1,5 +1,6 @@
-require 'rainbow'
+require 'libosctl'
 require 'osctl/cli/cgroup_params'
+require 'rainbow'
 
 module OsCtl::Cli
   class Tree
@@ -84,7 +85,7 @@ module OsCtl::Cli
     end
 
     def print
-      OutputFormatter.print(
+      OsCtl::Lib::Cli::OutputFormatter.print(
         groups,
         [
           {label: cts ? 'GROUP/CONTAINER' : 'GROUP', name: :branch},

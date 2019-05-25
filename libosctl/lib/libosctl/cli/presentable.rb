@@ -1,4 +1,4 @@
-module OsCtl
+module OsCtl::Lib
   # Container for values that should be treated and presented differently
   #
   # {Cli::Presentable} is used for {Cli::OutputFormatter}, so that values

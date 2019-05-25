@@ -1,3 +1,5 @@
+require 'libosctl'
+
 module OsCtl
   module Cli::CGroupParams
     CGPARAM_FIELDS = %i(
@@ -213,7 +215,7 @@ module OsCtl
           v = case field
           when :memory
             t = read_memory_usage(subsystems[:memory], path)
-            Cli::Presentable.new(t, formatted: precise ? nil : humanize_data(t))
+            OsCtl::Lib::Cli::Presentable.new(t, formatted: precise ? nil : humanize_data(t))
 
           when :kmemory
             t = read_cgparam(
@@ -221,7 +223,7 @@ module OsCtl
               path,
               'memory.kmem.usage_in_bytes'
             ).to_i
-            Cli::Presentable.new(t, formatted: precise ? nil : humanize_data(t))
+            OsCtl::Lib::Cli::Presentable.new(t, formatted: precise ? nil : humanize_data(t))
 
           when :cpu_time
             t = read_cgparam(
@@ -229,7 +231,7 @@ module OsCtl
               path,
               'cpuacct.usage'
             ).to_i
-            Cli::Presentable.new(t, formatted: precise ? nil : humanize_time_ns(t))
+            OsCtl::Lib::Cli::Presentable.new(t, formatted: precise ? nil : humanize_time_ns(t))
 
           when :cpu_user_time
             t = read_cgparam(
@@ -237,7 +239,7 @@ module OsCtl
               path,
               'cpuacct.usage_user'
             ).to_i
-            Cli::Presentable.new(t, formatted: precise ? nil : humanize_time_ns(t))
+            OsCtl::Lib::Cli::Presentable.new(t, formatted: precise ? nil : humanize_time_ns(t))
 
           when :cpu_sys_time
             t = read_cgparam(
@@ -245,7 +247,7 @@ module OsCtl
               path,
               'cpuacct.usage_sys'
             ).to_i
-            Cli::Presentable.new(t, formatted: precise ? nil : humanize_time_ns(t))
+            OsCtl::Lib::Cli::Presentable.new(t, formatted: precise ? nil : humanize_time_ns(t))
 
           when :cpu_stat
             Hash[

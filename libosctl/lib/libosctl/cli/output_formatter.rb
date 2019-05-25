@@ -1,6 +1,6 @@
 require 'rainbow'
 
-module OsCtl::Cli
+module OsCtl::Lib::Cli
   class OutputFormatter
     def self.format(*args)
       f = new(*args)
