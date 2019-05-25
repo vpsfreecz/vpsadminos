@@ -25,7 +25,10 @@ module OsCtl::Lib
         "exec #{cmd} #{stderr ? '2>&1' : '2> /dev/null'}",
         opts[:input] ? 'r+' : 'r'
       ) do |io|
-        io.write(opts[:input]) if opts[:input]
+        if opts[:input]
+          io.write(opts[:input])
+          io.close_write
+        end
 
         if opts[:timeout]
           begin
