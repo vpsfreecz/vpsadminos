@@ -8,6 +8,7 @@ module OsCtld
       dlload Fiddle.dlopen(nil)
 
       MS_MGC_VAL = 0xc0ed0000
+      MS_BIND = 4096
       MS_MOVE = 8192
 
       extern 'int mount(const char *source, const char *target, '+
@@ -19,6 +20,12 @@ module OsCtld
 
     def self.move_mount(src, dst)
       ret = Int.mount(src, dst, 0, Int::MS_MGC_VAL | Int::MS_MOVE, 0)
+      raise SystemCallError, Fiddle.last_error if ret != 0
+      ret
+    end
+
+    def self.bind_mount(src, dst)
+      ret = Int.mount(src, dst, 0, Int::MS_MGC_VAL | Int::MS_BIND, 0)
       raise SystemCallError, Fiddle.last_error if ret != 0
       ret
     end

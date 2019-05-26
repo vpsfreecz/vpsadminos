@@ -40,7 +40,11 @@ module OsCtld
 
             else
               FileUtils.mkpath(opts[:dst])
-              Mount::Sys.move_mount(src, opts[:dst])
+
+              # Since Linux 5.1, move_mount started to fail with
+              # Errno::EINVAL, Invalid argument. Bind mount seems to achieve
+              # the same result.
+              Mount::Sys.bind_mount(src, opts[:dst])
               puts 'ok:done'
             end
 
