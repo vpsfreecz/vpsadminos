@@ -1,3 +1,4 @@
+require 'libosctl'
 require 'osctld/container_control/command'
 require 'osctld/container_control/frontend'
 require 'osctld/container_control/runner'
@@ -15,6 +16,8 @@ module OsCtld
     end
 
     class Runner < ContainerControl::Runner
+      include OsCtl::Lib::Utils::Log
+
       # @param mountpoint [String]
       def execute(mountpoint)
         ct = lxc_ct
