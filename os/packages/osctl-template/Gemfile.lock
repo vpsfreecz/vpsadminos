@@ -19,6 +19,12 @@ GEM
       rainbow (~> 3.0.0)
       require_all (~> 2.0.0)
       ruby-progressbar (~> 1.9.0)
+    osctl-template (19.03.0.build20190527202215)
+      gli (~> 2.17.1)
+      json
+      libosctl (= 19.03.0.build20190527202215)
+      osctl (= 19.03.0.build20190527202215)
+      require_all (~> 2.0.0)
     rainbow (3.0.0)
     require_all (2.0.0)
     ruby-progressbar (1.9.0)
@@ -27,7 +33,7 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
-  osctl (= 19.03.0.build20190527202215)
+  osctl-template (= 19.03.0.build20190527202215)
 
 BUNDLED WITH
    1.17.2
