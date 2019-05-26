@@ -69,7 +69,8 @@ module OsCtld
         pool: ct.pool.name,
         name: ds.relative_name,
         mountpoint: mountpoint,
-        mode: 'rw'
+        mode: 'rw',
+        automount: opts[:mount],
       )
     end
 
