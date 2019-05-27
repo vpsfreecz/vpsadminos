@@ -75,7 +75,10 @@ function do_template {
 
 	case "$action" in
 		list)
-			find "$BASEDIR/templates/" ! -path "$BASEDIR/templates/" -type d | while read dir ; do
+			find "$BASEDIR/templates/" ! -path "$BASEDIR/templates/" -type d -or -type l \
+				| while read dir
+			do
+				[ ! -h "$dir" ] && [ -f "$dir"/abstract ] && continue
 				basename "$dir"
 			done
 			;;
