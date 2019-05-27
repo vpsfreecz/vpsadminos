@@ -1,5 +1,4 @@
-DISTNAME=gentoo
-RELVER=$(date +%Y%m%d)
+. "$TEMPLATEDIR/config.sh"
 BASEURL=https://mirror.vpsfree.cz/gentoo
 
 require_cmd curl
