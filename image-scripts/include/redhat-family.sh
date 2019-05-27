@@ -2,7 +2,7 @@
 
 . $BASEDIR/include/common.sh
 
-if [ "$DISTNAME" == "fedora" ] && [ "$RELVER" -ge 22 ]; then
+if [ "$DISTNAME" == "fedora" ]; then
 	require_cmd dnf
 
 	YUM="dnf -c $DOWNLOAD/yum.conf --installroot=$INSTALL \
