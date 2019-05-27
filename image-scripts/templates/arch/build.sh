@@ -1,5 +1,4 @@
-DISTNAME=arch
-RELVER=$(date +%Y%m%d)
+. "$TEMPLATEDIR"/config.sh
 BASEURL=https://mirror.vpsfree.cz/archlinux/iso/latest
 
 require_cmd curl
@@ -29,6 +28,16 @@ bootstrap-arch() {
 	sed -ri 's/^#(.*vpsfree\.cz.*)$/\1/' "$BOOTSTRAP/etc/pacman.d/mirrorlist"
 	echo nameserver 8.8.8.8 > "$BOOTSTRAP/etc/resolv.conf"
 
+	# pacstrap tries to mount /dev as devtmpfs, which is not possible in
+	# an unprivileged container
+	sed -i 's/devtmpfs/tmpfs/' "$BOOTSTRAP/bin/pacstrap"
+
+	# and in a tmpfs, we need to manually mkdir directories
+	sed -i 's/chroot_add_mount devpts/mkdir "\$1\/dev\/pts" \&\& chroot_add_mount devpts/' \
+		   "$BOOTSTRAP/bin/pacstrap"
+	sed -i 's/chroot_add_mount shm/mkdir "\$1\/dev\/shm" \&\& chroot_add_mount shm/' \
+		   "$BOOTSTRAP/bin/pacstrap"
+
 	cat <<EOF > "$BOOTSTRAP/$SETUP"
 #!/bin/bash
 
@@ -36,6 +45,7 @@ pacman-key --init
 pacman-key --populate archlinux
 
 pacstrap -dG /mnt base openssh
+
 gpg-connect-agent --homedir /etc/pacman.d/gnupg "SCD KILLSCD" "SCD BYE" /bye
 gpg-connect-agent --homedir /etc/pacman.d/gnupg killagent /bye
 EOF
