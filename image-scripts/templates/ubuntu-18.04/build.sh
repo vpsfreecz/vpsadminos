@@ -1,5 +1,4 @@
-DISTNAME=ubuntu
-RELVER=18.04
+. "$TEMPLATEDIR/config.sh"
 RELNAME=bionic
 BASEURL=http://cz.archive.ubuntu.com/ubuntu/
 
