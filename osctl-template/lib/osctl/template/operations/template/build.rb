@@ -96,14 +96,18 @@ module OsCtl::Template
         client.activate_mount(builder.ctid, builder_install_dir)
       end
 
-      rc = client.exec(builder.ctid, [
-        File.join(builder_base_dir, 'bin', 'runner'),
-        'template',
-        'build',
-        build_id,
-        builder_install_dir,
-        template.name,
-      ])
+      rc = Operations::Builder::ControlledExec.run(
+        self,
+        [
+          File.join(builder_base_dir, 'bin', 'runner'),
+          'template',
+          'build',
+          build_id,
+          builder_install_dir,
+          template.name,
+        ],
+        client: client,
+      )
 
       if rc != 0
         fail "build of #{template.name} on #{builder.name} failed with "+

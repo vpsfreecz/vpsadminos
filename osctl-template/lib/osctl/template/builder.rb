@@ -21,6 +21,11 @@ module OsCtl::Template
     # @return [String]
     attr_reader :variant
 
+    # Attributes returned by `osctl ct show`
+    # @param attrs [Hash]
+    # @return [Hash]
+    attr_accessor :attrs
+
     # @param dir [String]
     # @param name [String]
     def initialize(base_dir, name)

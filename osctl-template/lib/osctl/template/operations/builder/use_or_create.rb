@@ -23,6 +23,8 @@ module OsCtl::Template
       else
         Operations::Builder::Create.run(builder, base_dir)
       end
+
+      builder.attrs = client.find_container(builder.ctid)
     end
   end
 end
