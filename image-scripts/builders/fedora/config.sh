@@ -1,0 +1,2 @@
+DISTNAME=fedora
+RELVER=30
