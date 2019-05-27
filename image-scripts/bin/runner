@@ -47,7 +47,7 @@ function do_builder {
 
 function template_usage {
 	echo "Usage:"
-	echo "  $0 template build <build-id> <install-dir> <template-name>"
+	echo "  $0 template build <build-id> <work-dir> <install-dir> <template-name>"
 }
 
 function do_template {
@@ -71,17 +71,15 @@ function do_template {
 }
 
 function build_template {
-	if [ $# != 3 ] ; then
+	if [ $# != 4 ] ; then
 		template_usage
 		exit 1
 	fi
 
 	BUILD_ID="$1"
-	INSTALL="$2"
-	TEMPLATE="$3"
-
-	DOWNLOAD="/var/tmp/build.$BUILD_ID"
-	mkdir "$DOWNLOAD"
+	DOWNLOAD="$2"
+	INSTALL="$3"
+	TEMPLATE="$4"
 
 	INCLUDE="$BASEDIR/include"
 	TEMPLATEDIR="$BASEDIR/templates/$TEMPLATE"
@@ -91,16 +89,10 @@ function build_template {
 	RELVER=
 	ARCH=x86_64
 
-	function cleanup {
-		echo "Cleanup ..."
-		rm -rf "$DOWNLOAD"
-	}
-
-	trap cleanup SIGINT
+	cd "$DOWNLOAD"
 
 	. "$BASEDIR/include/common.sh"
 	. "$BASEDIR/templates/$TEMPLATE/build.sh"
-	cleanup
 }
 
 function main {
