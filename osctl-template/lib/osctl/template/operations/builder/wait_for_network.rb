@@ -11,9 +11,7 @@ module OsCtl::Template
     end
 
     def execute
-      tmp = Tempfile.new('/tmp/osctl-template.wait-for-network')
-      File.chmod(0755, tmp.path)
-      tmp.write(<<EOF
+      script = <<EOF
 #!/bin/sh
 
 test_network() {
@@ -34,15 +32,13 @@ else
   echo "Network online"
 fi
 EOF
-)
-      tmp.close
 
-      begin
-        rc = OsCtldClient.new.runscript(builder.ctid, tmp.path)
-        fail "network setup failed with exit status #{rc}" if rc != 0
-      ensure
-        tmp.unlink
-      end
+      rc = Operations::Builder::RunscriptFromString.run(
+        builder,
+        script,
+        name: '/tmp/osctl-template.wait-for-network',
+      )
+      fail "network setup failed with exit status #{rc}" if rc != 0
     end
   end
 end
