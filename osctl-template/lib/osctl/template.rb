@@ -6,6 +6,7 @@ module OsCtl
       module Builder ; end
       module Config; end
       module Template ; end
+      module Test ; end
     end
   end
 end

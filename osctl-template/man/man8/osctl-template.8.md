@@ -48,6 +48,23 @@ of `osctl-template` with template building programs.
     `--vendor` *vendor*
       Override vendor attribute defined by the template.
 
+`test` [*options*] *template* [*test*...]
+  Run one or more tests on *template*. If the template is not found in the
+  output directory, it is built, otherwise a cached version is used. Rebuild
+  can be forced using option `--rebuild`.
+
+    `--build-dataset` *dataset*
+      Name of a ZFS filesystem which can be used to build templates. Required.
+
+    `--output-dir` *dir*
+      Directory where the resulting templates are stored. Defaults to `./output`.
+
+    `--vendor` *vendor*
+      Override vendor attribute defined by the template.
+
+    `--rebuild`
+      Rebuild the template even if it is found in the output directory.
+
 `ct ls` [*options*]
   List managed build-related containers.
 
@@ -67,14 +84,19 @@ of `osctl-template` with template building programs.
 Template building programs define builders and actual templates to be built.
 Builders are simply containers, in which the templates are then built.
 
-`osctl-template` requires two executable files in the current working directory:
-`bin/config` and `bin/runner`. `bin/config` is used to gather information
-about builders and templates. It is called from the vpsAdminOS host.
+`osctl-template` requires three executable files in the current working
+directory: `bin/config`, `bin/runner` and `bin/test`.
+
+`bin/config` is used to gather information about builders and templates. It is
+called from the vpsAdminOS host.
 
 `bin/runner` is used to either setup builders or build templates. It is called
 within build containers managed by `osctl-template`.
 
-Both executables have to implement argument-based commands described below.
+`bin/test` is used to test built templates. It is run on the vpsAdminOS host
+and can use `osctl` to test containers managed by `osctl-template`.
+
+All executables have to implement argument-based commands described below.
 
 ### bin/config interface
 `bin/config builder list`
@@ -97,6 +119,11 @@ Both executables have to implement argument-based commands described below.
   Build template *name* to directory *install-dir*. Temporary files can be
   saved to *work-dir*. *build-id* should be used when creating temporary
   directories or files as a unique identifier.
+
+### bin/test interface
+`bin/test template run` *name* *ctid*
+  Run test *name* on container *ctid*. The test is considered successful when
+  the programs exits with `0`.
 
 ### Builder attributes
 

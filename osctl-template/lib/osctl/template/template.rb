@@ -51,6 +51,10 @@ module OsCtl::Template
       end
     end
 
+    def to_s
+      name
+    end
+
     protected
     def parse_name
       if name.index('-')

@@ -52,7 +52,24 @@ module OsCtl::Template::Cli
         c.action &Command.run(Template, :build)
       end
 
-      # command 'test'
+      desc 'Test template'
+      arg_name '<template> [test...]'
+      command 'test' do |c|
+        c.desc 'Output directory'
+        c.flag 'output-dir', arg_name: 'dir', default_value: 'output'
+
+        c.desc 'Build dataset'
+        c.flag 'build-dataset', arg_name: 'filesystem', required: true
+
+        c.desc 'Vendor name'
+        c.flag 'vendor', arg_name: 'name'
+
+        c.desc 'Force template rebuild'
+        c.switch 'rebuild'
+
+        c.action &Command.run(Template, :test)
+      end
+
       # command 'test-in'
       # command 'deploy'
 

@@ -28,6 +28,12 @@ module OsCtl::Template
     # @return [String]
     attr_reader :build_id
 
+    # @return [String]
+    attr_reader :output_tar
+
+    # @return [String]
+    attr_reader :output_stream
+
     # @param base_dir [String]
     # @param template [Template]
     # @param opts [Hash]
@@ -74,8 +80,7 @@ module OsCtl::Template
     end
 
     protected
-    attr_reader :client, :work_dir, :output_dir, :install_dir,
-      :output_tar, :output_stream
+    attr_reader :client, :work_dir, :output_dir, :install_dir
 
     def build
       Operations::Builder::UseOrCreate.run(builder, base_dir)

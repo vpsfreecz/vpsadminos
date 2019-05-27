@@ -62,6 +62,36 @@ module OsCtl::Template
     end
 
     # @param ctid [String]
+    # @param archive [String]
+    def create_container_from_archive(ctid, archive)
+      connect do |client|
+        client.cmd_data!(
+          :ct_create,
+          id: ctid,
+          template: {
+            type: :archive,
+            path: File.absolute_path(archive),
+          },
+        )
+      end
+    end
+
+    # @param ctid [String]
+    # @param stream [String]
+    def create_container_from_stream(ctid, stream)
+      connect do |client|
+        client.cmd_data!(
+          :ct_create,
+          id: ctid,
+          template: {
+            type: :stream,
+            path: File.absolute_path(stream),
+          },
+        )
+      end
+    end
+
+    # @param ctid [String]
     # @param attr [String]
     # @param value [String]
     def set_container_attr(ctid, attr, value)
@@ -205,6 +235,7 @@ module OsCtl::Template
       end
     end
 
+    # @param user [String]
     # @return [Array]
     def user_idmap(user)
       connect do |client|
@@ -213,6 +244,16 @@ module OsCtl::Template
           name: user,
           uid: true,
           gid: true,
+        )
+      end
+    end
+
+    # @param user [String]
+    def delete_user(user)
+      connect do |client|
+        client.cmd_data!(
+          :user_delete,
+          name: user,
         )
       end
     end
