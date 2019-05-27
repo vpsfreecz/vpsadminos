@@ -17,7 +17,10 @@ module OsCtl::Template
     attr_reader :builder
 
     # @return [String]
-    attr_reader :build_dataset
+    attr_reader :output_dataset
+
+    # @return [String]
+    attr_reader :work_dataset
 
     # @return [String]
     attr_reader :output_dir
@@ -41,7 +44,8 @@ module OsCtl::Template
       builder.load_config
 
       @build_id = SecureRandom.hex(4)
-      @build_dataset = File.join(opts[:build_dataset], build_id)
+      @output_dataset = File.join(opts[:build_dataset], build_id, 'output')
+      @work_dataset = File.join(opts[:build_dataset], build_id, 'work')
       @output_dir = opts[:output_dir]
 
       name = [
@@ -70,7 +74,8 @@ module OsCtl::Template
     end
 
     protected
-    attr_reader :client, :build_dir, :install_dir, :output_tar, :output_stream
+    attr_reader :client, :work_dir, :output_dir, :install_dir,
+      :output_tar, :output_stream
 
     def build
       Operations::Builder::UseOrCreate.run(builder, base_dir)
@@ -80,19 +85,27 @@ module OsCtl::Template
       zfs(
         :create,
         "-p -o uidmap=0:#{root_uid}:65536 -o gidmap=0:#{root_gid}:65536",
-        build_dataset
+        work_dataset
+      )
+      zfs(
+        :create,
+        "-p -o uidmap=0:#{root_uid}:65536 -o gidmap=0:#{root_gid}:65536",
+        output_dataset
       )
 
-      @build_dir = zfs(:get, '-H -o value mountpoint', build_dataset).output.strip
-      @install_dir = File.join(build_dir, 'private')
+      @work_dir = zfs(:get, '-H -o value mountpoint', work_dataset).output.strip
+      @output_dir = zfs(:get, '-H -o value mountpoint', output_dataset).output.strip
+      @install_dir = File.join(output_dir, 'private')
 
       Dir.mkdir(install_dir)
 
       client.batch do
         client.bind_mount(builder.ctid, base_dir, builder_base_dir)
+        client.bind_mount(builder.ctid, work_dir, builder_work_dir)
         client.bind_mount(builder.ctid, install_dir, builder_install_dir)
 
         client.activate_mount(builder.ctid, builder_base_dir)
+        client.activate_mount(builder.ctid, builder_work_dir)
         client.activate_mount(builder.ctid, builder_install_dir)
       end
 
@@ -103,6 +116,7 @@ module OsCtl::Template
           'template',
           'build',
           build_id,
+          builder_work_dir,
           builder_install_dir,
           template.name,
         ],
@@ -114,14 +128,14 @@ module OsCtl::Template
              "exit status #{rc}"
       end
 
-      zfs(:unmount, nil, build_dataset)
-      zfs(:set, 'uidmap=none gidmap=none', build_dataset)
-      zfs(:mount, nil, build_dataset)
+      zfs(:unmount, nil, output_dataset)
+      zfs(:set, 'uidmap=none gidmap=none', output_dataset)
+      zfs(:mount, nil, output_dataset)
 
       syscmd("tar -czf \"#{output_tar}\" -C \"#{install_dir}\" .")
 
-      zfs(:snapshot, nil, "#{build_dataset}@template")
-      syscmd("zfs send #{build_dataset}@template | gzip > #{output_stream}")
+      zfs(:snapshot, nil, "#{output_dataset}@template")
+      syscmd("zfs send #{output_dataset}@template | gzip > #{output_stream}")
 
       puts "> #{output_tar}"
       puts "> #{output_tar}"
@@ -129,18 +143,24 @@ module OsCtl::Template
 
     def cleanup
       client.batch do
+        client.ignore_error { client.unmount(builder.ctid, builder_work_dir) }
         client.ignore_error { client.unmount(builder.ctid, builder_install_dir) }
         client.ignore_error { client.unmount(builder.ctid, builder_base_dir) }
       end
 
       # TODO: cleanup mountpoints in the builder
 
-      zfs(:destroy, nil, "#{build_dataset}@template", valid_rcs: [1])
-      zfs(:destroy, nil, build_dataset, valid_rcs: [1])
+      zfs(:destroy, nil, work_dataset, valid_rcs: [1])
+      zfs(:destroy, nil, "#{output_dataset}@template", valid_rcs: [1])
+      zfs(:destroy, nil, output_dataset, valid_rcs: [1])
     end
 
     def builder_base_dir
       "/build/basedir.#{build_id}"
+    end
+
+    def builder_work_dir
+      "/build/workdir.#{build_id}"
     end
 
     def builder_install_dir

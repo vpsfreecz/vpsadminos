@@ -93,10 +93,10 @@ Both executables have to implement argument-based commands described below.
 `bin/runner builder setup` *name*
   Setup build container, i.e. install required packages.
 
-`bin/runner` template build *build-id* *install-dir* *name*
-  Build template *name* to directory *install-dir*.
-  *build-id* should be used when creating temporary directories or files
-  as a unique identifier.
+`bin/runner` template build *build-id* *work-dir* *install-dir* *name*
+  Build template *name* to directory *install-dir*. Temporary files can be
+  saved to *work-dir*. *build-id* should be used when creating temporary
+  directories or files as a unique identifier.
 
 ### Builder attributes
 
