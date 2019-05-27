@@ -148,7 +148,14 @@ module OsCtl::Template
         client.ignore_error { client.unmount(builder.ctid, builder_base_dir) }
       end
 
-      # TODO: cleanup mountpoints in the builder
+      if builder.attrs
+        [builder_base_dir, builder_work_dir, builder_install_dir].each do |dir|
+          begin
+            Dir.rmdir(File.join(builder.attrs[:rootfs], dir))
+          rescue Errno::ENOENT
+          end
+        end
+      end
 
       zfs(:destroy, nil, work_dataset, valid_rcs: [1])
       zfs(:destroy, nil, "#{output_dataset}@template", valid_rcs: [1])
