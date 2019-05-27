@@ -1,6 +1,5 @@
-DISTNAME=debian
-RELVER=8
-RELNAME=jessie
+. "$TEMPLATEDIR/config.sh"
+RELNAME=stretch
 BASEURL=http://ftp.cz.debian.org/debian
 
 . $INCLUDE/debian.sh
@@ -22,7 +21,7 @@ deb-src http://security.debian.org/ $RELNAME/updates main
 SOURCES
 
 configure-append <<EOF
-sed -i -e '/^PermitRootLogin/ s/^#*/#/' /etc/ssh/sshd_config
+sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
 ln -s /dev/null /etc/systemd/system/proc-sys-fs-binfmt_misc.automount
 EOF
 
