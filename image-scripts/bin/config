@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+# This is internal builder, do not use this directly!
+# Use osctl-template from vpsAdminOS to build the templates.
+
+BASEDIR=$(realpath `dirname ${BASH_SOURCE[0]}`/..)
+
+function usage {
+	echo "Usage:"
+	echo "  $0 builder|template [command arguments...]"
+}
+
+function builder_usage {
+	echo "Usage:"
+	echo "  $0 builder list"
+	echo "  $0 builder show <name>"
+}
+
+function do_builder {
+	if [ $# -lt 1 ] ; then
+		builder_usage
+		exit 1
+	fi
+
+	local action="$1"
+
+	case "$action" in
+		list)
+			ls -1 "$BASEDIR/builders"
+			;;
+		show)
+			local name="$2"
+			local dir="$BASEDIR/builders/$name"
+
+			if [ "$name" == "" ] ; then
+				builder_usage
+				exit 1
+			elif [ ! -d "$dir" ] ; then
+				echo "Builder '$name' not found"
+				builder_usage
+				exit 1
+			fi
+
+			DISTNAME=
+			RELVER=
+			ARCH=
+			VENDOR=
+			VARIANT=
+			. "$dir/config.sh"
+			echo "DISTNAME=$DISTNAME"
+			echo "RELVER=$RELVER"
+			echo "ARCH=$ARCH"
+			echo "VENDOR=$VENDOR"
+			echo "VARIANT=$VARIANT"
+			;;
+		*)
+			builder_usage
+			exit 1
+			;;
+	esac
+}
+
+function template_usage {
+	echo "Usage:"
+	echo "  $0 template list"
+	echo "  $0 template show <name>"
+}
+
+function do_template {
+	if [ $# -lt 1 ] ; then
+		template_usage
+		exit 1
+	fi
+
+	local action="$1"
+
+	case "$action" in
+		list)
+			find "$BASEDIR/templates/" ! -path "$BASEDIR/templates/" -type d | while read dir ; do
+				basename "$dir"
+			done
+			;;
+		show)
+			local name="$2"
+			local dir="$BASEDIR/templates/$name"
+
+			if [ "$name" == "" ] ; then
+				template_usage
+				exit 1
+			elif [ ! -d "$dir" ] ; then
+				echo "Template '$name' not found"
+				template_usage
+				exit 1
+			fi
+
+			BUILDER=
+			DISTNAME=
+			RELVER=
+			ARCH=
+			VENDOR=
+			VARIANT=
+			. "$dir/config.sh"
+			echo "BUILDER=$BUILDER"
+			echo "DISTNAME=$DISTNAME"
+			echo "RELVER=$RELVER"
+			echo "ARCH=$ARCH"
+			echo "VENDOR=$VENDOR"
+			echo "VARIANT=$VARIANT"
+			;;
+		*)
+			template_usage
+			exit 1
+			;;
+	esac
+}
+
+function main {
+	if [ $# -lt 1 ] ; then
+		usage
+		exit 1
+	fi
+
+	local command="$1"
+	shift 1
+
+	case "$command" in
+		builder)
+			do_builder $@ ;;
+		template)
+			do_template $@ ;;
+		*)
+			usage
+			exit 1
+			;;
+	esac
+}
+
+main $@

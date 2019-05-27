@@ -1,15 +1,12 @@
 #!/bin/bash
 require_cmd zypper
 
-if [ $DISTNAME == "suse-leap" ]; then
+if [ $DISTNAME == "opensuse-leap" ]; then
 	REPOSITORY=http://download.opensuse.org/distribution/leap/$RELVER/repo/oss/
 	UPDATES=http://download.opensuse.org/update/leap/$RELVER/oss/
-elif [ $DISTNAME == "suse-tumbleweed" ]; then
+elif [ $DISTNAME == "opensuse-tumbleweed" ]; then
 	REPOSITORY=http://download.opensuse.org/tumbleweed/repo/oss/
 	UPDATES=http://download.opensuse.org/update/tumbleweed/
-else
-	REPOSITORY=http://download.opensuse.org/distribution/$RELVER/repo/oss/
-	UPDATES=http://download.opensuse.org/update/$RELVER/
 fi
 
 EXTRAPKGS='vim iproute2 iputils net-tools procps less psmisc timezone aaa_base-extras'

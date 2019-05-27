@@ -8,14 +8,24 @@ function require_cmd {
 	done
 }
 
+function warn {
+	>&2 echo "$@"
+}
+
+function fail {
+	warn "$@"
+	exit 1
+}
+
 function mount-chroot {
 	mount -t proc proc "$1/proc"
 	mount -t sysfs sys "$1/sys"
-	mount --bind /dev "$1/dev"
+	mount --rbind /dev "$1/dev"
+	mount --make-rslave "$1/dev"
 }
 
 function umount-chroot {
-	umount "$1/dev"
+	umount -R "$1/dev"
 	umount "$1/sys"
 	umount "$1/proc"
 }
