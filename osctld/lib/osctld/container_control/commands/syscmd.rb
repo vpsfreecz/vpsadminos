@@ -41,6 +41,8 @@ module OsCtld
             stdin: in_r,
             stdout: out_w,
             stderr: out_w,
+            run: opts[:run],
+            network: opts[:network],
           )
         rescue ContainerControl::Error => e
           out_r.close
