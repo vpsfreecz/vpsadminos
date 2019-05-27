@@ -10,7 +10,6 @@ module OsCtl::Template
     end
 
     include OsCtl::Lib::Utils::Log
-    include OsCtl::Lib::Utils::System
 
     # @return [String]
     attr_reader :base_dir
@@ -66,7 +65,10 @@ module OsCtl::Template
     end
 
     def run_test
-      syscmd("#{base_dir}/bin/test template run #{test} #{ctid}")
+      Operations::Nix::RunInShell.run(
+        File.join(base_dir, 'shell-test.nix'),
+        [File.join(base_dir, 'bin/test'), 'template', 'run', test.name, ctid]
+      )
       log(:warn, "Test '#{test}' successful")
       Status.new(build.template, test, true, 0, nil)
     rescue OsCtl::Lib::Exceptions::SystemCommandFailed => e

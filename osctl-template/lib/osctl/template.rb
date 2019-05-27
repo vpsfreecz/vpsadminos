@@ -5,6 +5,7 @@ module OsCtl
     module Operations
       module Builder ; end
       module Config; end
+      module Nix ; end
       module Template ; end
       module Test ; end
     end
