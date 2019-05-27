@@ -101,6 +101,8 @@ function do_template {
 			ARCH=
 			VENDOR=
 			VARIANT=
+			IFS=- read DISTNAME RELVER ARCH VENDOR VARIANT <<< "$name"
+			[ "$ARCH" == "" ] && ARCH=x86_64
 			. "$dir/config.sh"
 			echo "BUILDER=$BUILDER"
 			echo "DISTNAME=$DISTNAME"

@@ -87,7 +87,13 @@ function build_template {
 
 	DISTNAME=
 	RELVER=
-	ARCH=x86_64
+	ARCH=
+	VENDOR=
+	VARIANT=
+
+	IFS=- read DISTNAME RELVER ARCH VENDOR VARIANT <<< "$TEMPLATE"
+
+	[ "$ARCH" == "" ] && ARCH=x86_64
 
 	cd "$DOWNLOAD"
 
