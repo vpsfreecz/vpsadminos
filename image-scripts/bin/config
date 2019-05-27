@@ -6,7 +6,7 @@ BASEDIR=$(realpath `dirname ${BASH_SOURCE[0]}`/..)
 
 function usage {
 	echo "Usage:"
-	echo "  $0 builder|template [command arguments...]"
+	echo "  $0 builder|template|test [command arguments...]"
 }
 
 function builder_usage {
@@ -116,6 +116,32 @@ function do_template {
 	esac
 }
 
+function test_usage {
+	echo "Usage:"
+	echo "  $0 test list"
+}
+
+function do_test {
+	if [ $# -lt 1 ] ; then
+		test_usage
+		exit 1
+	fi
+
+	local action="$1"
+
+	case "$action" in
+		list)
+			find "$BASEDIR/tests" -name "*.sh" | while read file ; do
+				basename "$file" | sed 's/\.sh$//g'
+			done
+			;;
+		*)
+			test_usage
+			exit 1
+			;;
+	esac
+}
+
 function main {
 	if [ $# -lt 1 ] ; then
 		usage
@@ -130,6 +156,8 @@ function main {
 			do_builder $@ ;;
 		template)
 			do_template $@ ;;
+		test)
+			do_test $@ ;;
 		*)
 			usage
 			exit 1

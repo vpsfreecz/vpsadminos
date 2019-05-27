@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# This is internal builder, do not use this directly!
+# Use osctl-template from vpsAdminOS to build the templates.
+
+BASEDIR=$(realpath `dirname ${BASH_SOURCE[0]}`/..)
+
+function usage {
+	echo "Usage:"
+	echo "  $0 template [command arguments...]"
+}
+
+function template_usage {
+	echo "Usage:"
+	echo "  $0 template run <test-name> <ctid>"
+}
+
+function do_template {
+	if [ $# -lt 1 ] ; then
+		template_usage
+		exit 1
+	fi
+
+	local action="$1"
+
+	case "$action" in
+		run)
+			shift 1
+			test_template $@
+			;;
+		*)
+			template_usage
+			exit 1
+			;;
+	esac
+}
+
+function test_template {
+	if [ $# != 2 ] ; then
+		template_usage
+		exit 1
+	fi
+
+	TEST="$1"
+	CTID="$2"
+
+	INCLUDE="$BASEDIR/include"
+
+	. "$BASEDIR/include/common.sh"
+	. "$BASEDIR/tests/$TEST.sh"
+}
+
+function main {
+	if [ $# -lt 1 ] ; then
+		usage
+		exit 1
+	fi
+
+	local command="$1"
+	shift 1
+
+	case "$command" in
+		template)
+			do_template $@ ;;
+		*)
+			usage
+			exit 1
+			;;
+	esac
+}
+
+main $@
