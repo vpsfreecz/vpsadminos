@@ -1,6 +1,5 @@
-DISTNAME=devuan
-RELVER=2.0
-RELNAME=ascii
+. "$TEMPLATEDIR/config.sh"
+RELNAME=jessie
 BASEURL=http://auto.mirror.devuan.org/merged
 
 . $INCLUDE/debian.sh
@@ -27,16 +26,7 @@ deb-src $BASEURL $RELNAME-security main
 SOURCES
 
 configure-append <<EOF
-sed -i 's|pf::powerwait:/etc/init.d/powerfail start|pf::powerwait:/sbin/halt|' /etc/inittab
-sed -ri 's/^([^#].*getty.*)$/#\1/' /etc/inittab
-
-cat >> /etc/inittab <<END
-
-# Start getty on /dev/console
-c0:2345:respawn:/sbin/agetty --noreset 38400 console
-END
-
-sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+sed -i -e '/^PermitRootLogin/ s/^#*/#/' /etc/ssh/sshd_config
 EOF
 
 run-configure
