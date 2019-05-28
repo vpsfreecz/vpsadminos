@@ -65,6 +65,27 @@ of `osctl-template` with template building programs.
     `--rebuild`
       Rebuild the template even if it is found in the output directory.
 
+`instantiate` [*options*] *template*
+  Create a container from the build template. If the template is not found in
+  the output directory, it is built, otherwise a cached version is used. Rebuild
+  can be forced using option `--rebuild`.
+
+    `--build-dataset` *dataset*
+      Name of a ZFS filesystem which can be used to build templates. Required.
+
+    `--output-dir` *dir*
+      Directory where the resulting templates are stored. Defaults to `./output`.
+
+    `--vendor` *vendor*
+      Override vendor attribute defined by the template.
+
+    `--rebuild`
+      Rebuild the template even if it is found in the output directory.
+
+    `--container` *ctid*
+      Do not create a new container, but reinstall container *ctid* to
+      *template*. Configuration of the existing container is kept.
+
 `ct ls` [*options*]
   List managed build-related containers.
 

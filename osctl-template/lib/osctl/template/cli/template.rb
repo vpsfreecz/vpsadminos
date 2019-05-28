@@ -97,6 +97,25 @@ module OsCtl::Template
       end
     end
 
+    def instantiate
+      require_args!('template')
+
+      template = template_list.detect { |t| t.name == args[0] }
+      fail "template '#{args[0]}' not found" unless template
+
+      ctid = Operations::Template::Instantiate.run(
+        File.absolute_path('.'),
+        template,
+        output_dir: opts['output-dir'],
+        build_dataset: opts['build-dataset'],
+        vendor: opts[:vendor],
+        rebuild: opts[:rebuild],
+        ctid: opts[:container],
+      )
+
+      puts "Container ID: #{ctid}"
+    end
+
     protected
     def template_list
       TemplateList.new('.')

@@ -92,6 +92,40 @@ module OsCtl::Template
     end
 
     # @param ctid [String]
+    # @param archive [String]
+    # @param remove_snapshots [Boolean]
+    def reinstall_container_from_archive(ctid, archive, remove_snapshots: false)
+      connect do |client|
+        client.cmd_data!(
+          :ct_reinstall,
+          id: ctid,
+          remove_snapshots: remove_snapshots,
+          template: {
+            type: :archive,
+            path: File.absolute_path(archive),
+          },
+        )
+      end
+    end
+
+    # @param ctid [String]
+    # @param stream [String]
+    # @param remove_snapshots [Boolean]
+    def reinstall_container_from_stream(ctid, stream, remove_snapshots: false)
+      connect do |client|
+        client.cmd_data!(
+          :ct_reinstall,
+          id: ctid,
+          remove_snapshots: remove_snapshots,
+          template: {
+            type: :stream,
+            path: File.absolute_path(stream),
+          },
+        )
+      end
+    end
+
+    # @param ctid [String]
     # @param attr [String]
     # @param value [String]
     def set_container_attr(ctid, attr, value)
@@ -104,6 +138,13 @@ module OsCtl::Template
     def start_container(ctid)
       connect do |client|
         client.cmd_data!(:ct_start, id: ctid)
+      end
+    end
+
+    # @param ctid [String]
+    def stop_container(ctid)
+      connect do |client|
+        client.cmd_data!(:ct_stop, id: ctid)
       end
     end
 

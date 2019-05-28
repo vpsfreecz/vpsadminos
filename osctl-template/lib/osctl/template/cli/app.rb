@@ -70,7 +70,27 @@ module OsCtl::Template::Cli
         c.action &Command.run(Template, :test)
       end
 
-      # command 'test-in'
+      desc 'Build the template and use it in a container'
+      arg_name '<template>'
+      command 'instantiate' do |c|
+        c.desc 'Output directory'
+        c.flag 'output-dir', arg_name: 'dir', default_value: 'output'
+
+        c.desc 'Build dataset'
+        c.flag 'build-dataset', arg_name: 'filesystem', required: true
+
+        c.desc 'Vendor name'
+        c.flag 'vendor', arg_name: 'name'
+
+        c.desc 'Force template rebuild'
+        c.switch 'rebuild'
+
+        c.desc 'Instantiate in an existing container'
+        c.flag 'container', arg_name: 'ctid'
+
+        c.action &Command.run(Template, :instantiate)
+      end
+
       # command 'deploy'
 
       desc 'Manage build and test containers'
