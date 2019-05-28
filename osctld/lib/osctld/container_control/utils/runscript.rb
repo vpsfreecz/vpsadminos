@@ -57,6 +57,8 @@ module OsCtld
             '-n', ctid,
             '-o', log_file,
             '-s', "lxc.environment=PATH=#{system_path.join(':')}",
+            '-s', "lxc.environment=HOME=/root",
+            '-s', "lxc.environment=USER=root",
             '--',
             opts[:script],
           ]
@@ -113,6 +115,8 @@ module OsCtld
           # Configure network
           pid = lxc_ct.attach do
             setup_exec_env
+            ENV['HOME'] = '/root'
+            ENV['USER'] = 'root'
             opts[:net_config].setup
           end
 

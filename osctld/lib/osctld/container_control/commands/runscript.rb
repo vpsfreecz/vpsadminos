@@ -91,6 +91,8 @@ module OsCtld
           stderr: opts[:stderr]
         ) do
           setup_exec_env
+          ENV['HOME'] = '/root'
+          ENV['USER'] = 'root'
           LXC.run_command(opts[:script])
         end
 
