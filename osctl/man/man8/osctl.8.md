@@ -146,6 +146,7 @@ and network configuration. Supported distributions are:
  - openSUSE
  - Slackware
  - Ubuntu
+ - Void
 
 Other distributions have to be configured manually from the inside.
 

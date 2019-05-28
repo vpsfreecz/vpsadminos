@@ -1,0 +1,13 @@
+<% if netif.dhcp -%>
+dhcpcd <%= netif.name %>
+<% end -%>
+
+<% netif.active_ip_versions.each do |v| -%>
+<% netif.ips(v).each do |addr| -%>
+ip -<%= v %> addr add <%= addr.to_string %> dev <%= netif.name %>
+<% end -%>
+
+<% if !netif.dhcp && netif.has_gateway?(v) -%>
+ip -<%= v %> route add default via <%= netif.gateway(v) %> dev <%= netif.name %>
+<% end -%>
+<% end -%>

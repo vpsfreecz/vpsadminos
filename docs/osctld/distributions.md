@@ -16,6 +16,7 @@ Currently supported distributions within a container are:
  - openSUSE
  - Slackware
  - Ubuntu
+ - Void
 
 Unsupported distributions can be used without any restrictions, except that
 *osctld* will be able to configure the network only on the host, containers will

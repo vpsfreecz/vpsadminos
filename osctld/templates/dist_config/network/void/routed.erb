@@ -1,0 +1,10 @@
+echo 0 > /proc/sys/net/ipv6/conf/<%= netif.name %>/accept_dad
+
+<% netif.active_ip_versions.each do |v| -%>
+<% all_ips = netif.ips(v) -%>
+<% all_ips.each do |addr| -%>
+ip -<%= v %> addr add <%= addr.to_string %> dev <%= netif.name %>
+<% end -%>
+ip -<%= v %> route add <%= netif.default_via(v) %> dev <%= netif.name %>
+ip -<%= v %> route add default via <%= netif.default_via(v) %> dev <%= netif.name %>
+<% end -%>
