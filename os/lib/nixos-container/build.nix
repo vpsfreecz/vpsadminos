@@ -35,7 +35,7 @@ in
     '';
 
   system.build.tarball = import <nixpkgs/nixos/lib/make-system-tarball.nix> {
-    inherit (pkgs) stdenv perl pixz pathsFromGraph;
+    inherit (pkgs) stdenv closureInfo pixz;
     compressCommand = "gzip";
     compressionExtension = ".gz";
     extraInputs = [ pkgs.gzip ];
