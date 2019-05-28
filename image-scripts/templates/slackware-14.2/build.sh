@@ -11,8 +11,7 @@
 # Slackware's built-in network scripts do not support setting multiple IPv4
 # addresses on one interface and IPv6 is not supported at all.
 # For this reason, this template provides its own script to setup venet0 and
-# add IP addresses. A patched version of vzctl is needed to use this custom
-# script.
+# add IP addresses.
 #
 # /etc/rc.d/rc.M (multi-user runlevel) starts the original /etc/rc.d/rc.inet1
 # script that brings up the loopback. It has been patched to start our custom
@@ -21,13 +20,11 @@
 # /etc/rc.d/rc.venet.stop on stop.
 #
 # These scripts are responsible for configuring the interface and are generated
-# by vzctl -- this is where a patch for vzctl is needed. rc.venet.{start,stop}
-# scripts configure the interface using /sbin/ip commands (needs package
-# iproute2). The contents of these files is rewritten on VPS start and
-# on vzctl set --ipadd/ipdel commands.
+# by osctld. rc.venet.{start,stop} scripts configure the interface using
+# /sbin/ip commands (needs package iproute2). The contents of these files is
+# rewritten on VPS start and on osctl ct netif ip add/del commands.
 
-DISTNAME=slackware
-RELVER=14.2
+. "$TEMPLATEDIR/config.sh"
 BASEURL=http://mirrors.slackware.com/slackware/
 LOCAL_REPO="$DOWNLOAD/repo"
 LOCAL_ROOT="$DOWNLOAD/root"
@@ -47,10 +44,12 @@ dcron
 devs
 dialog
 diffutils
+dhcpcd
 etc
 file
 findutils
 gawk
+genpower
 glibc-solibs
 glibc-zoneinfo
 gnupg
@@ -218,14 +217,14 @@ sed -i -e '/^if \[ ! \$READWRITE = yes/,/^fi # Done checking root filesystem/s/^
 # Disable setterm
 sed -i -e '/^\/bin\/setterm/s/^/#/' /etc/rc.d/rc.M
 
-# /etc/fstab
-cat <<END > /etc/fstab
-devpts           /dev/pts         devpts      gid=5,mode=620   0   0
-tmpfs            /dev/shm         tmpfs       defaults         0   0
-END
+echo > /etc/fstab
 
 # Remote console
-sed -i -r 's/^(c[3-6]:)/#\1/g' /etc/inittab
+sed -i '/^c1:/c\c1:12345:respawn:\/sbin\/agetty --noclear 38400 console linux' /etc/inittab
+sed -i -r 's/^(c[2-6]:)/#\1/g' /etc/inittab
+
+# Power
+sed -i 's|pf::powerfail:/sbin/genpowerfail start|pf::powerwait:/sbin/halt|' /etc/inittab
 
 # Configure SSH
 sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
@@ -235,7 +234,7 @@ touch /etc/fastboot
 
 # Custom network setup script
 sed -i '/^# Start networking daemons:$/i \
-# Setup vz network\n\
+# Setup osctl network\n\
 if \[ -x \/etc\/rc.d\/rc.venet \] ; then\n\
     \/etc\/rc.d\/rc.venet start\n\
 fi\n\
