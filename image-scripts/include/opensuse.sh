@@ -1,10 +1,10 @@
 #!/bin/bash
 require_cmd zypper
 
-if [ $DISTNAME == "opensuse-leap" ]; then
+if [ "$DISTNAME" == "opensuse_leap" ]; then
 	REPOSITORY=http://download.opensuse.org/distribution/leap/$RELVER/repo/oss/
 	UPDATES=http://download.opensuse.org/update/leap/$RELVER/oss/
-elif [ $DISTNAME == "opensuse-tumbleweed" ]; then
+elif [ "$DISTNAME" == "opensuse_tumbleweed" ]; then
 	REPOSITORY=http://download.opensuse.org/tumbleweed/repo/oss/
 	UPDATES=http://download.opensuse.org/update/tumbleweed/
 fi
@@ -14,12 +14,14 @@ EXTRAPKGS='vim iproute2 iputils net-tools procps less psmisc timezone aaa_base-e
 ZYPPER="zypper -v --root=$INSTALL --non-interactive --gpg-auto-import-keys "
 
 function bootstrap {
-	$ZYPPER addrepo --refresh $REPOSITORY openSUSE-oss
-	$ZYPPER addrepo --refresh $UPDATES openSUSE-updates
+	set -e
+	$ZYPPER addrepo --refresh -g $REPOSITORY openSUSE-oss
+	$ZYPPER addrepo --refresh -g $UPDATES openSUSE-updates
+	$ZYPPER refresh
 	$ZYPPER install --no-recommends aaa_base shadow
-	$ZYPPER install --no-recommends -t pattern minimal_base minimal_base-conflicts
-	$ZYPPER install -t pattern sw_management
+	$ZYPPER install --no-recommends patterns-base-base patterns-base-sw_management
 	$ZYPPER install $EXTRAPKGS
+	set +e
 
 }
 
