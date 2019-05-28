@@ -143,6 +143,7 @@ and network configuration. Supported distributions are:
  - Fedora
  - Gentoo
  - NixOS
+ - openSUSE
  - Ubuntu
 
 Other distributions have to be configured manually from the inside.

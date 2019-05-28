@@ -13,6 +13,7 @@ Currently supported distributions within a container are:
  - Fedora
  - Gentoo
  - NixOS
+ - openSUSE
  - Ubuntu
 
 Unsupported distributions can be used without any restrictions, except that

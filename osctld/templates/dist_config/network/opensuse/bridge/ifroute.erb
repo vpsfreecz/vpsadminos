@@ -1,0 +1,5 @@
+<% netif.active_ip_versions.each do |v| -%>
+<% if netif.has_gateway?(v) -%>
+default <%= netif.gateway(v) %> <%= v == 4 ? '0.0.0.0' : '::' %> <%= netif.name %>
+<% end -%>
+<% end -%>

@@ -1,0 +1,10 @@
+STARTMODE=auto
+<% if netif.dhcp -%>
+BOOTPROTO=dhcp
+ONBOOT=yes
+<% else -%>
+BOOTPROTO=static
+<% all_ips.each_with_index do |addr, i| -%>
+IPADDR_<%= i %>=<%= addr.to_string %>
+<% end -%>
+<% end -%>

@@ -1,0 +1,5 @@
+STARTMODE=auto
+BOOTPROTO=static
+<% all_ips.each_with_index do |addr, i| -%>
+IPADDR_<%= i %>=<%= addr.to_string %>
+<% end -%>

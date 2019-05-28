@@ -1,0 +1,4 @@
+<% netif.active_ip_versions.each do |v| -%>
+<%= netif.default_via(v).to_string %> - - <%= netif.name %>
+default <%= netif.default_via(v).to_s %> <%= v == 4 ? '0.0.0.0' : '::' %> <%= netif.name %>
+<% end -%>
