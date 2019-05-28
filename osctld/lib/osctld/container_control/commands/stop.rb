@@ -36,7 +36,7 @@ module OsCtld
         if do_shutdown(opts)[:status]
           ok
         else
-          do_kill
+          do_kill(opts)
         end
       end
 
