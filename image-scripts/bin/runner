@@ -1,6 +1,8 @@
-#!/bin/bash -x
+#!/usr/bin/env bash
 # This is internal builder, do not use this directly!
 # Use osctl-template from vpsAdminOS to build the templates.
+
+set -x
 
 BASEDIR=$(realpath `dirname ${BASH_SOURCE[0]}`/..)
 
