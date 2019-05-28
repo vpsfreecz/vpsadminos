@@ -14,6 +14,7 @@ Currently supported distributions within a container are:
  - Gentoo
  - NixOS
  - openSUSE
+ - Slackware
  - Ubuntu
 
 Unsupported distributions can be used without any restrictions, except that

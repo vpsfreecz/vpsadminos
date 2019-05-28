@@ -144,6 +144,7 @@ and network configuration. Supported distributions are:
  - Gentoo
  - NixOS
  - openSUSE
+ - Slackware
  - Ubuntu
 
 Other distributions have to be configured manually from the inside.

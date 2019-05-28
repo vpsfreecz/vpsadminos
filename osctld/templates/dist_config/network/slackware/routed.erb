@@ -1,0 +1,12 @@
+<% if cmd == 'add' -%>
+echo 0 > /proc/sys/net/ipv6/conf/<%= netif.name %>/accept_dad
+<% end -%>
+
+<% netif.active_ip_versions.each do |v| -%>
+<% all_ips = netif.ips(v) -%>
+<% all_ips.each do |addr| -%>
+ip -<%= v %> addr <%= cmd %> <%= addr.to_string %> dev <%= netif.name %>
+<% end -%>
+ip -<%= v %> route <%= cmd %> <%= netif.default_via(v) %> dev <%= netif.name %>
+ip -<%= v %> route <%= cmd %> default via <%= netif.default_via(v) %> dev <%= netif.name %>
+<% end -%>
