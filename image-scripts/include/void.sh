@@ -1,8 +1,6 @@
 require_cmd wget
 
-DISTNAME="void-$VARIANT"
-RELVER=$(date +%Y%m%d)
-BASEURL=https://repo.voidlinux.eu/live/current
+BASEURL=http://alpha.de.repo.voidlinux.org/live/current
 ROOTFS=
 
 fetch() {
@@ -10,9 +8,9 @@ fetch() {
 	local rx
 
 	if [ "$VARIANT" == "musl" ] ; then
-		rx='void-x86_64-musl-rootfs-\d+.tar.xz'
+		rx='void-x86_64-musl-ROOTFS-\d+.tar.xz'
 	else
-		rx='void-x86_64-rootfs-\d+.tar.xz'
+		rx='void-x86_64-ROOTFS-\d+.tar.xz'
 	fi
 
 	# Fetch checksums to find out latest release name
@@ -41,12 +39,15 @@ configure-void() {
 echo nameserver 8.8.8.8 > /etc/resolv.conf
 xbps-install -Syu
 xbps-install -Syu
-sed -i '$ i devtmpfs        /dev    devtmpfs mode=0755,nosuid       0       0' /etc/fstab
+xbps-install -Syu vim
 cp /etc/skel/.[^.]* /root/
 usermod -s /bin/bash root
 usermod -L root
+sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
 ln -s /etc/sv/sshd /etc/runit/runsvdir/default/sshd
-rm -f /etc/runit/runsvdir/default/agetty-tty{3..6}
+rm -f /etc/runit/runsvdir/default/agetty-tty{1..6}
+rm -f /etc/runit/runsvdir/default/udevd
+ln -s /etc/sv/agetty-console /etc/runit/runsvdir/default/agetty-console
 echo > /etc/resolv.conf
 EOF
 }
@@ -54,7 +55,7 @@ EOF
 generate-void() {
 	fetch
 	extract
-	echo "#!/bin/bash" | configure-append
+	configure-shebang "#!/bin/bash"
 	configure-common
 	configure-void
 	run-configure
