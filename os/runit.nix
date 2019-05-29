@@ -23,13 +23,13 @@ in
   environment.systemPackages = [ compat pkgs.socat ];
 
   runit.stage1 = ''
-    # Apply kernel parameters
-    sysctl -p /etc/sysctl.d/nixos.conf
-
     # load kernel modules
     for x in ${lib.concatStringsSep " " config.boot.kernelModules}; do
       modprobe $x
     done
+
+    # Apply kernel parameters
+    sysctl -p /etc/sysctl.d/nixos.conf
 
     ip addr add 127.0.0.1/8 dev lo
     ip link set lo up
