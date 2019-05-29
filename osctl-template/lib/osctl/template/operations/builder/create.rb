@@ -47,6 +47,9 @@ module OsCtl::Template
 
           client.start_container(builder.ctid)
 
+          # Give the container some time to start
+          sleep(5)
+
           client.bind_mount(builder.ctid, base_dir, builder_base_dir)
           client.activate_mount(builder.ctid, builder_base_dir)
 
