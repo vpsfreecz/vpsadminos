@@ -39,14 +39,34 @@ module OsCtl::Template
     def build
       require_args!('template')
 
+      op = Operations::Execution::Parallel.new(opts[:jobs])
+
       select_templates(args[0]).each do |tpl|
-        Operations::Template::Build.run(
-          File.absolute_path('.'),
-          tpl,
-          output_dir: opts['output-dir'],
-          build_dataset: opts['build-dataset'],
-          vendor: opts[:vendor],
-        )
+        op.add(tpl) do
+          Operations::Template::Build.run(
+            File.absolute_path('.'),
+            tpl,
+            output_dir: opts['output-dir'],
+            build_dataset: opts['build-dataset'],
+            vendor: opts[:vendor],
+          )
+        end
+      end
+
+      puts "Building templates..."
+      results = op.execute
+
+      puts "Build results:"
+      results.each do |res|
+        tpl = res.obj
+        build = res.return_value
+
+        if res.status
+          puts "#{tpl.name}: #{build.output_tar}"
+          puts "#{tpl.name}: #{build.output_stream}"
+        else
+          puts "#{tpl.name}: failed with #{res.exception.class}: #{res.exception.message}"
+        end
       end
     end
 

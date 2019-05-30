@@ -49,6 +49,9 @@ module OsCtl::Template::Cli
         c.desc 'Vendor name'
         c.flag 'vendor', arg_name: 'name'
 
+        c.desc 'How many templates build in parallel'
+        c.flag 'jobs', arg_name: 'n', type: Integer, default_value: 1
+
         c.action &Command.run(Template, :build)
       end
 

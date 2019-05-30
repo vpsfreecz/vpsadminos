@@ -68,9 +68,11 @@ module OsCtl::Template
       @client = OsCtldClient.new
     end
 
+    # @return [Operations::Template::Build]
     def execute
-      puts "* Template #{template.name} using #{builder.name} builder"
+      log(:info, "Using builder #{builder.name}")
       build
+      self
     ensure
       cleanup
     end
@@ -143,8 +145,6 @@ module OsCtl::Template
       zfs(:snapshot, nil, "#{output_dataset}@template")
       syscmd("zfs send #{output_dataset}@template | gzip > #{output_stream}")
 
-      puts "> #{output_tar}"
-      puts "> #{output_tar}"
     end
 
     def cleanup
