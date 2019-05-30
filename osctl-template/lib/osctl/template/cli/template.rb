@@ -39,13 +39,7 @@ module OsCtl::Template
     def build
       require_args!('template')
 
-      templates = template_list
-
-      if args[0] != 'all'
-        templates.select! { |tpl| args.include?(tpl.name) }
-      end
-
-      templates.each do |tpl|
+      select_templates(args[0]).each do |tpl|
         Operations::Template::Build.run(
           File.absolute_path('.'),
           tpl,
@@ -59,24 +53,23 @@ module OsCtl::Template
     def test
       require_args!('template')
 
-      tpl = TemplateList.new('.').detect { |t| t.name == args[0] }
-      fail "template '#{args[0]}' not found" unless tpl
+      templates = select_templates(args[0])
+      tests = select_tests(args[1])
+      results = []
 
-      tests = TestList.new('.')
-
-      if args.length > 1 && args[1] != 'all'
-        tests.select! { |test| args[1..-1].include?(test.name) }
+      templates.each do |tpl|
+        results.concat(
+          Operations::Test::Template.run(
+            File.absolute_path('.'),
+            tpl,
+            tests,
+            output_dir: opts['output-dir'],
+            build_dataset: opts['build-dataset'],
+            vendor: opts[:vendor],
+            rebuild: opts[:rebuild],
+          )
+        )
       end
-
-      results = Operations::Test::Template.run(
-        File.absolute_path('.'),
-        tpl,
-        tests,
-        output_dir: opts['output-dir'],
-        build_dataset: opts['build-dataset'],
-        vendor: opts[:vendor],
-        rebuild: opts[:rebuild],
-      )
 
       succeded = results.select { |t| t.success? }
       failed = results.reject { |t| t.success? }
@@ -117,6 +110,38 @@ module OsCtl::Template
     end
 
     protected
+    # @param arg [String]
+    # @return [Array<Template>]
+    def select_templates(arg)
+      existing_templates = template_list
+
+      if arg == 'all'
+        existing_templates
+      else
+        arg.split(',').map do |v|
+          tpl = existing_templates.detect { |t| t.name == v }
+          raise GLI::BadCommandLine, "template '#{v}' not found" if tpl.nil?
+          tpl
+        end
+      end
+    end
+
+    # @param arg [String, nil]
+    # @return [Array<Test>]
+    def select_tests(arg)
+      existing_tests = TestList.new('.')
+
+      if arg.nil? || arg == 'all'
+        existing_tests
+      else
+        arg.split(',').map do |v|
+          test = existing_tests.detect { |t| t.name == v }
+          raise GLI::BadCommandLine, "test '#{v}' not found" if test.nil?
+          test
+        end
+      end
+    end
+
     def template_list
       TemplateList.new('.')
     end

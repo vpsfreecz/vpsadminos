@@ -36,7 +36,7 @@ of `osctl-template` with template building programs.
     `-s`, `--sort` *parameters*
       Sort output by parameters, comma separated.
 
-`build` [*options*] *template*|`all`
+`build` [*options*] `all`|*template*[`,`*template...*]
   Build selected templates.
 
     `--build-dataset` *dataset*
@@ -48,10 +48,10 @@ of `osctl-template` with template building programs.
     `--vendor` *vendor*
       Override vendor attribute defined by the template.
 
-`test` [*options*] *template* [*test*...]
-  Run one or more tests on *template*. If the template is not found in the
-  output directory, it is built, otherwise a cached version is used. Rebuild
-  can be forced using option `--rebuild`.
+`test` [*options*] `all`|*template*[`,`*template...*] [*test*[`,`*test...*]]
+  Run one or more tests on all or selected templates. If the template is not
+  found in the output directory, it is built, otherwise a cached version is
+  used. Rebuild can be forced using option `--rebuild`.
 
     `--build-dataset` *dataset*
       Name of a ZFS filesystem which can be used to build templates. Required.

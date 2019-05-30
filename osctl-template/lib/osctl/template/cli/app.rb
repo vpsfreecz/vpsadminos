@@ -38,7 +38,7 @@ module OsCtl::Template::Cli
       end
 
       desc 'Build template'
-      arg_name '<template>'
+      arg_name '<template>[,template...]'
       command 'build' do |c|
         c.desc 'Output directory'
         c.flag 'output-dir', arg_name: 'dir', default_value: 'output'
@@ -53,7 +53,7 @@ module OsCtl::Template::Cli
       end
 
       desc 'Test template'
-      arg_name '<template> [test...]'
+      arg_name '<template>[,template...] [test[,test...]]'
       command 'test' do |c|
         c.desc 'Output directory'
         c.flag 'output-dir', arg_name: 'dir', default_value: 'output'
