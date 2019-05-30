@@ -1,12 +1,14 @@
 #!/bin/bash
 require_cmd zypper
 
-if [ "$DISTNAME" == "opensuse_leap" ]; then
-	REPOSITORY=http://download.opensuse.org/distribution/leap/$RELVER/repo/oss/
-	UPDATES=http://download.opensuse.org/update/leap/$RELVER/oss/
-elif [ "$DISTNAME" == "opensuse_tumbleweed" ]; then
+if [ "$SPIN" == "leap" ]; then
+	REPOSITORY=http://download.opensuse.org/distribution/leap/$SPINVER/repo/oss/
+	UPDATES=http://download.opensuse.org/update/leap/$SPINVER/oss/
+elif [ "$SPIN" == "tumbleweed" ]; then
 	REPOSITORY=http://download.opensuse.org/tumbleweed/repo/oss/
 	UPDATES=http://download.opensuse.org/update/tumbleweed/
+else
+	fail "unsupported spin"
 fi
 
 EXTRAPKGS='vim iproute2 iputils net-tools procps less psmisc timezone aaa_base-extras'
