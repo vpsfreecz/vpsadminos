@@ -1254,8 +1254,10 @@ tt
       w_out.close
       w_err.close
 
+      watch_ios = [STDIN, r_out, r_err, c.socket]
+
       loop do
-        rs, ws, = IO.select([STDIN, r_out, r_err, c.socket])
+        rs, ws, = IO.select(watch_ios)
 
         rs.each do |r|
           case r
@@ -1270,8 +1272,13 @@ tt
             STDERR.flush
 
           when STDIN
-            data = r.read_nonblock(4096)
-            w_in.write(data)
+            begin
+              data = r.read_nonblock(4096)
+              w_in.write(data)
+            rescue EOFError
+              w_in.close
+              watch_ios.delete(STDIN)
+            end
 
           when c.socket
             r_out.close
