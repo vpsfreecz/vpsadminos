@@ -93,7 +93,19 @@ module OsCtld
           setup_exec_env
           ENV['HOME'] = '/root'
           ENV['USER'] = 'root'
-          LXC.run_command(opts[:script])
+
+          # FIXME: *something* must be keeping opts[:script] open, because when
+          # runscript is run in parallel, 1-2 out of 10 calls fail with ETXTBSY,
+          # which LXC translates to LXC::Error. So we try to call the script
+          # multiple times, until *something* releases the file.
+          10.times do
+            begin
+              LXC.run_command(opts[:script])
+              break
+            rescue LXC::Error
+              sleep(0.1)
+            end
+          end
         end
 
         _, status = Process.wait2(pid)
