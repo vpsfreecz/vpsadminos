@@ -2,6 +2,8 @@ require 'osctld/dist_config/base'
 
 module OsCtld
   class DistConfig::OpenSuse < DistConfig::Base
+    distribution :opensuse
+
     def set_hostname(opts)
       # /etc/hostname
       writable?(File.join(ct.rootfs, 'etc', 'hostname')) do |path|

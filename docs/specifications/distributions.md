@@ -12,8 +12,8 @@ CentOS               | `centos`               | `<major>.<minor>`      | `centos
 Debian               | `debian`               | `<major>.<minor>`      | `debian-9.0`
 Devuan               | `devuan`               | `<major>.<minor>`      | `devuan-1.0`
 Gentoo               | `gentoo`               | `<profile>-<YYYYMMDD>` | `gentoo-17.0-20180210`
-openSUSE Leap        | `opensuse_leap`        | `<major>.<minor>`      | `opensuse_leap-15.1`
-openSUSE Tumbleweed  | `opensuse_tumbleweed`  | `<YYMMDD>`             | `opensuse_tumbleweed-20180210`
+openSUSE Leap        | `opensuse`             | `leap-<major>.<minor>` | `opensuse_leap-15.1`
+openSUSE Tumbleweed  | `opensuse`             | `tumbleweed-<YYMMDD>`  | `opensuse_tumbleweed-20180210`
 Slackware            | `slackware`            | `<major>.<minor>`      | `slackware-14.2`
 Ubuntu               | `ubuntu`               | `<major>.<minor>`      | `ubuntu-16.04`
 Void Linux           | `void`                 | `<YYYYMMDD>`           | `void-20180210`
