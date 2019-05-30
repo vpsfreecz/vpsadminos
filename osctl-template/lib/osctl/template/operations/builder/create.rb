@@ -64,10 +64,13 @@ module OsCtl::Template
 
           client.unmount(builder.ctid, builder_base_dir)
 
-          fail "builder setup failed with exit status #{rc}" if rc != 0
+          if rc != 0
+            raise OperationError,
+                  "builder setup failed with exit status #{rc}"
+          end
 
         rescue OsCtl::Client::Error,
-               RuntimeError => e
+               OperationError => e
           puts "* error occurred: #{e.message}, cleaning up"
 
           if client.find_container(builder.ctid)

@@ -129,8 +129,9 @@ module OsCtl::Template
       )
 
       if rc != 0
-        fail "build of #{template.name} on #{builder.name} failed with "+
-             "exit status #{rc}"
+        raise OperationError,
+              "build of #{template.name} on #{builder.name} failed with "+
+              "exit status #{rc}"
       end
 
       zfs(:unmount, nil, output_dataset)

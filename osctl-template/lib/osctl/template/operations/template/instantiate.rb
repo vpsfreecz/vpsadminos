@@ -53,7 +53,8 @@ module OsCtl::Template
       elsif File.exist?(build.output_tar)
         use_archive(build)
       else
-        fail "no template file for '#{build.template}' found in output directory"
+        raise OperationError,
+              "no template file for '#{build.template}' found in output directory"
       end
     end
 

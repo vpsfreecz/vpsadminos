@@ -27,7 +27,7 @@ module OsCtl::Template
         end
       end
 
-      fail "unable to find root #{type} in id map"
+      raise OperationError, "unable to find root #{type} in id map"
     end
   end
 end

@@ -38,7 +38,10 @@ EOF
         script,
         name: '/tmp/osctl-template.wait-for-network',
       )
-      fail "network setup failed with exit status #{rc}" if rc != 0
+
+      if rc != 0
+        raise OperationError, "network setup failed with exit status #{rc}"
+      end
     end
   end
 end
