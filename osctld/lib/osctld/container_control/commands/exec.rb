@@ -16,7 +16,7 @@ module OsCtld
       include ContainerControl::Utils::Runscript::Frontend
 
       # @param opts [Hash]
-      # @option opts [String] :cmd command to execute
+      # @option opts [Array<String>] :cmd command to execute
       # @option opts [IO] :stdin
       # @option opts [IO] :stdout
       # @option opts [IO] :stderr
@@ -53,7 +53,7 @@ module OsCtld
 
       # @param mode [:running, :run_network, :run]
       # @param opts [Hash]
-      # @option opts [String] :cmd command to execute
+      # @option opts [Array<String>] :cmd command to execute
       # @option opts [IO] :stdin
       # @option opts [IO] :stdout
       # @option opts [IO] :stderr
