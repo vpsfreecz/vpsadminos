@@ -785,7 +785,7 @@ module OsCtl::Cli
         end
 
         ct.desc 'Run script within the container'
-        ct.arg_name '<ctid> <script>'
+        ct.arg_name '<ctid> <script> [arguments...]'
         ct.command %i(runscript) do |c|
           c.desc "Run the container if it isn't running already"
           c.switch %i(r run-container), negatable: false

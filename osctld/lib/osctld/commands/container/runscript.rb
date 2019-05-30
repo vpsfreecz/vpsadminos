@@ -17,6 +17,7 @@ module OsCtld
       st = ContainerControl::Commands::Runscript.run!(
         ct,
         script: opts[:script],
+        args: opts[:arguments] || [],
         run: opts[:run],
         network: opts[:network],
         stdin: client.recv_io,

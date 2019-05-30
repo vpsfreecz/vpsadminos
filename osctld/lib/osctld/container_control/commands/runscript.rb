@@ -17,6 +17,7 @@ module OsCtld
 
       # @param opts [Hash]
       # @option opts [String] :script path to the script on the host
+      # @option opts [Array<String>] :args script arguments
       # @option opts [IO] :stdin
       # @option opts [IO] :stdout
       # @option opts [IO] :stderr
@@ -68,6 +69,7 @@ module OsCtld
       # @param mode [:running, :run_network, :run]
       # @param opts [Hash]
       # @option opts [String] :script path to the script relative to the rootfs
+      # @option opts [Array<String>] :args script arguments
       # @option opts [IO] :stdin
       # @option opts [IO] :stdout
       # @option opts [IO] :stderr
@@ -100,7 +102,7 @@ module OsCtld
           # multiple times, until *something* releases the file.
           10.times do
             begin
-              LXC.run_command(opts[:script])
+              LXC.run_command([opts[:script]] + opts[:args])
               break
             rescue LXC::Error
               sleep(0.1)
