@@ -6,11 +6,11 @@ mkDerivation {
   version = "0.1.0.0";
   src = fetchgit {
     url = "https://github.com/vpsfreecz/pty-wrapper";
-    sha256 = "1cxyrf7sghsjqjhiv7pads1ifqmg31swcqfiz3dhf2cnb2bjh3lh";
-    rev = "b30f65e013dc0c6db7e34e2795870339ccf45ac6";
+    sha256 = "0fs91qqx47i4inlwp2q8kzli9gnrn40gmdb31p987wmqxqykqmwg";
+    rev = "568daa80ed2d223209946bc2be5f585a74a3cd32";
     fetchSubmodules = true;
   };
-  isLibrary = false;
+  isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
     aeson async base base64-bytestring bytestring network posix-pty stm
