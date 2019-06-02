@@ -31,8 +31,8 @@ module OsCtl::Lib
         tf.write(YAML.dump(
           'type' => type,
           'format' => format.to_s,
-          'user' => ct.user.name,
-          'group' => ct.group.name,
+          'user' => ct.user && ct.user.name,
+          'group' => ct.group && ct.group.name,
           'container' => ct.id,
           'datasets' => datasets.map { |ds| ds.relative_name },
           'exported_at' => Time.now.to_i,
@@ -43,14 +43,27 @@ module OsCtl::Lib
     # Dump configuration of the container, its user and group
     def dump_configs
       tar.mkdir('config', DIR_MODE)
-      tar.add_file('config/user.yml', FILE_MODE) do |tf|
-        tf.write(File.read(ct.user.config_path))
+
+      if ct.user
+        tar.add_file('config/user.yml', FILE_MODE) do |tf|
+          tf.write(File.read(ct.user.config_path))
+        end
       end
-      tar.add_file('config/group.yml', FILE_MODE) do |tf|
-        tf.write(File.read(ct.group.config_path))
+
+      if ct.group
+        tar.add_file('config/group.yml', FILE_MODE) do |tf|
+          tf.write(File.read(ct.group.config_path))
+        end
       end
+
       tar.add_file('config/container.yml', FILE_MODE) do |tf|
-        tf.write(File.read(ct.config_path))
+        if ct.respond_to?(:dump_config)
+          tf.write(YAML.dump(ct.dump_config))
+        elsif ct.respond_to?(:config_path)
+          tf.write(File.read(ct.config_path))
+        else
+          fail "don't know how to dump container config"
+        end
       end
     end
 
