@@ -62,31 +62,13 @@ module OsCtl::Template
     end
 
     # @param ctid [String]
-    # @param archive [String]
-    def create_container_from_archive(ctid, archive)
+    # @param file [String]
+    def create_container_from_file(ctid, file)
       connect do |client|
         client.cmd_data!(
-          :ct_create,
-          id: ctid,
-          template: {
-            type: :archive,
-            path: File.absolute_path(archive),
-          },
-        )
-      end
-    end
-
-    # @param ctid [String]
-    # @param stream [String]
-    def create_container_from_stream(ctid, stream)
-      connect do |client|
-        client.cmd_data!(
-          :ct_create,
-          id: ctid,
-          template: {
-            type: :stream,
-            path: File.absolute_path(stream),
-          },
+          :ct_import,
+          as_id: ctid,
+          file: File.absolute_path(file),
         )
       end
     end

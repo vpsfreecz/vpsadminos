@@ -60,6 +60,7 @@ module OsCtl::Template
 
     def use_archive(build)
       if reinstall
+        fail 'not implemented'
         client.stop_container(ctid)
         client.reinstall_container_from_archive(
           ctid,
@@ -67,7 +68,7 @@ module OsCtl::Template
           remove_snapshots: true,
         )
       else
-        client.create_container_from_archive(ctid, build.output_tar)
+        client.create_container_from_file(ctid, build.output_tar)
         sleep(3) # FIXME: wait for osctld...
         client.set_container_attr(
           ctid,
@@ -79,6 +80,7 @@ module OsCtl::Template
 
     def use_stream(build)
       if reinstall
+        fail 'not implemented'
         client.stop_container(ctid)
         client.reinstall_container_from_stream(
           ctid,
@@ -86,7 +88,7 @@ module OsCtl::Template
           remove_snapshots: true,
         )
       else
-        client.create_container_from_stream(ctid, build.output_stream)
+        client.create_container_from_file(ctid, build.output_stream)
         sleep(3) # FIXME: wait for osctld...
         client.set_container_attr(
           ctid,

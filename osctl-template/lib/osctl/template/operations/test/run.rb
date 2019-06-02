@@ -35,9 +35,9 @@ module OsCtl::Template
       @ctid = gen_ctid
 
       if File.exist?(build.output_stream)
-        use_stream
+        create_container(build.output_stream)
       elsif File.exist?(build.output_tar)
-        use_archive
+        create_container(build.output_tar)
       else
         raise OperationError,
               "no template file for '#{build.template}' found in output directory"
@@ -55,13 +55,8 @@ module OsCtl::Template
     protected
     attr_reader :client, :ctid
 
-    def use_archive
-      client.create_container_from_archive(ctid, build.output_tar)
-      sleep(3) # FIXME: wait for osctld...
-    end
-
-    def use_stream
-      client.create_container_from_stream(ctid, build.output_stream)
+    def create_container(file)
+      client.create_container_from_file(ctid, file)
       sleep(3) # FIXME: wait for osctld...
     end
 
