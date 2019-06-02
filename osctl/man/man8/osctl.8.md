@@ -735,18 +735,11 @@ read by `ls` or `show` commands.
   abort if there are snapshots present. You can use option `-r`,
   `--remove-snapshots` to remove them.
 
-    `--template` *template*
-      Template tar file, required. See `TEMPLATE NAMES` for the naming scheme.
-
     `--from-archive` *file*
       Create the container from a tar archive available in the filesystem.
 
     `--from-stream` *file*
-      Create the container from a ZFS stream, either in a file available in the
-      filesystem, or the stream can be fed into `osctl` via standard input.
-
-      If *file* is `-`, the stream is read from the standard input. In this case,
-      `--distribution` and `--version` have to be provided.
+      Create the container from a ZFS stream.
 
     `--distribution` *distribution*
       Distribution name in lower case, e.g. alpine, centos, debian, ubuntu.

@@ -643,9 +643,6 @@ module OsCtl::Cli
         ct.desc 'Reinstall container'
         ct.arg_name '<ctid>'
         ct.command :reinstall do |c|
-          c.desc 'Template from a repository'
-          c.flag :template, arg_name: 'template'
-
           c.desc 'Template in a tar archive'
           c.flag 'from-archive', arg_name: 'archive'
 
