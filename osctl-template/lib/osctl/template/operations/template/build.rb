@@ -26,6 +26,9 @@ module OsCtl::Template
     attr_reader :output_dir
 
     # @return [String]
+    attr_reader :install_dir
+
+    # @return [String]
     attr_reader :build_id
 
     # @return [String]
@@ -50,8 +53,9 @@ module OsCtl::Template
       builder.load_config
 
       @build_id = SecureRandom.hex(4)
-      @output_dataset = File.join(opts[:build_dataset], build_id, 'output')
-      @work_dataset = File.join(opts[:build_dataset], build_id, 'work')
+      @build_dataset = File.join(opts[:build_dataset], build_id)
+      @output_dataset = File.join(build_dataset, 'output')
+      @work_dataset = File.join(build_dataset, 'work')
       @output_dir = opts[:output_dir]
 
       name = [
@@ -62,8 +66,8 @@ module OsCtl::Template
         template.variant,
       ].join('-')
 
-      @output_tar = File.join(output_dir, "#{name}.tar.gz")
-      @output_stream = File.join(output_dir, "#{name}.dat.gz")
+      @output_tar = File.join(output_dir, "#{name}-archive.tar")
+      @output_stream = File.join(output_dir, "#{name}-stream.tar")
 
       @client = OsCtldClient.new
     end
@@ -82,7 +86,7 @@ module OsCtl::Template
     end
 
     protected
-    attr_reader :client, :work_dir, :output_dir, :install_dir
+    attr_reader :client, :build_dataset, :work_dir, :output_dir
 
     def build
       Operations::Builder::UseOrCreate.run(builder, base_dir)
@@ -140,11 +144,7 @@ module OsCtl::Template
       zfs(:set, 'uidmap=none gidmap=none', output_dataset)
       zfs(:mount, nil, output_dataset)
 
-      syscmd("tar -czf \"#{output_tar}\" -C \"#{install_dir}\" .")
-
-      zfs(:snapshot, nil, "#{output_dataset}@template")
-      syscmd("zfs send #{output_dataset}@template | gzip > #{output_stream}")
-
+      Operations::Template::Export.run(self)
     end
 
     def cleanup
@@ -164,8 +164,13 @@ module OsCtl::Template
       end
 
       zfs(:destroy, nil, work_dataset, valid_rcs: [1])
-      zfs(:destroy, nil, "#{output_dataset}@template", valid_rcs: [1])
+      zfs(
+        :list, '-H -o name -t snapshot', output_dataset, valid_rcs: [1]
+      ).output.split("\n").each do |s|
+        zfs(:destroy, nil, s.strip)
+      end
       zfs(:destroy, nil, output_dataset, valid_rcs: [1])
+      zfs(:destroy, nil, build_dataset, valid_rcs: [1])
     end
 
     def builder_base_dir
