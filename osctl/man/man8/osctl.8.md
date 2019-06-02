@@ -656,13 +656,11 @@ read by `ls` or `show` commands.
   the container is being created on.
 
   Containers are usually created from templates. Templates are by default
-  downloaded from remote repositories. The desired template can be selected
-  using option `--template` or specified by `--distribution` and optionally
-  also `--version`, `--arch`, `--vendor` or `--variant`. All configured
-  repositories are searched by default.
+  downloaded from remote repositories. The desired template can be  specified by
+  `--distribution` and optionally also `--version`, `--arch`, `--vendor` or
+  `--variant`. All configured repositories are searched by default.
 
-  Templates can also be supplied as local files, use option `--from-archive` for
-  tar archives, `--from-stream` for ZFS streams.
+  Use `ct import` to create containers from local files.
 
   Containers can be created in custom datasets, located anywhere on the pool.
   The dataset can be selected using option `--dataset`. If the dataset already
@@ -678,19 +676,6 @@ read by `ls` or `show` commands.
 
     `--group` *group*
       Group name, defaults to group *default* from selected *pool*.
-
-    `--template` *template*
-      Template tar file, required. See `TEMPLATE NAMES` for the naming scheme.
-
-    `--from-archive` *file*
-      Create the container from a tar archive available in the filesystem.
-
-    `--from-stream` *file*
-      Create the container from a ZFS stream, either in a file available in the
-      filesystem, or the stream can be fed into `osctl` via standard input.
-
-      If *file* is `-`, the stream is read from the standard input. In this case,
-      `--distribution` and `--version` have to be provided.
 
     `--dataset` *dataset*
       Use a custom dataset for the container's rootfs. The dataset and all its

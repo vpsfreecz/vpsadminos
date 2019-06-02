@@ -604,15 +604,6 @@ module OsCtl::Cli
           new.desc 'Group name'
           new.flag :group, required: false, arg_name: 'group'
 
-          new.desc 'Template from a repository'
-          new.flag :template, arg_name: 'template'
-
-          new.desc 'Template in a tar archive'
-          new.flag 'from-archive', arg_name: 'archive'
-
-          new.desc 'Template in a ZFS stream'
-          new.flag 'from-stream', arg_name: 'stream'
-
           new.desc 'Use a custom dataset for the rootfs'
           new.flag :dataset, arg_name: 'dataset'
 

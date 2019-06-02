@@ -168,63 +168,17 @@ module OsCtl::Cli
         repository: opts[:repository],
       }
 
-      %i(group dataset distribution version arch vendor variant).each do |v|
+      %i(group dataset).each do |v|
         cmd_opts[v] = opts[v] if opts[v]
       end
 
-      if !opts[:template] && !opts['from-archive'] && !opts['from-archive'] \
-         && !opts[:distribution]
-        raise GLI::BadCommandLine,
-              'provide either --template, --distribution or one of --from-archive, '+
-              '--from-stream'
-
-      elsif opts[:template] && (opts['from-archive'] || opts['from-archive'])
-        raise GLI::BadCommandLine,
-              'provide either --template or one of --from-archive, --from-stream'
-
-      elsif opts['from-archive'] && opts['from-stream']
-        raise GLI::BadCommandLine,
-              'provide either --from-archive or --from-stream, not both'
+      if !opts[:distribution]
+        raise GLI::BadCommandLine, 'provide --distribution'
       end
 
-      if opts[:template] || (!opts[:template] && !opts['from-archive'] && !opts['from-stream'])
-        cmd_opts[:template] = {
-          type: :remote,
-          template: repo_template_attrs,
-        }
+      cmd_opts[:template] = repo_template_attrs
 
-      elsif opts['from-archive']
-        cmd_opts[:template] = {
-          type: :archive,
-          path: File.absolute_path(opts['from-archive'])
-        }
-
-      elsif opts['from-stream']
-        stdin = opts['from-stream'] == '-'
-        cmd_opts[:template] = {
-          type: :stream,
-          path: stdin ? nil : File.absolute_path(opts['from-stream'])
-        }
-      end
-
-      if cmd_opts[:template][:type] != :stream || cmd_opts[:stream][:path]
-        osctld_fmt(:ct_create, cmd_opts)
-        return
-      end
-
-      updates = Proc.new { |msg| puts msg unless gopts[:quiet] }
-      c = osctld_open
-      ret = c.cmd_data!(:ct_create, cmd_opts, &updates)
-
-      error!('invalid response, stdin stream not available') if ret != 'continue'
-
-      r_in, w_in = IO.pipe
-      c.send_io(r_in)
-      r_in.close
-      w_in.write(STDIN.read(16*1024)) until STDIN.eof?
-      w_in.close
-
-      c.response!(&updates)
+      osctld_fmt(:ct_create, cmd_opts)
     end
 
     def delete
@@ -1157,32 +1111,12 @@ tt
     def repo_template_attrs(defaults: true)
       ret = {}
 
-      if opts[:template]
-        parts = opts[:template].split('-')
-
-        if parts.count < 1
-          raise GLI::BadCommandLine,
-                'the template has to be described at least by <distribution>'
-        end
-
-        dist, ver, arch, vendor, variant = parts
-
-        ret = {
-          vendor: vendor,
-          variant: variant,
-          arch: arch,
-          distribution: dist,
-          version: ver,
-        }
-      end
-
       if defaults
         ret[:vendor] ||= opts[:vendor] || 'default'
         ret[:variant] ||= opts[:variant] || 'default'
         ret[:arch] ||= opts[:arch] || `uname -m`.strip
         ret[:distribution] ||= opts[:distribution]
         ret[:version] ||= opts[:version] || 'stable'
-
       else
         ret[:vendor] ||= opts[:vendor]
         ret[:variant] ||= opts[:variant]

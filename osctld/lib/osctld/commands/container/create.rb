@@ -21,27 +21,23 @@ module OsCtld
 
       if opts[:group]
         group = DB::Groups.find(opts[:group], pool)
-
       else
         group = DB::Groups.default(pool)
       end
 
       error!('group not found') unless group
 
-      if opts[:no_template] \
-          || (opts[:template] && opts[:template][:type] == :stream && opts[:template][:path].nil?)
-        if !opts[:distribution]
-          error!('provide distribution')
+      if !opts[:template].is_a?(::Hash)
+        error!('invalid input')
 
-        elsif !opts[:version]
-          error!('provide distribution version')
+      elsif !opts[:template][:distribution]
+        error!('provide distribution')
 
-        elsif !opts[:arch]
-          error!('provide architecture')
-        end
+      elsif !opts[:template][:version]
+        error!('provide distribution version')
 
-      elsif !opts[:dataset] && !opts[:template]
-        error!('provide template archive, stream or existing dataset')
+      elsif !opts[:template][:arch]
+        error!('provide architecture')
       end
 
       builder = Container::Builder.create(
@@ -67,7 +63,7 @@ module OsCtld
             custom_dataset(builder)
 
           elsif opts[:template]
-            from_local_template(builder)
+            create_new(builder)
 
           else
             fail 'should not be possible'
@@ -115,27 +111,10 @@ module OsCtld
         return
       end
 
-      case opts[:template][:type].to_sym
-      when :remote
-        from_remote_template(builder, opts[:template])
-
-      when :archive
-        builder.setup_rootfs
-        builder.from_local_archive(
-          opts[:template][:path],
-          distribution: opts[:distribution],
-          version: opts[:version]
-        )
-
-      when :stream
-        from_stream(builder)
-
-      else
-        fail "unsupported template type #{opts[:template][:type]}"
-      end
+      from_remote_template(builder, opts[:template])
     end
 
-    def from_local_template(builder)
+    def create_new(builder)
       if opts[:no_template]
         builder.create_root_dataset(mapping: true)
         builder.setup_rootfs
@@ -143,23 +122,8 @@ module OsCtld
         return
       end
 
-      case opts[:template][:type].to_sym
-      when :remote
-        builder.create_root_dataset(mapping: false)
-        from_remote_template(builder, opts[:template])
-
-      when :archive
-        builder.create_root_dataset(mapping: false)
-        builder.setup_rootfs
-        builder.from_local_archive(opts[:template][:path])
-
-      when :stream
-        builder.create_root_dataset(mapping: false)
-        from_stream(builder)
-
-      else
-        fail "unknown template type '#{opts[:template][:type]}'"
-      end
+      builder.create_root_dataset(mapping: false)
+      from_remote_template(builder, opts[:template])
     end
   end
 end

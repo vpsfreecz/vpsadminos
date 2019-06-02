@@ -2,32 +2,6 @@ require 'zlib'
 
 module OsCtld
   module Utils::Container
-    def from_stream(builder)
-      if opts[:template][:path]
-        File.open(opts[:template][:path]) do |f|
-          gz = Zlib::GzipReader.new(f)
-          recv_stream(builder, gz)
-          gz.close
-        end
-
-        builder.shift_dataset
-        distribution, version, arch = builder.get_distribution_info(opts[:template][:path])
-
-        builder.configure(
-          opts[:distribution] || distribution,
-          opts[:version] || version,
-          opts[:arch] || arch
-        )
-
-      else
-        client.send({status: true, response: 'continue'}.to_json + "\n", 0)
-        recv_stream(builder, client.recv_io)
-
-        builder.shift_dataset
-        builder.configure(opts[:distribution], opts[:version], opts[:arch])
-      end
-    end
-
     def from_remote_template(builder, tpl)
       # TODO: this check is done too late -- the dataset has already been created
       #       and the repo may not exist
@@ -49,7 +23,7 @@ module OsCtld
 
       repo = repos.detect do |repo|
         begin
-          builder.from_repo_template(repo, tpl[:template])
+          builder.from_repo_template(repo, tpl)
 
         rescue TemplateNotFound
           next
@@ -65,12 +39,6 @@ module OsCtld
       error!('template not found') unless repo
 
       builder.setup_rootfs
-    end
-
-    def recv_stream(builder, io)
-      builder.from_stream do |recv|
-        recv.write(io.read(16*1024)) until io.eof?
-      end
     end
   end
 end
