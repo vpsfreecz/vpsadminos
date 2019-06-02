@@ -9,12 +9,12 @@ module OsCtl::Repo
         data[:distribution],
         data[:version],
         tags: data[:tags],
-        rootfs: data[:rootfs].keys.map(&:to_s)
+        image: data[:image].keys.map(&:to_s)
       )
     end
 
     attr_reader :repo, :vendor, :variant, :arch, :distribution, :version,
-      :tags, :rootfs
+      :tags, :image
 
     def initialize(repo, vendor, variant, arch, dist, ver, opts)
       @repo = repo
@@ -24,7 +24,7 @@ module OsCtl::Repo
       @distribution = dist
       @version = ver
       @tags = opts[:tags] || []
-      @rootfs = opts[:rootfs]
+      @image = opts[:image]
     end
 
     def dump
@@ -35,7 +35,7 @@ module OsCtl::Repo
         distribution: distribution,
         version: version,
         tags: tags.sort,
-        rootfs: Hash[rootfs.map { |v| [v, rootfs_path(v)] } ],
+        image: Hash[image.map { |v| [v, image_path(v)] } ],
       }
     end
 
@@ -51,25 +51,25 @@ module OsCtl::Repo
       File.join(repo.path, vendor, variant, arch, distribution, tag)
     end
 
-    def rootfs_path(format)
-      File.join(dir_path, rootfs_name(format))
+    def image_path(format)
+      File.join(dir_path, image_name(format))
     end
 
-    def rootfs_name(format)
+    def image_name(format)
       case format.to_sym
       when :tar
-        'rootfs.tar.gz'
+        'image.tar.gz'
       when :zfs
-        'rootfs.dat.gz'
+        'image.dat.gz'
       end
     end
 
-    def abs_rootfs_path(format)
-      File.join(repo.path, rootfs_path(format))
+    def abs_image_path(format)
+      File.join(repo.path, image_path(format))
     end
 
-    def has_rootfs?(fmt)
-      rootfs.include?(fmt)
+    def has_image?(fmt)
+      image.include?(fmt)
     end
 
     def ==(other)

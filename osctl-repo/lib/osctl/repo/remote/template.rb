@@ -3,12 +3,12 @@ require 'osctl/repo/base/template'
 
 module OsCtl::Repo
   class Remote::Template < Base::Template
-    def abs_rootfs_url(format)
-      File.join(repo.url, rootfs_path(format))
+    def abs_image_url(format)
+      File.join(repo.url, image_path(format))
     end
 
     def abs_cache_path(format)
-      abs_rootfs_path(format)
+      abs_image_path(format)
     end
 
     def cached?(format)
@@ -17,14 +17,14 @@ module OsCtl::Repo
 
     def lock(format)
       Filelock(
-        File.join(abs_dir_path, ".#{rootfs_name(format)}.lock"),
+        File.join(abs_dir_path, ".#{image_name(format)}.lock"),
         timeout: 60*60
       ) { yield }
     end
 
     def dump
       ret = super
-      ret[:cached] = ret[:rootfs].select do |format, path|
+      ret[:cached] = ret[:image].select do |format, path|
         cached?(format)
       end.map { |format, path| format }
       ret

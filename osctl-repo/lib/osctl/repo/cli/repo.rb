@@ -49,13 +49,13 @@ module OsCtl::Repo
         raise GLI::BadCommandLine, 'unable to set variant to default, name reserved'
       end
 
-      rootfs = Hash[{
+      image = Hash[{
         tar: opts[:archive],
         zfs: opts[:stream],
       }.select{ |_, v| v }]
 
-      if rootfs.empty?
-        raise GLI::BadCommandLine, 'no rootfs, use --archive or --stream'
+      if image.empty?
+        raise GLI::BadCommandLine, 'no image, use --archive or --stream'
       end
 
       repo.add(
@@ -65,7 +65,7 @@ module OsCtl::Repo
         distribution,
         version,
         tags: opts[:tag],
-        rootfs: rootfs
+        image: image
       )
     end
 

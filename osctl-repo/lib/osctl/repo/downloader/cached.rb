@@ -70,7 +70,7 @@ module OsCtl::Repo
         t = index.lookup(vendor, variant, arch, dist, vtag)
 
         raise TemplateNotFound, t unless t
-        raise FormatNotFound.new(t, format) unless t.has_rootfs?(format)
+        raise FormatNotFound.new(t, format) unless t.has_image?(format)
 
         FileUtils.mkdir_p(t.abs_dir_path)
 
@@ -98,7 +98,7 @@ module OsCtl::Repo
       t = index.lookup(vendor, variant, arch, dist, vtag)
 
       raise TemplateNotFound, t unless t
-      raise FormatNotFound.new(t, format) unless t.has_rootfs?(format)
+      raise FormatNotFound.new(t, format) unless t.has_image?(format)
 
       t.lock(format) do
         unless t.cached?(format)
@@ -162,7 +162,7 @@ module OsCtl::Repo
     end
 
     def fetch_template(http, t, format)
-      uri = URI(t.abs_rootfs_url(format))
+      uri = URI(t.abs_image_url(format))
       t_path = t.abs_cache_path(format)
 
       if t.cached?(format)

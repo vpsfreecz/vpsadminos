@@ -26,13 +26,13 @@ module OsCtl::Repo
         dist,
         ver,
         tags: opts[:tags],
-        rootfs: opts[:rootfs].keys.map(&:to_s)
+        image: opts[:image].keys.map(&:to_s)
       )
 
       FileUtils.mkdir_p(t.abs_dir_path)
 
-      opts[:rootfs].each do |format, file|
-        FileUtils.cp(file, t.abs_rootfs_path(format))
+      opts[:image].each do |format, file|
+        FileUtils.cp(file, t.abs_image_path(format))
       end
 
       t.tags.each do |tag|
@@ -65,9 +65,9 @@ module OsCtl::Repo
       index.delete(template)
       index.save
 
-      # Remove rootfs
-      template.rootfs.each do |v|
-        path = template.abs_rootfs_path(v)
+      # Remove image
+      template.image.each do |v|
+        path = template.abs_image_path(v)
 
         File.unlink(path) if File.exist?(path)
       end

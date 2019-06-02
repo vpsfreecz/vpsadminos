@@ -38,10 +38,10 @@ module OsCtl::Repo::Cli
           c.desc 'Tag'
           c.flag :tag, must_match: %w(stable latest testing), multiple: true
 
-          c.desc 'Rootfs archive'
+          c.desc 'Image with rootfs archive'
           c.flag :archive
 
-          c.desc 'Rootfs stream'
+          c.desc 'Image with rootfs stream'
           c.flag :stream
 
           c.action &Command.run(Repo, :add)

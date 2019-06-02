@@ -19,9 +19,9 @@ module OsCtl::Repo
         t = index.lookup(vendor, variant, arch, dist, vtag)
 
         fail 'template not found' unless t
-        fail 'rootfs not in given format' unless t.has_rootfs?(format)
+        fail 'image not in given format' unless t.has_image?(format)
 
-        uri = URI(t.abs_rootfs_url(format))
+        uri = URI(t.abs_image_url(format))
         http.request_get(uri.path) do |res|
           fail 'bad response' unless res.code == '200'
 
