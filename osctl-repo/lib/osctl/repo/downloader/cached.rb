@@ -176,6 +176,7 @@ module OsCtl::Repo
     def fetch_template(http, t, format)
       uri = URI(t.abs_image_url(format))
       t_path = t.abs_cache_path(format)
+      t_tmp_path = "#{t_path}.new"
 
       if t.cached?(format)
         headers = {'If-Modified-Since' => File.stat(t_path).mtime.httpdate}
@@ -183,7 +184,7 @@ module OsCtl::Repo
         http.request_get(uri.path, headers) do |res|
           case res.code
           when '200'
-            File.open(t_path, 'w') do |f|
+            File.open(t_tmp_path, 'w') do |f|
               res.read_body do |fragment|
                 f.write(fragment)
               end
@@ -191,9 +192,10 @@ module OsCtl::Repo
 
             if res['last-modified']
               # Save the modtime for later requests
-              FileUtils.touch(t_path, mtime: Time.httpdate(res['last-modified']))
+              FileUtils.touch(t_tmp_path, mtime: Time.httpdate(res['last-modified']))
             end
 
+            File.rename(t_tmp_path, t_path)
             return t_path
 
           when '304'
@@ -206,7 +208,7 @@ module OsCtl::Repo
 
       else # download it
         http.request_get(uri.path) do |res|
-          File.open(t_path, 'w') do |f|
+          File.open(t_tmp_path, 'w') do |f|
             raise BadHttpResponse, res.code if res.code != '200'
 
             res.read_body do |fragment|
@@ -216,8 +218,10 @@ module OsCtl::Repo
 
           if res['last-modified']
             # Save the modtime for later requests
-            FileUtils.touch(t_path, mtime: Time.httpdate(res['last-modified']))
+            FileUtils.touch(t_tmp_path, mtime: Time.httpdate(res['last-modified']))
           end
+
+          File.rename(t_tmp_path, t_path)
         end
       end
 
