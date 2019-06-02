@@ -26,12 +26,7 @@ module OsCtl::Template
     # @return [Array<Operations::Test::Run::Status>]
     def execute
       build = Operations::Template::Build.new(base_dir, template, opts)
-      build.execute if opts[:rebuild]
-
-      if (!File.exist?(build.output_stream) && !File.exist?(build.output_tar)) \
-         || opts[:rebuild]
-        build.execute
-      end
+      build.execute if opts[:rebuild] || !build.cached?
 
       tests.map do |test|
         Operations::Test::Run.run(base_dir, build, test)

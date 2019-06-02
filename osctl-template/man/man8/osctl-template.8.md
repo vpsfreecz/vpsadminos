@@ -48,6 +48,9 @@ of `osctl-template` with template building programs.
     `--vendor` *vendor*
       Override vendor attribute defined by the template.
 
+    `--jobs` *n*
+      How many template should be built in parallel. Defaults to `1`.
+
 `test` [*options*] `all`|*template*[`,`*template...*] [*test*[`,`*test...*]]
   Run one or more tests on all or selected templates. If the template is not
   found in the output directory, it is built, otherwise a cached version is
@@ -85,6 +88,34 @@ of `osctl-template` with template building programs.
     `--container` *ctid*
       Do not create a new container, but reinstall container *ctid* to
       *template*. Configuration of the existing container is kept.
+
+`deploy` [*options*] *template*[`,`*template...*] *repository*
+  Build, test and deploy templates to *repository*. Templates are build only
+  if they aren't found in the output directory, or `--rebuild` is used.
+  *repository* is a directory managed by `osctl-repo`.
+
+    `--build-dataset` *dataset*
+      Name of a ZFS filesystem which can be used to build templates. Required.
+
+    `--output-dir` *dir*
+      Directory where the resulting templates are stored. Defaults to `./output`.
+
+    `--vendor` *vendor*
+      Override vendor attribute defined by the template.
+
+    `--tag` *tag*
+      Tag the template within the repository. Tags can be used to access the
+      template instead of using its version. Used tags include `stable`, `latest`
+      and `testing`.
+
+    `--jobs` *n*
+      How many template should be built in parallel. Defaults to `1`.
+
+    `--rebuild`
+      Rebuild the template even if it is found in the output directory.
+
+    `--skip-tests`
+      Do not run tests, deploy templates immediately after build.
 
 `ct ls` [*options*]
   List managed build-related containers.

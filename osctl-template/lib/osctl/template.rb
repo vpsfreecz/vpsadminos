@@ -7,6 +7,7 @@ module OsCtl
       module Config; end
       module Execution ; end
       module Nix ; end
+      module Repository ; end
       module Template ; end
       module Test ; end
     end

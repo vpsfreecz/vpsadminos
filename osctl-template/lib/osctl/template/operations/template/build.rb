@@ -81,6 +81,10 @@ module OsCtl::Template
       cleanup
     end
 
+    def cached?
+      File.exist?(output_tar) || File.exist?(output_stream)
+    end
+
     def log_type
       "build #{template.name}@#{builder.name}"
     end

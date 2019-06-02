@@ -39,35 +39,8 @@ module OsCtl::Template
     def build
       require_args!('template')
 
-      op = Operations::Execution::Parallel.new(opts[:jobs])
-
-      select_templates(args[0]).each do |tpl|
-        op.add(tpl) do
-          Operations::Template::Build.run(
-            File.absolute_path('.'),
-            tpl,
-            output_dir: opts['output-dir'],
-            build_dataset: opts['build-dataset'],
-            vendor: opts[:vendor],
-          )
-        end
-      end
-
-      puts "Building templates..."
-      results = op.execute
-
-      puts "Build results:"
-      results.each do |res|
-        tpl = res.obj
-        build = res.return_value
-
-        if res.status
-          puts "#{tpl.name}: #{build.output_tar}"
-          puts "#{tpl.name}: #{build.output_stream}"
-        else
-          puts "#{tpl.name}: failed with #{res.exception.class}: #{res.exception.message}"
-        end
-      end
+      results, _ = build_templates(select_templates(args[0]))
+      process_build_results(results)
     end
 
     def test
@@ -75,39 +48,8 @@ module OsCtl::Template
 
       templates = select_templates(args[0])
       tests = select_tests(args[1])
-      results = []
-
-      templates.each do |tpl|
-        results.concat(
-          Operations::Test::Template.run(
-            File.absolute_path('.'),
-            tpl,
-            tests,
-            output_dir: opts['output-dir'],
-            build_dataset: opts['build-dataset'],
-            vendor: opts[:vendor],
-            rebuild: opts[:rebuild],
-          )
-        )
-      end
-
-      succeded = results.select { |t| t.success? }
-      failed = results.reject { |t| t.success? }
-
-      puts "#{results.length} tests run, #{succeded.length} succeeded, "+
-           "#{failed.length} failed"
-      return if failed.length == 0
-
-      puts
-      puts "Failed tests:"
-
-      failed.each_with_index do |st, i|
-        puts "#{i+1}) Test #{st.test} on #{st.template}:"
-        puts "  Exit status: #{st.exitstatus}"
-        puts "  Output:"
-        st.output.split("\n").each { |line| puts (' '*4)+line }
-        puts
-      end
+      results = test_templates(templates, tests)
+      process_test_results(results)
     end
 
     def instantiate
@@ -129,7 +71,135 @@ module OsCtl::Template
       puts "Container ID: #{ctid}"
     end
 
+    def deploy
+      require_args!('template', 'repository')
+
+      # Build templates
+      templates = select_templates(args[0])
+      build_results, cached_builds = build_templates(
+        select_templates(args[0]),
+        rebuild: opts[:rebuild],
+      )
+      process_build_results(build_results)
+
+      successful_builds =
+        build_results.select(&:status).map(&:return_value) \
+        + \
+        cached_builds
+
+      fail 'no templates to test and deploy' if successful_builds.empty?
+
+      if opts['skip-tests']
+        puts 'Skipping tests'
+        verified_builds = successful_builds
+      else
+        # Test successfully built templates
+        tests = TestList.new('.')
+        test_results = []
+
+        puts 'Testing templates'
+
+        verified_builds = successful_builds.select do |build|
+          results = test_templates([build.template], tests, rebuild: false)
+          test_results.concat(results)
+          results.all?(&:success?)
+        end
+
+        process_test_results(test_results)
+      end
+
+      fail 'no templates to deploy' if verified_builds.empty?
+
+      # Deploy verified templates
+      puts 'Deploying templates'
+
+      verified_builds.each do |build|
+        Operations::Template::Deploy.run(build, args[1], tags: opts[:tag])
+      end
+    end
+
     protected
+    def build_templates(templates, rebuild: true)
+      cached = []
+      op = Operations::Execution::Parallel.new(opts[:jobs])
+
+      templates.each do |tpl|
+        build = Operations::Template::Build.new(
+          File.absolute_path('.'),
+          tpl,
+          output_dir: opts['output-dir'],
+          build_dataset: opts['build-dataset'],
+          vendor: opts[:vendor],
+        )
+
+        if rebuild || !build.cached?
+          op.add(tpl) { build.execute }
+        else
+          cached << build
+        end
+      end
+
+      puts 'Building templates...'
+      results = op.execute
+      [results, cached]
+    end
+
+    def process_build_results(results)
+      puts "Build results:"
+      results.each do |res|
+        tpl = res.obj
+        build = res.return_value
+
+        if res.status
+          puts "#{tpl.name}: #{build.output_tar}"
+          puts "#{tpl.name}: #{build.output_stream}"
+        else
+          puts "#{tpl.name}: failed with #{res.exception.class}: #{res.exception.message}"
+        end
+      end
+    end
+
+    def test_templates(templates, tests, rebuild: nil)
+      rebuild = opts[:rebuild] if rebuild.nil?
+      results = []
+
+      templates.each do |tpl|
+        results.concat(
+          Operations::Test::Template.run(
+            File.absolute_path('.'),
+            tpl,
+            tests,
+            output_dir: opts['output-dir'],
+            build_dataset: opts['build-dataset'],
+            vendor: opts[:vendor],
+            rebuild: rebuild,
+          )
+        )
+      end
+
+      results
+    end
+
+    def process_test_results(results)
+      succeded = results.select { |t| t.success? }
+      failed = results.reject { |t| t.success? }
+
+      puts "#{results.length} tests run, #{succeded.length} succeeded, "+
+           "#{failed.length} failed"
+      return if failed.length == 0
+
+      puts
+      puts "Failed tests:"
+
+      failed.each_with_index do |st, i|
+        puts "#{i+1}) Test #{st.test} on #{st.template}:"
+        puts "  Exit status: #{st.exitstatus}"
+        puts "  Output:"
+        st.output.split("\n").each { |line| puts (' '*4)+line }
+        puts
+      end
+    end
+
     # @param arg [String]
     # @return [Array<Template>]
     def select_templates(arg)

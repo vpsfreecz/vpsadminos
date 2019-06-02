@@ -94,7 +94,32 @@ module OsCtl::Template::Cli
         c.action &Command.run(Template, :instantiate)
       end
 
-      # command 'deploy'
+      desc 'Build template, test it and deploy to repository'
+      arg_name '<template>[,template...] <repository>'
+      command 'deploy' do |c|
+        c.desc 'Output directory'
+        c.flag 'output-dir', arg_name: 'dir', default_value: 'output'
+
+        c.desc 'Build dataset'
+        c.flag 'build-dataset', arg_name: 'filesystem', required: true
+
+        c.desc 'Vendor name'
+        c.flag 'vendor', arg_name: 'name'
+
+        c.desc 'Tags'
+        c.flag 'tag', multiple: true
+
+        c.desc 'How many templates build in parallel'
+        c.flag 'jobs', arg_name: 'n', type: Integer, default_value: 1
+
+        c.desc 'Force template rebuild'
+        c.switch 'rebuild'
+
+        c.desc 'Skip tests'
+        c.switch 'skip-tests'
+
+        c.action &Command.run(Template, :deploy)
+      end
 
       desc 'Manage build and test containers'
       command 'ct' do |ct|
