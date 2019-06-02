@@ -22,7 +22,8 @@ module OsCtl::Repo
 
     # param opts [Hash]
     # @option opts [Boolean] :force_check
-    # yieldparam [String] downloaded data
+    # @yieldparam [String] downloaded data
+    # @return [String] path to image
     def get(vendor, variant, arch, dist, vtag, format, opts = {}, &block)
       if opts.has_key?(:force_check)
         force_check = opts[:force_check]
@@ -31,7 +32,15 @@ module OsCtl::Repo
       end
 
       begin
-        fh = download(vendor, variant, arch, dist, vtag, format, block ? true : false)
+        image_path, fh = download(
+          vendor,
+          variant,
+          arch,
+          dist,
+          vtag,
+          format,
+          block ? true : false,
+        )
       rescue SystemCallError,
              OpenSSL::SSL::SSLError,
              BadHttpResponse => dl_e
@@ -51,13 +60,16 @@ module OsCtl::Repo
         block.call(fh.read(16*1024)) until fh.eof?
         fh.close
       end
+
+      File.absolute_path(image_path)
     end
 
     protected
     attr_reader :repo
 
+    # @return [Array(String, [IO, nil])] `[image_path, io|nil]`
     def download(vendor, variant, arch, dist, vtag, format, open)
-      fh = nil
+      path = fh = nil
 
       connect do |http|
         index = nil
@@ -80,7 +92,7 @@ module OsCtl::Repo
         end
       end
 
-      fh
+      [path, fh]
     end
 
     def read_from_cache(vendor, variant, arch, dist, vtag, format)
