@@ -20,9 +20,14 @@ module OsCtld
 
     protected
     def import(pool, io)
-      importer = Container::Importer.new(pool, io)
+      importer = Container::Importer.new(pool, io, ct_id: opts[:as_id])
       importer.load_metadata
-      ctid = opts[:as_id] || importer.ct_id
+
+      if !importer.has_ct_id?
+        error!('the image does not include container id, specify it')
+      end
+
+      ctid = importer.ct_id
 
       if DB::Containers.find(ctid, pool)
         error!("container #{pool.name}:#{ctid} already exists")

@@ -11,9 +11,10 @@ module OsCtld
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
 
-    def initialize(pool, io)
+    def initialize(pool, io, ct_id: nil)
       @pool = pool
       @tar = Gem::Package::TarReader.new(io)
+      @ct_id = ct_id
     end
 
     # Load metadata describing the archive
@@ -33,37 +34,59 @@ module OsCtld
       metadata['user']
     end
 
+    def has_user?
+      !user_name.nil?
+    end
+
     def group_name
       metadata['group']
     end
 
+    def has_group?
+      !group_name.nil?
+    end
+
     def ct_id
-      metadata['container']
+      @ct_id || metadata['container']
+    end
+
+    def has_ct_id?
+      !ct_id.nil?
     end
 
     # Create a new instance of {User} as described by the tar archive
     #
     # The returned user is not registered in the internal database, it may even
     # conflict with a user already registered in the database.
+    # @return [User, nil]
     def load_user
-      User.new(
-        pool,
-        metadata['user'],
-        config: tar.seek('config/user.yml') { |entry| entry.read }
-      )
+      if has_user?
+        User.new(
+          pool,
+          metadata['user'],
+          config: tar.seek('config/user.yml') { |entry| entry.read }
+        )
+      else
+        nil
+      end
     end
 
     # Create a new instance of {Group} as described by the tar archive
     #
     # The returned group is not registered in the internal database, it may even
     # conflict with a group already registered in the database.
+    # @return [Group, nil]
     def load_group
-      Group.new(
-        pool,
-        metadata['group'],
-        config: tar.seek('config/group.yml') { |entry| entry.read },
-        devices: false
-      )
+      if has_group?
+        Group.new(
+          pool,
+          metadata['group'],
+          config: tar.seek('config/group.yml') { |entry| entry.read },
+          devices: false
+        )
+      else
+        nil
+      end
     end
 
     # Create a new instance of {Container} as described by the tar archive
@@ -77,6 +100,7 @@ module OsCtld
     # @option opts [Group] group calls {#get_or_create_group} by default
     # @option opts [String] dataset
     # @option opts [Hash] ct_opts container options
+    # @return [Container]
     def load_ct(opts)
       id = opts[:id] || metadata['container']
       user = opts[:user] || get_or_create_user
@@ -94,65 +118,46 @@ module OsCtld
       )
     end
 
-    # Load the user from the archive and register him
+    # Load the user from the archive and register him, or create a new user
     #
     # If a user with the same name already exists and all his parameters are the
     # same, the existing user is returned. Otherwise an exception is raised.
+    # @return [User]
     def get_or_create_user
-      name = metadata['user']
-
-      db = DB::Users.find(name, pool)
-      u = load_user
-
-      if db.nil?
-        # The user does not exist, create him
-        Commands::User::Create.run!(
-          pool: pool.name,
-          name: u.name,
-          ugid: u.ugid,
-          uid_map: u.uid_map.export,
-          gid_map: u.gid_map.export,
-        )
-
-        return DB::Users.find(name, pool) || (fail 'expected user')
+      if has_user?
+        load_or_create_user
+      else
+        create_new_user
       end
-
-      # Free the newly allocated ugid, use ugid from the existing user
-      UGidRegistry.remove(u.ugid) if u.ugid != db.ugid
-
-      %i(uid_map gid_map).each do |param|
-        mine = db.send(param)
-        other = u.send(param)
-        next if mine == other
-
-        fail "user #{pool.name}:#{name} already exists: #{param} mismatch: "+
-             "existing #{mine}, trying to import #{other}"
-      end
-
-      db
     end
 
-    # Load the group from the archive and register it
+    # Load the group from the archive and register it, or create a new group
     #
     # If a group with the same name already exists and all its parameters are the
     # same, the existing group is returned. Otherwise an exception is raised.
+    # @return [Group]
     def get_or_create_group
-      name = metadata['group']
+      if has_group?
+        name = metadata['group']
 
-      db = DB::Groups.find(name, pool)
-      grp = load_group
+        db = DB::Groups.find(name, pool)
+        grp = load_group
 
-      if db.nil?
-        # The group does not exist, create it
-        Commands::Group::Create.run!(
-          pool: pool.name,
-          name: grp.name
-        )
+        if db.nil?
+          # The group does not exist, create it
+          Commands::Group::Create.run!(
+            pool: pool.name,
+            name: grp.name
+          )
 
-        return DB::Groups.find(name, pool) || (fail 'expected group')
+          return DB::Groups.find(name, pool) || (fail 'expected group')
+        end
+
+        db
+
+      else
+        DB::Groups.default(pool)
       end
-
-      db
     end
 
     # Load user-defined script hooks from the archive and install them
@@ -249,6 +254,57 @@ module OsCtld
 
     protected
     attr_reader :pool, :tar, :metadata
+
+    # @return [User]
+    def load_or_create_user
+      name = metadata['user']
+
+      db = DB::Users.find(name, pool)
+      u = load_user
+
+      if db.nil?
+        # The user does not exist, create him
+        Commands::User::Create.run!(
+          pool: pool.name,
+          name: u.name,
+          ugid: u.ugid,
+          uid_map: u.uid_map.export,
+          gid_map: u.gid_map.export,
+        )
+
+        return DB::Users.find(name, pool) || (fail 'expected user')
+      end
+
+      # Free the newly allocated ugid, use ugid from the existing user
+      UGidRegistry.remove(u.ugid) if u.ugid != db.ugid
+
+      %i(uid_map gid_map).each do |param|
+        mine = db.send(param)
+        other = u.send(param)
+        next if mine == other
+
+        fail "user #{pool.name}:#{name} already exists: #{param} mismatch: "+
+             "existing #{mine}, trying to import #{other}"
+      end
+
+      db
+    end
+
+    # @return [User]
+    def create_new_user
+      name = ct_id
+
+      db = DB::Users.find(name, pool)
+      return db if db
+
+      # The user does not exist, create him
+      Commands::User::Create.run!(
+        pool: pool.name,
+        name: name,
+      )
+
+      DB::Users.find(name, pool) || (fail 'expected user')
+    end
 
     def load_stream(builder, ds, name, required)
       found = nil
