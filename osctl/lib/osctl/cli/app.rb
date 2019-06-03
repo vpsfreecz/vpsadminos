@@ -643,11 +643,8 @@ module OsCtl::Cli
         ct.desc 'Reinstall container'
         ct.arg_name '<ctid>'
         ct.command :reinstall do |c|
-          c.desc 'Template in a tar archive'
-          c.flag 'from-archive', arg_name: 'archive'
-
-          c.desc 'Template in a ZFS stream'
-          c.flag 'from-stream', arg_name: 'stream'
+          c.desc 'Reinstall from container image'
+          c.flag 'from-file', arg_name: 'file'
 
           c.desc 'Distribution name in lower case'
           c.flag :distribution, arg_name: 'distribution'

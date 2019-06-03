@@ -735,11 +735,8 @@ read by `ls` or `show` commands.
   abort if there are snapshots present. You can use option `-r`,
   `--remove-snapshots` to remove them.
 
-    `--from-archive` *file*
-      Create the container from a tar archive available in the filesystem.
-
-    `--from-stream` *file*
-      Create the container from a ZFS stream.
+    `--from-file` *file*
+      Create the container from a container image.
 
     `--distribution` *distribution*
       Distribution name in lower case, e.g. alpine, centos, debian, ubuntu.

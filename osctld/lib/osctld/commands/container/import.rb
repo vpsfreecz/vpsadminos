@@ -99,7 +99,7 @@ module OsCtld
         builder.setup_lxc_home
 
         progress('Importing rootfs')
-        importer.load_rootfs(builder)
+        importer.import_all_datasets(builder)
 
         # Delayed initialization, when we have ensured all required devices
         # are present, or that missing devices were removed and rootfs is present,

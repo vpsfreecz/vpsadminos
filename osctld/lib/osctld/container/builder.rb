@@ -29,7 +29,6 @@ module OsCtld
     # @param ct [Container]
     # @param opts [Hash]
     # @option opts [Command::Base] :cmd
-    # @option opts [Boolean] :reinstall
     def initialize(ct, opts = {})
       @ct = ct
       @opts = opts
@@ -183,12 +182,7 @@ module OsCtld
     end
 
     def configure(distribution, version, arch)
-      if @opts[:reinstall]
-        ct.set(distribution: {name: distribution, version: version, arch: arch})
-
-      else
-        ct.configure(distribution, version, arch)
-      end
+      ct.configure(distribution, version, arch)
     end
 
     def clear_snapshots(snaps)

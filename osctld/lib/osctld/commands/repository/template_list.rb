@@ -4,13 +4,13 @@ module OsCtld
   class Commands::Repository::TemplateList < Commands::Base
     handle :repo_template_list
 
-    include Utils::Repository
-
     def execute
       repo = DB::Repositories.find(opts[:name], opts[:pool])
       error!('repository not found') unless repo
 
-      ok(osctl_repo_ls(repo).select(&method(:filter)).map(&:dump))
+      osctl_repo = OsCtlRepo.new(repo)
+
+      ok(osctl_repo.list_templates.select(&method(:filter)).map(&:dump))
     end
 
     protected

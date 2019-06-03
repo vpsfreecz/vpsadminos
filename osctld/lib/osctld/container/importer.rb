@@ -118,6 +118,12 @@ module OsCtld
       )
     end
 
+    # @return [Array(String, String, String)] distribution, version, arch
+    def get_distribution_info
+      cfg = YAML.load(tar.seek('config/container.yml') { |entry| entry.read })
+      [cfg['distribution'], cfg['version'], cfg['arch']]
+    end
+
     # Load the user from the archive and register him, or create a new user
     #
     # If a user with the same name already exists and all his parameters are the
@@ -178,15 +184,17 @@ module OsCtld
     #
     # @param builder [Container::Builder]
     def create_datasets(builder)
-      each_dataset(builder) do |ds|
+      datasets(builder).each do |ds|
         builder.create_dataset(ds, mapping: true, parents: ds.root?)
       end
     end
 
-    def load_rootfs(builder)
+    # Import all datasets
+    # @param builder [Container::Builder]
+    def import_all_datasets(builder)
       case metadata['format']
       when 'zfs'
-        load_streams(builder)
+        import_streams(builder, datasets(builder))
 
       when 'tar'
         unpack_rootfs(builder)
@@ -196,56 +204,32 @@ module OsCtld
       end
     end
 
-    # Load ZFS data streams from the archive and write them to appropriate
-    # datasets
-    #
+    # Import just the root dataset
     # @param builder [Container::Builder]
-    def load_streams(builder)
-      each_dataset(builder) do |ds|
-        load_stream(builder, ds, File.join(ds.relative_name, 'base'), true)
-        load_stream(builder, ds, File.join(ds.relative_name, 'incremental'), false)
-      end
+    def import_root_dataset(builder)
+      case metadata['format']
+      when 'zfs'
+        import_streams(builder, [datasets(builder).first])
 
-      tar.seek('snapshots.yml') do |entry|
-        snapshots = YAML.load(entry.read)
+      when 'tar'
+        unpack_rootfs(builder)
 
-        each_dataset(builder) do |ds|
-          snapshots.each { |snap| zfs(:destroy, nil, "#{ds}@#{snap}") }
-        end
+      else
+        fail "unsupported archive format '#{metadata['format']}'"
       end
     end
 
-    def unpack_rootfs(builder)
-      # Create private/
-      builder.setup_rootfs
-
-      ret = tar.seek('rootfs/base.tar.gz') do |tf|
-        IO.popen("exec tar -xz -C #{builder.ct.rootfs}", 'r+') do |io|
-          io.write(tf.read(16*1024)) until tf.eof?
-        end
-
-        fail "tar failed with exit status #{$?.exitstatus}" if $?.exitstatus != 0
-        true
-      end
-
-      fail 'rootfs archive not found' unless ret === true
-    end
-
-    # Iterate over all container datasets
-    #
     # @param builder [Container::Builder]
-    # @yieldparam ds [OsCtl::Lib::Zfs::Dataset]
-    def each_dataset(builder, &block)
-      block.call(builder.ct.dataset)
+    # @return [Array<OsCtl::Lib::Zfs::Dataset>]
+    def datasets(builder)
+      return @datasets if @datasets
 
-      @datasets ||= metadata['datasets'].map do |name|
+      @datasets = [builder.ct.dataset] + metadata['datasets'].map do |name|
         OsCtl::Lib::Zfs::Dataset.new(
           File.join(builder.ct.dataset.name, name),
-          base: builder.ct.dataset.name
+          base: builder.ct.dataset.name,
         )
       end
-
-      @datasets.each(&block)
     end
 
     def close
@@ -306,7 +290,44 @@ module OsCtld
       DB::Users.find(name, pool) || (fail 'expected user')
     end
 
-    def load_stream(builder, ds, name, required)
+    # Load ZFS data streams from the archive and write them to appropriate
+    # datasets
+    #
+    # @param builder [Container::Builder]
+    # @param datasets [Array<OsCtl::Lib::Zfs::Dataset>]
+    def import_streams(builder, datasets)
+      datasets.each do |ds|
+        import_stream(builder, ds, File.join(ds.relative_name, 'base'), true)
+        import_stream(builder, ds, File.join(ds.relative_name, 'incremental'), false)
+      end
+
+      tar.seek('snapshots.yml') do |entry|
+        snapshots = YAML.load(entry.read)
+
+        datasets(builder).each do |ds|
+          snapshots.each { |snap| zfs(:destroy, nil, "#{ds}@#{snap}") }
+        end
+      end
+    end
+
+    # @param builder [Container::Builder]
+    def unpack_rootfs(builder)
+      # Create private/
+      builder.setup_rootfs
+
+      ret = tar.seek('rootfs/base.tar.gz') do |tf|
+        IO.popen("exec tar -xz -C #{builder.ct.rootfs}", 'r+') do |io|
+          io.write(tf.read(16*1024)) until tf.eof?
+        end
+
+        fail "tar failed with exit status #{$?.exitstatus}" if $?.exitstatus != 0
+        true
+      end
+
+      fail 'rootfs archive not found' unless ret === true
+    end
+
+    def import_stream(builder, ds, name, required)
       found = nil
 
       stream_names(name).each do |file, compression|

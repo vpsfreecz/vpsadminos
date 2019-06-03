@@ -14,10 +14,30 @@ module OsCtld
     end
 
     def execute(ct)
+      fh = nil
+
       manipulate(ct) do
         error!('container is running') if ct.running?
 
-        builder = Container::Builder.new(ct, cmd: self, reinstall: true)
+        if opts[:type] == 'image'
+          tpl_path = opts[:path]
+        elsif opts[:type] == 'remote'
+          progress('Fetching template')
+
+          tpl = opts[:template]
+          tpl[:distribution] ||= ct.distribution
+          tpl[:version] ||= ct.version
+          tpl[:arch] ||= ct.arch
+          tpl[:vendor] ||= 'default'
+          tpl[:variant] ||= 'default'
+
+          tpl_path = get_template_path(get_repositories(ct.pool), tpl)
+          error!('template not found in searched repositories') if tpl_path.nil?
+        else
+          error!('invalid type')
+        end
+
+        builder = Container::Builder.new(ct, cmd: self)
 
         # Remove all snapshots
         snaps = snapshots(ct)
@@ -32,7 +52,15 @@ module OsCtld
         ct.mount(force: true)
 
         # Apply new template
-        apply_template(builder, opts[:template])
+        fh = File.open(tpl_path, 'r')
+        importer = Container::Importer.new(ct.pool, fh, ct_id: ct.id)
+        importer.load_metadata
+
+        remove_rootfs(builder)
+        importer.import_root_dataset(builder)
+
+        dist, ver, arch = importer.get_distribution_info
+        ct.set(distribution: {name: dist, version: ver, arch: arch})
 
         # Remount all subdatasets (subdatasets are unmounted because the builder
         # unmounted them to configure uid/gid mapping again)
@@ -40,35 +68,12 @@ module OsCtld
 
         ok
       end
+
+    ensure
+      fh && fh.close
     end
 
     protected
-    def apply_template(builder, tpl)
-      case tpl[:type].to_sym
-      when :remote
-        remove_rootfs(builder)
-
-        tpl[:template][:distribution] ||= builder.ct.distribution
-        tpl[:template][:version] ||= builder.ct.version
-        tpl[:template][:arch] ||= builder.ct.arch
-        tpl[:template][:vendor] ||= 'default'
-        tpl[:template][:variant] ||= 'default'
-
-        from_remote_template(builder, tpl)
-
-      when :archive
-        remove_rootfs(builder)
-        builder.setup_rootfs
-        builder.from_local_archive(tpl[:path])
-
-      when :stream
-        from_stream(builder)
-
-      else
-        fail "unknown template type '#{tpl[:type]}'"
-      end
-    end
-
     def remove_rootfs(builder)
       progress('Removing rootfs')
       snap = "#{builder.ct.dataset}@osctl-reinstall"

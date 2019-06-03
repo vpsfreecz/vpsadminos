@@ -197,28 +197,16 @@ module OsCtl::Cli
         remove_snapshots: opts['remove-snapshots'],
       }
 
-      if opts['from-archive'] && opts['from-stream']
-        raise GLI::BadCommandLine,
-              'provide either --from-archive or --from-stream, not both'
-      end
-
-      if !opts['from-archive'] && !opts['from-stream']
-        cmd_opts[:template] = {
+      if opts['from-file']
+        cmd_opts.update(
+          type: :image,
+          path: File.absolute_path(opts['from-file']),
+        )
+      else
+        cmd_opts.update(
           type: :remote,
           template: repo_template_attrs(defaults: false),
-        }
-
-      elsif opts['from-archive']
-        cmd_opts[:template] = {
-          type: :archive,
-          path: File.absolute_path(opts['from-archive']),
-        }
-
-      elsif opts['from-stream']
-        cmd_opts[:template] = {
-          type: :stream,
-          path: File.absolute_path(opts['from-stream']),
-        }
+        )
       end
 
       osctld_fmt(:ct_reinstall, cmd_opts)
