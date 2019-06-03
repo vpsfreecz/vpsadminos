@@ -8,6 +8,8 @@ module OsCtl::Repo
   class Downloader::Cached < Downloader::Base
     # @return [Array<Remote::Template>]
     def list
+      ensure_cache_dir
+
       connect do |http|
         index = nil
 
@@ -70,6 +72,8 @@ module OsCtl::Repo
     # @return [Array(String, [IO, nil])] `[image_path, io|nil]`
     def download(vendor, variant, arch, dist, vtag, format, open)
       path = fh = nil
+
+      ensure_cache_dir
 
       connect do |http|
         index = nil
@@ -226,6 +230,10 @@ module OsCtl::Repo
       end
 
       t_path
+    end
+
+    def ensure_cache_dir
+      FileUtils.mkpath(repo.path) unless Dir.exist?(repo.path)
     end
   end
 end

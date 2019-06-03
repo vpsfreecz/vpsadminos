@@ -5,7 +5,7 @@ module OsCtl::Repo
     attr_reader :path
 
     def initialize(path)
-      @path = path
+      @path = File.join(path, "v#{SCHEMA}")
       @index = Local::Index.new(self)
     end
 
@@ -14,6 +14,7 @@ module OsCtl::Repo
     end
 
     def create
+      FileUtils.mkpath(path)
       index.save
     end
 

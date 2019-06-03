@@ -3,11 +3,15 @@ require 'filelock'
 module OsCtl::Repo
   class Remote::Repository
     attr_reader :url
-    attr_accessor :path
+    attr_reader :path
 
     def initialize(url)
-      @url = url
-      @path = '.'
+      @url = File.join(url, "v#{SCHEMA}")
+      @path = File.join('.', "v#{SCHEMA}")
+    end
+
+    def path=(v)
+      @path = File.join(v, "v#{SCHEMA}")
     end
 
     def has_index?
