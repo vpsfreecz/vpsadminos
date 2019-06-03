@@ -123,7 +123,7 @@ module OsCtl::Repo
       repo.path = opts[:cache]
 
       dl = Downloader::Cached.new(repo)
-      puts dl.get(*args[1..-1])
+      puts dl.get(*args[1..-1], force_check: true)
     end
 
     def get
