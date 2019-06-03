@@ -2,43 +2,44 @@ require 'zlib'
 
 module OsCtld
   module Utils::Container
-    def from_remote_template(builder, tpl)
-      # TODO: this check is done too late -- the dataset has already been created
-      #       and the repo may not exist
+    # @param pool [Pool]
+    # @return [Array<Repository>]
+    def get_repositories(pool)
       if opts[:repository]
-        repo = DB::Repositories.find(opts[:repository], builder.pool)
+        repo = DB::Repositories.find(opts[:repository], pool)
         error!('repository not found') unless repo
-        repos = [repo]
+        [repo]
 
       else
-        repos = DB::Repositories.get.select do |repo|
-          repo.enabled? && repo.pool == builder.pool
+        DB::Repositories.get.select do |repo|
+          repo.enabled? && repo.pool == pool
         end
       end
+    end
 
-      # Rootfs (private/) has to be set up both before and after
-      # template application. Before, to prepare the directory for tar -x,
-      # after to ensure correct permission.
-      builder.setup_rootfs
+    # @param repos [Array<Repository>]
+    # @param tpl [Hash]
+    # @option tpl [String] :distribution
+    # @option tpl [String] :version
+    # @option tpl [String] :arch
+    # @option tpl [String] :vendor
+    # @option tpl [String] :variant
+    # @return [String, nil]
+    def get_template_path(repos, tpl)
+      repos.each do |repo|
+        osctl_repo = OsCtlRepo.new(repo)
 
-      repo = repos.detect do |repo|
         begin
-          builder.from_repo_template(repo, tpl)
-
-        rescue TemplateNotFound
-          next
-
-        rescue TemplateRepositoryUnavailable
-          progress("Repository #{repo.name} is unreachable")
+          %i(zfs tar).each do |format|
+            path = osctl_repo.get_template_path(tpl, format)
+            return path if path
+          end
+        rescue TemplateNotFound, TemplateRepositoryUnavailable
           next
         end
-
-        true
       end
 
-      error!('template not found') unless repo
-
-      builder.setup_rootfs
+      nil
     end
   end
 end
