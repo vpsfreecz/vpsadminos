@@ -80,16 +80,31 @@ module OsCtl::Repo::Cli
           c.action &Command.run(Repo, :fetch)
         end
 
-        remote.desc 'Find a file within the repository and write its contents to stdout'
-        remote.arg_name '<repo> <vendor> <variant> <arch> <distribution> <version>|<tag> tar|zfs'
-        remote.command :get do |c|
-          c.desc 'Cache directory'
-          c.flag :cache
+        remote.desc 'Get a file from the repository'
+        remote.command :get do |get|
+          get.desc 'Get path to cached template'
+          get.arg_name '<repo> <vendor> <variant> <arch> <distribution> <version>|<tag> tar|zfs'
+          get.command :path do |c|
+            c.desc 'Cache directory'
+            c.flag :cache
 
-          c.desc 'Force remote repository check'
-          c.switch 'force-check', default_value: false
+            c.desc 'Force remote repository check'
+            c.switch 'force-check', default_value: false
 
-          c.action &Command.run(Repo, :get)
+            c.action &Command.run(Repo, :get_path)
+          end
+
+          get.desc 'Dump template to stdout'
+          get.arg_name '<repo> <vendor> <variant> <arch> <distribution> <version>|<tag> tar|zfs'
+          get.command :stream do |c|
+            c.desc 'Cache directory'
+            c.flag :cache
+
+            c.desc 'Force remote repository check'
+            c.switch 'force-check', default_value: false
+
+            c.action &Command.run(Repo, :get_stream)
+          end
         end
       end
     end

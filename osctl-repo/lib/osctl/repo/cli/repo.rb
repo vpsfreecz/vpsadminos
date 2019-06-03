@@ -126,7 +126,20 @@ module OsCtl::Repo
       puts dl.get(*args[1..-1], force_check: true)
     end
 
-    def get
+    def get_path
+      dl = get_common
+      puts dl.get(*args[1..-1], force_check: opts['force-check'])
+    end
+
+    def get_stream
+      dl = get_common
+      dl.get(*args[1..-1], force_check: opts['force-check']) do |fragment|
+        STDOUT.write(fragment)
+      end
+    end
+
+    protected
+    def get_common
       require_args!(
         'repo', 'vendor', 'variant', 'arch', 'distribution', 'version|tag',
         'tar|zfs'
@@ -136,13 +149,9 @@ module OsCtl::Repo
 
       if opts[:cache]
         repo.path = opts[:cache]
-        dl = Downloader::Cached.new(repo)
+        Downloader::Cached.new(repo)
       else
-        dl = Downloader::Direct.new(repo)
-      end
-
-      dl.get(*args[1..-1], force_check: opts['force-check']) do |fragment|
-        STDOUT.write(fragment)
+        Downloader::Direct.new(repo)
       end
     end
   end
