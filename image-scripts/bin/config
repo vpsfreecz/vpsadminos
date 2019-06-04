@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # This is internal builder, do not use this directly!
-# Use osctl-template from vpsAdminOS to build the templates.
+# Use osctl-images from vpsAdminOS to build the images.
 
 BASEDIR=$(realpath `dirname ${BASH_SOURCE[0]}`/..)
 
 function usage {
 	echo "Usage:"
-	echo "  $0 builder|template|test [command arguments...]"
+	echo "  $0 builder|image|test [command arguments...]"
 }
 
 function builder_usage {
@@ -59,15 +59,15 @@ function do_builder {
 	esac
 }
 
-function template_usage {
+function image_usage {
 	echo "Usage:"
-	echo "  $0 template list"
-	echo "  $0 template show <name>"
+	echo "  $0 image list"
+	echo "  $0 image show <name>"
 }
 
-function do_template {
+function do_image {
 	if [ $# -lt 1 ] ; then
-		template_usage
+		image_usage
 		exit 1
 	fi
 
@@ -87,11 +87,11 @@ function do_template {
 			local dir="$BASEDIR/templates/$name"
 
 			if [ "$name" == "" ] ; then
-				template_usage
+				image_usage
 				exit 1
 			elif [ ! -d "$dir" ] ; then
 				echo "Template '$name' not found"
-				template_usage
+				image_usage
 				exit 1
 			fi
 
@@ -112,7 +112,7 @@ function do_template {
 			echo "VARIANT=$VARIANT"
 			;;
 		*)
-			template_usage
+			image_usage
 			exit 1
 			;;
 	esac
@@ -156,8 +156,8 @@ function main {
 	case "$command" in
 		builder)
 			do_builder $@ ;;
-		template)
-			do_template $@ ;;
+		image)
+			do_image $@ ;;
 		test)
 			do_test $@ ;;
 		*)
