@@ -33,10 +33,10 @@ else
 fi
 EOF
 
-      rc = Operations::Builder::RunscriptFromString.run(
+      rc = Operations::Builder::ControlledRunscript.run(
         builder,
-        script,
-        name: '/tmp/osctl-image.wait-for-network',
+        script: script,
+        name: 'osctl-image.wait-for-network',
       )
 
       if rc != 0
