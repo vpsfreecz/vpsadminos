@@ -11,7 +11,7 @@ qemu:
 toplevel:
 	$(MAKE) -C os toplevel
 
-gems: libosctl osctl-repo osctl osctld osup osctl-template converter svctl
+gems: libosctl osctl-repo osctl osctld osup osctl-image converter svctl
 	echo "$(VERSION).build$(BUILD_ID)" > .build_id
 
 libosctl:
@@ -26,8 +26,8 @@ osctld: libosctl osup
 osctl-repo: libosctl
 	./tools/update_gem.sh _nopkg osctl-repo $(BUILD_ID)
 
-osctl-template: libosctl osctl
-	./tools/update_gem.sh os/packages osctl-template $(BUILD_ID)
+osctl-image: libosctl osctl
+	./tools/update_gem.sh os/packages osctl-image $(BUILD_ID)
 
 osup: libosctl
 	./tools/update_gem.sh os/packages osup $(BUILD_ID)
@@ -54,7 +54,7 @@ version:
 	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" libosctl/lib/libosctl/version.rb
 	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" converter/lib/vpsadminos-converter/version.rb
 	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" osctl-repo/lib/osctl/repo/version.rb
-	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" osctl-template/lib/osctl/template/version.rb
+	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" osctl-image/lib/osctl/template/version.rb
 	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" osup/lib/osup/version.rb
 	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" svctl/lib/svctl/version.rb
 	@sed -ri "s/VERSION = '[^']+'/VERSION = '$(VERSION)'/" tools/osctl-env-exec/osctl-env-exec.gemspec
@@ -63,7 +63,7 @@ version:
 	@sed -ri '1!b;s/[0-9]+\.[0-9]+\.[0-9]+$\/$(VERSION)/' converter/man/man8/vpsadminos-convert.8.md
 	@sed -ri '1!b;s/[0-9]+\.[0-9]+\.[0-9]+$\/$(VERSION)/' svctl/man/man8/svctl.8.md
 	@sed -ri '1!b;s/ [0-9]{4}-[0-9]{1,2}-[0-9]{1,2} / $(RELEASE_DATE) /' osctl/man/man8/osctl.8.md
-	@sed -ri '1!b;s/ [0-9]{4}-[0-9]{1,2}-[0-9]{1,2} / $(RELEASE_DATE) /' osctl-template/man/man8/osctl-template.8.md
+	@sed -ri '1!b;s/ [0-9]{4}-[0-9]{1,2}-[0-9]{1,2} / $(RELEASE_DATE) /' osctl-image/man/man8/osctl-image.8.md
 	@sed -ri '1!b;s/ [0-9]{4}-[0-9]{1,2}-[0-9]{1,2} / $(RELEASE_DATE) /' osup/man/man8/osup.8.md
 	@sed -ri '1!b;s/ [0-9]{4}-[0-9]{1,2}-[0-9]{1,2} / $(RELEASE_DATE) /' converter/man/man8/vpsadminos-convert.8.md
 	@sed -ri '1!b;s/ [0-9]{4}-[0-9]{1,2}-[0-9]{1,2} / $(RELEASE_DATE) /' svctl/man/man8/svctl.8.md

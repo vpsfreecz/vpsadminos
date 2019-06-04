@@ -31,7 +31,7 @@
     ncurses
     openssh
     osctl
-    osctl-template
+    osctl-image
     osup
     ruby
     screen
