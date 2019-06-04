@@ -26,7 +26,7 @@ osctld: libosctl osup
 osctl-repo: libosctl
 	./tools/update_gem.sh os/packages osctl-repo $(BUILD_ID)
 
-osctl-image: libosctl osctl
+osctl-image: libosctl osctl osctl-repo
 	./tools/update_gem.sh os/packages osctl-image $(BUILD_ID)
 
 osup: libosctl
