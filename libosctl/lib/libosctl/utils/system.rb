@@ -6,7 +6,7 @@ module OsCtl::Lib
 
     # @param cmd [String]
     # @param opts [Hash]
-    # @option opts [Array<Integer>] :valid_rcs valid exit codes
+    # @option opts [Array<Integer>, :all] :valid_rcs valid exit codes
     # @option opts [Boolean] :stderr include stderr in output?
     # @option opts [Integer] :timeout in seconds
     # @option opts [Proc] :on_timeout
@@ -51,7 +51,7 @@ module OsCtl::Lib
         end
       end
 
-      if $?.exitstatus != 0 && !valid_rcs.include?($?.exitstatus)
+      if $?.exitstatus != 0 && (valid_rcs != :all && !valid_rcs.include?($?.exitstatus))
         raise Exceptions::SystemCommandFailed.new(cmd, $?.exitstatus, out)
       end
 
