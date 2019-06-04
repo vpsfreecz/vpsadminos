@@ -18,6 +18,14 @@ let
         '';
       };
 
+      logDir = mkOption {
+        type = types.str;
+        default = "/tmp";
+        description = ''
+          Directory where build logs will be stored.
+        '';
+      };
+
       buildScriptDir = mkOption {
         type = types.str;
         description = ''
@@ -167,13 +175,25 @@ let
   buildImages = repoCfg: images: flatten (mapAttrsToList (name: versions:
     mapAttrsToList (version: cfg: ''
       pushd "$buildScriptDir"
+
+      logfile=$(mktemp ${repoCfg.logDir}/${name}.${version}.$(date +%Y%m%d%H%M%S).XXXXXX.log)
+
       $osctlImage deploy \
         --build-dataset $buildDataset \
         --output-dir "$repoCache" \
         ${optionalString (rebuildImage repoCfg cfg) "--rebuild"} \
         ${concatStringsSep "\\\n  " (imageTagArgs cfg.tags)} \
         ${imageName { inherit name version; customName = cfg.name; }} \
-        "$repoDir"
+        "$repoDir" > "$logfile" 2>&1
+
+      rc=$?
+      if [ $rc == 0 ] ; then
+        rm -f "$logfile"
+      else
+        echo "Build of ${name}.${version} failed with exit status $rc"
+        echo "Log file: $logfile"
+      fi
+
       popd
     '') versions
     ) images);
