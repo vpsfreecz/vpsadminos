@@ -9,6 +9,16 @@
     };
     version = "1.3.1";
   };
+  filelock = {
+    groups = ["default"];
+    platforms = [];
+    source = {
+      remotes = ["https://rubygems.vpsfree.cz"];
+      sha256 = "085vrb6wf243iqqnrrccwhjd4chphfdsybkvjbapa2ipfj1ja1sj";
+      type = "gem";
+    };
+    version = "1.1.1";
+  };
   gli = {
     groups = ["default"];
     platforms = [];
@@ -55,10 +65,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1bz4cjvqavh7jn75ac6zf43071ls2m0gv2pzkapfwpbnjbb1pasd";
+      sha256 = "1llmmkydial4sgyxprrwcr4dcfq9pkf1gmswd0i4a7q7zmddpqck";
       type = "gem";
     };
-    version = "19.03.0.build20190530174510";
+    version = "19.03.0.build20190607101736";
   };
   osctl = {
     dependencies = ["curses" "gli" "highline" "ipaddress" "json" "libosctl" "rainbow" "require_all" "ruby-progressbar"];
@@ -66,21 +76,32 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0wyb1xav37inrrmw159viczbwbbn8syad3bysjh5fh7jbyxhvzq0";
+      sha256 = "09sghi67vcl4g0cg3bzhz68agjrgj3j39h6cixlshzqv8h1l0lwx";
       type = "gem";
     };
-    version = "19.03.0.build20190530174510";
+    version = "19.03.0.build20190607101736";
   };
-  osctl-template = {
-    dependencies = ["gli" "json" "libosctl" "osctl" "require_all"];
+  osctl-image = {
+    dependencies = ["gli" "json" "libosctl" "osctl" "osctl-repo" "require_all"];
     groups = ["default"];
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0im5hk9y73mkqb9rby8frnbf1x1g47grkkr5v2jg8ypf7mzp6rsy";
+      sha256 = "18i34r8vl5sqfq21aryj3jscg12jal5lnyvwd9wjhhhgc2ns6xc6";
       type = "gem";
     };
-    version = "19.03.0.build20190530174510";
+    version = "19.03.0.build20190607101736";
+  };
+  osctl-repo = {
+    dependencies = ["filelock" "gli" "json" "libosctl" "require_all"];
+    groups = ["default"];
+    platforms = [];
+    source = {
+      remotes = ["https://rubygems.vpsfree.cz"];
+      sha256 = "1saa5j3ka436pf2bjpqn45vd6hwfljbz7mr52fmilpfnz0i7m4rq";
+      type = "gem";
+    };
+    version = "19.03.0.build20190607101736";
   };
   rainbow = {
     groups = ["default"];

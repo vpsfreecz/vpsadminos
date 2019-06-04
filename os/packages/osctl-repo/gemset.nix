@@ -1,4 +1,14 @@
 {
+  filelock = {
+    groups = ["default"];
+    platforms = [];
+    source = {
+      remotes = ["https://rubygems.vpsfree.cz"];
+      sha256 = "085vrb6wf243iqqnrrccwhjd4chphfdsybkvjbapa2ipfj1ja1sj";
+      type = "gem";
+    };
+    version = "1.1.1";
+  };
   gli = {
     groups = ["default"];
     platforms = [];
@@ -30,13 +40,13 @@
     };
     version = "19.03.0.build20190607101736";
   };
-  osup = {
-    dependencies = ["gli" "json" "libosctl" "require_all"];
+  osctl-repo = {
+    dependencies = ["filelock" "gli" "json" "libosctl" "require_all"];
     groups = ["default"];
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0hj9xpgsj2706q49y27f7x24mxi9h26ffjn75zq0pzdjpxm4f1gz";
+      sha256 = "1saa5j3ka436pf2bjpqn45vd6hwfljbz7mr52fmilpfnz0i7m4rq";
       type = "gem";
     };
     version = "19.03.0.build20190607101736";
