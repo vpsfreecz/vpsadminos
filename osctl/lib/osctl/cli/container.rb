@@ -160,25 +160,11 @@ module OsCtl::Cli
     def create
       require_args!('id')
 
-      cmd_opts = {
-        id: args[0],
-        pool: opts[:pool] || gopts[:pool],
-        user: opts[:user],
-        no_image: opts['skip-image'],
-        repository: opts[:repository],
-      }
-
-      %i(group dataset).each do |v|
-        cmd_opts[v] = opts[v] if opts[v]
+      if opts['skip-image']
+        create_empty
+      else
+        create_with_remote_image
       end
-
-      if !opts[:distribution]
-        raise GLI::BadCommandLine, 'provide --distribution'
-      end
-
-      cmd_opts[:image] = repo_image_attrs
-
-      osctld_fmt(:ct_create, cmd_opts)
     end
 
     def delete
@@ -1052,6 +1038,52 @@ module OsCtl::Cli
     end
 
     protected
+    def create_with_remote_image
+      cmd_opts = {
+        id: args[0],
+        pool: opts[:pool] || gopts[:pool],
+        user: opts[:user],
+        repository: opts[:repository],
+      }
+
+      %i(group dataset).each do |v|
+        cmd_opts[v] = opts[v] if opts[v]
+      end
+
+      if !opts[:distribution]
+        raise GLI::BadCommandLine, 'provide --distribution'
+      end
+
+      cmd_opts[:image] = repo_image_attrs
+
+      osctld_fmt(:ct_create, cmd_opts)
+    end
+
+    def create_empty
+      if !opts[:distribution]
+        raise GLI::BadCommandLine, 'provide --distribution'
+      elsif !opts[:version]
+        raise GLI::BadCommandLine, 'provide --version'
+      elsif !opts[:arch]
+        raise GLI::BadCommandLine, 'provide --arch'
+      end
+
+      cmd_opts = {
+        id: args[0],
+        pool: opts[:pool] || gopts[:pool],
+        user: opts[:user],
+        distribution: opts[:distribution],
+        version: opts[:version],
+        arch: opts[:arch],
+      }
+
+      %i(group dataset).each do |v|
+        cmd_opts[v] = opts[v] if opts[v]
+      end
+
+      osctld_fmt(:ct_create_empty, cmd_opts)
+    end
+
     def set(option)
       require_args!('id')
       cmd_opts = {id: args[0], pool: gopts[:pool]}
