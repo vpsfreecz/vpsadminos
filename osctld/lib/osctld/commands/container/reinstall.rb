@@ -22,17 +22,17 @@ module OsCtld
         if opts[:type] == 'image'
           tpl_path = opts[:path]
         elsif opts[:type] == 'remote'
-          progress('Fetching template')
+          progress('Fetching image')
 
-          tpl = opts[:template]
+          tpl = opts[:image]
           tpl[:distribution] ||= ct.distribution
           tpl[:version] ||= ct.version
           tpl[:arch] ||= ct.arch
           tpl[:vendor] ||= 'default'
           tpl[:variant] ||= 'default'
 
-          tpl_path = get_template_path(get_repositories(ct.pool), tpl)
-          error!('template not found in searched repositories') if tpl_path.nil?
+          tpl_path = get_image_path(get_repositories(ct.pool), tpl)
+          error!('image not found in searched repositories') if tpl_path.nil?
         else
           error!('invalid type')
         end
@@ -51,7 +51,7 @@ module OsCtld
         # Ensure the container is mounted
         ct.mount(force: true)
 
-        # Apply new template
+        # Apply new image
         fh = File.open(tpl_path, 'r')
         importer = Container::Importer.new(ct.pool, fh, ct_id: ct.id)
         importer.load_metadata

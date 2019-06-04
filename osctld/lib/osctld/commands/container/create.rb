@@ -30,22 +30,22 @@ module OsCtld
         error!('group not found') unless group
       end
 
-      if !opts[:template].is_a?(::Hash)
+      if !opts[:image].is_a?(::Hash)
         error!('invalid input')
 
-      elsif !opts[:template][:distribution]
+      elsif !opts[:image][:distribution]
         error!('provide distribution')
 
-      elsif !opts[:template][:version]
+      elsif !opts[:image][:version]
         error!('provide distribution version')
 
-      elsif !opts[:template][:arch]
+      elsif !opts[:image][:arch]
         error!('provide architecture')
       end
 
-      progress('Fetching template')
-      tpl_path = get_template_path(get_repositories(pool), opts[:template])
-      error!('template not found in searched repositories') if tpl_path.nil?
+      progress('Fetching image')
+      tpl_path = get_image_path(get_repositories(pool), opts[:image])
+      error!('image not found in searched repositories') if tpl_path.nil?
 
       call_cmd!(
         Commands::Container::Import,

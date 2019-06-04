@@ -87,7 +87,7 @@ module OsCtld
         )
         add.dataset(
           ds(REPOSITORY_DS),
-          desc: 'Local template repository cache',
+          desc: 'Local image repository cache',
           user: Repository::UID,
           group: 0,
           mode: 0500

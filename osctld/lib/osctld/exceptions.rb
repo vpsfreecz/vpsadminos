@@ -14,8 +14,8 @@ module OsCtld
     end
   end
 
-  class TemplateNotFound < StandardError ; end
-  class TemplateRepositoryUnavailable < StandardError ; end
+  class ImageNotFound < StandardError ; end
+  class ImageRepositoryUnavailable < StandardError ; end
 
   class DeviceNotAvailable < StandardError
     def initialize(dev, grp)

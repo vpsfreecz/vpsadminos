@@ -106,7 +106,7 @@ module OsCtld
       save_config
     end
 
-    def templates
+    def images
       # TODO
     end
 

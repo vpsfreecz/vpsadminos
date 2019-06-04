@@ -1,8 +1,8 @@
 require 'osctld/commands/base'
 
 module OsCtld
-  class Commands::Repository::TemplateList < Commands::Base
-    handle :repo_template_list
+  class Commands::Repository::ImageList < Commands::Base
+    handle :repo_image_list
 
     def execute
       repo = DB::Repositories.find(opts[:name], opts[:pool])
@@ -10,7 +10,7 @@ module OsCtld
 
       osctl_repo = OsCtlRepo.new(repo)
 
-      ok(osctl_repo.list_templates.select(&method(:filter)).map(&:dump))
+      ok(osctl_repo.list_images.select(&method(:filter)).map(&:dump))
     end
 
     protected

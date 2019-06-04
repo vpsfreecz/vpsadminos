@@ -121,17 +121,17 @@ module OsCtld
       File.chown(0, 0, ct.rootfs)
     end
 
-    # @param template [String] path
+    # @param image [String] path
     # @param opts [Hash] options
     # @option opts [String] :distribution
     # @option opts [String] :version
-    def from_local_archive(template, opts = {})
-      progress('Extracting template')
-      syscmd("tar -xzf #{template} -C #{ct.rootfs}")
+    def from_local_archive(image, opts = {})
+      progress('Extracting image')
+      syscmd("tar -xzf #{image} -C #{ct.rootfs}")
 
       shift_dataset
 
-      distribution, version, arch = get_distribution_info(template)
+      distribution, version, arch = get_distribution_info(image)
 
       configure(
         opts[:distribution] || distribution,
@@ -141,7 +141,7 @@ module OsCtld
     end
 
     def from_stream(ds = nil)
-      progress('Writing template stream')
+      progress('Writing image stream')
 
       IO.popen("exec zfs recv -F #{ds || ct.dataset}", 'r+') do |io|
         yield(io)
@@ -280,8 +280,8 @@ module OsCtld
       end
     end
 
-    def get_distribution_info(template)
-      distribution, version, arch, *_ = File.basename(template).split('-')
+    def get_distribution_info(image)
+      distribution, version, arch, *_ = File.basename(image).split('-')
       [distribution, version, arch]
     end
 

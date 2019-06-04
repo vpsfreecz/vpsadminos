@@ -12,8 +12,8 @@ module OsCtld
       @repo = repo
     end
 
-    # @return [Array<Repository::Template>]
-    def list_templates
+    # @return [Array<Repository::Image>]
+    def list_images
       exit_status, data = osctl_repo(
         File.join(OsCtl::Repo.root, 'bin', 'osctl-repo'),
         'remote', 'ls',
@@ -23,10 +23,10 @@ module OsCtld
 
       case exit_status
       when OsCtl::Repo::EXIT_OK
-        JSON.parse(data, symbolize_names: true).map { |v| Repository::Template.new(v) }
+        JSON.parse(data, symbolize_names: true).map { |v| Repository::Image.new(v) }
 
       when OsCtl::Repo::EXIT_HTTP_ERROR, OsCtl::Repo::EXIT_NETWORK_ERROR
-        raise TemplateRepositoryUnavailable
+        raise ImageRepositoryUnavailable
 
       else
         fail "osctl-repo remote ls failed with exit status #{exit_status}"
@@ -40,8 +40,8 @@ module OsCtld
     # @option tpl [String] :vendor
     # @option tpl [String] :variant
     # @param format [:tar, :zfs]
-    # @return [String, nil] path to the template in cache
-    def get_template_path(tpl, format)
+    # @return [String, nil] path to the image in cache
+    def get_image_path(tpl, format)
       exit_status, data = osctl_repo(
         File.join(OsCtl::Repo.root, 'bin', 'osctl-repo'),
         'remote', 'get', 'path',
@@ -59,10 +59,10 @@ module OsCtld
         nil
 
       when OsCtl::Repo::EXIT_TEMPLATE_NOT_FOUND
-        raise TemplateNotFound
+        raise ImageNotFound
 
       when OsCtl::Repo::EXIT_HTTP_ERROR, OsCtl::Repo::EXIT_NETWORK_ERROR
-        raise TemplateRepositoryUnavailable
+        raise ImageRepositoryUnavailable
 
       else
         fail "osctl-repo remote get path failed with exit status #{exit_status}"
