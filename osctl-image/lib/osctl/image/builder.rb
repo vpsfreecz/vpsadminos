@@ -22,9 +22,8 @@ module OsCtl::Image
     attr_reader :variant
 
     # Attributes returned by `osctl ct show`
-    # @param attrs [Hash]
     # @return [Hash]
-    attr_accessor :attrs
+    attr_reader :attrs
 
     # @param dir [String]
     # @param name [String]
@@ -49,6 +48,10 @@ module OsCtl::Image
       @arch ||= 'x86_64'
       @vendor ||= 'vpsadminos'
       @variant ||= 'minimal'
+    end
+
+    def load_attrs(client = nil)
+      @attrs = (client || OsCtldClient.new).find_container(ctid)
     end
 
     def ctid

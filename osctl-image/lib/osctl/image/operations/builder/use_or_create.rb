@@ -19,12 +19,11 @@ module OsCtl::Image
 
       if client.find_container(builder.ctid)
         client.start_container(builder.ctid)
+        builder.load_attrs(client)
         Operations::Builder::WaitForNetwork.run(builder)
       else
         Operations::Builder::Create.run(builder, base_dir)
       end
-
-      builder.attrs = client.find_container(builder.ctid)
     end
   end
 end

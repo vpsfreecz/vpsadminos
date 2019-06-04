@@ -50,6 +50,8 @@ module OsCtl::Image
           # Give the container some time to start
           sleep(5)
 
+          builder.load_attrs(client)
+
           client.bind_mount(builder.ctid, base_dir, builder_base_dir)
           client.activate_mount(builder.ctid, builder_base_dir)
 
