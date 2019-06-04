@@ -45,7 +45,7 @@ module OsCtl::Image
       exporter.pack_rootfs
 
     ensure
-      f.close
+      f && f.close
     end
 
     def export_stream
@@ -64,7 +64,7 @@ module OsCtl::Image
       end
 
     ensure
-      f.close
+      f && f.close
     end
   end
 end
