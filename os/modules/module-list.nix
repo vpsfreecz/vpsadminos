@@ -22,6 +22,7 @@
   ./rpcbind.nix
   ./rsyslog.nix
   ./runit
+  ./services/osctl/image-repository.nix
   ./sshd.nix
   ./tools/tools.nix
   ./tty.nix
