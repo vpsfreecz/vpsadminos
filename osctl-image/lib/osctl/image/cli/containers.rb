@@ -18,14 +18,7 @@ module OsCtl::Image
         return
       end
 
-      client = OsCtldClient.new
-
-      cts = client.list_containers.select do |ct|
-        ct.has_key?(:'org.vpsadminos.osctl-image:type')
-      end.map do |ct|
-        ct[:type] = ct[:'org.vpsadminos.osctl-image:type']
-        ct
-      end
+      cts = get_cts(OsCtldClient.new)
 
       fmt_opts = {
         layout: :columns,
@@ -36,6 +29,35 @@ module OsCtl::Image
       cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS
 
       OsCtl::Lib::Cli::OutputFormatter.print(cts, cols, fmt_opts)
+    end
+
+    def delete
+      client = OsCtldClient.new
+      cts = get_cts(client)
+      cts.select! { |ct| ct[:type] == opts[:type] } if opts[:type]
+
+      unless opts[:force]
+        puts 'The following containers will be deleted:'
+        cts.each { |ct| puts "  #{ct[:pool]}:#{ct[:id]}" }
+        STDOUT.write('Continue? [y/N]: ')
+        STDOUT.flush
+        return if STDIN.readline.strip != 'y'
+      end
+
+      cts.each do |ct|
+        client.delete_container(ct[:id])
+        client.delete_user(ct[:user])
+      end
+    end
+
+    protected
+    def get_cts(client)
+      cts = client.list_containers.select do |ct|
+        ct.has_key?(:'org.vpsadminos.osctl-image:type')
+      end.map do |ct|
+        ct[:type] = ct[:'org.vpsadminos.osctl-image:type']
+        ct
+      end
     end
   end
 end

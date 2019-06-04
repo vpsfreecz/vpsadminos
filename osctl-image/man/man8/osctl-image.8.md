@@ -132,6 +132,15 @@ of `osctl-image` with image building programs.
     `-s`, `--sort` *parameters*
       Sort output by parameters, comma separated.
 
+`ct del` [*options*]
+  Delete selected managed containers.
+
+    `--type` `builder`|`test`|`instance`
+      Delete only containers of selected type.
+
+    `-f`, `--force`
+      Do not ask for confirmation, delete the containers right away.
+
 ## IMAGE BUILDER INTERFACE
 Image building programs define builders and actual images to be built.
 Builders are simply containers, in which the images are then built.

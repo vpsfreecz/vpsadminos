@@ -139,6 +139,17 @@ module OsCtl::Image::Cli
 
           c.action &Command.run(Containers, :list)
         end
+
+        ct.desc 'Delete managed containers'
+        ct.command :del do |c|
+          c.desc 'Delete containers of selected type'
+          c.flag 'type', must_match: %w(builder test instance)
+
+          c.desc 'Do not ask and immediately delete the containers'
+          c.switch %w(f force)
+
+          c.action &Command.run(Containers, :delete)
+        end
       end
     end
   end
