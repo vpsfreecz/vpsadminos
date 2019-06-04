@@ -1,8 +1,8 @@
 require 'filelock'
-require 'osctl/repo/base/template'
+require 'osctl/repo/base/image'
 
 module OsCtl::Repo
-  class Remote::Template < Base::Template
+  class Remote::Image < Base::Image
     def abs_image_url(format)
       File.join(repo.url, image_path(format))
     end

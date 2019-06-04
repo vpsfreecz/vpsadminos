@@ -4,9 +4,9 @@ require 'time'
 require 'osctl/repo/downloader/base'
 
 module OsCtl::Repo
-  # Download template in a specified format and cache it locally
+  # Download image in a specified format and cache it locally
   class Downloader::Cached < Downloader::Base
-    # @return [Array<Remote::Template>]
+    # @return [Array<Remote::Image>]
     def list
       ensure_cache_dir
 
@@ -18,7 +18,7 @@ module OsCtl::Repo
           index = Remote::Index.from_file(repo, repo.index_path)
         end
 
-        index.templates
+        index.images
       end
     end
 
@@ -85,13 +85,13 @@ module OsCtl::Repo
 
         t = index.lookup(vendor, variant, arch, dist, vtag)
 
-        raise TemplateNotFound, t unless t
+        raise ImageNotFound, t unless t
         raise FormatNotFound.new(t, format) unless t.has_image?(format)
 
         FileUtils.mkdir_p(t.abs_dir_path)
 
         t.lock(format) do
-          path = fetch_template(http, t, format)
+          path = fetch_image(http, t, format)
           fh = File.open(path, 'r') if open
         end
       end
@@ -113,12 +113,12 @@ module OsCtl::Repo
 
       t = index.lookup(vendor, variant, arch, dist, vtag)
 
-      raise TemplateNotFound, t unless t
+      raise ImageNotFound, t unless t
       raise FormatNotFound.new(t, format) unless t.has_image?(format)
 
       t.lock(format) do
         unless t.cached?(format)
-          raise CacheMiss, "Template #{t} not found in cache"
+          raise CacheMiss, "Image #{t} not found in cache"
         end
 
         fh = File.open(t.abs_cache_path(format), 'r')
@@ -177,7 +177,7 @@ module OsCtl::Repo
       end
     end
 
-    def fetch_template(http, t, format)
+    def fetch_image(http, t, format)
       uri = URI(t.abs_image_url(format))
       t_path = t.abs_cache_path(format)
       t_tmp_path = "#{t_path}.new"
@@ -203,7 +203,7 @@ module OsCtl::Repo
             return t_path
 
           when '304'
-            # template unchanged
+            # image unchanged
 
           else
             raise BadHttpResponse, res.code

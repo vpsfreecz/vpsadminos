@@ -21,7 +21,7 @@ module OsCtl::Repo
         'VENDOR', 'VARIANT', 'ARCH', 'DISTRIBUTION', 'VERSION', 'TAGS'
       )
 
-      repo.templates.each do |t|
+      repo.images.each do |t|
         puts sprintf(
           fmt,
           t.vendor,
@@ -93,7 +93,7 @@ module OsCtl::Repo
       fail 'repository not found' unless repo.exist?
 
       tpl = repo.find(*args)
-      fail 'template not found' unless tpl
+      fail 'image not found' unless tpl
 
       repo.remove(tpl)
     end

@@ -12,7 +12,7 @@ Gem::Specification.new do |s|
   end
 
   s.summary     =
-  s.description = 'Create and use vpsAdminOS template repositories'
+  s.description = 'Create and use vpsAdminOS image repositories'
   s.authors     = 'Jakub Skokan'
   s.email       = 'jakub.skokan@vpsfree.cz'
   s.files       = `git ls-files -z`.split("\x0")

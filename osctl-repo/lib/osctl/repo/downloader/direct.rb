@@ -2,13 +2,13 @@ require 'net/http'
 require 'osctl/repo/downloader/base'
 
 module OsCtl::Repo
-  # Download template in a specified format, no caching involved
+  # Download image in a specified format, no caching involved
   class Downloader::Direct < Downloader::Base
-    # @return [Array<Remote::Template>]
+    # @return [Array<Remote::Image>]
     def list
       connect do |http|
         index = Remote::Index.from_string(repo, http.get(index_uri.path).body)
-        index.templates
+        index.images
       end
     end
 
@@ -18,7 +18,7 @@ module OsCtl::Repo
         index = Remote::Index.from_string(repo, http.get(uri.path).body)
         t = index.lookup(vendor, variant, arch, dist, vtag)
 
-        fail 'template not found' unless t
+        fail 'image not found' unless t
         fail 'image not in given format' unless t.has_image?(format)
 
         uri = URI(t.abs_image_url(format))

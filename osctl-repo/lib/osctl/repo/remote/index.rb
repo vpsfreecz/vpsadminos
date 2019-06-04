@@ -15,7 +15,7 @@ module OsCtl::Repo
     def initialize(repo, data)
       @repo = repo
       @vendors = data[:vendors]
-      @contents = data[:templates].map { |v| Remote::Template.load(repo, v) }
+      @contents = data[:images].map { |v| Remote::Image.load(repo, v) }
     end
 
     def lookup(vendor, variant, arch, dist, vtag)
@@ -31,7 +31,7 @@ module OsCtl::Repo
       end
     end
 
-    def templates
+    def images
       @contents
     end
 

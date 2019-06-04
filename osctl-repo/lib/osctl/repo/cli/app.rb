@@ -14,7 +14,7 @@ module OsCtl::Repo::Cli
     def setup
       Thread.abort_on_exception = true
 
-      program_desc 'Create and use vpsAdminOS template repositories'
+      program_desc 'Create and use vpsAdminOS image repositories'
       version OsCtl::Repo::VERSION
       subcommand_option_handling :normal
       preserve_argv true
@@ -27,7 +27,7 @@ module OsCtl::Repo::Cli
           c.action &Command.run(Repo, :init)
         end
 
-        local.desc 'List templates'
+        local.desc 'List images'
         local.command %i(ls list) do |c|
           c.action &Command.run(Repo, :local_list)
         end
@@ -53,7 +53,7 @@ module OsCtl::Repo::Cli
           c.action &Command.run(Repo, :set_default)
         end
 
-        local.desc 'Remove template from the repository'
+        local.desc 'Remove image from the repository'
         local.arg_name '<vendor> <variant> <arch> <distribution> <version>'
         local.command :rm do |c|
           c.action &Command.run(Repo, :rm)
@@ -62,7 +62,7 @@ module OsCtl::Repo::Cli
 
       desc 'Interact with remote repositories'
       command :remote do |remote|
-        remote.desc 'List available templates'
+        remote.desc 'List available images'
         remote.arg_name '<repo>'
         remote.command %i(ls list) do |c|
           c.desc 'Cache directory'
@@ -82,7 +82,7 @@ module OsCtl::Repo::Cli
 
         remote.desc 'Get a file from the repository'
         remote.command :get do |get|
-          get.desc 'Get path to cached template'
+          get.desc 'Get path to cached image'
           get.arg_name '<repo> <vendor> <variant> <arch> <distribution> <version>|<tag> tar|zfs'
           get.command :path do |c|
             c.desc 'Cache directory'
@@ -94,7 +94,7 @@ module OsCtl::Repo::Cli
             c.action &Command.run(Repo, :get_path)
           end
 
-          get.desc 'Dump template to stdout'
+          get.desc 'Dump image to stdout'
           get.arg_name '<repo> <vendor> <variant> <arch> <distribution> <version>|<tag> tar|zfs'
           get.command :stream do |c|
             c.desc 'Cache directory'

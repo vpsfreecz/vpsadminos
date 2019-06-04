@@ -1,14 +1,14 @@
 module OsCtl
   module Repo
-    class TemplateNotFound < StandardError
-      def initialize(template)
-        super(template.to_s)
+    class ImageNotFound < StandardError
+      def initialize(image)
+        super(image.to_s)
       end
     end
 
     class FormatNotFound < StandardError
-      def initialize(template, format)
-        super("#{template}: #{format}")
+      def initialize(image, format)
+        super("#{image}: #{format}")
       end
     end
 

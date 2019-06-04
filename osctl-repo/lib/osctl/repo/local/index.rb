@@ -11,7 +11,7 @@ module OsCtl::Repo
       if exist?
         data = JSON.parse(File.read(path), symbolize_names: true)
         @vendors = data[:vendors]
-        @contents = data[:templates].map { |v| Base::Template.load(repo, v) }
+        @contents = data[:images].map { |v| Base::Image.load(repo, v) }
 
       else
         @vendors = {default: nil}
@@ -23,24 +23,24 @@ module OsCtl::Repo
       File.exist?(path)
     end
 
-    def add(template)
-      if i = contents.index(template)
-        contents[i] = template
+    def add(image)
+      if i = contents.index(image)
+        contents[i] = image
 
       else
-        contents << template
+        contents << image
       end
 
-      if template.tags.any?
-        # Remove the template's tags from previous distribution templates
+      if image.tags.any?
+        # Remove the image's tags from previous distribution images
         contents.each do |t|
-          next if t == template \
-                  || t.vendor != template.vendor \
-                  || t.variant != template.variant \
-                  || t.arch != template.arch \
-                  || t.distribution != template.distribution \
+          next if t == image \
+                  || t.vendor != image.vendor \
+                  || t.variant != image.variant \
+                  || t.arch != image.arch \
+                  || t.distribution != image.distribution \
 
-          t.tags.delete_if { |tag| template.tags.include?(tag) }
+          t.tags.delete_if { |tag| image.tags.include?(tag) }
         end
       end
     end
@@ -55,8 +55,8 @@ module OsCtl::Repo
       end
     end
 
-    def delete(template)
-      contents.delete(template)
+    def delete(image)
+      contents.delete(image)
     end
 
     def set_default_vendor(name)
@@ -71,12 +71,12 @@ module OsCtl::Repo
       regenerate_file(path, 0644) do |f|
         f.write({
           vendors: vendors,
-          templates: contents.sort.map(&:dump)
+          images: contents.sort.map(&:dump)
         }.to_json)
       end
     end
 
-    def templates
+    def images
       contents.clone
     end
 

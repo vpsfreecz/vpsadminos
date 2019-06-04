@@ -7,10 +7,10 @@ module OsCtl::Repo::Cli
         begin
           cmd.method(method).call
 
-        rescue OsCtl::Repo::TemplateNotFound => e
+        rescue OsCtl::Repo::ImageNotFound => e
           raise GLI::CustomExit.new(
-            "Template not found: #{e.message}",
-            OsCtl::Repo::EXIT_TEMPLATE_NOT_FOUND
+            "Image not found: #{e.message}",
+            OsCtl::Repo::EXIT_IMAGE_NOT_FOUND
           )
 
         rescue OsCtl::Repo::FormatNotFound => e

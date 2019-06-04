@@ -58,7 +58,7 @@ module OsCtld
       when OsCtl::Repo::EXIT_FORMAT_NOT_FOUND
         nil
 
-      when OsCtl::Repo::EXIT_TEMPLATE_NOT_FOUND
+      when OsCtl::Repo::EXIT_IMAGE_NOT_FOUND
         raise ImageNotFound
 
       when OsCtl::Repo::EXIT_HTTP_ERROR, OsCtl::Repo::EXIT_NETWORK_ERROR

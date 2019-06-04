@@ -1,5 +1,5 @@
 module OsCtl::Repo
-  class Base::Template
+  class Base::Image
     def self.load(repo, data)
       new(
         repo,

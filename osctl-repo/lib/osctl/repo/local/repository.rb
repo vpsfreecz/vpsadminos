@@ -19,7 +19,7 @@ module OsCtl::Repo
     end
 
     def add(vendor, variant, arch, dist, ver, opts)
-      t = Base::Template.new(
+      t = Base::Image.new(
         self,
         vendor,
         variant,
@@ -54,34 +54,34 @@ module OsCtl::Repo
       index.save
     end
 
-    # @return [Base::Template, nil]
+    # @return [Base::Image, nil]
     def find(vendor, variant, arch, distribution, version)
       index.find(vendor, variant, arch, distribution, version)
     end
 
-    # Remove template from the repository
-    # @param template [Base::Template]
-    def remove(template)
-      # Remove template from the index
-      index.delete(template)
+    # Remove image from the repository
+    # @param image [Base::Image]
+    def remove(image)
+      # Remove image from the index
+      index.delete(image)
       index.save
 
       # Remove image
-      template.image.each do |v|
-        path = template.abs_image_path(v)
+      image.image.each do |v|
+        path = image.abs_image_path(v)
 
         File.unlink(path) if File.exist?(path)
       end
 
       # Remove tags
-      template.tags.each do |v|
-        path = template.abs_tag_path(v)
+      image.tags.each do |v|
+        path = image.abs_tag_path(v)
 
         File.unlink(path) if File.symlink?(path)
       end
 
       # Remove empty dir from the version dir up to the repository root
-      version_dir = template.abs_dir_path
+      version_dir = image.abs_dir_path
 
       5.times.map do |i|
         File.absolute_path(File.join(version_dir, *Array.new(i, '..')))
@@ -109,8 +109,8 @@ module OsCtl::Repo
       index.save
     end
 
-    def templates
-      index.templates
+    def images
+      index.images
     end
 
     protected
