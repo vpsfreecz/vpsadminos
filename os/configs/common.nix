@@ -32,6 +32,7 @@
     openssh
     osctl
     osctl-image
+    osctl-repo
     osup
     ruby
     screen
