@@ -1,23 +1,26 @@
 require 'libosctl'
 require 'osctl/image/operations/base'
+require 'securerandom'
 
 module OsCtl::Image
   class Operations::Builder::ControlledExec < Operations::Base
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
 
-    # @return [Operations::Builder::Build]
-    attr_reader :build
+    # @return [Builder]
+    attr_reader :builder
 
     # @return [Array<String>]
     attr_reader :command
 
-    # @param build [Operations::Builder::Build]
+    # @param builder [Builder]
     # @param command [Array<String>]
+    # @param id [nil, String] optional run identifier
     # @param client [nil, OsCtldClient]
-    def initialize(build, command, client: nil)
-      @build = build
+    def initialize(builder, command, id: nil, client: nil)
+      @builder = builder
       @command = command
+      @id = id || SecureRandom.hex(10)
       @client = client || OsCtldClient.new
     end
 
@@ -25,7 +28,7 @@ module OsCtl::Image
     def execute
       begin
         rc = Operations::Builder::RunscriptFromString.run(
-          build.builder,
+          builder,
           start_script,
         )
       ensure
@@ -36,12 +39,12 @@ module OsCtl::Image
     end
 
     protected
-    attr_reader :client
+    attr_reader :id, :client
 
     def start_script
       <<EOF
 #!/bin/sh
-cgroup=/sys/fs/cgroup/systemd/build.#{build.build_id}
+cgroup=/sys/fs/cgroup/systemd/exec.#{id}
 mkdir $cgroup
 echo $$ >> $cgroup/cgroup.procs
 exec #{command.join(' ')}
@@ -87,10 +90,10 @@ EOF
     def cgroup_path
       File.join(
         '/sys/fs/cgroup/systemd',
-        build.builder.attrs[:group_path],
+        builder.attrs[:group_path],
         'lxc',
-        build.builder.ctid,
-        "build.#{build.build_id}"
+        builder.ctid,
+        "exec.#{id}"
       )
     end
   end

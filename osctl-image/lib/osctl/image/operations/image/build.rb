@@ -125,7 +125,7 @@ module OsCtl::Image
       end
 
       rc = Operations::Builder::ControlledExec.run(
-        self,
+        builder,
         [
           File.join(builder_base_dir, 'bin', 'runner'),
           'image',
@@ -135,6 +135,7 @@ module OsCtl::Image
           builder_install_dir,
           image.name,
         ],
+        id: build_id,
         client: client,
       )
 
