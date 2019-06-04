@@ -22,7 +22,7 @@ and `pool import`. One `osctl pool` corresponds to one ZFS pool, `osctld`
 requires at least one pool to operate.
 
 Pools are independent entities carrying their own configuration and data, such
-as users, groups, containers, templates, log files and other configuration
+as users, groups, containers, images, log files and other configuration
 files. Pools can be imported and exported at runtime, taking all associated
 entities with them.
 
@@ -65,28 +65,27 @@ See the `group` command family.
 ## CONTAINERS
 Every container uses user namespace mapping, resource control groups
 and resides in its own ZFS dataset. Containers are usually created from
-templates, see `TEMPLATES`.
+images, see `IMAGES`.
 
 Under the hood, `osctld` utilizes LXC to setup and run containers.
 
-### TEMPLATES
-A template can be a gzip compressed tar archive or a ZFS stream, which is simply
-extracted or received using `zfs recv` into to the new container's dataset.
-A template's name carries important information such as its distribution,
-version and architecture. See `TEMPLATE NAMES` for more information.
+### IMAGES
+An image is a tar archive generated e.g. by `ct export` or built using the
+`osctl-image` utility. It contains container configuration and filesystems.
 
-Templates can be provided as files to `ct new`, or automatically downloaded from
-remote repositories over HTTP. vpsAdminOS comes with one such repository
-preconfigured, it can be browsed at <https://templates.vpsadminos.org> or
-using command `repository templates ls default`.
+Containers can be created from local images using `ct import`. Images can also
+be automatically downloaded from remote repositories over HTTP using `ct new`.
+vpsAdminOS comes with one such repository preconfigured, it can be browsed
+at <https://templates.vpsadminos.org> or using command
+`repository images ls default`.
 
-See the `repository` command family.
+See the `repository` command family, `ct export`, `ct import` and `ct new`.
 
 ### MANIPULATION
 Commands for container manipulation:
 
  - `ct new` - create a new container
- - `ct reinstall` - remove root file system content and extract template
+ - `ct reinstall` - remove root file system content and import image
  - `ct cp` - copy container to another to the same or a different pool
  - `ct mv` - move container to a different pool or change its id
  - `ct chown` - change container user
@@ -655,17 +654,17 @@ read by `ls` or `show` commands.
   Create a new container. Selected user and group have to be from the same pool
   the container is being created on.
 
-  Containers are usually created from templates. Templates are by default
-  downloaded from remote repositories. The desired template can be  specified by
-  `--distribution` and optionally also `--version`, `--arch`, `--vendor` or
-  `--variant`. All configured repositories are searched by default.
+  Containers are usually created from images. Images are downloaded from remote
+  repositories. The desired image can be specified by `--distribution`
+  and optionally also `--version`, `--arch`, `--vendor` or `--variant`.
+  All configured repositories are searched by default.
 
   Use `ct import` to create containers from local files.
 
   Containers can be created in custom datasets, located anywhere on the pool.
   The dataset can be selected using option `--dataset`. If the dataset already
-  containers rootfs and you do not wish to use any template, signal this with
-  option `--skip-template`. Otherwise, the template to be used can be selected
+  containers rootfs and you do not wish to use any image, signal this with
+  option `--skip-image`. Otherwise, the image to be used can be selected
   using any of the methods above.
   
     `--pool` *pool*
@@ -679,34 +678,30 @@ read by `ls` or `show` commands.
 
     `--dataset` *dataset*
       Use a custom dataset for the container's rootfs. The dataset and all its
-      parents are created, if it doesn't already exist. If used without
-      `--template`, the dataset is expected to already contain the rootfs
+      parents are created, if it doesn't already exist. If used with
+      `--skip-image`, the dataset is expected to already contain the rootfs
       and `--distribution` and `--version` have to be provided.
 
-    `--skip-template`
-      Do not apply any template, leave the container's root filesystem empty.
+    `--skip-image`
+      Do not import any image, leave the container's root filesystem empty.
       Useful for when you wish to setup the container manually.
 
     `--distribution` *distribution*
       Distribution name in lower case, e.g. alpine, centos, debian, ubuntu.
-      If `--template` is provided, this option is not necessary, but can
-      optionally override the template's distribution info.
 
     `--version` *version*
       Distribution version. The format can differ among distributions, e.g.
       alpine `3.6`, centos `7.0`, debian `9.0` or ubuntu `16.04`.
-      If `--template` is provided, this option is not necessary, but can
-      optionally override the template's distribution version info.
 
     `--arch` *arch*
       Container architecture, e.g. `x86_64` or `x86`. Defaults to the host system
       architecture.
 
     `--vendor` *vendor*
-      Vendor to be selected from the remote template repository.
+      Vendor to be selected from the remote image repository.
 
     `--variant` *variant*
-      Vendor variant to be selected from the remote template repository.
+      Vendor variant to be selected from the remote image repository.
 
     `--repository` *repository*
       Instead of searching all configured repositories from appropriate pool,
@@ -720,17 +715,17 @@ read by `ls` or `show` commands.
       cannot be deleted.
 
 `ct reinstall` [*options*] *ctid*
-  Reinstall container from template. The container's rootfs is deleted
-  and an OS template is applied again. The container's configuration
-  and subdatasets remain unaffected.
+  Reinstall container from image. The container's rootfs is deleted
+  and an image is imported again. The container's configuration and subdatasets
+  remain unaffected.
 
-  If no template info is given via command-line options, `osctld` will attempt
-  to find appropriate template for the container's distribution version in
+  If no image info is given via command-line options, `osctld` will attempt
+  to find the appropriate image for the container's distribution version in
   remote repositories. This may not work if the container was created
   from a local file, stream or if the distribution is too old and no longer
   supported.
 
-  As the applied template can be a ZFS stream, it is necessary to delete all
+  As the imported image can be a ZFS stream, it is necessary to delete all
   snapshots of the container's root dataset. By default, `ct reinstall` will
   abort if there are snapshots present. You can use option `-r`,
   `--remove-snapshots` to remove them.
@@ -740,24 +735,20 @@ read by `ls` or `show` commands.
 
     `--distribution` *distribution*
       Distribution name in lower case, e.g. alpine, centos, debian, ubuntu.
-      If `--template` is provided, this option is not necessary, but can
-      optionally override the template's distribution info.
 
     `--version` *version*
       Distribution version. The format can differ among distributions, e.g.
       alpine `3.6`, centos `7.0`, debian `9.0` or ubuntu `16.04`.
-      If `--template` is provided, this option is not necessary, but can
-      optionally override the template's distribution version info.
 
     `--arch` *arch*
       Container architecture, e.g. `x86_64` or `x86`. Defaults to the host system
       architecture.
 
     `--vendor` *vendor*
-      Vendor to be selected from the remote template repository.
+      Vendor to be selected from the remote image repository.
 
     `--variant` *variant*
-      Vendor variant to be selected from the remote template repository.
+      Vendor variant to be selected from the remote image repository.
 
     `--repository` *repository*
       Instead of searching all configured repositories from appropriate pool,
@@ -2230,7 +2221,7 @@ read by `ls` or `show` commands.
   `migration authorized-keys ls`.
 
 `repository ls` [*options*] [*repository...*]
-  List configured repositories, from which container templates are downloaded.
+  List configured repositories, from which container images are downloaded.
 
     `-H`, `--hide-header`
       Do not show header, useful for scripting.
@@ -2261,11 +2252,11 @@ read by `ls` or `show` commands.
   Remove *repository* from the default or the selected pool.
 
 `repository enable` *repository*
-  Enable *repository*. Enabled repositories are searched for templates
+  Enable *repository*. Enabled repositories are searched for images 
   when creating containers. Repositories are enabled by default upon addition.
 
 `repository disable` *repository*
-  Disable *repository*. Disabled repositories are not searched for templates,
+  Disable *repository*. Disabled repositories are not searched for images,
   until reenabled.
 
 `repository set url` *repository* *url*
@@ -2286,8 +2277,8 @@ read by `ls` or `show` commands.
 `repository assets` *repository*
   Show repository's assets and their state.
 
-`repository templates ls` [*option*] *repository*
-  List templates available in *repository*.
+`repository images ls` [*option*] *repository*
+  List images available in *repository*.
 
     `-H`, `--hide-header`
       Do not show header, useful for scripting.
@@ -2320,10 +2311,10 @@ read by `ls` or `show` commands.
       Filter by version tag.
 
     `--cached`
-      Show only locally cached templates.
+      Show only locally cached images.
 
     `--uncached`
-      Show only locally uncached templates.
+      Show only locally uncached images.
 
 `monitor`
   Print all events reported by `osctld` to standard output. If global option
@@ -2388,14 +2379,6 @@ read by `ls` or `show` commands.
 
 `help` [*command...*]
   Shows a list of commands or help for one command
-
-## TEMPLATE NAMES
-Template can either be a tar archive with the extension **tar.gz**, or a ZFS
-stream file with extension **dat.gz**. The name then has to match the following
-format: <*distribution*>-<*version*>\*.<*extension*>. *distribution* is
-a distribution name in lower case, e.g. `alpine`, `centos` or `debian`.
-*version* is the distribution release version, e.g. `3.6` for `alpine`,
-`7.0` for `centos` or `9.0` for `debian`.
 
 ## SCRIPT HOOKS
 `osctld` can execute user-defined scripts when containers are being started

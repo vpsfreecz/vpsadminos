@@ -164,7 +164,7 @@ module OsCtl::Cli
         id: args[0],
         pool: opts[:pool] || gopts[:pool],
         user: opts[:user],
-        no_template: opts['skip-template'],
+        no_image: opts['skip-image'],
         repository: opts[:repository],
       }
 
@@ -176,7 +176,7 @@ module OsCtl::Cli
         raise GLI::BadCommandLine, 'provide --distribution'
       end
 
-      cmd_opts[:template] = repo_template_attrs
+      cmd_opts[:image] = repo_image_attrs
 
       osctld_fmt(:ct_create, cmd_opts)
     end
@@ -205,7 +205,7 @@ module OsCtl::Cli
       else
         cmd_opts.update(
           type: :remote,
-          template: repo_template_attrs(defaults: false),
+          image: repo_image_attrs(defaults: false),
         )
       end
 
@@ -1068,7 +1068,7 @@ module OsCtl::Cli
       osctld_fmt(:ct_unset, cmd_opts)
     end
 
-    def repo_template_attrs(defaults: true)
+    def repo_image_attrs(defaults: true)
       ret = {}
 
       if defaults

@@ -607,8 +607,8 @@ module OsCtl::Cli
           new.desc 'Use a custom dataset for the rootfs'
           new.flag :dataset, arg_name: 'dataset'
 
-          new.desc 'Do not extract any template'
-          new.switch 'skip-template', negatable: false
+          new.desc 'Do not extract any image'
+          new.switch 'skip-image', negatable: false
 
           new.desc 'Distribution name in lower case'
           new.flag :distribution, arg_name: 'distribution'
@@ -619,10 +619,10 @@ module OsCtl::Cli
           new.desc 'Architecture'
           new.flag :arch, arg_name: 'arch'
 
-          new.desc 'Vendor (used only when downloading the template)'
+          new.desc 'Vendor (used only when downloading the image)'
           new.flag :vendor, arg_name: 'vendor'
 
-          new.desc 'Variant (used only when downloading the template)'
+          new.desc 'Variant (used only when downloading the image)'
           new.flag :variant, arg_name: 'variant'
 
           new.desc 'Repository'
@@ -655,10 +655,10 @@ module OsCtl::Cli
           c.desc 'Architecture'
           c.flag :arch, arg_name: 'arch'
 
-          c.desc 'Vendor (used only when downloading the template)'
+          c.desc 'Vendor (used only when downloading the image)'
           c.flag :vendor, arg_name: 'vendor'
 
-          c.desc 'Variant (used only when downloading the template)'
+          c.desc 'Variant (used only when downloading the image)'
           c.flag :variant, arg_name: 'variant'
 
           c.desc 'Repository'
@@ -1540,7 +1540,7 @@ module OsCtl::Cli
         end
       end
 
-      desc 'Manage template repositories'
+      desc 'Manage image repositories'
       command %i(repo repository) do |r|
         r.desc 'List repositories'
         r.arg_name '[repository...]'
@@ -1616,9 +1616,9 @@ module OsCtl::Cli
         r.arg_name '<repository>'
         assets(r, Repository)
 
-        r.desc 'Browse repository templates'
-        r.command :templates do |t|
-          t.desc 'List available templates'
+        r.desc 'Browse repository images'
+        r.command :images do |t|
+          t.desc 'List available images'
           t.arg_name '<repository>'
           t.command %i(ls list) do |c|
             c.desc 'Select parameters to output'
@@ -1651,13 +1651,13 @@ module OsCtl::Cli
             c.desc 'Filter by version tag'
             c.flag :tag, arg_name: 'tag'
 
-            c.desc 'Filter locally cached templates'
+            c.desc 'Filter locally cached images'
             c.switch :cached, negatable: false
 
-            c.desc 'Filter locally uncached templates'
+            c.desc 'Filter locally uncached images'
             c.switch :uncached, negatable: false
 
-            c.action &Command.run(Repository, :template_list)
+            c.action &Command.run(Repository, :image_list)
           end
         end
       end

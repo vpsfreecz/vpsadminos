@@ -6,8 +6,8 @@ module OsCtl::Cli
     include Attributes
 
     FIELDS = %i(pool name url enabled)
-    TEMPLATE_FIELDS = %i(vendor variant arch distribution version tags cached)
-    TEMPLATE_FILTERS = %i(vendor variant arch distribution version tag cached)
+    IMAGE_FIELDS = %i(vendor variant arch distribution version tags cached)
+    IMAGE_FILTERS = %i(vendor variant arch distribution version tag cached)
 
     def list
       if opts[:list]
@@ -92,9 +92,9 @@ module OsCtl::Cli
       print_assets(:repo_assets, name: args[0], pool: gopts[:pool])
     end
 
-    def template_list
+    def image_list
       if opts[:list]
-        puts TEMPLATE_FIELDS.join("\n")
+        puts IMAGE_FIELDS.join("\n")
         return
       end
 
@@ -102,7 +102,7 @@ module OsCtl::Cli
 
       cmd_opts = {pool: gopts[:pool], name: args[0]}
 
-      TEMPLATE_FILTERS.each do |v|
+      IMAGE_FILTERS.each do |v|
         cmd_opts[v] = opts[v] if opts[v]
       end
 
@@ -114,7 +114,7 @@ module OsCtl::Cli
         sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
       }
       fmt_opts[:header] = false if opts['hide-header']
-      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : TEMPLATE_FIELDS
+      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : IMAGE_FIELDS
 
       if i = cols.index(:tags)
         cols[i] = {
@@ -125,7 +125,7 @@ module OsCtl::Cli
         }
       end
 
-      osctld_fmt(:repo_template_list, cmd_opts, cols, fmt_opts)
+      osctld_fmt(:repo_image_list, cmd_opts, cols, fmt_opts)
     end
   end
 end
