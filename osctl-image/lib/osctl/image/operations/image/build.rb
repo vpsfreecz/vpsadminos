@@ -167,14 +167,14 @@ module OsCtl::Image
         end
       end
 
-      zfs(:destroy, nil, work_dataset, valid_rcs: [1])
+      zfs(:destroy, nil, work_dataset, valid_rcs: :all)
       zfs(
-        :list, '-H -o name -t snapshot', output_dataset, valid_rcs: [1]
+        :list, '-H -o name -t snapshot', output_dataset, valid_rcs: :all
       ).output.split("\n").each do |s|
         zfs(:destroy, nil, s.strip)
       end
-      zfs(:destroy, nil, output_dataset, valid_rcs: [1])
-      zfs(:destroy, nil, build_dataset, valid_rcs: [1])
+      zfs(:destroy, nil, output_dataset, valid_rcs: :all)
+      zfs(:destroy, nil, build_dataset, valid_rcs: :all)
     end
 
     def builder_base_dir
