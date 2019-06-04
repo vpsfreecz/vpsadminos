@@ -58,6 +58,7 @@ module OsCtl::Image
           exception = nil
         rescue => e
           log(:info, "Worker ##{i} caught exception: #{e.class}: #{e.message}")
+          log(:info, e.backtrace.join("\n"))
           ret = nil
           exception = e
         end
