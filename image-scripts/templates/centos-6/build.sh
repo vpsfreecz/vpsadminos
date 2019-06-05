@@ -18,6 +18,14 @@ echo > /etc/fstab
 /sbin/chkconfig network on
 /sbin/chkconfig iptables off
 sed -i "s/\[1\-6\]/\[0\-6\]/" /etc/init/start-ttys.conf
+
+cat <<EOT > /etc/init/shutdown.conf
+description "Trigger an immediate shutdown on SIGPWR"
+start on power-status-changed
+
+task
+exec shutdown -h now "SIGPWR received"
+EOT
 EOF
 
 run-configure
