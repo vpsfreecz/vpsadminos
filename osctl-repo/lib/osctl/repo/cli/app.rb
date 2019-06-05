@@ -86,7 +86,7 @@ module OsCtl::Repo::Cli
           get.arg_name '<repo> <vendor> <variant> <arch> <distribution> <version>|<tag> tar|zfs'
           get.command :path do |c|
             c.desc 'Cache directory'
-            c.flag :cache
+            c.flag :cache, required: true
 
             c.desc 'Force remote repository check'
             c.switch 'force-check', default_value: false
