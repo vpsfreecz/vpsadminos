@@ -11,7 +11,7 @@ function usage {
 
 function image_usage {
 	echo "Usage:"
-	echo "  $0 image run <test-name> <ctid>"
+	echo "  $0 image run <image> <test-name> <ctid>"
 }
 
 function do_image {
@@ -35,17 +35,29 @@ function do_image {
 }
 
 function test_image {
-	if [ $# != 2 ] ; then
+	if [ $# != 3 ] ; then
 		image_usage
 		exit 1
 	fi
 
-	TEST="$1"
-	CTID="$2"
+	TEMPLATE="$1"
+	TEST="$2"
+	CTID="$3"
 
 	INCLUDE="$BASEDIR/include"
 
 	. "$BASEDIR/include/common.sh"
+
+	BUILDER=
+	DISTNAME=
+	RELVER=
+	ARCH=
+	VENDOR=
+	VARIANT=
+	IFS=- read DISTNAME RELVER ARCH VENDOR VARIANT <<< "$TEMPLATE"
+	[ "$ARCH" == "" ] && ARCH=x86_64
+	. "$BASEDIR/templates/$TEMPLATE/config.sh"
+
 	. "$BASEDIR/tests/$TEST.sh"
 }
 
