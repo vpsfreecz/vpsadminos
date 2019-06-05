@@ -47,6 +47,15 @@ module OsCtl::Repo::Cli
           c.action &Command.run(Repo, :add)
         end
 
+        local.desc 'Access images from the repository'
+        local.command :get do |get|
+          get.desc 'Get path to an image inside the repository'
+          get.arg_name '<vendor> <variant> <arch> <distribution> <version> tar|zfs'
+          get.command :path do |c|
+            c.action &Command.run(Repo, :local_get_path)
+          end
+        end
+
         local.desc "Set default vendor or default vendor's variant"
         local.arg_name '<vendor> [variant]'
         local.command :default do |c|

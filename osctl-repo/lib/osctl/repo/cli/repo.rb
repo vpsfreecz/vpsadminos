@@ -69,6 +69,22 @@ module OsCtl::Repo
       )
     end
 
+    def local_get_path
+      require_args!(
+        'vendor', 'variant', 'arch', 'distribution', 'version|tag', 'tar|zfs'
+      )
+
+      repo = Local::Repository.new(Dir.pwd)
+      fail 'repository not found' unless repo.exist?
+
+      vendor, variant, arch, distribution, version, format = args
+      img = repo.find(vendor, variant, arch, distribution, version)
+      fail 'image not found' unless img
+      fail 'image format not found' unless img.has_image?(format)
+
+      puts img.version_image_path(format)
+    end
+
     def set_default
       require_args!('vendor')
 

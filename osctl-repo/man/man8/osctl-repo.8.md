@@ -48,6 +48,9 @@ cache.
 `local rm` *vendor* *variant* *arch* *distribution* *version*
   Remove image from the repository in the current working directory.
 
+`local get path` *vendor* *variant* *arch* *distribution* *version* `tar`|`zfs`
+  Get path to an image inside the repository.
+
 `local default` *vendor*
   Set default vendor for the repository in the current working directory. Note
   that each repository has to have a default vendor.
