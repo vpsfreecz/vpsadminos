@@ -16,7 +16,7 @@ module OsCtld
       Commands::Repository::Add.run(
         pool: pool,
         name: 'default',
-        url: 'https://templates.vpsadminos.org'
+        url: 'https://images.vpsadminos.org'
       )
     end
   end

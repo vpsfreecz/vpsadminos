@@ -15,7 +15,7 @@ module OsCtl::Image
 #!/bin/sh
 
 test_network() {
-  curl https://templates.vpsadminos.org > /dev/null 2>&1
+  curl https://images.vpsadminos.org > /dev/null 2>&1
   return $?
 }
 

@@ -51,7 +51,7 @@ in
     options = {
       url = mkOption {
         type = types.str;
-        example = "https://templates.vpsadminos.org";
+        example = "https://images.vpsadminos.org";
         description = "HTTP URL to the remote repository";
       };
 

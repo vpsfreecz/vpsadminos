@@ -76,7 +76,7 @@ An image is a tar archive generated e.g. by `ct export` or built using the
 Containers can be created from local images using `ct import`. Images can also
 be automatically downloaded from remote repositories over HTTP using `ct new`.
 vpsAdminOS comes with one such repository preconfigured, it can be browsed
-at <https://templates.vpsadminos.org> or using command
+at <https://images.vpsadminos.org> or using command
 `repository images ls default`.
 
 See the `repository` command family, `ct export`, `ct import` and `ct new`.
