@@ -16,6 +16,7 @@ Gem::Specification.new do |s|
   s.authors     = 'Jakub Skokan'
   s.email       = 'jakub.skokan@vpsfree.cz'
   s.files       = `git ls-files -z`.split("\x0")
+  s.files      += Dir['man/man?/*.?']
   s.executables = s.files.grep(%r{^bin/}) { |f| File.basename(f) }
   s.license     = 'Apache-2.0'
 
@@ -26,5 +27,6 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency 'json'
   s.add_runtime_dependency 'libosctl', s.version
   s.add_runtime_dependency 'require_all', '~> 2.0.0'
+  s.add_development_dependency 'md2man'
   s.add_development_dependency 'rake'
 end
