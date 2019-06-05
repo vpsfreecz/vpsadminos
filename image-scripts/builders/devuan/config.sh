@@ -1,0 +1,2 @@
+DISTNAME=devuan
+RELVER=2.0
