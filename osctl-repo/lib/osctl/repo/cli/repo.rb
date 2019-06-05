@@ -126,20 +126,20 @@ module OsCtl::Repo
       puts dl.get(*args[1..-1], force_check: true)
     end
 
-    def get_path
-      dl = get_common
+    def remote_get_path
+      dl = remote_get_common
       puts dl.get(*args[1..-1], force_check: opts['force-check'])
     end
 
-    def get_stream
-      dl = get_common
+    def remote_get_stream
+      dl = remote_get_common
       dl.get(*args[1..-1], force_check: opts['force-check']) do |fragment|
         STDOUT.write(fragment)
       end
     end
 
     protected
-    def get_common
+    def remote_get_common
       require_args!(
         'repo', 'vendor', 'variant', 'arch', 'distribution', 'version|tag',
         'tar|zfs'

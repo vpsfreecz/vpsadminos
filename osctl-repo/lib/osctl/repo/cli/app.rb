@@ -91,7 +91,7 @@ module OsCtl::Repo::Cli
             c.desc 'Force remote repository check'
             c.switch 'force-check', default_value: false
 
-            c.action &Command.run(Repo, :get_path)
+            c.action &Command.run(Repo, :remote_get_path)
           end
 
           get.desc 'Dump image to stdout'
@@ -103,7 +103,7 @@ module OsCtl::Repo::Cli
             c.desc 'Force remote repository check'
             c.switch 'force-check', default_value: false
 
-            c.action &Command.run(Repo, :get_stream)
+            c.action &Command.run(Repo, :remote_get_stream)
           end
         end
       end
