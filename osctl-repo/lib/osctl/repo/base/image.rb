@@ -58,9 +58,9 @@ module OsCtl::Repo
     def image_name(format)
       case format.to_sym
       when :tar
-        'image.tar.gz'
+        'image-archive.tar'
       when :zfs
-        'image.dat.gz'
+        'image-stream.tar'
       end
     end
 
