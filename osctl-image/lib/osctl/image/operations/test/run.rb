@@ -63,7 +63,10 @@ module OsCtl::Image
     def run_test
       Operations::Nix::RunInShell.run(
         File.join(base_dir, 'shell-test.nix'),
-        [File.join(base_dir, 'bin/test'), 'image', 'run', test.name, ctid]
+        [
+          File.join(base_dir, 'bin/test'), 'image', 'run',
+          build.image.name, test.name, ctid,
+        ]
       )
       log(:warn, "Test '#{test}' successful")
       Status.new(build.image, test, true, 0, nil)

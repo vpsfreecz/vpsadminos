@@ -185,9 +185,9 @@ All executables have to implement argument-based commands described below.
   directories or files as a unique identifier.
 
 ### bin/test interface
-`bin/test image run` *name* *ctid*
-  Run test *name* on container *ctid*. The test is considered successful when
-  the programs exits with `0`.
+`bin/test image run` *image* *test* *ctid*
+  Run *test* on container *ctid*, which is an instance of *image*. The test is
+  considered successful when the programs exits with `0`.
 
 ### Builder attributes
 
