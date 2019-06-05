@@ -10,6 +10,7 @@ configure-common
 
 configure-append <<EOF
 apt-get install -y --force-yes devuan-keyring
+apt-get install -y cgroup-tools
 EOF
 
 configure-debian
@@ -36,6 +37,13 @@ c0:2345:respawn:/sbin/agetty --noreset 38400 console
 END
 
 sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+
+update-rc.d cgroups-mount defaults
 EOF
+
+cp "$TEMPLATEDIR"/cgroups-mount.initscript "$INSTALL"/etc/init.d/cgroups-mount
+chmod +x "$INSTALL"/etc/init.d/cgroups-mount
+
+cp "$TEMPLATEDIR"/cgconfig.conf "$INSTALL"/etc/cgconfig.conf
 
 run-configure
