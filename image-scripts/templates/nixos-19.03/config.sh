@@ -1,2 +1,1 @@
 BUILDER=nixos
-VARIANT=stable

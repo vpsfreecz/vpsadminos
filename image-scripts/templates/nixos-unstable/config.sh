@@ -1,3 +1,2 @@
 BUILDER=nixos
-RELVER=$(date +%Y%m%d)
-VARIANT=unstable
+RELVER=unstable-$(date +%Y%m%d)
