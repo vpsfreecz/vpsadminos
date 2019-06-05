@@ -12,6 +12,11 @@ function hostname_is {
 	fi
 }
 
+if [ "$DISTNAME" == "nixos" ] ; then
+	# Hostname on NixOS cannot be changed from the outside using osctl
+	exit 0
+fi
+
 osctl ct stop $CTID
 can_set "superhost" || fail "unable to set hostname when stopped"
 osctl ct start $CTID
