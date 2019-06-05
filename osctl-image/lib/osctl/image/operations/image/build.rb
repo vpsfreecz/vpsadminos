@@ -169,11 +169,15 @@ module OsCtl::Image
       end
 
       zfs(:destroy, nil, work_dataset, valid_rcs: :all)
-      zfs(
-        :list, '-H -o name -t snapshot', output_dataset, valid_rcs: :all
-      ).output.split("\n").each do |s|
-        zfs(:destroy, nil, s.strip)
+
+      list = zfs(:list, '-H -o name -t snapshot', output_dataset, valid_rcs: :all)
+
+      if list.success?
+        list.output.split("\n").each do |s|
+          zfs(:destroy, nil, s.strip)
+        end
       end
+
       zfs(:destroy, nil, output_dataset, valid_rcs: :all)
       zfs(:destroy, nil, build_dataset, valid_rcs: :all)
     end
