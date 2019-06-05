@@ -29,14 +29,24 @@ bootstrap-arch() {
 	echo nameserver 8.8.8.8 > "$BOOTSTRAP/etc/resolv.conf"
 
 	# pacstrap tries to mount /dev as devtmpfs, which is not possible in
-	# an unprivileged container
-	sed -i 's/devtmpfs/tmpfs/' "$BOOTSTRAP/bin/pacstrap"
-
-	# and in a tmpfs, we need to manually mkdir directories
-	sed -i 's/chroot_add_mount devpts/mkdir "\$1\/dev\/pts" \&\& chroot_add_mount devpts/' \
-		   "$BOOTSTRAP/bin/pacstrap"
-	sed -i 's/chroot_add_mount shm/mkdir "\$1\/dev\/shm" \&\& chroot_add_mount shm/' \
-		   "$BOOTSTRAP/bin/pacstrap"
+	# an unprivileged container. We have to mount it as tmpfs and mknod
+	# devices and create directories before mounting devpts and shm.
+	cat <<'EOF' | patch "$BOOTSTRAP/bin/pacstrap"
+101,103c101,109
+<   chroot_add_mount udev "$1/dev" -t devtmpfs -o mode=0755,nosuid &&
+<   chroot_add_mount devpts "$1/dev/pts" -t devpts -o mode=0620,gid=5,nosuid,noexec &&
+<   chroot_add_mount shm "$1/dev/shm" -t tmpfs -o mode=1777,nosuid,nodev &&
+---
+>   chroot_add_mount udev "$1/dev" -t tmpfs -o mode=0755,nosuid &&
+>   mknod "$1/dev/null" c 1 3 &&
+>   mknod "$1/dev/zero" c 1 5 &&
+>   mknod "$1/dev/full" c 1 7 &&
+>   mknod "$1/dev/random" c 1 8 &&
+>   mknod "$1/dev/urandom" c 1 9 &&
+>   mknod "$1/dev/tty" c 5 0 &&
+>   mkdir "$1/dev/pts" && chroot_add_mount devpts "$1/dev/pts" -t devpts -o mode=0620,gid=5,nosuid,noexec &&
+>   mkdir "$1/dev/shm" && chroot_add_mount shm "$1/dev/shm" -t tmpfs -o mode=1777,nosuid,nodev &&
+EOF
 
 	cat <<EOF > "$BOOTSTRAP/$SETUP"
 #!/bin/bash

@@ -1,6 +1,6 @@
 set -e
 dnf -y update
-dnf -y install curl debootstrap wget zypper
+dnf -y install curl debootstrap patch wget zypper
 
 # Upstream debootstrap doesn't have support for devuan. Here we add the
 # necessary scripts taken from https://git.devuan.org/devuan-packages/debootstrap/
