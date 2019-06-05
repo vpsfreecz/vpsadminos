@@ -2,6 +2,7 @@ require 'bundler/gem_tasks'
 require 'md2man/rakefile'
 require 'md2man/roff/engine'
 require 'md2man/html/engine'
+require 'yard'
 
 # Override markdown engine to add extra parameter
 [Md2Man::Roff, Md2Man::HTML].each do |mod|
@@ -17,4 +18,12 @@ require 'md2man/html/engine'
     # This option is needed for command options to be rendered property
     disable_indented_code_blocks: true,
   ))
+end
+
+YARD::Rake::YardocTask.new do |t|
+  t.files   = ['lib/**/*.rb']
+  t.options = [
+    '--protected',
+    "--output-dir=#{ENV['YARD_OUTPUT'] || 'html_doc'}",
+  ]
 end
