@@ -1,4 +1,3 @@
 BUILDER=fedora
 DISTNAME=void
-RELVER=$(date +%Y%m%d)
-VARIANT=glibc
+RELVER=glibc-$(date +%Y%m%d)
