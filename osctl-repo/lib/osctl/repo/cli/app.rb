@@ -36,7 +36,7 @@ module OsCtl::Repo::Cli
         local.arg_name '<vendor> <variant> <arch> <distribution> <version>'
         local.command :add do |c|
           c.desc 'Tag'
-          c.flag :tag, must_match: %w(stable latest testing), multiple: true
+          c.flag :tag, multiple: true
 
           c.desc 'Image with rootfs archive'
           c.flag :archive
