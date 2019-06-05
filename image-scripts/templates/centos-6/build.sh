@@ -17,7 +17,13 @@ configure-append <<EOF
 echo > /etc/fstab
 /sbin/chkconfig network on
 /sbin/chkconfig iptables off
-sed -i "s/\[1\-6\]/\[0\-6\]/" /etc/init/start-ttys.conf
+
+cat <<EOT > /etc/init/console.conf
+start on stopped rc RUNLEVEL=[2345]
+stop on runlevel [!2345]
+respawn
+exec /sbin/agetty 38400 console
+EOT
 
 cat <<EOT > /etc/init/shutdown.conf
 description "Trigger an immediate shutdown on SIGPWR"
