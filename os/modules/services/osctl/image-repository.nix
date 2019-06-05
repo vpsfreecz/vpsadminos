@@ -146,6 +146,14 @@ let
   createBuildScript = repo: cfg: pkgs.writeScriptBin "build-image-repository-${repo}" ''
     #!${pkgs.bash}/bin/bash
 
+    pushd () {
+      command pushd "$@" > /dev/null
+    }
+
+    popd () {
+      command popd "$@" > /dev/null
+    }
+
     repoDir="${cfg.path}"
     repoCache="${cfg.cacheDir}"
     buildDataset="${cfg.buildDataset}"
