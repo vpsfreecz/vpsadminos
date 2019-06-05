@@ -6,6 +6,7 @@ module OsCtl
       module Builder ; end
       module Config; end
       module Execution ; end
+      module File ; end
       module Image; end
       module Nix ; end
       module Repository ; end

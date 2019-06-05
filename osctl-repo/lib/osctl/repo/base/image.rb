@@ -55,6 +55,10 @@ module OsCtl::Repo
       File.join(dir_path, image_name(format))
     end
 
+    def version_image_path(format)
+      File.join("v#{SCHEMA}", image_path(format))
+    end
+
     def image_name(format)
       case format.to_sym
       when :tar

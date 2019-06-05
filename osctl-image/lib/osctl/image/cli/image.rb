@@ -74,6 +74,8 @@ module OsCtl::Image
     def deploy
       require_args!('image', 'repository')
 
+      unchanged = false
+
       # Build images
       images = select_images(args[0])
       build_results, cached_builds = build_images(
@@ -100,6 +102,11 @@ module OsCtl::Image
         puts 'Testing images'
 
         verified_builds = successful_builds.select do |build|
+          if image_in_repo_unchanged?(build, args[1])
+            unchanged = true
+            next false
+          end
+
           results = test_images([build.image], tests, rebuild: false)
           test_results.concat(results)
           results.all?(&:success?)
@@ -108,7 +115,15 @@ module OsCtl::Image
         process_test_results(test_results)
       end
 
-      fail 'no images to deploy' if verified_builds.empty?
+      if verified_builds.empty?
+        if unchanged
+          puts 'no images to deploy'
+        else
+          fail 'no images to deploy'
+        end
+
+        return
+      end
 
       # Deploy verified images
       puts 'Deploying images'
@@ -198,6 +213,28 @@ module OsCtl::Image
         st.output.split("\n").each { |line| puts (' '*4)+line }
         puts
       end
+    end
+
+    # @param build [Operations::Image::Build]
+    # @param repo [String] path to the repository
+    def image_in_repo_unchanged?(build, repo)
+      img = build.image
+      path = Operations::Repository::GetImagePath.run(
+        repo,
+        {
+          distribution: img.distribution,
+          version: img.version,
+          arch: img.arch,
+          variant: img.variant,
+          vendor: img.vendor,
+        },
+        :zfs,
+      )
+
+      Operations::File::Compare.run(path, build.output_stream)
+
+    rescue OperationError
+      false
     end
 
     # @param arg [String]
