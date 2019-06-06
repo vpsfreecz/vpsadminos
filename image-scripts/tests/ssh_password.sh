@@ -22,16 +22,28 @@ function test_ssh {
 	try_password $PASSWORD || fail "rejected valid password"
 }
 
+function wait_for_ssh {
+	for k in {1..30} ; do
+		nc -z $IPADDR 22 && return
+		sleep 1
+	done
+
+	return 1
+}
+
+function wait_for_network {
+	for i in {1..60} ; do
+		test_network && return
+		sleep 1
+	done
+
+	return 1
+}
+
 osctl ct netif new routed $CTID eth0 || fail "unable to add netif"
 osctl ct netif ip add $CTID eth0 $IPADDR/32 || fail "unable to add ip"
 osctl ct start $CTID || fail "unable to start"
 
-for i in {1..60} ; do
-	if test_network ; then
-		test_ssh
-		exit
-	fi
-	sleep 1
-done
-
-exit 1
+wait_for_network || fail "network unreachable"
+wait_for_ssh || fail "ssh not responding"
+test_ssh

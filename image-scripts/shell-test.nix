@@ -6,8 +6,9 @@ let
 in stdenv.mkDerivation rec {
   name = "vpsadminos-templates";
 
-  buildInputs = [
-    pkgs.sshpass
+  buildInputs = with pkgs; [
+    netcat
+    sshpass
   ];
 
   # shellHook needs to be unset in case osctl-template is run from its own
