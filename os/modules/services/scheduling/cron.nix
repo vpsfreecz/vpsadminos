@@ -20,7 +20,7 @@ let
   cronNixosPkg = pkgs.cron.override {
     # The mail.nix nixos module, if there is any local mail system enabled,
     # should have sendmail in this path.
-    sendmailPath = "/run/wrappers/bin/sendmail";
+    sendmailPath = "${pkgs.system-sendmail}/bin/sendmail";
   };
 
   allFiles =
