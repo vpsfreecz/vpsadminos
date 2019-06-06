@@ -50,6 +50,7 @@ let
       <nixpkgs/nixos/modules/security/apparmor.nix>
       <nixpkgs/nixos/modules/security/pam.nix>
       <nixpkgs/nixos/modules/security/sudo.nix>
+      <nixpkgs/nixos/modules/security/wrappers/default.nix>
       <nixpkgs/nixos/modules/config/ldap.nix>
       <nixpkgs/nixos/modules/config/nsswitch.nix>
       <nixpkgs/nixos/modules/misc/ids.nix>

@@ -33,7 +33,7 @@ in
   config = {
     runit.services.osctld = {
       run = ''
-        export PATH="${pathJoined}"
+        export PATH="${config.security.wrapperDir}:${pathJoined}"
         export OSCTLD_APPARMOR_PATHS="${apparmorPathsJoined}"
 
         exec 2>&1

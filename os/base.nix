@@ -339,8 +339,6 @@ with lib;
       supportedLocales = [ "en_US.UTF-8/UTF-8" ];
     };
     environment.etc = {
-      bashrc.text = "export PATH=/run/current-system/sw/bin";
-      profile.text = "export PATH=/run/current-system/sw/bin";
       "nsswitch.conf".text = ''
         hosts:     files  dns   myhostname mymachines
         networks:  files dns
@@ -448,15 +446,6 @@ with lib;
     '';
 
     system.activationScripts = {
-      suids = {
-        text = ''
-          chmod 04755 ${config.system.path}/bin/su
-          chmod 04755 ${config.system.path}/bin/newuidmap
-          chmod 04755 ${config.system.path}/bin/newgidmap
-          chmod 04755 ${pkgs.lxc}/libexec/lxc/lxc-user-nic
-        '';
-        deps = [];
-      };
       secrets = {
         text = ''
           if [ -d /nix/store/secrets ] ; then
@@ -466,6 +455,10 @@ with lib;
         '';
         deps = [];
       };
+    };
+
+    security.wrappers = {
+      lxc-user-nic.source = "${pkgs.lxc}/libexec/lxc/lxc-user-nic";
     };
 
     system.build.toplevel = let

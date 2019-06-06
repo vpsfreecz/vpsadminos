@@ -24,6 +24,7 @@ ln -sfn /run /var/run
 ln -sf /proc/mounts /etc/mtab
 
 touch /run/{u,w}tmp
+mkdir /run/wrappers
 
 hostname @hostName@
 
