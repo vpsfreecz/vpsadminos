@@ -146,6 +146,8 @@ let
   createBuildScript = repo: cfg: pkgs.writeScriptBin "build-image-repository-${repo}" ''
     #!${pkgs.bash}/bin/bash
 
+    export NIX_PATH="nixpkgs=/nix/var/nix/profiles/per-user/root/channels/nixos"
+
     pushd () {
       command pushd "$@" > /dev/null
     }
