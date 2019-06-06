@@ -2,7 +2,6 @@
   ./bash.nix
   ./bird.nix
   ./chronyd.nix
-  ./crond.nix
   ./cpufreq.nix
   ./dhcpd.nix
   ./eudev.nix
@@ -24,6 +23,7 @@
   ./runit
   ./services/mail/opensmtpd.nix
   ./services/osctl/image-repository.nix
+  ./services/scheduling/cron.nix
   ./sshd.nix
   ./tools/tools.nix
   ./tty.nix
