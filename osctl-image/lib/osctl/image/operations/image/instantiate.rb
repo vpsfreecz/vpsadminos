@@ -49,46 +49,25 @@ module OsCtl::Image
 
     def instantiate(build)
       if File.exist?(build.output_stream)
-        use_stream(build)
+        create_container(build.output_stream)
       elsif File.exist?(build.output_tar)
-        use_archive(build)
+        create_container(build.output_tar)
       else
         raise OperationError,
               "no image file for '#{build.image}' found in output directory"
       end
     end
 
-    def use_archive(build)
+    def create_container(image_path)
       if reinstall
-        fail 'not implemented'
         client.stop_container(ctid)
-        client.reinstall_container_from_archive(
+        client.reinstall_container_from_image(
           ctid,
-          build.output_tar,
+          image_path,
           remove_snapshots: true,
         )
       else
-        client.create_container_from_file(ctid, build.output_tar)
-        sleep(3) # FIXME: wait for osctld...
-        client.set_container_attr(
-          ctid,
-          'org.vpsadminos.osctl-image:type',
-          'instance'
-        )
-      end
-    end
-
-    def use_stream(build)
-      if reinstall
-        fail 'not implemented'
-        client.stop_container(ctid)
-        client.reinstall_container_from_stream(
-          ctid,
-          build.output_stream,
-          remove_snapshots: true,
-        )
-      else
-        client.create_container_from_file(ctid, build.output_stream)
+        client.create_container_from_file(ctid, image_path)
         sleep(3) # FIXME: wait for osctld...
         client.set_container_attr(
           ctid,

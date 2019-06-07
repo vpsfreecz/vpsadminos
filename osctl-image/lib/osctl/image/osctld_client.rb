@@ -74,35 +74,16 @@ module OsCtl::Image
     end
 
     # @param ctid [String]
-    # @param archive [String]
+    # @param image_path [String]
     # @param remove_snapshots [Boolean]
-    def reinstall_container_from_archive(ctid, archive, remove_snapshots: false)
+    def reinstall_container_from_image(ctid, image_path, remove_snapshots: false)
       connect do |client|
         client.cmd_data!(
           :ct_reinstall,
           id: ctid,
           remove_snapshots: remove_snapshots,
-          template: {
-            type: :archive,
-            path: File.absolute_path(archive),
-          },
-        )
-      end
-    end
-
-    # @param ctid [String]
-    # @param stream [String]
-    # @param remove_snapshots [Boolean]
-    def reinstall_container_from_stream(ctid, stream, remove_snapshots: false)
-      connect do |client|
-        client.cmd_data!(
-          :ct_reinstall,
-          id: ctid,
-          remove_snapshots: remove_snapshots,
-          template: {
-            type: :stream,
-            path: File.absolute_path(stream),
-          },
+          type: :image,
+          path: File.absolute_path(image_path),
         )
       end
     end
