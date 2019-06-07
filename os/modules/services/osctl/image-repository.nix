@@ -48,6 +48,14 @@ let
         '';
       };
 
+      keepAllFailedTests = mkOption {
+        type = types.bool;
+        default = false;
+        description = ''
+          Keep containers of all failed tests for further analysis
+        '';
+      };
+
       buildInterval = mkOption {
         default = "0 4 * * *";
         type = types.nullOr types.str;
@@ -132,6 +140,14 @@ let
           Rebuild the image even if it is found in cacheDir
         '';
       };
+
+      keepFailedTests = mkOption {
+        type = types.bool;
+        default = false;
+        description = ''
+          Keep containers of failed tests for further analysis
+        '';
+      };
     };
   };
 
@@ -192,6 +208,7 @@ let
         --build-dataset $buildDataset \
         --output-dir "$repoCache" \
         ${optionalString (rebuildImage repoCfg cfg) "--rebuild"} \
+        ${optionalString (keepFailed repoCfg cfg) "--keep-failed"} \
         ${concatStringsSep "\\\n  " (imageTagArgs cfg.tags)} \
         ${imageName { inherit name version; customName = cfg.name; }} \
         "$repoDir" > "$logfile" 2>&1
@@ -216,6 +233,8 @@ let
   imageTagArgs = tags: map (v: "--tag \"${v}\"") tags;
 
   rebuildImage = repoCfg: imageCfg: repoCfg.rebuildAll || imageCfg.rebuild;
+
+  keepFailed = repoCfg: imageCfg: repoCfg.keepAllFailedTests || imageCfg.keepFailedTests;
 
   setDefaultVariants = vendors: mapAttrsToList (name: cfg:
     "$osctlRepo local default ${name} ${cfg.defaultVariant}"
