@@ -68,7 +68,7 @@ The file defines class `MyDebian` in module [OsCtld::DistConfig].
 `distribution :mydebian` says that this class is for a distribution named
 `mydebian`, i.e. this class will be used for containers whose distribution is
 `mydebian`, which is determined at the time of container creation from
-the template name. We're using `mydebian` instead of `debian`, because
+the image. We're using `mydebian` instead of `debian`, because
 the support for `debian` is already there.
 
 [OsCtld::DistConfig::Base] implements generic support for DNS configuration (i.e.

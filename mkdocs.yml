@@ -13,7 +13,6 @@ pages:
 - Containers:
     - User namespaces: 'containers/user-namespaces.md'
     - Administration: 'containers/administration.md'
-    - Templates: 'containers/templates.md'
     - Datasets: 'containers/datasets.md'
     - Auto starting: 'containers/auto-starting.md'
     - Resources: 'containers/resources.md'
@@ -24,6 +23,10 @@ pages:
 - Networking:
     - Bridged veth: 'networking/veth-bridge.md'
     - Routed veth: 'networking/veth-routed.md'
+- Container Images:
+    - Using images: 'container-images/usage.md'
+    - Creating images: 'container-images/creating.md'
+    - Repositories: 'container-images/repositories.md'
 - vpsAdminOS:
     - Configuration: 'os/configuration.md'
     - Installation: 'os/installation.md'
@@ -45,5 +48,5 @@ pages:
     - Development: 'osctld/development.md'
 - Specifications:
     - Container image: 'specifications/container-image.md'
-    - Template repository: 'specifications/template-repository.md'
+    - Image repository: 'specifications/image-repository.md'
     - Distributions: 'specifications/distributions.md'

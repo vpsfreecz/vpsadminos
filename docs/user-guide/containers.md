@@ -1,45 +1,46 @@
 # Containers
-To create a container, you need an OS template. Template is a gzipped tar
-archive or a ZFS stream containing a root file system. OS templates can be
-automatically downloaded from repositories, or you can use template from a file
-on your local file system.
+Containers are created from images. Container image is a tarball with
+configuration and data. Images can be automatically downloaded from remote
+repositories, or they can be imported from local files.
 
-Without any configuration, you'll be able to use templates from the *default*
-repository. These templates are built using
-[vpsadminos-templates](https://github.com/vpsfreecz/build-vpsfree-templates/tree/vpsadminos)
-scripts and are used in production at [vpsFree.cz](https://vpsfree.org),
-Alternatively, you can use templates from OpenVZ Legacy or LXC, they should be
-fully compatible, unless there are some hacks for specific environments.
+Without any configuration, images will be downloaded from the *default*
+repository. Our images are built using
+[image-build-scripts](https://github.com/vpsfreecz/build-vpsfree-templates/tree/vpsadminos)
+and are used in production at [vpsFree.cz](https://vpsfree.org). Images can also
+be created from existing containers.
 
-Let's create a container using a template from the
-[default repository](https://templates.vpsadminos.org):
+Let's create a container using an image from the
+[default repository](https://images.vpsadminos.org):
 
 ```bash
-osctl ct new --distribution ubuntu --version 16.04 myct01
+osctl ct new --distribution ubuntu myct01
 ```
 
 Available distributions from the default repository can be listed using *osctl*:
 
 ```bash
-osctl repo template ls default
-VENDOR       VARIANT   ARCH     DISTRIBUTION   VERSION    TAGS            CACHED
-vpsadminos   minimal   x86_64   alpine         3.6        -               -
-vpsadminos   minimal   x86_64   alpine         3.7        latest,stable   -
-vpsadminos   minimal   x86_64   arch           20180222   latest,stable   -
-vpsadminos   minimal   x86_64   centos         6.9        -               -
-vpsadminos   minimal   x86_64   centos         7.4        -               -
-vpsadminos   minimal   x86_64   centos         7.5        latest,stable   -
-vpsadminos   minimal   x86_64   debian         8.0        -               -
-vpsadminos   minimal   x86_64   debian         9.0        latest,stable   -
-vpsadminos   minimal   x86_64   devuan         1.0        latest,stable   -
-vpsadminos   minimal   x86_64   fedora         27         -               -
-vpsadminos   minimal   x86_64   fedora         28         latest,stable   -
-vpsadminos   minimal   x86_64   gentoo         20180508   latest,stable   -
-vpsadminos   minimal   x86_64   nixos          unstable   latest,stable   -
-vpsadminos   minimal   x86_64   slackware      14.2       latest,stable   -
-vpsadminos   minimal   x86_64   ubuntu         14.04      -               -
-vpsadminos   minimal   x86_64   ubuntu         16.04      -               -
-vpsadminos   minimal   x86_64   ubuntu         18.04      latest,stable   -
+osctl repo image ls default
+VENDOR       VARIANT   ARCH     DISTRIBUTION   VERSION               TAGS                                      CACHED
+vpsadminos   minimal   x86_64   alpine         3.8                   -                                         -
+vpsadminos   minimal   x86_64   alpine         3.9                   latest,stable                             -
+vpsadminos   minimal   x86_64   arch           20190605              latest,stable                             -
+vpsadminos   minimal   x86_64   centos         6                     -                                         -
+vpsadminos   minimal   x86_64   centos         7                     latest,stable                             -
+vpsadminos   minimal   x86_64   debian         8                     -                                         -
+vpsadminos   minimal   x86_64   debian         9                     latest,stable                             -
+vpsadminos   minimal   x86_64   devuan         2.0                   latest,stable                             -
+vpsadminos   minimal   x86_64   fedora         29                    -                                         -
+vpsadminos   minimal   x86_64   fedora         30                    latest,stable                             -
+vpsadminos   minimal   x86_64   gentoo         20190605              latest,stable                             -
+vpsadminos   minimal   x86_64   nixos          19.03                 latest,stable                             -
+vpsadminos   minimal   x86_64   nixos          unstable-20190605     unstable                                  -
+vpsadminos   minimal   x86_64   opensuse       leap-15.1             latest,stable                             -
+vpsadminos   minimal   x86_64   opensuse       tumbleweed-20190605   -                                         -
+vpsadminos   minimal   x86_64   slackware      14.2                  latest,stable                             -
+vpsadminos   minimal   x86_64   ubuntu         16.04                 -                                         -
+vpsadminos   minimal   x86_64   ubuntu         18.04                 latest,stable                             -
+vpsadminos   minimal   x86_64   void           glibc-20190605        latest,latest-glibc,stable,stable-glibc   -
+vpsadminos   minimal   x86_64   void           musl-20190605         latest-musl,stable-musl                   -
 ```
 Let's see what files and directories define the created container:
 
@@ -60,10 +61,10 @@ file        /tank/conf/ct/myct01.yml                                            
 file        /tank/log/ct/myct01.log                                                  valid     LXC log file
 ```
 
-The template is extracted into a ZFS dataset that becomes the container's rootfs.
-Then there is a standard LXC configuration, followed by a config for *osctld*.
-The container's existence is defined by that config. And the last entry is the
-log file, where you can find errors if the container cannot be started.
+The container image is imported into a ZFS dataset that becomes the container's
+rootfs. Then there is a standard LXC configuration, followed by a config for
+*osctld*. The container's existence is defined by that config. And the last entry
+is the log file, where you can find errors if the container cannot be started.
 
 To start the container, use:
 

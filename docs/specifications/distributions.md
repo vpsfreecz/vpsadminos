@@ -8,15 +8,12 @@ Distribution         | Name                   | Version                | Example
 ---------------------|------------------------|------------------------|------------------
 Alpine Linux         | `alpine`               | `<major>.<minor>`      | `alpine-3.7`
 Arch Linux           | `arch`                 | `<YYYYMMDD>`           | `arch-20180210`
-CentOS               | `centos`               | `<major>.<minor>`      | `centos-7.3`
-Debian               | `debian`               | `<major>.<minor>`      | `debian-9.0`
+CentOS               | `centos`               | `<major>.<minor>`      | `centos-7`
+Debian               | `debian`               | `<major>.<minor>`      | `debian-9`
 Devuan               | `devuan`               | `<major>.<minor>`      | `devuan-1.0`
-Gentoo               | `gentoo`               | `<profile>-<YYYYMMDD>` | `gentoo-17.0-20180210`
-openSUSE Leap        | `opensuse`             | `leap-<major>.<minor>` | `opensuse_leap-15.1`
-openSUSE Tumbleweed  | `opensuse`             | `tumbleweed-<YYMMDD>`  | `opensuse_tumbleweed-20180210`
+Gentoo               | `gentoo`               | `<profile>-<YYYYMMDD>` | `gentoo-20180210`
+openSUSE Leap        | `opensuse`             | `leap-<major>.<minor>` | `opensuse-leap-15.1`
+openSUSE Tumbleweed  | `opensuse`             | `tumbleweed-<YYMMDD>`  | `opensuse-tumbleweed-20180210`
 Slackware            | `slackware`            | `<major>.<minor>`      | `slackware-14.2`
 Ubuntu               | `ubuntu`               | `<major>.<minor>`      | `ubuntu-16.04`
-Void Linux           | `void`                 | `<YYYYMMDD>`           | `void-20180210`
-
-Distribution name and version is given either via template and naming scheme,
-or by appropriate command-line options.
+Void Linux           | `void`                 | `<libc>-<YYYYMMDD>`    | `void-glibc-20180210`
