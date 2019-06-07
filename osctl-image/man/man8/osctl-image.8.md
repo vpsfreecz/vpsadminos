@@ -138,7 +138,7 @@ of `osctl-image` with image building programs.
     `-s`, `--sort` *parameters*
       Sort output by parameters, comma separated.
 
-`ct del` [*options*]
+`ct del` [*options*] [*ctid*...]
   Delete selected managed containers.
 
     `--type` `builder`|`test`|`instance`

@@ -35,6 +35,7 @@ module OsCtl::Image
       client = OsCtldClient.new
       cts = get_cts(client)
       cts.select! { |ct| ct[:type] == opts[:type] } if opts[:type]
+      cts.select! { |ct| args.include?(ct[:id]) } if args.any?
 
       unless opts[:force]
         puts 'The following containers will be deleted:'

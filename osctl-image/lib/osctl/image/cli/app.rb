@@ -147,6 +147,7 @@ module OsCtl::Image::Cli
         end
 
         ct.desc 'Delete managed containers'
+        ct.arg_name '[ctid...]'
         ct.command :del do |c|
           c.desc 'Delete containers of selected type'
           c.flag 'type', must_match: %w(builder test instance)
