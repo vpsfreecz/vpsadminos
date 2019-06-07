@@ -18,6 +18,9 @@ configure-append <<EOF
 systemctl mask auditd.service
 systemctl mask systemd-journald-audit.socket
 systemctl mask firewalld.service
+systemctl disable tcsd.service
+systemctl disable rdisc.service
+systemctl disable systemd-bootchart.service
 
 cat <<EOT > /etc/NetworkManager/conf.d/vpsadminos.conf
 [main]
