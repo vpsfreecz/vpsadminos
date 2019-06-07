@@ -188,6 +188,7 @@ module OsCtl::Image
             build_dataset: opts['build-dataset'],
             vendor: opts[:vendor],
             rebuild: rebuild,
+            keep_failed: opts['keep-failed'],
           )
         )
       end

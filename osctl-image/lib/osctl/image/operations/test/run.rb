@@ -23,11 +23,14 @@ module OsCtl::Image
     # @param base_dir [String]
     # @param build [Operations::Image::Build]
     # @param test [Test]
-    def initialize(base_dir, build, test)
+    # @param opts [Hash]
+    # @option opts [Boolean] :keep_failed
+    def initialize(base_dir, build, test, opts = {})
       @base_dir = base_dir
       @build = build
       @test = test
       @client = OsCtldClient.new
+      @keep_failed = opts.has_key?(:keep_failed) ? opts[:keep_failed] : false
     end
 
     # @return [Status]
@@ -53,11 +56,12 @@ module OsCtl::Image
     end
 
     protected
-    attr_reader :client, :ctid
+    attr_reader :client, :ctid, :keep_failed, :status
 
     def create_container(file)
       client.create_container_from_file(ctid, file)
       sleep(3) # FIXME: wait for osctld...
+      log(:info, "Created container '#{ctid}' for test '#{test}'")
     end
 
     def run_test
@@ -69,17 +73,22 @@ module OsCtl::Image
         ]
       )
       log(:warn, "Test '#{test}' successful")
-      Status.new(build.image, test, true, 0, nil)
+      @status = Status.new(build.image, test, true, 0, nil)
     rescue OsCtl::Lib::Exceptions::SystemCommandFailed => e
       log(:warn, "Test '#{test}' failed with status #{e.rc}: #{e.output}")
-      Status.new(build.image, test, false, e.rc, e.output)
+      @status = Status.new(build.image, test, false, e.rc, e.output)
     ensure
       cleanup(ctid)
     end
 
     def cleanup(ctid)
-      client.delete_container(ctid)
-      client.delete_user(ctid)
+      if status.success? || !keep_failed
+        log(:info, "Cleaning up assets of test '#{test}'")
+        client.delete_container(ctid)
+        client.delete_user(ctid)
+      else
+        log(:info, "Preserving container '#{ctid}' of failed test '#{test}'")
+      end
     end
 
     def gen_ctid

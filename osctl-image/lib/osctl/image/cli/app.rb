@@ -70,6 +70,9 @@ module OsCtl::Image::Cli
         c.desc 'Force image rebuild'
         c.switch 'rebuild'
 
+        c.desc 'Keep containers from failed tests'
+        c.switch 'keep-failed'
+
         c.action &Command.run(Image, :test)
       end
 
@@ -117,6 +120,9 @@ module OsCtl::Image::Cli
 
         c.desc 'Skip tests'
         c.switch 'skip-tests'
+
+        c.desc 'Keep containers from failed tests'
+        c.switch 'keep-failed'
 
         c.action &Command.run(Image, :deploy)
       end

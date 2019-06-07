@@ -68,6 +68,9 @@ of `osctl-image` with image building programs.
     `--rebuild`
       Rebuild the image even if it is found in the output directory.
 
+    `--keep-failed`
+      Keep containers from failed tests.
+
 `instantiate` [*options*] *image*
   Create a container from the build image. If the image is not found in
   the output directory, it is built, otherwise a cached version is used. Rebuild
@@ -113,6 +116,9 @@ of `osctl-image` with image building programs.
 
     `--rebuild`
       Rebuild the image even if it is found in the output directory.
+
+    `--keep-failed`
+      Keep containers from failed tests.
 
     `--skip-tests`
       Do not run tests, deploy images immediately after build.

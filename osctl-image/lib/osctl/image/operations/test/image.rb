@@ -16,6 +16,7 @@ module OsCtl::Image
     # @option opts [String] :output_dir
     # @option opts [String] :vendor
     # @option opts [Boolean] :rebuild
+    # @option opts [Boolean] :keep_failed
     def initialize(base_dir, image, tests, opts)
       @base_dir = base_dir
       @image = image
@@ -29,7 +30,12 @@ module OsCtl::Image
       build.execute if opts[:rebuild] || !build.cached?
 
       tests.map do |test|
-        Operations::Test::Run.run(base_dir, build, test)
+        Operations::Test::Run.run(
+          base_dir,
+          build,
+          test,
+          keep_failed: opts[:keep_failed],
+        )
       end
     end
 
