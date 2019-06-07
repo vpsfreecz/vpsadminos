@@ -55,7 +55,7 @@ let
       repositories = mkOption {
         type = types.attrsOf (types.submodule repositories.type);
         default = {};
-        description = "Remote osctl repositories for container templates";
+        description = "Remote osctl repositories for container images";
       };
 
       idRanges = mkOption {

@@ -93,7 +93,7 @@ let
                               --distribution nixos \
                               --version ${conf.version} \
                               --arch ${conf.arch} \
-                              --skip-template \
+                              --skip-image \
                               ${name} || exit 1
 
           cat ${yml} | ${osctlPool} ct config replace ${name} || exit 1
@@ -101,6 +101,7 @@ let
           ${osctlPool} ct set attr ${name} org.vpsadminos.osctl:config ${yml}
 
           rootfs="$(${osctlPool} ct show -H -o rootfs ${name})"
+          mkdir -p "$rootfs"
           mkdir "$rootfs/dev" "$rootfs/etc" "$rootfs/proc" "$rootfs/run" \
                 "$rootfs/sbin" "$rootfs/sys"
           ln -sf /nix/var/nix/profiles/system "$rootfs/run/current-system"

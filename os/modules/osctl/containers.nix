@@ -23,14 +23,14 @@ let
 
   backends = {
     nixos = import ./containers/nixos.nix args;
-    template = import ./containers/template.nix args;
+    image = import ./containers/image.nix args;
   };
 
   backendFor = cfg:
-    if cfg.distribution == null && cfg.template.type == "remote" then
+    if cfg.distribution == null && cfg.image.path == null then
       backends.nixos
     else
-      backends.template;
+      backends.image;
 
   mkService = pool: name: cfg: (
     let
@@ -556,31 +556,12 @@ let
         '';
       };
 
-      template = {
-        type = mkOption {
-          type = types.enum [ "remote" "archive" "stream" ];
-          default = "remote";
-          description = ''
-            Defines where to get the distribution template. Use
-            <literal>remote</literal> to download templates from vpsAdminOS
-            repositories, <literal>archive</literal> to use your own tar archive
-            and <literal>stream</literal> to use your own gzipped ZFS stream.
-
-            When set to <literal>archive</literal> or <literal>stream</literal>,
-            option
-            <option>osctl.pools.<pool>.containters.<container>.template.path</option>
-            has to be set as well.
-          '';
-        };
-
+      image = {
         path = mkOption {
           type = types.nullOr types.str;
           default = null;
           description = ''
-            Path to tar archive or ZFS stream file containing the container's
-            template if option
-            <option>osctl.pools.<pool>.containters.<container>.template.type</option>
-            is set to <literal>archive</literal> or <literal>stream</literal>.
+            Path to container image.
           '';
         };
 
@@ -588,11 +569,7 @@ let
           type = types.nullOr types.str;
           default = null;
           description = ''
-            Name of the remote repository the container's template is searched for
-            if option
-            <option>osctl.pools.<pool>.containters.<container>.template.type</option>
-            is set to <literal>remote</literal>. When set to <literal>null</literal>,
-            all pool's repositories are searched.
+            Name of the remote repository the container image is searched in.
           '';
         };
       };

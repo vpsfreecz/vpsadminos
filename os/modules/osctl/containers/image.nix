@@ -5,18 +5,37 @@ let
     { pool, name, cfg, osctl, osctlPool, hooks, hookCaller, conf, yml, boolToStr
     , hasUser, user }:
       let
-        argList =
+        ctNewArgList =
           (map (v: "--${v} ${cfg.${v}}")
                (filter (v: cfg.${v} != null) [ "distribution" "version" "arch" "vendor" "variant" ]))
           ++
-          (optional (cfg.template.type == "remote" && cfg.template.repository != null)
-                    ''--repository "${cfg.template.repository}"'')
-          ++
-          (optional (cfg.template.type == "archive") ''--from-archive "${cfg.template.path}"'')
-          ++
-          (optional (cfg.template.type == "stream") ''--from-stream "${cfg.template.path}"'');
+          (optional (cfg.image.repository != null)
+                    ''--repository "${cfg.image.repository}"'');
 
-        createArgs = concatStringsSep " " argList;
+        createCtNewArgs = concatStringsSep " " ctNewArgList;
+
+        createMethods = {
+          ct-new = ''
+            ${osctlPool} ct new \
+                                ${optionalString hasUser "--user ${user}"} \
+                                --group ${cfg.group} \
+                                ${createCtNewArgs} \
+                                ${name} || exit 1
+          '';
+          ct-import = ''
+            ${osctlPool} ct import \
+                                --as-id ${name} \
+                                ${optionalString hasUser "--as-user ${user}"} \
+                                --as-group ${cfg.group} \
+                                ${cfg.image.path} || exit 1
+          '';
+        };
+
+        createMethod =
+          if cfg.image.path == null then
+            createMethods.ct-new
+          else
+            createMethods.ct-import;
 
       in ''
         waitForOsctld
@@ -24,8 +43,8 @@ let
         ${optionalString hasUser ''waitForOsctlEntity user "${user}"''}
         waitForOsctlEntity group "${cfg.group}"
 
-        ${optionalString (cfg.template.type == "remote" && cfg.template.repository != null) ''
-        waitForOsctlEntity repository "${cfg.template.repository}"
+        ${optionalString (cfg.image.repository != null) ''
+        waitForOsctlEntity repository "${cfg.image.repository}"
         ''}
 
         if osctlEntityExists ct "${name}" ; then
@@ -92,12 +111,7 @@ let
             esac
           ''}
 
-          ${osctlPool} ct new \
-                              ${optionalString hasUser "--user ${user}"} \
-                              --group ${cfg.group} \
-                              ${createArgs} \
-                              ${name} || exit 1
-
+          ${createMethod}
           cat ${yml} | ${osctlPool} ct config replace ${name} || exit 1
           ${osctlPool} ct set attr ${name} org.vpsadminos.osctl:declarative yes
           ${osctlPool} ct set attr ${name} org.vpsadminos.osctl:config ${yml}

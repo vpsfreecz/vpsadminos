@@ -62,7 +62,7 @@ in
           Enable/disable the repository.
 
           Disabled repositories are included in the system, but they are not
-          search for templates until reenabled, which may be done manually
+          search for images until reenabled, which may be done manually
           using <literal>osctl</literal>.
         '';
       };

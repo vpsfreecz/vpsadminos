@@ -10,7 +10,7 @@ imperative containers using *osctl*.
 Naturally, NixOS works best for declarative containers, as all such containers
 can be build and deployed together with the host node. However, it is also
 possible to declaratively create containers with any other distribution
-using [templates]. These containers are not build together with the host node,
+using [images]. These containers are not build together with the host node,
 but are created when the host node boots or is redeployed.
 
 ## Example configuration
@@ -101,9 +101,9 @@ osctl.pools.tank = {
 };
 ```
 
-## Template-based containers
+## Image-based containers
 To create containers with distributions other than NixOS, you can use the
-distribution templates vpsAdminOS provides:
+container images vpsAdminOS provides:
 
 ```nix
 osctl.pools.tank = {
@@ -124,9 +124,9 @@ osctl.pools.tank = {
 };
 ```
 
-The container above will be created from a template downloaded from the default
-repository provided by vpsAdminOS. Containers can also be created from custom
-template archives:
+The container above will be created from an image downloaded from the default
+repository provided by vpsAdminOS. Containers can also be created from local
+images:
 
 ```nix
 osctl.pools.tank = {
@@ -135,24 +135,20 @@ osctl.pools.tank = {
     distribution = "ubuntu";
     version = "18.04";
 
-    # For templates stored as gzipped tar archives
-    template = { type = "archive"; path = ./where/is/your/template.tar.gz };
-
-    # For templates stored as gzipped ZFS streams
-    template = { type = "stream"; path = ./where/is/your/template.dat.gz };
+    image = ./where/is/your/image.tar;
     ...
   };
 };
 ```
 
-If the path to template is relative, it has to be available on the system when
+If the path to the image is relative, it has to be available on the system when
 you're building the host node. It will be copied to Nix store and deployed to
 the host node. If the path is absolute and given as a string, you have to
 make the file available on the host node yourself.
 
 Containers created in this way are configured from the outside, such as CGroup
-limits, but not from the inside. They contain only what was in the used template.
-For example, templates from vpsAdminOS repository contain only minimal system
+limits, but not from the inside. They contain only what was in the used image.
+For example, images from vpsAdminOS repository contain only minimal system
 and the user is expected to install what he needs. Initial configuration can
 be done using the `post-create` hook:
 
@@ -190,7 +186,7 @@ more powerful configuration management like Ansible, Salt or Puppet.
 ## Inner workings
 All declared users, groups and containers are represented by runit services.
 For users, there is service `users-<pool>`, for groups there is `groups-<pool>`,
-for template repositories `repositories-<pool>` and for containers there are
+for image repositories `repositories-<pool>` and for containers there are
 services named as `ct-<pool>-<id>`. For the example above, the names would be
 `users-tank`, `groups-tank`, `repositories-tank` and `ct-tank-myct01`.
 These services create and modify declared users, groups, repositories and
@@ -350,7 +346,7 @@ osctl.pools.tank = {
 [NixOS containers]: https://nixos.org/nixos/manual/index.html#sec-declarative-containers
 [deployment]: ../os/deployment.md
 [updates]: ../os/updates.md
-[templates]: ./templates.md
+[images]: ../container-images/usage.md
 [pools]: ../os/pools.md
 [examples]: https://github.com/vpsfreecz/vpsadminos/tree/master/os/configs/containers
 [devices]: ./devices.md
