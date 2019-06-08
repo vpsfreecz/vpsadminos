@@ -99,7 +99,7 @@ install-base() {
 		--update-cache --initdb add alpine-base \
 		|| die 3 'Failed to install APK packages'
 
-	cp "$TEMPLATEDIR"/cgroups-mount.initd etc/init.d/cgroups-mount
+	cp "$IMAGEDIR"/cgroups-mount.initd etc/init.d/cgroups-mount
 	chmod +x etc/init.d/cgroups-mount
 
 	cd - >/dev/null

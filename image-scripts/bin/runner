@@ -81,10 +81,10 @@ function build_image {
 	BUILD_ID="$1"
 	DOWNLOAD="$2"
 	INSTALL="$3"
-	TEMPLATE="$4"
+	IMAGE="$4"
 
 	INCLUDE="$BASEDIR/include"
-	TEMPLATEDIR="$BASEDIR/templates/$TEMPLATE"
+	IMAGEDIR="$BASEDIR/images/$IMAGE"
 	CONFIGURE="$INSTALL/tmp/configure.sh"
 
 	DISTNAME=
@@ -93,14 +93,14 @@ function build_image {
 	VENDOR=
 	VARIANT=
 
-	IFS=- read DISTNAME RELVER ARCH VENDOR VARIANT <<< "$TEMPLATE"
+	IFS=- read DISTNAME RELVER ARCH VENDOR VARIANT <<< "$IMAGE"
 
 	[ "$ARCH" == "" ] && ARCH=x86_64
 
 	cd "$DOWNLOAD"
 
 	. "$BASEDIR/include/common.sh"
-	. "$BASEDIR/templates/$TEMPLATE/build.sh"
+	. "$BASEDIR/images/$IMAGE/build.sh"
 }
 
 function main {

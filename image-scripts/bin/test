@@ -40,7 +40,7 @@ function test_image {
 		exit 1
 	fi
 
-	TEMPLATE="$1"
+	IMAGE="$1"
 	TEST="$2"
 	CTID="$3"
 
@@ -54,9 +54,9 @@ function test_image {
 	ARCH=
 	VENDOR=
 	VARIANT=
-	IFS=- read DISTNAME RELVER ARCH VENDOR VARIANT <<< "$TEMPLATE"
+	IFS=- read DISTNAME RELVER ARCH VENDOR VARIANT <<< "$IMAGE"
 	[ "$ARCH" == "" ] && ARCH=x86_64
-	. "$BASEDIR/templates/$TEMPLATE/config.sh"
+	. "$BASEDIR/images/$IMAGE/config.sh"
 
 	. "$BASEDIR/tests/$TEST.sh"
 }

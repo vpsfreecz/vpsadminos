@@ -75,7 +75,7 @@ function do_image {
 
 	case "$action" in
 		list)
-			find "$BASEDIR/templates/" ! -path "$BASEDIR/templates/" -type d -or -type l \
+			find "$BASEDIR/images/" ! -path "$BASEDIR/images/" -type d -or -type l \
 				| while read dir
 			do
 				[ ! -h "$dir" ] && [ -f "$dir"/abstract ] && continue
@@ -84,13 +84,13 @@ function do_image {
 			;;
 		show)
 			local name="$2"
-			local dir="$BASEDIR/templates/$name"
+			local dir="$BASEDIR/images/$name"
 
 			if [ "$name" == "" ] ; then
 				image_usage
 				exit 1
 			elif [ ! -d "$dir" ] ; then
-				echo "Template '$name' not found"
+				echo "Image '$name' not found"
 				image_usage
 				exit 1
 			fi
