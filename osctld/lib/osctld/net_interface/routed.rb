@@ -206,6 +206,8 @@ module OsCtld
       end
     end
 
+    # @param v [4, 6] IP version
+    # @return [IPAddress::IPv4, IPAddress::IPv6]
     def default_via(v)
       case v
       when 4
@@ -225,7 +227,7 @@ module OsCtld
 
       fail "unable to find link-local IPv6 address for #{veth}" unless ifaddr
 
-      return ifaddr.addr.ip_address.split('%').first
+      return IPAddress.parse(ifaddr.addr.ip_address.split('%').first)
     end
   end
 end
