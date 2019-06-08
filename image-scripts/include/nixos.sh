@@ -1,4 +1,4 @@
-OS_BRANCH=devel
+OS_BRANCH=master
 
 function build-nixos {
 	local vpsadminos=
