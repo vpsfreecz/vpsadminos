@@ -23,6 +23,11 @@ SOURCES
 configure-append <<EOF
 sed -i -e '/^PermitRootLogin/ s/^#*/#/' /etc/ssh/sshd_config
 ln -s /dev/null /etc/systemd/system/proc-sys-fs-binfmt_misc.automount
+mkdir -p /etc/systemd/system/dbus.service.d
+cat <<END > /etc/systemd/system/dbus.service.d/override.conf
+[Service]
+OOMScoreAdjust=0
+END
 EOF
 
 run-configure
