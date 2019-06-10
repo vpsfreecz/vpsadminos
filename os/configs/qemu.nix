@@ -31,6 +31,10 @@
   tty.autologin.enable = true;
   services.haveged.enable = true;
 
+  environment.systemPackages = with pkgs; [
+    git
+  ];
+
   users.motd = ''
 
     Welcome to vpsAdminOS
