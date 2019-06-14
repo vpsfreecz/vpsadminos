@@ -39,23 +39,7 @@ done
 usermod -L root
 rm -f /etc/ssh/ssh_host_*
 
-if [ "$DISTNAME" == "devuan" ] \
-   || ([ "$DISTNAME" == "debian" ] && [ $RELVER -lt 9 ]) \
-   || ([ "$DISTNAME" == "ubuntu" ] && [ "$RELVER" == "14.04" ]) ; then
-
-cat > /etc/init.d/generate_ssh_keys <<"GENSSH"
-#!/bin/bash
-ssh-keygen -f /etc/ssh/ssh_host_rsa_key -t rsa -N ''
-ssh-keygen -f /etc/ssh/ssh_host_dsa_key -t dsa -N ''
-ssh-keygen -f /etc/ssh/ssh_host_ecdsa_key -t ecdsa -N ''
-ssh-keygen -f /etc/ssh/ssh_host_ed25519_key -t ed25519 -N ''
-rm -f /etc/init.d/generate_ssh_keys
-GENSSH
-
-chmod a+x /etc/init.d/generate_ssh_keys
-update-rc.d generate_ssh_keys defaults
-
-else
+if [ -d /etc/systemd ] ; then
 
 cat > /etc/systemd/system/sshd-keygen.service <<"KEYGENSVC"
 [Unit]
@@ -71,6 +55,20 @@ WantedBy=multi-user.target
 KEYGENSVC
 
 ln -s /etc/systemd/system/sshd-keygen.service /etc/systemd/system/multi-user.target.wants/sshd-keygen.service
+
+else
+
+cat > /etc/init.d/generate_ssh_keys <<"GENSSH"
+#!/bin/bash
+ssh-keygen -f /etc/ssh/ssh_host_rsa_key -t rsa -N ''
+ssh-keygen -f /etc/ssh/ssh_host_dsa_key -t dsa -N ''
+ssh-keygen -f /etc/ssh/ssh_host_ecdsa_key -t ecdsa -N ''
+ssh-keygen -f /etc/ssh/ssh_host_ed25519_key -t ed25519 -N ''
+rm -f /etc/init.d/generate_ssh_keys
+GENSSH
+
+chmod a+x /etc/init.d/generate_ssh_keys
+update-rc.d generate_ssh_keys defaults
 
 fi
 
