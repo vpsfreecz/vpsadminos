@@ -90,7 +90,7 @@ module OsCtld
           STDOUT.reopen(opts[:stdout])
           STDERR.reopen(opts[:stderr])
 
-          setup_exec_env
+          setup_exec_run_env
 
           cmd = [
             'lxc-execute',

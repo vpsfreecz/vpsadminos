@@ -49,7 +49,7 @@ module OsCtld
 
           opts[:close_fds] && opts[:close_fds].each { |fd| fd.close }
 
-          setup_exec_env
+          setup_exec_run_env
 
           cmd = [
             'lxc-execute',

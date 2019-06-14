@@ -45,5 +45,10 @@ module OsCtld
       ENV['PATH'] = system_path.join(':')
       ENV['HOME'] = user_home
     end
+
+    def setup_exec_run_env
+      setup_exec_env
+      ENV['PATH'] = ['/run/wrappers/bin', ENV['PATH']].join(':')
+    end
   end
 end
