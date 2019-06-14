@@ -32,7 +32,10 @@ echo LANG=en_US.UTF-8 >> /etc/default/locale
 PATH=/tmp/:\$PATH apt-get update
 PATH=/tmp/:\$PATH apt-get upgrade -y
 PATH=/tmp/:\$PATH apt-get install -y vim openssh-server ca-certificates man net-tools ifupdown less
-PATH=/tmp/:\$PATH apt-get purge -y ureadahead eject ntpdate resolvconf
+
+for pkg in ureadahead eject ntpdate resolvconf ; do
+	PATH=/tmp/:\$PATH apt-get purge -y $pkg
+done
 usermod -L root
 rm -f /etc/ssh/ssh_host_*
 
