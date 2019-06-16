@@ -2,7 +2,6 @@
   ./cpufreq.nix
   ./grub/grub.nix
   ./grub/ipxe.nix
-  ./nix-daemon.nix
   ./osctl/pools.nix
   ./osctld.nix
   ./programs/bash.nix
@@ -13,6 +12,7 @@
   ./services/logging/logrotate.nix
   ./services/logging/rsyslog.nix
   ./services/mail/opensmtpd.nix
+  ./services/misc/nix-daemon.nix
   ./services/monitoring/prometheus/node_exporter.nix
   ./services/network-filesystems/nfs.nix
   ./services/networking/bird.nix
