@@ -2,7 +2,6 @@
   ./cpufreq.nix
   ./grub/grub.nix
   ./grub/ipxe.nix
-  ./haveged.nix
   ./htop.nix
   ./logrotate.nix
   ./lxcfs.nix
@@ -23,6 +22,7 @@
   ./services/networking/dhcpd.nix
   ./services/osctl/image-repository.nix
   ./services/scheduling/cron.nix
+  ./services/security/haveged.nix
   ./sshd.nix
   ./system/boot/qemu.nix
   ./tasks/network-interfaces.nix
