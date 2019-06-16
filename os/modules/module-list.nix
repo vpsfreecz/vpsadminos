@@ -2,7 +2,6 @@
   ./cpufreq.nix
   ./grub/grub.nix
   ./grub/ipxe.nix
-  ./lxcfs.nix
   ./nfs.nix
   ./nix-daemon.nix
   ./node_exporter.nix
@@ -29,6 +28,7 @@
   ./tools/tools.nix
   ./tty.nix
   ./version.nix
+  ./virtualisation/lxcfs.nix
   ./vpsadmin.nix
   ./zfs
 ]
