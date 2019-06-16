@@ -10,7 +10,6 @@
   ./htop.nix
   ./logrotate.nix
   ./lxcfs.nix
-  ./networking.nix
   ./nfs.nix
   ./nix-daemon.nix
   ./node_exporter.nix
@@ -26,6 +25,7 @@
   ./services/scheduling/cron.nix
   ./sshd.nix
   ./system/boot/qemu.nix
+  ./tasks/network-interfaces.nix
   ./tools/tools.nix
   ./tty.nix
   ./version.nix

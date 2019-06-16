@@ -112,65 +112,6 @@ with lib;
       default = true;
       description = "enable nix-daemon and a writeable store";
     };
-    networking.hostName = mkOption {
-      type = types.string;
-      description = "machine hostname";
-      default = "default";
-    };
-    networking.preConfig = mkOption {
-      type = types.lines;
-      description = "Set of commands run prior to any other network configuration";
-      default = "";
-    };
-    networking.custom = mkOption {
-      type = types.lines;
-      description = "Custom set of commands used to set-up networking";
-      default = "";
-      example = "
-        ip addr add 10.0.0.1 dev ix0
-        ip link set ix0 up
-      ";
-    };
-    networking.static.enable = mkOption {
-      type = types.bool;
-      description = "use static networking configuration";
-      default = false;
-    };
-    networking.static.interface = mkOption {
-      type = types.string;
-      description = "interface for static networking configuration";
-      default = "eth0";
-    };
-    networking.static.ip = mkOption {
-      type = types.string;
-      description = "IP address for static networking configuration";
-      default = "10.0.2.15";
-    };
-    networking.static.route = mkOption {
-      type = types.string;
-      description = "route";
-      default = "10.0.2.0/24";
-    };
-    networking.static.gw = mkOption {
-      type = types.string;
-      description = "gateway IP address for static networking configuration";
-      default = "10.0.2.2";
-    };
-    networking.dhcp = mkOption {
-      type = types.bool;
-      description = "use DHCP to obtain IP";
-      default = false;
-    };
-    networking.lxcbr = mkOption {
-      type = types.bool;
-      description = "create lxc bridge interface";
-      default = false;
-    };
-    networking.nat = mkOption {
-      type = types.bool;
-      description = "enable NAT for containers";
-      default = true;
-    };
     boot.kernelPackage = mkOption {
       type = types.package;
       description = "base linux kernel package";
@@ -308,11 +249,6 @@ with lib;
       "br_netfilter"
       "fuse"
       "veth"
-    ] ++ lib.optionals config.networking.nat [
-      "ip_tables"
-      "iptable_nat"
-      "ip6_tables"
-      "ip6table_nat"
     ];
 
     boot.initrd.kernelModules = lib.optionals config.boot.initrd.withHwSupport hwSupportModules;
@@ -326,9 +262,6 @@ with lib;
     virtualisation = {
       lxc = {
         enable = true;
-        usernetConfig = lib.optionalString config.networking.lxcbr ''
-          root veth lxcbr0 10
-        '';
         lxcfs.enable = true;
       };
     };
