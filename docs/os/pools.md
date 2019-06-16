@@ -9,7 +9,7 @@ with 2 HDDs for storage (*sda*, *sdb*) and 2 SSDs for caches and logs
 (*sdc*, *sdd*). To try this out in a VM, set:
 
 ```nix
-system.qemuDisks = [
+boot.qemu.disks = [
   { device = "sda.img"; type = "file"; size = "4G"; create = true; }
   { device = "sdb.img"; type = "file"; size = "4G"; create = true; }
   { device = "sdc.img"; type = "file"; size = "4G"; create = true; }

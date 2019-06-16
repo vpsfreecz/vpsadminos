@@ -1,6 +1,6 @@
 { config, ...}:
 {
-  system.qemuParams = [
+  boot.qemu.params = [
     "-drive index=0,id=drive1,file=${config.system.build.squashfs},readonly,media=cdrom,format=raw,if=virtio"
     "-kernel ${config.system.build.kernel}/bzImage -initrd ${config.system.build.initialRamdisk}/initrd"
     "-append \"console=ttyS0 systemConfig=${config.system.build.toplevel} ${toString config.boot.kernelParams} quiet panic=-1\""

@@ -13,7 +13,7 @@
   networking.dhcpd = true;
   networking.nameservers = [ "10.0.2.3" ];
 
-  system.qemuDisks = lib.mkDefault [
+  boot.qemu.disks = lib.mkDefault [
     { device = "sda.img"; type = "file"; size = "8G"; create = true; }
   ];
 

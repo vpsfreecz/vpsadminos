@@ -25,6 +25,7 @@
   ./services/osctl/image-repository.nix
   ./services/scheduling/cron.nix
   ./sshd.nix
+  ./system/boot/qemu.nix
   ./tools/tools.nix
   ./tty.nix
   ./version.nix
