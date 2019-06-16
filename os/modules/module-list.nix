@@ -1,7 +1,7 @@
 [
   ./misc/version.nix
   ./osctl/pools.nix
-  ./osctld.nix
+  ./osctl/osctld.nix
   ./programs/bash.nix
   ./programs/htop.nix
   ./rename.nix
