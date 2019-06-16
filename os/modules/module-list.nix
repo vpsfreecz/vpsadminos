@@ -1,6 +1,5 @@
 [
   ./cpufreq.nix
-  ./dhcpd.nix
   ./eudev.nix
   ./grub/grub.nix
   ./grub/ipxe.nix
@@ -21,6 +20,7 @@
   ./services/mail/opensmtpd.nix
   ./services/networking/bird.nix
   ./services/networking/chronyd.nix
+  ./services/networking/dhcpd.nix
   ./services/osctl/image-repository.nix
   ./services/scheduling/cron.nix
   ./sshd.nix
