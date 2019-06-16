@@ -1,5 +1,4 @@
 [
-  ./cpufreq.nix
   ./grub/grub.nix
   ./grub/ipxe.nix
   ./osctl/pools.nix
@@ -25,6 +24,7 @@
   ./services/security/haveged.nix
   ./services/ttys/agetty.nix
   ./system/boot/qemu.nix
+  ./tasks/cpu-freq.nix
   ./tasks/network-interfaces.nix
   ./tools/tools.nix
   ./version.nix
