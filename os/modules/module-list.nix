@@ -5,7 +5,6 @@
   ./programs/bash.nix
   ./programs/htop.nix
   ./rename.nix
-  ./runit
   ./services/hardware/eudev.nix
   ./services/logging/logrotate.nix
   ./services/logging/rsyslog.nix
@@ -25,6 +24,7 @@
   ./system/boot/loader/grub/grub.nix
   ./system/boot/loader/grub/ipxe.nix
   ./system/boot/qemu.nix
+  ./system/boot/runit
   ./tasks/cpu-freq.nix
   ./tasks/filesystems/zfs
   ./tasks/network-interfaces.nix
