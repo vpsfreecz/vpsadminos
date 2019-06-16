@@ -6,7 +6,7 @@
   imports = [
     ./common.nix
     ../modules/installer/cd-dvd/channel.nix
-    ../modules/iso-image.nix
+    ../modules/installer/cd-dvd/iso-image.nix
   ];
 
   networking.hostName = "vpsadminos";
