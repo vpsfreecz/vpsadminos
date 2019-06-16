@@ -1,5 +1,4 @@
 [
-  ./chronyd.nix
   ./cpufreq.nix
   ./dhcpd.nix
   ./eudev.nix
@@ -21,6 +20,7 @@
   ./runit
   ./services/mail/opensmtpd.nix
   ./services/networking/bird.nix
+  ./services/networking/chronyd.nix
   ./services/osctl/image-repository.nix
   ./services/scheduling/cron.nix
   ./sshd.nix
