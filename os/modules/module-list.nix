@@ -29,6 +29,6 @@
   ./tools/tools.nix
   ./version.nix
   ./virtualisation/lxcfs.nix
-  ./vpsadmin.nix
+  ./vpsadmin/nodectld.nix
   ./zfs
 ]
