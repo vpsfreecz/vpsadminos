@@ -1,5 +1,4 @@
 [
-  ./bash.nix
   ./chronyd.nix
   ./cpufreq.nix
   ./dhcpd.nix
@@ -15,6 +14,7 @@
   ./node_exporter.nix
   ./osctl/pools.nix
   ./osctld.nix
+  ./programs/bash.nix
   ./rename.nix
   ./rpcbind.nix
   ./rsyslog.nix
