@@ -1,6 +1,5 @@
 [
   ./cpufreq.nix
-  ./eudev.nix
   ./grub/grub.nix
   ./grub/ipxe.nix
   ./haveged.nix
@@ -17,6 +16,7 @@
   ./rpcbind.nix
   ./rsyslog.nix
   ./runit
+  ./services/hardware/eudev.nix
   ./services/mail/opensmtpd.nix
   ./services/networking/bird.nix
   ./services/networking/chronyd.nix
