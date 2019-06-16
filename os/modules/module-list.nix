@@ -8,7 +8,6 @@
   ./programs/bash.nix
   ./programs/htop.nix
   ./rename.nix
-  ./rpcbind.nix
   ./rsyslog.nix
   ./runit
   ./services/hardware/eudev.nix
@@ -19,6 +18,7 @@
   ./services/networking/bird.nix
   ./services/networking/chronyd.nix
   ./services/networking/dhcpd.nix
+  ./services/networking/rpcbind.nix
   ./services/osctl/image-repository.nix
   ./services/scheduling/cron.nix
   ./services/security/haveged.nix
