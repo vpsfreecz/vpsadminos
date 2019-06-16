@@ -2,7 +2,6 @@
   ./cpufreq.nix
   ./grub/grub.nix
   ./grub/ipxe.nix
-  ./logrotate.nix
   ./lxcfs.nix
   ./nfs.nix
   ./nix-daemon.nix
@@ -16,6 +15,7 @@
   ./rsyslog.nix
   ./runit
   ./services/hardware/eudev.nix
+  ./services/logging/logrotate.nix
   ./services/mail/opensmtpd.nix
   ./services/networking/bird.nix
   ./services/networking/chronyd.nix
