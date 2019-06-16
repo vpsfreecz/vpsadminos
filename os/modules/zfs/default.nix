@@ -62,9 +62,15 @@ let
     }
   '';
 
+  importLibInstance = importLib {
+    zpoolCmd = "zpool";
+    awkCmd = "awk";
+    inherit cfgZfs;
+  };
 
   poolService = name: pool: (import ./pool-service.nix args) {
     inherit name pool zpoolCreateScript;
+    importLib = importLibInstance;
   };
 
   poolConfig = name: pool: pkgs.writeText "pool-${name}-config.json" (builtins.toJSON {
@@ -410,12 +416,7 @@ in
                   ;;
               esac
             done
-          ''] ++ [(importLib {
-            # See comments at importLib definition.
-            zpoolCmd = "zpool";
-            awkCmd = "awk";
-            inherit cfgZfs;
-          })] ++ (map (pool: ''
+          ''] ++ [ importLibInstance ] ++ (map (pool: ''
             echo -n "importing root ZFS pool \"${pool}\"..."
             # Loop across the import until it succeeds, because the devices needed may not be discovered yet.
             if ! poolImported "${pool}"; then

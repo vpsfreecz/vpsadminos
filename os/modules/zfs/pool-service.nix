@@ -1,5 +1,5 @@
 { config, pkgs, lib, ... }:
-{ name, pool, zpoolCreateScript }:
+{ name, pool, zpoolCreateScript, importLib }:
 with lib;
 let
   # Get a submodule without any embedded metadata
@@ -14,26 +14,32 @@ let
     ruby = pkgs.ruby;
   };
 
-  share = pkgs.substituteAll {
-    name = "share.rb";
-    src = ./share.rb;
-    isExecutable = true;
-    ruby = pkgs.ruby;
-  };
-
   properties = mapAttrsToList (k: v: "\"${k}=${v}\"") pool.properties;
 
   datasets = pkgs.writeText "pool-${name}-datasets.json"
                             (builtins.toJSON (_filter pool.datasets));
 in {
   run = ''
-    zpool list ${name} > /dev/null
+    ${importLib}
 
-    if [ "$?" != "0" ] ; then
-      echo "Importing ZFS pool \"${name}\""
-      zpool import -N ${name}
+    echo "Importing ZFS pool \"${name}\""
+    # Loop across the import until it succeeds, because the devices needed may
+    # not be discovered yet.
+    if ! poolImported "${name}"; then
+      for trial in `seq 1 60`; do
+        poolReady "${name}" > /dev/null && msg="$(poolImport "${name}" 2>&1)" && break
+        sleep 1
+        echo "Waiting for devices..."
+      done
 
-      if [ "$?" != "0" ] ; then
+      if [[ -n "$msg" ]]; then
+        echo "$msg";
+      fi
+
+      # Try one last time, e.g. to import a degraded pool.
+      poolImported "${name}" || poolImport "${name}"
+
+      if ! poolImported "${name}" ; then
         ${if pool.doCreate then ''
           ${zpoolCreateScript name pool}/bin/do-create-pool-${name} --force \
           || fail "unable to create zpool ${name}"
