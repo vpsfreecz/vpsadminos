@@ -30,6 +30,16 @@ let
         description = "Called to check service status.";
       };
 
+      oneShot = mkOption {
+        type = types.bool;
+        default = false;
+        description = ''
+          Oneshot services are used to perform one-time tasks, there are no
+          long-running processes monitored by runsv. Oneshot services are not
+          restarted after they successfully exit.
+        '';
+      };
+
       killMode = mkOption {
         type = types.enum [ "control-group" "process" ];
         default = "control-group";
@@ -187,6 +197,7 @@ let
       ${optionalString (service.log.enable && service.log.logStandardError) "exec 2>&1"}
       ${optionalString service.includeHelpers "source ./helpers"}
       ${service.run}
+      ${optionalString service.oneShot "sv once ${name}"}
     '';
 
   killCGroup = pkgs.writeScript "kill-cgroup" ''
