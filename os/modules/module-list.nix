@@ -19,10 +19,10 @@
   ./services/networking/chronyd.nix
   ./services/networking/dhcpd.nix
   ./services/networking/rpcbind.nix
+  ./services/networking/sshd.nix
   ./services/osctl/image-repository.nix
   ./services/scheduling/cron.nix
   ./services/security/haveged.nix
-  ./sshd.nix
   ./system/boot/qemu.nix
   ./tasks/network-interfaces.nix
   ./tools/tools.nix
