@@ -1,6 +1,5 @@
 [
   ./bash.nix
-  ./bird.nix
   ./chronyd.nix
   ./cpufreq.nix
   ./dhcpd.nix
@@ -22,6 +21,7 @@
   ./rsyslog.nix
   ./runit
   ./services/mail/opensmtpd.nix
+  ./services/networking/bird.nix
   ./services/osctl/image-repository.nix
   ./services/scheduling/cron.nix
   ./sshd.nix
