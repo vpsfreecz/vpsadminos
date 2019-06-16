@@ -5,6 +5,7 @@
 {
   # import local configuration (local.nix) if it exists
   imports = [
+    ../modules/installer/cd-dvd/channel.nix
     ./tunables.nix
   ] ++ lib.optionals (lib.pathExists ./local.nix) [ ./local.nix ];
   networking.hostName = lib.mkDefault "vpsadminos";
