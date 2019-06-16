@@ -76,7 +76,7 @@ in {
     ${optionalString config.services.nfs.server.enable ''
     echo "Sharing datasets..."
     waitForService nfsd
-    ${share} ${name}
+    zfs share -r ${name}
     ''}
 
     # TODO: this could be option runit.services.<service>.autoRestart = always/on-failure;
