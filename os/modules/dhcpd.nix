@@ -14,7 +14,7 @@ with lib;
   config = mkMerge [
     (mkIf (config.networking.dhcpd) {
       runit.services.dhcpd.run = ''
-        sv check networking >/dev/null || exit 1
+        ensureServiceStarted networking
         mkdir -p /var/lib/dhcp
         touch /var/lib/dhcp/dhcpd4.leases
         exec ${pkgs.dhcp}/sbin/dhcpd -4 -f \

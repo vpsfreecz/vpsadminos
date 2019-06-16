@@ -39,7 +39,7 @@ in
   # for os-install.
   runit.services.channel-registration = {
     run = ''
-      sv check eudev-trigger >/dev/null || exit 1
+      ensureServiceStarted eudev-trigger
       set -e
       if ! [ -e /var/lib/nixos/did-channel-init ]; then
         echo "unpacking the NixOS/Nixpkgs sources..."

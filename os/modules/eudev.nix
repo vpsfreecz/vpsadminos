@@ -142,14 +142,9 @@ in
           ${pkgs.eudev}/bin/udevadm settle
           # to be sure..
           ${pkgs.eudev}/bin/udevadm trigger --action=add
-          touch /run/eudev-done
         '';
         oneShot = true;
       };
-
-      runit.services.eudev-trigger.check = ''
-        test -f /run/eudev-done
-      '';
     })
   ];
 }

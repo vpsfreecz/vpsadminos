@@ -20,7 +20,7 @@ with lib;
     runit.services = {
       cpufreq = {
         run = ''
-          sv check eudev-trigger >/dev/null || exit 1
+          ensureServiceStarted eudev-trigger
           test -d /sys/devices/system/cpu/cpu0/cpufreq && \
             echo ${config.powerManagement.cpuFreqGovernor} \
             > /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor

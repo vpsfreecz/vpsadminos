@@ -127,14 +127,7 @@ in
         ''}
 
         ${config.networking.custom}
-
-        touch /run/net-done
       '';
-
-      check = ''
-        test -f /run/net-done
-      '';
-
       oneShot = true;
       onChange = "ignore";
     };
