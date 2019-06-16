@@ -2,7 +2,6 @@
   ./cpufreq.nix
   ./grub/grub.nix
   ./grub/ipxe.nix
-  ./nfs.nix
   ./nix-daemon.nix
   ./node_exporter.nix
   ./osctl/pools.nix
@@ -16,6 +15,7 @@
   ./services/hardware/eudev.nix
   ./services/logging/logrotate.nix
   ./services/mail/opensmtpd.nix
+  ./services/network-filesystems/nfs.nix
   ./services/networking/bird.nix
   ./services/networking/chronyd.nix
   ./services/networking/dhcpd.nix
