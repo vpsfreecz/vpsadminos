@@ -197,7 +197,17 @@ let
       ${optionalString (service.log.enable && service.log.logStandardError) "exec 2>&1"}
       ${optionalString service.includeHelpers "source ./helpers"}
       ${service.run}
-      ${optionalString service.oneShot "sv once ${name}"}
+      ${optionalString service.oneShot ''
+      echo "Service ${name} successfully finished"
+      mkdir -p /run/service/${name}
+      touch /run/service/${name}/done
+      sv once ${name}
+      ''}
+    '';
+
+  mkServiceCheck = name: service:
+    mkService name "check" ''
+      test -f "/run/service/${name}/done"
     '';
 
   killCGroup = pkgs.writeScript "kill-cgroup" ''
@@ -256,8 +266,11 @@ let
         "runit/services/${name}/finish".source = mkServiceFinish name service;
       })
 
-      (mkIf (service.check != "") {
-        "runit/services/${name}/check".source = mkService name "check" service.check;
+      (mkIf (service.check != "" || service.oneShot) {
+        "runit/services/${name}/check".source =
+          if service.check != "" then
+            mkService name "check" service.check
+          else mkServiceCheck name service;
       })
 
       (mkIf service.includeHelpers {

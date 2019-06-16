@@ -57,6 +57,7 @@ in
 
     ln -sfn /etc/runit/runsvdir/$runlevel /etc/runit/runsvdir/current
     ln -sfn /etc/runit/runsvdir/current /service
+    mkdir /run/service
 
     # LXC
     mkdir -p /var/lib/lxc/rootfs
