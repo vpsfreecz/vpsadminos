@@ -8,10 +8,10 @@
   ./programs/bash.nix
   ./programs/htop.nix
   ./rename.nix
-  ./rsyslog.nix
   ./runit
   ./services/hardware/eudev.nix
   ./services/logging/logrotate.nix
+  ./services/logging/rsyslog.nix
   ./services/mail/opensmtpd.nix
   ./services/monitoring/prometheus/node_exporter.nix
   ./services/network-filesystems/nfs.nix
