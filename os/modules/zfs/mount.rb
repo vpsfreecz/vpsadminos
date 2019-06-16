@@ -140,6 +140,8 @@ class DatasetList
 end
 
 class Pool
+  ZFS = '@zfs@/bin/zfs'
+
   def self.mount_all(pool, config)
     p = new(pool, config)
     p.mount_all
@@ -183,7 +185,7 @@ class Pool
   end
 
   def create(dataset)
-    args = ['zfs', 'create']
+    args = [ZFS, 'create']
 
     if dataset.configure?
       if dataset.volume?
@@ -203,15 +205,15 @@ class Pool
   def configure(dataset)
     dataset.declarative_properties.each do |k, v|
       if v == 'inherit'
-        system('zfs', 'inherit', k, dataset.name)
+        system(ZFS, 'inherit', k, dataset.name)
       else
-        system('zfs', 'set', "#{k}=#{v}", dataset.name)
+        system(ZFS, 'set', "#{k}=#{v}", dataset.name)
       end
     end
   end
 
   def mount(dataset)
-    system('zfs', 'mount', dataset.name)
+    system(ZFS, 'mount', dataset.name)
   end
 
   protected
@@ -219,7 +221,7 @@ class Pool
     current_ds = nil
 
     Open3.popen2(
-      'zfs', 'get',
+      ZFS, 'get',
       '-Hrp',
       '-t', 'filesystem,volume',
       '-o', 'name,property,value',

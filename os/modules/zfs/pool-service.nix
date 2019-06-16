@@ -1,17 +1,20 @@
 { config, pkgs, lib, ... }:
-{ name, pool, zpoolCreateScript, importLib }:
+{ name, pool, zpoolCreateScript, importLib, packages }:
 with lib;
 let
   # Get a submodule without any embedded metadata
   _filter = x: filterAttrsRecursive (k: v: k != "_module") x;
 
   osctl = "${pkgs.osctl}/bin/osctl";
+  zpool = "${packages.zfsUser}/bin/zpool";
+  zfs = "${packages.zfsUser}/bin/zfs";
 
   mount = pkgs.substituteAll {
     name = "mount.rb";
     src = ./mount.rb;
     isExecutable = true;
     ruby = pkgs.ruby;
+    zfs = packages.zfsUser;
   };
 
   properties = mapAttrsToList (k: v: "\"${k}=${v}\"") pool.properties;
@@ -47,19 +50,19 @@ in {
       fi
     fi
 
-    stat="$( zpool status ${name} )"
+    stat="$( ${zpool} status ${name} )"
     test $? && echo "$stat" | grep DEGRADED &> /dev/null && \
       echo -e "\n\n[1;31m>>> Pool is DEGRADED!! <<<[0m"
 
     ${optionalString ((length properties) > 0) ''
     echo "Configuring zpool"
-    ${concatMapStringsSep "\n" (v: "zpool set ${v} ${name}") properties}
+    ${concatMapStringsSep "\n" (v: "${zpool} set ${v} ${name}") properties}
     ''}
 
     echo "Mounting datasets..."
     ${mount} ${name} ${datasets}
 
-    active=$(zfs get -Hp -o value org.vpsadminos.osctl:active ${name})
+    active=$(${zfs} get -Hp -o value org.vpsadminos.osctl:active ${name})
 
     waitForOsctld
 
@@ -82,7 +85,7 @@ in {
     ${optionalString config.services.nfs.server.enable ''
     echo "Sharing datasets..."
     waitForService nfsd
-    zfs share -r ${name}
+    ${zfs} share -r ${name}
     ''}
 
     # TODO: this could be option runit.services.<service>.autoRestart = always/on-failure;

@@ -63,13 +63,13 @@ let
   '';
 
   importLibInstance = importLib {
-    zpoolCmd = "zpool";
+    zpoolCmd = "${packages.zfsUser}/bin/zpool";
     awkCmd = "awk";
     inherit cfgZfs;
   };
 
   poolService = name: pool: (import ./pool-service.nix args) {
-    inherit name pool zpoolCreateScript;
+    inherit name pool zpoolCreateScript packages;
     importLib = importLibInstance;
   };
 
