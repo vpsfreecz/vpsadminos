@@ -2,7 +2,6 @@
   ./cpufreq.nix
   ./grub/grub.nix
   ./grub/ipxe.nix
-  ./htop.nix
   ./logrotate.nix
   ./lxcfs.nix
   ./nfs.nix
@@ -11,6 +10,7 @@
   ./osctl/pools.nix
   ./osctld.nix
   ./programs/bash.nix
+  ./programs/htop.nix
   ./rename.nix
   ./rpcbind.nix
   ./rsyslog.nix
