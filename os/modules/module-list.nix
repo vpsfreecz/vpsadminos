@@ -26,9 +26,9 @@
   ./system/boot/loader/grub/ipxe.nix
   ./system/boot/qemu.nix
   ./tasks/cpu-freq.nix
+  ./tasks/filesystems/zfs
   ./tasks/network-interfaces.nix
   ./tools/tools.nix
   ./virtualisation/lxcfs.nix
   ./vpsadmin/nodectld.nix
-  ./zfs
 ]
