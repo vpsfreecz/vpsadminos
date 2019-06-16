@@ -5,10 +5,10 @@ with lib;
 let
   cfg = config.system;
 
-  releaseFile  = ../../.version;
-  suffixFile   = ../../.version-suffix;
-  revisionFile = ../../.git-revision;
-  gitRepo      = ../../.git;
+  releaseFile  = ../../../.version;
+  suffixFile   = ../../../.version-suffix;
+  revisionFile = ../../../.git-revision;
+  gitRepo      = ../../../.git;
   gitCommitId  = lib.substring 0 7 (commitIdFromGitRepo gitRepo);
 
   nixpkgsRepo  = "${toString pkgs.path}/.git";

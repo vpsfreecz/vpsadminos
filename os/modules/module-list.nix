@@ -1,6 +1,7 @@
 [
   ./grub/grub.nix
   ./grub/ipxe.nix
+  ./misc/version.nix
   ./osctl/pools.nix
   ./osctld.nix
   ./programs/bash.nix
@@ -27,7 +28,6 @@
   ./tasks/cpu-freq.nix
   ./tasks/network-interfaces.nix
   ./tools/tools.nix
-  ./version.nix
   ./virtualisation/lxcfs.nix
   ./vpsadmin/nodectld.nix
   ./zfs
