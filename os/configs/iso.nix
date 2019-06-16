@@ -5,7 +5,7 @@
 {
   imports = [
     ./common.nix
-    ../modules/channel.nix
+    ../modules/installer/cd-dvd/channel.nix
     ../modules/iso-image.nix
   ];
 
