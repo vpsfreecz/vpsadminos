@@ -87,9 +87,8 @@ in
         waitForOsctld
         waitForOsctlEntity pool ${pool}
         ${createGroups pool groups}
-        sv once groups-${pool}
       '';
-
+      oneShot = true;
       log.enable = true;
       log.sendTo = "127.0.0.1";
     };

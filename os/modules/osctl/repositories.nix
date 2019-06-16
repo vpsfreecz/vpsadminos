@@ -75,9 +75,8 @@ in
         waitForOsctld
         waitForOsctlEntity pool ${pool}
         ${createRepos pool repos}
-        sv once repositories-${pool}
       '';
-
+      oneShot = true;
       log.enable = true;
       log.sendTo = "127.0.0.1";
     };

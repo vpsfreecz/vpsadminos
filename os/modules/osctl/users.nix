@@ -103,9 +103,8 @@ in
         waitForOsctld
         waitForOsctlEntity pool ${pool}
         ${createUsers pool users}
-        sv once users-${pool}
       '';
-
+      oneShot = true;
       log.enable = true;
       log.sendTo = "127.0.0.1";
     };

@@ -187,8 +187,6 @@ let
           ''}
           : # do nothing
         fi
-
-        sv once ct-${pool}-${name}
       '';
 in
 {

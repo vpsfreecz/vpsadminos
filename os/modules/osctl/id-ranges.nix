@@ -167,9 +167,8 @@ in
         waitForOsctld
         waitForOsctlEntity pool ${pool}
         ${createIdRanges pool ranges}
-        sv once id-ranges-${pool}
       '';
-
+      oneShot = true;
       log.enable = true;
       log.sendTo = "127.0.0.1";
     };

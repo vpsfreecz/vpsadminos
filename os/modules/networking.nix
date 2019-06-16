@@ -97,8 +97,8 @@ in
         '';
     };
 
-    runit.services = {
-      networking.run = with config.networking; ''
+    runit.services.networking = {
+      run = with config.networking; ''
         ensureServiceStarted eudev-trigger
 
         ${config.networking.preConfig}
@@ -129,14 +129,14 @@ in
         ${config.networking.custom}
 
         touch /run/net-done
-        sv once .
       '';
 
-      networking.check = ''
+      check = ''
         test -f /run/net-done
       '';
 
-      networking.onChange = "ignore";
+      oneShot = true;
+      onChange = "ignore";
     };
   };
 }

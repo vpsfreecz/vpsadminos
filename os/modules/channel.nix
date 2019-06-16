@@ -37,8 +37,8 @@ in
 {
   # Provide the vpsAdminOS/Nixpkgs sources. This is required
   # for os-install.
-  runit.services.channel-registration.run =
-    ''
+  runit.services.channel-registration = {
+    run = ''
       sv check eudev-trigger >/dev/null || exit 1
       set -e
       if ! [ -e /var/lib/nixos/did-channel-init ]; then
@@ -51,6 +51,7 @@ in
         mkdir -m 0755 -p /var/lib/nixos
         touch /var/lib/nixos/did-channel-init
       fi
-      sv once .
     '';
+    oneShot = true;
+  };
 }

@@ -18,12 +18,15 @@ with lib;
 
   config = {
     runit.services = {
-      cpufreq.run = ''
-        sv check eudev-trigger >/dev/null || exit 1
-        test -d /sys/devices/system/cpu/cpu0/cpufreq && \
-          echo ${config.powerManagement.cpuFreqGovernor} > /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
-        sv once .
-      '';
+      cpufreq = {
+        run = ''
+          sv check eudev-trigger >/dev/null || exit 1
+          test -d /sys/devices/system/cpu/cpu0/cpufreq && \
+            echo ${config.powerManagement.cpuFreqGovernor} \
+            > /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+        '';
+        oneShot = true;
+      };
     };
   };
 }

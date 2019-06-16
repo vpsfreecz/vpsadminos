@@ -270,9 +270,8 @@ in
           ${optionalString cfg.destroyUndeclared "--destroy-undeclared"} \
           ${optionalString cfg.pure "--destroy-imperative"} \
           || exit 1
-        sv once gc-${pool}
       '';
-
+      oneShot = true;
       log.enable = true;
       log.sendTo = "127.0.0.1";
     };

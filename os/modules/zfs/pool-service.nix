@@ -87,11 +87,8 @@ in {
     waitForService nfsd
     ${zfs} share -r ${name}
     ''}
-
-    # TODO: this could be option runit.services.<service>.autoRestart = always/on-failure;
-    sv once pool-${name}
   '';
-
+  oneShot = true;
   log.enable = true;
   log.sendTo = "127.0.0.1";
 }
