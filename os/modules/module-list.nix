@@ -23,10 +23,10 @@
   ./services/osctl/image-repository.nix
   ./services/scheduling/cron.nix
   ./services/security/haveged.nix
+  ./services/ttys/agetty.nix
   ./system/boot/qemu.nix
   ./tasks/network-interfaces.nix
   ./tools/tools.nix
-  ./tty.nix
   ./version.nix
   ./virtualisation/lxcfs.nix
   ./vpsadmin.nix
