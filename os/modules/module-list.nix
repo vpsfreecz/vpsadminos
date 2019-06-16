@@ -1,6 +1,4 @@
 [
-  ./grub/grub.nix
-  ./grub/ipxe.nix
   ./misc/version.nix
   ./osctl/pools.nix
   ./osctld.nix
@@ -24,6 +22,8 @@
   ./services/scheduling/cron.nix
   ./services/security/haveged.nix
   ./services/ttys/agetty.nix
+  ./system/boot/loader/grub/grub.nix
+  ./system/boot/loader/grub/ipxe.nix
   ./system/boot/qemu.nix
   ./tasks/cpu-freq.nix
   ./tasks/network-interfaces.nix
