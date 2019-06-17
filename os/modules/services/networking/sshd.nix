@@ -3,47 +3,45 @@ with utils;
 with lib;
 
 let
-  sshd_config = pkgs.writeText "sshd_config" ''
-    HostKey /etc/ssh/ssh_host_rsa_key
-    HostKey /etc/ssh/ssh_host_ed25519_key
-    UsePAM yes
-    Port 22
-    PidFile /run/sshd.pid
-    Protocol 2
-    PermitRootLogin yes
-    PasswordAuthentication yes
-    ChallengeResponseAuthentication no
-
-    Match User root
-      AuthorizedKeysFile /etc/ssh/authorized_keys.d/%u
-
-    Match User migration
-      PasswordAuthentication no
-      AuthorizedKeysFile /run/osctl/migration/authorized_keys
-  '';
+  cfg = config.services.openssh;
 in
 {
   ###### interface
 
-  options = {
-  };
+  options = {};
 
   ###### implementation
 
   config = mkMerge [
     (mkIf (config.services.openssh.enable) {
+      services.openssh.extraConfig = ''
+        PidFile /run/sshd.pid
+
+        Match User migration
+          PasswordAuthentication no
+          AuthorizedKeysFile /run/osctl/migration/authorized_keys
+      '';
+
       runit.services.sshd = {
         run = ''
-          exec ${pkgs.openssh}/bin/sshd -D -f ${sshd_config}
+          # Ensure SSH host keys
+          mkdir -m 0755 -p /etc/ssh
+          ${flip concatMapStrings cfg.hostKeys (k: ''
+            if ! [ -f "${k.path}" ]; then
+                ssh-keygen \
+                  -t "${k.type}" \
+                  ${if k ? bits then "-b ${toString k.bits}" else ""} \
+                  ${if k ? rounds then "-a ${toString k.rounds}" else ""} \
+                  ${if k ? comment then "-C '${k.comment}'" else ""} \
+                  ${if k ? openSSHFormat && k.openSSHFormat then "-o" else ""} \
+                  -f "${k.path}" \
+                  -N ""
+            fi
+          '')}
+
+          exec ${pkgs.openssh}/bin/sshd -D -f /etc/ssh/sshd_config
         '';
         killMode = "process";
-      };
-
-      environment.etc = {
-        "ssh/ssh_host_rsa_key.pub".source = ../../../ssh/ssh_host_rsa_key.pub;
-        "ssh/ssh_host_rsa_key" = { mode = "0600"; source = ../../../ssh/ssh_host_rsa_key; };
-        "ssh/ssh_host_ed25519_key.pub".source = ../../../ssh/ssh_host_ed25519_key.pub;
-        "ssh/ssh_host_ed25519_key" = { mode = "0600"; source = ../../../ssh/ssh_host_ed25519_key; };
       };
     })
   ];

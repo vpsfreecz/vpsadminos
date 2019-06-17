@@ -11,7 +11,10 @@
   networking.hostName = lib.mkDefault "vpsadminos";
 
   services.logrotate.enable = lib.mkDefault true;
-  services.openssh.enable = lib.mkDefault true;
+  services.openssh = {
+    enable = lib.mkDefault true;
+    challengeResponseAuthentication = lib.mkDefault false;
+  };
   services.zfs.autoScrub.enable = lib.mkDefault true;
 
   services.opensmtpd= {

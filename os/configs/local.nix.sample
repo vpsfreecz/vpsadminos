@@ -13,6 +13,18 @@
     #initialHashedPassword = lib.mkOptionDefault "...";
   };
 
+  # When vpsAdminOS is used as a live system, SSH host keys are generated on
+  # each boot. Generate static keys using ssh-keygen and configure them:
+  # 
+  #   ssh-keygen -t rsa -b 4096 -f ssh_host_rsa_key -N ""
+  #   ssh-keygen -t ed25519 -f ssh_host_ed25519_key -N ""
+  environment.etc = {
+    "ssh/ssh_host_rsa_key.pub".source = ./ssh_host_rsa_key.pub;
+    "ssh/ssh_host_rsa_key" = { mode = "0600"; source = ./ssh_host_rsa_key; };
+    "ssh/ssh_host_ed25519_key.pub".source = ./ssh_host_ed25519_key.pub;
+    "ssh/ssh_host_ed25519_key" = { mode = "0600"; source = ./ssh/ssh_host_ed25519_key; };
+  };
+
   environment.systemPackages = [
     config.boot.kernelPackages.bcc
   ];
