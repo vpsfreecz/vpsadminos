@@ -7,7 +7,9 @@
   ];
 
   users.extraUsers.root = {
-    openssh.authorizedKeys.keys = with import ../ssh-keys.nix; [ aither snajpa snajpa_devel srk srk_devel ];
+    openssh.authorizedKeys.keys = [
+      "public key..."
+    ];
     #initialHashedPassword = lib.mkOptionDefault "...";
   };
 
