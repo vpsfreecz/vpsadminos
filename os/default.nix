@@ -21,7 +21,6 @@ let
   };
   baseModules = [
       ./base.nix
-      ./system-path.nix
       ./runit.nix
       <nixpkgs/nixos/modules/misc/extra-arguments.nix>
       <nixpkgs/nixos/modules/system/etc/etc.nix>
