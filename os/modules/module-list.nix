@@ -25,6 +25,8 @@
   ./system/boot/loader/grub/ipxe.nix
   ./system/boot/qemu.nix
   ./system/boot/runit
+  ./system/boot/stage-1.nix
+  ./system/boot/stage-2.nix
   ./tasks/cpu-freq.nix
   ./tasks/filesystems/zfs
   ./tasks/network-interfaces.nix

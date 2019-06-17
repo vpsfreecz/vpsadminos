@@ -22,8 +22,6 @@ let
   baseModules = [
       ./base.nix
       ./system-path.nix
-      ./stage-1.nix
-      ./stage-2.nix
       ./runit.nix
       <nixpkgs/nixos/modules/misc/extra-arguments.nix>
       <nixpkgs/nixos/modules/system/etc/etc.nix>
