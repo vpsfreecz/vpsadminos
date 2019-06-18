@@ -1,4 +1,5 @@
 [
+  ./config/runit.nix
   ./config/system-path.nix
   ./misc/version.nix
   ./osctl/pools.nix
