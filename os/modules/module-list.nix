@@ -1,5 +1,6 @@
 [
   ./config/defaults.nix
+  ./config/kernel.nix
   ./config/runit.nix
   ./config/system-path.nix
   ./config/tunables.nix
@@ -26,6 +27,8 @@
   ./services/scheduling/cron.nix
   ./services/security/haveged.nix
   ./services/ttys/agetty.nix
+  ./system/activation/top-level.nix
+  ./system/activation/secrets.nix
   ./system/boot/loader/grub/grub.nix
   ./system/boot/loader/grub/ipxe.nix
   ./system/boot/qemu.nix
