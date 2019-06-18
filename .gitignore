@@ -6,3 +6,4 @@ site
 *.img
 os/configs/local.nix
 .gems
+shellhook.local.sh

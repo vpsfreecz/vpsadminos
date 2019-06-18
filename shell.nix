@@ -25,5 +25,6 @@ in stdenv.mkDerivation rec {
     export PATH="$(ruby -e 'puts Gem.bindir'):$PATH"
     export RUBYLIB="$GEM_HOME"
     gem install --no-document bundler geminabox
+    [ -f shellhook.local.sh ] && . shellhook.local.sh
   '';
 }
