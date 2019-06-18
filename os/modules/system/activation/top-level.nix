@@ -152,7 +152,7 @@ with lib;
             unset activationScript
 
             mkdir $out/bin
-            substituteAll ${../../../lib/switch-to-configuration.rb} $out/bin/switch-to-configuration
+            substituteAll ${./switch-to-configuration.rb} $out/bin/switch-to-configuration
             chmod +x $out/bin/switch-to-configuration
 
             echo -n "${toString config.system.extraDependencies}" > $out/extra-dependencies
