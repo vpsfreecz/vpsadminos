@@ -4,6 +4,7 @@
   ./config/system-path.nix
   ./config/tunables.nix
   ./misc/version.nix
+  ./nixos-compat.nix
   ./osctl/pools.nix
   ./osctl/osctld.nix
   ./programs/bash.nix
