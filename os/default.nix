@@ -1,4 +1,4 @@
-{ configuration ? let cfg = builtins.getEnv "VPSADMINOS_CONFIG"; in if cfg == "" then import ./configs/common.nix else import cfg
+{ configuration ? let cfg = builtins.getEnv "VPSADMINOS_CONFIG"; in if cfg == "" then null else import cfg
 , pkgs ? <nixpkgs>
   # extra modules to include
 , modules ? []

@@ -1,13 +1,9 @@
 { config, pkgs, lib, ... }:
-
-# Common configuration
-
 {
   # import local configuration (local.nix) if it exists
   imports = [
-    ../modules/installer/cd-dvd/channel.nix
-    ./tunables.nix
-  ] ++ lib.optionals (lib.pathExists ./local.nix) [ ./local.nix ];
+    ../installer/cd-dvd/channel.nix
+  ] ++ lib.optionals (lib.pathExists ../../configs/local.nix) [ ../../configs/local.nix ];
   networking.hostName = lib.mkDefault "vpsadminos";
 
   services.logrotate.enable = lib.mkDefault true;
@@ -66,9 +62,6 @@
     strace
     vim
   ];
-
-  environment.etc = {
-  };
 
   users.extraUsers.migration = {
     uid = 499;

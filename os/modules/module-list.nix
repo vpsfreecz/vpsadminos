@@ -1,6 +1,8 @@
 [
+  ./config/defaults.nix
   ./config/runit.nix
   ./config/system-path.nix
+  ./config/tunables.nix
   ./misc/version.nix
   ./osctl/pools.nix
   ./osctl/osctld.nix
