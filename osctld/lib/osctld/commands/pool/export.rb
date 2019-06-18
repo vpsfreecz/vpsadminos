@@ -39,7 +39,13 @@ module OsCtld
         # Preserve root group
         root_group = DB::Groups.root(pool)
 
-        [DB::Containers, DB::Users, DB::Groups, DB::Repositories].each do |klass|
+        [
+          DB::Containers,
+          DB::Users,
+          DB::Groups,
+          DB::Repositories,
+          DB::IdRanges,
+        ].each do |klass|
           klass.get.each do |obj|
             next if obj.pool != pool
 
