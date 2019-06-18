@@ -62,7 +62,6 @@ let
       <nixpkgs/nixos/modules/config/sysctl.nix>
       <nixpkgs/nixos/modules/config/users-groups.nix>
       <nixpkgs/nixos/modules/config/i18n.nix>
-      ./ipxe.nix
       ./nixos-compat.nix
       pkgsModule
   ] ++ (import ./modules/module-list.nix);
