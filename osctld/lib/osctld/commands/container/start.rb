@@ -107,10 +107,28 @@ module OsCtld
         end
       end
 
+      # Containers are started through two wrappers: pty-wrapper and osctld-ct-start.
+      #
+      # pty-wrapper is used to allocate a pty and provide access to input/output
+      # of the started process.
+      #
+      # osctld-ct-start is used to reset oom_score_adj to zero, since pty-wrapper
+      # have its own oom_score_adj set to -1000 to ensure the OOM killer will
+      # not target it. oom_score_adj is inherited on fork, so the process
+      # pty-wrapper starts has it set to -1000 as well. Because the process
+      # is already run as an unprivileged user, changing oom_score_adj will leave
+      # oom_score_adj_min untouched. That would let all container users to disable
+      # OOM killer altogether, so osctld-ct-start pings back to osctld, which is
+      # running with CAP_SYS_RESOURCE and can set both obj_score_adj and
+      # obj_score_adj_min to zero. When it's done, osctld-ct-start execs to
+      # lxc-start.
       cmd = [
         'pty-wrapper',
         "#{ct.pool.name}:#{ct.id}",
         Console.socket_path(ct),
+        OsCtld.bin('osctld-ct-start'),
+        ct.pool.name,
+        ct.id,
         'lxc-start',
         '-P', ct.lxc_home,
         '-n', ct.id,
@@ -128,6 +146,7 @@ module OsCtld
         ct.user.homedir,
         ct.cgroup_path,
         prlimits: ct.prlimits.export,
+        oom_score_adj: -1000,
       ) do
         r.close
 

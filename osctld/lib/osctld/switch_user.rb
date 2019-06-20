@@ -15,11 +15,19 @@ module OsCtld
     # @param opts [Hash] options
     # @option opts [Boolean] :chown_cgroups (true)
     # @option opts [Hash] :prlimits
+    # @option opts [Integer, nil] :oom_score_adj
     def self.fork_and_switch_to(sysuser, ugid, homedir, cgroup_path, opts = {}, &block)
       r, w = IO.pipe
 
       pid = Process.fork do
         w.close
+
+        if opts[:oom_score_adj]
+          File.open('/proc/self/oom_score_adj', 'w') do |f|
+            f.write(opts[:oom_score_adj].to_s)
+          end
+        end
+
         switch_to(sysuser, ugid, homedir, cgroup_path, opts)
 
         msg = r.readline.strip

@@ -1,0 +1,21 @@
+#!/usr/bin/env ruby
+require 'json'
+require 'socket'
+
+pool, ctid = ARGV
+
+s = UNIXSocket.new("/run/osctl/user-control/#{Process.uid}.sock")
+s.send({cmd: :ct_wrapper_start, opts: {
+  id: ctid,
+  pool: pool,
+  pid: Process.pid,
+}}.to_json + "\n", 0)
+ret = JSON.parse(s.readline, symbolize_names: true)
+s.close
+
+if ret[:status]
+  Process.exec(*ARGV[2..-1])
+else
+  warn "Error: #{ret[:message]}"
+  exit(false)
+end
