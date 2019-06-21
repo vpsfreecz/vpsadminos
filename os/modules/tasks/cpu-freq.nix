@@ -22,8 +22,7 @@ with lib;
         run = ''
           ensureServiceStarted eudev-trigger
           test -d /sys/devices/system/cpu/cpu0/cpufreq && \
-            echo ${config.powerManagement.cpuFreqGovernor} \
-            > /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+            ${pkgs.cpufrequtils}/bin/cpufreq-set --governor ${config.powerManagement.cpuFreqGovernor}
         '';
         oneShot = true;
       };
