@@ -242,7 +242,7 @@ in
     # contents of the CD to a bootable USB stick.
     boot.initrd.supportedFilesystems = [ "vfat" ];
 
-    system.qemuParams = [
+    boot.qemu.params = [
       "-cdrom ${config.system.build.isoImage}/iso/${config.isoImage.isoName}"
       "-boot d"
     ];
