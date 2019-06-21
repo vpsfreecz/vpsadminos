@@ -1,40 +1,39 @@
-{ config, pkgs, lib, ...}: let
+{ config, pkgs, lib, ...}:
+let
+  nixpkgsBase = toString <nixpkgs>;
 
-  cloneImports = [
-      <nixpkgs/nixos/modules/profiles/minimal.nix>
-      <nixpkgs/nixos/modules/virtualisation/container-config.nix>
-      <nixpkgs/nixos/modules/installer/cd-dvd/channel.nix>
-      ./build.nix
-      ./networking.nix
+  osBase = toString ../../..;
+
+  nixpkgsImports = [
+    "nixos/modules/profiles/minimal.nix"
+    "nixos/modules/virtualisation/container-config.nix"
+    "nixos/modules/installer/cd-dvd/channel.nix"
   ];
 
-  rules = [
-    { match = ".*/nixpkgs/(.*)";
-      apply = file: x: { path = file; str = "<nixpkgs/${x}>"; match = x; type = "nixpkgs"; };
-    }
-    { match = ".*/vpsadminos/os/lib/nixos-container/(.*)";
-      apply = file: x: { path = file; str = "./${x}"; match = x; type = "local"; };
-    }
+  osImports = [
+    "os/lib/nixos-container/build.nix"
+    "os/lib/nixos-container/networking.nix"
   ];
-  procImports = lib.concatMap (item:
-    (lib.filter (x: x != null)
-    (map ({ match, apply }:
-      let
-        i = builtins.match match (toString item);
-      in
-        if i != null then apply item (builtins.head i) else null
-      ) rules))) cloneImports;
 
+  clonedImports =
+    (map (v: "<nixpkgs/${v}>") nixpkgsImports)
+    ++
+    (map (v: "./${baseNameOf v}") osImports);
 
-  clonedImports = lib.concatStrings (
-    lib.intersperse "\n" (map (x: "          " + x.str) procImports));
+  clonedImportsString =
+    lib.concatMapStringsSep "\n" (x: "    " + x) clonedImports;
+
+  useImports =
+    (map (v: "${nixpkgsBase}/${v}") nixpkgsImports)
+    ++
+    (map (v: "${osBase}/${v}") osImports);
 
   configClone = pkgs.writeText "configuration.nix"
     ''
     { config, pkgs, ... }:
     {
       imports = [
-    ${clonedImports}
+    ${clonedImportsString}
       ];
 
       environment.systemPackages = with pkgs; [
@@ -52,38 +51,40 @@
       documentation.nixos.enable = true;
 
       system.stateVersion = "18.09";
-    }
+      }
     '';
 
-  localCopies = lib.concatMapStrings ({ path, str, match, ... }:
-    ''
-      if ! [ -e /etc/nixos/${match} ]; then
-        cp ${pkgs.writeText match (builtins.readFile path)} /etc/nixos/${match}
-        chmod +w /etc/nixos/${match}
+  localCopies = lib.concatMapStrings (path:
+    let
+      name = baseNameOf path;
+      src = pkgs.copyPathToStore "${osBase}/${path}";
+    in ''
+      if ! [ -e /etc/nixos/${name} ]; then
+        cp ${src} /etc/nixos/${name}
+        chmod +w /etc/nixos/${name}
       fi
-    '') (lib.filter (x: x.type == "local") procImports);
+    '') osImports;
 
-  in
-  {
-  imports = cloneImports;
+  in {
+    imports = useImports;
 
-  environment.systemPackages = with pkgs; [ vim ];
-  time.timeZone = "Europe/Amsterdam";
-  system.stateVersion = "18.09";
+    environment.systemPackages = with pkgs; [ vim ];
+    time.timeZone = "Europe/Amsterdam";
+    system.stateVersion = "18.09";
 
-  services.openssh.enable = lib.mkDefault true;
-  services.openssh.permitRootLogin = lib.mkDefault "yes";
+    services.openssh.enable = lib.mkDefault true;
+    services.openssh.permitRootLogin = lib.mkDefault "yes";
 
-  documentation.enable = true;
-  documentation.nixos.enable = true;
+    documentation.enable = true;
+    documentation.nixos.enable = true;
 
-  boot.postBootCommands =
-    ''
-      # Copy configuration required to reproduce this build
-      if ! [ -e /etc/nixos/configuration.nix ]; then
-            cp ${configClone} /etc/nixos/configuration.nix
-            chmod +w /etc/nixos/configuration.nix
-      fi
-      ${localCopies}
-    '';
-}
+    boot.postBootCommands =
+      ''
+        # Copy configuration required to reproduce this build
+        if ! [ -e /etc/nixos/configuration.nix ]; then
+              cp ${configClone} /etc/nixos/configuration.nix
+              chmod +w /etc/nixos/configuration.nix
+        fi
+        ${localCopies}
+      '';
+  }
