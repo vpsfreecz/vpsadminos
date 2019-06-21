@@ -25,37 +25,57 @@ in {
   run = ''
     ${importLib}
 
-    echo "Importing ZFS pool \"${name}\""
     # Loop across the import until it succeeds, because the devices needed may
     # not be discovered yet.
-    if ! poolImported "${name}"; then
+    if poolImported "${name}"; then
+      echo "Pool ${name} already imported"
+    else
       for trial in `seq 1 60`; do
-        poolReady "${name}" > /dev/null && msg="$(poolImport "${name}" 2>&1)" && break
+        echo "Checking status of pool ${name}"
+
+        if poolReady "${name}" > /dev/null ; then
+          echo "Attempting to import pool ${name}"
+          msg="$(poolImport "${name}" 2>&1)"
+          isImported=$?
+
+          if [ $isImported == 0 ] ; then
+            echo "Pool ${name} imported"
+            break
+          else
+            echo "Unable to import pool ${name}: $msg"
+          fi
+        else
+          echo "Waiting for devices..."
+        fi
+
         sleep 1
-        echo "Waiting for devices..."
       done
 
-      if [[ -n "$msg" ]]; then
-        echo "$msg";
+      if ! poolImported "${name}" ; then
+        echo "All attempts to cleanly import pool ${name} have failed"
+        echo "Importing a possibly degraded pool in 10s"
+        sleep 10
+        poolImport "${name}"
       fi
-
-      # Try one last time, e.g. to import a degraded pool.
-      poolImported "${name}" || poolImport "${name}"
 
       if ! poolImported "${name}" ; then
         ${if pool.doCreate then ''
           ${zpoolCreateScript name pool}/bin/do-create-pool-${name} --force \
-          || fail "unable to create zpool ${name}"
-        '' else ''fail "unable to import zpool ${name}"''}
+          || fail "Unable to create pool ${name}"
+        '' else ''
+          echo "Unable to import pool ${name}"
+          sv once pool-${name}
+          exit 1
+        ''}
       fi
     fi
 
     stat="$( ${zpool} status ${name} )"
     test $? && echo "$stat" | grep DEGRADED &> /dev/null && \
-      echo -e "\n\n[1;31m>>> Pool is DEGRADED!! <<<[0m"
+      echo -e "Pool ${name} is DEGRADED!"
 
     ${optionalString ((length properties) > 0) ''
-    echo "Configuring zpool"
+    echo "Configuring pool ${name}"
     ${concatMapStringsSep "\n" (v: "${zpool} set ${v} ${name}") properties}
     ''}
 
@@ -64,20 +84,24 @@ in {
 
     active=$(${zfs} get -Hp -o value org.vpsadminos.osctl:active ${name})
 
+    echo "Waiting for osctld..."
     waitForOsctld
 
     if [ "$active" == "yes" ] ; then
-      osctlEntityExists pool ${name} \
-        || ${osctl} pool import ${name} \
-        || fail "unable to import osctl pool ${name}"
+      if  ! osctlEntityExists pool ${name} ; then
+        echo "Importing pool ${name} into osctld"
+        ${osctl} pool import ${name} \
+          || fail "Unable to import pool ${name} into osctld"
+      fi
 
     elif ${if pool.install then "true" else "false"} ; then
+      echo "Installing pool ${name} into osctld"
       ${osctl} pool install ${name} \
-      || fail "unable to install zpool ${name} into osctld"
+        || fail "Unable to install pool ${name} into osctld"
     fi
 
     ${optionalString (hasAttr name config.osctl.pools) ''
-    echo "Configuring osctl pool"
+    echo "Configuring osctl pool ${name}"
     ${osctl} pool set parallel-start ${name} ${toString config.osctl.pools.${name}.parallelStart}
     ${osctl} pool set parallel-stop ${name} ${toString config.osctl.pools.${name}.parallelStop}
     ''}
