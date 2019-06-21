@@ -531,7 +531,7 @@ in
           sha256 = "14kqdx2lfqvh40h6fjjzqgff1mwk74dmbjvmqphi6azzra7z8d59";
         }
         # GRUB 1.97 doesn't support gzipped XPMs.
-        else ../../../artwork/boot.png);
+        else ../../../../../../artwork/boot.png);
     }
 
     (mkIf cfg.enable {

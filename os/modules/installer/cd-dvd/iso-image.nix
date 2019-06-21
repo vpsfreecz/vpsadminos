@@ -182,7 +182,7 @@ in
     };
 
     isoImage.splashImage = mkOption {
-      default = ../../artwork/boot.png;
+      default = ../../../../artwork/boot.png;
       description = ''
         The splash image to use in the bootloader.
       '';
