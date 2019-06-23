@@ -12,7 +12,7 @@ module OsCtld
       error!('container not found') unless ct
 
       ct.exclusively do
-        if !ct.migration_log || !ct.migration_log.can_continue?(:cleanup)
+        if !ct.send_log || !ct.send_log.can_continue?(:cleanup)
           error!('invalid send sequence')
         end
 
@@ -25,13 +25,13 @@ module OsCtld
 
         else
           ct.each_dataset do |ds|
-            ct.migration_log.snapshots.each do |snap|
+            ct.send_log.snapshots.each do |snap|
               zfs(:destroy, nil, "#{ds}@#{snap}")
             end
           end
         end
 
-        ct.close_migration_log
+        ct.close_send_log
         ok
       end
     end

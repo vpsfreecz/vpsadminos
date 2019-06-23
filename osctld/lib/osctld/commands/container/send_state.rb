@@ -16,7 +16,7 @@ module OsCtld
 
       manipulate(ct) do
         ct.exclusively do
-          if !ct.migration_log || !ct.migration_log.can_continue?(:incremental)
+          if !ct.send_log || !ct.send_log.can_continue?(:incremental)
             error!('invalid send sequence')
           end
 
@@ -28,7 +28,7 @@ module OsCtld
         zfs(:snapshot, '-r', "#{ct.dataset}@#{snap}")
 
         ct.exclusively do
-          ct.migration_log.snapshots << snap
+          ct.send_log.snapshots << snap
           ct.save_config
         end
 
@@ -41,10 +41,10 @@ module OsCtld
         end
 
         ct.exclusively do
-          ct.migration_log.state = :incremental
+          ct.send_log.state = :incremental
           ct.save_config
 
-          if !ct.migration_log.can_continue?(:transfer)
+          if !ct.send_log.can_continue?(:transfer)
             error!('invalid send sequence')
           end
         end
@@ -53,7 +53,7 @@ module OsCtld
         ret = system(
           *send_ssh_cmd(
             ct.pool.migration_key_chain,
-            ct.migration_log.opts,
+            ct.send_log.opts,
             ['receive', 'transfer', ct.id] + (running ? ['start'] : [])
           )
         )
@@ -61,7 +61,7 @@ module OsCtld
         error!('transfer failed') if ret.nil? || $?.exitstatus != 0
 
         ct.exclusively do
-          ct.migration_log.state = :transfer
+          ct.send_log.state = :transfer
           ct.save_config
         end
 
@@ -71,7 +71,7 @@ module OsCtld
 
     protected
     def send_dataset(ct, ds, snap)
-      stream = OsCtl::Lib::Zfs::Stream.new(ds, snap, ct.migration_log.snapshots[-2])
+      stream = OsCtl::Lib::Zfs::Stream.new(ds, snap, ct.send_log.snapshots[-2])
       stream.progress do |total, transfered, changed|
         progress(type: :progress, data: {
           time: Time.now.to_i,
@@ -85,7 +85,7 @@ module OsCtld
       pid = Process.spawn(
         *send_ssh_cmd(
           ct.pool.migration_key_chain,
-          ct.migration_log.opts,
+          ct.send_log.opts,
           ['receive', 'incremental', ct.id, ds.relative_name, snap]
         ),
         in: r

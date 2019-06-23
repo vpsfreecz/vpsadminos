@@ -12,7 +12,7 @@ module OsCtld
       error!('container not found') unless ct
 
       manipulate(ct) do
-        next error('this container is already being sent') if ct.migration_log
+        next error('this container is already being sent') if ct.send_log
 
         f = Tempfile.open("ct-#{ct.id}-skel")
         export(ct, f)
@@ -37,7 +37,7 @@ module OsCtld
         f.unlink
 
         if $?.exitstatus == 0
-          ct.open_migration_log(:source, m_opts)
+          ct.open_send_log(:source, m_opts)
           ok
         else
           error('send config failed')

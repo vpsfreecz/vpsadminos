@@ -14,7 +14,7 @@ module OsCtld
 
       manipulate(ct) do
         ct.exclusively do
-          if !ct.migration_log || !ct.migration_log.can_continue?(:base)
+          if !ct.send_log || !ct.send_log.can_continue?(:base)
             error!('invalid send sequence')
           end
         end
@@ -23,7 +23,7 @@ module OsCtld
         zfs(:snapshot, '-r', "#{ct.dataset}@#{snap}")
 
         ct.exclusively do
-          ct.migration_log.snapshots << snap
+          ct.send_log.snapshots << snap
           ct.save_config
         end
 
@@ -33,7 +33,7 @@ module OsCtld
         end
 
         ct.exclusively do
-          ct.migration_log.state = :base
+          ct.send_log.state = :base
           ct.save_config
         end
       end
@@ -65,7 +65,7 @@ module OsCtld
       pid = Process.spawn(
         *send_ssh_cmd(
           ct.pool.migration_key_chain,
-          ct.migration_log.opts,
+          ct.send_log.opts,
           [
             'receive', from_snap ? 'incremental' : 'base',
             ct.id, ds.relative_name

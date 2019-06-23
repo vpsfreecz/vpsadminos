@@ -20,7 +20,7 @@ module OsCtld
 
     attr_inclusive_reader :pool, :id, :user, :dataset, :group, :distribution,
       :version, :arch, :autostart, :ephemeral, :hostname, :dns_resolvers,
-      :nesting, :prlimits, :mounts, :migration_log, :netifs, :cgparams,
+      :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams,
       :devices, :seccomp_profile, :apparmor, :attrs, :state, :init_pid,
       :lxc_config
 
@@ -489,13 +489,13 @@ module OsCtld
       }, File.join(lxc_dir, '.bashrc'))
     end
 
-    def open_migration_log(role, opts = {})
-      self.migration_log = Migration::Log.new(role: role, opts: opts)
+    def open_send_log(role, opts = {})
+      self.send_log = Migration::Log.new(role: role, opts: opts)
       save_config
     end
 
-    def close_migration_log(save: true)
-      self.migration_log = nil
+    def close_send_log(save: true)
+      self.send_log = nil
       save_config if save
     end
 
@@ -564,7 +564,7 @@ module OsCtld
     protected
     attr_exclusive_writer :pool, :id, :user, :dataset, :group, :distribution,
       :version, :arch, :autostart, :ephemeral, :hostname, :dns_resolvers,
-      :nesting, :prlimits, :mounts, :migration_log, :netifs, :cgparams,
+      :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams,
       :devices, :seccomp_profile, :apparmor, :attrs, :init_pid, :lxc_config
     attr_synchronized_accessor :mounted, :dist_network_configured
 
@@ -597,7 +597,7 @@ module OsCtld
         @dns_resolvers = cfg['dns_resolvers']
         @nesting = cfg['nesting'] || false
         @seccomp_profile = cfg['seccomp_profile'] || default_seccomp_profile
-        @migration_log = Migration::Log.load(cfg['migration_log']) if cfg['migration_log']
+        @send_log = Migration::Log.load(cfg['send_log']) if cfg['send_log']
         @cgparams = CGroup::ContainerParams.load(self, cfg['cgparams'])
         @prlimits = PrLimits::Manager.load(self, cfg['prlimits'] || {})
         @attrs = Attributes.load(cfg['attrs'] || {})
@@ -641,7 +641,7 @@ module OsCtld
         }
 
         data['state'] = 'staged' if state == :staged
-        data['migration_log'] = migration_log.dump if migration_log
+        data['send_log'] = send_log.dump if send_log
 
         data
       end
@@ -665,7 +665,7 @@ module OsCtld
       @group = opts[:group] if opts[:group]
       @init_pid = nil
       @state = :staged
-      @migration_log = nil
+      @send_log = nil
 
       if opts[:dataset]
         @dataset = OsCtl::Lib::Zfs::Dataset.new(

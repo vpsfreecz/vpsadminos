@@ -16,7 +16,7 @@ module OsCtld
       ct.manipulate(self, block: true) do
         error!('this container is not staged') if ct.state != :staged
 
-        if !ct.migration_log || !ct.migration_log.can_continue?(:transfer)
+        if !ct.send_log || !ct.send_log.can_continue?(:transfer)
           error!('invalid send sequence')
         end
 
@@ -37,12 +37,12 @@ module OsCtld
           force: true
         ) if opts[:start]
 
-        ct.migration_log.snapshots.each do |v|
+        ct.send_log.snapshots.each do |v|
           ds, snap = v
           zfs(:destroy, nil, "#{ds}@#{snap}")
         end
 
-        ct.close_migration_log
+        ct.close_send_log
       end
 
       ok
