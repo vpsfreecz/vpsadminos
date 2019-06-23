@@ -1,39 +1,39 @@
 require 'osctld/commands/base'
 
 module OsCtld
-  class Commands::Container::MigrateNow < Commands::Base
-    handle :ct_migrate_now
+  class Commands::Container::SendNow < Commands::Base
+    handle :ct_send_now
 
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])
       error!('container not found') unless ct
 
-      progress(type: :step, title: 'Staging migration')
+      progress(type: :step, title: 'Sending config')
       call_cmd!(
-        Commands::Container::MigrateStage,
+        Commands::Container::SendConfig,
         id: ct.id,
         pool: ct.pool.name,
         dst: opts[:dst],
         port: opts[:port]
       )
 
-      progress(type: :step, title: 'Copying base streams')
+      progress(type: :step, title: 'Sending rootfs')
       call_cmd!(
-        Commands::Container::MigrateSync,
+        Commands::Container::SendRootfs,
         id: ct.id,
         pool: ct.pool.name
       )
 
-      progress(type: :step, title: 'Transfering container')
+      progress(type: :step, title: 'Sending state')
       call_cmd!(
-        Commands::Container::MigrateTransfer,
+        Commands::Container::SendState,
         id: ct.id,
         pool: ct.pool.name
       )
 
       progress(type: :step, title: 'Cleaning up')
       call_cmd!(
-        Commands::Container::MigrateCleanup,
+        Commands::Container::SendCleanup,
         id: ct.id,
         pool: ct.pool.name,
         delete: opts[:delete]

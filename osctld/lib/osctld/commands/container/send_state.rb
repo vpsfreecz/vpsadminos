@@ -2,12 +2,12 @@ require 'osctld/commands/base'
 require 'open3'
 
 module OsCtld
-  class Commands::Container::MigrateTransfer < Commands::Base
-    handle :ct_migrate_transfer
+  class Commands::Container::SendState < Commands::Base
+    handle :ct_send_state
 
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
-    include OsCtl::Lib::Utils::Migration
+    include OsCtl::Lib::Utils::Send
 
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])
@@ -17,14 +17,14 @@ module OsCtld
       manipulate(ct) do
         ct.exclusively do
           if !ct.migration_log || !ct.migration_log.can_continue?(:incremental)
-            error!('invalid migration sequence')
+            error!('invalid send sequence')
           end
 
           running = ct.state == :running
           call_cmd(Commands::Container::Stop, id: ct.id, pool: ct.pool.name)
         end
 
-        snap = "osctl-migrate-incr-#{Time.now.to_i}"
+        snap = "osctl-send-incr-#{Time.now.to_i}"
         zfs(:snapshot, '-r', "#{ct.dataset}@#{snap}")
 
         ct.exclusively do
@@ -45,13 +45,13 @@ module OsCtld
           ct.save_config
 
           if !ct.migration_log.can_continue?(:transfer)
-            error!('invalid migration sequence')
+            error!('invalid send sequence')
           end
         end
 
         progress('Starting on the target node')
         ret = system(
-          *migrate_ssh_cmd(
+          *send_ssh_cmd(
             ct.pool.migration_key_chain,
             ct.migration_log.opts,
             ['receive', 'transfer', ct.id] + (running ? ['start'] : [])
@@ -83,7 +83,7 @@ module OsCtld
 
       r, send = stream.spawn
       pid = Process.spawn(
-        *migrate_ssh_cmd(
+        *send_ssh_cmd(
           ct.pool.migration_key_chain,
           ct.migration_log.opts,
           ['receive', 'incremental', ct.id, ds.relative_name, snap]

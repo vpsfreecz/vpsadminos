@@ -12,7 +12,7 @@ module OsCtld
         error!('this container is not staged') if ct.state != :staged
 
         if !ct.migration_log || !ct.migration_log.can_continue?(:base)
-          error!('invalid migration sequence')
+          error!('invalid send sequence')
         end
 
         ds = OsCtl::Lib::Zfs::Dataset.new(dataset_name(ct), base: ct.dataset.name)

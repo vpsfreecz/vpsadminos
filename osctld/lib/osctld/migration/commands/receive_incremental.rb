@@ -13,7 +13,7 @@ module OsCtld
 
         ct.exclusively do
           if !ct.migration_log || !ct.migration_log.can_continue?(:incremental)
-            error!('invalid migration sequence')
+            error!('invalid send sequence')
           end
         end
 

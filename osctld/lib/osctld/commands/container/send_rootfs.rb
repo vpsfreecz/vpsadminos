@@ -1,12 +1,12 @@
 require 'osctld/commands/base'
 
 module OsCtld
-  class Commands::Container::MigrateSync < Commands::Base
-    handle :ct_migrate_sync
+  class Commands::Container::SendRootfs < Commands::Base
+    handle :ct_send_rootfs
 
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
-    include OsCtl::Lib::Utils::Migration
+    include OsCtl::Lib::Utils::Send
 
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])
@@ -15,11 +15,11 @@ module OsCtld
       manipulate(ct) do
         ct.exclusively do
           if !ct.migration_log || !ct.migration_log.can_continue?(:base)
-            error!('invalid migration sequence')
+            error!('invalid send sequence')
           end
         end
 
-        snap = "osctl-migrate-base-#{Time.now.to_i}"
+        snap = "osctl-send-base-#{Time.now.to_i}"
         zfs(:snapshot, '-r', "#{ct.dataset}@#{snap}")
 
         ct.exclusively do
@@ -63,7 +63,7 @@ module OsCtld
 
       r, send = stream.spawn
       pid = Process.spawn(
-        *migrate_ssh_cmd(
+        *send_ssh_cmd(
           ct.pool.migration_key_chain,
           ct.migration_log.opts,
           [

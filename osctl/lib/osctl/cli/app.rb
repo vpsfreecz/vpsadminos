@@ -1010,57 +1010,54 @@ module OsCtl::Cli
           c.action &Command.run(Container, :import)
         end
 
-        ct.desc 'Migrate container to another node'
-        ct.command :migrate do |m|
-          m.desc 'Step 1., copy configs to target node'
-          m.arg_name '<ctid> <dst>'
-          m.command :stage do |c|
+        ct.desc 'Send container at once (equals to steps 1-4 in succession)'
+        ct.arg_name '<ctid> <dst>'
+        ct.command :send do |s|
+          s.desc 'SSH port'
+          s.flag %i(p port), type: Integer, arg_name: 'port'
+
+          s.desc 'Delete the container after it is sent'
+          s.switch %i(d delete), default_value: true
+
+          s.action &Command.run(Send, :now)
+
+          s.desc 'Step 1., copy configs to target node'
+          s.arg_name '<ctid> <dst>'
+          s.command :config do |c|
             c.desc 'SSH port'
             c.flag %i(p port), type: Integer, arg_name: 'port'
 
-            c.action &Command.run(Migrate, :stage)
+            c.action &Command.run(Send, :config)
           end
 
-          m.desc 'Step 2., do an initial copy of container dataset'
-          m.arg_name '<ctid>'
-          m.command :sync do |c|
-            c.action &Command.run(Migrate, :sync)
+          s.desc 'Step 2., do an initial copy of container dataset'
+          s.arg_name '<ctid>'
+          s.command :rootfs do |c|
+            c.action &Command.run(Send, :rootfs)
           end
 
-          m.desc 'Step 3., transfer the container to target node'
-          m.arg_name '<ctid>'
-          m.command :transfer do |c|
-            c.action &Command.run(Migrate, :transfer)
+          s.desc 'Step 3., transfer the container to target node'
+          s.arg_name '<ctid>'
+          s.command :state do |c|
+            c.action &Command.run(Send, :state)
           end
 
-          m.desc 'Step 4., cleanup the container on the source node'
-          m.arg_name '<ctid>'
-          m.command :cleanup do |c|
+          s.desc 'Step 4., cleanup the container on the source node'
+          s.arg_name '<ctid>'
+          s.command :cleanup do |c|
             c.desc 'Delete the container'
             c.switch %i(d delete), default_value: true
 
-            c.action &Command.run(Migrate, :cleanup)
+            c.action &Command.run(Send, :cleanup)
           end
 
-          m.desc 'Cancel ongoing migration in mid-step'
-          m.arg_name '<ctid>'
-          m.command :cancel do |c|
-            c.desc 'Cancel the migration on the local node, even if remote fails'
+          s.desc 'Cancel ongoing send in mid-step'
+          s.arg_name '<ctid>'
+          s.command :cancel do |c|
+            c.desc 'Cancel the send on the local node, even if remote fails'
             c.switch %i(f force), negatable: false
 
-            c.action &Command.run(Migrate, :cancel)
-          end
-
-          m.desc 'Migrate container at once (equals to steps 1-4 in succession)'
-          m.arg_name '<ctid> <dst>'
-          m.command :now do |c|
-            c.desc 'SSH port'
-            c.flag %i(p port), type: Integer, arg_name: 'port'
-
-            c.desc 'Delete the container after migration'
-            c.switch %i(d delete), default_value: true
-
-            c.action &Command.run(Migrate, :now)
+            c.action &Command.run(Send, :cancel)
           end
         end
 

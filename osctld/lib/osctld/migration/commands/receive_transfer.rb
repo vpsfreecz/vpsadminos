@@ -17,7 +17,7 @@ module OsCtld
         error!('this container is not staged') if ct.state != :staged
 
         if !ct.migration_log || !ct.migration_log.can_continue?(:transfer)
-          error!('invalid migration sequence')
+          error!('invalid send sequence')
         end
 
         ct.state = :complete

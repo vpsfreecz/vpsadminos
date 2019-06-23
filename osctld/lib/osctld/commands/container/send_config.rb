@@ -2,17 +2,17 @@ require 'osctld/commands/base'
 require 'tempfile'
 
 module OsCtld
-  class Commands::Container::MigrateStage < Commands::Base
-    handle :ct_migrate_stage
+  class Commands::Container::SendConfig < Commands::Base
+    handle :ct_send_config
 
-    include OsCtl::Lib::Utils::Migration
+    include OsCtl::Lib::Utils::Send
 
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])
       error!('container not found') unless ct
 
       manipulate(ct) do
-        next error('this container is already being migrated') if ct.migration_log
+        next error('this container is already being sent') if ct.migration_log
 
         f = Tempfile.open("ct-#{ct.id}-skel")
         export(ct, f)
@@ -23,7 +23,7 @@ module OsCtld
           dst: opts[:dst],
         }
 
-        ssh = migrate_ssh_cmd(
+        ssh = send_ssh_cmd(
           ct.pool.migration_key_chain,
           m_opts,
           ['receive', 'skel']
@@ -40,7 +40,7 @@ module OsCtld
           ct.open_migration_log(:source, m_opts)
           ok
         else
-          error('stage failed')
+          error('send config failed')
         end
       end
     end

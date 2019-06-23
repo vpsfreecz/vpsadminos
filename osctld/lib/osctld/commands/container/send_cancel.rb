@@ -2,12 +2,12 @@ require 'osctld/commands/base'
 require 'open3'
 
 module OsCtld
-  class Commands::Container::MigrateCancel < Commands::Base
-    handle :ct_migrate_cancel
+  class Commands::Container::SendCancel < Commands::Base
+    handle :ct_send_cancel
 
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
-    include OsCtl::Lib::Utils::Migration
+    include OsCtl::Lib::Utils::Send
 
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])
@@ -15,11 +15,11 @@ module OsCtld
 
       ct.exclusively do
         if !ct.migration_log || !ct.migration_log.can_continue?(:cancel)
-          error!('invalid migration sequence')
+          error!('invalid send sequence')
         end
 
         ret = system(
-          *migrate_ssh_cmd(
+          *send_ssh_cmd(
             ct.pool.migration_key_chain,
             ct.migration_log.opts,
             ['receive', 'cancel', ct.id]

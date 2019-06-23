@@ -1,6 +1,6 @@
 module OsCtl::Lib
-  module Utils::Migration
-    def migrate_ssh_cmd(key_chain, m_opts, cmd)
+  module Utils::Send
+    def send_ssh_cmd(key_chain, m_opts, cmd)
       ret = [
         'ssh',
         '-o', 'StrictHostKeyChecking=no',

@@ -1,8 +1,8 @@
 require 'osctld/commands/base'
 
 module OsCtld
-  class Commands::Container::MigrateCleanup < Commands::Base
-    handle :ct_migrate_cleanup
+  class Commands::Container::SendCleanup < Commands::Base
+    handle :ct_send_cleanup
 
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
@@ -13,7 +13,7 @@ module OsCtld
 
       ct.exclusively do
         if !ct.migration_log || !ct.migration_log.can_continue?(:cleanup)
-          error!('invalid migration sequence')
+          error!('invalid send sequence')
         end
 
         if opts[:delete]
