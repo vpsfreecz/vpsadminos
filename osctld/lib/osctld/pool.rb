@@ -135,7 +135,7 @@ module OsCtld
           mode: 0500
         )
         add.directory(
-          File.join(conf_path, 'migration'),
+          File.join(conf_path, 'send-receive'),
           desc: 'Identity and authorized keys for container send/receive',
           user: 0,
           group: 0,
@@ -450,7 +450,7 @@ module OsCtld
       File.chmod(0500, path(MIGRATION_DS))
 
       # Configuration directories
-      %w(pool ct group user migration repository id-range).each do |dir|
+      %w(pool ct group user send-receive repository id-range).each do |dir|
         path = File.join(conf_path, dir)
         Dir.mkdir(path, 0500) unless Dir.exist?(path)
       end

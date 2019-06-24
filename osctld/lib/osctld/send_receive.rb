@@ -16,7 +16,7 @@ module OsCtld
       reset
 
       unless File.symlink?(HOOK)
-        File.symlink(OsCtld::hook_src('migration'), HOOK)
+        File.symlink(OsCtld::hook_src('send-receive'), HOOK)
       end
     end
 

@@ -19,7 +19,7 @@ in
 
         Match User migration
           PasswordAuthentication no
-          AuthorizedKeysFile /run/osctl/migration/authorized_keys
+          AuthorizedKeysFile /run/osctl/send-receive/authorized_keys
       '';
 
       runit.services.sshd = {

@@ -3,7 +3,7 @@ module OsCtld
     RUNDIR = '/run/osctl'
     POOL_DIR = File.join(RUNDIR, 'pools')
     USER_CONTROL_DIR = File.join(RUNDIR, 'user-control')
-    SEND_RECEIVE_DIR = File.join(RUNDIR, 'migration')
+    SEND_RECEIVE_DIR = File.join(RUNDIR, 'send-receive')
     REPOSITORY_DIR = File.join(RUNDIR, 'repository')
     CONFIG_DIR = File.join(RUNDIR, 'configs')
     LXC_CONFIG_DIR = File.join(CONFIG_DIR, 'lxc')

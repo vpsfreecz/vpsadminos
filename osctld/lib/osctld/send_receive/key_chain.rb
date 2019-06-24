@@ -89,7 +89,7 @@ module OsCtld
     end
 
     def private_key_path
-      File.join(pool.conf_path, 'migration', 'key')
+      File.join(pool.conf_path, 'send-receive', 'key')
     end
 
     def public_key_path
@@ -97,7 +97,7 @@ module OsCtld
     end
 
     def authorized_keys_path
-      File.join(pool.conf_path, 'migration', 'authorized_keys')
+      File.join(pool.conf_path, 'send-receive', 'authorized_keys')
     end
 
     protected

@@ -134,7 +134,7 @@
   users.extraUsers.migration = {
     uid = 499;
     description = "User for container migrations";
-    home = "/run/osctl/migration";
+    home = "/run/osctl/send-receive";
     shell = pkgs.bashInteractive;
   };
 

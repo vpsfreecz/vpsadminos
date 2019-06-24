@@ -2,7 +2,7 @@
 require 'json'
 require 'socket'
 
-class Migration
+class SendReceive
   COMMANDS = %w(skel base incremental transfer cancel)
 
   def initialize(cmdline)
@@ -84,7 +84,7 @@ class Migration
   end
 
   def connect
-    @client = UNIXSocket.new('/run/osctl/migration/control.sock')
+    @client = UNIXSocket.new('/run/osctl/send-receive/control.sock')
   end
 
   def send_cmd(cmd, opts = {})
@@ -139,4 +139,4 @@ END
   end
 end
 
-Migration.new(ENV['SSH_ORIGINAL_COMMAND'])
+SendReceive.new(ENV['SSH_ORIGINAL_COMMAND'])
