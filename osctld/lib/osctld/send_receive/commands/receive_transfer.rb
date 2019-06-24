@@ -1,8 +1,8 @@
 require 'libosctl'
-require 'osctld/migration/commands/base'
+require 'osctld/send_receive/commands/base'
 
 module OsCtld
-  class Migration::Commands::Transfer < Migration::Commands::Base
+  class SendReceive::Commands::Transfer < SendReceive::Commands::Base
     handle :receive_transfer
 
     include OsCtl::Lib::Utils::Log

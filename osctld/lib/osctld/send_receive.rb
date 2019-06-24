@@ -2,14 +2,14 @@ require 'etc'
 require 'osctld/run_state'
 
 module OsCtld
-  module Migration
+  module SendReceive
     module Commands ; end
 
     USER = 'migration'
     UID = Etc.getpwnam(USER).uid
-    SOCKET = File.join(RunState::MIGRATION_DIR, 'control.sock')
-    AUTHORIZED_KEYS = File.join(RunState::MIGRATION_DIR, 'authorized_keys')
-    HOOK = File.join(RunState::MIGRATION_DIR, 'run')
+    SOCKET = File.join(RunState::SEND_RECEIVE_DIR, 'control.sock')
+    AUTHORIZED_KEYS = File.join(RunState::SEND_RECEIVE_DIR, 'authorized_keys')
+    HOOK = File.join(RunState::SEND_RECEIVE_DIR, 'run')
 
     def self.setup
       Server.start
@@ -26,7 +26,7 @@ module OsCtld
 
     def self.deploy
       reset
-      DB::Pools.get.each { |pool| pool.migration_key_chain.deploy }
+      DB::Pools.get.each { |pool| pool.send_receive_key_chain.deploy }
     end
 
     def self.reset
@@ -41,7 +41,7 @@ module OsCtld
       )
       add.file(
         AUTHORIZED_KEYS,
-        desc: 'Keys that are authorized to migrate to this node',
+        desc: 'Keys that are authorized to send containers to this node',
         user: UID,
         group: 0,
         mode: 0400

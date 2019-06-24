@@ -1,11 +1,11 @@
 module OsCtld
-  # This class serves as a scratchpad for migrations
+  # This class serves as a scratchpad for container send/receive
   #
   # Both the source and the destination nodes have an instance of this class
-  # per container. This class determines whether the next step of the migration
-  # can proceed, stores names of snapshots created during the migration and
+  # per container. This class determines whether the next step of the send
+  # can proceed, stores names of snapshots created during the send and
   # other settings.
-  class Migration::Log
+  class SendReceive::Log
     STATES = %i(stage base incremental cancel transfer cleanup)
 
     attr_reader :role, :state, :snapshots, :opts

@@ -1492,8 +1492,8 @@ module OsCtl::Cli
         end
       end
 
-      desc 'Migration key chain management'
-      command :migration do |m|
+      desc 'Key chain management for container sends'
+      command :send do |m|
         m.desc 'Manage local node identity'
         m.command :key do |k|
           k.desc 'Generate a new public/private key pair'
@@ -1507,32 +1507,35 @@ module OsCtl::Cli
             c.desc 'Overwrite existing key'
             c.switch %i(f force), negatable: false
 
-            c.action &Command.run(Migration, :key_gen)
+            c.action &Command.run(Send, :key_gen)
           end
 
           k.desc 'Print path to public/private key'
           k.arg_name '[public | private]'
           k.command :path do |c|
-            c.action &Command.run(Migration, :key_path)
+            c.action &Command.run(Send, :key_path)
           end
         end
+      end
 
-        m.desc 'Manage keys authorized to migrate containers to this node'
+      desc 'Key chain management for receiving containers'
+      command :receive do |m|
+        m.desc 'Manage keys authorized to send containers to this node'
         m.command 'authorized-keys' do |a|
           a.desc 'List authorized keys'
           a.command %i(ls list) do |c|
-            c.action &Command.run(Migration, :authorized_keys_list)
+            c.action &Command.run(Receive, :authorized_keys_list)
           end
 
           a.desc 'Authorize a new key'
           a.command :add do |c|
-            c.action &Command.run(Migration, :authorized_keys_add)
+            c.action &Command.run(Receive, :authorized_keys_add)
           end
 
           a.desc 'Remove authorized key by index'
           a.arg_name '<index>'
           a.command %i(del delete) do |c|
-            c.action &Command.run(Migration, :authorized_keys_delete)
+            c.action &Command.run(Receive, :authorized_keys_delete)
           end
         end
       end

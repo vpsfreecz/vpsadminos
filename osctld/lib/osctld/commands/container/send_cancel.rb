@@ -20,7 +20,7 @@ module OsCtld
 
         ret = system(
           *send_ssh_cmd(
-            ct.pool.migration_key_chain,
+            ct.pool.send_receive_key_chain,
             ct.send_log.opts,
             ['receive', 'cancel', ct.id]
           )

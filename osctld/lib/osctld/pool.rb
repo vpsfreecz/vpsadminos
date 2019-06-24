@@ -28,7 +28,7 @@ module OsCtld
     include OsCtl::Lib::Utils::System
     include OsCtl::Lib::Utils::File
 
-    attr_reader :name, :dataset, :state, :migration_key_chain, :autostart_plan,
+    attr_reader :name, :dataset, :state, :send_receive_key_chain, :autostart_plan,
       :attrs
 
     def initialize(name, dataset)
@@ -42,7 +42,7 @@ module OsCtld
 
       load_config
 
-      @migration_key_chain = Migration::KeyChain.new(self)
+      @send_receive_key_chain = SendReceive::KeyChain.new(self)
       @autostart_plan = AutoStart::Plan.new(self)
     end
 
@@ -136,7 +136,7 @@ module OsCtld
         )
         add.directory(
           File.join(conf_path, 'migration'),
-          desc: 'Identity and authorized keys for migrations',
+          desc: 'Identity and authorized keys for container send/receive',
           user: 0,
           group: 0,
           mode: 0500
@@ -175,8 +175,8 @@ module OsCtld
         # Pool history
         History.assets(pool, add)
 
-        # Migration
-        migration_key_chain.assets(add)
+        # Send/Receive
+        send_receive_key_chain.assets(add)
 
         # Runstate
         add.directory(
@@ -257,8 +257,8 @@ module OsCtld
       # Allow containers to create veth interfaces
       Commands::User::LxcUsernet.run
 
-      # Load migration keys
-      migration_key_chain.setup
+      # Load send/receive keys
+      send_receive_key_chain.setup
 
       # Load repositories
       load_repositories

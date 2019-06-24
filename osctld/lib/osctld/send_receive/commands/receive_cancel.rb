@@ -1,7 +1,7 @@
-require 'osctld/migration/commands/base'
+require 'osctld/send_receive/commands/base'
 
 module OsCtld
-  class Migration::Commands::ReceiveCancel < Migration::Commands::Base
+  class SendReceive::Commands::ReceiveCancel < SendReceive::Commands::Base
     handle :receive_cancel
 
     include OsCtl::Lib::Utils::Log

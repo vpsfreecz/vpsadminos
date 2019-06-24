@@ -11,11 +11,12 @@ module OsCtld
     module Group ; end
     module History ; end
     module IdRange ; end
-    module Migration ; end
     module NetInterface ; end
     module Pool ; end
+    module Receive ; end
     module Repository ; end
     module Self ; end
+    module Send ; end
     module User ; end
   end
   module DB ; end
@@ -79,6 +80,6 @@ require_rel 'osctld/routing'
 require_rel 'osctld/switch_user'
 
 require_rel 'osctld/commands'
-require_rel 'osctld/migration'
+require_rel 'osctld/send_receive'
 require_rel 'osctld/user_control'
 require_rel 'osctld/container_control'

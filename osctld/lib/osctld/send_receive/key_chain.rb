@@ -1,5 +1,5 @@
 module OsCtld
-  class Migration::KeyChain
+  class SendReceive::KeyChain
     def initialize(pool)
       @pool = pool
     end
@@ -23,7 +23,7 @@ module OsCtld
       )
       add.file(
         authorized_keys_path,
-        desc: 'Keys authorized to migrate to this node',
+        desc: 'Keys authorized to send containers to this node',
         user: 0,
         group: 0,
         mode: 0400,
@@ -39,12 +39,12 @@ module OsCtld
       return unless File.exist?(authorized_keys_path)
 
       options = [
-        "command=\"#{File.join(Migration::HOOK)}\"",
+        "command=\"#{File.join(SendReceive::HOOK)}\"",
         'restrict',
       ]
 
       # Generate new authorized_keys
-      regenerate_existing_file(Migration::AUTHORIZED_KEYS) do |new, old|
+      regenerate_existing_file(SendReceive::AUTHORIZED_KEYS) do |new, old|
         old.each_line { |line| new.write(line) }
 
         authorized_keys do |key|

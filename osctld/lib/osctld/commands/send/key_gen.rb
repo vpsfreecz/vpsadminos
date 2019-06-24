@@ -1,8 +1,8 @@
 require 'osctld/commands/logged'
 
 module OsCtld
-  class Commands::Migration::KeyGen < Commands::Logged
-    handle :migration_key_gen
+  class Commands::Send::KeyGen < Commands::Logged
+    handle :send_key_gen
 
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
@@ -19,8 +19,8 @@ module OsCtld
     end
 
     def execute(pool)
-      privkey = pool.migration_key_chain.private_key_path
-      pubkey = pool.migration_key_chain.public_key_path
+      privkey = pool.send_receive_key_chain.private_key_path
+      pubkey = pool.send_receive_key_chain.public_key_path
 
       [privkey, pubkey].each do |v|
         File.unlink(v) if File.exist?(v)

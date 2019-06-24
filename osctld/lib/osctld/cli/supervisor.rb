@@ -103,7 +103,7 @@ module OsCtld
         File.unlink(f)
       end
 
-      File.unlink(Migration::SOCKET) if File.exist?(Migration::SOCKET)
+      File.unlink(SendReceive::SOCKET) if File.exist?(SendReceive::SOCKET)
     end
   end
 end

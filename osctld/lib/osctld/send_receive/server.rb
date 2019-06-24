@@ -3,10 +3,10 @@ require 'thread'
 require 'osctld/generic/client_handler'
 
 module OsCtld
-  class Migration::Server
+  class SendReceive::Server
     class ClientHandler < Generic::ClientHandler
       def handle_cmd(req)
-        cmd = Migration::Command.find(req[:cmd].to_sym)
+        cmd = SendReceive::Command.find(req[:cmd].to_sym)
         error!("Unsupported command '#{req[:cmd]}'") unless cmd
 
         cmd.run(req[:opts], handler: self)
@@ -38,9 +38,9 @@ module OsCtld
 
     public
     def start
-      socket = UNIXServer.new(Migration::SOCKET)
-      File.chown(Migration::UID, 0, Migration::SOCKET)
-      File.chmod(0600, Migration::SOCKET)
+      socket = UNIXServer.new(SendReceive::SOCKET)
+      File.chown(SendReceive::UID, 0, SendReceive::SOCKET)
+      File.chmod(0600, SendReceive::SOCKET)
 
       @server = Generic::Server.new(socket, ClientHandler)
       @thread = Thread.new { @server.start }
@@ -49,14 +49,14 @@ module OsCtld
     def stop
       @server.stop
       @thread.join
-      File.unlink(Migration::SOCKET)
+      File.unlink(SendReceive::SOCKET)
     end
 
     def assets(add)
       add.socket(
-        Migration::SOCKET,
-        desc: 'Socket for migration control',
-        user: Migration::UID,
+        SendReceive::SOCKET,
+        desc: 'Socket for send/receive control',
+        user: SendReceive::UID,
         group: 0,
         mode: 0600
       )

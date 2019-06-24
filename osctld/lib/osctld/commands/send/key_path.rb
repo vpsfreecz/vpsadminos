@@ -1,8 +1,8 @@
 require 'osctld/commands/base'
 
 module OsCtld
-  class Commands::Migration::AuthKeyList < Commands::Base
-    handle :migration_authkey_list
+  class Commands::Send::KeyPath < Commands::Base
+    handle :send_key_path
 
     def execute
       if opts[:pool]
@@ -14,7 +14,10 @@ module OsCtld
 
       error!('pool not found') unless pool
 
-      ok(pool.migration_key_chain.authorized_keys)
+      ok(
+        private_key: pool.send_receive_key_chain.private_key_path,
+        public_key: pool.send_receive_key_chain.public_key_path,
+      )
     end
   end
 end

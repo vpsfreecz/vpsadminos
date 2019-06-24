@@ -64,7 +64,7 @@ module OsCtld
       r, send = stream.spawn
       pid = Process.spawn(
         *send_ssh_cmd(
-          ct.pool.migration_key_chain,
+          ct.pool.send_receive_key_chain,
           ct.send_log.opts,
           [
             'receive', from_snap ? 'incremental' : 'base',

@@ -95,8 +95,8 @@ module OsCtld
       # Setup shared AppArmor files
       AppArmor.setup
 
-      # Migration hooks and server
-      Migration.setup
+      # Send/Receive hooks and server
+      SendReceive.setup
 
       # Setup network interfaces
       NetInterface.setup
@@ -138,7 +138,7 @@ module OsCtld
       @server.stop if @server
       File.unlink(SOCKET) if File.exist?(SOCKET)
       UserControl.stop
-      Migration.stop
+      SendReceive.stop
       DB::Pools.get.each { |pool| pool.stop }
       ThreadReaper.stop
       Monitor::Master.stop

@@ -1,8 +1,8 @@
 require 'osctld/commands/logged'
 
 module OsCtld
-  class Commands::Migration::AuthKeyAdd < Commands::Logged
-    handle :migration_authkey_add
+  class Commands::Receive::AuthKeyDelete < Commands::Logged
+    handle :receive_authkey_delete
 
     def find
       if opts[:pool]
@@ -16,8 +16,8 @@ module OsCtld
     end
 
     def execute(pool)
-      pool.migration_key_chain.authorize_key(opts[:public_key])
-      Migration.deploy
+      pool.send_receive_key_chain.revoke_key(opts[:index])
+      SendReceive.deploy
       ok
     end
   end

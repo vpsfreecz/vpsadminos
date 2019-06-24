@@ -490,7 +490,7 @@ module OsCtld
     end
 
     def open_send_log(role, opts = {})
-      self.send_log = Migration::Log.new(role: role, opts: opts)
+      self.send_log = SendReceive::Log.new(role: role, opts: opts)
       save_config
     end
 
@@ -597,7 +597,7 @@ module OsCtld
         @dns_resolvers = cfg['dns_resolvers']
         @nesting = cfg['nesting'] || false
         @seccomp_profile = cfg['seccomp_profile'] || default_seccomp_profile
-        @send_log = Migration::Log.load(cfg['send_log']) if cfg['send_log']
+        @send_log = SendReceive::Log.load(cfg['send_log']) if cfg['send_log']
         @cgparams = CGroup::ContainerParams.load(self, cfg['cgparams'])
         @prlimits = PrLimits::Manager.load(self, cfg['prlimits'] || {})
         @attrs = Attributes.load(cfg['attrs'] || {})

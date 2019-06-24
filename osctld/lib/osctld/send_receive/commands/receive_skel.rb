@@ -1,8 +1,8 @@
 require 'tempfile'
-require 'osctld/migration/commands/base'
+require 'osctld/send_receive/commands/base'
 
 module OsCtld
-  class Migration::Commands::ReceiveSkel < Migration::Commands::Base
+  class SendReceive::Commands::ReceiveSkel < SendReceive::Commands::Base
     handle :receive_skel
 
     def execute

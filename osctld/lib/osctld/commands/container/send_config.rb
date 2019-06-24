@@ -24,7 +24,7 @@ module OsCtld
         }
 
         ssh = send_ssh_cmd(
-          ct.pool.migration_key_chain,
+          ct.pool.send_receive_key_chain,
           m_opts,
           ['receive', 'skel']
         )
