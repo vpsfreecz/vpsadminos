@@ -24,7 +24,10 @@ module OsCtld
           end
         end
 
-        unless ct.send_log.opts.cloned?
+        cloned = ct.send_log.opts.cloned?
+        ct.close_send_log
+
+        unless cloned
           call_cmd!(
             Commands::Container::Delete,
             pool: ct.pool.name,
@@ -32,7 +35,6 @@ module OsCtld
           )
         end
 
-        ct.close_send_log
         ok
       end
     end
