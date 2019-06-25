@@ -17,6 +17,7 @@ module OsCtld
           dst: opts[:dst],
           port: opts[:port],
           as_id: opts[:as_id],
+          to_pool: opts[:to_pool],
         )
 
         progress(type: :step, title: 'Sending rootfs')

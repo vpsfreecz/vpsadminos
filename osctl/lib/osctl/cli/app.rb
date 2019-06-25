@@ -1019,6 +1019,9 @@ module OsCtl::Cli
           s.desc 'Send the container with a different id'
           s.flag 'as-id'
 
+          s.desc 'Pool on the target node to send the container to'
+          s.flag 'to-pool'
+
           s.desc 'Clone the container on the target node, do not move it'
           s.switch :clone
 
@@ -1041,6 +1044,9 @@ module OsCtl::Cli
 
             c.desc 'Send the container with a different id'
             c.flag 'as-id'
+
+            c.desc 'Pool on the target node to send the container to'
+            c.flag 'to-pool'
 
             c.action &Command.run(Send, :config)
           end

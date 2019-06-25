@@ -14,7 +14,7 @@ module OsCtld
       manipulate(ct) do
         next error('this container is already being sent') if ct.send_log
 
-        ctid = opts[:as_id] || ct.id
+        ctid = make_ctid(ct)
 
         f = Tempfile.open("ct-#{ct.id}-skel")
         export(ct, ctid, f)
@@ -55,6 +55,16 @@ module OsCtld
       exporter.dump_configs
       exporter.dump_user_hook_scripts(Container::Hook.hooks)
       exporter.close
+    end
+
+    def make_ctid(ct)
+      id = opts[:as_id] || ct.id
+
+      if opts[:to_pool]
+        [opts[:to_pool], id].join(':')
+      else
+        id
+      end
     end
   end
 end

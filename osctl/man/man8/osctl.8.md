@@ -1251,6 +1251,10 @@ read by `ls` or `show` commands.
     `--as-id` *ctid*
       Send the container with a different ID.
 
+    `--to-pool` *pool*
+      Select pool on the target node to send the container to. If not set, the
+      target node uses its first available pool.
+
     `--clone`
       Do not move the container to *destination*, but clone it.
 
@@ -1277,6 +1281,10 @@ read by `ls` or `show` commands.
 
     `--as-id` *ctid*
       Send the container with a different ID.
+
+    `--to-pool` *pool*
+      Select pool on the target node to send the container to. If not set, the
+      target node uses its first available pool.
 
 `ct send rootfs` *ctid*
   Continue sending of container *ctid* to previously configured

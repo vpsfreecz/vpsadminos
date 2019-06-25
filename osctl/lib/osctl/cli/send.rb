@@ -50,6 +50,7 @@ module OsCtl::Cli
         dst: args[1],
         port: opts[:port],
         as_id: opts['as-id'],
+        to_pool: opts['to-pool'],
       )
     end
 
@@ -108,6 +109,7 @@ module OsCtl::Cli
         dst: args[1],
         port: opts[:port],
         as_id: opts['as-id'],
+        to_pool: opts['to-pool'],
         clone: opts[:clone],
         consistent: opts[:consistent],
         restart: opts[:restart],
