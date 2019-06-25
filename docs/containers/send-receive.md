@@ -39,7 +39,7 @@ Usage:
   receive skel [pool]
   receive base [pool:]<id> <dataset> [snapshot]
   receive incremental [pool:]<id> <dataset> [snapshot]
-  receive transfer [pool:]<id>
+  receive transfer [pool:]<id> [start]
   receive cancel [pool:]<id>
 ```
 
