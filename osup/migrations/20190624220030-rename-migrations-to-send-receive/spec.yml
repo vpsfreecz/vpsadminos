@@ -1,0 +1,7 @@
+description: |
+  Pool configuration directory where data related to container migration
+  are stored were renamed from migration to send-receive. Configuration keys
+  in container configs are updated as well.
+
+snapshot:
+ - conf
