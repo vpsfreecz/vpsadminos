@@ -170,9 +170,9 @@ the device would automatically get inherited again when the pool is imported
 again. You can, however, restrict access to inherited devices using
 `osctl ct/group devices chmod`. To deny access completely, you can use mode `-`.
 
-## Migrations, export/import
+## Send/receive, export/import
 Since we're using device inheritance, we cannot ensure that a container will have
-access to all expected devices when migrated or imported to another node with
+access to all expected devices when sent or imported to another node with
 different device hierarchy. *osctld* can check only for explicitly defined
 devices for the container, i.e. non-inherited devices.
 
@@ -181,6 +181,6 @@ devices are present. If not, the import is aborted. You can use option
 `--missing-devices check|provide|remove` to change this behaviour.
 
 Migrations enforce the *check* mode. All required devices have to be present,
-or the migration will fail in the first step, i.e. `osctl ct migrate stage`.
+or the send will fail in the first step, i.e. `osctl ct send config`.
 It is up to the administrator to configure his vpsAdminOS nodes to provide
-the same environment for migrations to work properly.
+the same environment for sends to work properly.

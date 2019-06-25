@@ -27,7 +27,7 @@ tank/repository     5.03M   874M  5.03M  /tank/repository
 ```
 
 Dataset `tank/conf` is used to store configuration files for users, groups,
-containers, repositories and migrations in respective subdirectories.
+containers, repositories and container send/receive in respective subdirectories.
 The configuration files actually define those entities, i.e. when there is no
 configuration file for a container, the container does not exist.
 

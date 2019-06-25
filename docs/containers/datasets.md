@@ -18,7 +18,7 @@ from within the container.
 or provide specific configuration of ZFS properties. Subdatasets can be created
 using the *zfs* command-line utility, but you'd have to mount them manually,
 What's worse, *osctld* wouldn't be able to ensure that your mounts would
-work after container export/import or migration to another vpsAdminOS node,
+work after container export/import or send to another vpsAdminOS node,
 which may have different pool paths. This is the reason why *osctl* has commands
 for manipulating container subdatasets.
 
@@ -84,7 +84,7 @@ tank/ct/myct01/srv/www   0:666000:65536  0:666000:65536
 ```
 
 All container's subdatasets are considered an integral part of the container,
-i.e. they are exported or migrated together with the container. For this reason,
+i.e. they are exported or sent together with the container. For this reason,
 it is not recommended to cross-mount subdatasets of one container to another
 container, as you would have to maintain that dependency on your own.
 
@@ -127,7 +127,7 @@ tank/ct/myct01/srv/www   0:666000:65536  0:666000:65536
 Subdatasets can be mounted at any time using `osctl ct mount dataset`. While they
 could also be mounted using `osctl ct mount new`, they wouldn't be tracked
 as a subdataset mount, which could prevent successful container export/import
-or migration, as mentioned above.
+or send, as mentioned above.
 
 ```shell
 osctl ct mount dataset myct01 custom /mnt/custom

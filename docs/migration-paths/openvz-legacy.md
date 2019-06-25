@@ -192,8 +192,8 @@ vpsadminos-node $ osctl ct import ct-101.tar
 The converter can migrate the container from OpenVZ nodes into vpsAdminOS nodes,
 without dumping it into a file first. The two nodes have to be running at the
 same time. Migration can save you some downtime and disk space, it works like
-`vzmigrate` from OpenVZ and exactly like `osctl ct migrate` between two vpsAdminOS
-nodes. In the worst case scenario, the container will not start on vpsAdminOS,
+`vzmigrate` from OpenVZ and `osctl ct send` between two vpsAdminOS nodes.
+In the worst case scenario, the container will not start on vpsAdminOS,
 or will be misconfigured and services won't be available. However, the container
 safely remains back on the OpenVZ node, where it can be restarted and another
 migration attempt can be made later.
@@ -212,13 +212,13 @@ openvz-node $ cat ~/.ssh/id_rsa.pub
 Then authorize the key on the vpsAdminOS node:
 
 ```shell
-vpsadminos-node $ osctl migration authorized-keys add
+vpsadminos-node $ osctl receive authorized-keys add
 <here you enter the public key>
 ```
 
 ### Migration stages
-The migration is split into several steps, exactly like
-[osctl ct migrate](../containers/migrations.md) is:
+The migration is split into several steps like
+[osctl ct send](../containers/send-receive.md) is:
  
  - `vpsadminos-converter vz6 migrate stage` is used to prepare environment on
    the destination node and copy the converted configuration
