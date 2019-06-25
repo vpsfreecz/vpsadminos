@@ -11,9 +11,11 @@ module OsCtld
       ct = DB::Containers.find(opts[:id], opts[:pool])
       error!('container not found') unless ct
 
-      ct.exclusively do
-        if !ct.send_log || !ct.send_log.can_continue?(:cleanup)
-          error!('invalid send sequence')
+      manipulate(ct) do
+        ct.exclusively do
+          if !ct.send_log || !ct.send_log.can_continue?(:cleanup)
+            error!('invalid send sequence')
+          end
         end
 
         ct.each_dataset do |ds|

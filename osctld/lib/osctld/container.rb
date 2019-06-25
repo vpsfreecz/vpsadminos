@@ -490,13 +490,17 @@ module OsCtld
     end
 
     def open_send_log(role, opts = {})
-      self.send_log = SendReceive::Log.new(role: role, opts: opts)
-      save_config
+      exclusively do
+        self.send_log = SendReceive::Log.new(role: role, opts: opts)
+        save_config
+      end
     end
 
     def close_send_log(save: true)
-      self.send_log = nil
-      save_config if save
+      exclusively do
+        self.send_log = nil
+        save_config if save
+      end
     end
 
     # Export to clients
