@@ -26,6 +26,8 @@ ln -sf /proc/mounts /etc/mtab
 touch /run/{u,w}tmp
 mkdir /run/wrappers
 
+chmod +t /tmp
+
 hostname @hostName@
 
 $systemConfig/activate
