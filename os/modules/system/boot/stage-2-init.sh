@@ -17,7 +17,7 @@ mount -t sysfs sys /sys
 mount -t devtmpfs devtmpfs /dev
 mkdir -p /dev/pts /dev/shm
 mount -t devpts -ogid=3 devpts /dev/pts
-mount -t tmpfs tmpfs /run
+mount -t tmpfs -o mode=755 tmpfs /run
 mount -t tmpfs tmpfs /dev/shm
 
 ln -sfn /run /var/run
