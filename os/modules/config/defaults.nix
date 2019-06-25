@@ -131,9 +131,9 @@
     "rpc".source = pkgs.glibc.out + "/etc/rpc";
   };
 
-  users.extraUsers.migration = {
+  users.extraUsers.osctl-ct-receive = {
     uid = 499;
-    description = "User for container migrations";
+    description = "User for container send/receive";
     home = "/run/osctl/send-receive";
     shell = pkgs.bashInteractive;
   };

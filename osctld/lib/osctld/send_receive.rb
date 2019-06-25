@@ -5,7 +5,7 @@ module OsCtld
   module SendReceive
     module Commands ; end
 
-    USER = 'migration'
+    USER = 'osctl-ct-receive'
     UID = Etc.getpwnam(USER).uid
     SOCKET = File.join(RunState::SEND_RECEIVE_DIR, 'control.sock')
     AUTHORIZED_KEYS = File.join(RunState::SEND_RECEIVE_DIR, 'authorized_keys')

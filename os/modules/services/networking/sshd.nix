@@ -17,7 +17,7 @@ in
       services.openssh.extraConfig = ''
         PidFile /run/sshd.pid
 
-        Match User migration
+        Match User osctl-ct-receive
           PasswordAuthentication no
           AuthorizedKeysFile /run/osctl/send-receive/authorized_keys
       '';

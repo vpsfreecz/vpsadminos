@@ -11,7 +11,7 @@ module OsCtl::Lib
       ret.concat(['-i', key_chain.private_key_path]) if key_chain
 
       ret.concat([
-        '-l', 'migration',
+        '-l', 'osctl-ct-receive',
         m_opts[:dst],
         *cmd
       ])
