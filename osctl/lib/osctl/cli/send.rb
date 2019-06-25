@@ -48,7 +48,8 @@ module OsCtl::Cli
         pool: gopts[:pool],
         id: args[0],
         dst: args[1],
-        port: opts[:port]
+        port: opts[:port],
+        as_id: opts['as-id'],
       )
     end
 
@@ -103,7 +104,8 @@ module OsCtl::Cli
         id: args[0],
         dst: args[1],
         port: opts[:port],
-        delete: opts[:delete]
+        as_id: opts['as-id'],
+        delete: opts[:delete],
       )
     end
 

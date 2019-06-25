@@ -22,7 +22,7 @@ module OsCtld
           *send_ssh_cmd(
             ct.pool.send_receive_key_chain,
             ct.send_log.opts,
-            ['receive', 'cancel', ct.id]
+            ['receive', 'cancel', ct.send_log.opts.ctid]
           )
         )
 

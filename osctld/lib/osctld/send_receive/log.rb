@@ -13,6 +13,9 @@ module OsCtld
         new(Hash[cfg.map { |k,v| [k.to_sym, v] }])
       end
 
+      # @return [String]
+      attr_reader :ctid
+
       # @return [Integer]
       attr_reader :port
 
@@ -20,9 +23,11 @@ module OsCtld
       attr_reader :dst
 
       # @param opts [Hash]
+      # @option opts [String] :ctid
       # @option opts [Integer] :port
       # @option opts [String] :dst
       def initialize(opts)
+        @ctid = opts.delete(:ctid)
         @port = opts.delete(:port)
         @dst = opts.delete(:dst)
 
@@ -38,6 +43,7 @@ module OsCtld
 
       def dump
         {
+          'ctid' => ctid,
           'port' => port,
           'dst' => dst,
         }

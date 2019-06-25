@@ -1016,6 +1016,9 @@ module OsCtl::Cli
           s.desc 'SSH port'
           s.flag %i(p port), type: Integer, arg_name: 'port'
 
+          s.desc 'Send the container with a different id'
+          s.flag 'as-id'
+
           s.desc 'Delete the container after it is sent'
           s.switch %i(d delete), default_value: true
 
@@ -1026,6 +1029,9 @@ module OsCtl::Cli
           s.command :config do |c|
             c.desc 'SSH port'
             c.flag %i(p port), type: Integer, arg_name: 'port'
+
+            c.desc 'Send the container with a different id'
+            c.flag 'as-id'
 
             c.action &Command.run(Send, :config)
           end

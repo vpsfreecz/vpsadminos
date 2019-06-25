@@ -26,14 +26,17 @@ module OsCtl::Lib
     end
 
     # Dump important metadata describing the archive
-    def dump_metadata(type)
+    # @param type ['skel', 'full']
+    # @param opts [Hash] options
+    # @option opts [String] :id custom container id
+    def dump_metadata(type, opts = {})
       tar.add_file('metadata.yml', FILE_MODE) do |tf|
         tf.write(YAML.dump(
           'type' => type,
           'format' => format.to_s,
           'user' => ct.user && ct.user.name,
           'group' => ct.group && ct.group.name,
-          'container' => ct.id,
+          'container' => opts[:id] || ct.id,
           'datasets' => datasets.map { |ds| ds.relative_name },
           'exported_at' => Time.now.to_i,
         ))

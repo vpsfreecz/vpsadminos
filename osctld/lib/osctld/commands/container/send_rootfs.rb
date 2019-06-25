@@ -68,7 +68,7 @@ module OsCtld
           ct.send_log.opts,
           [
             'receive', from_snap ? 'incremental' : 'base',
-            ct.id, ds.relative_name
+            ct.send_log.opts.ctid, ds.relative_name
           ] + (base_snap == snap.snapshot ? [base_snap] : [])
         ),
         in: r

@@ -1248,6 +1248,9 @@ read by `ls` or `show` commands.
     `-p`, `--port` *port*
       SSH port, defaults to `22`.
 
+    `--as-id` *ctid*
+      Send the container with a different ID.
+
     `-d`, `--[no-]delete`
       Delete the container from the source node. The default is to delete the
       container.
@@ -1259,6 +1262,9 @@ read by `ls` or `show` commands.
 
     `-p`, `--port` *port*
       SSH port, defaults to `22`.
+
+    `--as-id` *ctid*
+      Send the container with a different ID.
 
 `ct send rootfs` *ctid*
   Continue sending of container *ctid* to previously configured
