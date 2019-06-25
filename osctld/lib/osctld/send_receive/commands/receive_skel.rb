@@ -50,7 +50,7 @@ module OsCtld
         builder.setup_ct_dir
         builder.setup_lxc_home
 
-        ct.open_send_log(:destination, save: true)
+        ct.open_send_log(:destination)
         builder.setup_lxc_configs
         builder.setup_log_file
         builder.setup_user_hook_script_dir

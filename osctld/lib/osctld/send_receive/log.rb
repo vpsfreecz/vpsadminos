@@ -8,6 +8,42 @@ module OsCtld
   class SendReceive::Log
     STATES = %i(stage base incremental cancel transfer cleanup)
 
+    class Options
+      def self.load(cfg)
+        new(Hash[cfg.map { |k,v| [k.to_sym, v] }])
+      end
+
+      # @return [Integer]
+      attr_reader :port
+
+      # @return [String]
+      attr_reader :dst
+
+      # @param opts [Hash]
+      # @option opts [Integer] :port
+      # @option opts [String] :dst
+      def initialize(opts)
+        @port = opts.delete(:port)
+        @dst = opts.delete(:dst)
+
+        unless opts.empty?
+          raise ArgumentError, "unsupported options: #{opts.keys.join(', ')}"
+        end
+      end
+
+      # @param opt [Symbol]
+      def [](opt)
+        instance_variable_get(:"@#{opt}")
+      end
+
+      def dump
+        {
+          'port' => port,
+          'dst' => dst,
+        }
+      end
+    end
+
     attr_reader :role, :state, :snapshots, :opts
 
     def self.load(cfg)
@@ -15,7 +51,7 @@ module OsCtld
         role: cfg['role'].to_sym,
         state: cfg['state'].to_sym,
         snapshots: cfg['snapshots'],
-        opts: Hash[cfg['opts'].map { |k,v| [k.to_sym, v] }],
+        opts: Options.load(cfg['opts']),
       )
     end
 
@@ -23,12 +59,12 @@ module OsCtld
     # @option opts [Symbol] role `:source`, `:destination`
     # @option opts [Symbol] state
     # @option opts [Array<String>] snapshots
-    # @option opts [Hash] opts
+    # @option opts [Options, Hash] opts
     def initialize(opts)
       @role = opts[:role]
       @state = opts[:state] || :stage
       @snapshots = opts[:snapshots] || []
-      @opts = opts[:opts] || {}
+      @opts = opts.is_a?(Options) ? opts : Options.new(opts[:opts] || {})
     end
 
     def dump
@@ -36,7 +72,7 @@ module OsCtld
         'role' => role.to_s,
         'state' => state.to_s,
         'snapshots' => snapshots,
-        'opts' => Hash[opts.map { |k,v| [k.to_s, v] }],
+        'opts' => opts.dump,
       }
     end
 
