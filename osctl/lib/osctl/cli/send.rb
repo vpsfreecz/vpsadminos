@@ -161,17 +161,25 @@ module OsCtl::Cli
         data = msg[:data]
         @pb ||= ProgressBar.create(
           title: 'Copying',
-          total: nil,
-          format: "%E %t #{(data[:size] / 1024).round(2)} GB: [%B] %p%% %r MB/s",
+          total: data[:size],
+          format: format_str(data[:size]),
           throttle_rate: 0.2,
           starting_at: 0,
           autofinish: false,
           output: STDOUT,
         )
 
-        @pb.total = @pb.progress > data[:size] ? @pb.progress : data[:size]
+        if data[:transfered] > @pb.total
+          @pb.total = data[:transfered]
+          @pb.format = format_str(@pb.total)
+        end
+
         @pb.progress = data[:transfered]
       end
+    end
+
+    def format_str(maxsize)
+      "%E %t #{(maxsize / 1024.0).round(2)} GB: [%B] %p%% %r MB/s"
     end
 
     def json_progress(msg)
