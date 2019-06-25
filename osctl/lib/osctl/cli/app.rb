@@ -1019,8 +1019,17 @@ module OsCtl::Cli
           s.desc 'Send the container with a different id'
           s.flag 'as-id'
 
-          s.desc 'Delete the container after it is sent'
-          s.switch %i(d delete), default_value: true
+          s.desc 'Clone the container on the target node, do not move it'
+          s.switch :clone
+
+          s.desc 'Stop the container when cloning'
+          s.switch :consistent, default_value: true
+
+          s.desc 'Do not restart the container after cloning on the source node'
+          s.switch :restart, default_value: true
+
+          s.desc 'Do not start the container on the target node'
+          s.switch :start, default_value: true
 
           s.action &Command.run(Send, :now)
 
@@ -1045,15 +1054,24 @@ module OsCtl::Cli
           s.desc 'Step 3., transfer the container to target node'
           s.arg_name '<ctid>'
           s.command :state do |c|
+            c.desc 'Clone the container on the target node, do not move it'
+            c.switch :clone
+
+            c.desc 'Stop the container when cloning'
+            c.switch :consistent, default_value: true
+
+            c.desc 'Do not restart the container after cloning on the source node'
+            c.switch :restart, default_value: true
+
+            c.desc 'Do not start the container on the target node'
+            c.switch :start, default_value: true
+
             c.action &Command.run(Send, :state)
           end
 
           s.desc 'Step 4., cleanup the container on the source node'
           s.arg_name '<ctid>'
           s.command :cleanup do |c|
-            c.desc 'Delete the container'
-            c.switch %i(d delete), default_value: true
-
             c.action &Command.run(Send, :cleanup)
           end
 

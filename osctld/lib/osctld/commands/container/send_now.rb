@@ -29,7 +29,10 @@ module OsCtld
       call_cmd!(
         Commands::Container::SendState,
         id: ct.id,
-        pool: ct.pool.name
+        pool: ct.pool.name,
+        clone: opts[:clone],
+        restart: opts[:restart],
+        start: opts[:start],
       )
 
       progress(type: :step, title: 'Cleaning up')
@@ -37,7 +40,6 @@ module OsCtld
         Commands::Container::SendCleanup,
         id: ct.id,
         pool: ct.pool.name,
-        delete: opts[:delete]
       )
     end
   end

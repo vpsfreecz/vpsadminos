@@ -22,14 +22,20 @@ module OsCtld
       # @return [String]
       attr_reader :dst
 
+      # @param cloned [Boolean]
+      # @return [Boolean]
+      attr_accessor :cloned
+
       # @param opts [Hash]
       # @option opts [String] :ctid
       # @option opts [Integer] :port
       # @option opts [String] :dst
+      # @option opts [Boolean, nil] :cloned
       def initialize(opts)
         @ctid = opts.delete(:ctid)
         @port = opts.delete(:port)
         @dst = opts.delete(:dst)
+        @cloned = opts.delete(:cloned)
 
         unless opts.empty?
           raise ArgumentError, "unsupported options: #{opts.keys.join(', ')}"
@@ -41,11 +47,16 @@ module OsCtld
         instance_variable_get(:"@#{opt}")
       end
 
+      def cloned?
+        cloned ? true : false
+      end
+
       def dump
         {
           'ctid' => ctid,
           'port' => port,
           'dst' => dst,
+          'cloned' => cloned?,
         }
       end
     end

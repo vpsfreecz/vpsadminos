@@ -21,6 +21,9 @@ module OsCtld
           end
 
           running = ct.state == :running
+        end
+
+        if !opts[:clone] || opts[:consistent]
           call_cmd(Commands::Container::Stop, id: ct.id, pool: ct.pool.name)
         end
 
@@ -30,6 +33,10 @@ module OsCtld
         ct.exclusively do
           ct.send_log.snapshots << snap
           ct.save_config
+        end
+
+        if opts[:clone] && opts[:restart] && running
+          call_cmd(Commands::Container::Start, id: ct.id, pool: ct.pool.name)
         end
 
         progress("Syncing #{ct.dataset.relative_name}")
@@ -55,7 +62,7 @@ module OsCtld
             ct.pool.send_receive_key_chain,
             ct.send_log.opts,
             ['receive', 'transfer', ct.send_log.opts.ctid] + \
-            (running ? ['start'] : [])
+            (running && opts[:start] ? ['start'] : [])
           )
         )
 
@@ -63,6 +70,7 @@ module OsCtld
 
         ct.exclusively do
           ct.send_log.state = :transfer
+          ct.send_log.opts.cloned = opts[:clone]
           ct.save_config
         end
 

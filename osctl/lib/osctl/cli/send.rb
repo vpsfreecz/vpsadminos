@@ -69,7 +69,11 @@ module OsCtl::Cli
       with_progress(
         :ct_send_state,
         pool: gopts[:pool],
-        id: args[0]
+        id: args[0],
+        clone: opts[:clone],
+        consistent: opts[:consistent],
+        restart: opts[:restart],
+        start: opts[:start],
       )
     end
 
@@ -80,7 +84,6 @@ module OsCtl::Cli
         :ct_send_cleanup,
         pool: gopts[:pool],
         id: args[0],
-        delete: opts[:delete]
       )
     end
 
@@ -105,7 +108,10 @@ module OsCtl::Cli
         dst: args[1],
         port: opts[:port],
         as_id: opts['as-id'],
-        delete: opts[:delete],
+        clone: opts[:clone],
+        consistent: opts[:consistent],
+        restart: opts[:restart],
+        start: opts[:start],
       )
     end
 

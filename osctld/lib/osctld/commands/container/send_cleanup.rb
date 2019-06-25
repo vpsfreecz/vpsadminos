@@ -16,19 +16,18 @@ module OsCtld
           error!('invalid send sequence')
         end
 
-        if opts[:delete]
+        ct.each_dataset do |ds|
+          ct.send_log.snapshots.each do |snap|
+            zfs(:destroy, nil, "#{ds}@#{snap}")
+          end
+        end
+
+        unless ct.send_log.opts.cloned?
           call_cmd!(
             Commands::Container::Delete,
             pool: ct.pool.name,
             id: ct.id
           )
-
-        else
-          ct.each_dataset do |ds|
-            ct.send_log.snapshots.each do |snap|
-              zfs(:destroy, nil, "#{ds}@#{snap}")
-            end
-          end
         end
 
         ct.close_send_log

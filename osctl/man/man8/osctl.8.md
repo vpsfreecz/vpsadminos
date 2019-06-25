@@ -1251,9 +1251,21 @@ read by `ls` or `show` commands.
     `--as-id` *ctid*
       Send the container with a different ID.
 
-    `-d`, `--[no-]delete`
-      Delete the container from the source node. The default is to delete the
-      container.
+    `--clone`
+      Do not move the container to *destination*, but clone it.
+
+    `--no-consistent`
+      When `--clone` is used, the container is by default stopped to store all
+      state on disk. After a snapshot with all state is taken, the container
+      is started again. `--no-consistent` can be used to clone the container
+      while it is running.
+
+    `--no-restart`
+      Do not restart the container on this node after it is cloned to the target
+      node.
+
+    `--no-start`
+      Do not start the container on the target node, keep it stopped.
 
 `ct send config` [*options*] *ctid* *destination*
   Send config of container *ctid* to *destination*. *destination* is a host
@@ -1271,18 +1283,29 @@ read by `ls` or `show` commands.
   *destination*. `ct send rootfs` takes snapshots of the container's datasets
   and sends them to the *destination*.
 
-`ct send state` *ctid*
+`ct send state` [*options*] *ctid*
   This command stops the container if it is running, makes another set of
   snapshots of the container's dataset and sends them to *destination*.
   The container is then started on the *destination* node.
 
+    `--clone`
+      Do not move the container to *destination*, but clone it.
+
+    `--no-consistent`
+      When `--clone` is used, the container is by default stopped to store all
+      state on disk. `--no-consistent` can be used to clone the container while
+      it is running.
+
+    `--no-restart`
+      Do not restart the container on this node after it is cloned to the target
+      node.
+
+    `--no-start`
+      Do not start the container on the target node, keep it stopped.
+
 `ct send cleanup` [*options*] *ctid*
   Perform a cleanup after container *ctid* was sent to another node. The send
-  state is reset and the container is by default deleted.
-
-    `-d`, `--[no-]delete`
-      Delete the container from the source node. The default is to delete the
-      container.
+  state is reset and the container is deleted unless it was cloned.
 
 `ct send cancel` [*options*] *ctid*
   Cancel a send of container *ctid*. The send state is deleted from
