@@ -18,6 +18,7 @@ module OsCtld
           port: opts[:port],
           as_id: opts[:as_id],
           to_pool: opts[:to_pool],
+          network_interfaces: opts[:network_interfaces],
         )
 
         progress(type: :step, title: 'Sending rootfs')

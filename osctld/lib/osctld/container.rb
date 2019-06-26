@@ -533,8 +533,40 @@ module OsCtld
       end
     end
 
+    # Dump to config
+    def dump_config
+      inclusively do
+        data = {
+          'user' => user.name,
+          'group' => group.name,
+          'dataset' => dataset.name,
+          'distribution' => distribution,
+          'version' => version,
+          'arch' => arch,
+          'net_interfaces' => netifs.dump,
+          'cgparams' => cgparams.dump,
+          'devices' => devices.dump,
+          'prlimits' => prlimits.dump,
+          'mounts' => mounts.dump,
+          'autostart' => autostart && autostart.dump,
+          'ephemeral' => ephemeral,
+          'hostname' => hostname && hostname.to_s,
+          'dns_resolvers' => dns_resolvers,
+          'nesting' => nesting,
+          'seccomp_profile' => seccomp_profile == default_seccomp_profile \
+                               ? nil : seccomp_profile,
+          'attrs' => attrs.dump,
+        }
+
+        data['state'] = 'staged' if state == :staged
+        data['send_log'] = send_log.dump if send_log
+
+        data
+      end
+    end
+
     def save_config
-      data = dump
+      data = dump_config
 
       File.open(config_path, 'w', 0400) do |f|
         f.write(YAML.dump(data))
@@ -616,38 +648,6 @@ module OsCtld
 
         @netifs = NetInterface::Manager.load(self, cfg['net_interfaces'] || [])
         @mounts = Mount::Manager.load(self, cfg['mounts'] || [])
-      end
-    end
-
-    # Dump to config
-    def dump
-      inclusively do
-        data = {
-          'user' => user.name,
-          'group' => group.name,
-          'dataset' => dataset.name,
-          'distribution' => distribution,
-          'version' => version,
-          'arch' => arch,
-          'net_interfaces' => netifs.dump,
-          'cgparams' => cgparams.dump,
-          'devices' => devices.dump,
-          'prlimits' => prlimits.dump,
-          'mounts' => mounts.dump,
-          'autostart' => autostart && autostart.dump,
-          'ephemeral' => ephemeral,
-          'hostname' => hostname && hostname.to_s,
-          'dns_resolvers' => dns_resolvers,
-          'nesting' => nesting,
-          'seccomp_profile' => seccomp_profile == default_seccomp_profile \
-                               ? nil : seccomp_profile,
-          'attrs' => attrs.dump,
-        }
-
-        data['state'] = 'staged' if state == :staged
-        data['send_log'] = send_log.dump if send_log
-
-        data
       end
     end
 

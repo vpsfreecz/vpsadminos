@@ -1272,6 +1272,11 @@ read by `ls` or `show` commands.
     `--no-start`
       Do not start the container on the target node, keep it stopped.
 
+    `--no-network-interfaces`
+      Remove network interfaces from the container config sent to *destination*.
+      This is useful for cloning containers without duplicating network
+      configuration.
+
 `ct send config` [*options*] *ctid* *destination*
   Send config of container *ctid* to *destination*. *destination* is a host
   name or an IP address of another vpsAdminOS node. The container's user, group
@@ -1311,6 +1316,11 @@ read by `ls` or `show` commands.
 
     `--no-start`
       Do not start the container on the target node, keep it stopped.
+
+    `--no-network-interfaces`
+      Remove network interfaces from the container config sent to *destination*.
+      This is useful for cloning containers without duplicating network
+      configuration.
 
 `ct send cleanup` [*options*] *ctid*
   Perform a cleanup after container *ctid* was sent to another node. The send

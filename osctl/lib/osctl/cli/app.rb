@@ -1034,6 +1034,9 @@ module OsCtl::Cli
           s.desc 'Do not start the container on the target node'
           s.switch :start, default_value: true
 
+          s.desc 'Send network interfaces to target node'
+          s.switch 'network-interfaces', default_value: true
+
           s.action &Command.run(Send, :now)
 
           s.desc 'Step 1., copy configs to target node'
@@ -1047,6 +1050,9 @@ module OsCtl::Cli
 
             c.desc 'Pool on the target node to send the container to'
             c.flag 'to-pool'
+
+            c.desc 'Send network interfaces to target node'
+            c.switch 'network-interfaces', default_value: true
 
             c.action &Command.run(Send, :config)
           end

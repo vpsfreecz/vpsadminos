@@ -51,6 +51,7 @@ module OsCtl::Cli
         port: opts[:port],
         as_id: opts['as-id'],
         to_pool: opts['to-pool'],
+        network_interfaces: opts['network-interfaces'],
       )
     end
 
@@ -114,6 +115,7 @@ module OsCtl::Cli
         consistent: opts[:consistent],
         restart: opts[:restart],
         start: opts[:start],
+        network_interfaces: opts['network-interfaces'],
       )
     end
 
