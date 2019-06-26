@@ -23,13 +23,13 @@ module OsCtld
           zfs(:destroy, nil, "#{ds}@#{snap}")
         end
 
+        ct.close_send_log
+
         call_cmd!(
           Commands::Container::Delete,
           id: ct.id,
           pool: ct.pool.name
         )
-
-        ct.close_send_log
       end
 
       ok
