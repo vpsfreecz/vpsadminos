@@ -6,7 +6,7 @@ module VpsAdminOS::Converter
   class Vz6::Migrator::Base
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
-    include OsCtl::Lib::Utils::Migration
+    include OsCtl::Lib::Utils::Send
 
     attr_reader :state
 
@@ -25,7 +25,7 @@ module VpsAdminOS::Converter
 
       opts[:port] ||= 22
 
-      ssh = migrate_ssh_cmd(
+      ssh = send_ssh_cmd(
         nil,
         opts,
         ['receive', 'skel']
@@ -72,7 +72,7 @@ module VpsAdminOS::Converter
     def transfer_container(start)
       progress(:step, 'Starting on the target node')
       ret = system(
-        *migrate_ssh_cmd(
+        *send_ssh_cmd(
           nil,
           opts,
           ['receive', 'transfer', target_ct.id] + (start ? ['start'] : [])
@@ -87,7 +87,7 @@ module VpsAdminOS::Converter
 
     def cancel_remote(nofail)
       ret = system(
-        *migrate_ssh_cmd(
+        *send_ssh_cmd(
           nil,
           opts,
           ['receive', 'cancel', target_ct.id]
