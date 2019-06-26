@@ -30,5 +30,20 @@ module OsCtl::Cli
         index: args[0].to_i
       )
     end
+
+    def authorized_keys_set
+      osctld_fmt(
+        :receive_authkey_set,
+        pool: gopts[:pool],
+        public_keys: read_keys(STDIN),
+      )
+    end
+
+    protected
+    def read_keys(io)
+      keys = []
+      keys << io.readline.strip until io.eof?
+      keys
+    end
   end
 end

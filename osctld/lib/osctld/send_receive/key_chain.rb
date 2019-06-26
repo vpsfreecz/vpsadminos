@@ -88,6 +88,12 @@ module OsCtld
       end
     end
 
+    def replace_authorized_keys(pubkeys)
+      regenerate_file(authorized_keys_path, 0400) do |new, old|
+        pubkeys.each { |pubkey| new.puts(pubkey) }
+      end
+    end
+
     def private_key_path
       File.join(pool.conf_path, 'send-receive', 'key')
     end

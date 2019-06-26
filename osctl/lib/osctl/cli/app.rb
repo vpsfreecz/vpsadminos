@@ -1573,6 +1573,11 @@ module OsCtl::Cli
           a.command %i(del delete) do |c|
             c.action &Command.run(Receive, :authorized_keys_delete)
           end
+
+          a.desc 'Replace authorized keys'
+          a.command :set do |c|
+            c.action &Command.run(Receive, :authorized_keys_set)
+          end
         end
       end
 
