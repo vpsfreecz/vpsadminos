@@ -13,6 +13,20 @@ module OsCtl::Lib
     DIR_MODE = 16877 # 0755
     FILE_MODE = 33188 # 0644
 
+    class ConfigDump
+      %i(user group container).each do |name|
+        define_method(name) do |v = nil|
+          var = :"@#{name}"
+
+          if v
+            instance_variable_set(var, v)
+          else
+            instance_variable_get(var)
+          end
+        end
+      end
+    end
+
     # @param ct [Container]
     # @param io [IO]
     # @param opts [Hash]
@@ -44,29 +58,49 @@ module OsCtl::Lib
     end
 
     # Dump configuration of the container, its user and group
+    #
+    # If no block is given, user/group/container configs are dumped as they are.
+    # Configs can be altered by passing a block, which will get {ConfigDump}
+    # as an argument.
+    #
+    # @yieldparam dump [ConfigDump]
     def dump_configs
+      dump = ConfigDump.new
       tar.mkdir('config', DIR_MODE)
 
-      if ct.user
-        tar.add_file('config/user.yml', FILE_MODE) do |tf|
-          tf.write(File.read(ct.user.config_path))
-        end
-      end
+      if block_given?
+        yield(dump)
+      else
+        dump.user(File.read(ct.user.config_path)) if ct.user
+        dump.group(File.read(ct.group.config_path)) if ct.group
 
-      if ct.group
-        tar.add_file('config/group.yml', FILE_MODE) do |tf|
-          tf.write(File.read(ct.group.config_path))
-        end
-      end
-
-      tar.add_file('config/container.yml', FILE_MODE) do |tf|
         if ct.respond_to?(:dump_config)
-          tf.write(YAML.dump(ct.dump_config))
+          dump.container(YAML.dump(ct.dump_config))
         elsif ct.respond_to?(:config_path)
-          tf.write(File.read(ct.config_path))
+          dump.container(File.read(ct.config_path))
         else
           fail "don't know how to dump container config"
         end
+      end
+
+      if dump.user
+        tar.add_file('config/user.yml', FILE_MODE) do |tf|
+          tf.write(dump.user)
+        end
+      end
+
+      if dump.group
+        tar.add_file('config/group.yml', FILE_MODE) do |tf|
+          tf.write(dump.group)
+        end
+      end
+
+      if dump.container
+        tar.add_file('config/container.yml', FILE_MODE) do |tf|
+          tf.write(dump.container)
+        end
+      else
+        fail 'container config not set'
       end
     end
 
