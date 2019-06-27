@@ -60,6 +60,40 @@ function ensureOsctlEntityExists {
   fail "osctl $entity $ident not found, aborting"
 }
 
+function osctlEntityAttr {
+  local entity="$1"
+  local ident="$2"
+  local attr="$3"
+
+  case "$entity" in
+    pool|user|group|repository|id-range)
+      @osctl@ "$entity" show -H -o "$attr" "$ident" 2> /dev/null
+      ;;
+    ct|container)
+      @osctl@ ct show -H -o "$attr" "$ident" 2> /dev/null
+      ;;
+    *)
+      warn "Unknown osctl entity '$entity'"
+      return 1
+      ;;
+  esac
+}
+
+function waitForOsctlEntityAttr {
+  local entity="$1"
+  local ident="$2"
+  local attr="$3"
+  local value="$4"
+  local v=
+
+  while true ; do
+    v=$(osctlEntityAttr "$entity" "$ident" "$attr")
+    [ $? == 0 ] && [ "$v" == "$value" ] && return 0
+    warn "Waiting for osctl $entity $ident attr $attr=$value"
+    sleep 1
+  done
+}
+
 function serviceStarted {
   local service="$1"
 
