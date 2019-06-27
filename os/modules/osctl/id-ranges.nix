@@ -165,7 +165,7 @@ in
     "id-ranges-${pool}" = {
       run = ''
         waitForOsctld
-        waitForOsctlEntity pool ${pool}
+        waitForOsctlEntityAttr pool "${pool}" state active
         ${createIdRanges pool ranges}
       '';
       oneShot = true;

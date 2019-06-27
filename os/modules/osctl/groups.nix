@@ -85,7 +85,7 @@ in
     "groups-${pool}" = {
       run = ''
         waitForOsctld
-        waitForOsctlEntity pool ${pool}
+        waitForOsctlEntityAttr pool "${pool}" state active
         ${createGroups pool groups}
       '';
       oneShot = true;

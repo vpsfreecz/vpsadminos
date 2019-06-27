@@ -39,7 +39,7 @@ let
 
       in ''
         waitForOsctld
-        waitForOsctlEntity pool "${pool}"
+        waitForOsctlEntityAttr pool "${pool}" state active
         ${optionalString hasUser ''waitForOsctlEntity user "${user}"''}
         waitForOsctlEntity group "${cfg.group}"
 

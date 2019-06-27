@@ -101,7 +101,7 @@ in
     "users-${pool}" = {
       run = ''
         waitForOsctld
-        waitForOsctlEntity pool ${pool}
+        waitForOsctlEntityAttr pool "${pool}" state active
         ${createUsers pool users}
       '';
       oneShot = true;

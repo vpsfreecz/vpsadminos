@@ -73,7 +73,7 @@ in
     "repositories-${pool}" = {
       run = ''
         waitForOsctld
-        waitForOsctlEntity pool ${pool}
+        waitForOsctlEntityAttr pool "${pool}" state active
         ${createRepos pool repos}
       '';
       oneShot = true;
