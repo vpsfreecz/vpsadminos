@@ -9,63 +9,94 @@ module OsCtld
     include OsCtl::Lib::Utils::System
 
     def execute
-      DB::Pools.sync do
-        if opts[:all]
-          props = [
-            'name',
-            'mounted',
-            Pool::PROPERTY_ACTIVE,
-            Pool::PROPERTY_DATASET,
-          ]
-
-          zfs(
-            :list,
-            "-H -d0 -o #{props.join(',')}",
-            ''
-          ).output.split("\n").each do |line|
-            name, mounted, active, dataset = line.split
-            next if active != 'yes' || mounted != 'yes' || DB::Pools.contains?(name)
-
-            begin
-              import(name, dataset)
-
-            rescue PoolUpgradeError => e
-              log(:warn, "Pool upgrade failed: #{e.message}")
-              next
-            end
-          end
-
-          ok
-
-        else
-          next error('pool already imported') if DB::Pools.contains?(opts[:name])
-
-          mounted, dataset = zfs(
-            :get,
-            "-H -o value mounted,#{Pool::PROPERTY_DATASET}",
-            opts[:name]
-          ).output.strip.split
-
-          next error('the pool is not mounted') if mounted != 'yes'
-
-          begin
-            import(opts[:name], dataset)
-            ok
-
-          rescue PoolUpgradeError => e
-            next error(e.message)
-          end
-        end
+      if opts[:all]
+        import_all
+      else
+        import_one(opts[:name])
       end
     end
 
     protected
-    def import(name, dataset)
-      upgrade(name)
+    def import_all
+      props = [
+        'name',
+        'mounted',
+        Pool::PROPERTY_ACTIVE,
+        Pool::PROPERTY_DATASET,
+      ]
+
+      zfs(
+        :list,
+        "-H -d0 -o #{props.join(',')}",
+        ''
+      ).output.split("\n").each do |line|
+        name, mounted, active, dataset = line.split
+        next if active != 'yes' \
+                || mounted != 'yes' \
+                || !pool_ready?(name) \
+                || DB::Pools.contains?(name)
+
+        begin
+          do_import(name, dataset)
+        rescue PoolExists
+          next
+        rescue PoolUpgradeError => e
+          log(:warn, "Pool upgrade failed: #{e.message}")
+          next
+        end
+      end
+
+      ok
+    end
+
+    def import_one(name)
+      error!('pool already imported') if DB::Pools.contains?(name)
+
+      mounted, dataset = zfs(
+        :get,
+        "-H -o value mounted,#{Pool::PROPERTY_DATASET}",
+        name
+      ).output.strip.split
+
+      error!('the pool is not mounted') if mounted != 'yes'
+
+      begin
+        do_import(name, dataset)
+        ok
+
+      rescue PoolExists, PoolUpgradeError => e
+        error(e.message)
+      end
+    end
+
+    def pool_ready?(name)
+      sv = "pool-#{name}"
+
+      return true unless Dir.exist?(File.join('/service', sv))
+      File.exist?(File.join('/run/service', sv, 'done'))
+    end
+
+    def do_import(name, dataset)
       pool = Pool.new(name, dataset == '-' ? nil : dataset)
+
       manipulate(pool) do
+        DB::Pools.sync do
+          if DB::Pools.contains?(name)
+            raise PoolExists, "pool #{name} is already imported"
+          end
+
+          DB::Pools.add(pool)
+        end
+
+        begin
+          upgrade(name)
+        rescue PoolUpgradeError
+          DB::Pools.remove(pool)
+          raise
+        end
+
+        pool.init
         pool.setup
-        DB::Pools.add(pool)
         pool.autostart if opts[:autostart]
       end
     end

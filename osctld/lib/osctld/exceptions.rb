@@ -58,6 +58,8 @@ module OsCtld
     end
   end
 
+  class PoolExists < StandardError ; end
+
   class PoolUpgradeError < StandardError
     attr_reader :pool, :exception
 

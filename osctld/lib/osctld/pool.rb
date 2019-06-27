@@ -37,13 +37,17 @@ module OsCtld
 
       @name = name
       @dataset = dataset || name
-      @state = :active
+      @state = :importing
       @attrs = Attributes.new
+    end
 
-      load_config
+    def init
+      exclusively do
+        load_config
 
-      @send_receive_key_chain = SendReceive::KeyChain.new(self)
-      @autostart_plan = AutoStart::Plan.new(self)
+        @send_receive_key_chain = SendReceive::KeyChain.new(self)
+        @autostart_plan = AutoStart::Plan.new(self)
+      end
     end
 
     def id
@@ -265,6 +269,8 @@ module OsCtld
 
       # Open history
       History.open(self)
+
+      exclusively { @state = :active }
     end
 
     # Set pool options
@@ -325,6 +331,10 @@ module OsCtld
 
     def active?
       state == :active
+    end
+
+    def imported?
+      state != :importing
     end
 
     def disable
