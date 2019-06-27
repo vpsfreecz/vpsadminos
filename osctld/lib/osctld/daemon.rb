@@ -101,11 +101,14 @@ module OsCtld
       # Setup network interfaces
       NetInterface.setup
 
+      # Start accepting client commands
+      serve
+
       # Load data pools
       Commands::Pool::Import.run(all: true, autostart: true)
 
-      # Start accepting client commands
-      serve
+      # Wait for the server to finish
+      join_server
     end
 
     def assets
@@ -123,13 +126,19 @@ module OsCtld
     end
 
     def serve
-      log(:info, "Listening on control socket at #{SOCKET}")
+      @server_thread = Thread.new do
+        log(:info, "Listening on control socket at #{SOCKET}")
 
-      socket = UNIXServer.new(SOCKET)
-      File.chmod(0600, SOCKET)
+        socket = UNIXServer.new(SOCKET)
+        File.chmod(0600, SOCKET)
 
-      @server = Generic::Server.new(socket, Daemon::ClientHandler)
-      @server.start
+        @server = Generic::Server.new(socket, Daemon::ClientHandler)
+        @server.start
+      end
+    end
+
+    def join_server
+      @server_thread.join
     end
 
     def stop
