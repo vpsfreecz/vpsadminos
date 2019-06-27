@@ -8,7 +8,7 @@ module OsCtld
       pool = DB::Pools.find(opts[:name])
       error!('pool not found') unless pool
 
-      pool.inclusively do
+      manipulate(pool) do
         pool.autostart_plan.clear
         ok
       end
