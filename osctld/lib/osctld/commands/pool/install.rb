@@ -10,24 +10,17 @@ module OsCtld
 
     def execute
       if opts[:dataset] && !opts[:dataset].start_with?("#{opts[:name]}/")
-        return error("dataset '#{opts[:dataset]}' is not from zpool '#{opts[:name]}'")
+        error!("dataset '#{opts[:dataset]}' is not from zpool '#{opts[:name]}'")
       end
 
-      pool = Pool.new(opts[:name], opts[:dataset])
-      return error('pool already exists') if DB::Pools.contains?(pool.name)
+      error!('pool already exists') if DB::Pools.contains?(opts[:name])
 
-      manipulate(pool) do
-        props = ["#{Pool::PROPERTY_ACTIVE}=yes"]
-        props << "#{Pool::PROPERTY_DATASET}=\"#{opts[:dataset]}\"" if opts[:dataset]
+      props = ["#{Pool::PROPERTY_ACTIVE}=yes"]
+      props << "#{Pool::PROPERTY_DATASET}=\"#{opts[:dataset]}\"" if opts[:dataset]
 
-        zfs(:set, props.join(' '), pool.name)
-        OsUp.init(pool.name, force: true)
-        pool.setup
-
-        DB::Pools.add(pool)
-      end
-
-      ok
+      zfs(:set, props.join(' '), opts[:name])
+      OsUp.init(opts[:name], force: true)
+      call_cmd!(Commands::Pool::Import, name: opts[:name])
     end
   end
 end
