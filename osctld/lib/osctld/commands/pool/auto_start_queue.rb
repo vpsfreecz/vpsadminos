@@ -9,12 +9,16 @@ module OsCtld
       error!('pool not found') unless pool
 
       pool.inclusively do
-        ok(pool.autostart_plan.queue.map do |cmd|
-          {
-            id: cmd.id,
-            priority: cmd.priority,
-          }
-        end)
+        if pool.imported?
+          ok(pool.autostart_plan.queue.map do |cmd|
+            {
+              id: cmd.id,
+              priority: cmd.priority,
+            }
+          end)
+        else
+          ok([])
+        end
       end
     end
   end
