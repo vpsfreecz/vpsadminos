@@ -149,7 +149,7 @@ module OsUp
 
     def run_migration(m, action)
       state = SystemState.create(
-        pool_migrations.pool,
+        pool_migrations.dataset,
         "#{m.id}-#{action}",
         snapshot: m.snapshot
       )

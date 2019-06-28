@@ -13,11 +13,11 @@ module OsUp
       s
     end
 
-    # @param pool [String]
+    # @param dataset [String]
     # @param id [String]
     # @param snapshot [Array<Symbol>] datasets to snapshot
-    def initialize(pool, id, snapshot: [])
-      @pool = pool
+    def initialize(dataset, id, snapshot: [])
+      @dataset = dataset
       @id = id
       @datasets = datasets_to_snapshot(snapshot)
       @snapshots = []
@@ -48,11 +48,11 @@ module OsUp
     end
 
     def log_type
-      "pool=#{pool}"
+      "pool=#{dataset}"
     end
 
     protected
-    attr_reader :pool, :id, :datasets, :snapshots
+    attr_reader :dataset, :id, :datasets, :snapshots
 
     def datasets_to_snapshot(snapshot)
       ret = []
@@ -60,7 +60,7 @@ module OsUp
       snapshot.each do |s|
         case s
         when :conf, :log, :hook
-          ret << File.join(pool, s.to_s)
+          ret << File.join(dataset, s.to_s)
         else
           fail "unsupported snapshot '#{s}'"
         end

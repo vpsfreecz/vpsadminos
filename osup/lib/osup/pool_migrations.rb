@@ -11,6 +11,15 @@ module OsUp
     # @return [String]
     attr_reader :pool
 
+    # @return [String] osctl root dataset on pool
+    attr_reader :dataset
+
+    # @return [String] mountpoint of osctl root dataset
+    attr_reader :mountpoint
+
+    # @return [String] path to file with a list of applied migrations
+    attr_reader :version_file
+
     # @return [Array<Integer>]
     attr_reader :applied
 
@@ -22,6 +31,7 @@ module OsUp
       @applied = []
       @all = []
 
+      load_pool
       load_applied
       build_list
     end
@@ -70,6 +80,26 @@ module OsUp
     end
 
     protected
+    def load_pool
+      mnt, active, ds = zfs(
+        :get,
+        '-Hp -ovalue mountpoint,org.vpsadminos.osctl:active,org.vpsadminos.osctl:dataset',
+        pool,
+      ).output.strip.split
+
+      fail "pool #{pool} is not used by osctld" if active != 'yes'
+
+      if ds == '-'
+        @dataset = pool
+        @mountpoint = mnt
+      else
+        @dataset = ds
+        @mountpoint = zfs(:get, '-Hp -ovalue mountpoint', ds).output.strip
+      end
+
+      @version_file = File.join(@mountpoint, FILE)
+    end
+
     def load_applied
       File.open(version_file, 'r') do |f|
         f.each_line do |line|
@@ -102,24 +132,6 @@ module OsUp
       regenerate_file(version_file, 0600) do |new|
         applied.each { |id| new.puts(id) }
       end
-    end
-
-    def version_file
-      return @version_file if @version_file
-
-      mountpoint, active, dataset = zfs(
-        :get,
-        '-Hp -ovalue mountpoint,org.vpsadminos.osctl:active,org.vpsadminos.osctl:dataset',
-        pool
-      ).output.strip.split
-
-      fail "pool #{pool} is not used by osctld" if active != 'yes'
-
-      if dataset != '-'
-        mountpoint = zfs(:get, '-Hp -ovalue mountpoint', dataset).output.strip
-      end
-
-      @version_file = File.join(mountpoint, FILE)
     end
   end
 end
