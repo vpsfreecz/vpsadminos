@@ -7,7 +7,11 @@ class RenameMigration
   include OsCtl::Lib::Utils::File
 
   def initialize
-    @conf_dir = zfs(:get, '-Hp -o value mountpoint', File.join($POOL, 'conf')).output.strip
+    @conf_dir = zfs(
+      :get,
+      '-Hp -o value mountpoint',
+      File.join($DATASET, 'conf'),
+    ).output.strip
     @conf_ct = File.join(conf_dir, 'ct')
   end
 

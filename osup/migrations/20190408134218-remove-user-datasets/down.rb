@@ -13,8 +13,8 @@ class Rollback
   attr_reader :users_ds, :users_dir, :conf_ds, :conf_dir
 
   def initialize
-    @users_ds = File.join($POOL, 'user')
-    @conf_ds = File.join($POOL, 'conf')
+    @users_ds = File.join($DATASET, 'user')
+    @conf_ds = File.join($DATASET, 'conf')
     @conf_dir = zfs(:get, '-Hp -o value mountpoint', conf_ds).output.strip
 
     @users = load_users
