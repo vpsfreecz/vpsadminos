@@ -41,26 +41,30 @@ let
 
   # safe import of ZFS pool
   # according to https://github.com/NixOS/nixpkgs/commit/cfd8c4ee88fec3a7f989663e09d8e39513b8488e
-  importLib = {zpoolCmd, awkCmd, cfgZfs}: ''
-    poolReady() {
-      pool="$1"
-      state="$("${zpoolCmd}" import -d "${cfgZfs.devNodes}" 2>/dev/null | "${awkCmd}" "/pool: $pool/ { found = 1 }; /state:/ { if (found == 1) { print \$2; exit } }; END { if (found == 0) { print \"MISSING\" } }")"
-      if [[ "$state" = "ONLINE" ]]; then
-        return 0
-      else
-        echo "Pool $pool in state $state, waiting"
-        return 1
-      fi
-    }
-    poolImported() {
-      pool="$1"
-      "${zpoolCmd}" list "$pool" >/dev/null 2>/dev/null
-    }
-    poolImport() {
-      pool="$1"
-      "${zpoolCmd}" import -d "${cfgZfs.devNodes}" -N $ZFS_FORCE "$pool"
-    }
-  '';
+  importLib = {zpoolCmd, awkCmd, cfgZfs}:
+    let
+      devOptions = concatMapStringsSep " " (v: "-d \"${v}\"") cfgZfs.devNodes;
+
+    in ''
+      poolReady() {
+        pool="$1"
+        state="$("${zpoolCmd}" import ${devOptions} 2>/dev/null | "${awkCmd}" "/pool: $pool/ { found = 1 }; /state:/ { if (found == 1) { print \$2; exit } }; END { if (found == 0) { print \"MISSING\" } }")"
+        if [[ "$state" = "ONLINE" ]]; then
+          return 0
+        else
+          echo "Pool $pool in state $state, waiting"
+          return 1
+        fi
+      }
+      poolImported() {
+        pool="$1"
+        "${zpoolCmd}" list "$pool" >/dev/null 2>/dev/null
+      }
+      poolImport() {
+        pool="$1"
+        "${zpoolCmd}" import ${devOptions} -N $ZFS_FORCE "$pool"
+      }
+    '';
 
   importLibInstance = importLib {
     zpoolCmd = "${packages.zfsUser}/bin/zpool";
@@ -311,11 +315,10 @@ in
         '';
       };
       devNodes = mkOption {
-        type = types.path;
-        default = "/dev/disk/by-id";
-        example = "/dev/disk/by-id";
+        type = types.listOf types.str;
+        default = [ "/dev/disk/by-id" ];
         description = ''
-          Name of directory from which to import ZFS devices.
+          Directories used to search disk devices.
 
           This should be a path under /dev containing stable names for all devices needed, as
           import may fail if device nodes are renamed concurrently with a device failing.
