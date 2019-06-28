@@ -55,3 +55,4 @@ migrations. Global variables:
 
  - `$MIGRATION_ID` - ID of the migration
  - `$POOL` - name of the ZFS pool to migrate
+ - `$DATASET` - osctl root dataset on `$POOL`

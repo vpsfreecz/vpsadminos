@@ -164,7 +164,7 @@ module OsUp
         # to be independent, so that it's environment and dependencies are clear.
         Process.exec(
           '/run/current-system/sw/bin/osup', 'run',
-          pool_migrations.pool, m.dirname, action.to_s
+          pool_migrations.pool, pool_migrations.dataset, m.dirname, action.to_s
         )
       end
 
