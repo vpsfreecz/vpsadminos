@@ -11,6 +11,7 @@ function try_password {
 		-p "$pass" \
 		ssh -o StrictHostKeyChecking=no \
 		-o UserKnownHostsFile=/dev/null \
+		-o PubkeyAuthentication=no \
 		root@$IPADDR hostname
 }
 
