@@ -40,6 +40,11 @@ in
           '')}
 
           exec ${pkgs.openssh}/bin/sshd -D -f /etc/ssh/sshd_config
+
+          # This is here to ensure the service file is changed together with
+          # the config file, since only changed services are restarted when
+          # switching configuration.
+          # Config: ${config.environment.etc."ssh/sshd_config".source}
         '';
         killMode = "process";
       };
