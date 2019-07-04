@@ -55,6 +55,7 @@ The container move itself consists of several steps:
  - `osctl ct send config` is used to prepare environment on the destination
    node and copy configuration
  - `osctl ct send rootfs` sends over the container's rootfs
+ - `osctl ct send sync` optionally synchronizes the source and destination rootfs
  - `osctl ct send state` stops the container on the source node, performs
    another rootfs sync and finally starts the container on the destination node
  - `osctl ct send cleanup` is used to remove the container from the source
@@ -78,12 +79,15 @@ source-node $ osctl ct send config myct01 destination-node
 #    time-consuming operation
 source-node $ osctl ct send rootfs myct01
 
-# 3) Having the bulk of the container's data transfered, you can now wait for
-#    when the downtime will be least unwelcome, e.g. during the night. Run the
-#    following command when ready.
+# 3) Regularly synchronize rootfs while waiting for optimal time to transfer the
+#    container, which will cause a downtime depending on how much data has changed
+#    since `osctl ct send rootfs` or the last `osctl ct send sync`
+source-node $ osctl ct send sync myct01
+
+# 4) When the downtime will be least unwelcome, finally transfer the container
 source-node $ osctl ct send state myct01
 
-# 4) Cleanup is executed only on the source node, the destination node is already
+# 5) Cleanup is executed only on the source node, the destination node is already
 #    finished
 source-node $ osctl ct send cleanup myct01
 ```

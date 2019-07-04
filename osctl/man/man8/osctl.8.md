@@ -221,6 +221,7 @@ The container transfer consists of several steps:
  - `ct send config` is used to prepare environment on the destination node
    and copy configuration
  - `ct send rootfs` sends over the container's rootfs
+ - `ct send sync` optionally syncs rootfs changes, can be called multiple times
  - `ct send state` stops the container on the source node, performs
    another rootfs sync and finally starts the container on the destination node
  - `ct send cleanup` is used to remove the container from the source node
@@ -1296,6 +1297,11 @@ read by `ls` or `show` commands.
   Continue sending of container *ctid* to previously configured
   *destination*. `ct send rootfs` takes snapshots of the container's datasets
   and sends them to the *destination*.
+
+`ct send sync` *ctid*
+  Send rootfs changes since `ct send rootfs` or the previous `ct send sync`.
+  This send step is optional and can be used to keep the source and destination
+  containers close until `ct send state` is called.
 
 `ct send state` [*options*] *ctid*
   This command stops the container if it is running, makes another set of

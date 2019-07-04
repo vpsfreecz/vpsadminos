@@ -65,6 +65,16 @@ module OsCtl::Cli
       )
     end
 
+    def sync
+      require_args!('id')
+
+      with_progress(
+        :ct_send_sync,
+        pool: gopts[:pool],
+        id: args[0],
+      )
+    end
+
     def state
       require_args!('id')
 

@@ -1063,7 +1063,13 @@ module OsCtl::Cli
             c.action &Command.run(Send, :rootfs)
           end
 
-          s.desc 'Step 3., transfer the container to target node'
+          s.desc 'Optional step 3., transfer rootfs changes'
+          s.arg_name '<ctid>'
+          s.command :sync do |c|
+            c.action &Command.run(Send, :sync)
+          end
+
+          s.desc 'Step 4., transfer the container to target node'
           s.arg_name '<ctid>'
           s.command :state do |c|
             c.desc 'Clone the container on the target node, do not move it'
@@ -1081,7 +1087,7 @@ module OsCtl::Cli
             c.action &Command.run(Send, :state)
           end
 
-          s.desc 'Step 4., cleanup the container on the source node'
+          s.desc 'Step 5., cleanup the container on the source node'
           s.arg_name '<ctid>'
           s.command :cleanup do |c|
             c.action &Command.run(Send, :cleanup)
