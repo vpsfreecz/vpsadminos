@@ -172,7 +172,7 @@ module OsCtl::Cli
       when :progress
         data = msg[:data]
         @pb ||= ProgressBar.create(
-          title: 'Copying',
+          title: 'Sending',
           total: data[:size],
           format: format_str(data[:size]),
           throttle_rate: 0.2,
