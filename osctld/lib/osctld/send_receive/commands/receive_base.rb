@@ -21,7 +21,7 @@ module OsCtld
         client.send({status: true, response: 'continue'}.to_json + "\n", 0)
         io = client.recv_io
 
-        pid = Process.spawn('zfs', 'recv', '-F', ds.name, in: io)
+        pid = Process.spawn('zfs', 'recv', '-F', '-u', ds.name, in: io)
         Process.wait(pid)
 
         if $?.exitstatus == 0

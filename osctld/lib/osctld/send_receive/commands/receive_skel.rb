@@ -5,6 +5,9 @@ module OsCtld
   class SendReceive::Commands::ReceiveSkel < SendReceive::Commands::Base
     handle :receive_skel
 
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
+
     def execute
       client.send({status: true, response: 'continue'}.to_json + "\n", 0)
 
@@ -47,7 +50,10 @@ module OsCtld
         ct.devices.init
 
         importer.create_datasets(builder)
-        builder.setup_ct_dir
+
+        # Unmount all datasets before transfers
+        ct.datasets.reverse.each { |ds| zfs(:umount, '', ds.name, valid_rcs: [1]) }
+
         builder.setup_lxc_home
 
         ct.open_send_log(:destination)
