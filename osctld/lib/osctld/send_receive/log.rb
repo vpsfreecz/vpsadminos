@@ -81,7 +81,7 @@ module OsCtld
       @role = opts[:role]
       @state = opts[:state] || :stage
       @snapshots = opts[:snapshots] || []
-      @opts = opts.is_a?(Options) ? opts : Options.new(opts[:opts] || {})
+      @opts = opts[:opts].is_a?(Options) ? opts[:opts] : Options.new(opts[:opts] || {})
     end
 
     def dump
