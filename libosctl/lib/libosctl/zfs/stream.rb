@@ -32,7 +32,8 @@ module OsCtl::Lib
     # @param snapshot [String]
     # @param from_snapshot [String]
     # @param opts [Hash]
-    # @option opts [Boolean] compressed defaults to `true`
+    # @option opts [Boolean] :compressed defaults to `true`
+    # @option opts [Boolean] :properties defaults to `true`
     def initialize(fs, snapshot, from_snapshot = nil, opts = {})
       @fs = fs
       @snapshot = snapshot
@@ -41,6 +42,7 @@ module OsCtl::Lib
       @progress = []
 
       @opts[:compressed] = true unless @opts.has_key?(:compressed)
+      @opts[:properties] = true unless @opts.has_key?(:properties)
     end
 
     # Spawn zfs send and return {IO} with its standard output
@@ -252,12 +254,10 @@ module OsCtl::Lib
     end
 
     def zfs_send_cmd
-      if @opts[:compressed]
-        'zfs send -c'
-
-      else
-        'zfs send'
-      end
+      cmd = ['zfs', 'send']
+      cmd << '-c' if @opts[:compressed]
+      cmd << '-p' if @opts[:properties]
+      cmd.join(' ')
     end
 
     def notify_exec(pipeline)
