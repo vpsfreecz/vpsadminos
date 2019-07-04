@@ -16,7 +16,7 @@ module OsCtld
 
       manipulate(ct) do
         ct.exclusively do
-          if !ct.send_log || !ct.send_log.can_continue?(:incremental)
+          if !ct.send_log || !ct.send_log.can_send_continue?(:incremental)
             error!('invalid send sequence')
           end
 
@@ -51,7 +51,7 @@ module OsCtld
           ct.send_log.state = :incremental
           ct.save_config
 
-          if !ct.send_log.can_continue?(:transfer)
+          if !ct.send_log.can_send_continue?(:transfer)
             error!('invalid send sequence')
           end
         end

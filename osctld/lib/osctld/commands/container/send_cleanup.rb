@@ -13,7 +13,7 @@ module OsCtld
 
       manipulate(ct) do
         ct.exclusively do
-          if !ct.send_log || !ct.send_log.can_continue?(:cleanup)
+          if !ct.send_log || !ct.send_log.can_send_continue?(:cleanup)
             error!('invalid send sequence')
           end
         end

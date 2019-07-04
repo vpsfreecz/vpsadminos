@@ -14,7 +14,7 @@ module OsCtld
       error!('container not found') unless ct
 
       ct.exclusively do
-        if !ct.send_log || !ct.send_log.can_continue?(:cancel)
+        if !ct.send_log || !ct.send_log.can_send_continue?(:cancel)
           error!('invalid send sequence')
         end
 

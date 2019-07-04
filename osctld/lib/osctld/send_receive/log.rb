@@ -93,19 +93,31 @@ module OsCtld
       }
     end
 
-    def can_continue?(next_state)
-      syncs = %i(base incremental)
-      return false if state == :cancel
-
-      next_i = STATES.index(next_state)
-      return false unless next_i
-
-      return true if syncs.include?(state) && syncs.include?(next_state)
-
+    def can_send_continue?(next_state)
       cur_i = STATES.index(state)
-      return false if next_i < cur_i
-      return true if next_i > cur_i
-      false
+      next_i = STATES.index(next_state)
+
+      if state == :cancel || !next_i
+        false
+      elsif state == :incremental && next_state == :incremental
+        true
+      else
+        next_i > cur_i
+      end
+    end
+
+    def can_receive_continue?(next_state)
+      syncs = %i(base incremental)
+      cur_i = STATES.index(state)
+      next_i = STATES.index(next_state)
+
+      if state == :cancel || !next_i
+        false
+      elsif syncs.include?(state) && syncs.include?(next_state)
+        true
+      else
+        next_i > cur_i
+      end
     end
 
     def state=(v)

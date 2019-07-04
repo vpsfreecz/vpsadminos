@@ -12,7 +12,7 @@ module OsCtld
         error!('this container is not staged') if ct.state != :staged
 
         ct.exclusively do
-          if !ct.send_log || !ct.send_log.can_continue?(:incremental)
+          if !ct.send_log || !ct.send_log.can_receive_continue?(:incremental)
             error!('invalid send sequence')
           end
         end

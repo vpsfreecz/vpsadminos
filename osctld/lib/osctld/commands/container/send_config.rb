@@ -55,7 +55,7 @@ module OsCtld
     # @option opts [String] :ctid
     # @option opts [Boolean] :network_interfaces
     def export(ct, io, opts = {})
-      exporter = OsCtl::Lib::Exporter::Base.new(ct, io)
+      exporter = OsCtl::Lib::Exporter::Zfs.new(ct, io)
       exporter.dump_metadata('skel', id: opts[:ctid] || ct.id)
       exporter.dump_configs do |dump|
         dump.user(File.read(ct.user.config_path))

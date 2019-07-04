@@ -16,7 +16,7 @@ module OsCtld
       ct.manipulate(self, block: true) do
         error!('this container is not staged') if ct.state != :staged
 
-        if !ct.send_log || !ct.send_log.can_continue?(:transfer)
+        if !ct.send_log || !ct.send_log.can_receive_continue?(:transfer)
           error!('invalid send sequence')
         end
 
