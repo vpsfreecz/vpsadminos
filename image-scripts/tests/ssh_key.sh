@@ -46,7 +46,7 @@ function accept_key {
 		root@$IPADDR hostname
 	rc=$?
 	rm -f "$identity"
-	return $?
+	return $rc
 }
 
 function test_ssh {
