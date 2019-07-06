@@ -39,7 +39,7 @@ done
 usermod -L root
 rm -f /etc/ssh/ssh_host_*
 
-if [ -d /etc/systemd ] ; then
+if [ -f /etc/systemd/system.conf ] ; then
 
 cat > /etc/systemd/system/sshd-keygen.service <<"KEYGENSVC"
 [Unit]
