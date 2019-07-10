@@ -35,6 +35,13 @@
     mode = "rwm";
   }
   {
+    name = "/dev/kmsg";
+    type = "char";
+    major = "1";
+    minor = "11";
+    mode = "rwm";
+  }
+  {
     name = "/dev/tty";
     type = "char";
     major = "5";

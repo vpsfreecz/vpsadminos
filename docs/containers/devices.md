@@ -26,6 +26,7 @@ char   1       5       rwm    /dev/zero      true      -
 char   1       7       rwm    /dev/full      true      -         
 char   1       8       rwm    /dev/random    true      -         
 char   1       9       rwm    /dev/urandom   true      -         
+char   1       11      rwm    /dev/kmsg      true      -         
 char   5       0       rwm    /dev/tty       true      -         
 char   5       1       rwm    -              true      -         
 char   5       2       rwm    -              true      -         
@@ -47,6 +48,7 @@ char   1       5       rwm    /dev/zero      true      true
 char   1       7       rwm    /dev/full      true      true      
 char   1       8       rwm    /dev/random    true      true      
 char   1       9       rwm    /dev/urandom   true      true      
+char   1       11      rwm    /dev/kmsg      true      true      
 char   5       0       rwm    /dev/tty       true      true      
 char   5       1       rwm    -              true      true      
 char   5       2       rwm    -              true      true      

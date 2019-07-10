@@ -52,6 +52,11 @@ module OsCtld
           inherit: true,
         )
         root.devices.add_new(
+          :char, 1, 11, 'rwm',
+          name: '/dev/kmsg',
+          inherit: true,
+        )
+        root.devices.add_new(
           :char, 5, 0, 'rwm',
           name: '/dev/tty',
           inherit: true,

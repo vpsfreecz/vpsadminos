@@ -10,6 +10,7 @@ lxc.include = <%= File.join(Lxc::CONFIGS, 'nesting.conf') %>
 lxc.rootfs.path = <%= ct.rootfs %>
 lxc.arch = <%= ct.arch %>
 lxc.uts.name = <%= ct.hostname || ct.id %>
+lxc.syslogns = 1
 
 <% ct.user.uid_map.each do |entry| -%>
 lxc.idmap = u <%= entry.ns_id %> <%= entry.host_id %> <%= entry.count %>
