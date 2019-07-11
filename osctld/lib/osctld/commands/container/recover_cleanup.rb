@@ -16,7 +16,9 @@ module OsCtld
         error!('the container has to be stopped') if ct.state != :stopped
 
         progress('Removing leftover cgroups')
-        CGroup.rmpath_all(File.join(ct.cgroup_path, 'lxc'))
+        CGroup.rmpath_all(File.join(ct.cgroup_path, 'lxc.payload'))
+        CGroup.rmpath_all(File.join(ct.cgroup_path, 'lxc.monitor'))
+        CGroup.rmpath_all(File.join(ct.cgroup_path, 'lxc.pivot'))
 
         progress('Searching for stray network interfaces')
         veths = []

@@ -209,8 +209,8 @@ module OsCtld
     # The returned array contains pairs: `[String, Boolean]`. The `String`
     # is the path itself, while the `Boolean` determines whether this path
     # should be created. Paths that do not need to be created are configured
-    # only if they already exist. This is used only for the `./lxc/<ct>` cgroup,
-    # which LXC wants to create by itself.
+    # only if they already exist. This is used only for the `./lxc.payload/<ct>`
+    # cgroup, which LXC wants to create by itself.
     #
     # @return [Array]
     def rel_ct_cgroup_paths
@@ -221,11 +221,11 @@ module OsCtld
         # <group>/<user>/<ct>/user-owned
         [ct.cgroup_path, true],
 
-        # <group>/<user>/<ct>/user-owned/lxc
-        [File.join(ct.cgroup_path, 'lxc'), true],
+        # <group>/<user>/<ct>/user-owned/lxc.payload
+        [File.join(ct.cgroup_path, 'lxc.payload'), true],
 
-        # <group>/<user>/<ct>/user-owned/lxc/<ct>
-        [File.join(ct.cgroup_path, 'lxc', ct.id), false],
+        # <group>/<user>/<ct>/user-owned/lxc.payload/<ct>
+        [File.join(ct.cgroup_path, 'lxc.payload', ct.id), false],
       ]
     end
 
@@ -250,11 +250,11 @@ module OsCtld
         # <group>/<user>/<ct>/user-owned
         [ct.cgroup_path, true],
 
-        # <group>/<user>/<ct>/user-owned/lxc
-        [File.join(ct.cgroup_path, 'lxc'), true],
+        # <group>/<user>/<ct>/user-owned/lxc.payload
+        [File.join(ct.cgroup_path, 'lxc.payload'), true],
 
-        # <group>/<user>/<ct>/user-owned/lxc/<ct>
-        [File.join(ct.cgroup_path, 'lxc', ct.id), false,
+        # <group>/<user>/<ct>/user-owned/lxc.payload/<ct>
+        [File.join(ct.cgroup_path, 'lxc.payload', ct.id), false,
          ct.user.ugid, ct.gid_map.ns_to_host(0)],
       ])
     end

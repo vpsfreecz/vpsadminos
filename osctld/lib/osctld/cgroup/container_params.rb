@@ -14,7 +14,13 @@ module OsCtld
 
       if owner.running?
         params.each do |p|
-          path = File.join(yield(p.subsystem), 'user-owned', 'lxc', owner.id, p.name)
+          path = File.join(
+            yield(p.subsystem),
+            'user-owned',
+            'lxc.payload',
+            owner.id,
+            p.name,
+          )
 
           begin
             CGroup.set_param(path, p.value)
