@@ -312,6 +312,9 @@ module OsCtld
 
     # @param builder [Container::Builder]
     def unpack_rootfs(builder)
+      # Ensure the dataset is mounted
+      builder.ct.dataset.mount(recursive: true)
+
       # Create private/
       builder.setup_rootfs
 

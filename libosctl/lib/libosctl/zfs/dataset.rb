@@ -159,6 +159,21 @@ module OsCtl::Lib
       end
     end
 
+    # Ensure the dataset is unmounted
+    # @param recursive [Boolean] unmount subdatasets as well
+    def unmount(recursive: false)
+      zfs(
+        :list,
+        "-H -o name,mounted -t filesystem #{recursive ? '-r' : ''}",
+        name,
+      ).output.split("\n").reverse_each do |line|
+        ds, mounted = line.split
+        next if mounted != 'yes'
+
+        zfs(:unmount, nil, ds)
+      end
+    end
+
     # Check if the dataset is mounted
     # @param recursive [Boolean] check all subdatasets as well
     def mounted?(recursive: false)
@@ -193,6 +208,14 @@ module OsCtl::Lib
       end
 
       ret.reverse!
+    end
+
+    # Return all direct children
+    # @return [Array<Zfs::Dataset>]
+    def children
+      ret = list(depth: 1)
+      ret.shift # remove the current dataset
+      ret
     end
 
     # Return all direct and indirect children

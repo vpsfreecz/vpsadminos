@@ -48,23 +48,39 @@ module OsCtld
 
         snaps.each { |snap| zfs(:destroy, nil, snap) }
 
-        # Ensure the container is mounted
-        ct.mount(force: true)
+        # Unmount all datasets
+        ct.dataset.unmount(recursive: true)
+
+        # Create a new rootfs dataset with temporary name
+        props = OsCtl::Lib::Zfs::PropertyState.new
+        props.read_from(ct.dataset)
+
+        new_ds = OsCtl::Lib::Zfs::Dataset.new("#{ct.dataset}.reinstall")
+        new_ds.create!(properties: props.properties)
+
+        # Move subdatasets to the new dataset
+        ct.dataset.children.each do |ds|
+          new_subds = File.join(new_ds.name, ds.relative_name)
+          zfs(:rename, nil, "#{ds} #{new_subds}")
+        end
+
+        # Destroy the original rootfs dataset
+        zfs(:destroy, nil, ct.dataset)
+
+        # Replace the original dataset with the new one
+        zfs(:rename, nil, "#{new_ds} #{ct.dataset}")
 
         # Apply new image
         fh = File.open(tpl_path, 'r')
         importer = Container::Importer.new(ct.pool, fh, ct_id: ct.id)
         importer.load_metadata
-
-        remove_rootfs(builder)
         importer.import_root_dataset(builder)
 
         dist, ver, arch = importer.get_distribution_info
         ct.set(distribution: {name: dist, version: ver, arch: arch})
 
-        # Remount all subdatasets (subdatasets are unmounted because the builder
-        # unmounted them to configure uid/gid mapping again)
-        ct.dataset.descendants.each { |ds| zfs(:mount, nil, ds) }
+        # Remount all datasets
+        ct.dataset.mount(recursive: true)
 
         ok
       end
@@ -74,14 +90,6 @@ module OsCtld
     end
 
     protected
-    def remove_rootfs(builder)
-      progress('Removing rootfs')
-      snap = "#{builder.ct.dataset}@osctl-reinstall"
-      zfs(:snapshot, nil, snap)
-      syscmd("rm -rf \"#{builder.ct.rootfs}\"")
-      zfs(:destroy, nil, snap)
-    end
-
     def snapshots(ct)
       zfs(:list, '-H -r -d 1 -o name -t snapshot', ct.dataset).output.split("\n")
     end
