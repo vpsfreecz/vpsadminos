@@ -25,7 +25,17 @@ with lib;
     security.pam.usb.enable = mkOption { };
     security.pam.mount.enable = mkOption { };
 
-    systemd.services = mkOption { };
+    systemd = {
+      globalEnvironment = mkOption {};
+      packages = mkOption {};
+      services = mkOption {
+        type = types.attrsOf types.unspecified;
+      };
+      sockets = mkOption {};
+      targets = mkOption {};
+      tmpfiles = mkOption {};
+      user = mkOption {};
+    };
   };
   config = {
     services = {
