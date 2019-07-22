@@ -178,8 +178,6 @@ in {
 
         ${cfg.preConfig}
 
-        ip6tables -t raw -I PREROUTING -m rpfilter --invert -j DROP
-
         ${optionalString cfg.static.enable ''
         ip addr add ${cfg.static.ip} dev ${cfg.static.interface}
         ip link set ${cfg.static.interface} up

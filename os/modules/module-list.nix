@@ -22,6 +22,7 @@
   ./services/networking/bird.nix
   ./services/networking/chronyd.nix
   ./services/networking/dhcpd.nix
+  ./services/networking/firewall.nix
   ./services/networking/rpcbind.nix
   ./services/networking/sshd.nix
   ./services/osctl/image-repository.nix

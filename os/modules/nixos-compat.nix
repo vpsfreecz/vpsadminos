@@ -16,7 +16,6 @@ with lib;
     meta = {
       mainainers = mkOption { };
     };
-    networking.firewall = mkOption { };
     networking.enableIPv6 = mkOption { default = true; };
     programs.ssh.package = mkOption { };
     programs.ssh.setXAuthLocation = mkOption { default = false; };
