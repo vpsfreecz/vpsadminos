@@ -4,6 +4,7 @@
   ./config/runit.nix
   ./config/system-path.nix
   ./config/tunables.nix
+  ./misc/os-lib.nix
   ./misc/version.nix
   ./nixos-compat.nix
   ./osctl/pools.nix
