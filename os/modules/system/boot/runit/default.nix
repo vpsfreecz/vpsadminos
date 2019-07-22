@@ -78,6 +78,8 @@ let
         '';
       };
 
+      control = controlsOptions;
+
       log = {
         enable = mkEnableOption "Start svlogd for the service.";
 
@@ -172,6 +174,35 @@ let
     };
   };
 
+  controls = {
+    "up" = "u";
+    "down" = "d";
+    "pause" = "p";
+    "continue" = "c";
+    "hangup" = "h";
+    "alarm" = "a";
+    "intr" = "i";
+    "quit" = "q";
+    "usr1" = "1";
+    "usr2" = "2";
+    "terminate" = "t";
+    "kill" = "k";
+    "exit" = "x";
+  };
+
+  controlOption = name: mkOption {
+    type = types.nullOr types.str;
+    default = null;
+    description = ''
+      Override runsv control for ${name}
+
+      If the script exits with <literal>0</literal>, runsv refrains from sending
+      the service the corresponding signal. See man runsv(8) for more information.
+    '';
+  };
+
+  controlsOptions = mapAttrs (name: c: controlOption name) controls;
+
   helpers = name: pkgs.substituteAll {
     src = ./helpers.sh;
     name = "service-helpers";
@@ -229,6 +260,9 @@ let
       ${service.finish}
     '';
 
+  mkControlScript = name: action: script:
+    mkService name "control-${action}" script;
+
   mkLogRun = name: service:
     if service.log.run == "" then ''
       mkdir -p /var/log/${name}
@@ -256,8 +290,15 @@ let
       null
   ) config.runit.services);
 
+  mkControls = name: service: mapAttrsToList (action: script:
+    mkIf (script != null) {
+      "runit/services/${name}/control/${controls.${action}}".source =
+        mkControlScript name action script;
+    }
+  ) service.control;
+
   mkServices = mkMerge (mapAttrsToList (name: service:
-    mkMerge [
+    mkMerge ([
       {
         "runit/services/${name}/run".source = mkServiceRun name service;
       }
@@ -280,7 +321,7 @@ let
       (mkIf (service.log.enable) {
         "runit/services/${name}/log/run".source = mkService name "log-run" (mkLogRun name service);
       })
-    ]
+    ] ++ (mkControls name service))
   ) config.runit.services);
 
   mkRunlevels = mkMerge (flatten (map (rv:
