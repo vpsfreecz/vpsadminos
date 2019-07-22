@@ -50,8 +50,5 @@ in stdenv.mkDerivation rec {
     export RUBYOPT=-rbundler/setup
 
     export OSCTLD_APPARMOR_PATHS="${apparmorPathsJoined}"
-
-    # Suids
-    chmod 04755 ${pkgs.lxc}/libexec/lxc/lxc-user-nic
   '';
 }
