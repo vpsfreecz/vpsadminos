@@ -128,9 +128,12 @@ in
         "udev/hwdb.bin".source = hwdbBin;
       };
 
-      runit.services.eudev.run = ''
-        exec ${pkgs.eudev}/bin/udevd
-      '';
+      runit.services.eudev = {
+        run = ''
+          exec ${pkgs.eudev}/bin/udevd
+        '';
+        runlevels = [ "rescue" "default" ];
+      };
 
       runit.services.eudev-trigger = {
         run = ''
@@ -144,6 +147,7 @@ in
           ${pkgs.eudev}/bin/udevadm trigger --action=add
         '';
         oneShot = true;
+        runlevels = [ "rescue" "default" ];
       };
     })
   ];

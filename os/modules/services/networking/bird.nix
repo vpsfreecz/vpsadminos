@@ -201,12 +201,15 @@ let
       config = mkIf cfg.enable {
         environment.systemPackages = [ pkg ];
 
-        runit.services."${variant}".run = ''
-          touch ${cfg.logFile}
-          chown ${variant}:${variant} ${cfg.logFile}
-          chmod 660 ${cfg.logFile}
-          exec ${pkg}/bin/${variant} -c ${configFile} -u ${variant} -g ${variant} -f
-        '';
+        runit.services."${variant}" = {
+          run = ''
+            touch ${cfg.logFile}
+            chown ${variant}:${variant} ${cfg.logFile}
+            chmod 660 ${cfg.logFile}
+            exec ${pkg}/bin/${variant} -c ${configFile} -u ${variant} -g ${variant} -f
+          '';
+          runlevels = [ "rescue" "default" ];
+        };
 
         users = {
           extraUsers.${variant} = {

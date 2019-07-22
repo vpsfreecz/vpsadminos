@@ -14,7 +14,7 @@ let
         ${gettyCmd "${extraArgs} --keep-baud ${tty} 115200,38400,9600 ${termtype}"}
       '';
 
-      runlevels = [ "single" "default" ];
+      runlevels = [ "single" "rescue" "default" ];
     };
 
   tty1 = mkGetty "--noclear" "linux" "tty1";

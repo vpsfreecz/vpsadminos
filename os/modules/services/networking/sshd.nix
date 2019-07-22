@@ -47,6 +47,7 @@ in
           # Config: ${config.environment.etc."ssh/sshd_config".source}
         '';
         killMode = "process";
+        runlevels = [ "rescue" "default" ];
       };
     })
   ];

@@ -18,10 +18,13 @@ in
 
   config = mkMerge [
     (mkIf cfg.enable {
-      runit.services.nix.run =  ''
-        nix-store --load-db < /nix/store/nix-path-registration
-        exec nix-daemon
-      '';
+      runit.services.nix = {
+        run = ''
+          nix-store --load-db < /nix/store/nix-path-registration
+          exec nix-daemon
+        '';
+        runlevels = [ "rescue" "default" ];
+      };
     })
   ];
 }

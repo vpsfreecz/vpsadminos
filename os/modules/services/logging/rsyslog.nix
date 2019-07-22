@@ -68,10 +68,13 @@ in
   ###### implementation
 
   config = {
-    runit.services.rsyslog.run = ''
-      mkdir -p /var/spool/rsyslog
-      exec ${pkgs.rsyslog-light}/sbin/rsyslogd -f ${syslog_config} -n -i ${pidFile}
-    '';
+    runit.services.rsyslog = {
+      run = ''
+        mkdir -p /var/spool/rsyslog
+        exec ${pkgs.rsyslog-light}/sbin/rsyslogd -f ${syslog_config} -n -i ${pidFile}
+      '';
+      runlevels = [ "rescue" "default" ];
+    };
 
     services.logrotate.logFiles = [
       {

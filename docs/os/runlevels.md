@@ -1,8 +1,10 @@
 # Runlevels
 vpsAdminOS supports runlevels as suggested by
 [runit documentation](http://smarden.org/runit/runlevels.html). There are
-two runlevels built-in: *single* and *default*. *single* starts only gettys,
-which is useful for maintenance. Runlevel *default* starts all services that
+three runlevels built-in: *single*, *rescue* and *default*. *single* starts only
+gettys, which is useful for maintenance. Runlevel *rescue* starts gettys,
+configures network and starts sshd. *rescue* does not import ZFS pools and does
+not start *osctld*. Runlevel *default* starts all services that
 handle network configuration, importing of storage pools and starting
 containers.
 
@@ -59,26 +61,32 @@ runlevels they're in:
 
 ```bash
 svctl
-chronyd                             default   
-crond                               default   
-dhcpd                               default   
-eudev                               default   
-eudev-trigger                       default   
-getty-tty1              single      default   
-getty-tty2              single      default   
-getty-tty3              single      default   
-getty-tty4              single      default   
-getty-ttyS0             single      default   
-getty-ttyS1             single      default   
-groups-tank                         default   
-lxcfs                               default   
-networking                          default   
-nix                                 default   
-osctld                              default   
-rpcbind                             default   
-rsyslog                             default   
-sshd                                default   
-statd                               default   
+channel-registration                            default   
+chronyd                                         default   
+cpufreq                                         default   
+crond                                           default   
+dhcpd                                           default   
+eudev                               rescue      default   
+eudev-trigger                       rescue      default   
+getty-tty1              single      rescue      default   
+getty-tty2              single      rescue      default   
+getty-tty3              single      rescue      default   
+getty-tty4              single      rescue      default   
+getty-ttyS0             single      rescue      default   
+getty-ttyS1             single      rescue      default   
+haveged                                         default   
+histfile-tank                                   default   
+lxcfs                                           default   
+networking                          rescue      default   
+nfsd                                            default   
+nix                                 rescue      default   
+opensmtpd                                       default   
+osctld                                          default   
+pool-tank                                       default   
+rpcbind                                         default   
+rsyslog                             rescue      default   
+sshd                                rescue      default   
+statd                                           default   
 ```
 
 To enable service `sshd` in runlevel `single`, you'd do:

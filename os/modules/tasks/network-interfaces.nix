@@ -205,6 +205,7 @@ in {
       '';
       oneShot = true;
       onChange = "ignore";
+      runlevels = [ "rescue" "default" ];
     };
   };
 }
