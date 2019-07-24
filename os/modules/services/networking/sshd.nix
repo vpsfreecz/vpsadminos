@@ -14,7 +14,7 @@ in
 
   config = mkMerge [
     (mkIf (config.services.openssh.enable) {
-      services.openssh.extraConfig = ''
+      services.openssh.extraConfig = mkOrder 100 ''
         PidFile /run/sshd.pid
 
         Match User osctl-ct-receive
