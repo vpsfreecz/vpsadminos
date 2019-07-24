@@ -27,6 +27,7 @@ in
   options = {
     services.nfs.server = {
       enable = mkEnableOption "Enable NFS server";
+
       nproc = mkOption {
         type = types.ints.positive;
         default = 8;
@@ -45,6 +46,36 @@ in
           <manvolnum>5</manvolnum></citerefentry> for the format.
         '';
       };
+
+      mountdPort = mkOption {
+        type = types.nullOr types.int;
+        default = null;
+        example = 4002;
+        description = ''
+          Use fixed port for rpc.mountd, useful if server is behind firewall.
+        '';
+      };
+
+      lockdPort = mkOption {
+        type = types.nullOr types.int;
+        default = null;
+        example = 4001;
+        description = ''
+          Use a fixed port for the NFS lock manager kernel module
+          (<literal>lockd/nlockmgr</literal>).  This is useful if the
+          NFS server is behind a firewall.
+        '';
+      };
+
+      statdPort = mkOption {
+        type = types.nullOr types.int;
+        default = null;
+        example = 4000;
+        description = ''
+          Use a fixed port for <command>rpc.statd</command>. This is
+          useful if the NFS server is behind a firewall.
+        '';
+      };
     };
   };
 
@@ -61,7 +92,11 @@ in
         ensureServiceStarted rpcbind
         ${waitForRpcBind}
         mkdir -p ${nfsStateDir}/{sm,sm.bak}
-        exec ${pkgs.nfs-utils}/bin/rpc.statd -F
+        exec ${pkgs.nfs-utils}/bin/rpc.statd \
+          --foreground \
+          ${optionalString (cfg.server.statdPort != null) "--port ${toString cfg.server.statdPort}"} \
+          ${optionalString (cfg.server.lockdPort != null) "--nlm-port ${toString cfg.server.lockdPort}"} \
+          ${optionalString (cfg.server.lockdPort != null) "--nlm-udp-port ${toString cfg.server.lockdPort}"}
       '';
     })
 
@@ -87,7 +122,10 @@ in
 
         exportfs -ra &> /dev/null || exit 1
         ${pkgs.nfs-utils}/bin/rpc.nfsd -- ${toString cfg.server.nproc}
-        exec ${pkgs.nfs-utils}/bin/rpc.mountd --foreground &> /dev/null
+        exec ${pkgs.nfs-utils}/bin/rpc.mountd \
+          --foreground \
+          ${optionalString (cfg.server.mountdPort != null) "--port ${toString cfg.server.mountdPort}"} \
+          &> /dev/null
       '';
     })
   ];
