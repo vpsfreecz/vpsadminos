@@ -20,6 +20,7 @@ in
   systemd.mounts = [ {where = "/sys/kernel/debug"; enable = false;} ];
 
   boot.isContainer = true;
+  boot.loader.initScript.enable = true;
   boot.specialFileSystems."/run/keys".fsType = lib.mkForce "tmpfs";
 
   boot.postBootCommands =
@@ -49,10 +50,6 @@ in
         symlink = "/run/current-system";
       }
     ];
-    extraCommands = "mkdir -p proc sys dev etc";
+    extraCommands = "mkdir -p boot proc sys dev etc";
   };
-
-  system.activationScripts.installInitScript = ''
-    ln -fs $systemConfig/init /sbin/init
-  '';
 }
