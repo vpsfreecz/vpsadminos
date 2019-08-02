@@ -75,7 +75,6 @@ in
           ${concatMapStringsSep " " (x: "--no-collector." + x) cfg.disabledCollectors} \
           --web.listen-address ${cfg.listenAddress}:${toString cfg.port} \
           --collector.runit.servicedir=/service \
-          --collector.textfile.directory=/run/metrics \
           ${concatStringsSep " \\\n  " cfg.extraFlags} &>/dev/null
       '';
 
