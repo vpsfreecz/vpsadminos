@@ -3,7 +3,7 @@ with utils;
 with lib;
 
 let
-  cfg = config.services.prometheus.node_exporter;
+  cfg = config.services.prometheus.exporters.node;
 
   machineCheckConf = pkgs.writeText "machine-check.conf" ''
     [DNS_EXAMPLE]
@@ -21,7 +21,7 @@ in
   ###### interface
 
   options = {
-    services.prometheus.node_exporter = {
+    services.prometheus.exporters.node = {
       enable = mkEnableOption "Enable node_exporter service";
       enabledCollectors = mkOption {
         type = types.listOf types.string;

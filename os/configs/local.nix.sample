@@ -29,5 +29,5 @@
     config.boot.kernelPackages.bcc
   ];
 
-  services.prometheus.node_exporter.enable = true;
+  services.prometheus.exporters.node.enable = true;
 }
