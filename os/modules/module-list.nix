@@ -9,6 +9,7 @@
   ./nixos-compat.nix
   ./osctl/pools.nix
   ./osctl/osctld.nix
+  ./osctl/osctl-exporter.nix
   ./programs/bash.nix
   ./programs/htop.nix
   ./rename.nix
