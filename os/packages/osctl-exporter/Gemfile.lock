@@ -2,6 +2,8 @@ GEM
   remote: https://rubygems.vpsfree.cz/
   specs:
     curses (1.3.1)
+    daemons (1.3.1)
+    eventmachine (1.2.7)
     gli (2.17.2)
     highline (1.7.10)
     ipaddress (0.8.3)
@@ -19,15 +21,30 @@ GEM
       rainbow (~> 3.0.0)
       require_all (~> 2.0.0)
       ruby-progressbar (~> 1.9.0)
+    osctl-exporter (19.03.0.build20190809160906)
+      json
+      libosctl (= 19.03.0.build20190809160906)
+      osctl (= 19.03.0.build20190809160906)
+      prometheus-client (~> 0.9.0)
+      require_all (~> 2.0.0)
+      thin (~> 1.7.2)
+    prometheus-client (0.9.0)
+      quantile (~> 0.2.1)
+    quantile (0.2.1)
+    rack (2.0.7)
     rainbow (3.0.0)
     require_all (2.0.0)
     ruby-progressbar (1.9.0)
+    thin (1.7.2)
+      daemons (~> 1.0, >= 1.0.9)
+      eventmachine (~> 1.0, >= 1.0.4)
+      rack (>= 1, < 3)
 
 PLATFORMS
   ruby
 
 DEPENDENCIES
-  osctl (= 19.03.0.build20190809160906)
+  osctl-exporter (= 19.03.0.build20190809160906)
 
 BUNDLED WITH
    1.17.2
