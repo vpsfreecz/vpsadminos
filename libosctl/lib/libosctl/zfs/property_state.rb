@@ -7,12 +7,17 @@ module OsCtl::Lib
     # @return [Hash]
     attr_reader :properties
 
+    # @return [Hash]
+    attr_reader :options
+
     def initialize
       @properties = {}
+      @options = {}
     end
 
     def clean
       @properties.clear
+      @options.clear
     end
 
     # @param dataset [Zfs::Dataset]
@@ -24,6 +29,7 @@ module OsCtl::Lib
       ).output.strip.split("\n").each do |line|
         prop, value = line.split
         properties[prop] = value
+        options[prop] = to_option(prop, value)
       end
     end
 
@@ -31,14 +37,22 @@ module OsCtl::Lib
     def apply_to(dataset)
       zfs(
         :set,
-        options.map { |opt| "-o #{opt}" }.join(" "),
+        option_strings.map { |opt| "-o #{opt}" }.join(" "),
         dataset,
       )
     end
 
     # @return [Array<String>]
-    def options
-      properties.map { |k, v| "\"#{k}=#{v}\"" }
+    def option_strings
+      options.map { |k, v| "\"#{k}=#{v}\"" }
+    end
+
+    protected
+    # @param property [String]
+    # @param value [String]
+    def to_option(property, value)
+      return 'none' if %w(quota refquota).include?(property) && value.to_i == 0
+      value
     end
   end
 end

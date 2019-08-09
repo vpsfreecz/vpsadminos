@@ -56,7 +56,7 @@ module OsCtld
         props.read_from(ct.dataset)
 
         new_ds = OsCtl::Lib::Zfs::Dataset.new("#{ct.dataset}.reinstall")
-        new_ds.create!(properties: props.properties)
+        new_ds.create!(properties: props.options)
 
         # Move subdatasets to the new dataset
         ct.dataset.children.each do |ds|
