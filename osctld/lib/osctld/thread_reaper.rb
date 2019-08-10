@@ -18,6 +18,7 @@ module OsCtld
 
     include Singleton
     include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::Exception
 
     def initialize
       @queue = OsCtl::Lib::Queue.new
@@ -45,7 +46,7 @@ module OsCtld
     end
 
     protected
-    attr_reader :queue, :thread, :threads
+    attr_reader :queue, :thread, :threads, :stop_at
 
     def run
       do_stop = false
@@ -58,6 +59,7 @@ module OsCtld
 
         elsif v == :stop
           do_stop = true
+          @stop_at = Time.now
           request_stop_threads
 
         elsif v.is_a?(Array)
@@ -89,11 +91,22 @@ module OsCtld
 
       elsif @time.nil? || (Time.now - @time) >= 10
         @time = Time.now
-        log(
-          :info,
-          'threadreaper',
-          "Waiting for #{sync { threads.count }} threads to exit"
-        )
+        sync do
+          log(
+            :info,
+            'threadreaper',
+            "Waiting for #{threads.count} threads to exit"
+          )
+
+          if (Time.now - stop_at) >= 30
+            threads.each_with_index do |v, i|
+              t, m = v
+              log(:info, 'threadreaper', "Thread ##{i+1}: manager=#{m}")
+              log(:info, 'threadreaper', denixstorify(t.backtrace).join("\n"))
+            end
+          end
+        end
+
         false
       end
     end
