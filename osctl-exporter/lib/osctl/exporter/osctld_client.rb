@@ -6,7 +6,16 @@ module OsCtl::Exporter
 
     def initialize
       @client = OsCtl::Client.new
-      @client.open
+    end
+
+    # @yieldparam client [OsCtldClient]
+    def connect
+      client.open unless connected?
+      @connected = true
+      yield(self)
+    ensure
+      client.close
+      @connected = false
     end
 
     def list_pools
@@ -15,6 +24,11 @@ module OsCtl::Exporter
 
     def list_containers
       client.cmd_data!(:ct_list)
+    end
+
+    protected
+    def connected?
+      @connected
     end
   end
 end

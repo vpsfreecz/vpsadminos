@@ -15,15 +15,15 @@ module OsCtl::Exporter
       )
     end
 
-    def collect
-      collect_pools
-      collect_pool_containers
+    def collect(client)
+      collect_pools(client)
+      collect_pool_containers(client)
     end
 
     protected
     attr_reader :pools, :pool_containers
 
-    def collect_pools
+    def collect_pools(client)
       states = {
         importing: 0,
         active: 0,
@@ -46,7 +46,7 @@ module OsCtl::Exporter
       end
     end
 
-    def collect_pool_containers
+    def collect_pool_containers(client)
       pools = client.list_pools
       pool_cts = {}
 

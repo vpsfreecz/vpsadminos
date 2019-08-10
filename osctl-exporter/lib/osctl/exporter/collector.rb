@@ -22,7 +22,7 @@ module OsCtl::Exporter
       @collectors = [
         Collectors::Pool,
         Collectors::Container,
-      ].map { |klass| klass.new(registry, client) }
+      ].map { |klass| klass.new(registry) }
     end
 
     def start
@@ -50,7 +50,9 @@ module OsCtl::Exporter
     attr_reader :client, :queue, :thread, :registry, :collectors
 
     def collect
-      collectors.each { |c| c.collect }
+      client.connect do
+        collectors.each { |c| c.collect(client) }
+      end
     end
   end
 end

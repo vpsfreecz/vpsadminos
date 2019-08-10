@@ -24,7 +24,7 @@ module OsCtl::Exporter
       )
     end
 
-    def collect
+    def collect(client)
       cts = client.list_containers
       cg_add_stats(
         client.client,
