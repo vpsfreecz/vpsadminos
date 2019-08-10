@@ -36,14 +36,17 @@ module OsCtl::Exporter
 
       cts.each do |ct|
         running.set({pool: ct[:pool], id: ct[:id]}, ct[:state] == 'running' ? 1 : 0)
-        memory_used_bytes.set({pool: ct[:pool], id: ct[:id]}, ct[:memory].raw)
+        memory_used_bytes.set(
+          {pool: ct[:pool], id: ct[:id]},
+          ct[:memory].nil? ? 0 : ct[:memory].raw
+        )
         cpu_ns_total.set(
           {pool: ct[:pool], id: ct[:id], mode: 'user'},
-          ct[:cpu_user_time].raw
+          ct[:cpu_user_time].nil? ? 0 : ct[:cpu_user_time].raw
         )
         cpu_ns_total.set(
           {pool: ct[:pool], id: ct[:id], mode: 'system'},
-          ct[:cpu_sys_time].raw
+          ct[:cpu_sys_time].nil? ? 0 : ct[:cpu_sys_time].raw
         )
       end
     end
