@@ -1,0 +1,13 @@
+description: |
+  Adds /dev/kmsg device (major=1 minor=11) to the root group with all access
+  allowed. The device is needed as an interface to syslog with syslog namespace
+  enabled.
+  
+  Note that the device is left alone on rollback. It is up to the administrator
+  to remove it. The device may be required in some configurations, which we
+  don't want to break. The command to remove it is
+
+    osctl group devices del <pool>:/ char 1 11
+
+snapshot:
+ - conf
