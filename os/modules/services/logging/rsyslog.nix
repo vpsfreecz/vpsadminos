@@ -6,6 +6,10 @@ let
   cfg = config.services.rsyslogd;
   forwardHosts = concatMapStringsSep "\n" (hostPort: "*.* @@${hostPort};RSYSLOG_SyslogProtocol23Format") cfg.forward;
   syslog_config = pkgs.writeText "syslog.conf" ''
+    ${optionalString (!isNull cfg.hostName) ''
+    $LocalHostName ${cfg.hostName}
+    ''}
+
     $ModLoad imuxsock
     $ModLoad imklog
     $ModLoad imudp
@@ -48,6 +52,12 @@ in
   options = {
     services = {
       rsyslogd = {
+        hostName = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          description = "Optional hostname";
+        };
+
         forward = mkOption {
           type = types.listOf types.string;
           description = "Forward logs over TCP to a set of hosts";
