@@ -48,5 +48,10 @@ module OsCtl::Lib
     def to_json(*args)
       raw.to_json(*args)
     end
+
+    # Forward `round` call to the raw value
+    def round(*args)
+      raw.round(*args)
+    end
   end
 end
