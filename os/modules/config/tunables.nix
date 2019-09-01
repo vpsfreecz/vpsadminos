@@ -16,6 +16,8 @@ with lib;
     "net.ipv6.neigh.default.gc_thresh1" = mkDefault 2048;
     "net.ipv6.neigh.default.gc_thresh2" = mkDefault 4096;
     "net.ipv6.neigh.default.gc_thresh3" = mkDefault 8192;
+    "net.ipv4.route.max_size" = mkDefault (2 * 1024 * 1024 * 1024 - 1);
+    "net.ipv6.route.max_size" = mkDefault (2 * 1024 * 1024 * 1024 - 1);
     "vm.max_map_count" = mkDefault 262144;
     "vm.overcommit_ratio" = mkDefault 3200;
   };
