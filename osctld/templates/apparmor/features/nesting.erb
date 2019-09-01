@@ -3,12 +3,8 @@
   mount fstype=devpts -> /dev/pts/,
   mount options=bind /dev/pts/ptmx/ -> /dev/ptmx/,
   mount options=bind /dev/pts/** -> /dev/**,
-  mount fstype=debugfs,
   # allow pre-mount hooks to stage mounts under /var/lib/lxc/<container>/
   mount -> /var/lib/lxc/{**,},
 
   deny /dev/.lxc/proc/** rw,
   deny /dev/.lxc/sys/** rw,
-
-  mount fstype=proc -> /var/cache/lxc/**,
-  mount fstype=sysfs -> /var/cache/lxc/**,
