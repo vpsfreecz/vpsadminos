@@ -33,6 +33,8 @@ chmod a+rxw /proc/kmsg
 chmod a+rx /proc/fs/aufs/
 chmod a+w /proc/fs/aufs/plink_maint
 
+@restrictProcSysfs@
+
 hostname @hostName@
 
 $systemConfig/activate
