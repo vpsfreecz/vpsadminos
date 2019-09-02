@@ -88,9 +88,9 @@ module OsCtld
         if route.addr.ipv4? && route.addr.prefix == 32
           route.addr.to_s
         elsif route.addr.ipv6? && route.addr.prefix == 128
-          route.addr.to_string
+          route.addr.to_s
         else
-          fail 'programming error'
+          route.addr.to_string
         end
       end
     end
