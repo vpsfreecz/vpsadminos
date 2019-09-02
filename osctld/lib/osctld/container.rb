@@ -244,9 +244,6 @@ module OsCtld
     end
 
     def current_state
-      s = state
-      return s if s != :unknown
-
       begin
         self.state = ContainerControl::Commands::State.run!(self).state
       rescue ContainerControl::Error
