@@ -1529,6 +1529,9 @@ module OsCtl::Cli
           r.desc 'Clean up leftover cgroups and network interfaces'
           r.arg_name '<ctid>'
           r.command :cleanup do |c|
+            c.desc 'Force the cleanup even on an unstopped container'
+            c.switch %i(f force), negatable: false
+
             c.action &Command.run(Container, :recover_cleanup)
           end
         end

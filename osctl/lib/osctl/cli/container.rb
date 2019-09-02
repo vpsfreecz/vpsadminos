@@ -1034,6 +1034,7 @@ module OsCtl::Cli
         :ct_recover_cleanup,
         id: args[0],
         pool: gopts[:pool],
+        force: opts[:force],
       )
     end
 

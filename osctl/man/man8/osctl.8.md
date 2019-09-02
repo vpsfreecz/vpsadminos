@@ -1968,11 +1968,14 @@ read by `ls` or `show` commands.
   report anything, `osctld` will not notice the change on its own and this
   command can be used to recover from such a state.
 
-`ct recover cleanup` *ctid*
+`ct recover cleanup` [`-f`] *ctid*
   Remove any leftover cgroups and network interfaces that might have belonged
   to container *ctid*. This is useful when the container's management process
   crashes for some reason and does not cleanup after itself. This operation
-  can be used only on stopped containers.
+  can be used only on stopped containers, unless `--force` is used.
+
+    `-f`, `--force`
+      Force cleanup of an unstopped container.
 
 `group new` *options* *group*
   Create a new group for resource management.

@@ -13,7 +13,9 @@ module OsCtld
       return error('container not found') unless ct
 
       manipulate(ct) do
-        error!('the container has to be stopped') if ct.state != :stopped
+        if ct.state != :stopped && !opts[:force]
+          error!('the container has to be stopped')
+        end
 
         progress('Removing leftover cgroups')
         CGroup.rmpath_all(File.join(ct.cgroup_path, 'lxc.payload'))
