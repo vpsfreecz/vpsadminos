@@ -262,7 +262,7 @@ let
         type = types.attrs;
         default = {};
         example = {
-          readonly = on;
+          readonly = "on";
         };
         description = ''
           zpool properties, see man zpool(8) for more information.

@@ -56,7 +56,6 @@ in {
       type = types.package;
       description = "base linux kernel package";
       default = pkgs.callPackage (import ../../packages/linux/default.nix) {};
-      example = pkgs.linux_4_16;
     };
   };
 

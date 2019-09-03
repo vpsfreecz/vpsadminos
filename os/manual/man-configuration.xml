@@ -1,0 +1,30 @@
+<refentry xmlns="http://docbook.org/ns/docbook"
+          xmlns:xlink="http://www.w3.org/1999/xlink"
+          xmlns:xi="http://www.w3.org/2001/XInclude">
+  <refmeta>
+  <refentrytitle><filename>vpsadminos-configuration.nix</filename></refentrytitle>
+    <manvolnum>5</manvolnum>
+    <refmiscinfo class="source">vpsAdminOS</refmiscinfo>
+  </refmeta>
+  <refnamediv>
+    <refname><filename>vpsadminos-configuration.nix</filename></refname>
+    <refpurpose>vpsAdminOS configuration specification</refpurpose>
+  </refnamediv>
+  <refsection>
+    <title>Description</title>
+    <para>
+      vpsAdminOS is an operating system that serves as a hypervisor for container
+      virtualization.
+    </para>
+    <para>
+      For more information, see: <link xlink:href="https://vpsadminos.org" />.
+    </para>
+  </refsection>
+  <refsection>
+    <title>Options</title>
+    <para>
+      You can use the following options in vpsAdminOS configuration.
+    </para>
+    <xi:include href="./nmd-result/vpsadminos-options.xml" />
+  </refsection>
+</refentry>

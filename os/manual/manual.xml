@@ -1,0 +1,29 @@
+<book xmlns="http://docbook.org/ns/docbook"
+      xmlns:xlink="http://www.w3.org/1999/xlink"
+      xmlns:xi="http://www.w3.org/2001/XInclude"
+      version="5.0"
+      xml:id="book-vpsadminos-manual">
+  <info>
+    <title>vpsAdminOS Manual</title>
+  </info>
+  <preface>
+    <title>Preface</title>
+    <para>
+      vpsAdminOS is an operating system that serves as a hypervisor for container
+      virtualization.
+    </para>
+    <para>
+      This manual includes a reference of all supported options. For documentation
+      see <link xlink:href="https://vpsadminos.org" />.
+    </para>
+    <para>
+      If you encounter problems or bugs then please report them on the
+      <link xlink:href="https://github.com/vpsfreecz/vpsadminos/issues">vpsAdminOS
+      issue tracker</link>.
+    </para>
+  </preface>
+  <appendix xml:id="ch-options">
+    <title>Configuration Options</title>
+    <xi:include href="./nmd-result/vpsadminos-options.xml" />
+  </appendix>
+</book>

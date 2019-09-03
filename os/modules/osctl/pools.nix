@@ -111,11 +111,11 @@ let
         description = ''
           If set to <literal>manual</literal>, the garbage collector has to be
           run manually for every pool by the user by calling script
-          <literal>gc-sweep-<pool></literal>. When set to <literal>auto</literal>,
+          <literal>gc-sweep-‹pool</literal>. When set to <literal>auto</literal>,
           the garbage collector is run in the background by runit service
-          <literal>gc-<pool></literal>. Options
-          <option>osctl.pools.<pool>.pure</option> and
-          <option>osctl.pools.<pool>.destroyUndeclared</option> are honored
+          <literal>gc-&lt;pool&gt;</literal>. Options
+          <option>osctl.pools.&lt;pool&gt;.pure</option> and
+          <option>osctl.pools.&lt;pool&gt;.destroyUndeclared</option> are honored
           in the automated mode. Destructive operations using the manual
           invocation have to be enabled using command-line options.
         '';
