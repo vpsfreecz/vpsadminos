@@ -2,12 +2,12 @@
 let
   lib = pkgs.lib;
 
-  nmdSrc = pkgs.fetchFromGitLab {
+  nmdSrc = pkgs.fetchFromGitHub {
     name = "nmd";
-    owner = "rycee";
+    owner = "vpsfreecz";
     repo = "nmd";
-    rev = "9751ca5ef6eb2ef27470010208d4c0a20e89443d";
-    sha256 = "0rbx10n8kk0bvp1nl5c8q79lz1w0p1b8103asbvwps3gmqd070hi";
+    rev = "9152103868d0f74ca28ca08de3fc39e4d44fa3e2";
+    sha256 = "0h8lkap35ir1nylg8i885rs3xm5ij0vryh5wwhs7yjgbqziwd0pf";
   };
 
   nmd = import nmdSrc { inherit pkgs; };
@@ -27,14 +27,23 @@ let
     ];
   };
 
+  isOsModule = path: lib.hasPrefix "os/" path;
+
   osModulesDocs = nmd.buildModulesDocs {
     modules =
       import ../modules/module-list.nix
       ++ [ scrubbedPkgsModule ];
-    moduleRootPaths = [ ./.. ];
+    moduleRootPaths = [ ./../.. <nixpkgs> ];
     mkModuleUrl = path:
-      "https://github.com/vpsfreecz/vpsadminos/blob/master/${path}#blob-path";
-    channelName = "vpsadminos";
+      if isOsModule path then
+        "https://github.com/vpsfreecz/vpsadminos/blob/master/${path}#blob-path"
+      else
+        "https://github.com/NixOS/nixpkgs/blob/master/${path}#blob-path";
+    mkChannelPath = path:
+      if isOsModule path then
+        "vpsadminos/${path}"
+      else
+        "nixpkgs/${path}";
     docBook.id = "vpsadminos-options";
   };
 
