@@ -53,7 +53,7 @@ in
       inherit (config.boot) procHidePid;
       inherit postBootCommands;
       restrictProcSysfs = pkgs.callPackage ./restrict-dirs.nix {
-        data = import ./proc-sysfs.nix;
+        data = config.system.boot.restrict-proc-sysfs.config;
       };
     };
   };

@@ -14,6 +14,7 @@ let
     gnutar
     openssh
     pty-wrapper
+    runit
     shadow
     utillinux
     zfs
@@ -35,6 +36,10 @@ in
       run = ''
         export PATH="${config.security.wrapperDir}:${pathJoined}"
         export OSCTLD_APPARMOR_PATHS="${apparmorPathsJoined}"
+
+        ${optionalString config.system.boot.restrict-proc-sysfs.enable ''
+        waitForService restrict-proc-sysfs
+        ''}
 
         exec 2>&1
         exec ${pkgs.osctld}/bin/osctld --log syslog --log-facility local2
