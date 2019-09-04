@@ -25,15 +25,16 @@ make qemu
 
 ## Declarative containers
 
-It is possible to built the `os` with images for containers to be imported and started on boot by `osctld`. For examples
-see `configs/containers` directory. This functionality is experimental and mostly used for testing.
+It is possible to built the `os` with images for containers to be imported and
+started on boot by `osctld`. For examples see `configs/containers` directory.
+This functionality is experimental and mostly used for testing.
 
 ## Explicit configuration and dependencies
 
-Most of the `make` targets are just a wrappers for `nix-build`. Is it possible
+Most of the `make` targets are just wrappers for `nix-build`. It is possible
 to build the `os` by specifying required arguments directly without relying on
-`nixops` or setting correct `NIX_PATH`. Following example demonstrates how
-to build the `os` directly without `make`.
+`nixops` or setting the correct `NIX_PATH`. The following example demonstrates
+how to build the `os` directly without `make`.
 
 ```bash
 cd os
@@ -43,14 +44,15 @@ nix-build \
  --cores 0
 ```
 
-`configuration` can also be passed via environmental variable `VPSADMINOS_CONFIG`, so this is equivalent:
-`VPSADMINOS_CONFIG` has to be an absolute path.
+`configuration` can also be passed via environmental variable `VPSADMINOS_CONFIG`,
+so this is equivalent:
 
 ```bash
 cd os
-export VPSADMINOS_CONFIG=$(pwd)/configs/default.nix
+export VPSADMINOS_CONFIG=/where/is/your/config.nix
 nix-build \
- --arg vpsadmin "../../vpsadmin" \
  --arg nixpkgs "../../nixpkgs" \
  --cores 0
 ```
+
+`VPSADMINOS_CONFIG` has to be an absolute path.
