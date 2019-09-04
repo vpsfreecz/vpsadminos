@@ -33,8 +33,12 @@ class RestrictDirs
       @subdirs.any?
     end
 
-    def has_subdir?(path)
-      @subdirs.has_key?(path)
+    def find_subdir(path)
+      @subdirs.each do |path_pattern, dir|
+        return dir if File.fnmatch?(path_pattern, path)
+      end
+
+      nil
     end
 
     def allow?
@@ -49,23 +53,24 @@ class RestrictDirs
   end
 
   def run
-    @dirs.each { |entry| restrict(entry) }
+    @dirs.each { |entry| restrict(entry, entry.path) }
   end
 
   protected
-  def restrict(entry)
+  def restrict(entry, realpath)
     unless entry.has_subdirs?
-      chmod(entry.path) unless entry.allow?
+      chmod(realpath) unless entry.allow?
       return
     end
 
-    Dir.entries(entry.path).each do |f|
+    Dir.entries(realpath).each do |f|
       next if %w(. ..).include?(f)
 
-      path = File.join(entry.path, f)
+      path = File.join(realpath, f)
+      subdir = entry.find_subdir(path)
 
-      if entry.has_subdir?(path)
-        restrict(entry.subdirs[path])
+      if subdir
+        restrict(subdir, path)
       else
         chmod(path)
       end
