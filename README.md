@@ -119,10 +119,3 @@ nix-build -A config.system.build.squashfs
 * https://linuxcontainers.org/
 * http://containerops.org/2013/11/19/lxc-networking/
 * http://blog.benoitblanchon.fr/lxc-unprivileged-container/
-
-## iPXE
-
-There is a support for generating iPXE config files, that will check
-the cryptographic signature over all images, to ensure only authorized files
-can run on the given hardware. This also rebuilds iPXE to contain keys to be
-used for signature verification.
