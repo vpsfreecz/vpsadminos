@@ -22,6 +22,7 @@
       "system" = {
         subdirs = {
           "cpu" = true;
+          "node" = true;
         };
       };
       "virtual" = {
