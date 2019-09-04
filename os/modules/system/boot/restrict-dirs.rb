@@ -10,6 +10,14 @@ class RestrictDirs
     def initialize(parent, path, opts)
       @parent = parent
       @path = path
+      @default =
+        if opts === true || opts === false
+          opts
+        elsif opts.has_key?('default')
+          opts['default'] ? true : false
+        else
+          false
+        end
       @allow =
         if opts === true || opts === false
           opts
@@ -44,6 +52,10 @@ class RestrictDirs
     def allow?
       @allow
     end
+
+    def allow_unlisted_subdir?
+      @default
+    end
   end
 
   def initialize(json_file)
@@ -71,7 +83,7 @@ class RestrictDirs
 
       if subdir
         restrict(subdir, path)
-      else
+      elsif !entry.allow_unlisted_subdir?
         chmod(path)
       end
     end
