@@ -19,12 +19,12 @@
   "/sys/devices" = {
     subdirs = {
       "pci*" = true;
-      "/system" = {
+      "system" = {
         subdirs = {
-          "/cpu" = true;
+          "cpu" = true;
         };
       };
-      "/virtual" = {
+      "virtual" = {
         subdirs = {
           "mem" = true;
           "misc" = true;
