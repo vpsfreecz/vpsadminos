@@ -35,5 +35,15 @@
     };
   };
   "/sys/firmware" = false;
+  "/sys/module" = {
+    subdirs = {
+      "*" = {
+        default = true;
+        subdirs = {
+          "sections" = false;
+        };
+      };
+    };
+  };
   "/sys/power" = false;
 }
