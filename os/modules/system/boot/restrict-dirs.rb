@@ -71,7 +71,13 @@ class RestrictDirs
   protected
   def restrict(entry, realpath)
     unless entry.has_subdirs?
-      chmod(realpath) unless entry.allow?
+      if entry.allow?
+        puts "Allow #{realpath}"
+      else
+        puts "Restrict #{realpath}"
+        chmod(realpath)
+      end
+
       return
     end
 
@@ -83,7 +89,10 @@ class RestrictDirs
 
       if subdir
         restrict(subdir, path)
-      elsif !entry.allow_unlisted_subdir?
+      elsif entry.allow_unlisted_subdir?
+        puts "Allow #{path}"
+      else
+        puts "Restrict #{path}"
         chmod(path)
       end
     end
