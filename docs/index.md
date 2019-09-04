@@ -20,7 +20,6 @@ kernels. vpsAdminOS is built on:
 - Upstream kernel with [several patches](https://github.com/vpsfreecz/vpsadminos/blob/master/os/packages/linux/default.nix)
 - AppArmor
 - LXC, LXCFS
-- CRIU
 - runit
 - BIRD
 - ZFS
