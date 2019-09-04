@@ -3,6 +3,7 @@
   "/sys/block" = false;
   "/sys/bus" = {
     subdirs = {
+      # Needed by libvirt for libpciaccess
       "pci" = true;
     };
   };
@@ -11,17 +12,24 @@
       "mem" = true;
       "misc" = true;
       "net" = true;
+
+      # Needed by libvirt for libpciaccess
       "pci_bus" = true;
+
       "tty" = true;
     };
   };
   "/sys/dev/block" = true;
   "/sys/devices" = {
     subdirs = {
+      # Needed by libvirt for libpciaccess
       "pci*" = true;
+
       "system" = {
         subdirs = {
           "cpu" = true;
+
+          # Needed by libvirt to calculate total memory
           "node" = true;
         };
       };
