@@ -117,5 +117,3 @@ nix-build -A config.system.build.squashfs
 * [Manual pages](https://man.vpsadminos.org)
 * [Reference documentation](https://ref.vpsadminos.org)
 * https://linuxcontainers.org/
-* http://containerops.org/2013/11/19/lxc-networking/
-* http://blog.benoitblanchon.fr/lxc-unprivileged-container/
