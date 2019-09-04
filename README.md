@@ -92,23 +92,17 @@ man osctl
 containers containers into vpsAdminOS. See the
 [documentation](https://vpsadminos.org/migration-paths/converter/).
 
-### Nested LXC/LXD containers
-Nested LXC/LXD containers can be enabled per container:
+### Nested containers
+vpsAdminOS supports nested containers, e.g. LXC/LXD or Docker.
+
+Nesting LXC/LXD containers can be enabled per container using:
 
 ```
 osctl ct set nesting <id>
 ```
 
-### Docker
-Docker within containers works with a modified seccomp profile:
-
-```
-osctl ct set seccomp <id> /etc/lxc/config/common.seccomp
-```
-
-Then you can install the latest Docker version within container `<id>` by
-following the manual, e.g.
-<https://docs.docker.com/install/linux/docker-ce/ubuntu/>.
+Docker works out-of-the-box with several
+[known issues](https://vpsadminos.org/services/docker/#known-issues).
 
 ## Building specific targets
 
