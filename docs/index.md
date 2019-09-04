@@ -17,7 +17,7 @@ LXC/LXD provided, so we decided to create our custom toolset to manage
 the containers to bring us closer to the experience of OpenVZ on upstream
 kernels. vpsAdminOS is built on:
 
-- Upstream kernel with [several patches](https://github.com/vpsfreecz/vpsadminos/blob/master/os/packages/linux/default.nix)
+- [Upstream kernel with a mix of out-of-tree patches](https://github.com/vpsfreecz/linux)
 - AppArmor
 - LXC, LXCFS
 - runit

@@ -22,7 +22,7 @@ and a squashfs root while reusing packages and some modules from
 
 ## Technologies
 
-- Upstream kernel with [several patches](os/packages/linux/default.nix)
+- [Upstream kernel with a mix of out-of-tree patches](https://github.com/vpsfreecz/linux)
 - AppArmor
 - LXC, LXCFS
 - runit
