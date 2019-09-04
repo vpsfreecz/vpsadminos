@@ -1,18 +1,27 @@
 # Configuration
 
-vpsAdminOS uses Nix configuration language and re-uses
-number of NixOS modules (e.g. user configuration).
+vpsAdminOS uses Nix configuration language. It reuses a number of NixOS modules
+for system configuration and also adds some of its own. The full list of
+supported options can be found in the
+[OS reference documentation](https://ref.vpsadminos.org/os/options.html).
 
 Default and example configs are included in `os/configs/` directory.
 
-  * `make qemu` uses `default.nix`
-  * `make prod` uses `prod.nix`
+  * `make qemu` uses `qemu.nix`
   * `make iso-image` uses `iso.nix`
 
-All of these configs include a `common.nix` file with configuration
-common for all targets. `common.nix` also includes `local.nix` if present.
-Use `local.nix` to set your `SSH` keys, root password and parameters for QEMU.
-Use `local.nix.sample` as a starting point.
+The simplest way to start with vpsAdminOS is to clone its repository and
+put your configuration in `os/configs/local.nix`, which you can base on
+`os/configs/local.nix.sample`. `local.nix` is imported by the OS automatically
+if it exists.
+
+Another option is to put path to your config to environment variable
+`VPSADMINOS_CONFIG`, e.g.:
+
+```
+export VPSADMINOS_CONFIG=/where/is/your/config.nix
+make qemu
+```
 
 ## Declarative containers
 
@@ -29,8 +38,7 @@ to build the `os` directly without `make`.
 ```bash
 cd os
 nix-build \
- --arg configuration ./configs/default.nix \
- --arg vpsadmin "../../vpsadmin" \
+ --arg configuration /where/is/your/config.nix \
  --arg nixpkgs "../../nixpkgs" \
  --cores 0
 ```

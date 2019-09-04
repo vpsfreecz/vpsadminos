@@ -44,5 +44,5 @@ appropriate user namespaces.
 * IRC: #vpsadminos @ irc.freenode.net
 * Git: <https://github.com/vpsfreecz/vpsadminos>
 * Man pages: <https://man.vpsadminos.org/>
-* Code reference: <https://ref.vpsadminos.org/>
+* OS and program references: <https://ref.vpsadminos.org/>
 * ISO images: <https://iso.vpsadminos.org/>
