@@ -3,7 +3,7 @@ with lib;
 let
   cfg = config.system.boot.restrict-proc-sysfs;
 
-  restrictProcSysfs = pkgs.callPackage ../restrict-dirs.nix {
+  restrictProcSysfs = pkgs.callPackage ./restrict-dirs.nix {
     data = cfg.config;
   };
 in {
