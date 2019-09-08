@@ -196,7 +196,6 @@ in {
         ip link set promisc on lxcbr0
         ip link set lxcbr0 up
         ip route add 192.168.1.0/24 dev lxcbr0
-        iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
         ''}
 
         ${cfg.custom}
@@ -205,5 +204,9 @@ in {
       onChange = "ignore";
       runlevels = [ "rescue" "default" ];
     };
+
+    networking.firewall.extraCommands = optionalString cfg.lxcbr ''
+      iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+    '';
   };
 }
