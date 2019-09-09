@@ -47,29 +47,31 @@ index b59d187..63e3e0f 100644
  		} else {
  			xlog(L_ERROR, "%s:%d: unknown keyword \"%s\"\n",
  					flname, flline, opt);
-diff --git a/utils/exportfs/exportfs.c b/utils/exportfs/exportfs.c
-index 333eadc..6b362e0 100644
---- a/utils/exportfs/exportfs.c
-+++ b/utils/exportfs/exportfs.c
-@@ -501,7 +501,7 @@ static int test_export(nfs_export *exp, int with_fsid)
- 	qword_add(&bp, &len, path);
- 	if (len < 1)
- 		return 0;
--	snprintf(bp, len, " 3 %d 65534 65534 0\n", flags);
-+	snprintf(bp, len, " 3 %d 65534 65534 0 0\n", flags);
- 	fd = open("/proc/net/rpc/nfsd.export/channel", O_WRONLY);
- 	if (fd < 0)
- 		return 0;
 diff --git a/utils/mountd/cache.c b/utils/mountd/cache.c
-index 2cb370f..a4d0b4e 100644
+index 2cb370f..0977a18 100644
 --- a/utils/mountd/cache.c
 +++ b/utils/mountd/cache.c
-@@ -903,6 +903,8 @@ static int dump_to_cache(int f, char *buf, int buflen, char *domain,
- 		qword_addint(&bp, &blen, exp->e_anonuid);
- 		qword_addint(&bp, &blen, exp->e_anongid);
+@@ -882,6 +882,12 @@ static void write_secinfo(char **bp, int *blen, struct exportent *ep, int flag_m
+ 
+ }
+ 
++static void write_root_uid(char **bp, int *blen, unsigned int root_uid)
++{
++	qword_add(bp, blen, "root_uid");
++	qword_adduint(bp, blen, root_uid);
++}
++
+ static int dump_to_cache(int f, char *buf, int buflen, char *domain,
+ 			 char *path, struct exportent *exp, int ttl)
+ {
+@@ -905,6 +911,10 @@ static int dump_to_cache(int f, char *buf, int buflen, char *domain,
  		qword_addint(&bp, &blen, exp->e_fsid);
-+		qword_adduint(&bp, &blen, (exp->e_flags & NFSEXP_ROOTUID)
-+				         ? exp->e_root_uid : 0);
  		write_fsloc(&bp, &blen, exp);
  		write_secinfo(&bp, &blen, exp, flag_mask);
++
++		if (exp->e_flags & NFSEXP_ROOTUID)
++			write_root_uid(&bp, &blen, exp->e_root_uid);
++
  		if (exp->e_uuid == NULL || different_fs) {
+ 			char u[16];
+ 			if (uuid_by_path(path, 0, 16, u)) {
