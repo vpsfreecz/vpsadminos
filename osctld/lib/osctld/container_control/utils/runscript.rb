@@ -45,7 +45,7 @@ module OsCtld
         pid = Process.fork do
           STDIN.reopen(opts[:stdin])
           STDOUT.reopen(opts[:stdout])
-          STDERR.reopen(opts[:stderr])
+          STDERR.reopen(opts[:stderr]) if opts[:stderr]
 
           opts[:close_fds] && opts[:close_fds].each { |fd| fd.close }
 
@@ -102,7 +102,7 @@ module OsCtld
           script: opts[:init_script],
           stdin: in_r,
           stdout: out_w,
-          stderr: out_w,
+          stderr: nil,
           close_fds: [in_w, out_r],
           wait: false,
         )
