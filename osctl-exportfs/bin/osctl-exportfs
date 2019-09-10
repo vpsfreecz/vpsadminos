@@ -1,0 +1,3 @@
+#!/usr/bin/env ruby
+require 'osctl/exportfs/cli'
+OsCtl::ExportFS::Cli.run

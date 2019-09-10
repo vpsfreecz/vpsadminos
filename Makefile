@@ -11,7 +11,7 @@ qemu:
 toplevel:
 	$(MAKE) -C os toplevel
 
-gems: libosctl osctl-repo osctl osctld osup osctl-image osctl-exporter converter svctl
+gems: libosctl osctl-repo osctl osctld osup osctl-image osctl-exporter osctl-exportfs converter svctl
 	echo "$(VERSION).build$(BUILD_ID)" > .build_id
 
 libosctl:
@@ -31,6 +31,9 @@ osctl-image: libosctl osctl osctl-repo
 
 osctl-exporter: libosctl osctl
 	./tools/update_gem.sh os/packages osctl-exporter $(BUILD_ID)
+
+osctl-exportfs: libosctl
+	./tools/update_gem.sh os/packages osctl-exportfs $(BUILD_ID)
 
 osup: libosctl
 	./tools/update_gem.sh os/packages osup $(BUILD_ID)
