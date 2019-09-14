@@ -55,16 +55,5 @@ in
             sha256 = "1dvlhqbj3c7ml5gqgnpy0xmcbc9k0plnh7v23kjijjz9zpadw1hz";
           };
         }
-
-        # Let first-level user namespaces (osctl containers) to manipulate
-        # oom_score_adj and oom_score_adj_min with CAP_SYS_RESOURCE.
-        rec {
-          name = "oom_score_adj_min";
-          patch = fetchpatch {
-            name = name + ".patch";
-            url = https://github.com/vpsfreecz/linux/commit/455e1606a25463196f0788b5c46d6a5c0a359529.patch;
-            sha256 = "15bzmww5qpc37daxk26w2xmzb53sfdfxk674vvv9jlcxg9k0ds4v";
-          };
-        }
       ];
   }
