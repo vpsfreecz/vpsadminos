@@ -75,6 +75,10 @@
 
   boot.kernel.sysctl = {
     "kernel.dmesg_restrict" = true;
+
+    # TCP BBR congestion control
+    "net.core.default_qdisc" = lib.mkDefault "fq";
+    "net.ipv4.tcp_congestion_control" = lib.mkDefault "bbr";
   };
 
   security.apparmor.enable = true;
