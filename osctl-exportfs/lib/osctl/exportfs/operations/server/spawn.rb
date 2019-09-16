@@ -87,6 +87,11 @@ module OsCtl::ExportFS
         # Add exports that were configured before the server was started
         add_exports
 
+        # Mark all mounts as slave, in case some mounts from the parent namespace
+        # are marked as shared, because unmounting them in this namespaces
+        # would result in them being unmounted in the parent namespace as well.
+        Sys.make_rslave('/')
+
         # Unmount all unnecessary mounts
         clear_mounts
 
@@ -155,10 +160,6 @@ module OsCtl::ExportFS
         Sys.unmount_lazy('/old-root')
         Dir.rmdir('/old-root')
         server.enter_ns
-
-        # Remount the shared directory as slave so that mounts from this
-        # namespace do not propagate to the host
-        Sys.make_slave(server.shared_dir)
 
         # Mount files and directories from the server directory to the system
         # where they're expected
