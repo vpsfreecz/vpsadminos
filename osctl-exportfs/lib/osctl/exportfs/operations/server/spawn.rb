@@ -171,6 +171,9 @@ module OsCtl::ExportFS
         end
         File.symlink(server.exports_file, '/etc/exports')
 
+        # Generate NFS exports
+        Operations::Exportfs::Generate.run(server)
+
         # Configure the network interface
         syscmd('ip link set lo up')
         syscmd("ip link set #{netif_ns} name eth0")
