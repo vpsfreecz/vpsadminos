@@ -17,6 +17,7 @@ mount -t sysfs sys /sys
 mount -t devtmpfs devtmpfs /dev
 mkdir -p /dev/pts /dev/shm
 mount -t devpts -ogid=3 devpts /dev/pts
+mount -t tmpfs -o mode=1777 tmpfs /tmp
 mount -t tmpfs -o mode=755 tmpfs /run
 mount -t tmpfs tmpfs /dev/shm
 
@@ -25,8 +26,6 @@ ln -sf /proc/mounts /etc/mtab
 
 touch /run/{u,w}tmp
 mkdir /run/wrappers
-
-chmod +t /tmp
 
 chmod a+rxw /dev/kmsg
 chmod a+rxw /proc/kmsg

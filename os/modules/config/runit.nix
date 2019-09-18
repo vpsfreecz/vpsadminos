@@ -75,9 +75,6 @@ in
     # DebugFS
     mount -t debugfs none /sys/kernel/debug/
 
-    # Permission fixes
-    chmod 777 /tmp
-
     if ${if config.vpsadmin.enable then "true" else "false"} ; then
       mkdir -m 0700 /run/nodectl
       ln -sfn /run/current-system/sw/bin/nodectl /run/nodectl/nodectl
