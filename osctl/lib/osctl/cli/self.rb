@@ -5,6 +5,8 @@ module OsCtl::Cli
   class Self < Command
     include Assets
 
+    SHUTDOWN_MARKER = '/run/osctl/shutdown'
+
     def assets
       print_assets(:self_assets)
     end
@@ -72,7 +74,43 @@ module OsCtl::Cli
         end
       end
 
-      osctld_fmt(:self_shutdown)
+      # Ensure osctld will shutdown even if it crashes/restarts
+      File.open(SHUTDOWN_MARKER, 'w', 0000){}
+
+      begin
+        osctld_fmt(:self_shutdown)
+        return
+      rescue OsCtl::Client::Error => e
+        warn "Lost connection to osctld: #{e.message}"
+      rescue Errno::ENOENT
+        warn 'Unable to connect to osctld: socket not found'
+      end
+
+      STDOUT.write('Waiting for osctld to prepare for shutdown...')
+      STDOUT.flush
+
+      (0..3600).each do |i|
+        begin
+          st = File.stat(SHUTDOWN_MARKER)
+          if st.mode & 0100 == 0100
+            warn ' ok'
+            return
+          end
+        rescue Errno::ENOENT
+          warn 'Shutdown mark does not exist, osctld will not shutdown'
+          return
+        end
+
+        if i % 5 == 0
+          STDOUT.write('.')
+          STDOUT.flush
+        end
+
+        sleep(1)
+      end
+
+      warn
+      warn 'Waited for an hour, going to shutdown'
     end
 
     protected

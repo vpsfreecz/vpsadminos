@@ -97,7 +97,13 @@ module OsCtld
 
         pool.init
         pool.setup
-        pool.autostart if opts[:autostart]
+
+        if Daemon.get.shutdown?
+          log(:info, 'Shutdown in progress, disabling pool')
+          pool.disable
+        elsif opts[:autostart]
+          pool.autostart
+        end
       end
     end
 

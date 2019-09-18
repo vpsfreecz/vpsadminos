@@ -2429,7 +2429,12 @@ read by `ls` or `show` commands.
   Export all pools and stop all containers. This command should be used at
   system shutdown. Since all pools are immediately disabled, no container can be
   started. All running containers are stopped. System users and groups are left
-  alone. This action can be reversed by reimporting selected pools.
+  alone. `osctld` itself will remain functional.
+
+  When shutdown is requested, file `/run/osctl/shutdown` is created. As long as
+  this file exists, `osctld` will not auto-start containers and all pools will
+  be disabled on import. When `osctld` prepares the system for shutdown, it sets
+  the executable by owner permission on `/run/osctl/shutdown`.
 
   Unless option `-f`, `--force` is set, `osctl shutdown` will ask for
   confirmation on standard input to prevent accidents.

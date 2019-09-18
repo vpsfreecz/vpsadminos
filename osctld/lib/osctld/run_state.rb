@@ -8,6 +8,7 @@ module OsCtld
     CONFIG_DIR = File.join(RUNDIR, 'configs')
     LXC_CONFIG_DIR = File.join(CONFIG_DIR, 'lxc')
     APPARMOR_DIR = File.join(CONFIG_DIR, 'apparmor')
+    SHUTDOWN_MARKER = File.join(RUNDIR, 'shutdown')
 
     def self.create
       Dir.mkdir(RUNDIR, 0711) unless Dir.exists?(RUNDIR)

@@ -5,6 +5,9 @@ module OsCtld
     handle :self_shutdown
 
     def execute
+      # Make sure that osctld crash/restart will not stop the shutdown
+      Daemon.get.begin_shutdown
+
       # Grab manipulation locks of all pools
       grab_pools
 
@@ -30,6 +33,9 @@ module OsCtld
           unregister_users: false,
         )
       end
+
+      # Confirm the shutdown for anyone waiting for it, i.e. osctl shutdown
+      Daemon.get.confirm_shutdown
 
       ok
     end

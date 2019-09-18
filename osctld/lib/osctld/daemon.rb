@@ -107,6 +107,12 @@ module OsCtld
       # Load data pools
       Commands::Pool::Import.run(all: true, autostart: true)
 
+      # Resume shutdown
+      if shutdown?
+        log(:info, 'Resuming shutdown')
+        Commands::Self::Shutdown.run
+      end
+
       # Wait for the server to finish
       join_server
     end
@@ -154,6 +160,22 @@ module OsCtld
       LockRegistry.stop
       log(:info, 'Shutdown successful')
       exit(false)
+    end
+
+    def begin_shutdown
+      File.open(RunState::SHUTDOWN_MARKER, 'w', 0000){}
+    end
+
+    def confirm_shutdown
+      unless File.exist?(RunState::SHUTDOWN_MARKER)
+        File.open(RunState::SHUTDOWN_MARKER, 'w', 0100){}
+      end
+
+      File.chmod(0100, RunState::SHUTDOWN_MARKER)
+    end
+
+    def shutdown?
+      File.exist?(RunState::SHUTDOWN_MARKER)
     end
 
     def log_type
