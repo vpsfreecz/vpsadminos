@@ -3,10 +3,18 @@ require 'osctl/exportfs/cli/command'
 module OsCtl::ExportFS::Cli
   class Server < Command
     def list
-      puts sprintf('%-20s %s', 'SERVER', 'STATE')
+      puts sprintf('%-20s %-12s %-20s %s', 'SERVER', 'STATE', 'NETIF', 'ADDRESS')
 
       OsCtl::ExportFS::Operations::Server::List.run.each do |s|
-        puts sprintf('%-20s %s', s.name, s.running? ? 'running' : 'stopped')
+        cfg = s.open_config
+
+        puts sprintf(
+          '%-20s %-12s %-20s %s',
+          s.name,
+          s.running? ? 'running' : 'stopped',
+          cfg.netif,
+          cfg.address || '-'
+        )
       end
     end
 
