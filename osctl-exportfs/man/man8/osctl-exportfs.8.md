@@ -28,31 +28,43 @@ automatically restarted in case they inadvertedly stop.
 `server ls`
   List configured NFS servers and their state.
 
-`server new` *name*
+`server new` *name* [*address*]
   Add a new NFS server identified by *name*.
+
+  The server will be listening on *address* if provided. It is saved into the
+  configuration file for later use with `server spawn` and `server start`.
+  *address* has to be an IPv4 address without prefix.
 
 `server del` *name*
   Delete configured NFS server identified by *name*.
 
-`server spawn` *name* *address*
-  Start NFS server *name* and export its filesystems. The server will be
-  listening on *address*, which has to be an IPv4 address without prefix.
+`server spawn` *name* [*address*]
+  Start NFS server *name* and export its filesystems.
+
+  The server will be listening on *address*, which either has to be provided or
+  it already has to be in the server configuration.
 
   The server will run in the foreground, it can be stopped by sending the
   process `SIGINT` or `SIGTERM` signal.
 
-`server start` *name* *address*
+`server start` *name* [*address*]
   Start NFS server *name*, but put in a `runit` supervision tree. A `runsv`
   service is created in `/run/osctl/exportfs/runsvdir`, which is picked up
   and started by `runsvdir` running as part of `osctl-exportfs` service.
+
+  The server will be listening on *address*, which either has to be provided or
+  it already has to be in the server configuration.
 
 `server stop` *name*
   Remove the service for NFS server *name* from `runit` supervision tree and
   stop it.
 
-`server restart` *name* *address*
+`server restart` *name* [*address*]
   Restart NFS server *name*, which has to be running in a `runit` supervision
   tree.
+
+  The server will be listening on *address*, which either has to be provided or
+  it already has to be in the server configuration.
 
 `export ls` [*server*]
   List all exports or exports configured on *server*.

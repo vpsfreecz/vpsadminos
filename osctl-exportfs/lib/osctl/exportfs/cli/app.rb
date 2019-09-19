@@ -29,7 +29,7 @@ module OsCtl::ExportFS::Cli
         end
 
         srv.desc 'Create a new NFS server'
-        srv.arg_name '<name>'
+        srv.arg_name '<name> [address]'
         srv.command :new do |c|
           c.action &Command.run(Server, :create)
         end
@@ -41,7 +41,7 @@ module OsCtl::ExportFS::Cli
         end
 
         srv.desc 'Start NFS server'
-        srv.arg_name '<name> <address>'
+        srv.arg_name '<name> [address]'
         srv.command :start do |c|
           c.action &Command.run(Server, :start)
         end
@@ -53,13 +53,13 @@ module OsCtl::ExportFS::Cli
         end
 
         srv.desc 'Restart NFS server'
-        srv.arg_name '<name> <address>'
+        srv.arg_name '<name> [address]'
         srv.command :restart do |c|
           c.action &Command.run(Server, :restart)
         end
 
         srv.desc 'Run NFS server'
-        srv.arg_name '<name> <address>'
+        srv.arg_name '<name> [address]'
         srv.command :spawn do |c|
           c.action &Command.run(Server, :spawn)
         end

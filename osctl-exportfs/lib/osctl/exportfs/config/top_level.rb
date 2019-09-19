@@ -11,6 +11,10 @@ module OsCtl::ExportFS
     # @return [String]
     attr_reader :path
 
+    # @param address [String]
+    # @return [String, nil]
+    attr_accessor :address
+
     # @return [Config::Exports]
     attr_reader :exports
 
@@ -37,11 +41,13 @@ module OsCtl::ExportFS
     protected
     def read_config
       data = server.synchronize { YAML.load_file(path) }
+      @address = data['address']
       @exports = Config::Exports.new(data['exports'] || [])
     end
 
     def dump
       {
+        'address' => address,
         'exports' => exports.dump,
       }
     end

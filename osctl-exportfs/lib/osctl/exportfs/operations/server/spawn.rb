@@ -22,13 +22,15 @@ module OsCtl::ExportFS
     # @param address [String]
     def initialize(name, address)
       @server = Server.new(name)
-      @address = address
       @cfg = server.open_config
+      @address = address || cfg.address
     end
 
     def execute
       if server.running?
         fail 'server is already running'
+      elsif address.nil?
+        fail 'provide server address'
       end
 
       @rand_id = SecureRandom.hex(3)

@@ -10,16 +10,20 @@ module OsCtl::ExportFS
     # @param name [String]
     def initialize(name)
       @server = Server.new(name)
+      @cfg = server.open_config
     end
 
     # Create the service and place it into runsvdir-managed directory
-    # @param address [String]
-    def start(address)
+    # @param address [String, nil]
+    def start(address = nil)
       if started?
         fail 'server already started'
       elsif server.running?
         fail 'server is already running'
       end
+
+      address = address || cfg.address
+      fail 'provide server address' if address.nil?
 
       FileUtils.mkdir_p(server.runsv_dir)
       run = File.join(server.runsv_dir, 'run')
@@ -45,7 +49,11 @@ END
       File.unlink(service_link)
     end
 
-    def restart(address)
+    # @param address [String, nil]
+    def restart(address = nil)
+      address = address || cfg.address
+      fail 'provide server address' if address.nil?
+
       stop
       sleep(1) until !server.running?
       sleep(1)
@@ -53,7 +61,7 @@ END
     end
 
     protected
-    attr_reader :server
+    attr_reader :server, :cfg
 
     def started?
       File.lstat(service_link)
