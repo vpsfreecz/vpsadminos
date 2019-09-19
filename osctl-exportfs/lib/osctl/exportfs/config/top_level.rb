@@ -5,15 +5,19 @@ module OsCtl::ExportFS
   class Config::TopLevel
     include OsCtl::Lib::Utils::File
 
+    # @return [Server]
+    attr_reader :server
+
     # @return [String]
     attr_reader :path
 
     # @return [Config::Exports]
     attr_reader :exports
 
-    # @param path [String]
-    def initialize(path)
-      @path = path
+    # @param path [Server]
+    def initialize(server)
+      @server = server
+      @path = server.config_file
 
       if File.exist?(path)
         read_config
@@ -23,14 +27,16 @@ module OsCtl::ExportFS
     end
 
     def save
-      regenerate_file(path, 0644) do |new|
-        new.write(YAML.dump(dump))
+      server.synchronize do
+        regenerate_file(path, 0644) do |new|
+          new.write(YAML.dump(dump))
+        end
       end
     end
 
     protected
     def read_config
-      data = YAML.load_file(path)
+      data = server.synchronize { YAML.load_file(path) }
       @exports = Config::Exports.new(data['exports'] || [])
     end
 

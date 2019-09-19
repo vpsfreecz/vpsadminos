@@ -112,6 +112,7 @@ Each server directory has the following structure:
 ├── state/
 ├── config.yml
 ├── exports
+├── lock
 └── [pid]
 ```
 
@@ -132,7 +133,8 @@ NFS server state, normally found in `/var/lib/nfs` is stored in directory
 `osctl-exportfs` to generate `exports`, which is then read by exportfs(8) to
 actually configure the containerized NFS server.
 
-If the server is running, the PID of its init is stored in file `pid`.
+File `lock` is used for synchronization. If the server is running, the PID of
+its init is stored in file `pid`.
 
 ## BUGS
 Report bugs to https://github.com/vpsfreecz/vpsadminos/issues.

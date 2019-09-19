@@ -1,3 +1,6 @@
+require 'filelock'
+require 'thread'
+
 module OsCtl::ExportFS
   # Represents a NFS server
   class Server
@@ -59,7 +62,7 @@ module OsCtl::ExportFS
 
     # @return [Config::TopLevel]
     def open_config
-      Config.open(config_file)
+      Config.open(self)
     end
 
     # Reconfigure the object to return paths relative to the server's mount
@@ -76,7 +79,25 @@ module OsCtl::ExportFS
       set_paths
     end
 
+    def synchronize
+      return yield if Thread.current[:filelock_held]
+
+      Filelock(lock_file) do
+        Thread.current[:filelock_held] = true
+
+        begin
+          ret = yield
+        ensure
+          Thread.current[:filelock_held] = false
+        end
+
+        ret
+      end
+    end
+
     protected
+    attr_reader :lock_file
+
     def set_paths
       @nfs_state = File.join(@dir, 'state')
       @shared_dir = File.join(@dir, 'shared')
@@ -85,6 +106,7 @@ module OsCtl::ExportFS
       @runsv_dir = File.join(@dir, 'runsv')
       @config_file = File.join(@dir, 'config.yml')
       @exports_file = File.join(@dir, 'exports')
+      @lock_file = File.join(@dir, 'lock')
       @pid_file = File.join(@dir, 'pid')
     end
   end

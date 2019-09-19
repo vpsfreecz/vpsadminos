@@ -22,6 +22,7 @@ Gem::Specification.new do |s|
 
   s.required_ruby_version = '>= 2.0.0'
 
+  s.add_runtime_dependency 'filelock'
   s.add_runtime_dependency 'gli', '~> 2.17.1'
   s.add_runtime_dependency 'libosctl', s.version
   s.add_runtime_dependency 'require_all', '~> 2.0.0'
