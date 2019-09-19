@@ -19,23 +19,25 @@ module OsCtl::ExportFS
     include OsCtl::Lib::Utils::System
 
     # @param name [String]
-    # @param address [String]
-    def initialize(name, address)
+    # @param opts [Hash] options
+    # @option opts [String] :address
+    # @option opts [String] :netif
+    def initialize(name, opts = {})
       @server = Server.new(name)
       @cfg = server.open_config
-      @address = address || cfg.address
+      @opts = opts
     end
 
     def execute
-      if server.running?
-        fail 'server is already running'
-      elsif address.nil?
-        fail 'provide server address'
+      server.synchronize do
+        fail 'server is already running' if server.running?
+        update_options
+        fail 'provide server address' if cfg.address.nil?
       end
 
       @rand_id = SecureRandom.hex(3)
       netns = rand_id
-      @netif_host = "nfs-#{server.name}"
+      @netif_host = cfg.netif
       @netif_ns = "nfsns-#{netif_ns}"
 
       # The parent remains in the host namespace, where as the child unshares
@@ -46,7 +48,7 @@ module OsCtl::ExportFS
         syscmd("ip link add #{netif_host} type veth peer name #{netif_ns}")
         syscmd("ip link set #{netif_ns} netns #{netns}")
         syscmd("ip link set #{netif_host} up")
-        syscmd("ip route add #{address}/32 dev #{netif_host}")
+        syscmd("ip route add #{cfg.address}/32 dev #{netif_host}")
 
         # Remove the named network namespace from the filesystem
         Sys.setns_path("/run/netns/#{netns}", Sys::CLONE_NEWNET)
@@ -79,7 +81,7 @@ module OsCtl::ExportFS
     end
 
     protected
-    attr_reader :server, :address, :cfg, :rand_id, :netif_host, :netif_ns
+    attr_reader :server, :opts, :cfg, :rand_id, :netif_host, :netif_ns
 
     def run_server
       main = Process.fork do
@@ -181,7 +183,7 @@ module OsCtl::ExportFS
         syscmd("ip link set #{netif_ns} name eth0")
         @netif_ns = 'eth0'
         syscmd("ip link set #{netif_ns} up")
-        syscmd("ip addr add #{address}/32 dev #{netif_ns}")
+        syscmd("ip addr add #{cfg.address}/32 dev #{netif_ns}")
         syscmd("ip route add 255.255.255.254 dev #{netif_ns}")
         syscmd("ip route add default via 255.255.255.254 dev #{netif_ns}")
 
@@ -247,6 +249,19 @@ module OsCtl::ExportFS
         FileUtils.mkdir_p(as)
         Sys.bind_mount(ex.dir, as)
       end
+    end
+
+    def update_options
+      updated = false
+
+      %i(address netif).each do |opt|
+        if opts[opt]
+          cfg.send(:"#{opt}=", opts[opt])
+          updated = true
+        end
+      end
+
+      cfg.save if updated
     end
   end
 end

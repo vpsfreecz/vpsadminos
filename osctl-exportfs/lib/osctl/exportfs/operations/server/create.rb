@@ -9,10 +9,12 @@ module OsCtl::ExportFS
     include OsCtl::Lib::Utils::System
 
     # @param name [String]
-    # @param address [String, nil]
-    def initialize(name, address)
+    # @param opts [Hash] options
+    # @option opts [String] :address
+    # @option opts [String] :netif
+    def initialize(name, opts = {})
       @server = Server.new(name)
-      @address = address
+      @opts = opts
     end
 
     def execute
@@ -53,11 +55,11 @@ module OsCtl::ExportFS
           )
         end
 
-        if address
-          cfg = server.open_config
-          cfg.address = address
-          cfg.save
-        end
+        # Initialize the config file
+        cfg = server.open_config
+        cfg.address = opts[:address]
+        cfg.netif = opts[:netif]
+        cfg.save
 
         # Create an empty exports file
         File.open(server.exports_file, 'w'){}
@@ -65,7 +67,7 @@ module OsCtl::ExportFS
     end
 
     protected
-    attr_reader :server, :address
+    attr_reader :server, :opts
 
     # Forcefully create a symlink be removing existing `dst`
     def symlink!(src, dst)

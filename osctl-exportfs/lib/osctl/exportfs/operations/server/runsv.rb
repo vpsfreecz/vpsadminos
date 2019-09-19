@@ -14,17 +14,13 @@ module OsCtl::ExportFS
     end
 
     # Create the service and place it into runsvdir-managed directory
-    # @param address [String, nil]
-    def start(address = nil)
+    # @param opts [Hash] options
+    # @option opts [String] :address
+    # @option opts [String] :netif
+    def start(opts = {})
       server.synchronize do
-        if started?
-          fail 'server already started'
-        elsif server.running?
-          fail 'server is already running'
-        end
-
-        address = address || cfg.address
-        fail 'provide server address' if address.nil?
+        fail 'server is already running' if started?
+        fail 'provide server address' if cfg.address.nil? && opts[:address].nil?
 
         FileUtils.mkdir_p(server.runsv_dir)
         run = File.join(server.runsv_dir, 'run')
@@ -32,7 +28,10 @@ module OsCtl::ExportFS
         File.open(run, 'w') do |f|
           f.write(<<END
 #!/usr/bin/env bash
-exec osctl-exportfs server spawn #{server.name} #{address}
+exec osctl-exportfs server spawn \
+  --address "#{opts[:address] || cfg.address}" \
+  --netif "#{opts[:netif] || cfg.netif}" \
+  #{server.name}
 END
 )
         end
@@ -50,16 +49,17 @@ END
       end
     end
 
-    # @param address [String, nil]
-    def restart(address = nil)
-      address = address || cfg.address
-      fail 'provide server address' if address.nil?
-
+    # @param opts [Hash] options
+    # @option opts [String] :address
+    # @option opts [String] :netif
+    def restart(opts = {})
       server.synchronize do
+        fail 'provide server address' if cfg.address.nil? && opts[:address].nil?
+
         stop
         sleep(1) until !server.running?
         sleep(1)
-        start(address)
+        start(opts)
       end
     end
 

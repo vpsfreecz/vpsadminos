@@ -12,7 +12,11 @@ module OsCtl::ExportFS::Cli
 
     def create
       require_args!('name')
-      OsCtl::ExportFS::Operations::Server::Create.run(args[0], args[1])
+      OsCtl::ExportFS::Operations::Server::Create.run(
+        args[0],
+        address: opts[:address],
+        netif: opts[:netif],
+      )
     end
 
     def delete
@@ -23,7 +27,10 @@ module OsCtl::ExportFS::Cli
     def start
       require_args!('name')
       runsv = OsCtl::ExportFS::Operations::Server::Runsv.new(args[0])
-      runsv.start(args[1])
+      runsv.start(
+        address: opts[:address],
+        netif: opts[:netif],
+      )
     end
 
     def stop
@@ -35,12 +42,19 @@ module OsCtl::ExportFS::Cli
     def restart
       require_args!('name')
       runsv = OsCtl::ExportFS::Operations::Server::Runsv.new(args[0])
-      runsv.restart(args[1])
+      runsv.restart(
+        address: opts[:address],
+        netif: opts[:netif],
+      )
     end
 
     def spawn
       require_args!('name')
-      OsCtl::ExportFS::Operations::Server::Spawn.run(args[0], args[1])
+      OsCtl::ExportFS::Operations::Server::Spawn.run(
+        args[0],
+        address: opts[:address],
+        netif: opts[:netif],
+      )
     end
 
     def attach
