@@ -100,10 +100,10 @@ module OsCtl::ExportFS
         FileUtils.mkdir_p(File.join(RunState::ROOTFS, 'dev'))
         FileUtils.mkdir_p(File.join(RunState::ROOTFS, 'etc/runit'))
         FileUtils.mkdir_p(File.join(RunState::ROOTFS, 'proc'))
-        FileUtils.mkdir_p(File.join(RunState::ROOTFS, 'run/osctl-exportfs'))
-        File.chmod(0750, File.join(RunState::ROOTFS, 'run/osctl-exportfs'))
-        FileUtils.mkdir_p(File.join(RunState::ROOTFS, 'run/osctl-exportfs/current-server'))
-        FileUtils.mkdir_p(File.join(RunState::ROOTFS, 'run/osctl-exportfs/template'))
+        FileUtils.mkdir_p(File.join(RunState::ROOTFS, RunState::DIR))
+        File.chmod(0750, File.join(RunState::ROOTFS, RunState::DIR))
+        FileUtils.mkdir_p(File.join(RunState::ROOTFS, RunState::CURRENT_SERVER))
+        FileUtils.mkdir_p(File.join(RunState::ROOTFS, RunState::TPL_DIR))
         FileUtils.mkdir_p(File.join(RunState::ROOTFS, 'nix/store'))
         FileUtils.mkdir_p(File.join(RunState::ROOTFS, 'sys'))
         FileUtils.mkdir_p(File.join(RunState::ROOTFS, 'var/lib/nfs'))
@@ -209,15 +209,15 @@ module OsCtl::ExportFS
 
     def clear_mounts
       mounts = []
-      whitelist = %w(
+      whitelist = %W(
         /
         /dev
         /nix/store
         /nix/.overlay-store
         /run
-        /run/osctl-exportfs/rootfs
-        /run/osctl-exportfs/rootfs/**
-        /run/osctl-exportfs/servers/*/shared
+        #{RunState::ROOTFS}
+        #{RunState::ROOTFS}/**
+        #{RunState::SERVERS}/*/shared
         /run/wrappers
         /sys
         /sys/fs/cgroup

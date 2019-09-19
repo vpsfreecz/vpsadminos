@@ -60,7 +60,7 @@ in {
   config = mkIf cfg.enable {
     runit.services.osctl-exportfs = {
       run = ''
-        statedir=/run/osctl-exportfs
+        statedir=/run/osctl/exportfs
         tplrunitdir=$statedir/template/runit
         nfsdir=/var/lib/nfs
 
