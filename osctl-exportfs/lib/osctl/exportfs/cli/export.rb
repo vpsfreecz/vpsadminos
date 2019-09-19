@@ -4,8 +4,8 @@ module OsCtl::ExportFS::Cli
   class Export < Command
     def list
       servers.each do |s|
-        db = OsCtl::ExportFS::ExportDB.new(s.exports_db)
-        db.each do |ex|
+        cfg = s.open_config
+        cfg.exports.each do |ex|
           puts "server  = #{s.name}"
           puts "dir     = #{ex.dir}"
           puts "as      = #{ex.as}"

@@ -14,8 +14,8 @@ module OsCtl::ExportFS
     # @param host [String]
     def initialize(server, dir, host)
       @server = server
-      @db = ExportDB.new(server.exports_db)
-      @export = db.lookup(dir, host)
+      @cfg = server.open_config
+      @export = cfg.exports.lookup(dir, host)
     end
 
     def execute
@@ -29,12 +29,12 @@ module OsCtl::ExportFS
     end
 
     protected
-    attr_reader :server, :db, :export
+    attr_reader :server, :cfg, :export
 
     # Remove the export from the database
     def remove_from_exports
-      db.remove(export)
-      db.save
+      cfg.exports.remove(export)
+      cfg.save
     end
 
     # Unexport and unmount the directory from the server namespace

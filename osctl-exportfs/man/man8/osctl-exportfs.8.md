@@ -110,8 +110,8 @@ Each server directory has the following structure:
 ├── runsv/
 ├── shared/
 ├── state/
-├── exports.yml
-├── exports.exportfs
+├── config.yml
+├── exports
 └── [pid]
 ```
 
@@ -128,9 +128,9 @@ container in order to add new exports.
 NFS server state, normally found in `/var/lib/nfs` is stored in directory
 `state/`.
 
-`exports.yml` is a list of configured exports, it is used only by
-`osctl-exportfs` to generate `exports.exportfs`, which is then read by
-exportfs(8) to actually configure the containerized NFS server.
+`config.yml` contains server configuration, including exports. It is used by
+`osctl-exportfs` to generate `exports`, which is then read by exportfs(8) to
+actually configure the containerized NFS server.
 
 If the server is running, the PID of its init is stored in file `pid`.
 

@@ -11,10 +11,10 @@ module OsCtl::ExportFS
     end
 
     def execute
-      db = ExportDB.new(server.exports_db)
+      cfg = server.open_config
 
       regenerate_file(server.exports_file, 0644) do |new|
-        db.each do |ex|
+        cfg.exports.each do |ex|
           new.puts("#{ex.as} #{ex.host}(#{ex.options})")
         end
       end

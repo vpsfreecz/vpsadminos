@@ -11,4 +11,5 @@ module OsCtl
 end
 
 require_rel 'exportfs/*.rb'
+require_rel 'exportfs/config'
 require_rel 'exportfs/operations'

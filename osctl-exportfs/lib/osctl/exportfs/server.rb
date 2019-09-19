@@ -28,9 +28,9 @@ module OsCtl::ExportFS
     # @return [String]
     attr_reader :runsv_dir
 
-    # Path to file with export database
+    # Path to file with server config
     # @return [String]
-    attr_reader :exports_db
+    attr_reader :config_file
 
     # Path to file mounted to /etc/exportfs
     # @return [String]
@@ -57,6 +57,11 @@ module OsCtl::ExportFS
       File.read(pid_file).strip.to_i
     end
 
+    # @return [Config::TopLevel]
+    def open_config
+      Config.open(config_file)
+    end
+
     # Reconfigure the object to return paths relative to the server's mount
     # namespace
     def enter_ns
@@ -78,8 +83,8 @@ module OsCtl::ExportFS
       @runit_dir = File.join(@dir, 'runit')
       @runit_runsvdir = File.join(@runit_dir, 'runsvdir')
       @runsv_dir = File.join(@dir, 'runsv')
-      @exports_db = File.join(@dir, 'exports.yml')
-      @exports_file = File.join(@dir, 'exports.exportfs')
+      @config_file = File.join(@dir, 'config.yml')
+      @exports_file = File.join(@dir, 'exports')
       @pid_file = File.join(@dir, 'pid')
     end
   end

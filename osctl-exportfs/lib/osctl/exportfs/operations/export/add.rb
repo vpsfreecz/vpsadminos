@@ -15,7 +15,7 @@ module OsCtl::ExportFS
     def initialize(server, export)
       @server = server
       @export = export
-      @db = ExportDB.new(server.exports_db)
+      @cfg = server.open_config
     end
 
     def execute
@@ -33,12 +33,12 @@ module OsCtl::ExportFS
     end
 
     protected
-    attr_reader :server, :export, :db
+    attr_reader :server, :export, :cfg
 
     def export_exists?
       path = File.absolute_path(export.as)
 
-      db.each do |ex|
+      cfg.exports.each do |ex|
         return true if path == File.absolute_path(ex.as)
       end
 
@@ -47,8 +47,8 @@ module OsCtl::ExportFS
 
     # Add the export to the database
     def add_to_exports
-      db << export
-      db.save
+      cfg.exports << export
+      cfg.save
     end
 
     # Propagate the directory from the host to the server using the shared

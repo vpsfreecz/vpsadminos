@@ -23,7 +23,7 @@ module OsCtl::ExportFS
     def initialize(name, address)
       @server = Server.new(name)
       @address = address
-      @db = ExportDB.new(server.exports_db)
+      @cfg = server.open_config
     end
 
     def execute
@@ -77,7 +77,7 @@ module OsCtl::ExportFS
     end
 
     protected
-    attr_reader :server, :address, :db, :rand_id, :netif_host, :netif_ns
+    attr_reader :server, :address, :cfg, :rand_id, :netif_host, :netif_ns
 
     def run_server
       main = Process.fork do
@@ -240,7 +240,7 @@ module OsCtl::ExportFS
     end
 
     def add_exports
-      db.each do |ex|
+      cfg.exports.each do |ex|
         as = File.join(RunState::ROOTFS, ex.as)
         FileUtils.mkdir_p(as)
         Sys.bind_mount(ex.dir, as)

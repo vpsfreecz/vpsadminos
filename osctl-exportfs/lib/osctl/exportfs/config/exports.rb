@@ -1,21 +1,8 @@
-require 'libosctl'
-require 'yaml'
-
 module OsCtl::ExportFS
-  class ExportDB
-    include OsCtl::Lib::Utils::File
-
-    attr_reader :path
-
-    # @param path [String]
-    def initialize(path)
-      @path = path
-
-      if File.exist?(path)
-        read_db
-      else
-        @db = []
-      end
+  class Config::Exports
+    # @param cfg [Array]
+    def initialize(cfg)
+      @db = cfg.map { |v| Export.load(v) }
     end
 
     # @param export [Export]
@@ -43,17 +30,11 @@ module OsCtl::ExportFS
       db.each(&block)
     end
 
-    def save
-      regenerate_file(path, 0644) do |new|
-        new.write(YAML.dump(db.map(&:dump)))
-      end
+    def dump
+      db.map(&:dump)
     end
 
     protected
     attr_reader :db
-
-    def read_db
-      @db = YAML.load_file(path).map { |v| Export.load(v) }
-    end
   end
 end
