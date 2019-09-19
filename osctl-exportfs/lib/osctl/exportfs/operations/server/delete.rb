@@ -14,23 +14,25 @@ module OsCtl::ExportFS
     end
 
     def execute
-      if server.running?
-        fail 'the server is running'
-      end
-
-      cleanup_shared_dir
-
-      if Dir.exist?(server.shared_dir)
-        begin
-          Sys.unmount(server.shared_dir)
-        rescue SystemCallError
+      server.synchronize do
+        if server.running?
+          fail 'the server is running'
         end
 
-        Dir.rmdir(server.shared_dir)
-      end
+        cleanup_shared_dir
 
-      # rm -rf can be run only after the shared directory has been safely removed
-      FileUtils.rm_rf(server.dir, secure: true)
+        if Dir.exist?(server.shared_dir)
+          begin
+            Sys.unmount(server.shared_dir)
+          rescue SystemCallError
+          end
+
+          Dir.rmdir(server.shared_dir)
+        end
+
+        # rm -rf can be run only after the shared directory has been safely removed
+        FileUtils.rm_rf(server.dir, secure: true)
+      end
     end
 
     protected
