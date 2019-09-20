@@ -29,7 +29,7 @@ in
     done
 
     # Apply kernel parameters
-    sysctl -p /etc/sysctl.d/nixos.conf
+    sysctl -w --system
 
     ip addr add 127.0.0.1/8 dev lo
     ip link set lo up
