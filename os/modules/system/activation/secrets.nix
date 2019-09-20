@@ -3,7 +3,7 @@ with lib;
 {
   options = {
     system.secretsDir = mkOption {
-      type = types.nullOr types.string;
+      type = types.nullOr types.str;
       default = null;
       description = ''
         Path to a directory containing secret keys and other files that should

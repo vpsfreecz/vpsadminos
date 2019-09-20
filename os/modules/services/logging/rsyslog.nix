@@ -59,14 +59,14 @@ in
         };
 
         forward = mkOption {
-          type = types.listOf types.string;
+          type = types.listOf types.str;
           description = "Forward logs over TCP to a set of hosts";
           example = [ "10.0.0.1:11514" ];
           default = [];
         };
 
         extraConfig = mkOption {
-          type = types.string;
+          type = types.str;
           default = "";
           example = "news.* -/var/log/news";
           description = "Additional text to append to syslog.conf";

@@ -105,15 +105,15 @@ let
         networking.${variant} = {
           enable = mkEnableOption "BIRD Internet Routing Daemon";
           routerId = mkOption {
-            type = types.string;
+            type = types.str;
             description = "Set BIRD's router ID based on an IP address of an interface specified by an interface pattern.";
           };
           logFile = mkOption {
-            type = types.string;
+            type = types.str;
             default = "/var/log/${variant}.log";
           };
           logVerbosity = mkOption {
-            type = types.string;
+            type = types.str;
             default = "all";
           };
           protocol = {

@@ -7,7 +7,7 @@ with lib;
 
   options = {
     powerManagement.cpuFreqGovernor = mkOption {
-      type = types.string;
+      type = types.str;
       description = "CPU frequency scaling governor to use";
       default = "performance";
       example = "ondemand";

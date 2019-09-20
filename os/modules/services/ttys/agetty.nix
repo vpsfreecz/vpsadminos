@@ -40,7 +40,7 @@ in
       autologin = {
         enable = mkEnableOption "Enable autologin on ttys";
         user = mkOption {
-         type = types.string;
+         type = types.str;
          description = "Autologin user";
          default = "root";
         };

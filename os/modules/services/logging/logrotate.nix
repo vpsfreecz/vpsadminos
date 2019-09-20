@@ -56,7 +56,7 @@ in
         };
 
         extraConfig = mkOption {
-          type = types.string;
+          type = types.str;
           default = "";
           example = ''
             /var/log/wtmp {

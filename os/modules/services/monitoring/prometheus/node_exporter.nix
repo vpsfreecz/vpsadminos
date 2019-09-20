@@ -24,7 +24,7 @@ in
     services.prometheus.exporters.node = {
       enable = mkEnableOption "Enable node_exporter service";
       enabledCollectors = mkOption {
-        type = types.listOf types.string;
+        type = types.listOf types.str;
         default = [ "runit" "nfs" "textfile" ];
         example = ''[ "nfs" ]'';
         description = ''

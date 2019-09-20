@@ -7,7 +7,7 @@ in {
   options = {
     networking = {
       hostName = mkOption {
-        type = types.string;
+        type = types.str;
         description = "machine hostname";
         default = "default";
       };
@@ -36,25 +36,25 @@ in {
         };
 
         interface = mkOption {
-          type = types.string;
+          type = types.str;
           description = "interface for static networking configuration";
           default = "eth0";
         };
 
         ip = mkOption {
-          type = types.string;
+          type = types.str;
           description = "IP address for static networking configuration";
           default = "10.0.2.15";
         };
 
         route = mkOption {
-          type = types.string;
+          type = types.str;
           description = "route";
           default = "10.0.2.0/24";
         };
 
         gw = mkOption {
-          type = types.string;
+          type = types.str;
           description = "gateway IP address for static networking configuration";
           default = "10.0.2.2";
         };

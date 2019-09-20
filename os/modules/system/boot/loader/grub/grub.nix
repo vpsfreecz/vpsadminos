@@ -497,7 +497,7 @@ in
         systemHasTPM = mkOption {
           default = "";
           example = "YES_TPM_is_activated";
-          type = types.string;
+          type = types.str;
           description = ''
             Assertion that the target system has an activated TPM. It is a safety
             check before allowing the activation of 'trustedBoot.enable'. TrustedBoot
