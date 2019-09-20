@@ -1,4 +1,4 @@
-{ nixpkgs ? import <nixpkgs> {}, compiler ? "ghc864" }:
+{ nixpkgs ? import <nixpkgs> {}, compiler ? "ghc865" }:
 let
   data-prometheus = nixpkgs.haskell.packages.${compiler}.callPackage ./data-prometheus.nix { };
 in

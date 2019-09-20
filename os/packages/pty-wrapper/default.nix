@@ -1,4 +1,4 @@
-{ nixpkgs ? import <nixpkgs> {}, compiler ? "ghc864" }:
+{ nixpkgs ? import <nixpkgs> {}, compiler ? "ghc865" }:
 nixpkgs.haskell.lib.overrideCabal
   (nixpkgs.haskell.packages.${compiler}.callPackage ./pty-wrapper.nix { })
   ( oldDrv: {

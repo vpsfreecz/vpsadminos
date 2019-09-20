@@ -7,6 +7,7 @@ with lib;
     services = {
       cgmanager = mkOption { };
       fprintd = mkOption { };
+      geoclue2 = mkOption { };
       sssd = mkOption { };
       nscd = mkOption { };
       avahi = mkOption { };
