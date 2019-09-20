@@ -13,6 +13,8 @@ self: super:
 
     in
       lxc.overrideAttrs (oldAttrs: rec {
+        version = "3.0.4";
+
         src = super.fetchFromGitHub {
           owner = "vpsfreecz";
           repo = "lxc";
