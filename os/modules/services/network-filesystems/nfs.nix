@@ -28,15 +28,6 @@ in
     services.nfs.server = {
       enable = mkEnableOption "Enable NFS server";
 
-      nproc = mkOption {
-        type = types.ints.positive;
-        default = 8;
-        description = ''
-          Specify the number of NFS server threads. By default, eight threads are started.
-          However, for optimum performance several threads should be used.
-        '';
-      };
-
       exports = mkOption {
         type = types.lines;
         default = "";
@@ -45,6 +36,73 @@ in
           <citerefentry><refentrytitle>exports</refentrytitle>
           <manvolnum>5</manvolnum></citerefentry> for the format.
         '';
+      };
+
+      nfsd = {
+        nproc = mkOption {
+          type = types.ints.positive;
+          default = 8;
+          description = ''
+            Specify the number of NFS server threads. By default, eight threads
+            are started. However, for optimum performance several threads should
+            be used.
+          '';
+        };
+
+        port = mkOption {
+          type = types.int;
+          default = 2049;
+          description = ''
+            Configure port for rpc.nfsd, useful if server is behind firewall.
+          '';
+        };
+
+        tcp = mkOption {
+          type = types.bool;
+          default = true;
+          description = ''
+            Instruct the kernel nfs server to open and listen on a TCP socket.
+          '';
+        };
+
+        udp = mkOption {
+          type = types.bool;
+          default = false;
+          description = ''
+            Instruct the kernel nfs server to open and listen on a UDP socket.
+          '';
+        };
+
+        allowedVersions = mkOption {
+          type = types.listOf (types.enum [ "2" "3" "4" "4.0" "4.1" "4.2" ]);
+          default = [];
+          description = ''
+            This  option can be used to request that rpc.nfsd offer certain
+            versions of NFS. The current version of rpc.nfsd can support major
+            NFS versions 2,3,4 and the minor versions 4.0, 4.1 and 4.2.
+          '';
+        };
+
+        disallowedVersions = mkOption {
+          type = types.listOf (types.enum [ "2" "3" "4" "4.0" "4.1" "4.2" ]);
+          default = [];
+          description = ''
+            This  option can be used to request that rpc.nfsd does not offer
+            certain versions of NFS. The current version of rpc.nfsd can support
+            major NFS versions 2,3,4 and the minor versions 4.0, 4.1 and 4.2.
+          '';
+        };
+
+        syslog = mkOption {
+          type = types.bool;
+          default = false;
+          description = ''
+            By default, rpc.nfsd logs error messages (and debug messages, if
+            enabled) to stderr. This option makes rpc.nfsd log these messages to
+            syslog instead. Note that errors encountered during option processing
+            will still be logged to stderr regardless of this option.
+          '';
+        };
       };
 
       mountdPort = mkOption {
@@ -121,7 +179,16 @@ in
         fi
 
         exportfs -ra &> /dev/null || exit 1
-        ${pkgs.nfs-utils}/bin/rpc.nfsd -- ${toString cfg.server.nproc}
+
+        ${pkgs.nfs-utils}/bin/rpc.nfsd \
+          --port ${toString cfg.server.nfsd.port} \
+          ${if cfg.server.nfsd.tcp then "--tcp" else "--no-tcp"} \
+          ${if cfg.server.nfsd.udp then "--udp" else "--no-udp"} \
+          ${optionalString (cfg.server.nfsd.allowedVersions != []) "--nfs-version ${concatStringsSep "," cfg.server.nfsd.allowedVersions}"} \
+          ${optionalString (cfg.server.nfsd.disallowedVersions != []) "--no-nfs-version ${concatStringsSep "," cfg.server.nfsd.allowedVersions}"} \
+          ${optionalString cfg.server.nfsd.syslog "--syslog"} \
+          -- ${toString cfg.server.nfsd.nproc}
+
         exec ${pkgs.nfs-utils}/bin/rpc.mountd \
           --foreground \
           ${optionalString (cfg.server.mountdPort != null) "--port ${toString cfg.server.mountdPort}"} \

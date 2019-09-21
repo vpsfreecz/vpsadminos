@@ -102,7 +102,7 @@ in {
         ${waitForRpcBind}
 
         exportfs -ra &> /dev/null || exit 1
-        ${pkgs.nfs-utils}/bin/rpc.nfsd -- ${toString nfsCfg.server.nproc}
+        ${pkgs.nfs-utils}/bin/rpc.nfsd -- ${toString nfsCfg.server.nfsd.nproc}
         exec ${pkgs.nfs-utils}/bin/rpc.mountd \
           --foreground \
           ${optionalString (cfg.mountdPort != null) "--port ${toString cfg.mountdPort}"}
