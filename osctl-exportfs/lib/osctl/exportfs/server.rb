@@ -19,14 +19,6 @@ module OsCtl::ExportFS
     # @return [String]
     attr_reader :shared_dir
 
-    # Root directory with runit configuration, which is mounted to /etc/runit
-    # @return [String]
-    attr_reader :runit_dir
-
-    # Directory that the server's runsvdir is run with
-    # @return [String]
-    attr_reader :runit_runsvdir
-
     # Server service running on the host
     # @return [String]
     attr_reader :runsv_dir
@@ -101,8 +93,6 @@ module OsCtl::ExportFS
     def set_paths
       @nfs_state = File.join(@dir, 'state')
       @shared_dir = File.join(@dir, 'shared')
-      @runit_dir = File.join(@dir, 'runit')
-      @runit_runsvdir = File.join(@runit_dir, 'runsvdir')
       @runsv_dir = File.join(@dir, 'runsv')
       @config_file = File.join(@dir, 'config.yml')
       @exports_file = File.join(@dir, 'exports')

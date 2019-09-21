@@ -107,7 +107,6 @@ module OsCtl::ExportFS
         FileUtils.mkdir_p(File.join(RunState::ROOTFS, RunState::DIR))
         File.chmod(0750, File.join(RunState::ROOTFS, RunState::DIR))
         FileUtils.mkdir_p(File.join(RunState::ROOTFS, RunState::CURRENT_SERVER))
-        FileUtils.mkdir_p(File.join(RunState::ROOTFS, RunState::TPL_DIR))
         FileUtils.mkdir_p(File.join(RunState::ROOTFS, 'nix/store'))
         FileUtils.mkdir_p(File.join(RunState::ROOTFS, 'sys'))
         FileUtils.mkdir_p(File.join(RunState::ROOTFS, 'var/lib/nfs'))
@@ -150,12 +149,6 @@ module OsCtl::ExportFS
           File.join(RunState::ROOTFS, RunState::CURRENT_SERVER)
         )
 
-        # Mount templates since with symlink to them
-        Sys.rbind_mount(
-          RunState::TPL_DIR,
-          File.join(RunState::ROOTFS, RunState::TPL_DIR)
-        )
-
         # Switch to the new rootfs
         Dir.chdir(RunState::ROOTFS)
         Dir.mkdir('old-root')
@@ -167,13 +160,15 @@ module OsCtl::ExportFS
 
         # Mount files and directories from the server directory to the system
         # where they're expected
-        Sys.bind_mount(server.runit_dir, '/etc/runit')
         Sys.bind_mount(server.nfs_state, '/var/lib/nfs')
         File.symlink('/run', '/var/run')
         %w(hosts localtime services).each do |v|
           File.symlink("/etc/static/#{v}", "/etc/#{v}")
         end
         File.symlink(server.exports_file, '/etc/exports')
+
+        # Generate runit scripts and services
+        Operations::Runit::Generate.run(server, cfg)
 
         # Generate NFS exports
         Operations::Exportfs::Generate.run(server)

@@ -10,6 +10,7 @@ module OsCtl::ExportFS
 
     def execute
       Operations::Server::Exec.run(server) do
+        ENV['PATH'] = "#{ENV['PATH']}:/run/current-system/sw/bin"
         ENV['PS1'] = "[NFSD #{server.name}]# "
         Process.exec('/usr/bin/env', 'bash', '--norc')
       end

@@ -25,16 +25,11 @@ module OsCtl::ExportFS
         FileUtils.mkdir_p(server.runsv_dir)
         run = File.join(server.runsv_dir, 'run')
 
-        File.open(run, 'w') do |f|
-          f.write(<<END
-#!/usr/bin/env bash
-exec osctl-exportfs server spawn \
-  --address "#{opts[:address] || cfg.address}" \
-  --netif "#{opts[:netif] || cfg.netif}" \
-  #{server.name}
-END
-)
-        end
+        ErbTemplate.render_to('runsv', {
+          name: server.name,
+          address: opts[:address] || cfg.address,
+          netif: opts[:netif] || cfg.netif,
+        }, run)
 
         File.chmod(0755, run)
         File.symlink(server.runsv_dir, service_link)

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+exec osctl-exportfs server spawn \
+  --address "<%= address %>" \
+  --netif "<%= netif %>" \
+  <%= name %>

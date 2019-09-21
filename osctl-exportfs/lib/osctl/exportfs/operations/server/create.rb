@@ -34,27 +34,6 @@ module OsCtl::ExportFS
           Sys.make_shared(server.shared_dir)
         end
 
-        # Create directory tree for runit and link to templates from the host
-        FileUtils.mkdir_p(server.runit_dir)
-        %w(1 2 3).each do |v|
-          symlink!(
-            File.join(RunState::TPL_RUNIT_DIR, v),
-            File.join(server.runit_dir, v)
-          )
-        end
-
-        FileUtils.mkdir_p(server.runit_runsvdir)
-        Dir.entries(RunState::TPL_RUNIT_RUNSVDIR).each do |v|
-          next if %w(. ..).include?(v)
-
-          svdir = File.join(server.runit_runsvdir, v)
-          FileUtils.mkdir_p(svdir)
-          symlink!(
-            File.join(RunState::TPL_RUNIT_RUNSVDIR, v, 'run'),
-            File.join(svdir, 'run')
-          )
-        end
-
         # Initialize the config file
         cfg = server.open_config
         cfg.address = opts[:address]

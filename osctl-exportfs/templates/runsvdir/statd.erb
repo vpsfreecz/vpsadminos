@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+export PATH="<%= ENV['PATH'] %>"
+
+until rpcinfo -s > /dev/null 2>&1 ; do
+  echo "Waiting for rpcbind to start"
+  sleep 1
+done
+
+mkdir -p "<%= server.nfs_state %>/"{sm,sm.bak}
+
+exec rpc.statd \
+  --foreground

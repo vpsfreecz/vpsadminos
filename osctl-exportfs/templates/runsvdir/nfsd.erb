@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+export PATH="<%= ENV['PATH'] %>"
+
+until rpcinfo -s > /dev/null 2>&1 ; do
+  echo "Waiting for rpcbind to start"
+  sleep 1
+done
+
+exportfs -ra &> /dev/null || exit 1
+
+rpc.nfsd -- 8
+
+exec rpc.mountd \
+  --foreground
