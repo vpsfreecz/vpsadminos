@@ -1,5 +1,5 @@
-{ bash, bundlerApp, coreutils, iproute, lib, makeWrapper, nfs-utils, runCommand,
-  rpcbind, runit, utillinux }:
+{ bash, bundlerApp, coreutils, iproute, lib, makeWrapper, nfs-utils, nix,
+  runCommand, rpcbind, runit, utillinux }:
 let
   app = bundlerApp {
     pname = "osctl-exportfs";
@@ -20,6 +20,7 @@ let
     coreutils
     iproute
     nfs-utils
+    nix
     rpcbind
     runit
     utillinux
