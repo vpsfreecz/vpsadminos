@@ -46,6 +46,7 @@ module OsCtl::ExportFS
       # namespaces
       main = Process.fork do
         cgroup.enter(cg_payload)
+        Process.setpgrp
 
         # Create a new network namespace and a veth pair
         syscmd("ip netns add #{netns}")
