@@ -19,19 +19,14 @@ module OsCtl::ExportFS
     include OsCtl::Lib::Utils::System
 
     # @param name [String]
-    # @param opts [Hash] options
-    # @option opts [String] :address
-    # @option opts [String] :netif
-    def initialize(name, opts = {})
+    def initialize(name)
       @server = Server.new(name)
       @cfg = server.open_config
-      @opts = opts
     end
 
     def execute
       server.synchronize do
         fail 'server is already running' if server.running?
-        update_options
         fail 'provide server address' if cfg.address.nil?
       end
 
@@ -81,7 +76,7 @@ module OsCtl::ExportFS
     end
 
     protected
-    attr_reader :server, :opts, :cfg, :rand_id, :netif_host, :netif_ns
+    attr_reader :server, :cfg, :rand_id, :netif_host, :netif_ns
 
     def run_server
       main = Process.fork do
@@ -244,19 +239,6 @@ module OsCtl::ExportFS
         FileUtils.mkdir_p(as)
         Sys.bind_mount(ex.dir, as)
       end
-    end
-
-    def update_options
-      updated = false
-
-      %i(address netif).each do |opt|
-        if opts[opt]
-          cfg.send(:"#{opt}=", opts[opt])
-          updated = true
-        end
-      end
-
-      cfg.save if updated
     end
   end
 end

@@ -29,13 +29,40 @@ module OsCtl::ExportFS::Cli
         end
 
         srv.desc 'Create a new NFS server'
-        srv.arg_name '<name> [address]'
+        srv.arg_name '<name>'
         srv.command :new do |c|
           c.desc 'Listen on address'
           c.flag %i(a address), arg_name: 'address'
 
           c.desc 'Host network interface name'
-          c.flag %i(n netif), arg_name: 'netif'
+          c.flag :netif, arg_name: 'netif'
+
+          c.desc 'Configure port for rpc.nfsd'
+          c.flag 'nfsd-port', arg_name: 'port', type: Integer
+
+          c.desc 'Configure the number of NFS server threads'
+          c.flag 'nfsd-nproc', arg_name: 'nproc', type: Integer
+
+          c.desc 'Open and listen on a TCP socket'
+          c.switch 'nfsd-tcp', default_value: true
+
+          c.desc 'Open and listen on a UDP socket'
+          c.switch 'nfsd-udp', default_value: false
+
+          c.desc 'Select supported NFS versions'
+          c.flag 'nfs-versions', default_value: '3'
+
+          c.desc 'Direct messages from rpc.nfsd to syslog'
+          c.switch 'nfsd-syslog', default_value: false
+
+          c.desc 'Configure port for rpc.mountd'
+          c.flag 'mountd-port', arg_name: 'port', type: Integer
+
+          c.desc 'Configure port for lockd'
+          c.flag 'lockd-port', arg_name: 'port', type: Integer
+
+          c.desc 'Configure port for rpc.statd'
+          c.flag 'statd-port', arg_name: 'port', type: Integer
 
           c.action &Command.run(Server, :create)
         end
@@ -46,15 +73,48 @@ module OsCtl::ExportFS::Cli
           c.action &Command.run(Server, :delete)
         end
 
-        srv.desc 'Start NFS server'
+        srv.desc 'Configure NFS server'
         srv.arg_name '<name>'
-        srv.command :start do |c|
+        srv.command :set do |c|
           c.desc 'Listen on address'
           c.flag %i(a address), arg_name: 'address'
 
           c.desc 'Host network interface name'
-          c.flag %i(n netif), arg_name: 'netif'
+          c.flag :netif, arg_name: 'netif'
 
+          c.desc 'Configure port for rpc.nfsd'
+          c.flag 'nfsd-port', arg_name: 'port', type: Integer
+
+          c.desc 'Configure the number of NFS server threads'
+          c.flag 'nfsd-nproc', arg_name: 'nproc', type: Integer
+
+          c.desc 'Open and listen on a TCP socket'
+          c.switch 'nfsd-tcp', default_value: true
+
+          c.desc 'Open and listen on a UDP socket'
+          c.switch 'nfsd-udp', default_value: false
+
+          c.desc 'Select supported NFS versions'
+          c.flag 'nfs-versions'
+
+          c.desc 'Direct messages from rpc.nfsd to syslog'
+          c.switch 'nfsd-syslog', default_value: false
+
+          c.desc 'Configure port for rpc.mountd'
+          c.flag 'mountd-port', arg_name: 'port', type: Integer
+
+          c.desc 'Configure port for lockd'
+          c.flag 'lockd-port', arg_name: 'port', type: Integer
+
+          c.desc 'Configure port for rpc.statd'
+          c.flag 'statd-port', arg_name: 'port', type: Integer
+
+          c.action &Command.run(Server, :set)
+        end
+
+        srv.desc 'Start NFS server'
+        srv.arg_name '<name>'
+        srv.command :start do |c|
           c.action &Command.run(Server, :start)
         end
 
@@ -67,24 +127,12 @@ module OsCtl::ExportFS::Cli
         srv.desc 'Restart NFS server'
         srv.arg_name '<name>'
         srv.command :restart do |c|
-          c.desc 'Listen on address'
-          c.flag %i(a address), arg_name: 'address'
-
-          c.desc 'Host network interface name'
-          c.flag %i(n netif), arg_name: 'netif'
-
           c.action &Command.run(Server, :restart)
         end
 
         srv.desc 'Run NFS server'
         srv.arg_name '<name>'
         srv.command :spawn do |c|
-          c.desc 'Listen on address'
-          c.flag %i(a address), arg_name: 'address'
-
-          c.desc 'Host network interface name'
-          c.flag %i(n netif), arg_name: 'netif'
-
           c.action &Command.run(Server, :spawn)
         end
 

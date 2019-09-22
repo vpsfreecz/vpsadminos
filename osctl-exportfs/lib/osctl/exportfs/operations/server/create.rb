@@ -10,8 +10,7 @@ module OsCtl::ExportFS
 
     # @param name [String]
     # @param opts [Hash] options
-    # @option opts [String] :address
-    # @option opts [String] :netif
+    # @option opts [Hash] :options
     def initialize(name, opts = {})
       @server = Server.new(name)
       @opts = opts
@@ -35,10 +34,7 @@ module OsCtl::ExportFS
         end
 
         # Initialize the config file
-        cfg = server.open_config
-        cfg.address = opts[:address]
-        cfg.netif = opts[:netif]
-        cfg.save
+        Operations::Server::Configure.run(server, opts[:options])
 
         # Create an empty exports file
         File.open(server.exports_file, 'w'){}

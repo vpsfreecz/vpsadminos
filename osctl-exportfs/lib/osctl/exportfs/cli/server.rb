@@ -22,8 +22,7 @@ module OsCtl::ExportFS::Cli
       require_args!('name')
       OsCtl::ExportFS::Operations::Server::Create.run(
         args[0],
-        address: opts[:address],
-        netif: opts[:netif],
+        options: server_options,
       )
     end
 
@@ -32,13 +31,18 @@ module OsCtl::ExportFS::Cli
       OsCtl::ExportFS::Operations::Server::Delete.run(args[0])
     end
 
+    def set
+      require_args!('name')
+      OsCtl::ExportFS::Operations::Server::Configure.run(
+        OsCtl::ExportFS::Server.new(args[0]),
+        server_options,
+      )
+    end
+
     def start
       require_args!('name')
       runsv = OsCtl::ExportFS::Operations::Server::Runsv.new(args[0])
-      runsv.start(
-        address: opts[:address],
-        netif: opts[:netif],
-      )
+      runsv.start
     end
 
     def stop
@@ -50,24 +54,51 @@ module OsCtl::ExportFS::Cli
     def restart
       require_args!('name')
       runsv = OsCtl::ExportFS::Operations::Server::Runsv.new(args[0])
-      runsv.restart(
-        address: opts[:address],
-        netif: opts[:netif],
-      )
+      runsv.restart
     end
 
     def spawn
       require_args!('name')
-      OsCtl::ExportFS::Operations::Server::Spawn.run(
-        args[0],
-        address: opts[:address],
-        netif: opts[:netif],
-      )
+      OsCtl::ExportFS::Operations::Server::Spawn.run(args[0])
     end
 
     def attach
       require_args!('name')
       OsCtl::ExportFS::Operations::Server::Attach.run(args[0])
+    end
+
+    protected
+    def server_options
+      {
+        address: opts['address'],
+        netif: opts['netif'],
+        nfsd: {
+          port: opts['nfsd-port'],
+          nproc: opts['nfsd-nproc'],
+          tcp: opts['nfsd-tcp'],
+          udp: opts['nfsd-udp'],
+          versions: parse_nfs_versions(opts['nfs-versions']),
+          syslog: opts['nfsd-syslog'],
+        },
+        mountd_port: opts['mountd-port'],
+        lockd_port: opts['lockd-port'],
+        statd_port: opts['statd-port'],
+      }
+    end
+
+    def parse_nfs_versions(opt)
+      return if opt.nil?
+
+      ret = opt.split(',')
+      choices = OsCtl::ExportFS::Config::Nfsd::VERSIONS
+
+      ret.each do |v|
+        unless choices.include?(v)
+          fail "invalid NFS version '#{v}', possible values are: #{choices.join(', ')}"
+        end
+      end
+
+      ret
     end
   end
 end

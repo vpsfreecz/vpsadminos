@@ -14,21 +14,18 @@ module OsCtl::ExportFS
     end
 
     # Create the service and place it into runsvdir-managed directory
-    # @param opts [Hash] options
-    # @option opts [String] :address
-    # @option opts [String] :netif
-    def start(opts = {})
+    def start
       server.synchronize do
         fail 'server is already running' if started?
-        fail 'provide server address' if cfg.address.nil? && opts[:address].nil?
+        fail 'provide server address' if cfg.address.nil?
 
         FileUtils.mkdir_p(server.runsv_dir)
         run = File.join(server.runsv_dir, 'run')
 
         ErbTemplate.render_to('runsv', {
           name: server.name,
-          address: opts[:address] || cfg.address,
-          netif: opts[:netif] || cfg.netif,
+          address: cfg.address,
+          netif: cfg.netif,
         }, run)
 
         File.chmod(0755, run)
@@ -44,17 +41,14 @@ module OsCtl::ExportFS
       end
     end
 
-    # @param opts [Hash] options
-    # @option opts [String] :address
-    # @option opts [String] :netif
-    def restart(opts = {})
+    def restart
       server.synchronize do
-        fail 'provide server address' if cfg.address.nil? && opts[:address].nil?
+        fail 'provide server address' if cfg.address.nil?
 
         stop
         sleep(1) until !server.running?
         sleep(1)
-        start(opts)
+        start
       end
     end
 

@@ -9,4 +9,7 @@ done
 mkdir -p "<%= server.nfs_state %>/"{sm,sm.bak}
 
 exec rpc.statd \
+  <%= config.statd_port ? "--port #{config.statd_port}" : '' %> \
+  <%= config.lockd_port ? "--nlm-port #{config.lockd_port}" : '' %> \
+  <%= config.lockd_port ? "--nlm-udp-port #{config.lockd_port}" : '' %> \
   --foreground

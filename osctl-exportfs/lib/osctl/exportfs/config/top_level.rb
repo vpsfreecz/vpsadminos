@@ -18,6 +18,21 @@ module OsCtl::ExportFS
     # @return [String, nil]
     attr_accessor :address
 
+    # @return [Config::Nfsd]
+    attr_reader :nfsd
+
+    # @param mountd_port [Integer]
+    # @return [Integer, nil]
+    attr_accessor :mountd_port
+
+    # @param lockd_port [Integer]
+    # @return [Integer, nil]
+    attr_accessor :lockd_port
+
+    # @param statd_port [Integer]
+    # @return [Integer, nil]
+    attr_accessor :statd_port
+
     # @return [Config::Exports]
     attr_reader :exports
 
@@ -29,6 +44,7 @@ module OsCtl::ExportFS
       if File.exist?(path)
         read_config
       else
+        @nfsd = Config::Nfsd.new({})
         @exports = Config::Exports.new([])
       end
     end
@@ -51,6 +67,10 @@ module OsCtl::ExportFS
       data = server.synchronize { YAML.load_file(path) }
       @netif = data['netif']
       @address = data['address']
+      @nfsd = Config::Nfsd.new(data['nfsd'] || {})
+      @mountd_port = data['mountd_port']
+      @lockd_port = data['lockd_port']
+      @statd_port = data['statd_port']
       @exports = Config::Exports.new(data['exports'] || [])
     end
 
@@ -62,6 +82,10 @@ module OsCtl::ExportFS
       {
         'address' => address,
         'netif' => @netif == default_netif ? nil : @netif,
+        'nfsd' => nfsd.dump,
+        'mountd_port' => mountd_port,
+        'lockd_port' => lockd_port,
+        'statd_port' => statd_port,
         'exports' => exports.dump,
       }
     end

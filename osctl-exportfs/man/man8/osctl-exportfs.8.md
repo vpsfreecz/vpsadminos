@@ -36,12 +36,95 @@ automatically restarted in case they inadvertedly stop.
       configuration file for later use with `server spawn` and `server start`.
       *address* has to be an IPv4 address without prefix.
 
-   `-n`, `--netif` *netif*
+   `--netif` *netif*
      Name of the server's network interface on the host system.
      Defaults to `nfs-<server>`.
 
+   `--nfsd-port` *port*
+     Configure port for rpc.nfsd, useful if server is behind firewall.
+
+   `--nfsd-nproc` *nproc*
+     Specify the number of NFS server threads. By default, eight threads
+     are started. However, for optimum performance several threads should
+     be used.
+
+   `--[no-]nfsd-tcp`
+     Instruct the kernel nfs server to open and listen on a TCP socket.
+
+   `--[no-]nfsd-udp`
+     Instruct the kernel nfs server to open and listen on a UDP socket.
+
+   `--nfs-versions` *versions*
+     Allow only selected NFS versions. Possible values are: `2`, `3`, `4`,
+     `4.0`, `4.1` and `4.2` separated by commas.
+
+   `--nfsd-syslog`
+     By default, rpc.nfsd logs error messages (and debug messages, if
+     enabled) to stderr. This option makes rpc.nfsd log these messages to
+     syslog instead. Note that errors encountered during option processing
+     will still be logged to stderr regardless of this option.
+
+   `--mountd-port` *port*
+     Use fixed port for rpc.mountd, useful if server is behind firewall.
+
+   `--lockd-port` *port*
+     Use a fixed port for the NFS lock manager kernel module (`lockd/nlockmgr`).
+     This is useful if the NFS server is behind a firewall.
+
+   `--statd-port` *port*
+     Use a fixed port for `rpc.statd`. This is useful if the NFS server is
+     behind a firewall.
+
 `server del` *name*
   Delete configured NFS server identified by *name*.
+
+`server set` *options* *name*
+  Configure server options. Changes are saved to the server's configuration file.
+  If the server is running, changes will take effect when it is restarted.
+
+    `-a`, `--address` *address*
+      The server will be listening on *address* if provided. It is saved into the
+      configuration file for later use with `server spawn` and `server start`.
+      *address* has to be an IPv4 address without prefix.
+
+   `--netif` *netif*
+     Name of the server's network interface on the host system.
+     Defaults to `nfs-<server>`.
+
+   `--nfsd-port` *port*
+     Configure port for rpc.nfsd, useful if server is behind firewall.
+
+   `--nfsd-nproc` *nproc*
+     Specify the number of NFS server threads. By default, eight threads
+     are started. However, for optimum performance several threads should
+     be used.
+
+   `--[no-]nfsd-tcp`
+     Instruct the kernel nfs server to open and listen on a TCP socket.
+
+   `--[no-]nfsd-udp`
+     Instruct the kernel nfs server to open and listen on a UDP socket.
+
+   `--nfs-versions` *versions*
+     Allow only selected NFS versions. Possible values are: `2`, `3`, `4`,
+     `4.0`, `4.1` and `4.2` separated by commas.
+
+   `--nfsd-syslog`
+     By default, rpc.nfsd logs error messages (and debug messages, if
+     enabled) to stderr. This option makes rpc.nfsd log these messages to
+     syslog instead. Note that errors encountered during option processing
+     will still be logged to stderr regardless of this option.
+
+   `--mountd-port` *port*
+     Use fixed port for rpc.mountd, useful if server is behind firewall.
+
+   `--lockd-port` *port*
+     Use a fixed port for the NFS lock manager kernel module (`lockd/nlockmgr`).
+     This is useful if the NFS server is behind a firewall.
+
+   `--statd-port` *port*
+     Use a fixed port for `rpc.statd`. This is useful if the NFS server is
+     behind a firewall.
 
 `server spawn` [*options*] *name*
   Start NFS server *name* and export its filesystems.
@@ -49,30 +132,10 @@ automatically restarted in case they inadvertedly stop.
   The server will run in the foreground, it can be stopped by sending the
   process `SIGINT` or `SIGTERM` signal.
 
-    `-a`, `--address` *address*
-      The server will be listening on *address*, which either has to be provided
-      or it already has to be in the server configuration. Note that the address
-      is change in the server's configuration file.
-
-    `-n`, `--netif` *netif*
-      Override the name of the server's network interface on the host system.
-      Defaults to `nfs-<server>` or the server's preconfigured network interface
-      name. The server's configuration file is updated when this option is used.
-
 `server start` [*options*] *name*
   Start NFS server *name*, but put in a `runit` supervision tree. A `runsv`
   service is created in `/run/osctl/exportfs/runsvdir`, which is picked up
   and started by `runsvdir` running as part of `osctl-exportfs` service.
-
-    `-a`, `--address` *address*
-      The server will be listening on *address*, which either has to be provided
-      or it already has to be in the server configuration. Note that the address
-      is change in the server's configuration file.
-
-    `-n`, `--netif` *netif*
-      Override the name of the server's network interface on the host system.
-      Defaults to `nfs-<server>` or the server's preconfigured network interface
-      name. The server's configuration file is updated when this option is used.
 
 `server stop` *name*
   Remove the service for NFS server *name* from `runit` supervision tree and
@@ -81,16 +144,6 @@ automatically restarted in case they inadvertedly stop.
 `server restart` [*options*] *name*
   Restart NFS server *name*, which has to be running in a `runit` supervision
   tree.
-
-    `-a`, `--address` *address*
-      The server will be listening on *address*, which either has to be provided
-      or it already has to be in the server configuration. Note that the address
-      is change in the server's configuration file.
-
-    `-n`, `--netif` *netif*
-      Override the name of the server's network interface on the host system.
-      Defaults to `nfs-<server>` or the server's preconfigured network interface
-      name. The server's configuration file is updated when this option is used.
 
 `export ls` [*server*]
   List all exports or exports configured on *server*.

@@ -8,7 +8,15 @@ done
 
 exportfs -ra &> /dev/null || exit 1
 
-rpc.nfsd -- 8
+rpc.nfsd \
+  <%= config.nfsd.port ? "--port #{config.nfsd.port}" : '' %> \
+  <%= config.nfsd.tcp ? '--tcp' : '--no-tcp' %> \
+  <%= config.nfsd.udp ? '--udp' : '--no-udp' %> \
+  --nfs-version <%= config.nfsd.allowed_versions.join(',') %> \
+  --no-nfs-version <%= config.nfsd.disallowed_versions.join(',') %> \
+  <%= config.nfsd.syslog ? '--syslog' : '' %> \
+  -- <%= config.nfsd.nproc %>
 
 exec rpc.mountd \
+  <%= config.mountd_port ? "--port #{config.mountd_port}" : '' %> \
   --foreground
