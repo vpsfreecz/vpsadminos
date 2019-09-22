@@ -1,2 +1,5 @@
 #!/usr/bin/env bash
+exportfs -ua
+rpc.nfsd 0
+exportfs -f
 exit 0
