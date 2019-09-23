@@ -10,6 +10,7 @@ module OsCtl::ExportFS
     def initialize(server, &block)
       @server = server
       @block = block
+      @cgroup = Operations::Server::CGroup.new(server)
     end
 
     def execute
@@ -28,6 +29,8 @@ module OsCtl::ExportFS
       ios = {}
 
       main = Process.fork do
+        cgroup.enter_payload
+
         namespaces.each do |ns, type|
           ios[ns] = File.open(File.join('/proc', pid.to_s, 'ns', ns), 'r')
         end
@@ -45,6 +48,6 @@ module OsCtl::ExportFS
     end
 
     protected
-    attr_reader :server, :block
+    attr_reader :server, :block, :cgroup
   end
 end

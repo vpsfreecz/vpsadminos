@@ -22,7 +22,7 @@ module OsCtl::ExportFS
     def initialize(name)
       @server = Server.new(name)
       @cfg = server.open_config
-      @cgroup = CGroup.new('systemd', 'osctl/exportfs/servers')
+      @cgroup = Operations::Server::CGroup.new(server)
     end
 
     def execute
@@ -36,16 +36,12 @@ module OsCtl::ExportFS
       @netif_host = cfg.netif
       @netif_ns = "nfsns-#{netif_ns}"
 
-      cgroup.create(server.name)
-      cgroup.enter(server.name)
-
-      cg_payload = File.join(server.name, 'payload')
-      cgroup.create(cg_payload)
+      cgroup.enter_manager
 
       # The parent remains in the host namespace, where as the child unshares
       # namespaces
       main = Process.fork do
-        cgroup.enter(cg_payload)
+        cgroup.enter_payload
         Process.setpgrp
 
         # Create a new network namespace and a veth pair
@@ -85,8 +81,7 @@ module OsCtl::ExportFS
       syscmd("ip link del #{netif_host}")
 
       log(:info, 'Killing remaining processes')
-      cgroup.kill_all_until_empty(cg_payload)
-      cgroup.destroy(cg_payload)
+      cgroup.clear_payload
     end
 
     protected
