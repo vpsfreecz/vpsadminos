@@ -91,7 +91,7 @@ EOF
       File.join(
         '/sys/fs/cgroup/systemd',
         builder.attrs[:group_path],
-        'lxc',
+        'lxc.payload',
         builder.ctid,
         "exec.#{id}"
       )
