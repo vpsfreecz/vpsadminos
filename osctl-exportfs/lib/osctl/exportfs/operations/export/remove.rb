@@ -42,7 +42,7 @@ module OsCtl::ExportFS
       Operations::Server::Exec.run(server) do
         server.enter_ns
         Operations::Exportfs::Generate.run(server)
-        syscmd('exportfs -r')
+        syscmd("exportfs -u \"#{export.host}:#{export.as}\"")
         Sys.unmount(export.as)
       end
     end

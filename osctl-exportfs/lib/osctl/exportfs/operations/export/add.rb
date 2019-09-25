@@ -72,7 +72,7 @@ module OsCtl::ExportFS
 
           Operations::Exportfs::Generate.run(server)
 
-          syscmd('exportfs -r')
+          syscmd("exportfs -i -o \"#{export.options}\" \"#{export.host}:#{export.as}\"")
         end
 
       ensure
