@@ -62,6 +62,7 @@ in {
   config = {
     boot.kernelParams = [
       "net.ifnames=0"
+      "cgroup.memory=nokmem"
     ];
 
     boot.kernelPackages = myLinuxPackages;
