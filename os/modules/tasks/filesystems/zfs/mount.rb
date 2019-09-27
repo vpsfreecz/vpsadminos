@@ -1,9 +1,11 @@
 #!@ruby@/bin/ruby
+require 'etc'
 require 'json'
 require 'open3'
+require 'thread'
 
 class Dataset
-  attr_reader :pool, :name, :type, :base_name, :parent_name, :mountpoint
+  attr_reader :pool, :name, :type, :base_name, :parent_name, :mountpoint, :level
   attr_reader :real_properties, :declarative_properties
   attr_accessor :error
 
@@ -57,7 +59,7 @@ class Dataset
   end
 
   def mount?
-    !mounted? && canmount == 'on' && mountpoint != 'legacy'
+    !mounted? && canmount == 'on' && !%w(legacy none).include?(mountpoint)
   end
 
   def configure?
@@ -81,6 +83,7 @@ class Dataset
     @mountpoint = declarative_properties['mountpoint'] \
                   || real_properties['mountpoint'] \
                   || find_mountpoint
+    @level = File.absolute_path(mountpoint).count('/')
   end
 
   def find_mountpoint
@@ -135,8 +138,41 @@ class DatasetList
     end
   end
 
+  def sorted_to_mount_groups
+    sorted_list = sorted_by_mountpoint.select do |ds|
+      !ds.exist? || ds.mount? || ds.configure?
+    end
+
+    i = 1
+    groups = []
+    volumes = take_if(sorted_list, &:volume?)
+
+    loop do
+      filesystems = take_if(sorted_list) { |ds| ds.level == i }
+      groups << filesystems unless filesystems.empty?
+
+      break if sorted_list.empty?
+      i += 1
+    end
+
+    groups << volumes if volumes.any?
+    groups
+  end
+
   protected
   attr_reader :list, :index
+
+  def take_if(arr)
+    ret = []
+
+    arr.delete_if do |item|
+      del = yield(item)
+      ret << item if del
+      del
+    end
+
+    ret
+  end
 end
 
 class Pool
@@ -160,27 +196,35 @@ class Pool
   end
 
   def mount_all
-    list = datasets.sorted_by_mountpoint.select do |ds|
-      !ds.exist? || ds.mount? || ds.configure?
-    end
+    groups = datasets.sorted_to_mount_groups
+    tp = ThreadPool.new
+    @printer = ProgressPrinter.new(groups.inject(0) { |acc, v| acc += v.length })
 
-    each_with_progress(list) do |ds|
-      if !ds.valid?
-        print "#{ds.name} has invalid configuration: #{ds.error}"
-      elsif ds.exist?
-        if ds.configure?
-          print "Configuring #{ds.name}"
-          configure(ds)
-        end
+    groups.each do |grp|
+      grp.each do |ds|
+        tp.add do
+          printer.next
 
-        if ds.mount?
-          print "Mounting #{ds.name}"
-          mount(ds)
+          if !ds.valid?
+            printer << "#{ds.name} has invalid configuration: #{ds.error}"
+          elsif ds.exist?
+            if ds.configure?
+              printer << "Configuring #{ds.name}"
+              configure(ds)
+            end
+
+            if ds.mount?
+              printer << "Mounting #{ds.name}"
+              mount(ds)
+            end
+          else
+            printer << "Creating #{ds.name}"
+            create(ds)
+          end
         end
-      else
-        print "Creating #{ds.name}"
-        create(ds)
       end
+
+      tp.run
     end
   end
 
@@ -217,6 +261,8 @@ class Pool
   end
 
   protected
+  attr_reader :printer
+
   def list_existing_datasets
     current_ds = nil
 
@@ -301,29 +347,77 @@ class Pool
     ret.reverse!
   end
 
-  def each_with_progress(array)
-    @progress_cnt = array.length
+  def system(*args)
+    printer << "> #{File.basename(args[0])} #{args[1..].join(' ')}"
+    Kernel.system(*args)
+  end
+end
 
-    array.each_with_index do |v, i|
-      @progress_i = i+1
-      yield(v)
+class ThreadPool
+  def initialize(threads = nil)
+    @threads = threads || Etc.nprocessors
+    @threads = 1 if @threads < 1
+    @queue = Queue.new
+  end
+
+  def add(&block)
+    queue << block
+  end
+
+  def run
+    (1..threads).map do
+      Thread.new { work }
+    end.each(&:join)
+  end
+
+  protected
+  attr_reader :threads, :queue
+
+  def work
+    loop do
+      begin
+        block = queue.pop(true)
+      rescue ThreadError
+        return
+      end
+
+      block.call
     end
+  end
+end
 
-    @progress_cnt = @progress_i = nil
+class ProgressPrinter
+  attr_reader :total
+
+  def initialize(n)
+    @total = n
+    @index = 1
+    @mutex = Mutex.new
+  end
+
+  def <<(str)
+    print(str)
   end
 
   def print(str)
-    if @progress_cnt
-      puts "[#{@progress_i}/#{@progress_cnt}] #{str}"
-    else
-      puts str
+    i = Thread.current[:progress_printer]
+
+    @mutex.synchronize do
+      puts "[#{i}/#{total}] #{str}"
     end
   end
 
-  def system(*args)
-    print "> #{args.join(' ')}"
-    Kernel.system(*args)
+  def next
+    @mutex.synchronize do
+      ret = index
+      Thread.current[:progress_printer] = ret
+      @index += 1
+      ret
+    end
   end
+
+  protected
+  attr_reader :mutex, :index
 end
 
 if ARGV.count < 1
