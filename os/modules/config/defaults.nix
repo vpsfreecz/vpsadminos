@@ -79,6 +79,9 @@
     # TCP BBR congestion control
     "net.core.default_qdisc" = lib.mkDefault "fq";
     "net.ipv4.tcp_congestion_control" = lib.mkDefault "bbr";
+
+    # Enable netfilter logs in all containers
+    "net.netfilter.nf_log_all_netns" = lib.mkDefault true;
   };
 
   security.apparmor.enable = true;
