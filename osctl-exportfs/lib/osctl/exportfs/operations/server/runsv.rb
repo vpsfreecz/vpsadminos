@@ -38,6 +38,7 @@ module OsCtl::ExportFS
       server.synchronize do
         fail 'server is not running' unless started?
         File.unlink(service_link)
+        sleep(1) until !server.running?
       end
     end
 
@@ -46,7 +47,6 @@ module OsCtl::ExportFS
         fail 'provide server address' if cfg.address.nil?
 
         stop
-        sleep(1) until !server.running?
         sleep(1)
         start
       end
