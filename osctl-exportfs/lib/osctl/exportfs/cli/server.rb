@@ -1,21 +1,38 @@
 require 'osctl/exportfs/cli/command'
+require 'libosctl'
 
 module OsCtl::ExportFS::Cli
   class Server < Command
+    FIELDS = %i(server state netif address)
+
     def list
-      puts sprintf('%-20s %-12s %-20s %s', 'SERVER', 'STATE', 'NETIF', 'ADDRESS')
-
-      OsCtl::ExportFS::Operations::Server::List.run.each do |s|
-        cfg = s.open_config
-
-        puts sprintf(
-          '%-20s %-12s %-20s %s',
-          s.name,
-          s.running? ? 'running' : 'stopped',
-          cfg.netif,
-          cfg.address || '-'
-        )
+      if opts[:list]
+        puts FIELDS.join("\n")
+        return
       end
+
+      fmt_opts = {
+        layout: :columns,
+        sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
+      }
+
+      fmt_opts[:header] = false if opts['hide-header']
+      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS
+
+      OsCtl::Lib::Cli::OutputFormatter.print(
+        OsCtl::ExportFS::Operations::Server::List.run.map do |s|
+          cfg = s.open_config
+
+          {
+            server: s.name,
+            state: s.running? ? 'running' : 'stopped',
+            netif: cfg.netif,
+            address: cfg.address,
+          }
+        end,
+        cols,
+        fmt_opts
+      )
     end
 
     def create

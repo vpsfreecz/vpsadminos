@@ -25,6 +25,18 @@ module OsCtl::ExportFS::Cli
         srv.desc 'List configured NFS server'
         srv.arg_name '<name>'
         srv.command :ls do |c|
+          c.desc 'Select parameters to output'
+          c.flag %i(o output), arg_name: 'parameters'
+
+          c.desc 'Do not show header'
+          c.switch %i(H hide-header), negatable: false
+
+          c.desc 'List available parameters'
+          c.switch %i(L list), negatable: false
+
+          c.desc 'Sort by parameter(s)'
+          c.flag %i(s sort), arg_name: 'parameters'
+
           c.action &Command.run(Server, :list)
         end
 

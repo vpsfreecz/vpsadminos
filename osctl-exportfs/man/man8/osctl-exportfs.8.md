@@ -25,8 +25,20 @@ supervision tree using command `server start`. Servers monitored by `runit` are
 automatically restarted in case they inadvertedly stop.
 
 ## COMMANDS
-`server ls`
+`server ls` [*options*]
   List configured NFS servers and their state.
+
+    `-H`, `--hide-header`
+      Do not show header, useful for scripts.
+
+    `-L`, `--list`
+      List available parameters and exit.
+    
+    `-o`, `--output` *parameters*
+      Select parameters to output, comma separated.
+
+    `-s`, `--sort` *parameters*
+      Sort output by parameters, comma separated.
 
 `server new` [*options*] *name*
   Add a new NFS server identified by *name*.
