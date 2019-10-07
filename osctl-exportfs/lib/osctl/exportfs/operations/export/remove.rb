@@ -10,12 +10,12 @@ module OsCtl::ExportFS
     include OsCtl::Lib::Utils::File
 
     # @param server [Server]
-    # @param dir [String]
+    # @param as [String]
     # @param host [String]
-    def initialize(server, dir, host)
+    def initialize(server, as, host)
       @server = server
       @cfg = server.open_config
-      @export = cfg.exports.lookup(dir, host)
+      @export = cfg.exports.lookup(as, host)
     end
 
     def execute

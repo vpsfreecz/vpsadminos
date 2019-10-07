@@ -166,7 +166,7 @@ automatically restarted in case they inadvertedly stop.
 `export del` *options* *server*
   Remove export from NFS server *server* with matching *dir* and *host*.
     
-    `--directory` *dir*
+    `--as` *dir*
       Exported directory.
     
     `--host` *host*

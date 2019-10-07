@@ -10,15 +10,11 @@ module OsCtl::ExportFS
       db << export
     end
 
-    # @param dir [String]
+    # @param as [String]
     # @param host [String]
     # @return [Export, nil]
-    def lookup(dir, host)
-      db.each do |ex|
-        return ex if ex.dir == dir && ex.host == host
-      end
-
-      nil
+    def lookup(as, host)
+      db.detect { |ex| return ex if ex.as == as && ex.host == host }
     end
 
     # @param export [Export]

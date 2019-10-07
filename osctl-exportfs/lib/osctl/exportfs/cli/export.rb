@@ -37,7 +37,7 @@ module OsCtl::ExportFS::Cli
 
       OsCtl::ExportFS::Operations::Export::Remove.run(
         OsCtl::ExportFS::Server.new(args[0]),
-        opts[:directory],
+        opts[:as],
         opts[:host],
       )
     end

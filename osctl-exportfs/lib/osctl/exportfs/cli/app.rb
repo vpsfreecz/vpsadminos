@@ -172,8 +172,8 @@ module OsCtl::ExportFS::Cli
         exp.desc 'Unexport filesystem'
         exp.arg_name '<server>'
         exp.command :del do |c|
-          c.desc 'Directory to export'
-          c.flag %w(d directory), required: true
+          c.desc 'Directory to unexport'
+          c.flag %w(a as), required: true
 
           c.desc 'Mask for allowed hosts'
           c.flag %w(h host), default_value: '*'
