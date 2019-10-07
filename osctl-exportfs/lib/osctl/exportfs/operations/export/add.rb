@@ -21,29 +21,25 @@ module OsCtl::ExportFS
     def execute
       if !Dir.exist?(export.dir)
         fail "dir #{export.dir} not found"
-      elsif export_exists?
-        fail "export at #{export.as} already exists"
+      end
+
+      ex = cfg.exports.find_by_as(export.as)
+
+      if ex && ex.dir != export.dir
+        fail "source directory mismatch: expected '#{ex.dir}', got '#{export.dir}'"
+      elsif ex && ex.host == export.host
+        fail "export of #{export.as} to #{export.host} already exists"
       end
 
       add_to_exports
 
       if server.running?
-        enable_share
+        enable_share(propagate: ex.nil?)
       end
     end
 
     protected
     attr_reader :server, :export, :cfg
-
-    def export_exists?
-      path = File.absolute_path(export.as)
-
-      cfg.exports.each do |ex|
-        return true if path == File.absolute_path(ex.as)
-      end
-
-      false
-    end
 
     # Add the export to the database
     def add_to_exports
@@ -53,31 +49,37 @@ module OsCtl::ExportFS
 
     # Propagate the directory from the host to the server using the shared
     # directory and then export it
-    def enable_share
-      hash = Digest::SHA2.hexdigest(export.dir)
-      shared = File.join(server.shared_dir, hash)
+    def enable_share(propagate: true)
+      if propagate
+        hash = Digest::SHA2.hexdigest(export.dir)
+        shared = File.join(server.shared_dir, hash)
 
-      Dir.mkdir(shared)
-      Sys.bind_mount(export.dir, shared)
+        Dir.mkdir(shared)
+        Sys.bind_mount(export.dir, shared)
+      end
 
       begin
         Operations::Server::Exec.run(server) do
           server.enter_ns
 
-          FileUtils.mkdir_p(export.as)
-          Sys.move_mount(
-            File.join(RunState::CURRENT_SERVER, 'shared', hash),
-            export.as
-          )
+          if propagate
+            FileUtils.mkdir_p(export.as)
+            Sys.move_mount(
+              File.join(RunState::CURRENT_SERVER, 'shared', hash),
+              export.as
+            )
 
-          Operations::Exportfs::Generate.run(server)
+            Operations::Exportfs::Generate.run(server)
+          end
 
           syscmd("exportfs -i -o \"#{export.options}\" \"#{export.host}:#{export.as}\"")
         end
 
       ensure
-        Sys.unmount(shared)
-        Dir.rmdir(shared)
+        if propagate
+          Sys.unmount(shared)
+          Dir.rmdir(shared)
+        end
       end
     end
   end

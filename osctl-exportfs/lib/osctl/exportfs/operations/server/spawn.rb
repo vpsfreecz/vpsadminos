@@ -243,10 +243,11 @@ module OsCtl::ExportFS
     end
 
     def add_exports
-      cfg.exports.each do |ex|
-        as = File.join(RunState::ROOTFS, ex.as)
-        FileUtils.mkdir_p(as)
-        Sys.bind_mount(ex.dir, as)
+      cfg.exports.group_by_as.each do |dir, as, exports|
+        target_as = File.join(RunState::ROOTFS, as)
+
+        FileUtils.mkdir_p(target_as)
+        Sys.bind_mount(dir, target_as)
       end
     end
   end
