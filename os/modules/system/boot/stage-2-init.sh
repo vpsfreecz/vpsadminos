@@ -29,8 +29,6 @@ mkdir /run/wrappers
 
 chmod a+rxw /dev/kmsg
 chmod a+rxw /proc/kmsg
-chmod a+rx /proc/fs/aufs/
-chmod a+w /proc/fs/aufs/plink_maint
 
 hostname @hostName@
 
