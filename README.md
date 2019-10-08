@@ -35,15 +35,23 @@ and a squashfs root while reusing packages and some modules from
 ```bash
 git clone https://github.com/vpsfreecz/vpsadminos/
 cd vpsadminos
+```
 
-# temporarily this needs vpsadminos branch from vpsfreecz/nixpkgs
+vpsAdminOS is developed on top of the latest NixOS release, so make sure that
+the correct version of nixpkgs is in `NIX_PATH`, or set it as follows:
 
-git clone https://github.com/vpsfreecz/nixpkgs --branch vpsadminos
+```bash
+git clone https://github.com/NixOS/nixpkgs-channels --branch nixos-19.09
 export NIX_PATH=`pwd`
+```
 
+vpsAdminOS can now be built and run:
+
+```
+# Build the OS
 make
 
-# to run under qemu
+# Run under qemu
 make qemu
 ```
 

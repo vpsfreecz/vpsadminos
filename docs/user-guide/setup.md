@@ -4,31 +4,30 @@ a functional package manager around which vpsAdminOS is built. Please follow
 the [installation instructions][install-nix].
 
 # Downloading vpsAdminOS
-Clone the git repositories of vpsAdminOS and our version of nixpkgs:
+Clone the git repository of vpsAdminOS:
 
 ```bash
 git clone https://github.com/vpsfreecz/vpsadminos/
 cd vpsadminos
-git clone https://github.com/vpsfreecz/nixpkgs --branch vpsadminos
+```
+
+vpsAdminOS is developed on top of the latest NixOS release, so make sure that
+the correct version of nixpkgs is in `NIX_PATH`, or set it as follows:
+
+```bash
+git clone https://github.com/NixOS/nixpkgs-channels --branch nixos-19.09
+export NIX_PATH=`pwd`
 ```
 
 # Building the OS
-The easiest way to try vpsAdminOS is to run it in virtual machine using QEMU.
-Before you can build the OS, you need to tell Nix to use our custom version
-of nixpkgs. Make sure that you're within the cloned `vpsadminos` repository.
-
-```bash
-export NIX_PATH="`pwd`"
-```
-
-Now you can build and run the OS using `make`:
+The easiest way to try vpsAdminOS is to run it in virtual machine using QEMU:
 
 ```bash
 make qemu
 ```
 
-For the first time, the build will take at least an hour, because it has to
-compile the kernel and ZFS.
+For the first time, the build can take a long time, because it has to compile
+the kernel and ZFS.
 
 # Setup
 When the build finishes, a virtual machine is started, its console is in your
