@@ -1,5 +1,5 @@
 module OsCtl
   module ExportFS
-    VERSION = '19.03.0'
+    VERSION = '19.09.0'
   end
 end

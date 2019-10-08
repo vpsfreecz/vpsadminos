@@ -1,4 +1,4 @@
-VERSION = '0.1.0'
+VERSION = '19.09.0'
 
 Gem::Specification.new do |s|
   s.name        = 'osctl-env-exec'

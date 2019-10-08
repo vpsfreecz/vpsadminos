@@ -1,4 +1,4 @@
-# osctl-repo 8                    2019-04-06                             19.03.0
+# osctl-repo 8                    2019-10-08                             19.03.0
 
 ## NAME
 `osctl-repo` - manage and interact with container images repositories

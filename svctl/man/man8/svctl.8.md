@@ -1,4 +1,4 @@
-# svctl 8                         2019-04-06                             19.03.0
+# svctl 8                         2019-10-08                             19.09.0
 
 ## NAME
 `svctl` - `runit` service and runlevel manager
