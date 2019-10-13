@@ -165,5 +165,29 @@ module OsCtld
     def self.rmpath_all(path)
       subsystems.each { |subsys| rmpath(subsys, path) }
     end
+
+    # Thaw all frozen cgroups under path
+    # @param path [String]
+    def self.thaw_tree(path)
+      abs_path = File.join(FS, real_subsystem('freezer'), path)
+
+      Dir.entries(abs_path).each do |dir|
+        next if dir == '.' || dir == '..'
+        next unless Dir.exist?(File.join(abs_path, dir))
+
+        thaw_tree(File.join(path, dir))
+      end
+
+      state = File.join(abs_path, 'freezer.state')
+
+      begin
+        if File.read(state).strip == 'FROZEN'
+          log(:info, "Thawing #{abs_path}")
+          File.open(state, 'w') { |f| f.write('THAWED') }
+        end
+      rescue SystemCallError => e
+        log(:warn, "Unable to thaw #{abs_path}: #{e.message} (#{e.class})")
+      end
+    end
   end
 end

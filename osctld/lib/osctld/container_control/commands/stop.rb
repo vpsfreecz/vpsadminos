@@ -21,8 +21,21 @@ module OsCtld
           raise ArgumentError, "invalid stop mode '#{mode}'"
         end
 
+        CGroup.thaw_tree(ct.cgroup_path) if mode == :kill
+
         ret = pipe_runner(args: [mode, opts])
-        ret.ok? || ret
+
+        if ret.ok?
+          true
+
+        elsif mode == :stop
+          CGroup.thaw_tree(ct.cgroup_path)
+          ret = pipe_runner(args: [:kill, opts])
+          ret.ok? || ret
+
+        else
+          ret
+        end
       end
     end
 
@@ -36,7 +49,7 @@ module OsCtld
         if do_shutdown(opts)[:status]
           ok
         else
-          do_kill(opts)
+          error('kill required')
         end
       end
 
