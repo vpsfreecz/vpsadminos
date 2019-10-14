@@ -1293,6 +1293,11 @@ read by `ls` or `show` commands.
       Select pool on the target node to send the container to. If not set, the
       target node uses its first available pool.
 
+    `--no-network-interfaces`
+      Remove network interfaces from the container config sent to *destination*.
+      This is useful for cloning containers without duplicating network
+      configuration.
+
 `ct send rootfs` *ctid*
   Continue sending of container *ctid* to previously configured
   *destination*. `ct send rootfs` takes snapshots of the container's datasets
@@ -1322,11 +1327,6 @@ read by `ls` or `show` commands.
 
     `--no-start`
       Do not start the container on the target node, keep it stopped.
-
-    `--no-network-interfaces`
-      Remove network interfaces from the container config sent to *destination*.
-      This is useful for cloning containers without duplicating network
-      configuration.
 
 `ct send cleanup` [*options*] *ctid*
   Perform a cleanup after container *ctid* was sent to another node. The send
