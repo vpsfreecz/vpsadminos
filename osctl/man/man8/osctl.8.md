@@ -1107,6 +1107,10 @@ read by `ls` or `show` commands.
       Custom name of a dataset from the target pool, where the new container's
       root filesystem will be stored.
 
+    `--no-network-interfaces`
+      Remove network interfaces from the new container config. This is useful
+      for cloning containers without duplicating network configuration.
+
 `ct mv` *ctid* *new-id*
   Move container *ctid* to *new-id*. Can be used to move containers between pools
   or just to rename containers.

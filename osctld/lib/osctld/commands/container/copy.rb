@@ -39,6 +39,7 @@ module OsCtld
           user: target_user,
           group: target_group,
           dataset: opts[:target_dataset],
+          network_interfaces: opts[:network_interfaces],
         )
       end
 

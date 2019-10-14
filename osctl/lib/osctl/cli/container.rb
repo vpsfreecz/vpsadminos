@@ -495,6 +495,7 @@ module OsCtl::Cli
         target_pool: target_pool,
         target_id: target_id,
         consistent: opts[:consistent],
+        network_interfaces: opts['network-interfaces'],
       }
 
       cmd_opts[:target_user] = opts[:user] if opts[:user]

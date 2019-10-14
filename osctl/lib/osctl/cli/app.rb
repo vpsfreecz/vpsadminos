@@ -901,6 +901,9 @@ module OsCtl::Cli
           c.desc 'Target dataset'
           c.flag :dataset, arg_name: 'dataset'
 
+          c.desc 'Copy network interfaces'
+          c.switch 'network-interfaces', default_value: true
+
           c.action &Command.run(Container, :copy)
         end
 

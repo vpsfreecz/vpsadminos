@@ -656,6 +656,7 @@ module OsCtld
     # @option opts [User] :user target user, optional
     # @option opts [Group] :group target group, optional
     # @option opts [String] :dataset target dataset, optional
+    # @option opts [Boolean] :network_interfaces
     def clone_from(ct, id, opts = {})
       init_lock
       init_manipulable
@@ -688,8 +689,12 @@ module OsCtld
       @devices = devices.dup(self)
       devices.init
 
-      @netifs = netifs.dup(self)
-      netifs.each(&:setup)
+      if opts[:network_interfaces]
+        @netifs = netifs.dup(self)
+        netifs.each(&:setup)
+      else
+        @netifs = NetInterface::Manager.new(self)
+      end
     end
 
     def default_seccomp_profile
