@@ -45,6 +45,10 @@ let
       #users.extraUsers.root.openssh.authorizedKeys.keys =
       #  [ "..." ];
 
+      systemd.extraConfig = '''
+        DefaultTimeoutStartSec=900s
+      ''';
+
       time.timeZone = "Europe/Amsterdam";
 
       documentation.enable = true;
@@ -74,6 +78,10 @@ let
 
     services.openssh.enable = lib.mkDefault true;
     services.openssh.permitRootLogin = lib.mkDefault "yes";
+
+    systemd.extraConfig = ''
+      DefaultTimeoutStartSec=900s
+    '';
 
     documentation.enable = true;
     documentation.nixos.enable = true;
