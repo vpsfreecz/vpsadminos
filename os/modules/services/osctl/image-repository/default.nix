@@ -100,6 +100,14 @@ let
           Configure container images
         '';
       };
+
+      garbageCollection = mkOption {
+        type = types.listOf (types.submodule gc);
+        default = [];
+        description = ''
+          Garbage collection of old images
+        '';
+      };
     };
   };
 
@@ -151,6 +159,57 @@ let
     };
   };
 
+  gc = {
+    options = {
+      vendor = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = ''
+          Regular expression to match image vendor
+        '';
+      };
+
+      variant = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = ''
+          Regular expression to match image variant
+        '';
+      };
+
+      arch = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = ''
+          Regular expression to match image arch
+        '';
+      };
+
+      distribution = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = ''
+          Regular expression to match image distribution
+        '';
+      };
+
+      version = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = ''
+          Regular expression to match image version
+        '';
+      };
+
+      keep = mkOption {
+        type = types.int;
+        description = ''
+          Number of matched images to keep
+        '';
+      };
+    };
+  };
+
   createRepositories = cfg: mapAttrsToList createRepository cfg;
 
   createRepository = repo: cfg: rec {
@@ -195,6 +254,7 @@ let
     ${concatStringsSep "\n" (setDefaultVariants cfg.vendors)}
     $osctlRepo local default ${cfg.defaultVendor}
 
+    ${gcImages cfg}
     ${cfg.postBuild}
   '';
 
@@ -224,6 +284,27 @@ let
       popd
     '') versions
     ) images);
+
+  gcRunner = pkgs.substituteAll {
+    name = "container-image-gc.rb";
+    src = ./gc.rb;
+    isExecutable = true;
+    ruby = pkgs.ruby;
+    osctlRepo = pkgs.osctl-repo;
+  };
+
+  gcConfig = matchers: map (matcher:
+    filterAttrs (k: v: k != "_module" ) matcher
+  ) matchers;
+
+  gcConfigFile = matchers:
+    pkgs.writeText "image-repository-gc-config.json" (builtins.toJSON ({
+      gc = gcConfig matchers;
+    }));
+
+  gcImages = repoCfg: optionalString (repoCfg.garbageCollection != []) ''
+    ${gcRunner} ${gcConfigFile repoCfg.garbageCollection}
+  '';
 
   imageName = { name, version, customName }:
     if customName == null then

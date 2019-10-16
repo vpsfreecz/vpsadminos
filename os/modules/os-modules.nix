@@ -28,7 +28,7 @@
   ./services/networking/firewall.nix
   ./services/networking/rpcbind.nix
   ./services/networking/sshd.nix
-  ./services/osctl/image-repository.nix
+  ./services/osctl/image-repository
   ./services/scheduling/cron.nix
   ./services/security/haveged.nix
   ./services/ttys/agetty.nix
