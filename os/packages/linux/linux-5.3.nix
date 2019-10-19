@@ -12,7 +12,7 @@ buildLinux (args // rec {
   extraMeta.branch = concatStrings (intersperse "." (take 2 (splitString "." version)));
 
   src = fetchurl {
-    url = "https://github.com/vpsfreecz/linux/archive/c22fcde872e5d7e77c6ccf5d18a354c4257da147.tar.gz";
-    sha256 = "sha256:1qj2h4pibbivs3bzjba1igqva7945amnf15n1d0wfnws7mfyi0kq";
+    url = "https://github.com/vpsfreecz/linux/archive/0837ff8488c1aebf55daee37cb97309e45cbd307.tar.gz";
+    sha256 = "sha256:05yq6acyv3igcmihgd705dqcsg9nfr5i0y9idfmz2pbmib5lfmj3";
   };
 } // (args.argsOverride or {}))
