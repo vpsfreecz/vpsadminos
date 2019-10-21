@@ -11,7 +11,7 @@ else
 	fail "unsupported spin"
 fi
 
-EXTRAPKGS='vim iproute2 iputils net-tools procps less psmisc timezone aaa_base-extras'
+EXTRAPKGS='vim iproute2 iputils net-tools procps less psmisc timezone aaa_base-extras openssh'
 
 ZYPPER="zypper -v --root=$INSTALL --non-interactive --gpg-auto-import-keys "
 
@@ -29,6 +29,7 @@ function bootstrap {
 
 function configure-opensuse {
 	configure-append <<EOF
+[ ! -e /sbin/init ] && ln -sf /bin/systemd /sbin/init
 systemctl enable  wicked.service
 usermod -L root
 systemctl enable sshd.service
