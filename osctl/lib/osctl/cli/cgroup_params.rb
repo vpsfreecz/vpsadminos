@@ -322,8 +322,8 @@ module OsCtl
     # @return [Integer]
     def read_memory_usage(memory, path)
       st = parse_memory_stat(memory, path)
-      to_sum = %i(rss shmem active_anon inactive_anon)
-      to_sum.inject(0) { |sum, v| st[:"total_#{v}"] + sum }
+      usage = read_cgparam(memory, path, 'memory.usage_in_bytes').to_i
+      usage - st[:total_cache]
     end
 
     # Add runtime stats from CGroup parameters to `data`
