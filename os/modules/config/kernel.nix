@@ -6,12 +6,10 @@ let
   # we also need to override zfs/spl via linuxPackagesFor
   myLinuxPackages = (pkgs.linuxPackagesFor origKernel).extend (
     self: super: {
-      zfs = super.zfsUnstable.overrideAttrs (oldAttrs: rec {
-        name = pkgs.zfs.name;
-        version = pkgs.zfs.version;
-        src = pkgs.zfs.src;
-        spl = null;
-      });
+      zfs = (super.callPackage ../../packages/zfs {
+        configFile = "kernel";
+        kernel = origKernel;
+       }).zfsStable;
     });
 
   hwSupportModules = [
