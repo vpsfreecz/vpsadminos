@@ -2,20 +2,20 @@ GEM
   remote: https://rubygems.vpsfree.cz/
   specs:
     gli (2.17.2)
-    libosctl (19.09.0.build20191014132203)
+    libosctl (19.09.0.build20191230200627)
       rainbow (~> 3.0.0)
       require_all (~> 2.0.0)
     rainbow (3.0.0)
     require_all (2.0.0)
-    svctl (19.09.0.build20191014132203)
+    svctl (19.09.0.build20191230200627)
       gli (~> 2.17.1)
-      libosctl (= 19.09.0.build20191014132203)
+      libosctl (= 19.09.0.build20191230200627)
 
 PLATFORMS
   ruby
 
 DEPENDENCIES
-  svctl (= 19.09.0.build20191014132203)
+  svctl (= 19.09.0.build20191230200627)
 
 BUNDLED WITH
    1.17.2

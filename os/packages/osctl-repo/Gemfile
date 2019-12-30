@@ -1,2 +1,2 @@
 source 'https://rubygems.vpsfree.cz'
-gem 'osctl-repo', '19.09.0.build20191014132203'
+gem 'osctl-repo', '19.09.0.build20191230200627'
