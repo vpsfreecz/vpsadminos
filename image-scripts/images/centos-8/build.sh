@@ -1,7 +1,7 @@
 . "$IMAGEDIR/config.sh"
-POINTVER=8.0
-BUILD=1905
-RELEASE=http://mirror.centos.org/centos/${POINTVER}.${BUILD}/BaseOS/x86_64/os/Packages/centos-release-${POINTVER}-0.${BUILD}.0.9.el8.x86_64.rpm
+POINTVER=8.1
+BUILD=1911
+RELEASE=http://mirror.centos.org/centos/${POINTVER}.${BUILD}/BaseOS/x86_64/os/Packages/centos-release-${POINTVER}-1.${BUILD}.0.8.el8.x86_64.rpm
 BASEURL=http://mirror.centos.org/centos/${POINTVER}.${BUILD}/BaseOS/x86_64/os/
 
 # CentOS 8 does not seem to have an updates repo, so this variable is used to
