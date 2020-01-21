@@ -21,6 +21,8 @@ let
 
   datasets = pkgs.writeText "pool-${name}-datasets.json"
                             (builtins.toJSON (_filter pool.datasets));
+
+  guidOrEmpty = optionalString (!isNull pool.guid) pool.guid;
 in {
   run = ''
     ${importLib}
@@ -34,7 +36,7 @@ in {
       for trial in `seq 1 60`; do
         echo "Checking status of pool ${name}"
 
-        if poolReady "${name}" > /dev/null ; then
+        if poolReady "${name}" "${guidOrEmpty}" > /dev/null ; then
           echo "Attempting to import pool ${name} ${optionalString (!isNull pool.guid) "(ID=${pool.guid})"}"
           msg="$(poolImport "$importName" 2>&1)"
           isImported=$?

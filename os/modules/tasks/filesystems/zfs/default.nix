@@ -48,7 +48,13 @@ let
     in ''
       poolReady() {
         pool="$1"
-        state="$("${zpoolCmd}" import ${devOptions} 2>/dev/null | "${awkCmd}" "/pool: $pool/ { found = 1 }; /state:/ { if (found == 1) { print \$2; exit } }; END { if (found == 0) { print \"MISSING\" } }")"
+        guid="$2"
+
+        if [[ "$guid" = "" ]] ; then
+          state="$(${zpoolCheckScript} ${devOptions} "$pool")"
+        else
+          state="$(${zpoolCheckScript} ${devOptions} "$pool" "$guid")"
+        fi
         if [[ "$state" = "ONLINE" ]]; then
           return 0
         else
@@ -90,6 +96,14 @@ let
     substituteAll ${./create.rb} $out/bin/do-create-pool-${name}
     chmod +x $out/bin/do-create-pool-${name}
   '';
+
+  zpoolCheckScript = pkgs.substituteAll {
+    name = "check-zpool.rb";
+    src = ./check.rb;
+    isExecutable = true;
+    ruby = pkgs.ruby;
+    zfsUser = packages.zfsUser;
+  };
 
   zpoolCreateScripts = mapAttrsToList zpoolCreateScript;
 
