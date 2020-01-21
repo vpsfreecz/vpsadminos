@@ -36,8 +36,7 @@ module OsCtl::ExportFS
     # Remove the service from the runsvdir-managed directory
     def stop
       server.synchronize do
-        fail 'server is not running' unless started?
-        File.unlink(service_link)
+        File.unlink(service_link) if File.symlink?(service_link)
         sleep(1) until !server.running?
       end
     end
