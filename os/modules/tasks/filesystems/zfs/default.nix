@@ -156,6 +156,14 @@ let
 
   pools = {
     options = {
+      guid = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = ''
+          Pool ID used for importing.
+        '';
+      };
+
       layout = mkOption {
         type = types.listOf (types.submodule layoutVdev);
         default = [];

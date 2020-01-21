@@ -30,12 +30,13 @@ in {
     if poolImported "${name}"; then
       echo "Pool ${name} already imported"
     else
+      importName="${if isNull pool.guid then name else pool.guid}"
       for trial in `seq 1 60`; do
         echo "Checking status of pool ${name}"
 
         if poolReady "${name}" > /dev/null ; then
-          echo "Attempting to import pool ${name}"
-          msg="$(poolImport "${name}" 2>&1)"
+          echo "Attempting to import pool ${name} ${optionalString (!isNull pool.guid) "(ID=${pool.guid})"}"
+          msg="$(poolImport "$importName" 2>&1)"
           isImported=$?
 
           if [ $isImported == 0 ] ; then
@@ -55,7 +56,7 @@ in {
         echo "All attempts to cleanly import pool ${name} have failed"
         echo "Importing a possibly degraded pool in 10s"
         sleep 10
-        poolImport "${name}"
+        poolImport "$importName"
       fi
 
       if ! poolImported "${name}" ; then
