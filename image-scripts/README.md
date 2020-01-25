@@ -13,8 +13,8 @@ Images can be built within vpsAdminOS using `osctl-image`. `osctl-image` needs
 the build scripts in its current working directory.
 
 ```shell
-git clone -b vpsadminos git@github.com:vpsfreecz/build-vpsfree-templates.git
-cd build-vpsfree-templates
+git clone git@github.com:vpsfreecz/vpsadminos-image-build-scripts.git
+cd vpsadminos-image-build-scripts
 ```
 
 Usage:
