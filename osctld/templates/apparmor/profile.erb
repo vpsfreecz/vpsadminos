@@ -118,6 +118,8 @@ profile "<%= name %>" flags=(attach_disconnected,mediate_deleted) {
   mount options=(rw,nosuid,nodev,strictatime,remount),
   mount options=(ro,nodev,strictatime,remount,bind),
   mount options=(rw,nodev,strictatime,remount,bind),
+  mount options=(ro,nosuid,nodev,noexec,remount,rbind,relatime),
+  mount options=(rw,nosuid,nodev,noexec,remount,rbind,relatime),
 
   # Allow changing of proc.hidepid
   mount options=(rw,nosuid,nodev,noexec,relatime,remount),
