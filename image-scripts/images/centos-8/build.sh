@@ -9,7 +9,7 @@ BASEURL=http://mirror.centos.org/centos/${POINTVER}.${BUILD}/BaseOS/x86_64/os/
 UPDATES=http://mirror.centos.org/centos/${POINTVER}.${BUILD}/AppStream/x86_64/os/
 
 GROUPNAME='core'
-EXTRAPKGS='vim man'
+EXTRAPKGS='centos-gpg-keys centos-repos vim man'
 
 . $INCLUDE/redhat-family.sh
 
