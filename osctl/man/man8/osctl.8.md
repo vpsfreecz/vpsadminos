@@ -1341,7 +1341,8 @@ read by `ls` or `show` commands.
   the source node, and all traces of the container are removed from the
   *destination* node. This command has to be called in-between send steps
   up until `ct send state`, it cannot stop the send if one of the
-  steps is still in progress.
+  steps is still in progress. `ct send cancel --force` can be used instead of
+  `ct send cleanup` to keep the source container and drop the send state.
 
     `-f`, `--force`
       Cancel the send state on the local node, even if the remote node

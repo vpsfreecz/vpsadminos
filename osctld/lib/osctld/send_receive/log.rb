@@ -6,7 +6,7 @@ module OsCtld
   # can proceed, stores names of snapshots created during the send and
   # other settings.
   class SendReceive::Log
-    STATES = %i(stage base incremental cancel transfer cleanup)
+    STATES = %i(stage base incremental transfer cleanup)
 
     class Options
       def self.load(cfg)
@@ -97,7 +97,7 @@ module OsCtld
       cur_i = STATES.index(state)
       next_i = STATES.index(next_state)
 
-      if state == :cancel || !next_i
+      if !next_i
         false
       elsif state == :incremental && next_state == :incremental
         true
@@ -106,18 +106,28 @@ module OsCtld
       end
     end
 
+    def can_send_cancel?(force)
+      cancellable = %i(stage base incremental)
+      cancellable << :transfer if force
+      cancellable.include?(state)
+    end
+
     def can_receive_continue?(next_state)
       syncs = %i(base incremental)
       cur_i = STATES.index(state)
       next_i = STATES.index(next_state)
 
-      if state == :cancel || !next_i
+      if !next_i
         false
       elsif syncs.include?(state) && syncs.include?(next_state)
         true
       else
         next_i > cur_i
       end
+    end
+
+    def can_receive_cancel?
+      %i(stage base incremental).include?(state)
     end
 
     def state=(v)

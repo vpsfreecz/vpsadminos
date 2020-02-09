@@ -14,8 +14,14 @@ module OsCtld
       error!('container not found') unless ct
 
       ct.exclusively do
-        if !ct.send_log || !ct.send_log.can_send_continue?(:cancel)
+        if !ct.send_log
           error!('invalid send sequence')
+        elsif !ct.send_log.can_send_cancel?(opts[:force])
+          if opts[:force]
+            error!('invalid send sequence')
+          else
+            error!('invalid send sequence, could cancel forcefully')
+          end
         end
 
         ret = system(
