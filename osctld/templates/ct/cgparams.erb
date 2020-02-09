@@ -1,6 +1,0 @@
-<% cgparams.each do |p| -%>
-<% next unless %w(cpu).include?(p.subsystem) -%>
-<% p.value.each do |v| -%>
-lxc.cgroup.<%= p.name %> = <%= v %>
-<% end -%>
-<% end -%>
