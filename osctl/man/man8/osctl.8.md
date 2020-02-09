@@ -1351,6 +1351,12 @@ read by `ls` or `show` commands.
       state, but from there, the container can be deleted using `osctl ct del`
       if needed.
 
+    `-l`, `--local`
+      Cancel the send state only on the local node, do not even attempt to
+      contact the target node. The remote node may remain in an unconsistent
+      state, but from there, the container can be deleted using `osctl ct del`
+      if needed.
+
 `ct monitor` *ctid*
   Monitor state changes of container *ctid* and print them on standard output.
   If global option `-j`, `--json` is used, the state changes are reported

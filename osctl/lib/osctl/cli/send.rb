@@ -106,7 +106,8 @@ module OsCtl::Cli
         :ct_send_cancel,
         pool: gopts[:pool],
         id: args[0],
-        force: opts[:force]
+        force: opts[:force],
+        local: opts[:local],
       )
     end
 

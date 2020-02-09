@@ -1102,6 +1102,9 @@ module OsCtl::Cli
             c.desc 'Cancel the send on the local node, even if remote fails'
             c.switch %i(f force), negatable: false
 
+            c.desc 'Cancel the send only on the local node'
+            c.switch %i(l local), negatable: false
+
             c.action &Command.run(Send, :cancel)
           end
         end

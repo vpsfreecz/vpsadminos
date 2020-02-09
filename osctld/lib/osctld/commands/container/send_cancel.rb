@@ -24,16 +24,18 @@ module OsCtld
           end
         end
 
-        ret = system(
-          *send_ssh_cmd(
-            ct.pool.send_receive_key_chain,
-            ct.send_log.opts,
-            ['receive', 'cancel', ct.send_log.opts.ctid]
+        if opts[:local].nil? || !opts[:local]
+          ret = system(
+            *send_ssh_cmd(
+              ct.pool.send_receive_key_chain,
+              ct.send_log.opts,
+              ['receive', 'cancel', ct.send_log.opts.ctid]
+            )
           )
-        )
 
-        if ret.nil? || $?.exitstatus != 0 && !opts[:force]
-          error!('cancel failed')
+          if ret.nil? || $?.exitstatus != 0 && !opts[:force]
+            error!('cancel failed')
+          end
         end
 
         ct.each_dataset do |ds|
