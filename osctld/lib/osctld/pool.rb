@@ -526,10 +526,14 @@ module OsCtld
     def load_cts
       log(:info, "Loading containers")
 
+      ds_cache = OsCtl::Lib::Zfs::DatasetCache.new(
+        OsCtl::Lib::Zfs::Dataset.new(ds(CT_DS)).list(properties: %w(name mountpoint))
+      )
+
       Dir.glob(File.join(conf_path, 'ct', '*.yml')).each do |f|
         ctid = File.basename(f)[0..(('.yml'.length+1) * -1)]
 
-        ct = Container.new(self, ctid)
+        ct = Container.new(self, ctid, nil, nil, nil, dataset_cache: ds_cache)
         ensure_limits(ct)
 
         builder = Container::Builder.new(ct)

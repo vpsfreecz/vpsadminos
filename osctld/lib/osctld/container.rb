@@ -13,9 +13,9 @@ module OsCtld
     include OsCtl::Lib::Utils::System
     include Utils::SwitchUser
 
-    def self.default_dataset(pool, id)
+    def self.default_dataset(pool, id, dataset_cache: nil)
       name = File.join(pool.ct_ds, id)
-      OsCtl::Lib::Zfs::Dataset.new(name, base: name)
+      OsCtl::Lib::Zfs::Dataset.new(name, base: name, cache: dataset_cache)
     end
 
     attr_inclusive_reader :pool, :id, :user, :dataset, :group, :distribution,
@@ -36,6 +36,7 @@ module OsCtld
     # @option opts [String] load_from load from this string instead of config file
     # @option opts [Boolean] staged create a staged container
     # @option opts [Boolean] devices determines whether devices are initialized
+    # @option opts [OsCtl::Lib::Zfs::DatasetCache] dataset_cache
     def initialize(pool, id, user = nil, group = nil, dataset = nil, opts = {})
       init_lock
       init_manipulable
@@ -65,7 +66,11 @@ module OsCtld
       @dist_network_configured = false
 
       if opts[:load]
-       load_config(opts[:load_from], !opts.has_key?(:devices) || opts[:devices])
+       load_config(
+         opts[:load_from],
+         !opts.has_key?(:devices) || opts[:devices],
+         dataset_cache: opts[:dataset_cache],
+       )
       end
     end
 
@@ -601,7 +606,7 @@ module OsCtld
       :devices, :seccomp_profile, :apparmor, :attrs, :init_pid, :lxc_config
     attr_synchronized_accessor :mounted, :dist_network_configured
 
-    def load_config(config = nil, init_devices = true)
+    def load_config(config = nil, init_devices = true, dataset_cache: nil)
       if config
         cfg = YAML.load(config)
       else
@@ -615,9 +620,17 @@ module OsCtld
 
         unless @dataset
           if cfg['dataset']
-            @dataset = OsCtl::Lib::Zfs::Dataset.new(cfg['dataset'], base: cfg['dataset'])
+            @dataset = OsCtl::Lib::Zfs::Dataset.new(
+              cfg['dataset'],
+              base: cfg['dataset'],
+              cache: dataset_cache,
+            )
           else
-            @dataset = Container.default_dataset(pool, id)
+            @dataset = Container.default_dataset(
+              pool,
+              id,
+              dataset_cache: dataset_cache,
+            )
           end
         end
 

@@ -21,10 +21,21 @@ module OsCtl::Lib
     #                      dataset, so the base should be set to the container's
     #                      root dataset, e.g. `<pool>/ct/<id>`
     # @param properties [Hash]
-    def initialize(name, base: '', properties: {})
+    # @param cache [Zfs::DatasetCache, nil]
+    def initialize(name, base: '', properties: {}, cache: nil)
       @name = name
       @base = base
       @properties = properties
+
+      if properties[:mountpoint]
+        @mountpoint = properties[:mountpoint]
+      elsif cache
+        ds = cache[name]
+
+        if ds && ds.properties[:mountpoint]
+          @mountpoint = ds.properties[:mountpoint]
+        end
+      end
     end
 
     def to_s
