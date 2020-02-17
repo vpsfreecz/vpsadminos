@@ -59,18 +59,29 @@ module OsCtl::Cli
         end
 
       when :db
-        return if opts[:object] != 'container'
-
         model.sync do
-          case opts[:action].to_sym
-          when :add
-            unless model.has_ct?(opts[:pool], opts[:id])
-              model.add_ct(opts[:pool], opts[:id])
+          if opts[:object] == 'pool'
+            case opts[:action].to_sym
+            when :add
+              unless model.has_pool?(opts[:pool])
+                model.add_pool(opts[:pool])
+              end
+
+            when :remove
+              model.remove_pool(opts[:pool])
             end
 
-          when :remove
-            ct = model.find_ct(opts[:pool], opts[:id])
-            model.remove_ct(ct) if ct
+          elsif opts[:object] == 'container'
+            case opts[:action].to_sym
+            when :add
+              unless model.has_ct?(opts[:pool], opts[:id])
+                model.add_ct(opts[:pool], opts[:id])
+              end
+
+            when :remove
+              ct = model.find_ct(opts[:pool], opts[:id])
+              model.remove_ct(ct) if ct
+            end
           end
         end
 

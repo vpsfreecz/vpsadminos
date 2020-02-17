@@ -288,35 +288,6 @@ module OsCtl
       ret
     end
 
-    # Read and accumulate BlkIO stats
-    # @param subsystems [Hash] subsystem => absolute path
-    # @param path [String] path of chosen group, relative to the subsystem
-    # @param params [Array] parameters to read: `bytes`, `iops`
-    def cg_blkio_stats(subsystems, path, params)
-      file = {
-        bytes: 'blkio.throttle.io_service_bytes',
-        iops: 'blkio.throttle.io_serviced',
-      }
-      ret = {}
-
-      (%i(bytes iops) & params).each do |param|
-        r = w = 0
-
-        read_cgparam(subsystems[:blkio], path, file[param]).split("\n").each do |line|
-          if /^\d+:\d+ Read (\d+)$/ =~ line
-            r += $1.to_i
-
-          elsif /^\d+:\d+ Write (\d+)$/ =~ line
-            w += $1.to_i
-          end
-        end
-
-        ret[param] = {r: r, w: w}
-      end
-
-      ret
-    end
-
     # @param memory [String] absolute path to memory subsystem
     # @param path [String] path of chosen group, relative to the subsystem
     # @return [Integer]

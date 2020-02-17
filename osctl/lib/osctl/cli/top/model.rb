@@ -19,6 +19,7 @@ module OsCtl::Cli
     end
 
     def setup
+      client.cmd_data!(:pool_list).each { |v| host.pools << v[:name] }
       monitor.start
       @nproc = `nproc`.strip.to_i
       measure
@@ -32,7 +33,7 @@ module OsCtl::Cli
           next unless ct.running?
 
           begin
-            ct.measure(subsystems)
+            ct.measure(host, subsystems)
           rescue Top::Measurement::Error
             ct.state = :error
           end
@@ -96,6 +97,18 @@ module OsCtl::Cli
         zfs: host_zfs,
         containers: cts,
       }
+    end
+
+    def has_pool?(pool)
+      host.pools.include?(pool)
+    end
+
+    def add_pool(pool)
+      host.pools << pool
+    end
+
+    def remove_pool(pool)
+      host.pools.delete(pool)
     end
 
     def add_ct(pool, id)

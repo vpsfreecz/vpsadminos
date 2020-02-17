@@ -51,10 +51,14 @@ module OsCtl::Cli
       end
     end
 
+    attr_reader :pools, :objsets
+
     def initialize
       super(id: '[host]', pool: nil, group_path: '', state: 'running')
+      @pools = []
       @cpu = []
       @zfs = []
+      @objsets = nil
     end
 
     def running?
@@ -66,7 +70,8 @@ module OsCtl::Cli
     end
 
     def measure(subsystems)
-      super
+      measure_objsets
+      super(self, subsystems)
       measure_host_cpu_hz
       measure_zfs
     end
@@ -105,6 +110,10 @@ module OsCtl::Cli
     def measure_zfs
       @zfs << Top::ArcStats.new
       @zfs.shift if @zfs.size > 2
+    end
+
+    def measure_objsets
+      @objsets = OsCtl::Lib::Zfs::ObjsetStats.read_pools(pools)
     end
 
     # @param current [Top::ArcStats]

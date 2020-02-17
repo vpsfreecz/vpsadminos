@@ -1367,10 +1367,11 @@ read by `ls` or `show` commands.
 
 `ct top` [*options*]
   top-like TUI application showing running containers and their CPU, memory,
-  BlkIO and network usage. `ct top` can function in two modes: *realtime* and
-  *cumulative*. *realtime* mode shows CPU usage in percent and other resources
-  as usage per second, except memory and the number of processes. *cumulative*
-  mode shows all resource usage accumulated from the time `ct top` was started.
+  ZFS objsets and network usage. `ct top` can function in two modes: *realtime*
+  and *cumulative*. *realtime* mode shows CPU usage in percent and other
+  resources as usage per second, except memory and the number of processes.
+  *cumulative* mode shows all resource usage accumulated from the time `ct top`
+  was started.
 
   Key bindings:
 

@@ -7,13 +7,14 @@ module OsCtl::Cli
       end
     end
 
-    attr_reader :id, :pool, :group_path
+    attr_reader :id, :pool, :dataset, :group_path
     attr_accessor :state, :netifs
 
     # @param ct [Hash] container from ct_show
     def initialize(ct)
       @id = ct[:id]
       @pool = ct[:pool]
+      @dataset = ct[:dataset]
       @group_path = ct[:group_path]
       @state = ct[:state].to_sym
       @netifs = []
@@ -33,8 +34,8 @@ module OsCtl::Cli
       true
     end
 
-    def measure(subsystems)
-      m = Top::Measurement.new(subsystems, group_path, netifs)
+    def measure(host, subsystems)
+      m = Top::Measurement.new(host, subsystems, group_path, dataset, netifs)
       m.measure
       @initial = m if measurements.empty?
       measurements << m

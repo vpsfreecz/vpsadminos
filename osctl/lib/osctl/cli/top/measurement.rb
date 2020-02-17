@@ -9,9 +9,11 @@ module OsCtl::Cli
 
     attr_reader :time, :data
 
-    def initialize(subsystems, group_path, netifs)
+    def initialize(host, subsystems, group_path, dataset, netifs)
+      @host = host
       @subsystems = subsystems
       @group_path = group_path
+      @dataset = dataset
       @netifs = netifs
       @data = {}
     end
@@ -26,11 +28,7 @@ module OsCtl::Cli
         true
       ))
 
-      data[:blkio] = cg_blkio_stats(
-        subsystems,
-        group_path,
-        %i(bytes iops)
-      )
+      add_zfs_io_stats
 
       data.update(netif_stats)
 
@@ -43,7 +41,7 @@ module OsCtl::Cli
     end
 
     protected
-    attr_reader :subsystems, :group_path, :netifs
+    attr_reader :host, :subsystems, :group_path, :dataset, :netifs
 
     def do_diff_from(other, mine, mode, delta)
       ret = {}
@@ -92,6 +90,50 @@ module OsCtl::Cli
 
     rescue Errno::ENOENT
       0
+    end
+
+    def add_zfs_io_stats
+      if dataset.nil?
+        data[:zfsio] = read_zfs_host_io_stats
+      else
+        ds = host.objsets[dataset]
+
+        if ds
+          st = ds.aggregate_stats
+          data[:zfsio] = {
+            ios: {
+              w: ds.write_ios,
+              r: ds.read_ios,
+            },
+            bytes: {
+              w: ds.write_bytes,
+              r: ds.read_bytes,
+            },
+          }
+        else
+          data[:zfsio] = {
+            ios: {w: 0, r: 0},
+            bytes: {w: 0, r: 0},
+          }
+        end
+      end
+    end
+
+    def read_zfs_host_io_stats
+      ret = {
+        ios: {w: 0, r: 0},
+        bytes: {w: 0, r: 0},
+      }
+
+      host.pools.each do |pool|
+        st = OsCtl::Lib::Zfs::PoolIOStat.new(pool)
+        ret[:ios][:w] += st.writes
+        ret[:ios][:r] += st.reads
+        ret[:bytes][:w] += st.nwritten
+        ret[:bytes][:r] += st.nread
+      end
+
+      ret
     end
   end
 end
