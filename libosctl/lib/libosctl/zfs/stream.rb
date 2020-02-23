@@ -34,6 +34,7 @@ module OsCtl::Lib
     # @param opts [Hash]
     # @option opts [Boolean] :compressed defaults to `true`
     # @option opts [Boolean] :properties defaults to `true`
+    # @option opts [Boolean] :large_block defaults to `true`
     def initialize(fs, snapshot, from_snapshot = nil, opts = {})
       @fs = fs
       @snapshot = snapshot
@@ -43,6 +44,7 @@ module OsCtl::Lib
 
       @opts[:compressed] = true unless @opts.has_key?(:compressed)
       @opts[:properties] = true unless @opts.has_key?(:properties)
+      @opts[:large_block] = true unless @opts.has_key?(:large_block)
     end
 
     # Spawn zfs send and return {IO} with its standard output
@@ -257,6 +259,7 @@ module OsCtl::Lib
       cmd = ['zfs', 'send']
       cmd << '-c' if @opts[:compressed]
       cmd << '-p' if @opts[:properties]
+      cmd << '-L' if @opts[:large_block]
       cmd.join(' ')
     end
 
