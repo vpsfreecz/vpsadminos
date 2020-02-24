@@ -23,6 +23,40 @@ let
                             (builtins.toJSON (_filter pool.datasets));
 
   guidOrEmpty = optionalString (!isNull pool.guid) pool.guid;
+
+  share = {
+    always =
+      if config.services.nfs.server.enable then
+        ''
+          echo "Sharing datasets..."
+          waitForService nfsd
+          ${zfs} share -r ${name}
+        ''
+      else
+        ''
+          echo "Set config.services.nfs.server.enable = true to enable filesystem sharing"
+        '';
+
+    once =
+      if config.services.nfs.server.enable then
+        ''
+          if [ -f "/run/service/pool-${name}/done" ] ; then
+            echo "Filesystems of pool ${name} were already shared once"
+          else
+            echo "Sharing filesystems of pool ${name}..."
+            waitForService nfsd
+            ${zfs} share -r ${name}
+          fi
+        ''
+      else
+        ''
+          echo "Set config.services.nfs.server.enable = true to enable filesystem sharing"
+        '';
+
+    off = ''
+      echo "Filesystem sharing is disabled"
+    '';
+  }.${pool.share};
 in {
   run = ''
     ${importLib}
@@ -109,11 +143,7 @@ in {
     ${osctl} pool set parallel-stop ${name} ${toString config.osctl.pools.${name}.parallelStop}
     ''}
 
-    ${optionalString config.services.nfs.server.enable ''
-    echo "Sharing datasets..."
-    waitForService nfsd
-    ${zfs} share -r ${name}
-    ''}
+    ${share}
   '';
   oneShot = true;
   log.enable = true;

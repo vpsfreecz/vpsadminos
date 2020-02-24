@@ -315,6 +315,22 @@ let
           set its value to `inherit`.
         '';
       };
+
+      share = mkOption {
+        type = types.enum [ "always" "once" "off" ];
+        default = "always";
+        description = ''
+          Determines whether ZFS filesystems with sharenfs set should be
+          exported.
+
+          When set to <literal>always</literal>, <literal>zfs share</literal>
+          is run every time the service is started. When set to
+          <literal>once</literal>, filesystems are exported only once for this
+          pool, e.g. when the service is restarted on upgrade, filesystems are
+          not reexported. <literal>off</literal> disables automated exporting
+          completely.
+        '';
+      };
     };
   };
 
