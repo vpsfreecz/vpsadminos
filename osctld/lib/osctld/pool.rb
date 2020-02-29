@@ -1,3 +1,4 @@
+require 'etc'
 require 'fileutils'
 require 'libosctl'
 require 'osctld/lockable'
@@ -530,9 +531,17 @@ module OsCtld
         OsCtl::Lib::Zfs::Dataset.new(ds(CT_DS)).list(properties: %w(name mountpoint))
       )
 
-      Dir.glob(File.join(conf_path, 'ct', '*.yml')).each do |f|
-        ctid = File.basename(f)[0..(('.yml'.length+1) * -1)]
+      ep = ExecutionPlan.new
 
+      Dir.glob(File.join(conf_path, 'ct', '*.yml')).each do |f|
+        ep << File.basename(f)[0..(('.yml'.length+1) * -1)]
+      end
+
+      nproc = Etc.nprocessors
+      log(:info, "Going to load #{ep.length} containers, #{nproc} at a time")
+
+      ep.run(nproc) do |ctid|
+        log(:info, "Loading container #{ctid}")
         ct = Container.new(self, ctid, nil, nil, nil, dataset_cache: ds_cache)
         ensure_limits(ct)
 
@@ -545,6 +554,9 @@ module OsCtld
         Console.reconnect_tty0(ct) if ct.current_state == :running
         DB::Containers.add(ct)
       end
+
+      ep.wait
+      log(:info, "All containers loaded")
     end
 
     def load_repositories

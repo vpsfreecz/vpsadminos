@@ -86,6 +86,12 @@ module OsCtld
       @queue.to_a
     end
 
+    # Return the number of queued items
+    # @return [Integer]
+    def length
+      @queue.length
+    end
+
     protected
     def work(block)
       while @queue.any?

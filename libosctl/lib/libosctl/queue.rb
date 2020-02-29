@@ -63,6 +63,10 @@ module OsCtl::Lib
       !empty?
     end
 
+    def length
+      sync { @queue.length }
+    end
+
     # Return the queued values as an array
     # @return [Array]
     def to_a
