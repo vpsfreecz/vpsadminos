@@ -22,7 +22,7 @@ module OsCtld
       :version, :arch, :autostart, :ephemeral, :hostname, :dns_resolvers,
       :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams,
       :devices, :seccomp_profile, :apparmor, :attrs, :state, :init_pid,
-      :lxc_config
+      :lxc_config, :raw_configs
 
     alias_method :ephemeral?, :ephemeral
 
@@ -62,6 +62,7 @@ module OsCtld
       @seccomp_profile = nil
       @apparmor = AppArmor.new(self)
       @lxc_config = Container::LxcConfig.new(self)
+      @raw_configs = Container::RawConfigs.new
       @attrs = Attributes.new
       @dist_network_configured = false
 
@@ -412,6 +413,9 @@ module OsCtld
         when :seccomp_profile
           self.seccomp_profile = v
 
+        when :raw_lxc
+          self.raw_configs.lxc = v
+
         when :attrs
           attrs.update(v)
         end
@@ -441,6 +445,9 @@ module OsCtld
 
         when :seccomp_profile
           self.seccomp_profile = default_seccomp_profile
+
+        when :raw_lxc
+          self.raw_configs.lxc = nil
 
         when :attrs
           v.each { |attr| attrs.unset(attr) }
@@ -530,6 +537,7 @@ module OsCtld
           dns_resolvers: dns_resolvers,
           nesting: nesting,
           seccomp_profile: seccomp_profile,
+          raw_lxc: raw_configs.lxc,
           log_file: log_path,
         }.merge!(attrs.export)
       end
@@ -557,6 +565,7 @@ module OsCtld
           'nesting' => nesting,
           'seccomp_profile' => seccomp_profile == default_seccomp_profile \
                                ? nil : seccomp_profile,
+          'raw' => raw_configs.dump,
           'attrs' => attrs.dump,
         }
 
@@ -646,6 +655,7 @@ module OsCtld
         @send_log = SendReceive::Log.load(cfg['send_log']) if cfg['send_log']
         @cgparams = CGroup::ContainerParams.load(self, cfg['cgparams'])
         @prlimits = PrLimits::Manager.load(self, cfg['prlimits'] || {})
+        @raw_configs = Container::RawConfigs.new(cfg['raw'] || {})
         @attrs = Attributes.load(cfg['attrs'] || {})
 
         # It's necessary to load devices _before_ netifs. The device manager needs
@@ -697,6 +707,7 @@ module OsCtld
       @prlimits = prlimits.dup(self)
       @mounts = mounts.dup(self)
       @lxc_config = lxc_config.dup(self)
+      @raw_configs = raw_configs.dup
       @attrs = attrs.dup
 
       @devices = devices.dup(self)

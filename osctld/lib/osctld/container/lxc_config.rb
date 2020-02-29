@@ -30,6 +30,7 @@ module OsCtld
           prlimits: ct.prlimits,
           netifs: ct.netifs,
           mounts: ct.mounts.all_entries,
+          raw: ct.raw_configs.lxc,
         }, config_path)
       end
     end

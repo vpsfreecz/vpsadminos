@@ -57,3 +57,6 @@ lxc.prlimit.<%= name %> = <%= limit.soft %>:<%= limit.hard %>
 <% mounts.each do |m| -%>
 lxc.mount.entry = <%= m.fs %> <%= m.lxc_mountpoint %> <%= m.type %> <%= m.opts %>
 <% end -%>
+
+# Appended user raw config
+<%= raw %>

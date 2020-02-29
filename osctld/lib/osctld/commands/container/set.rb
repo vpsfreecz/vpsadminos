@@ -14,9 +14,14 @@ module OsCtld
         changes = {}
 
         %i(autostart ephemeral hostname dns_resolvers nesting distribution
-           seccomp_profile attrs).each do |attr|
+           seccomp_profile raw_lxc attrs).each do |attr|
           next unless opts.has_key?(attr)
-          changes[attr] = opts[attr] if opts[attr] != ct.send(attr)
+
+          if ct.respond_to?(attr)
+            changes[attr] = opts[attr] if opts[attr] != ct.send(attr)
+          else
+            changes[attr] = opts[attr]
+          end
         end
 
         ct.set(changes)

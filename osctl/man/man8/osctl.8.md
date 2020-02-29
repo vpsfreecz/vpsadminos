@@ -1036,6 +1036,14 @@ read by `ls` or `show` commands.
   Reset the seccomp profile to the default value, i.e.
   `/run/osctl/configs/lxc/common.seccomp`.
 
+`ct set raw lxc` *ctid*
+  Append raw LXC configuration read from standard input to the *osctld* generated
+  LXC configuration file.
+
+`ct unset raw lxc` *ctid*
+  Remove raw LXC configuration from the *osctld* generated LXC configuration
+  file.
+
 `ct set attr` *ctid* *vendor*:*key* *value*
   Set custom user attribute *vendor*:*key* for container *ctid*. Configured
   attributes can be read with `ct ls` or `ct show` using the `-o`, `--output`

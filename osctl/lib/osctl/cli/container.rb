@@ -37,6 +37,7 @@ module OsCtl::Cli
       dns_resolvers
       nesting
       seccomp_profile
+      raw_lxc
       loadavg
     ) + CGroupParams::CGPARAM_STATS
 
@@ -433,6 +434,14 @@ module OsCtl::Cli
 
     def unset_seccomp_profile
       unset(:seccomp_profile)
+    end
+
+    def set_raw_lxc
+      set(:raw_lxc) { |args| STDIN.read }
+    end
+
+    def unset_raw_lxc
+      unset(:raw_lxc)
     end
 
     def set_cpu_limit

@@ -837,6 +837,15 @@ module OsCtl::Cli
             c.action &Command.run(Container, :set_seccomp_profile)
           end
 
+          set.desc 'Append raw configuration to auto-generated config files'
+          set.command :raw do |raw|
+            raw.desc 'Append raw LXC configuration'
+            raw.arg_name '<ctid>'
+            raw.command :lxc do |c|
+              c.action &Command.run(Container, :set_raw_lxc)
+            end
+          end
+
           set_attr(set, Container, 'ctid')
           set_limits(set, Container, 'ctid')
         end
@@ -877,6 +886,15 @@ module OsCtl::Cli
           unset.arg_name '<ctid>'
           unset.command :seccomp do |c|
             c.action &Command.run(Container, :unset_seccomp_profile)
+          end
+
+          unset.desc 'Remove raw configuration from auto-generated config files'
+          unset.command :raw do |raw|
+            raw.desc 'Remove raw LXC configuration'
+            raw.arg_name '<ctid>'
+            raw.command :lxc do |c|
+              c.action &Command.run(Container, :unset_raw_lxc)
+            end
           end
 
           unset_attr(unset, Container, 'ctid')
