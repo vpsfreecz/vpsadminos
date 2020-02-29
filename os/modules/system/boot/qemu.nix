@@ -33,7 +33,7 @@ let
 
   allQemuParams =
     (flatten (imap0 (i: disk: [
-      "-drive id=disk${toString i},file=${disk.device},if=none"
+      "-drive id=disk${toString i},file=${disk.device},if=none,format=raw"
       "-device ide-drive,drive=disk${toString i},bus=ahci.${toString i}"
     ]) cfg.disks))
     ++
