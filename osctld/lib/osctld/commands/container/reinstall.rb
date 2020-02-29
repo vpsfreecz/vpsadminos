@@ -82,6 +82,9 @@ module OsCtld
         # Remount all datasets
         ct.dataset.mount(recursive: true)
 
+        builder.setup_ct_dir
+        builder.setup_rootfs
+
         ok
       end
 
