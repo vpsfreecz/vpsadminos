@@ -10,12 +10,19 @@ module OsCtl::Image
       [dataset] + dataset.descendants
     end
 
+    def override_with(opts)
+      @overrides = opts
+    end
+
     def dump_config
-      {
+      ret = {
         'distribution' => distribution,
         'version' => version,
         'arch' => arch,
       }
+
+      ret.update(@overrides) if @overrides
+      ret
     end
   end
 end

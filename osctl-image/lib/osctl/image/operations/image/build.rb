@@ -1,6 +1,7 @@
 require 'libosctl'
 require 'osctl/image/operations/base'
 require 'securerandom'
+require 'yaml'
 
 module OsCtl::Image
   class Operations::Image::Build < Operations::Base
@@ -27,6 +28,9 @@ module OsCtl::Image
 
     # @return [String]
     attr_reader :install_dir
+
+    # @return [String]
+    attr_reader :config_file
 
     # @return [String]
     attr_reader :build_id
@@ -81,6 +85,16 @@ module OsCtl::Image
       cleanup
     end
 
+    def has_config_file?
+      File.exist?(config_file)
+    end
+
+    def read_config_file
+      ret = YAML.load_file(config_file)
+      File.unlink(config_file)
+      ret
+    end
+
     def cached?
       File.exist?(output_tar) || File.exist?(output_stream)
     end
@@ -111,6 +125,7 @@ module OsCtl::Image
       @work_dir = zfs(:get, '-H -o value mountpoint', work_dataset).output.strip
       @output_dir = zfs(:get, '-H -o value mountpoint', output_dataset).output.strip
       @install_dir = File.join(output_dir, 'private')
+      @config_file = File.join(install_dir, 'container.yml')
 
       Dir.mkdir(install_dir)
 

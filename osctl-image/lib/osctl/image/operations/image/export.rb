@@ -22,6 +22,10 @@ module OsCtl::Image
         base: build.output_dataset,
       )
       container_config.rootfs = build.install_dir
+
+      if build.has_config_file?
+        container_config.override_with(build.read_config_file)
+      end
     end
 
     def execute

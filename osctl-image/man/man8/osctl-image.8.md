@@ -188,7 +188,8 @@ All executables have to implement argument-based commands described below.
 `bin/runner` image build *build-id* *work-dir* *install-dir* *name*
   Build image *name* to directory *install-dir*. Temporary files can be
   saved to *work-dir*. *build-id* should be used when creating temporary
-  directories or files as a unique identifier.
+  directories or files as a unique identifier. Custom container config can be
+  placed at *install-dir*`/container.yml`.
 
 ### bin/test interface
 `bin/test image run` *image* *test* *ctid*
