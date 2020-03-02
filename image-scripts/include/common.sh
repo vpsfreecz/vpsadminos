@@ -68,3 +68,13 @@ function run-configure {
 	rm -f $CONFIGURE
 }
 
+function set-initcmd {
+	INITCMD="- \"$1\""
+	shift
+
+	while [ $# -gt 0 ] ; do
+		INITCMD="$INITCMD\n- \"$1\""
+		shift
+	done
+}
+

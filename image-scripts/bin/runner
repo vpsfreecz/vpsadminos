@@ -82,10 +82,13 @@ function build_image {
 	DOWNLOAD="$2"
 	INSTALL="$3"
 	IMAGE="$4"
+	CONFIGFILE="$INSTALL/container.yml"
 
 	INCLUDE="$BASEDIR/include"
 	IMAGEDIR="$BASEDIR/images/$IMAGE"
 	CONFIGURE="$INSTALL/tmp/configure.sh"
+
+	set-initcmd /sbin/init
 
 	DISTNAME=
 	RELVER=
@@ -101,6 +104,15 @@ function build_image {
 
 	. "$BASEDIR/include/common.sh"
 	. "$BASEDIR/images/$IMAGE/build.sh"
+
+	write_image_config
+}
+
+function write_image_config {
+	cat <<EOF >> "$CONFIGFILE"
+init_cmd:
+$(echo -e $INITCMD)
+EOF
 }
 
 function main {
