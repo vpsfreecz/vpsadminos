@@ -68,11 +68,16 @@ module OsCtld
       @dist_network_configured = false
 
       if opts[:load]
-       load_config(
-         opts[:load_from],
-         !opts.has_key?(:devices) || opts[:devices],
-         dataset_cache: opts[:dataset_cache],
-       )
+        load_opts = {
+          init_devices: !opts.has_key?(:devices) || opts[:devices],
+          dataset_cache: opts[:dataset_cache],
+        }
+
+        if opts[:load_from]
+          load_config_string(opts[:load_from], load_opts)
+        else
+          load_config_file(config_path, load_opts)
+        end
       end
     end
 
@@ -596,13 +601,24 @@ module OsCtld
     end
 
     def reload_config
-      load_config
+      load_config_file
     end
 
     # @param config [String]
     def replace_config(config)
-      load_config(config)
+      load_config_string(config)
       save_config
+    end
+
+    # Update keys/values from `new_config` in the container's config
+    # @param config [Hash]
+    def patch_config(new_config)
+      exclusively do
+        tmp = dump_config
+        tmp.update(new_config)
+        load_config_hash(tmp)
+        save_config
+      end
     end
 
     def format_init_cmd
@@ -629,13 +645,15 @@ module OsCtld
       :init_cmd
     attr_synchronized_accessor :mounted, :dist_network_configured
 
-    def load_config(config = nil, init_devices = true, dataset_cache: nil)
-      if config
-        cfg = YAML.load(config)
-      else
-        cfg = YAML.load_file(config_path)
-      end
+    def load_config_file(path = nil, opts = {})
+      load_config_hash(YAML.load_file(path || config_path), opts)
+    end
 
+    def load_config_string(str, opts = {})
+      load_config_hash(YAML.load(str), opts)
+    end
+
+    def load_config_hash(cfg, init_devices: true, dataset_cache: nil)
       exclusively do
         @state = cfg['state'].to_sym if cfg['state']
         @user ||= DB::Users.find(cfg['user'], pool) || (raise "user not found")

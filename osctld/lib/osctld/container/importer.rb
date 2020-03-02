@@ -118,10 +118,9 @@ module OsCtld
       )
     end
 
-    # @return [Array(String, String, String)] distribution, version, arch
-    def get_distribution_info
-      cfg = YAML.load(tar.seek('config/container.yml') { |entry| entry.read })
-      [cfg['distribution'], cfg['version'], cfg['arch']]
+    # @return [Hash]
+    def get_container_config
+      YAML.load(tar.seek('config/container.yml') { |entry| entry.read })
     end
 
     # Load the user from the archive and register him, or create a new user

@@ -76,8 +76,8 @@ module OsCtld
         importer.load_metadata
         importer.import_root_dataset(builder)
 
-        dist, ver, arch = importer.get_distribution_info
-        ct.set(distribution: {name: dist, version: ver, arch: arch})
+        # Update image-specific config
+        ct.patch_config(importer.get_container_config)
 
         # Remount all datasets
         ct.dataset.mount(recursive: true)

@@ -718,8 +718,10 @@ read by `ls` or `show` commands.
 
 `ct reinstall` [*options*] *ctid*
   Reinstall container from image. The container's rootfs is deleted
-  and an image is imported again. The container's configuration and subdatasets
-  remain unaffected.
+  and an image is imported again. The container's subdatasets remain unaffected.
+  Container configuration can change dependending on what is in the image
+  configuration file -- configuration values from the image replace the current
+  configuration.
 
   If no image info is given via command-line options, `osctld` will attempt
   to find the appropriate image for the container's distribution version in
