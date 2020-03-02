@@ -1,2 +1,2 @@
 source 'https://rubygems.vpsfree.cz'
-gem 'osctl-env-exec', '0.1.0.build20190406095130'
+gem 'osctl-env-exec', '19.09.0.build20200306145209'
