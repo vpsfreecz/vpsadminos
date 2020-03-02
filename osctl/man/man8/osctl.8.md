@@ -1036,6 +1036,14 @@ read by `ls` or `show` commands.
   Reset the seccomp profile to the default value, i.e.
   `/run/osctl/configs/lxc/common.seccomp`.
 
+`ct set init-cmd` *ctid* *binary* [*arguments...*]
+  Set path to the binary within the container's root filesystem to be used as
+  init with optional arguments. Defaults to `/sbin/init`.
+
+`ct unset init-cmd` *ctid*
+  Unset custom path to the binary used as init and use the default value, which
+  is `/sbin/init`.
+
 `ct set raw lxc` *ctid*
   Append raw LXC configuration read from standard input to the *osctld* generated
   LXC configuration file.

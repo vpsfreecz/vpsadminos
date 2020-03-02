@@ -837,6 +837,12 @@ module OsCtl::Cli
             c.action &Command.run(Container, :set_seccomp_profile)
           end
 
+          set.desc 'Set path to the binary within the container to use as init'
+          set.arg_name '<ctid> <binary> [arguments...]'
+          set.command :'init-cmd' do |c|
+            c.action &Command.run(Container, :set_init_cmd)
+          end
+
           set.desc 'Append raw configuration to auto-generated config files'
           set.command :raw do |raw|
             raw.desc 'Append raw LXC configuration'
@@ -886,6 +892,12 @@ module OsCtl::Cli
           unset.arg_name '<ctid>'
           unset.command :seccomp do |c|
             c.action &Command.run(Container, :unset_seccomp_profile)
+          end
+
+          unset.desc 'Use default path to binary used as init (/sbin/init)'
+          unset.arg_name '<ctid>'
+          unset.command :'init-cmd' do |c|
+            c.action &Command.run(Container, :unset_init_cmd)
           end
 
           unset.desc 'Remove raw configuration from auto-generated config files'

@@ -37,6 +37,7 @@ module OsCtl::Cli
       dns_resolvers
       nesting
       seccomp_profile
+      init_cmd
       raw_lxc
       loadavg
     ) + CGroupParams::CGPARAM_STATS
@@ -434,6 +435,14 @@ module OsCtl::Cli
 
     def unset_seccomp_profile
       unset(:seccomp_profile)
+    end
+
+    def set_init_cmd
+      set(:init_cmd) { |args| args }
+    end
+
+    def unset_init_cmd
+      unset(:init_cmd)
     end
 
     def set_raw_lxc

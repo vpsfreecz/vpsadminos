@@ -22,7 +22,7 @@ module OsCtld
       :version, :arch, :autostart, :ephemeral, :hostname, :dns_resolvers,
       :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams,
       :devices, :seccomp_profile, :apparmor, :attrs, :state, :init_pid,
-      :lxc_config, :raw_configs
+      :lxc_config, :init_cmd, :raw_configs
 
     alias_method :ephemeral?, :ephemeral
 
@@ -62,6 +62,7 @@ module OsCtld
       @seccomp_profile = nil
       @apparmor = AppArmor.new(self)
       @lxc_config = Container::LxcConfig.new(self)
+      @init_cmd = nil
       @raw_configs = Container::RawConfigs.new
       @attrs = Attributes.new
       @dist_network_configured = false
@@ -413,6 +414,9 @@ module OsCtld
         when :seccomp_profile
           self.seccomp_profile = v
 
+        when :init_cmd
+          self.init_cmd = v
+
         when :raw_lxc
           self.raw_configs.lxc = v
 
@@ -445,6 +449,9 @@ module OsCtld
 
         when :seccomp_profile
           self.seccomp_profile = default_seccomp_profile
+
+        when :init_cmd
+          self.init_cmd = nil
 
         when :raw_lxc
           self.raw_configs.lxc = nil
@@ -537,6 +544,7 @@ module OsCtld
           dns_resolvers: dns_resolvers,
           nesting: nesting,
           seccomp_profile: seccomp_profile,
+          init_cmd: format_init_cmd,
           raw_lxc: raw_configs.lxc,
           log_file: log_path,
         }.merge!(attrs.export)
@@ -565,6 +573,7 @@ module OsCtld
           'nesting' => nesting,
           'seccomp_profile' => seccomp_profile == default_seccomp_profile \
                                ? nil : seccomp_profile,
+          'init_cmd' => init_cmd,
           'raw' => raw_configs.dump,
           'attrs' => attrs.dump,
         }
@@ -596,6 +605,10 @@ module OsCtld
       save_config
     end
 
+    def format_init_cmd
+      (init_cmd || default_init_cmd).join(' ')
+    end
+
     def log_path
       inclusively { File.join(pool.log_path, 'ct', "#{id}.log") }
     end
@@ -612,7 +625,8 @@ module OsCtld
     attr_exclusive_writer :pool, :id, :user, :dataset, :group, :distribution,
       :version, :arch, :autostart, :ephemeral, :hostname, :dns_resolvers,
       :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams,
-      :devices, :seccomp_profile, :apparmor, :attrs, :init_pid, :lxc_config
+      :devices, :seccomp_profile, :apparmor, :attrs, :init_pid, :lxc_config,
+      :init_cmd
     attr_synchronized_accessor :mounted, :dist_network_configured
 
     def load_config(config = nil, init_devices = true, dataset_cache: nil)
@@ -652,6 +666,7 @@ module OsCtld
         @dns_resolvers = cfg['dns_resolvers']
         @nesting = cfg['nesting'] || false
         @seccomp_profile = cfg['seccomp_profile'] || default_seccomp_profile
+        @init_cmd = cfg['init_cmd']
         @send_log = SendReceive::Log.load(cfg['send_log']) if cfg['send_log']
         @cgparams = CGroup::ContainerParams.load(self, cfg['cgparams'])
         @prlimits = PrLimits::Manager.load(self, cfg['prlimits'] || {})
@@ -723,6 +738,10 @@ module OsCtld
 
     def default_seccomp_profile
       '/etc/lxc/config/common.seccomp'
+    end
+
+    def default_init_cmd
+      ['/sbin/init']
     end
   end
 end
