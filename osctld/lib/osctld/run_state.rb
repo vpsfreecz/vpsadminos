@@ -11,29 +11,22 @@ module OsCtld
     SHUTDOWN_MARKER = File.join(RUNDIR, 'shutdown')
 
     def self.create
-      Dir.mkdir(RUNDIR, 0711) unless Dir.exists?(RUNDIR)
-      Dir.mkdir(POOL_DIR, 0711) unless Dir.exists?(POOL_DIR)
-      Dir.mkdir(USER_CONTROL_DIR, 0711) unless Dir.exists?(USER_CONTROL_DIR)
-
-      unless Dir.exists?(SEND_RECEIVE_DIR)
-        Dir.mkdir(SEND_RECEIVE_DIR, 0100)
-        File.chown(SendReceive::UID, 0, SEND_RECEIVE_DIR)
-      end
+      mkdir_p(RUNDIR, 0711)
+      mkdir_p(POOL_DIR, 0711)
+      mkdir_p(USER_CONTROL_DIR, 0711)
+      mkdir_p(SEND_RECEIVE_DIR, 0100, uid: SendReceive::UID, gid: 0)
 
       # Bundler needs to have some place to store its temp files
-      unless Dir.exists?(REPOSITORY_DIR)
-        Dir.mkdir(REPOSITORY_DIR, 0700)
-        File.chown(Repository::UID, 0, REPOSITORY_DIR)
-      end
+      mkdir_p(REPOSITORY_DIR, 0700, uid: Repository::UID, gid: 0)
 
       # LXC configs
-      Dir.mkdir(CONFIG_DIR, 0755) unless Dir.exists?(CONFIG_DIR)
-      Dir.mkdir(LXC_CONFIG_DIR, 0755) unless Dir.exists?(LXC_CONFIG_DIR)
+      mkdir_p(CONFIG_DIR, 0755)
+      mkdir_p(LXC_CONFIG_DIR, 0755)
 
       Lxc.install_lxc_configs(LXC_CONFIG_DIR)
 
       # AppArmor files
-      Dir.mkdir(APPARMOR_DIR, 0755) unless Dir.exists?(APPARMOR_DIR)
+      mkdir_p(APPARMOR_DIR, 0755)
     end
 
     def self.assets(add)
@@ -89,6 +82,16 @@ module OsCtld
       )
 
       SendReceive.assets(add)
+    end
+
+    def self.mkdir_p(path, mode, uid: nil, gid: nil)
+      begin
+        Dir.mkdir(path, mode)
+      rescue Errno::EEXIST
+        File.chmod(mode, path)
+      end
+
+      File.chown(uid, gid, path) if uid && gid
     end
   end
 end
