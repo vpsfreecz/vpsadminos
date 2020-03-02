@@ -98,7 +98,7 @@ module OsCtld
 
       zipped.each do |src_ds, dst_ds|
         progress("Copying dataset #{src_ds.relative_name}")
-        syscmd("zfs send -c -p #{from ? "-i @#{from}" : ''} #{src_ds}@#{snap} "+
+        syscmd("zfs send -c -p -L #{from ? "-i @#{from}" : ''} #{src_ds}@#{snap} "+
                "| zfs recv -F #{dst_ds}")
       end
 
