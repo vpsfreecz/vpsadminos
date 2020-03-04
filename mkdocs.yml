@@ -1,6 +1,8 @@
 site_name: vpsAdminOS
 theme: readthedocs
 extra_css: ['extra.css']
+extra_javascript:
+    - 'js/vpsfree-matomo.js'
 pages:
 - Home: 'index.md'
 - User Guide:
