@@ -190,7 +190,7 @@ module OsCtl::Lib
     def mounted?(recursive: false)
       zfs(
         :get,
-        "-H #{recursive ? '-r' : ''} -o value mounted",
+        "-H #{recursive ? '-r' : ''} -t filesystem -o value mounted",
         name
       ).output.split("\n").all? { |v| v == 'yes' }
     end
