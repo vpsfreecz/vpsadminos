@@ -1,4 +1,5 @@
 require 'osctld/commands/logged'
+require 'socket'
 
 module OsCtld
   class Commands::Send::KeyGen < Commands::Logged
@@ -38,7 +39,17 @@ module OsCtld
         bits = 4096
       end
 
-      syscmd("ssh-keygen -q -t #{type} -b #{bits} -N '' -f #{privkey}")
+      args = [
+        'ssh-keygen',
+        '-q',
+        '-t', type,
+        '-b', bits.to_s,
+        '-N', "''",
+        '-C', "'#{pool.name}@#{Socket.gethostname}'",
+        '-f', privkey,
+      ]
+
+      syscmd(args.join(' '))
 
       [privkey, pubkey].each do |v|
         File.chmod(0400, v)
