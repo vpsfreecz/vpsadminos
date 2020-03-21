@@ -1,16 +1,15 @@
 # vpsAdminOS
 
-vpsAdminOS is a small experimental OS for container virtualisation.
+vpsAdminOS is a small OS serving as a hypervisor for unprivileged Linux system
+containers. It is based on [not-os](https://github.com/cleverca22/not-os/)
+and [NixOS](https://nixos.org). It is designed to run full distributions inside
+unprivileged containers which look and feel as much as a virtual machine
+as possible.
 
-Provides environment to run unprivileged LXC containers with nesting
-and AppArmor.
-
-Based on [not-os](https://github.com/cleverca22/not-os/) - small experimental OS
-for embeded situations.
-
-It is also based on NixOS, but compiles down to a custom kernel, initrd,
-and a squashfs root while reusing packages and some modules from
-[nixpkgs](https://github.com/NixOS/nixpkgs/).
+vpsAdminOS is developed and used in production by [vpsFree.cz](https://vpsfree.cz),
+a non-profit organization which provides virtual servers to its members.
+See [vpsfree-cz-configuration](https://github.com/vpsfreecz/vpsfree-cz-configuration)
+for example cluster configuration.
 
 ## Links
 
