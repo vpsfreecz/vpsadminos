@@ -8,9 +8,6 @@ distribution, e.g.
 
 ## Known issues
 
- - Only the VFS storage driver is available. That's because the default overlay
-   driver does not work on top of ZFS. This limitation makes Docker very slow
-   when building containers.
  - Docker in Docker (DinD) does not work, it tries to mount `/sys/fs/security`,
    which is not possible in an unprivileged container.
 
