@@ -30,6 +30,8 @@ in
             # descruction, there's an issue with dentries still in use. We only
             # support NFSv3, so v4 can be disabled.
             NFSD_V4 = "n";
+
+            PSI_DEFAULT_DISABLED = "y";
           };
         }
       ];
