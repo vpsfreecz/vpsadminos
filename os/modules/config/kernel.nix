@@ -59,7 +59,6 @@ in {
 
   config = {
     boot.kernelParams = [
-      "intel_idle.max_cstate=1"
       "net.ifnames=0"
       "cgroup.memory=nokmem"
     ];
