@@ -155,7 +155,33 @@ let
   };
 
   initialRamdisk = pkgs.makeInitrd {
-    contents = [ { object = bootStage1; symlink = "/init"; } ];
+    contents = [
+      {
+        object = bootStage1;
+        symlink = "/init";
+      }
+
+      {
+        object = config.environment.etc."modprobe.d/nixos.conf".source;
+        symlink = "/etc/modprobe.d/nixos.conf";
+      }
+
+      {
+        object = pkgs.runCommand "initrd-kmod-blacklist-ubuntu" {
+          src = "${pkgs.kmod-blacklist-ubuntu}/modprobe.conf";
+          preferLocalBuild = true;
+        } ''
+          target=$out
+          ${pkgs.buildPackages.perl}/bin/perl -0pe 's/## file: iwlwifi.conf(.+?)##/##/s;' $src > $out
+        '';
+        symlink = "/etc/modprobe.d/ubuntu.conf";
+      }
+
+      {
+        object = pkgs.kmod-debian-aliases;
+        symlink = "/etc/modprobe.d/debian.conf";
+      }
+    ];
   };
 
 in
