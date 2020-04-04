@@ -95,34 +95,23 @@ profile "<%= name %>" flags=(attach_disconnected,mediate_deleted) {
 
 <% %w(ro rw).each do |mode| -%>
 <% %w(bind rbind).each do |bind| -%>
-<% all_combinations_of(%w(nodev noexec nosuid)).each do |v| -%>
+<% all_combinations_of(%w(nodev noexec nosuid silent)).each do |v| -%>
   mount options=(<%= mode %>,<%= bind %>,<%= v.join(',') %>,remount),
+<% %w(strictatime relatime noatime).each do |time| -%>
+  mount options=(<%= mode %>,<%= bind %>,<%= v.join(',') %>,<%= time %>,remount),
+<% end -%>
 <% end -%>
 <% end -%>
 <% end -%>
 
 <% %w(ro rw).each do |mode| -%>
-<% all_combinations_of(%w(nodev noexec nosuid)).each do |v| -%>
+<% all_combinations_of(%w(nodev noexec nosuid silent)).each do |v| -%>
   mount options=(<%= mode %>,<%= v.join(',') %>,remount),
+<% %w(strictatime relatime noatime).each do |time| -%>
+  mount options=(<%= mode %>,<%= v.join(',') %>,<%= time %>,remount),
 <% end -%>
 <% end -%>
-
-  # Wanted for various remounts (e.g. /dev)
-  mount options=(rw,nosuid,silent,remount),
-  mount options=(ro,nosuid,silent,remount),
-  mount options=(rw,nosuid,strictatime,remount),
-  mount options=(ro,nosuid,noexec,strictatime,remount),
-  mount options=(ro,nosuid,noexec,strictatime,remount,bind),
-  mount options=(rw,nosuid,noexec,nodev,strictatime,remount),
-  mount options=(ro,nosuid,noexec,nodev,strictatime,remount),
-  mount options=(rw,nosuid,nodev,strictatime,remount),
-  mount options=(ro,nodev,strictatime,remount,bind),
-  mount options=(rw,nodev,strictatime,remount,bind),
-  mount options=(ro,nosuid,nodev,noexec,remount,rbind,relatime),
-  mount options=(rw,nosuid,nodev,noexec,remount,rbind,relatime),
-
-  # Allow changing of proc.hidepid
-  mount options=(rw,nosuid,nodev,noexec,relatime,remount),
+<% end -%>
 
   # Allow cgroup mounts
   mount fstype=cgroup,
