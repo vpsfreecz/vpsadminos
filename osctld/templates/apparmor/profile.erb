@@ -95,6 +95,9 @@ profile "<%= name %>" flags=(attach_disconnected,mediate_deleted) {
 
 <% %w(ro rw).each do |mode| -%>
 <% %w(bind rbind).each do |bind| -%>
+<% %w(strictatime relatime noatime).each do |time| -%>
+  mount options=(<%= mode %>,<%= bind %>,<%= time %>,remount),
+<% end -%>
 <% all_combinations_of(%w(nodev noexec nosuid silent)).each do |v| -%>
   mount options=(<%= mode %>,<%= bind %>,<%= v.join(',') %>,remount),
 <% %w(strictatime relatime noatime).each do |time| -%>
@@ -105,6 +108,9 @@ profile "<%= name %>" flags=(attach_disconnected,mediate_deleted) {
 <% end -%>
 
 <% %w(ro rw).each do |mode| -%>
+<% %w(strictatime relatime noatime).each do |time| -%>
+  mount options=(<%= mode %>,<%= time %>,remount),
+<% end -%>
 <% all_combinations_of(%w(nodev noexec nosuid silent)).each do |v| -%>
   mount options=(<%= mode %>,<%= v.join(',') %>,remount),
 <% %w(strictatime relatime noatime).each do |time| -%>
