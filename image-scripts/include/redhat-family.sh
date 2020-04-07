@@ -82,5 +82,6 @@ fi
 
 [ -d /etc/systemd ] && echo > /etc/machine-id
 
+echo "%_netsharedpath /sys:/proc" >> /etc/rpm/macros.vpsadminos
 EOF
 }
