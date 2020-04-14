@@ -106,19 +106,24 @@ module OsCtl::Lib
     def ct_id
       cache(:ct_id) do
         volatile do
-          f = File.open(File.join(path, 'cgroup'), 'r')
-          line = f.readline
-          f.close
+          File.open(File.join(path, 'cgroup'), 'r') do |f|
+            # It's not enough to check the first cgroup, it can happen that
+            # the process remains only in some cgroups that belong to
+            # the container, e.g. on an incorrect shutdown.
+            f.each_line do |line|
+              _id, _subsys, path = line.split(':')
 
-          _id, _subsys, path = line.split(':')
+              next if /^\/osctl\/pool\.([^\/]+)/ !~ path
+              pool = $1
 
-          return if /^\/osctl\/pool\.([^\/]+)/ !~ path
-          pool = $1
+              next if /ct\.([^\/]+)\/user\-owned\// !~ path
+              ctid = $1
 
-          return if /ct\.([^\/]+)\/user\-owned\// !~ path
-          ctid = $1
+              return [pool, ctid]
+            end
+          end
 
-          [pool, ctid]
+          nil
         end
       end
     end
