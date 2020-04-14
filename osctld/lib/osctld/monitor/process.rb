@@ -119,6 +119,9 @@ module OsCtld
 
       when :stopping
         Container::Hook.run(ct, :on_stop)
+
+      when :stopped, :aborted
+        ct.mounts.prune
       end
     end
   end
