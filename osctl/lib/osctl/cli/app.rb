@@ -1568,6 +1568,12 @@ module OsCtl::Cli
             c.desc 'Force the cleanup even on an unstopped container'
             c.switch %i(f force), negatable: false
 
+            c.desc 'Cleanup only cgroups'
+            c.switch %i(cgroups), negatable: false
+
+            c.desc 'Cleanup only network interfaces'
+            c.switch %i(network-interfaces), negatable: false
+
             c.action &Command.run(Container, :recover_cleanup)
           end
         end

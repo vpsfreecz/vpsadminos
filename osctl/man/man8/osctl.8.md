@@ -2007,6 +2007,12 @@ read by `ls` or `show` commands.
     `-f`, `--force`
       Force cleanup of an unstopped container.
 
+    `--cgroups`
+      Cleanup only leftover cgroups.
+
+    `--network-interfaces`
+      Cleanup only network interfaces.
+
 `group new` *options* *group*
   Create a new group for resource management.
 

@@ -17,45 +17,12 @@ module OsCtld
           error!('the container has to be stopped')
         end
 
-        progress('Removing leftover cgroups')
-        CGroup.rmpath_all(File.join(ct.cgroup_path, 'lxc.payload'))
-        CGroup.rmpath_all(File.join(ct.cgroup_path, 'lxc.monitor'))
-        CGroup.rmpath_all(File.join(ct.cgroup_path, 'lxc.pivot'))
-
-        progress('Searching for stray network interfaces')
-        veths = []
-
-        [4, 6].each do |ip_v|
-          routes = RouteList.new(ip_v)
-
-          ct.netifs.each do |netif|
-            next if netif.type != :routed
-
-            netif.routes.each_version(ip_v) do |route|
-              veth = routes.veth_of(route)
-
-              if veth
-                progress("Found route #{route.addr.to_string} on #{veth}")
-                veths << veth unless veths.include?(veth)
-              end
-            end
-          end
+        if opts[:cleanup] == 'all' || opts[:cleanup].include?('cgroups')
+          cleanup_cgroups(ct)
         end
 
-        veths.each do |veth|
-          found = DB::Containers.get.detect do |ct|
-            n = ct.netifs.detect do |netif|
-              netif.respond_to?(:veth) && netif.veth == veth
-            end
-            n && ct
-          end
-
-          if found
-            progress("Interface #{veth} is used by container #{found.ident}")
-          else
-            progress("Removing #{veth}")
-            syscmd("ip link delete #{veth}")
-          end
+        if opts[:cleanup] == 'all' || opts[:cleanup].include?('netifs')
+          cleanup_netifs(ct)
         end
 
         ok
@@ -63,6 +30,51 @@ module OsCtld
     end
 
     protected
+    def cleanup_cgroups(ct)
+      progress('Removing leftover cgroups')
+      CGroup.rmpath_all(File.join(ct.cgroup_path, 'lxc.payload'))
+      CGroup.rmpath_all(File.join(ct.cgroup_path, 'lxc.monitor'))
+      CGroup.rmpath_all(File.join(ct.cgroup_path, 'lxc.pivot'))
+    end
+
+    def cleanup_netifs(ct)
+      progress('Searching for stray network interfaces')
+      veths = []
+
+      [4, 6].each do |ip_v|
+        routes = RouteList.new(ip_v)
+
+        ct.netifs.each do |netif|
+          next if netif.type != :routed
+
+          netif.routes.each_version(ip_v) do |route|
+            veth = routes.veth_of(route)
+
+            if veth
+              progress("Found route #{route.addr.to_string} on #{veth}")
+              veths << veth unless veths.include?(veth)
+            end
+          end
+        end
+      end
+
+      veths.each do |veth|
+        found = DB::Containers.get.detect do |ct|
+          n = ct.netifs.detect do |netif|
+            netif.respond_to?(:veth) && netif.veth == veth
+          end
+          n && ct
+        end
+
+        if found
+          progress("Interface #{veth} is used by container #{found.ident}")
+        else
+          progress("Removing #{veth}")
+          syscmd("ip link delete #{veth}")
+        end
+      end
+    end
+
     class RouteList
       include OsCtl::Lib::Utils::Log
       include OsCtl::Lib::Utils::System

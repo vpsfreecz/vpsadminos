@@ -1049,11 +1049,18 @@ module OsCtl::Cli
     def recover_cleanup
       require_args!('id')
 
+      cleanup = []
+      cleanup << 'cgroups' if opts['cgroups']
+      cleanup << 'netifs' if opts['network-interfaces']
+
+      cleanup = 'all' if cleanup.empty?
+
       osctld_fmt(
         :ct_recover_cleanup,
         id: args[0],
         pool: gopts[:pool],
         force: opts[:force],
+        cleanup: cleanup,
       )
     end
 
