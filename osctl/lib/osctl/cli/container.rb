@@ -1043,6 +1043,7 @@ module OsCtl::Cli
         :ct_recover_state,
         id: args[0],
         pool: gopts[:pool],
+        manipulation_lock: opts[:lock] ? nil : 'ignore',
       )
     end
 

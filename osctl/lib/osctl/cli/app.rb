@@ -1560,6 +1560,9 @@ module OsCtl::Cli
           r.arg_name '<ctid>'
           r.command :state do |c|
             c.action &Command.run(Container, :recover_state)
+
+            c.desc 'Ignore the manipulation lock mechanism'
+            c.switch %i(lock), default_value: true
           end
 
           r.desc 'Clean up leftover cgroups and network interfaces'

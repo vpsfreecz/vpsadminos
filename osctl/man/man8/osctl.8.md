@@ -1998,6 +1998,12 @@ read by `ls` or `show` commands.
   report anything, `osctld` will not notice the change on its own and this
   command can be used to recover from such a state.
 
+  `--no-lock`
+    Ignore the manipulation lock mechanism. This can be used to forcefully
+    recheck the container's state even if another command is operating on it.
+    Use with caution. Can be used e.g. to wake up `osctl ct start` from waiting
+    on a dead container.
+
 `ct recover cleanup` [`-f`] *ctid*
   Remove any leftover cgroups and network interfaces that might have belonged
   to container *ctid*. This is useful when the container's management process
