@@ -121,19 +121,19 @@ module OsCtl::Cli
     end
 
     def ctruid
-      os_proc.ct_ruid
+      mapped_id_or_fallback(:ruid)
     end
 
     def ctrgid
-      os_proc.ct_rgid
+      mapped_id_or_fallback(:rgid)
     end
 
     def cteuid
-      os_proc.ct_euid
+      mapped_id_or_fallback(:euid)
     end
 
     def ctegid
-      os_proc.ct_egid
+      mapped_id_or_fallback(:egid)
     end
 
     def vmsize
@@ -187,6 +187,12 @@ module OsCtl::Cli
       else
         v.strftime('%H:%M')
       end
+    end
+
+    def mapped_id_or_fallback(id)
+      os_proc.send(:"ct_#{id}")
+    rescue OsCtl::Lib::Exceptions::IdMappingError
+      os_proc.send(id) * -1
     end
 
     def precise?
