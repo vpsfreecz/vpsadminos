@@ -97,6 +97,8 @@ module OsCtld
         @wake_r.close
         @wake_w.close
 
+        Process.setproctitle("osctld: #{ct.pool.name}:#{ct.id} tty#{n}")
+
         SwitchUser.switch_to(
           ct.user.sysusername,
           ct.user.ugid,

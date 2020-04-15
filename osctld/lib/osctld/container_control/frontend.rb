@@ -27,6 +27,7 @@ module OsCtld
       r, w = IO.pipe
 
       runner_opts = {
+        pool: ct.pool.name,
         id: ct.id,
         lxc_home: ct.lxc_home,
         user_home: ct.user.homedir,
@@ -41,6 +42,11 @@ module OsCtld
         prlimits: ct.prlimits.export,
       ) do
         r.close
+
+        Process.setproctitle(
+          "osctld: #{runner_opts[:pool]}:#{runner_opts[:id]} "+
+          "#{command_class.name.split('::').last.downcase} runner"
+        )
 
         runner = command_class::Runner.new(runner_opts)
         ret = runner.execute(*args)
