@@ -116,7 +116,7 @@ module OsCtl::Lib
               next if /^\/osctl\/pool\.([^\/]+)/ !~ path
               pool = $1
 
-              next if /ct\.([^\/]+)\/user\-owned\// !~ path
+              next if /ct\.([^\/]+)\/user\-owned(\/|$)/ !~ path
               ctid = $1
 
               return [pool, ctid]
