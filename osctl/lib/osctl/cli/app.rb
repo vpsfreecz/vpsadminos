@@ -1556,6 +1556,12 @@ module OsCtl::Cli
 
         ct.desc 'Recover container from errors'
         ct.command :recover do |r|
+          r.desc 'Kill all container processes'
+          r.arg_name '<ctid> [signal]'
+          r.command :kill do |c|
+            c.action &Command.run(Container, :recover_kill)
+          end
+
           r.desc 'Check current container state'
           r.arg_name '<ctid>'
           r.command :state do |c|

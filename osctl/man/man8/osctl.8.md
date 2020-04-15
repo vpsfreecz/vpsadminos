@@ -246,6 +246,7 @@ Useful commands:
  - Check `ct assets`
  - Check `healthcheck -a`
  - Command `ct reconfigure` can be used to regenerate LXC configuration
+ - Command `ct recover kill` can be used to kill unresponsive container processes
  - Command `ct recover cleanup` can be used to cleanup after a container crashed
  - Command `ct recover state` can be used to re-check container status
 
@@ -1989,6 +1990,12 @@ read by `ls` or `show` commands.
 
 `ct mounts del` *ctid* *mountpoint*
   Remove *mountpoint* from container *ctid*.
+
+`ct recover kill` *ctid* [*signal*]
+  Search and kill all processes of container *ctid*. Useful when even LXC is
+  stuck. *signal* defaults to `SIGKILL`. After a container is killed in this
+  way, it can be necessary to recover its state using `ct recover state`
+  and cleanup its state using `ct recover cleanup`.
 
 `ct recover state` *ctid*
   Force `osctld` to check status of container *ctid*.

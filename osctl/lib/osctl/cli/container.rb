@@ -1036,6 +1036,84 @@ module OsCtl::Cli
       )
     end
 
+    def recover_kill
+      require_args!('id')
+
+      if args[0].index(':')
+        pool, id = args[0].split(':')
+      else
+        pool = gopts[:pool]
+        id = args[0]
+      end
+
+      if args[1]
+        if args[1] =~ /^\d+$/
+          signal = Signal.list.key(args[1].to_i)
+
+          if signal.nil?
+            raise GLI::BadCommandLine, "invalid signal '#{args[1]}'"
+          end
+        else
+          name = args[1].upcase
+
+          if Signal.list.has_key?(name)
+            signal = name
+          else
+            raise GLI::BadCommandLine, "invalid signal '#{args[1]}'"
+          end
+        end
+      else
+        signal = 'KILL'
+      end
+
+      pl = OsCtl::Lib::ProcessList.new do |p|
+        ctid = p.ct_id
+
+        next(false) if ctid.nil?
+
+        if pool.nil?
+          if ctid[1] == id
+            pool = ctid[0]
+          else
+            next(false)
+          end
+        end
+
+        ctid[0] == pool && ctid[1] == id
+      end
+
+      if pl.empty?
+        puts "No processes found"
+        return
+      end
+
+      out_cols, out_data = Ps::Columns.generate(
+        pl,
+        Ps::Columns::DEFAULT,
+        gopts[:parsable],
+      )
+
+      OsCtl::Lib::Cli::OutputFormatter.print(
+        out_data,
+        out_cols,
+        layout: :columns,
+        header: true,
+      )
+
+      puts
+      STDOUT.write("Kill #{pl.length} processes with SIG#{signal}? [yes/NO]: ")
+      STDOUT.flush
+
+      if STDIN.readline.strip.downcase == 'yes'
+        pl.each do |p|
+          puts "kill -SIG#{signal} #{p.pid}"
+          Process.kill(signal, p.pid)
+        end
+      else
+        puts "Aborted"
+      end
+    end
+
     def recover_state
       require_args!('id')
 
