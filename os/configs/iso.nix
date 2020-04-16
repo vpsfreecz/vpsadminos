@@ -34,4 +34,6 @@
 
   isoImage.makeUsbBootable = true;
   isoImage.makeEfiBootable = true;
+
+  hardware.enableRedistributableFirmware = true;
 }
