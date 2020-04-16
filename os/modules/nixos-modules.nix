@@ -1,4 +1,5 @@
 [
+  <nixpkgs/nixos/modules/hardware/all-firmware.nix>
   <nixpkgs/nixos/modules/misc/extra-arguments.nix>
   <nixpkgs/nixos/modules/system/etc/etc.nix>
   <nixpkgs/nixos/modules/system/activation/activation-script.nix>

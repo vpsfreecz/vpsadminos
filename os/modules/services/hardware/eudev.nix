@@ -116,6 +116,17 @@ in
         '';
       };
     };
+
+    hardware.firmware = mkOption {
+      type = types.listOf types.package;
+      default = [];
+      apply = list: pkgs.buildEnv {
+        name = "firmware";
+        paths = list;
+        pathsToLink = [ "/lib/firmware" ];
+        ignoreCollisions = true;
+      };
+    };
   };
 
   config = mkMerge [
@@ -149,6 +160,15 @@ in
         oneShot = true;
         runlevels = [ "rescue" "default" ];
       };
+
+      boot.extraModprobeConfig = "options firmware_class path=${config.hardware.firmware}/lib/firmware";
+
+      system.activationScripts.eudev = ''
+        # Allow the kernel to find our firmware.
+        if [ -e /sys/module/firmware_class/parameters/path ]; then
+          echo -n "${config.hardware.firmware}/lib/firmware" > /sys/module/firmware_class/parameters/path
+        fi
+      '';
     })
   ];
 }

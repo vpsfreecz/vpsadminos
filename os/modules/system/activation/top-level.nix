@@ -65,16 +65,6 @@ with lib;
         Name of the initrd file to be passed to the bootloader.
       '';
     };
-    hardware.firmware = mkOption {
-      type = types.listOf types.package;
-      default = [];
-      apply = list: pkgs.buildEnv {
-        name = "firmware";
-        paths = list;
-        pathsToLink = [ "/lib/firmware" ];
-        ignoreCollisions = true;
-      };
-    };
     vpsadminos.nix = mkOption {
       type = types.bool;
       default = true;
