@@ -80,6 +80,9 @@ in
       ln -sfn /run/current-system/sw/bin/nodectl /run/nodectl/nodectl
     fi
 
+    # /etc/fstab
+    mount -a
+
     touch /etc/runit/stopit
     chmod 0 /etc/runit/stopit
   '';
