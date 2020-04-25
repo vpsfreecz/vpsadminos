@@ -1,0 +1,2 @@
+DISTNAME=ubuntu
+RELVER=18.04
