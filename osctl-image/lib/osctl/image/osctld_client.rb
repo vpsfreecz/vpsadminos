@@ -47,15 +47,12 @@ module OsCtl::Image
         client.cmd_data!(
           :ct_create,
           id: ctid,
-          template: {
-            type: :remote,
-            template: {
-              distribution: distribution,
-              version: version,
-              arch: arch,
-              vendor: vendor,
-              variant: variant,
-            },
+          image: {
+            distribution: distribution,
+            version: version,
+            arch: arch,
+            vendor: vendor,
+            variant: variant,
           },
         )
       end
