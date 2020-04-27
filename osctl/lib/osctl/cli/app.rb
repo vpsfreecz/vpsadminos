@@ -826,7 +826,7 @@ module OsCtl::Cli
           end
 
           set.desc 'Change distribution and version info'
-          set.arg_name '<ctid> <distribution> <version>'
+          set.arg_name '<ctid> <distribution> <version> [arch]'
           set.command :distribution do |c|
             c.action &Command.run(Container, :set_distribution)
           end

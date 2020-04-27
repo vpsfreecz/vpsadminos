@@ -410,11 +410,14 @@ module OsCtl::Cli
 
     def set_distribution
       set(:distribution) do |args|
-        raise GLI::BadCommandLine, 'expected <distribution> <version>' if args.count != 2
+        if args.count < 2 || args.count > 3
+          raise GLI::BadCommandLine, 'expected <distribution> <version> [arch]'
+        end
 
         {
           name: args[0],
           version: args[1],
+          arch: args[2],
         }
       end
     end

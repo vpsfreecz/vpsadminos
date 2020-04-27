@@ -999,6 +999,11 @@ read by `ls` or `show` commands.
 `ct unset ephemeral` *ctid*
   Do not destroy the container after it is stopped.
 
+`ct set distribution` *ctid* *distribution* *version* [*arch*]
+  Change the information about the container's *distribution*, *version*
+  and optionally *arch*. This information is used to configure the container's
+  hostname, DNS resolver, networking, etc.
+
 `ct set hostname` *ctid* *hostname*
   Set container hostname. *hostname* should be a FQDN (Fully Qualified Domain
   Name). Depending on distribution, the hostname is configured within
