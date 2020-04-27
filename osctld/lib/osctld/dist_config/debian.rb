@@ -33,11 +33,25 @@ module OsCtld
 
       vars = {
         netifs: ct.netifs,
+        head: nil,
         interfacesd: Dir.exist?(File.join(base, 'interfaces.d')),
+        tail: nil,
       }
 
       %i(head tail).each do |v|
-        vars[v] = File.exist?(File.join(base, "interfaces.#{v}"))
+        f = File.join(base, "interfaces.#{v}")
+
+        begin
+          # Ignore large files
+          if File.size(f) > 10*1024*1024
+            log(:warn, ct, "/etc/network/interfaces.#{v} found, but is too large")
+            next
+          end
+
+          vars[v] = File.read(f)
+        rescue Errno::ENOENT
+          next
+        end
       end
 
       OsCtld::ErbTemplate.render_to(
