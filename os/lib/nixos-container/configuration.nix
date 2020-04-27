@@ -54,8 +54,8 @@ let
       documentation.enable = true;
       documentation.nixos.enable = true;
 
-      system.stateVersion = "18.09";
-      }
+      system.stateVersion = "${lib.trivial.release}";
+    }
     '';
 
   localCopies = lib.concatMapStrings (path:
@@ -74,7 +74,7 @@ let
 
     environment.systemPackages = with pkgs; [ vim ];
     time.timeZone = "Europe/Amsterdam";
-    system.stateVersion = "18.09";
+    system.stateVersion = lib.trivial.release;
 
     services.openssh.enable = lib.mkDefault true;
     services.openssh.permitRootLogin = lib.mkDefault "yes";
