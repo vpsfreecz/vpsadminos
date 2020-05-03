@@ -1004,6 +1004,39 @@ read by `ls` or `show` commands.
   and optionally *arch*. This information is used to configure the container's
   hostname, DNS resolver, networking, etc.
 
+`ct set image-config` *ctid*
+  Reapply container configuration from source container image, based on the
+  container's distribution and version or the provided options. The image
+  is searched for in remote repositories or can be provided as *file* using
+  `--from-file`. Configuration values from the container image will replace
+  current configuration.
+
+  The container has to be stopped for this command to be allowed.
+
+    `--from-file` *file*
+      Use container image stored in *file*.
+
+    `--distribution` *distribution*
+      Distribution name in lower case, e.g. alpine, centos, debian, ubuntu.
+
+    `--version` *version*
+      Distribution version. The format can differ among distributions, e.g.
+      alpine `3.6`, centos `7.0`, debian `9.0` or ubuntu `16.04`.
+
+    `--arch` *arch*
+      Container architecture, e.g. `x86_64` or `x86`. Defaults to the host system
+      architecture.
+
+    `--vendor` *vendor*
+      Vendor to be selected from the remote image repository.
+
+    `--variant` *variant*
+      Vendor variant to be selected from the remote image repository.
+
+    `--repository` *repository*
+      Instead of searching all configured repositories from appropriate pool,
+      use only repository *name*. The selected repository can be disabled.
+
 `ct set hostname` *ctid* *hostname*
   Set container hostname. *hostname* should be a FQDN (Fully Qualified Domain
   Name). Depending on distribution, the hostname is configured within

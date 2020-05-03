@@ -422,6 +422,30 @@ module OsCtl::Cli
       end
     end
 
+    def set_image_config
+      require_args!('id')
+
+      cmd_opts = {
+        id: args[0],
+        pool: opts[:pool] || gopts[:pool],
+        repository: opts[:repository],
+        image: repo_image_attrs(defaults: false),
+      }
+
+      if opts['from-file']
+        cmd_opts.update(
+          type: :image,
+          path: File.absolute_path(opts['from-file']),
+        )
+      else
+        cmd_opts.update(
+          type: :remote,
+        )
+      end
+
+      osctld_fmt(:ct_set_image_config, cmd_opts)
+    end
+
     def set_seccomp_profile
       set(:seccomp_profile) do |args|
         if args.count != 1

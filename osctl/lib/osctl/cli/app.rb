@@ -831,6 +831,33 @@ module OsCtl::Cli
             c.action &Command.run(Container, :set_distribution)
           end
 
+          set.desc 'Set image config'
+          set.arg_name '<ctid>'
+          set.command 'image-config' do |c|
+            c.desc 'Use container image from local file'
+            c.flag 'from-file', arg_name: 'file'
+
+            c.desc 'Distribution name in lower case'
+            c.flag :distribution, arg_name: 'distribution'
+
+            c.desc 'Distribution version'
+            c.flag :version, arg_name: 'version'
+
+            c.desc 'Architecture'
+            c.flag :arch, arg_name: 'arch'
+
+            c.desc 'Vendor (used only when downloading the image)'
+            c.flag :vendor, arg_name: 'vendor'
+
+            c.desc 'Variant (used only when downloading the image)'
+            c.flag :variant, arg_name: 'variant'
+
+            c.desc 'Repository'
+            c.flag :repository, arg_name: 'repository'
+
+            c.action &Command.run(Container, :set_image_config)
+          end
+
           set.desc 'Set path to seccomp profile'
           set.arg_name '<ctid> <profile>'
           set.command :seccomp do |c|
