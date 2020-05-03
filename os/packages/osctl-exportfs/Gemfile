@@ -1,2 +1,2 @@
 source 'https://rubygems.vpsfree.cz'
-gem 'osctl-exportfs', '19.09.0.build20200417155425'
+gem 'osctl-exportfs', '19.09.0.build20200503154559'
