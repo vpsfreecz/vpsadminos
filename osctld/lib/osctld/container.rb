@@ -273,11 +273,20 @@ module OsCtld
 
     def starting
       self.dist_network_configured = false
+      @do_reboot = false
     end
 
     def stopped
       self.dist_network_configured = false
       self.init_pid = nil
+    end
+
+    def request_reboot
+      @do_reboot = true
+    end
+
+    def reboot?
+      @do_reboot
     end
 
     def can_dist_configure_network?
@@ -724,6 +733,7 @@ module OsCtld
       @init_pid = nil
       @state = :staged
       @send_log = nil
+      @do_reboot = false
 
       if opts[:dataset]
         @dataset = OsCtl::Lib::Zfs::Dataset.new(

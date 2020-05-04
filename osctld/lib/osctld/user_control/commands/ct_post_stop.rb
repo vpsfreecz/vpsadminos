@@ -19,6 +19,11 @@ module OsCtld
 
       ct.stopped
 
+      if opts[:target] == 'reboot'
+        log(:info, ct, 'Reboot requested')
+        ct.request_reboot
+      end
+
       # User-defined hook
       Container::Hook.run(ct, :post_stop)
 

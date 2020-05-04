@@ -3,10 +3,12 @@ require 'json'
 require 'socket'
 
 ctid = ENV['LXC_NAME']
+target = ENV['LXC_TARGET']
 
-if ctid.nil?
+if ctid.nil? || target.nil?
   warn 'Expected environment variables:'
   warn '  LXC_NAME'
+  warn '  LXC_TARGET'
   exit(false)
 end
 
@@ -21,6 +23,7 @@ s = UNIXSocket.new("/run/osctl/user-control/#{Process.uid}.sock")
 s.send({cmd: :ct_post_stop, opts: {
   id: ctid,
   pool: pool,
+  target: target,
 }}.to_json + "\n", 0)
 ret = JSON.parse(s.readline, symbolize_names: true)
 s.close

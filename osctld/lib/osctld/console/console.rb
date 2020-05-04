@@ -36,20 +36,34 @@ module OsCtld
 
     protected
     def on_close
-      if ct.state == :stopped && ct.ephemeral? && !ct.is_being_manipulated?
-        # The container deletion has to be invoked from another thread, because
-        # the current thread is used to handle the console and has to exit when
-        # the container is being deleted.
-        t = Thread.new do
-          Commands::Container::Delete.run({
-            pool: ct.pool.name,
-            id: ct.id,
-            force: true,
-            manipulation_lock: 'wait',
-          })
-        end
+      if ct.state == :stopped
+        if ct.reboot?
+          t = Thread.new do
+            Commands::Container::Start.run({
+              pool: ct.pool.name,
+              id: ct.id,
+              force: true,
+              manipulation_lock: 'wait',
+            })
+          end
 
-        ThreadReaper.add(t, nil)
+          ThreadReaper.add(t, nil)
+
+        elsif ct.ephemeral? && !ct.is_being_manipulated?
+          # The container deletion has to be invoked from another thread, because
+          # the current thread is used to handle the console and has to exit when
+          # the container is being deleted.
+          t = Thread.new do
+            Commands::Container::Delete.run({
+              pool: ct.pool.name,
+              id: ct.id,
+              force: true,
+              manipulation_lock: 'wait',
+            })
+          end
+
+          ThreadReaper.add(t, nil)
+        end
       end
     end
   end
