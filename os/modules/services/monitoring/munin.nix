@@ -227,38 +227,43 @@ in
       munin = { gid = config.ids.gids.munin; };
     };
 
-    runit.services.munin-node.run = ''
-      export PATH="${concatStringsSep ":" systemPath}:$PATH"
-      export MUNIN_LIBDIR="${pkgs.munin}/lib"
-      export MUNIN_PLUGSTATE="/run/munin"
-      export MUNIN_LOGDIR="/var/log/munin"
+    runit.services.munin-node = {
+      run = ''
+        export PATH="${concatStringsSep ":" systemPath}:$PATH"
+        export MUNIN_LIBDIR="${pkgs.munin}/lib"
+        export MUNIN_PLUGSTATE="/run/munin"
+        export MUNIN_LOGDIR="/var/log/munin"
 
-      # munin_stats plugin breaks as of 2.0.33 when this doesn't exist
-      mkdir -p /run/munin
-      chown munin:munin /run/munin
+        # munin_stats plugin breaks as of 2.0.33 when this doesn't exist
+        mkdir -p /run/munin
+        chown munin:munin /run/munin
 
-      echo "Updating munin plugins..."
-      mkdir -p /etc/munin/plugins
-      rm -rf /etc/munin/plugins/*
+        echo "Updating munin plugins..."
+        mkdir -p /etc/munin/plugins
+        rm -rf /etc/munin/plugins/*
 
-      # Autoconfigure builtin plugins
-      ${pkgs.munin}/bin/munin-node-configure --suggest --shell --families contrib,auto,manual --config ${nodeConf} --libdir=${pkgs.munin}/lib/plugins --servicedir=/etc/munin/plugins --sconfdir=${pluginConfDir} 2>/dev/null | ${pkgs.bash}/bin/bash
+        # Autoconfigure builtin plugins
+        ${pkgs.munin}/bin/munin-node-configure --suggest --shell --families contrib,auto,manual --config ${nodeConf} --libdir=${pkgs.munin}/lib/plugins --servicedir=/etc/munin/plugins --sconfdir=${pluginConfDir} 2>/dev/null | ${pkgs.bash}/bin/bash
 
-      # Autoconfigure extra plugins
-      ${pkgs.munin}/bin/munin-node-configure --suggest --shell --families contrib,auto,manual --config ${nodeConf} --libdir=${extraAutoPluginDir} --servicedir=/etc/munin/plugins --sconfdir=${pluginConfDir} 2>/dev/null | ${pkgs.bash}/bin/bash
+        # Autoconfigure extra plugins
+        ${pkgs.munin}/bin/munin-node-configure --suggest --shell --families contrib,auto,manual --config ${nodeConf} --libdir=${extraAutoPluginDir} --servicedir=/etc/munin/plugins --sconfdir=${pluginConfDir} 2>/dev/null | ${pkgs.bash}/bin/bash
 
-      ${lib.optionalString (nodeCfg.extraPlugins != {}) ''
-        # Link in manually enabled plugins
-        ln -f -s -t /etc/munin/plugins ${extraPluginDir}/*
-      ''}
+        ${lib.optionalString (nodeCfg.extraPlugins != {}) ''
+          # Link in manually enabled plugins
+          ln -f -s -t /etc/munin/plugins ${extraPluginDir}/*
+        ''}
 
-      ${lib.optionalString (nodeCfg.disabledPlugins != []) ''
-        # Disable plugins
-        cd /etc/munin/plugins
-        rm -f ${toString nodeCfg.disabledPlugins}
-      ''}
+        ${lib.optionalString (nodeCfg.disabledPlugins != []) ''
+          # Disable plugins
+          cd /etc/munin/plugins
+          rm -f ${toString nodeCfg.disabledPlugins}
+        ''}
 
-      exec ${pkgs.munin}/sbin/munin-node --config ${nodeConf} --servicedir /etc/munin/plugins/ --sconfdir=${pluginConfDir}
-    '';
+        exec ${pkgs.munin}/sbin/munin-node --config ${nodeConf} --servicedir /etc/munin/plugins/ --sconfdir=${pluginConfDir}
+      '';
+
+      log.enable = true;
+      log.sendTo = "127.0.0.1";
+    };
   });
 }
