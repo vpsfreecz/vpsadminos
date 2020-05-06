@@ -1,4 +1,4 @@
-# osctl 8                         2019-10-08                             19.09.0
+# osctl 8                         2020-05-06                             20.03
 
 ## NAME
 `osctl` - command line interface for `osctld`, the management daemon from

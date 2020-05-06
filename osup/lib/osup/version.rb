@@ -1,3 +1,3 @@
 module OsUp
-  VERSION = '19.09.0'
+  VERSION = '20.03.0'
 end
