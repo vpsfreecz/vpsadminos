@@ -1,6 +1,6 @@
 self: super:
 let
-  mariadb-connector-c = super.mysql.connector-c.overrideAttrs (oldAttrs: rec {
+  mariadb-connector-c = super.mariadb-connector-c.overrideAttrs (oldAttrs: rec {
     name = "mariadb-connector-c-${version}";
     version = "3.1.7";
 
