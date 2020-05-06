@@ -214,18 +214,18 @@ in
 
     environment.systemPackages = [ pkgs.munin ];
 
-    users.users = [{
-      name = "munin";
-      description = "Munin monitoring user";
-      group = "munin";
-      uid = config.ids.uids.munin;
-      home = "/var/lib/munin";
-    }];
+    users.users = {
+      munin = {
+        description = "Munin monitoring user";
+        group = "munin";
+        uid = config.ids.uids.munin;
+        home = "/var/lib/munin";
+      };
+    };
 
-    users.groups = [{
-      name = "munin";
-      gid = config.ids.gids.munin;
-    }];
+    users.groups = {
+      munin = { gid = config.ids.gids.munin; };
+    };
 
     runit.services.munin-node.run = ''
       export PATH="${concatStringsSep ":" systemPath}:$PATH"

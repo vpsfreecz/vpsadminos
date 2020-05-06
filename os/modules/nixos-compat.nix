@@ -45,6 +45,7 @@ with lib;
       nscd = { enable = false; };
       fprintd = { enable = false; };
       samba = { enable = false; syncPasswordsByPam = false; nsswins = false; };
+      xserver = { enable = false; };
     };
     krb5 = { enable = false; };
     security.pam.oath.enable = false;

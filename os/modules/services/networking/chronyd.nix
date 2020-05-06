@@ -42,18 +42,14 @@ in
         exec ${pkgs.chrony}/bin/chronyd -n -m -u chrony -f ${chrony_config}
       '';
       environment.systemPackages = [ pkgs.chrony ];
-      users.extraGroups = singleton
-        { name = "chrony";
-          gid = config.ids.gids.chrony;
-        };
+      users.groups.chrony = { gid = config.ids.gids.chrony; };
 
-      users.extraUsers = singleton
-        { name = "chrony";
-          uid = config.ids.uids.chrony;
-          group = "chrony";
-          description = "chrony daemon user";
-          home = "/var/lib/chrony";
-        };
+      users.users.chrony = {
+        uid = config.ids.uids.chrony;
+        group = "chrony";
+        description = "chrony daemon user";
+        home = "/var/lib/chrony";
+      };
     })
   ];
 }
