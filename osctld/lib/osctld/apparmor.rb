@@ -130,10 +130,13 @@ module OsCtld
 
     # Remove the container's profile from the kernel and remove it from cache
     def destroy_profile
-      unload_profile
+      unload_profile if File.exist?(profile_path)
 
-      cached = File.join(cache_dir, profile_name)
-      File.unlink(cached) if File.exist?(cached)
+      begin
+        cached = File.join(cache_dir, profile_name)
+        File.unlink(cached)
+      rescue Errno::ENOENT
+      end
     end
 
     # Create an AppArmor namespace for the container
