@@ -52,16 +52,16 @@ module OsCtld
             if obj.is_a?(User)
               obj.exclusively { UserControl::Supervisor.stop_server(obj) }
 
-              call_cmd!(
-                Commands::User::Unregister,
-                pool: pool.name,
-                name: obj.name
-              ) if opts[:unregister_users]
+              if opts[:unregister_users] && opts[:stop_containers]
+                call_cmd!(
+                  Commands::User::Unregister,
+                  pool: pool.name,
+                  name: obj.name
+                )
 
-              if opts[:stop_containers]
                 # When a user with the same name is going to be imported again,
-                # he may have a different ugid then before. All files in his
-                # directory would that have an incorrect owner.
+                # he may have a different ugid than before. All files in his
+                # directory would then have an incorrect owner.
                 syscmd("rm -rf \"#{obj.userdir}\"")
               end
 
