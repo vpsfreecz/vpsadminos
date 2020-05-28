@@ -11,7 +11,7 @@ let
     lib.cleanSourceFilter p t
     && (!lib.hasSuffix "img" (baseNameOf p))
     && (baseNameOf p != "local.nix")
-    ) ../../.);
+    ) ../../../.);
 
   # We need a copy of the Nix expressions for Nixpkgs and vpsAdminOS on the
   # CD. These are installed as "nixos/nixpkgs" and "vpsadminos" channels
@@ -19,9 +19,9 @@ let
   channelSources = pkgs.runCommand "vpsadminos-${config.system.osVersion}"
     { }
     ''
-      mkdir -p $out
+      mkdir -p $out $out/vpsadminos
       cp -prd ${nixpkgs} $out/nixos
-      cp -prd ${os} $out/vpsadminos
+      cp -prd ${os} $out/vpsadminos/os
       chmod -R u+w $out/nixos
       chmod -R u+w $out/vpsadminos
       if [ ! -e $out/nixos/nixpkgs ]; then
