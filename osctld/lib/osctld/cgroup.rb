@@ -97,6 +97,7 @@ module OsCtld
       when 'cpuset'
         inherit_param(base, cgroup, 'cpuset.cpus')
         inherit_param(base, cgroup, 'cpuset.mems')
+        set_param(File.join(cgroup, 'cgroup.clone_children'), ['1'])
       end
     end
 
