@@ -5,7 +5,6 @@ let
   osBase = toString ../../..;
 
   nixpkgsImports = [
-    "nixos/modules/profiles/minimal.nix"
     "nixos/modules/virtualisation/container-config.nix"
     "nixos/modules/installer/cd-dvd/channel.nix"
   ];
