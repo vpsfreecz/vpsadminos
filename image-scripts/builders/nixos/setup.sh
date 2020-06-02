@@ -2,7 +2,6 @@ cat <<EOF > /etc/nixos/configuration.nix
 { config, pkgs, ... }:
 {
   imports = [
-    <nixpkgs/nixos/modules/profiles/minimal.nix>
     <nixpkgs/nixos/modules/virtualisation/container-config.nix>
     <nixpkgs/nixos/modules/installer/cd-dvd/channel.nix>
     ./build.nix
