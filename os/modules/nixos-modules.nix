@@ -13,7 +13,6 @@
   <nixpkgs/nixos/modules/system/boot/initrd-ssh.nix>
   <nixpkgs/nixos/modules/misc/nixpkgs.nix>
   <nixpkgs/nixos/modules/config/debug-info.nix>
-  <nixpkgs/nixos/modules/config/swap.nix>
   <nixpkgs/nixos/modules/config/shells-environment.nix>
   <nixpkgs/nixos/modules/config/system-environment.nix>
   <nixpkgs/nixos/modules/config/locale.nix>

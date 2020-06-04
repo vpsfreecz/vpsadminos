@@ -3,6 +3,7 @@
   ./config/kernel.nix
   ./config/runit.nix
   ./config/system-path.nix
+  ./config/swap.nix
   ./config/tunables.nix
   ./misc/manual.nix
   ./misc/os-lib.nix
