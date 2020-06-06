@@ -21,6 +21,7 @@
   ./services/logging/rsyslog.nix
   ./services/mail/opensmtpd.nix
   ./services/misc/nix-daemon.nix
+  ./services/monitoring/apcupsd.nix
   ./services/monitoring/munin.nix
   ./services/monitoring/prometheus/node_exporter.nix
   ./services/network-filesystems/nfs.nix
