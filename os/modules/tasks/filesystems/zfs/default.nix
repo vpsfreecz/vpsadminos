@@ -107,6 +107,8 @@ let
 
   zpoolCreateScripts = mapAttrsToList zpoolCreateScript;
 
+  zpoolsToScrub = filterAttrs (name: pool: pool.scrub.enable) cfgZfs.pools;
+
   layoutVdev = {
     options = {
       type = mkOption {
@@ -331,6 +333,26 @@ let
           completely.
         '';
       };
+
+      scrub = {
+        enable = mkOption {
+          default = false;
+          type = types.bool;
+          description = ''
+            Enables periodic scrubbing
+          '';
+        };
+
+        interval = mkOption {
+          default = "0 4 */14 * *";
+          type = types.str;
+          description = ''
+            Date and time expression for when to scrub the pool in a crontab
+            format, i.e. minute, hour, day of month, month and day of month
+            separated by spaces.
+          '';
+        };
+      };
     };
   };
 
@@ -486,14 +508,20 @@ in
       environment.systemPackages = [ packages.zfsUser ] ++ (zpoolCreateScripts cfgZfs.pools);
     })
 
-    (mkIf enableAutoScrub {
+    {
       services.cron.systemCronJobs =
         let
-          zpools = if cfgScrub.pools == [] then
+          autoZpools =
+            if cfgScrub.pools == [] then
               "$(${packages.zfsUser}/bin/zpool list -H -o name)"
             else
               concatStringsSep " " cfgScrub.pools;
-        in ["${cfgScrub.interval} root ${packages.zfsUser}/bin/zpool scrub ${zpools}"];
-    })
+        in
+          (optional enableAutoScrub "${cfgScrub.interval} root ${packages.zfsUser}/bin/zpool scrub ${autoZpools}")
+          ++
+          (mapAttrsToList (name: pool:
+            "${pool.scrub.interval} root ${packages.zfsUser}/bin/zpool scrub ${name}"
+          ) zpoolsToScrub);
+    }
   ];
 }
