@@ -25,7 +25,7 @@ ln -sfn /run /var/run
 ln -sf /proc/mounts /etc/mtab
 
 touch /run/{u,w}tmp
-mkdir /run/wrappers
+mkdir /run/wrappers /run/lock
 
 chmod a+rxw /dev/kmsg
 chmod a+rxw /proc/kmsg
