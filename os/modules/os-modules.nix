@@ -16,6 +16,7 @@
   ./programs/bash.nix
   ./programs/htop.nix
   ./rename.nix
+  ./services/backup/znapzend.nix
   ./services/hardware/eudev.nix
   ./services/logging/logrotate.nix
   ./services/logging/rsyslog.nix
