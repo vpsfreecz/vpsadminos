@@ -97,6 +97,11 @@ module OsCtld
         @wake_r.close
         @wake_w.close
 
+        SwitchUser.close_fds(except: [
+          0, 1, 2,
+          in_r, out_w
+        ])
+
         Process.setproctitle("osctld: #{ct.pool.name}:#{ct.id} tty#{n}")
 
         SwitchUser.switch_to(

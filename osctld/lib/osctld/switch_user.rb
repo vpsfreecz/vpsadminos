@@ -16,11 +16,22 @@ module OsCtld
     # @option opts [Boolean] :chown_cgroups (true)
     # @option opts [Hash] :prlimits
     # @option opts [Integer, nil] :oom_score_adj
+    # @options opts [Array<IO, Integer>] :keep_fds
+    # @options opts [Boolean] :keep_stdfd (true)
     def self.fork_and_switch_to(sysuser, ugid, homedir, cgroup_path, opts = {}, &block)
       r, w = IO.pipe
 
+      keep_fds = (opts[:keep_fds] || []).clone
+
+      if !opts.has_key?(:keep_stdfds) || opts[:keep_stdfds]
+        keep_fds << 0 << 1 << 2
+      end
+
+      keep_fds << r
+
       pid = Process.fork do
         w.close
+        close_fds(except: keep_fds)
 
         if opts[:oom_score_adj]
           File.open('/proc/self/oom_score_adj', 'w') do |f|
@@ -103,6 +114,36 @@ module OsCtld
           limit[:soft],
           limit[:hard]
         )
+      end
+    end
+
+    # Close open file descriptors
+    # @param except [Array<IO, Integer>]
+    def self.close_fds(except: [])
+      except_filenos = except.map do |v|
+        if v.is_a?(::IO)
+          v.fileno
+        else
+          v
+        end
+      end
+
+      walk_fds do |fd|
+        next if except_filenos.include?(fd)
+
+        begin
+          IO.new(fd).close
+        rescue ArgumentError, Errno::EBADF
+        end
+      end
+    end
+
+    # Yield all open file descriptors
+    # @yieldparam [Integer] fd
+    def self.walk_fds
+      Dir.entries('/proc/self/fd').each do |v|
+        next if %w(. ..).include?(v)
+        yield(v.to_i)
       end
     end
   end

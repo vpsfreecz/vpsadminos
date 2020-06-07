@@ -22,8 +22,9 @@ module OsCtld
 
     protected
     # @param args [Array] command arguments
+    # @param keep_fds [Array<IO, Integer>]
     # @return [ContainerControl::Result]
-    def pipe_runner(args: [])
+    def pipe_runner(args: [], keep_fds: [])
       r, w = IO.pipe
 
       runner_opts = {
@@ -40,8 +41,10 @@ module OsCtld
         ct.user.homedir,
         ct.cgroup_path,
         prlimits: ct.prlimits.export,
+        keep_fds: [w] + keep_fds,
       ) do
-        r.close
+        # Closed by SwitchUser.fork_and_switch_to
+        # r.close
 
         Process.setproctitle(
           "osctld: #{runner_opts[:pool]}:#{runner_opts[:id]} "+

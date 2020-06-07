@@ -151,8 +151,10 @@ module OsCtld
         ct.cgroup_path,
         prlimits: ct.prlimits.export,
         oom_score_adj: -1000,
+        keep_fds: [w],
       ) do
-        r.close
+        # Closed by SwitchUser.fork_and_switch_to
+        # r.close
 
         wrapper_pid = Process.spawn(
           *cmd,
