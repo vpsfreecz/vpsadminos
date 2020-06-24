@@ -74,8 +74,15 @@ module OsCtl::Lib
     end
 
     # Send stream over a socket.
-    def send_to(addr, port: nil)
-      pipe_cmd("nc -N #{addr} #{port}")
+    def send_to(addr, port: nil, timeout: 900)
+      socat = "socat -u -T #{timeout} 'EXEC:\"#{full_zfs_send_cmd}\"' TCP:#{addr}:#{port}"
+
+      log(:info, :zfs, socat)
+
+      IO.popen("exec #{socat} 2>&1") do |io|
+        @size = parse_total_size(io)
+        monitor_progress(io)
+      end
     end
 
     # Send stream to a local filesystem.
@@ -142,13 +149,7 @@ module OsCtl::Lib
 
     def zfs_send(stdout)
       r_err, w_err = IO.pipe
-
-      if @from_snapshot
-        cmd = "#{zfs_send_cmd} -v -I @#{@from_snapshot} #{path}@#{@snapshot}"
-
-      else
-        cmd = "#{zfs_send_cmd} -v #{path}@#{@snapshot}"
-      end
+      cmd = full_zfs_send_cmd
 
       @pipeline << cmd if @pipeline
 
@@ -253,6 +254,14 @@ module OsCtl::Lib
       end
 
       (size / 1024 / 1024).round
+    end
+
+    def full_zfs_send_cmd
+      if @from_snapshot
+        "#{zfs_send_cmd} -v -I @#{@from_snapshot} #{path}@#{@snapshot}"
+      else
+        "#{zfs_send_cmd} -v #{path}@#{@snapshot}"
+      end
     end
 
     def zfs_send_cmd

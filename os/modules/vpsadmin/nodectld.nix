@@ -108,7 +108,10 @@ in
         killMode = "process";
       };
 
-      environment.systemPackages = [ pkgs.nodectl ];
+      environment.systemPackages = with pkgs; [
+        nodectl
+        socat
+      ];
     })
   ];
 }
