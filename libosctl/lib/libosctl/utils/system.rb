@@ -84,23 +84,26 @@ module OsCtl::Lib
     # @param attempts [Integer] number of attempts
     # @param wait [Integer] time to wait after a failed attempt, in seconds
     # @yield [] the block to be called
+    # @return [true, any] return value
+    # @return [false, Array] list of errors
     def repeat_on_failure(attempts: 3, wait: 5)
       ret = []
 
       attempts.times do |i|
         begin
-          return yield
+          return [true, yield]
 
         rescue Exceptions::SystemCommandFailed => err
           log(:warn, "Attempt #{i+1} of #{attempts} failed for '#{err.cmd}'")
-          raise err if i == attempts - 1
-
           ret << err
+
+          break if i == attempts - 1
+
           sleep(wait)
         end
       end
 
-      ret
+      [false, ret]
     end
   end
 end
