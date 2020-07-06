@@ -5,7 +5,7 @@
   boot.initrd.kernelModules = [ "virtio" "virtio_pci" "virtio_net" "virtio_rng" "virtio_blk" "virtio_console" ];
 
   networking.hostName = lib.mkDefault "vpsadminos";
-  networking.static.enable = true;
+  networking.static.enable = lib.mkDefault true;
   networking.lxcbr = true;
   networking.nat = true;
   networking.dhcpd = true;
