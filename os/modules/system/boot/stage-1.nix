@@ -150,7 +150,7 @@ let
       in pkgs.writeText "initrd-fsinfo" (concatStringsSep "\n" (concatMap f fileSystems));
 
     inherit (config.boot) predefinedFailAction;
-    inherit (config.boot.initrd) preFailCommands preLVMCommands postDeviceCommands;
+    inherit (config.boot.initrd) preFailCommands preLVMCommands postDeviceCommands postMountCommands;
     inherit (config.system) storeOverlaySize;
   };
 
@@ -187,6 +187,16 @@ let
 in
 {
   options = {
+    boot.initrd.enable = mkOption {
+      type = types.bool;
+      default = !config.boot.isContainer;
+      defaultText = "!config.boot.isContainer";
+      description = ''
+        Whether to enable the NixOS initial RAM disk (initrd). This may be
+        needed to perform some initialisation tasks (like mounting
+        network/encrypted file systems) before continuing the boot process.
+      '';
+    };
     boot.initrd.supportedFilesystems = mkOption {
       default = [ ];
       example = [ "btrfs" ];
@@ -237,6 +247,14 @@ in
         Shell commands to be executed immediately after stage 1 of the
         boot has loaded kernel modules and created device nodes in
         <filename>/dev</filename>.
+      '';
+    };
+    boot.initrd.postMountCommands = mkOption {
+      default = "";
+      type = types.lines;
+      description = ''
+        Shell commands to be executed immediately after the stage 1
+        filesystems have been mounted.
       '';
     };
     boot.initrd.secrets = mkOption {

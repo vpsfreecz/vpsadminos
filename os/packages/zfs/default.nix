@@ -51,7 +51,7 @@ let
       '' + optionalString buildUser ''
         substituteInPlace ./lib/libzfs/os/linux/libzfs_mount_os.c --replace "/bin/umount"             "${utillinux}/bin/umount" \
                                                                   --replace "/bin/mount"              "${utillinux}/bin/mount"
-        substituteInPlace ./lib/libshare/nfs.c        --replace "/usr/sbin/exportfs"      "${nfs-utils}/bin/exportfs"
+        substituteInPlace ./lib/libshare/os/linux/nfs.c           --replace "/usr/sbin/exportfs"      "${nfs-utils}/bin/exportfs"
         substituteInPlace ./cmd/vdev_id/vdev_id \
           --replace "PATH=/bin:/sbin:/usr/bin:/usr/sbin" \
           "PATH=${makeBinPath [ coreutils gawk gnused gnugrep systemd ]}"
@@ -137,7 +137,7 @@ in {
   zfsStable = common {
     version = "0.8.99.vpsadminos";
 
-    rev = "2ea5232e024ac3c97bf2e3a10f913984309cb2ff";
-    sha256 = "sha256:0zv654dk0rpxb8jx0fbyva40pkb6zns72653m6bjxmb78wr067p4";
+    rev = "bbce2c52f75400b3bdaa9f674e0e04f7c98ac23e";
+    sha256 = "0fy8mw8dj7igwwcx6h63d80x4zshl1pl4cmjwvpfqv16cgb1jc31";
   };
 }
