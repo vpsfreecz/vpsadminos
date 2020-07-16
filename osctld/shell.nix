@@ -12,7 +12,6 @@ let
     nettools
     gnutar
     openssh
-    pty-wrapper
     shadow
     utillinux
     zfs

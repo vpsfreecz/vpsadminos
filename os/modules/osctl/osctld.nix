@@ -13,7 +13,6 @@ let
     nettools
     gnutar
     openssh
-    pty-wrapper
     runit
     shadow
     utillinux

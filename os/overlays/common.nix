@@ -7,6 +7,5 @@
   (import ./htop.nix)
   (import ./zfs.nix)
   (import ./minify.nix)
-  (import ./pty-wrapper.nix)
   (import ./machine-check.nix)
 ]

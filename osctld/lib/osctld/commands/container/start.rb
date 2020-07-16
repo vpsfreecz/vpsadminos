@@ -127,7 +127,7 @@ module OsCtld
       # obj_score_adj_min to zero. When it's done, osctld-ct-start execs to
       # lxc-start.
       cmd = [
-        'pty-wrapper',
+        OsCtld.bin('osctld-ct-wrapper'),
         "#{ct.pool.name}:#{ct.id}",
         Console.socket_path(ct),
         OsCtld.bin('osctld-ct-start'),
