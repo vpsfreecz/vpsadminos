@@ -49,7 +49,7 @@ in {
 
       memory = mkOption {
         internal = true;
-        default = 2048;
+        default = 8192;
         type = types.addCheck types.int (n: n > 256);
         description = "QEMU RAM in megabytes";
       };
