@@ -295,7 +295,13 @@ let
 
       datasets = mkOption {
         type = types.attrsOf (types.submodule datasets);
-        default = {};
+        default = {
+          "/" = {
+            properties = {
+              xattr = mkDefault "sa";
+            };
+          };
+        };
         example = {
           "/".properties.sharenfs = "on";
           "data".properties.quota = "100G";
