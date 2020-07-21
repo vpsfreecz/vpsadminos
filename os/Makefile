@@ -51,11 +51,6 @@ qemu-iso: iso-local
 flash: iso
 	sudo dd if=result/iso/vpsadminos.iso of=/dev/disk/by-label/VPSADMINOS_BOOT_CD bs=1M
 
-test:
-	nix-build \
-	--arg system \"x86_64-linux\" \
-	tests/boot.nix
-
 # build nixos container template (rootfs tarball)
 template:
 	nix-build \

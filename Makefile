@@ -1,6 +1,7 @@
 BUILD_ID := $(shell date +%Y%m%d%H%M%S)
 VERSION := $(shell cat .version)
 RELEASE_DATE := $(shell date +%Y-%m-%d)
+CORES = 0
 
 build:
 	$(MAKE) -C os build
@@ -10,6 +11,22 @@ qemu:
 
 toplevel:
 	$(MAKE) -C os toplevel
+
+test-config:
+	mkdir -p result/tests
+	nix-build \
+	 --attr config \
+	 --out-link result/tests/$(TEST)-config.json \
+	 --cores $(CORES) \
+	 ./tests/suite/$(TEST).nix
+
+test: test-config
+	nix-build \
+	 --attr driver \
+	 --out-link result/tests/$(TEST)-runner.rb \
+	 --cores $(CORES) \
+	 ./tests/suite/$(TEST).nix
+	./result/tests/$(TEST)-runner.rb result/tests/$(TEST)-config.json
 
 gems: libosctl osctl-repo osctl osctld osup osctl-image osctl-exporter osctl-exportfs converter svctl
 	echo "$(VERSION).build$(BUILD_ID)" > .build_id

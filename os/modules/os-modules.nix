@@ -13,6 +13,7 @@
   ./osctl/osctld.nix
   ./osctl/osctl-exporter.nix
   ./osctl/osctl-exportfs.nix
+  ./osctl/test-shell.nix
   ./programs/bash.nix
   ./programs/htop.nix
   ./rename.nix
