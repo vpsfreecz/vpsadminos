@@ -239,7 +239,7 @@ class Pool
       dataset.declarative_properties.each do |k, v|
         next if dataset.volume? && k == 'volsize'
         next if v == 'inherit'
-        args << '-o' << "#{k}=#{v}"
+        args << '-o' << "#{k}=#{property_value(v)}"
       end
     end
 
@@ -251,7 +251,7 @@ class Pool
       if v == 'inherit'
         system(ZFS, 'inherit', k, dataset.name)
       else
-        system(ZFS, 'set', "#{k}=#{v}", dataset.name)
+        system(ZFS, 'set', "#{k}=#{property_value(v)}", dataset.name)
       end
     end
   end
@@ -345,6 +345,14 @@ class Pool
     end
 
     ret.reverse!
+  end
+
+  def property_value(v)
+    if v.is_a?(Hash)
+      v['content']
+    else
+      v
+    end
   end
 
   def system(*args)
