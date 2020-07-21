@@ -35,23 +35,32 @@ let
 in
 
 {
-  # Provide the vpsAdminOS/Nixpkgs sources. This is required
-  # for os-install.
-  runit.services.channel-registration = {
-    run = ''
-      ensureServiceStarted eudev-trigger
-      set -e
-      if ! [ -e /var/lib/nixos/did-channel-init ]; then
-        echo "unpacking the NixOS/Nixpkgs sources..."
-        mkdir -p /nix/var/nix/profiles/per-user/root
-        ${config.nix.package.out}/bin/nix-env -p /nix/var/nix/profiles/per-user/root/channels \
-          -i ${channelSources} --quiet --option build-use-substitutes false
-        mkdir -m 0700 -p /root/.nix-defexpr
-        ln -s /nix/var/nix/profiles/per-user/root/channels /root/.nix-defexpr/channels
-        mkdir -m 0755 -p /var/lib/nixos
-        touch /var/lib/nixos/did-channel-init
-      fi
-    '';
-    oneShot = true;
+  options = {
+    os.channel-registration.enable = mkOption {
+      type = types.bool;
+      default = true;
+    };
+  };
+
+  config = mkIf config.os.channel-registration.enable {
+    # Provide the vpsAdminOS/Nixpkgs sources. This is required
+    # for os-install.
+    runit.services.channel-registration = {
+      run = ''
+        ensureServiceStarted eudev-trigger
+        set -e
+        if ! [ -e /var/lib/nixos/did-channel-init ]; then
+          echo "unpacking the NixOS/Nixpkgs sources..."
+          mkdir -p /nix/var/nix/profiles/per-user/root
+          ${config.nix.package.out}/bin/nix-env -p /nix/var/nix/profiles/per-user/root/channels \
+            -i ${channelSources} --quiet --option build-use-substitutes false
+          mkdir -m 0700 -p /root/.nix-defexpr
+          ln -s /nix/var/nix/profiles/per-user/root/channels /root/.nix-defexpr/channels
+          mkdir -m 0755 -p /var/lib/nixos
+          touch /var/lib/nixos/did-channel-init
+        fi
+      '';
+      oneShot = true;
+    };
   };
 }
