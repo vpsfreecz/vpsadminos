@@ -11,6 +11,8 @@ let
   }) list);
 in tests [
   "boot"
+  "docker/alpine-latest"
+  "docker/debian-10"
   "docker/ubuntu-18.04"
   "docker/ubuntu-20.04"
   "driver"
