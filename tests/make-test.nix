@@ -47,17 +47,13 @@ let
     machineTestConfig machine (machineOs machine.config)
   ) machineAttrs;
 
-  testConfig = nixpkgs.pkgs.writeText "os-test-${testAttrs.name}.json" (builtins.toJSON {
-    inherit (testAttrs) name testScript;
+  testConfig = {
+    inherit (testAttrs) name description testScript;
     machines = machineTestConfigs;
-  });
-
-  driver = nixpkgs.substituteAll {
-    src = ./run-test.rb;
-    isExecutable = true;
-    ruby = nixpkgs.ruby;
   };
+
+  jsonConfig = nixpkgs.pkgs.writeText "os-test-${testAttrs.name}.json" (builtins.toJSON testConfig);
 in {
   config = testConfig;
-  driver = driver;
+  json = jsonConfig;
 }

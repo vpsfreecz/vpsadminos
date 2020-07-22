@@ -17,6 +17,10 @@ the host system and which can interact with the virtual machines.
 import ../make-test.nix (pkgs: {
   name = "my-test";
 
+  description = ''
+    It's a great test indeed
+  '';
+
   machine = import ../machines/empty.nix pkgs;
 
   testScript = ''
@@ -33,6 +37,10 @@ as such. More machines can be defined as:
 ```nix
 import ../make-test.nix (pkgs: {
   name = "my-test";
+
+  description = ''
+    It's a great test indeed
+  '';
 
   machines = {
     first = import ../machines/empty.nix pkgs;
@@ -51,6 +59,10 @@ Disks can be added as:
 ```nix
 import ../make-test.nix (pkgs: {
   name = "my-test";
+
+  description = ''
+    It's a great test indeed
+  '';
 
   machine = {
     # List of disk devices
@@ -85,14 +97,27 @@ See template machine configs in `tests/machines/`. vpsAdminOS configurations
 used by machines for testing can be found in `tests/configs` and the tests
 themselves in `tests/suite/`.
 
-## Running a test
+All tests have to be registered in `tests/all-tests.nix`, otherwise they cannot
+be run.
+
+## Running tests
+To run the entire test suite, use:
 
 ```
-make test TEST=<name>
+test-runner test
 ```
 
-The test runner will print path to a temporary directory where the test's log
-files and state is kept:
+Selected tests can be pattern-matched, e.g.:
 
- - `<machine>-console.log` output from the virtual machine console
- - `<machine>-log.log` all executed commands and their results
+```
+test-runner test 'docker/*'
+```
+
+While developing a test, it is possible to start it with an interactive Ruby REPL:
+
+```
+test-runner debug my-test
+```
+
+The REPL can be used to issue the same commands as in the test script. The test
+script itself can be run by calling method `test_script`.
