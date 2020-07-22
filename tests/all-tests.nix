@@ -11,7 +11,8 @@ let
   }) list);
 in tests [
   "boot"
-  "docker-ubuntu-20.04"
+  "docker/ubuntu-18.04"
+  "docker/ubuntu-20.04"
   "driver"
   "zfs-xattr"
 ]
