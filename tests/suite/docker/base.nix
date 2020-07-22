@@ -14,7 +14,7 @@ import ../../make-test.nix (pkgs: {
     machine.wait_until_online
 
     machine.all_succeed(
-      "osctl ct new --distribution ubuntu docker",
+      "osctl ct new --distribution ${distribution} --version ${version} docker",
       "osctl ct netif new bridge --link lxcbr0 docker eth0",
 
       # TODO: why is this needed?
