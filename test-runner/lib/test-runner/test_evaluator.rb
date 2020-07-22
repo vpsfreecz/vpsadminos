@@ -46,6 +46,11 @@ module TestRunner
       machines.each(&:start)
     end
 
+    # Invoke interactive shell from within a test
+    def breakpoint
+      binding.pry
+    end
+
     protected
     attr_reader :test, :config, :opts
 

@@ -58,10 +58,11 @@ module TestRunner
       require_args!('test')
 
       tl = TestRunner::TestList.new
+      test = tl.by_path(args[0])
 
       ev = TestRunner::TestEvaluator.new(
-        tl.by_path(args[0]),
-        state_dir: state_dir,
+        test,
+        state_dir: File.join(state_dir, "os-test-#{test.name}"),
         destructive: false,
       )
       ev.interactive

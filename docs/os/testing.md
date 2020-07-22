@@ -120,4 +120,5 @@ While developing a test, it is possible to start it with an interactive Ruby REP
 ```
 
 The REPL can be used to issue the same commands as in the test script. The test
-script itself can be run by calling method `test_script`.
+script itself can be run by calling method `test_script`. You can call method
+`breakpoint` from inside the test to open the REPL from any point of execution.
