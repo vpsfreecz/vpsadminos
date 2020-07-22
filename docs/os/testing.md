@@ -104,19 +104,19 @@ be run.
 To run the entire test suite, use:
 
 ```
-test-runner test
+./test-runner.sh test
 ```
 
 Selected tests can be pattern-matched, e.g.:
 
 ```
-test-runner test 'docker/*'
+./test-runner.sh test 'docker/*'
 ```
 
 While developing a test, it is possible to start it with an interactive Ruby REPL:
 
 ```
-test-runner debug my-test
+./test-runner.sh debug my-test
 ```
 
 The REPL can be used to issue the same commands as in the test script. The test
