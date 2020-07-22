@@ -23,6 +23,8 @@ import ../../make-test.nix (pkgs: {
       "osctl ct start docker",
     )
 
+    machine.wait_until_succeeds("osctl ct exec docker curl https://vpsadminos.org")
+
     ${setupScript}
 
     st, output = machine.succeeds("osctl ct exec docker docker info")
