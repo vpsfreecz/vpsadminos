@@ -14,7 +14,7 @@ with lib;
     runit.services.lxcfs = {
       run = ''
         mkdir -p /var/lib/lxcfs
-        exec ${pkgs.lxcfs}/bin/lxcfs -l /var/lib/lxcfs
+        exec ${pkgs.lxcfs}/bin/lxcfs --enable-loadavg --enable-cfs /var/lib/lxcfs
       '';
 
       onChange = "reload";

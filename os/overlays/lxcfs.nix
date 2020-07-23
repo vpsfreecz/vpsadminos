@@ -1,11 +1,13 @@
 self: super:
 {
   lxcfs = super.lxcfs.overrideAttrs (oldAttrs: rec {
+    version = "4.0.4";
+
     src = super.fetchFromGitHub {
       owner = "vpsfreecz";
       repo = "lxcfs";
-      rev = "75444167fef58175d11a61ef78c6d814724c163d";
-      sha256 = "0mq3sxpjx1a4b5gwc6js122fza0ql8y525ygjchki97k7lrnqr1f";
+      rev = "827481079b2bc509f1c26945b1dbb73585297270";
+      sha256 = "sha256:04sahy39nqqkwpbw2rws7zrl32rglnihfpbbhkyr0gb0jxzd6h5q";
     };
 
     postFixup = ''
