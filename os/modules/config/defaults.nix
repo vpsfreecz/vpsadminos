@@ -60,6 +60,7 @@
     ruby
     screen
     strace
+    sysstat
     vim
   ];
 
