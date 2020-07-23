@@ -18,13 +18,13 @@ self: super:
 
     in
       lxc.overrideAttrs (oldAttrs: rec {
-        version = "3.0.4";
+        version = "4.0.3";
 
         src = super.fetchFromGitHub {
           owner = "vpsfreecz";
           repo = "lxc";
-          rev = "ba856ac9cd58e4df7b36c6c348df45d88fe30fbf";
-          sha256 = "sha256:157i108s58ai1cgvgzn8ajqhj3g88ilwqrf245icii9b9cjp652v";
+          rev = "424a4000e8e001fa8ebba98d2feed6a1475997eb";
+          sha256 = "sha256:01wza487861d1rbkv759k2r1rk2l1k0i4rb7xsz53zk27nrjg3b4";
         };
 
         buildInputs = oldAttrs.buildInputs ++ [ glibc glibc.static ];
