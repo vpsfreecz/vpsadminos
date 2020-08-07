@@ -44,6 +44,7 @@ cp /etc/skel/.[^.]* /root/
 usermod -s /bin/bash root
 usermod -L root
 sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
+sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
 ln -s /etc/sv/sshd /etc/runit/runsvdir/default/sshd
 rm -f /etc/runit/runsvdir/default/agetty-tty{1..6}
 rm -f /etc/runit/runsvdir/default/udevd
