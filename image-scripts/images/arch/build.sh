@@ -92,6 +92,7 @@ sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/ssh
 sed -i 's/#DefaultTimeoutStartSec=90s/DefaultTimeoutStartSec=900s/' /etc/systemd/system.conf
 systemctl enable sshd
 systemctl disable systemd-resolved
+systemctl mask systemd-udev-trigger.service
 usermod -L root
 
 echo > /etc/resolv.conf
