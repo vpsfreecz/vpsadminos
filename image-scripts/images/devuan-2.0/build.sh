@@ -10,7 +10,7 @@ configure-common
 
 configure-append <<EOF
 apt-get install -y --force-yes devuan-keyring
-apt-get install -y cgroup-tools
+apt-get install -y cgroup-tools curl
 EOF
 
 configure-debian
