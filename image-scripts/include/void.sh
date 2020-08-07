@@ -14,15 +14,15 @@ fetch() {
 	fi
 
 	# Fetch checksums to find out latest release name
-	wget -O - "$BASEURL/sha256sums.txt" | grep -P "$rx" > "$DOWNLOAD/sha256sums.txt"
+	wget -O - "$BASEURL/sha256.txt" | grep -P "$rx" > "$DOWNLOAD/sha256.txt"
 
 	# Extract the name
-	name=$(grep -o -P "$rx" "$DOWNLOAD/sha256sums.txt")
+	name=$(grep -o -P "$rx" "$DOWNLOAD/sha256.txt")
 
 	# Download rootfs
 	wget -P "$DOWNLOAD" "$BASEURL/$name"
 
-	if ! (cd "$DOWNLOAD" ; sha256sum -c sha256sums.txt) ; then
+	if ! (cd "$DOWNLOAD" ; sha256sum -c sha256.txt) ; then
 		warn "Checksum does not match"
 		exit 1
 	fi
