@@ -88,8 +88,6 @@ function build_image {
 	IMAGEDIR="$BASEDIR/images/$IMAGE"
 	CONFIGURE="$INSTALL/tmp/configure.sh"
 
-	set-initcmd /sbin/init
-
 	DISTNAME=
 	RELVER=
 	ARCH=
@@ -103,6 +101,7 @@ function build_image {
 	cd "$DOWNLOAD"
 
 	. "$BASEDIR/include/common.sh"
+	set-initcmd /sbin/init
 	. "$BASEDIR/images/$IMAGE/build.sh"
 
 	write_image_config
