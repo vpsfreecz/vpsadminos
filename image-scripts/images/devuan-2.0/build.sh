@@ -1,6 +1,6 @@
 . "$IMAGEDIR/config.sh"
 RELNAME=ascii
-BASEURL=http://auto.mirror.devuan.org/merged
+BASEURL=http://deb.devuan.org/merged
 
 . $INCLUDE/debian.sh
 
