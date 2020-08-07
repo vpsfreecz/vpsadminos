@@ -33,6 +33,7 @@ function configure-opensuse {
 systemctl enable  wicked.service
 usermod -L root
 systemctl enable sshd.service
+systemctl mask systemd-udev-trigger.service
 echo console >> /etc/securetty
 sed -i 's/#DefaultTimeoutStartSec=90s/DefaultTimeoutStartSec=900s/' /etc/systemd/system.conf
 EOF
