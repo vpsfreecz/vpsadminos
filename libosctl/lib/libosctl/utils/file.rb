@@ -16,5 +16,19 @@ module OsCtl::Lib
 
       File.rename(replacement, path)
     end
+
+    def unlink_if_exists(path)
+      File.unlink(path)
+      true
+    rescue Errno::ENOENT
+      false
+    end
+
+    def rmdir_if_empty(path)
+      Dir.rmdir(path)
+      true
+    rescue Errno::ENOTEMPTY
+      false
+    end
   end
 end
