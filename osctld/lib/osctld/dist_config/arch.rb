@@ -1,4 +1,5 @@
 require 'osctld/dist_config/base'
+require 'fileutils'
 
 module OsCtld
   class DistConfig::Arch < DistConfig::Base
@@ -59,14 +60,9 @@ module OsCtld
       )
 
       s_name = service_name(netif.name)
-      s_path = service_path(netif.name)
 
-      # Create systemd service for netctl
-      OsCtld::ErbTemplate.render_to(
-        'dist_config/network/arch/service',
-        {netif: netif},
-        s_path
-      )
+      # Remove deprecated systemd override
+      unlink_if_exists(deprecated_service_path(netif.name))
 
       # Start the service on boot
       s_link = service_symlink(netif.name)
@@ -84,9 +80,8 @@ module OsCtld
       s_link = service_symlink(name)
       File.unlink(s_link) if File.symlink?(s_link)
 
-      # Remove the service
-      s_path = service_path(name)
-      File.unlink(s_path) if File.symlink?(s_path)
+      # Remove deprecated service override file
+      unlink_if_exists(deprecated_service_path(name))
 
       # Remove netctl profile
       File.unlink(profile) if File.exist?(profile)
@@ -100,7 +95,7 @@ module OsCtld
       "netctl@#{name}.service"
     end
 
-    def service_path(name)
+    def deprecated_service_path(name)
       File.join(ct.rootfs, 'etc/systemd/system', service_name(name))
     end
 
