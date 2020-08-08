@@ -1,6 +1,6 @@
 . "$IMAGEDIR/config.sh"
-POINTVER=7.7
-BUILD=1908
+POINTVER=7.8
+BUILD=2003
 RELEASE=http://mirror.centos.org/centos/${POINTVER}.${BUILD}/os/x86_64/Packages/centos-release-${POINTVER//./-}.${BUILD}.0.el7.centos.x86_64.rpm
 BASEURL=http://mirror.centos.org/centos/${POINTVER}.${BUILD}/os/x86_64
 UPDATES=http://mirror.centos.org/centos/${POINTVER}.${BUILD}/updates/x86_64/
