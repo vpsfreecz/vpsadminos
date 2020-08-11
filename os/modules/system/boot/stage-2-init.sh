@@ -29,6 +29,7 @@ mkdir /run/wrappers /run/lock
 
 chmod a+rxw /dev/kmsg
 chmod a+rxw /proc/kmsg
+echo 1 > /proc/sys/vm/cgroup_memory_ksoftlimd_for_all
 
 hostname @hostName@
 
