@@ -31,7 +31,7 @@ module TestRunner
         '--read-write-mode',
       ]
 
-      cmd << '--attr' << path if path
+      cmd << '--attr' << "\\\"#{path}\\\"" if path
       cmd << 'tests/list-tests.nix'
 
       json = `#{cmd.join(' ')}`
@@ -56,6 +56,9 @@ module TestRunner
     def create_test(path, data)
       Test.new(
         path: path.to_s,
+        type: data[:type],
+        template: data[:template],
+        args: data[:args],
         name: data[:name],
         description: data[:description],
       )

@@ -19,8 +19,20 @@ module TestRunner
     end
 
     def build
+      cmd = [
+        'nix-build',
+        '--attr', 'json',
+        '--out-link', config_path,
+      ]
+
+      if test.template?
+        cmd << '--argstr' << 'templateArgsInJson' << test.args.to_json
+      end
+
+      cmd << "./tests/suite/#{test.file_path}"
+
       FileUtils.mkdir_p('result/tests')
-      pid = spawn("nix-build --attr json --out-link #{config_path} ./tests/suite/#{test.path}.nix")
+      pid = spawn(*cmd)
       Process.wait(pid)
       fail 'nix-build failed' if $?.exitstatus != 0
       @config = JSON.parse(File.read(config_path), symbolize_names: true)
