@@ -47,5 +47,6 @@ in tests [
   "docker/ubuntu-20.04"
   "driver"
   "lxcfs/loadavgs"
+  { template = "lxcfs/overlays"; instances = distributions; }
   "zfs-xattr"
 ]
