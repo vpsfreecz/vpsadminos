@@ -19,6 +19,7 @@ with lib;
     "net.ipv4.route.max_size" = mkDefault (2 * 1024 * 1024 * 1024 - 1);
     "net.ipv6.route.max_size" = mkDefault (2 * 1024 * 1024 * 1024 - 1);
     "vm.max_map_count" = mkDefault 262144;
+    "vm.min_free_kbytes" = mkDefault (1024 * 384);
     "vm.overcommit_ratio" = mkDefault 3200;
   };
 }
