@@ -98,9 +98,9 @@ module OsCtld
 
     # Remove left-over cgroups in container path
     def cleanup_cgroups
-      CGroup.rmpath_all(File.join(ct.cgroup_path, 'lxc.payload'))
-      CGroup.rmpath_all(File.join(ct.cgroup_path, 'lxc.monitor'))
-      CGroup.rmpath_all(File.join(ct.cgroup_path, 'lxc.pivot'))
+      CGroup.rmpath_all(File.join(ct.cgroup_path, "lxc.payload.#{ct.id}"))
+      CGroup.rmpath_all(File.join(ct.cgroup_path, "lxc.monitor.#{ct.id}"))
+      CGroup.rmpath_all(File.join(ct.cgroup_path, "lxc.pivot.#{ct.id}"))
     end
 
     # Find and remove left-over network interfaces used by the container

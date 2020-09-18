@@ -17,8 +17,7 @@ module OsCtld
           path = File.join(
             yield(p.subsystem),
             'user-owned',
-            'lxc.payload',
-            owner.id,
+            "lxc.payload.#{owner.id}",
             p.name,
           )
 
