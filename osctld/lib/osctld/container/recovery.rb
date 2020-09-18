@@ -46,6 +46,56 @@ module OsCtld
       end
     end
 
+    # Kill all processes found in the container's cgroup with signal
+    # @param signal [String]
+    def kill_all(signal: 'KILL')
+      pl = OsCtl::Lib::ProcessList.new do |p|
+        ctid = p.ct_id
+        next(false) if ctid.nil?
+
+        ctid[0] == ct.pool.name && ctid[1] == ct.id
+      end
+
+      log(:info, "#{pl.length} processes to kill")
+      pl.each do |p|
+        # Double check
+        ctid = p.ct_id
+        next if ctid.nil?
+
+        if ctid[0] == ct.pool.name && ctid[1] == ct.id
+          log(:info, "kill -SIG#{signal} #{p.pid} #{p.name}")
+
+          begin
+            Process.kill(signal, p.pid)
+          rescue Errno::ESRCH
+          end
+        end
+      end
+    end
+
+    # Cleanup after the container or put the container into an error state
+    # @return [Boolean]
+    def cleanup_or_taint
+      taint = false
+
+      begin
+        cleanup_cgroups
+      rescue => e
+        log(:warn, "Failed to cleanup cgroups: #{e.class}: #{e.message}")
+        taint = true
+      end
+
+      begin
+        cleanup_netifs
+      rescue => e
+        log(:warn, "Failed to cleanup netifs: #{e.class}: #{e.message}")
+        taint = true
+      end
+
+      ct.state = :error if taint
+      !taint
+    end
+
     # Remove left-over cgroups in container path
     def cleanup_cgroups
       CGroup.rmpath_all(File.join(ct.cgroup_path, 'lxc.payload'))

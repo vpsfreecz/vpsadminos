@@ -67,7 +67,11 @@ module OsCtld
 
       rescue EOFError
         Process.wait(pid)
-        ContainerControl::Result.new(false, message: 'user runner failed')
+        ContainerControl::Result.new(
+          false,
+          message: 'user runner failed',
+          user_runner: true,
+        )
       end
     end
   end

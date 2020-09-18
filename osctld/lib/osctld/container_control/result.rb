@@ -12,14 +12,19 @@ module OsCtld
 
     attr_reader :status, :data, :message
 
-    def initialize(status, data: nil, message: nil)
+    def initialize(status, data: nil, message: nil, user_runner: false)
       @status = status
       @data = data
       @message = message
+      @user_runner = user_runner
     end
 
     def ok?
       status ? true : false
+    end
+
+    def user_runner?
+      @user_runner
     end
   end
 end

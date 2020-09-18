@@ -1,6 +1,8 @@
 module OsCtld
   class ContainerControl::Error < StandardError ; end
 
+  class ContainerControl::UserRunnerError < ContainerControl::Error ; end
+
   # Container control is used to interact with LXC containers
   #
   # In order to work manipulate LXC containers, osctld has to fork and switch
@@ -28,6 +30,8 @@ module OsCtld
       if ret.is_a?(ContainerControl::Result)
         if ret.ok?
           ret.data
+        elsif ret.user_runner?
+          raise ContainerControl::UserRunnerError, ret.message
         else
           raise ContainerControl::Error, ret.message
         end

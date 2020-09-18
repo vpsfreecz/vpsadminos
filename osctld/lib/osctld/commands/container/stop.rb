@@ -42,6 +42,9 @@ module OsCtld
             mode,
             timeout: opts[:timeout] || 60,
           )
+        rescue ContainerControl::UserRunnerError
+          progress('Unable to stop, killing by force')
+          error!('Unable to kill or cleanup') unless force_kill(ct)
         rescue ContainerControl::Error => e
           error!(e.message)
         end
@@ -62,6 +65,27 @@ module OsCtld
     end
 
     protected
+    # @return [Boolean]
+    def force_kill(ct)
+      recovery = Container::Recovery.new(ct)
+
+      # Freeze all processes before the kill
+      CGroup.freeze_tree(ct.cgroup_path)
+
+      # Send SIGKILL to all processes
+      progress('Killing container processes')
+      recovery.kill_all
+
+      # Thaw all processes
+      CGroup.thaw_tree(ct.cgroup_path)
+
+      progress('Recovering container state')
+      recovery.recover_state
+
+      progress('Cleaning up')
+      recovery.cleanup_or_taint
+    end
+
     # Remove accounting cgroups to reset counters
     def remove_cgroups(ct)
       tries = 0

@@ -167,6 +167,19 @@ module OsCtld
       subsystems.each { |subsys| rmpath(subsys, path) }
     end
 
+    # Freeze cgroup at path
+    # @param path [String]
+    def self.freeze_tree(path)
+      abs_path = File.join(FS, real_subsystem('freezer'), path)
+      state = File.join(abs_path, 'freezer.state')
+
+      begin
+        File.open(state, 'w') { |f| f.write('FROZEN') }
+      rescue SystemCallError => e
+        log(:warn, "Unable to freeze #{abs_path}: #{e.message} (#{e.class})")
+      end
+    end
+
     # Thaw all frozen cgroups under path
     # @param path [String]
     def self.thaw_tree(path)
