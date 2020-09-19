@@ -5,7 +5,7 @@ module OsCtld
     handle :receive_base
 
     def execute
-      ct = DB::Containers.find(opts[:id], opts[:pool])
+      ct = SendReceive::Tokens.find_container(opts[:token])
       error!('container not found') unless ct
 
       ct.manipulate(self, block: true) do

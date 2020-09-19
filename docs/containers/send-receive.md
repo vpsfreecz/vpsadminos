@@ -38,10 +38,10 @@ You can verify that by running SSH directly:
 source-node $ ssh -T -i `osctl send key path private` -l osctl-ct-receive destination-node
 Usage:
   receive skel [pool]
-  receive base [pool:]<id> <dataset> [snapshot]
-  receive incremental [pool:]<id> <dataset> [snapshot]
-  receive transfer [pool:]<id> [start]
-  receive cancel [pool:]<id>
+  receive base <token> <dataset> [snapshot]
+  receive incremental <token> <dataset> [snapshot]
+  receive transfer <token> [start]
+  receive cancel <token>
 ```
 
 As you can see, the SSH connection is limited to several commands that are

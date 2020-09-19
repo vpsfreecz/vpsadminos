@@ -519,15 +519,16 @@ module OsCtld
       }, File.join(lxc_dir, '.bashrc'))
     end
 
-    def open_send_log(role, opts = {})
+    def open_send_log(role, token, opts = {})
       exclusively do
-        self.send_log = SendReceive::Log.new(role: role, opts: opts)
+        self.send_log = SendReceive::Log.new(role: role, token: token, opts: opts)
         save_config
       end
     end
 
     def close_send_log(save: true)
       exclusively do
+        self.send_log.close
         self.send_log = nil
         save_config if save
       end
@@ -694,7 +695,12 @@ module OsCtld
         @nesting = cfg['nesting'] || false
         @seccomp_profile = cfg['seccomp_profile'] || default_seccomp_profile
         @init_cmd = cfg['init_cmd']
-        @send_log = SendReceive::Log.load(cfg['send_log']) if cfg['send_log']
+
+        if cfg['send_log']
+          @send_log = SendReceive::Log.load(cfg['send_log'])
+          SendReceive::Tokens.register(@send_log.token)
+        end
+
         @cgparams = CGroup::ContainerParams.load(self, cfg['cgparams'])
         @prlimits = PrLimits::Manager.load(self, cfg['prlimits'] || {})
         @raw_configs = Container::RawConfigs.new(cfg['raw'] || {})

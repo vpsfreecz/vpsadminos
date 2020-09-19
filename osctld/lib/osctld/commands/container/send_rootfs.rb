@@ -68,17 +68,20 @@ module OsCtld
           ct.send_log.opts,
           [
             'receive', from_snap ? 'incremental' : 'base',
-            ct.send_log.opts.ctid, ds.relative_name
+            ct.send_log.token, ds.relative_name
           ] + (base_snap == snap.snapshot ? [base_snap] : [])
         ),
         in: r
       )
       r.close
-      stream.monitor(send)
 
-      _, status = Process.wait2(pid)
+      send_status = stream.monitor(send)
 
-      error!('sync failed') if status.exitstatus != 0
+      _, ssh_status = Process.wait2(pid)
+
+      if send_status.exitstatus != 0 || ssh_status.exitstatus != 0
+        error!('sync failed')
+      end
     end
   end
 end

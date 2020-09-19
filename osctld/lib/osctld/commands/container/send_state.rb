@@ -61,7 +61,7 @@ module OsCtld
           *send_ssh_cmd(
             ct.pool.send_receive_key_chain,
             ct.send_log.opts,
-            ['receive', 'transfer', ct.send_log.opts.ctid] + \
+            ['receive', 'transfer', ct.send_log.token] + \
             (running && opts[:start] ? ['start'] : [])
           )
         )
@@ -95,7 +95,7 @@ module OsCtld
         *send_ssh_cmd(
           ct.pool.send_receive_key_chain,
           ct.send_log.opts,
-          ['receive', 'incremental', ct.send_log.opts.ctid, ds.relative_name, snap]
+          ['receive', 'incremental', ct.send_log.token, ds.relative_name, snap]
         ),
         in: r
       )

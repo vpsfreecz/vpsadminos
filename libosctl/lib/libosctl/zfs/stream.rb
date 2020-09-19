@@ -65,6 +65,7 @@ module OsCtl::Lib
       err.close
 
       Process.wait(pid)
+      $?
     end
 
     # Write stream to `io`

@@ -28,16 +28,17 @@ class SendReceive
     end
 
     send_stdin
-    recv_resp!
+
+    # osctld will generate a unique token for this send/receive, which we pass
+    # to the sending side for further identification
+    puts recv_resp!
   end
 
   def base
     error! if args.count < 2
-    pool, id = parse_pool_id
     send_cmd(
       :receive_base,
-      pool: pool,
-      id: id,
+      token: parse_token,
       dataset: args[1],
       snapshot: args[2]
     )
@@ -53,11 +54,9 @@ class SendReceive
 
   def incremental
     error! if args.count < 2
-    pool, id = parse_pool_id
     send_cmd(
       :receive_incremental,
-      pool: pool,
-      id: id,
+      token: parse_token,
       dataset: args[1],
       snapshot: args[2]
     )
@@ -72,14 +71,16 @@ class SendReceive
   end
 
   def transfer
-    pool, id = parse_pool_id
-    send_cmd(:receive_transfer, pool: pool, id: id, start: args[1] == 'start')
+    send_cmd(
+      :receive_transfer,
+      token: parse_token,
+      start: args[1] == 'start'
+    )
     recv_resp!
   end
 
   def cancel
-    pool, id = parse_pool_id
-    send_cmd(:receive_cancel, pool: pool, id: id)
+    send_cmd(:receive_cancel, token: parse_token)
     recv_resp!
   end
 
@@ -110,26 +111,19 @@ class SendReceive
     msg[:response]
   end
 
-  def parse_pool_id
+  def parse_token
     error! unless args[0]
-
-    if args[0].index(':')
-      pool, id = args[0].split(':')
-      [pool, id]
-
-    else
-      [nil, args[0]]
-    end
+    args[0]
   end
 
   def usage
     warn <<END
 Usage:
   receive skel [pool]
-  receive base [pool:]<id> <dataset> [snapshot]
-  receive incremental [pool:]<id> <dataset> [snapshot]
-  receive transfer [pool:]<id> [start]
-  receive cancel [pool:]<id>
+  receive base <token> <dataset> [snapshot]
+  receive incremental <token> <dataset> [snapshot]
+  receive transfer <token> [start]
+  receive cancel <token>
 END
   end
 

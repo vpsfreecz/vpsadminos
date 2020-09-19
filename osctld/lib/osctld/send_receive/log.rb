@@ -61,11 +61,12 @@ module OsCtld
       end
     end
 
-    attr_reader :role, :state, :snapshots, :opts
+    attr_reader :role, :token, :state, :snapshots, :opts
 
     def self.load(cfg)
       new(
         role: cfg['role'].to_sym,
+        token: cfg['token'],
         state: cfg['state'].to_sym,
         snapshots: cfg['snapshots'],
         opts: Options.load(cfg['opts']),
@@ -74,11 +75,13 @@ module OsCtld
 
     # @param opts [Hash] options
     # @option opts [Symbol] role `:source`, `:destination`
+    # @option opts [String] token
     # @option opts [Symbol] state
     # @option opts [Array<String>] snapshots
     # @option opts [Options, Hash] opts
     def initialize(opts)
       @role = opts[:role]
+      @token = opts[:token]
       @state = opts[:state] || :stage
       @snapshots = opts[:snapshots] || []
       @opts = opts[:opts].is_a?(Options) ? opts[:opts] : Options.new(opts[:opts] || {})
@@ -87,6 +90,7 @@ module OsCtld
     def dump
       {
         'role' => role.to_s,
+        'token' => token,
         'state' => state.to_s,
         'snapshots' => snapshots,
         'opts' => opts.dump,
@@ -133,6 +137,10 @@ module OsCtld
     def state=(v)
       fail "invalid state '#{v}'" unless STATES.include?(v)
       @state = v
+    end
+
+    def close
+      SendReceive::Tokens.free(token)
     end
   end
 end

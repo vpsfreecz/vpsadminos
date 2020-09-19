@@ -23,6 +23,7 @@ module OsCtld
 
       importer = Container::Importer.new(pool, f)
       data = importer.load_metadata
+      token = nil
 
       if data['type'] != 'skel'
         error!("expected archive type to be 'skel', got '#{data['type']}'")
@@ -30,7 +31,7 @@ module OsCtld
 
       ct = importer.load_ct(ct_opts: {staged: true, devices: false})
       ct.manipulate(self) do
-        builder = Container::Builder.new(ct, cmd: self)
+        builder = Container::Builder.new(ct)
 
         unless builder.valid?
           error!("invalid id, allowed format: #{builder.id_chars}")
@@ -56,7 +57,9 @@ module OsCtld
 
         builder.setup_lxc_home
 
-        ct.open_send_log(:destination)
+        token = SendReceive::Tokens.get
+        ct.open_send_log(:destination, token)
+
         builder.setup_lxc_configs
         builder.setup_log_file
         builder.setup_user_hook_script_dir
@@ -64,12 +67,12 @@ module OsCtld
         builder.monitor
 
         if ct.netifs.any?
-          progress('Reconfiguring LXC usernet')
           call_cmd(Commands::User::LxcUsernet)
         end
       end
 
-      ok
+      # Pass the token to the sender
+      ok(token)
 
     ensure
       f.close

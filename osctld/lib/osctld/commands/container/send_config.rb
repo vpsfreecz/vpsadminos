@@ -31,16 +31,19 @@ module OsCtld
           m_opts,
           ['receive', 'skel']
         )
+        token = nil
 
         IO.popen("exec #{ssh.join(' ')}", 'r+') do |io|
           io.write(f.readpartial(16*1024)) until f.eof?
+          io.close_write
+          token = io.readline.strip
         end
 
         f.close
         f.unlink
 
         if $?.exitstatus == 0
-          ct.open_send_log(:source, m_opts)
+          ct.open_send_log(:source, token, m_opts)
           ok
         else
           error('send config failed')
