@@ -1,7 +1,61 @@
+require 'libosctl'
+require 'osctld/lockable'
+
 module OsCtld
   class SendReceive::KeyChain
+    class Key
+      def self.load(hash)
+        new(
+          hash['name'],
+          hash['pubkey'],
+          from: hash['from'],
+          ctid: hash['ctid'],
+          passphrase: hash['passphrase'],
+          single_use: hash['single_use'],
+          in_use: hash['in_use'],
+        )
+      end
+
+      attr_reader :name, :pubkey, :from, :ctid, :passphrase, :single_use
+      attr_accessor :in_use
+
+      def initialize(name, pubkey, opts = {})
+        @name = name
+        @pubkey = pubkey
+        @from = opts[:from] && opts[:from].split(',')
+        @ctid = opts[:ctid]
+        @passphrase = opts[:passphrase]
+        @single_use = opts[:single_use]
+        @in_use = opts[:in_use] || false
+      end
+
+      def single_use?
+        single_use
+      end
+
+      def in_use?
+        in_use
+      end
+
+      def dump
+        {
+          'name' => name,
+          'pubkey' => pubkey,
+          'from' => from && from.join(','),
+          'ctid' => ctid,
+          'passphrase' => passphrase,
+          'single_use' => single_use,
+          'in_use' => in_use,
+        }
+      end
+    end
+
+    include Lockable
+
     def initialize(pool)
+      init_lock
       @pool = pool
+      @keys = []
     end
 
     def assets(add)
@@ -22,7 +76,7 @@ module OsCtld
         optional: true
       )
       add.file(
-        authorized_keys_path,
+        key_chain_path,
         desc: 'Keys authorized to send containers to this node',
         user: 0,
         group: 0,
@@ -32,65 +86,123 @@ module OsCtld
     end
 
     def setup
-      deploy
-    end
+      exclusively do
+        keys.clear
+        return unless File.exist?(key_chain_path)
 
-    def deploy
-      return unless File.exist?(authorized_keys_path)
-
-      options = [
-        "command=\"#{File.join(SendReceive::HOOK)}\"",
-        'restrict',
-      ]
-
-      # Generate new authorized_keys
-      regenerate_existing_file(SendReceive::AUTHORIZED_KEYS) do |new, old|
-        old.each_line { |line| new.write(line) }
-
-        authorized_keys do |key|
-          new.puts("#{options.join(',')} #{key}")
+        YAML.load_file(key_chain_path).each do |v|
+          keys << Key.load(v)
         end
       end
     end
 
-    def authorized_keys
-      path = authorized_keys_path
+    # @param io [IO]
+    def deploy(io)
+      inclusively do
+        keys.each do |key|
+          options = [
+            "command=\"#{File.join(SendReceive::HOOK)} #{pool.name} #{key.name}\"",
+            'restrict',
+          ]
 
-      if File.exist?(path)
-        if block_given?
-          File.open(path, 'r').each_line { |line| yield(line.strip) }
+          io.puts("#{options.join(',')} #{key.pubkey}")
+        end
+      end
+    end
+
+    # @param name [String]
+    def key_exist?(name)
+      inclusively { !(keys.detect { |v| v.name == name }.nil?) }
+    end
+
+    # Find key by name
+    # @param name [String]
+    # @return [Key, nil]
+    def get_key(name)
+      inclusively do
+        keys.detect { |v| v.name == name }
+      end
+    end
+
+    # Find key by pubkey, client address/hostnames and passphrase
+    # @param pubkey [String]
+    # @param hosts [Array<String>]
+    # @param passphrase [String]
+    # @return [Key, nil]
+    def find_key(pubkey, hosts, passphrase)
+      inclusively do
+        keys.detect do |k|
+          next if k.pubkey != pubkey || k.passphrase != passphrase
+
+          if k.from
+            k.from.any? do |pattern|
+              hosts.any? { |v| File.fnmatch?(pattern, v) }
+            end
+          else
+            true
+          end
+        end
+      end
+    end
+
+    # @param name [String]
+    # @param pubkey [String]
+    # @param opts [Hash]
+    # @option opts [String] :from
+    # @option opts [String] :ctid
+    # @option opts [String] :passphrase
+    # @option opts [Boolean] :single_use
+    def authorize_key(name, pubkey, opts = {})
+      exclusively do
+        raise ArgumentError, 'key exists' if keys.detect { |v| v.name == name }
+        keys << Key.new(name, pubkey, opts)
+      end
+    end
+
+    # @param name [String]
+    def revoke_key(name)
+      exclusively do
+        keys.delete_if { |v| v.name == name }
+      end
+    end
+
+    # @param name [String]
+    def started_using_key(name)
+      exclusively do
+        key = keys.detect { |v| v.name == name }
+
+        if key && key.single_use?
+          key.in_use = true
+          true
         else
-          File.readlines(path).map(&:strip)
-        end
-
-      else
-        []
-      end
-    end
-
-    def authorize_key(pubkey)
-      regenerate_file(authorized_keys_path, 0400) do |new, old|
-        old.each_line { |line| new.write(line) } if old
-        new.puts(pubkey)
-      end
-    end
-
-    def revoke_key(index)
-      return unless File.exist?(authorized_keys_path)
-
-      regenerate_existing_file(authorized_keys_path) do |new, old|
-        i = 0
-
-        old.each_line do |line|
-          new.write(line) if index != i
-          i += 1
+          false
         end
       end
     end
 
-    def replace_authorized_keys(pubkeys)
-      regenerate_file(authorized_keys_path, 0400) do |new, old|
-        pubkeys.each { |pubkey| new.puts(pubkey) }
+    # @param name [String]
+    def stopped_using_key(name)
+      exclusively do
+        key = keys.detect { |v| v.name == name }
+
+        if key && key.single_use?
+          keys.delete(key)
+          true
+        else
+          false
+        end
+      end
+    end
+
+    def export
+      inclusively { keys.map(&:dump) }
+    end
+
+    def save
+      exclusively do
+        File.open(key_chain_path, 'w', 0400) do |f|
+          f.write(YAML.dump(keys.map(&:dump)))
+        end
       end
     end
 
@@ -102,42 +214,11 @@ module OsCtld
       "#{private_key_path}.pub"
     end
 
-    def authorized_keys_path
-      File.join(pool.conf_path, 'send-receive', 'authorized_keys')
+    def key_chain_path
+      File.join(pool.conf_path, 'send-receive', 'keychain.yml')
     end
 
     protected
-    attr_reader :pool
-
-    def regenerate_existing_file(path)
-      replacement = "#{path}.new"
-      stat = File.stat(path)
-
-      File.open(replacement, 'w', stat.mode) do |new|
-        File.open(path, 'r') do |old|
-          yield(new, old)
-        end
-      end
-
-      File.chown(stat.uid, stat.gid, replacement)
-      File.rename(replacement, path)
-    end
-
-    def regenerate_file(path, mode)
-      replacement = "#{path}.new"
-
-      File.open(replacement, 'w', mode) do |new|
-        if File.exist?(path)
-          File.open(path, 'r') do |old|
-            yield(new, old)
-          end
-
-        else
-          yield(new, nil)
-        end
-      end
-
-      File.rename(replacement, path)
-    end
+    attr_reader :pool, :keys
   end
 end

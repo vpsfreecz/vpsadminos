@@ -1076,6 +1076,9 @@ module OsCtl::Cli
           s.desc 'SSH port'
           s.flag %i(p port), type: Integer, arg_name: 'port'
 
+          s.desc 'Passphrase'
+          s.flag 'passphrase'
+
           s.desc 'Send the container with a different id'
           s.flag 'as-id'
 
@@ -1104,6 +1107,9 @@ module OsCtl::Cli
           s.command :config do |c|
             c.desc 'SSH port'
             c.flag %i(p port), type: Integer, arg_name: 'port'
+
+            c.desc 'Passphrase'
+            c.flag 'passphrase'
 
             c.desc 'Send the container with a different id'
             c.flag 'as-id'
@@ -1651,19 +1657,27 @@ module OsCtl::Cli
           end
 
           a.desc 'Authorize a new key'
+          a.arg_name '<name>'
           a.command :add do |c|
+            c.desc 'Container ID pattern'
+            c.flag 'ctid'
+
+            c.desc 'Source host/address pattern'
+            c.flag 'from'
+
+            c.desc 'Single use authorization'
+            c.switch 'single-use'
+
+            c.desc 'Passphrase'
+            c.flag 'passphrase'
+
             c.action &Command.run(Receive, :authorized_keys_add)
           end
 
-          a.desc 'Remove authorized key by index'
-          a.arg_name '<index>'
+          a.desc 'Remove authorized key by name'
+          a.arg_name '<name>'
           a.command %i(del delete) do |c|
             c.action &Command.run(Receive, :authorized_keys_delete)
-          end
-
-          a.desc 'Replace authorized keys'
-          a.command :set do |c|
-            c.action &Command.run(Receive, :authorized_keys_set)
           end
         end
       end

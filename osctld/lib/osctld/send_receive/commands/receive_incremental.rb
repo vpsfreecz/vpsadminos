@@ -4,6 +4,8 @@ module OsCtld
   class SendReceive::Commands::ReceiveIncremental < SendReceive::Commands::Base
     handle :receive_incremental
 
+    include Utils::Receive
+
     def execute
       ct = SendReceive::Tokens.find_container(opts[:token])
       error!('container not found') unless ct
@@ -14,6 +16,8 @@ module OsCtld
         ct.exclusively do
           if !ct.send_log || !ct.send_log.can_receive_continue?(:incremental)
             error!('invalid send sequence')
+          elsif !check_auth_pubkey(opts[:key_pool], opts[:key_name], ct)
+            error!('authentication key mismatch')
           end
         end
 

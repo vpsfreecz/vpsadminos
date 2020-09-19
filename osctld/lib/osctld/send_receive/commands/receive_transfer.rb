@@ -5,6 +5,7 @@ module OsCtld
   class SendReceive::Commands::Transfer < SendReceive::Commands::Base
     handle :receive_transfer
 
+    include Utils::Receive
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
 
@@ -18,6 +19,8 @@ module OsCtld
 
         if !ct.send_log || !ct.send_log.can_receive_continue?(:transfer)
           error!('invalid send sequence')
+        elsif !check_auth_pubkey(opts[:key_pool], opts[:key_name], ct)
+          error!('authentication key mismatch')
         end
 
         ct.state = :complete
@@ -34,6 +37,7 @@ module OsCtld
           zfs(:destroy, nil, "#{ds}@#{snap}")
         end
 
+        SendReceive.stopped_using_key(ct.pool, ct.send_log.opts.key_name)
         ct.close_send_log
       end
 

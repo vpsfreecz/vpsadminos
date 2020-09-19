@@ -14,7 +14,7 @@ module OsCtld
 
       error!('pool not found') unless pool
 
-      ok(pool.send_receive_key_chain.authorized_keys)
+      ok(pool.send_receive_key_chain.export)
     end
   end
 end

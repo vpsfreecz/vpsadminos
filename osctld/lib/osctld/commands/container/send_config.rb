@@ -14,7 +14,7 @@ module OsCtld
       manipulate(ct) do
         next error('this container is already being sent') if ct.send_log
 
-        ctid = make_ctid(ct)
+        ctid = opts[:as_id] || ct.id
 
         f = Tempfile.open("ct-#{ct.id}-skel")
         export(ct, f, ctid: ctid, network_interfaces: opts[:network_interfaces])
@@ -26,10 +26,17 @@ module OsCtld
           dst: opts[:dst],
         }
 
+        recv_opts = [
+          'receive', 'skel',
+          opts[:to_pool] ? opts[:to_pool] : '-'
+        ]
+
+        recv_opts << opts[:passphrase] if opts[:passphrase]
+
         ssh = send_ssh_cmd(
           ct.pool.send_receive_key_chain,
           m_opts,
-          ['receive', 'skel']
+          recv_opts,
         )
         token = nil
 
@@ -70,16 +77,6 @@ module OsCtld
       end
       exporter.dump_user_hook_scripts(Container::Hook.hooks)
       exporter.close
-    end
-
-    def make_ctid(ct)
-      id = opts[:as_id] || ct.id
-
-      if opts[:to_pool]
-        [opts[:to_pool], id].join(':')
-      else
-        id
-      end
     end
   end
 end

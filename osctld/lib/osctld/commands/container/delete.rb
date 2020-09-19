@@ -34,6 +34,10 @@ module OsCtld
           progress: opts[:progress],
         )
 
+        if ct.send_log
+          SendReceive.stopped_using_key(ct.pool, ct.send_log.opts.key_name)
+        end
+
         progress('Disconnecting console')
         Console.remove(ct)
 

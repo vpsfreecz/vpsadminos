@@ -13,7 +13,6 @@ module OsCtld
 
     def self.setup
       Server.start
-      reset
 
       unless File.symlink?(HOOK)
         File.symlink(OsCtld::hook_src('send-receive'), HOOK)
@@ -25,13 +24,24 @@ module OsCtld
     end
 
     def self.deploy
-      reset
-      DB::Pools.get.each { |pool| pool.send_receive_key_chain.deploy }
+      File.open(AUTHORIZED_KEYS, 'w', 0400) do |io|
+        DB::Pools.get.each { |pool| pool.send_receive_key_chain.deploy(io) }
+      end
+
+      File.chown(UID, 0, AUTHORIZED_KEYS)
     end
 
-    def self.reset
-      File.open(AUTHORIZED_KEYS, 'w', 0400).close
-      File.chown(UID, 0, AUTHORIZED_KEYS)
+    def self.started_using_key(pool, name)
+      if pool.send_receive_key_chain.started_using_key(name)
+        pool.send_receive_key_chain.save
+      end
+    end
+
+    def self.stopped_using_key(pool, name)
+      if pool.send_receive_key_chain.stopped_using_key(name)
+        pool.send_receive_key_chain.save
+        deploy
+      end
     end
 
     def self.assets(add)

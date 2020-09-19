@@ -264,6 +264,7 @@ module OsCtld
 
       # Load send/receive keys
       send_receive_key_chain.setup
+      SendReceive.deploy
 
       # Load repositories
       load_repositories

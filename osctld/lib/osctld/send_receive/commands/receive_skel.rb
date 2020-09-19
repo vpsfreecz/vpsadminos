@@ -1,3 +1,4 @@
+require 'resolv'
 require 'tempfile'
 require 'osctld/send_receive/commands/base'
 
@@ -17,8 +18,12 @@ module OsCtld
 
       f.seek(0)
 
-      pool = DB::Pools.get_or_default(opts[:pool])
-      error!('pool not found') unless pool
+      # sshd will use the first key that matches to accept the client. However,
+      # one key can be authorized multiple times, either on different pools,
+      # or even within the same pool, but with a different passphrase. We must
+      # therefore find the matching key and target pool.
+      pool, auth_key = find_pool_and_key
+
       error!('the pool is disabled') unless pool.active?
 
       importer = Container::Importer.new(pool, f)
@@ -30,6 +35,11 @@ module OsCtld
       end
 
       ct = importer.load_ct(ct_opts: {staged: true, devices: false})
+
+      if auth_key.ctid && !File.fnmatch?(auth_key.ctid, ct.id)
+        error!('access denied: invalid container id')
+      end
+
       ct.manipulate(self) do
         builder = Container::Builder.new(ct)
 
@@ -57,8 +67,13 @@ module OsCtld
 
         builder.setup_lxc_home
 
+        SendReceive.started_using_key(pool, auth_key.name)
         token = SendReceive::Tokens.get
-        ct.open_send_log(:destination, token)
+        ct.open_send_log(
+          :destination,
+          token,
+          key_name: auth_key.name,
+        )
 
         builder.setup_lxc_configs
         builder.setup_log_file
@@ -77,6 +92,45 @@ module OsCtld
     ensure
       f.close
       f.unlink
+    end
+
+    protected
+    def find_pool_and_key
+      key_pool = DB::Pools.find(opts[:key_pool])
+      error!('pool not found') unless key_pool
+
+      auth_key = key_pool.send_receive_key_chain.get_key(opts[:key_name])
+      error!('invalid authentication key') unless auth_key
+
+      log(:info, "Authenticated using key #{key_pool.name}:#{auth_key.name}")
+
+      to_pool = DB::Pools.find(opts[:pool] || opts[:key_pool])
+      error!('pool not found') unless to_pool
+
+      ptr = get_ptr(opts[:client_ip])
+      log(:info, "Client IP #{opts[:client_ip]}, PTR #{ptr || 'not found'}")
+
+      actual_key = to_pool.send_receive_key_chain.find_key(
+        auth_key.pubkey,
+        [opts[:client_ip], ptr].compact,
+        opts[:passphrase],
+      )
+      error!('invalid authentication key') unless actual_key
+
+      log(:info, "Found matching key #{to_pool.name}:#{actual_key.name}")
+
+      if actual_key.single_use? && actual_key.in_use?
+        log(:info, 'Key already in use')
+        error!('invalid authentication key')
+      end
+
+      [to_pool, actual_key]
+    end
+
+    def get_ptr(addr)
+      Resolv.getname(addr)
+    rescue Resolv::ResolvError
+      nil
     end
   end
 end

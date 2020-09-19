@@ -5,7 +5,10 @@ require 'socket'
 class SendReceive
   COMMANDS = %w(skel base incremental transfer cancel)
 
-  def initialize(cmdline)
+  def initialize(pool, key_name, cmdline, connection)
+    @key_pool = pool
+    @key_name = key_name
+    @client_ip, _, _, _ = connection
     error! unless cmdline
 
     args = cmdline.split(' ')
@@ -17,10 +20,25 @@ class SendReceive
   end
 
   protected
-  attr_reader :args, :client
+  attr_reader :key_pool, :key_name, :client_ip, :args, :client
 
   def skel
-    send_cmd(:receive_skel, pool: args[0])
+    to_pool =
+      case args[0]
+      when nil, '-'
+        nil
+      else
+        args[0]
+      end
+
+    send_cmd(
+      :receive_skel,
+      pool: to_pool,
+      passphrase: args[1],
+      client_ip: client_ip,
+      key_pool: key_pool,
+      key_name: key_name,
+    )
 
     if recv_resp! != 'continue'
       warn 'Error: invalid response'
@@ -38,6 +56,8 @@ class SendReceive
     error! if args.count < 2
     send_cmd(
       :receive_base,
+      key_pool: key_pool,
+      key_name: key_name,
       token: parse_token,
       dataset: args[1],
       snapshot: args[2]
@@ -56,6 +76,8 @@ class SendReceive
     error! if args.count < 2
     send_cmd(
       :receive_incremental,
+      key_pool: key_pool,
+      key_name: key_name,
       token: parse_token,
       dataset: args[1],
       snapshot: args[2]
@@ -73,6 +95,8 @@ class SendReceive
   def transfer
     send_cmd(
       :receive_transfer,
+      key_pool: key_pool,
+      key_name: key_name,
       token: parse_token,
       start: args[1] == 'start'
     )
@@ -80,7 +104,12 @@ class SendReceive
   end
 
   def cancel
-    send_cmd(:receive_cancel, token: parse_token)
+    send_cmd(
+      :receive_cancel,
+      key_pool: key_pool,
+      key_name: key_name,
+      token: parse_token,
+    )
     recv_resp!
   end
 
@@ -119,7 +148,7 @@ class SendReceive
   def usage
     warn <<END
 Usage:
-  receive skel [pool]
+  receive skel [pool|- [passphrase]]
   receive base <token> <dataset> [snapshot]
   receive incremental <token> <dataset> [snapshot]
   receive transfer <token> [start]
@@ -133,4 +162,14 @@ END
   end
 end
 
-SendReceive.new(ENV['SSH_ORIGINAL_COMMAND'])
+if ARGV.length != 2
+  warn "Usage: $0 <pool> <key name>"
+  exit(false)
+end
+
+SendReceive.new(
+  ARGV[0],
+  ARGV[1],
+  ENV['SSH_ORIGINAL_COMMAND'],
+  ENV['SSH_CONNECTION'].split,
+)

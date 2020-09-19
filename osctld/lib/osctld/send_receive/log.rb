@@ -26,6 +26,9 @@ module OsCtld
       # @return [Boolean]
       attr_accessor :cloned
 
+      # @return [String]
+      attr_reader :key_name
+
       # @param opts [Hash]
       # @option opts [String] :ctid
       # @option opts [Integer] :port
@@ -36,6 +39,7 @@ module OsCtld
         @port = opts.delete(:port)
         @dst = opts.delete(:dst)
         @cloned = opts.delete(:cloned)
+        @key_name = opts.delete(:key_name)
 
         unless opts.empty?
           raise ArgumentError, "unsupported options: #{opts.keys.join(', ')}"
@@ -57,6 +61,7 @@ module OsCtld
           'port' => port,
           'dst' => dst,
           'cloned' => cloned?,
+          'key_name' => key_name,
         }
       end
     end

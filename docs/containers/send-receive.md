@@ -27,7 +27,7 @@ using `osctl receive authorized-keys add`, the key is entered on a single line
 to the standard input:
 
 ```shell
-destination-node $ osctl receive authorized-keys add
+destination-node $ osctl receive authorized-keys add source-node
 ecdsa-sha2-nistp521 AAAAE2VjZHNhLXNoYT... root@source-node
 ```
 
@@ -37,7 +37,7 @@ You can verify that by running SSH directly:
 ```shell
 source-node $ ssh -T -i `osctl send key path private` -l osctl-ct-receive destination-node
 Usage:
-  receive skel [pool]
+  receive skel [pool|- [passphrase]]
   receive base <token> <dataset> [snapshot]
   receive incremental <token> <dataset> [snapshot]
   receive transfer <token> [start]
@@ -116,3 +116,15 @@ used when moving containers as well):
  - `--no-restart` to keep the moved/cloned container on the source node stopped
  - `--no-network-interfaces` to remove network interfaces from the container's
    config
+
+## Access control
+Public keys can be authorized for single or repeated use. By default it can be
+used repeatedly without further restrictions. When needed, it is possible to
+restrict which hosts will be allowed to connect, what container IDs will be
+accepted and to set a passphrase for further identification.
+`osctl receive authorized-keys add` accept these as options `--single-use`,
+`--from`, `--ctid` and `--passphrase`.
+
+Using passphrase it is possible to use the same public key multiple times
+with different names, e.g. once for every container send/receive and have the
+used key removed after the send/receive is completed.

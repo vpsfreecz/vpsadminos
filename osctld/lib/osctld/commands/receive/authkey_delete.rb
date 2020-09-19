@@ -16,7 +16,8 @@ module OsCtld
     end
 
     def execute(pool)
-      pool.send_receive_key_chain.revoke_key(opts[:index])
+      pool.send_receive_key_chain.revoke_key(opts[:name])
+      pool.send_receive_key_chain.save
       SendReceive.deploy
       ok
     end

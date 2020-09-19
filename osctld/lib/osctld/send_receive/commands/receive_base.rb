@@ -4,6 +4,8 @@ module OsCtld
   class SendReceive::Commands::ReceiveBase < SendReceive::Commands::Base
     handle :receive_base
 
+    include Utils::Receive
+
     def execute
       ct = SendReceive::Tokens.find_container(opts[:token])
       error!('container not found') unless ct
@@ -13,6 +15,8 @@ module OsCtld
 
         if !ct.send_log || !ct.send_log.can_receive_continue?(:base)
           error!('invalid send sequence')
+        elsif !check_auth_pubkey(opts[:key_pool], opts[:key_name], ct)
+          error!('authentication key mismatch')
         end
 
         ds = OsCtl::Lib::Zfs::Dataset.new(dataset_name(ct), base: ct.dataset.name)

@@ -16,6 +16,7 @@ module OsCtld
           pool: ct.pool.name,
           dst: opts[:dst],
           port: opts[:port],
+          passphrase: opts[:passphrase],
           as_id: opts[:as_id],
           to_pool: opts[:to_pool],
           network_interfaces: opts[:network_interfaces],

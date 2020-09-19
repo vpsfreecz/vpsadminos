@@ -3,47 +3,30 @@ require 'osctl/cli/command'
 module OsCtl::Cli
   class Receive < Command
     def authorized_keys_list
-      keys = osctld_call(:receive_authkey_list, pool: gopts[:pool])
-
-      i = 0
-
-      format_output(keys.map do |key|
-        ret = {index: i, key: key}
-        i += 1
-        ret
-      end)
+      osctld_fmt(:receive_authkey_list, pool: gopts[:pool])
     end
 
     def authorized_keys_add
+      require_args!('name')
       osctld_fmt(
         :receive_authkey_add,
         pool: gopts[:pool],
-        public_key: STDIN.readline.strip
+        name: args[0],
+        public_key: STDIN.readline.strip,
+        from: opts['from'],
+        ctid: opts['ctid'],
+        passphrase: opts['passphrase'],
+        single_use: opts['single-use'],
       )
     end
 
     def authorized_keys_delete
-      require_args!('index')
+      require_args!('name')
       osctld_fmt(
         :receive_authkey_delete,
         pool: gopts[:pool],
-        index: args[0].to_i
+        name: args[0],
       )
-    end
-
-    def authorized_keys_set
-      osctld_fmt(
-        :receive_authkey_set,
-        pool: gopts[:pool],
-        public_keys: read_keys(STDIN),
-      )
-    end
-
-    protected
-    def read_keys(io)
-      keys = []
-      keys << io.readline.strip until io.eof?
-      keys
     end
   end
 end

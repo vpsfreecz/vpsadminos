@@ -1311,6 +1311,9 @@ read by `ls` or `show` commands.
     `-p`, `--port` *port*
       SSH port, defaults to `22`.
 
+    `--passphrase` *passphrase*
+      Provide passhprase if the destination node requires it for authentication.
+
     `--as-id` *ctid*
       Send the container with a different ID.
 
@@ -1346,6 +1349,9 @@ read by `ls` or `show` commands.
 
     `-p`, `--port` *port*
       SSH port, defaults to `22`.
+
+    `--passphrase` *passphrase*
+      Provide passhprase if the destination node requires it for authentication.
 
     `--as-id` *ctid*
       Send the container with a different ID.
@@ -2356,17 +2362,28 @@ read by `ls` or `show` commands.
 `receive authorized-keys ls`
   List keys that are authorized to send containers to this node.
 
-`receive authorized-keys add`
+`receive authorized-keys add` [*options*] *name*
   Authorize given key to send containers to this node. The key is read from
   the standard input and must be provided on a single line.
 
-`receive authorized-keys del` *index*
-  Remove the key identified by its *index*, which can be obtained by
-  `receive authorized-keys ls`.
+    `--ctid` *pattern*
+      Accept only containers whose ID matches the pattern.
 
-`receive authorized-keys set`
-  Replaces all authorized keys by keys read from the standard input. Keys are
-  separated by new lines.
+    `--from` *pattern-list*
+      Allow connections only from selected hosts. Multiple patterns can be
+      separated by comma. Patterns are matched against source host address
+      and reverse record.
+
+    `--single-use`
+      Remove the key after it is used to migrate a container onto this node.
+
+    `--passphrase` *passphrase*
+      In addition to the public key authentication, the sender must provide
+      this passphrase. The passphrase can be used to differentiate identical
+      keys with different names, the key with matching passphrase is used.
+
+`receive authorized-keys del` *name*
+  Remove the key identified by its *name*.
 
 `repository ls` [*options*] [*repository...*]
   List configured repositories, from which container images are downloaded.
