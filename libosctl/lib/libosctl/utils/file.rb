@@ -1,7 +1,9 @@
+require 'securerandom'
+
 module OsCtl::Lib
   module Utils::File
     def regenerate_file(path, mode)
-      replacement = "#{path}.new"
+      replacement = "#{path}.new-#{SecureRandom.hex(3)}"
 
       File.open(replacement, 'w', mode) do |new|
         if File.exist?(path)
