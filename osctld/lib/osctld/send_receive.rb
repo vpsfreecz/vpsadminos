@@ -17,9 +17,7 @@ module OsCtld
     def self.setup
       Server.start
 
-      unless File.symlink?(HOOK)
-        File.symlink(OsCtld::hook_src('send-receive'), HOOK)
-      end
+      replace_symlink(HOOK, OsCtld::hook_src('send-receive'))
     end
 
     def self.stop
