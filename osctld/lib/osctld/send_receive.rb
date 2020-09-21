@@ -1,9 +1,12 @@
 require 'etc'
+require 'libosctl'
 require 'osctld/run_state'
 
 module OsCtld
   module SendReceive
     module Commands ; end
+
+    extend OsCtl::Lib::Utils::File
 
     USER = 'osctl-ct-receive'
     UID = Etc.getpwnam(USER).uid
@@ -24,8 +27,8 @@ module OsCtld
     end
 
     def self.deploy
-      File.open(AUTHORIZED_KEYS, 'w', 0400) do |io|
-        DB::Pools.get.each { |pool| pool.send_receive_key_chain.deploy(io) }
+      regenerate_file(AUTHORIZED_KEYS, 0400) do |new, old|
+        DB::Pools.get.each { |pool| pool.send_receive_key_chain.deploy(new) }
       end
 
       File.chown(UID, 0, AUTHORIZED_KEYS)
