@@ -79,6 +79,9 @@ module OsCtld
       # Thaw all processes
       CGroup.thaw_tree(ct.cgroup_path)
 
+      # Give the system some time to kill the processes
+      sleep(10)
+
       progress('Recovering container state')
       recovery.recover_state
 
