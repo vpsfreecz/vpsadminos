@@ -66,6 +66,12 @@ in
         description = "Node ID";
       };
 
+      transactionPublicKeyFile = mkOption {
+        type = types.path;
+        description = "Path to file with public key used to verify transactions";
+        default = "/etc/vpsadmin/transaction.key";
+      };
+
       netInterfaces = mkOption {
         type = types.listOf types.str;
         description = "Network interfaces";
@@ -93,6 +99,7 @@ in
         :vpsadmin:
           :node_id: ${toString cfg.nodeId}
           :net_interfaces: [${lib.concatStringsSep ", " cfg.netInterfaces}]
+          :transaction_public_key: ${cfg.transactionPublicKeyFile}
 
         :console:
           :host: ${cfg.consoleHost}
