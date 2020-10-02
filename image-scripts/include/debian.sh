@@ -33,6 +33,10 @@ PATH=/tmp/:\$PATH apt-get update
 PATH=/tmp/:\$PATH apt-get upgrade -y
 PATH=/tmp/:\$PATH apt-get install -y vim openssh-server ca-certificates man net-tools ifupdown less
 
+# for snapd
+PATH=/tmp/:\$PATH apt-get install -y fuse squashfuse
+mkdir /lib/modules
+
 for pkg in ureadahead eject ntpdate resolvconf ; do
 	PATH=/tmp/:\$PATH apt-get purge -y $pkg
 done
