@@ -20,7 +20,7 @@ module OsCtld
       current_state = ct.current_state
 
       if orig_state == current_state
-        return ok
+        return
 
       elsif current_state == :stopped
         # Put all network interfaces down
