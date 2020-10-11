@@ -15,7 +15,7 @@ with lib;
       xserver = mkOption { };
     };
     meta = {
-      mainainers = mkOption { };
+      maintainers = mkOption { };
     };
     networking.enableIPv6 = mkOption { default = true; };
     programs.ssh.package = mkOption { };
