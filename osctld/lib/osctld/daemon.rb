@@ -105,7 +105,17 @@ module OsCtld
       serve
 
       # Load data pools
-      Commands::Pool::Import.run(all: true, autostart: true)
+      if KernelParams.import_pools?
+        autostart = KernelParams.autostart_cts?
+
+        Commands::Pool::Import.run(all: true, autostart: autostart)
+
+        unless autostart
+          log(:info, 'Container autostart disabled by kernel parameter')
+        end
+      else
+        log(:info, 'Pool autoimport disabled by kernel parameter')
+      end
 
       # Resume shutdown
       if shutdown?
