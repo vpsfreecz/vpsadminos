@@ -124,24 +124,30 @@ in {
     echo "Waiting for osctld..."
     waitForOsctld
 
-    if [ "$active" == "yes" ] ; then
-      if  ! osctlEntityExists pool ${name} ; then
-        echo "Importing pool ${name} into osctld"
-        ${osctl} pool import ${name} \
-          || fail "Unable to import pool ${name} into osctld"
+    if [ "$(getKernelParam osctl.pools 1)" == "1" ] ; then
+      if [ "$active" == "yes" ] ; then
+        if  ! osctlEntityExists pool ${name} ; then
+          echo "Importing pool ${name} into osctld"
+          ${osctl} pool import \
+            $(if [ "$(getKernelParam osctl.autostart 1)" == "1" ] ; then echo "--autostart" ; else echo "--no-autostart" ; fi) \
+            ${name} \
+            || fail "Unable to import pool ${name} into osctld"
+        fi
+
+      elif ${if pool.install then "true" else "false"} ; then
+        echo "Installing pool ${name} into osctld"
+        ${osctl} pool install ${name} \
+          || fail "Unable to install pool ${name} into osctld"
       fi
 
-    elif ${if pool.install then "true" else "false"} ; then
-      echo "Installing pool ${name} into osctld"
-      ${osctl} pool install ${name} \
-        || fail "Unable to install pool ${name} into osctld"
+      ${optionalString (hasAttr name config.osctl.pools) ''
+      echo "Configuring osctl pool ${name}"
+      ${osctl} pool set parallel-start ${name} ${toString config.osctl.pools.${name}.parallelStart}
+      ${osctl} pool set parallel-stop ${name} ${toString config.osctl.pools.${name}.parallelStop}
+      ''}
+    else
+      echo "Pool install/import disabled by kernel parameter"
     fi
-
-    ${optionalString (hasAttr name config.osctl.pools) ''
-    echo "Configuring osctl pool ${name}"
-    ${osctl} pool set parallel-start ${name} ${toString config.osctl.pools.${name}.parallelStart}
-    ${osctl} pool set parallel-stop ${name} ${toString config.osctl.pools.${name}.parallelStop}
-    ''}
 
     ${share}
   '';

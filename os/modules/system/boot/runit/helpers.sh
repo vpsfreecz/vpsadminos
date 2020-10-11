@@ -115,3 +115,33 @@ function ensureServiceStarted {
   serviceStarted "$service" && return 0
   fail "Service $service not started, aborting"
 }
+
+function isKernelParamSet {
+  local param="$1"
+
+  for v in $(cat /proc/cmdline); do
+    [ "$v" == "$param" ] && return 0
+  done
+
+  return 1
+}
+
+function getKernelParam {
+  local param="$1"
+  local value="$2"
+
+  for v in $(cat /proc/cmdline); do
+    case $v in
+      ${param}=*)
+        set -- $(IFS==; echo $v)
+	shift
+        value="$*"
+	echo "$value"
+	return 0
+        ;;
+    esac
+  done
+
+  echo "$value"
+  return 0
+}
