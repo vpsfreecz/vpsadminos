@@ -59,14 +59,17 @@ let
     power-management = {
       PM_ADVANCED_DEBUG                = yes;
       X86_INTEL_LPSS                   = yes;
-      X86_INTEL_PSTATE                 = yes;
-      INTEL_IDLE                       = yes;
+      INTEL_IDLE                       = no;
       CPU_FREQ_DEFAULT_GOV_PERFORMANCE = yes;
       CPU_FREQ_GOV_SCHEDUTIL           = whenAtLeast "4.9" yes;
       PM_WAKELOCKS                     = yes;
       # Power-capping framework and support for INTEL RAPL
       POWERCAP                         = yes;
       INTEL_RAPL                       = whenAtLeast "5.3" module;
+      CPU_IDLE                         = yes;
+      CPU_IDLE_GOV_LADDER              = yes;
+      CPU_IDLE_GOV_MENU                = yes;
+      HALTPOLL_CPUIDLE                 = yes;
     };
 
     external-firmware = {
@@ -777,8 +780,8 @@ let
       HMM_MIRROR = whenAtLeast "5.3" yes;
       DRM_AMDGPU_USERPTR = whenAtLeast "5.3" yes;
 
-      #PREEMPT = yes;
-      PREEMPT_VOLUNTARY = yes;
+      PREEMPT = yes;
+      #PREEMPT_VOLUNTARY = yes;
 
       X86_AMD_PLATFORM_DEVICE = yes;
 
