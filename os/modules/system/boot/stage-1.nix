@@ -13,7 +13,7 @@ let
   dhcpcd = pkgs.dhcpcd.override { udev = null; };
   extraUtils = pkgs.runCommandCC "extra-utils"
   {
-    buildInputs = [ pkgs.nukeReferences ];
+    buildInputs = [ pkgs.nukeReferences pkgs.lvm2 ];
     allowedReferences = [ "out" ];
   } ''
     set +o pipefail
@@ -38,8 +38,8 @@ let
     copy_bin_and_libs ${pkgs.dhcpcd}/bin/dhcpcd
 
     # Copy dmsetup and lvm.
-    copy_bin_and_libs ${pkgs.lvm2}/sbin/dmsetup
-    copy_bin_and_libs ${pkgs.lvm2}/sbin/lvm
+    copy_bin_and_libs ${getBin pkgs.lvm2}/bin/dmsetup
+    copy_bin_and_libs ${getBin pkgs.lvm2}/bin/lvm
 
     # Copy eudev
     copy_bin_and_libs ${udev}/bin/udevd
@@ -130,7 +130,10 @@ let
             --replace cdrom_id ${extraUtils}/bin/cdrom_id \
             --replace ${pkgs.utillinux}/sbin/blkid ${extraUtils}/bin/blkid \
             --replace /sbin/blkid ${extraUtils}/bin/blkid \
-            --replace ${pkgs.lvm2}/sbin ${extraUtils}/bin \
+	    --replace ${getBin pkgs.lvm2}/bin/dmsetup /bin/dmsetup \
+	    --replace ${getBin pkgs.lvm2}/bin/lvm /bin/lvm \
+            --replace ${pkgs.lvm2}/bin ${extraUtils}/bin \
+            --replace ${pkgs.lvm2}/bin ${extraUtils}/bin \
             --replace ${pkgs.bash}/bin/sh ${extraUtils}/bin/sh \
             --replace /usr/bin/readlink ${extraUtils}/bin/readlink \
             --replace /usr/bin/basename ${extraUtils}/bin/basename \

@@ -21,6 +21,7 @@ with lib;
     programs.ssh.package = mkOption { };
     programs.ssh.setXAuthLocation = mkOption { default = false; };
     krb5 = mkOption { };
+    security.virtualisation = mkOption { };
     security.pam.oath.enable = mkOption { };
     security.pam.usb.enable = mkOption { };
     security.pam.mount.enable = mkOption { };

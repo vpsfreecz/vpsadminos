@@ -132,7 +132,7 @@ in
   config = mkMerge [
     (mkIf (!config.boot.isContainer) {
       services.udev.packages = [ pkgs.eudev extraUdevRules pkgs.lvm2 ];
-      services.udev.path = [ pkgs.coreutils pkgs.gnused pkgs.gnugrep pkgs.utillinux pkgs.eudev ];
+      services.udev.path = [ pkgs.coreutils pkgs.gnused pkgs.gnugrep pkgs.utillinux pkgs.eudev pkgs.lvm2 ];
 
       environment.etc = {
         "udev/rules.d".source = udevRules;
