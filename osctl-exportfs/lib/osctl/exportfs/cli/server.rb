@@ -31,7 +31,7 @@ module OsCtl::ExportFS::Cli
           }
         end,
         cols,
-        fmt_opts
+        **fmt_opts
       )
     end
 

@@ -7,8 +7,8 @@ module OsCtl::Lib::Cli
       f.format
     end
 
-    def self.print(*args)
-      f = new(*args)
+    def self.print(*args, **kwargs)
+      f = new(*args, **kwargs)
       f.print
     end
 

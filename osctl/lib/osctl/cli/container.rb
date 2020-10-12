@@ -125,7 +125,7 @@ module OsCtl::Cli
 
       add_loadavgs(cts)
 
-      format_output(cts, cols, fmt_opts)
+      format_output(cts, cols, **fmt_opts)
     end
 
     def tree

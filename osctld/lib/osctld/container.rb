@@ -74,9 +74,9 @@ module OsCtld
         }
 
         if opts[:load_from]
-          load_config_string(opts[:load_from], load_opts)
+          load_config_string(opts[:load_from], **load_opts)
         else
-          load_config_file(config_path, load_opts)
+          load_config_file(config_path, **load_opts)
         end
       end
     end
@@ -655,12 +655,12 @@ module OsCtld
       :init_cmd
     attr_synchronized_accessor :mounted, :dist_network_configured
 
-    def load_config_file(path = nil, opts = {})
-      load_config_hash(YAML.load_file(path || config_path), opts)
+    def load_config_file(path = nil, **opts)
+      load_config_hash(YAML.load_file(path || config_path), **opts)
     end
 
-    def load_config_string(str, opts = {})
-      load_config_hash(YAML.load(str), opts)
+    def load_config_string(str, **opts)
+      load_config_hash(YAML.load(str), **opts)
     end
 
     def load_config_hash(cfg, init_devices: true, dataset_cache: nil)

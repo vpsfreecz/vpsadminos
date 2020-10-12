@@ -17,7 +17,7 @@ module OsCtl::Lib
     end
 
     def initialize(str_entries = [], opts = {})
-      @entries = str_entries.map { |str| Entry.from_string(str, opts) }
+      @entries = str_entries.map { |str| Entry.from_string(str, **opts) }
     end
 
     def valid?
