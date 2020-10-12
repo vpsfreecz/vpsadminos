@@ -204,21 +204,6 @@ let
       INET_DIAG_DESTROY = whenAtLeast "4.9" yes;
     };
 
-    wireless = {
-      CFG80211_WEXT         = option yes; # Without it, ipw2200 drivers don't build
-      IPW2100_MONITOR       = option yes; # support promiscuous mode
-      IPW2200_MONITOR       = option yes; # support promiscuous mode
-      HOSTAP_FIRMWARE       = option yes; # Support downloading firmware images with Host AP driver
-      HOSTAP_FIRMWARE_NVRAM = option yes;
-      ATH9K_PCI             = option yes; # Detect Atheros AR9xxx cards on PCI(e) bus
-      ATH9K_AHB             = option yes; # Ditto, AHB bus
-      B43_PHY_HT            = option yes;
-      BCMA_HOST_PCI         = option yes;
-      RTW88                 = whenAtLeast "5.2" module;
-      RTW88_8822BE          = mkMerge [ (whenBetween "5.2" "5.8" yes) (whenAtLeast "5.8" module) ];
-      RTW88_8822CE          = mkMerge [ (whenBetween "5.2" "5.8" yes) (whenAtLeast "5.8" module) ];
-    };
-
     fb = {
       FB                  = yes;
       FB_EFI              = yes;
@@ -236,59 +221,6 @@ let
       FRAMEBUFFER_CONSOLE_DEFERRED_TAKEOVER = whenAtLeast "4.19" yes;
       FRAMEBUFFER_CONSOLE_ROTATION = yes;
       FB_GEODE            = mkIf (stdenv.hostPlatform.system == "i686-linux") yes;
-    };
-
-    video = {
-      # Allow specifying custom EDID on the kernel command line
-      DRM_LOAD_EDID_FIRMWARE = yes;
-      VGA_SWITCHEROO         = yes; # Hybrid graphics support
-      DRM_GMA600             = yes;
-      DRM_GMA3600            = yes;
-      DRM_VMWGFX_FBCON       = yes;
-      # necessary for amdgpu polaris support
-      DRM_AMD_POWERPLAY = whenBetween "4.5" "4.9" yes;
-      # (experimental) amdgpu support for verde and newer chipsets
-      DRM_AMDGPU_SI = whenAtLeast "4.9" yes;
-      # (stable) amdgpu support for bonaire and newer chipsets
-      DRM_AMDGPU_CIK = whenAtLeast "4.9" yes;
-    } // optionalAttrs (stdenv.hostPlatform.system == "x86_64-linux") {
-      # Intel GVT-g graphics virtualization supports 64-bit only
-      DRM_I915_GVT = whenAtLeast "4.16" yes;
-      DRM_I915_GVT_KVMGT = whenAtLeast "4.16" module;
-    };
-
-    sound = {
-      SND_DYNAMIC_MINORS  = yes;
-      SND_AC97_POWER_SAVE = yes; # AC97 Power-Saving Mode
-      SND_HDA_INPUT_BEEP  = yes; # Support digital beep via input layer
-      SND_HDA_RECONFIG    = yes; # Support reconfiguration of jack functions
-      # Support configuring jack functions via fw mechanism at boot
-      SND_HDA_PATCH_LOADER = yes;
-      SND_HDA_CODEC_CA0132_DSP = whenOlder "5.8" yes; # Enable DSP firmware loading on Creative Soundblaster Z/Zx/ZxR/Recon
-      SND_OSSEMUL         = yes;
-      SND_USB_CAIAQ_INPUT = yes;
-      # Enable PSS mixer (Beethoven ADSP-16 and other compatible)
-      PSS_MIXER           = whenOlder "4.12" yes;
-    # Enable Sound Open Firmware support
-    } // optionalAttrs (stdenv.hostPlatform.system == "x86_64-linux" &&
-                        versionAtLeast version "5.5") {
-      SND_SOC_SOF_TOPLEVEL              = yes;
-      SND_SOC_SOF_ACPI                  = module;
-      SND_SOC_SOF_PCI                   = module;
-      SND_SOC_SOF_APOLLOLAKE_SUPPORT    = yes;
-      SND_SOC_SOF_CANNONLAKE_SUPPORT    = yes;
-      SND_SOC_SOF_COFFEELAKE_SUPPORT    = yes;
-      SND_SOC_SOF_COMETLAKE_LP_SUPPORT  = yes;
-      SND_SOC_SOF_ELKHARTLAKE_SUPPORT   = yes;
-      SND_SOC_SOF_GEMINILAKE_SUPPORT    = yes;
-      SND_SOC_SOF_HDA_AUDIO_CODEC       = yes;
-      SND_SOC_SOF_HDA_COMMON_HDMI_CODEC = whenOlder "5.7" yes;
-      SND_SOC_SOF_HDA_LINK              = yes;
-      SND_SOC_SOF_ICELAKE_SUPPORT       = yes;
-      SND_SOC_SOF_INTEL_TOPLEVEL        = yes;
-      SND_SOC_SOF_JASPERLAKE_SUPPORT    = yes;
-      SND_SOC_SOF_MERRIFIELD_SUPPORT    = yes;
-      SND_SOC_SOF_TIGERLAKE_SUPPORT     = yes;
     };
 
     usb-serial = {
@@ -403,6 +335,7 @@ let
       DEBUG_SET_MODULE_RONX            = { optional = true; tristate = whenOlder "4.11" "y"; };
       RANDOMIZE_BASE                   = option yes;
       STRICT_DEVMEM                    = option yes; # Filter access to /dev/mem
+      IO_STRICT_DEVMEM                 = option yes; # Filter access to /dev/mem
       SECURITY_SELINUX_BOOTPARAM_VALUE = whenOlder "5.1" (freeform "0"); # Disable SELinux by default
       # Prevent processes from ptracing non-children processes
       SECURITY_YAMA                    = option yes;
@@ -503,7 +436,6 @@ let
       # official additions package and prevent the vboxsf module from loading,
       # so disable them for now.
       VBOXGUEST = option no;
-      DRM_VBOXVIDEO = option no;
 
     } // optionalAttrs (stdenv.isx86_64 || stdenv.isi686) ({
       XEN = option yes;
@@ -605,7 +537,6 @@ let
       CRYPTO_TEST              = option no;
       EFI_TEST                 = option no;
       GLOB_SELFTEST            = option no;
-      DRM_DEBUG_MM_SELFTEST    = { optional = true; tristate = whenOlder "4.18" "n";};
       LNET_SELFTEST            = { optional = true; tristate = whenOlder "4.18" "n";};
       LOCK_TORTURE_TEST        = option no;
       MTD_TESTS                = option no;
@@ -621,12 +552,6 @@ let
       EXPERT              = yes;
       CHECKPOINT_RESTORE  = yes;
     } // optionalAttrs (features.criu_revert_expert or true) {
-      RFKILL_INPUT          = option yes;
-      HID_PICOLCD_FB        = option yes;
-      HID_PICOLCD_BACKLIGHT = option yes;
-      HID_PICOLCD_LCD       = option yes;
-      HID_PICOLCD_LEDS      = option yes;
-      HID_PICOLCD_CIR       = option yes;
       DEBUG_MEMORY_INIT     = option yes;
     });
 
@@ -774,14 +699,10 @@ let
       HOTPLUG_PCI_ACPI = yes; # PCI hotplug using ACPI
       HOTPLUG_PCI_PCIE = yes; # PCI-Expresscard hotplug support
 
-      # Enable AMD's ROCm GPU compute stack
-      HSA_AMD =     mkIf stdenv.hostPlatform.is64bit (whenAtLeast "4.20" yes);
-      ZONE_DEVICE = mkIf stdenv.hostPlatform.is64bit (whenAtLeast "5.3" yes);
-      HMM_MIRROR = whenAtLeast "5.3" yes;
-      DRM_AMDGPU_USERPTR = whenAtLeast "5.3" yes;
+      #PREEMPT = yes;
+      PREEMPT_VOLUNTARY = yes;
 
-      PREEMPT = yes;
-      #PREEMPT_VOLUNTARY = yes;
+      COMPACTION = yes;
 
       X86_AMD_PLATFORM_DEVICE = yes;
 
