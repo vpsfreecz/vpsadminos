@@ -201,17 +201,6 @@ in
   };
 
   config = (mkIf nodeCfg.enable {
-    nixpkgs.config.packageOverrides = super: {
-      # https://github.com/NixOS/nixpkgs/issues/70930
-      # perl 5.30 breaks plugins
-      munin = super.munin.override {
-        perlPackages = super.perl528Packages;
-        rrdtool = super.rrdtool.override {
-          perl = super.perl528Packages.perl;
-        };
-      };
-    };
-
     environment.systemPackages = [ pkgs.munin ];
 
     users.users = {
