@@ -55,10 +55,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "08hxy6gdq0k715b80wn5d8yg8ix4n3gdqqh3hlydly9wihg094id";
+      sha256 = "1cl5p4axdnh4wgnggg3m3vi0gjim3jywlz1p75jrxxq489gfzghn";
       type = "gem";
     };
-    version = "20.03.0.build20200925174048";
+    version = "20.09.0.build20201012172632";
   };
   netlinkrb = {
     groups = ["default"];
@@ -76,10 +76,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1yrisg4crdkd5x6apgc6cagixc27i5q953jvrhdlxjqaldi3v1zd";
+      sha256 = "1fgls86131g70mixcpnlvzr30ck537pagff3z2qfmcw7iawv3fnq";
       type = "gem";
     };
-    version = "20.03.0.build20200925174048";
+    version = "20.09.0.build20201012172632";
   };
   osctld = {
     dependencies = ["concurrent-ruby" "ipaddress" "json" "libosctl" "netlinkrb" "osctl-repo" "osup" "require_all" "ruby-lxc"];
@@ -87,10 +87,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1d0dadpcv78l6m3h5802l8xp94bmy0j1smsl3qxsar7whj8wik1s";
+      sha256 = "1sx4bi713gaqwr0b09pvpjcvb9ir4apbhb1n0dfyyzbxmm24i5g1";
       type = "gem";
     };
-    version = "20.03.0.build20200925174048";
+    version = "20.09.0.build20201012172632";
   };
   osup = {
     dependencies = ["gli" "json" "libosctl" "require_all"];
@@ -98,10 +98,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1fq8wda77zbk5n56ibhq9k2i3slk96pip5lin5vg3mg51xg258q8";
+      sha256 = "11rzzdv1998bw900s2b0pnl0j2v53j86lvvqzyfh83qhs3bsrcii";
       type = "gem";
     };
-    version = "20.03.0.build20200925174048";
+    version = "20.09.0.build20201012172632";
   };
   rainbow = {
     groups = ["default"];
@@ -128,9 +128,9 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "08pnghqp15fwylq6w2qh7x1ikkiq87irpy0z03n0gma4gdzzx2qa";
+      sha256 = "05csxmzj4132axa6d8x2wk2ay6jfwnrsisfnnv52kr85shvj366z";
       type = "gem";
     };
-    version = "1.2.3";
+    version = "1.2.4.vpsadminos.2";
   };
 }
