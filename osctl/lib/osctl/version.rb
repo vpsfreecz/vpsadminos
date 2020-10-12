@@ -1,3 +1,3 @@
 module OsCtl
-  VERSION = '20.03.0'
+  VERSION = '20.09.0'
 end
