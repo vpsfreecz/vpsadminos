@@ -27,6 +27,29 @@ require 'pty'
 require 'socket'
 require 'timeout'
 
+class StringBuffer
+  def initialize(max_size: 4096)
+    @buffer = ''
+    @max_size = max_size
+  end
+
+  def <<(data)
+    @buffer << data
+
+    if @buffer.length > @max_size
+      @buffer[0..(@buffer.length - @max_size - 1)] = ''
+    end
+
+    nil
+  end
+
+  def read
+    ret = @buffer.clone
+    @buffer.clear
+    ret
+  end
+end
+
 class Wrapper
   def initialize(args)
     ctid = args.shift
@@ -35,7 +58,7 @@ class Wrapper
     @current_rows = 25
     @current_cols = 80
     @cmd_buf = ''
-    @read_buf = ''
+    @read_buf = StringBuffer.new
 
     Process.setproctitle("osctld: CT #{ctid}")
   end
@@ -177,12 +200,8 @@ class Wrapper
 
   def send_to_client(data)
     if client
-      to_send = read_buf + data
-
-      unless to_send.empty?
-        client.send(to_send, 0)
-        read_buf.clear
-      end
+      to_send = read_buf.read + data
+      client.send(to_send, 0) unless to_send.empty?
     else
       read_buf << data
     end
