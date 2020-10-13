@@ -12,7 +12,7 @@ callPackage ./generic.nix (args // rec {
   extraMeta.branch = concatStrings (intersperse "." (take 2 (splitString "." version)));
 
   src = fetchurl {
-    url = "https://github.com/snajpa/linux/archive/1c630dd26a648778c277fd825557d53668b76909.tar.gz";
-    sha256 = "0y56pbf965imlpcm25f5i6y1d41bja6v189sbq118i52fmq9pwlq";
+    url = "https://github.com/snajpa/linux/archive/33a663077f314a6bd3f4147c833e5037a96dcb42.tar.gz";
+    sha256 = "1kq2mg819xff6idvjrnms2nzkrwar83bp0qyyrhw6r5spxw1mb00";
   };
 } // (args.argsOverride or {}))
