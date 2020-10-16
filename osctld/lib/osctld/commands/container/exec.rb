@@ -12,6 +12,9 @@ module OsCtld
       error!('container not found') unless ct
       error!('container not running') if !ct.running? && !opts[:run]
 
+      # Ensure the container is mounted
+      ct.mount
+
       client.send({status: true, response: 'continue'}.to_json + "\n", 0)
 
       st = ContainerControl::Commands::Exec.run!(
