@@ -14,60 +14,62 @@ module OsCtld
     end
 
     def execute(ct)
-      grp = DB::Groups.find(opts[:group], ct.pool)
-      return error('group not found') unless grp
+      new_group = DB::Groups.find(opts[:group], ct.pool)
 
-      return error("already in group #{grp.name}") if ct.group == grp
-      return error('container has to be stopped first') if ct.state != :stopped
+      if new_group.nil?
+        error!('group not found')
+      elsif ct.group == new_group
+        error!("already in group #{new_group.name}")
+      elsif ct.state != :stopped
+        error!('container has to be stopped first')
+      end
 
-      old_grp = ct.group
+      old_group = ct.group
 
-      grp.inclusively do
-        ct.exclusively do
-          # Double check state while having exclusive lock
-          next error('container has to be stopped first') if ct.state != :stopped
+      manipulate([ct, new_group, old_group]) do
+        # Double check state
+        error!('container has to be stopped first') if ct.state != :stopped
 
-          # Check that devices are available in the new group
-          unless %w(provide remove).include?(opts[:missing_devices])
-            begin
-              ct.devices.check_all_available!(grp)
+        # Check that devices are available in the new group
+        unless %w(provide remove).include?(opts[:missing_devices])
+          begin
+            ct.devices.check_all_available!(new_group)
 
-            rescue DeviceNotAvailable, DeviceModeInsufficient => e
-              error!(e.message)
-            end
+          rescue DeviceNotAvailable, DeviceModeInsufficient => e
+            error!(e.message)
           end
-
-          # Stop monitor for old user/group
-          Monitor::Master.demonitor(ct)
-
-          progress('Moving LXC configuration')
-
-          # Ensure LXC home
-          unless grp.setup_for?(ct.user)
-            dir = grp.userdir(ct.user)
-
-            FileUtils.mkdir_p(dir, mode: 0751)
-            File.chown(0, ct.user.ugid, dir)
-          end
-
-          # Move CT dir
-          syscmd("mv #{ct.lxc_dir} #{ct.lxc_dir(group: grp)}")
-
-          # Switch group, regenerate configs
-          progress('Reconfiguring container')
-          ct.chgrp(grp, missing_devices: opts[:missing_devices] || 'check')
-
-          # Restart monitor
-          Monitor::Master.monitor(ct)
-
-          # Clear old LXC home if possible
-          unless old_grp.has_containers?(ct.user)
-            progress('Cleaning up original LXC home')
-            Dir.rmdir(old_grp.userdir(ct.user))
-          end
-
-          ok
         end
+
+        # Stop monitor for old user/group
+        Monitor::Master.demonitor(ct)
+
+        progress('Moving LXC configuration')
+
+        # Ensure LXC home
+        unless new_group.setup_for?(ct.user)
+          dir = new_group.userdir(ct.user)
+
+          FileUtils.mkdir_p(dir, mode: 0751)
+          File.chown(0, ct.user.ugid, dir)
+        end
+
+        # Move CT dir
+        syscmd("mv #{ct.lxc_dir} #{ct.lxc_dir(group: new_group)}")
+
+        # Switch group, regenerate configs
+        progress('Reconfiguring container')
+        ct.chgrp(new_group, missing_devices: opts[:missing_devices] || 'check')
+
+        # Restart monitor
+        Monitor::Master.monitor(ct)
+
+        # Clear old LXC home if possible
+        unless old_group.has_containers?(ct.user)
+          progress('Cleaning up original LXC home')
+          Dir.rmdir(old_group.userdir(ct.user))
+        end
+
+        ok
       end
     end
   end
