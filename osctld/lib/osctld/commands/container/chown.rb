@@ -53,24 +53,27 @@ module OsCtld
         ct.chown(new_user)
 
         # Configure datasets
-        datasets = ct.datasets
+        if new_user.uid_map != old_user.uid_map \
+           || new_user.gid_map != old_user.gid_map
+          datasets = ct.datasets
 
-        datasets.reverse_each do |ds|
-          progress("Unmounting dataset #{ds.relative_name}")
-          zfs(:unmount, nil, ds)
-        end
+          datasets.reverse_each do |ds|
+            progress("Unmounting dataset #{ds.relative_name}")
+            zfs(:unmount, nil, ds)
+          end
 
-        datasets.each do |ds|
-          progress("Setting UID/GID mapping of #{ds.relative_name}")
-          zfs(
-            :set,
-            "uidmap=\"#{ct.uid_map.map(&:to_s).join(',')}\" "+
-            "gidmap=\"#{ct.gid_map.map(&:to_s).join(',')}\"",
-            ds
-          )
+          datasets.each do |ds|
+            progress("Setting UID/GID mapping of #{ds.relative_name}")
+            zfs(
+              :set,
+              "uidmap=\"#{ct.uid_map.map(&:to_s).join(',')}\" "+
+              "gidmap=\"#{ct.gid_map.map(&:to_s).join(',')}\"",
+              ds
+            )
 
-          progress("Remounting dataset #{ds.relative_name}")
-          zfs(:mount, nil, ds)
+            progress("Remounting dataset #{ds.relative_name}")
+            zfs(:mount, nil, ds)
+          end
         end
 
         # Restart monitor
