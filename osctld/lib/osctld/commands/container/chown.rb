@@ -59,7 +59,7 @@ module OsCtld
 
           datasets.reverse_each do |ds|
             progress("Unmounting dataset #{ds.relative_name}")
-            zfs(:unmount, nil, ds)
+            zfs(:unmount, nil, ds, valid_rcs: [1])
           end
 
           datasets.each do |ds|
