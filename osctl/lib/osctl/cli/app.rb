@@ -1082,6 +1082,9 @@ module OsCtl::Cli
           s.desc 'Send the container with a different id'
           s.flag 'as-id'
 
+          s.desc 'Send the container with a different user name'
+          s.flag 'as-user'
+
           s.desc 'Pool on the target node to send the container to'
           s.flag 'to-pool'
 
@@ -1113,6 +1116,9 @@ module OsCtl::Cli
 
             c.desc 'Send the container with a different id'
             c.flag 'as-id'
+
+            c.desc 'Send the container with a different user name'
+            c.flag 'as-user'
 
             c.desc 'Pool on the target node to send the container to'
             c.flag 'to-pool'

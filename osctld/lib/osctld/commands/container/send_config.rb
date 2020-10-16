@@ -17,7 +17,13 @@ module OsCtld
         ctid = opts[:as_id] || ct.id
 
         f = Tempfile.open("ct-#{ct.id}-skel")
-        export(ct, f, ctid: ctid, network_interfaces: opts[:network_interfaces])
+        export(
+          ct,
+          f,
+          ctid: ctid,
+          user: opts[:as_user] || ct.user.name,
+          network_interfaces: opts[:network_interfaces],
+        )
         f.seek(0)
 
         m_opts = {
@@ -63,16 +69,22 @@ module OsCtld
     # @param io [IO]
     # @param opts [Hash]
     # @option opts [String] :ctid
+    # @option opts [String] :user
     # @option opts [Boolean] :network_interfaces
     def export(ct, io, opts = {})
       exporter = OsCtl::Lib::Exporter::Zfs.new(ct, io)
-      exporter.dump_metadata('skel', id: opts[:ctid] || ct.id)
+      exporter.dump_metadata(
+        'skel',
+        id: opts[:ctid],
+        user: opts[:user],
+      )
       exporter.dump_configs do |dump|
         dump.user(File.read(ct.user.config_path))
         dump.group(File.read(ct.group.config_path))
 
         ct_cfg = ct.dump_config
         ct_cfg.delete('net_interfaces') if !opts[:network_interfaces]
+        ct_cfg['user'] = opts[:user]
         dump.container(YAML.dump(ct_cfg))
       end
       exporter.dump_user_hook_scripts(Container::Hook.hooks)

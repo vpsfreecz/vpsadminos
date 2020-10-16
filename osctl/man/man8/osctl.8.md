@@ -1317,6 +1317,10 @@ read by `ls` or `show` commands.
     `--as-id` *ctid*
       Send the container with a different ID.
 
+    `--as-user` *user*
+      Send the container with a different user name. The user configuration
+      remains the same, it is only the name that is changed.
+
     `--to-pool` *pool*
       Select pool on the target node to send the container to. If not set, the
       target node uses its first available pool.
@@ -1355,6 +1359,10 @@ read by `ls` or `show` commands.
 
     `--as-id` *ctid*
       Send the container with a different ID.
+
+    `--as-user` *user*
+      Send the container with a different user name. The user configuration
+      remains the same, it is only the name that is changed.
 
     `--to-pool` *pool*
       Select pool on the target node to send the container to. If not set, the
