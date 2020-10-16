@@ -44,13 +44,14 @@ module OsCtl::Lib
     # @param opts [Hash] options
     # @option opts [String] :id custom container id
     # @option opts [String] :user custom user name
+    # @option opts [String] :group custom group name
     def dump_metadata(type, opts = {})
       tar.add_file('metadata.yml', FILE_MODE) do |tf|
         tf.write(YAML.dump(
           'type' => type,
           'format' => format.to_s,
           'user' => opts[:user] || (ct.user && ct.user.name),
-          'group' => ct.group && ct.group.name,
+          'group' => opts[:group] || (ct.group && ct.group.name),
           'container' => opts[:id] || ct.id,
           'datasets' => datasets.map { |ds| ds.relative_name },
           'exported_at' => Time.now.to_i,

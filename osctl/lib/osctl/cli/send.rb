@@ -52,6 +52,7 @@ module OsCtl::Cli
         passphrase: opts[:passphrase],
         as_id: opts['as-id'],
         as_user: opts['as-user'],
+        as_group: opts['as-group'],
         to_pool: opts['to-pool'],
         network_interfaces: opts['network-interfaces'],
       )
@@ -125,6 +126,7 @@ module OsCtl::Cli
         passphrase: opts[:passphrase],
         as_id: opts['as-id'],
         as_user: opts['as-user'],
+        as_group: opts['as-group'],
         to_pool: opts['to-pool'],
         clone: opts[:clone],
         consistent: opts[:consistent],

@@ -1321,6 +1321,10 @@ read by `ls` or `show` commands.
       Send the container with a different user name. The user configuration
       remains the same, it is only the name that is changed.
 
+    `--as-group` *group*
+      Send the container with a different group name. The group configuration
+      remains the same, it is only the name that is changed.
+
     `--to-pool` *pool*
       Select pool on the target node to send the container to. If not set, the
       target node uses its first available pool.
@@ -1362,6 +1366,10 @@ read by `ls` or `show` commands.
 
     `--as-user` *user*
       Send the container with a different user name. The user configuration
+      remains the same, it is only the name that is changed.
+
+    `--as-group` *group*
+      Send the container with a different group name. The group configuration
       remains the same, it is only the name that is changed.
 
     `--to-pool` *pool*
