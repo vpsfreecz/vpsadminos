@@ -14,70 +14,72 @@ module OsCtld
     end
 
     def execute(ct)
-      user = DB::Users.find(opts[:user], ct.pool)
-      error!('user not found') unless user
+      new_user = DB::Users.find(opts[:user], ct.pool)
 
-      error!("already owned by #{user.name}") if ct.user == user
+      if new_user.nil?
+        error!('user not found')
+      elsif ct.user == new_user
+        error!("already owned by #{new_user.name}")
+      elsif ct.state != :stopped
+        error!('container has to be stopped first')
+      end
 
-      error!('container has to be stopped first') if ct.state != :stopped
       Monitor::Master.demonitor(ct)
 
       old_user = ct.user
 
-      user.inclusively do
-        ct.exclusively do
-          # Double check state while having exclusive lock
-          error!('container has to be stopped first') if ct.state != :stopped
+      manipulate([ct, new_user, old_user]) do
+        # Double check state
+        error!('container has to be stopped first') if ct.state != :stopped
 
-          progress('Moving LXC configuration')
+        progress('Moving LXC configuration')
 
-          # Ensure LXC home
-          unless ct.group.setup_for?(user)
-            dir = ct.group.userdir(user)
+        # Ensure LXC home
+        unless ct.group.setup_for?(new_user)
+          dir = ct.group.userdir(new_user)
 
-            FileUtils.mkdir_p(dir, mode: 0751)
-            File.chown(0, user.ugid, dir)
-          end
+          FileUtils.mkdir_p(dir, mode: 0751)
+          File.chown(0, new_user.ugid, dir)
+        end
 
-          # Move CT dir
-          syscmd("mv #{ct.lxc_dir} #{ct.lxc_dir(user: user)}")
-          File.chown(0, user.ugid, ct.lxc_dir(user: user))
+        # Move CT dir
+        syscmd("mv #{ct.lxc_dir} #{ct.lxc_dir(user: new_user)}")
+        File.chown(0, new_user.ugid, ct.lxc_dir(user: new_user))
 
-          # Chown assets
-          File.chown(0, user.ugid, ct.log_path) if File.exist?(ct.log_path)
+        # Chown assets
+        File.chown(0, new_user.ugid, ct.log_path) if File.exist?(ct.log_path)
 
-          # Switch user, regenerate configs
-          ct.chown(user)
+        # Switch user, regenerate configs
+        ct.chown(new_user)
 
-          # Configure datasets
-          datasets = ct.datasets
+        # Configure datasets
+        datasets = ct.datasets
 
-          datasets.reverse_each do |ds|
-            progress("Unmounting dataset #{ds.relative_name}")
-            zfs(:unmount, nil, ds)
-          end
+        datasets.reverse_each do |ds|
+          progress("Unmounting dataset #{ds.relative_name}")
+          zfs(:unmount, nil, ds)
+        end
 
-          datasets.each do |ds|
-            progress("Setting UID/GID mapping of #{ds.relative_name}")
-            zfs(
-              :set,
-              "uidmap=\"#{ct.uid_map.map(&:to_s).join(',')}\" "+
-              "gidmap=\"#{ct.gid_map.map(&:to_s).join(',')}\"",
-              ds
-            )
+        datasets.each do |ds|
+          progress("Setting UID/GID mapping of #{ds.relative_name}")
+          zfs(
+            :set,
+            "uidmap=\"#{ct.uid_map.map(&:to_s).join(',')}\" "+
+            "gidmap=\"#{ct.gid_map.map(&:to_s).join(',')}\"",
+            ds
+          )
 
-            progress("Remounting dataset #{ds.relative_name}")
-            zfs(:mount, nil, ds)
-          end
+          progress("Remounting dataset #{ds.relative_name}")
+          zfs(:mount, nil, ds)
+        end
 
-          # Restart monitor
-          Monitor::Master.monitor(ct)
+        # Restart monitor
+        Monitor::Master.monitor(ct)
 
-          # Clear old LXC home if possible
-          unless ct.group.has_containers?(old_user)
-            progress('Cleaning up original LXC home')
-            Dir.rmdir(ct.group.userdir(old_user))
-          end
+        # Clear old LXC home if possible
+        unless ct.group.has_containers?(old_user)
+          progress('Cleaning up original LXC home')
+          Dir.rmdir(ct.group.userdir(old_user))
         end
       end
 
