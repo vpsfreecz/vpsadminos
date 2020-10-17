@@ -41,9 +41,10 @@ module OsCtld
         end
 
         begin
-          ContainerControl::Commands::Stop.run!(
+          DistConfig.run(
             ct,
-            mode,
+            :stop,
+            mode: mode,
             timeout: opts[:timeout] || 60,
           )
         rescue ContainerControl::UserRunnerError
