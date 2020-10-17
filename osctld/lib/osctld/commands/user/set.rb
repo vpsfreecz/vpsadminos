@@ -15,7 +15,7 @@ module OsCtld
 
         opts.each do |k, v|
           case k
-          when :attrs
+          when :standalone, :attrs
             changes[k] = v
           end
         end

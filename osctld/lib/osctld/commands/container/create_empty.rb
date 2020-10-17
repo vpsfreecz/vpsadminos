@@ -87,6 +87,7 @@ module OsCtld
         Commands::User::Create,
         pool: pool.name,
         name: name,
+        standalone: false,
       )
 
       return DB::Users.find(name, pool) || (fail 'expected user')

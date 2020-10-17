@@ -12,7 +12,7 @@ module OsCtld
     include Assets::Definition
     include OsCtl::Lib::Utils::Log
 
-    attr_inclusive_reader :pool, :name, :ugid, :uid_map, :gid_map, :attrs
+    attr_inclusive_reader :pool, :name, :ugid, :uid_map, :gid_map, :standalone, :attrs
     attr_exclusive_writer :registered
 
     def initialize(pool, name, load: true, config: nil)
@@ -35,11 +35,13 @@ module OsCtld
     # @param uid_map [IdMap]
     # @param gid_map [IdMap]
     # @param ugid [Integer, nil]
-    def configure(uid_map, gid_map, ugid: nil)
+    # @param standalone [Boolean]
+    def configure(uid_map, gid_map, ugid: nil, standalone: true)
       exclusively do
         @ugid = ugid || UGidRegistry.get
         @uid_map = uid_map
         @gid_map = gid_map
+        @standalone = standalone
       end
 
       save_config
@@ -98,10 +100,14 @@ module OsCtld
     end
 
     # @param opts [Hash]
+    # @option opts [true] :standalone
     # @option opts [Hash] :attrs
     def set(opts)
       opts.each do |k, v|
         case k
+        when :standalone
+          exclusively { @standalone = true }
+
         when :attrs
           attrs.update(v)
 
@@ -114,10 +120,14 @@ module OsCtld
     end
 
     # @param opts [Hash]
+    # @option opts [true] :standalone
     # @option opts [Array<String>] :attrs
     def unset(opts)
       opts.each do |k, v|
         case k
+        when :standalone
+          exclusively { @standalone = false }
+
         when :attrs
           v.each { |attr| attrs.unset(attr) }
 
@@ -182,6 +192,7 @@ module OsCtld
         {
           'uid_map' => uid_map.dump,
           'gid_map' => gid_map.dump,
+          'standalone' => standalone,
           'attrs' => attrs.dump,
         }
       end
@@ -205,6 +216,7 @@ module OsCtld
       @ugid = SystemUsers.uid_of(sysusername) || UGidRegistry.get
       @uid_map = IdMap.load(cfg['uid_map'], cfg)
       @gid_map = IdMap.load(cfg['gid_map'], cfg)
+      @standalone = cfg.has_key?('standalone') ? cfg['standalone'] : true
       @attrs = Attributes.load(cfg['attrs'] || {})
     end
   end

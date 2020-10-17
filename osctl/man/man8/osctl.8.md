@@ -573,6 +573,10 @@ read by `ls` or `show` commands.
       on the host and *count* is the number of mapped GIDs both inside and
       outside the user namespace. This option can be used mutiple times.
 
+    `--[no-]standalone`
+      Make the user standalone. Standalone users are not deleted together with
+      their containers, but are left behind. Enabled by default.
+
 `user del` *user*
   Delete user *user*.
 
@@ -640,6 +644,14 @@ read by `ls` or `show` commands.
     
     `-o`, `--output` *parameters*
       Select parameters to output, comma separated.
+
+`user set standalone` *user*
+  Mark the user as standalone. Standalone users are not automatically deleted
+  with their containers.
+
+`user unset standalone` *user*
+  Remove the standalone mark. The user will be automatically deleted when the
+  last container that uses it is deleted.
 
 `user set attr` *user* *vendor*:*key* *value*
   Set custom user attribute *vendor*:*key* for user *user*. Configured

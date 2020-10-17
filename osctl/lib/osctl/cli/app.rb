@@ -386,6 +386,9 @@ module OsCtl::Cli
           new.desc 'GID mapping'
           new.flag 'map-gid', multiple: true, arg_name: 'gid_map'
 
+          new.desc 'Make the user standalone'
+          new.switch %i(standalone), default_value: true
+
           new.action &Command.run(User, :create)
         end
 
@@ -433,11 +436,23 @@ module OsCtl::Cli
 
         u.desc 'Configure user options'
         u.command :set do |set|
+          set.desc 'Make the user standalone'
+          set.arg_name '<user>'
+          set.command :standalone do |c|
+            c.action &Command.run(User, :set_standalone)
+          end
+
           set_attr(set, User, 'user')
         end
 
         u.desc 'Reset user options'
         u.command :unset do |unset|
+          unset.desc 'Remove the standalone flag'
+          unset.arg_name '<user>'
+          unset.command :standalone do |c|
+            c.action &Command.run(User, :unset_standalone)
+          end
+
           unset_attr(unset, User, 'user')
         end
       end

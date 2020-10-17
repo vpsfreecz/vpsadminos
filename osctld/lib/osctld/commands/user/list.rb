@@ -20,6 +20,7 @@ module OsCtld
           ugid: u.ugid,
           homedir: u.homedir,
           registered: u.registered?,
+          standalone: u.standalone,
         }.merge!(u.attrs.export)
       end
 

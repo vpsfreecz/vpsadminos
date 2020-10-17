@@ -59,7 +59,12 @@ module OsCtld
       check_mappings!(uid_map, gid_map)
 
       manipulate(u) do
-        u.configure(uid_map, gid_map, ugid: opts[:ugid])
+        u.configure(
+          uid_map,
+          gid_map,
+          ugid: opts[:ugid],
+          standalone: opts[:standalone],
+        )
 
         call_cmd!(Commands::User::Setup, user: u)
         call_cmd!(Commands::User::Register, name: u.name, pool: u.pool.name)

@@ -79,6 +79,14 @@ module OsCtld
         end
       end
 
+      if !ct.user.standalone && !ct.user.has_containers?
+        call_cmd!(
+          Commands::User::Delete,
+          pool: ct.user.pool.name,
+          name: ct.user.name,
+        )
+      end
+
       progress('Reconfiguring LXC usernet')
       call_cmd(Commands::User::LxcUsernet)
 

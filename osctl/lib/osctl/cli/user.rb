@@ -15,6 +15,7 @@ module OsCtl::Cli
       dataset
       homedir
       registered
+      standalone
     )
 
     FILTERS = %i(pool registered)
@@ -23,6 +24,7 @@ module OsCtl::Cli
       pool
       name
       registered
+      standalone
     )
 
     IDMAP_FIELDS = %i(type ns_id host_id count)
@@ -101,6 +103,7 @@ module OsCtl::Cli
         block_index: opts['id-range-block-index'],
         uid_map: uid_map.any? ? uid_map : nil,
         gid_map: gid_map.any? ? gid_map : nil,
+        standalone: opts['standalone'],
       })
     end
 
@@ -167,6 +170,26 @@ module OsCtl::Cli
         cmd_opts,
         opts[:output] ? opts[:output].split(',').map(&:to_sym) : IDMAP_FIELDS,
         fmt_opts
+      )
+    end
+
+    def set_standalone
+      require_args!('name')
+      osctld_fmt(
+        :user_set,
+        name: args[0],
+        pool: gopts[:pool],
+        standalone: true,
+      )
+    end
+
+    def unset_standalone
+      require_args!('name')
+      osctld_fmt(
+        :user_unset,
+        name: args[0],
+        pool: gopts[:pool],
+        standalone: true,
       )
     end
 
