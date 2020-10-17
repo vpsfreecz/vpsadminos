@@ -27,6 +27,18 @@ module OsCtld
       @version = ctrc.version
     end
 
+    # Gracefully stop the container
+    # @param opts [Hash]
+    # @option opts [:stop, :shutdown, :kill] :mode
+    # @option opts [Integer] :timeout
+    def stop(opts)
+      ContainerControl::Commands::Stop.run!(
+        ct,
+        opts[:mode],
+        timeout: opts[:timeout],
+      )
+    end
+
     # @param opts [Hash] options
     # @option opts [OsCtl::Lib::Hostname] :original previous hostname
     def set_hostname(opts)
