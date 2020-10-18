@@ -61,6 +61,10 @@ module OsCtld
       )
     end
 
+    def stop_ct(ct)
+      plan.remove(ct.id)
+    end
+
     def clear
       plan.clear
     end

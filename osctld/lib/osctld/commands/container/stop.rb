@@ -17,6 +17,9 @@ module OsCtld
       manipulate(ct) do
         progress('Stopping container')
 
+        # Remove the container from autostart queue
+        ct.pool.autostart_plan.stop_ct(ct)
+
         mode =
           case (opts[:method] || 'shutdown_or_kill')
           when 'shutdown_or_kill'
