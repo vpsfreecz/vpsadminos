@@ -28,9 +28,7 @@ module OsCtld
           next if cur_ct.nil? || cur_ct.running?
 
           log(:info, ct, 'Auto-starting container')
-          Commands::Container::Start.run(pool: cur_ct.pool.name, id: cur_ct.id)
-
-          sleep(cur_ct.autostart.delay)
+          do_try_start_ct(cur_ct)
         end
       end)
     end
@@ -42,9 +40,7 @@ module OsCtld
           next if cur_ct.nil? || cur_ct.running?
 
           log(:info, ct, 'Starting enqueued container')
-          Commands::Container::Start.run(
-            start_opts.merge(pool: cur_ct.pool.name, id: cur_ct.id, queue: false)
-          )
+          do_try_start_ct(cur_ct, start_opts: start_opts.merge(queue: false))
         end
       )
     end
@@ -84,8 +80,27 @@ module OsCtld
     protected
     attr_reader :plan
 
-    def queue_cmd_for(ct)
+    def do_try_start_ct(ct, attempts: 5, cooldown: 5, start_opts: {})
+      attempts.times do |i|
+        ret = Commands::Container::Start.run(start_opts.merge(
+          pool: ct.pool.name,
+          id: ct.id,
+        ))
 
+        if ret[:status]
+          sleep(ct.autostart.delay)
+          return
+        end
+
+        if i+1 == attempts
+          log(:warn, ct, 'All attempts to start the container have failed')
+          return
+        end
+
+        pause = cooldown + i * cooldown
+        log(:warn, ct, "Unable to start the container, retrying in #{pause} seconds")
+        sleep(pause)
+      end
     end
   end
 end
