@@ -71,7 +71,7 @@ module OsCtld
     # Enqueue command for execution
     # @param cmd [Command, Array<Command>]
     def enqueue(cmd)
-      @front_queue << cmd
+      @front_queue << [:command, cmd]
     end
 
     # Enqueue command for execution
@@ -90,20 +90,26 @@ module OsCtld
       q.shift(timeout: timeout)
     end
 
+    # Remove enqueued command identified by its id
+    # @param id [any]
+    def remove(cmd_id)
+      @front_queue << [:remove, cmd_id]
+    end
+
     # Clear the execution queue
     def clear
-      @front_queue << :clear
+      @front_queue << [:clear]
     end
 
     # Stop execution and wait for all workers to finish
     def stop
-      @front_queue << :stop
+      @front_queue << [:stop]
       @main.join
     end
 
     # @param new_size [Integer] new number of workers
     def resize(new_size)
-      @front_queue << new_size
+      @front_queue << [:resize, new_size]
     end
 
     # Return contents of the current queue
@@ -116,46 +122,54 @@ module OsCtld
     def start
       @main = Thread.new do
         loop do
-          v = @front_queue.pop
+          cmd, arg = @front_queue.pop
 
-          if v.is_a?(Command)
-            v.send(:'order=', @counter.increment)
+          case cmd
+          when :command
+            if arg.is_a?(Command)
+              arg.send(:'order=', @counter.increment)
 
-            sync do
-              if @workers.size < @size
-                exec(v)
-              else
-                @exec_queue << v
+              sync do
+                if @workers.size < @size
+                  exec(arg)
+                else
+                  @exec_queue << arg
+                  @exec_queue.sort!
+                end
+              end
+
+            elsif arg.is_a?(Array)
+              arg.each { |c| c.send(:'order=', @counter.increment) }
+
+              sync do
+                @exec_queue.concat(arg)
                 @exec_queue.sort!
+
+                while @workers.size < @size && @exec_queue.any?
+                  exec(@exec_queue.shift)
+                end
               end
             end
 
-          elsif v.is_a?(Array)
-            v.each { |cmd| cmd.send(:'order=', @counter.increment) }
-
+          when :thread
             sync do
-              @exec_queue.concat(v)
-              @exec_queue.sort!
+              @workers.delete(arg)
 
               while @workers.size < @size && @exec_queue.any?
                 exec(@exec_queue.shift)
               end
             end
 
-          elsif v.is_a?(Thread)
-            sync do
-              @workers.delete(v)
-
-              while @workers.size < @size && @exec_queue.any?
-                exec(@exec_queue.shift)
-              end
-            end
-
-          elsif v == :clear
+          when :clear
             @front_queue.clear
             sync { @exec_queue.clear }
 
-          elsif v == :stop
+          when :remove
+            sync do
+              @exec_queue.delete_if { |c| c.id == arg }
+            end
+
+          when :stop
             sync do
               @exec_queue.clear
               @workers.each(&:join)
@@ -163,17 +177,14 @@ module OsCtld
 
             break
 
-          elsif v.is_a?(Integer)
+          when :resize
             sync do
-              @size = v
+              @size = arg
 
               while @workers.size < @size && @exec_queue.any?
                 exec(@exec_queue.shift)
               end
             end
-
-          else
-            # unknown
           end
         end
       end
@@ -189,7 +200,7 @@ module OsCtld
           puts denixstorify(e.backtrace).join("\n")
 
         ensure
-          @front_queue << Thread.current
+          @front_queue << [:thread, Thread.current]
           cmd.send(:done, ret)
         end
       end
