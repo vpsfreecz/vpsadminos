@@ -117,6 +117,8 @@ if [ -f /etc/systemd/system.conf ] ; then
 	sed -i 's/#DefaultTimeoutStartSec=90s/DefaultTimeoutStartSec=900s/' /etc/systemd/system.conf
 fi
 
+[ -d /etc/systemd ] && mkdir -p /var/log/journal
+
 systemctl mask journald-audit.socket
 systemctl mask systemd-udev-trigger.service
 EOF

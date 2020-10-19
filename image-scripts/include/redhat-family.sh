@@ -80,7 +80,10 @@ if [ -f /etc/systemd/system.conf ] ; then
 	sed -i 's/#DefaultTimeoutStartSec=90s/DefaultTimeoutStartSec=900s/' /etc/systemd/system.conf
 fi
 
-[ -d /etc/systemd ] && echo > /etc/machine-id
+if [ -d /etc/systemd ] ; then
+  echo > /etc/machine-id
+  mkdir -p /var/log/journal
+fi
 
 echo "%_netsharedpath /sys:/proc" >> /etc/rpm/macros.vpsadminos
 EOF

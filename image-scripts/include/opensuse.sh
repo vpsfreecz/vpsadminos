@@ -37,5 +37,6 @@ systemctl mask systemd-udev-trigger.service
 echo console >> /etc/securetty
 sed -i 's/#DefaultTimeoutStartSec=90s/DefaultTimeoutStartSec=900s/' /etc/systemd/system.conf
 echo "%_netsharedpath /sys:/proc" >> /etc/rpm/macros.vpsadminos
+mkdir -p /var/log/journal
 EOF
 }
