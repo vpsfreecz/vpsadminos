@@ -93,6 +93,7 @@ sed -i 's/#DefaultTimeoutStartSec=90s/DefaultTimeoutStartSec=900s/' /etc/systemd
 systemctl enable sshd
 systemctl disable systemd-resolved
 systemctl mask systemd-udev-trigger.service
+mkdir -p /var/log/journal
 usermod -L root
 
 echo > /etc/resolv.conf
