@@ -25,10 +25,10 @@ class Configuration
 
   def dry_run
     puts 'probing runit services...'
-    services = Services.new(opts)
+    services = Services.new(**opts)
 
     puts 'probing pools...'
-    pools = Pools.new(opts)
+    pools = Pools.new(**opts)
     pools.export
     pools.rollback
 
