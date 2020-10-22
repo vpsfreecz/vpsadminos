@@ -188,9 +188,13 @@ module OsCtld
       # this method to exit.
       sequence = %i(stopping stopped starting running)
       last_i = nil
+      wait_until = Time.now + (opts[:wait] || 60)
 
       loop do
-        event = event_queue.pop(timeout: opts[:wait] || 60)
+        timeout = wait_until - Time.now
+        return false if timeout < 0
+
+        event = event_queue.pop(timeout: timeout)
         return false if event.nil?
 
         # Ignore irrelevant events
