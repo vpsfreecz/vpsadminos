@@ -39,12 +39,8 @@ module OsCtld
       if ct.state == :stopped
         if ct.reboot?
           t = Thread.new do
-            Commands::Container::Start.run({
-              pool: ct.pool.name,
-              id: ct.id,
-              force: true,
-              manipulation_lock: 'wait',
-            })
+            sleep(1)
+            reboot_ct
           end
 
           ThreadReaper.add(t, nil)
@@ -64,6 +60,21 @@ module OsCtld
 
           ThreadReaper.add(t, nil)
         end
+      end
+    end
+
+    def reboot_ct
+      ret = Commands::Container::Start.run({
+        pool: ct.pool.name,
+        id: ct.id,
+        force: true,
+        manipulation_lock: 'wait',
+      })
+
+      if !ret.is_a?(Hash)
+        log(:warn, ct, 'Reboot failed: reason unknown')
+      elsif !ret[:status]
+        log(:warn, ct, "Reboot failed: #{ret[:message]}")
       end
     end
   end
