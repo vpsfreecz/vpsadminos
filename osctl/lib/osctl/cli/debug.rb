@@ -20,14 +20,14 @@ module OsCtl::Cli
             lock
           end,
           %i(id time thread object type state backtrace),
-          {layout: :rows}
+          layout: :rows,
         )
 
       else
         format_output(
           data,
           %i(id thread object type state),
-          {layout: :columns}
+          layout: :columns,
         )
       end
     end
@@ -50,7 +50,7 @@ module OsCtl::Cli
         thread[:backtrace] = thread[:backtrace] && thread[:backtrace].join("\n")
         thread
       end
-      format_output(data, nil, {layout: :rows})
+      format_output(data, nil, layout: :rows)
     end
 
     def ugids_ls
@@ -65,7 +65,7 @@ module OsCtl::Cli
             }
           end,
           nil,
-          {layout: :columns}
+          layout: :columns,
         )
 
       elsif args[0] == 'taken'

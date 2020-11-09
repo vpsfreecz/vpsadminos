@@ -872,7 +872,7 @@ module OsCtl::Cli
       end
 
       data = osctld_call(:ct_prlimit_list, cmd_opts)
-      format_output(data.map { |k, v| v.merge(name: k)}, cols, fmt_opts)
+      format_output(data.map { |k, v| v.merge(name: k)}, cols, **fmt_opts)
     end
 
     def prlimit_set

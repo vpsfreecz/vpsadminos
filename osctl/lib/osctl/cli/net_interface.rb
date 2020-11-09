@@ -199,7 +199,7 @@ module OsCtl::Cli
         cols = IP_FIELDS
       end
 
-      format_output(ret, cols, fmt_opts)
+      format_output(ret, cols, **fmt_opts)
     end
 
     def ip_add
@@ -279,7 +279,7 @@ module OsCtl::Cli
         cols = ROUTE_FIELDS
       end
 
-      format_output(ret, cols, fmt_opts)
+      format_output(ret, cols, **fmt_opts)
     end
 
     def route_add

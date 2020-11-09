@@ -62,7 +62,7 @@ module OsCtl::Cli
       )
       c.close
 
-      format_output(groups, cols, fmt_opts)
+      format_output(groups, cols, **fmt_opts)
     end
 
     def tree
@@ -94,7 +94,7 @@ module OsCtl::Cli
       )
       c.close
 
-      format_output(group, cols, fmt_opts)
+      format_output(group, cols, **fmt_opts)
     end
 
     def create
