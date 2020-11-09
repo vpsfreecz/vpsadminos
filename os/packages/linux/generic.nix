@@ -172,6 +172,12 @@ let
   passthru = {
     features = kernelFeatures;
     inherit commonStructuredConfig;
+    isXen = false;
+    isZen = false;
+    isHardened = false;
+    isLibre = false;
+    kernelOlder = lib.versionOlder version;
+    kernelAtLeast = lib.versionAtLeast version;
     passthru = kernel.passthru // (removeAttrs passthru [ "passthru" ]);
   };
 
