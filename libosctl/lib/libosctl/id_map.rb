@@ -34,7 +34,7 @@ module OsCtl::Lib
     end
 
     def add_from_string(str_entry, opts = {})
-      @entries << Entry.from_string(str_entry, opts)
+      @entries << Entry.from_string(str_entry, **opts)
     end
 
     def each(&block)
