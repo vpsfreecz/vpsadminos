@@ -91,6 +91,7 @@ EOF
 
 function configure-fedora {
 	configure-append <<EOF
+rm -f /etc/resolv.conf
 echo nameserver 8.8.8.8 > /etc/resolv.conf
 dnf -y update
 dnf -y clean all
@@ -105,6 +106,7 @@ systemctl mask sys-kernel-debug.mount
 systemctl disable tcsd.service
 systemctl disable rdisc.service
 systemctl disable systemd-networkd.service
+systemctl disable systemd-resolved.service
 systemctl disable sssd.service
 systemctl disable sshd.service
 
