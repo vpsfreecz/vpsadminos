@@ -47,7 +47,6 @@ module OsCtl::Image
 
       cts.each do |ct|
         client.delete_container(ct[:id])
-        client.delete_user(ct[:user])
       end
     end
 
