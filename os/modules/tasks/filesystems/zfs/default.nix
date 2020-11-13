@@ -504,6 +504,8 @@ in
          '') rootPools));
       };
 
+      services.udev.packages = [ packages.zfsUser ];
+
       runit.services = mapAttrs' (name: pool:
         nameValuePair "pool-${name}" (poolService name pool)
       ) cfgZfs.pools;
