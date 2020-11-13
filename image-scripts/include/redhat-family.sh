@@ -7,7 +7,7 @@ if [ "$DISTNAME" == "fedora" ]; then
 
 	YUM="dnf -c $DOWNLOAD/yum.conf --installroot=$INSTALL \
 		--disablerepo=* --enablerepo=install-$DISTNAME \
-		--enablerepo=install-$DISTNAME-updates -y"
+		-y"
 	YUM_GROUPINSTALL="$YUM group install"
 else
 	require_cmd yum
@@ -86,5 +86,31 @@ if [ -d /etc/systemd ] ; then
 fi
 
 echo "%_netsharedpath /sys:/proc" >> /etc/rpm/macros.vpsadminos
+EOF
+}
+
+function configure-fedora {
+	configure-append <<EOF
+$YUM update
+
+systemctl mask auditd.service
+systemctl mask systemd-journald-audit.socket
+systemctl mask firewalld.service
+systemctl mask systemd-udev-trigger.service
+systemctl mask proc-sys-fs-binfmt_misc.mount
+systemctl mask sys-kernel-debug.mount
+systemctl disable tcsd.service
+systemctl disable rdisc.service
+systemctl disable systemd-networkd.service
+systemctl disable sssd.service
+systemctl disable sshd.service
+
+sed -i -e 's/^#PermitRootLogin\ prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
+
+cat <<EOT > /etc/NetworkManager/conf.d/vpsadminos.conf
+[main]
+plugins+=ifcfg-rh
+rc-manager=file
+EOT
 EOF
 }

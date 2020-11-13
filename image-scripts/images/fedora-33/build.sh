@@ -1,6 +1,6 @@
 . "$IMAGEDIR/config.sh"
 BASEURL=http://ftp.fi.muni.cz/pub/linux/fedora/linux/releases/$RELVER/Everything/x86_64/os
-RELEASE="$BASEURL/Packages/f/fedora-release-$RELVER-1.noarch.rpm"
+RELEASE="$BASEURL/Packages/f/fedora-release-server-$RELVER-1.noarch.rpm"
 GROUPNAME="minimal install"
 EXTRAPKGS="vim man fedora-gpg-keys"
 REMOVEPKGS="plymouth"
