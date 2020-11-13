@@ -91,7 +91,7 @@ EOF
 
 function configure-fedora {
 	configure-append <<EOF
-$YUM update
+dnf -y update
 
 systemctl mask auditd.service
 systemctl mask systemd-journald-audit.socket
