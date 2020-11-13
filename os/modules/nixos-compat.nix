@@ -18,6 +18,7 @@ with lib;
       maintainers = mkOption { };
     };
     networking.enableIPv6 = mkOption { default = true; };
+    networking.hostId = mkOption { };
     programs.ssh.package = mkOption { };
     programs.ssh.setXAuthLocation = mkOption { default = false; };
     krb5 = mkOption { };
