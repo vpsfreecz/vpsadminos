@@ -18,6 +18,7 @@ function fail {
 }
 
 function mount-chroot {
+	mkdir -p "$1/proc" "$1/sys" "$1/dev"
 	mount -t proc proc "$1/proc"
 	mount -t sysfs sys "$1/sys"
 	mount --rbind /dev "$1/dev"
