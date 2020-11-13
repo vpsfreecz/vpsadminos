@@ -38,7 +38,7 @@ let
       # Add the udev rules from other packages.
       for i in $packages; do
         echo "Adding rules for package $i"
-        for j in $i/var/lib/udev/rules.d/*; do
+        for j in $i/{etc,lib,var/lib}/udev/rules.d/*; do
           echo "Copying $j to $out/$(basename $j)"
           cat $j > $out/$(basename $j)
         done
