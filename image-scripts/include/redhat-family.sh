@@ -91,7 +91,10 @@ EOF
 
 function configure-fedora {
 	configure-append <<EOF
+echo nameserver 8.8.8.8 > /etc/resolv.conf
 dnf -y update
+dnf -y clean all
+> /etc/resolv.conf
 
 systemctl mask auditd.service
 systemctl mask systemd-journald-audit.socket
