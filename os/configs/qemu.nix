@@ -4,6 +4,7 @@
   boot.kernelParams = [ "root=/dev/vda" ];
   boot.initrd.kernelModules = [ "virtio" "virtio_pci" "virtio_net" "virtio_rng" "virtio_blk" "virtio_console" ];
 
+  networking.hostId = lib.mkDefault "f3276671";
   networking.hostName = lib.mkDefault "vpsadminos";
   networking.static.enable = lib.mkDefault true;
   networking.lxcbr = true;
