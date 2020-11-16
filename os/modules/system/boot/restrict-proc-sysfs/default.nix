@@ -3,9 +3,9 @@ with lib;
 let
   cfg = config.system.boot.restrict-proc-sysfs;
 
-  restrictProcSysfs = pkgs.callPackage ./restrict-dirs.nix {
-    data = cfg.config;
-  };
+  restrictProcSysfs = pkgs.callPackage ./restrict-dirs.nix {};
+
+  configFile = pkgs.writeText "restrict-proc-sysfs-config.txt" cfg.config;
 in {
   options = {
     system.boot.restrict-proc-sysfs = {
@@ -18,10 +18,10 @@ in {
       };
 
       config = mkOption {
-        type = types.attrs;
-        default = (import ./config.nix);
+        type = types.lines;
+        default = builtins.readFile ./config.txt;
         description = ''
-          Config passed to ../restrict-dirs.nix
+          Config passed to ./restrict-dirs.rb
         '';
       };
     };
@@ -31,7 +31,7 @@ in {
     runit.services.restrict-proc-sysfs = {
       run = ''
         sleep 10
-        ${restrictProcSysfs}
+        ${restrictProcSysfs} ${configFile}
       '';
       oneShot = true;
       log.enable = true;
