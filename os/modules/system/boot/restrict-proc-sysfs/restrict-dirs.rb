@@ -59,8 +59,9 @@ class RestrictDirs
 
     File.open(config_path) do |f|
       f.each_line do |line|
-        cmd, *args = line.strip.split
+        next if line.start_with?('#')
 
+        cmd, *args = line.strip.split
         ret << Command.new(cmd, args)
       end
     end
