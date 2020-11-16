@@ -23,4 +23,5 @@ skip       /sys/devices/virtual/net
 skip       /sys/devices/virtual/tty
 restrict   /sys/firmware
 restrict   /sys/module/*/sections
+grant      /sys/module/nf_conntrack/parameters/*
 restrict   /sys/power
