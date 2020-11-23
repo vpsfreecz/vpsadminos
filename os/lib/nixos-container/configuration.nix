@@ -1,38 +1,10 @@
 { config, pkgs, lib, ...}:
 let
-  nixpkgsBase = toString <nixpkgs>;
-
-  osBase = toString ../../..;
-
-  nixpkgsImports = [
-    "nixos/modules/virtualisation/container-config.nix"
-    "nixos/modules/installer/cd-dvd/channel.nix"
-  ];
-
-  osImports = [
-    "os/lib/nixos-container/build.nix"
-    "os/lib/nixos-container/networking.nix"
-  ];
-
-  clonedImports =
-    (map (v: "<nixpkgs/${v}>") nixpkgsImports)
-    ++
-    (map (v: "./${baseNameOf v}") osImports);
-
-  clonedImportsString =
-    lib.concatMapStringsSep "\n" (x: "    " + x) clonedImports;
-
-  useImports =
-    (map (v: "${nixpkgsBase}/${v}") nixpkgsImports)
-    ++
-    (map (v: "${osBase}/${v}") osImports);
-
-  configClone = pkgs.writeText "configuration.nix"
-    ''
+  configClone = pkgs.writeText "configuration.nix" ''
     { config, pkgs, ... }:
     {
       imports = [
-    ${clonedImportsString}
+        ./vpsadminos.nix
       ];
 
       environment.systemPackages = with pkgs; [
@@ -50,48 +22,65 @@ let
 
       time.timeZone = "Europe/Amsterdam";
 
-      documentation.enable = true;
-      documentation.nixos.enable = true;
-
       system.stateVersion = "${lib.trivial.release}";
     }
-    '';
+  '';
 
-  localCopies = lib.concatMapStrings (path:
-    let
-      name = baseNameOf path;
-      src = pkgs.copyPathToStore "${osBase}/${path}";
-    in ''
-      if ! [ -e /etc/nixos/${name} ]; then
-        cp ${src} /etc/nixos/${name}
-        chmod +w /etc/nixos/${name}
-      fi
-    '') osImports;
+in {
+  imports = [
+    <nixpkgs/nixos/modules/installer/cd-dvd/channel.nix>
+    <nixpkgs/nixos/modules/virtualisation/container-config.nix>
+    ./vpsadminos.nix
+  ];
 
-  in {
-    imports = useImports;
+  environment.systemPackages = with pkgs; [ vim ];
+  time.timeZone = "Europe/Amsterdam";
+  system.stateVersion = lib.trivial.release;
 
-    environment.systemPackages = with pkgs; [ vim ];
-    time.timeZone = "Europe/Amsterdam";
-    system.stateVersion = lib.trivial.release;
+  services.openssh.enable = lib.mkDefault true;
+  services.openssh.permitRootLogin = lib.mkDefault "yes";
 
-    services.openssh.enable = lib.mkDefault true;
-    services.openssh.permitRootLogin = lib.mkDefault "yes";
+  systemd.extraConfig = ''
+    DefaultTimeoutStartSec=900s
+  '';
 
-    systemd.extraConfig = ''
-      DefaultTimeoutStartSec=900s
-    '';
+  boot.postBootCommands = ''
+    # After booting, register the contents of the Nix store in the Nix database.
+    if [ -f /nix-path-registration ]; then
+      ${config.nix.package.out}/bin/nix-store --load-db < /nix-path-registration &&
+      rm /nix-path-registration
+    fi
 
-    documentation.enable = true;
-    documentation.nixos.enable = true;
+    # nixos-rebuild also requires a "system" profile
+    ${config.nix.package.out}/bin/nix-env -p /nix/var/nix/profiles/system --set /run/current-system
 
-    boot.postBootCommands =
-      ''
-        # Copy configuration required to reproduce this build
-        if ! [ -e /etc/nixos/configuration.nix ]; then
-              cp ${configClone} /etc/nixos/configuration.nix
-              chmod +w /etc/nixos/configuration.nix
-        fi
-        ${localCopies}
-      '';
-  }
+    # Copy configuration required to reproduce this build
+    if ! [ -e /etc/nixos/configuration.nix ]; then
+      cp ${configClone} /etc/nixos/configuration.nix
+      chmod +w /etc/nixos/configuration.nix
+    fi
+
+    if ! [ -e /etc/nixos/vpsadminos.nix ]; then
+      cp ${./vpsadminos.nix} /etc/nixos/vpsadminos.nix
+      chmod +w /etc/nixos/vpsadminos.nix
+    fi
+  '';
+
+  system.build.tarball = import <nixpkgs/nixos/lib/make-system-tarball.nix> {
+    inherit (pkgs) stdenv closureInfo pixz;
+    compressCommand = "gzip";
+    compressionExtension = ".gz";
+    extraInputs = [ pkgs.gzip ];
+
+    contents = [];
+    storeContents = [
+      { object = config.system.build.toplevel + "/init";
+        symlink = "/sbin/init";
+      }
+      { object = config.system.build.toplevel;
+        symlink = "/run/current-system";
+      }
+    ];
+    extraCommands = "mkdir -p boot proc sys dev etc";
+  };
+}
