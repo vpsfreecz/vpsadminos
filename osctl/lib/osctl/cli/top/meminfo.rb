@@ -35,6 +35,10 @@ module OsCtl::Cli
       read_param('SwapTotal')
     end
 
+    def swap_used
+      swap_total - swap_free
+    end
+
     def swap_cached
       read_param('SwapCached')
     end

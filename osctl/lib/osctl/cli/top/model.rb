@@ -91,7 +91,7 @@ module OsCtl::Cli
           buffers: mem.buffers * 1024,
           cached: mem.cached * 1024,
           swap_total: mem.swap_total * 1024,
-          swap_used: mem.swap_cached * 1024,
+          swap_used: mem.swap_used * 1024,
           swap_free: mem.swap_free * 1024,
         },
         zfs: host_zfs,
