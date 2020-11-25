@@ -15,6 +15,20 @@ module OsCtl
       v.round(2).to_s
     end
 
+    def humanize_number(v)
+      divider = 10.0 ** 12
+      units = %i(T G M K)
+
+      units.each do |u|
+        division = v / divider
+        return "#{division.round(1)}#{u}" if division >= 1
+
+        divider /= 1000
+      end
+
+      v.round(2).to_s
+    end
+
     def humanize_time_ns(v)
       format_short_duration(v / 1_000_000_000)
     end
