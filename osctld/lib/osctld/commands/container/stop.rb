@@ -46,8 +46,13 @@ module OsCtld
             timeout: opts[:timeout] || 60,
           )
         rescue ContainerControl::UserRunnerError
+          ct.log(:warn, 'Unable to stop, killing by force')
           progress('Unable to stop, killing by force')
-          error!('Unable to kill or cleanup') unless force_kill(ct)
+
+          unless force_kill(ct)
+            ct.log(:warn, 'Unable to kill or cleanup')
+            error!('Unable to kill or cleanup')
+          end
         rescue ContainerControl::Error => e
           error!(e.message)
         end
