@@ -22,5 +22,6 @@ with lib;
     "vm.min_free_kbytes" = mkDefault (1024 * 384);
     "vm.min_slab_ratio" = mkDefault 12;
     "vm.overcommit_ratio" = mkDefault 3200;
+    "vm.swappiness" = mkDefault 0;
   };
 }
