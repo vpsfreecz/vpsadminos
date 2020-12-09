@@ -195,7 +195,7 @@ module OsCtld
       state = File.join(abs_path, 'freezer.state')
 
       begin
-        if File.read(state).strip == 'FROZEN'
+        if %w(FREEZING FROZEN).include?(File.read(state).strip)
           log(:info, "Thawing #{abs_path}")
           File.open(state, 'w') { |f| f.write('THAWED') }
         end
