@@ -1,2 +1,2 @@
 source 'https://rubygems.vpsfree.cz'
-gem 'osctld', '20.09.0.build20201206115820'
+gem 'osctld', '20.09.0.build20201209142650'
