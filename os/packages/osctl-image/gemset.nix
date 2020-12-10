@@ -4,10 +4,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0hic9kq09dhh8jqjx3k1991rnqhlj3glz82w0g7ndcri52m1hgqg";
+      sha256 = "0i4j6j18ih6lx7gk9jg2p7q8iswc897mgzn5m62jbf0zv0f7mkji";
       type = "gem";
     };
-    version = "1.3.2";
+    version = "1.4.0";
   };
   filelock = {
     groups = ["default"];
@@ -65,10 +65,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1z84p8fpjqmid5cv494ra3fhy8h0z53664q303qh4s46wn2s6dql";
+      sha256 = "1xyp4qjblrrqlyz8k8hqbkkcij9l6f5fmlyv5k78akmm8hdqxaph";
       type = "gem";
     };
-    version = "20.09.0.build20201209142650";
+    version = "20.09.0.build20201210211224";
   };
   osctl = {
     dependencies = ["curses" "gli" "highline" "ipaddress" "json" "libosctl" "rainbow" "require_all" "ruby-progressbar"];
@@ -76,10 +76,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1rzi27bk0hy229q2b5wr1sijzna7hl1ghjba3nfzygkidgs00p3w";
+      sha256 = "08ljf44zbby7a06f6spfika6p7fb0jyy7x29jpi51ypn5j0fb8dv";
       type = "gem";
     };
-    version = "20.09.0.build20201209142650";
+    version = "20.09.0.build20201210211224";
   };
   osctl-image = {
     dependencies = ["gli" "json" "libosctl" "osctl" "osctl-repo" "require_all"];
@@ -87,10 +87,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1gr482jq1mw6hn430b9frb3wac5k4sa259d1rg7dqq7jc990h0gs";
+      sha256 = "133bk30jdd83fxs55di0abv1hv7p5sl1ix3sqr36ds5h3jhpcyz3";
       type = "gem";
     };
-    version = "20.09.0.build20201209142650";
+    version = "20.09.0.build20201210211224";
   };
   osctl-repo = {
     dependencies = ["filelock" "gli" "json" "libosctl" "require_all"];
@@ -98,10 +98,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "01libwbrdkf6qxvhs2iks7s9rbr2lm8h8apkcki070fxfd66vf7y";
+      sha256 = "18aayylrycpmz81w496mizbia0q3wsaggv7x0q9jljq34a2850b8";
       type = "gem";
     };
-    version = "20.09.0.build20201209142650";
+    version = "20.09.0.build20201210211224";
   };
   rainbow = {
     groups = ["default"];
