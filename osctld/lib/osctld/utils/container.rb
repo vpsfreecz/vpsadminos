@@ -41,5 +41,23 @@ module OsCtld
 
       nil
     end
+
+    # Remove accounting cgroups to reset counters
+    def remove_accounting_cgroups(ct)
+      tries = 0
+
+      begin
+        %w(blkio cpuacct memory).each do |subsys|
+          CGroup.rmpath(CGroup.real_subsystem(subsys), ct.base_cgroup_path)
+        end
+      rescue SystemCallError => e
+        ct.log(:warn, "Error occurred while pruning cgroups: #{e.message}")
+
+        return if tries >= 5
+        tries += 1
+        sleep(0.5)
+        retry
+      end
+    end
   end
 end

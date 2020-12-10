@@ -6,6 +6,7 @@ module OsCtld
 
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
+    include Utils::Container
     include Utils::SwitchUser
 
     def find
@@ -84,6 +85,9 @@ module OsCtld
     def start_now(ct)
       error!('start not available') unless ct.can_start?
       return ok if ct.running? && !opts[:force]
+
+      # Remove pre-existing accounting cgroups to reset counters
+      remove_accounting_cgroups(ct)
 
       # Remove any left-over temporary mounts
       ct.mounts.prune
