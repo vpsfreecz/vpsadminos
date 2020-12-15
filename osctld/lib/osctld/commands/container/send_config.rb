@@ -31,6 +31,7 @@ module OsCtld
           ctid: ctid,
           port: opts[:port] || 22,
           dst: opts[:dst],
+          snapshots: opts.has_key?(:snapshots) ? opts[:snapshots] : true,
         }
 
         recv_opts = [

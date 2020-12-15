@@ -1121,6 +1121,9 @@ module OsCtl::Cli
           s.desc 'Send network interfaces to target node'
           s.switch 'network-interfaces', default_value: true
 
+          s.desc 'Send snapshots'
+          s.switch 'snapshots', default_value: true
+
           s.action &Command.run(Send, :now)
 
           s.desc 'Step 1., copy configs to target node'
@@ -1146,6 +1149,9 @@ module OsCtl::Cli
 
             c.desc 'Send network interfaces to target node'
             c.switch 'network-interfaces', default_value: true
+
+            c.desc 'Send snapshots'
+            c.switch 'snapshots', default_value: true
 
             c.action &Command.run(Send, :config)
           end

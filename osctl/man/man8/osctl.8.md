@@ -1362,6 +1362,10 @@ read by `ls` or `show` commands.
       This is useful for cloning containers without duplicating network
       configuration.
 
+    `--no-snapshots`
+      Do not send existing snapshots to *destination*. Only temporary snapshots
+      created for the send process are sent.
+
 `ct send config` [*options*] *ctid* *destination*
   Send config of container *ctid* to *destination*. *destination* is a host
   name or an IP address of another vpsAdminOS node. The container's user, group
@@ -1392,6 +1396,10 @@ read by `ls` or `show` commands.
       Remove network interfaces from the container config sent to *destination*.
       This is useful for cloning containers without duplicating network
       configuration.
+
+    `--no-snapshots`
+      Do not send existing snapshots to *destination*. Only temporary snapshots
+      created for the send process are sent.
 
 `ct send rootfs` *ctid*
   Continue sending of container *ctid* to previously configured

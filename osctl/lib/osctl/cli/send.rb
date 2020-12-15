@@ -55,6 +55,7 @@ module OsCtl::Cli
         as_group: opts['as-group'],
         to_pool: opts['to-pool'],
         network_interfaces: opts['network-interfaces'],
+        snapshots: opts[:snapshots],
       )
     end
 
@@ -64,7 +65,7 @@ module OsCtl::Cli
       with_progress(
         :ct_send_rootfs,
         pool: gopts[:pool],
-        id: args[0]
+        id: args[0],
       )
     end
 
@@ -133,6 +134,7 @@ module OsCtl::Cli
         restart: opts[:restart],
         start: opts[:start],
         network_interfaces: opts['network-interfaces'],
+        snapshots: opts[:snapshots],
       )
     end
 

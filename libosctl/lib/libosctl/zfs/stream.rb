@@ -32,6 +32,7 @@ module OsCtl::Lib
     # @param snapshot [String]
     # @param from_snapshot [String]
     # @param opts [Hash]
+    # @option opts [Boolean] :intermediary defaults to `true`
     # @option opts [Boolean] :compressed defaults to `true`
     # @option opts [Boolean] :properties defaults to `true`
     # @option opts [Boolean] :large_block defaults to `true`
@@ -42,6 +43,7 @@ module OsCtl::Lib
       @opts = opts
       @progress = []
 
+      @opts[:intermediary] = true unless @opts.has_key?(:intermediary)
       @opts[:compressed] = true unless @opts.has_key?(:compressed)
       @opts[:properties] = true unless @opts.has_key?(:properties)
       @opts[:large_block] = true unless @opts.has_key?(:large_block)
@@ -259,7 +261,8 @@ module OsCtl::Lib
 
     def full_zfs_send_cmd
       if @from_snapshot
-        "#{zfs_send_cmd} -v -I @#{@from_snapshot} #{path}@#{@snapshot}"
+        i = @opts[:intermediary] ? 'I' : 'i'
+        "#{zfs_send_cmd} -v -#{i} @#{@from_snapshot} #{path}@#{@snapshot}"
       else
         "#{zfs_send_cmd} -v #{path}@#{@snapshot}"
       end

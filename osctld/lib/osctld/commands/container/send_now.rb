@@ -20,13 +20,14 @@ module OsCtld
           as_id: opts[:as_id],
           to_pool: opts[:to_pool],
           network_interfaces: opts[:network_interfaces],
+          snapshots: opts[:snapshots],
         )
 
         progress(type: :step, title: 'Sending rootfs')
         call_cmd!(
           Commands::Container::SendRootfs,
           id: ct.id,
-          pool: ct.pool.name
+          pool: ct.pool.name,
         )
 
         progress(type: :step, title: 'Sending state')
