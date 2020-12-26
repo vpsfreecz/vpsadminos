@@ -238,7 +238,11 @@ module OsCtl::ExportFS
       end
 
       mounts.sort.reverse_each do |mnt|
-        Sys.unmount_lazy(mnt)
+        begin
+          Sys.unmount_lazy(mnt)
+        rescue Errno::ENOENT
+          next
+        end
       end
     end
 
