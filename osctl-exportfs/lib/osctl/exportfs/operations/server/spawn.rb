@@ -34,7 +34,7 @@ module OsCtl::ExportFS
       @rand_id = SecureRandom.hex(3)
       netns = rand_id
       @netif_host = cfg.netif
-      @netif_ns = "nfsns-#{netif_ns}"
+      @netif_ns = "nfsns-#{server.name}"
 
       cgroup.enter_manager
 
