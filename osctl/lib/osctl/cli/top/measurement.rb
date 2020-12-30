@@ -102,12 +102,12 @@ module OsCtl::Cli
           st = ds.aggregate_stats
           data[:zfsio] = {
             ios: {
-              w: ds.write_ios,
-              r: ds.read_ios,
+              w: st.write_ios,
+              r: st.read_ios,
             },
             bytes: {
-              w: ds.write_bytes,
-              r: ds.read_bytes,
+              w: st.write_bytes,
+              r: st.read_bytes,
             },
           }
         else
