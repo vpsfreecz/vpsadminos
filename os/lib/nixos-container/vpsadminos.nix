@@ -19,6 +19,7 @@ in {
   boot.isContainer = true;
   boot.loader.initScript.enable = true;
   boot.specialFileSystems."/run/keys".fsType = lib.mkForce "tmpfs";
+  boot.systemdExecutable = mkDefault "systemd systemd.unified_cgroup_hierarchy=0";
 
   # Overrides for <nixpkgs/nixos/modules/virtualisation/container-config.nix>
   documentation.enable = mkOverride 500 true;
