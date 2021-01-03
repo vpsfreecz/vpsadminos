@@ -1,3 +1,11 @@
+# This file provides compatibility for NixOS to run in a container on vpsAdminOS
+# hosts.
+#
+# If you're experiencing issues, try updating this file to the latest version
+# from vpsAdminOS repository:
+#
+#   https://github.com/vpsfreecz/vpsadminos/blob/master/os/lib/nixos-container/vpsadminos.nix
+
 { config, pkgs, lib, ...}:
 with lib;
 let
