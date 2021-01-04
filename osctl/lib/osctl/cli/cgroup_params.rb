@@ -293,7 +293,7 @@ module OsCtl
     # @return [Integer]
     def read_memory_usage(memory, path)
       st = parse_memory_stat(memory, path)
-      usage = read_cgparam(memory, path, 'memory.usage_in_bytes').to_i
+      usage = read_cgparam(memory, path, 'memory.memsw.usage_in_bytes').to_i
       usage - st[:total_cache]
     end
 
