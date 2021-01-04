@@ -64,6 +64,10 @@ module OsCtl
       v.round(1)
     end
 
+    def humanize_percent(v)
+      "#{format_percent(v)}%"
+    end
+
     def parse_data(v)
       units = %w(k m g t)
 

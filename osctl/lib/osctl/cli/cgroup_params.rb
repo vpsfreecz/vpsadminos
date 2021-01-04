@@ -21,6 +21,7 @@ module OsCtl
 
     CGPARAM_STATS = %i(
       memory
+      memory_pct
       kmemory
       cpu_time
       cpu_user_time
@@ -225,6 +226,12 @@ module OsCtl
             ).to_i
             OsCtl::Lib::Cli::Presentable.new(t, formatted: precise ? nil : humanize_data(t))
 
+          when :memory_pct
+            limit = read_memory_limit(subsystems[:memory], path)
+            usage = read_memory_usage(subsystems[:memory], path)
+            t = usage.to_f / limit * 100
+            OsCtl::Lib::Cli::Presentable.new(t, formatted: precise ? nil : humanize_percent(t))
+
           when :cpu_time
             t = read_cgparam(
               subsystems[:cpuacct],
@@ -295,6 +302,27 @@ module OsCtl
       st = parse_memory_stat(memory, path)
       usage = read_cgparam(memory, path, 'memory.memsw.usage_in_bytes').to_i
       usage - st[:total_cache]
+    end
+
+    # @param memory [String] absolute path to memory subsystem
+    # @param path [String] path of chosen group, relative to the subsystem
+    # @return [Integer]
+    def read_memory_limit(memory, path)
+      unlimited = 9223372036854771712
+
+      if path.end_with?('/user-owned')
+        path = path.split('/')[0..-2].join('/')
+      end
+
+      v = read_cgparam(memory, path, 'memory.memsw.limit_in_bytes').to_i
+      return v if v != unlimited
+
+      v = read_cgparam(memory, path, 'memory.limit_in_bytes').to_i
+      return v if v != unlimited
+
+      # TODO: this could be optimised to read meminfo just once for all containers
+      mi = OsCtl::Cli::MemInfo.new
+      mi.total * 1024
     end
 
     # Add runtime stats from CGroup parameters to `data`
