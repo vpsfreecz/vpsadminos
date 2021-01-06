@@ -42,6 +42,15 @@ with lib;
         Useful for unattended installations and testing.
       '';
     };
+    boot.enableUnifiedCgroupHierarchy = mkOption {
+      type = types.bool;
+      default = false;
+      description = ''
+        Whether to enable the unified cgroup hierarchy (cgroupsv2).
+
+        This feature is experimental.
+      '';
+    };
     system.boot.loader.id = mkOption {
       internal = true;
       default = "";
