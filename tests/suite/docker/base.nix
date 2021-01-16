@@ -42,5 +42,12 @@ import ../../make-test.nix (pkgs: {
     if /Hello from Docker/ !~ output
       fail "docker hello-world not working, output:\n#{output}"
     end
+
+    st, output = machine.succeeds("osctl ct exec docker docker pull gitlab/gitlab-ee:latest")
+
+    if (output !~ /Status: Image is up to date for gitlab\/gitlab-ee:latest/) &&
+       (output !~ /Status: Downloaded newer image for gitlab\/gitlab-ee:latest/)
+      fail "docker pull gitlab/gitlab-ee:latest not working, output:\n#{output}"
+    end
   '';
 })
