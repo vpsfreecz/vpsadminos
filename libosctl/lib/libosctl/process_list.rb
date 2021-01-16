@@ -9,15 +9,14 @@ module OsCtl::Lib
       Dir.foreach('/proc') do |entry|
         next if /^\d+$/ !~ entry || !Dir.exist?(File.join('/proc', entry))
 
-        p = OsProcess.new(entry.to_i)
-
         begin
+          p = OsProcess.new(entry.to_i)
           next if block_given? && !yield(p)
+
+          self << p
         rescue Exceptions::OsProcessNotFound
           next
         end
-
-        self << p
       end
     end
   end
