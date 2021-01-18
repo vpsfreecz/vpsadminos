@@ -209,7 +209,7 @@ let
     osctl = "${pkgs.osctl}/bin/osctl";
   };
 
-  serviceCGroup = name: "/sys/fs/cgroup/systemd/runit/${name}";
+  serviceCGroup = name: "/run/runit/cgroup.service/${name}";
 
   mkScript = name: script: pkgs.writeScript name
     ''
