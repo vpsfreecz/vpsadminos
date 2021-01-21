@@ -94,7 +94,7 @@ let
       nativeBuildInputs = [ autoreconfHook nukeReferences ]
         ++ optionals buildKernel (kernel.moduleBuildDependencies ++ [ perl ])
         ++ optional buildUser pkgconfig;
-      buildInputs = optionals buildUser [ zlib libuuid attr libtirpc ]
+      buildInputs = optionals buildUser [ zlib libuuid attr libtirpc python3 ]
         ++ optional buildUser openssl;
 
       # for zdb to get the rpath to libgcc_s, needed for pthread_cancel to work
@@ -149,6 +149,8 @@ let
         for i in $out/libexec/zfs/zpool.d/*; do
           sed -i "2i$path" $i
         done
+      '' + optionalString buildUser ''
+        patchShebangs $out/bin
       '';
 
       outputs = [ "out" ] ++ optionals buildUser [ "lib" "dev" ];
