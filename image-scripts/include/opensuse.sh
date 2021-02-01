@@ -34,6 +34,7 @@ systemctl enable  wicked.service
 usermod -L root
 systemctl enable sshd.service
 systemctl mask systemd-udev-trigger.service
+systemctl mask systemd-modules-load.service
 echo console >> /etc/securetty
 sed -i 's/#DefaultTimeoutStartSec=90s/DefaultTimeoutStartSec=900s/' /etc/systemd/system.conf
 echo "%_netsharedpath /sys:/proc" >> /etc/rpm/macros.vpsadminos
