@@ -1218,6 +1218,51 @@ read by `ls` or `show` commands.
       sufficient access mode. `remove` will remove all unavailable devices from
       the container. The default mode is `check`.
 
+`ct boot` [*options*] *ctid*
+  Start the container a from selected container image. The container's root
+  dataset is bypassed and untouched. All container configuration is preserved,
+  except the distribution info can be temporarily different. When the container
+  is restarted, the temporary changes made by `ct boot` are forgotten
+  and the container's root dataset will be used again.
+
+  `ct boot` can start the container from an image from repository (use options
+  `--distribution`, `--version`, etc.) or from a local file (use option
+  `--from-file`). By default, `ct boot` will try to use the container's
+  distribution info to find the appropriate container image and start it.
+
+  This command can be used e.g. to troubleshoot a broken system on the container's
+  root dataset.
+  
+    `--force`
+      If the container is running, stop it and boot the new image.
+
+    `--from-file` *file*
+      Create the container from a container image.
+
+    `--distribution` *distribution*
+      Distribution name in lower case, e.g. alpine, centos, debian, ubuntu.
+
+    `--version` *version*
+      Distribution version. The format can differ among distributions, e.g.
+      alpine `3.6`, centos `7.0`, debian `9.0` or ubuntu `16.04`.
+
+    `--arch` *arch*
+      Container architecture, e.g. `x86_64` or `x86`. Defaults to the host system
+      architecture.
+
+    `--vendor` *vendor*
+      Vendor to be selected from the remote image repository.
+
+    `--variant` *variant*
+      Vendor variant to be selected from the remote image repository.
+
+    `--repository` *repository*
+      Instead of searching all configured repositories from appropriate pool,
+      use only repository *name*. The selected repository can be disabled.
+
+    `--mount-root-dataset` *dir*
+      Mount the container's root dataset to *dir* inside the container.
+
 `ct config reload` *ctid*
   Reload the container's configuration file from disk. The container has to be
   stopped for the reload to be allowed.

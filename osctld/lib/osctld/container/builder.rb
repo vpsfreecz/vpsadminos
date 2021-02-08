@@ -33,6 +33,7 @@ module OsCtld
       @ct = ct
       @opts = opts
       @errors = []
+      @ds_builder = Container::DatasetBuilder.new(cmd: opts[:cmd])
     end
 
     def pool
@@ -73,17 +74,12 @@ module OsCtld
     # @option opts [Boolean] :mapping
     # @option opts [Boolean] :parents
     def create_dataset(ds, opts = {})
-      zfs_opts = {properties: {
-        canmount: 'noauto',
-      }}
-      zfs_opts[:parents] = true if opts[:parents]
-      zfs_opts[:properties].update({
-        uidmap: ct.uid_map.map(&:to_s).join(','),
-        gidmap: ct.gid_map.map(&:to_s).join(','),
-      }) if opts[:mapping]
-
-      ds.create!(zfs_opts)
-      ds.mount(recursive: true)
+      ds_builder.create_dataset(
+        ds,
+        parents: opts[:parents],
+        uid_map: opts[:mapping] ? ct.uid_map : nil,
+        gid_map: opts[:mapping] ? ct.gid_map : nil,
+      )
     end
 
     # @param src [Array<OsCtl::Lib::Zfs::Dataset>]
@@ -91,18 +87,35 @@ module OsCtld
     # @param from [String, nil] base snapshot
     # @return [String] snapshot name
     def copy_datasets(src, dst, from: nil)
-      snap = "osctl-copy-#{from ? 'incr' : 'base'}-#{Time.now.to_i}"
-      zfs(:snapshot, nil, src.map { |ds| "#{ds}@#{snap}" }.join(' '))
+      ds_builder.copy_datasets(src, dst, from: from)
+    end
 
-      zipped = src.zip(dst)
+    # @param image [String] path
+    # @param opts [Hash] options
+    # @option opts [String] :distribution
+    # @option opts [String] :version
+    def from_local_archive(image, opts = {})
+      ds_builder.from_local_archive(image, ct.rootfs, opts)
 
-      zipped.each do |src_ds, dst_ds|
-        progress("Copying dataset #{src_ds.relative_name}")
-        syscmd("zfs send -c -p -L #{from ? "-i @#{from}" : ''} #{src_ds}@#{snap} "+
-               "| zfs recv -F #{dst_ds}")
-      end
+      distribution, version, arch = get_distribution_info(image)
 
-      snap
+      configure(
+        opts[:distribution] || distribution,
+        opts[:version] || version,
+        opts[:arch] || arch
+      )
+    end
+
+    def from_stream(ds = nil, &block)
+      ds_builder.from_stream(ds || ct.dataset, &block)
+    end
+
+    def shift_dataset
+      ds_builder.shift_dataset(
+        ct.dataset,
+        uid_map: ct.uid_map,
+        gid_map: ct.gid_map,
+      )
     end
 
     def setup_ct_dir
@@ -119,66 +132,6 @@ module OsCtld
       end
 
       File.chown(0, 0, ct.rootfs)
-    end
-
-    # @param image [String] path
-    # @param opts [Hash] options
-    # @option opts [String] :distribution
-    # @option opts [String] :version
-    def from_local_archive(image, opts = {})
-      progress('Extracting image')
-      syscmd("tar -xzf #{image} -C #{ct.rootfs}")
-
-      shift_dataset
-
-      distribution, version, arch = get_distribution_info(image)
-
-      configure(
-        opts[:distribution] || distribution,
-        opts[:version] || version,
-        opts[:arch] || arch
-      )
-    end
-
-    def from_stream(ds = nil)
-      progress('Writing image stream')
-
-      IO.popen("exec zfs recv -F #{ds || ct.dataset}", 'r+') do |io|
-        yield(io)
-      end
-
-      if $?.exitstatus != 0
-        fail "zfs recv failed with exit status #{$?.exitstatus}"
-      end
-    end
-
-    def shift_dataset
-      progress('Configuring UID/GID mapping')
-
-      zfs(:unmount, nil, ct.dataset)
-      zfs(
-        :set,
-        "uidmap=\"#{ct.uid_map.map(&:to_s).join(',')}\" "+
-        "gidmap=\"#{ct.gid_map.map(&:to_s).join(',')}\"",
-        ct.dataset
-      )
-
-      5.times do |i|
-        zfs(:mount, nil, ct.dataset)
-
-        f = Tempfile.create(['.ugid-map-test'], ct.dir)
-        f.close
-
-        st = File.stat(f.path)
-        File.unlink(f.path)
-
-        return if st.uid == ct.root_host_uid && st.gid == ct.root_host_gid
-
-        zfs(:unmount, nil, ct.dataset)
-        sleep(1 + i)
-      end
-
-      fail 'unable to configure UID/GID mapping'
     end
 
     def configure(distribution, version, arch)
@@ -286,6 +239,8 @@ module OsCtld
     end
 
     protected
+    attr_reader :ds_builder
+
     def progress(msg)
       return unless @opts[:cmd]
       @opts[:cmd].send(:progress, msg)
