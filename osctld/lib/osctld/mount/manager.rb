@@ -111,7 +111,7 @@ module OsCtld
           'none',
           'bind,create=dir,ro',
           true
-        )] + entries.select { |m| m.automount? && !m.temp? }
+        )] + entries.select { |m| m.in_config? || (m.automount? && !m.temp?) }
       end
     end
 

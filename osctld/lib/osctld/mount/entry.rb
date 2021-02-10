@@ -1,7 +1,7 @@
 module OsCtld
   class Mount::Entry
     PARAMS = %i(fs mountpoint type opts automount dataset temp)
-    attr_reader :mountpoint, :type, :opts, :automount, :dataset, :temp
+    attr_reader :mountpoint, :type, :opts, :automount, :dataset, :temp, :in_config
 
     # Load from config
     def self.load(ct, cfg)
@@ -19,7 +19,7 @@ module OsCtld
       )
     end
 
-    def initialize(fs, mountpoint, type, opts, automount, dataset: nil, temp: false)
+    def initialize(fs, mountpoint, type, opts, automount, dataset: nil, temp: false, in_config: false)
       @fs = fs
       @mountpoint = mountpoint
       @type = type
@@ -27,6 +27,7 @@ module OsCtld
       @automount = automount
       @dataset = dataset
       @temp = temp
+      @in_config = in_config
     end
 
     def fs
@@ -67,5 +68,6 @@ module OsCtld
 
     alias_method :automount?, :automount
     alias_method :temp?, :temp
+    alias_method :in_config?, :in_config
   end
 end
