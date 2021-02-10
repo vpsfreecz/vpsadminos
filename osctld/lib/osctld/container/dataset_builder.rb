@@ -102,7 +102,7 @@ module OsCtld
         fail 'provide uid_map or gid_map'
       end
 
-      zfs(:unmount, nil, ds)
+      zfs(:unmount, nil, ds, valid_rcs: [1])
       zfs(:set, set_opts.join(' '), ds)
 
       5.times do |i|
