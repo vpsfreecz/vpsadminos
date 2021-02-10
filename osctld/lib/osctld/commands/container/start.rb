@@ -105,6 +105,9 @@ module OsCtld
       File.chmod(0660, ct.log_path)
       File.chown(0, ct.user.ugid, ct.log_path)
 
+      # Update LXC configuration
+      ct.lxc_config.configure
+
       # Console dir
       console_dir = File.join(ct.pool.console_dir, ct.id)
       Dir.mkdir(console_dir) unless Dir.exist?(console_dir)
