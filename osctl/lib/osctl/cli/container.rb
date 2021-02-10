@@ -590,6 +590,39 @@ module OsCtl::Cli
       )
     end
 
+    def boot
+      require_args!('id')
+
+      cmd_opts = {
+        id: args[0],
+        pool: opts[:pool] || gopts[:pool],
+        repository: opts[:repository],
+        force: opts[:force],
+        mount_root: opts['mount-root-dataset'],
+        zfs_properties: Hash[opts['zfs-property'].map do |v|
+          k, v = v.split('=')
+          raise GLI::BadCommandLine, "invalid ZFS property '#{v}'" if v.nil?
+
+          [k, v]
+        end],
+        wait: opts[:wait],
+      }
+
+      if opts['from-file']
+        cmd_opts.update(
+          type: :image,
+          path: File.absolute_path(opts['from-file']),
+        )
+      else
+        cmd_opts.update(
+          type: :remote,
+          image: repo_image_attrs(defaults: false),
+        )
+      end
+
+      osctld_fmt(:ct_boot, cmd_opts)
+    end
+
     def config_reload
       require_args!('id')
       osctld_fmt(

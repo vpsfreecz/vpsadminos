@@ -1219,13 +1219,13 @@ read by `ls` or `show` commands.
       the container. The default mode is `check`.
 
 `ct boot` [*options*] *ctid*
-  Start the container a from selected container image. The container's root
+  Start the container from selected container image. The container's root
   dataset is bypassed and untouched. All container configuration is preserved,
   except the distribution info can be temporarily different. When the container
   is restarted, the temporary changes made by `ct boot` are forgotten
   and the container's root dataset will be used again.
 
-  `ct boot` can start the container from an image from repository (use options
+  `ct boot` can start the container from an image from a repository (use options
   `--distribution`, `--version`, etc.) or from a local file (use option
   `--from-file`). By default, `ct boot` will try to use the container's
   distribution info to find the appropriate container image and start it.
@@ -1262,6 +1262,14 @@ read by `ls` or `show` commands.
 
     `--mount-root-dataset` *dir*
       Mount the container's root dataset to *dir* inside the container.
+
+    `--zfs-property` *property*=*value*
+      A ZFS property passed to the newly created dataset used as a temporary
+      root filesystem for the container. Can be used multiple times.
+
+    `-w`, `--wait` *seconds*
+      How many seconds to wait for the container to enter state `running`.
+      Defaults to `60` seconds. Set to `0` to return immediately.
 
 `ct config reload` *ctid*
   Reload the container's configuration file from disk. The container has to be

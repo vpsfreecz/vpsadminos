@@ -1012,6 +1012,45 @@ module OsCtl::Cli
           c.action &Command.run(Container, :chgrp)
         end
 
+        ct.desc 'Boot container from image'
+        ct.arg_name '<ctid>'
+        ct.command :boot do |c|
+          c.desc 'Stop the container if it is running'
+          c.switch %i(f force)
+
+          c.desc 'Boot from container image'
+          c.flag 'from-file', arg_name: 'file'
+
+          c.desc 'Distribution name in lower case'
+          c.flag :distribution, arg_name: 'distribution'
+
+          c.desc 'Distribution version'
+          c.flag :version, arg_name: 'version'
+
+          c.desc 'Architecture'
+          c.flag :arch, arg_name: 'arch'
+
+          c.desc 'Vendor (used only when downloading the image)'
+          c.flag :vendor, arg_name: 'vendor'
+
+          c.desc 'Variant (used only when downloading the image)'
+          c.flag :variant, arg_name: 'variant'
+
+          c.desc 'Repository'
+          c.flag :repository, arg_name: 'repository'
+
+          c.desc 'Mount root dataset'
+          c.flag 'mount-root-dataset', arg_name: 'dir'
+
+          c.desc 'ZFS properties for the temporary rootfs dataset'
+          c.flag 'zfs-property', arg_name: 'property=value', multiple: true
+
+          c.desc 'How long to wait for the container to start'
+          c.flag %i(w wait), type: Integer, default_value: 60, arg_name: 'n'
+
+          c.action &Command.run(Container, :boot)
+        end
+
         ct.desc "Manipulate the container's config file"
         ct.command %i(cfg config) do |cfg|
           cfg.desc "Reload the container's configuration file"

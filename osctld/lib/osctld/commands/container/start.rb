@@ -95,6 +95,11 @@ module OsCtld
       # Remove any left-over temporary mounts
       ct.mounts.prune
 
+      # Optionally add new mounts
+      (opts[:mounts] || []).each do |mnt|
+        ct.mounts.add(mnt)
+      end
+
       # Reset log file
       File.open(ct.log_path, 'w').close
       File.chmod(0660, ct.log_path)

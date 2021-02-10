@@ -52,6 +52,21 @@ module OsCtld
       end
     end
 
+    # Set custom boot dataset
+    def boot_from(dataset, distribution, version, arch, destroy_dataset_on_stop: false)
+      exclusively do
+        @dataset = dataset
+        @distribution = distribution
+        @version = version
+        @arch = arch
+        @destroy_dataset_on_stop = destroy_dataset_on_stop
+      end
+    end
+
+    def destroy_dataset_on_stop?
+      inclusively { @destroy_dataset_on_stop }
+    end
+
     # Countainer dataset mountpoint
     # @return [String]
     def dir
@@ -99,6 +114,7 @@ module OsCtld
         'distribution' => distribution,
         'version' => version,
         'arch' => arch,
+        'destroy_dataset_on_stop' => destroy_dataset_on_stop?,
       }
     end
 
@@ -119,6 +135,12 @@ module OsCtld
       @distribution = cfg['distribution'] || ct.distribution
       @version = cfg['version'] || ct.version
       @arch = cfg['arch'] || ct.arch
+      @destroy_dataset_on_stop =
+        if cfg.has_key?('destroy_dataset_on_stop')
+          cfg['destroy_dataset_on_stop']
+        else
+          false
+        end
       nil
     end
 

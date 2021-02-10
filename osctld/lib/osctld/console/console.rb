@@ -42,16 +42,25 @@ module OsCtld
     end
 
     def on_ct_stop
+      ctrc = ct.get_past_run_conf
+
       if ct.reboot? \
-         || (ct.ephemeral? && !ct.is_being_manipulated?)
+         || (ct.ephemeral? && !ct.is_being_manipulated?) \
+         || (ctrc && ctrc.destroy_dataset_on_stop?)
         # The current thread is used to handle the console and has to exit.
         # Manipulation must happen from another thread.
-        t = Thread.new { handle_ct_stop }
+        t = Thread.new { handle_ct_stop(ctrc) }
         ThreadReaper.add(t, nil)
       end
+
+      ct.forget_past_run_conf
     end
 
-    def handle_ct_stop
+    def handle_ct_stop(ctrc)
+      if ctrc.destroy_dataset_on_stop?
+        zfs(:destroy, nil, ctrc.dataset, valid_rcs: :all)
+      end
+
       if ct.reboot?
         sleep(1)
         reboot_ct
