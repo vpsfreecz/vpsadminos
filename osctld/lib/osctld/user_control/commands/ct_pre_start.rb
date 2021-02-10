@@ -15,7 +15,7 @@ module OsCtld
       ct.starting
 
       # Mount datasets
-      ct.mount(force: true)
+      ct.run_conf.mount(force: true)
 
       # Load AppArmor profile
       ct.apparmor.setup

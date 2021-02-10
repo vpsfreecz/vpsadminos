@@ -10,7 +10,7 @@ module OsCtld
 
       manipulate(ct) do
         ret = DistConfig.run(
-          ct,
+          ct.get_run_conf,
           :passwd,
           user: opts[:user],
           password: opts[:password]

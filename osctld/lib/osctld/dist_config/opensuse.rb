@@ -6,7 +6,7 @@ module OsCtld
 
     def set_hostname(opts)
       # /etc/hostname
-      writable?(File.join(ct.rootfs, 'etc', 'hostname')) do |path|
+      writable?(File.join(ctrc.rootfs, 'etc', 'hostname')) do |path|
         regenerate_file(path, 0644) do |f|
           f.puts(ct.hostname.local)
         end
@@ -46,7 +46,7 @@ module OsCtld
     protected
     def do_create_netif(netif)
       tpl_base = File.join('dist_config/network', 'opensuse')
-      ct_base = File.join(ct.rootfs, 'etc', 'sysconfig')
+      ct_base = File.join(ctrc.rootfs, 'etc', 'sysconfig')
       ifcfg = File.join(ct_base, 'network', "ifcfg-#{netif.name}")
 
       return unless writable?(ifcfg)
@@ -74,7 +74,7 @@ module OsCtld
     end
 
     def do_remove_netif(name)
-      base = File.join(ct.rootfs, 'etc', 'sysconfig', 'network')
+      base = File.join(ctrc.rootfs, 'etc', 'sysconfig', 'network')
       files = [
         "ifcfg-#{name}",
       ]

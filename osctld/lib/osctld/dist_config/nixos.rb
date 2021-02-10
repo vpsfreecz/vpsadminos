@@ -20,7 +20,7 @@ module OsCtld
           )
         end
 
-        writable?(File.join(ct.rootfs, "ifcfg.#{operation}")) do |path|
+        writable?(File.join(ctrc.rootfs, "ifcfg.#{operation}")) do |path|
           File.write(path, cmds.join("\n"))
         end
 
@@ -32,10 +32,10 @@ module OsCtld
         system = File.readlink(File.join(ct.runtime_rootfs, '/run/current-system'))
 
       rescue RuntimeError
-        system = File.readlink(File.join(ct.rootfs, '/run/current-system'))
+        system = File.readlink(File.join(ctrc.rootfs, '/run/current-system'))
       end
 
-      sw = File.readlink(File.join(ct.rootfs, system, 'sw'))
+      sw = File.readlink(File.join(ctrc.rootfs, system, 'sw'))
       File.join(sw, 'bin')
     end
   end

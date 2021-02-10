@@ -7,7 +7,7 @@ module OsCtld
 
     def set_hostname(opts)
       # /etc/hostname
-      writable?(File.join(ct.rootfs, 'etc', 'hostname')) do |path|
+      writable?(File.join(ctrc.rootfs, 'etc', 'hostname')) do |path|
         regenerate_file(path, 0644) do |f|
           f.puts(ct.hostname.local)
         end
@@ -88,7 +88,7 @@ module OsCtld
     end
 
     def netctl_profile(name)
-      File.join(ct.rootfs, 'etc/netctl', name)
+      File.join(ctrc.rootfs, 'etc/netctl', name)
     end
 
     def service_name(name)
@@ -96,12 +96,12 @@ module OsCtld
     end
 
     def deprecated_service_path(name)
-      File.join(ct.rootfs, 'etc/systemd/system', service_name(name))
+      File.join(ctrc.rootfs, 'etc/systemd/system', service_name(name))
     end
 
     def service_symlink(name)
       File.join(
-        ct.rootfs,
+        ctrc.rootfs,
         'etc/systemd/system/multi-user.target.wants',
         service_name(name)
       )

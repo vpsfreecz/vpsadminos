@@ -6,7 +6,7 @@ module OsCtld
 
     def set_hostname(opts)
       # /etc/hostname
-      writable?(File.join(ct.rootfs, 'etc', 'hostname')) do |path|
+      writable?(File.join(ctrc.rootfs, 'etc', 'hostname')) do |path|
         regenerate_file(path, 0644) do |f|
           f.puts(ct.hostname.local)
         end
@@ -17,7 +17,7 @@ module OsCtld
       # which an unprivileged container cannot do. We add out own service
       # to set the hostname using /bin/hostname, which uses a syscall that works.
       sv = File.join(
-        ct.rootfs,
+        ctrc.rootfs,
         'etc/runit/core-services',
         '10-vpsadminos-hostname.sh',
       )
@@ -54,7 +54,7 @@ module OsCtld
       end
 
       sv = File.join(
-        ct.rootfs,
+        ctrc.rootfs,
         'etc/runit/core-services',
         '90-vpsadminos-network.sh'
       )

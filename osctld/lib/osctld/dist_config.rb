@@ -13,20 +13,23 @@ module OsCtld
       @dists[distribution]
     end
 
-    def self.run(ct, cmd, opts = {})
-      klass = self.for(ct.distribution.to_sym)
+    # @param ctrc [Container::RunConfiruration]
+    # @param cmd [Symbol]
+    # @param opts [Hash]
+    def self.run(ctrc, cmd, opts = {})
+      klass = self.for(ctrc.distribution.to_sym)
 
       # Make sure the container's dataset is mounted
-      ct.mount
+      ctrc.mount
 
-      d = (klass || self.for(:unsupported)).new(ct)
+      d = (klass || self.for(:unsupported)).new(ctrc)
 
       begin
         d.method(cmd).call(opts)
 
       rescue Exception => e
-        ct.log(:warn, "DistConfig.#{cmd} failed: #{e.message}")
-        ct.log(:warn, denixstorify(e.backtrace).join("\n"))
+        ctrc.log(:warn, "DistConfig.#{cmd} failed: #{e.message}")
+        ctrc.log(:warn, denixstorify(e.backtrace).join("\n"))
       end
     end
   end

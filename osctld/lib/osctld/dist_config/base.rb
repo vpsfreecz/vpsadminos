@@ -17,12 +17,14 @@ module OsCtld
       end
     end
 
-    attr_reader :ct, :distribution, :version
+    attr_reader :ctrc, :ct, :distribution, :version
 
-    def initialize(ct)
-      @ct = ct
-      @distribution = ct.distribution
-      @version = ct.version
+    # @param ctrc [Container::RunConfiguration]
+    def initialize(ctrc)
+      @ctrc = ctrc
+      @ct = ctrc.ct
+      @distribution = ctrc.distribution
+      @version = ctrc.version
     end
 
     # @param opts [Hash] options
@@ -58,7 +60,7 @@ module OsCtld
     end
 
     def dns_resolvers(_opts)
-      writable?(File.join(ct.rootfs, 'etc', 'resolv.conf')) do |path|
+      writable?(File.join(ctrc.rootfs, 'etc', 'resolv.conf')) do |path|
         File.open("#{path}.new", 'w') do |f|
           ct.dns_resolvers.each { |v| f.puts("nameserver #{v}") }
         end
@@ -94,7 +96,7 @@ module OsCtld
     # hostname.
     # @param old_hostname [OsCtl::Lib::Hostname, nil]
     def update_etc_hosts(old_hostname = nil)
-      path = File.join(ct.rootfs, 'etc', 'hosts')
+      path = File.join(ctrc.rootfs, 'etc', 'hosts')
       return unless writable?(path)
 
       hosts = EtcHosts.new(path)

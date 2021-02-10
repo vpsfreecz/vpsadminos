@@ -49,7 +49,7 @@ module OsCtld
       rootfs = File.join('/proc', ct.init_pid.to_s, 'root')
 
       %i(bash busybox sh).each do |type|
-        path = DistConfig.run(ct, :bin_path)
+        path = DistConfig.run(ct.run_conf, :bin_path)
 
         begin
           File.lstat(File.join(rootfs, path, type.to_s))

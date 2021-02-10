@@ -20,7 +20,7 @@ module OsCtld
 
         ct.netifs.delete(netif)
         ct.lxc_config.configure_network
-        DistConfig.run(ct, :remove_netif, netif: netif)
+        DistConfig.run(ct.get_run_conf, :remove_netif, netif: netif)
         ok
       end
 

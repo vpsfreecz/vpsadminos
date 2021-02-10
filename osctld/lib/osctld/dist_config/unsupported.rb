@@ -11,7 +11,7 @@ module OsCtld
       log(
         :warn,
         ct,
-        "Unable to set hostname: #{ct.distribution} not supported"
+        "Unable to set hostname: #{ctrc.distribution} not supported"
       )
     end
 
@@ -19,7 +19,7 @@ module OsCtld
       log(
         :warn,
         ct,
-        "Unable to configure network: #{ct.distribution} not supported"
+        "Unable to configure network: #{ctrc.distribution} not supported"
       )
     end
   end

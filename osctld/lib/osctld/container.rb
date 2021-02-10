@@ -351,7 +351,7 @@ module OsCtld
     def dist_configure_network
       return unless dist_configure_network?
 
-      DistConfig.run(self, :network)
+      DistConfig.run(get_run_conf, :network)
       self.dist_network_configured = true
     end
 
@@ -455,11 +455,11 @@ module OsCtld
             @hostname = OsCtl::Lib::Hostname.new(v)
           end
 
-          DistConfig.run(self, :set_hostname, original: original)
+          DistConfig.run(get_run_conf, :set_hostname, original: original)
 
         when :dns_resolvers
           self.dns_resolvers = v
-          DistConfig.run(self, :dns_resolvers)
+          DistConfig.run(get_run_conf, :dns_resolvers)
 
         when :nesting
           self.nesting = true

@@ -23,8 +23,8 @@ module OsCtld
     def configure
       exclusively do
         ErbTemplate.render_to('ct/config', {
-          distribution: ct.distribution,
-          version: ct.version,
+          distribution: ct.get_run_conf.distribution,
+          version: ct.get_run_conf.version,
           ct: ct,
           cgparams: ct.cgparams,
           prlimits: ct.prlimits,

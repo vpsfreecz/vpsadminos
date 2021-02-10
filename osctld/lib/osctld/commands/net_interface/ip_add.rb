@@ -35,7 +35,7 @@ module OsCtld
         ct.save_config
         ct.lxc_config.configure_network
 
-        DistConfig.run(ct, :network) if ct.can_dist_configure_network?
+        DistConfig.run(ct.get_run_conf, :network) if ct.can_dist_configure_network?
 
         ok
       end

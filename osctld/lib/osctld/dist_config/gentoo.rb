@@ -6,7 +6,7 @@ module OsCtld
 
     def set_hostname(opts)
       # /etc/hostname
-      writable?(File.join(ct.rootfs, 'etc', 'conf.d', 'hostname')) do |path|
+      writable?(File.join(ctrc.rootfs, 'etc', 'conf.d', 'hostname')) do |path|
         regenerate_file(path, 0644) do |f|
           f.puts('# Set to the hostname of this machine')
           f.puts("hostname=\"#{ct.hostname}\"")
@@ -105,7 +105,7 @@ module OsCtld
     end
 
     def update_confd_net
-      config = File.join(ct.rootfs, 'etc/conf.d/net')
+      config = File.join(ctrc.rootfs, 'etc/conf.d/net')
       return unless writable?(config)
 
       heading = "# BEGIN osctld generated content"
@@ -166,15 +166,15 @@ module OsCtld
     end
 
     def netifrc_conf(name)
-      File.join(ct.rootfs, 'etc/conf.d', "net.#{name}")
+      File.join(ctrc.rootfs, 'etc/conf.d', "net.#{name}")
     end
 
     def script_path(name)
-      File.join(ct.rootfs, 'etc/init.d', "net.#{name}")
+      File.join(ctrc.rootfs, 'etc/init.d', "net.#{name}")
     end
 
     def rc_path(name)
-      File.join(ct.rootfs, 'etc/runlevels/default', "net.#{name}")
+      File.join(ctrc.rootfs, 'etc/runlevels/default', "net.#{name}")
     end
   end
 end

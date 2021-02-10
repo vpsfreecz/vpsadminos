@@ -6,7 +6,7 @@ module OsCtld
 
     def set_hostname(opts)
       # /etc/hostname
-      writable?(File.join(ct.rootfs, 'etc', 'HOSTNAME')) do |path|
+      writable?(File.join(ctrc.rootfs, 'etc', 'HOSTNAME')) do |path|
         regenerate_file(path, 0644) do |f|
           f.puts(ct.hostname.local)
         end
@@ -37,7 +37,7 @@ module OsCtld
           )
         end
 
-        writable?(File.join(ct.rootfs, 'etc/rc.d', "rc.venet.#{operation}")) do |path|
+        writable?(File.join(ctrc.rootfs, 'etc/rc.d', "rc.venet.#{operation}")) do |path|
           File.write(path, cmds.join("\n"))
         end
       end

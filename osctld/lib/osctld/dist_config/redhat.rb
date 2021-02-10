@@ -5,7 +5,7 @@ module OsCtld
     def set_hostname(opts)
       # /etc/sysconfig/network
       set_params(
-        File.join(ct.rootfs, 'etc', 'sysconfig', 'network'),
+        File.join(ctrc.rootfs, 'etc', 'sysconfig', 'network'),
         {'HOSTNAME' => ct.hostname.local}
       )
 
@@ -25,7 +25,7 @@ module OsCtld
 
     def network(_opts)
       set_params(
-        File.join(ct.rootfs, 'etc/sysconfig/network'),
+        File.join(ctrc.rootfs, 'etc/sysconfig/network'),
         {'NETWORKING' => 'yes'}
       )
 
@@ -52,7 +52,7 @@ module OsCtld
 
     def do_create_netif(netif)
       tpl_base = File.join('dist_config/network', template_dir)
-      ct_base = File.join(ct.rootfs, 'etc', 'sysconfig')
+      ct_base = File.join(ctrc.rootfs, 'etc', 'sysconfig')
       ifcfg = File.join(ct_base, 'network-scripts', "ifcfg-#{netif.name}")
 
       return unless writable?(ifcfg)
@@ -79,7 +79,7 @@ module OsCtld
     end
 
     def do_remove_netif(name)
-      base = File.join(ct.rootfs, 'etc', 'sysconfig', 'network-scripts')
+      base = File.join(ctrc.rootfs, 'etc', 'sysconfig', 'network-scripts')
       files = [
         "ifcfg-#{name}",
         "route-#{name}",

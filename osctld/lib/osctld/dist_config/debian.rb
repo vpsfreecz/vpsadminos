@@ -6,7 +6,7 @@ module OsCtld
 
     def set_hostname(opts)
       # /etc/hostname
-      writable?(File.join(ct.rootfs, 'etc', 'hostname')) do |path|
+      writable?(File.join(ctrc.rootfs, 'etc', 'hostname')) do |path|
         regenerate_file(path, 0644) do |f|
           f.puts(ct.hostname.local)
         end
@@ -27,7 +27,7 @@ module OsCtld
     end
 
     def network(_opts)
-      base = File.join(ct.rootfs, 'etc', 'network')
+      base = File.join(ctrc.rootfs, 'etc', 'network')
       config = File.join(base, 'interfaces')
       return unless writable?(config)
 
