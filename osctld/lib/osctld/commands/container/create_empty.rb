@@ -53,7 +53,7 @@ module OsCtld
     end
 
     def execute(builder)
-      manipulate(builder.ct) do
+      manipulate(builder.ctrc.ct) do
         error!('container already exists') unless builder.register
 
         begin

@@ -64,7 +64,7 @@ module OsCtld
       )
 
       manipulate(ct) do
-        builder = Container::Builder.new(ct, cmd: self)
+        builder = Container::Builder.new(ct.new_run_conf, cmd: self)
 
         # TODO: check for conflicting configuration
         #   - ip addresses, mac addresses

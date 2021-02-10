@@ -11,7 +11,7 @@ module OsCtld
       def init_script
         return @init_script if @init_script
 
-        f = Tempfile.create(['.runscript', '.sh'], ct.rootfs)
+        f = Tempfile.create(['.runscript', '.sh'], ct.get_run_conf.rootfs)
         f.chmod(0500)
         f.puts('#!/bin/sh')
         f.puts('echo ready')

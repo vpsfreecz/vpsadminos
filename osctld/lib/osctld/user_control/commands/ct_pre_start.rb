@@ -36,13 +36,13 @@ module OsCtld
       ct.mounts.shared_dir.create
 
       # Configure hostname
-      DistConfig.run(ct, :set_hostname) if ct.hostname
+      DistConfig.run(ct.run_conf, :set_hostname) if ct.hostname
 
       # Configure network within the CT
       ct.dist_configure_network
 
       # DNS resolvers
-      DistConfig.run(ct, :dns_resolvers) if ct.dns_resolvers
+      DistConfig.run(ct.run_conf, :dns_resolvers) if ct.dns_resolvers
 
       # User-defined hook
       Container::Hook.run(ct, :pre_start)

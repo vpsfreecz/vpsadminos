@@ -11,62 +11,63 @@ module OsCtld
     ID_RX = /^[a-z0-9_-]{1,100}$/i
 
     def self.create(pool, id, user, group, dataset = nil, opts = {})
-      new(
-        Container.new(
-          pool,
-          id,
-          user,
-          group,
-          dataset || Container.default_dataset(pool, id),
-          load: false
-        ),
-        opts
+      ct = Container.new(
+        pool,
+        id,
+        user,
+        group,
+        dataset || Container.default_dataset(pool, id),
+        load: false,
       )
+
+      ctrc = Container::RunConfiguration.new(ct)
+
+      new(ctrc, opts)
     end
 
-    attr_reader :ct, :errors
+    attr_reader :ctrc, :errors
 
-    # @param ct [Container]
+    # @param ctrc [Container::RunConfiguration]
     # @param opts [Hash]
     # @option opts [Command::Base] :cmd
-    def initialize(ct, opts = {})
-      @ct = ct
+    def initialize(ctrc, opts = {})
+      @ctrc = ctrc
       @opts = opts
       @errors = []
       @ds_builder = Container::DatasetBuilder.new(cmd: opts[:cmd])
     end
 
     def pool
-      ct.pool
+      ctrc.pool
     end
 
     def user
-      ct.user
+      ctrc.user
     end
 
     def group
-      ct.group
+      ctrc.group
     end
 
     def valid?
-      if ID_RX !~ ct.id
+      if ID_RX !~ ctrc.id
         errors << "invalid ID, allowed characters: #{ID_RX.source}"
       end
 
-      if !ct.dataset.on_pool?(ct.pool.name)
-        errors << "dataset #{ct.dataset} does not belong to pool #{ct.pool.name}"
+      if !ctrc.dataset.on_pool?(ctrc.pool.name)
+        errors << "dataset #{ctrc.dataset} does not belong to pool #{ctrc.pool.name}"
       end
 
       errors.empty?
     end
 
     def exist?
-      DB::Containers.contains?(ct.id, ct.pool)
+      DB::Containers.contains?(ctrc.id, ctrc.pool)
     end
 
     def create_root_dataset(opts = {})
       progress('Creating root dataset')
-      create_dataset(ct.dataset, opts)
+      create_dataset(ctrc.dataset, opts)
     end
 
     # @param ds [OsCtl::Lib::Zfs::Dataset]
@@ -77,8 +78,8 @@ module OsCtld
       ds_builder.create_dataset(
         ds,
         parents: opts[:parents],
-        uid_map: opts[:mapping] ? ct.uid_map : nil,
-        gid_map: opts[:mapping] ? ct.gid_map : nil,
+        uid_map: opts[:mapping] ? ctrc.uid_map : nil,
+        gid_map: opts[:mapping] ? ctrc.gid_map : nil,
       )
     end
 
@@ -95,7 +96,7 @@ module OsCtld
     # @option opts [String] :distribution
     # @option opts [String] :version
     def from_local_archive(image, opts = {})
-      ds_builder.from_local_archive(image, ct.rootfs, opts)
+      ds_builder.from_local_archive(image, ctrc.rootfs, opts)
 
       distribution, version, arch = get_distribution_info(image)
 
@@ -107,95 +108,95 @@ module OsCtld
     end
 
     def from_stream(ds = nil, &block)
-      ds_builder.from_stream(ds || ct.dataset, &block)
+      ds_builder.from_stream(ds || ctrc.dataset, &block)
     end
 
     def shift_dataset
       ds_builder.shift_dataset(
-        ct.dataset,
-        uid_map: ct.uid_map,
-        gid_map: ct.gid_map,
+        ctrc.dataset,
+        uid_map: ctrc.uid_map,
+        gid_map: ctrc.gid_map,
       )
     end
 
     def setup_ct_dir
       # Chown to 0:0, zfs will shift it using the mapping
-      File.chown(0, 0, ct.dir)
-      File.chmod(0770, ct.dir)
+      File.chown(0, 0, ctrc.dir)
+      File.chmod(0770, ctrc.dir)
     end
 
     def setup_rootfs
-      if Dir.exist?(ct.rootfs)
-        File.chmod(0755, ct.rootfs)
+      if Dir.exist?(ctrc.rootfs)
+        File.chmod(0755, ctrc.rootfs)
       else
-        Dir.mkdir(ct.rootfs, 0755)
+        Dir.mkdir(ctrc.rootfs, 0755)
       end
 
-      File.chown(0, 0, ct.rootfs)
+      File.chown(0, 0, ctrc.rootfs)
     end
 
     def configure(distribution, version, arch)
-      ct.configure(distribution, version, arch)
+      ctrc.ct.configure(distribution, version, arch)
     end
 
     def clear_snapshots(snaps)
       snaps.each do |snap|
-        zfs(:destroy, nil, "#{ct.dataset}@#{snap}")
+        zfs(:destroy, nil, "#{ctrc.dataset}@#{snap}")
       end
     end
 
     def setup_lxc_home
       progress('Configuring LXC home')
 
-      unless ct.group.setup_for?(ct.user)
-        dir = ct.group.userdir(ct.user)
+      unless ctrc.group.setup_for?(ctrc.user)
+        dir = ctrc.group.userdir(ctrc.user)
 
         FileUtils.mkdir_p(dir, mode: 0751)
-        File.chown(0, ct.user.ugid, dir)
+        File.chown(0, ctrc.user.ugid, dir)
       end
 
-      if Dir.exist?(ct.lxc_dir)
-        File.chmod(0750, ct.lxc_dir)
+      if Dir.exist?(ctrc.lxc_dir)
+        File.chmod(0750, ctrc.lxc_dir)
       else
-        Dir.mkdir(ct.lxc_dir, 0750)
+        Dir.mkdir(ctrc.lxc_dir, 0750)
       end
-      File.chown(0, ct.user.ugid, ct.lxc_dir)
+      File.chown(0, ctrc.user.ugid, ctrc.lxc_dir)
 
-      ct.configure_bashrc
+      ctrc.ct.configure_bashrc
     end
 
     def setup_lxc_configs
       progress('Generating LXC configuration')
-      ct.lxc_config.configure
+      ctrc.ct.lxc_config.configure
     end
 
     def setup_log_file
       progress('Preparing log file')
-      File.open(ct.log_path, 'w').close
-      File.chmod(0660, ct.log_path)
-      File.chown(0, ct.user.ugid, ct.log_path)
+      File.open(ctrc.log_path, 'w').close
+      File.chmod(0660, ctrc.log_path)
+      File.chown(0, ctrc.user.ugid, ctrc.log_path)
     end
 
     def setup_user_hook_script_dir
-      return if Dir.exist?(ct.user_hook_script_dir)
+      return if Dir.exist?(ctrc.ct.user_hook_script_dir)
 
       progress('Preparing user script hook dir')
-      Dir.mkdir(ct.user_hook_script_dir, 0700)
+      Dir.mkdir(ctrc.ct.user_hook_script_dir, 0700)
     end
 
     def register
       DB::Containers.sync do
-        if DB::Containers.contains?(ct.id, ct.pool)
+        if DB::Containers.contains?(ctrc.id, ctrc.pool)
           false
         else
-          DB::Containers.add(ct)
+          DB::Containers.add(ctrc.ct)
           true
         end
       end
     end
 
     def monitor
-      Monitor::Master.monitor(ct)
+      Monitor::Master.monitor(ctrc.ct)
     end
 
     # Remove a partially created container when the building process failed
@@ -204,31 +205,31 @@ module OsCtld
     # @option opts [Boolean] :dataset destroy dataset or not
     def cleanup(opts = {})
       Console.remove(ct)
-      zfs(:destroy, '-r', ct.dataset, valid_rcs: [1]) if opts[:dataset]
+      zfs(:destroy, '-r', ctrc.dataset, valid_rcs: [1]) if opts[:dataset]
 
-      syscmd("rm -rf #{ct.lxc_dir} #{ct.user_hook_script_dir}")
-      File.unlink(ct.log_path) if File.exist?(ct.log_path)
-      File.unlink(ct.config_path) if File.exist?(ct.config_path)
+      syscmd("rm -rf #{ctrc.lxc_dir} #{ctrc.ct.user_hook_script_dir}")
+      File.unlink(ctrc.log_path) if File.exist?(ctrc.log_path)
+      File.unlink(ctrc.config_path) if File.exist?(ctrc.config_path)
 
       DB::Containers.remove(ct)
 
       begin
-        if ct.group.has_containers?(ct.user)
-          CGroup.rmpath_all(ct.base_cgroup_path)
+        if ctrc.group.has_containers?(ctrc.user)
+          CGroup.rmpath_all(ctrc.ct.base_cgroup_path)
 
         else
-          CGroup.rmpath_all(ct.group.full_cgroup_path(ct.user))
+          CGroup.rmpath_all(ctrc.ct.group.full_cgroup_path(ctrc.user))
         end
       rescue SystemCallError
         # If some of the cgroups are busy, just leave them be
       end
 
-      bashrc = File.join(ct.lxc_dir, '.bashrc')
+      bashrc = File.join(ctrc.lxc_dir, '.bashrc')
       File.unlink(bashrc) if File.exist?(bashrc)
 
-      grp_dir = ct.group.userdir(ct.user)
+      grp_dir = ctrc.group.userdir(ctrc.user)
 
-      if !ct.group.has_containers?(ct.user) && Dir.exist?(grp_dir)
+      if !ctrc.group.has_containers?(ctrc.user) && Dir.exist?(grp_dir)
         Dir.rmdir(grp_dir)
       end
     end

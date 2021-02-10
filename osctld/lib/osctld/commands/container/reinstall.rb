@@ -37,7 +37,7 @@ module OsCtld
           error!('invalid type')
         end
 
-        builder = Container::Builder.new(ct, cmd: self)
+        builder = Container::Builder.new(ct.new_run_conf, cmd: self)
 
         # Remove all snapshots
         snaps = snapshots(ct)

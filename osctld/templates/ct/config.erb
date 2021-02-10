@@ -8,7 +8,7 @@ lxc.include = /etc/lxc/common.conf.d/00-lxcfs.conf
 lxc.include = <%= File.join(Lxc::CONFIGS, 'nesting.conf') %>
 <% end -%>
 
-lxc.rootfs.path = <%= ct.rootfs %>
+lxc.rootfs.path = <%= ct.get_run_conf.rootfs %>
 lxc.arch = <%= ct.arch %>
 lxc.uts.name = <%= ct.hostname || ct.id %>
 lxc.syslogns = 1

@@ -61,7 +61,7 @@ module OsCtld
 
       protected
       def copy_script(src)
-        script = Tempfile.create(['.runscript', '.sh'], ct.rootfs)
+        script = Tempfile.create(['.runscript', '.sh'], ct.get_run_conf.rootfs)
         script.chmod(0500)
 
         File.open(src, 'r') { |f| IO.copy_stream(f, script) }

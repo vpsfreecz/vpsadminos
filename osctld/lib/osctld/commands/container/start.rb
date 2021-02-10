@@ -89,6 +89,9 @@ module OsCtld
       # Remove pre-existing accounting cgroups to reset counters
       remove_accounting_cgroups(ct)
 
+      # Initiate run configuration
+      ct.init_run_conf
+
       # Remove any left-over temporary mounts
       ct.mounts.prune
 

@@ -199,6 +199,13 @@ module OsCtld
           mode: 0511
         )
         add.directory(
+          ct_dir,
+          desc: 'Contains runtime container state data',
+          user: 0,
+          group: 0,
+          mode: 0700
+        )
+        add.directory(
           console_dir,
           desc: 'Sockets for container consoles',
           user: 0,
@@ -379,6 +386,10 @@ module OsCtld
       File.join(run_dir, 'users')
     end
 
+    def ct_dir
+      File.join(run_dir, 'containers')
+    end
+
     def hook_dir
       File.join(run_dir, 'hooks')
     end
@@ -546,7 +557,7 @@ module OsCtld
         ct = Container.new(self, ctid, nil, nil, nil, dataset_cache: ds_cache)
         ensure_limits(ct)
 
-        builder = Container::Builder.new(ct)
+        builder = Container::Builder.new(ct.get_run_conf)
         builder.setup_lxc_home
         builder.setup_log_file
 
@@ -587,7 +598,7 @@ module OsCtld
         Dir.mkdir(dir, 0711) unless Dir.exist?(dir)
       end
 
-      [apparmor_dir].each do |dir|
+      [ct_dir, apparmor_dir].each do |dir|
         Dir.mkdir(dir, 0700) unless Dir.exist?(dir)
       end
 

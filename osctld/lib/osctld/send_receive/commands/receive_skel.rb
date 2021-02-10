@@ -41,7 +41,7 @@ module OsCtld
       end
 
       ct.manipulate(self) do
-        builder = Container::Builder.new(ct)
+        builder = Container::Builder.new(ct.get_run_conf)
 
         unless builder.valid?
           error!("invalid id, allowed format: #{builder.id_chars}")

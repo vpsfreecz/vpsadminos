@@ -22,7 +22,7 @@ module OsCtld
       :version, :arch, :autostart, :ephemeral, :hostname, :dns_resolvers,
       :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams,
       :devices, :seccomp_profile, :apparmor, :attrs, :state, :init_pid,
-      :lxc_config, :init_cmd, :raw_configs
+      :lxc_config, :init_cmd, :raw_configs, :run_conf
 
     alias_method :ephemeral?, :ephemeral
 
@@ -66,6 +66,7 @@ module OsCtld
       @raw_configs = Container::RawConfigs.new
       @attrs = Attributes.new
       @dist_network_configured = false
+      @run_conf = nil
 
       if opts[:load]
         load_opts = {
@@ -97,6 +98,7 @@ module OsCtld
         @devices = Devices::ContainerManager.new(self)
         @prlimits = PrLimits::Manager.default(self)
         @mounts = Mount::Manager.new(self)
+        @run_conf ||= new_run_conf
         devices.init
         save_config
       end
@@ -165,6 +167,8 @@ module OsCtld
           group: user.ugid,
           mode: 0660
         )
+
+        run_conf.assets(add) if run_conf
       end
     end
 
@@ -184,6 +188,40 @@ module OsCtld
       ct = clone
       ct.send(:clone_from, self, id, opts)
       ct
+    end
+
+    # @return [Container::RunConfiguration]
+    def new_run_conf
+      Container::RunConfiguration.new(self, load_conf: false)
+    end
+
+    # @return [Container::RunConfiguration]
+    def get_run_conf
+      run_conf || new_run_conf
+    end
+
+    # @return [Container::RunConfiguration, nil]
+    def get_past_run_conf
+      inclusively { @past_run_conf }
+    end
+
+    # @param next_run_conf [Container::RunConfiguration]
+    def set_next_run_conf(next_run_conf)
+      exclusively { @next_run_conf = next_run_conf }
+    end
+
+    # This must be called on container start
+    def init_run_conf
+      exclusively do
+        if @next_run_conf
+          @run_conf = @next_run_conf
+          @next_run_conf = nil
+        else
+          @run_conf = new_run_conf
+        end
+
+        @run_conf.save
+      end
     end
 
     # Mount the container's dataset
@@ -272,11 +310,19 @@ module OsCtld
     end
 
     def starting
-      self.dist_network_configured = false
-      @do_reboot = false
+      exclusively do
+        self.dist_network_configured = false
+        @do_reboot = false
+      end
     end
 
     def stopped
+      if run_conf
+        run_conf.destroy
+        @past_run_conf = @run_conf
+        @run_conf = nil
+      end
+
       self.dist_network_configured = false
       self.init_pid = nil
     end
@@ -547,8 +593,8 @@ module OsCtld
           lxc_path: lxc_home,
           lxc_dir: lxc_dir,
           group_path: cgroup_path,
-          distribution: distribution,
-          version: version,
+          distribution: run_conf ? run_conf.distribution : distribution,
+          version: run_conf ? run_conf.version : version,
           state: state,
           init_pid: init_pid,
           autostart: autostart ? true : false,
@@ -695,6 +741,7 @@ module OsCtld
         @nesting = cfg['nesting'] || false
         @seccomp_profile = cfg['seccomp_profile'] || default_seccomp_profile
         @init_cmd = cfg['init_cmd']
+        @run_conf = Container::RunConfiguration.load(self)
 
         if cfg['send_log']
           @send_log = SendReceive::Log.load(cfg['send_log'])
@@ -758,6 +805,9 @@ module OsCtld
       @lxc_config = lxc_config.dup(self)
       @raw_configs = raw_configs.dup
       @attrs = attrs.dup
+      @run_conf = nil
+      @next_run_conf = nil
+      @past_run_conf = nil
 
       @devices = devices.dup(self)
       devices.init

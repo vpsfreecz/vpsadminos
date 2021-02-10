@@ -223,10 +223,10 @@ module OsCtld
     def datasets(builder)
       return @datasets if @datasets
 
-      @datasets = [builder.ct.dataset] + metadata['datasets'].map do |name|
+      @datasets = [builder.ctrc.dataset] + metadata['datasets'].map do |name|
         OsCtl::Lib::Zfs::Dataset.new(
-          File.join(builder.ct.dataset.name, name),
-          base: builder.ct.dataset.name,
+          File.join(builder.ctrc.dataset.name, name),
+          base: builder.ctrc.dataset.name,
         )
       end
     end
@@ -313,13 +313,13 @@ module OsCtld
     # @param builder [Container::Builder]
     def unpack_rootfs(builder)
       # Ensure the dataset is mounted
-      builder.ct.dataset.mount(recursive: true)
+      builder.ctrc.dataset.mount(recursive: true)
 
       # Create private/
       builder.setup_rootfs
 
       ret = tar.seek('rootfs/base.tar.gz') do |tf|
-        IO.popen("exec tar -xz -C #{builder.ct.rootfs}", 'r+') do |io|
+        IO.popen("exec tar -xz -C #{builder.ctrc.rootfs}", 'r+') do |io|
           io.write(tf.read(16*1024)) until tf.eof?
         end
 

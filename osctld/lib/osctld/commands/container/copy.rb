@@ -43,7 +43,7 @@ module OsCtld
         )
       end
 
-      builder = Container::Builder.new(new_ct, cmd: self)
+      builder = Container::Builder.new(new_ct.new_run_conf, cmd: self)
       error!(builder.errors.join('; ')) unless builder.valid?
 
       manipulate([ct, new_ct]) do
@@ -77,10 +77,10 @@ module OsCtld
     def copy_datasets_from(builder, ct)
       snaps = []
       src_datasets = ct.datasets
-      dst_datasets = [builder.ct.dataset] + ct.dataset.descendants.map do |ds|
+      dst_datasets = [builder.ctrc.dataset] + ct.dataset.descendants.map do |ds|
         OsCtl::Lib::Zfs::Dataset.new(
-          File.join(builder.ct.dataset.name, ds.relative_name),
-          base: builder.ct.dataset.name,
+          File.join(builder.ctrc.dataset.name, ds.relative_name),
+          base: builder.ctrc.dataset.name,
         )
       end
 
