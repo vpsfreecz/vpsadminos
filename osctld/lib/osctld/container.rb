@@ -321,14 +321,16 @@ module OsCtld
     end
 
     def stopped
-      if run_conf
-        run_conf.destroy
-        @past_run_conf = @run_conf
-        @run_conf = nil
-      end
+      exclusively do
+        if run_conf
+          run_conf.destroy
+          @past_run_conf = @run_conf
+          @run_conf = nil
+        end
 
-      self.dist_network_configured = false
-      self.init_pid = nil
+        self.dist_network_configured = false
+        self.init_pid = nil
+      end
     end
 
     def request_reboot
