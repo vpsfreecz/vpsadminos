@@ -58,7 +58,11 @@ module OsCtld
 
     def handle_ct_stop(ctrc)
       if ctrc.destroy_dataset_on_stop?
-        zfs(:destroy, nil, ctrc.dataset, valid_rcs: :all)
+        begin
+          zfs(:destroy, nil, ctrc.dataset)
+        rescue SystemCommandFailed => e
+          log(:warn, ctrc, "Unable to destroy dataset '#{ctrc.dataset}': #{e.message}")
+        end
       end
 
       if ct.reboot?
