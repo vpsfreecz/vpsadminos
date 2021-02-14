@@ -22,6 +22,8 @@ module OsCtl::Cli
       group
       dataset
       rootfs
+      boot_dataset
+      boot_rootfs
       lxc_path
       lxc_dir
       group_path

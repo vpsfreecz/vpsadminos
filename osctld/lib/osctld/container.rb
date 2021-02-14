@@ -596,6 +596,8 @@ module OsCtld
           group: group.name,
           dataset: dataset.name,
           rootfs: rootfs,
+          boot_dataset: run_conf ? run_conf.dataset.name : dataset.name,
+          boot_rootfs: run_conf ? run_conf.rootfs : rootfs,
           lxc_path: lxc_home,
           lxc_dir: lxc_dir,
           group_path: cgroup_path,
