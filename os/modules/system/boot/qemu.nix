@@ -23,6 +23,7 @@ let
 
       create = mkOption {
         type = types.bool;
+        default = false;
         description = ''
           Create the device if it does not exist. Applicable only
           for file-backed devices.
