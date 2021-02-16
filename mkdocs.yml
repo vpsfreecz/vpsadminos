@@ -33,6 +33,7 @@ pages:
     - Updates: 'os/updates.md'
     - Deployment: 'os/deployment.md'
     - Runlevels: 'os/runlevels.md'
+    - 'Kernel parameters': 'os/kernel-parameters.md'
     - Pools: 'os/pools.md'
     - Shell history: 'os/shell-history.md'
     - Testing: 'os/testing.md'
