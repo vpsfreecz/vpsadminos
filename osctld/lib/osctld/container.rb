@@ -317,6 +317,11 @@ module OsCtld
       exclusively do
         self.dist_network_configured = false
         @do_reboot = false
+
+        # Normally {#init_run_conf} is called from {Commands::Container::Start},
+        # but in case the lxc-start was invoked manually outside of osctld,
+        # initiate the run conf if needed.
+        init_run_conf if @run_conf.nil?
       end
     end
 
