@@ -44,7 +44,7 @@ module OsCtld
     def on_ct_stop
       ctrc = ct.get_past_run_conf
 
-      if ct.reboot? \
+      if ctrc.reboot? \
          || (ct.ephemeral? && !ct.is_being_manipulated?) \
          || (ctrc && ctrc.destroy_dataset_on_stop?)
         # The current thread is used to handle the console and has to exit.
@@ -65,7 +65,7 @@ module OsCtld
         end
       end
 
-      if ct.reboot?
+      if ctrc.reboot?
         sleep(1)
         reboot_ct
 

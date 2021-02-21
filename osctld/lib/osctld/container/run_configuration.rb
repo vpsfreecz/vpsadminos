@@ -29,6 +29,7 @@ module OsCtld
     def initialize(ct, load_conf: true)
       init_lock
       @ct = ct
+      @do_reboot = false
       self.load_conf(from_file: load_conf)
     end
 
@@ -102,6 +103,15 @@ module OsCtld
       else
         mounted
       end
+    end
+
+    # After the current container run stops, start it again
+    def request_reboot
+      @do_reboot = true
+    end
+
+    def reboot?
+      @do_reboot
     end
 
     def exist?

@@ -324,7 +324,6 @@ module OsCtld
     def starting
       exclusively do
         self.dist_network_configured = false
-        @do_reboot = false
 
         # Normally {#init_run_conf} is called from {Commands::Container::Start},
         # but in case the lxc-start was invoked manually outside of osctld,
@@ -344,14 +343,6 @@ module OsCtld
         self.dist_network_configured = false
         self.init_pid = nil
       end
-    end
-
-    def request_reboot
-      @do_reboot = true
-    end
-
-    def reboot?
-      @do_reboot
     end
 
     def can_dist_configure_network?
@@ -807,7 +798,6 @@ module OsCtld
       @init_pid = nil
       @state = :staged
       @send_log = nil
-      @do_reboot = false
 
       if opts[:dataset]
         @dataset = OsCtl::Lib::Zfs::Dataset.new(

@@ -17,12 +17,12 @@ module OsCtld
       ct.apparmor.destroy_namespace
       ct.apparmor.unload_profile
 
-      ct.stopped
-
       if opts[:target] == 'reboot'
         log(:info, ct, 'Reboot requested')
-        ct.request_reboot
+        ct.run_conf.request_reboot
       end
+
+      ct.stopped
 
       # User-defined hook
       Container::Hook.run(ct, :post_stop)
