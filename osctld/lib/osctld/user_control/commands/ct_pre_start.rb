@@ -39,7 +39,7 @@ module OsCtld
       DistConfig.run(ct.run_conf, :set_hostname) if ct.hostname
 
       # Configure network within the CT
-      ct.dist_configure_network
+      ct.run_conf.dist_configure_network
 
       # DNS resolvers
       DistConfig.run(ct.run_conf, :dns_resolvers) if ct.dns_resolvers

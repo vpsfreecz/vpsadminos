@@ -65,7 +65,6 @@ module OsCtld
       @init_cmd = nil
       @raw_configs = Container::RawConfigs.new
       @attrs = Attributes.new
-      @dist_network_configured = false
       @run_conf = nil
 
       if opts[:load]
@@ -323,8 +322,6 @@ module OsCtld
 
     def starting
       exclusively do
-        self.dist_network_configured = false
-
         # Normally {#init_run_conf} is called from {Commands::Container::Start},
         # but in case the lxc-start was invoked manually outside of osctld,
         # initiate the run conf if needed.
@@ -340,7 +337,6 @@ module OsCtld
           @run_conf = nil
         end
 
-        self.dist_network_configured = false
         self.init_pid = nil
       end
     end
@@ -350,19 +346,6 @@ module OsCtld
         next false if netifs.detect { |netif| !netif.can_run_distconfig? }
         true
       end
-    end
-
-    def dist_configure_network?
-      inclusively do
-        !dist_network_configured && can_dist_configure_network?
-      end
-    end
-
-    def dist_configure_network
-      return unless dist_configure_network?
-
-      DistConfig.run(get_run_conf, :network)
-      self.dist_network_configured = true
     end
 
     def dir
@@ -711,7 +694,7 @@ module OsCtld
       :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams,
       :devices, :seccomp_profile, :apparmor, :attrs, :init_pid, :lxc_config,
       :init_cmd
-    attr_synchronized_accessor :mounted, :dist_network_configured
+    attr_synchronized_accessor :mounted
 
     def load_config_file(path = nil, **opts)
       load_config_hash(YAML.load_file(path || config_path), **opts)

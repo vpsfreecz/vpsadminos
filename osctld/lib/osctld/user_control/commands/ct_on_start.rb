@@ -13,7 +13,7 @@ module OsCtld
       return error('access denied') unless owns_ct?(ct)
 
       # Configure network within the CT
-      ct.dist_configure_network
+      ct.run_conf.dist_configure_network
 
       Container::Hook.run(ct, :on_start)
       ok

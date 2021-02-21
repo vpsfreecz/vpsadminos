@@ -30,6 +30,7 @@ module OsCtld
       init_lock
       @ct = ct
       @do_reboot = false
+      @dist_network_configured = false
       self.load_conf(from_file: load_conf)
     end
 
@@ -46,7 +47,7 @@ module OsCtld
 
     %i(
       id ident pool user group uid_map gid_map lxc_dir log_path config_path
-      log_type
+      can_dist_configure_network? log_type
     ).each do |v|
       define_method(v) do |*args, **kwargs|
         ct.send(v, *args, **kwargs)
@@ -112,6 +113,19 @@ module OsCtld
 
     def reboot?
       @do_reboot
+    end
+
+    def dist_configure_network?
+      inclusively do
+        !@dist_network_configured && can_dist_configure_network?
+      end
+    end
+
+    def dist_configure_network
+      return unless dist_configure_network?
+
+      DistConfig.run(self, :network)
+      exclusively { @dist_network_configured = true }
     end
 
     def exist?
