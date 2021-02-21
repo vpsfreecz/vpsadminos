@@ -563,7 +563,12 @@ module OsCtld
 
         ct.lxc_config.configure
         Monitor::Master.monitor(ct)
-        Console.reconnect_tty0(ct) if ct.current_state == :running
+
+        if ct.current_state == :running
+          ct.ensure_run_conf
+          Console.reconnect_tty0(ct)
+        end
+
         DB::Containers.add(ct)
       end
 

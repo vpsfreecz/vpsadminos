@@ -228,6 +228,14 @@ module OsCtld
       end
     end
 
+    # Call {#init_run_conf} unless {#run_conf} is already set
+    def ensure_run_conf
+      exclusively do
+        init_run_conf if @run_conf.nil?
+        nil
+      end
+    end
+
     # Mount the container's dataset
     # @param force [Boolean] ensure the datasets are mounted even if osctld
     #                        already mounted them
