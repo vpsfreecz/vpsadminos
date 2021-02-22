@@ -24,11 +24,13 @@ module OsCtld
     attr_reader :ct
 
     attr_inclusive_reader :dataset, :distribution, :version, :arch
+    attr_synchronized_accessor :init_pid
 
     # @param ct [Container]
     def initialize(ct, load_conf: true)
       init_lock
       @ct = ct
+      @init_pid = nil
       @do_reboot = false
       @dist_network_configured = false
       self.load_conf(from_file: load_conf)

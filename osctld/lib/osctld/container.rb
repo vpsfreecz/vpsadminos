@@ -21,8 +21,8 @@ module OsCtld
     attr_inclusive_reader :pool, :id, :user, :dataset, :group, :distribution,
       :version, :arch, :autostart, :ephemeral, :hostname, :dns_resolvers,
       :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams,
-      :devices, :seccomp_profile, :apparmor, :attrs, :state, :init_pid,
-      :lxc_config, :init_cmd, :raw_configs, :run_conf
+      :devices, :seccomp_profile, :apparmor, :attrs, :state, :lxc_config,
+      :init_cmd, :raw_configs, :run_conf
 
     alias_method :ephemeral?, :ephemeral
 
@@ -50,7 +50,6 @@ module OsCtld
       @dataset = dataset
       @state = opts[:staged] ? :staged : :unknown
       @ephemeral = false
-      @init_pid = nil
       @netifs = NetInterface::Manager.new(self)
       @cgparams = nil
       @devices = nil
@@ -228,10 +227,11 @@ module OsCtld
     end
 
     # Call {#init_run_conf} unless {#run_conf} is already set
+    # @return [Container::RunConfiguration]
     def ensure_run_conf
       exclusively do
         init_run_conf if @run_conf.nil?
-        nil
+        run_conf
       end
     end
 
@@ -320,12 +320,18 @@ module OsCtld
       inclusively { state != :staged && state != :error && pool.active? }
     end
 
+    def init_pid
+      inclusively do
+        @run_conf ? run_conf.init_pid : nil
+      end
+    end
+
     def starting
       exclusively do
         # Normally {#init_run_conf} is called from {Commands::Container::Start},
         # but in case the lxc-start was invoked manually outside of osctld,
         # initiate the run conf if needed.
-        init_run_conf if @run_conf.nil?
+        ensure_run_conf
       end
     end
 
@@ -336,8 +342,6 @@ module OsCtld
           @past_run_conf = @run_conf
           @run_conf = nil
         end
-
-        self.init_pid = nil
       end
     end
 
@@ -372,7 +376,7 @@ module OsCtld
     def runtime_rootfs
       fail 'container is not running' unless running?
 
-      pid = inclusively { init_pid }
+      pid = init_pid
       fail 'init_pid not set' unless pid
 
       File.join('/proc', pid.to_s, 'root')
@@ -692,8 +696,7 @@ module OsCtld
     attr_exclusive_writer :pool, :id, :user, :dataset, :group, :distribution,
       :version, :arch, :autostart, :ephemeral, :hostname, :dns_resolvers,
       :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams,
-      :devices, :seccomp_profile, :apparmor, :attrs, :init_pid, :lxc_config,
-      :init_cmd
+      :devices, :seccomp_profile, :apparmor, :attrs, :lxc_config, :init_cmd
     attr_synchronized_accessor :mounted
 
     def load_config_file(path = nil, **opts)
@@ -778,7 +781,6 @@ module OsCtld
       @pool = opts[:pool] if opts[:pool]
       @user = opts[:user] if opts[:user]
       @group = opts[:group] if opts[:group]
-      @init_pid = nil
       @state = :staged
       @send_log = nil
 

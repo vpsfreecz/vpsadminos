@@ -116,7 +116,10 @@ module OsCtld
     def update_state(ct)
       st = ContainerControl::Commands::State.run!(ct)
       ct.state = st.state
-      ct.init_pid = st.init_pid
+
+      if st.init_pid
+        ct.ensure_run_conf.init_pid = st.init_pid
+      end
     rescue ContainerControl::Error => e
       log(:warn, :monitor, "Unable to get state of container #{ct.ident}: #{e.message}")
     end

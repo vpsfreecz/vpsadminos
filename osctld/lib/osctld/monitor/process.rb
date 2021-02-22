@@ -110,7 +110,7 @@ module OsCtld
       case ct.state
       when :running
         begin
-          ct.init_pid = ContainerControl::Commands::State.run!(ct).init_pid
+          ct.ensure_run_conf.init_pid = ContainerControl::Commands::State.run!(ct).init_pid
         rescue ContainerControl::Error => e
           log(:warn, :monitor, "Unable to get state of container #{ct.ident}: #{e.message}")
         end
