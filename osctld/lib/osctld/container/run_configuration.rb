@@ -108,6 +108,13 @@ module OsCtld
       end
     end
 
+    def runtime_rootfs
+      pid = init_pid
+      fail 'init_pid not set' unless pid
+
+      File.join('/proc', pid.to_s, 'root')
+    end
+
     # After the current container run stops, start it again
     def request_reboot
       @do_reboot = true

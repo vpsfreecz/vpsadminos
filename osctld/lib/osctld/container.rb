@@ -373,15 +373,6 @@ module OsCtld
       nil
     end
 
-    def runtime_rootfs
-      fail 'container is not running' unless running?
-
-      pid = init_pid
-      fail 'init_pid not set' unless pid
-
-      File.join('/proc', pid.to_s, 'root')
-    end
-
     def config_path
       inclusively { File.join(pool.conf_path, 'ct', "#{id}.yml") }
     end
