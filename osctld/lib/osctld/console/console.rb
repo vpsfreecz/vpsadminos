@@ -44,6 +44,13 @@ module OsCtld
     def on_ct_stop
       ctrc = ct.get_past_run_conf
 
+      if ctrc.nil?
+        # This means that {UserControl::Commands::CtPostStop} hasn't run for some
+        # reason.
+        log(:fatal, ctrc, 'Unable to properly handle container stop')
+        return
+      end
+
       if ctrc.reboot? \
          || (ct.ephemeral? && !ct.is_being_manipulated?) \
          || (ctrc && ctrc.destroy_dataset_on_stop?)
