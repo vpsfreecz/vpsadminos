@@ -288,7 +288,6 @@ let
       UDF_FS              = module;
 
       # vpsAdminOS doesn't support NFSV4 for now
-      NFSD_PNFS              = whenBetween "4.0" "4.6" yes;
       NFSD_V2_ACL            = yes;
       NFSD_V3                = yes;
       NFSD_V3_ACL            = yes;
@@ -541,8 +540,6 @@ let
       LOCK_TORTURE_TEST        = option no;
       MTD_TESTS                = option no;
       NOTIFIER_ERROR_INJECTION = option no;
-      RCU_PERF_TEST            = option no;
-      RCU_TORTURE_TEST         = option no;
       TEST_ASYNC_DRIVER_PROBE  = option no;
       WW_MUTEX_SELFTEST        = option no;
       XZ_DEC_TEST              = option no;
