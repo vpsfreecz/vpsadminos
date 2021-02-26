@@ -162,7 +162,7 @@ let
       '';
 
       buildFlags = [
-        "KBUILD_BUILD_VERSION=1-NixOS"
+        "KBUILD_BUILD_VERSION=1-vpsAdminOS"
         platform.kernelTarget
         "vmlinux"  # for "perf" and things like that
       ] ++ optional isModular "modules";
