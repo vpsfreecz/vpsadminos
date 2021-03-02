@@ -12,7 +12,7 @@ callPackage ./generic.nix (args // rec {
   extraMeta.branch = concatStrings (intersperse "." (take 2 (splitString "." version)));
 
   src = fetchurl {
-    url = "https://github.com/vpsfreecz/linux/archive/da62fe250493b44c07141d1ac47c52471e3f48b6.tar.gz";
-    sha256 = "1bcgvjih1si53pzi0l24gk1rzz407d5nxrhxavbdf6s7sm96vkxs";
+    url = "https://github.com/vpsfreecz/linux/archive/552c47d7026cb60988da8d788ae40585824fe7d3.tar.gz";
+    sha256 = "1pmxyvryi1g6a1l174bflksa7w3kf1krz2jynmk1hqz4as5qznbw";
   };
 } // (args.argsOverride or {}))
