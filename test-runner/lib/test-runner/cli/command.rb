@@ -46,6 +46,7 @@ module TestRunner
       exec = TestRunner::Executor.new(
         tests,
         state_dir: state_dir,
+        jobs: opts['jobs'],
         stop_on_failure: opts['stop-on-failure'],
         destructive: opts['destructive'],
       )

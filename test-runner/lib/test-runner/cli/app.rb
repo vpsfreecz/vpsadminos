@@ -34,6 +34,9 @@ module TestRunner::Cli
         c.desc 'Assume the answer to confirmations is yes'
         c.switch %w(y yes)
 
+        c.desc 'How many tests to run in parallel'
+        c.flag %w(j jobs), type: Integer, default_value: 1
+
         c.desc 'Stop testing when one test fails'
         c.switch 'stop-on-failure', default_value: false
 

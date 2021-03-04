@@ -20,6 +20,9 @@ selected tests and reporting results.
     `-y`, `--yes`
       Do not ask for confirmation, assume yes.
 
+    `-j`, `--jobs`
+      Number of tests to run in parallel.
+
     `--stop-on-failure`
       Stop further execution when a test fails.
 
