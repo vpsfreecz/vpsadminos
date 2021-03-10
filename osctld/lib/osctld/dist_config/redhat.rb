@@ -32,17 +32,21 @@ module OsCtld
       ct.netifs.each do |netif|
         do_create_netif(netif)
       end
+
+      generate_nm_conf if use_nm?
     end
 
     # Cleanup old config files
     def remove_netif(opts)
       do_remove_netif(opts[:netif].name)
+      generate_nm_conf if use_nm?
     end
 
     # Rename config files
     def rename_netif(opts)
       do_remove_netif(opts[:original_name])
       do_create_netif(opts[:netif])
+      generate_nm_conf if use_nm?
     end
 
     protected
@@ -105,6 +109,20 @@ module OsCtld
 
         File.unlink(path)
       end
+    end
+
+    def generate_nm_conf
+      conf_d = File.join(ctrc.rootfs, 'etc', 'NetworkManager', 'conf.d')
+      return unless Dir.exist?(conf_d)
+
+      file = File.join(conf_d, 'osctl.conf')
+      return unless writable?(file)
+
+      OsCtld::ErbTemplate.render_to(
+        File.join('dist_config/network/redhat_nm/nm_conf'),
+        {netifs: ct.netifs},
+        file,
+      )
     end
 
     # @param file [String]
