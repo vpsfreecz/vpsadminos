@@ -4,4 +4,4 @@ if [ "$DISTNAME" == "nixos" ] ; then
 	sleep 10
 	osctl ct stop $CTID || fail "unable to stop"
 fi
-osctl ct passwd $CTID root secret || fail "unable to set password"
+osctl ct passwd $CTID root suCHS3crET || fail "unable to set password"

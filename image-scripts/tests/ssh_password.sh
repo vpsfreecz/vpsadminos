@@ -1,5 +1,5 @@
 IPADDR="10.100.10.1"
-PASSWORD=secret
+PASSWORD=suCHS3crET
 
 function test_network {
 	ping -c 1 $IPADDR > /dev/null 2>&1
