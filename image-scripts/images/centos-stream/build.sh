@@ -8,7 +8,7 @@ BASEURL=http://mirror.centos.org/centos/8-stream/BaseOS/x86_64/os/
 UPDATES=http://mirror.centos.org/centos/8-stream/AppStream/x86_64/os/
 
 GROUPNAME='core'
-EXTRAPKGS='vim man'
+EXTRAPKGS='centos-stream-repos vim man'
 
 . $INCLUDE/redhat-family.sh
 
