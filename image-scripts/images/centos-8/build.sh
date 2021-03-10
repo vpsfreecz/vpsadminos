@@ -1,7 +1,7 @@
 . "$IMAGEDIR/config.sh"
-POINTVER=8.2
-BUILD=2004
-RELEASE=http://mirror.centos.org/centos/${POINTVER}.${BUILD}/BaseOS/x86_64/os/Packages/centos-release-${POINTVER}-2.${BUILD}.0.1.el8.x86_64.rpm
+POINTVER=8.3
+BUILD=2011
+RELEASE=http://mirror.centos.org/centos/${POINTVER}.${BUILD}/BaseOS/x86_64/os/Packages/centos-linux-release-${POINTVER}-1.${BUILD}.el8.noarch.rpm
 BASEURL=http://mirror.centos.org/centos/${POINTVER}.${BUILD}/BaseOS/x86_64/os/
 
 # CentOS 8 does not seem to have an updates repo, so this variable is used to
@@ -9,7 +9,7 @@ BASEURL=http://mirror.centos.org/centos/${POINTVER}.${BUILD}/BaseOS/x86_64/os/
 UPDATES=http://mirror.centos.org/centos/${POINTVER}.${BUILD}/AppStream/x86_64/os/
 
 GROUPNAME='core'
-EXTRAPKGS='centos-gpg-keys centos-repos vim man'
+EXTRAPKGS='centos-gpg-keys centos-linux-repos vim man'
 
 . $INCLUDE/redhat-family.sh
 
