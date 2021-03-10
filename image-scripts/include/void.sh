@@ -14,15 +14,15 @@ fetch() {
 	fi
 
 	# Fetch checksums to find out latest release name
-	wget -O - "$BASEURL/sha256.txt" | grep -P "$rx" > "$DOWNLOAD/sha256.txt"
+	wget -O - "$BASEURL/sha256sum.txt" | grep -P "$rx" > "$DOWNLOAD/sha256sum.txt"
 
 	# Extract the name
-	name=$(grep -o -P "$rx" "$DOWNLOAD/sha256.txt")
+	name=$(grep -o -P "$rx" "$DOWNLOAD/sha256sum.txt")
 
 	# Download rootfs
 	wget -P "$DOWNLOAD" "$BASEURL/$name"
 
-	if ! (cd "$DOWNLOAD" ; sha256sum -c sha256.txt) ; then
+	if ! (cd "$DOWNLOAD" ; sha256sum -c sha256sum.txt) ; then
 		warn "Checksum does not match"
 		exit 1
 	fi
@@ -37,6 +37,7 @@ extract() {
 configure-void() {
 	configure-append <<EOF
 echo nameserver 8.8.8.8 > /etc/resolv.conf
+xbps-install -Syu xbps
 xbps-install -Syu
 xbps-install -Syu
 xbps-install -Syu libcgroup-utils vim
