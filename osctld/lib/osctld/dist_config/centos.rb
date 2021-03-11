@@ -5,11 +5,11 @@ module OsCtld
     distribution :centos
 
     protected
-    def template_dir
+    def config_backend
       if version.to_i >= 8
-        'redhat_nm'
+        :network_manager
       else
-        'redhat_initscripts'
+        :initscripts
       end
     end
   end

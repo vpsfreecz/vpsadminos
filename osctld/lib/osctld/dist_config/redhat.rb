@@ -46,8 +46,21 @@ module OsCtld
     end
 
     protected
-    def template_dir
+    # @return [:network_manager, :initscripts]
+    def config_backend
       raise NotImplementedError
+    end
+
+    def use_nm?
+      config_backend == :network_manager
+    end
+
+    def use_initscripts?
+      config_backend == :initscripts
+    end
+
+    def template_dir
+      use_nm? ? 'redhat_nm' : 'redhat_initscripts'
     end
 
     def do_create_netif(netif)
