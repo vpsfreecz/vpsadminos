@@ -7,4 +7,10 @@ else
 	sleep 10
 fi
 
-osctl ct stop --dont-kill $CTID || fail "unable to stop container"
+# TODO: find a way to fix this
+# See https://github.com/vpsfreecz/vpsadminos/issues/39
+if [ "$DISTNAME" == "void" ] ; then
+	osctl ct stop $CTID || fail "unable to stop container"
+else
+	osctl ct stop --dont-kill $CTID || fail "unable to stop container"
+fi
