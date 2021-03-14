@@ -15,7 +15,7 @@ module OsCtl::Repo
     # yieldparam [String] downloaded data
     def get(vendor, variant, arch, dist, vtag, format, opts = {})
       connect do |http|
-        index = Remote::Index.from_string(repo, http.get(uri.path).body)
+        index = Remote::Index.from_string(repo, http.get(index_uri.path).body)
         t = index.lookup(vendor, variant, arch, dist, vtag)
 
         fail 'image not found' unless t
