@@ -13,13 +13,24 @@ module TestRunner
       end
     end
 
-    def execute(command, status, output)
-      log do |io|
+    def execute_begin(command)
+      log_begin do |io|
         io.puts("COMMAND: #{command}")
+      end
+    end
+
+    def execute_end(status, output)
+      log_end do |io|
+        io.puts("END: #{Time.now}")
         io.puts("STATUS: #{status}")
         io.puts("OUTPUT:")
         io.puts(output)
       end
+    end
+
+    def execute(command, status, output)
+      execute_begin(command)
+      execute_end(status, output)
     end
 
     def close
@@ -29,9 +40,25 @@ module TestRunner
     protected
     attr_reader :path, :file
 
-    def log
+    def log(&block)
+      log_begin
+      log_cont(&block)
+      log_end
+    end
+
+    def log_begin
       file.puts("DATE: #{Time.now}")
+      yield(file) if block_given?
+      file.flush
+    end
+
+    def log_cont
       yield(file)
+      file.flush
+    end
+
+    def log_end(&block)
+      log_cont(&block) if block
       file.puts("---")
       file.puts
       file.flush

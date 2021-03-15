@@ -85,12 +85,13 @@ module TestRunner
       wait_for_shell
       t1 = Time.now
       shell.write("( #{cmd} ); echo '|!=EOF' $?\n")
+      log.execute_begin(cmd)
       rx = /(.*)\|\!=EOF\s+(\d+)/m
       buffer = ''
 
       loop do
         if t1 + timeout < Time.now
-          log.execute(cmd, -1, buffer)
+          log.execute_end(-1, buffer)
           fail "Timeout occured while running command '#{cmd}'"
         end
 
@@ -108,7 +109,7 @@ module TestRunner
           status = $2.to_i
           output = $1.strip
 
-          log.execute(cmd, status, output)
+          log.execute_end(status, output)
           return [status, output]
         end
       end
