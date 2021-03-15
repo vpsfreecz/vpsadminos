@@ -21,20 +21,29 @@ import ../../make-template.nix ({ distribution, version }: rec {
 
       _, output = machine.succeeds("osctl ct exec testct cat /proc/mounts")
 
-      files = %w(
+      be_mounted = %w(
         /proc/cpuinfo
         /proc/diskstats
         /proc/loadavg
-        /proc/meminfo
         /proc/stat
-        /proc/swaps
         /proc/uptime
         /sys/devices/system/cpu/online
       )
 
-      files.each do |f|
+      be_unmounted = %w(
+        /proc/meminfo
+        /proc/swaps
+      )
+
+      be_mounted.each do |f|
         if /^lxcfs #{Regexp.escape(f)} fuse\.lxcfs / !~ output
           fail "#{f} not mounted"
+        end
+      end
+
+      be_unmounted.each do |f|
+        if /^lxcfs #{Regexp.escape(f)} fuse\.lxcfs / =~ output
+          fail "#{f} mounted"
         end
       end
     '';
