@@ -42,6 +42,7 @@ let
 in tests [
   "boot"
   { template = "cgroups/mounts"; instances = distributions; }
+  { template = "dist-config/netif-routed"; instances = distributions; }
   "docker/alpine-latest"
   "docker/debian-10"
   "docker/ubuntu-18.04"
