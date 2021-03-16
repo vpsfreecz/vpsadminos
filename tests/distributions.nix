@@ -3,6 +3,7 @@
   { distribution = "alpine"; version = "latest"; }
   { distribution = "centos"; version = "7"; }
   { distribution = "centos"; version = "8"; }
+  { distribution = "centos"; version = "latest-stream"; }
   { distribution = "debian"; version = "9"; }
   { distribution = "debian"; version = "10"; }
   { distribution = "debian"; version = "testing"; }
