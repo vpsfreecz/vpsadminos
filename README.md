@@ -111,13 +111,6 @@ osctl ct set nesting <id>
 Docker works out-of-the-box with several
 [known issues](https://vpsadminos.org/services/docker/#known-issues).
 
-## Building specific targets
-
-```
-nix-build -A config.system.build.tftpdir -o tftpdir
-nix-build -A config.system.build.squashfs
-```
-
 ## Docs
 
 * [vpsAdminOS documentation](https://vpsadminos.org)
