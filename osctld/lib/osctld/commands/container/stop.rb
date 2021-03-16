@@ -42,7 +42,7 @@ module OsCtld
 
         begin
           DistConfig.run(
-            ct,
+            ct.get_run_conf,
             :stop,
             mode: mode,
             timeout: opts[:timeout] || 60,
