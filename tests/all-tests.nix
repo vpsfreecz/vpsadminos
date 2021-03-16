@@ -45,7 +45,10 @@ in tests [
   { template = "dist-config/netif-routed"; instances = distributions; }
   { template = "dist-config/start-stop"; instances = distributions; }
   "docker/alpine-latest"
+  "docker/centos-7"
+  "docker/centos-8"
   "docker/debian-10"
+  "docker/fedora-latest"
   "docker/ubuntu-18.04"
   "docker/ubuntu-20.04"
   "driver"
