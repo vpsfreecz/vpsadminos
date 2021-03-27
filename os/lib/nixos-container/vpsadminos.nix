@@ -25,6 +25,7 @@ in {
   systemd.services.rpc-gssd.enable = false;
 
   boot.isContainer = true;
+  boot.enableContainers = mkDefault true;
   boot.loader.initScript.enable = true;
   boot.specialFileSystems."/run/keys".fsType = lib.mkForce "tmpfs";
   boot.systemdExecutable = mkDefault "systemd systemd.unified_cgroup_hierarchy=0";
