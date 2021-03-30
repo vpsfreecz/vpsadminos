@@ -54,6 +54,9 @@ in {
     # nixos-rebuild also requires a "system" profile
     ${config.nix.package.out}/bin/nix-env -p /nix/var/nix/profiles/system --set /run/current-system
 
+    # Add profiles to gcroots
+    ln -sf /nix/var/nix/profiles /nix/var/nix/gcroots/profiles
+
     # Copy configuration required to reproduce this build
     if ! [ -e /etc/nixos/configuration.nix ]; then
       cp ${configClone} /etc/nixos/configuration.nix
