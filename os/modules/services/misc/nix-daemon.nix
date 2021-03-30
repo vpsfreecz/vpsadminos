@@ -26,6 +26,8 @@ in
             nix-env -p /nix/var/nix/profiles/system --set /run/current-system
           fi
 
+          ln -sf /nix/var/nix/profiles /nix/var/nix/gcroots/profiles
+
           exec nix-daemon
         '';
         runlevels = [ "rescue" "default" ];
