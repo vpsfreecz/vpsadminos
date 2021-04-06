@@ -84,6 +84,7 @@ if [ -d /etc/systemd ] ; then
   echo > /etc/machine-id
   mkdir -p /var/log/journal
   systemctl mask var-lib-nfs-rpc_pipefs.mount
+  systemctl mask rngd-wake-threshold.service
 fi
 
 echo "%_netsharedpath /sys:/proc" >> /etc/rpm/macros.vpsadminos
