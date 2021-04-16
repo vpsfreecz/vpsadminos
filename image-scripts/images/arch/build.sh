@@ -51,6 +51,9 @@ EOF
 	cat <<EOF > "$BOOTSTRAP/$SETUP"
 #!/bin/bash
 
+mknod /dev/random c 1 8
+mknod /dev/urandom c 1 9
+
 pacman-key --init
 pacman-key --populate archlinux
 
