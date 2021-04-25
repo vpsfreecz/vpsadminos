@@ -45,11 +45,9 @@ module OsCtld
 
         ret = pipe_runner(
           args: [mode, opts],
-          keep_fds: [
-            opts[:stdin],
-            opts[:stdout],
-            opts[:stderr],
-          ],
+          stdin: opts[:stdin],
+          stdout: opts[:stdout],
+          stderr: opts[:stderr],
         )
         ret.ok? ? ret.data : ret
 

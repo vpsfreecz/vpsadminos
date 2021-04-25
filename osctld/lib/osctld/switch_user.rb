@@ -7,6 +7,24 @@ module OsCtld
 
     SYSTEM_PATH = %w(/bin /usr/bin /sbin /usr/sbin /run/current-system/sw/bin)
 
+    # Fork into a new process
+    #
+    # @param opts [Hash]
+    # @option opts [Array<IO, Integer>] :keep_fds
+    # @option opts [Boolean] :keep_stdfds (true)
+    def self.fork(opts = {}, &block)
+      keep_fds = (opts[:keep_fds] || []).clone
+
+      if opts.fetch(:keep_stdfds, true)
+        keep_fds << 0 << 1 << 2
+      end
+
+      Process.fork do
+        close_fds(except: keep_fds)
+        block.call
+      end
+    end
+
     # Fork a process running as unprivileged user
     # @param sysuser [String]
     # @param ugid [Integer]
@@ -16,14 +34,14 @@ module OsCtld
     # @option opts [Boolean] :chown_cgroups (true)
     # @option opts [Hash] :prlimits
     # @option opts [Integer, nil] :oom_score_adj
-    # @options opts [Array<IO, Integer>] :keep_fds
-    # @options opts [Boolean] :keep_stdfd (true)
+    # @option opts [Array<IO, Integer>] :keep_fds
+    # @option opts [Boolean] :keep_stdfd (true)
     def self.fork_and_switch_to(sysuser, ugid, homedir, cgroup_path, opts = {}, &block)
       r, w = IO.pipe
 
       keep_fds = (opts[:keep_fds] || []).clone
 
-      if !opts.has_key?(:keep_stdfds) || opts[:keep_stdfds]
+      if opts.fetch(:keep_stdfds, true)
         keep_fds << 0 << 1 << 2
       end
 
