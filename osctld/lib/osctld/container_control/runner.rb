@@ -1,19 +1,26 @@
 require 'lxc'
 
 module OsCtld
-  # Runner is run in a forked process and under the container's user
+  # Runner is run in a forked&execed process and under the container's user
   class ContainerControl::Runner
     attr_reader :ctid, :lxc_home, :user_home, :log_file
 
     # @param opts [Hash] container options
+    # @option opts [String] :id
     # @option opts [String] :lxc_home
     # @option opts [String] :user_home
     # @option opts [String] :log_file
+    # @option opts [IO, nil] :stdin
+    # @option opts [IO] :stdout
+    # @option opts [IO] :stderr
     def initialize(opts)
       @ctid = opts[:id]
       @lxc_home = opts[:lxc_home]
       @user_home = opts[:user_home]
       @log_file = opts[:log_file]
+      @stdin = opts[:stdin]
+      @stdout = opts[:stdout]
+      @stderr = opts[:stderr]
     end
 
     # Implement this method
@@ -24,6 +31,8 @@ module OsCtld
     end
 
     protected
+    attr_reader :stdin, :stdout, :stderr
+
     def ok(out = nil)
       {status: true, output: out}
     end

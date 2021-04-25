@@ -21,47 +21,80 @@ module OsCtld
     end
 
     protected
-    # @param args [Array] command arguments
-    # @param keep_fds [Array<IO, Integer>]
+    # @param opts [Hash]
+    # @option opts [Array] :args command arguments
+    # @option opts [Hash] :kwargs command arguments
+    # @option opts [IO, nil] :stdin
+    # @option opts [IO, nil] :stdout
+    # @option opts [IO, nil] :stderr
     # @return [ContainerControl::Result]
-    def pipe_runner(args: [], keep_fds: [])
-      r, w = IO.pipe
+    def pipe_runner(opts = {})
+      # Used to send command to the runner
+      cmd_r, cmd_w = IO.pipe
 
+      # Used to read return value
+      ret_r, ret_w = IO.pipe
+
+      # File descriptors to capture output/feed input
+      stdin = opts[:stdin]
+      stdout = opts.fetch(:stdout, STDOUT)
+      stderr = opts.fetch(:stderr, STDERR)
+
+      # Runner configuration
       runner_opts = {
+        name: command_class.name,
+
+        user: ct.user.sysusername,
+        ugid: ct.user.ugid,
+        homedir: ct.user.homedir,
+        cgroup_path: ct.cgroup_path,
+        prlimits: ct.prlimits.export,
+
         pool: ct.pool.name,
         id: ct.id,
         lxc_home: ct.lxc_home,
         user_home: ct.user.homedir,
         log_file: ct.log_path,
+
+        args: opts.fetch(:args, []),
+        kwargs: opts.fetch(:kwargs, {}),
+
+        return: ret_w.fileno,
+        stdin: stdin && stdin.fileno,
+        stdout: stdout.fileno,
+        stderr: stderr.fileno,
       }
 
-      pid = SwitchUser.fork_and_switch_to(
-        ct.user.sysusername,
-        ct.user.ugid,
-        ct.user.homedir,
-        ct.cgroup_path,
-        prlimits: ct.prlimits.export,
-        keep_fds: [w] + keep_fds,
+      pid = SwitchUser.fork(
+        keep_fds: [
+          cmd_r,
+          ret_w,
+          stdin,
+          stdout,
+          stderr,
+        ].compact,
       ) do
-        # Closed by SwitchUser.fork_and_switch_to
-        # r.close
+        # Closed by SwitchUser.fork
+        # cmd_w.close
+        # ret_r.close
 
-        Process.setproctitle(
-          "osctld: #{runner_opts[:pool]}:#{runner_opts[:id]} "+
-          "#{command_class.name.split('::').last.downcase} runner"
-        )
+        STDIN.reopen(cmd_r)
 
-        runner = command_class::Runner.new(runner_opts)
-        ret = runner.execute(*args)
-        w.write(ret.to_json + "\n")
+        [cmd_r, ret_w, stdin, stdout, stderr].compact.each do |io|
+          io.close_on_exec = false
+        end
 
+        Process.exec(::OsCtld.bin('osctld-ct-runner'))
         exit
       end
 
-      w.close
+      cmd_w.write(runner_opts.to_json)
+      cmd_w.close
+
+      ret_w.close
 
       begin
-        ret = JSON.parse(r.readline, symbolize_names: true)
+        ret = JSON.parse(ret_r.readline, symbolize_names: true)
         Process.wait(pid)
         ContainerControl::Result.from_runner(ret)
 

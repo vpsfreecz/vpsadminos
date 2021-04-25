@@ -42,11 +42,9 @@ module OsCtld
 
         ret = pipe_runner(
           args: [mode, opts],
-          keep_fds: [
-            opts[:stdin],
-            opts[:stdout],
-            opts[:stderr],
-          ],
+          stdin: opts[:stdin],
+          stdout: opts[:stdout],
+          stderr: opts[:stderr],
         )
         ret.ok? ? ret.data : ret
 
@@ -77,9 +75,9 @@ module OsCtld
       protected
       def exec_running(opts)
         pid = lxc_ct.attach(
-          stdin: opts[:stdin],
-          stdout: opts[:stdout],
-          stderr: opts[:stderr]
+          stdin: stdin,
+          stdout: stdout,
+          stderr: stderr,
         ) do
           setup_exec_env
           ENV['HOME'] = '/root'
@@ -93,9 +91,9 @@ module OsCtld
 
       def exec_run(opts)
         pid = Process.fork do
-          STDIN.reopen(opts[:stdin])
-          STDOUT.reopen(opts[:stdout])
-          STDERR.reopen(opts[:stderr])
+          STDIN.reopen(stdin)
+          STDOUT.reopen(stdout)
+          STDERR.reopen(stderr)
 
           setup_exec_run_env
 
