@@ -4,7 +4,7 @@ module OsCtld
       def add_network_opts(opts)
         opts.update(
           init_script: File.join('/', File.basename(init_script.path)),
-          net_config: NetConfig.create(ct),
+          net_config: NetConfig.create(ct).export,
         )
       end
 
@@ -92,7 +92,7 @@ module OsCtld
       # @param opts [Hash]
       # @option opts [String] :init_script path to the script used to control
       #                                    the container
-      # @option opts [NetConfig] :net_config
+      # @option opts [Hash] :net_config
       def with_configured_network(opts)
         ret = nil
 
@@ -121,7 +121,7 @@ module OsCtld
             setup_exec_env
             ENV['HOME'] = '/root'
             ENV['USER'] = 'root'
-            opts[:net_config].setup
+            NetConfig.import(opts[:net_config]).setup
           end
 
           Process.wait2(pid)

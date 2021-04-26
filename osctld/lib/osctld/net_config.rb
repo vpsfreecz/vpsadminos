@@ -14,10 +14,18 @@ module OsCtld
     Addr = Struct.new(:version, :address, :prefix)
     Route = Struct.new(:version, :address, :prefix, :via)
 
+    attr_reader :netifs
+
     # @param ct [Container]
     def self.create(ct)
       cfg = new
       ct.netifs.each { |netif| cfg.add_netif(netif) }
+      cfg
+    end
+
+    def self.import(data)
+      cfg = new
+      cfg.import(data)
       cfg
     end
 
@@ -56,14 +64,14 @@ module OsCtld
         end
       end
 
-      @netifs << n
+      netifs << n
     end
 
     # Apply configuration using netlink
     def setup
       nl = Linux::Netlink::Route::Socket.new
 
-      @netifs.each do |netif|
+      netifs.each do |netif|
         netif.ips.each do |ip|
           begin
             nl.addr.add(index: netif.name, local: ip.address, prefixlen: ip.prefix)
@@ -84,6 +92,32 @@ module OsCtld
             next
           end
         end
+      end
+    end
+
+    def export
+      netifs.map do |netif|
+        {
+          name: netif.name,
+          ips: netif.ips.map(&:to_h),
+          routes: netif.routes.map(&:to_h),
+        }
+      end
+    end
+
+    def import(data)
+      data.each do |netif_hash|
+        netifs << NetIf.new(
+          netif_hash[:name],
+
+          netif_hash[:ips].map do |v|
+            Addr.new(v[:version], v[:address], v[:prefix])
+          end,
+
+          netif_hash[:routes].map do |v|
+            Route.new(v[:version], v[:address], v[:prefix], v[:via])
+          end,
+        )
       end
     end
   end

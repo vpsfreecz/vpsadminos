@@ -69,7 +69,7 @@ module OsCtld
       # @option opts [Boolean] :network setup network if the container is run?
       # @option opts [String] :init_script path to the script used to control
       #                                    the container
-      # @option opts [NetConfig] :net_config
+      # @option opts [Hash] :net_config
       # @return [Integer] exit status
       def execute(mode, opts)
         send(:"exec_#{mode}", opts)
