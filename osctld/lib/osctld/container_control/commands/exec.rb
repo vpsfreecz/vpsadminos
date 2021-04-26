@@ -24,6 +24,10 @@ module OsCtld
       # @option opts [Boolean] :network setup network if the container is run?
       # @return [Integer] exit status
       def execute(opts)
+        runner_opts = {
+          cmd: opts[:cmd],
+        }
+
         mode =
           if ct.running?
             :running
@@ -36,12 +40,11 @@ module OsCtld
           end
 
         if opts[:network]
-          opts = opts.clone
-          add_network_opts(opts)
+          add_network_opts(runner_opts)
         end
 
         ret = pipe_runner(
-          args: [mode, opts],
+          args: [mode, runner_opts],
           stdin: opts[:stdin],
           stdout: opts[:stdout],
           stderr: opts[:stderr],
