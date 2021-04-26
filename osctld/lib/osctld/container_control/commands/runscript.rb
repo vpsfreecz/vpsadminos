@@ -54,8 +54,10 @@ module OsCtld
         ret.ok? ? ret.data : ret
 
       ensure
-        script.close
-        unlink_file(script.path)
+        if script
+          script.close
+          unlink_file(script.path)
+        end
         cleanup_init_script
       end
 
@@ -81,7 +83,7 @@ module OsCtld
       # @option opts [Boolean] :network setup network if the container is run?
       # @option opts [String] :init_script path to the script used to control
       #                                    the container
-      # @option opts [NetConfig] :net_config
+      # @option opts [Hash] :net_config
       # @option opts [Array<IO>] :close_fds
       # @option opts [Boolean] :wait
       # @return [Integer] exit status
