@@ -54,5 +54,6 @@ in tests [
   "driver"
   "lxcfs/loadavgs"
   { template = "lxcfs/overlays"; instances = distributions; }
+  "osctl/ct-exec"
   "zfs-xattr"
 ]
