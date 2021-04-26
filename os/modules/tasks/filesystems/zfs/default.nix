@@ -109,6 +109,12 @@ let
 
   zpoolsToScrub = filterAttrs (name: pool: pool.scrub.enable) cfgZfs.pools;
 
+  zpoolScrubCommand = name: pool:
+    if isNull pool.scrub.command then
+      "${packages.zfsUser}/bin/zpool scrub ${name}"
+    else
+      pool.scrub.command;
+
   layoutVdev = {
     options = {
       type = mkOption {
@@ -358,6 +364,17 @@ let
             separated by spaces.
           '';
         };
+
+        command = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          description = ''
+            Optionally override the auto-generated command used to scrub
+            the pool.
+
+            Defaults to <literal>zpool scrub &lt;pool&gt;</literal>.
+          '';
+        };
       };
     };
   };
@@ -528,7 +545,7 @@ in
           (optional enableAutoScrub "${cfgScrub.interval} root ${packages.zfsUser}/bin/zpool scrub ${autoZpools}")
           ++
           (mapAttrsToList (name: pool:
-            "${pool.scrub.interval} root ${packages.zfsUser}/bin/zpool scrub ${name}"
+            "${pool.scrub.interval} root ${zpoolScrubCommand name pool}"
           ) zpoolsToScrub);
     }
   ];
