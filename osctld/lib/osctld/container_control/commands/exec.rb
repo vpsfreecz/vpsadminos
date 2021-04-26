@@ -107,12 +107,9 @@ module OsCtld
             '-s', "lxc.environment=USER=root",
             '--',
             opts[:cmd],
-          ]
+          ].flatten
 
-          # opts[:cmd] can contain an arbitrary command with multiple arguments
-          # and quotes, so the mapping to process arguments is not clear. We use
-          # the shell to handle this.
-          Process.exec("exec #{cmd.join(' ')}")
+          Process.exec(*cmd)
         end
 
         _, status = Process.wait2(pid)
