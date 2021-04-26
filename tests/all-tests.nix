@@ -55,5 +55,6 @@ in tests [
   "lxcfs/loadavgs"
   { template = "lxcfs/overlays"; instances = distributions; }
   "osctl/ct-exec"
+  "osctl/ct-runscript"
   "zfs-xattr"
 ]
