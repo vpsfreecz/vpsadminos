@@ -8,23 +8,7 @@ module OsCtld
     def stop(opts)
       # Configure runit for halt
       begin
-        ContainerControl::Commands::RunBlock.run!(
-          ct,
-          block: Proc.new do
-            next unless Dir.exist?('/etc/runit')
-
-            # Only the existence of the reboot file can trigger reboot
-            if File.exist?('/etc/runit/reboot')
-              File.open('/etc/runit/reboot', 'w', 0) {}
-              File.chmod(0, '/etc/runit/reboot')
-            end
-
-            File.open('/etc/runit/stopit', 'w', 0100) {}
-            File.chmod(0100, '/etc/runit/stopit')
-
-            nil
-          end
-        )
+        ContainerControl::Commands::StopRunit.run!(ct)
       rescue ContainerControl::Error => e
         log(:warn, ct, "Unable to gracefully shutdown runit: #{e.message}")
       end
