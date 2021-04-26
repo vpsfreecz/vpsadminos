@@ -40,16 +40,11 @@ module OsCtld
       r, w = IO.pipe
 
       keep_fds = (opts[:keep_fds] || []).clone
-
-      if opts.fetch(:keep_stdfds, true)
-        keep_fds << 0 << 1 << 2
-      end
-
       keep_fds << r
 
-      pid = Process.fork do
-        w.close
-        close_fds(except: keep_fds)
+      pid = self.fork(keep_fds: keep_fds) do
+        # Closed by self.fork
+        # w.close
 
         if opts[:oom_score_adj]
           File.open('/proc/self/oom_score_adj', 'w') do |f|
