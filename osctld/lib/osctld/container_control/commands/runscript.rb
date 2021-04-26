@@ -25,7 +25,9 @@ module OsCtld
       # @option opts [Boolean] :network setup network if the container is run?
       # @return [Integer] exit status
       def execute(opts)
-        opts = opts.clone
+        runner_opts = {
+          args: opts[:args],
+        }
 
         mode =
           if ct.running?
@@ -38,13 +40,13 @@ module OsCtld
             raise ContainerControl::Error, 'container not running'
           end
 
-        add_network_opts(opts) if opts[:network]
+        add_network_opts(runner_opts) if opts[:network]
 
         script = copy_script(opts[:script])
-        opts[:script] = File.join('/', File.basename(script.path))
+        runner_opts[:script] = File.join('/', File.basename(script.path))
 
         ret = pipe_runner(
-          args: [mode, opts],
+          args: [mode, runner_opts],
           stdin: opts[:stdin],
           stdout: opts[:stdout],
           stderr: opts[:stderr],
@@ -75,9 +77,6 @@ module OsCtld
       # @param opts [Hash]
       # @option opts [String] :script path to the script relative to the rootfs
       # @option opts [Array<String>] :args script arguments
-      # @option opts [IO] :stdin
-      # @option opts [IO] :stdout
-      # @option opts [IO] :stderr
       # @option opts [Boolean] :run run the container if it is stopped?
       # @option opts [Boolean] :network setup network if the container is run?
       # @option opts [String] :init_script path to the script used to control
@@ -93,9 +92,9 @@ module OsCtld
       protected
       def runscript_running(opts)
         pid = lxc_ct.attach(
-          stdin: opts[:stdin],
-          stdout: opts[:stdout],
-          stderr: opts[:stderr]
+          stdin: stdin,
+          stdout: stdout,
+          stderr: stderr,
         ) do
           setup_exec_env
           ENV['HOME'] = '/root'

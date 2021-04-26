@@ -43,9 +43,13 @@ module OsCtld
       # @option opts [Boolean] :wait
       def runscript_run(opts)
         pid = Process.fork do
-          STDIN.reopen(opts[:stdin])
-          STDOUT.reopen(opts[:stdout])
-          STDERR.reopen(opts[:stderr]) if opts[:stderr]
+          cur_stdin = opts.fetch(:stdin, stdin)
+          cur_stdout = opts.fetch(:stdout, stdout)
+          cur_stderr = opts.fetch(:stderr, stderr)
+
+          STDIN.reopen(cur_stdin)
+          STDOUT.reopen(cur_stdout)
+          STDERR.reopen(cur_stderr) if cur_stderr
 
           opts[:close_fds] && opts[:close_fds].each { |fd| fd.close }
 
