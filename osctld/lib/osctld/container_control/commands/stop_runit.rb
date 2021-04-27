@@ -12,7 +12,7 @@ module OsCtld
           raise ContainerControl::Error, 'container not running'
         end
 
-        ret = pipe_runner
+        ret = exec_runner
         ret.ok? || ret
       end
     end

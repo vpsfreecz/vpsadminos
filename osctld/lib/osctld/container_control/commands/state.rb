@@ -10,7 +10,7 @@ module OsCtld
     class Frontend < ContainerControl::Frontend
       # @return [ContainerState]
       def execute
-        ret = pipe_runner
+        ret = fork_runner
 
         if ret.ok?
           ContainerState.new(ct.id, ret.data[:state].to_sym, ret.data[:init_pid])

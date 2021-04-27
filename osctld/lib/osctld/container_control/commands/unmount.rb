@@ -10,7 +10,7 @@ module OsCtld
       # @param mountpoint [String]
       # @return [true]
       def execute(mountpoint)
-        ret = pipe_runner(args: [mountpoint])
+        ret = exec_runner(args: [mountpoint])
         ret.ok? || ret
       end
     end
