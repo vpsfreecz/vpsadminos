@@ -23,14 +23,14 @@ module OsCtld
 
         CGroup.thaw_tree(ct.cgroup_path) if mode == :kill
 
-        ret = pipe_runner(args: [mode, opts])
+        ret = fork_runner(args: [mode, opts])
 
         if ret.ok?
           true
 
         elsif mode == :stop
           CGroup.thaw_tree(ct.cgroup_path)
-          ret = pipe_runner(args: [:kill, opts])
+          ret = fork_runner(args: [:kill, opts])
           ret.ok? || ret
 
         else

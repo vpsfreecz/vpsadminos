@@ -43,7 +43,7 @@ module OsCtld
           add_network_opts(runner_opts)
         end
 
-        ret = pipe_runner(
+        ret = exec_runner(
           args: [mode, runner_opts],
           stdin: opts[:stdin],
           stdout: opts[:stdout],

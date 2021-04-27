@@ -9,7 +9,7 @@ module OsCtld
       # @param index [Integer] interface index
       # @return [String]
       def execute(index)
-        ret = pipe_runner(args: [index])
+        ret = fork_runner(args: [index])
         ret.ok? ? ret.data : ret
       end
     end

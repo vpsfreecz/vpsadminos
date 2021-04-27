@@ -12,7 +12,7 @@ module OsCtld
       # @option opts [String] :dst target mountpoint
       # @return [true]
       def execute(opts)
-        ret = pipe_runner(args: [opts])
+        ret = exec_runner(args: [opts])
         ret.ok? || ret
       end
     end

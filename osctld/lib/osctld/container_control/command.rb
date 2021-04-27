@@ -12,9 +12,11 @@ module OsCtld
   # Each command is a subclass of this class. It needs to define two classes:
   # `Frontend` as a subclass of {ContainerControl::Frontend} and `Runner`
   # as a subclass of {ContainerControl::Runner}. {#run!} invokes `Frontend` from
-  # osctld in daemon mode, where it is running as root. The frontend initiates
-  # the runner, which is run in a forked process and as a different user, e.g.
-  # using {ContainerControl::Frontend#pipe_runner}. The runner can return data,
+  # osctld in daemon mode, where it is running as root.
+  #
+  # The frontend initiates the runner, which is run in a forked process
+  # and as a different user, e.g. using {ContainerControl::Frontend#exec_runner}
+  # or {ContainerControl::Frontend#fork_runner}. The runner can return data,
   # which the frontend can transform and return to the caller.
   class ContainerControl::Command
     # Call command frontend

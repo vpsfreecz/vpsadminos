@@ -45,7 +45,7 @@ module OsCtld
         script = copy_script(opts[:script])
         runner_opts[:script] = File.join('/', File.basename(script.path))
 
-        ret = pipe_runner(
+        ret = exec_runner(
           args: [mode, runner_opts],
           stdin: opts[:stdin],
           stdout: opts[:stdout],

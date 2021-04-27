@@ -8,7 +8,7 @@ module OsCtld
     class Frontend < ContainerControl::Frontend
       # @return [true]
       def execute
-        ret = pipe_runner
+        ret = fork_runner
         ret.ok? || ret
       end
     end
