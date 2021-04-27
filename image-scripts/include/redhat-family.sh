@@ -102,7 +102,6 @@ dnf -y clean all
 systemctl mask auditd.service
 systemctl mask systemd-journald-audit.socket
 systemctl mask firewalld.service
-systemctl mask systemd-udev-trigger.service
 systemctl mask proc-sys-fs-binfmt_misc.mount
 systemctl mask sys-kernel-debug.mount
 systemctl disable tcsd.service
@@ -111,6 +110,17 @@ systemctl disable systemd-networkd.service
 systemctl disable systemd-resolved.service
 systemctl disable sssd.service
 systemctl disable sshd.service
+
+mkdir -p /etc/systemd/system/systemd-udev-trigger.service.d
+cat <<EOT > /etc/systemd/system/systemd-udev-trigger.service.d/vpsadminos.conf
+[Service]
+ExecStart=
+ExecStart=-udevadm trigger --subsystem-match=net --action=add
+EOT
+
+cat <<EOT > /etc/udev/rules.d/86-vpsadminos.rules
+ENV{ID_NET_DRIVER}=="veth", ENV{NM_UNMANAGED}="0"
+EOT
 
 sed -i -e 's/^#PermitRootLogin\ prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
 
