@@ -33,20 +33,20 @@ module OsCtld
         do_create_netif(netif)
       end
 
-      generate_nm_conf if use_nm?
+      setup_for_nm if use_nm?
     end
 
     # Cleanup old config files
     def remove_netif(opts)
       do_remove_netif(opts[:netif].name)
-      generate_nm_conf if use_nm?
+      setup_for_nm if use_nm?
     end
 
     # Rename config files
     def rename_netif(opts)
       do_remove_netif(opts[:original_name])
       do_create_netif(opts[:netif])
-      generate_nm_conf if use_nm?
+      setup_for_nm if use_nm?
     end
 
     protected
@@ -111,6 +111,11 @@ module OsCtld
       end
     end
 
+    def setup_for_nm
+      generate_nm_conf
+      generate_nm_udev_rules
+    end
+
     def generate_nm_conf
       conf_d = File.join(ctrc.rootfs, 'etc', 'NetworkManager', 'conf.d')
       return unless Dir.exist?(conf_d)
@@ -120,6 +125,20 @@ module OsCtld
 
       OsCtld::ErbTemplate.render_to(
         File.join('dist_config/network/redhat_nm/nm_conf'),
+        {netifs: ct.netifs},
+        file,
+      )
+    end
+
+    def generate_nm_udev_rules
+      rules_d = File.join(ctrc.rootfs, 'etc', 'udev', 'rules.d')
+      return unless Dir.exist?(rules_d)
+
+      file = File.join(rules_d, '86-osctl.rules')
+      return unless writable?(file)
+
+      OsCtld::ErbTemplate.render_to(
+        File.join('dist_config/network/redhat_nm/udev_rules'),
         {netifs: ct.netifs},
         file,
       )
