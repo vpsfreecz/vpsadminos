@@ -118,10 +118,6 @@ ExecStart=
 ExecStart=-udevadm trigger --subsystem-match=net --action=add
 EOT
 
-cat <<EOT > /etc/udev/rules.d/86-vpsadminos.rules
-ENV{ID_NET_DRIVER}=="veth", ENV{NM_UNMANAGED}="0"
-EOT
-
 sed -i -e 's/^#PermitRootLogin\ prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
 
 cat <<EOT > /etc/NetworkManager/conf.d/vpsadminos.conf
