@@ -35,14 +35,17 @@ module OsCtld
     # @option opts [Hash] :prlimits
     # @option opts [Integer, nil] :oom_score_adj
     # @option opts [Array<IO, Integer>] :keep_fds
-    # @option opts [Boolean] :keep_stdfd (true)
+    # @option opts [Boolean] :keep_stdfds (true)
     def self.fork_and_switch_to(sysuser, ugid, homedir, cgroup_path, opts = {}, &block)
       r, w = IO.pipe
 
       keep_fds = (opts[:keep_fds] || []).clone
       keep_fds << r
 
-      pid = self.fork(keep_fds: keep_fds) do
+      pid = self.fork(
+        keep_fds: keep_fds,
+        keep_stdfds: opts.fetch(:keep_stdfds, true),
+      ) do
         # Closed by self.fork
         # w.close
 
