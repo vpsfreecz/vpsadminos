@@ -1,10 +1,10 @@
 # vpsAdminOS
 
-Lightweight hypervisor for Linux system containers.
+Lightweight host for Linux system containers.
 
 ---
 
-vpsAdminOS is an operating system that serves as a hypervisor for container
+vpsAdminOS is an operating system that serves as a host for container
 virtualization. It is based on [not-os](https://github.com/cleverca22/not-os/)
 and NixOS.
 

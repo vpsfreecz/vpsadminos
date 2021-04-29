@@ -13,7 +13,7 @@
   <refsection>
     <title>Description</title>
     <para>
-      vpsAdminOS is an operating system that serves as a hypervisor for container
+      vpsAdminOS is an operating system that serves as a host for container
       virtualization.
     </para>
     <para>

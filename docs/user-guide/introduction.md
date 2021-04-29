@@ -1,5 +1,5 @@
 # What is vpsAdminOS
-vpsAdminOS is a lightweight operating system that serves as a hypervisor
+vpsAdminOS is a lightweight operating system that serves as a host 
 for unprivileged Linux system containers. System containers run the entire
 userspace part of a Linux system and should look and feel like a virtual
 machine. You can create a container with many distributions, such as CentOS,
@@ -15,12 +15,12 @@ can also be installed on disk.
 vpsAdminOS is built on top of [Nix], [NixOS] and [nixpkgs]. Nix is a package
 manager, NixOS is a distribution based on Nix and nixpkgs is the package
 collection. We chose to make our own spin of NixOS, because NixOS relies on
-systemd and we wanted to replace it with something simpler. The hypervisor's
+systemd and we wanted to replace it with something simpler. The host's
 only job is to mount storage, connect to network and run containers. systemd's
 advanced features are not needed, vpsAdminOS uses [runit]. This approach was
 pioneered by [not-os], which we reused.
 
-vpsAdminOS relies heavily on [ZFS on Linux]. The hypervisor itself has no local
+vpsAdminOS relies heavily on [ZFS on Linux]. The host system has no local
 state, but all containers and their configuration is stored on ZFS pools.
 
 Containers in vpsAdminOS are managed by a system daemon called *osctld* --
