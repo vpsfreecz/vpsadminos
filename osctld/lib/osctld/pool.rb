@@ -235,6 +235,16 @@ module OsCtld
         )
 
         AppArmor.assets(add, pool)
+
+        add.directory(
+          autostart_dir,
+          desc: 'Contains runtime container auto-start state',
+          user: 0,
+          group: 0,
+          mode: 0700
+        )
+
+        autostart_plan.assets(add) if autostart_plan
       end
     end
 
@@ -388,6 +398,10 @@ module OsCtld
 
     def ct_dir
       File.join(run_dir, 'containers')
+    end
+
+    def autostart_dir
+      File.join(run_dir, 'auto-start')
     end
 
     def hook_dir
@@ -603,7 +617,7 @@ module OsCtld
         Dir.mkdir(dir, 0711) unless Dir.exist?(dir)
       end
 
-      [ct_dir, apparmor_dir].each do |dir|
+      [ct_dir, apparmor_dir, autostart_dir].each do |dir|
         Dir.mkdir(dir, 0700) unless Dir.exist?(dir)
       end
 

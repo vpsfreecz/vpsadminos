@@ -54,6 +54,7 @@ module OsCtld
 
         progress('Unregistering container')
         DB::Containers.remove(ct)
+        ct.pool.autostart_plan.clear_ct(ct)
 
         progress('Removing cgroups')
         begin
