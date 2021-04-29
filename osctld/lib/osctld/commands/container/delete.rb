@@ -20,10 +20,6 @@ module OsCtld
         end
       end
 
-      # Remove monitor _before_ acquiring exclusive lock, because monitor
-      # uses inclusive lock, which would result in a deadlock
-      Monitor::Master.demonitor(ct)
-
       manipulate(ct) do
         progress('Stopping container')
         call_cmd!(
@@ -48,6 +44,7 @@ module OsCtld
         zfs(:destroy, '-r', ct.dataset)
 
         progress('Removing LXC configuration and script hooks')
+        Monitor::Master.demonitor(ct)
         syscmd("rm -rf #{ct.lxc_dir} #{ct.user_hook_script_dir}")
         File.unlink(ct.log_path) if File.exist?(ct.log_path)
         File.unlink(ct.config_path)
