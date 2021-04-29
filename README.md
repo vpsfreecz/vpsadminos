@@ -1,6 +1,6 @@
 # vpsAdminOS
 
-vpsAdminOS is a small OS serving as a hypervisor for unprivileged Linux system
+vpsAdminOS is a small OS serving as a host for unprivileged Linux system
 containers. It is based on [not-os](https://github.com/cleverca22/not-os/)
 and [NixOS](https://nixos.org). It is designed to run full distributions inside
 unprivileged containers which look and feel as much as a virtual machine
