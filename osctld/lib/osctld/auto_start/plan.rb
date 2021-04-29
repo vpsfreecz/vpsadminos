@@ -9,15 +9,22 @@ module OsCtld
     def initialize(pool)
       @pool = pool
       @plan = ContinuousExecutor.new(pool.parallel_start)
+      @state = AutoStart::State.load(pool)
     end
 
-    def start
+    def assets(add)
+      state.assets(add)
+    end
+
+    def start(force: false)
       log(
         :info, pool,
         "Auto-starting containers, #{pool.parallel_start} containers at a time"
       )
 
-      cts = DB::Containers.get.select { |ct| ct.pool == pool && ct.autostart }
+      cts = DB::Containers.get.select do |ct|
+        ct.pool == pool && ct.autostart && (force || !state.is_started?(ct))
+      end
 
       plan << (cts.map do |ct|
         ContinuousExecutor::Command.new(
@@ -25,7 +32,12 @@ module OsCtld
           priority: ct.autostart.priority,
         ) do |cmd|
           cur_ct = DB::Containers.find(cmd.id, pool)
-          next if cur_ct.nil? || cur_ct.running?
+          if cur_ct.nil?
+            next
+          elsif cur_ct.running?
+            state.set_started(cur_ct)
+            next
+          end
 
           log(:info, ct, 'Auto-starting container')
           do_try_start_ct(cur_ct)
@@ -65,6 +77,10 @@ module OsCtld
       plan.remove(ct.id)
     end
 
+    def clear_ct(ct)
+      state.clear(ct)
+    end
+
     def clear
       plan.clear
     end
@@ -82,7 +98,7 @@ module OsCtld
     end
 
     protected
-    attr_reader :plan
+    attr_reader :plan, :state
 
     def do_try_start_ct(ct, attempts: 5, cooldown: 5, start_opts: {})
       attempts.times do |i|
@@ -92,6 +108,7 @@ module OsCtld
         ))
 
         if ret[:status]
+          state.set_started(ct)
           sleep(ct.autostart.delay)
           return
         end

@@ -9,7 +9,7 @@ module OsCtld
       error!('pool not found') unless pool
 
       manipulate(pool) do
-        pool.autostart_plan.start
+        pool.autostart_plan.start(force: true)
         ok
       end
     end
