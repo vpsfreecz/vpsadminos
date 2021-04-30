@@ -153,7 +153,7 @@ let
         patchShebangs $out/bin
       '';
 
-      outputs = [ "out" ] ++ optionals buildUser [ "lib" "dev" ];
+      outputs = [ "out" ] ++ optionals buildUser [ "dev" ];
 
       meta = {
         description = "ZFS Filesystem Linux Kernel module";
