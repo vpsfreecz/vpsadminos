@@ -21,8 +21,8 @@ module OsCtld
             next unless ct.running?
 
             begin
-              ct_syscmd(ct, 'cat /proc/stat', valid_rcs: :all)
-              ct_syscmd(ct, 'cat /proc/loadavg', valid_rcs: :all)
+              ct_syscmd(ct, %w(cat /proc/stat), valid_rcs: :all)
+              ct_syscmd(ct, %w(cat /proc/loadavg), valid_rcs: :all)
 
             rescue SystemCommandFailed
               # pass

@@ -40,8 +40,8 @@ module OsCtld
           # Access `/proc/stat` and `/proc/loadavg` within the container, so that
           # LXCFS starts tracking it immediately.
           begin
-            ct_syscmd(ct, 'cat /proc/stat', valid_rcs: :all)
-            ct_syscmd(ct, 'cat /proc/loadavg', valid_rcs: :all)
+            ct_syscmd(ct, %w(cat /proc/stat), valid_rcs: :all)
+            ct_syscmd(ct, %w(cat /proc/loadavg), valid_rcs: :all)
           rescue OsCtld::SystemCommandFailed => e
             log(:warn, ct, "Failed to initiate lxcfs accounting: #{e.message}")
           end

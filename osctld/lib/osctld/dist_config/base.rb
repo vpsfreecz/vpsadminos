@@ -87,7 +87,7 @@ module OsCtld
     def passwd(opts)
       ret = ct_syscmd(
         ct,
-        'chpasswd',
+        %w(chpasswd),
         stdin: "#{opts[:user]}:#{opts[:password]}\n",
         run: true,
         valid_rcs: :all

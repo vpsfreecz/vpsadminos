@@ -48,7 +48,7 @@ module OsCtld
       # Apply hostname if the container is running
       if ct.running?
         begin
-          ct_syscmd(ct, "hostname #{ct.hostname.local}")
+          ct_syscmd(ct, ['hostname', ct.hostname.local])
 
         rescue SystemCommandFailed => e
           log(:warn, ct, "Unable to apply hostname: #{e.message}")
@@ -78,7 +78,7 @@ module OsCtld
       # Without the -c switch, the password is not set (bug?)
       ret = ct_syscmd(
         ct,
-        'chpasswd -c SHA512',
+        %w(chpasswd -c SHA512),
         stdin: "#{opts[:user]}:#{opts[:password]}\n",
         run: true,
         valid_rcs: :all

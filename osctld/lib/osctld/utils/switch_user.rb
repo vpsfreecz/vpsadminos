@@ -20,7 +20,7 @@ module OsCtld
 
     # Run a command `cmd` within container `ct`
     # @param ct [Container]
-    # @param cmd [String] command to execute in shell
+    # @param cmd [Array<String>] command to execute
     # @param opts [Hash] options
     # @option opts [IO] :stdin
     # @option opts [IO] :stdout
