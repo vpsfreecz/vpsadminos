@@ -7,7 +7,7 @@ module OsCtld
   # Execute command within a container and return its output
   class ContainerControl::Commands::Syscmd < ContainerControl::Command
     class Frontend < ContainerControl::Frontend
-      # @param cmd [String] command to execute in shell
+      # @param cmd [Array<String>] command to execute
       # @param opts [Hash] options
       # @option opts [IO, String] :stdin
       # @option opts [Boolean] :run run the container if it is stopped?

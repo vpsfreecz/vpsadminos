@@ -85,7 +85,7 @@ module OsCtld
         # Add IP within the CT
         ct_syscmd(
           ct,
-          "ip -#{v} addr add #{addr.to_string} dev #{name}",
+          ['ip', "-#{v}", 'addr', 'add', addr.to_string, 'dev', name],
           valid_rcs: [2]
         )
       end
@@ -102,7 +102,7 @@ module OsCtld
         # Remove IP from within the CT
         ct_syscmd(
           ct,
-          "ip -#{v} addr del #{addr.to_string} dev #{name}",
+          ['ip', "-#{v}", 'addr', 'del', addr.to_string, 'dev', name],
           valid_rcs: [2]
         )
       end

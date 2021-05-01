@@ -71,7 +71,7 @@ module OsCtld
           begin
             ret = ct_syscmd(
               ct,
-              "umount #{File.join('/', mnt.mountpoint)}",
+              ['umount', File.join('/', mnt.mountpoint)],
               valid_rcs: [1]
             )
 
