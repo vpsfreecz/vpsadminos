@@ -6,7 +6,9 @@ module OsCtld
 
     protected
     def config_backend
-      if version.start_with?('stream-') || version.to_i >= 8
+      if version.start_with?('stream-') \
+         || version == 'latest-stream' \
+         || version.to_i >= 8
         :network_manager
       else
         :initscripts
