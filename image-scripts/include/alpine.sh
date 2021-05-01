@@ -1,4 +1,4 @@
-require_cmd wget
+require_cmd openssl wget
 
 readonly RELVER=${RELVER:=3.5}
 readonly ARCH=${ARCH:=x86_64}
