@@ -274,8 +274,11 @@ cat <<EOT >> /etc/inputrc
 "\e\e[D": backward-word
 EOT
 
-# Lock root account
-usermod -L root
+# We cannot lock the account, because then even login using ssh keys doesn't
+# work. SSHD says 'User root not allowed because account is locked'. This is
+# probably because Slackware 14.2 does not have PAM.
+# See also https://arlimus.github.io/articles/usepam/
+usermod -p '*' root
 
 echo > /etc/resolv.conf
 EOF
