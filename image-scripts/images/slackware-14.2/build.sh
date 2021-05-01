@@ -29,6 +29,7 @@ BASEURL=http://mirrors.slackware.com/slackware/
 LOCAL_REPO="$DOWNLOAD/repo"
 LOCAL_ROOT="$DOWNLOAD/root"
 INSTALLPKG=
+PKGLIST="$DOWNLOAD/pkglist.txt"
 PKGS="
 aaa_base
 aaa_elflibs
@@ -142,7 +143,7 @@ download_pkg() {
 setup_pkgtools() {
 	mkdir -p "$LOCAL_ROOT"
 
-	pkg="`download_pkg pkgtools`"
+	local pkg="`download_pkg pkgtools`"
 	[ "$?" != "0" ] && exit 1
 
 	tar -xJf "$pkg" -C "$LOCAL_ROOT"
@@ -150,10 +151,21 @@ setup_pkgtools() {
 }
 
 install_pkg() {
-	pkg=`download_pkg $1`
+	local pkg=`download_pkg $1`
 	[ "$?" != "0" ] && exit 1
 
 	$INSTALLPKG --terse --root "$INSTALL" $pkg
+}
+
+download_pkg_to_list() {
+	local pkg="`download_pkg $1`"
+	[ "$?" != "0" ] && exit 1
+
+	flock "$PKGLIST" bash -c "echo $pkg >> \"$PKGLIST\""
+}
+
+install_pkg_from_list() {
+	$INSTALLPKG --terse --root "$INSTALL" $1
 }
 
 
@@ -162,10 +174,19 @@ download_index || exit 1
 # Install pkgtools outside the rootfs
 setup_pkgtools || exit 1
 
-# Install all packages in the rootfs
+# Download all packages
+export BASEURL LOCAL_REPO PKGLIST RELVER
+export -f download_pkg_to_list download_pkg
+touch "$PKGLIST"
+
 for pkg in $PKGS ; do
+	echo $pkg
+done | xargs -n 1 -P $(nproc) -I {} bash -c 'download_pkg_to_list "$@"' _ {}
+
+# Install all packages in the rootfs
+for pkg in $(cat "$PKGLIST") ; do
 	echo "Installing $pkg"
-	install_pkg $pkg
+	install_pkg_from_list $pkg
 
 	if [ "$?" != "0" ] ; then
 		warn "Unable to install '$pkg'"
