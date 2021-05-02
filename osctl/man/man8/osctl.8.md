@@ -925,6 +925,15 @@ read by `ls` or `show` commands.
       killing it or failing, depending on whether option `--dont-kill` is set.
       The default timeout is *60* seconds.
 
+    `-a`, `--attach`
+      Attach the container using `ct attach` after it starts. Conflicts with
+      `-F`, `--foreground`.
+
+    `-u`, `--user-shell`
+      When `-a`, `--attach` is used, load the shell that's configured
+      in the container's `/etc/passwd` for `root` and read personal
+      configuration files, such as `.bashrc`.
+
 `ct attach` [*options*] *ctid*, `ct enter` [*options*] *ctid*
   Attach container *ctid* and open a shell. `osctld` tries to open `bash`,
   `busybox` and falls back to `/bin/sh`. The shell is not reading any personal
