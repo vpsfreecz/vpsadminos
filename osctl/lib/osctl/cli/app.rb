@@ -709,6 +709,12 @@ module OsCtl::Cli
           c.desc 'Enable debug messages in LXC'
           c.switch %i(D debug)
 
+          c.desc 'Attach container after start'
+          c.switch %i(a attach), negatable: false
+
+          c.desc 'Run shell as configured in the container'
+          c.switch %i(u user-shell), negatable: false
+
           c.action &Command.run(Container, :start)
         end
 
