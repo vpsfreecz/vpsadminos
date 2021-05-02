@@ -757,6 +757,12 @@ module OsCtl::Cli
           c.desc 'Do not kill the container if clean shutdown fails'
           c.switch 'dont-kill', negatable: false
 
+          c.desc 'Attach container after start'
+          c.switch %i(a attach), negatable: false
+
+          c.desc 'Run shell as configured in the container'
+          c.switch %i(u user-shell), negatable: false
+
           c.action &Command.run(Container, :restart)
         end
 
