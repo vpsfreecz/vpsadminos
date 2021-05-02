@@ -209,6 +209,11 @@ module OsCtl::Cli
 
     def start
       require_args!('id')
+
+      if opts[:foreground] && opts[:attach]
+        raise GLI::BadCommandLine, 'use either --foreground or --attach'
+      end
+
       cmd_opts = {
         id: args[0],
         pool: gopts[:pool],
@@ -217,10 +222,20 @@ module OsCtl::Cli
         priority: opts[:priority],
         debug: opts[:debug],
       }
-      return osctld_fmt(:ct_start, cmd_opts) unless opts[:foreground]
 
-      open_console(args[0], gopts[:pool], 0, gopts[:json]) do |sock|
-        sock.close if osctld_resp(:ct_start, cmd_opts).error?
+      if opts[:foreground]
+        open_console(args[0], gopts[:pool], 0, gopts[:json]) do |sock|
+          sock.close if osctld_resp(:ct_start, cmd_opts).error?
+        end
+
+        return
+      end
+
+      osctld_fmt(:ct_start, cmd_opts)
+
+      if opts[:attach]
+        puts 'Attaching'
+        attach
       end
     end
 

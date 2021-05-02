@@ -860,6 +860,15 @@ read by `ls` or `show` commands.
       Configure LXC to write debug messages to the container's log file, see
       `ct log` commands.
 
+    `-a`, `--attach`
+      Attach the container using `ct attach` after it starts. Conflicts with
+      `-F`, `--foreground`.
+
+    `-u`, `--user-shell`
+      When `-a`, `--attach` is used, load the shell that's configured
+      in the container's `/etc/passwd` for `root` and read personal
+      configuration files, such as `.bashrc`.
+
 `ct stop` [*options*] *ctid*
   Stop container *ctid*. By default, `osctld` will send a signal to the container's
   init process to cleanly shutdown and wait until it finishes or *timeout*
