@@ -77,15 +77,26 @@ module OsCtl::Lib
     end
 
     # Send stream over a socket.
-    def send_to(addr, port: nil, timeout: 900)
-      socat = "socat -u -T #{timeout} 'EXEC:\"#{full_zfs_send_cmd}\"' TCP:#{addr}:#{port}"
+    #
+    # @param addr [String]
+    # @param port [Integer]
+    # @param opts [Hash]
+    # @option opts [String] :block_size
+    # @option opts [String] :buffer_size
+    # @option opts [String] :log_file
+    # @option opts [Integer] :timeout
+    def send_to(addr, port, opts = {})
+      cmd = [
+        "mbuffer",
+        "-q",
+        "-O #{addr}:#{port}",
+        "-s #{opts.fetch(:block_size, '128k')}",
+        "-m #{opts.fetch(:buffer_size, '64M')}",
+        (opts[:log_file] ? "-l #{opts[:log_file]}" : nil),
+        "-W #{opts.fetch(:timeout, 900)}",
+      ].compact.join(' ')
 
-      log(:info, :zfs, socat)
-
-      IO.popen("exec #{socat} 2>&1") do |io|
-        @size = parse_total_size(io)
-        monitor_progress(io)
-      end
+      pipe_cmd(cmd)
     end
 
     # Send stream to a local filesystem.
