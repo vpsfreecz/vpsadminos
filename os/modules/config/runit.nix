@@ -20,7 +20,10 @@ EOF
   profile = "${pkgs.lxc}/etc/apparmor.d/lxc-containers";
 in
 {
-  environment.systemPackages = [ compat pkgs.socat ];
+  environment.systemPackages = [ compat ] ++ (with pkgs; [
+    mbuffer
+    socat
+  ]);
 
   runit.stage1 = ''
     # load kernel modules
