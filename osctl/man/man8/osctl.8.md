@@ -1338,6 +1338,13 @@ read by `ls` or `show` commands.
 `ct reconfigure` *ctid*
   Regenerate LXC configuration.
 
+`ct freeze` *ctid*
+  Freeze all processes inside the container. Can be reversed with *ct unfreeze*.
+
+`ct unfreeze` *ctid*
+`ct thaw` *ctid*
+  Unfreeze (thaw) the container and all its processes.
+
 `ct export` [*options*] *ctid* *file*
   Export container *ctid* into a tar archive *file*. The archive will contain
   the container's configuration, its user, group and data. The exported archive
