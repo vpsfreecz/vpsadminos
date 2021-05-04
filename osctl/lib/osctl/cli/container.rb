@@ -774,6 +774,16 @@ module OsCtl::Cli
       osctld_fmt(:ct_reconfigure, id: args[0], pool: gopts[:pool])
     end
 
+    def freeze
+      require_args!('id')
+      osctld_fmt(:ct_freeze, id: args[0], pool: gopts[:pool])
+    end
+
+    def unfreeze
+      require_args!('id')
+      osctld_fmt(:ct_unfreeze, id: args[0], pool: gopts[:pool])
+    end
+
     def pid
       require_args!('pid|-')
 
