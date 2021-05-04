@@ -1102,6 +1102,18 @@ module OsCtl::Cli
           c.action &Command.run(Container, :reconfigure)
         end
 
+        ct.desc 'Freeze the container'
+        ct.arg_name '<ctid>'
+        ct.command :freeze do |c|
+          c.action &Command.run(Container, :freeze)
+        end
+
+        ct.desc 'Unfreeze (thaw) the container'
+        ct.arg_name '<ctid>'
+        ct.command %i(unfreeze thaw) do |c|
+          c.action &Command.run(Container, :unfreeze)
+        end
+
         ct.desc 'Export the container configs and data into a tar archive'
         ct.arg_name '<ctid> <file>'
         ct.command :export do |c|

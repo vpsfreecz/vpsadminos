@@ -544,11 +544,12 @@ module OsCtld
       ErbTemplate.render_to('ct/bashrc', {
         ct: self,
         override: %w(
-          attach cgroup console device execute info ls monitor stop top wait
+          attach cgroup console device execute freeze info ls monitor stop top
+          unfreeze wait
         ),
         disable: %w(
-          autostart checkpoint clone copy create destroy freeze snapshot
-          start-ephemeral unfreeze unshare
+          autostart checkpoint clone copy create destroy snapshot
+          start-ephemeral unshare
         ),
       }, File.join(lxc_dir, '.bashrc'))
     end
