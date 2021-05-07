@@ -31,7 +31,7 @@ module OsCtld
         desc: 'Contains a list of auto-started containers',
         user: 0,
         group: 0,
-        mode: 0700,
+        mode: 0600,
         optional: true,
       )
     end
@@ -77,7 +77,7 @@ module OsCtld
 
     def save
       exclusively do
-        regenerate_file(state_path, 0700) do |new|
+        regenerate_file(state_path, 0600) do |new|
           started_cts.each { |id| new.puts(id) }
         end
       end
