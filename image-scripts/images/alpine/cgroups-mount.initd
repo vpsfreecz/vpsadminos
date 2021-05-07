@@ -35,7 +35,7 @@ start() {
 
 		mkdir -p "/sys/fs/cgroup/$name"
 		mount -n -t cgroup -o "$mount_opts,$name" \
-			"$name" "/sys/fs/cgroup/$name" || retval=1
+			cgroup "/sys/fs/cgroup/$name" || retval=1
 	done
 
 	for name in $named_cgroups; do
@@ -43,7 +43,7 @@ start() {
 
 		mkdir -p "/sys/fs/cgroup/$name"
 		mount -n -t cgroup -o "none,$mount_opts,name=$name" \
-			"$name" "/sys/fs/cgroup/$name" || retval=1
+			cgroup "/sys/fs/cgroup/$name" || retval=1
 	done
 
 	if ! mountinfo -q /sys/fs/cgroup/openrc ; then
