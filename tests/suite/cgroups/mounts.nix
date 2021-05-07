@@ -43,7 +43,7 @@ import ../../make-template.nix ({ distribution, version }: rec {
         end
       end
 
-      if /^#{Regexp.escape("none /sys/fs/cgroup/unified cgroup2 ")}/ !~ output
+      if /^\w+ #{Regexp.escape("/sys/fs/cgroup/unified cgroup2 ")}/ !~ output
         fail "unified cgroup not mounted"
       end
     '';
