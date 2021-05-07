@@ -38,7 +38,7 @@ import ../../make-template.nix ({ distribution, version }: rec {
       )
 
       controllers.each do |c|
-        if /^#{Regexp.escape("#{c} /sys/fs/cgroup/#{c} cgroup ")}/ !~ output
+        if /^\w+ #{Regexp.escape("/sys/fs/cgroup/#{c} cgroup ")}/ !~ output
           fail "#{c} not mounted"
         end
       end
