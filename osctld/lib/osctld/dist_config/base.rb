@@ -39,10 +39,33 @@ module OsCtld
       )
     end
 
+    # Set container hostname
+    #
+    # Note that the implementation is responsible for calling
+    # {#update_etc_hosts} when the hostname is changed.
+    #
     # @param opts [Hash] options
     # @option opts [OsCtl::Lib::Hostname] :original previous hostname
     def set_hostname(opts)
       raise NotImplementedError
+    end
+
+    # Update hostname in `/etc/hosts`, optionally removing configuration of old
+    # hostname.
+    #
+    # @param opts [Hash] options
+    # @param opts [OsCtl::Lib::Hostname, nil] :old_hostname
+    def update_etc_hosts(opts = {})
+      path = File.join(ctrc.rootfs, 'etc', 'hosts')
+      return unless writable?(path)
+
+      hosts = EtcHosts.new(path)
+
+      if opts[:old_hostname]
+        hosts.replace(opts[:old_hostname], ct.hostname)
+      else
+        hosts.set(ct.hostname)
+      end
     end
 
     def network(_opts)
@@ -104,22 +127,6 @@ module OsCtld
     end
 
     protected
-    # Update hostname in /etc/hosts, optionally removing configuration of old
-    # hostname.
-    # @param old_hostname [OsCtl::Lib::Hostname, nil]
-    def update_etc_hosts(old_hostname = nil)
-      path = File.join(ctrc.rootfs, 'etc', 'hosts')
-      return unless writable?(path)
-
-      hosts = EtcHosts.new(path)
-
-      if old_hostname
-        hosts.replace(old_hostname, ct.hostname)
-      else
-        hosts.set(ct.hostname)
-      end
-    end
-
     # Check if the file at `path` si writable by its user
     #
     # If the file doesn't exist, we take it as writable. If a block is given,
