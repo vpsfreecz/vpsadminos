@@ -13,7 +13,7 @@ module OsCtld
       end
 
       # Entry in /etc/hosts
-      update_etc_hosts(opts[:original])
+      update_etc_hosts(old_hostname: opts[:original])
 
       # Apply hostname if the container is running
       if ct.running?
