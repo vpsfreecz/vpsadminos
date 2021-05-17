@@ -29,8 +29,13 @@ module OsCtl::Cli
     )
 
     def list
+      c = osctld_open
+      cg_init_subsystems(c)
+
+      cgparams = cg_list_raw_cgroup_params
+
       if opts[:list]
-        puts FIELDS.join("\n")
+        puts (FIELDS + cgparams).join("\n")
         return
       end
 
@@ -52,15 +57,19 @@ module OsCtl::Cli
       fmt_opts[:header] = false if opts['hide-header']
       cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : DEFAULT_FIELDS
 
-      c = osctld_open
       groups = cg_add_stats(
-        c,
         c.cmd_data!(:group_list, cmd_opts),
         lambda { |g| g[:full_path] },
         cols,
         gopts[:parsable]
       )
       c.close
+
+      cg_add_raw_cgroup_params(
+        groups,
+        lambda { |g| g[:full_path] },
+        cols & cgparams.map(&:to_sym)
+      )
 
       format_output(groups, cols, **fmt_opts)
     end
@@ -71,8 +80,13 @@ module OsCtl::Cli
     end
 
     def show
+      c = osctld_open
+      cg_init_subsystems(c)
+
+      cgparams = cg_list_raw_cgroup_params
+
       if opts[:list]
-        puts FIELDS.join("\n")
+        puts (FIELDS + cgparams).join("\n")
         return
       end
 
@@ -83,7 +97,6 @@ module OsCtl::Cli
       fmt_opts = {layout: :rows}
       fmt_opts[:header] = false if opts['hide-header']
 
-      c = osctld_open
       group = c.cmd_data!(:group_show, name: args[0], pool: gopts[:pool])
       cg_add_stats(
         c,
@@ -93,6 +106,12 @@ module OsCtl::Cli
         gopts[:parsable]
       )
       c.close
+
+      cg_add_raw_cgroup_params(
+        group,
+        g[:full_path],
+        cols & cgparams.map(&:to_sym)
+      )
 
       format_output(group, cols, **fmt_opts)
     end
