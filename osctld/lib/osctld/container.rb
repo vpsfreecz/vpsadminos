@@ -488,6 +488,7 @@ module OsCtld
 
         when :hostname
           self.hostname = nil
+          DistConfig.run(get_run_conf, :unset_etc_hosts)
 
         when :dns_resolvers
           self.dns_resolvers = nil
