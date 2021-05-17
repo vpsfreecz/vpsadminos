@@ -103,6 +103,8 @@ module OsCtl::Cli
       @client = OsCtl::Client.new
       @client.open
 
+      cg_init_subsystems(@client)
+
       @groups = @client.cmd_data!(:group_list, pool: pool).sort! do |a, b|
         a[:name] <=> b[:name]
       end
@@ -114,7 +116,6 @@ module OsCtl::Cli
       groups.map! do |grp|
         # Read cgroup params
         cg_add_stats(
-          client,
           grp,
           grp[:full_path],
           %i(memory cpu_time),
@@ -146,7 +147,6 @@ module OsCtl::Cli
           a[:id] <=> b[:id]
         end.map! do |ct|
           cg_add_stats(
-            client,
             ct,
             ct[:group_path],
             %i(memory cpu_time),
