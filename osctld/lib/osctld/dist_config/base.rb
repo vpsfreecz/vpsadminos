@@ -68,6 +68,15 @@ module OsCtld
       end
     end
 
+    # Remove the osctld-generated notice from /etc/hosts
+    def unset_etc_hosts(opts = {})
+      path = File.join(ctrc.rootfs, 'etc', 'hosts')
+      return unless writable?(path)
+
+      hosts = EtcHosts.new(path)
+      hosts.unmanage
+    end
+
     def network(_opts)
       raise NotImplementedError
     end
