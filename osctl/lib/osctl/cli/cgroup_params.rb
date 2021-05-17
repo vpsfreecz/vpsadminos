@@ -325,24 +325,101 @@ module OsCtl
       mi.total * 1024
     end
 
-    # Add runtime stats from CGroup parameters to `data`
     # @param client [OsCtl::Client]
+    def cg_init_subsystems(client)
+      @cg_subsystems = client.cmd_data!(:group_cgsubsystems)
+    end
+
+    # Add runtime stats from CGroup parameters to `data`
+    #
+    # {#cg_init_subsystems} must be called before this method can be used.
+    #
     # @param data [Hash, Array] hash/array to which the stats are added
     # @param path [String] path of the chosen group
     # @param params [Array] selected stat parameters
     # @param precise [Boolean] humanize parameter values?
     # @return [Hash, Array] data extended with stats
-    def cg_add_stats(client, data, path, params, precise)
-      subsystems = client.cmd_data!(:group_cgsubsystems)
+    def cg_add_stats(data, path, params, precise)
       fields = CGPARAM_STATS & params
 
       if data.is_a?(::Hash)
-        data.update(cg_read_stats(subsystems, path, fields, precise))
+        data.update(cg_read_stats(@cg_subsystems, path, fields, precise))
         data
 
       elsif data.is_a?(::Array)
         data.map do |v|
-          v.update(cg_read_stats(subsystems, path.call(v), fields, precise))
+          v.update(cg_read_stats(@cg_subsystems, path.call(v), fields, precise))
+        end
+      end
+    end
+
+    # Return a list of readable cgroup parameters from all subsystems
+    #
+    # {#cg_init_subsystems} must be called before this method can be used.
+    #
+    # @return [Array<String>]
+    def cg_list_raw_cgroup_params
+      params = []
+
+      @cg_subsystems.each do |name, path|
+        cgpath = File.join(path, 'osctl')
+
+        Dir.entries(cgpath).each do |v|
+          next if %w(. .. notify_on_release release_agent tasks).include?(v)
+          next if v.start_with?('cgroup.')
+
+          st = File.stat(File.join(cgpath, v))
+          next if st.directory?
+
+          # Ignore files that do not have read by user permission
+          next if (st.mode & 0400) != 0400
+
+          params << v
+        end
+      end
+
+      params.uniq!.sort!
+    end
+
+    # Read selected cgroup parameters
+    # @param subsystems [Hash]
+    # @param path [String]
+    # @param params [Array]
+    # @return [Hash]
+    def cg_read_raw_cgroup_params(subsystems, path, params)
+      ret = {}
+
+      params.each do |par|
+        begin
+          ret[par.to_sym] = read_cgparam(
+            subsystems[parse_subsystem(par.to_s).to_sym],
+            path,
+            par.to_s,
+          )
+        rescue Errno::ENOENT
+          ret[par.to_sym] = nil
+        end
+      end
+
+      ret
+    end
+
+    # Read and add cgroup parameters to `data`
+    #
+    # {#cg_init_subsystems} must be called before this method can be used.
+    #
+    # @param data [Hash, Array] hash/array to which the stats are added
+    # @param path [String, Proc] path of the chosen group
+    # @param params [Array] selected cgroup parameters
+    # @return [Hash, Array] data extended with cgroup params
+    def cg_add_raw_cgroup_params(data, path, params)
+      if data.is_a?(::Hash)
+        data.update(cg_read_raw_cgroup_params(@cg_subsystems, path, params))
+        data
+
+      elsif data.is_a?(::Array)
+        data.map do |v|
+          v.update(cg_read_raw_cgroup_params(@cg_subsystems, path.call(v), params))
         end
       end
     end
