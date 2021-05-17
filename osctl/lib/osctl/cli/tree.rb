@@ -20,8 +20,8 @@ module OsCtl::Cli
     include OsCtl::Utils::Humanize
     include CGroupParams
 
-    def self.print(*args)
-      tree = new(*args)
+    def self.print(*args, **kwargs)
+      tree = new(*args, **kwargs)
       tree.render
       tree.print
     end
