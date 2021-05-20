@@ -1,6 +1,6 @@
 . "$IMAGEDIR/config.sh"
 POINTVER=8.3
-RELEASE=https://download.rockylinux.org/pub/rocky/${POINTVER}/BaseOS/x86_64/os/Packages/rocky-release-${POINTVER}-11.el8.noarch.rpm
+RELEASE=https://download.rockylinux.org/pub/rocky/${POINTVER}/BaseOS/x86_64/os/Packages/rocky-release-${POINTVER}-13.el8.noarch.rpm
 BASEURL=https://download.rockylinux.org/pub/rocky/${POINTVER}/BaseOS/x86_64/os/
 
 # CentOS 8 does not seem to have an updates repo, so this variable is used to
