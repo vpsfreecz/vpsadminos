@@ -26,6 +26,7 @@ configure-append <<EOF
 
 cat <<EOT > /etc/NetworkManager/conf.d/vpsadminos.conf
 [main]
+dns=none
 plugins+=ifcfg-rh
 rc-manager=file
 configure-and-quit=true

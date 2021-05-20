@@ -122,6 +122,7 @@ sed -i -e 's/^#PermitRootLogin\ prohibit-password/PermitRootLogin yes/g' /etc/ss
 
 cat <<EOT > /etc/NetworkManager/conf.d/vpsadminos.conf
 [main]
+dns=none
 plugins+=ifcfg-rh
 rc-manager=file
 EOT
