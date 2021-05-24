@@ -1114,6 +1114,48 @@ module OsCtl::Cli
           c.action &Command.run(Container, :unfreeze)
         end
 
+        ct.desc 'Use binary search to find a misbehaving container'
+        ct.arg_name '[ctid...]'
+        ct.command :bisect do |c|
+          c.desc 'Disable method'
+          c.flag %i(a action), must_match: %w(freeze stop), default_value: 'freeze'
+
+          c.desc 'Exclude containers'
+          c.flag %i(x exclude), arg_name: 'ctids'
+
+          c.desc 'Filter by pool, comma separated'
+          c.flag :pool, arg_name: 'pool'
+
+          c.desc 'Filter by user name, comma separated'
+          c.flag %i(u user), arg_name: 'user'
+
+          c.desc 'Filter by group name, comma separated'
+          c.flag %i(g group), arg_name: 'group'
+
+          c.desc 'Filter by distribution, comma separated'
+          c.flag %i(d distribution), arg_name: 'distribution'
+
+          c.desc 'Filter by distribution version, comma separated'
+          c.flag %i(v version), arg_name: 'version'
+
+          c.desc 'Filter ephemeral containers'
+          c.switch %i(e ephemeral), negatable: false
+
+          c.desc 'Filter persistent (non-ephemeral) containers'
+          c.switch %i(p persistent), negatable: false
+
+          c.desc 'Select parameters to output'
+          c.flag %i(o output), arg_name: 'parameters'
+
+          c.desc 'List available parameters'
+          c.switch %i(L list), negatable: false
+
+          c.desc 'Sort by parameter(s)'
+          c.flag %i(s sort), arg_name: 'parameters'
+
+          c.action &Command.run(Container, :bisect)
+        end
+
         ct.desc 'Export the container configs and data into a tar archive'
         ct.arg_name '<ctid> <file>'
         ct.command :export do |c|

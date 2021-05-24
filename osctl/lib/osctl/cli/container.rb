@@ -803,6 +803,102 @@ module OsCtl::Cli
       osctld_fmt(:ct_unfreeze, id: args[0], pool: gopts[:pool])
     end
 
+    def bisect
+      c = osctld_open
+      cg_init_subsystems(c)
+
+      cgparams = cg_list_raw_cgroup_params.map(&:to_sym)
+      all_fields = FIELDS + cgparams
+
+      if opts[:list]
+        puts all_fields.join("\n")
+        return
+      end
+
+      cmd_opts = {
+        state: 'running',
+      }
+
+      FILTERS.each do |v|
+        [gopts, opts].each do |options|
+          next unless options[v]
+          cmd_opts[v] = options[v].split(',')
+        end
+      end
+
+      if opts[:ephemeral]
+        cmd_opts[:ephemeral] = true
+      elsif opts[:persistent]
+        cmd_opts[:ephemeral] = false
+      end
+
+      cmd_opts[:ids] = args if args.count > 0
+
+      cts = c.cmd_data!(:ct_list, cmd_opts)
+
+      if opts[:exclude]
+        exclude_ctids = opts[:exclude].split(',').map do |v|
+          if v.index(':')
+            pool, id = v.split(':')
+            [pool, id]
+          else
+            [nil, v]
+          end
+        end
+
+        cts.reject! do |ct|
+          exclude_ctids.detect do |ex_pool, ex_id|
+            (ex_pool.nil? || ct[:pool] == ex_pool) && ct[:id] == ex_id
+          end
+        end
+      end
+
+      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : DEFAULT_FIELDS
+
+      cg_add_stats(
+        cts,
+        lambda { |ct| ct[:group_path] },
+        cols,
+        gopts[:parsable]
+      )
+
+      add_loadavgs(cts)
+
+      cg_add_raw_cgroup_params(
+        cts,
+        lambda { |ct| ct[:group_path] },
+        cols & cgparams
+      )
+
+      if opts[:sort]
+        sort_cols = opts[:sort].split(',').map(&:to_sym)
+
+        sort_cols.each do |c|
+          unless all_fields.include?(c)
+            raise GLI::BadCommandLine, "unknown sort parameter '#{c}'"
+          end
+        end
+
+        cts.sort! do |a, b|
+          a_vals = sort_cols.map { |c| a[c] }
+          b_vals = sort_cols.map { |c| b[c] }
+          cmp = a_vals <=> b_vals
+          next(cmp) if cmp
+
+          next(-1) if [nil, false].detect { |v| a_vals.include?(v) }
+          next(1) if [nil, false].detect { |v| b_vals.include?(v) }
+          0
+        end
+      end
+
+      bis = Bisect.new(
+        cts,
+        suspend_action: opts[:action].to_sym,
+        cols: cols,
+      )
+      bis.run
+    end
+
     def pid
       require_args!('pid|-')
 

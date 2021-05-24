@@ -1345,6 +1345,52 @@ read by `ls` or `show` commands.
 `ct thaw` *ctid*
   Unfreeze (thaw) the container and all its processes.
 
+`ct bisect` [*ctid...*]
+  Use binary search to find a misbehaving container. Bisect can be run on all
+  or selected containers. It disables containers either by freezing or stopping
+  them and continuously asks the user if the behaviour he is looking for has
+  changed. It can be used for example to identify a container that is causing
+  workload problems to the host system.
+
+  When the bisect is done or aborted, affected containers are re-enabled.
+
+    `-a`, `--action` `freeze`|`stop`
+      How to disable containers, defaults to `freeze`.
+
+    `-x`, `--exclude` *ctids*
+      Comma-separated list of containers ids to exclude from the bisect.
+
+    `-L`, `--list`
+      List available parameters and exit.
+
+    `-o`, `--output` *parameters*
+      Select parameters to output, comma separated. Defaults to a selected
+      subset of available parameters.
+
+    `-s`, `--sort` *parameters*
+      Sort output by parameters, comma separated.
+
+    `--pool` *pools*
+      Filter by pool, comma separated.
+
+    `-u`, `--user` *users*
+      Filter by user name, comma separated.
+
+    `-g`, `--group` *groups*
+      Filter by group name, comma separated.
+
+    `-e`, `--ephemeral`
+      Filter ephemeral containers.
+
+    `-p`, `--persistent`
+      Filter persistent (non-ephemeral) containers.
+
+    `-d`, `--distribution` *distributions*
+      Filter by distribution, comma separated.
+
+    `-v`, `--version` *versions*
+      Filter by distribution version, comma separated.
+
 `ct export` [*options*] *ctid* *file*
   Export container *ctid* into a tar archive *file*. The archive will contain
   the container's configuration, its user, group and data. The exported archive
