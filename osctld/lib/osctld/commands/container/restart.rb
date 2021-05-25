@@ -26,12 +26,14 @@ module OsCtld
         else
           call_cmd!(
             Commands::Container::Stop,
+            pool: ct.pool.name,
             id: ct.id,
             timeout: opts[:stop_timeout],
             method: opts[:stop_method]
           )
           call_cmd!(
             Commands::Container::Start,
+            pool: ct.pool.name,
             id: ct.id,
             force: true,
             wait: opts[:wait],
