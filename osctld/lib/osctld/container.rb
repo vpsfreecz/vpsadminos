@@ -482,6 +482,7 @@ module OsCtld
         case k
         when :autostart
           self.autostart = false
+          pool.autostart_plan.stop_ct(self)
 
         when :ephemeral
           self.ephemeral = false
