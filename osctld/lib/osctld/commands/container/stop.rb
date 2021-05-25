@@ -33,6 +33,14 @@ module OsCtld
             error!("unknown stop method '#{opts[:method]}'")
           end
 
+        if %i(freezing frozen).include?(ct.state)
+          if mode == :stop
+            mode = :kill
+          elsif mode == :shutdown
+            error!('The container is frozen, unable to shutdown')
+          end
+        end
+
         begin
           Container::Hook.run(ct, :pre_stop)
 
