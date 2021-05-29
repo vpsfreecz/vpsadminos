@@ -16,6 +16,7 @@ module OsCtld
 
     def execute(ct)
       fh = nil
+      root_mnt = nil
 
       manipulate(ct) do
         error!('container is running') if ct.running? && !opts[:force]
@@ -108,19 +109,29 @@ module OsCtld
         ct.set_next_run_conf(ctrc)
 
         # Boot it
-        call_cmd!(
-          Commands::Container::Start,
-          pool: ct.pool.name,
-          id: ct.id,
-          wait: opts[:wait],
-          mounts: [root_mnt].compact,
-        )
-
-        ok
+        start_ct(ct, root_mnt) unless opts[:queue]
       end
+
+      # When starting as queued, we can't be holding the manipulation lock
+      start_ct(ct, root_mnt) if opts[:queue]
+      ok
 
     ensure
       fh && fh.close
+    end
+
+    protected
+    def start_ct(ct, root_mnt)
+      call_cmd!(
+        Commands::Container::Start,
+        pool: ct.pool.name,
+        id: ct.id,
+        wait: opts[:wait],
+        queue: opts[:queue],
+        priority: opts[:priority],
+        debug: opts[:debug],
+        mounts: [root_mnt].compact,
+      )
     end
   end
 end

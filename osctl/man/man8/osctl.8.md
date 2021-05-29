@@ -1289,6 +1289,32 @@ read by `ls` or `show` commands.
       How many seconds to wait for the container to enter state `running`.
       Defaults to `60` seconds. Set to `0` to return immediately.
 
+    `-F`, `--[no-]foreground`
+      Open container console (can be later detached), see `ct console`.
+
+    `-q`, `--queue`
+      Enqueue the start operation using the pools autostart facility. The pool
+      is configured to start a certain number of containers in parallel. Use
+      this option, to add the container to the queue. This is useful when you're
+      manually starting a large number of containers.
+
+    `-p`, `--priority` *n*
+      Priority for the autostart queue. This option can be used together with
+      `-q`, `--queue`. See `ct set autostart` for more information.
+
+    `-D`, `--[no-]debug`
+      Configure LXC to write debug messages to the container's log file, see
+      `ct log` commands.
+
+    `-a`, `--attach`
+      Attach the container using `ct attach` after it starts. Conflicts with
+      `-F`, `--foreground`.
+
+    `-u`, `--user-shell`
+      When `-a`, `--attach` is used, load the shell that's configured
+      in the container's `/etc/passwd` for `root` and read personal
+      configuration files, such as `.bashrc`.
+
 `ct config reload` *ctid*
   Reload the container's configuration file from disk. The container has to be
   stopped for the reload to be allowed.
