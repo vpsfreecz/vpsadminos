@@ -1060,6 +1060,24 @@ module OsCtl::Cli
           c.desc 'How long to wait for the container to start'
           c.flag %i(w wait), type: Integer, default_value: 60, arg_name: 'n'
 
+          c.desc 'Open container console (can be later detached)'
+          c.switch %i(F foreground)
+
+          c.desc 'Enqueue the start operation using pool autostart facility'
+          c.switch %i(q queue)
+
+          c.desc 'Priority for the autostart queue'
+          c.flag %i(p priority), type: Integer, default_value: 10, arg_name: 'n'
+
+          c.desc 'Enable debug messages in LXC'
+          c.switch %i(D debug)
+
+          c.desc 'Attach container after start'
+          c.switch %i(a attach), negatable: false
+
+          c.desc 'Run shell as configured in the container'
+          c.switch %i(u user-shell), negatable: false
+
           c.action &Command.run(Container, :boot)
         end
 
