@@ -389,6 +389,10 @@ module OsCtl
     def cg_read_raw_cgroup_params(subsystems, path, params)
       ret = {}
 
+      if path.end_with?('/user-owned')
+        path = path.split('/')[0..-2].join('/')
+      end
+
       params.each do |par|
         begin
           ret[par.to_sym] = read_cgparam(
