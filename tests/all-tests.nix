@@ -56,5 +56,6 @@ in tests [
   { template = "lxcfs/overlays"; instances = distributions; }
   "osctl/ct-exec"
   "osctl/ct-runscript"
+  "osctl-exportfs/mount"
   "zfs-xattr"
 ]
