@@ -1,6 +1,6 @@
 module OsCtl
   module Repo
-    VERSION = '20.09.0'
+    VERSION = '21.05.0'
     SCHEMA = 1
   end
 end

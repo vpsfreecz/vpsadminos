@@ -1,5 +1,5 @@
 module OsCtl
   module Lib
-    VERSION = '20.09.0'
+    VERSION = '21.05.0'
   end
 end
