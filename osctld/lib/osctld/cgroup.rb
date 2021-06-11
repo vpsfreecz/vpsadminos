@@ -62,9 +62,10 @@ module OsCtld
 
       if chown
         File.chown(chown, chown, cgroup)
+        File.chown(chown, chown, File.join(cgroup, 'cgroup.procs'))
 
         if type == 'unified'
-          %w(cgroup.procs cgroup.threads cgroup.subtree_control).each do |f|
+          %w(cgroup.threads cgroup.subtree_control).each do |f|
             File.chown(chown, chown, File.join(cgroup, f))
           end
         end
