@@ -10,14 +10,14 @@
 # hardware problems with a new one.
 
 # Configuration
-{ stdenv, version
+{ lib, stdenv, version
 
-, features ? { grsecurity = false; xen_dom0 = false; }
+, features ? {}
 }:
 
-with stdenv.lib;
-with stdenv.lib.kernel;
-with (stdenv.lib.kernel.whenHelpers version);
+with lib;
+with lib.kernel;
+with (lib.kernel.whenHelpers version);
 
 let
 
@@ -338,7 +338,7 @@ let
       SECURITY_SELINUX_BOOTPARAM_VALUE = whenOlder "5.1" (freeform "0"); # Disable SELinux by default
       # Prevent processes from ptracing non-children processes
       SECURITY_YAMA                    = option yes;
-      DEVKMEM                          = mkIf (!features.grsecurity) no; # Disable /dev/kmem
+      DEVKMEM                          = no; # Disable /dev/kmem
 
       USER_NS                          = yes; # Support for user namespaces
 
@@ -413,7 +413,7 @@ let
     virtualisation = {
       PARAVIRT = option yes;
 
-      HYPERVISOR_GUEST = mkIf (!features.grsecurity) yes;
+      HYPERVISOR_GUEST = yes;
       PARAVIRT_SPINLOCKS  = option yes;
 
       KVM_APIC_ARCHITECTURE             = whenOlder "4.8" yes;
@@ -421,12 +421,12 @@ let
       KVM_COMPAT = { optional = true; tristate = whenBetween "4.0" "4.12" "y"; };
       KVM_DEVICE_ASSIGNMENT  = { optional = true; tristate = whenBetween "3.10" "4.12" "y"; };
       KVM_GENERIC_DIRTYLOG_READ_PROTECT = whenAtLeast "4.0"  yes;
-      KVM_GUEST                         = mkIf (!features.grsecurity) yes;
+      KVM_GUEST                         = yes;
       KVM_MMIO                          = yes;
       KVM_VFIO                          = yes;
       KSM = yes;
       VIRT_DRIVERS = yes;
-      # We nneed 64 GB (PAE) support for Xen guest support
+      # We need 64 GB (PAE) support for Xen guest support
       HIGHMEM64G = { optional = true; tristate = mkIf (!stdenv.is64bit) "y";};
 
       VFIO_PCI_VGA = mkIf stdenv.is64bit yes;
@@ -436,13 +436,8 @@ let
       # so disable them for now.
       VBOXGUEST = option no;
 
-    } // optionalAttrs (stdenv.isx86_64 || stdenv.isi686) ({
-      XEN = option yes;
-
-      # XXX: why isn't this in the xen-dom0 conditional section below?
-      XEN_DOM0 = option yes;
-
-    } // optionalAttrs features.xen_dom0 {
+      XEN                         = option yes;
+      XEN_DOM0                    = option yes;
       PCI_XEN                     = option yes;
       HVC_XEN                     = option yes;
       HVC_XEN_FRONTEND            = option yes;
@@ -461,7 +456,7 @@ let
       XEN_SELFBALLOONING          = option yes;
       XEN_STUB                    = option yes;
       XEN_TMEM                    = option yes;
-    });
+    };
 
     media = {
       MEDIA_RC_SUPPORT         = whenOlder "4.14" yes;
@@ -545,14 +540,32 @@ let
       XZ_DEC_TEST              = option no;
     };
 
-    criu = optionalAttrs (features.criu or false) ({
+    criu = if (versionAtLeast version "4.19") then {
+      # Unconditionally enabled, because it is required for CRIU and
+      # it provides the kcmp() system call that Mesa depends on.
+      CHECKPOINT_RESTORE  = yes;
+    } else optionalAttrs (features.criu or false) ({
+      # For older kernels, CHECKPOINT_RESTORE is hidden behind EXPERT.
       EXPERT              = yes;
       CHECKPOINT_RESTORE  = yes;
     } // optionalAttrs (features.criu_revert_expert or true) {
+      RFKILL_INPUT          = option yes;
+      HID_PICOLCD_FB        = option yes;
+      HID_PICOLCD_BACKLIGHT = option yes;
+      HID_PICOLCD_LCD       = option yes;
+      HID_PICOLCD_LEDS      = option yes;
+      HID_PICOLCD_CIR       = option yes;
       DEBUG_MEMORY_INIT     = option yes;
     });
 
-    misc = {
+    misc = let
+      # Use zstd for kernel compression if 64-bit and newer than 5.9, otherwise xz.
+      # i686 issues: https://github.com/NixOS/nixpkgs/pull/117961#issuecomment-812106375
+      useZstd = stdenv.buildPlatform.is64bit && versionAtLeast version "5.9";
+    in {
+      KERNEL_XZ            = mkIf (!useZstd) yes;
+      KERNEL_ZSTD          = mkIf useZstd yes;
+
       HID_BATTERY_STRENGTH = yes;
       # enabled by default in x86_64 but not arm64, so we do that here
       HIDRAW               = yes;
@@ -567,7 +580,6 @@ let
 
       MODULE_COMPRESS    = yes;
       MODULE_COMPRESS_XZ = yes;
-      KERNEL_XZ          = yes;
 
       SYSVIPC            = yes;  # System-V IPC
 
@@ -651,6 +663,8 @@ let
       # vpsAdminOS doesn't accept slowdowns
       PSI = no;
 
+      NVME_MULTIPATH = whenAtLeast "4.15" yes;
+
       MODVERSIONS        = whenOlder "4.9" yes;
       MOUSE_ELAN_I2C_SMBUS = yes;
       MOUSE_PS2_ELANTECH = yes; # Elantech PS/2 protocol extension
@@ -685,6 +699,8 @@ let
       X86_CHECK_BIOS_CORRUPTION = yes;
       X86_MCE                   = yes;
 
+      RAS = yes; # Needed for EDAC support
+
       # Our initrd init uses shebang scripts, so can't be modular.
       BINFMT_SCRIPT = yes;
       # For systemd-binfmt
@@ -717,12 +733,26 @@ let
       # Bump the maximum number of CPUs to support systems like EC2 x1.*
       # instances and Xeon Phi.
       NR_CPUS = freeform "384";
-    } // optionalAttrs (stdenv.hostPlatform.system == "aarch64-linux") {
+    } // optionalAttrs (stdenv.hostPlatform.system == "armv7l-linux" || stdenv.hostPlatform.system == "aarch64-linux") {
       # Enables support for the Allwinner Display Engine 2.0
       SUN8I_DE2_CCU = whenAtLeast "4.13" yes;
 
       # See comments on https://github.com/NixOS/nixpkgs/commit/9b67ea9106102d882f53d62890468071900b9647
       CRYPTO_AEGIS128_SIMD = whenAtLeast "5.4" no;
+
+      # Distros should configure the default as a kernel option.
+      # We previously defined it on the kernel command line as cma=
+      # The kernel command line will override a platform-specific configuration from its device tree.
+      # https://github.com/torvalds/linux/blob/856deb866d16e29bd65952e0289066f6078af773/kernel/dma/contiguous.c#L35-L44
+      CMA_SIZE_MBYTES = freeform "32";
+
+      # Many ARM SBCs hand off a pre-configured framebuffer.
+      # This always can can be replaced by the actual native driver.
+      # Keeping it a built-in ensures it will be used if possible.
+      FB_SIMPLE = yes;
+
+    } // optionalAttrs (stdenv.hostPlatform.system == "armv7l-linux") {
+      ARM_LPAE = yes;
     };
   };
 in
