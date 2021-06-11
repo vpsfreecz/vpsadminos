@@ -1,5 +1,5 @@
-{ stdenv, fetchFromGitHub, autoreconfHook, utillinux, nukeReferences, coreutils
-, perl, buildPackages
+{ stdenv, lib, fetchFromGitHub, autoreconfHook, utillinux, nukeReferences
+, coreutils, perl, buildPackages
 , configFile ? "all"
 
 # Userspace dependencies
@@ -14,7 +14,7 @@
 , kernel ? null
 }:
 
-with stdenv.lib;
+with lib;
 let
   buildKernel = any (n: n == configFile) [ "kernel" "all" ];
   buildUser = any (n: n == configFile) [ "user" "all" ];
@@ -30,7 +30,7 @@ let
         versionAtLeast kernel.version incompatibleKernelVersion then
        throw ''
          Linux v${kernel.version} is not yet supported by zfsonlinux v${version}.
-         ${stdenv.lib.optionalString (!isUnstable) "Try zfsUnstable or set the vpsAdminOS option boot.zfs.enableUnstable."}
+         ${lib.optionalString (!isUnstable) "Try zfsUnstable or set the vpsAdminOS option boot.zfs.enableUnstable."}
        ''
     else stdenv.mkDerivation {
       name = "zfs-${configFile}-${version}${optionalString buildKernel "-${kernel.version}"}";

@@ -1,6 +1,6 @@
-{ stdenv, callPackage, buildPackages, fetchurl, perl, buildLinux, elfutils, modDirVersionArg ? null, ... } @ args:
+{ lib, callPackage, buildPackages, fetchurl, perl, buildLinux, elfutils, modDirVersionArg ? null, ... } @ args:
 
-with stdenv.lib;
+with lib;
 
 callPackage ./generic.nix (args // rec {
   version = "5.8.0-rc6";

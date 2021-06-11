@@ -1,6 +1,6 @@
 { mkDerivation, atomic-write, attoparsec, base, bytestring
 , config-ini, containers, data-prometheus, dns, fetchgit, hspec
-, iproute, pretty-simple, process, stdenv, text
+, iproute, pretty-simple, process, lib, text
 }:
 mkDerivation {
   pname = "machine-check";
@@ -21,5 +21,5 @@ mkDerivation {
   testHaskellDepends = [ attoparsec base hspec text ];
   homepage = "https://github.com/vpsfreecz/machine-check";
   description = "Linux system checks";
-  license = stdenv.lib.licenses.bsd3;
+  license = lib.licenses.bsd3;
 }

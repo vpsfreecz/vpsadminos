@@ -1,4 +1,4 @@
-{ bundlerEnv, ruby, stdenv }:
+{ bundlerEnv, ruby, stdenv, lib }:
 let
   env = bundlerEnv {
     name = "osctl-exporter";
@@ -22,7 +22,7 @@ in stdenv.mkDerivation rec {
     inherit env ruby;
   };
 
-  meta = with stdenv.lib; {
+  meta = with lib; {
     description = "";
     homepage    = https://github.com/vpsfreecz/vpsadminos;
     license     = licenses.gpl3;

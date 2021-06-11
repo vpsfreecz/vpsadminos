@@ -1,5 +1,5 @@
 { mkDerivation, attoparsec, base, bytestring, containers, fetchgit
-, hspec, lens, raw-strings-qq, stdenv, transformers, wreq
+, hspec, lens, raw-strings-qq, lib, transformers, wreq
 }:
 mkDerivation {
   pname = "data-prometheus";
@@ -23,5 +23,5 @@ mkDerivation {
   ];
   homepage = "https://github.com/vpsfreecz/data-prometheus";
   description = "Prometheus metrics data types and parser";
-  license = stdenv.lib.licenses.bsd3;
+  license = lib.licenses.bsd3;
 }
