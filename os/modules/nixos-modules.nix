@@ -18,6 +18,7 @@
   <nixpkgs/nixos/modules/config/locale.nix>
   <nixpkgs/nixos/modules/tasks/filesystems.nix>
   <nixpkgs/nixos/modules/programs/bash/bash.nix>
+  <nixpkgs/nixos/modules/programs/bash/bash-completion.nix>
   <nixpkgs/nixos/modules/programs/shadow.nix>
   <nixpkgs/nixos/modules/programs/environment.nix>
   <nixpkgs/nixos/modules/security/ca.nix>
