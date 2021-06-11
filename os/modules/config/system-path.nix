@@ -44,7 +44,6 @@ let
     bird6
     su
     lxcfs
-    libcgroup
     pciutils
     eudev
     rsyslog-light
