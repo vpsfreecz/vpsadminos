@@ -10,6 +10,7 @@ module OsCtld
       @pool = pool
       @plan = ContinuousExecutor.new(pool.parallel_start)
       @state = AutoStart::State.load(pool)
+      @stop = false
     end
 
     def assets(add)
@@ -17,6 +18,8 @@ module OsCtld
     end
 
     def start(force: false)
+      @stop = false
+
       log(
         :info, pool,
         "Auto-starting containers, #{pool.parallel_start} containers at a time"
@@ -90,6 +93,7 @@ module OsCtld
     end
 
     def stop
+      @stop = true
       plan.stop
     end
 
@@ -102,6 +106,8 @@ module OsCtld
 
     def do_try_start_ct(ct, attempts: 5, cooldown: 5, start_opts: {})
       attempts.times do |i|
+        return if stop?
+
         ret = Commands::Container::Start.run(start_opts.merge(
           pool: ct.pool.name,
           id: ct.id,
@@ -109,6 +115,7 @@ module OsCtld
 
         if ret[:status]
           state.set_started(ct)
+          return if stop?
           sleep(ct.autostart.delay)
           return
         end
@@ -118,10 +125,19 @@ module OsCtld
           return
         end
 
-        pause = cooldown + i * cooldown
-        log(:warn, ct, "Unable to start the container, retrying in #{pause} seconds")
-        sleep(pause)
+        if stop?
+          log(:warn, ct, "Unable to start the container, giving up to stop")
+          return
+        else
+          pause = cooldown + i * cooldown
+          log(:warn, ct, "Unable to start the container, retrying in #{pause} seconds")
+          sleep(pause)
+        end
       end
+    end
+
+    def stop?
+      @stop
     end
   end
 end
