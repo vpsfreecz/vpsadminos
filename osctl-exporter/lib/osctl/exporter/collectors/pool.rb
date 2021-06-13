@@ -42,7 +42,7 @@ module OsCtl::Exporter
       end
 
       states.each do |st, cnt|
-        pools.set({state: st}, cnt)
+        pools.set(cnt, labels: {state: st})
       end
     end
 
@@ -71,7 +71,7 @@ module OsCtl::Exporter
 
       pool_cts.each do |pool, states|
         states.each do |st, cnt|
-          pool_containers.set({pool: pool, state: st}, cnt)
+          pool_containers.set(cnt, labels: {pool: pool, state: st})
         end
       end
     end
