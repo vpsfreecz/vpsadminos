@@ -1,0 +1,17 @@
+GEM
+  remote: https://rubygems.vpsfree.cz/
+  specs:
+    machine-check (0.1.0)
+      prometheus-client (~> 2.1.0)
+      require_all (~> 2.0.0)
+    prometheus-client (2.1.0)
+    require_all (2.0.0)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  machine-check (= 0.1.0)
+
+BUNDLED WITH
+   2.1.4

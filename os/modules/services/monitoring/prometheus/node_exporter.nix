@@ -5,17 +5,7 @@ with lib;
 let
   cfg = config.services.prometheus.exporters.node;
 
-  machineCheckConf = pkgs.writeText "machine-check.conf" ''
-    [DNS_EXAMPLE]
-    domain = example.org
-    v4resolver = 1.1.1.1
-    v6resolver = 2606:4700:4700::1111
-
-    [DNS_EXT]
-    domain = vpsfree.cz
-    v4resolver = 77.93.223.251
-    v6resolver = 2a01:430:17:1::ffff:179
-  '';
+  textfileDirectory = "/run/metrics";
 in
 {
   ###### interface
@@ -68,7 +58,7 @@ in
   config = mkMerge [
     (mkIf cfg.enable {
       runit.services.node_exporter.run = ''
-        mkdir /run/metrics
+        mkdir ${textfileDirectory}
 
         exec ${pkgs.prometheus-node-exporter}/bin/node_exporter \
           ${concatMapStringsSep " " (x: "--collector." + x) cfg.enabledCollectors} \
@@ -79,7 +69,7 @@ in
       '';
 
       services.cron.systemCronJobs = [
-        "* * * * *  root  MCCFG=${machineCheckConf} ${pkgs.machine-check}/bin/machine-check"
+        "* * * * *  root  ${pkgs.machine-check}/bin/machine-check ${textfileDirectory}/machine-check.prom"
       ];
     })
   ];
