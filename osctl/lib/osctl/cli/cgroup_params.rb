@@ -327,7 +327,7 @@ module OsCtl
 
     # @param client [OsCtl::Client]
     def cg_init_subsystems(client)
-      @cg_subsystems = client.cmd_data!(:group_cgsubsystems)
+      @cg_subsystems ||= client.cmd_data!(:group_cgsubsystems)
     end
 
     # Add runtime stats from CGroup parameters to `data`
