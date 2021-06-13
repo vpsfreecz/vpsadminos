@@ -25,9 +25,9 @@ module OsCtl::Exporter
     end
 
     def collect(client)
+      cg_init_subsystems(client.client)
       cts = client.list_containers
       cg_add_stats(
-        client.client,
         cts,
         lambda { |ct| ct[:group_path] },
         [:memory, :cpu_user_time, :cpu_sys_time],
