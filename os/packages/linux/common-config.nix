@@ -59,7 +59,7 @@ let
     power-management = {
       PM_ADVANCED_DEBUG                = yes;
       X86_INTEL_LPSS                   = yes;
-      INTEL_IDLE                       = no;
+      INTEL_IDLE                       = yes;
       CPU_FREQ_DEFAULT_GOV_PERFORMANCE = yes;
       CPU_FREQ_GOV_SCHEDUTIL           = whenAtLeast "4.9" yes;
       PM_WAKELOCKS                     = yes;
@@ -330,14 +330,22 @@ let
     };
 
     security = {
+      SLAB_FREELIST_RANDOM             = yes;
+      SLAB_FREELIST_HARDENED           = yes;
+      SHUFFLE_PAGE_ALLOCATOR           = yes;
+      HARDENED_USERCOPY                = yes;
+      HARDENED_USERCOPY_FALLBACK       = yes;
+      FORTIFY_SOURCE                   = yes;
+      INIT_ON_ALLOC_DEFAULT_ON         = yes;
+      INIT_ON_FREE_DEFAULT_ON          = yes;
       # Detect writes to read-only module pages
       DEBUG_SET_MODULE_RONX            = { optional = true; tristate = whenOlder "4.11" "y"; };
-      RANDOMIZE_BASE                   = option yes;
-      STRICT_DEVMEM                    = option yes; # Filter access to /dev/mem
-      IO_STRICT_DEVMEM                 = option yes; # Filter access to /dev/mem
+      RANDOMIZE_BASE                   = yes;
+      STRICT_DEVMEM                    = yes; # Filter access to /dev/mem
+      IO_STRICT_DEVMEM                 = yes; # Filter access to /dev/mem
       SECURITY_SELINUX_BOOTPARAM_VALUE = whenOlder "5.1" (freeform "0"); # Disable SELinux by default
       # Prevent processes from ptracing non-children processes
-      SECURITY_YAMA                    = option yes;
+      SECURITY_YAMA                    = yes;
       DEVKMEM                          = no; # Disable /dev/kmem
 
       USER_NS                          = yes; # Support for user namespaces
