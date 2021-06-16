@@ -1361,6 +1361,9 @@ module OsCtl::Cli
           c.desc 'Refresh rate, in seconds'
           c.flag %i(r rate), type: Float, default_value: 1.0, arg_name: 'n'
 
+          c.desc "Track the host's IO stats using zpool iostat"
+          c.switch :iostat, default_value: true
+
           c.action &Command.run(Top::Main, :start)
         end
 
