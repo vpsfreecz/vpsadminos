@@ -82,7 +82,7 @@ in
 
     mkdir /sys/fs/cgroup/memory
     mount -t cgroup -o memory cgroup /sys/fs/cgroup/memory
-    echo 1 > /sys/fs/cgroup/memory/use_hierarchy
+    echo 1 > /sys/fs/cgroup/memory/memory.use_hierarchy
 
     mkdir /sys/fs/cgroup/devices
     mount -t cgroup -o devices cgroup /sys/fs/cgroup/devices
