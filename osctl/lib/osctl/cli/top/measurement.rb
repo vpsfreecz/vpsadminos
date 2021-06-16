@@ -120,20 +120,12 @@ module OsCtl::Cli
     end
 
     def read_zfs_host_io_stats
-      ret = {
-        ios: {w: 0, r: 0},
-        bytes: {w: 0, r: 0},
+      st = host.iostat.accumulated_all
+
+      {
+        ios: {w: st.io_written, r: st.io_read},
+        bytes: {w: st.bytes_written, r: st.bytes_read},
       }
-
-      host.pools.each do |pool|
-        st = OsCtl::Lib::Zfs::PoolIOStat.new(pool)
-        ret[:ios][:w] += st.writes
-        ret[:ios][:r] += st.reads
-        ret[:bytes][:w] += st.nwritten
-        ret[:bytes][:r] += st.nread
-      end
-
-      ret
     end
   end
 end

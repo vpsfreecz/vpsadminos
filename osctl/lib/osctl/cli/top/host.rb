@@ -51,10 +51,12 @@ module OsCtl::Cli
       end
     end
 
-    attr_reader :pools, :objsets
+    attr_reader :pools, :objsets, :iostat
 
-    def initialize
+    # @param iostat [OsCtl::Lib::Zfs::IOStat]
+    def initialize(iostat)
       super(id: '[host]', pool: nil, group_path: '', state: 'running')
+      @iostat = iostat
       @pools = []
       @cpu = []
       @zfs = []
