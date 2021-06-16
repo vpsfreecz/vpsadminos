@@ -52,6 +52,7 @@ module OsCtl::Cli::Top
 
         case Curses.getch
         when 'q'
+          model.stop
           return
 
         when Curses::Key::LEFT, '<'
