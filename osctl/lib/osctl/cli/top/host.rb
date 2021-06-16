@@ -53,7 +53,7 @@ module OsCtl::Cli
 
     attr_reader :pools, :objsets, :iostat
 
-    # @param iostat [OsCtl::Lib::Zfs::IOStat]
+    # @param iostat [OsCtl::Lib::Zfs::IOStat, nil]
     def initialize(iostat)
       super(id: '[host]', pool: nil, group_path: '', state: 'running')
       @iostat = iostat

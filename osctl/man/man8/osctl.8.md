@@ -1644,6 +1644,9 @@ read by `ls` or `show` commands.
     `-r`, `--rate` *n*
       Refresh rate in seconds, defaults to 1 second.
 
+    `--no-iostat`
+      Do not track the host's io stats using `zpool iostat`.
+
 `ct pid` [*pid...*] | `-`
   Find containers by process IDs. By default, the process IDs are passed as
   command-line arguments. If the first PID is `-`, the PIDs are read from
