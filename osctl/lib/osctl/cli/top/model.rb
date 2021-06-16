@@ -8,10 +8,10 @@ module OsCtl::Cli
     attr_reader :containers
     attr_accessor :mode
 
-    def initialize
+    def initialize(enable_iostat: true)
       @mutex = Mutex.new
       @monitor = Top::Monitor.new(self)
-      @iostat = OsCtl::Lib::Zfs::IOStat.new
+      @iostat = enable_iostat ? OsCtl::Lib::Zfs::IOStat.new : nil
       @host = Top::Host.new(iostat)
       @mode = :realtime
 
@@ -22,14 +22,18 @@ module OsCtl::Cli
     def setup
       client.cmd_data!(:pool_list).each { |v| host.pools << v[:name] }
       monitor.start
-      iostat.pools = host.pools
-      iostat.start
+
+      if iostat
+        iostat.pools = host.pools
+        iostat.start
+      end
+
       @nproc = `nproc`.strip.to_i
       measure
     end
 
     def stop
-      iostat.stop
+      iostat.stop if iostat
     end
 
     def measure
@@ -112,12 +116,12 @@ module OsCtl::Cli
 
     def add_pool(pool)
       host.pools << pool
-      iostat.add_pool(pool)
+      iostat.add_pool(pool) if iostat
     end
 
     def remove_pool(pool)
       host.pools.delete(pool)
-      iostat.remove_pool(pool)
+      iostat.remove_pool(pool) if iostat
     end
 
     def add_ct(pool, id)
