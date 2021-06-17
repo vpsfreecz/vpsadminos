@@ -129,21 +129,5 @@ module OsCtl::Cli
         end
       end
     end
-
-    def read_zfs_host_io_stats
-      if host.iostat
-        st = host.iostat.accumulated_all
-
-        {
-          ios: {w: st.io_written, r: st.io_read},
-          bytes: {w: st.bytes_written, r: st.bytes_read},
-        }
-      else
-        {
-          ios: {w: 0, r: 0},
-          bytes: {w: 0, r: 0},
-        }
-      end
-    end
   end
 end

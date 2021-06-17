@@ -19,6 +19,10 @@ module OsCtl::Cli
       open
     end
 
+    def iostat_enabled?
+      !iostat.nil?
+    end
+
     def setup
       client.cmd_data!(:pool_list).each { |v| host.pools << v[:name] }
       monitor.start
