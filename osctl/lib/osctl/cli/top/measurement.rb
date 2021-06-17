@@ -70,14 +70,25 @@ module OsCtl::Cli
     def netif_stats
       ret = {tx: {bytes: 0, packets: 0}, rx: {bytes: 0, packets: 0}}
 
-      netifs.each do |netif|
-        next unless netif.veth
+      if netifs == :all
+        host.netif_stats.get_stats_for_all.each do |netif, st|
+          ret[:tx][:bytes] += st[:tx][:bytes]
+          ret[:tx][:packets] += st[:tx][:packets]
+          ret[:rx][:bytes] += st[:rx][:bytes]
+          ret[:rx][:packets] += st[:rx][:packets]
+        end
 
-        %i(bytes packets).each do |type|
+      else
+        netifs.each do |netif|
+          next unless netif.veth
+
+          st = host.netif_stats.get_stats_for(netif.veth)
+
           # rx/tx are reversed within the container
-          {rx: :tx, tx: :rx}.each do |host_dir, ct_dir|
-            ret[ct_dir][type] = read_netif_stats(netif, host_dir, type)
-          end
+          ret[:tx][:bytes] += st[:rx][:bytes]
+          ret[:tx][:packets] += st[:rx][:packets]
+          ret[:rx][:bytes] += st[:tx][:bytes]
+          ret[:rx][:packets] += st[:tx][:packets]
         end
       end
 
