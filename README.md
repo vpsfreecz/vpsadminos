@@ -13,7 +13,7 @@ for example cluster configuration.
 
 ## Links
 
-* IRC: #vpsadminos @ irc.freenode.net
+* IRC: #vpsadminos @ irc.libera.chat
 * Documentation: <https://vpsadminos.org/>
 * Man pages: <https://man.vpsadminos.org/>
 * OS and program references: <https://ref.vpsadminos.org/>
