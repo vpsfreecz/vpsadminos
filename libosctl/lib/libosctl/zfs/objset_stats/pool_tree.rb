@@ -47,6 +47,10 @@ module OsCtl::Lib
       @list.clear
     end
 
+    def aggregate_stats(into: nil)
+      root.aggregate_stats(into: into)
+    end
+
     def print(objset, indent: 0)
       puts "#{' ' * indent}#{objset.dataset_name}:"
       objset.subdatasets.each do |subset|
