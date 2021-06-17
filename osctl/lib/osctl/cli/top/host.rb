@@ -51,7 +51,7 @@ module OsCtl::Cli
       end
     end
 
-    attr_reader :pools, :objsets
+    attr_reader :pools, :objsets, :netif_stats
 
     # @param iostat_reader [OsCtl::Lib::Zfs::IOStat, nil]
     def initialize(iostat_reader)
@@ -61,6 +61,8 @@ module OsCtl::Cli
       @cpu = []
       @zfs = []
       @objsets = nil
+      @netifs = :all
+      @netif_stats = Top::NetifStats.new
     end
 
     def running?
@@ -72,6 +74,7 @@ module OsCtl::Cli
     end
 
     def measure(subsystems)
+      netif_stats.reset
       measure_objsets
       super(self, subsystems)
       measure_host_cpu_hz
