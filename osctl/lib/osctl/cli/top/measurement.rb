@@ -94,7 +94,18 @@ module OsCtl::Cli
 
     def add_zfs_io_stats
       if dataset.nil?
-        data[:zfsio] = read_zfs_host_io_stats
+        st = host.objsets.aggregate_stats
+
+        data[:zfsio] = {
+          ios: {
+            w: st.write_ios,
+            r: st.read_ios,
+          },
+          bytes: {
+            w: st.write_bytes,
+            r: st.read_bytes,
+          },
+        }
       else
         ds = host.objsets[dataset]
 

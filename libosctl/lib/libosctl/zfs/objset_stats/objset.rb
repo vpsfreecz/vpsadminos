@@ -16,25 +16,38 @@ module OsCtl::Lib
       @read_ios = 0
       @read_bytes = 0
       @subdatasets = []
+      @aggregated_stats = nil
     end
 
     def aggregate_stats(into: nil)
-      st =
+      if @aggregated_stats
         if into
-          into.write_ios += write_ios
-          into.write_bytes += write_bytes
-          into.read_ios += read_ios
-          into.read_bytes += read_bytes
-          into
+          into.write_ios += @aggregated_stats.write_ios
+          into.write_bytes += @aggregated_stats.write_bytes
+          into.read_ios += @aggregated_stats.read_ios
+          into.read_bytes += @aggregated_stats.read_bytes
         else
-          AggregatedStats.new(write_ios, write_bytes, read_ios, read_bytes)
+          return @aggregated_stats
         end
+      end
+
+      st = AggregatedStats.new(write_ios, write_bytes, read_ios, read_bytes)
 
       subdatasets.each do |subset|
         subset.aggregate_stats(into: st)
       end
 
-      st
+      @aggregated_stats = st
+
+      if into
+        into.write_ios += st.write_ios
+        into.write_bytes += st.write_bytes
+        into.read_ios += st.read_ios
+        into.read_bytes += st.read_bytes
+        into
+      else
+        st
+      end
     end
   end
 end
