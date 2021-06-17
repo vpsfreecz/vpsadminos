@@ -175,6 +175,8 @@ module OsCtld
             progress: false,
             manipulation_lock: 'ignore',
           )
+
+          pool.autostart_plan.clear_ct(ct)
         end
       end
 
