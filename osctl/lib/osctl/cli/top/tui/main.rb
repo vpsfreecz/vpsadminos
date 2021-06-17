@@ -144,10 +144,10 @@ module OsCtl::Cli::Top
 
         i += 1
 
-        break if i >= (Curses.lines - 5)
+        break if i >= (Curses.lines - stats_cols)
       end
 
-      stats(data[:containers])
+      stats(data)
 
       Curses.refresh
     end
@@ -215,7 +215,7 @@ module OsCtl::Cli::Top
       end
 
       # ZFS ARC
-      arc = data[:zfs] && data[:zfs][:arc]
+      arc = data[:zfs] && data[:zfs][:arcstats][:arc]
 
       Curses.setpos(pos += 1, 0)
       Curses.addstr('ARC:    ')
@@ -236,7 +236,7 @@ module OsCtl::Cli::Top
         Curses.addstr('calculating')
       end
 
-      l2arc = data[:zfs] && data[:zfs][:l2arc]
+      l2arc = data[:zfs] && data[:zfs][:arcstats][:l2arc]
 
       if l2arc && l2arc[:size] > 0
         Curses.setpos(pos += 1, 0)
@@ -363,12 +363,23 @@ module OsCtl::Cli::Top
       Curses.addstr(' ' * (Curses.cols - w)) if Curses.cols > w
     end
 
-    def stats(cts)
-      Curses.setpos(Curses.lines - 5, 0)
+    def stats_cols
+      i = 5
+      i += 1 if model.iostat_enabled?
+      i
+    end
+
+    def stats(data)
+      cts = data[:containers]
+      pos = stats_cols
+
+      Curses.setpos(Curses.lines - pos, 0)
+      pos -= 1
       Curses.addstr('─' * Curses.cols)
       #Curses.addstr('-' * Curses.cols)
 
-      Curses.setpos(Curses.lines - 4, 0)
+      Curses.setpos(Curses.lines - pos, 0)
+      pos -= 1
       Curses.addstr(sprintf('%-14s ', 'Containers:'))
       print_row_data([
         rt? ? format_percent(sum(cts, :cpu_usage, false)) \
@@ -385,7 +396,8 @@ module OsCtl::Cli::Top
         humanize_data(sum(cts, [:rx, :packets], false))
       ])
 
-      Curses.setpos(Curses.lines - 3, 0)
+      Curses.setpos(Curses.lines - pos, 0)
+      pos -= 1
       Curses.addstr(sprintf('%-14s ', 'All:'))
       print_row_data([
         rt? ? format_percent(sum(cts, :cpu_usage, true)) \
@@ -402,9 +414,35 @@ module OsCtl::Cli::Top
         humanize_data(sum(cts, [:rx, :packets], true))
       ])
 
-      Curses.setpos(Curses.lines - 2, 0)
+      if model.iostat_enabled?
+        iostat = data[:zfs] && data[:zfs][:iostat]
+
+        Curses.setpos(Curses.lines - pos, 0)
+        pos -= 1
+        Curses.addstr(sprintf('%-14s ', 'iostat:'))
+
+        if iostat
+          print_row_data([
+            '-',
+            '-',
+            '-',
+            humanize_data(iostat[:bytes_read]),
+            humanize_data(iostat[:io_read]),
+            humanize_data(iostat[:bytes_written]),
+            humanize_data(iostat[:io_written]),
+            '-',
+            '-',
+            '-',
+            '-',
+          ])
+        end
+      end
+
+      Curses.setpos(Curses.lines - pos, 0)
+      pos -= 1
       Curses.addstr('─' * Curses.cols)
-      Curses.setpos(Curses.lines - 1, 0)
+      Curses.setpos(Curses.lines - pos, 0)
+      pos -= 1
       fillRow do
         Curses.addstr('Selected container: ')
 

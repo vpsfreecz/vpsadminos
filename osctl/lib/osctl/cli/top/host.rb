@@ -51,12 +51,12 @@ module OsCtl::Cli
       end
     end
 
-    attr_reader :pools, :objsets, :iostat
+    attr_reader :pools, :objsets
 
-    # @param iostat [OsCtl::Lib::Zfs::IOStat, nil]
-    def initialize(iostat)
+    # @param iostat_reader [OsCtl::Lib::Zfs::IOStat, nil]
+    def initialize(iostat_reader)
       super(id: '[host]', pool: nil, group_path: '', state: 'running')
-      @iostat = iostat
+      @iostat_reader = iostat_reader
       @pools = []
       @cpu = []
       @zfs = []
@@ -99,6 +99,8 @@ module OsCtl::Cli
     end
 
     protected
+    attr_reader :iostat_reader
+
     def measure_host_cpu_hz
       f = File.open('/proc/stat')
       str = f.readline
@@ -110,7 +112,10 @@ module OsCtl::Cli
     end
 
     def measure_zfs
-      @zfs << Top::ArcStats.new
+      @zfs << {
+        arcstats: Top::ArcStats.new,
+        iostat: iostat_reader && iostat_reader.current_all,
+      }
       @zfs.shift if @zfs.size > 2
     end
 
@@ -118,9 +123,18 @@ module OsCtl::Cli
       @objsets = OsCtl::Lib::Zfs::ObjsetStats.read_pools(pools)
     end
 
+    # @param current [Hash]
+    # @param previous [Hash]
+    def diff_zfs(current, previous)
+      {
+        arcstats: diff_arcstats(current[:arcstats], previous[:arcstats]),
+        iostat: current[:iostat] && get_iostat(current[:iostat]),
+      }
+    end
+
     # @param current [Top::ArcStats]
     # @param previous [Top::ArcStats]
-    def diff_zfs(current, previous)
+    def diff_arcstats(current, previous)
       {
         arc: {
           c_max: current.c_max,
@@ -135,6 +149,15 @@ module OsCtl::Cli
           hit_rate: current.l2_hit_rate(previous),
           misses: current.l2_misses(previous),
         },
+      }
+    end
+
+    def get_iostat(current)
+      {
+        io_read: current.io_read,
+        io_written: current.io_written,
+        bytes_read: current.bytes_read,
+        bytes_written: current.bytes_written,
       }
     end
   end
