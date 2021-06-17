@@ -40,7 +40,7 @@ appropriate user namespaces.
 
 ## Links
 
-* IRC: #vpsadminos @ irc.freenode.net
+* IRC: #vpsadminos @ irc.libera.chat
 * Git: <https://github.com/vpsfreecz/vpsadminos>
 * Man pages: <https://man.vpsadminos.org/>
 * OS and program references: <https://ref.vpsadminos.org/>
