@@ -1,4 +1,5 @@
 require 'osctl/exportfs/operations/base'
+require 'libosctl'
 
 module OsCtl::ExportFS
   # Attach to the server's namespaces and run an arbitrary code block
@@ -11,6 +12,7 @@ module OsCtl::ExportFS
       @server = server
       @block = block
       @cgroup = Operations::Server::CGroup.new(server)
+      @sys = OsCtl::Lib::Sys.new
     end
 
     def execute
@@ -20,11 +22,11 @@ module OsCtl::ExportFS
 
       pid = server.read_pid
       namespaces = {
-        'mnt' => Sys::CLONE_NEWNS,
-        'net' => Sys::CLONE_NEWNET,
-        'uts' => Sys::CLONE_NEWUTS,
-        'ipc' => Sys::CLONE_NEWIPC,
-        'pid' => Sys::CLONE_NEWPID,
+        'mnt' => OsCtl::Lib::Sys::CLONE_NEWNS,
+        'net' => OsCtl::Lib::Sys::CLONE_NEWNET,
+        'uts' => OsCtl::Lib::Sys::CLONE_NEWUTS,
+        'ipc' => OsCtl::Lib::Sys::CLONE_NEWIPC,
+        'pid' => OsCtl::Lib::Sys::CLONE_NEWPID,
       }
       ios = {}
 
@@ -36,7 +38,7 @@ module OsCtl::ExportFS
         end
 
         namespaces.each do |ns, type|
-          Sys.setns_io(ios[ns], type)
+          sys.setns_io(ios[ns], type)
           ios[ns].close
         end
 
@@ -48,6 +50,6 @@ module OsCtl::ExportFS
     end
 
     protected
-    attr_reader :server, :block, :cgroup
+    attr_reader :server, :block, :cgroup, :sys
   end
 end

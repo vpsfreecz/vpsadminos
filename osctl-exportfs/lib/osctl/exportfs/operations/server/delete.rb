@@ -11,6 +11,7 @@ module OsCtl::ExportFS
     # @param name [String]
     def initialize(name)
       @server = Server.new(name)
+      @sys = OsCtl::Lib::Sys.new
     end
 
     def execute
@@ -23,7 +24,7 @@ module OsCtl::ExportFS
 
         if Dir.exist?(server.shared_dir)
           begin
-            Sys.unmount(server.shared_dir)
+            sys.unmount(server.shared_dir)
           rescue SystemCallError
           end
 
@@ -43,7 +44,7 @@ module OsCtl::ExportFS
     end
 
     protected
-    attr_reader :server
+    attr_reader :server, :sys
 
     # Safely unmount and remove contents of the shared directory
     #
@@ -58,7 +59,7 @@ module OsCtl::ExportFS
         path = File.join(server.shared_dir, v)
 
         begin
-          Sys.unmount(path)
+          sys.unmount(path)
         rescue SystemCallError
         end
 
