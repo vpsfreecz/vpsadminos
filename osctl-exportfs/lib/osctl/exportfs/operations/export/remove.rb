@@ -16,6 +16,7 @@ module OsCtl::ExportFS
       @server = server
       @cfg = server.open_config
       @export = cfg.exports.lookup(as, host)
+      @sys = OsCtl::Lib::Sys.new
     end
 
     def execute
@@ -29,7 +30,7 @@ module OsCtl::ExportFS
     end
 
     protected
-    attr_reader :server, :cfg, :export
+    attr_reader :server, :cfg, :export, :sys
 
     # Remove the export from the database
     def remove_from_exports
@@ -43,7 +44,7 @@ module OsCtl::ExportFS
         server.enter_ns
         Operations::Exportfs::Generate.run(server)
         syscmd("exportfs -u \"#{export.host}:#{export.as}\"")
-        Sys.unmount(export.as) if unmount
+        sys.unmount(export.as) if unmount
       end
     end
   end

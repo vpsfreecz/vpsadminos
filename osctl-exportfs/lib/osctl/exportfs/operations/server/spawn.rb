@@ -23,6 +23,7 @@ module OsCtl::ExportFS
       @server = Server.new(name)
       @cfg = server.open_config
       @cgroup = Operations::Server::CGroup.new(server)
+      @sys = OsCtl::Lib::Sys.new
     end
 
     def execute
@@ -52,16 +53,16 @@ module OsCtl::ExportFS
         syscmd("ip route add #{cfg.address}/32 dev #{netif_host}")
 
         # Remove the named network namespace from the filesystem
-        Sys.setns_path("/run/netns/#{netns}", Sys::CLONE_NEWNET)
-        Sys.unmount("/run/netns/#{netns}")
+        sys.setns_path("/run/netns/#{netns}", OsCtl::Lib::Sys::CLONE_NEWNET)
+        sys.unmount("/run/netns/#{netns}")
         File.unlink("/run/netns/#{netns}")
 
         # Create new namespaces
-        Sys.unshare_ns(
-          Sys::CLONE_NEWNS \
-          | Sys::CLONE_NEWUTS \
-          | Sys::CLONE_NEWIPC \
-          | Sys::CLONE_NEWPID
+        sys.unshare_ns(
+          OsCtl::Lib::Sys::CLONE_NEWNS \
+          | OsCtl::Lib::Sys::CLONE_NEWUTS \
+          | OsCtl::Lib::Sys::CLONE_NEWIPC \
+          | OsCtl::Lib::Sys::CLONE_NEWPID
         )
 
         # Run the server in a forked process, required by PID namespace
@@ -85,12 +86,12 @@ module OsCtl::ExportFS
     end
 
     protected
-    attr_reader :server, :cfg, :cgroup, :rand_id, :netif_host, :netif_ns
+    attr_reader :server, :cfg, :cgroup, :rand_id, :netif_host, :netif_ns, :sys
 
     def run_server
       main = Process.fork do
         # Mount the new root filesystem
-        Sys.mount_tmpfs(RunState::ROOTFS)
+        sys.mount_tmpfs(RunState::ROOTFS)
 
         # Add exports that were configured before the server was started
         add_exports
@@ -98,7 +99,7 @@ module OsCtl::ExportFS
         # Mark all mounts as slave, in case some mounts from the parent namespace
         # are marked as shared, because unmounting them in this namespaces
         # would result in them being unmounted in the parent namespace as well.
-        Sys.make_rslave('/')
+        sys.make_rslave('/')
 
         # Unmount all unnecessary mounts
         clear_mounts
@@ -117,10 +118,10 @@ module OsCtl::ExportFS
         FileUtils.mkdir_p(File.join(RunState::ROOTFS, 'usr/bin'))
 
         # Mount /proc, /dev, /sys and /nix/store
-        Sys.mount_proc(File.join(RunState::ROOTFS, 'proc'))
-        Sys.bind_mount('/dev', File.join(RunState::ROOTFS, 'dev'))
-        Sys.bind_mount('/nix/store', File.join(RunState::ROOTFS, 'nix/store'))
-        Sys.bind_mount('/sys', File.join(RunState::ROOTFS, 'sys'))
+        sys.mount_proc(File.join(RunState::ROOTFS, 'proc'))
+        sys.bind_mount('/dev', File.join(RunState::ROOTFS, 'dev'))
+        sys.bind_mount('/nix/store', File.join(RunState::ROOTFS, 'nix/store'))
+        sys.bind_mount('/sys', File.join(RunState::ROOTFS, 'sys'))
 
         # Symlinks for $PATH and /etc
         File.symlink(
@@ -143,12 +144,12 @@ module OsCtl::ExportFS
         %w(group passwd shadow).each do |v|
           dst = File.join(RunState::ROOTFS, 'etc', v)
           File.open(dst, 'w'){}
-          Sys.bind_mount(File.join('/etc', v), dst)
+          sys.bind_mount(File.join('/etc', v), dst)
         end
 
         # Mount the current server directory, we need rbind to also mount the
         # shared directory
-        Sys.rbind_mount(
+        sys.rbind_mount(
           server.dir,
           File.join(RunState::ROOTFS, RunState::CURRENT_SERVER)
         )
@@ -157,14 +158,14 @@ module OsCtl::ExportFS
         Dir.chdir(RunState::ROOTFS)
         Dir.mkdir('old-root')
         syscmd("pivot_root . old-root")
-        Sys.chroot('.')
-        Sys.unmount_lazy('/old-root')
+        sys.chroot('.')
+        sys.unmount_lazy('/old-root')
         Dir.rmdir('/old-root')
         server.enter_ns
 
         # Mount files and directories from the server directory to the system
         # where they're expected
-        Sys.bind_mount(server.nfs_state, '/var/lib/nfs')
+        sys.bind_mount(server.nfs_state, '/var/lib/nfs')
         File.symlink('/run', '/var/run')
         %w(hosts localtime services).each do |v|
           File.symlink("/etc/static/#{v}", "/etc/#{v}")
@@ -239,7 +240,7 @@ module OsCtl::ExportFS
 
       mounts.sort.reverse_each do |mnt|
         begin
-          Sys.unmount_lazy(mnt)
+          sys.unmount_lazy(mnt)
         rescue Errno::ENOENT
           next
         end
@@ -251,7 +252,7 @@ module OsCtl::ExportFS
         target_as = File.join(RunState::ROOTFS, as)
 
         FileUtils.mkdir_p(target_as)
-        Sys.bind_mount(dir, target_as)
+        sys.bind_mount(dir, target_as)
       end
     end
   end
