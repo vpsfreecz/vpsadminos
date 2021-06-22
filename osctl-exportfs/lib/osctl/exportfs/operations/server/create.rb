@@ -14,6 +14,7 @@ module OsCtl::ExportFS
     def initialize(name, opts = {})
       @server = Server.new(name)
       @opts = opts
+      @sys = OsCtl::Lib::Sys.new
     end
 
     def execute
@@ -29,8 +30,8 @@ module OsCtl::ExportFS
         # Remount the shared dir with --make-shared
         unless Dir.exist?(server.shared_dir)
           FileUtils.mkdir_p(server.shared_dir)
-          Sys.bind_mount(server.shared_dir, server.shared_dir)
-          Sys.make_shared(server.shared_dir)
+          sys.bind_mount(server.shared_dir, server.shared_dir)
+          sys.make_shared(server.shared_dir)
         end
 
         # Initialize the config file
@@ -42,7 +43,7 @@ module OsCtl::ExportFS
     end
 
     protected
-    attr_reader :server, :opts
+    attr_reader :server, :opts, :sys
 
     # Forcefully create a symlink be removing existing `dst`
     def symlink!(src, dst)

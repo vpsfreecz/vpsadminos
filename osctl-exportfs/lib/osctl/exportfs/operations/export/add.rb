@@ -16,6 +16,7 @@ module OsCtl::ExportFS
       @server = server
       @export = export
       @cfg = server.open_config
+      @sys = OsCtl::Lib::Sys.new
     end
 
     def execute
@@ -39,7 +40,7 @@ module OsCtl::ExportFS
     end
 
     protected
-    attr_reader :server, :export, :cfg
+    attr_reader :server, :export, :cfg, :sys
 
     # Add the export to the database
     def add_to_exports
@@ -55,7 +56,7 @@ module OsCtl::ExportFS
         shared = File.join(server.shared_dir, hash)
 
         Dir.mkdir(shared)
-        Sys.bind_mount(export.dir, shared)
+        sys.bind_mount(export.dir, shared)
       end
 
       begin
@@ -64,7 +65,7 @@ module OsCtl::ExportFS
 
           if propagate
             FileUtils.mkdir_p(export.as)
-            Sys.move_mount(
+            sys.move_mount(
               File.join(RunState::CURRENT_SERVER, 'shared', hash),
               export.as
             )
@@ -77,7 +78,7 @@ module OsCtl::ExportFS
 
       ensure
         if propagate
-          Sys.unmount(shared)
+          sys.unmount(shared)
           Dir.rmdir(shared)
         end
       end
