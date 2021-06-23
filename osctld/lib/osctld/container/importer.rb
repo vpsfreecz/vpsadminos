@@ -13,6 +13,7 @@ module OsCtld
 
     def initialize(pool, io, ct_id: nil)
       @pool = pool
+      @io = io
       @tar = Gem::Package::TarReader.new(io)
       @ct_id = ct_id
     end
@@ -236,7 +237,7 @@ module OsCtld
     end
 
     protected
-    attr_reader :pool, :tar, :metadata
+    attr_reader :pool, :io, :tar, :metadata
 
     # @return [User]
     def load_or_create_user
@@ -312,20 +313,22 @@ module OsCtld
 
     # @param builder [Container::Builder]
     def unpack_rootfs(builder)
-      # Ensure the dataset is mounted
-      builder.ctrc.dataset.mount(recursive: true)
+      ret = ContainerControl::Commands::WithRootfs.run!(
+        builder.ctrc.ct,
+        keep_fds: [io],
+        block: Proc.new do |mountpoint|
+          builder.setup_ct_dir_at(mountpoint)
 
-      # Create private/
-      builder.setup_rootfs
+          tar.seek('rootfs/base.tar.gz') do |tf|
+            IO.popen("exec tar -xz -C #{builder.ctrc.rootfs_at(mountpoint)}", 'r+') do |io|
+              io.write(tf.read(16*1024)) until tf.eof?
+            end
 
-      ret = tar.seek('rootfs/base.tar.gz') do |tf|
-        IO.popen("exec tar -xz -C #{builder.ctrc.rootfs}", 'r+') do |io|
-          io.write(tf.read(16*1024)) until tf.eof?
+            fail "tar failed with exit status #{$?.exitstatus}" if $?.exitstatus != 0
+            true
+          end
         end
-
-        fail "tar failed with exit status #{$?.exitstatus}" if $?.exitstatus != 0
-        true
-      end
+      )
 
       fail 'rootfs archive not found' unless ret === true
     end

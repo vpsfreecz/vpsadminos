@@ -40,9 +40,24 @@ module OsCtld
             raise ContainerControl::Error, 'container not running'
           end
 
-        add_network_opts(runner_opts) if opts[:network]
+        script_src = File.open(opts[:script], 'r')
 
-        script = copy_script(opts[:script])
+        ContainerControl::Commands::WithRootfs.run!(
+          ct,
+          pass_fds: [script_src],
+          keep_fds: [opts[:stdin], opts[:stdout], opts[:stderr]],
+          block: Proc.new do |mountpoint|
+            runscript_in_mntns(mountpoint, mode, opts, runner_opts, script_src)
+          end,
+        )
+      end
+
+      protected
+      def runscript_in_mntns(mountpoint, mode, opts, runner_opts, script_src)
+        rootfs = ct.rootfs_at(mountpoint)
+        script = copy_script(script_src, rootfs)
+
+        add_network_opts(runner_opts, rootfs) if opts[:network]
         runner_opts[:script] = File.join('/', File.basename(script.path))
 
         ret = exec_runner(
@@ -61,14 +76,13 @@ module OsCtld
         cleanup_init_script
       end
 
-      protected
-      def copy_script(src)
-        script = Tempfile.create(['.runscript', '.sh'], ct.get_run_conf.rootfs)
-        script.chmod(0500)
+      def copy_script(src, rootfs)
+        dst = Tempfile.create(['.runscript', '.sh'], rootfs)
+        dst.chmod(0500)
 
-        File.open(src, 'r') { |f| IO.copy_stream(f, script) }
-        script.close
-        script
+        IO.copy_stream(src, dst)
+        dst.close
+        dst
       end
     end
 

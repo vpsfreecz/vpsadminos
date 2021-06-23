@@ -140,6 +140,9 @@ module OsCtld
     # @option opts [IO, nil] :stdin
     # @option opts [IO, nil] :stdout
     # @option opts [IO, nil] :stderr
+    # @option opts [Array<IO>] :keep_fds passed to the child
+    # @option opts [Array<IO>] :pass_fds passed to the child and closed in parent
+    # @option opts [Boolean] :switch_to_system
     #
     # @return [ContainerControl::Result]
     def fork_runner(opts = {})
@@ -166,7 +169,12 @@ module OsCtld
       ugid = ct.user.ugid
       homedir = ct.user.homedir
 
-      pid = SwitchUser.fork(keep_fds: [w, stdin, stdout, stderr].compact) do
+      pass_fds = opts.fetch(:pass_fds, [])
+      keep_fds = opts.fetch(:keep_fds, []) \
+                 + [w, stdin, stdout, stderr].compact \
+                 + pass_fds
+
+      pid = SwitchUser.fork(keep_fds: keep_fds) do
         # Closed by SwitchUser.fork
         # r.close
 
@@ -175,7 +183,9 @@ module OsCtld
           "runner:#{command_class.name.split('::').last.downcase}"
         )
 
-        SwitchUser.switch_to_system(sysuser, ugid, ugid, homedir)
+        if opts.fetch(:switch_to_system, true)
+          SwitchUser.switch_to_system(sysuser, ugid, ugid, homedir)
+        end
 
         runner = command_class::Runner.new(runner_opts)
         ret = runner.execute(*args)
@@ -185,6 +195,7 @@ module OsCtld
       end
 
       w.close
+      pass_fds.each(&:close)
 
       begin
         ret = JSON.parse(r.readline, symbolize_names: true)

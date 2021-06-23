@@ -27,8 +27,6 @@ module OsCtld
                 canmount: 'noauto',
               }
             )
-            ds.mount
-            ds.create_private!
 
             created << ds
           end
@@ -36,6 +34,15 @@ module OsCtld
         rescue SystemCommandFailed
           error!('unable to create dataset, perhaps a parent dataset is missing?')
         end
+
+        ContainerControl::Commands::WithRootfs.run!(
+          ct,
+          block: Proc.new do |mountpoint|
+            created.each do |ds|
+              ds.create_private!
+            end
+          end,
+        )
 
         next ok if created.empty? || !opts[:mount]
 

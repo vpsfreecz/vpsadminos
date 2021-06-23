@@ -14,15 +14,23 @@ module OsCtld
     end
 
     # @param ctrc [Container::RunConfiruration]
-    # @param cmd [Symbol]
-    # @param opts [Hash]
-    def self.run(ctrc, cmd, opts = {})
+    # @param opts [Hash] options
+    # @option opts [IO, nil] :mount_ns_io
+    # @option opts [Integer, nil] :ns_pid
+    # @return [DistConfig::Base]
+    def self.new(ctrc, dcopts = {})
       klass = self.for(ctrc.distribution.to_sym)
+      (klass || self.for(:unsupported)).new(ctrc, dcopts)
+    end
 
-      # Make sure the container's dataset is mounted
-      ctrc.mount
-
-      d = (klass || self.for(:unsupported)).new(ctrc)
+    # @param ctrc [Container::RunConfiruration]
+    # @param cmd [Symbol]
+    # @param opts [Hash] command options
+    # @param dcopts [Hash] distconfig options
+    # @option dcopts [IO, nil] :mount_ns_io
+    # @option dcopts [Integer, nil] :ns_pid
+    def self.run(ctrc, cmd, opts = {}, dcopts = {})
+      d = new(ctrc, dcopts)
 
       begin
         d.method(cmd).call(opts)
@@ -30,6 +38,7 @@ module OsCtld
       rescue Exception => e
         ctrc.log(:warn, "DistConfig.#{cmd} failed: #{e.message}")
         ctrc.log(:warn, denixstorify(e.backtrace).join("\n"))
+        nil
       end
     end
   end

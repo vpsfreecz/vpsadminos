@@ -101,7 +101,6 @@ module OsCtld
         importer.import_all_datasets(builder)
 
         builder.setup_ct_dir
-        builder.setup_rootfs
 
         # Delayed initialization, when we have ensured all required devices
         # are present, or that missing devices were removed and rootfs is present,

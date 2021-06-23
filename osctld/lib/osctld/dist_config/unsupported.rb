@@ -7,7 +7,11 @@ module OsCtld
 
     include OsCtl::Lib::Utils::Log
 
-    def set_hostname(opts)
+    def configurator_class
+      DistConfig::Configurator
+    end
+
+    def set_hostname(opts = {})
       log(
         :warn,
         ct,
@@ -15,7 +19,7 @@ module OsCtld
       )
     end
 
-    def network(opts)
+    def network(opts = {})
       log(
         :warn,
         ct,

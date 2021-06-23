@@ -35,7 +35,6 @@ module OsCtld
       end
 
       ds.create!(zfs_opts)
-      ds.mount(recursive: true)
     end
 
     # @param src [Array<OsCtl::Lib::Zfs::Dataset>]
@@ -55,17 +54,6 @@ module OsCtld
       end
 
       snap
-    end
-
-    # @param image [String] image path
-    # @param dir [String] dir to extract it to
-    # @param opts [Hash] options
-    # @option opts [String] :distribution
-    # @option opts [String] :version
-    def from_local_archive(image, dir, opts = {})
-      progress('Extracting image')
-      syscmd("tar -xzf #{image} -C #{dir}")
-      shift_dataset
     end
 
     # @param ds [OsCtl::Lib::Zfs::Dataset]
@@ -102,33 +90,7 @@ module OsCtld
         fail 'provide uid_map or gid_map'
       end
 
-      zfs(:unmount, nil, ds, valid_rcs: [1])
       zfs(:set, set_opts.join(' '), ds)
-
-      5.times do |i|
-        zfs(:mount, nil, ds)
-
-        f = Tempfile.create(['.ugid-map-test'], ds.mountpoint)
-        f.close
-
-        st = File.stat(f.path)
-        File.unlink(f.path)
-
-        mapped = false
-
-        if opts[:uid_map] && st.uid == opts[:uid_map].ns_to_host(0)
-          mapped = true
-        elsif opts[:gid_map] && st.gid == opts[:gid_map].ns_to_host(0)
-          mapped = true
-        end
-
-        return if mapped
-
-        zfs(:unmount, nil, ds)
-        sleep(1 + i)
-      end
-
-      fail 'unable to configure UID/GID mapping'
     end
 
     protected

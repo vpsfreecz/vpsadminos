@@ -1,17 +1,15 @@
 module OsCtld
   module ContainerControl::Utils::Runscript
     module Frontend
-      def add_network_opts(opts)
+      def add_network_opts(opts, rootfs)
         opts.update(
-          init_script: File.join('/', File.basename(init_script.path)),
+          init_script: File.join('/', File.basename(create_init_script(rootfs).path)),
           net_config: NetConfig.create(ct).export,
         )
       end
 
-      def init_script
-        return @init_script if @init_script
-
-        f = Tempfile.create(['.runscript', '.sh'], ct.get_run_conf.rootfs)
+      def create_init_script(rootfs)
+        f = Tempfile.create(['.runscript', '.sh'], rootfs)
         f.chmod(0500)
         f.puts('#!/bin/sh')
         f.puts('echo ready')
@@ -19,6 +17,10 @@ module OsCtld
         f.close
 
         @init_script = f
+      end
+
+      def init_script
+        @init_script
       end
 
       def cleanup_init_script

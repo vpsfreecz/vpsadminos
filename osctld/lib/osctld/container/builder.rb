@@ -91,22 +91,6 @@ module OsCtld
       ds_builder.copy_datasets(src, dst, from: from)
     end
 
-    # @param image [String] path
-    # @param opts [Hash] options
-    # @option opts [String] :distribution
-    # @option opts [String] :version
-    def from_local_archive(image, opts = {})
-      ds_builder.from_local_archive(image, ctrc.rootfs, opts)
-
-      distribution, version, arch = get_distribution_info(image)
-
-      configure(
-        opts[:distribution] || distribution,
-        opts[:version] || version,
-        opts[:arch] || arch
-      )
-    end
-
     def from_stream(ds = nil, &block)
       ds_builder.from_stream(ds || ctrc.dataset, &block)
     end
@@ -119,20 +103,35 @@ module OsCtld
       )
     end
 
-    def setup_ct_dir
-      # Chown to 0:0, zfs will shift it using the mapping
-      File.chown(0, 0, ctrc.dir)
-      File.chmod(0770, ctrc.dir)
+    # Configure container directory
+    def setup_ct_dir(rootfs: true)
+      ContainerControl::Commands::WithRootfs.run!(
+        ctrc.ct,
+        block: Proc.new do |mountpoint|
+          setup_ct_dir_at(mountpoint, rootfs: rootfs)
+        end,
+      )
     end
 
-    def setup_rootfs
-      if Dir.exist?(ctrc.rootfs)
-        File.chmod(0755, ctrc.rootfs)
-      else
-        Dir.mkdir(ctrc.rootfs, 0755)
-      end
+    # Configure directory
+    #
+    # Must be called from within {ContainerControl::Commands::WithRootfs}.
+    def setup_ct_dir_at(mountpoint, rootfs: true)
+      # Chown to 0:0, zfs will shift it using the mapping
+      File.chown(0, 0, mountpoint)
+      File.chmod(0770, mountpoint)
 
-      File.chown(0, 0, ctrc.rootfs)
+      if rootfs
+        rootfs_path = ctrc.rootfs_at(mountpoint)
+
+        if Dir.exist?(rootfs_path)
+          File.chmod(0755, rootfs_path)
+        else
+          Dir.mkdir(rootfs_path, 0755)
+        end
+
+        File.chown(0, 0, rootfs_path)
+      end
     end
 
     def configure(distribution, version, arch)

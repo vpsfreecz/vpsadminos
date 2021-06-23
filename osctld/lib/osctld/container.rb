@@ -104,28 +104,7 @@ module OsCtld
 
     def assets
       define_assets do |add|
-        # Datasets
-        add.dataset(
-          dataset,
-          desc: "Container's rootfs dataset",
-          uidmap: uid_map.map(&:to_a),
-          gidmap: gid_map.map(&:to_a),
-          user: root_host_uid,
-          group: root_host_gid,
-          mode: 0770,
-          validate_if: mounted?,
-        )
-
         # Directories and files
-        add.directory(
-          rootfs,
-          desc: "Container's rootfs",
-          user: root_host_uid,
-          group: root_host_gid,
-          mode: 0755,
-          validate_if: mounted?,
-        )
-
         add.directory(
           user_hook_script_dir,
           desc: 'User supplied script hooks',
@@ -232,26 +211,6 @@ module OsCtld
       exclusively do
         init_run_conf if @run_conf.nil?
         run_conf
-      end
-    end
-
-    # Mount the container's dataset
-    # @param force [Boolean] ensure the datasets are mounted even if osctld
-    #                        already mounted them
-    def mount(force: false)
-      return if !force && mounted
-      dataset.mount(recursive: true)
-      self.mounted = true
-    end
-
-    # Check if the container's dataset is mounted
-    # @param force [Boolean] check if the dataset is mounted even if osctld
-    #                        already mounted it
-    def mounted?(force: false)
-      if force || mounted.nil?
-        self.mounted = dataset.mounted?(recursive: true)
-      else
-        mounted
       end
     end
 
@@ -364,13 +323,11 @@ module OsCtld
       inclusively { File.join(lxc_home(user: user, group: group), id) }
     end
 
-    def rootfs
-      File.join(dir, 'private')
-
-    rescue SystemCommandFailed
-      # Dataset for staged containers does not have to exist yet, relevant
-      # primarily for ct show/list
-      nil
+    # Container rootfs path based on dataset mountpoint
+    # @param mountpoint [String] dataset mountpoint
+    # @return [String]
+    def rootfs_at(mountpoint)
+      File.join(mountpoint, 'private')
     end
 
     def config_path
@@ -580,9 +537,7 @@ module OsCtld
           user: user.name,
           group: group.name,
           dataset: dataset.name,
-          rootfs: rootfs,
           boot_dataset: run_conf ? run_conf.dataset.name : dataset.name,
-          boot_rootfs: run_conf ? run_conf.rootfs : rootfs,
           lxc_path: lxc_home,
           lxc_dir: lxc_dir,
           group_path: cgroup_path,

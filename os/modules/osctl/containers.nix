@@ -54,7 +54,7 @@ let
       hookCaller = hook: script: pkgs.writeScript "container-${name}-${hook}-caller" ''
         #!${pkgs.stdenv.shell}
 
-        lines=( $(${osctlPool} ct show -Ho dataset,rootfs,lxc_path,lxc_dir,group_path,distribution,version,hostname ${name}) )
+        lines=( $(${osctlPool} ct show -Ho dataset,lxc_path,lxc_dir,group_path,distribution,version,hostname ${name}) )
         ctExists=$?
 
         export OSCTL_HOOK_NAME="${hook}"
@@ -65,7 +65,6 @@ let
 
         if [ "$ctExists" == "0" ] ; then
           export OSCTL_CT_DATASET="''${lines[0]}"
-          export OSCTL_CT_ROOTFS="''${lines[1]}"
           export OSCTL_CT_LXC_PATH="''${lines[2]}"
           export OSCTL_CT_LXC_DIR="''${lines[3]}"
           export OSCTL_CT_CGROUP_PATH="''${lines[4]}"

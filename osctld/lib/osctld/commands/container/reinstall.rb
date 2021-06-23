@@ -79,11 +79,7 @@ module OsCtld
         # Update image-specific config
         ct.patch_config(importer.get_container_config)
 
-        # Remount all datasets
-        ct.dataset.mount(recursive: true)
-
         builder.setup_ct_dir
-        builder.setup_rootfs
 
         ok
       end

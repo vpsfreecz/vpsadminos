@@ -23,15 +23,13 @@ module OsCtld
 
         # Check rootfs mount
         if opts[:mount_root]
-          # Ensure the rootfs is mounted
-          ct.mount(force: true)
-
           root_mnt = Mount::Entry.new(
-            ct.rootfs,
+            ct.rootfs_at(ct.dataset.mountpoint),
             opts[:mount_root],
             'bind',
             'bind,rw,create=dir',
             true,
+            dataset: ct.dataset,
             temp: true,
             in_config: true,
           )
@@ -96,7 +94,6 @@ module OsCtld
         importer.import_root_dataset(builder)
         builder.shift_dataset
         builder.setup_ct_dir
-        builder.setup_rootfs
 
         # Ensure the container is stopped
         call_cmd!(

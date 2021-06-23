@@ -50,6 +50,7 @@ module OsCtld
 
       %i(bash busybox sh).each do |type|
         path = DistConfig.run(ct.get_run_conf, :bin_path)
+        next if path.nil?
 
         begin
           File.lstat(File.join(rootfs, path, type.to_s))

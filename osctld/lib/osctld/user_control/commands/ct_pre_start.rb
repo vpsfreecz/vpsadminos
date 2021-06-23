@@ -14,9 +14,6 @@ module OsCtld
 
       ct.starting
 
-      # Mount datasets
-      ct.run_conf.mount(force: true)
-
       # Load AppArmor profile
       ct.apparmor.setup
 
@@ -34,15 +31,6 @@ module OsCtld
 
       # Prepared shared mount directory
       ct.mounts.shared_dir.create
-
-      # Configure hostname
-      DistConfig.run(ct.run_conf, :set_hostname) if ct.hostname
-
-      # Configure network within the CT
-      ct.run_conf.dist_configure_network
-
-      # DNS resolvers
-      DistConfig.run(ct.run_conf, :dns_resolvers) if ct.dns_resolvers
 
       # User-defined hook
       Container::Hook.run(ct, :pre_start)

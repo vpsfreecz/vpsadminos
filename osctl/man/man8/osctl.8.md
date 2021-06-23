@@ -833,9 +833,6 @@ read by `ls` or `show` commands.
     `-H`, `--hide-header`
       Do not show header, useful for scripts.
 
-`ct mount` *ctid*
-  Mount all container's datasets if they are not already mounted.
-
 `ct start` [*options*] *ctid*
   Start container *ctid*.
 
@@ -2753,9 +2750,8 @@ a deadlock occurs. You should avoid calling `osctl` from hooks.
 
 `pre-start`
   `pre-start` hook is run in the host's namespace before the container is mounted.
-  The container's cgroups have already been configured and distribution-support
-  code has been run. If `pre-start` exits with a non-zero status, the container's
-  start is aborted.
+  The container's cgroups have already been configured. If `pre-start` exits
+  with a non-zero status, the container's start is aborted.
 
 `veth-up`
   `veth-up` hook is run in the host's namespace when the veth pair is created.
@@ -2766,8 +2762,9 @@ a deadlock occurs. You should avoid calling `osctl` from hooks.
 `pre-mount`
   `pre-mount` is run in the container's mount namespace, before its rootfs is
   mounted. The path to the container's runtime rootfs is in environment variable
-  `OSCTL_CT_ROOTFS_MOUNT`. If `pre-mount` exits with a non-zero status, the
-  container's start is aborted.
+  `OSCTL_CT_ROOTFS_MOUNT`. Distribution support code is run before this hook
+  is invoked. If `pre-mount` exits with a non-zero status, the container's start
+  is aborted.
 
 `post-mount`
   `post-mount` is run in the container's mount namespace, after its rootfs
@@ -2814,7 +2811,6 @@ All hooks have the following environment variables set:
 - `OSCTL_CT_USER`
 - `OSCTL_CT_GROUP`
 - `OSCTL_CT_DATASET`
-- `OSCTL_CT_ROOTFS`
 - `OSCTL_CT_LXC_PATH`
 - `OSCTL_CT_LXC_DIR`
 - `OSCTL_CT_CGROUP_PATH`

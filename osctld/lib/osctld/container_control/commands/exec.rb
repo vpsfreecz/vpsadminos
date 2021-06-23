@@ -39,10 +39,29 @@ module OsCtld
             raise ContainerControl::Error, 'container not running'
           end
 
-        if opts[:network]
-          add_network_opts(runner_opts)
-        end
+        if %i(run run_network).include?(mode)
+          ContainerControl::Commands::WithRootfs.run!(
+            ct,
+            pass_fds: [opts[:stdin], opts[:stdout], opts[:stderr]],
+            block: Proc.new do |mountpoint|
+              begin
+                if opts[:network]
+                  add_network_opts(runner_opts, ct.rootfs_at(mountpoint))
+                end
 
+                do_exec(mode, opts, runner_opts)
+              ensure
+                cleanup_init_script
+              end
+            end,
+          )
+        else
+          do_exec(mode, opts, runner_opts)
+        end
+      end
+
+      protected
+      def do_exec(mode, opts, runner_opts)
         ret = exec_runner(
           args: [mode, runner_opts],
           stdin: opts[:stdin],
@@ -50,9 +69,6 @@ module OsCtld
           stderr: opts[:stderr],
         )
         ret.ok? ? ret.data : ret
-
-      ensure
-        cleanup_init_script
       end
     end
 

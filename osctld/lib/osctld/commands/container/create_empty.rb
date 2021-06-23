@@ -60,7 +60,7 @@ module OsCtld
           builder.create_root_dataset(mapping: true, parents: true)
           builder.shift_dataset if opts[:dataset]
           builder.configure(opts[:distribution], opts[:version], opts[:arch])
-          builder.setup_ct_dir
+          builder.setup_ct_dir(rootfs: false)
           builder.setup_lxc_home
           builder.setup_lxc_configs
           builder.setup_log_file

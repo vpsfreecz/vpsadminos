@@ -24,7 +24,7 @@ module OsCtld
     attr_reader :ct
 
     attr_inclusive_reader :dataset, :distribution, :version, :arch
-    attr_synchronized_accessor :init_pid
+    attr_synchronized_accessor :init_pid, :dist_network_configured
 
     # @param ct [Container]
     def initialize(ct, load_conf: true)
@@ -49,7 +49,7 @@ module OsCtld
 
     %i(
       id ident pool user group uid_map gid_map lxc_dir log_path config_path
-      can_dist_configure_network? log_type
+      can_dist_configure_network? rootfs_at log_type
     ).each do |v|
       define_method(v) do |*args, **kwargs|
         ct.send(v, *args, **kwargs)
@@ -71,43 +71,6 @@ module OsCtld
       inclusively { @destroy_dataset_on_stop }
     end
 
-    # Countainer dataset mountpoint
-    # @return [String]
-    def dir
-      dataset.mountpoint
-    end
-
-    # Container rootfs path
-    # @return [String]
-    def rootfs
-      File.join(dir, 'private')
-
-    rescue SystemCommandFailed
-      # Dataset for staged containers does not have to exist yet, relevant
-      # primarily for ct show/list
-      nil
-    end
-
-    # Mount the container's dataset
-    # @param force [Boolean] ensure the datasets are mounted even if osctld
-    #                        already mounted them
-    def mount(force: false)
-      return if !force && mounted
-      dataset.mount(recursive: true)
-      self.mounted = true
-    end
-
-    # Check if the container's dataset is mounted
-    # @param force [Boolean] check if the dataset is mounted even if osctld
-    #                        already mounted it
-    def mounted?(force: false)
-      if force || mounted.nil?
-        self.mounted = dataset.mounted?(recursive: true)
-      else
-        mounted
-      end
-    end
-
     def runtime_rootfs
       pid = init_pid
       fail 'init_pid not set' unless pid
@@ -126,15 +89,8 @@ module OsCtld
 
     def dist_configure_network?
       inclusively do
-        !@dist_network_configured && can_dist_configure_network?
+        !dist_network_configured && can_dist_configure_network?
       end
-    end
-
-    def dist_configure_network
-      return unless dist_configure_network?
-
-      DistConfig.run(self, :network)
-      exclusively { @dist_network_configured = true }
     end
 
     def exist?
@@ -192,9 +148,6 @@ module OsCtld
       File.unlink(file_path)
     rescue Errno::ENOENT
     end
-
-    protected
-    attr_synchronized_accessor :mounted
 
     def dir_path
       File.join(ct.pool.ct_dir, ct.id)
