@@ -104,6 +104,15 @@ module OsCtld
 
     def assets
       define_assets do |add|
+        # Datasets
+        add.dataset(
+          dataset,
+          desc: "Container's rootfs dataset",
+          mounted: false,
+          uidmap: uid_map.map(&:to_a),
+          gidmap: gid_map.map(&:to_a),
+        )
+
         # Directories and files
         add.directory(
           user_hook_script_dir,

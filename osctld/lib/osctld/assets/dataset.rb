@@ -11,6 +11,7 @@ module OsCtld
     # @param opts [Hash] options
     # @option opts [Array, nil] uidmap
     # @option opts [Array, nil] gidmap
+    # @option opts [Boolean, nil] mounted
     # @option opts [Integer, nil] user
     # @option opts [Integer, nil] group
     # @option opts [Integer, nil] mode
@@ -21,7 +22,7 @@ module OsCtld
     def valid?
       ret = zfs(
         :get,
-        '-H -ovalue mountpoint,uidmap,gidmap',
+        '-H -ovalue mountpoint,mounted,uidmap,gidmap',
         path,
         valid_rcs: [1]
       )
@@ -31,7 +32,7 @@ module OsCtld
         return super
       end
 
-      @mountpoint, uidmap, gidmap = ret.output.split("\n")
+      @mountpoint, mounted, uidmap, gidmap = ret.output.split("\n")
 
       if opts[:user] && stat.uid != opts[:user]
         add_error("invalid owner: expected #{opts[:user]}, got #{stat.uid}")
@@ -39,6 +40,14 @@ module OsCtld
 
       if opts[:group] && stat.gid != opts[:group]
         add_error("invalid group: expected #{opts[:group]}, got #{state.gid}")
+      end
+
+      if opts.has_key?(:mounted)
+        if opts[:mounted] && mounted != 'yes'
+          add_error('should be mounted')
+        elsif !opts[:mounted] && mounted == 'yes'
+          add_error('should not be mounted')
+        end
       end
 
       if opts[:mode] && mode != opts[:mode]
