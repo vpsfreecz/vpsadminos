@@ -7,6 +7,8 @@ module OsCtl::Cli
 
     def self.run(klass, method, method_args = [])
       Proc.new do |global_opts, opts, args|
+        OsCtl::Lib::Logger.setup(:none)
+
         cmd = klass.new(global_opts, opts, args)
         cmd.method(method).call(*method_args)
       end

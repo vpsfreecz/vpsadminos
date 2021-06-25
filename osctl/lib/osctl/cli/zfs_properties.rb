@@ -3,6 +3,8 @@ require 'libosctl'
 module OsCtl
   class Cli::ZfsProperties
     include Utils::Humanize
+    include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
 
     ABBREVIATIONS = {
       'avail' => 'available',
@@ -22,7 +24,7 @@ module OsCtl
       zpools = `zpool list -H -o name`.strip.split("\n")
       return [] if zpools.empty?
 
-      `zfs get -H -o property all #{zpools.first}`.split.map do |v|
+      zfs(:get, '-H -o property all', zpools.first).output.split.map do |v|
         name_to_cli(v)
       end
     end
@@ -58,16 +60,13 @@ module OsCtl
 
     protected
     def add_property_values(index, zfs_props, precise)
-      out = `zfs get -Hp -o name,property,value #{zfs_props.join(',')} #{index.keys.join(' ')}`
+      reader = OsCtl::Lib::Zfs::PropertyReader.new
+      tree = reader.read(index.keys, zfs_props)
 
-      if $?.exitstatus != 0
-        fail "unable to read ZFS properties"
-      end
-
-      out.strip.split("\n").each do |line|
-        dataset, prop, val = line.split("\t")
-
-        index[dataset][:"#{name_to_cli(prop)}"] = prop_value(prop, val, precise)
+      tree.each_dataset do |ds|
+        ds.properties.each do |k, v|
+          index[ds.name][:"#{name_to_cli(k)}"] = prop_value(k, v, precise)
+        end
       end
     end
 
