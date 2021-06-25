@@ -103,6 +103,10 @@ module OsCtld
         exit
       end
 
+      stdin.close if stdin
+      stdout.close if stdout != STDOUT
+      stderr.close if stderr != STDERR
+
       cmd_w.write(runner_opts.to_json)
       cmd_w.close
 
