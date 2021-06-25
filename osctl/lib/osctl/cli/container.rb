@@ -5,6 +5,7 @@ require 'libosctl'
 require 'tempfile'
 require 'osctl/cli/command'
 require 'osctl/cli/cgroup_params'
+require 'osctl/cli/zfs_properties'
 require 'osctl/cli/devices'
 require 'osctl/cli/assets'
 
@@ -92,9 +93,10 @@ module OsCtl::Cli
       cg_init_subsystems(c)
 
       cgparams = cg_list_raw_cgroup_params
+      zfsprops = ZfsProperties.new
 
       if opts[:list]
-        puts (FIELDS + cgparams).join("\n")
+        puts (FIELDS + cgparams + zfsprops.list_property_names).join("\n")
         return
       end
 
@@ -119,7 +121,12 @@ module OsCtl::Cli
 
       cmd_opts[:ids] = args if args.count > 0
       fmt_opts[:header] = false if opts['hide-header']
-      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : DEFAULT_FIELDS
+      cols =
+        if opts[:output]
+          zfsprops.validate_property_names(opts[:output].split(',').map(&:to_sym))
+        else
+          DEFAULT_FIELDS
+        end
 
       cts = cg_add_stats(
         c.cmd_data!(:ct_list, cmd_opts),
@@ -135,6 +142,8 @@ module OsCtl::Cli
         lambda { |ct| ct[:group_path] },
         cols & cgparams.map(&:to_sym)
       )
+
+      zfsprops.add_container_values(cts, cols, precise: gopts[:parsable])
 
       format_output(cts, cols, **fmt_opts)
     end
@@ -154,15 +163,21 @@ module OsCtl::Cli
       cg_init_subsystems(c)
 
       cgparams = cg_list_raw_cgroup_params
+      zfsprops = ZfsProperties.new
 
       if opts[:list]
-        puts (FIELDS + cgparams).join("\n")
+        puts (FIELDS + cgparams + zfsprops.list_property_names).join("\n")
         return
       end
 
       require_args!('id')
 
-      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS
+      cols =
+        if opts[:output]
+          zfsprops.validate_property_names(opts[:output].split(',').map(&:to_sym))
+        else
+          DEFAULT_FIELDS
+        end
 
       ct = c.cmd_data!(:ct_show, id: args[0], pool: gopts[:pool])
 
@@ -176,6 +191,8 @@ module OsCtl::Cli
         ct[:group_path],
         cols & cgparams.map(&:to_sym)
       )
+
+      zfsprops.add_container_values(ct, cols, precise: gopts[:parsable])
 
       format_output(ct, cols, header: !opts['hide-header'])
     end
