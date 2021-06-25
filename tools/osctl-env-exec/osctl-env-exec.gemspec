@@ -24,7 +24,7 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency 'ipaddress', '~> 0.8.3'
   s.add_runtime_dependency 'json'
   s.add_runtime_dependency 'gli', '~> 2.20.0'
-  s.add_runtime_dependency 'ruby-progressbar', '~> 1.9.0'
+  s.add_runtime_dependency 'ruby-progressbar', '~> 1.11.0'
   s.add_runtime_dependency 'md2man'
   s.add_runtime_dependency 'rake'
   s.add_runtime_dependency 'rake-compiler'
