@@ -23,7 +23,7 @@ Gem::Specification.new do |s|
   s.required_ruby_version = '>= 2.0.0'
 
   s.add_runtime_dependency 'curses'
-  s.add_runtime_dependency 'highline', '~> 1.7.10'
+  s.add_runtime_dependency 'highline', '~> 2.0.3'
   s.add_runtime_dependency 'ipaddress', '~> 0.8.3'
   s.add_runtime_dependency 'libosctl', s.version
   s.add_runtime_dependency 'json'
