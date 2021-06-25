@@ -57,22 +57,21 @@ module OsCtld
            || new_user.gid_map != old_user.gid_map
           datasets = ct.datasets
 
+          ds_builder = Container::DatasetBuilder.new(cmd: self)
+
           datasets.reverse_each do |ds|
+            next unless ds.mounted?
+
             progress("Unmounting dataset #{ds.relative_name}")
             zfs(:unmount, nil, ds, valid_rcs: [1])
           end
 
           datasets.each do |ds|
-            progress("Setting UID/GID mapping of #{ds.relative_name}")
-            zfs(
-              :set,
-              "uidmap=\"#{ct.uid_map.map(&:to_s).join(',')}\" "+
-              "gidmap=\"#{ct.gid_map.map(&:to_s).join(',')}\"",
-              ds
+            ds_builder.shift_dataset(
+              ds,
+              uid_map: ct.uid_map,
+              gid_map: ct.gid_map,
             )
-
-            progress("Remounting dataset #{ds.relative_name}")
-            zfs(:mount, nil, ds)
           end
         end
 

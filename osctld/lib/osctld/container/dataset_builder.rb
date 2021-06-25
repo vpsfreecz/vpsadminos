@@ -74,7 +74,7 @@ module OsCtld
     # @option opts [OsCtl::Lib::IdMap] :uid_map
     # @option opts [OsCtl::Lib::IdMap] :gid_map
     def shift_dataset(ds, opts = {})
-      progress('Configuring UID/GID mapping')
+      progress("Configuring UID/GID mapping of #{ds.relative_name}")
 
       set_opts = []
 
