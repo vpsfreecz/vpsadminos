@@ -8,7 +8,7 @@ module OsCtld
 
     # @param configs [Hash<String, String>]
     def self.load(config)
-      Hash[config.map { |k, v| [k.to_sym, v] }]
+      new(Hash[config.map { |k, v| [k.to_sym, v] }])
     end
 
     # @param configs [Hash<Symbol, String>]
