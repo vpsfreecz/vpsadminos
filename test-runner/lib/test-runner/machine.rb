@@ -294,7 +294,7 @@ module TestRunner
 
       config[:disks].each_with_index do |disk, i|
         ret << "-drive id=disk#{i},file=#{disk_path(disk[:device])},if=none,format=raw"
-        ret << "-device ide-drive,drive=disk#{i},bus=ahci.#{i}"
+        ret << "-device ide-hd,drive=disk#{i},bus=ahci.#{i}"
       end
 
       ret
