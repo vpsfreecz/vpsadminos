@@ -46,9 +46,9 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1x7q1s319rf01vzcy17zdyf9a0zfsw8jjh957rgs9clrvflyrn6g";
+      sha256 = "00a1l6di9ywrc4h5j128m8a7w2d36rqv62hlcx855myiwzpqngyv";
       type = "gem";
     };
-    version = "21.05.0.build20210619105613";
+    version = "21.05.0.build20210628213102";
   };
 }
