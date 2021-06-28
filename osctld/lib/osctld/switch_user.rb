@@ -82,7 +82,9 @@ module OsCtld
 
       # Environment
       ENV.delete('XDG_SESSION_ID')
-      ENV.delete('XDG_RUNTIME_DIR')
+
+      # LXC places lock files here
+      ENV['XDG_RUNTIME_DIR'] = File.join(homedir, '.cache/lxc/run')
 
       ENV['HOME'] = homedir
       ENV['USER'] = sysuser
@@ -99,8 +101,9 @@ module OsCtld
 
       # Switch
       Process.groups = [ugid]
-      Process::Sys.setgid(ugid)
-      Process::Sys.setuid(ugid)
+      sys = OsCtl::Lib::Sys.new
+      sys.setresgid(ugid, ugid, ugid)
+      sys.setresuid(ugid, ugid, ugid)
     end
 
     # Switch the current process to an unprivileged users, but do not change
@@ -108,15 +111,18 @@ module OsCtld
     def self.switch_to_system(sysuser, uid, gid, homedir)
       # Environment
       ENV.delete('XDG_SESSION_ID')
-      ENV.delete('XDG_RUNTIME_DIR')
+
+      # LXC places lock files here
+      ENV['XDG_RUNTIME_DIR'] = File.join(homedir, '.cache/lxc/run')
 
       ENV['HOME'] = homedir
       ENV['USER'] = sysuser
 
       # Switch
       Process.groups = [gid]
-      Process::Sys.setgid(gid)
-      Process::Sys.setuid(uid)
+      sys = OsCtl::Lib::Sys.new
+      sys.setresgid(gid, gid, gid)
+      sys.setresuid(uid, uid, uid)
     end
 
     # Apply process resource limits
