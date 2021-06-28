@@ -23,6 +23,8 @@ module OsCtl::Lib
 
       MNT_DETACH = 2
 
+      extern 'int setresuid(unsigned int ruid, unsigned int euid, unsigned int suid)'
+      extern 'int setresgid(unsigned int rgid, unsigned int egid, unsigned int sgid)'
       extern 'int mount(const char *source, const char *target, '+
              '          const char *filesystemtype, unsigned long mountflags, '+
              '          const void *data)'
@@ -31,6 +33,18 @@ module OsCtl::Lib
       extern 'int unshare(int flags)'
       extern 'int setns(int fd, int nstype)'
       extern 'int chroot(const char *path)'
+    end
+
+    def setresuid(ruid, euid, suid)
+      ret = Int.setresuid(ruid, euid, suid)
+      raise SystemCallError, Fiddle.last_error if ret != 0
+      ret
+    end
+
+    def setresgid(rgid, egid, sgid)
+      ret = Int.setresgid(rgid, egid, sgid)
+      raise SystemCallError, Fiddle.last_error if ret != 0
+      ret
     end
 
     def move_mount(src, dst)
