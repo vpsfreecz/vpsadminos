@@ -17,14 +17,6 @@ module OsCtld
         "osctld: #{cfg[:pool]}:#{cfg[:id]} runner:#{cfg[:name].downcase}"
       )
 
-      SwitchUser.apply_prlimits(Process.pid, cfg[:prlimits])
-      SwitchUser.switch_to(
-        cfg[:user],
-        cfg[:ugid],
-        cfg[:homedir],
-        cfg[:cgroup_path],
-      )
-
       ret = IO.new(cfg[:return])
       stdin = cfg[:stdin] && IO.new(cfg[:stdin])
       stdout = IO.new(cfg[:stdout])

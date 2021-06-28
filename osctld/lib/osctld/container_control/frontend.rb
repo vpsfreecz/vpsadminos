@@ -52,15 +52,16 @@ module OsCtld
       stdout = opts.fetch(:stdout, STDOUT)
       stderr = opts.fetch(:stderr, STDERR)
 
+      # User configuration
+      sysuser = ct.user.sysusername
+      ugid = ct.user.ugid
+      homedir = ct.user.homedir
+      cgroup_path = ct.cgroup_path
+      prlimits = ct.prlimits.export
+
       # Runner configuration
       runner_opts = {
         name: command_class.name,
-
-        user: ct.user.sysusername,
-        ugid: ct.user.ugid,
-        homedir: ct.user.homedir,
-        cgroup_path: ct.cgroup_path,
-        prlimits: ct.prlimits.export,
 
         pool: ct.pool.name,
         id: ct.id,
@@ -96,6 +97,8 @@ module OsCtld
           io.close_on_exec = false
         end
 
+        SwitchUser.apply_prlimits(Process.pid, prlimits)
+        SwitchUser.switch_to(sysuser, ugid, homedir, cgroup_path)
         Process.exec(::OsCtld.bin('osctld-ct-runner'))
         exit
       end
