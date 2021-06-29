@@ -1,9 +1,11 @@
+require 'libosctl'
 require 'osctl/exporter/collectors/base'
 require 'osctl/cli'
 require 'osctl/cli/cgroup_params'
 
 module OsCtl::Exporter
   class Collectors::Container < Collectors::Base
+    include OsCtl::Lib::Utils::Log
     include OsCtl::Cli::CGroupParams
 
     def setup
@@ -60,11 +62,17 @@ module OsCtl::Exporter
       )
 
       propreader = OsCtl::Lib::Zfs::PropertyReader.new
-      tree = propreader.read(
-        cts.map { |ct| ct[:dataset] },
-        %i(used referenced available quota refquota),
-        recursive: true,
-      )
+
+      begin
+        tree = propreader.read(
+          cts.map { |ct| ct[:dataset] },
+          %i(used referenced available quota refquota),
+          recursive: true,
+        )
+      rescue OsCtl::Lib::Exceptions::SystemCommandFailed => e
+        log(:warn, "Unable to read dataset properties: exit status #{e.rc}, output: #{e.output.inspect}")
+        return
+      end
 
       cts.each do |ct|
         running.set(
