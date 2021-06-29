@@ -25,27 +25,27 @@ module OsCtl::Exporter
       @dataset_used = registry.gauge(
         :osctl_container_dataset_used_bytes,
         docstring: 'Dataset used space',
-        labels: [:pool, :id, :dataset],
+        labels: [:pool, :id, :dataset, :relative_name],
       )
       @dataset_referenced = registry.gauge(
         :osctl_container_dataset_referenced_bytes,
         docstring: 'Dataset referenced space',
-        labels: [:pool, :id, :dataset],
+        labels: [:pool, :id, :dataset, :relative_name],
       )
       @dataset_avail = registry.gauge(
         :osctl_container_dataset_avail_bytes,
         docstring: 'Dataset available space',
-        labels: [:pool, :id, :dataset],
+        labels: [:pool, :id, :dataset, :relative_name],
       )
       @dataset_quota = registry.gauge(
         :osctl_container_dataset_quota_bytes,
         docstring: 'Dataset quota',
-        labels: [:pool, :id, :dataset],
+        labels: [:pool, :id, :dataset, :relative_name],
       )
       @dataset_refquota = registry.gauge(
         :osctl_container_dataset_refquota_bytes,
         docstring: 'Dataset reference quota',
-        labels: [:pool, :id, :dataset],
+        labels: [:pool, :id, :dataset, :relative_name],
       )
     end
 
@@ -84,26 +84,28 @@ module OsCtl::Exporter
           labels: {pool: ct[:pool], id: ct[:id], mode: 'system'},
         )
 
-        tree[ct[:dataset]].each_dataset do |ds|
+        tree[ct[:dataset]].each_tree_dataset do |tr_ds|
+          ds = tr_ds.as_dataset(base: ct[:dataset])
+
           dataset_used.set(
-            ds.properties['used'].to_i,
-            labels: {pool: ct[:pool], id: ct[:id], dataset: ds.name},
+            tr_ds.properties['used'].to_i,
+            labels: dataset_labels(ct, ds),
           )
           dataset_referenced.set(
-            ds.properties['referenced'].to_i,
-            labels: {pool: ct[:pool], id: ct[:id], dataset: ds.name},
+            tr_ds.properties['referenced'].to_i,
+            labels: dataset_labels(ct, ds),
           )
           dataset_avail.set(
-            ds.properties['available'].to_i,
-            labels: {pool: ct[:pool], id: ct[:id], dataset: ds.name},
+            tr_ds.properties['available'].to_i,
+            labels: dataset_labels(ct, ds),
           )
           dataset_quota.set(
-            ds.properties['quota'].to_i,
-            labels: {pool: ct[:pool], id: ct[:id], dataset: ds.name},
+            tr_ds.properties['quota'].to_i,
+            labels: dataset_labels(ct, ds),
           )
           dataset_refquota.set(
-            ds.properties['refquota'].to_i,
-            labels: {pool: ct[:pool], id: ct[:id], dataset: ds.name},
+            tr_ds.properties['refquota'].to_i,
+            labels: dataset_labels(ct, ds),
           )
         end
       end
@@ -113,5 +115,14 @@ module OsCtl::Exporter
     attr_reader :running, :memory_total_bytes, :memory_used_bytes, :cpu_ns_total,
       :dataset_used, :dataset_referenced, :dataset_avail, :dataset_quota,
       :dataset_refquota
+
+    def dataset_labels(ct, ds)
+      {
+        pool: ct[:pool],
+        id: ct[:id],
+        dataset: ds.name,
+        relative_name: ds.relative_name,
+      }
+    end
   end
 end
