@@ -63,7 +63,7 @@ module OsCtl
       reader = OsCtl::Lib::Zfs::PropertyReader.new
       tree = reader.read(index.keys, zfs_props)
 
-      tree.each_dataset do |ds|
+      tree.each_tree_dataset do |ds|
         ds.properties.each do |k, v|
           index[ds.name][:"#{name_to_cli(k)}"] = prop_value(k, v, precise)
         end

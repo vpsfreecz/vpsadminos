@@ -40,9 +40,15 @@ module OsCtl::Lib
     end
 
     # Iterate over all datasets in the subtree
-    def each_dataset(&block)
+    # @yieldparam tree [Zfs::DatasetTree]
+    def each_tree_dataset(&block)
       block.call(self)
-      datasets.each_value { |ds| ds.each_dataset(&block) }
+      datasets.each_value { |ds| ds.each_tree_dataset(&block) }
+    end
+
+    # @return [Zfs::Dataset]
+    def as_dataset(base: '')
+      Zfs::Dataset.new(name, base: base, properties: properties)
     end
 
     # Print the tree to the console
