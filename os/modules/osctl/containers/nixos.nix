@@ -36,7 +36,7 @@ let
 
           if [ "${user}" != "$currentUser" ] \
              || [ "${cfg.group}" != "$currentGroup" ] \
-             || [ "${yml}" != "$currentConfig" ] ; then
+             || [ "${yml}" != "$currentConfig" ]; then
             echo "Reconfiguring the container"
 
             if [ "$currentState" != "stopped" ] ; then
@@ -99,6 +99,7 @@ let
           cat ${yml} | ${osctlPool} ct config replace ${name} || exit 1
           ${osctlPool} ct set attr ${name} org.vpsadminos.osctl:declarative yes
           ${osctlPool} ct set attr ${name} org.vpsadminos.osctl:config ${yml}
+          ${osctlPool} ct set attr ${name} org.vpsadminos.osctl:toplevel ${toplevel}
 
           rootfs="$(${osctlPool} ct show -H -o rootfs ${name})"
           mkdir -p "$rootfs"
@@ -163,6 +164,8 @@ let
         else
           echo "System up-to-date"
         fi
+
+        ${osctlPool} ct set attr ${name} org.vpsadminos.osctl:toplevel ${toplevel}
 
         if [ "$createdContainer" == "y" ] ; then
           ${optionalString (cfg.hooks.on-create != null) ''
