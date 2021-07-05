@@ -52,9 +52,10 @@ module OsCtld
 
   class HookFailed < StandardError
     # @param hook [Container::Hook::Base]
+    # @param hook_path [String]
     # @param exitstatus [Integer]
-    def initialize(hook, exitstatus)
-      super("hook #{hook.class.hook_name} at #{hook.hook_path} exited with #{exitstatus}")
+    def initialize(hook, hook_path, exitstatus)
+      super("hook #{hook.class.hook_name} at #{hook_path} exited with #{exitstatus}")
     end
   end
 

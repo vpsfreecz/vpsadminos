@@ -92,7 +92,7 @@ module OsCtld
         ct_cfg['group'] = opts[:group]
         dump.container(YAML.dump(ct_cfg))
       end
-      exporter.dump_user_hook_scripts(Container::Hook.hooks)
+      exporter.dump_user_hook_scripts(Container::HookManager.list_all_scripts(ct))
       exporter.close
     end
   end

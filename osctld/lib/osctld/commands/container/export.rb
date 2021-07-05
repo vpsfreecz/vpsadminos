@@ -28,7 +28,7 @@ module OsCtld
       )
       exporter.dump_metadata('full')
       exporter.dump_configs
-      exporter.dump_user_hook_scripts(Container::Hook.hooks)
+      exporter.dump_user_hook_scripts(Container::HookManager.list_all_scripts(ct))
       exporter.dump_rootfs do
         exporter.dump_base
 
