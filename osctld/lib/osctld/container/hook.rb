@@ -12,7 +12,7 @@ module OsCtld
       @hooks[name] = klass
     end
 
-    # @return [Array<Symbol>]
+    # @return [Hash<Symbol, Class>]
     def self.hooks
       @hooks
     end
@@ -31,13 +31,14 @@ module OsCtld
     # @param name [Symbol] hook name
     # @param opts [Hash] hook options
     def self.run(ct, name, opts = {})
-      @hooks[name].run(ct, opts)
+      Container::HookManager.run(ct, @hooks[name], opts)
     end
 
     # Spawn a thread that will wait for the results of an async hook
     # @param hook [Container::Hooks::Base]
+    # @param hook_path [String]
     # @param pid [Integer]
-    def self.watch(hook, pid)
+    def self.watch(hook, hook_path, pid)
       Thread.new do
         Process.wait(pid)
         next if $?.exitstatus == 0
@@ -45,7 +46,7 @@ module OsCtld
         log(
           :warn,
           hook.ct,
-          "Hook #{hook.class.hook_name} at #{hook.hook_path} exited with #{$?.exitstatus}"
+          "Hook #{hook.class.hook_name} at #{hook_path} exited with #{$?.exitstatus}"
         )
       end
     end

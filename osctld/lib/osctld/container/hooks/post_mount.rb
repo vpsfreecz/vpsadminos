@@ -12,7 +12,7 @@ module OsCtld
       })
     end
 
-    def executable
+    def executable(hook_path)
       ['nsenter', '--target', opts[:ns_pid].to_s, '--mount', hook_path]
     end
   end

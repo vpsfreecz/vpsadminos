@@ -1,3 +1,4 @@
+require 'fileutils'
 require 'libosctl'
 require 'yaml'
 require 'rubygems'
@@ -169,13 +170,18 @@ module OsCtld
     # @param ct [Container]
     def install_user_hook_scripts(ct)
       tar.each do |entry|
-        next if !entry.full_name.start_with?('hooks/') || !entry.file? \
-                || entry.full_name.count('/') > 1
+        next if !entry.full_name.start_with?('hooks/')
 
-        name = File.basename(entry.full_name)
-        next unless Container::Hook.exist?(name.gsub(/-/, '_').to_sym)
+        name = entry.full_name[ ('hooks/'.length-1) .. -1 ]
 
-        copy_file_to_disk(entry, File.join(ct.user_hook_script_dir, name))
+        if entry.directory?
+          FileUtils.mkdir_p(
+            File.join(ct.user_hook_script_dir, name),
+            mode: entry.header.mode & 07777,
+          )
+        elsif entry.file?
+          copy_file_to_disk(entry, File.join(ct.user_hook_script_dir, name))
+        end
       end
     end
 

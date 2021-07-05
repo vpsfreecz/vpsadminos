@@ -107,24 +107,28 @@ module OsCtl::Lib
     end
 
     # Dump user script hooks, if there is at least one present
-    # @param supported_hooks [Array<Symbol>]
-    def dump_user_hook_scripts(supported_hooks)
-      dir = ct.user_hook_script_dir
-      hooks = Dir.entries(dir).map do |f|
-        path = File.join(dir, f)
-
-        [path, f, File.lstat(path)]
-
-      end.select do |path, name, st|
-        supported_hooks.include?(name.gsub(/-/, '_').to_sym) && st.file?
-      end
-
-      return if hooks.empty?
+    # @param hook_scripts [#abs_path, #rel_path]
+    def dump_user_hook_scripts(hook_scripts)
+      return if hook_scripts.empty?
 
       tar.mkdir('hooks', DIR_MODE)
+      subdirs = []
 
-      hooks.each do |path, name, _st|
-        add_file_from_disk(path, File.join('hooks', name))
+      hook_scripts.each do |hs|
+        slashes = hs.rel_path.count('/')
+
+        if slashes > 1
+          fail "unable to export hook at '#{hs.rel_path}': too many sublevels"
+        elsif slashes == 1
+          dir = File.dirname(hs.rel_path)
+
+          unless subdirs.include?(dir)
+            tar.mkdir(File.join('hooks', dir), DIR_MODE)
+            subdirs << dir
+          end
+        end
+
+        add_file_from_disk(hs.abs_path, File.join('hooks', hs.rel_path))
       end
     end
 
