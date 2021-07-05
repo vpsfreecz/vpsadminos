@@ -99,7 +99,6 @@ module OsCtl::Cli
 
       group = c.cmd_data!(:group_show, name: args[0], pool: gopts[:pool])
       cg_add_stats(
-        c,
         group,
         group[:full_path],
         cols,
@@ -109,7 +108,7 @@ module OsCtl::Cli
 
       cg_add_raw_cgroup_params(
         group,
-        g[:full_path],
+        group[:full_path],
         cols & cgparams.map(&:to_sym)
       )
 
