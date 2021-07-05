@@ -2742,9 +2742,13 @@ read by `ls` or `show` commands.
 ## SCRIPT HOOKS
 `osctld` can execute user-defined scripts when containers are being started
 or stopped. Script hooks are located at `/<pool>/hook/ct/<ctid>/<hook>`, use
-`ct assets` to get the exact path for your container. In order for script hooks
-to be called, they need to be executable. All script hooks are run as `root`
-on the host, but mount namespace may differ, see below.
+`ct assets` to get the exact path for your container. Multiple script hooks of
+the same name can be put into directory `/<pool>/hook/ct/<ctid>/<hook>.d`. Only
+files having the executable bit set are run. Script hooks are run in order by
+their name.
+
+All script hooks are run as `root` on the host, but the mount namespace may
+differ, see below.
 
 Note that many `osctl` commands called from script hooks will not work as expected
 and may cause deadlocks. The hooks are run when the container is locked within

@@ -21,21 +21,6 @@ module OsCtld
       def blocking?
         @blocking || false
       end
-
-      # Run hook
-      def run(ct, opts)
-        return unless exist?(ct)
-        hook = new(ct, opts)
-        hook.exec
-      end
-
-      def exist?(ct)
-        File.executable?(hook_path(ct))
-      end
-
-      def hook_path(ct)
-        File.join(ct.user_hook_script_dir, hook_name.to_s.gsub(/_/, '-'))
-      end
     end
 
     include OsCtl::Lib::Utils::Log
@@ -53,7 +38,9 @@ module OsCtld
     # For blocking hooks, this method waits for the script hook to exit. If it
     # exits with non-zero exit status, exception {HookFailed} is raised. Async
     # hooks return immediately and their exit status has no meaning.
-    def exec
+    #
+    # @param hook_path [String]
+    def exec(hook_path)
       log(
         :info,
         ct,
@@ -66,7 +53,7 @@ module OsCtld
         ENV.delete_if { |k,_| k != 'PATH' }
         env.each { |k, v| ENV[k] = v }
 
-        Process.exec(*executable)
+        Process.exec(*executable(hook_path))
       end
 
       if blocking?
@@ -79,19 +66,15 @@ module OsCtld
           "Hook #{self.class.hook_name} at #{hook_path} exited with #{$?.exitstatus}"
         )
 
-        raise HookFailed.new(self, $?.exitstatus)
+        raise HookFailed.new(self, hook_path, $?.exitstatus)
 
       else
-        Container::Hook.watch(self, pid)
+        Container::Hook.watch(self, hook_path, pid)
       end
     end
 
     def blocking?
       self.class.blocking?
-    end
-
-    def hook_path
-      self.class.hook_path(ct)
     end
 
     protected
@@ -122,8 +105,9 @@ module OsCtld
 
     # Override this method to define the program and its arguments that will be
     # execed to invoke the user script hook.
+    # @param hook_path [String]
     # @return [Array<String>]
-    def executable
+    def executable(hook_path)
       [hook_path]
     end
   end
