@@ -71,7 +71,7 @@ let
 
         if osctlEntityExists ct "${name}" ; then
           echo "Container ${pool}:${name} already exists"
-          lines=( $(${osctlPool} ct show -H -o state,user,group,org.vpsadminos.osctl:config ${name}) )
+          lines=( $(${osctlPool} ct show -H -o state,user,group,org.vpsadminos.osctl:config,org.vpsadminos.osctl:toplevel ${name}) )
           if [ "$?" != 0 ] ; then
             echo "Unable to get the container's status"
             exit 1
@@ -81,10 +81,12 @@ let
           currentUser="''${lines[1]}"
           currentGroup="''${lines[2]}"
           currentConfig="''${lines[3]}"
+          currentToplevel="''${lines[4]}"
 
           if [ "${user}" != "$currentUser" ] \
              || [ "${cfg.group}" != "$currentGroup" ] \
-             || [ "${yml}" != "$currentConfig" ] ; then
+             || [ "${yml}" != "$currentConfig" ] \
+             || [ "${toplevel}" != "$currentToplevel" ]; then
             if [ "$currentState" != "stopped" ] ; then
               ${osctlPool} ct stop ${name}
               originalState="$currentState"
@@ -108,6 +110,11 @@ let
               cat ${yml} | ${osctlPool} ct config replace ${name} || exit 1
               ${osctlPool} ct set attr ${name} org.vpsadminos.osctl:config ${yml}
               ${osctlPool} ct set attr ${name} org.vpsadminos.osctl:declarative yes
+            fi
+
+            if [ "${toplevel}" != "$currentToplevel" ] ; then
+              echo "Updating toplevel"
+              ${osctlPool} ct set attr ${name} org.vpsadminos.osctl:toplevel ${toplevel}
             fi
           fi
 
@@ -144,6 +151,7 @@ let
           cat ${yml} | ${osctlPool} ct config replace ${name} || exit 1
           ${osctlPool} ct set attr ${name} org.vpsadminos.osctl:declarative yes
           ${osctlPool} ct set attr ${name} org.vpsadminos.osctl:config ${yml}
+          ${osctlPool} ct set attr ${name} org.vpsadminos.osctl:toplevel ${toplevel}
 
           createdContainer=y
         fi
