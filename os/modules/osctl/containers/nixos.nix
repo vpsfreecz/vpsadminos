@@ -6,8 +6,57 @@ let
     , hasUser, user }:
       let
         toplevel = cfg.path;
+
         closureInfo = pkgs.closureInfo { rootPaths = [ toplevel ]; };
 
+        postMount = pkgs.writeScript "ct-${pool}-${name}-post-mount" ''
+          set -e
+
+          rootfs="$OSCTL_CT_ROOTFS_MOUNT"
+
+          echo "Configuring the root filesystem"
+          mkdir -p "$rootfs"
+          mkdir -p "$rootfs/dev" "$rootfs/etc" "$rootfs/proc" "$rootfs/run" \
+                   "$rootfs/sbin" "$rootfs/sys"
+          ln -sf "${toplevel}/init" "$rootfs/sbin/init"
+
+          echo "Populating /nix/store"
+          mkdir -p "$rootfs/nix/store" \
+                   "$rootfs/nix/var/nix/gcroots" \
+                   "$rootfs/nix/var/nix/profiles"
+
+          ln -sf /run/current-system "$rootfs/nix/var/nix/gcroots/current-system"
+
+          currentSystem=$(realpath "$rootfs/nix/var/nix/profiles/system")
+
+          if [ "$?" != "0" ] || [ "$currentSystem" != "${toplevel}" ] ; then
+            echo "System needs updating"
+            cat ${closureInfo}/registration >> "$rootfs/nix-path-registration"
+            ln -sf ${toplevel} "$rootfs/nix/var/nix/profiles/system"
+            ln -sf ${toplevel}/init "$rootfs/sbin/init"
+          else
+            echo "System up-to-date"
+          fi
+
+          count=$(cat ${closureInfo}/store-paths | wc -l)
+          i=1
+
+          for storePath in $(cat ${closureInfo}/store-paths) ; do
+            dst="$rootfs/''${storePath:1}"
+
+            if [ -e "$dst" ] ; then
+              echo "[$i/$count] Found $storePath"
+
+            else
+              echo "[$i/$count] Copying $storePath"
+              cp -a $storePath $dst
+            fi
+
+            i=$(($i+1))
+          done
+
+          exit 0
+        '';
       in ''
         waitForOsctld
         waitForOsctlEntityAttr pool "${pool}" state active
@@ -22,28 +71,27 @@ let
 
         if osctlEntityExists ct "${name}" ; then
           echo "Container ${pool}:${name} already exists"
-          lines=( $(${osctlPool} ct show -H -o rootfs,state,user,group,org.vpsadminos.osctl:config ${name}) )
+          lines=( $(${osctlPool} ct show -H -o state,user,group,org.vpsadminos.osctl:config ${name}) )
           if [ "$?" != 0 ] ; then
             echo "Unable to get the container's status"
             exit 1
           fi
 
-          rootfs="''${lines[0]}"
-          currentState="''${lines[1]}"
-          currentUser="''${lines[2]}"
-          currentGroup="''${lines[3]}"
-          currentConfig="''${lines[4]}"
+          currentState="''${lines[0]}"
+          currentUser="''${lines[1]}"
+          currentGroup="''${lines[2]}"
+          currentConfig="''${lines[3]}"
 
           if [ "${user}" != "$currentUser" ] \
              || [ "${cfg.group}" != "$currentGroup" ] \
              || [ "${yml}" != "$currentConfig" ] ; then
-            echo "Reconfiguring the container"
-
             if [ "$currentState" != "stopped" ] ; then
               ${osctlPool} ct stop ${name}
               originalState="$currentState"
               currentState="stopped"
             fi
+
+            echo "Reconfiguring the container"
 
             if [ "${user}" != "$currentUser" ] ; then
               echo "Changing user from $currentUser to ${user}"
@@ -62,9 +110,6 @@ let
               ${osctlPool} ct set attr ${name} org.vpsadminos.osctl:declarative yes
             fi
           fi
-
-          echo "Mounting the container"
-          ${osctlPool} ct mount ${name} || exit 1
 
         else
           echo "Creating container '${name}'"
@@ -100,39 +145,8 @@ let
           ${osctlPool} ct set attr ${name} org.vpsadminos.osctl:declarative yes
           ${osctlPool} ct set attr ${name} org.vpsadminos.osctl:config ${yml}
 
-          rootfs="$(${osctlPool} ct show -H -o rootfs ${name})"
-          mkdir -p "$rootfs"
-          mkdir "$rootfs/dev" "$rootfs/etc" "$rootfs/proc" "$rootfs/run" \
-                "$rootfs/sbin" "$rootfs/sys"
-          ln -sf /nix/var/nix/profiles/system "$rootfs/run/current-system"
-          ln -sf "${toplevel}/init" "$rootfs/sbin/init"
-
           createdContainer=y
         fi
-
-        echo "Populating /nix/store"
-        mkdir -p "$rootfs/nix/store" \
-                 "$rootfs/nix/var/nix/gcroots" \
-                 "$rootfs/nix/var/nix/profiles"
-
-        ln -sf /run/current-system "$rootfs/nix/var/nix/gcroots/current-system"
-
-        count=$(cat ${closureInfo}/store-paths | wc -l)
-        i=1
-
-        for storePath in $(cat ${closureInfo}/store-paths) ; do
-          dst="$rootfs/''${storePath:1}"
-
-          if [ -e "$dst" ] ; then
-            echo "[$i/$count] Found $storePath"
-
-          else
-            echo "[$i/$count] Copying $storePath"
-            cp -a $storePath $dst
-          fi
-
-          i=$(($i+1))
-        done
 
         echo "Installing user script hooks"
         lines=( $(zfs get -Hp -o value mountpoint,org.vpsadminos.osctl:dataset ${pool}) )
@@ -145,24 +159,9 @@ let
         hookDir="$mountpoint/hook/ct/${name}"
 
         rm -f "$hookDir/*"
+        mkdir -p "$hookDir/post-mount.d"
+        ln -sf ${postMount} "$hookDir/post-mount.d/00-declarative-setup"
         ${hooks}
-
-        currentSystem=$(realpath "$rootfs/nix/var/nix/profiles/system")
-
-        if [ "$?" != "0" ] || [ "$currentSystem" != "${toplevel}" ] ; then
-          echo "Configuring current system"
-          cat ${closureInfo}/registration >> "$rootfs/nix-path-registration"
-          ln -sf ${toplevel} "$rootfs/nix/var/nix/profiles/system"
-          ln -sf ${toplevel}/init "$rootfs/sbin/init"
-
-          if [ "$currentState" == "running" ] ; then
-            echo "Switching to ${toplevel}"
-            ${osctlPool} ct exec ${name} ${toplevel}/bin/switch-to-configuration switch
-          fi
-
-        else
-          echo "System up-to-date"
-        fi
 
         if [ "$createdContainer" == "y" ] ; then
           ${optionalString (cfg.hooks.on-create != null) ''
