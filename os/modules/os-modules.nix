@@ -51,5 +51,4 @@
   ./tasks/network-interfaces.nix
   ./tools/tools.nix
   ./virtualisation/lxcfs.nix
-  ./vpsadmin/nodectld.nix
 ]

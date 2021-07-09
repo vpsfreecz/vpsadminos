@@ -6,8 +6,7 @@
 , extraArgs ? {}
   # target system
 , system ? builtins.currentSystem
-, platform ? null
-, vpsadmin ? null }:
+, platform ? null }:
 
 let
   pkgs_ = import pkgs { inherit system; platform = platform; config = {}; };
@@ -16,7 +15,7 @@ let
     key = _file;
     config = {
       nixpkgs.system = pkgs_.lib.mkDefault system;
-      nixpkgs.overlays = import ./overlays { lib = pkgs_.lib; inherit vpsadmin; };
+      nixpkgs.overlays = import ./overlays;
     };
   };
   baseModules = import ./modules/module-list.nix;
