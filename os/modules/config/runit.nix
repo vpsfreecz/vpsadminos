@@ -78,11 +78,6 @@ in
     # DebugFS
     mount -t debugfs none /sys/kernel/debug/
 
-    if ${if config.vpsadmin.enable then "true" else "false"} ; then
-      mkdir -m 0700 /run/nodectl
-      ln -sfn /run/current-system/sw/bin/nodectl /run/nodectl/nodectl
-    fi
-
     # /etc/fstab
     mount -a
 
