@@ -22,7 +22,6 @@ in
 {
   environment.systemPackages = [ compat ] ++ (with pkgs; [
     mbuffer
-    socat
   ]);
 
   runit.stage1 = ''
