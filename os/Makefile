@@ -1,12 +1,9 @@
 CORES = 0
-VPSADMIN = ../../vpsadmin
-VPSADMIN_ABSPATH := $(shell readlink -m "$(VPSADMIN)")
 
 # default build (configs/qemu.nix)
 build: result
 	nix-build \
 	 --arg configuration $(or $(VPSADMINOS_CONFIG),./configs/qemu.nix) \
-	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 --out-link result/qemu \
 	 --cores $(CORES)
 
@@ -14,7 +11,6 @@ build: result
 toplevel: result
 	nix-build \
 	 --arg configuration $(or $(VPSADMINOS_CONFIG),./configs/qemu.nix) \
-	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 --attr config.system.build.toplevel \
 	 --out-link result/toplevel \
 	 --cores $(CORES)
@@ -23,7 +19,6 @@ toplevel: result
 iso: result
 	nix-build \
 	 --arg configuration $(or $(VPSADMINOS_CONFIG),"{ imports  = [ ./configs/iso.nix ]; }") \
-	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 -A config.system.build.isoImage \
 	 --out-link result/iso \
 	 --cores $(CORES) || exit 1
@@ -35,7 +30,6 @@ iso-local: result
 	     ./configs/iso.nix \
 	     ./configs/qemu.nix \
 	   ]; }") \
-	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 -A config.system.build.runvm \
 	 --out-link result/iso \
 	 --cores $(CORES) || exit 1
@@ -62,7 +56,6 @@ template:
 os-rebuild:
 	nix-build \
 	 --arg configuration ./configs/qemu.nix \
-	 --arg vpsadmin "$(VPSADMIN_ABSPATH)" \
 	 --out-link result/os-rebuild \
 	 --cores $(CORES) \
 	 -A config.system.build.os-rebuild
