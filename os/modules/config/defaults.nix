@@ -75,6 +75,9 @@
   };
 
   boot.kernel.sysctl = {
+    "fs.protected_hardlinks" = lib.mkDefault 1;
+    "fs.protected_symlinks" = lib.mkDefault 1;
+
     "kernel.dmesg_restrict" = true;
 
     # TCP BBR congestion control
