@@ -43,7 +43,7 @@ module OsCtl::Cli
       ret = File.read("/sys/class/net/#{netif}/statistics/#{dir}_#{type}")
       ret.strip.to_i
 
-    rescue Errno::ENOENT
+    rescue SystemCallError
       0
     end
   end
