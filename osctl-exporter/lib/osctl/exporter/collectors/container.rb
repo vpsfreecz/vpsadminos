@@ -29,6 +29,16 @@ module OsCtl::Exporter
         docstring: 'Number of processes inside the container',
         labels: [:pool, :id],
       )
+      @loadavg = Hash[[1, 5, 15].map do |i|
+        [
+          i,
+          registry.gauge(
+            :"osctl_container_load#{i}",
+            docstring: "Container #{i} minute load average",
+            labels: [:pool, :id],
+          ),
+        ]
+      end]
       @dataset_used = registry.gauge(
         :osctl_container_dataset_used_bytes,
         docstring: 'Dataset used space',
@@ -66,6 +76,8 @@ module OsCtl::Exporter
         true
       )
 
+      lavgs = OsCtl::Lib::LoadAvgReader.read_all_hash
+
       propreader = OsCtl::Lib::Zfs::PropertyReader.new
 
       begin
@@ -101,6 +113,17 @@ module OsCtl::Exporter
           labels: {pool: ct[:pool], id: ct[:id]},
         )
 
+        lavg = lavgs[ "#{ct[:pool]}:#{ct[:id]}" ]
+
+        if lavg
+          [1, 5, 15].each do |i|
+            loadavg[i].set(
+              lavg.avg[i],
+              labels: {pool: ct[:pool], id: ct[:id]},
+            )
+          end
+        end
+
         tree[ct[:dataset]].each_tree_dataset do |tr_ds|
           ds = tr_ds.as_dataset(base: ct[:dataset])
 
@@ -130,7 +153,7 @@ module OsCtl::Exporter
 
     protected
     attr_reader :running, :memory_total_bytes, :memory_used_bytes, :cpu_ns_total,
-      :proc_pids, :dataset_used, :dataset_referenced, :dataset_avail,
+      :proc_pids, :loadavg, :dataset_used, :dataset_referenced, :dataset_avail,
       :dataset_quota, :dataset_refquota
 
     def dataset_labels(ct, ds)
