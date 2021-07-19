@@ -24,6 +24,11 @@ module OsCtl::Exporter
         docstring: 'Container CPU usage',
         labels: [:pool, :id, :mode],
       )
+      @proc_pids = registry.gauge(
+        :osctl_container_processes_pids,
+        docstring: 'Number of processes inside the container',
+        labels: [:pool, :id],
+      )
       @dataset_used = registry.gauge(
         :osctl_container_dataset_used_bytes,
         docstring: 'Dataset used space',
@@ -57,7 +62,7 @@ module OsCtl::Exporter
       cg_add_stats(
         cts,
         lambda { |ct| ct[:group_path] },
-        [:memory, :cpu_user_time, :cpu_sys_time],
+        [:memory, :cpu_user_time, :cpu_sys_time, :nproc],
         true
       )
 
@@ -91,6 +96,10 @@ module OsCtl::Exporter
           ct[:cpu_sys_time].nil? ? 0 : ct[:cpu_sys_time].raw,
           labels: {pool: ct[:pool], id: ct[:id], mode: 'system'},
         )
+        proc_pids.set(
+          ct[:nproc].nil? ? 0 : ct[:nproc],
+          labels: {pool: ct[:pool], id: ct[:id]},
+        )
 
         tree[ct[:dataset]].each_tree_dataset do |tr_ds|
           ds = tr_ds.as_dataset(base: ct[:dataset])
@@ -121,8 +130,8 @@ module OsCtl::Exporter
 
     protected
     attr_reader :running, :memory_total_bytes, :memory_used_bytes, :cpu_ns_total,
-      :dataset_used, :dataset_referenced, :dataset_avail, :dataset_quota,
-      :dataset_refquota
+      :proc_pids, :dataset_used, :dataset_referenced, :dataset_avail,
+      :dataset_quota, :dataset_refquota
 
     def dataset_labels(ct, ds)
       {
