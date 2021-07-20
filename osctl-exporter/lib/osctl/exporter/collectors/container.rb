@@ -64,11 +64,33 @@ module OsCtl::Exporter
         docstring: 'Dataset reference quota',
         labels: [:pool, :id, :dataset, :relative_name],
       )
+      @dataset_bytes_written = registry.gauge(
+        :osctl_container_dataset_bytes_written,
+        docstring: 'Bytes written to this dataset',
+        labels: [:pool, :id, :dataset, :relative_name],
+      )
+      @dataset_bytes_read = registry.gauge(
+        :osctl_container_dataset_bytes_read,
+        docstring: 'Bytes read from this dataset',
+        labels: [:pool, :id, :dataset, :relative_name],
+      )
+      @dataset_ios_written = registry.gauge(
+        :osctl_container_dataset_ios_written,
+        docstring: 'Number of write IOs of this dataset',
+        labels: [:pool, :id, :dataset, :relative_name],
+      )
+      @dataset_ios_read = registry.gauge(
+        :osctl_container_dataset_ios_read,
+        docstring: 'Number of read IOs of this dataset',
+        labels: [:pool, :id, :dataset, :relative_name],
+      )
     end
 
     def collect(client)
       cg_init_subsystems(client.client)
       cts = client.list_containers
+      pools = container_pools(cts)
+
       cg_add_stats(
         cts,
         lambda { |ct| ct[:group_path] },
@@ -77,7 +99,7 @@ module OsCtl::Exporter
       )
 
       lavgs = OsCtl::Lib::LoadAvgReader.read_all_hash
-
+      objsets = OsCtl::Lib::Zfs::ObjsetStats.read_pools(pools)
       propreader = OsCtl::Lib::Zfs::PropertyReader.new
 
       begin
@@ -147,6 +169,27 @@ module OsCtl::Exporter
             tr_ds.properties['refquota'].to_i,
             labels: dataset_labels(ct, ds),
           )
+
+          objset = objsets[ds.name]
+
+          if objset
+            dataset_bytes_written.set(
+              objset.write_bytes,
+              labels: dataset_labels(ct, ds),
+            )
+            dataset_bytes_read.set(
+              objset.read_bytes,
+              labels: dataset_labels(ct, ds),
+            )
+            dataset_ios_written.set(
+              objset.write_ios,
+              labels: dataset_labels(ct, ds),
+            )
+            dataset_ios_read.set(
+              objset.read_ios,
+              labels: dataset_labels(ct, ds),
+            )
+          end
         end
       end
     end
@@ -154,7 +197,8 @@ module OsCtl::Exporter
     protected
     attr_reader :running, :memory_total_bytes, :memory_used_bytes, :cpu_ns_total,
       :proc_pids, :loadavg, :dataset_used, :dataset_referenced, :dataset_avail,
-      :dataset_quota, :dataset_refquota
+      :dataset_quota, :dataset_refquota, :dataset_bytes_written,
+      :dataset_bytes_read, :dataset_ios_written, :dataset_ios_read
 
     def dataset_labels(ct, ds)
       {
@@ -163,6 +207,16 @@ module OsCtl::Exporter
         dataset: ds.name,
         relative_name: ds.relative_name,
       }
+    end
+
+    def container_pools(cts)
+      pools = []
+
+      cts.each do |ct|
+        pools << ct[:pool] unless pools.include?(ct[:pool])
+      end
+
+      pools
     end
   end
 end
