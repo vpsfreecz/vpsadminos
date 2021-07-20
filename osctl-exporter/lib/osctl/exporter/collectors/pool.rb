@@ -57,6 +57,11 @@ module OsCtl::Exporter
           starting: 0,
           running: 0,
           stopping: 0,
+          freezing: 0,
+          frozen: 0,
+          thawed: 0,
+          aborting: 0,
+          error: 0,
         }
       end
 
