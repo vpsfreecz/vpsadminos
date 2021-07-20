@@ -95,14 +95,6 @@ module OsCtl::Cli
       ret
     end
 
-    def read_netif_stats(netif, dir, type)
-      ret = File.read("/sys/class/net/#{netif.veth}/statistics/#{dir}_#{type}")
-      ret.strip.to_i
-
-    rescue Errno::ENOENT
-      0
-    end
-
     def add_zfs_io_stats
       if dataset.nil?
         st = host.objsets.aggregate_stats
