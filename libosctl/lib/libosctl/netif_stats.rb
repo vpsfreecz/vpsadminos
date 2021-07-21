@@ -1,5 +1,5 @@
-module OsCtl::Cli
-  class Top::NetifStats
+module OsCtl::Lib
+  class NetifStats
     def initialize
       @cache = {}
     end
