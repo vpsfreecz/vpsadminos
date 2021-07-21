@@ -1,4 +1,5 @@
 require 'osctl/cli/top/container'
+require 'libosctl'
 
 module OsCtl::Cli
   class Top::Host < Top::Container
@@ -62,7 +63,7 @@ module OsCtl::Cli
       @zfs = []
       @objsets = nil
       @netifs = :all
-      @netif_stats = Top::NetifStats.new
+      @netif_stats = OsCtl::Lib::NetifStats.new
     end
 
     def running?
