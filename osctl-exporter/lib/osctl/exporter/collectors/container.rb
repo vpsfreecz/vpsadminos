@@ -8,12 +8,30 @@ module OsCtl::Exporter
     include OsCtl::Lib::Utils::Log
     include OsCtl::Cli::CGroupParams
 
+    STATES = %i(
+      staged
+      stopped
+      starting
+      running
+      stopping
+      freezing
+      frozen
+      thawed
+      aborting
+      error
+    )
+
     def setup
-      @running = registry.gauge(
-        :osctl_container_running,
-        docstring: 'Marks running containers',
-        labels: [:pool, :id],
-      )
+      @states = Hash[STATES.map do |s|
+        [
+          s,
+          registry.gauge(
+            :"osctl_container_state_#{s}",
+            docstring: "Set if the container is in state #{s}",
+            labels: [:pool, :id],
+          )
+        ]
+      end]
       @memory_used_bytes = registry.gauge(
         :osctl_container_memory_used_bytes,
         docstring: 'Memory used by containers',
@@ -114,10 +132,12 @@ module OsCtl::Exporter
       end
 
       cts.each do |ct|
-        running.set(
-          ct[:state] == 'running' ? 1 : 0,
-          labels: {pool: ct[:pool], id: ct[:id]},
-        )
+        STATES.each do |s|
+          states[s].set(
+            s == ct[:state].to_sym ? 1 : 0,
+            labels: {pool: ct[:pool], id: ct[:id]},
+          )
+        end
         memory_used_bytes.set(
           ct[:memory].nil? ? 0 : ct[:memory].raw,
           labels: {pool: ct[:pool], id: ct[:id]},
@@ -195,7 +215,7 @@ module OsCtl::Exporter
     end
 
     protected
-    attr_reader :running, :memory_total_bytes, :memory_used_bytes, :cpu_ns_total,
+    attr_reader :states, :memory_total_bytes, :memory_used_bytes, :cpu_ns_total,
       :proc_pids, :loadavg, :dataset_used, :dataset_referenced, :dataset_avail,
       :dataset_quota, :dataset_refquota, :dataset_bytes_written,
       :dataset_bytes_read, :dataset_ios_written, :dataset_ios_read
