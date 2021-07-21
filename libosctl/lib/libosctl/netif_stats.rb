@@ -32,8 +32,21 @@ module OsCtl::Lib
       ret
     end
 
+    # @param netifs [Array<String>]
+    def cache_stats_for_interfaces(netifs)
+      netifs.each do |netif|
+        get_stats_for(netif)
+      end
+    end
+
     def list_netifs
       Dir.entries('/sys/class/net') - %w(. ..)
+    end
+
+    # Read cached stats
+    # @param netif [String]
+    def [](netif)
+      @cache[netif]
     end
 
     protected
