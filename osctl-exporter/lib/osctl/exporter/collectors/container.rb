@@ -102,12 +102,33 @@ module OsCtl::Exporter
         docstring: 'Number of read IOs of this dataset',
         labels: [:pool, :id, :dataset, :relative_name],
       )
+      @netif_rx_bytes = registry.gauge(
+        :osctl_container_network_receive_bytes_total,
+        docstring: 'Number of received bytes over network',
+        labels: [:pool, :id, :devicetype, :hostdevice, :ctdevice],
+      )
+      @netif_tx_bytes = registry.gauge(
+        :osctl_container_network_transmit_bytes_total,
+        docstring: 'Number of transmitted bytes over network',
+        labels: [:pool, :id, :devicetype, :hostdevice, :ctdevice],
+      )
+      @netif_rx_packets = registry.gauge(
+        :osctl_container_network_receive_packets_total,
+        docstring: 'Number of received packets over network',
+        labels: [:pool, :id, :devicetype, :hostdevice, :ctdevice],
+      )
+      @netif_tx_packets = registry.gauge(
+        :osctl_container_network_transmit_packets_total,
+        docstring: 'Number of transmitted packets over network',
+        labels: [:pool, :id, :devicetype, :hostdevice, :ctdevice],
+      )
     end
 
     def collect(client)
       cg_init_subsystems(client.client)
       cts = client.list_containers
       pools = container_pools(cts)
+      netifs = client.list_netifs.reject { |v| v[:veth].nil? }
 
       cg_add_stats(
         cts,
@@ -130,6 +151,9 @@ module OsCtl::Exporter
         log(:warn, "Unable to read dataset properties: exit status #{e.rc}, output: #{e.output.inspect}")
         return
       end
+
+      netif_stats = OsCtl::Lib::NetifStats.new
+      netif_stats.cache_stats_for_interfaces(netifs.map { |v| v[:veth] })
 
       cts.each do |ct|
         STATES.each do |s|
@@ -211,6 +235,28 @@ module OsCtl::Exporter
             )
           end
         end
+
+        extract_container_netifs(ct, netifs).each do |netif|
+          st = netif_stats[netif[:veth]]
+          next if st.nil?
+
+          netif_rx_bytes.set(
+            st[:tx][:bytes],
+            labels: netif_labels(ct, netif),
+          )
+          netif_tx_bytes.set(
+            st[:rx][:bytes],
+            labels: netif_labels(ct, netif),
+          )
+          netif_rx_packets.set(
+            st[:tx][:packets],
+            labels: netif_labels(ct, netif),
+          )
+          netif_tx_packets.set(
+            st[:rx][:packets],
+            labels: netif_labels(ct, netif),
+          )
+        end
       end
     end
 
@@ -218,7 +264,8 @@ module OsCtl::Exporter
     attr_reader :states, :memory_total_bytes, :memory_used_bytes, :cpu_ns_total,
       :proc_pids, :loadavg, :dataset_used, :dataset_referenced, :dataset_avail,
       :dataset_quota, :dataset_refquota, :dataset_bytes_written,
-      :dataset_bytes_read, :dataset_ios_written, :dataset_ios_read
+      :dataset_bytes_read, :dataset_ios_written, :dataset_ios_read,
+      :netif_rx_bytes, :netif_tx_bytes, :netif_rx_packets, :netif_tx_packets
 
     def dataset_labels(ct, ds)
       {
@@ -226,6 +273,16 @@ module OsCtl::Exporter
         id: ct[:id],
         dataset: ds.name,
         relative_name: ds.relative_name,
+      }
+    end
+
+    def netif_labels(ct, netif)
+      {
+        pool: ct[:pool],
+        id: ct[:id],
+        devicetype: netif[:type],
+        hostdevice: netif[:veth],
+        ctdevice: netif[:name],
       }
     end
 
@@ -237,6 +294,21 @@ module OsCtl::Exporter
       end
 
       pools
+    end
+
+    def extract_container_netifs(ct, netif_list)
+      ret = []
+
+      netif_list.delete_if do |netif|
+        if netif[:pool] == ct[:pool] && netif[:ctid] == ct[:id]
+          ret << netif
+          true
+        else
+          false
+        end
+      end
+
+      ret
     end
   end
 end

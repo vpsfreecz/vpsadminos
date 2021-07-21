@@ -26,6 +26,10 @@ module OsCtl::Exporter
       client.cmd_data!(:ct_list)
     end
 
+    def list_netifs
+      client.cmd_data!(:netif_list)
+    end
+
     protected
     def connected?
       @connected
