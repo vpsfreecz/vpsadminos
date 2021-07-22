@@ -6,8 +6,7 @@ testFn:
   # extra arguments to be passed to modules
 , extraArgs ? {}
   # target system
-, system ? builtins.currentSystem
-, vpsadmin ? null }:
+, system ? builtins.currentSystem }:
 let
   nixpkgs = import pkgs { inherit system; config = {}; };
 
@@ -16,7 +15,7 @@ let
   testAttrs = testFn nixpkgs;
 
   machineOs = cfg: import ../os {
-    inherit configuration pkgs extraArgs system vpsadmin;
+    inherit configuration pkgs extraArgs system;
     modules = modules ++ [ cfg ];
   };
 

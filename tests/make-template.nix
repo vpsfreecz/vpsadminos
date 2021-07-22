@@ -8,8 +8,7 @@ templateFn:
   # extra arguments to be passed to modules
 , extraArgs ? {}
   # target system
-, system ? builtins.currentSystem
-, vpsadmin ? null }:
+, system ? builtins.currentSystem }:
 let
   nixArgs =
     if !(isNull templateArgs) then
@@ -23,7 +22,7 @@ let
   testFn = import ./make-test.nix (templateAttrs.test);
 
   testAttrs = testFn {
-    inherit configuration pkgs modules extraArgs system vpsadmin;
+    inherit configuration pkgs modules extraArgs system;
   };
 in {
   instance = templateAttrs.instance;
