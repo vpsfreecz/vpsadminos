@@ -11,6 +11,7 @@ module OsCtl::Lib
     # @return [Zfs::DatasetTree]
     def read(dataset_names, properties, type: 'filesystem', recursive: false)
       tree = Zfs::DatasetTree.new
+      return tree if dataset_names.empty?
 
       zfs_opts = [
         '-Hp',
