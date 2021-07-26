@@ -571,6 +571,13 @@ module OsCtld
       end
     end
 
+    # Unregister the container from internal uses in osctld, e.g. on pool export
+    def unregister
+      exclusively do
+        SendReceive::Tokens.free(send_log.token) if send_log
+      end
+    end
+
     # Export to clients
     def export
       inclusively do

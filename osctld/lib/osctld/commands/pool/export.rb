@@ -66,6 +66,7 @@ module OsCtld
               end
 
             elsif obj.is_a?(Container)
+              obj.unregister
               Monitor::Master.demonitor(obj)
               Console.remove(obj)
             end
