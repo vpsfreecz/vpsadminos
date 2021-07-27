@@ -1,1 +1,1 @@
-BUILDER=fedora
+BUILDER=almalinux
