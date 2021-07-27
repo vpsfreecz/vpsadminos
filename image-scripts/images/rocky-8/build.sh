@@ -8,7 +8,7 @@ BASEURL=https://download.rockylinux.org/pub/rocky/${POINTVER}/BaseOS/x86_64/os/
 UPDATES=https://download.rockylinux.org/pub/rocky/${POINTVER}/AppStream/x86_64/os/
 
 GROUPNAME='core'
-EXTRAPKGS='vim man'
+EXTRAPKGS='rocky-gpg-keys rocky-repos vim man'
 
 . $INCLUDE/redhat-family.sh
 
