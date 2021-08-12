@@ -36,7 +36,16 @@ function configure-opensuse {
 [ ! -e /sbin/init ] && ln -sf /usr/lib/systemd/systemd /sbin/init
 systemctl enable  wicked.service
 usermod -L root
+
 systemctl enable sshd.service
+
+if [ -d /etc/sshd/sshd_config.d ] ; then
+	cat <<EOT > /etc/sshd/sshd_config.d/vpsadminos.conf
+PermitRootLogin yes
+PasswordAuthentication yes
+EOT
+fi
+
 systemctl mask systemd-udev-trigger.service
 systemctl mask systemd-modules-load.service
 echo console >> /etc/securetty
