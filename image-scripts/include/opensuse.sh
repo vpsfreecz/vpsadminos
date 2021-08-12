@@ -39,8 +39,8 @@ usermod -L root
 
 systemctl enable sshd.service
 
-if [ -d /etc/sshd/sshd_config.d ] ; then
-	cat <<EOT > /etc/sshd/sshd_config.d/vpsadminos.conf
+if [ -d /etc/ssh/sshd_config.d ] ; then
+	cat <<EOT > /etc/ssh/sshd_config.d/vpsadminos.conf
 PermitRootLogin yes
 PasswordAuthentication yes
 EOT
