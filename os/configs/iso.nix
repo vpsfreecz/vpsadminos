@@ -19,6 +19,7 @@
 
   environment.systemPackages = with pkgs; [
     e2fsprogs
+    gptfdisk
     parted
     screen
     strace
