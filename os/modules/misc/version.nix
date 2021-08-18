@@ -88,7 +88,14 @@ in
     defaultChannel = mkOption {
       internal = true;
       type = types.str;
-      default = https://os.org/channels/os-unstable;
+      default = https://nixos.org/channels/nixos-21.05;
+      description = "Default NixOS channel to which the root user is subscribed.";
+    };
+
+    defaultOsChannel = mkOption {
+      internal = true;
+      type = types.str;
+      default = https://github.com/vpsfreecz/vpsadminos/archive/refs/heads/staging.tar.gz;
       description = "Default vpsAdminOS channel to which the root user is subscribed.";
     };
 

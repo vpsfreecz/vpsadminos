@@ -32,6 +32,17 @@ in
         '';
         runlevels = [ "rescue" "default" ];
       };
+
+      system.activationScripts.nix = mkForce (stringAfter [ "etc" "users" ]
+        ''
+          install -m 0755 -d /nix/var/nix/{gcroots,profiles}/per-user
+
+          # Subscribe the root user to the NixOS and vpsAdminOS channel by default.
+          if [ ! -e "/root/.nix-channels" ]; then
+              echo "${config.system.defaultChannel} nixos" > "/root/.nix-channels"
+              echo "${config.system.defaultOsChannel} vpsadminos" >> "/root/.nix-channels"
+          fi
+        '');
     })
   ];
 }
