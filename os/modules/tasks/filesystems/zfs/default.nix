@@ -389,6 +389,7 @@ in
     boot.zfs = {
       pools = mkOption {
         type = types.attrsOf (types.submodule pools);
+        default = {};
       };
       forceImportRoot = mkOption {
         type = types.bool;
