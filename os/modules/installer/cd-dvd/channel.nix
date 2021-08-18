@@ -27,8 +27,9 @@ let
       if [ ! -e $out/nixos/nixpkgs ]; then
         ln -s . $out/nixos/nixpkgs
       fi
-      echo -n ${config.system.osRevision} > $out/vpsadminos/.git-revision
+      echo -n ${config.system.osRelease} > $out/vpsadminos/.version
       echo -n ${config.system.osVersionSuffix} > $out/vpsadminos/.version-suffix
+      echo -n ${config.system.osRevision} > $out/vpsadminos/.git-revision
       echo ${config.system.osVersionSuffix} | sed -e s/pre// > $out/vpsadminos/svn-revision
     '';
 
