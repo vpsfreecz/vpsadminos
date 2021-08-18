@@ -19,9 +19,10 @@ let
   channelSources = pkgs.runCommand "vpsadminos-${config.system.osVersion}"
     { }
     ''
-      mkdir -p $out $out/vpsadminos
+      mkdir -p $out $out/vpsadminos $out/vpsadminos/artwork
       cp -prd ${nixpkgs} $out/nixos
       cp -prd ${os} $out/vpsadminos/os
+      cp -prd ${../../../../artwork/boot.png} $out/vpsadminos/artwork/boot.png
       chmod -R u+w $out/nixos
       chmod -R u+w $out/vpsadminos
       if [ ! -e $out/nixos/nixpkgs ]; then
