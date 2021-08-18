@@ -18,9 +18,11 @@
   tty.autologin.enable = true;
 
   environment.systemPackages = with pkgs; [
-    vim
+    e2fsprogs
+    parted
     screen
     strace
+    vim
   ];
 
   services.openssh.permitRootLogin = lib.mkDefault "yes";
