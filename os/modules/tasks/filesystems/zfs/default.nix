@@ -520,6 +520,10 @@ in
               poolImported "${pool}" || fail "Unable to import pool"
             fi
          '') rootPools));
+     };
+
+      boot.loader.grub = mkIf (inInitrd || inSystem) {
+        zfsSupport = true;
       };
 
       services.udev.packages = [ packages.zfsUser ];
