@@ -196,6 +196,7 @@ fi
 
 # If ‘--upgrade’ is given, run ‘nix-channel --update nixos’.
 if [ -n "$upgrade" -a -z "$_OS_REBUILD_REEXEC" ]; then
+    nix-channel --update nixos
     nix-channel --update vpsadminos
 
     # If there are other channels that contain a file called
@@ -325,6 +326,20 @@ if [ "$action" = dry-build ]; then
     extraBuildFlags+=(--dry-run)
 fi
 
+# Get the path of the vpsAdminOS configuration file.
+if [ -z $VPSADMINOS_CONFIG ]; then
+    VPSADMINOS_CONFIG=/etc/vpsadminos/configuration.nix
+fi
+
+if [ ${VPSADMINOS_CONFIG:0:1} != / ]; then
+    echo "$0: \$VPSADMINOS_CONFIG is not an absolute path"
+    exit 1
+fi
+
+if [ ! -e $VPSADMINOS_CONFIG ]; then
+    echo "configuration file $VPSADMINOS_CONFIG doesn't exist"
+    exit 1
+fi
 
 # Either upgrade the configuration in the system profile (for "switch"
 # or "boot"), or just build it and create a symlink "result" in the
@@ -332,15 +347,15 @@ fi
 if [ -z "$rollback" ]; then
     echo "building the system configuration..." >&2
     if [ "$action" = switch -o "$action" = boot ]; then
-        pathToConfig="$(nixBuild '<vpsadminos/os>' --no-out-link -A config.system.build.toplevel "${extraBuildFlags[@]}")"
+        pathToConfig="$(nixBuild '<vpsadminos/os>' --no-out-link --arg configuration "$VPSADMINOS_CONFIG" -A config.system.build.toplevel "${extraBuildFlags[@]}")"
         copyToTarget "$pathToConfig"
         targetHostCmd nix-env -p "$profile" --set "$pathToConfig"
     elif [ "$action" = test -o "$action" = build -o "$action" = dry-build -o "$action" = dry-activate ]; then
-        pathToConfig="$(nixBuild '<vpsadminos/os>' -A config.system.build.toplevel -k "${extraBuildFlags[@]}")"
+        pathToConfig="$(nixBuild '<vpsadminos/os>' --arg configuration "$VPSADMINOS_CONFIG" -A config.system.build.toplevel -k "${extraBuildFlags[@]}")"
     elif [ "$action" = build-vm ]; then
-        pathToConfig="$(nixBuild '<vpsadminos/os>' -A vm -k "${extraBuildFlags[@]}")"
+        pathToConfig="$(nixBuild '<vpsadminos/os>' --arg configuration "$VPSADMINOS_CONFIG" -A vm -k "${extraBuildFlags[@]}")"
     elif [ "$action" = build-vm-with-bootloader ]; then
-        pathToConfig="$(nixBuild '<vpsadminos/os>' -A vmWithBootLoader -k "${extraBuildFlags[@]}")"
+        pathToConfig="$(nixBuild '<vpsadminos/os>' --arg configuration "$VPSADMINOS_CONFIG" -A vmWithBootLoader -k "${extraBuildFlags[@]}")"
     else
         showSyntax
     fi
