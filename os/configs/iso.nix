@@ -23,6 +23,8 @@
     strace
   ];
 
+  services.openssh.permitRootLogin = lib.mkDefault "yes";
+
   isoImage.makeUsbBootable = true;
   isoImage.makeEfiBootable = true;
 
