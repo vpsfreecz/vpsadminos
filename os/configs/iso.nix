@@ -23,15 +23,6 @@
     strace
   ];
 
-  boot.zfs.pools = lib.mkDefault {
-    tank = {
-      layout = [
-        { devices = [ "sda" ]; }
-      ];
-      install = true;
-    };
-  };
-
   isoImage.makeUsbBootable = true;
   isoImage.makeEfiBootable = true;
 
