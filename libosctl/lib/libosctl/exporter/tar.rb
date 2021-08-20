@@ -12,7 +12,7 @@ module OsCtl::Lib
       tar.mkdir('rootfs', DIR_MODE)
       tar.add_file('rootfs/base.tar.gz', FILE_MODE) do |tf|
         IO.popen("exec tar -cz -C #{ct.rootfs} .") do |io|
-          tf.write(io.read(16*1024)) until io.eof?
+          tf.write(io.read(BLOCK_SIZE)) until io.eof?
         end
 
         fail "tar failed with exit status #{$?.exitstatus}" if $?.exitstatus != 0
