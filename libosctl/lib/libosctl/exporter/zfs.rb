@@ -139,11 +139,11 @@ module OsCtl::Lib
       case compression
       when :gzip
         gz = Zlib::GzipWriter.new(tf)
-        gz.write(stream.read(16*1024)) until stream.eof?
+        gz.write(stream.read(BLOCK_SIZE)) until stream.eof?
         gz.close
 
       when :off
-        tf.write(stream.read(16*1024)) until stream.eof?
+        tf.write(stream.read(BLOCK_SIZE)) until stream.eof?
 
       else
         fail "unexpected compression type '#{compression}'"

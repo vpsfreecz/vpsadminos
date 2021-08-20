@@ -32,7 +32,7 @@ module VpsAdminOS::Converter
       )
 
       IO.popen("exec #{ssh.join(' ')}", 'r+') do |io|
-        io.write(f.readpartial(16*1024)) until f.eof?
+        io.write(f.read(128*1024)) until f.eof?
       end
 
       f.close
