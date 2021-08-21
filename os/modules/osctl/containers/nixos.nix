@@ -173,7 +173,7 @@ let
           echo "Configuring current system"
           [ "$registerPaths" == "y" ] && \
             cat ${closureInfo}/registration >> "$rootfs/nix-path-registration"
-          ln -sf ${toplevel} "$rootfs/nix/var/nix/profiles/system"
+          nix-env -p "$rootfs/nix/var/nix/profiles/system" --set ${toplevel}
           ln -sf ${toplevel}/init "$rootfs/sbin/init"
 
           if [ "$currentState" == "running" ] ; then
