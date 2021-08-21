@@ -9,6 +9,8 @@ let
         closureInfo = pkgs.closureInfo { rootPaths = [ toplevel ]; };
 
       in ''
+        registerPaths=y
+
         waitForOsctld
         waitForOsctlEntityAttr pool "${pool}" state active
         ${optionalString hasUser ''waitForOsctlEntity user "${user}"''}
@@ -118,22 +120,39 @@ let
 
         ln -sf /run/current-system "$rootfs/nix/var/nix/gcroots/current-system"
 
-        count=$(cat ${closureInfo}/store-paths | wc -l)
-        i=1
+        if [ "$currentState" == "running" ] ; then
+          nix-store --export $(cat ${closureInfo}/store-paths) \
+            | ${osctlPool} ct exec ${name} nix-store --import
 
-        for storePath in $(cat ${closureInfo}/store-paths) ; do
-          dst="$rootfs/''${storePath:1}"
-
-          if [ -e "$dst" ] ; then
-            echo "[$i/$count] Found $storePath"
-
+          if [ "$?" == 0 ] ; then
+            storePopulated=y
+            registerPaths=n
           else
-            echo "[$i/$count] Copying $storePath"
-            cp -a $storePath $dst
+            echo "Unable to populate /nix/store at runtime"
+            ${osctlPool} ct stop ${name}
+            originalState="$currentState"
+            currentState="stopped"
           fi
+        fi
 
-          i=$(($i+1))
-        done
+        if [ "$storePopulated" != "y" ] ; then
+          count=$(cat ${closureInfo}/store-paths | wc -l)
+          i=1
+
+          for storePath in $(cat ${closureInfo}/store-paths) ; do
+            dst="$rootfs/''${storePath:1}"
+
+            if [ -e "$dst" ] ; then
+              echo "[$i/$count] Found $storePath"
+
+            else
+              echo "[$i/$count] Copying $storePath"
+              cp -a $storePath $dst
+            fi
+
+            i=$(($i+1))
+          done
+        fi
 
         echo "Installing user script hooks"
         lines=( $(zfs get -Hp -o value mountpoint,org.vpsadminos.osctl:dataset ${pool}) )
@@ -152,7 +171,8 @@ let
 
         if [ "$?" != "0" ] || [ "$currentSystem" != "${toplevel}" ] ; then
           echo "Configuring current system"
-          cat ${closureInfo}/registration >> "$rootfs/nix-path-registration"
+          [ "$registerPaths" == "y" ] && \
+            cat ${closureInfo}/registration >> "$rootfs/nix-path-registration"
           ln -sf ${toplevel} "$rootfs/nix/var/nix/profiles/system"
           ln -sf ${toplevel}/init "$rootfs/sbin/init"
 
