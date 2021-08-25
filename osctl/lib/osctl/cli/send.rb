@@ -56,6 +56,8 @@ module OsCtl::Cli
         to_pool: opts['to-pool'],
         network_interfaces: opts['network-interfaces'],
         snapshots: opts[:snapshots],
+        from_snapshot: opts['from-snapshot'],
+        preexisting_datasets: opts['preexisting-datasets'],
       )
     end
 
@@ -135,6 +137,8 @@ module OsCtl::Cli
         start: opts[:start],
         network_interfaces: opts['network-interfaces'],
         snapshots: opts[:snapshots],
+        from_snapshot: opts['from-snapshot'],
+        preexisting_datasets: opts['preexisting-datasets'],
       )
     end
 

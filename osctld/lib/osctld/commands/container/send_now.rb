@@ -21,6 +21,8 @@ module OsCtld
           to_pool: opts[:to_pool],
           network_interfaces: opts[:network_interfaces],
           snapshots: opts[:snapshots],
+          from_snapshot: opts[:from_snapshot],
+          preexisting_datasets: opts[:preexisting_datasets],
         )
 
         progress(type: :step, title: 'Sending rootfs')

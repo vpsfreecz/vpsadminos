@@ -32,6 +32,12 @@ module OsCtld
       # @return [Boolean]
       attr_reader :snapshots
 
+      # @return [String, nil]
+      attr_reader :from_snapshot
+
+      # @return [Boolean]
+      attr_reader :preexisting_datasets
+
       # @param opts [Hash]
       # @option opts [String] :ctid
       # @option opts [Integer] :port
@@ -44,6 +50,8 @@ module OsCtld
         @cloned = opts.delete(:cloned)
         @key_name = opts.delete(:key_name)
         @snapshots = opts.delete(:snapshots)
+        @from_snapshot = opts.delete(:from_snapshot)
+        @preexisting_datasets = opts.delete(:preexisting_datasets)
 
         unless opts.empty?
           raise ArgumentError, "unsupported options: #{opts.keys.join(', ')}"
@@ -67,6 +75,8 @@ module OsCtld
           'cloned' => cloned?,
           'key_name' => key_name,
           'snapshots' => snapshots,
+          'from_snapshot' => from_snapshot,
+          'preexisting_datasets' => preexisting_datasets,
         }
       end
     end
