@@ -60,7 +60,7 @@ module OsCtld
 
         ct.devices.init
 
-        importer.create_datasets(builder)
+        importer.create_datasets(builder, accept_existing: true)
 
         # Unmount all datasets before transfers
         ct.datasets.reverse.each { |ds| zfs(:umount, '', ds.name, valid_rcs: [1]) }

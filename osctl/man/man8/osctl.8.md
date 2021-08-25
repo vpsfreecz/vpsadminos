@@ -1516,6 +1516,19 @@ read by `ls` or `show` commands.
       Do not send existing snapshots to *destination*. Only temporary snapshots
       created for the send process are sent.
 
+    `--from-snapshot` *snapshot*
+      Start the transfer from *snapshot*. *snapshot* must be in the short form,
+      without dataset name. The at sign is optional, e.g. `@my-snapshot` or
+      `my-snapshot`. This snapshot must exist on all container datasets.
+
+    `--preexisting-datasets`
+      Assume that a common snapshot is on the local node and also already
+      on the destination node. Use option `--from-snapshot` to specify
+      the snapshot name. The common snapshot is then used as a base for
+      incremental streams.
+
+      Note that the common snapshot must exist for all container datasets.
+
 `ct send config` [*options*] *ctid* *destination*
   Send config of container *ctid* to *destination*. *destination* is a host
   name or an IP address of another vpsAdminOS node. The container's user, group

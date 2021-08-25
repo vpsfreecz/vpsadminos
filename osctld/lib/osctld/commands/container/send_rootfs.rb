@@ -45,7 +45,14 @@ module OsCtld
     def send_dataset(ct, ds, base_snap)
       progress("Syncing #{ds.relative_name}")
 
-      if ct.send_log.opts.snapshots
+      if ct.send_log.opts.from_snapshot && ct.send_log.opts.preexisting_datasets
+        send_snapshot(ct, ds, base_snap, base_snap, ct.send_log.opts.from_snapshot)
+
+      elsif ct.send_log.opts.from_snapshot && !ct.send_log.opts.preexisting_datasets
+        send_snapshot(ct, ds, base_snap, ct.send_log.opts.from_snapshot)
+        send_snapshot(ct, ds, base_snap, base_snap, ct.send_log.opts.from_snapshot)
+
+      elsif ct.send_log.opts.snapshots
         snaps = ds.snapshots
         send_snapshot(ct, ds, base_snap, snaps.first.snapshot)
 

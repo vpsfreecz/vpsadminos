@@ -1247,6 +1247,12 @@ module OsCtl::Cli
           s.desc 'Send snapshots'
           s.switch 'snapshots', default_value: true
 
+          s.desc 'Start the transfer from selected snapshot'
+          s.flag 'from-snapshot'
+
+          s.desc 'Assume datasets on the target node already exist'
+          s.switch 'preexisting-datasets', default_value: false
+
           s.action &Command.run(Send, :now)
 
           s.desc 'Step 1., copy configs to target node'
@@ -1275,6 +1281,12 @@ module OsCtl::Cli
 
             c.desc 'Send snapshots'
             c.switch 'snapshots', default_value: true
+
+            c.desc 'Start the transfer from selected snapshot'
+            c.flag 'from-snapshot'
+
+            c.desc 'Assume datasets on the target node already exist'
+            c.switch 'preexisting-datasets', default_value: false
 
             c.action &Command.run(Send, :config)
           end

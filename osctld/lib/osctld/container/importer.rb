@@ -190,8 +190,11 @@ module OsCtld
     # Create the root and all descendants datasets
     #
     # @param builder [Container::Builder]
-    def create_datasets(builder)
+    # @param accept_existing [Boolean]
+    def create_datasets(builder, accept_existing: false)
       datasets(builder).each do |ds|
+        next if accept_existing && ds.exist?
+
         builder.create_dataset(ds, mapping: true, parents: ds.root?)
       end
     end

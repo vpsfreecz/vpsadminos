@@ -11,6 +11,17 @@ module OsCtld
       ct = DB::Containers.find(opts[:id], opts[:pool])
       error!('container not found') unless ct
 
+      if opts[:from_snapshot]
+        from_snapshot =
+          if opts[:from_snapshot].start_with?('@')
+            opts[:from_snapshot][1..-1]
+          else
+            opts[:from_snapshot]
+          end
+      else
+        from_snapshot = nil
+      end
+
       manipulate(ct) do
         next error('this container is already being sent') if ct.send_log
 
@@ -31,7 +42,9 @@ module OsCtld
           ctid: ctid,
           port: opts[:port] || 22,
           dst: opts[:dst],
-          snapshots: opts.has_key?(:snapshots) ? opts[:snapshots] : true,
+          snapshots: opts.fetch(:snapshots, true),
+          from_snapshot: from_snapshot,
+          preexisting_datasets: opts.fetch(:preexisting_datasets, false),
         }
 
         recv_opts = [
