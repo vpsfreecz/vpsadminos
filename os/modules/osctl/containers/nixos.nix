@@ -8,6 +8,10 @@ let
         toplevel = cfg.path;
         closureInfo = pkgs.closureInfo { rootPaths = [ toplevel ]; };
 
+        sshOverride = pkgs.writeScriptBin "ssh" ''
+          #!${pkgs.bash}/bin/bash
+          exec ${osctlPool} ct exec ${name} nix-store --serve --write
+        '';
       in ''
         registerPaths=y
 
@@ -121,8 +125,10 @@ let
         ln -sf /run/current-system "$rootfs/nix/var/nix/gcroots/current-system"
 
         if [ "$currentState" == "running" ] ; then
-          nix-store --export $(cat ${closureInfo}/store-paths) \
-            | ${osctlPool} ct exec ${name} nix-store --import
+          PATH="${sshOverride}/bin:$PATH" \
+            nix copy \
+            --to ssh://nowhere \
+            ${toplevel}
 
           if [ "$?" == 0 ] ; then
             storePopulated=y
