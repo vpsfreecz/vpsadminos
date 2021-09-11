@@ -9,13 +9,19 @@ let
   birdc = if variant == "bird6" then "birdc6" else "birdc";
 
   concatNl = concatStringsSep "\n";
+  concatIndent = indent: list:
+    concatStringsSep
+      "\n${indent}"
+      (map (s: concatStringsSep "\n${indent}" (splitString "\n" s)) list);
+
+  indentLines = indent: s: concatStringsSep "\n${indent}" (splitString "\n" s);
 
   bgpFragment = concatNl (flip mapAttrsToList cfg.protocol.bgp (proto: bgp: ''
     protocol bgp ${proto} {
       local as ${toString bgp.as};
       ${concatNl (mapAttrsToList (k: v: "neighbor ${k} as ${toString v};") bgp.neighbor)}
       ${optionalString bgp.nextHopSelf "next hop self;"}
-      ${bgp.extraConfig}
+      ${indentLines "  " bgp.extraConfig}
     }
   ''));
 
@@ -35,20 +41,20 @@ let
   '';
 
   ospfAreaInterfaceFragment = interfaces:
-    concatNl (flip mapAttrsToList interfaces (name: interface: ''
+    concatIndent "  " (flip mapAttrsToList interfaces (name: interface: ''
       interface "${name}" {
-        ${interface.extraConfig}
+        ${indentLines "  " interface.extraConfig}
       };
     ''));
 
   ospfAreaFragment = areas:
-    concatNl (flip mapAttrsToList areas (id: area: ''
+    concatIndent "  " (flip mapAttrsToList areas (id: area: ''
       area ${id} {
         networks {
-          ${concatStringsSep ";\n" area.networks};
+          ${concatStringsSep ";\n    " area.networks};
         };
         ${ospfAreaInterfaceFragment area.interface}
-        ${area.extraConfig}
+        ${indentLines "  " area.extraConfig}
       };
     ''));
 
@@ -56,7 +62,7 @@ let
     concatNl (flip mapAttrsToList cfg.protocol.ospf (instance: ospf: ''
       protocol ospf ${instance} {
         ${ospfAreaFragment ospf.area}
-        ${ospf.extraConfig}
+        ${indentLines "  " ospf.extraConfig}
       }
     ''));
 
@@ -65,19 +71,19 @@ let
     log "${cfg.logFile}" ${cfg.logVerbosity};
 
     protocol kernel {
-        ${optionalString kernel.persist "persist;"}
-        ${optionalString kernel.learn "learn;"}
-        scan time ${toString kernel.scanTime};
-        ${kernel.extraConfig}
+      ${optionalString kernel.persist "persist;"}
+      ${optionalString kernel.learn "learn;"}
+      scan time ${toString kernel.scanTime};
+      ${indentLines "  " kernel.extraConfig}
     }
 
     protocol device {
-        scan time ${toString cfg.protocol.device.scanTime};
+      scan time ${toString cfg.protocol.device.scanTime};
     }
 
     ${optionalString cfg.protocol.direct.enable ''
     protocol direct {
-        interface "${cfg.protocol.direct.interface}";
+      interface "${cfg.protocol.direct.interface}";
     }
     ''}
 
