@@ -34,6 +34,32 @@ let
     }
   '';
 
+  ospfAreaInterfaceFragment = interfaces:
+    concatNl (flip mapAttrsToList interfaces (name: interface: ''
+      interface "${name}" {
+        ${interface.extraConfig}
+      };
+    ''));
+
+  ospfAreaFragment = areas:
+    concatNl (flip mapAttrsToList areas (id: area: ''
+      area ${id} {
+        networks {
+          ${concatStringsSep ";\n" area.networks};
+        };
+        ${ospfAreaInterfaceFragment area.interface}
+        ${area.extraConfig}
+      };
+    ''));
+
+  ospfFragment =
+    concatNl (flip mapAttrsToList cfg.protocol.ospf (instance: ospf: ''
+      protocol ospf ${instance} {
+        ${ospfAreaFragment ospf.area}
+        ${ospf.extraConfig}
+      }
+    ''));
+
   birdConfig = ''
     router id ${cfg.routerId};
     log "${cfg.logFile}" ${cfg.logVerbosity};
@@ -49,13 +75,17 @@ let
         scan time ${toString cfg.protocol.device.scanTime};
     }
 
+    ${optionalString cfg.protocol.direct.enable ''
     protocol direct {
         interface "${cfg.protocol.direct.interface}";
     }
+    ''}
 
     ${optionalString (cfg.protocol.bgp != {}) bgpFragment}
 
     ${optionalString cfg.protocol.bfd.enable bfdFragment}
+
+    ${optionalString (cfg.protocol.ospf != {}) ospfFragment}
 
     ${cfg.extraConfig}
   '';
@@ -118,6 +148,58 @@ let
           (milliseconds)
         '';
         default = 1000;
+      };
+    };
+  };
+
+  ospfAreaInterfaceOpts = { lib, pkgs, ... }: {
+    options = {
+      extraConfig = mkOption {
+        type = types.lines;
+        default = "";
+        description = "Extra OSPF area interface config";
+      };
+    };
+  };
+
+  ospfAreaOpts = { lib, pkgs, ... }: {
+    options = {
+      networks = mkOption {
+        type = types.listOf types.str;
+        description = "Area networks";
+      };
+
+      interface = mkOption {
+        type = types.attrsOf (types.submodule ospfAreaInterfaceOpts);
+        description = "Interfaces";
+      };
+
+      extraConfig = mkOption {
+        type = types.lines;
+        default = "";
+        description = "Extra OSPF area config";
+      };
+    };
+  };
+
+  ospfOpts = { lib, pkgs, ... }: {
+    options = {
+      version = mkOption {
+        type = types.enum [ "v2" "v3" ];
+        default = if variant == "bird" then "v2" else "v3";
+        description = "OSPF version";
+      };
+
+      area = mkOption {
+        type = types.attrsOf (types.submodule ospfAreaOpts);
+        default = {};
+        description = "OSPF areas";
+      };
+
+      extraConfig = mkOption {
+        type = types.lines;
+        default = "";
+        description = "Extra OSPF instance config";
       };
     };
   };
@@ -191,6 +273,8 @@ in {
         };
 
         direct = {
+          enable = mkEnableOption "Enable protocol direct";
+
           interface = mkOption {
             type = types.str;
             default = "*";
@@ -217,6 +301,11 @@ in {
           };
         };
 
+        ospf = mkOption {
+          type = types.attrsOf (types.submodule ospfOpts);
+          default = {};
+          description = "OSPF instances";
+        };
       };
 
       extraConfig = mkOption {
