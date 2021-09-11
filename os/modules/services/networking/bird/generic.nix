@@ -247,6 +247,7 @@ in {
 
     users = {
       users.${variant} = {
+        isSystemUser = true;
         description = "BIRD Internet Routing Daemon user";
         group = "${variant}";
       };
