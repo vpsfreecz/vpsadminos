@@ -10,9 +10,34 @@ let
 
   concatNl = concatStringsSep "\n";
 
+  bgpFragment = concatNl (flip mapAttrsToList cfg.protocol.bgp (proto: bgp: ''
+    protocol bgp ${proto} {
+      local as ${toString bgp.as};
+      ${concatNl (mapAttrsToList (k: v: "neighbor ${k} as ${toString v};") bgp.neighbor)}
+      ${optionalString bgp.nextHopSelf "next hop self;"}
+      ${bgp.extraConfig}
+    }
+  ''));
+
+  bfdInterfacesFragment =
+    concatNl (flip mapAttrsToList cfg.protocol.bfd.interfaces (k: v: ''
+      interface "${k}" {
+        min rx interval ${toString v.minRX} ms;
+        min tx interval ${toString v.minTX} ms;
+        idle tx interval ${toString v.idleTX} ms;
+      };
+    ''));
+
+  bfdFragment = ''
+    protocol bfd {
+      ${bfdInterfacesFragment}
+    }
+  '';
+
   birdConfig = ''
     router id ${cfg.routerId};
     log "${cfg.logFile}" ${cfg.logVerbosity};
+
     protocol kernel {
         ${optionalString kernel.persist "persist;"}
         ${optionalString kernel.learn "learn;"}
@@ -28,12 +53,9 @@ let
         interface "${cfg.protocol.direct.interface}";
     }
 
-    ${cfg.protocol.bgp}
-    ${optionalString cfg.protocol.bfd.enable ''
-      protocol bfd {
-        ${cfg.protocol.bfd.interfaces}
-      }
-    ''}
+    ${optionalString (cfg.protocol.bgp != {}) bgpFragment}
+
+    ${optionalString cfg.protocol.bfd.enable bfdFragment}
 
     ${cfg.extraConfig}
   '';
@@ -66,8 +88,6 @@ let
       neighbor = mkOption {
         type = types.attrsOf types.ints.positive;
         description = "Our neighbors";
-        apply = x: concatNl (mapAttrsToList (k: v:
-          "neighbor ${k} as ${toString v};") x);
       };
 
       extraConfig = mkOption {
@@ -83,14 +103,12 @@ let
         type = types.ints.positive;
         description = "The minimum RX interval (milliseconds)";
         default = 10;
-        apply = x: "min rx interval ${toString x} ms;";
       };
 
       minTX = mkOption {
         type = types.ints.positive;
         description = "The desired TX interval (milliseconds)";
         default = 100;
-        apply = x: "min tx interval ${toString x} ms;";
       };
 
       idleTX = mkOption {
@@ -100,7 +118,6 @@ let
           (milliseconds)
         '';
         default = 1000;
-        apply = x: "idle tx interval ${toString x} ms;";
       };
     };
   };
@@ -183,16 +200,8 @@ in {
 
         bgp = mkOption {
           type = types.attrsOf (types.submodule bgpOpts);
+          default = {};
           description = "BGP instances";
-          apply = x: concatNl (flip mapAttrsToList x (k: v:
-            ''
-              protocol bgp ${k} {
-                local as ${toString v.as};
-                ${v.neighbor}
-                ${optionalString v.nextHopSelf "next hop self;"}
-                ${v.extraConfig}
-              }
-            ''));
         };
 
         bfd = {
@@ -205,14 +214,6 @@ in {
           interfaces = mkOption {
             type = types.attrsOf (types.submodule bfdInterfaceOpts);
             description = "BFD interfaces";
-            apply = x: concatNl (flip mapAttrsToList x (k: v:
-              ''
-                interface "${k}" {
-                  ${v.minRX}
-                  ${v.minTX}
-                  ${v.idleTX}
-                };
-              ''));
           };
         };
 
