@@ -10,7 +10,7 @@ let
 
   concatNl = concatStringsSep "\n";
 
-  bird_config = ''
+  birdConfig = ''
     router id ${cfg.routerId};
     log "${cfg.logFile}" ${cfg.logVerbosity};
     protocol kernel {
@@ -40,7 +40,7 @@ let
 
   configFile = pkgs.stdenv.mkDerivation {
     name = "${variant}.conf";
-    text = bird_config;
+    text = birdConfig;
     preferLocalBuild = true;
     buildCommand = ''
       echo -n "$text" > $out
@@ -56,17 +56,20 @@ let
         type = types.ints.positive;
         description = "BGP autonomous system ID";
       };
+
       nextHopSelf = mkOption {
         type = types.bool;
         description = "Always advertise our own local address as a next hop";
         default = false;
       };
+
       neighbor = mkOption {
         type = types.attrsOf types.ints.positive;
         description = "Our neighbors";
         apply = x: concatNl (mapAttrsToList (k: v:
           "neighbor ${k} as ${toString v};") x);
       };
+
       extraConfig = mkOption {
         type = types.lines;
         default = "";
@@ -78,19 +81,24 @@ let
     options = {
       minRX = mkOption {
         type = types.ints.positive;
-        description = "minimum RX interval (milliseconds)";
+        description = "The minimum RX interval (milliseconds)";
         default = 10;
         apply = x: "min rx interval ${toString x} ms;";
       };
+
       minTX = mkOption {
         type = types.ints.positive;
-        description = "desired TX interval (milliseconds)";
+        description = "The desired TX interval (milliseconds)";
         default = 100;
         apply = x: "min tx interval ${toString x} ms;";
       };
+
       idleTX = mkOption {
         type = types.ints.positive;
-        description = "desired TX interval if neighbor not available or not running BFD (milliseconds)";
+        description = ''
+          The desired TX interval if neighbor not available or not running BFD
+          (milliseconds)
+        '';
         default = 1000;
         apply = x: "idle tx interval ${toString x} ms;";
       };
@@ -102,47 +110,69 @@ in {
   options = {
     networking.${variant} = {
       enable = mkEnableOption "BIRD Internet Routing Daemon";
+
       routerId = mkOption {
         type = types.str;
-        description = "Set BIRD's router ID based on an IP address of an interface specified by an interface pattern.";
+        description = ''
+          Set BIRD's router ID based on an IP address of an interface specified
+          by an interface pattern.
+        '';
       };
+
       logFile = mkOption {
         type = types.str;
         default = "/var/log/${variant}.log";
       };
+
       logVerbosity = mkOption {
         type = types.str;
         default = "all";
       };
+
       protocol = {
         kernel = {
-          persist = mkEnableOption "Tell BIRD to leave all its routes in the routing tables when it exits (instead of cleaning them up).";
-          learn = mkEnableOption "Enable learning of routes added to the kernel routing tables by other routing daemons or by the system administrator.";
+          persist = mkEnableOption ''
+            Tell BIRD to leave all its routes in the routing tables when it
+            exits (instead of cleaning them up).
+          '';
+
+          learn = mkEnableOption ''
+            Enable learning of routes added to the kernel routing tables by
+            other routing daemons or by the system administrator.
+          '';
+
           scanTime = mkOption {
             type = types.ints.positive;
             default = 10;
-            description = "Time in seconds between two consecutive scans of the kernel routing table.";
+            description = ''
+              Time in seconds between two consecutive scans of the kernel
+              routing table.
+            '';
           };
+
           extraConfig = mkOption {
             type = types.lines;
             default = "";
             description = "Extra config for kernel protocol";
           };
-
         };
+
         device = {
           scanTime = mkOption {
             type = types.ints.positive;
             default = 1;
-            description = "Time in seconds between two scans of the network interface list.";
+            description = ''
+              Time in seconds between two scans of the network interface list.
+            '';
           };
+
           extraConfig = mkOption {
             type = types.lines;
             default = "";
             description = "Extra config for device protocol";
           };
-
         };
+
         direct = {
           interface = mkOption {
             type = types.str;
@@ -150,6 +180,7 @@ in {
             description = "Restrict devices used by direct protocol";
           };
         };
+
         bgp = mkOption {
           type = types.attrsOf (types.submodule bgpOpts);
           description = "BGP instances";
@@ -163,12 +194,14 @@ in {
               }
             ''));
         };
+
         bfd = {
           enable = mkOption {
             type = types.bool;
             description = "Enable BFD";
             default = false;
           };
+
           interfaces = mkOption {
             type = types.attrsOf (types.submodule bfdInterfaceOpts);
             description = "BFD interfaces";
@@ -184,6 +217,7 @@ in {
         };
 
       };
+
       extraConfig = mkOption {
         type = types.lines;
         default = "";
@@ -212,7 +246,7 @@ in {
     };
 
     users = {
-      extraUsers.${variant} = {
+      users.${variant} = {
         description = "BIRD Internet Routing Daemon user";
         group = "${variant}";
       };
