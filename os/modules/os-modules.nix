@@ -27,7 +27,7 @@
   ./services/monitoring/munin.nix
   ./services/monitoring/prometheus/node_exporter.nix
   ./services/network-filesystems/nfs.nix
-  ./services/networking/bird.nix
+  ./services/networking/bird
   ./services/networking/chronyd.nix
   ./services/networking/dhcpd.nix
   ./services/networking/firewall.nix
