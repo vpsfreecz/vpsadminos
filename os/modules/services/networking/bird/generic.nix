@@ -339,6 +339,7 @@ in {
         exec ${pkg}/bin/${variant} -c /etc/${variant}.conf -u ${variant} -g ${variant} -f
       '';
       runlevels = [ "rescue" "default" ];
+      onChange = mkDefault "ignore";
     };
 
     users = {
