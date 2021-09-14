@@ -158,6 +158,8 @@ let
   };
 
   initialRamdisk = pkgs.makeInitrd {
+    compressor = "pigz";
+
     contents = [
       {
         object = bootStage1;
