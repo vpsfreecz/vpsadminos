@@ -123,6 +123,17 @@ udevadm trigger --action=add
 udevadm settle --timeout=30 || fail "udevadm settle timed-out"
 
 @preLVMCommands@
+
+for o in $(cat /proc/cmdline); do
+  case $o in
+    httproot=*)
+      set -- $(IFS==; echo $o)
+      root=/root.squashfs
+      wget -O $root "$2"
+      ;;
+  esac
+done
+
 @postDeviceCommands@
 
 udevadm control --exit
