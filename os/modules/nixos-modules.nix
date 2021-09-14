@@ -9,7 +9,6 @@
   <nixpkgs/nixos/modules/system/boot/loader/generations-dir/generations-dir.nix>
   <nixpkgs/nixos/modules/system/boot/loader/loader.nix>
   <nixpkgs/nixos/modules/system/boot/luksroot.nix>
-  <nixpkgs/nixos/modules/system/boot/initrd-network.nix>
   <nixpkgs/nixos/modules/system/boot/initrd-ssh.nix>
   <nixpkgs/nixos/modules/misc/nixpkgs.nix>
   <nixpkgs/nixos/modules/config/debug-info.nix>

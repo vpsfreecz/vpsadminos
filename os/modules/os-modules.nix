@@ -39,6 +39,7 @@
   ./services/ttys/agetty.nix
   ./system/activation/top-level.nix
   ./system/activation/secrets.nix
+  ./system/boot/initrd-network.nix
   ./system/boot/loader/grub/grub.nix
   ./system/boot/loader/grub/ipxe.nix
   ./system/boot/qemu.nix
