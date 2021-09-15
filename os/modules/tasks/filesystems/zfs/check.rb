@@ -21,7 +21,7 @@ guid = ARGV[1]
 state = 'MISSING'
 
 cmd = [
-  '@zfsUser@/bin/zpool',
+  '@zpool@',
   'import',
 ] + dirs.map { |v| "-d \"#{v}\"" }
 
