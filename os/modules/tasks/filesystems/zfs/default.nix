@@ -41,9 +41,11 @@ let
 
   # safe import of ZFS pool
   # according to https://github.com/NixOS/nixpkgs/commit/cfd8c4ee88fec3a7f989663e09d8e39513b8488e
-  importLib = {zpoolCmd, awkCmd, cfgZfs}:
+  importLib = { zpoolCmd, awkCmd, cfgZfs }:
     let
       devOptions = concatMapStringsSep " " (v: "-d \"${v}\"") cfgZfs.devNodes;
+
+      zpoolCheckScript = buildZpoolCheckScript zpoolCmd;
 
     in ''
       poolReady() {
@@ -72,15 +74,13 @@ let
       }
     '';
 
-  importLibInstance = importLib {
-    zpoolCmd = "${packages.zfsUser}/bin/zpool";
-    awkCmd = "awk";
-    inherit cfgZfs;
-  };
-
   poolService = name: pool: (import ./pool-service.nix args) {
     inherit name pool zpoolCreateScript packages;
-    importLib = importLibInstance;
+    importLib = importLib {
+      zpoolCmd = "${packages.zfsUser}/sbin/zpool";
+      awkCmd = "${pkgs.gawk}/bin/awk";
+      inherit cfgZfs;
+    };
   };
 
   poolConfig = name: pool: pkgs.writeText "pool-${name}-config.json" (builtins.toJSON {
@@ -97,12 +97,12 @@ let
     chmod +x $out/bin/do-create-pool-${name}
   '';
 
-  zpoolCheckScript = pkgs.substituteAll {
+  buildZpoolCheckScript = zpoolCmd: pkgs.substituteAll {
     name = "check-zpool.rb";
     src = ./check.rb;
     isExecutable = true;
     ruby = pkgs.ruby;
-    zfsUser = packages.zfsUser;
+    zpool = zpoolCmd;
   };
 
   zpoolCreateScripts = mapAttrsToList zpoolCreateScript;
@@ -502,7 +502,11 @@ in
                   ;;
               esac
             done
-          ''] ++ [ importLibInstance ] ++ (map (pool: ''
+          ''] ++ [ (importLib {
+            zpoolCmd = "zpool";
+            awkCmd = "awk";
+            inherit cfgZfs;
+          }) ] ++ (map (pool: ''
             echo -n "importing root ZFS pool \"${pool}\"..."
             # Loop across the import until it succeeds, because the devices needed may not be discovered yet.
             if ! poolImported "${pool}"; then
