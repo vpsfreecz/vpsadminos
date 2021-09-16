@@ -124,12 +124,22 @@ udevadm settle --timeout=30 || fail "udevadm settle timed-out"
 
 @preLVMCommands@
 
+download_httproot() {
+  for i in 1 2 3 ; do
+    echo "Downloading $root from $1"
+    wget -O $root -c "$1" && return 0
+    sleep 1
+  done
+
+  return 1
+}
+
 for o in $(cat /proc/cmdline); do
   case $o in
     httproot=*)
       set -- $(IFS==; echo $o)
       root=/root.squashfs
-      wget -O $root "$2"
+      download_httproot "$2" || fail "Unable to download rootfs from $2"
       ;;
   esac
 done
