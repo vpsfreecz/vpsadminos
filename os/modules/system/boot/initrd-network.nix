@@ -134,6 +134,7 @@ in
 
       # Otherwise, use DHCP.
       + optionalString doDhcp ''
+        sleep 3
         # Bring up all interfaces.
         for iface in ${dhcpIfShellExpr}; do
           echo "bringing up network interface $iface..."
