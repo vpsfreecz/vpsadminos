@@ -142,7 +142,7 @@ in
         # Acquire DHCP leases.
         for iface in ${dhcpIfShellExpr}; do
           echo "acquiring IP address via DHCP on $iface..."
-          udhcpc --quit --now -i $iface -O staticroutes --script ${udhcpcScript} ${udhcpcArgs}
+          udhcpc --quit --now -i $iface -t 5 -O staticroutes --script ${udhcpcScript} ${udhcpcArgs}
         done
       ''
 
