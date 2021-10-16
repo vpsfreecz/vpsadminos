@@ -2,10 +2,8 @@ cat <<EOF > /etc/nixos/configuration.nix
 { config, pkgs, ... }:
 {
   imports = [
-    <nixpkgs/nixos/modules/virtualisation/container-config.nix>
     <nixpkgs/nixos/modules/installer/cd-dvd/channel.nix>
-    ./build.nix
-    ./networking.nix
+    ./vpsadminos.nix
   ];
 
   environment.systemPackages = with pkgs; [
@@ -14,7 +12,7 @@ cat <<EOF > /etc/nixos/configuration.nix
   ];
 
   time.timeZone = "Europe/Amsterdam";
-  system.stateVersion = "18.09";
+  system.stateVersion = "21.05";
 }
 EOF
 
