@@ -3,10 +3,10 @@ set -e
 
 ### BEGIN INIT INFO
 # Provides:           cgroups-mount
-# Required-Start:     $syslog $remote_fs
-# Required-Stop:      $syslog $remote_fs
-# Default-Start:      2 3 4 5
-# Default-Stop:       0 1 6
+# Required-Start:     $local_fs
+# Required-Stop:      $local_fs
+# Default-Start:      S
+# Default-Stop:
 # Short-Description:  Set up cgroup mounts.
 # Description:
 #  Control groups are a kernel mechanism for tracking and imposing

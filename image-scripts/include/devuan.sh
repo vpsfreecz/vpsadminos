@@ -49,10 +49,10 @@ cat > /etc/init.d/generate_ssh_keys <<"GENSSH"
 
 ### BEGIN INIT INFO
 # Provides:           host-ssh-keys
-# Required-Start:     \$local_fs \$remote_fs
-# Required-Stop:      \$local_fs \$remote_fs
-# Default-Start:      2 3 4 5
-# Default-Stop:       0 1 6
+# Required-Start:     \$local_fs
+# Required-Stop:      \$local_fs
+# Default-Start:      S
+# Default-Stop:
 # Short-Description:  Generate SSH host keys on first boot.
 ### END INIT INFO
 
@@ -67,8 +67,8 @@ case "\$1" in
 		ssh-keygen -q -f /etc/ssh/ssh_host_dsa_key -t dsa -N ''
 		ssh-keygen -q -f /etc/ssh/ssh_host_ecdsa_key -t ecdsa -N ''
 		ssh-keygen -q -f /etc/ssh/ssh_host_ed25519_key -t ed25519 -N ''
-		rm -f /etc/init.d/generate_ssh_keys
 		update-rc.d generate_ssh_keys remove
+		rm -f /etc/init.d/generate_ssh_keys
 		log_end_msg \$?
 		;;
 	*)
