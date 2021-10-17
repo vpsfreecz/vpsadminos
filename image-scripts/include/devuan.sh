@@ -32,7 +32,6 @@ echo LANG=en_US.UTF-8 >> /etc/default/locale
 PATH=/tmp/:\$PATH apt-get update
 PATH=/tmp/:\$PATH apt-get upgrade -y
 PATH=/tmp/:\$PATH apt-get install -y vim openssh-server ca-certificates man net-tools ifupdown less cgroup-tools
-PATH=/tmp/:\$PATH apt-get install -y --force-yes devuan-keyring
 
 # for snapd
 PATH=/tmp/:\$PATH apt-get install -y fuse squashfuse
