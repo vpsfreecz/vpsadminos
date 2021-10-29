@@ -118,6 +118,10 @@
     # needed for osctl to access distro specific configs
     "lxc/config".source = "${pkgs.lxc}/share/lxc/config";
 
+    "mbuffer.rc".text = ''
+      tcptimeout = 0
+    '';
+
      # /etc/services: TCP/UDP port assignments.
     "services".source = pkgs.iana-etc + "/etc/services";
     # /etc/protocols: IP protocol numbers.
