@@ -418,6 +418,13 @@ let
       RING_BUFFER_BENCHMARK = no;
     };
 
+    live-patching = {
+      DYNAMIC_FTRACE_WITH_REGS = yes;
+      KALLSYMS_ALL             = yes;
+      TRIM_UNUSED_KSYMS        = no;
+      LIVEPATCH                = yes;
+    };
+
     virtualisation = {
       PARAVIRT = option yes;
 
