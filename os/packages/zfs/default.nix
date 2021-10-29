@@ -171,7 +171,7 @@ in {
   zfsStable = common {
     version = "2.0-vpsadminos";
 
-    rev = "6ba85928ca58a46f53f53843ae48c501babed074";
-    sha256 = "1bg5s6cn67h3ghgz926f2a41r8h8hazn25j2iz02015ks9camvb3";
+    rev = "65c0fd9e521b8ab85ffe78939675033dd72b84c8";
+    sha256 = "0nsn3i201a5gskl667zbjdkwbcli40n55j0dz20drbglkzgr1zmd";
   };
 }
