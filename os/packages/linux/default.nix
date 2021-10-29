@@ -7,6 +7,7 @@ let
   ) attrs);
 in
   pkgs.callPackage ./linux-5.10.nix {
+    features.debug = true;
     kernelPatches =
       [ kernelPatches.bridge_stp_helper
         # See pkgs/os-specific/linux/kernel/cpu-cgroup-v2-patches/README.md
