@@ -3,7 +3,7 @@
 with lib;
 
 callPackage ./generic.nix (args // rec {
-  version = "5.10.71";
+  version = "5.10.76";
 
   # modDirVersion needs to be x.y.z, will automatically add .0 if needed
   modDirVersion = if (modDirVersionArg == null) then concatStrings (intersperse "." (take 3 (splitString "." "${version}.0"))) else modDirVersionArg;
@@ -12,7 +12,7 @@ callPackage ./generic.nix (args // rec {
   extraMeta.branch = concatStrings (intersperse "." (take 2 (splitString "." version)));
 
   src = fetchurl {
-    url = "https://github.com/vpsfreecz/linux/archive/b81a25ac79030129ce873aae45aec5aa79ecea0d.tar.gz";
-    sha256 = "1mxca0s4ikb7w7yih9dhhgxs17840cn4scy1bvrn00a6hmgy06xd";
+    url = "https://github.com/vpsfreecz/linux/archive/ebabd3509ab49acc919f8f5e8f8b8071484ba7e2.tar.gz";
+    sha256 = "0mjk1zq03bk25wp41xp5z1z9326acs22rm1jgf8vsrw244gka25j";
   };
 } // (args.argsOverride or {}))
