@@ -85,6 +85,14 @@ if [ -d /etc/systemd ] ; then
   mkdir -p /var/log/journal
   systemctl mask var-lib-nfs-rpc_pipefs.mount
   systemctl mask rngd-wake-threshold.service
+  systemctl mask systemd-journald-audit.socket
+
+  mkdir -p /etc/systemd/system/systemd-udev-trigger.service.d
+  cat <<EOT > /etc/systemd/system/systemd-udev-trigger.service.d/vpsadminos.conf
+[Service]
+ExecStart=
+ExecStart=-udevadm trigger --subsystem-match=net --action=add
+EOT
 fi
 
 echo "%_netsharedpath /sys:/proc" >> /etc/rpm/macros.vpsadminos
