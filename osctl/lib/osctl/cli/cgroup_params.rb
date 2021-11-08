@@ -172,14 +172,12 @@ module OsCtl
           parameter: 'memory.memsw.limit_in_bytes',
           value: [mem+swap],
         }
-
       else
-        # When no swap limit is to be set, we have to remove existing swap
-        # limits
-        do_cgparam_unset(unset_cmd, cmd_opts, [{
+        limits << {
           subsystem: 'memory',
           parameter: 'memory.memsw.limit_in_bytes',
-        }])
+          value: [mem],
+        }
       end
 
       do_cgparam_set(set_cmd, cmd_opts, limits)
