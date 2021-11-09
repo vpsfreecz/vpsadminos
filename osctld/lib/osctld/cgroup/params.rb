@@ -105,24 +105,12 @@ module OsCtld
     # @param keep_going [Boolean] skip parameters that do not exist
     # @yieldparam subsystem [String] cgroup subsystem
     # @yieldreturn [String] absolute path to the cgroup directory
-    def apply(keep_going: false)
-      params.each do |p|
-        path = File.join(yield(p.subsystem), p.name)
-
-        begin
-          CGroup.set_param(path, p.value)
-
-        rescue CGroupFileNotFound
-          raise unless keep_going
-
-          log(
-            :info,
-            :cgroup,
-            "Skip #{path}, group or parameter does not exist"
-          )
-          next
-        end
+    def apply(keep_going: false, &block)
+      failed = apply_params(params, keep_going: keep_going, &block).select do |p|
+        p.name.start_with?('memory.')
       end
+
+      apply_params(failed, keep_going: keep_going, &block) if failed.any?
     end
 
     # Replace all parameters by a new list of parameters
@@ -180,6 +168,33 @@ module OsCtld
 
     protected
     attr_reader :owner, :params
+
+    # @param param_list [Array<CGroup::Param>]
+    # @param keep_going [Boolean]
+    # @return [Array<CGroup::Param>] parameters that failed to set
+    def apply_params(param_list, keep_going: false)
+      failed = []
+
+      param_list.each do |p|
+        path = File.join(yield(p.subsystem), p.name)
+
+        begin
+          failed << p unless CGroup.set_param(path, p.value)
+
+        rescue CGroupFileNotFound
+          raise unless keep_going
+
+          log(
+            :info,
+            :cgroup,
+            "Skip #{path}, group or parameter does not exist"
+          )
+          next
+        end
+      end
+
+      failed
+    end
 
     def reset_value(param)
       case param.name
