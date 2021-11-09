@@ -122,8 +122,10 @@ module OsCtld
       v
     end
 
+    # @return [Boolean]
     def self.set_param(path, value)
       raise CGroupFileNotFound.new(path, value) unless File.exist?(path)
+      ret = true
 
       value.each do |v|
         log(:info, :cgroup, "Set #{path}=#{v}")
@@ -137,8 +139,11 @@ module OsCtld
             :cgroup,
             "Unable to set #{path}=#{v}: #{e.message}"
           )
+          ret = false
         end
       end
+
+      ret
     end
 
     # Remove cgroup path
