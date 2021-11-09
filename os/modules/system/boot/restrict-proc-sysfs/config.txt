@@ -1,5 +1,6 @@
 restrict   /proc/bus
 restrict   /proc/sched_debug
+restrict   /proc/spl
 restrict   /sys/block
 restrict   /sys/bus/*
 skip       /sys/bus/pci
