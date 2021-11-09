@@ -14,10 +14,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1fki1aipqafqlg8xy25ykk0ql1dciy9kk6lcp5gzgkh9ccmaxzf3";
+      sha256 = "07cszb0zl8mqmwhc8a2yfg36vi6lbgrp4pa5bvmryrpcz9v6viwg";
       type = "gem";
     };
-    version = "1.4.0";
+    version = "1.4.1";
   };
   eventmachine = {
     groups = ["default"];
@@ -64,10 +64,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0lrirj0gw420kw71bjjlqkqhqbrplla61gbv1jzgsz6bv90qr3ci";
+      sha256 = "1z9grvjyfz16ag55hg522d3q4dh07hf391sf9s96npc0vfi85xkz";
       type = "gem";
     };
-    version = "2.5.1";
+    version = "2.6.1";
   };
   libosctl = {
     dependencies = ["rainbow" "require_all"];
@@ -75,10 +75,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0nmn902qlwv6i2dvlzfjhyq0kyb4m4pavvcxl9m09ny3780rfk26";
+      sha256 = "1x8ywc687dz68k9423nnzkhxkl3ha8az585afavdxisgv0280w8b";
       type = "gem";
     };
-    version = "21.05.0.build20210825131711";
+    version = "21.05.0.build20211109163352";
   };
   osctl = {
     dependencies = ["curses" "gli" "highline" "ipaddress" "json" "libosctl" "rainbow" "require_all" "ruby-progressbar"];
@@ -86,10 +86,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1vwlvldsig6pcfypqqy34lhvwhf6zqiwlhxwh25hipfm7rb47ij3";
+      sha256 = "00fcgfq9ljz689xc34pjnfvmnl8i2kxc5nlwxrwb46qb0ydfq2p9";
       type = "gem";
     };
-    version = "21.05.0.build20210825131711";
+    version = "21.05.0.build20211109163352";
   };
   osctl-exporter = {
     dependencies = ["json" "libosctl" "osctl" "prometheus-client" "require_all" "thin"];
@@ -97,10 +97,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0n49zszpwvginji50m31h4rm3b62i6hzlxkxn89a8k02mhpwwqsy";
+      sha256 = "05fmpkl0ynk0gcz25abq1sa6kmrl8spd9afjv3h9l0mb21fsy578";
       type = "gem";
     };
-    version = "21.05.0.build20210825131711";
+    version = "21.05.0.build20211109163352";
   };
   prometheus-client = {
     groups = ["default"];

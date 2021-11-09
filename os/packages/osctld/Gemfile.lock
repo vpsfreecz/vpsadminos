@@ -5,31 +5,31 @@ GEM
     filelock (1.1.1)
     gli (2.20.1)
     ipaddress (0.8.3)
-    json (2.5.1)
-    libosctl (21.05.0.build20210825131711)
+    json (2.6.1)
+    libosctl (21.05.0.build20211109163352)
       rainbow (~> 3.0.0)
       require_all (~> 2.0.0)
     netlinkrb (0.18.vpsadminos.0)
-    osctl-repo (21.05.0.build20210825131711)
+    osctl-repo (21.05.0.build20211109163352)
       filelock
       gli (~> 2.20.0)
       json
-      libosctl (= 21.05.0.build20210825131711)
+      libosctl (= 21.05.0.build20211109163352)
       require_all (~> 2.0.0)
-    osctld (21.05.0.build20210825131711)
+    osctld (21.05.0.build20211109163352)
       concurrent-ruby (~> 1.0.5)
       ipaddress (~> 0.8.3)
       json
-      libosctl (= 21.05.0.build20210825131711)
+      libosctl (= 21.05.0.build20211109163352)
       netlinkrb (= 0.18.vpsadminos.0)
-      osctl-repo (= 21.05.0.build20210825131711)
-      osup (= 21.05.0.build20210825131711)
+      osctl-repo (= 21.05.0.build20211109163352)
+      osup (= 21.05.0.build20211109163352)
       require_all (~> 2.0.0)
       ruby-lxc (= 1.2.4.vpsadminos.3)
-    osup (21.05.0.build20210825131711)
+    osup (21.05.0.build20211109163352)
       gli (~> 2.20.0)
       json
-      libosctl (= 21.05.0.build20210825131711)
+      libosctl (= 21.05.0.build20211109163352)
       require_all (~> 2.0.0)
     rainbow (3.0.0)
     require_all (2.0.0)
@@ -39,7 +39,7 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
-  osctld (= 21.05.0.build20210825131711)
+  osctld (= 21.05.0.build20211109163352)
 
 BUNDLED WITH
    2.1.4
