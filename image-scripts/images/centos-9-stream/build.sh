@@ -34,3 +34,4 @@ EOT
 EOF
 
 run-configure
+set-initcmd "/sbin/init" "systemd.unified_cgroup_hierarchy=0"
