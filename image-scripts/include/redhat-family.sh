@@ -95,6 +95,8 @@ ExecStart=-udevadm trigger --subsystem-match=net --action=add
 EOT
 fi
 
+sed -i -e 's/^#PermitRootLogin\ prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
+
 echo "%_netsharedpath /sys:/proc" >> /etc/rpm/macros.vpsadminos
 EOF
 }
