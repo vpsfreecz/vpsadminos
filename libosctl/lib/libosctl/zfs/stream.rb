@@ -44,7 +44,7 @@ module OsCtl::Lib
       @progress = []
 
       @opts[:intermediary] = true unless @opts.has_key?(:intermediary)
-      @opts[:compressed] = true unless @opts.has_key?(:compressed)
+      @opts[:compressed] = false unless @opts.has_key?(:compressed)
       @opts[:properties] = true unless @opts.has_key?(:properties)
       @opts[:large_block] = true unless @opts.has_key?(:large_block)
     end
