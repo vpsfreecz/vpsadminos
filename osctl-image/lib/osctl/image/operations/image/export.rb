@@ -58,7 +58,7 @@ module OsCtl::Image
         container_config,
         f,
         compression: :gzip,
-        compressed_send: true,
+        compressed_send: false,
       )
 
       exporter.dump_metadata('full')
