@@ -7,31 +7,31 @@ GEM
     highline (2.0.3)
     ipaddress (0.8.3)
     json (2.6.1)
-    libosctl (21.05.0.build20211109163352)
+    libosctl (21.05.0.build20211115110014)
       rainbow (~> 3.0.0)
       require_all (~> 2.0.0)
-    osctl (21.05.0.build20211109163352)
+    osctl (21.05.0.build20211115110014)
       curses
       gli (~> 2.20.0)
       highline (~> 2.0.3)
       ipaddress (~> 0.8.3)
       json
-      libosctl (= 21.05.0.build20211109163352)
+      libosctl (= 21.05.0.build20211115110014)
       rainbow (~> 3.0.0)
       require_all (~> 2.0.0)
       ruby-progressbar (~> 1.11.0)
-    osctl-image (21.05.0.build20211109163352)
+    osctl-image (21.05.0.build20211115110014)
       gli (~> 2.20.0)
       json
-      libosctl (= 21.05.0.build20211109163352)
-      osctl (= 21.05.0.build20211109163352)
-      osctl-repo (= 21.05.0.build20211109163352)
+      libosctl (= 21.05.0.build20211115110014)
+      osctl (= 21.05.0.build20211115110014)
+      osctl-repo (= 21.05.0.build20211115110014)
       require_all (~> 2.0.0)
-    osctl-repo (21.05.0.build20211109163352)
+    osctl-repo (21.05.0.build20211115110014)
       filelock
       gli (~> 2.20.0)
       json
-      libosctl (= 21.05.0.build20211109163352)
+      libosctl (= 21.05.0.build20211115110014)
       require_all (~> 2.0.0)
     rainbow (3.0.0)
     require_all (2.0.0)
@@ -41,7 +41,7 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
-  osctl-image (= 21.05.0.build20211109163352)
+  osctl-image (= 21.05.0.build20211115110014)
 
 BUNDLED WITH
    2.1.4
