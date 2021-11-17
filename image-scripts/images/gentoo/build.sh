@@ -36,7 +36,6 @@ emerge-webrsync -v
 
 sed -i '/^USE=/d' /etc/portage/make.conf
 echo 'USE="-udev"' >> /etc/portage/make.conf
-echo "=sys-apps/openrc-0.35* ~amd64" > /etc/portage/package.keywords/image
 echo "sys-apps/busybox mdev" > /etc/portage/package.use/image
 
 cp -p /etc/portage/make.conf /etc/portage/make.conf.orig
