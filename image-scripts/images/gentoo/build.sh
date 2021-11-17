@@ -4,7 +4,7 @@ BASEURL=https://mirror.vpsfree.cz/gentoo
 require_cmd curl
 
 STAGE3_BASE_URL="${BASEURL}/releases/amd64/autobuilds"
-STAGE3_TARBALL_URL="${STAGE3_BASE_URL}/$(curl "${STAGE3_BASE_URL}/latest-stage3-amd64.txt" | grep -o -m 1 -P '^[\dTZ]+/stage3-amd64-[\dTZ]+.tar.xz')"
+STAGE3_TARBALL_URL="${STAGE3_BASE_URL}/$(curl "${STAGE3_BASE_URL}/latest-stage3-amd64-openrc.txt" | grep -o -m 1 -P '^[\dTZ]+/stage3-amd64-openrc-[\dTZ]+.tar.xz')"
 STAGE3_TARBALL="$(basename $STAGE3_TARBALL_URL)"
 
 
