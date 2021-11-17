@@ -39,9 +39,14 @@ echo 'USE="-udev"' >> /etc/portage/make.conf
 echo "=sys-apps/openrc-0.35* ~amd64" > /etc/portage/package.keywords/image
 echo "sys-apps/busybox mdev" > /etc/portage/package.use/image
 
+cp -p /etc/portage/make.conf /etc/portage/make.conf.orig
+echo 'MAKEOPTS="-j$(nproc)"' >> /etc/portage/make.conf
+
 emerge --unmerge udev
 emerge --update --deep --newuse --with-bdeps=y --backtrack=120 @system @world
 emerge busybox dhcpcd iproute2 vim
+
+mv /etc/portage/make.conf.orig /etc/portage/make.conf
 
 sed -ri 's/^#rc_sys=""/rc_sys="lxc"/' /etc/rc.conf
 sed -ri 's/^([^#].*agetty.*)$/#\1/' /etc/inittab
