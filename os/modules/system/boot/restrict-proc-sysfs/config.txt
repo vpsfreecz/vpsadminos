@@ -5,6 +5,7 @@ restrict   /sys/block
 restrict   /sys/bus/*
 skip       /sys/bus/pci
 restrict   /sys/class/*
+skip       /sys/class/dmi
 skip       /sys/class/mem
 skip       /sys/class/misc
 skip       /sys/class/net
@@ -19,6 +20,7 @@ skip       /sys/devices/system/cpu
 skip       /sys/devices/system/node
 skip       /sys/devices/virtual
 restrict   /sys/devices/virtual/*
+skip       /sys/devices/virtual/dmi
 skip       /sys/devices/virtual/mem
 skip       /sys/devices/virtual/misc
 skip       /sys/devices/virtual/net
