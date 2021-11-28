@@ -10,7 +10,7 @@ readonly BASEURL="http://cz.alpinelinux.org/alpine/v$RELVER"
 readonly APORTS_URI="git://git.alpinelinux.org/aports"
 readonly APORTS_DIR="$DOWNLOAD/aports"
 readonly APK="$DOWNLOAD/apk.static"
-readonly APK_KEYS_DIR="$APORTS_DIR/main/alpine-keys"
+readonly APK_KEYS_DIR="$DOWNLOAD/keys"
 readonly APK_KEYS_SHA256="\
 	9c102bcc376af1498d549b77bdbfa815ae86faa1d2d82f040e616b18ef2df2d4  alpine-devel@lists.alpinelinux.org-4a6a0840.rsa.pub
 	ebf31683b56410ecc4c00acd9f6e2839e237a3b62b5ae7ef686705c7ba0396a9  alpine-devel@lists.alpinelinux.org-5243ef4b.rsa.pub
@@ -60,9 +60,13 @@ fetch-apk-keys() {
 	local line keyname
 
 	git clone --depth 1 "$APORTS_URI" "$APORTS_DIR" || die 2 "Failed to clone aports"
+	mkdir -p "$APK_KEYS_DIR"
 	cd "$APK_KEYS_DIR"
 
 	echo "$APK_KEYS_SHA256" | while read -r line; do
+		keyname="${line##* }"
+		cp -p "$APORTS_DIR/main/alpine-keys/$keyname" "$keyname" \
+			|| die 2 'Failed to copy key'
 		echo "$line" | sha256sum -c - \
 			|| die 2 'Failed to fetch or verify APK keys'
 	done
