@@ -130,6 +130,7 @@ in
   '';
 
   runit.stage3 = ''
+    hwclock -w
     osctl shutdown --force
     hwclock -w
     echo and down we go
