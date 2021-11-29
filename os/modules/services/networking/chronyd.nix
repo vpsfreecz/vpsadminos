@@ -41,6 +41,34 @@ in
       runit.services.chronyd.run = ''
         exec ${pkgs.chrony}/bin/chronyd -n -m -u chrony -f ${chrony_config}
       '';
+
+      runit.services.set-clock = {
+        run = ''
+          ensureServiceStarted networking
+          ensureServiceStarted chronyd
+
+          set_clock() {
+            for i in {1..10} ; do
+              msg=$(chronyc makestep)
+              rc=$?
+
+              [ "$rc" == 0 ] && [ "$msg" == "200 OK" ] && return 0
+              sleep 1
+            done
+
+            return 1
+          }
+
+          if set_clock ; then
+            echo "System clock set"
+          else
+            echo "Unable to set clock"
+          fi
+        '';
+        oneShot = true;
+        onChange = "ignore";
+      };
+
       environment.systemPackages = [ pkgs.chrony ];
       users.groups.chrony = { gid = config.ids.gids.chrony; };
 
