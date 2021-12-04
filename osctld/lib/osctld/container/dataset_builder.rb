@@ -72,9 +72,12 @@ module OsCtld
     def from_stream(ds)
       progress('Writing image stream')
 
-      IO.popen("exec zfs recv -F #{ds}", 'r+') do |io|
-        yield(io)
-      end
+      r, w = IO.pipe
+
+      pid = Process.spawn('zfs', 'recv', '-F', ds.to_s, in: r)
+      r.close
+      yield(w)
+      Process.wait(pid)
 
       if $?.exitstatus != 0
         fail "zfs recv failed with exit status #{$?.exitstatus}"
