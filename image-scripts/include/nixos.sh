@@ -1,4 +1,4 @@
-OS_BRANCH=master
+OS_BRANCH=staging
 
 function build-nixos {
 	local vpsadminos=
