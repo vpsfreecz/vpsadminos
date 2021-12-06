@@ -152,7 +152,6 @@ cat <<EOT > /etc/NetworkManager/conf.d/vpsadminos.conf
 dns=none
 plugins+=ifcfg-rh
 rc-manager=file
-configure-and-quit=true
 EOT
 EOF
 }
