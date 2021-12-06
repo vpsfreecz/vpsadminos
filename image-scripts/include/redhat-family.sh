@@ -146,6 +146,7 @@ function configure-rhel-8 {
 /usr/bin/systemctl mask kdump.service
 /usr/bin/systemctl mask plymouth-start.service
 /usr/bin/systemctl mask tuned.service
+/usr/bin/systemctl mask sys-kernel-config.mount
 
 cat <<EOT > /etc/NetworkManager/conf.d/vpsadminos.conf
 [main]
