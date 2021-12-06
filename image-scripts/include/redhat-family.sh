@@ -161,7 +161,7 @@ EOT
 mkdir -p /etc/systemd/system/user@.service.d
 cat <<EOT > /etc/systemd/system/user@.service.d/vpsadminos.conf
 [Service]
-TimeoutStopSec=10s
+TimeoutStopSec=15s
 EOT
 EOF
 }
