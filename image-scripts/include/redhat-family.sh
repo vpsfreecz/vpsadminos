@@ -154,6 +154,15 @@ dns=none
 plugins+=ifcfg-rh
 rc-manager=file
 EOT
+
+# TODO: This is a workaround for user@ services to hang on shutdown until
+# a two minute timeout is reached. It's enough to login as root over SSH and
+# reboot to trigger this issue.
+mkdir -p /etc/systemd/system/user@.service.d
+cat <<EOT > /etc/systemd/system/user@.service.d/vpsadminos.conf
+[Service]
+TimeoutStopSec=10s
+EOT
 EOF
 }
 
