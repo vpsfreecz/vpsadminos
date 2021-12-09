@@ -39,13 +39,14 @@ in
   config = mkMerge [
     (mkIf (config.networking.chronyd) {
       runit.services.chronyd.run = ''
+        waitForNetworkOnline 60
         exec ${pkgs.chrony}/bin/chronyd -n -m -u chrony -f ${chrony_config}
       '';
 
       runit.services.set-clock = {
         run = ''
-          ensureServiceStarted networking
-          ensureServiceStarted chronyd
+          waitForNetworkOnline 60
+          waitForService chronyd
 
           set_clock() {
             for i in {1..10} ; do
