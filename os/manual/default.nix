@@ -36,7 +36,7 @@ let
     moduleRootPaths = [ ./../.. <nixpkgs> ];
     mkModuleUrl = path:
       if isOsModule path then
-        "https://github.com/vpsfreecz/vpsadminos/blob/master/${path}#blob-path"
+        "https://github.com/vpsfreecz/vpsadminos/blob/staging/${path}#blob-path"
       else
         "https://github.com/NixOS/nixpkgs/blob/master/${path}#blob-path";
     mkChannelPath = path:

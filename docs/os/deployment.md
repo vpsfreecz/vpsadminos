@@ -43,7 +43,7 @@ let
   nixpkgsUrl = "https://github.com/vpsfreecz/nixpkgs/archive/vpsadminos.tar.gz";
   nixpkgs = builtins.fetchTarball nixpkgsUrl;
 
-  vpsadminosUrl = "https://github.com/vpsfreecz/vpsadminos/archive/master.tar.gz";
+  vpsadminosUrl = "https://github.com/vpsfreecz/vpsadminos/archive/staging.tar.gz";
   vpsadminos = builtins.fetchTarball vpsadminosUrl;
 in
 {

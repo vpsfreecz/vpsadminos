@@ -67,7 +67,7 @@ in
       type = types.str;
       default = if pathIsDirectory gitRepo then commitIdFromGitRepo gitRepo
                 else if pathExists revisionFile then fileContents revisionFile
-                else "master";
+                else "staging";
       description = "The Git revision from which this vpsAdminOS configuration was built.";
     };
 

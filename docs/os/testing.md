@@ -6,7 +6,7 @@ a different implementation.
 
 Tests are run on one or more virtual machines running vpsAdminOS. These machines
 are managed by the test framework. All tests can be found in the
-[vpsAdminOS repository](https://github.com/vpsfreecz/vpsadminos/tree/master/tests).
+[vpsAdminOS repository](https://github.com/vpsfreecz/vpsadminos/tree/staging/tests).
 
 ## Writing a test
 Each test is a Nix file stored in directory `tests/suite`. A test has a name,
