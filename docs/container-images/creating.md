@@ -36,8 +36,8 @@ See man [osctl-image(8)] for more information.
 vpsAdminOS host. The build scripts have to be in the current working directory:
 
 ```shell
-git clone -b vpsadminos https://github.com/vpsfreecz/build-vpsfree-templates vpsadminos-templates
-cd vpsadminos-templates
+git clone -b vpsadminos https://github.com/vpsfreecz/vpsadminos-image-build-scripts
+cd vpsadminos-image-build-scripts
 ```
 
 List available images:
@@ -101,6 +101,6 @@ repositories.
 Containers managed by `osctl-image` can be seen using `osctl-image ct ls`
 and deleted with `osctl-image ct del`.
 
-[vpsadminos-templates]: https://github.com/vpsfreecz/build-vpsfree-templates/tree/vpsadminos
+[vpsadminos-templates]: https://github.com/vpsfreecz/vpsadminos-image-build-scripts
 [osctl-image(8)]: https://man.vpsadminos.org/osctl-image/man8/osctl-image.8.html
 [repositories]: repositories.md
