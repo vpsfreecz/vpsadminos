@@ -195,9 +195,9 @@ the owner of the container should be able to add his own configuration. For
 example, the included Debian configuration can be extended by creating
 `/etc/network/interfaces.{head,tail}` or files in `/etc/network/interfaces.d/`.
 
-[dist config dir]: https://github.com/vpsfreecz/vpsadminos/tree/master/osctld/lib/osctld/dist_config
+[dist config dir]: https://github.com/vpsfreecz/vpsadminos/tree/staging/osctld/lib/osctld/dist_config
 [OsCtld::DistConfig::Base]: https://ref.vpsadminos.org/osctld/OsCtld/DistConfig/Base.html
 [OsCtld::DistConfig::Unsupported]: https://ref.vpsadminos.org/osctld/OsCtld/DistConfig/Unsupported.html
 [OsCtld::DistConfig]: https://ref.vpsadminos.org/osctld/OsCtld/DistConfig.html
-[osctld/templates/]: https://github.com/vpsfreecz/vpsadminos/tree/master/osctld/templates
+[osctld/templates/]: https://github.com/vpsfreecz/vpsadminos/tree/staging/osctld/templates
 [OsCtld::Template]: https://ref.vpsadminos.org/osctld/OsCtld/Template.html

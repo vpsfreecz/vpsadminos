@@ -4,7 +4,7 @@
 # If you're experiencing issues, try updating this file to the latest version
 # from vpsAdminOS repository:
 #
-#   https://github.com/vpsfreecz/vpsadminos/blob/master/os/lib/nixos-container/vpsadminos.nix
+#   https://github.com/vpsfreecz/vpsadminos/blob/staging/os/lib/nixos-container/vpsadminos.nix
 
 { config, pkgs, lib, ...}:
 with lib;
