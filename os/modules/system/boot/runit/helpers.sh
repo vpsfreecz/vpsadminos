@@ -116,6 +116,18 @@ function ensureServiceStarted {
   fail "Service $service not started, aborting"
 }
 
+function waitForNetworkOnline {
+  local attempts="$1"
+
+  for i in $(seq 1 $attempts) ; do
+    serviceStarted network-online && return 0
+    warn "Waiting for network to come online"
+    sleep 1
+  done
+
+  return 1
+}
+
 function isKernelParamSet {
   local param="$1"
 

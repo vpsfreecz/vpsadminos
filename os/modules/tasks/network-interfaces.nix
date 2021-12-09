@@ -205,6 +205,36 @@ in {
       runlevels = [ "rescue" "default" ];
     };
 
+    runit.services.network-online = {
+      run = ''
+        ensureServiceStarted networking
+
+        wait_online() {
+          for i in {1..450} ; do
+            sleep 1
+            ping -c 1 8.8.8.8 >/dev/null 2>&1 && return 0
+            warn "Waiting for network to come online..."
+
+            sleep 1
+            ping -c 1 1.1.1.1 >/dev/null 2>&1 && return 0
+            warn "Waiting for network to come online..."
+          done
+
+          return 1
+        }
+
+        if ! wait_online ; then
+          warn "Timed out while waiting for network to come online"
+          exit 1
+        fi
+      '';
+      oneShot = true;
+      onChange = "ignore";
+      runlevels = [ "rescue" "default" ];
+      log.enable = true;
+      log.sendTo = "127.0.0.1";
+    };
+
     networking.firewall.extraCommands = optionalString cfg.lxcbr ''
       iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
     '';
