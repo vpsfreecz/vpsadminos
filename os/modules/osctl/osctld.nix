@@ -40,6 +40,12 @@ in
         waitForService restrict-proc-sysfs
         ''}
 
+        waitForNetworkOnline 60
+
+        ${optionalString config.networking.chronyd ''
+        waitForService set-clock 15
+        ''}
+
         exec 2>&1
         exec ${pkgs.osctld}/bin/osctld --log syslog --log-facility local2
       '';

@@ -102,11 +102,22 @@ function serviceStarted {
 
 function waitForService {
   local service="$1"
+  local timeout="$2"
 
-  until serviceStarted "$service" ; do
-    warn "Waiting for service $service to start"
-    sleep 1
-  done
+  if [ "$timeout" == "" ] ; then
+    until serviceStarted "$service" ; do
+      warn "Waiting for service $service to start"
+      sleep 1
+    done
+  else
+    for i in $(seq 1 $timeout) ; do
+      serviceStarted "$service" && return 0
+      warn "Waiting for service $service to start"
+      sleep 1
+    done
+
+    return 1
+  fi
 }
 
 function ensureServiceStarted {
