@@ -5,7 +5,7 @@ repositories, or they can be imported from local files.
 
 Without any configuration, images will be downloaded from the *default*
 repository. Our images are built using
-[image-build-scripts](https://github.com/vpsfreecz/build-vpsfree-templates/tree/vpsadminos)
+[image-build-scripts](https://github.com/vpsfreecz/vpsadminos-image-build-scripts)
 and are used in production at [vpsFree.cz](https://vpsfree.org). Images can also
 be created from existing containers.
 
