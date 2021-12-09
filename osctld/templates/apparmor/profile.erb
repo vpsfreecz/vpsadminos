@@ -82,6 +82,15 @@ profile "<%= name %>" flags=(attach_disconnected,mediate_deleted) {
   mount options=(rw,make-unbindable) -> **,
   mount options=(rw,make-runbindable) -> **,
 
+  mount options=(rw,silent,make-slave) -> **,
+  mount options=(rw,silent,make-rslave) -> **,
+  mount options=(rw,silent,make-shared) -> **,
+  mount options=(rw,silent,make-rshared) -> **,
+  mount options=(rw,silent,make-private) -> **,
+  mount options=(rw,silent,make-rprivate) -> **,
+  mount options=(rw,silent,make-unbindable) -> **,
+  mount options=(rw,silent,make-runbindable) -> **,
+
   # Allow all bind-mounts
   mount options=(rw,bind),
   mount options=(rw,rbind),
