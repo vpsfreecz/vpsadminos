@@ -230,7 +230,7 @@ in {
       '';
       oneShot = true;
       onChange = "ignore";
-      runlevels = [ "rescue" "default" ];
+      runlevels = [ "default" ];
       log.enable = true;
       log.sendTo = "127.0.0.1";
     };
