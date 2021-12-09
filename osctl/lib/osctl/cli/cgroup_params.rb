@@ -360,7 +360,14 @@ module OsCtl
       @cg_subsystems.each do |name, path|
         cgpath = File.join(path, 'osctl')
 
-        Dir.entries(cgpath).each do |v|
+        begin
+          entries = Dir.entries(cgpath)
+        rescue Errno::ENOENT
+          # the /osctl cgroup does not exist when there are no containers
+          return params
+        end
+
+        entries.each do |v|
           next if %w(. .. notify_on_release release_agent tasks).include?(v)
           next if v.start_with?('cgroup.')
 
