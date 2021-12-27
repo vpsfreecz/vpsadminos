@@ -273,7 +273,7 @@ in
       extraFiles = mkOption {
         type = types.attrsOf types.path;
         default = {};
-        example = literalExample ''
+        example = literalExpression ''
           { "memtest.bin" = "''${pkgs.memtest86plus}/memtest.bin"; }
         '';
         description = ''
@@ -307,7 +307,7 @@ in
 
       splashImage = mkOption {
         type = types.nullOr types.path;
-        example = literalExample "./my-background.png";
+        example = literalExpression "./my-background.png";
         description = ''
           Background image used for GRUB.
           Set to <literal>null</literal> to run GRUB in text mode.
@@ -339,7 +339,7 @@ in
 
       fontSize = mkOption {
         type = types.nullOr types.int;
-        example = literalExample 16;
+        example = literalExpression "16";
         default = null;
         description = ''
           Font size for the grub menu. Ignored unless <literal>font</literal>

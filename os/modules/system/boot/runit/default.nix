@@ -379,7 +379,6 @@ in
     runit.services = mkOption {
       type = types.attrsOf (types.submodule service);
       default = {};
-      example = literalExample "";
       description = "System services";
     };
   };

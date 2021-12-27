@@ -273,7 +273,7 @@ in
           is the path it should be copied from (or null for the same
           path inside and out).
         '';
-      example = literalExample
+      example = literalExpression
         ''
           { "/etc/dropbear/dropbear_rsa_host_key" =
               ./secret-dropbear-key;

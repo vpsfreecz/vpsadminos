@@ -146,7 +146,6 @@ in
     osctl.pools = mkOption {
       type = types.attrsOf (types.submodule pool);
       default = {};
-      example = literalExample "";
       description = "osctl pools to configure";
     };
   };

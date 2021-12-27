@@ -55,7 +55,7 @@ in
       systemPackages = mkOption {
         type = types.listOf types.package;
         default = [];
-        example = literalExample "[ pkgs.firefox pkgs.thunderbird ]";
+        example = literalExpression "[ pkgs.firefox pkgs.thunderbird ]";
       };
       pathsToLink = mkOption {
         type = types.listOf types.str;
