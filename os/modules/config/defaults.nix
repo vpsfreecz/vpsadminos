@@ -106,7 +106,12 @@
   };
 
   security.wrappers = {
-    lxc-user-nic.source = "${pkgs.lxc}/libexec/lxc/lxc-user-nic";
+    lxc-user-nic = {
+      source = "${pkgs.lxc}/libexec/lxc/lxc-user-nic";
+      owner = "root";
+      group = "root";
+      setuid = true;
+    };
   };
 
   environment.etc = {
