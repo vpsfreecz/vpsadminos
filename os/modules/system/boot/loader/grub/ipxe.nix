@@ -37,7 +37,7 @@ in
           { demo = '''
               #!ipxe
               dhcp
-              chain http://boot.vpsadminos.org/script.ipxe
+              chain http://boot.ipxe.org/demo/boot.php
             ''';
           }
         '';
