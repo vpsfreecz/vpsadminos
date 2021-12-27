@@ -26,6 +26,7 @@ module OsCtld
         io = client.recv_io
 
         pid = Process.spawn('zfs', 'recv', '-F', '-u', ds.name, in: io)
+        io.close
         Process.wait(pid)
 
         if $?.exitstatus == 0
