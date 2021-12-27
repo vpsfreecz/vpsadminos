@@ -387,9 +387,11 @@ in
   ### Implementation
   config = mkMerge [
     {
-      users.extraUsers.log = {
+      users.users.log = {
         uid = 497;
+        group = "log";
       };
+      users.groups.log = {};
 
       environment.etc = {
         "runit/1".source = mkStage "1" config.runit.stage1;

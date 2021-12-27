@@ -130,17 +130,25 @@
     "rpc".source = pkgs.glibc.out + "/etc/rpc";
   };
 
-  users.extraUsers.osctl-ct-receive = {
-    uid = 499;
-    description = "User for container send/receive";
-    home = "/run/osctl/send-receive";
-    shell = pkgs.bashInteractive;
-  };
+  users = {
+    users.osctl-ct-receive = {
+      uid = 499;
+      description = "User for container send/receive";
+      home = "/run/osctl/send-receive";
+      shell = pkgs.bashInteractive;
+      group = "osctl-ct-receive";
+    };
 
-  users.extraUsers.repository = {
-    uid = 498;
-    description = "User for remote repository access/cache";
-    home = "/run/osctl/repository";
+    groups.osctl-ct-receive = {};
+
+    users.repository = {
+      uid = 498;
+      description = "User for remote repository access/cache";
+      home = "/run/osctl/repository";
+      group = "repository";
+    };
+
+    groups.repository = {};
   };
 
   programs.ssh.package = pkgs.openssh;
