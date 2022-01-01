@@ -76,7 +76,7 @@ module OsCtld
       tmp = []
       created = false
 
-      path.each do |name|
+      path.each_with_index do |name, i|
         tmp << name
         cgroup = File.join(base, *tmp)
 
@@ -91,6 +91,10 @@ module OsCtld
         rescue Errno::EEXIST
           created = false
           next
+        end
+
+        if v2? && (i+1 < path.length || !attach)
+          delegate_available_controllers(cgroup)
         end
 
         init_cgroup(type, base, cgroup)
@@ -158,6 +162,22 @@ module OsCtld
       v = inherit_param(base, File.dirname(cgroup), param)
       set_param(File.join(cgroup, param), [v])
       v
+    end
+
+    # Enable all available controllers on cgroup
+    # @param cgroup [String] absolute path of the cgroup
+    def self.delegate_available_controllers(cgroup)
+      cmd = available_controllers(cgroup).map do |controller|
+        "+#{controller}"
+      end.join(' ')
+
+      File.write(File.join(cgroup, 'cgroup.subtree_control'), cmd)
+    end
+
+    # @param cgroup [String] absolute path of the cgroup
+    # @return [Array<String>]
+    def self.available_controllers(cgroup)
+      File.read(File.join(cgroup, 'cgroup.controllers')).strip.split
     end
 
     # @return [Boolean]
