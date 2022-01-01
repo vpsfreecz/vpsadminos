@@ -9,6 +9,7 @@ module OsCtld
     LXC_CONFIG_DIR = File.join(CONFIG_DIR, 'lxc')
     APPARMOR_DIR = File.join(CONFIG_DIR, 'apparmor')
     SHUTDOWN_MARKER = File.join(RUNDIR, 'shutdown')
+    CGROUP_VERSION = File.join(RUNDIR, 'cgroup.version')
 
     def self.create
       mkdir_p(RUNDIR, 0711)

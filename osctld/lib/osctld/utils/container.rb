@@ -48,7 +48,7 @@ module OsCtld
 
       begin
         %w(blkio cpuacct memory).each do |subsys|
-          CGroup.rmpath(CGroup.real_subsystem(subsys), ct.base_cgroup_path)
+          CGroup.rmpath(subsys, ct.base_cgroup_path)
         end
       rescue SystemCallError => e
         ct.log(:warn, "Error occurred while pruning cgroups: #{e.message}")

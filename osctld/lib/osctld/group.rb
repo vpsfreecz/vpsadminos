@@ -122,15 +122,11 @@ module OsCtld
     end
 
     def abs_cgroup_path(subsystem)
-      File.join(CGroup::FS, CGroup.real_subsystem(subsystem), cgroup_path)
+      CGroup.abs_cgroup_path(subsystem, cgroup_path)
     end
 
     def abs_full_cgroup_path(subsystem, user)
-      File.join(
-        CGroup::FS,
-        CGroup.real_subsystem(subsystem),
-        full_cgroup_path(user)
-      )
+      CGroup.abs_cgroup_path(subsystem, full_cgroup_path(user))
     end
 
     def userdir(user)

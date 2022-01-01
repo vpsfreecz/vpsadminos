@@ -419,11 +419,11 @@ module OsCtld
     end
 
     def abs_cgroup_path(subsystem)
-      File.join(CGroup::FS, CGroup.real_subsystem(subsystem), cgroup_path)
+      CGroup.abs_cgroup_path(subsystem, cgroup_path)
     end
 
     def abs_apply_cgroup_path(subsystem)
-      File.join(CGroup::FS, CGroup.real_subsystem(subsystem), base_cgroup_path)
+      CGroup.abs_cgroup_path(subsystem, base_cgroup_path)
     end
 
     def set(opts)

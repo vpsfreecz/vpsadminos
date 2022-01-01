@@ -25,16 +25,10 @@ module OsCtld
       new_params.map do |hash|
         p = CGroup::Param.import(hash)
 
-        # Check if the subsystem is valid
-        subsys = CGroup.real_subsystem(p.subsystem)
-        path = File.join(CGroup::FS, subsys)
-
-        unless Dir.exist?(path)
-          raise CGroupSubsystemNotFound,
-            "CGroup subsystem '#{p.subsystem}' not found at '#{path}'"
-        end
-
         # Check parameter
+        subsys = CGroup.real_subsystem(p.subsystem)
+        path = CGroup.abs_cgroup_path(subsys)
+
         param = File.join(path, 'osctl', p.name)
 
         unless File.exist?(param)

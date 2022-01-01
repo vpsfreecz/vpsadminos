@@ -6,6 +6,28 @@ module OsCtld
 
     FS = '/sys/fs/cgroup'
 
+    # @return [1, 2] cgroup hierarchy version
+    def self.version
+      return @version if @version
+
+      begin
+        @version = File.read(RunState::CGROUP_VERSION).strip.to_i
+      rescue Errno::ENOENT
+        @version = 1
+      end
+
+      @version = 1 if ![1, 2].include?(@version)
+      @version
+    end
+
+    def self.v1?
+      version == 1
+    end
+
+    def self.v2?
+      version == 2
+    end
+
     # Convert a single subsystem name to the mountpoint name, because some
     # CGroup subsystems are mounted in a shared mountpoint.
     def self.real_subsystem(subsys)
@@ -17,7 +39,23 @@ module OsCtld
     # Returns a list of mounted CGroup subsystems on the system
     # @return [Array<String>]
     def self.subsystems
-      Dir.entries(FS) - ['.', '..']
+      if v1?
+        Dir.entries(FS) - ['.', '..']
+      else
+        ['']
+      end
+    end
+
+    # Return an absolute path to a cgroup
+    # @param type [String] subsystem
+    # @param path [String]
+    # @return [String]
+    def self.abs_cgroup_path(subsys, *path)
+      if v1?
+        File.join(FS, real_subsystem(subsys), *path)
+      else
+        File.join(FS, *path)
+      end
     end
 
     # Create CGroup a path, optionally chowning the last CGroup or attaching
@@ -34,7 +72,7 @@ module OsCtld
     # @return [Boolean] `true` if the last component was created, `false` if it
     #                   already existed
     def self.mkpath(type, path, chown: nil, attach: false)
-      base = File.join(FS, type)
+      base = abs_cgroup_path(type)
       tmp = []
       created = false
 
@@ -64,7 +102,7 @@ module OsCtld
         File.chown(chown, chown, cgroup)
         File.chown(chown, chown, File.join(cgroup, 'cgroup.procs'))
 
-        if type == 'unified'
+        if v2? || type == 'unified'
           %w(cgroup.threads cgroup.subtree_control).each do |f|
             File.chown(chown, chown, File.join(cgroup, f))
           end
@@ -98,7 +136,7 @@ module OsCtld
       when 'cpuset'
         inherit_param(base, cgroup, 'cpuset.cpus')
         inherit_param(base, cgroup, 'cpuset.mems')
-        set_param(File.join(cgroup, 'cgroup.clone_children'), ['1'])
+        set_param(File.join(cgroup, 'cgroup.clone_children'), ['1']) if v1?
       end
     end
 
@@ -150,7 +188,7 @@ module OsCtld
     # @param subsystem [String]
     # @param path [String] path to remove, relative to the subsystem
     def self.rmpath(subsystem, path)
-      abs_path = File.join(FS, subsystem, path)
+      abs_path = abs_cgroup_path(subsystem, path)
 
       # Remove subdirectories recursively
       Dir.entries(abs_path).each do |dir|
@@ -176,20 +214,32 @@ module OsCtld
     # Freeze cgroup at path
     # @param path [String]
     def self.freeze_tree(path)
-      abs_path = File.join(FS, real_subsystem('freezer'), path)
-      state = File.join(abs_path, 'freezer.state')
+      abs_path = abs_cgroup_path('freezer', path)
 
-      begin
-        File.open(state, 'w') { |f| f.write('FROZEN') }
-      rescue SystemCallError => e
-        log(:warn, "Unable to freeze #{abs_path}: #{e.message} (#{e.class})")
+      if v1?
+        state = File.join(abs_path, 'freezer.state')
+
+        begin
+          File.open(state, 'w') { |f| f.write('FROZEN') }
+        rescue SystemCallError => e
+          log(:warn, "Unable to freeze #{abs_path}: #{e.message} (#{e.class})")
+        end
+
+      else
+        state = File.join(abs_path, 'cgroup.freeze')
+
+        begin
+          File.open(state, 'w') { |f| f.write('1') }
+        rescue SystemCallError => e
+          log(:warn, "Unable to freeze #{abs_path}: #{e.message} (#{e.class})")
+        end
       end
     end
 
     # Thaw all frozen cgroups under path
     # @param path [String]
     def self.thaw_tree(path)
-      abs_path = File.join(FS, real_subsystem('freezer'), path)
+      abs_path = abs_cgroup_path('freezer', path)
 
       Dir.entries(abs_path).each do |dir|
         next if dir == '.' || dir == '..'
@@ -198,15 +248,29 @@ module OsCtld
         thaw_tree(File.join(path, dir))
       end
 
-      state = File.join(abs_path, 'freezer.state')
+      if v1?
+        state = File.join(abs_path, 'freezer.state')
 
-      begin
-        if %w(FREEZING FROZEN).include?(File.read(state).strip)
-          log(:info, "Thawing #{abs_path}")
-          File.open(state, 'w') { |f| f.write('THAWED') }
+        begin
+          if %w(FREEZING FROZEN).include?(File.read(state).strip)
+            log(:info, "Thawing #{abs_path}")
+            File.open(state, 'w') { |f| f.write('THAWED') }
+          end
+        rescue SystemCallError => e
+          log(:warn, "Unable to thaw #{abs_path}: #{e.message} (#{e.class})")
         end
-      rescue SystemCallError => e
-        log(:warn, "Unable to thaw #{abs_path}: #{e.message} (#{e.class})")
+
+      else
+        state = File.join(abs_path, 'cgroup.freeze')
+
+        begin
+          if File.read(state).strip == '1'
+            log(:info, "Thawing #{abs_path}")
+            File.open(state, 'w') { |f| f.write('0') }
+          end
+        rescue SystemCallError => e
+          log(:warn, "Unable to thaw #{abs_path}: #{e.message} (#{e.class})")
+        end
       end
     end
   end
