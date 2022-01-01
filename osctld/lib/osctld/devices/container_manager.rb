@@ -9,6 +9,8 @@ module OsCtld
     def init(opts = {})
       sync do
         super
+        next if CGroup.v2?
+
         inherit_all_from(ct.group, opts)
 
         log(:info, ct, "Configuring cgroup #{ct.cgroup_path} for devices")
@@ -127,6 +129,8 @@ module OsCtld
 
     # Apply the container's device cgroup settings
     def apply(_opts = {})
+      return if CGroup.v2?
+
       sync do
         # group
         ct.group.devices.apply
@@ -181,6 +185,8 @@ module OsCtld
     # @param devices [Devices::Manager]
     # @param path [String] absolute cgroup path
     def apply_devices(devices, path)
+      return if CGroup.v2?
+
       devices.each do |dev|
         CGroup.set_param(File.join(path, 'devices.allow'), [dev.to_s])
       end
@@ -188,6 +194,8 @@ module OsCtld
 
     # @param path [String] absolute cgroup path
     def clear_devices(path)
+      return if CGroup.v2?
+
       CGroup.set_param(File.join(path, 'devices.deny'), ['a'])
     end
 

@@ -298,6 +298,8 @@ module OsCtld
     end
 
     def do_deny_all
+      return if CGroup.v2?
+
       CGroup.set_param(
         File.join(owner.abs_cgroup_path('devices'), 'devices.deny'),
         ['a']
@@ -305,6 +307,8 @@ module OsCtld
     end
 
     def do_deny_dev(device)
+      return if CGroup.v2?
+
       CGroup.set_param(
         File.join(owner.abs_cgroup_path('devices'), 'devices.deny'),
         [device.to_s]
@@ -312,6 +316,8 @@ module OsCtld
     end
 
     def do_allow_dev(device)
+      return if CGroup.v2?
+
       CGroup.set_param(
         File.join(owner.abs_cgroup_path('devices'), 'devices.allow'),
         [device.to_s]
@@ -321,6 +327,8 @@ module OsCtld
     # @param changes [Hash<Symbol, String>]
     # @param path [String, nil]
     def do_apply_changes(changes, path: nil)
+      return if CGroup.v2?
+
       path ||= owner.abs_cgroup_path('devices')
 
       changes.each do |action, value|

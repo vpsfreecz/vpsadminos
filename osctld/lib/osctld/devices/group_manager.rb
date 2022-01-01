@@ -8,6 +8,8 @@ module OsCtld
     def init(opts = {})
       sync do
         super
+        next if CGroup.v2?
+
         inherit_all_from(group.parent, opts) unless group.root?
 
         log(:info, group, "Configuring cgroup #{group.cgroup_path} for devices")
