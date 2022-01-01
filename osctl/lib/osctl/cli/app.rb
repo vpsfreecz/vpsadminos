@@ -2073,6 +2073,10 @@ module OsCtl::Cli
         p.desc 'List configured parameters'
         p.arg_name "<#{arg_name}>"
         p.command %i(ls list) do |c|
+          c.desc 'Filter by cgroup version'
+          c.flag %i(v version), arg_name: 'version', must_match: %w(1 2 all),
+            default_value: 'all'
+
           c.desc 'Filter by CGroup subsystem (comma separated)'
           c.flag %i(S subsystem), arg_name: 'cgroup_subsys'
 
@@ -2097,12 +2101,18 @@ module OsCtl::Cli
           c.desc 'Append new values, do not overwrite previous values'
           c.switch %i(a append), negatable: false
 
+          c.desc 'Specify cgroup version'
+          c.flag %i(v version), type: Integer, must_match: [1, 2]
+
           c.action &Command.run(handler, :cgparam_set)
         end
 
         p.desc 'Remove configured parameter'
         p.arg_name "<#{arg_name}> <parameter>"
         p.command :unset do |c|
+          c.desc 'Specify cgroup version'
+          c.flag %i(v version), type: Integer, must_match: [1, 2]
+
           c.action &Command.run(handler, :cgparam_unset)
         end
 

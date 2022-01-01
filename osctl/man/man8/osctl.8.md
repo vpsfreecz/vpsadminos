@@ -1721,9 +1721,12 @@ read by `ls` or `show` commands.
 
     `-L`, `--list`
       List available parameters and exit.
-    
+
     `-o`, `--output` *parameters*
       Select parameters to output.
+
+    `-v`, `--version` `1`|`2`|`all`
+      Select parameters by cgroup version. Defaults to `all`.
 
     `-S`, `--subsystem` *subsystem*
       Filter by cgroup subsystem, comma separated.
@@ -1746,6 +1749,9 @@ read by `ls` or `show` commands.
       Append new values, do not overwrite previously configured values for
       *parameter*.
 
+    `-v`, `--version` `1`|`2`
+      Specify cgroup version. Default to the version the system currently uses.
+
 `ct cgparams unset` *ctid* *parameter*
   Unset cgroup parameter *parameter* from container *ctid*. Selected cgroup
   parameters are reset, the rest is left alone and merely removed from `osctld`
@@ -1756,6 +1762,9 @@ read by `ls` or `show` commands.
   - `cpu.cfs_quota_us`
   - `memory.limit_in_bytes`
   - `memory.memsw.limit_in_bytes`
+
+    `-v`, `--version` `1`|`2`
+      Specify cgroup version. Default to the version the system currently uses.
 
 `ct cgparams apply` *ctid*
   Apply all cgroup parameters defined for container *ctid*, its group and all
@@ -1769,6 +1778,7 @@ read by `ls` or `show` commands.
 {
   "parameters": [
     {
+      "version": <cgroup version>,
       "subsystem": <cgroup subsystem>,
       "parameter": <parameter name>,
       "value": [ values ]
@@ -2347,6 +2357,9 @@ read by `ls` or `show` commands.
     `-o`, `--output` *parameters*
       Select parameters to output.
 
+    `-v`, `--version` `1`|`2`|`all`
+      Select parameters by cgroup version. Defaults to `all`.
+
     `-S`, `--subsystem` *subsystem*
       Filter by cgroup subsystem, comma separated.
 
@@ -2368,6 +2381,9 @@ read by `ls` or `show` commands.
       Append new values, do not overwrite previously configured values for
       *parameter*.
 
+    `-v`, `--version` `1`|`2`
+      Specify cgroup version. Default to the version the system currently uses.
+
 `group cgparams unset` *group* *parameter*
   Unset cgroup parameter *parameter* from group *group*. Selected cgroup
   parameters are reset, the rest is left alone and merely removed from `osctld`
@@ -2378,6 +2394,9 @@ read by `ls` or `show` commands.
   - `cpu.cfs_quota_us`
   - `memory.limit_in_bytes`
   - `memory.memsw.limit_in_bytes`
+
+    `-v`, `--version` `1`|`2`
+      Specify cgroup version. Default to the version the system currently uses.
 
 `group cgparams apply` *group*
   Apply all cgroup parameters defined for group *group* and all its parent
@@ -2391,6 +2410,7 @@ read by `ls` or `show` commands.
 {
   "parameters": [
     {
+      "version": <cgroup version>,
       "subsystem": <cgroup subsystem>,
       "parameter": <parameter name>,
       "value": [ values ]

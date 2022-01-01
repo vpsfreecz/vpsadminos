@@ -3,6 +3,7 @@ require 'libosctl'
 module OsCtl
   module Cli::CGroupParams
     CGPARAM_FIELDS = %i(
+      version
       subsystem
       parameter
       value
@@ -15,6 +16,7 @@ module OsCtl
     )
 
     CGPARAM_DEFAULT_FIELDS = %i(
+      version
       parameter
       value
     )
@@ -37,6 +39,14 @@ module OsCtl
       end
 
       fmt_opts = {layout: :columns}
+
+      case opts[:version]
+      when '1', '2'
+        cmd_opts[:version] = opts[:version].to_i
+      when 'all'
+      else
+        raise GLI::BadCommandLine, "invalid cgroup version '#{opts[:version]}'"
+      end
 
       cmd_opts[:parameters] = args[1..-1] if args.count > 1
       cmd_opts[:subsystem] = opts[:subsystem].split(',') if opts[:subsystem]
@@ -82,10 +92,11 @@ module OsCtl
 
     def do_cgparam_set(cmd, cmd_opts, params = nil)
       params ||= [{
+        version: opts[:version],
         subsystem: parse_subsystem(args[1]),
         parameter: args[1],
         value: args[2..-1].map { |v| parse_data(v) },
-      }]
+      }.compact]
 
       cmd_opts.update({
         parameters: params,
@@ -97,9 +108,10 @@ module OsCtl
 
     def do_cgparam_unset(cmd, cmd_opts, params = nil)
       params ||= [{
+        version: opts[:version],
         subsystem: parse_subsystem(args[1]),
         parameter: args[1],
-      }]
+      }.compact]
 
       cmd_opts.update(parameters: params)
 
@@ -119,85 +131,137 @@ module OsCtl
     def do_set_cpu_limit(cmd, cmd_opts)
       quota = args[1].to_f / 100 * opts[:period]
 
-      do_cgparam_set(
-        cmd,
-        cmd_opts,
-        [
-          {
-            subsystem: 'cpu',
-            parameter: 'cpu.cfs_period_us',
-            value: [opts[:period]],
-          },
-          {
-            subsystem: 'cpu',
-            parameter: 'cpu.cfs_quota_us',
-            value: [quota.round],
-          },
-        ]
-      )
+      params =
+        if OsCtl::Lib::CGroup.v2?
+          [
+            {
+              subsystem: 'cpu',
+              parameter: 'cpu.max',
+              value: ["#{quota.round} #{opts[:period]}"]
+            },
+          ]
+        else
+          [
+            {
+              subsystem: 'cpu',
+              parameter: 'cpu.cfs_period_us',
+              value: [opts[:period]],
+            },
+            {
+              subsystem: 'cpu',
+              parameter: 'cpu.cfs_quota_us',
+              value: [quota.round],
+            },
+          ]
+        end
+
+      do_cgparam_set(cmd, cmd_opts, params)
     end
 
     def do_unset_cpu_limit(unset_cmd, cmd_opts)
-      do_cgparam_unset(
-        unset_cmd,
-        cmd_opts,
-        [
-          {
-            subsystem: 'cpu',
-            parameter: 'cpu.cfs_period_us',
-          },
-          {
-            subsystem: 'cpu',
-            parameter: 'cpu.cfs_quota_us',
-          },
-        ]
-      )
+      params =
+        if OsCtl::Lib::CGroup.v2?
+          [
+            {
+              subsystem: 'cpu',
+              parameter: 'cpu.max',
+            }
+          ]
+        else
+          [
+            {
+              subsystem: 'cpu',
+              parameter: 'cpu.cfs_period_us',
+            },
+            {
+              subsystem: 'cpu',
+              parameter: 'cpu.cfs_quota_us',
+            },
+          ]
+        end
+
+      do_cgparam_unset(unset_cmd, cmd_opts, params)
     end
 
     def do_set_memory(set_cmd, unset_cmd, cmd_opts)
       mem = parse_data(args[1])
       swap = parse_data(args[2]) if args[2]
 
-      limits = [
-        {
-          subsystem: 'memory',
-          parameter: 'memory.limit_in_bytes',
-          value: [mem],
-        },
-      ]
+      limits = []
 
-      if swap
+      if OsCtl::Lib::CGroup.v2?
         limits << {
           subsystem: 'memory',
-          parameter: 'memory.memsw.limit_in_bytes',
-          value: [mem+swap],
+          parameter: 'memory.max',
+          value: [mem],
         }
+
+        if swap
+          limits << {
+            subsystem: 'memory',
+            parameter: 'memory.swap.max',
+            value: [swap],
+          }
+        else
+          limits << {
+            subsystem: 'memory',
+            parameter: 'memory.swap.max',
+            value: ['max'],
+          }
+        end
+
       else
         limits << {
           subsystem: 'memory',
-          parameter: 'memory.memsw.limit_in_bytes',
+          parameter: 'memory.limit_in_bytes',
           value: [mem],
         }
+
+        if swap
+          limits << {
+            subsystem: 'memory',
+            parameter: 'memory.memsw.limit_in_bytes',
+            value: [mem+swap],
+          }
+        else
+          limits << {
+            subsystem: 'memory',
+            parameter: 'memory.memsw.limit_in_bytes',
+            value: [mem],
+          }
+        end
       end
 
       do_cgparam_set(set_cmd, cmd_opts, limits)
     end
 
     def do_unset_memory(unset_cmd, cmd_opts)
-      do_cgparam_unset(
-        unset_cmd,
-        cmd_opts,
-        [
-          {
-            subsystem: 'memory',
-            parameter: 'memory.memsw.limit_in_bytes',
-          },
-          {
-            subsystem: 'memory',
-            parameter: 'memory.limit_in_bytes',
-          },
-        ]
-      )
+      params =
+        if OsCtl::Lib::CGroup.v2?
+          [
+            {
+              subsystem: 'memory',
+              parameter: 'memory.swap.max',
+            },
+            {
+              subsystem: 'memory',
+              parameter: 'memory.max',
+            },
+          ]
+        else
+          [
+            {
+              subsystem: 'memory',
+              parameter: 'memory.memsw.limit_in_bytes',
+            },
+            {
+              subsystem: 'memory',
+              parameter: 'memory.limit_in_bytes',
+            },
+          ]
+        end
+
+      do_cgparam_unset(unset_cmd, cmd_opts, params)
     end
 
     # Read select CGroup parameters
