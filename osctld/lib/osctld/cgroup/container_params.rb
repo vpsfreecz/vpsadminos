@@ -14,7 +14,7 @@ module OsCtld
       return unless owner.running?
 
       failed = apply_container_params(
-        params,
+        usable_params,
         keep_going: keep_going,
         &block
       ).select { |p| p.name.start_with?('memory.') }

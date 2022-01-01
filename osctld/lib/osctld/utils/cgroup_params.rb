@@ -100,6 +100,7 @@ module OsCtld
       ret = []
 
       groupable.cgparams.each do |p|
+        next if opts[:version] && p.version != opts[:version]
         next if opts[:parameters] && !opts[:parameters].include?(p.name)
         next if opts[:subsystem] && !opts[:subsystem].include?(p.subsystem)
 

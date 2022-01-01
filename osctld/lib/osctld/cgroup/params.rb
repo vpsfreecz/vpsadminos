@@ -25,14 +25,17 @@ module OsCtld
       new_params.map do |hash|
         p = CGroup::Param.import(hash)
 
-        # Check parameter
-        subsys = CGroup.real_subsystem(p.subsystem)
-        path = CGroup.abs_cgroup_path(subsys)
+        # Check parameter. We can verify it only when the same cgroup version
+        # is used.
+        if p.version == CGroup.version
+          subsys = CGroup.real_subsystem(p.subsystem)
+          path = CGroup.abs_cgroup_path(subsys)
 
-        param = File.join(path, 'osctl', p.name)
+          param = File.join(path, 'osctl', p.name)
 
-        unless File.exist?(param)
-          raise CGroupParameterNotFound, "CGroup parameter '#{param}' not found"
+          unless File.exist?(param)
+            raise CGroupParameterNotFound, "CGroup parameter '#{param}' not found"
+          end
         end
 
         p
@@ -45,7 +48,9 @@ module OsCtld
           replaced = false
 
           params.map! do |p|
-            if p.subsystem == new_p.subsystem && p.name == new_p.name
+            if p.version == new_p.version \
+               && p.subsystem == new_p.subsystem \
+               && p.name == new_p.name
               replaced = true
 
               new_p.value = p.value + new_p.value if append
@@ -76,7 +81,9 @@ module OsCtld
           del_p = CGroup::Param.import(del_h)
 
           params.delete_if do |p|
-            del = p.subsystem == del_p.subsystem && p.name == del_p.name
+            del = p.version == del_p.version \
+                  && p.subsystem == del_p.subsystem \
+                  && p.name == del_p.name
             next(del) if !del || !reset
             reset(p, keep_going, &block)
             true
@@ -91,6 +98,15 @@ module OsCtld
       params.each(&block)
     end
 
+    # @param version [1, 2]
+    def each_version(version, &block)
+      params.select { |p| p.version == version }.each(&block)
+    end
+
+    def each_usable(&block)
+      each_version(CGroup.version, &block)
+    end
+
     def detect(&block)
       params.detect(&block)
     end
@@ -100,7 +116,11 @@ module OsCtld
     # @yieldparam subsystem [String] cgroup subsystem
     # @yieldreturn [String] absolute path to the cgroup directory
     def apply(keep_going: false, &block)
-      failed = apply_params(params, keep_going: keep_going, &block).select do |p|
+      failed = apply_params(
+        usable_params,
+        keep_going: keep_going,
+        &block
+      ).select do |p|
         p.name.start_with?('memory.')
       end
 
@@ -113,7 +133,7 @@ module OsCtld
     def replace(new_params, save: true, &block)
       @params.each do |p|
         found = new_params.detect do |n|
-          n.subsystem == p.subsystem && n.name == p.name
+          n.version == p.version && n.subsystem == p.subsystem && n.name == p.name
         end
 
         reset(p, true, &block) unless found
@@ -163,6 +183,10 @@ module OsCtld
     protected
     attr_reader :owner, :params
 
+    def usable_params
+      params.select { |p| p.version == CGroup.version }
+    end
+
     # @param param_list [Array<CGroup::Param>]
     # @param keep_going [Boolean]
     # @return [Array<CGroup::Param>] parameters that failed to set
@@ -195,8 +219,17 @@ module OsCtld
       when 'cpu.cfs_quota_us'
         [-1]
 
+      when 'cpu.max'
+        ['max']
+
       when 'memory.limit_in_bytes', 'memory.memsw.limit_in_bytes'
         [-1]
+
+      when 'memory.min', 'memory.low'
+        [0]
+
+      when 'memory.high', 'memory.max'
+        ['max']
 
       else
         nil

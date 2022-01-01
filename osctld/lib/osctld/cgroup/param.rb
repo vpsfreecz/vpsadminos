@@ -1,14 +1,21 @@
 module OsCtld
   module CGroup
-    Param = Struct.new(:subsystem, :name, :value, :persistent) do
+    Param = Struct.new(:version, :subsystem, :name, :value, :persistent) do
       # Load from config
       def self.load(hash)
-        new(hash['subsystem'], hash['name'], hash['value'], true)
+        new(
+          hash.fetch('version', 1),
+          hash['subsystem'],
+          hash['name'],
+          hash['value'],
+          true,
+        )
       end
 
       # Load from client
       def self.import(hash)
         new(
+          hash.fetch(:version, CGroup.version),
           hash[:subsystem],
           hash[:parameter],
           hash[:value],
@@ -24,6 +31,7 @@ module OsCtld
       # Export to client
       def export
         {
+          version: version,
           subsystem: subsystem,
           parameter: name,
           value: value,
