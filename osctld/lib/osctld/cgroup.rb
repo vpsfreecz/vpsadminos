@@ -107,7 +107,7 @@ module OsCtld
         File.chown(chown, chown, File.join(cgroup, 'cgroup.procs'))
 
         if v2? || type == 'unified'
-          %w(cgroup.threads cgroup.subtree_control).each do |f|
+          %w(cgroup.threads cgroup.subtree_control memory.oom.group).each do |f|
             File.chown(chown, chown, File.join(cgroup, f))
           end
         end
