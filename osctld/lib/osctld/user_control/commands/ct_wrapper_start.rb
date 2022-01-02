@@ -12,6 +12,18 @@ module OsCtld
       return error('container not found') unless ct
       return error('access denied') unless owns_ct?(ct)
 
+      # Move the calling wrapper to user-owned cgroup, which will then be used
+      # by LXC
+      CGroup.subsystems.each do |subsys|
+        CGroup.mkpath(
+          subsys,
+          ct.cgroup_path.split('/'),
+          chown: ct.user.ugid,
+          attach: true,
+          pid: opts[:pid],
+        )
+      end
+
       # Reset oom_score_adj of the calling process. The reset has to come from
       # a process with CAP_SYS_RESOURCE (which osctld is), so that
       # oom_score_adj_min is changed and container users cannot freely set

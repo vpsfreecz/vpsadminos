@@ -418,6 +418,10 @@ module OsCtld
       File.join(base_cgroup_path, 'user-owned')
     end
 
+    def wrapper_cgroup_path
+      File.join(base_cgroup_path, 'wrapper')
+    end
+
     def abs_cgroup_path(subsystem)
       CGroup.abs_cgroup_path(subsystem, cgroup_path)
     end

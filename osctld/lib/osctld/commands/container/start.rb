@@ -163,7 +163,7 @@ module OsCtld
         ct.user.sysusername,
         ct.user.ugid,
         ct.user.homedir,
-        ct.cgroup_path,
+        ct.wrapper_cgroup_path,
         prlimits: ct.prlimits.export,
         oom_score_adj: -1000,
         keep_fds: [w],

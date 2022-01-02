@@ -69,9 +69,10 @@ module OsCtld
     # @param path [Array<String>] paths to create
     # @param chown [Integer] chown the last group to `chown`:`chown`
     # @param attach [Boolean] attach the current process to the last group
+    # @param pid [Integer, nil] pid to attach, default to the current process
     # @return [Boolean] `true` if the last component was created, `false` if it
     #                   already existed
-    def self.mkpath(type, path, chown: nil, attach: false)
+    def self.mkpath(type, path, chown: nil, attach: false, pid: nil)
       base = abs_cgroup_path(type)
       tmp = []
       created = false
@@ -119,7 +120,7 @@ module OsCtld
           next unless File.exist?(tasks_path)
 
           File.open(tasks_path, 'a') do |f|
-            f.write("#{Process.pid}\n")
+            f.write("#{pid || Process.pid}\n")
           end
         end
       end
