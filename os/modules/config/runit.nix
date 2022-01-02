@@ -140,10 +140,19 @@ in
           echo "+$c" >> /sys/fs/cgroup/cgroup.subtree_control
         done
 
-        mkdir -p /sys/fs/cgroup/system/init
+        mkdir /sys/fs/cgroup/system
+        for c in `cat /sys/fs/cgroup/system/cgroup.controllers` ; do
+          echo "+$c" >> /sys/fs/cgroup/system/cgroup.subtree_control
+        done
+
+        mkdir /sys/fs/cgroup/system/init
         echo 1 >> /sys/fs/cgroup/system/init/cgroup.procs
         echo $$ >> /sys/fs/cgroup/system/init/cgroup.procs
-        mkdir -p /sys/fs/cgroup/system/service
+
+        mkdir /sys/fs/cgroup/system/service
+        for c in `cat /sys/fs/cgroup/system//service/cgroup.controllers` ; do
+          echo "+$c" >> /sys/fs/cgroup/system/service/cgroup.subtree_control
+        done
 
         ln -sf /sys/fs/cgroup/system /run/runit/cgroup.system
         ln -sf /sys/fs/cgroup/system/service /run/runit/cgroup.service
