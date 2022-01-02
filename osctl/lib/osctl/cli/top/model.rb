@@ -185,7 +185,7 @@ module OsCtl::Cli
     def open
       @client = OsCtl::Client.new
       @client.open
-      @subsystems = client.cmd_data!(:group_cgsubsystems)
+      @subsystems = client.cmd_data!(:group_cgsubsystems) if OsCtl::Lib::CGroup.v1?
       @index = OsCtl::Lib::Index.new { |ct| "#{ct.pool}:#{ct.id}" }
       @containers = client.cmd_data!(:ct_list).map do |ct_attrs|
         ct = Top::Container.new(ct_attrs)

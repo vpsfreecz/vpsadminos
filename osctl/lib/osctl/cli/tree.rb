@@ -90,7 +90,7 @@ module OsCtl::Cli
         [
           {label: cts ? 'GROUP/CONTAINER' : 'GROUP', name: :branch},
           :memory,
-          :cpu_time
+          :cpu_us
         ],
         layout: :columns, color: Rainbow.enabled
       )
@@ -118,7 +118,7 @@ module OsCtl::Cli
         cg_add_stats(
           grp,
           grp[:full_path],
-          %i(memory cpu_time),
+          %i(memory cpu_us),
           parsable
         )
 
@@ -149,7 +149,7 @@ module OsCtl::Cli
           cg_add_stats(
             ct,
             ct[:group_path],
-            %i(memory cpu_time),
+            %i(memory cpu_us),
             parsable
           )
 

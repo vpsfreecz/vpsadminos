@@ -25,7 +25,7 @@ module OsCtl::Cli
       pool
       name
       memory
-      cpu_time
+      cpu_us
     )
 
     def list

@@ -64,7 +64,7 @@ module OsCtl::Cli
       state
       init_pid
       memory
-      cpu_time
+      cpu_us
     )
 
     PRLIMIT_FIELDS = %i(

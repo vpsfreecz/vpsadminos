@@ -24,7 +24,7 @@ module OsCtl::Cli
       data.update(cg_read_stats(
         subsystems,
         group_path,
-        %i(cpu_time cpu_stat memory nproc),
+        %i(cpu_us cpu_hz memory nproc),
         true
       ))
 

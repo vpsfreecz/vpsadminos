@@ -25,10 +25,12 @@ module OsCtl
       memory
       memory_pct
       kmemory
-      cpu_time
-      cpu_user_time
-      cpu_sys_time
-      cpu_stat
+      cpu_us
+      cpu_user_us
+      cpu_system_us
+      cpu_hz
+      cpu_user_hz
+      cpu_system_hz
       nproc
     )
 
@@ -275,71 +277,14 @@ module OsCtl
 
       params.each do |field|
         begin
-          v = case field
-          when :memory
-            t = read_memory_usage(subsystems[:memory], path)
-            OsCtl::Lib::Cli::Presentable.new(t, formatted: precise ? nil : humanize_data(t))
+          next if ret[field]
 
-          when :kmemory
-            t = read_cgparam(
-              subsystems[:memory],
-              path,
-              'memory.kmem.usage_in_bytes'
-            ).to_i
-            OsCtl::Lib::Cli::Presentable.new(t, formatted: precise ? nil : humanize_data(t))
-
-          when :memory_pct
-            limit = read_memory_limit(subsystems[:memory], path)
-            usage = read_memory_usage(subsystems[:memory], path)
-            t = usage.to_f / limit * 100
-            OsCtl::Lib::Cli::Presentable.new(t, formatted: precise ? nil : humanize_percent(t))
-
-          when :cpu_time
-            t = read_cgparam(
-              subsystems[:cpuacct],
-              path,
-              'cpuacct.usage'
-            ).to_i
-            OsCtl::Lib::Cli::Presentable.new(t, formatted: precise ? nil : humanize_time_ns(t))
-
-          when :cpu_user_time
-            t = read_cgparam(
-              subsystems[:cpuacct],
-              path,
-              'cpuacct.usage_user'
-            ).to_i
-            OsCtl::Lib::Cli::Presentable.new(t, formatted: precise ? nil : humanize_time_ns(t))
-
-          when :cpu_sys_time
-            t = read_cgparam(
-              subsystems[:cpuacct],
-              path,
-              'cpuacct.usage_sys'
-            ).to_i
-            OsCtl::Lib::Cli::Presentable.new(t, formatted: precise ? nil : humanize_time_ns(t))
-
-          when :cpu_stat
-            Hash[
-              read_cgparam(
-                subsystems[:cpuacct],
-                path,
-                'cpuacct.stat'
-              ).split("\n").map do |line|
-                type, hz = line.split(' ')
-                [:"cpu_#{type}_hz", hz.to_i]
-              end
-            ]
-
-          when :nproc
-            read_cgparam(
-              subsystems[:pids],
-              path,
-              'pids.current'
-            ).to_i
-
-          else
-            nil
-          end
+          v =
+            if OsCtl::Lib::CGroup.v1?
+              cg_read_stats_param_v1(subsystems, path, field, precise)
+            else
+              cg_read_stats_param_v2(path, field, precise)
+            end
 
           next if v.nil?
 
@@ -357,27 +302,102 @@ module OsCtl
       ret
     end
 
-    # @param memory [String] absolute path to memory subsystem
-    # @param path [String] path of chosen group, relative to the subsystem
-    # @return [Integer]
-    def read_memory_usage(memory, path)
-      read_cgparam(memory, path, 'memory.memsw.usage_in_bytes').to_i
+    def cg_read_stats_param_v1(subsystems, path, field, precise)
+      case field
+      when :memory
+        t = read_memory_usage_v1(subsystems[:memory], path)
+        OsCtl::Lib::Cli::Presentable.new(t, formatted: precise ? nil : humanize_data(t))
+
+      when :kmemory
+        t = read_cgparam_v1(
+          subsystems[:memory],
+          path,
+          'memory.kmem.usage_in_bytes'
+        ).to_i
+        OsCtl::Lib::Cli::Presentable.new(t, formatted: precise ? nil : humanize_data(t))
+
+      when :memory_pct
+        limit = read_memory_limit_v1(subsystems[:memory], path)
+        usage = read_memory_usage_v1(subsystems[:memory], path)
+        t = usage.to_f / limit * 100
+        OsCtl::Lib::Cli::Presentable.new(t, formatted: precise ? nil : humanize_percent(t))
+
+      when :cpu_us, :cpu_user_us, :cpu_system_us
+        all = read_cgparam_v1(
+          subsystems[:cpuacct],
+          path,
+          'cpuacct.usage'
+        ).to_i / 1_000
+
+        user = read_cgparam_v1(
+          subsystems[:cpuacct],
+          path,
+          'cpuacct.usage_user'
+        ).to_i / 1_000
+
+        sys = read_cgparam_v1(
+          subsystems[:cpuacct],
+          path,
+          'cpuacct.usage_sys'
+        ).to_i / 1_000
+
+        {
+          cpu_us: OsCtl::Lib::Cli::Presentable.new(
+            all, formatted: precise ? nil : humanize_time_us(all)
+          ),
+          cpu_user_us: OsCtl::Lib::Cli::Presentable.new(
+            user, formatted: precise ? nil : humanize_time_us(user)
+          ),
+          cpu_system_us: OsCtl::Lib::Cli::Presentable.new(
+            sys, formatted: precise ? nil : humanize_time_us(sys)
+          ),
+        }
+
+      when :cpu_hz, :cpu_user_hz, :cpu_system_hz
+        Hash[
+          read_cgparam_v1(
+            subsystems[:cpuacct],
+            path,
+            'cpuacct.stat'
+          ).split("\n").map do |line|
+            type, hz = line.split(' ')
+            [:"cpu_#{type}_hz", hz.to_i]
+          end
+        ]
+
+      when :nproc
+        read_cgparam_v1(
+          subsystems[:pids],
+          path,
+          'pids.current'
+        ).to_i
+
+      else
+        nil
+      end
     end
 
     # @param memory [String] absolute path to memory subsystem
     # @param path [String] path of chosen group, relative to the subsystem
     # @return [Integer]
-    def read_memory_limit(memory, path)
+    def read_memory_usage_v1(memory, path)
+      read_cgparam_v1(memory, path, 'memory.memsw.usage_in_bytes').to_i
+    end
+
+    # @param memory [String] absolute path to memory subsystem
+    # @param path [String] path of chosen group, relative to the subsystem
+    # @return [Integer]
+    def read_memory_limit_v1(memory, path)
       unlimited = 9223372036854771712
 
       if path.end_with?('/user-owned')
         path = path.split('/')[0..-2].join('/')
       end
 
-      v = read_cgparam(memory, path, 'memory.memsw.limit_in_bytes').to_i
+      v = read_cgparam_v1(memory, path, 'memory.memsw.limit_in_bytes').to_i
       return v if v != unlimited
 
-      v = read_cgparam(memory, path, 'memory.limit_in_bytes').to_i
+      v = read_cgparam_v1(memory, path, 'memory.limit_in_bytes').to_i
       return v if v != unlimited
 
       # TODO: this could be optimised to read meminfo just once for all containers
@@ -385,9 +405,87 @@ module OsCtl
       mi.total * 1024
     end
 
+    def cg_read_stats_param_v2(path, field, precise)
+      case field
+      when :memory
+        t = read_cgparam_v2(path, 'memory.current').to_i
+        OsCtl::Lib::Cli::Presentable.new(t, formatted: precise ? nil : humanize_data(t))
+
+      when :kmemory
+        nil
+
+      when :memory_pct
+        limit = read_memory_limit_v2(path)
+        usage = read_cgparam_v2(path, 'memory.current').to_i
+        t = usage.to_f / limit * 100
+        OsCtl::Lib::Cli::Presentable.new(t, formatted: precise ? nil : humanize_percent(t))
+
+      when :cpu_us, :cpu_user_us, :cpu_system_us
+        stat = read_cpu_stat_v2(path)
+
+        {
+          cpu_us: OsCtl::Lib::Cli::Presentable.new(
+            stat[:all], formatted: precise ? nil : humanize_time_us(stat[:all])
+          ),
+          cpu_user_us: OsCtl::Lib::Cli::Presentable.new(
+            stat[:user], formatted: precise ? nil : humanize_time_us(stat[:user])
+          ),
+          cpu_system_us: OsCtl::Lib::Cli::Presentable.new(
+            stat[:system], formatted: precise ? nil : humanize_time_us(stat[:system])
+          ),
+        }
+
+      when :cpu_hz, :cpu_user_hz, :cpu_system_hz
+        stat = read_cpu_stat_v2(path)
+
+        {
+          cpu_user_hz: stat[:user] / (1_000_000 / OsCtl::Lib::OsProcess::TICS_PER_SECOND),
+          cpu_system_hz: stat[:system] / (1_000_000 / OsCtl::Lib::OsProcess::TICS_PER_SECOND),
+        }
+
+      when :nproc
+        read_cgparam_v2(path, 'pids.current').to_i
+
+      else
+        nil
+      end
+    end
+
+    # @param path [String] path of chosen group, relative to the subsystem
+    # @return [Integer]
+    def read_memory_limit_v2(path)
+      unlimited = 'max'
+
+      if path.end_with?('/user-owned')
+        path = path.split('/')[0..-2].join('/')
+      end
+
+      v = read_cgparam_v2(path, 'memory.max').to_i
+      return v if v != unlimited
+
+      # TODO: this could be optimised to read meminfo just once for all containers
+      mi = OsCtl::Cli::MemInfo.new
+      mi.total * 1024
+    end
+
+    # @return [Hash] cpu usage in microseconds
+    def read_cpu_stat_v2(path)
+      params = Hash[read_cgparam_v2(path, 'cpu.stat').strip.split("\n").map(&:split)]
+
+      {
+        all: params['usage_usec'].to_i,
+        user: params['user_usec'].to_i,
+        system: params['system_usec'].to_i,
+      }
+    end
+
     # @param client [OsCtl::Client]
     def cg_init_subsystems(client)
-      @cg_subsystems ||= client.cmd_data!(:group_cgsubsystems)
+      if OsCtl::Lib::CGroup.v2?
+        @cg_subsystems ||= {nil => OsCtl::Lib::CGroup::FS}
+      else
+        @cg_subsystems ||= client.cmd_data!(:group_cgsubsystems)
+      end
     end
 
     # Add runtime stats from CGroup parameters to `data`
@@ -445,7 +543,8 @@ module OsCtl
         end
       end
 
-      params.uniq!.sort!
+      params.uniq!
+      params.sort!
     end
 
     # Read selected cgroup parameters
@@ -527,8 +626,12 @@ module OsCtl
       param.split('.').first
     end
 
-    def read_cgparam(subsys_path, group_path, param)
+    def read_cgparam_v1(subsys_path, group_path, param)
       File.read(File.join(subsys_path, group_path, param)).strip
+    end
+
+    def read_cgparam_v2(group_path, param)
+      File.read(File.join(OsCtl::Lib::CGroup::FS, group_path, param)).strip
     end
   end
 end

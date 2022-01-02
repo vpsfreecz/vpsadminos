@@ -37,8 +37,8 @@ module OsCtl::Exporter
         docstring: 'Memory used by containers',
         labels: [:pool, :id],
       )
-      @cpu_ns_total = registry.gauge(
-        :osctl_container_cpu_nanoseconds_total,
+      @cpu_us_total = registry.gauge(
+        :osctl_container_cpu_microseconds_total,
         docstring: 'Container CPU usage',
         labels: [:pool, :id, :mode],
       )
@@ -133,7 +133,7 @@ module OsCtl::Exporter
       cg_add_stats(
         cts,
         lambda { |ct| ct[:group_path] },
-        [:memory, :cpu_user_time, :cpu_sys_time, :nproc],
+        [:memory, :cpu_us, :nproc],
         true
       )
 
@@ -166,12 +166,12 @@ module OsCtl::Exporter
           ct[:memory].nil? ? 0 : ct[:memory].raw,
           labels: {pool: ct[:pool], id: ct[:id]},
         )
-        cpu_ns_total.set(
-          ct[:cpu_user_time].nil? ? 0 : ct[:cpu_user_time].raw,
+        cpu_us_total.set(
+          ct[:cpu_user_us].nil? ? 0 : ct[:cpu_user_us].raw,
           labels: {pool: ct[:pool], id: ct[:id], mode: 'user'},
         )
-        cpu_ns_total.set(
-          ct[:cpu_sys_time].nil? ? 0 : ct[:cpu_sys_time].raw,
+        cpu_us_total.set(
+          ct[:cpu_system_us].nil? ? 0 : ct[:cpu_system_us].raw,
           labels: {pool: ct[:pool], id: ct[:id], mode: 'system'},
         )
         proc_pids.set(
@@ -261,7 +261,7 @@ module OsCtl::Exporter
     end
 
     protected
-    attr_reader :states, :memory_total_bytes, :memory_used_bytes, :cpu_ns_total,
+    attr_reader :states, :memory_total_bytes, :memory_used_bytes, :cpu_us_total,
       :proc_pids, :loadavg, :dataset_used, :dataset_referenced, :dataset_avail,
       :dataset_quota, :dataset_refquota, :dataset_bytes_written,
       :dataset_bytes_read, :dataset_ios_written, :dataset_ios_read,

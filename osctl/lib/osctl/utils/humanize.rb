@@ -29,6 +29,10 @@ module OsCtl
       v.round(2).to_s
     end
 
+    def humanize_time_us(v)
+      format_short_duration(v / 1_000_000)
+    end
+
     def humanize_time_ns(v)
       format_short_duration(v / 1_000_000_000)
     end

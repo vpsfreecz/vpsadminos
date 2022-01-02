@@ -331,7 +331,7 @@ module OsCtl::Cli::Top
       Curses.addstr(sprintf('%-14s ', format_ctid(ct[:id])))
 
       print_row_data([
-        rt? ? format_percent(ct[:cpu_usage]) : humanize_time_ns(ct[:cpu_time]),
+        rt? ? format_percent(ct[:cpu_usage]) : humanize_time_us(ct[:cpu_us]),
         humanize_data(ct[:memory]),
         ct[:nproc],
         humanize_data(ct[:zfsio][:bytes][:r]),
@@ -383,7 +383,7 @@ module OsCtl::Cli::Top
       Curses.addstr(sprintf('%-14s ', 'Containers:'))
       print_row_data([
         rt? ? format_percent(sum(cts, :cpu_usage, false)) \
-            : humanize_time_ns(sum(cts, :cpu_time, false)),
+            : humanize_time_us(sum(cts, :cpu_us, false)),
         humanize_data(sum(cts, :memory, false)),
         sum(cts, :nproc, false),
         humanize_data(sum(cts, [:zfsio, :bytes, :r], false)),
@@ -401,7 +401,7 @@ module OsCtl::Cli::Top
       Curses.addstr(sprintf('%-14s ', 'All:'))
       print_row_data([
         rt? ? format_percent(sum(cts, :cpu_usage, true)) \
-            : humanize_time_ns(sum(cts, :cpu_time, true)),
+            : humanize_time_us(sum(cts, :cpu_us, true)),
         humanize_data(sum(cts, :memory, true)),
         sum(cts, :nproc, true),
         humanize_data(sum(cts, [:zfsio, :bytes, :r], true)),
@@ -493,7 +493,7 @@ module OsCtl::Cli::Top
 
     def sortable_fields
       ret = []
-      ret << (rt? ? :cpu_usage : :cpu_time)
+      ret << (rt? ? :cpu_usage : :cpu_us)
       ret.concat([
         :memory,
         :nproc,
