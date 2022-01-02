@@ -422,6 +422,10 @@ module OsCtld
       File.join(base_cgroup_path, 'wrapper')
     end
 
+    def entry_cgroup_path
+      File.join(cgroup_path, "lxc.monitor.#{id}")
+    end
+
     def abs_cgroup_path(subsystem)
       CGroup.abs_cgroup_path(subsystem, cgroup_path)
     end

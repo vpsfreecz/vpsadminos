@@ -56,7 +56,7 @@ module OsCtld
       sysuser = ct.user.sysusername
       ugid = ct.user.ugid
       homedir = ct.user.homedir
-      cgroup_path = ct.cgroup_path
+      cgroup_path = ct.entry_cgroup_path
       prlimits = ct.prlimits.export
 
       # Runner configuration

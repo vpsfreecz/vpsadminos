@@ -108,7 +108,7 @@ module OsCtld
           ct.user.sysusername,
           ct.user.ugid,
           ct.user.homedir,
-          ct.cgroup_path
+          ct.entry_cgroup_path
         )
 
         lxc_ct = LXC::Container.new(ct.id, ct.lxc_home)
