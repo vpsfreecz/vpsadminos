@@ -109,7 +109,10 @@ module OsCtld
 
         if v2? || type == 'unified'
           %w(cgroup.threads cgroup.subtree_control memory.oom.group).each do |f|
-            File.chown(chown, chown, File.join(cgroup, f))
+            begin
+              File.chown(chown, chown, File.join(cgroup, f))
+            rescue Errno::ENOENT
+            end
           end
         end
       end
