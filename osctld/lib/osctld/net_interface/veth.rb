@@ -43,10 +43,16 @@ module OsCtld
       # different types, we need to create hooks for specific veth interfaces,
       # so that we can identify which veth was the hook called for. We simply
       # symlink the hook to rundir and the symlink's name identifies the veth.
-      Dir.mkdir(veth_hook_dir, 0711) unless Dir.exist?(veth_hook_dir)
+      begin
+        Dir.mkdir(veth_hook_dir, 0711)
+      rescue Errno::EEXIST
+      end
 
       %w(up down).each do |v|
-        Dir.mkdir(mode_path(v), 0711) unless Dir.exist?(mode_path(v))
+        begin
+          Dir.mkdir(mode_path(v), 0711)
+        rescue Errno::EEXIST
+        end
 
         symlink = hook_path(v)
         hook_src = OsCtld::hook_src("veth-#{v}")
