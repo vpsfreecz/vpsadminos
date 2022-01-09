@@ -897,6 +897,15 @@ module OsCtl::Cli
             c.action &Command.run(Container, :set_init_cmd)
           end
 
+          set.desc 'Enable the start menu'
+          set.arg_name '<ctid>'
+          set.command :'start-menu' do |c|
+            c.desc 'Timeout'
+            c.flag %i(t timeout), arg_name: 'n', type: Integer, default_value: 5
+
+            c.action &Command.run(Container, :set_start_menu)
+          end
+
           set.desc 'Append raw configuration to auto-generated config files'
           set.command :raw do |raw|
             raw.desc 'Append raw LXC configuration'
@@ -952,6 +961,12 @@ module OsCtl::Cli
           unset.arg_name '<ctid>'
           unset.command :'init-cmd' do |c|
             c.action &Command.run(Container, :unset_init_cmd)
+          end
+
+          unset.desc 'Disable the start menu'
+          unset.arg_name '<ctid>'
+          unset.command :'start-menu' do |c|
+            c.action &Command.run(Container, :unset_start_menu)
           end
 
           unset.desc 'Remove raw configuration from auto-generated config files'

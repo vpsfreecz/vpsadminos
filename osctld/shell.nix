@@ -49,5 +49,6 @@ in stdenv.mkDerivation rec {
     export RUBYOPT=-rbundler/setup
 
     export OSCTLD_APPARMOR_PATHS="${apparmorPathsJoined}"
+    export OSCTLD_CT_START_MENU="${pkgs.ctstartmenu}/bin/ctstartmenu"
   '';
 }

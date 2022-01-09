@@ -1115,6 +1115,18 @@ read by `ls` or `show` commands.
   Unset custom path to the binary used as init and use the default value, which
   is `/sbin/init`.
 
+`ct set start-menu` [*options*] *ctid*
+  Enable the start menu. The start menu is a program that is run before
+  the container's init. It can be used to modify init arguments or to run
+  a shell. NixOS containers can choose the system generation to start.
+
+    `-t`, `--timeout` *n*
+      Timeout in seconds after which the default init system is started
+      automatically.
+
+`ct unset start-menu` *ctid*
+  Disable the start menu.
+
 `ct set raw lxc` *ctid*
   Append raw LXC configuration read from standard input to the *osctld* generated
   LXC configuration file.

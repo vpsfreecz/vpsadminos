@@ -22,7 +22,7 @@ module OsCtld
       :version, :arch, :autostart, :ephemeral, :hostname, :dns_resolvers,
       :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams,
       :devices, :seccomp_profile, :apparmor, :attrs, :state, :lxc_config,
-      :init_cmd, :raw_configs, :run_conf
+      :init_cmd, :start_menu, :raw_configs, :run_conf
 
     alias_method :ephemeral?, :ephemeral
 
@@ -473,6 +473,9 @@ module OsCtld
         when :init_cmd
           self.init_cmd = v
 
+        when :start_menu
+          self.start_menu = Container::StartMenu.new(self, v[:timeout])
+
         when :raw_lxc
           self.raw_configs.lxc = v
 
@@ -511,6 +514,9 @@ module OsCtld
         when :init_cmd
           self.init_cmd = nil
 
+        when :start_menu
+          self.start_menu = nil
+
         when :raw_lxc
           self.raw_configs.lxc = nil
 
@@ -548,6 +554,11 @@ module OsCtld
 
       save_config
       lxc_config.configure_prlimits
+    end
+
+    def setup_start_menu
+      menu = start_menu
+      menu.deploy if menu
     end
 
     def configure_bashrc
@@ -614,6 +625,8 @@ module OsCtld
           nesting: nesting,
           seccomp_profile: seccomp_profile,
           init_cmd: format_init_cmd,
+          start_menu: start_menu ? true : false,
+          start_menu_timeout: start_menu && start_menu.timeout,
           raw_lxc: raw_configs.lxc,
           log_file: log_path,
         }.merge!(attrs.export)
@@ -643,6 +656,7 @@ module OsCtld
           'seccomp_profile' => seccomp_profile == default_seccomp_profile \
                                ? nil : seccomp_profile,
           'init_cmd' => init_cmd,
+          'start_menu' => start_menu && start_menu.dump,
           'raw' => raw_configs.dump,
           'attrs' => attrs.dump,
         }
@@ -686,7 +700,14 @@ module OsCtld
     end
 
     def format_init_cmd
-      (init_cmd || default_init_cmd).join(' ')
+      cmd = (init_cmd || default_init_cmd)
+      menu = start_menu
+
+      if menu
+        menu.init_cmd(cmd)
+      else
+        cmd
+      end.join(' ')
     end
 
     def log_path
@@ -705,7 +726,8 @@ module OsCtld
     attr_exclusive_writer :pool, :id, :user, :dataset, :group, :distribution,
       :version, :arch, :autostart, :ephemeral, :hostname, :dns_resolvers,
       :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams,
-      :devices, :seccomp_profile, :apparmor, :attrs, :lxc_config, :init_cmd
+      :devices, :seccomp_profile, :apparmor, :attrs, :lxc_config, :init_cmd,
+      :start_menu
     attr_synchronized_accessor :mounted
 
     def load_config_file(path = nil, **opts)
@@ -748,6 +770,7 @@ module OsCtld
         @nesting = cfg['nesting'] || false
         @seccomp_profile = cfg['seccomp_profile'] || default_seccomp_profile
         @init_cmd = cfg['init_cmd']
+        @start_menu = cfg['start_menu'] && Container::StartMenu.load(self, cfg['start_menu'])
         @run_conf = Container::RunConfiguration.load(self)
 
         if cfg['send_log']
@@ -807,6 +830,7 @@ module OsCtld
       @cgparams = cgparams.dup(self)
       @prlimits = prlimits.dup(self)
       @mounts = mounts.dup(self)
+      @start_menu = @start_menu && @start_menu.dup(self)
       @lxc_config = lxc_config.dup(self)
       @raw_configs = raw_configs.dup
       @attrs = attrs.dup

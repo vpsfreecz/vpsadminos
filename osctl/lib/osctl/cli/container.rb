@@ -539,6 +539,18 @@ module OsCtl::Cli
       unset(:init_cmd)
     end
 
+    def set_start_menu
+      set(:start_menu) do
+        {
+          timeout: opts[:timeout],
+        }
+      end
+    end
+
+    def unset_start_menu
+      unset(:start_menu)
+    end
+
     def set_raw_lxc
       set(:raw_lxc) { |args| STDIN.read }
     end

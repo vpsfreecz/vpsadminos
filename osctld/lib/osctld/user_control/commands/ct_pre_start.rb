@@ -35,6 +35,9 @@ module OsCtld
       # Prepared shared mount directory
       ct.mounts.shared_dir.create
 
+      # Setup start menu
+      ct.setup_start_menu
+
       # Configure hostname
       DistConfig.run(ct.run_conf, :set_hostname) if ct.hostname
 

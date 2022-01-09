@@ -35,6 +35,7 @@ in
       run = ''
         export PATH="${config.security.wrapperDir}:${pathJoined}"
         export OSCTLD_APPARMOR_PATHS="${apparmorPathsJoined}"
+        export OSCTLD_CT_START_MENU="${pkgs.ctstartmenu}/bin/ctstartmenu"
 
         ${optionalString config.system.boot.restrict-proc-sysfs.enable ''
         waitForService restrict-proc-sysfs
