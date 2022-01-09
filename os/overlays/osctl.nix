@@ -1,5 +1,6 @@
 self: super:
 {
+  ctstartmenu = super.callPackage ../packages/ctstartmenu {};
   osctl = super.callPackage ../packages/osctl {};
   osctld = super.callPackage ../packages/osctld {};
   osup = super.callPackage ../packages/osup {};
