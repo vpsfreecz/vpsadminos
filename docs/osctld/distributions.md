@@ -188,7 +188,7 @@ is handled by *osctld* itself using `/sbin/ip`.
 *osctld* has methods for generating files from ERB templates, as you can see by
 looking at existing distribution-support code, which utilizes templates instead
 of mixing strings with code. Templates are stored in [osctld/templates/],
-methods for using them are in module [OsCtld::Template].
+methods for using them are in module [OsCtld::ErbTemplate].
 
 When generating the network configuration, depending on the distribution,
 the owner of the container should be able to add his own configuration. For
@@ -200,4 +200,4 @@ example, the included Debian configuration can be extended by creating
 [OsCtld::DistConfig::Unsupported]: https://ref.vpsadminos.org/osctld/OsCtld/DistConfig/Unsupported.html
 [OsCtld::DistConfig]: https://ref.vpsadminos.org/osctld/OsCtld/DistConfig.html
 [osctld/templates/]: https://github.com/vpsfreecz/vpsadminos/tree/staging/osctld/templates
-[OsCtld::Template]: https://ref.vpsadminos.org/osctld/OsCtld/Template.html
+[OsCtld::ErbTemplate]: https://ref.vpsadminos.org/osctld/OsCtld/ErbTemplate.html

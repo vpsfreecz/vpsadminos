@@ -36,7 +36,7 @@ night and deal with unexpected problems. It's designed to be simple and easy to
 debug. The boot process is made of several shell scripts, the few runit services
 are short scripts as well. We've invested a lot of time into making
 the administrator's life simpler, see the page about
-[container administration](../containers/administration). For example, although
+[container administration](../containers/administration.md). For example, although
 we have *osctld* to manage LXC seamlessly under the hood, LXC utilities are
 still easily accessible, so that *osctld* is not in the way while debugging
 issues.

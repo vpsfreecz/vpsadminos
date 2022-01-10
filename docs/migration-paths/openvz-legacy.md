@@ -150,10 +150,10 @@ Ignored config items:
 As you can see, all user beancounters are ignored. Disk quotas are also
 ignored, you have to set appropriate ZFS quotas on your own. CPU limiting is
 also not converted, but at least `CPULIMIT` could be converted in the future.
-Memory limits are deduced from [vSwap](https://openvz.org/VSwap).
+Memory limits are deduced from [vSwap](https://wiki.openvz.org/VSwap).
 
 ### Networking
-The converter can so far work only with [venet](https://openvz.org/Virtual_network_device).
+The converter can so far work only with [venet](https://wiki.openvz.org/Virtual_network_device).
 By default, `venet0` from OpenVZ will be `eth0` in vpsAdminOS. It will be
 a bridged veth, linked with `lxcbr0`. You have the option to rename the interface,
 set MAC address, change the link device or use routed veth instead, see
