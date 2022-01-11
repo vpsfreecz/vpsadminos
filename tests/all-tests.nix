@@ -42,6 +42,7 @@ let
 in tests [
   "boot"
   { template = "cgroups/mounts"; instances = distributions; }
+  "ctstartmenu/setup"
   { template = "dist-config/netif-routed"; instances = distributions; }
   { template = "dist-config/start-stop"; instances = distributions; }
   "docker/alpine-latest"
