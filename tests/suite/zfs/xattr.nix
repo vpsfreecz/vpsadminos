@@ -1,11 +1,11 @@
-import ../make-test.nix (pkgs: {
+import ../../make-test.nix (pkgs: {
   name = "zfs-xattr";
 
   description = ''
     Test that zfs xattr=sa by default
   '';
 
-  machine = import ../machines/tank.nix pkgs;
+  machine = import ../../machines/tank.nix pkgs;
 
   testScript = ''
     machine.start
