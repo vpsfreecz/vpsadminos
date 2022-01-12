@@ -98,5 +98,20 @@ import ../make-test.nix (pkgs: {
     end
 
     machine.stop
+
+    machine.start
+    machine.mkdir("/mydir")
+
+    begin
+      machine.mkdir("/mynested/dir")
+    rescue RuntimeError
+      # ok
+    else
+      fail "mkdir can create parent directories"
+    end
+
+    machine.mkdir_p("/mynested/dir")
+
+    machine.stop
   '';
 })
