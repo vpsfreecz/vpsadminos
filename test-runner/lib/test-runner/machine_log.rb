@@ -5,11 +5,25 @@ module TestRunner
       @file = File.open(path, 'w')
     end
 
-    %i(start stop kill destroy).each do |m|
+    %i(start stop destroy).each do |m|
       define_method(m) do
         log do |io|
           io.puts("ACTION: #{m}")
         end
+      end
+    end
+
+    def kill(signal)
+      log do |io|
+        io.puts("ACTION: kill")
+        io.puts("SIGNAL: #{signal}")
+      end
+    end
+
+    def exit(status)
+      log do |io|
+        io.puts("ACTION: qemu_exit")
+        io.puts("STATUS: #{status}")
       end
     end
 

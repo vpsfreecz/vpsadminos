@@ -65,6 +65,7 @@ module TestRunner
         m.kill
         m.destroy if opts[:destructive]
         m.finalize
+        m.cleanup
       end
     end
   end

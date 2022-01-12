@@ -33,7 +33,12 @@ module TestRunner
       prepare_disks
 
       @shell_server = UNIXServer.new(shell_socket_path)
-      @qemu = IO.popen("exec #{qemu_command.join(' ')} 2>&1", 'r+')
+
+      @qemu_read, w = IO.pipe
+      @qemu_pid = Process.spawn(*qemu_command, in: :close, out: w, err: w)
+      w.close
+      run_qemu_reaper(qemu_pid)
+
       @running = true
 
       run_console_thread
@@ -41,27 +46,50 @@ module TestRunner
       @shell = @shell_server.accept
     end
 
-    def stop
+    def stop(timeout: TIMEOUT)
       log.stop
       execute('poweroff')
-      cleanup
+
+      if qemu_reaper.join(timeout).nil?
+        fail "Timeout while stopping machine #{name}"
+      end
     end
 
     def kill
-      log.kill
-
-      begin
-        Process.kill('TERM', qemu.pid) if qemu
-      rescue Errno::ESRCH
-        warn "Unable to kill machine #{name}"
+      unless running?
+        log.kill('NONE')
+        return
       end
 
-      cleanup
+      log.kill('TERM')
+
+      begin
+        Process.kill('TERM', qemu_pid)
+      rescue Errno::ESRCH
+        warn "Unable to kill machine #{name} using SIGTERM"
+      end
+
+      return if qemu_reaper.join(60)
+
+      log.kill('KILL')
+
+      begin
+        Process.kill('KILL', qemu_pid)
+      rescue Errno::ESRCH
+        warn "Unable to kill machine #{name} using SIGKILL"
+      end
+
+      qemu_reaper.join
     end
 
     def destroy
       log.destroy
       destroy_disks
+    end
+
+    def cleanup
+      File.unlink(shell_socket_path)
+    rescue Errno::ENOENT
     end
 
     def running?
@@ -84,6 +112,13 @@ module TestRunner
       start unless running?
       wait_for_shell
       t1 = Time.now
+
+      # It is a bit of a mystery why this write is needed. The shell just
+      # sometimes swallows the first character, which would be a '(', and then
+      # it complains about a syntax error. So we first write a character that
+      # it can harmlessly swallow.
+      shell.write("\n")
+
       shell.write("( #{cmd} ); echo '|!=EOF' $?\n")
       log.execute_begin(cmd)
       rx = /(.*)\|\!=EOF\s+(\d+)/m
@@ -209,10 +244,7 @@ module TestRunner
       t1 = Time.now
 
       loop do
-        unless running?
-          cleanup
-          return
-        end
+        return unless running?
 
         if t1 + timeout < Time.now
           fail "Timeout occured while waiting for shutdown"
@@ -260,8 +292,8 @@ module TestRunner
     end
 
     protected
-    attr_reader :config, :tmpdir, :qemu, :console_thread, :shell_server, :shell,
-      :log
+    attr_reader :config, :tmpdir, :qemu_pid, :qemu_read, :qemu_reaper,
+      :console_thread, :shell_server, :shell, :log
 
     def qemu_command
       kernel_params = [
@@ -279,12 +311,12 @@ module TestRunner
         "-device", "virtio-net,netdev=net0",
         "-netdev", "user,id=net0,net=10.0.2.0/24,host=10.0.2.2,dns=10.0.2.3",
         "-drive", "index=0,id=drive1,file=#{config[:squashfs]},readonly,media=cdrom,format=raw,if=virtio",
-        "-chardev socket,id=shell,path=#{shell_socket_path}",
-        "-device virtio-serial",
-        "-device virtconsole,chardev=shell",
+        "-chardev", "socket,id=shell,path=#{shell_socket_path}",
+        "-device", "virtio-serial",
+        "-device", "virtconsole,chardev=shell",
         "-kernel", config[:kernel],
         "-initrd", config[:initrd],
-        "-append", "\"#{kernel_params.join(' ')}\"",
+        "-append", "#{kernel_params.join(' ')}",
         "-nographic",
       ] + qemu_disk_options
     end
@@ -293,11 +325,39 @@ module TestRunner
       ret = []
 
       config[:disks].each_with_index do |disk, i|
-        ret << "-drive id=disk#{i},file=#{disk_path(disk[:device])},if=none,format=raw"
-        ret << "-device ide-hd,drive=disk#{i},bus=ahci.#{i}"
+        ret << "-drive" << "id=disk#{i},file=#{disk_path(disk[:device])},if=none,format=raw"
+        ret << "-device" << "ide-hd,drive=disk#{i},bus=ahci.#{i}"
       end
 
       ret
+    end
+
+    def run_qemu_reaper(pid)
+      @qemu_reaper = Thread.new do
+        Process.wait(pid)
+        log.exit($?.exitstatus)
+
+        @qemu_pid = nil
+        @qemu_read.close
+        @qemu_read = nil
+
+        console_thread.join
+        @console_thread = nil
+
+        shell_server.close
+        @shell_server = nil
+
+        if shell
+          shell.close
+          @shell = nil
+        end
+
+        cleanup
+
+        @qemu_reaper = nil
+        @shell_up = false
+        @running = false
+      end
     end
 
     def run_console_thread
@@ -306,19 +366,18 @@ module TestRunner
 
         begin
           loop do
-            rs, _ = IO.select([qemu])
+            rs, _ = IO.select([qemu_read])
 
             rs.each do |io|
               case io
-              when qemu
-                console_log.write(read_nonblock(qemu))
+              when qemu_read
+                console_log.write(read_nonblock(qemu_read))
                 console_log.flush
               end
             end
           end
         rescue EOFError
           console_log.close
-          cleanup
         end
       end
     end
@@ -341,6 +400,7 @@ module TestRunner
     end
 
     def wait_for_shell(timeout: TIMEOUT)
+      fail "machine #{name} is not running" unless running?
       return if shell_up?
 
       t1 = Time.now
@@ -366,30 +426,6 @@ module TestRunner
           succeeds("stty -F /dev/hvc0 -echo")
           return
         end
-      end
-    end
-
-    def cleanup
-      if console_thread && Thread.current != console_thread
-        console_thread.join
-        @console_thread = nil
-      end
-
-      @mutex.synchronize do
-        if shell_server
-          shell_server.close
-          @shell_server = nil
-        end
-
-        if shell
-          shell.close
-          @shell = nil
-        end
-
-        File.unlink(shell_socket_path) if File.exist?(shell_socket_path)
-
-        @running = false
-        @shell_up = false
       end
     end
 
