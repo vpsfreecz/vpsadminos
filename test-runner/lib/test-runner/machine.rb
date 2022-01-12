@@ -387,6 +387,10 @@ module TestRunner
       shared_dir.pull_file(src, preserve: preserve)
     end
 
+    def inspect
+      "#<#{self.class.name}:#{self.object_id} name=#{name}>"
+    end
+
     protected
     attr_reader :config, :tmpdir, :qemu_pid, :qemu_read, :qemu_reaper,
       :console_thread, :shell_server, :shell, :log, :virtiofsd_pids, :shared_dir
