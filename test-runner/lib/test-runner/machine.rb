@@ -24,6 +24,8 @@ module TestRunner
       log.close
     end
 
+    # Start the machine
+    # @return [Machine]
     def start
       if running?
         fail 'Machine already started'
@@ -44,8 +46,12 @@ module TestRunner
       run_console_thread
 
       @shell = @shell_server.accept
+      self
     end
 
+    # Stop the machine
+    # @param timeout [Integer]
+    # @return [Machine]
     def stop(timeout: TIMEOUT)
       log.stop
       execute('poweroff')
@@ -53,8 +59,12 @@ module TestRunner
       if qemu_reaper.join(timeout).nil?
         fail "Timeout while stopping machine #{name}"
       end
+
+      self
     end
 
+    # Kill the machine
+    # @return [Machine]
     def kill
       unless running?
         log.kill('NONE')
@@ -80,34 +90,48 @@ module TestRunner
       end
 
       qemu_reaper.join
+      self
     end
 
+    # Destroy the machine
+    # @return [Machine]
     def destroy
       log.destroy
       destroy_disks
+      self
     end
 
+    # Cleanup machine state
+    # @return [Machine]
     def cleanup
-      File.unlink(shell_socket_path)
-    rescue Errno::ENOENT
+      begin
+        File.unlink(shell_socket_path)
+      rescue Errno::ENOENT
+      end
+
+      self
     end
 
+    # @return [Boolean]
     def running?
       @running
     end
 
+    # @return [Boolean]
     def booted?
       shell_up?
     end
 
     # Wait until the system has booted
+    # @param timeout [Integer]
     def wait_for_boot(timeout: TIMEOUT)
       wait_for_shell(timeout: timeout)
     end
 
+    # Execute a command
     # @param cmd [String]
     # @param timeout [Integer]
-    # @return [Array<Integer, String>]
+    # @return [Array<Integer, String>] exit status and output
     def execute(cmd, timeout: TIMEOUT)
       start unless running?
       wait_for_shell
@@ -235,16 +259,20 @@ module TestRunner
     end
 
     # Wait until network is operational, including DNS
+    # @return [Machine]
     def wait_until_online(timeout: TIMEOUT)
       wait_until_succeeds("curl https://vpsadminos.org", timeout: timeout)
+      self
     end
 
     # Wait until the machine shuts down
+    # @param timeout [Integer]
+    # @return [Machine]
     def wait_for_shutdown(timeout: TIMEOUT)
       t1 = Time.now
 
       loop do
-        return unless running?
+        return self unless running?
 
         if t1 + timeout < Time.now
           fail "Timeout occured while waiting for shutdown"
@@ -256,11 +284,14 @@ module TestRunner
 
     # Wait for runit system service to start
     # @param name [String]
+    # @return [Machine]
     def wait_for_service(name)
       wait_until_succeeds("sv check #{name}")
+      self
     end
 
     # osctl command without `osctl`, output is returned as JSON
+    # @param cmd [String]
     # @return [Hash]
     def osctl_json(cmd)
       status, output = succeeds("osctl -j #{cmd}")
@@ -269,12 +300,17 @@ module TestRunner
 
     # Wait for zpool
     # @param name [String]
+    # @param timeout [Integer]
+    # @return [Machine]
     def wait_for_zpool(name, timeout: TIMEOUT)
       wait_until_succeeds("zpool list #{name}", timeout: timeout)
+      self
     end
 
     # Wait for pool to be imported into osctld
     # @param name [String]
+    # @param timeout [Integer]
+    # @return [Machine]
     def wait_for_osctl_pool(name, timeout: TIMEOUT)
       t1 = Time.now
       cur_timeout = timeout
@@ -285,7 +321,7 @@ module TestRunner
           timeout: cur_timeout,
         )
 
-        return if output == 'active'
+        return self if output == 'active'
 
         cur_timeout = timeout - (Time.now - t1)
       end
