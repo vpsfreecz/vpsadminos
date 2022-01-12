@@ -112,6 +112,47 @@ import ../make-test.nix (pkgs: {
 
     machine.mkdir_p("/mynested/dir")
 
+    if Process.uid == 0
+      machine.fails("ls -l /myresolvconf")
+      machine.push_file("/etc/resolv.conf", "/myresolvconf")
+      machine.succeeds("ls -l /myresolvconf")
+
+      machine.fails("ls -l /mynestedresolvconf/conf")
+      begin
+        machine.push_file("/etc/resolv.conf", "/mynestedresolvconf/conf")
+      rescue RuntimeError
+        # ok
+      else
+        fail "push_file() should not create parent directories"
+      end
+
+      machine.fails("ls -l /mynestedresolvconf/conf")
+      machine.push_file("/etc/resolv.conf", "/mynestedresolvconf/conf", mkpath: true)
+      machine.succeeds("ls -l /mynestedresolvconf/conf")
+
+      pulled = machine.pull_file("/etc/resolv.conf")
+      unless File.exist?(pulled)
+        fail "pulled file not found at '#{pulled}'"
+      end
+
+    else
+      begin
+        machine.push_file("/etc/resolv.conf", "/myresolvconf")
+      rescue RuntimeError
+        # ok
+      else
+        fail "push_file() should not work for non-root users"
+      end
+
+      begin
+        machine.pull_file("/etc/resolv.conf")
+      rescue RuntimeError
+        # ok
+      else
+        fail "pull_file() should not work for non-root users"
+      end
+    end
+
     machine.stop
   '';
 })
