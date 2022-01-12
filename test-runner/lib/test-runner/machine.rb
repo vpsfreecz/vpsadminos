@@ -14,6 +14,9 @@ module TestRunner
       @tmpdir = tmpdir
       @running = false
       @shell_up = false
+      @shared_dir = SharedDir.new(self)
+      @can_use_virtiofs = Process.uid == 0
+      @virtiofsd_pids = []
       @mutex = Mutex.new
 
       FileUtils.mkdir_p(tmpdir)
@@ -35,6 +38,12 @@ module TestRunner
       prepare_disks
 
       @shell_server = UNIXServer.new(shell_socket_path)
+
+      if can_use_virtiofs?
+        shared_dir.setup
+        start_virtiofs
+        sleep(1)
+      end
 
       @qemu_read, w = IO.pipe
       @qemu_pid = Process.spawn(*qemu_command, in: :close, out: w, err: w)
@@ -97,6 +106,7 @@ module TestRunner
     # @return [Machine]
     def destroy
       log.destroy
+      shared_dir.destroy
       destroy_disks
       self
     end
@@ -107,6 +117,13 @@ module TestRunner
       begin
         File.unlink(shell_socket_path)
       rescue Errno::ENOENT
+      end
+
+      shared_filesystems.each_key do |fs_name|
+        begin
+          File.unlink(virtiofs_socket_path(fs_name))
+        rescue Errno::ENOENT
+        end
       end
 
       self
@@ -327,9 +344,52 @@ module TestRunner
       end
     end
 
+    # Create a directory inside the machine
+    # @param path [String] path within the machine
+    # @return [Machine]
+    def mkdir(path)
+      succeeds("mkdir \"#{path}\"")
+      self
+    end
+
+    # Create a directory inside the machine
+    # @param path [String] path within the machine
+    # @return [Machine]
+    def mkdir_p(path)
+      succeeds("mkdir -p \"#{path}\"")
+      self
+    end
+
+    # Push file from the host to the machine
+    # @param src [String] file on the host
+    # @param dst [String] file within the machine
+    # @param preserve [Boolean]
+    # @param mkpath [Boolean]
+    # @return [Machine]
+    def push_file(src, dst, preserve: false, mkpath: false)
+      unless can_use_virtiofs?
+        fail 'test-runner must be run as root for push_file() to work'
+      end
+
+      mkdir_p(File.dirname(dst)) if mkpath
+      shared_dir.push_file(src, dst)
+      self
+    end
+
+    # Pull file from the machine to the host
+    # @param src [String] file within the machine
+    # @return [String] path to the file on the host
+    def pull_file(src, preserve: false)
+      unless can_use_virtiofs?
+        fail 'test-runner must be run as root for pull_file() to work'
+      end
+
+      shared_dir.pull_file(src, preserve: preserve)
+    end
+
     protected
     attr_reader :config, :tmpdir, :qemu_pid, :qemu_read, :qemu_reaper,
-      :console_thread, :shell_server, :shell, :log
+      :console_thread, :shell_server, :shell, :log, :virtiofsd_pids, :shared_dir
 
     def qemu_command
       kernel_params = [
@@ -354,7 +414,7 @@ module TestRunner
         "-initrd", config[:initrd],
         "-append", "#{kernel_params.join(' ')}",
         "-nographic",
-      ] + qemu_disk_options
+      ] + qemu_disk_options + qemu_virtiofs_options
     end
 
     def qemu_disk_options
@@ -366,6 +426,58 @@ module TestRunner
       end
 
       ret
+    end
+
+    def qemu_virtiofs_options
+      ret = []
+      return ret unless can_use_virtiofs?
+
+      shared_filesystems.each_with_index do |fs, i|
+        name, _ = fs
+        ret << "-chardev" << "socket,id=char#{i},path=#{virtiofs_socket_path(name)}"
+        ret << "-device" << "vhost-user-fs-pci,queue-size=1024,chardev=char#{i},tag=#{name}"
+      end
+
+      if ret.any?
+        ret << "-object" << "memory-backend-file,id=m0,size=#{config[:memory]}M,mem-path=/dev/shm,share=on"
+        ret << "-numa" << "node,memdev=m0"
+      end
+
+      ret
+    end
+
+    def start_virtiofs
+      shared_filesystems.each do |name, path|
+        f = File.open(virtiofs_log_path(name), 'w')
+
+        virtiofsd_pids << Process.spawn(
+          File.join(config[:qemu], 'libexec/virtiofsd'),
+          "--socket-path=#{virtiofs_socket_path(name)}",
+          "-o", "source=#{path}",
+          "-o", "cache=none",
+          in: :close,
+          out: f,
+          err: f,
+        )
+
+        f.close
+      end
+    end
+
+    def stop_virtiofs
+      virtiofsd_pids.delete_if do |pid|
+        begin
+          Process.kill('TERM', pid)
+          false
+        rescue Errno::ESRCH
+          true
+        end
+      end
+
+      virtiofsd_pids.delete_if do |pid|
+        Process.wait(pid)
+        true
+      end
     end
 
     def run_qemu_reaper(pid)
@@ -387,6 +499,8 @@ module TestRunner
           shell.close
           @shell = nil
         end
+
+        stop_virtiofs
 
         cleanup
 
@@ -460,6 +574,7 @@ module TestRunner
         if buffer.include?("test-shell-ready\r\n")
           @shell_up = true
           succeeds("stty -F /dev/hvc0 -echo")
+          shared_dir.mount if can_use_virtiofs?
           return
         end
       end
@@ -479,6 +594,24 @@ module TestRunner
       else
         File.join(tmpdir, path)
       end
+    end
+
+    def shared_filesystems
+      {
+        shared_dir.fs_name => shared_dir.host_path,
+      }
+    end
+
+    def can_use_virtiofs?
+      @can_use_virtiofs
+    end
+
+    def virtiofs_socket_path(mount_name)
+      File.join(tmpdir, "#{name}-virtiofs-#{mount_name}.sock")
+    end
+
+    def virtiofs_log_path(mount_name)
+      File.join(tmpdir, "#{name}-virtiofs-#{mount_name}.log")
     end
 
     def shell_up?
