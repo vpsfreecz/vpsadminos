@@ -63,7 +63,7 @@ import ../make-test.nix (pkgs: {
 
     begin
       machine.execute("sleep 10", timeout: 5)
-    rescue RuntimeError
+    rescue TimeoutError
       # ok
     else
       fail "Execution timeout not caught"
@@ -71,7 +71,7 @@ import ../make-test.nix (pkgs: {
 
     begin
       machine.wait_for_shutdown(timeout: 5)
-    rescue RuntimeError
+    rescue TimeoutError
       # ok
     else
       fail "Shutdown timeout not caught"
@@ -104,7 +104,7 @@ import ../make-test.nix (pkgs: {
 
     begin
       machine.mkdir("/mynested/dir")
-    rescue RuntimeError
+    rescue CommandFailed
       # ok
     else
       fail "mkdir can create parent directories"
@@ -120,7 +120,7 @@ import ../make-test.nix (pkgs: {
       machine.fails("ls -l /mynestedresolvconf/conf")
       begin
         machine.push_file("/etc/resolv.conf", "/mynestedresolvconf/conf")
-      rescue RuntimeError
+      rescue CommandError
         # ok
       else
         fail "push_file() should not create parent directories"

@@ -66,7 +66,7 @@ module TestRunner
       execute('poweroff')
 
       if qemu_reaper.join(timeout).nil?
-        fail "Timeout while stopping machine #{name}"
+        raise TimeoutError, "Timeout while stopping machine #{name}"
       end
 
       self
@@ -168,7 +168,7 @@ module TestRunner
       loop do
         if t1 + timeout < Time.now
           log.execute_end(-1, buffer)
-          fail "Timeout occured while running command '#{cmd}'"
+          raise TimeoutError, "Timeout occured while running command '#{cmd}'"
         end
 
         rs, _ = IO.select([shell], [], [], 1)
@@ -199,7 +199,7 @@ module TestRunner
       status, output = execute(cmd, timeout: timeout)
 
       if status != 0
-        fail "Command '#{cmd}' failed with status #{status}. Output:\n #{output}"
+        raise CommandFailed, "Command '#{cmd}' failed with status #{status}. Output:\n #{output}"
       end
 
       return [status, output]
@@ -213,7 +213,7 @@ module TestRunner
       status, output = execute(cmd, timeout: timeout)
 
       if status == 0
-        fail "Command '#{cmd}' succeeds with status #{status}. Output:\n #{output}"
+        raise CommandSucceeded "Command '#{cmd}' succeeds with status #{status}. Output:\n #{output}"
       end
 
       return [status, output]
@@ -292,7 +292,7 @@ module TestRunner
         return self unless running?
 
         if t1 + timeout < Time.now
-          fail "Timeout occured while waiting for shutdown"
+          raise TimeoutError, "Timeout occured while waiting for shutdown"
         end
 
         sleep(1)
@@ -562,7 +562,7 @@ module TestRunner
 
       loop do
         if t1 + timeout < Time.now
-          fail "Timeout occured while waiting for shell"
+          raise TimeoutError, "Timeout occured while waiting for shell"
         end
 
         rs, _ = IO.select([shell], [], [], 1)

@@ -2,6 +2,7 @@ module TestRunner
   module Cli ; end
 end
 
+require 'test-runner/exceptions'
 require 'test-runner/executor'
 require 'test-runner/machine_log'
 require 'test-runner/machine'
