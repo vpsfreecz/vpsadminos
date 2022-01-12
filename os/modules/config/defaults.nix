@@ -54,6 +54,7 @@
   boot.initrd.supportedFilesystems = [ "zfs" ];
 
   environment.systemPackages = with pkgs; [
+    acl
     glibc
     iotop
     ipset
