@@ -35,6 +35,21 @@ get_prop() {
   return $?
 }
 
+must_have_acl() {
+  local acl="$(getfacl $2)"
+  if ! grep -x $1 <<< "$acl" ; then
+    echo "acl '$1' not found on file '$2'"
+    echo "getfacl output:"
+    echo "$acl"
+    exit 1
+  fi
+}
+
+must_set_and_have_acl() {
+  log_must setfacl -m $1 $2
+  must_have_acl $1 $2
+}
+
 TESTPOOL=tank
 TESTFS=testfs
 

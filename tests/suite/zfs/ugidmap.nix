@@ -20,7 +20,7 @@ import ../../make-test.nix (pkgs: {
     # Deploy tests
     machine.mkdir(test_dir)
 
-    tests = %w(defaults properties send-recv mappings)
+    tests = %w(defaults properties send-recv mappings acl-host acl-ct)
     files = %w(run setup) + tests
 
     files.each do |name|
