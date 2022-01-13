@@ -47,7 +47,12 @@ module OsCtld
           cur_stdout = opts.fetch(:stdout, stdout)
           cur_stderr = opts.fetch(:stderr, stderr)
 
-          STDIN.reopen(cur_stdin)
+          if cur_stdin
+            STDIN.reopen(cur_stdin)
+          else
+            STDIN.close
+          end
+
           STDOUT.reopen(cur_stdout)
           STDERR.reopen(cur_stderr) if cur_stderr
 

@@ -402,7 +402,7 @@ module OsCtl::Cli
         :ct_runscript,
         id: args[0],
         pool: gopts[:pool],
-        script: File.realpath(args[1]),
+        script: args[1] == '-' ? nil : File.realpath(args[1]),
         arguments: args[2..-1],
         run: opts['run-container'],
         network: opts['network'],

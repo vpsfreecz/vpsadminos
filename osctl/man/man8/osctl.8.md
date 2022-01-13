@@ -978,8 +978,11 @@ read by `ls` or `show` commands.
       Note that only static IP address and route configuration can be setup
       in this way. DHCP client is not run.
 
-`ct runscript` [*options*] *ctid* *script* [*arguments...*]
+`ct runscript` [*options*] *ctid* *script*|`-` [*arguments...*]
   Execute *script* within the context of container *ctid*.
+
+  If *script* is `-`, the script to execute is read from the standard input.
+  In this case, the script cannot read from the standard output itself.
 
     `-r`, `--run-container`
       If the container isn't already running, start it, but run *script* instead

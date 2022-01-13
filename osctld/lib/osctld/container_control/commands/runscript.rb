@@ -16,7 +16,7 @@ module OsCtld
       include ContainerControl::Utils::Runscript::Frontend
 
       # @param opts [Hash]
-      # @option opts [String] :script path to the script on the host
+      # @option opts [String, nil] :script path to the script on the host or nil
       # @option opts [Array<String>] :args script arguments
       # @option opts [IO] :stdin
       # @option opts [IO] :stdout
@@ -42,12 +42,12 @@ module OsCtld
 
         add_network_opts(runner_opts) if opts[:network]
 
-        script = copy_script(opts[:script])
+        script = copy_script(opts[:script], opts[:stdin])
         runner_opts[:script] = File.join('/', File.basename(script.path))
 
         ret = exec_runner(
           args: [mode, runner_opts],
-          stdin: opts[:stdin],
+          stdin: opts[:script].nil? ? nil : opts[:stdin],
           stdout: opts[:stdout],
           stderr: opts[:stderr],
         )
@@ -62,11 +62,17 @@ module OsCtld
       end
 
       protected
-      def copy_script(src)
+      def copy_script(src, stdin)
         script = Tempfile.create(['.runscript', '.sh'], ct.get_run_conf.rootfs)
         script.chmod(0500)
 
-        File.open(src, 'r') { |f| IO.copy_stream(f, script) }
+        if src.nil?
+          IO.copy_stream(stdin, script)
+          stdin.close
+        else
+          File.open(src, 'r') { |f| IO.copy_stream(f, script) }
+        end
+
         script.close
         script
       end
