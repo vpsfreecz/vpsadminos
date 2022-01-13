@@ -57,4 +57,7 @@ ZFS_USER=zfsugidmap
 TEST_UID=100000
 TEST_GID=200000
 
-. "$1"/"$2".sh
+TEST_DIR="$1"
+TEST_NAME="$2"
+
+. "$TEST_DIR"/"$TEST_NAME".sh

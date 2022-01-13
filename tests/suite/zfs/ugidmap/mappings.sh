@@ -1,3 +1,5 @@
+. "$TEST_DIR/setup.sh"
+
 FSDIR=$(get_prop mountpoint $TESTPOOL/$TESTFS/multimap)
 
 UIDMAP="0:100000:10000,10000:10000:10000,20000:20000:10000,30000:120000:45536"
@@ -124,4 +126,5 @@ owner=$(stat -c %u:%g "$FSDIR/dir/last_end.txt")
 [ "$owner" == "65535:65535" ] || \
     log_fail "UID/GID is persisted mapped: expected 65535:65535, got $owner"
 
+. "$TEST_DIR/cleanup.sh"
 log_pass

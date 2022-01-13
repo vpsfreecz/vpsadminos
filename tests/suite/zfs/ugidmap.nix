@@ -21,7 +21,7 @@ import ../../make-test.nix (pkgs: {
     machine.mkdir(test_dir)
 
     tests = %w(defaults properties send-recv mappings acl-host acl-ct)
-    files = %w(run setup) + tests
+    files = %w(run setup cleanup) + tests
 
     files.each do |name|
       machine.push_file(
@@ -31,9 +31,6 @@ import ../../make-test.nix (pkgs: {
     end
 
     machine.succeeds("chmod +x #{test_run}")
-
-    # Run setup
-    machine.succeeds("#{test_run} #{test_dir} setup")
 
     # Run tests
     tests.each do |name|

@@ -1,3 +1,5 @@
+. "$TEST_DIR/setup.sh"
+
 FSDIR=$(get_prop mountpoint $TESTPOOL/$TESTFS)
 
 # uidmap and gidmap can be changed only when the fs is not mounted
@@ -80,4 +82,5 @@ owner=$(stat -c %u:%g "$FSDIR/both/userdir/test.txt")
 [ "$owner" == "$(($TEST_UID-100000)):$(($TEST_GID-200000))" ] || \
     log_fail "UID/GID is persisted mapped: expected $(($TEST_UID-100000)):$(($TEST_GID-200000))"
 
+. "$TEST_DIR/cleanup.sh"
 log_pass

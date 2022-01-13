@@ -1,9 +1,18 @@
+. "$TEST_DIR/setup.sh"
+
 FSDIR=$(get_prop mountpoint $TESTPOOL/$TESTFS)
 
 log_must zfs unmount $TESTPOOL/$TESTFS/both
 log_must zfs set uidmap="0:100000:65536" $TESTPOOL/$TESTFS/both
 log_must zfs set gidmap="0:200000:65536" $TESTPOOL/$TESTFS/both
 log_must zfs mount $TESTPOOL/$TESTFS/both
+
+log_must touch "$FSDIR/both/test.txt"
+log_must chown 500:600 "$FSDIR/both/test.txt"
+log_must mkdir "$FSDIR/both/userdir"
+log_must chown $TEST_UID:$TEST_GID "$FSDIR/both/userdir"
+log_must su $ZFS_USER -c "touch '$FSDIR/both/userdir/test.txt'"
+
 log_must zfs create $TESTPOOL/$TESTFS/both.noprop
 log_must zfs create $TESTPOOL/$TESTFS/both.withprop
 log_must zfs snapshot $TESTPOOL/$TESTFS/both@snap
@@ -30,4 +39,5 @@ owner=$(stat -c %u:%g "$FSDIR/both.withprop/userdir/test.txt")
 [ "$owner" == "$TEST_UID:$TEST_GID" ] || \
     log_fail "does not map UIDs/GIDs: expected $TEST_UID:$TEST_GID, got $owner"
 
+. "$TEST_DIR/cleanup.sh"
 log_pass

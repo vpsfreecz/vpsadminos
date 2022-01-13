@@ -1,3 +1,5 @@
+. "$TEST_DIR/setup.sh"
+
 TESTDS=$TESTPOOL/$TESTFS/acl
 FSDIR=$(get_prop mountpoint $TESTDS)
 
@@ -23,11 +25,6 @@ MAPPED_GID=$(($TEST_GID + $CORRECT_GID))
 
 WRONG_UID=$MAPPED_UID
 WRONG_GID=$MAPPED_GID
-
-###
-# log_must zfs destroy -r $TESTDS
-# log_must zfs create $TESTDS
-###
 
 log_must zfs set acltype=posixacl $TESTDS
 
@@ -83,3 +80,6 @@ must_have_acl group:$CORRECT_GID:rwx $NEW_HOST_FILE
 
 must_have_acl user:$CORRECT_UID:rwx $NEW_MAPPED_FILE
 must_have_acl group:$CORRECT_GID:rwx $NEW_MAPPED_FILE
+
+. "$TEST_DIR/cleanup.sh"
+log_pass

@@ -10,5 +10,3 @@ log_must zfs create $TESTPOOL/$TESTFS/acl
 
 log_must groupadd -g $TEST_GID $ZFS_USER
 log_must useradd -c "ZFS UID/GID Mapping Test User" -u $TEST_UID -g $TEST_GID $ZFS_USER
-
-log_pass

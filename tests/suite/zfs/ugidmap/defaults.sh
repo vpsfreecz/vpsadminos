@@ -1,3 +1,5 @@
+. "$TEST_DIR/setup.sh"
+
 [ $(get_prop uidmap $TESTPOOL) == "none" ] || \
     log_fail "uidmap does not default to none"
 [ $(get_prop gidmap $TESTPOOL) == "none" ] || \
@@ -29,4 +31,5 @@ log_must su $ZFS_USER -c "touch '$POOLDIR/userdir/test.txt'"
 # maps can be changed
 # sending data stream without maps
 
+. "$TEST_DIR/cleanup.sh"
 log_pass
