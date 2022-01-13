@@ -50,6 +50,11 @@ must_set_and_have_acl() {
   must_have_acl $1 $2
 }
 
+must_set_and_have_default_acl() {
+  log_must setfacl -d -m $1 $2
+  must_have_acl default:$1 $2
+}
+
 TESTPOOL=tank
 TESTFS=testfs
 

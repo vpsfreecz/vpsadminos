@@ -59,6 +59,17 @@ su testuser -c "ls -l /acl/group" && fal "group acl wasn't unset"
 setfacl -m user:testuser:rx /acl/user
 setfacl -m group:testgroup:rx /acl/group
 
+mkdir /acl/default-user /acl/default-group
+setfacl -d -m user:testuser:rx /acl/default-user
+mkdir -m 0700 /acl/default-user/dir
+setfacl -m mask::rwx /acl/default-user/dir
+su testuser -c "ls -l /acl/default-user/dir" || fail "/acl/default-user/dir not accessible"
+
+setfacl -d -m group:testgroup:rx /acl/default-group
+mkdir -m 0700 /acl/default-group/dir
+setfacl -m mask::rwx /acl/default-group/dir
+su testuser -c "ls -l /acl/default-group/dir" || fail "/acl/default-group/dir not accessible"
+
 exit 0
 END
 
@@ -77,6 +88,12 @@ must_have_acl group:$CT_GROUP_GID:r-x $CT_ROOTFS/acl/group
 mkdir $CT_ROOTFS/acl/old-preexisting
 setfacl -m user:$(($TEST_UID + $CT_USER_UID)):rx $CT_ROOTFS/acl/old-preexisting
 setfacl -m group:$(($TEST_GID + $CT_GROUP_GID)):rx $CT_ROOTFS/acl/old-preexisting
+
+must_have_acl default:user:$CT_USER_UID:r-x $CT_ROOTFS/acl/default-user
+must_have_acl default:group:$CT_GROUP_UID:r-x $CT_ROOTFS/acl/default-group
+
+must_have_acl user:$CT_USER_UID:r-x $CT_ROOTFS/acl/default-user/dir
+must_have_acl group:$CT_GROUP_UID:r-x $CT_ROOTFS/acl/default-group/dir
 
 # Set the map again, start the container and re-check
 log_must zfs umount $CT_DS
