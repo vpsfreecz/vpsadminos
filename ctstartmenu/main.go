@@ -8,10 +8,10 @@ import (
 	"github.com/creack/pty"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"golang.org/x/sys/unix"
 	"os"
 	"os/exec"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -47,7 +47,7 @@ func main() {
 	}
 
 	if opts.reboot {
-		syscall.Reboot(syscall.LINUX_REBOOT_CMD_RESTART)
+		unix.Reboot(unix.LINUX_REBOOT_CMD_RESTART)
 		return
 	}
 
@@ -155,7 +155,7 @@ func supervisor(opts *options) {
 	}
 
 	if data.Action == "exec" {
-		if err = syscall.Exec(data.Args[0], data.Args, os.Environ()); err != nil {
+		if err = unix.Exec(data.Args[0], data.Args, os.Environ()); err != nil {
 			panic(err)
 		}
 	} else if data.Action == "reboot" {

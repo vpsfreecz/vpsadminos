@@ -6,7 +6,7 @@ buildGoModule {
 
   src = ../../../ctstartmenu;
 
-  vendorSha256 = "sha256:139apy95g69dzbmwiqyc67mrqs0mqndnsrfx42dhx4xzq13xp0m1";
+  vendorSha256 = "sha256:0b6abzpbf4j2mlizwqdhf4769sxwd9m0di77x2f13sxdl4a0bcam";
 
   meta = with lib; {
     description = "Start menu for containers";
