@@ -6,13 +6,9 @@ import (
 	"flag"
 	"fmt"
 	"github.com/creack/pty"
-	"github.com/gdamore/tcell/v2"
-	"github.com/rivo/tview"
 	"golang.org/x/sys/unix"
 	"os"
 	"os/exec"
-	"strings"
-	"time"
 )
 
 type options struct {
@@ -27,13 +23,6 @@ type startCommand struct {
 	Action string
 	Args   []string
 }
-
-var (
-	app          *tview.Application
-	frame        *tview.Frame
-	resultWriter *os.File
-	hostname     string
-)
 
 func main() {
 	opts := parseOptions()
@@ -109,18 +98,47 @@ func parseOptions() *options {
 }
 
 func supervisor(opts *options) {
+	for {
+		data, err := superviseMenu(opts)
+		if err != nil {
+			panic(err)
+		}
+
+		if data.Action == "exec" {
+			// Delete self in case we still exist
+			if !opts.preserve {
+				os.Remove(os.Args[0])
+			}
+
+			if err = unix.Exec(data.Args[0], data.Args, os.Environ()); err != nil {
+				panic(err)
+			}
+		} else if data.Action == "shell" {
+			opts.timeout = 0 // in case we return to the menu
+			superviseShell(data.Args)
+		} else if data.Action == "reboot" {
+			reboot := exec.Command(os.Args[0], "-reboot", "_reboot")
+			reboot.Stdin = os.Stdin
+			reboot.Stdout = os.Stdout
+			reboot.Stderr = os.Stderr
+
+			if err := reboot.Run(); err != nil {
+				panic(err)
+			}
+		} else {
+			panic(fmt.Sprintf("unknown action '%s'", data.Action))
+		}
+	}
+}
+
+func superviseMenu(opts *options) (*startCommand, error) {
 	pipeReader, pipeWriter, err := os.Pipe()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	defer pipeReader.Close()
-
 	args := []string{"-ui", "-timeout", fmt.Sprint(opts.timeout)}
-
-	if opts.preserve {
-		args = append(args, "-preserve")
-	}
 
 	cmd := exec.Command(os.Args[0], append(args, opts.args...)...)
 	cmd.Stdin = os.Stdin
@@ -129,207 +147,48 @@ func supervisor(opts *options) {
 	cmd.ExtraFiles = []*os.File{pipeWriter}
 
 	if _, err := pty.Start(cmd); err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	pipeWriter.Close()
 	buffer := new(bytes.Buffer)
 
 	if _, err := buffer.ReadFrom(pipeReader); err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	if err := cmd.Wait(); err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	data := startCommand{}
 
 	if err := json.Unmarshal(buffer.Bytes(), &data); err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	// Delete self in case we still exist
-	if !opts.preserve {
-		os.Remove(os.Args[0])
+	return &data, nil
+}
+
+func superviseShell(command []string) error {
+	shell := exec.Command(command[0], command[1:]...)
+	shell.Stdin = os.Stdin
+	shell.Stdout = os.Stdout
+	shell.Stderr = os.Stderr
+
+	if _, err := pty.Start(shell); err != nil {
+		return err
 	}
 
-	if data.Action == "exec" {
-		if err = unix.Exec(data.Args[0], data.Args, os.Environ()); err != nil {
-			panic(err)
-		}
-	} else if data.Action == "reboot" {
-		reboot := exec.Command(os.Args[0], "-reboot", "_reboot")
-		reboot.Stdin = os.Stdin
-		reboot.Stdout = os.Stdout
-		reboot.Stderr = os.Stderr
-
-		if err := reboot.Run(); err != nil {
-			panic(err)
-		}
-	} else {
-		panic(fmt.Sprintf("unknown action '%s'", data.Action))
-	}
-}
-
-func startMenu(opts *options) {
-	// Delete self
-	if !opts.preserve {
-		os.Remove(os.Args[0])
-	}
-
-	// This is a fd of pipeWriter inherited from the supervisor
-	resultWriter = os.NewFile(uintptr(3), "result")
-
-	// tcell/terminfo requires TERM to be set, otherwise it tries to detect it
-	// using infocmp, which is not available
-	os.Setenv("TERM", "linux")
-
-	if h, err := os.Hostname(); err == nil {
-		hostname = h
-	} else {
-		hostname = "unknown host"
-	}
-
-	app = tview.NewApplication()
-	pages := tview.NewPages()
-	mainMenu := tview.NewList()
-	commandField := tview.NewInputField()
-	timeoutChannel := make(chan string, 1)
-	timeoutRunning := true
-	initCommand := opts.args[0]
-
-	nixosMenu := tview.NewList()
-	nixosGenerations := listNixosGenerations()
-
-	mainMenu.
-		AddItem("Start system", fmt.Sprintf("Executes %s", initCommand), 'i', func() {
-			sendExec(opts.args)
-		})
-
-	if len(nixosGenerations) > 0 {
-		mainMenu.AddItem("Select NixOS generation", "Start into older system version", 'g', func() {
-			pages.SwitchToPage("nixosMenu")
-			setFrameTextMenu()
-		})
-	}
-
-	mainMenu.
-		AddItem("Run shell", "Start /bin/sh", 's', func() {
-			sendExec([]string{"/bin/sh"})
-		}).
-		AddItem("Run custom command", "Enter custom init command and arguments", 'c', func() {
-			pages.SwitchToPage("customCommand")
-			setFrameTextEditField()
-		}).
-		AddItem("Reboot", "Reboot the system", 'r', func() {
-			sendReboot()
-		}).
-		SetChangedFunc(func(int, string, string, rune) {
-			if timeoutRunning {
-				timeoutChannel <- "stop"
-				timeoutRunning = false
-			}
-		})
-
-	if len(nixosGenerations) > 0 {
-		makeNixosMenu(nixosMenu, nixosGenerations).
-			SetDoneFunc(func() {
-				pages.SwitchToPage("mainMenu")
-				setFrameTextNoTimeout()
-			})
-	}
-
-	commandField.
-		SetLabel("Run command: ").
-		SetText(strings.Join(opts.args, " ")).
-		SetDoneFunc(func(key tcell.Key) {
-			if key == tcell.KeyEscape {
-				pages.SwitchToPage("mainMenu")
-				setFrameTextNoTimeout()
-				return
-			}
-
-			sendExec(strings.Fields(commandField.GetText()))
-		})
-
-	pages.AddPage("mainMenu", mainMenu, true, true)
-	pages.AddPage("nixosMenu", nixosMenu, true, false)
-	pages.AddPage("customCommand", commandField, true, false)
-
-	frame = tview.NewFrame(pages).
-		SetBorders(2, 2, 2, 2, 4, 4)
-
-	go timeoutRoutine(opts.timeout, timeoutChannel, opts.args)
-
-	if err := app.SetRoot(frame, true).SetFocus(frame).Run(); err != nil {
-		panic(err)
-	}
-}
-
-func addDefaultFrameText() *tview.Frame {
-	frame.Clear()
-	return frame.
-		AddText("Start Menu", true, tview.AlignCenter, tcell.ColorWhite).
-		AddText(hostname, true, tview.AlignCenter, tcell.ColorRed).
-		AddText("Start Menu is a part of vpsAdminOS from vpsFree.cz", false, tview.AlignCenter, tcell.ColorGreen)
-}
-
-func setFrameTextTimeout(timeout uint) {
-	addDefaultFrameText().
-		AddText(fmt.Sprintf("Starting the system in %d...", timeout), false, tview.AlignCenter, tcell.ColorGreen)
-}
-
-func queueFrameTextTimeout(timeout uint) {
-	app.QueueUpdateDraw(func() {
-		setFrameTextTimeout(timeout)
-	})
-}
-
-func setFrameTextNoTimeout() {
-	addDefaultFrameText()
-}
-
-func queueFrameTextNoTimeout() {
-	app.QueueUpdateDraw(setFrameTextNoTimeout)
-}
-
-func setFrameTextEditField() {
-	addDefaultFrameText().
-		AddText("ESC to return to the previous menu, ENTER to start the command", false, tview.AlignCenter, tcell.ColorGreen)
-}
-
-func setFrameTextMenu() {
-	addDefaultFrameText().
-		AddText("ESC to return to the previous menu, ENTER to start the selected system", false, tview.AlignCenter, tcell.ColorGreen)
-}
-
-func timeoutRoutine(timeout uint, c <-chan string, command []string) {
-	queueFrameTextTimeout(timeout)
-
-	for {
-		if timeout == 0 {
-			sendExec(command)
-			return
-		}
-
-		select {
-		case res := <-c:
-			if res == "stop" {
-				queueFrameTextNoTimeout()
-				return
-			} else {
-				panic(fmt.Sprintf("unknown word '%s'", res))
-			}
-		case <-time.After(1 * time.Second):
-			timeout -= 1
-			queueFrameTextTimeout(timeout)
-		}
-	}
+	return shell.Wait()
 }
 
 func sendExec(command []string) {
 	sendResult(&startCommand{Action: "exec", Args: command})
+}
+
+func sendShell() {
+	sendResult(&startCommand{Action: "shell", Args: []string{"/bin/sh"}})
 }
 
 func sendReboot() {
