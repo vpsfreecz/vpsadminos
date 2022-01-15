@@ -25,6 +25,10 @@ type startCommand struct {
 	Args   []string
 }
 
+const (
+	SIGRTMIN = unix.Signal(0x22)
+)
+
 func main() {
 	opts := parseOptions()
 	if opts == nil {
@@ -99,6 +103,8 @@ func parseOptions() *options {
 }
 
 func supervisor(opts *options) {
+	setupStopSignals()
+
 	for {
 		data, err := superviseMenu(opts)
 		if err != nil {
@@ -125,6 +131,26 @@ func supervisor(opts *options) {
 			panic(fmt.Sprintf("unknown action '%s'", data.Action))
 		}
 	}
+}
+
+func setupStopSignals() {
+	halt := make(chan os.Signal, 1)
+
+	// See lxc/src/lxc/lxccontainer.c for SIGRTMIN+3
+	signal.Notify(halt, unix.SIGPWR, SIGRTMIN+3)
+
+	go func() {
+		<-halt
+		os.Exit(0)
+	}()
+
+	reboot := make(chan os.Signal, 1)
+	signal.Notify(reboot, unix.SIGINT)
+
+	go func() {
+		<-reboot
+		doReboot()
+	}()
 }
 
 func superviseMenu(opts *options) (*startCommand, error) {
