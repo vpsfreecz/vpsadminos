@@ -17,7 +17,7 @@ import (
 
 type options struct {
 	timeout  uint
-	wrapped  bool
+	ui       bool
 	preserve bool
 	reboot   bool
 	args     []string
@@ -41,7 +41,7 @@ func main() {
 		return
 	}
 
-	if opts.wrapped {
+	if opts.ui {
 		startMenu(opts)
 		return
 	}
@@ -73,8 +73,8 @@ func parseOptions() *options {
 	)
 
 	flag.BoolVar(
-		&opts.wrapped,
-		"wrapped",
+		&opts.ui,
+		"ui",
 		false,
 		"Used internally by ctstartmenu",
 	)
@@ -116,7 +116,7 @@ func supervisor(opts *options) {
 
 	defer pipeReader.Close()
 
-	args := []string{"-wrapped", "-timeout", fmt.Sprint(opts.timeout)}
+	args := []string{"-ui", "-timeout", fmt.Sprint(opts.timeout)}
 
 	if opts.preserve {
 		args = append(args, "-preserve")
