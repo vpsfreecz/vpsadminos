@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"time"
 )
 
 type options struct {
@@ -205,6 +206,10 @@ func superviseShell(command []string) error {
 			panic(err)
 		}
 	}()
+
+	time.Sleep(1 * time.Second)
+	fmt.Print("This is an emergency shell launched by Start Menu.\n\n")
+	fmt.Print("Exit the shell to return to the menu.\n\n")
 
 	shell := exec.Command(command[0], command[1:]...)
 	shell.Stdin = os.Stdin
