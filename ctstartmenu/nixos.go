@@ -127,7 +127,7 @@ func getItemRune(i int) rune {
 func makeNixosMenu(menu *tview.List, generations []*nixosGeneration) *tview.List {
 	for i, gen := range generations {
 		menu.AddItem(gen.getLabel(), gen.getSecondaryLabel(), getItemRune(i), func() {
-			sendResult([]string{gen.getInit()})
+			sendExec([]string{gen.getInit()})
 		})
 	}
 

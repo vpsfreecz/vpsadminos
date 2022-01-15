@@ -19,11 +19,13 @@ type options struct {
 	timeout  uint
 	wrapped  bool
 	preserve bool
+	reboot   bool
 	args     []string
 }
 
 type startCommand struct {
-	Args []string
+	Action string
+	Args   []string
 }
 
 var (
@@ -41,6 +43,11 @@ func main() {
 
 	if opts.wrapped {
 		startMenu(opts)
+		return
+	}
+
+	if opts.reboot {
+		syscall.Reboot(syscall.LINUX_REBOOT_CMD_RESTART)
 		return
 	}
 
@@ -77,6 +84,13 @@ func parseOptions() *options {
 		"preserve",
 		false,
 		"Do not delete self",
+	)
+
+	flag.BoolVar(
+		&opts.reboot,
+		"reboot",
+		false,
+		"Reboot the system",
 	)
 
 	flag.Parse()
@@ -140,8 +154,21 @@ func supervisor(opts *options) {
 		os.Remove(os.Args[0])
 	}
 
-	if err = syscall.Exec(data.Args[0], data.Args, os.Environ()); err != nil {
-		panic(err)
+	if data.Action == "exec" {
+		if err = syscall.Exec(data.Args[0], data.Args, os.Environ()); err != nil {
+			panic(err)
+		}
+	} else if data.Action == "reboot" {
+		reboot := exec.Command(os.Args[0], "-reboot", "_reboot")
+		reboot.Stdin = os.Stdin
+		reboot.Stdout = os.Stdout
+		reboot.Stderr = os.Stderr
+
+		if err := reboot.Run(); err != nil {
+			panic(err)
+		}
+	} else {
+		panic(fmt.Sprintf("unknown action '%s'", data.Action))
 	}
 }
 
@@ -177,7 +204,7 @@ func startMenu(opts *options) {
 
 	mainMenu.
 		AddItem("Start system", fmt.Sprintf("Executes %s", initCommand), 'i', func() {
-			sendResult(opts.args)
+			sendExec(opts.args)
 		})
 
 	if len(nixosGenerations) > 0 {
@@ -189,11 +216,14 @@ func startMenu(opts *options) {
 
 	mainMenu.
 		AddItem("Run shell", "Start /bin/sh", 's', func() {
-			sendResult([]string{"/bin/sh"})
+			sendExec([]string{"/bin/sh"})
 		}).
 		AddItem("Run custom command", "Enter custom init command and arguments", 'c', func() {
 			pages.SwitchToPage("customCommand")
 			setFrameTextEditField()
+		}).
+		AddItem("Reboot", "Reboot the system", 'r', func() {
+			sendReboot()
 		}).
 		SetChangedFunc(func(int, string, string, rune) {
 			if timeoutRunning {
@@ -220,7 +250,7 @@ func startMenu(opts *options) {
 				return
 			}
 
-			sendResult(strings.Fields(commandField.GetText()))
+			sendExec(strings.Fields(commandField.GetText()))
 		})
 
 	pages.AddPage("mainMenu", mainMenu, true, true)
@@ -279,7 +309,7 @@ func timeoutRoutine(timeout uint, c <-chan string, command []string) {
 
 	for {
 		if timeout == 0 {
-			sendResult(command)
+			sendExec(command)
 			return
 		}
 
@@ -298,8 +328,16 @@ func timeoutRoutine(timeout uint, c <-chan string, command []string) {
 	}
 }
 
-func sendResult(command []string) {
-	data, err := json.Marshal(startCommand{Args: command})
+func sendExec(command []string) {
+	sendResult(&startCommand{Action: "exec", Args: command})
+}
+
+func sendReboot() {
+	sendResult(&startCommand{Action: "reboot"})
+}
+
+func sendResult(command *startCommand) {
+	data, err := json.Marshal(command)
 	if err != nil {
 		panic(err)
 	}
