@@ -9,6 +9,7 @@ import (
 	"golang.org/x/sys/unix"
 	"os"
 	"os/exec"
+	"os/signal"
 )
 
 type options struct {
@@ -117,12 +118,7 @@ func supervisor(opts *options) {
 			opts.timeout = 0 // in case we return to the menu
 			superviseShell(data.Args)
 		} else if data.Action == "reboot" {
-			reboot := exec.Command(os.Args[0], "-reboot", "_reboot")
-			reboot.Stdin = os.Stdin
-			reboot.Stdout = os.Stdout
-			reboot.Stderr = os.Stderr
-
-			if err := reboot.Run(); err != nil {
+			if err := doReboot(); err != nil {
 				panic(err)
 			}
 		} else {
@@ -171,6 +167,19 @@ func superviseMenu(opts *options) (*startCommand, error) {
 }
 
 func superviseShell(command []string) error {
+	// Configure the supervisor process to perform a reboot on SIGTERM
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, unix.SIGTERM)
+	defer signal.Reset(unix.SIGTERM)
+
+	go func() {
+		<-c
+		signal.Reset(unix.SIGTERM)
+		if err := doReboot(); err != nil {
+			panic(err)
+		}
+	}()
+
 	shell := exec.Command(command[0], command[1:]...)
 	shell.Stdin = os.Stdin
 	shell.Stdout = os.Stdout
@@ -181,6 +190,15 @@ func superviseShell(command []string) error {
 	}
 
 	return shell.Wait()
+}
+
+func doReboot() error {
+	reboot := exec.Command(os.Args[0], "-reboot", "_reboot")
+	reboot.Stdin = os.Stdin
+	reboot.Stdout = os.Stdout
+	reboot.Stderr = os.Stderr
+
+	return reboot.Run()
 }
 
 func sendExec(command []string) {
