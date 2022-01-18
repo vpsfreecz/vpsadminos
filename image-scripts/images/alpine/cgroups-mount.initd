@@ -2,7 +2,7 @@
 
 description="Mount cgroups inside LXC container."
 
-cgroups="blkio
+hybrid_cgroups="blkio
 	cglimit
 	cpu,cpuacct
 	cpuset
@@ -14,23 +14,35 @@ cgroups="blkio
 	perf_event
 	pids
 	rdma"
-named_cgroups="systemd"
+hybrid_named_cgroups="systemd"
 mount_opts="nodev,noexec,nosuid"
 
 depend() {
 	keyword lxc
-	need sysfs cgroups
+	need sysfs
 }
 
-start() {
-	[ -e /proc/cgroups ] || return 0
+cgroup_mode() {
+	if grep -x "^[[:digit:]]:cpuset:/" /proc/1/cgroup > /dev/null ; then
+		echo "hybrid"
+	else
+		echo "unified"
+	fi
+}
 
-	ebegin "Mounting cgroups"
+setup_hybrid() {
+	ebegin "Mounting cgroups in a hybrid layout"
 
 	local retval=0
 	local name
 
-	for name in $cgroups; do
+	if ! mount -t tmpfs -o "$mount_opts" tmpfs /sys/fs/cgroup ; then
+		echo "Unable to mount /sys/fs/cgroup"
+		eend 1
+		return 1
+	fi
+
+	for name in $hybrid_cgroups; do
 		mountinfo -q "/sys/fs/cgroup/$name" && continue
 
 		mkdir -p "/sys/fs/cgroup/$name"
@@ -38,7 +50,7 @@ start() {
 			cgroup "/sys/fs/cgroup/$name" || retval=1
 	done
 
-	for name in $named_cgroups; do
+	for name in $hybrid_named_cgroups; do
 		mountinfo -q "/sys/fs/cgroup/$name" && continue
 
 		mkdir -p "/sys/fs/cgroup/$name"
@@ -51,19 +63,30 @@ start() {
 		ln -sf /sys/fs/cgroup/systemd /sys/fs/cgroup/openrc
 	fi
 
+	mount -o remount,ro tmpfs /sys/fs/cgroup
+
 	eend $retval
 }
 
-stop() {
-	[ -e /proc/cgroups ] || return 0
-
-	ebegin "Unmounting cgroups"
+setup_unified() {
+	ebegin "Mounting cgroups in a unified layout"
 
 	local retval=0
-	local name; for name in $cgroups; do
-		umount "/sys/fs/cgroup/$name" || retval=1
-		rmdir "/sys/fs/cgroup/$name" 2>/dev/null
-	done
+
+	mkdir /sys/fs/cgroup/init.scope
+	echo 1 > /sys/fs/cgroup/init.scope/cgroup.procs
 
 	eend $retval
+}
+
+start() {
+	[ -e /proc/cgroups ] || return 0
+
+	local mode=$(cgroup_mode)
+
+	case "$mode" in
+		hybrid) setup_hybrid ;;
+		unified) setup_unified ;;
+		*) echo "Unknown cgroup mode '$mode'" ;;
+	esac
 }
