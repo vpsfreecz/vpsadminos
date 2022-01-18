@@ -35,12 +35,14 @@ extract() {
 }
 
 configure-void() {
+	cp "$BASEDIR"/images/void/cgroups.sh etc/runit/core-services/10-vpsadminos-cgroups.sh
+
 	configure-append <<EOF
 echo nameserver 8.8.8.8 > /etc/resolv.conf
 xbps-install -Syu xbps
 xbps-install -Syu
 xbps-install -Syu
-xbps-install -Syu libcgroup-utils vim
+xbps-install -Syu vim
 cp /etc/skel/.[^.]* /root/
 usermod -s /bin/bash root
 usermod -L root
@@ -51,32 +53,6 @@ rm -f /etc/runit/runsvdir/default/agetty-tty{1..6}
 rm -f /etc/runit/runsvdir/default/udevd
 ln -s /etc/sv/agetty-console /etc/runit/runsvdir/default/agetty-console
 echo > /etc/resolv.conf
-
-cat <<END > /etc/cgconfig.conf
-mount {
-   cpuset = /sys/fs/cgroup/cpuset;
-   cpu = /sys/fs/cgroup/cpu,cpuacct;
-   cpuacct = /sys/fs/cgroup/cpu,cpuacct;
-   blkio = /sys/fs/cgroup/blkio;
-   memory = /sys/fs/cgroup/memory;
-   devices = /sys/fs/cgroup/devices;
-   freezer = /sys/fs/cgroup/freezer;
-   net_cls = /sys/fs/cgroup/net_cls,net_prio;
-   net_prio = /sys/fs/cgroup/net_cls,net_prio;
-   pids = /sys/fs/cgroup/pids;
-   perf_event = /sys/fs/cgroup/perf_event;
-   rdma = /sys/fs/cgroup/rdma;
-   hugetlb = /sys/fs/cgroup/hugetlb;
-   cglimit = /sys/fs/cgroup/cglimit;
-   "name=systemd" = /sys/fs/cgroup/systemd;
-}
-END
-
-cat <<END > /etc/runit/core-services/10-vpsadminos-cgroups.sh
-msg "Mounting /sys/fs/cgroup"
-mount -t tmpfs tmpfs /sys/fs/cgroup
-cgconfigparser -l /etc/cgconfig.conf
-END
 EOF
 }
 
