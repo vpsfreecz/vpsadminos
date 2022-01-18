@@ -739,6 +739,8 @@ module OsCtld
     end
 
     def load_config_hash(cfg, init_devices: true, dataset_cache: nil)
+      cfg = Container::Adaptor.adapt(self, cfg)
+
       exclusively do
         @state = cfg['state'].to_sym if cfg['state']
         @user ||= DB::Users.find(cfg['user'], pool) || (raise "user not found")
