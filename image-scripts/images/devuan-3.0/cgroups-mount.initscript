@@ -1,5 +1,4 @@
 #!/bin/sh
-set -e
 
 ### BEGIN INIT INFO
 # Provides:           cgroups-mount
@@ -15,29 +14,83 @@ set -e
 
 . /lib/lsb/init-functions
 
+cgroup_mode() {
+	if grep -x "^[[:digit:]]:cpuset:/" /proc/1/cgroup > /dev/null ; then
+		echo "hybrid"
+	else
+		echo "unified"
+	fi
+}
+
+cgroup_setup_hybrid() {
+	log_begin_msg "Mounting cgroups in a hybrid layout"
+
+	local retval=0
+	local name
+	local hybrid_cgroups="blkio
+cglimit
+cpu,cpuacct
+cpuset
+devices
+freezer
+hugetlb
+memory
+net_cls,net_prio
+perf_event
+pids
+rdma"
+	local hybrid_named="systemd"
+	local mount_opts="nodev,noexec,nosuid"
+
+	if ! mount -t tmpfs -o "$mount_opts" tmpfs /sys/fs/cgroup ; then
+		log_action_msg "Unable to mount /sys/fs/cgroup"
+		return 1
+	fi
+
+	for name in $hybrid_cgroups; do
+		mkdir "/sys/fs/cgroup/$name"
+		mount -n -t cgroup -o "$mount_opts,$name" \
+			cgroup "/sys/fs/cgroup/$name" || retval=1
+	done
+
+	for name in $hybrid_named; do
+		mkdir "/sys/fs/cgroup/$name"
+		mount -n -t cgroup -o "none,$mount_opts,name=$name" \
+			cgroup "/sys/fs/cgroup/$name" || retval=1
+	done
+
+	ln -sfn systemd /sys/fs/cgroup/elogind
+
+	mount -o remount,ro tmpfs /sys/fs/cgroup
+
+	log_end_msg $retval
+}
+
+cgroup_setup_unified() {
+	log_begin_msg "Mounting cgroups in a unified layout"
+
+	mkdir /sys/fs/cgroup/init.scope
+	echo 1 > /sys/fs/cgroup/init.scope/cgroup.procs
+
+	log_end_msg 0
+}
+
+cgroup_setup() {
+	local mode=$(cgroup_mode)
+
+	case "$mode" in
+		hybrid) cgroup_setup_hybrid ;;
+		unified) cgroup_setup_unified ;;
+		*)
+			log_action_msg "Unknown cgroup mode '$mode'"
+			return 1
+			;;
+	esac
+}
+
 case "$1" in
         start)
-                log_begin_msg 'Mounting cgroups hierarchy'
-		mount -t tmpfs tmpfs /sys/fs/cgroup
-		cgconfigparser -l /etc/cgconfig.conf
-		ln -sfn systemd /sys/fs/cgroup/elogind
-                log_end_msg $?
-                ;;
-
-        stop)
-                log_begin_msg 'Unmounting cgroupfs hierarchy'
-		for name in /sys/fs/cgroup/* ; do
-			umount $name
-		done
-		umount /sys/fs/cgroup
-                log_end_msg $?
-                ;;
-
-        restart|force-reload)
-                if mountpoint -q /sys/fs/cgroup; then
-                        $0 stop
-                fi
-                exec $0 start
+		cgroup_setup
                 ;;
 
         status)
@@ -51,7 +104,7 @@ case "$1" in
                 ;;
 
         *)
-                echo "Usage: $0 {start|stop|restart|status}"
+                echo "Usage: $0 {start|status}"
                 exit 1
                 ;;
 esac
