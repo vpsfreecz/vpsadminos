@@ -12,7 +12,7 @@ module TestRunner
     # @option opts [Integer] :default_timeout
     # @option opts [Boolean] :stop_on_failure
     # @option opts [Boolean] :destructive
-    def initialize(tests, opts)
+    def initialize(tests, **opts)
       @tests = tests
       @opts = opts
       @workers = []
@@ -99,11 +99,12 @@ module TestRunner
         STDERR.reopen(out)
         STDIN.close
 
-        ev = TestRunner::TestEvaluator.new(test, {
+        ev = TestRunner::TestEvaluator.new(
+          test,
           state_dir: dir,
           default_timeout: opts[:default_timeout],
           destructive: opts[:destructive],
-        })
+        )
         ev.run
       end
 

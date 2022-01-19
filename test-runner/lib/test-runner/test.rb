@@ -3,7 +3,7 @@ module TestRunner
     attr_reader :path, :type, :template, :args, :name, :description
 
     # @param opts [Hash]
-    def initialize(opts)
+    def initialize(**opts)
       @path = opts[:path]
       @type = opts[:type]
       @template = opts[:template]

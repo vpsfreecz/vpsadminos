@@ -9,7 +9,7 @@ module TestRunner
     # @option opts [Integer] :default_timeout
     # @option opts [Boolean] :destructive
     # @option opts [String] :state_dir
-    def initialize(test, opts)
+    def initialize(test, **opts)
       @test = test
       @config = TestConfig.build(test)
       @opts = opts
