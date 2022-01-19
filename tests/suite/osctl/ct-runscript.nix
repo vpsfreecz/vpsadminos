@@ -31,20 +31,14 @@ in {
     Test osctl ct runscript
   '';
 
-  machine = {
-    disks = [
-      { type = "file"; device = "sda.img"; size = "10G"; }
-    ];
-
-    config = {
-      imports = [
-        ../../configs/base.nix
-        ../../configs/pool-tank.nix
-      ];
-
-      # Add the test scripts to the test machine
-      environment.etc."test-scripts".text = builtins.toJSON scripts;
-    };
+  machine = import ../../machines/with-tank.nix {
+    inherit pkgs;
+    config =
+      { config, ... }:
+      {
+        # Add the test scripts to the test machine
+        environment.etc."test-scripts".text = builtins.toJSON scripts;
+      };
   };
 
   testScript = ''

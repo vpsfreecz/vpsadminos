@@ -5,25 +5,14 @@ import ../../make-test.nix (pkgs: {
     Test osctl-exportfs exports and mounts
   '';
 
-  machine = {
-    disks = [
-      { type = "file"; device = "sda.img"; size = "10G"; }
-    ];
-
-    config = {
-      imports = [ ../../configs/base.nix ];
-
-      boot.zfs.pools.tank = {
-        layout = [
-          { devices = [ "sda" ]; }
-        ];
-        doCreate = true;
-        install = true;
+  machine = import ../../machines/with-tank.nix {
+    inherit pkgs;
+    config =
+      { config, ... }:
+      {
+        services.nfs.server.enable = true;
+        osctl.exportfs.enable = true;
       };
-
-      services.nfs.server.enable = true;
-      osctl.exportfs.enable = true;
-    };
   };
 
   testScript = ''
