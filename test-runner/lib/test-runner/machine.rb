@@ -218,7 +218,7 @@ module TestRunner
       status, output = execute(cmd, timeout: timeout)
 
       if status == 0
-        raise CommandSucceeded "Command '#{cmd}' succeeds with status #{status}. Output:\n #{output}"
+        raise CommandSucceeded, "Command '#{cmd}' succeeds with status #{status}. Output:\n #{output}"
       end
 
       return [status, output]
