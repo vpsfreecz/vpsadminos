@@ -1,5 +1,5 @@
 import ./base.nix {
-  distribution = "centos";
+  distribution = "almalinux";
   version = "8";
   setupScript = ''
     machine.all_succeed(

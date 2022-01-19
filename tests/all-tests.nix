@@ -45,9 +45,9 @@ in tests [
   "ctstartmenu/setup"
   { template = "dist-config/netif-routed"; instances = distributions; }
   { template = "dist-config/start-stop"; instances = distributions; }
+  "docker/almalinux-8"
   "docker/alpine-latest"
   "docker/centos-7"
-  "docker/centos-8"
   "docker/debian-latest"
   "docker/fedora-latest"
   "docker/ubuntu-18.04"
