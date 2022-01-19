@@ -226,6 +226,21 @@ let
         '';
       };
 
+      importAttempts = mkOption {
+        type = types.addCheck types.int (x: x > 3) // {
+          name = "importAttempts";
+          description = "3 or more";
+        };
+        default = 60;
+        description = ''
+          Number of attempts to cleanly import the pool with all devices present.
+          After the attempts are spent, even a degraded pool will be imported.
+          If the pool still can't be imported, the service will either fail
+          or create the pool if option
+          <option>boot.zfs.pools.&lt;name&gt;.doCreate</option> is enabled.
+        '';
+      };
+
       wipe = mkOption {
         type = types.listOf types.str;
         default = [];

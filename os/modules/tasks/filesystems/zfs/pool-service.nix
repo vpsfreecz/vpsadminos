@@ -67,7 +67,7 @@ in {
       echo "Pool ${name} already imported"
     else
       importName="${if isNull pool.guid then name else pool.guid}"
-      for trial in `seq 1 60`; do
+      for trial in `seq 1 ${toString pool.importAttempts}`; do
         echo "Checking status of pool ${name}"
 
         if poolReady "${name}" "${guidOrEmpty}" > /dev/null ; then
