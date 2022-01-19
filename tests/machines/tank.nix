@@ -4,14 +4,9 @@ pkgs: {
   ];
 
   config = {
-    imports = [ ../configs/base.nix ];
-
-    boot.zfs.pools.tank = {
-      layout = [
-        { devices = [ "sda" ]; }
-      ];
-      doCreate = true;
-      install = true;
-    };
+    imports = [
+      ../configs/base.nix
+      ../configs/pool-tank.nix
+    ];
   };
 }

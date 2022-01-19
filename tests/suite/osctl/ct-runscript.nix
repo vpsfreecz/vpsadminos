@@ -37,18 +37,13 @@ in {
     ];
 
     config = {
-      imports = [ ../../configs/base.nix ];
+      imports = [
+        ../../configs/base.nix
+        ../../configs/pool-tank.nix
+      ];
 
       # Add the test scripts to the test machine
       environment.etc."test-scripts".text = builtins.toJSON scripts;
-
-      boot.zfs.pools.tank = {
-        layout = [
-          { devices = [ "sda" ]; }
-        ];
-        doCreate = true;
-        install = true;
-      };
     };
   };
 
