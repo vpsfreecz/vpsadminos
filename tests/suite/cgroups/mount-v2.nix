@@ -32,7 +32,7 @@ import ../../make-template.nix ({ distribution, version }: rec {
         fail "unified cgroup not mounted"
       end
 
-      _, output = machine.succeeds("cat /sys/fs/cgroup/cgroup.controllers")
+      _, output = machine.succeeds("osctl ct exec testct cat /sys/fs/cgroup/cgroup.controllers")
       enabled_controllers = output.strip.split(" ")
       expected_controllers = %w(cpuset cpu io memory hugetlb pids rdma cglimit)
 
