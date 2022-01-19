@@ -1,6 +1,6 @@
 import ./base.nix {
   distribution = "debian";
-  version = "10";
+  version = "latest";
   setupScript = ''
     machine.all_succeed(
       "osctl ct exec docker apt-update -y",

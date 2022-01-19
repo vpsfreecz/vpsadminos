@@ -48,7 +48,7 @@ in tests [
   "docker/alpine-latest"
   "docker/centos-7"
   "docker/centos-8"
-  "docker/debian-10"
+  "docker/debian-latest"
   "docker/fedora-latest"
   "docker/ubuntu-18.04"
   "docker/ubuntu-20.04"
