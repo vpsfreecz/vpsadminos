@@ -227,7 +227,7 @@ let
       };
 
       importAttempts = mkOption {
-        type = types.addCheck types.int (x: x > 3) // {
+        type = types.addCheck types.int (x: x >= 3) // {
           name = "importAttempts";
           description = "3 or more";
         };

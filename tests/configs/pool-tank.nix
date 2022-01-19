@@ -4,6 +4,7 @@
     layout = [
       { devices = [ "sda" ]; }
     ];
+    importAttempts = lib.mkDefault 3;
     doCreate = true;
     install = true;
   };
