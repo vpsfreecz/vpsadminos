@@ -41,6 +41,28 @@ import ../../make-template.nix ({ distribution, version }: rec {
           fail "controller '#{v}' not enabled on /sys/fs/cgroup"
         end
       end
+
+      # Check that the system does not try to use the unified cgroup as if it
+      # was a hybrid hierarchy
+      hybrid_controllers = %w(
+        blkio
+        cglimit
+        cpu,cpuacct
+        cpuset
+        devices
+        freezer
+        hugetlb
+        memory
+        net_cls,net_prio
+        perf_event
+        pids
+        rdma
+        systemd
+      )
+
+      hybrid_controllers.each do |v|
+        machine.fails("osctl ct exec testct ls /sys/fs/cgroup/#{v}")
+      end
     '';
   };
 })
