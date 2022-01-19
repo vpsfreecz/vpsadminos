@@ -2,10 +2,10 @@ import ../../make-template.nix ({ distribution, version }: rec {
   instance = "${distribution}-${version}";
 
   test = pkgs: {
-    name = "cgroups-mounts@${instance}";
+    name = "cgroups-mount-v1@${instance}";
 
     description = ''
-      Test cgroup controllers are mounted in ${distribution}-${version}
+      Test cgroupv1 controllers are mounted in ${distribution}-${version} containers
     '';
 
     machine = import ../../machines/tank.nix pkgs;

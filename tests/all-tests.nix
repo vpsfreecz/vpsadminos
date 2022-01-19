@@ -6,7 +6,7 @@ let
   nixpkgs = import pkgs {};
   lib = nixpkgs.lib;
 
-  distributions = import ./distributions.nix;
+  distributions = import ./distributions.nix { inherit lib; };
 
   makeSingleTest = name:
     import (./suite + "/${name}.nix") { inherit pkgs system; };
@@ -41,12 +41,13 @@ let
   tests = list: builtins.listToAttrs (lib.flatten (map makeTest list));
 in tests [
   "boot"
-  { template = "cgroups/mounts"; instances = distributions; }
+  { template = "cgroups/mount-v1"; instances = distributions.all ; }
+  { template = "cgroups/mount-v2"; instances = distributions.cgroupv2; }
   "cgroups/system-v1"
   "cgroups/system-v2"
   "ctstartmenu/setup"
-  { template = "dist-config/netif-routed"; instances = distributions; }
-  { template = "dist-config/start-stop"; instances = distributions; }
+  { template = "dist-config/netif-routed"; instances = distributions.all; }
+  { template = "dist-config/start-stop"; instances = distributions.all; }
   "docker/almalinux-8"
   "docker/alpine-latest"
   "docker/centos-7"
@@ -56,7 +57,7 @@ in tests [
   "docker/ubuntu-20.04"
   "driver"
   "lxcfs/loadavgs"
-  { template = "lxcfs/overlays"; instances = distributions; }
+  { template = "lxcfs/overlays"; instances = distributions.all; }
   "osctl/ct-exec"
   "osctl/ct-runscript"
   "osctl-exportfs/mount"
