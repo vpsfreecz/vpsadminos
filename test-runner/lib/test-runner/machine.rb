@@ -28,8 +28,9 @@ module TestRunner
     end
 
     # Start the machine
+    # @param kernel_params [Array<String>]
     # @return [Machine]
-    def start
+    def start(kernel_params: [])
       if running?
         fail 'Machine already started'
       end
@@ -46,7 +47,12 @@ module TestRunner
       end
 
       @qemu_read, w = IO.pipe
-      @qemu_pid = Process.spawn(*qemu_command, in: :close, out: w, err: w)
+      @qemu_pid = Process.spawn(
+        *qemu_command(kernel_params: kernel_params),
+        in: :close,
+        out: w,
+        err: w,
+      )
       w.close
       run_qemu_reaper(qemu_pid)
 
@@ -395,11 +401,11 @@ module TestRunner
     attr_reader :config, :tmpdir, :qemu_pid, :qemu_read, :qemu_reaper,
       :console_thread, :shell_server, :shell, :log, :virtiofsd_pids, :shared_dir
 
-    def qemu_command
-      kernel_params = [
+    def qemu_command(kernel_params: [])
+      all_kernel_params = [
         "console=ttyS0",
         "systemConfig=#{config[:toplevel]}",
-      ] + config[:kernelParams]
+      ] + config[:kernelParams] + kernel_params
 
       [
         "#{config[:qemu]}/bin/qemu-kvm",
@@ -416,7 +422,7 @@ module TestRunner
         "-device", "virtconsole,chardev=shell",
         "-kernel", config[:kernel],
         "-initrd", config[:initrd],
-        "-append", "#{kernel_params.join(' ')}",
+        "-append", "#{all_kernel_params.join(' ')}",
         "-nographic",
       ] + qemu_disk_options + qemu_virtiofs_options
     end
