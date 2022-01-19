@@ -35,7 +35,6 @@ module TestRunner
 
     def execute_end(status, output)
       log_end do |io|
-        io.puts("END: #{Time.now}")
         io.puts("STATUS: #{status}")
         io.puts("OUTPUT:")
         io.puts(output)
@@ -61,7 +60,8 @@ module TestRunner
     end
 
     def log_begin
-      file.puts("DATE: #{Time.now}")
+      @log_begun_at = Time.now
+      file.puts("START: #{@log_begun_at}")
       yield(file) if block_given?
       file.flush
     end
@@ -72,6 +72,10 @@ module TestRunner
     end
 
     def log_end(&block)
+      t = Time.now
+      file.puts("END: #{t}")
+      file.puts("ELAPSED: #{(t - @log_begun_at).round(2)}s")
+      file.flush
       log_cont(&block) if block
       file.puts("---")
       file.puts
