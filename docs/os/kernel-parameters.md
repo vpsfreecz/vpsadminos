@@ -26,6 +26,21 @@ Usage:
 
 - `osctl.autostart=0`
 
+## osctl.cgroupv
+Used to switch between hybrid and unified cgroup hierarchies. The hybrid
+hierarchy mounts cgroupv1 controllers at `/sys/fs/cgroup` along with cgroupv2
+at `/sys/fs/cgroup/unified`. cgroupv2 does not use any controllers in this case.
+
+The unified hierarchy mounts cgroupv2 at `/sys/fs/cgroup` and only cgroupv2
+controllers are used.
+
+The default value depends on option `boot.enableUnifiedCgroupHierarchy`.
+
+Usage:
+
+- `osctl.cgroupv=1` to use the hybrid hierarchy
+- `osctl.cgroupv=2` to use the unified hierarchy
+
 ## runlevel, 1
 Can be used to change initial runlevel.
 
