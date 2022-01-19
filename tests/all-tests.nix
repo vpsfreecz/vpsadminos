@@ -42,6 +42,8 @@ let
 in tests [
   "boot"
   { template = "cgroups/mounts"; instances = distributions; }
+  "cgroups/system-v1"
+  "cgroups/system-v2"
   "ctstartmenu/setup"
   { template = "dist-config/netif-routed"; instances = distributions; }
   { template = "dist-config/start-stop"; instances = distributions; }
