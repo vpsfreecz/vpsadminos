@@ -23,6 +23,12 @@ selected tests and reporting results.
     `-j`, `--jobs`
       Number of tests to run in parallel.
 
+    `-t`, `--timeout` *n*
+      Default timeout for machine commands that wait for execution becomes
+      possible, or until a command fails or succeeds. This option changes
+      the default value, which is used when tests do not set the timeout
+      themselves. In seconds, defaults to `900`.
+
     `--stop-on-failure`
       Stop further execution when a test fails.
 

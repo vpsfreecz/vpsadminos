@@ -9,6 +9,7 @@ module TestRunner
     # @param opts [Hash]
     # @option opts [String] :state_dir
     # @option opts [Integer] :jobs
+    # @option opts [Integer] :default_timeout
     # @option opts [Boolean] :stop_on_failure
     # @option opts [Boolean] :destructive
     def initialize(tests, opts)
@@ -100,6 +101,7 @@ module TestRunner
 
         ev = TestRunner::TestEvaluator.new(test, {
           state_dir: dir,
+          default_timeout: opts[:default_timeout],
           destructive: opts[:destructive],
         })
         ev.run

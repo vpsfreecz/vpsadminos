@@ -4,14 +4,13 @@ require 'thread'
 
 module TestRunner
   class Machine
-    TIMEOUT = 900
-
     attr_reader :name
 
-    def initialize(name, config, tmpdir)
+    def initialize(name, config, tmpdir, default_timeout: 900)
       @name = name
       @config = config
       @tmpdir = tmpdir
+      @default_timeout = default_timeout
       @running = false
       @shell_up = false
       @shared_dir = SharedDir.new(self)
@@ -67,7 +66,7 @@ module TestRunner
     # Stop the machine
     # @param timeout [Integer]
     # @return [Machine]
-    def stop(timeout: TIMEOUT)
+    def stop(timeout: @default_timeout)
       log.stop
       execute('poweroff')
 
@@ -147,7 +146,7 @@ module TestRunner
 
     # Wait until the system has booted
     # @param timeout [Integer]
-    def wait_for_boot(timeout: TIMEOUT)
+    def wait_for_boot(timeout: @default_timeout)
       wait_for_shell(timeout: timeout)
     end
 
@@ -155,7 +154,7 @@ module TestRunner
     # @param cmd [String]
     # @param timeout [Integer]
     # @return [Array<Integer, String>] exit status and output
-    def execute(cmd, timeout: TIMEOUT)
+    def execute(cmd, timeout: @default_timeout)
       start unless running?
       wait_for_shell
       t1 = Time.now
@@ -201,7 +200,7 @@ module TestRunner
     # @param cmd [String]
     # @param timeout [Integer]
     # @return [Array<Integer, String>]
-    def succeeds(cmd, timeout: TIMEOUT)
+    def succeeds(cmd, timeout: @default_timeout)
       status, output = execute(cmd, timeout: timeout)
 
       if status != 0
@@ -215,7 +214,7 @@ module TestRunner
     # @param cmd [String]
     # @param timeout [Integer]
     # @return [Array<Integer, String>]
-    def fails(cmd, timeout: TIMEOUT)
+    def fails(cmd, timeout: @default_timeout)
       status, output = execute(cmd, timeout: timeout)
 
       if status == 0
@@ -253,7 +252,7 @@ module TestRunner
 
     # Wait until command succeeds
     # @return [Array<Integer, String>]
-    def wait_until_succeeds(cmd, timeout: TIMEOUT)
+    def wait_until_succeeds(cmd, timeout: @default_timeout)
       t1 = Time.now
       cur_timeout = timeout
 
@@ -268,7 +267,7 @@ module TestRunner
 
     # Wait until command fails
     # @return [Array<Integer, String>]
-    def wait_until_fails(cmd, timeout: TIMEOUT)
+    def wait_until_fails(cmd, timeout: @default_timeout)
       t1 = Time.now
       cur_timeout = timeout
 
@@ -283,7 +282,7 @@ module TestRunner
 
     # Wait until network is operational, including DNS
     # @return [Machine]
-    def wait_until_online(timeout: TIMEOUT)
+    def wait_until_online(timeout: @default_timeout)
       wait_until_succeeds("curl https://vpsadminos.org", timeout: timeout)
       self
     end
@@ -291,7 +290,7 @@ module TestRunner
     # Wait until the machine shuts down
     # @param timeout [Integer]
     # @return [Machine]
-    def wait_for_shutdown(timeout: TIMEOUT)
+    def wait_for_shutdown(timeout: @default_timeout)
       t1 = Time.now
 
       loop do
@@ -325,7 +324,7 @@ module TestRunner
     # @param name [String]
     # @param timeout [Integer]
     # @return [Machine]
-    def wait_for_zpool(name, timeout: TIMEOUT)
+    def wait_for_zpool(name, timeout: @default_timeout)
       wait_until_succeeds("zpool list #{name}", timeout: timeout)
       self
     end
@@ -334,7 +333,7 @@ module TestRunner
     # @param name [String]
     # @param timeout [Integer]
     # @return [Machine]
-    def wait_for_osctl_pool(name, timeout: TIMEOUT)
+    def wait_for_osctl_pool(name, timeout: @default_timeout)
       t1 = Time.now
       cur_timeout = timeout
 
@@ -559,7 +558,7 @@ module TestRunner
       end
     end
 
-    def wait_for_shell(timeout: TIMEOUT)
+    def wait_for_shell(timeout: @default_timeout)
       fail "machine #{name} is not running" unless running?
       return if shell_up?
 

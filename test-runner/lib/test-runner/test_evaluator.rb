@@ -6,6 +6,7 @@ module TestRunner
 
     # @param test [Test]
     # @param opts [Hash]
+    # @option opts [Integer] :default_timeout
     # @option opts [Boolean] :destructive
     # @option opts [String] :state_dir
     def initialize(test, opts)
@@ -16,7 +17,12 @@ module TestRunner
 
       config[:machines].each do |name, cfg|
         var = :"@#{name}"
-        m = Machine.new(name, cfg, opts[:state_dir])
+        m = Machine.new(
+          name,
+          cfg,
+          opts[:state_dir],
+          default_timeout: opts[:default_timeout],
+        )
         instance_variable_set(var, m)
 
         define_singleton_method(name) do

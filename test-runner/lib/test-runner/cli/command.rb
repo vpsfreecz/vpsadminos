@@ -47,6 +47,7 @@ module TestRunner
         tests,
         state_dir: state_dir,
         jobs: opts['jobs'],
+        default_timeout: opts['timeout'],
         stop_on_failure: opts['stop-on-failure'],
         destructive: opts['destructive'],
       )

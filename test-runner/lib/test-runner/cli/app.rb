@@ -37,6 +37,9 @@ module TestRunner::Cli
         c.desc 'How many tests to run in parallel'
         c.flag %w(j jobs), type: Integer, default_value: 1
 
+        c.desc 'Default timeout for machine commands, in seconds'
+        c.flag %w(t timeout), type: Integer, default_value: 900
+
         c.desc 'Stop testing when one test fails'
         c.switch 'stop-on-failure', default_value: false
 
