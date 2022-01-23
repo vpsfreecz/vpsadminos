@@ -283,7 +283,7 @@ module TestRunner
     # Wait until network is operational, including DNS
     # @return [Machine]
     def wait_until_online(timeout: @default_timeout)
-      wait_until_succeeds("curl https://vpsadminos.org", timeout: timeout)
+      wait_until_succeeds("curl --head https://vpsadminos.org", timeout: timeout)
       self
     end
 
