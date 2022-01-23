@@ -3,6 +3,35 @@ with lib;
 let
   cfg = config.networking;
 
+  waitOnlineMethods = {
+    ping = ''
+      wait_online() {
+        for i in {1..300} ; do
+          ${concatMapStringsSep "\n\n" (host: ''
+          sleep 1
+          ping -c 1 ${host} >/dev/null 2>&1 && return 0
+          warn "Waiting for network to come online..."
+          '') cfg.waitOnline.ping.hosts}
+        done
+
+        return 1
+      }
+    '';
+
+    http = ''
+      wait_online() {
+        for i in {1..300} ; do
+          ${concatMapStringsSep "\n\n" (url: ''
+          sleep 1
+          ${pkgs.curl}/bin/curl --head "${url}" >/dev/null 2>&1 && return 0
+          warn "Waiting for network to come online..."
+          '') cfg.waitOnline.http.urls}
+        done
+
+        return 1
+      }
+    '';
+  };
 in {
   options = {
     networking = {
@@ -127,6 +156,34 @@ in {
           The domain.  It can be left empty if it is auto-detected through DHCP.
         '';
       };
+
+      waitOnline = {
+        method = mkOption {
+          type = types.enum [ "ping" "http" ];
+          default = "ping";
+          description = ''
+            Which method to use to check network connectivity
+          '';
+        };
+
+        ping.hosts = mkOption {
+          type = types.listOf types.str;
+          default = [ "8.8.8.8" "1.1.1.1" ];
+          description = ''
+            A list of hosts which are pinged. We are online when any one of these
+            pongs back.
+          '';
+        };
+
+        http.urls = mkOption {
+          type = types.listOf types.str;
+          default = [ "http://1.1.1.1" "http://vpsadminos.org" ];
+          description = ''
+            A list URLs which are queried. We are online when any one of these
+            sends a HTTP response.
+          '';
+        };
+      };
     };
   };
 
@@ -209,19 +266,7 @@ in {
       run = ''
         ensureServiceStarted networking
 
-        wait_online() {
-          for i in {1..450} ; do
-            sleep 1
-            ping -c 1 8.8.8.8 >/dev/null 2>&1 && return 0
-            warn "Waiting for network to come online..."
-
-            sleep 1
-            ping -c 1 1.1.1.1 >/dev/null 2>&1 && return 0
-            warn "Waiting for network to come online..."
-          done
-
-          return 1
-        }
+        ${waitOnlineMethods.${cfg.waitOnline.method}}
 
         if ! wait_online ; then
           warn "Timed out while waiting for network to come online"
