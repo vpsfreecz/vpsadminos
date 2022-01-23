@@ -34,12 +34,8 @@ module OsCtl::ExportFS
         # rm -rf can be run only after the shared directory has been safely removed
         FileUtils.rm_rf(server.dir, secure: true)
 
-        cg = CGroup.new('systemd', 'osctl/exportfs/servers')
-
-        begin
-          cg.destroy(server.name)
-        rescue Errno::ENOENT
-        end
+        cg = Operations::Server::CGroup.new(server)
+        cg.clear_all
       end
     end
 

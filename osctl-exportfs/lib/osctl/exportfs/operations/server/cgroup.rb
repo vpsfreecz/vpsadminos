@@ -2,18 +2,21 @@ require 'osctl/exportfs/operations/base'
 
 module OsCtl::ExportFS
   class Operations::Server::CGroup < Operations::Base
-    CONTROLLER = 'systemd'
     PATH = 'osctl/exportfs/server'
 
     # @param server [Server]
     def initialize(server)
       @server = server
-      @cgroup = OsCtl::ExportFS::CGroup.new(CONTROLLER, PATH)
+      @cgroup = OsCtl::ExportFS::CGroup.new(PATH)
     end
 
     def enter_manager
-      cgroup.create(path)
-      cgroup.enter(path)
+      cgroup.create(manager_path)
+      cgroup.enter(manager_path)
+    end
+
+    def clear_manager
+      cgroup.destroy(manager_path)
     end
 
     def enter_payload
@@ -26,11 +29,29 @@ module OsCtl::ExportFS
       cgroup.destroy(payload_path)
     end
 
+    def clear_all
+      begin
+        clear_manager
+      rescue Errno::ENOENT
+      end
+
+      begin
+        clear_payload
+      rescue Errno::ENOENT
+      end
+
+      nil
+    end
+
     protected
     attr_reader :server, :cgroup
 
     def path
       server.name
+    end
+
+    def manager_path
+      File.join(server.name, 'manager')
     end
 
     def payload_path

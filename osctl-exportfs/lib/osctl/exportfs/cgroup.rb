@@ -1,30 +1,26 @@
 require 'fileutils'
+require 'libosctl'
 
 module OsCtl::ExportFS
   class CGroup
     FS = '/sys/fs/cgroup'
 
     # @return [String]
-    attr_reader :controller
-
-    # @return [String]
     attr_reader :path
 
-    # @param controller [String]
     # @param path [String] cgroup name
-    def initialize(controller, path)
-      @controller = controller
+    def initialize(path)
       @path = path
     end
 
     # @param name [String] cgroup name
     def create(name)
-      FileUtils.mkdir_p(File.join(FS, controller, path, name))
+      FileUtils.mkdir_p(abs_cgroup_path(name))
     end
 
     # @param name [String] cgroup name
     def destroy(name)
-      Dir.rmdir(File.join(FS, controller, path, name))
+      Dir.rmdir(abs_cgroup_path(name))
     end
 
     # @param name [String] cgroup name
@@ -64,7 +60,15 @@ module OsCtl::ExportFS
 
     protected
     def proc_list(name)
-      File.join(FS, controller, path, name, 'cgroup.procs')
+      abs_cgroup_path(name, 'cgroup.procs')
+    end
+
+    def abs_cgroup_path(*names)
+      args = [FS]
+      args << 'systemd' unless OsCtl::Lib::CGroup.v2?
+      args << path
+      args.concat(names)
+      File.join(*args)
     end
   end
 end
