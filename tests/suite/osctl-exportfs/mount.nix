@@ -66,5 +66,10 @@ import ../../make-test.nix (pkgs: {
 
     machine.succeeds("osctl ct exec testct2 mkdir -p /mnt/server1")
     machine.fails("osctl ct exec testct2 mount -v -t nfs 10.0.0.10:/srv/server1 /mnt/server1")
+
+    machine.all_succeed(
+      "osctl-exportfs server stop server1",
+      "osctl-exportfs server del server1",
+    )
   '';
 })
