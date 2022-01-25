@@ -83,10 +83,6 @@ for o in $(cat /proc/cmdline); do
       set -- $(IFS=,; echo $params)
       console=$1
       ;;
-    systemConfig=*)
-      set -- $(IFS==; echo $o)
-      stage2Init=$2/init
-      ;;
     init=*)
       set -- $(IFS==; echo $o)
       stage2Init=$2
