@@ -403,7 +403,7 @@ module TestRunner
     def qemu_command(kernel_params: [])
       all_kernel_params = [
         "console=ttyS0",
-        "systemConfig=#{config[:toplevel]}",
+        "init=#{config[:toplevel]}/init",
       ] + config[:kernelParams] + kernel_params
 
       [

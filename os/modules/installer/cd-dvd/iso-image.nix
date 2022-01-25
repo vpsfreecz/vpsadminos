@@ -41,7 +41,7 @@ let
     LABEL boot
     MENU LABEL vpsAdminOS ${config.system.osVersion} (${config.system.osCodeName})
     LINUX /boot/bzImage
-    APPEND systemConfig=${config.system.build.toplevel} ${toString config.boot.kernelParams}
+    APPEND init=${config.system.build.toplevel}/init ${toString config.boot.kernelParams}
     INITRD /boot/initrd
   '';
 
@@ -64,7 +64,7 @@ let
     title vpsAdminOS
     linux /boot/bzImage
     initrd /boot/initrd
-    options systemConfig=${config.system.build.toplevel} ${toString config.boot.kernelParams}
+    options init=${config.system.build.toplevel}/init ${toString config.boot.kernelParams}
     EOF
   '';
 

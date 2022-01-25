@@ -105,7 +105,7 @@ with lib;
         cp ${config.system.build.squashfs} $out/root.squashfs
         cp ${config.system.build.kernel}/*zImage $out/kernel
         cp ${config.system.build.initialRamdisk}/initrd $out/initrd
-        echo "systemConfig=${config.system.build.toplevel} ${builtins.unsafeDiscardStringContext (toString config.boot.kernelParams)}" > $out/command-line
+        echo "init=${config.system.build.toplevel}/init ${builtins.unsafeDiscardStringContext (toString config.boot.kernelParams)}" > $out/command-line
       '';
 
       system.build.toplevel =
