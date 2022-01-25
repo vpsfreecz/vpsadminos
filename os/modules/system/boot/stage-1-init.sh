@@ -85,7 +85,11 @@ for o in $(cat /proc/cmdline); do
       ;;
     systemConfig=*)
       set -- $(IFS==; echo $o)
-      sysconfig=$2
+      stage2Init=$2/init
+      ;;
+    init=*)
+      set -- $(IFS==; echo $o)
+      stage2Init=$2
       ;;
     root=*)
       # Use root device specified on the kernel command line
@@ -182,7 +186,7 @@ else
     done
     exec 3>&-
 
-    if [ ! -x "/mnt/$sysconfig/init" ]; then
+    if [ ! -x "/mnt/$stage2Init" ]; then
       echo "$root does not exist, unable to mount rootfs"
       @shell@
     fi
@@ -191,5 +195,5 @@ fi
 
 @postMountCommands@
 
-exec env -i $(type -P switch_root) /mnt/ $sysconfig/init
+exec env -i $(type -P switch_root) /mnt/ $stage2Init
 exec ${shell}
