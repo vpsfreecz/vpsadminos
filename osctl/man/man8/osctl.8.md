@@ -956,7 +956,8 @@ read by `ls` or `show` commands.
   `SIGTERM` to `osctl`. To learn more about the JSON commands, see
   `CONSOLE INTERFACE`.
 
-    `-t`, `--tty` *n* - Select which TTY to attach, defaults to **0**.
+    `-t`, `--tty` *n*
+      Select which TTY to attach, defaults to **0**.
 
 `ct exec` [*options*] *ctid* *cmd...*
   Attach container *ctid* and execute command *cmd* within a shell.
@@ -1393,7 +1394,7 @@ read by `ls` or `show` commands.
   changed. It can be used for example to identify a container that is causing
   workload problems to the host system.
 
-  When the bisect is done or aborted, affected containers are re-enabled.
+  When the bisect is done or aborted, the affected containers are re-enabled.
 
     `-a`, `--action` `freeze`|`stop`
       How to disable containers, defaults to `freeze`.
@@ -1481,7 +1482,7 @@ read by `ls` or `show` commands.
       devices from the container. The default mode is `check`.
 
 `ct send` [*options*] *ctid* *destination*
-  Send container to *destionation* vpsAdminOS node. This is equal to running
+  Send container to *destination* vpsAdminOS node. This is equal to running
   `ct send config`, `ct send rootfs`, `ct send state` and
   `ct send cleanup` in succession.
 
