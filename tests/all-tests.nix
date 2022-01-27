@@ -59,6 +59,7 @@ in tests [
   "lxcfs/loadavgs"
   { template = "lxcfs/overlays"; instances = distributions.all; }
   "osctl/ct-exec"
+  "osctl/ct-mounts"
   "osctl/ct-runscript"
   "osctl-exportfs/mount"
   "zfs/ugidmap"
