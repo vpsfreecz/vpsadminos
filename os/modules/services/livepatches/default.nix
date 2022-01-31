@@ -2,6 +2,8 @@
 with lib;
 
 let
+  cfg = config.services.livePatches;
+
   availablePatches = import ../../../livepatches/availablePatches.nix;
 
   kernel = pkgs.callPackage (import ../../../packages/linux/default.nix) {};
@@ -41,11 +43,15 @@ let
       };
 
       ko = "${patch}/lib/modules/${kernel.modDirVersion}/extra/livepatch-${patchName}.ko";
-    in "[ -d /sys/kernel/livepatch/${dirName} ] || insmod ${ko}.*";
+    in
+      "[ -d /sys/kernel/livepatch/${dirName} ] || insmod ${ko}.*";
+
+  serviceContent = concatMapStringsSep "\n" insmodLineGen availablePatches;
+
 in
 {
   options = {
-    enabled = mkOption {
+    services.livePatches.enabled = mkOption {
       type = types.bool;
       default = true;
       description = ''
@@ -55,7 +61,7 @@ in
   };
   config = {
     runit.services.livepatches = {
-      run = concatMapStringsSep "\n" insmodLineGen availablePatches;
+      run = optionalString (cfg.enabled) serviceContent;
       oneShot = true;
       runlevels = [ "default" ];
     };
