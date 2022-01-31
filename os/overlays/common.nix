@@ -2,6 +2,7 @@
   (import ./ruby.nix)
   (import ./osctl.nix)
   (import ./tools.nix)
+  (import ./live-patches.nix)
   (import ./lxc.nix)
   (import ./lxcfs.nix)
   (import ./htop.nix)
