@@ -1,6 +1,7 @@
-{ lib, stdenv, pkgs, kernel, fetchFromGitHub }:
-with pkgs;
-
+{ lib, stdenv, pkgs, fetchFromGitHub }:
+let
+  kernel = pkgs.callPackage (import ../../linux/default.nix) {};
+in
 stdenv.mkDerivation rec {
   pname = "livepatch-${kernel.modDirVersion}-fakecpu-mask";
   version = "1";
