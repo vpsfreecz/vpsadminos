@@ -37,10 +37,7 @@ let
     let
       dirName = builtins.replaceStrings ["-"] ["_"] patchName;
 
-      patch = pkgs.callPackage buildLivePatch {
-        patchName = patchName;
-        kernel = kernel;
-      };
+      patch = pkgs.callPackage buildLivePatch { inherit patchName; };
 
       ko = "${patch}/lib/modules/${kernel.modDirVersion}/extra/livepatch-${patchName}.ko";
     in
