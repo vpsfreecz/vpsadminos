@@ -43,6 +43,8 @@ in
 
         waitForNetworkOnline 60
 
+        waitForService live-patches 120
+
         ${optionalString config.networking.chronyd ''
         waitForService set-clock 15
         ''}

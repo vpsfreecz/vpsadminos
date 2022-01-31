@@ -2,7 +2,7 @@
 with lib;
 
 let
-  cfg = config.services.livePatches;
+  cfg = config.services.live-patches;
 
   availablePatches = import ../../../livepatches/availablePatches.nix;
 
@@ -15,13 +15,11 @@ let
       src = ../../../livepatches;
 
       configurePhase = ''
-        echo configurePhase; pwd; ls; pwd; echo;
         mkdir ${patchName}
         cp $src/${patchName}.c ${patchName}/livepatch-${patchName}.c
         echo 'obj-m += livepatch-${patchName}.o' > ${patchName}/Makefile
       '';
       buildPhase = ''
-        echo buildPhase; pwd; ls; pwd;
         cd ${patchName}
         make -C ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build \
           -j$NIX_BUILD_CORES M=$(pwd) modules
@@ -48,7 +46,7 @@ let
 in
 {
   options = {
-    services.livePatches.enabled = mkOption {
+    services.live-patches.enable = mkOption {
       type = types.bool;
       default = true;
       description = ''
@@ -57,8 +55,8 @@ in
     };
   };
   config = {
-    runit.services.livepatches = {
-      run = optionalString (cfg.enabled) serviceContent;
+    runit.services.live-patches = {
+      run = optionalString (cfg.enable) serviceContent;
       oneShot = true;
       runlevels = [ "default" ];
     };
