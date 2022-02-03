@@ -28,7 +28,7 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency 'libosctl', s.version
   s.add_runtime_dependency 'json'
   s.add_runtime_dependency 'gli', '~> 2.20.0'
-  s.add_runtime_dependency 'rainbow', '~> 3.0.0'
+  s.add_runtime_dependency 'rainbow', '~> 3.1.1'
   s.add_runtime_dependency 'require_all', '~> 2.0.0'
   s.add_runtime_dependency 'ruby-progressbar', '~> 1.11.0'
   s.add_development_dependency 'md2man'
