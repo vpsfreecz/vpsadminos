@@ -4,10 +4,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0py4n868h0whr5n8a4943nyagkpf0vnldk9nyizgf1q1lmrj1pkx";
+      sha256 = "00y9g79lzfffxarj3rmhnkblsnyx7izx91mh8c1sdcs9y2pdfq53";
       type = "gem";
     };
-    version = "1.4.3";
+    version = "1.4.4";
   };
   daemons = {
     groups = ["default"];
@@ -75,10 +75,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0vqgdph227ahzfiisb61zaa5x4z7p9598vxam7yy8w4zciqy26x9";
+      sha256 = "0lka2nsw97x9a7fgmfvrycwa368am9m7q1cr7dqxgwzvrkbjiyh5";
       type = "gem";
     };
-    version = "21.11.0.build20220125104508";
+    version = "21.11.0.build20220203132233";
   };
   osctl = {
     dependencies = ["curses" "gli" "highline" "ipaddress" "json" "libosctl" "rainbow" "require_all" "ruby-progressbar"];
@@ -86,10 +86,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1c7iq8h0rg8bk419clcssg84izpxzxdklkk0319zlzw9jz8w3d86";
+      sha256 = "08gn9kf0fgn5nchd6cw3vlhgd39wfr7nxr5972xx8hghm97xs264";
       type = "gem";
     };
-    version = "21.11.0.build20220125104508";
+    version = "21.11.0.build20220203132233";
   };
   osctl-exporter = {
     dependencies = ["json" "libosctl" "osctl" "prometheus-client" "require_all" "thin"];
@@ -97,10 +97,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1jmsd3a29x1lp7pc2izala9klmamq8r96z58745l2jicslx0z49i";
+      sha256 = "1a369niw88pw2a4hzy2y8qgf5ays5h8hhp3a4jq4dj10n8giv97f";
       type = "gem";
     };
-    version = "21.11.0.build20220125104508";
+    version = "21.11.0.build20220203132233";
   };
   prometheus-client = {
     groups = ["default"];
@@ -127,10 +127,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0bb2fpjspydr6x0s8pn1pqkzmxszvkfapv0p4627mywl7ky4zkhk";
+      sha256 = "0smwg4mii0fm38pyb5fddbmrdpifwv22zv3d3px2xx497am93503";
       type = "gem";
     };
-    version = "3.0.0";
+    version = "3.1.1";
   };
   require_all = {
     groups = ["default"];
