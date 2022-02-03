@@ -35,7 +35,7 @@ extract() {
 }
 
 configure-void() {
-	cp "$BASEDIR"/images/void/cgroups.sh etc/runit/core-services/10-vpsadminos-cgroups.sh
+	cp "$BASEDIR"/images/void/cgroups.sh "$INSTALL"/etc/runit/core-services/10-vpsadminos-cgroups.sh
 
 	configure-append <<EOF
 echo nameserver 8.8.8.8 > /etc/resolv.conf
