@@ -18,7 +18,7 @@ module OsCtld
       # Apply hostname if the container is running
       if ct.running?
         begin
-          ct_syscmd(ct, %w(hostname -F /etc/HOSTNAME'))
+          ct_syscmd(ct, %w(hostname -F /etc/HOSTNAME))
 
         rescue SystemCommandFailed => e
           log(:warn, ct, "Unable to apply hostname: #{e.message}")
