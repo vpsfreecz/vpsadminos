@@ -43,6 +43,9 @@ rdma"
 			cgroup "/sys/fs/cgroup/$name" || retval=1
 	done
 
+	mkdir /sys/fs/cgroup/unified
+	mount -n -t cgroup2 -o "$mount_opts" cgroup2 /sys/fs/cgroup/unified || retval=1
+
 	mount -o remount,ro tmpfs /sys/fs/cgroup
 
 	return $retval

@@ -58,6 +58,9 @@ setup_hybrid() {
 			cgroup "/sys/fs/cgroup/$name" || retval=1
 	done
 
+	mkdir -p /sys/fs/cgroup/unified
+	mount -n -t cgroup2 -o "$mount_opts" cgroup2 /sys/fs/cgroup/unified || retval=1
+
 	if ! mountinfo -q /sys/fs/cgroup/openrc ; then
 		rm -rf /sys/fs/cgroup/openrc
 		ln -sf /sys/fs/cgroup/systemd /sys/fs/cgroup/openrc
