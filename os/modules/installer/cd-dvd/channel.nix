@@ -7,11 +7,17 @@ with lib;
 
 let
   nixpkgs = lib.cleanSource pkgs.path;
-  os = (builtins.filterSource (p: t:
-    lib.cleanSourceFilter p t
-    && (!lib.hasSuffix "img" (baseNameOf p))
-    && (baseNameOf p != "local.nix")
-    ) ../../../.);
+
+  os = (builtins.filterSource (path: type:
+    (lib.cleanSourceFilter path type)
+    && (!lib.hasSuffix "img" (baseNameOf path))
+    && (baseNameOf path != "local.nix")
+  ) ../../../.);
+
+  ctStartMenu = builtins.filterSource (path: type:
+    (lib.cleanSourceFilter path type)
+    && (baseNameOf path != "ctstartmenu") # exclude the locally-built binary
+  ) ../../../../ctstartmenu;
 
   # We need a copy of the Nix expressions for Nixpkgs and vpsAdminOS on the
   # CD. These are installed as "nixos/nixpkgs" and "vpsadminos" channels
@@ -21,6 +27,7 @@ let
     ''
       mkdir -p $out $out/vpsadminos $out/vpsadminos/artwork
       cp -prd ${nixpkgs} $out/nixos
+      cp -prd ${ctStartMenu} $out/vpsadminos/ctstartmenu
       cp -prd ${os} $out/vpsadminos/os
       cp -prd ${../../../../artwork/boot.png} $out/vpsadminos/artwork/boot.png
       chmod -R u+w $out/nixos
