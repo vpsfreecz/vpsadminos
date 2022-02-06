@@ -12,6 +12,7 @@ let
     fedora         = { distribution = "fedora";    version = "latest";        };
     gentoo         = { distribution = "gentoo";    version = "latest";        };
     opensuse       = { distribution = "opensuse";  version = "latest";        };
+    slackware      = { distribution = "slackware"; version = "latest";        };
     ubuntu_1604    = { distribution = "ubuntu";    version = "16.04";         };
     ubuntu_1804    = { distribution = "ubuntu";    version = "18.04";         };
     ubuntu_2004    = { distribution = "ubuntu";    version = "20.04";         };
@@ -29,6 +30,7 @@ in {
     debian_testing
     fedora
     opensuse
+    slackware
     ubuntu_1604
     ubuntu_1804
     ubuntu_2004
