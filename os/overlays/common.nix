@@ -1,4 +1,5 @@
 [
+  (import ./bird.nix)
   (import ./ruby.nix)
   (import ./osctl.nix)
   (import ./tools.nix)

@@ -1,0 +1,12 @@
+diff --git a/sysdep/linux/netlink.c b/sysdep/linux/netlink.c
+index a232421..c29bb73 100644
+--- a/sysdep/linux/netlink.c
++++ b/sysdep/linux/netlink.c
+@@ -809,6 +809,7 @@ nl_parse_addr(struct nlmsghdr *h, int scan)
+   scope = ipa_classify(ifa.ip);
+   if (scope < 0)
+     {
++      if (strncmp(ifi->name, "osrtr0", sizeof(ifi->name)-1) == 0) {} else
+       log(L_ERR "KIF: Invalid interface address %I for %s", ifa.ip, ifi->name);
+       return;
+     }
