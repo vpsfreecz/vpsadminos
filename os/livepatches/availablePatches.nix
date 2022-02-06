@@ -1,3 +1,2 @@
 [
-  "fake-cpumask"
 ]
