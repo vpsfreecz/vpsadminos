@@ -58,6 +58,9 @@ module TestRunner::Cli
         c.desc 'Directory where test logs and state are stored'
         c.flag 'state-dir'
 
+        c.desc 'Default timeout for machine commands, in seconds'
+        c.flag %w(t timeout), type: Integer, default_value: 900
+
         c.action &Command.run(:debug)
       end
 

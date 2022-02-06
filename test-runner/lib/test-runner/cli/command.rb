@@ -65,6 +65,7 @@ module TestRunner
       ev = TestRunner::TestEvaluator.new(
         test,
         state_dir: File.join(state_dir, "os-test-#{test.name}"),
+        default_timeout: opts['timeout'],
         destructive: false,
       )
       ev.interactive
