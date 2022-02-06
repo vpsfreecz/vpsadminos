@@ -10,7 +10,7 @@ module TestRunner
       @name = name
       @config = config
       @tmpdir = tmpdir
-      @default_timeout = default_timeout
+      @default_timeout = default_timeout || 900
       @running = false
       @shell_up = false
       @shared_dir = SharedDir.new(self)
