@@ -55,6 +55,11 @@ let
 
   cgparam = { lib, pkgs, ...}: {
     options = {
+      version = mkOption {
+        type = types.enum [ 1 2 ];
+        default = 1;
+        description = "CGroup parameter version";
+      };
       name = mkOption {
         type = types.str;
         example = "memory.limit_in_bytes";
