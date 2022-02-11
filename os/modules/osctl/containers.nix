@@ -99,6 +99,7 @@ let
         prlimits = buildPrlimits cfg.prlimits;
         mounts = cfg.mounts;
         autostart = null; # autostart is handled by the runit service
+        start_menu = cfg.startMenu;
         hostname = name;
         dns_resolvers = cfg.resolvers;
         nesting = boolToStr cfg.nesting;
@@ -453,6 +454,40 @@ let
     '';
   };
 
+  startMenu = { lib, pkgs, ...}: {
+    options = {
+      enable = mkEnableOption "Enable container start menu";
+
+      timeout = mkOption {
+        type = types.ints.positive;
+        default = 5;
+        description = "Number of seconds before the system is automatically started";
+      };
+    };
+  };
+
+  mkStartMenuOption = mkOption {
+    type = types.nullOr (types.submodule startMenu);
+
+    default = {
+      enable = true;
+    };
+
+    example = {
+      enable = true;
+      timeout = 5;
+    };
+
+    apply = x:
+      if x != null && x.enable then
+        filterAttrs (k: v: k != "enable") (_filter x)
+      else null;
+
+    description = ''
+      Start menu options
+    '';
+  };
+
   container = { config, options, name, ... }: {
     options = {
       config = mkOption {
@@ -591,6 +626,9 @@ let
       };
 
       autostart = mkAutostartOption;
+
+      startMenu = mkStartMenuOption;
+
       nesting = mkEnableOption "Enable container nesting";
 
       seccomp = mkOption {
