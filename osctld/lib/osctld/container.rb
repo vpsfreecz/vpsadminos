@@ -772,7 +772,14 @@ module OsCtld
         @nesting = cfg['nesting'] || false
         @seccomp_profile = cfg['seccomp_profile'] || default_seccomp_profile
         @init_cmd = cfg['init_cmd']
-        @start_menu = cfg['start_menu'] && Container::StartMenu.load(self, cfg['start_menu'])
+
+        @start_menu =
+          if !cfg.has_key?('start_menu') || cfg['start_menu']
+            Container::StartMenu.load(self, cfg['start_menu'] || {})
+          else
+            nil
+          end
+
         @run_conf = Container::RunConfiguration.load(self)
 
         if cfg['send_log']

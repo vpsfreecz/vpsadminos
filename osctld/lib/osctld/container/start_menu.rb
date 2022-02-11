@@ -6,7 +6,7 @@ module OsCtld
     CT_START_MENU = ENV['OSCTLD_CT_START_MENU']
 
     def self.load(ct, cfg)
-      new(ct, cfg['timeout'])
+      new(ct, cfg['timeout'] || 5)
     end
 
     include OsCtl::Lib::Utils::Log
