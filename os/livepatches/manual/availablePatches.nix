@@ -1,3 +1,2 @@
 [
-	"freezer-fix"
 ]
