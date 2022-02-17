@@ -1,0 +1,21 @@
+commit 57b1081314f8af62ddc8a64711c332c077327586
+Author: Pavel Snajdr <snajpa@snajpa.net>
+Date:   Sun Feb 13 01:38:34 2022 +0100
+
+    ucounts: fix -1 semantics for RLIMIT_NPROC
+
+diff --git a/kernel/ucount.c b/kernel/ucount.c
+index cb22f6d8fdc6..9a65fd6d0f75 100644
+--- a/kernel/ucount.c
++++ b/kernel/ucount.c
+@@ -344,9 +344,7 @@ long inc_rlimit_get_ucounts(struct ucounts *ucounts, enum ucount_type type)
+ bool is_ucounts_overlimit(struct ucounts *ucounts, enum ucount_type type, unsigned long rlimit)
+ {
+ 	struct ucounts *iter;
+-	long max = rlimit;
+-	if (rlimit > LONG_MAX)
+-		max = LONG_MAX;
++	unsigned long max = rlimit;
+ 	for (iter = ucounts; iter; iter = iter->ns->ucounts) {
+ 		if (get_ucounts_value(iter, type) > max)
+ 			return true;
