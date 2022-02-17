@@ -69,6 +69,7 @@ let
         export KERNEL_SRCDIR=$(pwd)/src
         cp -r ${kernel.dev}/. ./src/
         ln -snf ${kernel.configfile.outPath} ./src/.config
+        patchShebangs src/scripts
 
         # kpatch-build needs the whole env to be writeable, even the stuff
         # we just unpacked and copied
