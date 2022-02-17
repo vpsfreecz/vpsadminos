@@ -1,0 +1,52 @@
+diff --git a/fs/nfs/client.c b/fs/nfs/client.c
+index 723d425796cc..818ff8b1b99d 100644
+--- a/fs/nfs/client.c
++++ b/fs/nfs/client.c
+@@ -177,6 +177,7 @@ struct nfs_client *nfs_alloc_client(const struct nfs_client_initdata *cl_init)
+ 	INIT_LIST_HEAD(&clp->cl_superblocks);
+ 	clp->cl_rpcclient = ERR_PTR(-EINVAL);
+ 
++	clp->cl_flags = cl_init->init_flags;
+ 	clp->cl_proto = cl_init->proto;
+ 	clp->cl_nconnect = cl_init->nconnect;
+ 	clp->cl_net = get_net(cl_init->net);
+@@ -426,7 +427,6 @@ struct nfs_client *nfs_get_client(const struct nfs_client_initdata *cl_init)
+ 			list_add_tail(&new->cl_share_link,
+ 					&nn->nfs_client_list);
+ 			spin_unlock(&nn->nfs_client_lock);
+-			new->cl_flags = cl_init->init_flags;
+ 			return rpc_ops->init_client(new, cl_init);
+ 		}
+ 
+diff --git a/fs/nfsd/nfs3proc.c b/fs/nfsd/nfs3proc.c
+index a633044b0dc1..981a4e4c9a3c 100644
+--- a/fs/nfsd/nfs3proc.c
++++ b/fs/nfsd/nfs3proc.c
+@@ -183,6 +183,11 @@ nfsd3_proc_write(struct svc_rqst *rqstp)
+ 				(unsigned long long) argp->offset,
+ 				argp->stable? " stable" : "");
+ 
++	resp->status = nfserr_fbig;
++	if (argp->offset > (u64)OFFSET_MAX ||
++	    argp->offset + argp->len > (u64)OFFSET_MAX)
++		return rpc_success;
++
+ 	fh_copy(&resp->fh, &argp->fh);
+ 	resp->committed = argp->stable;
+ 	nvecs = svc_fill_write_vector(rqstp, rqstp->rq_arg.pages,
+diff --git a/fs/nfsd/nfs4proc.c b/fs/nfsd/nfs4proc.c
+index 00440337efc1..7850d141c762 100644
+--- a/fs/nfsd/nfs4proc.c
++++ b/fs/nfsd/nfs4proc.c
+@@ -1008,8 +1008,9 @@ nfsd4_write(struct svc_rqst *rqstp, struct nfsd4_compound_state *cstate,
+ 	unsigned long cnt;
+ 	int nvecs;
+ 
+-	if (write->wr_offset >= OFFSET_MAX)
+-		return nfserr_inval;
++	if (write->wr_offset > (u64)OFFSET_MAX ||
++	    write->wr_offset + write->wr_buflen > (u64)OFFSET_MAX)
++		return nfserr_fbig;
+ 
+ 	cnt = write->wr_buflen;
+ 	trace_nfsd_write_start(rqstp, &cstate->current_fh,
