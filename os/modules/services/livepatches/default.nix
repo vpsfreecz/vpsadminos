@@ -139,9 +139,9 @@ serviceContent
 
   serviceContent = ''
     # Patches built with build-kpatch
-    . ${kpatchBuildPatches}/serviceContent;
+    . ${kpatchBuildPatches}/serviceContent
     # Patches built using .c modules
-    ${manualServiceContent};
+    ${manualServiceContent}
   '';
 in
 {
