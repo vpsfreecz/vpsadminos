@@ -31,13 +31,13 @@ let
       if [ -d /sys/kernel/livepatch/${moduleName} ] && [ -f /sys/kernel/livepatch/${moduleName}/enabled ]; then
         echo -en live-patches: disabling ${moduleName}.. 
         echo 0 > /sys/kernel/livepatch/${moduleName}/enabled 2>/dev/null
-        retries=61
+        retries=91
         while [ -d /sys/kernel/livepatch/${moduleName} ] && [ $retries -gt 0 ]; do
           if [ "$(( $retries % 5 ))" -eq 0 ]; then
             echo -en " $retries "
           fi
           transition=$(cat /sys/kernel/livepatch/${moduleName}/transition 2>/dev/null)
-          if [ "$transition" -eq 1 ]; then
+          if [ "$transition" -eq 1 ] 2>/dev/null; then
             echo -en .
           else
             echo -en ?
@@ -82,7 +82,7 @@ let
       else
         s="$s unloaded"
       fi
-      printf "%-30s%s\n" "$s" " ] ${moduleName}${extraText}"
+      printf "%-27s%s\n" "$s" " ] ${moduleName}${extraText}"
     '';
 
   buildLivePatchKpatch = { availablePatchesKpatchBuild, ccacheStdenv }:
