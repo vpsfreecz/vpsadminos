@@ -2,10 +2,10 @@
 pkgs.stdenv.mkDerivation rec {
   name = "kpatch-build";
   src = fetchFromGitHub {
-    owner = "dynup";
+    owner = "snajpa";
     repo = "kpatch";
-    rev = "aaaebaf2589570dc0c61497e2e88e20c844bafc1";
-    sha256 = "sha256-G9ztNHfC0jUoXn7ABKJywOaQTRfroe4NX1J40IbR7JM=";
+    rev = "a5068a45323b3168737e6df2603877e6b3716450";
+    sha256 = "sha256-d291UATg4EqQhH0510wH25W11IOBMErpki/dbmGLmZc=";
   };
   postPatch = ''
     substituteInPlace ./kpatch-build/kpatch-build --replace "getopt" "${getopt}/bin/getopt"
