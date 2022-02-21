@@ -33,9 +33,19 @@ let
           (stdenv.hostPlatform.isMips && stdenv.hostPlatform.is64bit));
 
   options = {
+    vpsadminos = {
+      EXPERT                    = yes;
+
+      CHECKPOINT_RESTORE        = yes;
+      CFS_BANDWIDTH             = yes;
+
+      MEMCG_32BIT_IDS           = yes;
+      CGROUP_CGLIMIT            = yes;
+      SYSLOG_NS                 = yes;
+    };
 
     debug = {
-      DEBUG_INFO                = if (features.debug or false) then yes else no;
+      DEBUG_INFO                = yes;
       DEBUG_KERNEL              = yes;
       DEBUG_DEVRES              = no;
       DYNAMIC_DEBUG             = yes;

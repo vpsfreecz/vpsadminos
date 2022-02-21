@@ -53,7 +53,10 @@ in {
     boot.kernelPackage = mkOption {
       type = types.package;
       description = "base linux kernel package";
-      default = pkgs.callPackage (import ../../packages/linux/default.nix) {};
+      default = pkgs.callPackage (import ../../packages/linux/default.nix) { kernelVersion = "5.10.98";
+        fetchurlUrl = "https://github.com/vpsfreecz/linux/archive/c0533a6a6b4af2f37863ad1626edaced4dc4edc6.tar.gz";
+        fetchurlSha256 = "sha256-EqoVOFT/CxIV4zd2eOCM78TBBjUYU7Jrj+86yOwaK0A=";
+      };
     };
   };
 
