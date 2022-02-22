@@ -4,14 +4,10 @@ with lib;
 let
   cfg = config.services.live-patches;
 
-  livepatchesDir = ../../../livepatches;
-  kpatchBuildPatchesDir = livepatchesDir + "/kpatch-build";
-  manualPatchesDir = livepatchesDir + "/manual";
-  availablePatchesKpatchBuild = import (kpatchBuildPatchesDir + /availablePatches.nix);
-  availablePatchesManual = import (manualPatchesDir + /availablePatches.nix);
+  patchesDir = ../../../livepatches;
+  availablePatches = import (patchesDir + /availablePatches.nix);
 
-  numPatchesManual = length availablePatchesManual;
-  numPatchesKpatchBuild = length availablePatchesKpatchBuild;
+  numPatches = length availablePatches;
 
   kernel = config.boot.kernelPackage;
   kpatch-build = pkgs.callPackage (import ../../../packages/kpatch-build/default.nix) {};
@@ -85,14 +81,14 @@ let
       printf "%-27s%s\n" "$s" " ] ${moduleName}${extraText}"
     '';
 
-  buildLivePatchKpatch = { availablePatchesKpatchBuild, ccacheStdenv }:
+  buildLivePatch = { availablePatches, ccacheStdenv }:
     let
-      patchName = "${toString numPatchesKpatchBuild}-${builtins.replaceStrings ["."] ["-"] (last availablePatchesKpatchBuild)}";
+      patchName = "${toString numPatches}-${builtins.replaceStrings ["."] ["-"] (last availablePatches)}";
       patchModuleName = "klp_${builtins.replaceStrings ["-"] ["_"] patchName}";
     in ccacheStdenv.mkDerivation rec {
       name = "livepatch-${kernel.modDirVersion}-kpatch-build";
-      version = toString numPatchesKpatchBuild;
-      src = kpatchBuildPatchesDir;
+      version = toString numPatches;
+      src = patchesDir;
 
       buildPhase = ''
         # set to 3 if you want to see compile process
@@ -158,11 +154,11 @@ LIVEPATCH_HEADER_END
 
         # command preview:
         echo kpatch-build -n ${patchModuleName} '' +
-      concatMapStringsSep " " (name: "${name}.patch") availablePatchesKpatchBuild +
+      concatMapStringsSep " " (name: "${name}.patch") availablePatches +
       ''; # we dont get a newline between this and the next line; wtf
         # actual command
         $kpb/kpatch-build/kpatch-build -s src -n ${patchModuleName} '' +
-      concatMapStringsSep " " (name: "$src/${name}.patch") availablePatchesKpatchBuild +
+      concatMapStringsSep " " (name: "$src/${name}.patch") availablePatches +
       '' || ((tail -n 150 $CACHEDIR/build.log || echo log not found at $CACHEDIR/build.log) && exit 1)
       '';
 
@@ -189,72 +185,26 @@ moduleUnloadContent
         cat > $out/moduleStatusContent <<"moduleStatusContent"
           '' + moduleStatusGen {
                  moduleName = patchModuleName;
-                 extraText = "(" + concatStringsSep " " availablePatchesKpatchBuild + ")";
+                 extraText = "(" + concatStringsSep " " availablePatches + ")";
                } + ''
 moduleStatusContent
       '';
     };
 
-  kpatchBuildPatches = pkgs.callPackage buildLivePatchKpatch { inherit availablePatchesKpatchBuild; };
-
-  buildLivePatchManual = { patchName, stdenv }:
-    stdenv.mkDerivation rec {
-      name = "klp-${kernel.modDirVersion}-${patchName}";
-      version = toString numPatchesManual;
-      src = manualPatchesDir;
-
-      configurePhase = ''
-        mkdir ${patchName}
-        cp $src/${patchName}.c ${patchName}/klp-${patchName}.c
-        echo 'obj-m += klp-${patchName}.o' > ${patchName}/Makefile
-      '';
-      buildPhase = ''
-        cd ${patchName}
-        make -C ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build \
-          -j$NIX_BUILD_CORES M=$(pwd) modules
-      '';
-      installPhase = ''
-        make -C ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build  \
-          INSTALL_MOD_PATH=$out M=$(pwd) modules_install
-      '';
-    };
-
-  insmodLineGen = patchName:
-    let
-      dirName = "klp_" + builtins.replaceStrings ["-"] ["_"] patchName;
-
-      patch = pkgs.callPackage buildLivePatchManual { inherit patchName; };
-
-      ko = "${patch}/lib/modules/${kernel.modDirVersion}/extra/klp-${patchName}.ko";
-    in
-      moduleLoadGen { installModPath = "${ko}*"; moduleName = dirName; };
-
-  manualModuleLoadContent = concatMapStringsSep "\n" insmodLineGen availablePatchesManual;
+  patches = pkgs.callPackage buildLivePatch { inherit availablePatches; };
 
   moduleLoadContent = ''
     # Patches built with build-kpatch
-    . $(cat /etc/kpatchBuildPatches)/moduleLoadContent
-    # Patches built using .c modules
-    ${manualModuleLoadContent}
+    . $(cat /etc/live-patches)/moduleLoadContent
   '';
 
-  manualModulesListString = concatMapStringsSep " " (name: "klp-${name}") availablePatchesManual;
   moduleUnloadContent = ''
     # Patches built with build-kpatch
-    . $(cat /etc/kpatchBuildPatches)/moduleUnloadContent
-    # Patches built using .c modules
-    modules="${manualModulesListString}"
-    for patchModuleName in $modules; do
-      '' + moduleUnloadGen { moduleName = "\$patchModuleName"; } + ''
-    done
+    . $(cat /etc/live-patches)/moduleUnloadContent
   '';
 
   moduleStatusContent = ''
-    . $(cat /etc/kpatchBuildPatches)/moduleStatusContent
-    modules="${manualModulesListString}"
-    for patchModuleName in $modules; do
-      '' + moduleStatusGen { moduleName = "\$patchModuleName"; } + ''
-    done
+    . $(cat /etc/live-patches)/moduleStatusContent
   '';
 
   live-patches-util = pkgs.writeScriptBin "live-patches" ''
@@ -286,7 +236,7 @@ in
     };
   };
   config = {
-    environment.etc."kpatchBuildPatches".text = toString kpatchBuildPatches;
+    environment.etc."live-patches".text = toString patches;
     environment.systemPackages = [ live-patches-util ];
     runit.services.live-patches = {
       run = optionalString (cfg.enable) "live-patches load && sleep inf";
