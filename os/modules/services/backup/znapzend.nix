@@ -68,7 +68,7 @@ let
     value = pkgs.writeText (stripSlashes srcCfg.dataset) fileText;
   }) cfg.zetup;
 
-  paths = with pkgs; [ zfs mbuffer openssh ];
+  paths = with pkgs; [ config.boot.zfsUserPackage mbuffer openssh ];
 
   systemPath = concatMapStringsSep ":" (v: "${v}/bin") paths;
 

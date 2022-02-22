@@ -12,6 +12,7 @@
 
 # Kernel dependencies
 , kernel ? null
+, rev, sha256
 }:
 
 with lib;
@@ -36,9 +37,7 @@ let
       name = "zfs-${configFile}-${version}${optionalString buildKernel "-${kernel.version}"}";
 
       src = fetchFromGitHub {
-        owner = "vpsfreecz";
-        repo = "zfs";
-        inherit rev sha256;
+        inherit rev; inherit sha256; repo = "zfs"; owner = "vpsfreecz";
       };
 
       patches = extraPatches;
@@ -170,8 +169,6 @@ let
 in {
   zfsStable = common {
     version = "2.0-vpsadminos";
-
-    rev = "cf79c5d7e3185db69f41452e3ebbe0576a8c5dd5";
-    sha256 = "sha256-HLizndgrsOboRkIlmCfEfGFwoXweamkkddKdnQxSWWU=";
+    inherit rev; inherit sha256;
   };
 }

@@ -9,7 +9,6 @@ with lib;
 
 let
 
-  cfgSpl = config.boot.spl;
   cfgZfs = config.boot.zfs;
   cfgScrub = config.services.zfs.autoScrub;
 
@@ -22,9 +21,8 @@ let
   kernel = config.boot.kernelPackages;
 
   packages = {
-    spl = kernel.spl;
     zfs = kernel.zfs;
-    zfsUser = pkgs.zfs;
+    zfsUser = config.boot.zfsUserPackage;
   };
 
   partitioningSupport = elem true (mapAttrsToList (name: pool:

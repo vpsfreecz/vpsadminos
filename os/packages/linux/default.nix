@@ -12,8 +12,7 @@ callPackage ./generic.nix ( rec {
   extraMeta.branch = concatStrings (intersperse "." (take 2 (splitString "." version)));
 
   src = fetchurl {
-    url = fetchurlUrl;
-    sha256 = fetchurlSha256;
+    inherit url; inherit sha256;
   };
   kernelPatches = [ pkgs.kernelPatches.bridge_stp_helper ];
 })

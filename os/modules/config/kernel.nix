@@ -3,12 +3,16 @@ with lib;
 let
   origKernel = config.boot.kernelPackage;
 
+  availableKernels = import ../../packages/linux/availableKernels.nix { inherit pkgs; };
+
   # we also need to override zfs/spl via linuxPackagesFor
   myLinuxPackages = (pkgs.linuxPackagesFor origKernel).extend (
     self: super: {
       zfs = (super.callPackage ../../packages/zfs {
         configFile = "kernel";
         kernel = origKernel;
+        rev = availableKernels.kernels.${config.boot.kernelVersion}.zfs.rev;
+        sha256 = availableKernels.kernels.${config.boot.kernelVersion}.zfs.sha256;
        }).zfsStable;
     });
 
@@ -50,13 +54,22 @@ in {
       description = "Include hardware support kernel modules in initrd (so e.g. zfs sees disks)";
     };
 
+    boot.kernelVersion = mkOption {
+      type = types.str;
+      default = availableKernels.defaultVersion;
+      description = "TODO";
+    };
+
     boot.kernelPackage = mkOption {
       type = types.package;
       description = "base linux kernel package";
-      default = pkgs.callPackage (import ../../packages/linux/default.nix) { kernelVersion = "5.10.98";
-        fetchurlUrl = "https://github.com/vpsfreecz/linux/archive/c0533a6a6b4af2f37863ad1626edaced4dc4edc6.tar.gz";
-        fetchurlSha256 = "sha256-EqoVOFT/CxIV4zd2eOCM78TBBjUYU7Jrj+86yOwaK0A=";
-      };
+      default = availableKernels.genKernelPackage config.boot.kernelVersion;
+    };
+
+    boot.zfsUserPackage = mkOption {
+      type = types.package;
+      description = "TODO";
+      default = availableKernels.genZfsUserPackage config.boot.kernelVersion;
     };
   };
 

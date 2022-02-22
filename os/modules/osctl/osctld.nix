@@ -16,7 +16,7 @@ let
     runit
     shadow
     utillinux
-    zfs
+    config.boot.zfsUserPackage
   ];
   pathJoined = concatMapStringsSep ":" (s: "${s}/bin") path;
   apparmorPaths = [ pkgs.apparmor-profiles ] ++ config.security.apparmor.packages;

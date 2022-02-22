@@ -5,7 +5,9 @@
 with lib;
 
 let
+  zfstools_ovl = pkgs.callPackage <nixpkgs/pkgs/tools/filesystems/zfstools/default.nix> { zfs = config.boot.zfsUserPackage; };
   requiredPackages = with pkgs; [
+    zfstools_ovl
     utillinux
     coreutils
     iproute
@@ -17,7 +19,6 @@ let
     runit
     shadow
     kmod
-    zfstools
     xz
     gzip
     gnused
