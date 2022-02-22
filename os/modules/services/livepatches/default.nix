@@ -5,7 +5,7 @@ let
   cfg = config.services.live-patches;
 
   patchesDir = ../../../livepatches;
-  availablePatches = import (patchesDir + /availablePatches.nix);
+  availablePatches = (import (patchesDir + /availablePatches.nix) { inherit lib; }).patchesForVersion config.boot.kernelVersion;
 
   numPatches = length availablePatches;
 
