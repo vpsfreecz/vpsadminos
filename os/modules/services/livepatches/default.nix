@@ -230,7 +230,7 @@ LIVEPATCH_HEADER_END
       ${moduleStatusContent}
       ;;
     *)
-      echo "usage: $0 load|unload|status"
+      echo "usage: $0 load|unload|list|status"
       ;;
     esac
   '';
