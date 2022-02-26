@@ -12,8 +12,8 @@ module OsCtld
       return error('container not found') unless ct
       return error('access denied') unless owns_ct?(ct)
 
-      # Configure network within the CT
-      ct.run_conf.dist_configure_network
+      # Configure the system
+      DistConfig.run(ct.run_conf, :start)
 
       Container::Hook.run(ct, :on_start)
       ok

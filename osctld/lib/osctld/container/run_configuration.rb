@@ -24,7 +24,7 @@ module OsCtld
     attr_reader :ct
 
     attr_inclusive_reader :dataset, :distribution, :version, :arch
-    attr_synchronized_accessor :init_pid
+    attr_synchronized_accessor :init_pid, :dist_network_configured
 
     # @param ct [Container]
     def initialize(ct, load_conf: true)
@@ -126,15 +126,8 @@ module OsCtld
 
     def dist_configure_network?
       inclusively do
-        !@dist_network_configured && can_dist_configure_network?
+        !dist_network_configured && can_dist_configure_network?
       end
-    end
-
-    def dist_configure_network
-      return unless dist_configure_network?
-
-      DistConfig.run(self, :network)
-      exclusively { @dist_network_configured = true }
     end
 
     def exist?

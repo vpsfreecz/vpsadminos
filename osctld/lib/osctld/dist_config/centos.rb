@@ -4,14 +4,16 @@ module OsCtld
   class DistConfig::CentOS < DistConfig::RedHat
     distribution :centos
 
-    protected
-    def config_backend
-      if version.start_with?('stream-') \
-         || version == 'latest-stream' \
-         || version.to_i >= 8
-        :network_manager
-      else
-        :initscripts
+    class Configurator < DistConfig::RedHat::Configurator
+      protected
+      def config_backend
+        if version.start_with?('stream-') \
+           || version == 'latest-stream' \
+           || version.to_i >= 8
+          :network_manager
+        else
+          :initscripts
+        end
       end
     end
   end

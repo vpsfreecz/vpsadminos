@@ -4,9 +4,11 @@ module OsCtld
   class DistConfig::Rocky < DistConfig::RedHat
     distribution :rocky
 
-    protected
-    def config_backend
-      :network_manager
+    class Configurator < DistConfig::RedHat::Configurator
+      protected
+      def config_backend
+        :network_manager
+      end
     end
   end
 end

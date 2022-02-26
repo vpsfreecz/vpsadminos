@@ -140,6 +140,7 @@ module OsCtld
     # @option opts [IO, nil] :stdin
     # @option opts [IO, nil] :stdout
     # @option opts [IO, nil] :stderr
+    # @option opts [Boolean] :switch_to_system
     #
     # @return [ContainerControl::Result]
     def fork_runner(opts = {})
@@ -175,7 +176,9 @@ module OsCtld
           "runner:#{command_class.name.split('::').last.downcase}"
         )
 
-        SwitchUser.switch_to_system(sysuser, ugid, ugid, homedir)
+        if opts.fetch(:switch_to_system, true)
+          SwitchUser.switch_to_system(sysuser, ugid, ugid, homedir)
+        end
 
         runner = command_class::Runner.new(runner_opts)
         ret = runner.execute(*args)

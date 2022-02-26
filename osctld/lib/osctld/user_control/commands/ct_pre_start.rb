@@ -38,15 +38,6 @@ module OsCtld
       # Setup start menu
       ct.setup_start_menu
 
-      # Configure hostname
-      DistConfig.run(ct.run_conf, :set_hostname) if ct.hostname
-
-      # Configure network within the CT
-      ct.run_conf.dist_configure_network
-
-      # DNS resolvers
-      DistConfig.run(ct.run_conf, :dns_resolvers) if ct.dns_resolvers
-
       # User-defined hook
       Container::Hook.run(ct, :pre_start)
 

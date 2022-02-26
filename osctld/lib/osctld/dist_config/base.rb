@@ -1,17 +1,15 @@
-require 'fileutils'
+require 'osctld/dist_config/configurator'
 require 'libosctl'
 
 module OsCtld
   class DistConfig::Base
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
-    include OsCtl::Lib::Utils::File
     include Utils::SwitchUser
 
     def self.distribution(n = nil)
       if n
         DistConfig.register(n, self)
-
       else
         n
       end
@@ -25,6 +23,37 @@ module OsCtld
       @ct = ctrc.ct
       @distribution = ctrc.distribution
       @version = ctrc.version
+    end
+
+    def configurator_class
+      if self.class.const_defined?(:Configurator)
+        cls = self.class::Configurator
+        log(:debug, "Using #{cls} for #{ctrc.distribution}")
+        cls
+      else
+        fail "define #{self.class}#configurator_class"
+      end
+    end
+
+    # Run just before the container is started
+    def start(opts = {})
+      if ct.hostname || ct.dns_resolvers || ctrc.dist_configure_network?
+        net_configured = with_rootfs do
+          ret = false
+
+          set_hostname if ct.hostname
+          dns_resolvers if ct.dns_resolvers
+
+          if ctrc.dist_configure_network?
+            network
+            ret = true
+          end
+
+          ret
+        end
+
+        ctrc.dist_network_configured = true if net_configured
+      end
     end
 
     # Gracefully stop the container
@@ -41,13 +70,20 @@ module OsCtld
 
     # Set container hostname
     #
-    # Note that the implementation is responsible for calling
-    # {#update_etc_hosts} when the hostname is changed.
-    #
     # @param opts [Hash] options
     # @option opts [OsCtl::Lib::Hostname] :original previous hostname
-    def set_hostname(opts)
-      raise NotImplementedError
+    def set_hostname(opts = {})
+      with_rootfs do
+        configurator.set_hostname(ct.hostname, old_hostname: opts[:original])
+        configurator.update_etc_hosts(ct.hostname, old_hostname: opts[:original])
+      end
+
+      apply_hostname if ct.running?
+    end
+
+    # Configure hostname in a running system
+    def apply_hostname
+      log(:warn, ct, "Unable to apply hostname on #{distribution}: not implemented")
     end
 
     # Update hostname in `/etc/hosts`, optionally removing configuration of old
@@ -56,43 +92,40 @@ module OsCtld
     # @param opts [Hash] options
     # @param opts [OsCtl::Lib::Hostname, nil] :old_hostname
     def update_etc_hosts(opts = {})
-      path = File.join(ctrc.rootfs, 'etc', 'hosts')
-      return unless writable?(path)
-
-      hosts = EtcHosts.new(path)
-
-      if opts[:old_hostname]
-        hosts.replace(opts[:old_hostname], ct.hostname)
-      else
-        hosts.set(ct.hostname)
+      with_rootfs do
+        configurator.update_etc_hosts(ct.hostname, old_hostname: opts[:old_hostname])
       end
     end
 
     # Remove the osctld-generated notice from /etc/hosts
     def unset_etc_hosts(opts = {})
-      path = File.join(ctrc.rootfs, 'etc', 'hosts')
-      return unless writable?(path)
-
-      hosts = EtcHosts.new(path)
-      hosts.unmanage
+      with_rootfs do
+        configurator.unset_etc_hosts
+      end
     end
 
-    def network(_opts)
-      raise NotImplementedError
+    def network(_opts = {})
+      with_rootfs do
+        configurator.network(ct.netifs)
+      end
     end
 
     # Called when a new network interface is added to a container
     # @param opts [Hash]
     # @option opts [NetInterface::Base] :netif
     def add_netif(opts)
-
+      with_rootfs do
+        configurator.add_netif(ct.netifs, opts[:netif])
+      end
     end
 
     # Called when a network interface is removed from a container
     # @param opts [Hash]
     # @option opts [NetInterface::Base] :netif
     def remove_netif(opts)
-
+      with_rootfs do
+        configurator.remove_netif(ct.netifs, opts[:netif])
+      end
     end
 
     # Called when an existing network interface is renamed
@@ -100,16 +133,14 @@ module OsCtld
     # @option opts [NetInterface::Base] :netif
     # @option opts [String] :original_name
     def rename_netif(opts)
-
+      with_rootfs do
+        configurator.rename_netif(ct.netifs, opts[:netif], opts[:original_name])
+      end
     end
 
-    def dns_resolvers(_opts)
-      writable?(File.join(ctrc.rootfs, 'etc', 'resolv.conf')) do |path|
-        File.open("#{path}.new", 'w') do |f|
-          ct.dns_resolvers.each { |v| f.puts("nameserver #{v}") }
-        end
-
-        File.rename("#{path}.new", path)
+    def dns_resolvers(_opts = {})
+      with_rootfs do
+        configurator.dns_resolvers(ct.dns_resolvers)
       end
     end
 
@@ -135,23 +166,32 @@ module OsCtld
       '/bin'
     end
 
+    def log_type
+      ct.id
+    end
+
     protected
-    # Check if the file at `path` si writable by its user
-    #
-    # If the file doesn't exist, we take it as writable. If a block is given,
-    # it is called if `path` is writable.
-    #
-    # @yieldparam path [String]
-    def writable?(path)
-      begin
-        return if (File.stat(path).mode & 0200) != 0200
+    attr_reader :configurator
 
-      rescue Errno::ENOENT
-        # pass
+    def with_rootfs(&block)
+      if @within_rootfs
+        block.call
+      else
+        ContainerControl::Commands::WithRootfs.run!(
+          ctrc.ct,
+          ctrc: ctrc,
+          block: Proc.new do
+            @configurator = configurator_class.new(
+              ct.id,
+              '/',
+              ct.distribution,
+              ct.version,
+            )
+            @within_rootfs = true
+            block.call
+          end,
+        )
       end
-
-      yield(path) if block_given?
-      true
     end
   end
 end
