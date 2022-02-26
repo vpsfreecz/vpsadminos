@@ -73,6 +73,7 @@ module OsCtld
       LockRegistry.start
       UGidRegistry.instance
       SystemUsers.instance
+      ErbTemplateCache.instance
 
       at_exit do
         if $!.is_a?(DeadlockDetected)

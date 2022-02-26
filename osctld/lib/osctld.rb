@@ -54,8 +54,8 @@ module OsCtld
     File.absolute_path(File.join(root, 'scripts', name))
   end
 
-  def self.tpl(name)
-    File.absolute_path(File.join(root, 'templates', "#{name}.erb"))
+  def self.template_dir
+    File.absolute_path(File.join(root, 'templates'))
   end
 end
 

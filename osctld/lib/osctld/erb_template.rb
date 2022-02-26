@@ -26,7 +26,7 @@ module OsCtld
     end
 
     def initialize(name, vars)
-      @_tpl = ERB.new(File.new(OsCtld.tpl(name)).read, 0, '-')
+      @_tpl = ErbTemplateCache[name]
 
       vars.each do |k, v|
         if v.is_a?(Proc)
