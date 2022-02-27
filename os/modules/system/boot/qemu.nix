@@ -107,6 +107,7 @@ in {
         ''[ ! -f "${disk.device}" ] && truncate -s${toString disk.size} "${disk.device}"''
       ) (filter (disk: disk.type == "file" && disk.create) cfg.disks))}
       exec ${pkgs.qemu_kvm}/bin/qemu-kvm -name vpsadminos -m ${toString cfg.memory} \
+        -cpu host \
         -smp cpus=${toString cfg.cpus},cores=${toString cfg.cpu.cores},threads=${toString cfg.cpu.threads},sockets=${toString cfg.cpu.sockets} \
         -no-reboot \
         -device ahci,id=ahci \

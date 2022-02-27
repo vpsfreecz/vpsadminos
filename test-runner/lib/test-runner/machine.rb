@@ -410,6 +410,7 @@ module TestRunner
         "#{config[:qemu]}/bin/qemu-kvm",
         "-name", "os-test-#{name}",
         "-m", "#{config[:memory]}",
+        "-cpu", "host",
         "-smp", "cpus=#{config[:cpus]},cores=#{config[:cpu][:cores]},threads=#{config[:cpu][:threads]},sockets=#{config[:cpu][:sockets]}",
         "--no-reboot",
         "-device", "ahci,id=ahci",
