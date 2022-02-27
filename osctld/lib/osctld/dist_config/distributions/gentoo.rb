@@ -17,7 +17,10 @@ module OsCtld
 
       protected
       def network_class
-        DistConfig::Network::Netifrc
+        [
+          DistConfig::Network::Netifrc,
+          DistConfig::Network::SystemdNetworkd,
+        ]
       end
     end
 
