@@ -1,7 +1,7 @@
-require 'osctld/dist_config/base'
+require 'osctld/dist_config/distributions/base'
 
 module OsCtld
-  class DistConfig::Void < DistConfig::Base
+  class DistConfig::Distributions::Void < DistConfig::Distributions::Base
     distribution :void
 
     class Configurator < DistConfig::Configurator

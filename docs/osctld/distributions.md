@@ -27,8 +27,5 @@ changing should work on most distributions.
 ## Implementation
 Distribution support code is a part of *osctld*, it's programmed in Ruby,
 see directory [osctld/lib/osctld/dist\_config][dist config dir].
-*osctld* expects one class for each distribution, with [OsCtld::DistConfig::Base]
-as its superclass.
 
 [dist config dir]: https://github.com/vpsfreecz/vpsadminos/tree/staging/osctld/lib/osctld/dist_config
-[OsCtld::DistConfig::Base]: https://ref.vpsadminos.org/osctld/OsCtld/DistConfig/Base.html

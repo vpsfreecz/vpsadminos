@@ -1,18 +1,17 @@
-require 'osctld/dist_config/base'
-require 'osctld/dist_config/helpers/redhat'
+require 'osctld/dist_config/distributions/base'
 
 module OsCtld
-  class DistConfig::RedHat < DistConfig::Base
+  class DistConfig::Distributions::OpenSuse < DistConfig::Distributions::Base
+    distribution :opensuse
 
     class Configurator < DistConfig::Configurator
-      include DistConfig::Helpers::RedHat
-
       def set_hostname(new_hostname, old_hostname: nil)
-        # /etc/sysconfig/network
-        set_params(
-          File.join(rootfs, 'etc', 'sysconfig', 'network'),
-          {'HOSTNAME' => new_hostname.local}
-        )
+        # /etc/hostname
+        writable?(File.join(rootfs, 'etc', 'hostname')) do |path|
+          regenerate_file(path, 0644) do |f|
+            f.puts(new_hostname.local)
+          end
+        end
       end
     end
 

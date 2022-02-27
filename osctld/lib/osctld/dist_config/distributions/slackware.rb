@@ -1,7 +1,7 @@
-require 'osctld/dist_config/base'
+require 'osctld/dist_config/distributions/base'
 
 module OsCtld
-  class DistConfig::Slackware < DistConfig::Base
+  class DistConfig::Distributions::Slackware < DistConfig::Distributions::Base
     distribution :slackware
 
     class Configurator < DistConfig::Configurator

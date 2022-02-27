@@ -1,29 +1,27 @@
-require 'osctld/dist_config/base'
+require 'osctld/dist_config/distributions/base'
 
 module OsCtld
-  class DistConfig::Gentoo < DistConfig::Base
-    distribution :gentoo
+  class DistConfig::Distributions::Debian < DistConfig::Distributions::Base
+    distribution :debian
 
     class Configurator < DistConfig::Configurator
       def set_hostname(new_hostname, old_hostname: nil)
         # /etc/hostname
-        writable?(File.join(rootfs, 'etc', 'conf.d', 'hostname')) do |path|
+        writable?(File.join(rootfs, 'etc', 'hostname')) do |path|
           regenerate_file(path, 0644) do |f|
-            f.puts('# Set to the hostname of this machine')
-            f.puts("hostname=\"#{new_hostname}\"")
+            f.puts(new_hostname.local)
           end
         end
       end
 
-      protected
       def network_class
-        DistConfig::Network::Netifrc
+        DistConfig::Network::Ifupdown
       end
     end
 
     def apply_hostname
       begin
-        ct_syscmd(ct, ['hostname', ct.hostname.local])
+        ct_syscmd(ct, %w(hostname -F /etc/hostname))
 
       rescue SystemCommandFailed => e
         log(:warn, ct, "Unable to apply hostname: #{e.message}")

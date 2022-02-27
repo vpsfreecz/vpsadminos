@@ -1,10 +1,10 @@
-require 'osctld/dist_config/redhat'
+require 'osctld/dist_config/distributions/redhat'
 
 module OsCtld
-  class DistConfig::Fedora < DistConfig::RedHat
+  class DistConfig::Distributions::Fedora < DistConfig::Distributions::RedHat
     distribution :fedora
 
-    class Configurator < DistConfig::RedHat::Configurator
+    class Configurator < DistConfig::Distributions::RedHat::Configurator
       protected
       def network_class
         if version.to_i >= 30

@@ -2,6 +2,7 @@ require 'libosctl'
 
 module OsCtld
   module DistConfig
+    module Distributions ; end
     module Helpers ; end
     module Network ; end
 

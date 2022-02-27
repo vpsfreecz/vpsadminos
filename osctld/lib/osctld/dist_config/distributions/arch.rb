@@ -1,8 +1,9 @@
-require 'osctld/dist_config/base'
+require 'osctld/dist_config/distributions/base'
+require 'fileutils'
 
 module OsCtld
-  class DistConfig::OpenSuse < DistConfig::Base
-    distribution :opensuse
+  class DistConfig::Distributions::Arch < DistConfig::Distributions::Base
+    distribution :arch
 
     class Configurator < DistConfig::Configurator
       def set_hostname(new_hostname, old_hostname: nil)
@@ -13,11 +14,16 @@ module OsCtld
           end
         end
       end
+
+      protected
+      def network_class
+        DistConfig::Network::Netctl
+      end
     end
 
     def apply_hostname
       begin
-        ct_syscmd(ct, ['hostname', ct.hostname.fqdn])
+        ct_syscmd(ct, %w(hostname -F /etc/hostname))
 
       rescue SystemCommandFailed => e
         log(:warn, ct, "Unable to apply hostname: #{e.message}")

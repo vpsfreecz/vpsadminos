@@ -1,7 +1,7 @@
-require 'osctld/dist_config/base'
+require 'osctld/dist_config/distributions/base'
 
 module OsCtld
-  class DistConfig::NixOS < DistConfig::Base
+  class DistConfig::Distributions::NixOS < DistConfig::Distributions::Base
     distribution :nixos
 
     class Configurator < DistConfig::Configurator

@@ -2,7 +2,7 @@ require 'osctld/dist_config/configurator'
 require 'libosctl'
 
 module OsCtld
-  class DistConfig::Base
+  class DistConfig::Distributions::Base
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
     include Utils::SwitchUser

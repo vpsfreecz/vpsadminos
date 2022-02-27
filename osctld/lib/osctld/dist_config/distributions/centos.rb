@@ -1,10 +1,10 @@
-require 'osctld/dist_config/redhat'
+require 'osctld/dist_config/distributions/redhat'
 
 module OsCtld
-  class DistConfig::CentOS < DistConfig::RedHat
+  class DistConfig::Distributions::CentOS < DistConfig::Distributions::RedHat
     distribution :centos
 
-    class Configurator < DistConfig::RedHat::Configurator
+    class Configurator < DistConfig::Distributions::RedHat::Configurator
       protected
       def network_class
         if version.start_with?('stream-') \
