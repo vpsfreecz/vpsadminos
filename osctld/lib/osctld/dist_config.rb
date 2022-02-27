@@ -26,7 +26,7 @@ module OsCtld
       # Make sure the container's dataset is mounted
       ctrc.mount
 
-      d = (klass || self.for(:unsupported)).new(ctrc)
+      d = (klass || self.for(:other)).new(ctrc)
 
       begin
         d.method(cmd).call(opts)

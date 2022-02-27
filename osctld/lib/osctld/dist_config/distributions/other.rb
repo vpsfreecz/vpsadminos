@@ -2,8 +2,8 @@ require 'libosctl'
 require 'osctld/dist_config/distributions/base'
 
 module OsCtld
-  class DistConfig::Distributions::Unsupported < DistConfig::Distributions::Base
-    distribution :unsupported
+  class DistConfig::Distributions::Other < DistConfig::Distributions::Base
+    distribution :other
 
     include OsCtl::Lib::Utils::Log
 
