@@ -38,6 +38,7 @@ module OsCtld
         Console.remove(ct)
 
         progress('Removing shared mount directory')
+        ct.clear_start_menu
         ct.mounts.shared_dir.remove
 
         progress('Destroying dataset')

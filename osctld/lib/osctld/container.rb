@@ -561,6 +561,11 @@ module OsCtld
       menu.deploy if menu
     end
 
+    def clear_start_menu
+      menu = start_menu
+      menu.unlink if menu
+    end
+
     def configure_bashrc
       ErbTemplate.render_to('ct/bashrc', {
         ct: self,
