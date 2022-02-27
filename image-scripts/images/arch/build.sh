@@ -93,9 +93,17 @@ gpg-connect-agent --homedir /etc/pacman.d/gnupg killagent /bye
 ln -s /usr/share/zoneinfo/Europe/Prague /etc/localtime
 sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
 sed -i 's/#DefaultTimeoutStartSec=90s/DefaultTimeoutStartSec=900s/' /etc/systemd/system.conf
+
 systemctl enable sshd
 systemctl disable systemd-resolved
-systemctl mask systemd-udev-trigger.service
+
+mkdir -p /etc/systemd/system/systemd-udev-trigger.service.d
+cat <<EOT > /etc/systemd/system/systemd-udev-trigger.service.d/vpsadminos.conf
+[Service]
+ExecStart=
+ExecStart=-udevadm trigger --subsystem-match=net --action=add
+EOT
+
 mkdir -p /var/log/journal
 usermod -L root
 
