@@ -13,6 +13,11 @@ module OsCtld
           end
         end
       end
+
+      protected
+      def network_class
+        DistConfig::Network::SuseSysconfig
+      end
     end
 
     def apply_hostname
