@@ -6,8 +6,8 @@ module OsCtld
 
     class Configurator < DistConfig::RedHat::Configurator
       protected
-      def config_backend
-        :network_manager
+      def network_class
+        DistConfig::Network::RedHatNetworkManager
       end
     end
   end

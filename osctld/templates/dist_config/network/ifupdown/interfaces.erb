@@ -24,7 +24,7 @@ iface lo inet loopback
 
 <% netifs.each do |netif| -%>
 <%= OsCtld::ErbTemplate.render(
-  "dist_config/network/debian/#{netif.type}",
+  "dist_config/network/ifupdown/#{netif.type}",
   {netif: netif}
 ) %>
 <% end -%>

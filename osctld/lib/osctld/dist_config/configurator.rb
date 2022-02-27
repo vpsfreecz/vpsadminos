@@ -1,4 +1,5 @@
 require 'libosctl'
+require 'osctld/dist_config/helpers/common'
 
 module OsCtld
   # Base class for per-distribution configurators
@@ -10,6 +11,7 @@ module OsCtld
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
     include OsCtl::Lib::Utils::File
+    include DistConfig::Helpers::Common
 
     # @return [String]
     attr_reader :ctid
@@ -32,6 +34,7 @@ module OsCtld
       @rootfs = rootfs
       @distribution = distribution
       @version = version
+      @network_backend = instantiate_network_class
     end
 
     # @param new_hostname [OsCtl::Lib::Hostname]
@@ -66,21 +69,21 @@ module OsCtld
     # Configure networking
     # @param netifs [Array<NetInterface::Base>]
     def network(netifs)
-      raise NotImplementedError
+      network_backend && network_backend.configure(netifs)
     end
 
     # Called when a new network interface is added to a container
     # @param netifs [Array<NetInterface::Base>]
     # @param netif [NetInterface::Base]
     def add_netif(netifs, netif)
-
+      network_backend && network_backend.add_netif(netifs, netif)
     end
 
     # Called when a network interface is removed from a container
     # @param netifs [Array<NetInterface::Base>]
     # @param netif [NetInterface::Base]
     def remove_netif(netifs, netif)
-
+      network_backend && network_backend.remove_netif(netifs, netif)
     end
 
     # Called when an existing network interface is renamed
@@ -88,7 +91,7 @@ module OsCtld
     # @param netif [NetInterface::Base]
     # @param old_name [String]
     def rename_netif(netifs, netif, old_name)
-
+      network_backend && network_backend.rename_netif(netifs, netif, old_name)
     end
 
     # Configure DNS resolvers
@@ -108,21 +111,24 @@ module OsCtld
     end
 
     protected
-    # Check if the file at `path` si writable by its user
-    #
-    # If the file doesn't exist, we take it as writable. If a block is given,
-    # it is called if `path` is writable.
-    #
-    # @yieldparam path [String]
-    def writable?(path)
-      begin
-        return if (File.stat(path).mode & 0200) != 0200
-      rescue Errno::ENOENT
-        # pass
-      end
+    # @return [DistConfig::Network::Base, nil]
+    attr_reader :network_backend
 
-      yield(path) if block_given?
-      true
+    # Return a class which is used for network configuration
+    #
+    # The class should be a subclass of {DistConfig::Network::Base}. If `nil`
+    # is returned, you are expected to implement {#network} and other methods
+    # for network configuration yourself.
+    #
+    # @return [Class, nil]
+    def network_class
+      raise NotImplementedError
+    end
+
+    # @return [DistConfig::Network::Base, nil]
+    def instantiate_network_class
+      klass = network_class
+      klass.nil? ? nil : network_class.new(self)
     end
   end
 end

@@ -6,11 +6,11 @@ module OsCtld
 
     class Configurator < DistConfig::RedHat::Configurator
       protected
-      def config_backend
+      def network_class
         if version.to_i >= 30
-          :network_manager
+          DistConfig::Network::RedHatNetworkManager
         else
-          :initscripts
+          DistConfig::Network::RedHatInitScripts
         end
       end
     end

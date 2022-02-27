@@ -27,6 +27,11 @@ module OsCtld
 
         end
       end
+
+      protected
+      def network_class
+        nil
+      end
     end
 
     def bin_path(_opts)

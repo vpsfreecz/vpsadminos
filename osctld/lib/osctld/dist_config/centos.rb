@@ -6,13 +6,13 @@ module OsCtld
 
     class Configurator < DistConfig::RedHat::Configurator
       protected
-      def config_backend
+      def network_class
         if version.start_with?('stream-') \
            || version == 'latest-stream' \
            || version.to_i >= 8
-          :network_manager
+          DistConfig::Network::RedHatNetworkManager
         else
-          :initscripts
+          DistConfig::Network::RedHatInitScripts
         end
       end
     end

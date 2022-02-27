@@ -49,6 +49,11 @@ module OsCtld
         )
         File.write(sv, cmds.join("\n")) if writable?(sv)
       end
+
+      protected
+      def network_class
+        nil
+      end
     end
 
     # See man runit-init

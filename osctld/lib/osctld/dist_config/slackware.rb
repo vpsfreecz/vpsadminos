@@ -30,6 +30,11 @@ module OsCtld
           end
         end
       end
+
+      protected
+      def network_class
+        nil
+      end
     end
 
     def apply_hostname

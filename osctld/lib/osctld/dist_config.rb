@@ -2,6 +2,9 @@ require 'libosctl'
 
 module OsCtld
   module DistConfig
+    module Helpers ; end
+    module Network ; end
+
     extend OsCtl::Lib::Utils::Exception
 
     def self.register(distribution, klass)
