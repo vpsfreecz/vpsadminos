@@ -416,7 +416,7 @@ module TestRunner
         "-device", "ahci,id=ahci",
         "-device", "virtio-net,netdev=net0",
         "-netdev", "user,id=net0,net=10.0.2.0/24,host=10.0.2.2,dns=10.0.2.3",
-        "-drive", "index=0,id=drive1,file=#{config[:squashfs]},readonly,media=cdrom,format=raw,if=virtio",
+        "-drive", "index=0,id=drive1,file=#{config[:squashfs]},readonly=on,media=cdrom,format=raw,if=virtio",
         "-chardev", "socket,id=shell,path=#{shell_socket_path}",
         "-device", "virtio-serial",
         "-device", "virtconsole,chardev=shell",

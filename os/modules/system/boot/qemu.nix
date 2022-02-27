@@ -95,7 +95,7 @@ in {
 
   config = {
     boot.qemu.params = lib.mkDefault [
-      "-drive index=0,id=drive1,file=${config.system.build.squashfs},readonly,media=cdrom,format=raw,if=virtio"
+      "-drive index=0,id=drive1,file=${config.system.build.squashfs},readonly=on,media=cdrom,format=raw,if=virtio"
       "-kernel ${config.system.build.kernel}/bzImage -initrd ${config.system.build.initialRamdisk}/initrd"
       ''-append "console=ttyS0 init=${config.system.build.toplevel}/init ${toString config.boot.kernelParams} quiet panic=-1"''
       "-nographic"
