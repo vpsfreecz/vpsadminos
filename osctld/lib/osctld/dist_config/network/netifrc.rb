@@ -5,6 +5,11 @@ module OsCtld
   #
   # https://wiki.gentoo.org/wiki/Netifrc
   class DistConfig::Network::Netifrc < DistConfig::Network::Base
+    def usable?
+      File.executable?(File.join(rootfs, 'etc/init.d/net.lo')) \
+        && Dir.exist?(File.join(rootfs, 'etc/conf.d'))
+    end
+
     def configure(netifs)
       netifs.each do |netif|
         do_create_netif(netif)

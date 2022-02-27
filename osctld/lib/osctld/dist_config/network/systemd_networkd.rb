@@ -5,6 +5,21 @@ module OsCtld
   #
   # https://www.freedesktop.org/software/systemd/man/systemd.network.html
   class DistConfig::Network::SystemdNetworkd < DistConfig::Network::Base
+    def usable?
+      service = 'systemd-networkd.service'
+
+      # Check the configuration directory exists
+      return false unless Dir.exist?(File.join(rootfs, 'etc/systemd/network'))
+
+      # Check the service is not masked
+      return false if systemd_service_masked?(service)
+
+      # Check the service is enabled
+      return false unless systemd_service_enabled?(service, 'multi-user.target')
+
+      true
+    end
+
     def configure(netifs)
       netifs.each do |netif|
         do_create_netif(netif)

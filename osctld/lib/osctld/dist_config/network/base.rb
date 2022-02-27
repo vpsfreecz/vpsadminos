@@ -13,6 +13,12 @@ module OsCtld
       @configurator = configurator
     end
 
+    # Return true if this class can be used to configure the network
+    # @return [Boolean]
+    def usable?
+      false
+    end
+
     # @param netifs [Array<NetInterface::Base>]
     def configure(netifs)
       raise NotImplementedError

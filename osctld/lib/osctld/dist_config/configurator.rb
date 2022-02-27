@@ -116,11 +116,16 @@ module OsCtld
 
     # Return a class which is used for network configuration
     #
-    # The class should be a subclass of {DistConfig::Network::Base}. If `nil`
-    # is returned, you are expected to implement {#network} and other methods
-    # for network configuration yourself.
+    # The class should be a subclass of {DistConfig::Network::Base}.
     #
-    # @return [Class, nil]
+    # If an array of classes is returned, they are instantiated and the first
+    # class for which {DistConfig::Network#usable?} returns true is used.
+    # An exception is raised if no class is found to be usable.
+    #
+    # If `nil` is returned, you are expected to implement {#network} and other
+    # methods for network configuration yourself.
+    #
+    # @return [Class, Array<Class>, nil]
     def network_class
       raise NotImplementedError
     end
@@ -128,7 +133,28 @@ module OsCtld
     # @return [DistConfig::Network::Base, nil]
     def instantiate_network_class
       klass = network_class
-      klass.nil? ? nil : network_class.new(self)
+
+      if klass.nil?
+        log(:debug, "Using distribution-specific network configuration")
+        return nil
+
+      elsif klass.is_a?(Array)
+        klass.each do |k|
+          inst = k.new(self)
+
+          if inst.usable?
+            log(:debug, "Using #{k} for network configuration")
+            return inst
+          end
+        end
+
+        log(:warn, "No network class usable for #{self.class}")
+        return nil
+
+      else
+        log(:debug, "Using #{network_class} for network configuration")
+        return network_class.new(self)
+      end
     end
   end
 end

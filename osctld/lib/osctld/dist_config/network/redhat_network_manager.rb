@@ -6,6 +6,21 @@ module OsCtld
   class DistConfig::Network::RedHatNetworkManager < DistConfig::Network::Base
     include DistConfig::Helpers::RedHat
 
+    def usable?
+      return false unless Dir.exist?(File.join(rootfs, 'etc/sysconfig/network-scripts'))
+      return false unless Dir.exist?(File.join(rootfs, 'etc/NetworkManager/conf.d'))
+
+      service = 'NetworkManager.service'
+
+      # Check the service is not masked
+      return false if systemd_service_masked?(service)
+
+      # Check the service is enabled
+      return false unless systemd_service_enabled?(service, 'multi-user.target')
+
+      true
+    end
+
     def configure(netifs)
       set_params(
         File.join(rootfs, 'etc/sysconfig/network'),

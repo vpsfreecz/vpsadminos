@@ -5,6 +5,10 @@ module OsCtld
   #
   # https://wiki.archlinux.org/title/netctl
   class DistConfig::Network::Netctl < DistConfig::Network::Base
+    def usable?
+      Dir.exist?(File.join(rootfs, 'etc/netctl'))
+    end
+
     def configure(netifs)
       netifs.each do |netif|
         do_create_netif(netif)

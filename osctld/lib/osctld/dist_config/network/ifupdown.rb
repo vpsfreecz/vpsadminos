@@ -3,6 +3,10 @@ require 'osctld/dist_config/network/base'
 module OsCtld
   # ifupdown configures network using /etc/network/interfaces
   class DistConfig::Network::Ifupdown < DistConfig::Network::Base
+    def usable?
+      File.exist?(File.join(rootfs, 'etc/network/interfaces'))
+    end
+
     def configure(netifs)
       base = File.join(rootfs, 'etc', 'network')
       config = File.join(base, 'interfaces')

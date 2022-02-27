@@ -3,6 +3,11 @@ require 'osctld/dist_config/network/base'
 module OsCtld
   # Configure SUSE style /etc/sysconfig for wicked
   class DistConfig::Network::SuseSysconfig < DistConfig::Network::Base
+    def usable?
+      Dir.exist?(File.join(rootfs, 'etc/sysconfig/network')) \
+        && Dir.exist?(File.join(rootfs, 'etc/wicked'))
+    end
+
     def configure(netifs)
       netifs.each do |netif|
         do_create_netif(netif)

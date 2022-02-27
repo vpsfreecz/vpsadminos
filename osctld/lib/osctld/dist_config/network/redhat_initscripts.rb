@@ -6,6 +6,11 @@ module OsCtld
   class DistConfig::Network::RedHatInitScripts < DistConfig::Network::Base
     include DistConfig::Helpers::RedHat
 
+    def usable?
+      Dir.exist?(File.join(rootfs, 'etc/sysconfig/network-scripts')) \
+        && File.executable?(File.join(rootfs, 'etc/init.d/network'))
+    end
+
     def configure(netifs)
       set_params(
         File.join(rootfs, 'etc/sysconfig/network'),
