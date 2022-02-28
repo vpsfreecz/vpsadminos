@@ -41,6 +41,11 @@ module OsCtld
           '/',
         )
 
+        # After chroot, we can no longer access syslog logger. Log to stdout
+        # instead, which will be picked up by osctld supervisor and sent to
+        # syslog from there.
+        OsCtl::Lib::Logger.setup(:stdout)
+
         ok(opts[:block].call)
       end
     end
