@@ -102,6 +102,7 @@ module TestRunner
         ev = TestRunner::TestEvaluator.new(
           test,
           state_dir: dir,
+          sock_dir: test_sock_dir,
           default_timeout: opts[:default_timeout],
           destructive: opts[:destructive],
         )
@@ -128,6 +129,10 @@ module TestRunner
 
     def test_state_dir(test)
       File.join(state_dir, "os-test-#{test.name}")
+    end
+
+    def test_sock_dir
+      File.join(state_dir, 'socks')
     end
 
     def state_dir

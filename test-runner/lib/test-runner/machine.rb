@@ -1,3 +1,4 @@
+require 'digest'
 require 'fileutils'
 require 'socket'
 require 'thread'
@@ -6,11 +7,13 @@ module TestRunner
   class Machine
     attr_reader :name
 
-    def initialize(name, config, tmpdir, default_timeout: 900)
+    def initialize(name, config, tmpdir, sockdir, default_timeout: 900, hash_base: '')
       @name = name
       @config = config
       @tmpdir = tmpdir
+      @sockdir = sockdir
       @default_timeout = default_timeout || 900
+      @hash_base = hash_base
       @running = false
       @shell_up = false
       @shared_dir = SharedDir.new(self)
@@ -19,6 +22,7 @@ module TestRunner
       @mutex = Mutex.new
 
       FileUtils.mkdir_p(tmpdir)
+      FileUtils.mkdir_p(sockdir)
       @log = MachineLog.new(File.join(tmpdir, "#{name}-log.log"))
     end
 
@@ -397,8 +401,9 @@ module TestRunner
     end
 
     protected
-    attr_reader :config, :tmpdir, :qemu_pid, :qemu_read, :qemu_reaper,
-      :console_thread, :shell_server, :shell, :log, :virtiofsd_pids, :shared_dir
+    attr_reader :config, :tmpdir, :sockdir, :qemu_pid, :qemu_read, :qemu_reaper,
+      :console_thread, :shell_server, :shell, :log, :virtiofsd_pids, :shared_dir,
+      :hash_base
 
     def qemu_command(kernel_params: [])
       all_kernel_params = [
@@ -591,7 +596,7 @@ module TestRunner
     end
 
     def shell_socket_path
-      File.join(tmpdir, "#{name}-shell.sock")
+      socket_path("#{name}-shell.sock")
     end
 
     def console_log_path
@@ -617,11 +622,16 @@ module TestRunner
     end
 
     def virtiofs_socket_path(mount_name)
-      File.join(tmpdir, "#{name}-virtiofs-#{mount_name}.sock")
+      socket_path("#{name}-fs-#{mount_name}.sock")
     end
 
     def virtiofs_log_path(mount_name)
-      File.join(tmpdir, "#{name}-virtiofs-#{mount_name}.log")
+      File.join(tmpdir, "#{name}-fs-#{mount_name}.log")
+    end
+
+    def socket_path(socket)
+      @socket_hash ||= Digest::SHA256.hexdigest([hash_base, name].join)[0..7]
+      File.join(sockdir, "#{@socket_hash}-#{socket}")
     end
 
     def shell_up?

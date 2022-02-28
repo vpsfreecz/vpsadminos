@@ -9,6 +9,7 @@ module TestRunner
     # @option opts [Integer] :default_timeout
     # @option opts [Boolean] :destructive
     # @option opts [String] :state_dir
+    # @option opts [String] :sock_dir
     def initialize(test, **opts)
       @test = test
       @config = TestConfig.build(test)
@@ -21,7 +22,9 @@ module TestRunner
           name,
           cfg,
           opts[:state_dir],
+          opts[:sock_dir],
           default_timeout: opts[:default_timeout],
+          hash_base: test.path,
         )
         instance_variable_set(var, m)
 
