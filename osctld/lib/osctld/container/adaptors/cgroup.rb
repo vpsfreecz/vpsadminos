@@ -35,7 +35,7 @@ module OsCtld
     end
 
     def systemd_distros
-      %w(almalinux arch centos debian fedora opensuse rocky ubuntu)
+      %w(almalinux arch centos debian fedora gentoo opensuse rocky ubuntu)
     end
   end
 end
