@@ -27,7 +27,7 @@ lxc.apparmor.profile = <%= ct.apparmor.namespace_profile_name %>
 lxc.autodev = 1
 
 # Init
-lxc.init.cmd = <%= ct.format_init_cmd %>
+lxc.init.cmd = <%= ct.format_exec_init_cmd %>
 
 # Internal hooks into osctld
 lxc.hook.version = 1

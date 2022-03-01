@@ -629,7 +629,7 @@ module OsCtld
           dns_resolvers: dns_resolvers,
           nesting: nesting,
           seccomp_profile: seccomp_profile,
-          init_cmd: format_init_cmd,
+          init_cmd: format_user_init_cmd,
           start_menu: start_menu ? true : false,
           start_menu_timeout: start_menu && start_menu.timeout,
           raw_lxc: raw_configs.lxc,
@@ -704,7 +704,11 @@ module OsCtld
       end
     end
 
-    def format_init_cmd
+    def format_user_init_cmd
+      (init_cmd || default_init_cmd).join(' ')
+    end
+
+    def format_exec_init_cmd
       cmd = (init_cmd || default_init_cmd)
       menu = start_menu
 
