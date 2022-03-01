@@ -7,7 +7,7 @@ GEM
     pry (0.13.1)
       coderay (~> 1.1)
       method_source (~> 1.0)
-    test-runner (21.11.0.build20220227163505)
+    test-runner (21.11.0.build20220301153900)
       gli (~> 2.20.0)
       pry (~> 0.13.1)
 
@@ -15,7 +15,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  test-runner (= 21.11.0.build20220227163505)
+  test-runner (= 21.11.0.build20220301153900)
 
 BUNDLED WITH
    2.2.24
