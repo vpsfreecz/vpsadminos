@@ -57,7 +57,7 @@ mknod /dev/urandom c 1 9
 pacman-key --init
 pacman-key --populate archlinux
 
-pacstrap -dG /mnt base openssh netctl dhcpcd inetutils vim
+pacstrap -dG /mnt base openssh dhcpcd inetutils vim
 
 gpg-connect-agent --homedir /etc/pacman.d/gnupg "SCD KILLSCD" "SCD BYE" /bye
 gpg-connect-agent --homedir /etc/pacman.d/gnupg killagent /bye
@@ -96,6 +96,7 @@ sed -i 's/#DefaultTimeoutStartSec=90s/DefaultTimeoutStartSec=900s/' /etc/systemd
 
 systemctl enable sshd
 systemctl disable systemd-resolved
+systemctl enable systemd-networkd
 
 mkdir -p /etc/systemd/system/systemd-udev-trigger.service.d
 cat <<EOT > /etc/systemd/system/systemd-udev-trigger.service.d/vpsadminos.conf
