@@ -11,7 +11,9 @@ let
     debian_11        = { distribution = "debian";    version = "11";              };
     debian_testing   = { distribution = "debian";    version = "testing";         };
     fedora           = { distribution = "fedora";    version = "latest";          };
-    gentoo           = { distribution = "gentoo";    version = "latest";          };
+    gentoo_openrc    = { distribution = "gentoo";    version = "latest-openrc";   };
+    gentoo_systemd   = { distribution = "gentoo";    version = "latest-systemd";  };
+    gentoo_musl      = { distribution = "gentoo";    version = "latest-musl";     };
     opensuse         = { distribution = "opensuse";  version = "latest";          };
     slackware        = { distribution = "slackware"; version = "latest";          };
     ubuntu_1604      = { distribution = "ubuntu";    version = "16.04";           };
@@ -31,6 +33,7 @@ in {
     debian_11
     debian_testing
     fedora
+    gentoo_systemd
     opensuse
     slackware
     ubuntu_1604
