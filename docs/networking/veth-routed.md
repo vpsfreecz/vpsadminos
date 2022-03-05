@@ -105,4 +105,4 @@ osctl ct netif ip add myct01 eth0 1.2.3.4/32
 ```
 
 [bridged veth]: veth-bridge.md
-[man osctl]: https://man.vpsadminos.org/osctl/man8/osctl.8.html
+[man osctl]: https://man.vpsadminos.org/man8/osctl.8.html

@@ -48,4 +48,4 @@ to [container](containers.md) management.
 [Nix]: https://nixos.org/nix/
 [install-nix]: https://nixos.org/nix/download.html
 [nixpkgs]: https://nixos.org/nixpkgs/
-[man osctl]: https://man.vpsadminos.org/osctl/man8/osctl.8.html
+[man osctl]: https://man.vpsadminos.org/man8/osctl.8.html

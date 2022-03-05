@@ -45,7 +45,7 @@ The ZFS streams can be dumped in a raw form, or they can be compressed using
 
 Directory `hooks` can contain user-defined script hooks that are run by *osctld*
 when the container is started or stopped. This directory is optional. See
-[man osctl(8)](https://man.vpsadminos.org/osctl/man8/osctl.8.html#script-hooks)
+[man osctl(8)](https://man.vpsadminos.org/man8/osctl.8.html#script-hooks)
 for a list of supported script hooks.
 
 `snapshots.yml` is a list of ZFS snapshots that have been taken to generate

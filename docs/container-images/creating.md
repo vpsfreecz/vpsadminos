@@ -102,5 +102,5 @@ Containers managed by `osctl-image` can be seen using `osctl-image ct ls`
 and deleted with `osctl-image ct del`.
 
 [vpsadminos-templates]: https://github.com/vpsfreecz/vpsadminos-image-build-scripts
-[osctl-image(8)]: https://man.vpsadminos.org/osctl-image/man8/osctl-image.8.html
+[osctl-image(8)]: https://man.vpsadminos.org/man8/osctl-image.8.html
 [repositories]: repositories.md

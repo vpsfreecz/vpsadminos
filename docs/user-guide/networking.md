@@ -31,5 +31,5 @@ can influence each other on the link layer. If that's a concern for your use-cas
 see [routed veth].
 
 [Routed veth]: ../networking/veth-routed.md
-[man osctl]: https://man.vpsadminos.org/osctl/man8/osctl.8.html
+[man osctl]: https://man.vpsadminos.org/man8/osctl.8.html
 [supported distribution]: ../osctld/distributions.md

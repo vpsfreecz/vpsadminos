@@ -350,4 +350,4 @@ osctl.pools.tank = {
 [pools]: ../os/pools.md
 [examples]: https://github.com/vpsfreecz/vpsadminos/tree/staging/os/configs/containers
 [devices]: ./devices.md
-[man osctl]: https://man.vpsadminos.org/osctl/man8/osctl.8.html#script-hooks
+[man osctl]: https://man.vpsadminos.org/man8/osctl.8.html#script-hooks
