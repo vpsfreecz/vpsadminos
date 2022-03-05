@@ -1,5 +1,5 @@
 import ../../make-test.nix (pkgs: {
-  name = "cgroups-v1";
+  name = "cgroups-system-v1";
 
   description = ''
     Test cgroupv1 configuration
