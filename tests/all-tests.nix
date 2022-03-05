@@ -41,6 +41,7 @@ let
   tests = list: builtins.listToAttrs (lib.flatten (map makeTest list));
 in tests [
   "boot"
+  "cgroups/devices-v1"
   { template = "cgroups/mount-v1"; instances = distributions.all ; }
   { template = "cgroups/mount-v2"; instances = distributions.cgroupv2; }
   "cgroups/system-v1"
