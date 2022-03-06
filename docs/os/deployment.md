@@ -1,108 +1,38 @@
 # Deployment
+vpsAdminOS is a custom spin of NixOS and as such is not supported by NixOS
+deployment tools such as [NixOps] or [morph], although it is not too hard
+to [patch them](#patching).
 
-## Netboot
-vpsAdminOS is designed for netboot deployment where each machine has its own
-image hosted on a netboot server. Machine runs the image from *RAM* and imports
-*ZFS* pool with container data and *osctld* configs.
+vpsAdminOS can be built from its repository using `make`, which is calling
+`nix-build` under the hood. Check the [Makefile] for more information. Another
+approach is to use `os-rebuild`, an alternative to `nixos-rebuild`, from
+an already installed system.
 
-See [vpsfree-cz-configuration] for example *NixOps* deployment.
+At vpsFree.cz, we use our own tool for deploying vpsAdminOS and NixOS called
+[confctl].
 
+## confctl
+[confctl] is a Nix deployment tool similar to [NixOps], [morph], etc. See its
+[homepage](https://github.com/vpsfreecz/confctl) for more information.
 
-## Direct NixOps
-If you'd like to deploy *vpsAdminOS* machines directly using *NixOps*, i.e. not
-exclusively using netboot, you need a patched version of *NixOps* which supports
-*vpsAdminOS*.
+[vpsfree-cz-configuration] is a confctl configuration used at vpsFree.cz. It also
+contains modules to build a PXE server to boot vpsAdminOS systems over network.
 
-You can install the [modified NixOps] e.g. using an [overlay]:
+## Patching
+If you'd like to deploy vpsAdminOS systems using [NixOps] or [morph], it is
+not too hard to patch them. We used them before we moved to [confctl](#confctl).
 
-```nix
-self: super:
-let
-  git = super.fetchFromGitHub {
-      owner = "vpsfreecz";
-      repo = "nixops";
+The main difference between building NixOS and vpsAdminOS is that when building
+NixOS, you import module `<nixpkgs/nixos/lib/eval-config.nix>`. To build
+vpsAdminOS, you need to import `<vpsadminos/os/default.nix>`. Examples of the
+necessary changes can be found at our deprecated forks that include vpsAdminOS
+support:
 
-      # You might need to change rev and sha256 in case the docs is outdated
-      rev = "510485dee43cc959eb758ce61b38fc94c3e9a29e";
-      sha256 = "1sn4j3wyz5y1s0nnk5ahwym3qppqm03ygd78cixwdbic0kij6p1i";
-    };
+ - [old NixOps fork](https://github.com/vpsfreecz/nixops)
+ - [old morph fork](https://github.com/vpsfreecz/morph)
 
-  release = (import "${git}/release.nix" { nixpkgs = self.path; });
-in
-{
-  nixops = release.build.x86_64-linux;
-}
-```
-
-Our version of *NixOps* supports special options which let you specify *Nix paths*
-and OS type per machine. This makes it possible to mix *NixOS* and *vpsAdminOS*
-machines within a single deployment.
-
-```nix
-let
-  nixpkgsUrl = "https://github.com/vpsfreecz/nixpkgs/archive/vpsadminos.tar.gz";
-  nixpkgs = builtins.fetchTarball nixpkgsUrl;
-
-  vpsadminosUrl = "https://github.com/vpsfreecz/vpsadminos/archive/staging.tar.gz";
-  vpsadminos = builtins.fetchTarball vpsadminosUrl;
-in
-{
-  network.description = "Some infrastructure";
-
-  # Set per-machine OS type and Nix path. This is required for vpsAdminOS
-  # machines and optional for NixOS machines.
-  network.machines = {
-    # All vpsAdminOS machines must be configured in this way
-    vpsadminos-node = {
-      spin = "vpsAdminOS";
-      path = "${vpsadminos}";
-      nixPath = [
-        { prefix = "nixpkgs"; path = "${nixpkgs}"; }
-        { prefix = "vpsadminos"; path = "${vpsadminos}"; }
-      ];
-    };
-
-    # Machines default to `spin = "NixOS"` and the nixpkgs that NixOps was
-    # launched with
-    # nixos-node = {
-    #   spin = "NixOS";
-    #   nixPath = [ ... ];
-    # };
-  };
-
-  # Define managed machines
-  vpsadminos-node =
-    { config, pkgs, lib, ... }:
-    {
-      imports = [
-        <vpsadminos/os/configs/common.nix>
-      ];
-
-      networking.dhcp = true;
-      networking.dhcpd = true;
-      networking.lxcbr = true;
-      networking.nat = true;
-
-      time.timeZone = "Europe/Prague";
-
-      environment.systemPackages = with pkgs; [
-        htop
-        vim
-      ];
-
-      services.openssh.enable = true;
-
-      users.extraUsers.root.openssh.authorizedKeys.keys = [
-        "your ssh pubkey"
-      ];
-    };
-
-  nixos-node =
-    { config, pkgs, lib, ... }:
-    { ...configuration... };
-}
-```
-
+[NixOps]: https://github.com/NixOS/nixops
+[morph]: https://github.com/DBCDK/morph
+[Makefile]: https://github.com/vpsfreecz/vpsadminos/blob/staging/os/Makefile
+[confctl]: https://github.com/vpsfreecz/confctl
 [vpsfree-cz-configuration]: https://github.com/vpsfreecz/vpsfree-cz-configuration
-[modified NixOps]: https://github.com/vpsfreecz/nixops
-[overlay]: https://nixos.org/nixpkgs/manual/#sec-overlays-install
