@@ -19,15 +19,18 @@ for example cluster configuration.
 * OS and program references: <https://ref.vpsadminos.org/>
 * ISO images: <https://iso.vpsadminos.org/>
 
-## Technologies
+## Components
 
-- [Upstream kernel with a mix of out-of-tree patches](https://github.com/vpsfreecz/linux)
-- AppArmor
-- LXC, LXCFS
-- runit
-- BIRD
-- ZFS
-- osctl/osctld (userspace tools bundled with vpsAdminOS)
+vpsAdminOS uses:
+
+- [LTS kernel with a mix of out-of-tree patches](https://github.com/vpsfreecz/linux)
+  to improve container experience,
+- runit as an init system,
+- ZFS for storage,
+- our own tools for system container management called [osctl](https://man.vpsadminos.org/man8/osctl.8.html),
+- LXC is used to run the containers,
+- AppArmor for additional security,
+- BIRD for network routing.
 
 ## Building OS
 
@@ -54,8 +57,8 @@ make
 make qemu
 ```
 
-QEMU runner creates two disk images - `sda.img` and `sdb.img` which are added
-as QEMU ATA drives and can be used to create a mirrored ZFS pool which persists
+The QEMU runner creates two disk images - `sda.img` and `sdb.img` which are added
+as QEMU ATA drives and can be used to create a mirrored ZFS pool that persists
 across reboots.
 
 ## Usage

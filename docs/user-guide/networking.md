@@ -26,7 +26,7 @@ configuration, so that the container's init system will bring the interface up.
 
 Bridged veth is fine for local and personal use, but we find that it's not
 secure enough for production deployments, where each container can be controlled
-by a different entity and cannot be trusted. Containers linked to the same bridge
+by a different user and cannot be trusted. Containers linked to the same bridge
 can influence each other on the link layer. If that's a concern for your use-case,
 see [routed veth].
 

@@ -1,6 +1,8 @@
 # User namespaces
 User namespaces are used to isolate containers from the host system and from
-each other. See man user\_namespaces(7) for more information.
+each other. See
+[man user\_namespaces(7)](https://man7.org/linux/man-pages/man7/user_namespaces.7.html)
+for more information.
 
 ## ID ranges
 In order to ensure that containers are running in separate user namespaces,

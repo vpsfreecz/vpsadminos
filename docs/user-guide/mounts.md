@@ -3,9 +3,10 @@
 It is possible to mount directories from the host to containers. What makes this
 complicated are [user namespaces](../containers/user-namespaces.md). If the
 containers are to have access to directories and files in the mountpoint, you
-need change their ownership to match the container's user namespace. Sharing
+need to change their ownership to match the container's user namespace. Sharing
 data between containers in different user namespaces is not possible, as they
-cannot access each other's data.
+do not have access to each other's user and group IDs and appear as owned
+by nobody/nogroup.
 
 ## Changing ownerships
 Let's prepare a shared directory for containers using the same user namespace:

@@ -116,18 +116,6 @@ file        /tank/conf/ct/myct01.yml                                            
 file        /tank/log/ct/myct01.log                                                  valid     LXC log file
 ```
 
-## cd helpers
-Whenever you need to manage a container from the host, you might want to `cd`
-into the container's directory. *osctl* has helpers for that:
-
- - `osctl ct cd <id>` for the container's rootfs
- - `osctl ct cd -l | --lxc <id>` for the container's LXC configuration directory
- - `osctl ct cd -r | --runtime <id>` for the mounted rootfs, available only
-   when the container is running.
-
-A new shell with a modified prompt is spawned. Simply exit the shell to return
-to your previous session.
-
 ## Attaching containers
 Administrators can use `osctl ct attach` to enter containers and get root shell,
 without the need of knowing password for SSH or `osctl ct console`. *osctl*
