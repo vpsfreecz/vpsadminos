@@ -1,7 +1,8 @@
 site_name: vpsAdminOS
+site_url: https://vpsadminos.org/
 theme: readthedocs
 extra_css: ['extra.css']
-pages:
+nav:
 - Home: 'index.md'
 - User Guide:
     - Introduction: 'user-guide/introduction.md'
