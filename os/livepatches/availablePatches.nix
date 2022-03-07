@@ -11,8 +11,9 @@ let
     { name = "ucounts-overlimit-fix";
       filterFn = availableForRange "5.10.93" "5.10.98";
     }
-    { name = "bp-5.10.101-nfs-fixes";
+    { name = "bp-5.10.99-102-cumulative";
       filterFn = availableFor "5.10.98";
+      version = 2;
     }
     { name = "nfs-unfreezer-workaround";
       filterFn = availableSince "5.10.93";
