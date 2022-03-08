@@ -15,6 +15,9 @@ let
       filterFn = availableFor "5.10.98";
       version = 2;
     }
+    { name = "bp-5.10.103-cumulative";
+      filterFn = availableFor "5.10.98";
+    }
     { name = "nfs-unfreezer-workaround";
       filterFn = availableSince "5.10.93";
     }

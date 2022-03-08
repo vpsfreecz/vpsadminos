@@ -1,0 +1,242 @@
+diff --git a/fs/io_uring.c b/fs/io_uring.c
+index 5df35e76da32..cb8652e28b3b 100644
+--- a/fs/io_uring.c
++++ b/fs/io_uring.c
+@@ -4058,6 +4058,7 @@ static int io_add_buffers(struct io_provide_buf *pbuf, struct io_buffer **head)
+ 		} else {
+ 			list_add_tail(&buf->list, &(*head)->list);
+ 		}
++		cond_resched();
+ 	}
+ 
+ 	return i ? i : -ENOMEM;
+diff --git a/kernel/bpf/syscall.c b/kernel/bpf/syscall.c
+index 209e6567cdab..419dbc3d060e 100644
+--- a/kernel/bpf/syscall.c
++++ b/kernel/bpf/syscall.c
+@@ -1308,6 +1308,7 @@ int generic_map_delete_batch(struct bpf_map *map,
+ 		maybe_wait_bpf_programs(map);
+ 		if (err)
+ 			break;
++		cond_resched();
+ 	}
+ 	if (copy_to_user(&uattr->batch.count, &cp, sizeof(cp)))
+ 		err = -EFAULT;
+@@ -1365,6 +1366,7 @@ int generic_map_update_batch(struct bpf_map *map,
+ 
+ 		if (err)
+ 			break;
++		cond_resched();
+ 	}
+ 
+ 	if (copy_to_user(&uattr->batch.count, &cp, sizeof(cp)))
+@@ -1462,6 +1464,7 @@ int generic_map_lookup_batch(struct bpf_map *map,
+ 		swap(prev_key, key);
+ 		retry = MAP_LOOKUP_RETRIES;
+ 		cp++;
++		cond_resched();
+ 	}
+ 
+ 	if (err == -EFAULT)
+diff --git a/kernel/cgroup/cpuset.c b/kernel/cgroup/cpuset.c
+index ef6b3a7f31c1..0aa224c31f10 100644
+--- a/kernel/cgroup/cpuset.c
++++ b/kernel/cgroup/cpuset.c
+@@ -2212,6 +2212,7 @@ static void cpuset_attach(struct cgroup_taskset *tset)
+ 	cgroup_taskset_first(tset, &css);
+ 	cs = css_cs(css);
+ 
++	cpus_read_lock();
+ 	percpu_down_write(&cpuset_rwsem);
+ 
+ 	/* prepare for attach */
+@@ -2267,6 +2268,7 @@ static void cpuset_attach(struct cgroup_taskset *tset)
+ 		wake_up(&cpuset_attach_wq);
+ 
+ 	percpu_up_write(&cpuset_rwsem);
++	cpus_read_unlock();
+ }
+ 
+ /* The various types of files and directories in a cpuset file system */
+diff --git a/net/core/filter.c b/net/core/filter.c
+index 7fa4283f2a8c..659a32802471 100644
+--- a/net/core/filter.c
++++ b/net/core/filter.c
+@@ -2730,6 +2730,9 @@ BPF_CALL_4(bpf_msg_push_data, struct sk_msg *, msg, u32, start,
+ 	if (unlikely(flags))
+ 		return -EINVAL;
+ 
++	if (unlikely(len == 0))
++		return 0;
++
+ 	/* First find the starting scatterlist element */
+ 	i = msg->sg.start;
+ 	do {
+diff --git a/net/core/skbuff.c b/net/core/skbuff.c
+index 0215ae898e83..fccc42c8ca0c 100644
+--- a/net/core/skbuff.c
++++ b/net/core/skbuff.c
+@@ -2139,7 +2139,7 @@ void *__pskb_pull_tail(struct sk_buff *skb, int delta)
+ 		/* Free pulled out fragments. */
+ 		while ((list = skb_shinfo(skb)->frag_list) != insp) {
+ 			skb_shinfo(skb)->frag_list = list->next;
+-			kfree_skb(list);
++			consume_skb(list);
+ 		}
+ 		/* And insert new clone at head. */
+ 		if (clone) {
+@@ -6044,7 +6044,7 @@ static int pskb_carve_frag_list(struct sk_buff *skb,
+ 	/* Free pulled out fragments. */
+ 	while ((list = shinfo->frag_list) != insp) {
+ 		shinfo->frag_list = list->next;
+-		kfree_skb(list);
++		consume_skb(list);
+ 	}
+ 	/* And insert new clone at head. */
+ 	if (clone) {
+diff --git a/net/ipv4/af_inet.c b/net/ipv4/af_inet.c
+index e2f85a16fad9..742218594741 100644
+--- a/net/ipv4/af_inet.c
++++ b/net/ipv4/af_inet.c
+@@ -1374,8 +1374,11 @@ struct sk_buff *inet_gso_segment(struct sk_buff *skb,
+ 	}
+ 
+ 	ops = rcu_dereference(inet_offloads[proto]);
+-	if (likely(ops && ops->callbacks.gso_segment))
++	if (likely(ops && ops->callbacks.gso_segment)) {
+ 		segs = ops->callbacks.gso_segment(skb, features);
++		if (!segs)
++			skb->network_header = skb_mac_header(skb) + nhoff - skb->head;
++	}
+ 
+ 	if (IS_ERR_OR_NULL(segs))
+ 		goto out;
+diff --git a/net/ipv4/ping.c b/net/ipv4/ping.c
+index 323cb231cb58..e60ca03543a5 100644
+--- a/net/ipv4/ping.c
++++ b/net/ipv4/ping.c
+@@ -187,7 +187,6 @@ static struct sock *ping_lookup(struct net *net, struct sk_buff *skb, u16 ident)
+ 			 (int)ident, &ipv6_hdr(skb)->daddr, dif);
+ #endif
+ 	} else {
+-		pr_err("ping: protocol(%x) is not supported\n", ntohs(skb->protocol));
+ 		return NULL;
+ 	}
+ 
+diff --git a/net/ipv4/udp_tunnel_nic.c b/net/ipv4/udp_tunnel_nic.c
+index b91003538d87..bc3a043a5d5c 100644
+--- a/net/ipv4/udp_tunnel_nic.c
++++ b/net/ipv4/udp_tunnel_nic.c
+@@ -846,7 +846,7 @@ udp_tunnel_nic_unregister(struct net_device *dev, struct udp_tunnel_nic *utn)
+ 		list_for_each_entry(node, &info->shared->devices, list)
+ 			if (node->dev == dev)
+ 				break;
+-		if (node->dev != dev)
++		if (list_entry_is_head(node, &info->shared->devices, list))
+ 			return;
+ 
+ 		list_del(&node->list);
+diff --git a/net/ipv6/ip6_offload.c b/net/ipv6/ip6_offload.c
+index a80f90bf3ae7..15c8eef1ef44 100644
+--- a/net/ipv6/ip6_offload.c
++++ b/net/ipv6/ip6_offload.c
+@@ -113,6 +113,8 @@ static struct sk_buff *ipv6_gso_segment(struct sk_buff *skb,
+ 	if (likely(ops && ops->callbacks.gso_segment)) {
+ 		skb_reset_transport_header(skb);
+ 		segs = ops->callbacks.gso_segment(skb, features);
++		if (!segs)
++			skb->network_header = skb_mac_header(skb) + nhoff - skb->head;
+ 	}
+ 
+ 	if (IS_ERR_OR_NULL(segs))
+diff --git a/net/netfilter/nf_tables_api.c b/net/netfilter/nf_tables_api.c
+index b781ba97c474..fdd1da9ecea9 100644
+--- a/net/netfilter/nf_tables_api.c
++++ b/net/netfilter/nf_tables_api.c
+@@ -5924,12 +5924,15 @@ static int nf_tables_updobj(const struct nft_ctx *ctx,
+ {
+ 	struct nft_object *newobj;
+ 	struct nft_trans *trans;
+-	int err;
++	int err = -ENOMEM;
++
++	if (!try_module_get(type->owner))
++		return -ENOENT;
+ 
+ 	trans = nft_trans_alloc(ctx, NFT_MSG_NEWOBJ,
+ 				sizeof(struct nft_trans_obj));
+ 	if (!trans)
+-		return -ENOMEM;
++		goto err_trans;
+ 
+ 	newobj = nft_obj_init(ctx, type, attr);
+ 	if (IS_ERR(newobj)) {
+@@ -5946,6 +5949,8 @@ static int nf_tables_updobj(const struct nft_ctx *ctx,
+ 
+ err_free_trans:
+ 	kfree(trans);
++err_trans:
++	module_put(type->owner);
+ 	return err;
+ }
+ 
+@@ -7555,7 +7560,7 @@ static void nft_obj_commit_update(struct nft_trans *trans)
+ 	if (obj->ops->update)
+ 		obj->ops->update(obj, newobj);
+ 
+-	kfree(newobj);
++	nft_obj_destroy(&trans->ctx, newobj);
+ }
+ 
+ static void nft_commit_release(struct nft_trans *trans)
+@@ -8202,7 +8207,7 @@ static int __nf_tables_abort(struct net *net, enum nfnl_abort_action action)
+ 			break;
+ 		case NFT_MSG_NEWOBJ:
+ 			if (nft_trans_obj_update(trans)) {
+-				kfree(nft_trans_obj_newobj(trans));
++				nft_obj_destroy(&trans->ctx, nft_trans_obj_newobj(trans));
+ 				nft_trans_destroy(trans);
+ 			} else {
+ 				trans->ctx.table->use--;
+diff --git a/net/sched/act_ct.c b/net/sched/act_ct.c
+index 812c3c70a53a..825b3e9b55f7 100644
+--- a/net/sched/act_ct.c
++++ b/net/sched/act_ct.c
+@@ -514,11 +514,6 @@ static bool tcf_ct_flow_table_lookup(struct tcf_ct_params *p,
+ 	struct nf_conn *ct;
+ 	u8 dir;
+ 
+-	/* Previously seen or loopback */
+-	ct = nf_ct_get(skb, &ctinfo);
+-	if ((ct && !nf_ct_is_template(ct)) || ctinfo == IP_CT_UNTRACKED)
+-		return false;
+-
+ 	switch (family) {
+ 	case NFPROTO_IPV4:
+ 		if (!tcf_ct_flow_table_fill_tuple_ipv4(skb, &tuple, &tcph))
+diff --git a/net/tipc/name_table.c b/net/tipc/name_table.c
+index f6a6acef4223..54c5328f492d 100644
+--- a/net/tipc/name_table.c
++++ b/net/tipc/name_table.c
+@@ -931,7 +931,7 @@ static int __tipc_nl_add_nametable_publ(struct tipc_nl_msg *msg,
+ 		list_for_each_entry(p, &sr->all_publ, all_publ)
+ 			if (p->key == *last_key)
+ 				break;
+-		if (p->key != *last_key)
++		if (list_entry_is_head(p, &sr->all_publ, all_publ))
+ 			return -EPIPE;
+ 	} else {
+ 		p = list_first_entry(&sr->all_publ,
+diff --git a/net/tipc/socket.c b/net/tipc/socket.c
+index aa43daebfc46..00447a86ece7 100644
+--- a/net/tipc/socket.c
++++ b/net/tipc/socket.c
+@@ -3743,7 +3743,7 @@ static int __tipc_nl_list_sk_publ(struct sk_buff *skb,
+ 			if (p->key == *last_publ)
+ 				break;
+ 		}
+-		if (p->key != *last_publ) {
++		if (list_entry_is_head(p, &tsk->publications, binding_sock)) {
+ 			/* We never set seq or call nl_dump_check_consistent()
+ 			 * this means that setting prev_seq here will cause the
+ 			 * consistence check to fail in the netlink callback
