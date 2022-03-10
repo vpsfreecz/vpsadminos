@@ -1,0 +1,16 @@
+diff --git a/net/ipv4/sysctl_net_ipv4.c b/net/ipv4/sysctl_net_ipv4.c
+index 08829809e88b..437705c570cb 100644
+--- a/net/ipv4/sysctl_net_ipv4.c
++++ b/net/ipv4/sysctl_net_ipv4.c
+@@ -189,6 +189,11 @@ static int ipv4_ping_group_range(struct ctl_table *table, int write,
+ 	if (write && ret == 0) {
+ 		low = make_kgid(user_ns, urange[0]);
+ 		high = make_kgid(user_ns, urange[1]);
++		if (user_ns != &init_user_ns) {
++			kgid_t gidmax = make_kgid(&init_user_ns, -2);
++			if (gid_eq(high, gidmax))
++				high = make_kgid(user_ns, -2);
++		}
+ 		if (!gid_valid(low) || !gid_valid(high))
+ 			return -EINVAL;
+ 		if (urange[1] < urange[0] || gid_lt(high, low)) {
