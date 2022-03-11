@@ -289,6 +289,21 @@ read by `ls` or `show` commands.
 `--version`
   Display the program version and exit.
 
+## COMMAND SHORTCUTS
+`osctl` provides shortcuts for selected commands. For example, the shortcut
+for `osctl ct ls` is `ct ls`. When using a shortcut, it is not possible to pass
+global options.
+
+The following shortcuts are supported:
+
+ - `ct`
+ - `group`
+ - `healthcheck`
+ - `id-range`
+ - `pool`
+ - `repo`
+ - `user`
+
 ## COMMANDS
 `pool install` [*options*] *pool*
   Mark zpool *pool* to be used with `osctld`.
