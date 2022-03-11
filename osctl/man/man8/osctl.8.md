@@ -846,9 +846,9 @@ read by `ls` or `show` commands.
       Open container console (can be later detached), see `ct console`.
 
     `-q`, `--queue`
-      Enqueue the start operation using the pools autostart facility. The pool
+      Enqueue the start operation using the pool's autostart facility. The pool
       is configured to start a certain number of containers in parallel. Use
-      this option, to add the container to the queue. This is useful when you're
+      this option to add the container to the queue. This is useful when you're
       manually starting a large number of containers.
 
     `-p`, `--priority` *n*
@@ -1131,8 +1131,8 @@ read by `ls` or `show` commands.
   Disable the start menu.
 
 `ct set raw lxc` *ctid*
-  Append raw LXC configuration read from standard input to the *osctld* generated
-  LXC configuration file.
+  Append raw LXC configuration read from the standard input to the *osctld*
+  generated LXC configuration file.
 
 `ct unset raw lxc` *ctid*
   Remove raw LXC configuration from the *osctld* generated LXC configuration
@@ -1308,9 +1308,9 @@ read by `ls` or `show` commands.
       Open container console (can be later detached), see `ct console`.
 
     `-q`, `--queue`
-      Enqueue the start operation using the pools autostart facility. The pool
+      Enqueue the start operation using the pool's autostart facility. The pool
       is configured to start a certain number of containers in parallel. Use
-      this option, to add the container to the queue. This is useful when you're
+      this option to add the container to the queue. This is useful when you're
       manually starting a large number of containers.
 
     `-p`, `--priority` *n*
@@ -1335,7 +1335,7 @@ read by `ls` or `show` commands.
   stopped for the reload to be allowed.
 
 `ct config replace` *ctid*
-  Replace the container's configuration file by data read from standard input.
+  Replace the container's configuration file by data read from the standard input.
   The entire configuration file is replaced and reloaded by *osctld*. The config
   file has to be in the correct format for the current `osctld` version and has
   to contain required options, otherwise errors may occur. This is considered
@@ -1640,7 +1640,7 @@ read by `ls` or `show` commands.
   in JSON.
 
 `ct wait` *ctid* *state...*
-  Block until container *ctid* enters one of given states.
+  Block until container *ctid* enters one of the given states.
 
 `ct top` [*options*]
   top-like TUI application showing running containers and their CPU, memory,
@@ -1678,7 +1678,7 @@ read by `ls` or `show` commands.
 `ct pid` [*pid...*] | `-`
   Find containers by process IDs. By default, the process IDs are passed as
   command-line arguments. If the first PID is `-`, the PIDs are read from
-  standard input, one PID per line.
+  the standard input, one PID per line.
 
     `-H`, `--hide-header`
       Do not show header, useful for scripting.
