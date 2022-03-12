@@ -31,9 +31,8 @@ module OsCtl::Lib
 
         msg << unknown.join(' ')
 
-        if unknown.detect { |v| v.start_with?('--') }
-          msg << "\n"
-          msg << 'Note that options must come before arguments.'
+        if unknown.detect { |v| v.start_with?('-') }
+          msg << ' (note that options must come before arguments)'
         end
 
         raise GLI::BadCommandLine, msg
