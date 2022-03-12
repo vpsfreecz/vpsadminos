@@ -1,14 +1,9 @@
-{ lib, bundlerApp }:
+{ lib, osBundlerApp }:
 
-bundlerApp {
+osBundlerApp {
   pname = "svctl";
   gemdir = ./.;
   exes = [ "svctl" ];
-  postBuild = ''
-    mkdir -p $out/share/bash-completion/completions $out/etc
-    ln -sf $out/share/bash-completion/completions $out/etc/bash_completion.d
-    $out/bin/svctl gen-completion bash > $out/share/bash-completion/completions/svctl
-  '';
 
   meta = with lib; {
     description = "";

@@ -1,14 +1,9 @@
-{ lib, bundlerApp }:
+{ lib, osBundlerApp }:
 
-bundlerApp {
+osBundlerApp {
   pname = "osup";
   gemdir = ./.;
   exes = [ "osup" ];
-  postBuild = ''
-    mkdir -p $out/share/bash-completion/completions $out/etc
-    ln -sf $out/share/bash-completion/completions $out/etc/bash_completion.d
-    $out/bin/osup gen-completion bash > $out/share/bash-completion/completions/osup
-  '';
 
   meta = with lib; {
     description = "";

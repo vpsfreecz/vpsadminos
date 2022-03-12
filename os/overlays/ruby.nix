@@ -35,4 +35,6 @@ in
           buildInputs = [ mariadb-connector-c zlib openssl ];
         };
       }) {};
+
+  osBundlerApp = super.callPackage ../packages/os-bundler-app {};
 }

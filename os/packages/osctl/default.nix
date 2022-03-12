@@ -1,14 +1,9 @@
-{ pkgs, lib, bundlerApp }:
+{ lib, osBundlerApp }:
 
-bundlerApp {
+osBundlerApp {
   pname = "osctl";
   gemdir = ./.;
   exes = [ "osctl" "ct" "group" "healthcheck" "id-range" "pool" "repo" "user" ];
-  postBuild = ''
-    mkdir -p $out/share/bash-completion/completions $out/etc
-    ln -sf $out/share/bash-completion/completions $out/etc/bash_completion.d
-    $out/bin/osctl gen-completion bash > $out/share/bash-completion/completions/osctl
-  '';
 
   meta = with lib; {
     description = "";
