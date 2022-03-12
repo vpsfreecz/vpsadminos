@@ -149,7 +149,7 @@ module OsCtl::Cli
     end
 
     def set_memory
-      require_args!('name', 'memory')
+      require_args!('name', 'memory', strict: false)
       do_set_memory(
         :group_cgparam_set,
         :group_cgparam_unset,
@@ -193,12 +193,12 @@ module OsCtl::Cli
     end
 
     def cgparam_list
-      require_args!('name')
+      require_args!('name', strict: false)
       do_cgparam_list(:group_cgparam_list, name: args[0], pool: gopts[:pool])
     end
 
     def cgparam_set
-      require_args!('name', 'parameter', 'value')
+      require_args!('name', 'parameter', 'value', strict: false)
       do_cgparam_set(:group_cgparam_set, name: args[0], pool: gopts[:pool])
     end
 
@@ -223,7 +223,7 @@ module OsCtl::Cli
     end
 
     def device_add
-      require_args!('name', 'type', 'major', 'minor', 'mode')
+      require_args!('name', 'type', 'major', 'minor', 'mode', strict: false)
       do_device_add(:group_device_add, name: args[0], pool: gopts[:pool])
     end
 

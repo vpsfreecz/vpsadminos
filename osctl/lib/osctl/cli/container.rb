@@ -374,7 +374,7 @@ module OsCtl::Cli
     end
 
     def exec
-      require_args!('id', 'command')
+      require_args!('id', 'command', strict: false)
 
       c = osctld_open
       cont = c.cmd_data!(
@@ -395,7 +395,7 @@ module OsCtl::Cli
     end
 
     def runscript
-      require_args!('id', 'script')
+      require_args!('id', 'script', strict: false)
 
       c = osctld_open
       cont = c.cmd_data!(
@@ -570,7 +570,7 @@ module OsCtl::Cli
     end
 
     def set_memory
-      require_args!('id', 'memory')
+      require_args!('id', 'memory', strict: false)
       do_set_memory(
         :ct_cgparam_set,
         :ct_cgparam_unset,
@@ -742,7 +742,7 @@ module OsCtl::Cli
     end
 
     def passwd
-      require_args!('id', 'user')
+      require_args!('id', 'user', strict: false)
 
       if args[2]
         password = args[2]
@@ -949,7 +949,7 @@ module OsCtl::Cli
     end
 
     def pid
-      require_args!('pid|-')
+      require_args!('pid|-', strict: false)
 
       finder = PidFinder.new(header: !opts['hide-header'])
 
@@ -1018,13 +1018,13 @@ module OsCtl::Cli
     end
 
     def cgparam_list
-      require_args!('id')
+      require_args!('id', strict: false)
 
       do_cgparam_list(:ct_cgparam_list, id: args[0], pool: gopts[:pool])
     end
 
     def cgparam_set
-      require_args!('id', 'parameter', 'value')
+      require_args!('id', 'parameter', 'value', strict: false)
       do_cgparam_set(:ct_cgparam_set, id: args[0], pool: gopts[:pool])
     end
 
@@ -1049,7 +1049,7 @@ module OsCtl::Cli
     end
 
     def device_add
-      require_args!('id', 'type', 'major', 'minor', 'mode')
+      require_args!('id', 'type', 'major', 'minor', 'mode', strict: false)
       do_device_add(:ct_device_add, id: args[0], pool: gopts[:pool])
     end
 
@@ -1094,7 +1094,7 @@ module OsCtl::Cli
         return
       end
 
-      require_args!('id')
+      require_args!('id', strict: false)
 
       cmd_opts = {id: args[0], pool: gopts[:pool]}
       fmt_opts = {layout: :columns}
@@ -1114,7 +1114,7 @@ module OsCtl::Cli
     end
 
     def prlimit_set
-      require_args!('id', 'limit', 'value')
+      require_args!('id', 'limit', 'value', strict: false)
 
       soft, hard = args[2..3].map { |v| /^\d+$/ =~ v ? v.to_i : v }
       hard = soft if hard.nil?
@@ -1146,7 +1146,7 @@ module OsCtl::Cli
         return
       end
 
-      require_args!('id')
+      require_args!('id', strict: false)
       props = args[1..-1]
 
       cmd_opts = {id: args[0], pool: gopts[:pool], properties: props}
@@ -1165,7 +1165,7 @@ module OsCtl::Cli
     end
 
     def dataset_create
-      require_args!('id', 'name')
+      require_args!('id', 'name', strict: false)
       osctld_fmt(
         :ct_dataset_create,
         id: args[0],
@@ -1302,7 +1302,7 @@ module OsCtl::Cli
     end
 
     def recover_kill
-      require_args!('id')
+      require_args!('id', strict: false)
 
       if args[0].index(':')
         pool, id = args[0].split(':')
@@ -1456,7 +1456,7 @@ module OsCtl::Cli
     end
 
     def set(option)
-      require_args!('id')
+      require_args!('id', strict: false)
       cmd_opts = {id: args[0], pool: gopts[:pool]}
       cmd_opts[option] = yield(args[1..-1])
 
@@ -1464,7 +1464,7 @@ module OsCtl::Cli
     end
 
     def unset(option)
-      require_args!('id')
+      require_args!('id', strict: false)
       cmd_opts = {id: args[0], pool: gopts[:pool]}
       cmd_opts[option] = block_given? ? yield(args[1..-1]) : true
 

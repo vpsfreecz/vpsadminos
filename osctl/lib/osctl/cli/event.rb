@@ -25,7 +25,7 @@ module OsCtl::Cli
     end
 
     def wait_ct
-      require_args!('id', 'state')
+      require_args!('id', 'state', strict: false)
       c = osctld_open
 
       pool = gopts[:pool]

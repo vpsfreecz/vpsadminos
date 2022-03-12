@@ -75,7 +75,7 @@ module OsCtl::Cli
         return
       end
 
-      require_args!('id-range')
+      require_args!('id-range', strict: false)
 
       types = %w(all allocated free)
 
