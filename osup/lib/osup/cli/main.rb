@@ -6,6 +6,8 @@ module OsUp
     include OsCtl::Lib::Utils::System
 
     def status
+      require_args!(optional: %w(pool))
+
       if args[0]
         pool_status(args[0])
 
@@ -15,6 +17,8 @@ module OsUp
     end
 
     def check
+      require_args!(optional: %w(pool))
+
       if args[0]
         pool_check(args[0])
 
@@ -43,6 +47,8 @@ module OsUp
     end
 
     def upgrade_all
+      require_args!(optional: %w(version))
+
       target = args[0] && args[0].to_i
 
       active_pools.each do |pool|
@@ -72,6 +78,8 @@ module OsUp
     end
 
     def rollback_all
+      require_args!(optional: %w(version))
+
       target = args[0] && args[0].to_i
 
       active_pools.each do |pool|
