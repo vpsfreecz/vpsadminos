@@ -147,7 +147,7 @@ module OsCtl::Cli
         return
       end
 
-      require_args!('name', strict: false)
+      require_args!('name', optional: %w(type))
 
       cmd_opts = {name: args[0], uid: true, gid: true}
       fmt_opts = {layout: :columns}

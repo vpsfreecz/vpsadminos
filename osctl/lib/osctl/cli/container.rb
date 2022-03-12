@@ -570,7 +570,7 @@ module OsCtl::Cli
     end
 
     def set_memory
-      require_args!('id', 'memory', strict: false)
+      require_args!('id', 'memory', optional: %w(swap))
       do_set_memory(
         :ct_cgparam_set,
         :ct_cgparam_unset,
@@ -742,7 +742,7 @@ module OsCtl::Cli
     end
 
     def passwd
-      require_args!('id', 'user', strict: false)
+      require_args!('id', 'user', optional: %w(password))
 
       if args[2]
         password = args[2]
@@ -1049,7 +1049,7 @@ module OsCtl::Cli
     end
 
     def device_add
-      require_args!('id', 'type', 'major', 'minor', 'mode', strict: false)
+      require_args!('id', 'type', 'major', 'minor', 'mode', optional: %w(device))
       do_device_add(:ct_device_add, id: args[0], pool: gopts[:pool])
     end
 
@@ -1114,7 +1114,7 @@ module OsCtl::Cli
     end
 
     def prlimit_set
-      require_args!('id', 'limit', 'value', strict: false)
+      require_args!('id', 'limit', 'value', optional: %w(hard))
 
       soft, hard = args[2..3].map { |v| /^\d+$/ =~ v ? v.to_i : v }
       hard = soft if hard.nil?
@@ -1165,7 +1165,7 @@ module OsCtl::Cli
     end
 
     def dataset_create
-      require_args!('id', 'name', strict: false)
+      require_args!('id', 'name', optional: %w(mountpoint))
       osctld_fmt(
         :ct_dataset_create,
         id: args[0],
@@ -1302,7 +1302,7 @@ module OsCtl::Cli
     end
 
     def recover_kill
-      require_args!('id', strict: false)
+      require_args!('id', optional: %w(signal))
 
       if args[0].index(':')
         pool, id = args[0].split(':')

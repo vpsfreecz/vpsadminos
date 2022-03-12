@@ -44,7 +44,7 @@ module OsCtl::Image
     end
 
     def test
-      require_args!('image', strict: false)
+      require_args!('image', optional: %w(test))
 
       images = select_images(args[0])
       tests = select_tests(args[1])
