@@ -23,7 +23,7 @@ let
     }
     { name = "ping-group-range";
       filterFn = availableFor "5.10.98";
-      version = 6;
+      version = 7;
     }
     { name = "nfs-unfreezer-workaround";
       filterFn = availableSince "5.10.93";

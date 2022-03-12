@@ -1,5 +1,5 @@
 diff --git a/kernel/user_namespace.c b/kernel/user_namespace.c
-index 708bf385c166..72a26c03b081 100644
+index 708bf385c166..4841413ef748 100644
 --- a/kernel/user_namespace.c
 +++ b/kernel/user_namespace.c
 @@ -325,6 +325,28 @@ static u32 map_id_down(struct uid_gid_map *map, u32 id)
@@ -20,7 +20,7 @@ index 708bf385c166..72a26c03b081 100644
 +		walkmap = map->forward;
 +
 +	for (idx = 0; idx < map->nr_extents; idx++) {
-+		extent = walkmap + (idx * sizeof(struct uid_gid_extent));
++		extent = &walkmap[idx];
 +		high = extent->first + extent->count - 1;
 +		if (high > highest)
 +			highest = high;
