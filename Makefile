@@ -45,7 +45,7 @@ converter: libosctl
 svctl: libosctl
 	./tools/update_gem.sh os/packages svctl $(BUILD_ID)
 
-test-runner:
+test-runner: libosctl
 	./tools/update_gem.sh os/packages test-runner $(BUILD_ID)
 
 osctl-env-exec:
