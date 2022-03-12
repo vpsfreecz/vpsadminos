@@ -13,13 +13,7 @@ module OsCtl::Lib
     # @param v [Array] list of required arguments
     # @param optional [Array] list of optional arguments
     # @param strict [Boolean] do not allow more arguments than specified
-    def require_args!(*v, optional: [], strict: true)
-      if v.count == 1 && v.first.is_a?(Array)
-        required = v.first
-      else
-        required = v
-      end
-
+    def require_args!(*required, optional: [], strict: true)
       if args.count < required.count
         arg = required[ args.count ]
         raise GLI::BadCommandLine, "missing argument <#{arg}>"
