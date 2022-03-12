@@ -30,7 +30,7 @@ module OsUp
     end
 
     def upgrade
-      require_args!('pool')
+      require_args!('pool', strict: false)
 
       OsUp.upgrade(
         args[0],
@@ -62,7 +62,7 @@ module OsUp
     end
 
     def rollback
-      require_args!('pool')
+      require_args!('pool', strict: false)
 
       OsUp.rollback(
         args[0],

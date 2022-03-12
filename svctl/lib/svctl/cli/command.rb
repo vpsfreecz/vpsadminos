@@ -1,20 +1,12 @@
 require 'libosctl'
 
 module SvCtl
-  class Cli::Command
+  class Cli::Command < OsCtl::Lib::Cli::Command
     def self.run(method)
       Proc.new do |global_opts, opts, args|
         cmd = new(global_opts, opts, args)
         cmd.method(method).call
       end
-    end
-
-    attr_reader :gopts, :opts, :args
-
-    def initialize(global_opts, opts, args)
-      @gopts = global_opts
-      @opts = opts
-      @args = args
     end
 
     def list_all

@@ -1,18 +1,12 @@
+require 'libosctl'
+
 module TestRunner
-  class Cli::Command
+  class Cli::Command < OsCtl::Lib::Cli::Command
     def self.run(method)
       Proc.new do |global_opts, opts, args|
         cmd = new(global_opts, opts, args)
         cmd.method(method).call
       end
-    end
-
-    attr_reader :gopts, :opts, :args
-
-    def initialize(global_opts, opts, args)
-      @gopts = global_opts
-      @opts = opts
-      @args = args
     end
 
     def list
@@ -73,20 +67,6 @@ module TestRunner
     end
 
     protected
-    # @param v [Array] list of required arguments
-    def require_args!(*v)
-      if v.count == 1 && v.first.is_a?(Array)
-        required = v.first
-      else
-        required = v
-      end
-
-      return if args.count >= required.count
-
-      arg = required[ args.count ]
-      raise GLI::BadCommandLine, "missing argument <#{arg}>"
-    end
-
     def ask_confirmation
       return true if opts[:yes]
 

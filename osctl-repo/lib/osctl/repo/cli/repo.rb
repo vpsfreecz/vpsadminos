@@ -86,7 +86,7 @@ module OsCtl::Repo
     end
 
     def set_default
-      require_args!('vendor')
+      require_args!('vendor', strict: false)
 
       repo = Local::Repository.new(Dir.pwd)
       fail 'repository not found' unless repo.exist?
