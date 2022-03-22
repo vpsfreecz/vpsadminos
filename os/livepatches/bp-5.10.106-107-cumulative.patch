@@ -1,0 +1,600 @@
+diff --git a/drivers/block/virtio_blk.c b/drivers/block/virtio_blk.c
+index 42acf9587ef3..a03390127741 100644
+--- a/drivers/block/virtio_blk.c
++++ b/drivers/block/virtio_blk.c
+@@ -869,9 +869,15 @@ static int virtblk_probe(struct virtio_device *vdev)
+ 
+ 		virtio_cread(vdev, struct virtio_blk_config, max_discard_seg,
+ 			     &v);
++
++		/*
++		 * max_discard_seg == 0 is out of spec but we always
++		 * handled it.
++		 */
++		if (!v)
++			v = sg_elems - 2;
+ 		blk_queue_max_discard_segments(q,
+-					       min_not_zero(v,
+-							    MAX_DISCARD_SEGMENTS));
++					       min(v, MAX_DISCARD_SEGMENTS));
+ 
+ 		blk_queue_flag_set(QUEUE_FLAG_DISCARD, q);
+ 	}
+diff --git a/fs/fuse/dev.c b/fs/fuse/dev.c
+index d100b5dfedbd..8ac91ba05d6d 100644
+--- a/fs/fuse/dev.c
++++ b/fs/fuse/dev.c
+@@ -945,7 +945,17 @@ static int fuse_copy_page(struct fuse_copy_state *cs, struct page **pagep,
+ 
+ 	while (count) {
+ 		if (cs->write && cs->pipebufs && page) {
+-			return fuse_ref_page(cs, page, offset, count);
++			/*
++			 * Can't control lifetime of pipe buffers, so always
++			 * copy user pages.
++			 */
++			if (cs->req->args->user_pages) {
++				err = fuse_copy_fill(cs);
++				if (err)
++					return err;
++			} else {
++				return fuse_ref_page(cs, page, offset, count);
++			}
+ 		} else if (!cs->len) {
+ 			if (cs->move_pages && page &&
+ 			    offset == 0 && count == PAGE_SIZE) {
+diff --git a/fs/fuse/file.c b/fs/fuse/file.c
+index e81d1c3eb7e1..d1bc96ee6eb3 100644
+--- a/fs/fuse/file.c
++++ b/fs/fuse/file.c
+@@ -1418,6 +1418,7 @@ static int fuse_get_user_pages(struct fuse_args_pages *ap, struct iov_iter *ii,
+ 			(PAGE_SIZE - ret) & (PAGE_SIZE - 1);
+ 	}
+ 
++	ap->args.user_pages = true;
+ 	if (write)
+ 		ap->args.in_pages = true;
+ 	else
+diff --git a/fs/fuse/fuse_i.h b/fs/fuse/fuse_i.h
+index b159d8b5e893..b10cddd72355 100644
+--- a/fs/fuse/fuse_i.h
++++ b/fs/fuse/fuse_i.h
+@@ -263,6 +263,7 @@ struct fuse_args {
+ 	bool nocreds:1;
+ 	bool in_pages:1;
+ 	bool out_pages:1;
++	bool user_pages:1;
+ 	bool out_argvar:1;
+ 	bool page_zeroing:1;
+ 	bool page_replace:1;
+diff --git a/fs/io_uring.c b/fs/io_uring.c
+index cb8652e28b3b..ca7ac8ca74c0 100644
+--- a/fs/io_uring.c
++++ b/fs/io_uring.c
+@@ -1009,6 +1009,18 @@ static inline bool __io_match_files(struct io_kiocb *req,
+ 		req->work.identity->files == files;
+ }
+ 
++static void io_refs_resurrect(struct percpu_ref *ref, struct completion *compl)
++{
++	bool got = percpu_ref_tryget(ref);
++
++	/* already at zero, wait for ->release() */
++	if (!got)
++		wait_for_completion(compl);
++	percpu_ref_resurrect(ref);
++	if (got)
++		percpu_ref_put(ref);
++}
++
+ static bool io_match_task(struct io_kiocb *head,
+ 			  struct task_struct *task,
+ 			  struct files_struct *files)
+@@ -9757,12 +9769,11 @@ static int __io_uring_register(struct io_ring_ctx *ctx, unsigned opcode,
+ 			if (ret < 0)
+ 				break;
+ 		} while (1);
+-
+ 		mutex_lock(&ctx->uring_lock);
+ 
+ 		if (ret) {
+-			percpu_ref_resurrect(&ctx->refs);
+-			goto out_quiesce;
++			io_refs_resurrect(&ctx->refs, &ctx->ref_comp);
++			return ret;
+ 		}
+ 	}
+ 
+@@ -9855,7 +9866,6 @@ static int __io_uring_register(struct io_ring_ctx *ctx, unsigned opcode,
+ 	if (io_register_op_must_quiesce(opcode)) {
+ 		/* bring the ctx back to life */
+ 		percpu_ref_reinit(&ctx->refs);
+-out_quiesce:
+ 		reinit_completion(&ctx->ref_comp);
+ 	}
+ 	return ret;
+diff --git a/fs/pipe.c b/fs/pipe.c
+index d6d4019ba32f..9f2ca1b1c17a 100644
+--- a/fs/pipe.c
++++ b/fs/pipe.c
+@@ -252,7 +252,8 @@ pipe_read(struct kiocb *iocb, struct iov_iter *to)
+ 	 */
+ 	was_full = pipe_full(pipe->head, pipe->tail, pipe->max_usage);
+ 	for (;;) {
+-		unsigned int head = pipe->head;
++		/* Read ->head with a barrier vs post_one_notification() */
++		unsigned int head = smp_load_acquire(&pipe->head);
+ 		unsigned int tail = pipe->tail;
+ 		unsigned int mask = pipe->ring_size - 1;
+ 
+@@ -830,10 +831,8 @@ void free_pipe_info(struct pipe_inode_info *pipe)
+ 	int i;
+ 
+ #ifdef CONFIG_WATCH_QUEUE
+-	if (pipe->watch_queue) {
++	if (pipe->watch_queue)
+ 		watch_queue_clear(pipe->watch_queue);
+-		put_watch_queue(pipe->watch_queue);
+-	}
+ #endif
+ 
+ 	(void) account_pipe_buffers(pipe->user, pipe->nr_accounted, 0);
+@@ -843,6 +842,10 @@ void free_pipe_info(struct pipe_inode_info *pipe)
+ 		if (buf->ops)
+ 			pipe_buf_release(pipe, buf);
+ 	}
++#ifdef CONFIG_WATCH_QUEUE
++	if (pipe->watch_queue)
++		put_watch_queue(pipe->watch_queue);
++#endif
+ 	if (pipe->tmp_page)
+ 		__free_page(pipe->tmp_page);
+ 	kfree(pipe->bufs);
+diff --git a/include/linux/watch_queue.h b/include/linux/watch_queue.h
+index c994d1b2cdba..3b9a40ae8bdb 100644
+--- a/include/linux/watch_queue.h
++++ b/include/linux/watch_queue.h
+@@ -28,7 +28,8 @@ struct watch_type_filter {
+ struct watch_filter {
+ 	union {
+ 		struct rcu_head	rcu;
+-		unsigned long	type_filter[2];	/* Bitmask of accepted types */
++		/* Bitmask of accepted types */
++		DECLARE_BITMAP(type_filter, WATCH_TYPE__NR);
+ 	};
+ 	u32			nr_filters;	/* Number of filters */
+ 	struct watch_type_filter filters[];
+diff --git a/include/net/xfrm.h b/include/net/xfrm.h
+index 337d29875e51..ec36a44132fc 100644
+--- a/include/net/xfrm.h
++++ b/include/net/xfrm.h
+@@ -1669,14 +1669,15 @@ int km_migrate(const struct xfrm_selector *sel, u8 dir, u8 type,
+ 	       const struct xfrm_migrate *m, int num_bundles,
+ 	       const struct xfrm_kmaddress *k,
+ 	       const struct xfrm_encap_tmpl *encap);
+-struct xfrm_state *xfrm_migrate_state_find(struct xfrm_migrate *m, struct net *net);
++struct xfrm_state *xfrm_migrate_state_find(struct xfrm_migrate *m, struct net *net,
++						u32 if_id);
+ struct xfrm_state *xfrm_state_migrate(struct xfrm_state *x,
+ 				      struct xfrm_migrate *m,
+ 				      struct xfrm_encap_tmpl *encap);
+ int xfrm_migrate(const struct xfrm_selector *sel, u8 dir, u8 type,
+ 		 struct xfrm_migrate *m, int num_bundles,
+ 		 struct xfrm_kmaddress *k, struct net *net,
+-		 struct xfrm_encap_tmpl *encap);
++		 struct xfrm_encap_tmpl *encap, u32 if_id);
+ #endif
+ 
+ int km_new_mapping(struct xfrm_state *x, xfrm_address_t *ipaddr, __be16 sport);
+diff --git a/kernel/watch_queue.c b/kernel/watch_queue.c
+index 0ef8f65bd2d7..e3f144d96026 100644
+--- a/kernel/watch_queue.c
++++ b/kernel/watch_queue.c
+@@ -54,6 +54,7 @@ static void watch_queue_pipe_buf_release(struct pipe_inode_info *pipe,
+ 	bit += page->index;
+ 
+ 	set_bit(bit, wqueue->notes_bitmap);
++	generic_pipe_buf_release(pipe, buf);
+ }
+ 
+ // No try_steal function => no stealing
+@@ -112,7 +113,7 @@ static bool post_one_notification(struct watch_queue *wqueue,
+ 	buf->offset = offset;
+ 	buf->len = len;
+ 	buf->flags = PIPE_BUF_FLAG_WHOLE;
+-	pipe->head = head + 1;
++	smp_store_release(&pipe->head, head + 1); /* vs pipe_read() */
+ 
+ 	if (!test_and_clear_bit(note, wqueue->notes_bitmap)) {
+ 		spin_unlock_irq(&pipe->rd_wait.lock);
+@@ -243,7 +244,8 @@ long watch_queue_set_size(struct pipe_inode_info *pipe, unsigned int nr_notes)
+ 		goto error;
+ 	}
+ 
+-	ret = pipe_resize_ring(pipe, nr_notes);
++	nr_notes = nr_pages * WATCH_QUEUE_NOTES_PER_PAGE;
++	ret = pipe_resize_ring(pipe, roundup_pow_of_two(nr_notes));
+ 	if (ret < 0)
+ 		goto error;
+ 
+@@ -268,7 +270,7 @@ long watch_queue_set_size(struct pipe_inode_info *pipe, unsigned int nr_notes)
+ 	wqueue->notes = pages;
+ 	wqueue->notes_bitmap = bitmap;
+ 	wqueue->nr_pages = nr_pages;
+-	wqueue->nr_notes = nr_pages * WATCH_QUEUE_NOTES_PER_PAGE;
++	wqueue->nr_notes = nr_notes;
+ 	return 0;
+ 
+ error_p:
+@@ -320,7 +322,7 @@ long watch_queue_set_filter(struct pipe_inode_info *pipe,
+ 		    tf[i].info_mask & WATCH_INFO_LENGTH)
+ 			goto err_filter;
+ 		/* Ignore any unknown types */
+-		if (tf[i].type >= sizeof(wfilter->type_filter) * 8)
++		if (tf[i].type >= WATCH_TYPE__NR)
+ 			continue;
+ 		nr_filter++;
+ 	}
+@@ -336,7 +338,7 @@ long watch_queue_set_filter(struct pipe_inode_info *pipe,
+ 
+ 	q = wfilter->filters;
+ 	for (i = 0; i < filter.nr_filters; i++) {
+-		if (tf[i].type >= sizeof(wfilter->type_filter) * BITS_PER_LONG)
++		if (tf[i].type >= WATCH_TYPE__NR)
+ 			continue;
+ 
+ 		q->type			= tf[i].type;
+@@ -371,6 +373,7 @@ static void __put_watch_queue(struct kref *kref)
+ 
+ 	for (i = 0; i < wqueue->nr_pages; i++)
+ 		__free_page(wqueue->notes[i]);
++	bitmap_free(wqueue->notes_bitmap);
+ 
+ 	wfilter = rcu_access_pointer(wqueue->filter);
+ 	if (wfilter)
+@@ -566,7 +569,7 @@ void watch_queue_clear(struct watch_queue *wqueue)
+ 	rcu_read_lock();
+ 	spin_lock_bh(&wqueue->lock);
+ 
+-	/* Prevent new additions and prevent notifications from happening */
++	/* Prevent new notifications from being stored. */
+ 	wqueue->defunct = true;
+ 
+ 	while (!hlist_empty(&wqueue->watches)) {
+diff --git a/net/core/net-sysfs.c b/net/core/net-sysfs.c
+index 99303897b7bb..989b3f7ee85f 100644
+--- a/net/core/net-sysfs.c
++++ b/net/core/net-sysfs.c
+@@ -213,7 +213,7 @@ static ssize_t speed_show(struct device *dev,
+ 	if (!rtnl_trylock())
+ 		return restart_syscall();
+ 
+-	if (netif_running(netdev)) {
++	if (netif_running(netdev) && netif_device_present(netdev)) {
+ 		struct ethtool_link_ksettings cmd;
+ 
+ 		if (!__ethtool_get_link_ksettings(netdev, &cmd))
+diff --git a/net/ipv4/tcp.c b/net/ipv4/tcp.c
+index 63c81af41b43..a3ec2a08027b 100644
+--- a/net/ipv4/tcp.c
++++ b/net/ipv4/tcp.c
+@@ -1652,11 +1652,13 @@ int tcp_read_sock(struct sock *sk, read_descriptor_t *desc,
+ 				if (!copied)
+ 					copied = used;
+ 				break;
+-			} else if (used <= len) {
+-				seq += used;
+-				copied += used;
+-				offset += used;
+ 			}
++			if (WARN_ON_ONCE(used > len))
++				used = len;
++			seq += used;
++			copied += used;
++			offset += used;
++
+ 			/* If recv_actor drops the lock (e.g. TCP splice
+ 			 * receive) the skb pointer might be invalid when
+ 			 * getting here: tcp_collapse might have deleted it
+diff --git a/net/ipv6/addrconf.c b/net/ipv6/addrconf.c
+index 072c34823753..7c5bf39dca5d 100644
+--- a/net/ipv6/addrconf.c
++++ b/net/ipv6/addrconf.c
+@@ -4979,6 +4979,7 @@ static int inet6_fill_ifaddr(struct sk_buff *skb, struct inet6_ifaddr *ifa,
+ 	    nla_put_s32(skb, IFA_TARGET_NETNSID, args->netnsid))
+ 		goto error;
+ 
++	spin_lock_bh(&ifa->lock);
+ 	if (!((ifa->flags&IFA_F_PERMANENT) &&
+ 	      (ifa->prefered_lft == INFINITY_LIFE_TIME))) {
+ 		preferred = ifa->prefered_lft;
+@@ -5000,6 +5001,7 @@ static int inet6_fill_ifaddr(struct sk_buff *skb, struct inet6_ifaddr *ifa,
+ 		preferred = INFINITY_LIFE_TIME;
+ 		valid = INFINITY_LIFE_TIME;
+ 	}
++	spin_unlock_bh(&ifa->lock);
+ 
+ 	if (!ipv6_addr_any(&ifa->peer_addr)) {
+ 		if (nla_put_in6_addr(skb, IFA_LOCAL, &ifa->addr) < 0 ||
+diff --git a/net/key/af_key.c b/net/key/af_key.c
+index ef9b4ac03e7b..d1364b858fdf 100644
+--- a/net/key/af_key.c
++++ b/net/key/af_key.c
+@@ -2627,7 +2627,7 @@ static int pfkey_migrate(struct sock *sk, struct sk_buff *skb,
+ 	}
+ 
+ 	return xfrm_migrate(&sel, dir, XFRM_POLICY_TYPE_MAIN, m, i,
+-			    kma ? &k : NULL, net, NULL);
++			    kma ? &k : NULL, net, NULL, 0);
+ 
+  out:
+ 	return err;
+diff --git a/net/sctp/diag.c b/net/sctp/diag.c
+index babadd6720a2..68ff82ff49a3 100644
+--- a/net/sctp/diag.c
++++ b/net/sctp/diag.c
+@@ -61,10 +61,6 @@ static void inet_diag_msg_sctpasoc_fill(struct inet_diag_msg *r,
+ 		r->idiag_timer = SCTP_EVENT_TIMEOUT_T3_RTX;
+ 		r->idiag_retrans = asoc->rtx_data_chunks;
+ 		r->idiag_expires = jiffies_to_msecs(t3_rtx->expires - jiffies);
+-	} else {
+-		r->idiag_timer = 0;
+-		r->idiag_retrans = 0;
+-		r->idiag_expires = 0;
+ 	}
+ }
+ 
+@@ -144,13 +140,14 @@ static int inet_sctp_diag_fill(struct sock *sk, struct sctp_association *asoc,
+ 	r = nlmsg_data(nlh);
+ 	BUG_ON(!sk_fullsock(sk));
+ 
++	r->idiag_timer = 0;
++	r->idiag_retrans = 0;
++	r->idiag_expires = 0;
+ 	if (asoc) {
+ 		inet_diag_msg_sctpasoc_fill(r, sk, asoc);
+ 	} else {
+ 		inet_diag_msg_common_fill(r, sk);
+ 		r->idiag_state = sk->sk_state;
+-		r->idiag_timer = 0;
+-		r->idiag_retrans = 0;
+ 	}
+ 
+ 	if (inet_diag_msg_attrs_fill(sk, skb, r, ext, user_ns, net_admin))
+diff --git a/net/tipc/bearer.c b/net/tipc/bearer.c
+index e24bf6cf90e1..421e9e25fec1 100644
+--- a/net/tipc/bearer.c
++++ b/net/tipc/bearer.c
+@@ -342,16 +342,18 @@ static int tipc_enable_bearer(struct net *net, const char *name,
+ 		goto rejected;
+ 	}
+ 
+-	test_and_set_bit_lock(0, &b->up);
+-	rcu_assign_pointer(tn->bearer_list[bearer_id], b);
+-	if (skb)
+-		tipc_bearer_xmit_skb(net, bearer_id, skb, &b->bcast_addr);
+-
++	/* Create monitoring data before accepting activate messages */
+ 	if (tipc_mon_create(net, bearer_id)) {
+ 		bearer_disable(net, b);
++		kfree_skb(skb);
+ 		return -ENOMEM;
+ 	}
+ 
++	test_and_set_bit_lock(0, &b->up);
++	rcu_assign_pointer(tn->bearer_list[bearer_id], b);
++	if (skb)
++		tipc_bearer_xmit_skb(net, bearer_id, skb, &b->bcast_addr);
++
+ 	pr_info("Enabled bearer <%s>, priority %u\n", name, prio);
+ 
+ 	return res;
+diff --git a/net/tipc/link.c b/net/tipc/link.c
+index ec5a5cac2603..6389afc20bb2 100644
+--- a/net/tipc/link.c
++++ b/net/tipc/link.c
+@@ -2245,6 +2245,11 @@ static int tipc_link_proto_rcv(struct tipc_link *l, struct sk_buff *skb,
+ 		break;
+ 
+ 	case STATE_MSG:
++		/* Validate Gap ACK blocks, drop if invalid */
++		glen = tipc_get_gap_ack_blks(&ga, l, hdr, true);
++		if (glen > dlen)
++			break;
++
+ 		l->rcv_nxt_state = msg_seqno(hdr) + 1;
+ 
+ 		/* Update own tolerance if peer indicates a non-zero value */
+@@ -2270,10 +2275,6 @@ static int tipc_link_proto_rcv(struct tipc_link *l, struct sk_buff *skb,
+ 			break;
+ 		}
+ 
+-		/* Receive Gap ACK blocks from peer if any */
+-		glen = tipc_get_gap_ack_blks(&ga, l, hdr, true);
+-		if(glen > dlen)
+-			break;
+ 		tipc_mon_rcv(l->net, data + glen, dlen - glen, l->addr,
+ 			     &l->mon_state, l->bearer_id);
+ 
+diff --git a/net/xfrm/xfrm_policy.c b/net/xfrm/xfrm_policy.c
+index c4a195cb3681..3d0ffd927004 100644
+--- a/net/xfrm/xfrm_policy.c
++++ b/net/xfrm/xfrm_policy.c
+@@ -4287,7 +4287,7 @@ static bool xfrm_migrate_selector_match(const struct xfrm_selector *sel_cmp,
+ }
+ 
+ static struct xfrm_policy *xfrm_migrate_policy_find(const struct xfrm_selector *sel,
+-						    u8 dir, u8 type, struct net *net)
++						    u8 dir, u8 type, struct net *net, u32 if_id)
+ {
+ 	struct xfrm_policy *pol, *ret = NULL;
+ 	struct hlist_head *chain;
+@@ -4296,7 +4296,8 @@ static struct xfrm_policy *xfrm_migrate_policy_find(const struct xfrm_selector *
+ 	spin_lock_bh(&net->xfrm.xfrm_policy_lock);
+ 	chain = policy_hash_direct(net, &sel->daddr, &sel->saddr, sel->family, dir);
+ 	hlist_for_each_entry(pol, chain, bydst) {
+-		if (xfrm_migrate_selector_match(sel, &pol->selector) &&
++		if ((if_id == 0 || pol->if_id == if_id) &&
++		    xfrm_migrate_selector_match(sel, &pol->selector) &&
+ 		    pol->type == type) {
+ 			ret = pol;
+ 			priority = ret->priority;
+@@ -4308,7 +4309,8 @@ static struct xfrm_policy *xfrm_migrate_policy_find(const struct xfrm_selector *
+ 		if ((pol->priority >= priority) && ret)
+ 			break;
+ 
+-		if (xfrm_migrate_selector_match(sel, &pol->selector) &&
++		if ((if_id == 0 || pol->if_id == if_id) &&
++		    xfrm_migrate_selector_match(sel, &pol->selector) &&
+ 		    pol->type == type) {
+ 			ret = pol;
+ 			break;
+@@ -4424,7 +4426,7 @@ static int xfrm_migrate_check(const struct xfrm_migrate *m, int num_migrate)
+ int xfrm_migrate(const struct xfrm_selector *sel, u8 dir, u8 type,
+ 		 struct xfrm_migrate *m, int num_migrate,
+ 		 struct xfrm_kmaddress *k, struct net *net,
+-		 struct xfrm_encap_tmpl *encap)
++		 struct xfrm_encap_tmpl *encap, u32 if_id)
+ {
+ 	int i, err, nx_cur = 0, nx_new = 0;
+ 	struct xfrm_policy *pol = NULL;
+@@ -4443,14 +4445,14 @@ int xfrm_migrate(const struct xfrm_selector *sel, u8 dir, u8 type,
+ 	}
+ 
+ 	/* Stage 1 - find policy */
+-	if ((pol = xfrm_migrate_policy_find(sel, dir, type, net)) == NULL) {
++	if ((pol = xfrm_migrate_policy_find(sel, dir, type, net, if_id)) == NULL) {
+ 		err = -ENOENT;
+ 		goto out;
+ 	}
+ 
+ 	/* Stage 2 - find and update state(s) */
+ 	for (i = 0, mp = m; i < num_migrate; i++, mp++) {
+-		if ((x = xfrm_migrate_state_find(mp, net))) {
++		if ((x = xfrm_migrate_state_find(mp, net, if_id))) {
+ 			x_cur[nx_cur] = x;
+ 			nx_cur++;
+ 			xc = xfrm_state_migrate(x, mp, encap);
+diff --git a/net/xfrm/xfrm_state.c b/net/xfrm/xfrm_state.c
+index 65e2805fa113..8888863de481 100644
+--- a/net/xfrm/xfrm_state.c
++++ b/net/xfrm/xfrm_state.c
+@@ -1542,9 +1542,6 @@ static struct xfrm_state *xfrm_state_clone(struct xfrm_state *orig,
+ 	memcpy(&x->mark, &orig->mark, sizeof(x->mark));
+ 	memcpy(&x->props.smark, &orig->props.smark, sizeof(x->props.smark));
+ 
+-	if (xfrm_init_state(x) < 0)
+-		goto error;
+-
+ 	x->props.flags = orig->props.flags;
+ 	x->props.extra_flags = orig->props.extra_flags;
+ 
+@@ -1569,7 +1566,8 @@ static struct xfrm_state *xfrm_state_clone(struct xfrm_state *orig,
+ 	return NULL;
+ }
+ 
+-struct xfrm_state *xfrm_migrate_state_find(struct xfrm_migrate *m, struct net *net)
++struct xfrm_state *xfrm_migrate_state_find(struct xfrm_migrate *m, struct net *net,
++						u32 if_id)
+ {
+ 	unsigned int h;
+ 	struct xfrm_state *x = NULL;
+@@ -1585,6 +1583,8 @@ struct xfrm_state *xfrm_migrate_state_find(struct xfrm_migrate *m, struct net *n
+ 				continue;
+ 			if (m->reqid && x->props.reqid != m->reqid)
+ 				continue;
++			if (if_id != 0 && x->if_id != if_id)
++				continue;
+ 			if (!xfrm_addr_equal(&x->id.daddr, &m->old_daddr,
+ 					     m->old_family) ||
+ 			    !xfrm_addr_equal(&x->props.saddr, &m->old_saddr,
+@@ -1600,6 +1600,8 @@ struct xfrm_state *xfrm_migrate_state_find(struct xfrm_migrate *m, struct net *n
+ 			if (x->props.mode != m->mode ||
+ 			    x->id.proto != m->proto)
+ 				continue;
++			if (if_id != 0 && x->if_id != if_id)
++				continue;
+ 			if (!xfrm_addr_equal(&x->id.daddr, &m->old_daddr,
+ 					     m->old_family) ||
+ 			    !xfrm_addr_equal(&x->props.saddr, &m->old_saddr,
+@@ -1626,6 +1628,11 @@ struct xfrm_state *xfrm_state_migrate(struct xfrm_state *x,
+ 	if (!xc)
+ 		return NULL;
+ 
++	xc->props.family = m->new_family;
++
++	if (xfrm_init_state(xc) < 0)
++		goto error;
++
+ 	memcpy(&xc->id.daddr, &m->new_daddr, sizeof(xc->id.daddr));
+ 	memcpy(&xc->props.saddr, &m->new_saddr, sizeof(xc->props.saddr));
+ 
+diff --git a/net/xfrm/xfrm_user.c b/net/xfrm/xfrm_user.c
+index d0fdfbf4c5f7..1ece01cd67a4 100644
+--- a/net/xfrm/xfrm_user.c
++++ b/net/xfrm/xfrm_user.c
+@@ -629,13 +629,8 @@ static struct xfrm_state *xfrm_state_construct(struct net *net,
+ 
+ 	xfrm_smark_init(attrs, &x->props.smark);
+ 
+-	if (attrs[XFRMA_IF_ID]) {
++	if (attrs[XFRMA_IF_ID])
+ 		x->if_id = nla_get_u32(attrs[XFRMA_IF_ID]);
+-		if (!x->if_id) {
+-			err = -EINVAL;
+-			goto error;
+-		}
+-	}
+ 
+ 	err = __xfrm_init_state(x, false, attrs[XFRMA_OFFLOAD_DEV]);
+ 	if (err)
+@@ -1371,13 +1366,8 @@ static int xfrm_alloc_userspi(struct sk_buff *skb, struct nlmsghdr *nlh,
+ 
+ 	mark = xfrm_mark_get(attrs, &m);
+ 
+-	if (attrs[XFRMA_IF_ID]) {
++	if (attrs[XFRMA_IF_ID])
+ 		if_id = nla_get_u32(attrs[XFRMA_IF_ID]);
+-		if (!if_id) {
+-			err = -EINVAL;
+-			goto out_noput;
+-		}
+-	}
+ 
+ 	if (p->info.seq) {
+ 		x = xfrm_find_acq_byseq(net, mark, p->info.seq);
+@@ -1690,13 +1680,8 @@ static struct xfrm_policy *xfrm_policy_construct(struct net *net, struct xfrm_us
+ 
+ 	xfrm_mark_get(attrs, &xp->mark);
+ 
+-	if (attrs[XFRMA_IF_ID]) {
++	if (attrs[XFRMA_IF_ID])
+ 		xp->if_id = nla_get_u32(attrs[XFRMA_IF_ID]);
+-		if (!xp->if_id) {
+-			err = -EINVAL;
+-			goto error;
+-		}
+-	}
+ 
+ 	return xp;
+  error:
+@@ -2451,6 +2436,7 @@ static int xfrm_do_migrate(struct sk_buff *skb, struct nlmsghdr *nlh,
+ 	int n = 0;
+ 	struct net *net = sock_net(skb->sk);
+ 	struct xfrm_encap_tmpl  *encap = NULL;
++	u32 if_id = 0;
+ 
+ 	if (attrs[XFRMA_MIGRATE] == NULL)
+ 		return -EINVAL;
+@@ -2475,7 +2461,10 @@ static int xfrm_do_migrate(struct sk_buff *skb, struct nlmsghdr *nlh,
+ 			return 0;
+ 	}
+ 
+-	err = xfrm_migrate(&pi->sel, pi->dir, type, m, n, kmp, net, encap);
++	if (attrs[XFRMA_IF_ID])
++		if_id = nla_get_u32(attrs[XFRMA_IF_ID]);
++
++	err = xfrm_migrate(&pi->sel, pi->dir, type, m, n, kmp, net, encap, if_id);
+ 
+ 	kfree(encap);
+ 
