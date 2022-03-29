@@ -1,0 +1,572 @@
+diff --git a/kernel/cgroup/cgroup-internal.h b/kernel/cgroup/cgroup-internal.h
+index bfbeabc17a9d..6e36e854b512 100644
+--- a/kernel/cgroup/cgroup-internal.h
++++ b/kernel/cgroup/cgroup-internal.h
+@@ -65,6 +65,25 @@ static inline struct cgroup_fs_context *cgroup_fc2context(struct fs_context *fc)
+ 	return container_of(kfc, struct cgroup_fs_context, kfc);
+ }
+ 
++struct cgroup_pidlist;
++
++struct cgroup_file_ctx {
++	struct cgroup_namespace	*ns;
++
++	struct {
++		void			*trigger;
++	} psi;
++
++	struct {
++		bool			started;
++		struct css_task_iter	iter;
++	} procs;
++
++	struct {
++		struct cgroup_pidlist	*pidlist;
++	} procs1;
++};
++
+ /*
+  * A cgroup can be associated with multiple css_sets as different tasks may
+  * belong to different cgroups on different hierarchies.  In the other
+diff --git a/kernel/cgroup/cgroup-v1.c b/kernel/cgroup/cgroup-v1.c
+index 69fba563c810..8f0ea12d7cee 100644
+--- a/kernel/cgroup/cgroup-v1.c
++++ b/kernel/cgroup/cgroup-v1.c
+@@ -393,6 +393,7 @@ static void *cgroup_pidlist_start(struct seq_file *s, loff_t *pos)
+ 	 * next pid to display, if any
+ 	 */
+ 	struct kernfs_open_file *of = s->private;
++	struct cgroup_file_ctx *ctx = of->priv;
+ 	struct cgroup *cgrp = seq_css(s)->cgroup;
+ 	struct cgroup_pidlist *l;
+ 	enum cgroup_filetype type = seq_cft(s)->private;
+@@ -402,25 +403,24 @@ static void *cgroup_pidlist_start(struct seq_file *s, loff_t *pos)
+ 	mutex_lock(&cgrp->pidlist_mutex);
+ 
+ 	/*
+-	 * !NULL @of->priv indicates that this isn't the first start()
+-	 * after open.  If the matching pidlist is around, we can use that.
+-	 * Look for it.  Note that @of->priv can't be used directly.  It
+-	 * could already have been destroyed.
++	 * !NULL @ctx->procs1.pidlist indicates that this isn't the first
++	 * start() after open. If the matching pidlist is around, we can use
++	 * that. Look for it. Note that @ctx->procs1.pidlist can't be used
++	 * directly. It could already have been destroyed.
+ 	 */
+-	if (of->priv)
+-		of->priv = cgroup_pidlist_find(cgrp, type);
++	if (ctx->procs1.pidlist)
++		ctx->procs1.pidlist = cgroup_pidlist_find(cgrp, type);
+ 
+ 	/*
+ 	 * Either this is the first start() after open or the matching
+ 	 * pidlist has been destroyed inbetween.  Create a new one.
+ 	 */
+-	if (!of->priv) {
+-		ret = pidlist_array_load(cgrp, type,
+-					 (struct cgroup_pidlist **)&of->priv);
++	if (!ctx->procs1.pidlist) {
++		ret = pidlist_array_load(cgrp, type, &ctx->procs1.pidlist);
+ 		if (ret)
+ 			return ERR_PTR(ret);
+ 	}
+-	l = of->priv;
++	l = ctx->procs1.pidlist;
+ 
+ 	if (pid) {
+ 		int end = l->length;
+@@ -448,7 +448,8 @@ static void *cgroup_pidlist_start(struct seq_file *s, loff_t *pos)
+ static void cgroup_pidlist_stop(struct seq_file *s, void *v)
+ {
+ 	struct kernfs_open_file *of = s->private;
+-	struct cgroup_pidlist *l = of->priv;
++	struct cgroup_file_ctx *ctx = of->priv;
++	struct cgroup_pidlist *l = ctx->procs1.pidlist;
+ 
+ 	if (l)
+ 		mod_delayed_work(cgroup_pidlist_destroy_wq, &l->destroy_dwork,
+@@ -459,7 +460,8 @@ static void cgroup_pidlist_stop(struct seq_file *s, void *v)
+ static void *cgroup_pidlist_next(struct seq_file *s, void *v, loff_t *pos)
+ {
+ 	struct kernfs_open_file *of = s->private;
+-	struct cgroup_pidlist *l = of->priv;
++	struct cgroup_file_ctx *ctx = of->priv;
++	struct cgroup_pidlist *l = ctx->procs1.pidlist;
+ 	pid_t *p = v;
+ 	pid_t *end = l->list + l->length;
+ 	/*
+@@ -542,6 +544,7 @@ static ssize_t cgroup_release_agent_write(struct kernfs_open_file *of,
+ 					  char *buf, size_t nbytes, loff_t off)
+ {
+ 	struct cgroup *cgrp;
++	struct cgroup_file_ctx *ctx;
+ 
+ 	BUILD_BUG_ON(sizeof(cgrp->root->release_agent_path) < PATH_MAX);
+ 
+@@ -549,8 +552,9 @@ static ssize_t cgroup_release_agent_write(struct kernfs_open_file *of,
+ 	 * Release agent gets called with all capabilities,
+ 	 * require capabilities to set release agent.
+ 	 */
+-	if ((of->file->f_cred->user_ns != &init_user_ns) ||
+-	    !capable(CAP_SYS_ADMIN))
++	ctx = of->priv;
++	if ((ctx->ns->user_ns != &init_user_ns) ||
++	    !file_ns_capable(of->file, &init_user_ns, CAP_SYS_ADMIN))
+ 		return -EPERM;
+ 
+ 	cgrp = cgroup_kn_lock_live(of->kn, false);
+diff --git a/kernel/cgroup/cgroup.c b/kernel/cgroup/cgroup.c
+index 04c845661b63..17b5177b42b5 100644
+--- a/kernel/cgroup/cgroup.c
++++ b/kernel/cgroup/cgroup.c
+@@ -3591,6 +3591,7 @@ static int cgroup_cpu_pressure_show(struct seq_file *seq, void *v)
+ static ssize_t cgroup_pressure_write(struct kernfs_open_file *of, char *buf,
+ 					  size_t nbytes, enum psi_res res)
+ {
++	struct cgroup_file_ctx *ctx = of->priv;
+ 	struct psi_trigger *new;
+ 	struct cgroup *cgrp;
+ 	struct psi_group *psi;
+@@ -3603,7 +3604,7 @@ static ssize_t cgroup_pressure_write(struct kernfs_open_file *of, char *buf,
+ 	cgroup_kn_unlock(of->kn);
+ 
+ 	/* Allow only one trigger per file descriptor */
+-	if (of->priv) {
++	if (ctx->psi.trigger) {
+ 		cgroup_put(cgrp);
+ 		return -EBUSY;
+ 	}
+@@ -3615,7 +3616,7 @@ static ssize_t cgroup_pressure_write(struct kernfs_open_file *of, char *buf,
+ 		return PTR_ERR(new);
+ 	}
+ 
+-	smp_store_release(&of->priv, new);
++	smp_store_release(&ctx->psi.trigger, new);
+ 	cgroup_put(cgrp);
+ 
+ 	return nbytes;
+@@ -3645,12 +3646,15 @@ static ssize_t cgroup_cpu_pressure_write(struct kernfs_open_file *of,
+ static __poll_t cgroup_pressure_poll(struct kernfs_open_file *of,
+ 					  poll_table *pt)
+ {
+-	return psi_trigger_poll(&of->priv, of->file, pt);
++	struct cgroup_file_ctx *ctx = of->priv;
++	return psi_trigger_poll(&ctx->psi.trigger, of->file, pt);
+ }
+ 
+ static void cgroup_pressure_release(struct kernfs_open_file *of)
+ {
+-	psi_trigger_destroy(of->priv);
++	struct cgroup_file_ctx *ctx = of->priv;
++
++	psi_trigger_destroy(ctx->psi.trigger);
+ }
+ #endif /* CONFIG_PSI */
+ 
+@@ -3691,24 +3695,43 @@ static ssize_t cgroup_freeze_write(struct kernfs_open_file *of,
+ static int cgroup_file_open(struct kernfs_open_file *of)
+ {
+ 	struct cftype *cft = of->kn->priv;
++	struct cgroup_file_ctx *ctx;
++	int ret;
+ 
+-	if (cft->open)
+-		return cft->open(of);
+-	return 0;
++	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
++	if (!ctx)
++		return -ENOMEM;
++
++	ctx->ns = current->nsproxy->cgroup_ns;
++	get_cgroup_ns(ctx->ns);
++	of->priv = ctx;
++
++	if (!cft->open)
++		return 0;
++
++	ret = cft->open(of);
++	if (ret) {
++		put_cgroup_ns(ctx->ns);
++		kfree(ctx);
++	}
++	return ret;
+ }
+ 
+ static void cgroup_file_release(struct kernfs_open_file *of)
+ {
+ 	struct cftype *cft = of->kn->priv;
++	struct cgroup_file_ctx *ctx = of->priv;
+ 
+ 	if (cft->release)
+ 		cft->release(of);
++	put_cgroup_ns(ctx->ns);
++	kfree(ctx);
+ }
+ 
+ static ssize_t cgroup_file_write(struct kernfs_open_file *of, char *buf,
+ 				 size_t nbytes, loff_t off)
+ {
+-	struct cgroup_namespace *ns = current->nsproxy->cgroup_ns;
++	struct cgroup_file_ctx *ctx = of->priv;
+ 	struct cgroup *cgrp = of->kn->parent->priv;
+ 	struct cftype *cft = of->kn->priv;
+ 	struct cgroup_subsys_state *css;
+@@ -3725,7 +3748,7 @@ static ssize_t cgroup_file_write(struct kernfs_open_file *of, char *buf,
+ 	 */
+ 	if ((cgrp->root->flags & CGRP_ROOT_NS_DELEGATE) &&
+ 	    !(cft->flags & CFTYPE_NS_DELEGATABLE) &&
+-	    ns != &init_cgroup_ns && ns->root_cset->dfl_cgrp == cgrp)
++	    ctx->ns != &init_cgroup_ns && ctx->ns->root_cset->dfl_cgrp == cgrp)
+ 		return -EPERM;
+ 
+ 	if (cft->write)
+@@ -4626,21 +4649,21 @@ void css_task_iter_end(struct css_task_iter *it)
+ 
+ static void cgroup_procs_release(struct kernfs_open_file *of)
+ {
+-	if (of->priv) {
+-		css_task_iter_end(of->priv);
+-		kfree(of->priv);
+-	}
++	struct cgroup_file_ctx *ctx = of->priv;
++
++	if (ctx->procs.started)
++		css_task_iter_end(&ctx->procs.iter);
+ }
+ 
+ static void *cgroup_procs_next(struct seq_file *s, void *v, loff_t *pos)
+ {
+ 	struct kernfs_open_file *of = s->private;
+-	struct css_task_iter *it = of->priv;
++	struct cgroup_file_ctx *ctx = of->priv;
+ 
+ 	if (pos)
+ 		(*pos)++;
+ 
+-	return css_task_iter_next(it);
++	return css_task_iter_next(&ctx->procs.iter);
+ }
+ 
+ static void *__cgroup_procs_start(struct seq_file *s, loff_t *pos,
+@@ -4648,21 +4671,18 @@ static void *__cgroup_procs_start(struct seq_file *s, loff_t *pos,
+ {
+ 	struct kernfs_open_file *of = s->private;
+ 	struct cgroup *cgrp = seq_css(s)->cgroup;
+-	struct css_task_iter *it = of->priv;
++	struct cgroup_file_ctx *ctx = of->priv;
++	struct css_task_iter *it = &ctx->procs.iter;
+ 
+ 	/*
+ 	 * When a seq_file is seeked, it's always traversed sequentially
+ 	 * from position 0, so we can simply keep iterating on !0 *pos.
+ 	 */
+-	if (!it) {
++	if (!ctx->procs.started) {
+ 		if (WARN_ON_ONCE((*pos)))
+ 			return ERR_PTR(-EINVAL);
+-
+-		it = kzalloc(sizeof(*it), GFP_KERNEL);
+-		if (!it)
+-			return ERR_PTR(-ENOMEM);
+-		of->priv = it;
+ 		css_task_iter_start(&cgrp->self, iter_flags, it);
++		ctx->procs.started = true;
+ 	} else if (!(*pos)) {
+ 		css_task_iter_end(it);
+ 		css_task_iter_start(&cgrp->self, iter_flags, it);
+@@ -4713,9 +4733,9 @@ static int cgroup_may_write(const struct cgroup *cgrp, struct super_block *sb)
+ 
+ static int cgroup_procs_write_permission(struct cgroup *src_cgrp,
+ 					 struct cgroup *dst_cgrp,
+-					 struct super_block *sb)
++					 struct super_block *sb,
++					 struct cgroup_namespace *ns)
+ {
+-	struct cgroup_namespace *ns = current->nsproxy->cgroup_ns;
+ 	struct cgroup *com_cgrp = src_cgrp;
+ 	int ret;
+ 
+@@ -4744,11 +4764,12 @@ static int cgroup_procs_write_permission(struct cgroup *src_cgrp,
+ 
+ static int cgroup_attach_permissions(struct cgroup *src_cgrp,
+ 				     struct cgroup *dst_cgrp,
+-				     struct super_block *sb, bool threadgroup)
++				     struct super_block *sb, bool threadgroup,
++				     struct cgroup_namespace *ns)
+ {
+ 	int ret = 0;
+ 
+-	ret = cgroup_procs_write_permission(src_cgrp, dst_cgrp, sb);
++	ret = cgroup_procs_write_permission(src_cgrp, dst_cgrp, sb, ns);
+ 	if (ret)
+ 		return ret;
+ 
+@@ -4765,6 +4786,7 @@ static int cgroup_attach_permissions(struct cgroup *src_cgrp,
+ static ssize_t cgroup_procs_write(struct kernfs_open_file *of,
+ 				  char *buf, size_t nbytes, loff_t off)
+ {
++	struct cgroup_file_ctx *ctx = of->priv;
+ 	struct cgroup *src_cgrp, *dst_cgrp;
+ 	struct task_struct *task;
+ 	ssize_t ret;
+@@ -4785,7 +4807,8 @@ static ssize_t cgroup_procs_write(struct kernfs_open_file *of,
+ 	spin_unlock_irq(&css_set_lock);
+ 
+ 	ret = cgroup_attach_permissions(src_cgrp, dst_cgrp,
+-					of->file->f_path.dentry->d_sb, true);
++					of->file->f_path.dentry->d_sb, true,
++					ctx->ns);
+ 	if (ret)
+ 		goto out_finish;
+ 
+@@ -4807,6 +4830,7 @@ static void *cgroup_threads_start(struct seq_file *s, loff_t *pos)
+ static ssize_t cgroup_threads_write(struct kernfs_open_file *of,
+ 				    char *buf, size_t nbytes, loff_t off)
+ {
++	struct cgroup_file_ctx *ctx = of->priv;
+ 	struct cgroup *src_cgrp, *dst_cgrp;
+ 	struct task_struct *task;
+ 	ssize_t ret;
+@@ -4830,7 +4854,8 @@ static ssize_t cgroup_threads_write(struct kernfs_open_file *of,
+ 
+ 	/* thread migrations follow the cgroup.procs delegation rule */
+ 	ret = cgroup_attach_permissions(src_cgrp, dst_cgrp,
+-					of->file->f_path.dentry->d_sb, false);
++					of->file->f_path.dentry->d_sb, false,
++					ctx->ns);
+ 	if (ret)
+ 		goto out_finish;
+ 
+@@ -6043,7 +6068,8 @@ static int cgroup_css_set_fork(struct kernel_clone_args *kargs)
+ 		goto err;
+ 
+ 	ret = cgroup_attach_permissions(cset->dfl_cgrp, dst_cgrp, sb,
+-					!(kargs->flags & CLONE_THREAD));
++					!(kargs->flags & CLONE_THREAD),
++					current->nsproxy->cgroup_ns);
+ 	if (ret)
+ 		goto err;
+ 
+diff --git a/mm/swap_state.c b/mm/swap_state.c
+index 2337c5d72433..79d97ad6990b 100644
+--- a/mm/swap_state.c
++++ b/mm/swap_state.c
+@@ -513,7 +513,7 @@ struct page *__read_swap_cache_async(swp_entry_t entry, gfp_t gfp_mask,
+ 		 * __read_swap_cache_async(), which has set SWAP_HAS_CACHE
+ 		 * in swap_map, but not yet added its page to swap cache.
+ 		 */
+-		cond_resched();
++		schedule_timeout_uninterruptible(1);
+ 	}
+ 
+ 	/*
+diff --git a/net/ipv6/ip6_output.c b/net/ipv6/ip6_output.c
+index d6f2126f4618..2aa39ce7093d 100644
+--- a/net/ipv6/ip6_output.c
++++ b/net/ipv6/ip6_output.c
+@@ -1500,8 +1500,8 @@ static int __ip6_append_data(struct sock *sk,
+ 		      sizeof(struct frag_hdr) : 0) +
+ 		     rt->rt6i_nfheader_len;
+ 
+-	if (mtu < fragheaderlen ||
+-	    ((mtu - fragheaderlen) & ~7) + fragheaderlen < sizeof(struct frag_hdr))
++	if (mtu <= fragheaderlen ||
++	    ((mtu - fragheaderlen) & ~7) + fragheaderlen <= sizeof(struct frag_hdr))
+ 		goto emsgsize;
+ 
+ 	maxfraglen = ((mtu - fragheaderlen) & ~7) + fragheaderlen -
+diff --git a/net/llc/af_llc.c b/net/llc/af_llc.c
+index ac5cadd02cfa..99a37c411323 100644
+--- a/net/llc/af_llc.c
++++ b/net/llc/af_llc.c
+@@ -276,6 +276,7 @@ static int llc_ui_autobind(struct socket *sock, struct sockaddr_llc *addr)
+ {
+ 	struct sock *sk = sock->sk;
+ 	struct llc_sock *llc = llc_sk(sk);
++	struct net_device *dev = NULL;
+ 	struct llc_sap *sap;
+ 	int rc = -EINVAL;
+ 
+@@ -287,14 +288,14 @@ static int llc_ui_autobind(struct socket *sock, struct sockaddr_llc *addr)
+ 		goto out;
+ 	rc = -ENODEV;
+ 	if (sk->sk_bound_dev_if) {
+-		llc->dev = dev_get_by_index(&init_net, sk->sk_bound_dev_if);
+-		if (llc->dev && addr->sllc_arphrd != llc->dev->type) {
+-			dev_put(llc->dev);
+-			llc->dev = NULL;
++		dev = dev_get_by_index(&init_net, sk->sk_bound_dev_if);
++		if (dev && addr->sllc_arphrd != dev->type) {
++			dev_put(dev);
++			dev = NULL;
+ 		}
+ 	} else
+-		llc->dev = dev_getfirstbyhwtype(&init_net, addr->sllc_arphrd);
+-	if (!llc->dev)
++		dev = dev_getfirstbyhwtype(&init_net, addr->sllc_arphrd);
++	if (!dev)
+ 		goto out;
+ 	rc = -EUSERS;
+ 	llc->laddr.lsap = llc_ui_autoport();
+@@ -304,6 +305,11 @@ static int llc_ui_autobind(struct socket *sock, struct sockaddr_llc *addr)
+ 	sap = llc_sap_open(llc->laddr.lsap, NULL);
+ 	if (!sap)
+ 		goto out;
++
++	/* Note: We do not expect errors from this point. */
++	llc->dev = dev;
++	dev = NULL;
++
+ 	memcpy(llc->laddr.mac, llc->dev->dev_addr, IFHWADDRLEN);
+ 	memcpy(&llc->addr, addr, sizeof(llc->addr));
+ 	/* assign new connection to its SAP */
+@@ -311,6 +317,7 @@ static int llc_ui_autobind(struct socket *sock, struct sockaddr_llc *addr)
+ 	sock_reset_flag(sk, SOCK_ZAPPED);
+ 	rc = 0;
+ out:
++	dev_put(dev);
+ 	return rc;
+ }
+ 
+@@ -333,6 +340,7 @@ static int llc_ui_bind(struct socket *sock, struct sockaddr *uaddr, int addrlen)
+ 	struct sockaddr_llc *addr = (struct sockaddr_llc *)uaddr;
+ 	struct sock *sk = sock->sk;
+ 	struct llc_sock *llc = llc_sk(sk);
++	struct net_device *dev = NULL;
+ 	struct llc_sap *sap;
+ 	int rc = -EINVAL;
+ 
+@@ -348,25 +356,26 @@ static int llc_ui_bind(struct socket *sock, struct sockaddr *uaddr, int addrlen)
+ 	rc = -ENODEV;
+ 	rcu_read_lock();
+ 	if (sk->sk_bound_dev_if) {
+-		llc->dev = dev_get_by_index_rcu(&init_net, sk->sk_bound_dev_if);
+-		if (llc->dev) {
++		dev = dev_get_by_index_rcu(&init_net, sk->sk_bound_dev_if);
++		if (dev) {
+ 			if (is_zero_ether_addr(addr->sllc_mac))
+-				memcpy(addr->sllc_mac, llc->dev->dev_addr,
++				memcpy(addr->sllc_mac, dev->dev_addr,
+ 				       IFHWADDRLEN);
+-			if (addr->sllc_arphrd != llc->dev->type ||
++			if (addr->sllc_arphrd != dev->type ||
+ 			    !ether_addr_equal(addr->sllc_mac,
+-					      llc->dev->dev_addr)) {
++					      dev->dev_addr)) {
+ 				rc = -EINVAL;
+-				llc->dev = NULL;
++				dev = NULL;
+ 			}
+ 		}
+-	} else
+-		llc->dev = dev_getbyhwaddr_rcu(&init_net, addr->sllc_arphrd,
++	} else {
++		dev = dev_getbyhwaddr_rcu(&init_net, addr->sllc_arphrd,
+ 					   addr->sllc_mac);
+-	if (llc->dev)
+-		dev_hold(llc->dev);
++	}
++	if (dev)
++		dev_hold(dev);
+ 	rcu_read_unlock();
+-	if (!llc->dev)
++	if (!dev)
+ 		goto out;
+ 	if (!addr->sllc_sap) {
+ 		rc = -EUSERS;
+@@ -399,6 +408,11 @@ static int llc_ui_bind(struct socket *sock, struct sockaddr *uaddr, int addrlen)
+ 			goto out_put;
+ 		}
+ 	}
++
++	/* Note: We do not expect errors from this point. */
++	llc->dev = dev;
++	dev = NULL;
++
+ 	llc->laddr.lsap = addr->sllc_sap;
+ 	memcpy(llc->laddr.mac, addr->sllc_mac, IFHWADDRLEN);
+ 	memcpy(&llc->addr, addr, sizeof(llc->addr));
+@@ -409,6 +423,7 @@ static int llc_ui_bind(struct socket *sock, struct sockaddr *uaddr, int addrlen)
+ out_put:
+ 	llc_sap_put(sap);
+ out:
++	dev_put(dev);
+ 	release_sock(sk);
+ 	return rc;
+ }
+diff --git a/net/netfilter/nf_tables_core.c b/net/netfilter/nf_tables_core.c
+index dbc2e945c98e..003249a68ae5 100644
+--- a/net/netfilter/nf_tables_core.c
++++ b/net/netfilter/nf_tables_core.c
+@@ -41,7 +41,7 @@ static inline void nft_trace_packet(struct nft_traceinfo *info,
+ 				    const struct nft_rule *rule,
+ 				    enum nft_trace_types type)
+ {
+-	if (static_branch_unlikely(&nft_trace_enabled)) {
++	if (static_key_enabled(&nft_trace_enabled)) {
+ 		info->rule = rule;
+ 		__nft_trace_packet(info, chain, type);
+ 	}
+@@ -162,14 +162,14 @@ nft_do_chain(struct nft_pktinfo *pkt, void *priv)
+ 	struct nft_rule *const *rules;
+ 	const struct nft_rule *rule;
+ 	const struct nft_expr *expr, *last;
+-	struct nft_regs regs;
++	struct nft_regs regs = {};
+ 	unsigned int stackptr = 0;
+ 	struct nft_jumpstack jumpstack[NFT_JUMP_STACK_SIZE];
+ 	bool genbit = READ_ONCE(net->nft.gencursor);
+ 	struct nft_traceinfo info;
+ 
+ 	info.trace = false;
+-	if (static_branch_unlikely(&nft_trace_enabled))
++	if (static_key_enabled(&nft_trace_enabled))
+ 		nft_trace_init(&info, pkt, &regs.verdict, basechain);
+ do_chain:
+ 	if (genbit)
+@@ -249,7 +249,7 @@ nft_do_chain(struct nft_pktinfo *pkt, void *priv)
+ 
+ 	nft_trace_packet(&info, basechain, NULL, NFT_TRACETYPE_POLICY);
+ 
+-	if (static_branch_unlikely(&nft_counters_enabled))
++	if (static_key_enabled(&nft_counters_enabled))
+ 		nft_update_chain_stats(basechain, pkt);
+ 
+ 	return nft_base_chain(basechain)->policy;
+diff --git a/net/packet/af_packet.c b/net/packet/af_packet.c
+index a31334b92be7..d0c95d7dd292 100644
+--- a/net/packet/af_packet.c
++++ b/net/packet/af_packet.c
+@@ -2278,8 +2278,11 @@ static int tpacket_rcv(struct sk_buff *skb, struct net_device *dev,
+ 					copy_skb = skb_get(skb);
+ 					skb_head = skb->data;
+ 				}
+-				if (copy_skb)
++				if (copy_skb) {
++					memset(&PACKET_SKB_CB(copy_skb)->sa.ll, 0,
++					       sizeof(PACKET_SKB_CB(copy_skb)->sa.ll));
+ 					skb_set_owner_r(copy_skb, sk);
++				}
+ 			}
+ 			snaplen = po->rx_ring.frame_size - macoff;
+ 			if ((int)snaplen < 0) {
+@@ -3434,6 +3437,8 @@ static int packet_recvmsg(struct socket *sock, struct msghdr *msg, size_t len,
+ 	sock_recv_ts_and_drops(msg, sk, skb);
+ 
+ 	if (msg->msg_name) {
++		const size_t max_len = min(sizeof(skb->cb),
++					   sizeof(struct sockaddr_storage));
+ 		int copy_len;
+ 
+ 		/* If the address length field is there to be filled
+@@ -3456,6 +3461,10 @@ static int packet_recvmsg(struct socket *sock, struct msghdr *msg, size_t len,
+ 				msg->msg_namelen = sizeof(struct sockaddr_ll);
+ 			}
+ 		}
++		if (WARN_ON_ONCE(copy_len > max_len)) {
++			copy_len = max_len;
++			msg->msg_namelen = copy_len;
++		}
+ 		memcpy(msg->msg_name, &PACKET_SKB_CB(skb)->sa, copy_len);
+ 	}
+ 
