@@ -26,6 +26,7 @@ let
     }
     { name = "bp-5.10.108-109-cumulative";
       filterFn = availableFor "5.10.98";
+      version = 2;
     }
     { name = "ping-group-range";
       filterFn = availableFor "5.10.98";
