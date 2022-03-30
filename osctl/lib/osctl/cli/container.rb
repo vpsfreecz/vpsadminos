@@ -122,7 +122,9 @@ module OsCtl::Cli
       cmd_opts[:ids] = args if args.count > 0
       fmt_opts[:header] = false if opts['hide-header']
       cols =
-        if opts[:output]
+        if opts[:output] == 'all'
+          FIELDS
+        elsif opts[:output]
           zfsprops.validate_property_names(opts[:output].split(',').map(&:to_sym))
         else
           DEFAULT_FIELDS
@@ -173,7 +175,9 @@ module OsCtl::Cli
       require_args!('id')
 
       cols =
-        if opts[:output]
+        if opts[:output] == 'all'
+          FIELDS
+        elsif opts[:output]
           zfsprops.validate_property_names(opts[:output].split(',').map(&:to_sym))
         else
           DEFAULT_FIELDS

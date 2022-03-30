@@ -45,12 +45,16 @@ module OsCtl::Cli
       cmd_opts[:names] = args if args.count > 0
       fmt_opts[:header] = false if opts['hide-header']
 
-      osctld_fmt(
-        :pool_list,
-        cmd_opts,
-        opts[:output] ? opts[:output].split(',').map(&:to_sym) : DEFAULT_FIELDS,
-        fmt_opts
-      )
+      cols =
+        if opts[:output] == 'all'
+          FIELDS
+        elsif opts[:output]
+          opts[:output].split(',').map(&:to_sym)
+        else
+          DEFAULT_FIELDS
+        end
+
+      osctld_fmt(:pool_list, cmd_opts, cols, fmt_opts)
     end
 
     def show
@@ -65,12 +69,16 @@ module OsCtl::Cli
       fmt_opts = {layout: :rows}
       fmt_opts[:header] = false if opts['hide-header']
 
-      osctld_fmt(
-        :pool_show,
-        cmd_opts,
-        opts[:output] ? opts[:output].split(',').map(&:to_sym) : DEFAULT_FIELDS,
-        fmt_opts
-      )
+      cols =
+        if opts[:output] == 'all'
+          FIELDS
+        elsif opts[:output]
+          opts[:output].split(',').map(&:to_sym)
+        else
+          DEFAULT_FIELDS
+        end
+
+      osctld_fmt(:pool_show, cmd_opts, cols, fmt_opts)
     end
 
     def import

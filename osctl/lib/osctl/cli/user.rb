@@ -58,10 +58,19 @@ module OsCtl::Cli
 
       fmt_opts[:header] = false if opts['hide-header']
 
+      cols =
+        if opts[:output] == 'all'
+          FIELDS
+        elsif opts[:output]
+          opts[:output].split(',').map(&:to_sym)
+        else
+          DEFAULT_FIELDS
+        end
+
       osctld_fmt(
         :user_list,
         cmd_opts,
-        opts[:output] ? opts[:output].split(',').map(&:to_sym) : DEFAULT_FIELDS,
+        cols,
         fmt_opts
       )
     end
@@ -77,10 +86,19 @@ module OsCtl::Cli
       fmt_opts = {layout: :rows}
       fmt_opts[:header] = false if opts['hide-header']
 
+      cols =
+        if opts[:output] == 'all'
+          FIELDS
+        elsif opts[:output]
+          opts[:output].split(',').map(&:to_sym)
+        else
+          DEFAULT_FIELDS
+        end
+
       osctld_fmt(
         :user_show,
         {name: args[0], pool: gopts[:pool]},
-        opts[:output] ? opts[:output].split(',').map(&:to_sym) : nil,
+        cols,
         fmt_opts
       )
     end
