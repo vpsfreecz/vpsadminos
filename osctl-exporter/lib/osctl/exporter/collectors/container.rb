@@ -122,6 +122,16 @@ module OsCtl::Exporter
         docstring: 'Number of transmitted packets over network',
         labels: [:pool, :id, :devicetype, :hostdevice, :ctdevice],
       )
+      @keyring_qnkeys = registry.gauge(
+        :osctl_container_keyring_qnkeys,
+        docstring: "Number of keyring keys owned by the container's user IDs",
+        labels: [:pool, :id],
+      )
+      @keyring_qnbytes = registry.gauge(
+        :osctl_container_keyring_qnbytes,
+        docstring: "Number of bytes used by owned keys of the container's user IDs",
+        labels: [:pool, :id],
+      )
     end
 
     def collect(client)
@@ -140,6 +150,7 @@ module OsCtl::Exporter
       lavgs = OsCtl::Lib::LoadAvgReader.read_all_hash
       objsets = OsCtl::Lib::Zfs::ObjsetStats.read_pools(pools)
       propreader = OsCtl::Lib::Zfs::PropertyReader.new
+      keyring = OsCtl::Lib::KernelKeyring.new
 
       begin
         tree = propreader.read(
@@ -257,6 +268,18 @@ module OsCtl::Exporter
             labels: netif_labels(ct, netif),
           )
         end
+
+        uid_map = OsCtl::Lib::IdMap.from_hash_list(ct[:uid_map])
+        key_users = keyring.for_id_map(uid_map)
+
+        keyring_qnkeys.set(
+          key_users.inject(0) { |acc, ku| acc + ku.qnkeys },
+          labels: {pool: ct[:pool], id: ct[:id]},
+        )
+        keyring_qnbytes.set(
+          key_users.inject(0) { |acc, ku| acc + ku.qnbytes },
+          labels: {pool: ct[:pool], id: ct[:id]},
+        )
       end
     end
 
@@ -265,7 +288,8 @@ module OsCtl::Exporter
       :proc_pids, :loadavg, :dataset_used, :dataset_referenced, :dataset_avail,
       :dataset_quota, :dataset_refquota, :dataset_bytes_written,
       :dataset_bytes_read, :dataset_ios_written, :dataset_ios_read,
-      :netif_rx_bytes, :netif_tx_bytes, :netif_rx_packets, :netif_tx_packets
+      :netif_rx_bytes, :netif_tx_bytes, :netif_rx_packets, :netif_tx_packets,
+      :keyring_qnkeys, :keyring_qnbytes
 
     def dataset_labels(ct, ds)
       {
