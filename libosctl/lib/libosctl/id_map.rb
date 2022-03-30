@@ -7,6 +7,10 @@ module OsCtl::Lib
         Entry.new(ns_id.to_i, host_id.to_i, cnt.to_i)
       end
 
+      def self.from_hash(hash)
+        Entry.new(hash[:ns_id], hash[:host_id], hash[:count])
+      end
+
       def to_a
         [ns_id, host_id, count]
       end
@@ -16,8 +20,21 @@ module OsCtl::Lib
       end
     end
 
-    def initialize(str_entries = [], opts = {})
-      @entries = str_entries.map { |str| Entry.from_string(str, **opts) }
+    # @param entries [Array<String>]
+    # @return [IdMap]
+    def self.from_string_list(list, **opts)
+      new(list.map { |str| Entry.from_string(str, **opts) })
+    end
+
+    # @param entries [Array<Hash>]
+    # @return [IdMap]
+    def self.from_hash_list(list)
+      new(list.map { |hash| Entry.from_hash(hash) })
+    end
+
+    # @param entries [Array<Entry>]
+    def initialize(entries = [])
+      @entries = entries.clone
     end
 
     def valid?
@@ -33,8 +50,12 @@ module OsCtl::Lib
       false
     end
 
-    def add_from_string(str_entry, opts = {})
+    def add_from_string(str_entry, **opts)
       @entries << Entry.from_string(str_entry, **opts)
+    end
+
+    def add_from_hash(hash)
+      @entries << Entry.from_hash(hash)
     end
 
     def each(&block)

@@ -10,10 +10,10 @@ module OsCtld
     # @return [IdMap]
     def self.load(cfg, old_cfg = nil)
       if old_cfg && cfg.nil? && old_cfg['offset'] && old_cfg['size']
-        new(["0:#{old_cfg['offset']}:#{old_cfg['size']}"])
+        from_string_list(["0:#{old_cfg['offset']}:#{old_cfg['size']}"])
 
       else
-        new(cfg || [])
+        from_string_list(cfg || [])
       end
     end
 

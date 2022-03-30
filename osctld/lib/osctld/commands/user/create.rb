@@ -104,7 +104,7 @@ module OsCtld
 
     # Do not allocate anything, use a custom map
     def no_block_with_custom_mapping(u)
-      [opts[:uid_map], opts[:gid_map]].map { |v| IdMap.new(v) }
+      [opts[:uid_map], opts[:gid_map]].map { |v| IdMap.from_string_list(v) }
     end
 
     # Custom mapping on an existing or a new block on a specific position
@@ -123,8 +123,8 @@ module OsCtld
         progress("Using block ##{allocation[:block_index]} from ID range #{range.name}")
       end
 
-      uid_map = IdMap.new(opts[:uid_map])
-      gid_map = IdMap.new(opts[:gid_map])
+      uid_map = IdMap.from_string_list(opts[:uid_map])
+      gid_map = IdMap.from_string_list(opts[:gid_map])
 
       # Check that the maps fit within the allocation
       {uid_map: uid_map, gid_map: gid_map}.each do |name, map|
@@ -141,7 +141,7 @@ module OsCtld
 
     def create_default_mapping(allocation)
       v = "0:#{allocation[:first_id]}:#{allocation[:id_count]}"
-      [v, v].map { |v| IdMap.new([v]) }
+      [v, v].map { |v| IdMap.from_string_list([v]) }
     end
 
     def check_mappings!(uid_map, gid_map)
