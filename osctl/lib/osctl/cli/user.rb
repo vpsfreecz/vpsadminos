@@ -30,8 +30,10 @@ module OsCtl::Cli
     IDMAP_FIELDS = %i(type ns_id host_id count)
 
     def list
+      keyring = KernelKeyring.new
+
       if opts[:list]
-        puts FIELDS.join("\n")
+        puts (FIELDS + keyring.list_param_names).join("\n")
         return
       end
 
@@ -67,17 +69,17 @@ module OsCtl::Cli
           DEFAULT_FIELDS
         end
 
-      osctld_fmt(
-        :user_list,
-        cmd_opts,
-        cols,
-        fmt_opts
-      )
+      users = osctld_call(:user_list, cmd_opts)
+      keyring.add_user_values(users, cols, precise: gopts[:parsable])
+
+      format_output(users, cols, **fmt_opts)
     end
 
     def show
+      keyring = KernelKeyring.new
+
       if opts[:list]
-        puts FIELDS.join("\n")
+        puts (FIELDS + keyring.list_param_names).join("\n")
         return
       end
 
@@ -95,12 +97,10 @@ module OsCtl::Cli
           DEFAULT_FIELDS
         end
 
-      osctld_fmt(
-        :user_show,
-        {name: args[0], pool: gopts[:pool]},
-        cols,
-        fmt_opts
-      )
+      user = osctld_call(:user_show, {name: args[0], pool: gopts[:pool]})
+      keyring.add_user_values(user, cols, precise: gopts[:parsable])
+
+      format_output(user, cols, **fmt_opts)
     end
 
     def create
