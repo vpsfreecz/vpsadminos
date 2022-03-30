@@ -34,6 +34,9 @@ vpsAdminOS uses:
 
 ## Building OS
 
+Our kernel live-patch facility requires [ccache](https://nixos.wiki/wiki/CCache)
+to build the OS.
+
 ```bash
 git clone https://github.com/vpsfreecz/vpsadminos/
 cd vpsadminos

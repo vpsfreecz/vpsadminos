@@ -3,6 +3,8 @@ To use vpsAdminOS, you need to install [Nix]. Nix is
 a functional package manager around which vpsAdminOS is built. Please follow
 the [installation instructions][install-nix].
 
+Our kernel live-patch facility also requires [ccache] to build the OS.
+
 # Downloading vpsAdminOS
 Clone the git repository of vpsAdminOS:
 
@@ -46,6 +48,7 @@ When you have at least one zpool imported and installed, you can proceed
 to [container](containers.md) management.
 
 [Nix]: https://nixos.org/nix/
+[ccache]: https://nixos.wiki/wiki/CCache
 [install-nix]: https://nixos.org/nix/download.html
 [nixpkgs]: https://nixos.org/nixpkgs/
 [man osctl]: https://man.vpsadminos.org/man8/osctl.8.html
