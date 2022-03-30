@@ -94,9 +94,12 @@ module OsCtl::Cli
 
       cgparams = cg_list_raw_cgroup_params
       zfsprops = ZfsProperties.new
+      keyring = KernelKeyring.new
 
       if opts[:list]
-        puts (FIELDS + cgparams + zfsprops.list_property_names).join("\n")
+        puts (
+          FIELDS + cgparams + zfsprops.list_property_names + keyring.list_param_names
+        ).join("\n")
         return
       end
 
@@ -146,6 +149,7 @@ module OsCtl::Cli
       )
 
       zfsprops.add_container_values(cts, cols, precise: gopts[:parsable])
+      keyring.add_container_values(cts, cols, precise: gopts[:parsable])
 
       format_output(cts, cols, **fmt_opts)
     end
@@ -166,9 +170,12 @@ module OsCtl::Cli
 
       cgparams = cg_list_raw_cgroup_params
       zfsprops = ZfsProperties.new
+      keyring = KernelKeyring.new
 
       if opts[:list]
-        puts (FIELDS + cgparams + zfsprops.list_property_names).join("\n")
+        puts (
+          FIELDS + cgparams + zfsprops.list_property_names + keyring.list_param_names
+        ).join("\n")
         return
       end
 
@@ -197,6 +204,7 @@ module OsCtl::Cli
       )
 
       zfsprops.add_container_values(ct, cols, precise: gopts[:parsable])
+      keyring.add_container_values(ct, cols, precise: gopts[:parsable])
 
       format_output(ct, cols, header: !opts['hide-header'])
     end
