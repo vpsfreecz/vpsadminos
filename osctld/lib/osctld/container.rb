@@ -610,6 +610,8 @@ module OsCtld
           id: id,
           user: user.name,
           group: group.name,
+          uid_map: user.uid_map.map(&:to_h),
+          gid_map: user.gid_map.map(&:to_h),
           dataset: dataset.name,
           rootfs: rootfs,
           boot_dataset: run_conf ? run_conf.dataset.name : dataset.name,
