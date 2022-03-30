@@ -17,6 +17,8 @@ module OsCtld
         homedir: u.homedir,
         registered: u.registered?,
         standalone: u.standalone,
+        uid_map: u.uid_map.map(&:to_h),
+        gid_map: u.gid_map.map(&:to_h),
       }.merge!(u.attrs.export))
     end
   end
