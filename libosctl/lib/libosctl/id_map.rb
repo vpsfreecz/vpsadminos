@@ -86,6 +86,14 @@ module OsCtl::Lib
       raise Exceptions::IdMappingError.new(self, id)
     end
 
+    def include_host_id?(id)
+      entries.each do |e|
+        return true if id >= e.host_id && id < (e.host_id + e.count)
+      end
+
+      false
+    end
+
     def to_s
       entries.map(&:to_s).join(',')
     end
