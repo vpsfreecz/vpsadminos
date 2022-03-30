@@ -98,7 +98,7 @@ module OsCtl::Lib
       nil
     end
 
-    # @param pools [Array<String>, nil]
+    # @param new_pools [Array<String>, nil]
     def pools=(new_pools)
       removed_pools = (@pools || []) - (new_pools || [])
       @pools = new_pools.clone

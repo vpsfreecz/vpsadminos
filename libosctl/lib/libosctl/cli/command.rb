@@ -10,7 +10,7 @@ module OsCtl::Lib
     end
 
     protected
-    # @param v [Array] list of required arguments
+    # @param required [Array] list of required arguments
     # @param optional [Array] list of optional arguments
     # @param strict [Boolean] do not allow more arguments than specified
     def require_args!(*required, optional: [], strict: true)
