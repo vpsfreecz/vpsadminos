@@ -5,10 +5,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1x1513d64qksbsnlcf68lpy9g20h99qxplyli6y1yv3jq79h9qmz";
+      sha256 = "1z46mp819nffx9fg20b402k2h24j0isl6bfnp7frfm368rvsimr1";
       type = "gem";
     };
-    version = "0.1.0";
+    version = "0.2.0";
   };
   prometheus-client = {
     groups = ["default"];

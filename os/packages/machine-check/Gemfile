@@ -1,2 +1,2 @@
 source 'https://rubygems.vpsfree.cz'
-gem 'machine-check', '0.1.0'
+gem 'machine-check', '0.2.0'
