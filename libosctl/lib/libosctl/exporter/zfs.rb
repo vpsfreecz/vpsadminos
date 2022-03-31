@@ -45,7 +45,7 @@ module OsCtl::Lib
       end
 
       tar.add_file('snapshots.yml', FILE_MODE) do |tf|
-        tf.write(YAML.dump(snapshots))
+        tf.write(ConfigFile.dump_yaml(snapshots))
       end
     end
 

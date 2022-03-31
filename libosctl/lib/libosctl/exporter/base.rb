@@ -1,4 +1,3 @@
-require 'yaml'
 require 'rubygems'
 require 'rubygems/package'
 require 'zlib'
@@ -48,7 +47,7 @@ module OsCtl::Lib
     # @option opts [String] :group custom group name
     def dump_metadata(type, opts = {})
       tar.add_file('metadata.yml', FILE_MODE) do |tf|
-        tf.write(YAML.dump(
+        tf.write(ConfigFile.dump_yaml(
           'type' => type,
           'format' => format.to_s,
           'user' => opts[:user] || (ct.user && ct.user.name),
@@ -78,7 +77,7 @@ module OsCtl::Lib
         dump.group(File.read(ct.group.config_path)) if ct.group
 
         if ct.respond_to?(:dump_config)
-          dump.container(YAML.dump(ct.dump_config))
+          dump.container(ConfigFile.dump_yaml(ct.dump_config))
         elsif ct.respond_to?(:config_path)
           dump.container(File.read(ct.config_path))
         else

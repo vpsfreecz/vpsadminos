@@ -463,7 +463,7 @@ module OsCtld
 
     def save_config
       regenerate_file(config_path, 0400) do |f|
-        f.write(YAML.dump(dump_opts.merge(attrs.dump)))
+        f.write(OsCtl::Lib::ConfigFile.dump_yaml(dump_opts.merge(attrs.dump)))
       end
     end
 

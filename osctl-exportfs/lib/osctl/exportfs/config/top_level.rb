@@ -1,5 +1,4 @@
 require 'libosctl'
-require 'yaml'
 
 module OsCtl::ExportFS
   class Config::TopLevel
@@ -57,7 +56,7 @@ module OsCtl::ExportFS
     def save
       server.synchronize do
         regenerate_file(path, 0644) do |new|
-          new.write(YAML.dump(dump))
+          new.write(OsCtl::Lib::ConfigFile.dump_yaml(dump))
         end
       end
     end

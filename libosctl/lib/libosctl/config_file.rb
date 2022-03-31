@@ -15,5 +15,11 @@ module OsCtl::Lib
     def self.load_yaml(string)
       YAML.safe_load(string)
     end
+
+    # Create YAML from data
+    # @return [String]
+    def self.dump_yaml(data)
+      YAML.dump(data)
+    end
   end
 end

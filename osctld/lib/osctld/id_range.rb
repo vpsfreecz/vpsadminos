@@ -2,7 +2,6 @@ require 'libosctl'
 require 'osctld/lockable'
 require 'osctld/manipulable'
 require 'osctld/assets/definition'
-require 'yaml'
 
 module OsCtld
   class IdRange
@@ -205,7 +204,7 @@ module OsCtld
 
     def save_config
       File.open(config_path, 'w', 0400) do |f|
-        f.write(YAML.dump({
+        f.write(OsCtl::Lib::ConfigFile.dump_yaml({
           'start_id' => start_id,
           'block_size' => block_size,
           'block_count' => block_count,

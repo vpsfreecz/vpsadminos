@@ -1,5 +1,4 @@
 require 'libosctl'
-require 'yaml'
 require 'osctld/lockable'
 require 'osctld/manipulable'
 require 'osctld/assets/definition'
@@ -679,7 +678,7 @@ module OsCtld
       data = dump_config
 
       File.open(config_path, 'w', 0400) do |f|
-        f.write(YAML.dump(data))
+        f.write(OsCtl::Lib::ConfigFile.dump_yaml(data))
       end
 
       File.chown(0, 0, config_path)

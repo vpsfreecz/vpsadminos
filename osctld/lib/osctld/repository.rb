@@ -1,6 +1,5 @@
 require 'etc'
 require 'libosctl'
-require 'yaml'
 require 'osctld/lockable'
 require 'osctld/manipulable'
 require 'osctld/assets/definition'
@@ -136,7 +135,7 @@ module OsCtld
 
     def save_config
       File.open(config_path, 'w', 0400) do |f|
-        f.write(YAML.dump({
+        f.write(OsCtl::Lib::ConfigFile.dump_yaml({
           'url' => url,
           'enabled' => enabled?,
           'attrs' => attrs.dump,

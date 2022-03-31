@@ -1,5 +1,4 @@
 require 'libosctl'
-require 'yaml'
 require 'osctld/lockable'
 
 module OsCtld
@@ -177,7 +176,7 @@ module OsCtld
       end
 
       regenerate_file(file_path, 0400) do |new|
-        new.write(YAML.dump(dump))
+        new.write(OsCtl::Lib::ConfigFile.dump_yaml(dump))
       end
     end
 

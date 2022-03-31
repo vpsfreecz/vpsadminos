@@ -201,7 +201,7 @@ module OsCtld
     def save
       exclusively do
         File.open(key_chain_path, 'w', 0400) do |f|
-          f.write(YAML.dump(keys.map(&:dump)))
+          f.write(OsCtl::Lib::ConfigFile.dump_yaml(keys.map(&:dump)))
         end
       end
     end

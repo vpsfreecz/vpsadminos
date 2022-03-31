@@ -271,7 +271,7 @@ module OsCtld
       cfg['path'] = path if root?
 
       File.open(config_path, 'w', 0400) do |f|
-        f.write(YAML.dump(cfg))
+        f.write(OsCtl::Lib::ConfigFile.dump_yaml(cfg))
       end
 
       File.chown(0, 0, config_path)

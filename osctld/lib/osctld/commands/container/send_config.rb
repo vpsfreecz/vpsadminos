@@ -103,7 +103,7 @@ module OsCtld
         ct_cfg.delete('net_interfaces') if !opts[:network_interfaces]
         ct_cfg['user'] = opts[:user]
         ct_cfg['group'] = opts[:group]
-        dump.container(YAML.dump(ct_cfg))
+        dump.container(OsCtl::Lib::ConfigFile.dump_yaml(ct_cfg))
       end
       exporter.dump_user_hook_scripts(Container::HookManager.list_all_scripts(ct))
       exporter.close
