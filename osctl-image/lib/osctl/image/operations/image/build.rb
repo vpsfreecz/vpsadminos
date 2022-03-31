@@ -1,7 +1,6 @@
 require 'libosctl'
 require 'osctl/image/operations/base'
 require 'securerandom'
-require 'yaml'
 
 module OsCtl::Image
   class Operations::Image::Build < Operations::Base
@@ -90,7 +89,7 @@ module OsCtl::Image
     end
 
     def read_config_file
-      ret = YAML.load_file(config_file)
+      ret = OsCtl::Lib::ConfigFile.load_yaml_file(config_file)
       File.unlink(config_file)
       ret
     end

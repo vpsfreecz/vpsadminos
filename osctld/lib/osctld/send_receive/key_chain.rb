@@ -90,7 +90,7 @@ module OsCtld
         keys.clear
         return unless File.exist?(key_chain_path)
 
-        YAML.load_file(key_chain_path).each do |v|
+        OsCtl::Lib::ConfigFile.load_yaml_file(key_chain_path).each do |v|
           keys << Key.load(v)
         end
       end

@@ -436,7 +436,7 @@ module OsCtld
     def load_config
       return unless File.exist?(config_path)
 
-      cfg = YAML.load_file(config_path)
+      cfg = OsCtl::Lib::ConfigFile.load_yaml_file(config_path)
 
       @parallel_start = cfg['parallel_start']
       @parallel_stop = cfg['parallel_stop']

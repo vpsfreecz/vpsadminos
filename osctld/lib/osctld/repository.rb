@@ -1,4 +1,5 @@
 require 'etc'
+require 'libosctl'
 require 'yaml'
 require 'osctld/lockable'
 require 'osctld/manipulable'
@@ -126,7 +127,7 @@ module OsCtld
     attr_reader :state
 
     def load_config
-      cfg = YAML.load_file(config_path)
+      cfg = OsCtl::Lib::ConfigFile.load_yaml_file(config_path)
 
       @url = cfg['url']
       @enabled = cfg['enabled']

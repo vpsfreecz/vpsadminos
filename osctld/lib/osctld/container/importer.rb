@@ -1,6 +1,5 @@
 require 'fileutils'
 require 'libosctl'
-require 'yaml'
 require 'rubygems'
 require 'rubygems/package'
 require 'zlib'
@@ -26,7 +25,7 @@ module OsCtld
     # other methods depend on its result.
     def load_metadata
       ret = tar.seek('metadata.yml') do |entry|
-        YAML.load(entry.read)
+        OsCtl::Lib::ConfigFile.load_yaml(entry.read)
       end
       fail 'metadata.yml not found' unless ret
       @metadata = ret
@@ -123,7 +122,7 @@ module OsCtld
 
     # @return [Hash]
     def get_container_config
-      YAML.load(tar.seek('config/container.yml') { |entry| entry.read })
+      OsCtl::Lib::ConfigFile.load_yaml(tar.seek('config/container.yml') { |entry| entry.read })
     end
 
     # Load the user from the archive and register him, or create a new user
@@ -313,7 +312,7 @@ module OsCtld
       end
 
       tar.seek('snapshots.yml') do |entry|
-        snapshots = YAML.load(entry.read)
+        snapshots = OsCtl::Lib::ConfigFile.load_yaml(entry.read)
 
         datasets(builder).each do |ds|
           snapshots.each { |snap| zfs(:destroy, nil, "#{ds}@#{snap}") }

@@ -147,7 +147,7 @@ module OsCtld
     def load_conf(from_file: true)
       cfg =
         if from_file && File.exist?(file_path)
-          YAML.load_file(file_path)
+          OsCtl::Lib::ConfigFile.load_yaml_file(file_path)
         else
           {}
         end

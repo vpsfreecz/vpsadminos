@@ -208,9 +208,9 @@ module OsCtld
 
     def load_config(config)
       if config
-        cfg = YAML.load(config)
+        cfg = OsCtl::Lib::ConfigFile.load_yaml(config)
       else
-        cfg = YAML.load_file(config_path)
+        cfg = OsCtl::Lib::ConfigFile.load_yaml_file(config_path)
       end
 
       @ugid = SystemUsers.uid_of(sysusername) || UGidRegistry.get

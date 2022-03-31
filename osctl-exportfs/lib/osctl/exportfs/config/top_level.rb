@@ -64,7 +64,7 @@ module OsCtl::ExportFS
 
     protected
     def read_config
-      data = server.synchronize { YAML.load_file(path) }
+      data = server.synchronize { OsCtl::Lib::ConfigFile.load_yaml_file(path) }
       @netif = data['netif']
       @address = data['address']
       @nfsd = Config::Nfsd.new(data['nfsd'] || {})

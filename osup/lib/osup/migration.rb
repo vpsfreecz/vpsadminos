@@ -1,3 +1,5 @@
+require 'libosctl'
+
 module OsUp
   class Migration
     attr_reader :id, :path, :dirname, :name, :summary, :description, :snapshot
@@ -33,7 +35,7 @@ module OsUp
         return
       end
 
-      spec = YAML.load_file(spec_path)
+      spec = OsCtl::Lib::ConfigFile.load_yaml_file(spec_path)
       @name = spec['name'] || @name
       @description = spec['description']
       @snapshot = spec['snapshot'].map(&:to_sym)

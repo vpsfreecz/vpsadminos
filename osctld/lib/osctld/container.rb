@@ -742,11 +742,11 @@ module OsCtld
     attr_synchronized_accessor :mounted
 
     def load_config_file(path = nil, **opts)
-      load_config_hash(YAML.load_file(path || config_path), **opts)
+      load_config_hash(OsCtl::Lib::ConfigFile.load_yaml_file(path || config_path), **opts)
     end
 
     def load_config_string(str, **opts)
-      load_config_hash(YAML.load(str), **opts)
+      load_config_hash(OsCtl::Lib::ConfigFile.load_yaml(str), **opts)
     end
 
     def load_config_hash(cfg, init_devices: true, dataset_cache: nil)

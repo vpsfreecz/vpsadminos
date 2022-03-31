@@ -1,3 +1,4 @@
+require 'libosctl'
 require 'osctld/lockable'
 require 'osctld/manipulable'
 require 'osctld/assets/definition'
@@ -193,7 +194,7 @@ module OsCtld
     end
 
     def load_config
-      cfg = YAML.load_file(config_path)
+      cfg = OsCtl::Lib::ConfigFile.load_yaml_file(config_path)
 
       @start_id = cfg['start_id']
       @block_size = cfg['block_size']

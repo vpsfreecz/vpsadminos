@@ -1,3 +1,4 @@
+require 'libosctl'
 require 'osctld/lockable'
 require 'osctld/manipulable'
 require 'osctld/assets/definition'
@@ -279,9 +280,9 @@ module OsCtld
     protected
     def load_config(config = nil)
       if config
-        cfg = YAML.load(config)
+        cfg = OsCtl::Lib::ConfigFile.load_yaml(config)
       else
-        cfg = YAML.load_file(config_path)
+        cfg = OsCtl::Lib::ConfigFile.load_yaml_file(config_path)
       end
 
       @path = cfg['path'] if root?
