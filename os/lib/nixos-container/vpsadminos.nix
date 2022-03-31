@@ -6,7 +6,7 @@
 #
 #   https://github.com/vpsfreecz/vpsadminos/blob/staging/os/lib/nixos-container/vpsadminos.nix
 
-{ config, pkgs, lib, ...}:
+{ config, pkgs, lib, ... }:
 with lib;
 let
   nameservers = [
@@ -14,8 +14,8 @@ let
     "2606:4700:4700::1111"
   ];
 in {
-  networking.nameservers = lib.mkDefault nameservers;
-  services.resolved = lib.mkDefault { fallbackDns = nameservers; };
+  networking.nameservers = mkDefault nameservers;
+  services.resolved = mkDefault { fallbackDns = nameservers; };
   networking.dhcpcd.extraConfig = "noipv4ll";
 
   systemd.services.systemd-sysctl.enable = false;
@@ -27,7 +27,7 @@ in {
   boot.isContainer = true;
   boot.enableContainers = mkDefault true;
   boot.loader.initScript.enable = true;
-  boot.specialFileSystems."/run/keys".fsType = lib.mkForce "tmpfs";
+  boot.specialFileSystems."/run/keys".fsType = mkForce "tmpfs";
   boot.systemdExecutable = mkDefault "systemd systemd.unified_cgroup_hierarchy=0";
 
   # Overrides for <nixpkgs/nixos/modules/virtualisation/container-config.nix>
