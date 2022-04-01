@@ -51,7 +51,8 @@ module OsCtld
         return
       end
 
-      if ctrc.reboot? \
+      if ctrc.aborted? \
+         || ctrc.reboot? \
          || (ct.ephemeral? && !ct.is_being_manipulated?) \
          || (ctrc && ctrc.destroy_dataset_on_stop?)
         # The current thread is used to handle the console and has to exit.
@@ -64,6 +65,12 @@ module OsCtld
     end
 
     def handle_ct_stop(ctrc)
+      if ctrc.aborted?
+        log(:info, ctrc, 'Container was aborted, performing cleanup')
+        recovery = Container::Recovery.new(ctrc.ct)
+        recovery.cleanup_or_taint
+      end
+
       if ctrc.destroy_dataset_on_stop?
         begin
           zfs(:destroy, nil, ctrc.dataset)
@@ -75,6 +82,9 @@ module OsCtld
       if ctrc.reboot?
         sleep(1)
         reboot_ct
+
+      elsif ctrc.aborted?
+        return
 
       elsif ct.ephemeral? && !ct.is_being_manipulated?
         Commands::Container::Delete.run({

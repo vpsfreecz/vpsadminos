@@ -30,6 +30,7 @@ module OsCtld
       init_lock
       @ct = ct
       @init_pid = nil
+      @aborted = false
       @do_reboot = false
       @dist_network_configured = false
       self.load_conf(from_file: load_conf)
@@ -112,6 +113,14 @@ module OsCtld
       fail 'init_pid not set' unless pid
 
       File.join('/proc', pid.to_s, 'root')
+    end
+
+    def aborted=(v)
+      @aborted = v
+    end
+
+    def aborted?
+      @aborted
     end
 
     # After the current container run stops, start it again

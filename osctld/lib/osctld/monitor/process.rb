@@ -117,6 +117,9 @@ module OsCtld
 
         Container::Hook.run(ct, :post_start, init_pid: ct.init_pid)
 
+      when :aborting
+        ct.run_conf.aborted = true
+
       when :stopping
         Container::Hook.run(ct, :on_stop)
 
