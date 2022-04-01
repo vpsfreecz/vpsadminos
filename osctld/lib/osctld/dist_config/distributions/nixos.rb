@@ -35,14 +35,13 @@ module OsCtld
     end
 
     def bin_path(_opts)
-      system =
-        if ct.running?
-          File.readlink(File.join(ct.run_conf.runtime_rootfs, '/run/current-system'))
-        else
-          with_rootfs { File.realpath('/nix/var/nix/profiles/system') }
+      with_rootfs do
+        begin
+          File.realpath('/nix/var/nix/profiles/system/sw/bin')
+        rescue Errno::ENOENT
+          '/bin'
         end
-
-      File.join(system, 'sw/bin')
+      end
     end
   end
 end
