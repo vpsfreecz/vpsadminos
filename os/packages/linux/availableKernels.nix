@@ -10,15 +10,6 @@ let
         sha256 = "sha256-HLizndgrsOboRkIlmCfEfGFwoXweamkkddKdnQxSWWU=";
       };
     };
-
-    "5.10.93" = {
-      url = linuxGhUrl vpsfGh "5b4d755822c636c4cd51a0fd9d795feb4844c140";
-      sha256 = "0c2zxxf6m3p6nn26daxckp3rjambs29j9va8fhps8ll5pr6fnd1p";
-      zfs = {
-        rev = "1dec83e455dffb573ad8e55cca5373d9bd5b756f";
-        sha256 = "sha256:05rj2qxg0zyqagdqln2gd5c6a1dfqwnkv1dlhhfyy6x34xhsdd5r";
-      };
-    };
   };
 
   vpsfGh = "https://github.com/vpsfreecz";
