@@ -582,6 +582,19 @@ index 5df35e76da32..8b42f1a929b6 100644
  		reinit_completion(&ctx->ref_comp);
  	}
  	return ret;
+diff --git a/fs/namei.c b/fs/namei.c
+index 2ebf8a3e0b82..5945909be566 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -3526,7 +3526,7 @@ int vfs_mknod(struct inode *dir, struct dentry *dentry, umode_t mode, dev_t dev)
+ 		return error;
+ 
+ 	if ((S_ISCHR(mode) || S_ISBLK(mode)) && !is_whiteout &&
+-	    !ns_capable(get_task_cred(current)->user_ns, CAP_MKNOD))
++	    !ns_capable(current_user_ns(), CAP_MKNOD))
+ 		return -EPERM;
+ 
+ 	if (!dir->i_op->mknod)
 diff --git a/fs/nfs/callback_proc.c b/fs/nfs/callback_proc.c
 index be546ece383f..15ca294cb009 100644
 --- a/fs/nfs/callback_proc.c
