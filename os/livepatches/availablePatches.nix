@@ -4,36 +4,9 @@ with lib;
 let
 
   availablePatches = [
-    { name = "uname";
-      filterFn = availableForAllKernels;
-      version = 2;
-    }
-    { name = "ucounts-overlimit-fix";
-      filterFn = availableForRange "5.10.93" "5.10.98";
-    }
-    { name = "bp-5.10.99-102-cumulative";
+    { name = "bp-5.10.98-cumulative";
       filterFn = availableFor "5.10.98";
-      version = 2;
-    }
-    { name = "bp-5.10.103-cumulative";
-      filterFn = availableFor "5.10.98";
-    }
-    { name = "bp-5.10.104-cumulative";
-      filterFn = availableFor "5.10.98";
-    }
-    { name = "bp-5.10.106-107-cumulative";
-      filterFn = availableFor "5.10.98";
-    }
-    { name = "bp-5.10.108-109-cumulative";
-      filterFn = availableFor "5.10.98";
-      version = 2;
-    }
-    { name = "ping-group-range";
-      filterFn = availableFor "5.10.98";
-      version = 7;
-    }
-    { name = "nfs-unfreezer-workaround";
-      filterFn = availableSince "5.10.93";
+      version = 19;
     }
   ];
 
