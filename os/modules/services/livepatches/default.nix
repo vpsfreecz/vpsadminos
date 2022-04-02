@@ -215,7 +215,7 @@ LIVEPATCH_HEADER_END
     livepatch=$(cat /etc/livepatch-store-path)
     '' + moduleStatusGen { moduleName = patchModuleName; } + "\n";
 
-  live-patches-util = pkgs.writeScriptBin "live-patches" ''
+  live-patches-util = pkgs.writeScriptBin "live-patches" ("" + optionalString (patchVersion > 0) ''
     case "$1" in
     load)
       ${moduleLoadContent}
@@ -233,7 +233,7 @@ LIVEPATCH_HEADER_END
       echo "usage: $0 load|unload|list|status"
       ;;
     esac
-  '';
+  '');
 
 in
 {
@@ -247,7 +247,7 @@ in
     };
   };
   config = {
-    environment.etc."livepatch-store-path".text = toString patches;
+    environment.etc."livepatch-store-path".text = "" + (optionalString (patchVersion > 0) (toString patches));
     environment.systemPackages = [ live-patches-util ];
     runit.services.live-patches = {
       run = optionalString (cfg.enable) "live-patches load && sleep inf";
