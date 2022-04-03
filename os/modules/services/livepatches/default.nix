@@ -9,6 +9,8 @@ let
   availablePatchesList = availablePatches.patchList;
   patchVersion = availablePatches.patchVersion;
 
+  buildEnable = (patchVersion > 0) && cfg.enable;
+
   kernel = config.boot.kernelPackage;
   kpatch-build = pkgs.callPackage (import ../../../packages/kpatch-build/default.nix) {};
 
@@ -101,9 +103,6 @@ LIVEPATCH_HEADER_END
       installPhase = ''
         mkdir -p $out/${installModDir};
         cp ${patchModuleName}.ko $out/${installModPath} || (ls -lah && exit 1)
-
-
-
       '';
     };
 
@@ -198,24 +197,27 @@ LIVEPATCH_HEADER_END
     livepatch=$(cat /etc/livepatch-store-path)
     mkdir -p /lib/modules
     ln -snf /run/current-system/kernel-modules/lib/modules/${kernel.modDirVersion} /lib/modules/${kernel.modDirVersion}.${patchName}
-    '' + moduleLoadGen { installModPath = "$livepatch/${installModPath}";
+  '' + moduleLoadGen { installModPath = "$livepatch/${installModPath}";
                          moduleName = patchModuleName; } + ''
   '';
 
   moduleUnloadContent = ''
     livepatch=$(cat /etc/livepatch-store-path)
     # Patches built with build-kpatch
-    '' + moduleUnloadGen { moduleName = patchModuleName; } + "\n";
+  '' + moduleUnloadGen { moduleName = patchModuleName; } + "\n";
 
   moduleListContent = ''
     livepatch=$(cat /etc/livepatch-store-path)
-    '' + moduleListGen { moduleName = patchModuleName; } + "\n";
+  '' + moduleListGen { moduleName = patchModuleName; } + "\n";
 
   moduleStatusContent = ''
     livepatch=$(cat /etc/livepatch-store-path)
-    '' + moduleStatusGen { moduleName = patchModuleName; } + "\n";
+  '' + moduleStatusGen { moduleName = patchModuleName; } + "\n";
 
-  live-patches-util = pkgs.writeScriptBin "live-patches" ("" + optionalString (patchVersion > 0) ''
+  live-patches-util = pkgs.writeScriptBin "live-patches" (optionalString(!buildEnable) ''
+    echo Live Patching not enabled in machine config or no patches available
+    exit 0
+  '' + optionalString (buildEnable) ''
     case "$1" in
     load)
       ${moduleLoadContent}
@@ -234,7 +236,6 @@ LIVEPATCH_HEADER_END
       ;;
     esac
   '');
-
 in
 {
   options = {
@@ -242,16 +243,18 @@ in
       type = types.bool;
       default = true;
       description = ''
-        Enable/disable Live Patching
+          When enabled, live-patches utility is added to system path along with compiled live patch kernel modules.
+          Note, patches are automatically loaded only upon machine boot, live-patches
+          util has to be called manually to load them when deploying onto a running machine.
       '';
     };
   };
   config = {
-    environment.etc."livepatch-store-path".text = "" + (optionalString (patchVersion > 0) (toString patches));
+    environment.etc."livepatch-store-path".text = "" + (optionalString (buildEnable) (toString patches));
     environment.systemPackages = [ live-patches-util ];
     runit.services.live-patches = {
-      run = optionalString (cfg.enable) "live-patches load && sleep inf";
-      finish = optionalString (cfg.enable) "live-patches unload";
+      run = optionalString (buildEnable) "live-patches load && sleep inf";
+      finish = optionalString (buildEnable) "live-patches unload";
       runlevels = [ "default" ];
     };
   };
