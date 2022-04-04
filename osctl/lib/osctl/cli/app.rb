@@ -1117,18 +1117,6 @@ module OsCtl::Cli
           c.action &Command.run(Container, :passwd)
         end
 
-        ct.desc "Go to container's rootfs directory"
-        ct.arg_name '<ctid>'
-        ct.command :cd do |c|
-          c.desc "Go to /proc/<init_pid>/root"
-          c.switch %i(r runtime), negatable: false
-
-          c.desc "Go to LXC config directory"
-          c.switch %i(l lxc), negatable: false
-
-          c.action &Command.run(Container, :cd)
-        end
-
         ct.desc 'Regenerate LXC configuration'
         ct.arg_name '<ctid>'
         ct.command :reconfigure do |c|

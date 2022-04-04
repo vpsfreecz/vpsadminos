@@ -801,37 +801,6 @@ module OsCtl::Cli
       osctld_fmt(:ct_import, cmd_opts)
     end
 
-    def cd
-      require_args!('id')
-
-      ct = osctld_call(:ct_show, id: args[0], pool: gopts[:pool])
-
-      if opts[:runtime]
-        raise "container not running" unless ct[:init_pid]
-        path = File.join('/proc/', ct[:init_pid].to_s, 'root', '/')
-
-      elsif opts[:lxc]
-        path = ct[:lxc_dir]
-
-      else
-        path = ct[:rootfs]
-      end
-
-      file = Tempfile.new('osctl-rcfile')
-      file.write(<<-END
-        export PS1="(CT #{ct[:id]}) $PS1"
-        cd "#{path}"
-        END
-      )
-      file.close
-
-      puts "Spawning a new shell, exit when done"
-      pid = Process.spawn(ENV['SHELL'] || 'bash', '--rcfile', file.path)
-      Process.wait(pid)
-
-      file.unlink
-    end
-
     def log_cat
       require_args!('id')
 

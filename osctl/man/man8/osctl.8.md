@@ -238,7 +238,6 @@ Useful commands:
  - `ct pid` - identify containers by PID
  - `ct log cat`, `ct log path` - view container log file
  - `ct su` - switch to the container user
- - `ct cd` - switch to the container root file system directory
 
 ### TROUBLESHOOTING
  - Check `ct log cat`
@@ -1372,18 +1371,6 @@ The following shortcuts are supported:
 
   Also not that when a container is started from this shell using `lxc-start`,
   `ct console` for tty0 will not be functional.
-
-`ct cd` [*options*] *ctid*
-  Opens a new shell with changed current working directory, based on *options*.
-  When no option is specified, the directory is changed to the container's
-  rootfs. Close the shell to return to your previous session.
-  
-    `-l`, `--lxc`
-      Go to LXC config directory
-    
-    `-r`, `--runtime`
-      Go to */proc/<init_pid>/root*. The container must be running for the path
-      to exist.
 
 `ct log cat` *ctid*
   Write the contents of container *ctid* log to the stdout.
