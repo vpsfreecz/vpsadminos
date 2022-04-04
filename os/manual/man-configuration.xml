@@ -2,12 +2,12 @@
           xmlns:xlink="http://www.w3.org/1999/xlink"
           xmlns:xi="http://www.w3.org/2001/XInclude">
   <refmeta>
-  <refentrytitle><filename>vpsadminos-configuration.nix</filename></refentrytitle>
+  <refentrytitle><filename>configuration.nix</filename></refentrytitle>
     <manvolnum>5</manvolnum>
     <refmiscinfo class="source">vpsAdminOS</refmiscinfo>
   </refmeta>
   <refnamediv>
-    <refname><filename>vpsadminos-configuration.nix</filename></refname>
+    <refname><filename>configuration.nix</filename></refname>
     <refpurpose>vpsAdminOS configuration specification</refpurpose>
   </refnamediv>
   <refsection>

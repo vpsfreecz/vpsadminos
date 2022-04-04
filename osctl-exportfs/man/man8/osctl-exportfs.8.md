@@ -14,7 +14,7 @@ a custom set of exported filesystems.
 
 `osctl-exportfs` utility can only be used in conjuction with the `osctl-exportfs`
 service, which has to be enabled in system configuration using option
-`osctl.exportfs.enable`, see vpsadminos-configuration.nix(5). The created NFS
+`osctl.exportfs.enable`, see configuration.nix(5). The created NFS
 servers are not persistent. The servers and their configuration is lost when
 the host machine is rebooted.
 

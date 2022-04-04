@@ -19,7 +19,7 @@ in {
       example = false;
       description = ''
         Whether to install the configuration manual page. The manual can
-        be reached by <command>man vpsadminos-configuration.nix</command>.
+        be reached by <command>man configuration.nix</command>.
       '';
     };
 
