@@ -23,7 +23,7 @@ module OsCtld
     # @param ct [Container]
     def self.default(ct)
       new(ct, entries: {
-        'nofile': PrLimits::PrLimit.new('nofile', 1024, SystemLimits::FILE_MAX_DEFAULT),
+        'nofile' => PrLimits::PrLimit.new('nofile', 1024, SystemLimits::FILE_MAX_DEFAULT),
       })
     end
 
