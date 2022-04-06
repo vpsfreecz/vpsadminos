@@ -741,11 +741,24 @@ module OsCtld
     attr_synchronized_accessor :mounted
 
     def load_config_file(path = nil, **opts)
-      load_config_hash(OsCtl::Lib::ConfigFile.load_yaml_file(path || config_path), **opts)
+      cfg = parse_yaml do
+        OsCtl::Lib::ConfigFile.load_yaml_file(path || config_path)
+      end
+
+      load_config_hash(cfg, **opts)
     end
 
     def load_config_string(str, **opts)
-      load_config_hash(OsCtl::Lib::ConfigFile.load_yaml(str), **opts)
+      cfg = parse_yaml { OsCtl::Lib::ConfigFile.load_yaml(str) }
+      load_config_hash(cfg, **opts)
+    end
+
+    def parse_yaml
+      begin
+        yield
+      rescue Psych::Exception => e
+        raise ConfigError.new("Unable to load config of container #{id}", e)
+      end
     end
 
     def load_config_hash(cfg, init_devices: true, dataset_cache: nil)

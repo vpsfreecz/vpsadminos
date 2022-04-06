@@ -28,6 +28,7 @@ module OsCtld
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
     include OsCtl::Lib::Utils::File
+    include OsCtl::Lib::Utils::Exception
 
     attr_reader :name, :dataset, :state, :send_receive_key_chain, :autostart_plan,
       :attrs
@@ -508,7 +509,9 @@ module OsCtld
         name = File.basename(f)[0..(('.yml'.length+1) * -1)]
         next if name == 'default'
 
-        range = IdRange.new(self, name)
+        range = load_entity('id-range', name) { IdRange.new(self, name) }
+        next unless range
+
         DB::IdRanges.add(range)
       end
     end
@@ -518,8 +521,8 @@ module OsCtld
 
       Dir.glob(File.join(conf_path, 'user', '*.yml')).each do |f|
         name = File.basename(f)[0..(('.yml'.length+1) * -1)]
-        u = User.new(self, name)
-        next unless check_user_conflict(u)
+        u = load_entity('user', name) { User.new(self, name) }
+        next if !u || !check_user_conflict(u)
 
         Commands::User::Setup.run!(user: u)
       end
@@ -536,7 +539,12 @@ module OsCtld
         name = $1
         next if ['', '/default'].include?(name)
 
-        DB::Groups.add(Group.new(self, name, devices: false))
+        grp = load_entity('group', name) do
+          Group.new(self, name, devices: false)
+        end
+        next unless grp
+
+        DB::Groups.add(grp)
       end
 
       # The devices in the root group have to be configured as soon as possible,
@@ -568,7 +576,12 @@ module OsCtld
 
       ep.run(nproc) do |ctid|
         log(:info, "Loading container #{ctid}")
-        ct = Container.new(self, ctid, nil, nil, nil, dataset_cache: ds_cache)
+
+        ct = load_entity('container', ctid) do
+          Container.new(self, ctid, nil, nil, nil, dataset_cache: ds_cache)
+        end
+        next unless ct
+
         ensure_limits(ct)
 
         builder = Container::Builder.new(ct.get_run_conf)
@@ -598,8 +611,25 @@ module OsCtld
         name = File.basename(f)[0..(('.yml'.length+1) * -1)]
         next if name == 'default'
 
-        repo = Repository.new(self, name)
+        repo = load_entity('repository', name) { Repository.new(self, name) }
+        next unless repo
+
         DB::Repositories.add(repo)
+      end
+    end
+
+    def load_entity(type, name)
+      begin
+        return yield
+      rescue ConfigError => e
+        if e.original_exception
+          log(:fatal, "#{type} #{name}: #{e.message}: #{e.original_exception.message} (#{e.original_exception.class})")
+          log(:fatal, denixstorify(e.original_exception.backtrace).join("\n"))
+        else
+          log(:fatal, "Unable to load config of #{type} #{name}: #{e.message}")
+        end
+
+        return nil
       end
     end
 

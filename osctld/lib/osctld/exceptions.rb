@@ -3,6 +3,16 @@ require 'libosctl'
 module OsCtld
   SystemCommandFailed = OsCtl::Lib::Exceptions::SystemCommandFailed
 
+  class ConfigError < StandardError
+    # @return [Exception, nil] original exception
+    attr_reader :original_exception
+
+    def initialize(msg, original_exception = nil)
+      super(msg)
+      @original_exception = original_exception
+    end
+  end
+
   class CommandFailed < StandardError ; end
   class GroupNotFound < StandardError ; end
   class CGroupSubsystemNotFound < StandardError ; end
