@@ -1,10 +1,11 @@
 module OsUp
   class Migrator
+    # Prepare a list of migrations to be run for upgrade
     # @param pool_migrations [PoolMigrations]
     # @param opts [Hash]
     # @option opts [Integer] :to target migration id
-    # @option opts [Boolean] :dry_run
-    def self.upgrade(pool_migrations, **opts)
+    # @return [Array<Migration>] ordered list of migrations to up
+    def self.upgrade_sequence(pool_migrations, **opts)
       available = pool_migrations.all
 
       # Find the last applied migration
@@ -41,7 +42,15 @@ module OsUp
       end
 
       # Convert to a list of migrations
-      mapped = list.map { |id, m| m }
+      list.map { |id, m| m }
+    end
+
+    # @param pool_migrations [PoolMigrations]
+    # @param opts [Hash]
+    # @option opts [Integer] :to target migration id
+    # @option opts [Boolean] :dry_run
+    def self.upgrade(pool_migrations, **opts)
+      mapped = upgrade_sequence(pool_migrations, **opts)
 
       if opts[:dry_run]
         mapped.each do |m|
@@ -55,11 +64,12 @@ module OsUp
       migrator.run(:up)
     end
 
+    # Prepare a list of migrations to be run for rollback
     # @param pool_migrations [PoolMigrations]
     # @param opts [Hash]
     # @option opts [Integer] :to target migration id
-    # @option opts [Boolean] :dry_run
-    def self.rollback(pool_migrations, **opts)
+    # @return [Array<Migration>] ordered list of migrations to down
+    def self.rollback_sequence(pool_migrations, **opts)
       available = pool_migrations.all
 
       # Find the last applied migration
@@ -107,7 +117,15 @@ module OsUp
       end
 
       # Convert to a list of migrations
-      mapped = list.map { |id, m| m }
+      list.map { |id, m| m }
+    end
+
+    # @param pool_migrations [PoolMigrations]
+    # @param opts [Hash]
+    # @option opts [Integer] :to target migration id
+    # @option opts [Boolean] :dry_run
+    def self.rollback(pool_migrations, **opts)
+      mapped = rollback_sequence(pool_migrations, **opts)
 
       if opts[:dry_run]
         mapped.each do |m|

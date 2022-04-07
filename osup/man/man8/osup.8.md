@@ -39,10 +39,16 @@ version of `osctld` is compatible with the data pools.
 `check` [*pool*]
   Determine if *pool* or all pools marked as used by `osctld` are up to date,
   in need of an upgrade or a rollback. Each line of the output describes one ZFS
-  pool. There are three columns: `pool`, `status` and `version`. `status`
+  pool. There are four columns: `pool`, `status`, `version` and `flags`. `status`
   is one of `ok` - the pool is up-to-date, `outdated` - the pool needs
   an upgrade and `incompatible` - the pool needs a rollback. `version` is the
   pool's latest version that `osup` can work with.
+
+  `flags` is a list of words separated by a comma. Known words are:
+
+   - `-` - empty word, used when no flags are set
+   - `export` - the pool has to be exported from `osctld` before it can be migrated
+   - `stop` - all containers have to be stopped during the export
   
   If `status` is `incompatible`, the pool needs to be rolled back to `version`.
   Your current OS version will not be able to do it. You need to upgrade the OS

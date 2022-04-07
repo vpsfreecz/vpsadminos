@@ -2,7 +2,8 @@ require 'libosctl'
 
 module OsUp
   class Migration
-    attr_reader :id, :path, :dirname, :name, :summary, :description, :snapshot
+    attr_reader :id, :path, :dirname, :name, :summary, :description, :snapshot,
+      :export_pool, :stop_containers
 
     def self.load(path, dirname)
       if /^(\d+)\-(.+)$/ !~ dirname
@@ -39,6 +40,8 @@ module OsUp
       @name = spec['name'] || @name
       @description = spec['description']
       @snapshot = spec['snapshot'].map(&:to_sym)
+      @export_pool = spec.fetch('export_pool', true)
+      @stop_containers = spec.fetch('stop_containers', true)
     end
 
     def spec_path

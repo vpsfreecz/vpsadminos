@@ -147,11 +147,14 @@ module OsUp
 
     def pool_check(pool)
       pool_migrations = PoolMigrations.new(pool)
+      state = pool_state(pool_migrations)
+
       puts sprintf(
-        '%-15s %-15s %s',
+        '%-15s %-15s %-15s %s',
         pool,
-        pool_state(pool_migrations),
-        MigrationList.get.last.id
+        state,
+        MigrationList.get.last.id,
+        state == 'outdated' ? pool_flags(pool_migrations) : '-',
       )
     end
 
@@ -179,6 +182,19 @@ module OsUp
       else
         'outdated'
       end
+    end
+
+    def pool_flags(pool_migrations)
+      flags = []
+      sequence = OsUp::Migrator.upgrade_sequence(pool_migrations)
+
+      all_not_export = sequence.all? { |m| !m.export_pool }
+      flags << 'export' unless all_not_export
+
+      all_not_stop = sequence.all? { |m| !m.stop_containers }
+      flags << 'stop' unless all_not_stop
+
+      flags.any? ? flags.join(',') : '-'
     end
   end
 end

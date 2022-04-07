@@ -44,6 +44,13 @@ snapshot:
  - conf
  - log
  - hook
+
+# If the migration does not need the pool exported from osctld
+# export_pool: false
+
+# Use when the pool has to be exported from osctld, but the containers do not
+# have to be restarted
+# stop_containers: false
 ```
 
 ### up.rb, down.rb
