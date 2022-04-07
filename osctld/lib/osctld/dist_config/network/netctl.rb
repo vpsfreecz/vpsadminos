@@ -35,7 +35,7 @@ module OsCtld
       return unless writable?(profile)
 
       # Create netctl profile
-      OsCtld::ErbTemplate.render_to(
+      OsCtld::ErbTemplate.render_to_if_changed(
         File.join('dist_config/network/netctl', netif.type.to_s),
         {netif: netif},
         profile

@@ -40,7 +40,7 @@ module OsCtld
       f = network_file(netif.name)
       return unless writable?(f)
 
-      OsCtld::ErbTemplate.render_to(
+      OsCtld::ErbTemplate.render_to_if_changed(
         File.join('dist_config/network/systemd_networkd', netif.type.to_s),
         {netif: netif},
         f,

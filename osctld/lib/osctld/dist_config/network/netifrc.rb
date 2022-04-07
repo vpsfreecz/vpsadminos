@@ -41,7 +41,7 @@ module OsCtld
       return unless writable?(netifrc_conf(netif.name))
 
       # Create netifrc config
-      OsCtld::ErbTemplate.render_to(
+      OsCtld::ErbTemplate.render_to_if_changed(
         File.join('dist_config/network/netifrc', netif.type.to_s),
         {netif: netif},
         netifrc_conf(netif.name)

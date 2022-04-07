@@ -33,7 +33,7 @@ module OsCtld
 
       return unless writable?(ifcfg)
 
-      OsCtld::ErbTemplate.render_to(
+      OsCtld::ErbTemplate.render_to_if_changed(
         File.join(tpl_base, netif.type.to_s, 'ifcfg'),
         {
           netif: netif,
@@ -44,7 +44,7 @@ module OsCtld
         ifcfg
       )
 
-      OsCtld::ErbTemplate.render_to(
+      OsCtld::ErbTemplate.render_to_if_changed(
         File.join(tpl_base, netif.type.to_s, 'ifroute'),
         {netif: netif},
         File.join(

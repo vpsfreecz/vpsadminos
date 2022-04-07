@@ -55,7 +55,7 @@ module OsCtld
 
       return unless writable?(ifcfg)
 
-      OsCtld::ErbTemplate.render_to(
+      OsCtld::ErbTemplate.render_to_if_changed(
         File.join(tpl_base, netif.type.to_s, 'ifcfg'),
         {netif: netif},
         ifcfg
@@ -63,7 +63,7 @@ module OsCtld
 
       if netif.type == :routed
         netif.active_ip_versions.each do |ip_v|
-          OsCtld::ErbTemplate.render_to(
+          OsCtld::ErbTemplate.render_to_if_changed(
             File.join(tpl_base, netif.type.to_s, "route_v#{ip_v}"),
             {netif: netif},
             File.join(
@@ -104,7 +104,7 @@ module OsCtld
       file = File.join(conf_d, 'osctl.conf')
       return unless writable?(file)
 
-      OsCtld::ErbTemplate.render_to(
+      OsCtld::ErbTemplate.render_to_if_changed(
         File.join('dist_config/network/redhat_network_manager/nm_conf'),
         {netifs: netifs},
         file,
@@ -118,7 +118,7 @@ module OsCtld
       file = File.join(rules_d, '86-osctl.rules')
       return unless writable?(file)
 
-      OsCtld::ErbTemplate.render_to(
+      OsCtld::ErbTemplate.render_to_if_changed(
         File.join('dist_config/network/redhat_network_manager/udev_rules'),
         {netifs: netifs},
         file,

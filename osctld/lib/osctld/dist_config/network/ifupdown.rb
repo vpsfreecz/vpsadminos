@@ -35,7 +35,7 @@ module OsCtld
         end
       end
 
-      OsCtld::ErbTemplate.render_to(
+      OsCtld::ErbTemplate.render_to_if_changed(
         'dist_config/network/ifupdown/interfaces',
         vars,
         config

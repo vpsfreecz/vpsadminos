@@ -24,7 +24,7 @@ module OsCtld
         )
 
         if writable?(sv)
-          OsCtld::ErbTemplate.render_to(
+          OsCtld::ErbTemplate.render_to_if_changed(
             'dist_config/network/void/hostname',
             {},
             sv
