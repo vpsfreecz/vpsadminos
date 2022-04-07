@@ -394,42 +394,15 @@ class Pools
   # to have changed as well, so it is restarted by {Services}. After restart,
   # osctld will run `osup upgrade` on all imported pools.
   def export
-    (to_rollback + to_upgrade).each do |pool|
-      unless pool.flags.export_pool?
-        puts "> pool #{pool.name} is ready for upgrade"
-        next
-      end
+    to_rollback.each do |pool|
+      check_rollback = `#{File.join(Configuration::CURRENT_BIN, 'osup')} check-rollback "#{pool.name}" "#{pool.rollback_version}"`
+      rollback_flags = PoolFlags.new($?.exitstatus == 0 ? check_rollback.strip : nil)
 
-      if pool.flags.stop_containers?
-        puts "> stopping containers and exporting pool #{pool.name} to upgrade"
-      else
-        puts "> exporting pool #{pool.name} to upgrade, not stopping containers"
-      end
+      export_pool(pool, rollback_flags, 'rollback')
+    end
 
-      next if opts[:dry_run]
-
-      # TODO: do not fail if the pool is not imported
-
-      cmd = [
-        File.join(Configuration::CURRENT_BIN, 'osctl'),
-        'pool',
-        'export',
-        '-f',
-      ]
-
-      if pool.flags.stop_containers?
-        cmd << '--stop-containers'
-      else
-        cmd << '--no-stop-containers'
-      end
-
-      cmd << pool.name
-
-      ret = system(*cmd)
-
-      unless ret
-        fail "export of pool #{pool.name} failed, cannot proceed"
-      end
+    to_upgrade.each do |pool|
+      export_pool(pool, pool.flags, 'upgrade')
     end
   end
 
@@ -453,6 +426,44 @@ class Pools
           error << pool
         end
       end
+    end
+  end
+
+  def export_pool(pool, flags, action)
+    unless flags.export_pool?
+      puts "> pool #{pool.name} is ready for #{action}"
+      return
+    end
+
+    if flags.stop_containers?
+      puts "> stopping containers and exporting pool #{pool.name} to #{action}"
+    else
+      puts "> exporting pool #{pool.name} to #{action}, not stopping containers"
+    end
+
+    return if opts[:dry_run]
+
+    # TODO: do not fail if the pool is not imported
+
+    cmd = [
+      File.join(Configuration::CURRENT_BIN, 'osctl'),
+      'pool',
+      'export',
+      '-f',
+    ]
+
+    if flags.stop_containers?
+      cmd << '--stop-containers'
+    else
+      cmd << '--no-stop-containers'
+    end
+
+    cmd << pool.name
+
+    ret = system(*cmd)
+
+    unless ret
+      fail "export of pool #{pool.name} failed, cannot proceed"
     end
   end
 
