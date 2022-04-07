@@ -301,8 +301,57 @@ class Services
   end
 end
 
+class PoolFlags
+  KNOWN_FLAGS = %w(export stop)
+
+  def initialize(string_flags)
+    @flags = {}
+
+    KNOWN_FLAGS.each do |flag|
+      @flags[flag] = false
+    end
+
+    if string_flags.nil?
+      set_default_flags
+      return
+    end
+
+    string_flags.split(',').each do |flag|
+      next if flag == '-'
+
+      unless KNOWN_FLAGS.include?(flag)
+        warn "unknown pool flag '#{flag}', using safe defaults"
+        set_default_flags
+        break
+      end
+
+      @flags[flag] = true
+    end
+  end
+
+  KNOWN_FLAGS.each do |flag|
+    define_method(:"flag_#{flag}?") { @flags[flag] }
+  end
+
+  def export_pool?
+    @flags['export']
+  end
+
+  def stop_containers?
+    @flags['stop']
+  end
+
+  protected
+  def set_default_flags
+    @flags.update({
+      'export' => true,
+      'stop' => true,
+    })
+  end
+end
+
 class Pools
-  Pool = Struct.new(:name, :state, :rollback_version)
+  Pool = Struct.new(:name, :state, :rollback_version, :flags)
 
   attr_reader :uptodate, :to_upgrade, :to_rollback, :error
 
@@ -340,20 +389,43 @@ class Pools
 
   # Export pools from osctld before upgrade
   #
-  # This will stop all containers from outdated pools. We're counting on the
-  # fact that if there are new migrations, then osctld has to have changed
-  # as well, so it is restarted by {Services}. After restart, osctld will run
-  # `osup upgrade` on all imported pools.
+  # Depending on `osup check`, this will stop all containers from outdated pools.
+  # We're counting on the fact that if there are new migrations, then osctld has
+  # to have changed as well, so it is restarted by {Services}. After restart,
+  # osctld will run `osup upgrade` on all imported pools.
   def export
     (to_rollback + to_upgrade).each do |pool|
-      puts "> exporting pool #{pool.name} to upgrade"
+      unless pool.flags.export_pool?
+        puts "> pool #{pool.name} is ready for upgrade"
+        next
+      end
+
+      if pool.flags.stop_containers?
+        puts "> stopping containers and exporting pool #{pool.name} to upgrade"
+      else
+        puts "> exporting pool #{pool.name} to upgrade, not stopping containers"
+      end
+
       next if opts[:dry_run]
 
       # TODO: do not fail if the pool is not imported
-      ret = system(
+
+      cmd = [
         File.join(Configuration::CURRENT_BIN, 'osctl'),
-        'pool', 'export', '-f', pool.name
-      )
+        'pool',
+        'export',
+        '-f',
+      ]
+
+      if pool.flags.stop_containers?
+        cmd << '--stop-containers'
+      else
+        cmd << '--no-stop-containers'
+      end
+
+      cmd << pool.name
+
+      ret = system(*cmd)
 
       unless ret
         fail "export of pool #{pool.name} failed, cannot proceed"
@@ -389,8 +461,8 @@ class Pools
 
     IO.popen("#{File.join(swbin, 'osup')} check") do |io|
       io.each_line do |line|
-        name, state, version = line.strip.split
-        ret[name] = Pool.new(name, state.to_sym, version)
+        name, state, version, flags = line.strip.split
+        ret[name] = Pool.new(name, state.to_sym, version, PoolFlags.new(flags))
       end
     end
 
