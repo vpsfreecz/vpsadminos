@@ -6,7 +6,7 @@ module OsUp
   # @param opts [Hash]
   # @option opts [Integer] :to version to upgrade to
   # @option opts [Boolean] :dry_run
-  def self.upgrade(pool, opts = {})
+  def self.upgrade(pool, **opts)
     pool_migrations = PoolMigrations.new(pool)
 
     if !pool_migrations.upgradable?
@@ -28,7 +28,7 @@ module OsUp
   # @param opts [Hash]
   # @option opts [Integer] :to version to rollback to
   # @option opts [Boolean] :dry_run
-  def self.rollback(pool, opts = {})
+  def self.rollback(pool, **opts)
     pool_migrations = PoolMigrations.new(pool)
 
     Migrator.rollback(

@@ -4,7 +4,7 @@ module OsUp
     # @param opts [Hash]
     # @option opts [Integer] :to target migration id
     # @option opts [Boolean] :dry_run
-    def self.upgrade(pool_migrations, opts = {})
+    def self.upgrade(pool_migrations, **opts)
       available = pool_migrations.all
 
       # Find the last applied migration
@@ -59,7 +59,7 @@ module OsUp
     # @param opts [Hash]
     # @option opts [Integer] :to target migration id
     # @option opts [Boolean] :dry_run
-    def self.rollback(pool_migrations, opts = {})
+    def self.rollback(pool_migrations, **opts)
       available = pool_migrations.all
 
       # Find the last applied migration
