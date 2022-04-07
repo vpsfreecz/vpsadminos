@@ -37,6 +37,7 @@ nav:
     - Runlevels: 'os/runlevels.md'
     - 'Kernel parameters': 'os/kernel-parameters.md'
     - Pools: 'os/pools.md'
+    - 'Control groups': 'os/cgroups.md'
     - Shell history: 'os/shell-history.md'
     - Testing: 'os/testing.md'
 - Services:
