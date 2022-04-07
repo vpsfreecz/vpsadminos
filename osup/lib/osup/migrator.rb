@@ -102,11 +102,11 @@ module OsUp
         end
 
         if j.nil?
-          fail "unable to rollback pool #{pool_migration.pool}: "+
+          fail "unable to rollback pool #{pool_migrations.pool}: "+
                "migration #{opts[:to]} not found or reacheable"
 
         elsif j == 0
-          fail "unable to rollback pool #{pool_migration.pool}: "+
+          fail "unable to rollback pool #{pool_migrations.pool}: "+
                "would rollback migration #{id}, but it is set as the target"
         end
 
