@@ -57,6 +57,11 @@ version of `osctld` is compatible with the data pools.
   a newer OS to `version` using `osup rollback` *pool* *version*, then downgrade
   the OS.
 
+`check-rollback` *pool* *version*
+  Print pool flags relevant for rollback of *pool* to *version*. See command
+  `check` for a list of pool flags. If the rollback cannot be done, `osup`
+  will exit with an error.
+
 `init` [`-f`] *pool*
   This command is run by `osctld` after it has installed *pool*. `osup` will
   set the pool's version by marking all supported migrations as applied.

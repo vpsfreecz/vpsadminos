@@ -46,6 +46,12 @@ module OsUp::Cli
         c.action &Command.run(Main, :check)
       end
 
+      desc 'Check flags for rollback to a specific version'
+      arg_name '<pool> <version>'
+      command 'check-rollback' do |c|
+        c.action &Command.run(Main, :check_rollback)
+      end
+
       desc 'Initialize osup on selected pool'
       arg_name '<pool>'
       command :init do |c|

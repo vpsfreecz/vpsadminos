@@ -27,6 +27,11 @@ module OsUp
       end
     end
 
+    def check_rollback
+      require_args!('pool', 'version')
+      puts pool_flags_rollback(PoolMigrations.new(args[0]), args[1].to_i)
+    end
+
     def init
       require_args!('pool')
 
@@ -154,7 +159,7 @@ module OsUp
         pool,
         state,
         MigrationList.get.last.id,
-        state == 'outdated' ? pool_flags(pool_migrations) : '-',
+        state == 'outdated' ? pool_flags_upgrade(pool_migrations) : '-',
       )
     end
 
@@ -184,9 +189,16 @@ module OsUp
       end
     end
 
-    def pool_flags(pool_migrations)
+    def pool_flags_upgrade(pool_migrations)
+      pool_flags(OsUp::Migrator.upgrade_sequence(pool_migrations))
+    end
+
+    def pool_flags_rollback(pool_migrations, version)
+      pool_flags(OsUp::Migrator.rollback_sequence(pool_migrations, to: version))
+    end
+
+    def pool_flags(sequence)
       flags = []
-      sequence = OsUp::Migrator.upgrade_sequence(pool_migrations)
 
       all_not_export = sequence.all? { |m| !m.export_pool }
       flags << 'export' unless all_not_export
