@@ -484,6 +484,6 @@ when 'test'
 when 'dry-activate'
   Configuration.dry_run
 else
-  warn "Usage: #{$0} switch|dry-activate"
+  warn "Usage: #{$0} switch|boot|test|dry-activate"
   exit(false)
 end
