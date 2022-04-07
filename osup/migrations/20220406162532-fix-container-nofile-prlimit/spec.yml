@@ -1,0 +1,10 @@
+description: |
+  Remove faulty nofile prlimit entry from container configs. A bug in osctld
+  caused the default nofile prlimit entry to have its key stored as Symbol
+  instead of String. If there already is a string nofile prlimit, we remove
+  the symbol prlimit. Otherwise we convert the key to string.
+
+snapshot:
+ - conf
+
+stop_containers: false
