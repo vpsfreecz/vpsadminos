@@ -102,6 +102,7 @@ module OsCtl::Cli
         force: opts[:force],
         stop_containers: opts['stop-containers'],
         unregister_users: opts['unregister-users'],
+        if_imported: opts['if-imported'],
       )
     end
 

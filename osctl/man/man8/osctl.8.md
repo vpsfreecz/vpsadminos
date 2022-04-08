@@ -348,6 +348,9 @@ The following shortcuts are supported:
       Unregister users from pool *pool* from the system, i.e. remove entries
       from `/etc/passwd` and `/etc/group`. Enabled by default.
 
+    `--if-imported`
+      Export the pool if it is imported, exit successfully if it is not imported.
+
 `pool ls` [*names...*]
   List imported pools. If no *names* are provided, all pools are listed.
     

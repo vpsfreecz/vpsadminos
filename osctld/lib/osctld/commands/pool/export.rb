@@ -10,7 +10,15 @@ module OsCtld
 
     def execute
       pool = DB::Pools.find(opts[:name])
-      error!('pool not imported') unless pool
+
+      unless pool
+        if opts[:if_imported]
+          progress('pool not imported')
+          return ok
+        else
+          error!('pool not imported')
+        end
+      end
 
       # Check for running containers
       if !opts[:force] && DB::Containers.get.detect { |ct| ct.pool == pool && ct.running? }

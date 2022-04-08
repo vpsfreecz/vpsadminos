@@ -100,6 +100,9 @@ module OsCtl::Cli
           c.desc 'Unregister system users that come from the exported pool'
           c.switch %i(u unregister-users), default_value: true
 
+          c.desc 'Do not fail if the pool is not imported'
+          c.switch %i(if-imported)
+
           c.action &Command.run(Pool, :export)
         end
 
