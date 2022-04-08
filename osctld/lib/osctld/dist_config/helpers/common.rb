@@ -21,7 +21,7 @@ module OsCtld
     def systemd_service_masked?(service)
       begin
         dst = File.readlink(File.join(rootfs, 'etc/systemd/system', service))
-      rescue Errno::ENOENT
+      rescue Errno::ENOENT, Errno::EINVAL
         return false
       else
         return dst == '/dev/null'
