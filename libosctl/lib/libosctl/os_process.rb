@@ -73,21 +73,25 @@ module OsCtl::Lib
     attr_reader :start_time
 
     # @param pid [Integer]
-    def initialize(pid)
+    # @param opts [Hash]
+    # @option opts [Boolean] parse_stat (true)
+    # @option opts [Boolean] parse_status (true)
+    def initialize(pid, **opts)
       @path = File.join('/proc', pid.to_s)
       @pid = pid
       @cache = {}
       @id_maps = {}
+      @opts = opts
 
       volatile do
-        parse_stat
-        parse_status
+        parse_stat if opts.fetch(:parse_stat, true)
+        parse_status if opts.fetch(:parse_status, true)
       end
     end
 
     # @return [OsProcess]
     def parent
-      self.class.new(ppid)
+      self.class.new(ppid, **opts)
     end
 
     # @return [OsProcess]
@@ -161,7 +165,7 @@ module OsCtl::Lib
     end
 
     protected
-    attr_reader :path
+    attr_reader :path, :opts
 
     def parse_stat
       File.open(File.join(path, 'stat'), 'r') do |f|
