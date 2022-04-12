@@ -47,6 +47,11 @@ module OsCtl::Exporter
         docstring: 'Number of processes inside the container',
         labels: [:pool, :id],
       )
+      @proc_state = registry.gauge(
+        :osctl_container_processes_state,
+        docstring: "Number of processes belonging to a container by their state",
+        labels: [:pool, :id, :state],
+      )
       @loadavg = Hash[[1, 5, 15].map do |i|
         [
           i,
@@ -166,6 +171,8 @@ module OsCtl::Exporter
       netif_stats = OsCtl::Lib::NetifStats.new
       netif_stats.cache_stats_for_interfaces(netifs.map { |v| v[:veth] })
 
+      pool_ct_procs = parse_processes
+
       cts.each do |ct|
         STATES.each do |s|
           states[s].set(
@@ -189,6 +196,10 @@ module OsCtl::Exporter
           ct[:nproc].nil? ? 0 : ct[:nproc],
           labels: {pool: ct[:pool], id: ct[:id]},
         )
+
+        pool_ct_procs.fetch(ct[:pool], {}).fetch(ct[:id], {}).each do |state, cnt|
+          proc_state.set(cnt, labels: {pool: ct[:pool], id: ct[:id], state: state})
+        end
 
         lavg = lavgs[ "#{ct[:pool]}:#{ct[:id]}" ]
 
@@ -285,8 +296,8 @@ module OsCtl::Exporter
 
     protected
     attr_reader :states, :memory_total_bytes, :memory_used_bytes, :cpu_us_total,
-      :proc_pids, :loadavg, :dataset_used, :dataset_referenced, :dataset_avail,
-      :dataset_quota, :dataset_refquota, :dataset_bytes_written,
+      :proc_pids, :proc_state, :loadavg, :dataset_used, :dataset_referenced,
+      :dataset_avail, :dataset_quota, :dataset_refquota, :dataset_bytes_written,
       :dataset_bytes_read, :dataset_ios_written, :dataset_ios_read,
       :netif_rx_bytes, :netif_tx_bytes, :netif_rx_packets, :netif_tx_packets,
       :keyring_qnkeys, :keyring_qnbytes
@@ -333,6 +344,31 @@ module OsCtl::Exporter
       end
 
       ret
+    end
+
+    def parse_processes
+      pool_ct_procs = {}
+
+      OsCtl::Lib::ProcessList.each(parse_status: false) do |p|
+        pool, ct = p.ct_id
+        next if ct.nil?
+
+        pool_ct_procs[pool] ||= {ct => {}}
+        pool_ct_procs[pool][ct] ||= {
+          'R' => 0,
+          'S' => 0,
+          'D' => 0,
+          'Z' => 0,
+          'T' => 0,
+          't' => 0,
+          'X' => 0,
+        }
+
+        pool_ct = pool_ct_procs[pool][ct]
+        pool_ct[p.state] += 1 if pool_ct.has_key?(p.state)
+      end
+
+      pool_ct_procs
     end
   end
 end
