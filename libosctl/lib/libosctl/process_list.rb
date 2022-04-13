@@ -4,7 +4,7 @@ module OsCtl::Lib
     # @param opts [Hash] options passed to {OsProcess}
     # @yieldparam [OsProcess] process
     def self.each(**opts, &block)
-      new do |p|
+      new(**opts) do |p|
         block.call(p)
         next(false)
       end
