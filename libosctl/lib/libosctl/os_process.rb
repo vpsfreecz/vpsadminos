@@ -238,7 +238,7 @@ module OsCtl::Lib
 
     def volatile
       yield
-    rescue Errno::ENOENT
+    rescue Errno::ENOENT, Errno::ESRCH
       raise Exceptions::OsProcessNotFound, pid
     end
 
