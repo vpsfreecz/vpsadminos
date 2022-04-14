@@ -82,6 +82,26 @@ index 8c550999ace0..c2392eb23eb7 100644
  		if (ret < 0) {
  			pr_err("%s: failed to update PI IRTE\n", __func__);
  			goto out;
+diff --git a/arch/x86/kvm/svm/pmu.c b/arch/x86/kvm/svm/pmu.c
+index 5a5c165a30ed..1fb1a591e849 100644
+--- a/arch/x86/kvm/svm/pmu.c
++++ b/arch/x86/kvm/svm/pmu.c
+@@ -253,12 +253,10 @@ static int amd_pmu_set_msr(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
+ 	/* MSR_EVNTSELn */
+ 	pmc = get_gp_pmc_amd(pmu, msr, PMU_TYPE_EVNTSEL);
+ 	if (pmc) {
+-		if (data == pmc->eventsel)
+-			return 0;
+-		if (!(data & pmu->reserved_bits)) {
++		data &= ~pmu->reserved_bits;
++		if (data != pmc->eventsel)
+ 			reprogram_gp_counter(pmc, data);
+-			return 0;
+-		}
++		return 0;
+ 	}
+ 
+ 	return 1;
 diff --git a/block/bfq-iosched.c b/block/bfq-iosched.c
 index b8c2ddc01aec..138541996dd5 100644
 --- a/block/bfq-iosched.c
@@ -268,6 +288,305 @@ index 4167e2aef397..1dbaaddf540e 100644
  }
  
  bool dev_pm_skip_suspend(struct device *dev)
+diff --git a/drivers/block/drbd/drbd_int.h b/drivers/block/drbd/drbd_int.h
+index 8f879e5c2f67..60b9ca53c0a3 100644
+--- a/drivers/block/drbd/drbd_int.h
++++ b/drivers/block/drbd/drbd_int.h
+@@ -1644,22 +1644,22 @@ struct sib_info {
+ };
+ void drbd_bcast_event(struct drbd_device *device, const struct sib_info *sib);
+ 
+-extern void notify_resource_state(struct sk_buff *,
++extern int notify_resource_state(struct sk_buff *,
+ 				  unsigned int,
+ 				  struct drbd_resource *,
+ 				  struct resource_info *,
+ 				  enum drbd_notification_type);
+-extern void notify_device_state(struct sk_buff *,
++extern int notify_device_state(struct sk_buff *,
+ 				unsigned int,
+ 				struct drbd_device *,
+ 				struct device_info *,
+ 				enum drbd_notification_type);
+-extern void notify_connection_state(struct sk_buff *,
++extern int notify_connection_state(struct sk_buff *,
+ 				    unsigned int,
+ 				    struct drbd_connection *,
+ 				    struct connection_info *,
+ 				    enum drbd_notification_type);
+-extern void notify_peer_device_state(struct sk_buff *,
++extern int notify_peer_device_state(struct sk_buff *,
+ 				     unsigned int,
+ 				     struct drbd_peer_device *,
+ 				     struct peer_device_info *,
+diff --git a/drivers/block/drbd/drbd_nl.c b/drivers/block/drbd/drbd_nl.c
+index bf7de4c7b96c..f8d0146bf785 100644
+--- a/drivers/block/drbd/drbd_nl.c
++++ b/drivers/block/drbd/drbd_nl.c
+@@ -4614,7 +4614,7 @@ static int nla_put_notification_header(struct sk_buff *msg,
+ 	return drbd_notification_header_to_skb(msg, &nh, true);
+ }
+ 
+-void notify_resource_state(struct sk_buff *skb,
++int notify_resource_state(struct sk_buff *skb,
+ 			   unsigned int seq,
+ 			   struct drbd_resource *resource,
+ 			   struct resource_info *resource_info,
+@@ -4656,16 +4656,17 @@ void notify_resource_state(struct sk_buff *skb,
+ 		if (err && err != -ESRCH)
+ 			goto failed;
+ 	}
+-	return;
++	return 0;
+ 
+ nla_put_failure:
+ 	nlmsg_free(skb);
+ failed:
+ 	drbd_err(resource, "Error %d while broadcasting event. Event seq:%u\n",
+ 			err, seq);
++	return err;
+ }
+ 
+-void notify_device_state(struct sk_buff *skb,
++int notify_device_state(struct sk_buff *skb,
+ 			 unsigned int seq,
+ 			 struct drbd_device *device,
+ 			 struct device_info *device_info,
+@@ -4705,16 +4706,17 @@ void notify_device_state(struct sk_buff *skb,
+ 		if (err && err != -ESRCH)
+ 			goto failed;
+ 	}
+-	return;
++	return 0;
+ 
+ nla_put_failure:
+ 	nlmsg_free(skb);
+ failed:
+ 	drbd_err(device, "Error %d while broadcasting event. Event seq:%u\n",
+ 		 err, seq);
++	return err;
+ }
+ 
+-void notify_connection_state(struct sk_buff *skb,
++int notify_connection_state(struct sk_buff *skb,
+ 			     unsigned int seq,
+ 			     struct drbd_connection *connection,
+ 			     struct connection_info *connection_info,
+@@ -4754,16 +4756,17 @@ void notify_connection_state(struct sk_buff *skb,
+ 		if (err && err != -ESRCH)
+ 			goto failed;
+ 	}
+-	return;
++	return 0;
+ 
+ nla_put_failure:
+ 	nlmsg_free(skb);
+ failed:
+ 	drbd_err(connection, "Error %d while broadcasting event. Event seq:%u\n",
+ 		 err, seq);
++	return err;
+ }
+ 
+-void notify_peer_device_state(struct sk_buff *skb,
++int notify_peer_device_state(struct sk_buff *skb,
+ 			      unsigned int seq,
+ 			      struct drbd_peer_device *peer_device,
+ 			      struct peer_device_info *peer_device_info,
+@@ -4804,13 +4807,14 @@ void notify_peer_device_state(struct sk_buff *skb,
+ 		if (err && err != -ESRCH)
+ 			goto failed;
+ 	}
+-	return;
++	return 0;
+ 
+ nla_put_failure:
+ 	nlmsg_free(skb);
+ failed:
+ 	drbd_err(peer_device, "Error %d while broadcasting event. Event seq:%u\n",
+ 		 err, seq);
++	return err;
+ }
+ 
+ void notify_helper(enum drbd_notification_type type,
+@@ -4861,7 +4865,7 @@ void notify_helper(enum drbd_notification_type type,
+ 		 err, seq);
+ }
+ 
+-static void notify_initial_state_done(struct sk_buff *skb, unsigned int seq)
++static int notify_initial_state_done(struct sk_buff *skb, unsigned int seq)
+ {
+ 	struct drbd_genlmsghdr *dh;
+ 	int err;
+@@ -4875,11 +4879,12 @@ static void notify_initial_state_done(struct sk_buff *skb, unsigned int seq)
+ 	if (nla_put_notification_header(skb, NOTIFY_EXISTS))
+ 		goto nla_put_failure;
+ 	genlmsg_end(skb, dh);
+-	return;
++	return 0;
+ 
+ nla_put_failure:
+ 	nlmsg_free(skb);
+ 	pr_err("Error %d sending event. Event seq:%u\n", err, seq);
++	return err;
+ }
+ 
+ static void free_state_changes(struct list_head *list)
+@@ -4906,6 +4911,7 @@ static int get_initial_state(struct sk_buff *skb, struct netlink_callback *cb)
+ 	unsigned int seq = cb->args[2];
+ 	unsigned int n;
+ 	enum drbd_notification_type flags = 0;
++	int err = 0;
+ 
+ 	/* There is no need for taking notification_mutex here: it doesn't
+ 	   matter if the initial state events mix with later state chage
+@@ -4914,32 +4920,32 @@ static int get_initial_state(struct sk_buff *skb, struct netlink_callback *cb)
+ 
+ 	cb->args[5]--;
+ 	if (cb->args[5] == 1) {
+-		notify_initial_state_done(skb, seq);
++		err = notify_initial_state_done(skb, seq);
+ 		goto out;
+ 	}
+ 	n = cb->args[4]++;
+ 	if (cb->args[4] < cb->args[3])
+ 		flags |= NOTIFY_CONTINUES;
+ 	if (n < 1) {
+-		notify_resource_state_change(skb, seq, state_change->resource,
++		err = notify_resource_state_change(skb, seq, state_change->resource,
+ 					     NOTIFY_EXISTS | flags);
+ 		goto next;
+ 	}
+ 	n--;
+ 	if (n < state_change->n_connections) {
+-		notify_connection_state_change(skb, seq, &state_change->connections[n],
++		err = notify_connection_state_change(skb, seq, &state_change->connections[n],
+ 					       NOTIFY_EXISTS | flags);
+ 		goto next;
+ 	}
+ 	n -= state_change->n_connections;
+ 	if (n < state_change->n_devices) {
+-		notify_device_state_change(skb, seq, &state_change->devices[n],
++		err = notify_device_state_change(skb, seq, &state_change->devices[n],
+ 					   NOTIFY_EXISTS | flags);
+ 		goto next;
+ 	}
+ 	n -= state_change->n_devices;
+ 	if (n < state_change->n_devices * state_change->n_connections) {
+-		notify_peer_device_state_change(skb, seq, &state_change->peer_devices[n],
++		err = notify_peer_device_state_change(skb, seq, &state_change->peer_devices[n],
+ 						NOTIFY_EXISTS | flags);
+ 		goto next;
+ 	}
+@@ -4954,7 +4960,10 @@ static int get_initial_state(struct sk_buff *skb, struct netlink_callback *cb)
+ 		cb->args[4] = 0;
+ 	}
+ out:
+-	return skb->len;
++	if (err)
++		return err;
++	else
++		return skb->len;
+ }
+ 
+ int drbd_adm_get_initial_state(struct sk_buff *skb, struct netlink_callback *cb)
+diff --git a/drivers/block/drbd/drbd_state.c b/drivers/block/drbd/drbd_state.c
+index 0067d328f0b5..5fbaea6b77b1 100644
+--- a/drivers/block/drbd/drbd_state.c
++++ b/drivers/block/drbd/drbd_state.c
+@@ -1537,7 +1537,7 @@ int drbd_bitmap_io_from_worker(struct drbd_device *device,
+ 	return rv;
+ }
+ 
+-void notify_resource_state_change(struct sk_buff *skb,
++int notify_resource_state_change(struct sk_buff *skb,
+ 				  unsigned int seq,
+ 				  struct drbd_resource_state_change *resource_state_change,
+ 				  enum drbd_notification_type type)
+@@ -1550,10 +1550,10 @@ void notify_resource_state_change(struct sk_buff *skb,
+ 		.res_susp_fen = resource_state_change->susp_fen[NEW],
+ 	};
+ 
+-	notify_resource_state(skb, seq, resource, &resource_info, type);
++	return notify_resource_state(skb, seq, resource, &resource_info, type);
+ }
+ 
+-void notify_connection_state_change(struct sk_buff *skb,
++int notify_connection_state_change(struct sk_buff *skb,
+ 				    unsigned int seq,
+ 				    struct drbd_connection_state_change *connection_state_change,
+ 				    enum drbd_notification_type type)
+@@ -1564,10 +1564,10 @@ void notify_connection_state_change(struct sk_buff *skb,
+ 		.conn_role = connection_state_change->peer_role[NEW],
+ 	};
+ 
+-	notify_connection_state(skb, seq, connection, &connection_info, type);
++	return notify_connection_state(skb, seq, connection, &connection_info, type);
+ }
+ 
+-void notify_device_state_change(struct sk_buff *skb,
++int notify_device_state_change(struct sk_buff *skb,
+ 				unsigned int seq,
+ 				struct drbd_device_state_change *device_state_change,
+ 				enum drbd_notification_type type)
+@@ -1577,10 +1577,10 @@ void notify_device_state_change(struct sk_buff *skb,
+ 		.dev_disk_state = device_state_change->disk_state[NEW],
+ 	};
+ 
+-	notify_device_state(skb, seq, device, &device_info, type);
++	return notify_device_state(skb, seq, device, &device_info, type);
+ }
+ 
+-void notify_peer_device_state_change(struct sk_buff *skb,
++int notify_peer_device_state_change(struct sk_buff *skb,
+ 				     unsigned int seq,
+ 				     struct drbd_peer_device_state_change *p,
+ 				     enum drbd_notification_type type)
+@@ -1594,7 +1594,7 @@ void notify_peer_device_state_change(struct sk_buff *skb,
+ 		.peer_resync_susp_dependency = p->resync_susp_dependency[NEW],
+ 	};
+ 
+-	notify_peer_device_state(skb, seq, peer_device, &peer_device_info, type);
++	return notify_peer_device_state(skb, seq, peer_device, &peer_device_info, type);
+ }
+ 
+ static void broadcast_state_change(struct drbd_state_change *state_change)
+@@ -1602,7 +1602,7 @@ static void broadcast_state_change(struct drbd_state_change *state_change)
+ 	struct drbd_resource_state_change *resource_state_change = &state_change->resource[0];
+ 	bool resource_state_has_changed;
+ 	unsigned int n_device, n_connection, n_peer_device, n_peer_devices;
+-	void (*last_func)(struct sk_buff *, unsigned int, void *,
++	int (*last_func)(struct sk_buff *, unsigned int, void *,
+ 			  enum drbd_notification_type) = NULL;
+ 	void *last_arg = NULL;
+ 
+diff --git a/drivers/block/drbd/drbd_state_change.h b/drivers/block/drbd/drbd_state_change.h
+index ba80f612d6ab..d5b0479bc9a6 100644
+--- a/drivers/block/drbd/drbd_state_change.h
++++ b/drivers/block/drbd/drbd_state_change.h
+@@ -44,19 +44,19 @@ extern struct drbd_state_change *remember_old_state(struct drbd_resource *, gfp_
+ extern void copy_old_to_new_state_change(struct drbd_state_change *);
+ extern void forget_state_change(struct drbd_state_change *);
+ 
+-extern void notify_resource_state_change(struct sk_buff *,
++extern int notify_resource_state_change(struct sk_buff *,
+ 					 unsigned int,
+ 					 struct drbd_resource_state_change *,
+ 					 enum drbd_notification_type type);
+-extern void notify_connection_state_change(struct sk_buff *,
++extern int notify_connection_state_change(struct sk_buff *,
+ 					   unsigned int,
+ 					   struct drbd_connection_state_change *,
+ 					   enum drbd_notification_type type);
+-extern void notify_device_state_change(struct sk_buff *,
++extern int notify_device_state_change(struct sk_buff *,
+ 				       unsigned int,
+ 				       struct drbd_device_state_change *,
+ 				       enum drbd_notification_type type);
+-extern void notify_peer_device_state_change(struct sk_buff *,
++extern int notify_peer_device_state_change(struct sk_buff *,
+ 					    unsigned int,
+ 					    struct drbd_peer_device_state_change *,
+ 					    enum drbd_notification_type type);
 diff --git a/drivers/block/loop.c b/drivers/block/loop.c
 index ee537a9f1d1a..e4517d483bdc 100644
 --- a/drivers/block/loop.c
@@ -443,6 +762,48 @@ index 5dc63c20b67e..fc747b7f4983 100644
  }
  
  static void qcom_pdc_gic_disable(struct irq_data *d)
+diff --git a/drivers/md/dm-rq.c b/drivers/md/dm-rq.c
+index b1e867feb4f6..4833f4b20b2c 100644
+--- a/drivers/md/dm-rq.c
++++ b/drivers/md/dm-rq.c
+@@ -492,8 +492,13 @@ static blk_status_t dm_mq_queue_rq(struct blk_mq_hw_ctx *hctx,
+ 
+ 	if (unlikely(!ti)) {
+ 		int srcu_idx;
+-		struct dm_table *map = dm_get_live_table(md, &srcu_idx);
++		struct dm_table *map;
+ 
++		map = dm_get_live_table(md, &srcu_idx);
++		if (unlikely(!map)) {
++			dm_put_live_table(md, srcu_idx);
++			return BLK_STS_RESOURCE;
++		}
+ 		ti = dm_table_find_target(map, 0);
+ 		dm_put_live_table(md, srcu_idx);
+ 	}
+diff --git a/drivers/md/dm.c b/drivers/md/dm.c
+index 6030cba5b038..2836d44094ab 100644
+--- a/drivers/md/dm.c
++++ b/drivers/md/dm.c
+@@ -1692,15 +1692,10 @@ static blk_qc_t dm_submit_bio(struct bio *bio)
+ 	struct dm_table *map;
+ 
+ 	map = dm_get_live_table(md, &srcu_idx);
+-	if (unlikely(!map)) {
+-		DMERR_LIMIT("%s: mapping table unavailable, erroring io",
+-			    dm_device_name(md));
+-		bio_io_error(bio);
+-		goto out;
+-	}
+ 
+-	/* If suspended, queue this IO for later */
+-	if (unlikely(test_bit(DMF_BLOCK_IO_FOR_SUSPEND, &md->flags))) {
++	/* If suspended, or map not yet available, queue this IO for later */
++	if (unlikely(test_bit(DMF_BLOCK_IO_FOR_SUSPEND, &md->flags)) ||
++	    unlikely(!map)) {
+ 		if (bio->bi_opf & REQ_NOWAIT)
+ 			bio_wouldblock_error(bio);
+ 		else if (bio->bi_opf & REQ_RAHEAD)
 diff --git a/drivers/misc/fastrpc.c b/drivers/misc/fastrpc.c
 index ef49ac8d9101..d0471fec37fb 100644
 --- a/drivers/misc/fastrpc.c
@@ -559,6 +920,34 @@ index 99770b167192..cbeb69bca0bb 100644
  
  	unblock_netpoll_tx();
  	synchronize_rcu();
+diff --git a/drivers/net/tap.c b/drivers/net/tap.c
+index f549d3a8e59c..8f7bb15206e9 100644
+--- a/drivers/net/tap.c
++++ b/drivers/net/tap.c
+@@ -1202,7 +1202,8 @@ static int tap_sendmsg(struct socket *sock, struct msghdr *m,
+ 	struct xdp_buff *xdp;
+ 	int i;
+ 
+-	if (ctl && (ctl->type == TUN_MSG_PTR)) {
++	if (m->msg_controllen == sizeof(struct tun_msg_ctl) &&
++	    ctl && ctl->type == TUN_MSG_PTR) {
+ 		for (i = 0; i < ctl->num; i++) {
+ 			xdp = &((struct xdp_buff *)ctl->ptr)[i];
+ 			tap_get_user_xdp(q, xdp);
+diff --git a/drivers/net/tun.c b/drivers/net/tun.c
+index ffbc7eda95ee..55ce141c93c7 100644
+--- a/drivers/net/tun.c
++++ b/drivers/net/tun.c
+@@ -2499,7 +2499,8 @@ static int tun_sendmsg(struct socket *sock, struct msghdr *m, size_t total_len)
+ 	if (!tun)
+ 		return -EBADFD;
+ 
+-	if (ctl && (ctl->type == TUN_MSG_PTR)) {
++	if (m->msg_controllen == sizeof(struct tun_msg_ctl) &&
++	    ctl && ctl->type == TUN_MSG_PTR) {
+ 		struct tun_page tpage;
+ 		int n = ctl->num;
+ 		int flush = 0;
 diff --git a/drivers/net/veth.c b/drivers/net/veth.c
 index aef66f8eecee..f7e3eb309a26 100644
 --- a/drivers/net/veth.c
@@ -732,6 +1121,28 @@ index 30708af975ad..af4c4cc837fc 100644
  			return 1;
  		}
  		msleep(10);
+diff --git a/drivers/ptp/ptp_sysfs.c b/drivers/ptp/ptp_sysfs.c
+index be076a91e20e..8cd59e848163 100644
+--- a/drivers/ptp/ptp_sysfs.c
++++ b/drivers/ptp/ptp_sysfs.c
+@@ -13,7 +13,7 @@ static ssize_t clock_name_show(struct device *dev,
+ 			       struct device_attribute *attr, char *page)
+ {
+ 	struct ptp_clock *ptp = dev_get_drvdata(dev);
+-	return snprintf(page, PAGE_SIZE-1, "%s\n", ptp->info->name);
++	return sysfs_emit(page, "%s\n", ptp->info->name);
+ }
+ static DEVICE_ATTR_RO(clock_name);
+ 
+@@ -227,7 +227,7 @@ static ssize_t ptp_pin_show(struct device *dev, struct device_attribute *attr,
+ 
+ 	mutex_unlock(&ptp->pincfg_mux);
+ 
+-	return snprintf(page, PAGE_SIZE, "%u %u\n", func, chan);
++	return sysfs_emit(page, "%u %u\n", func, chan);
+ }
+ 
+ static ssize_t ptp_pin_store(struct device *dev, struct device_attribute *attr,
 diff --git a/drivers/remoteproc/remoteproc_debugfs.c b/drivers/remoteproc/remoteproc_debugfs.c
 index 7e5845376e9f..e8bb0ee6b35a 100644
 --- a/drivers/remoteproc/remoteproc_debugfs.c
@@ -859,6 +1270,18 @@ index 90e4fcd3dc39..a9c6ea8986af 100644
  		console_lock();
  		ret = vc_allocate(arg);
  		console_unlock();
+diff --git a/drivers/vhost/net.c b/drivers/vhost/net.c
+index da02c3e96e7b..e303f6f073d2 100644
+--- a/drivers/vhost/net.c
++++ b/drivers/vhost/net.c
+@@ -472,6 +472,7 @@ static void vhost_tx_batch(struct vhost_net *net,
+ 		goto signal_used;
+ 
+ 	msghdr->msg_control = &ctl;
++	msghdr->msg_controllen = sizeof(ctl);
+ 	err = sock->ops->sendmsg(sock, msghdr, 0);
+ 	if (unlikely(err < 0)) {
+ 		vq_err(&nvq->vq, "Fail to batch sending packets\n");
 diff --git a/fs/binfmt_elf.c b/fs/binfmt_elf.c
 index 04c4aa7a1df2..ab41b6b147ae 100644
 --- a/fs/binfmt_elf.c
@@ -1156,6 +1579,36 @@ index be4062b8ba75..5764295a3f0f 100644
  	kfree(phdr4note);
  	kfree(elf);
  	kfree(psinfo);
+diff --git a/fs/ceph/dir.c b/fs/ceph/dir.c
+index f63c1a090139..1fddb9cd3e88 100644
+--- a/fs/ceph/dir.c
++++ b/fs/ceph/dir.c
+@@ -478,8 +478,11 @@ static int ceph_readdir(struct file *file, struct dir_context *ctx)
+ 					2 : (fpos_off(rde->offset) + 1);
+ 			err = note_last_dentry(dfi, rde->name, rde->name_len,
+ 					       next_offset);
+-			if (err)
++			if (err) {
++				ceph_mdsc_put_request(dfi->last_readdir);
++				dfi->last_readdir = NULL;
+ 				return err;
++			}
+ 		} else if (req->r_reply_info.dir_end) {
+ 			dfi->next_offset = 2;
+ 			/* keep last name */
+@@ -520,6 +523,12 @@ static int ceph_readdir(struct file *file, struct dir_context *ctx)
+ 		if (!dir_emit(ctx, rde->name, rde->name_len,
+ 			      ceph_present_ino(inode->i_sb, le64_to_cpu(rde->inode.in->ino)),
+ 			      le32_to_cpu(rde->inode.in->mode) >> 12)) {
++			/*
++			 * NOTE: Here no need to put the 'dfi->last_readdir',
++			 * because when dir_emit stops us it's most likely
++			 * doesn't have enough memory, etc. So for next readdir
++			 * it will continue.
++			 */
+ 			dout("filldir stopping us...\n");
+ 			return 0;
+ 		}
 diff --git a/fs/cifs/cifsfs.c b/fs/cifs/cifsfs.c
 index f0ed29a9a6f1..aa5a4d759ca2 100644
 --- a/fs/cifs/cifsfs.c
@@ -1673,7 +2126,7 @@ index b159d8b5e893..b10cddd72355 100644
  	bool page_zeroing:1;
  	bool page_replace:1;
 diff --git a/fs/io_uring.c b/fs/io_uring.c
-index 5df35e76da32..ba6b08388d0f 100644
+index 5df35e76da32..91ff8cd97ee0 100644
 --- a/fs/io_uring.c
 +++ b/fs/io_uring.c
 @@ -1009,6 +1009,18 @@ static inline bool __io_match_files(struct io_kiocb *req,
@@ -1695,7 +2148,38 @@ index 5df35e76da32..ba6b08388d0f 100644
  static bool io_match_task(struct io_kiocb *head,
  			  struct task_struct *task,
  			  struct files_struct *files)
-@@ -3208,13 +3220,15 @@ static ssize_t loop_rw_iter(int rw, struct io_kiocb *req, struct iov_iter *iter)
+@@ -1544,6 +1556,7 @@ static void __io_queue_deferred(struct io_ring_ctx *ctx)
+ 
+ static void io_flush_timeouts(struct io_ring_ctx *ctx)
+ {
++	struct io_kiocb *req, *tmp;
+ 	u32 seq;
+ 
+ 	if (list_empty(&ctx->timeout_list))
+@@ -1551,10 +1564,8 @@ static void io_flush_timeouts(struct io_ring_ctx *ctx)
+ 
+ 	seq = ctx->cached_cq_tail - atomic_read(&ctx->cq_timeouts);
+ 
+-	do {
++	list_for_each_entry_safe(req, tmp, &ctx->timeout_list, timeout.list) {
+ 		u32 events_needed, events_got;
+-		struct io_kiocb *req = list_first_entry(&ctx->timeout_list,
+-						struct io_kiocb, timeout.list);
+ 
+ 		if (io_is_timeout_noseq(req))
+ 			break;
+@@ -1571,9 +1582,8 @@ static void io_flush_timeouts(struct io_ring_ctx *ctx)
+ 		if (events_got < events_needed)
+ 			break;
+ 
+-		list_del_init(&req->timeout.list);
+ 		io_kill_timeout(req, 0);
+-	} while (!list_empty(&ctx->timeout_list));
++	}
+ 
+ 	ctx->cq_last_tm_flush = seq;
+ }
+@@ -3208,13 +3218,15 @@ static ssize_t loop_rw_iter(int rw, struct io_kiocb *req, struct iov_iter *iter)
  				ret = nr;
  			break;
  		}
@@ -1713,7 +2197,7 @@ index 5df35e76da32..ba6b08388d0f 100644
  		if (nr != iovec.iov_len)
  			break;
  	}
-@@ -4058,6 +4072,7 @@ static int io_add_buffers(struct io_provide_buf *pbuf, struct io_buffer **head)
+@@ -4058,6 +4070,7 @@ static int io_add_buffers(struct io_provide_buf *pbuf, struct io_buffer **head)
  		} else {
  			list_add_tail(&buf->list, &(*head)->list);
  		}
@@ -1721,15 +2205,49 @@ index 5df35e76da32..ba6b08388d0f 100644
  	}
  
  	return i ? i : -ENOMEM;
-@@ -7335,6 +7350,7 @@ static int __io_sqe_files_scm(struct io_ring_ctx *ctx, int nr, int offset)
- 			fput(fpl->fp[i]);
+@@ -5624,6 +5637,7 @@ static int io_timeout_prep(struct io_kiocb *req, const struct io_uring_sqe *sqe,
+ 	else
+ 		data->mode = HRTIMER_MODE_REL;
+ 
++	INIT_LIST_HEAD(&req->timeout.list);
+ 	hrtimer_init(&data->timer, CLOCK_MONOTONIC, data->mode);
+ 	return 0;
+ }
+@@ -6267,12 +6281,12 @@ static enum hrtimer_restart io_link_timeout_fn(struct hrtimer *timer)
+ 	if (!list_empty(&req->link_list)) {
+ 		prev = list_entry(req->link_list.prev, struct io_kiocb,
+ 				  link_list);
+-		if (refcount_inc_not_zero(&prev->refs))
+-			list_del_init(&req->link_list);
+-		else
++		list_del_init(&req->link_list);
++		if (!refcount_inc_not_zero(&prev->refs))
+ 			prev = NULL;
+ 	}
+ 
++	list_del(&req->timeout.list);
+ 	spin_unlock_irqrestore(&ctx->completion_lock, flags);
+ 
+ 	if (prev) {
+@@ -7331,10 +7345,15 @@ static int __io_sqe_files_scm(struct io_ring_ctx *ctx, int nr, int offset)
+ 		refcount_add(skb->truesize, &sk->sk_wmem_alloc);
+ 		skb_queue_head(&sk->sk_receive_queue, skb);
+ 
+-		for (i = 0; i < nr_files; i++)
+-			fput(fpl->fp[i]);
++		for (i = 0; i < nr; i++) {
++			struct file *file = io_file_from_index(ctx, i + offset);
++
++			if (file)
++				fput(file);
++		}
  	} else {
  		kfree_skb(skb);
 +		free_uid(fpl->user);
  		kfree(fpl);
  	}
  
-@@ -9756,12 +9772,11 @@ static int __io_uring_register(struct io_ring_ctx *ctx, unsigned opcode,
+@@ -9756,12 +9775,11 @@ static int __io_uring_register(struct io_ring_ctx *ctx, unsigned opcode,
  			if (ret < 0)
  				break;
  		} while (1);
@@ -1744,7 +2262,7 @@ index 5df35e76da32..ba6b08388d0f 100644
  		}
  	}
  
-@@ -9854,7 +9869,6 @@ static int __io_uring_register(struct io_ring_ctx *ctx, unsigned opcode,
+@@ -9854,7 +9872,6 @@ static int __io_uring_register(struct io_ring_ctx *ctx, unsigned opcode,
  	if (io_register_op_must_quiesce(opcode)) {
  		/* bring the ctx back to life */
  		percpu_ref_reinit(&ctx->refs);
@@ -1938,7 +2456,7 @@ index d6ac2c4f88b6..6f91d7eeb324 100644
  	spin_lock(&inode->i_lock);
  	if (NFS_I(inode)->cache_validity & (NFS_INO_INVALID_ATTR|NFS_INO_INVALID_ATIME))
 diff --git a/fs/nfs/dir.c b/fs/nfs/dir.c
-index a23b7a5dec9e..987b8cef1989 100644
+index a23b7a5dec9e..d8713a59fa7c 100644
 --- a/fs/nfs/dir.c
 +++ b/fs/nfs/dir.c
 @@ -1391,9 +1391,9 @@ nfs_do_lookup_revalidate(struct inode *dir, struct dentry *dentry,
@@ -1971,7 +2489,24 @@ index a23b7a5dec9e..987b8cef1989 100644
  	nfs4_label_free(label);
  out:
  	nfs_free_fattr(fattr);
-@@ -1737,13 +1737,13 @@ int nfs_atomic_open(struct inode *dir, struct dentry *dentry,
+@@ -1628,16 +1628,6 @@ const struct dentry_operations nfs4_dentry_operations = {
+ };
+ EXPORT_SYMBOL_GPL(nfs4_dentry_operations);
+ 
+-static fmode_t flags_to_mode(int flags)
+-{
+-	fmode_t res = (__force fmode_t)flags & FMODE_EXEC;
+-	if ((flags & O_ACCMODE) != O_WRONLY)
+-		res |= FMODE_READ;
+-	if ((flags & O_ACCMODE) != O_RDONLY)
+-		res |= FMODE_WRITE;
+-	return res;
+-}
+-
+ static struct nfs_open_context *create_nfs_open_context(struct dentry *dentry, int open_flags, struct file *filp)
+ {
+ 	return alloc_nfs_open_context(dentry, flags_to_mode(open_flags), filp);
+@@ -1737,13 +1727,13 @@ int nfs_atomic_open(struct inode *dir, struct dentry *dentry,
  	if (IS_ERR(ctx))
  		goto out;
  
@@ -1987,7 +2522,7 @@ index a23b7a5dec9e..987b8cef1989 100644
  		put_nfs_open_context(ctx);
  		d_drop(dentry);
  		switch (err) {
-@@ -1766,7 +1766,7 @@ int nfs_atomic_open(struct inode *dir, struct dentry *dentry,
+@@ -1766,7 +1756,7 @@ int nfs_atomic_open(struct inode *dir, struct dentry *dentry,
  	}
  
  	err = nfs_finish_open(ctx, ctx->dentry, file, open_flags);
@@ -1996,7 +2531,7 @@ index a23b7a5dec9e..987b8cef1989 100644
  	put_nfs_open_context(ctx);
  out:
  	if (unlikely(switched)) {
-@@ -1780,14 +1780,14 @@ int nfs_atomic_open(struct inode *dir, struct dentry *dentry,
+@@ -1780,14 +1770,14 @@ int nfs_atomic_open(struct inode *dir, struct dentry *dentry,
  	if (!res) {
  		inode = d_inode(dentry);
  		if ((lookup_flags & LOOKUP_DIRECTORY) && inode &&
@@ -2013,7 +2548,7 @@ index a23b7a5dec9e..987b8cef1989 100644
  			dput(res);
  			res = ERR_PTR(-ENOTDIR);
  		} else if (inode && S_ISREG(inode->i_mode)) {
-@@ -1936,9 +1936,9 @@ int nfs_create(struct inode *dir, struct dentry *dentry,
+@@ -1936,9 +1926,9 @@ int nfs_create(struct inode *dir, struct dentry *dentry,
  	attr.ia_mode = mode;
  	attr.ia_valid = ATTR_MODE;
  
@@ -2025,7 +2560,7 @@ index a23b7a5dec9e..987b8cef1989 100644
  	if (error != 0)
  		goto out_err;
  	return 0;
-@@ -1963,9 +1963,9 @@ nfs_mknod(struct inode *dir, struct dentry *dentry, umode_t mode, dev_t rdev)
+@@ -1963,9 +1953,9 @@ nfs_mknod(struct inode *dir, struct dentry *dentry, umode_t mode, dev_t rdev)
  	attr.ia_mode = mode;
  	attr.ia_valid = ATTR_MODE;
  
@@ -2037,7 +2572,7 @@ index a23b7a5dec9e..987b8cef1989 100644
  	if (status != 0)
  		goto out_err;
  	return 0;
-@@ -1989,9 +1989,9 @@ int nfs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
+@@ -1989,9 +1979,9 @@ int nfs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
  	attr.ia_valid = ATTR_MODE;
  	attr.ia_mode = mode | S_IFDIR;
  
@@ -2049,7 +2584,7 @@ index a23b7a5dec9e..987b8cef1989 100644
  	if (error != 0)
  		goto out_err;
  	return 0;
-@@ -2014,7 +2014,7 @@ int nfs_rmdir(struct inode *dir, struct dentry *dentry)
+@@ -2014,7 +2004,7 @@ int nfs_rmdir(struct inode *dir, struct dentry *dentry)
  	dfprintk(VFS, "NFS: rmdir(%s/%lu), %pd\n",
  			dir->i_sb->s_id, dir->i_ino, dentry);
  
@@ -2058,7 +2593,7 @@ index a23b7a5dec9e..987b8cef1989 100644
  	if (d_really_is_positive(dentry)) {
  		down_write(&NFS_I(d_inode(dentry))->rmdir_sem);
  		error = NFS_PROTO(dir)->rmdir(dir, &dentry->d_name);
-@@ -2029,7 +2029,7 @@ int nfs_rmdir(struct inode *dir, struct dentry *dentry)
+@@ -2029,7 +2019,7 @@ int nfs_rmdir(struct inode *dir, struct dentry *dentry)
  		up_write(&NFS_I(d_inode(dentry))->rmdir_sem);
  	} else
  		error = NFS_PROTO(dir)->rmdir(dir, &dentry->d_name);
@@ -2067,7 +2602,7 @@ index a23b7a5dec9e..987b8cef1989 100644
  
  	return error;
  }
-@@ -2056,7 +2056,7 @@ static int nfs_safe_remove(struct dentry *dentry)
+@@ -2056,7 +2046,7 @@ static int nfs_safe_remove(struct dentry *dentry)
  		goto out;
  	}
  
@@ -2076,7 +2611,7 @@ index a23b7a5dec9e..987b8cef1989 100644
  	if (inode != NULL) {
  		error = NFS_PROTO(dir)->remove(dir, dentry);
  		if (error == 0)
-@@ -2065,7 +2065,7 @@ static int nfs_safe_remove(struct dentry *dentry)
+@@ -2065,7 +2055,7 @@ static int nfs_safe_remove(struct dentry *dentry)
  		error = NFS_PROTO(dir)->remove(dir, dentry);
  	if (error == -ENOENT)
  		nfs_dentry_handle_enoent(dentry);
@@ -2085,7 +2620,7 @@ index a23b7a5dec9e..987b8cef1989 100644
  out:
  	return error;
  }
-@@ -2083,7 +2083,7 @@ int nfs_unlink(struct inode *dir, struct dentry *dentry)
+@@ -2083,7 +2073,7 @@ int nfs_unlink(struct inode *dir, struct dentry *dentry)
  	dfprintk(VFS, "NFS: unlink(%s/%lu, %pd)\n", dir->i_sb->s_id,
  		dir->i_ino, dentry);
  
@@ -2094,7 +2629,7 @@ index a23b7a5dec9e..987b8cef1989 100644
  	spin_lock(&dentry->d_lock);
  	if (d_count(dentry) > 1) {
  		spin_unlock(&dentry->d_lock);
-@@ -2103,7 +2103,7 @@ int nfs_unlink(struct inode *dir, struct dentry *dentry)
+@@ -2103,7 +2093,7 @@ int nfs_unlink(struct inode *dir, struct dentry *dentry)
  	} else if (need_rehash)
  		d_rehash(dentry);
  out:
@@ -2103,7 +2638,7 @@ index a23b7a5dec9e..987b8cef1989 100644
  	return error;
  }
  EXPORT_SYMBOL_GPL(nfs_unlink);
-@@ -2149,9 +2149,9 @@ int nfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
+@@ -2149,9 +2139,9 @@ int nfs_symlink(struct inode *dir, struct dentry *dentry, const char *symname)
  	if (pathlen < PAGE_SIZE)
  		memset(kaddr + pathlen, 0, PAGE_SIZE - pathlen);
  
@@ -2115,7 +2650,7 @@ index a23b7a5dec9e..987b8cef1989 100644
  	if (error != 0) {
  		dfprintk(VFS, "NFS: symlink(%s/%lu, %pd, %s) error %d\n",
  			dir->i_sb->s_id, dir->i_ino,
-@@ -2190,7 +2190,7 @@ nfs_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
+@@ -2190,7 +2180,7 @@ nfs_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
  	dfprintk(VFS, "NFS: link(%pd2 -> %pd2)\n",
  		old_dentry, dentry);
  
@@ -2124,7 +2659,7 @@ index a23b7a5dec9e..987b8cef1989 100644
  	d_drop(dentry);
  	if (S_ISREG(inode->i_mode))
  		nfs_sync_inode(inode);
-@@ -2199,7 +2199,7 @@ nfs_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
+@@ -2199,7 +2189,7 @@ nfs_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
  		ihold(inode);
  		d_add(dentry, inode);
  	}
@@ -2133,7 +2668,7 @@ index a23b7a5dec9e..987b8cef1989 100644
  	return error;
  }
  EXPORT_SYMBOL_GPL(nfs_link);
-@@ -2245,7 +2245,7 @@ int nfs_rename(struct inode *old_dir, struct dentry *old_dentry,
+@@ -2245,7 +2235,7 @@ int nfs_rename(struct inode *old_dir, struct dentry *old_dentry,
  		 old_dentry, new_dentry,
  		 d_count(new_dentry));
  
@@ -2142,7 +2677,7 @@ index a23b7a5dec9e..987b8cef1989 100644
  	/*
  	 * For non-directories, check whether the target is busy and if so,
  	 * make a copy of the dentry and then do a silly-rename. If the
-@@ -2310,8 +2310,8 @@ int nfs_rename(struct inode *old_dir, struct dentry *old_dentry,
+@@ -2310,8 +2300,8 @@ int nfs_rename(struct inode *old_dir, struct dentry *old_dentry,
  out:
  	if (rehash)
  		d_rehash(rehash);
@@ -2153,7 +2688,7 @@ index a23b7a5dec9e..987b8cef1989 100644
  	if (!error) {
  		if (new_inode != NULL)
  			nfs_drop_nlink(new_inode);
-@@ -2688,7 +2688,7 @@ static int nfs_do_access(struct inode *inode, const struct cred *cred, int mask)
+@@ -2688,7 +2678,7 @@ static int nfs_do_access(struct inode *inode, const struct cred *cred, int mask)
  	int cache_mask = -1;
  	int status;
  
@@ -2162,7 +2697,7 @@ index a23b7a5dec9e..987b8cef1989 100644
  
  	status = nfs_access_get_cached(inode, cred, &cache, may_block);
  	if (status == 0)
-@@ -2727,7 +2727,7 @@ static int nfs_do_access(struct inode *inode, const struct cred *cred, int mask)
+@@ -2727,7 +2717,7 @@ static int nfs_do_access(struct inode *inode, const struct cred *cred, int mask)
  	if ((mask & ~cache_mask & (MAY_READ | MAY_WRITE | MAY_EXEC)) != 0)
  		status = -EACCES;
  out:
@@ -2171,6 +2706,135 @@ index a23b7a5dec9e..987b8cef1989 100644
  	return status;
  }
  
+diff --git a/fs/nfs/direct.c b/fs/nfs/direct.c
+index 3c0335c15a73..c220810c61d1 100644
+--- a/fs/nfs/direct.c
++++ b/fs/nfs/direct.c
+@@ -172,8 +172,8 @@ ssize_t nfs_direct_IO(struct kiocb *iocb, struct iov_iter *iter)
+ 	VM_BUG_ON(iov_iter_count(iter) != PAGE_SIZE);
+ 
+ 	if (iov_iter_rw(iter) == READ)
+-		return nfs_file_direct_read(iocb, iter);
+-	return nfs_file_direct_write(iocb, iter);
++		return nfs_file_direct_read(iocb, iter, true);
++	return nfs_file_direct_write(iocb, iter, true);
+ }
+ 
+ static void nfs_direct_release_pages(struct page **pages, unsigned int npages)
+@@ -424,6 +424,7 @@ static ssize_t nfs_direct_read_schedule_iovec(struct nfs_direct_req *dreq,
+  * nfs_file_direct_read - file direct read operation for NFS files
+  * @iocb: target I/O control block
+  * @iter: vector of user buffers into which to read data
++ * @swap: flag indicating this is swap IO, not O_DIRECT IO
+  *
+  * We use this function for direct reads instead of calling
+  * generic_file_aio_read() in order to avoid gfar's check to see if
+@@ -439,7 +440,8 @@ static ssize_t nfs_direct_read_schedule_iovec(struct nfs_direct_req *dreq,
+  * client must read the updated atime from the server back into its
+  * cache.
+  */
+-ssize_t nfs_file_direct_read(struct kiocb *iocb, struct iov_iter *iter)
++ssize_t nfs_file_direct_read(struct kiocb *iocb, struct iov_iter *iter,
++			     bool swap)
+ {
+ 	struct file *file = iocb->ki_filp;
+ 	struct address_space *mapping = file->f_mapping;
+@@ -481,12 +483,14 @@ ssize_t nfs_file_direct_read(struct kiocb *iocb, struct iov_iter *iter)
+ 	if (iter_is_iovec(iter))
+ 		dreq->flags = NFS_ODIRECT_SHOULD_DIRTY;
+ 
+-	nfs_start_io_direct(inode);
++	if (!swap)
++		nfs_start_io_direct(inode);
+ 
+ 	NFS_I(inode)->read_io += count;
+ 	requested = nfs_direct_read_schedule_iovec(dreq, iter, iocb->ki_pos);
+ 
+-	nfs_end_io_direct(inode);
++	if (!swap)
++		nfs_end_io_direct(inode);
+ 
+ 	if (requested > 0) {
+ 		result = nfs_direct_wait(dreq);
+@@ -789,7 +793,7 @@ static const struct nfs_pgio_completion_ops nfs_direct_write_completion_ops = {
+  */
+ static ssize_t nfs_direct_write_schedule_iovec(struct nfs_direct_req *dreq,
+ 					       struct iov_iter *iter,
+-					       loff_t pos)
++					       loff_t pos, int ioflags)
+ {
+ 	struct nfs_pageio_descriptor desc;
+ 	struct inode *inode = dreq->inode;
+@@ -797,7 +801,7 @@ static ssize_t nfs_direct_write_schedule_iovec(struct nfs_direct_req *dreq,
+ 	size_t requested_bytes = 0;
+ 	size_t wsize = max_t(size_t, NFS_SERVER(inode)->wsize, PAGE_SIZE);
+ 
+-	nfs_pageio_init_write(&desc, inode, FLUSH_COND_STABLE, false,
++	nfs_pageio_init_write(&desc, inode, ioflags, false,
+ 			      &nfs_direct_write_completion_ops);
+ 	desc.pg_dreq = dreq;
+ 	get_dreq(dreq);
+@@ -875,6 +879,7 @@ static ssize_t nfs_direct_write_schedule_iovec(struct nfs_direct_req *dreq,
+  * nfs_file_direct_write - file direct write operation for NFS files
+  * @iocb: target I/O control block
+  * @iter: vector of user buffers from which to write data
++ * @swap: flag indicating this is swap IO, not O_DIRECT IO
+  *
+  * We use this function for direct writes instead of calling
+  * generic_file_aio_write() in order to avoid taking the inode
+@@ -891,7 +896,8 @@ static ssize_t nfs_direct_write_schedule_iovec(struct nfs_direct_req *dreq,
+  * Note that O_APPEND is not supported for NFS direct writes, as there
+  * is no atomic O_APPEND write facility in the NFS protocol.
+  */
+-ssize_t nfs_file_direct_write(struct kiocb *iocb, struct iov_iter *iter)
++ssize_t nfs_file_direct_write(struct kiocb *iocb, struct iov_iter *iter,
++			      bool swap)
+ {
+ 	ssize_t result, requested;
+ 	size_t count;
+@@ -905,7 +911,11 @@ ssize_t nfs_file_direct_write(struct kiocb *iocb, struct iov_iter *iter)
+ 	dfprintk(FILE, "NFS: direct write(%pD2, %zd@%Ld)\n",
+ 		file, iov_iter_count(iter), (long long) iocb->ki_pos);
+ 
+-	result = generic_write_checks(iocb, iter);
++	if (swap)
++		/* bypass generic checks */
++		result =  iov_iter_count(iter);
++	else
++		result = generic_write_checks(iocb, iter);
+ 	if (result <= 0)
+ 		return result;
+ 	count = result;
+@@ -936,16 +946,22 @@ ssize_t nfs_file_direct_write(struct kiocb *iocb, struct iov_iter *iter)
+ 		dreq->iocb = iocb;
+ 	pnfs_init_ds_commit_info_ops(&dreq->ds_cinfo, inode);
+ 
+-	nfs_start_io_direct(inode);
++	if (swap) {
++		requested = nfs_direct_write_schedule_iovec(dreq, iter, pos,
++							    FLUSH_STABLE);
++	} else {
++		nfs_start_io_direct(inode);
+ 
+-	requested = nfs_direct_write_schedule_iovec(dreq, iter, pos);
++		requested = nfs_direct_write_schedule_iovec(dreq, iter, pos,
++							    FLUSH_COND_STABLE);
+ 
+-	if (mapping->nrpages) {
+-		invalidate_inode_pages2_range(mapping,
+-					      pos >> PAGE_SHIFT, end);
+-	}
++		if (mapping->nrpages) {
++			invalidate_inode_pages2_range(mapping,
++						      pos >> PAGE_SHIFT, end);
++		}
+ 
+-	nfs_end_io_direct(inode);
++		nfs_end_io_direct(inode);
++	}
+ 
+ 	if (requested > 0) {
+ 		result = nfs_direct_wait(dreq);
 diff --git a/fs/nfs/export.c b/fs/nfs/export.c
 index 3430d6891e89..f6175bc6e3b2 100644
 --- a/fs/nfs/export.c
@@ -2185,9 +2849,18 @@ index 3430d6891e89..f6175bc6e3b2 100644
  		goto out_free_label;
  	}
 diff --git a/fs/nfs/file.c b/fs/nfs/file.c
-index 63940a7a70be..ed8ecafb2e06 100644
+index 63940a7a70be..d669a514da64 100644
 --- a/fs/nfs/file.c
 +++ b/fs/nfs/file.c
+@@ -161,7 +161,7 @@ nfs_file_read(struct kiocb *iocb, struct iov_iter *to)
+ 	ssize_t result;
+ 
+ 	if (iocb->ki_flags & IOCB_DIRECT)
+-		return nfs_file_direct_read(iocb, to);
++		return nfs_file_direct_read(iocb, to, false);
+ 
+ 	dprintk("NFS: read(%pD2, %zu@%lu)\n",
+ 		iocb->ki_filp,
 @@ -226,7 +226,7 @@ nfs_file_fsync(struct file *file, loff_t start, loff_t end, int datasync)
  	struct inode *inode = file_inode(file);
  	int ret;
@@ -2206,6 +2879,15 @@ index 63940a7a70be..ed8ecafb2e06 100644
  	return ret;
  }
  EXPORT_SYMBOL_GPL(nfs_file_fsync);
+@@ -616,7 +616,7 @@ ssize_t nfs_file_write(struct kiocb *iocb, struct iov_iter *from)
+ 		return result;
+ 
+ 	if (iocb->ki_flags & IOCB_DIRECT)
+-		return nfs_file_direct_write(iocb, from);
++		return nfs_file_direct_write(iocb, from, false);
+ 
+ 	dprintk("NFS: write(%pD2, %zu@%Ld)\n",
+ 		file, iov_iter_count(from), (long long) iocb->ki_pos);
 diff --git a/fs/nfs/filelayout/filelayout.c b/fs/nfs/filelayout/filelayout.c
 index ae5ed3a07494..b8a50859b889 100644
 --- a/fs/nfs/filelayout/filelayout.c
@@ -2506,6 +3188,41 @@ index 21addb78523d..9206578bed42 100644
  	return ret;
  }
  
+diff --git a/fs/nfs/internal.h b/fs/nfs/internal.h
+index 98554dd18a71..7009a8dddd45 100644
+--- a/fs/nfs/internal.h
++++ b/fs/nfs/internal.h
+@@ -42,6 +42,16 @@ static inline bool nfs_lookup_is_soft_revalidate(const struct dentry *dentry)
+ 	return true;
+ }
+ 
++static inline fmode_t flags_to_mode(int flags)
++{
++	fmode_t res = (__force fmode_t)flags & FMODE_EXEC;
++	if ((flags & O_ACCMODE) != O_WRONLY)
++		res |= FMODE_READ;
++	if ((flags & O_ACCMODE) != O_RDONLY)
++		res |= FMODE_WRITE;
++	return res;
++}
++
+ /*
+  * Note: RFC 1813 doesn't limit the number of auth flavors that
+  * a server can return, so make something up.
+@@ -578,6 +588,13 @@ nfs_write_match_verf(const struct nfs_writeverf *verf,
+ 		!nfs_write_verifier_cmp(&req->wb_verf, &verf->verifier);
+ }
+ 
++static inline gfp_t nfs_io_gfp_mask(void)
++{
++	if (current->flags & PF_WQ_WORKER)
++		return GFP_KERNEL | __GFP_NORETRY | __GFP_NOWARN;
++	return GFP_KERNEL;
++}
++
+ /* unlink.c */
+ extern struct rpc_task *
+ nfs_async_rename(struct inode *old_dir, struct inode *new_dir,
 diff --git a/fs/nfs/nfs2xdr.c b/fs/nfs/nfs2xdr.c
 index f6676af37d5d..665cb842eb36 100644
 --- a/fs/nfs/nfs2xdr.c
@@ -2617,10 +3334,40 @@ index dff6b52d26a8..882ff167f7eb 100644
  
  /*
 diff --git a/fs/nfs/nfs42proc.c b/fs/nfs/nfs42proc.c
-index 2587b1b8e2ef..34f39f611bab 100644
+index 2587b1b8e2ef..e925ce9ab53e 100644
 --- a/fs/nfs/nfs42proc.c
 +++ b/fs/nfs/nfs42proc.c
-@@ -782,7 +782,7 @@ nfs42_layoutstat_done(struct rpc_task *task, void *calldata)
+@@ -567,8 +567,10 @@ static int _nfs42_proc_copy_notify(struct file *src, struct file *dst,
+ 
+ 	ctx = get_nfs_open_context(nfs_file_open_context(src));
+ 	l_ctx = nfs_get_lock_context(ctx);
+-	if (IS_ERR(l_ctx))
+-		return PTR_ERR(l_ctx);
++	if (IS_ERR(l_ctx)) {
++		status = PTR_ERR(l_ctx);
++		goto out;
++	}
+ 
+ 	status = nfs4_set_rw_stateid(&args->cna_src_stateid, ctx, l_ctx,
+ 				     FMODE_READ);
+@@ -576,7 +578,7 @@ static int _nfs42_proc_copy_notify(struct file *src, struct file *dst,
+ 	if (status) {
+ 		if (status == -EAGAIN)
+ 			status = -NFS4ERR_BAD_STATEID;
+-		return status;
++		goto out;
+ 	}
+ 
+ 	status = nfs4_call_sync(src_server->client, src_server, &msg,
+@@ -584,6 +586,7 @@ static int _nfs42_proc_copy_notify(struct file *src, struct file *dst,
+ 	if (status == -ENOTSUPP)
+ 		src_server->caps &= ~NFS_CAP_COPY_NOTIFY;
+ 
++out:
+ 	put_nfs_open_context(nfs_file_open_context(src));
+ 	return status;
+ }
+@@ -782,7 +785,7 @@ nfs42_layoutstat_done(struct rpc_task *task, void *calldata)
  		NFS_SERVER(inode)->caps &= ~NFS_CAP_LAYOUTSTATS;
  	}
  
@@ -2629,7 +3376,7 @@ index 2587b1b8e2ef..34f39f611bab 100644
  }
  
  static void
-@@ -950,7 +950,7 @@ nfs42_layouterror_done(struct rpc_task *task, void *calldata)
+@@ -950,7 +953,7 @@ nfs42_layouterror_done(struct rpc_task *task, void *calldata)
  		NFS_SERVER(inode)->caps &= ~NFS_CAP_LAYOUTERROR;
  	}
  
@@ -2638,6 +3385,38 @@ index 2587b1b8e2ef..34f39f611bab 100644
  			       task->tk_status);
  }
  
+diff --git a/fs/nfs/nfs4file.c b/fs/nfs/nfs4file.c
+index a1e5c6b85ded..9fdecd909049 100644
+--- a/fs/nfs/nfs4file.c
++++ b/fs/nfs/nfs4file.c
+@@ -32,6 +32,7 @@ nfs4_file_open(struct inode *inode, struct file *filp)
+ 	struct dentry *parent = NULL;
+ 	struct inode *dir;
+ 	unsigned openflags = filp->f_flags;
++	fmode_t f_mode;
+ 	struct iattr attr;
+ 	int err;
+ 
+@@ -50,8 +51,9 @@ nfs4_file_open(struct inode *inode, struct file *filp)
+ 	if (err)
+ 		return err;
+ 
++	f_mode = filp->f_mode;
+ 	if ((openflags & O_ACCMODE) == 3)
+-		return nfs_open(inode, filp);
++		f_mode |= flags_to_mode(openflags);
+ 
+ 	/* We can't create new files here */
+ 	openflags &= ~(O_CREAT|O_EXCL);
+@@ -59,7 +61,7 @@ nfs4_file_open(struct inode *inode, struct file *filp)
+ 	parent = dget_parent(dentry);
+ 	dir = d_inode(parent);
+ 
+-	ctx = alloc_nfs_open_context(file_dentry(filp), filp->f_mode, filp);
++	ctx = alloc_nfs_open_context(file_dentry(filp), f_mode, filp);
+ 	err = PTR_ERR(ctx);
+ 	if (IS_ERR(ctx))
+ 		goto out;
 diff --git a/fs/nfs/nfs4idmap.c b/fs/nfs/nfs4idmap.c
 index f331866dd418..993cd3a15966 100644
 --- a/fs/nfs/nfs4idmap.c
@@ -3203,10 +3982,18 @@ index 3106bd28b113..8acfdc52684d 100644
  	rpc_put_task(task);
  	return status;
 diff --git a/fs/nfs/nfs4state.c b/fs/nfs/nfs4state.c
-index 4bf10792cb5b..f0e89fae4d94 100644
+index 4bf10792cb5b..7fbbdcc86a13 100644
 --- a/fs/nfs/nfs4state.c
 +++ b/fs/nfs/nfs4state.c
-@@ -1610,7 +1610,7 @@ static int __nfs4_reclaim_open_state(struct nfs4_state_owner *sp, struct nfs4_st
+@@ -49,6 +49,7 @@
+ #include <linux/workqueue.h>
+ #include <linux/bitops.h>
+ #include <linux/jiffies.h>
++#include <linux/sched/mm.h>
+ 
+ #include <linux/sunrpc/clnt.h>
+ 
+@@ -1610,7 +1611,7 @@ static int __nfs4_reclaim_open_state(struct nfs4_state_owner *sp, struct nfs4_st
  	if (!test_bit(NFS_DELEGATED_STATE, &state->flags)) {
  		spin_lock(&state->state_lock);
  		list_for_each_entry(lock, &state->lock_states, ls_locks) {
@@ -3215,8 +4002,21 @@ index 4bf10792cb5b..f0e89fae4d94 100644
  			if (!test_bit(NFS_LOCK_INITIALIZED, &lock->ls_flags))
  				pr_warn_ratelimited("NFS: %s: Lock reclaim failed!\n", __func__);
  		}
-@@ -2559,7 +2559,7 @@ static void nfs4_state_manager(struct nfs_client *clp)
+@@ -2554,12 +2555,20 @@ static void nfs4_layoutreturn_any_run(struct nfs_client *clp)
  
+ static void nfs4_state_manager(struct nfs_client *clp)
+ {
++	unsigned int memflags;
+ 	int status = 0;
+ 	const char *section = "", *section_sep = "";
+ 
++	/*
++	 * State recovery can deadlock if the direct reclaim code tries
++	 * start NFS writeback. So ensure memory allocations are all
++	 * GFP_NOFS.
++	 */
++	memflags = memalloc_nofs_save();
++
  	/* Ensure exclusive access to NFSv4 state */
  	do {
 -		trace_nfs4_state_mgr(clp);
@@ -3224,7 +4024,22 @@ index 4bf10792cb5b..f0e89fae4d94 100644
  		clear_bit(NFS4CLNT_RUN_MANAGER, &clp->cl_state);
  		if (test_bit(NFS4CLNT_PURGE_STATE, &clp->cl_state)) {
  			section = "purge state";
-@@ -2674,7 +2674,7 @@ static void nfs4_state_manager(struct nfs_client *clp)
+@@ -2651,6 +2660,7 @@ static void nfs4_state_manager(struct nfs_client *clp)
+ 			clear_bit(NFS4CLNT_RECLAIM_NOGRACE, &clp->cl_state);
+ 		}
+ 
++		memalloc_nofs_restore(memflags);
+ 		nfs4_end_drain_session(clp);
+ 		nfs4_clear_state_manager_bit(clp);
+ 
+@@ -2668,18 +2678,20 @@ static void nfs4_state_manager(struct nfs_client *clp)
+ 			return;
+ 		if (test_and_set_bit(NFS4CLNT_MANAGER_RUNNING, &clp->cl_state) != 0)
+ 			return;
++		memflags = memalloc_nofs_save();
+ 	} while (refcount_read(&clp->cl_count) > 1 && !signalled());
+ 	goto out_drain;
+ 
  out_error:
  	if (strlen(section))
  		section_sep = ": ";
@@ -3233,6 +4048,12 @@ index 4bf10792cb5b..f0e89fae4d94 100644
  	pr_warn_ratelimited("NFS: state manager%s%s failed on NFSv4 server %s"
  			" with error %d\n", section_sep, section,
  			clp->cl_hostname, -status);
+ 	ssleep(1);
+ out_drain:
++	memalloc_nofs_restore(memflags);
+ 	nfs4_end_drain_session(clp);
+ 	nfs4_clear_state_manager_bit(clp);
+ }
 diff --git a/fs/nfs/nfs4xdr.c b/fs/nfs/nfs4xdr.c
 index c16b93df1bc1..79dcaa41c5c8 100644
 --- a/fs/nfs/nfs4xdr.c
@@ -3247,7 +4068,7 @@ index c16b93df1bc1..79dcaa41c5c8 100644
  	return true;
  out_bad_operation:
 diff --git a/fs/nfs/pagelist.c b/fs/nfs/pagelist.c
-index 98b9c1ed366e..3985c78a055a 100644
+index 98b9c1ed366e..4c61d2eacfa8 100644
 --- a/fs/nfs/pagelist.c
 +++ b/fs/nfs/pagelist.c
 @@ -81,7 +81,7 @@ void nfs_set_pgio_error(struct nfs_pgio_header *hdr, int error, loff_t pos)
@@ -3259,6 +4080,38 @@ index 98b9c1ed366e..3985c78a055a 100644
  	if (hdr->good_bytes > new) {
  		hdr->good_bytes = new;
  		clear_bit(NFS_IOHDR_EOF, &hdr->flags);
+@@ -90,10 +90,10 @@ void nfs_set_pgio_error(struct nfs_pgio_header *hdr, int error, loff_t pos)
+ 	}
+ }
+ 
+-static inline struct nfs_page *
+-nfs_page_alloc(void)
++static inline struct nfs_page *nfs_page_alloc(void)
+ {
+-	struct nfs_page	*p = kmem_cache_zalloc(nfs_page_cachep, GFP_KERNEL);
++	struct nfs_page *p =
++		kmem_cache_zalloc(nfs_page_cachep, nfs_io_gfp_mask());
+ 	if (p)
+ 		INIT_LIST_HEAD(&p->wb_list);
+ 	return p;
+@@ -901,7 +901,7 @@ int nfs_generic_pgio(struct nfs_pageio_descriptor *desc,
+ 	struct nfs_commit_info cinfo;
+ 	struct nfs_page_array *pg_array = &hdr->page_array;
+ 	unsigned int pagecount, pageused;
+-	gfp_t gfp_flags = GFP_KERNEL;
++	gfp_t gfp_flags = nfs_io_gfp_mask();
+ 
+ 	pagecount = nfs_page_array_len(mirror->pg_base, mirror->pg_count);
+ 	pg_array->npages = pagecount;
+@@ -984,7 +984,7 @@ nfs_pageio_alloc_mirrors(struct nfs_pageio_descriptor *desc,
+ 	desc->pg_mirrors_dynamic = NULL;
+ 	if (mirror_count == 1)
+ 		return desc->pg_mirrors_static;
+-	ret = kmalloc_array(mirror_count, sizeof(*ret), GFP_KERNEL);
++	ret = kmalloc_array(mirror_count, sizeof(*ret), nfs_io_gfp_mask());
+ 	if (ret != NULL) {
+ 		for (i = 0; i < mirror_count; i++)
+ 			nfs_pageio_mirror_init(&ret[i], desc->pg_bsize);
 diff --git a/fs/nfs/pnfs.c b/fs/nfs/pnfs.c
 index 5370e082aded..e571c9482cb5 100644
 --- a/fs/nfs/pnfs.c
@@ -3439,6 +4292,32 @@ index 0212fe32e63a..11d9ed9addc0 100644
  
  /* nfs4proc.c */
  extern size_t max_response_pages(struct nfs_server *server);
+diff --git a/fs/nfs/pnfs_nfs.c b/fs/nfs/pnfs_nfs.c
+index 7b9d701bef01..a2ad8bb87e2d 100644
+--- a/fs/nfs/pnfs_nfs.c
++++ b/fs/nfs/pnfs_nfs.c
+@@ -419,7 +419,7 @@ static struct nfs_commit_data *
+ pnfs_bucket_fetch_commitdata(struct pnfs_commit_bucket *bucket,
+ 			     struct nfs_commit_info *cinfo)
+ {
+-	struct nfs_commit_data *data = nfs_commitdata_alloc(false);
++	struct nfs_commit_data *data = nfs_commitdata_alloc();
+ 
+ 	if (!data)
+ 		return NULL;
+@@ -515,7 +515,11 @@ pnfs_generic_commit_pagelist(struct inode *inode, struct list_head *mds_pages,
+ 	unsigned int nreq = 0;
+ 
+ 	if (!list_empty(mds_pages)) {
+-		data = nfs_commitdata_alloc(true);
++		data = nfs_commitdata_alloc();
++		if (!data) {
++			nfs_retry_commit(mds_pages, NULL, cinfo, -1);
++			return -ENOMEM;
++		}
+ 		data->ds_commit_index = -1;
+ 		list_splice_init(mds_pages, &data->pages);
+ 		list_add_tail(&data->list, &list);
 diff --git a/fs/nfs/read.c b/fs/nfs/read.c
 index eb854f1f86e2..b37ec6c26838 100644
 --- a/fs/nfs/read.c
@@ -3495,10 +4374,60 @@ index b27ebdccef70..9ab674da9e53 100644
  		rpc_restart_call_prepare(task);
  		return;
 diff --git a/fs/nfs/write.c b/fs/nfs/write.c
-index bde4c362841f..5f7c6608da87 100644
+index bde4c362841f..d6e3449884ff 100644
 --- a/fs/nfs/write.c
 +++ b/fs/nfs/write.c
-@@ -314,7 +314,10 @@ static void nfs_mapping_set_error(struct page *page, int error)
+@@ -70,27 +70,17 @@ static mempool_t *nfs_wdata_mempool;
+ static struct kmem_cache *nfs_cdata_cachep;
+ static mempool_t *nfs_commit_mempool;
+ 
+-struct nfs_commit_data *nfs_commitdata_alloc(bool never_fail)
++struct nfs_commit_data *nfs_commitdata_alloc(void)
+ {
+ 	struct nfs_commit_data *p;
+ 
+-	if (never_fail)
+-		p = mempool_alloc(nfs_commit_mempool, GFP_NOIO);
+-	else {
+-		/* It is OK to do some reclaim, not no safe to wait
+-		 * for anything to be returned to the pool.
+-		 * mempool_alloc() cannot handle that particular combination,
+-		 * so we need two separate attempts.
+-		 */
++	p = kmem_cache_zalloc(nfs_cdata_cachep, nfs_io_gfp_mask());
++	if (!p) {
+ 		p = mempool_alloc(nfs_commit_mempool, GFP_NOWAIT);
+-		if (!p)
+-			p = kmem_cache_alloc(nfs_cdata_cachep, GFP_NOIO |
+-					     __GFP_NOWARN | __GFP_NORETRY);
+ 		if (!p)
+ 			return NULL;
++		memset(p, 0, sizeof(*p));
+ 	}
+-
+-	memset(p, 0, sizeof(*p));
+ 	INIT_LIST_HEAD(&p->pages);
+ 	return p;
+ }
+@@ -104,9 +94,15 @@ EXPORT_SYMBOL_GPL(nfs_commit_free);
+ 
+ static struct nfs_pgio_header *nfs_writehdr_alloc(void)
+ {
+-	struct nfs_pgio_header *p = mempool_alloc(nfs_wdata_mempool, GFP_KERNEL);
++	struct nfs_pgio_header *p;
+ 
+-	memset(p, 0, sizeof(*p));
++	p = kmem_cache_zalloc(nfs_wdata_cachep, nfs_io_gfp_mask());
++	if (!p) {
++		p = mempool_alloc(nfs_wdata_mempool, GFP_NOWAIT);
++		if (!p)
++			return NULL;
++		memset(p, 0, sizeof(*p));
++	}
+ 	p->rw_mode = FMODE_WRITE;
+ 	return p;
+ }
+@@ -314,7 +310,10 @@ static void nfs_mapping_set_error(struct page *page, int error)
  	struct address_space *mapping = page_file_mapping(page);
  
  	SetPageError(page);
@@ -3510,7 +4439,7 @@ index bde4c362841f..5f7c6608da87 100644
  	nfs_set_pageerror(mapping);
  }
  
-@@ -591,7 +594,7 @@ nfs_lock_and_join_requests(struct page *page)
+@@ -591,7 +590,7 @@ nfs_lock_and_join_requests(struct page *page)
  
  static void nfs_write_error(struct nfs_page *req, int error)
  {
@@ -3519,7 +4448,7 @@ index bde4c362841f..5f7c6608da87 100644
  	nfs_mapping_set_error(req->wb_page, error);
  	nfs_inode_remove_request(req);
  	nfs_end_page_writeback(req);
-@@ -997,7 +1000,7 @@ static void nfs_write_completion(struct nfs_pgio_header *hdr)
+@@ -997,7 +996,7 @@ static void nfs_write_completion(struct nfs_pgio_header *hdr)
  		nfs_list_remove_request(req);
  		if (test_bit(NFS_IOHDR_ERROR, &hdr->flags) &&
  		    (hdr->good_bytes < bytes)) {
@@ -3528,7 +4457,7 @@ index bde4c362841f..5f7c6608da87 100644
  			nfs_mapping_set_error(req->wb_page, hdr->error);
  			goto remove_req;
  		}
-@@ -1388,7 +1391,7 @@ static void nfs_initiate_write(struct nfs_pgio_header *hdr,
+@@ -1388,7 +1387,7 @@ static void nfs_initiate_write(struct nfs_pgio_header *hdr,
  
  	task_setup_data->priority = priority;
  	rpc_ops->write_setup(hdr, msg, &task_setup_data->rpc_client);
@@ -3537,7 +4466,7 @@ index bde4c362841f..5f7c6608da87 100644
  }
  
  /* If a nfs_flush_* function fails, it should remove reqs from @head and
-@@ -1552,7 +1555,7 @@ static int nfs_writeback_done(struct rpc_task *task,
+@@ -1552,7 +1551,7 @@ static int nfs_writeback_done(struct rpc_task *task,
  		return status;
  
  	nfs_add_stats(inode, NFSIOS_SERVERWRITTENBYTES, hdr->res.count);
@@ -3546,7 +4475,7 @@ index bde4c362841f..5f7c6608da87 100644
  
  	if (hdr->res.verf->committed < hdr->args.stable &&
  	    task->tk_status >= 0) {
-@@ -1689,7 +1692,7 @@ int nfs_initiate_commit(struct rpc_clnt *clnt, struct nfs_commit_data *data,
+@@ -1689,7 +1688,7 @@ int nfs_initiate_commit(struct rpc_clnt *clnt, struct nfs_commit_data *data,
  	};
  	/* Set up the initial task struct.  */
  	nfs_ops->commit_setup(data, &msg, &task_setup_data.rpc_client);
@@ -3555,6 +4484,19 @@ index bde4c362841f..5f7c6608da87 100644
  
  	dprintk("NFS: initiated commit call\n");
  
+@@ -1797,7 +1796,11 @@ nfs_commit_list(struct inode *inode, struct list_head *head, int how,
+ 	if (list_empty(head))
+ 		return 0;
+ 
+-	data = nfs_commitdata_alloc(true);
++	data = nfs_commitdata_alloc();
++	if (!data) {
++		nfs_retry_commit(head, NULL, cinfo, -1);
++		return -ENOMEM;
++	}
+ 
+ 	/* Set up the argument struct */
+ 	nfs_init_commit(data, head, NULL, cinfo);
 @@ -1817,7 +1820,7 @@ static void nfs_commit_done(struct rpc_task *task, void *calldata)
  
  	/* Call the NFS version-specific code */
@@ -3848,6 +4790,34 @@ index e58e8c207782..9c1fd6241307 100644
  #ifdef CONFIG_COREDUMP
  extern void do_coredump(const kernel_siginfo_t *siginfo);
  #else
+diff --git a/include/linux/nfs_fs.h b/include/linux/nfs_fs.h
+index aff5cd382fef..72d700eb1683 100644
+--- a/include/linux/nfs_fs.h
++++ b/include/linux/nfs_fs.h
+@@ -478,10 +478,10 @@ static inline const struct cred *nfs_file_cred(struct file *file)
+  * linux/fs/nfs/direct.c
+  */
+ extern ssize_t nfs_direct_IO(struct kiocb *, struct iov_iter *);
+-extern ssize_t nfs_file_direct_read(struct kiocb *iocb,
+-			struct iov_iter *iter);
+-extern ssize_t nfs_file_direct_write(struct kiocb *iocb,
+-			struct iov_iter *iter);
++ssize_t nfs_file_direct_read(struct kiocb *iocb,
++			     struct iov_iter *iter, bool swap);
++ssize_t nfs_file_direct_write(struct kiocb *iocb,
++			      struct iov_iter *iter, bool swap);
+ 
+ /*
+  * linux/fs/nfs/dir.c
+@@ -551,7 +551,7 @@ extern int nfs_wb_all(struct inode *inode);
+ extern int nfs_wb_page(struct inode *inode, struct page *page);
+ extern int nfs_wb_page_cancel(struct inode *inode, struct page* page);
+ extern int  nfs_commit_inode(struct inode *, int);
+-extern struct nfs_commit_data *nfs_commitdata_alloc(bool never_fail);
++extern struct nfs_commit_data *nfs_commitdata_alloc(void);
+ extern void nfs_commit_free(struct nfs_commit_data *data);
+ bool nfs_commit_end(struct nfs_mds_commit_info *cinfo);
+ 
 diff --git a/include/linux/sunrpc/xdr.h b/include/linux/sunrpc/xdr.h
 index b998e4b73691..6d9d1520612b 100644
 --- a/include/linux/sunrpc/xdr.h
@@ -4311,6 +5281,25 @@ index b364231b5fc8..1b0a349fbcd9 100644
  		buf->page = page;
  		buf->offset = 0;
  		buf->len = min_t(ssize_t, left, PAGE_SIZE);
+diff --git a/lib/lz4/lz4_decompress.c b/lib/lz4/lz4_decompress.c
+index 8a7724a6ce2f..5b6705c4b2d2 100644
+--- a/lib/lz4/lz4_decompress.c
++++ b/lib/lz4/lz4_decompress.c
+@@ -271,8 +271,12 @@ static FORCE_INLINE int LZ4_decompress_generic(
+ 			ip += length;
+ 			op += length;
+ 
+-			/* Necessarily EOF, due to parsing restrictions */
+-			if (!partialDecoding || (cpy == oend))
++			/* Necessarily EOF when !partialDecoding.
++			 * When partialDecoding, it is EOF if we've either
++			 * filled the output buffer or
++			 * can't proceed with reading an offset for following match.
++			 */
++			if (!partialDecoding || (cpy == oend) || (ip >= (iend - 2)))
+ 				break;
+ 		} else {
+ 			/* may overwrite up to WILDCOPYLENGTH beyond cpy */
 diff --git a/lib/test_kmod.c b/lib/test_kmod.c
 index eab52770070d..c637f6b5053a 100644
 --- a/lib/test_kmod.c
@@ -4489,10 +5478,62 @@ index 081dd33e6a61..475d095dd7f5 100644
  			xas_pause(&xas);
  			xas_unlock_irq(&xas);
 diff --git a/mm/memory.c b/mm/memory.c
-index 4fe24cd865a7..af27127c235e 100644
+index 4fe24cd865a7..f64b458fefe9 100644
 --- a/mm/memory.c
 +++ b/mm/memory.c
-@@ -3676,11 +3676,20 @@ static vm_fault_t __do_fault(struct vm_fault *vmf)
+@@ -158,7 +158,7 @@ early_initcall(init_zero_pfn);
+ 
+ void mm_trace_rss_stat(struct mm_struct *mm, int member, long count)
+ {
+-	trace_rss_stat(mm, member, count);
++	//trace_rss_stat(mm, member, count);
+ }
+ 
+ #if defined(SPLIT_RSS_COUNTING)
+@@ -1204,6 +1204,17 @@ copy_page_range(struct vm_area_struct *dst_vma, struct vm_area_struct *src_vma)
+ 	return ret;
+ }
+ 
++/* Whether we should zap all COWed (private) pages too */
++static inline bool should_zap_cows(struct zap_details *details)
++{
++	/* By default, zap all pages */
++	if (!details)
++		return true;
++
++	/* Or, we zap COWed pages only if the caller wants to */
++	return !details->check_mapping;
++}
++
+ static unsigned long zap_pte_range(struct mmu_gather *tlb,
+ 				struct vm_area_struct *vma, pmd_t *pmd,
+ 				unsigned long addr, unsigned long end,
+@@ -1295,16 +1306,18 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
+ 			continue;
+ 		}
+ 
+-		/* If details->check_mapping, we leave swap entries. */
+-		if (unlikely(details))
+-			continue;
+-
+-		if (!non_swap_entry(entry))
++		if (!non_swap_entry(entry)) {
++			/* Genuine swap entry, hence a private anon page */
++			if (!should_zap_cows(details))
++				continue;
+ 			rss[MM_SWAPENTS]--;
+-		else if (is_migration_entry(entry)) {
++		} else if (is_migration_entry(entry)) {
+ 			struct page *page;
+ 
+ 			page = migration_entry_to_page(entry);
++			if (details && details->check_mapping &&
++			    details->check_mapping != page_rmapping(page))
++				continue;
+ 			rss[mm_counter(page)]--;
+ 		}
+ 		if (unlikely(!free_swap_and_cache(entry)))
+@@ -3676,11 +3689,20 @@ static vm_fault_t __do_fault(struct vm_fault *vmf)
  		return ret;
  
  	if (unlikely(PageHWPoison(vmf->page))) {
@@ -4518,7 +5559,7 @@ index 4fe24cd865a7..af27127c235e 100644
  
  	if (unlikely(!(ret & VM_FAULT_LOCKED)))
 diff --git a/mm/mempolicy.c b/mm/mempolicy.c
-index c8b1592dff73..eb97aed2fbe7 100644
+index c8b1592dff73..7315b978e834 100644
 --- a/mm/mempolicy.c
 +++ b/mm/mempolicy.c
 @@ -802,7 +802,6 @@ static int vma_replace_policy(struct vm_area_struct *vma,
@@ -4550,6 +5591,14 @@ index c8b1592dff73..eb97aed2fbe7 100644
  			goto replace;
  		}
  		if (vma->vm_start != vmstart) {
+@@ -2642,6 +2636,7 @@ static int shared_policy_replace(struct shared_policy *sp, unsigned long start,
+ 	mpol_new = kmem_cache_alloc(policy_cache, GFP_KERNEL);
+ 	if (!mpol_new)
+ 		goto err_out;
++	atomic_set(&mpol_new->refcnt, 1);
+ 	goto restart;
+ }
+ 
 diff --git a/mm/mprotect.c b/mm/mprotect.c
 index 56c02beb6041..7ea0aee0c08d 100644
 --- a/mm/mprotect.c
@@ -4563,6 +5612,56 @@ index 56c02beb6041..7ea0aee0c08d 100644
  					continue;
  
  				/*
+diff --git a/mm/mremap.c b/mm/mremap.c
+index 138abbae4f75..d4c8d6cca3f4 100644
+--- a/mm/mremap.c
++++ b/mm/mremap.c
+@@ -260,6 +260,9 @@ unsigned long move_page_tables(struct vm_area_struct *vma,
+ 	struct mmu_notifier_range range;
+ 	pmd_t *old_pmd, *new_pmd;
+ 
++	if (!len)
++		return 0;
++
+ 	old_end = old_addr + len;
+ 	flush_cache_range(vma, old_addr, old_end);
+ 
+diff --git a/mm/rmap.c b/mm/rmap.c
+index 14f84f70c557..44ad7bf2e563 100644
+--- a/mm/rmap.c
++++ b/mm/rmap.c
+@@ -1640,7 +1640,30 @@ static bool try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
+ 
+ 			/* MADV_FREE page check */
+ 			if (!PageSwapBacked(page)) {
+-				if (!PageDirty(page)) {
++				int ref_count, map_count;
++
++				/*
++				 * Synchronize with gup_pte_range():
++				 * - clear PTE; barrier; read refcount
++				 * - inc refcount; barrier; read PTE
++				 */
++				smp_mb();
++
++				ref_count = page_ref_count(page);
++				map_count = page_mapcount(page);
++
++				/*
++				 * Order reads for page refcount and dirty flag
++				 * (see comments in __remove_mapping()).
++				 */
++				smp_rmb();
++
++				/*
++				 * The only page refs must be one from isolation
++				 * plus the rmap(s) (dropped by discard:).
++				 */
++				if (ref_count == 1 + map_count &&
++				    !PageDirty(page)) {
+ 					/* Invalidate as we cleared the pte */
+ 					mmu_notifier_invalidate_range(mm,
+ 						address, address + PAGE_SIZE);
 diff --git a/mm/swap_state.c b/mm/swap_state.c
 index 2337c5d72433..79d97ad6990b 100644
 --- a/mm/swap_state.c
@@ -4593,7 +5692,7 @@ index 90792e4eaa25..890472760790 100644
  	return __vmalloc_node(size, 1, flags, node,
  			__builtin_return_address(0));
 diff --git a/net/core/filter.c b/net/core/filter.c
-index 7fa4283f2a8c..659a32802471 100644
+index 7fa4283f2a8c..6803af7f41cf 100644
 --- a/net/core/filter.c
 +++ b/net/core/filter.c
 @@ -2730,6 +2730,9 @@ BPF_CALL_4(bpf_msg_push_data, struct sk_msg *, msg, u32, start,
@@ -4606,6 +5705,44 @@ index 7fa4283f2a8c..659a32802471 100644
  	/* First find the starting scatterlist element */
  	i = msg->sg.start;
  	do {
+@@ -6489,24 +6492,33 @@ BPF_CALL_5(bpf_tcp_check_syncookie, struct sock *, sk, void *, iph, u32, iph_len
+ 	if (!th->ack || th->rst || th->syn)
+ 		return -ENOENT;
+ 
++	if (unlikely(iph_len < sizeof(struct iphdr)))
++		return -EINVAL;
++
+ 	if (tcp_synq_no_recent_overflow(sk))
+ 		return -ENOENT;
+ 
+ 	cookie = ntohl(th->ack_seq) - 1;
+ 
+-	switch (sk->sk_family) {
+-	case AF_INET:
+-		if (unlikely(iph_len < sizeof(struct iphdr)))
++	/* Both struct iphdr and struct ipv6hdr have the version field at the
++	 * same offset so we can cast to the shorter header (struct iphdr).
++	 */
++	switch (((struct iphdr *)iph)->version) {
++	case 4:
++		if (sk->sk_family == AF_INET6 && ipv6_only_sock(sk))
+ 			return -EINVAL;
+ 
+ 		ret = __cookie_v4_check((struct iphdr *)iph, th, cookie);
+ 		break;
+ 
+ #if IS_BUILTIN(CONFIG_IPV6)
+-	case AF_INET6:
++	case 6:
+ 		if (unlikely(iph_len < sizeof(struct ipv6hdr)))
+ 			return -EINVAL;
+ 
++		if (sk->sk_family != AF_INET6)
++			return -EINVAL;
++
+ 		ret = __cookie_v6_check((struct ipv6hdr *)iph, th, cookie);
+ 		break;
+ #endif /* CONFIG_IPV6 */
 diff --git a/net/core/net-sysfs.c b/net/core/net-sysfs.c
 index 99303897b7bb..989b3f7ee85f 100644
 --- a/net/core/net-sysfs.c
@@ -4619,6 +5756,36 @@ index 99303897b7bb..989b3f7ee85f 100644
  		struct ethtool_link_ksettings cmd;
  
  		if (!__ethtool_get_link_ksettings(netdev, &cmd))
+diff --git a/net/core/rtnetlink.c b/net/core/rtnetlink.c
+index 373564bf57ac..4ac76988e092 100644
+--- a/net/core/rtnetlink.c
++++ b/net/core/rtnetlink.c
+@@ -3624,13 +3624,24 @@ static int rtnl_alt_ifname(int cmd, struct net_device *dev, struct nlattr *attr,
+ 			   bool *changed, struct netlink_ext_ack *extack)
+ {
+ 	char *alt_ifname;
++	size_t size;
+ 	int err;
+ 
+ 	err = nla_validate(attr, attr->nla_len, IFLA_MAX, ifla_policy, extack);
+ 	if (err)
+ 		return err;
+ 
+-	alt_ifname = nla_strdup(attr, GFP_KERNEL);
++	if (cmd == RTM_NEWLINKPROP) {
++		size = rtnl_prop_list_size(dev);
++		size += nla_total_size(ALTIFNAMSIZ);
++		if (size >= U16_MAX) {
++			NL_SET_ERR_MSG(extack,
++				       "effective property list too long");
++			return -EINVAL;
++		}
++	}
++
++	alt_ifname = nla_strdup(attr, GFP_KERNEL_ACCOUNT);
+ 	if (!alt_ifname)
+ 		return -ENOMEM;
+ 
 diff --git a/net/core/skbuff.c b/net/core/skbuff.c
 index 0215ae898e83..48b6438f2a3d 100644
 --- a/net/core/skbuff.c
@@ -4728,6 +5895,183 @@ index e2f85a16fad9..742218594741 100644
  
  	if (IS_ERR_OR_NULL(segs))
  		goto out;
+diff --git a/net/ipv4/arp.c b/net/ipv4/arp.c
+index 922dd73e5740..84bd88de426c 100644
+--- a/net/ipv4/arp.c
++++ b/net/ipv4/arp.c
+@@ -1115,14 +1115,19 @@ static int arp_req_get(struct arpreq *r, struct net_device *dev)
+ 	}
+ 	return err;
+ }
+-
+-static int arp_invalidate(struct net_device *dev, __be32 ip)
++extern int arp_invalidate(struct net_device *dev, __be32 ip, bool force);
++int arp_invalidate(struct net_device *dev, __be32 ip, bool force)
+ {
+ 	struct neighbour *neigh = neigh_lookup(&arp_tbl, &ip, dev);
+ 	int err = -ENXIO;
+ 	struct neigh_table *tbl = &arp_tbl;
+ 
+ 	if (neigh) {
++		if ((neigh->nud_state & NUD_VALID) && !force) {
++			neigh_release(neigh);
++			return 0;
++		}
++
+ 		if (neigh->nud_state & ~NUD_NOARP)
+ 			err = neigh_update(neigh, NULL, NUD_FAILED,
+ 					   NEIGH_UPDATE_F_OVERRIDE|
+@@ -1169,7 +1174,7 @@ static int arp_req_delete(struct net *net, struct arpreq *r,
+ 		if (!dev)
+ 			return -EINVAL;
+ 	}
+-	return arp_invalidate(dev, ip);
++	return arp_invalidate(dev, ip, true);
+ }
+ 
+ /*
+diff --git a/net/ipv4/fib_frontend.c b/net/ipv4/fib_frontend.c
+index 917ea953dfad..f1cfc5fe077d 100644
+--- a/net/ipv4/fib_frontend.c
++++ b/net/ipv4/fib_frontend.c
+@@ -1089,6 +1089,7 @@ static void fib_magic(int cmd, int type, __be32 dst, int dst_len,
+ 		fib_table_delete(net, tb, &cfg, NULL);
+ }
+ 
++extern int arp_invalidate(struct net_device *dev, __be32 ip, bool force);
+ void fib_add_ifaddr(struct in_ifaddr *ifa)
+ {
+ 	struct in_device *in_dev = ifa->ifa_dev;
+@@ -1112,9 +1113,11 @@ void fib_add_ifaddr(struct in_ifaddr *ifa)
+ 		return;
+ 
+ 	/* Add broadcast address, if it is explicitly assigned. */
+-	if (ifa->ifa_broadcast && ifa->ifa_broadcast != htonl(0xFFFFFFFF))
++	if (ifa->ifa_broadcast && ifa->ifa_broadcast != htonl(0xFFFFFFFF)) {
+ 		fib_magic(RTM_NEWROUTE, RTN_BROADCAST, ifa->ifa_broadcast, 32,
+ 			  prim, 0);
++		arp_invalidate(dev, ifa->ifa_broadcast, false);
++	}
+ 
+ 	if (!ipv4_is_zeronet(prefix) && !(ifa->ifa_flags & IFA_F_SECONDARY) &&
+ 	    (prefix != addr || ifa->ifa_prefixlen < 32)) {
+@@ -1130,6 +1133,7 @@ void fib_add_ifaddr(struct in_ifaddr *ifa)
+ 				  prim, 0);
+ 			fib_magic(RTM_NEWROUTE, RTN_BROADCAST, prefix | ~mask,
+ 				  32, prim, 0);
++			arp_invalidate(dev, prefix | ~mask, false);
+ 		}
+ 	}
+ }
+diff --git a/net/ipv4/fib_semantics.c b/net/ipv4/fib_semantics.c
+index 838a876c168c..c8c7b76c3b2e 100644
+--- a/net/ipv4/fib_semantics.c
++++ b/net/ipv4/fib_semantics.c
+@@ -888,8 +888,13 @@ int fib_nh_match(struct net *net, struct fib_config *cfg, struct fib_info *fi,
+ 	}
+ 
+ 	if (cfg->fc_oif || cfg->fc_gw_family) {
+-		struct fib_nh *nh = fib_info_nh(fi, 0);
++		struct fib_nh *nh;
++
++		/* cannot match on nexthop object attributes */
++		if (fi->nh)
++			return 1;
+ 
++		nh = fib_info_nh(fi, 0);
+ 		if (cfg->fc_encap) {
+ 			if (fib_encap_match(net, cfg->fc_encap_type,
+ 					    cfg->fc_encap, nh, cfg, extack))
+diff --git a/net/ipv4/inet_hashtables.c b/net/ipv4/inet_hashtables.c
+index e093847c334d..915b8e1bd9ef 100644
+--- a/net/ipv4/inet_hashtables.c
++++ b/net/ipv4/inet_hashtables.c
+@@ -637,7 +637,9 @@ int __inet_hash(struct sock *sk, struct sock *osk)
+ 	int err = 0;
+ 
+ 	if (sk->sk_state != TCP_LISTEN) {
++		local_bh_disable();
+ 		inet_ehash_nolisten(sk, osk, NULL);
++		local_bh_enable();
+ 		return 0;
+ 	}
+ 	WARN_ON(!sk_unhashed(sk));
+@@ -669,45 +671,54 @@ int inet_hash(struct sock *sk)
+ {
+ 	int err = 0;
+ 
+-	if (sk->sk_state != TCP_CLOSE) {
+-		local_bh_disable();
++	if (sk->sk_state != TCP_CLOSE)
+ 		err = __inet_hash(sk, NULL);
+-		local_bh_enable();
+-	}
+ 
+ 	return err;
+ }
+ EXPORT_SYMBOL_GPL(inet_hash);
+ 
+-void inet_unhash(struct sock *sk)
++static void __inet_unhash(struct sock *sk, struct inet_listen_hashbucket *ilb)
+ {
+-	struct inet_hashinfo *hashinfo = sk->sk_prot->h.hashinfo;
+-	struct inet_listen_hashbucket *ilb = NULL;
+-	spinlock_t *lock;
+-
+ 	if (sk_unhashed(sk))
+ 		return;
+ 
+-	if (sk->sk_state == TCP_LISTEN) {
+-		ilb = &hashinfo->listening_hash[inet_sk_listen_hashfn(sk)];
+-		lock = &ilb->lock;
+-	} else {
+-		lock = inet_ehash_lockp(hashinfo, sk->sk_hash);
+-	}
+-	spin_lock_bh(lock);
+-	if (sk_unhashed(sk))
+-		goto unlock;
+-
+ 	if (rcu_access_pointer(sk->sk_reuseport_cb))
+ 		reuseport_detach_sock(sk);
+ 	if (ilb) {
++		struct inet_hashinfo *hashinfo = sk->sk_prot->h.hashinfo;
++
+ 		inet_unhash2(hashinfo, sk);
+ 		ilb->count--;
+ 	}
+ 	__sk_nulls_del_node_init_rcu(sk);
+ 	sock_prot_inuse_add(sock_net(sk), sk->sk_prot, -1);
+-unlock:
+-	spin_unlock_bh(lock);
++}
++
++void inet_unhash(struct sock *sk)
++{
++	struct inet_hashinfo *hashinfo = sk->sk_prot->h.hashinfo;
++
++	if (sk_unhashed(sk))
++		return;
++
++	if (sk->sk_state == TCP_LISTEN) {
++		struct inet_listen_hashbucket *ilb;
++
++		ilb = &hashinfo->listening_hash[inet_sk_listen_hashfn(sk)];
++		/* Don't disable bottom halves while acquiring the lock to
++		 * avoid circular locking dependency on PREEMPT_RT.
++		 */
++		spin_lock(&ilb->lock);
++		__inet_unhash(sk, ilb);
++		spin_unlock(&ilb->lock);
++	} else {
++		spinlock_t *lock = inet_ehash_lockp(hashinfo, sk->sk_hash);
++
++		spin_lock_bh(lock);
++		__inet_unhash(sk, NULL);
++		spin_unlock_bh(lock);
++	}
+ }
+ EXPORT_SYMBOL_GPL(inet_unhash);
+ 
 diff --git a/net/ipv4/ipmr.c b/net/ipv4/ipmr.c
 index 939792a38814..be1976536f1c 100644
 --- a/net/ipv4/ipmr.c
@@ -5018,6 +6362,23 @@ index 4dde49e628fa..7c5bf39dca5d 100644
  
  	if (!ipv6_addr_any(&ifa->peer_addr)) {
  		if (nla_put_in6_addr(skb, IFA_LOCAL, &ifa->addr) < 0 ||
+diff --git a/net/ipv6/inet6_hashtables.c b/net/ipv6/inet6_hashtables.c
+index 67c9114835c8..0a2e7f228391 100644
+--- a/net/ipv6/inet6_hashtables.c
++++ b/net/ipv6/inet6_hashtables.c
+@@ -333,11 +333,8 @@ int inet6_hash(struct sock *sk)
+ {
+ 	int err = 0;
+ 
+-	if (sk->sk_state != TCP_CLOSE) {
+-		local_bh_disable();
++	if (sk->sk_state != TCP_CLOSE)
+ 		err = __inet_hash(sk, NULL);
+-		local_bh_enable();
+-	}
+ 
+ 	return err;
+ }
 diff --git a/net/ipv6/ip6_offload.c b/net/ipv6/ip6_offload.c
 index a80f90bf3ae7..15c8eef1ef44 100644
 --- a/net/ipv6/ip6_offload.c
@@ -5081,6 +6442,19 @@ index 06b0d2c329b9..41cb348a7c3c 100644
  err1:
  	fib_rules_unregister(ops);
  	return err;
+diff --git a/net/ipv6/route.c b/net/ipv6/route.c
+index 352e645c546e..776b1b58c5dc 100644
+--- a/net/ipv6/route.c
++++ b/net/ipv6/route.c
+@@ -4398,7 +4398,7 @@ static int ip6_pkt_drop(struct sk_buff *skb, u8 code, int ipstats_mib_noroutes)
+ 	struct inet6_dev *idev;
+ 	int type;
+ 
+-	if (netif_is_l3_master(skb->dev) &&
++	if (netif_is_l3_master(skb->dev) ||
+ 	    dst->dev == net->loopback_dev)
+ 		idev = __in6_dev_get_safely(dev_get_by_index_rcu(net, IP6CB(skb)->iif));
+ 	else
 diff --git a/net/ipv6/xfrm6_output.c b/net/ipv6/xfrm6_output.c
 index 6abb45a67199..ee349c243878 100644
 --- a/net/ipv6/xfrm6_output.c
@@ -5556,6 +6930,19 @@ index 4fda8b3f1762..59c4dfaf2ea1 100644
  		break;
  	}
  
+diff --git a/net/netlabel/netlabel_kapi.c b/net/netlabel/netlabel_kapi.c
+index 5e1239cef000..91b35b7c80d8 100644
+--- a/net/netlabel/netlabel_kapi.c
++++ b/net/netlabel/netlabel_kapi.c
+@@ -885,6 +885,8 @@ int netlbl_bitmap_walk(const unsigned char *bitmap, u32 bitmap_len,
+ 	unsigned char bitmask;
+ 	unsigned char byte;
+ 
++	if (offset >= bitmap_len)
++		return -1;
+ 	byte_offset = offset / 8;
+ 	byte = bitmap[byte_offset];
+ 	bit_spot = offset;
 diff --git a/net/netlink/af_netlink.c b/net/netlink/af_netlink.c
 index e55af5c078ac..f37916156ca5 100644
 --- a/net/netlink/af_netlink.c
@@ -5569,6 +6956,19 @@ index e55af5c078ac..f37916156ca5 100644
  	return group ? 1 << (group - 1) : 0;
  }
  
+diff --git a/net/openvswitch/actions.c b/net/openvswitch/actions.c
+index fc487f9812fc..3b5446ae94a4 100644
+--- a/net/openvswitch/actions.c
++++ b/net/openvswitch/actions.c
+@@ -1014,7 +1014,7 @@ static int clone(struct datapath *dp, struct sk_buff *skb,
+ 	int rem = nla_len(attr);
+ 	bool dont_clone_flow_key;
+ 
+-	/* The first action is always 'OVS_CLONE_ATTR_ARG'. */
++	/* The first action is always 'OVS_CLONE_ATTR_EXEC'. */
+ 	clone_arg = nla_data(attr);
+ 	dont_clone_flow_key = nla_get_u32(clone_arg);
+ 	actions = nla_next(clone_arg, &rem);
 diff --git a/net/openvswitch/conntrack.c b/net/openvswitch/conntrack.c
 index a11b558813c1..7ff98d39ec94 100644
 --- a/net/openvswitch/conntrack.c
@@ -5733,7 +7133,7 @@ index a11b558813c1..7ff98d39ec94 100644
  }
  #else /* !CONFIG_NF_NAT */
 diff --git a/net/openvswitch/flow_netlink.c b/net/openvswitch/flow_netlink.c
-index 4c5c2331e764..8c4bdfa627ca 100644
+index 4c5c2331e764..98a7e6f64ab0 100644
 --- a/net/openvswitch/flow_netlink.c
 +++ b/net/openvswitch/flow_netlink.c
 @@ -2201,8 +2201,8 @@ static int __ovs_nla_put_key(const struct sw_flow_key *swkey,
@@ -5747,6 +7147,140 @@ index 4c5c2331e764..8c4bdfa627ca 100644
  				struct ovs_key_nd *nd_key;
  
  				nla = nla_reserve(skb, OVS_KEY_ATTR_ND, sizeof(*nd_key));
+@@ -2288,6 +2288,62 @@ static struct sw_flow_actions *nla_alloc_flow_actions(int size)
+ 	return sfa;
+ }
+ 
++static void ovs_nla_free_nested_actions(const struct nlattr *actions, int len);
++
++static void ovs_nla_free_check_pkt_len_action(const struct nlattr *action)
++{
++	const struct nlattr *a;
++	int rem;
++
++	nla_for_each_nested(a, action, rem) {
++		switch (nla_type(a)) {
++		case OVS_CHECK_PKT_LEN_ATTR_ACTIONS_IF_LESS_EQUAL:
++		case OVS_CHECK_PKT_LEN_ATTR_ACTIONS_IF_GREATER:
++			ovs_nla_free_nested_actions(nla_data(a), nla_len(a));
++			break;
++		}
++	}
++}
++
++static void ovs_nla_free_clone_action(const struct nlattr *action)
++{
++	const struct nlattr *a = nla_data(action);
++	int rem = nla_len(action);
++
++	switch (nla_type(a)) {
++	case OVS_CLONE_ATTR_EXEC:
++		/* The real list of actions follows this attribute. */
++		a = nla_next(a, &rem);
++		ovs_nla_free_nested_actions(a, rem);
++		break;
++	}
++}
++
++static void ovs_nla_free_dec_ttl_action(const struct nlattr *action)
++{
++	const struct nlattr *a = nla_data(action);
++
++	switch (nla_type(a)) {
++	case OVS_DEC_TTL_ATTR_ACTION:
++		ovs_nla_free_nested_actions(nla_data(a), nla_len(a));
++		break;
++	}
++}
++
++static void ovs_nla_free_sample_action(const struct nlattr *action)
++{
++	const struct nlattr *a = nla_data(action);
++	int rem = nla_len(action);
++
++	switch (nla_type(a)) {
++	case OVS_SAMPLE_ATTR_ARG:
++		/* The real list of actions follows this attribute. */
++		a = nla_next(a, &rem);
++		ovs_nla_free_nested_actions(a, rem);
++		break;
++	}
++}
++
+ static void ovs_nla_free_set_action(const struct nlattr *a)
+ {
+ 	const struct nlattr *ovs_key = nla_data(a);
+@@ -2301,25 +2357,54 @@ static void ovs_nla_free_set_action(const struct nlattr *a)
+ 	}
+ }
+ 
+-void ovs_nla_free_flow_actions(struct sw_flow_actions *sf_acts)
++static void ovs_nla_free_nested_actions(const struct nlattr *actions, int len)
+ {
+ 	const struct nlattr *a;
+ 	int rem;
+ 
+-	if (!sf_acts)
++	/* Whenever new actions are added, the need to update this
++	 * function should be considered.
++	 */
++	BUILD_BUG_ON(OVS_ACTION_ATTR_MAX != 23);
++
++	if (!actions)
+ 		return;
+ 
+-	nla_for_each_attr(a, sf_acts->actions, sf_acts->actions_len, rem) {
++	nla_for_each_attr(a, actions, len, rem) {
+ 		switch (nla_type(a)) {
+-		case OVS_ACTION_ATTR_SET:
+-			ovs_nla_free_set_action(a);
++		case OVS_ACTION_ATTR_CHECK_PKT_LEN:
++			ovs_nla_free_check_pkt_len_action(a);
++			break;
++
++		case OVS_ACTION_ATTR_CLONE:
++			ovs_nla_free_clone_action(a);
+ 			break;
++
+ 		case OVS_ACTION_ATTR_CT:
+ 			ovs_ct_free_action(a);
+ 			break;
++
++		case OVS_ACTION_ATTR_DEC_TTL:
++			ovs_nla_free_dec_ttl_action(a);
++			break;
++
++		case OVS_ACTION_ATTR_SAMPLE:
++			ovs_nla_free_sample_action(a);
++			break;
++
++		case OVS_ACTION_ATTR_SET:
++			ovs_nla_free_set_action(a);
++			break;
+ 		}
+ 	}
++}
++
++void ovs_nla_free_flow_actions(struct sw_flow_actions *sf_acts)
++{
++	if (!sf_acts)
++		return;
+ 
++	ovs_nla_free_nested_actions(sf_acts->actions, sf_acts->actions_len);
+ 	kfree(sf_acts);
+ }
+ 
+@@ -3419,7 +3504,9 @@ static int clone_action_to_attr(const struct nlattr *attr,
+ 	if (!start)
+ 		return -EMSGSIZE;
+ 
+-	err = ovs_nla_put_actions(nla_data(attr), rem, skb);
++	/* Skipping the OVS_CLONE_ATTR_EXEC that is always the first attribute. */
++	attr = nla_next(nla_data(attr), &rem);
++	err = ovs_nla_put_actions(attr, rem, skb);
+ 
+ 	if (err)
+ 		nla_nest_cancel(skb, start);
 diff --git a/net/packet/af_packet.c b/net/packet/af_packet.c
 index a31334b92be7..d0c95d7dd292 100644
 --- a/net/packet/af_packet.c
@@ -5784,6 +7318,20 @@ index a31334b92be7..d0c95d7dd292 100644
  		memcpy(msg->msg_name, &PACKET_SKB_CB(skb)->sa, copy_len);
  	}
  
+diff --git a/net/rxrpc/net_ns.c b/net/rxrpc/net_ns.c
+index 25bbc4cc8b13..f15d6942da45 100644
+--- a/net/rxrpc/net_ns.c
++++ b/net/rxrpc/net_ns.c
+@@ -113,8 +113,8 @@ static __net_exit void rxrpc_exit_net(struct net *net)
+ 	struct rxrpc_net *rxnet = rxrpc_net(net);
+ 
+ 	rxnet->live = false;
+-	del_timer_sync(&rxnet->peer_keepalive_timer);
+ 	cancel_work_sync(&rxnet->peer_keepalive_work);
++	del_timer_sync(&rxnet->peer_keepalive_timer);
+ 	rxrpc_destroy_all_calls(rxnet);
+ 	rxrpc_destroy_all_connections(rxnet);
+ 	rxrpc_destroy_all_peers(rxnet);
 diff --git a/net/sched/act_ct.c b/net/sched/act_ct.c
 index 812c3c70a53a..825b3e9b55f7 100644
 --- a/net/sched/act_ct.c
@@ -5832,11 +7380,772 @@ index babadd6720a2..68ff82ff49a3 100644
  	}
  
  	if (inet_diag_msg_attrs_fill(sk, skb, r, ext, user_ns, net_admin))
+diff --git a/net/sunrpc/auth_gss/auth_gss.c b/net/sunrpc/auth_gss/auth_gss.c
+index 5f42aa5fc612..c23c645e1257 100644
+--- a/net/sunrpc/auth_gss/auth_gss.c
++++ b/net/sunrpc/auth_gss/auth_gss.c
+@@ -210,7 +210,7 @@ gss_fill_context(const void *p, const void *end, struct gss_cl_ctx *ctx, struct
+ 	}
+ 	ret = gss_import_sec_context(p, seclen, gm, &ctx->gc_gss_ctx, NULL, GFP_NOFS);
+ 	if (ret < 0) {
+-		trace_rpcgss_import_ctx(ret);
++		//trace_rpcgss_import_ctx(ret);
+ 		p = ERR_PTR(ret);
+ 		goto err;
+ 	}
+@@ -226,8 +226,8 @@ gss_fill_context(const void *p, const void *end, struct gss_cl_ctx *ctx, struct
+ 	if (IS_ERR(p))
+ 		goto err;
+ done:
+-	trace_rpcgss_context(window_size, ctx->gc_expiry, now, timeout,
+-			     ctx->gc_acceptor.len, ctx->gc_acceptor.data);
++	//trace_rpcgss_context(window_size, ctx->gc_expiry, now, timeout,
++	//		     ctx->gc_acceptor.len, ctx->gc_acceptor.data);
+ err:
+ 	return p;
+ }
+@@ -471,7 +471,7 @@ static int gss_encode_v1_msg(struct gss_upcall_msg *gss_msg,
+ 		p += len;
+ 		gss_msg->msg.len += len;
+ 	}
+-	trace_rpcgss_upcall_msg(gss_msg->databuf);
++	//trace_rpcgss_upcall_msg(gss_msg->databuf);
+ 	len = scnprintf(p, buflen, "\n");
+ 	if (len == 0)
+ 		goto out_overflow;
+@@ -615,8 +615,8 @@ gss_refresh_upcall(struct rpc_task *task)
+ 	spin_unlock(&pipe->lock);
+ 	gss_release_msg(gss_msg);
+ out:
+-	trace_rpcgss_upcall_result(from_kuid(&init_user_ns,
+-					     cred->cr_cred->fsuid), err);
++	//trace_rpcgss_upcall_result(from_kuid(&init_user_ns,
++	//				     cred->cr_cred->fsuid), err);
+ 	return err;
+ }
+ 
+@@ -670,7 +670,7 @@ gss_create_upcall(struct gss_auth *gss_auth, struct gss_cred *gss_cred)
+ 		schedule();
+ 	}
+ 	if (gss_msg->ctx) {
+-		trace_rpcgss_ctx_init(gss_cred);
++		//trace_rpcgss_ctx_init(gss_cred);
+ 		gss_cred_set_ctx(cred, gss_msg->ctx);
+ 	} else {
+ 		err = gss_msg->msg.errno;
+@@ -680,8 +680,8 @@ gss_create_upcall(struct gss_auth *gss_auth, struct gss_cred *gss_cred)
+ 	finish_wait(&gss_msg->waitqueue, &wait);
+ 	gss_release_msg(gss_msg);
+ out:
+-	trace_rpcgss_upcall_result(from_kuid(&init_user_ns,
+-					     cred->cr_cred->fsuid), err);
++	//trace_rpcgss_upcall_result(from_kuid(&init_user_ns,
++	//				     cred->cr_cred->fsuid), err);
+ 	return err;
+ }
+ 
+@@ -1074,7 +1074,7 @@ gss_create_new(const struct rpc_auth_create_args *args, struct rpc_clnt *clnt)
+ 	kfree(gss_auth);
+ out_dec:
+ 	module_put(THIS_MODULE);
+-	trace_rpcgss_createauth(flavor, err);
++	//trace_rpcgss_createauth(flavor, err);
+ 	return ERR_PTR(err);
+ }
+ 
+@@ -1258,7 +1258,7 @@ gss_send_destroy_context(struct rpc_cred *cred)
+ 	if (new) {
+ 		ctx->gc_proc = RPC_GSS_PROC_DESTROY;
+ 
+-		trace_rpcgss_ctx_destroy(gss_cred);
++		//trace_rpcgss_ctx_destroy(gss_cred);
+ 		task = rpc_call_null(gss_auth->client, &new->gc_base,
+ 				     RPC_TASK_ASYNC);
+ 		if (!IS_ERR(task))
+@@ -1525,7 +1525,7 @@ static int gss_marshal(struct rpc_task *task, struct xdr_stream *xdr)
+ 	spin_unlock(&ctx->gc_seq_lock);
+ 	if (req->rq_seqno == MAXSEQ)
+ 		goto expired;
+-	trace_rpcgss_seqno(task);
++	//trace_rpcgss_seqno(task);
+ 
+ 	*p++ = cpu_to_be32(RPC_GSS_VERSION);
+ 	*p++ = cpu_to_be32(ctx->gc_proc);
+@@ -1566,7 +1566,7 @@ static int gss_marshal(struct rpc_task *task, struct xdr_stream *xdr)
+ 	status = -EMSGSIZE;
+ 	goto out;
+ bad_mic:
+-	trace_rpcgss_get_mic(task, maj_stat);
++	//trace_rpcgss_get_mic(task, maj_stat);
+ 	status = -EIO;
+ 	goto out;
+ }
+@@ -1696,7 +1696,7 @@ gss_validate(struct rpc_task *task, struct xdr_stream *xdr)
+ 	status = -EIO;
+ 	goto out;
+ bad_mic:
+-	trace_rpcgss_verify_mic(task, maj_stat);
++	//trace_rpcgss_verify_mic(task, maj_stat);
+ 	status = -EACCES;
+ 	goto out;
+ }
+@@ -1742,7 +1742,7 @@ gss_wrap_req_integ(struct rpc_cred *cred, struct gss_cl_ctx *ctx,
+ wrap_failed:
+ 	return -EMSGSIZE;
+ bad_mic:
+-	trace_rpcgss_get_mic(task, maj_stat);
++	//trace_rpcgss_get_mic(task, maj_stat);
+ 	return -EIO;
+ }
+ 
+@@ -1865,7 +1865,7 @@ gss_wrap_req_priv(struct rpc_cred *cred, struct gss_cl_ctx *ctx,
+ wrap_failed:
+ 	return status;
+ bad_wrap:
+-	trace_rpcgss_wrap(task, maj_stat);
++	//trace_rpcgss_wrap(task, maj_stat);
+ 	return -EIO;
+ }
+ 
+@@ -1919,7 +1919,7 @@ static void gss_update_rslack(struct rpc_task *task, struct rpc_cred *cred,
+ 	if (test_and_clear_bit(RPCAUTH_AUTH_UPDATE_SLACK, &auth->au_flags)) {
+ 		auth->au_ralign = auth->au_verfsize + before;
+ 		auth->au_rslack = auth->au_verfsize + after;
+-		trace_rpcgss_update_slack(task, auth);
++		//trace_rpcgss_update_slack(task, auth);
+ 	}
+ }
+ 
+@@ -2005,13 +2005,13 @@ gss_unwrap_resp_integ(struct rpc_task *task, struct rpc_cred *cred,
+ 	return ret;
+ 
+ unwrap_failed:
+-	trace_rpcgss_unwrap_failed(task);
++	//trace_rpcgss_unwrap_failed(task);
+ 	goto out;
+ bad_seqno:
+-	trace_rpcgss_bad_seqno(task, rqstp->rq_seqno, seqno);
++	//trace_rpcgss_bad_seqno(task, rqstp->rq_seqno, seqno);
+ 	goto out;
+ bad_mic:
+-	trace_rpcgss_verify_mic(task, maj_stat);
++	//trace_rpcgss_verify_mic(task, maj_stat);
+ 	goto out;
+ }
+ 
+@@ -2053,13 +2053,13 @@ gss_unwrap_resp_priv(struct rpc_task *task, struct rpc_cred *cred,
+ 
+ 	return 0;
+ unwrap_failed:
+-	trace_rpcgss_unwrap_failed(task);
++	//trace_rpcgss_unwrap_failed(task);
+ 	return -EIO;
+ bad_seqno:
+-	trace_rpcgss_bad_seqno(task, rqstp->rq_seqno, be32_to_cpup(--p));
++	//trace_rpcgss_bad_seqno(task, rqstp->rq_seqno, be32_to_cpup(--p));
+ 	return -EIO;
+ bad_unwrap:
+-	trace_rpcgss_unwrap(task, maj_stat);
++	//trace_rpcgss_unwrap(task, maj_stat);
+ 	return -EIO;
+ }
+ 
+@@ -2102,7 +2102,7 @@ gss_xmit_need_reencode(struct rpc_task *task)
+ out_ctx:
+ 	gss_put_ctx(ctx);
+ out:
+-	trace_rpcgss_need_reencode(task, seq_xmit, ret);
++	//trace_rpcgss_need_reencode(task, seq_xmit, ret);
+ 	return ret;
+ }
+ 
+diff --git a/net/sunrpc/auth_gss/gss_mech_switch.c b/net/sunrpc/auth_gss/gss_mech_switch.c
+index fae632da1058..cb8d2e178ac8 100644
+--- a/net/sunrpc/auth_gss/gss_mech_switch.c
++++ b/net/sunrpc/auth_gss/gss_mech_switch.c
+@@ -178,8 +178,8 @@ struct gss_api_mech *gss_mech_get_by_OID(struct rpcsec_gss_oid *obj)
+ 		}
+ 	}
+ 	rcu_read_unlock();
+-	if (!gm)
+-		trace_rpcgss_oid_to_mech(buf);
++	//if (!gm)
++	//	trace_rpcgss_oid_to_mech(buf);
+ 	return gm;
+ }
+ 
+diff --git a/net/sunrpc/auth_gss/svcauth_gss.c b/net/sunrpc/auth_gss/svcauth_gss.c
+index f5111d62972d..24727aedf6ef 100644
+--- a/net/sunrpc/auth_gss/svcauth_gss.c
++++ b/net/sunrpc/auth_gss/svcauth_gss.c
+@@ -656,12 +656,12 @@ static bool gss_check_seq_num(const struct svc_rqst *rqstp, struct rsc *rsci,
+ 	return result;
+ 
+ toolow:
+-	trace_rpcgss_svc_seqno_low(rqstp, seq_num,
+-				   sd->sd_max - GSS_SEQ_WIN,
+-				   sd->sd_max);
++	//trace_rpcgss_svc_seqno_low(rqstp, seq_num,
++	//			   sd->sd_max - GSS_SEQ_WIN,
++	//			   sd->sd_max);
+ 	goto out;
+ alreadyseen:
+-	trace_rpcgss_svc_seqno_seen(rqstp, seq_num);
++	//trace_rpcgss_svc_seqno_seen(rqstp, seq_num);
+ 	goto out;
+ }
+ 
+@@ -742,7 +742,7 @@ gss_verify_header(struct svc_rqst *rqstp, struct rsc *rsci,
+ 	}
+ 
+ 	if (gc->gc_seq > MAXSEQ) {
+-		trace_rpcgss_svc_seqno_large(rqstp, gc->gc_seq);
++		//trace_rpcgss_svc_seqno_large(rqstp, gc->gc_seq);
+ 		*authp = rpcsec_gsserr_ctxproblem;
+ 		return SVC_DENIED;
+ 	}
+@@ -936,13 +936,13 @@ unwrap_integ_data(struct svc_rqst *rqstp, struct xdr_buf *buf, u32 seq, struct g
+ 	return stat;
+ 
+ unwrap_failed:
+-	trace_rpcgss_svc_unwrap_failed(rqstp);
++	//trace_rpcgss_svc_unwrap_failed(rqstp);
+ 	goto out;
+ bad_seqno:
+-	trace_rpcgss_svc_seqno_bad(rqstp, seq, rseqno);
++	//trace_rpcgss_svc_seqno_bad(rqstp, seq, rseqno);
+ 	goto out;
+ bad_mic:
+-	trace_rpcgss_svc_mic(rqstp, maj_stat);
++	//trace_rpcgss_svc_mic(rqstp, maj_stat);
+ 	goto out;
+ }
+ 
+@@ -1011,13 +1011,13 @@ unwrap_priv_data(struct svc_rqst *rqstp, struct xdr_buf *buf, u32 seq, struct gs
+ 	return 0;
+ 
+ unwrap_failed:
+-	trace_rpcgss_svc_unwrap_failed(rqstp);
++	//trace_rpcgss_svc_unwrap_failed(rqstp);
+ 	return -EINVAL;
+ bad_seqno:
+-	trace_rpcgss_svc_seqno_bad(rqstp, seq, rseqno);
++	//trace_rpcgss_svc_seqno_bad(rqstp, seq, rseqno);
+ 	return -EINVAL;
+ bad_unwrap:
+-	trace_rpcgss_svc_unwrap(rqstp, maj_stat);
++	//trace_rpcgss_svc_unwrap(rqstp, maj_stat);
+ 	return -EINVAL;
+ }
+ 
+@@ -1363,7 +1363,7 @@ static int svcauth_gss_proxy_init(struct svc_rqst *rqstp,
+ 	if (status)
+ 		goto out;
+ 
+-	trace_rpcgss_svc_accept_upcall(rqstp, ud.major_status, ud.minor_status);
++	//trace_rpcgss_svc_accept_upcall(rqstp, ud.major_status, ud.minor_status);
+ 
+ 	switch (ud.major_status) {
+ 	case GSS_S_CONTINUE_NEEDED:
+@@ -1654,7 +1654,7 @@ svcauth_gss_accept(struct svc_rqst *rqstp, __be32 *authp)
+ 					GSS_C_QOP_DEFAULT,
+ 					gc->gc_svc);
+ 		ret = SVC_OK;
+-		trace_rpcgss_svc_authenticate(rqstp, gc);
++		//trace_rpcgss_svc_authenticate(rqstp, gc);
+ 		goto out;
+ 	}
+ garbage_args:
+diff --git a/net/sunrpc/cache.c b/net/sunrpc/cache.c
+index 20c93b68505e..784214bd09cd 100644
+--- a/net/sunrpc/cache.c
++++ b/net/sunrpc/cache.c
+@@ -121,7 +121,7 @@ static struct cache_head *sunrpc_cache_add_entry(struct cache_detail *detail,
+ 		if (test_bit(CACHE_VALID, &tmp->flags) &&
+ 		    cache_is_expired(detail, tmp)) {
+ 			sunrpc_begin_cache_remove_entry(tmp, detail);
+-			trace_cache_entry_expired(detail, tmp);
++			//trace_cache_entry_expired(detail, tmp);
+ 			freeme = tmp;
+ 			break;
+ 		}
+@@ -182,7 +182,7 @@ static void cache_make_negative(struct cache_detail *detail,
+ 				struct cache_head *h)
+ {
+ 	set_bit(CACHE_NEGATIVE, &h->flags);
+-	trace_cache_entry_make_negative(detail, h);
++	//trace_cache_entry_make_negative(detail, h);
+ }
+ 
+ static void cache_entry_update(struct cache_detail *detail,
+@@ -191,7 +191,7 @@ static void cache_entry_update(struct cache_detail *detail,
+ {
+ 	if (!test_bit(CACHE_NEGATIVE, &new->flags)) {
+ 		detail->update(h, new);
+-		trace_cache_entry_update(detail, h);
++		//trace_cache_entry_update(detail, h);
+ 	} else {
+ 		cache_make_negative(detail, h);
+ 	}
+@@ -475,7 +475,7 @@ static int cache_clean(void)
+ 				continue;
+ 
+ 			sunrpc_begin_cache_remove_entry(ch, current_detail);
+-			trace_cache_entry_expired(current_detail, ch);
++			//trace_cache_entry_expired(current_detail, ch);
+ 			rv = 1;
+ 			break;
+ 		}
+@@ -1233,7 +1233,7 @@ static int cache_pipe_upcall(struct cache_detail *detail, struct cache_head *h)
+ 	if (test_bit(CACHE_PENDING, &h->flags)) {
+ 		crq->item = cache_get(h);
+ 		list_add_tail(&crq->q.list, &detail->queue);
+-		trace_cache_entry_upcall(detail, h);
++		//trace_cache_entry_upcall(detail, h);
+ 	} else
+ 		/* Lost a race, no longer PENDING, so don't enqueue */
+ 		ret = -EAGAIN;
+@@ -1259,7 +1259,7 @@ int sunrpc_cache_pipe_upcall_timeout(struct cache_detail *detail,
+ {
+ 	if (!cache_listeners_exist(detail)) {
+ 		warn_no_listener(detail);
+-		trace_cache_entry_no_listener(detail, h);
++		//trace_cache_entry_no_listener(detail, h);
+ 		return -EINVAL;
+ 	}
+ 	return sunrpc_cache_pipe_upcall(detail, h);
+diff --git a/net/sunrpc/clnt.c b/net/sunrpc/clnt.c
+index 84c8a534029c..be5c0365a2e9 100644
+--- a/net/sunrpc/clnt.c
++++ b/net/sunrpc/clnt.c
+@@ -429,7 +429,7 @@ static struct rpc_clnt * rpc_new_client(const struct rpc_create_args *args,
+ 	if (parent)
+ 		atomic_inc(&parent->cl_count);
+ 
+-	trace_rpc_clnt_new(clnt, xprt, program->name, args->servername);
++	//trace_rpc_clnt_new(clnt, xprt, program->name, args->servername);
+ 	return clnt;
+ 
+ out_no_path:
+@@ -444,7 +444,7 @@ static struct rpc_clnt * rpc_new_client(const struct rpc_create_args *args,
+ out_no_rpciod:
+ 	xprt_switch_put(xps);
+ 	xprt_put(xprt);
+-	trace_rpc_clnt_new_err(program->name, args->servername, err);
++	//trace_rpc_clnt_new_err(program->name, args->servername, err);
+ 	return ERR_PTR(err);
+ }
+ 
+@@ -643,7 +643,7 @@ static struct rpc_clnt *__rpc_clone_client(struct rpc_create_args *args,
+ 	return new;
+ 
+ out_err:
+-	trace_rpc_clnt_clone_err(clnt, err);
++	//trace_rpc_clnt_clone_err(clnt, err);
+ 	return ERR_PTR(err);
+ }
+ 
+@@ -757,7 +757,7 @@ int rpc_switch_client_transport(struct rpc_clnt *clnt,
+ 		rpc_release_client(parent);
+ 	xprt_switch_put(oldxps);
+ 	xprt_put(old);
+-	trace_rpc_clnt_replace_xprt(clnt);
++	//trace_rpc_clnt_replace_xprt(clnt);
+ 	return 0;
+ 
+ out_revert:
+@@ -767,7 +767,7 @@ int rpc_switch_client_transport(struct rpc_clnt *clnt,
+ 	rpc_client_register(clnt, pseudoflavor, NULL);
+ 	xprt_switch_put(xps);
+ 	xprt_put(xprt);
+-	trace_rpc_clnt_replace_xprt_err(clnt);
++	//trace_rpc_clnt_replace_xprt_err(clnt);
+ 	return err;
+ }
+ EXPORT_SYMBOL_GPL(rpc_switch_client_transport);
+@@ -838,7 +838,7 @@ void rpc_killall_tasks(struct rpc_clnt *clnt)
+ 	/*
+ 	 * Spin lock all_tasks to prevent changes...
+ 	 */
+-	trace_rpc_clnt_killall(clnt);
++	//trace_rpc_clnt_killall(clnt);
+ 	spin_lock(&clnt->cl_lock);
+ 	list_for_each_entry(rovr, &clnt->cl_tasks, tk_task)
+ 		rpc_signal_task(rovr);
+@@ -854,7 +854,7 @@ void rpc_shutdown_client(struct rpc_clnt *clnt)
+ {
+ 	might_sleep();
+ 
+-	trace_rpc_clnt_shutdown(clnt);
++	//trace_rpc_clnt_shutdown(clnt);
+ 
+ 	while (!list_empty(&clnt->cl_tasks)) {
+ 		rpc_killall_tasks(clnt);
+@@ -873,7 +873,7 @@ static void rpc_free_client_work(struct work_struct *work)
+ {
+ 	struct rpc_clnt *clnt = container_of(work, struct rpc_clnt, cl_work);
+ 
+-	trace_rpc_clnt_free(clnt);
++	//trace_rpc_clnt_free(clnt);
+ 
+ 	/* These might block on processes that might allocate memory,
+ 	 * so they cannot be called in rpciod, so they are handled separately
+@@ -892,7 +892,7 @@ rpc_free_client(struct rpc_clnt *clnt)
+ {
+ 	struct rpc_clnt *parent = NULL;
+ 
+-	trace_rpc_clnt_release(clnt);
++	//trace_rpc_clnt_release(clnt);
+ 	if (clnt->cl_parent != clnt)
+ 		parent = clnt->cl_parent;
+ 	rpc_unregister_client(clnt);
+@@ -1257,7 +1257,7 @@ void rpc_prepare_reply_pages(struct rpc_rqst *req, struct page **pages,
+ 	hdrsize += RPC_REPHDRSIZE + req->rq_cred->cr_auth->au_ralign - 1;
+ 
+ 	xdr_inline_pages(&req->rq_rcv_buf, hdrsize << 2, pages, base, len);
+-	trace_rpc_xdr_reply_pages(req->rq_task, &req->rq_rcv_buf);
++	//trace_rpc_xdr_reply_pages(req->rq_task, &req->rq_rcv_buf);
+ }
+ EXPORT_SYMBOL_GPL(rpc_prepare_reply_pages);
+ 
+@@ -1611,7 +1611,7 @@ const char
+ static void
+ __rpc_call_rpcerror(struct rpc_task *task, int tk_status, int rpc_status)
+ {
+-	trace_rpc_call_rpcerror(task, tk_status, rpc_status);
++	//trace_rpc_call_rpcerror(task, tk_status, rpc_status);
+ 	task->tk_rpc_status = rpc_status;
+ 	rpc_exit(task, tk_status);
+ }
+@@ -1634,7 +1634,7 @@ call_start(struct rpc_task *task)
+ 	struct rpc_clnt	*clnt = task->tk_client;
+ 	int idx = task->tk_msg.rpc_proc->p_statidx;
+ 
+-	trace_rpc_request(task);
++	//trace_rpc_request(task);
+ 
+ 	/* Increment call count (version might not be valid for ping) */
+ 	if (clnt->cl_program->version[clnt->cl_vers])
+@@ -1745,10 +1745,10 @@ call_refreshresult(struct rpc_task *task)
+ 		if (!task->tk_cred_retry)
+ 			break;
+ 		task->tk_cred_retry--;
+-		trace_rpc_retry_refresh_status(task);
++		//trace_rpc_retry_refresh_status(task);
+ 		return;
+ 	}
+-	trace_rpc_refresh_status(task);
++	//trace_rpc_refresh_status(task);
+ 	rpc_call_rpcerror(task, status);
+ }
+ 
+@@ -1794,7 +1794,7 @@ call_allocate(struct rpc_task *task)
+ 	req->rq_rcvsize <<= 2;
+ 
+ 	status = xprt->ops->buf_alloc(task);
+-	trace_rpc_buf_alloc(task, status);
++	//trace_rpc_buf_alloc(task, status);
+ 	if (status == 0)
+ 		return;
+ 	if (status != -ENOMEM) {
+@@ -1871,7 +1871,7 @@ call_encode(struct rpc_task *task)
+ 			} else {
+ 				task->tk_action = call_refresh;
+ 				task->tk_cred_retry--;
+-				trace_rpc_retry_refresh_status(task);
++				//trace_rpc_retry_refresh_status(task);
+ 			}
+ 			break;
+ 		default:
+@@ -1961,7 +1961,7 @@ call_bind_status(struct rpc_task *task)
+ 		rpc_delay(task, HZ >> 2);
+ 		goto retry_timeout;
+ 	case -EACCES:
+-		trace_rpcb_prog_unavail_err(task);
++		//trace_rpcb_prog_unavail_err(task);
+ 		/* fail immediately if this is an RPC ping */
+ 		if (task->tk_msg.rpc_proc->p_proc == 0) {
+ 			status = -EOPNOTSUPP;
+@@ -1978,14 +1978,14 @@ call_bind_status(struct rpc_task *task)
+ 	case -EAGAIN:
+ 		goto retry_timeout;
+ 	case -ETIMEDOUT:
+-		trace_rpcb_timeout_err(task);
++		//trace_rpcb_timeout_err(task);
+ 		goto retry_timeout;
+ 	case -EPFNOSUPPORT:
+ 		/* server doesn't support any rpcbind version we know of */
+-		trace_rpcb_bind_version_err(task);
++		//trace_rpcb_bind_version_err(task);
+ 		break;
+ 	case -EPROTONOSUPPORT:
+-		trace_rpcb_bind_version_err(task);
++		//trace_rpcb_bind_version_err(task);
+ 		goto retry_timeout;
+ 	case -ECONNREFUSED:		/* connection problems */
+ 	case -ECONNRESET:
+@@ -1996,7 +1996,7 @@ call_bind_status(struct rpc_task *task)
+ 	case -EHOSTUNREACH:
+ 	case -ENETUNREACH:
+ 	case -EPIPE:
+-		trace_rpcb_unreachable_err(task);
++		//trace_rpcb_unreachable_err(task);
+ 		if (!RPC_IS_SOFTCONN(task)) {
+ 			rpc_delay(task, 5*HZ);
+ 			goto retry_timeout;
+@@ -2004,7 +2004,7 @@ call_bind_status(struct rpc_task *task)
+ 		status = task->tk_status;
+ 		break;
+ 	default:
+-		trace_rpcb_unrecognized_err(task);
++		;//trace_rpcb_unrecognized_err(task);
+ 	}
+ 
+ 	rpc_call_rpcerror(task, status);
+@@ -2063,7 +2063,7 @@ call_connect_status(struct rpc_task *task)
+ 		return;
+ 	}
+ 
+-	trace_rpc_connect_status(task);
++	//trace_rpc_connect_status(task);
+ 
+ 	if (task->tk_status == 0) {
+ 		clnt->cl_stats->netreconn++;
+@@ -2175,6 +2175,7 @@ call_transmit_status(struct rpc_task *task)
+ 		 * socket just returned a connection error,
+ 		 * then hold onto the transport lock.
+ 		 */
++	case -ENOMEM:
+ 	case -ENOBUFS:
+ 		rpc_delay(task, HZ>>2);
+ 		fallthrough;
+@@ -2190,9 +2191,9 @@ call_transmit_status(struct rpc_task *task)
+ 	case -ENETUNREACH:
+ 	case -EPERM:
+ 		if (RPC_IS_SOFTCONN(task)) {
+-			if (!task->tk_msg.rpc_proc->p_proc)
+-				trace_xprt_ping(task->tk_xprt,
+-						task->tk_status);
++			//if (!task->tk_msg.rpc_proc->p_proc)
++			//	trace_xprt_ping(task->tk_xprt,
++			//			task->tk_status);
+ 			rpc_call_rpcerror(task, task->tk_status);
+ 			return;
+ 		}
+@@ -2258,6 +2259,7 @@ call_bc_transmit_status(struct rpc_task *task)
+ 	case -ENOTCONN:
+ 	case -EPIPE:
+ 		break;
++	case -ENOMEM:
+ 	case -ENOBUFS:
+ 		rpc_delay(task, HZ>>2);
+ 		fallthrough;
+@@ -2301,8 +2303,8 @@ call_status(struct rpc_task *task)
+ 	struct rpc_clnt	*clnt = task->tk_client;
+ 	int		status;
+ 
+-	if (!task->tk_msg.rpc_proc->p_proc)
+-		trace_xprt_ping(task->tk_xprt, task->tk_status);
++	//if (!task->tk_msg.rpc_proc->p_proc)
++	//	trace_xprt_ping(task->tk_xprt, task->tk_status);
+ 
+ 	status = task->tk_status;
+ 	if (status >= 0) {
+@@ -2310,7 +2312,7 @@ call_status(struct rpc_task *task)
+ 		return;
+ 	}
+ 
+-	trace_rpc_call_status(task);
++	//trace_rpc_call_status(task);
+ 	task->tk_status = 0;
+ 	switch(status) {
+ 	case -EHOSTDOWN:
+@@ -2340,6 +2342,11 @@ call_status(struct rpc_task *task)
+ 	case -EPIPE:
+ 	case -EAGAIN:
+ 		break;
++	case -ENFILE:
++	case -ENOBUFS:
++	case -ENOMEM:
++		rpc_delay(task, HZ>>2);
++		break;
+ 	case -EIO:
+ 		/* shutdown or soft timeout */
+ 		goto out_exit;
+@@ -2379,7 +2386,7 @@ rpc_check_timeout(struct rpc_task *task)
+ 	if (xprt_adjust_timeout(task->tk_rqstp) == 0)
+ 		return;
+ 
+-	trace_rpc_timeout_status(task);
++	//trace_rpc_timeout_status(task);
+ 	task->tk_timeouts++;
+ 
+ 	if (RPC_IS_SOFTCONN(task) && !rpc_check_connected(task->tk_rqstp)) {
+@@ -2466,7 +2473,7 @@ call_decode(struct rpc_task *task)
+ 	smp_rmb();
+ 
+ 	req->rq_rcv_buf.len = req->rq_private_buf.len;
+-	trace_rpc_xdr_recvfrom(task, &req->rq_rcv_buf);
++	//trace_rpc_xdr_recvfrom(task, &req->rq_rcv_buf);
+ 
+ 	/* Check that the softirq receive buffer is valid */
+ 	WARN_ON(memcmp(&req->rq_rcv_buf, &req->rq_private_buf,
+@@ -2522,7 +2529,7 @@ rpc_encode_header(struct rpc_task *task, struct xdr_stream *xdr)
+ 		goto out_fail;
+ 	return 0;
+ out_fail:
+-	trace_rpc_bad_callhdr(task);
++	//trace_rpc_bad_callhdr(task);
+ 	rpc_call_rpcerror(task, error);
+ 	return error;
+ }
+@@ -2562,20 +2569,20 @@ rpc_decode_header(struct rpc_task *task, struct xdr_stream *xdr)
+ 	case rpc_success:
+ 		return 0;
+ 	case rpc_prog_unavail:
+-		trace_rpc__prog_unavail(task);
++		//trace_rpc__prog_unavail(task);
+ 		error = -EPFNOSUPPORT;
+ 		goto out_err;
+ 	case rpc_prog_mismatch:
+-		trace_rpc__prog_mismatch(task);
++		//trace_rpc__prog_mismatch(task);
+ 		error = -EPROTONOSUPPORT;
+ 		goto out_err;
+ 	case rpc_proc_unavail:
+-		trace_rpc__proc_unavail(task);
++		//trace_rpc__proc_unavail(task);
+ 		error = -EOPNOTSUPP;
+ 		goto out_err;
+ 	case rpc_garbage_args:
+ 	case rpc_system_err:
+-		trace_rpc__garbage_args(task);
++		//trace_rpc__garbage_args(task);
+ 		error = -EIO;
+ 		break;
+ 	default:
+@@ -2594,12 +2601,12 @@ rpc_decode_header(struct rpc_task *task, struct xdr_stream *xdr)
+ 	return error;
+ 
+ out_unparsable:
+-	trace_rpc__unparsable(task);
++	//trace_rpc__unparsable(task);
+ 	error = -EIO;
+ 	goto out_garbage;
+ 
+ out_verifier:
+-	trace_rpc_bad_verifier(task);
++	//trace_rpc_bad_verifier(task);
+ 	goto out_garbage;
+ 
+ out_msg_denied:
+@@ -2611,7 +2618,7 @@ rpc_decode_header(struct rpc_task *task, struct xdr_stream *xdr)
+ 	case rpc_auth_error:
+ 		break;
+ 	case rpc_mismatch:
+-		trace_rpc__mismatch(task);
++		//trace_rpc__mismatch(task);
+ 		error = -EPROTONOSUPPORT;
+ 		goto out_err;
+ 	default:
+@@ -2629,7 +2636,7 @@ rpc_decode_header(struct rpc_task *task, struct xdr_stream *xdr)
+ 		if (!task->tk_cred_retry)
+ 			break;
+ 		task->tk_cred_retry--;
+-		trace_rpc__stale_creds(task);
++		//trace_rpc__stale_creds(task);
+ 		return -EKEYREJECTED;
+ 	case rpc_autherr_badcred:
+ 	case rpc_autherr_badverf:
+@@ -2637,11 +2644,11 @@ rpc_decode_header(struct rpc_task *task, struct xdr_stream *xdr)
+ 		if (!task->tk_garb_retry)
+ 			break;
+ 		task->tk_garb_retry--;
+-		trace_rpc__bad_creds(task);
++		//trace_rpc__bad_creds(task);
+ 		task->tk_action = call_encode;
+ 		return -EAGAIN;
+ 	case rpc_autherr_tooweak:
+-		trace_rpc__auth_tooweak(task);
++		//trace_rpc__auth_tooweak(task);
+ 		pr_warn("RPC: server %s requires stronger authentication.\n",
+ 			task->tk_xprt->servername);
+ 		break;
+diff --git a/net/sunrpc/rpcb_clnt.c b/net/sunrpc/rpcb_clnt.c
+index 38fe2ce8a5aa..a937fe6b2a8e 100644
+--- a/net/sunrpc/rpcb_clnt.c
++++ b/net/sunrpc/rpcb_clnt.c
+@@ -440,7 +440,7 @@ int rpcb_register(struct net *net, u32 prog, u32 vers, int prot, unsigned short
+ 	struct sunrpc_net *sn = net_generic(net, sunrpc_net_id);
+ 	bool is_set = false;
+ 
+-	trace_pmap_register(prog, vers, prot, port);
++	//trace_pmap_register(prog, vers, prot, port);
+ 
+ 	msg.rpc_proc = &rpcb_procedures2[RPCBPROC_UNSET];
+ 	if (port != 0) {
+@@ -508,7 +508,7 @@ static int rpcb_unregister_all_protofamilies(struct sunrpc_net *sn,
+ {
+ 	struct rpcbind_args *map = msg->rpc_argp;
+ 
+-	trace_rpcb_unregister(map->r_prog, map->r_vers, map->r_netid);
++	//trace_rpcb_unregister(map->r_prog, map->r_vers, map->r_netid);
+ 
+ 	map->r_addr = "";
+ 	msg->rpc_proc = &rpcb_procedures4[RPCBPROC_UNSET];
+@@ -580,7 +580,7 @@ int rpcb_v4_register(struct net *net, const u32 program, const u32 version,
+ 	if (address == NULL)
+ 		return rpcb_unregister_all_protofamilies(sn, &msg);
+ 
+-	trace_rpcb_register(map.r_prog, map.r_vers, map.r_addr, map.r_netid);
++	//trace_rpcb_register(map.r_prog, map.r_vers, map.r_addr, map.r_netid);
+ 
+ 	switch (address->sa_family) {
+ 	case AF_INET:
+@@ -699,7 +699,7 @@ void rpcb_getport_async(struct rpc_task *task)
+ 		goto bailout_nofree;
+ 	}
+ 
+-	trace_rpcb_getport(clnt, task, bind_version);
++	//trace_rpcb_getport(clnt, task, bind_version);
+ 
+ 	rpcb_clnt = rpcb_create(xprt->xprt_net,
+ 				clnt->cl_nodename,
+@@ -789,7 +789,7 @@ static void rpcb_getport_done(struct rpc_task *child, void *data)
+ 		map->r_status = 0;
+ 	}
+ 
+-	trace_rpcb_setport(child, map->r_status, map->r_port);
++	//trace_rpcb_setport(child, map->r_status, map->r_port);
+ 	xprt->ops->set_port(xprt, map->r_port);
+ 	if (map->r_port)
+ 		xprt_set_bound(xprt);
 diff --git a/net/sunrpc/sched.c b/net/sunrpc/sched.c
-index c045f63d11fa..90bb28cb044a 100644
+index c045f63d11fa..3fba951f8e39 100644
 --- a/net/sunrpc/sched.c
 +++ b/net/sunrpc/sched.c
-@@ -268,7 +268,7 @@ EXPORT_SYMBOL_GPL(rpc_destroy_wait_queue);
+@@ -186,11 +186,6 @@ static void __rpc_add_wait_queue_priority(struct rpc_wait_queue *queue,
+ 
+ /*
+  * Add new request to wait queue.
+- *
+- * Swapper tasks always get inserted at the head of the queue.
+- * This should avoid many nasty memory deadlocks and hopefully
+- * improve overall performance.
+- * Everyone else gets appended to the queue to ensure proper FIFO behavior.
+  */
+ static void __rpc_add_wait_queue(struct rpc_wait_queue *queue,
+ 		struct rpc_task *task,
+@@ -199,8 +194,6 @@ static void __rpc_add_wait_queue(struct rpc_wait_queue *queue,
+ 	INIT_LIST_HEAD(&task->u.tk_wait.timer_list);
+ 	if (RPC_IS_PRIORITY(queue))
+ 		__rpc_add_wait_queue_priority(queue, task, queue_priority);
+-	else if (RPC_IS_SWAPPER(task))
+-		list_add(&task->u.tk_wait.list, &queue->tasks[0]);
+ 	else
+ 		list_add_tail(&task->u.tk_wait.list, &queue->tasks[0]);
+ 	task->tk_waitqueue = queue;
+@@ -268,7 +261,7 @@ EXPORT_SYMBOL_GPL(rpc_destroy_wait_queue);
  
  static int rpc_wait_bit_killable(struct wait_bit_key *key, int mode)
  {
@@ -5845,11 +8154,780 @@ index c045f63d11fa..90bb28cb044a 100644
  	if (signal_pending_state(mode, current))
  		return -ERESTARTSYS;
  	return 0;
+@@ -291,7 +284,7 @@ static void rpc_set_active(struct rpc_task *task)
+ {
+ 	rpc_task_set_debuginfo(task);
+ 	set_bit(RPC_TASK_ACTIVE, &task->tk_runstate);
+-	trace_rpc_task_begin(task, NULL);
++	//trace_rpc_task_begin(task, NULL);
+ }
+ 
+ /*
+@@ -306,7 +299,7 @@ static int rpc_complete_task(struct rpc_task *task)
+ 	unsigned long flags;
+ 	int ret;
+ 
+-	trace_rpc_task_complete(task, NULL);
++	//trace_rpc_task_complete(task, NULL);
+ 
+ 	spin_lock_irqsave(&wq->lock, flags);
+ 	clear_bit(RPC_TASK_ACTIVE, &task->tk_runstate);
+@@ -369,7 +362,7 @@ static void __rpc_do_sleep_on_priority(struct rpc_wait_queue *q,
+ 		struct rpc_task *task,
+ 		unsigned char queue_priority)
+ {
+-	trace_rpc_task_sleep(task, q);
++	//trace_rpc_task_sleep(task, q);
+ 
+ 	__rpc_add_wait_queue(q, task, queue_priority);
+ }
+@@ -499,7 +492,7 @@ static void __rpc_do_wake_up_task_on_wq(struct workqueue_struct *wq,
+ 		return;
+ 	}
+ 
+-	trace_rpc_task_wakeup(task, queue);
++	//trace_rpc_task_wakeup(task, queue);
+ 
+ 	__rpc_remove_wait_queue(queue, task);
+ 
+@@ -761,7 +754,7 @@ static void __rpc_queue_timer_fn(struct work_struct *work)
+ 	list_for_each_entry_safe(task, n, &queue->timer_list.list, u.tk_wait.timer_list) {
+ 		timeo = task->tk_timeout;
+ 		if (time_after_eq(now, timeo)) {
+-			trace_rpc_task_timeout(task, task->tk_action);
++			//trace_rpc_task_timeout(task, task->tk_action);
+ 			task->tk_status = -ETIMEDOUT;
+ 			rpc_wake_up_task_queue_locked(queue, task);
+ 			continue;
+@@ -822,7 +815,7 @@ rpc_reset_task_statistics(struct rpc_task *task)
+  */
+ void rpc_exit_task(struct rpc_task *task)
+ {
+-	trace_rpc_task_end(task, task->tk_action);
++	//trace_rpc_task_end(task, task->tk_action);
+ 	task->tk_action = NULL;
+ 	if (task->tk_ops->rpc_count_stats)
+ 		task->tk_ops->rpc_count_stats(task, task->tk_calldata);
+@@ -845,7 +838,7 @@ void rpc_signal_task(struct rpc_task *task)
+ 	if (!RPC_IS_ACTIVATED(task))
+ 		return;
+ 
+-	trace_rpc_task_signalled(task, task->tk_action);
++	//trace_rpc_task_signalled(task, task->tk_action);
+ 	set_bit(RPC_TASK_SIGNALLED, &task->tk_runstate);
+ 	smp_mb__after_atomic();
+ 	queue = READ_ONCE(task->tk_waitqueue);
+@@ -897,7 +890,7 @@ static void __rpc_execute(struct rpc_task *task)
+ 		}
+ 		if (!do_action)
+ 			break;
+-		trace_rpc_task_run_action(task, do_action);
++		//trace_rpc_task_run_action(task, do_action);
+ 		do_action(task);
+ 
+ 		/*
+@@ -935,7 +928,7 @@ static void __rpc_execute(struct rpc_task *task)
+ 			return;
+ 
+ 		/* sync task: sleep here */
+-		trace_rpc_task_sync_sleep(task, task->tk_action);
++		//trace_rpc_task_sync_sleep(task, task->tk_action);
+ 		status = out_of_line_wait_on_bit(&task->tk_runstate,
+ 				RPC_TASK_QUEUED, rpc_wait_bit_killable,
+ 				TASK_KILLABLE);
+@@ -946,12 +939,12 @@ static void __rpc_execute(struct rpc_task *task)
+ 			 * clean up after sleeping on some queue, we don't
+ 			 * break the loop here, but go around once more.
+ 			 */
+-			trace_rpc_task_signalled(task, task->tk_action);
++			//trace_rpc_task_signalled(task, task->tk_action);
+ 			set_bit(RPC_TASK_SIGNALLED, &task->tk_runstate);
+ 			task->tk_rpc_status = -ERESTARTSYS;
+ 			rpc_exit(task, -ERESTARTSYS);
+ 		}
+-		trace_rpc_task_sync_wake(task, task->tk_action);
++		//trace_rpc_task_sync_wake(task, task->tk_action);
+ 	}
+ 
+ 	/* Release all resources associated with the task */
+@@ -1012,8 +1005,10 @@ int rpc_malloc(struct rpc_task *task)
+ 	struct rpc_buffer *buf;
+ 	gfp_t gfp = GFP_NOFS;
+ 
++	if (RPC_IS_ASYNC(task))
++		gfp = GFP_NOWAIT | __GFP_NOWARN;
+ 	if (RPC_IS_SWAPPER(task))
+-		gfp = __GFP_MEMALLOC | GFP_NOWAIT | __GFP_NOWARN;
++		gfp |= __GFP_MEMALLOC;
+ 
+ 	size += sizeof(struct rpc_buffer);
+ 	if (size <= RPC_BUFFER_MAXSIZE)
+diff --git a/net/sunrpc/stats.c b/net/sunrpc/stats.c
+index c964b48eaaba..cbde0adb2b41 100644
+--- a/net/sunrpc/stats.c
++++ b/net/sunrpc/stats.c
+@@ -181,7 +181,7 @@ void rpc_count_iostats_metrics(const struct rpc_task *task,
+ 
+ 	spin_unlock(&op_metrics->om_lock);
+ 
+-	trace_rpc_stats_latency(req->rq_task, backlog, req->rq_rtt, execute);
++	//trace_rpc_stats_latency(req->rq_task, backlog, req->rq_rtt, execute);
+ }
+ EXPORT_SYMBOL_GPL(rpc_count_iostats_metrics);
+ 
+diff --git a/net/sunrpc/svc.c b/net/sunrpc/svc.c
+index d38788cd9433..b644b908438e 100644
+--- a/net/sunrpc/svc.c
++++ b/net/sunrpc/svc.c
+@@ -991,7 +991,7 @@ static int __svc_register(struct net *net, const char *progname,
+ #endif
+ 	}
+ 
+-	trace_svc_register(progname, version, protocol, port, family, error);
++	//trace_svc_register(progname, version, protocol, port, family, error);
+ 	return error;
+ }
+ 
+@@ -1020,8 +1020,8 @@ int svc_generic_rpcbind_set(struct net *net,
+ 		return 0;
+ 
+ 	if (vers->vs_hidden) {
+-		trace_svc_noregister(progp->pg_name, version, proto,
+-				     port, family, 0);
++		//trace_svc_noregister(progp->pg_name, version, proto,
++		//		     port, family, 0);
+ 		return 0;
+ 	}
+ 
+@@ -1099,7 +1099,7 @@ static void __svc_unregister(struct net *net, const u32 program, const u32 versi
+ 	if (error == -EPROTONOSUPPORT)
+ 		error = rpcb_register(net, program, version, 0, 0);
+ 
+-	trace_svc_unregister(progname, version, error);
++	//trace_svc_unregister(progname, version, error);
+ }
+ 
+ /*
+@@ -1326,8 +1326,8 @@ svc_process_common(struct svc_rqst *rqstp, struct kvec *argv, struct kvec *resv)
+ 		auth_stat = rpc_autherr_badcred;
+ 		auth_res = progp->pg_authenticate(rqstp);
+ 	}
+-	if (auth_res != SVC_OK)
+-		trace_svc_authenticate(rqstp, auth_res, auth_stat);
++	//if (auth_res != SVC_OK)
++	//	trace_svc_authenticate(rqstp, auth_res, auth_stat);
+ 	switch (auth_res) {
+ 	case SVC_OK:
+ 		break;
+@@ -1368,7 +1368,7 @@ svc_process_common(struct svc_rqst *rqstp, struct kvec *argv, struct kvec *resv)
+ 
+ 	/* Syntactic check complete */
+ 	serv->sv_stats->rpccnt++;
+-	trace_svc_process(rqstp, progp->pg_name);
++	//trace_svc_process(rqstp, progp->pg_name);
+ 
+ 	/* Build the reply header. */
+ 	statp = resv->iov_base +resv->iov_len;
+diff --git a/net/sunrpc/svc_xprt.c b/net/sunrpc/svc_xprt.c
+index 06e503466c32..e9dd0a8acc72 100644
+--- a/net/sunrpc/svc_xprt.c
++++ b/net/sunrpc/svc_xprt.c
+@@ -153,7 +153,7 @@ static void svc_xprt_free(struct kref *kref)
+ 		xprt_put(xprt->xpt_bc_xprt);
+ 	if (xprt->xpt_bc_xps)
+ 		xprt_switch_put(xprt->xpt_bc_xps);
+-	trace_svc_xprt_free(xprt);
++	//trace_svc_xprt_free(xprt);
+ 	xprt->xpt_ops->xpo_free(xprt);
+ 	module_put(owner);
+ }
+@@ -227,9 +227,9 @@ static struct svc_xprt *__svc_xpo_create(struct svc_xprt_class *xcl,
+ 	}
+ 
+ 	xprt = xcl->xcl_ops->xpo_create(serv, net, sap, len, flags);
+-	if (IS_ERR(xprt))
+-		trace_svc_xprt_create_err(serv->sv_program->pg_name,
+-					  xcl->xcl_name, sap, xprt);
++	//if (IS_ERR(xprt))
++	//	trace_svc_xprt_create_err(serv->sv_program->pg_name,
++	//				  xcl->xcl_name, sap, xprt);
+ 	return xprt;
+ }
+ 
+@@ -399,7 +399,7 @@ static bool svc_xprt_ready(struct svc_xprt *xprt)
+ 		if (xprt->xpt_ops->xpo_has_wspace(xprt) &&
+ 		    svc_xprt_slots_in_range(xprt))
+ 			return true;
+-		trace_svc_xprt_no_write_space(xprt);
++		//trace_svc_xprt_no_write_space(xprt);
+ 		return false;
+ 	}
+ 	return false;
+@@ -447,7 +447,7 @@ void svc_xprt_do_enqueue(struct svc_xprt *xprt)
+ out_unlock:
+ 	rcu_read_unlock();
+ 	put_cpu();
+-	trace_svc_xprt_do_enqueue(xprt, rqstp);
++	//trace_svc_xprt_do_enqueue(xprt, rqstp);
+ }
+ EXPORT_SYMBOL_GPL(svc_xprt_do_enqueue);
+ 
+@@ -562,7 +562,7 @@ void svc_wake_up(struct svc_serv *serv)
+ 			continue;
+ 		rcu_read_unlock();
+ 		wake_up_process(rqstp->rq_task);
+-		trace_svc_wake_up(rqstp->rq_task->pid);
++		//trace_svc_wake_up(rqstp->rq_task->pid);
+ 		return;
+ 	}
+ 	rcu_read_unlock();
+@@ -570,7 +570,7 @@ void svc_wake_up(struct svc_serv *serv)
+ 	/* No free entries available */
+ 	set_bit(SP_TASK_PENDING, &pool->sp_flags);
+ 	smp_wmb();
+-	trace_svc_wake_up(0);
++	//trace_svc_wake_up(0);
+ }
+ EXPORT_SYMBOL_GPL(svc_wake_up);
+ 
+@@ -756,7 +756,7 @@ static struct svc_xprt *svc_get_next_xprt(struct svc_rqst *rqstp, long timeout)
+ 		rqstp->rq_chandle.thread_wait = 5*HZ;
+ 	else
+ 		rqstp->rq_chandle.thread_wait = 1*HZ;
+-	trace_svc_xprt_dequeue(rqstp);
++	//trace_svc_xprt_dequeue(rqstp);
+ 	return rqstp->rq_xprt;
+ }
+ 
+@@ -800,7 +800,7 @@ static int svc_handle_xprt(struct svc_rqst *rqstp, struct svc_xprt *xprt)
+ 		if (newxpt) {
+ 			newxpt->xpt_cred = get_cred(xprt->xpt_cred);
+ 			svc_add_new_temp_xprt(serv, newxpt);
+-			trace_svc_xprt_accept(newxpt, serv->sv_name);
++			//trace_svc_xprt_accept(newxpt, serv->sv_name);
+ 		} else
+ 			module_put(xprt->xpt_class->xcl_owner);
+ 	} else if (svc_xprt_reserve_slot(rqstp, xprt)) {
+@@ -813,8 +813,8 @@ static int svc_handle_xprt(struct svc_rqst *rqstp, struct svc_xprt *xprt)
+ 			len = svc_deferred_recv(rqstp);
+ 		else
+ 			len = xprt->xpt_ops->xpo_recvfrom(rqstp);
+-		if (len > 0)
+-			trace_svc_xdr_recvfrom(rqstp, &rqstp->rq_arg);
++		//if (len > 0)
++		//	trace_svc_xdr_recvfrom(rqstp, &rqstp->rq_arg);
+ 		rqstp->rq_stime = ktime_get();
+ 		rqstp->rq_reserved = serv->sv_max_mesg;
+ 		atomic_add(rqstp->rq_reserved, &xprt->xpt_reserved);
+@@ -822,7 +822,7 @@ static int svc_handle_xprt(struct svc_rqst *rqstp, struct svc_xprt *xprt)
+ 	/* clear XPT_BUSY: */
+ 	svc_xprt_received(xprt);
+ out:
+-	trace_svc_handle_xprt(xprt, len);
++	//trace_svc_handle_xprt(xprt, len);
+ 	return len;
+ }
+ 
+@@ -868,7 +868,7 @@ int svc_recv(struct svc_rqst *rqstp, long timeout)
+ 
+ 	if (serv->sv_stats)
+ 		serv->sv_stats->netcnt++;
+-	trace_svc_recv(rqstp, len);
++	//trace_svc_recv(rqstp, len);
+ 	return len;
+ out_release:
+ 	rqstp->rq_res.len = 0;
+@@ -883,7 +883,7 @@ EXPORT_SYMBOL_GPL(svc_recv);
+  */
+ void svc_drop(struct svc_rqst *rqstp)
+ {
+-	trace_svc_drop(rqstp);
++	//trace_svc_drop(rqstp);
+ 	svc_xprt_release(rqstp);
+ }
+ EXPORT_SYMBOL_GPL(svc_drop);
+@@ -906,12 +906,12 @@ int svc_send(struct svc_rqst *rqstp)
+ 	xb->len = xb->head[0].iov_len +
+ 		xb->page_len +
+ 		xb->tail[0].iov_len;
+-	trace_svc_xdr_sendto(rqstp, xb);
+-	trace_svc_stats_latency(rqstp);
++	//trace_svc_xdr_sendto(rqstp, xb);
++	//trace_svc_stats_latency(rqstp);
+ 
+ 	len = xprt->xpt_ops->xpo_sendto(rqstp);
+ 
+-	trace_svc_send(rqstp, len);
++	//trace_svc_send(rqstp, len);
+ 	svc_xprt_release(rqstp);
+ 
+ 	if (len == -ECONNREFUSED || len == -ENOTCONN || len == -EAGAIN)
+@@ -1021,7 +1021,7 @@ static void svc_delete_xprt(struct svc_xprt *xprt)
+ 	if (test_and_set_bit(XPT_DEAD, &xprt->xpt_flags))
+ 		return;
+ 
+-	trace_svc_xprt_detach(xprt);
++	//trace_svc_xprt_detach(xprt);
+ 	xprt->xpt_ops->xpo_detach(xprt);
+ 	if (xprt->xpt_bc_xprt)
+ 		xprt->xpt_bc_xprt->ops->close(xprt->xpt_bc_xprt);
+@@ -1042,7 +1042,7 @@ static void svc_delete_xprt(struct svc_xprt *xprt)
+ 
+ void svc_close_xprt(struct svc_xprt *xprt)
+ {
+-	trace_svc_xprt_close(xprt);
++	//trace_svc_xprt_close(xprt);
+ 	set_bit(XPT_CLOSE, &xprt->xpt_flags);
+ 	if (test_and_set_bit(XPT_BUSY, &xprt->xpt_flags))
+ 		/* someone else will have to effect the close */
+@@ -1145,7 +1145,7 @@ static void svc_revisit(struct cache_deferred_req *dreq, int too_many)
+ 	set_bit(XPT_DEFERRED, &xprt->xpt_flags);
+ 	if (too_many || test_bit(XPT_DEAD, &xprt->xpt_flags)) {
+ 		spin_unlock(&xprt->xpt_lock);
+-		trace_svc_defer_drop(dr);
++		//trace_svc_defer_drop(dr);
+ 		svc_xprt_put(xprt);
+ 		kfree(dr);
+ 		return;
+@@ -1153,7 +1153,7 @@ static void svc_revisit(struct cache_deferred_req *dreq, int too_many)
+ 	dr->xprt = NULL;
+ 	list_add(&dr->handle.recent, &xprt->xpt_deferred);
+ 	spin_unlock(&xprt->xpt_lock);
+-	trace_svc_defer_queue(dr);
++	//trace_svc_defer_queue(dr);
+ 	svc_xprt_enqueue(xprt);
+ 	svc_xprt_put(xprt);
+ }
+@@ -1199,7 +1199,7 @@ static struct cache_deferred_req *svc_defer(struct cache_req *req)
+ 		memcpy(dr->args, rqstp->rq_arg.head[0].iov_base - skip,
+ 		       dr->argslen << 2);
+ 	}
+-	trace_svc_defer(rqstp);
++	//trace_svc_defer(rqstp);
+ 	svc_xprt_get(rqstp->rq_xprt);
+ 	dr->xprt = rqstp->rq_xprt;
+ 	set_bit(RQ_DROPME, &rqstp->rq_flags);
+@@ -1215,7 +1215,7 @@ static noinline int svc_deferred_recv(struct svc_rqst *rqstp)
+ {
+ 	struct svc_deferred_req *dr = rqstp->rq_deferred;
+ 
+-	trace_svc_defer_recv(dr);
++	//trace_svc_defer_recv(dr);
+ 
+ 	/* setup iov_base past transport header */
+ 	rqstp->rq_arg.head[0].iov_base = dr->args + (dr->xprt_hlen>>2);
+diff --git a/net/sunrpc/svcsock.c b/net/sunrpc/svcsock.c
+index eba1714bf09a..2556b2542af0 100644
+--- a/net/sunrpc/svcsock.c
++++ b/net/sunrpc/svcsock.c
+@@ -325,7 +325,7 @@ static void svc_data_ready(struct sock *sk)
+ 		/* Refer to svc_setup_socket() for details. */
+ 		rmb();
+ 		svsk->sk_odata(sk);
+-		trace_svcsock_data_ready(&svsk->sk_xprt, 0);
++		//trace_svcsock_data_ready(&svsk->sk_xprt, 0);
+ 		if (!test_and_set_bit(XPT_DATA, &svsk->sk_xprt.xpt_flags))
+ 			svc_xprt_enqueue(&svsk->sk_xprt);
+ 	}
+@@ -341,7 +341,7 @@ static void svc_write_space(struct sock *sk)
+ 	if (svsk) {
+ 		/* Refer to svc_setup_socket() for details. */
+ 		rmb();
+-		trace_svcsock_write_space(&svsk->sk_xprt, 0);
++		//trace_svcsock_write_space(&svsk->sk_xprt, 0);
+ 		svsk->sk_owspace(sk);
+ 		svc_xprt_enqueue(&svsk->sk_xprt);
+ 	}
+@@ -480,7 +480,7 @@ static int svc_udp_recvfrom(struct svc_rqst *rqstp)
+ 
+ 	len = skb->len;
+ 	rqstp->rq_arg.len = len;
+-	trace_svcsock_udp_recv(&svsk->sk_xprt, len);
++	//trace_svcsock_udp_recv(&svsk->sk_xprt, len);
+ 
+ 	rqstp->rq_prot = IPPROTO_UDP;
+ 
+@@ -526,7 +526,7 @@ static int svc_udp_recvfrom(struct svc_rqst *rqstp)
+ 		/* possibly an icmp error */
+ 		set_bit(XPT_DATA, &svsk->sk_xprt.xpt_flags);
+ 	}
+-	trace_svcsock_udp_recv_err(&svsk->sk_xprt, err);
++	//trace_svcsock_udp_recv_err(&svsk->sk_xprt, err);
+ 	return 0;
+ out_cmsg_err:
+ 	net_warn_ratelimited("svc: received unknown control message %d/%d; dropping RPC reply datagram\n",
+@@ -583,7 +583,7 @@ static int svc_udp_sendto(struct svc_rqst *rqstp)
+ 		err = xprt_sock_sendmsg(svsk->sk_sock, &msg, xdr, 0, 0, &sent);
+ 		xdr_free_bvec(xdr);
+ 	}
+-	trace_svcsock_udp_send(xprt, err);
++	//trace_svcsock_udp_send(xprt, err);
+ 
+ 	mutex_unlock(&xprt->xpt_mutex);
+ 	if (err < 0)
+@@ -727,7 +727,7 @@ static void svc_tcp_state_change(struct sock *sk)
+ 		/* Refer to svc_setup_socket() for details. */
+ 		rmb();
+ 		svsk->sk_ostate(sk);
+-		trace_svcsock_tcp_state(&svsk->sk_xprt, svsk->sk_sock);
++		//trace_svcsock_tcp_state(&svsk->sk_xprt, svsk->sk_sock);
+ 		if (sk->sk_state != TCP_ESTABLISHED) {
+ 			set_bit(XPT_CLOSE, &svsk->sk_xprt.xpt_flags);
+ 			svc_xprt_enqueue(&svsk->sk_xprt);
+@@ -761,14 +761,14 @@ static struct svc_xprt *svc_tcp_accept(struct svc_xprt *xprt)
+ 		else if (err != -EAGAIN)
+ 			net_warn_ratelimited("%s: accept failed (err %d)!\n",
+ 					     serv->sv_name, -err);
+-		trace_svcsock_accept_err(xprt, serv->sv_name, err);
++		//trace_svcsock_accept_err(xprt, serv->sv_name, err);
+ 		return NULL;
+ 	}
+ 	set_bit(XPT_CONN, &svsk->sk_xprt.xpt_flags);
+ 
+ 	err = kernel_getpeername(newsock, sin);
+ 	if (err < 0) {
+-		trace_svcsock_getpeername_err(xprt, serv->sv_name, err);
++		//trace_svcsock_getpeername_err(xprt, serv->sv_name, err);
+ 		goto failed;		/* aborted connection or whatever */
+ 	}
+ 	slen = err;
+@@ -890,7 +890,7 @@ static ssize_t svc_tcp_read_marker(struct svc_sock *svsk,
+ 			/* call again to read the remaining bytes */
+ 			goto err_short;
+ 		}
+-		trace_svcsock_marker(&svsk->sk_xprt, svsk->sk_marker);
++		//trace_svcsock_marker(&svsk->sk_xprt, svsk->sk_marker);
+ 		if (svc_sock_reclen(svsk) + svsk->sk_datalen >
+ 		    svsk->sk_xprt.xpt_server->sv_max_mesg)
+ 			goto err_too_large;
+@@ -995,7 +995,7 @@ static int svc_tcp_recvfrom(struct svc_rqst *rqstp)
+ 	want = len - (svsk->sk_tcplen - sizeof(rpc_fraghdr));
+ 	len = svc_tcp_read_msg(rqstp, base + want, base);
+ 	if (len >= 0) {
+-		trace_svcsock_tcp_recv(&svsk->sk_xprt, len);
++		//trace_svcsock_tcp_recv(&svsk->sk_xprt, len);
+ 		svsk->sk_tcplen += len;
+ 		svsk->sk_datalen += len;
+ 	}
+@@ -1044,19 +1044,19 @@ static int svc_tcp_recvfrom(struct svc_rqst *rqstp)
+ 	if (len == want)
+ 		svc_tcp_fragment_received(svsk);
+ 	else
+-		trace_svcsock_tcp_recv_short(&svsk->sk_xprt,
+-				svc_sock_reclen(svsk),
+-				svsk->sk_tcplen - sizeof(rpc_fraghdr));
++		//trace_svcsock_tcp_recv_short(&svsk->sk_xprt,
++		//		svc_sock_reclen(svsk),
++		//		svsk->sk_tcplen - sizeof(rpc_fraghdr));
+ 	goto err_noclose;
+ error:
+ 	if (len != -EAGAIN)
+ 		goto err_delete;
+-	trace_svcsock_tcp_recv_eagain(&svsk->sk_xprt, 0);
++	//trace_svcsock_tcp_recv_eagain(&svsk->sk_xprt, 0);
+ 	return 0;
+ err_nuts:
+ 	svsk->sk_datalen = 0;
+ err_delete:
+-	trace_svcsock_tcp_recv_err(&svsk->sk_xprt, len);
++	//trace_svcsock_tcp_recv_err(&svsk->sk_xprt, len);
+ 	set_bit(XPT_CLOSE, &svsk->sk_xprt.xpt_flags);
+ err_noclose:
+ 	return 0;	/* record not complete */
+@@ -1091,7 +1091,9 @@ static int svc_tcp_sendmsg(struct socket *sock, struct msghdr *msg,
+ 	int flags, ret;
+ 
+ 	*sentp = 0;
+-	xdr_alloc_bvec(xdr, GFP_KERNEL);
++	ret = xdr_alloc_bvec(xdr, GFP_KERNEL);
++	if (ret < 0)
++		return ret;
+ 
+ 	msg->msg_flags = MSG_MORE;
+ 	ret = kernel_sendmsg(sock, msg, &rm, 1, rm.iov_len);
+@@ -1176,7 +1178,7 @@ static int svc_tcp_sendto(struct svc_rqst *rqstp)
+ 		goto out_notconn;
+ 	err = svc_tcp_sendmsg(svsk->sk_sock, &msg, xdr, marker, &sent);
+ 	xdr_free_bvec(xdr);
+-	trace_svcsock_tcp_send(xprt, err < 0 ? (long)err : sent);
++	//trace_svcsock_tcp_send(xprt, err < 0 ? (long)err : sent);
+ 	if (err < 0 || sent != (xdr->len + sizeof(marker)))
+ 		goto out_close;
+ 	mutex_unlock(&xprt->xpt_mutex);
+@@ -1337,7 +1339,7 @@ static struct svc_sock *svc_setup_socket(struct svc_serv *serv,
+ 	else
+ 		svc_tcp_init(svsk, serv);
+ 
+-	trace_svcsock_new_socket(sock);
++	//trace_svcsock_new_socket(sock);
+ 	return svsk;
+ }
+ 
+diff --git a/net/sunrpc/xdr.c b/net/sunrpc/xdr.c
+index 71e03b930b70..736188853554 100644
+--- a/net/sunrpc/xdr.c
++++ b/net/sunrpc/xdr.c
+@@ -757,7 +757,7 @@ static __be32 *xdr_get_next_encode_buffer(struct xdr_stream *xdr,
+ 	xdr->buf->len += nbytes;
+ 	return p;
+ out_overflow:
+-	trace_rpc_xdr_overflow(xdr, nbytes);
++	//trace_rpc_xdr_overflow(xdr, nbytes);
+ 	return NULL;
+ }
+ 
+@@ -1141,7 +1141,7 @@ static __be32 *xdr_copy_to_scratch(struct xdr_stream *xdr, size_t nbytes)
+ 	memcpy(cpdest, p, nbytes);
+ 	return xdr->scratch.iov_base;
+ out_overflow:
+-	trace_rpc_xdr_overflow(xdr, nbytes);
++	//trace_rpc_xdr_overflow(xdr, nbytes);
+ 	return NULL;
+ }
+ 
+@@ -1168,7 +1168,7 @@ __be32 * xdr_inline_decode(struct xdr_stream *xdr, size_t nbytes)
+ 		return p;
+ 	return xdr_copy_to_scratch(xdr, nbytes);
+ out_overflow:
+-	trace_rpc_xdr_overflow(xdr, nbytes);
++	//trace_rpc_xdr_overflow(xdr, nbytes);
+ 	return NULL;
+ }
+ EXPORT_SYMBOL_GPL(xdr_inline_decode);
+@@ -1184,7 +1184,7 @@ static void xdr_realign_pages(struct xdr_stream *xdr)
+ 	if (iov->iov_len > cur) {
+ 		offset = iov->iov_len - cur;
+ 		copied = xdr_shrink_bufhead(buf, offset);
+-		trace_rpc_xdr_alignment(xdr, offset, copied);
++		//trace_rpc_xdr_alignment(xdr, offset, copied);
+ 		xdr->nwords = XDR_QUADLEN(buf->len - cur);
+ 	}
+ }
+@@ -1210,7 +1210,7 @@ static unsigned int xdr_align_pages(struct xdr_stream *xdr, unsigned int len)
+ 		/* Truncate page data and move it into the tail */
+ 		offset = buf->page_len - len;
+ 		copied = xdr_shrink_pagelen(buf, offset);
+-		trace_rpc_xdr_alignment(xdr, offset, copied);
++		//trace_rpc_xdr_alignment(xdr, offset, copied);
+ 		xdr->nwords = XDR_QUADLEN(buf->len - cur);
+ 	}
+ 	return len;
 diff --git a/net/sunrpc/xprt.c b/net/sunrpc/xprt.c
-index 04aaca4b8bf9..46304e647c49 100644
+index 04aaca4b8bf9..f97a76eec179 100644
 --- a/net/sunrpc/xprt.c
 +++ b/net/sunrpc/xprt.c
-@@ -2037,7 +2037,14 @@ static void xprt_destroy(struct rpc_xprt *xprt)
+@@ -247,7 +247,7 @@ int xprt_reserve_xprt(struct rpc_xprt *xprt, struct rpc_task *task)
+ 	xprt->snd_task = task;
+ 
+ out_locked:
+-	trace_xprt_reserve_xprt(xprt, task);
++	//trace_xprt_reserve_xprt(xprt, task);
+ 	return 1;
+ 
+ out_unlock:
+@@ -327,7 +327,7 @@ int xprt_reserve_xprt_cong(struct rpc_xprt *xprt, struct rpc_task *task)
+ 		rpc_sleep_on(&xprt->sending, task, NULL);
+ 	return 0;
+ out_locked:
+-	trace_xprt_reserve_cong(xprt, task);
++	//trace_xprt_reserve_cong(xprt, task);
+ 	return 1;
+ }
+ EXPORT_SYMBOL_GPL(xprt_reserve_xprt_cong);
+@@ -393,7 +393,7 @@ void xprt_release_xprt(struct rpc_xprt *xprt, struct rpc_task *task)
+ 		xprt_clear_locked(xprt);
+ 		__xprt_lock_write_next(xprt);
+ 	}
+-	trace_xprt_release_xprt(xprt, task);
++	//trace_xprt_release_xprt(xprt, task);
+ }
+ EXPORT_SYMBOL_GPL(xprt_release_xprt);
+ 
+@@ -411,7 +411,7 @@ void xprt_release_xprt_cong(struct rpc_xprt *xprt, struct rpc_task *task)
+ 		xprt_clear_locked(xprt);
+ 		__xprt_lock_write_next_cong(xprt);
+ 	}
+-	trace_xprt_release_cong(xprt, task);
++	//trace_xprt_release_cong(xprt, task);
+ }
+ EXPORT_SYMBOL_GPL(xprt_release_xprt_cong);
+ 
+@@ -433,7 +433,7 @@ __xprt_get_cong(struct rpc_xprt *xprt, struct rpc_rqst *req)
+ {
+ 	if (req->rq_cong)
+ 		return 1;
+-	trace_xprt_get_cong(xprt, req->rq_task);
++	//trace_xprt_get_cong(xprt, req->rq_task);
+ 	if (RPCXPRT_CONGESTED(xprt)) {
+ 		xprt_set_congestion_window_wait(xprt);
+ 		return 0;
+@@ -455,7 +455,7 @@ __xprt_put_cong(struct rpc_xprt *xprt, struct rpc_rqst *req)
+ 	req->rq_cong = 0;
+ 	xprt->cong -= RPC_CWNDSCALE;
+ 	xprt_test_and_clear_congestion_window_wait(xprt);
+-	trace_xprt_put_cong(xprt, req->rq_task);
++	//trace_xprt_put_cong(xprt, req->rq_task);
+ 	__xprt_lock_write_next_cong(xprt);
+ }
+ 
+@@ -706,7 +706,7 @@ static void xprt_autoclose(struct work_struct *work)
+ 		container_of(work, struct rpc_xprt, task_cleanup);
+ 	unsigned int pflags = memalloc_nofs_save();
+ 
+-	trace_xprt_disconnect_auto(xprt);
++	//trace_xprt_disconnect_auto(xprt);
+ 	clear_bit(XPRT_CLOSE_WAIT, &xprt->state);
+ 	xprt->ops->close(xprt);
+ 	xprt_release_write(xprt, NULL);
+@@ -721,7 +721,7 @@ static void xprt_autoclose(struct work_struct *work)
+  */
+ void xprt_disconnect_done(struct rpc_xprt *xprt)
+ {
+-	trace_xprt_disconnect_done(xprt);
++	//trace_xprt_disconnect_done(xprt);
+ 	spin_lock(&xprt->transport_lock);
+ 	xprt_clear_connected(xprt);
+ 	xprt_clear_write_space_locked(xprt);
+@@ -738,7 +738,7 @@ EXPORT_SYMBOL_GPL(xprt_disconnect_done);
+  */
+ void xprt_force_disconnect(struct rpc_xprt *xprt)
+ {
+-	trace_xprt_disconnect_force(xprt);
++	//trace_xprt_disconnect_force(xprt);
+ 
+ 	/* Don't race with the test_bit() in xprt_clear_locked() */
+ 	spin_lock(&xprt->transport_lock);
+@@ -872,7 +872,7 @@ void xprt_connect(struct rpc_task *task)
+ {
+ 	struct rpc_xprt	*xprt = task->tk_rqstp->rq_xprt;
+ 
+-	trace_xprt_connect(xprt);
++	//trace_xprt_connect(xprt);
+ 
+ 	if (!xprt_bound(xprt)) {
+ 		task->tk_status = -EAGAIN;
+@@ -882,7 +882,7 @@ void xprt_connect(struct rpc_task *task)
+ 		return;
+ 
+ 	if (test_and_clear_bit(XPRT_CLOSE_WAIT, &xprt->state)) {
+-		trace_xprt_disconnect_cleanup(xprt);
++		//trace_xprt_disconnect_cleanup(xprt);
+ 		xprt->ops->close(xprt);
+ 	}
+ 
+@@ -1022,14 +1022,14 @@ struct rpc_rqst *xprt_lookup_rqst(struct rpc_xprt *xprt, __be32 xid)
+ 
+ 	entry = xprt_request_rb_find(xprt, xid);
+ 	if (entry != NULL) {
+-		trace_xprt_lookup_rqst(xprt, xid, 0);
++		//trace_xprt_lookup_rqst(xprt, xid, 0);
+ 		entry->rq_rtt = ktime_sub(ktime_get(), entry->rq_xtime);
+ 		return entry;
+ 	}
+ 
+ 	dprintk("RPC:       xprt_lookup_rqst did not find xid %08x\n",
+ 			ntohl(xid));
+-	trace_xprt_lookup_rqst(xprt, xid, -ENOENT);
++	//trace_xprt_lookup_rqst(xprt, xid, -ENOENT);
+ 	xprt->stat.bad_xids++;
+ 	return NULL;
+ }
+@@ -1188,7 +1188,7 @@ static void xprt_timer(struct rpc_task *task)
+ 	if (task->tk_status != -ETIMEDOUT)
+ 		return;
+ 
+-	trace_xprt_timer(xprt, req->rq_xid, task->tk_status);
++	//trace_xprt_timer(xprt, req->rq_xid, task->tk_status);
+ 	if (!req->rq_reply_bytes_recvd) {
+ 		if (xprt->ops->timer)
+ 			xprt->ops->timer(xprt, task);
+@@ -1306,17 +1306,6 @@ xprt_request_enqueue_transmit(struct rpc_task *task)
+ 				INIT_LIST_HEAD(&req->rq_xmit2);
+ 				goto out;
+ 			}
+-		} else if (RPC_IS_SWAPPER(task)) {
+-			list_for_each_entry(pos, &xprt->xmit_queue, rq_xmit) {
+-				if (pos->rq_cong || pos->rq_bytes_sent)
+-					continue;
+-				if (RPC_IS_SWAPPER(pos->rq_task))
+-					continue;
+-				/* Note: req is added _before_ pos */
+-				list_add_tail(&req->rq_xmit, &pos->rq_xmit);
+-				INIT_LIST_HEAD(&req->rq_xmit2);
+-				goto out;
+-			}
+ 		} else if (!req->rq_seqno) {
+ 			list_for_each_entry(pos, &xprt->xmit_queue, rq_xmit) {
+ 				if (pos->rq_task->tk_owner != task->tk_owner)
+@@ -1506,12 +1495,12 @@ xprt_request_transmit(struct rpc_rqst *req, struct rpc_task *snd_task)
+ 	 */
+ 	req->rq_ntrans++;
+ 
+-	trace_rpc_xdr_sendto(task, &req->rq_snd_buf);
++	//trace_rpc_xdr_sendto(task, &req->rq_snd_buf);
+ 	connect_cookie = xprt->connect_cookie;
+ 	status = xprt->ops->send_request(req);
+ 	if (status != 0) {
+ 		req->rq_ntrans--;
+-		trace_xprt_transmit(req, status);
++		//trace_xprt_transmit(req, status);
+ 		return status;
+ 	}
+ 
+@@ -1532,7 +1521,7 @@ xprt_request_transmit(struct rpc_rqst *req, struct rpc_task *snd_task)
+ 
+ 	req->rq_connect_cookie = connect_cookie;
+ out_dequeue:
+-	trace_xprt_transmit(req, status);
++	//trace_xprt_transmit(req, status);
+ 	xprt_request_dequeue_transmit(task);
+ 	rpc_wake_up_queued_task_set_status(&xprt->sending, task, status);
+ 	return status;
+@@ -1635,12 +1624,15 @@ static bool xprt_throttle_congested(struct rpc_xprt *xprt, struct rpc_task *task
+ static struct rpc_rqst *xprt_dynamic_alloc_slot(struct rpc_xprt *xprt)
+ {
+ 	struct rpc_rqst *req = ERR_PTR(-EAGAIN);
++	gfp_t gfp_mask = GFP_KERNEL;
+ 
+ 	if (xprt->num_reqs >= xprt->max_reqs)
+ 		goto out;
+ 	++xprt->num_reqs;
+ 	spin_unlock(&xprt->reserve_lock);
+-	req = kzalloc(sizeof(struct rpc_rqst), GFP_NOFS);
++	if (current->flags & PF_WQ_WORKER)
++		gfp_mask |= __GFP_NORETRY | __GFP_NOWARN;
++	req = kzalloc(sizeof(*req), gfp_mask);
+ 	spin_lock(&xprt->reserve_lock);
+ 	if (req != NULL)
+ 		goto out;
+@@ -1807,7 +1799,7 @@ xprt_request_init(struct rpc_task *task)
+ 	req->rq_release_snd_buf = NULL;
+ 	xprt_init_majortimeo(task, req);
+ 
+-	trace_xprt_reserve(req);
++	//trace_xprt_reserve(req);
+ }
+ 
+ static void
+@@ -1996,7 +1988,7 @@ struct rpc_xprt *xprt_create_transport(struct xprt_create *args)
+ 
+ 	rpc_xprt_debugfs_register(xprt);
+ 
+-	trace_xprt_create(xprt);
++	//trace_xprt_create(xprt);
+ out:
+ 	return xprt;
+ }
+@@ -2006,7 +1998,7 @@ static void xprt_destroy_cb(struct work_struct *work)
+ 	struct rpc_xprt *xprt =
+ 		container_of(work, struct rpc_xprt, task_cleanup);
+ 
+-	trace_xprt_destroy(xprt);
++	//trace_xprt_destroy(xprt);
+ 
+ 	rpc_xprt_debugfs_unregister(xprt);
+ 	rpc_destroy_wait_queue(&xprt->binding);
+@@ -2037,7 +2029,14 @@ static void xprt_destroy(struct rpc_xprt *xprt)
  	 */
  	wait_on_bit_lock(&xprt->state, XPRT_LOCKED, TASK_UNINTERRUPTIBLE);
  
@@ -5864,6 +8942,920 @@ index 04aaca4b8bf9..46304e647c49 100644
  
  	/*
  	 * Destroy sockets etc from the system workqueue so they can
+diff --git a/net/sunrpc/xprtrdma/backchannel.c b/net/sunrpc/xprtrdma/backchannel.c
+index c92c1aac270a..7acd7746bb80 100644
+--- a/net/sunrpc/xprtrdma/backchannel.c
++++ b/net/sunrpc/xprtrdma/backchannel.c
+@@ -31,7 +31,7 @@ int xprt_rdma_bc_setup(struct rpc_xprt *xprt, unsigned int reqs)
+ 	struct rpcrdma_xprt *r_xprt = rpcx_to_rdmax(xprt);
+ 
+ 	r_xprt->rx_buf.rb_bc_srv_max_requests = RPCRDMA_BACKWARD_WRS >> 1;
+-	trace_xprtrdma_cb_setup(r_xprt, reqs);
++	//trace_xprtrdma_cb_setup(r_xprt, reqs);
+ 	return 0;
+ }
+ 
+@@ -82,7 +82,7 @@ static int rpcrdma_bc_marshal_reply(struct rpc_rqst *rqst)
+ 				      &rqst->rq_snd_buf, rpcrdma_noch_pullup))
+ 		return -EIO;
+ 
+-	trace_xprtrdma_cb_reply(rqst);
++	//trace_xprtrdma_cb_reply(rqst);
+ 	return 0;
+ }
+ 
+@@ -260,7 +260,7 @@ void rpcrdma_bc_receive_call(struct rpcrdma_xprt *r_xprt,
+ 	 */
+ 	req = rpcr_to_rdmar(rqst);
+ 	req->rl_reply = rep;
+-	trace_xprtrdma_cb_call(rqst);
++	//trace_xprtrdma_cb_call(rqst);
+ 
+ 	/* Queue rqst for ULP's callback service */
+ 	bc_serv = xprt->bc_serv;
+diff --git a/net/sunrpc/xprtrdma/frwr_ops.c b/net/sunrpc/xprtrdma/frwr_ops.c
+index bf3627dce552..48d7cce3dfc2 100644
+--- a/net/sunrpc/xprtrdma/frwr_ops.c
++++ b/net/sunrpc/xprtrdma/frwr_ops.c
+@@ -59,8 +59,8 @@ void frwr_release_mr(struct rpcrdma_mr *mr)
+ 	int rc;
+ 
+ 	rc = ib_dereg_mr(mr->frwr.fr_mr);
+-	if (rc)
+-		trace_xprtrdma_frwr_dereg(mr, rc);
++	//if (rc)
++	//	trace_xprtrdma_frwr_dereg(mr, rc);
+ 	kfree(mr->mr_sg);
+ 	kfree(mr);
+ }
+@@ -69,10 +69,10 @@ static void frwr_mr_recycle(struct rpcrdma_mr *mr)
+ {
+ 	struct rpcrdma_xprt *r_xprt = mr->mr_xprt;
+ 
+-	trace_xprtrdma_mr_recycle(mr);
++	//trace_xprtrdma_mr_recycle(mr);
+ 
+ 	if (mr->mr_dir != DMA_NONE) {
+-		trace_xprtrdma_mr_unmap(mr);
++		//trace_xprtrdma_mr_unmap(mr);
+ 		ib_dma_unmap_sg(r_xprt->rx_ep->re_id->device,
+ 				mr->mr_sg, mr->mr_nents, mr->mr_dir);
+ 		mr->mr_dir = DMA_NONE;
+@@ -140,7 +140,7 @@ int frwr_mr_init(struct rpcrdma_xprt *r_xprt, struct rpcrdma_mr *mr)
+ 
+ out_mr_err:
+ 	rc = PTR_ERR(frmr);
+-	trace_xprtrdma_frwr_alloc(mr, rc);
++	//trace_xprtrdma_frwr_alloc(mr, rc);
+ 	return rc;
+ 
+ out_list_err:
+@@ -337,17 +337,17 @@ struct rpcrdma_mr_seg *frwr_map(struct rpcrdma_xprt *r_xprt,
+ 	mr->mr_handle = ibmr->rkey;
+ 	mr->mr_length = ibmr->length;
+ 	mr->mr_offset = ibmr->iova;
+-	trace_xprtrdma_mr_map(mr);
++	//trace_xprtrdma_mr_map(mr);
+ 
+ 	return seg;
+ 
+ out_dmamap_err:
+ 	mr->mr_dir = DMA_NONE;
+-	trace_xprtrdma_frwr_sgerr(mr, i);
++	//trace_xprtrdma_frwr_sgerr(mr, i);
+ 	return ERR_PTR(-EIO);
+ 
+ out_mapmr_err:
+-	trace_xprtrdma_frwr_maperr(mr, n);
++	//trace_xprtrdma_frwr_maperr(mr, n);
+ 	return ERR_PTR(-EIO);
+ }
+ 
+@@ -364,7 +364,7 @@ static void frwr_wc_fastreg(struct ib_cq *cq, struct ib_wc *wc)
+ 		container_of(cqe, struct rpcrdma_frwr, fr_cqe);
+ 
+ 	/* WARNING: Only wr_cqe and status are reliable at this point */
+-	trace_xprtrdma_wc_fastreg(wc, frwr);
++	//trace_xprtrdma_wc_fastreg(wc, frwr);
+ 	/* The MR will get recycled when the associated req is retransmitted */
+ 
+ 	rpcrdma_flush_disconnect(cq->cq_context, wc);
+@@ -421,7 +421,7 @@ void frwr_reminv(struct rpcrdma_rep *rep, struct list_head *mrs)
+ 	list_for_each_entry(mr, mrs, mr_list)
+ 		if (mr->mr_handle == rep->rr_inv_rkey) {
+ 			list_del_init(&mr->mr_list);
+-			trace_xprtrdma_mr_reminv(mr);
++			//trace_xprtrdma_mr_reminv(mr);
+ 			rpcrdma_mr_put(mr);
+ 			break;	/* only one invalidated MR per RPC */
+ 		}
+@@ -449,7 +449,7 @@ static void frwr_wc_localinv(struct ib_cq *cq, struct ib_wc *wc)
+ 	struct rpcrdma_mr *mr = container_of(frwr, struct rpcrdma_mr, frwr);
+ 
+ 	/* WARNING: Only wr_cqe and status are reliable at this point */
+-	trace_xprtrdma_wc_li(wc, frwr);
++	//trace_xprtrdma_wc_li(wc, frwr);
+ 	__frwr_release_mr(wc, mr);
+ 
+ 	rpcrdma_flush_disconnect(cq->cq_context, wc);
+@@ -470,7 +470,7 @@ static void frwr_wc_localinv_wake(struct ib_cq *cq, struct ib_wc *wc)
+ 	struct rpcrdma_mr *mr = container_of(frwr, struct rpcrdma_mr, frwr);
+ 
+ 	/* WARNING: Only wr_cqe and status are reliable at this point */
+-	trace_xprtrdma_wc_li_wake(wc, frwr);
++	//trace_xprtrdma_wc_li_wake(wc, frwr);
+ 	__frwr_release_mr(wc, mr);
+ 	complete(&frwr->fr_linv_done);
+ 
+@@ -505,7 +505,7 @@ void frwr_unmap_sync(struct rpcrdma_xprt *r_xprt, struct rpcrdma_req *req)
+ 	prev = &first;
+ 	while ((mr = rpcrdma_mr_pop(&req->rl_registered))) {
+ 
+-		trace_xprtrdma_mr_localinv(mr);
++		//trace_xprtrdma_mr_localinv(mr);
+ 		r_xprt->rx_stats.local_inv_needed++;
+ 
+ 		frwr = &mr->frwr;
+@@ -548,7 +548,7 @@ void frwr_unmap_sync(struct rpcrdma_xprt *r_xprt, struct rpcrdma_req *req)
+ 
+ 	/* Recycle MRs in the LOCAL_INV chain that did not get posted.
+ 	 */
+-	trace_xprtrdma_post_linv(req, rc);
++	//trace_xprtrdma_post_linv(req, rc);
+ 	while (bad_wr) {
+ 		frwr = container_of(bad_wr, struct rpcrdma_frwr,
+ 				    fr_invwr);
+@@ -574,7 +574,7 @@ static void frwr_wc_localinv_done(struct ib_cq *cq, struct ib_wc *wc)
+ 	struct rpcrdma_rep *rep = mr->mr_req->rl_reply;
+ 
+ 	/* WARNING: Only wr_cqe and status are reliable at this point */
+-	trace_xprtrdma_wc_li_done(wc, frwr);
++	//trace_xprtrdma_wc_li_done(wc, frwr);
+ 	__frwr_release_mr(wc, mr);
+ 
+ 	/* Ensure @rep is generated before __frwr_release_mr */
+@@ -609,7 +609,7 @@ void frwr_unmap_async(struct rpcrdma_xprt *r_xprt, struct rpcrdma_req *req)
+ 	prev = &first;
+ 	while ((mr = rpcrdma_mr_pop(&req->rl_registered))) {
+ 
+-		trace_xprtrdma_mr_localinv(mr);
++		//trace_xprtrdma_mr_localinv(mr);
+ 		r_xprt->rx_stats.local_inv_needed++;
+ 
+ 		frwr = &mr->frwr;
+@@ -645,7 +645,7 @@ void frwr_unmap_async(struct rpcrdma_xprt *r_xprt, struct rpcrdma_req *req)
+ 
+ 	/* Recycle MRs in the LOCAL_INV chain that did not get posted.
+ 	 */
+-	trace_xprtrdma_post_linv(req, rc);
++	//trace_xprtrdma_post_linv(req, rc);
+ 	while (bad_wr) {
+ 		frwr = container_of(bad_wr, struct rpcrdma_frwr, fr_invwr);
+ 		mr = container_of(frwr, struct rpcrdma_mr, frwr);
+diff --git a/net/sunrpc/xprtrdma/svc_rdma_recvfrom.c b/net/sunrpc/xprtrdma/svc_rdma_recvfrom.c
+index c6ea2903c21a..e9384a6d6a28 100644
+--- a/net/sunrpc/xprtrdma/svc_rdma_recvfrom.c
++++ b/net/sunrpc/xprtrdma/svc_rdma_recvfrom.c
+@@ -257,14 +257,14 @@ static int __svc_rdma_post_recv(struct svcxprt_rdma *rdma,
+ {
+ 	int ret;
+ 
+-	trace_svcrdma_post_recv(ctxt);
++	//trace_svcrdma_post_recv(ctxt);
+ 	ret = ib_post_recv(rdma->sc_qp, &ctxt->rc_recv_wr, NULL);
+ 	if (ret)
+ 		goto err_post;
+ 	return 0;
+ 
+ err_post:
+-	trace_svcrdma_rq_post_err(rdma, ret);
++	//trace_svcrdma_rq_post_err(rdma, ret);
+ 	svc_rdma_recv_ctxt_put(rdma, ctxt);
+ 	return ret;
+ }
+@@ -322,7 +322,7 @@ static void svc_rdma_wc_receive(struct ib_cq *cq, struct ib_wc *wc)
+ 	/* WARNING: Only wc->wr_cqe and wc->status are reliable */
+ 	ctxt = container_of(cqe, struct svc_rdma_recv_ctxt, rc_cqe);
+ 
+-	trace_svcrdma_wc_receive(wc, &ctxt->rc_cid);
++	//trace_svcrdma_wc_receive(wc, &ctxt->rc_cid);
+ 	if (wc->status != IB_WC_SUCCESS)
+ 		goto flushed;
+ 
+@@ -474,7 +474,7 @@ static bool xdr_check_write_chunk(struct svc_rdma_recv_ctxt *rctxt, u32 maxlen)
+ 			return false;
+ 
+ 		xdr_decode_rdma_segment(p, &handle, &length, &offset);
+-		trace_svcrdma_decode_wseg(handle, length, offset);
++		//trace_svcrdma_decode_wseg(handle, length, offset);
+ 
+ 		total += length;
+ 	}
+@@ -665,27 +665,27 @@ static int svc_rdma_xdr_decode_req(struct xdr_buf *rq_arg,
+ 	hdr_len = xdr_stream_pos(&rctxt->rc_stream);
+ 	rq_arg->head[0].iov_len -= hdr_len;
+ 	rq_arg->len -= hdr_len;
+-	trace_svcrdma_decode_rqst(rctxt, rdma_argp, hdr_len);
++	//trace_svcrdma_decode_rqst(rctxt, rdma_argp, hdr_len);
+ 	return hdr_len;
+ 
+ out_short:
+-	trace_svcrdma_decode_short_err(rctxt, rq_arg->len);
++	//trace_svcrdma_decode_short_err(rctxt, rq_arg->len);
+ 	return -EINVAL;
+ 
+ out_version:
+-	trace_svcrdma_decode_badvers_err(rctxt, rdma_argp);
++	//trace_svcrdma_decode_badvers_err(rctxt, rdma_argp);
+ 	return -EPROTONOSUPPORT;
+ 
+ out_drop:
+-	trace_svcrdma_decode_drop_err(rctxt, rdma_argp);
++	//trace_svcrdma_decode_drop_err(rctxt, rdma_argp);
+ 	return 0;
+ 
+ out_proc:
+-	trace_svcrdma_decode_badproc_err(rctxt, rdma_argp);
++	//trace_svcrdma_decode_badproc_err(rctxt, rdma_argp);
+ 	return -EINVAL;
+ 
+ out_inval:
+-	trace_svcrdma_decode_parse_err(rctxt, rdma_argp);
++	//trace_svcrdma_decode_parse_err(rctxt, rdma_argp);
+ 	return -EINVAL;
+ }
+ 
+diff --git a/net/sunrpc/xprtrdma/svc_rdma_rw.c b/net/sunrpc/xprtrdma/svc_rdma_rw.c
+index 80a0c0e87590..e7c3e08e5b9c 100644
+--- a/net/sunrpc/xprtrdma/svc_rdma_rw.c
++++ b/net/sunrpc/xprtrdma/svc_rdma_rw.c
+@@ -79,7 +79,7 @@ svc_rdma_get_rw_ctxt(struct svcxprt_rdma *rdma, unsigned int sges)
+ out_free:
+ 	kfree(ctxt);
+ out_noctx:
+-	trace_svcrdma_no_rwctx_err(rdma, sges);
++	//trace_svcrdma_no_rwctx_err(rdma, sges);
+ 	return NULL;
+ }
+ 
+@@ -131,7 +131,7 @@ static int svc_rdma_rw_ctx_init(struct svcxprt_rdma *rdma,
+ 			       0, offset, handle, direction);
+ 	if (unlikely(ret < 0)) {
+ 		svc_rdma_put_rw_ctxt(rdma, ctxt);
+-		trace_svcrdma_dma_map_rw_err(rdma, ctxt->rw_nents, ret);
++		//trace_svcrdma_dma_map_rw_err(rdma, ctxt->rw_nents, ret);
+ 	}
+ 	return ret;
+ }
+@@ -244,7 +244,7 @@ static void svc_rdma_write_done(struct ib_cq *cq, struct ib_wc *wc)
+ 	struct svc_rdma_write_info *info =
+ 			container_of(cc, struct svc_rdma_write_info, wi_cc);
+ 
+-	trace_svcrdma_wc_write(wc, &cc->cc_cid);
++	//trace_svcrdma_wc_write(wc, &cc->cc_cid);
+ 
+ 	atomic_add(cc->cc_sqecount, &rdma->sc_sq_avail);
+ 	wake_up(&rdma->sc_send_wait);
+@@ -302,7 +302,7 @@ static void svc_rdma_wc_read_done(struct ib_cq *cq, struct ib_wc *wc)
+ 	struct svc_rdma_read_info *info =
+ 			container_of(cc, struct svc_rdma_read_info, ri_cc);
+ 
+-	trace_svcrdma_wc_read(wc, &cc->cc_cid);
++	//trace_svcrdma_wc_read(wc, &cc->cc_cid);
+ 
+ 	atomic_add(cc->cc_sqecount, &rdma->sc_sq_avail);
+ 	wake_up(&rdma->sc_send_wait);
+@@ -358,21 +358,21 @@ static int svc_rdma_post_chunk_ctxt(struct svc_rdma_chunk_ctxt *cc)
+ 	do {
+ 		if (atomic_sub_return(cc->cc_sqecount,
+ 				      &rdma->sc_sq_avail) > 0) {
+-			trace_svcrdma_post_chunk(&cc->cc_cid, cc->cc_sqecount);
++			//trace_svcrdma_post_chunk(&cc->cc_cid, cc->cc_sqecount);
+ 			ret = ib_post_send(rdma->sc_qp, first_wr, &bad_wr);
+ 			if (ret)
+ 				break;
+ 			return 0;
+ 		}
+ 
+-		trace_svcrdma_sq_full(rdma);
++		//trace_svcrdma_sq_full(rdma);
+ 		atomic_add(cc->cc_sqecount, &rdma->sc_sq_avail);
+ 		wait_event(rdma->sc_send_wait,
+ 			   atomic_read(&rdma->sc_sq_avail) > cc->cc_sqecount);
+-		trace_svcrdma_sq_retry(rdma);
++		//trace_svcrdma_sq_retry(rdma);
+ 	} while (1);
+ 
+-	trace_svcrdma_sq_post_err(rdma, ret);
++	//trace_svcrdma_sq_post_err(rdma, ret);
+ 	set_bit(XPT_CLOSE, &xprt->xpt_flags);
+ 
+ 	/* If even one was posted, there will be a completion. */
+@@ -471,7 +471,7 @@ svc_rdma_build_writes(struct svc_rdma_write_info *info,
+ 		if (ret < 0)
+ 			return -EIO;
+ 
+-		trace_svcrdma_send_wseg(handle, write_len, offset);
++		//trace_svcrdma_send_wseg(handle, write_len, offset);
+ 
+ 		list_add(&ctxt->rw_list, &cc->cc_rwctxts);
+ 		cc->cc_sqecount += ret;
+@@ -488,8 +488,8 @@ svc_rdma_build_writes(struct svc_rdma_write_info *info,
+ 	return 0;
+ 
+ out_overflow:
+-	trace_svcrdma_small_wrch_err(rdma, remaining, info->wi_seg_no,
+-				     info->wi_nsegs);
++	//trace_svcrdma_small_wrch_err(rdma, remaining, info->wi_seg_no,
++	//			     info->wi_nsegs);
+ 	return -E2BIG;
+ }
+ 
+@@ -558,7 +558,7 @@ int svc_rdma_send_write_chunk(struct svcxprt_rdma *rdma, __be32 *wr_ch,
+ 	if (ret < 0)
+ 		goto out_err;
+ 
+-	trace_svcrdma_send_write_chunk(xdr->page_len);
++	//trace_svcrdma_send_write_chunk(xdr->page_len);
+ 	return length;
+ 
+ out_err:
+@@ -618,7 +618,7 @@ int svc_rdma_send_reply_chunk(struct svcxprt_rdma *rdma,
+ 	if (ret < 0)
+ 		goto out_err;
+ 
+-	trace_svcrdma_send_reply_chunk(consumed);
++	//trace_svcrdma_send_reply_chunk(consumed);
+ 	return consumed;
+ 
+ out_err:
+@@ -680,7 +680,7 @@ static int svc_rdma_build_read_segment(struct svc_rdma_read_info *info,
+ 	return 0;
+ 
+ out_overrun:
+-	trace_svcrdma_page_overrun_err(cc->cc_rdma, rqstp, info->ri_pageno);
++	//trace_svcrdma_page_overrun_err(cc->cc_rdma, rqstp, info->ri_pageno);
+ 	return -EINVAL;
+ }
+ 
+@@ -705,7 +705,7 @@ static int svc_rdma_build_read_chunk(struct svc_rqst *rqstp,
+ 		if (ret < 0)
+ 			break;
+ 
+-		trace_svcrdma_send_rseg(handle, length, offset);
++		//trace_svcrdma_send_rseg(handle, length, offset);
+ 		info->ri_chunklen += length;
+ 	}
+ 
+@@ -730,7 +730,7 @@ static int svc_rdma_build_normal_read_chunk(struct svc_rqst *rqstp,
+ 	if (ret < 0)
+ 		goto out;
+ 
+-	trace_svcrdma_send_read_chunk(info->ri_chunklen, info->ri_position);
++	//trace_svcrdma_send_read_chunk(info->ri_chunklen, info->ri_position);
+ 
+ 	head->rc_hdr_count = 0;
+ 
+@@ -786,7 +786,7 @@ static int svc_rdma_build_pz_read_chunk(struct svc_rqst *rqstp,
+ 	if (ret < 0)
+ 		goto out;
+ 
+-	trace_svcrdma_send_pzr(info->ri_chunklen);
++	//trace_svcrdma_send_pzr(info->ri_chunklen);
+ 
+ 	head->rc_arg.len += info->ri_chunklen;
+ 	head->rc_arg.buflen += info->ri_chunklen;
+diff --git a/net/sunrpc/xprtrdma/svc_rdma_sendto.c b/net/sunrpc/xprtrdma/svc_rdma_sendto.c
+index c3d588b149aa..567ade942852 100644
+--- a/net/sunrpc/xprtrdma/svc_rdma_sendto.c
++++ b/net/sunrpc/xprtrdma/svc_rdma_sendto.c
+@@ -252,9 +252,9 @@ void svc_rdma_send_ctxt_put(struct svcxprt_rdma *rdma,
+ 				  ctxt->sc_sges[i].addr,
+ 				  ctxt->sc_sges[i].length,
+ 				  DMA_TO_DEVICE);
+-		trace_svcrdma_dma_unmap_page(rdma,
+-					     ctxt->sc_sges[i].addr,
+-					     ctxt->sc_sges[i].length);
++		//trace_svcrdma_dma_unmap_page(rdma,
++		//			     ctxt->sc_sges[i].addr,
++		//			     ctxt->sc_sges[i].length);
+ 	}
+ 
+ 	for (i = 0; i < ctxt->sc_page_count; ++i)
+@@ -280,7 +280,7 @@ static void svc_rdma_wc_send(struct ib_cq *cq, struct ib_wc *wc)
+ 	struct svc_rdma_send_ctxt *ctxt =
+ 		container_of(cqe, struct svc_rdma_send_ctxt, sc_cqe);
+ 
+-	trace_svcrdma_wc_send(wc, &ctxt->sc_cid);
++	//trace_svcrdma_wc_send(wc, &ctxt->sc_cid);
+ 
+ 	atomic_inc(&rdma->sc_sq_avail);
+ 	wake_up(&rdma->sc_send_wait);
+@@ -318,24 +318,24 @@ int svc_rdma_send(struct svcxprt_rdma *rdma, struct svc_rdma_send_ctxt *ctxt)
+ 	while (1) {
+ 		if ((atomic_dec_return(&rdma->sc_sq_avail) < 0)) {
+ 			atomic_inc(&rdma_stat_sq_starve);
+-			trace_svcrdma_sq_full(rdma);
++			//trace_svcrdma_sq_full(rdma);
+ 			atomic_inc(&rdma->sc_sq_avail);
+ 			wait_event(rdma->sc_send_wait,
+ 				   atomic_read(&rdma->sc_sq_avail) > 1);
+ 			if (test_bit(XPT_CLOSE, &rdma->sc_xprt.xpt_flags))
+ 				return -ENOTCONN;
+-			trace_svcrdma_sq_retry(rdma);
++			//trace_svcrdma_sq_retry(rdma);
+ 			continue;
+ 		}
+ 
+-		trace_svcrdma_post_send(ctxt);
++		//trace_svcrdma_post_send(ctxt);
+ 		ret = ib_post_send(rdma->sc_qp, wr, NULL);
+ 		if (ret)
+ 			break;
+ 		return 0;
+ 	}
+ 
+-	trace_svcrdma_sq_post_err(rdma, ret);
++	//trace_svcrdma_sq_post_err(rdma, ret);
+ 	set_bit(XPT_CLOSE, &rdma->sc_xprt.xpt_flags);
+ 	wake_up(&rdma->sc_send_wait);
+ 	return ret;
+@@ -392,7 +392,7 @@ static ssize_t svc_rdma_encode_write_segment(__be32 *src,
+ 	}
+ 	xdr_encode_rdma_segment(p, handle, length, offset);
+ 
+-	trace_svcrdma_encode_wseg(handle, length, offset);
++	//trace_svcrdma_encode_wseg(handle, length, offset);
+ 	return len;
+ }
+ 
+@@ -419,7 +419,7 @@ static ssize_t svc_rdma_encode_write_chunk(__be32 *src,
+ 	ssize_t len, ret;
+ 
+ 	len = 0;
+-	trace_svcrdma_encode_write_chunk(remaining);
++	//trace_svcrdma_encode_write_chunk(remaining);
+ 
+ 	src++;
+ 	ret = xdr_stream_encode_item_present(&sctxt->sc_stream);
+@@ -516,7 +516,7 @@ static int svc_rdma_dma_map_page(struct svcxprt_rdma *rdma,
+ 	dma_addr_t dma_addr;
+ 
+ 	dma_addr = ib_dma_map_page(dev, page, offset, len, DMA_TO_DEVICE);
+-	trace_svcrdma_dma_map_page(rdma, dma_addr, len);
++	//trace_svcrdma_dma_map_page(rdma, dma_addr, len);
+ 	if (ib_dma_mapping_error(dev, dma_addr))
+ 		goto out_maperr;
+ 
+@@ -650,7 +650,7 @@ static int svc_rdma_pull_up_reply_msg(struct svcxprt_rdma *rdma,
+ 		memcpy(dst, tailbase, taillen);
+ 
+ 	sctxt->sc_sges[0].length += xdr->len;
+-	trace_svcrdma_send_pullup(sctxt->sc_sges[0].length);
++	//trace_svcrdma_send_pullup(sctxt->sc_sges[0].length);
+ 	return 0;
+ }
+ 
+@@ -852,7 +852,7 @@ void svc_rdma_send_error_msg(struct svcxprt_rdma *rdma,
+ 		*p++ = err_vers;
+ 		*p++ = rpcrdma_version;
+ 		*p = rpcrdma_version;
+-		trace_svcrdma_err_vers(*rdma_argp);
++		//trace_svcrdma_err_vers(*rdma_argp);
+ 		break;
+ 	default:
+ 		p = xdr_reserve_space(&sctxt->sc_stream, sizeof(*p));
+@@ -860,7 +860,7 @@ void svc_rdma_send_error_msg(struct svcxprt_rdma *rdma,
+ 			goto put_ctxt;
+ 
+ 		*p = err_chunk;
+-		trace_svcrdma_err_chunk(*rdma_argp);
++		//trace_svcrdma_err_chunk(*rdma_argp);
+ 	}
+ 
+ 	/* Remote Invalidation is skipped for simplicity. */
+@@ -973,7 +973,7 @@ int svc_rdma_sendto(struct svc_rqst *rqstp)
+  err1:
+ 	svc_rdma_send_ctxt_put(rdma, sctxt);
+  err0:
+-	trace_svcrdma_send_err(rqstp, ret);
++	//trace_svcrdma_send_err(rqstp, ret);
+ 	set_bit(XPT_CLOSE, &xprt->xpt_flags);
+ 	return -ENOTCONN;
+ }
+diff --git a/net/sunrpc/xprtrdma/svc_rdma_transport.c b/net/sunrpc/xprtrdma/svc_rdma_transport.c
+index 5f7e3d12523f..53d63125ccc0 100644
+--- a/net/sunrpc/xprtrdma/svc_rdma_transport.c
++++ b/net/sunrpc/xprtrdma/svc_rdma_transport.c
+@@ -103,7 +103,7 @@ static void qp_event_handler(struct ib_event *event, void *context)
+ {
+ 	struct svc_xprt *xprt = context;
+ 
+-	trace_svcrdma_qp_error(event, (struct sockaddr *)&xprt->xpt_remote);
++	//trace_svcrdma_qp_error(event, (struct sockaddr *)&xprt->xpt_remote);
+ 	switch (event->event) {
+ 	/* These are considered benign events */
+ 	case IB_EVENT_PATH_MIG:
+@@ -425,7 +425,7 @@ static struct svc_xprt *svc_rdma_accept(struct svc_xprt *xprt)
+ 
+ 	newxprt->sc_pd = ib_alloc_pd(dev, 0);
+ 	if (IS_ERR(newxprt->sc_pd)) {
+-		trace_svcrdma_pd_err(newxprt, PTR_ERR(newxprt->sc_pd));
++		//trace_svcrdma_pd_err(newxprt, PTR_ERR(newxprt->sc_pd));
+ 		goto errout;
+ 	}
+ 	newxprt->sc_sq_cq = ib_alloc_cq_any(dev, newxprt, newxprt->sc_sq_depth,
+@@ -459,7 +459,7 @@ static struct svc_xprt *svc_rdma_accept(struct svc_xprt *xprt)
+ 
+ 	ret = rdma_create_qp(newxprt->sc_cm_id, newxprt->sc_pd, &qp_attr);
+ 	if (ret) {
+-		trace_svcrdma_qp_err(newxprt, ret);
++		//trace_svcrdma_qp_err(newxprt, ret);
+ 		goto errout;
+ 	}
+ 	newxprt->sc_qp = newxprt->sc_cm_id->qp;
+@@ -468,7 +468,7 @@ static struct svc_xprt *svc_rdma_accept(struct svc_xprt *xprt)
+ 		newxprt->sc_snd_w_inv = false;
+ 	if (!rdma_protocol_iwarp(dev, newxprt->sc_port_num) &&
+ 	    !rdma_ib_or_roce(dev, newxprt->sc_port_num)) {
+-		trace_svcrdma_fabric_err(newxprt, -EINVAL);
++		//trace_svcrdma_fabric_err(newxprt, -EINVAL);
+ 		goto errout;
+ 	}
+ 
+@@ -490,7 +490,7 @@ static struct svc_xprt *svc_rdma_accept(struct svc_xprt *xprt)
+ 					   dev->attrs.max_qp_init_rd_atom);
+ 	if (!conn_param.initiator_depth) {
+ 		ret = -EINVAL;
+-		trace_svcrdma_initdepth_err(newxprt, ret);
++		//trace_svcrdma_initdepth_err(newxprt, ret);
+ 		goto errout;
+ 	}
+ 	conn_param.private_data = &pmsg;
+@@ -500,7 +500,7 @@ static struct svc_xprt *svc_rdma_accept(struct svc_xprt *xprt)
+ 	ret = rdma_accept(newxprt->sc_cm_id, &conn_param);
+ 	rdma_unlock_handler(newxprt->sc_cm_id);
+ 	if (ret) {
+-		trace_svcrdma_accept_err(newxprt, ret);
++		//trace_svcrdma_accept_err(newxprt, ret);
+ 		goto errout;
+ 	}
+ 
+diff --git a/net/sunrpc/xprtrdma/transport.c b/net/sunrpc/xprtrdma/transport.c
+index 8e2368a0c2a2..e795bea76a16 100644
+--- a/net/sunrpc/xprtrdma/transport.c
++++ b/net/sunrpc/xprtrdma/transport.c
+@@ -269,7 +269,7 @@ xprt_rdma_inject_disconnect(struct rpc_xprt *xprt)
+ {
+ 	struct rpcrdma_xprt *r_xprt = rpcx_to_rdmax(xprt);
+ 
+-	trace_xprtrdma_op_inject_dsc(r_xprt);
++	//trace_xprtrdma_op_inject_dsc(r_xprt);
+ 	rdma_disconnect(r_xprt->rx_ep->re_id);
+ }
+ 
+@@ -446,7 +446,7 @@ static void xprt_rdma_set_connect_timeout(struct rpc_xprt *xprt,
+ {
+ 	struct rpcrdma_xprt *r_xprt = rpcx_to_rdmax(xprt);
+ 
+-	trace_xprtrdma_op_set_cto(r_xprt, connect_timeout, reconnect_timeout);
++	//trace_xprtrdma_op_set_cto(r_xprt, connect_timeout, reconnect_timeout);
+ 
+ 	spin_lock(&xprt->transport_lock);
+ 
+@@ -491,7 +491,7 @@ xprt_rdma_connect(struct rpc_xprt *xprt, struct rpc_task *task)
+ 		delay = xprt_reconnect_delay(xprt);
+ 		xprt_reconnect_backoff(xprt, RPCRDMA_INIT_REEST_TO);
+ 	}
+-	trace_xprtrdma_op_connect(r_xprt, delay);
++	//trace_xprtrdma_op_connect(r_xprt, delay);
+ 	queue_delayed_work(xprtiod_workqueue, &r_xprt->rx_connect_worker,
+ 			   delay);
+ }
+@@ -519,7 +519,7 @@ xprt_rdma_alloc_slot(struct rpc_xprt *xprt, struct rpc_task *task)
+ 	return;
+ 
+ out_sleep:
+-	task->tk_status = -EAGAIN;
++	task->tk_status = -ENOMEM;
+ 	xprt_add_backlog(xprt, task);
+ }
+ 
+@@ -572,8 +572,10 @@ xprt_rdma_allocate(struct rpc_task *task)
+ 	gfp_t flags;
+ 
+ 	flags = RPCRDMA_DEF_GFP;
++	if (RPC_IS_ASYNC(task))
++		flags = GFP_NOWAIT | __GFP_NOWARN;
+ 	if (RPC_IS_SWAPPER(task))
+-		flags = __GFP_MEMALLOC | GFP_NOWAIT | __GFP_NOWARN;
++		flags |= __GFP_MEMALLOC;
+ 
+ 	if (!rpcrdma_check_regbuf(r_xprt, req->rl_sendbuf, rqst->rq_callsize,
+ 				  flags))
+diff --git a/net/sunrpc/xprtrdma/verbs.c b/net/sunrpc/xprtrdma/verbs.c
+index 25554260a593..a75d5f2467d5 100644
+--- a/net/sunrpc/xprtrdma/verbs.c
++++ b/net/sunrpc/xprtrdma/verbs.c
+@@ -127,7 +127,7 @@ static void rpcrdma_qp_event_handler(struct ib_event *event, void *context)
+ {
+ 	struct rpcrdma_ep *ep = context;
+ 
+-	trace_xprtrdma_qp_event(ep, event);
++	//trace_xprtrdma_qp_event(ep, event);
+ }
+ 
+ /* Ensure xprt_force_disconnect() is invoked exactly once when a
+@@ -167,7 +167,7 @@ static void rpcrdma_wc_send(struct ib_cq *cq, struct ib_wc *wc)
+ 	struct rpcrdma_xprt *r_xprt = cq->cq_context;
+ 
+ 	/* WARNING: Only wr_cqe and status are reliable at this point */
+-	trace_xprtrdma_wc_send(sc, wc);
++	//trace_xprtrdma_wc_send(sc, wc);
+ 	rpcrdma_sendctx_put_locked(r_xprt, sc);
+ 	rpcrdma_flush_disconnect(r_xprt, wc);
+ }
+@@ -186,7 +186,7 @@ static void rpcrdma_wc_receive(struct ib_cq *cq, struct ib_wc *wc)
+ 	struct rpcrdma_xprt *r_xprt = cq->cq_context;
+ 
+ 	/* WARNING: Only wr_cqe and status are reliable at this point */
+-	trace_xprtrdma_wc_receive(wc);
++	//trace_xprtrdma_wc_receive(wc);
+ 	--r_xprt->rx_ep->re_receive_count;
+ 	if (wc->status != IB_WC_SUCCESS)
+ 		goto out_flushed;
+@@ -276,7 +276,7 @@ rpcrdma_cm_event_handler(struct rdma_cm_id *id, struct rdma_cm_event *event)
+ 		rpcrdma_ep_get(ep);
+ 		ep->re_connect_status = 1;
+ 		rpcrdma_update_cm_private(ep, &event->param.conn);
+-		trace_xprtrdma_inline_thresh(ep);
++		//trace_xprtrdma_inline_thresh(ep);
+ 		wake_up_all(&ep->re_connect_wait);
+ 		break;
+ 	case RDMA_CM_EVENT_CONNECT_ERROR:
+@@ -564,7 +564,7 @@ int rpcrdma_xprt_connect(struct rpcrdma_xprt *r_xprt)
+ 	rpcrdma_mrs_create(r_xprt);
+ 
+ out:
+-	trace_xprtrdma_connect(r_xprt, rc);
++	//trace_xprtrdma_connect(r_xprt, rc);
+ 	return rc;
+ }
+ 
+@@ -589,7 +589,7 @@ void rpcrdma_xprt_disconnect(struct rpcrdma_xprt *r_xprt)
+ 
+ 	id = ep->re_id;
+ 	rc = rdma_disconnect(id);
+-	trace_xprtrdma_disconnect(r_xprt, rc);
++	//trace_xprtrdma_disconnect(r_xprt, rc);
+ 
+ 	rpcrdma_xprt_drain(r_xprt);
+ 	rpcrdma_reps_unmap(r_xprt);
+@@ -792,7 +792,7 @@ rpcrdma_mrs_create(struct rpcrdma_xprt *r_xprt)
+ 	}
+ 
+ 	r_xprt->rx_stats.mrs_allocated += count;
+-	trace_xprtrdma_createmrs(r_xprt, count);
++	//trace_xprtrdma_createmrs(r_xprt, count);
+ }
+ 
+ static void
+@@ -1188,7 +1188,7 @@ void rpcrdma_mr_put(struct rpcrdma_mr *mr)
+ 	struct rpcrdma_xprt *r_xprt = mr->mr_xprt;
+ 
+ 	if (mr->mr_dir != DMA_NONE) {
+-		trace_xprtrdma_mr_unmap(mr);
++		//trace_xprtrdma_mr_unmap(mr);
+ 		ib_dma_unmap_sg(r_xprt->rx_ep->re_id->device,
+ 				mr->mr_sg, mr->mr_nents, mr->mr_dir);
+ 		mr->mr_dir = DMA_NONE;
+@@ -1327,7 +1327,7 @@ bool __rpcrdma_regbuf_dma_map(struct rpcrdma_xprt *r_xprt,
+ 	rb->rg_iov.addr = ib_dma_map_single(device, rdmab_data(rb),
+ 					    rdmab_length(rb), rb->rg_direction);
+ 	if (ib_dma_mapping_error(device, rdmab_addr(rb))) {
+-		trace_xprtrdma_dma_maperr(rdmab_addr(rb));
++		//trace_xprtrdma_dma_maperr(rdmab_addr(rb));
+ 		return false;
+ 	}
+ 
+@@ -1379,7 +1379,7 @@ int rpcrdma_post_sends(struct rpcrdma_xprt *r_xprt, struct rpcrdma_req *req)
+ 		--ep->re_send_count;
+ 	}
+ 
+-	trace_xprtrdma_post_send(req);
++	//trace_xprtrdma_post_send(req);
+ 	rc = frwr_send(r_xprt, req);
+ 	if (rc)
+ 		return -ENOTCONN;
+@@ -1423,7 +1423,7 @@ void rpcrdma_post_recvs(struct rpcrdma_xprt *r_xprt, int needed, bool temp)
+ 		if (!rep)
+ 			break;
+ 
+-		trace_xprtrdma_post_recv(rep);
++		//trace_xprtrdma_post_recv(rep);
+ 		rep->rr_recv_wr.next = wr;
+ 		wr = &rep->rr_recv_wr;
+ 		--needed;
+@@ -1435,7 +1435,7 @@ void rpcrdma_post_recvs(struct rpcrdma_xprt *r_xprt, int needed, bool temp)
+ 	rc = ib_post_recv(ep->re_id->qp, wr,
+ 			  (const struct ib_recv_wr **)&bad_wr);
+ out:
+-	trace_xprtrdma_post_recvs(r_xprt, count, rc);
++	//trace_xprtrdma_post_recvs(r_xprt, count, rc);
+ 	if (rc) {
+ 		for (wr = bad_wr; wr;) {
+ 			struct rpcrdma_rep *rep;
+diff --git a/net/sunrpc/xprtsock.c b/net/sunrpc/xprtsock.c
+index 16c7758e7bf3..fcbe33a38c61 100644
+--- a/net/sunrpc/xprtsock.c
++++ b/net/sunrpc/xprtsock.c
+@@ -666,7 +666,7 @@ xs_read_stream(struct sock_xprt *transport, int flags)
+ 			return read;
+ 	}
+ 	if (xs_read_stream_request_done(transport)) {
+-		trace_xs_stream_read_request(transport);
++		//trace_xs_stream_read_request(transport);
+ 		transport->recv.copied = 0;
+ 	}
+ 	transport->recv.offset = 0;
+@@ -720,7 +720,7 @@ static void xs_stream_data_receive(struct sock_xprt *transport)
+ 		xs_poll_check_readable(transport);
+ out:
+ 	mutex_unlock(&transport->recv_mutex);
+-	trace_xs_stream_read_data(&transport->xprt, ret, read);
++	//trace_xs_stream_read_data(&transport->xprt, ret, read);
+ }
+ 
+ static void xs_stream_data_receive_workfn(struct work_struct *work)
+@@ -754,41 +754,65 @@ xs_stream_start_connect(struct sock_xprt *transport)
+ /**
+  * xs_nospace - handle transmit was incomplete
+  * @req: pointer to RPC request
++ * @transport: pointer to struct sock_xprt
+  *
+  */
+-static int xs_nospace(struct rpc_rqst *req)
++static int xs_nospace(struct rpc_rqst *req, struct sock_xprt *transport)
+ {
+-	struct rpc_xprt *xprt = req->rq_xprt;
+-	struct sock_xprt *transport = container_of(xprt, struct sock_xprt, xprt);
++	struct rpc_xprt *xprt = &transport->xprt;
+ 	struct sock *sk = transport->inet;
+ 	int ret = -EAGAIN;
+ 
+-	trace_rpc_socket_nospace(req, transport);
++	//trace_rpc_socket_nospace(req, transport);
+ 
+ 	/* Protect against races with write_space */
+ 	spin_lock(&xprt->transport_lock);
+ 
+ 	/* Don't race with disconnect */
+ 	if (xprt_connected(xprt)) {
++		struct socket_wq *wq;
++
++		rcu_read_lock();
++		wq = rcu_dereference(sk->sk_wq);
++		set_bit(SOCKWQ_ASYNC_NOSPACE, &wq->flags);
++		rcu_read_unlock();
++
+ 		/* wait for more buffer space */
++		set_bit(SOCK_NOSPACE, &sk->sk_socket->flags);
+ 		sk->sk_write_pending++;
+ 		xprt_wait_for_buffer_space(xprt);
+ 	} else
+ 		ret = -ENOTCONN;
+ 
+ 	spin_unlock(&xprt->transport_lock);
++	return ret;
++}
+ 
+-	/* Race breaker in case memory is freed before above code is called */
+-	if (ret == -EAGAIN) {
+-		struct socket_wq *wq;
++static int xs_sock_nospace(struct rpc_rqst *req)
++{
++	struct sock_xprt *transport =
++		container_of(req->rq_xprt, struct sock_xprt, xprt);
++	struct sock *sk = transport->inet;
++	int ret = -EAGAIN;
+ 
+-		rcu_read_lock();
+-		wq = rcu_dereference(sk->sk_wq);
+-		set_bit(SOCKWQ_ASYNC_NOSPACE, &wq->flags);
+-		rcu_read_unlock();
++	lock_sock(sk);
++	if (!sock_writeable(sk))
++		ret = xs_nospace(req, transport);
++	release_sock(sk);
++	return ret;
++}
+ 
+-		sk->sk_write_space(sk);
+-	}
++static int xs_stream_nospace(struct rpc_rqst *req)
++{
++	struct sock_xprt *transport =
++		container_of(req->rq_xprt, struct sock_xprt, xprt);
++	struct sock *sk = transport->inet;
++	int ret = -EAGAIN;
++
++	lock_sock(sk);
++	if (!sk_stream_memory_free(sk))
++		ret = xs_nospace(req, transport);
++	release_sock(sk);
+ 	return ret;
+ }
+ 
+@@ -878,7 +902,7 @@ static int xs_local_send_request(struct rpc_rqst *req)
+ 	case -ENOBUFS:
+ 		break;
+ 	case -EAGAIN:
+-		status = xs_nospace(req);
++		status = xs_stream_nospace(req);
+ 		break;
+ 	default:
+ 		dprintk("RPC:       sendmsg returned unrecognized error %d\n",
+@@ -954,7 +978,7 @@ static int xs_udp_send_request(struct rpc_rqst *req)
+ 		/* Should we call xs_close() here? */
+ 		break;
+ 	case -EAGAIN:
+-		status = xs_nospace(req);
++		status = xs_sock_nospace(req);
+ 		break;
+ 	case -ENETUNREACH:
+ 	case -ENOBUFS:
+@@ -1069,7 +1093,7 @@ static int xs_tcp_send_request(struct rpc_rqst *req)
+ 		/* Should we call xs_close() here? */
+ 		break;
+ 	case -EAGAIN:
+-		status = xs_nospace(req);
++		status = xs_stream_nospace(req);
+ 		break;
+ 	case -ECONNRESET:
+ 	case -ECONNREFUSED:
+@@ -1149,7 +1173,7 @@ static void xs_error_report(struct sock *sk)
+ 		goto out;
+ 	dprintk("RPC:       xs_error_report client %p, error=%d...\n",
+ 			xprt, -transport->xprt_err);
+-	trace_rpc_socket_error(xprt, sk->sk_socket, transport->xprt_err);
++	//trace_rpc_socket_error(xprt, sk->sk_socket, transport->xprt_err);
+ 
+ 	/* barrier ensures xprt_err is set before XPRT_SOCK_WAKE_ERROR */
+ 	smp_mb__before_atomic();
+@@ -1189,7 +1213,7 @@ static void xs_reset_transport(struct sock_xprt *transport)
+ 	xs_stream_reset_connect(transport);
+ 	mutex_unlock(&transport->recv_mutex);
+ 
+-	trace_rpc_socket_close(xprt, sock);
++	//trace_rpc_socket_close(xprt, sock);
+ 	fput(filp);
+ 
+ 	xprt_disconnect_done(xprt);
+@@ -1405,7 +1429,7 @@ static void xs_tcp_state_change(struct sock *sk)
+ 			sk->sk_shutdown);
+ 
+ 	transport = container_of(xprt, struct sock_xprt, xprt);
+-	trace_rpc_socket_state_change(xprt, sk->sk_socket);
++	//trace_rpc_socket_state_change(xprt, sk->sk_socket);
+ 	switch (sk->sk_state) {
+ 	case TCP_ESTABLISHED:
+ 		if (!xprt_test_and_set_connected(xprt)) {
+@@ -1874,7 +1898,7 @@ static int xs_local_setup_socket(struct sock_xprt *transport)
+ 			xprt, xprt->address_strings[RPC_DISPLAY_ADDR]);
+ 
+ 	status = xs_local_finish_connecting(xprt, sock);
+-	trace_rpc_socket_connect(xprt, sock, status);
++	//trace_rpc_socket_connect(xprt, sock, status);
+ 	switch (status) {
+ 	case 0:
+ 		dprintk("RPC:       xprt %p connected to %s\n",
+@@ -2061,7 +2085,7 @@ static void xs_udp_setup_socket(struct work_struct *work)
+ 			xprt->address_strings[RPC_DISPLAY_PORT]);
+ 
+ 	xs_udp_finish_connecting(xprt, sock);
+-	trace_rpc_socket_connect(xprt, sock, 0);
++	//trace_rpc_socket_connect(xprt, sock, 0);
+ 	status = 0;
+ out:
+ 	xprt_clear_connecting(xprt);
+@@ -2087,7 +2111,7 @@ static void xs_tcp_shutdown(struct rpc_xprt *xprt)
+ 	switch (skst) {
+ 	default:
+ 		kernel_sock_shutdown(sock, SHUT_RDWR);
+-		trace_rpc_socket_shutdown(xprt, sock);
++		//trace_rpc_socket_shutdown(xprt, sock);
+ 		break;
+ 	case TCP_CLOSE:
+ 	case TCP_TIME_WAIT:
+@@ -2253,7 +2277,7 @@ static void xs_tcp_setup_socket(struct work_struct *work)
+ 			xprt->address_strings[RPC_DISPLAY_PORT]);
+ 
+ 	status = xs_tcp_finish_connecting(xprt, sock);
+-	trace_rpc_socket_connect(xprt, sock, status);
++	//trace_rpc_socket_connect(xprt, sock, status);
+ 	dprintk("RPC:       %p connect status %d connected %d sock state %d\n",
+ 			xprt, -status, xprt_connected(xprt),
+ 			sock->sk->sk_state);
 diff --git a/net/tipc/bearer.c b/net/tipc/bearer.c
 index 12e535b43d88..421e9e25fec1 100644
 --- a/net/tipc/bearer.c
@@ -6444,6 +10436,19 @@ index ce957ee5383c..f1dfcc748a0f 100644
  			/* We never set seq or call nl_dump_check_consistent()
  			 * this means that setting prev_seq here will cause the
  			 * consistence check to fail in the netlink callback
+diff --git a/net/tls/tls_sw.c b/net/tls/tls_sw.c
+index 8cd011ea9fbb..21f20c3cda97 100644
+--- a/net/tls/tls_sw.c
++++ b/net/tls/tls_sw.c
+@@ -1483,7 +1483,7 @@ static int decrypt_internal(struct sock *sk, struct sk_buff *skb,
+ 	}
+ 	if (prot->version == TLS_1_3_VERSION)
+ 		memcpy(iv + iv_offset, tls_ctx->rx.iv,
+-		       crypto_aead_ivsize(ctx->aead_recv));
++		       prot->iv_size + prot->salt_size);
+ 	else
+ 		memcpy(iv + iv_offset, tls_ctx->rx.iv, prot->salt_size);
+ 
 diff --git a/net/x25/af_x25.c b/net/x25/af_x25.c
 index 03ed170b8125..d231d4620c38 100644
 --- a/net/x25/af_x25.c
