@@ -94,7 +94,7 @@ LIVEPATCH_HEADER_END
         # actual command
         $kpb/kpatch-build/kpatch-build -s src -n ${patchModuleName} '' +
       concatMapStringsSep " " (name: "$src/${name}.patch") availablePatchesList +
-      '' || ((tail -n 150 $CACHEDIR/build.log || echo log not found at $CACHEDIR/build.log) && exit 1)
+      '' || ((cat $CACHEDIR/build.log || echo log not found at $CACHEDIR/build.log) && exit 1)
       '';
 
       nativeBuildInputs = with pkgs; [ perl bc nettools openssl rsync gmp
