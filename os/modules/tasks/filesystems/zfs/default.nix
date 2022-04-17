@@ -39,12 +39,9 @@ let
 
   # safe import of ZFS pool
   # according to https://github.com/NixOS/nixpkgs/commit/cfd8c4ee88fec3a7f989663e09d8e39513b8488e
-  importLib = { zpoolCmd, awkCmd, cfgZfs }:
+  importLib = { cfgZfs }:
     let
       devOptions = concatMapStringsSep " " (v: "-d \"${v}\"") cfgZfs.devNodes;
-
-      zpoolCheckScript = buildZpoolCheckScript zpoolCmd;
-
     in ''
       poolReady() {
         pool="$1"
@@ -64,21 +61,17 @@ let
       }
       poolImported() {
         pool="$1"
-        "${zpoolCmd}" list "$pool" >/dev/null 2>/dev/null
+        zpool list "$pool" >/dev/null 2>/dev/null
       }
       poolImport() {
         pool="$1"
-        "${zpoolCmd}" import ${devOptions} -N $ZFS_FORCE "$pool"
+        zpool import ${devOptions} -N $ZFS_FORCE "$pool"
       }
     '';
 
   poolService = name: pool: (import ./pool-service.nix args) {
     inherit name pool zpoolCreateScript packages;
-    importLib = importLib {
-      zpoolCmd = "${packages.zfsUser}/sbin/zpool";
-      awkCmd = "${pkgs.gawk}/bin/awk";
-      inherit cfgZfs;
-    };
+    importLib = importLib { inherit cfgZfs; };
   };
 
   poolConfig = name: pool: pkgs.writeText "pool-${name}-config.json" (builtins.toJSON {
@@ -95,12 +88,12 @@ let
     chmod +x $out/bin/do-create-pool-${name}
   '';
 
-  buildZpoolCheckScript = zpoolCmd: pkgs.substituteAll {
+  zpoolCheckScript = pkgs.substituteAll {
     name = "check-zpool.rb";
     src = ./check.rb;
     isExecutable = true;
     ruby = pkgs.ruby;
-    zpool = zpoolCmd;
+    zpool = "zpool";
   };
 
   zpoolCreateScripts = mapAttrsToList zpoolCreateScript;
@@ -517,8 +510,6 @@ in
               esac
             done
           ''] ++ [ (importLib {
-            zpoolCmd = "zpool";
-            awkCmd = "awk";
             inherit cfgZfs;
           }) ] ++ (map (pool: ''
             echo -n "importing root ZFS pool \"${pool}\"..."

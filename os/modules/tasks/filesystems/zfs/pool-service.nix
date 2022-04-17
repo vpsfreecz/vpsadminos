@@ -5,16 +5,15 @@ let
   # Get a submodule without any embedded metadata
   _filter = x: filterAttrsRecursive (k: v: k != "_module") x;
 
-  osctl = "${pkgs.osctl}/bin/osctl";
-  zpool = "${packages.zfsUser}/bin/zpool";
-  zfs = "${packages.zfsUser}/bin/zfs";
+  osctl = "osctl";
+  zpool = "zpool";
+  zfs = "zfs";
 
   mount = pkgs.substituteAll {
     name = "mount.rb";
     src = ./mount.rb;
     isExecutable = true;
     ruby = pkgs.ruby;
-    zfs = packages.zfsUser;
   };
 
   properties = mapAttrsToList (k: v: "\"${k}=${v}\"") pool.properties;

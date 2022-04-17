@@ -176,7 +176,7 @@ class DatasetList
 end
 
 class Pool
-  ZFS = '@zfs@/bin/zfs'
+  ZFS = 'zfs'
 
   def self.mount_all(pool, config)
     p = new(pool, config)
