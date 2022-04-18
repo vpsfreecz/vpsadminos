@@ -4971,10 +4971,74 @@ index 7c7758a9e2c2..0aa224c31f10 100644
  }
  
  /* The various types of files and directories in a cpuset file system */
+diff --git a/kernel/cred.c b/kernel/cred.c
+index 36f450a3c507..b43d9e3344d1 100644
+--- a/kernel/cred.c
++++ b/kernel/cred.c
+@@ -370,7 +370,8 @@ int copy_creds(struct task_struct *p, unsigned long clone_flags)
+ 		ret = create_user_ns(new);
+ 		if (ret < 0)
+ 			goto error_put;
+-		if (set_cred_ucounts(new) < 0)
++		ret = set_cred_ucounts(new);
++		if (ret < 0)
+ 			goto error_put;
+ 	}
+ 
+@@ -664,21 +665,16 @@ EXPORT_SYMBOL(cred_fscmp);
+ 
+ int set_cred_ucounts(struct cred *new)
+ {
+-	struct task_struct *task = current;
+-	const struct cred *old = task->real_cred;
+ 	struct ucounts *new_ucounts, *old_ucounts = new->ucounts;
+ 
+-	if (new->user == old->user && new->user_ns == old->user_ns)
+-		return 0;
+-
+ 	/*
+ 	 * This optimization is needed because alloc_ucounts() uses locks
+ 	 * for table lookups.
+ 	 */
+-	if (old_ucounts->ns == new->user_ns && uid_eq(old_ucounts->uid, new->euid))
++	if (old_ucounts->ns == new->user_ns && uid_eq(old_ucounts->uid, new->uid))
+ 		return 0;
+ 
+-	if (!(new_ucounts = alloc_ucounts(new->user_ns, new->euid)))
++	if (!(new_ucounts = alloc_ucounts(new->user_ns, new->uid)))
+ 		return -EAGAIN;
+ 
+ 	new->ucounts = new_ucounts;
 diff --git a/kernel/fork.c b/kernel/fork.c
-index 64c650eadfbc..73bf04950b55 100644
+index 64c650eadfbc..74f8cbe96bbd 100644
 --- a/kernel/fork.c
 +++ b/kernel/fork.c
+@@ -1974,20 +1974,20 @@ static __latent_entropy struct task_struct *copy_process(
+ #ifdef CONFIG_PROVE_LOCKING
+ 	DEBUG_LOCKS_WARN_ON(!p->softirqs_enabled);
+ #endif
++	retval = copy_creds(p, clone_flags);
++	if (retval < 0)
++		goto bad_fork_free;
++
+ 	if ((ns != &init_user_ns) && (ns->parent != &init_user_ns))
+ 		ns = &init_user_ns;
+ 	retval = -EAGAIN;
+ 	if (is_ucounts_overlimit(task_ucounts(p), UCOUNT_RLIMIT_NPROC, rlimit(RLIMIT_NPROC))) {
+ 		if (p->real_cred->user != INIT_USER &&
+ 		    !ns_capable(ns, CAP_SYS_RESOURCE) && !ns_capable(ns, CAP_SYS_ADMIN))
+-			goto bad_fork_free;
++			goto bad_fork_cleanup_count;
+ 	}
+ 	current->flags &= ~PF_NPROC_EXCEEDED;
+ 
+-	retval = copy_creds(p, clone_flags);
+-	if (retval < 0)
+-		goto bad_fork_free;
+-
+ 	/*
+ 	 * If multiple threads are within copy_process(), then this check
+ 	 * triggers too late. This doesn't hurt, the check is only there
 @@ -2264,10 +2264,6 @@ static __latent_entropy struct task_struct *copy_process(
  		goto bad_fork_cancel_cgroup;
  	}
@@ -5108,11 +5172,157 @@ index 70a578272436..e7df4f293587 100644
  #endif
  }
  
+diff --git a/kernel/signal.c b/kernel/signal.c
+index 80eddd453c81..b7471dd6819d 100644
+--- a/kernel/signal.c
++++ b/kernel/signal.c
+@@ -431,7 +431,7 @@ __sigqueue_alloc(int sig, struct task_struct *t, gfp_t flags, int override_rlimi
+ 	if (!sigpending)
+ 		return NULL;
+ 
+-	if (override_rlimit || likely(sigpending <= task_rlimit(t, RLIMIT_SIGPENDING))) {
++	if (override_rlimit || (sigpending < LONG_MAX && sigpending <= task_rlimit(t, RLIMIT_SIGPENDING))) {
+ 		q = kmem_cache_alloc(sigqueue_cachep, flags);
+ 	} else {
+ 		print_dropped_signal(sig);
+diff --git a/kernel/sys.c b/kernel/sys.c
+index 952925ee888b..7e5813a90835 100644
+--- a/kernel/sys.c
++++ b/kernel/sys.c
+@@ -468,6 +468,16 @@ static int set_user(struct cred *new)
+ 	if (!new_user)
+ 		return -EAGAIN;
+ 
++	free_uid(new->user);
++	new->user = new_user;
++	return 0;
++}
++
++static void flag_nproc_exceeded(struct cred *new)
++{
++	if (new->ucounts == current_ucounts())
++		return;
++
+ 	/*
+ 	 * We don't fail in case of NPROC limit excess here because too many
+ 	 * poorly written programs don't check set*uid() return code, assuming
+@@ -476,15 +486,10 @@ static int set_user(struct cred *new)
+ 	 * failure to the execve() stage.
+ 	 */
+ 	if (is_ucounts_overlimit(new->ucounts, UCOUNT_RLIMIT_NPROC, rlimit(RLIMIT_NPROC)) &&
+-			new_user != INIT_USER &&
+-			!capable(CAP_SYS_RESOURCE) && !capable(CAP_SYS_ADMIN))
++			new->user != INIT_USER)
+ 		current->flags |= PF_NPROC_EXCEEDED;
+ 	else
+ 		current->flags &= ~PF_NPROC_EXCEEDED;
+-
+-	free_uid(new->user);
+-	new->user = new_user;
+-	return 0;
+ }
+ 
+ /*
+@@ -559,6 +564,7 @@ long __sys_setreuid(uid_t ruid, uid_t euid)
+ 	if (retval < 0)
+ 		goto error;
+ 
++	flag_nproc_exceeded(new);
+ 	return commit_creds(new);
+ 
+ error:
+@@ -621,6 +627,7 @@ long __sys_setuid(uid_t uid)
+ 	if (retval < 0)
+ 		goto error;
+ 
++	flag_nproc_exceeded(new);
+ 	return commit_creds(new);
+ 
+ error:
+@@ -700,6 +707,7 @@ long __sys_setresuid(uid_t ruid, uid_t euid, uid_t suid)
+ 	if (retval < 0)
+ 		goto error;
+ 
++	flag_nproc_exceeded(new);
+ 	return commit_creds(new);
+ 
+ error:
+diff --git a/kernel/ucount.c b/kernel/ucount.c
+index cb22f6d8fdc6..e292e09cf04e 100644
+--- a/kernel/ucount.c
++++ b/kernel/ucount.c
+@@ -177,7 +177,7 @@ struct ucounts *alloc_ucounts(struct user_namespace *ns, kuid_t uid)
+ 		if (!new)
+ 			return NULL;
+ 
+-		new->ns = get_user_ns(ns);
++		new->ns = ns;
+ 		new->uid = uid;
+ 		atomic_set(&new->count, 1);
+ 
+@@ -206,7 +206,6 @@ void put_ucounts(struct ucounts *ucounts)
+ 	unsigned long flags;
+ 
+ 	if (atomic_dec_and_lock_irqsave(&ucounts->count, &ucounts_lock, flags)) {
+-		put_user_ns(ucounts->ns);
+ 		hlist_del_init(&ucounts->node);
+ 		spin_unlock_irqrestore(&ucounts_lock, flags);
+ 		put_user_ns(ucounts->ns);
+@@ -348,7 +347,8 @@ bool is_ucounts_overlimit(struct ucounts *ucounts, enum ucount_type type, unsign
+ 	if (rlimit > LONG_MAX)
+ 		max = LONG_MAX;
+ 	for (iter = ucounts; iter; iter = iter->ns->ucounts) {
+-		if (get_ucounts_value(iter, type) > max)
++		long val = get_ucounts_value(iter, type);
++		if (val < 0 || val > max)
+ 			return true;
+ 		max = READ_ONCE(iter->ns->ucount_max[type]);
+ 	}
 diff --git a/kernel/user_namespace.c b/kernel/user_namespace.c
-index 708bf385c166..4841413ef748 100644
+index 708bf385c166..83577c213d8b 100644
 --- a/kernel/user_namespace.c
 +++ b/kernel/user_namespace.c
-@@ -325,6 +325,28 @@ static u32 map_id_down(struct uid_gid_map *map, u32 id)
+@@ -60,6 +60,24 @@ static void set_cred_user_ns(struct cred *cred, struct user_namespace *user_ns)
+ 	cred->user_ns = user_ns;
+ }
+ 
++static unsigned long enforced_nproc_rlimit(void)
++{
++	unsigned long limit = RLIM_INFINITY;
++
++	/* Is RLIMIT_NPROC currently enforced? */
++	if (!uid_eq(current_uid(), GLOBAL_ROOT_UID) ||
++	    (current_user_ns() != &init_user_ns))
++		limit = rlimit(RLIMIT_NPROC);
++
++	return limit;
++}
++
++static inline void set_rlimit_ucount_max(struct user_namespace *ns, enum ucount_type type, unsigned long max)
++{
++	ns->ucount_max[type] = max <= LONG_MAX ? max : LONG_MAX;
++}
++
++
+ /*
+  * Create a new user namespace, deriving the creator from the user in the
+  * passed credentials, and replacing that user with the new root user for the
+@@ -124,10 +142,10 @@ int create_user_ns(struct cred *new)
+ 	for (i = 0; i < MAX_PER_NAMESPACE_UCOUNTS; i++) {
+ 		ns->ucount_max[i] = INT_MAX;
+ 	}
+-	ns->ucount_max[UCOUNT_RLIMIT_NPROC] = rlimit(RLIMIT_NPROC);
+-	ns->ucount_max[UCOUNT_RLIMIT_MSGQUEUE] = rlimit(RLIMIT_MSGQUEUE);
+-	ns->ucount_max[UCOUNT_RLIMIT_SIGPENDING] = rlimit(RLIMIT_SIGPENDING);
+-	ns->ucount_max[UCOUNT_RLIMIT_MEMLOCK] = rlimit(RLIMIT_MEMLOCK);
++	set_rlimit_ucount_max(ns, UCOUNT_RLIMIT_NPROC, enforced_nproc_rlimit());
++	set_rlimit_ucount_max(ns, UCOUNT_RLIMIT_MSGQUEUE, rlimit(RLIMIT_MSGQUEUE));
++	set_rlimit_ucount_max(ns, UCOUNT_RLIMIT_SIGPENDING, rlimit(RLIMIT_SIGPENDING));
++	set_rlimit_ucount_max(ns, UCOUNT_RLIMIT_MEMLOCK, rlimit(RLIMIT_MEMLOCK));
+ 	ns->ucounts = ucounts;
+ 	ns->syslog_ns = get_syslog_ns(parent_ns->syslog_ns);
+ 
+@@ -325,6 +343,28 @@ static u32 map_id_down(struct uid_gid_map *map, u32 id)
  	return map_id_range_down(map, id, 1);
  }
  
@@ -5142,10 +5352,10 @@ index 708bf385c166..4841413ef748 100644
   * map_id_up_base - Find idmap via binary search in static extent array.
   * Can only be called if number of mappings is equal or less than
 diff --git a/kernel/vpsadminos.c b/kernel/vpsadminos.c
-index 46da9507c79e..b45ada05fa27 100644
+index 46da9507c79e..688c4f088aa1 100644
 --- a/kernel/vpsadminos.c
 +++ b/kernel/vpsadminos.c
-@@ -10,6 +10,26 @@
+@@ -10,6 +10,41 @@
  #include <asm/page.h>
  #include "sched/sched.h"
  
@@ -5154,8 +5364,18 @@ index 46da9507c79e..b45ada05fa27 100644
 +char old_uname[65];
 +char new_uname[65];
 +
++static inline void set_rlimit_ucount_max(struct user_namespace *ns, enum ucount_type type, unsigned long max)
++{
++	ns->ucount_max[type] = max <= LONG_MAX ? max : LONG_MAX;
++}
++
 +static int patch(patch_object *obj)
 +{
++	set_rlimit_ucount_max(&init_user_ns, UCOUNT_RLIMIT_NPROC,      RLIM_INFINITY);
++	set_rlimit_ucount_max(&init_user_ns, UCOUNT_RLIMIT_MSGQUEUE,   RLIM_INFINITY);
++	set_rlimit_ucount_max(&init_user_ns, UCOUNT_RLIMIT_SIGPENDING, RLIM_INFINITY);
++	set_rlimit_ucount_max(&init_user_ns, UCOUNT_RLIMIT_MEMLOCK,    RLIM_INFINITY);
++
 +	scnprintf(new_uname, 64, "%s.%s", LIVEPATCH_ORIG_KERNEL_VERSION,
 +	    LIVEPATCH_NAME);
 +	scnprintf(old_uname, 64, "%s", init_uts_ns.name.release);
@@ -5165,6 +5385,11 @@ index 46da9507c79e..b45ada05fa27 100644
 +KPATCH_PRE_PATCH_CALLBACK(patch);
 +static void unpatch(patch_object *obj)
 +{
++	init_user_ns.ucount_max[UCOUNT_RLIMIT_NPROC] = RLIM_INFINITY;
++	init_user_ns.ucount_max[UCOUNT_RLIMIT_MSGQUEUE] = RLIM_INFINITY;
++	init_user_ns.ucount_max[UCOUNT_RLIMIT_SIGPENDING] = RLIM_INFINITY;
++	init_user_ns.ucount_max[UCOUNT_RLIMIT_MEMLOCK] = RLIM_INFINITY;
++
 +	scnprintf(init_uts_ns.name.release, 64, "%s", old_uname);
 +}
 +KPATCH_POST_UNPATCH_CALLBACK(unpatch);
@@ -5599,6 +5824,18 @@ index c8b1592dff73..7315b978e834 100644
  	goto restart;
  }
  
+diff --git a/mm/mlock.c b/mm/mlock.c
+index 7e2611272a70..2e70abd4a5bf 100644
+--- a/mm/mlock.c
++++ b/mm/mlock.c
+@@ -867,6 +867,7 @@ int user_shm_lock(size_t size, struct ucounts *ucounts)
+ 	}
+ 	if (!get_ucounts(ucounts)) {
+ 		dec_rlimit_ucounts(ucounts, UCOUNT_RLIMIT_MEMLOCK, locked);
++		allowed = 0;
+ 		goto out;
+ 	}
+ 	allowed = 1;
 diff --git a/mm/mprotect.c b/mm/mprotect.c
 index 56c02beb6041..7ea0aee0c08d 100644
 --- a/mm/mprotect.c
@@ -5662,6 +5899,19 @@ index 14f84f70c557..44ad7bf2e563 100644
  					/* Invalidate as we cleared the pte */
  					mmu_notifier_invalidate_range(mm,
  						address, address + PAGE_SIZE);
+diff --git a/mm/shmem.c b/mm/shmem.c
+index 2bf1d76969a3..1359c060258e 100644
+--- a/mm/shmem.c
++++ b/mm/shmem.c
+@@ -4148,7 +4148,7 @@ int shmem_unuse(unsigned int type, bool frontswap,
+ 	return 0;
+ }
+ 
+-int shmem_lock(struct file *file, int lock, struct user_struct *user)
++int shmem_lock(struct file *file, int lock, struct ucounts *ucounts)
+ {
+ 	return 0;
+ }
 diff --git a/mm/swap_state.c b/mm/swap_state.c
 index 2337c5d72433..79d97ad6990b 100644
 --- a/mm/swap_state.c
