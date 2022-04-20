@@ -59,6 +59,7 @@ module OsCtld
         end
 
         ct.devices.init
+        ct.mounts.prune
 
         importer.create_datasets(builder, accept_existing: true)
 
