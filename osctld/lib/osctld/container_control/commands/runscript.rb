@@ -45,6 +45,9 @@ module OsCtld
         script = copy_script(opts[:script], opts[:stdin])
         runner_opts[:script] = File.join('/', File.basename(script.path))
 
+        # Remove any left-over temporary mounts
+        ct.mounts.prune if %i(run run_network).include?(mode)
+
         ret = exec_runner(
           args: [mode, runner_opts],
           stdin: opts[:script].nil? ? nil : opts[:stdin],
