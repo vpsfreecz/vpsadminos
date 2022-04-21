@@ -95,6 +95,14 @@ module OsCtl::Image
     end
 
     # @param ctid [String]
+    # @param dns_resolvers [Array<String>]
+    def set_container_dns_resolvers(ctid, dns_resolvers)
+      connect do |client|
+        client.cmd_data!(:ct_set, id: ctid, dns_resolvers: dns_resolvers)
+      end
+    end
+
+    # @param ctid [String]
     def start_container(ctid)
       connect do |client|
         client.cmd_data!(:ct_start, id: ctid)

@@ -44,6 +44,10 @@ module OsCtl::Image
           )
 
           client.add_netif_bridge(builder.ctid, 'eth0', 'lxcbr0')
+          client.set_container_dns_resolvers(builder.ctid, [
+            '1.1.1.1',
+            '8.8.8.8',
+          ])
 
           client.start_container(builder.ctid)
 
