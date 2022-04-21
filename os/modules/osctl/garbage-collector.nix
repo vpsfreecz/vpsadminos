@@ -4,7 +4,7 @@ with lib;
 let
   boolToStr = x: if x then "true" else "false";
 
-  osctl = "${pkgs.osctl}/bin/osctl";
+  osctl = "osctl";
 
   entities = [ "containers" "groups" "users" "repositories" "idRanges" ];
 

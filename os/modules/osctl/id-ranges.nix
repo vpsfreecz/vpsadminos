@@ -1,7 +1,7 @@
 { config, lib, pkgs, utils, ... }:
 with lib;
 let
-  osctl = "${pkgs.osctl}/bin/osctl";
+  osctl = "osctl";
 
   allocation = {
     options = {

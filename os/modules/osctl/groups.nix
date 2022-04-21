@@ -1,7 +1,7 @@
 { config, lib, pkgs, utils, shared, ... }:
 with lib;
 let
-  osctl = "${pkgs.osctl}/bin/osctl";
+  osctl = "osctl";
 
   sortGroups = groups:
     sort (a: b: a.group < b.group)

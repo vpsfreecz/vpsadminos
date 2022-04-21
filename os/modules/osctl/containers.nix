@@ -34,7 +34,7 @@ let
 
   mkService = pool: name: cfg: (
     let
-      osctl = "${pkgs.osctl}/bin/osctl";
+      osctl = "osctl";
       osctlPool = "${osctl} --pool ${pool}";
 
       hasUser = cfg.user != null;
