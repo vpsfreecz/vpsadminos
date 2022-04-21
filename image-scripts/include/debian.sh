@@ -75,5 +75,6 @@ mkdir -p /var/log/journal
 systemctl mask journald-audit.socket
 systemctl mask systemd-journald-audit.socket
 systemctl mask systemd-udev-trigger.service
+systemctl mask sys-kernel-debug.mount
 EOF
 }
