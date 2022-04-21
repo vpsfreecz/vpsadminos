@@ -22,7 +22,7 @@ test_network() {
 test_network
 if [ $? != 0 ] ; then
   echo -n "Waiting for network..."
-  for i in {1..60} ; do
+  for i in $(seq 1 60); do
     test_network && exit 0
     echo -n "."
     sleep 1
