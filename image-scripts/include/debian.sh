@@ -47,6 +47,7 @@ cat > /etc/systemd/system/sshd-keygen.service <<"KEYGENSVC"
 [Unit]
 Description=OpenSSH Server Key Generation
 ConditionPathExistsGlob=!/etc/ssh/ssh_host_*
+Before=ssh.service
 
 [Service]
 Type=oneshot
