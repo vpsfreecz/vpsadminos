@@ -1,4 +1,5 @@
 require 'osctld/commands/base'
+require 'etc'
 
 module OsCtld
   class Commands::Self::Activate < Commands::Base
@@ -16,19 +17,25 @@ module OsCtld
 
       if opts[:lxcfs]
         progress('Refreshing LXCFS')
+
+        nproc = Etc.nprocessors
+        ep = ExecutionPlan.new
+
         DB::Containers.get.each do |ct|
-          ct.inclusively do
-            next unless ct.running?
+          ep << ct
+        end
 
-            begin
-              ct_syscmd(ct, %w(cat /proc/stat), valid_rcs: :all)
-              ct_syscmd(ct, %w(cat /proc/loadavg), valid_rcs: :all)
+        ep.run([nproc / 2, 1].max) do |ct|
+          next unless ct.running?
 
-            rescue SystemCommandFailed
-              # pass
-            end
+          begin
+            ct_syscmd(ct, %w(cat /proc/stat /proc/loadavg), valid_rcs: :all)
+          rescue SystemCommandFailed
+            # pass
           end
         end
+
+        ep.wait
       end
 
       ok
