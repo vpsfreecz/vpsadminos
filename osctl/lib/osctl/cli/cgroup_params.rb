@@ -600,15 +600,6 @@ module OsCtl
     end
 
     protected
-    def parse_memory_stat(memory, path)
-      Hash[
-        read_cgparam(memory, path, 'memory.stat').split("\n").map do |line|
-          param, value = line.split
-          [param.to_sym, value.to_i]
-        end
-      ]
-    end
-
     def parse_cgparams
       opts[:cgparam].map do |v|
         parts = v.split('=')
