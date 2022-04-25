@@ -4710,6 +4710,27 @@ index d6d4019ba32f..9f2ca1b1c17a 100644
  	if (pipe->tmp_page)
  		__free_page(pipe->tmp_page);
  	kfree(pipe->bufs);
+diff --git a/fs/proc/meminfo.c b/fs/proc/meminfo.c
+index 94c1ca8479f9..ab29556552e6 100644
+--- a/fs/proc/meminfo.c
++++ b/fs/proc/meminfo.c
+@@ -79,12 +79,12 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
+ 		i.totalram = i.totalhigh = totalram;
+ 		i.freeram = i.freehigh = totalram - memusage;
+ 
+-		if (memsw < PAGE_COUNTER_MAX) {
+-			i.totalswap = memsw - totalram;
+-			i.freeswap = i.totalswap - (memsw_usage - memusage);
+-		} else {
++		if (!memsw || (memsw == totalram) || (memsw == PAGE_COUNTER_MAX)) {
+ 			i.totalswap = 0;
+ 			i.freeswap = 0;
++		} else {
++			i.totalswap = memsw - totalram;
++			i.freeswap = i.totalswap - (memsw_usage - memusage);
+ 		}
+ 
+ 		available = i.freeram + sreclaimable + cached_inactive;
 diff --git a/fs/super.c b/fs/super.c
 index 06f036985ab2..092ce8da2e0c 100644
 --- a/fs/super.c
@@ -5186,7 +5207,7 @@ index 80eddd453c81..b7471dd6819d 100644
  	} else {
  		print_dropped_signal(sig);
 diff --git a/kernel/sys.c b/kernel/sys.c
-index 952925ee888b..7e5813a90835 100644
+index 952925ee888b..92d9faeff40c 100644
 --- a/kernel/sys.c
 +++ b/kernel/sys.c
 @@ -468,6 +468,16 @@ static int set_user(struct cred *new)
@@ -5247,6 +5268,33 @@ index 952925ee888b..7e5813a90835 100644
  	return commit_creds(new);
  
  error:
+@@ -2620,12 +2628,12 @@ static int do_sysinfo(struct sysinfo *info)
+ 
+ 		info->totalram = info->totalhigh = totalram;
+ 		info->freeram = info->freehigh = totalram - memusage;
+-		if (memsw < PAGE_COUNTER_MAX) {
+-			info->totalswap = memsw - totalram;
+-			info->freeswap = info->totalswap - (memsw_usage - memusage);
+-		} else {
++		if (!memsw || (memsw == totalram) || (memsw == PAGE_COUNTER_MAX)) {
+ 			info->totalswap = 0;
+ 			info->freeswap = 0;
++		} else {
++			info->totalswap = memsw - totalram;
++			info->freeswap = info->totalswap - (memsw_usage - memusage);
+ 		}
+ 		info->bufferram = memcg_page_state(memcg, NR_FILE_PAGES);
+ 		info->sharedram = memcg_page_state(memcg, NR_SHMEM);
+@@ -2652,7 +2660,8 @@ static int do_sysinfo(struct sysinfo *info)
+ 	return 0;
+ }
+ 
+-SYSCALL_DEFINE1(sysinfo, struct sysinfo __user *, info)
++#include "kpatch-macros.h"
++KPATCH_SYSCALL_DEFINE1(sysinfo, struct sysinfo __user *, info)
+ {
+ 	struct sysinfo val;
+ 
 diff --git a/kernel/ucount.c b/kernel/ucount.c
 index cb22f6d8fdc6..e292e09cf04e 100644
 --- a/kernel/ucount.c
@@ -5925,6 +5973,19 @@ index 2337c5d72433..79d97ad6990b 100644
  	}
  
  	/*
+diff --git a/mm/swapfile.c b/mm/swapfile.c
+index 7b637b66e84e..1e3f69802709 100644
+--- a/mm/swapfile.c
++++ b/mm/swapfile.c
+@@ -2856,7 +2856,7 @@ static int fake_swap_show(struct seq_file *swap, void *v)
+ 		memsw_usage = page_counter_read(&memcg->memsw);
+ 	}
+ 
+-	if (memsw == PAGE_COUNTER_MAX)
++	if (!memsw || (memsw == totalram) || (memsw == PAGE_COUNTER_MAX))
+ 		return 0;
+ 
+ 	totalswap = (memsw - totalram) * PAGE_SIZE;
 diff --git a/mm/util.c b/mm/util.c
 index 90792e4eaa25..890472760790 100644
 --- a/mm/util.c
