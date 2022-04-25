@@ -561,11 +561,16 @@ module OsCtl
 
       params.each do |par|
         begin
-          ret[par.to_sym] = read_cgparam(
-            subsystems[parse_subsystem(par.to_s).to_sym],
-            path,
-            par.to_s,
-          )
+          ret[par.to_sym] =
+            if OsCtl::Lib::CGroup.v1?
+              read_cgparam_v1(
+                subsystems[parse_subsystem(par.to_s).to_sym],
+                path,
+                par.to_s,
+              )
+            else
+              read_cgparam_v2(path, par.to_s)
+            end
         rescue Errno::ENOENT
           ret[par.to_sym] = nil
         end
