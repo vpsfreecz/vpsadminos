@@ -560,8 +560,8 @@ module OsCtl
       end
 
       params.each do |par|
-        begin
-          ret[par.to_sym] =
+        v_raw =
+          begin
             if OsCtl::Lib::CGroup.v1?
               read_cgparam_v1(
                 subsystems[parse_subsystem(par.to_s).to_sym],
@@ -571,9 +571,24 @@ module OsCtl
             else
               read_cgparam_v2(path, par.to_s)
             end
-        rescue Errno::ENOENT
-          ret[par.to_sym] = nil
+          rescue Errno::ENOENT
+            nil
+          end
+
+        if v_raw.nil?
+          v_target = nil
+        else
+          v_int = v_raw.to_i
+
+          v_target =
+            if v_int.to_s == v_raw
+              OsCtl::Lib::Cli::Presentable.new(v_int, formatted: v_raw, exported: v_raw)
+            else
+              v_raw
+            end
         end
+
+        ret[par.to_sym] = v_target
       end
 
       ret
