@@ -1,4 +1,5 @@
 #!@ruby@/bin/ruby
+require 'fileutils'
 require 'json'
 
 class Configuration
@@ -46,6 +47,8 @@ class Configuration
     activate
 
     services.switch_runlevel
+
+    osctld_start_config(services)
 
     puts 'would reload changed services...'
     services.reload.each(&:reload)
@@ -97,6 +100,8 @@ class Configuration
 
     services.switch_runlevel
 
+    osctld_start_config(services)
+
     puts 'reloading changed services...'
     services.reload.each(&:reload)
 
@@ -116,8 +121,45 @@ class Configuration
   protected
   attr_reader :opts
 
+  def osctld_start_config(services)
+    return unless services.restart.detect { |s| s.name == 'osctld' }
+
+    cfg = {}
+
+    puts '> osctld start config:'
+
+    if services.reload.detect { |s| s.name == 'lxcfs' }
+      if opts[:dry_run]
+        puts '- would reactivate lxcfs'
+      else
+        puts '- reactivate lxcfs'
+      end
+
+      cfg['activate_lxcfs'] = true
+    end
+
+    if cfg.empty?
+      puts '- no changes'
+      return
+    end
+
+    return if opts[:dry_run]
+
+    puts '- writing config'
+
+    dir = '/run/osctl/configs/osctld'
+    FileUtils.mkdir_p(dir)
+    File.open(File.join(dir, 'start-config.json'), 'w') do |f|
+      f.write(cfg.to_json)
+    end
+  end
+
   def activate_osctl(services)
-    args = []
+    # If osctld is restarted, it will regenerate system files by itself and
+    # lxcfs is handled by the start config in this case.
+    return if services.restart.detect { |s| s.name == 'osctld' }
+
+    args = ['--system']
 
     if services.reload.detect { |s| s.name == 'lxcfs' }
       args << '--lxcfs'
@@ -125,32 +167,10 @@ class Configuration
       args << '--no-lxcfs'
     end
 
-    if services.restart.detect { |s| s.name == 'osctld' }
-      # osctld has been restarted, so system files are already regenerated
-      # and we just have to refresh LXCFS
-      args << '--no-system'
-
-      # It takes time for osctld to start
-      wait_for_osctld
-
-    else
-      args << '--system'
-    end
-
     puts "> osctl activate #{args.join(' ')}"
     return if opts[:dry_run]
 
     system(File.join(CURRENT_BIN, 'osctl'), 'activate', *args)
-  end
-
-  def wait_for_osctld
-    if opts[:dry_run]
-      puts 'would wait for osctld to start...'
-      return
-    end
-
-    puts 'waiting for osctld to start...'
-    system(File.join(CURRENT_BIN, 'osctl'), 'ping', '0')
   end
 end
 
