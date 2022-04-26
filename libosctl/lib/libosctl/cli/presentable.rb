@@ -15,14 +15,23 @@ module OsCtl::Lib
     # Return the formatted value for presentation
     attr_reader :formatted
 
+    # Return the value which is used for JSON representation
+    attr_reader :exported
+
     # @param raw [any] precise value
-    # @param presenter [Method, Proc] called to format the value
-    # @param formatted [String] formatted value
-    def initialize(raw, presenter: nil, formatted: nil)
+    # @param opts [Hash]
+    # @option opts [Method, Proc] presenter called to format the value
+    # @option opts [String] formatted formatted value
+    # @option opts [any] exported value used for dump to JSON
+    def initialize(raw, **opts)
       @raw = raw
 
-      v = presenter ? presenter.call(raw) : formatted
+      formatted = opts[:formatted]
+
+      v = opts.has_key?(:presenter) ? opts[:presenter].call(raw) : formatted
       @formatted = v ? v.to_s : raw.to_s
+
+      @exported = opts.has_key?(:exported) ? opts[:exported] : raw
     end
 
     %i(- + * / <= == >= <=>).each do |m|
@@ -46,7 +55,7 @@ module OsCtl::Lib
 
     # Returns the raw value in JSON
     def to_json(*args)
-      raw.to_json(*args)
+      exported.to_json(*args)
     end
 
     # Forward `round` call to the raw value
