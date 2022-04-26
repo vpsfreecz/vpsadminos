@@ -77,6 +77,7 @@ require_rel 'osctld/net_interface'
 require_rel 'osctld/prlimits'
 require_rel 'osctld/repository'
 require_rel 'osctld/routing'
+require_rel 'osctld/run_state'
 require_rel 'osctld/switch_user'
 
 require_rel 'osctld/commands'

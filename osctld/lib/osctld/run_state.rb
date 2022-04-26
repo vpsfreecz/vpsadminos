@@ -6,6 +6,7 @@ module OsCtld
     SEND_RECEIVE_DIR = File.join(RUNDIR, 'send-receive')
     REPOSITORY_DIR = File.join(RUNDIR, 'repository')
     CONFIG_DIR = File.join(RUNDIR, 'configs')
+    OSCTLD_CONFIG_DIR = File.join(CONFIG_DIR, 'osctld')
     LXC_CONFIG_DIR = File.join(CONFIG_DIR, 'lxc')
     APPARMOR_DIR = File.join(CONFIG_DIR, 'apparmor')
     SHUTDOWN_MARKER = File.join(RUNDIR, 'shutdown')
@@ -28,6 +29,11 @@ module OsCtld
 
       # AppArmor files
       mkdir_p(APPARMOR_DIR, 0755)
+    end
+
+    # @return [RunState::StartConfig]
+    def self.open_start_config
+      StartConfig.new(File.join(OSCTLD_CONFIG_DIR, 'start-config.json'))
     end
 
     def self.assets(add)

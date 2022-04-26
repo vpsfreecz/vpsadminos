@@ -88,6 +88,9 @@ module OsCtld
       # Setup /run/osctl
       RunState.create
 
+      # Open start config
+      start_cfg = RunState.open_start_config
+
       SystemLimits.instance
 
       # Increase allowed number of open files
@@ -122,7 +125,14 @@ module OsCtld
       if shutdown?
         log(:info, 'Resuming shutdown')
         Commands::Self::Shutdown.run
+
+      elsif start_cfg.activate_lxcfs?
+        log(:info, 'Activating LXCFS')
+        Commands::Self::Activate.run(lxcfs: true)
       end
+
+      # Close start config
+      start_cfg.close
 
       # Wait for the server to finish
       join_server
