@@ -29,8 +29,8 @@ module OsCtld
           next unless ct.running?
 
           begin
-            ct_syscmd(ct, %w(cat /proc/stat /proc/loadavg), valid_rcs: :all)
-          rescue SystemCommandFailed
+            ContainerControl::Commands::ActivateLxcfs.run!(ct)
+          rescue ContainerControl::Error
             # pass
           end
         end
