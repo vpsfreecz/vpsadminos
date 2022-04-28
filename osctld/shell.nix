@@ -2,6 +2,7 @@ let
   pkgs = import <nixpkgs> { overlays = (import ../os/overlays/common.nix); };
   lib = pkgs.lib;
   stdenv = pkgs.stdenv;
+
   path = with pkgs; [
     apparmor-parser
     coreutils
@@ -16,9 +17,18 @@ let
     utillinux
     zfs
   ];
+
   pathJoined = lib.concatMapStringsSep ":" (s: "${s}/bin") path;
+
   apparmorPaths = [ pkgs.apparmor-profiles ];
-  apparmorPathsJoined = lib.concatMapStringsSep ":" (s: "${s}/etc/apparmor.d") apparmorPaths;
+
+  osctldConfig = {
+    apparmor_paths = map (s: "${s}/etc/apparmor.d") apparmorPaths;
+
+    ctstartmenu = "${pkgs.ctstartmenu}/bin/ctstartmenu";
+  };
+
+  jsonConfigFile = pkgs.writeText "osctld-config.json" (builtins.toJSON osctldConfig);
 
 in stdenv.mkDerivation rec {
   name = "osctld";
@@ -48,7 +58,8 @@ in stdenv.mkDerivation rec {
 
     export RUBYOPT=-rbundler/setup
 
-    export OSCTLD_APPARMOR_PATHS="${apparmorPathsJoined}"
-    export OSCTLD_CT_START_MENU="${pkgs.ctstartmenu}/bin/ctstartmenu"
+    run-osctld() {
+      bundle exec bin/osctld --config ${jsonConfigFile}
+    }
   '';
 }

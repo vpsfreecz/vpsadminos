@@ -10,12 +10,10 @@ module OsCtld
     # Paths where `apparmor_parser` searches for configuration files
     PATHS = [RunState::APPARMOR_DIR]
 
-    if ENV['OSCTLD_APPARMOR_PATHS']
-      PATHS.concat(ENV['OSCTLD_APPARMOR_PATHS'].split(':'))
-    end
-
     # Prepare shared files in `/run/osctl`
     def self.setup
+      PATHS.concat(Daemon.get.config.apparmor_paths)
+
       base = File.join(RunState::APPARMOR_DIR, 'osctl')
       features = File.join(base, 'features')
 

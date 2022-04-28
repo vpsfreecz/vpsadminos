@@ -5,7 +5,7 @@ module OsCtld
     def self.run(opts)
       Process.setproctitle('osctld: main')
       OsCtl::Lib::Logger.setup(opts.log, facility: opts.log_facility)
-      d = OsCtld::Daemon.get
+      d = OsCtld::Daemon.create(opts.config)
       stopping = false
 
       %w(INT TERM).each do |sig|

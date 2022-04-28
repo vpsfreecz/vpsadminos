@@ -1,3 +1,4 @@
+require 'json'
 require 'libosctl'
 require 'socket'
 require 'thread'
@@ -51,16 +52,45 @@ module OsCtld
       end
     end
 
-    @@instance = nil
+    class Config
+      def initialize(path)
+        @cfg = JSON.parse(File.read(path))
+      end
 
-    class << self
-      def get
-        @@instance ||= new
+      # @return [Array<String>]
+      def apparmor_paths
+        @cfg['apparmor_paths']
+      end
+
+      # @return [String]
+      def ctstartmenu
+        @cfg['ctstartmenu']
       end
     end
 
+    @@instance = nil
+
+    class << self
+      # @param config [String] path to config file
+      def create(config)
+        fail 'Daemon already instantiated' if @instance
+
+        @@instance = new(config)
+      end
+
+      def get
+        @@instance
+      end
+    end
+
+    # @return [Daemon::Config]
+    attr_reader :config
+
     private
-    def initialize
+    # @param config [String] path to config file
+    def initialize(config)
+      @config = Daemon::Config.new(config)
+
       Thread.abort_on_exception = true
       DB::Users.instance
       DB::Groups.instance

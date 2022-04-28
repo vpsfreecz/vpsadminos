@@ -2,7 +2,7 @@ require 'optparse'
 
 module OsCtld
   class Cli::Supervisor
-    Options = Struct.new(:supervisor, :log, :log_facility)
+    Options = Struct.new(:supervisor, :config, :log, :log_facility)
 
     def self.run
       s = new
@@ -16,11 +16,15 @@ module OsCtld
     attr_reader :opts
 
     def parse
-      @opts = Options.new(true, :stdout, 'daemon')
+      @opts = Options.new(true, nil, :stdout, 'daemon')
 
       OptionParser.new do |opts|
         opts.on('--[no-]supervisor', 'Toggle osctld supervisor process (enabled by default)') do |v|
           @opts.supervisor = v
+        end
+
+        opts.on('-c', '--config FILE', 'Config file') do |v|
+          @opts.config = v
         end
 
         opts.on('-l', '--log LOGGER', %w(syslog stdout)) do |v|
@@ -39,6 +43,12 @@ module OsCtld
           exit
         end
       end.parse!
+
+      if @opts.config.nil?
+        warn "Provide option --config FILE"
+        warn opts
+        exit(false)
+      end
 
       @opts
     end
@@ -63,6 +73,7 @@ module OsCtld
         Process.exec(
           File.expand_path($0),
           '--no-supervisor',
+          '--config', opts.config,
           '--log', opts.log.to_s,
           '--log-facility', opts.log_facility,
           pgroup: true

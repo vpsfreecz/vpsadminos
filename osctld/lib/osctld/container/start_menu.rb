@@ -3,8 +3,6 @@ require 'libosctl'
 
 module OsCtld
   class Container::StartMenu
-    CT_START_MENU = ENV['OSCTLD_CT_START_MENU']
-
     def self.load(ct, cfg)
       new(ct, cfg['timeout'] || 5)
     end
@@ -19,7 +17,7 @@ module OsCtld
     end
 
     def deploy
-      FileUtils.copy_file(CT_START_MENU, host_path, preserve: true)
+      FileUtils.copy_file(Daemon.get.config.ctstartmenu, host_path, preserve: true)
     rescue SystemCallError => e
       log(:fatal, "Unable to deploy start menu: #{e.message} (#{e.class})")
     end
