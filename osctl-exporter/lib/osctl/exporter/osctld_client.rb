@@ -45,6 +45,10 @@ module OsCtl::Exporter
       client.cmd_data!(:self_ping) == 'pong'
     end
 
+    def status
+      client.cmd_data!(:self_status)
+    end
+
     def list_pools
       client.cmd_data!(:pool_list)
     end
