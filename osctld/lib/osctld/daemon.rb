@@ -86,10 +86,18 @@ module OsCtld
     # @return [Daemon::Config]
     attr_reader :config
 
+    # @return [Time]
+    attr_reader :started_at
+
+    # @return [Boolean]
+    attr_reader :initialized
+
     private
     # @param config [String] path to config file
     def initialize(config)
       @config = Daemon::Config.new(config)
+      @started_at = Time.now
+      @initialized = false
 
       Thread.abort_on_exception = true
       DB::Users.instance
@@ -163,6 +171,9 @@ module OsCtld
 
       # Close start config
       start_cfg.close
+
+      # All components are up
+      @initialized = true
 
       # Wait for the server to finish
       join_server
