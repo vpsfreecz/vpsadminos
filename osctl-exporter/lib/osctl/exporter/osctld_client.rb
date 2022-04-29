@@ -1,7 +1,10 @@
+require 'libosctl'
 require 'osctl'
 
 module OsCtl::Exporter
   class OsCtldClient
+    include OsCtl::Lib::Utils::Log
+
     attr_reader :client
 
     def initialize
@@ -9,13 +12,37 @@ module OsCtl::Exporter
     end
 
     # @yieldparam client [OsCtldClient]
-    def connect
-      client.open unless connected?
+    def try_to_connect
+      if connected?
+        yield(self)
+        return
+      end
+
+      begin
+        client.open
+      rescue SystemCallError => e
+        log(:warn, "Unable to connect to osctld: #{e.message} (#{e.class})")
+        @connected = false
+        yield(self)
+        return
+      end
+
       @connected = true
-      yield(self)
-    ensure
-      client.close
-      @connected = false
+
+      begin
+        yield(self)
+      ensure
+        client.close
+        @connected = false
+      end
+    end
+
+    def connected?
+      @connected
+    end
+
+    def ping?
+      client.cmd_data!(:self_ping) == 'pong'
     end
 
     def list_pools
@@ -30,9 +57,8 @@ module OsCtl::Exporter
       client.cmd_data!(:netif_list)
     end
 
-    protected
-    def connected?
-      @connected
+    def log_type
+      'osctld-client'
     end
   end
 end

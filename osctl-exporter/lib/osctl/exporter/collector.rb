@@ -19,7 +19,10 @@ module OsCtl::Exporter
       @client = OsCtldClient.new
       @queue = OsCtl::Lib::Queue.new
       @registry = Prometheus::Client.registry
-      @collectors = [
+      @any_collectors = [
+        Collectors::OsCtld,
+      ].map { |klass| klass.new(registry) }
+      @connected_collectors = [
         Collectors::Pool,
         Collectors::Container,
       ].map { |klass| klass.new(registry) }
@@ -47,11 +50,16 @@ module OsCtl::Exporter
     end
 
     protected
-    attr_reader :client, :queue, :thread, :registry, :collectors
+    attr_reader :client, :queue, :thread, :registry,
+      :any_collectors, :connected_collectors
 
     def collect
-      client.connect do
-        collectors.each { |c| c.collect(client) }
+      client.try_to_connect do
+        any_collectors.each { |c| c.collect(client) }
+
+        if client.connected?
+          connected_collectors.each { |c| c.collect(client) }
+        end
       end
     end
   end
