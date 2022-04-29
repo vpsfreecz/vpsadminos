@@ -3,3 +3,4 @@ gemspec
 
 gem 'libosctl', path: '../libosctl'
 gem 'osctl', path: '../osctl'
+gem 'osctl-exportfs', path: '../osctl-exportfs'

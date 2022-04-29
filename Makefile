@@ -30,7 +30,7 @@ osctl-repo: libosctl
 osctl-image: libosctl osctl osctl-repo
 	./tools/update_gem.sh os/packages osctl-image $(BUILD_ID)
 
-osctl-exporter: libosctl osctl
+osctl-exporter: libosctl osctl osctl-exportfs
 	./tools/update_gem.sh os/packages osctl-exporter $(BUILD_ID)
 
 osctl-exportfs: libosctl

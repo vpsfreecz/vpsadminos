@@ -21,6 +21,7 @@ module OsCtl::Exporter
       @registry = Prometheus::Client.registry
       @any_collectors = [
         Collectors::OsCtld,
+        Collectors::Exportfs,
       ].map { |klass| klass.new(registry) }
       @connected_collectors = [
         Collectors::Pool,
