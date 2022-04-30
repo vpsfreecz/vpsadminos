@@ -25,7 +25,7 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency 'libosctl', s.version
   s.add_runtime_dependency 'osctl', s.version
   s.add_runtime_dependency 'osctl-exportfs', s.version
-  s.add_runtime_dependency 'prometheus-client', '~> 2.1.0'
+  s.add_runtime_dependency 'prometheus-client', '~> 4.0.0'
   s.add_runtime_dependency 'require_all', '~> 2.0.0'
   s.add_runtime_dependency 'thin', '~> 1.8.1'
   s.add_development_dependency 'rake'
