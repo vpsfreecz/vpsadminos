@@ -61,6 +61,10 @@ module OsCtl::Exporter
       client.cmd_data!(:netif_list)
     end
 
+    def health_check
+      client.cmd_data!(:self_healthcheck, all: true)
+    end
+
     def log_type
       'osctld-client'
     end

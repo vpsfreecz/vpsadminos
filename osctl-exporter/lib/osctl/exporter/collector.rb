@@ -26,6 +26,7 @@ module OsCtl::Exporter
       @connected_collectors = [
         Collectors::Pool,
         Collectors::Container,
+        Collectors::HealthCheck,
       ].map { |klass| klass.new(registry) }
     end
 
