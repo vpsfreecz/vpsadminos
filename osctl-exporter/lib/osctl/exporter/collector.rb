@@ -56,10 +56,10 @@ module OsCtl::Exporter
 
     def collect
       client.try_to_connect do
-        any_collectors.each { |c| c.collect(client) }
+        any_collectors.each { |c| c.run_collect(client) }
 
         if client.connected?
-          connected_collectors.each { |c| c.collect(client) }
+          connected_collectors.each { |c| c.run_collect(client) }
         end
       end
     end
