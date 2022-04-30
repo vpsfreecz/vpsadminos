@@ -40,7 +40,6 @@ in {
       run = ''
         export PATH="${pkgs.osctl-exporter}/env/bin:$PATH"
         exec 2>&1
-        waitForOsctld
         exec thin \
           -a ${cfg.listenAddress} \
           -p ${toString cfg.port} \
