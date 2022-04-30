@@ -22,117 +22,157 @@ module OsCtl::Exporter
     )
 
     def setup
-      @states = Hash[STATES.map do |s|
-        [
-          s,
-          registry.gauge(
-            :"osctl_container_state_#{s}",
-            docstring: "Set if the container is in state #{s}",
-            labels: [:pool, :id],
-          )
-        ]
-      end]
-      @memory_used_bytes = registry.gauge(
+      STATES.each do |s|
+        add_metric(
+          "state_#{s}",
+          :gauge,
+          :"osctl_container_state_#{s}",
+          docstring: "Set if the container is in state #{s}",
+          labels: [:pool, :id],
+        )
+      end
+
+      add_metric(
+        :memory_used_bytes,
+        :gauge,
         :osctl_container_memory_used_bytes,
         docstring: 'Memory used by containers',
         labels: [:pool, :id],
       )
-      @cpu_us_total = registry.gauge(
+      add_metric(
+        :cpu_us_total,
+        :gauge,
         :osctl_container_cpu_microseconds_total,
         docstring: 'Container CPU usage',
         labels: [:pool, :id, :mode],
       )
-      @proc_pids = registry.gauge(
+      add_metric(
+        :proc_pids,
+        :gauge,
         :osctl_container_processes_pids,
         docstring: 'Number of processes inside the container',
         labels: [:pool, :id],
       )
-      @proc_state = registry.gauge(
+      add_metric(
+        :proc_state,
+        :gauge,
         :osctl_container_processes_state,
         docstring: "Number of processes belonging to a container by their state",
         labels: [:pool, :id, :state],
       )
-      @loadavg = Hash[[1, 5, 15].map do |i|
-        [
-          i,
-          registry.gauge(
-            :"osctl_container_load#{i}",
-            docstring: "Container #{i} minute load average",
-            labels: [:pool, :id],
-          ),
-        ]
-      end]
-      @dataset_used = registry.gauge(
+
+
+      [1, 5, 15].each do |i|
+        add_metric(
+          "loadavg_#{i}",
+          :gauge,
+          :"osctl_container_load#{i}",
+          docstring: "Container #{i} minute load average",
+          labels: [:pool, :id],
+        )
+      end
+
+      add_metric(
+        :dataset_used,
+        :gauge,
         :osctl_container_dataset_used_bytes,
         docstring: 'Dataset used space',
         labels: [:pool, :id, :dataset, :relative_name],
       )
-      @dataset_referenced = registry.gauge(
+      add_metric(
+        :dataset_referenced,
+        :gauge,
         :osctl_container_dataset_referenced_bytes,
         docstring: 'Dataset referenced space',
         labels: [:pool, :id, :dataset, :relative_name],
       )
-      @dataset_avail = registry.gauge(
+      add_metric(
+        :dataset_avail,
+        :gauge,
         :osctl_container_dataset_avail_bytes,
         docstring: 'Dataset available space',
         labels: [:pool, :id, :dataset, :relative_name],
       )
-      @dataset_quota = registry.gauge(
+      add_metric(
+        :dataset_quota,
+        :gauge,
         :osctl_container_dataset_quota_bytes,
         docstring: 'Dataset quota',
         labels: [:pool, :id, :dataset, :relative_name],
       )
-      @dataset_refquota = registry.gauge(
+      add_metric(
+        :dataset_refquota,
+        :gauge,
         :osctl_container_dataset_refquota_bytes,
         docstring: 'Dataset reference quota',
         labels: [:pool, :id, :dataset, :relative_name],
       )
-      @dataset_bytes_written = registry.gauge(
+      add_metric(
+        :dataset_bytes_written,
+        :gauge,
         :osctl_container_dataset_bytes_written,
         docstring: 'Bytes written to this dataset',
         labels: [:pool, :id, :dataset, :relative_name],
       )
-      @dataset_bytes_read = registry.gauge(
+      add_metric(
+        :dataset_bytes_read,
+        :gauge,
         :osctl_container_dataset_bytes_read,
         docstring: 'Bytes read from this dataset',
         labels: [:pool, :id, :dataset, :relative_name],
       )
-      @dataset_ios_written = registry.gauge(
+      add_metric(
+        :dataset_ios_written,
+        :gauge,
         :osctl_container_dataset_ios_written,
         docstring: 'Number of write IOs of this dataset',
         labels: [:pool, :id, :dataset, :relative_name],
       )
-      @dataset_ios_read = registry.gauge(
+      add_metric(
+        :dataset_ios_read,
+        :gauge,
         :osctl_container_dataset_ios_read,
         docstring: 'Number of read IOs of this dataset',
         labels: [:pool, :id, :dataset, :relative_name],
       )
-      @netif_rx_bytes = registry.gauge(
+      add_metric(
+        :netif_rx_bytes,
+        :gauge,
         :osctl_container_network_receive_bytes_total,
         docstring: 'Number of received bytes over network',
         labels: [:pool, :id, :devicetype, :hostdevice, :ctdevice],
       )
-      @netif_tx_bytes = registry.gauge(
+      add_metric(
+        :netif_tx_bytes,
+        :gauge,
         :osctl_container_network_transmit_bytes_total,
         docstring: 'Number of transmitted bytes over network',
         labels: [:pool, :id, :devicetype, :hostdevice, :ctdevice],
       )
-      @netif_rx_packets = registry.gauge(
+      add_metric(
+        :netif_rx_packets,
+        :gauge,
         :osctl_container_network_receive_packets_total,
         docstring: 'Number of received packets over network',
         labels: [:pool, :id, :devicetype, :hostdevice, :ctdevice],
       )
-      @netif_tx_packets = registry.gauge(
+      add_metric(
+        :netif_tx_packets,
+        :gauge,
         :osctl_container_network_transmit_packets_total,
         docstring: 'Number of transmitted packets over network',
         labels: [:pool, :id, :devicetype, :hostdevice, :ctdevice],
       )
-      @keyring_qnkeys = registry.gauge(
+      add_metric(
+        :keyring_qnkeys,
+        :gauge,
         :osctl_container_keyring_qnkeys,
         docstring: "Number of keyring keys owned by the container's user IDs",
         labels: [:pool, :id],
       )
-      @keyring_qnbytes = registry.gauge(
+      add_metric(
+        :keyring_qnbytes,
+        :gauge,
         :osctl_container_keyring_qnbytes,
         docstring: "Number of bytes used by owned keys of the container's user IDs",
         labels: [:pool, :id],
@@ -175,7 +215,7 @@ module OsCtl::Exporter
 
       cts.each do |ct|
         STATES.each do |s|
-          states[s].set(
+          metrics["state_#{s}"].set(
             s == ct[:state].to_sym ? 1 : 0,
             labels: {pool: ct[:pool], id: ct[:id]},
           )
@@ -205,7 +245,7 @@ module OsCtl::Exporter
 
         if lavg
           [1, 5, 15].each do |i|
-            loadavg[i].set(
+            metrics["loadavg_#{i}"].set(
               lavg.avg[i],
               labels: {pool: ct[:pool], id: ct[:id]},
             )
@@ -295,8 +335,8 @@ module OsCtl::Exporter
     end
 
     protected
-    attr_reader :states, :memory_total_bytes, :memory_used_bytes, :cpu_us_total,
-      :proc_pids, :proc_state, :loadavg, :dataset_used, :dataset_referenced,
+    attr_reader :memory_total_bytes, :memory_used_bytes, :cpu_us_total,
+      :proc_pids, :proc_state, :dataset_used, :dataset_referenced,
       :dataset_avail, :dataset_quota, :dataset_refquota, :dataset_bytes_written,
       :dataset_bytes_read, :dataset_ios_written, :dataset_ios_read,
       :netif_rx_bytes, :netif_tx_bytes, :netif_rx_packets, :netif_tx_packets,

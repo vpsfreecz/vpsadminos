@@ -5,28 +5,41 @@ require 'osctl/exportfs'
 module OsCtl::Exporter
   class Collectors::Exportfs < Collectors::Base
     def setup
-      @server_count = registry.gauge(
+      add_metric(
+        :server_count,
+        :gauge,
         :osctl_exportfs_server_count,
         docstring: 'Number of osctl-exportfs servers',
         labels: [:state],
       )
 
-      @netif_rx_bytes = registry.gauge(
+      add_metric(
+        :netif_rx_bytes,
+        :gauge,
         :osctl_exportfs_server_receive_bytes_total,
         docstring: 'Number of received bytes over network',
         labels: [:nfs_server, :hostdevice, :ip_address],
       )
-      @netif_tx_bytes = registry.gauge(
+
+      add_metric(
+        :netif_tx_bytes,
+        :gauge,
         :osctl_exportfs_server_transmit_bytes_total,
         docstring: 'Number of transmitted bytes over network',
         labels: [:nfs_server, :hostdevice, :ip_address],
       )
-      @netif_rx_packets = registry.gauge(
+
+      add_metric(
+        :netif_rx_packets,
+        :gauge,
         :osctl_exportfs_server_receive_packets_total,
         docstring: 'Number of received packets over network',
         labels: [:nfs_server, :hostdevice, :ip_address],
       )
-      @netif_tx_packets = registry.gauge(
+
+      add_metric(
+        :netif_tx_packets,
+        :gauge,
         :osctl_exportfs_server_transmit_packets_total,
         docstring: 'Number of transmitted packets over network',
         labels: [:nfs_server, :hostdevice, :ip_address],

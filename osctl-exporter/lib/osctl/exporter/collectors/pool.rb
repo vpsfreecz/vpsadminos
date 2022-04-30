@@ -3,12 +3,17 @@ require 'osctl/exporter/collectors/base'
 module OsCtl::Exporter
   class Collectors::Pool < Collectors::Base
     def setup
-      @pools = registry.gauge(
+      add_metric(
+        :pools,
+        :gauge,
         :osctl_pool_count,
         docstring: 'Number of imported pools',
         labels: [:state],
       )
-      @pool_containers = registry.gauge(
+
+      add_metric(
+        :pool_containers,
+        :gauge,
         :osctl_pool_containers_count,
         docstring: 'Number of pool containers',
         labels: [:pool, :state],
