@@ -8,6 +8,6 @@ OsCtl::Lib::Logger.setup(:stdout)
 OsCtl::Exporter::Collector.start
 
 use Rack::Deflater
-use Prometheus::Middleware::Exporter
+use Prometheus::Middleware::Exporter, {registry: OsCtl::Exporter.registry}
 
 run ->(_) { [200, {'Content-Type' => 'text/html'}, ['OK']] }
