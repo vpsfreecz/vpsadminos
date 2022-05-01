@@ -34,7 +34,6 @@ module OsCtl::Exporter
           yield(@new_registry)
         ensure
           @exported_registry = @new_registry
-          @new_registry = @exported_registry
         end
       end
 
