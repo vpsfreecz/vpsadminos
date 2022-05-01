@@ -5,9 +5,8 @@ userspace part of a Linux system and should look and feel as a virtual
 machine. You can create a container with many distributions, such as CentOS,
 Debian, Ubuntu and of course NixOS.
 
-vpsAdminOS is intended to be used as a *live* distribution and to boot via
-network using PXE. For use-cases where booting over network is not practical, it
-can also be installed on disk.
+vpsAdminOS can be used as a *live* distribution and boot e.g. via network using
+PXE, or it can be installed to disk.
 
 # Architecture
 vpsAdminOS is built on top of [Nix], [NixOS] and [nixpkgs]. Nix is a package
@@ -18,21 +17,24 @@ only job is to mount storage, connect to network and run containers. systemd's
 advanced features are not needed, vpsAdminOS uses [runit]. This approach was
 pioneered by [not-os], which we reused.
 
-vpsAdminOS relies heavily on [ZFS on Linux]. The host system has no local
+vpsAdminOS relies heavily on [OpenZFS]. The host system has no local
 state, but all containers and their configuration is stored on ZFS pools.
 
 Containers in vpsAdminOS are managed by a system daemon called *osctld* --
-short for OS control daemon. Users do not work with *osctld* directly, but
-through a command line interface called *osctl*. *osctld* uses [LXC] to start
-and monitor the containers. [LXCFS] is used in containers to override certain
-files in `/proc` and `/sys` based on cgroup values. Container processes are also
-restricted by [AppArmor].
+short for OS control daemon. *osctld* can be controlled using a command line
+interface called *osctl*.
+
+vpsAdminOS uses [LTS Linux kernel with a mix of out-of-tree patches]. These
+patches are essential, providing e.g. a syslog namespace to isolate kernel logs,
+virtualized views of selected files in `/proc` and `/sys` and other tweaks.
+Under the hood, *osctld* uses [LXC] to start and monitor the containers.
+Container processes are also restricted by [AppArmor].
 
 # Design goals
 vpsAdminOS is made for administrators. The people who have to get up during the
-night and deal with unexpected problems. It's designed to be simple and easy to
-debug. The boot process is made of several shell scripts, the few runit services
-are short scripts as well. We've invested a lot of time into making
+night and deal with unexpected problems. It's designed to be hopefully simple
+and easy to debug. The boot process is made of several shell scripts, the few
+runit services are short scripts as well. We've invested a lot of time into making
 the administrator's life simpler, see the page about
 [container administration](../containers/administration.md). For example, although
 we have *osctld* to manage LXC seamlessly under the hood, LXC utilities are
@@ -54,7 +56,8 @@ The learning curve is pretty steep, but we think it is well worth it.
 [NixOps]: https://nixos.org/nixops/
 [runit]: http://smarden.org/runit/
 [not-os]: https://github.com/cleverca22/not-os
-[ZFS on Linux]: http://zfsonlinux.org
+[OpenZFS]: https://openzfs.org
+[LTS Linux kernel with a mix of out-of-tree patches]: https://github.com/vpsfreecz/linux
 [LXC]: https://linuxcontainers.org/lxc/
 [LXCFS]: https://linuxcontainers.org/lxcfs/
 [AppArmor]: https://en.wikipedia.org/wiki/AppArmor
