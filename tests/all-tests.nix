@@ -56,6 +56,7 @@ in tests [
   "docker/fedora-latest"
   "docker/ubuntu-18.04"
   "docker/ubuntu-20.04"
+  "docker/ubuntu-22.04"
   "driver"
   "lxcfs/loadavgs"
   { template = "lxcfs/overlays"; instances = distributions.all; }

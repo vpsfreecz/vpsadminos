@@ -16,9 +16,9 @@ let
     gentoo_musl      = { distribution = "gentoo";    version = "latest-musl";     };
     opensuse         = { distribution = "opensuse";  version = "latest";          };
     slackware        = { distribution = "slackware"; version = "latest";          };
-    ubuntu_1604      = { distribution = "ubuntu";    version = "16.04";           };
     ubuntu_1804      = { distribution = "ubuntu";    version = "18.04";           };
     ubuntu_2004      = { distribution = "ubuntu";    version = "20.04";           };
+    ubuntu_2204      = { distribution = "ubuntu";    version = "22.04";           };
     void_glibc       = { distribution = "void";      version = "latest-glibc";    };
     void_musl        = { distribution = "void";      version = "latest-musl";     };
   };
@@ -36,9 +36,9 @@ in {
     gentoo_systemd
     opensuse
     slackware
-    ubuntu_1604
     ubuntu_1804
     ubuntu_2004
+    ubuntu_2204
     void_glibc
     void_musl
   ];
