@@ -121,7 +121,7 @@ module OsCtld
           desc: "Container's rootfs",
           user: root_host_uid,
           group: root_host_gid,
-          mode: 0755,
+          mode_bit_and: 0111, # has all executable bits set
           validate_if: mounted?,
         )
 
