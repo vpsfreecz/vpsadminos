@@ -1,2 +1,2 @@
 source 'https://rubygems.vpsfree.cz'
-gem 'osctl-image', '21.11.0.build20220501201522'
+gem 'osctl-image', '21.11.0.build20220504203215'
