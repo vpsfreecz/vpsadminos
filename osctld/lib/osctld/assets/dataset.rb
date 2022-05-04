@@ -14,6 +14,7 @@ module OsCtld
     # @option opts [Integer, nil] user
     # @option opts [Integer, nil] group
     # @option opts [Integer, nil] mode
+    # @option opts [Integer, nil] mode_bit_and
     def initialize(path, opts)
       super
     end
@@ -43,6 +44,10 @@ module OsCtld
 
       if opts[:mode] && mode != opts[:mode]
         add_error("invalid mode: expected #{opts[:mode].to_s(8)}, got #{mode.to_s(8)}")
+      end
+
+      if opts[:mode_bit_and] && (mode & opts[:mode_bit_and]) != opts[:mode_bit_and]
+        add_error("invalid mode: bitwise and with #{opts[:mode_bit_and].to_s(8)} does not match")
       end
 
       if opts[:uidmap]
