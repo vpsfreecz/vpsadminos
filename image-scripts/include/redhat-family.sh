@@ -111,15 +111,15 @@ dnf -y clean all
 
 systemctl mask auditd.service
 systemctl mask systemd-journald-audit.socket
-systemctl mask firewalld.service
 systemctl mask proc-sys-fs-binfmt_misc.mount
 systemctl mask sys-kernel-debug.mount
+systemctl mask systemd-modules-load.service
 systemctl disable tcsd.service
 systemctl disable rdisc.service
 systemctl disable systemd-networkd.service
 systemctl disable systemd-resolved.service
 systemctl disable sssd.service
-systemctl disable sshd.service
+systemctl enable sshd.service
 
 mkdir -p /etc/systemd/system/systemd-udev-trigger.service.d
 cat <<EOT > /etc/systemd/system/systemd-udev-trigger.service.d/vpsadminos.conf
@@ -129,11 +129,25 @@ ExecStart=-udevadm trigger --subsystem-match=net --action=add
 EOT
 
 sed -i -e 's/^#PermitRootLogin\ prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
+EOF
+}
 
+function configure-fedora-nm-initscripts {
+	configure-append <<EOF
 cat <<EOT > /etc/NetworkManager/conf.d/vpsadminos.conf
 [main]
 dns=none
 plugins+=ifcfg-rh
+rc-manager=file
+EOT
+EOF
+}
+
+function configure-fedora-nm-keyfiles {
+	configure-append <<EOF
+cat <<EOT > /etc/NetworkManager/conf.d/vpsadminos.conf
+[main]
+dns=none
 rc-manager=file
 EOT
 EOF

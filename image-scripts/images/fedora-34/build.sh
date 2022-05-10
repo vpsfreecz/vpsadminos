@@ -12,6 +12,7 @@ configure-common
 
 configure-redhat-common
 configure-fedora
+configure-fedora-nm-initscripts
 run-configure
 
 set-initcmd "/sbin/init" "systemd.unified_cgroup_hierarchy=0"
