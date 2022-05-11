@@ -1,0 +1,12 @@
+[connection]
+id=<%= netif.name %>
+type=ethernet
+interface-name=<%= netif.name %>
+
+<% netif.active_ip_versions.each do |v| -%>
+[ipv<%= v %>]
+method=manual
+addresses=<%= netif.ips(v).map(&:to_string).join(',') %>
+routes=<%= netif.default_via(v) %>
+gateway=<%= netif.default_via(v) %>
+<% end -%>
