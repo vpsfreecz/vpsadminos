@@ -47,6 +47,8 @@ module OsCtl::Exporter
     end
 
     def collect(client)
+      return unless OsCtl::ExportFS.enabled?
+
       servers = OsCtl::ExportFS::Operations::Server::List.run
       netif_stats = OsCtl::Lib::NetifStats.new
       running = 0

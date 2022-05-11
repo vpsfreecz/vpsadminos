@@ -12,6 +12,10 @@ module OsCtl
     def self.root
       File.realpath(File.join(File.dirname(__FILE__), '..', '..'))
     end
+
+    def self.enabled?
+      Dir.exist?(RunState::DIR)
+    end
   end
 end
 
