@@ -24,9 +24,12 @@ module SvCtl
 
     def list_services
       if opts[:all]
+        require_args!
         list_all
 
       else
+        require_args!(optional: %w(runlevel))
+
         SvCtl.runlevel_services(args[0] || 'current').each do |s|
           puts s.name
         end
@@ -34,25 +37,27 @@ module SvCtl
     end
 
     def enable
-      raise GLI::BadCommandLine, 'missing argument <service>' unless args[0]
+      require_args!('service', optional: %w(runlevel))
       SvCtl.enable(args[0], args[1] || 'current')
     end
 
     def disable
-      raise GLI::BadCommandLine, 'missing argument <service>' unless args[0]
+      require_args!('service', optional: %w(runlevel))
       SvCtl.disable(args[0], args[1] || 'current')
     end
 
     def list_runlevels
+      require_args!
       SvCtl.runlevels.each { |v| puts v }
     end
 
     def runlevel
+      require_args!
       puts SvCtl.runlevel
     end
 
     def switch
-      raise GLI::BadCommandLine, 'missing argument <runlevel>' unless args[0]
+      require_args!('runlevel')
       SvCtl.switch(args[0])
     end
 
