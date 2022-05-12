@@ -2,7 +2,7 @@ require 'json'
 require 'libosctl'
 
 module OsCtl::Cli
- class Command < OsCtl::Lib::Cli::Command
+  class Command < OsCtl::Lib::Cli::Command
     include OsCtl::Utils::Humanize
 
     def self.run(klass, method, method_args = [])

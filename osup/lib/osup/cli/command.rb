@@ -1,7 +1,7 @@
 require 'libosctl'
 
 module OsUp
- class Cli::Command < OsCtl::Lib::Cli::Command
+  class Cli::Command < OsCtl::Lib::Cli::Command
     def self.run(klass, method)
       Proc.new do |global_opts, opts, args|
         if global_opts[:debug]

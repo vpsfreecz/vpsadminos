@@ -1,5 +1,5 @@
 module OsCtl::Repo::Cli
- class Command < OsCtl::Lib::Cli::Command
+  class Command < OsCtl::Lib::Cli::Command
     def self.run(klass, method)
       Proc.new do |global_opts, opts, args|
         cmd = klass.new(global_opts, opts, args)
