@@ -46,6 +46,21 @@ module SvCtl
       SvCtl.disable(args[0], args[1] || 'current')
     end
 
+    def protect
+      require_args!('service')
+      SvCtl.protect(args[0])
+    end
+
+    def unprotect
+      require_args!('service')
+      SvCtl.unprotect(args[0])
+    end
+
+    def list_protected
+      require_args!
+      SvCtl.protected_services.each { |name| puts name }
+    end
+
     def list_runlevels
       require_args!
       SvCtl.runlevels.each { |v| puts v }

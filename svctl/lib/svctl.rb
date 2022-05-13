@@ -1,5 +1,6 @@
 require 'svctl/version'
 require 'svctl/service'
+require 'svctl/item_file'
 
 module SvCtl
   # Directory with runlevels
@@ -7,6 +8,9 @@ module SvCtl
 
   # Directory with available services
   SERVICE_DIR = '/etc/runit/services'
+
+  # A list of protected services
+  PROTECTED_SERVICES_FILE = '/run/runit/protected-services.txt'
 
   # List all available services
   # @return [Array<Service>]
@@ -57,6 +61,37 @@ module SvCtl
     fail 'service not found' unless sv.exist?
 
     sv.disable if sv.enabled?
+  end
+
+  # Ignore service changes on system configuration switch
+  # @param service [String]
+  def self.protect(service)
+    sv = Service.new(service, 'current')
+    fail 'service not found' unless sv.exist?
+
+    ItemFile.new(PROTECTED_SERVICES_FILE) do |list|
+      list << sv.name
+    end
+  end
+
+  # Do not ignore service changes on system configuration switch
+  # @param service [String]
+  def self.unprotect(service)
+    ItemFile.new(PROTECTED_SERVICES_FILE) do |list|
+      list.delete(service)
+    end
+  end
+
+  # List protected services
+  # @return [Array<String>]
+  def self.protected_services
+    ret = nil
+
+    ItemFile.new(PROTECTED_SERVICES_FILE) do |list|
+      ret = list.get
+    end
+
+    ret
   end
 
   # List all runlevels

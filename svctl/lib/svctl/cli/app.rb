@@ -46,6 +46,24 @@ module SvCtl::Cli
         c.action &Command.run(:disable)
       end
 
+      desc 'Protect the service from system configuration switch'
+      arg_name '<service>'
+      command 'protect' do |c|
+        c.action &Command.run(:protect)
+      end
+
+      desc 'List protected services'
+      arg_name '<service>'
+      command 'list-protected' do |c|
+        c.action &Command.run(:list_protected)
+      end
+
+      desc 'Remove service protection'
+      arg_name '<service>'
+      command 'unprotect' do |c|
+        c.action &Command.run(:unprotect)
+      end
+
       desc 'List available runlevels'
       command 'list-runlevels' do |c|
         c.action &Command.run(:list_runlevels)
