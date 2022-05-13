@@ -122,13 +122,13 @@ class Configuration
   attr_reader :opts
 
   def osctld_start_config(services)
-    return unless services.restart.detect { |s| s.name == 'osctld' }
+    return unless services.restart.detect { |s| s.name == 'osctld' && !s.skip? }
 
     cfg = {}
 
     puts '> osctld start config:'
 
-    if services.reload.detect { |s| s.name == 'lxcfs' }
+    if services.reload.detect { |s| s.name == 'lxcfs' && !s.skip? }
       if opts[:dry_run]
         puts '- would reactivate lxcfs'
       else
@@ -157,11 +157,11 @@ class Configuration
   def activate_osctl(services)
     # If osctld is restarted, it will regenerate system files by itself and
     # lxcfs is handled by the start config in this case.
-    return if services.restart.detect { |s| s.name == 'osctld' }
+    return if services.restart.detect { |s| s.name == 'osctld' && !s.skip? }
 
     args = ['--system']
 
-    if services.reload.detect { |s| s.name == 'lxcfs' }
+    if services.reload.detect { |s| s.name == 'lxcfs' && !s.skip? }
       args << '--lxcfs'
     else
       args << '--no-lxcfs'
@@ -175,6 +175,29 @@ class Configuration
 end
 
 class Services
+  class ServiceNameList
+    def initialize(path)
+      @services = parse(path)
+    end
+
+    def include?(name)
+      @services.include?(name)
+    end
+
+    protected
+    def parse(path)
+      ret = []
+
+      File.open(path) do |f|
+        f.each_line { |line| ret << line.strip }
+      end
+
+      ret
+    rescue Errno::ENOENT
+      []
+    end
+  end
+
   Service = Struct.new(:name, :base_path, :cfg, :opts) do
     attr_reader :run_path, :on_change, :reload_method
 
@@ -192,6 +215,11 @@ class Services
 
     %i(start stop restart).each do |m|
       define_method(m) do
+        if opts[:skip]
+          puts "> skip service #{name}"
+          next
+        end
+
         puts "> sv #{m} #{name}"
 
         unless opts[:dry_run]
@@ -201,11 +229,24 @@ class Services
     end
 
     def reload
+      if opts[:skip]
+        puts "> skip service #{name}"
+        return
+      end
+
       puts "> sv #{reload_method} #{name}"
 
       unless opts[:dry_run]
         system(File.join(Configuration::CURRENT_BIN, 'sv'), reload_method, name)
       end
+    end
+
+    def skip
+      puts "> skipping #{name}"
+    end
+
+    def skip?
+      opts[:skip]
     end
   end
 
@@ -217,6 +258,8 @@ class Services
 
     @old_runlevel = File.basename(File.realpath('/service'))
     @new_runlevel = get_runlevel(@new_cfg, @old_runlevel)
+
+    @protected_list = ServiceNameList.new('/run/runit/protected-services.txt')
 
     @old_services = get_services(@old_cfg, @old_runlevel, '/')
     @new_services = get_services(@new_cfg, @new_runlevel, Configuration::ETC)
@@ -267,6 +310,7 @@ class Services
 
   protected
   attr_reader :old_cfg, :new_cfg
+  attr_reader :protected_list
   attr_reader :old_services, :new_services
   attr_reader :old_runlevel, :new_runlevel
   attr_reader :opts
@@ -295,7 +339,7 @@ class Services
           name,
           base_dir,
           service,
-          opts,
+          opts.merge({skip: protected_list.include?(name)}),
         )
 
       rescue Errno::ENOENT
