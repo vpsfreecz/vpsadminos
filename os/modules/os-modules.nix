@@ -27,6 +27,7 @@
   ./services/monitoring/apcupsd.nix
   ./services/monitoring/munin.nix
   ./services/monitoring/prometheus/node_exporter.nix
+  ./services/monitoring/prometheus/osbench
   ./services/network-filesystems/nfs.nix
   ./services/networking/bird
   ./services/networking/chronyd.nix
