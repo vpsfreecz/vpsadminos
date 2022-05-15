@@ -53,7 +53,7 @@ in
         waitForService live-patches 120
 
         ${optionalString config.networking.chronyd ''
-        waitForService set-clock 15
+        waitForService set-clock 30
         ''}
 
         exec 2>&1

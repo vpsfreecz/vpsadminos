@@ -42,7 +42,7 @@ in
     (mkIf (config.networking.chronyd) {
       runit.services.chronyd.run = ''
         waitForNetworkOnline 60
-        waitForService set-clock 15
+        waitForService set-clock 30
         exec ${pkgs.chrony}/bin/chronyd -n -m -u chrony -f ${chrony_config}
       '';
 
