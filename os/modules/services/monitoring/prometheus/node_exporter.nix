@@ -60,7 +60,7 @@ in
   config = mkMerge [
     (mkIf cfg.enable {
       runit.services.node_exporter.run = ''
-        mkdir ${textfileDirectory}
+        mkdir -p ${textfileDirectory}
 
         exec ${pkgs.prometheus-node-exporter}/bin/node_exporter \
           ${concatMapStringsSep " " (x: "--collector." + x) enabledCollectors} \
