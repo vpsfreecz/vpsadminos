@@ -6,6 +6,8 @@ let
   cfg = config.services.prometheus.exporters.node;
 
   textfileDirectory = "/run/metrics";
+
+  enabledCollectors = filter (c: !(elem c cfg.disabledCollectors)) cfg.enabledCollectors;
 in
 {
   ###### interface
@@ -61,7 +63,7 @@ in
         mkdir ${textfileDirectory}
 
         exec ${pkgs.prometheus-node-exporter}/bin/node_exporter \
-          ${concatMapStringsSep " " (x: "--collector." + x) cfg.enabledCollectors} \
+          ${concatMapStringsSep " " (x: "--collector." + x) enabledCollectors} \
           ${concatMapStringsSep " " (x: "--no-collector." + x) cfg.disabledCollectors} \
           --web.listen-address ${cfg.listenAddress}:${toString cfg.port} \
           --collector.runit.servicedir=/service \
