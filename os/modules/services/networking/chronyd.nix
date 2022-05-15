@@ -3,11 +3,18 @@ with utils;
 with lib;
 
 let
-    chrony_config = pkgs.writeText "chrony_config" ''
+  chrony_config = pkgs.writeText "chrony_config" ''
     ${concatMapStringsSep "\n" (server: "server " + server) config.networking.timeServers}
     initstepslew 1000
     pidfile /run/chronyd.pid
   '';
+
+  timeServers = [
+    "0.nixos.pool.ntp.org"
+    "1.nixos.pool.ntp.org"
+    "2.nixos.pool.ntp.org"
+    "3.nixos.pool.ntp.org"
+  ];
 in
 {
   ###### interface
@@ -21,12 +28,7 @@ in
       };
 
       timeServers = mkOption {
-        default = [
-          "0.nixos.pool.ntp.org"
-          "1.nixos.pool.ntp.org"
-          "2.nixos.pool.ntp.org"
-          "3.nixos.pool.ntp.org"
-        ];
+        default = timeServers;
         description = ''
           The set of NTP servers from which to synchronise.
         '';
@@ -40,20 +42,17 @@ in
     (mkIf (config.networking.chronyd) {
       runit.services.chronyd.run = ''
         waitForNetworkOnline 60
+        waitForService set-clock 15
         exec ${pkgs.chrony}/bin/chronyd -n -m -u chrony -f ${chrony_config}
       '';
 
       runit.services.set-clock = {
         run = ''
           waitForNetworkOnline 60
-          waitForService chronyd
 
           set_clock() {
             for i in {1..10} ; do
-              msg=$(chronyc makestep)
-              rc=$?
-
-              [ "$rc" == 0 ] && [ "$msg" == "200 OK" ] && return 0
+              ${pkgs.ntp}/bin/ntpdate ${toString timeServers} && return 0
               sleep 1
             done
 
