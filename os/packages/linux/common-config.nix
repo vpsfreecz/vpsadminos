@@ -55,7 +55,10 @@ let
       RCU_TORTURE_TEST          = no;
       SCHEDSTATS                = no;
       DETECT_HUNG_TASK          = yes;
-      CRASH_DUMP                = option no;
+      CRASH_DUMP                = yes;
+      PROC_VMCORE               = yes;
+      LOCKUP_DETECTOR           = yes;
+      HARDLOCKUP_DETECTOR       = yes;
       # Easier debugging of NFS issues.
       SUNRPC_DEBUG              = yes;
       # Provide access to tunables like sched_migration_cost_ns
