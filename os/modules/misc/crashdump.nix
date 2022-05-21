@@ -85,7 +85,7 @@ in
           };
           reset = mkOption {
             type = types.bool;
-            default = true;
+            default = false;
             description = ''
               Attempt to reset a standard VGA device.
             '';
