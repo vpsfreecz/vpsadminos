@@ -85,7 +85,7 @@ in
           };
           reset = mkOption {
             type = types.bool;
-            default = false;
+            default = true;
             description = ''
               Attempt to reset a standard VGA device.
             '';
@@ -118,15 +118,15 @@ in
         echo "loading crashdump kernel...";
         ${pkgs.kexec-tools}/sbin/kexec -p /run/current-system/kernel \
         --initrd=/run/current-system/initrd \
-      '' + optionalString cfg.consoleVGA.enable ''
-        --console-vga \
       '' + optionalString cfg.consoleVGA.reset ''
         --reset-vga \
+      '' + optionalString cfg.consoleVGA.enable ''
+        --console-vga \
       '' + optionalString cfg.consoleSerial.enable ''
         --console-serial \
         --serial=${cfg.consoleSerial.port} --serial-baud=${toString cfg.consoleSerial.baudRate} \
       '' + ''
-        --command-line="init=$(readlink -f /run/current-system/init) irqpoll maxcpus=1 reset_devices this_is_a_crash_kernel ${kernelParams}"
+        --command-line="init=$(readlink -f /run/current-system/init) irqpoll maxcpus=1 this_is_a_crash_kernel ${kernelParams}"
       '';
       kernelParams = [
        "crashkernel=${cfg.reservedMemory}"
