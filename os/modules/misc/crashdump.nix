@@ -3,9 +3,9 @@
 with lib;
 
 let
-  crashdump = config.boot.crashDump;
+  cfg = config.boot.crashDump;
 
-  kernelParams = concatStringsSep " " crashdump.kernelParams;
+  kernelParams = concatStringsSep " " cfg.kernelParams;
 
   makedumpfile = pkgs.callPackage (import ../../packages/makedumpfile/default.nix) {};
 
@@ -40,7 +40,7 @@ in
         kernelParams = mkOption {
           type = types.listOf types.str;
           default = filteredParams ++ [ "1" "boot.shell_on_fail" "loglevel=8" ]
-            ++ optional config.networking.static.enable "ip=10.0.2.15:10.0.2.3:10.0.2.2:255.255.255.0:eth0";
+            ++ optional (config.boot.qemu.enable && config.networking.static.enable) "ip=10.0.2.15:10.0.2.3:10.0.2.2:255.255.255.0:eth0";
           description = ''
             parameters that will be passed to the kernel kexec-ed on crash.
           '';
@@ -52,13 +52,52 @@ in
             shell commands to be executed after makedumpfile outputs /dmesg
           '';
         };
+        consoleSerial = {
+          enable = mkOption {
+            type = types.bool;
+            default = false;
+            description = ''
+              Enable the serial console.
+            '';
+          };
+          port = mkOption {
+            type = types.str;
+            default = "ttyS0";
+            description = ''
+              Specify the serial port for debug output.
+            '';
+          };
+          baudRate = mkOption {
+            type = types.int;
+            default = 115200;
+            description = ''
+              Specify the baud rate of the serial port.
+            '';
+          };
+        };
+        consoleVGA = {
+          enable = mkOption {
+            type = types.bool;
+            default = true;
+            description = ''
+              Enable the VGA console.
+            '';
+          };
+          reset = mkOption {
+            type = types.bool;
+            default = true;
+            description = ''
+              Attempt to reset a standard VGA device.
+            '';
+          };
+        };
       };
     };
   };
 
 ###### implementation
 
-  config = mkIf crashdump.enable {
+  config = mkIf cfg.enable {
     boot = {
       initrd = {
         extraUtilsCommands = ''
@@ -70,7 +109,7 @@ in
             echo ${makedumpfile.src.rev}
             makedumpfile -D --dump-dmesg /proc/vmcore /dmesg
             ls -lah /dmesg
-            ${crashdump.execAfterDump}
+            ${cfg.execAfterDump}
             exit 1
           fi
         '';
@@ -79,10 +118,18 @@ in
         echo "loading crashdump kernel...";
         ${pkgs.kexec-tools}/sbin/kexec -p /run/current-system/kernel \
         --initrd=/run/current-system/initrd \
+      '' + optionalString cfg.consoleVGA.enable ''
+        --console-vga \
+      '' + optionalString cfg.consoleVGA.reset ''
+        --reset-vga \
+      '' + optionalString cfg.consoleSerial.enable ''
+        --console-serial \
+        --serial=${cfg.consoleSerial.port} --serial-baud=${toString cfg.consoleSerial.baudRate} \
+      '' + ''
         --command-line="init=$(readlink -f /run/current-system/init) irqpoll maxcpus=1 reset_devices this_is_a_crash_kernel ${kernelParams}"
       '';
       kernelParams = [
-       "crashkernel=${crashdump.reservedMemory}"
+       "crashkernel=${cfg.reservedMemory}"
        "softlockup_panic=1"
       ];
     };
