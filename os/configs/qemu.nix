@@ -13,6 +13,7 @@
   networking.nameservers = [ "10.0.2.3" ];
   networking.waitOnline.method = "http";
 
+  boot.qemu.enable = true;
   boot.qemu.disks = lib.mkDefault [
     { device = "sda.img"; type = "file"; size = "8G"; create = true; }
   ];

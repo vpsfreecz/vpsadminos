@@ -42,6 +42,13 @@ let
 in {
   options = {
     boot.qemu = {
+      enable = mkOption {
+        type = types.bool;
+        default = false;
+        description = ''
+          QEMU runner
+        '';
+      };
       params = mkOption {
         internal = true;
         type = types.listOf types.str;
@@ -93,7 +100,7 @@ in {
     };
   };
 
-  config = {
+  config = mkIf cfg.enable {
     boot.kernelParams = [ "console=ttyS0" ];
     boot.qemu.params = lib.mkDefault [
       "-drive index=0,id=drive1,file=${config.system.build.squashfs},readonly=on,media=cdrom,format=raw,if=virtio"
