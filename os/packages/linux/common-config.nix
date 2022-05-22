@@ -45,6 +45,8 @@ let
     };
 
     debug = {
+      CONSOLE_LOGLEVEL_QUIET    = freeform "1";
+      CONSOLE_LOGLEVEL_DEFAULT  = freeform "7";
       DEBUG_INFO                = yes;
       DEBUG_KERNEL              = yes;
       DEBUG_DEVRES              = no;
@@ -217,23 +219,15 @@ let
       INET_DIAG_DESTROY = whenAtLeast "4.9" yes;
     };
 
+    reduce-compile-time = {
+      DRM_NOUVEAU = no;
+      DRM_VMWGFX = no;
+    };
+
     fb = {
-      FB                  = yes;
-      FB_EFI              = yes;
-      FB_NVIDIA_I2C       = yes; # Enable DDC Support
-      FB_RIVA_I2C         = yes;
-      FB_ATY_CT           = yes; # Mach64 CT/VT/GT/LT (incl. 3D RAGE) support
-      FB_ATY_GX           = yes; # Mach64 GX support
-      FB_SAVAGE_I2C       = yes;
-      FB_SAVAGE_ACCEL     = yes;
-      FB_SIS_300          = yes;
-      FB_SIS_315          = yes;
-      FB_3DFX_ACCEL       = yes;
-      FB_VESA             = yes;
-      FRAMEBUFFER_CONSOLE = yes;
-      FRAMEBUFFER_CONSOLE_DEFERRED_TAKEOVER = whenAtLeast "4.19" yes;
-      FRAMEBUFFER_CONSOLE_ROTATION = yes;
-      FB_GEODE            = mkIf (stdenv.hostPlatform.system == "i686-linux") yes;
+      FB                  = no;
+      #FRAMEBUFFER_CONSOLE = no;
+      DRM_FBDEV_EMULATION = no;
     };
 
     usb-serial = {
@@ -304,7 +298,7 @@ let
       NFSD_V2_ACL            = yes;
       NFSD_V3                = yes;
       NFSD_V3_ACL            = yes;
-      NFSD_V4                = no;
+      NFSD_V4                = yes;
 
       NFS_FSCACHE           = yes;
       NFS_SWAP              = yes;
@@ -406,7 +400,7 @@ let
     staging = {
       # Enable staging drivers.  These are somewhat experimental, but
       # they generally don't hurt.
-      STAGING = yes;
+      STAGING = no;
     };
 
     proc-events = {
@@ -463,33 +457,11 @@ let
       # official additions package and prevent the vboxsf module from loading,
       # so disable them for now.
       VBOXGUEST = option no;
-
-      XEN                         = option yes;
-      XEN_DOM0                    = option yes;
-      PCI_XEN                     = option yes;
-      HVC_XEN                     = option yes;
-      HVC_XEN_FRONTEND            = option yes;
-      XEN_SYS_HYPERVISOR          = option yes;
-      SWIOTLB_XEN                 = option yes;
-      XEN_BACKEND                 = option yes;
-      XEN_BALLOON                 = option yes;
-      XEN_BALLOON_MEMORY_HOTPLUG  = option yes;
-      XEN_EFI                     = option yes;
-      XEN_HAVE_PVMMU              = option yes;
-      XEN_MCE_LOG                 = option yes;
-      XEN_PVH                     = option yes;
-      XEN_PVHVM                   = option yes;
-      XEN_SAVE_RESTORE            = option yes;
-      XEN_SCRUB_PAGES             = option yes;
-      XEN_SELFBALLOONING          = option yes;
-      XEN_STUB                    = option yes;
-      XEN_TMEM                    = option yes;
     };
 
     media = {
-      MEDIA_RC_SUPPORT         = whenOlder "4.14" yes;
-      MEDIA_PCI_SUPPORT        = yes;
-      MEDIA_USB_SUPPORT        = yes;
+      MEDIA_PCI_SUPPORT        = no;
+      MEDIA_USB_SUPPORT        = no;
     };
 
     "9p" = {
@@ -509,12 +481,6 @@ let
       ZSWAP    = option yes;
       ZBUD     = option yes;
       ZSMALLOC = module;
-    };
-
-    brcmfmac = {
-      # Enable PCIe and USB for the brcmfmac driver
-      BRCMFMAC_USB  = option yes;
-      BRCMFMAC_PCIE = option yes;
     };
 
     # Support x2APIC (which requires IRQ remapping)
@@ -578,11 +544,6 @@ let
       CHECKPOINT_RESTORE  = yes;
     } // optionalAttrs (features.criu_revert_expert or true) {
       RFKILL_INPUT          = option yes;
-      HID_PICOLCD_FB        = option yes;
-      HID_PICOLCD_BACKLIGHT = option yes;
-      HID_PICOLCD_LCD       = option yes;
-      HID_PICOLCD_LEDS      = option yes;
-      HID_PICOLCD_CIR       = option yes;
       DEBUG_MEMORY_INIT     = option yes;
     });
 
@@ -594,17 +555,16 @@ let
       KERNEL_XZ            = mkIf (!useZstd) yes;
       KERNEL_ZSTD          = mkIf useZstd yes;
 
-      HID_BATTERY_STRENGTH = yes;
       # enabled by default in x86_64 but not arm64, so we do that here
       HIDRAW               = yes;
 
-      HID_ACRUX_FF       = yes;
-      DRAGONRISE_FF      = yes;
-      HOLTEK_FF          = yes;
-      SONY_FF            = yes;
-      SMARTJOYPLUS_FF    = yes;
-      THRUSTMASTER_FF    = yes;
-      ZEROPLUS_FF        = yes;
+      HID_ACRUX_FF       = no;
+      DRAGONRISE_FF      = no;
+      HOLTEK_FF          = no;
+      SONY_FF            = no;
+      SMARTJOYPLUS_FF    = no;
+      THRUSTMASTER_FF    = no;
+      ZEROPLUS_FF        = no;
 
       MODULE_COMPRESS    = yes;
       MODULE_COMPRESS_XZ = yes;
@@ -625,7 +585,7 @@ let
       ACCESSIBILITY        = yes; # Accessibility support
       AUXDISPLAY           = yes; # Auxiliary Display support
       DONGLE               = whenOlder "4.17" yes; # Serial dongle support
-      HIPPI                = yes;
+      HIPPI                = no;
       MTD_COMPLEX_MAPPINGS = yes; # needed for many devices
 
       SCSI_LOWLEVEL        = yes; # enable lots of SCSI devices
@@ -649,10 +609,8 @@ let
 
       BSD_PROCESS_ACCT_V3 = yes;
 
-      BT_HCIUART_BCSP = option yes;
-      BT_HCIUART_H4   = option yes; # UART (H4) protocol support
-      BT_HCIUART_LL   = option yes;
-      BT_RFCOMM_TTY   = option yes; # RFCOMM TTY support
+      BT                  = no;
+      CFG80211            = no;
 
       CLEANCACHE = option yes;
       CRASH_DUMP = option no;
@@ -669,20 +627,20 @@ let
       IDLE_PAGE_TRACKING  = yes;
       IRDA_ULTRA          = whenOlder "4.17" yes; # Ultra (connectionless) protocol
 
-      JOYSTICK_IFORCE_232 = { optional = true; tristate = whenOlder "5.3" "y"; }; # I-Force Serial joysticks and wheels
-      JOYSTICK_IFORCE_USB = { optional = true; tristate = whenOlder "5.3" "y"; }; # I-Force USB joysticks and wheels
-      JOYSTICK_XPAD_FF    = option yes; # X-Box gamepad rumble support
-      JOYSTICK_XPAD_LEDS  = option yes; # LED Support for Xbox360 controller 'BigX' LED
+      JOYSTICK_IFORCE_232 = no; # I-Force Serial joysticks and wheels
+      JOYSTICK_IFORCE_USB = no; # I-Force USB joysticks and wheels
+      JOYSTICK_XPAD_FF    = no; # X-Box gamepad rumble support
+      JOYSTICK_XPAD_LEDS  = no; # LED Support for Xbox360 controller 'BigX' LED
 
-      KEYBOARD_APPLESPI = whenAtLeast "5.3" module;
+      KEYBOARD_APPLESPI   = no;
 
-      KEXEC_JUMP      = option yes;
+      KEXEC_JUMP          = yes;
 
       PARTITION_ADVANCED    = yes; # Needed for LDM_PARTITION
       # Windows Logical Disk Manager (Dynamic Disk) support
       LDM_PARTITION         = yes;
       LOGIRUMBLEPAD2_FF     = yes; # Logitech Rumblepad 2 force feedback
-      LOGO                  = no; # not needed
+      #LOGO                  = no; # not needed
       MEGARAID_NEWGEN       = yes;
 
       MLX4_EN_VXLAN = whenOlder "4.8" yes;
@@ -705,9 +663,6 @@ let
 
       REGULATOR  = yes; # Voltage and Current Regulator Support
       RC_DEVICES = option yes; # Enable IR devices
-
-      RT2800USB_RT53XX = yes;
-      RT2800USB_RT55XX = yes;
 
       SCHED_AUTOGROUP  = yes;
       CFS_BANDWIDTH    = yes;
