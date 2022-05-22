@@ -230,6 +230,7 @@ let
     };
 
     graphics-unused = {
+      LOGO = no;
       AGP = no;
       DRM_RADEON = no;
       DRM_NOUVEAU = no;
