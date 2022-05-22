@@ -226,7 +226,6 @@ let
 
     fb = {
       FB                  = no;
-      #FRAMEBUFFER_CONSOLE = no;
       DRM_FBDEV_EMULATION = no;
     };
 
@@ -298,7 +297,7 @@ let
       NFSD_V2_ACL            = yes;
       NFSD_V3                = yes;
       NFSD_V3_ACL            = yes;
-      NFSD_V4                = yes;
+      NFSD_V4                = no;
 
       NFS_FSCACHE           = yes;
       NFS_SWAP              = yes;
