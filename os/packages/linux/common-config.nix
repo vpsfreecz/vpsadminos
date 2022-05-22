@@ -219,14 +219,20 @@ let
       INET_DIAG_DESTROY = whenAtLeast "4.9" yes;
     };
 
-    reduce-compile-time = {
-      DRM_NOUVEAU = no;
-      DRM_VMWGFX = no;
+    graphics = {
+      FB                  = yes;
+      FB_MATROX           = yes;
+      FB_MATROX_G         = yes;
+      DRM                 = yes;
+      DRM_FBDEV_EMULATION = yes;
+      DRM_MGAG200         = yes;
+      DRM_AMDGPU          = module;
     };
 
-    fb = {
-      FB                  = no;
-      DRM_FBDEV_EMULATION = no;
+    graphics-unused = {
+      DRM_RADEON = no;
+      DRM_NOUVEAU = no;
+      DRM_VMWGFX = no;
     };
 
     usb-serial = {
