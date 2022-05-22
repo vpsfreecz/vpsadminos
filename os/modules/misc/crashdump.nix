@@ -39,7 +39,7 @@ in
         };
         kernelParams = mkOption {
           type = types.listOf types.str;
-          default = filteredParams ++ [ "1" "boot.shell_on_fail" "loglevel=8" ]
+          default = [ "1" "boot.shell_on_fail" "loglevel=8" ]
             ++ optional (config.boot.qemu.enable && config.networking.static.enable) "ip=10.0.2.15:10.0.2.3:10.0.2.2:255.255.255.0:eth0";
           description = ''
             parameters that will be passed to the kernel kexec-ed on crash.
@@ -126,7 +126,7 @@ in
         --console-serial \
         --serial=${cfg.consoleSerial.port} --serial-baud=${toString cfg.consoleSerial.baudRate} \
       '' + ''
-        --command-line="init=$(readlink -f /run/current-system/init) irqpoll maxcpus=1 this_is_a_crash_kernel ${kernelParams}"
+        --command-line="${strings.concatStringsSep " " filteredParams} init=$(readlink -f /run/current-system/init) irqpoll maxcpus=1 this_is_a_crash_kernel ${kernelParams}"
       '';
       kernelParams = [
        "crashkernel=${cfg.reservedMemory}"
