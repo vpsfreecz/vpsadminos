@@ -99,6 +99,14 @@ in
       '';
     };
 
+    boot.initrd.network.setClock = mkOption {
+      type = types.bool;
+      default = true;
+      description = ''
+        Set clock in initrd using NTP servers in <option>networking.timeServers</option>
+      '';
+    };
+
     boot.initrd.network.postCommands = mkOption {
       default = "";
       type = types.lines;
@@ -145,6 +153,10 @@ in
           echo "acquiring IP address via DHCP on $iface..."
           udhcpc --quit --now -i $iface -t 5 -O staticroutes --script ${udhcpcScript} ${udhcpcArgs}
         done
+      ''
+
+      + optionalString cfg.setClock ''
+        ntpd -q ${concatMapStringsSep " " (v: "-p ${v}") config.networking.timeServers}
       ''
 
       + cfg.postCommands);
