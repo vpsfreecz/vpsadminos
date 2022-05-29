@@ -8,7 +8,7 @@ BASEURL=https://repo.almalinux.org/almalinux/${POINTVER}/BaseOS/x86_64/os/
 UPDATES=https://repo.almalinux.org/almalinux/${POINTVER}/AppStream/x86_64/os/
 
 GROUPNAME='core'
-EXTRAPKGS='vim man'
+EXTRAPKGS='almalinux-repos vim man'
 
 . $INCLUDE/redhat-family.sh
 
