@@ -17,6 +17,7 @@ module OsCtl::Image
     # @option opts [String] :vendor
     # @option opts [Boolean] :rebuild
     # @option opts [Boolean] :keep_failed
+    # @option opts [IpAllocator] :ip_allocator
     def initialize(base_dir, image, tests, opts)
       @base_dir = base_dir
       @image = image
@@ -35,6 +36,7 @@ module OsCtl::Image
           build,
           test,
           keep_failed: opts[:keep_failed],
+          ip_allocator: opts[:ip_allocator],
         )
       end
     end

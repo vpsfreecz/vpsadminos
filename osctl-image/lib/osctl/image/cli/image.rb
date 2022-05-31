@@ -178,6 +178,8 @@ module OsCtl::Image
       rebuild = opts[:rebuild] if rebuild.nil?
       results = []
 
+      ip_allocator = IpAllocator.new('10.100.10.0/24')
+
       images.each do |tpl|
         results.concat(
           Operations::Test::Image.run(
@@ -189,6 +191,7 @@ module OsCtl::Image
             vendor: opts[:vendor],
             rebuild: rebuild,
             keep_failed: opts['keep-failed'],
+            ip_allocator: ip_allocator,
           )
         )
       end

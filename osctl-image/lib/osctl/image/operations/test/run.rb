@@ -25,12 +25,14 @@ module OsCtl::Image
     # @param test [Test]
     # @param opts [Hash]
     # @option opts [Boolean] :keep_failed
+    # @option opts [IpAllocator] :ip_allocator
     def initialize(base_dir, build, test, opts = {})
       @base_dir = base_dir
       @build = build
       @test = test
       @client = OsCtldClient.new
       @keep_failed = opts.has_key?(:keep_failed) ? opts[:keep_failed] : false
+      @ip_allocator = opts[:ip_allocator]
     end
 
     # @return [Status]
@@ -56,7 +58,7 @@ module OsCtl::Image
     end
 
     protected
-    attr_reader :client, :ctid, :keep_failed, :status
+    attr_reader :client, :ctid, :keep_failed, :ip_allocator, :status
 
     def create_container(file)
       client.create_container_from_file(ctid, file)
@@ -65,12 +67,15 @@ module OsCtl::Image
     end
 
     def run_test
+      ip = ip_allocator.get
+
       Operations::Nix::RunInShell.run(
         File.join(base_dir, 'shell-test.nix'),
         [
           File.join(base_dir, 'bin/test'), 'image', 'run',
           build.image.name, test.name, ctid,
-        ]
+        ],
+        {env: ENV.to_h.update({'OSCTL_IMAGE_TEST_IPV4_ADDRESS' => ip.to_s})}
       )
       log(:warn, "Test '#{test}' successful")
       @status = Status.new(build.image, test, true, 0, nil)
@@ -78,6 +83,7 @@ module OsCtl::Image
       log(:warn, "Test '#{test}' failed with status #{e.rc}: #{e.output}")
       @status = Status.new(build.image, test, false, e.rc, e.output)
     ensure
+      ip_allocator.put(ip)
       cleanup(ctid)
     end
 
