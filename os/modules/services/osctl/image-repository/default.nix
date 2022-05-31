@@ -56,6 +56,15 @@ let
         '';
       };
 
+      enableCronJob = mkOption {
+        type = types.bool;
+        default = false;
+        description = ''
+          Enable cron job run at
+          <option>osctl.image-repository.&lt;name&gt;.buildInterval</option>
+        '';
+      };
+
       buildInterval = mkOption {
         default = "0 4 * * *";
         type = types.nullOr types.str;
@@ -215,6 +224,7 @@ let
   createRepository = repo: cfg: rec {
     buildScript = createBuildScript repo cfg;
     buildScriptBin = "${buildScript}/bin/build-image-repository-${repo}";
+    enableCronJob = cfg.enableCronJob;
     buildInterval = cfg.buildInterval;
   };
 
@@ -287,7 +297,9 @@ in
     let
       repos = createRepositories config.services.osctl.image-repository;
       packages = map (repo: repo.buildScript) repos;
-      cronjobs = map (repo: "${repo.buildInterval} root ${repo.buildScriptBin}") repos;
+      cronjobs = flatten (map (repo:
+        optional repo.enableCronJob "${repo.buildInterval} root ${repo.buildScriptBin}"
+      ) repos);
     in {
       environment.systemPackages = packages;
       services.cron.systemCronJobs = cronjobs;
