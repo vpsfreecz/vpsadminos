@@ -218,72 +218,38 @@ let
     buildInterval = cfg.buildInterval;
   };
 
-  createBuildScript = repo: cfg: pkgs.writeScriptBin "build-image-repository-${repo}" ''
-    #!${pkgs.bash}/bin/bash
-
-    export NIX_PATH="nixpkgs=/nix/var/nix/profiles/per-user/root/channels/nixos"
-
-    pushd () {
-      command pushd "$@" > /dev/null
-    }
-
-    popd () {
-      command popd "$@" > /dev/null
-    }
-
-    repoDir="${cfg.path}"
-    repoCache="${cfg.cacheDir}"
-    buildDataset="${cfg.buildDataset}"
-    buildScriptDir="${cfg.buildScriptDir}"
-    osctlRepo="${pkgs.osctl-repo}/bin/osctl-repo"
-    osctlImage="${pkgs.osctl-image}/bin/osctl-image"
-
-    if [ ! -d "$repoDir" ] || [ -z "$(ls -A "$repoDir")" ] ; then
-      mkdir -p "$repoDir"
-      cd "$repoDir"
-      $osctlRepo local init
-    else
-      cd "$repoDir"
-    fi
-
-    mkdir -p "$repoCache"
-
-    ${concatStringsSep "\n\n" (buildImages cfg cfg.images)}
-
-    cd "$repoDir"
-    ${concatStringsSep "\n" (setDefaultVariants cfg.vendors)}
-    $osctlRepo local default ${cfg.defaultVendor}
-
-    ${gcImages cfg}
-    ${cfg.postBuild}
-  '';
-
-  buildImages = repoCfg: images: flatten (mapAttrsToList (name: versions:
-    mapAttrsToList (version: cfg: ''
-      pushd "$buildScriptDir"
-
-      logfile=$(mktemp ${repoCfg.logDir}/${name}.${version}.$(date +%Y%m%d%H%M%S).XXXXXX.log)
-
-      $osctlImage deploy \
-        --build-dataset $buildDataset \
-        --output-dir "$repoCache" \
-        ${optionalString (rebuildImage repoCfg cfg) "--rebuild"} \
-        ${optionalString (keepFailed repoCfg cfg) "--keep-failed"} \
-        ${concatStringsSep "\\\n  " (imageTagArgs cfg.tags)} \
-        ${imageName { inherit name version; customName = cfg.name; }} \
-        "$repoDir" > "$logfile" 2>&1
-
-      rc=$?
-      if [ $rc == 0 ] ; then
-        rm -f "$logfile"
+  buildConfig = repo: cfg: {
+    repo_dir = cfg.path;
+    cache_dir = cfg.cacheDir;
+    log_dir = cfg.logDir;
+    dataset = cfg.buildDataset;
+    script_dir = cfg.buildScriptDir;
+    osctl_repo = pkgs.osctl-repo;
+    osctl_image = pkgs.osctl-image;
+    images = cfg.images;
+    rebuild = cfg.rebuildAll;
+    keep_failed_tests = cfg.keepAllFailedTests;
+    default_vendor_variants = mapAttrs (name: vendorCfg: vendorCfg.defaultVariant) cfg.vendors;
+    default_vendor = cfg.defaultVendor;
+    post_build = pkgs.writers.writeBash "repo-${repo}-post-build.sh" cfg.postBuild;
+    gc =
+      if cfg.garbageCollection == [] then
+        null
       else
-        echo "Build of ${name}.${version} failed with exit status $rc"
-        echo "Log file: $logfile"
-      fi
+        [gcRunner (gcConfigFile cfg.garbageCollection)];
+  };
 
-      popd
-    '') versions
-    ) images);
+  buildScript = repo: cfg: pkgs.substituteAll {
+    src = ./build.rb;
+    isExecutable = true;
+    ruby = pkgs.ruby;
+    json_config = pkgs.writeText "repo-${repo}-config.json" (builtins.toJSON (buildConfig repo cfg));
+  };
+
+  createBuildScript = repo: cfg: pkgs.runCommand "repo-${repo}-build" {} ''
+    mkdir -p $out/bin
+    ln -s ${buildScript repo cfg} $out/bin/build-image-repository-${repo}
+  '';
 
   gcRunner = pkgs.substituteAll {
     name = "container-image-gc.rb";
@@ -305,21 +271,6 @@ let
   gcImages = repoCfg: optionalString (repoCfg.garbageCollection != []) ''
     ${gcRunner} ${gcConfigFile repoCfg.garbageCollection}
   '';
-
-  imageName = { name, version, customName }:
-    if customName == null then
-      "${name}-${version}"
-    else customName;
-
-  imageTagArgs = tags: map (v: "--tag \"${v}\"") tags;
-
-  rebuildImage = repoCfg: imageCfg: repoCfg.rebuildAll || imageCfg.rebuild;
-
-  keepFailed = repoCfg: imageCfg: repoCfg.keepAllFailedTests || imageCfg.keepFailedTests;
-
-  setDefaultVariants = vendors: mapAttrsToList (name: cfg:
-    "$osctlRepo local default ${name} ${cfg.defaultVariant}"
-  ) vendors;
 in
 {
   options = {
