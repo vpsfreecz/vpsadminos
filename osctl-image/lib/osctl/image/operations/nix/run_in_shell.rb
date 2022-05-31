@@ -17,6 +17,7 @@ module OsCtl::Image
     # @param opts [Hash] see {OsCtl::Lib::Utils::System#syscmd}
     # @option opts [String] :name temporary executable name
     # @option opts [String] :expression nix file
+    # @option opts [Hash] :env environment variables
     def initialize(expression, command, opts = {})
       @expression = expression
       @command = command
