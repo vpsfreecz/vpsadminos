@@ -1,5 +1,6 @@
 { configuration ? let cfg = builtins.getEnv "VPSADMINOS_CONFIG"; in if cfg == "" then null else import cfg
 , pkgs ? <nixpkgs>
+, importedPkgs ? null
   # extra modules to include
 , modules ? []
   # extra arguments to be passed to modules
@@ -9,7 +10,11 @@
 , platform ? null }:
 
 let
-  pkgs_ = import pkgs { inherit system; platform = platform; config = {}; };
+  pkgs_ =
+    if isNull importedPkgs then
+      import pkgs { inherit system; platform = platform; config = {}; }
+    else importedPkgs;
+
   pkgsModule = rec {
     _file = ./default.nix;
     key = _file;
