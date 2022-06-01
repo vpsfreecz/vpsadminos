@@ -1,0 +1,2 @@
+source 'https://rubygems.vpsfree.cz'
+gem 'osvm', '21.11.0'
