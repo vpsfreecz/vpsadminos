@@ -24,6 +24,7 @@
   ./services/logging/logrotate.nix
   ./services/logging/rsyslog.nix
   ./services/mail/opensmtpd.nix
+  ./services/misc/build-vpsadminos-container-image-repository/vpsadminos.nix
   ./services/misc/nix-daemon.nix
   ./services/monitoring/apcupsd.nix
   ./services/monitoring/munin.nix
