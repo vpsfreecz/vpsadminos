@@ -12,7 +12,7 @@ qemu:
 toplevel:
 	$(MAKE) -C os toplevel
 
-gems: libosctl osctl-repo osctl osctld osup osctl-image osctl-exporter osctl-exportfs converter svctl test-runner
+gems: libosctl osctl-repo osctl osctld osup osctl-image osctl-exporter osctl-exportfs converter svctl test-runner osvm
 	echo "$(VERSION).build$(BUILD_ID)" > .build_id
 
 libosctl:
@@ -45,8 +45,11 @@ converter: libosctl
 svctl: libosctl
 	./tools/update_gem.sh os/packages svctl $(BUILD_ID)
 
-test-runner: libosctl
+test-runner: libosctl osvm
 	./tools/update_gem.sh os/packages test-runner $(BUILD_ID)
+
+osvm: libosctl
+	./tools/update_gem.sh os/packages osvm $(BUILD_ID)
 
 osctl-env-exec:
 	./tools/update_gem.sh os/packages tools/osctl-env-exec $(BUILD_ID)
@@ -70,6 +73,7 @@ version:
 	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" osup/lib/osup/version.rb
 	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" svctl/lib/svctl/version.rb
 	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" test-runner/lib/test-runner/version.rb
+	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" osvm/lib/osvm/version.rb
 	@sed -ri "s/VERSION = '[^']+'/VERSION = '$(VERSION)'/" tools/osctl-env-exec/osctl-env-exec.gemspec
 	@sed -ri '1!b;s/[0-9]+\.[0-9]+\.[0-9]+$\/$(VERSION)/' osctl/man/man8/osctl.8.md
 	@sed -ri '1!b;s/[0-9]+\.[0-9]+\.[0-9]+$\/$(VERSION)/' osctl-exportfs/man/man8/osctl-exportfs.8.md
@@ -91,5 +95,5 @@ version:
 migration:
 	$(MAKE) -C osup migration
 
-.PHONY: build converter doc doc_serve qemu gems libosctl osctl osctld osctl-repo osctl-exporter osup svctl test-runner osctl-env-exec
+.PHONY: build converter doc doc_serve qemu gems libosctl osctl osctld osctl-repo osctl-exporter osup svctl test-runner osvm osctl-env-exec
 .PHONY: version migration
