@@ -1,4 +1,5 @@
 require 'pry'
+require 'osvm'
 
 module TestRunner
   class TestEvaluator
@@ -18,7 +19,7 @@ module TestRunner
 
       config[:machines].each do |name, cfg|
         var = :"@#{name}"
-        m = Machine.new(
+        m = OsVm::Machine.new(
           name,
           cfg,
           opts[:state_dir],
