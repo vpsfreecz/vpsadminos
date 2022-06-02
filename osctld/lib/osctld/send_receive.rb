@@ -55,7 +55,8 @@ module OsCtld
         desc: 'Keys that are authorized to send containers to this node',
         user: UID,
         group: 0,
-        mode: 0400
+        mode: 0400,
+        optional: true,
       )
 
       Server.assets(add)
