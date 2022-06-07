@@ -127,7 +127,7 @@ let
 
   perZpoolAssertions =
     mapAttrsToList (name: pool: {
-      assertion = pool.scrub.enable && pool.scrub.startIntervals != [];
+      assertion = !pool.scrub.enable || pool.scrub.startIntervals != [];
       message = "Set boot.zfs.pools.${name}.scrub.startIntervals or disable boot.zfs.pools.${name}.scrub.enable";
     }) zpoolsToScrub;
 
@@ -636,7 +636,7 @@ in
     {
       assertions = [
         {
-          assertion = cfgScrub.enable && cfgScrub.startIntervals != [];
+          assertion = !cfgScrub.enable || cfgScrub.startIntervals != [];
           message = "Set services.zfs.autoScrub.startIntervals or disable services.zfs.autoScrub.enable";
         }
       ] ++ perZpoolAssertions;
