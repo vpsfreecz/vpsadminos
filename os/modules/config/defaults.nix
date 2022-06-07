@@ -68,6 +68,7 @@
     osup
     ruby
     screen
+    scrubctl
     strace
     sysstat
     vim

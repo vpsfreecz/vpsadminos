@@ -98,13 +98,38 @@ let
 
   zpoolCreateScripts = mapAttrsToList zpoolCreateScript;
 
+  autoScrubZpools =
+    if cfgScrub.pools == [] then
+      "$(${packages.zfsUser}/bin/zpool list -H -o name)"
+    else
+      concatStringsSep " " cfgScrub.pools;
+
+  autoScrubJobs = optionals enableAutoScrub (flatten [
+    (map (i: "${i} root ${pkgs.scrubctl}/bin/scrubctl start ${autoScrubZpools}") cfgScrub.startIntervals)
+    (map (i: "${i} root ${pkgs.scrubctl}/bin/scrubctl pause ${autoScrubZpools}") cfgScrub.pauseIntervals)
+    (map (i: "${i} root ${pkgs.scrubctl}/bin/scrubctl resume ${autoScrubZpools}") cfgScrub.resumeIntervals)
+  ]);
+
   zpoolsToScrub = filterAttrs (name: pool: pool.scrub.enable) cfgZfs.pools;
 
-  zpoolScrubCommand = name: pool:
-    if isNull pool.scrub.command then
-      "${packages.zfsUser}/bin/zpool scrub ${name}"
+  zpoolScrubCommand = name: pool: action: userCmd:
+    if isNull userCmd then
+      "${pkgs.scrubctl}/bin/scrubctl ${action} ${name}"
     else
-      pool.scrub.command;
+      userCmd;
+
+  perZpoolJobs =
+    flatten ((mapAttrsToList (name: pool: flatten ([
+      (map (i: "${i} root ${zpoolScrubCommand name pool "start" pool.scrub.startCommand}") pool.scrub.startIntervals)
+      (map (i: "${i} root ${zpoolScrubCommand name pool "pause" pool.scrub.pauseCommand}") pool.scrub.pauseIntervals)
+      (map (i: "${i} root ${zpoolScrubCommand name pool "resume" pool.scrub.resumeCommand}") pool.scrub.resumeIntervals)
+    ])) zpoolsToScrub));
+
+  perZpoolAssertions =
+    mapAttrsToList (name: pool: {
+      assertion = pool.scrub.enable && pool.scrub.startIntervals != [];
+      message = "Set boot.zfs.pools.${name}.scrub.startIntervals or disable boot.zfs.pools.${name}.scrub.enable";
+    }) zpoolsToScrub;
 
   layoutVdev = {
     options = {
@@ -361,9 +386,9 @@ let
           '';
         };
 
-        interval = mkOption {
-          default = "0 4 */14 * *";
-          type = types.str;
+        startIntervals = mkOption {
+          default = [];
+          type = types.listOf types.str;
           description = ''
             Date and time expression for when to scrub the pool in a crontab
             format, i.e. minute, hour, day of month, month and day of month
@@ -371,14 +396,56 @@ let
           '';
         };
 
-        command = mkOption {
+        pauseIntervals = mkOption {
+          default = [];
+          type = types.listOf types.str;
+          description = ''
+            Date and time expression for when to pause a running scrub in a crontab
+            format, i.e. minute, hour, day of month, month and day of month
+            separated by spaces.
+          '';
+        };
+
+        resumeIntervals = mkOption {
+          default = [];
+          type = types.listOf types.str;
+          description = ''
+            Date and time expression for when to resume a paused scrub in a crontab
+            format, i.e. minute, hour, day of month, month and day of month
+            separated by spaces.
+          '';
+        };
+
+        startCommand = mkOption {
           type = types.nullOr types.str;
           default = null;
           description = ''
             Optionally override the auto-generated command used to scrub
             the pool.
 
-            Defaults to <literal>zpool scrub &lt;pool&gt;</literal>.
+            Defaults to <literal>scrubctl start &lt;pool&gt;</literal>.
+          '';
+        };
+
+        pauseCommand = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          description = ''
+            Optionally override the auto-generated command used to pause scrub
+            of the pool.
+
+            Defaults to <literal>scrubctl pause &lt;pool&gt;</literal>.
+          '';
+        };
+
+        resumeCommand = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          description = ''
+            Optionally override the auto-generated command used to resume scrub
+            of the pool.
+
+            Defaults to <literal>scrubctl resume &lt;pool&gt;</literal>.
           '';
         };
       };
@@ -425,11 +492,31 @@ in
         '';
       };
 
-      interval = mkOption {
-        default = "0 4 */14 * *";
-        type = types.str;
+      startIntervals = mkOption {
+        default = [];
+        type = types.listOf types.str;
         description = ''
-          Date and time expression for when to scrub ZFS pools in a crontab
+          Date and time expression for when to scrub the pool in a crontab
+          format, i.e. minute, hour, day of month, month and day of month
+          separated by spaces.
+        '';
+      };
+
+      pauseIntervals = mkOption {
+        default = [];
+        type = types.listOf types.str;
+        description = ''
+          Date and time expression for when to pause a running scrub in a crontab
+          format, i.e. minute, hour, day of month, month and day of month
+          separated by spaces.
+        '';
+      };
+
+      resumeIntervals = mkOption {
+        default = [];
+        type = types.listOf types.str;
+        description = ''
+          Date and time expression for when to resume a paused scrub in a crontab
           format, i.e. minute, hour, day of month, month and day of month
           separated by spaces.
         '';
@@ -547,19 +634,14 @@ in
     })
 
     {
-      services.cron.systemCronJobs =
-        let
-          autoZpools =
-            if cfgScrub.pools == [] then
-              "$(${packages.zfsUser}/bin/zpool list -H -o name)"
-            else
-              concatStringsSep " " cfgScrub.pools;
-        in
-          (optional enableAutoScrub "${cfgScrub.interval} root ${packages.zfsUser}/bin/zpool scrub ${autoZpools}")
-          ++
-          (mapAttrsToList (name: pool:
-            "${pool.scrub.interval} root ${zpoolScrubCommand name pool}"
-          ) zpoolsToScrub);
+      assertions = [
+        {
+          assertion = cfgScrub.enable && cfgScrub.startIntervals != [];
+          message = "Set services.zfs.autoScrub.startIntervals or disable services.zfs.autoScrub.enable";
+        }
+      ] ++ perZpoolAssertions;
+
+      services.cron.systemCronJobs = autoScrubJobs ++ perZpoolJobs;
     }
   ];
 }
