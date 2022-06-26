@@ -42,7 +42,6 @@ let
     bridge-utils
     nettools
     bird
-    bird6
     su
     lxcfs
     pciutils
