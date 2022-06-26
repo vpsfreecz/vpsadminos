@@ -14,6 +14,10 @@ let
     _file = ./default.nix;
     key = _file;
     config = {
+      _module = {
+        args = extraArgs;
+        check = true;
+      };
       nixpkgs.system = pkgs_.lib.mkDefault system;
       nixpkgs.overlays = import ./overlays;
     };
@@ -21,9 +25,7 @@ let
   baseModules = import ./modules/module-list.nix;
   evalConfig = modulesArgs: pkgs_.lib.evalModules {
     prefix = [];
-    check = true;
     modules = baseModules ++ [ pkgsModule ] ++ modules ++ modulesArgs;
-    args = extraArgs;
   };
 in
 rec {
