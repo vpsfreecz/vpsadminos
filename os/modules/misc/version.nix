@@ -88,7 +88,7 @@ in
     defaultChannel = mkOption {
       internal = true;
       type = types.str;
-      default = https://nixos.org/channels/nixos-21.11;
+      default = https://nixos.org/channels/nixos-22.05;
       description = "Default NixOS channel to which the root user is subscribed.";
     };
 
