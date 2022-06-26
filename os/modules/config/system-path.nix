@@ -8,7 +8,7 @@ let
   zfstools_ovl = pkgs.callPackage <nixpkgs/pkgs/tools/filesystems/zfstools/default.nix> { zfs = config.boot.zfsUserPackage; };
   requiredPackages = with pkgs; [
     zfstools_ovl
-    utillinux
+    util-linux
     coreutils
     iproute
     iputils

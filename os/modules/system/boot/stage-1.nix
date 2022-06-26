@@ -128,7 +128,7 @@ let
             --replace ata_id ${extraUtils}/bin/ata_id \
             --replace scsi_id ${extraUtils}/bin/scsi_id \
             --replace cdrom_id ${extraUtils}/bin/cdrom_id \
-            --replace ${pkgs.utillinux}/sbin/blkid ${extraUtils}/bin/blkid \
+            --replace ${pkgs.util-linux}/sbin/blkid ${extraUtils}/bin/blkid \
             --replace /sbin/blkid ${extraUtils}/bin/blkid \
 	    --replace ${getBin pkgs.lvm2}/bin/dmsetup /bin/dmsetup \
 	    --replace ${getBin pkgs.lvm2}/bin/lvm /bin/lvm \

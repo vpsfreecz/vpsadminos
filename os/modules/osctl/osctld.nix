@@ -15,7 +15,7 @@ let
     openssh
     runit
     shadow
-    utillinux
+    util-linux
     config.boot.zfsUserPackage
   ];
 

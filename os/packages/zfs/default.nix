@@ -1,4 +1,4 @@
-{ stdenv, lib, fetchFromGitHub, autoreconfHook, utillinux, nukeReferences
+{ stdenv, lib, fetchFromGitHub, autoreconfHook, util-linux, nukeReferences
 , coreutils, perl, buildPackages
 , configFile ? "all"
 
@@ -47,11 +47,11 @@ let
         # The arrays must remain the same length, so we repeat a flag that is
         # already part of the command and therefore has no effect.
         substituteInPlace ./module/os/linux/zfs/zfs_ctldir.c \
-          --replace '"/usr/bin/env", "umount"' '"${utillinux}/bin/umount", "-n"' \
-          --replace '"/usr/bin/env", "mount"'  '"${utillinux}/bin/mount", "-n"'
+          --replace '"/usr/bin/env", "umount"' '"${util-linux}/bin/umount", "-n"' \
+          --replace '"/usr/bin/env", "mount"'  '"${util-linux}/bin/mount", "-n"'
       '' + optionalString buildUser ''
-        substituteInPlace ./lib/libzfs/libzfs_mount.c --replace "/bin/umount"             "${utillinux}/bin/umount" \
-                                                      --replace "/bin/mount"              "${utillinux}/bin/mount"
+        substituteInPlace ./lib/libzfs/libzfs_mount.c --replace "/bin/umount"             "${util-linux}/bin/umount" \
+                                                      --replace "/bin/mount"              "${util-linux}/bin/mount"
 	substituteInPlace ./lib/libshare/os/linux/nfs.c --replace "/usr/sbin/exportfs"    "${nfs-utils}/bin/exportfs"
         substituteInPlace ./config/user-systemd.m4    --replace "/usr/lib/modules-load.d" "$out/etc/modules-load.d"
         substituteInPlace ./config/zfs-build.m4       --replace "\$sysconfdir/init.d"     "$out/etc/init.d" \
@@ -135,7 +135,7 @@ let
       postInstall = optionalString buildKernel ''
         # Add reference that cannot be detected due to compressed kernel module
         mkdir -p "$out/nix-support"
-        echo "${utillinux}" >> "$out/nix-support/extra-refs"
+        echo "${util-linux}" >> "$out/nix-support/extra-refs"
       '' + optionalString buildUser ''
         rm -rf $out/share/zfs/zfs-tests
         # Add Bash completions.
@@ -144,7 +144,7 @@ let
       '';
 
       postFixup = ''
-        path="PATH=${makeBinPath [ coreutils gawk gnused gnugrep utillinux smartmontools sysstat sudo ]}"
+        path="PATH=${makeBinPath [ coreutils gawk gnused gnugrep util-linux smartmontools sysstat sudo ]}"
         for i in $out/libexec/zfs/zpool.d/*; do
           sed -i "2i$path" $i
         done

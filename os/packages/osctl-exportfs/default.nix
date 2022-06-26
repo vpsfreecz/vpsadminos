@@ -1,5 +1,5 @@
 { bash, bundlerApp, coreutils, iproute, lib, makeWrapper, nfs-utils, nix,
-  runCommand, rpcbind, runit, utillinux }:
+  runCommand, rpcbind, runit, util-linux }:
 let
   app = bundlerApp {
     pname = "osctl-exportfs";
@@ -23,7 +23,7 @@ let
     nix
     rpcbind
     runit
-    utillinux
+    util-linux
   ];
 
   systemPath = lib.concatMapStringsSep ":" (pkg: "${pkg}/bin") runtimeDeps;

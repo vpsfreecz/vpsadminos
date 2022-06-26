@@ -49,8 +49,8 @@ let
         substituteInPlace $i \
           --replace \"/sbin/modprobe \"${pkgs.kmod}/bin/modprobe \
           --replace \"/sbin/mdadm \"${pkgs.mdadm}/sbin/mdadm \
-          --replace \"/sbin/blkid \"${pkgs.utillinux}/sbin/blkid \
-          --replace \"/bin/mount \"${pkgs.utillinux}/bin/mount \
+          --replace \"/sbin/blkid \"${pkgs.util-linux}/sbin/blkid \
+          --replace \"/bin/mount \"${pkgs.util-linux}/bin/mount \
           --replace /usr/bin/readlink ${pkgs.coreutils}/bin/readlink \
           --replace /usr/bin/basename ${pkgs.coreutils}/bin/basename \
           --subst-var-by rootbindir ${pkgs.eudev}/bin
@@ -132,7 +132,7 @@ in
   config = mkMerge [
     (mkIf (!config.boot.isContainer) {
       services.udev.packages = [ pkgs.eudev extraUdevRules pkgs.lvm2 ];
-      services.udev.path = [ pkgs.coreutils pkgs.gnused pkgs.gnugrep pkgs.utillinux pkgs.eudev pkgs.lvm2 ];
+      services.udev.path = [ pkgs.coreutils pkgs.gnused pkgs.gnugrep pkgs.util-linux pkgs.eudev pkgs.lvm2 ];
 
       environment.etc = {
         "udev/rules.d".source = udevRules;

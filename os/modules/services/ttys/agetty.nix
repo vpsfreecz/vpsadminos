@@ -6,7 +6,7 @@ let
   cfg = config.tty;
 
   gettyAutoLogin = if cfg.autologin.enable then "--autologin ${cfg.autologin.user}" else "";
-  gettyCmd = extraArgs: "${pkgs.utillinux}/bin/setsid ${pkgs.utillinux}/sbin/agetty ${gettyAutoLogin} --login-program ${pkgs.shadow}/bin/login ${extraArgs}";
+  gettyCmd = extraArgs: "${pkgs.util-linux}/bin/setsid ${pkgs.util-linux}/sbin/agetty ${gettyAutoLogin} --login-program ${pkgs.shadow}/bin/login ${extraArgs}";
 
   mkGetty = extraArgs: termtype: tty: lib.nameValuePair "getty-${tty}"
     {

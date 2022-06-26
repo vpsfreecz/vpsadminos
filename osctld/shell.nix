@@ -14,7 +14,7 @@ let
     gnutar
     openssh
     shadow
-    utillinux
+    util-linux
     zfs
   ];
 

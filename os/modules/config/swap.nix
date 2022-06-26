@@ -23,7 +23,7 @@ with lib;
           assert !(sw.randomEncryption.enable && lib.hasPrefix "/dev/disk/by-label" sw.device);
           let
             realDevice' = escapeSystemdPath sw.realDevice;
-            path = [ pkgs.utillinux ] ++ optional sw.randomEncryption.enable pkgs.cryptsetup;
+            path = [ pkgs.util-linux ] ++ optional sw.randomEncryption.enable pkgs.cryptsetup;
           in nameValuePair "swap-${sw.deviceName}" {
             run = ''
               export PATH="${concatMapStringsSep ":" (v: "${v}/bin") path}:$PATH"
