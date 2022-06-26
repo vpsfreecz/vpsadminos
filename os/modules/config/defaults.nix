@@ -9,7 +9,7 @@
   services.logrotate.enable = lib.mkDefault true;
   services.openssh = {
     enable = lib.mkDefault true;
-    challengeResponseAuthentication = lib.mkDefault false;
+    kbdInteractiveAuthentication = lib.mkDefault false;
   };
   services.zfs.autoScrub.enable = lib.mkDefault true;
 
@@ -59,7 +59,7 @@
     iotop
     ipset
     less
-    manpages
+    man-pages
     ncurses
     openssh
     osctl

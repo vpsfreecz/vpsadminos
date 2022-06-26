@@ -29,6 +29,7 @@ with lib;
 
     systemd = {
       globalEnvironment = mkOption {};
+      package = mkOption { default = "/not-on-vpsadminos"; };
       packages = mkOption {};
       services = mkOption {
         type = types.attrsOf types.unspecified;

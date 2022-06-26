@@ -2,11 +2,6 @@
 with lib;
 {
   options = {
-    system.build = mkOption {
-      internal = true;
-      default = {};
-      description = "Attribute set of derivations used to setup the system.";
-    };
     system.extraDependencies = mkOption {
       type = types.listOf types.package;
       default = [];
@@ -96,9 +91,6 @@ with lib;
         packageOverrides = self: rec {
         };
       };
-
-      system.build.earlyMountScript = pkgs.writeScript "dummy" ''
-      '';
 
       system.build.dist = pkgs.runCommand "vpsadminos-dist" {} ''
         mkdir $out
