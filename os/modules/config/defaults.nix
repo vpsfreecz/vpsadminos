@@ -11,7 +11,10 @@
     enable = lib.mkDefault true;
     challengeResponseAuthentication = lib.mkDefault false;
   };
-  services.zfs.autoScrub.enable = lib.mkDefault true;
+  services.zfs.autoScrub = lib.mkDefault {
+    enable = true;
+    startIntervals = [ "0 4 */14 * *" ];
+  };
 
   services.opensmtpd= {
     enable = lib.mkDefault true;
