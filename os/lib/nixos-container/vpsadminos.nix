@@ -50,5 +50,6 @@ in {
       ExecStop = "${pkgs.bash}/bin/bash /ifcfg.del";
     };
     unitConfig.ConditionPathExists = "/ifcfg.add";
+    restartIfChanged = false;
   };
 }
