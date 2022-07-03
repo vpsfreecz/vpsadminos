@@ -25,7 +25,6 @@ in
             boot on crash, and leave the user in systemd rescue
             to be able to save the crashed kernel dump at
             /proc/vmcore.
-            It also activates the NMI watchdog.
           '';
         };
         reservedMemory = mkOption {
