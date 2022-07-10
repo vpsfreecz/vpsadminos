@@ -61,6 +61,9 @@ in {
 
     runit.services.bird2 = {
       run = ''
+        mkdir -p -m 0750 /run/bird
+        chmod 0750 /run/bird
+        chown bird2:bird2 /run/bird
         ${cfg.preStartCommands}
         exec ${pkgs.bird}/bin/bird -c /etc/bird2.conf -u bird2 -g bird2 -f
       '';
