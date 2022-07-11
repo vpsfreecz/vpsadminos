@@ -43,6 +43,22 @@ in {
           Commands executed before the bird daemon is started
         '';
       };
+      user = mkOption {
+        type = types.str;
+        default = "bird2";
+        readOnly = true;
+        description = ''
+          User the bird daemon runs as
+        '';
+      };
+      group = mkOption {
+        type = types.str;
+        default = "bird2";
+        readOnly = true;
+        description = ''
+          Group the bird daemon runs as
+        '';
+      };
     };
   };
 
@@ -63,21 +79,21 @@ in {
       run = ''
         mkdir -p -m 0750 /run/bird
         chmod 0750 /run/bird
-        chown bird2:bird2 /run/bird
+        chown ${cfg.user}:${cfg.group} /run/bird
         ${cfg.preStartCommands}
-        exec ${pkgs.bird}/bin/bird -c /etc/bird2.conf -u bird2 -g bird2 -f
+        exec ${pkgs.bird}/bin/bird -c /etc/bird2.conf -u ${cfg.user} -g ${cfg.group} -f
       '';
       runlevels = [ "rescue" "default" ];
       onChange = mkDefault "ignore";
     };
 
     users = {
-      users.bird2 = {
+      users.${cfg.user} = {
         isSystemUser = true;
         description = "BIRD Internet Routing Daemon user";
-        group = "bird2";
+        group = cfg.group;
       };
-      groups.bird2 = {};
+      groups.${cfg.group} = {};
     };
   };
 }
