@@ -40,6 +40,9 @@ module OsCtld
           do_import(name, dataset)
         rescue PoolExists
           next
+        rescue HookFailed => e
+          log(:warn, "Pool pre-import hook failed: #{e.message}")
+          next
         rescue PoolUpgradeError => e
           log(:warn, "Pool upgrade failed: #{e.message}")
           next
@@ -64,7 +67,7 @@ module OsCtld
         do_import(name, dataset)
         ok
 
-      rescue PoolExists, PoolUpgradeError => e
+      rescue PoolExists, PoolUpgradeError, HookFailed => e
         error(e.message)
       end
     end
@@ -78,6 +81,8 @@ module OsCtld
 
     def do_import(name, dataset)
       pool = Pool.new(name, dataset == '-' ? nil : dataset)
+
+      Hook.run(pool, :pre_import)
 
       manipulate(pool) do
         DB::Pools.sync do
@@ -102,9 +107,15 @@ module OsCtld
           log(:info, 'Shutdown in progress, disabling pool')
           pool.disable
         elsif opts[:autostart]
-          pool.autostart
+          begin
+            pool.autostart
+          rescue HookFailed => e
+            log(:warn, "pre-autostart hook failed: #{e.message}")
+          end
         end
       end
+
+      Hook.run(pool, :post_import)
     end
 
     def upgrade(name)

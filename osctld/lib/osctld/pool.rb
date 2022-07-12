@@ -341,8 +341,9 @@ module OsCtld
       save_config
     end
 
-    def autostart
-      autostart_plan.start
+    def autostart(force: false)
+      Hook.run(self, :pre_autostart)
+      autostart_plan.start(force: force)
     end
 
     def stop
@@ -373,8 +374,12 @@ module OsCtld
       path(LOG_DS)
     end
 
-    def user_hook_script_dir
+    def root_user_hook_script_dir
       path(HOOK_DS)
+    end
+
+    def user_hook_script_dir
+      File.join(root_user_hook_script_dir, 'pool')
     end
 
     def repo_path
@@ -494,7 +499,8 @@ module OsCtld
       end
 
       [
-        File.join(user_hook_script_dir, 'ct'),
+        File.join(root_user_hook_script_dir, 'ct'),
+        user_hook_script_dir,
         File.join(log_path, 'ct'),
       ].each do |path|
         Dir.mkdir(path) unless Dir.exist?(path)
