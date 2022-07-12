@@ -115,13 +115,13 @@ module OsCtld
           log(:warn, :monitor, "Unable to get state of container #{ct.ident}: #{e.message}")
         end
 
-        Container::Hook.run(ct, :post_start, init_pid: ct.init_pid)
+        Hook.run(ct, :post_start, init_pid: ct.init_pid)
 
       when :aborting
         ct.run_conf.aborted = true
 
       when :stopping
-        Container::Hook.run(ct, :on_stop)
+        Hook.run(ct, :on_stop)
 
       when :stopped, :aborted
         ct.mounts.prune

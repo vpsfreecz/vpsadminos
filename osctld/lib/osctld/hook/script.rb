@@ -1,5 +1,5 @@
 module OsCtld
-  class Container::HookScript
+  class Hook::Script
     # Hook name
     # @return [Symbol]
     attr_reader :name
@@ -8,7 +8,7 @@ module OsCtld
     # @return [String]
     attr_reader :abs_path
 
-    # Relative path to the script from the container's hook directory
+    # Relative path to the script from the 's hook directory
     # @return [String]
     attr_reader :rel_path
 
@@ -16,6 +16,7 @@ module OsCtld
     # @return [String]
     attr_reader :base_name
 
+    # @param name [Symbol]
     # @param abs_path [String]
     # @param rel_path [String]
     def initialize(name, abs_path, rel_path)

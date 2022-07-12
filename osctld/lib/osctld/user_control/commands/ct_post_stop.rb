@@ -25,7 +25,7 @@ module OsCtld
       ct.stopped
 
       # User-defined hook
-      Container::Hook.run(ct, :post_stop)
+      Hook.run(ct, :post_stop)
 
       ok
 

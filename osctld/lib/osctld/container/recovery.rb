@@ -33,7 +33,7 @@ module OsCtld
         ct.stopped
 
         # User-defined hook
-        Container::Hook.run(ct, :post_stop)
+        Hook.run(ct, :post_stop)
 
         # Announce the change first as :aborting, that will cause a waiting
         # osctl ct start to give it up

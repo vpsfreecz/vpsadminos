@@ -2,7 +2,7 @@ require 'osctld/container/hooks/base'
 
 module OsCtld
   class Container::Hooks::PostMount < Container::Hooks::Base
-    hook :post_mount
+    ct_hook :post_mount
     blocking true
 
     protected

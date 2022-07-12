@@ -15,7 +15,7 @@ module OsCtld
       # Configure the system
       DistConfig.run(ct.run_conf, :start)
 
-      Container::Hook.run(ct, :on_start)
+      Hook.run(ct, :on_start)
       ok
 
     rescue HookFailed => e

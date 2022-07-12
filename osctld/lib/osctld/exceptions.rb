@@ -61,7 +61,7 @@ module OsCtld
   class UnmountError < StandardError ; end
 
   class HookFailed < StandardError
-    # @param hook [Container::Hook::Base]
+    # @param hook [Hook::Base]
     # @param hook_path [String]
     # @param exitstatus [Integer]
     def initialize(hook, hook_path, exitstatus)

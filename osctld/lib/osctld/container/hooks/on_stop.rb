@@ -2,7 +2,7 @@ require 'osctld/container/hooks/base'
 
 module OsCtld
   class Container::Hooks::OnStop < Container::Hooks::Base
-    hook :on_stop
+    ct_hook :on_stop
     blocking false
   end
 end

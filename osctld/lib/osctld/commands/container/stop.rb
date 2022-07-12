@@ -42,7 +42,7 @@ module OsCtld
         end
 
         begin
-          Container::Hook.run(ct, :pre_stop)
+          Hook.run(ct, :pre_stop)
 
         rescue HookFailed => e
           error!(e.message)
