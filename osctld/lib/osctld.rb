@@ -22,6 +22,7 @@ module OsCtld
   module DB ; end
   module Devices ; end
   module Generic ; end
+  module Hook ; end
   module Mount ; end
   module PrLimits ; end
   module Routing ; end
@@ -70,6 +71,7 @@ require_rel 'osctld/db'
 require_rel 'osctld/devices'
 require_rel 'osctld/dist_config'
 require_rel 'osctld/generic'
+require_rel 'osctld/hook'
 require_rel 'osctld/id_range'
 require_rel 'osctld/monitor'
 require_rel 'osctld/mount'

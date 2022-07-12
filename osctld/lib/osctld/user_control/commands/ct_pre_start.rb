@@ -39,7 +39,7 @@ module OsCtld
       ct.setup_start_menu
 
       # User-defined hook
-      Container::Hook.run(ct, :pre_start)
+      Hook.run(ct, :pre_start)
 
       ok
 

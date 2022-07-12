@@ -25,7 +25,7 @@ module OsCtld
       log(:info, ct, "Removing host veth #{opts[:veth]}")
       syscmd("ip link del #{opts[:veth]}")
 
-      Container::Hook.run(
+      Hook.run(
         ct,
         :veth_down,
         ct_veth: opts[:interface],

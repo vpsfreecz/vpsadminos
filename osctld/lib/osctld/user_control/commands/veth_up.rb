@@ -19,7 +19,7 @@ module OsCtld
       )
       ct.netifs[opts[:interface]].up(opts[:veth])
 
-      Container::Hook.run(
+      Hook.run(
         ct,
         :veth_up,
         ct_veth: opts[:interface],

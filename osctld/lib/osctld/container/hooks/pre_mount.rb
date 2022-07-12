@@ -2,7 +2,7 @@ require 'osctld/container/hooks/base'
 
 module OsCtld
   class Container::Hooks::PreMount < Container::Hooks::Base
-    hook :pre_mount
+    ct_hook :pre_mount
     blocking true
 
     protected

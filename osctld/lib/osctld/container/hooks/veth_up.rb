@@ -2,7 +2,7 @@ require 'osctld/container/hooks/base'
 
 module OsCtld
   class Container::Hooks::VethUp < Container::Hooks::Base
-    hook :veth_up
+    ct_hook :veth_up
     blocking true
 
     protected

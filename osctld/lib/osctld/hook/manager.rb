@@ -1,33 +1,33 @@
 module OsCtld
-  # Used to find and execute configured container hooks
-  class Container::HookManager
-    # @param ct [Container]
-    # @param hook_class [Class] subclass of {Container::Hooks::Base}
+  class Hook::Manager
+    # @param event_instance [Class]
+    # @param hook_class [Class] subclass of {Hook::Base}
     # @param opts [Hash] hook options
-    def self.run(ct, hook_class, opts)
-      m = new(ct)
+    def self.run(event_instance, hook_class, opts)
+      m = new(event_instance)
       m.run(hook_class, opts)
     end
 
-    # @return [Array<Container::HookScript>]
-    def self.list_all_scripts(ct)
-      m = new(ct)
+    # @param event_instance [Class]
+    # @return [Array<Hook::Script>]
+    def self.list_all_scripts(event_instance)
+      m = new(event_instance)
       m.list_all_scripts
     end
 
-    # @return [Container]
-    attr_reader :ct
+    # @return [Class]
+    attr_reader :event_instance
 
-    def initialize(ct)
-      @ct = ct
+    def initialize(event_instance)
+      @event_instance = event_instance
     end
 
-    # List of container hooks of particular type
-    # @param hook_class [Class] subclass of {Container::Hooks::Base}
-    # @return [Array<Container::HookScript>]
+    # List of hooks of particular type
+    # @param hook_class [Class] subclass of {Hook::Base}
+    # @return [Array<Hook::Script>]
     def list_scripts(hook_class)
       file_name = hook_class.hook_name.to_s.gsub(/_/, '-')
-      basedir = ct.user_hook_script_dir
+      basedir = event_instance.user_hook_script_dir
       scripts = []
 
       singleton = get_script_singleton(hook_class, basedir, file_name)
@@ -39,20 +39,20 @@ module OsCtld
     end
 
     # List of container hooks of all types
-    # @return [Array<Container::HookScript>]
+    # @return [Array<Hook::Script>]
     def list_all_scripts
       scripts = []
 
-      Container::Hook.hooks.each_value do |klass|
+      Hook.hooks(event_instance.class).each_value do |klass|
         scripts.concat(list_scripts(klass))
       end
 
       scripts
     end
 
-    # @param hook_class [Class] subclass of {Container::Hooks::Base}
+    # @param hook_class [Class] subclass of {Hook::Base}
     def run(hook_class, opts)
-      hook = hook_class.new(ct, opts)
+      hook = hook_class.new(event_instance, opts)
 
       list_scripts(hook_class).each do |v|
         hook.exec(v.abs_path)
@@ -65,7 +65,7 @@ module OsCtld
       st = File.stat(singleton)
       return if !st.file? || !st.executable?
 
-      Container::HookScript.new(
+      Hook::Script.new(
         hook_class.hook_name,
         singleton,
         file_name,
@@ -92,7 +92,7 @@ module OsCtld
           end
 
           if st.file? && st.executable?
-            scripts << Container::HookScript.new(
+            scripts << Hook::Script.new(
               hook_class.hook_name,
               abs_path,
               File.join(dir_name, v),
