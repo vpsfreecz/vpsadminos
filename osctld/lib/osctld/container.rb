@@ -377,7 +377,7 @@ module OsCtld
     end
 
     def user_hook_script_dir
-      inclusively { File.join(pool.user_hook_script_dir, 'ct', id) }
+      inclusively { File.join(pool.root_user_hook_script_dir, 'ct', id) }
     end
 
     def uid_map

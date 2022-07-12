@@ -9,7 +9,12 @@ module OsCtld
       error!('pool not found') unless pool
 
       manipulate(pool) do
-        pool.autostart_plan.start(force: true)
+        begin
+          pool.autostart(force: true)
+        rescue HookFailed => e
+          error!("pre-autostart hook failed: #{e.message}")
+        end
+
         ok
       end
     end

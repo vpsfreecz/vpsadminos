@@ -2793,21 +2793,61 @@ The following shortcuts are supported:
   Shows a list of commands or help for one command
 
 ## SCRIPT HOOKS
-`osctld` can execute user-defined scripts when containers are being started
-or stopped. Script hooks are located at `/<pool>/hook/ct/<ctid>/<hook>`, use
-`ct assets` to get the exact path for your container. Multiple script hooks of
-the same name can be put into directory `/<pool>/hook/ct/<ctid>/<hook>.d`. Only
-files having the executable bit set are run. Script hooks are run in order by
-their name.
+`osctld` can execute user-defined scripts on certain events. User scripts can
+be placed into directory `/<pool>/hook`. The exact location and script name
+depend on the event, e.g.:
+
+  - `/<pool>/hook/pool/<hook name>` for pool script hooks
+  - `/<pool>/hook/ct/<ctid>/<hook name>` for container script hooks
+
+Use `osctl pool|ct assets` to get the exact paths. The user script can be
+a single executable file, or it can be a directory `<hook name>.d`.
+
+If it is a directory, all executable files within it are called in order by their
+name. In case the script hook's exit status is evaluated, a non-zero exit status
+will stop the execution of other script hooks from the directory.
 
 All script hooks are run as `root` on the host, but the mount namespace may
 differ, see below.
 
-Note that many `osctl` commands called from script hooks will not work as expected
-and may cause deadlocks. The hooks are run when the container is locked within
-`osctld`, so if another `osctl` process called from a hook needs the lock,
-a deadlock occurs. You should avoid calling `osctl` from hooks.
+Note that many `osctl` commands called from script hooks may not work. Some hooks
+are run when the pool or the container is locked within `osctld`, so another
+`osctl` command on the same pool/container may be rejected.
 
+## POOL SCRIPT HOOKS
+`pre-import`
+  `pre-import` is called before the pool is imported into `osctld`, e.g. when
+  `pool import` is run or `osctld` is restarted. If `pre-import` exits
+  with a non-zero status, the pool is not imported.
+
+`pre-autostart`
+  `pre-autostart` is run after the pool is imported, but before the container
+  auto-start facility. If `pre-autostart` exits with a non-zero status,
+  containers are not auto-started.
+
+`post-import`
+  `post-import` is run after the pool was imported into `osctld`. Its exit status
+  is not evaluated.
+
+`pre-export`
+  `pre-export` is run before the pool is exported from `osctld`, e.g. when
+  `pool export` is called. It is not run when `osctld` is restarted, as that
+  doesn't export the pool. If `pre-export` exits with a non-zero status,
+  the pool is not exported.
+
+`post-export`
+  `post-export` is run after the pool has been exported from `osctld`. Its exit
+  status is not evaluated.
+
+### Pool script environment variables
+All pool script hooks have the following environment variables set:
+
+- `OSCTL_HOOK_NAME`
+- `OSCTL_POOL_NAME`
+- `OSCTL_POOL_DATASET`
+- `OSCTL_POOL_STATE`
+
+## CONTAINER SCRIPT HOOKS
 `pre-start`
   `pre-start` hook is run in the host's namespace before the container is mounted.
   The container's cgroups have already been configured and distribution-support
@@ -2862,8 +2902,8 @@ a deadlock occurs. You should avoid calling `osctl` from hooks.
   `post-stop` is run in the host's namespace when the container enters state
   `stopped`. The hook's exit status is not evaluated.
 
-## Environment variables
-All hooks have the following environment variables set:
+### Container script environment variables
+All container script hooks have the following environment variables set:
 
 - `OSCTL_HOOK_NAME`
 - `OSCTL_POOL_NAME`

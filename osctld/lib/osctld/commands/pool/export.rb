@@ -25,6 +25,12 @@ module OsCtld
         error!('the pool has running containers')
       end
 
+      begin
+        Hook.run(pool, :pre_export)
+      rescue HookFailed => e
+        error!("pre-export hook failed: #{e.message}")
+      end
+
       manipulate(pool) do
         # Do not autostart any more containers
         pool.stop
@@ -103,9 +109,10 @@ module OsCtld
 
         # Remove pool from the database
         DB::Pools.remove(pool)
-
-        ok
       end
+
+      Hook.run(pool, :post_export)
+      ok
     end
 
     protected
