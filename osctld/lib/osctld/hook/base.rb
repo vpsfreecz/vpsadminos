@@ -3,13 +3,14 @@ require 'libosctl'
 module OsCtld
   class Hook::Base
     class << self
-      attr_reader :hook_name
+      attr_reader :hook_name, :user_hook_name
 
       # Register hook under a name
       # @param event_class [Class]
       # @param hook_name [Symbol]
       def hook(event_class, hook_name, hook_class)
         @hook_name = hook_name
+        @user_hook_name = hook_name.to_s.gsub(/_/, '-')
         Hook.register(event_class, hook_name, hook_class)
       end
 
@@ -90,7 +91,7 @@ module OsCtld
     # @return [Hash<String, String>]
     def environment
       {
-        'OSCTL_HOOK_NAME' => self.class.hook_name.to_s,
+        'OSCTL_HOOK_NAME' => self.class.user_hook_name,
       }
     end
 

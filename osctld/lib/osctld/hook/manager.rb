@@ -26,7 +26,7 @@ module OsCtld
     # @param hook_class [Class] subclass of {Hook::Base}
     # @return [Array<Hook::Script>]
     def list_scripts(hook_class)
-      file_name = hook_class.hook_name.to_s.gsub(/_/, '-')
+      file_name = hook_class.user_hook_name
       basedir = event_instance.user_hook_script_dir
       scripts = []
 
