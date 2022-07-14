@@ -35,6 +35,63 @@ module OsCtld
       end
     end
 
+    # Run by LXC post-mount hook on container start
+    # @param opts [Hash]
+    # @option opts [Integer] :ns_pid
+    # @option opts [String] :rootfs_mount
+    def post_mount(opts)
+      ContainerControl::Commands::WithMountns.run!(
+        ct,
+        ns_pid: opts[:ns_pid],
+        chroot: opts[:rootfs_mount],
+        block: Proc.new do
+          # systemd by default does not monitor udev events in containers, which
+          # means that there are no device units to depend on, e.g. for network
+          # interfaces. systemd decides this by the  existence of socket
+          # /run/udev/control and that /dev is devtmpfs. Our /dev cannot be
+          # devtmpfs since that doesn't work in containers, and /run/udev/control
+          # is created by a socket unit *after* systemd makes the decision to not
+          # monitor udev events. After `systemctl daemon-reload`, it actually
+          # starts to monitor udev events and the device units are created.
+          #
+          # We therefore mount /run as tmpfs before systemd is run and create
+          # a stub for /run/udev/control, so that the check passes and udev events
+          # are monitored from the start.
+          begin
+            is_systemd = ctrc.distribution == 'nixos' \
+                         || File.readlink('/sbin/init').include?('systemd')
+          rescue Errno::EINVAL
+            is_systemd = false
+          end
+
+          if is_systemd
+            uid = ct.root_host_uid
+            gid = ct.root_host_gid
+
+            FileUtils.mkdir_p('/run')
+            FileUtils.chown(uid, gid, '/run')
+
+            sys = OsCtl::Lib::Sys.new
+            sys.mount_tmpfs(
+              '/run',
+              name: 'tmpfs',
+              flags: OsCtl::Lib::Sys::MS_NOSUID | OsCtl::Lib::Sys::MS_NODEV,
+              options: 'mode=755',
+            )
+            FileUtils.chown(uid, gid, '/run')
+
+            FileUtils.mkdir('/run/udev')
+            FileUtils.chown(uid, gid, '/run/udev')
+
+            File.open('/run/udev/control', 'w') {}
+            FileUtils.chown(uid, gid, '/run/udev/control')
+          end
+
+          true
+        end,
+      )
+    end
+
     # Run just before the container is started
     def start(opts = {})
       if ct.hostname || ct.dns_resolvers || ctrc.dist_configure_network?

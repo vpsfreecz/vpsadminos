@@ -1,3 +1,4 @@
+require 'fileutils'
 require 'libosctl'
 require 'osctld/user_control/commands/base'
 
@@ -12,16 +13,25 @@ module OsCtld
       return error('container not found') unless ct
       return error('access denied') unless owns_ct?(ct)
 
-      Hook.run(
-        ct,
+      DistConfig.run(
+        ct.run_conf,
         :post_mount,
         rootfs_mount: opts[:rootfs_mount],
         ns_pid: opts[:client_pid],
       )
-      ok
 
-    rescue HookFailed => e
-      error(e.message)
+      begin
+        Hook.run(
+          ct,
+          :post_mount,
+          rootfs_mount: opts[:rootfs_mount],
+          ns_pid: opts[:client_pid],
+        )
+      rescue HookFailed => e
+        error(e.message)
+      else
+        ok
+      end
     end
   end
 end
