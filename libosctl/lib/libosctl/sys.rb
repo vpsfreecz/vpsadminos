@@ -10,16 +10,19 @@ module OsCtl::Lib
     CLONE_NEWNET = 0x40000000
     CLONE_NEWIPC = 0x08000000
 
+    MS_MGC_VAL = 0xc0ed0000
+    MS_NOSUID = 2
+    MS_NODEV = 4
+    MS_NOEXEC = 8
+    MS_BIND = 4096
+    MS_MOVE = 8192
+    MS_REC = 16384
+    MS_SLAVE = 1 << 19
+    MS_SHARED = 1 << 20
+
     module Int
       extend Fiddle::Importer
       dlload Fiddle.dlopen(nil)
-
-      MS_MGC_VAL = 0xc0ed0000
-      MS_BIND = 4096
-      MS_MOVE = 8192
-      MS_REC = 16384
-      MS_SLAVE = 1 << 19
-      MS_SHARED = 1 << 20
 
       MNT_DETACH = 2
 
@@ -48,55 +51,55 @@ module OsCtl::Lib
     end
 
     def move_mount(src, dst)
-      ret = Int.mount(src, dst, 0, Int::MS_MGC_VAL | Int::MS_MOVE, 0)
+      ret = Int.mount(src, dst, 0, MS_MGC_VAL | MS_MOVE, 0)
       raise SystemCallError, Fiddle.last_error if ret != 0
       ret
     end
 
     def bind_mount(src, dst)
-      ret = Int.mount(src, dst, 0, Int::MS_MGC_VAL | Int::MS_BIND, 0)
+      ret = Int.mount(src, dst, 0, MS_MGC_VAL | MS_BIND, 0)
       raise SystemCallError, Fiddle.last_error if ret != 0
       ret
     end
 
     def rbind_mount(src, dst)
-      ret = Int.mount(src, dst, 0, Int::MS_MGC_VAL | Int::MS_BIND | Int::MS_REC, 0)
+      ret = Int.mount(src, dst, 0, MS_MGC_VAL | MS_BIND | MS_REC, 0)
       raise SystemCallError, Fiddle.last_error if ret != 0
       ret
     end
 
     def mount_tmpfs(dst)
-      ret = Int.mount("none", dst, "tmpfs", Int::MS_MGC_VAL, 0)
+      ret = Int.mount('none', dst, "tmpfs", MS_MGC_VAL, 0)
       raise SystemCallError, Fiddle.last_error if ret != 0
       ret
     end
 
     def mount_proc(dst)
-      ret = Int.mount("none", dst, "proc", Int::MS_MGC_VAL, 0)
+      ret = Int.mount("none", dst, "proc", MS_MGC_VAL, 0)
       raise SystemCallError, Fiddle.last_error if ret != 0
       ret
     end
 
     def make_shared(dst)
-      ret = Int.mount("none", dst, 0, Int::MS_SHARED, 0)
+      ret = Int.mount("none", dst, 0, MS_SHARED, 0)
       raise SystemCallError, Fiddle.last_error if ret != 0
       ret
     end
 
     def make_rshared(dst)
-      ret = Int.mount("none", dst, 0, Int::MS_REC | Int::MS_SHARED, 0)
+      ret = Int.mount("none", dst, 0, MS_REC | MS_SHARED, 0)
       raise SystemCallError, Fiddle.last_error if ret != 0
       ret
     end
 
     def make_slave(dst)
-      ret = Int.mount("none", dst, 0, Int::MS_SLAVE, 0)
+      ret = Int.mount("none", dst, 0, MS_SLAVE, 0)
       raise SystemCallError, Fiddle.last_error if ret != 0
       ret
     end
 
     def make_rslave(dst)
-      ret = Int.mount("none", dst, 0, Int::MS_REC | Int::MS_SLAVE, 0)
+      ret = Int.mount("none", dst, 0, MS_REC | MS_SLAVE, 0)
       raise SystemCallError, Fiddle.last_error if ret != 0
       ret
     end
