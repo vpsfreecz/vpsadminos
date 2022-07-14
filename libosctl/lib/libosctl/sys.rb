@@ -68,8 +68,8 @@ module OsCtl::Lib
       ret
     end
 
-    def mount_tmpfs(dst)
-      ret = Int.mount('none', dst, "tmpfs", MS_MGC_VAL, 0)
+    def mount_tmpfs(dst, name: 'none', flags: MS_MGC_VAL, options: 0)
+      ret = Int.mount(name, dst, "tmpfs", flags, options)
       raise SystemCallError, Fiddle.last_error if ret != 0
       ret
     end
