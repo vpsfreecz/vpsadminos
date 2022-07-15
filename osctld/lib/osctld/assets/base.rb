@@ -60,7 +60,6 @@ module OsCtld
       end
     end
 
-    protected
     def add_error(error)
       @errors << error
     end
