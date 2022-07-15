@@ -20,7 +20,7 @@ module OsCtld
     # @param ctrc [Container::RunConfiruration]
     # @param cmd [Symbol]
     # @param opts [Hash]
-    def self.run(ctrc, cmd, opts = {})
+    def self.run(ctrc, cmd, **opts)
       klass = self.for(ctrc.distribution.to_sym)
 
       # Make sure the container's dataset is mounted
