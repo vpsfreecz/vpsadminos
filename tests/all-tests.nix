@@ -48,7 +48,9 @@ in tests [
   "cgroups/system-v2"
   "ctstartmenu/setup"
   { template = "dist-config/netif-routed"; instances = distributions.all; }
+  { template = "dist-config/nonsystemd-rundir"; instances = distributions.non-systemd; }
   { template = "dist-config/start-stop"; instances = distributions.all; }
+  { template = "dist-config/systemd-rundir"; instances = distributions.systemd; }
   "docker/almalinux-8"
   "docker/alpine-latest"
   "docker/centos-7"
