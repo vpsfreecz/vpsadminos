@@ -65,6 +65,7 @@ in tests [
   "osctl/ct-runscript"
   "osctl-exportfs/mount"
   "systemd/credentials"
+  { template = "systemd/device-units"; instances = distributions.systemd; }
   "zfs/ugidmap"
   "zfs/xattr"
 ]
