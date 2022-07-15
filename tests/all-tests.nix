@@ -64,7 +64,7 @@ in tests [
   "osctl/ct-mounts"
   "osctl/ct-runscript"
   "osctl-exportfs/mount"
-  "systemd"
+  "systemd/credentials"
   "zfs/ugidmap"
   "zfs/xattr"
 ]

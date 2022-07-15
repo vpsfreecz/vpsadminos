@@ -1,8 +1,8 @@
-import ../make-test.nix (pkgs: {
-  name = "systemd";
+import ../../make-test.nix (pkgs: {
+  name = "systemd-credentials";
 
   description = ''
-    Test systemd functionality inside a container
+    Test systemd credentials inside a container
   '';
 
   machine = import ../machines/tank.nix pkgs;
