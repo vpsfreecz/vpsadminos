@@ -1,3 +1,4 @@
+require 'libosctl'
 require 'osctld/container_control/command'
 require 'osctld/container_control/frontend'
 require 'osctld/container_control/runner'
@@ -40,7 +41,8 @@ module OsCtld
 
             else
               FileUtils.mkpath(opts[:dst])
-              Mount::Sys.move_mount(src, opts[:dst])
+              sys = OsCtl::Lib::Sys.new
+              sys.move_mount(src, opts[:dst])
               puts 'ok:done'
             end
 

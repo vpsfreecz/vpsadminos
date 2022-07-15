@@ -26,7 +26,8 @@ module OsCtld
           next unless Dir.exist?(mountpoint)
 
           begin
-            Mount::Sys.unmount(mountpoint)
+            sys = OsCtl::Lib::Sys.new
+            sys.unmount(mountpoint)
           rescue Errno::EINVAL
             # Not mounted, pass
           end
