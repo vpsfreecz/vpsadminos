@@ -47,5 +47,31 @@ in {
     centos_7
   ];
 
+  systemd = with table; [
+    almalinux_8
+    arch
+    centos_7
+    centos_8_stream
+    centos_9_stream
+    debian_10
+    debian_11
+    debian_testing
+    fedora
+    gentoo_systemd
+    opensuse
+    ubuntu_1804
+    ubuntu_2004
+    ubuntu_2204
+  ];
+
+  non-systemd = with table; [
+    alpine
+    gentoo_openrc
+    gentoo_musl
+    slackware
+    void_glibc
+    void_musl
+  ];
+
   all = lib.mapAttrsToList (k: v: v) table;
 }
