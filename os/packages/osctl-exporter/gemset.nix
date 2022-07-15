@@ -85,10 +85,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0inx5lsnz806i7k7yjw5ax8qg26hdh8hl50z7xjz5n64sn6si35k";
+      sha256 = "05sq9z88xsfvf24jahc5a37bilyv314ph5mgaha78yqpfi9hb1dc";
       type = "gem";
     };
-    version = "22.05.0.build20220626142910";
+    version = "22.05.0.build20220715172801";
   };
   osctl = {
     dependencies = ["curses" "gli" "highline" "ipaddress" "json" "libosctl" "rainbow" "require_all" "ruby-progressbar"];
@@ -96,10 +96,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1bq38jqs5bba2alqrqpydr2h8cb134p7dk239cdcrpwv2yi574sr";
+      sha256 = "0wipwqyap5j8qaf9jqxd2cflfgg0m3r15wx696q1lygy1wh93w7x";
       type = "gem";
     };
-    version = "22.05.0.build20220626142910";
+    version = "22.05.0.build20220715172801";
   };
   osctl-exporter = {
     dependencies = ["json" "libosctl" "osctl" "osctl-exportfs" "prometheus-client" "require_all" "thin"];
@@ -107,10 +107,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "15a0bp7l573jnzpyc227h0qzq0dljimlki014qrnqqx6kmgvilzi";
+      sha256 = "0488r9jir5vg44h23mlxr3psin8zpzx9nggwwjn8wscn897v5vjj";
       type = "gem";
     };
-    version = "22.05.0.build20220626142910";
+    version = "22.05.0.build20220715172801";
   };
   osctl-exportfs = {
     dependencies = ["filelock" "gli" "libosctl" "require_all"];
@@ -118,10 +118,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "01d2x8p641srj7rkq2i60ba1ap593kd6vdgfn4hl9m0xk6isp175";
+      sha256 = "1hr6jmxmr82g8js1wk0dy86s4ngqlca5b3idh8dxm2zywwcxxv59";
       type = "gem";
     };
-    version = "22.05.0.build20220626142910";
+    version = "22.05.0.build20220715172801";
   };
   prometheus-client = {
     groups = ["default"];
@@ -138,10 +138,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1b1qsg0yfargdhmpapp2d3mlxj82wyygs9nj74w0r03diyi8swlc";
+      sha256 = "0axc6w0rs4yj0pksfll1hjgw1k6a5q0xi2lckh91knfb72v348pa";
       type = "gem";
     };
-    version = "2.2.3.1";
+    version = "2.2.4";
   };
   rainbow = {
     groups = ["default"];
