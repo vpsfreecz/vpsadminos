@@ -10,6 +10,10 @@ import ../../make-template.nix ({ distribution, version }: rec {
           exit 1
         }
 
+        # On NixOS, /run/current-system/sw/bin is not available when osctld
+        # mounts /run as tmpfs
+        export PATH="$PATH:/nix/var/nix/profiles/system/sw/bin"
+
         [ -d /run ] || fail "/run not found"
 
         grep -qx "tmpfs /run tmpfs rw,nosuid,nodev,relatime,mode=755 0 0" /proc/mounts \
@@ -38,6 +42,15 @@ import ../../make-template.nix ({ distribution, version }: rec {
         machine.succeeds(
           "osctl ct new --distribution ${distribution} --version ${version} testct",
         )
+
+        ${pkgs.lib.optionalString (distribution == "nixos") ''
+        # NixOS needs to be first activated in order for /bin/sh to exist.
+        machine.succeeds("osctl ct unset start-menu testct")
+        machine.succeeds("osctl ct start testct")
+        machine.wait_until_succeeds("osctl ct exec testct systemctl status")
+        machine.succeeds("osctl ct stop testct")
+        ''}
+
         machine.push_file("${runScript}", "/tmp/test-script.sh")
         machine.succeeds("osctl ct runscript -r testct /tmp/test-script.sh")
       '';
