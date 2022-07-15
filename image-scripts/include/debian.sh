@@ -75,7 +75,13 @@ mkdir -p /var/log/journal
 
 systemctl mask journald-audit.socket
 systemctl mask systemd-journald-audit.socket
-systemctl mask systemd-udev-trigger.service
 systemctl mask sys-kernel-debug.mount
+
+mkdir -p /etc/systemd/system/systemd-udev-trigger.service.d
+cat <<EOT > /etc/systemd/system/systemd-udev-trigger.service.d/vpsadminos.conf
+[Service]
+ExecStart=
+ExecStart=-udevadm trigger --subsystem-match=net --action=add
+EOT
 EOF
 }
