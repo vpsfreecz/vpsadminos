@@ -46,11 +46,17 @@ PasswordAuthentication yes
 EOT
 fi
 
-systemctl mask systemd-udev-trigger.service
 systemctl mask systemd-modules-load.service
 echo console >> /etc/securetty
 sed -i 's/#DefaultTimeoutStartSec=90s/DefaultTimeoutStartSec=900s/' /etc/systemd/system.conf
 echo "%_netsharedpath /sys:/proc" >> /etc/rpm/macros.vpsadminos
 mkdir -p /var/log/journal
+
+mkdir -p /etc/systemd/system/systemd-udev-trigger.service.d
+cat <<EOT > /etc/systemd/system/systemd-udev-trigger.service.d/vpsadminos.conf
+[Service]
+ExecStart=
+ExecStart=-udevadm trigger --subsystem-match=net --action=add
+EOT
 EOF
 }
