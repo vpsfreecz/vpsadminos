@@ -21,8 +21,19 @@ in {
   systemd.services.systemd-sysctl.enable = false;
   systemd.sockets."systemd-journald-audit".enable = false;
   systemd.mounts = [ {where = "/sys/kernel/debug"; enable = false;} ];
-  systemd.services.systemd-udev-trigger.enable = false;
   systemd.services.rpc-gssd.enable = false;
+
+  # Due to our restrictions in /sys, the default systemd-udev-trigger fails
+  # on accessing PCI devices, etc. Override it to match only network devices.
+  # In addition, boot.isContainer prevents systemd-udev-trigger.service from
+  # being enabled at all, so add it explicitly.
+  systemd.additionalUpstreamSystemUnits = [
+    "systemd-udev-trigger.service"
+  ];
+  systemd.services.systemd-udev-trigger.serviceConfig.ExecStart = [
+    ""
+    "-udevadm trigger --subsystem-match=net --action=add"
+  ];
 
   boot.isContainer = true;
   boot.enableContainers = mkDefault true;
