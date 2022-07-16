@@ -251,6 +251,24 @@ module OsCtld
       ret
     end
 
+    # @return [Integer, nil] memory limit in bytes
+    def find_memory_limit(parents: true)
+      limit = cgparams.find_memory_limit
+
+      if limit
+        return limit
+      elsif !parents
+        return
+      end
+
+      self.parents.each do |grp|
+        grp_limit = grp.find_memory_limit(parents: true)
+        return grp_limit if grp_limit
+      end
+
+      nil
+    end
+
     def log_type
       "group=#{pool.name}:#{name}"
     end

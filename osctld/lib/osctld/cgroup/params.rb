@@ -167,6 +167,42 @@ module OsCtld
       )
     end
 
+    # Find memory limit
+    # @return [Integer, nil] memory limit in bytes
+    def find_memory_limit
+      if CGroup.v2?
+        each_usable do |p|
+          next if p.name != 'memory.max'
+
+          v = p.value.last.to_i
+          return v > 0 ? v : nil
+        end
+
+        return nil
+      end
+
+      mem_limit = 0
+      memsw_limit = 0
+
+      each_usable do |p|
+        if p.name == 'memory.limit_in_bytes'
+          mem_limit = p.value.last.to_i
+        elsif p.name == 'memory.memsw.limit_in_bytes'
+          memsw_limit = p.value.last.to_i
+        end
+
+        break if mem_limit > 0 && memsw_limit > 0
+      end
+
+      if memsw_limit > 0 && memsw_limit < mem_limit
+        memsw_limit
+      elsif mem_limit > 0
+        mem_limit
+      else
+        nil
+      end
+    end
+
     # Dump params to config
     def dump
       params.select(&:persistent).map(&:dump)

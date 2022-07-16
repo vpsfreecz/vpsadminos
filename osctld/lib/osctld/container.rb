@@ -433,6 +433,19 @@ module OsCtld
       CGroup.abs_cgroup_path(subsystem, base_cgroup_path)
     end
 
+    # @return [Integer, nil] memory limit in bytes
+    def find_memory_limit(parents: true)
+      limit = cgparams.find_memory_limit
+
+      if limit
+        return limit
+      elsif !parents
+        return
+      end
+
+      group.find_memory_limit(parents: parents)
+    end
+
     def set(opts)
       opts.each do |k, v|
         case k
