@@ -29,7 +29,7 @@ import ../../make-template.nix ({ distribution, version }: rec {
       name = "dist-config-systemd-rundir@${instance}";
 
       description = ''
-        Test that containers with ${distribution}-${version} have systemd have /run
+        Test that containers with ${distribution}-${version} have /run
         pre-mounted before systemd is started
       '';
 

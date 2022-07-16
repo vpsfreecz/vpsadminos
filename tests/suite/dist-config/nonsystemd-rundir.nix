@@ -18,8 +18,8 @@ import ../../make-template.nix ({ distribution, version }: rec {
       name = "dist-config-nonsystemd-rundir@${instance}";
 
       description = ''
-        Test that containers with ${distribution}-${version} have systemd have /run
-        pre-mounted before systemd is started
+        Test that containers with ${distribution}-${version} do not have /run
+        pre-mounted before the init is started
       '';
 
       machine = import ../../machines/tank.nix pkgs;
