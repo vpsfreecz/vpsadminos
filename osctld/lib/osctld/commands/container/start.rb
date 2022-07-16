@@ -94,6 +94,9 @@ module OsCtld
       # Remove any left-over temporary mounts
       ct.mounts.prune
 
+      # Pre-start distconfig hook
+      DistConfig.run(ct.run_conf, :pre_start)
+
       # Optionally add new mounts
       (opts[:mounts] || []).each do |mnt|
         ct.mounts.add(mnt)
