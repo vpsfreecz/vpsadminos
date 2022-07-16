@@ -45,8 +45,15 @@ module OsCtld
         script = copy_script(opts[:script], opts[:stdin])
         runner_opts[:script] = File.join('/', File.basename(script.path))
 
-        # Remove any left-over temporary mounts
-        ct.mounts.prune if %i(run run_network).include?(mode)
+        if %i(run run_network).include?(mode)
+          ct.ensure_run_conf
+
+          # Remove any left-over temporary mounts
+          ct.mounts.prune
+
+          # Pre-start distconfig hook
+          DistConfig.run(ct.run_conf, :pre_start)
+        end
 
         ret = exec_runner(
           args: [mode, runner_opts],

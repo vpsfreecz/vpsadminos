@@ -35,61 +35,67 @@ module OsCtld
       end
     end
 
+    # Called before container start, can be used to e.g. add temporary mounts
+    def pre_start(opts = {})
+      if volatile_is_systemd?
+        # systemd by default does not monitor udev events in containers, which
+        # means that there are no device units to depend on, e.g. for network
+        # interfaces. systemd decides this by the  existence of socket
+        # /run/udev/control and that /dev is devtmpfs. Our /dev cannot be
+        # devtmpfs since that doesn't work in containers, and /run/udev/control
+        # is created by a socket unit *after* systemd makes the decision to not
+        # monitor udev events. After `systemctl daemon-reload`, it actually
+        # starts to monitor udev events and the device units are created.
+        #
+        # See https://github.com/systemd/systemd/blob/729d2df8065ac90ac606e1fff91dc2d588b2795d/src/libsystemd/sd-device/device-monitor.c#L125
+        #
+        # We therefore mount /run as tmpfs before systemd is run and create
+        # a stub for /run/udev/control, so that the check passes and udev events
+        # are monitored from the start.
+        #
+        # /run has to be mounted by LXC from the container's user namespace, so
+        # that it is owned by that user namespace. File /run/udev/control is
+        # created later in {#post_mount}.
+
+        # Check if /run isn't mounted already by user configuration
+        if ct.mounts.detect { |mnt| %w(/run /run/).include?(mnt.mountpoint) }.nil?
+          mem_limit = ct.find_memory_limit
+          mnt_opts = %w(nosuid nodev mode=755 create=dir)
+          mnt_opts << "size=#{mem_limit / 2}" if mem_limit
+
+          ct.mounts.add(Mount::Entry.new(
+            'tmpfs',
+            '/run',
+            'tmpfs',
+            mnt_opts.join(','),
+            true,
+            temp: true,
+            in_config: true,
+          ))
+        end
+      end
+    end
+
     # Run by LXC post-mount hook on container start
     # @param opts [Hash]
     # @option opts [Integer] :ns_pid
     # @option opts [String] :rootfs_mount
     def post_mount(opts)
+      return unless volatile_is_systemd?
+
       ContainerControl::Commands::WithMountns.run!(
         ct,
         ns_pid: opts[:ns_pid],
         chroot: opts[:rootfs_mount],
         block: Proc.new do
-          # systemd by default does not monitor udev events in containers, which
-          # means that there are no device units to depend on, e.g. for network
-          # interfaces. systemd decides this by the  existence of socket
-          # /run/udev/control and that /dev is devtmpfs. Our /dev cannot be
-          # devtmpfs since that doesn't work in containers, and /run/udev/control
-          # is created by a socket unit *after* systemd makes the decision to not
-          # monitor udev events. After `systemctl daemon-reload`, it actually
-          # starts to monitor udev events and the device units are created.
-          #
-          # We therefore mount /run as tmpfs before systemd is run and create
-          # a stub for /run/udev/control, so that the check passes and udev events
-          # are monitored from the start.
+          # /run is mounted by {#pre_start}
+          FileUtils.mkdir_p('/run/udev')
+
+          # Create /run/udev/control if it isn't already there
           begin
-            is_systemd = ctrc.distribution == 'nixos' \
-                         || File.readlink('/sbin/init').include?('systemd')
-          rescue Errno::EINVAL
-            is_systemd = false
-          end
-
-          if is_systemd
-            uid = ct.root_host_uid
-            gid = ct.root_host_gid
-
-            mem_limit = ct.find_memory_limit
-
-            FileUtils.mkdir_p('/run')
-            FileUtils.chown(uid, gid, '/run')
-
-            sys = OsCtl::Lib::Sys.new
-            mnt_opts = ['mode=755']
-            mnt_opts << "size=#{mem_limit / 2}" if mem_limit
-
-            sys.mount_tmpfs(
-              '/run',
-              name: 'tmpfs',
-              flags: OsCtl::Lib::Sys::MS_NOSUID | OsCtl::Lib::Sys::MS_NODEV,
-              options: mnt_opts.join(','),
-            )
-            FileUtils.chown(uid, gid, '/run')
-
-            FileUtils.mkdir('/run/udev')
-            FileUtils.chown(uid, gid, '/run/udev')
-
+            File.stat('/run/udev/control')
+          rescue Errno::ENOENT
             File.open('/run/udev/control', 'w') {}
-            FileUtils.chown(uid, gid, '/run/udev/control')
           end
 
           true
@@ -253,6 +259,23 @@ module OsCtld
             block.call
           end,
         )
+      end
+    end
+
+    # Check if the container is using systemd as init
+    #
+    # This method accesses the container's rootfs from the host, which is
+    # dangerous because of symlinks and we really shouldn't be doing it... but
+    # in this case, we only do readlink(), so it shouldn't do any harm.
+    #
+    # @return [Boolean]
+    def volatile_is_systemd?
+      return true if ctrc.distribution == 'nixos'
+
+      begin
+        File.readlink(File.join(ctrc.rootfs, 'sbin/init')).include?('systemd')
+      rescue SystemCallError
+        false
       end
     end
   end

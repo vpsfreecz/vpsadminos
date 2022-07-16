@@ -10,16 +10,20 @@ module OsCtld
   class ContainerControl::Commands::WithMountns < ContainerControl::Command
     class Frontend < ContainerControl::Frontend
       # @param opts [Hash]
-      # @param opts [Integer] :ns_pid
-      # @param opts [String, nil] :chroot
+      # @option opts [Container::RunConfiguration, nil] :ctrc
+      # @option opts [Integer] :ns_pid
+      # @option opts [String, nil] :chroot
+      # @option opts [Boolean] :switch_to_system
       # @option opts [Proc] :block
       def execute(opts)
         ct.mount
 
         ret = fork_runner(
           args: [{
+            ctrc: opts.fetch(:ctrc, ct.get_run_conf),
             ns_pid: opts[:ns_pid],
             chroot: opts[:chroot],
+            switch_to_system: opts.fetch(:switch_to_system, true),
             block: opts[:block],
           }],
           switch_to_system: false,
@@ -30,8 +34,9 @@ module OsCtld
 
     class Runner < ContainerControl::Runner
       # @param opts [Hash]
-      # @param opts [Integer] :ns_pid
-      # @param opts [String, nil] :chroot
+      # @option opts [Integer] :ns_pid
+      # @option opts [String, nil] :chroot
+      # @option opts [Boolean] :switch_to_system
       # @option opts [Proc] :block
       def execute(opts)
         sys = OsCtl::Lib::Sys.new
@@ -47,6 +52,15 @@ module OsCtld
           # instead, which will be picked up by osctld supervisor and sent to
           # syslog from there.
           OsCtl::Lib::Logger.setup(:stdout)
+        end
+
+        if opts[:switch_to_system]
+          SwitchUser.switch_to_system(
+            '',
+            opts[:ctrc].ct.root_host_uid,
+            opts[:ctrc].ct.root_host_gid,
+            '/',
+          )
         end
 
         ok(opts[:block].call)
