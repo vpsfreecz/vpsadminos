@@ -16,8 +16,8 @@ import ../../make-template.nix ({ distribution, version }: rec {
 
         [ -d /run ] || fail "/run not found"
 
-        grep -qx "tmpfs /run tmpfs rw,nosuid,nodev,relatime,mode=755 0 0" /proc/mounts \
-          || fail "/run not found in /proc/mounts or has unexpected options"
+        grep "tmpfs /run tmpfs " /proc/mounts | grep nosuid | grep nodev | grep -q mode=755 \
+          || fail "/run not found in /proc/mounts or has unexpected options: $(grep /run /proc/mounts)"
 
         [ -d /run/udev ] || fail "/run/udev" not found
 

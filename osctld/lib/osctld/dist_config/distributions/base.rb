@@ -68,15 +68,20 @@ module OsCtld
             uid = ct.root_host_uid
             gid = ct.root_host_gid
 
+            mem_limit = ct.find_memory_limit
+
             FileUtils.mkdir_p('/run')
             FileUtils.chown(uid, gid, '/run')
 
             sys = OsCtl::Lib::Sys.new
+            mnt_opts = ['mode=755']
+            mnt_opts << "size=#{mem_limit / 2}" if mem_limit
+
             sys.mount_tmpfs(
               '/run',
               name: 'tmpfs',
               flags: OsCtl::Lib::Sys::MS_NOSUID | OsCtl::Lib::Sys::MS_NODEV,
-              options: 'mode=755',
+              options: mnt_opts.join(','),
             )
             FileUtils.chown(uid, gid, '/run')
 
