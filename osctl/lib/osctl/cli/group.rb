@@ -141,7 +141,6 @@ module OsCtl::Cli
     def unset_cpu_limit
       require_args!('name')
       do_unset_cpu_limit(
-        :group_cgparam_set,
         :group_cgparam_unset,
         name: args[0],
         pool: gopts[:pool]
@@ -161,7 +160,6 @@ module OsCtl::Cli
     def unset_memory
       require_args!('name')
       do_unset_memory(
-        :group_cgparam_set,
         :group_cgparam_unset,
         name: args[0],
         pool: gopts[:pool]
