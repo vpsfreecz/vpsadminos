@@ -97,6 +97,7 @@ profile "<%= name %>" flags=(attach_disconnected,mediate_deleted) {
 
   # Allow remounting things
   mount options=(ro,remount),
+  mount options=(rw,remount),
   mount options=(ro,bind,remount),
   mount options=(ro,rbind,remount),
   mount options=(rw,bind,remount),
