@@ -51,6 +51,7 @@ in tests [
   { template = "dist-config/nonsystemd-rundir"; instances = distributions.non-systemd; }
   { template = "dist-config/start-stop"; instances = distributions.all; }
   { template = "dist-config/systemd-rundir"; instances = distributions.systemd; }
+  "dist-config/systemd-rundir-limits"
   "docker/almalinux-8"
   "docker/alpine-latest"
   "docker/centos-7"
