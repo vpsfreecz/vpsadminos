@@ -18,14 +18,22 @@ module OsCtld
     def initialize(path, opts, &block)
       @path = path
       @opts = opts
-      @validators = []
+      @block_validators = []
       @errors = []
+      @valid = nil
+      @state = nil
 
       block.call(self) if block
     end
 
     def type
       self.class.type
+    end
+
+    # Return a list of datasets and a list properties needed for validation
+    # @return [Array< Array<String>, Array<String> >]
+    def prefetch_zfs
+      [[], []]
     end
 
     def validate?
@@ -40,28 +48,56 @@ module OsCtld
       end
     end
 
-    def validate(&block)
-      @validators << block
+    def validate_block(&block)
+      @block_validators << block
     end
 
     def valid?
-      @validators.each do |validator|
-        validator.call(self)
+      if @valid.nil?
+        fail 'asset not validated'
+      elsif !validate?
+        fail 'asset cannot be validated'
       end
 
-      errors.empty?
+      @valid
     end
 
+    # @return [:valid, :invalid, :unknown]
     def state
-      if validate?
-        valid? ? :valid : :invalid
-      else
-        :unknown
-      end
+      fail 'asset not validated' if @state.nil?
+      @state
     end
 
     def add_error(error)
       @errors << error
+    end
+
+    protected
+    # @param run [Assets::Validator::Run]
+    def run_validation(run)
+      @valid = nil
+      @state = nil
+      @errors = []
+
+      unless validate?
+        @state = :unknown
+        return
+      end
+
+      validate(run)
+
+      @block_validators.each do |block_validator|
+        block_validator.call(self, run)
+      end
+
+      @valid = errors.empty?
+      @state = @valid ? :valid : :invalid
+    end
+
+    # Implement in subclasses to validate the asset
+    # @param run [Assets::Validator::Run]
+    def validate(run)
+
     end
   end
 end

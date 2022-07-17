@@ -5,9 +5,6 @@ module OsCtld
   class Assets::Dataset < Assets::Base
     register :dataset
 
-    include OsCtl::Lib::Utils::Log
-    include OsCtl::Lib::Utils::System
-
     # @param opts [Hash] options
     # @option opts [Array, nil] uidmap
     # @option opts [Array, nil] gidmap
@@ -19,20 +16,22 @@ module OsCtld
       super
     end
 
-    def valid?
-      ret = zfs(
-        :get,
-        '-H -ovalue mountpoint,uidmap,gidmap',
-        path,
-        valid_rcs: [1]
-      )
+    def prefetch_zfs
+      [[path], %w(mountpoint uidmap gidmap)]
+    end
 
-      if ret.error?
+    protected
+    def validate(run)
+      ds = run.dataset_tree[path]
+
+      if ds.nil?
         add_error('does not exist')
         return super
       end
 
-      @mountpoint, uidmap, gidmap = ret.output.split("\n")
+      @mountpoint = ds.properties['mountpoint']
+      uidmap = ds.properties['uidmap']
+      gidmap = ds.properties['gidmap']
 
       if opts[:user] && stat.uid != opts[:user]
         add_error("invalid owner: expected #{opts[:user]}, got #{stat.uid}")
@@ -69,7 +68,6 @@ module OsCtld
       super
     end
 
-    protected
     def stat
       @stat ||= File.stat(@mountpoint)
     end

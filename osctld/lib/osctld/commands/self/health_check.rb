@@ -5,28 +5,13 @@ module OsCtld
     handle :self_healthcheck
 
     def execute
-      ret = []
-      errors = []
+      validator = Assets::Validator.new
 
-      Daemon.get.assets.each do |asset|
-        next if %i(valid unknown).include?(asset.state)
+      # Collect all assets
+      daemon_assets = Daemon.get.assets
+      validator.add_assets(daemon_assets)
 
-        errors << {
-          type: asset.type,
-          path: asset.path,
-          opts: asset.opts,
-          errors: asset.errors,
-        }
-      end
-
-      unless errors.empty?
-        ret << {
-          pool: nil,
-          type: 'osctld',
-          id: nil,
-          assets: errors,
-        }
-      end
+      pool_entity_assets = {}
 
       pools.each do |pool|
         filter = ->(v) { v.pool == pool }
@@ -35,28 +20,66 @@ module OsCtld
           entities = klass.get.select(&filter)
 
           entities.each do |ent|
-            errors = []
+            ent_assets = ent.assets
 
-            ent.assets.each do |asset|
-              next if %i(valid unknown).include?(asset.state)
+            pool_entity_assets[pool.name] ||= {}
+            pool_entity_assets[pool.name][ent] = ent_assets
 
-              errors << {
-                type: asset.type,
-                path: asset.path,
-                opts: asset.opts,
-                errors: asset.errors,
-              }
-            end
+            validator.add_assets(ent_assets)
+          end
+        end
+      end
 
-            next if errors.empty?
+      # Run validation
+      validator.validate
 
-            ret << {
-              pool: ent.pool.name,
-              type: ent.class.name.split('::').last.downcase,
-              id: ent.id,
-              assets: errors,
+      # Collect errors and return them to the client
+      ret = []
+      daemon_errors = []
+
+      daemon_assets.each do |asset|
+        next if %i(valid unknown).include?(asset.state)
+
+        daemon_errors << {
+          type: asset.type,
+          path: asset.path,
+          opts: asset.opts,
+          errors: asset.errors,
+        }
+      end
+
+      unless daemon_errors.empty?
+        ret << {
+          pool: nil,
+          type: 'osctld',
+          id: nil,
+          assets: daemon_errors,
+        }
+      end
+
+      pool_entity_assets.each do |pool, entities|
+        entities.each do |ent, ent_assets|
+          ent_errors = []
+
+          ent_assets.each do |asset|
+            next if %i(valid unknown).include?(asset.state)
+
+            ent_errors << {
+              type: asset.type,
+              path: asset.path,
+              opts: asset.opts,
+              errors: asset.errors,
             }
           end
+
+          next if ent_errors.empty?
+
+          ret << {
+            pool: ent.pool.name,
+            type: ent.class.name.split('::').last.downcase,
+            id: ent.id,
+            assets: ent_errors,
+          }
         end
       end
 

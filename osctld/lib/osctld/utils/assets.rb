@@ -1,7 +1,9 @@
 module OsCtld
   module Utils::Assets
+    # @param entity [#assets]
     def list_and_validate_assets(entity)
-      entity.assets.map do |asset|
+      validator = Assets::Validator.new(entity.assets)
+      validator.validate.map do |asset|
         {
           type: asset.type,
           path: asset.path,

@@ -4,13 +4,15 @@ module OsCtld
   class Assets::File < Assets::BaseFile
     register :file
 
-    def valid?
-      add_error('not a file') if exist? && !opts[:optional] && !stat.file?
-      super
+    protected
+    def validate(run)
+      begin
+        add_error('not a file') if exist? && !opts[:optional] && !stat.file?
+      rescue Errno::ENOENT
+        add_error('does not exist')
+      end
 
-    rescue Errno::ENOENT
-      add_error('does not exist')
-      false
+      super
     end
   end
 end
