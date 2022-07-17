@@ -55,7 +55,7 @@ module OsCtl::Lib
     # @param opts [Hash] options
     # @option opts [Boolean] :parents
     # @option opts [Hash] :properties
-    def create!(opts)
+    def create!(**opts)
       zfs_opts = []
       zfs_opts << '-p' if opts[:parents]
 
@@ -69,7 +69,7 @@ module OsCtl::Lib
     # @param opts [Hash] options
     # @option opts [Boolean] :parents create the private dir for all parents
     #                                 as well
-    def create_private!(opts = {})
+    def create_private!(**opts)
       if opts[:parents]
         parents.each do |ds|
           break if Dir.exist?(ds.private_path)
@@ -82,7 +82,7 @@ module OsCtl::Lib
 
     # @param opts [Hash] options
     # @option opts [Boolean] :recursive
-    def destroy!(opts)
+    def destroy!(**opts)
       zfs(:destroy, opts[:recursive] ? '-r' : nil, name)
     end
 
@@ -103,7 +103,7 @@ module OsCtl::Lib
     # @option opts [Array<String>, Array<Symbol>] :properties
     # @option opts [Proc] :create
     # @return [Array<Zfs::Dataset>]
-    def list(opts = {})
+    def list(**opts)
       zfs_opts = [
         '-r', '-H', '-p',
         '-o', 'name,property,value',

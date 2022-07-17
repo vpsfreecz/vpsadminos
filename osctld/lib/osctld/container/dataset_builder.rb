@@ -34,7 +34,7 @@ module OsCtld
         zfs_opts[:properties][:gidmap] = opts[:gid_map].map(&:to_s).join(',')
       end
 
-      ds.create!(zfs_opts)
+      ds.create!(**zfs_opts)
       ds.mount(recursive: true)
     end
 
