@@ -4,13 +4,15 @@ module OsCtld
   class Assets::UnixSocket < Assets::BaseFile
     register :socket
 
-    def valid?
-      add_error('not a socket') if exist? && !opts[:optional] && !stat.socket?
-      super
+    protected
+    def validate(run)
+      begin
+        add_error('not a socket') if exist? && !opts[:optional] && !stat.socket?
+      rescue Errno::ENOENT
+        add_error('does not exist')
+      end
 
-    rescue Errno::ENOENT
-      add_error('does not exist')
-      false
+      super
     end
   end
 end

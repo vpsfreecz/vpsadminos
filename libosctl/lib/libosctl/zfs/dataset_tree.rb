@@ -28,12 +28,14 @@ module OsCtl::Lib
 
     # Lookup dataset in the subtree
     # @param dataset [String] full name
+    # @return [Zfs::DatasetTree, nil]
     def [](dataset)
       parts = dataset.split('/')
       tree = self
 
       parts.each do |name|
         tree = tree.datasets[name]
+        return nil if tree.nil?
       end
 
       tree

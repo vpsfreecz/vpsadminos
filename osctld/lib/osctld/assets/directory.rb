@@ -4,13 +4,15 @@ module OsCtld
   class Assets::Directory < Assets::BaseFile
     register :directory
 
-    def valid?
-      add_error('not a directory') if exist? && !opts[:optional] && !stat.directory?
-      super
+    protected
+    def validate(run)
+      begin
+        add_error('not a directory') if exist? && !opts[:optional] && !stat.directory?
+      rescue Errno::ENOENT
+        add_error('does not exist')
+      end
 
-    rescue Errno::ENOENT
-      add_error('does not exist')
-      false
+      super
     end
   end
 end

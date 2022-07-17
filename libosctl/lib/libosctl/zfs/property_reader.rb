@@ -8,8 +8,9 @@ module OsCtl::Lib
     # @param properties [Array<String>]
     # @param type [String]
     # @param recursive [Boolean]
+    # @param ignore_error [Boolean]
     # @return [Zfs::DatasetTree]
-    def read(dataset_names, properties, type: 'filesystem', recursive: false)
+    def read(dataset_names, properties, type: 'filesystem', recursive: false, ignore_error: false)
       tree = Zfs::DatasetTree.new
       return tree if dataset_names.empty?
 
@@ -25,7 +26,8 @@ module OsCtl::Lib
       zfs(
         :get,
         zfs_opts.join(' '),
-        dataset_names.join(' ')
+        dataset_names.join(' '),
+        {stderr: false, valid_rcs: ignore_error ? :all : [0]},
       ).output.strip.split("\n").each do |line|
         dataset, prop, val = line.split("\t")
 

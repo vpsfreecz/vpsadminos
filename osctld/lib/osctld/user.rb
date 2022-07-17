@@ -74,7 +74,7 @@ module OsCtld
         )
 
         add.entry('/etc/passwd', desc: 'System user') do |asset|
-          asset.validate do
+          asset.validate_block do
             if /^#{Regexp.escape(sysusername)}:x:#{ugid}:#{ugid}:/ !~ File.read(asset.path)
               asset.add_error('entry missing or invalid')
             end
@@ -82,7 +82,7 @@ module OsCtld
         end
 
         add.entry('/etc/group', desc: 'System group') do |asset|
-          asset.validate do
+          asset.validate_block do
             if /^#{Regexp.escape(sysgroupname)}:x:#{ugid}:$/ !~ File.read(asset.path)
               asset.add_error('entry missing or invalid')
             end

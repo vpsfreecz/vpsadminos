@@ -4,16 +4,17 @@ module OsCtld
   class Assets::Symlink < Assets::BaseFile
     register :symlink
 
-    def valid?
-      add_error('not a symlink') if exist? && !opts[:optional] && !stat.symlink?
-      super
+    protected
+    def validate(run)
+      begin
+        add_error('not a symlink') if exist? && !opts[:optional] && !stat.symlink?
+      rescue Errno::ENOENT
+        add_error('does not exist')
+      end
 
-    rescue Errno::ENOENT
-      add_error('does not exist')
-      false
+      super
     end
 
-    protected
     def stat
       @stat ||= File.lstat(path)
     end
