@@ -1,4 +1,4 @@
-IPADDR="10.100.10.1"
+IPADDR="$OSCTL_IMAGE_TEST_IPV4_ADDRESS"
 PASSWORD=suCHS3crET
 
 function test_network {

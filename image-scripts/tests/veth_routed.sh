@@ -1,5 +1,4 @@
-IPADDR="10.100.10.1"
-
+IPADDR="$OSCTL_IMAGE_TEST_IPV4_ADDRESS"
 function test_network {
 	ping -c 1 $IPADDR > /dev/null 2>&1
 }
