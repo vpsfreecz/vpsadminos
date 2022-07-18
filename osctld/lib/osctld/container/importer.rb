@@ -1,5 +1,6 @@
 require 'fileutils'
 require 'libosctl'
+require 'open3'
 require 'rubygems'
 require 'rubygems/package'
 
@@ -322,22 +323,31 @@ module OsCtld
 
     # @param builder [Container::Builder]
     def unpack_rootfs(builder)
+      fail "image_file needs to be set for import_stream()" if image_file.nil?
+
       # Ensure the dataset is mounted
       builder.ctrc.dataset.mount(recursive: true)
 
       # Create private/
       builder.setup_rootfs
 
-      ret = tar.seek('rootfs/base.tar.gz') do |tf|
-        IO.popen("exec tar -xz -C #{builder.ctrc.rootfs}", 'r+') do |io|
-          io.write(tf.read(BLOCK_SIZE)) until tf.eof?
+      tf = tar.find { |entry| entry.full_name == 'rootfs/base.tar.gz' }
+      fail 'rootfs archive not found' if tf.nil?
+      tar.rewind
+
+      commands = [
+        ['tar', '-xOf', image_file, tf.full_name],
+        ['tar', '-xz', '-C', builder.ctrc.rootfs],
+      ]
+
+      status_list = Open3.pipeline(*commands)
+
+      status_list.each_with_index do |st, i|
+        if st.exitstatus != 0
+          fail "failed to unpack rootfs: command '#{commands[i].join(' ')}' "+
+              "exited with #{st.exitstatus}"
         end
-
-        fail "tar failed with exit status #{$?.exitstatus}" if $?.exitstatus != 0
-        true
       end
-
-      fail 'rootfs archive not found' unless ret === true
     end
 
     def import_stream(builder, ds, name, required)
