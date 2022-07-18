@@ -1,5 +1,4 @@
 require 'libosctl'
-require 'open3'
 require 'tempfile'
 
 module OsCtld
@@ -91,13 +90,17 @@ module OsCtld
 
       commands << ['zfs', 'recv', '-F', ds.to_s]
 
-      status_list = Open3.pipeline(*commands)
+      command_string = commands.map { |c| c.join(' ') }.join(' | ')
 
-      status_list.each_with_index do |st, i|
-        if st.exitstatus != 0
-          fail "failed to import stream: command '#{commands[i].join(' ')}' "+
-              "exited with #{st.exitstatus}"
-        end
+      # Note that we intentionally use shell to run the pipeline. Whenever ruby
+      # is more involved in the process, we start to experience random deadlocks
+      # when the zfs receive hangs.
+      pid = Process.spawn(command_string)
+      Process.wait(pid)
+
+      if $?.exitstatus != 0
+        fail "failed to import stream: command '#{command_string}' "+
+             "exited with #{$?.exitstatus}"
       end
 
       nil
