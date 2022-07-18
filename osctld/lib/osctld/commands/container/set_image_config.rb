@@ -43,7 +43,7 @@ module OsCtld
         # Apply new image configuration
         progress('Applying configuration')
         fh = File.open(tpl_path, 'r')
-        importer = Container::Importer.new(ct.pool, fh, ct_id: ct.id)
+        importer = Container::Importer.new(ct.pool, fh, ct_id: ct.id, image_file: tpl_path)
         importer.load_metadata
         ct.patch_config(importer.get_container_config)
         fh.close
