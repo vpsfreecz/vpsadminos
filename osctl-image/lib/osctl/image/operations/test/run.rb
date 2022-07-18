@@ -64,6 +64,7 @@ module OsCtl::Image
       client.create_container_from_file(ctid, file)
       sleep(3) # FIXME: wait for osctld...
       log(:info, "Created container '#{ctid}' for test '#{test}'")
+      client.unset_container_start_menu(ctid)
     end
 
     def run_test

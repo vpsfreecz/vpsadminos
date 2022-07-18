@@ -103,6 +103,13 @@ module OsCtl::Image
     end
 
     # @param ctid [String]
+    def unset_container_start_menu(ctid)
+      connect do |client|
+        client.cmd_data!(:ct_unset, id: ctid, start_menu: true)
+      end
+    end
+
+    # @param ctid [String]
     def start_container(ctid)
       connect do |client|
         client.cmd_data!(:ct_start, id: ctid)
