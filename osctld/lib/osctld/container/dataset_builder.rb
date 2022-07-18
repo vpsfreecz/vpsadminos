@@ -70,8 +70,6 @@ module OsCtld
 
     # @param ds [OsCtl::Lib::Zfs::Dataset]
     def from_stream(ds)
-      progress('Writing image stream')
-
       r, w = IO.pipe
 
       pid = Process.spawn('zfs', 'recv', '-F', ds.to_s, in: r)

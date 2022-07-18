@@ -16,6 +16,7 @@ module OsCtld
     def initialize(pool, io, ct_id: nil)
       @pool = pool
       @tar = Gem::Package::TarReader.new(io)
+      @tar_io = io
       @ct_id = ct_id
     end
 
@@ -246,7 +247,7 @@ module OsCtld
     end
 
     protected
-    attr_reader :pool, :tar, :metadata
+    attr_reader :pool, :tar,:tar_io, :metadata
 
     # @return [User]
     def load_or_create_user
@@ -306,9 +307,21 @@ module OsCtld
     # @param builder [Container::Builder]
     # @param datasets [Array<OsCtl::Lib::Zfs::Dataset>]
     def import_streams(builder, datasets)
-      datasets.each do |ds|
-        import_stream(builder, ds, File.join(ds.relative_name, 'base'), true)
-        import_stream(builder, ds, File.join(ds.relative_name, 'incremental'), false)
+      # The fork is done to disconnect from the main osctld process, as we try
+      # to avoid a deadlock that sometimes occurs when receiving streams.
+      pid = SwitchUser.fork(keep_fds: [tar_io]) do
+        Process.setproctitle("osctld: import #{builder.ctrc.ident}")
+
+        datasets.each do |ds|
+          import_stream(builder, ds, File.join(ds.relative_name, 'base'), true)
+          import_stream(builder, ds, File.join(ds.relative_name, 'incremental'), false)
+        end
+      end
+
+      Process.wait(pid)
+
+      if $?.exitstatus != 0
+        fail "failed to receive streams with exit status #{$?.exitstatus}"
       end
 
       tar.seek('snapshots.yml') do |entry|
