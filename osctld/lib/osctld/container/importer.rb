@@ -1,6 +1,5 @@
 require 'fileutils'
 require 'libosctl'
-require 'open3'
 require 'rubygems'
 require 'rubygems/package'
 
@@ -340,13 +339,14 @@ module OsCtld
         ['tar', '-xz', '-C', builder.ctrc.rootfs],
       ]
 
-      status_list = Open3.pipeline(*commands)
+      command_string = commands.map { |c| c.join(' ') }.join(' | ')
 
-      status_list.each_with_index do |st, i|
-        if st.exitstatus != 0
-          fail "failed to unpack rootfs: command '#{commands[i].join(' ')}' "+
-              "exited with #{st.exitstatus}"
-        end
+      pid = Process.spawn(command_string)
+      Process.wait(pid)
+
+      if $?.exitstatus != 0
+        fail "failed to unpack rootfs: command '#{command_string}' "+
+             "exited with #{$?.exitstatus}"
       end
     end
 
