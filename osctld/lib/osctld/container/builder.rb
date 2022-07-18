@@ -107,8 +107,12 @@ module OsCtld
       )
     end
 
-    def from_stream(ds = nil, &block)
-      ds_builder.from_stream(ds || ctrc.dataset, &block)
+    # @param image [String] image path
+    # @param member [String] file from the tar to use
+    # @param compression [:gzip, :off] compression type
+    # @param ds [OsCtl::Lib::Zfs::Dataset]
+    def from_tar_stream(image, member, compression, ds = nil)
+      ds_builder.from_tar_stream(image, member, compression, ds || ctrc.dataset)
     end
 
     def shift_dataset

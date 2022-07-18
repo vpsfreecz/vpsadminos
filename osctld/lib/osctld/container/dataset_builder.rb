@@ -1,4 +1,5 @@
 require 'libosctl'
+require 'open3'
 require 'tempfile'
 
 module OsCtld
@@ -68,18 +69,38 @@ module OsCtld
       shift_dataset
     end
 
+    # @param image [String] image path
+    # @param member [String] file from the tar to use
+    # @param compression [:gzip, :off] compression type
     # @param ds [OsCtl::Lib::Zfs::Dataset]
-    def from_stream(ds)
-      r, w = IO.pipe
+    def from_tar_stream(image, member, compression, ds)
+      progress('Writing data stream')
 
-      pid = Process.spawn('zfs', 'recv', '-F', ds.to_s, in: r)
-      r.close
-      yield(w)
-      Process.wait(pid)
+      commands = [
+        ['tar', '-xOf', image, member],
+      ]
 
-      if $?.exitstatus != 0
-        fail "zfs recv failed with exit status #{$?.exitstatus}"
+      case compression
+      when :gzip
+        commands << ['gunzip']
+      when :off
+        # no command
+      else
+        fail "unexpected compression type '#{compression}'"
       end
+
+      commands << ['zfs', 'recv', '-F', ds.to_s]
+
+      status_list = Open3.pipeline(*commands)
+
+      status_list.each_with_index do |st, i|
+        if st.exitstatus != 0
+          fail "failed to import stream: command '#{commands[i].join(' ')}' "+
+              "exited with #{st.exitstatus}"
+        end
+      end
+
+      nil
     end
 
     # @param ds [OsCtl::Lib::Zfs::Dataset]

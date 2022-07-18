@@ -12,15 +12,20 @@ module OsCtld
       error!('the pool is disabled') unless pool.active?
 
       File.open(opts[:file], 'r') do |f|
-        import(pool, f)
+        import(pool, f, opts[:file])
       end
 
       ok
     end
 
     protected
-    def import(pool, io)
-      importer = Container::Importer.new(pool, io, ct_id: opts[:as_id])
+    def import(pool, io, image_file)
+      importer = Container::Importer.new(
+        pool,
+        io,
+        ct_id: opts[:as_id],
+        image_file: image_file,
+      )
       importer.load_metadata
 
       if !importer.has_ct_id?

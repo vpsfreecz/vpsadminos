@@ -72,7 +72,7 @@ module OsCtld
 
         # Apply new image
         fh = File.open(tpl_path, 'r')
-        importer = Container::Importer.new(ct.pool, fh, ct_id: ct.id)
+        importer = Container::Importer.new(ct.pool, fh, ct_id: ct.id, image_file: tpl_path)
         importer.load_metadata
         importer.import_root_dataset(builder)
 
