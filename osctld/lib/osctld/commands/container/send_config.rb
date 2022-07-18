@@ -62,7 +62,7 @@ module OsCtld
         token = nil
 
         IO.popen("exec #{ssh.join(' ')}", 'r+') do |io|
-          io.write(f.readpartial(128*1024)) until f.eof?
+          io.write(f.readpartial(32*1024)) until f.eof?
           io.close_write
           token = io.readline.strip
         end
