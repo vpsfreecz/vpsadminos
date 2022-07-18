@@ -12,7 +12,7 @@ module OsCtld
     # @param opts [Hash]
     # @option opts [Array<IO, Integer>] :keep_fds
     # @option opts [Boolean] :keep_stdfds (true)
-    def self.fork(opts = {}, &block)
+    def self.fork(**opts, &block)
       keep_fds = (opts[:keep_fds] || []).clone
 
       if opts.fetch(:keep_stdfds, true)
@@ -36,7 +36,7 @@ module OsCtld
     # @option opts [Integer, nil] :oom_score_adj
     # @option opts [Array<IO, Integer>] :keep_fds
     # @option opts [Boolean] :keep_stdfds (true)
-    def self.fork_and_switch_to(sysuser, ugid, homedir, cgroup_path, opts = {}, &block)
+    def self.fork_and_switch_to(sysuser, ugid, homedir, cgroup_path, **opts, &block)
       r, w = IO.pipe
 
       keep_fds = (opts[:keep_fds] || []).clone
@@ -55,7 +55,7 @@ module OsCtld
           end
         end
 
-        switch_to(sysuser, ugid, homedir, cgroup_path, opts)
+        switch_to(sysuser, ugid, homedir, cgroup_path, **opts)
 
         msg = r.readline.strip
         r.close
@@ -77,7 +77,7 @@ module OsCtld
     end
 
     # Switch the current process to an unprivileged user
-    def self.switch_to(sysuser, ugid, homedir, cgroup_path, opts = {})
+    def self.switch_to(sysuser, ugid, homedir, cgroup_path, **opts)
       chown_cgroups = opts.has_key?(:chown_cgroups) ? opts[:chown_cgroups] : true
 
       # Environment
