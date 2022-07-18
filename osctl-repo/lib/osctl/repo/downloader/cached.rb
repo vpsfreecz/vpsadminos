@@ -59,7 +59,7 @@ module OsCtl::Repo
       end
 
       if block
-        block.call(fh.read(128*1024)) until fh.eof?
+        block.call(fh.read(32*1024)) until fh.eof?
         fh.close
       end
 

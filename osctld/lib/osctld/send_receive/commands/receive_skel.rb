@@ -14,7 +14,7 @@ module OsCtld
 
       io = client.recv_io
       f = Tempfile.open('ct-skel')
-      f.write(io.read(128*1024)) until io.eof?
+      f.write(io.read(32*1024)) until io.eof?
 
       f.seek(0)
 

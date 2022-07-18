@@ -9,7 +9,7 @@ module OsCtl::Lib
   # To export the container's rootfs, use either {Exporter::Zfs} or
   # {Exporter::Tar}.
   class Exporter::Base
-    BLOCK_SIZE = 128*1024
+    BLOCK_SIZE = 32*1024
     DIR_MODE = 16877 # 0755
     FILE_MODE = 33188 # 0644
 
