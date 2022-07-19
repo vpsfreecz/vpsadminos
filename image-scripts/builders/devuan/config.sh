@@ -1,2 +1,2 @@
 DISTNAME=devuan
-RELVER=2.0
+RELVER=4
