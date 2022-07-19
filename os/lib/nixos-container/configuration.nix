@@ -77,13 +77,13 @@ in {
 
     contents = [];
     storeContents = [
-      { object = config.system.build.toplevel + "/init";
-        symlink = "/sbin/init";
-      }
       { object = config.system.build.toplevel;
         symlink = "/run/current-system";
       }
     ];
-    extraCommands = "mkdir -p boot proc sys dev etc";
+    extraCommands = pkgs.writeScript "extra-commands.sh" ''
+      mkdir -p boot dev etc proc sbin sys
+      ln -s ${config.system.build.toplevel}/init sbin/init
+    '';
   };
 }
