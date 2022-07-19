@@ -73,8 +73,8 @@ let
           default = pkgs.fetchFromGitHub {
             owner = "vpsfreecz";
             repo = "vpsadminos-image-build-scripts";
-            rev = "9caca92a3a1c383556a963f8e2f65e87e76b7ca4";
-            sha256 = "sha256-LttMkN1WLJzYiabfjDTo/JxSJ6cilWen/WP3zJ3s+P0=";
+            rev = "713618486de44372b8a90e8e6b905da664dc29e9";
+            sha256 = "sha256-OwJFMOaSmP/5FPFwhRfaBirElg/f7njixDyrqiLALTA=";
           };
           description = ''
             Build scripts for use with osctl-image
