@@ -4,7 +4,16 @@ module OsCtld
   # Configure network using NetworkManager keyfiles
   class DistConfig::Network::NetworkManager < DistConfig::Network::Base
     def usable?
-      return false if Dir.exist?(File.join(rootfs, 'etc/sysconfig/network-scripts'))
+      begin
+        network_scripts = File.join(rootfs, 'etc/sysconfig/network-scripts')
+
+        Dir.entries(network_scripts).each do |entry|
+          return false if entry.start_with?('ifcfg-')
+        end
+      rescue Errno::ENOENT, Errno::ENOTDIR
+        # pass
+      end
+
       return false unless Dir.exist?(File.join(rootfs, 'etc/NetworkManager/conf.d'))
       return false unless Dir.exist?(File.join(rootfs, 'etc/NetworkManager/system-connections'))
 
