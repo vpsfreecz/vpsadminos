@@ -163,6 +163,21 @@ module OsCtl::Image
       zfs(:set, 'uidmap=none gidmap=none', output_dataset)
       zfs(:mount, nil, output_dataset)
 
+      # There is a strange bug in ZFS, which causes certain files in the dataset
+      # to be zeroed out. Meaning, file size is the same, but the contents are
+      # only zeroes. This bug can be reliably reproduced when building image
+      # for Alpine, as it impacts its /bin/busybox file (and possibly other files
+      # as well). If another snapshot of the same dataset is made later, the file
+      # contents survive. We therefore put delay between the zfs mount above
+      # and the zfs snapshot called by the export operation below.
+      #
+      # The issue seems to be connected to txg_timeout: alpine is very small,
+      # so it can be written to disk and snapshotted before txg_timeout occurs.
+      # Making the txg_timeout shorter makes the bug less frequent, while making
+      # it longer will make it reproducible almost every time.
+      txg_timeout = File.read('/sys/module/zfs/parameters/zfs_txg_timeout').strip.to_i
+      sleep(txg_timeout > 0 ? txg_timeout + 5 : 15)
+
       Operations::Image::Export.run(self)
     end
 
