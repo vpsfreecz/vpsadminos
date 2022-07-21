@@ -1,3 +1,3 @@
 module OsVm
-  VERSION = '22.05.0'
+  VERSION = '21.11.0'
 end
