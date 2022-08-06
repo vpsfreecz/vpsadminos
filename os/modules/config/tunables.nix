@@ -2,7 +2,7 @@
 with lib;
 {
   boot.kernel.sysctl = {
-    "fs.aio-max-nr" = mkDefault 200000;
+    "fs.aio-max-nr" = mkDefault 2097152;
     "fs.inotify.max_queued_events" = mkDefault 1048576;
     "fs.inotify.max_user_instances" = mkDefault 1048576;
     "fs.inotify.max_user_watches" = mkDefault 1048576;
