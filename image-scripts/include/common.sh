@@ -58,7 +58,12 @@ function configure-common {
 export PATH="/bin:/sbin:/usr/bin:$PATH"
 rm -f /etc/mtab
 ln -s /proc/mounts /etc/mtab
-cp /usr/share/zoneinfo/Europe/Prague /etc/localtime
+
+if [ -h /etc/localtime ] ; then
+  ln -sf /usr/share/zoneinfo/Europe/Prague /etc/localtime
+else
+  cp /usr/share/zoneinfo/Europe/Prague /etc/localtime
+fi
 EOF
 }
 
