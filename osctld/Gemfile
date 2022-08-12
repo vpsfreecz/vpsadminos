@@ -1,6 +1,9 @@
 source 'https://rubygems.vpsfree.cz'
 gemspec
 
-gem 'libosctl', path: '../libosctl'
-gem 'osctl-repo', path: '../osctl-repo'
-gem 'osup', path: '../osup'
+
+unless ENV.has_key?('OS_BUILD_ID')
+  gem 'libosctl', path: '../libosctl'
+  gem 'osctl-repo', path: '../osctl-repo'
+  gem 'osup', path: '../osup'
+end

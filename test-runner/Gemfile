@@ -1,5 +1,7 @@
 source 'https://rubygems.org'
 gemspec
 
-gem 'libosctl', path: '../libosctl'
-gem 'osvm', path: '../osvm'
+unless ENV.has_key?('OS_BUILD_ID')
+  gem 'libosctl', path: '../libosctl'
+  gem 'osvm', path: '../osvm'
+end
