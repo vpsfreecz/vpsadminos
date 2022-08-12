@@ -2,11 +2,11 @@ self: super:
 let
   mariadb-connector-c = super.mariadb-connector-c.overrideAttrs (oldAttrs: rec {
     name = "mariadb-connector-c-${version}";
-    version = "3.1.13";
+    version = "3.3.1";
 
     src = super.fetchurl {
-      url = "https://downloads.mariadb.org/interstitial/connector-c-${version}/mariadb-connector-c-${version}-src.tar.gz/from/http%3A//ftp.hosteurope.de/mirror/archive.mariadb.org/?serve";
-      sha256 = "sha256:0xb8fiissblxb319y5ifqqp86zblwis789ipb753pcb4zpnsaw82";
+      url = "https://downloads.mariadb.com/Connectors/c/connector-c-${version}/mariadb-connector-c-${version}-src.tar.gz";
+      sha256 = "sha256-KZk/SuTJdWYnJJeHktGlA7nudg+7GU0yGnVCU8vmCq0=";
       name   = "mariadb-connector-c-${version}-src.tar.gz";
     };
   });
