@@ -1,4 +1,4 @@
-source 'https://rubygems.org'
+source 'https://rubygems.vpsfree.cz'
 gemspec
 
 unless ENV.has_key?('OS_BUILD_ID')
