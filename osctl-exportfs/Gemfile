@@ -1,4 +1,6 @@
 source 'https://rubygems.org'
 gemspec
 
-gem 'libosctl', path: '../libosctl'
+unless ENV.has_key?('OS_BUILD_ID')
+  gem 'libosctl', path: '../libosctl'
+end
