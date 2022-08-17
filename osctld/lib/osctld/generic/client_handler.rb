@@ -183,7 +183,7 @@ module OsCtld
     end
 
     def send_data(data)
-      @sock.send(data.to_json + "\n", 0)
+      @sock.puts(data.to_json)
       true
 
     rescue Errno::EPIPE
