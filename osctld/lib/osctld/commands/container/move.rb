@@ -15,7 +15,7 @@ module OsCtld
       manipulate(ct) do
         call_cmd!(
           Commands::Container::Copy,
-          opts.merge(consistent: true, restart: false)
+          **opts.merge(consistent: true, restart: false)
         )
 
         call_cmd!(

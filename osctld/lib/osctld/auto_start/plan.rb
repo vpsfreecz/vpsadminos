@@ -68,8 +68,12 @@ module OsCtld
 
           log(:info, ct, 'Starting enqueued container')
           Commands::Container::Start.run(
-            start_opts.merge(pool: cur_ct.pool.name, id: cur_ct.id, queue: false),
-            {handler: client_handler},
+            **start_opts.merge(
+              pool: cur_ct.pool.name,
+              id: cur_ct.id,
+              queue: false,
+              internal: {handler: client_handler},
+            ),
           )
         end,
         timeout: start_opts ? (start_opts[:wait] || 60) : nil,
