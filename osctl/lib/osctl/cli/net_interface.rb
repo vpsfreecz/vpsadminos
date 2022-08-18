@@ -189,20 +189,18 @@ module OsCtl::Cli
         end
       end
 
-      if opts[:output]
-        cols = opts[:output].split(',').map(&:to_sym)
+      fmt_opts[:cols] =
+        if opts[:output]
+          opts[:output].split(',').map(&:to_sym)
+        elsif args.count >= 2
+          %i(version addr)
+        elsif args.count >= 1
+          %i(netif version addr)
+        else
+          IP_FIELDS
+        end
 
-      elsif args.count >= 2
-        cols = %i(version addr)
-
-      elsif args.count >= 1
-        cols = %i(netif version addr)
-
-      else
-        cols = IP_FIELDS
-      end
-
-      format_output(ret, cols, **fmt_opts)
+      format_output(ret, **fmt_opts)
     end
 
     def ip_add
@@ -267,20 +265,18 @@ module OsCtl::Cli
         end
       end
 
-      if opts[:output]
-        cols = opts[:output].split(',').map(&:to_sym)
+      fmt_opts[:cols] =
+        if opts[:output]
+          opts[:output].split(',').map(&:to_sym)
+        elsif args.count >= 2
+          %i(version addr via)
+        elsif args.count >= 1
+          %i(netif version addr via)
+        else
+          cols = ROUTE_FIELDS
+        end
 
-      elsif args.count >= 2
-        cols = %i(version addr via)
-
-      elsif args.count >= 1
-        cols = %i(netif version addr via)
-
-      else
-        cols = ROUTE_FIELDS
-      end
-
-      format_output(ret, cols, **fmt_opts)
+      format_output(ret, **fmt_opts)
     end
 
     def route_add

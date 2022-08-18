@@ -19,14 +19,14 @@ module OsCtl::Cli
             lock[:backtrace] = lock[:backtrace].join("\n")
             lock
           end,
-          %i(id time thread object type state backtrace),
+          cols: %i(id time thread object type state backtrace),
           layout: :rows,
         )
 
       else
         format_output(
           data,
-          %i(id thread object type state),
+          cols: %i(id thread object type state),
           layout: :columns,
         )
       end
@@ -50,7 +50,7 @@ module OsCtl::Cli
         thread[:backtrace] = thread[:backtrace] && thread[:backtrace].join("\n")
         thread
       end
-      format_output(data, nil, layout: :rows)
+      format_output(data, layout: :rows)
     end
 
     def ugids_ls
@@ -64,7 +64,6 @@ module OsCtl::Cli
               free: !data[:allocated].include?(ugid),
             }
           end,
-          nil,
           layout: :columns,
         )
 

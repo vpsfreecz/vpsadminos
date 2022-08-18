@@ -90,7 +90,7 @@ module OsCtl::Cli
     end
 
     def print_set(ct_set)
-      OsCtl::Lib::Cli::OutputFormatter.print(ct_set, cols, layout: :columns)
+      OsCtl::Lib::Cli::OutputFormatter.print(ct_set, cols: cols, layout: :columns)
     end
 
     def ask_confirmation!

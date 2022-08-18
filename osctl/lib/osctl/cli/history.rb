@@ -35,7 +35,7 @@ module OsCtl::Cli
         data.each { puts data.to_json }
 
       else
-        OsCtl::Lib::Cli::OutputFormatter.print(data, cols, layout: :columns)
+        OsCtl::Lib::Cli::OutputFormatter.print(data, cols: cols, layout: :columns)
       end
     end
   end

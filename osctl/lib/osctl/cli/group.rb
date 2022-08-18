@@ -55,7 +55,9 @@ module OsCtl::Cli
       end
 
       fmt_opts[:header] = false if opts['hide-header']
+
       cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : DEFAULT_FIELDS
+      fmt_opts[:cols] = cols
 
       groups = cg_add_stats(
         c.cmd_data!(:group_list, **cmd_opts),
@@ -71,7 +73,7 @@ module OsCtl::Cli
         cols & cgparams.map(&:to_sym)
       )
 
-      format_output(groups, cols, **fmt_opts)
+      format_output(groups, **fmt_opts)
     end
 
     def tree
@@ -94,7 +96,10 @@ module OsCtl::Cli
 
       cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS
 
-      fmt_opts = {layout: :rows}
+      fmt_opts = {
+        layout: :rows,
+        cols: cols,
+      }
       fmt_opts[:header] = false if opts['hide-header']
 
       group = c.cmd_data!(:group_show, name: args[0], pool: gopts[:pool])
@@ -112,7 +117,7 @@ module OsCtl::Cli
         cols & cgparams.map(&:to_sym)
       )
 
-      format_output(group, cols, **fmt_opts)
+      format_output(group, **fmt_opts)
     end
 
     def create

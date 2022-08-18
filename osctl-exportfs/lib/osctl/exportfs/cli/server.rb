@@ -13,11 +13,11 @@ module OsCtl::ExportFS::Cli
 
       fmt_opts = {
         layout: :columns,
+        cols: opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS,
         sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
       }
 
       fmt_opts[:header] = false if opts['hide-header']
-      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS
 
       OsCtl::Lib::Cli::OutputFormatter.print(
         OsCtl::ExportFS::Operations::Server::List.run.map do |s|
@@ -30,7 +30,6 @@ module OsCtl::ExportFS::Cli
             address: cfg.address,
           }
         end,
-        cols,
         **fmt_opts
       )
     end

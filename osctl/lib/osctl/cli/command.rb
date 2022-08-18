@@ -38,6 +38,7 @@ module OsCtl::Cli
 
     def osctld_fmt(cmd, cmd_opts: {}, cols: nil, fmt_opts: {}, &block)
       cmd_opts[:cli] ||= cli_opt
+      fmt_opts[:cols] = cols
 
       if block
         ret = osctld_call(cmd, **cmd_opts, &block)
@@ -48,18 +49,18 @@ module OsCtl::Cli
       if ret.is_a?(String)
         puts ret
       elsif ret
-        format_output(ret, cols, **fmt_opts)
+        format_output(ret, **fmt_opts)
       end
 
       ret
     end
 
-    def format_output(data, cols, **fmt_opts)
+    def format_output(data, **fmt_opts)
       if gopts[:json]
         puts data.to_json
 
       else
-        OsCtl::Lib::Cli::OutputFormatter.print(data, cols, **fmt_opts)
+        OsCtl::Lib::Cli::OutputFormatter.print(data, **fmt_opts)
       end
     end
 
