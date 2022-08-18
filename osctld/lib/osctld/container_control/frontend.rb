@@ -181,8 +181,8 @@ module OsCtld
           SwitchUser.switch_to_system(sysuser, ugid, ugid, homedir)
         end
 
-        runner = command_class::Runner.new(runner_opts)
-        ret = runner.execute(*args)
+        runner = command_class::Runner.new(**runner_opts)
+        ret = runner.execute(*args, **kwargs)
         w.write(ret.to_json + "\n")
 
         exit
