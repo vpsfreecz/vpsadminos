@@ -9,19 +9,19 @@ module OsCtld
       @cmd
     end
 
-    # @param cmd_opts [Hash] command options
-    # @param opts [Hash] options
-    # @option opts [Fixnum] id command id
-    # @option opts [Generic::ClientHandler, nil] handler
-    # @option opts [Boolean] indirect
-    def self.run(cmd_opts = {}, opts = {})
-      opts[:id] ||= Command.get_id
-      c = new(cmd_opts, opts)
+    # @param kwargs [Hash] command options
+    # @param internal [Hash] internal options
+    # @option internal [Fixnum] :id command id
+    # @option internal [Generic::ClientHandler, nil] :handler
+    # @option internal [Boolean] :indirect
+    def self.run(internal: {}, **kwargs)
+      kwargs[:id] ||= Command.get_id
+      c = new(kwargs, internal)
       c.base_execute
     end
 
-    def self.run!(*args)
-      ret = run(*args)
+    def self.run!(**kwargs)
+      ret = run(**kwargs)
 
       if !ret.is_a?(Hash)
         fail "invalid return value '#{ret.inspect}'"
@@ -70,12 +70,12 @@ module OsCtld
     protected
     attr_reader :client_handler
 
-    def call_cmd(klass, opts = {})
-      klass.run(opts, handler: client_handler, indirect: true)
+    def call_cmd(klass, **opts)
+      klass.run(internal: {handler: client_handler, indirect: true}, **opts)
     end
 
-    def call_cmd!(*args)
-      ret = call_cmd(*args)
+    def call_cmd!(*args, **kwargs)
+      ret = call_cmd(*args, **kwargs)
 
       if !ret.is_a?(Hash)
         error!("invalid return value '#{ret.inspect}'")
