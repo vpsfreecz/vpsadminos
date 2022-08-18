@@ -15,8 +15,8 @@ module OsCtld
       end
 
       Assets.types.each do |t|
-        define_method(t) do |*args, &block|
-          send(:asset, t, *args, &block)
+        define_method(t) do |*args, **kwargs, &block|
+          send(:asset, t, *args, **kwargs, &block)
         end
       end
     end
