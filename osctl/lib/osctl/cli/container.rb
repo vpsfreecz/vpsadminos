@@ -134,7 +134,7 @@ module OsCtl::Cli
         end
 
       cts = cg_add_stats(
-        c.cmd_data!(:ct_list, cmd_opts),
+        c.cmd_data!(:ct_list, **cmd_opts),
         lambda { |ct| ct[:group_path] },
         cols,
         gopts[:parsable]
@@ -222,7 +222,11 @@ module OsCtl::Cli
     def delete
       require_args!('id')
 
-      osctld_fmt(:ct_delete, id: args[0], pool: gopts[:pool], force: opts[:force])
+      osctld_fmt(:ct_delete, cmd_opts: {
+        id: args[0],
+        pool: gopts[:pool],
+        force: opts[:force],
+      })
     end
 
     def reinstall
@@ -247,12 +251,12 @@ module OsCtl::Cli
         )
       end
 
-      osctld_fmt(:ct_reinstall, cmd_opts)
+      osctld_fmt(:ct_reinstall, cmd_opts: cmd_opts)
     end
 
     def mount
       require_args!('id')
-      osctld_fmt(:ct_mount, id: args[0], pool: gopts[:pool])
+      osctld_fmt(:ct_mount, cmd_opts: {id: args[0], pool: gopts[:pool]})
     end
 
     def start
@@ -273,13 +277,13 @@ module OsCtl::Cli
 
       if opts[:foreground]
         open_console(args[0], gopts[:pool], 0, gopts[:json]) do |sock|
-          sock.close if osctld_resp(:ct_start, cmd_opts).error?
+          sock.close if osctld_resp(:ct_start, **cmd_opts).error?
         end
 
         return
       end
 
-      osctld_fmt(:ct_start, cmd_opts)
+      osctld_fmt(:ct_start, cmd_opts: cmd_opts)
 
       if opts[:attach]
         puts 'Attaching'
@@ -310,10 +314,10 @@ module OsCtl::Cli
         method: m,
       }
 
-      return osctld_fmt(:ct_stop, cmd_opts) unless opts[:foreground]
+      return osctld_fmt(:ct_stop, cmd_opts: cmd_opts) unless opts[:foreground]
 
       open_console(args[0], gopts[:pool], 0, gopts[:json]) do |sock|
-        sock.close if osctld_resp(:ct_stop, cmd_opts).error?
+        sock.close if osctld_resp(:ct_stop, **cmd_opts).error?
       end
     end
 
@@ -352,13 +356,13 @@ module OsCtl::Cli
 
       if opts[:foreground]
         open_console(args[0], gopts[:pool], 0, gopts[:json]) do |sock|
-          sock.close if osctld_resp(:ct_restart, cmd_opts).error?
+          sock.close if osctld_resp(:ct_restart, **cmd_opts).error?
         end
 
         return
       end
 
-      osctld_fmt(:ct_restart, cmd_opts)
+      osctld_fmt(:ct_restart, cmd_opts: cmd_opts)
 
       if opts[:attach]
         puts 'Attaching'
@@ -522,7 +526,7 @@ module OsCtl::Cli
         )
       end
 
-      osctld_fmt(:ct_set_image_config, cmd_opts)
+      osctld_fmt(:ct_set_image_config, cmd_opts: cmd_opts)
     end
 
     def set_seccomp_profile
@@ -638,7 +642,7 @@ module OsCtl::Cli
       cmd_opts[:target_group] = opts[:group] if opts[:group]
       cmd_opts[:target_dataset] = opts[:dataset] if opts[:dataset]
 
-      osctld_fmt(:ct_copy, cmd_opts)
+      osctld_fmt(:ct_copy, cmd_opts: cmd_opts)
     end
 
     def move
@@ -662,23 +666,26 @@ module OsCtl::Cli
       cmd_opts[:target_group] = opts[:group] if opts[:group]
       cmd_opts[:target_dataset] = opts[:dataset] if opts[:dataset]
 
-      osctld_fmt(:ct_move, cmd_opts)
+      osctld_fmt(:ct_move, cmd_opts: cmd_opts)
     end
 
     def chown
       require_args!('id', 'user')
-      osctld_fmt(:ct_chown, id: args[0], pool: gopts[:pool], user: args[1])
+      osctld_fmt(:ct_chown, cmd_opts: {
+        id: args[0],
+        pool: gopts[:pool],
+        user: args[1],
+      })
     end
 
     def chgrp
       require_args!('id', 'group')
-      osctld_fmt(
-        :ct_chgrp,
+      osctld_fmt(:ct_chgrp, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
         group: args[1],
         missing_devices: opts['missing-devices']
-      )
+      })
     end
 
     def boot
@@ -720,13 +727,13 @@ module OsCtl::Cli
 
       if opts[:foreground]
         open_console(args[0], gopts[:pool], 0, gopts[:json]) do |sock|
-          sock.close if osctld_resp(:ct_boot, cmd_opts).error?
+          sock.close if osctld_resp(:ct_boot, **cmd_opts).error?
         end
 
         return
       end
 
-      osctld_fmt(:ct_boot, cmd_opts)
+      osctld_fmt(:ct_boot, cmd_opts: cmd_opts)
 
       if opts[:attach]
         puts 'Attaching'
@@ -736,21 +743,19 @@ module OsCtl::Cli
 
     def config_reload
       require_args!('id')
-      osctld_fmt(
-        :ct_cfg_reload,
+      osctld_fmt(:ct_cfg_reload, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
-      )
+      })
     end
 
     def config_replace
       require_args!('id')
-      osctld_fmt(
-        :ct_cfg_replace,
+      osctld_fmt(:ct_cfg_replace, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
         config: STDIN.read,
-      )
+      })
     end
 
     def passwd
@@ -764,26 +769,24 @@ module OsCtl::Cli
         password = cli.ask('Password: ') { |q| q.echo = false }.strip
       end
 
-      osctld_fmt(
-        :ct_passwd,
+      osctld_fmt(:ct_passwd, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
         user: args[1],
-        password: password
-      )
+        password: password,
+      })
     end
 
     def export
       require_args!('id', 'file')
 
-      osctld_fmt(
-        :ct_export,
+      osctld_fmt(:ct_export, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
         file: File.expand_path(args[1]),
         consistent: opts[:consistent],
         compression: opts[:compression]
-      )
+      })
     end
 
     def import
@@ -798,7 +801,7 @@ module OsCtl::Cli
         cmd_opts[v.sub('-', '_').to_sym] = opts[v] if opts[v]
       end
 
-      osctld_fmt(:ct_import, cmd_opts)
+      osctld_fmt(:ct_import, cmd_opts: cmd_opts)
     end
 
     def log_cat
@@ -820,17 +823,17 @@ module OsCtl::Cli
 
     def reconfigure
       require_args!('id')
-      osctld_fmt(:ct_reconfigure, id: args[0], pool: gopts[:pool])
+      osctld_fmt(:ct_reconfigure, cmd_opts: {id: args[0], pool: gopts[:pool]})
     end
 
     def freeze
       require_args!('id')
-      osctld_fmt(:ct_freeze, id: args[0], pool: gopts[:pool])
+      osctld_fmt(:ct_freeze, cmd_opts: {id: args[0], pool: gopts[:pool]})
     end
 
     def unfreeze
       require_args!('id')
-      osctld_fmt(:ct_unfreeze, id: args[0], pool: gopts[:pool])
+      osctld_fmt(:ct_unfreeze, cmd_opts: {id: args[0], pool: gopts[:pool]})
     end
 
     def bisect
@@ -864,7 +867,7 @@ module OsCtl::Cli
 
       cmd_opts[:ids] = args if args.count > 0
 
-      cts = c.cmd_data!(:ct_list, cmd_opts)
+      cts = c.cmd_data!(:ct_list, **cmd_opts)
 
       if opts[:exclude]
         exclude_ctids = opts[:exclude].split(',').map do |v|
@@ -1090,7 +1093,7 @@ module OsCtl::Cli
         cols = PRLIMIT_FIELDS
       end
 
-      data = osctld_call(:ct_prlimit_list, cmd_opts)
+      data = osctld_call(:ct_prlimit_list, **cmd_opts)
       format_output(data.map { |k, v| v.merge(name: k)}, cols, **fmt_opts)
     end
 
@@ -1100,14 +1103,13 @@ module OsCtl::Cli
       soft, hard = args[2..3].map { |v| /^\d+$/ =~ v ? v.to_i : v }
       hard = soft if hard.nil?
 
-      osctld_fmt(
-        :ct_prlimit_set,
+      osctld_fmt(:ct_prlimit_set, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
         name: args[1],
         soft: soft,
         hard: hard
-      )
+      })
     end
 
     def prlimit_unset
@@ -1142,31 +1144,29 @@ module OsCtl::Cli
         cols = nil
       end
 
-      osctld_fmt(:ct_dataset_list, cmd_opts, cols, fmt_opts)
+      osctld_fmt(:ct_dataset_list, cmd_opts: cmd_opts, cols: cols, fmt_opts: fmt_opts)
     end
 
     def dataset_create
       require_args!('id', 'name', optional: %w(mountpoint))
-      osctld_fmt(
-        :ct_dataset_create,
+      osctld_fmt(:ct_dataset_create, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
         name: args[1],
         mount: opts[:mount],
         mountpoint: args[2]
-      )
+      })
     end
 
     def dataset_delete
       require_args!('id', 'name')
-      osctld_fmt(
-        :ct_dataset_delete,
+      osctld_fmt(:ct_dataset_delete, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
         name: args[1],
         recursive: opts[:recursive],
         unmount: opts[:unmount]
-      )
+      })
     end
 
     def mount_list
@@ -1189,14 +1189,13 @@ module OsCtl::Cli
         cols = MOUNT_FIELDS
       end
 
-      osctld_fmt(:ct_mount_list, cmd_opts, cols, fmt_opts)
+      osctld_fmt(:ct_mount_list, cmd_opts: cmd_opts, cols: cols, fmt_opts: fmt_opts)
     end
 
     def mount_create
       require_args!('id')
 
-      osctld_fmt(
-        :ct_mount_create,
+      osctld_fmt(:ct_mount_create, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
         fs: opts[:fs],
@@ -1204,7 +1203,7 @@ module OsCtl::Cli
         type: opts[:type],
         opts: opts[:opts],
         automount: opts[:automount],
-      )
+      })
     end
 
     def mount_dataset
@@ -1223,22 +1222,20 @@ module OsCtl::Cli
         mode = 'rw'
       end
 
-      osctld_fmt(
-        :ct_mount_dataset,
+      osctld_fmt(:ct_mount_dataset, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
         name: args[1],
         mountpoint: args[2],
         mode: mode,
         automount: opts[:automount],
-      )
+      })
     end
 
     def mount_register
       require_args!('id', 'mountpoint')
 
-      osctld_fmt(
-        :ct_mount_register,
+      osctld_fmt(:ct_mount_register, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
         fs: opts[:fs],
@@ -1246,40 +1243,37 @@ module OsCtl::Cli
         type: opts[:type],
         opts: opts[:opts],
         lock: !opts['on-ct-start'],
-      )
+      })
     end
 
     def mount_activate
       require_args!('id', 'mountpoint')
 
-      osctld_fmt(
-        :ct_mount_activate,
+      osctld_fmt(:ct_mount_activate, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
         mountpoint: args[1]
-      )
+      })
     end
 
     def mount_deactivate
       require_args!('id', 'mountpoint')
 
-      osctld_fmt(
-        :ct_mount_deactivate,
+      osctld_fmt(:ct_mount_deactivate, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
         mountpoint: args[1]
-      )
+      })
     end
 
     def mount_delete
       require_args!('id', 'mountpoint')
 
-      osctld_fmt(
-        :ct_mount_delete,
+      osctld_fmt(:ct_mount_delete, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
         mountpoint: args[1]
-      )
+      })
     end
 
     def recover_kill
@@ -1363,12 +1357,11 @@ module OsCtl::Cli
     def recover_state
       require_args!('id')
 
-      osctld_fmt(
-        :ct_recover_state,
+      osctld_fmt(:ct_recover_state, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
         manipulation_lock: opts[:lock] ? nil : 'ignore',
-      )
+      })
     end
 
     def recover_cleanup
@@ -1380,13 +1373,12 @@ module OsCtl::Cli
 
       cleanup = 'all' if cleanup.empty?
 
-      osctld_fmt(
-        :ct_recover_cleanup,
+      osctld_fmt(:ct_recover_cleanup, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
         force: opts[:force],
         cleanup: cleanup,
-      )
+      })
     end
 
     protected
@@ -1408,7 +1400,7 @@ module OsCtl::Cli
 
       cmd_opts[:image] = repo_image_attrs
 
-      osctld_fmt(:ct_create, cmd_opts)
+      osctld_fmt(:ct_create, cmd_opts: cmd_opts)
     end
 
     def create_empty
@@ -1433,7 +1425,7 @@ module OsCtl::Cli
         cmd_opts[v] = opts[v] if opts[v]
       end
 
-      osctld_fmt(:ct_create_empty, cmd_opts)
+      osctld_fmt(:ct_create_empty, cmd_opts: cmd_opts)
     end
 
     def set(option)
@@ -1441,7 +1433,7 @@ module OsCtl::Cli
       cmd_opts = {id: args[0], pool: gopts[:pool]}
       cmd_opts[option] = yield(args[1..-1])
 
-      osctld_fmt(:ct_set, cmd_opts)
+      osctld_fmt(:ct_set, cmd_opts: cmd_opts)
     end
 
     def unset(option)
@@ -1449,7 +1441,7 @@ module OsCtl::Cli
       cmd_opts = {id: args[0], pool: gopts[:pool]}
       cmd_opts[option] = block_given? ? yield(args[1..-1]) : true
 
-      osctld_fmt(:ct_unset, cmd_opts)
+      osctld_fmt(:ct_unset, cmd_opts: cmd_opts)
     end
 
     def repo_image_attrs(defaults: true)

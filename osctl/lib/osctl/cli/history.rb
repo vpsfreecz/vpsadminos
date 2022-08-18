@@ -29,7 +29,7 @@ module OsCtl::Cli
 
       cmd_opts = {}
       cmd_opts[:pools] = args if args.any?
-      data = osctld_call(:history_list, cmd_opts)
+      data = osctld_call(:history_list, **cmd_opts)
 
       if gopts[:json]
         data.each { puts data.to_json }

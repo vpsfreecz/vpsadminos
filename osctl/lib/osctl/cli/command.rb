@@ -20,29 +20,29 @@ module OsCtl::Cli
       c
     end
 
-    def osctld_call(cmd, opts = {}, &block)
+    def osctld_call(cmd, **opts, &block)
       c = osctld_open
       opts[:cli] ||= cli_opt
-      ret = c.cmd_data!(cmd, opts, &block)
+      ret = c.cmd_data!(cmd, **opts, &block)
       c.close
       ret
     end
 
-    def osctld_resp(cmd, opts = {}, &block)
+    def osctld_resp(cmd, **opts, &block)
       c = osctld_open
       opts[:cli] ||= cli_opt
-      ret = c.cmd_response(cmd, opts, &block)
+      ret = c.cmd_response(cmd, **opts, &block)
       c.close
       ret
     end
 
-    def osctld_fmt(cmd, opts = {}, cols = nil, fmt_opts = {}, &block)
-      opts[:cli] ||= cli_opt
+    def osctld_fmt(cmd, cmd_opts: {}, cols: nil, fmt_opts: {}, &block)
+      cmd_opts[:cli] ||= cli_opt
 
       if block
-        ret = osctld_call(cmd, opts, &block)
+        ret = osctld_call(cmd, **cmd_opts, &block)
       else
-        ret = osctld_call(cmd, opts) { |msg| puts msg unless gopts[:quiet] }
+        ret = osctld_call(cmd, **cmd_opts) { |msg| puts msg unless gopts[:quiet] }
       end
 
       if ret.is_a?(String)
@@ -54,7 +54,7 @@ module OsCtl::Cli
       ret
     end
 
-    def format_output(data, cols = nil, **fmt_opts)
+    def format_output(data, cols, **fmt_opts)
       if gopts[:json]
         puts data.to_json
 

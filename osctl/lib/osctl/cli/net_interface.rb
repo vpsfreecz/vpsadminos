@@ -77,7 +77,7 @@ module OsCtl::Cli
         cols = %i(pool ctid) + DEFAULT_FIELDS
       end
 
-      osctld_fmt(:netif_list, cmd_opts, cols, fmt_opts)
+      osctld_fmt(:netif_list, cmd_opts: cmd_opts, cols: cols, fmt_opts: fmt_opts)
     end
 
     def create_bridge
@@ -95,7 +95,7 @@ module OsCtl::Cli
 
       parse_gateway(cmd_opts)
 
-      osctld_fmt(:netif_create, cmd_opts)
+      osctld_fmt(:netif_create, cmd_opts: cmd_opts)
     end
 
     def create_routed
@@ -109,23 +109,26 @@ module OsCtl::Cli
         hwaddr: opts[:hwaddr],
       }
 
-      osctld_fmt(:netif_create, cmd_opts)
+      osctld_fmt(:netif_create, cmd_opts: cmd_opts)
     end
 
     def delete
       require_args!('id', 'name')
-      osctld_fmt(:netif_delete, id: args[0], pool: gopts[:pool], name: args[1])
+      osctld_fmt(:netif_delete, cmd_opts: {
+        id: args[0],
+        pool: gopts[:pool],
+        name: args[1],
+      })
     end
 
     def rename
       require_args!('id', 'old-name', 'new-name')
-      osctld_fmt(
-        :netif_rename,
+      osctld_fmt(:netif_rename, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
         old_name: args[1],
         new_name: args[2]
-      )
+      })
     end
 
     def set
@@ -147,7 +150,7 @@ module OsCtl::Cli
         cmd_opts[:dhcp] = false
       end
 
-      osctld_fmt(:netif_set, cmd_opts)
+      osctld_fmt(:netif_set, cmd_opts: cmd_opts)
     end
 
     def ip_list
@@ -168,7 +171,7 @@ module OsCtl::Cli
       fmt_opts[:header] = false if opts['hide-header']
 
       ret = []
-      data = osctld_call(:netif_ip_list, cmd_opts)
+      data = osctld_call(:netif_ip_list, **cmd_opts)
 
       data.each do |netif|
         [4, 6].each do |ip_v|
@@ -205,28 +208,26 @@ module OsCtl::Cli
     def ip_add
       require_args!('id', 'name', 'addr')
 
-      osctld_fmt(
-        :netif_ip_add,
+      osctld_fmt(:netif_ip_add, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
         name: args[1],
         addr: args[2],
         route: opts['route-as'] || opts[:route],
-      )
+      })
     end
 
     def ip_del
       require_args!('id', 'name', 'addr')
 
-      osctld_fmt(
-        :netif_ip_del,
+      osctld_fmt(:netif_ip_del, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
         name: args[1],
         addr: args[2],
         keep_route: opts['keep-route'],
         version: opts[:version],
-      )
+      })
     end
 
     def route_list
@@ -247,7 +248,7 @@ module OsCtl::Cli
       fmt_opts[:header] = false if opts['hide-header']
 
       ret = []
-      data = osctld_call(:netif_route_list, cmd_opts)
+      data = osctld_call(:netif_route_list, **cmd_opts)
 
       data.each do |netif|
         [4, 6].each do |ip_v|
@@ -285,27 +286,25 @@ module OsCtl::Cli
     def route_add
       require_args!('id', 'name', 'addr')
 
-      osctld_fmt(
-        :netif_route_add,
+      osctld_fmt(:netif_route_add, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
         name: args[1],
         addr: args[2],
         via: opts[:via],
-      )
+      })
     end
 
     def route_del
       require_args!('id', 'name', 'addr')
 
-      osctld_fmt(
-        :netif_route_del,
+      osctld_fmt(:netif_route_del, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
         name: args[1],
         addr: args[2],
         version: opts[:version],
-      )
+      })
     end
 
     protected

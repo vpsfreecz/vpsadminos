@@ -18,7 +18,7 @@ module OsCtl::Cli
       cmd_opts = {type: 'state', opts: {}}
       cmd_opts[:opts][:id] = args if args.any?
 
-      ret = c.cmd_data!(:event_subscribe, cmd_opts)
+      ret = c.cmd_data!(:event_subscribe, **cmd_opts)
       return if ret != 'subscribed'
 
       monitor_loop(c)
@@ -42,7 +42,7 @@ module OsCtl::Cli
       states = args[1..-1]
 
       # First, subscribe for events
-      ret = c.cmd_data!(:event_subscribe, cmd_opts)
+      ret = c.cmd_data!(:event_subscribe, **cmd_opts)
       return if ret != 'subscribed'
 
       # Then check the current state using another connection, exit if we're

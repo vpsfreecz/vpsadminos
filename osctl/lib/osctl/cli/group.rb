@@ -58,7 +58,7 @@ module OsCtl::Cli
       cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : DEFAULT_FIELDS
 
       groups = cg_add_stats(
-        c.cmd_data!(:group_list, cmd_opts),
+        c.cmd_data!(:group_list, **cmd_opts),
         lambda { |g| g[:full_path] },
         cols,
         gopts[:parsable]
@@ -125,12 +125,12 @@ module OsCtl::Cli
         cgparams: parse_cgparams,
       }
 
-      osctld_fmt(:group_create, cmd_opts)
+      osctld_fmt(:group_create, cmd_opts: cmd_opts)
     end
 
     def delete
       require_args!('name')
-      osctld_fmt(:group_delete, name: args[0], pool: gopts[:pool])
+      osctld_fmt(:group_delete, cmd_opts: {name: args[0], pool: gopts[:pool]})
     end
 
     def set_cpu_limit

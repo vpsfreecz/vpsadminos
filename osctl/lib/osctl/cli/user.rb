@@ -69,7 +69,7 @@ module OsCtl::Cli
           DEFAULT_FIELDS
         end
 
-      users = osctld_call(:user_list, cmd_opts)
+      users = osctld_call(:user_list, **cmd_opts)
       keyring.add_user_values(users, cols, precise: gopts[:parsable])
 
       format_output(users, cols, **fmt_opts)
@@ -114,7 +114,7 @@ module OsCtl::Cli
         gid_map = opts['map-gid']
       end
 
-      osctld_fmt(:user_create, {
+      osctld_fmt(:user_create, cmd_opts: {
         name: args[0],
         pool: opts[:pool] || gopts[:pool],
         id_range: opts['id-range'],
@@ -127,16 +127,16 @@ module OsCtl::Cli
 
     def delete
       require_args!('name')
-      osctld_fmt(:user_delete, name: args[0], pool: gopts[:pool])
+      osctld_fmt(:user_delete, cmd_opts: {name: args[0], pool: gopts[:pool]})
     end
 
     def register
       require_args!('name')
 
       if args[0] == 'all'
-        osctld_fmt(:user_register, all: true)
+        osctld_fmt(:user_register, cmd_opts: {all: true})
       else
-        osctld_fmt(:user_register, name: args[0], pool: gopts[:pool])
+        osctld_fmt(:user_register, cmd_opts: {name: args[0], pool: gopts[:pool]})
       end
     end
 
@@ -144,9 +144,9 @@ module OsCtl::Cli
       require_args!('name')
 
       if args[0] == 'all'
-        osctld_fmt(:user_unregister, all: true)
+        osctld_fmt(:user_unregister, cmd_opts: {all: true})
       else
-        osctld_fmt(:user_unregister, name: args[0], pool: gopts[:pool])
+        osctld_fmt(:user_unregister, cmd_opts: {name: args[0], pool: gopts[:pool]})
       end
     end
 
@@ -185,30 +185,28 @@ module OsCtl::Cli
 
       osctld_fmt(
         :user_idmap_list,
-        cmd_opts,
-        opts[:output] ? opts[:output].split(',').map(&:to_sym) : IDMAP_FIELDS,
-        fmt_opts
+        cmd_opts: cmd_opts,
+        cols: opts[:output] ? opts[:output].split(',').map(&:to_sym) : IDMAP_FIELDS,
+        fmt_opts: fmt_opts,
       )
     end
 
     def set_standalone
       require_args!('name')
-      osctld_fmt(
-        :user_set,
+      osctld_fmt(:user_set, cmd_opts: {
         name: args[0],
         pool: gopts[:pool],
         standalone: true,
-      )
+      })
     end
 
     def unset_standalone
       require_args!('name')
-      osctld_fmt(
-        :user_unset,
+      osctld_fmt(:user_unset, cmd_opts: {
         name: args[0],
         pool: gopts[:pool],
         standalone: true,
-      )
+      })
     end
 
     def set_attr

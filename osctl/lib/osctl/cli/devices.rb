@@ -21,9 +21,9 @@ module OsCtl
 
       osctld_fmt(
         cmd,
-        cmd_opts,
-        opts[:output] ? opts[:output].split(',').map(&:to_sym) : nil,
-        fmt_opts
+        cmd_opts: cmd_opts,
+        cols: opts[:output] ? opts[:output].split(',').map(&:to_sym) : nil,
+        fmt_opts: fmt_opts,
       )
     end
 
@@ -32,7 +32,7 @@ module OsCtl
         raise GLI::BadCommandLine, 'device type has to be one of: block, char'
       end
 
-      osctld_fmt(cmd, cmd_opts.merge(
+      osctld_fmt(cmd, cmd_opts: cmd_opts.merge(
         type: args[1],
         major: args[2],
         minor: args[3],
@@ -48,7 +48,7 @@ module OsCtl
         raise GLI::BadCommandLine, 'device type has to be one of: block, char'
       end
 
-      osctld_fmt(cmd, cmd_opts.merge(
+      osctld_fmt(cmd, cmd_opts: cmd_opts.merge(
         type: args[1],
         major: args[2],
         minor: args[3],
@@ -61,7 +61,7 @@ module OsCtl
         raise GLI::BadCommandLine, 'device type has to be one of: block, char'
       end
 
-      osctld_fmt(cmd, cmd_opts.merge(
+      osctld_fmt(cmd, cmd_opts: cmd_opts.merge(
         type: args[1],
         major: args[2],
         minor: args[3],
@@ -76,7 +76,7 @@ module OsCtl
         raise GLI::BadCommandLine, 'device type has to be one of: block, char'
       end
 
-      osctld_fmt(cmd, cmd_opts.merge(
+      osctld_fmt(cmd, cmd_opts: cmd_opts.merge(
         type: args[1],
         major: args[2],
         minor: args[3],
@@ -88,7 +88,7 @@ module OsCtl
         raise GLI::BadCommandLine, 'device type has to be one of: block, char'
       end
 
-      osctld_fmt(cmd, cmd_opts.merge(
+      osctld_fmt(cmd, cmd_opts: cmd_opts.merge(
         type: args[1],
         major: args[2],
         minor: args[3],
@@ -100,7 +100,7 @@ module OsCtl
         raise GLI::BadCommandLine, 'device type has to be one of: block, char'
       end
 
-      osctld_fmt(cmd, cmd_opts.merge(
+      osctld_fmt(cmd, cmd_opts: cmd_opts.merge(
         type: args[1],
         major: args[2],
         minor: args[3],
@@ -112,7 +112,7 @@ module OsCtl
         raise GLI::BadCommandLine, 'device type has to be one of: block, char'
       end
 
-      osctld_fmt(cmd, cmd_opts.merge(
+      osctld_fmt(cmd, cmd_opts: cmd_opts.merge(
         type: args[1],
         major: args[2],
         minor: args[3],
@@ -120,7 +120,7 @@ module OsCtl
     end
 
     def do_device_replace(cmd, cmd_opts)
-      osctld_fmt(cmd, cmd_opts.merge(
+      osctld_fmt(cmd, cmd_opts: cmd_opts.merge(
         devices: JSON.parse(STDIN.read)['devices'],
       ))
     end

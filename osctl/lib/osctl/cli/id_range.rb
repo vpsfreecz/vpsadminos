@@ -26,7 +26,7 @@ module OsCtl::Cli
       fmt_opts[:header] = false if opts['hide-header']
       cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS
 
-      osctld_fmt(:id_range_list, cmd_opts, cols, fmt_opts)
+      osctld_fmt(:id_range_list, cmd_opts: cmd_opts, cols: cols, fmt_opts: fmt_opts)
     end
 
     def show
@@ -43,30 +43,28 @@ module OsCtl::Cli
       fmt_opts[:header] = false if opts['hide-header']
       cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS
 
-      osctld_fmt(:id_range_show, cmd_opts, cols, fmt_opts)
+      osctld_fmt(:id_range_show, cmd_opts: cmd_opts, cols: cols, fmt_opts: fmt_opts)
     end
 
     def create
       require_args!('id-range')
 
-      osctld_fmt(
-        :id_range_create,
+      osctld_fmt(:id_range_create, cmd_opts: {
         pool: gopts[:pool],
         name: args[0],
         start_id: opts['start-id'],
         block_size: opts['block-size'],
         block_count: opts['block-count'],
-      )
+      })
     end
 
     def delete
       require_args!('id-range')
 
-      osctld_fmt(
-        :id_range_delete,
+      osctld_fmt(:id_range_delete, cmd_opts: {
         pool: gopts[:pool],
         name: args[0],
-      )
+      })
     end
 
     def table_list
@@ -104,7 +102,7 @@ module OsCtl::Cli
           TABLE_FIELDS[1..-1] # hide column `type`
         end
 
-      osctld_fmt(:id_range_table_list, cmd_opts, cols, fmt_opts)
+      osctld_fmt(:id_range_table_list, cmd_opts: cmd_opts, cols: cols, fmt_opts: fmt_opts)
     end
 
     def table_show
@@ -121,20 +119,19 @@ module OsCtl::Cli
       fmt_opts[:header] = false if opts['hide-header']
       cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : TABLE_FIELDS
 
-      osctld_fmt(:id_range_table_show, cmd_opts, cols, fmt_opts)
+      osctld_fmt(:id_range_table_show, cmd_opts: cmd_opts, cols: cols, fmt_opts: fmt_opts)
     end
 
     def allocate
       require_args!('id-range')
 
-      osctld_fmt(
-        :id_range_allocate,
+      osctld_fmt(:id_range_allocate, cmd_opts: {
         pool: gopts[:pool],
         name: args[0],
         block_count: opts['block-count'],
         block_index: opts['block-index'],
         owner: opts[:owner],
-      )
+      })
     end
 
     def free
@@ -144,13 +141,12 @@ module OsCtl::Cli
         raise GLI::BadCommandLine, 'use --block-index or --owner'
       end
 
-      osctld_fmt(
-        :id_range_free,
+      osctld_fmt(:id_range_free, cmd_opts: {
         pool: gopts[:pool],
         name: args[0],
         block_index: opts['block-index'],
         owner: opts['owner'],
-      )
+      })
     end
 
     def set_attr
