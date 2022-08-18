@@ -54,8 +54,8 @@ module OsCtl
       @version = greetings[:version]
     end
 
-    def cmd(cmd, opts = {})
-      @sock.send({:cmd => cmd, :opts => opts}.to_json + "\n", 0)
+    def cmd(cmd, **opts)
+      @sock.send({cmd: cmd, opts: opts}.to_json + "\n", 0)
     end
 
     def send_io(io)
@@ -110,13 +110,13 @@ module OsCtl
       ret
     end
 
-    def cmd_response(cmd, opts = {}, &block)
-      cmd(cmd, opts)
+    def cmd_response(cmd, **opts, &block)
+      cmd(cmd, **opts)
       receive_resp(&block)
     end
 
-    def cmd_response!(*args, &block)
-      ret = cmd_response(*args, &block)
+    def cmd_response!(cmd, **opts, &block)
+      ret = cmd_response(cmd, **opts, &block)
       raise Error, ret.message if ret.error?
       ret
     end
@@ -125,8 +125,8 @@ module OsCtl
       receive_resp!(&block).data
     end
 
-    def cmd_data!(*args, &block)
-      cmd_response!(*args, &block).data
+    def cmd_data!(cmd, **opts, &block)
+      cmd_response!(cmd, **opts, &block).data
     end
 
     def close

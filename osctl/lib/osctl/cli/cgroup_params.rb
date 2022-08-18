@@ -86,9 +86,9 @@ module OsCtl
 
       osctld_fmt(
         cmd,
-        cmd_opts,
-        cols,
-        fmt_opts
+        cmd_opts: cmd_opts,
+        cols: cols,
+        fmt_opts: fmt_ops,
       )
     end
 
@@ -105,7 +105,7 @@ module OsCtl
         append: opts[:append],
       })
 
-      osctld_fmt(cmd, cmd_opts)
+      osctld_fmt(cmd, cmd_opts: cmd_opts)
     end
 
     def do_cgparam_unset(cmd, cmd_opts, params = nil)
@@ -117,15 +117,15 @@ module OsCtl
 
       cmd_opts.update(parameters: params)
 
-      osctld_fmt(cmd, cmd_opts)
+      osctld_fmt(cmd, cmd_opts: cmd_opts)
     end
 
     def do_cgparam_apply(cmd, cmd_opts)
-      osctld_fmt(cmd, cmd_opts)
+      osctld_fmt(cmd, cmd_opts: cmd_opts)
     end
 
     def do_cgparam_replace(cmd, cmd_opts)
-      osctld_fmt(cmd, cmd_opts.merge(
+      osctld_fmt(cmd, cmd_opts: cmd_opts.merge(
         parameters: JSON.parse(STDIN.read)['parameters'],
       ))
     end

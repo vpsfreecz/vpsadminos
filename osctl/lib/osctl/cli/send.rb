@@ -143,8 +143,8 @@ module OsCtl::Cli
     end
 
     protected
-    def with_progress(cmd, opts)
-      osctld_call(cmd, opts) do |msg|
+    def with_progress(cmd, **opts)
+      osctld_call(cmd, **opts) do |msg|
         if gopts[:json]
           json_progress(msg)
 

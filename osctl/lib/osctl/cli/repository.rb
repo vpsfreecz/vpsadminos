@@ -23,7 +23,7 @@ module OsCtl::Cli
       fmt_opts[:header] = false if opts['hide-header']
       cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS
 
-      osctld_fmt(:repo_list, cmd_opts, cols, fmt_opts)
+      osctld_fmt(:repo_list, cmd_opts: cmd_opts, cols: cols, fmt_opts: fmt_opts)
     end
 
     def show
@@ -40,32 +40,32 @@ module OsCtl::Cli
       fmt_opts[:header] = false if opts['hide-header']
       cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS
 
-      osctld_fmt(:repo_show, cmd_opts, cols, fmt_opts)
+      osctld_fmt(:repo_show, cmd_opts: cmd_opts, cols: cols, fmt_opts: fmt_opts)
     end
 
     def add
       require_args!('name', 'url')
-      osctld_fmt(:repo_add, pool: gopts[:pool], name: args[0], url: args[1])
+      osctld_fmt(:repo_add, cmd_opts: {pool: gopts[:pool], name: args[0], url: args[1]})
     end
 
     def delete
       require_args!('name')
-      osctld_fmt(:repo_delete, pool: gopts[:pool], name: args[0])
+      osctld_fmt(:repo_delete, cmd_opts: {pool: gopts[:pool], name: args[0]})
     end
 
     def enable
       require_args!('name')
-      osctld_fmt(:repo_enable, pool: gopts[:pool], name: args[0])
+      osctld_fmt(:repo_enable, cmd_opts: {pool: gopts[:pool], name: args[0]})
     end
 
     def disable
       require_args!('name')
-      osctld_fmt(:repo_disable, pool: gopts[:pool], name: args[0])
+      osctld_fmt(:repo_disable, cmd_opts: {pool: gopts[:pool], name: args[0]})
     end
 
     def set_url
       require_args!('name', 'url')
-      osctld_fmt(:repo_set, name: args[0], pool: gopts[:pool], url: args[1])
+      osctld_fmt(:repo_set, cmd_opts: {name: args[0], pool: gopts[:pool], url: args[1]})
     end
 
     def set_attr
@@ -125,7 +125,7 @@ module OsCtl::Cli
         }
       end
 
-      osctld_fmt(:repo_image_list, cmd_opts, cols, fmt_opts)
+      osctld_fmt(:repo_image_list, cmd_opts: cmd_opts, cols: cols, fmt_opts: fmt_opts)
     end
   end
 end

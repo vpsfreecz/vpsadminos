@@ -10,14 +10,14 @@ module OsCtl
               "attribute name is not in the required format '<vendor>:<key>'"
       end
 
-      osctld_fmt(cmd, opts.merge(attrs: {name => value}))
+      osctld_fmt(cmd, cmd_opts: opts.merge(attrs: {name => value}))
     end
 
     # @param cmd [Symbol] osctld command to use
     # @param opts [Hash] options for the osctld command
     # @param name [String] attribute name
     def do_unset_attr(cmd, opts, name)
-      osctld_fmt(cmd, opts.merge(attrs: [name]))
+      osctld_fmt(cmd, cmd_opts: opts.merge(attrs: [name]))
     end
   end
 end

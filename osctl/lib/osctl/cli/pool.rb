@@ -54,7 +54,7 @@ module OsCtl::Cli
           DEFAULT_FIELDS
         end
 
-      osctld_fmt(:pool_list, cmd_opts, cols, fmt_opts)
+      osctld_fmt(:pool_list, cmd_opts: cmd_opts, cols: cols, fmt_opts: fmt_opts)
     end
 
     def show
@@ -78,7 +78,7 @@ module OsCtl::Cli
           DEFAULT_FIELDS
         end
 
-      osctld_fmt(:pool_show, cmd_opts, cols, fmt_opts)
+      osctld_fmt(:pool_show, cmd_opts: cmd_opts, cols: cols, fmt_opts: fmt_opts)
     end
 
     def import
@@ -86,24 +86,22 @@ module OsCtl::Cli
         raise GLI::BadCommandLine, 'specify pool name or --all'
       end
 
-      osctld_fmt(
-        :pool_import,
+      osctld_fmt(:pool_import, cmd_opts: {
         name: args[0],
         all: opts[:all],
-        autostart: opts[:autostart]
-      )
+        autostart: opts[:autostart],
+      })
     end
 
     def export
       require_args!('name')
-      osctld_fmt(
-        :pool_export,
+      osctld_fmt(:pool_export, cmd_opts: {
         name: args[0],
         force: opts[:force],
         stop_containers: opts['stop-containers'],
         unregister_users: opts['unregister-users'],
         if_imported: opts['if-imported'],
-      )
+      })
     end
 
     def install
@@ -112,12 +110,12 @@ module OsCtl::Cli
       cmd_opts = {name: args[0]}
       cmd_opts[:dataset] = opts[:dataset] if opts[:dataset]
 
-      osctld_fmt(:pool_install, cmd_opts)
+      osctld_fmt(:pool_install, cmd_opts: cmd_opts)
     end
 
     def uninstall
       require_args!('name')
-      osctld_fmt(:pool_uninstall, name: args[0])
+      osctld_fmt(:pool_uninstall, cmd_opts: {name: args[0]})
     end
 
     def assets
@@ -139,32 +137,32 @@ module OsCtl::Cli
 
       osctld_fmt(
         :pool_autostart_queue,
-        {name: args[0]},
-        opts[:output] ? opts[:output].split(',').map(&:to_sym) : nil,
-        fmt_opts
+        cmd_opts: {name: args[0]},
+        cols: opts[:output] ? opts[:output].split(',').map(&:to_sym) : nil,
+        fmt_opts: fmt_opts,
       )
     end
 
     def autostart_trigger
       require_args!('name')
-      osctld_fmt(:pool_autostart_trigger, name: args[0])
+      osctld_fmt(:pool_autostart_trigger, cmd_opts: {name: args[0]})
     end
 
     def autostart_cancel
       require_args!('name')
-      osctld_fmt(:pool_autostart_cancel, name: args[0])
+      osctld_fmt(:pool_autostart_cancel, cmd_opts: {name: args[0]})
     end
 
     def set(key)
       require_args!('name', 'n')
 
-      osctld_fmt(:pool_set, name: args[0], key => args[1])
+      osctld_fmt(:pool_set, cmd_opts: {name: args[0], key => args[1]})
     end
 
     def unset(key)
       require_args!('name')
 
-      osctld_fmt(:pool_unset, name: args[0], options: [key])
+      osctld_fmt(:pool_unset, cmd_opts: {name: args[0], options: [key]})
     end
 
     def set_attr
