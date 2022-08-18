@@ -22,13 +22,12 @@ module OsCtl::Image
 
       fmt_opts = {
         layout: :columns,
+        cols: opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS,
         sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
         header: !opts['hide-header'],
       }
 
-      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS
-
-      OsCtl::Lib::Cli::OutputFormatter.print(cts, cols, fmt_opts)
+      OsCtl::Lib::Cli::OutputFormatter.print(cts, **fmt_opts)
     end
 
     def delete

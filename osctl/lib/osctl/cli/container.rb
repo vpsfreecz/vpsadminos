@@ -124,6 +124,7 @@ module OsCtl::Cli
 
       cmd_opts[:ids] = args if args.count > 0
       fmt_opts[:header] = false if opts['hide-header']
+
       cols =
         if opts[:output] == 'all'
           FIELDS
@@ -132,6 +133,8 @@ module OsCtl::Cli
         else
           DEFAULT_FIELDS
         end
+
+      fmt_opts[:cols] = cols
 
       cts = cg_add_stats(
         c.cmd_data!(:ct_list, **cmd_opts),
@@ -151,7 +154,7 @@ module OsCtl::Cli
       zfsprops.add_container_values(cts, cols, precise: gopts[:parsable])
       keyring.add_container_values(cts, cols, precise: gopts[:parsable])
 
-      format_output(cts, cols, **fmt_opts)
+      format_output(cts, **fmt_opts)
     end
 
     def tree
@@ -206,7 +209,7 @@ module OsCtl::Cli
       zfsprops.add_container_values(ct, cols, precise: gopts[:parsable])
       keyring.add_container_values(ct, cols, precise: gopts[:parsable])
 
-      format_output(ct, cols, header: !opts['hide-header'])
+      format_output(ct, cols: cols, header: !opts['hide-header'])
     end
 
     def create
@@ -1086,15 +1089,15 @@ module OsCtl::Cli
       cmd_opts[:limits] = args[1..-1] if args.count > 1
       fmt_opts[:header] = false if opts['hide-header']
 
-      if opts[:output]
-        cols = opts[:output].split(',').map(&:to_sym)
-
-      else
-        cols = PRLIMIT_FIELDS
-      end
+      fmt_opts[:cols] =
+        if opts[:output]
+          opts[:output].split(',').map(&:to_sym)
+        else
+          PRLIMIT_FIELDS
+        end
 
       data = osctld_call(:ct_prlimit_list, **cmd_opts)
-      format_output(data.map { |k, v| v.merge(name: k)}, cols, **fmt_opts)
+      format_output(data.map { |k, v| v.merge(name: k)}, **fmt_opts)
     end
 
     def prlimit_set
@@ -1335,7 +1338,7 @@ module OsCtl::Cli
 
       OsCtl::Lib::Cli::OutputFormatter.print(
         out_data,
-        out_cols,
+        cols: out_cols,
         layout: :columns,
         header: true,
       )

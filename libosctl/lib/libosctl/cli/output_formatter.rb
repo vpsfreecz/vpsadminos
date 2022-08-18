@@ -12,7 +12,7 @@ module OsCtl::Lib::Cli
       f.print
     end
 
-    def initialize(objects, cols = nil, header: true, sort: nil, layout: nil, empty: '-', color: false)
+    def initialize(objects, cols: nil, header: true, sort: nil, layout: nil, empty: '-', color: false)
       @objects = objects
       @header = header
       @sort = sort

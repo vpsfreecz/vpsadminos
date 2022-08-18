@@ -32,7 +32,7 @@ module OsCtl::Cli
 
       OsCtl::Lib::Cli::OutputFormatter.print(
         out_data,
-        out_cols,
+        cols: out_cols,
         layout: :columns,
         header: opts['hide-header'] ? false : true,
         sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),

@@ -60,7 +60,7 @@ module OsCtl::Cli
 
       fmt_opts[:header] = false if opts['hide-header']
 
-      cols =
+      fmt_opts[:cols] =
         if opts[:output] == 'all'
           FIELDS
         elsif opts[:output]
@@ -72,7 +72,7 @@ module OsCtl::Cli
       users = osctld_call(:user_list, **cmd_opts)
       keyring.add_user_values(users, cols, precise: gopts[:parsable])
 
-      format_output(users, cols, **fmt_opts)
+      format_output(users, **fmt_opts)
     end
 
     def show
@@ -88,7 +88,7 @@ module OsCtl::Cli
       fmt_opts = {layout: :rows}
       fmt_opts[:header] = false if opts['hide-header']
 
-      cols =
+      fmt_opts[:cols] =
         if opts[:output] == 'all'
           FIELDS
         elsif opts[:output]
@@ -100,7 +100,7 @@ module OsCtl::Cli
       user = osctld_call(:user_show, {name: args[0], pool: gopts[:pool]})
       keyring.add_user_values(user, cols, precise: gopts[:parsable])
 
-      format_output(user, cols, **fmt_opts)
+      format_output(user, **fmt_opts)
     end
 
     def create
