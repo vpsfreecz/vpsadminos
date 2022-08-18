@@ -16,7 +16,8 @@ module OsCtld
 
     # Implement this method
     # @param args [Array] command arguments
-    def execute(*args)
+    # @param kwargs [Array] command arguments
+    def execute(*args, **kwargs)
       raise NotImplementedError
     end
 

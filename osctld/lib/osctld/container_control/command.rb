@@ -23,11 +23,12 @@ module OsCtld
     #
     # See the command for what arguments it accepts and what it returns.
     # @param ct [Container]
-    # @param args [Array] command arguments
+    # @param args [Hash] command arguments
+    # @param kwargs [Hash] command arguments
     # @raise [ContainerControl::Error]
-    def self.run!(ct, *args)
+    def self.run!(ct, *args, **kwargs)
       f = self::Frontend.new(self, ct)
-      ret = f.execute(*args)
+      ret = f.execute(*args, **kwargs)
 
       if ret.is_a?(ContainerControl::Result)
         if ret.ok?
