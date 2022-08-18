@@ -55,7 +55,7 @@ module OsCtl
     end
 
     def cmd(cmd, **opts)
-      @sock.send({cmd: cmd, opts: opts}.to_json + "\n", 0)
+      @sock.puts({cmd: cmd, opts: opts}.to_json)
     end
 
     def send_io(io)
