@@ -13,7 +13,7 @@ module OsCtld
     # @option opts [IO, nil] :stdin
     # @option opts [IO] :stdout
     # @option opts [IO] :stderr
-    def initialize(opts)
+    def initialize(**opts)
       @ctid = opts[:id]
       @lxc_home = opts[:lxc_home]
       @user_home = opts[:user_home]
@@ -25,8 +25,9 @@ module OsCtld
 
     # Implement this method
     # @param args [Array] command arguments
+    # @param kwargs [Array] command arguments
     # @return [Hash]
-    def execute(*args)
+    def execute(*args, **kwargs)
       raise NotImplementedError
     end
 
