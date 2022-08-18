@@ -2,7 +2,7 @@ require 'osctld/cgroup/params'
 
 module OsCtld
   class CGroup::ContainerParams < CGroup::Params
-    def set(*args)
+    def set(*args, **kwargs)
       owner.exclusively do
         super
         owner.lxc_config.configure_cgparams
