@@ -5,15 +5,22 @@ module OsCtld
   class Commands::NetInterface::Set < Commands::Logged
     handle :netif_set
 
+    UNCHANGEABLE_AT_RUNTIME = %i(hwaddr link dhcp gateways)
+
     def find
       ct = DB::Containers.find(opts[:id], opts[:pool])
       ct || error!('container not found')
     end
 
     def execute(ct)
+
       manipulate(ct) do
         if ct.state != :stopped
-          error!('the container must be stopped to change network interface')
+          opts.each_key do |k|
+            if UNCHANGEABLE_AT_RUNTIME.include?(k)
+              error!('the container must be stopped to change network interface')
+            end
+          end
         end
 
         netif = ct.netifs[opts[:name]]
@@ -60,6 +67,16 @@ module OsCtld
         else
           error!('hwaddr has to be a 17 character string or null')
         end
+      end
+
+      %i(max_tx max_rx).each do |v|
+        next unless opts[v]
+
+        if !opts[v].is_a?(Integer) || opts[v] < 0
+          error!("#{v} must be a number greater or equal to zero")
+        end
+
+        ret[v] = opts[v]
       end
 
       ret

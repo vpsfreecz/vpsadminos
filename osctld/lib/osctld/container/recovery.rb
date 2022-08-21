@@ -142,6 +142,9 @@ module OsCtld
           yield(veth, routes) if block_given?
           log(:info, "Removing #{veth}")
           syscmd("ip link delete #{veth}")
+
+          # Remove also its IFB counterpart for shaping if it exists
+          syscmd("ip link delete ifb#{veth}", valid_rcs: [1])
         end
       end
     end

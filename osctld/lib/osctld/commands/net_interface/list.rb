@@ -12,6 +12,8 @@ module OsCtld
       dhcp
       gateways
       veth
+      max_tx
+      max_rx
     )
 
     def execute
