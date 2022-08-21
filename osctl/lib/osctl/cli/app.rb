@@ -1508,6 +1508,12 @@ module OsCtl::Cli
             c.desc "MAC address"
             c.flag :hwaddr, arg_name: 'hwaddr'
 
+            c.desc 'Shaper on outgoing data'
+            c.flag 'max-tx', arg_name: 'rate'
+
+            c.desc 'Shaper on incoming data'
+            c.flag 'max-rx', arg_name: 'rate'
+
             c.action &Command.run(NetInterface, :set)
           end
 

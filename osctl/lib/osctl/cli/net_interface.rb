@@ -14,6 +14,8 @@ module OsCtl::Cli
       gateways
       veth
       hwaddr
+      max_tx
+      max_rx
     )
 
     FILTERS = %i(
@@ -94,6 +96,7 @@ module OsCtl::Cli
       }
 
       parse_gateway(cmd_opts)
+      parse_shaper(cmd_opts)
 
       osctld_fmt(:netif_create, cmd_opts: cmd_opts)
     end
@@ -108,6 +111,8 @@ module OsCtl::Cli
         type: 'routed',
         hwaddr: opts[:hwaddr],
       }
+
+      parse_shaper(cmd_opts)
 
       osctld_fmt(:netif_create, cmd_opts: cmd_opts)
     end
@@ -149,6 +154,8 @@ module OsCtl::Cli
       elsif opts['disable-dhcp']
         cmd_opts[:dhcp] = false
       end
+
+      parse_shaper(cmd_opts)
 
       osctld_fmt(:netif_set, cmd_opts: cmd_opts)
     end
@@ -311,6 +318,26 @@ module OsCtl::Cli
       cmd_opts[:gateways] = Hash[gws.map do |v, opt|
         [v, opts[opt]]
       end]
+    end
+
+    def parse_shaper(cmd_opts)
+      if opts['max-tx']
+        cmd_opts[:max_tx] =
+          if opts['max-tx'] == 'unlimited'
+            0
+          else
+            parse_data(opts['max-tx'])
+          end
+      end
+
+      if opts['max-rx']
+        cmd_opts[:max_rx] =
+          if opts['max-rx'] == 'unlimited'
+            0
+          else
+            parse_data(opts['max-rx'])
+          end
+      end
     end
   end
 end

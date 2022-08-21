@@ -1985,6 +1985,16 @@ The following shortcuts are supported:
       Set a custom MAC address. Every **x** in the address is replaced by
       a random value. By default, the address is dynamically allocated.
 
+    `--max-tx` *rate*|`unlimited`
+      Set a shaper on the interface to limit outgoing data. *rate* is given
+      in bits per second, or with an appropriate suffix, i.e. `k`, `m`, `g`,
+      or `t`. When set to `0` or `unlimited`, the shaper is disabled.
+
+    `--max-rx` *rate*|`unlimited`
+      Set a shaper on the interface to limit incoming data. *rate* is given
+      in bits per second, or with an appropriate suffix, i.e. `k`, `m`, `g`,
+      or `t`. When set to `0` or `unlimited`, the shaper is disabled.
+
 `ct netif new routed` [*options*] *ctid* *ifname*
   Create a new routed network interface in container *ctid*. Like for **bridge**
   interface, a pair veth is created. The difference is that the veth is not part
@@ -2001,6 +2011,16 @@ The following shortcuts are supported:
       Set a custom MAC address. Every **x** in the address is replaced by
       a random value. By default, the address is dynamically allocated.
 
+    `--max-tx` *rate*|`unlimited`
+      Set a shaper on the interface to limit outgoing data. *rate* is given
+      in bits per second, or with an appropriate suffix, i.e. `k`, `m`, `g`,
+      or `t`. When set to `0` or `unlimited`, the shaper is disabled.
+
+    `--max-rx` *rate*|`unlimited`
+      Set a shaper on the interface to limit incoming data. *rate* is given
+      in bits per second, or with an appropriate suffix, i.e. `k`, `m`, `g`,
+      or `t`. When set to `0` or `unlimited`, the shaper is disabled.
+
 `ct netif del` *ctid* *ifname*
   Remove interface *name* from container *ctid*.
   The container has to be stopped for this command to be allowed.
@@ -2010,8 +2030,9 @@ The following shortcuts are supported:
   to pass.
 
 `ct netif set` *ctid* *ifname*
-  Change network interface properties. The container has to be stopped for this
-  command to be allowed. Available options depend on interface type.
+  Change network interface properties. Only the shaper can be changed while the
+  container is running. For other changes, the container has to be stopped first.
+  Available options depend on interface type.
 
     `--link` *bridge*
       What bridge should the interface be linked with. Applicable only for
@@ -2040,6 +2061,16 @@ The following shortcuts are supported:
     `--hwaddr` *addr*
       Change MAC address. Every **x** in the address is replaced by
       a random value. Use `-` to assign the MAC address dynamically.
+
+    `--max-tx` *rate*|`unlimited`
+      Set a shaper on the interface to limit outgoing data. *rate* is given
+      in bits per second, or with an appropriate suffix, i.e. `k`, `m`, `g`,
+      or `t`. When set to `0` or `unlimited`, the shaper is disabled.
+
+    `--max-rx` *rate*|`unlimited`
+      Set a shaper on the interface to limit incoming data. *rate* is given
+      in bits per second, or with an appropriate suffix, i.e. `k`, `m`, `g`,
+      or `t`. When set to `0` or `unlimited`, the shaper is disabled.
 
 `ct netif ip add` [*options*] *ctid* *ifname* *addr*
   Add IP address *addr* to interface *ifname* of container *ctid*. `osctld` will

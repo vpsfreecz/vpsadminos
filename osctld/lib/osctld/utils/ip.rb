@@ -1,7 +1,7 @@
 module OsCtld
   module Utils::Ip
     # @return [OsCtl::Lib::SystemCommandResult]
-    def ip(ip_v, args, opts = {})
+    def ip(ip_v, args, **opts)
       cmd = ['ip']
 
       case ip_v
@@ -15,6 +15,12 @@ module OsCtld
       end
 
       cmd.concat(args)
+      syscmd(cmd.join(' '), opts)
+    end
+
+    # @return [OsCtl::Lib::SystemCommandResult]
+    def tc(args, **opts)
+      cmd = ['tc'].concat(args)
       syscmd(cmd.join(' '), opts)
     end
   end

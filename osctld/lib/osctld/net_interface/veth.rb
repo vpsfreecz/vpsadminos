@@ -5,6 +5,7 @@ module OsCtld
   class NetInterface::Veth < NetInterface::Base
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
+    include Utils::Ip
     include Utils::SwitchUser
 
     attr_reader :veth
@@ -33,6 +34,32 @@ module OsCtld
         super.merge(
           'ip_addresses' => save_ip_list(@ips) { |v| v.map(&:to_string) },
         )
+      end
+    end
+
+    def set(opts)
+      orig_max_rx = max_rx
+      orig_max_tx = max_tx
+
+      # max_tx/rx is assigned by the parent
+      super
+
+      return if veth.nil?
+
+      if opts[:max_rx] && opts[:max_rx] != orig_max_rx
+        if max_rx > 0
+          set_shaper_rx
+        else
+          unset_shaper_rx
+        end
+      end
+
+      if opts[:max_tx] && opts[:max_tx] != orig_max_tx
+        if max_tx > 0
+          set_shaper_tx
+        else
+          unset_shaper_tx
+        end
       end
     end
 
@@ -102,6 +129,9 @@ module OsCtld
     def up(veth)
       exclusively { @veth = veth }
 
+      set_shaper_rx if max_rx > 0
+      set_shaper_tx if max_tx > 0
+
       Eventd.report(
         :ct_netif,
         action: :up,
@@ -114,6 +144,10 @@ module OsCtld
 
     def down(veth)
       exclusively { @veth = nil }
+
+      if max_tx > 0
+        ip(:all, %W(link del #{ifb_veth}))
+      end
 
       Eventd.report(
         :ct_netif,
@@ -170,6 +204,35 @@ module OsCtld
       v = ContainerControl::Commands::VethName.run!(ct, index)
       log(:info, ct, "Discovered name for veth ##{index}: #{v}")
       v
+    end
+
+    def ifb_veth
+      "ifb#{veth}"
+    end
+
+    def set_shaper_rx
+      tc(%W(qdisc delete root dev #{veth}), valid_rcs: [2])
+      tc(%W(qdisc add root dev #{veth} cake bandwidth #{max_rx}bit))
+    end
+
+    def unset_shaper_rx
+      tc(%W(qdisc delete root dev #{veth}), valid_rcs: [2])
+    end
+
+    def set_shaper_tx
+      ip(:all, %W(link add name #{ifb_veth} type ifb))
+      tc(%W(qdisc del dev #{veth} ingress), valid_rcs: [2])
+      tc(%W(qdisc add dev #{veth} handle ffff: ingress))
+      tc(%W(qdisc del dev #{ifb_veth} root), valid_rcs: [2])
+      tc(%W(qdisc add dev #{ifb_veth} root cake bandwidth #{max_tx}bit besteffort))
+      ip(:all, %W(link set #{ifb_veth} up))
+      tc(%W(filter add dev #{veth} parent ffff: matchall action mirred egress redirect dev #{ifb_veth}))
+    end
+
+    def unset_shaper_tx
+      tc(%W(filter delete dev #{veth} parent ffff:))
+      tc(%W(qdisc delete dev #{veth} handle ffff: ingress))
+      ip(:all, %W(link del #{ifb_veth}))
     end
 
     def veth_hook_dir

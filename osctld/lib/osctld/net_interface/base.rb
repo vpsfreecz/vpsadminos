@@ -16,7 +16,7 @@ module OsCtld
 
     include Lockable
 
-    attr_reader :name, :index, :hwaddr
+    attr_reader :name, :index, :hwaddr, :max_tx, :max_rx
 
     def initialize(ct, index)
       @ct = ct
@@ -33,6 +33,8 @@ module OsCtld
     def create(opts)
       @name = opts[:name]
       @hwaddr = opts[:hwaddr]
+      @max_tx = opts.fetch(:max_tx, 0)
+      @max_rx = opts.fetch(:max_rx, 0)
     end
 
     # Load configuration
@@ -40,6 +42,8 @@ module OsCtld
     def load(cfg)
       @name = cfg['name']
       @hwaddr = cfg['hwaddr']
+      @max_tx = cfg.fetch('max_tx', 0)
+      @max_rx = cfg.fetch('max_rx', 0)
     end
 
     # Dump configuration
@@ -47,7 +51,13 @@ module OsCtld
     #   then restores the state from
     def save
       inclusively do
-        {'type' => type.to_s, 'name' => name, 'hwaddr' => hwaddr}
+        {
+          'type' => type.to_s,
+          'name' => name,
+          'hwaddr' => hwaddr,
+          'max_tx' => max_tx,
+          'max_rx' => max_rx,
+        }
       end
     end
 
@@ -70,9 +80,13 @@ module OsCtld
     # Change interface properties
     # @param opts [Hash] options, see subclasses for more information
     # @option opts [String] :hwaddr
+    # @option opts [Integer] :max_tx
+    # @option opts [Integer] :max_rx
     def set(opts)
       exclusively do
         @hwaddr = opts[:hwaddr] if opts.has_key?(:hwaddr)
+        @max_tx = opts[:max_tx] if opts.has_key?(:max_tx)
+        @max_rx = opts[:max_rx] if opts.has_key?(:max_rx)
       end
     end
 

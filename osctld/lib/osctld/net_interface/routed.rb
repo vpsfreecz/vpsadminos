@@ -24,8 +24,6 @@ module OsCtld
       ip(4, [:addr, :add, DEFAULT_IPV4.to_string, :dev, INTERFACE])
     end
 
-    include Utils::Ip
-
     attr_reader :routes
 
     # @param opts [Hash]
