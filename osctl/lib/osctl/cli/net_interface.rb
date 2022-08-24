@@ -71,7 +71,7 @@ module OsCtl::Cli
       cmd_opts[:ids] = args if args.count > 0
       fmt_opts[:header] = false if opts['hide-header']
 
-      fmt_opts[:cols] =
+      cols =
         if opts[:output]
           opts[:output].split(',').map(&:to_sym)
         elsif opts[:id]
@@ -79,6 +79,28 @@ module OsCtl::Cli
         else
           %i(pool ctid) + DEFAULT_FIELDS
         end
+
+      %i(max_tx max_rx).each do |limit|
+        i = cols.index(limit)
+        next if i.nil?
+
+        cols[i] = {
+          name: limit,
+          label: limit.to_s.upcase,
+          align: 'right',
+          display: Proc.new do |v|
+            if gopts[:parsable] \
+               || gopts[:json] \
+               || (!v.is_a?(Integer) && /^\d+$/ !~ v)
+              v
+            else
+              humanize_data(v.to_i)
+            end
+          end
+        }
+      end
+
+      fmt_opts[:cols] = cols
 
       osctld_fmt(:netif_list, cmd_opts: cmd_opts, fmt_opts: fmt_opts)
     end
