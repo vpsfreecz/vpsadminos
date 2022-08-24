@@ -220,13 +220,21 @@ module OsCtld
     end
 
     def set_shaper_tx
-      ip(:all, %W(link add name #{ifb_veth} type ifb))
-      tc(%W(qdisc del dev #{veth} ingress), valid_rcs: [2])
-      tc(%W(qdisc add dev #{veth} handle ffff: ingress))
+      ifb_exists = Dir.exist?("/sys/devices/virtual/net/#{ifb_veth}")
+
+      unless ifb_exists
+        ip(:all, %W(link add name #{ifb_veth} type ifb))
+        tc(%W(qdisc del dev #{veth} ingress), valid_rcs: [2])
+        tc(%W(qdisc add dev #{veth} handle ffff: ingress))
+      end
+
       tc(%W(qdisc del dev #{ifb_veth} root), valid_rcs: [2])
       tc(%W(qdisc add dev #{ifb_veth} root cake bandwidth #{max_tx}bit besteffort))
-      ip(:all, %W(link set #{ifb_veth} up))
-      tc(%W(filter add dev #{veth} parent ffff: matchall action mirred egress redirect dev #{ifb_veth}))
+
+      unless ifb_exists
+        ip(:all, %W(link set #{ifb_veth} up))
+        tc(%W(filter add dev #{veth} parent ffff: matchall action mirred egress redirect dev #{ifb_veth}))
+      end
     end
 
     def unset_shaper_tx
