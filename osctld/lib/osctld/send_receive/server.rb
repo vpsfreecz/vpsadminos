@@ -9,7 +9,7 @@ module OsCtld
         cmd = SendReceive::Command.find(req[:cmd].to_sym)
         error!("Unsupported command '#{req[:cmd]}'") unless cmd
 
-        cmd.run(req[:opts], handler: self)
+        cmd.run(internal: {handler: self}, **req[:opts])
       end
 
       def log_type
