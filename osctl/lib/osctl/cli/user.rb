@@ -97,7 +97,7 @@ module OsCtl::Cli
           DEFAULT_FIELDS
         end
 
-      user = osctld_call(:user_show, {name: args[0], pool: gopts[:pool]})
+      user = osctld_call(:user_show, name: args[0], pool: gopts[:pool])
       keyring.add_user_values(user, cols, precise: gopts[:parsable])
 
       format_output(user, **fmt_opts)
