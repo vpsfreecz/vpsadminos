@@ -28,6 +28,8 @@ module OsCtl::Cli
       type
       link
       veth
+      max_tx
+      max_rx
     )
 
     IP_FIELDS = %i(
