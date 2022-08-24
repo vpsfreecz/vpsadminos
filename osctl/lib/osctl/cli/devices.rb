@@ -16,13 +16,15 @@ module OsCtl
         return
       end
 
-      fmt_opts = {layout: :columns}
+      fmt_opts = {
+        layout: :columns,
+        cols: opts[:output] ? opts[:output].split(',').map(&:to_sym) : nil,
+      }
       fmt_opts[:header] = false if opts['hide-header']
 
       osctld_fmt(
         cmd,
         cmd_opts: cmd_opts,
-        cols: opts[:output] ? opts[:output].split(',').map(&:to_sym) : nil,
         fmt_opts: fmt_opts,
       )
     end

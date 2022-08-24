@@ -69,17 +69,16 @@ module OsCtl::Cli
       cmd_opts[:ids] = args if args.count > 0
       fmt_opts[:header] = false if opts['hide-header']
 
-      if opts[:output]
-        cols = opts[:output].split(',').map(&:to_sym)
+      fmt_opts[:cols] =
+        if opts[:output]
+          opts[:output].split(',').map(&:to_sym)
+        elsif opts[:id]
+          DEFAULT_FIELDS
+        else
+          %i(pool ctid) + DEFAULT_FIELDS
+        end
 
-      elsif opts[:id]
-        cols = DEFAULT_FIELDS
-
-      else
-        cols = %i(pool ctid) + DEFAULT_FIELDS
-      end
-
-      osctld_fmt(:netif_list, cmd_opts: cmd_opts, cols: cols, fmt_opts: fmt_opts)
+      osctld_fmt(:netif_list, cmd_opts: cmd_opts, fmt_opts: fmt_opts)
     end
 
     def create_bridge

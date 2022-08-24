@@ -1140,14 +1140,14 @@ module OsCtl::Cli
 
       fmt_opts[:header] = false if opts['hide-header']
 
-      if opts[:output]
-        cols = (opts[:output].split(',') + props).map(&:to_sym)
+      fmt_opts[:cols] =
+        if opts[:output]
+          (opts[:output].split(',') + props).map(&:to_sym)
+        else
+          nil
+        end
 
-      else
-        cols = nil
-      end
-
-      osctld_fmt(:ct_dataset_list, cmd_opts: cmd_opts, cols: cols, fmt_opts: fmt_opts)
+      osctld_fmt(:ct_dataset_list, cmd_opts: cmd_opts, fmt_opts: fmt_opts)
     end
 
     def dataset_create
@@ -1185,14 +1185,14 @@ module OsCtl::Cli
 
       fmt_opts[:header] = false if opts['hide-header']
 
-      if opts[:output]
-        cols = opts[:output].split(',').map(&:to_sym)
+      fmt_opts[:cols] =
+        if opts[:output]
+          opts[:output].split(',').map(&:to_sym)
+        else
+          MOUNT_FIELDS
+        end
 
-      else
-        cols = MOUNT_FIELDS
-      end
-
-      osctld_fmt(:ct_mount_list, cmd_opts: cmd_opts, cols: cols, fmt_opts: fmt_opts)
+      osctld_fmt(:ct_mount_list, cmd_opts: cmd_opts, fmt_opts: fmt_opts)
     end
 
     def mount_create

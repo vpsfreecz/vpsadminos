@@ -18,15 +18,15 @@ module OsCtl::Cli
       cmd_opts = {pool: gopts[:pool]}
       fmt_opts = {
         layout: :columns,
+        cols: opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS,
         sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
       }
 
       cmd_opts[:names] = args if args.count > 0
 
       fmt_opts[:header] = false if opts['hide-header']
-      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS
 
-      osctld_fmt(:id_range_list, cmd_opts: cmd_opts, cols: cols, fmt_opts: fmt_opts)
+      osctld_fmt(:id_range_list, cmd_opts: cmd_opts, fmt_opts: fmt_opts)
     end
 
     def show
@@ -38,12 +38,14 @@ module OsCtl::Cli
       require_args!('id-range')
 
       cmd_opts = {name: args[0], pool: gopts[:pool]}
-      fmt_opts = {layout: :rows}
+      fmt_opts = {
+        layout: :rows,
+        cols: opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS,
+      }
 
       fmt_opts[:header] = false if opts['hide-header']
-      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS
 
-      osctld_fmt(:id_range_show, cmd_opts: cmd_opts, cols: cols, fmt_opts: fmt_opts)
+      osctld_fmt(:id_range_show, cmd_opts: cmd_opts, fmt_opts: fmt_opts)
     end
 
     def create
@@ -93,7 +95,7 @@ module OsCtl::Cli
 
       fmt_opts[:header] = false if opts['hide-header']
 
-      cols =
+      fmt_opts[:cols] =
         if opts[:output]
           opts[:output].split(',').map(&:to_sym)
         elsif args[1].nil? || args[1] == 'all'
@@ -102,7 +104,7 @@ module OsCtl::Cli
           TABLE_FIELDS[1..-1] # hide column `type`
         end
 
-      osctld_fmt(:id_range_table_list, cmd_opts: cmd_opts, cols: cols, fmt_opts: fmt_opts)
+      osctld_fmt(:id_range_table_list, cmd_opts: cmd_opts, fmt_opts: fmt_opts)
     end
 
     def table_show
@@ -114,12 +116,14 @@ module OsCtl::Cli
       require_args!('id-range', 'block-index')
 
       cmd_opts = {name: args[0], pool: gopts[:pool], block_index: args[1].to_i}
-      fmt_opts = {layout: :rows}
+      fmt_opts = {
+        layout: :rows,
+        cols: opts[:output] ? opts[:output].split(',').map(&:to_sym) : TABLE_FIELDS,
+      }
 
       fmt_opts[:header] = false if opts['hide-header']
-      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : TABLE_FIELDS
 
-      osctld_fmt(:id_range_table_show, cmd_opts: cmd_opts, cols: cols, fmt_opts: fmt_opts)
+      osctld_fmt(:id_range_table_show, cmd_opts: cmd_opts, fmt_opts: fmt_opts)
     end
 
     def allocate
