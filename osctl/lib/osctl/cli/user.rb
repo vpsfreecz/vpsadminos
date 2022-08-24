@@ -88,7 +88,7 @@ module OsCtl::Cli
       fmt_opts = {layout: :rows}
       fmt_opts[:header] = false if opts['hide-header']
 
-      fmt_opts[:cols] =
+      cols =
         if opts[:output] == 'all'
           FIELDS
         elsif opts[:output]
@@ -99,6 +99,8 @@ module OsCtl::Cli
 
       user = osctld_call(:user_show, name: args[0], pool: gopts[:pool])
       keyring.add_user_values(user, cols, precise: gopts[:parsable])
+
+      fmt_opts[:cols] = cols
 
       format_output(user, **fmt_opts)
     end
@@ -168,7 +170,10 @@ module OsCtl::Cli
       require_args!('name', optional: %w(type))
 
       cmd_opts = {name: args[0], uid: true, gid: true}
-      fmt_opts = {layout: :columns}
+      fmt_opts = {
+        layout: :columns,
+        cols: opts[:output] ? opts[:output].split(',').map(&:to_sym) : IDMAP_FIELDS,
+      }
 
       case args[1]
       when 'uid'
@@ -186,7 +191,6 @@ module OsCtl::Cli
       osctld_fmt(
         :user_idmap_list,
         cmd_opts: cmd_opts,
-        cols: opts[:output] ? opts[:output].split(',').map(&:to_sym) : IDMAP_FIELDS,
         fmt_opts: fmt_opts,
       )
     end

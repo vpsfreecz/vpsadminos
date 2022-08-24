@@ -36,9 +36,8 @@ module OsCtl::Cli
       ret
     end
 
-    def osctld_fmt(cmd, cmd_opts: {}, cols: nil, fmt_opts: {}, &block)
+    def osctld_fmt(cmd, cmd_opts: {}, fmt_opts: {}, &block)
       cmd_opts[:cli] ||= cli_opt
-      fmt_opts[:cols] = cols
 
       if block
         ret = osctld_call(cmd, **cmd_opts, &block)

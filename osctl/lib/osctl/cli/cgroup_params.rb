@@ -84,10 +84,11 @@ module OsCtl
         }
       end
 
+      fmt_opts[:cols] = cols
+
       osctld_fmt(
         cmd,
         cmd_opts: cmd_opts,
-        cols: cols,
         fmt_opts: fmt_ops,
       )
     end

@@ -16,14 +16,16 @@ module OsCtl::Cli
       end
 
       cmd_opts = {pool: gopts[:pool]}
-      fmt_opts = {layout: :columns}
+      fmt_opts = {
+        layout: :columns,
+        cols: opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS,
+      }
 
       cmd_opts[:names] = args if args.count > 0
 
       fmt_opts[:header] = false if opts['hide-header']
-      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS
 
-      osctld_fmt(:repo_list, cmd_opts: cmd_opts, cols: cols, fmt_opts: fmt_opts)
+      osctld_fmt(:repo_list, cmd_opts: cmd_opts, fmt_opts: fmt_opts)
     end
 
     def show
@@ -35,12 +37,14 @@ module OsCtl::Cli
       require_args!('name')
 
       cmd_opts = {name: args[0], pool: gopts[:pool]}
-      fmt_opts = {layout: :rows}
+      fmt_opts = {
+        layout: :rows,
+        cols: opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS,
+      }
 
       fmt_opts[:header] = false if opts['hide-header']
-      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS
 
-      osctld_fmt(:repo_show, cmd_opts: cmd_opts, cols: cols, fmt_opts: fmt_opts)
+      osctld_fmt(:repo_show, cmd_opts: cmd_opts, fmt_opts: fmt_opts)
     end
 
     def add
@@ -125,7 +129,9 @@ module OsCtl::Cli
         }
       end
 
-      osctld_fmt(:repo_image_list, cmd_opts: cmd_opts, cols: cols, fmt_opts: fmt_opts)
+      fmt_opts[:cols] = cols
+
+      osctld_fmt(:repo_image_list, cmd_opts: cmd_opts, fmt_opts: fmt_opts)
     end
   end
 end
