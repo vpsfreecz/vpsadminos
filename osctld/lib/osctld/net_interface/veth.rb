@@ -143,10 +143,12 @@ module OsCtld
     end
 
     def down(veth)
+      ifb_name = ifb_veth
+
       exclusively { @veth = nil }
 
       if max_tx > 0
-        ip(:all, %W(link del #{ifb_veth}))
+        ip(:all, %W(link del #{ifb_name}))
       end
 
       Eventd.report(
