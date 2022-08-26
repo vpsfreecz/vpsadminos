@@ -112,7 +112,7 @@ module OsCtld
       attempts.times do |i|
         return if stop?
 
-        ret = Commands::Container::Start.run(start_opts.merge(
+        ret = Commands::Container::Start.run(**start_opts.merge(
           pool: ct.pool.name,
           id: ct.id,
         ))
