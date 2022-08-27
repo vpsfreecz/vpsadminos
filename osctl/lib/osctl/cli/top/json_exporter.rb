@@ -1,22 +1,19 @@
+require 'libosctl'
 require 'json'
 require 'osctl/cli/top/view'
 
 module OsCtl::Cli
   class Top::JsonExporter < Top::View
-    class Wake < StandardError ; end
-
     def start
+      queue = OsCtl::Lib::Queue.new
+
       Signal.trap('USR1') do
-        raise Wake
+        Thread.new { queue << nil }
       end
 
       loop do
-        begin
-          sleep(rate)
-
-        rescue Wake
-          # continue
-        end
+        queue.pop(timeout: rate)
+        queue.clear
 
         model.measure
         puts model.data.to_json
