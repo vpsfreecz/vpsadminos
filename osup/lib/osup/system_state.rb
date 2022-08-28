@@ -7,8 +7,8 @@ module OsUp
     include OsCtl::Lib::Utils::System
 
     # Create a new system state snapshot
-    def self.create(*args)
-      s = new(*args)
+    def self.create(*args, **kwargs)
+      s = new(*args, **kwargs)
       s.create
       s
     end
