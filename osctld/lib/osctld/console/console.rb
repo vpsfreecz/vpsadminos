@@ -87,22 +87,22 @@ module OsCtld
         return
 
       elsif ct.ephemeral? && !ct.is_being_manipulated?
-        Commands::Container::Delete.run({
+        Commands::Container::Delete.run(
           pool: ct.pool.name,
           id: ct.id,
           force: true,
           manipulation_lock: 'wait',
-        })
+        )
       end
     end
 
     def reboot_ct
-      ret = Commands::Container::Start.run({
+      ret = Commands::Container::Start.run(
         pool: ct.pool.name,
         id: ct.id,
         force: true,
         manipulation_lock: 'wait',
-      })
+      )
 
       if !ret.is_a?(Hash)
         log(:warn, ct, 'Reboot failed: reason unknown')
