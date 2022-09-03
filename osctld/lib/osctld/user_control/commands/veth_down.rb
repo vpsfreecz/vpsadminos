@@ -20,11 +20,6 @@ module OsCtld
       )
       ct.netifs[opts[:interface]].down(opts[:veth])
 
-      # TODO: Removing the veth should be done with LXC, but it doesn't work on
-      # os/osctl
-      log(:info, ct, "Removing host veth #{opts[:veth]}")
-      syscmd("ip link del #{opts[:veth]}")
-
       Hook.run(
         ct,
         :veth_down,
