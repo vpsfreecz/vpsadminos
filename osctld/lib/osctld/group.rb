@@ -261,8 +261,8 @@ module OsCtld
         return
       end
 
-      parents.each do |grp|
-        grp_limit = grp.find_memory_limit
+      self.parents.each do |grp|
+        grp_limit = grp.find_memory_limit(parents: true)
         return grp_limit if grp_limit
       end
 
