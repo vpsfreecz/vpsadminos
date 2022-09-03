@@ -48,6 +48,7 @@ module OsCtld
         # This means that {UserControl::Commands::CtPostStop} hasn't run for some
         # reason.
         log(:fatal, ctrc, 'Unable to properly handle container stop')
+        handle_improper_ct_stop
         return
       end
 
@@ -62,6 +63,12 @@ module OsCtld
       end
 
       ct.forget_past_run_conf
+    end
+
+    def handle_improper_ct_stop
+      # In this scenario, it is possible that the veth-down hooks weren't
+      # run either. Cleanup interfaces that may have been left behind.
+      ct.netifs.take_down
     end
 
     def handle_ct_stop(ctrc)

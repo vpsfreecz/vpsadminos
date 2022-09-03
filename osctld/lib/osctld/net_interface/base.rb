@@ -112,6 +112,14 @@ module OsCtld
 
     end
 
+    def is_up?
+      raise NotImplementedError
+    end
+
+    def is_down?
+      !is_up?
+    end
+
     # Called to check if DistConfig for network can be run
     # @return [Boolean]
     def can_run_distconfig?

@@ -142,13 +142,28 @@ module OsCtld
       )
     end
 
-    def down(veth)
+    def down(host_veth = nil)
+      veth_name = host_veth || veth
       ifb_name = ifb_veth
 
       exclusively { @veth = nil }
 
+      # TODO: Removing the veth should be done with LXC, but it doesn't work on
+      # os/osctl
+      log(:info, ct, "Removing host veth #{veth_name}")
+
+      begin
+        ip(:all, %W(link del #{veth_name}))
+      rescue SystemCommandFailed => e
+        log(:warn, ct, "Unable to delete host veth #{veth_name}: #{e.message}")
+      end
+
       if max_tx > 0
-        ip(:all, %W(link del #{ifb_name}))
+        begin
+          ip(:all, %W(link del #{ifb_name}))
+        rescue SystemCommandFailed => e
+          log(:warn, ct, "Unable to delete ifb host veth #{ifb_name}: #{e.message}")
+        end
       end
 
       Eventd.report(
@@ -158,6 +173,10 @@ module OsCtld
         id: ct.id,
         name: name,
       )
+    end
+
+    def is_up?
+      inclusively { !veth.nil? }
     end
 
     def active_ip_versions

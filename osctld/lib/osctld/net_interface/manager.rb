@@ -64,11 +64,7 @@ module OsCtld
     def take_down
       inclusively do
         netifs.each do |n|
-          if n.is_a?(NetInterface::Veth)
-            n.down(n.veth) if n.veth
-          else
-            n.down
-          end
+          n.down if n.is_up?
         end
       end
     end
