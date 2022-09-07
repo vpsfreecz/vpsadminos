@@ -823,7 +823,7 @@ module OsCtl::Cli
           set.arg_name '<ctid>'
           set.command :autostart do |c|
             c.desc 'Start priority (0 is the highest priority)'
-            c.flag %i(p priority), type: Integer, default_value: 10, arg_name: 'n'
+            c.flag %i(p priority), type: Integer, default_value: 1000, arg_name: 'n'
 
             c.desc 'How long to wait before starting another container, in seconds'
             c.flag %i(d delay), type: Integer, default_value: 5, arg_name: 'n'
