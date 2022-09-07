@@ -1025,7 +1025,7 @@ The following shortcuts are supported:
     `-p`, `--priority` *n*
       Priority determines container start order. `0` is the highest priority,
       higher number means lower priority. Containers with the same priority
-      are ordered by their ids. The default priority is `10`.
+      are ordered by their ids. The default priority is `1000`.
 
     `-d`, `--delay` *n*
       Time in seconds for which `osctld` waits until the next container is
