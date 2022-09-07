@@ -175,5 +175,12 @@ module OsCtld
         yield(v.to_i)
       end
     end
+
+    # Remove Ruby-related environment variables
+    def self.clear_ruby_env
+      ENV.delete_if do |k, _v|
+        k.start_with?('RUBY') || k.start_with?('BUNDLE') || k.start_with?('GEM')
+      end
+    end
   end
 end

@@ -173,6 +173,11 @@ module OsCtld
         # Closed by SwitchUser.fork_and_switch_to
         # r.close
 
+        # This is to remove all Ruby related environment variables, because
+        # lxc-start then passes them to hooks, which can make the hooks fail
+        # when ruby or osctld gems are upgraded.
+        SwitchUser.clear_ruby_env
+
         wrapper_pid = Process.spawn(
           *cmd,
           pgroup: true, in: :close, out: :close, err: :close
