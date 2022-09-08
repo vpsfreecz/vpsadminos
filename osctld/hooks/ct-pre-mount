@@ -18,11 +18,11 @@ end
 pool = $1
 
 s = UNIXSocket.new("/run/osctl/user-control/namespaced.sock")
-s.send({cmd: :ct_pre_mount, opts: {
+s.puts({cmd: :ct_pre_mount, opts: {
   id: ctid,
   pool: pool,
   rootfs_mount: ENV['LXC_ROOTFS_MOUNT'],
-}}.to_json + "\n", 0)
+}}.to_json)
 ret = JSON.parse(s.readline, symbolize_names: true)
 s.close
 

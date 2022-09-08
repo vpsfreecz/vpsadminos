@@ -33,12 +33,12 @@ elsif !ifname
 end
 
 s = UNIXSocket.new("/run/osctl/user-control/#{Process.uid}.sock")
-s.send({cmd: :veth_down, opts: {
+s.puts({cmd: :veth_down, opts: {
   id: ctid,
   pool: pool,
   interface: ifname,
   veth: veth,
-}}.to_json + "\n", 0)
+}}.to_json)
 ret = JSON.parse(s.readline, symbolize_names: true)
 s.close
 
