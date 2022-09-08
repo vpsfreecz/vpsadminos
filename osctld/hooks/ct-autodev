@@ -19,10 +19,10 @@ end
 pool = $1
 
 s = UNIXSocket.new("/run/osctl/user-control/namespaced.sock")
-s.send({cmd: :ct_autodev, opts: {
+s.puts({cmd: :ct_autodev, opts: {
   id: ctid,
   pool: pool,
-}}.to_json + "\n", 0)
+}}.to_json)
 ret = JSON.parse(s.readline, symbolize_names: true)
 s.close
 

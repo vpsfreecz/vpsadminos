@@ -118,7 +118,7 @@ class SendReceive
   end
 
   def send_cmd(cmd, opts = {})
-    client.send({cmd: cmd, opts: opts}.to_json + "\n", 0)
+    client.puts({cmd: cmd, opts: opts}.to_json)
   end
 
   def send_stdin

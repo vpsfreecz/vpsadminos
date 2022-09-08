@@ -20,11 +20,11 @@ end
 pool = $1
 
 s = UNIXSocket.new("/run/osctl/user-control/#{Process.uid}.sock")
-s.send({cmd: :ct_post_stop, opts: {
+s.puts({cmd: :ct_post_stop, opts: {
   id: ctid,
   pool: pool,
   target: target,
-}}.to_json + "\n", 0)
+}}.to_json)
 ret = JSON.parse(s.readline, symbolize_names: true)
 s.close
 
