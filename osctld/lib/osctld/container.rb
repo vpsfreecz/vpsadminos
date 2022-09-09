@@ -527,6 +527,7 @@ module OsCtld
           self.init_cmd = nil
 
         when :start_menu
+          clear_start_menu
           self.start_menu = nil
 
         when :raw_lxc
