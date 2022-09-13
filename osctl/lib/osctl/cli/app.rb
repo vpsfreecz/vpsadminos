@@ -2126,7 +2126,7 @@ module OsCtl::Cli
           c.switch %i(a append), negatable: false
 
           c.desc 'Specify cgroup version'
-          c.flag %i(v version), type: Integer, must_match: [1, 2]
+          c.flag %i(v version), type: Integer, must_match: %w(1 2)
 
           c.action &Command.run(handler, :cgparam_set)
         end
@@ -2135,7 +2135,7 @@ module OsCtl::Cli
         p.arg_name "<#{arg_name}> <parameter>"
         p.command :unset do |c|
           c.desc 'Specify cgroup version'
-          c.flag %i(v version), type: Integer, must_match: [1, 2]
+          c.flag %i(v version), type: Integer, must_match: %w(1 2)
 
           c.action &Command.run(handler, :cgparam_unset)
         end
