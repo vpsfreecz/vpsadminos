@@ -88,7 +88,7 @@ module OsCtld
         log(
           :info,
           :monitor,
-          "Starting user/group monitor for #{ct.user.name}/#{ct.group.name}"
+          "Starting pool/user/group monitor for #{ct.pool.name}:#{ct.user.name}:#{ct.group.name}"
         )
 
         pid, stdout = Monitor::Process.spawn(ct)
@@ -106,7 +106,7 @@ module OsCtld
         log(
           :info,
           :monitor,
-          "Monitor of user/group #{ct.user.name}/#{ct.group.name} exited"
+          "Monitor of pool/user/group #{ct.pool.name}:#{ct.user.name}:#{ct.group.name} exited"
         )
 
         break if sync { !@monitors.has_key?(key(ct)) }
@@ -125,7 +125,7 @@ module OsCtld
     end
 
     def key(ct)
-      "#{ct.user.name}/#{ct.group.name}"
+      "#{ct.pool.name}:#{ct.user.name}:#{ct.group.name}"
     end
 
     def sync

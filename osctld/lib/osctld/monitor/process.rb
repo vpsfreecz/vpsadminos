@@ -75,7 +75,7 @@ module OsCtld
       true
 
     rescue IOError
-      log(:info, :monitor, "Monitoring of #{@user.name}/#{@group.name} failed")
+      log(:info, :monitor, "Monitoring of #{@pool.name}:#{@user.name}:#{@group.name} failed")
       false
     end
 
