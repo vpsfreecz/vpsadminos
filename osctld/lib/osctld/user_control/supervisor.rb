@@ -69,7 +69,7 @@ module OsCtld
         req[:opts].update(client_pid: pid) if req[:opts].is_a?(Hash)
 
         # Forward to a real client handler
-        log(:info, "Forwarding request to user #{user.name}")
+        log(:info, "Forwarding request to user #{user.ident}")
         handler = ClientHandler.new(@sock, user: user)
         handler.handle_cmd(req)
       end
