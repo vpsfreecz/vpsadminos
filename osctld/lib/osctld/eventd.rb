@@ -37,7 +37,8 @@ module OsCtld
   #     {
   #       pool: pool name,
   #       id: container id,
-  #       state: new state
+  #       state: new state,
+  #       init_pid: pid of the container's init process if it is running
   #     }
   #
   # === `:db`
