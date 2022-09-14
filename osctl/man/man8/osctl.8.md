@@ -1664,7 +1664,7 @@ The following shortcuts are supported:
   `r`, `R`                  | Reverse sort order
   *up*, *down*              | Select containers
   *space*                   | Highlight selected container
-  *enter*                   | Open htop and filter container processes
+  *enter*                   | Open top and filter container processes
   `m`                       | Toggle between `realtime` and `cumulative` mode.
   `p`                       | Pause/unpause resource tracking.
   `?`                       | Show help message.

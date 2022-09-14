@@ -72,7 +72,7 @@ module OsCtl::Cli
 
           ct_result = ct.result(mode)
           update_host_result(host_result, ct_result)
-          ct_data = {pool: ct.pool, id: ct.id}.merge(ct_result)
+          ct_data = {pool: ct.pool, id: ct.id, init_pid: ct.init_pid}.merge(ct_result)
 
           if mode == :realtime
             ct_cpu_hz = ct_result[:cpu_user_hz] + ct_result[:cpu_system_hz]
