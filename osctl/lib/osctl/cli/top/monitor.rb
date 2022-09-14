@@ -55,7 +55,10 @@ module OsCtl::Cli
           ct = model.find_ct(opts[:pool], opts[:id])
           next unless ct
 
-          ct.state = opts[:state].to_sym
+          st = opts[:state].to_sym
+
+          ct.state = st
+          ct.init_pid = opts[:init_pid] if st == :running
         end
 
       when :db

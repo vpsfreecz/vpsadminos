@@ -1,4 +1,5 @@
 require 'curses'
+require 'libosctl'
 require 'osctl/cli/top/tui/screen'
 
 module OsCtl::Cli::Top
@@ -574,19 +575,38 @@ module OsCtl::Cli::Top
       return unless ct
 
       if ct[:id] == '[host]'
-        ctid = 'host'
+        pid = Process.fork do
+          Curses.close_screen
+          Process.exec('top')
+        end
+      elsif ct[:init_pid]
+        pid = Process.fork do
+          sys = OsCtl::Lib::Sys.new
 
+          sys.setns_path(
+            File.join('/proc', ct[:init_pid].to_s, 'ns/pid'),
+            OsCtl::Lib::Sys::CLONE_NEWPID,
+          )
+          sys.unshare_ns(OsCtl::Lib::Sys::CLONE_NEWNS)
+
+          # Enter the PID namespace in a child process
+          child = Process.fork do
+            sys.mount_proc('/proc')
+
+            Curses.close_screen
+            Process.exec('top')
+          end
+
+          Process.wait(child)
+          exit($?.exitstatus)
+        end
       else
-        ctid = "#{ct[:pool]}:#{ct[:id]}"
-      end
-
-      pid = Process.fork do
-        Process.exec('htop', '-c', ctid)
+        return
       end
 
       Process.wait(pid)
 
-      # The screen needs to be reinitialized after htop
+      # The screen needs to be reinitialized after top
       Curses.init_screen
       Curses.start_color
       Curses.crmode
