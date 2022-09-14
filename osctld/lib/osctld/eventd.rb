@@ -75,8 +75,8 @@ module OsCtld
       end
 
       %i(start stop subscribe unsubscribe report).each do |m|
-        define_method(m) do |*args, &block|
-          instance.method(m).call(*args, &block)
+        define_method(m) do |*args, **kwargs, &block|
+          instance.method(m).call(*args, **kwargs, &block)
         end
       end
     end
@@ -125,7 +125,7 @@ module OsCtld
     # Report an event that should be announced to all subscribers
     # @param type [Symbol]
     # @param opts [Hash]
-    def report(type, opts)
+    def report(type, **opts)
       @queue << Event.new(type, opts)
     end
   end
