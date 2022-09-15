@@ -17,16 +17,12 @@ module OsCtld
       @dists[distribution]
     end
 
+    # Call distribution config method and catch all exceptions
     # @param ctrc [Container::RunConfiruration]
     # @param cmd [Symbol]
     # @param opts [Hash]
     def self.run(ctrc, cmd, **opts)
-      klass = self.for(ctrc.distribution.to_sym)
-
-      # Make sure the container's dataset is mounted
-      ctrc.mount
-
-      d = (klass || self.for(:other)).new(ctrc)
+      d = prepare(ctrc)
 
       begin
         d.method(cmd).call(opts)
@@ -35,6 +31,24 @@ module OsCtld
         ctrc.log(:warn, "DistConfig.#{cmd} failed: #{e.message}")
         ctrc.log(:warn, denixstorify(e.backtrace).join("\n"))
       end
+    end
+
+    # Call distribution config method
+    # @param ctrc [Container::RunConfiruration]
+    # @param cmd [Symbol]
+    # @param opts [Hash]
+    def self.run!(ctrc, cmd, **opts)
+      d = prepare(ctrc)
+      d.method(cmd).call(opts)
+    end
+
+    def self.prepare(ctrc)
+      klass = self.for(ctrc.distribution.to_sym)
+
+      # Make sure the container's dataset is mounted
+      ctrc.mount
+
+      d = (klass || self.for(:other)).new(ctrc)
     end
   end
 end
