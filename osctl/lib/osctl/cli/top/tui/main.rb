@@ -75,8 +75,11 @@ module OsCtl::Cli::Top
         when ' '
           selection_highlight
 
-        when Curses::Key::ENTER, 10
-          selection_open
+        when Curses::Key::ENTER, 10, 't'
+          selection_open_top
+
+        when 'h'
+          selection_open_htop
 
         when 'r', 'R'
           Curses.clear
@@ -568,7 +571,15 @@ module OsCtl::Cli::Top
       end
     end
 
-    def selection_open
+    def selection_open_top
+      selection_open_program { %w(top) }
+    end
+
+    def selection_open_htop
+      selection_open_program { %w(htop) }
+    end
+
+    def selection_open_program(&block)
       return unless @current_row
 
       ct = last_data[:containers][@current_row]
@@ -577,7 +588,7 @@ module OsCtl::Cli::Top
       if ct[:id] == '[host]'
         pid = Process.fork do
           Curses.close_screen
-          Process.exec('top')
+          Process.exec(*block.call)
         end
       elsif ct[:init_pid]
         pid = Process.fork do
@@ -594,7 +605,7 @@ module OsCtl::Cli::Top
             sys.mount_proc('/proc')
 
             Curses.close_screen
-            Process.exec('top')
+            Process.exec(*block.call)
           end
 
           Process.wait(child)
