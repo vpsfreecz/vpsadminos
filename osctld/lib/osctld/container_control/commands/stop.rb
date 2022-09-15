@@ -23,14 +23,16 @@ module OsCtld
 
         CGroup.thaw_tree(ct.cgroup_path) if mode == :kill
 
-        ret = fork_runner(args: [mode, opts])
+        runner_timeout = opts[:timeout] * 2
+
+        ret = fork_runner(args: [mode, opts], timeout: runner_timeout)
 
         if ret.ok?
           true
 
-        elsif mode == :stop
+        elsif mode == :stop && !ret.user_runner?
           CGroup.thaw_tree(ct.cgroup_path)
-          ret = fork_runner(args: [:kill, opts])
+          ret = fork_runner(args: [:kill, opts], timeout: runner_timeout)
           ret.ok? || ret
 
         else

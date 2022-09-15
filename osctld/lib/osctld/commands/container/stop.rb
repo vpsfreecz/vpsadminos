@@ -49,14 +49,14 @@ module OsCtld
         end
 
         begin
-          DistConfig.run(
+          DistConfig.run!(
             ct.get_run_conf,
             :stop,
             mode: mode,
             timeout: opts[:timeout] || 60,
           )
-        rescue ContainerControl::UserRunnerError
-          ct.log(:warn, 'Unable to stop, killing by force')
+        rescue ContainerControl::UserRunnerError => e
+          ct.log(:warn, "Unable to stop, killing by force: #{e.message}")
           progress('Unable to stop, killing by force')
 
           unless force_kill(ct)
