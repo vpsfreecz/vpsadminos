@@ -113,19 +113,7 @@ module OsCtld
 
       ret_w.close
 
-      begin
-        ret = JSON.parse(ret_r.readline, symbolize_names: true)
-        Process.wait(pid)
-        ContainerControl::Result.from_runner(ret)
-
-      rescue EOFError
-        Process.wait(pid)
-        ContainerControl::Result.new(
-          false,
-          message: 'user runner failed',
-          user_runner: true,
-        )
-      end
+      process_response(pid, ret_r)
     end
 
     # Fork to the container user and invoke the runner.
@@ -142,6 +130,7 @@ module OsCtld
     # @option opts [IO, nil] :stdout
     # @option opts [IO, nil] :stderr
     # @option opts [Boolean] :switch_to_system
+    # @option opts [Integer, nil] :timeout
     #
     # @return [ContainerControl::Result]
     def fork_runner(opts = {})
@@ -190,19 +179,62 @@ module OsCtld
 
       w.close
 
-      begin
-        ret = JSON.parse(r.readline, symbolize_names: true)
-        Process.wait(pid)
-        ContainerControl::Result.from_runner(ret)
+      process_response(pid, r, timeout: opts[:timeout])
+    end
 
+    private
+    def process_response(pid, read_io, timeout: nil)
+      t = Time.now
+      buffer = ''
+
+      begin
+        loop do
+          rs, _ = IO.select([read_io], [], [], timeout ? 1 : nil)
+
+          if timeout && t + timeout < Time.now
+            read_io.close
+
+            begin
+              Process.kill('KILL', pid)
+            rescue Errno::ESRCH
+            end
+
+            begin
+              Process.wait(pid)
+            rescue Errno::ESRCH
+            end
+
+            return ContainerControl::Result.new(
+              false,
+              message: 'user runner timed out',
+              user_runner: true,
+            )
+          end
+
+          next if rs.nil?
+
+          buffer << read_nonblock(read_io)
+          break if buffer.end_with?("\n")
+        end
       rescue EOFError
         Process.wait(pid)
-        ContainerControl::Result.new(
+        return ContainerControl::Result.new(
           false,
           message: 'user runner failed',
           user_runner: true,
         )
       end
+
+      read_io.close
+      ret = JSON.parse(buffer, symbolize_names: true)
+      Process.wait(pid)
+      ContainerControl::Result.from_runner(ret)
+    end
+
+    def read_nonblock(io)
+      io.read_nonblock(4096)
+    rescue IO::WaitReadable
+      ''
     end
   end
 end
