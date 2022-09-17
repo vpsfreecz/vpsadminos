@@ -10,6 +10,7 @@
   ./misc/os-lib.nix
   ./misc/version.nix
   ./nixos-compat.nix
+  ./osctl/lxcfs.nix
   ./osctl/pools.nix
   ./osctl/osctld.nix
   ./osctl/osctl-exporter.nix
