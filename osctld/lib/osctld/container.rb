@@ -21,7 +21,7 @@ module OsCtld
       :version, :arch, :autostart, :ephemeral, :hostname, :dns_resolvers,
       :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams,
       :devices, :seccomp_profile, :apparmor, :attrs, :state, :lxc_config,
-      :init_cmd, :start_menu, :raw_configs, :run_conf
+      :init_cmd, :start_menu, :lxcfs, :raw_configs, :run_conf
 
     alias_method :ephemeral?, :ephemeral
 
@@ -59,6 +59,7 @@ module OsCtld
       @nesting = false
       @seccomp_profile = nil
       @apparmor = AppArmor.new(self)
+      @lxcfs = nil
       @lxc_config = Container::LxcConfig.new(self)
       @init_cmd = nil
       @raw_configs = Container::RawConfigs.new
@@ -141,6 +142,7 @@ module OsCtld
         )
 
         lxc_config.assets(add)
+        lxcfs.assets(add)
 
         add.file(
           File.join(lxc_dir, '.bashrc'),
@@ -256,6 +258,7 @@ module OsCtld
 
     def chown(user)
       self.user = user
+      lxcfs.chown(user)
       save_config
       lxc_config.configure
       configure_bashrc
@@ -488,6 +491,9 @@ module OsCtld
         when :start_menu
           self.start_menu = Container::StartMenu.new(self, v[:timeout])
 
+        when :lxcfs
+          self.lxcfs.configure(loadavg: v[:loadavg], cfs: v[:cfs])
+
         when :raw_lxc
           self.raw_configs.lxc = v
 
@@ -529,6 +535,9 @@ module OsCtld
         when :start_menu
           clear_start_menu
           self.start_menu = nil
+
+        when :lxcfs
+          self.lxcfs.disable
 
         when :raw_lxc
           self.raw_configs.lxc = nil
@@ -647,6 +656,10 @@ module OsCtld
           init_cmd: format_user_init_cmd,
           start_menu: start_menu ? true : false,
           start_menu_timeout: start_menu && start_menu.timeout,
+          lxcfs_enable: lxcfs.enable,
+          lxcfs_mountpoint: lxcfs.mountpoint,
+          lxcfs_loadavg: lxcfs.loadavg,
+          lxcfs_cfs: lxcfs.cfs,
           raw_lxc: raw_configs.lxc,
           log_file: log_path,
         }.merge!(attrs.export)
@@ -677,6 +690,7 @@ module OsCtld
                                ? nil : seccomp_profile,
           'init_cmd' => init_cmd,
           'start_menu' => start_menu && start_menu.dump,
+          'lxcfs' => lxcfs.dump,
           'raw' => raw_configs.dump,
           'attrs' => attrs.dump,
         }
@@ -821,6 +835,8 @@ module OsCtld
             nil
           end
 
+        @lxcfs = Container::Lxcfs.load(self, cfg['lxcfs'] || {})
+
         @run_conf = Container::RunConfiguration.load(self)
 
         if cfg['send_log']
@@ -881,6 +897,7 @@ module OsCtld
       @prlimits = prlimits.dup(self)
       @mounts = mounts.dup(self)
       @start_menu = @start_menu && @start_menu.dup(self)
+      @lxcfs = lxcfs.dup(self)
       @lxc_config = lxc_config.dup(self)
       @raw_configs = raw_configs.dup
       @attrs = attrs.dup

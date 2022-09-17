@@ -99,6 +99,9 @@ module OsCtld
       # Pre-start distconfig hook
       DistConfig.run(ct.run_conf, :pre_start)
 
+      # Start LXCFS
+      ct.lxcfs.ensure_and_wait
+
       # Optionally add new mounts
       (opts[:mounts] || []).each do |mnt|
         ct.mounts.add(mnt)

@@ -66,6 +66,11 @@ module OsCtld
       def ctstartmenu
         @cfg['ctstartmenu']
       end
+
+      # @return [String]
+      def lxcfs
+        @cfg['lxcfs']
+      end
     end
 
     @@instance = nil

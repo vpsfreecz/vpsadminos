@@ -27,6 +27,8 @@ let
     apparmor_paths = map (s: "${s}/etc/apparmor.d") apparmorPaths;
 
     ctstartmenu = "${pkgs.ctstartmenu}/bin/ctstartmenu";
+
+    lxcfs = "${pkgs.lxcfs}/bin/lxcfs";
   };
 
   jsonConfigFile = pkgs.writeText "osctld-config.json" (builtins.toJSON osctldConfig);
