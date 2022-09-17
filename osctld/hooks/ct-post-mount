@@ -1,6 +1,85 @@
 #!/usr/bin/env ruby
+require 'fiddle'
+require 'fiddle/import'
 require 'json'
 require 'socket'
+
+module Sys
+  MS_MGC_VAL = 0xc0ed0000
+  MS_BIND = 4096
+
+  module Int
+    extend Fiddle::Importer
+    dlload Fiddle.dlopen(nil)
+
+    extern 'int mount(const char *source, const char *target, '+
+           '          const char *filesystemtype, unsigned long mountflags, '+
+           '          const void *data)'
+  end
+
+  def self.bind_mount(src, dst)
+    ret = Int.mount(src, dst, 0, MS_MGC_VAL | MS_BIND, 0)
+    raise SystemCallError, Fiddle.last_error if ret != 0
+    ret
+  end
+end
+
+class CtPostMount
+  def initialize(pool, ctid, rootfs)
+    @pool = pool
+    @ctid = ctid
+    @rootfs = File.absolute_path(rootfs)
+  end
+
+  def run
+    ret = call_osctld!
+
+    lxcfs_opts = ret[:response][:lxcfs]
+    mount_lxcfs(lxcfs_opts) if lxcfs_opts
+  end
+
+  protected
+  def call_osctld!
+    s = UNIXSocket.new("/run/osctl/user-control/namespaced.sock")
+    s.puts({cmd: :ct_post_mount, opts: {
+      id: @ctid,
+      pool: @pool,
+      rootfs_mount: @rootfs,
+    }}.to_json)
+    ret = JSON.parse(s.readline, symbolize_names: true)
+    s.close
+
+    unless ret[:status]
+      warn "Error: #{ret[:message]}"
+      exit(false)
+    end
+
+    ret
+  end
+
+  def mount_lxcfs(opts)
+    mount_lxcfs_files(opts)
+    mount_lxcfs_self(opts)
+  end
+
+  def mount_lxcfs_files(opts)
+    opts[:mount_files].each do |f|
+      src_f = File.join(opts[:mountpoint], f)
+      dst_f = File.join(@rootfs, f)
+      next unless File.exist?(dst_f)
+
+      Sys.bind_mount(src_f, dst_f)
+    end
+  end
+
+  def mount_lxcfs_self(opts)
+    ct_lxcfs = File.join(@rootfs, 'var/lib/lxcfs')
+
+    if Dir.exist?(ct_lxcfs)
+      Sys.bind_mount(opts[:mountpoint], ct_lxcfs)
+    end
+  end
+end
 
 ctid = ENV['LXC_NAME']
 
@@ -17,15 +96,7 @@ end
 
 pool = $1
 
-s = UNIXSocket.new("/run/osctl/user-control/namespaced.sock")
-s.puts({cmd: :ct_post_mount, opts: {
-  id: ctid,
-  pool: pool,
-  rootfs_mount: ENV['LXC_ROOTFS_MOUNT'],
-}}.to_json)
-ret = JSON.parse(s.readline, symbolize_names: true)
-s.close
+hook = CtPostMount.new(pool, ctid, ENV['LXC_ROOTFS_MOUNT'])
+hook.run
 
-exit(true) if ret[:status]
-warn "Error: #{ret[:message]}"
-exit(false)
+exit(true)

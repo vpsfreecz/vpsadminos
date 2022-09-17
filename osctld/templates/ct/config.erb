@@ -3,7 +3,6 @@
 <% OsCtld::Lxc::dist_lxc_configs(distribution, version).each do |cfg| -%>
 lxc.include = <%= cfg %>
 <% end -%>
-lxc.include = /etc/lxc/common.conf.d/00-lxcfs.conf
 <% if ct.nesting -%>
 lxc.include = <%= File.join(Lxc::CONFIGS, 'nesting.conf') %>
 <% end -%>

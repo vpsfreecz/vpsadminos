@@ -9,6 +9,7 @@ module OsCtld
     OSCTLD_CONFIG_DIR = File.join(CONFIG_DIR, 'osctld')
     LXC_CONFIG_DIR = File.join(CONFIG_DIR, 'lxc')
     APPARMOR_DIR = File.join(CONFIG_DIR, 'apparmor')
+    LXCFS_DIR = File.join(RUNDIR, 'lxcfs')
     SHUTDOWN_MARKER = File.join(RUNDIR, 'shutdown')
     CGROUP_VERSION = File.join(RUNDIR, 'cgroup.version')
 
@@ -88,6 +89,7 @@ module OsCtld
         mode: 0755
       )
 
+      Lxcfs.assets(add)
       SendReceive.assets(add)
     end
 

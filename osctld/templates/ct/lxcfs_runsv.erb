@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+mkdir -p "<%= mountpoint %>"
+umount "<%= mountpoint %>" 2> /dev/null
+exec <%= executable %> <%= options.join(' ') %> "<%= mountpoint %>"

@@ -20,6 +20,8 @@ module OsCtld
         ns_pid: opts[:client_pid],
       )
 
+      lxcfs_params = ct.lxcfs.enable && ct.lxcfs.post_mount_params
+
       begin
         Hook.run(
           ct,
@@ -30,7 +32,7 @@ module OsCtld
       rescue HookFailed => e
         error(e.message)
       else
-        ok
+        ok(lxcfs: lxcfs_params)
       end
     end
   end
