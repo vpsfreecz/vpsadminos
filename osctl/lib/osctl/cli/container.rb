@@ -1491,23 +1491,19 @@ module OsCtl::Cli
       end
 
       begin
-        lavgs = OsCtl::Lib::LoadAvgReader.read_for(["#{ct[:pool]}:#{ct[:id]}"])
+        lavgs = OsCtl::Lib::LoadAvgReader.read_for([ct])
       rescue SystemCallError => e
         warn "Unable to read container load averages: #{e.message} (#{e.class})"
         return
       end
 
-      if lavgs.empty?
-        ct[:loadavg] = nil
-
-      else
-        ct[:loadavg] = lavgs.first.averages
-      end
+      lavg = lavgs["#{ct[:pool]}:#{ct[:id]}"]
+      ct[:loadavg] = lavg ? lavg.averages : nil
     end
 
     def add_loadavgs(cts)
       begin
-        lavgs = OsCtl::Lib::LoadAvgReader.read_all_hash
+        lavgs = OsCtl::Lib::LoadAvgReader.read_for(cts)
       rescue SystemCallError => e
         warn "Unable to read container load averages: #{e.message} (#{e.class})"
         return
@@ -1520,13 +1516,7 @@ module OsCtl::Cli
         end
 
         lavg = lavgs[ "#{ct[:pool]}:#{ct[:id]}" ]
-
-        if lavg
-          ct[:loadavg] = lavg.averages
-
-        else
-          ct[:loadavg] = nil
-        end
+        ct[:loadavg] = lavg ? lavg.averages : nil
       end
     end
 
