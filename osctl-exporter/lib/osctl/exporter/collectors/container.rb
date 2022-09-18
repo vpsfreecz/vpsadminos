@@ -192,7 +192,7 @@ module OsCtl::Exporter
         true
       )
 
-      lavgs = OsCtl::Lib::LoadAvgReader.read_all_hash
+      lavgs = OsCtl::Lib::LoadAvgReader.read_for(cts)
       objsets = OsCtl::Lib::Zfs::ObjsetStats.read_pools(pools)
       propreader = OsCtl::Lib::Zfs::PropertyReader.new
       keyring = OsCtl::Lib::KernelKeyring.new

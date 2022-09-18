@@ -1,8 +1,8 @@
 module OsCtl::Lib
-  # Reads and parses per-container load averages from
-  # `/var/lib/lxcfs/proc/.loadavgs`
+  # Reads and parses per-container load averages from LXCFS
   class LoadAvgReader
-    FILE = '/var/lib/lxcfs/proc/.loadavgs'
+    SYSTEM_LXCFS = '/var/lib/lxcfs'
+    FILE = 'proc/.loadavgs'
 
     LoadAvg = Struct.new(:pool_name, :ctid, :avg, :runnable, :total, :last_pid) do
       def ident
@@ -14,60 +14,57 @@ module OsCtl::Lib
       end
     end
 
-    # Read loadavgs for all containers
-    # @return [Array<LoadAvg>]
-    def self.read_all
-      reader = new
-      ret = reader.read.to_a
-      reader.close
-      ret
-    end
-
-    # Read loadavgs for all containers and return as a hash
+    # Read loadavgs for given containers and return them in a hash indexed by ctid
+    # # @param containers [Array<Hash>] list of containers as received from osctld
     # @return [Hash<String, LoadAvg>]
-    def self.read_all_hash
+    def self.read_for(containers)
       reader = new
+      lavgs = {}
+
+      # First read from the system lxcfs instance
+      # TODO: remove this in the future
+      if Dir.exist?(File.join(SYSTEM_LXCFS, 'proc'))
+        index = Hash[ containers.map { |ct| ["#{ct[:pool]}:#{ct[:id]}", true] } ]
+
+        reader.read_lxcfs(SYSTEM_LXCFS) do |lavg|
+          lavgs[ lavg.ident ] = lavg
+
+          index.delete(lavg.ident)
+          index.empty? ? :stop : nil
+        end
+      end
+
+      containers.each do |ct|
+        reader.read_lxcfs(ct[:lxcfs_mountpoint]) do |lavg|
+          lavgs[ lavg.ident ] = lavg
+        end
+      end
+
       ret = {}
 
-      reader.read.each do |lavg|
-        ret[ lavg.ident ] = lavg
+      containers.each do |ct|
+        k = "#{ct[:pool]}:#{ct[:id]}"
+
+        ret[k] = lavgs[k] if lavgs.has_key?(k)
       end
 
-      reader.close
       ret
     end
 
-    # Read loadavgs for selected containers
-    # @param ctids [Array<String>] container ids with pool, i.e. `<pool>:<ctid>`
-    # @return [Array<LoadAvg>]
-    def self.read_for(ctids)
-      reader = new
-      ret = []
-
-      reader.read.each do |lavg|
-        if ctids.include?(lavg.ident)
-          ret << lavg
-          ctids.delete(lavg.ident)
+    # Read load averages from LXCFS
+    # @param mountpoint [String]
+    # @yieldparam lavg [LoadAvg]
+    # @yieldreturn [:stop, any]
+    def read_lxcfs(mountpoint)
+      File.open(File.join(mountpoint, FILE), 'r') do |f|
+        f.each_line do |line|
+          lavg = parse(line)
+          next if lavg.nil?
+          break if yield(lavg) == :stop
         end
-
-        break if ctids.empty?
       end
 
-      reader.close
-      ret
-    end
-
-    def initialize
-      @fh = File.open(FILE, 'r')
-    end
-
-    # @return [Enumerator]
-    def read
-      @fh.each_line.lazy.map { |line| parse(line) }.reject { |v| v.nil? }
-    end
-
-    def close
-      @fh.close
+    rescue Errno::ENOENT
     end
 
     protected
