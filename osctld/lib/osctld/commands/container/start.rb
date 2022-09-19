@@ -25,9 +25,11 @@ module OsCtld
 
         # Exit if we don't need to wait
         if ret != :wait
+          Eventd.unsubscribe(event_queue)
           return ret
 
         elsif opts[:wait] === false
+          Eventd.unsubscribe(event_queue)
           return ok
         end
 
