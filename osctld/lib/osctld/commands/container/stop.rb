@@ -50,13 +50,17 @@ module OsCtld
 
         # Disable ksoftlimd
         if CGroup.v1?
-          CGroup.set_param(
-            File.join(
-              CGroup.abs_cgroup_path('memory', ct.base_cgroup_path),
-              'memory.ksoftlimd_control'
-            ),
-            ['0'],
-          )
+          begin
+            CGroup.set_param(
+              File.join(
+                CGroup.abs_cgroup_path('memory', ct.base_cgroup_path),
+                'memory.ksoftlimd_control'
+              ),
+              ['0'],
+            )
+          rescue CGroupFileNotFound
+            # This can happen when the container is already stopped
+          end
         end
 
         begin
