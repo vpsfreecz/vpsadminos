@@ -29,6 +29,17 @@ module OsCtld
       )
       return ret unless ret[:status]
 
+      # Enable ksoftlimd
+      if CGroup.v1?
+        CGroup.set_param(
+          File.join(
+            CGroup.abs_cgroup_path('memory', ct.base_cgroup_path),
+            'memory.ksoftlimd_control'
+          ),
+          ['1'],
+        )
+      end
+
       # Configure devices cgroup
       ct.devices.apply
 
