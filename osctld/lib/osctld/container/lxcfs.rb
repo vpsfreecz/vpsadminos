@@ -15,6 +15,8 @@ module OsCtld
       )
     end
 
+    include Lockable
+
     # @return [Container]
     attr_reader :ct
 
@@ -25,6 +27,7 @@ module OsCtld
 
     # @param ct [Container]
     def initialize(ct, enable: true, loadavg: true, cfs: true)
+      init_lock
       @ct = ct
       @enable = enable
       @lxcfs = OsCtld::Lxcfs.new(
@@ -56,24 +59,29 @@ module OsCtld
     end
 
     def ensure_and_wait
-      return unless enable
+      exclusively do
+        return unless enable
 
-      lxcfs.ensure_start
+        lxcfs.ensure_start
+      end
+
       lxcfs.wait(timeout: 20)
     end
 
     def ensure_stop
-      lxcfs.ensure_stop
+      exclusively { lxcfs.ensure_stop }
     end
 
     def running?
-      lxcfs.running?
+      inclusively { lxcfs.running? }
     end
 
     def configure(loadavg: true, cfs: true)
-      @enable = true
-      lxcfs.configure(loadavg: loadavg, cfs: cfs)
-      lxcfs.restart if !ct.running? && lxcfs.running?
+      exclusively do
+        @enable = true
+        lxcfs.configure(loadavg: loadavg, cfs: cfs)
+        lxcfs.restart if !ct.running? && lxcfs.running?
+      end
     end
 
     def chown(user)
@@ -81,35 +89,44 @@ module OsCtld
         fail 'programming error: expected container user to be changed'
       end
 
-      lxcfs.chown(ct.root_host_uid, ct.root_host_gid)
+      exclusively do
+        lxcfs.chown(ct.root_host_uid, ct.root_host_gid)
+      end
     end
 
     def disable
-      @enable = false
-      destroy unless ct.running?
+      exclusively do
+        @enable = false
+        destroy unless ct.running?
+      end
     end
 
     def destroy
-      lxcfs.ensure_destroy
+      exclusively { lxcfs.ensure_destroy }
     end
 
     def post_mount_params
-      {
-        mountpoint: lxcfs.mountpoint,
-        mount_files: lxcfs.mount_files,
-      }
+      inclusively do
+        {
+          mountpoint: lxcfs.mountpoint,
+          mount_files: lxcfs.mount_files,
+        }
+      end
     end
 
     def dump
-      {
-        'enable' => enable,
-        'loadavg' => lxcfs.loadavg,
-        'cfs' => lxcfs.cfs,
-      }
+      inclusively do
+        {
+          'enable' => enable,
+          'loadavg' => lxcfs.loadavg,
+          'cfs' => lxcfs.cfs,
+        }
+      end
     end
 
     def dup(new_ct)
       ret = super()
+      ret.init_lock
       ret.instance_variable_set('@ct', new_ct)
       ret.instance_variable_set('@lxcfs', OsCtld::Lxcfs.new(
         "ct.#{new_ct.ident}",
