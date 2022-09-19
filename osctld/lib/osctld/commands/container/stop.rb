@@ -48,6 +48,17 @@ module OsCtld
           error!(e.message)
         end
 
+        # Disable ksoftlimd
+        if CGroup.v1?
+          CGroup.set_param(
+            File.join(
+              CGroup.abs_cgroup_path('memory', ct.base_cgroup_path),
+              'memory.ksoftlimd_control'
+            ),
+            ['0'],
+          )
+        end
+
         begin
           DistConfig.run(
             ct.get_run_conf,
