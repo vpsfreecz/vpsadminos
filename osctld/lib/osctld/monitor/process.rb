@@ -103,43 +103,34 @@ module OsCtld
         return
       end
 
+      Eventd.report(:state, pool: ct.pool.name, id: ct.id, state: change[:state])
+
       ct.state = change[:state]
+      init_pid = nil
 
-      event_opts = {
-        pool: ct.pool.name,
-        id: ct.id,
-        state: change[:state],
-      }
-
-      # Pre-announce handling
       case ct.state
       when :running
         begin
           init_pid = ContainerControl::Commands::State.run!(ct).init_pid
           ct.ensure_run_conf.init_pid = init_pid
-          event_opts[:init_pid] = init_pid
         rescue ContainerControl::Error => e
           log(:warn, :monitor, "Unable to get state of container #{ct.ident}: #{e.message}")
-          event_opts[:init_pid] = nil
         end
+
+        if init_pid
+          Eventd.report(:ct_init_pid, pool: ct.pool.name, id: ct.id, init_pid: init_pid)
+        end
+
+        Hook.run(ct, :post_start, init_pid: ct.init_pid)
 
       when :aborting
         ct.run_conf.aborted = true
 
-      when :stopped, :aborted
-        ct.mounts.prune
-      end
-
-      # Announce state change
-      Eventd.report(:state, **event_opts)
-
-      # Post-announce handling
-      case ct.state
-      when :running
-        Hook.run(ct, :post_start, init_pid: ct.init_pid)
-
       when :stopping
         Hook.run(ct, :on_stop)
+
+      when :stopped, :aborted
+        ct.mounts.prune
       end
     end
   end

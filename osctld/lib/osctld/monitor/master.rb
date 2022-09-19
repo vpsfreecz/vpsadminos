@@ -119,6 +119,7 @@ module OsCtld
 
       if st.init_pid
         ct.ensure_run_conf.init_pid = st.init_pid
+        Eventd.report(:ct_init_pid, pool: ct.pool.name, id: ct.id, init_pid: st.init_pid)
       end
     rescue ContainerControl::Error => e
       log(:warn, :monitor, "Unable to get state of container #{ct.ident}: #{e.message}")
