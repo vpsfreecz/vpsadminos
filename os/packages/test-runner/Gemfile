@@ -1,2 +1,2 @@
 source 'https://rubygems.vpsfree.cz'
-gem 'test-runner', '22.05.0.build20220919110256'
+gem 'test-runner', '22.05.0.build20220919152952'
