@@ -88,6 +88,14 @@ module OsCtl::Cli
           end
         end
 
+      when :ct_init_pid
+        model.sync do
+          ct = model.find_ct(opts[:pool], opts[:id])
+          next unless ct
+
+          ct.init_pid = opts[:init_pid]
+        end
+
       when :ct_netif
         model.sync do
           ct = model.find_ct(opts[:pool], opts[:id])
