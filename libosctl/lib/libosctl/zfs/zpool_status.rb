@@ -7,7 +7,9 @@ module OsCtl::Lib
     #   @return [:online, :degraded, :suspended, :faulted] pool state
     # @!attribute [r] scan
     #   @return [:none, :scrub, :resilver] active scan type
-    Pool = Struct.new(:name, :state, :scan, keyword_init: true)
+    # @!attribute [r] scan_percent
+    #   @return [Float, nil] scrub/resilver progress
+    Pool = Struct.new(:name, :state, :scan, :scan_percent, keyword_init: true)
 
     include Utils::Log
     include Utils::System
@@ -46,12 +48,13 @@ module OsCtl::Lib
             name: stripped[5..-1].strip,
             state: :unknown,
             scan: :none,
+            scan_percent: nil,
           )
 
-        elsif stripped.start_with?('state:')
+        elsif cur_pool && stripped.start_with?('state:')
           cur_pool.state = stripped[6..-1].strip.downcase.to_sym
 
-        elsif stripped.start_with?('scan:')
+        elsif cur_pool && stripped.start_with?('scan:')
           scan = stripped[5..-1].strip
 
           cur_pool.scan =
@@ -62,6 +65,9 @@ module OsCtl::Lib
             else
               :none
             end
+
+        elsif cur_pool && cur_pool.scan != :none && /, (\d+\.\d+)% done,/ =~ stripped
+          cur_pool.scan_percent = $1.to_f
         end
       end
 
