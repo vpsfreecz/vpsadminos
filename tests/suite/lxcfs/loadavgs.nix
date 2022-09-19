@@ -2,33 +2,31 @@ import ../../make-test.nix (pkgs: {
   name = "lxcfs-loadavgs";
 
   description = ''
-    Test that /var/lib/lxcfs/proc/.loadavgs is available on the host
+    Test that LXCFS proc/.loadavgs summary file is available
   '';
 
-  machine = import ../../machines/tank.nix pkgs;
+    machine = import ../../machines/with-tank.nix {
+      inherit pkgs;
+      config =
+        { config, ... }:
+        {
+          services.lxcfs.enable = false;
+        };
+    };
 
   testScript = ''
-    machine.wait_for_service("lxcfs")
-    machine.wait_until_succeeds("ls /var/lib/lxcfs/proc")
-
-    _, output = machine.succeeds("ls -a1 /var/lib/lxcfs/proc")
-
-    if output.include?(".loadavgs")
-      fail ".loadavgs file is visible in /var/lib/lxcfs/proc, content:\n#{output}"
-    end
-
-    _, output = machine.succeeds("cat /var/lib/lxcfs/proc/.loadavgs")
-
-    if output != ""
-      fail "proc/.loadavgs not empty on boot, content:\n#{output}"
-    end
-
     machine.wait_for_osctl_pool("tank")
     machine.wait_until_online
 
     machine.all_succeed(
       "osctl ct new --distribution alpine testct",
-      "osctl ct mounts new --fs /var/lib/lxcfs/proc/.loadavgs --mountpoint /loadavgs --opts bind,rw,create=file --type bind testct",
+    )
+
+    _, output = machine.succeeds("osctl ct show -H -o lxcfs_mountpoint testct")
+    lxcfs_mountpoint = output.strip
+
+    machine.all_succeed(
+      "osctl ct mounts new --fs #{lxcfs_mountpoint}/proc/.loadavgs --mountpoint /loadavgs --opts bind,rw,create=file --type bind testct",
       "osctl ct start testct",
     )
 
@@ -38,7 +36,7 @@ import ../../make-test.nix (pkgs: {
       fail "EPERM expected, got '#{output}'"
     end
 
-    _, output = machine.succeeds("cat /var/lib/lxcfs/proc/.loadavgs")
+    _, output = machine.succeeds("cat #{lxcfs_mountpoint}/proc/.loadavgs")
 
     rx = Regexp.new(
       "^"+
