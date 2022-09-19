@@ -37,8 +37,7 @@ module OsCtld
   #     {
   #       pool: pool name,
   #       id: container id,
-  #       state: new state,
-  #       init_pid: pid of the container's init process if it is running
+  #       state: new state
   #     }
   #
   # === `:db`
@@ -50,6 +49,16 @@ module OsCtld
   #       pool: object's pool name,
   #       id: object identificator,
   #       action: add/remove
+  #     }
+  #
+  # === `:ct_init_pid`
+  # Reports discovery of container init PID
+  # Options:
+  #
+  #     {
+  #       pool: pool name,
+  #       id: container id,
+  #       init_pid: init PID
   #     }
   #
   # === `:ct_netif`
