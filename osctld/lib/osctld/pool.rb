@@ -1,4 +1,3 @@
-require 'etc'
 require 'fileutils'
 require 'libosctl'
 require 'osctld/lockable'
@@ -583,10 +582,9 @@ module OsCtld
         ep << File.basename(f)[0..(('.yml'.length+1) * -1)]
       end
 
-      nproc = Etc.nprocessors
-      log(:info, "Going to load #{ep.length} containers, #{nproc} at a time")
+      log(:info, "Going to load #{ep.length} containers, #{ep.default_threads} at a time")
 
-      ep.run(nproc) do |ctid|
+      ep.run do |ctid|
         log(:info, "Loading container #{ctid}")
 
         ct = load_entity('container', ctid) do
