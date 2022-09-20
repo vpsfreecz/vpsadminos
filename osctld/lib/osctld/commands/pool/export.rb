@@ -188,6 +188,7 @@ module OsCtld
             Commands::Container::Stop,
             pool: pool.name,
             id: ct.id,
+            destroy_lxcfs: true,
             progress: false,
             manipulation_lock: 'ignore',
           )

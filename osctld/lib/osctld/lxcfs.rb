@@ -106,7 +106,6 @@ module OsCtld
 
     def destroy
       log(:info, "Destroying LXCFS")
-      stop if running?
       FileUtils.rm_rf(runsv_source, secure: true)
       Dir.rmdir(mountpoint)
       Dir.rmdir(mountroot)
