@@ -58,6 +58,7 @@ module OsCtld
       )
     end
 
+    # @raise [Lxcfs::Timeout]
     def ensure_and_wait
       exclusively do
         return unless enable

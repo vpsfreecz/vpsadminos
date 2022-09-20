@@ -100,7 +100,11 @@ module OsCtld
       DistConfig.run(ct.run_conf, :pre_start)
 
       # Start LXCFS
-      ct.lxcfs.ensure_and_wait
+      begin
+        ct.lxcfs.ensure_and_wait
+      rescue Lxcfs::Timeout => e
+        return error("lxcfs not starting: #{e.message}")
+      end
 
       # Optionally add new mounts
       (opts[:mounts] || []).each do |mnt|

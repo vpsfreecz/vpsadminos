@@ -8,6 +8,9 @@ module OsCtld
     RUNDIR_RUNSVDIR = File.join(RunState::LXCFS_DIR, 'runsvdir')
     RUNDIR_MOUNTROOT = File.join(RunState::LXCFS_DIR, 'mountpoint')
 
+    class Error < ::StandardError ; end
+    class Timeout < Error ; end
+
     def self.assets(add)
       add.directory(
         RunState::LXCFS_DIR,
@@ -141,13 +144,14 @@ module OsCtld
     end
 
     # Block until LXCFS becomes operational or timeout occurs
+    # @raise [Lxcfs::Timeout]
     def wait(timeout: nil)
       wait_until = timeout && (Time.now + timeout)
 
       until operational?
         if timeout && wait_until < Time.now
           log(:fatal, 'Timed while waiting for LXCFS to become operational')
-          fail "Timed out while waiting for LXCFS to become operational"
+          raise Lxcfs::Timeout, "Timed out while waiting for LXCFS to become operational"
         end
 
         log(:info, 'Waiting for LXCFS to become operational')
