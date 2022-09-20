@@ -102,7 +102,7 @@ module OsCtld
       end
     end
 
-    def destroy
+    def ensure_destroy
       exclusively { lxcfs.ensure_destroy }
     end
 
