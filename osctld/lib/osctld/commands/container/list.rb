@@ -1,5 +1,4 @@
 require 'osctld/commands/base'
-require 'etc'
 
 module OsCtld
   class Commands::Container::List < Commands::Base
@@ -31,7 +30,7 @@ module OsCtld
       end
 
       if opts[:read_hostname] && hostname_reader.length > 0
-        hostname_reader.run([Etc.nprocessors, ret.length].min) do |ct, data|
+        hostname_reader.run do |ct, data|
           data[:hostname_readout] = ct.read_hostname
         end
 

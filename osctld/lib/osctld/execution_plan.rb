@@ -1,3 +1,4 @@
+require 'etc'
 require 'libosctl'
 require 'thread'
 
@@ -38,15 +39,17 @@ module OsCtld
     # The given block is called for every executed item. The calls can be made
     # in parallel from different threads.
     #
-    # @param threads [Integer] number of threads to spawn
+    # @param threads [Integer] max number of threads to spawn
     # @yieldparam [v] queued item
-    def run(threads, &block)
+    def run(threads = nil, &block)
       fail 'already in progress' if running?
+
+      run_threads = [threads || default_threads, @queue.length].min
 
       @on_start && @on_start.call
 
       t = Thread.new do
-        threads.times.map do
+        run_threads.times.map do
           Thread.new { work(block) }
         end.map(&:join)
 
@@ -90,6 +93,12 @@ module OsCtld
     # @return [Integer]
     def length
       @queue.length
+    end
+
+    # Number of default threads unless overriden in {#run}
+    # @return [Integer]
+    def default_threads
+      @default_threads ||= Etc.nprocessors
     end
 
     protected
