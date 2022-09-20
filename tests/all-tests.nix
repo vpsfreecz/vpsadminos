@@ -66,6 +66,7 @@ in tests [
   "osctl/ct-exec"
   "osctl/ct-mounts"
   "osctl/ct-runscript"
+  "osctl/pool/export-cleanup"
   "osctl-exportfs/mount"
   "systemd/credentials"
   { template = "systemd/device-units"; instances = distributions.systemd; }
