@@ -1,4 +1,5 @@
 require 'osctld/commands/base'
+require 'etc'
 
 module OsCtld
   class Commands::Container::List < Commands::Base
@@ -10,12 +11,31 @@ module OsCtld
 
     def execute
       ret = []
+      hostname_reader = ExecutionPlan.new
 
       DB::Containers.get.each do |ct|
         next if opts[:ids] && !opts[:ids].include?(ct.id)
         next unless include?(ct)
 
-        ret << ct.export
+        data = ct.export
+
+        if opts[:read_hostname]
+          if ct.running?
+            hostname_reader << [ct, data]
+          else
+            data[:hostname_readout] = nil
+          end
+        end
+
+        ret << data
+      end
+
+      if opts[:read_hostname] && hostname_reader.length > 0
+        hostname_reader.run([Etc.nprocessors, ret.length].min) do |ct, data|
+          data[:hostname_readout] = ct.read_hostname
+        end
+
+        hostname_reader.wait
       end
 
       ok(ret)

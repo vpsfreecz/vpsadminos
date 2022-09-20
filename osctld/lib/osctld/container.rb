@@ -588,6 +588,19 @@ module OsCtld
       menu.unlink if menu
     end
 
+    # Read hostname from a running container
+    # @return [String, nil]
+    def read_hostname
+      return nil unless running?
+
+      begin
+        return ContainerControl::Commands::GetHostname.run!(self)
+      rescue ContainerControl::Error => e
+        log(:warn, "Unable to read container hostname: #{e.message}")
+        return nil
+      end
+    end
+
     def configure_bashrc
       ErbTemplate.render_to('ct/bashrc', {
         ct: self,

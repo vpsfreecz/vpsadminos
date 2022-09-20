@@ -37,6 +37,7 @@ module OsCtl::Cli
       autostart_delay
       ephemeral
       hostname
+      hostname_readout
       dns_resolvers
       nesting
       seccomp_profile
@@ -140,6 +141,10 @@ module OsCtl::Cli
 
       fmt_opts[:cols] = cols
 
+      if cols.include?(:hostname_readout)
+        cmd_opts[:read_hostname] = true
+      end
+
       cts = cg_add_stats(
         c.cmd_data!(:ct_list, **cmd_opts),
         lambda { |ct| ct[:group_path] },
@@ -197,7 +202,16 @@ module OsCtl::Cli
           DEFAULT_FIELDS
         end
 
-      ct = c.cmd_data!(:ct_show, id: args[0], pool: gopts[:pool])
+      cmd_opts = {
+        id: args[0],
+        pool: gopts[:pool],
+      }
+
+      if cols.include?(:hostname_readout)
+        cmd_opts[:read_hostname] = true
+      end
+
+      ct = c.cmd_data!(:ct_show, **cmd_opts)
 
       cg_add_stats(ct, ct[:group_path], cols, gopts[:parsable])
       c.close
