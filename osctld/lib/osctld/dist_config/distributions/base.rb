@@ -68,7 +68,7 @@ module OsCtld
             '/run',
             'tmpfs',
             mnt_opts.join(','),
-            true,
+            false,
             temp: true,
             in_config: true,
           ))
