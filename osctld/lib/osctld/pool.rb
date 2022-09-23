@@ -40,6 +40,7 @@ module OsCtld
       @dataset = dataset || name
       @state = :importing
       @attrs = Attributes.new
+      @abort_export = false
     end
 
     def init
@@ -353,6 +354,18 @@ module OsCtld
 
     def stop
       autostart_plan.stop
+    end
+
+    def begin_export
+      @abort_export = false
+    end
+
+    def abort_export
+      @abort_export = true
+    end
+
+    def abort_export?
+      @abort_export
     end
 
     def active?

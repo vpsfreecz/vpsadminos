@@ -103,6 +103,9 @@ module OsCtl::Cli
           c.desc 'Do not fail if the pool is not imported'
           c.switch %i(if-imported)
 
+          c.desc 'Abort running pool export'
+          c.switch %i(abort), negatable: false
+
           c.action &Command.run(Pool, :export)
         end
 

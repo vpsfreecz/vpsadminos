@@ -351,6 +351,12 @@ The following shortcuts are supported:
     `--if-imported`
       Export the pool if it is imported, exit successfully if it is not imported.
 
+    `--abort`
+      Abort an already running export of *pool*. The pool can be left in a partially
+      exported state, i.e. it can be disabled and some or all containers can be
+      stopped. To recover the pool after an aborted export, use
+      `pool export --force --no-stop-containers` followed by `pool import`.
+
 `pool ls` [*names...*]
   List imported pools. If no *names* are provided, all pools are listed.
     

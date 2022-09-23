@@ -95,13 +95,18 @@ module OsCtl::Cli
 
     def export
       require_args!('name')
-      osctld_fmt(:pool_export, cmd_opts: {
-        name: args[0],
-        force: opts[:force],
-        stop_containers: opts['stop-containers'],
-        unregister_users: opts['unregister-users'],
-        if_imported: opts['if-imported'],
-      })
+
+      if opts[:abort]
+        osctld_fmt(:pool_abort_export, cmd_opts: {name: args[0]})
+      else
+        osctld_fmt(:pool_export, cmd_opts: {
+          name: args[0],
+          force: opts[:force],
+          stop_containers: opts['stop-containers'],
+          unregister_users: opts['unregister-users'],
+          if_imported: opts['if-imported'],
+        })
+      end
     end
 
     def install
