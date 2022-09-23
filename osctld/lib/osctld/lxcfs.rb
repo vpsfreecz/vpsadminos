@@ -126,6 +126,10 @@ module OsCtld
       create
     end
 
+    def reconfigure
+      create if exist?
+    end
+
     # Start LXCFS if it is not already running
     def ensure_start
       start unless running?

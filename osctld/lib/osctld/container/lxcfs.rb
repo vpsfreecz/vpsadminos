@@ -85,6 +85,12 @@ module OsCtld
       end
     end
 
+    def reconfigure
+      exclusively do
+        lxcfs.reconfigure if enable
+      end
+    end
+
     def chown(user)
       if ct.user != user
         fail 'programming error: expected container user to be changed'
