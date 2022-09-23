@@ -32,19 +32,25 @@ module OsCtld
       end
 
       manipulate(pool) do
+        pool.begin_export
+
         # Do not autostart any more containers
         pool.stop
+        check_abort!(pool)
 
         # Disable the pool
         pool.exclusively { pool.disable }
+        check_abort!(pool)
 
         # Grab manipulation locks of all containers
         grab_cts(pool) unless opts[:grab_containers] === false
+        check_abort!(pool)
 
         # Stop all containers
         if opts[:stop_containers]
           progress('Stopping all containers')
           stop_cts(pool)
+          check_abort!(pool)
         end
 
         # Unregister all entities
@@ -164,7 +170,11 @@ module OsCtld
       plan = ExecutionPlan.new
       cts.each { |ct| plan << ct }
 
+      check_abort!(pool)
+
       plan.run(pool.parallel_stop) do |ct|
+        next if pool.abort_export?
+
         mutex.synchronize do
           done += 1
           progress(
@@ -198,6 +208,10 @@ module OsCtld
       end
 
       plan.wait
+    end
+
+    def check_abort!(pool)
+      error!('pool export aborted') if pool.abort_export?
     end
   end
 end
