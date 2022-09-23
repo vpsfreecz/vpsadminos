@@ -88,14 +88,16 @@ class Halt
     puts
 
     begin
-      st = Kernel.system('osctl', 'shutdown', '--force')
+      shutdown_pid = Process.fork do
+        Kernel.exec('osctl', 'shutdown', '--force', pgroup: true)
+      end
+      Process.wait(shutdown_pid)
     rescue Interrupt
-      puts "Aborting #{@action} of #{@hostname}"
-      abort_halt
-      exit(false)
+      handle_abort(shutdown_pid)
+      return
     end
 
-    fail "Unable to shutdown osctld" unless st
+    fail "Unable to shutdown osctld" if $?.exitstatus != 0
 
     puts "Proceeding with system #{@action}"
 
@@ -109,11 +111,40 @@ class Halt
     end
   end
 
+  def handle_abort(shutdown_pid)
+    puts "Aborting #{@action} of #{@hostname}"
+
+    begin
+      abort_halt
+    rescue Interrupt
+      retry
+    end
+
+    cnt = 0
+
+    begin
+      Process.wait(shutdown_pid)
+    rescue Interrupt
+      warn "Shutdown abort in progress"
+      cnt += 1
+      retry if cnt <= 5
+      raise
+    end
+
+    puts
+    puts "Some pools may be already exported, disabled, or have stopped containers,"
+    puts "see man osctl(8) for more information about shutdown abort."
+    exit(false)
+  end
+
   def abort_halt
     begin
       File.unlink('/run/osctl/shutdown')
     rescue Errno::ENOENT
     end
+
+    st = Kernel.system('osctl', 'shutdown', '--abort')
+    fail "Unable to abort osctld shutdown" unless st
   end
 end
 
