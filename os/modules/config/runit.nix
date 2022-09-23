@@ -2,27 +2,14 @@
 with lib;
 
 let
-  compat = pkgs.runCommand "runit-compat" {} ''
-    mkdir -p $out/bin/
-    cat << EOF > $out/bin/poweroff
-#!/bin/sh
-exec runit-init 0
-EOF
-    cat << EOF > $out/bin/reboot
-#!/bin/sh
-exec runit-init 6
-EOF
-    chmod +x $out/bin/{poweroff,reboot}
-  '';
-
   apparmor_paths = [ pkgs.apparmor-profiles ] ++ config.security.apparmor.packages;
   apparmor_paths_include = concatMapStrings (s: " -I ${s}/etc/apparmor.d") apparmor_paths;
   profile = "${pkgs.lxc}/etc/apparmor.d/lxc-containers";
 in
 {
-  environment.systemPackages = [ compat ] ++ (with pkgs; [
+  environment.systemPackages = with pkgs; [
     mbuffer
-  ]);
+  ];
 
   runit.stage1 = ''
     # load kernel modules

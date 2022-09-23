@@ -332,6 +332,20 @@ let
 
   mkEnvironment = mkMerge [mkServices mkRunlevels];
 
+  haltScript = pkgs.substituteAll {
+    src = ./halt.rb;
+    isExecutable = true;
+    ruby = pkgs.ruby;
+  };
+
+  haltBin = pkgs.runCommand "halt" {} ''
+    mkdir -p $out/bin
+    ln -s ${haltScript} $out/bin/halt
+
+    for altname in poweroff reboot ; do
+      ln -s halt $out/bin/$altname
+    done
+  '';
 in
 
 {
@@ -401,7 +415,7 @@ in
 
     (mkIf (config.runit.services != {}) {
       environment.etc = mkEnvironment;
-      environment.systemPackages = [ pkgs.svctl ];
+      environment.systemPackages = [ pkgs.svctl haltBin ];
     })
   ];
 }
