@@ -107,8 +107,16 @@ module OsCtld
     def destroy
       log(:info, "Destroying LXCFS")
       FileUtils.rm_rf(runsv_source, secure: true)
-      Dir.rmdir(mountpoint)
-      Dir.rmdir(mountroot)
+
+      begin
+        Dir.rmdir(mountpoint)
+      rescue Errno::ENOENT
+      end
+
+      begin
+        Dir.rmdir(mountroot)
+      rescue Errno::ENOENT
+      end
     end
 
     # Change owner
