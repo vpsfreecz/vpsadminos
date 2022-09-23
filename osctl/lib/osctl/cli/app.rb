@@ -2065,6 +2065,9 @@ module OsCtl::Cli
         c.desc 'Do not ask for confirmation, shutdown immediately'
         c.switch %i(f force), negatable: false
 
+        c.desc 'Abort running shutdown'
+        c.switch %i(abort), negatable: false
+
         c.action &Command.run(Self, :shutdown)
       end
 

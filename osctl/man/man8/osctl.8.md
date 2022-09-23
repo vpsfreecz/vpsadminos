@@ -2825,7 +2825,7 @@ The following shortcuts are supported:
       `/proc/loadavg` in all containers, in order for LXCFS to start tracking
       them. Enabled by default.
 
-`shutdown` [`-f`|`--force`]
+`shutdown` [`-f`|`--force`] [`--abort`]
   Export all pools and stop all containers. This command should be used at
   system shutdown. Since all pools are immediately disabled, no container can be
   started. All running containers are stopped. System users and groups are left
@@ -2842,6 +2842,14 @@ The following shortcuts are supported:
     `-f`, `--force`
       Do not ask for confirmation on standard input, initiate shutdown
       immediately.
+
+    `--abort`
+      Abort an already running shutdown and export of all pools. Some pools can
+      already be exported and others can be left in a partially exported state,
+      i.e. the pools can be disabled and some or all containers can be stopped.
+      To recover such pools after an aborted shutdown, use
+      `pool export --force --no-stop-containers` on remaning pools followed by
+      `pool import -a`.
 
 `help` [*command...*]
   Shows a list of commands or help for one command
