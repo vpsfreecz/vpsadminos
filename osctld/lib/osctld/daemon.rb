@@ -230,7 +230,17 @@ module OsCtld
     end
 
     def begin_shutdown
+      @abort_shutdown = false
       File.open(RunState::SHUTDOWN_MARKER, 'w', 0000){}
+    end
+
+    def abort_shutdown
+      @abort_shutdown = true
+
+      begin
+        File.unlink(RunState::SHUTDOWN_MARKER)
+      rescue Errno::ENOENT
+      end
     end
 
     def confirm_shutdown
@@ -243,6 +253,10 @@ module OsCtld
 
     def shutdown?
       File.exist?(RunState::SHUTDOWN_MARKER)
+    end
+
+    def abort_shutdown?
+      @abort_shutdown
     end
 
     def log_type

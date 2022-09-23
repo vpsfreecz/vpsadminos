@@ -173,7 +173,7 @@ module OsCtld
       check_abort!(pool)
 
       plan.run(pool.parallel_stop) do |ct|
-        next if pool.abort_export?
+        next if check_abort?(pool)
 
         mutex.synchronize do
           done += 1
@@ -211,7 +211,11 @@ module OsCtld
     end
 
     def check_abort!(pool)
-      error!('pool export aborted') if pool.abort_export?
+      error!('pool export aborted') if check_abort?(pool)
+    end
+
+    def check_abort?(pool)
+      pool.abort_export? || (indirect? && Daemon.get.abort_shutdown?)
     end
   end
 end
