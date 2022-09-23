@@ -31,7 +31,7 @@ module OsCtld
             opts[:mount_root],
             'bind',
             'bind,rw,create=dir',
-            true,
+            false,
             temp: true,
             in_config: true,
           )
