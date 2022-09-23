@@ -601,6 +601,12 @@ module OsCtld
       end
     end
 
+    # Regenerate LXC config, LXCFS and possibly other resources
+    def reconfigure
+      lxc_config.configure
+      lxcfs.reconfigure
+    end
+
     def configure_bashrc
       ErbTemplate.render_to('ct/bashrc', {
         ct: self,

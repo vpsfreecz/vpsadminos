@@ -598,7 +598,7 @@ module OsCtld
         builder.setup_lxc_home
         builder.setup_log_file
 
-        ct.lxc_config.configure
+        ct.reconfigure
 
         running = ct.current_state == :running
 
