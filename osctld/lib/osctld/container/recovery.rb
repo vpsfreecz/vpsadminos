@@ -49,11 +49,14 @@ module OsCtld
     # Kill all processes found in the container's cgroup with signal
     # @param signal [String]
     def kill_all(signal: 'KILL')
+      pool_name = ct.pool.name
+      ct_id = ct.id
+
       pl = OsCtl::Lib::ProcessList.new do |p|
         ctid = p.ct_id
         next(false) if ctid.nil?
 
-        ctid[0] == ct.pool.name && ctid[1] == ct.id
+        ctid[0] == pool_name && ctid[1] == ct_id
       end
 
       log(:info, "#{pl.length} processes to kill")
@@ -62,7 +65,7 @@ module OsCtld
         ctid = p.ct_id
         next if ctid.nil?
 
-        if ctid[0] == ct.pool.name && ctid[1] == ct.id
+        if ctid[0] == pool_name && ctid[1] == ct_id
           log(:info, "kill -SIG#{signal} #{p.pid} #{p.name}")
 
           begin
