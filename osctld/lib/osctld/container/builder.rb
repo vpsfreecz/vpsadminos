@@ -208,14 +208,14 @@ module OsCtld
     # @param opts [Hash] options
     # @option opts [Boolean] :dataset destroy dataset or not
     def cleanup(opts = {})
-      Console.remove(ct)
+      Console.remove(ctrc.ct)
       zfs(:destroy, '-r', ctrc.dataset, valid_rcs: [1]) if opts[:dataset]
 
       syscmd("rm -rf #{ctrc.lxc_dir} #{ctrc.ct.user_hook_script_dir}")
       File.unlink(ctrc.log_path) if File.exist?(ctrc.log_path)
       File.unlink(ctrc.config_path) if File.exist?(ctrc.config_path)
 
-      DB::Containers.remove(ct)
+      DB::Containers.remove(ctrc.ct)
 
       begin
         if ctrc.group.has_containers?(ctrc.user)
