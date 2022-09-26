@@ -1035,7 +1035,8 @@ The following shortcuts are supported:
 
     `-d`, `--delay` *n*
       Time in seconds for which `osctld` waits until the next container is
-      started. The default is `5` seconds.
+      started if the system load average over the last minute is equal to
+      or greater than the number of processors. The default is `5` seconds.
 
 `ct unset autostart` *ctid*
   Do not start the container automatically.

@@ -1,4 +1,5 @@
 require 'libosctl'
+require 'etc'
 
 module OsCtld
   class AutoStart::Plan
@@ -11,6 +12,7 @@ module OsCtld
       @plan = ContinuousExecutor.new(pool.parallel_start)
       @state = AutoStart::State.load(pool)
       @stop = false
+      @nproc = Etc.nprocessors
     end
 
     def assets(add)
@@ -120,7 +122,14 @@ module OsCtld
         if ret[:status]
           state.set_started(ct)
           return if stop?
-          sleep(ct.autostart.delay)
+
+          if delay_after_start?
+            log(:info, ct, "Autostart delay for #{ct.autostart.delay} seconds")
+            sleep(ct.autostart.delay)
+          else
+            log(:info, ct, 'Skipping autostart delay thanks to low system load average')
+          end
+
           return
         end
 
@@ -138,6 +147,11 @@ module OsCtld
           sleep(pause)
         end
       end
+    end
+
+    def delay_after_start?
+      lavg = OsCtl::Lib::LoadAvg.new
+      lavg.avg[1] >= @nproc
     end
 
     def stop?
