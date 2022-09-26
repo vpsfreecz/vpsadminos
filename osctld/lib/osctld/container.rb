@@ -42,6 +42,10 @@ module OsCtld
 
       opts[:load] = true unless opts.has_key?(:load)
 
+      if (user.nil? || group.nil?) && !opts[:load]
+        raise ArgumentError, 'either set load: true or provide user and group'
+      end
+
       @pool = pool
       @id = id
       @user = user
@@ -59,7 +63,7 @@ module OsCtld
       @nesting = false
       @seccomp_profile = nil
       @apparmor = AppArmor.new(self)
-      @lxcfs = nil
+      @lxcfs = user && group ? Container::Lxcfs.new(self) : nil
       @lxc_config = Container::LxcConfig.new(self)
       @init_cmd = nil
       @raw_configs = Container::RawConfigs.new
