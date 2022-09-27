@@ -89,7 +89,7 @@ module OsCtl
       osctld_fmt(
         cmd,
         cmd_opts: cmd_opts,
-        fmt_opts: fmt_ops,
+        fmt_opts: fmt_opts,
       )
     end
 
