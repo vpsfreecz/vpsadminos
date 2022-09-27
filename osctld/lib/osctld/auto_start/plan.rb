@@ -28,7 +28,7 @@ module OsCtld
       )
 
       cts = DB::Containers.get.select do |ct|
-        ct.pool == pool && ct.autostart && (force || !state.is_started?(ct))
+        ct.pool == pool && ct.autostart && ct.can_start? && (force || !state.is_started?(ct))
       end
 
       plan << (cts.map do |ct|
@@ -37,7 +37,7 @@ module OsCtld
           priority: ct.autostart.priority,
         ) do |cmd|
           cur_ct = DB::Containers.find(cmd.id, pool)
-          if cur_ct.nil?
+          if cur_ct.nil? || !ct.can_start?
             next
           elsif cur_ct.running?
             state.set_started(cur_ct)
