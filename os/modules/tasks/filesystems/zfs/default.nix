@@ -26,7 +26,7 @@ let
   };
 
   partitioningSupport = elem true (mapAttrsToList (name: pool:
-    pool.partition != []
+    pool.partition != {}
   ) config.boot.zfs.pools);
 
   zfsFilesystems = filter (x: x.fsType == "zfs") config.system.build.fileSystems;
