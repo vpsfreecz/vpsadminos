@@ -575,7 +575,7 @@ in
             copy_bin_and_libs ${packages.zfsUser}/sbin/zdb
             copy_bin_and_libs ${packages.zfsUser}/sbin/zpool
             ${optionalString partitioningSupport ''
-              copy_bin_and_libs ${pkgs.util-linux}/sbin/sfdisk
+              copy_bin_and_libs ${pkgs.util-linux}/bin/sfdisk
             ''}
           '';
         extraUtilsCommandsTest = mkIf inInitrd
