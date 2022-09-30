@@ -9,5 +9,4 @@
   (import ./mbuffer.nix)
   #(import ./zfs.nix)
   (import ./minify.nix)
-  (import ./machine-check.nix)
 ]
