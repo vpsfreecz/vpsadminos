@@ -16,21 +16,21 @@ module OsCtl::Exporter
         :gauge,
         :zpool_list_health,
         docstring: 'Pool healthy',
-        labels: [:name],
+        labels: [:pool],
       )
       add_metric(
         :zpool_list_fragmentation,
         :gauge,
         :zpool_list_fragmentation,
         docstring: 'Pool fragmentation',
-        labels: [:name],
+        labels: [:pool],
       )
       add_metric(
         :zpool_list_capacity,
         :gauge,
         :zpool_list_capacity,
         docstring: 'Pool capacity',
-        labels: [:name],
+        labels: [:pool],
       )
     end
 
@@ -48,9 +48,9 @@ module OsCtl::Exporter
       list.split("\n").each do |line|
         name, health, fragmentation, capacity = line.split
 
-        @zpool_list_health.set(health == 'ONLINE' ? 1 : 0, labels: {name: name})
-        @zpool_list_fragmentation.set(fragmentation.to_i, labels: {name: name})
-        @zpool_list_capacity.set(capacity.to_i, labels: {name: name})
+        @zpool_list_health.set(health == 'ONLINE' ? 1 : 0, labels: {pool: name})
+        @zpool_list_fragmentation.set(fragmentation.to_i, labels: {pool: name})
+        @zpool_list_capacity.set(capacity.to_i, labels: {pool: name})
       end
     end
   end
