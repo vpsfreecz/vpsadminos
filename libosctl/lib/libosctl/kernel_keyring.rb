@@ -64,6 +64,12 @@ module OsCtl::Lib
       @maxbytes ||= File.read('/proc/sys/kernel/keys/maxbytes').strip.to_i
     end
 
+    # Iterate over keyring users
+    # @yieldparam [KeyUser]
+    def each(&block)
+      @key_users.each_value(&block)
+    end
+
     protected
     def parse_key_users(path)
       ret = {}
