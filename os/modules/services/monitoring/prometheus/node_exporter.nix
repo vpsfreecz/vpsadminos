@@ -69,10 +69,6 @@ in
           --collector.runit.servicedir=/service \
           ${concatStringsSep " \\\n  " cfg.extraFlags} &>/dev/null
       '';
-
-      services.cron.systemCronJobs = [
-        "* * * * *  root  ${pkgs.machine-check}/bin/machine-check ${textfileDirectory}/machine-check.prom"
-      ];
     })
   ];
 }
