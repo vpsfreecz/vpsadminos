@@ -112,8 +112,9 @@ module OsCtl::Lib
 
       # List transaction groups since older list
       # @param other [TransactionGroupList]
+      # @param changed [Boolean] include the last txg if its state has changed
       # @return [TransactionGroupList]
-      def since(other)
+      def since(other, changed: false)
         last_txg = other.last
         return self if last_txg.nil? || !@index.has_key?(last_txg.txg)
 
@@ -123,7 +124,7 @@ module OsCtl::Lib
         @list.each do |txg|
           if txg.txg == last_txg.txg
             add = true
-            next if txg.state == last_txg.state
+            next if !changed || txg.state == last_txg.state
           end
 
           ret << txg if add
