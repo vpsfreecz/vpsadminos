@@ -116,15 +116,7 @@ module OsCtld
     # @yieldparam subsystem [String] cgroup subsystem
     # @yieldreturn [String] absolute path to the cgroup directory
     def apply(keep_going: false, &block)
-      failed = apply_params(
-        usable_params,
-        keep_going: keep_going,
-        &block
-      ).select do |p|
-        p.name.start_with?('memory.')
-      end
-
-      apply_params(failed, keep_going: keep_going, &block) if failed.any?
+      apply_params_and_retry(usable_params, keep_going: keep_going, &block)
     end
 
     # Replace all parameters by a new list of parameters
@@ -248,6 +240,18 @@ module OsCtld
       end
 
       failed
+    end
+
+    def apply_params_and_retry(param_list, keep_going: false, &block)
+      failed = apply_params(
+        param_list,
+        keep_going: keep_going,
+        &block
+      ).select { |p| p.name.start_with?('memory.') }
+
+      if failed.any?
+        apply_params(failed, keep_going: keep_going, &block)
+      end
     end
 
     def reset_value(param)

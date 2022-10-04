@@ -63,6 +63,10 @@ module OsCtld
           end
         end
 
+        # Give the container more memory, so that the shutdown does not hang
+        # in low memory situations.
+        ct.cgparams.temporarily_expand_memory if ct.running?
+
         begin
           DistConfig.run(
             ct.get_run_conf,
