@@ -45,7 +45,7 @@ module OsCtld
         owner.abs_apply_cgroup_path(subsystem)
       end
 
-      # Them apply them on lxc.payload
+      # Then apply them on lxc.payload
       apply_container_params_and_retry(tmp_params, keep_going: true) do |subsystem|
         owner.abs_apply_cgroup_path(subsystem)
       end
