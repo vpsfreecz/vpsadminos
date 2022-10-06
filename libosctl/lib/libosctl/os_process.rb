@@ -1,9 +1,9 @@
-require 'etc'
+require_relative 'sys_conf'
 
 module OsCtl::Lib
   # Interface to system processes, reading information from `/proc`
   class OsProcess
-    TICS_PER_SECOND = Etc.sysconf(Etc::SC_CLK_TCK).to_i
+    TICS_PER_SECOND = SysConf.tics_per_second
 
     def self.system_start_time
       unless @system_start_time
