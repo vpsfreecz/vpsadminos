@@ -4,6 +4,7 @@ module OsCtl::Lib
   # Interface to system processes, reading information from `/proc`
   class OsProcess
     TICS_PER_SECOND = SysConf.tics_per_second
+    PAGE_SIZE = SysConf.page_size
 
     def self.system_start_time
       unless @system_start_time
@@ -46,11 +47,11 @@ module OsCtl::Lib
     # @return [String]
     attr_reader :name
 
-    # Virtual memory size
+    # Virtual memory size in bytes
     # @return [Integer]
     attr_reader :vmsize
 
-    # Resident set size
+    # Resident set size in bytes
     # @return [Integer]
     attr_reader :rss
 
@@ -184,7 +185,7 @@ module OsCtl::Lib
         @num_threads = fields[17].to_i
         @start_time = self.class.system_start_time + (fields[19].to_i / TICS_PER_SECOND)
         @vmsize = fields[20].to_i
-        @rss = fields[21].to_i
+        @rss = fields[21].to_i * PAGE_SIZE
       end
     end
 

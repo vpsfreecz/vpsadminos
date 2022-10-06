@@ -1729,8 +1729,8 @@ The following shortcuts are supported:
   - `ctrgid` - real group ID as seen inside the container
   - `cteuid` - effective user ID as seen inside the container
   - `ctegid` - effective group ID as seen inside the container
-  - `vmsize` - virtual memory size
-  - `rss` - resident set size
+  - `vmsize` - virtual memory size in bytes
+  - `rss` - resident set size in bytes
   - `state` - current process state, see proc(5)
   - `start` - process start time
   - `time` - time spent using CPU
