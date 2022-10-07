@@ -426,7 +426,7 @@ let
       enable = mkEnableOption "Enable container autostart";
       priority = mkOption {
         type = types.ints.positive;
-        default = 10;
+        default = 1000;
         description = "Autostart priority";
       };
       delay = mkOption {
@@ -442,7 +442,7 @@ let
     default = null;
     example = {
       enable = true;
-      priority = 10;
+      priority = 1000;
       delay = 5;
     };
 
