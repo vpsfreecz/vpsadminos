@@ -702,8 +702,8 @@ let
       HOTPLUG_PCI_ACPI = yes; # PCI hotplug using ACPI
       HOTPLUG_PCI_PCIE = yes; # PCI-Expresscard hotplug support
 
-      PREEMPT = whenAtLeast "5.10.146" yes;
-      PREEMPT_VOLUNTARY = whenOlder "5.10.146" yes;
+      #PREEMPT = yes;
+      PREEMPT_VOLUNTARY = yes;
 
       COMPACTION = yes;
 
