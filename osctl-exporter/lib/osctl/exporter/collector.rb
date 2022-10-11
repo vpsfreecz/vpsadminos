@@ -32,10 +32,10 @@ module OsCtl::Exporter
       @registry = OsCtl::Exporter.registry
 
       @collectors = [
+        CollectorConfig.new(Collectors::ZpoolTxgs, false, 15),
         CollectorConfig.new(Collectors::OsCtld, false, 30),
         CollectorConfig.new(Collectors::Pool, true, 30),
         CollectorConfig.new(Collectors::Container, true, 30),
-        CollectorConfig.new(Collectors::ZpoolTxgs, false, 30),
         CollectorConfig.new(Collectors::Exportfs, false, 60),
         CollectorConfig.new(Collectors::KernelKeyring, false, 60),
         CollectorConfig.new(Collectors::Sysctl, false, 60),
