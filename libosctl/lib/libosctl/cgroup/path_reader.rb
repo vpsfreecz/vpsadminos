@@ -285,10 +285,13 @@ module OsCtl::Lib
             path
           end
 
-        v = read_cgparam(limit_path, 'memory.max').to_i
-        return v if v != unlimited
+        raw_v = read_cgparam(limit_path, 'memory.max')
 
-        meminfo.total * 1024
+        if raw_v == unlimited
+          meminfo.total * 1024
+        else
+          raw_v.to_i
+        end
       end
 
       # @return [Hash] cpu usage in microseconds
