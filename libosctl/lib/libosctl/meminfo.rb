@@ -1,4 +1,4 @@
-module OsCtl::Cli
+module OsCtl::Lib
   class MemInfo
     def initialize(file = '/proc/meminfo')
       @content = File.read(file)

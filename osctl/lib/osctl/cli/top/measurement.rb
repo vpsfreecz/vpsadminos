@@ -1,3 +1,4 @@
+require 'libosctl'
 require 'pp'
 require 'osctl/cli/cgroup_params'
 
@@ -20,10 +21,9 @@ module OsCtl::Cli
 
     def measure
       @time = Time.now
+      cg_reader = OsCtl::Lib::CGroup::PathReader.new(subsystems, group_path)
 
-      data.update(cg_read_stats(
-        subsystems,
-        group_path,
+      data.update(cg_reader.read_stats(
         %i(cpu_us cpu_hz memory nproc),
         true
       ))

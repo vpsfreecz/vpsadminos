@@ -79,7 +79,7 @@ module OsCtl::Cli
       [spec, data]
     end
 
-    include OsCtl::Utils::Humanize
+    include OsCtl::Lib::Utils::Humanize
 
     # @param os_proc [OsCtl::Lib::OsProcess]
     # @param precise [Boolean]

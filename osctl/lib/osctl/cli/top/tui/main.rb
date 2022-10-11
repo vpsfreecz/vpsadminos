@@ -4,7 +4,7 @@ require 'osctl/cli/top/tui/screen'
 
 module OsCtl::Cli::Top
   class Tui::Main < Tui::Screen
-    include OsCtl::Utils::Humanize
+    include OsCtl::Lib::Utils::Humanize
 
     def initialize(model, rate)
       @model = model
