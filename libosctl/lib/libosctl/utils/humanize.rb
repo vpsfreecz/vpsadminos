@@ -1,4 +1,4 @@
-module OsCtl
+module OsCtl::Lib
   module Utils::Humanize
     def humanize_data(v)
       bits = 39

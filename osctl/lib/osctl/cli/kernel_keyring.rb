@@ -2,7 +2,7 @@ require 'libosctl'
 
 module OsCtl
   class Cli::KernelKeyring
-    include Utils::Humanize
+    include OsCtl::Lib::Utils::Humanize
 
     PREFIX = 'keyring.'
 

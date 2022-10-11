@@ -17,7 +17,7 @@ module OsCtl::Cli
       },
     }
 
-    include OsCtl::Utils::Humanize
+    include OsCtl::Lib::Utils::Humanize
     include CGroupParams
 
     def self.print(*args, **kwargs)
