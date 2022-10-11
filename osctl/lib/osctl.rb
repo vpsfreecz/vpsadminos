@@ -4,5 +4,4 @@ module OsCtl
   module Utils ; end
 end
 
-require_rel 'osctl/utils'
 require_rel 'osctl/*.rb'

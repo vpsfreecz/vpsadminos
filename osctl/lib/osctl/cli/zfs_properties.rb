@@ -2,7 +2,7 @@ require 'libosctl'
 
 module OsCtl
   class Cli::ZfsProperties
-    include Utils::Humanize
+    include OsCtl::Lib::Utils::Humanize
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
 

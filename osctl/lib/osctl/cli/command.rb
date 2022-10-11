@@ -3,7 +3,7 @@ require 'libosctl'
 
 module OsCtl::Cli
   class Command < OsCtl::Lib::Cli::Command
-    include OsCtl::Utils::Humanize
+    include OsCtl::Lib::Utils::Humanize
 
     def self.run(klass, method, method_args = [])
       Proc.new do |global_opts, opts, args|
