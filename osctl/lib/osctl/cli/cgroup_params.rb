@@ -401,9 +401,8 @@ module OsCtl
       v = read_cgparam_v1(memory, path, 'memory.limit_in_bytes').to_i
       return v if v != unlimited
 
-      # TODO: this could be optimised to read meminfo just once for all containers
-      mi = OsCtl::Cli::MemInfo.new
-      mi.total * 1024
+      @cgparams_meminfo ||= OsCtl::Cli::MemInfo.new
+      @cgparams_meminfo.total * 1024
     end
 
     def cg_read_stats_param_v2(path, field, precise)
@@ -464,9 +463,8 @@ module OsCtl
       v = read_cgparam_v2(path, 'memory.max').to_i
       return v if v != unlimited
 
-      # TODO: this could be optimised to read meminfo just once for all containers
-      mi = OsCtl::Cli::MemInfo.new
-      mi.total * 1024
+      @cgparams_meminfo ||= OsCtl::Cli::MemInfo.new
+      @cgparams_meminfo.total * 1024
     end
 
     # @return [Hash] cpu usage in microseconds

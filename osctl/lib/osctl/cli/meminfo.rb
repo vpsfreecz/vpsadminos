@@ -2,6 +2,7 @@ module OsCtl::Cli
   class MemInfo
     def initialize(file = '/proc/meminfo')
       @content = File.read(file)
+      @values = {}
     end
 
     def total
@@ -49,8 +50,11 @@ module OsCtl::Cli
 
     protected
     def read_param(name)
-      if @content =~ /^#{Regexp.escape(name)}:\s*(\d+)\s+kB$/
-        $1.to_i
+      if @values.has_key?(name)
+        @values[name]
+
+      elsif @content =~ /^#{Regexp.escape(name)}:\s*(\d+)\s+kB$/
+        @values[name] = $1.to_i
 
       else
         nil
