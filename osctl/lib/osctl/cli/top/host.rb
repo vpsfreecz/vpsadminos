@@ -88,6 +88,9 @@ module OsCtl::Cli
       # memory from the root cgroup does not account for all used memory
       ret[:memory] = meminfo.used * 1024
 
+      # memory limit is not in the root cgroup
+      ret[:memory_pct] = meminfo.used / meminfo.total * 100
+
       # root pids cgroup does not have process counter
       ret[:nproc] = `ps axh -opid | wc -l`.strip.to_i
 

@@ -6,6 +6,11 @@ module OsCtl::Cli::Top
   class Tui::Main < Tui::Screen
     include OsCtl::Lib::Utils::Humanize
 
+    DECORATIONS = {
+      warning: '!',
+      highlight: '*',
+    }
+
     def initialize(model, rate)
       @model = model
       @rate = rate
@@ -279,7 +284,7 @@ module OsCtl::Cli::Top
         ret = []
 
         ret << sprintf(
-          '%-14s %7s %8s %6s %27s %27s',
+          '%-14s %7s %10s %6s %27s %27s',
           'Container',
           'CPU',
           'Memory',
@@ -289,7 +294,7 @@ module OsCtl::Cli::Top
         )
 
         ret << sprintf(
-          '%-14s %7s %7s %6s %13s %13s %13s %13s',
+          '%-14s %7s %10s %6s %13s %13s %13s %13s',
           '',
           '',
           '',
@@ -301,7 +306,7 @@ module OsCtl::Cli::Top
         )
 
         ret << sprintf(
-          '%-14s %7s %7s %6s %6s %6s %6s %6s %6s %6s %6s %6s',
+          '%-14s %7s %10s %6s %6s %6s %6s %6s %6s %6s %6s %6s',
           'ID',
           '',
           '',
@@ -336,7 +341,7 @@ module OsCtl::Cli::Top
 
       print_row_data([
         rt? ? format_percent(ct[:cpu_usage]) : humanize_time_us(ct[:cpu_us]),
-        humanize_data(ct[:memory]),
+        humanize_data(ct[:memory]) + memory_info(ct),
         ct[:nproc],
         humanize_data(ct[:zfsio][:bytes][:r]),
         humanize_number(ct[:zfsio][:ios][:r]),
@@ -350,7 +355,7 @@ module OsCtl::Cli::Top
     end
 
     def print_row_data(values)
-      fmts = %w(%7s %8s %6s %6s %6s %6s %6s %6s %6s %6s %6s)
+      fmts = %w(%7s %10s %6s %6s %6s %6s %6s %6s %6s %6s %6s)
       w = 15 # container ID is printed in {#print_row}
 
       fmts.zip(values).each_with_index do |pair, i|
@@ -388,7 +393,7 @@ module OsCtl::Cli::Top
       print_row_data([
         rt? ? format_percent(sum(cts, :cpu_usage, false)) \
             : humanize_time_us(sum(cts, :cpu_us, false)),
-        humanize_data(sum(cts, :memory, false)),
+        humanize_data(sum(cts, :memory, false)) + '  ',
         sum(cts, :nproc, false),
         humanize_data(sum(cts, [:zfsio, :bytes, :r], false)),
         humanize_number(sum(cts, [:zfsio, :ios, :r], false)),
@@ -406,7 +411,7 @@ module OsCtl::Cli::Top
       print_row_data([
         rt? ? format_percent(sum(cts, :cpu_usage, true)) \
             : humanize_time_us(sum(cts, :cpu_us, true)),
-        humanize_data(sum(cts, :memory, true)),
+        humanize_data(sum(cts, :memory, true)) + '  ',
         sum(cts, :nproc, true),
         humanize_data(sum(cts, [:zfsio, :bytes, :r], true)),
         humanize_number(sum(cts, [:zfsio, :ios, :r], true)),
@@ -428,7 +433,7 @@ module OsCtl::Cli::Top
         if iostat
           print_row_data([
             '-',
-            '-',
+            '-  ',
             '-',
             humanize_data(iostat[:bytes_read]),
             humanize_data(iostat[:io_read]),
@@ -676,6 +681,20 @@ module OsCtl::Cli::Top
       yield
       x, y = cursor
       Curses.addstr(' ' * (Curses.cols - x))
+    end
+
+    def memory_info(ct)
+      ret = ' '
+
+      if ct[:memory_pct] >= 90
+        ret << DECORATIONS[:warning]
+      elsif ct[:memory_soft_limit] && ct[:memory] > ct[:memory_soft_limit]
+        ret << DECORATIONS[:highlight]
+      else
+        ret << ' '
+      end
+
+      ret
     end
 
     def cursor

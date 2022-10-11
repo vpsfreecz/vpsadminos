@@ -34,7 +34,7 @@ module OsCtl::Lib
       @exported = opts.has_key?(:exported) ? opts[:exported] : raw
     end
 
-    %i(- + * / <= == >= <=>).each do |m|
+    %i(- + * / > < <= == >= <=>).each do |m|
       define_method(m) do |other|
         if other.is_a?(self.class)
           raw.send(m, other.raw)

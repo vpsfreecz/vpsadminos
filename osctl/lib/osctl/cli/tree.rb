@@ -166,12 +166,7 @@ module OsCtl::Cli
     end
 
     def decorations
-      if ENV['LANG']
-        DECORATIONS[ /UTF-8/i =~ ENV['LANG'] ? :unicode : :ascii ]
-
-      else
-        DECORATIONS[:ascii]
-      end
+      DECORATIONS[OsCtl::Cli.encoding]
     end
   end
 end

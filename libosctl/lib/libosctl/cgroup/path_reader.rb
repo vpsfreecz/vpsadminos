@@ -41,6 +41,14 @@ module OsCtl::Lib
           t = read_memory_usage
           Cli::Presentable.new(t, formatted: precise ? nil : humanize_data(t))
 
+        when :memory_limit
+          t = read_memory_limit
+          Cli::Presentable.new(t, formatted: precise ? nil : humanize_data(t))
+
+        when :memory_soft_limit
+          t = read_memory_limit(params: %w(memory.soft_limit_in_bytes), add_default: false)
+          t && Cli::Presentable.new(t, formatted: precise ? nil : humanize_data(t))
+
         when :kmemory
           t = read_cgparam(
             :memory,
@@ -116,7 +124,10 @@ module OsCtl::Lib
       end
 
       # @return [Integer]
-      def read_memory_limit
+      def read_memory_limit(
+        params: %w(memory.memsw.limit_in_bytes memory.limit_in_bytes),
+        add_default: true
+      )
         unlimited = 9223372036854771712
 
         limit_path =
@@ -126,13 +137,16 @@ module OsCtl::Lib
             path
           end
 
-        v = read_cgparam(:memory, limit_path, 'memory.memsw.limit_in_bytes').to_i
-        return v if v != unlimited
+        params.each do |param|
+          v = read_cgparam(:memory, limit_path, param).to_i
+          return v if v != unlimited
+        end
 
-        v = read_cgparam(:memory, limit_path, 'memory.limit_in_bytes').to_i
-        return v if v != unlimited
-
-        meminfo.total * 1024
+        if add_default
+          meminfo.total * 1024
+        else
+          nil
+        end
       end
 
       def read_params(params)
@@ -232,6 +246,13 @@ module OsCtl::Lib
         when :memory
           t = read_cgparam(path, 'memory.current').to_i
           Cli::Presentable.new(t, formatted: precise ? nil : humanize_data(t))
+
+        when :memory_limit
+          t = read_memory_limit
+          Cli::Presentable.new(t, formatted: precise ? nil : humanize_data(t))
+
+        when :memory_soft_limit
+          nil
 
         when :kmemory
           nil

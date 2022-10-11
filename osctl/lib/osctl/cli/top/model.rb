@@ -205,7 +205,7 @@ module OsCtl::Cli
         if v.is_a?(Hash)
           host_result[k] = update_host_result(host_result[k], v)
 
-        else
+        elsif host_result[k]
           host_result[k] -= v
           host_result[k] = 0 if host_result[k] < 0
         end

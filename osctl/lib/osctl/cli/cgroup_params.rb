@@ -23,6 +23,8 @@ module OsCtl
 
     CGPARAM_STATS = %i(
       memory
+      memory_soft_limit
+      memory_limit
       memory_pct
       kmemory
       cpu_us
