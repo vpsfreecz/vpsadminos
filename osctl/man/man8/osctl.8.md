@@ -863,7 +863,7 @@ The following shortcuts are supported:
 
     `-w`, `--wait` *seconds*
       How many seconds to wait for the container to enter state `running`.
-      Defaults to `60` seconds. Set to `0` to return immediately.
+      Defaults to `120` seconds. Set to `0` to return immediately.
 
     `-F`, `--[no-]foreground`
       Open container console (can be later detached), see `ct console`.
@@ -910,7 +910,7 @@ The following shortcuts are supported:
     `-t`, `--timeout` *timeout*
       How many seconds to wait for the container to cleanly shutdown before
       killing it or failing, depending on whether option `--dont-kill` is set.
-      The default timeout is *60* seconds.
+      The default timeout is *120* seconds.
 
 `ct restart` [*options*] *ctid*
   Restart container *ctid*. By default, `ct restart` calls `ct stop` and `ct start`
@@ -925,7 +925,7 @@ The following shortcuts are supported:
     `-w`, `--wait` *seconds*
       How many seconds to wait for the container to enter state `running`.
       Applicable only for full restarts, i.e. when `--reboot` is not set.
-      Defaults to `60` seconds. Set to `0` to return immediately.
+      Defaults to `120` seconds. Set to `0` to return immediately.
 
     `-F`, `--[no-]foreground`
       Open container console (can be later detached), see `ct console`.
@@ -945,7 +945,7 @@ The following shortcuts are supported:
     `-t`, `--timeout` *timeout*
       How many seconds to wait for the container to cleanly shutdown before
       killing it or failing, depending on whether option `--dont-kill` is set.
-      The default timeout is *60* seconds.
+      The default timeout is *120* seconds.
 
     `-a`, `--attach`
       Attach the container using `ct attach` after it starts. Conflicts with
@@ -1342,7 +1342,7 @@ The following shortcuts are supported:
 
     `-w`, `--wait` *seconds*
       How many seconds to wait for the container to enter state `running`.
-      Defaults to `60` seconds. Set to `0` to return immediately.
+      Defaults to `120` seconds. Set to `0` to return immediately.
 
     `-F`, `--[no-]foreground`
       Open container console (can be later detached), see `ct console`.

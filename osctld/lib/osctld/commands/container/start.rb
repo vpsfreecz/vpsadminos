@@ -219,7 +219,7 @@ module OsCtld
       # this method to exit.
       sequence = %i(stopping stopped starting running)
       last_i = nil
-      wait_until = Time.now + (opts[:wait] || 60)
+      wait_until = Time.now + (opts[:wait] || 120)
 
       loop do
         timeout = wait_until - Time.now

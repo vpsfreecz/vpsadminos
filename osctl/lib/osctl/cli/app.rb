@@ -701,7 +701,7 @@ module OsCtl::Cli
         ct.arg_name '<ctid>'
         ct.command :start do |c|
           c.desc 'How long to wait for the container to start'
-          c.flag %i(w wait), type: Integer, default_value: 60, arg_name: 'n'
+          c.flag %i(w wait), type: Integer, default_value: 120, arg_name: 'n'
 
           c.desc 'Open container console (can be later detached)'
           c.switch %i(F foreground)
@@ -731,7 +731,7 @@ module OsCtl::Cli
           c.switch %i(F foreground)
 
           c.desc 'How many seconds to wait before killing the container'
-          c.flag %i(t timeout), type: Integer, default_value: 60, arg_name: 'n'
+          c.flag %i(t timeout), type: Integer, default_value: 120, arg_name: 'n'
 
           c.desc 'Do not request a clean shutdown, kill the container'
           c.switch %i(k kill), negatable: false
@@ -746,7 +746,7 @@ module OsCtl::Cli
         ct.arg_name '<ctid>'
         ct.command :restart do |c|
           c.desc 'How long to wait for the container to start'
-          c.flag %i(w wait), type: Integer, default_value: 60, arg_name: 'n'
+          c.flag %i(w wait), type: Integer, default_value: 120, arg_name: 'n'
 
           c.desc 'Open container console (can be later detached)'
           c.switch %i(F foreground)
@@ -755,7 +755,7 @@ module OsCtl::Cli
           c.switch %i(r reboot)
 
           c.desc 'How many seconds to wait before killing the container'
-          c.flag %i(t timeout), type: Integer, default_value: 60, arg_name: 'n'
+          c.flag %i(t timeout), type: Integer, default_value: 120, arg_name: 'n'
 
           c.desc 'Do not request a clean shutdown, kill the container'
           c.switch %i(k kill), negatable: false
@@ -1097,7 +1097,7 @@ module OsCtl::Cli
           c.flag 'zfs-property', arg_name: 'property=value', multiple: true
 
           c.desc 'How long to wait for the container to start'
-          c.flag %i(w wait), type: Integer, default_value: 60, arg_name: 'n'
+          c.flag %i(w wait), type: Integer, default_value: 120, arg_name: 'n'
 
           c.desc 'Open container console (can be later detached)'
           c.switch %i(F foreground)
