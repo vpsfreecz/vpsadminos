@@ -14,7 +14,7 @@ let
   kernel = config.boot.kernelPackage;
   kpatch-build = pkgs.callPackage (import ../../../packages/kpatch-build/default.nix) {};
 
-  patchName = "${toString patchVersion}-livepatched";
+  patchName = "${toString patchVersion}";
   patchModuleName = "livepatch_${toString patchVersion}";
   installModDir = "lib/modules/${kernel.modDirVersion}/extra";
   installModPath = "${installModDir}/${patchModuleName}.ko";
