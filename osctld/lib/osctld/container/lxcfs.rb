@@ -66,7 +66,7 @@ module OsCtld
         lxcfs.ensure_start
       end
 
-      lxcfs.wait(timeout: 20)
+      lxcfs.wait(timeout: 60)
     end
 
     def ensure_stop
