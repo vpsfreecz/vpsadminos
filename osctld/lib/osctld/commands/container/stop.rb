@@ -72,7 +72,7 @@ module OsCtld
             ct.get_run_conf,
             :stop,
             mode: mode,
-            timeout: opts[:timeout] || 60,
+            timeout: opts[:timeout] || 120,
           )
         rescue ContainerControl::UserRunnerError
           ct.log(:warn, 'Unable to stop, killing by force')
