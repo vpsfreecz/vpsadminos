@@ -310,9 +310,9 @@ module OsCtl::Cli::Top
           rt? ? 'IOPS' : 'IO',
           'Bytes',
           rt? ? 'IOPS' : 'IO',
-          rt? ? 'bps' : 'Bytes',
+          rt? ? 'Bps' : 'Bytes',
           rt? ? 'pps' : 'Packet',
-          rt? ? 'bps' : 'Bytes',
+          rt? ? 'Bps' : 'Bytes',
           rt? ? 'pps' : 'Packet'
         )
 
