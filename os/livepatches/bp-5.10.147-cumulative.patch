@@ -1,0 +1,71 @@
+diff --git a/kernel/vpsadminos.c b/kernel/vpsadminos.c
+index 4be1c38461ee..26dba67dcae6 100644
+--- a/kernel/vpsadminos.c
++++ b/kernel/vpsadminos.c
+@@ -9,6 +9,25 @@
+ #include <linux/xarray.h>
+ #include <asm/page.h>
+ #include "sched/sched.h"
++#include <linux/vpsadminos-livepatch.h>
++#include "kpatch-macros.h"
++char old_uname[65];
++char new_uname[65];
++
++static int patch(patch_object *obj)
++{
++	scnprintf(new_uname, 64, "%s.%s", LIVEPATCH_ORIG_KERNEL_VERSION,
++	    LIVEPATCH_NAME);
++	scnprintf(old_uname, 64, "%s", init_uts_ns.name.release);
++	scnprintf(init_uts_ns.name.release, 64, "%s", new_uname);
++	return 0;
++}
++KPATCH_PRE_PATCH_CALLBACK(patch);
++static void unpatch(patch_object *obj)
++{
++	scnprintf(init_uts_ns.name.release, 64, "%s", old_uname);
++}
++KPATCH_POST_UNPATCH_CALLBACK(unpatch);
+ 
+ int online_cpus_in_cpu_cgroup(struct task_struct *p)
+ {
+diff --git a/mm/memcontrol.c b/mm/memcontrol.c
+index f064f318a6a7..6b47defa88f4 100644
+--- a/mm/memcontrol.c
++++ b/mm/memcontrol.c
+@@ -85,6 +85,11 @@ static bool cgroup_memory_nosocket;
+ /* Kernel memory accounting disabled? */
+ static bool cgroup_memory_nokmem;
+ 
++bool cgroup_memory_kmem_enabled(void)
++{
++	return !cgroup_memory_nokmem;
++}
++
+ int cgroup_memory_ksoftlimd_for_all = 0;
+ int cgroup_memory_ksoftlimd_sleep_msec = 1000;
+ int cgroup_memory_ksoftlimd_loops = 256;
+diff --git a/mm/vmscan.c b/mm/vmscan.c
+index 71e07964f948..7a56614c2374 100644
+--- a/mm/vmscan.c
++++ b/mm/vmscan.c
+@@ -2616,6 +2616,8 @@ static inline bool should_continue_reclaim(struct pglist_data *pgdat,
+ 	return inactive_lru_pages > pages_for_compaction;
+ }
+ 
++extern bool cgroup_memory_kmem_enabled(void);
++
+ static void shrink_node_memcgs(pg_data_t *pgdat, struct scan_control *sc)
+ {
+ 	struct mem_cgroup *target_memcg = sc->target_mem_cgroup;
+@@ -2662,8 +2664,9 @@ static void shrink_node_memcgs(pg_data_t *pgdat, struct scan_control *sc)
+ 
+ 		shrink_lruvec(lruvec, sc);
+ 
+-		shrink_slab(sc->gfp_mask, pgdat->node_id, memcg,
+-			    sc->priority);
++		if (current_is_kswapd() || cgroup_memory_kmem_enabled())
++			shrink_slab(sc->gfp_mask, pgdat->node_id, memcg,
++				    sc->priority);
+ 
+ 		/* Record the group's reclaim efficiency */
+ 		vmpressure(sc->gfp_mask, memcg, false,
