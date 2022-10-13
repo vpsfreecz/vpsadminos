@@ -1,11 +1,12 @@
 { pkgs, getopt, fetchFromGitHub, ... }:
 pkgs.stdenv.mkDerivation rec {
   name = "kpatch-build";
+  version = "0.9.7";
   src = fetchFromGitHub {
-    owner = "snajpa";
+    owner = "dynup";
     repo = "kpatch";
-    rev = "a5068a45323b3168737e6df2603877e6b3716450";
-    sha256 = "sha256-d291UATg4EqQhH0510wH25W11IOBMErpki/dbmGLmZc=";
+    rev = "6507700d027fb105cd2e4f8a64515f78df5a47ff";
+    sha256 = "sha256-5ZAz79reZoRJ75FamtCTvfxBGMRIhD+pucyM2NZgr0U=";
   };
   postPatch = ''
     substituteInPlace ./kpatch-build/kpatch-build --replace "getopt" "${getopt}/bin/getopt"
