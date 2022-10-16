@@ -8,7 +8,14 @@ module OsCtld
       include DistConfig::Helpers::RedHat
 
       def set_hostname(new_hostname, old_hostname: nil)
-        # /etc/sysconfig/network
+        # /etc/hostname
+        writable?(File.join(rootfs, 'etc', 'hostname')) do |path|
+          regenerate_file(path, 0644) do |f|
+            f.puts(new_hostname.local)
+          end
+        end
+
+        # /etc/sysconfig/network for older systems
         set_params(
           File.join(rootfs, 'etc', 'sysconfig', 'network'),
           {'HOSTNAME' => new_hostname.local}
