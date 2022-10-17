@@ -1,2 +1,2 @@
 source 'https://rubygems.vpsfree.cz'
-gem 'osvm', '22.05.0.build20221012112648'
+gem 'osvm', '22.05.0.build20221017102231'
