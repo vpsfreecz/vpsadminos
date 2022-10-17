@@ -1,3 +1,75 @@
+diff --git a/arch/x86/kernel/cpu/proc.c b/arch/x86/kernel/cpu/proc.c
+index 4eec8889b0ff..63ed5386c499 100644
+--- a/arch/x86/kernel/cpu/proc.c
++++ b/arch/x86/kernel/cpu/proc.c
+@@ -4,6 +4,7 @@
+ #include <linux/string.h>
+ #include <linux/seq_file.h>
+ #include <linux/cpufreq.h>
++#include <linux/user_namespace.h>
+ 
+ #include "cpu.h"
+ 
+@@ -58,11 +59,27 @@ static void show_cpuinfo_misc(struct seq_file *m, struct cpuinfo_x86 *c)
+ }
+ #endif
+ 
++DEFINE_MUTEX(show_cpuinfo_cache_mutex);
++unsigned long show_cpuinfo_cache_jiffies = 0;
++char *show_cpuinfo_cache = NULL;
++
+ static int show_cpuinfo(struct seq_file *m, void *v)
+ {
+ 	struct cpuinfo_x86 *c = v;
+ 	unsigned int cpu;
+ 	int i;
++	unsigned long now = jiffies;
++
++	mutex_lock(&show_cpuinfo_cache_mutex);
++	if ((current_user_ns() != &init_user_ns) ||
++	    (now - show_cpuinfo_cache_jiffies > msecs_to_jiffies(500))) {
++		if (show_cpuinfo_cache)
++			kfree(show_cpuinfo_cache);
++	} else {
++		seq_puts(m, show_cpuinfo_cache);
++		mutex_unlock(&show_cpuinfo_cache_mutex);
++		return 0;
++	};
+ 
+ 	cpu = c->cpu_index;
+ 	seq_printf(m, "processor\t: %u\n"
+@@ -153,6 +170,10 @@ static int show_cpuinfo(struct seq_file *m, void *v)
+ 
+ 	seq_puts(m, "\n\n");
+ 
++	show_cpuinfo_cache = kmemdup(m->buf, m->size, GFP_KERNEL);
++	if (show_cpuinfo_cache)
++		show_cpuinfo_cache_jiffies = now;
++	mutex_unlock(&show_cpuinfo_cache_mutex);
+ 	return 0;
+ }
+ 
+diff --git a/fs/proc/cpuinfo.c b/fs/proc/cpuinfo.c
+index 419760fd77bd..3c5c7dbd2739 100644
+--- a/fs/proc/cpuinfo.c
++++ b/fs/proc/cpuinfo.c
+@@ -9,10 +9,15 @@ __weak void arch_freq_prepare_all(void)
+ {
+ }
+ 
++extern unsigned long show_cpuinfo_cache_jiffies;
+ extern const struct seq_operations cpuinfo_op;
+ static int cpuinfo_open(struct inode *inode, struct file *file)
+ {
+-	arch_freq_prepare_all();
++	unsigned long now = jiffies;
++
++	if ((current_user_ns() == &init_user_ns) ||
++	    (now - show_cpuinfo_cache_jiffies < msecs_to_jiffies(500)))
++		arch_freq_prepare_all();
+ 	return seq_open(file, &cpuinfo_op);
+ }
+ 
 diff --git a/kernel/cgroup/cgroup.c b/kernel/cgroup/cgroup.c
 index a4325ebc6979..d3ce6f916a1b 100644
 --- a/kernel/cgroup/cgroup.c
@@ -197,10 +269,10 @@ index 6a060869f94c..1444f458bfa7 100644
  	 * This _must_ happen before we call free_task(), i.e. before we jump
  	 * to any of the bad_fork_* labels. This is to avoid freeing
 diff --git a/kernel/vpsadminos.c b/kernel/vpsadminos.c
-index 4be1c38461ee..811f1d4ae73f 100644
+index 4be1c38461ee..d0c9e3612079 100644
 --- a/kernel/vpsadminos.c
 +++ b/kernel/vpsadminos.c
-@@ -9,6 +9,55 @@
+@@ -9,6 +9,63 @@
  #include <linux/xarray.h>
  #include <asm/page.h>
  #include "sched/sched.h"
@@ -235,7 +307,7 @@ index 4be1c38461ee..811f1d4ae73f 100644
 +		klp_shadow_alloc(t, SHADOW_MUTEX,
 +		    sizeof(struct mutex), GFP_KERNEL, proc_cgroup_mutex_ctor, NULL);
 +		task_unlock(t);
-+	}
++	};
 +	read_unlock(&tasklist_lock);
 +	mutex_unlock(&cgroup_mutex);
 +	scnprintf(new_uname, 64, "%s.%s", LIVEPATCH_ORIG_KERNEL_VERSION,
@@ -247,9 +319,17 @@ index 4be1c38461ee..811f1d4ae73f 100644
 +KPATCH_PRE_PATCH_CALLBACK(patch);
 +static void unpatch(patch_object *obj)
 +{
-+	klp_shadow_free_all(SHADOW_MUTEX, NULL);
-+	klp_shadow_free_all(SHADOW_CACHE, NULL);
-+	klp_shadow_free_all(SHADOW_KEY, NULL);
++	struct task_struct *p, *t;
++	mutex_lock(&cgroup_mutex);
++	read_lock(&tasklist_lock);
++	for_each_process_thread(p, t) {
++		task_lock(t);
++		klp_shadow_free(t, SHADOW_MUTEX, NULL);
++		klp_shadow_free(t, SHADOW_CACHE, NULL);
++		klp_shadow_free(t, SHADOW_KEY, NULL);
++	};
++	read_unlock(&tasklist_lock);
++	mutex_unlock(&cgroup_mutex);
 +	scnprintf(init_uts_ns.name.release, 64, "%s", old_uname);
 +}
 +KPATCH_POST_UNPATCH_CALLBACK(unpatch);
