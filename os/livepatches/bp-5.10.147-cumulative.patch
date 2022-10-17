@@ -1,5 +1,5 @@
 diff --git a/arch/x86/kernel/cpu/proc.c b/arch/x86/kernel/cpu/proc.c
-index 4eec8889b0ff..63ed5386c499 100644
+index 4eec8889b0ff..5978c3eff99f 100644
 --- a/arch/x86/kernel/cpu/proc.c
 +++ b/arch/x86/kernel/cpu/proc.c
 @@ -4,6 +4,7 @@
@@ -10,13 +10,13 @@ index 4eec8889b0ff..63ed5386c499 100644
  
  #include "cpu.h"
  
-@@ -58,11 +59,27 @@ static void show_cpuinfo_misc(struct seq_file *m, struct cpuinfo_x86 *c)
+@@ -58,13 +59,30 @@ static void show_cpuinfo_misc(struct seq_file *m, struct cpuinfo_x86 *c)
  }
  #endif
  
 +DEFINE_MUTEX(show_cpuinfo_cache_mutex);
 +unsigned long show_cpuinfo_cache_jiffies = 0;
-+char *show_cpuinfo_cache = NULL;
++char *show_cpuinfo_cache[NR_CPUS] = { 0 };
 +
  static int show_cpuinfo(struct seq_file *m, void *v)
  {
@@ -24,33 +24,56 @@ index 4eec8889b0ff..63ed5386c499 100644
  	unsigned int cpu;
  	int i;
 +	unsigned long now = jiffies;
+ 
+ 	cpu = c->cpu_index;
 +
 +	mutex_lock(&show_cpuinfo_cache_mutex);
-+	if ((current_user_ns() != &init_user_ns) ||
-+	    (now - show_cpuinfo_cache_jiffies > msecs_to_jiffies(500))) {
-+		if (show_cpuinfo_cache)
-+			kfree(show_cpuinfo_cache);
-+	} else {
-+		seq_puts(m, show_cpuinfo_cache);
++	if ((current_user_ns() == &init_user_ns) ||
++	    (now - show_cpuinfo_cache_jiffies > msecs_to_jiffies(1000))) {
++		if (show_cpuinfo_cache[cpu])
++			kfree(show_cpuinfo_cache[cpu]);
++	} else if (show_cpuinfo_cache[cpu]) {
++		seq_puts(m, show_cpuinfo_cache[cpu]);
 +		mutex_unlock(&show_cpuinfo_cache_mutex);
 +		return 0;
 +	};
- 
- 	cpu = c->cpu_index;
++
  	seq_printf(m, "processor\t: %u\n"
-@@ -153,6 +170,10 @@ static int show_cpuinfo(struct seq_file *m, void *v)
+ 		   "vendor_id\t: %s\n"
+ 		   "cpu family\t: %d\n"
+@@ -153,6 +171,10 @@ static int show_cpuinfo(struct seq_file *m, void *v)
  
  	seq_puts(m, "\n\n");
  
-+	show_cpuinfo_cache = kmemdup(m->buf, m->size, GFP_KERNEL);
-+	if (show_cpuinfo_cache)
++	show_cpuinfo_cache[cpu] = kmemdup(m->buf, m->size, GFP_KERNEL);
++	if (show_cpuinfo_cache[cpu])
 +		show_cpuinfo_cache_jiffies = now;
 +	mutex_unlock(&show_cpuinfo_cache_mutex);
  	return 0;
  }
  
+diff --git a/fs/kernfs/dir.c b/fs/kernfs/dir.c
+index 7cefa7fbfef5..abf77f5e3172 100644
+--- a/fs/kernfs/dir.c
++++ b/fs/kernfs/dir.c
+@@ -1705,7 +1705,6 @@ static int kernfs_fop_readdir(struct file *file, struct dir_context *ctx)
+ 		file->private_data = pos;
+ 		kernfs_get(pos);
+ 
+-		mutex_unlock(&kernfs_mutex);
+ 		if ((current->nsproxy->cgroup_ns != &init_cgroup_ns) &&
+ 		    (strncmp(pname, "cpu", 3) == 0) &&
+ 		    (strncmp(name, "cpu", 3) == 0)) {
+@@ -1715,6 +1714,7 @@ static int kernfs_fop_readdir(struct file *file, struct dir_context *ctx)
+ 			if (id >= maxcpus)
+ 				continue;
+ 		}
++		mutex_unlock(&kernfs_mutex);
+ 		if (!dir_emit(ctx, name, len, ino, type))
+ 			return 0;
+ 		mutex_lock(&kernfs_mutex);
 diff --git a/fs/proc/cpuinfo.c b/fs/proc/cpuinfo.c
-index 419760fd77bd..3c5c7dbd2739 100644
+index 419760fd77bd..8ce89bbbbaad 100644
 --- a/fs/proc/cpuinfo.c
 +++ b/fs/proc/cpuinfo.c
 @@ -9,10 +9,15 @@ __weak void arch_freq_prepare_all(void)
@@ -65,7 +88,7 @@ index 419760fd77bd..3c5c7dbd2739 100644
 +	unsigned long now = jiffies;
 +
 +	if ((current_user_ns() == &init_user_ns) ||
-+	    (now - show_cpuinfo_cache_jiffies < msecs_to_jiffies(500)))
++	    (now - show_cpuinfo_cache_jiffies > msecs_to_jiffies(1000)))
 +		arch_freq_prepare_all();
  	return seq_open(file, &cpuinfo_op);
  }
@@ -269,10 +292,10 @@ index 6a060869f94c..1444f458bfa7 100644
  	 * This _must_ happen before we call free_task(), i.e. before we jump
  	 * to any of the bad_fork_* labels. This is to avoid freeing
 diff --git a/kernel/vpsadminos.c b/kernel/vpsadminos.c
-index 4be1c38461ee..d0c9e3612079 100644
+index 4be1c38461ee..3f186c13ca25 100644
 --- a/kernel/vpsadminos.c
 +++ b/kernel/vpsadminos.c
-@@ -9,6 +9,63 @@
+@@ -9,6 +9,70 @@
  #include <linux/xarray.h>
  #include <asm/page.h>
  #include "sched/sched.h"
@@ -299,12 +322,13 @@ index 4be1c38461ee..d0c9e3612079 100644
 +	mutex_lock(&cgroup_mutex);
 +	read_lock(&tasklist_lock);
 +	for_each_process_thread(p, t) {
++		if (spin_is_locked(&t->alloc_lock)) task_unlock(t);
 +		task_lock(t);
-+		klp_shadow_alloc(t, SHADOW_CACHE,
++		klp_shadow_get_or_alloc(t, SHADOW_CACHE,
 +		    sizeof(void *) * 16, GFP_KERNEL, NULL, NULL);
-+		klp_shadow_alloc(t, SHADOW_KEY,
++		klp_shadow_get_or_alloc(t, SHADOW_KEY,
 +		    sizeof(void *) * 16, GFP_KERNEL, NULL, NULL);
-+		klp_shadow_alloc(t, SHADOW_MUTEX,
++		klp_shadow_get_or_alloc(t, SHADOW_MUTEX,
 +		    sizeof(struct mutex), GFP_KERNEL, proc_cgroup_mutex_ctor, NULL);
 +		task_unlock(t);
 +	};
@@ -317,17 +341,23 @@ index 4be1c38461ee..d0c9e3612079 100644
 +	return 0;
 +}
 +KPATCH_PRE_PATCH_CALLBACK(patch);
++extern void proc_cgroup_cache_clear(struct task_struct *tsk);
 +static void unpatch(patch_object *obj)
 +{
 +	struct task_struct *p, *t;
 +	mutex_lock(&cgroup_mutex);
 +	read_lock(&tasklist_lock);
 +	for_each_process_thread(p, t) {
-+		task_lock(t);
-+		klp_shadow_free(t, SHADOW_MUTEX, NULL);
-+		klp_shadow_free(t, SHADOW_CACHE, NULL);
-+		klp_shadow_free(t, SHADOW_KEY, NULL);
++		struct mutex *m = klp_shadow_get(t, SHADOW_MUTEX);
++		if (m) {
++			mutex_lock(m);
++			proc_cgroup_cache_clear(t);
++			mutex_unlock(m);
++		};
 +	};
++	klp_shadow_free_all(SHADOW_MUTEX, NULL);
++	klp_shadow_free_all(SHADOW_CACHE, NULL);
++	klp_shadow_free_all(SHADOW_KEY, NULL);
 +	read_unlock(&tasklist_lock);
 +	mutex_unlock(&cgroup_mutex);
 +	scnprintf(init_uts_ns.name.release, 64, "%s", old_uname);
