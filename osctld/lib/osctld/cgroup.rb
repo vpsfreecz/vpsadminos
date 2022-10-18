@@ -142,9 +142,11 @@ module OsCtld
     def self.init_cgroup(type, base, cgroup)
       case type
       when 'cpuset'
-        inherit_param(base, cgroup, 'cpuset.cpus')
-        inherit_param(base, cgroup, 'cpuset.mems')
-        set_param(File.join(cgroup, 'cgroup.clone_children'), ['1']) if v1?
+        if v1?
+          inherit_param(base, cgroup, 'cpuset.cpus')
+          inherit_param(base, cgroup, 'cpuset.mems')
+          set_param(File.join(cgroup, 'cgroup.clone_children'), ['1'])
+        end
       end
     end
 
