@@ -47,6 +47,8 @@ module OsCtld
     def on_ct_stop
       ctrc = ct.get_past_run_conf
 
+      CpuScheduler.unschedule_ct(ct)
+
       begin
         ct.update_hints
       rescue Exception => e

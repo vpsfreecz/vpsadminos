@@ -139,7 +139,8 @@ module OsCtld
       start_cfg = RunState.open_start_config
 
       SystemLimits.instance
-      CpuScheduler.start if CpuScheduler.use?
+
+      CpuScheduler.setup
 
       # Increase allowed number of open files
       PrLimits.set(Process.pid, PrLimits::NOFILE, 16384, 16384)
@@ -227,7 +228,7 @@ module OsCtld
       UserControl.stop
       SendReceive.stop
       DB::Pools.get.each { |pool| pool.stop }
-      CpuScheduler.stop
+      CpuScheduler.shutdown
       ThreadReaper.stop
       Monitor::Master.stop
       LockRegistry.stop

@@ -10,6 +10,7 @@ module OsCtld
     LXC_CONFIG_DIR = File.join(CONFIG_DIR, 'lxc')
     APPARMOR_DIR = File.join(CONFIG_DIR, 'apparmor')
     LXCFS_DIR = File.join(RUNDIR, 'lxcfs')
+    CPU_SCHEDULER_DIR = File.join(RUNDIR, 'cpu-scheduler')
     SHUTDOWN_MARKER = File.join(RUNDIR, 'shutdown')
     CGROUP_VERSION = File.join(RUNDIR, 'cgroup.version')
 
@@ -30,6 +31,8 @@ module OsCtld
 
       # AppArmor files
       mkdir_p(APPARMOR_DIR, 0755)
+
+      mkdir_p(CPU_SCHEDULER_DIR, 0755)
     end
 
     # @return [RunState::StartConfig]
@@ -91,6 +94,7 @@ module OsCtld
 
       Lxcfs.assets(add)
       SendReceive.assets(add)
+      CpuScheduler.assets(add)
     end
 
     def self.mkdir_p(path, mode, uid: nil, gid: nil)
