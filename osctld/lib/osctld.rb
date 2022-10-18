@@ -5,6 +5,7 @@ module OsCtld
   module AutoStart ; end
   module Commands
     module Container ; end
+    module CpuScheduler ; end
     module Dataset ; end
     module Debug ; end
     module Event ; end

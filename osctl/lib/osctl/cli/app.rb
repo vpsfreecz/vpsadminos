@@ -2020,6 +2020,56 @@ module OsCtl::Cli
         end
       end
 
+      desc 'Manage the CPU scheduler'
+      command 'cpu-scheduler' do |sched|
+        sched.desc 'Show CPU scheduler status'
+        sched.command :status do |c|
+          c.action &Command.run(CpuScheduler, :status)
+        end
+
+        sched.desc 'Enable the CPU scheduler'
+        sched.command :enable do |c|
+          c.action &Command.run(CpuScheduler, :enable)
+        end
+
+        sched.desc 'Disable the CPU scheduler'
+        sched.command :disable do |c|
+          c.action &Command.run(CpuScheduler, :disable)
+        end
+
+        sched.desc 'Inspect CPU packages'
+        sched.command :package do |pkg|
+          pkg.desc 'List CPU packages'
+          pkg.command %i(ls list) do |c|
+            c.desc 'Select parameters to output'
+            c.flag %i(o output), arg_name: 'parameters'
+
+            c.desc 'Do not show header'
+            c.switch %i(H hide-header), negatable: false
+
+            c.desc 'List available parameters'
+            c.switch %i(L list), negatable: false
+
+            c.desc 'Sort by parameter(s)'
+            c.flag %i(s sort)
+
+            c.action &Command.run(CpuScheduler, :package_list)
+          end
+
+          pkg.desc 'Enable CPU package'
+          pkg.arg_name '<package>'
+          pkg.command :enable do |c|
+            c.action &Command.run(CpuScheduler, :package_enable)
+          end
+
+          pkg.desc 'Disable CPU package'
+          pkg.arg_name '<package>'
+          pkg.command :disable do |c|
+            c.action &Command.run(CpuScheduler, :package_disable)
+          end
+        end
+      end
+
       desc 'Monitor'
       command :monitor do |c|
         c.action &Command.run(Event, :monitor)

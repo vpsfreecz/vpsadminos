@@ -2778,6 +2778,55 @@ The following shortcuts are supported:
     `--uncached`
       Show only locally uncached images.
 
+`cpu-scheduler status`
+  Show status of the CPU scheduler.
+
+  The CPU scheduler is used on systems with multiple physical packages, e.g.
+  CPUs in multiple sockets. It ensures that each container is running only
+  on CPUs from the same package, thus preventing costly accesses to resources
+  belonging to other packages.
+
+  When a container starts, it is assigned to one CPU package. The scheduler selects
+  the package with the highest idle time at the time. Use `ct ls -o id,cpu_package`
+  to see containers and their CPU package.
+
+`cpu-scheduler enable`
+  Turn on container CPU scheduler.
+
+  The scheduler can be turned on using vpsAdminOS configuration option
+  `osctld.cpuScheduler.enable`. Enabling the scheduler using this command has
+  effect only until `osctld` is restarted.
+
+`cpu-scheduler disable`
+  Disable the CPU scheduler.
+
+  The scheduler can be permanently turned ooff using vpsAdminOS configuration option
+  `osctld.cpuScheduler.enable`. Disabling the scheduler using this command has
+  effect only until `osctld` is restarted.
+
+`cpu-scheduler package ls`
+  List CPU packages, their CPUs and idle times.
+
+    `-H`, `--hide-header`
+      Do not show header, useful for scripting.
+
+    `-L`, `--list`
+      List available parameters and exit.
+
+    `-o`, `--output` *parameters*
+      Select parameters to output.
+
+    `-s`, `--sort` *parameters*
+      Sort output by parameters, comma separated. Sorted by idle time by default.
+
+`cpu-scheduler package enable` *package*
+  Enable *package* for use if it was previously disabled.
+
+`cpu-scheduler package disable` *package*
+  Prevent the scheduler from assigning containers to *package*
+
+  This setting is lost on `osctld` restart, after which all packages are enabled.
+
 `monitor`
   Print all events reported by `osctld` to standard output. If global option
   `-j`, `--json` is used, the events are printed in JSON.
