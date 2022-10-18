@@ -1,4 +1,5 @@
 require 'base64'
+require 'libosctl'
 require 'osctld/console/tty'
 
 module OsCtld
@@ -8,6 +9,8 @@ module OsCtld
   # The tty is accessed using unix server socket created by the osctld
   # container wrapper.
   class Console::Console < Console::TTY
+    include OsCtl::Lib::Utils::Exception
+
     def open
       # Does nothing for tty0, it is opened automatically on ct start
     end
@@ -44,10 +47,17 @@ module OsCtld
     def on_ct_stop
       ctrc = ct.get_past_run_conf
 
+      begin
+        ct.update_hints
+      rescue Exception => e
+        log(:warn, ct, "Unable to update hints: #{e.message} (#{e.class})")
+        log(:warn, ct, denixstorify(e.backtrace))
+      end
+
       if ctrc.nil?
         # This means that {UserControl::Commands::CtPostStop} hasn't run for some
         # reason.
-        log(:fatal, ctrc, 'Unable to properly handle container stop')
+        log(:fatal, ct, 'Unable to properly handle container stop')
         handle_improper_ct_stop
         return
       end
