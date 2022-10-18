@@ -1,5 +1,5 @@
 diff --git a/arch/x86/kernel/cpu/proc.c b/arch/x86/kernel/cpu/proc.c
-index 4eec8889b0ff..5978c3eff99f 100644
+index 4eec8889b0ff..aa581139e9ab 100644
 --- a/arch/x86/kernel/cpu/proc.c
 +++ b/arch/x86/kernel/cpu/proc.c
 @@ -4,6 +4,7 @@
@@ -10,12 +10,12 @@ index 4eec8889b0ff..5978c3eff99f 100644
  
  #include "cpu.h"
  
-@@ -58,13 +59,30 @@ static void show_cpuinfo_misc(struct seq_file *m, struct cpuinfo_x86 *c)
+@@ -58,14 +59,52 @@ static void show_cpuinfo_misc(struct seq_file *m, struct cpuinfo_x86 *c)
  }
  #endif
  
-+DEFINE_MUTEX(show_cpuinfo_cache_mutex);
-+unsigned long show_cpuinfo_cache_jiffies = 0;
++struct mutex *show_cpuinfo_cache_mutexes[NR_CPUS] = { 0 };
++unsigned long show_cpuinfo_cache_jiffies[NR_CPUS] = { 0 };
 +char *show_cpuinfo_cache[NR_CPUS] = { 0 };
 +
  static int show_cpuinfo(struct seq_file *m, void *v)
@@ -24,31 +24,157 @@ index 4eec8889b0ff..5978c3eff99f 100644
  	unsigned int cpu;
  	int i;
 +	unsigned long now = jiffies;
++	struct seq_file *dupm;
  
  	cpu = c->cpu_index;
+-	seq_printf(m, "processor\t: %u\n"
 +
-+	mutex_lock(&show_cpuinfo_cache_mutex);
-+	if ((current_user_ns() == &init_user_ns) ||
-+	    (now - show_cpuinfo_cache_jiffies > msecs_to_jiffies(1000))) {
++	if (!show_cpuinfo_cache_mutexes[cpu]) {
++		show_cpuinfo_cache_mutexes[cpu] = kmalloc(sizeof(struct mutex), GFP_KERNEL);
++		if (!show_cpuinfo_cache_mutexes[cpu])
++			return -ERESTARTSYS;
++		mutex_init(show_cpuinfo_cache_mutexes[cpu]);
++	}
++
++	mutex_lock(show_cpuinfo_cache_mutexes[cpu]);
++	if (now - show_cpuinfo_cache_jiffies[cpu] > msecs_to_jiffies(5000)) {
 +		if (show_cpuinfo_cache[cpu])
 +			kfree(show_cpuinfo_cache[cpu]);
 +	} else if (show_cpuinfo_cache[cpu]) {
 +		seq_puts(m, show_cpuinfo_cache[cpu]);
-+		mutex_unlock(&show_cpuinfo_cache_mutex);
++		mutex_unlock(show_cpuinfo_cache_mutexes[cpu]);
 +		return 0;
-+	};
++	}
 +
- 	seq_printf(m, "processor\t: %u\n"
++	dupm = kzalloc(sizeof(struct seq_file), GFP_KERNEL);
++	if (!dupm) {
++		mutex_unlock(show_cpuinfo_cache_mutexes[cpu]);
++		return -ENOMEM;
++	}
++	dupm->buf = kzalloc(PAGE_SIZE, GFP_KERNEL);
++	if (!dupm->buf) {
++		kfree(dupm);
++		mutex_unlock(show_cpuinfo_cache_mutexes[cpu]);
++		return -ENOMEM;
++	}
++	dupm->size = PAGE_SIZE;
++	mutex_init(&dupm->lock);
++
++	seq_printf(dupm, "processor\t: %u\n"
  		   "vendor_id\t: %s\n"
  		   "cpu family\t: %d\n"
-@@ -153,6 +171,10 @@ static int show_cpuinfo(struct seq_file *m, void *v)
+ 		   "model\t\t: %u\n"
+@@ -77,11 +116,11 @@ static int show_cpuinfo(struct seq_file *m, void *v)
+ 		   c->x86_model_id[0] ? c->x86_model_id : "unknown");
  
- 	seq_puts(m, "\n\n");
+ 	if (c->x86_stepping || c->cpuid_level >= 0)
+-		seq_printf(m, "stepping\t: %d\n", c->x86_stepping);
++		seq_printf(dupm, "stepping\t: %d\n", c->x86_stepping);
+ 	else
+-		seq_puts(m, "stepping\t: unknown\n");
++		seq_puts(dupm, "stepping\t: unknown\n");
+ 	if (c->microcode)
+-		seq_printf(m, "microcode\t: 0x%x\n", c->microcode);
++		seq_printf(dupm, "microcode\t: 0x%x\n", c->microcode);
  
-+	show_cpuinfo_cache[cpu] = kmemdup(m->buf, m->size, GFP_KERNEL);
-+	if (show_cpuinfo_cache[cpu])
-+		show_cpuinfo_cache_jiffies = now;
-+	mutex_unlock(&show_cpuinfo_cache_mutex);
+ 	if (cpu_has(c, X86_FEATURE_TSC)) {
+ 		unsigned int freq = aperfmperf_get_khz(cpu);
+@@ -90,69 +129,79 @@ static int show_cpuinfo(struct seq_file *m, void *v)
+ 			freq = cpufreq_quick_get(cpu);
+ 		if (!freq)
+ 			freq = cpu_khz;
+-		seq_printf(m, "cpu MHz\t\t: %u.%03u\n",
++		seq_printf(dupm, "cpu MHz\t\t: %u.%03u\n",
+ 			   freq / 1000, (freq % 1000));
+ 	}
+ 
+ 	/* Cache size */
+ 	if (c->x86_cache_size)
+-		seq_printf(m, "cache size\t: %u KB\n", c->x86_cache_size);
++		seq_printf(dupm, "cache size\t: %u KB\n", c->x86_cache_size);
+ 
+-	show_cpuinfo_core(m, c, cpu);
+-	show_cpuinfo_misc(m, c);
++	show_cpuinfo_core(dupm, c, cpu);
++	show_cpuinfo_misc(dupm, c);
+ 
+-	seq_puts(m, "flags\t\t:");
++	seq_puts(dupm, "flags\t\t:");
+ 	for (i = 0; i < 32*NCAPINTS; i++)
+ 		if (cpu_has(c, i) && x86_cap_flags[i] != NULL)
+-			seq_printf(m, " %s", x86_cap_flags[i]);
++			seq_printf(dupm, " %s", x86_cap_flags[i]);
+ 
+ #ifdef CONFIG_X86_VMX_FEATURE_NAMES
+ 	if (cpu_has(c, X86_FEATURE_VMX) && c->vmx_capability[0]) {
+-		seq_puts(m, "\nvmx flags\t:");
++		seq_puts(dupm, "\nvmx flags\t:");
+ 		for (i = 0; i < 32*NVMXINTS; i++) {
+ 			if (test_bit(i, (unsigned long *)c->vmx_capability) &&
+ 			    x86_vmx_flags[i] != NULL)
+-				seq_printf(m, " %s", x86_vmx_flags[i]);
++				seq_printf(dupm, " %s", x86_vmx_flags[i]);
+ 		}
+ 	}
+ #endif
+ 
+-	seq_puts(m, "\nbugs\t\t:");
++	seq_puts(dupm, "\nbugs\t\t:");
+ 	for (i = 0; i < 32*NBUGINTS; i++) {
+ 		unsigned int bug_bit = 32*NCAPINTS + i;
+ 
+ 		if (cpu_has_bug(c, bug_bit) && x86_bug_flags[i])
+-			seq_printf(m, " %s", x86_bug_flags[i]);
++			seq_printf(dupm, " %s", x86_bug_flags[i]);
+ 	}
+ 
+-	seq_printf(m, "\nbogomips\t: %lu.%02lu\n",
++	seq_printf(dupm, "\nbogomips\t: %lu.%02lu\n",
+ 		   c->loops_per_jiffy/(500000/HZ),
+ 		   (c->loops_per_jiffy/(5000/HZ)) % 100);
+ 
+ #ifdef CONFIG_X86_64
+ 	if (c->x86_tlbsize > 0)
+-		seq_printf(m, "TLB size\t: %d 4K pages\n", c->x86_tlbsize);
++		seq_printf(dupm, "TLB size\t: %d 4K pages\n", c->x86_tlbsize);
+ #endif
+-	seq_printf(m, "clflush size\t: %u\n", c->x86_clflush_size);
+-	seq_printf(m, "cache_alignment\t: %d\n", c->x86_cache_alignment);
+-	seq_printf(m, "address sizes\t: %u bits physical, %u bits virtual\n",
++	seq_printf(dupm, "clflush size\t: %u\n", c->x86_clflush_size);
++	seq_printf(dupm, "cache_alignment\t: %d\n", c->x86_cache_alignment);
++	seq_printf(dupm, "address sizes\t: %u bits physical, %u bits virtual\n",
+ 		   c->x86_phys_bits, c->x86_virt_bits);
+ 
+-	seq_puts(m, "power management:");
++	seq_puts(dupm, "power management:");
+ 	for (i = 0; i < 32; i++) {
+ 		if (c->x86_power & (1 << i)) {
+ 			if (i < ARRAY_SIZE(x86_power_flags) &&
+ 			    x86_power_flags[i])
+-				seq_printf(m, "%s%s",
++				seq_printf(dupm, "%s%s",
+ 					   x86_power_flags[i][0] ? " " : "",
+ 					   x86_power_flags[i]);
+ 			else
+-				seq_printf(m, " [%d]", i);
++				seq_printf(dupm, " [%d]", i);
+ 		}
+ 	}
+ 
+-	seq_puts(m, "\n\n");
++	seq_puts(dupm, "\n\n");
+ 
++	if (dupm->buf) {
++		show_cpuinfo_cache[cpu] = kmemdup(dupm->buf, dupm->count, GFP_KERNEL);
++		kfree(dupm->buf);
++	}
++	if (show_cpuinfo_cache[cpu]) {
++		seq_puts(m, show_cpuinfo_cache[cpu]);
++		show_cpuinfo_cache_jiffies[cpu] = now;
++	}
++	kfree(dupm);
++	mutex_unlock(show_cpuinfo_cache_mutexes[cpu]);
  	return 0;
  }
  
@@ -73,28 +199,32 @@ index 7cefa7fbfef5..abf77f5e3172 100644
  			return 0;
  		mutex_lock(&kernfs_mutex);
 diff --git a/fs/proc/cpuinfo.c b/fs/proc/cpuinfo.c
-index 419760fd77bd..8ce89bbbbaad 100644
+index 419760fd77bd..7a42ced1aa45 100644
 --- a/fs/proc/cpuinfo.c
 +++ b/fs/proc/cpuinfo.c
-@@ -9,10 +9,15 @@ __weak void arch_freq_prepare_all(void)
+@@ -9,10 +9,19 @@ __weak void arch_freq_prepare_all(void)
  {
  }
  
-+extern unsigned long show_cpuinfo_cache_jiffies;
++extern unsigned long show_cpuinfo_cache_jiffies[NR_CPUS];
  extern const struct seq_operations cpuinfo_op;
  static int cpuinfo_open(struct inode *inode, struct file *file)
  {
 -	arch_freq_prepare_all();
 +	unsigned long now = jiffies;
++	int cpu;
 +
-+	if ((current_user_ns() == &init_user_ns) ||
-+	    (now - show_cpuinfo_cache_jiffies > msecs_to_jiffies(1000)))
-+		arch_freq_prepare_all();
++	for_each_online_cpu(cpu) {
++		if (now - show_cpuinfo_cache_jiffies[cpu] > msecs_to_jiffies(5000)) {
++			arch_freq_prepare_all();
++			break;
++		}
++	}
  	return seq_open(file, &cpuinfo_op);
  }
  
 diff --git a/kernel/cgroup/cgroup.c b/kernel/cgroup/cgroup.c
-index a4325ebc6979..d3ce6f916a1b 100644
+index a4325ebc6979..52eb8e39b4ec 100644
 --- a/kernel/cgroup/cgroup.c
 +++ b/kernel/cgroup/cgroup.c
 @@ -68,6 +68,8 @@
@@ -205,7 +335,7 @@ index a4325ebc6979..d3ce6f916a1b 100644
  /*
   * proc_cgroup_show()
   *  - Print task's cgroup paths into seq_file, one line for each hierarchy
-@@ -5963,11 +6043,22 @@ void cgroup_path_from_kernfs_id(u64 id, char *buf, size_t buflen)
+@@ -5963,11 +6043,23 @@ void cgroup_path_from_kernfs_id(u64 id, char *buf, size_t buflen)
  int proc_cgroup_show(struct seq_file *m, struct pid_namespace *ns,
  		     struct pid *pid, struct task_struct *tsk)
  {
@@ -215,6 +345,7 @@ index a4325ebc6979..d3ce6f916a1b 100644
 +	int retval = -ENOMEM;
  	struct cgroup_root *root;
 +	struct mutex *proc_cgroup_mutex = klp_shadow_get(tsk, SHADOW_MUTEX);
++	size_t start_count = m->count;
 +
 +	if (proc_cgroup_mutex) {
 +		mutex_lock(proc_cgroup_mutex);
@@ -230,12 +361,12 @@ index a4325ebc6979..d3ce6f916a1b 100644
  	buf = kmalloc(PATH_MAX, GFP_KERNEL);
  	if (!buf)
  		goto out;
-@@ -6030,6 +6121,10 @@ int proc_cgroup_show(struct seq_file *m, struct pid_namespace *ns,
+@@ -6030,6 +6122,10 @@ int proc_cgroup_show(struct seq_file *m, struct pid_namespace *ns,
  	mutex_unlock(&cgroup_mutex);
  	kfree(buf);
  out:
 +	if ((retval == 0) && proc_cgroup_mutex) {
-+		cache = proc_cgroup_cache_alloc(tsk, current->nsproxy->cgroup_ns, m->buf, m->size);
++		cache = proc_cgroup_cache_alloc(tsk, current->nsproxy->cgroup_ns, m->buf + start_count, m->count - start_count);
 +		mutex_unlock(proc_cgroup_mutex);
 +	}
  	return retval;
@@ -292,10 +423,10 @@ index 6a060869f94c..1444f458bfa7 100644
  	 * This _must_ happen before we call free_task(), i.e. before we jump
  	 * to any of the bad_fork_* labels. This is to avoid freeing
 diff --git a/kernel/vpsadminos.c b/kernel/vpsadminos.c
-index 4be1c38461ee..3f186c13ca25 100644
+index 4be1c38461ee..2cfa8fba0c08 100644
 --- a/kernel/vpsadminos.c
 +++ b/kernel/vpsadminos.c
-@@ -9,6 +9,70 @@
+@@ -9,6 +9,74 @@
  #include <linux/xarray.h>
  #include <asm/page.h>
  #include "sched/sched.h"
@@ -322,7 +453,6 @@ index 4be1c38461ee..3f186c13ca25 100644
 +	mutex_lock(&cgroup_mutex);
 +	read_lock(&tasklist_lock);
 +	for_each_process_thread(p, t) {
-+		if (spin_is_locked(&t->alloc_lock)) task_unlock(t);
 +		task_lock(t);
 +		klp_shadow_get_or_alloc(t, SHADOW_CACHE,
 +		    sizeof(void *) * 16, GFP_KERNEL, NULL, NULL);
@@ -342,9 +472,14 @@ index 4be1c38461ee..3f186c13ca25 100644
 +}
 +KPATCH_PRE_PATCH_CALLBACK(patch);
 +extern void proc_cgroup_cache_clear(struct task_struct *tsk);
++extern struct mutex *show_cpuinfo_cache_mutexes[NR_CPUS];
 +static void unpatch(patch_object *obj)
 +{
 +	struct task_struct *p, *t;
++	int cpu;
++	for_each_online_cpu(cpu)
++		if (show_cpuinfo_cache_mutexes[cpu])
++			kfree(show_cpuinfo_cache_mutexes[cpu]);
 +	mutex_lock(&cgroup_mutex);
 +	read_lock(&tasklist_lock);
 +	for_each_process_thread(p, t) {
