@@ -23,12 +23,13 @@ module OsCtld
     attr_reader :ct
 
     attr_inclusive_reader :dataset, :distribution, :version, :arch
-    attr_synchronized_accessor :init_pid, :dist_network_configured
+    attr_synchronized_accessor :cpu_package, :init_pid, :dist_network_configured
 
     # @param ct [Container]
     def initialize(ct, load_conf: true)
       init_lock
       @ct = ct
+      @cpu_package = nil
       @init_pid = nil
       @aborted = false
       @do_reboot = false
@@ -148,6 +149,7 @@ module OsCtld
         'distribution' => distribution,
         'version' => version,
         'arch' => arch,
+        'cpu_package' => cpu_package,
         'destroy_dataset_on_stop' => destroy_dataset_on_stop?,
       }
     end
@@ -169,6 +171,7 @@ module OsCtld
       @distribution = cfg['distribution'] || ct.distribution
       @version = cfg['version'] || ct.version
       @arch = cfg['arch'] || ct.arch
+      @cpu_package = cfg['cpu_package']
       @destroy_dataset_on_stop =
         if cfg.has_key?('destroy_dataset_on_stop')
           cfg['destroy_dataset_on_stop']

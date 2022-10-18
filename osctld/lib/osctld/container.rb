@@ -677,6 +677,7 @@ module OsCtld
           nesting: nesting,
           seccomp_profile: seccomp_profile,
           init_cmd: format_user_init_cmd,
+          cpu_package: run_conf ? run_conf.cpu_package : nil,
           start_menu: start_menu ? true : false,
           start_menu_timeout: start_menu && start_menu.timeout,
           lxcfs_enable: lxcfs.enable,

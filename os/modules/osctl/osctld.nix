@@ -3,6 +3,8 @@ with utils;
 with lib;
 
 let
+  cfg = config.osctld;
+
   path = with pkgs; [
     apparmor-parser
     coreutils
@@ -29,6 +31,8 @@ let
     ctstartmenu = "${pkgs.ctstartmenu}/bin/ctstartmenu";
 
     lxcfs = "${pkgs.lxcfs}/bin/lxcfs";
+
+    cpu_scheduler = cfg.cpuScheduler.enable;
   };
 
   jsonConfigFile = pkgs.writeText "osctld-config.json" (builtins.toJSON osctldConfig);
@@ -37,6 +41,13 @@ in
   ###### interface
 
   options = {
+    osctld = {
+      cpuScheduler = {
+        enable = mkEnableOption ''
+          Enable dynamic CPU scheduler on multi-socket systems
+        '';
+      };
+    };
   };
 
   ###### implementation
