@@ -169,11 +169,19 @@ module OsCtld
     end
 
     def export_packages
+      pkg_cts = Hash[topology.packages.each_key.map { |pkg_id| [pkg_id, 0] }]
+
+      DB::Containers.get.each do |ct|
+        rc = ct.run_conf
+        pkg_cts[rc.cpu_package] += 1 if rc && rc.cpu_package
+      end
+
       sync_pkg do
         topology.packages.each_value.map do |pkg|
           {
             id: pkg.id,
             cpus: pkg.cpus.keys,
+            containers: pkg_cts[pkg.id],
             idle: package_info[pkg.id].idle,
             enabled: package_info[pkg.id].enabled,
             last_check: package_info[pkg.id].last_check,

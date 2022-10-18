@@ -2,7 +2,7 @@ require 'osctl/cli/command'
 
 module OsCtl::Cli
   class CpuScheduler < Command
-    PACKAGE_FIELDS = %i(id cpus idle enabled last_check)
+    PACKAGE_FIELDS = %i(id cpus containers idle enabled last_check)
 
     def status
       require_args!
