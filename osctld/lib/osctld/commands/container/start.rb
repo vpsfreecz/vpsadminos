@@ -99,6 +99,9 @@ module OsCtld
       # Pre-start distconfig hook
       DistConfig.run(ct.run_conf, :pre_start)
 
+      # CPU scheduler
+      CpuScheduler.schedule_ct(ct.run_conf)
+
       # Start LXCFS
       begin
         ct.lxcfs.ensure_and_wait

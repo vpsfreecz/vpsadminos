@@ -47,7 +47,7 @@ module OsCtld
       tries = 0
 
       begin
-        %w(blkio cpuacct memory).each do |subsys|
+        %w(blkio cpuacct cpuset memory).each do |subsys|
           CGroup.rmpath(subsys, ct.base_cgroup_path)
         end
       rescue SystemCallError => e

@@ -28,6 +28,8 @@ let
     ctstartmenu = "${pkgs.ctstartmenu}/bin/ctstartmenu";
 
     lxcfs = "${pkgs.lxcfs}/bin/lxcfs";
+
+    cpu_scheduler = true;
   };
 
   jsonConfigFile = pkgs.writeText "osctld-config.json" (builtins.toJSON osctldConfig);

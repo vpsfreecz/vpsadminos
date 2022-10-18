@@ -32,6 +32,7 @@ module OsCtl::Cli
       version
       state
       init_pid
+      cpu_package
       autostart
       autostart_priority
       autostart_delay
