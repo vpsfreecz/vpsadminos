@@ -2037,6 +2037,11 @@ module OsCtl::Cli
           c.action &Command.run(CpuScheduler, :disable)
         end
 
+        sched.desc 'Run internal CPU scheduler upkeeping'
+        sched.command :upkeep do |c|
+          c.action &Command.run(CpuScheduler, :upkeep)
+        end
+
         sched.desc 'Inspect CPU packages'
         sched.command :package do |pkg|
           pkg.desc 'List CPU packages'

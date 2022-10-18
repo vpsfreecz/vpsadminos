@@ -2787,8 +2787,9 @@ The following shortcuts are supported:
   belonging to other packages.
 
   When a container starts, it is assigned to one CPU package. The scheduler selects
-  the package with the highest idle time at the time. Use `ct ls -o id,cpu_package`
-  to see containers and their CPU package.
+  the package either using the container's daily CPU use or by the number of
+  containers using a package. Use `ct ls -o id,cpu_package` to see containers
+  and their CPU package.
 
 `cpu-scheduler enable`
   Turn on container CPU scheduler.
@@ -2804,8 +2805,13 @@ The following shortcuts are supported:
   `osctld.cpuScheduler.enable`. Disabling the scheduler using this command has
   effect only until `osctld` is restarted.
 
+`cpu-scheduler upkeep`
+  Run internal CPU scheduler upkeep mechanism, which corrects mistakes in its
+  scheduling state. The upkeep is run periodically to recover from unexpected
+  errors that could corrupt the scheduler's state.
+
 `cpu-scheduler package ls`
-  List CPU packages, their CPUs and idle times.
+  List CPU packages, their CPUs and other info.
 
     `-H`, `--hide-header`
       Do not show header, useful for scripting.
@@ -2817,7 +2823,7 @@ The following shortcuts are supported:
       Select parameters to output.
 
     `-s`, `--sort` *parameters*
-      Sort output by parameters, comma separated. Sorted by idle time by default.
+      Sort output by parameters, comma separated. Sorted by usage score by default.
 
 `cpu-scheduler package enable` *package*
   Enable *package* for use if it was previously disabled.

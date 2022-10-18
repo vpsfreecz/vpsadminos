@@ -2,7 +2,7 @@ require 'osctl/cli/command'
 
 module OsCtl::Cli
   class CpuScheduler < Command
-    PACKAGE_FIELDS = %i(id cpus containers idle enabled last_check)
+    PACKAGE_FIELDS = %i(id cpus containers usage_score enabled)
 
     def status
       require_args!
@@ -17,6 +17,11 @@ module OsCtl::Cli
     def disable
       require_args!
       osctld_fmt(:cpu_scheduler_disable)
+    end
+
+    def upkeep
+      require_args!
+      osctld_fmt(:cpu_scheduler_upkeep)
     end
 
     def package_list
@@ -47,7 +52,7 @@ module OsCtl::Cli
       fmt_opts = {
         layout: :columns,
         cols: cols,
-        sort: opts[:sort] ? opts[:sort].split(',').map(&:to_sym) : %i(idle),
+        sort: opts[:sort] ? opts[:sort].split(',').map(&:to_sym) : %i(usage_score),
       }
 
       fmt_opts[:header] = false if opts['hide-header']

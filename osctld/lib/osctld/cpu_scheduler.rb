@@ -1,27 +1,33 @@
 require 'singleton'
 require 'libosctl'
+require 'osctld/run_state'
 
 module OsCtld
   # Schedule containers on CPUs to keep them running on the same package
   class CpuScheduler
+    STATE_FILE = File.join(RunState::CPU_SCHEDULER_DIR, 'state.yml')
+
     include Singleton
     include Lockable
 
     include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::File
 
     class << self
       %i(
+        assets
+        setup
+        shutdown
         enabled?
         needed?
         use?
-        start
-        stop
         enable
         disable
         enable_package
         disable_package
-        running?
         schedule_ct
+        unschedule_ct
+        upkeep
         export_status
         export_packages
       ).each do |v|
@@ -34,9 +40,16 @@ module OsCtld
     PackageInfo = Struct.new(
       :id,
       :cpuset,
-      :idle,
+      :usage_score,
+      :container_count,
       :enabled,
-      :last_check,
+      keyword_init: true,
+    )
+
+    ScheduleInfo = Struct.new(
+      :ctid,
+      :usage_score,
+      :package_id,
       keyword_init: true,
     )
 
@@ -44,39 +57,62 @@ module OsCtld
       init_lock
 
       @enabled = Daemon.get.config.enable_cpu_scheduler?
-      @queue = OsCtl::Lib::Queue.new
+      @upkeep_queue = OsCtl::Lib::Queue.new
+      @save_queue = OsCtl::Lib::Queue.new
       @topology = OsCtl::Lib::CpuTopology.new
-      @package_mutex = Mutex.new
+      @control_mutex = Mutex.new
       @package_info = {}
+      @scheduled_cts = {}
 
       topology.packages.each_value do |pkg|
         @package_info[pkg.id] = PackageInfo.new(
           id: pkg.id,
           cpuset: pkg.cpus.keys.sort.join(','),
-          idle: 0,
+          usage_score: 0,
+          container_count: 0,
           enabled: true,
-          last_check: nil,
         )
       end
 
       log(:info, "#{topology.cpus.length} CPUs in #{topology.packages.length} packages")
     end
 
-    # Start background CPU monitoring
-    def start
-      exclusively do
-        @thread = Thread.new { monitor_cpu_packages }
-      end
+    def assets(add)
+      add.directory(
+        RunState::CPU_SCHEDULER_DIR,
+        desc: 'CPU scheduler state files',
+        user: 0,
+        group: 0,
+        mode: 0755,
+      )
+      add.file(
+        STATE_FILE,
+        desc: 'CPU scheduler state file',
+        user: 0,
+        group: 0,
+        mode: 0400,
+        optional: true,
+      )
     end
 
-    # Stop CPU monitoring
-    def stop
-      exclusively do
-        return unless running?
+    def setup
+      load_state
 
-        queue << :stop
-        thread.join
-        @thread = nil
+      @save_thread = Thread.new { run_save }
+
+      start_upkeep if use?
+    end
+
+    def shutdown
+      sync_control do
+        stop_upkeep
+
+        if save_thread
+          @do_shutdown = true
+          save_queue << :save
+          save_thread.join
+          @save_thread = nil
+        end
       end
     end
 
@@ -84,7 +120,10 @@ module OsCtld
     def enable
       exclusively do
         @enabled = true
-        start unless running?
+      end
+
+      sync_control do
+        start_upkeep unless upkeep_running?
       end
     end
 
@@ -92,13 +131,9 @@ module OsCtld
     def disable
       exclusively do
         @enabled = false
-        stop
       end
-    end
 
-    # Return `true` if the scheduler is running
-    def running?
-      inclusively { !@thread.nil? }
+      sync_control { stop_upkeep }
     end
 
     # Return `true` if the scheduler is enabled by configuration
@@ -121,7 +156,7 @@ module OsCtld
     def enable_package(package_id)
       ret = false
 
-      sync_pkg do
+      exclusively do
         next unless package_info.has_key?(package_id)
 
         package_info[package_id].enabled = true
@@ -136,7 +171,7 @@ module OsCtld
     def disable_package(package_id)
       ret = false
 
-      sync_pkg do
+      exclusively do
         next unless package_info.has_key?(package_id)
 
         package_info[package_id].enabled = false
@@ -149,9 +184,29 @@ module OsCtld
     # Assign container to an available CPU package and configure its cpuset
     # @param ctrc [Container::RunConfiguration]
     def schedule_ct(ctrc)
-      if use?
-        do_schedule_ct(ctrc)
-        queue << :wakeup
+      sched = do_schedule_ct(ctrc)
+      ctrc.save if sched
+      nil
+    end
+
+    # Remove container from the scheduler
+    # @param ct [Container]
+    def unschedule_ct(ct)
+      exclusively do
+        sched = scheduled_cts.delete(ct.ident)
+        return if sched.nil?
+
+        pkg = package_info[sched.package_id]
+        pkg.container_count -= 1
+        pkg.usage_score -= sched.usage_score
+      end
+
+      nil
+    end
+
+    def upkeep
+      sync_control do
+        upkeep_queue << :upkeep if upkeep_running?
       end
     end
 
@@ -159,7 +214,11 @@ module OsCtld
       ret = {}
 
       exclusively do
-        ret.update(enabled: enabled?, needed: needed?, use: use?, running: running?)
+        ret.update(enabled: enabled?, needed: needed?, use: use?)
+      end
+
+      sync_control do
+        ret.update(upkeep_running: upkeep_running?)
       end
 
       ret[:packages] = topology.packages.length
@@ -169,22 +228,14 @@ module OsCtld
     end
 
     def export_packages
-      pkg_cts = Hash[topology.packages.each_key.map { |pkg_id| [pkg_id, 0] }]
-
-      DB::Containers.get.each do |ct|
-        rc = ct.run_conf
-        pkg_cts[rc.cpu_package] += 1 if rc && rc.cpu_package
-      end
-
-      sync_pkg do
+      exclusively do
         topology.packages.each_value.map do |pkg|
           {
             id: pkg.id,
             cpus: pkg.cpus.keys,
-            containers: pkg_cts[pkg.id],
-            idle: package_info[pkg.id].idle,
+            containers: package_info[pkg.id].container_count,
+            usage_score: package_info[pkg.id].usage_score,
             enabled: package_info[pkg.id].enabled,
-            last_check: package_info[pkg.id].last_check,
           }
         end
       end
@@ -195,23 +246,58 @@ module OsCtld
     end
 
     protected
-    attr_reader :topology, :package_info, :thread, :queue
+    attr_reader :topology, :package_info, :scheduled_cts,
+      :upkeep_thread, :upkeep_queue, :save_thread, :save_queue
+
+    # Start background container upkeeping
+    def start_upkeep
+      sync_control do
+        @upkeep_thread = Thread.new { run_upkeep }
+      end
+    end
+
+    # Stop background container upkeeping
+    def stop_upkeep
+      sync_control do
+        return unless upkeep_running?
+
+        upkeep_queue << :stop
+        upkeep_thread.join
+        @upkeep_thread = nil
+      end
+    end
+
+    # Return `true` if the scheduler is running
+    def upkeep_running?
+      sync_control { !@upkeep_thread.nil? }
+    end
 
     def do_schedule_ct(ctrc)
-      fail 'programming error: the scheduler is not running' unless running?
+      daily_use = ctrc.ct.hints.cpu_daily.usage_us
+      pkg = nil
+      sched = nil
 
-      sorted_pkgs = inclusively do
-        package_info.values.sort do |a, b|
-          b.idle <=> a.idle
+      exclusively do
+        return unless use?
+
+        pkg =
+          if daily_use == 0
+            # no usage stats available, choose package based on number of cts
+            get_package_by_count
+          else
+            # choose package based on cpu use
+            get_package_by_score(daily_use)
+          end
+
+        if pkg.nil?
+          log(:warn, "No enabled package found, unable to schedule #{ctrc.ident}")
+          return
         end
+
+        sched = record_scheduled(ctrc.ct, daily_use, pkg)
       end
 
-      pkg = sorted_pkgs.detect { |pkg| pkg.enabled }
-
-      if pkg.nil?
-        log(:warn, "No enabled package found, unable to schedule #{ctrc.ident}")
-        return
-      end
+      save_state
 
       log(:info, "Assigning #{ctrc.ident} to CPU package #{pkg.id}")
 
@@ -239,50 +325,151 @@ module OsCtld
       )])
 
       ctrc.cpu_package = pkg.id
-      ctrc.save
+      sched
     end
 
-    def monitor_cpu_packages
-      parse_proc_stat
+    def get_package_by_count
+      sorted_pkgs = package_info.values.select(&:enabled).sort do |a, b|
+        a.container_count <=> b.container_count
+      end
 
+      pkg = sorted_pkgs.first
+      return if pkg.nil?
+
+      pkg.container_count += 1
+      pkg
+    end
+
+    def get_package_by_score(usage_score)
+      sorted_pkgs = package_info.values.select(&:enabled).sort do |a, b|
+        a.usage_score <=> b.usage_score
+      end
+
+      pkg = sorted_pkgs.first
+      return if pkg.nil?
+
+      pkg.container_count += 1
+      pkg.usage_score += usage_score
+      pkg
+    end
+
+    def record_scheduled(ct, usage_score, pkg)
+      if scheduled_cts[ct.ident]
+        # This container has already been scheduled, so fix the leak
+        sched = scheduled_cts[ct.ident]
+        sched_pkg = package_info[ sched.package_id ]
+
+        log(:warn, "Fixing schedule leak for #{ct.ident}: scheduling on #{pkg.id}, while already scheduled on #{sched_pkg.id}")
+
+        sched_pkg.usage_score -= sched.usage_score
+        sched_pkg.container_count -= 1
+      end
+
+      scheduled_cts[ct.ident] = ScheduleInfo.new(
+        ctid: ct.ident,
+        usage_score: usage_score,
+        package_id: pkg.id,
+      )
+    end
+
+    def run_upkeep
       loop do
-        v = queue.pop(timeout: 5)
+        v = upkeep_queue.pop(timeout: 60*5)
         return if v == :stop
 
-        parse_proc_stat
+        cts = DB::Containers.get.each do |ct|
+          ctrc = ct.run_conf
+          stopped = ct.state == :stopped
+
+          exclusively do
+            sched = scheduled_cts[ct.ident]
+
+            if stopped && ctrc.nil? && sched
+              unschedule_ct(ct)
+            elsif ctrc && ctrc.cpu_package.nil? && sched
+              unschedule_ct(ct)
+            elsif ctrc && ctrc.cpu_package && ctrc.cpu_package != sched.package_id
+              record_scheduled(ct, ct.hints.cpu_daily.usage_us, package_info[ctrc.cpu_package])
+            end
+          end
+        end
+
+        save_state
+      end
+    end
+
+    def run_save
+      loop do
+        v = save_queue.pop
+        return if v == :stop
+
+        do_save_state
+        return if @do_shutdown
+
         sleep(1)
       end
     end
 
-    def parse_proc_stat
-      now = Time.now
-      new_idle = Hash[topology.packages.map { |k, _| [k, 0] }]
+    def dump_scheduled
+      ret = []
 
-      File.open('/proc/stat') do |f|
-        f.each_line do |line|
-          break unless line.start_with?('cpu')
-
-          next unless /^cpu(\d+) / =~ line
-
-          cpu_id = $1.to_i
-          pkg_id = topology.cpus[cpu_id].package_id
-
-          _name, _user, _nice, _system, idle, _ = line.split
-
-          new_idle[pkg_id] += idle.to_i
+      inclusively do
+        scheduled_cts.each do |id, sched|
+          ret << {
+            'ctid' => id,
+            'usage_score' => sched.usage_score,
+            'package_id' => sched.package_id,
+          }
         end
       end
 
-      sync_pkg do
-        new_idle.each do |pkg_id, idle|
-          package_info[pkg_id].idle = idle
-          package_info[pkg_id].last_check = now
-        end
+      {'scheduled_cts' => ret}
+    end
+
+    def save_state
+      save_queue << :save
+    end
+
+    def do_save_state
+      data = dump_scheduled
+
+      regenerate_file(STATE_FILE, 0400) do |new|
+        new.write(OsCtl::Lib::ConfigFile.dump_yaml(data))
+      end
+
+      File.chown(0, 0, STATE_FILE)
+    end
+
+    def load_state
+      begin
+        data = OsCtl::Lib::ConfigFile.load_yaml_file(STATE_FILE)
+      rescue Errno::ENOENT
+        return
+      end
+
+      data.fetch('scheduled_cts', []).each do |ct|
+        sched = ScheduleInfo.new(
+          ctid: ct['ctid'],
+          usage_score: ct['usage_score'],
+          package_id: ct['package_id'],
+        )
+
+        next unless package_info.has_key?(sched.package_id)
+
+        scheduled_cts[sched.ctid] = sched
+
+        pkg = package_info[sched.package_id]
+        pkg.container_count += 1
+        pkg.usage_score += sched.usage_score
       end
     end
 
-    def sync_pkg(&block)
-      @package_mutex.synchronize(&block)
+    def sync_control(&block)
+      if @control_mutex.owned?
+        block.call
+      else
+        @control_mutex.synchronize(&block)
+      end
     end
   end
 end
