@@ -21,7 +21,7 @@ module OsCtld
       :version, :arch, :autostart, :ephemeral, :hostname, :dns_resolvers,
       :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams,
       :devices, :seccomp_profile, :apparmor, :attrs, :state, :lxc_config,
-      :init_cmd, :start_menu, :lxcfs, :raw_configs, :run_conf
+      :init_cmd, :start_menu, :lxcfs, :raw_configs, :run_conf, :hints
 
     alias_method :ephemeral?, :ephemeral
 
@@ -69,6 +69,7 @@ module OsCtld
       @raw_configs = Container::RawConfigs.new
       @attrs = Attributes.new
       @run_conf = nil
+      @hints = Container::Hints.new(self)
 
       if opts[:load]
         load_opts = {
@@ -605,6 +606,11 @@ module OsCtld
       end
     end
 
+    def update_hints
+      hints.account_cpu_use
+      save_config
+    end
+
     # Regenerate LXC config, LXCFS and possibly other resources
     def reconfigure
       lxc_config.configure
@@ -717,6 +723,7 @@ module OsCtld
           'lxcfs' => lxcfs.dump,
           'raw' => raw_configs.dump,
           'attrs' => attrs.dump,
+          'hints' => hints.dump,
         }
 
         data['state'] = 'staged' if state == :staged
@@ -883,6 +890,8 @@ module OsCtld
 
         @netifs = NetInterface::Manager.load(self, cfg['net_interfaces'] || [])
         @mounts = Mount::Manager.load(self, cfg['mounts'] || [])
+
+        @hints = Container::Hints.load(self, cfg['hints'] || {})
       end
     end
 
@@ -938,6 +947,8 @@ module OsCtld
       else
         @netifs = NetInterface::Manager.new(self)
       end
+
+      @hints = hints.dup(self)
     end
 
     def default_seccomp_profile
