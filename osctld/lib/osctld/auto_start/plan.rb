@@ -27,10 +27,23 @@ module OsCtld
         "Auto-starting containers, #{pool.parallel_start} containers at a time"
       )
 
+      # Select containers for autostart
       cts = DB::Containers.get.select do |ct|
         ct.pool == pool && ct.autostart && ct.can_start? && (force || !state.is_started?(ct))
       end
 
+      # Preschedule the containers
+      if CpuScheduler.use?
+        cts.reject do |ct|
+          ct.running?
+        end.sort do |a, b|
+          b.hints.cpu_daily.usage_us <=> a.hints.cpu_daily.usage_us
+        end.each do |ct|
+          CpuScheduler.preschedule_ct(ct)
+        end
+      end
+
+      # Start the containers
       plan << (cts.map do |ct|
         ContinuousExecutor::Command.new(
           id: ct.id,
@@ -38,8 +51,10 @@ module OsCtld
         ) do |cmd|
           cur_ct = DB::Containers.find(cmd.id, pool)
           if cur_ct.nil? || !ct.can_start?
+            CpuScheduler.cancel_preschedule_ct(cur_ct)
             next
           elsif cur_ct.running?
+            CpuScheduler.cancel_preschedule_ct(cur_ct)
             state.set_started(cur_ct)
             next
           end
