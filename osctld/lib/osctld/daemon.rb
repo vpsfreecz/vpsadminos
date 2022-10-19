@@ -73,7 +73,11 @@ module OsCtld
       end
 
       def enable_cpu_scheduler?
-        @cfg['cpu_scheduler']
+        @cfg['cpu_scheduler']['enable']
+      end
+
+      def cpu_scheduler_min_package_container_count_percent
+        @cfg['cpu_scheduler'].fetch('min_package_container_count_percent', 75)
       end
     end
 

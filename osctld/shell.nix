@@ -29,7 +29,9 @@ let
 
     lxcfs = "${pkgs.lxcfs}/bin/lxcfs";
 
-    cpu_scheduler = true;
+    cpu_scheduler = {
+      enable = true;
+    };
   };
 
   jsonConfigFile = pkgs.writeText "osctld-config.json" (builtins.toJSON osctldConfig);

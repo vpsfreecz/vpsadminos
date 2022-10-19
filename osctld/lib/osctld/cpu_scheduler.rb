@@ -57,6 +57,7 @@ module OsCtld
       init_lock
 
       @enabled = Daemon.get.config.enable_cpu_scheduler?
+      @min_package_container_count_percent = Daemon.get.config.cpu_scheduler_min_package_container_count_percent
       @upkeep_queue = OsCtl::Lib::Queue.new
       @save_queue = OsCtl::Lib::Queue.new
       @topology = OsCtl::Lib::CpuTopology.new
@@ -338,7 +339,7 @@ module OsCtld
         min_cnt = pkg.container_count if min_cnt.nil? || min_cnt > pkg.container_count
       end
 
-      (min_cnt.to_f / max_cnt) * 100 >= 75
+      (min_cnt.to_f / max_cnt) * 100 >= @min_package_container_count_percent
     end
 
     def get_package_by_count(usage_score)
