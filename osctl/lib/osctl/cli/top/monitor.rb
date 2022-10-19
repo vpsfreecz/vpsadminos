@@ -88,6 +88,14 @@ module OsCtl::Cli
           end
         end
 
+      when :ct_scheduled
+        model.sync do
+          ct = model.find_ct(opts[:pool], opts[:id])
+          next unless ct
+
+          ct.cpu_package = opts[:cpu_package]
+        end
+
       when :ct_init_pid
         model.sync do
           ct = model.find_ct(opts[:pool], opts[:id])
