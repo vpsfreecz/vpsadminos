@@ -281,9 +281,9 @@ module OsCtld
         return unless use?
 
         pkg =
-          if daily_use == 0
+          if daily_use == 0 || !can_schedule_by_score?
             # no usage stats available, choose package based on number of cts
-            get_package_by_count
+            get_package_by_count(daily_use)
           else
             # choose package based on cpu use
             get_package_by_score(daily_use)
@@ -328,7 +328,20 @@ module OsCtld
       sched
     end
 
-    def get_package_by_count
+    # We can schedule by score if no package has less than 75 % cts of the most-used package
+    def can_schedule_by_score?
+      max_cnt = nil
+      min_cnt = nil
+
+      package_info.each_value do |pkg|
+        max_cnt = pkg.container_count if max_cnt.nil? || max_cnt < pkg.container_count
+        min_cnt = pkg.container_count if min_cnt.nil? || min_cnt > pkg.container_count
+      end
+
+      (min_cnt.to_f / max_cnt) * 100 >= 75
+    end
+
+    def get_package_by_count(usage_score)
       sorted_pkgs = package_info.values.select(&:enabled).sort do |a, b|
         a.container_count <=> b.container_count
       end
@@ -337,6 +350,7 @@ module OsCtld
       return if pkg.nil?
 
       pkg.container_count += 1
+      pkg.usage_score += usage_score
       pkg
     end
 
