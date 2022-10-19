@@ -1,2 +1,2 @@
 source 'https://rubygems.vpsfree.cz'
-gem 'svctl', '22.05.0.build20221017102231'
+gem 'svctl', '22.05.0.build20221019144115'
