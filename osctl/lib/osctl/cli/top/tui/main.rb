@@ -279,7 +279,7 @@ module OsCtl::Cli::Top
         ret = []
 
         ret << sprintf(
-          '%-14s %7s %8s %6s %27s %27s',
+          '%-14s %9s %8s %6s %27s %27s',
           'Container',
           'CPU',
           'Memory',
@@ -289,7 +289,7 @@ module OsCtl::Cli::Top
         )
 
         ret << sprintf(
-          '%-14s %7s %7s %6s %13s %13s %13s %13s',
+          '%-14s %9s %7s %6s %13s %13s %13s %13s',
           '',
           '',
           '',
@@ -301,7 +301,7 @@ module OsCtl::Cli::Top
         )
 
         ret << sprintf(
-          '%-14s %7s %7s %6s %6s %6s %6s %6s %6s %6s %6s %6s',
+          '%-14s %9s %7s %6s %6s %6s %6s %6s %6s %6s %6s %6s',
           'ID',
           '',
           '',
@@ -334,8 +334,11 @@ module OsCtl::Cli::Top
     def print_row(ct)
       Curses.addstr(sprintf('%-14s ', format_ctid(ct[:id])))
 
+      cpu = (rt? ? format_percent(ct[:cpu_usage]) : humanize_time_us(ct[:cpu_us])).to_s
+      cpu << "/#{ct[:cpu_package]}" if ct[:cpu_package]
+
       print_row_data([
-        rt? ? format_percent(ct[:cpu_usage]) : humanize_time_us(ct[:cpu_us]),
+        cpu,
         humanize_data(ct[:memory]),
         ct[:nproc],
         humanize_data(ct[:zfsio][:bytes][:r]),
@@ -350,7 +353,7 @@ module OsCtl::Cli::Top
     end
 
     def print_row_data(values)
-      fmts = %w(%7s %8s %6s %6s %6s %6s %6s %6s %6s %6s %6s)
+      fmts = %w(%9s %8s %6s %6s %6s %6s %6s %6s %6s %6s %6s)
       w = 15 # container ID is printed in {#print_row}
 
       fmts.zip(values).each_with_index do |pair, i|
