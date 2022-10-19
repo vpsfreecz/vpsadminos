@@ -32,7 +32,11 @@ let
 
     lxcfs = "${pkgs.lxcfs}/bin/lxcfs";
 
-    cpu_scheduler = cfg.cpuScheduler.enable;
+    cpu_scheduler = {
+      enable = cfg.cpuScheduler.enable;
+
+      min_package_container_count_percent = cfg.cpuScheduler.minPackageContainerCountPercent;
+    };
   };
 
   jsonConfigFile = pkgs.writeText "osctld-config.json" (builtins.toJSON osctldConfig);
@@ -46,6 +50,15 @@ in
         enable = mkEnableOption ''
           Enable dynamic CPU scheduler on multi-socket systems
         '';
+
+        minPackageContainerCountPercent = mkOption {
+          type = types.int;
+          default = 75;
+          description = ''
+            The scheduler must assign containers so that the least-used package
+            has at least minPackageContainerCountPercent of the most-used package.
+          '';
+        };
       };
     };
   };
