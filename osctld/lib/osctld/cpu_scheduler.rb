@@ -27,6 +27,8 @@ module OsCtld
         disable_package
         schedule_ct
         unschedule_ct
+        preschedule_ct
+        cancel_preschedule_ct
         upkeep
         export_status
         export_packages
@@ -50,6 +52,8 @@ module OsCtld
       :ctid,
       :usage_score,
       :package_id,
+      :reservation,
+      :reserved_at,
       keyword_init: true,
     )
 
@@ -205,6 +209,29 @@ module OsCtld
       nil
     end
 
+    # Make a reservation in the scheduler
+    # @param ct [Container]
+    def preschedule_ct(ct)
+      assign_package_for(ct, reservation: true)
+    end
+
+    # Cancel a reservation in the scheduler
+    # @param ct [Container]
+    def cancel_preschedule_ct(ct)
+      exclusively do
+        sched = scheduled_cts[ct.ident]
+        return if sched.nil? || !sched.reservation
+
+        scheduled_cts.delete(ct.ident)
+
+        pkg = package_info[sched.package_id]
+        pkg.container_count -= 1
+        pkg.usage_score -= sched.usage_score
+      end
+
+      nil
+    end
+
     def upkeep
       sync_control do
         upkeep_queue << :upkeep if upkeep_running?
@@ -274,33 +301,8 @@ module OsCtld
     end
 
     def do_schedule_ct(ctrc)
-      daily_use = ctrc.ct.hints.cpu_daily.usage_us
-      pkg = nil
-      sched = nil
-
-      exclusively do
-        return unless use?
-
-        pkg =
-          if daily_use == 0 || !can_schedule_by_score?
-            # no usage stats available, choose package based on number of cts
-            get_package_by_count(daily_use)
-          else
-            # choose package based on cpu use
-            get_package_by_score(daily_use)
-          end
-
-        if pkg.nil?
-          log(:warn, "No enabled package found, unable to schedule #{ctrc.ident}")
-          return
-        end
-
-        sched = record_scheduled(ctrc.ct, daily_use, pkg)
-      end
-
-      save_state
-
-      log(:info, "Assigning #{ctrc.ident} to CPU package #{pkg.id}")
+      pkg, sched = assign_package_for(ctrc.ct)
+      return if pkg.nil?
 
       # cpuset cannot be configured when child groups already exists, so set it
       # as soon as possible.
@@ -342,6 +344,52 @@ module OsCtld
       (min_cnt.to_f / max_cnt) * 100 >= @min_package_container_count_percent
     end
 
+    def assign_package_for(ct, reservation: false)
+      daily_use = ct.hints.cpu_daily.usage_us
+      pkg = nil
+      sched = nil
+
+      exclusively do
+        return unless use?
+
+        sched = scheduled_cts[ct.ident]
+
+        if sched && sched.reservation
+          sched.reservation = false
+          sched.reserved_at = nil
+          pkg = package_info[sched.package_id]
+
+          log(:info, "Using reservation of #{ct.ident} on CPU package #{pkg.id}")
+        else
+          pkg =
+            if daily_use == 0 || !can_schedule_by_score?
+              # no usage stats available, choose package based on number of cts
+              get_package_by_count(daily_use)
+            else
+              # choose package based on cpu use
+              get_package_by_score(daily_use)
+            end
+
+          sched = record_scheduled(ct, reservation, daily_use, pkg) if pkg
+        end
+
+        if pkg.nil?
+          log(:warn, "No enabled package found, unable to schedule #{ct.ident}")
+          return
+        end
+      end
+
+      save_state
+
+      if reservation
+        log(:info, "Preassigning #{ct.ident} to CPU package #{pkg.id}")
+      else
+        log(:info, "Assigning #{ct.ident} to CPU package #{pkg.id}")
+      end
+
+      [pkg, sched]
+    end
+
     def get_package_by_count(usage_score)
       sorted_pkgs = package_info.values.select(&:enabled).sort do |a, b|
         a.container_count <=> b.container_count
@@ -368,7 +416,7 @@ module OsCtld
       pkg
     end
 
-    def record_scheduled(ct, usage_score, pkg)
+    def record_scheduled(ct, reservation, usage_score, pkg)
       if scheduled_cts[ct.ident]
         # This container has already been scheduled, so fix the leak
         sched = scheduled_cts[ct.ident]
@@ -384,6 +432,8 @@ module OsCtld
         ctid: ct.ident,
         usage_score: usage_score,
         package_id: pkg.id,
+        reservation: reservation,
+        reserved_at: reservation && Time.now,
       )
     end
 
@@ -391,6 +441,8 @@ module OsCtld
       loop do
         v = upkeep_queue.pop(timeout: 60*5)
         return if v == :stop
+
+        now = Time.now
 
         cts = DB::Containers.get.each do |ct|
           ctrc = ct.run_conf
@@ -400,7 +452,9 @@ module OsCtld
             sched = scheduled_cts[ct.ident]
 
             if stopped && ctrc.nil? && sched
-              unschedule_ct(ct)
+              if !sched.reservation || sched.reserved_at + 60*60 < now
+                unschedule_ct(ct)
+              end
             elsif ctrc && ctrc.cpu_package.nil? && sched
               unschedule_ct(ct)
             elsif ctrc && ctrc.cpu_package && ctrc.cpu_package != sched.package_id
@@ -434,6 +488,8 @@ module OsCtld
             'ctid' => id,
             'usage_score' => sched.usage_score,
             'package_id' => sched.package_id,
+            'reservation' => sched.reservation,
+            'reserved_at' => sched.reserved_at && sched.reserved_at.to_i,
           }
         end
       end
@@ -467,6 +523,8 @@ module OsCtld
           ctid: ct['ctid'],
           usage_score: ct['usage_score'],
           package_id: ct['package_id'],
+          reservation: ct['reservation'],
+          reserved_at: ct['reserved_at'] && Time.at(ct['reserved_at']),
         )
 
         next unless package_info.has_key?(sched.package_id)
