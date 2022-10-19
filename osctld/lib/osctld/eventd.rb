@@ -51,6 +51,16 @@ module OsCtld
   #       action: add/remove
   #     }
   #
+  # === `:ct_scheduled`
+  # Reports actions by the CPU scheduler
+  # Options:
+  #
+  #     {
+  #       pool: pool name,
+  #       id: container id,
+  #       cpu_package: package id
+  #     }
+  #
   # === `:ct_init_pid`
   # Reports discovery of container init PID
   # Options:
