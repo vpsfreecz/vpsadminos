@@ -1,5 +1,5 @@
 diff --git a/arch/x86/kernel/cpu/proc.c b/arch/x86/kernel/cpu/proc.c
-index 4eec8889b0ff..aa581139e9ab 100644
+index 4eec8889b0ff..f3ea0b35e82b 100644
 --- a/arch/x86/kernel/cpu/proc.c
 +++ b/arch/x86/kernel/cpu/proc.c
 @@ -4,6 +4,7 @@
@@ -79,7 +79,7 @@ index 4eec8889b0ff..aa581139e9ab 100644
  
  	if (cpu_has(c, X86_FEATURE_TSC)) {
  		unsigned int freq = aperfmperf_get_khz(cpu);
-@@ -90,69 +129,79 @@ static int show_cpuinfo(struct seq_file *m, void *v)
+@@ -90,69 +129,81 @@ static int show_cpuinfo(struct seq_file *m, void *v)
  			freq = cpufreq_quick_get(cpu);
  		if (!freq)
  			freq = cpu_khz;
@@ -166,11 +166,13 @@ index 4eec8889b0ff..aa581139e9ab 100644
 +	seq_puts(dupm, "\n\n");
  
 +	if (dupm->buf) {
-+		show_cpuinfo_cache[cpu] = kmemdup(dupm->buf, dupm->count, GFP_KERNEL);
++		show_cpuinfo_cache[cpu] = kzalloc(dupm->count + 1, GFP_KERNEL);
++		if (show_cpuinfo_cache[cpu])
++			memcpy(show_cpuinfo_cache[cpu], dupm->buf, dupm->count);
++		seq_puts(m, dupm->buf);
 +		kfree(dupm->buf);
 +	}
 +	if (show_cpuinfo_cache[cpu]) {
-+		seq_puts(m, show_cpuinfo_cache[cpu]);
 +		show_cpuinfo_cache_jiffies[cpu] = now;
 +	}
 +	kfree(dupm);
@@ -224,7 +226,7 @@ index 419760fd77bd..7a42ced1aa45 100644
  }
  
 diff --git a/kernel/cgroup/cgroup.c b/kernel/cgroup/cgroup.c
-index a4325ebc6979..98d193a048e1 100644
+index a4325ebc6979..bb58d3041349 100644
 --- a/kernel/cgroup/cgroup.c
 +++ b/kernel/cgroup/cgroup.c
 @@ -68,6 +68,8 @@
@@ -305,7 +307,7 @@ index a4325ebc6979..98d193a048e1 100644
 +
 +	for (i = 0; i < 16; i++) {
 +		if (!keys[i]) {
-+			ret = kmalloc(len, GFP_KERNEL);
++			ret = kzalloc(len+1, GFP_KERNEL);
 +			if (!ret)
 +				return NULL;
 +			caches[i] = ret;
