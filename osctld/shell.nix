@@ -29,6 +29,8 @@ let
 
     lxcfs = "${pkgs.lxcfs}/bin/lxcfs";
 
+    lock_registry = true;
+
     cpu_scheduler = {
       enable = true;
     };

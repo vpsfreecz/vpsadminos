@@ -72,6 +72,10 @@ module OsCtld
         @cfg['lxcfs']
       end
 
+      def enable_lock_registry?
+        @cfg.fetch('lock_registry', false)
+      end
+
       def enable_cpu_scheduler?
         @cfg['cpu_scheduler']['enable']
       end
@@ -107,8 +111,8 @@ module OsCtld
 
     private
     # @param config [String] path to config file
-    def initialize(config)
-      @config = Daemon::Config.new(config)
+    def initialize(config_file)
+      @config = Daemon::Config.new(config_file)
       @started_at = Time.now
       @initialized = false
 
@@ -121,7 +125,7 @@ module OsCtld
       Eventd.start
       History.start
       Devices::Lock.instance
-      LockRegistry.start
+      LockRegistry.setup(config.enable_lock_registry?)
       UGidRegistry.instance
       SystemUsers.instance
       ErbTemplateCache.instance
