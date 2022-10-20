@@ -67,5 +67,9 @@ in stdenv.mkDerivation rec {
     run-osctld() {
       bundle exec bin/osctld --config ${jsonConfigFile}
     }
+
+    run-memory-profiler-osctld() {
+      bundle exec $GEM_HOME/ruby/*/bin/ruby-memory-profiler bin/osctld -- --no-supervisor --config ${jsonConfigFile}
+    }
   '';
 }

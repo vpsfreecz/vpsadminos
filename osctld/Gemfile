@@ -6,4 +6,5 @@ unless ENV.has_key?('OS_BUILD_ID')
   gem 'libosctl', path: '../libosctl'
   gem 'osctl-repo', path: '../osctl-repo'
   gem 'osup', path: '../osup'
+  gem 'memory_profiler'
 end
