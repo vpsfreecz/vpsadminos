@@ -120,17 +120,22 @@ module OsCtld
     end
 
     def reboot_ct
-      ret = Commands::Container::Start.run(
-        pool: ct.pool.name,
-        id: ct.id,
-        force: true,
-        manipulation_lock: 'wait',
-      )
+      begin
+        ret = Commands::Container::Start.run(
+          pool: ct.pool.name,
+          id: ct.id,
+          force: true,
+          manipulation_lock: 'wait',
+        )
+      rescue CommandFailed => e
+        log(:warn, ct, "Reboot failed: #{e.message}")
 
-      if !ret.is_a?(Hash)
-        log(:warn, ct, 'Reboot failed: reason unknown')
-      elsif !ret[:status]
-        log(:warn, ct, "Reboot failed: #{ret[:message]}")
+      else
+        if !ret.is_a?(Hash)
+          log(:warn, ct, 'Reboot failed: reason unknown')
+        elsif !ret[:status]
+          log(:warn, ct, "Reboot failed: #{ret[:message]}")
+        end
       end
     end
   end
