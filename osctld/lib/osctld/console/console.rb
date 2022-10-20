@@ -120,6 +120,11 @@ module OsCtld
     end
 
     def reboot_ct
+      until ct.pool.imported?
+        log(:info, ct, 'Waiting for pool import to reboot')
+        sleep(1)
+      end
+
       begin
         ret = Commands::Container::Start.run(
           pool: ct.pool.name,
