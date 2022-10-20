@@ -32,6 +32,8 @@ let
 
     lxcfs = "${pkgs.lxcfs}/bin/lxcfs";
 
+    lock_registry = cfg.enableLockRegistry;
+
     cpu_scheduler = {
       enable = cfg.cpuScheduler.enable;
 
@@ -46,6 +48,8 @@ in
 
   options = {
     osctld = {
+      enableLockRegistry = mkEnableOption "Enable internal-lock registry for debugging";
+
       cpuScheduler = {
         enable = mkEnableOption ''
           Enable dynamic CPU scheduler on multi-socket systems

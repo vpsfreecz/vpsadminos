@@ -21,7 +21,7 @@ module OsCtld
     include Singleton
 
     class << self
-      %i(start stop register export dump).each do |m|
+      %i(setup enabled? start stop register export dump).each do |m|
         define_method(m) do |*args, &block|
           instance.send(m, *args, &block)
         end
@@ -29,13 +29,29 @@ module OsCtld
     end
 
     def initialize
+      @enabled = nil
       @mutex = Mutex.new
       @queue = Queue.new
       @registry = []
       @last_id = Concurrent::AtomicFixnum.new(0)
     end
 
+    def setup(enabled)
+      unless @enabled === nil
+        fail 'programming error: setup can be called only once'
+      end
+
+      @enabled = enabled
+      start if enabled
+    end
+
+    def enabled?
+      @enabled
+    end
+
     def start
+      return unless @enabled
+
       @thread = Thread.new { run }
     end
 
@@ -52,6 +68,8 @@ module OsCtld
     # @param type [:inclusive, :exclusive]
     # @param state [:waiting, :locked, :unlocked, :timeout]
     def register(object, type, state)
+      return unless @enabled
+
       @queue << Lock.new(
         @last_id.increment,
         Time.now,
@@ -64,10 +82,17 @@ module OsCtld
     end
 
     def export
+      return [] unless @enabled
+
       sync { registry.map(&:to_h) }
     end
 
     def dump
+      unless @enabled
+        log(:debug, 'locks', 'Lock registry disabled')
+        return
+      end
+
       log(:debug, 'locks', 'Dumping lock registry')
 
       export.each do |lock|

@@ -8,6 +8,8 @@ module OsCtld
     include OsCtl::Lib::Utils::Exception
 
     def execute
+      error!('lock registry is disabled') unless LockRegistry.enabled?
+
       ok(LockRegistry.export.each do |lock|
         lock[:backtrace] = denixstorify(lock[:backtrace])
         lock
