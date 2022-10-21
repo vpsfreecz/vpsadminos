@@ -95,7 +95,7 @@ module OsCtld
         File.symlink(hook_src, symlink)
       end
 
-      return if ct.current_state != :running
+      return if ct.fresh_state != :running
       @veth = fetch_veth_name
     end
 

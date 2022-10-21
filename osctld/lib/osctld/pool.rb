@@ -620,7 +620,7 @@ module OsCtld
 
         ct.reconfigure
 
-        running = ct.current_state == :running
+        running = ct.fresh_state == :running
 
         ct.ensure_run_conf if running
         Monitor::Master.monitor(ct)
