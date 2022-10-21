@@ -49,7 +49,7 @@ module OsCtld
     def setup
       super
 
-      return if ct.current_state != :running
+      return if ct.fresh_state != :running
 
       iplist = ip(:all, [:addr, :show, :dev, veth], valid_rcs: [1])
 

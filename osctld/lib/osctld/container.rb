@@ -311,11 +311,23 @@ module OsCtld
       exclusively { @state = v }
     end
 
+    # Fetch current container state by forking into it
+    # @return [Symbol]
     def current_state
       begin
         self.state = ContainerControl::Commands::State.run!(self).state
       rescue ContainerControl::Error
         self.state = :error
+      end
+    end
+
+    # Fetch current state if the state is not known, otherwise return the known state
+    # @return [Symbol]
+    def fresh_state
+      if state == :unknown
+        current_state
+      else
+        state
       end
     end
 

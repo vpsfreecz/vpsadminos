@@ -36,7 +36,7 @@ module OsCtld
       return unless mnt.automount?
 
       ct.exclusively do
-        next unless ct.current_state == :running
+        next unless ct.fresh_state == :running
         shared_dir.propagate(mnt)
       end
     end
@@ -70,7 +70,7 @@ module OsCtld
         next unless mnt
 
         ct.exclusively do
-          next unless ct.current_state == :running
+          next unless ct.fresh_state == :running
           unmount(mnt)
         end
 
