@@ -220,6 +220,12 @@ module OsCtld
       end
     end
 
+    def dup(new_ct)
+      ret = super(new_ct)
+      ret.instance_variable_set('@veth', nil)
+      ret
+    end
+
     protected
     def fetch_veth_name
       v = ContainerControl::Commands::VethName.run!(ct, index)
