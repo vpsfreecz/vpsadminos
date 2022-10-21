@@ -80,8 +80,10 @@ module OsCtld
     end
 
     def do_import(name, dataset)
+      t1 = Time.now
       pool = Pool.new(name, dataset == '-' ? nil : dataset)
 
+      log(:info, pool, 'Importing pool')
       Hook.run(pool, :pre_import)
 
       manipulate(pool) do
@@ -116,6 +118,8 @@ module OsCtld
       end
 
       Hook.run(pool, :post_import)
+
+      log(:info, pool, "Pool imported in #{(Time.now - t1).round(2)} seconds")
     end
 
     def upgrade(name)
