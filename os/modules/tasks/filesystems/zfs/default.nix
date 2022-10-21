@@ -9,6 +9,19 @@ with lib;
 
 let
 
+  moduleOption = mkOptionType {
+    name = "module option value";
+    check = val:
+      let
+        checkType = x: isBool x || isString x || isInt x || x == null;
+      in
+        checkType val || (val._type or "" == "override" && checkType val.content);
+    merge = loc: defs: mergeOneOption loc (filterOverrides defs);
+  };
+  moduleConfigContent = module: moduleOptions: concatStrings (mapAttrsToList (n: v:
+                           optionalString (v != null) "echo ${if v == false then "0" else toString v} > /sys/module/${module}/parameters/${n}\n || true"
+                        ) moduleOptions);
+
   cfgZfs = config.boot.zfs;
   cfgScrub = config.services.zfs.autoScrub;
 
@@ -460,6 +473,27 @@ in
 
   options = {
     boot.zfs = {
+      splOptions = mkOption {
+        default = {};
+        example = literalExpression ''
+          { "spl_taskq_thread_priority" = true; "spl_taskq_thread_sequential" = 2; }
+        '';
+        type = types.attrsOf moduleOption;
+        description = ''
+          spl module load time options
+        '';
+      };
+      zfsOptions = mkOption {
+        default = {};
+        example = literalExpression ''
+          { "zfs_arc_min" = 1073741824; }
+        '';
+        type = types.attrsOf moduleOption;
+        description = ''
+          zfs module load time options
+        '';
+      };
+
       pools = mkOption {
         type = types.attrsOf (types.submodule pools);
         default = {};
@@ -567,6 +601,14 @@ in
         extraModulePackages = with packages; [ zfs ];
       };
 
+      boot.extraModprobeConfig = ''
+        options spl '' + concatStrings (mapAttrsToList (n: v:
+                           optionalString (v != null) "${n}=${if v == false then "0" else toString v}\n"
+                          ) cfgZfs.splOptions) + ''
+        options zfs '' + concatStrings (mapAttrsToList (n: v:
+                           optionalString (v != null) "${n}=${if v == false then "0" else toString v}\n"
+                          ) cfgZfs.zfsOptions) + ''
+      '';
       boot.initrd = mkIf inInitrd {
         kernelModules = [ "zfs" ];
         extraUtilsCommands =
@@ -623,9 +665,19 @@ in
 
       services.udev.packages = [ packages.zfsUser ];
 
-      runit.services = mapAttrs' (name: pool:
-        nameValuePair "pool-${name}" (poolService name pool)
-      ) cfgZfs.pools;
+      runit.services = mkMerge [
+                         (mapAttrs' (name: pool:
+                           nameValuePair "pool-${name}" (poolService name pool))
+                          cfgZfs.pools) 
+                       { zfs-options = {
+                           run = moduleConfigContent "spl" cfgZfs.splOptions + "\n" + 
+                                 moduleConfigContent "zfs" cfgZfs.zfsOptions + "\n" +
+                                 "sleep inf";
+                           finish = "";
+                           runlevels = [ "default" ];
+                         };
+                       }
+      ];
 
       environment.etc."zfs/zed.d".source = "${packages.zfsUser}/etc/zfs/zed.d/";
 
