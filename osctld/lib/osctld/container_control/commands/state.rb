@@ -10,6 +10,12 @@ module OsCtld
     class Frontend < ContainerControl::Frontend
       # @return [ContainerState]
       def execute
+        unless CGroup.abs_cgroup_path_exist?('memory', ct.cgroup_path)
+          # If the container's memory cgroup does not exist, it is safe to say
+          # that it is not running and we don't have to fork.
+          return ContainerState.new(ct.id, :stopped, nil)
+        end
+
         ret = fork_runner
 
         if ret.ok?

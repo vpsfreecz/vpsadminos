@@ -65,6 +65,14 @@ module OsCtld
       end
     end
 
+    # Check if cgroup exists
+    # @param type [String] subsystem
+    # @param path [String]
+    # @return [Boolean]
+    def self.abs_cgroup_path_exist?(subsys, *path)
+      Dir.exist?(abs_cgroup_path(subsys, *path))
+    end
+
     # Create CGroup a path, optionally chowning the last CGroup or attaching
     # the current process into it.
     #
