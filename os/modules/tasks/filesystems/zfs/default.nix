@@ -9,6 +9,21 @@ with lib;
 
 let
 
+  moduleRuntimeConfigContent = module: moduleParams:
+    let
+      val = v: if v == false then "0" else toString v;
+      f = k: "/sys/module/${module}/parameters/${k}";
+    in
+      concatStrings (mapAttrsToList (n: v:
+        optionalString (v != null)
+        "echo ${val v} > ${f n} || true\n") moduleParams);
+  moduleModprobeConfigContent = name: optionsAttr:
+    "options ${name} \\\n" +
+      concatStrings (mapAttrsToList (n: v:
+        optionalString (v != null)
+          "${n}=${if v == false then "0" else toString v}\\\n"
+      ) optionsAttr) + "\n";
+
   cfgZfs = config.boot.zfs;
   cfgScrub = config.services.zfs.autoScrub;
 
@@ -171,6 +186,40 @@ let
         type = types.listOf types.str;
         description = ''
           List of device names.
+        '';
+      };
+    };
+  };
+
+  moduleParam = mkOptionType {
+    name = "module option value";
+    check = val:
+      let
+        checkType = x: isBool x || isString x || isInt x || x == null;
+      in
+        checkType val || (val._type or "" == "override" && checkType val.content);
+    merge = loc: defs: mergeOneOption loc (filterOverrides defs);
+  };
+  moduleParams = {
+    options = {
+      spl = mkOption {
+        default = {};
+        example = literalExpression ''
+          { "spl_taskq_thread_priority" = true; "spl_taskq_thread_sequential" = 2; }
+        '';
+        type = types.attrsOf moduleParam;
+        description = ''
+          spl module load time options
+        '';
+      };
+      zfs = mkOption {
+        default = {};
+        example = literalExpression ''
+          { "zfs_arc_min" = 1073741824; }
+        '';
+        type = types.attrsOf moduleParam;
+        description = ''
+          zfs module load time options
         '';
       };
     };
@@ -460,6 +509,11 @@ in
 
   options = {
     boot.zfs = {
+      moduleParams = mkOption {
+        type = types.submodule moduleParams;
+        default = {};
+      };
+
       pools = mkOption {
         type = types.attrsOf (types.submodule pools);
         default = {};
@@ -567,6 +621,10 @@ in
         extraModulePackages = with packages; [ zfs ];
       };
 
+      boot.extraModprobeConfig = "\n" +
+        moduleModprobeConfigContent "spl" cfgZfs.moduleParams.spl +
+        moduleModprobeConfigContent "zfs" cfgZfs.moduleParams.zfs + "\n";
+
       boot.initrd = mkIf inInitrd {
         kernelModules = [ "zfs" ];
         extraUtilsCommands =
@@ -623,9 +681,27 @@ in
 
       services.udev.packages = [ packages.zfsUser ];
 
-      runit.services = mapAttrs' (name: pool:
-        nameValuePair "pool-${name}" (poolService name pool)
-      ) cfgZfs.pools;
+      runit.services = mkMerge [
+        (mapAttrs' (name: pool:
+          nameValuePair "pool-${name}" (poolService name pool))
+          cfgZfs.pools)
+        {
+          spl-module-parameters = {
+            run =
+              moduleRuntimeConfigContent "spl" cfgZfs.moduleParams.spl + "\n" +
+              "sleep inf";
+            finish = "";
+            runlevels = [ "default" ];
+          };
+          zfs-module-parameters = {
+            run =
+              moduleRuntimeConfigContent "zfs" cfgZfs.moduleParams.zfs + "\n" +
+              "sleep inf";
+            finish = "";
+            runlevels = [ "default" ];
+          };
+        }
+      ];
 
       environment.etc."zfs/zed.d".source = "${packages.zfsUser}/etc/zfs/zed.d/";
 
