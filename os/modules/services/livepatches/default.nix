@@ -253,9 +253,10 @@ in
     environment.etc."livepatch-store-path".text = "" + (optionalString (buildEnable) (toString patches));
     environment.systemPackages = [ live-patches-util ];
     runit.services.live-patches = {
-      run = optionalString (buildEnable) "live-patches load && sleep inf";
+      run = (optionalString (buildEnable) "live-patches load && ") + "sleep inf";
       finish = optionalString (buildEnable) "live-patches unload";
       runlevels = [ "default" ];
+      onChange = "ignore";
     };
   };
 }
