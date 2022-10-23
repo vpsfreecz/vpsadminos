@@ -8,7 +8,7 @@ let
 in
 {
   environment.systemPackages = with pkgs; [
-    mbuffer
+    mbuffer kexec-tools
   ];
 
   runit.stage1 = ''

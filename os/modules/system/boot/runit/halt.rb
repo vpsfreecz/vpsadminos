@@ -21,15 +21,21 @@ class Halt
   def parse(args)
     @force = false
     @action = default_action
+    @kexec = true
 
     OptionParser.new do |opts|
       opts.banner = "Usage: #{@name} [options]"
-      opts.on('-f', '--force', 'Forcefully halt the system') do
+      opts.on('-f', '--force', 'Forcefully halt the system via kexec') do
         @force = true
       end
 
       opts.on('-r', '--reboot', 'Reboot the machine') do
         @action = 'reboot'
+      end
+
+      opts.on('-n', '--reboot-no-kexec', 'Reboot the machine via system reset') do
+        @action = 'reboot'
+        @kexec = false
       end
 
       opts.on('-p', '--poweroff', 'Power off the machine') do
@@ -105,6 +111,14 @@ class Halt
     when 'poweroff'
       Process.exec('runit-init', '0')
     when 'reboot'
+      if (@kexec)
+        params = File.read("/run/current-system/kernel-params");
+        httproot = File.read("/proc/cmdline")[/.*(httproot=[^ ]*).*/,1]
+        init = File.realpath("/run/current-system/init")
+        Process.exec("kexec", "--load", "/run/current-system/kernel",
+          "--initrd=/run/current-system/initrd",
+          "--command-line=\"#{params} #{httproot} #{init}\"")
+      end
       Process.exec('runit-init', '6')
     else
       fail "invalid action #{@action.inspect}"
