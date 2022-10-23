@@ -87,20 +87,6 @@
     supportedLocales = [ "en_US.UTF-8/UTF-8" ];
   };
 
-  boot.kernel.sysctl = {
-    "fs.protected_hardlinks" = lib.mkDefault 1;
-    "fs.protected_symlinks" = lib.mkDefault 1;
-
-    "kernel.dmesg_restrict" = true;
-
-    # TCP BBR congestion control
-    "net.core.default_qdisc" = lib.mkDefault "fq";
-    "net.ipv4.tcp_congestion_control" = lib.mkDefault "bbr";
-
-    # Enable netfilter logs in all containers
-    "net.netfilter.nf_log_all_netns" = lib.mkDefault true;
-  };
-
   security.apparmor.enable = true;
 
   virtualisation = {

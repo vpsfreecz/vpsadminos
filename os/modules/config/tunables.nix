@@ -2,10 +2,23 @@
 with lib;
 {
   boot.kernel.sysctl = {
-    "fs.aio-max-nr" = mkDefault 2097152;
-    "fs.inotify.max_queued_events" = mkDefault 1048576;
-    "fs.inotify.max_user_instances" = mkDefault 1048576;
-    "fs.inotify.max_user_watches" = mkDefault 1048576;
+    "fs.protected_hardlinks" = lib.mkDefault 1;
+    "fs.protected_symlinks" = lib.mkDefault 1;
+
+    "kernel.dmesg_restrict" = true;
+
+    # TCP BBR congestion control
+    "net.core.default_qdisc" = lib.mkDefault "fq";
+    "net.ipv4.tcp_congestion_control" = lib.mkDefault "bbr";
+
+    # Enable netfilter logs in all containers, otherwise won't show up in syslogns
+    "net.netfilter.nf_log_all_netns" = lib.mkDefault true;
+
+    "fs.nr_open" = 1073741816;
+    "fs.aio-max-nr" = mkDefault (3 * 1024 * 1024 * 1024 - 1);
+    "fs.inotify.max_queued_events" = mkDefault (2 * 1024 * 1024 * 1024 - 1);
+    "fs.inotify.max_user_instances" = mkDefault (2 * 1024 * 1024 * 1024 - 1);
+    "fs.inotify.max_user_watches" = mkDefault (2 * 1024 * 1024 * 1024 - 1);
     "kernel.keys.maxkeys" = mkDefault 100000;
     "kernel.keys.maxbytes" = mkDefault 2500000;
     "kernel.threads-max" = mkDefault 4194304;
@@ -19,7 +32,7 @@ with lib;
     "net.ipv4.route.max_size" = mkDefault (2 * 1024 * 1024 * 1024 - 1);
     "net.ipv6.route.max_size" = mkDefault (2 * 1024 * 1024 * 1024 - 1);
     "vm.max_map_count" = mkDefault 262144;
-    "vm.min_free_kbytes" = mkDefault (1024 * 1024 * 2);
+    "vm.min_free_kbytes" = mkDefault (1 * 1024 * 1024);
     "vm.min_slab_ratio" = mkDefault 12;
     "vm.overcommit_ratio" = mkDefault 3200;
     "vm.swappiness" = mkDefault 0;
