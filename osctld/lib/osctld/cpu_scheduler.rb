@@ -441,6 +441,8 @@ module OsCtld
     end
 
     def run_upkeep
+      unschedule_table = {}
+
       loop do
         v = upkeep_queue.pop(timeout: 60*5)
         return if v == :stop
@@ -450,18 +452,27 @@ module OsCtld
         cts = DB::Containers.get.each do |ct|
           ctrc = ct.run_conf
           stopped = ct.state == :stopped
+          should_unschedule = false
 
           exclusively do
             sched = scheduled_cts[ct.ident]
 
             if stopped && ctrc.nil? && sched
               if !sched.reservation || sched.reserved_at + 60*60 < now
-                unschedule_ct(ct)
+                should_unschedule = true
               end
             elsif ctrc && ctrc.cpu_package.nil? && sched
-              unschedule_ct(ct)
+              should_unschedule = true
             elsif ctrc && ctrc.cpu_package && ctrc.cpu_package != sched.package_id
               record_scheduled(ct, ct.hints.cpu_daily.usage_us, package_info[ctrc.cpu_package])
+            end
+
+            if should_unschedule
+              unschedule_table[ct.ident] ||= 0
+              unschedule_table[ct.ident] += 1
+              unschedule_ct(ct) if unschedule_table[ct.ident] > 3
+            else
+              unschedule_table.delete(ct.ident)
             end
           end
         end
