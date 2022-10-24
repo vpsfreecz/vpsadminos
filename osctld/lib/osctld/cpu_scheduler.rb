@@ -463,8 +463,11 @@ module OsCtld
               end
             elsif ctrc && ctrc.cpu_package.nil? && sched
               should_unschedule = true
-            elsif ctrc && ctrc.cpu_package && ctrc.cpu_package != sched.package_id
-              record_scheduled(ct, ct.hints.cpu_daily.usage_us, package_info[ctrc.cpu_package])
+            elsif ctrc && ctrc.cpu_package && (sched.nil? || ctrc.cpu_package != sched.package_id)
+              pkg = package_info[ctrc.cpu_package]
+              pkg.container_count += 1
+              pkg.usage_score += ct.hints.cpu_daily.usage_us
+              record_scheduled(ct, false, ct.hints.cpu_daily.usage_us, pkg)
             end
 
             if should_unschedule
