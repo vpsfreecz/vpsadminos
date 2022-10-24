@@ -436,7 +436,7 @@ module OsCtld
         usage_score: usage_score,
         package_id: pkg.id,
         reservation: reservation,
-        reserved_at: reservation && Time.now,
+        reserved_at: reservation ? Time.now : nil,
       )
     end
 
