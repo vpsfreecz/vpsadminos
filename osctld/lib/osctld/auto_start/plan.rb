@@ -50,16 +50,16 @@ module OsCtld
           priority: ct.autostart.priority,
         ) do |cmd|
           cur_ct = DB::Containers.find(cmd.id, pool)
-          if cur_ct.nil? || !ct.can_start?
-            CpuScheduler.cancel_preschedule_ct(cur_ct)
+          if cur_ct.nil? || !cur_ct.can_start?
+            CpuScheduler.cancel_preschedule_ct(ct)
             next
           elsif cur_ct.running?
-            CpuScheduler.cancel_preschedule_ct(cur_ct)
+            CpuScheduler.cancel_preschedule_ct(ct)
             state.set_started(cur_ct)
             next
           end
 
-          log(:info, ct, 'Auto-starting container')
+          log(:info, cur_ct, 'Auto-starting container')
           do_try_start_ct(cur_ct)
         end
       end)
