@@ -622,8 +622,8 @@ in
       };
 
       boot.extraModprobeConfig = "\n" +
-        moduleModprobeConfigContent "spl" cfgZfs.moduleParams.spl +
-        moduleModprobeConfigContent "zfs" cfgZfs.moduleParams.zfs + "\n";
+        optionalString (cfgZfs.moduleParams.spl != {}) (moduleModprobeConfigContent "spl" cfgZfs.moduleParams.spl + "\n") +
+        optionalString (cfgZfs.moduleParams.zfs != {}) (moduleModprobeConfigContent "zfs" cfgZfs.moduleParams.zfs + "\n");
 
       boot.initrd = mkIf inInitrd {
         kernelModules = [ "zfs" ];
