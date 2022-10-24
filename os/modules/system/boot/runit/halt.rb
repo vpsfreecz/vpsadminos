@@ -33,7 +33,7 @@ class Halt
         @action = 'reboot'
       end
 
-      opts.on('-n', '--reboot-no-kexec', 'Reboot the machine via system reset') do
+      opts.on('-n', '--no-kexec', 'Reboot the machine via system reset') do
         @action = 'reboot'
         @kexec = false
       end
@@ -103,7 +103,7 @@ class Halt
       return
     end
 
-    fail "Unable to shutdown osctld" if $?.exitstatus != 0
+    fail "Unable to shutdown osctld" if $?.exitstatus != 0 && !@force
 
     puts "Proceeding with system #{@action}"
 
@@ -111,13 +111,27 @@ class Halt
     when 'poweroff'
       Process.exec('runit-init', '0')
     when 'reboot'
-      if (@kexec)
+      if @kexec
         params = File.read("/run/current-system/kernel-params");
         httproot = File.read("/proc/cmdline")[/.*(httproot=[^ ]*).*/,1]
         init = File.realpath("/run/current-system/init")
-        Process.exec("kexec", "--load", "/run/current-system/kernel",
+	kexec_params = [ "kexec", "--load", "/run/current-system/kernel",
           "--initrd=/run/current-system/initrd",
-          "--command-line=\"#{params} #{httproot} #{init}\"")
+          "--command-line=\"#{params} #{httproot} init=#{init}\""]
+	serial = params[/console=(ttyS[0-9]+)/,-1]
+        if serial
+          kexec_params += [ "--console-serial", "--serial=#{serial}" ];
+          baud = params[/console=ttyS[0-9]+,([0-9]+)/,-1]
+          if baud
+            kexec_params += [ "--serial-baud=#{baud}" ];
+          end
+        end
+        if Kernel.system(*kexec_params)
+          File.write("/etc/runit/kexec", "")
+          File.chmod(0100, "/etc/runit/kexec")
+          puts "Loaded kernel and initrd for kexec."
+          puts kexec_params
+        end
       end
       Process.exec('runit-init', '6')
     else

@@ -1,11 +1,12 @@
 CORES = 0
+JOBS = 16
 
 # default build (configs/qemu.nix)
 build: result
 	nix-build \
 	 --arg configuration $(or $(VPSADMINOS_CONFIG),./configs/qemu.nix) \
 	 --out-link result/qemu \
-	 --cores $(CORES)
+	 --cores $(CORES) -j $(JOBS)
 
 # build the system closure without building the squashfs image
 toplevel: result

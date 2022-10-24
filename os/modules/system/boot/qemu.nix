@@ -117,8 +117,8 @@ in {
       exec ${pkgs.qemu_kvm}/bin/qemu-kvm -name vpsadminos -m ${toString cfg.memory} \
         -cpu host \
         -smp cpus=${toString cfg.cpus},cores=${toString cfg.cpu.cores},threads=${toString cfg.cpu.threads},sockets=${toString cfg.cpu.sockets} \
-        -no-reboot \
         -device ahci,id=ahci \
+        -boot menu=on,splash-time=30 \
         -device virtio-net,netdev=net0 \
         -netdev user,id=net0,net=10.0.2.0/24,host=10.0.2.2,dns=10.0.2.3,hostfwd=tcp::2222-:22 \
         ${lib.concatStringsSep " \\\n  " allQemuParams}

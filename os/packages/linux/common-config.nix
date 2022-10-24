@@ -643,7 +643,8 @@ let
 
       KEYBOARD_APPLESPI   = no;
 
-      KEXEC_JUMP          = yes;
+      CRYPTO_SHA256       = yes;
+      KEXEC_FILE          = yes;
 
       PARTITION_ADVANCED    = yes; # Needed for LDM_PARTITION
       # Windows Logical Disk Manager (Dynamic Disk) support
