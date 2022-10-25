@@ -9,7 +9,7 @@ module OsCtld
 
     def initialize(pool)
       @pool = pool
-      @plan = ContinuousExecutor.new(pool.parallel_start)
+      @plan = ContinuousExecutor.new(pool.parallel_start, random_delay_range: 0.0..3.0)
       @state = AutoStart::State.load(pool)
       @stop = false
       @nproc = Etc.nprocessors

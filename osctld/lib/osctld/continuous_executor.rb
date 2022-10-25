@@ -57,9 +57,11 @@ module OsCtld
     include OsCtl::Lib::Utils::Exception
 
     # @param size [Integer] initial number of workers
-    def initialize(size)
+    # @param random_delay_range [nil, Range] delay workers by a random number of seconds
+    def initialize(size, random_delay_range: nil)
       @mutex = Mutex.new
       @size = size
+      @random_delay_range = random_delay_range
       @workers = []
       @front_queue = OsCtl::Lib::Queue.new
       @exec_queue = []
@@ -193,6 +195,12 @@ module OsCtld
     def exec(cmd)
       t = Thread.new do
         begin
+          if @random_delay_range
+            delay = rand(@random_delay_range)
+            log(:info, 'cont', "Delaying command #{cmd.id} by #{delay}s")
+            sleep(delay)
+          end
+
           ret = cmd.send(:exec)
 
         rescue Exception => e
