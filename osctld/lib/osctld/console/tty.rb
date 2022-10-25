@@ -211,8 +211,8 @@ module OsCtld
     def tty_read(io)
       io.read_nonblock(4096)
 
-    rescue IOError, Errno::ECONNRESET
-      log(:info, ct, "Closing TTY #{n}")
+    rescue IOError, Errno::ECONNRESET => e
+      log(:info, ct, "Closing TTY #{n} (#{e.class}: #{e.message})")
 
       sync do
         @opened = false
