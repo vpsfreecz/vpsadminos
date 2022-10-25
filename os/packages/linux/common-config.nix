@@ -66,8 +66,7 @@ let
       # Provide access to tunables like sched_migration_cost_ns
       SCHED_DEBUG               = yes;
       DEBUG_ATOMIC_SLEEP	= no;
-      LOCK_STAT                 = mkMerge [ (whenOlder "5.10.148" no)
-                                          (whenAtLeast "5.10.148" yes) ];
+      LOCK_STAT                 = no;
       PROVE_LOCKING		= no;
       #DEBUG_RT_MUTEXES		= yes;
     };
@@ -351,9 +350,8 @@ let
       HARDENED_USERCOPY                = yes;
       HARDENED_USERCOPY_FALLBACK       = yes;
       FORTIFY_SOURCE                   = yes;
-      INIT_ON_ALLOC_DEFAULT_ON         = yes;
-      INIT_ON_FREE_DEFAULT_ON          = mkMerge [ (whenOlder "5.10.148" no)
-                                                 (whenAtLeast "5.10.148" yes) ];
+      INIT_ON_ALLOC_DEFAULT_ON         = no;
+      INIT_ON_FREE_DEFAULT_ON          = no;
       # Detect writes to read-only module pages
       DEBUG_SET_MODULE_RONX            = { optional = true; tristate = whenOlder "4.11" "y"; };
       RANDOMIZE_BASE                   = yes;
