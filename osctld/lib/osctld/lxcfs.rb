@@ -215,8 +215,8 @@ module OsCtld
       ret
     end
 
-    def sv_command(command)
-      syscmd("sv #{command} \"#{runsv_target}\"")
+    def sv_command(command, timeout: 60)
+      syscmd("sv -w #{timeout} #{command} \"#{runsv_target}\"")
     end
   end
 end
