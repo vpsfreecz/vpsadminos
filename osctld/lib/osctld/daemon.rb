@@ -151,7 +151,7 @@ module OsCtld
       CpuScheduler.setup
 
       # Increase allowed number of open files
-      PrLimits.set(Process.pid, PrLimits::NOFILE, 16384, 16384)
+      PrLimits.set(Process.pid, PrLimits::NOFILE, 131072, 131072)
 
       # Setup shared AppArmor files
       AppArmor.setup
