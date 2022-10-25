@@ -111,11 +111,23 @@ module OsCtld
       begin
         Dir.rmdir(mountpoint)
       rescue Errno::ENOENT
+        # pass
+      rescue SystemCallError => e
+        log(
+          :fatal,
+          "Unable to delete LXCFS mountpoint at #{mountpoint}: #{e.message} (#{e.class})"
+        )
       end
 
       begin
         Dir.rmdir(mountroot)
       rescue Errno::ENOENT
+        # pass
+      rescue SystemCallError => e
+        log(
+          :fatal,
+          "Unable to delete LXCFS mountroot at #{mountroot}: #{e.message} (#{e.class})"
+        )
       end
     end
 
@@ -125,7 +137,11 @@ module OsCtld
     def chown(uid, gid)
       @uid = uid
       @gid = gid
-      File.chown(uid, gid, mountroot) if Dir.exist?(mountroot)
+
+      begin
+        File.chown(uid, gid, mountroot)
+      rescue Errno::ENOENT
+      end
     end
 
     def configure(loadavg: true, cfs: true)
@@ -217,6 +233,8 @@ module OsCtld
 
     def sv_command(command, timeout: 60)
       syscmd("sv -w #{timeout} #{command} \"#{runsv_target}\"")
+    rescue SystemCommandFailed => e
+      log(:warn, "sv #{command} failed: #{e.message}")
     end
   end
 end
