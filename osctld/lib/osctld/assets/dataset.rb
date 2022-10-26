@@ -33,20 +33,27 @@ module OsCtld
       uidmap = ds.properties['uidmap']
       gidmap = ds.properties['gidmap']
 
-      if opts[:user] && stat.uid != opts[:user]
-        add_error("invalid owner: expected #{opts[:user]}, got #{stat.uid}")
-      end
+      stat = get_stat
+      mode = get_mode
 
-      if opts[:group] && stat.gid != opts[:group]
-        add_error("invalid group: expected #{opts[:group]}, got #{stat.gid}")
-      end
+      if stat && mode
+        if opts[:user] && stat.uid != opts[:user]
+          add_error("invalid owner: expected #{opts[:user]}, got #{stat.uid}")
+        end
 
-      if opts[:mode] && mode != opts[:mode]
-        add_error("invalid mode: expected #{opts[:mode].to_s(8)}, got #{mode.to_s(8)}")
-      end
+        if opts[:group] && stat.gid != opts[:group]
+          add_error("invalid group: expected #{opts[:group]}, got #{stat.gid}")
+        end
 
-      if opts[:mode_bit_and] && (mode & opts[:mode_bit_and]) != opts[:mode_bit_and]
-        add_error("invalid mode: bitwise and with #{opts[:mode_bit_and].to_s(8)} does not match")
+        if opts[:mode] && mode != opts[:mode]
+          add_error("invalid mode: expected #{opts[:mode].to_s(8)}, got #{mode.to_s(8)}")
+        end
+
+        if opts[:mode_bit_and] && (mode & opts[:mode_bit_and]) != opts[:mode_bit_and]
+          add_error("invalid mode: bitwise and with #{opts[:mode_bit_and].to_s(8)} does not match")
+        end
+      else
+        add_error("mountpoint not found at #{@mountpoint.inspect}")
       end
 
       if opts[:uidmap]
@@ -68,13 +75,17 @@ module OsCtld
       super
     end
 
-    def stat
+    def get_stat
       @stat ||= File.stat(@mountpoint)
+    rescue Errno::ENOENT
+      @stat = nil
     end
 
-    def mode
+    def get_mode
+      st = get_stat
+
       # Extract permission bits, see man inode(7)
-      stat.mode & 07777
+      st ? st.mode & 07777 : nil
     end
 
     def make_ugid_map(arr)
