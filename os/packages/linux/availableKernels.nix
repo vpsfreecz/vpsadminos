@@ -1,6 +1,6 @@
 { pkgs, ... }:
 let
-  defaultKernelVersion = "5.10.149";
+  defaultKernelVersion = "5.10.147";
   kernels = {
     "5.10.149" = {
       url = linuxGhUrl vpsfGh "8c892745efb5f56c84a5d9503bc42a41dc836915";
@@ -14,8 +14,8 @@ let
       url = linuxGhUrl vpsfGh "a320d2e6fcf71539109473352d803aacffbbe6c1";
       sha256 = "sha256-FFuxEzqycE2j6m2KlbQMcMcmQC+rrHOeguL6pRnkCdY=";
       zfs = {
-        rev = "b664d7b8d43c9a1eea348d9a8d4b132a44e13a3c";
-        sha256 = "sha256-ZhweYfuAkPx2YPapNUzZSeDUqZ2+LX2W7DH+w3BJEyU=";
+        rev = "d306a1cd3fee5261b0ebdcc0e2dd9b405db2bd97";
+        sha256 = "sha256-rdTeAK/kqFn0NsDAom0QVyaJGkuqGVpSXz3AubIVKYk=";
       };
     };
     "5.10.146" = {
