@@ -1,6 +1,6 @@
 { pkgs, ... }:
 let
-  defaultKernelVersion = "5.10.149";
+  defaultKernelVersion = "5.10.147";
   kernels = {
     "5.10.149" = {
       url = linuxGhUrl vpsfGh "8c892745efb5f56c84a5d9503bc42a41dc836915";
