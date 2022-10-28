@@ -350,8 +350,8 @@ let
       HARDENED_USERCOPY                = yes;
       HARDENED_USERCOPY_FALLBACK       = yes;
       FORTIFY_SOURCE                   = yes;
-      INIT_ON_ALLOC_DEFAULT_ON         = no;
-      INIT_ON_FREE_DEFAULT_ON          = no;
+      INIT_ON_ALLOC_DEFAULT_ON         = yes;
+      INIT_ON_FREE_DEFAULT_ON          = yes;
       # Detect writes to read-only module pages
       DEBUG_SET_MODULE_RONX            = { optional = true; tristate = whenOlder "4.11" "y"; };
       RANDOMIZE_BASE                   = yes;
