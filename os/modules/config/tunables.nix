@@ -14,7 +14,23 @@ with lib;
     # Enable netfilter logs in all containers, otherwise won't show up in syslogns
     "net.netfilter.nf_log_all_netns" = lib.mkDefault true;
 
-    "fs.nr_open" = 1073741816;
+    # Take *extra care* when changing fs.nr_open:
+    #
+    # On Ubuntu 18.04, systemd will set NOFILE prlimit to the value of fs.nr_open,
+    # mysqld then uses this value, multiplies it by 16 and calls mmap().
+    # If the host system has enough memory, the call will pass, but hit a memory
+    # limit inside the container, leading to OOM kill. Make sure that
+    # fs.nr_open * 16 does not exceed minimal container memory limits and leaves
+    # enough space for other processes. To reproduce this particular issue, you
+    # need a host system with more physical memory than fs.nr_open * 16 bytes
+    # and a cgroup memory limit on a container set below the number. If the host
+    # does not have the memory itself, mmap() will return ENOMEM and mysqld will
+    # remain operational.
+    #
+    # irb(main):001:0> (1048576 * 32 * 16) / 1024.0 / 1024
+    # => 512.0 # minimal amount of memory in MB the container needs to start mysqld
+    "fs.nr_open" = mkDefault (1048576 * 32);
+
     "fs.aio-max-nr" = mkDefault (3 * 1024 * 1024 * 1024 - 1);
     "fs.inotify.max_queued_events" = mkDefault (2 * 1024 * 1024 * 1024 - 1);
     "fs.inotify.max_user_instances" = mkDefault (2 * 1024 * 1024 * 1024 - 1);
