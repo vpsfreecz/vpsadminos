@@ -77,7 +77,7 @@ import ../make-test.nix (pkgs: {
       fail "Shutdown timeout not caught"
     end
 
-    machine.succeeds("poweroff")
+    machine.succeeds("poweroff -f")
     machine.wait_for_shutdown
 
     fail "machine running but was stopped" if machine.running?
