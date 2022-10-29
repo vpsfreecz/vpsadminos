@@ -75,7 +75,7 @@ module OsVm
     # @return [Machine]
     def stop(timeout: @default_timeout)
       log.stop
-      execute('poweroff')
+      execute('poweroff -f')
 
       if qemu_reaper.join(timeout).nil?
         raise TimeoutError, "Timeout while stopping machine #{name}"
