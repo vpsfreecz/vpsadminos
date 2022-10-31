@@ -75,7 +75,7 @@ module OsCtl::Cli
           ct_data = {
             pool: ct.pool,
             id: ct.id,
-            cpu_package: ct.cpu_package,
+            cpu_package_inuse: ct.cpu_package_inuse,
             init_pid: ct.init_pid,
           }.merge(ct_result)
 

@@ -58,7 +58,7 @@ module OsCtld
   #     {
   #       pool: pool name,
   #       id: container id,
-  #       cpu_package: package id
+  #       cpu_package_inuse: package id
   #     }
   #
   # === `:ct_init_pid`
