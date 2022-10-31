@@ -13,8 +13,10 @@ module OsCtld
       manipulate(ct) do
         changes = {}
 
-        %i(autostart ephemeral hostname dns_resolvers nesting distribution
-           seccomp_profile init_cmd start_menu lxcfs raw_lxc attrs).each do |attr|
+        %i(
+          autostart ephemeral hostname dns_resolvers nesting distribution
+          cpu_package seccomp_profile init_cmd start_menu lxcfs raw_lxc attrs
+        ).each do |attr|
           next unless opts.has_key?(attr)
 
           if ct.respond_to?(attr)

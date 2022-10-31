@@ -19,7 +19,7 @@ module OsCtld
 
     attr_inclusive_reader :pool, :id, :user, :dataset, :group, :distribution,
       :version, :arch, :autostart, :ephemeral, :hostname, :dns_resolvers,
-      :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams,
+      :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams, :cpu_package,
       :devices, :seccomp_profile, :apparmor, :attrs, :state, :lxc_config,
       :init_cmd, :start_menu, :lxcfs, :raw_configs, :run_conf, :hints
 
@@ -61,6 +61,7 @@ module OsCtld
       @hostname = nil
       @dns_resolvers = nil
       @nesting = false
+      @cpu_package = 'auto'
       @seccomp_profile = nil
       @apparmor = AppArmor.new(self)
       @lxcfs = user && group ? Container::Lxcfs.new(self) : nil
@@ -499,6 +500,9 @@ module OsCtld
             @arch = v[:arch] if v[:arch]
           end
 
+        when :cpu_package
+          self.cpu_package = v
+
         when :seccomp_profile
           self.seccomp_profile = v
 
@@ -542,6 +546,9 @@ module OsCtld
 
         when :nesting
           self.nesting = false
+
+        when :cpu_package
+          self.cpu_package = 'auto'
 
         when :seccomp_profile
           self.seccomp_profile = default_seccomp_profile
@@ -695,7 +702,8 @@ module OsCtld
           nesting: nesting,
           seccomp_profile: seccomp_profile,
           init_cmd: format_user_init_cmd,
-          cpu_package: run_conf ? run_conf.cpu_package : nil,
+          cpu_package_inuse: run_conf ? run_conf.cpu_package : nil,
+          cpu_package_set: cpu_package,
           start_menu: start_menu ? true : false,
           start_menu_timeout: start_menu && start_menu.timeout,
           lxcfs_enable: lxcfs.enable,
@@ -730,6 +738,7 @@ module OsCtld
           'nesting' => nesting,
           'seccomp_profile' => seccomp_profile == default_seccomp_profile \
                                ? nil : seccomp_profile,
+          'cpu_package' => cpu_package,
           'init_cmd' => init_cmd,
           'start_menu' => start_menu && start_menu.dump,
           'lxcfs' => lxcfs.dump,
@@ -806,7 +815,7 @@ module OsCtld
     protected
     attr_exclusive_writer :pool, :id, :user, :dataset, :group, :distribution,
       :version, :arch, :autostart, :ephemeral, :hostname, :dns_resolvers,
-      :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams,
+      :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams, :cpu_package,
       :devices, :seccomp_profile, :apparmor, :attrs, :lxc_config, :init_cmd,
       :start_menu
     attr_synchronized_accessor :mounted
@@ -868,6 +877,7 @@ module OsCtld
         @hostname = cfg['hostname'] && OsCtl::Lib::Hostname.new(cfg['hostname'])
         @dns_resolvers = cfg['dns_resolvers']
         @nesting = cfg['nesting'] || false
+        @cpu_package = cfg.fetch('cpu_package', 'auto')
         @seccomp_profile = cfg['seccomp_profile'] || default_seccomp_profile
         @init_cmd = cfg['init_cmd']
 
