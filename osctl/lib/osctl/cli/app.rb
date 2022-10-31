@@ -891,6 +891,12 @@ module OsCtl::Cli
             c.action &Command.run(Container, :set_image_config)
           end
 
+          set.desc 'Pin to a specific CPU package'
+          set.arg_name '<ctid> <cpu-package>'
+          set.command 'cpu-package' do |c|
+            c.action &Command.run(Container, :set_cpu_package)
+          end
+
           set.desc 'Set path to seccomp profile'
           set.arg_name '<ctid> <profile>'
           set.command :seccomp do |c|
@@ -967,6 +973,12 @@ module OsCtl::Cli
           unset.arg_name '<ctid>'
           unset.command :nesting do |c|
             c.action &Command.run(Container, :unset_nesting)
+          end
+
+          unset.desc 'Remove pin to a specific CPU package'
+          unset.arg_name '<ctid> <cpu-package>'
+          unset.command 'cpu-package' do |c|
+            c.action &Command.run(Container, :unset_cpu_package)
           end
 
           unset.desc 'Use the default seccomp profile'

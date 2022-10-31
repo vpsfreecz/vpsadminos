@@ -32,7 +32,8 @@ module OsCtl::Cli
       version
       state
       init_pid
-      cpu_package
+      cpu_package_inuse
+      cpu_package_set
       autostart
       autostart_priority
       autostart_delay
@@ -549,6 +550,33 @@ module OsCtl::Cli
       end
 
       osctld_fmt(:ct_set_image_config, cmd_opts: cmd_opts)
+    end
+
+    def set_cpu_package
+      set(:cpu_package) do |args|
+        str = args[0]
+
+        if %w(auto none).include?(str)
+          str
+        elsif /^\d+$/ =~ str
+          pkg_id = str.to_i
+
+          topology = OsCtl::Lib::CpuTopology.new
+
+          unless topology.packages.has_key?(pkg_id)
+            warn "Warning: CPU package #{pkg_id.inspect} does not exist on this system"
+            warn "Available CPU packages: #{topology.packages.keys.join(', ')}"
+          end
+
+          pkg_id
+        else
+          raise GLI::BadCommandLine, "CPU package must be a number or auto/none"
+        end
+      end
+    end
+
+    def unset_cpu_package
+      unset(:cpu_package)
     end
 
     def set_seccomp_profile

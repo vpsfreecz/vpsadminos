@@ -1126,6 +1126,24 @@ The following shortcuts are supported:
   the change to take effect. If AppArmor profile `osctl-ct-nesting` is set, it
   is changed to `lxc-container-default-cgns`.
 
+`ct set cpu-package` *ctid* *cpu-package*|`auto`|`none`
+  Configure the CPU scheduler on the container. `auto` is the default value,
+  the CPU scheduler will assign a package on its own when the container is starting.
+  `none` will disable the CPU scheduler on this container. Setting a custom
+  *cpu-package* will statically pin the container to a specific CPU package.
+  See `osctl cpu-scheduler package ls` for a list of possible CPU packages
+  on this system.
+
+  This setting is used only when the CPU scheduler is enabled, see
+  `osctl cpu-scheduler status`. The container needs to be restarted for this
+  change to have an effect.
+
+`ct unset cpu-package` *ctid*
+  Reset the CPU package setting to the default value of `auto`: the CPU package
+  is assigned dynamically by the CPU scheduler if the scheduler itself is enabled,
+  see `osctl cpu-scheduler status`. The container needs to be restarted for this
+  change to have an effect.
+
 `ct set seccomp` *ctid* *profile*
   Configure path to the seccomp profile. The container needs to be restarted
   to use the new profile.

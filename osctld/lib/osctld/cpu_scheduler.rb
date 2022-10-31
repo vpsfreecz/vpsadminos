@@ -348,9 +348,26 @@ module OsCtld
     end
 
     def assign_package_for(ct, reservation: false)
+      ct_pkg = ct.cpu_package
+      wanted_pkg_id = nil
       daily_use = ct.hints.cpu_daily.usage_us
       pkg = nil
       sched = nil
+
+      if ct_pkg == 'auto'
+        # pass
+      elsif ct_pkg == 'none'
+        log(:info, "#{ct.ident} has disabled scheduler by config")
+        return
+      elsif !topology.packages.has_key?(ct_pkg)
+        log(
+          :warn,
+          "#{ct.ident} prefers package #{ct_pkg.inspect}, which does not "+
+          "exist on this system; disregarding"
+        )
+      else
+        wanted_pkg_id = ct_pkg
+      end
 
       exclusively do
         return unless use?
@@ -365,7 +382,10 @@ module OsCtld
           log(:info, "Using reservation of #{ct.ident} on CPU package #{pkg.id}")
         else
           pkg =
-            if daily_use == 0 || !can_schedule_by_score?
+            if wanted_pkg_id
+              # static pin
+              get_package_by_preference(wanted_pkg_id, daily_use)
+            elsif daily_use == 0 || !can_schedule_by_score?
               # no usage stats available, choose package based on number of cts
               get_package_by_count(daily_use)
             else
@@ -391,6 +411,13 @@ module OsCtld
       end
 
       [pkg, sched]
+    end
+
+    def get_package_by_preference(pkg_id, usage_score)
+      pkg = package_info[pkg_id]
+      pkg.container_count += 1
+      pkg.usage_score += usage_score
+      pkg
     end
 
     def get_package_by_count(usage_score)
