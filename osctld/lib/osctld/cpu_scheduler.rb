@@ -329,7 +329,12 @@ module OsCtld
 
       ctrc.cpu_package = pkg.id
 
-      Eventd.report(:ct_scheduled, pool: ctrc.pool.name, id: ctrc.id, cpu_package: pkg.id)
+      Eventd.report(
+        :ct_scheduled,
+        pool: ctrc.pool.name,
+        id: ctrc.id,
+        cpu_package_inuse: pkg.id,
+      )
 
       sched
     end

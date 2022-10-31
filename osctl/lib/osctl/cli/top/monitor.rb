@@ -93,7 +93,7 @@ module OsCtl::Cli
           ct = model.find_ct(opts[:pool], opts[:id])
           next unless ct
 
-          ct.cpu_package = opts[:cpu_package]
+          ct.cpu_package_inuse = opts[:cpu_package_inuse]
         end
 
       when :ct_init_pid

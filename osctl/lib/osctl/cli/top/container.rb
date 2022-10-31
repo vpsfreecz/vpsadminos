@@ -8,7 +8,7 @@ module OsCtl::Cli
     end
 
     attr_reader :id, :pool, :dataset, :group_path
-    attr_accessor :state, :cpu_package, :init_pid, :netifs
+    attr_accessor :state, :cpu_package_inuse, :init_pid, :netifs
 
     # @param ct [Hash] container from ct_show
     def initialize(ct)
@@ -17,7 +17,7 @@ module OsCtl::Cli
       @dataset = ct[:dataset]
       @group_path = ct[:group_path]
       @state = ct[:state].to_sym
-      @cpu_package = ct[:cpu_package]
+      @cpu_package_inuse = ct[:cpu_package_inuse]
       @init_pid = ct[:init_pid]
       @netifs = []
       @measurements = []

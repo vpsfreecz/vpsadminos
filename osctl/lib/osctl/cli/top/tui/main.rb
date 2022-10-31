@@ -335,7 +335,7 @@ module OsCtl::Cli::Top
       Curses.addstr(sprintf('%-14s ', format_ctid(ct[:id])))
 
       cpu = (rt? ? format_percent(ct[:cpu_usage]) : humanize_time_us(ct[:cpu_us])).to_s
-      cpu << "/#{ct[:cpu_package]}" if ct[:cpu_package]
+      cpu << "/#{ct[:cpu_package_inuse]}" if ct[:cpu_package_inuse]
 
       print_row_data([
         cpu,
