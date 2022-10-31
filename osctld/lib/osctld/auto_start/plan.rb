@@ -9,7 +9,7 @@ module OsCtld
 
     def initialize(pool)
       @pool = pool
-      @plan = ContinuousExecutor.new(pool.parallel_start, random_delay_range: 0.0..3.0)
+      @plan = ContinuousExecutor.new(pool.parallel_start)
       @state = AutoStart::State.load(pool)
       @stop = false
       @nproc = Etc.nprocessors
@@ -59,6 +59,7 @@ module OsCtld
             next
           end
 
+          prestart_delay(cur_ct)
           log(:info, cur_ct, 'Auto-starting container')
           do_try_start_ct(cur_ct)
         end
@@ -71,6 +72,7 @@ module OsCtld
           cur_ct = DB::Containers.find(cmd.id, pool)
           next if cur_ct.nil? || cur_ct.running?
 
+          prestart_delay(cur_ct)
           log(:info, ct, 'Starting enqueued container')
           do_try_start_ct(cur_ct, start_opts: start_opts.merge(queue: false))
         end
@@ -83,6 +85,7 @@ module OsCtld
           cur_ct = DB::Containers.find(cmd.id, pool)
           next if cur_ct.nil? || cur_ct.running?
 
+          prestart_delay(cur_ct)
           log(:info, ct, 'Starting enqueued container')
           Commands::Container::Start.run(
             **start_opts.merge(
@@ -162,6 +165,12 @@ module OsCtld
           sleep(pause)
         end
       end
+    end
+
+    def prestart_delay(ct)
+      delay = rand(0.0..3.0)
+      log(:info, ct, "Delaying auto-start by #{delay.round(2)}s")
+      sleep(delay)
     end
 
     def delay_after_start?
