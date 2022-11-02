@@ -43,6 +43,11 @@ module OsCtl::Lib
       end
 
       objset.dataset_name ? objset : nil
+
+    rescue Errno::ENOENT
+      # The objset file can disappear when datasets are being
+      # created/received/destroyed.
+      nil
     end
   end
 end
