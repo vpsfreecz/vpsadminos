@@ -50,7 +50,11 @@ module OsCtld
         progress('Removing LXC configuration and script hooks')
         Monitor::Master.demonitor(ct)
         syscmd("rm -rf #{ct.lxc_dir} #{ct.user_hook_script_dir}")
-        File.unlink(ct.log_path) if File.exist?(ct.log_path)
+
+        if File.exist?(ct.log_path)
+          File.rename(ct.log_path, "#{ct.log_path}.destroyed")
+        end
+
         File.unlink(ct.config_path)
 
         progress('Unregistering container')
