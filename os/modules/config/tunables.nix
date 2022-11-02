@@ -42,6 +42,7 @@ with lib;
     # and 4 are allocated by LXC by default. This limit also includes all terminals
     # from all containers, e.g. all SSH sessions.
     "kernel.pty.max" = mkDefault 16384;
+    "kernel.pty.reserve" = mkDefault 1024;
 
     "kernel.threads-max" = mkDefault 4194304;
     "kernel.pid_max" = mkDefault 4194304;
