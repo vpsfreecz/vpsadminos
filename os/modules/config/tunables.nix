@@ -2,17 +2,17 @@
 with lib;
 {
   boot.kernel.sysctl = {
-    "fs.protected_hardlinks" = lib.mkDefault 1;
-    "fs.protected_symlinks" = lib.mkDefault 1;
+    "fs.protected_hardlinks" = mkDefault 1;
+    "fs.protected_symlinks" = mkDefault 1;
 
     "kernel.dmesg_restrict" = true;
 
     # TCP BBR congestion control
-    "net.core.default_qdisc" = lib.mkDefault "fq";
-    "net.ipv4.tcp_congestion_control" = lib.mkDefault "bbr";
+    "net.core.default_qdisc" = mkDefault "fq";
+    "net.ipv4.tcp_congestion_control" = mkDefault "bbr";
 
     # Enable netfilter logs in all containers, otherwise won't show up in syslogns
-    "net.netfilter.nf_log_all_netns" = lib.mkDefault true;
+    "net.netfilter.nf_log_all_netns" = mkDefault true;
 
     # Take *extra care* when changing fs.nr_open:
     #
