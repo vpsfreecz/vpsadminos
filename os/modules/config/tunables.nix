@@ -37,6 +37,12 @@ with lib;
     "fs.inotify.max_user_watches" = mkDefault (2 * 1024 * 1024 * 1024 - 1);
     "kernel.keys.maxkeys" = mkDefault 100000;
     "kernel.keys.maxbytes" = mkDefault 2500000;
+
+    # One container needs at least 6 PTYs: 1 for lxc-start, 1 for pty-wrapper
+    # and 4 are allocated by LXC by default. This limit also includes all terminals
+    # from all containers, e.g. all SSH sessions.
+    "kernel.pty.max" = mkDefault 16384;
+
     "kernel.threads-max" = mkDefault 4194304;
     "kernel.pid_max" = mkDefault 4194304;
     "net.ipv4.neigh.default.gc_thresh1" = mkDefault 2048;
