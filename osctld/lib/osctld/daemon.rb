@@ -52,39 +52,6 @@ module OsCtld
       end
     end
 
-    class Config
-      def initialize(path)
-        @cfg = JSON.parse(File.read(path))
-      end
-
-      # @return [Array<String>]
-      def apparmor_paths
-        @cfg['apparmor_paths']
-      end
-
-      # @return [String]
-      def ctstartmenu
-        @cfg['ctstartmenu']
-      end
-
-      # @return [String]
-      def lxcfs
-        @cfg['lxcfs']
-      end
-
-      def enable_lock_registry?
-        @cfg.fetch('lock_registry', false)
-      end
-
-      def enable_cpu_scheduler?
-        @cfg['cpu_scheduler']['enable']
-      end
-
-      def cpu_scheduler_min_package_container_count_percent
-        @cfg['cpu_scheduler'].fetch('min_package_container_count_percent', 75)
-      end
-    end
-
     @@instance = nil
 
     class << self
@@ -100,7 +67,7 @@ module OsCtld
       end
     end
 
-    # @return [Daemon::Config]
+    # @return [Config]
     attr_reader :config
 
     # @return [Time]
@@ -112,7 +79,7 @@ module OsCtld
     private
     # @param config [String] path to config file
     def initialize(config_file)
-      @config = Daemon::Config.new(config_file)
+      @config = Config.new(config_file)
       @started_at = Time.now
       @initialized = false
 

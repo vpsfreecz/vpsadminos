@@ -60,8 +60,8 @@ module OsCtld
     def initialize
       init_lock
 
-      @enabled = Daemon.get.config.enable_cpu_scheduler?
-      @min_package_container_count_percent = Daemon.get.config.cpu_scheduler_min_package_container_count_percent
+      @enabled = Daemon.get.config.cpu_scheduler.enable?
+      @min_package_container_count_percent = Daemon.get.config.cpu_scheduler.min_package_container_count_percent
       @upkeep_queue = OsCtl::Lib::Queue.new
       @save_queue = OsCtl::Lib::Queue.new
       @topology = OsCtl::Lib::CpuTopology.new
