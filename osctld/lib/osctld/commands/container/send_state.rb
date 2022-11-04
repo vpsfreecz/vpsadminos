@@ -95,7 +95,8 @@ module OsCtld
         })
       end
 
-      r, send = stream.spawn
+      mbuf_opts = Daemon.get.config.send_receive.send_mbuffer.as_hash_options
+      r, send = stream.spawn_with_mbuffer(**mbuf_opts)
       pid = Process.spawn(
         *send_ssh_cmd(
           ct.pool.send_receive_key_chain,

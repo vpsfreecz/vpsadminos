@@ -19,9 +19,15 @@ module OsCtld
 
     class SendReceive
       # @return [Mbuffer]
+      attr_reader :send_mbuffer
+
+      # @return [Mbuffer]
       attr_reader :receive_mbuffer
 
       def initialize(cfg)
+        @send_mbuffer = Mbuffer.new(cfg.fetch('send_mbuffer', {
+          'start_writing_at' => 0,
+        }))
         @receive_mbuffer = Mbuffer.new(cfg.fetch('receive_mbuffer', {}))
       end
     end
@@ -39,6 +45,9 @@ module OsCtld
       # @return [Array<String>]
       attr_reader :as_cli_options
 
+      # @return [Hash]
+      attr_reader :as_hash_options
+
       def initialize(cfg)
         @block_size = cfg.fetch('block_size', '128k')
         @buffer_size = cfg.fetch('buffer_size', '256M')
@@ -48,6 +57,11 @@ module OsCtld
           '-m', buffer_size,
           '-P', start_writing_at.to_s,
         ]
+        @as_hash_options = {
+          block_size: block_size,
+          buffer_size: buffer_size,
+          start_writing_at: start_writing_at,
+        }
       end
     end
 
