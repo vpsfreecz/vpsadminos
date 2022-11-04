@@ -25,44 +25,23 @@ let
 
   apparmorPaths = [ pkgs.apparmor-profiles ] ++ config.security.apparmor.packages;
 
-  osctldConfig = {
-    apparmor_paths = map (s: "${s}/etc/apparmor.d") apparmorPaths;
+  settingsFormat = pkgs.formats.json { };
 
-    ctstartmenu = "${pkgs.ctstartmenu}/bin/ctstartmenu";
-
-    lxcfs = "${pkgs.lxcfs}/bin/lxcfs";
-
-    lock_registry = cfg.enableLockRegistry;
-
-    cpu_scheduler = {
-      enable = cfg.cpuScheduler.enable;
-
-      min_package_container_count_percent = cfg.cpuScheduler.minPackageContainerCountPercent;
-    };
-  };
-
-  jsonConfigFile = pkgs.writeText "osctld-config.json" (builtins.toJSON osctldConfig);
+  configurationJson = settingsFormat.generate "osctld-config.json" cfg.settings;
 in
 {
   ###### interface
 
   options = {
     osctld = {
-      enableLockRegistry = mkEnableOption "Enable internal-lock registry for debugging";
-
-      cpuScheduler = {
-        enable = mkEnableOption ''
-          Enable dynamic CPU scheduler on multi-socket systems
-        '';
-
-        minPackageContainerCountPercent = mkOption {
-          type = types.int;
-          default = 75;
-          description = ''
-            The scheduler must assign containers so that the least-used package
-            has at least minPackageContainerCountPercent of the most-used package.
-          '';
+      settings = mkOption {
+        type = types.submodule {
+          freeformType = settingsFormat.type;
         };
+        default = {};
+        description = ''
+          osctld configuration options
+        '';
       };
     };
   };
@@ -70,6 +49,14 @@ in
   ###### implementation
 
   config = {
+    osctld.settings = {
+      apparmor_paths = map (s: "${s}/etc/apparmor.d") apparmorPaths;
+
+      ctstartmenu = "${pkgs.ctstartmenu}/bin/ctstartmenu";
+
+      lxcfs = "${pkgs.lxcfs}/bin/lxcfs";
+    };
+
     runit.services.osctld = {
       run = ''
         export PATH="${config.security.wrapperDir}:${pathJoined}"
@@ -88,7 +75,7 @@ in
 
         exec 2>&1
         exec ${pkgs.osctld}/bin/osctld \
-          --config ${jsonConfigFile} \
+          --config ${configurationJson} \
           --log syslog \
           --log-facility local2
       '';
