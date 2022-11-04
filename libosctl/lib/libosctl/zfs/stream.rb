@@ -50,23 +50,46 @@ module OsCtl::Lib
     end
 
     # Spawn zfs send and return {IO} with its standard output
-    # @return [IO]
+    # @return [Array<IO, Array>]
     def spawn
       r, w = IO.pipe
       pid, err = zfs_send(w)
       w.close
-      [r, [pid, err]]
+      [r, [[pid], err]]
+    end
+
+    # Spawn zfs send with mbuffer and return {IO} with its standard output
+    # @return [Array<IO, Array>]
+    def spawn_with_mbuffer(block_size: '128k', buffer_size: '256M', start_writing_at: 60)
+      send_r, send_w = IO.pipe
+      send_pid, send_err = zfs_send(send_w)
+      send_w.close
+
+      mbuf_r, mbuf_w = IO.pipe
+      mbuf_pid = Process.spawn(
+        'mbuffer',
+        '-q',
+        '-s', block_size.to_s,
+        '-m', buffer_size.to_s,
+        '-P', start_writing_at.to_s,
+        in: send_r,
+        out: mbuf_w,
+      )
+      send_r.close
+      mbuf_w.close
+
+      [mbuf_r, [[send_pid, mbuf_pid], send_err]]
     end
 
     # Monitor progress of spawned zfs send, needed only when using {#spawn}.
     # @param send [Array] the second return value from {#spawn}
     def monitor(send)
-      pid, err = send
+      pids, err = send
 
       monitor_progress(err)
       err.close
 
-      Process.wait(pid)
+      pids.each { |pid| Process.wait(pid) }
       $?
     end
 
