@@ -27,9 +27,29 @@ module OsCtld
         client.send({status: true, response: 'continue'}.to_json + "\n", 0)
         io = client.recv_io
 
-        pid = Process.spawn('zfs', 'recv', '-F', '-u', ds.name, in: io)
+        r, w = IO.pipe
+
+        mbuffer_pid = Process.spawn(
+          'mbuffer',
+          '-q',
+          *Daemon.get.config.send_receive.receive_mbuffer.as_cli_options,
+          in: io,
+          out: w,
+        )
+
+        recv_pid = Process.spawn(
+          'zfs', 'recv',
+          '-F', '-u',
+          ds.name,
+          in: r,
+        )
+
         io.close
-        Process.wait(pid)
+        r.close
+        w.close
+
+        Process.wait(mbuffer_pid)
+        Process.wait(recv_pid)
 
         if $?.exitstatus == 0
           ct.exclusively do

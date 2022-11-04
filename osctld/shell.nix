@@ -10,6 +10,7 @@ let
     glibc.bin
     gzip
     lxc
+    mbuffer
     nettools
     gnutar
     openssh
