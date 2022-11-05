@@ -90,7 +90,11 @@ module OsCtld
       FileUtils.mkdir_p(mountroot)
       File.chown(uid, gid, mountroot)
       File.chmod(0550, mountroot)
-      File.symlink(runsv_source, runsv_target)
+
+      begin
+        File.symlink(runsv_source, runsv_target)
+      rescue Errno::EEXIST
+      end
     end
 
     def restart
@@ -156,7 +160,8 @@ module OsCtld
 
     # Start LXCFS if it is not already running
     def ensure_start
-      start unless running?
+      start
+      sv_command('start') if supervised?
     end
 
     # Stop LXCFS if it is running
@@ -212,6 +217,10 @@ module OsCtld
 
     rescue SystemCallError
       false
+    end
+
+    def supervised?
+      File.exist?(File.join(runsv_target, 'supervise/ok'))
     end
 
     def create
