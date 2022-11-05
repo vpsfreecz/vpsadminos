@@ -226,6 +226,7 @@ module OsCtld
 
     def options
       ret = []
+      ret << "--pidfile=#{File.join(runsv_source, 'lxcfs.pid')}"
       ret << '--enable-loadavg' if loadavg
       ret << '--enable-cfs' if cfs
       ret
