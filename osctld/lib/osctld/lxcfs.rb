@@ -189,8 +189,7 @@ module OsCtld
     # Get a list of files which can be mounted from this LXCFS instance
     # @return [Array<String>]
     def mount_files
-      Dir.glob('proc/*', base: mountpoint) + \
-        Dir.glob('sys/devices/system/cpu/*', base: mountpoint)
+      Dir.glob('proc/*', base: mountpoint)
     end
 
     def log_type
