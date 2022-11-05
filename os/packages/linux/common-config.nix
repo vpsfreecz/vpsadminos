@@ -221,11 +221,10 @@ let
 
     graphics = {
       FB                  = yes;
-      FB_MATROX           = yes;
-      FB_MATROX_G         = yes;
+      FB_MATROX           = no;
       DRM                 = yes;
       DRM_FBDEV_EMULATION = yes;
-      DRM_MGAG200         = yes;
+      DRM_MGAG200         = no;
       DRM_AMDGPU          = module;
     };
 
@@ -235,8 +234,6 @@ let
       DRM_RADEON = no;
       DRM_NOUVEAU = no;
       DRM_VMWGFX = no;
-      FRAMEBUFFER_CONSOLE = no;
-      VGA_CONSOLE = yes;
       SOUND = no;
     };
 
