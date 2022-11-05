@@ -235,6 +235,9 @@ let
       DRM_RADEON = no;
       DRM_NOUVEAU = no;
       DRM_VMWGFX = no;
+      FRAMEBUFFER_CONSOLE = no;
+      VGA_CONSOLE = yes;
+      SOUND = no;
     };
 
     usb-serial = {
@@ -378,13 +381,6 @@ let
       MICROCODE       = yes;
       MICROCODE_INTEL = yes;
       MICROCODE_AMD   = yes;
-    } // optionalAttrs (versionAtLeast version "4.10") {
-      # Write Back Throttling
-      # https://lwn.net/Articles/682582/
-      # https://bugzilla.kernel.org/show_bug.cgi?id=12309#c655
-      BLK_WBT    = yes;
-      BLK_WBT_SQ = whenOlder "5.0" yes; # Removed in 5.0-RC1
-      BLK_WBT_MQ = yes;
     };
 
     container = {
@@ -453,7 +449,6 @@ let
       KVM_GUEST                         = yes;
       KVM_MMIO                          = yes;
       KVM_VFIO                          = yes;
-      KSM = yes;
       VIRT_DRIVERS = yes;
       # We need 64 GB (PAE) support for Xen guest support
       HIGHMEM64G = { optional = true; tristate = mkIf (!stdenv.is64bit) "y";};
@@ -467,8 +462,7 @@ let
     };
 
     media = {
-      MEDIA_PCI_SUPPORT        = no;
-      MEDIA_USB_SUPPORT        = no;
+      MEDIA_SUPPORT = no;
     };
 
     "9p" = {
@@ -706,6 +700,12 @@ let
       PREEMPT_VOLUNTARY = yes;
 
       COMPACTION = yes;
+      DEFERRED_STRUCT_PAGE_INIT = yes;
+      RAS_CEC = yes;
+      MEMORY_FAILURE = yes;
+      MEM_SOFT_DIRTY = yes;
+      KSM = yes;
+      SLAB_MERGE_DEFAULT = no;
 
       X86_AMD_PLATFORM_DEVICE = yes;
 

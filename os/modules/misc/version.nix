@@ -112,7 +112,7 @@ in
       osVersionSuffix = mkIf (pathIsDirectory gitRepo) (mkDefault (".git." + gitCommitId));
 
       # Note: code names must only increase in alphabetical order.
-      osCodeName = "About Time";
+      osCodeName = "Red Meat Steak";
     };
 
     # Generate /etc/os-release.  See
