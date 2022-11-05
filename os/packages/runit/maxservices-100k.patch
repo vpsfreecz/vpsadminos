@@ -1,0 +1,13 @@
+diff --git a/src/runsvdir.c b/src/runsvdir.c
+index 07c1d8e..51290d1 100644
+--- a/src/runsvdir.c
++++ b/src/runsvdir.c
+@@ -19,7 +19,7 @@
+ #define USAGE " [-P] dir"
+ #define VERSION "$Id: ecebd0a50510e91639c6a45dda8b0947aa8eb885 $"
+ 
+-#define MAXSERVICES 1000
++#define MAXSERVICES 100000
+ 
+ char *progname;
+ char *svdir;
