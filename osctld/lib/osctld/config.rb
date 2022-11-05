@@ -26,7 +26,7 @@ module OsCtld
 
       def initialize(cfg)
         @send_mbuffer = Mbuffer.new(cfg.fetch('send_mbuffer', {
-          'start_writing_at' => 0,
+          'start_writing_at' => 5,
         }))
         @receive_mbuffer = Mbuffer.new(cfg.fetch('receive_mbuffer', {}))
       end
