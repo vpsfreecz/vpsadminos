@@ -6,12 +6,12 @@ require_cmd curl
 bootstrap-arch() {
 	# Find out the bootstrap archive's name from checksum list
 	rx='archlinux-bootstrap-\d+\.\d+\.\d+-x86_64\.tar\.gz'
-	curl "$BASEURL/sha1sums.txt" | grep -P "$rx" > "$DOWNLOAD/sha1sums.txt"
-	bfile=$(grep -oP "$rx" "$DOWNLOAD/sha1sums.txt")
+	curl "$BASEURL/sha256sums.txt" | grep -P "$rx" > "$DOWNLOAD/sha256sums.txt"
+	bfile=$(grep -oP "$rx" "$DOWNLOAD/sha256sums.txt")
 
 	# Download the bootstrap archive and verify checksum
 	curl -o "$DOWNLOAD/$bfile" "$BASEURL/$bfile"
-	if ! (cd "$DOWNLOAD" ; sha1sum -c sha1sums.txt) ; then
+	if ! (cd "$DOWNLOAD" ; sha256sum -c sha256sums.txt) ; then
 		echo "Bootstrap checksum wrong! Quitting."
 		exit 1
 	fi
