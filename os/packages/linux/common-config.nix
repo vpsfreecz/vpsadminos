@@ -695,7 +695,8 @@ let
       HOTPLUG_PCI_PCIE = yes; # PCI-Expresscard hotplug support
 
       #PREEMPT = yes;
-      PREEMPT_VOLUNTARY = yes;
+      #PREEMPT_VOLUNTARY = yes;
+      PREEMPT_NONE = yes;
 
       COMPACTION = yes;
       DEFERRED_STRUCT_PAGE_INIT = yes;
