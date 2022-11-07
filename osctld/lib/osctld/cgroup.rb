@@ -6,6 +6,8 @@ module OsCtld
 
     FS = '/sys/fs/cgroup'
 
+    ROOT_GROUP = 'osctl'
+
     # @return [1, 2] cgroup hierarchy version
     def self.version
       return @version if @version

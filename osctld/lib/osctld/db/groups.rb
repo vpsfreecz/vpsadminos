@@ -20,7 +20,7 @@ module OsCtld
       root, created = load_or_create(
         pool,
         '/',
-        File.join('osctl', "pool.#{pool.name}")
+        File.join(CGroup::ROOT_GROUP, "pool.#{pool.name}")
       )
 
       if created
