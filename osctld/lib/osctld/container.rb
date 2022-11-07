@@ -64,7 +64,7 @@ module OsCtld
       @cpu_package = 'auto'
       @seccomp_profile = nil
       @apparmor = AppArmor.new(self)
-      @lxcfs = user && group ? Container::Lxcfs.new(self) : nil
+      @lxcfs = user && group ? Container::Lxcfs.new : nil
       @lxc_config = Container::LxcConfig.new(self)
       @init_cmd = nil
       @raw_configs = Container::RawConfigs.new
@@ -148,7 +148,6 @@ module OsCtld
         )
 
         lxc_config.assets(add)
-        lxcfs.assets(add)
 
         add.file(
           File.join(lxc_dir, '.bashrc'),
@@ -630,10 +629,9 @@ module OsCtld
       save_config
     end
 
-    # Regenerate LXC config, LXCFS and possibly other resources
+    # Regenerate LXC config
     def reconfigure
       lxc_config.configure
-      lxcfs.reconfigure
     end
 
     def configure_bashrc
@@ -675,6 +673,10 @@ module OsCtld
     # Export to clients
     def export
       inclusively do
+        if run_conf && run_conf.lxcfs_worker
+          lxcfs_worker = run_conf.lxcfs_worker
+        end
+
         {
           pool: pool.name,
           id: id,
@@ -707,7 +709,8 @@ module OsCtld
           start_menu: start_menu ? true : false,
           start_menu_timeout: start_menu && start_menu.timeout,
           lxcfs_enable: lxcfs.enable,
-          lxcfs_mountpoint: lxcfs.mountpoint,
+          lxcfs_worker: lxcfs_worker && lxcfs_worker.name,
+          lxcfs_mountpoint: lxcfs_worker && lxcfs_worker.mountpoint,
           lxcfs_loadavg: lxcfs.loadavg,
           lxcfs_cfs: lxcfs.cfs,
           raw_lxc: raw_configs.lxc,
@@ -888,7 +891,7 @@ module OsCtld
             nil
           end
 
-        @lxcfs = Container::Lxcfs.load(self, cfg['lxcfs'] || {})
+        @lxcfs = Container::Lxcfs.load(cfg['lxcfs'] || {})
 
         @run_conf = Container::RunConfiguration.load(self)
 
@@ -952,7 +955,7 @@ module OsCtld
       @prlimits = prlimits.dup(self)
       @mounts = mounts.dup(self)
       @start_menu = @start_menu && @start_menu.dup(self)
-      @lxcfs = lxcfs.dup(self)
+      @lxcfs = lxcfs.dup
       @lxc_config = lxc_config.dup(self)
       @raw_configs = raw_configs.dup
       @attrs = attrs.dup

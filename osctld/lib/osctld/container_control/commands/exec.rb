@@ -50,7 +50,7 @@ module OsCtld
           ct.mounts.prune
 
           # Start LXCFS
-          ct.lxcfs.ensure_and_wait
+          Lxcfs::Scheduler.assign_ctrc(ct.run_conf)
 
           # Pre-start distconfig hook
           DistConfig.run(ct.run_conf, :pre_start)

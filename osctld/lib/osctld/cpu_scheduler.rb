@@ -32,6 +32,7 @@ module OsCtld
         upkeep
         export_status
         export_packages
+        topology
       ).each do |v|
         define_method(v) do |*args, **kwargs|
           instance.send(v, *args, **kwargs)
@@ -56,6 +57,9 @@ module OsCtld
       :reserved_at,
       keyword_init: true,
     )
+
+    # @return [OsCtl::Lib::CpuTopology]
+    attr_reader :topology
 
     def initialize
       init_lock
@@ -274,7 +278,7 @@ module OsCtld
     end
 
     protected
-    attr_reader :topology, :package_info, :scheduled_cts,
+    attr_reader :package_info, :scheduled_cts,
       :upkeep_thread, :upkeep_queue, :save_thread, :save_queue
 
     # Start background container upkeeping

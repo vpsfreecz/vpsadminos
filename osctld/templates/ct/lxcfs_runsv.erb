@@ -1,4 +1,13 @@
 #!/usr/bin/env bash
+<% if cpuset -%>
+mkdir -p "<%= cgroup_dir %>"
+<% if CGroup.v2? -%>
+echo +cpuset > "<%= cgroup_root %>/cgroup.subtree_control"
+<% end -%>
+echo $$ > "<%= cgroup_dir %>/cgroup.procs"
+echo <%= cpuset %> > "<%= cgroup_dir %>/cpuset.cpus"
+
+<% end -%>
 mkdir -p "<%= mountpoint %>"
 umount "<%= mountpoint %>" 2> /dev/null
 exec <%= executable %> <%= options.join(' ') %> "<%= mountpoint %>"

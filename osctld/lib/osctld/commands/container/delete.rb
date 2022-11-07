@@ -41,9 +41,6 @@ module OsCtld
         ct.clear_start_menu
         ct.mounts.shared_dir.remove
 
-        progress('Removing LXCFS')
-        ct.lxcfs.ensure_destroy
-
         progress('Destroying dataset')
         zfs(:destroy, '-r', ct.dataset)
 

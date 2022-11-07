@@ -104,7 +104,7 @@ module OsCtld
 
       # Start LXCFS
       begin
-        ct.lxcfs.ensure_and_wait
+        Lxcfs::Scheduler.assign_ctrc(ct.run_conf)
       rescue Lxcfs::Timeout => e
         return error("lxcfs not starting: #{e.message}")
       end
