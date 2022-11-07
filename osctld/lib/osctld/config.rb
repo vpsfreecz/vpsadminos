@@ -17,6 +17,19 @@ module OsCtld
       end
     end
 
+    class Lxcfs
+      # @return [String]
+      attr_reader :path
+
+      # @return [Integer]
+      attr_reader :max_worker_size
+
+      def initialize(cfg)
+        @path = cfg['path']
+        @max_worker_size = cfg.fetch('max_worker_size', 50)
+      end
+    end
+
     class SendReceive
       # @return [Mbuffer]
       attr_reader :send_mbuffer
@@ -71,7 +84,7 @@ module OsCtld
     # @return [String]
     attr_reader :ctstartmenu
 
-    # @return [String]
+    # @return [Lxcfs]
     attr_reader :lxcfs
 
     # @return [Boolean]
@@ -90,7 +103,7 @@ module OsCtld
 
       @apparmor_paths = cfg.fetch('apparmor_paths', [])
       @ctstartmenu = cfg['ctstartmenu']
-      @lxcfs = cfg['lxcfs']
+      @lxcfs = Lxcfs.new(cfg['lxcfs'])
       @enable_lock_registry = cfg.fetch('lock_registry', false)
       @cpu_scheduler = CpuScheduler.new(cfg.fetch('cpu_scheduler', {}))
       @send_receive = SendReceive.new(cfg.fetch('send_receive', {}))

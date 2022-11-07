@@ -28,7 +28,7 @@ let
 
     ctstartmenu = "${pkgs.ctstartmenu}/bin/ctstartmenu";
 
-    lxcfs = "${pkgs.lxcfs}/bin/lxcfs";
+    lxcfs.path = "${pkgs.lxcfs}/bin/lxcfs";
 
     lock_registry = true;
 

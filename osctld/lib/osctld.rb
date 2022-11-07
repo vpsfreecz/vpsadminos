@@ -83,6 +83,7 @@ require_rel 'osctld/repository'
 require_rel 'osctld/routing'
 require_rel 'osctld/run_state'
 require_rel 'osctld/switch_user'
+require_rel 'osctld/lxcfs'
 
 require_rel 'osctld/commands'
 require_rel 'osctld/send_receive'

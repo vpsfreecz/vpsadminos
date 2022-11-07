@@ -55,7 +55,7 @@ in
 
       ctstartmenu = "${pkgs.ctstartmenu}/bin/ctstartmenu";
 
-      lxcfs = "${pkgs.lxcfs}/bin/lxcfs";
+      lxcfs.path = "${pkgs.lxcfs}/bin/lxcfs";
     };
 
     runit.services.osctld = {

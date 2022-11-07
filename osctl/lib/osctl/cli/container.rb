@@ -47,6 +47,7 @@ module OsCtl::Cli
       raw_lxc
       loadavg
       lxcfs_enable
+      lxcfs_worker
       lxcfs_mountpoint
       lxcfs_loadavg
       lxcfs_cfs

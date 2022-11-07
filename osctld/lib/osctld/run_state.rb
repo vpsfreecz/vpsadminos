@@ -92,7 +92,7 @@ module OsCtld
         mode: 0755
       )
 
-      Lxcfs.assets(add)
+      Lxcfs::Scheduler.assets(add)
       SendReceive.assets(add)
       CpuScheduler.assets(add)
     end

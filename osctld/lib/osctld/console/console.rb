@@ -66,7 +66,7 @@ module OsCtld
 
       if ctrc.aborted? \
          || ctrc.reboot? \
-         || ct.lxcfs.running? \
+         || ctrc.lxcfs_worker \
          || (ct.ephemeral? && !ct.is_being_manipulated?) \
          || (ctrc && ctrc.destroy_dataset_on_stop?)
         # The current thread is used to handle the console and has to exit.
@@ -85,6 +85,8 @@ module OsCtld
     end
 
     def handle_ct_stop(ctrc)
+      Lxcfs::Scheduler.remove_ct(ctrc.ct) unless ctrc.reboot?
+
       if ctrc.aborted?
         log(:info, ctrc, 'Container was aborted, performing cleanup')
         recovery = Container::Recovery.new(ctrc.ct)
@@ -113,9 +115,6 @@ module OsCtld
           force: true,
           manipulation_lock: 'wait',
         )
-
-      elsif !ct.is_being_manipulated?
-        ctrc.ct.lxcfs.ensure_stop
       end
     end
 

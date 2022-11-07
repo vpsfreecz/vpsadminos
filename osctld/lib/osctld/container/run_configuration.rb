@@ -23,13 +23,15 @@ module OsCtld
     attr_reader :ct
 
     attr_inclusive_reader :dataset, :distribution, :version, :arch
-    attr_synchronized_accessor :cpu_package, :init_pid, :dist_network_configured
+    attr_synchronized_accessor :cpu_package, :lxcfs_worker, :init_pid,
+      :dist_network_configured
 
     # @param ct [Container]
     def initialize(ct, load_conf: true)
       init_lock
       @ct = ct
       @cpu_package = nil
+      @lxcfs_worker = nil
       @init_pid = nil
       @aborted = false
       @do_reboot = false
@@ -150,6 +152,7 @@ module OsCtld
         'version' => version,
         'arch' => arch,
         'cpu_package' => cpu_package,
+        'lxcfs_worker' => lxcfs_worker && lxcfs_worker.name,
         'destroy_dataset_on_stop' => destroy_dataset_on_stop?,
       }
     end
@@ -172,6 +175,15 @@ module OsCtld
       @version = cfg['version'] || ct.version
       @arch = cfg['arch'] || ct.arch
       @cpu_package = cfg['cpu_package']
+      @lxcfs_worker =
+        if cfg['lxcfs_worker']
+          Lxcfs::Scheduler.worker_by_name(cfg['lxcfs_worker'])
+        elsif ct.lxcfs.enable \
+              && File.exist?(File.join(Lxcfs::Server::RUNDIR_RUNSVDIR, "ct.#{ident}", 'run'))
+          # Handle legacy per-ct lxcfs instances
+          # TODO: remove this when no more per-ct lxcfs instances are running
+          Lxcfs::Scheduler.add_legacy_perct_worker(self)
+        end
       @destroy_dataset_on_stop =
         if cfg.has_key?('destroy_dataset_on_stop')
           cfg['destroy_dataset_on_stop']

@@ -34,9 +34,21 @@ module OsCtl::Lib
         end
       end
 
+      lxcfs_workers = {}
+
       containers.each do |ct|
-        reader.read_lxcfs(ct[:lxcfs_mountpoint]) do |lavg|
-          lavgs[ lavg.ident ] = lavg
+        mountpoint = ct[:lxcfs_mountpoint]
+        next if mountpoint.nil?
+
+        k = "#{ct[:pool]}:#{ct[:id]}"
+
+        lxcfs_workers[mountpoint] ||= {}
+        lxcfs_workers[mountpoint][k] = true
+      end
+
+      lxcfs_workers.each do |mountpoint, cts|
+        reader.read_lxcfs(mountpoint) do |lavg|
+          lavgs[ lavg.ident ] = lavg if cts.has_key?(lavg.ident)
         end
       end
 

@@ -88,9 +88,6 @@ module OsCtld
 
         remove_accounting_cgroups(ct)
 
-        ct.lxcfs.ensure_stop if opts.fetch(:stop_lxcfs, !indirect?)
-        ct.lxcfs.ensure_destroy if opts.fetch(:destroy_lxcfs, false)
-
         if ct.ephemeral? && !indirect?
           call_cmd!(
             Commands::Container::Delete,

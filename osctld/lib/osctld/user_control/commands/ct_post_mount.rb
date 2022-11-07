@@ -13,14 +13,20 @@ module OsCtld
       return error('container not found') unless ct
       return error('access denied') unless owns_ct?(ct)
 
+      run_conf = ct.run_conf
+
       DistConfig.run(
-        ct.run_conf,
+        run_conf,
         :post_mount,
         rootfs_mount: opts[:rootfs_mount],
         ns_pid: opts[:client_pid],
       )
 
-      lxcfs_params = ct.lxcfs.enable && ct.lxcfs.post_mount_params
+      lxcfs_worker = run_conf.lxcfs_worker
+      lxcfs_params = lxcfs_worker && {
+        mountpoint: lxcfs_worker.mountpoint,
+        mount_files: lxcfs_worker.mount_files,
+      }
 
       begin
         Hook.run(
