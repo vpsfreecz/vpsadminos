@@ -98,24 +98,28 @@ module OsCtld
         tmp << name
         cgroup = File.join(base, *tmp)
 
-        next if Dir.exist?(cgroup)
-
         # Prevent an error if multiple processes attempt to create this cgroup
-        # at a time
+        # at a time.
+        #
+        # This code is especially racy on cgroup2 when multiple threads are
+        # creating common cgroups, such as group.default, with respect to
+        # controller delegation. Every caller now delegates controllers,
+        # even if he did not create this cgroup, because we don't know when
+        # the creator will have finished configuring the delegation... this would
+        # need some sort of synchronization to handle this properly.
         begin
           Dir.mkdir(cgroup)
           created = true
 
         rescue Errno::EEXIST
           created = false
-          next
         end
 
         if v2? && (i+1 < path.length || !attach)
           delegate_available_controllers(cgroup)
         end
 
-        init_cgroup(type, base, cgroup)
+        init_cgroup(type, base, cgroup) if created
       end
 
       cgroup = File.join(base, *path)
