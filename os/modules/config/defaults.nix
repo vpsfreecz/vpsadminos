@@ -61,9 +61,11 @@
     glibc
     iotop
     ipset
+    irq_heatmap
     less
     man-pages
     ncurses
+    numactl
     openssh
     osctl
     osctl-image

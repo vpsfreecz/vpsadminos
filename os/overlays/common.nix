@@ -9,4 +9,5 @@
   (import ./mbuffer.nix)
   (import ./minify.nix)
   (import ./runit.nix)
+  (import ./irq_heatmap.nix)
 ]
