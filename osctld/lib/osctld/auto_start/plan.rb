@@ -74,7 +74,10 @@ module OsCtld
 
           prestart_delay(cur_ct)
           log(:info, ct, 'Starting enqueued container')
-          do_try_start_ct(cur_ct, start_opts: start_opts.merge(queue: false))
+          do_try_start_ct(
+            cur_ct,
+            start_opts: start_opts.merge(queue: false, wait: nil),
+          )
         end
       )
     end
