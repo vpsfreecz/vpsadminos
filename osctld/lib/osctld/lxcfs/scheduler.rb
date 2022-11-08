@@ -14,7 +14,8 @@ module OsCtld
 
     class << self
       %i(
-        assets setup stop assign_ctrc remove_ct worker_by_name add_legacy_perct_worker
+        assets setup stop assign_ctrc remove_ct worker_by_name change_worker
+        add_legacy_perct_worker prune_workers export_workers
       ).each do |v|
         define_method(v) do |*args, **kwargs, &block|
           instance.send(v, *args, **kwargs, &block)
@@ -131,9 +132,21 @@ module OsCtld
       nil
     end
 
+    # @param name [String]
     # @return [Lxcfs::Worker, nil]
     def worker_by_name(name)
       inclusively { @workers[name] }
+    end
+
+    # @param name [String]
+    # @yieldparam [Lxcfs::Worker]
+    # @raise [Lxcfs::WorkerNotFound]
+    def change_worker(name)
+      worker = inclusively { @workers[name] }
+      raise Lxcfs::WorkerNotFound, name if worker.nil?
+      ret = yield(worker)
+      request_save
+      ret
     end
 
     # @param ctrc [Container::RunConfiguration]
@@ -165,6 +178,14 @@ module OsCtld
 
       request_save
       worker
+    end
+
+    def prune_workers
+      request_prune
+    end
+
+    def export_workers
+      inclusively { @workers.each_value.map(&:export) }
     end
 
     def log_type
@@ -280,6 +301,10 @@ module OsCtld
       @gc_queue << [:destroy, worker]
     end
 
+    def request_prune
+      @gc_queue << [:prune]
+    end
+
     def request_save
       @save_queue << :save
     end
@@ -306,13 +331,13 @@ module OsCtld
           worker = args[0]
           worker.destroy
 
-        when nil
-          prune_workers
+        when :prune, nil
+          do_prune_workers
         end
       end
     end
 
-    def prune_workers
+    def do_prune_workers
       to_destroy = []
 
       exclusively do
