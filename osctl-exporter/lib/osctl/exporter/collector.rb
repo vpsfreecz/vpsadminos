@@ -12,6 +12,7 @@ module OsCtl::Exporter
       :require_osctld,
       :interval,
       :collector_instance,
+      :registry,
     )
 
     ThreadConfig = Struct.new(
@@ -44,7 +45,8 @@ module OsCtl::Exporter
       ]
 
       @collectors.each do |c|
-        c.collector_instance = c.collector_class.new(registry)
+        c.registry = registry.new_registry(c.collector_class)
+        c.collector_instance = c.collector_class.new(c.registry)
       end
     end
 
@@ -97,14 +99,14 @@ module OsCtl::Exporter
     def collect(client, thread_collectors)
       client.try_to_connect do
         thread_collectors.reject(&:require_osctld).each do |c|
-          registry.atomic_replace do
+          c.registry.atomic_replace do
             c.collector_instance.run_collect(client)
           end
         end
 
         if client.connected?
           thread_collectors.select(&:require_osctld).each do |c|
-            registry.atomic_replace do
+            c.registry.atomic_replace do
               c.collector_instance.run_collect(client)
             end
           end
