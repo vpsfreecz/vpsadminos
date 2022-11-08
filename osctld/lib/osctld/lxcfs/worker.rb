@@ -119,7 +119,7 @@ module OsCtld
       inclusively do
         enabled \
           && (!check_size || size < max_size) \
-          && ctrc.cpu_package == cpu_package \
+          && (ctrc.cpu_package.nil? || ctrc.cpu_package == cpu_package) \
           && ctrc.ct.lxcfs.loadavg == loadavg \
           && ctrc.ct.lxcfs.cfs == cfs
       end
