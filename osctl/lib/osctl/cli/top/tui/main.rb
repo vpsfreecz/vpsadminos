@@ -7,22 +7,26 @@ module OsCtl::Cli::Top
     include OsCtl::Lib::Utils::Humanize
 
     def initialize(model, rate)
-      @model = model
       @rate = rate
-      @last_measurement = nil
       @last_count = nil
       @sort_index = 0
       @sort_desc = true
       @current_row = nil
       @highlighted_cts = []
       @status_bar_cols = 0
+      @model_thread = Tui::ModelThread.new(model, rate)
+      @model_thread.start
+      @last_measurement = nil
+      @last_generation = -1
+      @last_mode = model_thread.mode
     end
 
     def open
-      unless last_measurement
-        render(Time.now, {containers: []})
-        sleep(0.5)
-      end
+      empty_data = {containers: []}
+      data = {containers: []}
+
+      # Initial render
+      render(Time.now, empty_data) if last_generation == -1
 
       # At each loop pass, model is queried for data, unless `hold_data` is
       # greater than zero. In that case, `hold_data` is decremented by 1
@@ -32,20 +36,24 @@ module OsCtl::Cli::Top
       loop do
         now = Time.now
 
-        if !paused? && (last_measurement.nil? || (now - last_measurement) >= rate)
-          model.measure
-          self.last_measurement = now
-        end
-
-        if !last_data || hold_data == 0
-          @last_data = data = get_data
+        if last_generation != model_thread.generation \
+           && (!last_data || hold_data == 0) \
+           && !paused?
+          data = get_data
 
         elsif hold_data > 0
           hold_data -= 1
           data = last_data
         end
 
-        Curses.clear if last_count != data[:containers].count
+        if last_mode != model_thread.mode
+          @header = nil
+          Curses.clear
+          @last_mode = model_thread.mode
+        elsif last_count != data[:containers].count
+          Curses.clear
+        end
+
         self.last_count = data[:containers].count
 
         render(now, data)
@@ -53,7 +61,7 @@ module OsCtl::Cli::Top
 
         case Curses.getch
         when 'q'
-          model.stop
+          model_thread.stop
           return
 
         when Curses::Key::LEFT, '<'
@@ -86,18 +94,15 @@ module OsCtl::Cli::Top
           sort_inverse
 
         when 'm'
-          modes = model.class::MODES
+          modes = Model::MODES
           i = modes.index(mode)
 
           if i+1 >= modes.count
-            model.mode = modes[0]
+            model_thread.mode = modes[0]
 
           else
-            model.mode = modes[i+1]
+            model_thread.mode = modes[i+1]
           end
-
-          @header = nil
-          Curses.clear
 
         when 'p'
           paused? ? unpause : pause
@@ -112,13 +117,15 @@ module OsCtl::Cli::Top
     end
 
     protected
-    attr_reader :model, :rate, :highlighted_cts
-    attr_accessor :last_measurement, :last_count, :last_data, :current_row
+    attr_reader :rate, :model_thread, :highlighted_cts, :last_measurement,
+      :last_generation, :last_mode
+    attr_accessor :last_count, :last_data, :current_row
 
     def render(t, data)
       Curses.setpos(0, 0)
       Curses.addstr("#{File.basename($0)} ct top - #{t.strftime('%H:%M:%S')}")
-      Curses.addstr(" #{model.mode} mode, load average #{loadavg}")
+      Curses.addstr(" [#{(last_measurement - t).round}s]") if last_measurement
+      Curses.addstr(" #{model_thread.mode} mode, load average #{loadavg}")
 
       i = status_bar(1, data)
 
@@ -259,15 +266,15 @@ module OsCtl::Cli::Top
       # Containers
       Curses.setpos(pos += 1, 0)
       Curses.addstr('Containers: ')
-      bold { Curses.addstr(sprintf('%3d', model.containers.count)) }
+      bold { Curses.addstr(sprintf('%3d', model_thread.containers.count)) }
       Curses.addstr(' total, ')
-      bold { Curses.addstr(sprintf('%3d', model.containers.count{ |ct| ct.state == :starting })) }
+      bold { Curses.addstr(sprintf('%3d', model_thread.containers.count{ |ct| ct.state == :starting })) }
       Curses.addstr(' starting, ')
       bold { Curses.addstr(sprintf('%3d', data[:containers].count-1)) } # -1 for [host]
       Curses.addstr(' running, ')
-      bold { Curses.addstr(sprintf('%3d', model.containers.count{ |ct| ct.state == :stopping })) }
+      bold { Curses.addstr(sprintf('%3d', model_thread.containers.count{ |ct| ct.state == :stopping })) }
       Curses.addstr(' stopping, ')
-      bold { Curses.addstr(sprintf('%3d', model.containers.count{ |ct| ct.state == :stopped })) }
+      bold { Curses.addstr(sprintf('%3d', model_thread.containers.count{ |ct| ct.state == :stopped })) }
       Curses.addstr(' stopped')
 
       @status_bar_cols += pos - orig_pos + 1
@@ -372,7 +379,7 @@ module OsCtl::Cli::Top
 
     def stats_cols
       i = 5
-      i += 1 if model.iostat_enabled?
+      i += 1 if model_thread.iostat_enabled?
       i
     end
 
@@ -421,7 +428,7 @@ module OsCtl::Cli::Top
         humanize_data(sum(cts, [:rx, :packets], true))
       ])
 
-      if model.iostat_enabled?
+      if model_thread.iostat_enabled?
         iostat = data[:zfs] && data[:zfs][:iostat]
 
         Curses.setpos(Curses.lines - pos, 0)
@@ -466,7 +473,11 @@ module OsCtl::Cli::Top
     end
 
     def get_data
-      ret = model.data
+      ret, measured_at, generation = model_thread.get_data
+
+      @last_data = ret
+      @last_measurement = measured_at
+      @last_generation = generation
 
       ret[:containers].sort! do |a, b|
         sortable_value(a) <=> sortable_value(b)
@@ -654,11 +665,11 @@ module OsCtl::Cli::Top
     end
 
     def mode
-      model.mode
+      model_thread.mode
     end
 
     def rt?
-      model.mode == :realtime
+      model_thread.mode == :realtime
     end
 
     def format_ctid(ctid)

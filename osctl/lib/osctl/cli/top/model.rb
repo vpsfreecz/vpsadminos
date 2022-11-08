@@ -57,7 +57,7 @@ module OsCtl::Cli
     end
 
     def data
-      return [] unless host.setup?
+      return {} unless host.setup?
 
       mem = OsCtl::Lib::MemInfo.new
       host_result = host.result(mode, mem)
