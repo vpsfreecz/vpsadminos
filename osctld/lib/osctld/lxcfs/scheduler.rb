@@ -176,6 +176,8 @@ module OsCtld
         log(:info, "#{ctrc.ident} created legacy worker #{worker.name}")
       end
 
+      worker.adjust_legacy_worker
+
       request_save
       worker
     end
