@@ -18,8 +18,13 @@ module OsCtld
     # @return [Integer]
     attr_reader :size
 
+    # @param [Integer]
+    # @return [Integer]
+    attr_synchronized_accessor :max_size
+
     # @return [Boolean]
     attr_reader :enabled
+    alias_method :enabled?, :enabled
 
     # @return [Time, nil]
     attr_reader :last_used
@@ -120,6 +125,14 @@ module OsCtld
       end
     end
 
+    def enable
+      exclusively { @enabled = true }
+    end
+
+    def disable
+      exclusively { @enabled = false }
+    end
+
     def add_user
       exclusively do
         @size += 1
@@ -140,6 +153,21 @@ module OsCtld
 
     def unused?
       !has_users?
+    end
+
+    def export
+      inclusively do
+        {
+          name: name,
+          enabled: enabled,
+          size: size,
+          max_size: max_size,
+          cpu_package: cpu_package,
+          loadavg: loadavg,
+          cfs: cfs,
+          mountpoint: lxcfs.mountpoint,
+        }
+      end
     end
 
     def dump

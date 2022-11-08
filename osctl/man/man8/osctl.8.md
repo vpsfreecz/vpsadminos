@@ -2851,6 +2851,37 @@ The following shortcuts are supported:
 
   This setting is lost on `osctld` restart, after which all packages are enabled.
 
+`lxcfs worker ls`
+  List LXCFS workers.
+
+    `-H`, `--hide-header`
+      Do not show header, useful for scripting.
+
+    `-L`, `--list`
+      List available parameters and exit.
+
+    `-o`, `--output` *parameters*
+      Select parameters to output.
+
+    `-s`, `--sort` *parameters*
+      Sort output by parameters, comma separated. Sorted by usage score by default.
+
+`lxcfs worker enable` *worker*
+  Enable LXCFS worker for further use. If it is not full, starting containers
+  can be assigned to it.
+
+`lxcfs worker disable` *worker*
+  Disable the LXCFS worker. It will continue running as long as containers
+  are using it, but new containers will not be assigned to it.
+
+`lxcfs worker set max-size` *worker* *size*
+  Change the maximum size of LXCFS *worker*. It has no effect on containers that
+  are already using it.
+
+`lxcfs worker prune`
+  Unused workers are automatically destroyed. This command will trigger the check
+  immediately.
+
 `monitor`
   Print all events reported by `osctld` to standard output. If global option
   `-j`, `--json` is used, the events are printed in JSON.

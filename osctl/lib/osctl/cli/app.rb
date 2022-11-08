@@ -2087,6 +2087,55 @@ module OsCtl::Cli
         end
       end
 
+      desc 'Manage LXCFS'
+      command :lxcfs do |lxcfs|
+        lxcfs.desc 'Manage LXCFS workers'
+        lxcfs.command :worker do |w|
+          w.desc 'List LXCFS workers'
+          w.command %i(ls list) do |c|
+            c.desc 'Select parameters to output'
+            c.flag %i(o output), arg_name: 'parameters'
+
+            c.desc 'Do not show header'
+            c.switch %i(H hide-header), negatable: false
+
+            c.desc 'List available parameters'
+            c.switch %i(L list), negatable: false
+
+            c.desc 'Sort by parameter(s)'
+            c.flag %i(s sort)
+
+            c.action &Command.run(Lxcfs, :worker_list)
+          end
+
+          w.desc 'Enable LXCFS worker'
+          w.arg_name '<worker>'
+          w.command :enable do |c|
+            c.action &Command.run(Lxcfs, :worker_enable)
+          end
+
+          w.desc 'Disable LXCFS worker'
+          w.arg_name '<worker>'
+          w.command :disable do |c|
+            c.action &Command.run(Lxcfs, :worker_disable)
+          end
+
+          w.desc 'Change LXCFS worker properties'
+          w.command :set do |set|
+            set.desc 'Set LXCFS worker maximum size'
+            set.arg_name '<worker> <max-size>'
+            set.command 'max-size' do |c|
+              c.action &Command.run(Lxcfs, :worker_set_max_size)
+            end
+          end
+
+          w.desc 'Prune unused LXCFS workers'
+          w.command :prune do |c|
+            c.action &Command.run(Lxcfs, :worker_prune)
+          end
+        end
+      end
+
       desc 'Monitor'
       command :monitor do |c|
         c.action &Command.run(Event, :monitor)

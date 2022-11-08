@@ -12,6 +12,7 @@ module OsCtld
     module Group ; end
     module History ; end
     module IdRange ; end
+    module Lxcfs ; end
     module NetInterface ; end
     module Pool ; end
     module Receive ; end
