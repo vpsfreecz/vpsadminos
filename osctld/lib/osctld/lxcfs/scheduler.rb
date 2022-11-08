@@ -215,7 +215,12 @@ module OsCtld
           end
         end
 
-        worker = @workers.each_value.detect { |w| w.can_handle_ctrc?(ctrc) }
+        worker =
+          @workers.each_value.select do |w|
+            w.can_handle_ctrc?(ctrc)
+          end.sort do |a, b|
+            a.size <=> b.size
+          end.first
 
         if worker.nil?
           created = true
