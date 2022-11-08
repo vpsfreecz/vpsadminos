@@ -3,9 +3,9 @@ require 'prometheus_ext/client/registry'
 
 module OsCtl
   module Exporter
-    # @return [Registry]
+    # @return [MultiRegistry]
     def self.registry
-      @registry ||= Registry.new
+      @registry ||= MultiRegistry.new
     end
   end
 end
