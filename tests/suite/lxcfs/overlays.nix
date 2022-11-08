@@ -24,13 +24,13 @@ import ../../make-template.nix ({ distribution, version }: rec {
         /proc/loadavg
         /proc/stat
         /proc/uptime
-        /sys/devices/system/cpu/online
         /var/lib/lxcfs
       )
 
       be_unmounted = %w(
         /proc/meminfo
         /proc/swaps
+        /sys/devices/system/cpu/online
       )
 
       check_mounted = Proc.new do |output|
