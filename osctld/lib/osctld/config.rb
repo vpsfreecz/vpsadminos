@@ -13,7 +13,7 @@ module OsCtld
 
       def initialize(cfg)
         @enable = cfg.fetch('enable', false)
-        @min_package_container_count_percent = cfg.fetch('min_package_container_count_percent', 75)
+        @min_package_container_count_percent = cfg.fetch('min_package_container_count_percent', 80)
       end
     end
 
