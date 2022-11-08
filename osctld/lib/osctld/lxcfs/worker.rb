@@ -62,6 +62,7 @@ module OsCtld
     # @param cpu_package [Integer]
     # @param loadavg [Boolean]
     # @param cfs [Boolean]
+    # @param enabled [Boolean]
     def initialize(name, max_size: nil, cpu_package: nil, loadavg: true, cfs: true, enabled: true)
       init_lock
       @name = name
@@ -181,6 +182,11 @@ module OsCtld
           'cfs' => cfs,
         }
       end
+    end
+
+    def adjust_legacy_worker
+      File.chmod(0555, lxcfs.mountroot)
+      File.chown(0, 0, lxcfs.mountroot)
     end
 
     protected
