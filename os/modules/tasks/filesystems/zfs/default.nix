@@ -15,13 +15,17 @@ let
       f = k: "/sys/module/${module}/parameters/${k}";
     in
       concatStrings (mapAttrsToList (n: v:
-        optionalString (v != null)
-        "echo ${val v} > ${f n} || true\n") moduleParams);
+        optionalString (v != null) ''
+          if [ "`cat ${f n}`" != "${val v}" ]; then
+            echo ${val v} > ${f n};
+          fi || true;
+        '') moduleParams);
+
   moduleModprobeConfigContent = name: optionsAttr:
-    "options ${name} \\\n" +
+    "options ${name}" +
       concatStrings (mapAttrsToList (n: v:
         optionalString (v != null)
-          "${n}=${if v == false then "0" else toString v}\\\n"
+          " ${n}=${if v == false then "0" else toString v}"
       ) optionsAttr) + "\n";
 
   cfgZfs = config.boot.zfs;
