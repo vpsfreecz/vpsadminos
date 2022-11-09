@@ -212,7 +212,6 @@ module OsCtld
           else
             existing_worker.remove_user
             @containers.delete(ctrc.ident)
-            request_destroy(existing_worker)
             log(:info, "#{ctrc.ident} needs to be reassigned from #{existing_worker.name}")
           end
         end
