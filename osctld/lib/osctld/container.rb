@@ -263,7 +263,6 @@ module OsCtld
 
     def chown(user)
       self.user = user
-      lxcfs.chown(user)
       save_config
       lxc_config.configure
       configure_bashrc
