@@ -127,7 +127,7 @@ module OsCtl::Cli::Top
     def render(t, data)
       Curses.setpos(0, 0)
       Curses.addstr("#{File.basename($0)} ct top - #{t.strftime('%H:%M:%S')}")
-      Curses.addstr(" [#{(last_measurement - t).round}s]") if last_measurement
+      Curses.addstr(sprintf(" [%.1fs]", last_measurement - t)) if last_measurement
       Curses.addstr(" #{model_thread.mode} mode, load average #{loadavg}")
 
       i = status_bar(1, data)
