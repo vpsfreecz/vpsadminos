@@ -1707,6 +1707,10 @@ The following shortcuts are supported:
   *space*                   | Highlight selected container
   *enter*, `t`              | Open top and filter container processes
   `h`                       | Open htop and filter container processes
+  `PageDown`                | Scroll down
+  `PageUp`                  | Scroll up
+  `Home`                    | Scroll to the top
+  `End`                     | Scroll to the bottom
   `m`                       | Toggle between `realtime` and `cumulative` mode.
   `p`                       | Pause/unpause resource tracking.
   `?`                       | Show help message.

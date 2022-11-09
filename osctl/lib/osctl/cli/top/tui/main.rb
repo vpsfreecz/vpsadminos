@@ -12,6 +12,7 @@ module OsCtl::Cli::Top
       @sort_index = 0
       @sort_desc = true
       @current_row = nil
+      @view_page = 0
       @highlighted_cts = []
       @status_bar_cols = 0
       @model_thread = Tui::ModelThread.new(model, rate)
@@ -88,6 +89,18 @@ module OsCtl::Cli::Top
         when Curses::Key::ENTER, 10, 't'
           selection_open_top
 
+        when Curses::Key::NPAGE # Page Down
+          view_page_down
+
+        when Curses::Key::PPAGE # Page Up
+          view_page_up
+
+        when Curses::Key::HOME
+          view_page_reset
+
+        when Curses::Key::END
+          view_page_end
+
         when 'h'
           selection_open_htop
 
@@ -121,7 +134,7 @@ module OsCtl::Cli::Top
 
     protected
     attr_reader :rate, :model_thread, :highlighted_cts, :last_measurement,
-      :last_generation, :last_mode
+      :last_generation, :last_mode, :view_page, :view_page_max
     attr_accessor :last_count, :last_data, :current_row
 
     def render(t, data)
@@ -136,7 +149,25 @@ module OsCtl::Cli::Top
       i = header(i+1)
       Curses.attroff(Curses.color_pair(1))
 
-      data[:containers].each_with_index do |ct, j|
+      ct_count = data[:containers].length
+      view_ct_count = Curses.lines - stats_cols - i
+
+      @view_page_max = ((ct_count - view_ct_count) / (view_ct_count / 2).to_f).ceil
+
+      ct_view =
+        if view_page > 0
+          offset = (view_ct_count / 2) * view_page
+
+          if offset >= ct_count - view_ct_count
+            offset = ct_count - view_ct_count
+          end
+
+          data[:containers][offset..-1]
+        else
+          data[:containers]
+        end
+
+      ct_view.each_with_index do |ct, j|
         Curses.setpos(i, 0)
 
         if current_row == j && highlighted_cts.include?(ct[:id])
@@ -645,6 +676,30 @@ module OsCtl::Cli::Top
       Curses.stdscr.keypad = true
       Curses.curs_set(0)  # hide cursor
       Curses.clear
+    end
+
+    def view_page_down
+      @view_page += 1
+
+      if @view_page_max && @view_page > @view_page_max
+        @view_page = @view_page_max
+      end
+    end
+
+    def view_page_up
+      @view_page -= 1 if @view_page > 0
+    end
+
+    def view_page_reset
+      @view_page = 0
+    end
+
+    def view_page_end
+      if view_page_max
+        @view_page = view_page_max
+      else
+        view_page_down
+      end
     end
 
     def sum(cts, field, host)
