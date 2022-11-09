@@ -3,8 +3,8 @@ let
   defaultKernelVersion = "5.10.153";
   kernels = {
     "5.10.153" = {
-      url = linuxGhUrl vpsfGh "4b7131e7605df6259dc453e8f42c485f5665beda";
-      sha256 = "sha256-eDHt1JlQ12xLzxTzNiKo8zjAm7/d7zOp9Dc5ALfdJAI=";
+      url = linuxGhUrl vpsfGh "b9afc222c8cd957b7672792e9af4df814009ca56";
+      sha256 = "sha256-MVKyIRhLihYd8FL9JvEo0fRlk+VX8Zda4ynFiNej4BM=";
       zfs = {
         rev = "d306a1cd3fee5261b0ebdcc0e2dd9b405db2bd97";
         sha256 = "sha256-rdTeAK/kqFn0NsDAom0QVyaJGkuqGVpSXz3AubIVKYk=";
