@@ -55,6 +55,10 @@
 
   boot.supportedFilesystems = [ "nfs" ];
   boot.initrd.supportedFilesystems = [ "zfs" ];
+  boot.zfs.moduleParams.spl = {
+    "spl_taskq_thread_dynamic" = lib.mkDefault 0;
+    "spl_taskq_thread_priority" = lib.mkDefault 0;
+  };
 
   environment.systemPackages = with pkgs; [
     acl
