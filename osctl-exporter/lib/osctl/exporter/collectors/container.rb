@@ -22,6 +22,9 @@ module OsCtl::Exporter
     )
 
     def setup
+      @mutex = Mutex.new
+      @last_container_data = nil
+
       STATES.each do |s|
         add_metric(
           "state_#{s}",
@@ -192,6 +195,8 @@ module OsCtl::Exporter
         true
       )
 
+      @mutex.synchronize { @last_container_data = cts }
+
       lavgs = OsCtl::Lib::LoadAvgReader.read_for(cts)
       objsets = OsCtl::Lib::Zfs::ObjsetStats.read_pools(pools)
       propreader = OsCtl::Lib::Zfs::PropertyReader.new
@@ -332,6 +337,10 @@ module OsCtl::Exporter
           labels: {pool: ct[:pool], id: ct[:id]},
         )
       end
+    end
+
+    def get_last_container_data
+      @mutex.synchronize { @last_container_data }
     end
 
     protected

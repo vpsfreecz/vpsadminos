@@ -61,6 +61,14 @@ module OsCtl::Exporter
       client.cmd_data!(:netif_list)
     end
 
+    def cpu_scheduler_status
+      client.cmd_data!(:cpu_scheduler_status)
+    end
+
+    def list_cpu_packages
+      client.cmd_data!(:cpu_scheduler_package_list)
+    end
+
     def list_lxcfs_workers
       client.cmd_data!(:lxcfs_worker_list)
     end
