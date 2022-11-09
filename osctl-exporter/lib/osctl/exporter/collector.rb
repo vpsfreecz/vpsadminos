@@ -41,13 +41,18 @@ module OsCtl::Exporter
         CollectorConfig.new(Collectors::KernelKeyring, false, 60),
         CollectorConfig.new(Collectors::Sysctl, false, 60),
         CollectorConfig.new(Collectors::ZpoolList, false, 60),
+        CollectorConfig.new(Collectors::CpuScheduler, true, 60),
         CollectorConfig.new(Collectors::Lxcfs, true, 60),
         CollectorConfig.new(Collectors::HealthCheck, true, 120),
       ]
 
+      @collector_index = {}
+
       @collectors.each do |c|
         c.registry = registry.new_registry(c.collector_class)
-        c.collector_instance = c.collector_class.new(c.registry)
+        c.collector_instance = c.collector_class.new(self, c.registry)
+
+        @collector_index[c.collector_class] = c
       end
     end
 
@@ -90,12 +95,20 @@ module OsCtl::Exporter
       nil
     end
 
+    # @return [Collectors::Base, nil]
+    def get_collector_by_class(klass)
+      cfg = collector_index[klass]
+      return if cfg.nil?
+
+      cfg.collector_instance
+    end
+
     def log_type
       'collector'
     end
 
     protected
-    attr_reader :threads, :registry, :collectors
+    attr_reader :threads, :registry, :collectors, :collector_index
 
     def collect(client, thread_collectors)
       client.try_to_connect do

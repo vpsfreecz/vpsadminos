@@ -1,9 +1,11 @@
 module OsCtl::Exporter
   class Collectors::Base
+    # @param manager [Collector]
     # @param registry [Prometheus::Client::Registry]
-    def initialize(registry)
+    def initialize(manager, registry)
       @metric_configs = {}
       @metrics = {}
+      @manager = manager
       @registry = registry
       setup
     end
@@ -33,7 +35,7 @@ module OsCtl::Exporter
     end
 
     protected
-    attr_reader :registry, :metric_configs, :metrics
+    attr_reader :manager, :registry, :metric_configs, :metrics
 
     Metric = Struct.new(:variable_name, :metric_type, :metric_name, :metric_opts)
 
