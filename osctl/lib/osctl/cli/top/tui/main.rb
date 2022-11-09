@@ -67,10 +67,12 @@ module OsCtl::Cli::Top
         when Curses::Key::LEFT, '<'
           Curses.clear
           sort_next(-1)
+          run_sort
 
         when Curses::Key::RIGHT, '>'
           Curses.clear
           sort_next(+1)
+          run_sort
 
         when Curses::Key::UP
           selection_up
@@ -92,6 +94,7 @@ module OsCtl::Cli::Top
         when 'r', 'R'
           Curses.clear
           sort_inverse
+          run_sort
 
         when 'm'
           modes = Model::MODES
@@ -479,11 +482,7 @@ module OsCtl::Cli::Top
       @last_measurement = measured_at
       @last_generation = generation
 
-      ret[:containers].sort! do |a, b|
-        sortable_value(a) <=> sortable_value(b)
-      end
-
-      ret[:containers].reverse! if @sort_desc
+      run_sort
       ret
     end
 
@@ -524,6 +523,14 @@ module OsCtl::Cli::Top
         [:rx, :bytes],
         [:rx, :packets],
       ])
+    end
+
+    def run_sort
+      last_data[:containers].sort! do |a, b|
+        sortable_value(a) <=> sortable_value(b)
+      end
+
+      last_data[:containers].reverse! if @sort_desc
     end
 
     def selection_up
