@@ -1,5 +1,5 @@
 module OsCtld
-  class Event
+  class Eventd::Event
     attr_reader :type, :opts
 
     def initialize(type, opts)
