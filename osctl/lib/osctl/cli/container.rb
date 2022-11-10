@@ -771,7 +771,7 @@ module OsCtl::Cli
 
           [k, v]
         end],
-        wait: opts[:wait],
+        wait: get_ct_wait(opts[:wait]),
         queue: opts[:queue],
         priority: opts[:priority],
         debug: opts[:debug],
@@ -1565,14 +1565,22 @@ module OsCtl::Cli
     end
 
     def get_ct_wait(v)
-      if v < 0
+      if v == 'infinity'
+        return v
+      elsif v.is_a?(::String) && /^\d+$/ !~ v
         raise GLI::BadCommandLine, 'invalid value for --wait'
-      elsif v == 0
+      end
+
+      v_i = v.to_i
+
+      if v_i < 0
+        raise GLI::BadCommandLine, 'invalid value for --wait'
+      elsif v_i == 0
         false
       elsif opts[:foreground]
         false
       else
-        v
+        v_i
       end
     end
 

@@ -76,7 +76,7 @@ module OsCtld
           log(:info, ct, 'Starting enqueued container')
           do_try_start_ct(
             cur_ct,
-            start_opts: start_opts.merge(queue: false, wait: nil),
+            start_opts: start_opts.merge(queue: false),
           )
         end
       )
@@ -99,7 +99,7 @@ module OsCtld
             ),
           )
         end,
-        timeout: start_opts ? (start_opts[:wait] || 60) : nil,
+        timeout: start_opts ? (start_opts[:wait] || 120) : nil,
       )
     end
 
@@ -138,6 +138,7 @@ module OsCtld
         ret = Commands::Container::Start.run(**start_opts.merge(
           pool: ct.pool.name,
           id: ct.id,
+          wait: 'infinity',
         ))
 
         if ret[:status]

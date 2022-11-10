@@ -701,7 +701,7 @@ module OsCtl::Cli
         ct.arg_name '<ctid>'
         ct.command :start do |c|
           c.desc 'How long to wait for the container to start'
-          c.flag %i(w wait), type: Integer, default_value: 120, arg_name: 'n'
+          c.flag %i(w wait), default_value: 120, arg_name: 'n'
 
           c.desc 'Open container console (can be later detached)'
           c.switch %i(F foreground)
@@ -746,7 +746,7 @@ module OsCtl::Cli
         ct.arg_name '<ctid>'
         ct.command :restart do |c|
           c.desc 'How long to wait for the container to start'
-          c.flag %i(w wait), type: Integer, default_value: 120, arg_name: 'n'
+          c.flag %i(w wait), default_value: 120, arg_name: 'n'
 
           c.desc 'Open container console (can be later detached)'
           c.switch %i(F foreground)
@@ -1109,7 +1109,7 @@ module OsCtl::Cli
           c.flag 'zfs-property', arg_name: 'property=value', multiple: true
 
           c.desc 'How long to wait for the container to start'
-          c.flag %i(w wait), type: Integer, default_value: 120, arg_name: 'n'
+          c.flag %i(w wait), default_value: 120, arg_name: 'n'
 
           c.desc 'Open container console (can be later detached)'
           c.switch %i(F foreground)

@@ -861,7 +861,7 @@ The following shortcuts are supported:
 `ct start` [*options*] *ctid*
   Start container *ctid*.
 
-    `-w`, `--wait` *seconds*
+    `-w`, `--wait` *seconds*|`infinity`
       How many seconds to wait for the container to enter state `running`.
       Defaults to `120` seconds. Set to `0` to return immediately.
 
@@ -922,7 +922,7 @@ The following shortcuts are supported:
   reboot the system. `osctld` has no way of knowing whether the init process
   responds and the reboot actually takes place.
 
-    `-w`, `--wait` *seconds*
+    `-w`, `--wait` *seconds*|`infinity`
       How many seconds to wait for the container to enter state `running`.
       Applicable only for full restarts, i.e. when `--reboot` is not set.
       Defaults to `120` seconds. Set to `0` to return immediately.
@@ -1358,7 +1358,7 @@ The following shortcuts are supported:
       A ZFS property passed to the newly created dataset used as a temporary
       root filesystem for the container. Can be used multiple times.
 
-    `-w`, `--wait` *seconds*
+    `-w`, `--wait` *seconds*|`infinity`
       How many seconds to wait for the container to enter state `running`.
       Defaults to `120` seconds. Set to `0` to return immediately.
 
