@@ -23,7 +23,12 @@ module OsCtld
 
         CGroup.thaw_tree(ct.cgroup_path) if mode == :kill
 
-        ret = fork_runner(args: [mode, opts])
+        ret =
+          if %i(stop shutdown).include?(mode) && ct.running?
+            exec_runner(args: [mode, opts.merge(halt_from_inside: true)])
+          else
+            fork_runner(args: [mode, opts])
+          end
 
         if ret.ok?
           true
@@ -54,6 +59,7 @@ module OsCtld
       end
 
       def do_shutdown(opts)
+        run_halt if opts[:halt_from_inside]
         lxc_ct.shutdown(opts[:timeout])
         ok
       rescue LXC::Error
@@ -65,6 +71,20 @@ module OsCtld
         ok
       rescue LXC::Error
         error('unable to kill container')
+      end
+
+      def run_halt
+        pid = lxc_ct.attach do
+          %w(halt poweroff shutdown).each do |cmd|
+            begin
+              LXC.run_command(cmd)
+            rescue LXC::Error
+              next
+            end
+          end
+        end
+
+        Process.wait(pid) if pid && pid > 1
       end
     end
   end
