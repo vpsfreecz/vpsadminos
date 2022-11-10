@@ -89,7 +89,7 @@ module OsCtld
 
     def start_now(ct)
       error!('start not available') unless ct.can_start?
-      return ok if ct.running? && !opts[:force]
+      return ok if %i(starting running).include?(ct.state) && !opts[:force]
 
       # Remove pre-existing accounting cgroups to reset counters
       remove_accounting_cgroups(ct)
