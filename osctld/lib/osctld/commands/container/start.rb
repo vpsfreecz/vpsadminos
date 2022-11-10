@@ -38,7 +38,8 @@ module OsCtld
         started = wait_for_ct(event_queue, ct)
         Eventd.unsubscribe(event_queue)
 
-        if started
+        case started
+        when :running
           # Access `/proc/stat` and `/proc/loadavg` within the container, so that
           # LXCFS starts tracking it immediately.
           begin
@@ -48,9 +49,12 @@ module OsCtld
           end
 
           ok
-
-        else
+        when :timeout
+          error('timed out while waiting for container to start')
+        when :error
           error('container failed to start')
+        else
+          error('unknown error')
         end
       end
     end
@@ -215,6 +219,7 @@ module OsCtld
     end
 
     # Wait for the container to start or fail
+    # @return [:running, :timeout, :error]
     def wait_for_ct(event_queue, ct)
       # Sequence of events that lead to the container being started.
       # We're accepting even `stopping` and `stopped`, since when the container
@@ -232,11 +237,11 @@ module OsCtld
       loop do
         if wait_until
           timeout = wait_until - Time.now
-          return false if timeout < 0
+          return :timeout if timeout < 0
         end
 
         event = event_queue.pop(timeout: timeout)
-        return false if event.nil?
+        return :timeout if event.nil?
 
         # Ignore irrelevant events
         next if event.type != :state \
@@ -246,8 +251,8 @@ module OsCtld
         state = event.opts[:state]
         cur_i = sequence.index(state)
 
-        return false if cur_i.nil? || (last_i && cur_i < last_i)
-        return true if state == sequence.last
+        return :error if cur_i.nil? || (last_i && cur_i < last_i)
+        return :running if state == sequence.last
 
         last_i = cur_i
       end
