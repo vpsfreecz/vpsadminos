@@ -222,11 +222,18 @@ module OsCtld
       # this method to exit.
       sequence = %i(stopping stopped starting running)
       last_i = nil
-      wait_until = Time.now + (opts[:wait] || 120)
+      wait_until =
+        if opts[:wait] == 'infinity'
+          nil
+        else
+          Time.now + (opts[:wait] || 120)
+        end
 
       loop do
-        timeout = wait_until - Time.now
-        return false if timeout < 0
+        if wait_until
+          timeout = wait_until - Time.now
+          return false if timeout < 0
+        end
 
         event = event_queue.pop(timeout: timeout)
         return false if event.nil?
