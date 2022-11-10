@@ -351,9 +351,9 @@ module OsCtl::Cli::Top
           rt? ? 'IOPS' : 'IO',
           'Bytes',
           rt? ? 'IOPS' : 'IO',
-          rt? ? 'Bps' : 'Bytes',
+          rt? ? 'bps' : 'Bytes',
           rt? ? 'pps' : 'Packet',
-          rt? ? 'Bps' : 'Bytes',
+          rt? ? 'bps' : 'Bytes',
           rt? ? 'pps' : 'Packet'
         )
 
@@ -386,9 +386,9 @@ module OsCtl::Cli::Top
         humanize_number(ct[:zfsio][:ios][:r]),
         humanize_data(ct[:zfsio][:bytes][:w]),
         humanize_number(ct[:zfsio][:ios][:w]),
-        humanize_data(ct[:tx][:bytes]),
+        humanize_data(rt? ? ct[:tx][:bytes] * 8 : ct[:tx][:bytes]),
         humanize_data(ct[:tx][:packets]),
-        humanize_data(ct[:rx][:bytes]),
+        humanize_data(rt? ? ct[:rx][:bytes] * 8 : ct[:rx][:bytes]),
         humanize_data(ct[:rx][:packets])
       ])
     end
