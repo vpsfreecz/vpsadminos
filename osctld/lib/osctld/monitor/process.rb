@@ -124,7 +124,8 @@ module OsCtld
         Hook.run(ct, :post_start, init_pid: ct.init_pid)
 
       when :aborting
-        ct.run_conf.aborted = true
+        # It has happened that ct.run_conf was nil, circumstances unknown
+        ct.ensure_run_conf.aborted = true
 
       when :stopping
         Hook.run(ct, :on_stop)
