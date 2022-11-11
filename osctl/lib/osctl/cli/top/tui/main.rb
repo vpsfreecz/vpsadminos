@@ -456,10 +456,10 @@ module OsCtl::Cli::Top
         humanize_number(sum(cts, [:zfsio, :ios, :r], true)),
         humanize_data(sum(cts, [:zfsio, :bytes, :w], true)),
         humanize_number(sum(cts, [:zfsio, :ios, :w], true)),
-        humanize_data(sum(cts, [:tx, :bytes], true)),
+        humanize_data(sum(cts, [:tx, :bytes], true) * (rt? ? 8 : 1)),
         humanize_data(sum(cts, [:tx, :packets], true)),
         humanize_data(sum(cts, [:rx, :bytes], true)),
-        humanize_data(sum(cts, [:rx, :packets], true))
+        humanize_data(sum(cts, [:rx, :packets], true) * (rt? ? 8 : 1))
       ])
 
       if model_thread.iostat_enabled?
