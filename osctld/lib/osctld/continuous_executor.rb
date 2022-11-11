@@ -63,6 +63,7 @@ module OsCtld
       @workers = []
       @front_queue = OsCtl::Lib::Queue.new
       @exec_queue = []
+      @waiters = []
       @counter = Concurrent::AtomicFixnum.new(0)
 
       start
@@ -118,6 +119,14 @@ module OsCtld
       sync { @exec_queue.clone }
     end
 
+    # Block until the queue is empty
+    def wait_until_empty
+      q = OsCtl::Lib::Queue.new
+      @front_queue << [:wait, q]
+      q.pop
+      nil
+    end
+
     protected
     def start
       @main = Thread.new do
@@ -158,21 +167,28 @@ module OsCtld
               while @workers.size < @size && @exec_queue.any?
                 exec(@exec_queue.shift)
               end
+
+              wake_waiters
             end
 
           when :clear
             @front_queue.clear
-            sync { @exec_queue.clear }
+            sync do
+              @exec_queue.clear
+              wake_waiters
+            end
 
           when :remove
             sync do
               @exec_queue.delete_if { |c| c.id == arg }
+              wake_waiters
             end
 
           when :stop
             sync do
               @exec_queue.clear
               @workers.each(&:join)
+              wake_waiters(force: true)
             end
 
             break
@@ -183,6 +199,17 @@ module OsCtld
 
               while @workers.size < @size && @exec_queue.any?
                 exec(@exec_queue.shift)
+              end
+            end
+
+          when :wait
+            sync do
+              q = arg
+
+              if @workers.empty? && @exec_queue.empty?
+                q << true
+              else
+                @waiters << q
               end
             end
           end
@@ -206,6 +233,15 @@ module OsCtld
       end
 
       @workers << t
+    end
+
+    def wake_waiters(force: false)
+      if force || (@workers.empty? && @exec_queue.empty?)
+        @waiters.delete_if do |q|
+          q << true
+          true
+        end
+      end
     end
 
     def sync
