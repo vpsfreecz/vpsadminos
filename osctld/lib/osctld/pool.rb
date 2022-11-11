@@ -30,7 +30,7 @@ module OsCtld
     include OsCtl::Lib::Utils::Exception
 
     attr_reader :name, :dataset, :state, :send_receive_key_chain, :autostart_plan,
-      :attrs
+      :autostop_plan, :attrs
 
     def initialize(name, dataset)
       init_lock
@@ -50,6 +50,7 @@ module OsCtld
 
         @send_receive_key_chain = SendReceive::KeyChain.new(self)
         @autostart_plan = AutoStart::Plan.new(self)
+        @autostop_plan = AutoStop::Plan.new(self)
       end
     end
 
@@ -317,6 +318,7 @@ module OsCtld
 
         when :parallel_stop
           instance_variable_set(:"@#{k}", opts[k])
+          pool.autostop_plan.resize(opts[k])
 
         when :attrs
           attrs.update(v)
@@ -367,6 +369,7 @@ module OsCtld
 
     def abort_export
       @abort_export = true
+      autostop_plan.clear
     end
 
     def abort_export?

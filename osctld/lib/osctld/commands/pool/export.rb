@@ -49,8 +49,31 @@ module OsCtld
         # Stop all containers
         if opts[:stop_containers]
           progress('Stopping all containers')
-          stop_cts(pool)
+          pool.autostop_plan.start(client_handler: client_handler)
+          pool.autostop_plan.wait
           check_abort!(pool)
+
+          # Verify that all containers are stopped
+          loop do
+            all_stopped = true
+
+            DB::Containers.get.each do |ct|
+              next if ct.pool != pool
+
+              unless %i(staged stopped).include?(ct.state)
+                msg = "Container #{ct.ident} is still #{ct.state}, waiting until stopped"
+                progress(msg)
+                log(:warn, msg)
+                all_stopped = false
+              end
+            end
+
+            check_abort!(pool)
+            break if all_stopped
+
+            check_abort!(pool)
+            sleep(1)
+          end
         end
 
         # Unregister all entities
@@ -141,73 +164,6 @@ module OsCtld
         break if cts.empty?
         sleep(1)
       end
-    end
-
-    def stop_cts(pool)
-      # Sort containers by reversed autostart priority -- containers with
-      # the lowest priority are stopped first
-      cts = DB::Containers.get.select { |ct| ct.pool == pool }
-      cts.sort! do |a, b|
-        if a.autostart && b.autostart
-          a.autostart <=> b.autostart
-
-        elsif a.autostart
-          -1
-
-        elsif b.autostart
-          1
-
-        else
-          0
-        end
-      end
-      cts.reverse!
-
-      total = cts.count
-      done = 0
-      mutex = Mutex.new
-
-      plan = ExecutionPlan.new
-      cts.each { |ct| plan << ct }
-
-      check_abort!(pool)
-
-      plan.run(pool.parallel_stop) do |ct|
-        next if check_abort?(pool)
-
-        mutex.synchronize do
-          done += 1
-          progress(
-            "[#{done}/#{total}] "+
-            (ct.ephemeral? ? 'Deleting ephemeral container' : 'Stopping container')+
-            " #{ct.ident}"
-          )
-        end
-
-        if ct.ephemeral?
-          call_cmd!(
-            Commands::Container::Delete,
-            pool: pool.name,
-            id: ct.id,
-            force: true,
-            progress: false,
-            manipulation_lock: 'ignore',
-          )
-        else
-          call_cmd!(
-            Commands::Container::Stop,
-            pool: pool.name,
-            id: ct.id,
-            destroy_lxcfs: true,
-            progress: false,
-            manipulation_lock: 'ignore',
-          )
-
-          pool.autostart_plan.clear_ct(ct)
-        end
-      end
-
-      plan.wait
     end
 
     def check_abort!(pool)
