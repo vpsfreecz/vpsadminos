@@ -3,6 +3,7 @@ require 'osctld/native'
 
 module OsCtld
   module AutoStart ; end
+  module AutoStop ; end
   module Commands
     module Container ; end
     module CpuScheduler ; end
@@ -66,6 +67,7 @@ require_rel 'osctld/utils'
 require_rel 'osctld/*.rb'
 require_rel 'osctld/assets'
 require_rel 'osctld/auto_start'
+require_rel 'osctld/auto_stop'
 require_rel 'osctld/cgroup'
 require_rel 'osctld/console'
 require_rel 'osctld/container'
