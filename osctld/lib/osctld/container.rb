@@ -12,6 +12,9 @@ module OsCtld
     include OsCtl::Lib::Utils::System
     include Utils::SwitchUser
 
+    DEFAULT_START_TIMEOUT = 120
+    DEFAULT_STOP_TIMEOUT = 120
+
     def self.default_dataset(pool, id, dataset_cache: nil)
       name = File.join(pool.ct_ds, id)
       OsCtl::Lib::Zfs::Dataset.new(name, base: name, cache: dataset_cache)

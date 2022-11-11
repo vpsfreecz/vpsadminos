@@ -99,7 +99,7 @@ module OsCtld
             ),
           )
         end,
-        timeout: start_opts ? (start_opts[:wait] || 120) : nil,
+        timeout: start_opts ? (start_opts[:wait] || Container::DEFAULT_START_TIMEOUT) : nil,
       )
     end
 

@@ -231,7 +231,7 @@ module OsCtld
         if opts[:wait] == 'infinity'
           nil
         else
-          Time.now + (opts[:wait] || 120)
+          Time.now + (opts[:wait] || Container::DEFAULT_START_TIMEOUT)
         end
 
       loop do
