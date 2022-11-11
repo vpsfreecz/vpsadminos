@@ -10,24 +10,22 @@ module OsCtld
     end
 
     def execute(pool)
-      manipulate(pool) do
-        changes = {}
+      changes = {}
 
-        opts.each do |k, v|
-          case k
-          when :parallel_start, :parallel_stop
-            i = opts[k].to_i
-            error!("#{k} has to be greater than 0") if i < 1
+      opts.each do |k, v|
+        case k
+        when :parallel_start, :parallel_stop
+          i = opts[k].to_i
+          error!("#{k} has to be greater than 0") if i < 1
 
-            changes[k] = i
+          changes[k] = i
 
-          when :attrs
-            changes[k] = v
-          end
+        when :attrs
+          changes[k] = v
         end
-
-        pool.set(changes) if changes.any?
       end
+
+      pool.set(changes) if changes.any?
 
       ok
     end
