@@ -5,7 +5,7 @@ module OsCtld
         @instance ||= Eventd::Manager.new
       end
 
-      %i(start stop subscribe unsubscribe report).each do |m|
+      %i(start stop shutdown subscribe unsubscribe report).each do |m|
         define_method(m) do |*args, **kwargs, &block|
           instance.method(m).call(*args, **kwargs, &block)
         end

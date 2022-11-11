@@ -198,7 +198,7 @@ module OsCtld
 
     def stop
       log(:info, 'Shutting down')
-      Eventd.stop
+      Eventd.shutdown
       @server.stop if @server
       File.unlink(SOCKET) if File.exist?(SOCKET)
       UserControl.stop
