@@ -30,6 +30,9 @@ module OsCtld
   #       state: :run | :done | :failed
   #     }
   #
+  # === `:osctld_shutdown`
+  # Sent when osctld is shutting down.
+  #
   # === `:state`
   # Used to report changes of container states.
   # Options:
@@ -106,6 +109,12 @@ module OsCtld
 
     def stop
       @workers.each(&:stop)
+      nil
+    end
+
+    def shutdown
+      report(:osctld_shutdown)
+      stop
       nil
     end
 
