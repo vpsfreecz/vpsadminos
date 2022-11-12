@@ -224,12 +224,16 @@ module OsCtld
 
         if worker.nil?
           created = true
-          worker = Lxcfs::Worker.new_for_ctrc(
-            gen_worker_name(ctrc.cpu_package),
-            ctrc,
-          )
+          name = nil
+
+          loop do
+            name = gen_worker_name(ctrc.cpu_package)
+            @worker_id += 1
+            break unless @workers.has_key?(name)
+          end
+
+          worker = Lxcfs::Worker.new_for_ctrc(name, ctrc)
           @workers[worker.name] = worker
-          @worker_id += 1
 
           log(:info, "Creating new worker #{worker.name} for #{ctrc.ident}")
         else
