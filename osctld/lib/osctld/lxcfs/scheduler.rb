@@ -117,7 +117,6 @@ module OsCtld
     # @param ct [Container]
     def remove_ct(ct)
       worker = nil
-      destroy = false
 
       exclusively do
         worker = @containers[ct.ident]
