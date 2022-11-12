@@ -124,6 +124,9 @@ module OsCtld
       # Setup shared AppArmor files
       AppArmor.setup
 
+      # User-control supervisor
+      UserControl::Supervisor.instance
+
       # Send/Receive hooks and server
       SendReceive.setup
 
