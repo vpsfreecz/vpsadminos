@@ -438,9 +438,9 @@ module OsCtl::Cli::Top
         humanize_number(sum(cts, [:zfsio, :ios, :r], false)),
         humanize_data(sum(cts, [:zfsio, :bytes, :w], false)),
         humanize_number(sum(cts, [:zfsio, :ios, :w], false)),
-        humanize_data(sum(cts, [:tx, :bytes], false)),
+        humanize_data(sum(cts, [:tx, :bytes], false) * (rt? ? 8 : 1)),
         humanize_data(sum(cts, [:tx, :packets], false)),
-        humanize_data(sum(cts, [:rx, :bytes], false)),
+        humanize_data(sum(cts, [:rx, :bytes], false) * (rt? ? 8 : 1)),
         humanize_data(sum(cts, [:rx, :packets], false))
       ])
 
@@ -458,8 +458,8 @@ module OsCtl::Cli::Top
         humanize_number(sum(cts, [:zfsio, :ios, :w], true)),
         humanize_data(sum(cts, [:tx, :bytes], true) * (rt? ? 8 : 1)),
         humanize_data(sum(cts, [:tx, :packets], true)),
-        humanize_data(sum(cts, [:rx, :bytes], true)),
-        humanize_data(sum(cts, [:rx, :packets], true) * (rt? ? 8 : 1))
+        humanize_data(sum(cts, [:rx, :bytes], true) * (rt? ? 8 : 1)),
+        humanize_data(sum(cts, [:rx, :packets], true))
       ])
 
       if model_thread.iostat_enabled?
