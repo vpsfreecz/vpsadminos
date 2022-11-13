@@ -65,6 +65,7 @@ module OsCtld
       init_lock
 
       @enabled = Daemon.get.config.cpu_scheduler.enable?
+      @manual_toggle = false
       @min_package_container_count_percent = Daemon.get.config.cpu_scheduler.min_package_container_count_percent
       @upkeep_queue = OsCtl::Lib::Queue.new
       @save_queue = OsCtl::Lib::Queue.new
@@ -129,7 +130,10 @@ module OsCtld
     def enable
       exclusively do
         @enabled = true
+        @manual_toggle = true
       end
+
+      save_state
 
       sync_control do
         start_upkeep unless upkeep_running?
@@ -140,8 +144,10 @@ module OsCtld
     def disable
       exclusively do
         @enabled = false
+        @manual_toggle = true
       end
 
+      save_state
       sync_control { stop_upkeep }
     end
 
@@ -172,6 +178,7 @@ module OsCtld
         ret = true
       end
 
+      save_state if ret
       ret
     end
 
@@ -187,6 +194,7 @@ module OsCtld
         ret = true
       end
 
+      save_state if ret
       ret
     end
 
@@ -532,22 +540,37 @@ module OsCtld
       end
     end
 
-    def dump_scheduled
-      ret = []
-
-      inclusively do
-        scheduled_cts.each do |id, sched|
-          ret << {
-            'ctid' => id,
-            'usage_score' => sched.usage_score,
-            'package_id' => sched.package_id,
-            'reservation' => sched.reservation,
-            'reserved_at' => sched.reserved_at && sched.reserved_at.to_i,
-          }
-        end
+    def dump_packages
+      package_info.map do |pkg_id, pkg|
+        {
+          'id' => pkg_id,
+          'enabled' => pkg.enabled,
+        }
       end
+    end
 
-      {'scheduled_cts' => ret}
+    def dump_scheduled
+      scheduled_cts.map do |id, sched|
+        {
+          'ctid' => id,
+          'usage_score' => sched.usage_score,
+          'package_id' => sched.package_id,
+          'reservation' => sched.reservation,
+          'reserved_at' => sched.reserved_at && sched.reserved_at.to_i,
+        }
+      end
+    end
+
+    def dump_state
+      inclusively do
+        ret = {}
+        ret['enabled'] = enabled? if @manual_toggle
+        ret.update({
+          'packages' => dump_packages,
+          'scheduled_cts' => dump_scheduled,
+        })
+        ret
+      end
     end
 
     def save_state
@@ -555,7 +578,7 @@ module OsCtld
     end
 
     def do_save_state
-      data = dump_scheduled
+      data = dump_state
 
       regenerate_file(STATE_FILE, 0400) do |new|
         new.write(OsCtl::Lib::ConfigFile.dump_yaml(data))
@@ -569,6 +592,18 @@ module OsCtld
         data = OsCtl::Lib::ConfigFile.load_yaml_file(STATE_FILE)
       rescue Errno::ENOENT
         return
+      end
+
+      if data.has_key?('enabled')
+        @enabled = data['enabled']
+        @manual_toggle = true
+      end
+
+      data.fetch('packages', []).each do |pkg|
+        pkg_id = pkg['id']
+        next unless package_info.has_key?(pkg_id)
+
+        package_info[pkg_id].enabled = pkg.fetch('enabled', true)
       end
 
       data.fetch('scheduled_cts', []).each do |ct|
