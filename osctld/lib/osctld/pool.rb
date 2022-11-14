@@ -358,9 +358,23 @@ module OsCtld
       autostart_plan.start(force: force)
     end
 
-    def stop
+    def autostop_and_wait(client_handler: nil)
+      autostop_plan.start(client_handler: client_handler)
+      autostop_plan.wait
+    end
+
+    def begin_stop
       autostart_plan.stop
       update_ct_hints_queue.clear
+    end
+
+    def all_stop
+      autostop_plan.stop
+    end
+
+    def stop
+      begin_stop
+      all_stop
     end
 
     def begin_export

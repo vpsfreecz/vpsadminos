@@ -35,7 +35,7 @@ module OsCtld
         pool.begin_export
 
         # Do not autostart any more containers
-        pool.stop
+        pool.begin_stop
         check_abort!(pool)
 
         # Disable the pool
@@ -49,8 +49,7 @@ module OsCtld
         # Stop all containers
         if opts[:stop_containers]
           progress('Stopping all containers')
-          pool.autostop_plan.start(client_handler: client_handler)
-          pool.autostop_plan.wait
+          pool.autostop_and_wait(client_handler: client_handler)
           check_abort!(pool)
 
           # Verify that all containers are stopped
@@ -75,6 +74,9 @@ module OsCtld
             sleep(1)
           end
         end
+
+        # Stop also autostop
+        pool.all_stop
 
         # Unregister all entities
         progress('Unregistering users, groups and containers')
