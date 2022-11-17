@@ -56,6 +56,7 @@
 
   environment.systemPackages = with pkgs; [
     acl
+    conntrack-tools
     glibc
     iotop
     ipset
