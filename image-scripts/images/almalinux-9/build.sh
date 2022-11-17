@@ -1,6 +1,6 @@
 . "$IMAGEDIR/config.sh"
-POINTVER=9.0
-RELEASE=https://repo.almalinux.org/almalinux/${POINTVER}/BaseOS/x86_64/os/Packages/almalinux-release-${POINTVER}-3.el9.x86_64.rpm
+POINTVER=9.1
+RELEASE=https://repo.almalinux.org/almalinux/${POINTVER}/BaseOS/x86_64/os/Packages/almalinux-release-${POINTVER}-1.9.el9.x86_64.rpm
 BASEURL=https://repo.almalinux.org/almalinux/${POINTVER}/BaseOS/x86_64/os/
 
 # CentOS 8 does not seem to have an updates repo, so this variable is used to
