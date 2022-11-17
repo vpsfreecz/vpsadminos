@@ -117,6 +117,7 @@ in {
       "nft_reject_inet"
       "overlay"
       "veth"
+      "wireguard"
     ];
 
     boot.initrd.kernelModules = lib.optionals config.boot.initrd.withHwSupport hwSupportModules;
