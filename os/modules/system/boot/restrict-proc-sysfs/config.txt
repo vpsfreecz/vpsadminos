@@ -1,4 +1,5 @@
 restrict   /proc/bus
+restrict   /proc/interrupts
 restrict   /proc/sched_debug
 restrict   /proc/spl
 restrict   /sys/block
