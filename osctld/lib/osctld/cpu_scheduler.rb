@@ -47,7 +47,15 @@ module OsCtld
       :container_count,
       :enabled,
       keyword_init: true,
-    )
+    ) do
+      def usage_score_per_cpu
+        usage_score / cpu_mask.size.to_f
+      end
+
+      def container_count_per_cpu
+        container_count / cpu_mask.size.to_f
+      end
+    end
 
     ScheduleInfo = Struct.new(
       :ctid,
@@ -368,8 +376,10 @@ module OsCtld
       min_cnt = nil
 
       package_info.each_value do |pkg|
-        max_cnt = pkg.container_count if max_cnt.nil? || max_cnt < pkg.container_count
-        min_cnt = pkg.container_count if min_cnt.nil? || min_cnt > pkg.container_count
+        percpu_cnt = pkg.container_count_per_cpu
+
+        max_cnt = percpu_cnt if max_cnt.nil? || max_cnt < percpu_cnt
+        min_cnt = percpu_cnt if min_cnt.nil? || min_cnt > percpu_cnt
       end
 
       (min_cnt.to_f / max_cnt) * 100 >= @min_package_container_count_percent
@@ -450,7 +460,7 @@ module OsCtld
 
     def get_package_by_count(usage_score)
       sorted_pkgs = package_info.values.select(&:enabled).sort do |a, b|
-        a.container_count <=> b.container_count
+        a.container_count_per_cpu <=> b.container_count_per_cpu
       end
 
       pkg = sorted_pkgs.first
@@ -463,7 +473,7 @@ module OsCtld
 
     def get_package_by_score(usage_score)
       sorted_pkgs = package_info.values.select(&:enabled).sort do |a, b|
-        a.usage_score <=> b.usage_score
+        a.usage_score_per_cpu <=> b.usage_score_per_cpu
       end
 
       pkg = sorted_pkgs.first
