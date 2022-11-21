@@ -62,7 +62,7 @@ module OsCtl::Cli
       fmt_opts = {
         layout: :columns,
         cols: cols,
-        sort: opts[:sort] ? opts[:sort].split(',').map(&:to_sym) : %i(usage_score),
+        sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
       }
 
       fmt_opts[:header] = false if opts['hide-header']
