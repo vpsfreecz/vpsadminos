@@ -3,7 +3,7 @@ require 'libosctl'
 
 module OsCtl::Cli
   class CpuScheduler < Command
-    PACKAGE_FIELDS = %i(id cpus containers usage_score enabled)
+    PACKAGE_FIELDS = %i(id cpus ncpus containers usage_score enabled)
 
     def status
       require_args!
@@ -58,7 +58,13 @@ module OsCtl::Cli
 
       fmt_opts[:header] = false if opts['hide-header']
 
-      osctld_fmt(:cpu_scheduler_package_list, fmt_opts: fmt_opts)
+      packages = osctld_call(:cpu_scheduler_package_list)
+
+      packages.each do |pkg|
+        pkg[:ncpus] = pkg[:cpus].size
+      end
+
+      format_output(packages, **fmt_opts)
     end
 
     def package_enable
