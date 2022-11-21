@@ -1,4 +1,5 @@
 require 'osctl/cli/command'
+require 'libosctl'
 
 module OsCtl::Cli
   class CpuScheduler < Command
@@ -45,7 +46,7 @@ module OsCtl::Cli
         cols[cpus_i] = {
           name: :cpus,
           label: 'CPUS',
-          display: Proc.new { |v| format_cpumask(v) },
+          display: Proc.new { |v| OsCtl::Lib::CpuMask.format(v) },
         }
       end
 
@@ -68,43 +69,6 @@ module OsCtl::Cli
     def package_disable
       require_args!('package')
       osctld_fmt(:cpu_scheduler_package_disable, cmd_opts: {package: args[0].to_i})
-    end
-
-    protected
-    def format_cpumask(cpu_list)
-      return if cpu_list.empty?
-
-      groups = []
-      acc = []
-      prev = nil
-
-      cpu_list.each do |cpu|
-        if prev.nil? || cpu == prev+1
-          prev = cpu
-          acc << cpu
-        else
-          groups << format_cpumask_range(acc)
-          prev = nil
-          acc = [cpu]
-        end
-      end
-
-      groups << format_cpumask_range(acc)
-      groups.join(',')
-    end
-
-    def format_cpumask_range(acc)
-      len = acc.length
-
-      if len == 1
-        acc.first
-      elsif len == 2
-        acc.join(',')
-      elsif len > 2
-        "#{acc.first}-#{acc.last}"
-      else
-        nil
-      end
     end
   end
 end
