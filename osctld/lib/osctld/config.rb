@@ -32,9 +32,13 @@ module OsCtld
       attr_reader :enable
       alias_method :enable?, :enable
 
+      # @return [OsCtl::Lib::CpuMask]
+      attr_reader :cpu_mask
+
       def initialize(id, cfg)
         @id = id.to_i
         @enable = cfg.fetch('enable', true)
+        @cpu_mask = OsCtl::Lib::CpuMask.new(cfg.fetch('cpu_mask', '*'))
       end
     end
 

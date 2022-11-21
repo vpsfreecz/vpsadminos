@@ -42,7 +42,7 @@ module OsCtld
 
     PackageInfo = Struct.new(
       :id,
-      :cpuset,
+      :cpu_mask,
       :usage_score,
       :container_count,
       :enabled,
@@ -76,19 +76,24 @@ module OsCtld
       @package_info = {}
       @scheduled_cts = {}
 
+      log(:info, "#{topology.cpus.length} CPUs in #{topology.packages.length} packages")
+
       topology.packages.each_value do |pkg|
         pkg_cfg = daemon_cfg.packages[pkg.id]
 
+        pkg_mask = OsCtl::Lib::CpuMask.new(pkg.cpus.keys.sort)
+        cpu_mask = pkg_cfg ? pkg_cfg.cpu_mask & pkg_mask : pkg_mask
+
+        log(:info, "CPU package #{pkg.id}: #{cpu_mask.size} CPUs, mask=#{cpu_mask}")
+
         @package_info[pkg.id] = PackageInfo.new(
           id: pkg.id,
-          cpuset: pkg.cpus.keys.sort.join(','),
+          cpu_mask: cpu_mask,
           usage_score: 0,
           container_count: 0,
           enabled: pkg_cfg ? pkg_cfg.enable : true,
         )
       end
-
-      log(:info, "#{topology.cpus.length} CPUs in #{topology.packages.length} packages")
     end
 
     def assets(add)
@@ -274,12 +279,14 @@ module OsCtld
     def export_packages
       exclusively do
         topology.packages.each_value.map do |pkg|
+          pkg_info = package_info[pkg.id]
+
           {
             id: pkg.id,
-            cpus: pkg.cpus.keys,
-            containers: package_info[pkg.id].container_count,
-            usage_score: package_info[pkg.id].usage_score,
-            enabled: package_info[pkg.id].enabled,
+            cpus: pkg_info.cpu_mask.to_a,
+            containers: pkg_info.container_count,
+            usage_score: pkg_info.usage_score,
+            enabled: pkg_info.enabled,
           }
         end
       end
@@ -325,7 +332,7 @@ module OsCtld
       CGroup.mkpath('cpuset', ctrc.ct.base_cgroup_path.split('/'))
       package_set = CGroup.set_param(
         File.join(CGroup.abs_cgroup_path('cpuset', ctrc.ct.base_cgroup_path), 'cpuset.cpus'),
-        [pkg.cpuset]
+        [pkg.cpu_mask.to_s]
       )
 
       # Even when we fail here, the cpuset configuration is propagated to LXC
@@ -339,7 +346,7 @@ module OsCtld
       ctrc.ct.cgparams.set([CGroup::Param.import(
         subsystem: 'cpuset',
         parameter: 'cpuset.cpus',
-        value: [pkg.cpuset],
+        value: [pkg.cpu_mask.to_s],
         persistent: false,
       )])
 
