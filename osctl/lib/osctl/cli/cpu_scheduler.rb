@@ -3,7 +3,16 @@ require 'libosctl'
 
 module OsCtl::Cli
   class CpuScheduler < Command
-    PACKAGE_FIELDS = %i(id cpus ncpus containers usage_score enabled)
+    PACKAGE_FIELDS = %i(
+      id
+      cpus
+      ncpus
+      containers
+      containers_per_cpu
+      usage_score
+      usage_score_per_cpu
+      enabled
+    )
 
     def status
       require_args!
@@ -61,7 +70,12 @@ module OsCtl::Cli
       packages = osctld_call(:cpu_scheduler_package_list)
 
       packages.each do |pkg|
-        pkg[:ncpus] = pkg[:cpus].size
+        ncpus = pkg[:cpus].size
+        ncpus_f = ncpus.to_f
+
+        pkg[:ncpus] = ncpus
+        pkg[:containers_per_cpu] = (pkg[:containers] / ncpus_f).round(2)
+        pkg[:usage_score_per_cpu] = (pkg[:usage_score] / ncpus_f).round(2)
       end
 
       format_output(packages, **fmt_opts)
