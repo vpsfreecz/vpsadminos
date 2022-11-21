@@ -64,9 +64,11 @@ module OsCtld
     def initialize
       init_lock
 
-      @enabled = Daemon.get.config.cpu_scheduler.enable?
+      daemon_cfg = Daemon.get.config.cpu_scheduler
+
+      @enabled = daemon_cfg.enable?
       @manual_toggle = false
-      @min_package_container_count_percent = Daemon.get.config.cpu_scheduler.min_package_container_count_percent
+      @min_package_container_count_percent = daemon_cfg.min_package_container_count_percent
       @upkeep_queue = OsCtl::Lib::Queue.new
       @save_queue = OsCtl::Lib::Queue.new
       @topology = OsCtl::Lib::CpuTopology.new
@@ -75,12 +77,14 @@ module OsCtld
       @scheduled_cts = {}
 
       topology.packages.each_value do |pkg|
+        pkg_cfg = daemon_cfg.packages[pkg.id]
+
         @package_info[pkg.id] = PackageInfo.new(
           id: pkg.id,
           cpuset: pkg.cpus.keys.sort.join(','),
           usage_score: 0,
           container_count: 0,
-          enabled: true,
+          enabled: pkg_cfg ? pkg_cfg.enable : true,
         )
       end
 
