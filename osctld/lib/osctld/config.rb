@@ -11,9 +11,30 @@ module OsCtld
       # @return [Integer]
       attr_reader :min_package_container_count_percent
 
+      # @return [Hash<Integer, CpuPackage>]
+      attr_reader :packages
+
       def initialize(cfg)
         @enable = cfg.fetch('enable', false)
         @min_package_container_count_percent = cfg.fetch('min_package_container_count_percent', 90)
+        @packages = Hash[cfg.fetch('packages', {}).map do |k, v|
+          pkg = CpuPackage.new(k, v)
+          [pkg.id, pkg]
+        end]
+      end
+    end
+
+    class CpuPackage
+      # @return [Integer]
+      attr_reader :id
+
+      # @return [Boolean]
+      attr_reader :enable
+      alias_method :enable?, :enable
+
+      def initialize(id, cfg)
+        @id = id.to_i
+        @enable = cfg.fetch('enable', true)
       end
     end
 
