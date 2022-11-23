@@ -6,7 +6,7 @@ module OsCtl::Cli::Top
   class Tui::Main < Tui::Screen
     include OsCtl::Lib::Utils::Humanize
 
-    def initialize(model, rate)
+    def initialize(model, rate, enable_procs: true)
       @rate = rate
       @last_count = nil
       @sort_index = 0
@@ -17,17 +17,24 @@ module OsCtl::Cli::Top
       @status_bar_cols = 0
       @model_thread = Tui::ModelThread.new(model, rate)
       @model_thread.start
+      @enable_procs = enable_procs
+      if enable_procs
+        @procs_thread = Tui::ProcessThread.new(rate)
+        @procs_thread.start
+      end
       @last_measurement = nil
       @last_generation = -1
+      @last_procs_check = nil
       @last_mode = model_thread.mode
     end
 
     def open
       empty_data = {containers: []}
       data = {containers: []}
+      procs_stats, @last_procs_check = enable_procs && procs_thread.get_stats
 
       # Initial render
-      render(Time.now, empty_data) if last_generation == -1
+      render(Time.now, procs_stats, empty_data) if last_generation == -1
 
       # At each loop pass, model is queried for data, unless `hold_data` is
       # greater than zero. In that case, `hold_data` is decremented by 1
@@ -57,11 +64,16 @@ module OsCtl::Cli::Top
 
         self.last_count = data[:containers].count
 
-        render(now, data)
+        if enable_procs
+          procs_stats, @last_procs_check = procs_thread.get_stats
+        end
+
+        render(now, procs_stats, data)
         Curses.timeout = rate * 1000
 
         case Curses.getch
         when 'q'
+          procs_thread.stop if enable_procs
           model_thread.stop
           return
 
@@ -133,17 +145,18 @@ module OsCtl::Cli::Top
     end
 
     protected
-    attr_reader :rate, :model_thread, :highlighted_cts, :last_measurement,
-      :last_generation, :last_mode, :view_page, :view_page_max
+    attr_reader :rate, :model_thread, :procs_thread, :highlighted_cts,
+      :last_measurement, :last_generation, :last_procs_check, :last_mode,
+      :view_page, :view_page_max, :enable_procs
     attr_accessor :last_count, :last_data, :current_row
 
-    def render(t, data)
+    def render(t, procs_stats, data)
       Curses.setpos(0, 0)
       Curses.addstr("#{File.basename($0)} ct top - #{t.strftime('%H:%M:%S')}")
       Curses.addstr(sprintf(" [%.1fs]", last_measurement - t)) if last_measurement
       Curses.addstr(" #{model_thread.mode} mode, load average #{loadavg}")
 
-      i = status_bar(1, data)
+      i = status_bar(1, t, procs_stats, data)
 
       Curses.attron(Curses.color_pair(1))
       i = header(i+1)
@@ -197,9 +210,30 @@ module OsCtl::Cli::Top
       Curses.refresh
     end
 
-    def status_bar(orig_pos, data)
+    def status_bar(orig_pos, t, procs_stats, data)
       pos = orig_pos
       @status_bar_cols = 0
+
+      # Processes
+      if enable_procs
+        Curses.setpos(pos, 0)
+        Curses.addstr('Tasks')
+        Curses.addstr(sprintf(" [%.1fs]", @last_procs_check - t)) if @last_procs_check
+        Curses.addstr(': ')
+        bold { Curses.addstr(sprintf('%5d', procs_stats['TOTAL'])) }
+        Curses.addstr(' total, ')
+        bold { Curses.addstr(sprintf('%3d', procs_stats['R'])) }
+        Curses.addstr(' running, ')
+        bold { Curses.addstr(sprintf('%3d', procs_stats['D'])) }
+        Curses.addstr(' blocked, ')
+        bold { Curses.addstr(sprintf('%5d', procs_stats['S'])) }
+        Curses.addstr(' sleeping, ')
+        bold { Curses.addstr(sprintf('%2d', procs_stats['T'])) }
+        Curses.addstr(' stopped, ')
+        bold { Curses.addstr(sprintf('%2d', procs_stats['Z'])) }
+        Curses.addstr(' zombie ')
+        pos += 1
+      end
 
       # CPU
       cpu = data[:cpu]

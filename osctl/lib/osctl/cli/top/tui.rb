@@ -7,6 +7,11 @@ module OsCtl::Cli
     HIGHLIGHTED = 2
     SELECTED_HIGHLIGHTED = 3
 
+    def initialize(model, rate, enable_procs: true)
+      super(model, rate)
+      @enable_procs = enable_procs
+    end
+
     def start
       Curses.init_screen
       Curses.start_color
@@ -18,7 +23,7 @@ module OsCtl::Cli
       Curses.init_pair(HIGHLIGHTED, Curses::COLOR_YELLOW, Curses::COLOR_BLACK)
       Curses.init_pair(SELECTED_HIGHLIGHTED, Curses::COLOR_RED, Curses::COLOR_WHITE)
 
-      screen = Top::Tui::Main.new(model, rate)
+      screen = Top::Tui::Main.new(model, rate, enable_procs: @enable_procs)
 
       loop do
         screen = screen.open
