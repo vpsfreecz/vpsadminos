@@ -1723,6 +1723,11 @@ The following shortcuts are supported:
     `-r`, `--rate` *n*
       Refresh rate in seconds, defaults to 1 second.
 
+    `--no-processes`
+      Disable tracking of process states, which needs to walk through all
+      processes in `/proc`. Relevant only for TUI, JSON output does not contain
+      this information.
+
     `--no-iostat`
       Do not track the host's io stats using `zpool iostat`.
 
