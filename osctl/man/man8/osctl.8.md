@@ -910,7 +910,7 @@ The following shortcuts are supported:
     `-t`, `--timeout` *timeout*
       How many seconds to wait for the container to cleanly shutdown before
       killing it or failing, depending on whether option `--dont-kill` is set.
-      The default timeout is *120* seconds.
+      The default timeout is *300* seconds.
 
 `ct restart` [*options*] *ctid*
   Restart container *ctid*. By default, `ct restart` calls `ct stop` and `ct start`
@@ -945,7 +945,7 @@ The following shortcuts are supported:
     `-t`, `--timeout` *timeout*
       How many seconds to wait for the container to cleanly shutdown before
       killing it or failing, depending on whether option `--dont-kill` is set.
-      The default timeout is *120* seconds.
+      The default timeout is *300* seconds.
 
     `-a`, `--attach`
       Attach the container using `ct attach` after it starts. Conflicts with
