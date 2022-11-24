@@ -2168,6 +2168,12 @@ module OsCtl::Cli
         c.action &Command.run(Self, :ping)
       end
 
+      desc 'Execute Ruby script with osctl modules'
+      arg_name '<file> [args...]'
+      command :script do |c|
+        c.action &Command.run(Self, :script)
+      end
+
       desc 'Configure the system after it was upgraded'
       command :activate do |c|
         c.desc 'Regenerate system files'

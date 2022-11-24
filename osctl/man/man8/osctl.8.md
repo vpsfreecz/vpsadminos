@@ -2925,6 +2925,9 @@ The following shortcuts are supported:
   - `2` Unable to connect to `osctld`
   - `3` Connected, but received unexpected response
 
+`script` *file* [*args...*]
+  Execute ruby script *file* with `osctl` and `libosctl` modules loaded.
+
 `activate` [*options*]
   Configure the system after it was upgraded, i.e. the new system closure
   has been activated.

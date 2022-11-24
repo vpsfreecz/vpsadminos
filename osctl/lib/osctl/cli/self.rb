@@ -57,6 +57,22 @@ module OsCtl::Cli
       end
     end
 
+    def script
+      require_args!('file', strict: false)
+
+      ARGV.shift # script
+      ARGV.shift # <file>
+
+      begin
+        script_path = File.realpath(args[0])
+      rescue Errno::ENOENT
+        warn "Script not found at #{script_path}"
+        exit(false)
+      end
+
+      load(script_path)
+    end
+
     def activate
       osctld_fmt(:self_activate, cmd_opts: {system: opts[:system], lxcfs: opts[:lxcfs]})
     end
