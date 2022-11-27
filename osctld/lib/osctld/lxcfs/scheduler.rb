@@ -219,7 +219,7 @@ module OsCtld
           @workers.each_value.select do |w|
             w.can_handle_ctrc?(ctrc)
           end.sort do |a, b|
-            a.size <=> b.size
+            b.size <=> a.size
           end.first
 
         if worker.nil?
