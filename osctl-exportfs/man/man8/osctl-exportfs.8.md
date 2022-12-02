@@ -1,4 +1,4 @@
-# osctl-exportfs 8                2022-06-26                             22.05
+# osctl-exportfs 8                2022-12-02                             22.11.0
 
 ## NAME
 `osctl-exportfs` - manage dedicated NFS servers for filesystem exports
