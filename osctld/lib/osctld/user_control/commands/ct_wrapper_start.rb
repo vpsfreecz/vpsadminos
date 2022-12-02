@@ -14,6 +14,7 @@ module OsCtld
 
       # Move the calling wrapper to user-owned cgroup, which will then be used
       # by LXC
+      log(:debug, ct, 'Reattaching wrapper')
       CGroup.subsystems.each do |subsys|
         CGroup.mkpath(
           subsys,
@@ -28,7 +29,7 @@ module OsCtld
       # a process with CAP_SYS_RESOURCE (which osctld is), so that
       # oom_score_adj_min is changed and container users cannot freely set
       # oom_score_adj to -1000.
-      log(:debug, "Set /proc/#{opts[:pid]}/oom_score_adj=0")
+      log(:debug, ct, "Set /proc/#{opts[:pid]}/oom_score_adj=0")
       File.open(File.join('/proc', opts[:pid].to_s, 'oom_score_adj'), 'w') do |f|
         f.write('0')
       end
