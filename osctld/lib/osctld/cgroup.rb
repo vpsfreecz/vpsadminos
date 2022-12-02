@@ -139,13 +139,23 @@ module OsCtld
       end
 
       if attach
-        ['tasks', 'cgroup.procs'].each do |tasks|
+        attached = false
+        attach_pid = pid || Process.pid
+
+        ['cgroup.procs', 'tasks'].each do |tasks|
           tasks_path = File.join(cgroup, tasks)
           next unless File.exist?(tasks_path)
 
           File.open(tasks_path, 'a') do |f|
-            f.write("#{pid || Process.pid}\n")
+            f.puts(attach_pid)
           end
+
+          attached = true
+          break
+        end
+
+        unless attached
+          fail "unable to attach pid #{attach_pid} to cgroup #{cgroup.inspect}"
         end
       end
 
