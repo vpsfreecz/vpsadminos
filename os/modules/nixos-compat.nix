@@ -4,6 +4,7 @@ with lib;
 
 {
   options = {
+    boot.initrd.systemd = mkOption { };
     services = {
       cgmanager = mkOption { };
       fprintd = mkOption { };

@@ -40,4 +40,5 @@
   <nixpkgs/nixos/modules/config/sysctl.nix>
   <nixpkgs/nixos/modules/config/users-groups.nix>
   <nixpkgs/nixos/modules/config/i18n.nix>
+  <nixpkgs/nixos/modules/config/mysql.nix>
 ]
