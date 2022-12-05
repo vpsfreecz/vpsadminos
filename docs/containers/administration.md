@@ -90,7 +90,7 @@ Because we haven't selected a group when creating the container, *osctld* put
 it into the *default* group. Let's see its assets:
 
 ```console
-group assets /default
+osctl group assets /default
 TYPE        PATH                                                     STATE   PURPOSE
 file        /tank/conf/group/default/config.yml                      valid   osctld's group config
 directory   /run/osctl/pools/tank/users/myuser01/group.default/cts   valid   LXC path for myuser01:/default
@@ -100,7 +100,7 @@ As you can see, there is one LXC path for user `myuser01` and group `default`,
 where our container resides. Let's review the container:
 
 ```bash
-ct assets myct01
+osctl ct assets myct01
 TYPE        PATH                                                                     STATE     PURPOSE
 dataset     tank/ct/myct01                                                           valid     Container's rootfs dataset
 directory   /tank/ct/myct01/private                                                  valid     Container's rootfs
@@ -124,11 +124,11 @@ point of view, so that whatever container you enter, you always get the same
 prompt and behaviour.
 
 ```bash
-ct attach myct01
+osctl ct attach myct01
 [CT myct01] root@myct01:/# cat /etc/alpine-release
 3.7.0
 
-ct attach myct02
+osctl ct attach myct02
 [CT myct02] root@myct02:/# lsb_release -a
 No LSB modules are available.
 Distributor ID: Ubuntu
