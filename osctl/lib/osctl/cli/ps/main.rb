@@ -57,19 +57,25 @@ module OsCtl::Cli
       spinner.update(title: 'Listing processes...')
       spinner.auto_spin
 
-      queue = OsCtl::Lib::Queue.new
-      thread = Thread.new { list_processes(queue, ctids) }
+      list_queue = OsCtl::Lib::Queue.new
+      list_thread = Thread.new { list_processes(list_queue, ctids) }
+      update_queue = OsCtl::Lib::Queue.new
+      update_thread = Thread.new { update_loop(update_queue) }
       last_pid = nil
+      @update_count = false
+      total = 0
       error = false
       ret = nil
 
       loop do
-        pid = queue.pop(timeout: 5)
+        v = list_queue.pop(timeout: 5)
 
-        if pid.is_a?(OsCtl::Lib::ProcessList)
-          ret = pid
+        if v.is_a?(OsCtl::Lib::ProcessList)
+          ret = v
           break
         end
+
+        pid = v
 
         if pid.nil? && !error
           msg =
@@ -84,15 +90,21 @@ module OsCtl::Cli
           next
         end
 
-        if pid && error
-          spinner.update(title: 'Listing processes...')
-          error = false
-        end
-
+        total += 1
         last_pid = pid
+
+        if pid && error
+          spinner.update(title: "Listing processes... #{total}")
+          error = false
+        elsif pid && @update_count
+          spinner.update(title: "Listing processes... #{total}")
+          @update_count = false
+        end
       end
 
-      thread.join
+      update_queue << :stop
+      list_thread.join
+      update_thread.join
       spinner.stop
       ret
     end
@@ -117,6 +129,13 @@ module OsCtl::Cli
       end
 
       queue << pl
+    end
+
+    def update_loop(queue)
+      loop do
+        return if queue.pop(timeout: 1) == :stop
+        @update_count = true
+      end
     end
   end
 end
