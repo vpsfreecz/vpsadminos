@@ -1005,7 +1005,7 @@ The following shortcuts are supported:
   Execute *script* within the context of container *ctid*.
 
   If *script* is `-`, the script to execute is read from the standard input.
-  In this case, the script cannot read from the standard output itself.
+  In this case, the script cannot read from the standard input itself.
 
     `-r`, `--run-container`
       If the container isn't already running, start it, but run *script* instead
