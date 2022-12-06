@@ -24,7 +24,7 @@ module OsCtl::Cli
       name
     )
 
-    DEFAULT = %i(
+    DEFAULT_CT = %i(
       pid
       ctpid
       cteuid
@@ -35,6 +35,8 @@ module OsCtl::Cli
       time
       command
     )
+
+    DEFAULT_ALL = %i(pool ctid) + DEFAULT_CT
 
     ALIGN_RIGHT = %i(
       pid
@@ -89,11 +91,13 @@ module OsCtl::Cli
     end
 
     def pool
-      os_proc.ct_id[0]
+      pool, _ = os_proc.ct_id
+      pool.nil? ? '-' : pool
     end
 
     def ctid
-      os_proc.ct_id[1]
+      pool, id = os_proc.ct_id
+      pool.nil? ? '[host]' : id
     end
 
     def pid
@@ -157,7 +161,13 @@ module OsCtl::Cli
     end
 
     def command
-      os_proc.cmdline
+      cmdline = os_proc.cmdline
+
+      if cmdline.strip.empty?
+        "[#{os_proc.name}]"
+      else
+        cmdline
+      end
     end
 
     def name

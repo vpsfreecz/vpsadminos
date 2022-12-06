@@ -1739,8 +1739,9 @@ The following shortcuts are supported:
     `-H`, `--hide-header`
       Do not show header, useful for scripting.
 
-`ct ps` *ctid*
-  Filter processes belonging to container *ctid* without entering the container.
+`ct ps` [*ctid*...] | `-`
+  Filter processes belonging to containers with *ctid*. If no *ctid* is provided,
+  all system processes are listed. `-` will filter processes from the host.
 
   Available parameters:
 

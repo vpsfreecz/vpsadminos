@@ -192,11 +192,11 @@ module OsCtl::Lib
     def parse_status
       File.open(File.join(path, 'status'), 'r') do |f|
         f.each_line do |line|
-          parts = line.split(':')
-          next if parts.count != 2
+          colon = line.index(':')
+          next if colon.nil?
 
-          k = parts[0].strip
-          v = parts[1].strip
+          k = line[0..(colon-1)].strip
+          v = line[(colon+1)..-1].strip
 
           case k
           when 'NSpid'

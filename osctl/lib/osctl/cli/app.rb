@@ -1431,7 +1431,7 @@ module OsCtl::Cli
         end
 
         ct.desc 'List container processes'
-        ct.arg_name '<ctid>'
+        ct.arg_name '[ctid...]'
         ct.command :ps do |c|
           c.desc 'Select parameters to output'
           c.flag %i(o output), arg_name: 'parameters'

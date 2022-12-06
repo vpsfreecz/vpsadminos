@@ -8,26 +8,53 @@ module OsCtl::Cli
         return
       end
 
-      require_args!('id')
+      require_args!(optional: %w(id), strict: false)
 
-      if args[0].index(':')
-        pool, id = args[0].split(':')
-      else
-        pool = gopts[:pool]
-        id = args[0]
-      end
+      ctids = {}
 
-      pl = OsCtl::Lib::ProcessList.new do |p|
-        ctid = p.ct_id
-
-        if ctid.nil? || (pool && ctid[0] != pool) || (ctid[1] != id)
-          false
+      args.each do |arg|
+        if arg == '-'
+          ctids[:host] = true
+        elsif arg.index(':')
+          pool, id = arg.split(':')
+          ctids["#{pool}:#{id}"] = true
         else
-          true
+          pool = gopts[:pool]
+          id = arg
+
+          if pool
+            ctids["#{pool}:#{id}"] = true
+          else
+            ctids[id] = true
+          end
         end
       end
 
-      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : Ps::Columns::DEFAULT
+      pl = OsCtl::Lib::ProcessList.new do |p|
+        pool, id = p.ct_id
+
+        # All processes
+        if ctids.empty?
+          true
+        # Host processes
+        elsif pool.nil? && ctids[:host]
+          true
+        # Filter processes by ctid
+        elsif pool && (ctids.has_key?(id) || ctids.has_key?("#{pool}:#{id}"))
+          true
+        # Reject the rest
+        else
+          false
+        end
+      end
+
+      cols =
+        if opts[:output]
+          opts[:output].split(',').map(&:to_sym)
+        else
+          ctids.size == 1 ? Ps::Columns::DEFAULT_CT : Ps::Columns::DEFAULT_ALL
+        end
+
       out_cols, out_data = Ps::Columns.generate(pl, cols, gopts[:parsable])
 
       OsCtl::Lib::Cli::OutputFormatter.print(
