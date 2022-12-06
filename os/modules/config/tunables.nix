@@ -27,9 +27,15 @@ with lib;
     # does not have the memory itself, mmap() will return ENOMEM and mysqld will
     # remain operational.
     #
-    # irb(main):001:0> (1048576 * 32 * 16) / 1024.0 / 1024
-    # => 512.0 # minimal amount of memory in MB the container needs to start mysqld
-    "fs.nr_open" = mkDefault (1048576 * 32);
+    # irb(main):001:0> (1048576 * 4 * 16) / 1024.0 / 1024
+    # => 64.0 # minimal amount of memory in MB the container needs to start mysqld
+    #
+    # Another issue with high NOFILE is in mount.nfs (at least on Debian 10),
+    # which also uses the value to allocate memory using mmap().
+    #
+    # Until we find a way to decouple fs.nr_open from NOFILE prlimit, we must
+    # keep it low.
+    "fs.nr_open" = mkDefault (1048576 * 4);
 
     "fs.aio-max-nr" = mkDefault (3 * 1024 * 1024 * 1024 - 1);
     "fs.inotify.max_queued_events" = mkDefault (2 * 1024 * 1024 * 1024 - 1);
