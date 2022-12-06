@@ -1,4 +1,5 @@
 require 'libosctl'
+require 'tty-spinner'
 
 module OsCtl::Cli
   class Ps::Main < Command
@@ -30,23 +31,7 @@ module OsCtl::Cli
         end
       end
 
-      pl = OsCtl::Lib::ProcessList.new do |p|
-        pool, id = p.ct_id
-
-        # All processes
-        if ctids.empty?
-          true
-        # Host processes
-        elsif pool.nil? && ctids[:host]
-          true
-        # Filter processes by ctid
-        elsif pool && (ctids.has_key?(id) || ctids.has_key?("#{pool}:#{id}"))
-          true
-        # Reject the rest
-        else
-          false
-        end
-      end
+      pl = get_process_list(ctids)
 
       cols =
         if opts[:output]
@@ -64,6 +49,80 @@ module OsCtl::Cli
         header: opts['hide-header'] ? false : true,
         sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
       )
+    end
+
+    protected
+    def get_process_list(ctids)
+      spinner = TTY::Spinner.new("[:spinner] :title", clear: true)
+      spinner.update(title: 'Listing processes...')
+      spinner.auto_spin
+
+      queue = OsCtl::Lib::Queue.new
+      thread = Thread.new { list_processes(queue, ctids) }
+      last_pid = nil
+      error = false
+      ret = nil
+
+      loop do
+        pid = queue.pop(timeout: 5)
+
+        if pid.is_a?(OsCtl::Lib::ProcessList)
+          ret = pid
+          break
+        end
+
+        if pid.nil? && !error
+          msg =
+            if last_pid.nil?
+              'Taking long to list /proc entries'
+            else
+              "Taking long to process pid #{last_pid}"
+            end
+
+          spinner.update(title: msg)
+          error = true
+          next
+        end
+
+        if pid && error
+          spinner.update(title: 'Listing processes...')
+          error = false
+        end
+
+        last_pid = pid
+      end
+
+      thread.join
+      spinner.stop
+      ret
+    end
+
+    def list_processes(queue, ctids)
+      pl = OsCtl::Lib::ProcessList.new(parse_stat: false, parse_status: false) do |p|
+        # Signal which pid we're on
+        queue << p.pid
+
+        # Parse proc files
+        p.parse
+
+        pool, id = p.ct_id
+
+        # All processes
+        if ctids.empty?
+          true
+        # Host processes
+        elsif pool.nil? && ctids[:host]
+          true
+        # Filter processes by ctid
+        elsif pool && (ctids.has_key?(id) || ctids.has_key?("#{pool}:#{id}"))
+          true
+        # Reject the rest
+        else
+          false
+        end
+      end
+
+      queue << pl
     end
   end
 end

@@ -90,6 +90,14 @@ module OsCtl::Lib
       end
     end
 
+    # Menually invoke parsing of `/proc/<pid>/stat` and `/proc/<pid>/status`
+    def parse
+      volatile do
+        parse_stat
+        parse_status
+      end
+    end
+
     # @return [OsProcess]
     def parent
       self.class.new(ppid, **opts)
