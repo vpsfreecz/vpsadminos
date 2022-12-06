@@ -22,7 +22,6 @@ module OsCtld
       # @return [String]
       attr_reader :dst
 
-      # @param cloned [Boolean]
       # @return [Boolean]
       attr_accessor :cloned
 

@@ -45,16 +45,16 @@ module OsCtld
 
     # @param new_hostname [OsCtl::Lib::Hostname]
     # @param old_hostname [OsCtl::Lib::Hostname, nil]
-    def update_etc_hosts(hostname, old_hostname: nil)
+    def update_etc_hosts(new_hostname, old_hostname: nil)
       path = File.join(rootfs, 'etc', 'hosts')
       return unless writable?(path)
 
       hosts = EtcHosts.new(path)
 
       if old_hostname
-        hosts.replace(old_hostname, hostname)
+        hosts.replace(old_hostname, new_hostname)
       else
-        hosts.set(hostname)
+        hosts.set(new_hostname)
       end
     end
 
@@ -119,7 +119,7 @@ module OsCtld
     # The class should be a subclass of {DistConfig::Network::Base}.
     #
     # If an array of classes is returned, they are instantiated and the first
-    # class for which {DistConfig::Network#usable?} returns true is used.
+    # class for which {DistConfig::Network::Base#usable?} returns true is used.
     # An exception is raised if no class is found to be usable.
     #
     # If `nil` is returned, you are expected to implement {#network} and other

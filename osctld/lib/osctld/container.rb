@@ -780,7 +780,7 @@ module OsCtld
     end
 
     # Update keys/values from `new_config` in the container's config
-    # @param config [Hash]
+    # @param new_config [Hash]
     def patch_config(new_config)
       exclusively do
         tmp = dump_config

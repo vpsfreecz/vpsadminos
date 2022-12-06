@@ -18,7 +18,6 @@ module OsCtld
     # @return [Integer]
     attr_reader :size
 
-    # @param [Integer]
     # @return [Integer]
     attr_synchronized_accessor :max_size
 

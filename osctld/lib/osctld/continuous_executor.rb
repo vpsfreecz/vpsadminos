@@ -92,7 +92,7 @@ module OsCtld
     end
 
     # Remove enqueued command identified by its id
-    # @param id [any]
+    # @param cmd_id [any]
     def remove(cmd_id)
       @front_queue << [:remove, cmd_id]
     end

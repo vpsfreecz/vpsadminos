@@ -56,7 +56,7 @@ module OsCtld
     end
 
     # Return an absolute path to a cgroup
-    # @param type [String] subsystem
+    # @param subsys [String] subsystem
     # @param path [String]
     # @return [String]
     def self.abs_cgroup_path(subsys, *path)
@@ -68,7 +68,7 @@ module OsCtld
     end
 
     # Check if cgroup exists
-    # @param type [String] subsystem
+    # @param subsys [String] subsystem
     # @param path [String]
     # @return [Boolean]
     def self.abs_cgroup_path_exist?(subsys, *path)

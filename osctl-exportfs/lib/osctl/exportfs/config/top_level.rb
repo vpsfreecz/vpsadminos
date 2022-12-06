@@ -13,22 +13,18 @@ module OsCtl::ExportFS
     # @param netif [String]
     attr_writer :netif
 
-    # @param address [String]
     # @return [String, nil]
     attr_accessor :address
 
     # @return [Config::Nfsd]
     attr_reader :nfsd
 
-    # @param mountd_port [Integer]
     # @return [Integer, nil]
     attr_accessor :mountd_port
 
-    # @param lockd_port [Integer]
     # @return [Integer, nil]
     attr_accessor :lockd_port
 
-    # @param statd_port [Integer]
     # @return [Integer, nil]
     attr_accessor :statd_port
 

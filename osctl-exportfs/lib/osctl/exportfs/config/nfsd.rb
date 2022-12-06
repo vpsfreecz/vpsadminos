@@ -2,27 +2,21 @@ module OsCtl::ExportFS
   class Config::Nfsd
     VERSIONS = %w(2 3 4 4.0 4.1 4.2)
 
-    # @param port [Integer]
     # @return [Integer, nil]
     attr_accessor :port
 
-    # @param nproc [Integer]
     # @return [Integer]
     attr_accessor :nproc
 
-    # @param tcp [Boolean]
     # @return [Boolean]
     attr_accessor :tcp
 
-    # @param udp [Boolean]
     # @return [Boolean]
     attr_accessor :udp
 
-    # @param versions [Array<String>]
     # @return [Array<String>]
     attr_accessor :versions
 
-    # @param syslog [Boolean]
     # @return [Boolean]
     attr_accessor :syslog
 

@@ -77,7 +77,7 @@ module OsCtld
     attr_reader :initialized
 
     private
-    # @param config [String] path to config file
+    # @param config_file [String] path to config file
     def initialize(config_file)
       @config = Config.new(config_file)
       @started_at = Time.now

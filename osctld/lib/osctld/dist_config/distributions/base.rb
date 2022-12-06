@@ -158,7 +158,7 @@ module OsCtld
     # hostname.
     #
     # @param opts [Hash] options
-    # @param opts [OsCtl::Lib::Hostname, nil] :old_hostname
+    # @option opts [OsCtl::Lib::Hostname, nil] :old_hostname
     def update_etc_hosts(opts = {})
       with_rootfs do
         configurator.update_etc_hosts(ct.hostname, old_hostname: opts[:old_hostname])

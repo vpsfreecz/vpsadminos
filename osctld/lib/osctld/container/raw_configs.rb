@@ -6,7 +6,7 @@ module OsCtld
 
     include Lockable
 
-    # @param configs [Hash<String, String>]
+    # @param config [Hash<String, String>]
     def self.load(config)
       new(Hash[config.map { |k, v| [k.to_sym, v] }])
     end
