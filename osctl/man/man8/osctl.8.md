@@ -2814,23 +2814,21 @@ The following shortcuts are supported:
   belonging to other packages.
 
   When a container starts, it is assigned to one CPU package. The scheduler selects
-  the package either using the container's daily CPU use or by the number of
-  containers using a package. Use `ct ls -o id,cpu_package` to see containers
-  and their CPU package.
+  the package either using the container's average daily CPU use or by the number
+  of containers using a package. Use `ct ls -o id,cpu_package_inuse,cpu_package_set`
+  to see containers and their CPU package.
 
 `cpu-scheduler enable`
   Turn on container CPU scheduler.
 
   The scheduler can be turned on using vpsAdminOS configuration option
-  `osctld.cpuScheduler.enable`. Enabling the scheduler using this command has
-  effect only until `osctld` is restarted.
+  `osctld.settings.cpu_scheduler.enable`.
 
 `cpu-scheduler disable`
   Disable the CPU scheduler.
 
   The scheduler can be permanently turned ooff using vpsAdminOS configuration option
-  `osctld.cpuScheduler.enable`. Disabling the scheduler using this command has
-  effect only until `osctld` is restarted.
+  `osctld.settings.cpu_scheduler.enable`.
 
 `cpu-scheduler upkeep`
   Run internal CPU scheduler upkeep mechanism, which corrects mistakes in its
@@ -2857,8 +2855,6 @@ The following shortcuts are supported:
 
 `cpu-scheduler package disable` *package*
   Prevent the scheduler from assigning containers to *package*
-
-  This setting is lost on `osctld` restart, after which all packages are enabled.
 
 `lxcfs worker ls`
   List LXCFS workers.
