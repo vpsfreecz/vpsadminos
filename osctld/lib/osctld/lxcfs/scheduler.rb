@@ -67,6 +67,7 @@ module OsCtld
         user: 0,
         group: 0,
         mode: 0400,
+        optional: true,
       )
 
       @workers.each_value do |w|
