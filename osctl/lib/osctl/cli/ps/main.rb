@@ -102,24 +102,18 @@ module OsCtl::Cli
         # Signal which pid we're on
         queue << p.pid
 
-        # Parse proc files
-        p.parse
-
+        # Filter processes
         pool, id = p.ct_id
 
-        # All processes
-        if ctids.empty?
-          true
-        # Host processes
-        elsif pool.nil? && ctids[:host]
-          true
-        # Filter processes by ctid
-        elsif pool && (ctids.has_key?(id) || ctids.has_key?("#{pool}:#{id}"))
-          true
-        # Reject the rest
-        else
-          false
+        if !ctids.empty? \
+           && !(pool.nil? && ctids[:host]) \
+           && !(pool && (ctids.has_key?(id) || ctids.has_key?("#{pool}:#{id}")))
+          next(false)
         end
+
+        # Parse process files
+        p.parse
+        p.cmdline
       end
 
       queue << pl

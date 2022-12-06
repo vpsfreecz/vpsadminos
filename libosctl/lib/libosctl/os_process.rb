@@ -164,7 +164,9 @@ module OsCtl::Lib
     # Read /proc/<pid>/cmdline
     # @return [String]
     def cmdline
-      volatile { File.read(File.join(path, 'cmdline')).gsub("\0", " ").strip }
+      cache(:cmdline) do
+        volatile { File.read(File.join(path, 'cmdline')).gsub("\0", " ").strip }
+      end
     end
 
     # Flush cache and read fresh information from `/proc`
