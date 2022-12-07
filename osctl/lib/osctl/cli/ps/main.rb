@@ -31,13 +31,17 @@ module OsCtl::Cli
         end
       end
 
-      pl = get_process_list(ctids)
+      pl, pools = get_process_list(ctids)
 
       cols =
         if opts[:output]
           opts[:output].split(',').map(&:to_sym)
+        elsif ctids.size == 1
+          Ps::Columns::DEFAULT_ONE_CT
+        elsif pools.size == 1
+          Ps::Columns::DEFAULT_ONE_POOL
         else
-          ctids.size == 1 ? Ps::Columns::DEFAULT_CT : Ps::Columns::DEFAULT_ALL
+          Ps::Columns::DEFAULT_MULTIPLE_POOLS
         end
 
       out_cols, out_data = Ps::Columns.generate(pl, cols, gopts[:parsable])
@@ -70,7 +74,7 @@ module OsCtl::Cli
       loop do
         v = list_queue.pop(timeout: 5)
 
-        if v.is_a?(OsCtl::Lib::ProcessList)
+        if v.is_a?(Array)
           ret = v
           break
         end
@@ -114,6 +118,7 @@ module OsCtl::Cli
     end
 
     def list_processes(queue, ctids)
+      pools = {}
       pl = OsCtl::Lib::ProcessList.new(parse_stat: false, parse_status: false) do |p|
         # Signal which pid we're on
         queue << p.pid
@@ -127,12 +132,14 @@ module OsCtl::Cli
           next(false)
         end
 
+        pools[pool] = true if pool
+
         # Parse process files
         p.parse
         p.cmdline
       end
 
-      queue << pl
+      queue << [pl, pools]
     end
 
     def update_loop(queue)

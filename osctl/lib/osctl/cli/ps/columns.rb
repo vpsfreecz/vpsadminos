@@ -24,7 +24,7 @@ module OsCtl::Cli
       name
     )
 
-    DEFAULT_CT = %i(
+    DEFAULT_ONE_CT = %i(
       pid
       ctpid
       cteuid
@@ -36,7 +36,9 @@ module OsCtl::Cli
       command
     )
 
-    DEFAULT_ALL = %i(pool ctid) + DEFAULT_CT
+    DEFAULT_ONE_POOL = %i(ctid) + DEFAULT_ONE_CT
+
+    DEFAULT_MULTIPLE_POOLS = %i(pool) + DEFAULT_ONE_POOL
 
     ALIGN_RIGHT = %i(
       pid
