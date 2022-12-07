@@ -44,10 +44,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0yk5d10yvspkc5jyvx9gc1a9pn1z8v4k2hvjk1l88zixwf3wf3cl";
+      sha256 = "0nalhin1gda4v8ybk6lq8f407cgfrj6qzn234yra4ipkmlbfmal6";
       type = "gem";
     };
-    version = "2.6.2";
+    version = "2.6.3";
   };
   libosctl = {
     dependencies = ["rainbow" "require_all"];
@@ -55,21 +55,21 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "02w4g9crr8rj0h95ffgq8998iibxc7c4d29zk5zliiwgannknlp5";
+      sha256 = "00qv11hmk9pj2qaamc8n6njmk8czj17z8sqkp4zdkq61ng4zphh2";
       type = "gem";
     };
-    version = "22.11.0.build20221202145411";
+    version = "22.11.0.build20221207093951";
   };
   osctl = {
-    dependencies = ["curses" "gli" "highline" "ipaddress" "json" "libosctl" "rainbow" "require_all" "ruby-progressbar"];
+    dependencies = ["curses" "gli" "highline" "ipaddress" "json" "libosctl" "rainbow" "require_all" "ruby-progressbar" "tty-spinner"];
     groups = ["default"];
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "10y8z62pzq7cv3p0gwqr7njmg4bdsm2vj670li8n2yds0ki9sxr9";
+      sha256 = "16j4g3xghgc74qfis11wy318srjcw9nhrgkr5vifgkls98wr6kcp";
       type = "gem";
     };
-    version = "22.11.0.build20221202145411";
+    version = "22.11.0.build20221207093951";
   };
   rainbow = {
     groups = ["default"];
@@ -100,5 +100,26 @@
       type = "gem";
     };
     version = "1.11.0";
+  };
+  tty-cursor = {
+    groups = ["default"];
+    platforms = [];
+    source = {
+      remotes = ["https://rubygems.vpsfree.cz"];
+      sha256 = "0j5zw041jgkmn605ya1zc151bxgxl6v192v2i26qhxx7ws2l2lvr";
+      type = "gem";
+    };
+    version = "0.7.1";
+  };
+  tty-spinner = {
+    dependencies = ["tty-cursor"];
+    groups = ["default"];
+    platforms = [];
+    source = {
+      remotes = ["https://rubygems.vpsfree.cz"];
+      sha256 = "0hh5awmijnzw9flmh5ak610x1d00xiqagxa5mbr63ysggc26y0qf";
+      type = "gem";
+    };
+    version = "0.9.3";
   };
 }
