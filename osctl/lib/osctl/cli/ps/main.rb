@@ -82,10 +82,10 @@ module OsCtl::Cli
             if last_pid.nil?
               'Taking long to list /proc entries'
             else
-              "Taking long to process pid #{last_pid}"
+              sprintf('Taking long to process pid %d', last_pid)
             end
 
-          spinner.update(title: msg)
+          set_title(spinner, msg)
           error = true
           next
         end
@@ -94,10 +94,10 @@ module OsCtl::Cli
         last_pid = pid
 
         if pid && error
-          spinner.update(title: "Listing processes... #{total}")
+          set_title(spinner, sprintf('Listing processes... %8d', total))
           error = false
-        elsif pid && @update_count
-          spinner.update(title: "Listing processes... #{total}")
+        elsif pid
+          set_title(spinner, sprintf('Listing processes... %8d', total))
           @update_count = false
         end
       end
@@ -107,6 +107,10 @@ module OsCtl::Cli
       update_thread.join
       spinner.stop
       ret
+    end
+
+    def set_title(spinner, str)
+      spinner.tokens[:title] = sprintf('%-40s', str)
     end
 
     def list_processes(queue, ctids)
@@ -133,7 +137,7 @@ module OsCtl::Cli
 
     def update_loop(queue)
       loop do
-        return if queue.pop(timeout: 1) == :stop
+        return if queue.pop(timeout: 0.2) == :stop
         @update_count = true
       end
     end
