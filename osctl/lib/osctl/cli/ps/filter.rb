@@ -44,7 +44,7 @@ module OsCtl::Cli
       @parameter, @op, @value = parse_rule(str_rule)
     end
 
-    # @param [OsCtl::Lib::OsProcess]
+    # @param process [OsCtl::Lib::OsProcess]
     # @return [Boolean]
     def match?(process)
       param = get_param(process, @parameter)

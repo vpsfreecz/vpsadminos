@@ -20,13 +20,13 @@ module OsCtl::Lib
       end
     end
 
-    # @param entries [Array<String>]
+    # @param list [Array<String>]
     # @return [IdMap]
     def self.from_string_list(list, **opts)
       new(list.map { |str| Entry.from_string(str, **opts) })
     end
 
-    # @param entries [Array<Hash>]
+    # @param list [Array<Hash>]
     # @return [IdMap]
     def self.from_hash_list(list)
       new(list.map { |hash| Entry.from_hash(hash) })

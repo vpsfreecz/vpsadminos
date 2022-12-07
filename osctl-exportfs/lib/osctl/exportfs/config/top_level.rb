@@ -10,7 +10,7 @@ module OsCtl::ExportFS
     # @return [String]
     attr_reader :path
 
-    # @param netif [String]
+    # @return [String]
     attr_writer :netif
 
     # @return [String, nil]
@@ -31,7 +31,7 @@ module OsCtl::ExportFS
     # @return [Config::Exports]
     attr_reader :exports
 
-    # @param path [Server]
+    # @param server [Server]
     def initialize(server)
       @server = server
       @path = server.config_file
