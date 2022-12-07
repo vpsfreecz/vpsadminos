@@ -11,6 +11,8 @@ module OsCtl::Cli
 
       require_args!(optional: %w(id), strict: false)
 
+      filters = opts[:parameter].map { |v| Ps::Filter.new(v) }
+
       ctids = {}
 
       args.each do |arg|
@@ -31,7 +33,7 @@ module OsCtl::Cli
         end
       end
 
-      pl, pools = get_process_list(ctids)
+      pl, pools = get_process_list(ctids, filters)
 
       cols =
         if opts[:output]
@@ -64,13 +66,13 @@ module OsCtl::Cli
     end
 
     protected
-    def get_process_list(ctids)
+    def get_process_list(ctids, filters)
       spinner = TTY::Spinner.new("[:spinner] :title", clear: true)
       spinner.update(title: 'Listing processes...')
       spinner.auto_spin
 
       list_queue = OsCtl::Lib::Queue.new
-      list_thread = Thread.new { list_processes(list_queue, ctids) }
+      list_thread = Thread.new { list_processes(list_queue, ctids, filters) }
       update_queue = OsCtl::Lib::Queue.new
       update_thread = Thread.new { update_loop(update_queue) }
       last_pid = nil
@@ -125,7 +127,7 @@ module OsCtl::Cli
       spinner.tokens[:title] = sprintf('%-40s', str)
     end
 
-    def list_processes(queue, ctids)
+    def list_processes(queue, ctids, filters)
       pools = {}
       pl = OsCtl::Lib::ProcessList.new(parse_stat: false, parse_status: false) do |p|
         # Signal which pid we're on
@@ -140,11 +142,14 @@ module OsCtl::Cli
           next(false)
         end
 
-        pools[pool] = true if pool
-
         # Parse process files
         p.parse
         p.cmdline
+
+        next(false) if filters.detect { |f| !f.match?(p) }
+
+        pools[pool] = true if pool
+        true
       end
 
       queue << [pl, pools]

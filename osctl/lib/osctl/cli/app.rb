@@ -1445,6 +1445,9 @@ module OsCtl::Cli
           c.desc 'Sort by parameter(s)'
           c.flag %i(s sort), arg_name: 'parameters'
 
+          c.desc 'Filter by parameter values'
+          c.flag %i(p parameter), arg_name: 'cond', multiple: true
+
           c.action &Command.run(Ps::Main, :run)
         end
 
