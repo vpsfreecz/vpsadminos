@@ -53,6 +53,14 @@ module OsCtl::Cli
         header: opts['hide-header'] ? false : true,
         sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
       )
+
+      if pl.size > 1
+        warn "#{pl.size} processes"
+      elsif pl.size == 1
+        warn "#{pl.size} process"
+      else
+        warn "No processes found"
+      end
     end
 
     protected
