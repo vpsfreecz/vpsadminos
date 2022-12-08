@@ -15,6 +15,8 @@ let
       '';
 
       runlevels = [ "single" "rescue" "default" ];
+
+      onChange = "ignore";
     };
 
   tty1 = mkGetty "--noclear" "linux" "tty1";
