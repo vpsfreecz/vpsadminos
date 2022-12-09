@@ -36,15 +36,15 @@ enabling/disabling of services.
   Disable *service* from *runlevel*. *runlevel* defaults to `current`. This is
   an equivalent of `rm -f /etc/runit/runsvdir/<runlevel>/<service>`.
 
-`protect` *service*
-  Configure *service* to be skipped when switching to a new system configuration.
-  The service will not be restarted if it is changed by the new system version.
-  This setting is not persistend across system reboots.
+`protect` *service-pattern*
+  Configure *service-pattern* to be skipped when switching to a new system
+  configuration. Matching services will not be restarted if they are changed by
+  the new system version. This setting is not persisted across system reboots.
 
   The list of protected services is stored at `/run/runit/protected-services.txt`.
 
-`unprotect` *service*
-  Reverse `svctl protect` and allow *service* to be restarted or reloaded
+`unprotect` *service-pattern*
+  Reverse `svctl protect` and allow *service-pattern* to be restarted or reloaded
   when system configuration is switched.
 
 `list-protected`

@@ -181,7 +181,7 @@ class Services
     end
 
     def include?(name)
-      @services.include?(name)
+      @services.any? { |v| File.fnmatch?(v, name) }
     end
 
     protected
