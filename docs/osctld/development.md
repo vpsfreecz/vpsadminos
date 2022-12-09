@@ -78,7 +78,7 @@ Then you can start it from the source code:
 [... nix-shell setup ...]
 [... bundle setup ...]
 
-[nix-shell:/mnt/vpsadminos/osctld]$ osctld
+[nix-shell:/mnt/vpsadminos/osctld]$ run-osctld
 ```
 
 ## Deployment
