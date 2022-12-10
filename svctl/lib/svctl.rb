@@ -64,21 +64,18 @@ module SvCtl
   end
 
   # Ignore service changes on system configuration switch
-  # @param service [String]
-  def self.protect(service)
-    sv = Service.new(service, 'current')
-    fail 'service not found' unless sv.exist?
-
+  # @param service_pattern [String]
+  def self.protect(service_pattern)
     ItemFile.new(PROTECTED_SERVICES_FILE) do |list|
-      list << sv.name
+      list << service_pattern
     end
   end
 
   # Do not ignore service changes on system configuration switch
-  # @param service [String]
-  def self.unprotect(service)
+  # @param service_pattern [String]
+  def self.unprotect(service_pattern)
     ItemFile.new(PROTECTED_SERVICES_FILE) do |list|
-      list.delete(service)
+      list.delete(service_pattern)
     end
   end
 
