@@ -163,11 +163,13 @@ let
         };
 
         linePrefix = mkOption {
-          type = types.str;
-          default = "";
+          type = types.nullOr types.str;
+          default = null;
           description = ''
             Tells svlogd to prefix each line to be written to the log
             directory, to standard error, or through UDP.
+
+            If not set, it is set to include machine hostname and service name.
           '';
         };
       };
@@ -271,6 +273,12 @@ let
       exec chpst -ulog svlogd -tt /var/log/${name}
     '' else service.log.run;
 
+  mkLogLinePrefix = name: service:
+    if isNull service.log.linePrefix then
+      "${config.networking.hostName} ${name} "
+    else
+      service.log.linePrefix;
+
   mkLogConfig = name: service:
     pkgs.writeText "sv-${name}-log-config" ''
       s${toString service.log.maxFileSize}
@@ -278,7 +286,7 @@ let
       ${optionalString (service.log.minLogFiles > 0) "N${toString service.log.minLogFiles}"}
       ${optionalString (service.log.timeout > 0) "t${toString service.log.timeout}"}
       ${optionalString (service.log.sendTo != "") "${if service.log.sendOnly then "U" else "u"}${service.log.sendTo}"}
-      ${optionalString (service.log.linePrefix != "") "p${service.log.linePrefix}"}
+      ${optionalString (service.log.linePrefix != "") "p${mkLogLinePrefix name service}"}
     '';
 
   runlevels = lib.unique (lib.flatten (mapAttrsToList (name: service: service.runlevels) config.runit.services));
