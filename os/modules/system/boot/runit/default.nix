@@ -270,7 +270,7 @@ let
       mkdir -p /var/log/${name}
       chown log /var/log/${name}
       ln -sf ${mkLogConfig name service} /var/log/${name}/config
-      exec chpst -ulog svlogd -tt /var/log/${name}
+      exec chpst -ulog svlogd -l 4000 -b 4096 -tt /var/log/${name}
     '' else service.log.run;
 
   mkLogLinePrefix = name: service:
