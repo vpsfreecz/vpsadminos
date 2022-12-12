@@ -1,7 +1,7 @@
 let
   pkgs = import <nixpkgs> {
     overlays = [
-      (import ./os/overlays/lxc.nix)
+      (import ./os/overlays/packages.nix)
       (import ./os/overlays/ruby.nix)
     ];
   };

@@ -10,4 +10,6 @@ self: super:
   osctl-repo = super.callPackage ../packages/osctl-repo {};
   osctl-env-exec = super.callPackage ../packages/osctl-env-exec {};
   osvm = super.callPackage ../packages/osvm {};
+  svctl = super.callPackage ../packages/svctl {};
+  test-runner = super.callPackage ../packages/test-runner {};
 }
