@@ -149,7 +149,7 @@ let
       };
     };
 
-  netInterface = { config, lib, pkgs, ...}: {
+  netInterface = { config, lib, pkgs, ... }: {
     options = {
       type = mkOption {
         type = types.enum [ "bridge" "routed" ];
@@ -360,7 +360,7 @@ let
       optionList = map (name: { "${name}" = optionFor name; }) limitNames;
     in fold (v: acc: acc // v) {} optionList;
 
-  mount = { lib, pkgs, ...}: {
+  mount = { lib, pkgs, ... }: {
     options = {
       fs = mkOption {
         type = types.str;
@@ -421,7 +421,7 @@ let
     '';
   };
 
-  autostart = { lib, pkgs, ...}: {
+  autostart = { lib, pkgs, ... }: {
     options = {
       enable = mkEnableOption "Enable container autostart";
       priority = mkOption {
@@ -454,7 +454,7 @@ let
     '';
   };
 
-  startMenu = { lib, pkgs, ...}: {
+  startMenu = { lib, pkgs, ... }: {
     options = {
       enable = mkEnableOption "Enable container start menu";
 

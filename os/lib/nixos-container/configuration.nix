@@ -1,4 +1,4 @@
-{ config, pkgs, lib, ...}:
+{ config, pkgs, lib, ... }:
 let
   configClone = pkgs.writeText "configuration.nix" ''
     { config, pkgs, ... }:

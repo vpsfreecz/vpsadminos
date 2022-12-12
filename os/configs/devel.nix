@@ -1,4 +1,4 @@
-{ config, ...}:
+{ config, ... }:
 {
   boot.qemu.params = [
     "-drive index=0,id=drive1,file=${config.system.build.squashfs},readonly=on,media=cdrom,format=raw,if=virtio"

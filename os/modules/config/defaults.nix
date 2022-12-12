@@ -16,7 +16,7 @@
     startIntervals = [ "0 4 */14 * *" ];
   };
 
-  services.opensmtpd= {
+  services.opensmtpd = {
     enable = lib.mkDefault true;
     serverConfiguration = lib.mkDefault (
       let

@@ -53,7 +53,7 @@ let
     };
   };
 
-  cgparam = { lib, pkgs, ...}: {
+  cgparam = { lib, pkgs, ... }: {
     options = {
       version = mkOption {
         type = types.enum [ 1 2 ];
