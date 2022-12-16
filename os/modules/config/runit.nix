@@ -74,9 +74,6 @@ in
       1)
         mount -t tmpfs -o uid=0,gid=0,mode=0755 cgroup /sys/fs/cgroup
 
-        mkdir /sys/fs/cgroup/cglimit
-        mount -t cgroup -o cglimit cgroup /sys/fs/cgroup/cglimit
-
         mkdir /sys/fs/cgroup/cpuset
         mount -t cgroup -o cpuset cgroup /sys/fs/cgroup/cpuset
 
