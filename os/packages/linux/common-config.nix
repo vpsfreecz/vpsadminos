@@ -40,7 +40,6 @@ let
       CFS_BANDWIDTH             = yes;
 
       MEMCG_32BIT_IDS           = yes;
-      CGROUP_CGLIMIT            = yes;
       SYSLOG_NS                 = yes;
     };
 
