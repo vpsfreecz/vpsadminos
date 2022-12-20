@@ -3,7 +3,6 @@
 description="Mount cgroups inside LXC container."
 
 hybrid_cgroups="blkio
-	cglimit
 	cpu,cpuacct
 	cpuset
 	devices
