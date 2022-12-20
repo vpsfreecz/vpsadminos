@@ -124,7 +124,16 @@ module OsCtl::Lib
             # the process remains only in some cgroups that belong to
             # the container, e.g. on an incorrect shutdown.
             f.each_line do |line|
-              _id, _subsys, path = line.split(':')
+              begin
+                _id, _subsys, path = line.split(':')
+              rescue ArgumentError
+                # We have a kernel bug in 5.10.147.7, which malforms
+                # /proc/<pid>/cgroup contents, raising:
+                #
+                #   invalid byte sequence in US-ASCII (ArgumentError)
+                #
+                break
+              end
 
               next if /^\/osctl\/pool\.([^\/]+)/ !~ path
               pool = $1
