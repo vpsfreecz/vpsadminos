@@ -22,7 +22,7 @@ state, but all containers and their configuration is stored on ZFS pools.
 
 Containers in vpsAdminOS are managed by a system daemon called *osctld* --
 short for OS control daemon. *osctld* can be controlled using a command line
-interface called *osctl*.
+interface called *osctl*. All [*osctl* subcommands] are also directly available as [*osctl* command shortcuts].
 
 vpsAdminOS uses [LTS Linux kernel with a mix of out-of-tree patches]. These
 patches are essential, providing e.g. a syslog namespace to isolate kernel logs,
@@ -62,3 +62,5 @@ The learning curve is pretty steep, but we think it is well worth it.
 [LXCFS]: https://linuxcontainers.org/lxcfs/
 [AppArmor]: https://en.wikipedia.org/wiki/AppArmor
 [vpsFree.cz]: https://vpsfree.org
+[*osctl* subcommands]: https://man.vpsadminos.org/man8/osctl.8.html#commands
+[*osctl* command shortcuts]: https://man.vpsadminos.org/man8/osctl.8.html#command-shortcuts
