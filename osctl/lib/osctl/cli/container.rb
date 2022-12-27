@@ -1393,7 +1393,7 @@ module OsCtl::Cli
 
       out_cols, out_data = Ps::Columns.generate(
         pl,
-        Ps::Columns::DEFAULT,
+        Ps::Columns::DEFAULT_ONE_CT,
         gopts[:parsable],
       )
 
