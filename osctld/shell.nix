@@ -16,7 +16,6 @@ let
     openssh
     shadow
     util-linux
-    zfs
   ];
 
   pathJoined = lib.concatMapStringsSep ":" (s: "${s}/bin") path;

@@ -95,8 +95,4 @@ self: super:
   });
 
   scrubctl = super.callPackage ../packages/scrubctl {};
-
-  zfs = (super.callPackage ../packages/zfs {
-    configFile = "user";
-  }).zfsStable;
 }
