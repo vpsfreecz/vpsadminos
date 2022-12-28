@@ -95,9 +95,9 @@ module OsCtld
 
       if ctrc.destroy_dataset_on_stop?
         begin
-          zfs(:destroy, nil, ctrc.dataset)
+          TrashBin.add_dataset(ctrc.pool, ctrc.dataset)
         rescue SystemCommandFailed => e
-          log(:warn, ctrc, "Unable to destroy dataset '#{ctrc.dataset}': #{e.message}")
+          log(:warn, ctrc, "Unable to trash dataset '#{ctrc.dataset}': #{e.message}")
         end
       end
 

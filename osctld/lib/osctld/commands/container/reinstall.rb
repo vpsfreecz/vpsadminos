@@ -65,7 +65,7 @@ module OsCtld
         end
 
         # Destroy the original rootfs dataset
-        zfs(:destroy, nil, ct.dataset)
+        TrashBin.add_dataset(ct.pool, ct.dataset)
 
         # Replace the original dataset with the new one
         zfs(:rename, nil, "#{new_ds} #{ct.dataset}")

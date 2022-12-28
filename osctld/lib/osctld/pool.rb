@@ -18,6 +18,7 @@ module OsCtld
     LOG_DS = 'log'
     REPOSITORY_DS = 'repository'
     MIGRATION_DS = 'migration'
+    TRASH_BIN_DS = 'trash'
 
     OPTIONS = %i(parallel_start parallel_stop)
 
@@ -30,7 +31,7 @@ module OsCtld
     include OsCtl::Lib::Utils::Exception
 
     attr_reader :name, :dataset, :state, :send_receive_key_chain, :autostart_plan,
-      :autostop_plan, :attrs
+      :autostop_plan, :trash_bin, :attrs
 
     def initialize(name, dataset)
       init_lock
@@ -51,6 +52,7 @@ module OsCtld
         @send_receive_key_chain = SendReceive::KeyChain.new(self)
         @autostart_plan = AutoStart::Plan.new(self)
         @autostop_plan = AutoStop::Plan.new(self)
+        @trash_bin = TrashBin.new(self)
       end
     end
 
@@ -103,6 +105,13 @@ module OsCtld
         add.dataset(
           ds(MIGRATION_DS),
           desc: 'Data for OS migrations',
+          user: 0,
+          group: 0,
+          mode: 0500
+        )
+        add.dataset(
+          ds(TRASH_BIN_DS),
+          desc: 'Trash bin',
           user: 0,
           group: 0,
           mode: 0500
@@ -406,6 +415,10 @@ module OsCtld
       ds(CT_DS)
     end
 
+    def trash_bin_ds
+      ds(TRASH_BIN_DS)
+    end
+
     def conf_path
       path(CONF_DS)
     end
@@ -523,6 +536,7 @@ module OsCtld
       zfs(:create, '-p', ds(LOG_DS))
       zfs(:create, '-p', ds(REPOSITORY_DS))
       zfs(:create, '-p', ds(MIGRATION_DS))
+      zfs(:create, '-p', ds(TRASH_BIN_DS))
 
       File.chmod(0511, path(CT_DS))
       File.chmod(0500, path(CONF_DS))
@@ -533,6 +547,7 @@ module OsCtld
       File.chmod(0500, path(REPOSITORY_DS))
 
       File.chmod(0500, path(MIGRATION_DS))
+      File.chmod(0500, path(TRASH_BIN_DS))
 
       # Configuration directories
       %w(pool ct group user send-receive repository id-range).each do |dir|

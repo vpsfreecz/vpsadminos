@@ -41,8 +41,8 @@ module OsCtld
         ct.clear_start_menu
         ct.mounts.shared_dir.remove
 
-        progress('Destroying dataset')
-        zfs(:destroy, '-r', ct.dataset)
+        progress('Moving dataset to trash')
+        TrashBin.add_dataset(ct.pool, ct.dataset)
 
         progress('Removing LXC configuration and script hooks')
         Monitor::Master.demonitor(ct)
