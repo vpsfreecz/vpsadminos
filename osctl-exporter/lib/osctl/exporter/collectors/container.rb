@@ -402,7 +402,7 @@ module OsCtl::Exporter
         pool, ct = p.ct_id
         next if ct.nil?
 
-        pool_ct_procs[pool] ||= {ct => {}}
+        pool_ct_procs[pool] ||= {}
         pool_ct_procs[pool][ct] ||= {
           'R' => 0,
           'S' => 0,
