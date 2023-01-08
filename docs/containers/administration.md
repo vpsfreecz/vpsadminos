@@ -284,3 +284,11 @@ so running other containers would put them to a wrong group.
 
 The LXC utilities are unmodified except for the implicit arguments, which let
 you forget that there is a non-default LXC path and some container id.
+
+## osctl command shortcuts
+Selected *osctl* commands, such as `osctl ct`, have direct executables to avoid
+typing `osctl`. For example, `osctl ct ls` can be invoked as `ct ls`. See the
+[manual] for a list of available command shortcuts. If you need to pass global
+options, you still need to use `osctl`.
+
+[manual]: https://man.vpsadminos.org/man8/osctl.8.html#command-shortcuts
