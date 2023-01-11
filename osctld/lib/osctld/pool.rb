@@ -307,6 +307,9 @@ module OsCtld
       # Open history
       History.open(self)
 
+      # Start trash-bin GC
+      trash_bin.start
+
       exclusively { @state = :active }
 
       # Update container usage hints
@@ -374,6 +377,7 @@ module OsCtld
 
     def begin_stop
       autostart_plan.stop
+      trash_bin.stop
       update_ct_hints_queue.clear
     end
 

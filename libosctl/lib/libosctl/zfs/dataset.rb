@@ -101,9 +101,12 @@ module OsCtl::Lib
     # @option opts [Integer] :depth
     # @option opts [:filesystem] :type
     # @option opts [Array<String>, Array<Symbol>] :properties
+    # @option opts [Boolean] :include_self (true)
     # @option opts [Proc] :create
     # @return [Array<Zfs::Dataset>]
     def list(**opts)
+      include_self = opts.fetch(:include_self, true)
+
       zfs_opts = [
         '-r', '-H', '-p',
         '-o', 'name,property,value',
@@ -123,6 +126,8 @@ module OsCtl::Lib
 
       zfs(:get, zfs_opts.join(' '), name).output.strip.split("\n").each do |line|
         name, property, value = line.split
+
+        next if !include_self && name == self.name
 
         if !last || last.name != name
           ret << last unless last.nil?
