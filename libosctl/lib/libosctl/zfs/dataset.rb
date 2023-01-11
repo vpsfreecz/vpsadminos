@@ -8,6 +8,10 @@ module OsCtl::Lib
     # @return [String]
     attr_reader :name
 
+    # Zpool name
+    # @return [String]
+    attr_reader :pool
+
     # Dataset properties, only loaded properties are present
     # @return [Hash<String, String>]
     attr_reader :properties
@@ -24,6 +28,7 @@ module OsCtl::Lib
     # @param cache [Zfs::DatasetCache, nil]
     def initialize(name, base: '', properties: {}, cache: nil)
       @name = name
+      @pool = name.split('/').first
       @base = base
       @properties = properties
 
@@ -44,7 +49,11 @@ module OsCtl::Lib
 
     # @param pool [String]
     def on_pool?(pool)
-      name.start_with?("#{pool}/")
+      @pool == pool
+    end
+
+    def is_pool?
+      !@name.include?('/')
     end
 
     # @param dataset [Zfs::Dataset]

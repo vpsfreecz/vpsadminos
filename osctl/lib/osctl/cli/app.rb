@@ -2144,6 +2144,15 @@ module OsCtl::Cli
 
       desc 'Manage trash bin'
       command 'trash-bin' do |t|
+        t.desc 'Manage datasets'
+        t.command :dataset do |ds|
+          ds.desc 'Add custom dataset to the trash bin'
+          ds.arg_name '<dataset>'
+          ds.command :add do |c|
+            c.action &Command.run(TrashBin, :dataset_add)
+          end
+        end
+
         t.desc 'Prune trash bin'
         t.arg_name '[pool...]'
         t.command :prune do |c|

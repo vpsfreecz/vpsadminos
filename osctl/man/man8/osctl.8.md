@@ -2908,6 +2908,11 @@ The following shortcuts are supported:
   Unused workers are automatically destroyed. This command will trigger the check
   immediately.
 
+`trash-bin` dataset add *dataset*
+  Add custom dataset to its pool's trash bin. This can be used for user-created
+  datasets outside of `osctld`'s control. The dataset is placed in the trash bin
+  and later destroyed.
+
 `trash-bin prune` [*pool...*]
   Empty the trash bin on all or selected pools.
 
