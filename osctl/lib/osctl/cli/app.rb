@@ -2142,6 +2142,15 @@ module OsCtl::Cli
         end
       end
 
+      desc 'Manage trash bin'
+      command 'trash-bin' do |t|
+        t.desc 'Prune trash bin'
+        t.arg_name '[pool...]'
+        t.command :prune do |c|
+          c.action &Command.run(TrashBin, :prune)
+        end
+      end
+
       desc 'Monitor'
       command :monitor do |c|
         c.action &Command.run(Event, :monitor)

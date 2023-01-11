@@ -2901,6 +2901,12 @@ The following shortcuts are supported:
   Unused workers are automatically destroyed. This command will trigger the check
   immediately.
 
+`trash-bin prune` [*pool...*]
+  `osctld` does not destroy datasets right away, mainly because they can be busy.
+  Datasets to destroy are instead placed in the trash bin, which is a dedicated
+  dataset at `<pool>/trash`. The trash bin is emptied periodically, this command
+  will empty it right away.
+
 `monitor`
   Print all events reported by `osctld` to standard output. If global option
   `-j`, `--json` is used, the events are printed in JSON.

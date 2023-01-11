@@ -20,6 +20,7 @@ module OsCtld
     module Repository ; end
     module Self ; end
     module Send ; end
+    module TrashBin ; end
     module User ; end
   end
   module DB ; end
