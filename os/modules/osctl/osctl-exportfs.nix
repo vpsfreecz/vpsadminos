@@ -32,6 +32,9 @@ in {
 
         exec runsvdir "$statedir/runsvdir"
       '';
+
+      onChange = "ignore";
+
       log.enable = true;
       log.sendTo = "127.0.0.1";
     };
