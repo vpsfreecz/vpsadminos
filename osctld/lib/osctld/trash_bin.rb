@@ -52,7 +52,9 @@ module OsCtld
         begin
           zfs(:unmount, nil, ds.name)
         rescue SystemCommandFailed => e
-          log(:warn, "Unable to unmount #{ds}: #{e.message}")
+          unless e.output.include?('not currently mounted')
+            log(:warn, "Unable to unmount #{ds}: #{e.message}")
+          end
         end
       end
 
