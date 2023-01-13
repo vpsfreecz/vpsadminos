@@ -43,6 +43,20 @@ module OsCtld
 
     # @param dataset [OsCtl::Lib::Zfs::Dataset]
     def add_dataset(dataset)
+      # Set canmount on the dataset and umount it with and all its descendants
+      dataset.list.reverse_each do |ds|
+        zfs(:set, "canmount=noauto", ds.name)
+
+        # We ignore errors, because the dataset may belong to
+        # a hung container, etc.
+        begin
+          zfs(:unmount, nil, ds.name)
+        rescue SystemCommandFailed => e
+          log(:warn, "Unable to unmount #{ds}: #{e.message}")
+        end
+      end
+
+      # Move the dataset to trash
       zfs(:rename, nil, "#{dataset} #{trash_path(dataset)}")
     end
 
