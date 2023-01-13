@@ -57,7 +57,20 @@ module OsCtld
       end
 
       # Move the dataset to trash
-      zfs(:rename, nil, "#{dataset} #{trash_path(dataset)}")
+      trash_ds, t = trash_path(dataset)
+      zfs(:rename, nil, "#{dataset} #{trash_ds}")
+
+      # Set metadata properties
+      meta = {
+        original_name: dataset.name,
+        trashed_at: t.to_i,
+      }
+
+      zfs(
+        :set,
+        meta.map { |k, v| "org.vpsadminos.osctl.trash-bin:#{k}=#{v}" }.join(' '),
+        trash_ds,
+      )
     end
 
     def log_type
@@ -96,14 +109,18 @@ module OsCtld
     end
 
     def trash_path(dataset)
-      File.join(
+      t = Time.now
+
+      path = File.join(
         @trash_dataset.name,
         [
           dataset.name.split('/')[1..-1].join('-'),
-          Time.now.to_i,
+          t.to_i,
           SecureRandom.hex(3),
         ].join('.'),
       )
+
+      [path, t]
     end
   end
 end
