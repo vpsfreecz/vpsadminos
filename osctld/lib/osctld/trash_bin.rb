@@ -94,6 +94,10 @@ module OsCtld
       @trash_dataset.list(depth: 1, include_self: false).each do |ds|
         break if @stop
 
+        if !ds.name.start_with?("#{@trash_dataset}/")
+          fail "programming error: refusing to destroy dataset #{ds.name.inspect}"
+        end
+
         log(:info, "Destroying #{ds}")
 
         begin
