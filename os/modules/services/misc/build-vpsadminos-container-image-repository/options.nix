@@ -178,6 +178,10 @@ in {
           networking.waitOnline.method = "http";
 
           osctl.test-shell.enable = true;
+          osctld.settings = {
+            trash_bin.prune_interval = 1*60;
+          };
+
           vpsadminos.nix = true;
           tty.autologin.enable = mkDefault true;
           services.haveged.enable = mkDefault true;
