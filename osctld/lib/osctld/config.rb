@@ -103,6 +103,15 @@ module OsCtld
       end
     end
 
+    class TrashBin
+      # @return [Integer] number of seconds between prunes
+      attr_reader :prune_interval
+
+      def initialize(cfg)
+        @prune_interval = cfg.fetch('prune_interval', 6*60*60)
+      end
+    end
+
     # @return [Array<String>]
     attr_reader :apparmor_paths
 
@@ -122,6 +131,9 @@ module OsCtld
     # @return [SendReceive]
     attr_reader :send_receive
 
+    # @return [TrashBin]
+    attr_reader :trash_bin
+
     # @param path [String]
     def initialize(path)
       cfg = JSON.parse(File.read(path))
@@ -132,6 +144,7 @@ module OsCtld
       @enable_lock_registry = cfg.fetch('lock_registry', false)
       @cpu_scheduler = CpuScheduler.new(cfg.fetch('cpu_scheduler', {}))
       @send_receive = SendReceive.new(cfg.fetch('send_receive', {}))
+      @trash_bin = TrashBin.new(cfg.fetch('trash_bin', {}))
     end
   end
 end

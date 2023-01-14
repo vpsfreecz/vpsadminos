@@ -82,7 +82,7 @@ module OsCtld
     protected
     def run_gc
       loop do
-        v = @queue.pop(timeout: 6*60*60)
+        v = @queue.pop(timeout: Daemon.get.config.trash_bin.prune_interval)
         return if v == :stop
 
         log(:info, 'Pruning')
