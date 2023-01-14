@@ -67,8 +67,8 @@ automatically restarted in case they inadvertedly stop.
      Instruct the kernel nfs server to open and listen on a UDP socket.
 
    `--nfs-versions` *versions*
-     Allow only selected NFS versions. Possible values are: `2`, `3`, `4`,
-     `4.0`, `4.1` and `4.2` separated by commas.
+     Allow only selected NFS versions. Possible values are: `3`, `4`, `4.0`,
+     `4.1` and `4.2`, separated by commas.
 
    `--nfsd-syslog`
      By default, rpc.nfsd logs error messages (and debug messages, if
