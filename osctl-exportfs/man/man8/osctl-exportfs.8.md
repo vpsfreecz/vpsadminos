@@ -157,6 +157,9 @@ automatically restarted in case they inadvertedly stop.
   Restart NFS server *name*, which has to be running in a `runit` supervision
   tree.
 
+`server attach` *name*
+  Attach into the NFS server container and run an interactive shell.
+
 `export ls` [*server*]
   List all exports or exports configured on *server*.
 
