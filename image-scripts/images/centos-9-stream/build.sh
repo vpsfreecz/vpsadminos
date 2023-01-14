@@ -1,6 +1,6 @@
 . "$IMAGEDIR/config.sh"
 POINTVER=9.0
-RELEASE=http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/centos-stream-release-${POINTVER}-18.el9.noarch.rpm
+RELEASE=https://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/centos-stream-release-${POINTVER}-18.el9.noarch.rpm
 BASEURL=http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/
 
 # CentOS >8 does not seem to have an updates repo, so this variable is used to
