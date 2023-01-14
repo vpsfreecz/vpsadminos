@@ -57,7 +57,7 @@ mknod /dev/urandom c 1 9
 pacman-key --init
 pacman-key --populate archlinux
 
-pacstrap -dG /mnt base openssh dhcpcd inetutils vim
+pacstrap -G /mnt base openssh dhcpcd inetutils vim
 
 gpg-connect-agent --homedir /etc/pacman.d/gnupg "SCD KILLSCD" "SCD BYE" /bye
 gpg-connect-agent --homedir /etc/pacman.d/gnupg killagent /bye
