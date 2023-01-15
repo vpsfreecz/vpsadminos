@@ -5,7 +5,7 @@ module OsCtl::Cli
   class Ps::Main < Command
     SlowOsProcess = Struct.new(:os_process, :duration)
 
-    READ_TIMEOUT = 5
+    READ_TIMEOUT = 1
 
     def run
       if opts[:list]
