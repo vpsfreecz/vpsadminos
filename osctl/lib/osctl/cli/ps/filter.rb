@@ -2,7 +2,7 @@ require 'libosctl'
 
 module OsCtl::Cli
   class Ps::Filter
-    OPERANDS = %w(=~ != >= <= = > <)
+    OPERANDS = %w(=~ !~ != >= <= = > <)
 
     NUMERIC = %i(
       pid
@@ -51,6 +51,8 @@ module OsCtl::Cli
 
       if @op == :=~
         @value.match?(param)
+      elsif @op == :!~
+        !@value.match?(param)
       else
         param.send(@op, @value)
       end
@@ -76,8 +78,8 @@ module OsCtl::Cli
         is_time = !is_string && !is_num && !is_data && TIMES.include?(ret_param)
         ret_op = op == '=' ? :== : op.to_sym
 
-        if !is_string && ret_op == :=~
-          raise ArgumentError, "invalid parameter filter #{str_rule.inspect}: =~ cannot be used on numbers"
+        if !is_string && %i(=~ !~).include?(ret_op)
+          raise ArgumentError, "invalid parameter filter #{str_rule.inspect}: #{ret_op} cannot be used on numbers"
         end
 
         value = str_rule[(i+op.size)..-1]
@@ -88,7 +90,7 @@ module OsCtl::Cli
             parse_data(value)
           elsif is_time
             value.to_i
-          elsif ret_op == :=~
+          elsif %i(=~ !~).include?(ret_op)
             Regexp.new(value)
           else
             value

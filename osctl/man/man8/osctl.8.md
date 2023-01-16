@@ -1791,6 +1791,7 @@ The following shortcuts are supported:
       - `=` checks equality
       - `!=` checks inequality
       - `=~` matches regular expression, works only on string parameters
+      - `!~` must not match regular expression, works only on string parameters
       - `>`, `<`, `>=`, `<=` make comparisons between numeric parameters
 
       In case of parameters with values in bytes, *value* can be given with
