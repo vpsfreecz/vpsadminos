@@ -135,7 +135,7 @@ module OsCtl::Exporter
         end
 
         labels = vdev_labels(pool, vdev)
-        @zpool_status_vdev_read_errors.set(vdev.read, labels: labels))
+        @zpool_status_vdev_read_errors.set(vdev.read, labels: labels)
         @zpool_status_vdev_write_errors.set(vdev.write, labels: labels)
         @zpool_status_vdev_checksum_errors.set(vdev.checksum, labels: labels)
 
