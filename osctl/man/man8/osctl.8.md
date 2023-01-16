@@ -1789,14 +1789,14 @@ The following shortcuts are supported:
       Filter processes by parameter values. `∙` can be one of:
 
       - `=` checks equality
-      - `!=` check inequality
+      - `!=` checks inequality
       - `=~` matches regular expression, works only on string parameters
-      - `>`, `<`, `>=`, `<=` make comparisons
+      - `>`, `<`, `>=`, `<=` make comparisons between numeric parameters
 
       In case of parameters with values in bytes, *value* can be given with
       an appropriate suffix, i.e. `k`, `m`, `g`, or `t`.
 
-      Time based parameters take *value* as number of seconds.
+      Time based parameters take *value* as a number of seconds.
 
 `ct assets` [*options*] *ctid*
   List container assets and their state.
@@ -2908,7 +2908,7 @@ The following shortcuts are supported:
   Unused workers are automatically destroyed. This command will trigger the check
   immediately.
 
-`trash-bin` dataset add *dataset*
+`trash-bin dataset` add *dataset*
   Add custom dataset to its pool's trash bin. This can be used for user-created
   datasets outside of `osctld`'s control. The dataset is placed in the trash bin
   and later destroyed.
