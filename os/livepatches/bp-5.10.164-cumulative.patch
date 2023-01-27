@@ -28,6 +28,48 @@ index 895221b90512..852d179463b7 100644
  
  int online_cpus_in_cpu_cgroup(struct task_struct *p)
  {
+diff --git a/kernel/workqueue.c b/kernel/workqueue.c
+index 0cc2a62e88f9..00bf547d7950 100644
+--- a/kernel/workqueue.c
++++ b/kernel/workqueue.c
+@@ -51,6 +51,7 @@
+ #include <linux/sched/isolation.h>
+ #include <linux/nmi.h>
+ #include <linux/kvm_para.h>
++#include <linux/memcontrol.h>
+ 
+ #include "workqueue_internal.h"
+ 
+@@ -4646,6 +4647,8 @@ void print_worker_info(const char *log_lvl, struct task_struct *task)
+ 	struct workqueue_struct *wq = NULL;
+ 	struct worker *worker;
+ 
++	mem_cgroup_print_dump_stack_context(log_lvl, task);
++
+ 	if (!(task->flags & PF_WQ_WORKER))
+ 		return;
+ 
+diff --git a/lib/dump_stack.c b/lib/dump_stack.c
+index a410b1b14bb5..01834d5d3e51 100644
+--- a/lib/dump_stack.c
++++ b/lib/dump_stack.c
+@@ -12,7 +12,6 @@
+ #include <linux/atomic.h>
+ #include <linux/kexec.h>
+ #include <linux/utsname.h>
+-#include <linux/memcontrol.h>
+ 
+ static char dump_stack_arch_desc_str[128];
+ 
+@@ -57,8 +56,6 @@ void dump_stack_print_info(const char *log_lvl)
+ 		printk("%sHardware name: %s\n",
+ 		       log_lvl, dump_stack_arch_desc_str);
+ 
+-	mem_cgroup_print_dump_stack_context(log_lvl, current);
+-
+ 	print_worker_info(log_lvl, current);
+ }
+ 
 diff --git a/net/core/rtnetlink.c b/net/core/rtnetlink.c
 index 3c9c2d6e3b92..600a97e458e5 100644
 --- a/net/core/rtnetlink.c
