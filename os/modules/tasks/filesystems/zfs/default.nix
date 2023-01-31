@@ -30,6 +30,7 @@ let
 
   cfgZfs = config.boot.zfs;
   cfgScrub = config.services.zfs.autoScrub;
+  cfgZED = config.services.zfs.zed;
 
   inInitrd = any (fs: fs == "zfs") config.boot.initrd.supportedFilesystems;
   inSystem = any (fs: fs == "zfs") config.boot.supportedFilesystems;
@@ -149,6 +150,18 @@ let
       assertion = !pool.scrub.enable || pool.scrub.startIntervals != [];
       message = "Set boot.zfs.pools.${name}.scrub.startIntervals or disable boot.zfs.pools.${name}.scrub.enable";
     }) zpoolsToScrub;
+
+  zedConf = generators.toKeyValue {
+    mkKeyValue = generators.mkKeyValueDefault {
+      mkValueString = v:
+        if isInt           v then toString v
+        else if isString   v then "\"${v}\""
+        else if true  ==   v then "1"
+        else if false ==   v then "0"
+        else if isList     v then "\"" + (concatStringsSep " " v) + "\""
+        else err "this value is" (toString v);
+    } "=";
+  } cfgZED.settings;
 
   layoutVdev = {
     options = {
@@ -590,6 +603,30 @@ in
         '';
       };
     };
+
+    services.zfs.zed = {
+      settings = mkOption {
+        type = with types; attrsOf (oneOf [ str int bool (listOf str) ]);
+        example = literalExpression ''
+          {
+            ZED_DEBUG_LOG = "/tmp/zed.debug.log";
+            ZED_EMAIL_ADDR = [ "root" ];
+            ZED_EMAIL_PROG = "mail";
+            ZED_EMAIL_OPTS = "-s '@SUBJECT@' @ADDRESS@";
+            ZED_NOTIFY_INTERVAL_SECS = 3600;
+            ZED_NOTIFY_VERBOSE = false;
+            ZED_USE_ENCLOSURE_LEDS = true;
+            ZED_SCRUB_AFTER_RESILVER = false;
+          }
+        '';
+        description = lib.mdDoc ''
+          ZFS Event Daemon /etc/zfs/zed.d/zed.rc content
+          See
+          {manpage}`zed(8)`
+          for details on ZED and the scripts in /etc/zfs/zed.d to find the possible variables
+        '';
+      };
+    };
   };
 
   ###### implementation
@@ -689,6 +726,7 @@ in
         (mapAttrs' (name: pool:
           nameValuePair "pool-${name}" (poolService name pool))
           cfgZfs.pools)
+
         {
           spl-module-parameters = {
             run =
@@ -697,6 +735,7 @@ in
             finish = "";
             runlevels = [ "default" ];
           };
+
           zfs-module-parameters = {
             run =
               moduleRuntimeConfigContent "zfs" cfgZfs.moduleParams.zfs + "\n" +
@@ -704,10 +743,53 @@ in
             finish = "";
             runlevels = [ "default" ];
           };
+
+          zfs-zed = {
+            run = ''
+              exec ${packages.zfsUser}/sbin/zed -F
+            '';
+            runlevels = [ "default" ];
+            log.enable = true;
+            log.sendTo = "127.0.0.1";
+          };
         }
       ];
 
-      environment.etc."zfs/zed.d".source = "${packages.zfsUser}/etc/zfs/zed.d/";
+      services.zfs.zed.settings = {
+        PATH = lib.makeBinPath [
+          packages.zfsUser
+          pkgs.coreutils
+          pkgs.curl
+          pkgs.gawk
+          pkgs.gnugrep
+          pkgs.gnused
+          pkgs.nettools
+          pkgs.util-linux
+        ];
+      };
+
+      environment.etc = genAttrs
+        (map
+          (file: "zfs/zed.d/${file}")
+          [
+            "all-syslog.sh"
+            "pool_import-led.sh"
+            "resilver_finish-start-scrub.sh"
+            "statechange-led.sh"
+            "vdev_attach-led.sh"
+            "zed-functions.sh"
+            "data-notify.sh"
+            "resilver_finish-notify.sh"
+            "scrub_finish-notify.sh"
+            "statechange-notify.sh"
+            "vdev_clear-led.sh"
+          ]
+        )
+        (file: { source = "${packages.zfsUser}/etc/${file}"; })
+      // {
+        "zfs/zed.d/zed.rc".text = zedConf;
+        "zfs/zpool.d".source = "${packages.zfsUser}/etc/zfs/zpool.d/";
+      };
 
       system.fsPackages = [ packages.zfsUser ]; # XXX: needed? zfs doesn't have (need) a fsck
       environment.systemPackages = [ packages.zfsUser ] ++ (zpoolCreateScripts cfgZfs.pools);
