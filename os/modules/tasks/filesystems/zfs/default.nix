@@ -163,6 +163,16 @@ let
     } "=";
   } cfgZED.settings;
 
+  makeZedlet = name: zedlet:
+    if isNull zedlet.script then
+      { inherit (zedlet) enable source; }
+    else {
+      inherit (zedlet) enable;
+      source = pkgs.writeScript "zedlet-${name}" zedlet.script;
+    };
+
+  makeZedlets = mapAttrs' (k: v: nameValuePair "zfs/zed.d/${k}" (makeZedlet k v)) cfgZED.zedlets;
+
   layoutVdev = {
     options = {
       type = mkOption {
@@ -518,6 +528,35 @@ let
     };
   };
 
+  zedletModule =
+    { config, ... }:
+    {
+      options = {
+        enable = mkOption {
+          type = types.bool;
+          default = true;
+          description = ''
+            Enable the ZEDLET
+          '';
+        };
+
+        script = mkOption {
+          type = types.nullOr types.lines;
+          default = null;
+          description = ''
+            Script invoked by the ZEDLET, must include shebang
+          '';
+        };
+
+        source = mkOption {
+          type = types.path;
+          description = ''
+            Executable called by ZED
+          '';
+        };
+      };
+    };
+
 in
 
 {
@@ -605,6 +644,14 @@ in
     };
 
     services.zfs.zed = {
+      zedlets = mkOption {
+        type = types.attrsOf (types.submodule zedletModule);
+        default = {};
+        description = ''
+          ZEDLET executable to install to /etc/zfs/zed.d, see man zed(8)
+        '';
+      };
+
       settings = mkOption {
         type = with types; attrsOf (oneOf [ str int bool (listOf str) ]);
         example = literalExpression ''
@@ -789,7 +836,7 @@ in
       // {
         "zfs/zed.d/zed.rc".text = zedConf;
         "zfs/zpool.d".source = "${packages.zfsUser}/etc/zfs/zpool.d/";
-      };
+      } // makeZedlets;
 
       system.fsPackages = [ packages.zfsUser ]; # XXX: needed? zfs doesn't have (need) a fsck
       environment.systemPackages = [ packages.zfsUser ] ++ (zpoolCreateScripts cfgZfs.pools);
