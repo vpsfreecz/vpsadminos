@@ -148,6 +148,13 @@ in {
       echo "Pool install/import disabled by kernel parameter"
     fi
 
+    ${optionalString config.services.zfs.vdevlog.enable ''
+    echo "Updating vdevlog"
+    vdevlog \
+      -u ${name} \
+      ${optionalString (!isNull config.services.zfs.vdevlog.metricsDirectory) "-i ${config.services.zfs.vdevlog.metricsDirectory}"}
+    ''}
+
     ${share}
   '';
   oneShot = true;

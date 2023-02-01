@@ -95,4 +95,6 @@ self: super:
   });
 
   scrubctl = super.callPackage ../packages/scrubctl {};
+
+  vdevlog = super.callPackage ../packages/vdevlog {};
 }

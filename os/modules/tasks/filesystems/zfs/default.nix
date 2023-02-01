@@ -31,6 +31,7 @@ let
   cfgZfs = config.boot.zfs;
   cfgScrub = config.services.zfs.autoScrub;
   cfgZED = config.services.zfs.zed;
+  cfgVdevLog = config.services.zfs.vdevlog;
 
   inInitrd = any (fs: fs == "zfs") config.boot.initrd.supportedFilesystems;
   inSystem = any (fs: fs == "zfs") config.boot.supportedFilesystems;
@@ -674,6 +675,24 @@ in
         '';
       };
     };
+
+    services.zfs.vdevlog = {
+      enable = mkOption {
+        type = types.bool;
+        default = true;
+        description = ''
+          Enable vdevlog, a service which keeps persistent track of vdev errors
+        '';
+      };
+
+      metricsDirectory = mkOption {
+        type = types.nullOr types.str;
+        default = "/run/metrics";
+        description = ''
+          Directory where file with prometheus metrics will be stored
+        '';
+      };
+    };
   };
 
   ###### implementation
@@ -840,6 +859,12 @@ in
 
       system.fsPackages = [ packages.zfsUser ]; # XXX: needed? zfs doesn't have (need) a fsck
       environment.systemPackages = [ packages.zfsUser ] ++ (zpoolCreateScripts cfgZfs.pools);
+    })
+
+    (mkIf cfgVdevLog.enable {
+      environment.systemPackages = with pkgs; [ vdevlog ];
+
+      services.zfs.zed.zedlets.io-vdevlog.source = "${pkgs.vdevlog}/bin/vdevlog";
     })
 
     {
