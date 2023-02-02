@@ -48,21 +48,6 @@ module OsCtld
           error!(e.message)
         end
 
-        # Disable ksoftlimd
-        if CGroup.v1?
-          begin
-            CGroup.set_param(
-              File.join(
-                CGroup.abs_cgroup_path('memory', ct.base_cgroup_path),
-                'memory.ksoftlimd_control'
-              ),
-              ['0'],
-            )
-          rescue CGroupFileNotFound
-            # This can happen when the container is already stopped
-          end
-        end
-
         # Give the container more memory, so that the shutdown does not hang
         # in low memory situations.
         ct.cgparams.temporarily_expand_memory if ct.running?
