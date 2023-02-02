@@ -375,7 +375,7 @@ module VdevLog
       parser = OptionParser.new do |opts|
         opts.banner = "Usage: #{$0} [options]"
 
-        opts.on('-l', '--list POOL', 'List vdev errors') do |pool|
+        opts.on('-l', '--list [POOL]', 'List vdev errors') do |pool|
           @options[:action] = :run_list
           @options[:pool] = pool
         end
@@ -384,7 +384,7 @@ module VdevLog
           @options[:verbose] = true
         end
 
-        opts.on('-u', '--update POOL', 'Sync logged vdevs with zpool status') do |pool|
+        opts.on('-u', '--update [POOL]', 'Sync logged vdevs with zpool status') do |pool|
           @options[:action] = :run_update
           @options[:pool] = pool
         end
@@ -409,43 +409,48 @@ module VdevLog
     end
 
     def run_list
-      State.read(@options[:pool]) do |state|
-        puts sprintf(
-          '%26s %9s %9s %9s  %s',
-          'GUID',
-          'READ',
-          'WRITE',
-          'CHECKSUM',
-          @options[:verbose] ? 'ID/TIME' : 'ID',
-        )
+      puts sprintf(
+        '%-10s %26s %9s %9s %9s  %s',
+        'POOL',
+        'GUID',
+        'READ',
+        'WRITE',
+        'CHECKSUM',
+        @options[:verbose] ? 'ID/TIME' : 'ID',
+      )
 
-        log_per_vdev =
-          state.log.inject({}) do |acc, entry|
-            acc[entry.guid] ||= []
-            acc[entry.guid] << entry
-            acc
-          end
+      each_pool do |pool|
+        State.read(pool) do |state|
+          log_per_vdev =
+            state.log.inject({}) do |acc, entry|
+              acc[entry.guid] ||= []
+              acc[entry.guid] << entry
+              acc
+            end
 
-        state.vdevs.each do |vdev|
-          puts sprintf(
-            '%26d %9d %9d %9d  %s',
-            vdev.guid,
-            vdev.errors.read,
-            vdev.errors.write,
-            vdev.errors.checksum,
-            vdev.ids.first,
-          )
+          state.vdevs.each do |vdev|
+            puts sprintf(
+              '%-10s %26d %9d %9d %9d  %s',
+              pool,
+              vdev.guid,
+              vdev.errors.read,
+              vdev.errors.write,
+              vdev.errors.checksum,
+              vdev.ids.first,
+            )
 
-          if @options[:verbose]
-            log_per_vdev.fetch(vdev.guid, []).each do |entry|
-              puts sprintf(
-                '%26s %9d %9d %9d  %s',
-                '',
-                entry.read,
-                entry.write,
-                entry.checksum,
-                entry.time.to_s,
-              )
+            if @options[:verbose]
+              log_per_vdev.fetch(vdev.guid, []).each do |entry|
+                puts sprintf(
+                  '%-10s %26s %9d %9d %9d  %s',
+                  '',
+                  '',
+                  entry.read,
+                  entry.write,
+                  entry.checksum,
+                  entry.time.to_s,
+                )
+              end
             end
           end
         end
@@ -453,14 +458,16 @@ module VdevLog
     end
 
     def run_update
-      guids = get_pool_vdev_guids(@options[:pool])
+      pool_guids = get_pool_vdev_guids((@options[:pool] || '').split(','))
 
-      State.update(@options[:pool]) do |state|
-        state.vdevs.delete_if do |vdev|
-          !guids.include?(vdev.guid)
+      pool_guids.each do |pool, guids|
+        State.update(pool) do |state|
+          state.vdevs.delete_if do |vdev|
+            !guids.include?(vdev.guid)
+          end
+
+          state.install_prom_file(@options[:install]) if @options[:install]
         end
-
-        state.install_prom_file(@options[:install]) if @options[:install]
       end
     end
 
@@ -472,24 +479,41 @@ module VdevLog
       end
     end
 
-    def get_pool_vdev_guids(pool)
-      status = `zpool status -g #{pool}`
+    def each_pool(&block)
+      if @options[:pool]
+        @options[:pool].split(',').each(&block)
+      else
+        pools = `zpool list -H -o name`.strip.split
+
+        if $?.exitstatus != 0
+          fail "zpool list exited with #{$?.exitstatus}"
+        end
+
+        pools.each(&block)
+      end
+    end
+
+    def get_pool_vdev_guids(pools = [])
+      status = `zpool status -g #{pools.join(' ')}`
       if $?.exitstatus != 0
         fail "zpool status exited with #{$?.exitstatus}"
       end
 
-      guids = []
+      cur_pool = nil
       in_config = false
+      guids = {}
 
       status.each_line do |line|
         stripped = line.strip
 
-        if in_config
-          guid, _ = stripped.split
-          guids << guid.to_i if /^\d+$/ =~ guid
-
-        elsif stripped.start_with?('config:')
+        if stripped.start_with?('pool:')
+          cur_pool = stripped[5..-1].strip
+          guids[cur_pool] = []
+        elsif cur_pool && stripped.start_with?('config:')
           in_config = true
+        elsif cur_pool && in_config
+          guid, _ = stripped.split
+          guids[cur_pool] << guid.to_i if /^\d+$/ =~ guid
         end
       end
 
