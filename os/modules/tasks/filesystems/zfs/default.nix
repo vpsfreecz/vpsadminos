@@ -865,6 +865,10 @@ in
       environment.systemPackages = with pkgs; [ vdevlog ];
 
       services.zfs.zed.zedlets.io-vdevlog.source = "${pkgs.vdevlog}/bin/vdevlog";
+
+      services.cron.systemCronJobs = [
+        "33 */1 * * * root ${pkgs.vdevlog}/bin/vdevlog -u"
+      ];
     })
 
     {
