@@ -1,6 +1,7 @@
 #!@ruby@/bin/ruby
 require 'json'
 require 'optparse'
+require 'syslog/logger'
 
 module VdevLog
   class LogEntry
@@ -218,8 +219,8 @@ module VdevLog
   end
 
   class State
-    def self.update(pool)
-      state = new(pool)
+    def self.update(logger, pool)
+      state = new(logger, pool)
       state.lock do
         state.open
         yield(state)
@@ -228,8 +229,8 @@ module VdevLog
       nil
     end
 
-    def self.read(pool)
-      state = new(pool)
+    def self.read(logger, pool)
+      state = new(logger, pool)
       state.lock(type: File::LOCK_SH) do
         state.open
         yield(state)
@@ -239,7 +240,7 @@ module VdevLog
 
     attr_reader :vdevs, :log
 
-    def initialize(pool)
+    def initialize(logger, pool)
       mountpoint, mounted = `zfs get -Hp -o value mountpoint,mounted #{pool}`.strip.split
 
       if $?.exitstatus != 0
@@ -248,6 +249,7 @@ module VdevLog
 
       fail "pool #{pool.inspect} is not mounted" if mounted != 'yes'
 
+      @logger = logger
       @pool = pool
       @state_dir = File.join(mountpoint, '.vdevlog')
       @state_file = File.join(@state_dir, 'state.json')
@@ -288,6 +290,8 @@ module VdevLog
       case event
       when IOZEvent
         add_io_errors(event)
+      else
+        @logger.info("Ignoring event eid=#{event.eid} class=#{event.event_class}")
       end
     end
 
@@ -314,6 +318,10 @@ module VdevLog
       end
 
       read, write, checksum = vdev.errors.add(event.vdev_errors)
+      @logger.info(
+        "Recording IO errors from eid=#{event.eid} on vdev pool=#{@pool} guid=#{vdev.guid} "+
+        "ids=#{vdev.ids.join(',')} read=#{read} write=#{write} checksum=#{checksum}"
+      )
       log << LogEntry.new(event.time, vdev.guid, read, write, checksum)
       nil
     end
@@ -362,11 +370,19 @@ module VdevLog
     def initialize(env, args)
       @env = env
       @args = args
+      @logger = Syslog::Logger.new('vdevlog')
     end
 
     def run
       parse_opts
       send(@options[:action])
+
+    rescue Exception => e
+      if @options[:action] == :run_zedlet
+        @logger.fatal("Exception occurred: #{e.message} (#{e.class})")
+      end
+
+      raise
     end
 
     protected
@@ -423,7 +439,7 @@ module VdevLog
       )
 
       each_pool do |pool|
-        State.read(pool) do |state|
+        State.read(@logger, pool) do |state|
           log_per_vdev =
             state.log.inject({}) do |acc, entry|
               acc[entry.guid] ||= []
@@ -464,9 +480,18 @@ module VdevLog
       pool_guids = get_pool_vdev_guids((@options[:pool] || '').split(','))
 
       pool_guids.each do |pool, guids|
-        State.update(pool) do |state|
+        State.update(@logger, pool) do |state|
           state.vdevs.delete_if do |vdev|
-            !guids.include?(vdev.guid)
+            if guids.include?(vdev.guid)
+              false
+            else
+              @logger.info(
+                "Removing obsolete vdev pool=#{pool} guid=#{vdev.guid} "+
+                "ids=#{vdev.ids.join(',')} read=#{vdev.errors.read} "+
+                "write=#{vdev.errors.write} checksum=#{vdev.errors.checksum}"
+              )
+              true
+            end
           end
 
           state.install_prom_file(@options[:install]) if @options[:install]
@@ -477,7 +502,7 @@ module VdevLog
     def run_zedlet
       event = ZEvent.parse(@env)
 
-      State.update(event.pool) do |state|
+      State.update(@logger, event.pool) do |state|
         state << event
       end
     end
