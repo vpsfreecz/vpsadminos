@@ -170,9 +170,12 @@ module VdevLog
 
   class Vdev
     def self.from_guid_and_dev_name(guid, dev_name)
-      short_name = File.basename(dev_name)
+      # ZED always reports partition names, even if the whole disk was given
+      # to ZFS
+      short_partition_name = File.basename(dev_name)
+      short_disk_name = File.readlink(File.join('/sys/class/block', short_partition_name)).split('/')[-2]
 
-      symlinks = `udevadm info -q symlink --path=/sys/block/#{short_name}`.strip.split
+      symlinks = `udevadm info -q symlink --path=/sys/block/#{short_disk_name}`.strip.split
       if $?.exitstatus != 0
         fail "udevadm failed with exit status #{$?.exitstatus}"
       end
