@@ -826,6 +826,7 @@ in
           packages.zfsUser
           pkgs.coreutils
           pkgs.curl
+          pkgs.eudev
           pkgs.gawk
           pkgs.gnugrep
           pkgs.gnused
@@ -864,7 +865,13 @@ in
     (mkIf cfgVdevLog.enable {
       environment.systemPackages = with pkgs; [ vdevlog ];
 
-      services.zfs.zed.zedlets.io-vdevlog.source = "${pkgs.vdevlog}/bin/vdevlog";
+      services.zfs.zed = {
+        zedlets.io-vdevlog.script = ''
+          #!${pkgs.bash}/bin/bash
+          . /etc/zfs/zed.d/zed.rc
+          exec ${pkgs.vdevlog}/bin/vdevlog
+        '';
+      };
 
       services.cron.systemCronJobs = [
         "33 */1 * * * root ${pkgs.vdevlog}/bin/vdevlog -u"
