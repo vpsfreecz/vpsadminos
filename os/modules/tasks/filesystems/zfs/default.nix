@@ -869,6 +869,7 @@ in
         zedlets.io-vdevlog.script = ''
           #!${pkgs.bash}/bin/bash
           . /etc/zfs/zed.d/zed.rc
+          export PATH
           exec ${pkgs.vdevlog}/bin/vdevlog
         '';
       };
