@@ -812,6 +812,10 @@ in
 
           zfs-zed = {
             run = ''
+              # This list of zedlets is here so that ZED is restarted when new
+              # zedlets are added.
+              ${concatMapStringsSep "\n" (name: "# ${name}") (attrNames cfgZED.zedlets)}
+
               exec ${packages.zfsUser}/sbin/zed -F
             '';
             runlevels = [ "default" ];
@@ -835,26 +839,22 @@ in
         ];
       };
 
-      environment.etc = genAttrs
-        (map
-          (file: "zfs/zed.d/${file}")
-          [
-            "all-syslog.sh"
-            "pool_import-led.sh"
-            "resilver_finish-start-scrub.sh"
-            "statechange-led.sh"
-            "vdev_attach-led.sh"
-            "zed-functions.sh"
-            "data-notify.sh"
-            "resilver_finish-notify.sh"
-            "scrub_finish-notify.sh"
-            "statechange-notify.sh"
-            "vdev_clear-led.sh"
-          ]
-        )
-        (file: { source = "${packages.zfsUser}/etc/${file}"; })
-      // {
+      services.zfs.zed.zedlets = genAttrs [
+        "all-syslog.sh"
+        "pool_import-led.sh"
+        "resilver_finish-start-scrub.sh"
+        "statechange-led.sh"
+        "vdev_attach-led.sh"
+        "data-notify.sh"
+        "resilver_finish-notify.sh"
+        "scrub_finish-notify.sh"
+        "statechange-notify.sh"
+        "vdev_clear-led.sh"
+      ] (name: { source = "${packages.zfsUser}/etc/zfs/zed.d/${name}"; });
+
+      environment.etc = {
         "zfs/zed.d/zed.rc".text = zedConf;
+        "zfs/zed.d/zed-functions.sh".source = "${packages.zfsUser}/etc/zfs/zed.d/zed-functions.sh";
         "zfs/zpool.d".source = "${packages.zfsUser}/etc/zfs/zpool.d/";
       } // makeZedlets;
 
