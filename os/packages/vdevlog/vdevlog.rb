@@ -184,6 +184,7 @@ module VdevLog
       ids = symlinks.inject([]) do |acc, symlink|
         _, type, v = symlink.split('/')
         acc << v if type == 'by-id'
+        acc
       end
 
       if ids.empty?
