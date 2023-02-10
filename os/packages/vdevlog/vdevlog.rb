@@ -5,8 +5,22 @@ require 'syslog/logger'
 
 module VdevLog
   class LogEntry
-    attr_reader :time, :guid, :read, :write, :checksum
+    # @return [Time]
+    attr_reader :time
 
+    # @return [Integer]
+    attr_reader :guid
+
+    # @return [Integer]
+    attr_reader :read
+
+    # @return [Integer]
+    attr_reader :write
+
+    # @return [Integer]
+    attr_reader :checksum
+
+    # @return [LogEntry]
     def self.from_state(hash)
       new(
         Time.at(hash['time']),
@@ -17,6 +31,11 @@ module VdevLog
       )
     end
 
+    # @param time [Time]
+    # @param guid [Integer]
+    # @param read [Integer]
+    # @param write [Integer]
+    # @param checksum [Integer]
     def initialize(time, guid, read, write, checksum)
       @time = time
       @guid = guid
@@ -37,6 +56,7 @@ module VdevLog
   end
 
   class LastErrors
+    # @return [LastErrors]
     def self.from_state(hash)
       new(
         read: hash['read'],
@@ -45,14 +65,25 @@ module VdevLog
       )
     end
 
-    attr_reader :read, :write, :checksum
+    # @return [Integer]
+    attr_reader :read
 
+    # @return [Integer]
+    attr_reader :write
+
+    # @return [Integer]
+    attr_reader :checksum
+
+    # @param read [Integer]
+    # @param write [Integer]
+    # @param checksum [Integer]
     def initialize(read: 0, write: 0, checksum: 0)
       @read = read
       @write = write
       @checksum = checksum
     end
 
+    # @param errors [Errors]
     def set(errors)
       @read = errors.read
       @write = errors.write
@@ -69,6 +100,7 @@ module VdevLog
   end
 
   class Errors
+    # @return [Errors]
     def self.from_state(hash)
       new(
         read: hash['read'],
@@ -78,8 +110,19 @@ module VdevLog
       )
     end
 
-    attr_reader :read, :write, :checksum
+    # @return [Integer]
+    attr_reader :read
 
+    # @return [Integer]
+    attr_reader :write
+
+    # @return [Integer]
+    attr_reader :checksum
+
+    # @param read [Integer]
+    # @param write [Integer]
+    # @param checksum [Integer]
+    # @param last [LastErrors, nil]
     def initialize(read: 0, write: 0, checksum: 0, last: nil)
       @read = read
       @write = write
@@ -87,6 +130,8 @@ module VdevLog
       @last = last || LastErrors.new
     end
 
+    # @param errors [Errors]
+    # @return [Array<Integer, Integer, Integer] read, write, checksum
     def add(errors)
       diffs =
         if errors.read < last.read \
@@ -125,6 +170,7 @@ module VdevLog
   end
 
   class ZEvent
+    # @return [ZEvent]
     def self.parse(env)
       klass =
         case env['ZEVENT_CLASS']
@@ -137,8 +183,19 @@ module VdevLog
       klass.new(env)
     end
 
-    attr_reader :eid, :event_class, :time, :pool
+    # @return [Integer]
+    attr_reader :eid
 
+    # @return [String]
+    attr_reader :event_class
+
+    # @return [Time]
+    attr_reader :time
+
+    # @return [String]
+    attr_reader :pool
+
+    # @param env [ENV, Hash]
     def initialize(env)
       parse_env(env)
     end
@@ -153,7 +210,17 @@ module VdevLog
   end
 
   class IOZEvent < ZEvent
-    attr_reader :vdev_guid, :vdev_path, :vdev_type, :vdev_errors
+    # @return [Integer]
+    attr_reader :vdev_guid
+
+    # @return [String]
+    attr_reader :vdev_path
+
+    # @return [String]
+    attr_reader :vdev_type
+
+    # @return [Errors]
+    attr_reader :vdev_errors
 
     protected
     def parse_env(env)
@@ -170,6 +237,9 @@ module VdevLog
   end
 
   class Vdev
+    # @param guid [Integer]
+    # @param dev_name [String]
+    # @return [Vdev]
     def self.from_guid_and_dev_name(guid, dev_name)
       # ZED always reports partition names, even if the whole disk was given
       # to ZFS
@@ -194,6 +264,7 @@ module VdevLog
       Vdev.new(guid, ids)
     end
 
+    # @return [Vdev]
     def self.from_state(hash)
       new(
         hash['guid'],
@@ -203,9 +274,22 @@ module VdevLog
       )
     end
 
-    attr_reader :guid, :ids, :errors
+    # @return [Integer]
+    attr_reader :guid
+
+    # @return [Array<String>]
+    attr_reader :ids
+
+    # @return [Errors]
+    attr_reader :errors
+
+    # @return [String]
     attr_accessor :state
 
+    # @param guid [Integer]
+    # @param ids [Array<String>]
+    # @param state [String]
+    # @param errors [Errors, nil]
     def initialize(guid, ids, state: 'online', errors: nil)
       @guid = guid
       @ids = ids
@@ -224,6 +308,10 @@ module VdevLog
   end
 
   class State
+    # Read and update state
+    # @param logger [Syslog::Logger]
+    # @param pool [String]
+    # @yieldparam [State]
     def self.update(logger, pool)
       state = new(logger, pool)
       state.lock do
@@ -234,6 +322,10 @@ module VdevLog
       nil
     end
 
+    # Read state
+    # @param logger [Syslog::Logger]
+    # @param pool [String]
+    # @yieldparam [State]
     def self.read(logger, pool)
       state = new(logger, pool)
       state.lock(type: File::LOCK_SH) do
@@ -243,8 +335,14 @@ module VdevLog
       nil
     end
 
-    attr_reader :vdevs, :log
+    # @return [Array<Vdev>]
+    attr_reader :vdevs
 
+    # @return [Array<LogEntry>]
+    attr_reader :log
+
+    # @param logger [Syslog::Logger]
+    # @param pool [String]
     def initialize(logger, pool)
       mountpoint, mounted = `zfs get -Hp -o value mountpoint,mounted #{pool}`.strip.split
 
@@ -291,6 +389,7 @@ module VdevLog
       gen_prom_file
     end
 
+    # @param event [ZEvent]
     def <<(event)
       case event
       when IOZEvent
@@ -300,6 +399,7 @@ module VdevLog
       end
     end
 
+    # @param dir [String] metrics directory
     def install_prom_file(dir)
       return unless Dir.exist?(dir)
 
@@ -373,6 +473,8 @@ module VdevLog
   end
 
   class Cli
+    # @param env [ENV, Hash]
+    # @param args [Array<String>]
     def initialize(env, args)
       @env = env
       @args = args
