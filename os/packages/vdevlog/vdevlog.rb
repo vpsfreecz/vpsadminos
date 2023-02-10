@@ -20,6 +20,9 @@ module VdevLog
     # @return [Integer]
     attr_reader :checksum
 
+    # @return [ZioRequest]
+    attr_reader :zio_request
+
     # @return [LogEntry]
     def self.from_state(hash)
       new(
@@ -28,6 +31,7 @@ module VdevLog
         hash['read'],
         hash['write'],
         hash['checksum'],
+        ZioRequest.from_state(hash['zio_request']),
       )
     end
 
@@ -36,12 +40,14 @@ module VdevLog
     # @param read [Integer]
     # @param write [Integer]
     # @param checksum [Integer]
-    def initialize(time, guid, read, write, checksum)
+    # @param zio_request [ZioRequest]
+    def initialize(time, guid, read, write, checksum, zio_request)
       @time = time
       @guid = guid
       @read = read
       @write = write
       @checksum = checksum
+      @zio_request = zio_request
     end
 
     def dump
@@ -51,6 +57,7 @@ module VdevLog
         'read' => read,
         'write' => write,
         'checksum' => checksum,
+        'zio_request' => zio_request.dump,
       }
     end
   end
@@ -169,6 +176,107 @@ module VdevLog
     attr_reader :last
   end
 
+  class ZioRequest
+    ATTRS = %i(
+      objset
+      object
+      level
+      priority
+      blkid
+      err
+      offset
+      size
+      flags
+      stage
+      pipeline
+      delay
+      timestamp
+      delta
+    )
+
+    def self.from_state(hash)
+      kwargs = {}
+
+      ATTRS.each do |k|
+        v = hash[k.to_s]
+        kwargs[k] = v if v
+      end
+
+      new(**kwargs)
+    end
+
+    def self.from_env(env)
+      kwargs = {}
+
+      ATTRS.each do |k|
+        v = env["ZEVENT_ZIO_#{k.to_s.upcase}"]
+        kwargs[k] = v.to_i if v
+      end
+
+      new(**kwargs)
+    end
+
+    # @return [Integer]
+    attr_reader :objset
+
+    # @return [Integer]
+    attr_reader :object
+
+    # @return [Integer]
+    attr_reader :level
+
+    # @return [Integer]
+    attr_reader :priority
+
+    # @return [Integer]
+    attr_reader :blkid
+
+    # @return [Integer]
+    attr_reader :err
+
+    # @return [Integer]
+    attr_reader :offset
+
+    # @return [Integer]
+    attr_reader :size
+
+    # @return [Integer]
+    attr_reader :flags
+
+    # @return [Integer]
+    attr_reader :stage
+
+    # @return [Integer]
+    attr_reader :pipeline
+
+    # @return [Integer]
+    attr_reader :delay
+
+    # @return [Integer]
+    attr_reader :timestamp
+
+    # @return [Integer]
+    attr_reader :delta
+
+    def initialize(**kwargs)
+      ATTRS.each do |k|
+        v = kwargs[k]
+        instance_variable_set(:"@#{k}", v) if v
+      end
+    end
+
+    def dump
+      ret = {}
+
+      ATTRS.each do |k|
+        v = send(k)
+        ret[k.to_s] = v if v
+      end
+
+      ret
+    end
+  end
+
   class ZEvent
     # @return [ZEvent]
     def self.parse(env)
@@ -222,6 +330,9 @@ module VdevLog
     # @return [Errors]
     attr_reader :vdev_errors
 
+    # @return [ZioRequest]
+    attr_reader :zio_request
+
     protected
     def parse_env(env)
       super
@@ -233,6 +344,7 @@ module VdevLog
         write: env['ZEVENT_VDEV_WRITE_ERRORS'].to_i,
         checksum: env['ZEVENT_VDEV_CKSUM_ERRORS'].to_i,
       )
+      @zio_request = ZioRequest.from_env(env)
     end
   end
 
@@ -427,7 +539,7 @@ module VdevLog
         "Recording IO errors from eid=#{event.eid} on vdev pool=#{@pool} guid=#{vdev.guid} "+
         "ids=#{vdev.ids.join(',')} read=#{read} write=#{write} checksum=#{checksum}"
       )
-      log << LogEntry.new(event.time, vdev.guid, read, write, checksum)
+      log << LogEntry.new(event.time, vdev.guid, read, write, checksum, event.zio_request)
       nil
     end
 
