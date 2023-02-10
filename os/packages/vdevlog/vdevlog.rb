@@ -609,6 +609,7 @@ module VdevLog
     def parse_opts
       @options = {
         action: :run_zedlet,
+        verbose: 0,
       }
 
       parser = OptionParser.new do |opts|
@@ -619,8 +620,8 @@ module VdevLog
           @options[:pool] = pool
         end
 
-        opts.on('-v', '--verbose', 'Show error log') do
-          @options[:verbose] = true
+        opts.on('-v', '--verbose', 'Show error log and ZIO requests') do
+          @options[:verbose] += 1
         end
 
         opts.on('-u', '--update [POOL]', 'Sync logged vdevs with zpool status') do |pool|
@@ -648,14 +649,29 @@ module VdevLog
     end
 
     def run_list
+      header_fmt = '%-10s %26s %9s %9s %9s  '
+      row_vdev_fmt = '%-10s %26d %9d %9d %9d  '
+      row_log_fmt = '%-10s %26s %9d %9d %9d  '
+
+      if @options[:verbose] > 1
+        header_fmt << '%30s %8s %18s %5s %10s %s'
+        row_vdev_fmt << '%30s'
+        row_log_fmt << '%30s %8d %18d %5d %10s %s'
+      else
+        header_fmt << '%s'
+        row_vdev_fmt << '%s'
+        row_log_fmt << '%s'
+      end
+
       puts sprintf(
-        '%-10s %26s %9s %9s %9s  %s',
+        header_fmt,
         'POOL',
         'GUID',
         'READ',
         'WRITE',
         'CHECKSUM',
-        @options[:verbose] ? 'ID/TIME' : 'ID',
+        @options[:verbose] > 0 ? 'ID/TIME' : 'ID',
+        *(@options[:verbose] > 1 ? %w(SIZE OFFSET ERR FLAGS BOOKMARK) : [])
       )
 
       each_pool do |pool|
@@ -669,7 +685,7 @@ module VdevLog
 
           state.vdevs.each do |vdev|
             puts sprintf(
-              '%-10s %26d %9d %9d %9d  %s',
+              row_vdev_fmt,
               pool,
               vdev.guid,
               vdev.errors.read,
@@ -678,16 +694,25 @@ module VdevLog
               vdev.ids.first,
             )
 
-            if @options[:verbose]
+            if @options[:verbose] > 0
               log_per_vdev.fetch(vdev.guid, []).each do |entry|
+                zio = entry.zio_request
+
                 puts sprintf(
-                  '%-10s %26s %9d %9d %9d  %s',
+                  row_log_fmt,
                   '',
                   '',
                   entry.read,
                   entry.write,
                   entry.checksum,
                   entry.time.to_s,
+                  *(@options[:verbose] > 1 ? [
+                    zio.size,
+                    zio.offset,
+                    zio.err,
+                    "0x#{zio.flags.to_s(16)}",
+                    zio.objset ? [zio.objset, zio.object, zio.level, zio.blkid].join(':') : '-',
+                  ] : [])
                 )
               end
             end
