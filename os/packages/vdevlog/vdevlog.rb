@@ -198,15 +198,18 @@ module VdevLog
       new(
         hash['guid'],
         hash['ids'],
+        state: hash['state'],
         errors: Errors.from_state(hash['errors']),
       )
     end
 
     attr_reader :guid, :ids, :errors
+    attr_accessor :state
 
-    def initialize(guid, ids, errors: nil)
+    def initialize(guid, ids, state: 'online', errors: nil)
       @guid = guid
       @ids = ids
+      @state = state
       @errors = errors || Errors.new
     end
 
@@ -214,6 +217,7 @@ module VdevLog
       {
         'guid' => guid,
         'ids' => ids,
+        'state' => state,
         'errors' => errors.dump,
       }.to_json(*args, **kwargs)
     end
@@ -348,6 +352,7 @@ module VdevLog
               pool: @pool,
               vdev_guid: vdev.guid,
               vdev_id: vdev.ids.first,
+              vdev_state: vdev.state,
             }
             f.puts("#{metric}{#{labels.map { |k, v| "#{k}=\"#{v}\"" }.join(',')}} #{vdev.errors.send(err)}")
           end
@@ -480,10 +485,11 @@ module VdevLog
     def run_update
       pool_guids = get_pool_vdev_guids((@options[:pool] || '').split(','))
 
-      pool_guids.each do |pool, guids|
+      pool_guids.each do |pool, guid_states|
         State.update(@logger, pool) do |state|
           state.vdevs.delete_if do |vdev|
-            if guids.include?(vdev.guid)
+            if guid_states.has_key?(vdev.guid)
+              vdev.state = guid_states[vdev.guid]
               false
             else
               @logger.info(
@@ -537,12 +543,12 @@ module VdevLog
 
         if stripped.start_with?('pool:')
           cur_pool = stripped[5..-1].strip
-          guids[cur_pool] = []
+          guids[cur_pool] = {}
         elsif cur_pool && stripped.start_with?('config:')
           in_config = true
         elsif cur_pool && in_config
-          guid, _ = stripped.split
-          guids[cur_pool] << guid.to_i if /^\d+$/ =~ guid
+          guid, state, _ = stripped.split
+          guids[cur_pool][guid.to_i] = state.downcase if /^\d+$/ =~ guid
         end
       end
 
