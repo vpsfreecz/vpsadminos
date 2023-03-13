@@ -24,74 +24,80 @@ module OsCtld
       )
 
       if created
-        root.devices.init
+        Devices::Lock.sync(pool) do
+          # cgroupv1 devices are configured on the fly, so the cgroup has to be
+          # initialized first
+          root.devices.init if CGroup.v1?
 
-        root.devices.add_new(
-          :char, 1, 3, 'rwm',
-          name: '/dev/null',
-          inherit: true,
-        )
-        root.devices.add_new(
-          :char, 1, 5, 'rwm',
-          name: '/dev/zero',
-          inherit: true,
-        )
-        root.devices.add_new(
-          :char, 1, 7, 'rwm',
-          name: '/dev/full',
-          inherit: true,
-        )
-        root.devices.add_new(
-          :char, 1, 8, 'rwm',
-          name: '/dev/random',
-          inherit: true,
-        )
-        root.devices.add_new(
-          :char, 1, 9, 'rwm',
-          name: '/dev/urandom',
-          inherit: true,
-        )
-        root.devices.add_new(
-          :char, 1, 11, 'rwm',
-          name: '/dev/kmsg',
-          inherit: true,
-        )
-        root.devices.add_new(
-          :char, 5, 0, 'rwm',
-          name: '/dev/tty',
-          inherit: true,
-        )
-        root.devices.add_new(
-          :char, 5, 1, 'rwm',
-        #  name: '/dev/console', # setup by lxc
-          inherit: true,
-        )
-        root.devices.add_new(
-          :char, 5, 2, 'rwm',
-        #  name: '/dev/ptmx', # setup by lxc
-          inherit: true,
-        )
-        root.devices.add_new(
-          :char, 136, '*', 'rwm',
-        #  name: '/dev/tty*', # setup by lxc
-          inherit: true,
-        )
-        root.devices.add_new(
-          :block, '*', '*', 'm',
-          inherit: true,
-        )
-        root.devices.add_new(
-          :char, '*', '*', 'm',
-          inherit: true,
-        )
-        root.devices.apply
+          root.devices.add_new(
+            :char, 1, 3, 'rwm',
+            name: '/dev/null',
+            inherit: true,
+          )
+          root.devices.add_new(
+            :char, 1, 5, 'rwm',
+            name: '/dev/zero',
+            inherit: true,
+          )
+          root.devices.add_new(
+            :char, 1, 7, 'rwm',
+            name: '/dev/full',
+            inherit: true,
+          )
+          root.devices.add_new(
+            :char, 1, 8, 'rwm',
+            name: '/dev/random',
+            inherit: true,
+          )
+          root.devices.add_new(
+            :char, 1, 9, 'rwm',
+            name: '/dev/urandom',
+            inherit: true,
+          )
+          root.devices.add_new(
+            :char, 1, 11, 'rwm',
+            name: '/dev/kmsg',
+            inherit: true,
+          )
+          root.devices.add_new(
+            :char, 5, 0, 'rwm',
+            name: '/dev/tty',
+            inherit: true,
+          )
+          root.devices.add_new(
+            :char, 5, 1, 'rwm',
+          #  name: '/dev/console', # setup by lxc
+            inherit: true,
+          )
+          root.devices.add_new(
+            :char, 5, 2, 'rwm',
+          #  name: '/dev/ptmx', # setup by lxc
+            inherit: true,
+          )
+          root.devices.add_new(
+            :char, 136, '*', 'rwm',
+          #  name: '/dev/tty*', # setup by lxc
+            inherit: true,
+          )
+          root.devices.add_new(
+            :block, '*', '*', 'm',
+            inherit: true,
+          )
+          root.devices.add_new(
+            :char, '*', '*', 'm',
+            inherit: true,
+          )
+
+          root.devices.init if CGroup.v2?
+        end
+
         root.save_config
-
       else
         root.devices.init
       end
 
-      load_or_create(pool, '/default')
+      default, _ = load_or_create(pool, '/default')
+      default.devices.init
     end
 
     def root(pool)

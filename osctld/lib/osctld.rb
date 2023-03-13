@@ -24,7 +24,10 @@ module OsCtld
     module User ; end
   end
   module DB ; end
-  module Devices ; end
+  module Devices
+    module V1 ; end
+    module V2 ; end
+  end
   module Generic ; end
   module Hook ; end
   module Mount ; end

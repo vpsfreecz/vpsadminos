@@ -14,7 +14,7 @@ module OsCtld
 
     def execute(grp)
       manipulate(grp) do
-        chmod(grp, grp.root? ? nil : grp.parent)
+        chmod(grp)
       end
     end
   end

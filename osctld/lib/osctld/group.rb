@@ -28,6 +28,10 @@ module OsCtld
       @name
     end
 
+    def ident
+      inclusively { "#{pool.name}:#{id}" }
+    end
+
     def root?
       @root
     end
@@ -39,7 +43,7 @@ module OsCtld
     def configure(path: nil, devices: true)
       @path = path if root?
       @cgparams = CGroup::Params.new(self)
-      @devices = Devices::GroupManager.new(self)
+      @devices = Devices::Manager.new_for(self)
       @devices.init if devices
       save_config
     end
@@ -305,7 +309,7 @@ module OsCtld
 
       @path = cfg['path'] if root?
       @cgparams = CGroup::Params.load(self, cfg['cgparams'])
-      @devices = Devices::GroupManager.load(self, cfg['devices'] || [])
+      @devices = Devices::Manager.load(self, cfg['devices'] || [])
       @attrs = Attributes.load(cfg['attrs'] || {})
     end
   end

@@ -5,20 +5,18 @@ module OsCtld
     end
 
     # @param entity [Group, Container]
-    # @param parent [Group, nil]
-    def add(entity, parent)
+    def add(entity)
       dev = Devices::Device.import(opts)
       error!('device already exists') if entity.devices.include?(dev)
       check_mode!
 
       Devices::Lock.sync(entity.pool) do
-        if !opts[:parents] && parent
-          entity.devices.check_availability!(dev, parent)
+        if !opts[:parents]
+          entity.devices.check_availability!(dev)
         end
 
-        entity.devices.add(dev, opts[:parents] ? parent : nil)
+        entity.devices.add(dev)
         entity.save_config
-        entity.devices.apply(parents: true, descendants: true, containers: true)
       end
 
       ok
@@ -28,8 +26,7 @@ module OsCtld
     end
 
     # @param entity [Group, Container]
-    # @param parent [Group, nil]
-    def chmod(entity, parent = nil)
+    def chmod(entity)
       dev = entity.devices.find(opts[:type].to_sym, opts[:major], opts[:minor])
       error!('device not found') unless dev
       check_mode! unless opts[:mode].empty?
@@ -38,8 +35,8 @@ module OsCtld
 
       Devices::Lock.sync(entity.pool) do
         # Check parents for device & mode
-        if !opts[:parents] && parent
-          entity.devices.check_availability!(dev, parent, mode: new_mode)
+        if !opts[:parents]
+          entity.devices.check_availability!(dev, mode: new_mode)
         end
 
         # Check if descendants do not require broader access mode

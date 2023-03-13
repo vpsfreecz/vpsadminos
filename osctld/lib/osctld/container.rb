@@ -102,7 +102,7 @@ module OsCtld
         @nesting = false
         @seccomp_profile = default_seccomp_profile
         @cgparams = CGroup::ContainerParams.new(self)
-        @devices = Devices::ContainerManager.new(self)
+        @devices = Devices::Manager.new_for(self)
         @prlimits = PrLimits::Manager.default(self)
         @mounts = Mount::Manager.new(self)
         @run_conf ||= new_run_conf
@@ -284,7 +284,7 @@ module OsCtld
         devices.create
 
       when 'check'
-        devices.check_all_available!(grp)
+        devices.check_all_available!(group: grp)
 
       else
         fail "unsupported action for missing devices: '#{missing_devices}'"
@@ -912,7 +912,7 @@ module OsCtld
         # If the container has a veth interface, the setup code switches to the
         # container's user, which creates cgroups in all subsystems. Devices then
         # can't be initialized properly.
-        @devices = Devices::ContainerManager.load(self, cfg['devices'] || [])
+        @devices = Devices::Manager.load(self, cfg['devices'] || [])
         @devices.init if init_devices
 
         @netifs = NetInterface::Manager.load(self, cfg['net_interfaces'] || [])

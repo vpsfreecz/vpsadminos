@@ -29,7 +29,7 @@ module OsCtld
     attr_reader :type, :major, :minor, :mode, :name
     attr_writer :inherited, :inherit
 
-    # @param type [Symbol] `:char` or `:block`
+    # @param type [:char, :block]
     # @param major [Integer, Symbol]
     # @param minor [Integer, Symbol]
     # @param mode [String]
@@ -39,7 +39,7 @@ module OsCtld
     #                                 inherit this device?
     # @option opts [Boolean] :inherited was this device inherited from the
     #                                   parent group?
-    def initialize(type, major, minor, mode, opts = {})
+    def initialize(type, major, minor, mode, **opts)
       @type = type
       @major = major
       @minor = minor
@@ -55,6 +55,10 @@ module OsCtld
 
     def inherited?
       @inherited
+    end
+
+    def promoted?
+      !@inherited
     end
 
     # @param m [Devices::Mode]

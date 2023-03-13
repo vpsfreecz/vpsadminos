@@ -24,7 +24,7 @@ module OsCtld
           error!('device is used by child groups/containers, use recursive mode')
         end
 
-        grp.devices.remove_recursive(dev)
+        grp.devices.remove(dev)
         ok
       end
     end

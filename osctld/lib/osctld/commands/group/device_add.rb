@@ -14,7 +14,7 @@ module OsCtld
 
     def execute(grp)
       manipulate(grp) do
-        add(grp, grp.root? ? nil : grp.parent)
+        add(grp)
       end
     end
   end

@@ -33,7 +33,7 @@ module OsCtld
         # Check that devices are available in the new group
         unless %w(provide remove).include?(opts[:missing_devices])
           begin
-            ct.devices.check_all_available!(new_group)
+            ct.devices.check_all_available!(group: new_group)
 
           rescue DeviceNotAvailable, DeviceModeInsufficient => e
             error!(e.message)

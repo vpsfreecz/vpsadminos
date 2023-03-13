@@ -40,19 +40,21 @@ module OsCtld
   end
 
   class DeviceDescendantRequiresMode < StandardError
-    # @param entity [Group, Container]
+    # @param entity [Devices::Owner]
     # @param mode [Devices::Device::Mode]
     def initialize(entity, mode)
-      if entity.is_a?(Group)
-        super("child group '#{entity.name}' requires broader device access mode '#{mode}'")
-
-      elsif entity.is_a?(Container)
-        super("container '#{entity.id}' requires broader device access mode '#{mode}'")
-      end
+      super("#{entity.ident} requires broader device access mode '#{mode}'")
     end
   end
 
   class DeviceInUse < StandardError ; end
+
+  class DeviceInheritNeeded < DeviceInUse
+    # @param entity [Devices::Owner]
+    def initialize(entity)
+      super("#{entity.ident} would lose access to the device")
+    end
+  end
 
   class MountNotFound < StandardError ; end
 
