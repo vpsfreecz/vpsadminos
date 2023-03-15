@@ -285,6 +285,10 @@ module OsCtld
       # Generate /etc/subuid and /etc/subgid
       Commands::User::SubUGIds.run
 
+      # Setup BPF FS
+      BpfFs.add_pool(name)
+      Devices::V2::BpfProgramCache.load_links(name)
+
       # Load groups
       load_groups
 

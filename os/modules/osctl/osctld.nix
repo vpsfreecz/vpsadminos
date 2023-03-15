@@ -19,6 +19,7 @@ let
     runit
     shadow
     util-linux
+    devcgprog
     config.boot.zfsUserPackage
   ];
 

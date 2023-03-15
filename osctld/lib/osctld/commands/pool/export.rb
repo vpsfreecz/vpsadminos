@@ -121,7 +121,7 @@ module OsCtld
           end
         end
 
-        # Remove all cgroups
+        # Remove all cgroups & BPF
         if opts[:stop_containers]
           progress('Removing cgroups')
           begin
@@ -129,6 +129,9 @@ module OsCtld
           rescue SystemCallError
             # If some of the cgroups are busy, just leave them be
           end
+
+          # Clear-out BPF FS
+          BpfFs.remove_pool(pool.name)
         end
 
         # Regenerate /etc/sub{u,g}ids and lxc-usernet

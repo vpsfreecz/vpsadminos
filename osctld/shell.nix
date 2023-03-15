@@ -16,6 +16,7 @@ let
     openssh
     shadow
     util-linux
+    devcgprog
   ];
 
   pathJoined = lib.concatMapStringsSep ":" (s: "${s}/bin") path;

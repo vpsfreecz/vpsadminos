@@ -258,6 +258,11 @@ module OsCtld
       # Remove directory
       Dir.rmdir(abs_path)
 
+      if CGroup.v2?
+        # Remove pinned links for the cgroup
+        Devices::V2::BpfProgramCache.prune_cgroup_links(abs_path)
+      end
+
     rescue Errno::ENOENT
       # pass
     end

@@ -1,5 +1,6 @@
 module OsCtld
   class Devices::Manager
+    # Get manager class group/container on cgroup v1/v2
     # @param owner [Devices::Owner]
     # @return [Class]
     def self.class_for(owner)
@@ -483,14 +484,17 @@ module OsCtld
       end
     end
 
+    # @yieldparam [Devices::Device]
     def each(&block)
       sync { devices.each(&block) }
     end
 
+    # @yieldparam [Devices::Device]
     def detect(&block)
       sync { devices.detect(&block) }
     end
 
+    # @yieldparam [Devices::Device]
     def select(&block)
       sync { devices.select(&block) }
     end
@@ -505,6 +509,7 @@ module OsCtld
       raise NotImplementedError
     end
 
+    # @return [Class]
     def configurator_class
       raise NotImplementedError
     end

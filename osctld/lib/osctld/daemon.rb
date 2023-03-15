@@ -124,6 +124,9 @@ module OsCtld
       # Setup shared AppArmor files
       AppArmor.setup
 
+      # Setup BPF FS
+      BpfFs.setup
+
       # User-control supervisor
       UserControl::Supervisor.instance
 

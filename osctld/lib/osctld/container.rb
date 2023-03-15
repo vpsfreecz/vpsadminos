@@ -277,11 +277,11 @@ module OsCtld
       case missing_devices
       when 'provide'
         devices.ensure_all
-        devices.create
+        devices.init
 
       when 'remove'
         devices.remove_missing
-        devices.create
+        devices.init
 
       when 'check'
         devices.check_all_available!(group: grp)

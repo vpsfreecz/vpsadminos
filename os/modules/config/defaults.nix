@@ -56,6 +56,7 @@
 
   environment.systemPackages = with pkgs; [
     acl
+    bpftool
     conntrack-tools
     glibc
     iotop

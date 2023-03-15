@@ -4,7 +4,7 @@ module OsCtld
     # @return [Devices::Manager]
     def devices ; end
 
-    # @return [String]
+    # @return [Pool]
     def pool ; end
 
     # @return [String]

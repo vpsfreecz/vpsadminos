@@ -11,7 +11,7 @@ module OsCtld
     end
 
     def configurator_class
-      Devices::V2::Configurator
+      Devices::V2::GroupConfigurator
     end
 
     protected

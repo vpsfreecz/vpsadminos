@@ -146,6 +146,9 @@ in
     mkdir -p /run/osctl
     echo "$cgroupv" > /run/osctl/cgroup.version
 
+    # BPF FS
+    mount -t bpf bpf /sys/fs/bpf
+
     # AppArmor
     mount -t securityfs securityfs /sys/kernel/security
     ${pkgs.apparmor-parser}/bin/apparmor_parser -rKv ${apparmor_paths_include} "${profile}"
