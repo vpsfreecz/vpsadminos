@@ -553,7 +553,19 @@ module OsCtld
     attr_reader :owner, :devices, :configurator
 
     def do_add(device)
-      devices << device
+      if device.inherited?
+        devices << device
+      else
+        # Add promoted devices before inherited devices, as those are always
+        # added later when read from configuration files.
+        i = devices.index { |dev| dev.inherited? }
+
+        if i.nil?
+          devices << device
+        else
+          devices.insert(i, device)
+        end
+      end
     end
 
     # Check if the inheritance can be disabled
