@@ -20,6 +20,7 @@ let
     shadow
     util-linux
     devcgprog
+    bpftool
     config.boot.zfsUserPackage
   ];
 

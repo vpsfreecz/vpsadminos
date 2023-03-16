@@ -2,6 +2,9 @@ require 'osctld/devices/configurator'
 
 module OsCtld
   class Devices::V2::Configurator < Devices::Configurator
+    # @return [String]
+    attr_reader :prog_name
+
     def init(devices)
       get_prog(devices)
     end

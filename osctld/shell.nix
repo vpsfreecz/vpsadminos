@@ -17,6 +17,7 @@ let
     shadow
     util-linux
     devcgprog
+    bpftool
   ];
 
   pathJoined = lib.concatMapStringsSep ":" (s: "${s}/bin") path;

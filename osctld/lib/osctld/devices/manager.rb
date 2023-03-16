@@ -41,6 +41,11 @@ module OsCtld
       @configurator = configurator_class.new(owner)
     end
 
+    # @param [Assets::Definition]
+    def assets(add)
+
+    end
+
     # Initialize device list
     # @param opts [Hash] can be used by subclasses
     def init(**opts)

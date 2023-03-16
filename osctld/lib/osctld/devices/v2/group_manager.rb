@@ -2,6 +2,16 @@ require 'osctld/devices/manager'
 
 module OsCtld
   class Devices::V2::GroupManager < Devices::Manager
+    def assets(add)
+      add.cgroup_program(
+        group.abs_cgroup_path('devices'),
+        desc: 'Controls access to devices',
+        program_name: configurator.prog_name,
+        attach_type: 'device',
+        attach_flags: 'multi',
+      )
+    end
+
     def parent
       group.parent
     end

@@ -67,6 +67,8 @@ module OsCtld
             mode: 0751
           )
         end
+
+        devices.assets(add)
       end
     end
 

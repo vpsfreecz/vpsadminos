@@ -176,6 +176,8 @@ module OsCtld
         )
 
         run_conf.assets(add) if run_conf
+
+        devices.assets(add)
       end
     end
 
