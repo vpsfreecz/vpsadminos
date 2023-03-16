@@ -64,14 +64,14 @@ in {
 
       cpus = mkOption {
         internal = true;
-        default = 1;
+        default = 4;
         type = types.addCheck types.int (n: n >= 1);
         description = "Number of available CPUs";
       };
 
       cpu.cores = mkOption {
         internal = true;
-        default = 1;
+        default = 4;
         type = types.addCheck types.int (n: n >= 1);
         description = "Number of available CPU cores";
       };
