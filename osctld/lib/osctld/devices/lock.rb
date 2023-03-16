@@ -46,7 +46,12 @@ module OsCtld
       if m.owned?
         yield
       else
-        m.synchronize { yield }
+        m.synchronize do
+          Devices::ChangeSet.open(pool)
+          ret = yield
+          Devices::ChangeSet.close(pool)
+          ret
+        end
       end
     end
 

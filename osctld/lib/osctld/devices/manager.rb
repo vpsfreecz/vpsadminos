@@ -81,6 +81,7 @@ module OsCtld
         parent.devices.provide(device) if parent
         do_add(device)
 
+        add_to_changeset
         configurator.add_device(device)
 
         if device.inherit?
@@ -98,6 +99,7 @@ module OsCtld
         dev.inherited = true
         do_add(dev)
 
+        add_to_changeset
         configurator.add_device(dev)
 
         children.each do |child|
@@ -125,6 +127,7 @@ module OsCtld
           # Apply cgroup
           # Since the mode was complemented, we don't have to deny existing
           # access modes, only allow new ones
+          add_to_changeset
           configurator.add_device(dev)
 
           # Save it
@@ -139,6 +142,7 @@ module OsCtld
         dev = device.clone
         dev.inherit = false
         do_add(dev)
+        add_to_changeset
         configurator.add_device(dev)
         owner.save_config
       end
@@ -158,6 +162,7 @@ module OsCtld
         devices.delete(device)
         owner.save_config
 
+        add_to_changeset
         configurator.remove_device(device)
       end
     end
@@ -180,6 +185,7 @@ module OsCtld
         device.inherited = false if promote && device.inherited?
         owner.save_config
 
+        add_to_changeset
         configurator.apply_changes(changes)
 
         if descendants
@@ -212,6 +218,7 @@ module OsCtld
 
           # Parent group can have broader access mode, so we need to expand it
           if device.mode != parent_dev.mode
+            add_to_changeset
             changes = device.chmod(parent_dev.mode.clone)
             configurator.apply_changes(changes)
 
@@ -252,6 +259,7 @@ module OsCtld
         device.mode = mode
         owner.save_config
 
+        add_to_changeset
         configurator.apply_changes(changes)
 
         children.each do |child|
@@ -514,6 +522,11 @@ module OsCtld
       raise NotImplementedError
     end
 
+    # @return [any]
+    def changeset_sort_key
+      raise NotImplementedError
+    end
+
     # Export devices to clients
     # @return [Array<Hash>]
     def export
@@ -573,6 +586,10 @@ module OsCtld
       return if !dev || mode.compatible?(dev.mode)
 
       raise DeviceDescendantRequiresMode.new(owner, dev.mode)
+    end
+
+    def add_to_changeset
+      Devices::ChangeSet.add(owner.pool, self, changeset_sort_key)
     end
 
     def sync(&block)

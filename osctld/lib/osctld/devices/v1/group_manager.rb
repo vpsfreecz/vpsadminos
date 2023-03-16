@@ -19,5 +19,9 @@ module OsCtld
 
     protected
     alias_method :group, :owner
+
+    def add_to_changeset
+      # not used on v1
+    end
   end
 end

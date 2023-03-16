@@ -22,10 +22,16 @@ module OsCtld
     # access mode
     def remove_missing
       sync do
+        changed = false
+
         devices.delete_if do |dev|
           pdev = parent.devices.get(dev)
-          pdev.nil? || !pdev.mode.compatible?(dev.mode)
+          delete = pdev.nil? || !pdev.mode.compatible?(dev.mode)
+          changed = true if delete
+          delete
         end
+
+        add_to_changeset if changed
       end
     end
 
@@ -39,6 +45,10 @@ module OsCtld
 
     def configurator_class
       Devices::V2::ContainerConfigurator
+    end
+
+    def changeset_sort_key
+      File.join(ct.group.name, ct.id)
     end
 
     protected

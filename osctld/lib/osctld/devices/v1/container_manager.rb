@@ -44,6 +44,10 @@ module OsCtld
     protected
     alias_method :ct, :owner
 
+    def add_to_changeset
+      # not used on v1
+    end
+
     # @param devices [Devices::Manager]
     # @param path [String] absolute cgroup path
     def apply_devices(devices, path)

@@ -14,6 +14,10 @@ module OsCtld
       Devices::V2::GroupConfigurator
     end
 
+    def changeset_sort_key
+      group.name
+    end
+
     protected
     alias_method :group, :owner
   end
