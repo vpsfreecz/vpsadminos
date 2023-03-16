@@ -42,6 +42,7 @@ let
 in tests [
   "boot"
   "cgroups/devices-v1"
+  "cgroups/devices-v2"
   { template = "cgroups/mount-v1"; instances = distributions.all ; }
   { template = "cgroups/mount-v2"; instances = distributions.cgroupv2; }
   "cgroups/system-v1"
