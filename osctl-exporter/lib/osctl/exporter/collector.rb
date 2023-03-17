@@ -44,7 +44,7 @@ module OsCtl::Exporter
         CollectorConfig.new(Collectors::ZpoolStatus, false, 60),
         CollectorConfig.new(Collectors::CpuScheduler, true, 60),
         CollectorConfig.new(Collectors::Lxcfs, true, 60),
-        CollectorConfig.new(Collectors::HealthCheck, true, 120),
+        CollectorConfig.new(Collectors::HealthCheck, true, 600),
       ]
 
       @collector_index = {}
