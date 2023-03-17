@@ -27,6 +27,10 @@ module OsCtld
     # @return [String]
     attr_reader :name
 
+    # Pin file path
+    # @return [String]
+    attr_reader :path
+
     # @param prog_name [String]
     # @param pool_name [String]
     # @param cgroup_path [String]
@@ -35,6 +39,7 @@ module OsCtld
       @pool_name = pool_name
       @cgroup_path = cgroup_path
       @name = "devcg-#{prog_name}-on-#{OsCtl::Lib::StringEscape.escape_path(cgroup_path)}"
+      @path = BpfFs.link_pin_path(pool_name, @name)
     end
   end
 end

@@ -8,6 +8,10 @@ module OsCtld
     # @return [String]
     attr_reader :name
 
+    # Pin file path
+    # @return [String]
+    attr_reader :path
+
     # Create a new program
     #
     # The device list can be nil. In that case, the program cannot be loaded
@@ -19,6 +23,7 @@ module OsCtld
     def initialize(name, devices)
       @name = name
       @devices = devices
+      @path = BpfFs.prog_pin_path(name)
     end
 
     # Check if the program is loaded within the kernel
@@ -35,7 +40,7 @@ module OsCtld
       args = %W(
         -name #{@name}
         new
-        #{BpfFs.prog_pin_path(@name)}
+        #{path}
         allow
       )
 
@@ -47,7 +52,7 @@ module OsCtld
     end
 
     def destroy
-      File.unlink(BpfFs.prog_pin_path(@name))
+      File.unlink(path)
     end
 
     # Check if program is attached to a cgroup
@@ -66,9 +71,9 @@ module OsCtld
     def attach(link)
       run_devcgprog(
         'attach',
-        BpfFs.prog_pin_path(@name),
+        path,
         link.cgroup_path,
-        BpfFs.link_pin_path(link.pool_name, link.name),
+        link.path,
       )
     end
 
@@ -83,16 +88,16 @@ module OsCtld
 
       run_devcgprog(
         'replace',
-        BpfFs.link_pin_path(link.pool_name, link.name),
+        link.path,
         BpfFs.prog_pin_path(new_link.prog_name),
-        BpfFs.link_pin_path(new_link.pool_name, new_link.name),
+        new_link.path,
       )
     end
 
     # Detach program from cgroup
     # @param link [Devices::V2::BpfLink]
     def detach(link)
-      File.unlink(BpfFs.link_pin_path(link.pool_name, link.name))
+      File.unlink(link.path)
     end
 
     protected
