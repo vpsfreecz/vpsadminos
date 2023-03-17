@@ -183,6 +183,8 @@ module OsCtld
           group: 0,
           mode: 0600
         )
+
+        Devices::V2::BpfProgramCache.assets(add)
       end
     end
 

@@ -15,7 +15,8 @@ module OsCtld
 
     class << self
       extend Forwardable
-      def_delegators :instance, :set, :get_prog_name, :load_links, :prune_cgroup_links
+      def_delegators :instance, :assets, :set, :get_prog_name, :load_links,
+        :prune_cgroup_links
     end
 
     def initialize
@@ -25,6 +26,33 @@ module OsCtld
       @path_cache = {}
 
       load_programs
+    end
+
+    # @param add [Assets::Definition]
+    def assets(add)
+      sync do
+        @programs.each_value do |prog|
+          add.file(
+            prog.path,
+            desc: "BPF program #{prog.name}",
+            user: 0,
+            group: 0,
+            mode: 0600,
+          )
+        end
+
+        @links.each_value do |cgroup_paths|
+          cgroup_paths.each_value do |link|
+            add.file(
+              link.path,
+              desc: "BPF program #{link.prog_name} attached on #{link.cgroup_path}",
+              user: 0,
+              group: 0,
+              mode: 0600,
+            )
+          end
+        end
+      end
     end
 
     # Detect existing links in BPF FS
