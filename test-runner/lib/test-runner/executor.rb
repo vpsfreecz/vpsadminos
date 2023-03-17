@@ -35,7 +35,7 @@ module TestRunner
 
       wait_for_workers
 
-      log("Run #{results.length} tests in #{Time.now - t1} seconds")
+      log("Run #{results.length} tests in #{(Time.now - t1).round(2)} seconds")
       successful = results.select(&:successful?)
       failed = results.reject(&:successful?)
       log("#{successful.length} tests successful")
@@ -74,10 +74,10 @@ module TestRunner
         result = run_test(t)
 
         if result.successful?
-          log("#{prefix} Test '#{t.path}' successful in #{result.elapsed_time} seconds")
+          log("#{prefix} Test '#{t.path}' successful in #{result.elapsed_time.round(2)} seconds")
         else
           log(
-            "#{prefix} Test '#{t.path}' failed after #{result.elapsed_time} "+
+            "#{prefix} Test '#{t.path}' failed after #{result.elapsed_time.round(2)} "+
             "seconds, see #{result.state_dir}"
           )
           stop_work! if opts[:stop_on_failure]
