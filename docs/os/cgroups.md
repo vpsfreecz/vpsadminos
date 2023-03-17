@@ -1,8 +1,7 @@
 # Control groups
 vpsAdminOS supports primarily cgroups mounted in a hybrid hierarchy: cgroupv1
-is used for controllers and cgroupv2 only tracks processes. While the unified
-hierarchy using only cgroupv2 is already usable, vpsAdminOS is missing device
-access control and as such is suitable only for development.
+is used for controllers and cgroupv2 only tracks processes. cgroupv2 in a unified
+hierarchy is fully supported and we expect to make it the new default in 2023.
 
 ## Configuring cgroup hierarchy
 vpsAdminOS defaults to the hybrid hierarchy, but optionally can be booted into
