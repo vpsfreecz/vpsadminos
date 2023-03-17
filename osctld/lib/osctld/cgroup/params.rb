@@ -84,8 +84,8 @@ module OsCtld
             del = p.version == del_p.version \
                   && p.subsystem == del_p.subsystem \
                   && p.name == del_p.name
-            next(del) if !del || !reset
-            reset(p, keep_going, &block)
+            next(del) if !del
+            reset(p, keep_going, &block) if reset && p.version == CGroup.version
             true
           end
         end
