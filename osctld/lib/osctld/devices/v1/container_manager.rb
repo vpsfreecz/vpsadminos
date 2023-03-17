@@ -2,6 +2,14 @@ require 'osctld/devices/manager'
 
 module OsCtld
   class Devices::V1::ContainerManager < Devices::Manager
+    def assets(add)
+      add.cgroup_device_list(
+        ct.abs_apply_cgroup_path('devices'),
+        desc: 'Controls access to devices',
+        devices: devices,
+      )
+    end
+
     # Check that all devices are provided by parents, or raise an exception
     # @param group [Group, nil] which group to use as the container's parent,
     #                           defaults to the container's group

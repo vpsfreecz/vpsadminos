@@ -5,6 +5,14 @@ module OsCtld
   class Devices::V1::GroupManager < Devices::Manager
     include OsCtl::Lib::Utils::Log
 
+    def assets(add)
+      add.cgroup_device_list(
+        group.abs_cgroup_path('devices'),
+        desc: 'Controls access to devices',
+        devices: devices,
+      )
+    end
+
     def parent
       group.root? ? nil : group.parent
     end
