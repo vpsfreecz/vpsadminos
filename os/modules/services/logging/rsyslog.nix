@@ -18,8 +18,6 @@ let
     $UDPServerAddress 127.0.0.1
     $UDPServerRun 514
 
-    kern.*                       -/var/log/kern.log
-
     # "local1" is used for dhcpd messages.
     local1.*                     -/var/log/dhcpd
 
@@ -90,7 +88,6 @@ in
       {
         files = [
           "/var/log/messages"
-          "/var/log/kern.log"
           "/var/log/warn"
           "/var/log/osctld"
           "/var/log/nodectld"
