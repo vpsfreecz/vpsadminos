@@ -39,12 +39,12 @@ module OsCtld
     # The given block is called for every executed item. The calls can be made
     # in parallel from different threads.
     #
-    # @param threads [Integer] max number of threads to spawn
+    # @param threads [Integer, :all, :half] max number of threads to spawn
     # @yieldparam [v] queued item
-    def run(threads = nil, &block)
+    def run(threads: nil, &block)
       fail 'already in progress' if running?
 
-      run_threads = [threads || default_threads, @queue.length].min
+      run_threads = [get_threads(threads), @queue.length].min
 
       @on_start && @on_start.call
 
@@ -98,7 +98,7 @@ module OsCtld
     # Number of default threads unless overriden in {#run}
     # @return [Integer]
     def default_threads
-      @default_threads ||= Etc.nprocessors
+      @default_threads ||= [Etc.nprocessors / 2, 1].max
     end
 
     protected
@@ -108,6 +108,19 @@ module OsCtld
         break if v.nil?
 
         block.call(v)
+      end
+    end
+
+    def get_threads(n)
+      case n
+      when nil
+        default_threads
+      when :all
+        Etc.nprocessors
+      when :half
+        [Etc.nprocessors / 2, 1].max
+      else
+        fail "unsupported threads value #{n.inspect}"
       end
     end
 

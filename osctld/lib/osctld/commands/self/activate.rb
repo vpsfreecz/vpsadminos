@@ -1,5 +1,4 @@
 require 'osctld/commands/base'
-require 'etc'
 
 module OsCtld
   class Commands::Self::Activate < Commands::Base
@@ -18,14 +17,13 @@ module OsCtld
       if opts[:lxcfs]
         progress('Refreshing LXCFS')
 
-        nproc = Etc.nprocessors
         ep = ExecutionPlan.new
 
         DB::Containers.get.each do |ct|
           ep << ct
         end
 
-        ep.run([nproc / 2, 1].max) do |ct|
+        ep.run do |ct|
           next unless ct.running?
 
           begin
