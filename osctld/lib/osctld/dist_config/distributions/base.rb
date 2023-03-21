@@ -127,11 +127,13 @@ module OsCtld
     # Gracefully stop the container
     # @param opts [Hash]
     # @option opts [:stop, :shutdown, :kill] :mode
+    # @option opts [String] :message
     # @option opts [Integer] :timeout
     def stop(opts)
       ContainerControl::Commands::Stop.run!(
         ct,
         opts[:mode],
+        message: opts[:message],
         timeout: opts[:timeout],
       )
     end

@@ -29,7 +29,8 @@ module OsCtld
             pool: ct.pool.name,
             id: ct.id,
             timeout: opts[:stop_timeout],
-            method: opts[:stop_method]
+            method: opts[:stop_method],
+            message: opts[:message],
           )
           call_cmd!(
             Commands::Container::Start,

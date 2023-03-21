@@ -57,6 +57,7 @@ module OsCtld
             ct.get_run_conf,
             :stop,
             mode: mode,
+            message: opts[:message],
             timeout: opts[:timeout] || Container::DEFAULT_STOP_TIMEOUT,
           )
         rescue ContainerControl::UserRunnerError

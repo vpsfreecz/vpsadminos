@@ -336,6 +336,7 @@ module OsCtl::Cli
         pool: gopts[:pool],
         timeout: opts[:timeout],
         method: m,
+        message: opts[:message],
       }
 
       return osctld_fmt(:ct_stop, cmd_opts: cmd_opts) unless opts[:foreground]
@@ -375,6 +376,7 @@ module OsCtl::Cli
         reboot: opts[:reboot],
         stop_timeout: opts[:timeout],
         stop_method: m,
+        message: opts[:message],
       }
 
 

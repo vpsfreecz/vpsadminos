@@ -49,7 +49,7 @@ module OsCtld
         # Stop all containers
         if opts[:stop_containers]
           progress('Stopping all containers')
-          pool.autostop_and_wait(client_handler: client_handler)
+          pool.autostop_and_wait(client_handler: client_handler, message: opts[:message])
           check_abort!(pool)
 
           # Verify that all containers are stopped

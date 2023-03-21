@@ -355,6 +355,9 @@ The following shortcuts are supported:
       Unregister users from pool *pool* from the system, i.e. remove entries
       from `/etc/passwd` and `/etc/group`. Enabled by default.
 
+    `-m`, `--message` *message*
+      Message sent to logged-in users of containers that are stopped.
+
     `--if-imported`
       Export the pool if it is imported, exit successfully if it is not imported.
 
@@ -907,6 +910,9 @@ The following shortcuts are supported:
     `-F`, `--[no-]foreground`
       Open container console (can be later detached), see `ct console`.
 
+    `-m`, `--message` *message*
+      Message sent to logged-in container users.
+
     `-k`, `--kill`
       Do not request a clean shutdown, kill the container immediately.
 
@@ -936,6 +942,9 @@ The following shortcuts are supported:
 
     `-F`, `--[no-]foreground`
       Open container console (can be later detached), see `ct console`.
+
+    `-m`, `--message` *message*
+      Message sent to logged-in container users.
 
     `-r`, `--reboot`
       Request a reboot of the container by signaling its init process. 
@@ -2995,6 +3004,9 @@ The following shortcuts are supported:
     `-f`, `--force`
       Do not ask for confirmation on standard input, initiate shutdown
       immediately.
+
+    `-m`, `--message` *message*
+      Message sent to logged-in users of containers that are stopped.
 
     `--abort`
       Abort an already running shutdown and export of all pools. Some pools can

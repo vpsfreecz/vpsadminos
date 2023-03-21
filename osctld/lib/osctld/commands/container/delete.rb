@@ -28,6 +28,7 @@ module OsCtld
           id: ct.id,
           manipulation_lock: opts[:manipulation_lock],
           progress: opts[:progress],
+          message: opts[:message],
         )
 
         if ct.send_log

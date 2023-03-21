@@ -49,6 +49,7 @@ module OsCtld
           grab_containers: false,
           stop_containers: true,
           unregister_users: false,
+          message: opts[:message] || 'System is shutting down',
         )
       end
 

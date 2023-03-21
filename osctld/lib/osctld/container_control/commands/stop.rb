@@ -1,6 +1,7 @@
 require 'osctld/container_control/command'
 require 'osctld/container_control/frontend'
 require 'osctld/container_control/runner'
+require 'osctld/container_control/utils/wall'
 
 module OsCtld
   # Stop/shutdown/kill container
@@ -12,16 +13,25 @@ module OsCtld
   # - `:kill` kills the container immediately
   class ContainerControl::Commands::Stop < ContainerControl::Command
     class Frontend < ContainerControl::Frontend
+      include ContainerControl::Utils::Wall::Frontend
+
       # @param mode [:stop, :shutdown, :kill]
       # @param opts [Hash] options
       # @option opts [Integer] :timeout how log to wait for clean shutdown
+      # @option opts [String] :message
       # @return [true]
-      def execute(mode, opts = {})
+      def execute(mode, **opts)
         if !%i(stop shutdown kill).include?(mode)
           raise ArgumentError, "invalid stop mode '#{mode}'"
         end
 
         CGroup.thaw_tree(ct.cgroup_path) if mode == :kill
+
+        if opts[:message] && ct.running?
+          opts = opts.merge(message: make_message(opts[:message]))
+        else
+          opts.delete(:message)
+        end
 
         ret =
           if %i(stop shutdown).include?(mode) && ct.running?
@@ -45,7 +55,17 @@ module OsCtld
     end
 
     class Runner < ContainerControl::Runner
+      include ContainerControl::Utils::Wall::Runner
+
       def execute(mode, opts)
+        if opts[:message]
+          begin
+            ct_wall(opts[:message])
+          rescue LXC::Error
+            # ignore
+          end
+        end
+
         send(:"do_#{mode}", opts)
       end
 

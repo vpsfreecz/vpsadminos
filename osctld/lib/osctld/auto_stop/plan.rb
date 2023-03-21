@@ -18,8 +18,9 @@ module OsCtld
     #
     # It is assumed that manipulation lock is held on all containers on the pool.
     #
+    # @param message [String]
     # @param client_handler [Generic::ClientHandler, nil]
-    def start(client_handler: nil)
+    def start(message: nil, client_handler: nil)
       @stop = false
 
       log(
@@ -66,7 +67,7 @@ module OsCtld
           end
 
           log(:info, ct, 'Auto-stopping container')
-          do_stop_ct(ct)
+          do_stop_ct(ct, message: message)
         end
       end
 
@@ -97,7 +98,7 @@ module OsCtld
     protected
     attr_reader :plan
 
-    def do_stop_ct(ct)
+    def do_stop_ct(ct, message: nil)
       if ct.ephemeral?
         Commands::Container::Delete.run(
           pool: pool.name,
@@ -105,6 +106,7 @@ module OsCtld
           force: true,
           progress: false,
           manipulation_lock: 'ignore',
+          message: message,
         )
       else
         Commands::Container::Stop.run(
@@ -112,6 +114,7 @@ module OsCtld
           id: ct.id,
           progress: false,
           manipulation_lock: 'ignore',
+          message: message,
         )
 
         pool.autostart_plan.clear_ct(ct)

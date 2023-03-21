@@ -99,7 +99,7 @@ module OsCtl::Cli
       File.open(SHUTDOWN_MARKER, 'w', 0000){}
 
       begin
-        osctld_fmt(:self_shutdown)
+        osctld_fmt(:self_shutdown, cmd_opts: {message: opts[:message]})
         return
       rescue OsCtl::Client::Error => e
         warn "Lost connection to osctld: #{e.message}"

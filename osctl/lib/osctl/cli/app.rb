@@ -100,6 +100,9 @@ module OsCtl::Cli
           c.desc 'Unregister system users that come from the exported pool'
           c.switch %i(u unregister-users), default_value: true
 
+          c.desc 'Message sent to logged-in container users'
+          c.flag %i(m message), arg_name: 'message'
+
           c.desc 'Do not fail if the pool is not imported'
           c.switch %i(if-imported)
 
@@ -730,6 +733,9 @@ module OsCtl::Cli
           c.desc 'Open container console (can be later detached)'
           c.switch %i(F foreground)
 
+          c.desc 'Message sent to logged-in container users'
+          c.flag %i(m message), arg_name: 'message'
+
           c.desc 'How many seconds to wait before killing the container'
           c.flag %i(t timeout), type: Integer, default_value: 120, arg_name: 'n'
 
@@ -750,6 +756,9 @@ module OsCtl::Cli
 
           c.desc 'Open container console (can be later detached)'
           c.switch %i(F foreground)
+
+          c.desc 'Message sent to logged-in container users'
+          c.flag %i(m message), arg_name: 'message'
 
           c.desc 'Request reboot by signaling the init process'
           c.switch %i(r reboot)
@@ -2222,6 +2231,9 @@ module OsCtl::Cli
       command :shutdown do |c|
         c.desc 'Do not ask for confirmation, shutdown immediately'
         c.switch %i(f force), negatable: false
+
+        c.desc 'Message sent to logged-in container users'
+        c.flag %i(m message), arg_name: 'message'
 
         c.desc 'Abort running shutdown'
         c.switch %i(abort), negatable: false

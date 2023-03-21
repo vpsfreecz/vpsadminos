@@ -374,8 +374,8 @@ module OsCtld
       autostart_plan.start(force: force)
     end
 
-    def autostop_and_wait(client_handler: nil)
-      autostop_plan.start(client_handler: client_handler)
+    def autostop_and_wait(message: nil, client_handler: nil)
+      autostop_plan.start(message: message, client_handler: client_handler)
       autostop_plan.wait
     end
 
