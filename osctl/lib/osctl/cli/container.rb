@@ -456,6 +456,19 @@ module OsCtl::Cli
       handle_exec_io(c)
     end
 
+    def wall
+      msg = opts[:message] || STDIN.read
+
+      osctld_fmt(
+        :ct_wall,
+        cmd_opts: {
+          ids: args.empty? ? nil : args,
+          message: msg,
+          banner: !opts['hide-banner'],
+        },
+      )
+    end
+
     def su
       require_args!('id')
 

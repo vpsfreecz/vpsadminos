@@ -814,6 +814,18 @@ module OsCtl::Cli
           c.action &Command.run(Container, :runscript)
         end
 
+        ct.desc 'Send message to users logged-in containers'
+        ct.arg_name '[ctid...]'
+        ct.command %i(wall) do |c|
+          c.desc "Message to send"
+          c.flag %i(m message)
+
+          c.desc 'Suppress the banner'
+          c.switch %i(n hide-banner), negatable: false
+
+          c.action &Command.run(Container, :wall)
+        end
+
         ct.desc "Get container's user's shell"
         ct.arg_name '<ctid>'
         ct.command :su do |su|

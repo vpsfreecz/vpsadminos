@@ -1031,6 +1031,16 @@ The following shortcuts are supported:
       Note that only static IP address and route configuration can be setup
       in this way. DHCP client is not run.
 
+`ct wall` [*options*] [*ctid...*]
+  Send message to users logged-in all or the selected containers.
+
+    `-m`, `--message` *msg*
+      The message to send to the users. The message is read from the standard
+      input if this option is not provided.
+
+    `-n`, '--hide-banner'
+      Suppress the banner.
+
 `ct set autostart` [*options*] *ctid*
   Start the container automatically when `osctld` starts or when its pool is
   imported.
