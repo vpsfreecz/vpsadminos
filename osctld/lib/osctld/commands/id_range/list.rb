@@ -7,10 +7,7 @@ module OsCtld
     def execute
       ret = []
 
-      DB::IdRanges.get.each do |range|
-        next if opts[:pool] && !opts[:pool].include?(range.pool.name)
-        next if opts[:names] && !opts[:names].include?(range.name)
-
+      DB::IdRanges.each_by_ids(opts[:names], opts[:pool]) do |range|
         ret << range.export
       end
 

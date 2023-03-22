@@ -7,9 +7,7 @@ module OsCtld
     def execute
       ret = []
 
-      DB::Users.get.each do |u|
-        next if opts[:pool] && !opts[:pool].include?(u.pool.name)
-        next if opts[:names] && !opts[:names].include?(u.name)
+      DB::Users.each_by_ids(opts[:names], opts[:pool]) do |u|
         next if opts.has_key?(:registered) && u.registered? != opts[:registered]
 
         ret << {

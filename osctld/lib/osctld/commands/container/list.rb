@@ -12,8 +12,7 @@ module OsCtld
       ret = []
       hostname_reader = ExecutionPlan.new
 
-      DB::Containers.get.each do |ct|
-        next if opts[:ids] && !opts[:ids].include?(ct.id)
+      DB::Containers.each_by_ids(opts[:ids], opts[:pool]) do |ct|
         next unless include?(ct)
 
         data = ct.export

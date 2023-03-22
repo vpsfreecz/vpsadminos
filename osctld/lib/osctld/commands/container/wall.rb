@@ -7,13 +7,9 @@ module OsCtld
     include OsCtl::Lib::Utils::Log
 
     def execute
-      cts = DB::Containers.get
-      n = opts[:ids] ? opts[:ids].length : cts.length
       plan = ExecutionPlan.new
 
-      cts.each do |ct|
-        break if plan.length >= n
-        next if opts[:ids] && !opts[:ids].include?(ct.id)
+      DB::Containers.each_by_ids(opts[:ids], opts[:pool]) do |ct|
         plan << ct
       end
 

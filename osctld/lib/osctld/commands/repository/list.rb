@@ -7,10 +7,7 @@ module OsCtld
     def execute
       ret = []
 
-      DB::Repositories.get.each do |repo|
-        next if opts[:pool] && !opts[:pool].include?(repo.pool.name)
-        next if opts[:names] && !opts[:names].include?(repo.name)
-
+      DB::Repositories.each_by_ids(opts[:names], opts[:pool]) do |repo|
         ret << {
           pool: repo.pool.name,
           name: repo.name,
