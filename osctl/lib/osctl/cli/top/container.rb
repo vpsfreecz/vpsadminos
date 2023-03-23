@@ -7,21 +7,37 @@ module OsCtl::Cli
       end
     end
 
-    attr_reader :id, :pool, :dataset, :group_path
+    attr_reader :id, :pool, :ident, :dataset, :group_path
     attr_accessor :state, :cpu_package_inuse, :init_pid, :netifs
 
     # @param ct [Hash] container from ct_show
     def initialize(ct)
       @id = ct[:id]
       @pool = ct[:pool]
+      @ident = "#{@pool}:#{@id}"
       @dataset = ct[:dataset]
       @group_path = ct[:group_path]
       @state = ct[:state].to_sym
       @cpu_package_inuse = ct[:cpu_package_inuse]
+      @lxcfs_mountpoint = ct[:lxcfs_mountpoint]
       @init_pid = ct[:init_pid]
       @netifs = []
       @measurements = []
       @initial = nil
+    end
+
+    def [](k)
+      # Used by OsCtl::Lib::LoadAvgReader
+      case k
+      when :id
+        @id
+      when :pool
+        @pool
+      when :lxcfs_mountpoint
+        @lxcfs_mountpoint
+      else
+        raise ArgumentError, "key #{k.inspect} is not supported"
+      end
     end
 
     def setup?

@@ -356,13 +356,14 @@ module OsCtl::Cli::Top
         ret = []
 
         ret << sprintf(
-          '%-14s %9s %8s %6s %27s %27s',
+          '%-14s %9s %8s %6s %27s %27s %-16s',
           'Container',
           'CPU',
           'Memory',
           'Proc',
           'ZFSIO          ',
-          'Network        '
+          'Network        ',
+          'LoadAvg',
         )
 
         ret << sprintf(
@@ -378,7 +379,7 @@ module OsCtl::Cli::Top
         )
 
         ret << sprintf(
-          '%-14s %9s %7s %6s %6s %6s %6s %6s %6s %6s %6s %6s',
+          '%-14s %9s %7s %6s %6s %6s %6s %6s %6s %6s %6s %6s %6s %6s %6s',
           'ID',
           '',
           '',
@@ -390,7 +391,8 @@ module OsCtl::Cli::Top
           rt? ? 'bps' : 'Bytes',
           rt? ? 'pps' : 'Packet',
           rt? ? 'bps' : 'Bytes',
-          rt? ? 'pps' : 'Packet'
+          rt? ? 'pps' : 'Packet',
+          '1m', '5m', '15m',
         )
 
         # Fill to the edge of the screen
@@ -425,12 +427,13 @@ module OsCtl::Cli::Top
         humanize_data(rt? ? ct[:tx][:bytes] * 8 : ct[:tx][:bytes]),
         humanize_data(ct[:tx][:packets]),
         humanize_data(rt? ? ct[:rx][:bytes] * 8 : ct[:rx][:bytes]),
-        humanize_data(ct[:rx][:packets])
+        humanize_data(ct[:rx][:packets]),
+        format_loadavgs(ct[:loadavg]),
       ])
     end
 
     def print_row_data(values)
-      fmts = %w(%9s %8s %6s %6s %6s %6s %6s %6s %6s %6s %6s)
+      fmts = %w(%9s %8s %6s %6s %6s %6s %6s %6s %6s %6s %6s %16s)
       w = 15 # container ID is printed in {#print_row}
 
       fmts.zip(values).each_with_index do |pair, i|
@@ -477,7 +480,8 @@ module OsCtl::Cli::Top
         humanize_data(sum(cts, [:tx, :bytes], false) * (rt? ? 8 : 1)),
         humanize_data(sum(cts, [:tx, :packets], false)),
         humanize_data(sum(cts, [:rx, :bytes], false) * (rt? ? 8 : 1)),
-        humanize_data(sum(cts, [:rx, :packets], false))
+        humanize_data(sum(cts, [:rx, :packets], false)),
+        format_loadavgs(sum_loadavgs(cts)),
       ])
 
       Curses.setpos(Curses.lines - pos, 0)
@@ -495,7 +499,8 @@ module OsCtl::Cli::Top
         humanize_data(sum(cts, [:tx, :bytes], true) * (rt? ? 8 : 1)),
         humanize_data(sum(cts, [:tx, :packets], true)),
         humanize_data(sum(cts, [:rx, :bytes], true) * (rt? ? 8 : 1)),
-        humanize_data(sum(cts, [:rx, :packets], true))
+        humanize_data(sum(cts, [:rx, :packets], true)),
+        data[:loadavg] ? format_loadavgs(data[:loadavg]) : '-',
       ])
 
       if model_thread.iostat_enabled?
@@ -514,6 +519,7 @@ module OsCtl::Cli::Top
             humanize_data(iostat[:io_read]),
             humanize_data(iostat[:bytes_written]),
             humanize_data(iostat[:io_written]),
+            '-',
             '-',
             '-',
             '-',
@@ -589,6 +595,7 @@ module OsCtl::Cli::Top
         [:tx, :packets],
         [:rx, :bytes],
         [:rx, :packets],
+        [:loadavg, 0],
       ])
     end
 
@@ -749,6 +756,20 @@ module OsCtl::Cli::Top
       end
     end
 
+    def sum_loadavgs(cts)
+      cts.inject([0.0, 0.0, 0.0]) do |acc, ct|
+        if ct[:id] == '[host]'
+          acc
+        else
+          [
+            acc[0] + ct[:loadavg][0],
+            acc[1] + ct[:loadavg][1],
+            acc[2] + ct[:loadavg][2],
+          ]
+        end
+      end
+    end
+
     def lookup_field(ct, field)
       if field.is_a?(Array)
         field.reduce(ct) { |acc, v| acc[v] }
@@ -772,6 +793,21 @@ module OsCtl::Cli::Top
       else
         ctid
       end
+    end
+
+    def format_loadavgs(lavgs)
+      lavgs.map do |lavg|
+        fmt =
+          if lavg < 100
+            '%5.2f'
+          elsif lavg < 1000
+            '%5.1f'
+          else
+            '%4.0f'
+          end
+
+        sprintf(fmt, lavg)
+      end.join(', ')
     end
 
     def bold

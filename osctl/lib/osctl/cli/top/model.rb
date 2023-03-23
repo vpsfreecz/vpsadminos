@@ -53,6 +53,12 @@ module OsCtl::Cli
             ct.state = :error
           end
         end
+
+        begin
+          @ct_lavgs = OsCtl::Lib::LoadAvgReader.read_for(containers)
+        rescue
+          @ct_lavgs = {}
+        end
       end
     end
 
@@ -74,11 +80,15 @@ module OsCtl::Cli
 
           ct_result = ct.result(mode)
           update_host_result(host_result, ct_result)
+
+          ct_lavg = @ct_lavgs[ct.ident]
+
           ct_data = {
             pool: ct.pool,
             id: ct.id,
             cpu_package_inuse: ct.cpu_package_inuse,
             init_pid: ct.init_pid,
+            loadavg: ct_lavg ? ct_lavg.averages : [0.0, 0.0, 0.0],
           }.merge(ct_result)
 
           if mode == :realtime
@@ -94,7 +104,10 @@ module OsCtl::Cli
         end
       end
 
-      host_data = {id: host.id}.merge(host_result)
+      host_data = {
+        id: host.id,
+        loadavg: lavg.to_a,
+      }.merge(host_result)
 
       if mode == :realtime
         host_data.update(
