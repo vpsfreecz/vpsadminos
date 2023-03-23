@@ -7,12 +7,26 @@ module OsCtl::Lib
       units.each do |u|
         threshold = 2 << bits
 
-        return "#{(v / threshold.to_f).round(1)}#{u}" if v >= threshold
+        if v >= threshold
+          division = v / threshold.to_f
+
+          if division >= 1000
+            return "#{division.round}#{u}"
+          else
+            return "#{division.round(1)}#{u}"
+          end
+        end
 
         bits -= 10
       end
 
-      v.round(2).to_s
+      if v >= 1000
+        v.round.to_s
+      elsif v >= 100
+        v.round(1).to_s
+      else
+        v.round(2).to_s
+      end
     end
 
     def humanize_number(v)
@@ -21,12 +35,23 @@ module OsCtl::Lib
 
       units.each do |u|
         division = v / divider
-        return "#{division.round(1)}#{u}" if division >= 1
+
+        if division >= 1000
+          return "#{division.round}#{u}"
+        elsif division >= 1
+          return "#{division.round(1)}#{u}"
+        end
 
         divider /= 1000
       end
 
-      v.round(2).to_s
+      if v >= 1000
+        v.round.to_s
+      elsif v >= 100
+        v.round(1).to_s
+      else
+        v.round(2).to_s
+      end
     end
 
     def humanize_time_us(v)
