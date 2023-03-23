@@ -60,7 +60,9 @@ module OsCtl::Cli
       return {} unless host.setup?
 
       mem = OsCtl::Lib::MemInfo.new
-      host_result = host.result(mode, mem)
+      lavg = OsCtl::Lib::LoadAvg.new
+
+      host_result = host.result(mode, mem, lavg)
       host_cpu = host.cpu_result
       host_zfs = host.zfs_result
       sum_ct_cpu_hz = 0
@@ -104,6 +106,7 @@ module OsCtl::Cli
 
       {
         cpu: calc_host_cpu_usage(host_cpu),
+        loadavg: lavg.to_a,
         memory: {
           total: mem.total * 1024,
           used: mem.used * 1024,

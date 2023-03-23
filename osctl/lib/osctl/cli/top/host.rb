@@ -82,14 +82,13 @@ module OsCtl::Cli
       measure_zfs
     end
 
-    def result(mode, meminfo)
+    def result(mode, meminfo, lavg)
       ret = super(mode)
 
       # memory from the root cgroup does not account for all used memory
       ret[:memory] = meminfo.used * 1024
 
-      # root pids cgroup does not have process counter
-      ret[:nproc] = `ps axh -opid | wc -l`.strip.to_i
+      ret[:nproc] = lavg.total
 
       ret
     end

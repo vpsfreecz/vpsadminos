@@ -18,6 +18,14 @@ module OsCtl::Lib
       parse(path)
     end
 
+    def to_a
+      [
+        @avg[1],
+        @avg[5],
+        @avg[15],
+      ]
+    end
+
     protected
     def parse(path)
       parsed = File.read(path).strip.split(' ')

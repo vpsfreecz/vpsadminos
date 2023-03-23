@@ -154,7 +154,9 @@ module OsCtl::Cli::Top
       Curses.setpos(0, 0)
       Curses.addstr("#{File.basename($0)} ct top - #{t.strftime('%H:%M:%S')}")
       Curses.addstr(sprintf(" [%.1fs]", last_measurement - t)) if last_measurement
-      Curses.addstr(" #{model_thread.mode} mode, load average #{loadavg}")
+
+      lavg = data[:loadavg] ? data[:loadavg].join(', ') : '?'
+      Curses.addstr(" #{model_thread.mode} mode, load average #{lavg}")
 
       i = status_bar(1, t, procs_stats, data)
 
@@ -754,10 +756,6 @@ module OsCtl::Cli::Top
       else
         ct[field]
       end
-    end
-
-    def loadavg
-      File.read('/proc/loadavg').strip.split(' ')[0..2].join(', ')
     end
 
     def mode
