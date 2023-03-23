@@ -15,7 +15,7 @@ module OsCtl::Lib
     end
 
     # Read loadavgs for given containers and return them in a hash indexed by ctid
-    # # @param containers [Array<Hash>] list of containers as received from osctld
+    # @param containers [Array<Hash>] list of containers as received from osctld
     # @return [Hash<String, LoadAvg>]
     def self.read_for(containers)
       reader = new
