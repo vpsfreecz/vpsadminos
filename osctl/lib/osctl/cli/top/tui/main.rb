@@ -64,7 +64,7 @@ module OsCtl::Cli::Top
 
         self.last_count = data[:containers].count
 
-        if enable_procs
+        if enable_procs && !paused?
           procs_stats, @last_procs_check = procs_thread.get_stats
         end
 
