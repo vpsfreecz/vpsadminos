@@ -191,7 +191,7 @@ module OsCtl::Cli::Top
       Curses.attroff(Curses.color_pair(1))
 
       ct_count = data[:containers].length
-      view_ct_count = Curses.lines - stats_cols - i
+      view_ct_count = Curses.lines - stats_rows - i
 
       @view_page_max = ((ct_count - view_ct_count) / (view_ct_count / 2).to_f).ceil
 
@@ -233,7 +233,7 @@ module OsCtl::Cli::Top
         i += 1
         j += 1
 
-        break if i >= (Curses.lines - stats_cols)
+        break if i >= (Curses.lines - stats_rows)
       end
 
       stats(data)
@@ -481,7 +481,7 @@ module OsCtl::Cli::Top
       Curses.addstr(' ' * (Curses.cols - w)) if Curses.cols > w
     end
 
-    def stats_cols
+    def stats_rows
       i = 5
       i += 1 if model_thread.iostat_enabled?
       i
@@ -489,7 +489,7 @@ module OsCtl::Cli::Top
 
     def stats(data)
       cts = data[:containers]
-      pos = stats_cols
+      pos = stats_rows
 
       Curses.setpos(Curses.lines - pos, 0)
       pos -= 1
