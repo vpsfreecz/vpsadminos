@@ -13,6 +13,7 @@ module OsCtl::Cli::Top
       @sort_desc = true
       @current_row = nil
       @view_page = 0
+      @search_string = ''
       @highlighted_cts = []
       @status_bar_cols = 0
       @model_thread = Tui::ModelThread.new(model, rate)
@@ -70,8 +71,27 @@ module OsCtl::Cli::Top
 
         render(now, procs_stats, data)
         Curses.timeout = rate * 1000
+        input = Curses.getch
 
-        case Curses.getch
+        if search_in_focus?
+          case input
+          when Curses::Key::ENTER, 10
+            search_end_focus
+          when 27 # Escape
+            search_cancel
+          when Curses::Key::BACKSPACE, 127
+            search_chop
+          else
+            if input && input.is_a?(String)
+              search_add(input)
+              Curses.clear
+            end
+          end
+
+          next
+        end
+
+        case input
         when 'q'
           procs_thread.stop if enable_procs
           model_thread.stop
@@ -135,6 +155,11 @@ module OsCtl::Cli::Top
         when 'p'
           paused? ? unpause : pause
 
+        when '/'
+          search_start_focus
+
+        when 27 # Escape
+
         when '?'
           return Tui::Help.new(self)
 
@@ -162,6 +187,7 @@ module OsCtl::Cli::Top
 
       Curses.attron(Curses.color_pair(1))
       i = header(i+1)
+      j = 0
       Curses.attroff(Curses.color_pair(1))
 
       ct_count = data[:containers].length
@@ -182,7 +208,9 @@ module OsCtl::Cli::Top
           data[:containers]
         end
 
-      ct_view.each_with_index do |ct, j|
+      ct_view.each do |ct|
+        next if search_active? && !ct[:id].include?(search_string)
+
         Curses.setpos(i, 0)
 
         if current_row == j && highlighted_cts.include?(ct[:id])
@@ -203,6 +231,7 @@ module OsCtl::Cli::Top
         Curses.attroff(attr) if attr
 
         i += 1
+        j += 1
 
         break if i >= (Curses.lines - stats_cols)
       end
@@ -540,8 +569,16 @@ module OsCtl::Cli::Top
       pos -= 1
       Curses.addstr('─' * Curses.cols)
       Curses.setpos(Curses.lines - pos, 0)
-      pos -= 1
+
+      search_msg = nil
+
       fillRow do
+        if search_in_focus? || search_active?
+          search_msg = "Search: #{search_string}"
+          Curses.addstr(search_msg)
+          next
+        end
+
         Curses.addstr('Selected container: ')
 
         if @current_row && (ct = last_data[:containers][@current_row])
@@ -553,6 +590,10 @@ module OsCtl::Cli::Top
         else
           Curses.addstr('none')
         end
+      end
+
+      if search_in_focus?
+        Curses.setpos(Curses.lines - pos, search_msg.length)
       end
     end
 
@@ -753,6 +794,43 @@ module OsCtl::Cli::Top
       else
         view_page_down
       end
+    end
+
+    def search_start_focus
+      @search_input = true
+
+      Curses.curs_set(1)  # show cursor
+      Curses.clear
+    end
+
+    def search_in_focus?
+      @search_input
+    end
+
+    def search_end_focus
+      Curses.curs_set(0)  # hide cursor
+      @search_input = false
+    end
+
+    def search_cancel
+      search_end_focus
+      @search_string = ''
+    end
+
+    def search_active?
+      !@search_string.empty?
+    end
+
+    def search_add(input)
+      @search_string << input
+    end
+
+    def search_chop
+      @search_string.chop!
+    end
+
+    def search_string
+      @search_string
     end
 
     def sum(cts, field, host)

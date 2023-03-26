@@ -41,6 +41,7 @@ module OsCtl::Cli::Top
         ['End', 'Scroll to the bottom'],
         ['m', 'Toggle between realtime and cumulative mode'],
         ['p', 'Pause/unpause resource tracking'],
+        ['/', 'Filter containers by ID. Confirm by enter, cancel by esc'],
         ['?', 'Show/hide this help message'],
       ].each_with_index do |arr, i|
         key, desc = arr

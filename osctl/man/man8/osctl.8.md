@@ -1739,6 +1739,7 @@ The following shortcuts are supported:
   `End`                     | Scroll to the bottom
   `m`                       | Toggle between `realtime` and `cumulative` mode.
   `p`                       | Pause/unpause resource tracking.
+  `/`                       | Filter containers by ID. Confirm search by enter, cancel by escape.
   `?`                       | Show help message.
 
   When global option `-j`, `--json` is used, the TUI is replaced by JSON
