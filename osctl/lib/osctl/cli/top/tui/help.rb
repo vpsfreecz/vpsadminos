@@ -12,7 +12,7 @@ module OsCtl::Cli::Top
         render
 
         case Curses.getch
-        when 'q', '?', 27 # Escape
+        when 'q', '?', Tui::Key::ESCAPE
           return @main_screen
 
         when Curses::Key::RESIZE

@@ -75,11 +75,11 @@ module OsCtl::Cli::Top
 
         if search_in_focus?
           case input
-          when Curses::Key::ENTER, 10
+          when Curses::Key::ENTER, Tui::Key::ENTER
             search_end_focus
-          when 27 # Escape
+          when Tui::Key::ESCAPE
             search_cancel
-          when Curses::Key::BACKSPACE, 127
+          when Curses::Key::BACKSPACE, Tui::Key::BACKSPACE
             search_chop
           else
             if input && input.is_a?(String)
@@ -118,7 +118,7 @@ module OsCtl::Cli::Top
         when ' '
           selection_highlight
 
-        when Curses::Key::ENTER, 10, 't'
+        when Curses::Key::ENTER, Tui::Key::ENTER, 't'
           selection_open_top
 
         when Curses::Key::NPAGE # Page Down
@@ -158,7 +158,7 @@ module OsCtl::Cli::Top
         when '/'
           search_start_focus
 
-        when 27 # Escape
+        when Tui::Key::ESCAPE
 
         when '?'
           return Tui::Help.new(self)
