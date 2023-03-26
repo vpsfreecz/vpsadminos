@@ -902,7 +902,7 @@ module OsCtl::Cli::Top
     def fillRow
       yield
       x, y = cursor
-      Curses.addstr(' ' * (Curses.cols - x))
+      Curses.addstr(' ' * (Curses.cols - y))
     end
 
     def cursor
