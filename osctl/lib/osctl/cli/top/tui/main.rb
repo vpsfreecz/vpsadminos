@@ -191,6 +191,7 @@ module OsCtl::Cli::Top
       Curses.attroff(Curses.color_pair(1))
 
       ct_count = data[:containers].length
+      offset = 0
       view_ct_count = Curses.lines - stats_rows - i
 
       @view_page_max = ((ct_count - view_ct_count) / (view_ct_count / 2).to_f).ceil
@@ -236,7 +237,7 @@ module OsCtl::Cli::Top
         break if i >= (Curses.lines - stats_rows)
       end
 
-      stats(data)
+      stats(data, [offset, view_ct_count, data[:containers].length])
 
       Curses.refresh
     end
@@ -487,7 +488,7 @@ module OsCtl::Cli::Top
       i
     end
 
-    def stats(data)
+    def stats(data, ct_view)
       cts = data[:containers]
       pos = stats_rows
 
@@ -591,6 +592,12 @@ module OsCtl::Cli::Top
           Curses.addstr('none')
         end
       end
+
+      offset, view_count, ct_count = ct_view
+      page = sprintf('[%d-%d/%d]', offset + 1, offset + view_count, ct_count)
+
+      Curses.setpos(Curses.lines - pos, Curses.cols - page.length)
+      Curses.addstr(page)
 
       if search_in_focus?
         Curses.setpos(Curses.lines - pos, search_msg.length)
