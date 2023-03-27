@@ -79,6 +79,8 @@ module OsCtld
         stderr: stderr.fileno,
       }
 
+      CGroup.mkpath_all(cgroup_path.split('/'), chown: ugid)
+
       pid = SwitchUser.fork(
         keep_fds: [
           cmd_r,

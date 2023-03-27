@@ -15,15 +15,13 @@ module OsCtld
       # Move the calling wrapper to user-owned cgroup, which will then be used
       # by LXC
       log(:debug, ct, 'Reattaching wrapper')
-      CGroup.subsystems.each do |subsys|
-        CGroup.mkpath(
-          subsys,
-          ct.cgroup_path.split('/'),
-          chown: ct.user.ugid,
-          attach: true,
-          pid: opts[:pid],
-        )
-      end
+      CGroup.mkpath_all(
+        ct.cgroup_path.split('/'),
+        chown: ct.user.ugid,
+        attach: true,
+        leaf: false,
+        pid: opts[:pid],
+      )
 
       # Reset oom_score_adj of the calling process. The reset has to come from
       # a process with CAP_SYS_RESOURCE (which osctld is), so that

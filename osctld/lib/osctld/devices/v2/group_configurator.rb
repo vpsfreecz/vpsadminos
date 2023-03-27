@@ -3,7 +3,7 @@ require 'osctld/devices/v2/configurator'
 module OsCtld
   class Devices::V2::GroupConfigurator < Devices::V2::Configurator
     def init(devices)
-      CGroup.mkpath('devices', cgroup_path.split('/'))
+      CGroup.mkpath('devices', cgroup_path.split('/'), leaf: false)
       get_prog(devices)
       attach_prog(devices)
     end

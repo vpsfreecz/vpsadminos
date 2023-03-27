@@ -6,7 +6,10 @@ module OsCtld
     include OsCtl::Lib::Utils::Log
 
     def self.spawn(ct)
+      cg_path = cgroup_path(ct)
       out_r, out_w = IO.pipe
+
+      CGroup.mkpath_all(cg_path.split('/'))
 
       pid = Process.fork do
         STDOUT.reopen(out_w)
@@ -16,8 +19,7 @@ module OsCtld
           ct.user.sysusername,
           ct.user.ugid,
           ct.user.homedir,
-          File.join(ct.group.full_cgroup_path(ct.user), 'monitor'),
-          chown_cgroups: false
+          cg_path,
         )
 
         Process.exec('lxc-monitor', '-P', ct.lxc_home, '-n', '.*')
@@ -33,8 +35,7 @@ module OsCtld
           ct.user.sysusername,
           ct.user.ugid,
           ct.user.homedir,
-          File.join(ct.group.full_cgroup_path(ct.user), 'monitor'),
-          chown_cgroups: false
+          cgroup_path(ct),
         )
 
         Process.exec('lxc-monitor', '-P', ct.lxc_home, '--quit')
@@ -48,6 +49,10 @@ module OsCtld
       else
         log(:info, :monitor, 'Failed to stop lxc-monitord')
       end
+    end
+
+    def self.cgroup_path(ct)
+      File.join(ct.group.full_cgroup_path(ct.user), 'monitor')
     end
 
     def initialize(pool, user, group, stdout)

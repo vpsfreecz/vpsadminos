@@ -337,7 +337,7 @@ module OsCtld
 
       # cpuset cannot be configured when child groups already exists, so set it
       # as soon as possible.
-      CGroup.mkpath('cpuset', ctrc.ct.base_cgroup_path.split('/'))
+      CGroup.mkpath('cpuset', ctrc.ct.base_cgroup_path.split('/'), leaf: false)
       package_set = CGroup.set_param(
         File.join(CGroup.abs_cgroup_path('cpuset', ctrc.ct.base_cgroup_path), 'cpuset.cpus'),
         [pkg.cpu_mask.to_s]

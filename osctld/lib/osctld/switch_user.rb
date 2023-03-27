@@ -44,10 +44,14 @@ module OsCtld
     # @option opts [Array<IO, Integer>] :keep_fds
     # @option opts [Boolean] :keep_stdfds (true)
     def self.fork_and_switch_to(sysuser, ugid, homedir, cgroup_path, **opts, &block)
+      chown_cgroups = opts.has_key?(:chown_cgroups) ? opts[:chown_cgroups] : true
+
       r, w = IO.pipe
 
       keep_fds = (opts[:keep_fds] || []).clone
       keep_fds << r
+
+      CGroup.mkpath_all(cgroup_path.split('/'), chown: chown_cgroups ? ugid : false)
 
       pid = self.fork(
         keep_fds: keep_fds,
@@ -62,7 +66,7 @@ module OsCtld
           end
         end
 
-        switch_to(sysuser, ugid, homedir, cgroup_path, **opts)
+        switch_to(sysuser, ugid, homedir, cgroup_path)
 
         msg = r.readline.strip
         r.close
@@ -84,9 +88,7 @@ module OsCtld
     end
 
     # Switch the current process to an unprivileged user
-    def self.switch_to(sysuser, ugid, homedir, cgroup_path, **opts)
-      chown_cgroups = opts.has_key?(:chown_cgroups) ? opts[:chown_cgroups] : true
-
+    def self.switch_to(sysuser, ugid, homedir, cgroup_path)
       # Environment
       ENV.delete('XDG_SESSION_ID')
 
@@ -97,14 +99,7 @@ module OsCtld
       ENV['USER'] = sysuser
 
       # CGroups
-      CGroup.subsystems.each do |subsys|
-        CGroup.mkpath(
-          subsys,
-          cgroup_path.split('/'),
-          attach: true,
-          chown: chown_cgroups ? ugid : false
-        )
-      end
+      CGroup.attach_to_all(cgroup_path.split('/'))
 
       # Switch
       Process.groups = [ugid]

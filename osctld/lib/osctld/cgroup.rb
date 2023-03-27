@@ -8,6 +8,8 @@ module OsCtld
 
     ROOT_GROUP = 'osctl'
 
+    MUTEX = Mutex.new
+
     # @return [1, 2] cgroup hierarchy version
     def self.version
       return @version if @version
@@ -86,10 +88,11 @@ module OsCtld
     # @param path [Array<String>] paths to create
     # @param chown [Integer] chown the last group to `chown`:`chown`
     # @param attach [Boolean] attach the current process to the last group
+    # @param leaf [Boolean] do not delegate controllers to the last cgroup
     # @param pid [Integer, nil] pid to attach, default to the current process
     # @return [Boolean] `true` if the last component was created, `false` if it
     #                   already existed
-    def self.mkpath(type, path, chown: nil, attach: false, pid: nil)
+    def self.mkpath(type, path, chown: nil, attach: false, leaf: true, pid: nil)
       base = abs_cgroup_path(type)
       tmp = []
       created = false
@@ -98,33 +101,17 @@ module OsCtld
         tmp << name
         cgroup = File.join(base, *tmp)
 
-        # Prevent an error if multiple processes attempt to create this cgroup
-        # at a time.
-        #
-        # This code is especially racy on cgroup2 when multiple threads are
-        # creating common cgroups, such as group.default, with respect to
-        # controller delegation. Every caller now delegates controllers,
-        # even if he did not create this cgroup, because we don't know when
-        # the creator will have finished configuring the delegation... this would
-        # need some sort of synchronization to handle this properly.
-        begin
-          Dir.mkdir(cgroup)
-          created = true
-
-        rescue Errno::EEXIST
-          created = false
-        end
-
-        if v2? && (i+1 < path.length || !attach)
-          delegate_available_controllers(cgroup)
-        end
-
-        init_cgroup(type, base, cgroup) if created
+        created = create(
+          cgroup,
+          delegate: i+1 < path.length || (!leaf && !attach),
+          type: type,
+          base: base,
+        )
       end
 
-      cgroup = File.join(base, *path)
-
       if chown
+        cgroup = File.join(base, *path)
+
         File.chown(chown, chown, cgroup)
         File.chown(chown, chown, File.join(cgroup, 'cgroup.procs'))
 
@@ -138,28 +125,88 @@ module OsCtld
         end
       end
 
-      if attach
-        attached = false
-        attach_pid = pid || Process.pid
+      self.attach_to(type, path, pid: pid) if attach
 
-        ['cgroup.procs', 'tasks'].each do |tasks|
-          tasks_path = File.join(cgroup, tasks)
-          next unless File.exist?(tasks_path)
+      created
+    end
 
-          File.open(tasks_path, 'a') do |f|
-            f.puts(attach_pid)
-          end
+    # Create cgroup path in all subsystems, see {self.mkpath}
+    # @param path [Array<String>] paths to create
+    # @param chown [Integer] chown the last group to `chown`:`chown`
+    # @param attach [Boolean] attach the current process to the last group
+    # @param leaf [Boolean] do not delegate controllers to the last cgroup
+    # @param pid [Integer, nil] pid to attach, default to the current process
+    def self.mkpath_all(path, chown: nil, attach: false, leaf: true, pid: nil)
+      subsystems.each do |subsys|
+        mkpath(subsys, path, chown: chown, attach: attach, pid: pid)
+      end
+    end
 
-          attached = true
-          break
+    # Create cgroup
+    # @param cgroup [String] absolute cgroup path
+    # @param delegate [Boolean] delegate controllers on cgroupv2
+    # @param type [String] subsystem
+    # @param base [String] absolute path to subsystem root
+    # @return [Boolean] true if created, false if already existed
+    def self.create(cgroup, delegate:, type:, base:)
+      created = false
+
+      sync do
+        begin
+          Dir.mkdir(cgroup)
+          created = true
+        rescue Errno::EEXIST
+          created = false
         end
 
-        unless attached
-          fail "unable to attach pid #{attach_pid} to cgroup #{cgroup.inspect}"
+        if created && v2? && delegate
+          CGroup.delegate_available_controllers(cgroup)
         end
+
+        init_cgroup(type, base, cgroup) if created
       end
 
       created
+    end
+
+    # Attach process to a cgroup
+    # @param type [String] subsystem
+    # @param path [Array<String>] paths to create
+    # @param pid [Integer, nil] pid to attach, default to the current process
+    def self.attach_to(type, path, pid: nil)
+      cgroup = File.join(abs_cgroup_path(type), *path)
+
+      attached = false
+      attach_pid = pid || Process.pid
+
+      ['cgroup.procs', 'tasks'].each do |tasks|
+        begin
+          File.open(File.join(cgroup, tasks), 'a') do |f|
+            f.puts(attach_pid)
+          end
+        rescue Errno::ENOENT
+          next
+        end
+
+        attached = true
+        break
+      end
+
+      unless attached
+        fail "unable to attach pid #{attach_pid} to cgroup #{cgroup.inspect}"
+      end
+
+      nil
+    end
+
+    # Attach process to a cgroup in all subsystems
+    # @param type [String] subsystem
+    # @param path [Array<String>] paths to create
+    # @param pid [Integer, nil] pid to attach, default to the current process
+    def self.attach_to_all(path, pid: nil)
+      subsystems.each do |subsys|
+        attach_to(subsys, path, pid: pid)
+      end
     end
 
     # Initialize cgroup after it was created.
@@ -333,6 +380,14 @@ module OsCtld
         rescue SystemCallError => e
           log(:warn, "Unable to thaw #{abs_path}: #{e.message} (#{e.class})")
         end
+      end
+    end
+
+    def self.sync(&block)
+      if MUTEX.owned?
+        block.call
+      else
+        MUTEX.synchronize(&block)
       end
     end
   end

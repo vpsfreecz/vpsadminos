@@ -86,6 +86,8 @@ module OsCtld
       in_r, in_w = IO.pipe
       out_r, out_w = IO.pipe
 
+      CGroup.mkpath_all(ct.entry_cgroup_path.split('/'), chown: ct.user.ugid)
+
       pid = Process.fork do
         STDIN.reopen(in_r)
         STDOUT.reopen(out_w)

@@ -4,6 +4,8 @@ require 'tempfile'
 module OsCtld
   module Utils::SwitchUser
     def ct_attach(ct, *args)
+      CGroup.mkpath_all(ct.entry_cgroup_path.split('/'), chown: ct.user.ugid)
+
       {
         cmd: ::OsCtld.bin('osctld-ct-exec'),
         args: args.map(&:to_s),
