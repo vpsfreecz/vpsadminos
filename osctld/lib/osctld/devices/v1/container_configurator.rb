@@ -49,7 +49,7 @@ module OsCtld
 
         if CGroup.mkpath('devices', rel_path.split('/'))
           do_deny_all(abs_path)
-          do_configure(devices, abs_path)
+          do_configure(ct.group.devices, abs_path)
         end
       end
 
