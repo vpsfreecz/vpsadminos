@@ -7,7 +7,7 @@ module OsCtld
       def make_message(message, banner: true)
         ret =
           if banner
-            "Message from #{Socket.gethostname} (#{Time.now}):\n\n#{message}"
+            "Message from host machine #{Socket.gethostname} (#{Time.now}):\n\n#{message}"
           else
             message
           end
