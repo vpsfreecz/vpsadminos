@@ -1522,6 +1522,12 @@ module OsCtl::Cli
               c.desc "MAC address"
               c.flag :hwaddr, arg_name: 'hwaddr'
 
+              c.desc 'Number of transmit queues'
+              c.flag 'tx-queues', arg_name: 'queues', type: Integer, default_value: 1
+
+              c.desc 'Number of receive queues'
+              c.flag 'rx-queues', arg_name: 'queues', type: Integer, default_value: 1
+
               c.desc 'Shaper on outgoing data'
               c.flag 'max-tx', arg_name: 'rate'
 
@@ -1536,6 +1542,12 @@ module OsCtl::Cli
             create.command :routed do |c|
               c.desc "MAC address"
               c.flag :hwaddr, arg_name: 'hwaddr'
+
+              c.desc 'Number of transmit queues'
+              c.flag 'tx-queues', arg_name: 'queues', type: Integer, default_value: 1
+
+              c.desc 'Number of receive queues'
+              c.flag 'rx-queues', arg_name: 'queues', type: Integer, default_value: 1
 
               c.desc 'Shaper on outgoing data'
               c.flag 'max-tx', arg_name: 'rate'
@@ -1579,6 +1591,12 @@ module OsCtl::Cli
 
             c.desc "MAC address"
             c.flag :hwaddr, arg_name: 'hwaddr'
+
+            c.desc 'Number of transmit queues'
+            c.flag 'tx-queues', arg_name: 'queues', type: Integer
+
+            c.desc 'Number of receive queues'
+            c.flag 'rx-queues', arg_name: 'queues', type: Integer
 
             c.desc 'Shaper on outgoing data'
             c.flag 'max-tx', arg_name: 'rate'
