@@ -12,6 +12,9 @@ module OsCtld
       dhcp
       gateways
       veth
+      hwaddr
+      tx_queues
+      rx_queues
       max_tx
       max_rx
     )

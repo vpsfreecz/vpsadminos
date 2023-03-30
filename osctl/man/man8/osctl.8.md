@@ -2078,6 +2078,12 @@ The following shortcuts are supported:
       Set a custom MAC address. Every **x** in the address is replaced by
       a random value. By default, the address is dynamically allocated.
 
+    `--tx-queues` *n*
+      Set the number of transmit queues.
+
+    `--rx-queues` *n*
+      Set the number of receive queues.
+
     `--max-tx` *rate*|`unlimited`
       Set a shaper on the interface to limit outgoing data. *rate* is given
       in bits per second, or with an appropriate suffix, i.e. `k`, `m`, `g`,
@@ -2103,6 +2109,12 @@ The following shortcuts are supported:
     `--hwaddr` *addr*
       Set a custom MAC address. Every **x** in the address is replaced by
       a random value. By default, the address is dynamically allocated.
+
+    `--tx-queues` *n*
+      Set the number of transmit queues.
+
+    `--rx-queues` *n*
+      Set the number of receive queues.
 
     `--max-tx` *rate*|`unlimited`
       Set a shaper on the interface to limit outgoing data. *rate* is given
@@ -2154,6 +2166,12 @@ The following shortcuts are supported:
     `--hwaddr` *addr*
       Change MAC address. Every **x** in the address is replaced by
       a random value. Use `-` to assign the MAC address dynamically.
+
+    `--tx-queues` *n*
+      Set the number of transmit queues.
+
+    `--rx-queues` *n*
+      Set the number of receive queues.
 
     `--max-tx` *rate*|`unlimited`
       Set a shaper on the interface to limit outgoing data. *rate* is given

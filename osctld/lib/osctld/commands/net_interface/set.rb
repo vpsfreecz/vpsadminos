@@ -5,7 +5,7 @@ module OsCtld
   class Commands::NetInterface::Set < Commands::Logged
     handle :netif_set
 
-    UNCHANGEABLE_AT_RUNTIME = %i(hwaddr link dhcp gateways)
+    UNCHANGEABLE_AT_RUNTIME = %i(hwaddr tx_queues rx_queues link dhcp gateways)
 
     def find
       ct = DB::Containers.find(opts[:id], opts[:pool])
@@ -67,6 +67,16 @@ module OsCtld
         else
           error!('hwaddr has to be a 17 character string or null')
         end
+      end
+
+      %i(tx_queues rx_queues).each do |v|
+        next unless opts[v]
+
+        if !opts[v].is_a?(Integer) || opts[v] < 1
+          error!("#{v} must be a number greater or equal to 1")
+        end
+
+        ret[v] = opts[v]
       end
 
       %i(max_tx max_rx).each do |v|
