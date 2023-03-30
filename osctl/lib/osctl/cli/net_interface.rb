@@ -14,6 +14,8 @@ module OsCtl::Cli
       gateways
       veth
       hwaddr
+      tx_queues
+      rx_queues
       max_tx
       max_rx
     )
@@ -114,6 +116,8 @@ module OsCtl::Cli
         name: args[1],
         type: 'bridge',
         hwaddr: opts[:hwaddr],
+        tx_queues: opts['tx-queues'],
+        rx_queues: opts['rx-queues'],
         link: opts[:link],
         dhcp: opts[:dhcp],
       }
@@ -133,6 +137,8 @@ module OsCtl::Cli
         name: args[1],
         type: 'routed',
         hwaddr: opts[:hwaddr],
+        tx_queues: opts['tx-queues'],
+        rx_queues: opts['rx-queues'],
       }
 
       parse_shaper(cmd_opts)
@@ -169,6 +175,8 @@ module OsCtl::Cli
       }
 
       cmd_opts[:hwaddr] = (opts[:hwaddr] == '-' ? nil : opts[:hwaddr]) if opts[:hwaddr]
+      cmd_opts[:tx_queues] = opts['tx-queues'] if opts['tx-queues']
+      cmd_opts[:rx_queues] = opts['rx-queues'] if opts['rx-queues']
       cmd_opts[:link] = opts[:link] if opts[:link]
       parse_gateway(cmd_opts)
 

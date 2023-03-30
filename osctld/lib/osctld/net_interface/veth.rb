@@ -10,14 +10,27 @@ module OsCtld
 
     attr_reader :veth
 
+    # Number of transmit queues
+    # @return [Integer]
+    attr_reader :tx_queues
+
+    # Number of receive queues
+    # @return [Integer]
+    attr_reader :rx_queues
+
     def create(opts)
       super
 
+      @tx_queues = opts.fetch(:tx_queues, 1)
+      @rx_queues = opts.fetch(:rx_queues, 1)
       @ips = {4 => [], 6 => []}
     end
 
     def load(cfg)
       super
+
+      @tx_queues = cfg.fetch('tx_queues', 1)
+      @rx_queues = cfg.fetch('rx_queues', 1)
 
       if cfg['ip_addresses']
         @ips = load_ip_list(cfg['ip_addresses']) do |ips|
@@ -32,12 +45,17 @@ module OsCtld
     def save
       inclusively do
         super.merge(
+          'tx_queues' => tx_queues,
+          'rx_queues' => rx_queues,
           'ip_addresses' => save_ip_list(@ips) { |v| v.map(&:to_string) },
         )
       end
     end
 
     def set(opts)
+      @tx_queues = opts[:tx_queues] if opts[:tx_queues]
+      @rx_queues = opts[:rx_queues] if opts[:rx_queues]
+
       orig_max_rx = max_rx
       orig_max_tx = max_tx
 
@@ -120,6 +138,8 @@ module OsCtld
           name: name,
           index: index,
           hwaddr: hwaddr,
+          tx_queues: tx_queues,
+          rx_queues: rx_queues,
           hook_veth_up: hook_path('up'),
           hook_veth_down: hook_path('down'),
         }
