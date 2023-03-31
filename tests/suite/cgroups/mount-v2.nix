@@ -34,7 +34,7 @@ import ../../make-template.nix ({ distribution, version }: rec {
 
       _, output = machine.succeeds("osctl ct exec testct cat /sys/fs/cgroup/cgroup.controllers")
       enabled_controllers = output.strip.split(" ")
-      expected_controllers = %w(cpuset cpu io memory hugetlb pids rdma cglimit)
+      expected_controllers = %w(cpuset cpu io memory hugetlb pids rdma)
 
       expected_controllers.each do |v|
         unless enabled_controllers.include?(v)
@@ -46,7 +46,6 @@ import ../../make-template.nix ({ distribution, version }: rec {
       # was a hybrid hierarchy
       hybrid_controllers = %w(
         blkio
-        cglimit
         cpu,cpuacct
         cpuset
         devices

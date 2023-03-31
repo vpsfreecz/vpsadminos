@@ -23,7 +23,6 @@ import ../../make-template.nix ({ distribution, version }: rec {
 
       controllers = %w(
         blkio
-        cglimit
         cpu,cpuacct
         cpuset
         devices
