@@ -5,7 +5,7 @@ import ../../make-test.nix (pkgs: {
     Test systemd credentials inside a container
   '';
 
-  machine = import ../machines/tank.nix pkgs;
+  machine = import ../../machines/tank.nix pkgs;
 
   testScript = ''
     machine.start
