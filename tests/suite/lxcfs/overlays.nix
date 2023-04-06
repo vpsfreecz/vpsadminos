@@ -22,13 +22,13 @@ import ../../make-template.nix ({ distribution, version }: rec {
         /proc/cpuinfo
         /proc/diskstats
         /proc/loadavg
-        /proc/stat
         /proc/uptime
         /var/lib/lxcfs
       )
 
       be_unmounted = %w(
         /proc/meminfo
+        /proc/stat
         /proc/swaps
         /sys/devices/system/cpu/online
       )
