@@ -515,12 +515,12 @@ module OsCtld
       sync { devices.select(&block) }
     end
 
-    # @return [Devices::Manager, nil]
+    # @return [Devices::Owner, nil]
     def parent
       raise NotImplementedError
     end
 
-    # @return [Array<Devices::Manager>]
+    # @return [Array<Devices::Owner>]
     def children
       raise NotImplementedError
     end
