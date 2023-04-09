@@ -29,13 +29,13 @@ module OsCtld
 
   class DeviceNotAvailable < StandardError
     def initialize(dev, grp)
-      super("device '#{dev}' not available in group '#{grp.name}'")
+      super("device '#{dev}' not available in group '#{grp.ident}'")
     end
   end
 
   class DeviceModeInsufficient < StandardError
     def initialize(dev, grp, mode)
-      super("group '#{grp.name}' provides only mode '#{mode}' for device '#{dev}'")
+      super("group '#{grp.ident}' provides only mode '#{mode}' for device '#{dev}'")
     end
   end
 

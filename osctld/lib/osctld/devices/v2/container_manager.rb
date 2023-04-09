@@ -18,7 +18,7 @@ module OsCtld
     #                           defaults to the container's group
     def check_all_available!(group: nil)
       sync do
-        devices.each { |dev| check_availability!(dev, group || ct.group) }
+        devices.each { |dev| check_availability!(dev, parent: group || ct.group) }
       end
     end
 
