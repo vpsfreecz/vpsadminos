@@ -400,21 +400,24 @@ module OsCtld
 
     # Check whether the device is available in parents
     # @param device [Devices::Device]
-    def check_availability!(device, mode: nil)
+    # @param mode [Devices::Mode, nil]
+    # @param parent [Devices::Owner, nil]
+    def check_availability!(device, mode: nil, parent: nil)
       sync do
-        tmp = self
+        p = parent || self.parent
 
         loop do
-          p = tmp.parent
           break if p.nil?
 
           dev = p.devices.detect { |v| v == device }
 
           if dev.nil?
-            raise DeviceNotAvailable.new(device, grp)
+            raise DeviceNotAvailable.new(device, p)
           elsif !dev.mode.compatible?(mode || device.mode)
             raise DeviceModeInsufficient.new(device, p, dev.mode)
           end
+
+          p = p.devices.parent
         end
       end
     end
