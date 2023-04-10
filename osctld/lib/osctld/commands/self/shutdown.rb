@@ -119,7 +119,10 @@ module OsCtld
     end
 
     def release_grabbed(grabbed)
-      grabbed.each { |v| v.release_manipulation_lock }
+      grabbed.each do |v|
+        # The locks may have already been released by Commands::Pool::Export
+        v.release_manipulation_lock if v.is_being_manipulated?
+      end
     end
 
     def check_abort!
