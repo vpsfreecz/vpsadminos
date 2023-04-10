@@ -45,10 +45,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1z9grvjyfz16ag55hg522d3q4dh07hf391sf9s96npc0vfi85xkz";
+      sha256 = "0nalhin1gda4v8ybk6lq8f407cgfrj6qzn234yra4ipkmlbfmal6";
       type = "gem";
     };
-    version = "2.6.1";
+    version = "2.6.3";
   };
   md2man = {
     dependencies = ["binman" "redcarpet" "rouge"];
@@ -77,10 +77,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "15plgvla5cncxcw7fipjdyhqrcamqyjzv4nffk2l1pqa91k9h3hg";
+      sha256 = "18cfyq2p9g8s7ajmw2klfmjrhvl717aa7akb6vpf7sjkrwlfbk37";
       type = "gem";
     };
-    version = "21.11.0.build20220103172453";
+    version = "22.11.0.build20230410220547";
   };
   rake = {
     groups = ["default"];
@@ -98,30 +98,30 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "16smqmm5xcvw64mhp3ps2r8r4sd4k19hzvvp1lhmb3rwb11dhlfi";
+      sha256 = "03xcg72wrpxg14k0l1gqbi9wdzzaknswcbb8n11abrf7i65l4bvm";
       type = "gem";
     };
-    version = "1.1.6";
+    version = "1.2.1";
   };
   redcarpet = {
     groups = ["default"];
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0bvk8yyns5s1ls437z719y5sdv9fr8kfs8dmr6g8s761dv5n8zvi";
+      sha256 = "1sg9sbf9pm91l7lac7fs4silabyn0vflxwaa2x3lrzsm0ff8ilca";
       type = "gem";
     };
-    version = "3.5.1";
+    version = "3.6.0";
   };
   rouge = {
     groups = ["default"];
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0530ri0p60km0bg0ib6swkhfnas427cva7vcdmnwl8df52a10y1k";
+      sha256 = "1dnfkrk8xx2m8r3r9m2p5xcq57viznyc09k7r3i4jbm758i57lx3";
       type = "gem";
     };
-    version = "3.27.0";
+    version = "3.30.0";
   };
   ruby-progressbar = {
     groups = ["default"];
@@ -133,25 +133,14 @@
     };
     version = "1.11.0";
   };
-  webrick = {
-    groups = ["default"];
-    platforms = [];
-    source = {
-      remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1d4cvgmxhfczxiq5fr534lmizkhigd15bsx5719r5ds7k7ivisc7";
-      type = "gem";
-    };
-    version = "1.7.0";
-  };
   yard = {
-    dependencies = ["webrick"];
     groups = ["default"];
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0d08gkis1imlvppyh8dbslk89hwj5af2fmlzvmwahgx2bm48d9sn";
+      sha256 = "17bwa0lcxhfmxd5dahnw70xzahmdm3q1x7g5qjdpn4x8f7ij9164";
       type = "gem";
     };
-    version = "0.9.27";
+    version = "0.9.32";
   };
 }

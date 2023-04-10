@@ -1,24 +1,29 @@
 GEM
-  remote: https://rubygems.vpsfree.cz/
+  remote: https://rubygems.org/
   specs:
     filelock (1.1.1)
     gli (2.20.1)
-    libosctl (22.05.0.build20220915093849)
-      rainbow (~> 3.1.1)
-      require_all (~> 2.0.0)
-    osctl-exportfs (22.05.0.build20220915093849)
-      filelock
-      gli (~> 2.20.0)
-      libosctl (= 22.05.0.build20220915093849)
-      require_all (~> 2.0.0)
     rainbow (3.1.1)
     require_all (2.0.0)
 
+GEM
+  remote: https://rubygems.vpsfree.cz/
+  specs:
+    libosctl (22.05.0.build20250404214735)
+      rainbow (~> 3.1.1)
+      require_all (~> 2.0.0)
+    osctl-exportfs (22.05.0.build20250404214735)
+      filelock
+      gli (~> 2.20.0)
+      libosctl (= 22.05.0.build20250404214735)
+      require_all (~> 2.0.0)
+
 PLATFORMS
+  ruby
   x86_64-linux
 
 DEPENDENCIES
-  osctl-exportfs (= 22.05.0.build20220915093849)
+  osctl-exportfs (= 22.05.0.build20250404214735)!
 
 BUNDLED WITH
-   2.3.9
+   2.5.22

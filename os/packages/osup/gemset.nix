@@ -3,7 +3,7 @@
     groups = ["default"];
     platforms = [];
     source = {
-      remotes = ["https://rubygems.vpsfree.cz"];
+      remotes = ["https://rubygems.org"];
       sha256 = "1sxpixpkbwi0g1lp9nv08hb4hw9g563zwxqfxd3nqp9c1ymcv5h3";
       type = "gem";
     };
@@ -13,11 +13,11 @@
     groups = ["default"];
     platforms = [];
     source = {
-      remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0yk5d10yvspkc5jyvx9gc1a9pn1z8v4k2hvjk1l88zixwf3wf3cl";
+      remotes = ["https://rubygems.org"];
+      sha256 = "01lbdaizhkxmrw4y8j3wpvsryvnvzmg0pfs56c52laq2jgdfmq1l";
       type = "gem";
     };
-    version = "2.6.2";
+    version = "2.10.2";
   };
   libosctl = {
     dependencies = ["rainbow" "require_all"];
@@ -25,10 +25,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1c9s7jwi217a3rsxc691sx0ni036l5x0ml74adxrilm4v82f4393";
+      sha256 = "1hmviyhsrkjwiqzzf05qfg5mq8rz1vkp56fcv3r64lafy56gyy9p";
       type = "gem";
     };
-    version = "22.05.0.build20220915093849";
+    version = "22.05.0.build20250404214735";
   };
   osup = {
     dependencies = ["gli" "json" "libosctl" "require_all"];
@@ -36,16 +36,16 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0zaa26nddn2nqdrpy0bwvzg2kwiiisirg43m8hi2a6lxz744pbsa";
+      sha256 = "0cgcga5k4s2inlylllf9z05bbdlyp1wf8k55ci263gh4ad9j87cp";
       type = "gem";
     };
-    version = "22.05.0.build20220915093849";
+    version = "22.05.0.build20250404214735";
   };
   rainbow = {
     groups = ["default"];
     platforms = [];
     source = {
-      remotes = ["https://rubygems.vpsfree.cz"];
+      remotes = ["https://rubygems.org"];
       sha256 = "0smwg4mii0fm38pyb5fddbmrdpifwv22zv3d3px2xx497am93503";
       type = "gem";
     };
@@ -55,7 +55,7 @@
     groups = ["default"];
     platforms = [];
     source = {
-      remotes = ["https://rubygems.vpsfree.cz"];
+      remotes = ["https://rubygems.org"];
       sha256 = "0sjf2vigdg4wq7z0xlw14zyhcz4992s05wgr2s58kjgin12bkmv8";
       type = "gem";
     };
