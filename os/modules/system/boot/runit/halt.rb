@@ -1,6 +1,7 @@
 #!@ruby@/bin/ruby
 require 'optparse'
 require 'socket'
+require 'tempfile'
 
 class Halt
   def initialize(name, args)
@@ -12,6 +13,7 @@ class Halt
     return halt if @force
     @hostname = Socket.gethostname
 
+    reason
     confirm
     countdown
     halt
@@ -54,6 +56,28 @@ class Halt
     end
   end
 
+  def reason
+    return if @message
+
+    file = Tempfile.new("#{@action}-reason")
+    file.puts(<<END)
+# Reason for #{@action} of #{@hostname}:
+END
+    file.flush
+
+    begin
+      unless Kernel.system(ENV['EDITOR'] || 'vim', file.path)
+        fail "Failed to get #{@action} reason"
+      end
+
+      file.rewind
+      @message = file.each_line.reject { |line| line.start_with?('#') }.join('')
+    ensure
+      file.close
+      file.unlink
+    end
+  end
+
   def confirm
     puts "The following containers will be stopped:"
     puts
@@ -61,6 +85,9 @@ class Halt
     st = Kernel.system('osctl', 'ct', 'ls', '-S', 'running')
     fail "Unable to list containers" unless st
 
+    puts
+    puts "Reason for #{@action}:"
+    puts (@message.empty? ? '[not given]' : @message)
     puts
 
     loop do
