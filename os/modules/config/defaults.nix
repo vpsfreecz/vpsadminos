@@ -76,7 +76,6 @@
     scrubctl
     strace
     sysstat
-    vim
   ];
 
   environment.shellAliases = {
@@ -151,4 +150,5 @@
 
   programs.ssh.package = pkgs.openssh;
   programs.htop.enable = true;
+  programs.vim.defaultEditor = true;
 }
