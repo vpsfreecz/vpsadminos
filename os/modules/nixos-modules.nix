@@ -21,6 +21,7 @@
   <nixpkgs/nixos/modules/programs/less.nix>
   <nixpkgs/nixos/modules/programs/shadow.nix>
   <nixpkgs/nixos/modules/programs/environment.nix>
+  <nixpkgs/nixos/modules/programs/vim.nix>
   <nixpkgs/nixos/modules/security/ca.nix>
   <nixpkgs/nixos/modules/security/apparmor.nix>
   <nixpkgs/nixos/modules/security/pam.nix>
