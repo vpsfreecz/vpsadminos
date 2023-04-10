@@ -1,11 +1,13 @@
 #!@ruby@/bin/ruby
 require 'optparse'
 require 'socket'
+require 'syslog/logger'
 require 'tempfile'
 
 class Halt
   def initialize(name, args)
     @name = name
+    @logger = Syslog::Logger.new('halt')
     parse(args)
   end
 
@@ -118,6 +120,8 @@ END
   def halt
     puts "Shutting down containers, this operation can still be interrupted"
     puts
+
+    @logger.info("System #{@action}, reason: #{@message}")
 
     begin
       shutdown_pid = Process.fork do
