@@ -75,7 +75,7 @@ module VpsAdminOS::Converter
       end
     end
 
-    # @param step [Symbol]
+    # @param new_step [Symbol]
     def can_proceed?(new_step)
       return false if new_step == step
 
@@ -88,7 +88,7 @@ module VpsAdminOS::Converter
       true
     end
 
-    # @param step [Symbol]
+    # @param new_step [Symbol]
     def set_step(new_step)
       fail 'invalid migration sequence' unless can_proceed?(new_step)
       @step = new_step

@@ -273,7 +273,6 @@ module OsCtl::Lib
         end
       end
 
-      # @param path [String] path of chosen group, relative to the subsystem
       # @return [Integer]
       def read_memory_limit
         unlimited = 'max'
@@ -429,7 +428,7 @@ module OsCtl::Lib
     end
 
     # List available CGroup parameters
-    # @return Array<String>
+    # @return [Array<String>]
     def list_available_params
       cg_reader.list_available_params
     end

@@ -41,7 +41,7 @@ module OsCtld
       @configurator = configurator_class.new(owner)
     end
 
-    # @param [Assets::Definition]
+    # @param add [Assets::Definition]
     def assets(add)
 
     end
@@ -177,7 +177,6 @@ module OsCtld
     # @param parents [Boolean]
     # @param promote [Boolean]
     # @param descendants [Boolean]
-    # @param parent_changes [Hash]
     def chmod(device, mode, parents: false, promote: false, descendants: false, **opts)
       sync do
         if parents && parent
@@ -198,7 +197,7 @@ module OsCtld
             dev = child.devices.get(device)
             next if dev.nil?
 
-            child.devices.chmod(dev, mode, descendants: true, parent_changes: changes)
+            child.devices.chmod(dev, mode, descendants: true)
           end
         end
       end
@@ -325,7 +324,8 @@ module OsCtld
     end
 
     # Configure devices in cgroup
-    # @param opts [Hash]
+    # @param parents [Boolean]
+    # @param descendants [Boolean]
     def apply(parents: false, descendants: false)
       sync do
         if parents
