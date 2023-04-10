@@ -25,7 +25,7 @@ module OsCtl::Image
     # @return [Hash]
     attr_reader :attrs
 
-    # @param dir [String]
+    # @param base_dir [String]
     # @param name [String]
     def initialize(base_dir, name)
       @base_dir = base_dir

@@ -24,7 +24,7 @@ module OsCtl::Lib
       end
     end
 
-    # Return unescaped path as escaped by {#escape_path}
+    # Return unescaped path as escaped by {escape_path}
     # @param str [String]
     # @return [String]
     def self.unescape_path(str)

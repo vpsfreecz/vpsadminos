@@ -200,7 +200,6 @@ module OsCtld
     end
 
     # Attach process to a cgroup in all subsystems
-    # @param type [String] subsystem
     # @param path [Array<String>] paths to create
     # @param pid [Integer, nil] pid to attach, default to the current process
     def self.attach_to_all(path, pid: nil)
