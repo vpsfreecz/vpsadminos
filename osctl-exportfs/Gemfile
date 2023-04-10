@@ -1,6 +1,10 @@
-source 'https://rubygems.vpsfree.cz'
+source 'https://rubygems.org'
 gemspec
 
-unless ENV.has_key?('OS_BUILD_ID')
+if ENV.has_key?('OS_BUILD_ID')
+  source 'https://rubygems.vpsfree.cz' do
+    gem 'libosctl'
+  end
+else
   gem 'libosctl', path: '../libosctl'
 end
