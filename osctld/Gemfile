@@ -1,8 +1,18 @@
-source 'https://rubygems.vpsfree.cz'
+source 'https://rubygems.org'
 gemspec
 
+source 'https://rubygems.vpsfree.cz' do
+  gem 'netlinkrb'
+  gem 'ruby-lxc'
+end
 
-unless ENV.has_key?('OS_BUILD_ID')
+if ENV.has_key?('OS_BUILD_ID')
+  source 'https://rubygems.vpsfree.cz' do
+    gem 'libosctl'
+    gem 'osctl-repo'
+    gem 'osup'
+  end
+else
   gem 'libosctl', path: '../libosctl'
   gem 'osctl-repo', path: '../osctl-repo'
   gem 'osup', path: '../osup'
