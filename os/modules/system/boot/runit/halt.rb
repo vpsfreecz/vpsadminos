@@ -21,6 +21,7 @@ class Halt
   def parse(args)
     @force = false
     @action = default_action
+    @message = nil
 
     OptionParser.new do |opts|
       opts.banner = "Usage: #{@name} [options]"
@@ -34,6 +35,10 @@ class Halt
 
       opts.on('-p', '--poweroff', 'Power off the machine') do
         @action = 'poweroff'
+      end
+
+      opts.on('-m', '--message MSG', 'Send message to logged-in container users') do |v|
+        @message = v
       end
     end.parse!(args)
   end
@@ -89,7 +94,9 @@ class Halt
 
     begin
       shutdown_pid = Process.fork do
-        Kernel.exec('osctl', 'shutdown', '--force', pgroup: true)
+        cmd = %w(osctl shutdown --force)
+        cmd << '--message' << @message if @message && !@message.empty?
+        Kernel.exec(*cmd, pgroup: true)
       end
       Process.wait(shutdown_pid)
     rescue Interrupt
