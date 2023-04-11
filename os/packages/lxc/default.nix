@@ -14,8 +14,8 @@ stdenv.mkDerivation rec {
   src = fetchFromGitHub {
     owner = "vpsfreecz";
     repo = "lxc";
-    rev = "c10074538db02b4ce7887564e1d9539d0eb9a589";
-    sha256 = "sha256-2mVbkym7lxPABiAG4RZK/MvvV894AODubEqvPKm8M9A=";
+    rev = "38d0e7f0018f511b3e42664c167511bf2c834f0a";
+    sha256 = "sha256-qfzPTLERZiH5AVLrBbKa+RYyQcEtXMLL82yklzFdwU0=";
   };
 
   nativeBuildInputs = [
