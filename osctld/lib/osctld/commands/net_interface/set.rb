@@ -5,7 +5,7 @@ module OsCtld
   class Commands::NetInterface::Set < Commands::Logged
     handle :netif_set
 
-    UNCHANGEABLE_AT_RUNTIME = %i(hwaddr tx_queues rx_queues link dhcp gateways)
+    UNCHANGEABLE_AT_RUNTIME = %i(hwaddr link dhcp gateways)
 
     def find
       ct = DB::Containers.find(opts[:id], opts[:pool])
