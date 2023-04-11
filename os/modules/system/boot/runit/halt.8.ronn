@@ -1,0 +1,46 @@
+halt(8) -- halt, poweroff, reboot - Halt, power-off or reboot the machine
+=========================================================================
+
+## SYNOPSIS
+
+`halt` [<options>]
+
+`poweroff` [<options>]
+
+`reboot` [<options>]
+
+## DESCRIPTION
+
+`halt`, `poweroff`, `reboot` may be used to halt, power-off, or reboot the machine.
+All three commands take the same options.
+
+Care is taken to first stop all containers using `osctl shutdown`. As long as
+`osctl shutdown` is running, it is possible to abort the operation using `Ctrl+C`,
+i.e. sending `SIGINT` signal. See osctl(8) for more information.
+
+## OPTIONS
+
+The following options are understood:
+
+  * `-h`, `--help`:
+    Print a short help text and exit.
+
+  * `-f`, `--force`:
+    Forcefully power-off/reboot the system without asking for confirmation.
+
+  * `-r`, `--reboot`:
+    Reboot the machine, regardless of which one of the three commands is invoked.
+
+  * `-p`, `--poweroff`:
+    Power-off the machine, regardless of which one of the three commands is invoked.
+
+  * `-m`, `--message` *MSG*:
+    Send message to logged-in container users.
+
+## BUGS
+
+Report bugs to https://github.com/vpsfreecz/vpsadminos/issues.
+
+## ABOUT
+
+`halt` is a part of [vpsAdminOS](https://github.com/vpsfreecz/vpsadminos).
