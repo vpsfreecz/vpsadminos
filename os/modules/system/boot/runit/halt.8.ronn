@@ -18,6 +18,22 @@ Care is taken to first stop all containers using `osctl shutdown`. As long as
 `osctl shutdown` is running, it is possible to abort the operation using `Ctrl+C`,
 i.e. sending `SIGINT` signal. See osctl(8) for more information.
 
+## HALT REASON
+Unless option `-m`, `--message` is provided, `$EDITOR` is opened for the user
+to write one. The reason is then written to syslog and sent to logged-in container
+users as a wall message.
+
+The default reason opened in `$EDITOR` can be extended by templates placed
+in directory `/etc/runit/halt.reason.d`. Non-executable text files are read
+and appended, executable files are run with the following envinronment variables:
+
+  * `HALT_ACTION`: poweroff/reboot
+  * `HALT_REASON_FILE`: path to the file where the reason should be written
+
+`$EDITOR` is opened after all templates have been appended or run. Halt reason
+templates can be configured using vpsAdminOS option `runit.halt.reasonTemplates`,
+see configuration.nix(5).
+
 ## OPTIONS
 
 The following options are understood:

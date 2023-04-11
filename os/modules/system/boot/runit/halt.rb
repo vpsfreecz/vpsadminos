@@ -5,6 +5,8 @@ require 'syslog/logger'
 require 'tempfile'
 
 class Halt
+  REASON_TEMPLATE_DIR = '/etc/runit/halt.reason.d'
+
   def initialize(name, args)
     @name = name
     @logger = Syslog::Logger.new('halt')
@@ -67,6 +69,8 @@ class Halt
 END
     file.flush
 
+    apply_reason_templates(file)
+
     begin
       unless Kernel.system(ENV['EDITOR'] || 'vim', file.path)
         fail "Failed to get #{@action} reason"
@@ -77,6 +81,47 @@ END
     ensure
       file.close
       file.unlink
+    end
+  end
+
+  def apply_reason_templates(file)
+    begin
+      ents = Dir.entries(REASON_TEMPLATE_DIR)
+    rescue Errno::ENOENT
+      return
+    end
+
+    ents.each do |v|
+      abs_path = File.join(REASON_TEMPLATE_DIR, v)
+
+      begin
+        st = File.stat(abs_path)
+      rescue Errno::ENOENT
+        next
+      end
+
+      next unless st.file?
+
+      if st.executable?
+        pid = Process.fork do
+          ENV['HALT_ACTION'] = @action
+          ENV['HALT_REASON_FILE'] = file.path
+
+          Process.exec(abs_path)
+        end
+
+        Process.wait(pid)
+
+        if $?.exitstatus != 0
+          warn "Reason template #{abs_path.inspect} failed with exit status #{$?.exitstatus}"
+          next
+        end
+
+        file.seek(0, IO::SEEK_END)
+      else
+        file.write(File.read(abs_path))
+        file.flush
+      end
     end
   end
 
