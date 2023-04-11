@@ -340,6 +340,47 @@ let
 
   mkEnvironment = mkMerge [mkServices mkRunlevels];
 
+  haltReasonTemplate =
+    { config, ... }:
+    {
+      options = {
+        enable = mkOption {
+          type = types.bool;
+          default = true;
+          description = ''
+            Enable the halt reason template
+          '';
+        };
+
+        text = mkOption {
+          type = types.nullOr types.lines;
+          default = null;
+          description = ''
+            Text appended to the default reason
+          '';
+        };
+
+        source = mkOption {
+          type = types.path;
+          description = ''
+            Path of the source file. If it is a text file, its contents are
+            appended to the default halt reason. If it is an executable file,
+            it is run.
+          '';
+        };
+      };
+    };
+
+  mkHaltReason = name: tpl:
+    if isNull tpl.text then
+      { inherit (tpl) enable source; }
+    else {
+      inherit (tpl) enable;
+      source = pkgs.writeText "halt-reason-${name}" tpl.text;
+    };
+
+  mkHaltReasons = tpls: mapAttrs' (k: v: nameValuePair "runit/halt.reason.d/${k}" (mkHaltReason k v)) tpls;
+
   haltScript = pkgs.substituteAll {
     src = ./halt.rb;
     isExecutable = true;
@@ -411,6 +452,12 @@ in
       default = {};
       description = "System services";
     };
+
+    runit.halt.reasonTemplates = mkOption {
+      type = types.attrsOf (types.submodule haltReasonTemplate);
+      default = {};
+      description = "Halt reason templates";
+    };
   };
 
   ### Implementation
@@ -433,5 +480,9 @@ in
       environment.etc = mkEnvironment;
       environment.systemPackages = [ pkgs.svctl haltBin ];
     })
+
+    {
+      environment.etc = mkHaltReasons config.runit.halt.reasonTemplates;
+    }
   ];
 }
