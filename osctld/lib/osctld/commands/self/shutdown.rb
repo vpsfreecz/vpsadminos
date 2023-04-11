@@ -121,7 +121,7 @@ module OsCtld
     def release_grabbed(grabbed)
       grabbed.each do |v|
         # The locks may have already been released by Commands::Pool::Export
-        v.release_manipulation_lock if v.is_being_manipulated?
+        v.release_manipulation_lock if v.manipulated_by == self
       end
     end
 
