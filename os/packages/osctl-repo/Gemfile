@@ -1,5 +1,5 @@
 source 'https://rubygems.org'
 
 source 'https://rubygems.vpsfree.cz' do
-  gem 'osctl-repo', '22.11.0.build20230410224540'
+  gem 'osctl-repo', '22.11.0.build20230411213626'
 end
