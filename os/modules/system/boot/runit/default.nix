@@ -402,6 +402,9 @@ let
       --pipe \
       --date $publish_date \
       ${./halt.8.ronn} > $out/share/man/man8/halt.8
+
+    ln -s halt.8 $out/share/man/man8/poweroff.8
+    ln -s halt.8 $out/share/man/man8/reboot.8
   '';
 in
 
