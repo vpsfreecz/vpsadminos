@@ -55,7 +55,7 @@ source repository.
 
 ## Configuring user namespaces
 If you don't configure user namespaces at all, each container will end up with
-a unique UID/GID mapping, making all containers perfetly isolated. When more
+a unique UID/GID mapping, making all containers perfectly isolated. When more
 control is needed, it is possible to declaratively configure ID ranges
 and user namespace mappings.
 
