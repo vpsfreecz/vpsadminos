@@ -11,7 +11,7 @@ module OsCtld
         @@instances[self]
       end
 
-      %i(sync get count add remove find contains?).each do |v|
+      %i(sync each get count add remove find contains?).each do |v|
         define_method(v) do |*args, &block|
           instance.send(v, *args, &block)
         end
@@ -30,6 +30,12 @@ module OsCtld
         block.call
       else
         @mutex.synchronize { block.call }
+      end
+    end
+
+    def each(&block)
+      sync do
+        @objects.each(&block)
       end
     end
 
