@@ -15,6 +15,12 @@ toplevel:
 gems: libosctl osctl-repo osctl osctld osup osctl-image osctl-exporter osctl-exportfs converter svctl test-runner osvm
 	echo "$(VERSION).build$(BUILD_ID)" > .build_id
 
+commit-gems:
+	git commit -e -m "os: update gems to $(shell cat .build_id)" .build_id os/packages/*/{Gemfile,Gemfile.lock,gemset.nix}
+
+amend-gems:
+	git commit --amend -e -m "os: update gems to $(shell cat .build_id)" --date=now .build_id os/packages/*/{Gemfile,Gemfile.lock,gemset.nix}
+
 libosctl:
 	./tools/update_gem.sh _nopkg libosctl $(BUILD_ID)
 
@@ -97,4 +103,5 @@ migration:
 	$(MAKE) -C osup migration
 
 .PHONY: build converter doc doc_serve qemu gems libosctl osctl osctld osctl-repo osctl-exporter osup svctl test-runner osvm osctl-env-exec
+.PHONY: commit-gems amend-gems
 .PHONY: version migration
