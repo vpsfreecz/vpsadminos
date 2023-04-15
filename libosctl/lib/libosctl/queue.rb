@@ -19,6 +19,15 @@ module OsCtl::Lib
 
     alias_method :<<, :push
 
+    # Insert value to the beginning of the queue
+    # @param v [any]
+    def insert(v)
+      sync do
+        @queue.insert(0, v)
+        @cond.signal
+      end
+    end
+
     # Remove the first element from the queue and return it
     #
     # If `block` is `true`, this method will block until there is something
