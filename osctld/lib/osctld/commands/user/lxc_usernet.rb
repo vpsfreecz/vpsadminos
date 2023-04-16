@@ -28,8 +28,10 @@ module OsCtld
       end
 
       DB::Users.each do |u|
-        bridges = {}
-        routed_cnt = 0
+        # lxc-user-nic counts db entries by owner, not by the linked bridge name,
+        # so we use the total number of user's interfaces for each lxc-usernet entry.
+        bridges = []
+        netif_cnt = 0
 
         # Count interfaces per type
         cts = user_cts[u]
@@ -39,23 +41,18 @@ module OsCtld
           ct.netifs.each do |netif|
             case netif.type
             when :bridge
-              bridges[netif.link] ||= 0
-              bridges[netif.link] += 1
-
-            when :routed
-              routed_cnt += 1
-
-            else
-              fail "unknown netif type '#{netif.type}'"
+              bridges << netif.link unless bridges.include?(netif.link)
             end
+
+            netif_cnt += 1
           end
         end
 
         # Write results
-        f.write("#{u.sysusername} veth none #{routed_cnt}\n")
+        f.write("#{u.sysusername} veth none #{netif_cnt}\n")
 
-        bridges.each do |br, n|
-          f.write("#{u.sysusername} veth #{br} #{n}\n")
+        bridges.each do |br|
+          f.write("#{u.sysusername} veth #{br} #{netif_cnt}\n")
         end
       end
 
