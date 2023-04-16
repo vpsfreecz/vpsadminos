@@ -168,8 +168,7 @@ module OsCtld
 
       exclusively { @veth = nil }
 
-      # TODO: Removing the veth should be done with LXC, but it doesn't work on
-      # os/osctl
+      # lxc-user-nic does not support deletion of veth interfaces, delete it ourselves
       log(:info, ct, "Removing host veth #{veth_name}")
 
       begin
