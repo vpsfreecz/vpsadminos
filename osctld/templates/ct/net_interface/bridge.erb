@@ -5,7 +5,11 @@ lxc.net.<%= index %>.flags = up
 <% if hwaddr -%>
 lxc.net.<%= index %>.hwaddr = <%= hwaddr %>
 <% end -%>
+<% if tx_queues > 1 -%>
 lxc.net.<%= index %>.veth.n_txqueues = <%= tx_queues %>
+<% end -%>
+<% if rx_queues > 1 -%>
 lxc.net.<%= index %>.veth.n_rxqueues = <%= rx_queues %>
+<% end -%>
 lxc.net.<%= index %>.script.up = <%= hook_veth_up %>
 lxc.net.<%= index %>.script.down = <%= hook_veth_down %>
