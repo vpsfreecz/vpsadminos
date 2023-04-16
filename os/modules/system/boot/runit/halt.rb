@@ -63,6 +63,8 @@ class Halt
   def reason
     return if @message
 
+    puts "Composing #{@action} message..."
+
     file = Tempfile.new("#{@action}-reason")
     file.puts(<<END)
 # Reason for #{@action} of #{@hostname}:
@@ -70,6 +72,7 @@ END
     file.flush
 
     apply_reason_templates(file)
+    puts
 
     begin
       unless Kernel.system(ENV['EDITOR'] || 'vim', file.path)
