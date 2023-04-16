@@ -67,7 +67,9 @@ class Halt
 
     file = Tempfile.new("#{@action}-reason")
     file.puts(<<END)
-# Reason for #{@action} of #{@hostname}:
+# Please enter reason for #{@action} of #{@hostname}.
+# Lines starting with '#' will be ignored, and an empty message will
+# abort #{@action}.
 END
     file.flush
 
@@ -84,6 +86,11 @@ END
     ensure
       file.close
       file.unlink
+    end
+
+    if @message.empty?
+      puts "Aborting due to empty message"
+      exit(false)
     end
   end
 
