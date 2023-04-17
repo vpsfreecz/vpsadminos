@@ -27,6 +27,7 @@ class Halt
   def parse(args)
     @force = false
     @action = default_action
+    @wall = true
     @message = nil
 
     OptionParser.new do |opts|
@@ -43,7 +44,11 @@ class Halt
         @action = 'poweroff'
       end
 
-      opts.on('-m', '--message MSG', 'Send message to logged-in container users') do |v|
+      opts.on('-w', '--[no-]wall', 'Send message to logged-in container users') do |v|
+        @wall = v
+      end
+
+      opts.on('-m', '--message MSG', 'Message sent to logged-in container users') do |v|
         @message = v
       end
     end.parse!(args)
@@ -71,6 +76,13 @@ class Halt
 # Lines starting with '#' will be ignored, and an empty message will
 # abort #{@action}.
 END
+
+    if @wall
+      file.puts('# The reason will be sent to logged-in container users.')
+    else
+      file.puts('# The reason will be written to system log.')
+    end
+
     file.flush
 
     apply_reason_templates(file)
@@ -147,6 +159,14 @@ END
     puts (@message.empty? ? '[not given]' : @message)
     puts
 
+    if @wall
+      puts 'The reason will be sent to logged-in container users.'
+    else
+      puts 'The reason will be written to system log.'
+    end
+
+    puts
+
     loop do
       STDOUT.write("Enter machine hostname to #{@action}: ")
       STDOUT.flush
@@ -176,12 +196,19 @@ END
     puts "Shutting down containers, this operation can still be interrupted"
     puts
 
-    @logger.info("System #{@action}, reason: #{@message}")
+    @logger.info("System #{@action}, reason: #{@message}, wall #{@wall ? 'yes' : 'no'}")
 
     begin
       shutdown_pid = Process.fork do
         cmd = %w(osctl shutdown --force)
-        cmd << '--message' << @message if @message && !@message.empty?
+
+        if @wall
+          cmd << '--wall'
+          cmd << '--message' << @message if @message && !@message.empty?
+        else
+          cmd << '--no-wall'
+        end
+
         Kernel.exec(*cmd, pgroup: true)
       end
       Process.wait(shutdown_pid)
