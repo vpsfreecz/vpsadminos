@@ -50,8 +50,11 @@ The following options are understood:
   * `-p`, `--poweroff`:
     Power-off the machine, regardless of which one of the three commands is invoked.
 
+  * `-w`, `--[no-]wall`:
+    Send message to logged-in container users. Enabled by default.
+
   * `-m`, `--message` *MSG*:
-    Send message to logged-in container users.
+    Message sent to logged-in container users.
 
 ## BUGS
 
