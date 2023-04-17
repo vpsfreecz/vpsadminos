@@ -42,6 +42,13 @@ module OsCtld
 
         progress("Exporting pool #{pool.name}")
 
+        wall_msg =
+          if opts[:wall]
+            opts[:message] || 'System is shutting down'
+          else
+            nil
+          end
+
         call_cmd!(
           Commands::Pool::Export,
           name: pool.name,
@@ -49,7 +56,7 @@ module OsCtld
           grab_containers: false,
           stop_containers: true,
           unregister_users: false,
-          message: opts[:message] || 'System is shutting down',
+          message: wall_msg,
         )
       end
 

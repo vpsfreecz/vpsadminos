@@ -3024,6 +3024,10 @@ The following shortcuts are supported:
       Do not ask for confirmation on standard input, initiate shutdown
       immediately.
 
+    `-w`, `--[no-]wall`
+      Send message to logged-in users of containers that are stopped. The message
+      can be customized using option `-m`, `--message`. Enabled by default.
+
     `-m`, `--message` *message*
       Message sent to logged-in users of containers that are stopped.
 

@@ -2250,6 +2250,9 @@ module OsCtl::Cli
         c.desc 'Do not ask for confirmation, shutdown immediately'
         c.switch %i(f force), negatable: false
 
+        c.desc 'Send message to logged-in container users'
+        c.switch %i(w wall), default_value: true
+
         c.desc 'Message sent to logged-in container users'
         c.flag %i(m message), arg_name: 'message'
 
