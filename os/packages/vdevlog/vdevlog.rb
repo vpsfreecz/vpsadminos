@@ -137,6 +137,10 @@ module VdevLog
       @last = last || LastErrors.new
     end
 
+    def any?
+      @read > 0 || @write > 0 || @checksum > 0
+    end
+
     # @param errors [Errors]
     # @return [Array<Integer, Integer, Integer] read, write, checksum
     def add(errors)
@@ -349,38 +353,12 @@ module VdevLog
   end
 
   class Vdev
-    # @param guid [Integer]
-    # @param dev_name [String]
-    # @return [Vdev]
-    def self.from_guid_and_dev_name(guid, dev_name)
-      # ZED always reports partition names, even if the whole disk was given
-      # to ZFS
-      short_partition_name = File.basename(dev_name)
-      short_disk_name = File.readlink(File.join('/sys/class/block', short_partition_name)).split('/')[-2]
-
-      symlinks = `udevadm info -q symlink --path=/sys/block/#{short_disk_name}`.strip.split
-      if $?.exitstatus != 0
-        fail "udevadm failed with exit status #{$?.exitstatus}"
-      end
-
-      ids = symlinks.inject([]) do |acc, symlink|
-        _, type, v = symlink.split('/')
-        acc << v if type == 'by-id'
-        acc
-      end
-
-      if ids.empty?
-        fail "no id found for #{dev_name.inspect}"
-      end
-
-      Vdev.new(guid, ids)
-    end
-
     # @return [Vdev]
     def self.from_state(hash)
       new(
         hash['guid'],
-        hash['ids'],
+        ids: hash['ids'],
+        paths: hash['paths'],
         state: hash['state'],
         errors: Errors.from_state(hash['errors']),
       )
@@ -390,7 +368,10 @@ module VdevLog
     attr_reader :guid
 
     # @return [Array<String>]
-    attr_reader :ids
+    attr_accessor :ids
+
+    # @return [Array<String>]
+    attr_accessor :paths
 
     # @return [Errors]
     attr_reader :errors
@@ -400,11 +381,13 @@ module VdevLog
 
     # @param guid [Integer]
     # @param ids [Array<String>]
+    # @param paths [Array<String>]
     # @param state [String]
     # @param errors [Errors, nil]
-    def initialize(guid, ids, state: 'online', errors: nil)
+    def initialize(guid, ids:, paths:, state: 'online', errors: nil)
       @guid = guid
       @ids = ids
+      @paths = paths
       @state = state
       @errors = errors || Errors.new
     end
@@ -413,6 +396,7 @@ module VdevLog
       {
         'guid' => guid,
         'ids' => ids,
+        'paths' => paths,
         'state' => state,
         'errors' => errors.dump,
       }.to_json(*args, **kwargs)
@@ -530,8 +514,11 @@ module VdevLog
       vdev = @vdevs.detect { |v| v.guid == event.vdev_guid }
 
       if vdev.nil?
-        vdev = Vdev.from_guid_and_dev_name(event.vdev_guid, event.vdev_path)
-        @vdevs << vdev
+        @logger.warn(
+          "Unable to log IO errors from eid=#{event.eid} on vdev pool=#{@pool} "+
+          "guid=#{event.vdev_guid} path=#{event.vdev_path}: vdev not found in state file"
+        )
+        return
       end
 
       read, write, checksum = vdev.errors.add(event.vdev_errors)
@@ -581,6 +568,183 @@ module VdevLog
     def make_state_dir
       Dir.mkdir(@state_dir)
     rescue Errno::EEXIST
+    end
+  end
+
+  class PoolStatus
+    Disk = Struct.new(:guid, :path, :whole_disk, :state, :ids, :paths) do
+      def initialize
+        self.ids = []
+        self.paths = []
+      end
+    end
+
+    # @param pools [Hash<String, Array<Disk>>]
+    attr_reader :pools
+
+    # @param pools [Array<String>]
+    def initialize(pools: [])
+      @pools = list_vdevs(pools)
+
+      add_vdev_status(@pools)
+
+      @pools.each_value do |disks|
+        find_disk_symlinks(disks)
+      end
+    end
+
+    protected
+    def list_vdevs(read_pools)
+      # zdb will list all zpools and their vdevs. One known caveat is that it
+      # does not include cache devices. Those are thus not tracked by vdevlog.
+      info = `zdb`.strip
+
+      if $?.exitstatus != 0
+        fail "zdb exited with #{$?.exitstatus}"
+      end
+
+      pools = {}
+      vdevs = []
+
+      cur_pool = nil
+      skip_pool = false
+      in_vdev = false
+      cur_vdev = nil
+
+      info.each_line do |line|
+        stripped = line.strip
+
+        # Pool section
+        if /^([^\s])+:$/ =~ line
+          if cur_pool
+            vdevs << cur_vdev if cur_vdev
+            pools[cur_pool] = vdevs
+          end
+
+          # Remove ending colon
+          pool_name = stripped[0..-2]
+
+          skip_pool = read_pools.any? && !read_pools.include?(pool_name)
+          cur_pool = skip_pool ? nil : pool_name
+          vdevs = []
+          in_vdev = false
+          cur_vdev = nil
+
+          next
+        end
+
+        next if cur_pool.nil? || skip_pool
+
+        colon = stripped.index(':')
+        next if colon.nil?
+
+        k = stripped[0..colon-1]
+        v = stripped[colon+2..-1]
+
+        next if v.nil?
+
+        # Remove quotes
+        if v.start_with?("'") && v.end_with?("'")
+          v = v[1..-2]
+        end
+
+        # Parse vdev properties
+        if k.start_with?('children[')
+          in_vdev = false
+
+        elsif k == 'type'
+          vdevs << cur_vdev if cur_vdev
+
+          if v == 'disk'
+            in_vdev = true
+            cur_vdev = Disk.new
+          else
+            in_vdev = false
+            cur_vdev = nil
+          end
+
+        elsif in_vdev && k == 'guid'
+          cur_vdev.guid = v.to_i
+
+        elsif in_vdev && k == 'path'
+          cur_vdev.path = v
+
+        elsif in_vdev && k == 'whole_disk'
+          cur_vdev.whole_disk = v == '1'
+        end
+      end
+
+      vdevs << cur_vdev if cur_vdev
+      pools[cur_pool] = vdevs if cur_pool
+
+      pools
+    end
+
+    def add_vdev_status(pools)
+      if pools.empty?
+        raise ArgumentError, 'expected a non-empty hash of pools'
+      end
+
+      status = `zpool status -g #{pools.keys.join(' ')}`
+
+      if $?.exitstatus != 0
+        fail "zpool status exited with #{$?.exitstatus}"
+      end
+
+      cur_pool = nil
+      in_config = false
+
+      status.each_line do |line|
+        stripped = line.strip
+
+        if stripped.start_with?('pool:')
+          cur_pool = stripped[5..-1].strip
+        elsif cur_pool && stripped.start_with?('config:')
+          in_config = true
+        elsif cur_pool && in_config
+          guid, state, _ = stripped.split
+          next unless /^\d+$/ =~ guid
+
+          guid_i = guid.to_i
+
+          disk = pools[cur_pool].detect { |v| v.guid == guid_i }
+          next if disk.nil?
+
+          disk.state = state.downcase
+        end
+      end
+    end
+
+    def find_disk_symlinks(disks)
+      disks.each do |disk|
+        # This is always a partition name, even if ZFS uses the whole disk
+        dev_path = File.realpath(disk.path)
+        short_name = File.basename(dev_path)
+
+        lookup_name =
+          if disk.whole_disk
+            File.readlink(File.join('/sys/class/block', short_name)).split('/')[-2]
+          else
+            short_name
+          end
+
+        symlinks = `udevadm info -q symlink --path=/sys/class/block/#{lookup_name}`.strip.split
+
+        if $?.exitstatus != 0
+          fail "udevadm on #{lookup_name.inspect} failed with exit status #{$?.exitstatus}"
+        end
+
+        symlinks.each do |symlink|
+          _, type, v = symlink.split('/')
+
+          case type
+          when 'by-id'
+            disk.ids << v
+          when 'by-path'
+            disks.paths << v
+          end
+        end
+      end
     end
   end
 
@@ -684,6 +848,8 @@ module VdevLog
             end
 
           state.vdevs.each do |vdev|
+            next unless vdev.errors.any?
+
             puts sprintf(
               row_vdev_fmt,
               pool,
@@ -722,21 +888,39 @@ module VdevLog
     end
 
     def run_update
-      pool_guids = get_pool_vdev_guids((@options[:pool] || '').split(','))
+      pool_status = PoolStatus.new(pools: (@options[:pool] || '').split(','))
 
-      pool_guids.each do |pool, guid_states|
+      pool_status.pools.each do |pool, disks|
         State.update(@logger, pool) do |state|
-          state.vdevs.delete_if do |vdev|
-            if guid_states.has_key?(vdev.guid)
-              vdev.state = guid_states[vdev.guid]
-              false
+          # Add newly discovered vdevs and update vdev state
+          disks.each do |disk|
+            vdev = state.vdevs.detect { |v| v.guid == disk.guid }
+
+            if vdev.nil?
+              state.vdevs << Vdev.new(
+                disk.guid,
+                ids: disk.ids,
+                paths: disk.paths,
+                state: disk.state,
+              )
             else
+              vdev.state = disk.state
+              vdev.ids = disk.ids
+              vdev.paths = disk.paths
+            end
+          end
+
+          # Remove obsoleted vdevs
+          state.vdevs.delete_if do |vdev|
+            if disks.detect { |v| v.guid == vdev.guid}.nil?
               @logger.info(
                 "Removing obsolete vdev pool=#{pool} guid=#{vdev.guid} "+
                 "ids=#{vdev.ids.join(',')} read=#{vdev.errors.read} "+
                 "write=#{vdev.errors.write} checksum=#{vdev.errors.checksum}"
               )
               true
+            else
+              false
             end
           end
 
@@ -765,33 +949,6 @@ module VdevLog
 
         pools.each(&block)
       end
-    end
-
-    def get_pool_vdev_guids(pools = [])
-      status = `zpool status -g #{pools.join(' ')}`
-      if $?.exitstatus != 0
-        fail "zpool status exited with #{$?.exitstatus}"
-      end
-
-      cur_pool = nil
-      in_config = false
-      guids = {}
-
-      status.each_line do |line|
-        stripped = line.strip
-
-        if stripped.start_with?('pool:')
-          cur_pool = stripped[5..-1].strip
-          guids[cur_pool] = {}
-        elsif cur_pool && stripped.start_with?('config:')
-          in_config = true
-        elsif cur_pool && in_config
-          guid, state, _ = stripped.split
-          guids[cur_pool][guid.to_i] = state.downcase if /^\d+$/ =~ guid
-        end
-      end
-
-      guids
     end
   end
 end
