@@ -741,7 +741,7 @@ module VdevLog
           when 'by-id'
             disk.ids << v
           when 'by-path'
-            disks.paths << v
+            disk.paths << v
           end
         end
       end
