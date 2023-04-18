@@ -1,0 +1,74 @@
+= halt(8)
+:doctype: manpage
+:docdate: 2023-04-18
+:manmanual: HALT
+:mansource: HALT
+:man-linkstyle: pass:[blue R < >]
+
+== Name
+
+halt, poweroff, reboot - Halt, power-off or reboot the machine
+
+== Synopsis
+
+*halt* [_options_]
+
+*poweroff* [_options_]
+
+*reboot* [_options_]
+
+== Description
+
+*halt*, *poweroff*, *reboot* may be used to halt, power-off, or reboot the machine.
+All three commands take the same options.
+
+Care is taken to first stop all containers using *osctl shutdown*. As long as
+*osctl shutdown* is running, it is possible to abort the operation using *Ctrl+C*,
+i.e. sending *SIGINT* signal. See osctl(8) for more information.
+
+== Halt reason
+
+Unless option *-m*, *--message* is provided, *$EDITOR* is opened for the user
+to write one. The reason is then written to syslog and sent to logged-in container
+users as a wall message.
+
+The default reason opened in *$EDITOR* can be extended by templates placed
+in directory */etc/runit/halt.reason.d*. Non-executable text files are read
+and appended, executable files are run with the following envinronment variables:
+
+*HALT_ACTION*:: poweroff/reboot
+*HALT_REASON_FILE*:: path to the file where the reason should be written
+
+*$EDITOR* is opened after all templates have been appended or run. Halt reason
+templates can be configured using vpsAdminOS option *runit.halt.reasonTemplates*,
+see configuration.nix(5).
+
+== Options
+
+The following options are understood:
+
+*-h*, *--help*::
+  Print a short help text and exit.
+
+*-f*, *--force*::
+  Forcefully power-off/reboot the system without asking for confirmation.
+
+*-r*, *--reboot*::
+  Reboot the machine, regardless of which one of the three commands is invoked.
+
+*-p*, *--poweroff*::
+  Power-off the machine, regardless of which one of the three commands is invoked.
+
+*-w*, *--[no-]wall*::
+  Send message to logged-in container users. Enabled by default.
+
+*-m*, *--message* _MSG_::
+  Message sent to logged-in container users.
+
+== Bugs
+
+Report bugs to https://github.com/vpsfreecz/vpsadminos/issues.
+
+== About
+
+*halt* is a part of https://github.com/vpsfreecz/vpsadminos[vpsAdminOS].
