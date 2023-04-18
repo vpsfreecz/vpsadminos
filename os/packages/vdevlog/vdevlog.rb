@@ -20,7 +20,7 @@ module VdevLog
     # @return [Integer]
     attr_reader :checksum
 
-    # @return [ZioRequest]
+    # @return [ZioRequest, nil]
     attr_reader :zio_request
 
     # @return [LogEntry]
@@ -31,7 +31,7 @@ module VdevLog
         hash['read'],
         hash['write'],
         hash['checksum'],
-        ZioRequest.from_state(hash['zio_request']),
+        hash['zio_request'] && ZioRequest.from_state(hash['zio_request']),
       )
     end
 
@@ -40,7 +40,7 @@ module VdevLog
     # @param read [Integer]
     # @param write [Integer]
     # @param checksum [Integer]
-    # @param zio_request [ZioRequest]
+    # @param zio_request [ZioRequest, nil]
     def initialize(time, guid, read, write, checksum, zio_request)
       @time = time
       @guid = guid
@@ -57,7 +57,7 @@ module VdevLog
         'read' => read,
         'write' => write,
         'checksum' => checksum,
-        'zio_request' => zio_request.dump,
+        'zio_request' => zio_request && zio_request.dump,
       }
     end
   end
@@ -572,7 +572,7 @@ module VdevLog
   end
 
   class PoolStatus
-    Disk = Struct.new(:guid, :path, :whole_disk, :state, :ids, :paths) do
+    Disk = Struct.new(:guid, :path, :whole_disk, :state, :errors, :ids, :paths) do
       def initialize
         self.ids = []
         self.paths = []
@@ -702,7 +702,7 @@ module VdevLog
         elsif cur_pool && stripped.start_with?('config:')
           in_config = true
         elsif cur_pool && in_config
-          guid, state, _ = stripped.split
+          guid, state, read, write, checksum, _ = stripped.split
           next unless /^\d+$/ =~ guid
 
           guid_i = guid.to_i
@@ -711,6 +711,11 @@ module VdevLog
           next if disk.nil?
 
           disk.state = state.downcase
+          disk.errors = Errors.new(
+            read: read.to_i,
+            write: write.to_i,
+            checksum: checksum.to_i,
+          )
         end
       end
     end
@@ -774,6 +779,8 @@ module VdevLog
       @options = {
         action: :run_zedlet,
         verbose: 0,
+        record: false,
+        clear: true,
       }
 
       parser = OptionParser.new do |opts|
@@ -785,6 +792,14 @@ module VdevLog
 
         opts.on('-i', '--install DIR', 'Install vdevlog metrics into node_exporter') do |dir|
           @options[:install] = dir
+        end
+
+        opts.on('-r', '--record', 'Record errors from zpool status') do
+          @options[:record] = true
+        end
+
+        opts.on('-c', '--[no-]clear', 'Clear recorded errors from zpool status') do |v|
+          @options[:clear] = v
         end
 
         opts.on('-h', '--help', 'Show this message and exit') do
@@ -821,15 +836,18 @@ module VdevLog
       header_fmt = '%-10s %26s %9s %9s %9s  '
       row_vdev_fmt = '%-10s %26d %9d %9d %9d  '
       row_log_fmt = '%-10s %26s %9d %9d %9d  '
+      row_log_nozio_fmt = row_log_fmt.dup
 
       if @options[:verbose] > 1
         header_fmt << '%30s %8s %18s %5s %10s %s'
         row_vdev_fmt << '%30s'
         row_log_fmt << '%30s %8d %18d %5d %10s %s'
+        row_log_nozio_fmt << '%30s'
       else
         header_fmt << '%s'
         row_vdev_fmt << '%s'
         row_log_fmt << '%s'
+        row_log_nozio_fmt << '%s'
       end
 
       puts sprintf(
@@ -870,14 +888,14 @@ module VdevLog
                 zio = entry.zio_request
 
                 puts sprintf(
-                  row_log_fmt,
+                  zio ? row_log_fmt : row_log_nozio_fmt,
                   '',
                   '',
                   entry.read,
                   entry.write,
                   entry.checksum,
                   entry.time.to_s,
-                  *(@options[:verbose] > 1 ? [
+                  *(zio && @options[:verbose] > 1 ? [
                     zio.size,
                     zio.offset,
                     zio.err,
@@ -897,21 +915,30 @@ module VdevLog
 
       pool_status.pools.each do |pool, disks|
         State.update(@logger, pool) do |state|
+          t = Time.now
+
           # Add newly discovered vdevs and update vdev state
           disks.each do |disk|
             vdev = state.vdevs.detect { |v| v.guid == disk.guid }
 
             if vdev.nil?
-              state.vdevs << Vdev.new(
+              vdev = Vdev.new(
                 disk.guid,
                 ids: disk.ids,
                 paths: disk.paths,
                 state: disk.state,
               )
+
+              state.vdevs << vdev
             else
               vdev.state = disk.state
               vdev.ids = disk.ids
               vdev.paths = disk.paths
+            end
+
+            if @options[:record] && disk.errors.any?
+              read, write, checksum = vdev.errors.add(disk.errors)
+              state.log << LogEntry.new(t, vdev.guid, read, write, checksum, nil)
             end
           end
 
@@ -930,6 +957,12 @@ module VdevLog
           end
 
           state.install_prom_file(@options[:install]) if @options[:install]
+        end
+
+        if @options[:record] && @options[:clear]
+          unless Kernel.system('zpool', 'clear', pool)
+            warn "Failed to clear zpool #{pool}"
+          end
         end
       end
     end
