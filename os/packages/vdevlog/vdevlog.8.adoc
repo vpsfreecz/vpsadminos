@@ -1,0 +1,59 @@
+= vdevlog(8)
+:doctype: manpage
+:docdate: 2023-04-18
+:manmanual: VDEVLOG
+:mansource: VDEVLOG
+:man-linkstyle: pass:[blue R < >]
+
+== Name
+
+vdevlog - track zpool vdev errors
+
+== Synopsis
+
+*vdevlog* _command_ [_options_] [_arguments_...]
+
+== Description
+
+*vdevlog* is used to track zpool vdev errors persistently, as zpool error counters
+are lost when the system is rebooted. *vdevlog* is storing the list of all vdevs
+and their error log in a file on respective zpools. *vdevlog* is invoked by
+ZFS Event Daemon (ZED) when IO errors occur.
+
+*vdevlog ls* can be called to show vdevs with errors. Adding *-v*, *--verbose*
+will print a log of error events as they happened.
+
+*vdevlog update* should be called regularly, as it keeps *vdevlog* state in line
+with current zpool configuration.
+
+== Commands
+
+*vdevlog ls* [_--verbose_] [_pool_...]::
+  List vdev errors of all or selected pools.
++
+Options:
++
+  *-v*, *--verbose*:::
+    Show error log and ZIO requests as they occurred in time.
+
+*vdevlog update* [_--install_] [_pool_...]::
+  Sync logged vdevs with zpool status of all or selected pools.
++
+Options:
++
+  *-i*, *--install* _dir_:::
+    Generate a prom file with vdevlog metrics and install it into a directory
+    for node_exporter's text file collector.
+
+== Files
+
+*vdevlog* state is stored in directory `<pool mountpoint>/.vdevlog`. For *vdevlog*
+to function, the root dataset has to be mounted.
+
+== Bugs
+
+Report bugs to https://github.com/vpsfreecz/vpsadminos/issues.
+
+== About
+
+*vdevlog* is a part of https://github.com/vpsfreecz/vpsadminos[vpsAdminOS].

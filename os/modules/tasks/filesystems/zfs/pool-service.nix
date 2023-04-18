@@ -151,7 +151,7 @@ in {
     ${optionalString config.services.zfs.vdevlog.enable ''
     echo "Updating vdevlog"
     vdevlog \
-      -u ${name} \
+      update ${name} \
       ${optionalString (!isNull config.services.zfs.vdevlog.metricsDirectory) "-i ${config.services.zfs.vdevlog.metricsDirectory}"}
     ''}
 

@@ -777,20 +777,10 @@ module VdevLog
       }
 
       parser = OptionParser.new do |opts|
-        opts.banner = "Usage: #{$0} [options]"
-
-        opts.on('-l', '--list [POOL]', 'List vdev errors') do |pool|
-          @options[:action] = :run_list
-          @options[:pool] = pool
-        end
+        opts.banner = "Usage: #{$0} [ls|update [options]]"
 
         opts.on('-v', '--verbose', 'Show error log and ZIO requests') do
           @options[:verbose] += 1
-        end
-
-        opts.on('-u', '--update [POOL]', 'Sync logged vdevs with zpool status') do |pool|
-          @options[:action] = :run_update
-          @options[:pool] = pool
         end
 
         opts.on('-i', '--install DIR', 'Install vdevlog metrics into node_exporter') do |dir|
@@ -805,8 +795,23 @@ module VdevLog
 
       parser.parse!(@args)
 
+      case @args[0]
+      when 'ls'
+        @options[:action] = :run_list
+        @options[:pools] = @args[1..] || []
+      when 'update'
+        @options[:action] = :run_update
+        @options[:pools] = @args[1..] || []
+      when nil
+        # run_zedlet
+      else
+        warn "Unknown command #{@args[0].inspect}"
+        warn parser
+        exit(false)
+      end
+
       if @options[:action] == :run_zedlet && !@env['ZEVENT_CLASS']
-        warn 'Specify action or invoke by ZED'
+        warn 'Specify command or invoke by ZED'
         warn parser
         exit(false)
       end
@@ -888,7 +893,7 @@ module VdevLog
     end
 
     def run_update
-      pool_status = PoolStatus.new(pools: (@options[:pool] || '').split(','))
+      pool_status = PoolStatus.new(pools: @options[:pools])
 
       pool_status.pools.each do |pool, disks|
         State.update(@logger, pool) do |state|
@@ -938,8 +943,8 @@ module VdevLog
     end
 
     def each_pool(&block)
-      if @options[:pool]
-        @options[:pool].split(',').each(&block)
+      if @options[:pools].any?
+        @options[:pools].each(&block)
       else
         pools = `zpool list -H -o name`.strip.split
 
