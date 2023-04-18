@@ -875,7 +875,7 @@ in
       };
 
       services.cron.systemCronJobs = [
-        "13,33,53 * * * * root ${pkgs.vdevlog}/bin/vdevlog -u"
+        "13,33,53 * * * * root ${pkgs.vdevlog}/bin/vdevlog update"
       ];
     })
 
