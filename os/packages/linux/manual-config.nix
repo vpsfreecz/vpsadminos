@@ -1,5 +1,5 @@
 { lib, buildPackages, runCommand, nettools, bc, bison, flex, perl, rsync, gmp, libmpc, mpfr, openssl
-, libelf, cpio, elfutils, zstd, gawk
+, libelf, cpio, elfutils, zstd, gawk, python3Minimal, zlib, pahole
 , writeTextFile
 }:
 
@@ -104,7 +104,8 @@ let
       patches =
         map (p: p.patch) kernelPatches
         # Required for deterministic builds along with some postPatch magic.
-        ++ optional (lib.versionAtLeast version "4.13") ./randstruct-provide-seed.patch
+        ++ optional (lib.versionAtLeast version "4.13" && lib.versionOlder version "5.18") ./randstruct-provide-seed.patch
+        ++ optional (lib.versionAtLeast version "5.19") ./randstruct-provide-seed-5.19.patch
         # Fixes determinism by normalizing metadata for the archive of kheaders
         ++ optional (lib.versionAtLeast version "5.2" && lib.versionOlder version "5.4") ./gen-kheaders-metadata.patch;
 
@@ -135,6 +136,13 @@ let
             --replace NIXOS_RANDSTRUCT_SEED \
             $(echo ${randstructSeed}${src} ${configfile} | sha256sum | cut -d ' ' -f 1 | tr -d '\n')
         fi
+
+        patchShebangs scripts
+
+        # also patch arch-specific install scripts
+        for i in $(find arch -name install.sh); do
+            patchShebangs "$i"
+        done
       '';
 
       configurePhase = ''
@@ -307,7 +315,7 @@ stdenv.mkDerivation ((drvAttrs config stdenv.hostPlatform.linux-kernel kernelPat
   enableParallelBuilding = true;
 
   depsBuildBuild = [ buildPackages.stdenv.cc ];
-  nativeBuildInputs = [ perl bc nettools openssl rsync gmp libmpc mpfr gawk zstd ]
+  nativeBuildInputs = [ perl bc nettools openssl rsync gmp libmpc mpfr gawk zstd python3Minimal zlib pahole ]
       ++ optional  (stdenv.hostPlatform.linux-kernel.target == "uImage") buildPackages.ubootTools
       ++ optional  (lib.versionAtLeast version "4.14" && lib.versionOlder version "5.8") libelf
       # Removed util-linuxMinimal since it should not be a dependency.

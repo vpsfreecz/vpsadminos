@@ -56,36 +56,49 @@ let
         substituteInPlace ./config/user-systemd.m4    --replace "/usr/lib/modules-load.d" "$out/etc/modules-load.d"
         substituteInPlace ./config/zfs-build.m4       --replace "\$sysconfdir/init.d"     "$out/etc/init.d" \
                                                       --replace "/etc/default"            "$out/etc/default"
-        substituteInPlace ./etc/zfs/Makefile.am       --replace "\$(sysconfdir)"          "$out/etc"
+        [ -f ./etc/zfs/Makefile.am ] && \
+          substituteInPlace ./etc/zfs/Makefile.am       --replace "\$(sysconfdir)"          "$out/etc"
         substituteInPlace ./cmd/zed/Makefile.am       --replace "\$(sysconfdir)"          "$out/etc"
 
+        [ -f ./contrib/initramfs/hooks/Makefile.am ] && \
         substituteInPlace ./contrib/initramfs/hooks/Makefile.am \
           --replace "/usr/share/initramfs-tools/hooks" "$out/usr/share/initramfs-tools/hooks"
+        [ -f ./contrib/initramfs/Makefile.am ] && \
         substituteInPlace ./contrib/initramfs/Makefile.am \
           --replace "/usr/share/initramfs-tools" "$out/usr/share/initramfs-tools"
+        [ -f ./contrib/initramfs/scripts/Makefile.am ] && \
         substituteInPlace ./contrib/initramfs/scripts/Makefile.am \
           --replace "/usr/share/initramfs-tools/scripts" "$out/usr/share/initramfs-tools/scripts"
+        [ -f ./contrib/initramfs/scripts/local-top/Makefile.am ] && \
         substituteInPlace ./contrib/initramfs/scripts/local-top/Makefile.am \
           --replace "/usr/share/initramfs-tools/scripts/local-top" "$out/usr/share/initramfs-tools/scripts/local-top"
+        [ -f ./contrib/initramfs/scripts/Makefile.am ] && \
         substituteInPlace ./contrib/initramfs/scripts/Makefile.am \
           --replace "/usr/share/initramfs-tools/scripts" "$out/usr/share/initramfs-tools/scripts"
+        [ -f ./contrib/initramfs/scripts/local-top/Makefile.am ] && \
         substituteInPlace ./contrib/initramfs/scripts/local-top/Makefile.am \
           --replace "/usr/share/initramfs-tools/scripts/local-top" "$out/usr/share/initramfs-tools/scripts/local-top"
+        [ -f ./etc/systemd/system/Makefile.am ] && \
         substituteInPlace ./etc/systemd/system/Makefile.am \
           --replace '$(DESTDIR)$(systemdunitdir)' "$out"'$(DESTDIR)$(systemdunitdir)'
 
+        [ -f ./contrib/initramfs/conf.d/Makefile.am ] && \
         substituteInPlace ./contrib/initramfs/conf.d/Makefile.am \
           --replace "/usr/share/initramfs-tools/conf.d" "$out/usr/share/initramfs-tools/conf.d"
+        [ -f ./contrib/initramfs/conf-hooks.d/Makefile.am ] && \
         substituteInPlace ./contrib/initramfs/conf-hooks.d/Makefile.am \
           --replace "/usr/share/initramfs-tools/conf-hooks.d" "$out/usr/share/initramfs-tools/conf-hooks.d"
 
+        [ -f ./etc/systemd/system/zfs-share.service.in ] && \
         substituteInPlace ./etc/systemd/system/zfs-share.service.in \
           --replace "/bin/rm " "${coreutils}/bin/rm "
 
+        [ -f ./cmd/vdev_id/vdev_id ] && \
         substituteInPlace ./cmd/vdev_id/vdev_id \
           --replace "PATH=/bin:/sbin:/usr/bin:/usr/sbin" \
           "PATH=${makeBinPath [ coreutils gawk gnused gnugrep ]}"
 
+        [ -f ./udev/rules.d/69-vdev.rules.in ] && \
         substituteInPlace ./udev/rules.d/69-vdev.rules.in \
 	  --replace "@udevdir@/rules.d/69-vdev.rules" "pllm"
       '';

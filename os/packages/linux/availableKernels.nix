@@ -2,6 +2,14 @@
 let
   defaultKernelVersion = "5.10.179";
   kernels = {
+    "6.1.30" = {
+      url = linuxGhUrl vpsfGh "88f1ad6a35e28aaa5a2af112e35fabea21207fb8";
+      sha256 = "sha256-7dMqLXzLnQotwKXMf+t4bthuo/q5QzrzZpfgxKACNoQ=";
+      zfs = {
+        rev = "ecaf4ac63b5fdce28cf135a42f4a00589bc80af5";
+        sha256 = "sha256-xm1ShlbpcWADlUF71rzVrK9sbrspt1KzHksXm4L6CD4=";
+      };
+    };
     "5.10.179" = {
       url = linuxGhUrl vpsfGh "e58bd2f549191933eb3ba174cfd29041e3318867";
       sha256 = "sha256-ZJgkQibM87n7Yj50Q2fa7LCFOf1gvLOYsdPNEliAN+4=";

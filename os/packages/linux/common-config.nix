@@ -39,14 +39,16 @@ let
       CHECKPOINT_RESTORE        = yes;
       CFS_BANDWIDTH             = yes;
 
-      MEMCG_32BIT_IDS           = yes;
       SYSLOG_NS                 = yes;
+      MEMCG_32BIT_IDS           = whenOlder "6.1" yes;
     };
 
     debug = {
       CONSOLE_LOGLEVEL_QUIET    = freeform "1";
       CONSOLE_LOGLEVEL_DEFAULT  = freeform "7";
-      DEBUG_INFO                = yes;
+      DEBUG_INFO                = whenOlder "5.18" yes;
+      DEBUG_INFO_BTF            = whenAtLeast "5.18" yes;
+      DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT = whenAtLeast "5.18" yes;
       DEBUG_KERNEL              = yes;
       DEBUG_DEVRES              = no;
       DYNAMIC_DEBUG             = yes;
@@ -300,11 +302,10 @@ let
       F2FS_FS             = no;
       UDF_FS              = module;
 
-      # vpsAdminOS doesn't support NFSV4 for now
       NFSD_V2_ACL            = yes;
-      NFSD_V3                = yes;
+      NFSD_V3                = whenOlder "5.18" yes;
       NFSD_V3_ACL            = yes;
-      NFSD_V4                = no;
+      NFSD_V4                = yes;
 
       NFS_FSCACHE           = yes;
       NFS_SWAP              = yes;
@@ -314,7 +315,7 @@ let
       CIFS_POSIX        = option yes;
       CIFS_FSCACHE      = yes;
       CIFS_STATS        = whenOlder "4.19" yes;
-      CIFS_WEAK_PW_HASH = yes;
+      CIFS_WEAK_PW_HASH = whenOlder "6.1" yes;
       CIFS_UPCALL       = yes;
       CIFS_ACL          = whenOlder "5.3" yes;
       CIFS_DFS_UPCALL   = yes;
@@ -347,7 +348,7 @@ let
       SLAB_FREELIST_HARDENED           = yes;
       SHUFFLE_PAGE_ALLOCATOR           = yes;
       HARDENED_USERCOPY                = yes;
-      HARDENED_USERCOPY_FALLBACK       = yes;
+      HARDENED_USERCOPY_FALLBACK       = whenOlder "6.1" yes;
       FORTIFY_SOURCE                   = yes;
       INIT_ON_ALLOC_DEFAULT_ON         = no;
       INIT_ON_FREE_DEFAULT_ON          = no;
@@ -359,7 +360,7 @@ let
       SECURITY_SELINUX_BOOTPARAM_VALUE = whenOlder "5.1" (freeform "0"); # Disable SELinux by default
       # Prevent processes from ptracing non-children processes
       SECURITY_YAMA                    = yes;
-      DEVKMEM                          = no; # Disable /dev/kmem
+      DEVKMEM                          = whenOlder "5.13" no; # Disable /dev/kmem
 
       USER_NS                          = yes; # Support for user namespaces
 
@@ -388,7 +389,7 @@ let
       CGROUP_RDMA    = whenAtLeast "4.11" yes;
 
       MEMCG                    = yes;
-      MEMCG_SWAP               = yes;
+      MEMCG_SWAP               = whenOlder "6.1" yes;
 
       DEVPTS_MULTIPLE_INSTANCES = whenOlder "4.7" yes;
       BLK_DEV_THROTTLING        = yes;
@@ -563,7 +564,7 @@ let
       THRUSTMASTER_FF    = no;
       ZEROPLUS_FF        = no;
 
-      MODULE_COMPRESS    = yes;
+      MODULE_COMPRESS    = whenOlder "5.13" yes;
       MODULE_COMPRESS_XZ = yes;
 
       SYSVIPC            = yes;  # System-V IPC
@@ -609,7 +610,6 @@ let
       BT                  = no;
       CFG80211            = no;
 
-      CLEANCACHE = option yes;
       CRASH_DUMP = option no;
 
       EFI_STUB            = yes; # EFI bootloader in the bzImage itself
@@ -620,7 +620,7 @@ let
       POSIX_MQUEUE        = yes;
       FRONTSWAP           = yes;
       FUSION              = yes; # Fusion MPT device support
-      IDE                 = no; # deprecated IDE support
+      IDE                 = whenOlder "5.19" no; # deprecated IDE support
       IDLE_PAGE_TRACKING  = yes;
       IRDA_ULTRA          = whenOlder "4.17" yes; # Ultra (connectionless) protocol
 
@@ -686,9 +686,6 @@ let
       BINFMT_SCRIPT = yes;
       # For systemd-binfmt
       BINFMT_MISC   = option yes;
-
-      # Disable the firmware helper fallback, udev doesn't implement it any more
-      FW_LOADER_USER_HELPER_FALLBACK = option no;
 
       HOTPLUG_PCI_ACPI = yes; # PCI hotplug using ACPI
       HOTPLUG_PCI_PCIE = yes; # PCI-Expresscard hotplug support
