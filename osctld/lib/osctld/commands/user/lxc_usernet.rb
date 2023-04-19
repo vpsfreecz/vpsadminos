@@ -49,10 +49,12 @@ module OsCtld
         end
 
         # Write results
-        f.write("#{u.sysusername} veth none #{netif_cnt}\n")
+        # We're doubling the amount of allowed interfaces, because of unexplained
+        # spurious Quota reached messages from lxc-user-nic.
+        f.write("#{u.sysusername} veth none #{netif_cnt * 2}\n")
 
         bridges.each do |br|
-          f.write("#{u.sysusername} veth #{br} #{netif_cnt}\n")
+          f.write("#{u.sysusername} veth #{br} #{netif_cnt * 2}\n")
         end
       end
 
