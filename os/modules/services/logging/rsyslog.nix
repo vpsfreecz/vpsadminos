@@ -26,9 +26,6 @@ let
     local2.*                     -/var/log/osctld
     local3.*                     -/var/log/nodectld
 
-    *.=warning;*.=err            -/var/log/warn
-    *.crit                        /var/log/warn
-
     *.*;mail.none;local1.none    -/var/log/messages
 
     ${ optionalString (cfg.forward != []) ''
