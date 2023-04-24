@@ -42,7 +42,6 @@ module OsCtld
       @state = :importing
       @attrs = Attributes.new
       @abort_export = false
-      @update_ct_hints_queue = Queue.new
     end
 
     def init
@@ -53,6 +52,7 @@ module OsCtld
         @autostart_plan = AutoStart::Plan.new(self)
         @autostop_plan = AutoStop::Plan.new(self)
         @trash_bin = TrashBin.new(self)
+        @hint_updater = HintUpdater.new(self)
       end
     end
 
@@ -316,8 +316,8 @@ module OsCtld
 
       exclusively { @state = :active }
 
-      # Update container usage hints
-      update_ct_hints
+      # Schedule hint updates
+      @hint_updater.start
     end
 
     # Set pool options
@@ -382,11 +382,11 @@ module OsCtld
     def begin_stop
       autostart_plan.stop
       trash_bin.stop
-      update_ct_hints_queue.clear
     end
 
     def all_stop
       autostop_plan.stop
+      @hint_updater.stop
     end
 
     def stop
@@ -500,8 +500,6 @@ module OsCtld
     end
 
     protected
-    attr_reader :update_ct_hints_queue
-
     def load_config
       return unless File.exist?(config_path)
 
@@ -667,8 +665,6 @@ module OsCtld
         Console.reconnect_tty0(ct) if running
 
         DB::Containers.add(ct)
-
-        update_ct_hints_queue << ct if running
       end
 
       ep.wait
@@ -765,35 +761,6 @@ module OsCtld
       if ct.prlimits.contains?('nofile')
         SystemLimits.ensure_nofile(ct.prlimits['nofile'].hard)
       end
-    end
-
-    def update_ct_hints
-      return if update_ct_hints_queue.empty?
-
-      t = Thread.new do
-        log(:info, 'Updating container hints')
-
-        loop do
-          begin
-            ct = update_ct_hints_queue.pop(true)
-          rescue ThreadError
-            break
-          end
-
-          begin
-            ct.update_hints
-          rescue Exception => e
-            log(:warn, ct, "Unable to update hints: #{e.message} (#{e.class})")
-            log(:warn, ct, denixstorify(e.backtrace))
-          end
-
-          sleep(0.2)
-        end
-
-        log(:info, 'Finished updating container hints')
-      end
-
-      ThreadReaper.add(t, nil)
     end
 
     def ds(path)
