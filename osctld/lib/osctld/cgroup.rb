@@ -8,6 +8,8 @@ module OsCtld
 
     ROOT_GROUP = 'osctl'
 
+    DELEGATE_FILES = File.read('/sys/kernel/cgroup/delegate').strip.split
+
     MUTEX = Mutex.new
 
     # @return [1, 2] cgroup hierarchy version
@@ -116,7 +118,7 @@ module OsCtld
         File.chown(chown, chown, File.join(cgroup, 'cgroup.procs'))
 
         if v2? || type == 'unified'
-          %w(cgroup.threads cgroup.subtree_control memory.oom.group memory.reclaim).each do |f|
+          DELEGATE_FILES.each do |f|
             begin
               File.chown(chown, chown, File.join(cgroup, f))
             rescue Errno::ENOENT
