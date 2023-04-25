@@ -2381,8 +2381,8 @@ module OsCtl::Cli
 
       set.desc 'Set memory/swap limits'
       set.arg_name "<#{arg_name}> <memory> [swap]"
-      set.command :memory do |c|
-        c.action &Command.run(handler, :set_memory)
+      set.command'memory-limit' do |c|
+        c.action &Command.run(handler, :set_memory_limit)
       end
     end
 
@@ -2395,8 +2395,8 @@ module OsCtl::Cli
 
       unset.desc 'Unset memory/swap limits'
       unset.arg_name "<#{arg_name}>"
-      unset.command :memory do |c|
-        c.action &Command.run(handler, :unset_memory)
+      unset.command 'memory-limit' do |c|
+        c.action &Command.run(handler, :unset_memory_limit)
       end
     end
 

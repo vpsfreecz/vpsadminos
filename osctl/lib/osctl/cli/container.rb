@@ -664,7 +664,7 @@ module OsCtl::Cli
       do_unset_cpu_limit(:ct_cgparam_unset, id: args[0], pool: gopts[:pool])
     end
 
-    def set_memory
+    def set_memory_limit
       require_args!('id', 'memory', optional: %w(swap))
       do_set_memory(
         :ct_cgparam_set,
@@ -674,7 +674,7 @@ module OsCtl::Cli
       )
     end
 
-    def unset_memory
+    def unset_memory_limit
       require_args!('id')
       do_unset_memory(:ct_cgparam_unset, id: args[0], pool: gopts[:pool])
     end

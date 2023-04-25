@@ -152,7 +152,7 @@ module OsCtl::Cli
       )
     end
 
-    def set_memory
+    def set_memory_limit
       require_args!('name', 'memory', optional: %w(swap))
       do_set_memory(
         :group_cgparam_set,
@@ -162,7 +162,7 @@ module OsCtl::Cli
       )
     end
 
-    def unset_memory
+    def unset_memory_limit
       require_args!('name')
       do_unset_memory(
         :group_cgparam_unset,
