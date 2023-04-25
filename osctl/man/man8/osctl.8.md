@@ -155,7 +155,7 @@ parameters can be managed by commands  `group cgparams` and `ct cgparams`.
 To make frequently used limits simpler to configure, there are several commands
 built on top of `group|ct cgparams`:
 
- - `group|ct set memory` to configure memory and swap limits
+ - `group|ct set memory-limit` to configure memory and swap limits
  - `group|ct set cpu-limit` to limit CPU usage using CPU quotas
 
 ### DEVICES
@@ -1254,7 +1254,7 @@ The following shortcuts are supported:
 `ct unset cpu-limit` *ctid*
   Unset CPU limit. This command is a shortcut to `ct cgparams unset`.
 
-`ct set memory` *ctid* *memory* [*swap*]
+`ct set memory-limit` *ctid* *memory* [*swap*]
   Configure the maximum amount of memory and swap the container will be able to
   use. This command is a shortcut to `ct cgparams set`. Memory limit is set
   with cgroup parameter `memory.limit_in_bytes`. If swap limit is given as well,
@@ -1263,7 +1263,7 @@ The following shortcuts are supported:
   *memory* and *swap* can be given in bytes, or with an appropriate suffix, i.e.
   `k`, `m`, `g`, or `t`.
 
-`ct unset memory` *ctid*
+`ct unset memory-limit` *ctid*
   Unset memory limits. This command is a shortcut to `ct cgparams unset`.
 
 `ct cp` *ctid* *new-id*
@@ -2707,7 +2707,7 @@ The following shortcuts are supported:
 `group unset cpu-limit` *group*
   Unset CPU limit. This command is a shortcut to `group cgparams unset`.
 
-`group set memory` *group* *memory* [*swap*]
+`group set memory-limit` *group* *memory* [*swap*]
   Configure the maximum amount of memory and swap the group will be able to
   use. This command is a shortcut to `group cgparams set`. Memory limit is set
   with cgroup parameter `memory.limit_in_bytes`. If swap limit is given as well,
@@ -2716,7 +2716,7 @@ The following shortcuts are supported:
   *memory* and *swap* can be given in bytes, or with an appropriate suffix, i.e.
   `k`, `m`, `g`, or `t`.
 
-`group unset memory` *group*
+`group unset memory-limit` *group*
   Unset memory limits.
 
 `group assets` [*options*] *group*
