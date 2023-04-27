@@ -1,17 +1,28 @@
 require 'rainbow'
 
 module OsCtl::Lib::Cli
+  # Format and print data in column or row view
   class OutputFormatter
+    # Format data and return as string
+    # @return [String]
     def self.format(*args, **kwargs)
       f = new(*args, **kwargs)
       f.format
     end
 
+    # Format data and print to standard output
     def self.print(*args, **kwargs)
       f = new(*args, **kwargs)
       f.print
     end
 
+    # @param objects [Hash, Array]
+    # @param cols [Array<Symbol, Hash>, nil] a list of parameter names to show
+    # @param header [Boolean] whether to show header
+    # @param sort [Array<Symbol>, nil] array of parameter names to sort by
+    # @param layout [:columns, :rows]
+    # @param empty [String] string used for nil values
+    # @param color [Boolean] handle color escape sequences in formatted strings
     def initialize(objects, cols: nil, header: true, sort: nil, layout: nil, empty: '-', color: false)
       @objects = objects
       @header = header
@@ -49,6 +60,7 @@ module OsCtl::Lib::Cli
       end
     end
 
+    # @return [String]
     def format
       @out = ''
       generate
