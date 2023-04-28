@@ -24,6 +24,16 @@ module OsCtl::Lib
         return @all_params
       end
 
+      if wanted.any?
+        if wanted.first.start_with?('+')
+          wanted[0] = wanted[0][1..].to_sym
+          wanted = @default_params + wanted
+        elsif wanted.first.start_with?('-')
+          wanted[0] = wanted[0][1..].to_sym
+          wanted = @default_params - wanted
+        end
+      end
+
       wanted.each do |param|
         unless @all_params.include?(param)
           raise GLI::BadCommandLine, "unknown output parameter #{param.to_s.inspect}"
