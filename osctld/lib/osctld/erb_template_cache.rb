@@ -21,7 +21,7 @@ module OsCtld
 
       Dir.glob('**/*.erb', base: OsCtld.template_dir).each do |tpl|
         content = File.read(File.join(OsCtld.template_dir, tpl))
-        templates[tpl[0..-5]] = ERB.new(content, 0, '-')
+        templates[tpl[0..-5]] = ERB.new(content, trim_mode: '-')
       end
     end
 
