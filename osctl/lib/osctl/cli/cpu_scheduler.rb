@@ -37,17 +37,16 @@ module OsCtl::Cli
     def package_list
       require_args!
 
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: PACKAGE_FIELDS,
+      )
+
       if opts[:list]
-        puts (PACKAGE_FIELDS).join("\n")
+        puts param_selector
         return
       end
 
-      cols =
-        if opts[:output]
-          opts[:output].split(',').map(&:to_sym)
-        else
-          PACKAGE_FIELDS
-        end
+      cols = param_selector.parse_option(opts[:output])
 
       cpus_i = cols.index(:cpus)
 

@@ -11,14 +11,18 @@ module OsCtl
     )
 
     def do_device_list(cmd, cmd_opts)
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: DEVICES_FIELDS,
+      )
+
       if opts[:list]
-        puts DEVICES_FIELDS.join("\n")
+        puts param_selector
         return
       end
 
       fmt_opts = {
         layout: :columns,
-        cols: opts[:output] ? opts[:output].split(',').map(&:to_sym) : nil,
+        cols: param_selector.parse_option(opts[:output]),
       }
       fmt_opts[:header] = false if opts['hide-header']
 

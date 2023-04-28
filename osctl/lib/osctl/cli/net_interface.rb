@@ -52,15 +52,20 @@ module OsCtl::Cli
     )
 
     def list
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: FIELDS,
+        default_params: DEFAULT_FIELDS,
+      )
+
       if opts[:list]
-        puts FIELDS.join("\n")
+        puts param_selector
         return
       end
 
       cmd_opts = {pool: gopts[:pool]}
       fmt_opts = {
         layout: :columns,
-        sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
+        sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
       }
 
       cmd_opts[:id] = args[0] if args[0]
@@ -73,14 +78,12 @@ module OsCtl::Cli
       cmd_opts[:ids] = args if args.count > 0
       fmt_opts[:header] = false if opts['hide-header']
 
-      cols =
-        if opts[:output]
-          opts[:output].split(',').map(&:to_sym)
-        elsif opts[:id]
-          DEFAULT_FIELDS
-        else
-          %i(pool ctid) + DEFAULT_FIELDS
-        end
+      cols = param_selector.parse_option(opts[:output])
+
+      if opts[:output].nil? && opts[:id].nil?
+        cols.insert(0, :pool)
+        cols.insert(1, :ctid)
+      end
 
       %i(max_tx max_rx).each do |limit|
         i = cols.index(limit)
@@ -192,15 +195,19 @@ module OsCtl::Cli
     end
 
     def ip_list
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: IP_FIELDS,
+      )
+
       if opts[:list]
-        puts IP_FIELDS.join("\n")
+        puts param_selector
         return
       end
 
       cmd_opts = {pool: gopts[:pool]}
       fmt_opts = {
         layout: :columns,
-        sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
+        sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
       }
 
       cmd_opts[:id] = args[0] if args[0]
@@ -227,16 +234,18 @@ module OsCtl::Cli
         end
       end
 
-      fmt_opts[:cols] =
-        if opts[:output]
-          opts[:output].split(',').map(&:to_sym)
-        elsif args.count >= 2
-          %i(version addr)
+      fmt_opts[:cols] = param_selector.parse_option(opts[:output])
+
+      if opts[:output].nil?
+        if args.count >= 2
+          fmt_opts[:cols].insert(0, :version)
+          fmt_opts[:cols].insert(1, :addr)
         elsif args.count >= 1
-          %i(netif version addr)
-        else
-          IP_FIELDS
+          fmt_opts[:cols].insert(0, :netif)
+          fmt_opts[:cols].insert(1, :version)
+          fmt_opts[:cols].insert(2, :addr)
         end
+      end
 
       format_output(ret, **fmt_opts)
     end
@@ -267,15 +276,19 @@ module OsCtl::Cli
     end
 
     def route_list
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: ROUTE_FIELDS,
+      )
+
       if opts[:list]
-        puts ROUTE_FIELDS.join("\n")
+        puts param_selector
         return
       end
 
       cmd_opts = {pool: gopts[:pool]}
       fmt_opts = {
         layout: :columns,
-        sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
+        sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
       }
 
       cmd_opts[:id] = args[0] if args[0]
@@ -303,16 +316,20 @@ module OsCtl::Cli
         end
       end
 
-      fmt_opts[:cols] =
-        if opts[:output]
-          opts[:output].split(',').map(&:to_sym)
-        elsif args.count >= 2
-          %i(version addr via)
+      fmt_opts[:cols] = param_selector.parse_option(opts[:output])
+
+      if opts[:output].nil?
+        if args.count >= 2
+          fmt_opts[:cols].insert(0, :version)
+          fmt_opts[:cols].insert(1, :addr)
+          fmt_opts[:cols].insert(2, :via)
         elsif args.count >= 1
-          %i(netif version addr via)
-        else
-          cols = ROUTE_FIELDS
+          fmt_opts[:cols].insert(0, :netif)
+          fmt_opts[:cols].insert(1, :version)
+          fmt_opts[:cols].insert(2, :addr)
+          fmt_opts[:cols].insert(3, :via)
         end
+      end
 
       format_output(ret, **fmt_opts)
     end

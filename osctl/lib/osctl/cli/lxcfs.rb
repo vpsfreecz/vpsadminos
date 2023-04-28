@@ -18,22 +18,20 @@ module OsCtl::Cli
     def worker_list
       require_args!
 
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: WORKER_FIELDS,
+        default_params: DEFAULT_WORKER_FIELDS,
+      )
+
       if opts[:list]
-        puts (WORKER_FIELDS).join("\n")
+        puts param_selector
         return
       end
 
-      cols =
-        if opts[:output]
-          opts[:output].split(',').map(&:to_sym)
-        else
-          DEFAULT_WORKER_FIELDS
-        end
-
       fmt_opts = {
         layout: :columns,
-        cols: cols,
-        sort: opts[:sort] ? opts[:sort].split(',').map(&:to_sym) : nil,
+        cols: param_selector.parse_option(opts[:output]),
+        sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
       }
 
       fmt_opts[:header] = false if opts['hide-header']

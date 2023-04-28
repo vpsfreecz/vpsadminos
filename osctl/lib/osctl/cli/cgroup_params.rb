@@ -35,8 +35,13 @@ module OsCtl
     )
 
     def do_cgparam_list(cmd, cmd_opts)
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: CGPARAM_FIELDS,
+        default_params: CGPARAM_DEFAULT_FIELDS,
+      )
+
       if opts[:list]
-        puts CGPARAM_FIELDS.join("\n")
+        puts param_selector
         return
       end
 
@@ -55,14 +60,10 @@ module OsCtl
       cmd_opts[:all] = true if opts[:all]
       fmt_opts[:header] = false if opts['hide-header']
 
-      if opts[:output]
-        cols = opts[:output].split(',').map(&:to_sym)
+      cols = param_selector.parse_option(opts[:output])
 
-      elsif opts[:all]
-        cols = %i(group) + CGPARAM_DEFAULT_FIELDS
-
-      else
-        cols = CGPARAM_DEFAULT_FIELDS
+      if opts[:output].nil? && opts[:all]
+        cols.insert(0, :group)
       end
 
       if i = cols.index(:value)

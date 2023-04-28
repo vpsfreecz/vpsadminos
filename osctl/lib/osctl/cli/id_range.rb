@@ -10,16 +10,20 @@ module OsCtl::Cli
     TABLE_FIELDS = %i(type block_index block_count owner first_id last_id id_count)
 
     def list
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: FIELDS,
+      )
+
       if opts[:list]
-        puts FIELDS.join("\n")
+        puts param_selector
         return
       end
 
       cmd_opts = {pool: gopts[:pool]}
       fmt_opts = {
         layout: :columns,
-        cols: opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS,
-        sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
+        cols: param_selector.parse_option(opts[:output]),
+        sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
       }
 
       cmd_opts[:names] = args if args.count > 0
@@ -30,8 +34,12 @@ module OsCtl::Cli
     end
 
     def show
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: FIELDS,
+      )
+
       if opts[:list]
-        puts FIELDS.join("\n")
+        puts param_selector
         return
       end
 
@@ -40,7 +48,7 @@ module OsCtl::Cli
       cmd_opts = {name: args[0], pool: gopts[:pool]}
       fmt_opts = {
         layout: :rows,
-        cols: opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS,
+        cols: param_selector.parse_option(opts[:output]),
       }
 
       fmt_opts[:header] = false if opts['hide-header']
@@ -70,8 +78,12 @@ module OsCtl::Cli
     end
 
     def table_list
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: TABLE_FIELDS,
+      )
+
       if opts[:list]
-        puts TABLE_FIELDS.join("\n")
+        puts param_selector
         return
       end
 
@@ -94,22 +106,18 @@ module OsCtl::Cli
       }
 
       fmt_opts[:header] = false if opts['hide-header']
-
-      fmt_opts[:cols] =
-        if opts[:output]
-          opts[:output].split(',').map(&:to_sym)
-        elsif args[1].nil? || args[1] == 'all'
-          TABLE_FIELDS
-        else
-          TABLE_FIELDS[1..-1] # hide column `type`
-        end
+      fmt_opts[:cols] = param_selector.parse_option(opts[:output])
 
       osctld_fmt(:id_range_table_list, cmd_opts: cmd_opts, fmt_opts: fmt_opts)
     end
 
     def table_show
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: TABLE_FIELDS,
+      )
+
       if opts[:list]
-        puts FIELDS.join("\n")
+        puts param_selector
         return
       end
 
@@ -118,7 +126,7 @@ module OsCtl::Cli
       cmd_opts = {name: args[0], pool: gopts[:pool], block_index: args[1].to_i}
       fmt_opts = {
         layout: :rows,
-        cols: opts[:output] ? opts[:output].split(',').map(&:to_sym) : TABLE_FIELDS,
+        cols: param_selector.parse_option(opts[:output]),
       }
 
       fmt_opts[:header] = false if opts['hide-header']

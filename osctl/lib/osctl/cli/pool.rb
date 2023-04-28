@@ -31,35 +31,36 @@ module OsCtl::Cli
     include Attributes
 
     def list
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: FIELDS,
+        default_fields: DEFAULT_FIELDS,
+      )
+
       if opts[:list]
-        puts FIELDS.join("\n")
+        puts param_selector
         return
       end
 
       cmd_opts = {}
       fmt_opts = {
         layout: :columns,
-        sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
+        sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
       }
 
       cmd_opts[:names] = args if args.count > 0
       fmt_opts[:header] = false if opts['hide-header']
-
-      fmt_opts[:cols] =
-        if opts[:output] == 'all'
-          FIELDS
-        elsif opts[:output]
-          opts[:output].split(',').map(&:to_sym)
-        else
-          DEFAULT_FIELDS
-        end
+      fmt_opts[:cols] = param_selector.parse_option(opts[:output])
 
       osctld_fmt(:pool_list, cmd_opts: cmd_opts, fmt_opts: fmt_opts)
     end
 
     def show
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: FIELDS,
+      )
+
       if opts[:list]
-        puts FIELDS.join("\n")
+        puts param_selector
         return
       end
 
@@ -68,15 +69,7 @@ module OsCtl::Cli
       cmd_opts = {name: args[0]}
       fmt_opts = {layout: :rows}
       fmt_opts[:header] = false if opts['hide-header']
-
-      fmt_opts[:cols] =
-        if opts[:output] == 'all'
-          FIELDS
-        elsif opts[:output]
-          opts[:output].split(',').map(&:to_sym)
-        else
-          DEFAULT_FIELDS
-        end
+      fmt_opts[:cols] = param_selector.parse_option(opts[:output])
 
       osctld_fmt(:pool_show, cmd_opts: cmd_opts, fmt_opts: fmt_opts)
     end
@@ -131,8 +124,12 @@ module OsCtl::Cli
     end
 
     def autostart_queue
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: AUTOSTART_FIELDS,
+      )
+
       if opts[:list]
-        puts AUTOSTART_FIELDS.join("\n")
+        puts param_selector
         return
       end
 
@@ -140,7 +137,7 @@ module OsCtl::Cli
 
       fmt_opts = {
         layout: :columns,
-        cols: opts[:output] ? opts[:output].split(',').map(&:to_sym) : nil,
+        cols: param_selector.parse_option(opts[:output]),
       }
       fmt_opts[:header] = false if opts['hide-header']
 

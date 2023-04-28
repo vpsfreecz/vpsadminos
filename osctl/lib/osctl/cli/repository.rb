@@ -10,15 +10,19 @@ module OsCtl::Cli
     IMAGE_FILTERS = %i(vendor variant arch distribution version tag cached)
 
     def list
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: FIELDS,
+      )
+
       if opts[:list]
-        puts FIELDS.join("\n")
+        puts param_selector
         return
       end
 
       cmd_opts = {pool: gopts[:pool]}
       fmt_opts = {
         layout: :columns,
-        cols: opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS,
+        cols: param_selector.parse_option(opts[:output]),
       }
 
       cmd_opts[:names] = args if args.count > 0
@@ -29,8 +33,12 @@ module OsCtl::Cli
     end
 
     def show
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: FIELDS,
+      )
+
       if opts[:list]
-        puts FIELDS.join("\n")
+        puts param_selector
         return
       end
 
@@ -39,7 +47,7 @@ module OsCtl::Cli
       cmd_opts = {name: args[0], pool: gopts[:pool]}
       fmt_opts = {
         layout: :rows,
-        cols: opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS,
+        cols: param_selector.parse_option(opts[:output]),
       }
 
       fmt_opts[:header] = false if opts['hide-header']
@@ -97,8 +105,12 @@ module OsCtl::Cli
     end
 
     def image_list
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: IMAGE_FIELDS,
+      )
+
       if opts[:list]
-        puts IMAGE_FIELDS.join("\n")
+        puts param_selector
         return
       end
 
@@ -118,7 +130,7 @@ module OsCtl::Cli
         sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
       }
       fmt_opts[:header] = false if opts['hide-header']
-      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : IMAGE_FIELDS
+      cols = param_selector.parse_option(opts[:output])
 
       if i = cols.index(:tags)
         cols[i] = {
