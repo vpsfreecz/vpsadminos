@@ -27,7 +27,7 @@ module OsCtl::ExportFS
 
     def initialize(name, vars)
       path = File.join(OsCtl::ExportFS.root, 'templates', "#{name}.erb")
-      @_tpl = ERB.new(File.new(path).read, 0, '-')
+      @_tpl = ERB.new(File.new(path).read, trim_mode: '-')
 
       vars.each do |k, v|
         if v.is_a?(Proc)
