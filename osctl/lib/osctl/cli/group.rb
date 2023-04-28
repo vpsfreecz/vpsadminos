@@ -15,6 +15,9 @@ module OsCtl::Cli
       name
       path
       full_path
+      cpu_limit
+      memory_limit
+      swap_limit
     ) + CGroupParams::CGPARAM_STATS
 
     FILTERS = %i(
@@ -48,6 +51,28 @@ module OsCtl::Cli
       fmt_opts = {
         layout: :columns,
         sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
+        opts: {
+          memory_limit: {
+            align: 'right',
+            display: Proc.new do |v|
+              if v.nil? || gopts[:parsable] || gopts[:json]
+                v
+              else
+                humanize_data(v)
+              end
+            end,
+          },
+          swap_limit: {
+            align: 'right',
+            display: Proc.new do |v|
+              if v.nil? || gopts[:parsable] || gopts[:json]
+                v
+              else
+                humanize_data(v)
+              end
+            end,
+          },
+        },
       }
 
       cmd_opts[:names] = args if args.count > 0
@@ -109,6 +134,28 @@ module OsCtl::Cli
       fmt_opts = {
         layout: :rows,
         cols: cols,
+        opts: {
+          memory_limit: {
+            align: 'right',
+            display: Proc.new do |v|
+              if v.nil? || gopts[:parsable] || gopts[:json]
+                v
+              else
+                humanize_data(v)
+              end
+            end,
+          },
+          swap_limit: {
+            align: 'right',
+            display: Proc.new do |v|
+              if v.nil? || gopts[:parsable] || gopts[:json]
+                v
+              else
+                humanize_data(v)
+              end
+            end,
+          },
+        },
       }
       fmt_opts[:header] = false if opts['hide-header']
 

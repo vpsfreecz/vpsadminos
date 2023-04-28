@@ -34,6 +34,9 @@ module OsCtl::Cli
       init_pid
       cpu_package_inuse
       cpu_package_set
+      cpu_limit
+      memory_limit
+      swap_limit
       autostart
       autostart_priority
       autostart_delay
@@ -118,6 +121,28 @@ module OsCtl::Cli
       fmt_opts = {
         layout: :columns,
         sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
+        opts: {
+          memory_limit: {
+            align: 'right',
+            display: Proc.new do |v|
+              if v.nil? || gopts[:parsable] || gopts[:json]
+                v
+              else
+                humanize_data(v)
+              end
+            end,
+          },
+          swap_limit: {
+            align: 'right',
+            display: Proc.new do |v|
+              if v.nil? || gopts[:parsable] || gopts[:json]
+                v
+              else
+                humanize_data(v)
+              end
+            end,
+          },
+        },
       }
 
       FILTERS.each do |v|
@@ -224,7 +249,28 @@ module OsCtl::Cli
       zfsprops.add_container_values(ct, cols, precise: gopts[:parsable])
       keyring.add_container_values(ct, cols, precise: gopts[:parsable])
 
-      format_output(ct, cols: cols, header: !opts['hide-header'])
+      format_output(ct, cols: cols, header: !opts['hide-header'], opts: {
+        memory_limit: {
+          align: 'right',
+          display: Proc.new do |v|
+            if v.nil? || gopts[:parsable] || gopts[:json]
+              v
+            else
+              humanize_data(v)
+            end
+          end,
+        },
+        swap_limit: {
+          align: 'right',
+          display: Proc.new do |v|
+            if v.nil? || gopts[:parsable] || gopts[:json]
+              v
+            else
+              humanize_data(v)
+            end
+          end,
+        },
+      })
     end
 
     def create

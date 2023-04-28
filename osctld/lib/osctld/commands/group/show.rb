@@ -9,12 +9,7 @@ module OsCtld
       return error('group not found') unless grp
 
       grp.inclusively do
-        ok({
-          pool: grp.pool.name,
-          name: grp.name,
-          path: grp.path,
-          full_path: grp.cgroup_path,
-        }.merge!(grp.attrs.export))
+        ok(grp.export.merge!(grp.attrs.export))
       end
     end
   end

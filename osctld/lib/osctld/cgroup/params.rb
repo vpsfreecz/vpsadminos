@@ -195,6 +195,80 @@ module OsCtld
       end
     end
 
+    # Find swap limit
+    # @return [Integer, nil] swap limit in bytes
+    def find_swap_limit
+      if CGroup.v2?
+        each_usable do |p|
+          next if p.name != 'memory.swap.max'
+
+          v = p.value.last.to_i
+          return v > 0 ? v : nil
+        end
+
+        return nil
+      end
+
+      mem_limit = 0
+      memsw_limit = 0
+
+      each_usable do |p|
+        if p.name == 'memory.limit_in_bytes'
+          mem_limit = p.value.last.to_i
+        elsif p.name == 'memory.memsw.limit_in_bytes'
+          memsw_limit = p.value.last.to_i
+        end
+
+        break if mem_limit > 0 && memsw_limit > 0
+      end
+
+      if memsw_limit > 0 && memsw_limit < mem_limit
+        memsw_limit
+      elsif mem_limit > 0
+        memsw_limit - mem_limit
+      else
+        nil
+      end
+    end
+
+    # Find CPU limit
+    # @return [Integer, nil] CPU limit in percent (100 % for one CPU)
+    def find_cpu_limit
+      if CGroup.v2?
+        each_usable do |p|
+          next if p.name != 'cpu.max'
+
+          quota, period = p.value.last.split
+
+          if quota == 'max'
+            return nil
+          else
+            return (quota.to_i / period.to_i) * 100
+          end
+        end
+
+        return nil
+      end
+
+      quota = nil
+      period = nil
+
+      each_usable do |p|
+        if p.name == 'cpu.cfs_quota_us'
+          quota = p.value.last.to_i
+          return nil if quota == -1
+        elsif p.name == 'cpu.cfs_period_us'
+          period = p.value.last.to_i
+        end
+
+        if quota && period
+          return (quota / period) * 100
+        end
+      end
+
+      nil
+    end
+
     # Dump params to config
     def dump
       params.select(&:persistent).map(&:dump)

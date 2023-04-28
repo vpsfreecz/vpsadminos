@@ -470,6 +470,32 @@ module OsCtld
       group.find_memory_limit(parents: parents)
     end
 
+    # @return [Integer, nil] swap limit in bytes
+    def find_swap_limit(parents: true)
+      limit = cgparams.find_swap_limit
+
+      if limit
+        return limit
+      elsif !parents
+        return
+      end
+
+      group.find_swap_limit(parents: parents)
+    end
+
+    # @return [Integer, nil] CPU limit in percent (100 % for one CPU)
+    def find_cpu_limit(parents: true)
+      limit = cgparams.find_cpu_limit
+
+      if limit
+        return limit
+      elsif !parents
+        return
+      end
+
+      group.find_cpu_limit(parents: parents)
+    end
+
     def set(opts)
       opts.each do |k, v|
         case k
@@ -710,6 +736,9 @@ module OsCtld
           init_cmd: format_user_init_cmd,
           cpu_package_inuse: run_conf ? run_conf.cpu_package : nil,
           cpu_package_set: cpu_package,
+          cpu_limit: find_cpu_limit(parents: false),
+          memory_limit: find_memory_limit(parents: false),
+          swap_limit: find_swap_limit(parents: false),
           start_menu: start_menu ? true : false,
           start_menu_timeout: start_menu && start_menu.timeout,
           lxcfs_enable: lxcfs.enable,
