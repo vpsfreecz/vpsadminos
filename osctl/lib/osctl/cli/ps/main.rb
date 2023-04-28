@@ -8,8 +8,12 @@ module OsCtl::Cli
     READ_TIMEOUT = 1
 
     def run
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: Ps::Columns::COLS,
+      )
+
       if opts[:list]
-        puts Ps::Columns::COLS.join("\n")
+        puts param_selector
         return
       end
 
@@ -39,10 +43,8 @@ module OsCtl::Cli
 
       pl, pools, slow_os_procs = get_process_list(ctids, filters)
 
-      cols =
-        if opts[:output]
-          opts[:output].split(',').map(&:to_sym)
-        elsif ctids.size == 1
+      default_cols =
+        if ctids.size == 1
           Ps::Columns::DEFAULT_ONE_CT
         elsif pools.size == 1
           Ps::Columns::DEFAULT_ONE_POOL
@@ -50,14 +52,18 @@ module OsCtl::Cli
           Ps::Columns::DEFAULT_MULTIPLE_POOLS
         end
 
-      out_cols, out_data = Ps::Columns.generate(pl, cols, gopts[:parsable])
+      out_cols, out_data = Ps::Columns.generate(
+        pl,
+        param_selector.parse_option(opts[:output], default_params: default_cols),
+        gopts[:parsable],
+      )
 
       OsCtl::Lib::Cli::OutputFormatter.print(
         out_data,
         cols: out_cols,
         layout: :columns,
         header: opts['hide-header'] ? false : true,
-        sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
+        sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
       )
 
       if pl.size > 1
