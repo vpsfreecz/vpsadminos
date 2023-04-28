@@ -127,21 +127,17 @@ module OsCtl::Cli
 
       fmt_opts = {
         layout: :columns,
+        cols: param_selector.parse_option(opts[:output]),
         sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
+        opts: {
+          tags: {
+            label: 'TAGS',
+            align: 'left',
+            display: Proc.new { |values| values.join(',') },
+          },
+        },
       }
       fmt_opts[:header] = false if opts['hide-header']
-      cols = param_selector.parse_option(opts[:output])
-
-      if i = cols.index(:tags)
-        cols[i] = {
-          name: :tags,
-          label: 'TAGS',
-          align: 'left',
-          display: Proc.new { |values| values.join(',') },
-        }
-      end
-
-      fmt_opts[:cols] = cols
 
       osctld_fmt(:repo_image_list, cmd_opts: cmd_opts, fmt_opts: fmt_opts)
     end

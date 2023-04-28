@@ -46,22 +46,16 @@ module OsCtl::Cli
         return
       end
 
-      cols = param_selector.parse_option(opts[:output])
-
-      cpus_i = cols.index(:cpus)
-
-      if cpus_i
-        cols[cpus_i] = {
-          name: :cpus,
-          label: 'CPUS',
-          display: Proc.new { |v| OsCtl::Lib::CpuMask.format(v) },
-        }
-      end
-
       fmt_opts = {
         layout: :columns,
-        cols: cols,
+        cols: param_selector.parse_option(opts[:output]),
         sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
+        opts: {
+          cpus: {
+            label: 'CPUS',
+            display: Proc.new { |v| OsCtl::Lib::CpuMask.format(v) },
+          },
+        },
       }
 
       fmt_opts[:header] = false if opts['hide-header']
