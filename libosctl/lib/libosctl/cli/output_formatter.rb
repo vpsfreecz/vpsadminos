@@ -18,13 +18,15 @@ module OsCtl::Lib::Cli
 
     # @param objects [Hash, Array]
     # @param cols [Array<Symbol, Hash>, nil] a list of parameter names to show
+    # @param opts [Hash<Symbol, Hash>] column options
     # @param header [Boolean] whether to show header
     # @param sort [Array<Symbol>, nil] array of parameter names to sort by
     # @param layout [:columns, :rows]
     # @param empty [String] string used for nil values
     # @param color [Boolean] handle color escape sequences in formatted strings
-    def initialize(objects, cols: nil, header: true, sort: nil, layout: nil, empty: '-', color: false)
+    def initialize(objects, cols: nil, opts: {}, header: true, sort: nil, layout: nil, empty: '-', color: false)
       @objects = objects
+      @opts = opts
       @header = header
       @sort = sort
       @layout = layout
@@ -78,18 +80,20 @@ module OsCtl::Lib::Cli
 
       cols.each do |c|
         base = {
-            align: 'left'
+          align: 'left'
         }
 
         if c.is_a?(::String) || c.is_a?(::Symbol)
           base.update({
-              name: c,
-              label: c.to_s.upcase,
+            name: c,
+            label: c.to_s.upcase,
           })
+          base.update(@opts.fetch(c, {}))
           ret << base
 
         elsif c.is_a?(::Hash)
           base.update(c)
+          base.update(@opts.fetch(c[:name], {}))
           ret << base
 
         else

@@ -66,9 +66,8 @@ module OsCtl
         cols.insert(0, :group)
       end
 
-      if i = cols.index(:value)
-        cols[i] = {
-          name: :value,
+      fmt_opts[:opts] = {
+        value: {
           label: 'VALUE',
           align: 'right',
           display: Proc.new do |values|
@@ -83,7 +82,7 @@ module OsCtl
             end.join('; ')
           end
         }
-      end
+      }
 
       fmt_opts[:cols] = cols
 

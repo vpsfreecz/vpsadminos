@@ -66,6 +66,21 @@ module OsCtl::Cli
       fmt_opts = {
         layout: :columns,
         sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
+        opts: Hash[%i(max_tx max_rx).map do |limit|
+          [limit, {
+            label: limit.to_s.upcase,
+            align: 'right',
+            display: Proc.new do |v|
+              if gopts[:parsable] \
+                 || gopts[:json] \
+                 || (!v.is_a?(Integer) && /^\d+$/ !~ v)
+                v
+              else
+                humanize_data(v.to_i)
+              end
+            end
+          }]
+        end],
       }
 
       cmd_opts[:id] = args[0] if args[0]
@@ -83,26 +98,6 @@ module OsCtl::Cli
       if opts[:output].nil? && opts[:id].nil?
         cols.insert(0, :pool)
         cols.insert(1, :ctid)
-      end
-
-      %i(max_tx max_rx).each do |limit|
-        i = cols.index(limit)
-        next if i.nil?
-
-        cols[i] = {
-          name: limit,
-          label: limit.to_s.upcase,
-          align: 'right',
-          display: Proc.new do |v|
-            if gopts[:parsable] \
-               || gopts[:json] \
-               || (!v.is_a?(Integer) && /^\d+$/ !~ v)
-              v
-            else
-              humanize_data(v.to_i)
-            end
-          end
-        }
       end
 
       fmt_opts[:cols] = cols
