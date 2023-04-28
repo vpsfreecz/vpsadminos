@@ -377,7 +377,7 @@ The following shortcuts are supported:
       List available parameters and exit.
     
     `-o`, `--output` *parameters*
-      Select parameters to output, comma separated.
+      Select parameters to output, see `OUTPUT PARAMETERS` for more information.
 
     `-s`, `--sort` *parameters*
       Sort output by parameters, comma separated.
@@ -389,7 +389,7 @@ The following shortcuts are supported:
       List available parameters and exit.
     
     `-o`, `--output` *parameters*
-      Select parameters to output, comma separated.
+      Select parameters to output, see `OUTPUT PARAMETERS` for more information.
 
     `-H`, `--hide-header`
       Do not show header, useful for scripts.
@@ -411,7 +411,7 @@ The following shortcuts are supported:
       List available parameters and exit.
     
     `-o`, `--output` *parameters*
-      Select parameters to output, comma separated.
+      Select parameters to output, see `OUTPUT PARAMETERS` for more information.
 
 `pool autostart trigger` *pool*
   Start all containers from pool *pool* that are configured to be started
@@ -481,7 +481,7 @@ The following shortcuts are supported:
       List available parameters and exit.
 
     `-o`, `--output` *parameters*
-      Select parameters to output, comma separated.
+      Select parameters to output, see `OUTPUT PARAMETERS` for more information.
 
     `-s`, `--sort` *parameters*
       Sort output by parameters, comma separated.
@@ -493,7 +493,7 @@ The following shortcuts are supported:
       List available parameters and exit.
 
     `-o`, `--output` *parameters*
-      Select parameters to output, comma separated.
+      Select parameters to output, see `OUTPUT PARAMETERS` for more information.
 
     `-H`, `--hide-header`
       Do not show header, useful for scripts.
@@ -508,7 +508,7 @@ The following shortcuts are supported:
       List available parameters and exit.
 
     `-o`, `--output` *parameters*
-      Select parameters to output, comma separated.
+      Select parameters to output, see `OUTPUT PARAMETERS` for more information.
 
     `-s`, `--sort` *parameters*
       Sort output by parameters, comma separated.
@@ -523,7 +523,7 @@ The following shortcuts are supported:
       List available parameters and exit.
 
     `-o`, `--output` *parameters*
-      Select parameters to output, comma separated.
+      Select parameters to output, see `OUTPUT PARAMETERS` for more information.
 
 `id-range allocate` *id-range*
   Allocate one or more blocks from ID range *id-range*.
@@ -622,7 +622,7 @@ The following shortcuts are supported:
       List available parameters and exit.
     
     `-o`, `--output` *parameters*
-      Select parameters to output, comma separated.
+      Select parameters to output, see `OUTPUT PARAMETERS` for more information.
 
     `-s`, `--sort` *parameters*
       Sort output by parameters, comma separated.
@@ -675,7 +675,7 @@ The following shortcuts are supported:
       List available parameters and exit.
     
     `-o`, `--output` *parameters*
-      Select parameters to output, comma separated.
+      Select parameters to output, see `OUTPUT PARAMETERS` for more information.
 
 `user set standalone` *user*
   Mark the user as standalone. Standalone users are not automatically deleted
@@ -818,8 +818,7 @@ The following shortcuts are supported:
       List available parameters and exit.
     
     `-o`, `--output` *parameters*
-      Select parameters to output, comma separated. Defaults to a selected
-      subset of available parameters.
+      Select parameters to output, see `OUTPUT PARAMETERS` for more information.
 
     `-s`, `--sort` *parameters*
       Sort output by parameters, comma separated.
@@ -1477,8 +1476,7 @@ The following shortcuts are supported:
       List available parameters and exit.
 
     `-o`, `--output` *parameters*
-      Select parameters to output, comma separated. Defaults to a selected
-      subset of available parameters.
+      Select parameters to output, see `OUTPUT PARAMETERS` for more information.
 
     `-s`, `--sort` *parameters*
       Sort output by parameters, comma separated.
@@ -1799,8 +1797,7 @@ The following shortcuts are supported:
       List available parameters and exit.
 
     `-o`, `--output` *parameters*
-      Select parameters to output, comma separated. Defaults to a selected
-      subset of available parameters.
+      Select parameters to output, see `OUTPUT PARAMETERS` for more information.
 
     `-s`, `--sort` *parameters*
       Sort output by parameters, comma separated.
@@ -1911,8 +1908,7 @@ The following shortcuts are supported:
       List available parameters and exit.
 
     `-o`, `--output` *parameters*
-      Select parameters to output, comma separated. Defaults to a selected
-      subset of available parameters.
+      Select parameters to output, see `OUTPUT PARAMETERS` for more information.
 
 `ct devices add` [*options*] *ctid* `block`|`char` *major* *minor* *mode* [*device*]
   Allow container *ctid* to use `block`/`char` device identified by the *major*
@@ -2470,8 +2466,7 @@ The following shortcuts are supported:
       List available parameters and exit.
     
     `-o`, `--output` *parameters*
-      Select parameters to output, comma separated. Defaults to a selected
-      subset of available parameters.
+      Select parameters to output, see `OUTPUT PARAMETERS` for more information.
 
     `-s`, `--sort` *parameters*
       Sort output by parameters, comma separated.
@@ -2592,8 +2587,7 @@ The following shortcuts are supported:
       List available parameters and exit.
 
     `-o`, `--output` *parameters*
-      Select parameters to output, comma separated. Defaults to a selected
-      subset of available parameters.
+      Select parameters to output, see `OUTPUT PARAMETERS` for more information.
 
 `group devices add` [*options*] *group* `block`|`char` *major* *minor* *mode* [*device*]
   Allow containers in *group* to use `block`/`char` device identified by
@@ -3041,6 +3035,16 @@ The following shortcuts are supported:
 
 `help` [*command...*]
   Shows a list of commands or help for one command
+
+## OUTPUT PARAMETERS
+Option `-o`, `--output` *parameters* found on most read commands can be used to
+select which parameters should be shown. The list of available parameters can
+usually be found using option `-L`, `--list`.
+
+*parameters* is a comma separated list. If it is an empty string, no output is
+shown. `-o +`*parameters* can be used to extend the parameters shown by default.
+`-o -`*parameters* will show default parameters except the ones listed.
+`-o all` will show all parameters.
 
 ## SCRIPT HOOKS
 `osctld` can execute user-defined scripts on certain events. User scripts can
