@@ -34,15 +34,20 @@ module OsCtl::Cli
 
       cgparams = cg_list_raw_cgroup_params
 
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: FIELDS + cgparams,
+        default_params: DEFAULT_FIELDS,
+      )
+
       if opts[:list]
-        puts (FIELDS + cgparams).join("\n")
+        puts param_selector
         return
       end
 
       cmd_opts = {}
       fmt_opts = {
         layout: :columns,
-        sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
+        sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
       }
 
       cmd_opts[:names] = args if args.count > 0
@@ -56,7 +61,7 @@ module OsCtl::Cli
 
       fmt_opts[:header] = false if opts['hide-header']
 
-      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : DEFAULT_FIELDS
+      cols = param_selector.parse_option(opts[:output])
       fmt_opts[:cols] = cols
 
       groups = cg_add_stats(
@@ -87,14 +92,19 @@ module OsCtl::Cli
 
       cgparams = cg_list_raw_cgroup_params
 
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: FIELDS + cgparams,
+        default_params: DEFAULT_FIELDS,
+      )
+
       if opts[:list]
-        puts (FIELDS + cgparams).join("\n")
+        puts param_selector
         return
       end
 
       require_args!('name')
 
-      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS
+      cols = param_selector.parse_option(opts[:output])
 
       fmt_opts = {
         layout: :rows,

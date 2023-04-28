@@ -104,17 +104,20 @@ module OsCtl::Cli
       zfsprops = ZfsProperties.new
       keyring = KernelKeyring.new
 
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: FIELDS + cgparams + zfsprops.list_property_names + keyring.list_param_names,
+        default_params: DEFAULT_FIELDS,
+      )
+
       if opts[:list]
-        puts (
-          FIELDS + cgparams + zfsprops.list_property_names + keyring.list_param_names
-        ).join("\n")
+        puts param_selector
         return
       end
 
       cmd_opts = {}
       fmt_opts = {
         layout: :columns,
-        sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
+        sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
       }
 
       FILTERS.each do |v|
@@ -133,14 +136,8 @@ module OsCtl::Cli
       cmd_opts[:ids] = args if args.count > 0
       fmt_opts[:header] = false if opts['hide-header']
 
-      cols =
-        if opts[:output] == 'all'
-          FIELDS
-        elsif opts[:output]
-          zfsprops.validate_property_names(opts[:output].split(',').map(&:to_sym))
-        else
-          DEFAULT_FIELDS
-        end
+      cols = param_selector.parse_option(opts[:output])
+      cols = zfsprops.validate_property_names(cols)
 
       fmt_opts[:cols] = cols
 
@@ -187,23 +184,20 @@ module OsCtl::Cli
       zfsprops = ZfsProperties.new
       keyring = KernelKeyring.new
 
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: FIELDS + cgparams + zfsprops.list_property_names + keyring.list_param_names,
+        default_params: DEFAULT_FIELDS,
+      )
+
       if opts[:list]
-        puts (
-          FIELDS + cgparams + zfsprops.list_property_names + keyring.list_param_names
-        ).join("\n")
+        puts param_selector
         return
       end
 
       require_args!('id')
 
-      cols =
-        if opts[:output] == 'all'
-          FIELDS
-        elsif opts[:output]
-          zfsprops.validate_property_names(opts[:output].split(',').map(&:to_sym))
-        else
-          DEFAULT_FIELDS
-        end
+      cols = param_selector.parse_option(opts[:output])
+      cols = zfsprops.validate_property_names(cols)
 
       cmd_opts = {
         id: args[0],
@@ -920,10 +914,14 @@ module OsCtl::Cli
       cg_init_subsystems(c)
 
       cgparams = cg_list_raw_cgroup_params.map(&:to_sym)
-      all_fields = FIELDS + cgparams
+
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: FIELDS + cgparams,
+        default_params: DEFAULT_FIELDS,
+      )
 
       if opts[:list]
-        puts all_fields.join("\n")
+        puts param_selector
         return
       end
 
@@ -965,7 +963,7 @@ module OsCtl::Cli
         end
       end
 
-      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : DEFAULT_FIELDS
+      cols = param_selector.parse_option(opts[:output])
 
       cg_add_stats(
         cts,
@@ -983,7 +981,7 @@ module OsCtl::Cli
       )
 
       if opts[:sort]
-        sort_cols = opts[:sort].split(',').map(&:to_sym)
+        sort_cols = param_selector.parse_option(opts[:sort])
 
         sort_cols.each do |c|
           unless all_fields.include?(c)
@@ -1152,8 +1150,12 @@ module OsCtl::Cli
     end
 
     def prlimit_list
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: PRLIMIT_FIELDS,
+      )
+
       if opts[:list]
-        puts PRLIMIT_FIELDS.join("\n")
+        puts param_selector
         return
       end
 
@@ -1165,12 +1167,7 @@ module OsCtl::Cli
       cmd_opts[:limits] = args[1..-1] if args.count > 1
       fmt_opts[:header] = false if opts['hide-header']
 
-      fmt_opts[:cols] =
-        if opts[:output]
-          opts[:output].split(',').map(&:to_sym)
-        else
-          PRLIMIT_FIELDS
-        end
+      fmt_opts[:cols] = param_selector.parse_option(opts[:output])
 
       data = osctld_call(:ct_prlimit_list, **cmd_opts)
       format_output(data.map { |k, v| v.merge(name: k)}, **fmt_opts)
@@ -1203,8 +1200,13 @@ module OsCtl::Cli
     end
 
     def dataset_list
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: DATASET_FIELDS,
+        default_params: DATASET_FIELDS,
+      )
+
       if opts[:list]
-        puts DATASET_FIELDS.join("\n")
+        puts param_selector
         return
       end
 
@@ -1215,13 +1217,7 @@ module OsCtl::Cli
       fmt_opts = {layout: :columns}
 
       fmt_opts[:header] = false if opts['hide-header']
-
-      fmt_opts[:cols] =
-        if opts[:output]
-          (opts[:output].split(',') + props).map(&:to_sym)
-        else
-          nil
-        end
+      fmt_opts[:cols] = param_selector.parse_option(opts[:output])
 
       osctld_fmt(:ct_dataset_list, cmd_opts: cmd_opts, fmt_opts: fmt_opts)
     end
@@ -1249,8 +1245,13 @@ module OsCtl::Cli
     end
 
     def mount_list
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: MOUNT_FIELDS,
+        default_params: MOUNT_FIELDS,
+      )
+
       if opts[:list]
-        puts MOUNT_FIELDS.join("\n")
+        puts param_selector
         return
       end
 
@@ -1260,13 +1261,7 @@ module OsCtl::Cli
       fmt_opts = {layout: :columns}
 
       fmt_opts[:header] = false if opts['hide-header']
-
-      fmt_opts[:cols] =
-        if opts[:output]
-          opts[:output].split(',').map(&:to_sym)
-        else
-          MOUNT_FIELDS
-        end
+      fmt_opts[:cols] = param_selector.parse_option(opts[:output])
 
       osctld_fmt(:ct_mount_list, cmd_opts: cmd_opts, fmt_opts: fmt_opts)
     end

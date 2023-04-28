@@ -32,15 +32,20 @@ module OsCtl::Cli
     def list
       keyring = KernelKeyring.new
 
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: FIELDS + keyring.list_param_names,
+        default_params: DEFAULT_FIELDS,
+      )
+
       if opts[:list]
-        puts (FIELDS + keyring.list_param_names).join("\n")
+        puts param_selector
         return
       end
 
       cmd_opts = {}
       fmt_opts = {
         layout: :columns,
-        sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
+        sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
       }
 
       cmd_opts[:names] = args if args.count > 0
@@ -60,14 +65,7 @@ module OsCtl::Cli
 
       fmt_opts[:header] = false if opts['hide-header']
 
-      cols =
-        if opts[:output] == 'all'
-          FIELDS
-        elsif opts[:output]
-          opts[:output].split(',').map(&:to_sym)
-        else
-          DEFAULT_FIELDS
-        end
+      cols = param_selector.parse_option(opts[:output])
 
       users = osctld_call(:user_list, **cmd_opts)
       keyring.add_user_values(users, cols, precise: gopts[:parsable])
@@ -80,8 +78,13 @@ module OsCtl::Cli
     def show
       keyring = KernelKeyring.new
 
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: FIELDS + keyring.list_param_names,
+        default_params: DEFAULT_FIELDS,
+      )
+
       if opts[:list]
-        puts (FIELDS + keyring.list_param_names).join("\n")
+        puts param_selector
         return
       end
 
@@ -90,14 +93,7 @@ module OsCtl::Cli
       fmt_opts = {layout: :rows}
       fmt_opts[:header] = false if opts['hide-header']
 
-      cols =
-        if opts[:output] == 'all'
-          FIELDS
-        elsif opts[:output]
-          opts[:output].split(',').map(&:to_sym)
-        else
-          DEFAULT_FIELDS
-        end
+      cols = param_selector.parse_option(opts[:output])
 
       user = osctld_call(:user_show, name: args[0], pool: gopts[:pool])
       keyring.add_user_values(user, cols, precise: gopts[:parsable])
@@ -164,8 +160,12 @@ module OsCtl::Cli
     end
 
     def idmap_ls
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: IDMAP_FIELDS,
+      )
+
       if opts[:list]
-        puts FIELDS.join("\n")
+        puts param_selector
         return
       end
 
@@ -174,7 +174,7 @@ module OsCtl::Cli
       cmd_opts = {name: args[0], uid: true, gid: true}
       fmt_opts = {
         layout: :columns,
-        cols: opts[:output] ? opts[:output].split(',').map(&:to_sym) : IDMAP_FIELDS,
+        cols: param_selector.parse_option(opts[:output]),
       }
 
       case args[1]
