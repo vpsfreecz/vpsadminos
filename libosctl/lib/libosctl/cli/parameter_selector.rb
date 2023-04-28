@@ -10,10 +10,12 @@ module OsCtl::Lib
 
     # Parse input from CLI option and return a list of wanted parameters
     # @param option [String, nil] comma-separated list of output parameters
+    # @param default_params [Array<Symbol>, nil] list of default parameters
     # @raise [GLI::BadCommandLine]
     # @return [Array<Symbol>]
-    def parse_option(option)
-      return @default_params if option.nil?
+    def parse_option(option, default_params: nil)
+      default_params ||= @default_params
+      return default_params if option.nil?
 
       stripped = option.strip
       return [] if stripped.empty?
@@ -27,10 +29,10 @@ module OsCtl::Lib
       if wanted.any?
         if wanted.first.start_with?('+')
           wanted[0] = wanted[0][1..].to_sym
-          wanted = @default_params + wanted
+          wanted = default_params + wanted
         elsif wanted.first.start_with?('-')
           wanted[0] = wanted[0][1..].to_sym
-          wanted = @default_params - wanted
+          wanted = default_params - wanted
         end
       end
 
