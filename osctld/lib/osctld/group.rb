@@ -275,6 +275,56 @@ module OsCtld
       nil
     end
 
+    # @return [Integer, nil] swap limit in bytes
+    def find_swap_limit(parents: true)
+      limit = cgparams.find_swap_limit
+
+      if limit
+        return limit
+      elsif !parents
+        return
+      end
+
+      self.parents.each do |grp|
+        grp_limit = grp.find_swap_limit(parents: true)
+        return grp_limit if grp_limit
+      end
+
+      nil
+    end
+
+    # @return [Integer, nil] CPU limit in percent (100 % for one CPU)
+    def find_cpu_limit(parents: true)
+      limit = cgparams.find_cpu_limit
+
+      if limit
+        return limit
+      elsif !parents
+        return
+      end
+
+      self.parents.each do |grp|
+        grp_limit = grp.find_cpu_limit(parents: true)
+        return grp_limit if grp_limit
+      end
+
+      nil
+    end
+
+    def export
+      sync do
+        {
+          pool: pool.name,
+          name: name,
+          path: path,
+          full_path: cgroup_path,
+          cpu_limit: find_cpu_limit(parents: false),
+          memory_limit: find_memory_limit(parents: false),
+          swap_limit: find_swap_limit(parents: false),
+        }
+      end
+    end
+
     def log_type
       "group=#{pool.name}:#{name}"
     end
