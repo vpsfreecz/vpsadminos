@@ -44,15 +44,15 @@ module OsCtl::Image
     def start_script
       <<EOF
 #!/bin/sh
-cgroup=/sys/fs/cgroup/systemd/exec.#{id}
-mkdir $cgroup
-echo $$ >> $cgroup/cgroup.procs
+cgroup="#{inner_cgroup_path}"
+mkdir "$cgroup"
+echo $$ >> "$cgroup/cgroup.procs"
 exec #{command.join(' ')}
 EOF
     end
 
     def clear_cgroup
-      cgroup = cgroup_path
+      cgroup = outer_cgroup_path
 
       unless Dir.exist?(cgroup)
         log(:info, 'cgroup not found, nothing to kill')
@@ -87,13 +87,34 @@ EOF
       killed
     end
 
-    def cgroup_path
-      File.join(
-        '/sys/fs/cgroup/systemd',
-        builder.attrs[:group_path],
-        "lxc.payload.#{builder.ctid}",
-        "exec.#{id}"
-      )
+    def cgroup_name
+      "osctl-image.exec.#{id}"
+    end
+
+    def inner_cgroup_path
+      if OsCtl::Lib::CGroup.v2?
+        File.join('/sys/fs/cgroup', cgroup_name)
+      else
+        File.join('/sys/fs/cgroup/systemd', cgroup_name)
+      end
+    end
+
+    def outer_cgroup_path
+      if OsCtl::Lib::CGroup.v2?
+        File.join(
+          '/sys/fs/cgroup',
+          builder.attrs[:group_path],
+          "lxc.payload.#{builder.ctid}",
+          cgroup_name,
+        )
+      else
+        File.join(
+          '/sys/fs/cgroup/systemd',
+          builder.attrs[:group_path],
+          "lxc.payload.#{builder.ctid}",
+          cgroup_name,
+        )
+      end
     end
   end
 end
