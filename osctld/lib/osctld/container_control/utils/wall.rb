@@ -32,8 +32,12 @@ module OsCtld
           end
         end
 
-        Process.wait(pid)
-        $?
+        begin
+          Process.wait(pid)
+          $?
+        rescue Errno::ECHILD
+          1
+        end
       end
 
       # @param path [String] pty device
