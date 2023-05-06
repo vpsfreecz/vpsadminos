@@ -60,13 +60,13 @@ module OsCtld
     def stop(opts)
       # Configure runit for halt
       begin
-        ContainerControl::Commands::StopRunit.run!(ct)
+        ContainerControl::Commands::StopRunit.run!(ct, message: opts[:message])
       rescue ContainerControl::Error => e
         log(:warn, ct, "Unable to gracefully shutdown runit: #{e.message}")
       end
 
       # Run standard stop process
-      super
+      super(opts.merge(message: nil))
     end
 
     def apply_hostname

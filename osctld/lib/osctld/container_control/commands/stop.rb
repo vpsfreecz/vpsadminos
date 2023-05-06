@@ -18,7 +18,7 @@ module OsCtld
       # @param mode [:stop, :shutdown, :kill]
       # @param opts [Hash] options
       # @option opts [Integer] :timeout how log to wait for clean shutdown
-      # @option opts [String] :message
+      # @option opts [String, nil] :message
       # @return [true]
       def execute(mode, **opts)
         if !%i(stop shutdown kill).include?(mode)
