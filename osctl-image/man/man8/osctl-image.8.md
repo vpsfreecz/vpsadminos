@@ -31,7 +31,8 @@ of `osctl-image` with image building programs.
       List available parameters and exit.
     
     `-o`, `--output` *parameters*
-      Select parameters to output, comma separated.
+      Select parameters to output, see `OUTPUT PARAMETERS` in osctl(8) for more
+      information.
 
     `-s`, `--sort` *parameters*
       Sort output by parameters, comma separated.
@@ -133,7 +134,8 @@ of `osctl-image` with image building programs.
       List available parameters and exit.
     
     `-o`, `--output` *parameters*
-      Select parameters to output, comma separated.
+      Select parameters to output, see `OUTPUT PARAMETERS` in osctl(8) for more
+      information.
 
     `-s`, `--sort` *parameters*
       Sort output by parameters, comma separated.
