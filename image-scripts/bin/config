@@ -1,0 +1,170 @@
+#!/usr/bin/env bash
+# This is internal builder, do not use this directly!
+# Use osctl-images from vpsAdminOS to build the images.
+
+BASEDIR=$(realpath `dirname ${BASH_SOURCE[0]}`/..)
+
+function usage {
+	echo "Usage:"
+	echo "  $0 builder|image|test [command arguments...]"
+}
+
+function builder_usage {
+	echo "Usage:"
+	echo "  $0 builder list"
+	echo "  $0 builder show <name>"
+}
+
+function do_builder {
+	if [ $# -lt 1 ] ; then
+		builder_usage
+		exit 1
+	fi
+
+	local action="$1"
+
+	case "$action" in
+		list)
+			ls -1 "$BASEDIR/builders"
+			;;
+		show)
+			local name="$2"
+			local dir="$BASEDIR/builders/$name"
+
+			if [ "$name" == "" ] ; then
+				builder_usage
+				exit 1
+			elif [ ! -d "$dir" ] ; then
+				echo "Builder '$name' not found"
+				builder_usage
+				exit 1
+			fi
+
+			DISTNAME=
+			RELVER=
+			ARCH=
+			VENDOR=
+			VARIANT=
+			. "$dir/config.sh"
+			echo "DISTNAME=$DISTNAME"
+			echo "RELVER=$RELVER"
+			echo "ARCH=$ARCH"
+			echo "VENDOR=$VENDOR"
+			echo "VARIANT=$VARIANT"
+			;;
+		*)
+			builder_usage
+			exit 1
+			;;
+	esac
+}
+
+function image_usage {
+	echo "Usage:"
+	echo "  $0 image list"
+	echo "  $0 image show <name>"
+}
+
+function do_image {
+	if [ $# -lt 1 ] ; then
+		image_usage
+		exit 1
+	fi
+
+	local action="$1"
+
+	case "$action" in
+		list)
+			find "$BASEDIR/images/" ! -path "$BASEDIR/images/" -type d -or -type l \
+				| while read dir
+			do
+				[ ! -h "$dir" ] && [ -f "$dir"/abstract ] && continue
+				basename "$dir"
+			done
+			;;
+		show)
+			local name="$2"
+			local dir="$BASEDIR/images/$name"
+
+			if [ "$name" == "" ] ; then
+				image_usage
+				exit 1
+			elif [ ! -d "$dir" ] ; then
+				echo "Image '$name' not found"
+				image_usage
+				exit 1
+			fi
+
+			BUILDER=
+			DISTNAME=
+			RELVER=
+			ARCH=
+			VENDOR=
+			VARIANT=
+			IFS=- read DISTNAME RELVER ARCH VENDOR VARIANT <<< "$name"
+			[ "$ARCH" == "" ] && ARCH=x86_64
+			. "$dir/config.sh"
+			echo "BUILDER=$BUILDER"
+			echo "DISTNAME=$DISTNAME"
+			echo "RELVER=$RELVER"
+			echo "ARCH=$ARCH"
+			echo "VENDOR=$VENDOR"
+			echo "VARIANT=$VARIANT"
+			;;
+		*)
+			image_usage
+			exit 1
+			;;
+	esac
+}
+
+function test_usage {
+	echo "Usage:"
+	echo "  $0 test list"
+}
+
+function do_test {
+	if [ $# -lt 1 ] ; then
+		test_usage
+		exit 1
+	fi
+
+	local action="$1"
+
+	case "$action" in
+		list)
+			find "$BASEDIR/tests" -name "*.sh" | while read file ; do
+				basename "$file" | sed 's/\.sh$//g'
+			done
+			;;
+		*)
+			test_usage
+			exit 1
+			;;
+	esac
+}
+
+function main {
+	if [ $# -lt 1 ] ; then
+		usage
+		exit 1
+	fi
+
+	local command="$1"
+	shift 1
+
+	case "$command" in
+		builder)
+			do_builder $@ ;;
+		image)
+			do_image $@ ;;
+		test)
+			do_test $@ ;;
+		*)
+			usage
+			exit 1
+			;;
+	esac
+}
+
+main $@

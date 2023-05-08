@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+# This is internal builder, do not use this directly!
+# Use osctl-image from vpsAdminOS to build the images.
+
+set -x
+
+BASEDIR=$(realpath `dirname ${BASH_SOURCE[0]}`/..)
+
+function usage {
+	echo "Usage:"
+	echo "  $0 builder|image [command arguments...]"
+}
+
+function builder_usage {
+	echo "Usage:"
+	echo "  $0 builder setup <name>"
+}
+
+function do_builder {
+	if [ $# -lt 1 ] ; then
+		builder_usage
+		exit 1
+	fi
+
+	local action="$1"
+
+	case "$action" in
+		setup)
+			local name="$2"
+			local dir="$BASEDIR/builders/$name"
+
+			if [ "$name" == "" ] ; then
+				builder_usage
+				exit 1
+			elif [ ! -d "$dir" ] ; then
+				echo "Builder '$name' not found"
+				builder_usage
+				exit 1
+			fi
+
+			. "$dir/setup.sh"
+			;;
+		*)
+			builder_usage
+			exit 1
+			;;
+	esac
+}
+
+function image_usage {
+	echo "Usage:"
+	echo "  $0 image build <build-id> <work-dir> <install-dir> <image-name>"
+}
+
+function do_image {
+	if [ $# -lt 1 ] ; then
+		image_usage
+		exit 1
+	fi
+
+	local action="$1"
+
+	case "$action" in
+		build)
+			shift 1
+			build_image $@
+			;;
+		*)
+			image_usage
+			exit 1
+			;;
+	esac
+}
+
+function build_image {
+	if [ $# != 4 ] ; then
+		image_usage
+		exit 1
+	fi
+
+	BUILD_ID="$1"
+	DOWNLOAD="$2"
+	INSTALL="$3"
+	IMAGE="$4"
+	CONFIGFILE="$INSTALL/container.yml"
+
+	INCLUDE="$BASEDIR/include"
+	IMAGEDIR="$BASEDIR/images/$IMAGE"
+	CONFIGURE="$INSTALL/tmp/configure.sh"
+
+	DISTNAME=
+	RELVER=
+	ARCH=
+	VENDOR=
+	VARIANT=
+
+	IFS=- read DISTNAME RELVER ARCH VENDOR VARIANT <<< "$IMAGE"
+
+	[ "$ARCH" == "" ] && ARCH=x86_64
+
+	cd "$DOWNLOAD"
+
+	. "$BASEDIR/include/common.sh"
+	set-initcmd /sbin/init
+	. "$BASEDIR/images/$IMAGE/build.sh"
+
+	write_image_config
+}
+
+function write_image_config {
+	cat <<EOF >> "$CONFIGFILE"
+init_cmd:
+$(echo -e $INITCMD)
+EOF
+}
+
+function main {
+	if [ $# -lt 1 ] ; then
+		usage
+		exit 1
+	fi
+
+	local command="$1"
+	shift 1
+
+	case "$command" in
+		builder)
+			do_builder $@ ;;
+		image)
+			do_image $@ ;;
+		*)
+			usage
+			exit 1
+			;;
+	esac
+}
+
+main $@

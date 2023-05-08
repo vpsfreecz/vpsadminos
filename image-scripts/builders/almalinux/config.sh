@@ -1,0 +1,2 @@
+DISTNAME=almalinux
+RELVER=8

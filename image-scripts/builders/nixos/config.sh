@@ -1,0 +1,2 @@
+DISTNAME=nixos
+RELVER=unstable

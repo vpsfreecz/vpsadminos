@@ -1,0 +1,94 @@
+#!/sbin/openrc-run
+
+description="Mount cgroups inside LXC container."
+
+hybrid_cgroups="blkio
+	cpu,cpuacct
+	cpuset
+	devices
+	freezer
+	hugetlb
+	memory
+	net_cls,net_prio
+	perf_event
+	pids
+	rdma"
+hybrid_named_cgroups="systemd"
+mount_opts="nodev,noexec,nosuid"
+
+depend() {
+	keyword lxc
+	need sysfs
+}
+
+cgroup_mode() {
+	if grep -x "^[[:digit:]]:cpuset:/" /proc/1/cgroup > /dev/null ; then
+		echo "hybrid"
+	else
+		echo "unified"
+	fi
+}
+
+setup_hybrid() {
+	ebegin "Mounting cgroups in a hybrid layout"
+
+	local retval=0
+	local name
+
+	if ! mount -t tmpfs -o "$mount_opts" tmpfs /sys/fs/cgroup ; then
+		echo "Unable to mount /sys/fs/cgroup"
+		eend 1
+		return 1
+	fi
+
+	for name in $hybrid_cgroups; do
+		mountinfo -q "/sys/fs/cgroup/$name" && continue
+
+		mkdir -p "/sys/fs/cgroup/$name"
+		mount -n -t cgroup -o "$mount_opts,$name" \
+			cgroup "/sys/fs/cgroup/$name" || retval=1
+	done
+
+	for name in $hybrid_named_cgroups; do
+		mountinfo -q "/sys/fs/cgroup/$name" && continue
+
+		mkdir -p "/sys/fs/cgroup/$name"
+		mount -n -t cgroup -o "none,$mount_opts,name=$name" \
+			cgroup "/sys/fs/cgroup/$name" || retval=1
+	done
+
+	mkdir -p /sys/fs/cgroup/unified
+	mount -n -t cgroup2 -o "$mount_opts" cgroup2 /sys/fs/cgroup/unified || retval=1
+
+	if ! mountinfo -q /sys/fs/cgroup/openrc ; then
+		rm -rf /sys/fs/cgroup/openrc
+		ln -sf /sys/fs/cgroup/systemd /sys/fs/cgroup/openrc
+	fi
+
+	mount -o remount,ro tmpfs /sys/fs/cgroup
+
+	eend $retval
+}
+
+setup_unified() {
+	ebegin "Mounting cgroups in a unified layout"
+
+	local retval=0
+
+	mkdir /sys/fs/cgroup/init.scope
+	echo 1 > /sys/fs/cgroup/init.scope/cgroup.procs
+
+	eend $retval
+}
+
+start() {
+	[ -e /proc/cgroups ] || return 0
+
+	local mode=$(cgroup_mode)
+
+	case "$mode" in
+		hybrid) setup_hybrid ;;
+		unified) setup_unified ;;
+		*) echo "Unknown cgroup mode '$mode'" ;;
+	esac
+}
