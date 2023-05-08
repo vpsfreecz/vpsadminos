@@ -26,7 +26,7 @@ in stdenv.mkDerivation rec {
     description = "";
     homepage    = https://github.com/vpsfreecz/vpsadminos;
     license     = licenses.gpl3;
-    maintainers = [ maintainers.sorki ];
+    maintainers = [];
     platforms   = platforms.unix;
   };
 }

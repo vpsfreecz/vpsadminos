@@ -9,7 +9,7 @@ osBundlerApp {
     description = "";
     homepage    = https://github.com/vpsfreecz/vpsadmin;
     license     = licenses.gpl3;
-    maintainers = [ maintainers.sorki ];
+    maintainers = [];
     platforms   = platforms.unix;
   };
 }
