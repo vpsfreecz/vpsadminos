@@ -101,7 +101,7 @@ services.osctl.image-repository.myrepo = rec {
   #
   # The following is an example configuration which is used to build vpsAdminOS
   # images at https://images.vpsadminos.org. Image names correspond with build
-  # scripts at https://github.com/vpsfreecz/vpsadminos-image-build-scripts
+  # scripts at https://github.com/vpsfreecz/vpsadminos/tree/staging/image-scripts
   images = {
     # Image name is constructed as `<distribution>-<version>`, i.e. `alpine-3.8`
     # and `alpine-3.9`

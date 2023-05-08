@@ -6,13 +6,14 @@ prepares environment for the build scripts to run, decides what should be built,
 where it should be built and processes build results.
 
 ## Build scripts
-vpsAdminOS container images are built using build scripts at [vpsadminos-templates].
-The interface used for communication between the build scripts and `osctl-image`
-is described in man [osctl-image(8)].
+A set of container image build scripts is a part of vpsAdminOS, you can find
+them in vpsAdminOS repository in directory [image-scripts/]. The interface used
+for communication between the build scripts and `osctl-image` is described
+in man [osctl-image(8)].
 
 The build scripts are called in three modes: configuration, build and test.
 In configuration mode, the build scripts are called from the vpsAdminOS host
-that osctl-image is run at. `osctl-image` uses the configuration mode to learn
+where osctl-image is run. `osctl-image` uses the configuration mode to learn
 what images can be built, what environments the builds require and what tests
 can be run.
 
@@ -36,8 +37,8 @@ See man [osctl-image(8)] for more information.
 vpsAdminOS host. The build scripts have to be in the current working directory:
 
 ```shell
-git clone -b vpsadminos https://github.com/vpsfreecz/vpsadminos-image-build-scripts
-cd vpsadminos-image-build-scripts
+git clone https://github.com/vpsfreecz/vpsadminos
+cd vpsadminos/image-scripts
 ```
 
 List available images:
@@ -101,6 +102,6 @@ repositories.
 Containers managed by `osctl-image` can be seen using `osctl-image ct ls`
 and deleted with `osctl-image ct del`.
 
-[vpsadminos-templates]: https://github.com/vpsfreecz/vpsadminos-image-build-scripts
+[image-scripts/]: https://github.com/vpsfreecz/vpsadminos/tree/staging/image-scripts
 [osctl-image(8)]: https://man.vpsadminos.org/man8/osctl-image.8.html
 [repositories]: repositories.md

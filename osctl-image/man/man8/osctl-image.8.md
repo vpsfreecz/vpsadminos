@@ -15,7 +15,7 @@ builds and testing resulting images.
 `osctl-image` has to be used in conjuction with program or programs that know
 how to build specific distribution images. vpsAdminOS comes with one such
 collection of image building scripts:
-<https://github.com/vpsfreecz/vpsadminos-image-build-scripts>.
+<https://github.com/vpsfreecz/vpsadminos/tree/staging/image-scripts>.
 
 See `IMAGE BUILDER INTERFACE` for more information about the interaction
 of `osctl-image` with image building programs.
