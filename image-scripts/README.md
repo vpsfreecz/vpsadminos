@@ -9,8 +9,10 @@ information about container images can be found in the
 [documentation](https://vpsadminos.org/container-images/usage/).
 
 ## Building images
-Images can be built within vpsAdminOS using `osctl-image`. `osctl-image` needs
-the build scripts in its current working directory.
+Images can be built within vpsAdminOS using `osctl-image`. `osctl-image` looks
+the build scripts in the current working directory, `/etc/vpsadminos-image-scripts`
+or in a directory passed by option `--build-scripts`. For development, let's
+clone vpsAdminOS repository and use build scripts found there:
 
 ```shell
 git clone git@github.com:vpsfreecz/vpsadminos.git
@@ -28,11 +30,12 @@ SYNOPSIS
     osctl-image [global options] command [command options] [arguments...]
 
 VERSION
-    19.03.0
+    22.11.0
 
 GLOBAL OPTIONS
-    --help    - Show this message
-    --version - Display the program version
+    --build-scripts=dir - Path to directory with image build scripts
+    --help              - Show this message
+    --version           - Display the program version
 
 COMMANDS
     build       - Build image

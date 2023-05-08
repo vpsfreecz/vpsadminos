@@ -34,12 +34,11 @@ See man [osctl-image(8)] for more information.
 
 ## Workflow
 `osctl-image` is a part of vpsAdminOS, so it has to be called from some
-vpsAdminOS host. The build scripts have to be in the current working directory:
+vpsAdminOS host. `osctl-image` looks for build scripts in the following places:
 
-```shell
-git clone https://github.com/vpsfreecz/vpsadminos
-cd vpsadminos/image-scripts
-```
+ - directory given by option `--build-scripts`
+ - the current working directory
+ - `/etc/vpsadminos-image-scripts`, which is a part of vpsAdminOS
 
 List available images:
 ```shell

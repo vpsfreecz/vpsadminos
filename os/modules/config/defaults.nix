@@ -125,6 +125,8 @@
     "protocols".source  = pkgs.iana-etc + "/etc/protocols";
     # /etc/rpc: RPC program numbers.
     "rpc".source = pkgs.glibc.out + "/etc/rpc";
+
+    "vpsadminos-image-scripts".source = ../../../image-scripts;
   };
 
   users = {
