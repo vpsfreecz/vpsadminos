@@ -128,7 +128,7 @@ module OsCtl::Cli
       fmt_opts = {
         layout: :columns,
         cols: param_selector.parse_option(opts[:output]),
-        sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
+        sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
         opts: {
           tags: {
             label: 'TAGS',
