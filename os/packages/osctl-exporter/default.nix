@@ -25,7 +25,7 @@ in stdenv.mkDerivation rec {
   meta = with lib; {
     description = "";
     homepage    = https://github.com/vpsfreecz/vpsadminos;
-    license     = licenses.gpl3;
+    license     = licenses.asl20;
     maintainers = [];
     platforms   = platforms.unix;
   };
