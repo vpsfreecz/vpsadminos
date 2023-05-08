@@ -13,8 +13,12 @@ module OsCtl::Image
     )
 
     def list
+      param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
+        all_params: FIELDS,
+      )
+
       if opts[:list]
-        puts FIELDS.join("\n")
+        puts param_selector
         return
       end
 
@@ -22,8 +26,8 @@ module OsCtl::Image
 
       fmt_opts = {
         layout: :columns,
-        cols: opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS,
-        sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
+        cols: param_selector.parse_option(opts[:output]),
+        sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
         header: !opts['hide-header'],
       }
 
