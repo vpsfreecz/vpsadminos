@@ -12,7 +12,7 @@ build container images. `osctl-image` itself does not know how to build
 images. It is concerned with managing build containers, executing arbitrary
 builds and testing resulting images.
 
-`osctl-image` has to be used in conjuction with program or programs that know
+`osctl-image` has to be used in conjunction with program or programs that know
 how to build specific distribution images. vpsAdminOS comes with one such
 collection of image building scripts:
 <https://github.com/vpsfreecz/vpsadminos/tree/staging/image-scripts>.
@@ -49,7 +49,7 @@ of `osctl-image` with image building programs.
       Override vendor attribute defined by the image.
 
     `--jobs` *n*
-      How many image should be built in parallel. Defaults to `1`.
+      How many images should be built in parallel. Defaults to `1`.
 
 `test` [*options*] `all`|*image*[`,`*image...*] [*test*[`,`*test...*]]
   Run one or more tests on all or selected images. If the image is not
@@ -93,7 +93,7 @@ of `osctl-image` with image building programs.
       *image*. Configuration of the existing container is kept.
 
 `deploy` [*options*] *image*[`,`*image...*] *repository*
-  Build, test and deploy images to *repository*. Images are build only
+  Build, test and deploy images to *repository*. Images are built only
   if they aren't found in the output directory, or `--rebuild` is used.
   *repository* is a directory managed by `osctl-repo`.
 
@@ -112,7 +112,7 @@ of `osctl-image` with image building programs.
       and `testing`.
 
     `--jobs` *n*
-      How many image should be built in parallel. Defaults to `1`.
+      How many images should be built in parallel. Defaults to `1`.
 
     `--rebuild`
       Rebuild the image even if it is found in the output directory.
@@ -149,7 +149,7 @@ of `osctl-image` with image building programs.
 
 ## IMAGE BUILDER INTERFACE
 Image building programs define builders and actual images to be built.
-Builders are simply containers, in which the images are then built.
+Builders are simply containers in which the images are built.
 
 `osctl-image` requires three executable files in the current working
 directory: `bin/config`, `bin/runner` and `bin/test`.
