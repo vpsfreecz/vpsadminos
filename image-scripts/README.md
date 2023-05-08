@@ -13,8 +13,8 @@ Images can be built within vpsAdminOS using `osctl-image`. `osctl-image` needs
 the build scripts in its current working directory.
 
 ```shell
-git clone git@github.com:vpsfreecz/vpsadminos-image-build-scripts.git
-cd vpsadminos-image-build-scripts
+git clone git@github.com:vpsfreecz/vpsadminos.git
+cd vpsadminos/image-scripts
 ```
 
 Usage:
@@ -98,7 +98,7 @@ assets into directory `$DOWNLOAD`. When the script finishes, the `$INSTALL`
 directory should contain the root filesystem, i.e. directories like `bin`, `usr`,
 `var`, `home` and so on.
 
-The build script can generate configuration script, that will be executed
+The build script can generate configuration script that will be executed
 as chrooted within the `$INSTALL` directory. Function `configure-append` is used
 to append chunks of the configuration script and `run-configure` will chroot
 to the `$INSTALL` directory and run it. This is where you can use the

@@ -70,12 +70,7 @@ let
 
         buildScripts = mkOption {
           type = types.package;
-          default = pkgs.fetchFromGitHub {
-            owner = "vpsfreecz";
-            repo = "vpsadminos-image-build-scripts";
-            rev = "d315a8391ace79f806874fe28a209fdf1a2dc500";
-            sha256 = "sha256-2vIp6E5ZoeYPn6Zp/VRJCX0PyQBUU+AiL5/MT2wNc7M=";
-          };
+          default = ../../../../../image-scripts;
           description = ''
             Build scripts for use with osctl-image
           '';
