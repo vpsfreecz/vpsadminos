@@ -20,6 +20,11 @@ collection of image building scripts:
 See `IMAGE BUILDER INTERFACE` for more information about the interaction
 of `osctl-image` with image building programs.
 
+## GLOBAL OPTIONS
+`--build-scripts` *directory*
+  Provide path to a custom build scripts *directory*. If not set, build scripts
+  are looked for in the current working directory and `/etc/vpsadminos-image-scripts`.
+
 ## COMMANDS
 `ls` [*options*]
   List available images.
@@ -153,7 +158,7 @@ of `osctl-image` with image building programs.
 Image building programs define builders and actual images to be built.
 Builders are simply containers in which the images are built.
 
-`osctl-image` requires three executable files in the current working
+`osctl-image` requires three executable files in the build scripts
 directory: `bin/config`, `bin/runner` and `bin/test`.
 
 `bin/config` is used to gather information about builders and images. It is

@@ -4,6 +4,8 @@ require 'osctl/image/cli/command'
 
 module OsCtl::Image
   class Cli::Image < Cli::Command
+    BUILD_SCRIPTS_DIR = '/etc/vpsadminos-image-scripts'
+
     FIELDS = %i(name distribution version arch vendor variant)
 
     def list
@@ -62,7 +64,7 @@ module OsCtl::Image
       fail "image '#{args[0]}' not found" unless image
 
       ctid = Operations::Image::Instantiate.run(
-        File.absolute_path('.'),
+        File.absolute_path(build_scripts_path),
         image,
         output_dir: opts['output-dir'],
         build_dataset: opts['build-dataset'],
@@ -99,7 +101,7 @@ module OsCtl::Image
         verified_builds = successful_builds
       else
         # Test successfully built images
-        tests = TestList.new('.')
+        tests = TestList.new(build_scripts_path)
         test_results = []
 
         puts 'Testing images'
@@ -143,7 +145,7 @@ module OsCtl::Image
 
       images.each do |tpl|
         build = Operations::Image::Build.new(
-          File.absolute_path('.'),
+          File.absolute_path(build_scripts_path),
           tpl,
           output_dir: opts['output-dir'],
           build_dataset: opts['build-dataset'],
@@ -186,7 +188,7 @@ module OsCtl::Image
       images.each do |tpl|
         results.concat(
           Operations::Test::Image.run(
-            File.absolute_path('.'),
+            File.absolute_path(build_scripts_path),
             tpl,
             tests,
             output_dir: opts['output-dir'],
@@ -263,7 +265,7 @@ module OsCtl::Image
     # @param arg [String, nil]
     # @return [Array<Test>]
     def select_tests(arg)
-      existing_tests = TestList.new('.')
+      existing_tests = TestList.new(build_scripts_path)
 
       if arg.nil? || arg == 'all'
         existing_tests
@@ -277,7 +279,39 @@ module OsCtl::Image
     end
 
     def image_list
-      ImageList.new('.')
+      ImageList.new(build_scripts_path)
+    end
+
+    def build_scripts_path
+      return @build_scripts_path if @build_scripts_path
+
+      # Check option
+      if gopts['build-scripts']
+        unless build_script_dir?(gopts['build-scripts'])
+          raise GLI::BadCommandLine, "#{gopts['build-scripts'].inspect} does not comply with image builder interface"
+        end
+
+        return @build_scripts_path = gopts['build-scripts']
+      end
+
+      # Check the current working directory
+      if build_script_dir?(Dir.pwd)
+        return @build_scripts_path = Dir.pwd
+      end
+
+      # Check system directory
+      if build_script_dir?(BUILD_SCRIPTS_DIR)
+        return @build_scripts_path = BUILD_SCRIPTS_DIR
+      end
+
+      # Not found
+      raise GLI::BadCommandLine, 'Enter into build scripts directory or use option --build-scripts'
+    end
+
+    def build_script_dir?(path)
+      File.executable?(File.join(path, 'bin/config')) \
+        && File.executable?(File.join(path, 'bin/runner')) \
+        && File.executable?(File.join(path, 'bin/test'))
     end
   end
 end

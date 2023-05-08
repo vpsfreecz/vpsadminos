@@ -20,6 +20,9 @@ module OsCtl::Image::Cli
       preserve_argv true
       arguments :strict
 
+      desc 'Path to directory with image build scripts'
+      flag 'build-scripts', arg_name: 'dir'
+
       desc 'List available images'
       command 'ls' do |c|
         c.desc 'Select parameters to output'
