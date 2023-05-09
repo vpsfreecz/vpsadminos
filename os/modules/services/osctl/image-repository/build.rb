@@ -124,53 +124,52 @@ class Builder
   def build_images(options, names)
     FileUtils.mkdir_p(cfg.cache_dir)
 
-    with_script_dir do
-      cfg.images.each do |img|
-        if names.any? && !names.include?(img.name)
-          puts "Skipping #{img.name}"
-          next
-        end
+    cfg.images.each do |img|
+      if names.any? && !names.include?(img.name)
+        puts "Skipping #{img.name}"
+        next
+      end
 
-        puts "Building #{img.name}"
+      puts "Building #{img.name}"
 
-        deploy_args = [
-          'deploy',
-          '--build-dataset', cfg.dataset,
-          '--output-dir', cfg.cache_dir,
-        ]
+      deploy_args = [
+        '--build-scripts', cfg.script_dir,
+        'deploy',
+        '--build-dataset', cfg.dataset,
+        '--output-dir', cfg.cache_dir,
+      ]
 
-        if rebuild_image?(options, img)
-          deploy_args << '--rebuild'
-        end
+      if rebuild_image?(options, img)
+        deploy_args << '--rebuild'
+      end
 
-        if keep_image_failed_tests?(options, img)
-          deploy_args << '--keep-failed'
-        end
+      if keep_image_failed_tests?(options, img)
+        deploy_args << '--keep-failed'
+      end
 
-        if options[:skip_tests]
-          deploy_args << '--skip-tests'
-        end
+      if options[:skip_tests]
+        deploy_args << '--skip-tests'
+      end
 
-        deploy_args.concat(img.tags.map { |t| ['--tag', t] }.flatten)
+      deploy_args.concat(img.tags.map { |t| ['--tag', t] }.flatten)
 
-        deploy_args << img.name
-        deploy_args << cfg.repo_dir
+      deploy_args << img.name
+      deploy_args << cfg.repo_dir
 
-        log_name = File.join(
-          cfg.log_dir,
-          "#{img.name}.#{Time.now.strftime('%Y-%m-%d-%H:%M:%S')}.#{SecureRandom.hex(3)}.log",
-        )
-        log_file = File.open(log_name, 'w')
+      log_name = File.join(
+        cfg.log_dir,
+        "#{img.name}.#{Time.now.strftime('%Y-%m-%d-%H:%M:%S')}.#{SecureRandom.hex(3)}.log",
+      )
+      log_file = File.open(log_name, 'w')
 
-        osctl_image(*deploy_args, out: log_file, err: log_file)
-        log_file.close
+      osctl_image(*deploy_args, out: log_file, err: log_file)
+      log_file.close
 
-        if $?.exitstatus == 0
-          File.unlink(log_file.path)
-        else
-          warn "Build of #{img.name} failed with exit status #{$?.exitstatus}"
-          warn "Log file: #{log_file.path}"
-        end
+      if $?.exitstatus == 0
+        File.unlink(log_file.path)
+      else
+        warn "Build of #{img.name} failed with exit status #{$?.exitstatus}"
+        warn "Log file: #{log_file.path}"
       end
     end
   end
@@ -223,10 +222,6 @@ class Builder
 
   def with_repo_dir(&block)
     with_chdir(cfg.repo_dir, &block)
-  end
-
-  def with_script_dir(&block)
-    with_chdir(cfg.script_dir, &block)
   end
 
   def with_chdir(dir)
