@@ -10,7 +10,7 @@ module OsCtl
     end
 
     def self.root
-      File.realpath(File.join(File.dirname(__FILE__), '..', '..'))
+      File.realpath(File.join(__dir__, '..', '..'))
     end
 
     def self.enabled?
