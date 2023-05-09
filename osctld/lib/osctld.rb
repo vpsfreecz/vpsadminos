@@ -43,7 +43,7 @@ module OsCtld
   end
 
   def self.root
-    File.join(File.dirname(__FILE__), '..')
+    File.join(__dir__, '..')
   end
 
   def self.bin(name)

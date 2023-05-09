@@ -68,7 +68,7 @@ module OsCtl::Lib
     def generate
       ERB.new(
         File.new(File.join(
-          File.dirname(__FILE__), '../../../..', 'templates/completion/bash.erb'
+          __dir__, '../../../..', 'templates/completion/bash.erb'
         )).read,
         trim_mode: '-',
       ).result(binding)

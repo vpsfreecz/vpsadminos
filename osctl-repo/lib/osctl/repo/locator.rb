@@ -1,7 +1,7 @@
 module OsCtl
   module Repo
     def self.root
-      File.absolute_path(File.join(File.dirname(__FILE__), '..', '..', '..'))
+      File.absolute_path(File.join(__dir__, '..', '..', '..'))
     end
   end
 end

@@ -106,7 +106,7 @@ module VpsAdminOS::Converter::Cli
       command :man do |c|
         c.action do
           manpath = File.realpath(File.join(
-            File.dirname(__FILE__),
+            __dir__,
             '..', '..', '..', 'man'
           ))
           system("man -M #{manpath} vpsadminos-convert")
