@@ -69,7 +69,7 @@ let
         };
 
         buildScripts = mkOption {
-          type = types.package;
+          type = types.path;
           default = ../../../../../image-scripts;
           description = ''
             Build scripts for use with osctl-image
