@@ -16,7 +16,8 @@
         "3.14" = {};
         "3.15" = {};
         "3.16" = {};
-        "3.17" = { tags = [ "latest" "stable" ]; };
+        "3.17" = {};
+        "3.18" = { tags = [ "latest" "stable" ]; };
       };
 
       arch.rolling = { name = "arch"; tags = [ "latest" "stable" ]; };
