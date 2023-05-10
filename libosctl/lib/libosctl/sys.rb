@@ -36,6 +36,7 @@ module OsCtl::Lib
       extern 'int unshare(int flags)'
       extern 'int setns(int fd, int nstype)'
       extern 'int chroot(const char *path)'
+      extern 'int syncfs(int fd)'
     end
 
     def setresuid(ruid, euid, suid)
@@ -140,6 +141,17 @@ module OsCtl::Lib
       ret = Int.chroot(path)
       raise SystemCallError, Fiddle.last_error if ret != 0
       ret
+    end
+
+    # @param path [String] filesystem directory
+    def syncfs(path)
+      f = Tempfile.new('.syncfs', path)
+      ret = Int.syncfs(f.fileno)
+      raise SystemCallError, Fiddle.last_error if ret != 0
+      ret
+    ensure
+      f.close
+      f.unlink
     end
   end
 end
