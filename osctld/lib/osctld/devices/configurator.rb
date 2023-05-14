@@ -37,7 +37,7 @@ module OsCtld
 
     # @param new_owner [Devices::Owner]
     def dup(new_owner)
-      ret = super
+      ret = super()
       ret.instance_variable_set('@owner', new_owner)
       ret
     end
