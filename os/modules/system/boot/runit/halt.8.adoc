@@ -43,6 +43,25 @@ and appended, executable files are run with the following envinronment variables
 templates can be configured using vpsAdminOS option *runit.halt.reasonTemplates*,
 see configuration.nix(5).
 
+== Halt hooks
+
+Halt hooks are executable files stored in */etc/runit/halt.hook.d* which are
+invoked in different halt stages and can be used to run arbitrary commands.
+
+The following environment variables are set:
+
+*HALT_HOOK*:: pre-system
+*HALT_ACTION*:: poweroff/reboot
+*HALT_REASON*:: halt reason
+
+Exit statuses of executed hooks are not evaluated.
+
+Note that in the future *HALT_HOOK* can be extended with other hook types. It is
+therefore recommended to always check its value.
+
+Halt hooks can be configured using vpsAdminOS option *runit.halt.hooks*, see
+configuration.nix(5).
+
 == Options
 
 The following options are understood:

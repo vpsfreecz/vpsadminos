@@ -7,6 +7,8 @@ require 'tempfile'
 class Halt
   REASON_TEMPLATE_DIR = '/etc/runit/halt.reason.d'
 
+  HOOK_DIR = '/etc/runit/halt.hook.d'
+
   def initialize(name, args)
     @name = name
     @logger = Syslog::Logger.new('halt')
@@ -219,6 +221,8 @@ END
 
     fail "Unable to shutdown osctld" if $?.exitstatus != 0
 
+    run_hook('pre-system')
+
     puts "Proceeding with system #{@action}"
 
     case @action
@@ -228,6 +232,42 @@ END
       Process.exec('runit-init', '6')
     else
       fail "invalid action #{@action.inspect}"
+    end
+  end
+
+  def run_hook(name)
+    puts "Executing #{name} hooks"
+
+    begin
+      hooks = Dir.entries(HOOK_DIR)
+    rescue Errno::ENOENT
+      return
+    end
+
+    hooks.each do |hook|
+      abs_path = File.join(HOOK_DIR, hook)
+
+      begin
+        st = File.stat(abs_path)
+      rescue Errno::ENOENT
+        next
+      end
+
+      next if !st.file? || !st.executable?
+
+      pid = Process.fork do
+        ENV['HALT_HOOK'] = name
+        ENV['HALT_ACTION'] = @action
+        ENV['HALT_REASON'] = @message
+
+        Process.exec(abs_path)
+      end
+
+      Process.wait(pid)
+
+      if $?.exitstatus != 0
+        warn "Halt hook #{abs_path.inspect} failed with exit status #{$?.exitstatus}"
+      end
     end
   end
 
