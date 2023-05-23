@@ -381,6 +381,31 @@ let
 
   mkHaltReasons = tpls: mapAttrs' (k: v: nameValuePair "runit/halt.reason.d/${k}" (mkHaltReason k v)) tpls;
 
+  haltHook =
+    { config, ... }:
+    {
+      options = {
+        enable = mkOption {
+          type = types.bool;
+          default = true;
+          description = ''
+            Enable the hook
+          '';
+        };
+
+        source = mkOption {
+          type = types.path;
+          description = ''
+            Path to an executable file
+          '';
+        };
+      };
+    };
+
+  mkHaltHook = name: hook: { inherit (hook) enable source; };
+
+  mkHaltHooks = hooks: mapAttrs' (k: v: nameValuePair "runit/halt.hook.d/${k}" (mkHaltHook k v)) hooks;
+
   haltScript = pkgs.substituteAll {
     src = ./halt.rb;
     isExecutable = true;
@@ -456,6 +481,12 @@ in
       default = {};
       description = "Halt reason templates";
     };
+
+    runit.halt.hooks = mkOption {
+      type = types.attrsOf (types.submodule haltHook);
+      default = {};
+      description = "Halt hooks";
+    };
   };
 
   ### Implementation
@@ -481,6 +512,10 @@ in
 
     {
       environment.etc = mkHaltReasons config.runit.halt.reasonTemplates;
+    }
+
+    {
+      environment.etc = mkHaltHooks config.runit.halt.hooks;
     }
   ];
 }
