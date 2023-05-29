@@ -20,6 +20,10 @@ import ../../make-template.nix ({ distribution, version }: rec {
         "osctl ct start testct",
       )
 
+      # Give the container some time to start, as cgroups are mounted by the init
+      # system
+      sleep(10)
+
       _, output = machine.succeeds("osctl ct exec testct cat /proc/mounts")
 
       controllers = %w(
