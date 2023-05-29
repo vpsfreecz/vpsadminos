@@ -15,6 +15,7 @@ import ../../make-test.nix (pkgs: {
 
     machine.all_succeed(
       "osctl ct new --distribution ${distribution} --version ${version} docker",
+      "osctl ct unset start-menu docker",
       "osctl ct netif new bridge --link lxcbr0 docker eth0",
 
       # TODO: why is this needed?

@@ -14,6 +14,7 @@ import ../../make-test.nix (pkgs: {
 
     machine.all_succeed(
       "osctl ct new --distribution alpine startedct",
+      "osctl ct unset start-menu startedct",
       "osctl ct new --distribution alpine stoppedct",
       "osctl ct netif new routed stoppedct eth0",
       "osctl ct netif ip add stoppedct eth0 1.2.3.4/32",

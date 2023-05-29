@@ -20,6 +20,7 @@ import ../../make-test.nix (pkgs: {
 
     machine.all_succeed(
       "osctl ct new --distribution alpine testct",
+      "osctl ct unset start-menu testct",
       "osctl ct exec -r testct mkdir -p /var/lib/lxcfs",
       "osctl ct start testct",
     )

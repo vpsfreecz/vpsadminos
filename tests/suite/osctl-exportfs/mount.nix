@@ -22,6 +22,7 @@ import ../../make-test.nix (pkgs: {
 
     machine.all_succeed(
       "osctl ct new --distribution alpine testct1",
+      "osctl ct unset start-menu testct1",
       "osctl ct netif new bridge --link lxcbr0 --no-dhcp testct1 eth0",
       "osctl ct netif ip add testct1 eth0 192.168.1.21/24",
       "osctl ct set dns-resolver testct1 1.1.1.1",
@@ -33,6 +34,7 @@ import ../../make-test.nix (pkgs: {
       "osctl ct exec testct1 rc-service rpc.statd start",
 
       "osctl ct new --distribution alpine testct2",
+      "osctl ct unset start-menu testct2",
       "osctl ct netif new bridge --link lxcbr0 --no-dhcp testct2 eth0",
       "osctl ct netif ip add testct2 eth0 192.168.1.22/24",
       "osctl ct set dns-resolver testct2 1.1.1.1",

@@ -53,6 +53,7 @@ import ../../make-template.nix ({ distribution, version }: rec {
       # LXCFS is enabled by default
       machine.all_succeed(
         "osctl ct new --distribution ${distribution} --version ${version} testct",
+        "osctl ct unset start-menu testct",
         "osctl ct exec -r testct mkdir -p /var/lib/lxcfs",
       )
 

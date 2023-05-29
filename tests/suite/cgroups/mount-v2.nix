@@ -23,6 +23,7 @@ import ../../make-template.nix ({ distribution, version }: rec {
 
       machine.all_succeed(
         "osctl ct new --distribution ${distribution} --version ${version} testct",
+        "osctl ct unset start-menu testct",
         "osctl ct start testct",
       )
 

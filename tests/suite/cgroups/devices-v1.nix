@@ -52,6 +52,7 @@ import ../../make-test.nix (pkgs: {
     machine.wait_until_online
     machine.all_succeed(
       "osctl ct new --distribution alpine testct",
+      "osctl ct unset start-menu testct",
       "osctl ct start testct",
     )
 

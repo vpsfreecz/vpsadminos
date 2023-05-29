@@ -19,6 +19,7 @@ import ../../make-test.nix (pkgs: {
       "echo stopped > /tank/test/stopped/stopped.txt",
       "echo started > /tank/test/started/started.txt",
       "osctl ct new --distribution alpine testct",
+      "osctl ct unset start-menu testct",
       "osctl ct start testct",
     )
 
