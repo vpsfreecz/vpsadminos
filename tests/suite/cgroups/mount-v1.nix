@@ -47,7 +47,16 @@ import ../../make-template.nix ({ distribution, version }: rec {
         end
       end
 
-      if /^\w+ #{Regexp.escape("/sys/fs/cgroup/unified cgroup2 ")}/ !~ output
+      # unified cgroup is not mounted on CentOS 7 and 8
+      check_unified =
+        if ("${distribution}" == "centos" && %w(7 latest-8-stream).include?("${version}")) \
+           || ("${distribution}" == "almalinux" && "${version}" == "8")
+          false
+        else
+          true
+        end
+
+      if check_unified && /^\w+ #{Regexp.escape("/sys/fs/cgroup/unified cgroup2 ")}/ !~ output
         fail "unified cgroup not mounted"
       end
     '';
