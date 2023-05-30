@@ -226,6 +226,7 @@ let
       DRM                 = yes;
       DRM_FBDEV_EMULATION = yes;
       DRM_MGAG200         = no;
+      DRM_AST             = no;
       DRM_AMDGPU          = module;
     };
 
