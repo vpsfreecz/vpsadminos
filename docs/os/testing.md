@@ -146,3 +146,14 @@ import ../make-test.nix (pkgs: {
   '';
 })
 ```
+
+## Temporary config changes
+It is possible to change all test machine configurations by creating
+`os/configs/tests.nix` file, e.g. to change a kernel version used in tests:
+
+```nix
+{ config, ... }:
+{
+  boot.kernelVersion = "6.1.30";
+}
+```

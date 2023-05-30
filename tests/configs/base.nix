@@ -1,6 +1,10 @@
 { config, pkgs, lib, ... }:
 with lib;
 {
+  imports = optionals
+    (lib.pathExists ../../os/configs/tests.nix)
+    (trace "Using os/configs/tests.nix" [ ../../os/configs/tests.nix ]);
+
   boot.kernelParams = [ "root=/dev/vda" ];
   boot.initrd.kernelModules = [
     "virtio" "virtio_pci" "virtio_net" "virtio_rng" "virtio_blk" "virtio_console"
