@@ -1,9 +1,8 @@
 { config, pkgs, lib, ... }:
 {
-  # import local configuration (local.nix) if it exists
   imports = [
     ../installer/cd-dvd/channel.nix
-  ] ++ lib.optionals (lib.pathExists ../../configs/local.nix) [ ../../configs/local.nix ];
+  ];
   networking.hostName = lib.mkDefault "vpsadminos";
 
   services.logrotate.enable = lib.mkDefault true;

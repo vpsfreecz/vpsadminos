@@ -1,6 +1,10 @@
 { configs, pkgs, lib, ... }:
 
 {
+  imports = lib.optionals
+    (lib.pathExists ./local.nix)
+    (builtins.trace "Using os/configs/local.nix" [ ./local.nix ]);
+
   boot.kernelParams = [ "root=/dev/vda" ];
   boot.initrd.kernelModules = [ "virtio" "virtio_pci" "virtio_net" "virtio_rng" "virtio_blk" "virtio_console" ];
 

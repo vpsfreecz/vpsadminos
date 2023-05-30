@@ -12,7 +12,7 @@ Default and example configs are included in `os/configs/` directory.
 
 The simplest way to start with vpsAdminOS is to clone its repository and
 put your configuration in `os/configs/local.nix`, which you can base on
-`os/configs/local.nix.sample`. `local.nix` is imported by the OS automatically
+`os/configs/local.nix.sample`. `local.nix` is imported with `make qemu` automatically
 if it exists.
 
 Another option is to put path to your config to environment variable
