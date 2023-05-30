@@ -31,9 +31,6 @@ module TestRunner::Cli
       desc 'Run test'
       arg_name '[path-pattern]'
       command 'test' do |c|
-        c.desc 'Assume the answer to confirmations is yes'
-        c.switch %w(y yes)
-
         c.desc 'How many tests to run in parallel'
         c.flag %w(j jobs), type: Integer, default_value: 1
 

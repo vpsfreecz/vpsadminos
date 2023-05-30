@@ -32,10 +32,9 @@ module TestRunner
           tl.all
         end
 
-      ask_confirmation! do
-        puts "The following tests will be run:"
-        tests.each { |t| puts "  #{t.path}" }
-      end
+      puts "The following tests will be run:"
+      tests.each { |t| puts "  #{t.path}" }
+      puts
 
       exec = TestRunner::Executor.new(
         tests,
@@ -69,19 +68,6 @@ module TestRunner
     end
 
     protected
-    def ask_confirmation
-      return true if opts[:yes]
-
-      yield
-      STDOUT.write("\nContinue? [y/N]: ")
-      STDOUT.flush
-      STDIN.readline.strip.downcase == 'y'
-    end
-
-    def ask_confirmation!(&block)
-      fail 'Aborted' unless ask_confirmation(&block)
-    end
-
     def state_dir
       File.join(opts['state-dir'] || File.join(ENV['TMPDIR'] || '/tmp', 'os-test-runner'))
     end

@@ -17,9 +17,6 @@ selected tests and reporting results.
 `test` [*path-pattern*]
   Run all or selected tests.
 
-    `-y`, `--yes`
-      Do not ask for confirmation, assume yes.
-
     `-j`, `--jobs`
       Number of tests to run in parallel.
 
