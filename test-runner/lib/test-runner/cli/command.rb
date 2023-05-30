@@ -47,7 +47,9 @@ module TestRunner
       )
       results = exec.run
 
-      fail 'one or more tests failed' if results.detect(&:failed?)
+      if results.detect(&:unexpected_result?)
+        fail 'one or more tests did not have expected results'
+      end
     end
 
     def debug

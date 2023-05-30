@@ -122,3 +122,27 @@ While developing a test, it is possible to start it with an interactive Ruby REP
 The REPL can be used to issue the same commands as in the test script. The test
 script itself can be run by calling method `test_script`. You can call method
 `breakpoint` from inside the test to open the REPL from any point of execution.
+
+## Expected failure
+A test can be expected to fail. The failure is shown, but it does not result
+in error exit status. If a test succeeds and we expected it to fail, it is
+considered as an error.
+
+```nix
+import ../make-test.nix (pkgs: {
+  name = "my-failed-test";
+
+  description = ''
+    It's a great test indeed
+  '';
+
+  expectFailure = true;
+
+  machine = import ../machines/empty.nix pkgs;
+
+  testScript = ''
+    machine.start
+    machine.succeeds("shell command that fails...")
+  '';
+})
+```

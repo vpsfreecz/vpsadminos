@@ -5,9 +5,9 @@ let
 
   testMeta = t:
     if t.type == "single" then
-      { inherit (t) type; inherit (t.test.config) name description; }
+      { inherit (t) type; inherit (t.test.config) name description expectFailure; }
     else if t.type == "template" then
-      { inherit (t) type template args; inherit (t.test.config) name description; }
+      { inherit (t) type template args; inherit (t.test.config) name description expectFailure; }
     else
       abort "unsupported test type";
 

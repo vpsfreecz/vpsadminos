@@ -36,13 +36,47 @@ module TestRunner
       wait_for_workers
 
       log("Run #{results.length} tests in #{(Time.now - t1).round(2)} seconds")
-      successful = results.select(&:successful?)
-      failed = results.reject(&:successful?)
-      log("#{successful.length} tests successful")
-      log("#{failed.length} tests failed")
 
-      if failed.any?
-        log("Failed tests:\n#{failed.map { |r| "  #{r.test.path}" }.join("\n")}")
+      expected_successful = results.select do |r|
+        r.expected_to_succeed? && r.successful?
+      end
+
+      expected_failed = results.select do |r|
+        r.expected_to_fail? && r.failed?
+      end
+
+      unexpected_failed = results.select do |r|
+        r.expected_to_succeed? && r.failed?
+      end
+
+      unexpected_successful = results.select do |r|
+        r.expected_to_fail? && r.successful?
+      end
+
+      if expected_successful.any?
+        log("#{expected_successful.length} tests successful")
+      end
+
+      if expected_failed.any?
+        log("#{expected_failed.length} tests failed as expected")
+      end
+
+      if unexpected_failed.any?
+        log("#{unexpected_failed.length} tests should have succeeded, but failed")
+      end
+
+      if unexpected_successful.any?
+        log("#{unexpected_successful.length} tests should have failed, but succeeded")
+      end
+
+      if unexpected_failed.any?
+        log("Unexpectedly failed tests:\n#{unexpected_failed.map { |r| "  #{r.test.path}" }.join("\n")}")
+        puts
+      end
+
+      if unexpected_successful.any?
+        log("Unexpectedly successful tests:\n#{unexpected_successful.map { |r| "  #{r.test.path}" }.join("\n")}")
+        puts
       end
 
       results
@@ -73,13 +107,21 @@ module TestRunner
         log("#{prefix} Running test '#{t.path}'")
         result = run_test(t)
 
-        if result.successful?
-          log("#{prefix} Test '#{t.path}' successful in #{result.elapsed_time.round(2)} seconds")
-        else
-          log(
-            "#{prefix} Test '#{t.path}' failed after #{result.elapsed_time.round(2)} "+
-            "seconds, see #{result.state_dir}"
-          )
+        secs = result.elapsed_time.round(2)
+
+        if result.expected_result?
+          if result.successful?
+            log("#{prefix} Test '#{t.path}' successful in #{secs} seconds")
+          else
+            log("#{prefix} Test '#{t.path}' failed as expected in #{secs} seconds")
+          end
+        else # unexpected result
+          if result.successful?
+            log("#{prefix} Test '#{t.path}' unexpectedly succeeded in #{secs} seconds, see #{result.state_dir}")
+          else
+            log("#{prefix} Test '#{t.path}' failed after #{secs} seconds, see #{result.state_dir}")
+          end
+
           stop_work! if opts[:stop_on_failure]
         end
 

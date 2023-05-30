@@ -1,6 +1,6 @@
 module TestRunner
   class Test
-    attr_reader :path, :type, :template, :args, :name, :description
+    attr_reader :path, :type, :template, :args, :name, :description, :expect_failure
 
     # @param opts [Hash]
     def initialize(**opts)
@@ -10,6 +10,7 @@ module TestRunner
       @args = opts[:args]
       @name = opts[:name]
       @description = opts[:description]
+      @expect_failure = opts[:expect_failure]
     end
 
     # @param pattern [String]

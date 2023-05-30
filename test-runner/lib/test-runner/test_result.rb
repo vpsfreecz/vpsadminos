@@ -16,5 +16,25 @@ module TestRunner
     def failed?
       !@success
     end
+
+    def expected_result?
+      if test.expect_failure
+        !@success
+      else
+        @success
+      end
+    end
+
+    def unexpected_result?
+      !expected_result?
+    end
+
+    def expected_to_succeed?
+      !test.expect_failure
+    end
+
+    def expected_to_fail?
+      test.expect_failure
+    end
   end
 end

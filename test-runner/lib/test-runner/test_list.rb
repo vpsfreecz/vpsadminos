@@ -61,6 +61,7 @@ module TestRunner
         args: data[:args],
         name: data[:name],
         description: data[:description],
+        expect_failure: data[:expectFailure],
       )
     end
   end

@@ -48,6 +48,7 @@ let
 
   testConfig = {
     inherit (testAttrs) name description testScript;
+    expectFailure = testAttrs.expectFailure or false;
     machines = machineTestConfigs;
   };
 
