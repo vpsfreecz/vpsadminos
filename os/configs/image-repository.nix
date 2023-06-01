@@ -52,7 +52,7 @@
       };
 
       nixos = {
-        "22.11" = { tags = [ "latest" "stable" ]; };
+        "23.05" = { tags = [ "latest" "stable" ]; };
         "unstable" = { tags = [ "unstable" ]; };
       };
 
