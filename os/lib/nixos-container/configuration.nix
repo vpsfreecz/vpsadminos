@@ -12,7 +12,7 @@ let
       ];
 
       services.openssh.enable = true;
-      services.openssh.permitRootLogin = "yes";
+      services.openssh.settings.PermitRootLogin = "yes";
       #users.extraUsers.root.openssh.authorizedKeys.keys =
       #  [ "..." ];
 
@@ -38,7 +38,7 @@ in {
   system.stateVersion = lib.trivial.release;
 
   services.openssh.enable = lib.mkDefault true;
-  services.openssh.permitRootLogin = lib.mkDefault "yes";
+  services.openssh.settings.PermitRootLogin = lib.mkDefault "yes";
 
   systemd.extraConfig = ''
     DefaultTimeoutStartSec=900s
