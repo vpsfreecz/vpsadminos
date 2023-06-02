@@ -236,6 +236,14 @@ in
         Shell commands to be executed before the failure prompt is shown.
       '';
     };
+    boot.initrd.checkJournalingFS = mkOption {
+      default = false;
+      type = types.bool;
+      readOnly = true;
+      description = lib.mdDoc ''
+        Whether to run {command}`fsck` on journaling filesystems such as ext3.
+      '';
+    };
     boot.initrd.preLVMCommands = mkOption {
       default = "";
       type = types.lines;
