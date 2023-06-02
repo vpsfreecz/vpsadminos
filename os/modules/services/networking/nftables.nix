@@ -1,22 +1,15 @@
 { config, lib, oslib, pkgs, ... }:
 with lib;
 let
-  cfg = config.networking.firewall;
-  systemdService = config.systemd.services.firewall;
+  cfg = config.networking.nftables;
+  systemdService = config.systemd.services.nftables;
   cmd = opt: oslib.systemd.extractExecCommand opt;
   systemPath = concatMapStringsSep ":" (pkg: "${pkg}/bin") systemdService.path;
-in
-{
-  ###### interface
-
-  imports = [
-    <nixpkgs/nixos/modules/services/networking/firewall.nix>
-  ];
-
-  ###### implementation
+in {
+  # Based on <nixpkgs/nixos/modules/services/networking/nftables.nix>
 
   config = mkIf cfg.enable {
-    runit.services.firewall = {
+    runit.services.nftables = {
       run = ''
         ensureServiceStarted eudev-trigger
         export PATH="${systemPath}:$PATH"

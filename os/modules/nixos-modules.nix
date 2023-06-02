@@ -34,6 +34,10 @@
   <nixpkgs/nixos/modules/virtualisation/lxcfs.nix>
   <nixpkgs/nixos/modules/services/misc/nix-daemon.nix>
   <nixpkgs/nixos/modules/services/networking/dhcpd.nix>
+  <nixpkgs/nixos/modules/services/networking/firewall.nix>
+  <nixpkgs/nixos/modules/services/networking/firewall-iptables.nix>
+  <nixpkgs/nixos/modules/services/networking/firewall-nftables.nix>
+  <nixpkgs/nixos/modules/services/networking/nftables.nix>
   <nixpkgs/nixos/modules/services/networking/ssh/sshd.nix>
   <nixpkgs/nixos/modules/system/boot/kernel.nix>
   <nixpkgs/nixos/modules/misc/assertions.nix>
