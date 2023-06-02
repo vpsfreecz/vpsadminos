@@ -4,7 +4,7 @@ require 'json'
 
 class Configuration
   OUT = '@out@'
-  ETC = '@etc@'
+  ETC = File.join(OUT, 'etc')
   CURRENT_SYSTEM = '/run/current-system'
   CURRENT_BIN = File.join(CURRENT_SYSTEM, 'sw/bin')
   NEW_BIN = File.join(OUT, 'sw', 'bin')
@@ -198,13 +198,12 @@ class Services
     end
   end
 
-  Service = Struct.new(:name, :base_path, :cfg, :opts) do
+  Service = Struct.new(:name, :etc_path, :cfg, :opts) do
     attr_reader :run_path, :on_change, :reload_method
 
     def initialize(*_)
       super
-
-      @run_path = File.realpath(File.join(base_path, 'etc/runit/services', name, 'run'))
+      @run_path = File.realpath(File.join(etc_path, 'runit/services', name, 'run'))
       @on_change = cfg['onChange'].to_sym
       @reload_method = cfg['reloadMethod']
     end
@@ -261,7 +260,7 @@ class Services
 
     @protected_list = ServiceNameList.new('/run/runit/protected-services.txt')
 
-    @old_services = get_services(@old_cfg, @old_runlevel, '/')
+    @old_services = get_services(@old_cfg, @old_runlevel, '/etc')
     @new_services = get_services(@new_cfg, @new_runlevel, Configuration::ETC)
   end
 
@@ -325,10 +324,10 @@ class Services
   # Return services from a selected runlevel
   # @param cfg [Hash] service config
   # @param runlevel [String] include only services from this runlevel
-  # @param base_dir [String] absolute path to a directory containing the system's
+  # @param etc_dir [String] absolute path to a directory containing the system's
   #                          `/etc`
   # @return [Hash<String, Service>]
-  def get_services(cfg, runlevel, base_dir)
+  def get_services(cfg, runlevel, etc_dir)
     ret = {}
 
     cfg['services'].each do |name, service|
@@ -337,7 +336,7 @@ class Services
       begin
         ret[name] = Service.new(
           name,
-          base_dir,
+          etc_dir,
           service,
           opts.merge({skip: protected_list.include?(name)}),
         )
