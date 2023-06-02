@@ -39,7 +39,7 @@ let
     DEFAULT boot
 
     LABEL boot
-    MENU LABEL vpsAdminOS ${config.system.osVersion} (${config.system.osCodeName})
+    MENU LABEL vpsAdminOS ${config.system.vpsadminos.version} (${config.system.codeName})
     LINUX /boot/bzImage
     APPEND init=${config.system.build.toplevel}/init ${toString config.boot.kernelParams}
     INITRD /boot/initrd
@@ -285,7 +285,7 @@ in
         { source = config.isoImage.splashImage;
           target = "/isolinux/background.png";
         }
-        { source = pkgs.writeText "version" config.system.osVersion;
+        { source = pkgs.writeText "version" config.system.vpsadminos.version;
           target = "/version.txt";
         }
       ] ++ optionals config.isoImage.makeEfiBootable [

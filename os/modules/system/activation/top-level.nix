@@ -27,7 +27,7 @@ let
       ln -s ${kernelPath} $out/kernel
       ln -s ${initrdPath} $out/initrd
       ln -s ${config.system.modulesTree} $out/kernel-modules
-      echo -n "$osLabel" > $out/os-version
+      echo -n "$vpsadminosLabel" > $out/os-version
       echo -n "$kernelParams" > $out/kernel-params
       ln -s ${serviceList} $out/services
 
@@ -55,7 +55,7 @@ let
   # `switch-to-configuration' that activates the configuration and
   # makes it bootable.
   baseSystem = pkgs.stdenvNoCC.mkDerivation ({
-    name = "vpsadminos-system-${config.system.name}-${config.system.osLabel}";
+    name = "vpsadminos-system-${config.system.name}-${config.system.vpsadminos.label}";
     preferLocalBuild = true;
     allowSubstitutes = false;
     passAsFile = [ "extraDependencies" ];
@@ -71,7 +71,7 @@ let
     installBootLoader = config.system.build.installBootLoader;
     activationScript = config.system.activationScripts.script;
     dryActivationScript = config.system.dryActivationScript;
-    osLabel = config.system.osLabel;
+    vpsadminosLabel = config.system.vpsadminos.label;
 
     inherit (config.system) extraDependencies;
   } // config.system.systemBuilderArgs);
@@ -278,7 +278,7 @@ in {
         The name of the system used in the {option}`system.build.toplevel` derivation.
 
         That derivation has the following name:
-        `"vpsadminos-system-''${config.system.name}-''${config.system.osLabel}"`
+        `"vpsadminos-system-''${config.system.name}-''${config.system.vpsadminos.label}"`
       '';
     };
 

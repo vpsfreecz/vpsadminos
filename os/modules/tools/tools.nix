@@ -35,13 +35,14 @@ let
     src = ./os-generate-config.pl;
     path = [ pkgs.btrfs-progs ];
     perl = "${pkgs.perl}/bin/perl -I${pkgs.perlPackages.FileSlurp}/lib/perl5/site_perl";
-    inherit (config.system) osRelease;
+    inherit (config.system.vpsadminos) release;
   };
 
   os-version = makeProg {
     name = "os-version";
     src = ./os-version.sh;
-    inherit (config.system) osVersion osCodeName osRevision;
+    inherit (config.system.vpsadminos) version revision;
+    inherit (config.system) codeName;
   };
 
   os-enter = makeProg {

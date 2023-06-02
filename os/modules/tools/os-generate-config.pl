@@ -610,7 +610,7 @@ $bootLoaderConfig
   # servers. You should change this only after vpsAdminOS release notes say you
   # should.
   # XXX:
-  #system.nixos.stateVersion = "${\(qw(@osRelease@))}"; # Did you read the comment?
+  #system.nixos.stateVersion = "${\(qw(@release@))}"; # Did you read the comment?
 
 }
 EOF

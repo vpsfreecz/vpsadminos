@@ -6,9 +6,9 @@ case "$1" in
     exit 1
     ;;
   --hash|--revision)
-    echo "@osRevision@"
+    echo "@revision@"
     ;;
   *)
-    echo "@osVersion@ (@osCodeName@)"
+    echo "@version@ (@codeName@)"
     ;;
 esac

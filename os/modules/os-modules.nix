@@ -7,6 +7,7 @@
   ./config/tunables.nix
   ./misc/manual.nix
   ./misc/crashdump.nix
+  ./misc/label.nix
   ./misc/os-lib.nix
   ./misc/version.nix
   ./nixos-compat.nix

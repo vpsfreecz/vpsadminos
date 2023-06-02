@@ -22,7 +22,7 @@ let
   # We need a copy of the Nix expressions for Nixpkgs and vpsAdminOS on the
   # CD. These are installed as "nixos/nixpkgs" and "vpsadminos" channels
   # of the root user, as expected by os-rebuild/os-install.
-  channelSources = pkgs.runCommand "vpsadminos-${config.system.osVersion}"
+  channelSources = pkgs.runCommand "vpsadminos-${config.system.vpsadminos.version}"
     { }
     ''
       mkdir -p $out $out/vpsadminos $out/vpsadminos/artwork
@@ -35,10 +35,10 @@ let
       if [ ! -e $out/nixos/nixpkgs ]; then
         ln -s . $out/nixos/nixpkgs
       fi
-      echo -n ${config.system.osRelease} > $out/vpsadminos/.version
-      echo -n ${config.system.osVersionSuffix} > $out/vpsadminos/.version-suffix
-      echo -n ${config.system.osRevision} > $out/vpsadminos/.git-revision
-      echo ${config.system.osVersionSuffix} | sed -e s/pre// > $out/vpsadminos/svn-revision
+      echo -n ${config.system.vpsadminos.release} > $out/vpsadminos/.version
+      echo -n ${config.system.vpsadminos.versionSuffix} > $out/vpsadminos/.version-suffix
+      echo -n ${config.system.vpsadminos.revision} > $out/vpsadminos/.git-revision
+      echo ${config.system.vpsadminos.versionSuffix} | sed -e s/pre// > $out/vpsadminos/svn-revision
     '';
 
 in
