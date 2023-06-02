@@ -30,6 +30,20 @@ mkdir /run/wrappers /run/lock
 chmod a+rxw /dev/kmsg
 chmod a+rxw /proc/kmsg
 
+# Make /nix/store a read-only bind mount to enforce immutability of
+# the Nix store.  Note that we can't use "chown root:nixbld" here
+# because users/groups might not exist yet.
+# Silence chown/chmod to fail gracefully on a readonly filesystem
+# like squashfs.
+chown -f 0:30000 /nix/store
+chmod -f 1775 /nix/store
+if [ -n "@readOnlyNixStore@" ]; then
+  if ! [[ "$(findmnt --noheadings --output OPTIONS /nix/store)" =~ ro(,|$) ]]; then
+    mount --bind /nix/store /nix/store
+    mount -o remount,ro,bind /nix/store
+  fi
+fi
+
 hostname @hostName@
 
 $systemConfig/activate

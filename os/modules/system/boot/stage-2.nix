@@ -20,6 +20,17 @@ in
         '';
       };
 
+      readOnlyNixStore = mkOption {
+        type = types.bool;
+        default = true;
+        description = lib.mdDoc ''
+          If set, NixOS will enforce the immutability of the Nix store
+          by making {file}`/nix/store` a read-only bind
+          mount.  Nix will automatically make the store writable when
+          needed.
+        '';
+      };
+
       procHidePid = mkOption {
         type = types.bool;
         default = false;
@@ -33,7 +44,7 @@ in
       isExecutable = true;
       path = config.system.path;
       inherit (config.networking) hostName;
-      inherit (config.boot) procHidePid;
+      inherit (config.boot) procHidePid readOnlyNixStore;
       inherit postBootCommands;
     };
   };
