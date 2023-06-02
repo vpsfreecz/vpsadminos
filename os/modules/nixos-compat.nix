@@ -4,41 +4,45 @@ with lib;
 
 {
   options = {
-    boot.initrd.systemd = mkOption { };
-    services = {
-      cgmanager = mkOption { };
-      fprintd = mkOption { };
-      geoclue2 = mkOption { };
-      sssd = mkOption { };
-      nscd = mkOption { };
-      avahi = mkOption { };
-      samba = mkOption { };
-      xserver = mkOption { };
+    boot.initrd.systemd = {
+      enable = mkOption { type = types.bool; default = false; readOnly = true; };
+      contents = mkOption { type = types.unspecified; };
+      managerEnvironment = mkOption { type = types.unspecified; };
+      services = mkOption { type = types.unspecified; };
+      storePaths = mkOption { type = types.unspecified; };
+      network.enable = mkOption { type = types.bool; default = false; readOnly = true; };
     };
-    meta = {
-      maintainers = mkOption { };
+    services = {
+      cgmanager = mkOption { type = types.unspecified; };
+      fprintd = mkOption { type = types.unspecified; };
+      geoclue2 = mkOption { type = types.unspecified; };
+      sssd = mkOption { type = types.unspecified; };
+      homed.enable = mkOption { type = types.bool; default = false; };
+      nscd = mkOption { type = types.unspecified; };
+      avahi = mkOption { type = types.unspecified; };
+      samba = mkOption { type = types.unspecified; };
+      xserver = mkOption { type = types.unspecified; };
     };
     networking.enableIPv6 = mkOption { default = true; };
-    networking.hostId = mkOption { };
-    programs.ssh.package = mkOption { };
-    programs.ssh.setXAuthLocation = mkOption { default = false; };
-    krb5 = mkOption { };
-    security.virtualisation = mkOption { };
-    security.pam.oath.enable = mkOption { };
-    security.pam.usb.enable = mkOption { };
-    security.pam.mount.enable = mkOption { };
+    networking.hostId = mkOption { type = types.unspecified; };
+    networking.networkmanager = mkOption { type = types.unspecified; };
+    krb5 = mkOption { type = types.unspecified; };
+    security.virtualisation = mkOption { type = types.unspecified; };
+    security.pam.oath.enable = mkOption { type = types.unspecified; };
+    security.pam.usb.enable = mkOption { type = types.unspecified; };
+    security.pam.mount.enable = mkOption { type = types.unspecified; };
 
     systemd = {
-      globalEnvironment = mkOption {};
-      package = mkOption { default = "/not-on-vpsadminos"; };
-      packages = mkOption {};
+      globalEnvironment = mkOption { type = types.unspecified; };
+      package = mkOption { type = types.unspecified; default = "/not-on-vpsadminos"; };
+      packages = mkOption { type = types.unspecified; };
       services = mkOption {
         type = types.attrsOf types.unspecified;
       };
-      sockets = mkOption {};
-      targets = mkOption {};
-      tmpfiles = mkOption {};
-      user = mkOption {};
+      sockets = mkOption { type = types.unspecified; };
+      targets = mkOption { type = types.unspecified; };
+      tmpfiles = mkOption { type = types.unspecified; };
+      user = mkOption { type = types.unspecified; };
     };
   };
   config = {
