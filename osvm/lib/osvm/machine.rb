@@ -469,10 +469,10 @@ module OsVm
         f = File.open(virtiofs_log_path(name), 'w')
 
         virtiofsd_pids << Process.spawn(
-          File.join(config[:qemu], 'libexec/virtiofsd'),
-          "--socket-path=#{virtiofs_socket_path(name)}",
-          "-o", "source=#{path}",
-          "-o", "cache=none",
+          File.join(config[:virtiofsd], 'bin/virtiofsd'),
+          "--socket-path", virtiofs_socket_path(name),
+          "--shared-dir", path,
+          "--cache", "never",
           in: :close,
           out: f,
           err: f,

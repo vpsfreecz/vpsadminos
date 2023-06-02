@@ -31,6 +31,7 @@ let
       qemuCfg = os.config.boot.qemu;
     in {
       qemu = toString nixpkgs.pkgs.qemu_kvm;
+      virtiofsd = toString nixpkgs.pkgs.virtiofsd;
       memory = qemuCfg.memory;
       cpus = qemuCfg.cpus;
       cpu = qemuCfg.cpu;
