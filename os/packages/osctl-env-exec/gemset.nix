@@ -77,20 +77,12 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "18cfyq2p9g8s7ajmw2klfmjrhvl717aa7akb6vpf7sjkrwlfbk37";
+      sha256 = "1ywpr79ss2z1dszzg5z7bg2kqrl6x4mvzamcr06ssc5i3b4zk8xs";
       type = "gem";
     };
-    version = "22.11.0.build20230410220547";
+    version = "23.05.0.build20230606094012";
   };
   rake = {
-    groups = ["default"];
-    platforms = [];
-    source = {
-      remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "15whn7p9nrkxangbs9hh75q585yfn66lv0v2mhj6q6dl6x8bzr2w";
-      type = "gem";
-    };
-    version = "13.0.6";
   };
   rake-compiler = {
     dependencies = ["rake"];
