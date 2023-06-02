@@ -31,17 +31,5 @@ with lib;
         message = "Base name of system.secretsDir has to be 'secrets'";
       }
     ];
-
-    system.activationScripts = {
-      secrets = {
-        text = ''
-          if [ -d /nix/store/secrets ] ; then
-            [ -d /var/secrets ] && rm -rf /var/secrets
-            mv /nix/store/secrets /var/secrets
-          fi
-        '';
-        deps = [];
-      };
-    };
   };
 }
