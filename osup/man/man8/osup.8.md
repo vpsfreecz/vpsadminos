@@ -1,4 +1,4 @@
-# osup 8                          2022-12-02                             22.11.0
+# osup 8                          2023-06-02                             23.05.0
 
 ## NAME
 `osup` - system upgrade manager for vpsAdminOS
