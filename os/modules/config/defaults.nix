@@ -8,7 +8,7 @@
   services.logrotate.enable = lib.mkDefault true;
   services.openssh = {
     enable = lib.mkDefault true;
-    kbdInteractiveAuthentication = lib.mkDefault false;
+    settings.KbdInteractiveAuthentication = lib.mkDefault false;
   };
   services.zfs.autoScrub = lib.mkDefault {
     enable = true;
