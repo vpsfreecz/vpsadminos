@@ -325,6 +325,15 @@ in {
       default = false;
     };
 
+    boot.isLiveSystem = mkOption {
+      type = types.bool;
+      default = true;
+      description = lib.mdDoc ''
+        Set to `true` if this system is being booted e.g. from PXE, i.e. when
+        there's no boot loader.
+      '';
+    };
+
     boot.predefinedFailAction = mkOption {
       type = types.enum ["" "n" "i" "r" "*" ];
       default = "";
@@ -359,6 +368,10 @@ in {
 
   config = {
     environment.systemPackages = optional config.vpsadminos.nix pkgs.nix;
+
+    system.build.installBootLoader = mkIf config.boot.isLiveSystem "none";
+
+    boot.kernelParams = optional (!config.boot.isLiveSystem) [ "nolive" ];
 
     system.extraSystemBuilderCmds =
       optionalString
