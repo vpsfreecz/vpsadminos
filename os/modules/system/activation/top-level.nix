@@ -42,6 +42,14 @@ let
       substituteAll ${./switch-to-configuration.rb} $out/bin/switch-to-configuration
       chmod +x $out/bin/switch-to-configuration
 
+      ${optionalString (pkgs.stdenv.hostPlatform == pkgs.stdenv.buildPlatform) ''
+        if ! output=$($ruby/bin/ruby -c $out/bin/switch-to-configuration 2>&1); then
+          echo "switch-to-configuration syntax is not valid:"
+          echo "$output"
+          exit 1
+        fi
+      ''}
+
       ${config.system.systemBuilderCommands}
 
       cp "$extraDependenciesPath" "$out/extra-dependencies"
