@@ -38,8 +38,6 @@
     );
   };
 
-  vpsadminos.nix = lib.mkDefault true;
-
   nix = {
     daemon.enable = lib.mkDefault true;
   };

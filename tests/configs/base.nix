@@ -17,7 +17,6 @@ with lib;
   networking.dhcpd = mkDefault true;
   networking.nameservers = mkDefault [ "10.0.2.3" ];
   osctl.test-shell.enable = true;
-  vpsadminos.nix = true;
   tty.autologin.enable = mkDefault true;
   services.haveged.enable = mkDefault true;
   os.channel-registration.enable = mkDefault false;

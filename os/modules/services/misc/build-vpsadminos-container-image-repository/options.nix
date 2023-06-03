@@ -177,7 +177,6 @@ in {
             trash_bin.prune_interval = 1*60;
           };
 
-          vpsadminos.nix = true;
           tty.autologin.enable = mkDefault true;
           services.haveged.enable = mkDefault true;
           os.channel-registration.enable = mkDefault false;

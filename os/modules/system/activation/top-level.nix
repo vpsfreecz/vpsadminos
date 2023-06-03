@@ -358,17 +358,9 @@ in {
         This feature is experimental.
       '';
     };
-
-    vpsadminos.nix = mkOption {
-      type = types.bool;
-      default = true;
-      description = "enable nix-daemon and a writeable store";
-    };
   };
 
   config = {
-    environment.systemPackages = optional config.vpsadminos.nix pkgs.nix;
-
     system.build.installBootLoader = mkIf config.boot.isLiveSystem "none";
 
     boot.kernelParams = optional (!config.boot.isLiveSystem) [ "nolive" ];
