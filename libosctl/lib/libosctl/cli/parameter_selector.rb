@@ -3,9 +3,11 @@ module OsCtl::Lib
   class Cli::ParameterSelector
     # @param all_params [Array<Symbol>] list of all possible parameters
     # @param default_params [Array<Symbol>, nil] list of default parameters
-    def initialize(all_params:, default_params: nil)
+    # @param allow_user_attributes [Boolean] allow custom user attributes, i.e. <vendor>:<key>
+    def initialize(all_params:, default_params: nil, allow_user_attributes: true)
       @all_params = all_params.map(&:to_sym)
       @default_params = default_params ? default_params.map(&:to_sym) : @all_params
+      @allow_user_attributes = allow_user_attributes
     end
 
     # Parse input from CLI option and return a list of wanted parameters
@@ -37,7 +39,8 @@ module OsCtl::Lib
       end
 
       wanted.each do |param|
-        unless @all_params.include?(param)
+        if !@all_params.include?(param) \
+           && (!@allow_user_attributes || !param.to_s.include?(':'))
           raise GLI::BadCommandLine, "unknown output parameter #{param.to_s.inspect}"
         end
       end
