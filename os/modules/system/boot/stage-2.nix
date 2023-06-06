@@ -22,7 +22,7 @@ in
 
       readOnlyNixStore = mkOption {
         type = types.bool;
-        default = true;
+        default = false;
         description = lib.mdDoc ''
           If set, NixOS will enforce the immutability of the Nix store
           by making {file}`/nix/store` a read-only bind
@@ -47,5 +47,7 @@ in
       inherit (config.boot) procHidePid readOnlyNixStore;
       inherit postBootCommands;
     };
+
+    boot.readOnlyNixStore = mkIf (!config.boot.isLiveSystem) (mkDefault true);
   };
 }
