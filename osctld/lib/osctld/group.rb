@@ -312,7 +312,7 @@ module OsCtld
     end
 
     def export
-      sync do
+      inclusively do
         {
           pool: pool.name,
           name: name,
