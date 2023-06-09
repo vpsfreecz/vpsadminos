@@ -14,13 +14,15 @@ module OsVm
     # @param sockdir [String]
     # @param default_timeout [Integer]
     # @param hash_base [String]
-    def initialize(name, config, tmpdir, sockdir, default_timeout: 900, hash_base: '')
+    # @param interactive_console [Boolean]
+    def initialize(name, config, tmpdir, sockdir, default_timeout: 900, hash_base: '', interactive_console: false)
       @name = name
       @config = config
       @tmpdir = tmpdir
       @sockdir = sockdir
       @default_timeout = default_timeout || 900
       @hash_base = hash_base
+      @interactive_console = interactive_console
       @running = false
       @shell_up = false
       @shared_dir = SharedDir.new(self)
@@ -59,22 +61,37 @@ module OsVm
         sleep(1)
       end
 
-      @qemu_read, w = IO.pipe
+      qemu_kwargs = {}
+
+      unless @interactive_console
+        @qemu_read, w = IO.pipe
+
+        qemu_kwargs = {
+          in: :close,
+          out: w,
+          err: w,
+        }
+      end
+
       @qemu_pid = Process.spawn(
         *qemu_command(kernel_params: kernel_params),
-        in: :close,
-        out: w,
-        err: w,
+        **qemu_kwargs,
       )
-      w.close
+      w.close unless @interactive_console
       run_qemu_reaper(qemu_pid)
 
       @running = true
 
-      run_console_thread
+      run_console_thread unless @interactive_console
 
       @shell = @shell_server.accept
       self
+    end
+
+    # Block until the machine stops
+    def join(timeout: @default_timeout)
+      qemu_reaper.join(timeout)
+      nil
     end
 
     # Stop the machine
@@ -511,11 +528,16 @@ module OsVm
         log.exit($?.exitstatus)
 
         @qemu_pid = nil
-        @qemu_read.close
-        @qemu_read = nil
 
-        console_thread.join
-        @console_thread = nil
+        if @qemu_read
+          @qemu_read.close
+          @qemu_read = nil
+        end
+
+        if @console_thread
+          console_thread.join
+          @console_thread = nil
+        end
 
         shell_server.close
         @shell_server = nil
@@ -559,7 +581,9 @@ module OsVm
 
     def prepare_disks
       config.disks.each do |disk|
-        next if disk.type != 'file' || File.exist?(disk_path(disk.device))
+        if disk.type != 'file' || !disk.create || File.exist?(disk_path(disk.device))
+          next
+        end
 
         `truncate -s#{disk.size} #{disk_path(disk.device)}`
       end

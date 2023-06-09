@@ -41,7 +41,7 @@ module OsVm
         end
 
         @size = cfg.fetch(:size)
-        @create = cfg.fetch(:create)
+        @create = cfg.fetch(:create, true)
       end
     end
 

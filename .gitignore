@@ -5,7 +5,7 @@ z_trash
 result*
 site
 .*.swp
-*.img
+os/.osvm-qemu
 os/configs/local.nix
 .gems
 shellhook.local.sh

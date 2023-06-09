@@ -3,42 +3,95 @@ with lib;
 let
   cfg = config.boot.qemu;
 
-  qemuDisk = {
-    options = {
-      device = mkOption {
-        type = types.str;
-        description = "Path to the disk device";
-      };
+  qemuDisk =
+    { config, ... }:
+    {
+      options = {
+        device = mkOption {
+          type = types.str;
+          description = "Path to the disk device";
+        };
 
-      type = mkOption {
-        type = types.enum [ "file" "blockdev" ];
-        description = "Device type";
-      };
+        type = mkOption {
+          type = types.enum [ "file" "blockdev" ];
+          description = "Device type";
+        };
 
-      size = mkOption {
-        type = types.str;
-        default = "";
-        description = "Device size";
-      };
+        size = mkOption {
+          type = types.str;
+          default = "";
+          description = "Device size";
+        };
 
-      create = mkOption {
-        type = types.bool;
-        default = false;
-        description = ''
-          Create the device if it does not exist. Applicable only
-          for file-backed devices.
-        '';
+        create = mkOption {
+          type = types.bool;
+          default = false;
+          description = ''
+            Create the device if it does not exist. Applicable only
+            for file-backed devices.
+          '';
+        };
       };
     };
+
+  sharedFileSystem =
+    { config, ... }:
+    {
+      options = {
+        handle = mkOption {
+          type = types.str;
+          description = "Handle for mounting";
+        };
+
+        hostPath = mkOption {
+          type = types.path;
+          description = "Source directory on the host";
+        };
+
+        guestPath = mkOption {
+          type = types.path;
+          description = "Target mountpoint in the guest";
+        };
+      };
+    };
+
+  mkSharedFileSystems = listToAttrs (map (fs: nameValuePair fs.guestPath {
+    device = fs.handle;
+    fsType = "virtiofs";
+  }) cfg.sharedFileSystems);
+
+  machineConfig = {
+    qemu = toString pkgs.qemu_kvm;
+    virtiofsd = toString pkgs.virtiofsd;
+    memory = cfg.memory;
+    cpus = cfg.cpus;
+    cpu = cfg.cpu;
+    disks = cfg.disks;
+    sharedFileSystems = listToAttrs (map (fs: nameValuePair fs.handle fs.hostPath) cfg.sharedFileSystems);
+    squashfs = config.system.build.squashfs;
+    kernel = "${config.system.build.kernel}/bzImage";
+    initrd = "${config.system.build.initialRamdisk}/initrd";
+    toplevel = config.system.build.toplevel;
+    kernelParams = config.boot.kernelParams ++ [ "quiet" "panic=-1" ];
   };
 
-  allQemuParams =
-    (flatten (imap0 (i: disk: [
-      "-drive id=disk${toString i},file=${disk.device},if=none,format=raw"
-      "-device ide-hd,drive=disk${toString i},bus=ahci.${toString i}"
-    ]) cfg.disks))
-    ++
-    cfg.params;
+  machineConfigFile = pkgs.writeText "machine-config.json" (builtins.toJSON machineConfig);
+
+  osvmScript = pkgs.writeText "osvm-script.rb" ''
+    guest_dir = File.join(".osvm-qemu", "${config.networking.hostName}")
+
+    machine = OsVm::Machine.new(
+      "${config.networking.hostName}",
+      OsVm::MachineConfig.load_file("${machineConfigFile}"),
+      guest_dir,
+      guest_dir,
+      interactive_console: true,
+    )
+    machine.start
+    machine.join(timeout: nil)
+    machine.finalize
+    machine.cleanup
+  '';
 in {
   options = {
     boot.qemu = {
@@ -48,11 +101,6 @@ in {
         description = ''
           QEMU runner
         '';
-      };
-      params = mkOption {
-        internal = true;
-        type = types.listOf types.str;
-        description = "QEMU parameters";
       };
 
       memory = mkOption {
@@ -97,31 +145,25 @@ in {
         ];
         description = "Disks available within the VM";
       };
+
+      sharedFileSystems = mkOption {
+        type = types.listOf (types.submodule sharedFileSystem);
+        default = [];
+        description = ''Filesystems shared between the host and the VM'';
+      };
     };
   };
 
   config = mkIf cfg.enable {
     boot.kernelParams = [ "console=ttyS0" ];
-    boot.qemu.params = lib.mkDefault [
-      "-drive index=0,id=drive1,file=${config.system.build.squashfs},readonly=on,media=cdrom,format=raw,if=virtio"
-      "-kernel ${config.system.build.kernel}/bzImage -initrd ${config.system.build.initialRamdisk}/initrd"
-      ''-append "init=${config.system.build.toplevel}/init ${toString config.boot.kernelParams} quiet panic=-1"''
-      "-nographic"
-    ];
 
-    system.build.runvm = pkgs.writeScript "runner" ''
+    system.build.runvm = pkgs.writeScript "vpsadminos-qemu-runner" ''
       #!${pkgs.stdenv.shell}
-      ${concatStringsSep "\n" (map (disk:
-        ''[ ! -f "${disk.device}" ] && truncate -s${toString disk.size} "${disk.device}"''
-      ) (filter (disk: disk.type == "file" && disk.create) cfg.disks))}
-      exec ${pkgs.qemu_kvm}/bin/qemu-kvm -name vpsadminos -m ${toString cfg.memory} \
-        -cpu host \
-        -smp cpus=${toString cfg.cpus},cores=${toString cfg.cpu.cores},threads=${toString cfg.cpu.threads},sockets=${toString cfg.cpu.sockets} \
-        -no-reboot \
-        -device ahci,id=ahci \
-        -device virtio-net,netdev=net0 \
-        -netdev user,id=net0,net=10.0.2.0/24,host=10.0.2.2,dns=10.0.2.3,hostfwd=tcp::2222-:22 \
-        ${lib.concatStringsSep " \\\n  " allQemuParams}
+      exec ${pkgs.osvm}/bin/osvm script ${osvmScript}
     '';
+
+    boot.postBootCommands = "mkdir -p " + concatMapStringsSep " " (fs: "\"${fs.guestPath}\"") cfg.sharedFileSystems;
+
+    fileSystems = mkSharedFileSystems;
   };
 }
