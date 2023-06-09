@@ -21,7 +21,7 @@ module TestRunner
         var = :"@#{name}"
         m = OsVm::Machine.new(
           name,
-          cfg,
+          OsVm::MachineConfig.new(cfg),
           opts[:state_dir],
           opts[:sock_dir],
           default_timeout: opts[:default_timeout],

@@ -15,7 +15,7 @@ let
     cpus = repoCfg.osVm.cpus;
     cpu = repoCfg.osVm.cpu;
     disks = repoCfg.osVm.disks;
-    shared_filesystems = {
+    sharedFileSystems = {
       "buildScripts" = repoCfg.buildScripts;
       "cacheDir" = repoCfg.cacheDirectory;
       "logDir" = repoCfg.logDirectory;
@@ -39,18 +39,23 @@ let
     require 'fileutils'
     require 'json'
 
-    cfg = JSON.parse(File.read('${machineConfigFile repoCfg}'), symbolize_names: true)
+    cfg = OsVm::MachineConfig.load_file('${machineConfigFile repoCfg}')
 
     stateDir = '${stateDir repoName}'
     FileUtils.mkdir_p(stateDir)
 
-    machine = OsVm::Machine.new("builder-${repoName}", cfg, stateDir, stateDir)
+    machine = OsVm::Machine.new(
+      "builder-${repoName}",
+      cfg,
+      stateDir,
+      stateDir,
+    )
 
     begin
       machine.start
       machine.wait_for_boot
 
-      cfg[:shared_filesystems].each_key do |fs_name|
+      cfg.shared_filesystems.each_key do |fs_name|
         mountpoint = "/mnt/#{fs_name}"
 
         machine.all_succeed(

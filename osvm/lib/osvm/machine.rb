@@ -5,8 +5,15 @@ require 'thread'
 
 module OsVm
   class Machine
+    # @return [String]
     attr_reader :name
 
+    # @param name [String]
+    # @param config [MachineConfig]
+    # @param tmpdir [String]
+    # @param sockdir [String]
+    # @param default_timeout [Integer]
+    # @param hash_base [String]
     def initialize(name, config, tmpdir, sockdir, default_timeout: 900, hash_base: '')
       @name = name
       @config = config
@@ -19,7 +26,7 @@ module OsVm
       @shared_dir = SharedDir.new(self)
       @shared_filesystems = {
         shared_dir.fs_name => shared_dir.host_path,
-      }.merge(config.fetch(:shared_filesystems, {}))
+      }.merge(config.shared_filesystems)
       @can_use_virtiofs = Process.uid == 0
       @virtiofsd_pids = []
       @mutex = Mutex.new
@@ -411,25 +418,25 @@ module OsVm
     def qemu_command(kernel_params: [])
       all_kernel_params = [
         "console=ttyS0",
-        "init=#{config[:toplevel]}/init",
-      ] + config[:kernelParams] + kernel_params
+        "init=#{config.toplevel}/init",
+      ] + config.kernel_params + kernel_params
 
       [
-        "#{config[:qemu]}/bin/qemu-kvm",
+        "#{config.qemu}/bin/qemu-kvm",
         "-name", "os-vm-#{name}",
-        "-m", "#{config[:memory]}",
+        "-m", "#{config.memory}",
         "-cpu", "host",
-        "-smp", "cpus=#{config[:cpus]},cores=#{config[:cpu][:cores]},threads=#{config[:cpu][:threads]},sockets=#{config[:cpu][:sockets]}",
+        "-smp", "cpus=#{config.cpus},cores=#{config.cpu.cores},threads=#{config.cpu.threads},sockets=#{config.cpu.sockets}",
         "--no-reboot",
         "-device", "ahci,id=ahci",
         "-device", "virtio-net,netdev=net0",
         "-netdev", "user,id=net0,net=10.0.2.0/24,host=10.0.2.2,dns=10.0.2.3",
-        "-drive", "index=0,id=drive1,file=#{config[:squashfs]},readonly=on,media=cdrom,format=raw,if=virtio",
+        "-drive", "index=0,id=drive1,file=#{config.squashfs},readonly=on,media=cdrom,format=raw,if=virtio",
         "-chardev", "socket,id=shell,path=#{shell_socket_path}",
         "-device", "virtio-serial",
         "-device", "virtconsole,chardev=shell",
-        "-kernel", config[:kernel],
-        "-initrd", config[:initrd],
+        "-kernel", config.kernel,
+        "-initrd", config.initrd,
         "-append", "#{all_kernel_params.join(' ')}",
         "-nographic",
       ] + qemu_disk_options + qemu_virtiofs_options
@@ -438,8 +445,8 @@ module OsVm
     def qemu_disk_options
       ret = []
 
-      config[:disks].each_with_index do |disk, i|
-        ret << "-drive" << "id=disk#{i},file=#{disk_path(disk[:device])},if=none,format=raw"
+      config.disks.each_with_index do |disk, i|
+        ret << "-drive" << "id=disk#{i},file=#{disk_path(disk.device)},if=none,format=raw"
         ret << "-device" << "ide-hd,drive=disk#{i},bus=ahci.#{i}"
       end
 
@@ -457,7 +464,7 @@ module OsVm
       end
 
       if ret.any?
-        ret << "-object" << "memory-backend-file,id=m0,size=#{config[:memory]}M,mem-path=/dev/shm,share=on"
+        ret << "-object" << "memory-backend-file,id=m0,size=#{config.memory}M,mem-path=/dev/shm,share=on"
         ret << "-numa" << "node,memdev=m0"
       end
 
@@ -469,7 +476,7 @@ module OsVm
         f = File.open(virtiofs_log_path(name), 'w')
 
         virtiofsd_pids << Process.spawn(
-          File.join(config[:virtiofsd], 'bin/virtiofsd'),
+          File.join(config.virtiofsd, 'bin/virtiofsd'),
           "--socket-path", virtiofs_socket_path(name),
           "--shared-dir", path,
           "--cache", "never",
@@ -551,18 +558,18 @@ module OsVm
     end
 
     def prepare_disks
-      config[:disks].each do |disk|
-        next if disk[:type] != 'file' || File.exist?(disk_path(disk[:device]))
+      config.disks.each do |disk|
+        next if disk.type != 'file' || File.exist?(disk_path(disk.device))
 
-        `truncate -s#{disk[:size]} #{disk_path(disk[:device])}`
+        `truncate -s#{disk.size} #{disk_path(disk.device)}`
       end
     end
 
     def destroy_disks
-      config[:disks].each do |disk|
-        next if disk[:type] != 'file'
+      config.disks.each do |disk|
+        next if disk.type != 'file'
 
-        path = disk_path(disk[:device])
+        path = disk_path(disk.device)
         File.unlink(path) if File.exist?(path)
       end
     end
