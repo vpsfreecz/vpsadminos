@@ -456,7 +456,7 @@ module OsVm
         "-initrd", config.initrd,
         "-append", "#{all_kernel_params.join(' ')}",
         "-nographic",
-      ] + qemu_disk_options + qemu_virtiofs_options
+      ] + qemu_disk_options + qemu_virtiofs_options + config.extra_qemu_options
     end
 
     def qemu_disk_options

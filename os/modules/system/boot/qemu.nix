@@ -62,6 +62,7 @@ let
 
   machineConfig = {
     qemu = toString pkgs.qemu_kvm;
+    extraQemuOptions = cfg.extraQemuOptions;
     virtiofsd = toString pkgs.virtiofsd;
     memory = cfg.memory;
     cpus = cfg.cpus;
@@ -149,7 +150,13 @@ in {
       sharedFileSystems = mkOption {
         type = types.listOf (types.submodule sharedFileSystem);
         default = [];
-        description = ''Filesystems shared between the host and the VM'';
+        description = "Filesystems shared between the host and the VM (the guest)";
+      };
+
+      extraQemuOptions = mkOption {
+        type = types.listOf types.str;
+        default = [];
+        description = "Extra command-line arguments passed to qemu";
       };
     };
   };

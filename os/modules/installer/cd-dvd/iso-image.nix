@@ -242,9 +242,9 @@ in
     # contents of the CD to a bootable USB stick.
     boot.initrd.supportedFilesystems = [ "vfat" ];
 
-    boot.qemu.params = [
-      "-cdrom ${config.system.build.isoImage}/iso/${config.isoImage.isoName}"
-      "-boot d"
+    boot.qemu.extraQemuOptions = [
+      "-cdrom" "${config.system.build.isoImage}/iso/${config.isoImage.isoName}"
+      "-boot" "d"
     ];
 
     # Closures to be copied to the Nix store on the CD, namely the init

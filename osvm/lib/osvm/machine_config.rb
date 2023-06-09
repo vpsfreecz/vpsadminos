@@ -56,6 +56,9 @@ module OsVm
     # @return [String] path to qemu package
     attr_reader :qemu
 
+    # @return [Array<String>]
+    attr_reader :extra_qemu_options
+
     # @return [String] path to virtiofsd package
     attr_reader :virtiofsd
 
@@ -92,6 +95,7 @@ module OsVm
     # @param cfg [Hash]
     def initialize(cfg)
       @qemu = cfg.fetch(:qemu)
+      @extra_qemu_options = cfg.fetch(:extraQemuOptions, [])
       @virtiofsd = cfg.fetch(:virtiofsd)
       @squashfs = cfg.fetch(:squashfs)
       @kernel = cfg.fetch(:kernel)
