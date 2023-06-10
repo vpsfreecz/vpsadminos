@@ -85,7 +85,7 @@ let
   machineConfigFile = pkgs.writeText "machine-config.json" (builtins.toJSON machineConfig);
 
   osvmScript = pkgs.writeText "osvm-script.rb" ''
-    guest_dir = File.join(".osvm-qemu", "${config.networking.hostName}")
+    guest_dir = "${cfg.stateDir}"
 
     machine = OsVm::Machine.new(
       "${config.networking.hostName}",
@@ -191,10 +191,21 @@ in {
         default = [];
         description = "Extra command-line arguments passed to qemu";
       };
+
+      stateDir = mkOption {
+        type = types.str;
+        defaultText = ''.osvm-qemu/''${config.networking.hostName}'';
+        description = ''
+          Directory where qemu-related files are stored, e.g. socket files,
+          disk files, etc.
+        '';
+      };
     };
   };
 
   config = mkIf cfg.enable {
+    boot.qemu.stateDir = mkDefault ".osvm-qemu/${config.networking.hostName}";
+
     boot.kernelParams = [ "console=ttyS0" ];
 
     system.build.runvm = pkgs.writeScript "vpsadminos-qemu-runner" ''
