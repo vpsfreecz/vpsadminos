@@ -213,7 +213,8 @@ in {
       exec ${pkgs.osvm}/bin/osvm script ${osvmScript}
     '';
 
-    boot.postBootCommands = "mkdir -p " + concatMapStringsSep " " (fs: "\"${fs.guestPath}\"") cfg.sharedFileSystems;
+    system.activationScripts.qemu-sharedFileSystems =
+      "mkdir -p " + concatMapStringsSep " " (fs: "\"${fs.guestPath}\"") cfg.sharedFileSystems;
 
     fileSystems = mkSharedFileSystems;
   };
