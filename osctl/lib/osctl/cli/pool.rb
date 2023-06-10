@@ -33,7 +33,7 @@ module OsCtl::Cli
     def list
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
         all_params: FIELDS,
-        default_fields: DEFAULT_FIELDS,
+        default_params: DEFAULT_FIELDS,
       )
 
       if opts[:list]
