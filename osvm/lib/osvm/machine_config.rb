@@ -1,4 +1,5 @@
 require 'json'
+require 'securerandom'
 
 module OsVm
   class MachineConfig
@@ -42,6 +43,71 @@ module OsVm
 
         @size = cfg.fetch(:size)
         @create = cfg.fetch(:create, true)
+      end
+    end
+
+    class Network
+      # @return [Network]
+      def self.from_config(cfg)
+        mode = cfg.fetch(:mode)
+        klass =
+          case mode
+          when 'user'
+            UserNetwork
+          when 'bridge'
+            BridgeNetwork
+          else
+            raise ArgumentError, "unknown network mode #{mode.inspect}"
+          end
+
+        klass.new(cfg)
+      end
+
+      # @return [String]
+      attr_reader :mode
+
+      def initialize(cfg)
+        @mode = cfg.fetch(:mode)
+        @opts = cfg.fetch(:opts, {})
+      end
+
+      def qemu_options
+        raise NotImplementedError
+      end
+    end
+
+    class UserNetwork < Network
+      def qemu_options
+        [
+          "-device", "virtio-net,netdev=net0",
+          "-netdev", "user,id=net0,net=10.0.2.0/24,host=10.0.2.2,dns=10.0.2.3",
+        ]
+      end
+    end
+
+    class BridgeNetwork < Network
+      # @return [String]
+      attr_reader :link
+
+      # @return [String]
+      attr_reader :mac
+
+      def initialize(cfg)
+        super
+        @link = @opts.fetch(:link)
+        @mac = gen_mac_address
+      end
+
+      def qemu_options
+        [
+          "-device", "virtio-net,netdev=net1,mac=#{@mac}",
+          "-netdev", "bridge,id=net1,br=#{link}",
+        ]
+      end
+
+      protected
+      def gen_mac_address
+        "00:60:2f:#{SecureRandom.hex(3).chars.each_slice(2).map(&:join).join(':')}"
       end
     end
 
@@ -92,6 +158,9 @@ module OsVm
     # @return [Hash<String, String>] fs name => host directory
     attr_reader :shared_filesystems
 
+    # @return [Network]
+    attr_reader :network
+
     # @param cfg [Hash]
     def initialize(cfg)
       @qemu = cfg.fetch(:qemu)
@@ -107,6 +176,7 @@ module OsVm
       @cpus = cfg.fetch(:cpus)
       @cpu = Cpu.new(cfg.fetch(:cpu))
       @shared_filesystems = cfg.fetch(:sharedFileSystems, {})
+      @network = Network.from_config(cfg.fetch(:network, {mode: 'user'}))
     end
   end
 end

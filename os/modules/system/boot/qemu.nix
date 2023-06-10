@@ -74,6 +74,12 @@ let
     initrd = "${config.system.build.initialRamdisk}/initrd";
     toplevel = config.system.build.toplevel;
     kernelParams = config.boot.kernelParams ++ [ "quiet" "panic=-1" ];
+    network = {
+      mode = cfg.network.mode;
+      opts = {
+        bridge = { link = cfg.network.bridge.link; };
+      }.${cfg.network.mode} or {};
+    };
   };
 
   machineConfigFile = pkgs.writeText "machine-config.json" (builtins.toJSON machineConfig);
@@ -151,6 +157,33 @@ in {
         type = types.listOf (types.submodule sharedFileSystem);
         default = [];
         description = "Filesystems shared between the host and the VM (the guest)";
+      };
+
+      network = {
+        mode = mkOption {
+          type = types.enum [ "user" "bridge" ];
+          default = "user";
+          description = lib.mdDoc ''
+            Network mode
+
+            Mode `user` can create a network even when qemu is run as an unprivileged
+            user and without any additional configuration. However, there are
+            several limitations, see
+
+              https://wiki.qemu.org/Documentation/Networking#User_Networking_(SLIRP)
+
+            Mode `bridge` can add the guest into an existing bridge interface,
+            making it a part of your network, etc. It requires the bridge to be
+            configured and the guest must be run as root.
+          '';
+        };
+
+        bridge.link = mkOption {
+          type = types.str;
+          description = ''
+            Name of the bridge interface on the host to use
+          '';
+        };
       };
 
       extraQemuOptions = mkOption {
