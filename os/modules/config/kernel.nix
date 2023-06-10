@@ -103,7 +103,6 @@ in {
       "ipip"
       "nft_chain_nat"
       "nft_compat"
-      "nft_counter"
       "nft_ct"
       "nft_fib"
       "nft_fib_inet"
