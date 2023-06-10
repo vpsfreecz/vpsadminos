@@ -30,7 +30,8 @@
       debian = {
         "9" = {};
         "10" = {};
-        "11" = { tags = [ "latest" "stable" ]; };
+        "11" = {};
+        "12" = { tags = [ "latest" "stable" ]; };
         "testing" = { tags = [ "testing" ]; };
         "unstable" = { tags = [ "unstable" ]; };
       };
