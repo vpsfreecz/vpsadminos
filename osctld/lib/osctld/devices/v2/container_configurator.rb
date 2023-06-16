@@ -8,6 +8,13 @@ module OsCtld
       get_prog(devices)
     end
 
+    def reconfigure(devices)
+      # Containers that haven't been started yet do not have their cgroup created
+      if CGroup.exist?(abs_cgroup_path)
+        attach_prog(devices)
+      end
+    end
+
     protected
     def cgroup_path
       owner.base_cgroup_path

@@ -9,10 +9,6 @@ module OsCtld
       get_prog(devices)
     end
 
-    def reconfigure(devices)
-      attach_prog(devices)
-    end
-
     protected
     # @return [String] relative cgroup path
     def cgroup_path

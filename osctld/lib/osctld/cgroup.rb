@@ -76,7 +76,14 @@ module OsCtld
     # @param path [String]
     # @return [Boolean]
     def self.abs_cgroup_path_exist?(subsys, *path)
-      Dir.exist?(abs_cgroup_path(subsys, *path))
+      exist?(abs_cgroup_path(subsys, *path))
+    end
+
+    # Check if cgroup at path exists
+    # @param abs_path [String] absolute cgroup path, including `/sys/fs/cgroup`
+    # @return [Boolean]
+    def self.exist?(abs_path)
+      Dir.exist?(abs_path) && File.exist?(File.join(abs_path, 'cgroup.procs'))
     end
 
     # Create CGroup a path, optionally chowning the last CGroup or attaching

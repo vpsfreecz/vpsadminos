@@ -8,6 +8,10 @@ module OsCtld
       attach_prog(devices)
     end
 
+    def reconfigure(devices)
+      attach_prog(devices)
+    end
+
     protected
     def cgroup_path
       owner.cgroup_path
