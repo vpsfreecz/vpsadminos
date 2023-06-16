@@ -25,8 +25,8 @@ import ../../make-test.nix (pkgs: {
 
       prog = prog_list[0]
 
-      if prog['attach_type'] != 'device'
-        fail "expected attach_type device on cgroup #{cgroup.inspect}, got #{prog['attach_type'].inspect}"
+      if prog['attach_type'] != 'cgroup_device'
+        fail "expected attach_type cgroup_device on cgroup #{cgroup.inspect}, got #{prog['attach_type'].inspect}"
       end
 
       if prog['attach_flags'] != 'multi'

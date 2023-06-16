@@ -7,7 +7,7 @@ module OsCtld
         ct.abs_apply_cgroup_path('devices'),
         desc: 'Controls access to devices',
         program_name: configurator.prog_name,
-        attach_type: 'device',
+        attach_type: 'cgroup_device',
         attach_flags: 'multi',
         optional: true,
       )
