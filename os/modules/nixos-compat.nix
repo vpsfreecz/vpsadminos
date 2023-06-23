@@ -22,6 +22,7 @@ with lib;
       avahi = mkOption { type = types.unspecified; };
       samba = mkOption { type = types.unspecified; };
       xserver = mkOption { type = types.unspecified; };
+      kanidm.enablePam = mkOption { type = types.bool; default = false; };
     };
     networking.enableIPv6 = mkOption { default = true; };
     networking.hostId = mkOption { type = types.unspecified; };
