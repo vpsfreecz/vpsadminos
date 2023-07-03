@@ -19,8 +19,8 @@ let
   installModDir = "lib/modules/${kernel.modDirVersion}/extra";
   installModPath = "${installModDir}/${patchModuleName}.ko";
 
-  buildLivePatch = { availablePatchesList, ccacheStdenv }:
-    ccacheStdenv.mkDerivation rec {
+  buildLivePatch = { availablePatchesList, stdenv }:
+    stdenv.mkDerivation rec {
       name = "${patchModuleName}-${kernel.modDirVersion}";
       version = toString patchVersion;
       src = patchesDir;
