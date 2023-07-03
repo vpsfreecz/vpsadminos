@@ -44,7 +44,7 @@ let
         };
 
         hostPath = mkOption {
-          type = types.path;
+          type = types.str;
           description = "Source directory on the host";
         };
 
