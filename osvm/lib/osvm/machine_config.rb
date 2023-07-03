@@ -78,9 +78,12 @@ module OsVm
 
     class UserNetwork < Network
       def qemu_options
+        net_opts = "net=#{@opts.fetch(:network)},host=#{@opts.fetch(:host)},dns=#{@opts.fetch(:dns)}"
+        net_opts << ",hostfwd=#{@opts[:hostForward]}" if @opts[:hostForward]
+
         [
           "-device", "virtio-net,netdev=net0",
-          "-netdev", "user,id=net0,net=10.0.2.0/24,host=10.0.2.2,dns=10.0.2.3",
+          "-netdev", "user,id=net0,#{net_opts}",
         ]
       end
     end

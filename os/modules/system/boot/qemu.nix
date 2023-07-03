@@ -77,6 +77,7 @@ let
     network = {
       mode = cfg.network.mode;
       opts = {
+        user = { inherit (cfg.network.user) network host dns hostForward; };
         bridge = { link = cfg.network.bridge.link; };
       }.${cfg.network.mode} or {};
     };
@@ -176,6 +177,28 @@ in {
             making it a part of your network, etc. It requires the bridge to be
             configured and the guest must be run as root.
           '';
+        };
+
+        user = {
+          network = mkOption {
+            type = types.str;
+            default = "10.0.2.0/24";
+          };
+
+          host = mkOption {
+            type = types.str;
+            default = "10.0.2.2";
+          };
+
+          dns = mkOption {
+            type = types.str;
+            default = "10.0.2.3";
+          };
+
+          hostForward = mkOption {
+            type = types.nullOr types.str;
+            default = "tcp::2222-:22";
+          };
         };
 
         bridge.link = mkOption {
