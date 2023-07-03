@@ -97,7 +97,7 @@ LIVEPATCH_HEADER_END
       '' || ((cat $CACHEDIR/build.log || echo log not found at $CACHEDIR/build.log) && exit 1)
       '';
 
-      nativeBuildInputs = with pkgs; [ perl bc nettools openssl rsync gmp
+      nativeBuildInputs = with pkgs; [ perl bc nettools openssl rsync gmp python3 zlib
                           libmpc mpfr gawk zstd elfutils cpio bison flex ];
 
       installPhase = ''
