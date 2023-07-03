@@ -1,14 +1,15 @@
 { pkgs, getopt, fetchFromGitHub, ... }:
 pkgs.stdenv.mkDerivation rec {
   name = "kpatch-build";
-  version = "0.9.7";
+  version = "0.9.8";
   src = fetchFromGitHub {
     owner = "dynup";
     repo = "kpatch";
-    rev = "6507700d027fb105cd2e4f8a64515f78df5a47ff";
-    sha256 = "sha256-5ZAz79reZoRJ75FamtCTvfxBGMRIhD+pucyM2NZgr0U=";
+    rev = "f8d253421036e030116a6216c327d564f23d4198";
+    sha256 = "sha256-TdVPV8bTOBRNBdBXmaCuzTZ1+7zHvAD6w8FOJZSPnR4=";
   };
   postPatch = ''
+    substituteInPlace ./kpatch-build/kpatch-build --replace /bin/bash "${pkgs.bashInteractive}/bin/bash"
     substituteInPlace ./kpatch-build/kpatch-build --replace "getopt" "${getopt}/bin/getopt"
     substituteInPlace ./kpatch-build/kpatch-build --replace "DEBUG=0" 'DEBUG="''${DEBUG:-3}"'
     substituteInPlace ./kpatch-build/kpatch-build --replace "../patch/tmp_output.o" "\$TEMPDIR/patch/tmp_output.o"
