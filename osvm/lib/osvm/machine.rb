@@ -16,6 +16,12 @@ module OsVm
     # @param hash_base [String]
     # @param interactive_console [Boolean]
     def initialize(name, config, tmpdir, sockdir, default_timeout: 900, hash_base: '', interactive_console: false)
+      @can_use_virtiofs = Process.uid == 0
+
+      if !@can_use_virtiofs && config.shared_filesystems.any?
+        raise ArgumentError, 'Unable to mount shared file systems, must be run as root'
+      end
+
       @name = name
       @config = config
       @tmpdir = tmpdir
@@ -29,7 +35,6 @@ module OsVm
       @shared_filesystems = {
         shared_dir.fs_name => shared_dir.host_path,
       }.merge(config.shared_filesystems)
-      @can_use_virtiofs = Process.uid == 0
       @virtiofsd_pids = []
       @mutex = Mutex.new
 
