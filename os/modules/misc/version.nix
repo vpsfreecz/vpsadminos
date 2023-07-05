@@ -7,7 +7,7 @@ let
   versionFile  = ../../../.version;
   suffixFile   = ../../../.version-suffix;
   revisionFile = ../../../.git-revision;
-  gitRepo      = ../../../.git;
+  gitRepo      = "${toString ../../..}/.git";
   gitCommitId  = lib.substring 0 7 (commitIdFromGitRepo gitRepo);
 
   inherit (lib)
