@@ -1,6 +1,6 @@
 source 'https://rubygems.org'
 
 source 'https://rubygems.vpsfree.cz' do
-  gem 'osctl', '23.05.0.build20230705174705'
+  gem 'osctl', '23.05.0.build20230705185706'
   gem 'libosctl'
 end
