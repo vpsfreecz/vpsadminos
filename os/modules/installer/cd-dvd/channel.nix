@@ -11,6 +11,7 @@ let
   os = (builtins.filterSource (path: type:
     (lib.cleanSourceFilter path type)
     && (!lib.hasSuffix "img" (baseNameOf path))
+    && (!hasInfix "/os/result/" path)
     && (baseNameOf path != "local.nix")
   ) ../../../.);
 
