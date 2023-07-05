@@ -9,6 +9,8 @@ module OsCtld
       end
 
       OsCtl::Lib::Logger.setup(:none)
+      CGroup.init
+
       cfg = JSON.parse(File.read(ARGV[0]), symbolize_names: true)
 
       SwitchUser.apply_prlimits(Process.pid, cfg[:prlimits])

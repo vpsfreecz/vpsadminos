@@ -12,10 +12,7 @@ module OsCtld
 
     MUTEX = Mutex.new
 
-    # @return [1, 2] cgroup hierarchy version
-    def self.version
-      return @version if @version
-
+    def self.init
       begin
         @version = File.read(RunState::CGROUP_VERSION).strip.to_i
       rescue Errno::ENOENT
@@ -23,15 +20,26 @@ module OsCtld
       end
 
       @version = 1 if ![1, 2].include?(@version)
+
+      @subsystems =
+        if @version == 1
+          Dir.entries(FS) - ['.', '..']
+        else
+          ['']
+        end
+    end
+
+    # @return [1, 2] cgroup hierarchy version
+    def self.version
       @version
     end
 
     def self.v1?
-      version == 1
+      @version == 1
     end
 
     def self.v2?
-      version == 2
+      @version == 2
     end
 
     # Convert a single subsystem name to the mountpoint name, because some
@@ -45,11 +53,7 @@ module OsCtld
     # Returns a list of mounted CGroup subsystems on the system
     # @return [Array<String>]
     def self.subsystems
-      if v1?
-        Dir.entries(FS) - ['.', '..']
-      else
-        ['']
-      end
+      @subsystems
     end
 
     # @return [Hash<Symbol, String>]

@@ -10,6 +10,7 @@ module OsCtld
       end
 
       OsCtl::Lib::Logger.setup(:none)
+      CGroup.init
 
       cfg = JSON.parse(STDIN.readline, symbolize_names: true)
 

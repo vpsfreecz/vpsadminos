@@ -84,6 +84,7 @@ module OsCtld
       @initialized = false
 
       Thread.abort_on_exception = true
+      CGroup.init
       DB::Users.instance
       DB::Groups.instance
       DB::Containers.instance
