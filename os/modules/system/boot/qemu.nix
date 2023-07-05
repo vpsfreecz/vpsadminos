@@ -217,7 +217,7 @@ in {
 
       stateDir = mkOption {
         type = types.str;
-        defaultText = ''~/.local/share/vpsadminos/.osvm-qemu/''${config.networking.hostName}'';
+        defaultText = ''~/.osvm-qemu/''${config.networking.hostName}'';
         description = ''
           Directory where qemu-related files are stored, e.g. socket files,
           disk files, etc.
@@ -227,7 +227,7 @@ in {
   };
 
   config = mkIf cfg.enable {
-    boot.qemu.stateDir = mkDefault "~/.local/share/vpsadminos/osvm-qemu/${config.networking.hostName}";
+    boot.qemu.stateDir = mkDefault "~/.osvm-qemu/${config.networking.hostName}";
 
     boot.kernelParams = [ "console=ttyS0" ];
 
