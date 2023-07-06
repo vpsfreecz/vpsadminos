@@ -194,7 +194,7 @@ module OsCtld
 
       ['cgroup.procs', 'tasks'].each do |tasks|
         begin
-          File.open(File.join(cgroup, tasks), 'a') do |f|
+          File.open(File.join(cgroup, tasks), 'w') do |f|
             f.puts(attach_pid)
           end
         rescue Errno::ENOENT
