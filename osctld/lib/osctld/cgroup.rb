@@ -103,9 +103,10 @@ module OsCtld
     # @param attach [Boolean] attach the current process to the last group
     # @param leaf [Boolean] do not delegate controllers to the last cgroup
     # @param pid [Integer, nil] pid to attach, default to the current process
+    # @param debug [Boolean] enable extra logging
     # @return [Boolean] `true` if the last component was created, `false` if it
     #                   already existed
-    def self.mkpath(type, path, chown: nil, attach: false, leaf: true, pid: nil)
+    def self.mkpath(type, path, chown: nil, attach: false, leaf: true, pid: nil, debug: false)
       base = abs_cgroup_path(type)
       tmp = []
       created = false
@@ -138,7 +139,7 @@ module OsCtld
         end
       end
 
-      self.attach_to(type, path, pid: pid) if attach
+      self.attach_to(type, path, pid: pid, debug: debug) if attach
 
       created
     end
@@ -149,9 +150,10 @@ module OsCtld
     # @param attach [Boolean] attach the current process to the last group
     # @param leaf [Boolean] do not delegate controllers to the last cgroup
     # @param pid [Integer, nil] pid to attach, default to the current process
-    def self.mkpath_all(path, chown: nil, attach: false, leaf: true, pid: nil)
+    # @param debug [Boolean] enable extra logging
+    def self.mkpath_all(path, chown: nil, attach: false, leaf: true, pid: nil, debug: false)
       subsystems.each do |subsys|
-        mkpath(subsys, path, chown: chown, attach: attach, pid: pid)
+        mkpath(subsys, path, chown: chown, attach: attach, pid: pid, debug: debug)
       end
     end
 
@@ -186,7 +188,8 @@ module OsCtld
     # @param type [String] subsystem
     # @param path [Array<String>] paths to create
     # @param pid [Integer, nil] pid to attach, default to the current process
-    def self.attach_to(type, path, pid: nil)
+    # @param debug [Boolean] enable extra logging
+    def self.attach_to(type, path, pid: nil, debug: false)
       cgroup = File.join(abs_cgroup_path(type), *path)
 
       attached = false
@@ -199,6 +202,10 @@ module OsCtld
           end
         rescue Errno::ENOENT
           next
+        end
+
+        if debug
+          log(:debug, :cgroup, "Attached PID #{attach_pid} to cgroup #{cgroup}")
         end
 
         attached = true

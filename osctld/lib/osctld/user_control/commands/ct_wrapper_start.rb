@@ -14,13 +14,14 @@ module OsCtld
 
       # Move the calling wrapper to user-owned cgroup, which will then be used
       # by LXC
-      log(:debug, ct, 'Reattaching wrapper')
+      log(:debug, ct, "Reattaching wrapper, PID #{opts[:pid]}")
       CGroup.mkpath_all(
         ct.cgroup_path.split('/'),
         chown: ct.user.ugid,
         attach: true,
         leaf: false,
         pid: opts[:pid],
+        debug: true,
       )
 
       # Reset oom_score_adj of the calling process. The reset has to come from
