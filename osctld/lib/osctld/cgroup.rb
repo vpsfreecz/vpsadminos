@@ -339,6 +339,54 @@ module OsCtld
       subsystems.each { |subsys| rmpath(subsys, path) }
     end
 
+    # Get process cgroups, v1-only
+    # @param pid [Integer]
+    # @return [Hash<String, String>] subsystem => cgroup path, relative to the mountpoint
+    def self.get_process_cgroups(pid)
+      fail "CGroup.get_process_cgroups is for cgroup v1 only" unless CGroup.v1?
+
+      ret = {}
+
+      File.open(File.join('/proc', pid.to_s, 'cgroup')) do |f|
+        f.each_line do |line|
+          s = line.strip
+
+          # Hierarchy ID
+          colon = s.index(':')
+          next if colon.nil?
+
+          s = s[(colon+1)..-1]
+
+          # Controllers
+          colon = s.index(':')
+          next if colon.nil?
+
+          if colon == 0
+            subsystems = 'unified'
+          else
+            subsystems = s[0..(colon-1)].split(',').map do |subsys|
+              # Remove name= from named controllers
+              if eq = subsys.index('=')
+                subsys[(eq+1)..-1]
+              else
+                subsys
+              end
+            end.join(',')
+          end
+
+          s = s[(colon+1)..-1]
+
+          # Path
+          next if s.nil?
+          path = s
+
+          ret[subsystems] = path
+        end
+      end
+
+      ret
+    end
+
     # Freeze cgroup at path
     # @param path [String]
     def self.freeze_tree(path)

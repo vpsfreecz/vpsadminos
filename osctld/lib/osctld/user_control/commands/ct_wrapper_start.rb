@@ -14,15 +14,44 @@ module OsCtld
 
       # Move the calling wrapper to user-owned cgroup, which will then be used
       # by LXC
-      log(:debug, ct, "Reattaching wrapper, PID #{opts[:pid]}")
+      cgpath = ct.cgroup_path
+
+      log(:debug, ct, "Reattaching wrapper, PID #{opts[:pid]} -> #{cgpath}")
       CGroup.mkpath_all(
-        ct.cgroup_path.split('/'),
+        cgpath.split('/'),
         chown: ct.user.ugid,
         attach: true,
         leaf: false,
         pid: opts[:pid],
         debug: true,
       )
+
+      # There's a rare issue when sometimes the PID is not attached to all controllers
+      # and is left in the wrapper's cgroup path. It happens especially on node boot.
+      if CGroup.v1?
+        reconfigure = []
+
+        CGroup.get_process_cgroups(opts[:pid]).each do |subsys, path|
+          if path != "/#{cgpath}"
+            log(:debug, ct, "PID #{opts[:pid]} expected in cgroup #{subsys}:/#{cgpath}, found in #{path}")
+            reconfigure << subsys
+          end
+        end
+
+        reconfigure.each do |subsys|
+          sleep(1)
+          log(:debug, ct, "Reattaching wrapper to #{subsys} again, PID #{opts[:pid]} -> #{cgpath}")
+          CGroup.mkpath(
+            subsys,
+            cgpath.split('/'),
+            chown: ct.user.ugid,
+            attach: true,
+            leaf: false,
+            pid: opts[:pid],
+            debug: true,
+          )
+        end
+      end
 
       # Reset oom_score_adj of the calling process. The reset has to come from
       # a process with CAP_SYS_RESOURCE (which osctld is), so that
