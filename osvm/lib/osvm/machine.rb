@@ -58,6 +58,12 @@ module OsVm
       log.start
       prepare_disks
 
+      # Clear-out left-over socket
+      begin
+        File.unlink(shell_socket_path)
+      rescue Errno::ENOENT
+      end
+
       @shell_server = UNIXServer.new(shell_socket_path)
 
       if can_use_virtiofs?
