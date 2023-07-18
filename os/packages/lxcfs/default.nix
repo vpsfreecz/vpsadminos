@@ -12,8 +12,8 @@ in stdenv.mkDerivation rec {
   src = fetchFromGitHub {
     owner = "vpsfreecz";
     repo = "lxcfs";
-    rev = "b3554ce6cf2b172be80ff1c0e207eedd329911a3";
-    sha256 = "sha256-j4w1Y99lEaFunEK6gho9eJoql8IbhJM1cgXP668EDN8=";
+    rev = "f4da1e4f7a36a235ea674f729678d9736c8478dd";
+    sha256 = "sha256-3086t7Qa3ou+DoxGjSfvlDq2uwc+7p5mbDB16flflLY=";
   };
 
   nativeBuildInputs = [ pkg-config help2man meson ninja python makeWrapper ];
