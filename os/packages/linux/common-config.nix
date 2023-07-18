@@ -47,7 +47,8 @@ let
       CONSOLE_LOGLEVEL_QUIET    = freeform "1";
       CONSOLE_LOGLEVEL_DEFAULT  = freeform "7";
       DEBUG_INFO                = whenOlder "5.18" yes;
-      DEBUG_INFO_BTF            = whenAtLeast "5.18" yes;
+      DEBUG_INFO_BTF            = whenBetween "5.18" "6.1.38" yes;
+      DEBUG_INFO_COMPRESSED     = whenAtLeast "6.1.38" yes;
       DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT = whenAtLeast "5.18" yes;
       DEBUG_KERNEL              = yes;
       DEBUG_DEVRES              = no;
