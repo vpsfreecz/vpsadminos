@@ -25,6 +25,8 @@ let
       version = toString patchVersion;
       src = patchesDir;
 
+      dontStrip = true;
+
       buildPhase = ''
         # set to 3 if you want to see compile process
         export DEBUG=0
