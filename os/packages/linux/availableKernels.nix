@@ -11,8 +11,8 @@ let
       };
     };
     "6.1.37" = {
-      url = linuxGhUrl vpsfGh "82a1f2036eaede78ccf4bf295c3b343fa5e25fea";
-      sha256 = "sha256-6mj8kO0eAaMabOsTNyU6HW3AAybGlxaLdh0hfdZK+NU=";
+      url = linuxGhUrl vpsfGh "9e521fe2d9caf447654107798b253a384508c96e";
+      sha256 = "sha256-bd2bYyxvBQFzz4QI+H8/ni9AIb0V5ISHthkJcB/5MiI=";
       zfs = {
         rev = "0caed299195a2fb9904aa85fbd4781729fecd6cc";
         sha256 = "sha256-o+Z0TwH7HjH1MRIIXmHBc7+/B61eUSWQKMwD4U/jfZg=";
