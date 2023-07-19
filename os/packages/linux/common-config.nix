@@ -651,7 +651,7 @@ let
 
       NVME_MULTIPATH = whenAtLeast "4.15" yes;
 
-      MODVERSIONS        = whenOlder "4.9" yes;
+      MODVERSIONS        = yes;
       MOUSE_ELAN_I2C_SMBUS = yes;
       MOUSE_PS2_ELANTECH = yes; # Elantech PS/2 protocol extension
       MTRR_SANITIZER     = yes;
