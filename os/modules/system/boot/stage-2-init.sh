@@ -29,6 +29,7 @@ mkdir /run/wrappers /run/lock
 
 chmod a+rxw /dev/kmsg
 chmod a+rxw /proc/kmsg
+chmod a+r /proc/slabinfo
 
 # Move secrets in place before making /nix/store read-only, otherwise
 # mv will fail to remove them from /nix/store/secrets.
