@@ -387,6 +387,23 @@ module OsCtld
       ret
     end
 
+    # Get a list of processes in a cgroup
+    # @param subsys [String]
+    # @param path [String] cgroup path relative to the subsystem
+    # @return [Array<Integer>]
+    def self.get_cgroup_pids(subsys, path)
+      pids = []
+
+      File.open(File.join(abs_cgroup_path(subsys, path), 'cgroup.procs')) do |f|
+        f.each_line do |line|
+          pid = line.strip.to_i
+          pids << pid if pid > 0
+        end
+      end
+
+      pids
+    end
+
     # Freeze cgroup at path
     # @param path [String]
     def self.freeze_tree(path)
