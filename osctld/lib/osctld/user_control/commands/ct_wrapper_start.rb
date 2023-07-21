@@ -28,30 +28,7 @@ module OsCtld
 
       # There's a rare issue when sometimes the PID is not attached to all controllers
       # and is left in the wrapper's cgroup path. It happens especially on node boot.
-      if CGroup.v1?
-        reconfigure = []
-
-        CGroup.get_process_cgroups(opts[:pid]).each do |subsys, path|
-          if path != "/#{cgpath}"
-            log(:debug, ct, "PID #{opts[:pid]} expected in cgroup #{subsys}:/#{cgpath}, found in #{path}")
-            reconfigure << subsys
-          end
-        end
-
-        reconfigure.each do |subsys|
-          sleep(1)
-          log(:debug, ct, "Reattaching wrapper to #{subsys} again, PID #{opts[:pid]} -> #{cgpath}")
-          CGroup.mkpath(
-            subsys,
-            cgpath.split('/'),
-            chown: ct.user.ugid,
-            attach: true,
-            leaf: false,
-            pid: opts[:pid],
-            debug: true,
-          )
-        end
-      end
+      ensure_reattached(ct, cgpath, opts[:pid]) if CGroup.v1?
 
       # Reset oom_score_adj of the calling process. The reset has to come from
       # a process with CAP_SYS_RESOURCE (which osctld is), so that
@@ -63,6 +40,40 @@ module OsCtld
       end
 
       ok
+    end
+
+    protected
+    def ensure_reattached(ct, cgpath, pid, attempts: 10)
+      attempts.times do |i|
+        reconfigure = []
+
+        CGroup.get_process_cgroups(pid).each do |subsys, path|
+          if path != "/#{cgpath}"
+            log(:debug, ct, "PID #{pid} expected in cgroup #{subsys}:/#{cgpath} on ##{i+1} attempt, found in #{path}")
+            reconfigure << subsys
+          end
+        end
+
+        return if reconfigure.empty?
+
+        reconfigure.each do |subsys|
+          sleep(1)
+          log(:debug, ct, "Reattaching wrapper to #{subsys} again, attempt ##{i+1}, PID #{pid} -> #{cgpath}")
+          CGroup.mkpath(
+            subsys,
+            cgpath.split('/'),
+            chown: ct.user.ugid,
+            attach: true,
+            leaf: false,
+            pid: pid,
+            debug: true,
+          )
+        end
+
+        sleep(1 + i)
+      end
+
+      nil
     end
   end
 end
