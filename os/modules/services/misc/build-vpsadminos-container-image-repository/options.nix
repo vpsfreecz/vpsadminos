@@ -193,9 +193,6 @@ in {
             doCreate = true;
             install = true;
             datasets = {
-              "/".properties = {
-                xattr = "sa";
-              };
               "image-repository/build-dataset" = {};
             };
           };

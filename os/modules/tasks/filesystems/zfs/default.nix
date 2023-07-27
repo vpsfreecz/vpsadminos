@@ -269,265 +269,267 @@ let
     };
   };
 
-  pools = {
-    options = {
-      guid = mkOption {
-        type = types.nullOr types.str;
-        default = null;
-        description = ''
-          Pool ID used for importing.
-        '';
-      };
-
-      layout = mkOption {
-        type = types.listOf (types.submodule layoutVdev);
-        default = [];
-        description = ''
-          Pool layout to pass to zpool create. The pool can be created either
-          manually using script <literal>do-create-pool-&lt;pool&gt;</literal>
-          or automatically when <option>boot.zfs.pools.&lt;pool&gt;.doCreate</option>
-          is set and the pool cannot be imported.
-        '';
-      };
-
-      log = mkOption {
-        type = types.listOf (types.submodule logVdev);
-        default = [];
-        example = {
-          mirror = true;
-          devices = [ "sde1" "sdf1" ];
+  pools =
+    { config, ... }:
+    {
+      options = {
+        guid = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          description = ''
+            Pool ID used for importing.
+          '';
         };
-        description = ''
-          Devices used for ZFS Intent Log (ZIL).
-        '';
-      };
 
-      cache = mkOption {
-        type = types.listOf types.str;
-        default = [];
-        example = [ "sde2" "sdf2" ];
-        description = ''
-          Devices used for secondary read cache (L2ARC).
-        '';
-      };
-
-      spare = mkOption {
-        type = types.listOf types.str;
-        default = [];
-        description = ''
-          List of devices to be used as hot spares.
-        '';
-      };
-
-      importAttempts = mkOption {
-        type = types.addCheck types.int (x: x >= 3) // {
-          name = "importAttempts";
-          description = "3 or more";
+        layout = mkOption {
+          type = types.listOf (types.submodule layoutVdev);
+          default = [];
+          description = ''
+            Pool layout to pass to zpool create. The pool can be created either
+            manually using script <literal>do-create-pool-&lt;pool&gt;</literal>
+            or automatically when <option>boot.zfs.pools.&lt;pool&gt;.doCreate</option>
+            is set and the pool cannot be imported.
+          '';
         };
-        default = 60;
-        description = ''
-          Number of attempts to cleanly import the pool with all devices present.
-          After the attempts are spent, even a degraded pool will be imported.
-          If the pool still can't be imported, the service will either fail
-          or create the pool if option
-          <option>boot.zfs.pools.&lt;name&gt;.doCreate</option> is enabled.
-        '';
-      };
 
-      wipe = mkOption {
-        type = types.listOf types.str;
-        default = [];
-        example = [ "sda" "sdb" ];
-        description = ''
-          Wipe disks prior to disk partitioning and pool creation (dangerous!).
-
-          Uses dd to erase first and last 1024 sectors of the device.
-        '';
-      };
-
-      partition = mkOption {
-        type = types.attrsOf (types.attrsOf (types.submodule {
-          options = {
-            sizeGB = mkOption {
-              type = types.nullOr types.ints.positive;
-              default = null;
-              description = "Partition size in gigabytes";
-            };
-            type = mkOption {
-              type = types.enum [ "fd" ];
-              default = "fd";
-              description = "Partition type (list with `sfdisk -T`)";
-            };
+        log = mkOption {
+          type = types.listOf (types.submodule logVdev);
+          default = [];
+          example = {
+            mirror = true;
+            devices = [ "sde1" "sdf1" ];
           };
-        }));
-        default = {};
-        example = {
-          sde = {
-            p1 = { sizeGB=20; };
-            p2 = { sizeGB=10; type="fd"; };
-            p3 = {};
+          description = ''
+            Devices used for ZFS Intent Log (ZIL).
+          '';
+        };
+
+        cache = mkOption {
+          type = types.listOf types.str;
+          default = [];
+          example = [ "sde2" "sdf2" ];
+          description = ''
+            Devices used for secondary read cache (L2ARC).
+          '';
+        };
+
+        spare = mkOption {
+          type = types.listOf types.str;
+          default = [];
+          description = ''
+            List of devices to be used as hot spares.
+          '';
+        };
+
+        importAttempts = mkOption {
+          type = types.addCheck types.int (x: x >= 3) // {
+            name = "importAttempts";
+            description = "3 or more";
           };
+          default = 60;
+          description = ''
+            Number of attempts to cleanly import the pool with all devices present.
+            After the attempts are spent, even a degraded pool will be imported.
+            If the pool still can't be imported, the service will either fail
+            or create the pool if option
+            <option>boot.zfs.pools.&lt;name&gt;.doCreate</option> is enabled.
+          '';
         };
-        description = ''
-          Partition disks
 
-          This creates a sfdisk input for simple partitioning, X in 'pX' means partition number.
-          If sizeGB is not specified the rest of the dist will be used for this partition.
-        '';
-      };
+        wipe = mkOption {
+          type = types.listOf types.str;
+          default = [];
+          example = [ "sda" "sdb" ];
+          description = ''
+            Wipe disks prior to disk partitioning and pool creation (dangerous!).
 
-      doCreate = mkOption {
-        type = types.bool;
-        default = false;
-        description = ''
-          Determines whether disks are partitioned and zpool is created when
-          the pool cannot be imported, suggesting it does not exist.
-
-          Do not enable this in production, existing pools might fail to import
-          for unforeseen reasons and recreating them will result in data loss.
-        '';
-      };
-
-      install = mkOption {
-        type = types.bool;
-        default = false;
-        description = ''
-          Import the pool into osctld to be used for containers.
-        '';
-      };
-
-      properties = mkOption {
-        type = types.attrs;
-        default = {};
-        example = {
-          readonly = "on";
+            Uses dd to erase first and last 1024 sectors of the device.
+          '';
         };
-        description = ''
-          zpool properties, see man zpool(8) for more information.
-        '';
-      };
 
-      datasets = mkOption {
-        type = types.attrsOf (types.submodule datasets);
-        default = {
-          "/" = {
-            properties = {
-              xattr = mkDefault "sa";
+        partition = mkOption {
+          type = types.attrsOf (types.attrsOf (types.submodule {
+            options = {
+              sizeGB = mkOption {
+                type = types.nullOr types.ints.positive;
+                default = null;
+                description = "Partition size in gigabytes";
+              };
+              type = mkOption {
+                type = types.enum [ "fd" ];
+                default = "fd";
+                description = "Partition type (list with `sfdisk -T`)";
+              };
+            };
+          }));
+          default = {};
+          example = {
+            sde = {
+              p1 = { sizeGB=20; };
+              p2 = { sizeGB=10; type="fd"; };
+              p3 = {};
             };
           };
+          description = ''
+            Partition disks
+
+            This creates a sfdisk input for simple partitioning, X in 'pX' means partition number.
+            If sizeGB is not specified the rest of the dist will be used for this partition.
+          '';
         };
-        example = {
-          "/".properties.sharenfs = "on";
-          "data".properties.quota = "100G";
-          "volume" = {
-            type = "volume";
-            properties.volsize = "50G";
-          };
-        };
-        description = ''
-          Declaratively create ZFS file systems or volumes and configure
-          properties.
 
-          Dataset names are relative to the pool and optionally may start with
-          a slash. Configured properties are passed directly to ZFS, see
-          man zfs(8) for more information.
-
-          No dataset is ever destroyed and properties removed from
-          the configuration are not unset once deployed. To reset a property,
-          set its value to `inherit`.
-        '';
-      };
-
-      share = mkOption {
-        type = types.enum [ "always" "once" "off" ];
-        default = "always";
-        description = ''
-          Determines whether ZFS filesystems with sharenfs set should be
-          exported.
-
-          When set to <literal>always</literal>, <literal>zfs share</literal>
-          is run every time the service is started. When set to
-          <literal>once</literal>, filesystems are exported only once for this
-          pool, e.g. when the service is restarted on upgrade, filesystems are
-          not reexported. <literal>off</literal> disables automated exporting
-          completely.
-        '';
-      };
-
-      scrub = {
-        enable = mkOption {
-          default = false;
+        doCreate = mkOption {
           type = types.bool;
+          default = false;
           description = ''
-            Enables periodic scrubbing
+            Determines whether disks are partitioned and zpool is created when
+            the pool cannot be imported, suggesting it does not exist.
+
+            Do not enable this in production, existing pools might fail to import
+            for unforeseen reasons and recreating them will result in data loss.
           '';
         };
 
-        startIntervals = mkOption {
-          default = [];
-          type = types.listOf types.str;
+        install = mkOption {
+          type = types.bool;
+          default = false;
           description = ''
-            Date and time expression for when to scrub the pool in a crontab
-            format, i.e. minute, hour, day of month, month and day of month
-            separated by spaces.
+            Import the pool into osctld to be used for containers.
           '';
         };
 
-        pauseIntervals = mkOption {
-          default = [];
-          type = types.listOf types.str;
+        properties = mkOption {
+          type = types.attrs;
+          default = {};
+          example = {
+            readonly = "on";
+          };
           description = ''
-            Date and time expression for when to pause a running scrub in a crontab
-            format, i.e. minute, hour, day of month, month and day of month
-            separated by spaces.
+            zpool properties, see man zpool(8) for more information.
           '';
         };
 
-        resumeIntervals = mkOption {
-          default = [];
-          type = types.listOf types.str;
+        datasets = mkOption {
+          type = types.attrsOf (types.submodule datasets);
+          default = {
+            "/" = {};
+          };
+          example = {
+            "/".properties.sharenfs = "on";
+            "data".properties.quota = "100G";
+            "volume" = {
+              type = "volume";
+              properties.volsize = "50G";
+            };
+          };
           description = ''
-            Date and time expression for when to resume a paused scrub in a crontab
-            format, i.e. minute, hour, day of month, month and day of month
-            separated by spaces.
+            Declaratively create ZFS file systems or volumes and configure
+            properties.
+
+            Dataset names are relative to the pool and optionally may start with
+            a slash. Configured properties are passed directly to ZFS, see
+            man zfs(8) for more information.
+
+            No dataset is ever destroyed and properties removed from
+            the configuration are not unset once deployed. To reset a property,
+            set its value to `inherit`.
           '';
         };
 
-        startCommand = mkOption {
-          type = types.nullOr types.str;
-          default = null;
+        share = mkOption {
+          type = types.enum [ "always" "once" "off" ];
+          default = "always";
           description = ''
-            Optionally override the auto-generated command used to scrub
-            the pool.
+            Determines whether ZFS filesystems with sharenfs set should be
+            exported.
 
-            Defaults to <literal>scrubctl start &lt;pool&gt;</literal>.
+            When set to <literal>always</literal>, <literal>zfs share</literal>
+            is run every time the service is started. When set to
+            <literal>once</literal>, filesystems are exported only once for this
+            pool, e.g. when the service is restarted on upgrade, filesystems are
+            not reexported. <literal>off</literal> disables automated exporting
+            completely.
           '';
         };
 
-        pauseCommand = mkOption {
-          type = types.nullOr types.str;
-          default = null;
-          description = ''
-            Optionally override the auto-generated command used to pause scrub
-            of the pool.
+        scrub = {
+          enable = mkOption {
+            default = false;
+            type = types.bool;
+            description = ''
+              Enables periodic scrubbing
+            '';
+          };
 
-            Defaults to <literal>scrubctl pause &lt;pool&gt;</literal>.
-          '';
+          startIntervals = mkOption {
+            default = [];
+            type = types.listOf types.str;
+            description = ''
+              Date and time expression for when to scrub the pool in a crontab
+              format, i.e. minute, hour, day of month, month and day of month
+              separated by spaces.
+            '';
+          };
+
+          pauseIntervals = mkOption {
+            default = [];
+            type = types.listOf types.str;
+            description = ''
+              Date and time expression for when to pause a running scrub in a crontab
+              format, i.e. minute, hour, day of month, month and day of month
+              separated by spaces.
+            '';
+          };
+
+          resumeIntervals = mkOption {
+            default = [];
+            type = types.listOf types.str;
+            description = ''
+              Date and time expression for when to resume a paused scrub in a crontab
+              format, i.e. minute, hour, day of month, month and day of month
+              separated by spaces.
+            '';
+          };
+
+          startCommand = mkOption {
+            type = types.nullOr types.str;
+            default = null;
+            description = ''
+              Optionally override the auto-generated command used to scrub
+              the pool.
+
+              Defaults to <literal>scrubctl start &lt;pool&gt;</literal>.
+            '';
+          };
+
+          pauseCommand = mkOption {
+            type = types.nullOr types.str;
+            default = null;
+            description = ''
+              Optionally override the auto-generated command used to pause scrub
+              of the pool.
+
+              Defaults to <literal>scrubctl pause &lt;pool&gt;</literal>.
+            '';
+          };
+
+          resumeCommand = mkOption {
+            type = types.nullOr types.str;
+            default = null;
+            description = ''
+              Optionally override the auto-generated command used to resume scrub
+              of the pool.
+
+              Defaults to <literal>scrubctl resume &lt;pool&gt;</literal>.
+            '';
+          };
         };
+      };
 
-        resumeCommand = mkOption {
-          type = types.nullOr types.str;
-          default = null;
-          description = ''
-            Optionally override the auto-generated command used to resume scrub
-            of the pool.
-
-            Defaults to <literal>scrubctl resume &lt;pool&gt;</literal>.
-          '';
-        };
+      config = {
+        datasets."/".properties.xattr = mkDefault "sa";
       };
     };
-  };
 
   zedletModule =
     { config, ... }:

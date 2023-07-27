@@ -7,8 +7,5 @@
     importAttempts = lib.mkDefault 3;
     doCreate = true;
     install = true;
-    datasets."/".properties = {
-      xattr = "sa";
-    };
   };
 }
