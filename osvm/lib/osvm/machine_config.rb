@@ -179,7 +179,14 @@ module OsVm
       @cpus = cfg.fetch(:cpus)
       @cpu = Cpu.new(cfg.fetch(:cpu))
       @shared_filesystems = cfg.fetch(:sharedFileSystems, {})
-      @network = Network.from_config(cfg.fetch(:network, {mode: 'user'}))
+      @network = Network.from_config(cfg.fetch(:network, {
+        mode: 'user',
+        opts: {
+          network: '10.0.2.0/24',
+          host: '10.0.2.2',
+          dns: '10.0.2.3',
+        },
+      }))
     end
   end
 end
