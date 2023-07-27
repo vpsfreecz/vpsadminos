@@ -262,7 +262,7 @@ let
       };
 
       properties = mkOption {
-        type = types.attrs;
+        type = types.attrsOf (types.oneOf [ types.str types.int ]);
         default = {};
         description = "ZFS properties, see man zfs(8).";
       };
@@ -399,7 +399,7 @@ let
         };
 
         properties = mkOption {
-          type = types.attrs;
+          type = types.attrsOf (types.oneOf [ types.str types.int ]);
           default = {};
           example = {
             readonly = "on";

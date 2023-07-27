@@ -16,10 +16,10 @@ let
     ruby = pkgs.ruby;
   };
 
-  properties = mapAttrsToList (k: v: "\"${k}=${v}\"") pool.properties;
+  properties = mapAttrsToList (k: v: "\"${k}=${toString v}\"") pool.properties;
 
   datasets = pkgs.writeText "pool-${name}-datasets.json"
-                            (builtins.toJSON (_filter pool.datasets));
+                             (builtins.toJSON (_filter pool.datasets));
 
   guidOrEmpty = optionalString (!isNull pool.guid) pool.guid;
 
