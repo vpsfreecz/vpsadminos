@@ -100,6 +100,13 @@ module OsCtld
       # Remove any left-over temporary mounts
       ct.mounts.prune
 
+      # Mount datasets
+      begin
+        ct.run_conf.mount
+      rescue SystemCommandFailed => e
+        return error("failed to mount dataset: #{e.message}")
+      end
+
       # Pre-start distconfig hook
       DistConfig.run(ct.run_conf, :pre_start)
 
