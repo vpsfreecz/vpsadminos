@@ -43,44 +43,17 @@ module OsCtld
     end
 
     protected
-    def ensure_reattached(ct, cgpath, pid, attempts: 3)
-      attempts.times do |i|
-        reconfigure = []
+    def ensure_reattached(ct, cgpath, pid)
+      mismatch = false
 
-        # Look for the PID in cgroup.procs in all subsystems
-        CGroup.subsystems.each do |subsys|
-          unless CGroup.get_cgroup_pids(subsys, cgpath).include?(pid)
-            log(:debug, ct, "PID #{pid} not found in cgroup.procs at #{subsys}:/#{cgpath}, attempt ##{i+1}")
-            reconfigure << subsys
-          end
+      CGroup.get_process_cgroups(pid).each do |subsys, path|
+        if path != "/#{cgpath}"
+          log(:warn, ct, "PID #{pid} expected in cgroup #{subsys}:/#{cgpath}, found in #{path} as read from /proc/#{pid}/cgroup")
+          mismatch = true
         end
-
-        if reconfigure.empty?
-          CGroup.get_process_cgroups(pid).each do |subsys, path|
-            if path != "/#{cgpath}"
-              log(:warn, ct, "PID #{pid} expected in cgroup #{subsys}:/#{cgpath} on attempt ##{i+1}, found in #{path} as read from /proc/#{pid}/cgroup")
-            end
-          end
-
-          return
-        end
-
-        reconfigure.each do |subsys|
-          sleep(1)
-          log(:debug, ct, "Reattaching wrapper to #{subsys} again, attempt ##{i+1}, PID #{pid} -> #{cgpath}")
-          CGroup.mkpath(
-            subsys,
-            cgpath.split('/'),
-            chown: ct.user.ugid,
-            attach: true,
-            leaf: false,
-            pid: pid,
-            debug: true,
-          )
-        end
-
-        sleep(1 + i)
       end
+
+      sleep(10) if mismatch
 
       nil
     end
