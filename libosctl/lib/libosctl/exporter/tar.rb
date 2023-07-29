@@ -11,7 +11,7 @@ module OsCtl::Lib
     def pack_rootfs
       tar.mkdir('rootfs', DIR_MODE)
       tar.add_file('rootfs/base.tar.gz', FILE_MODE) do |tf|
-        IO.popen("exec tar -cz -C #{ct.rootfs} .") do |io|
+        IO.popen("exec tar --xattrs-include=security.capability --xattrs -cz -C #{ct.rootfs} .") do |io|
           tf.write(io.read(BLOCK_SIZE)) until io.eof?
         end
 

@@ -336,7 +336,7 @@ module OsCtld
 
       commands = [
         ['tar', '-xOf', image_file, tf.full_name],
-        ['tar', '-xz', '-C', builder.ctrc.rootfs],
+        ['tar', '--xattrs-include=security.capability', '--xattrs', '-xz', '-C', builder.ctrc.rootfs],
       ]
 
       command_string = commands.map { |c| c.join(' ') }.join(' | ')
