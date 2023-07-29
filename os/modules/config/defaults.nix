@@ -60,6 +60,7 @@
     ipset
     irq_heatmap
     less
+    libcap             # needed by osctl-image
     man-pages
     ncurses
     numactl

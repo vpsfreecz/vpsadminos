@@ -166,6 +166,7 @@ module OsCtl::Image
       zfs(:set, 'uidmap=none gidmap=none', output_dataset)
       zfs(:mount, nil, output_dataset)
 
+      Operations::Image::FixFileCapabilities.run(image, install_dir)
       Operations::Image::Export.run(self)
     end
 
