@@ -37,7 +37,8 @@
 
       devuan = {
         "3.0" = {};
-        "4" = { tags = [ "latest" "stable" ]; };
+        "4" = {};
+        "5" = { tags = [ "latest" "stable" ]; };
       };
 
       fedora = {
