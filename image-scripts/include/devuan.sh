@@ -5,6 +5,14 @@ CONFIGURE_DEVUAN="$CONFIGURE.devuan"
 function bootstrap {
 	mkdir $INSTALL/etc
 	echo nameserver 8.8.8.8 > $INSTALL/etc/resolv.conf
+
+	# This is a workaround for devuan's debootstrap not having support for their
+	# own latest release. We modify the builder to provide support for the current
+	# $RELNAME.
+	if [ ! -e "/usr/share/debootstrap/scripts/$RELNAME" ] ; then
+		ln -s ceres "/usr/share/debootstrap/scripts/$RELNAME"
+	fi
+
 	debootstrap --include locales --arch amd64 $RELNAME $INSTALL $BASEURL
 }
 
