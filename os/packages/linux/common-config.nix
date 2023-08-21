@@ -43,6 +43,16 @@ let
       MEMCG_32BIT_IDS           = whenOlder "6.1" yes;
     };
 
+    performance = {
+      RCU_EXPERT                = yes;
+      RCU_BOOST                 = yes;
+      RCU_NOCB_CPU              = yes;
+      TASKS_TRACE_RCU_READ_MB   = yes;
+      BLK_WBT                   = no;
+      HW_RANDOM                 = yes;
+      HW_RANDOM_AMD             = yes;
+      PSI                       = no;
+    };
     debug = {
       CONSOLE_LOGLEVEL_QUIET    = freeform "1";
       CONSOLE_LOGLEVEL_DEFAULT  = freeform "7";
@@ -109,16 +119,12 @@ let
       MEMTEST = yes;
     };
 
-    # Include the CFQ I/O scheduler in the kernel, rather than as a
-    # module, so that the initrd gets a good I/O scheduler.
+    # Use MQ deadline, ZFS has its own IO sched
     scheduler = {
-      IOSCHED_CFQ = whenOlder "5.0" yes; # Removed in 5.0-RC1
-      BLK_CGROUP  = yes; # required by CFQ"
-      IOSCHED_DEADLINE = whenOlder "5.0" yes; # Removed in 5.0-RC1
-      MQ_IOSCHED_DEADLINE = whenAtLeast "4.11" yes;
-      BFQ_GROUP_IOSCHED = whenAtLeast "4.12" yes;
-      MQ_IOSCHED_KYBER = whenAtLeast "4.12" yes;
-      IOSCHED_BFQ = whenAtLeast "4.12" module;
+      BLK_CGROUP  = no;
+      MQ_IOSCHED_DEADLINE = yes;
+      MQ_IOSCHED_KYBER = no;
+      IOSCHED_BFQ = no;
     };
 
     # Enable NUMA.
@@ -394,8 +400,6 @@ let
       MEMCG_SWAP               = whenOlder "6.1" yes;
 
       DEVPTS_MULTIPLE_INSTANCES = whenOlder "4.7" yes;
-      BLK_DEV_THROTTLING        = yes;
-      CFQ_GROUP_IOSCHED         = whenOlder "5.0" yes; # Removed in 5.0-RC1
       CGROUP_PIDS               = whenAtLeast "4.3" yes;
     };
 
@@ -645,9 +649,6 @@ let
 
       MLX4_EN_VXLAN = whenOlder "4.8" yes;
       MLX5_CORE_EN       = option yes;
-
-      # vpsAdminOS doesn't accept slowdowns
-      PSI = no;
 
       NVME_MULTIPATH = whenAtLeast "4.15" yes;
 
