@@ -52,6 +52,7 @@ let
       HW_RANDOM                 = yes;
       HW_RANDOM_AMD             = yes;
       PSI                       = no;
+      CGROUP_FAVOR_DYNMODS      = yes;
     };
     debug = {
       CONSOLE_LOGLEVEL_QUIET    = freeform "1";
