@@ -11,7 +11,7 @@ module OsCtld
 
       ret = {}
 
-      %w(cpu cpuacct memory blkio pids).each do |v|
+      %w(cpu cpuacct memory pids).each do |v|
         ret[v] = CGroup.abs_cgroup_path(CGroup.real_subsystem(v))
       end
 
