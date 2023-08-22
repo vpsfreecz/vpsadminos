@@ -31,7 +31,6 @@ import ../../make-template.nix ({ distribution, version }: rec {
       _, output = machine.succeeds("osctl ct exec testct cat /proc/mounts")
 
       controllers = %w(
-        blkio
         cpu,cpuacct
         cpuset
         devices

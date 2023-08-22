@@ -80,9 +80,6 @@ in
         mkdir /sys/fs/cgroup/cpu,cpuacct
         mount -t cgroup -o cpu,cpuacct cgroup /sys/fs/cgroup/cpu,cpuacct
 
-        mkdir /sys/fs/cgroup/blkio
-        mount -t cgroup -o blkio cgroup /sys/fs/cgroup/blkio
-
         mkdir /sys/fs/cgroup/memory
         mount -t cgroup -o memory cgroup /sys/fs/cgroup/memory
         echo 1 > /sys/fs/cgroup/memory/memory.use_hierarchy

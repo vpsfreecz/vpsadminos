@@ -50,7 +50,6 @@ import ../../make-template.nix ({ distribution, version }: rec {
       # Check that the system does not try to use the unified cgroup as if it
       # was a hybrid hierarchy
       hybrid_controllers = %w(
-        blkio
         cpu,cpuacct
         cpuset
         devices

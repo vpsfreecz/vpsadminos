@@ -11,7 +11,7 @@ cgroup_setup_hybrid() {
 
 	local retval=0
 	local name
-	local hybrid_cgroups="blkio
+	local hybrid_cgroups="
 cpu,cpuacct
 cpuset
 devices
