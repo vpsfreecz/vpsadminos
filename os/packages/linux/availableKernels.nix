@@ -1,7 +1,17 @@
-{ pkgs, ... }:
+{ pkgs, lib, ... }:
+with lib.kernel;
 let
   defaultKernelVersion = "6.1.46";
   kernels = {
+    "6.1.46-rt13" = {
+      url = linuxGhUrl vpsfGh "d3bccdf6d1ce7a62e63a4414cce8fc52dba9a719";
+      sha256 = "sha256-+WcpDfpt3Aob+wI0yMWO51YwXEtGXggYIOMIXFLw5t0=";
+      zfs = {
+        rev = "bf61c895c2f7efac81ae87546df1038ea6460cfb";
+        sha256 = "sha256-Hd9lPmkfR5Ivs0hLMvxzu4RmCIdnR5rn46DNGydtu7g=";
+      };
+      features.preempt_rt = true;
+    };
     "6.1.46" = {
       url = linuxGhUrl vpsfGh "511dbf43bcc839d8ad2b5763a69a482aba2f5410";
       sha256 = "sha256-vX/Z+qkyX3zxdFNImMgMQpB0fMCQpv2d9m3v2uR5znM=";
@@ -180,6 +190,9 @@ let
     inherit kernelVersion;
     url = kernels.${kernelVersion}.url;
     sha256 = kernels.${kernelVersion}.sha256;
+    features = if builtins.hasAttr "features" kernels.${kernelVersion}
+               then kernels.${kernelVersion}.features
+               else {};
   };
 
   genZfsUserPackage = kernelVersion: (pkgs.callPackage ../../packages/zfs {

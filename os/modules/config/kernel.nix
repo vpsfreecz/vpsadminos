@@ -3,7 +3,7 @@ with lib;
 let
   origKernel = config.boot.kernelPackage;
 
-  availableKernels = import ../../packages/linux/availableKernels.nix { inherit pkgs; };
+  availableKernels = import ../../packages/linux/availableKernels.nix { inherit pkgs; inherit lib; };
 
   # we also need to override zfs/spl via linuxPackagesFor
   myLinuxPackages = (pkgs.linuxPackagesFor origKernel).extend (

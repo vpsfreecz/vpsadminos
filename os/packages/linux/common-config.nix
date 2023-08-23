@@ -20,10 +20,12 @@ with lib.kernel;
 with (lib.kernel.whenHelpers version);
 
 let
-
-
   # configuration items have to be part of a subattrs
   flattenKConf =  nested: mapAttrs (_: head) (zipAttrs (attrValues nested));
+
+  RTKernel = if builtins.hasAttr "preempt_rt" features
+             then features.preempt_rt
+             else false;
 
   whenPlatformHasEBPFJit =
     mkIf (stdenv.hostPlatform.isAarch32 ||
@@ -54,6 +56,12 @@ let
       PSI                       = no;
       CGROUP_FAVOR_DYNMODS      = yes;
     };
+
+    preempt_rt = optionalAttrs (RTKernel) {
+      PREEMPTION                = yes;
+      PREEMPT_RT                = yes;
+    };
+
     debug = {
       CONSOLE_LOGLEVEL_QUIET    = freeform "1";
       CONSOLE_LOGLEVEL_DEFAULT  = freeform "7";
@@ -132,6 +140,7 @@ let
     numa = {
       EXPERT = yes;
       NUMA  = option yes;
+    } // optionalAttrs (!RTKernel) {
       NUMA_BALANCING = yes;
       NUMA_BALANCING_DEFAULT_ENABLED = yes;
     };
@@ -475,7 +484,7 @@ let
       "9P_FS_POSIX_ACL" = option yes;
     };
 
-    huge-page = {
+    huge-page = optionalAttrs (!RTKernel) {
       TRANSPARENT_HUGEPAGE         = option yes;
       TRANSPARENT_HUGEPAGE_ALWAYS  = option no;
       TRANSPARENT_HUGEPAGE_MADVISE = option yes;
@@ -694,9 +703,7 @@ let
       HOTPLUG_PCI_ACPI = yes; # PCI hotplug using ACPI
       HOTPLUG_PCI_PCIE = yes; # PCI-Expresscard hotplug support
 
-      #PREEMPT = yes;
-      #PREEMPT_VOLUNTARY = yes;
-      PREEMPT_NONE = yes;
+      PREEMPT_NONE = mkIf (!RTKernel) yes;
 
       COMPACTION = yes;
       DEFERRED_STRUCT_PAGE_INIT = yes;

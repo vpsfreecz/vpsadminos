@@ -1,4 +1,4 @@
-{ pkgs, lib, callPackage, buildPackages, fetchurl, perl, buildLinux, elfutils, kernelVersion, url, sha256, ... }:
+{ pkgs, lib, callPackage, buildPackages, fetchurl, perl, buildLinux, elfutils, kernelVersion, url, sha256, features, ... }:
 
 with lib;
 
@@ -15,4 +15,6 @@ callPackage ./generic.nix ( rec {
     inherit url; inherit sha256;
   };
   kernelPatches = [ pkgs.kernelPatches.bridge_stp_helper ];
+
+  inherit features;
 })
