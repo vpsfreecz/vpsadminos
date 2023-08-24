@@ -7,8 +7,8 @@ let
     centos_7         = { distribution = "centos";    version = "7";               };
     centos_8_stream  = { distribution = "centos";    version = "latest-8-stream"; };
     centos_9_stream  = { distribution = "centos";    version = "latest-9-stream"; };
-    debian_11        = { distribution = "debian";    version = "11";              };
-    debian_12        = { distribution = "debian";    version = "12";              };
+    debian_oldstable = { distribution = "debian";    version = "oldstable";       };
+    debian_stable    = { distribution = "debian";    version = "stable";          };
     debian_testing   = { distribution = "debian";    version = "testing";         };
     devuan           = { distribution = "devuan";    version = "latest";          };
     fedora           = { distribution = "fedora";    version = "latest";          };
@@ -19,9 +19,9 @@ let
     nixos_unstable   = { distribution = "nixos";     version = "unstable";        };
     opensuse         = { distribution = "opensuse";  version = "latest";          };
     slackware        = { distribution = "slackware"; version = "latest";          };
-    ubuntu_1804      = { distribution = "ubuntu";    version = "18.04";           };
-    ubuntu_2004      = { distribution = "ubuntu";    version = "20.04";           };
-    ubuntu_2204      = { distribution = "ubuntu";    version = "22.04";           };
+    ubuntu_oldoldlts = { distribution = "ubuntu";    version = "oldoldlts";       };
+    ubuntu_oldlts    = { distribution = "ubuntu";    version = "oldlts";          };
+    ubuntu_lts       = { distribution = "ubuntu";    version = "lts";             };
     void_glibc       = { distribution = "void";      version = "latest-glibc";    };
     void_musl        = { distribution = "void";      version = "latest-musl";     };
   };
@@ -32,8 +32,8 @@ in {
     arch
     centos_8_stream
     centos_9_stream
-    debian_11
-    debian_12
+    debian_oldstable
+    debian_stable
     debian_testing
     devuan
     fedora
@@ -42,9 +42,9 @@ in {
     nixos_unstable
     opensuse
     slackware
-    ubuntu_1804
-    ubuntu_2004
-    ubuntu_2204
+    ubuntu_oldoldlts
+    ubuntu_oldlts
+    ubuntu_lts
     void_glibc
     void_musl
   ];
@@ -59,17 +59,17 @@ in {
     centos_7
     centos_8_stream
     centos_9_stream
-    debian_11
-    debian_12
+    debian_oldstable
+    debian_stable
     debian_testing
     fedora
     gentoo_systemd
     nixos_stable
     nixos_unstable
     opensuse
-    ubuntu_1804
-    ubuntu_2004
-    ubuntu_2204
+    ubuntu_oldoldlts
+    ubuntu_oldlts
+    ubuntu_lts
   ];
 
   non-systemd = with table; [
