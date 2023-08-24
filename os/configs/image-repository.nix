@@ -28,15 +28,15 @@
       };
 
       debian = {
-        "10" = {};
-        "11" = {};
+        "10" = { tags = [ "oldoldstable" ]; };
+        "11" = { tags = [ "oldstable" ]; };
         "12" = { tags = [ "latest" "stable" ]; };
         "testing" = { tags = [ "testing" ]; };
         "unstable" = { tags = [ "unstable" ]; };
       };
 
       devuan = {
-        "4" = {};
+        "4" = { tags = [ "oldstable" ]; };
         "5" = { tags = [ "latest" "stable" ]; };
       };
 
