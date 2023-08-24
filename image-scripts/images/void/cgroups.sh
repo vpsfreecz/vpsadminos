@@ -11,18 +11,6 @@ cgroup_setup_hybrid() {
 
 	local retval=0
 	local name
-	local hybrid_cgroups="
-cpu,cpuacct
-cpuset
-devices
-freezer
-hugetlb
-memory
-net_cls,net_prio
-perf_event
-pids
-rdma"
-	local hybrid_named="systemd"
 	local mount_opts="nodev,noexec,nosuid"
 
 	if ! mount -t tmpfs -o "$mount_opts" tmpfs /sys/fs/cgroup ; then
@@ -30,20 +18,27 @@ rdma"
 		return 1
 	fi
 
-	for name in $hybrid_cgroups; do
-		mkdir "/sys/fs/cgroup/$name"
-		mount -n -t cgroup -o "$mount_opts,$name" \
-			cgroup "/sys/fs/cgroup/$name" || retval=1
-	done
+	cat /proc/1/cgroup | while read line ; do
+		controller="$(echo $line | cut -d ':' -f 2)"
 
-	for name in $hybrid_named; do
-		mkdir "/sys/fs/cgroup/$name"
-		mount -n -t cgroup -o "none,$mount_opts,name=$name" \
-			cgroup "/sys/fs/cgroup/$name" || retval=1
+		case "$controller" in
+			"")
+				mkdir /sys/fs/cgroup/unified
+				mount -n -t cgroup2 -o "$mount_opts" cgroup2 /sys/fs/cgroup/unified || retval=1
+				;;
+			"name="*)
+				name="$(echo $controller | cut -d '=' -f 2)"
+				mkdir "/sys/fs/cgroup/$name"
+				mount -n -t cgroup -o "none,$mount_opts,name=$name" \
+					cgroup "/sys/fs/cgroup/$name" || retval=1
+				;;
+			*)
+				mkdir "/sys/fs/cgroup/$controller"
+				mount -n -t cgroup -o "$mount_opts,$controller" \
+					cgroup "/sys/fs/cgroup/$controller" || retval=1
+				;;
+		esac
 	done
-
-	mkdir /sys/fs/cgroup/unified
-	mount -n -t cgroup2 -o "$mount_opts" cgroup2 /sys/fs/cgroup/unified || retval=1
 
 	mount -o remount,ro tmpfs /sys/fs/cgroup
 
