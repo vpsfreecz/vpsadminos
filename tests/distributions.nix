@@ -10,6 +10,7 @@ let
     debian_11        = { distribution = "debian";    version = "11";              };
     debian_12        = { distribution = "debian";    version = "12";              };
     debian_testing   = { distribution = "debian";    version = "testing";         };
+    devuan           = { distribution = "devuan";    version = "latest";          };
     fedora           = { distribution = "fedora";    version = "latest";          };
     gentoo_openrc    = { distribution = "gentoo";    version = "latest-openrc";   };
     gentoo_systemd   = { distribution = "gentoo";    version = "latest-systemd";  };
@@ -34,6 +35,7 @@ in {
     debian_11
     debian_12
     debian_testing
+    devuan
     fedora
     gentoo_systemd
     nixos_stable
@@ -72,6 +74,7 @@ in {
 
   non-systemd = with table; [
     alpine
+    devuan
     gentoo_openrc
     gentoo_musl
     slackware
