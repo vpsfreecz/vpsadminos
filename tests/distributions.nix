@@ -7,8 +7,8 @@ let
     centos_7         = { distribution = "centos";    version = "7";               };
     centos_8_stream  = { distribution = "centos";    version = "latest-8-stream"; };
     centos_9_stream  = { distribution = "centos";    version = "latest-9-stream"; };
-    debian_10        = { distribution = "debian";    version = "10";              };
     debian_11        = { distribution = "debian";    version = "11";              };
+    debian_12        = { distribution = "debian";    version = "12";              };
     debian_testing   = { distribution = "debian";    version = "testing";         };
     fedora           = { distribution = "fedora";    version = "latest";          };
     gentoo_openrc    = { distribution = "gentoo";    version = "latest-openrc";   };
@@ -31,8 +31,8 @@ in {
     arch
     centos_8_stream
     centos_9_stream
-    debian_10
     debian_11
+    debian_12
     debian_testing
     fedora
     gentoo_systemd
@@ -57,8 +57,8 @@ in {
     centos_7
     centos_8_stream
     centos_9_stream
-    debian_10
     debian_11
+    debian_12
     debian_testing
     fedora
     gentoo_systemd
