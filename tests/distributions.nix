@@ -1,7 +1,8 @@
 { lib }:
 let
   table = {
-    almalinux_8      = { distribution = "almalinux"; version = "8";               };
+    alma_oldstable   = { distribution = "almalinux"; version = "oldstable";       };
+    alma_stable      = { distribution = "almalinux"; version = "stable";          };
     alpine           = { distribution = "alpine";    version = "latest";          };
     arch             = { distribution = "arch";      version = "latest";          };
     centos_7         = { distribution = "centos";    version = "7";               };
@@ -27,7 +28,8 @@ let
   };
 in {
   cgroupv2 = with table; [
-    almalinux_8
+    alma_oldstable
+    alma_stable
     alpine
     arch
     centos_8_stream
@@ -54,7 +56,8 @@ in {
   ];
 
   systemd = with table; [
-    almalinux_8
+    alma_oldstable
+    alma_stable
     arch
     centos_7
     centos_8_stream
