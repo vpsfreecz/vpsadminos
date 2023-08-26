@@ -24,6 +24,10 @@ cgroup_setup_hybrid() {
 		controller="$(echo $line | cut -d ':' -f 2)"
 
 		case "$controller" in
+			"")
+				mkdir /sys/fs/cgroup/unified
+				mount -n -t cgroup2 -o "$mount_opts" cgroup2 /sys/fs/cgroup/unified || retval=1
+				;;
 			"name="*)
 				name="$(echo $controller | cut -d '=' -f 2)"
 				mkdir "/sys/fs/cgroup/$name"
@@ -37,9 +41,6 @@ cgroup_setup_hybrid() {
 				;;
 		esac
 	done
-
-	mkdir /sys/fs/cgroup/unified
-	mount -n -t cgroup2 -o "$mount_opts" cgroup2 /sys/fs/cgroup/unified || retval=1
 
 	ln -s systemd /sys/fs/cgroup/elogind
 	mount -o remount,ro tmpfs /sys/fs/cgroup
