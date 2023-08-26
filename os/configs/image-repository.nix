@@ -8,7 +8,7 @@
 
     images = {
       almalinux = {
-        "8" = {};
+        "8" = { tags = [ "oldstable" ]; };
         "9" = { tags = [ "latest" "stable" ]; };
       };
 
@@ -63,7 +63,7 @@
       };
 
       rocky = {
-        "8" = {};
+        "8" = { tags = [ "oldstable" ]; };
         "9" = { tags = [ "latest" "stable" ]; };
       };
 
