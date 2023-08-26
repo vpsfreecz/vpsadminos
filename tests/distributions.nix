@@ -19,6 +19,8 @@ let
     nixos_stable     = { distribution = "nixos";     version = "stable";          };
     nixos_unstable   = { distribution = "nixos";     version = "unstable";        };
     opensuse         = { distribution = "opensuse";  version = "latest";          };
+    rocky_oldstable  = { distribution = "rocky";     version = "oldstable";       };
+    rocky_stable     = { distribution = "rocky";     version = "stable";          };
     slackware        = { distribution = "slackware"; version = "latest";          };
     ubuntu_oldoldlts = { distribution = "ubuntu";    version = "oldoldlts";       };
     ubuntu_oldlts    = { distribution = "ubuntu";    version = "oldlts";          };
@@ -43,6 +45,8 @@ in {
     nixos_stable
     nixos_unstable
     opensuse
+    rocky_oldstable
+    rocky_stable
     slackware
     ubuntu_oldoldlts
     ubuntu_oldlts
@@ -70,6 +74,8 @@ in {
     nixos_stable
     nixos_unstable
     opensuse
+    rocky_oldstable
+    rocky_stable
     ubuntu_oldoldlts
     ubuntu_oldlts
     ubuntu_lts
