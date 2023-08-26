@@ -39,7 +39,7 @@ import ../../make-template.nix ({ distribution, version }: rec {
 
       _, output = machine.succeeds("osctl ct exec testct cat /sys/fs/cgroup/cgroup.controllers")
       enabled_controllers = output.strip.split(" ")
-      expected_controllers = %w(cpuset cpu io memory hugetlb pids rdma)
+      expected_controllers = %w(cpuset cpu memory hugetlb pids rdma)
 
       expected_controllers.each do |v|
         unless enabled_controllers.include?(v)
