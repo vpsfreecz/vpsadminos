@@ -12,6 +12,10 @@ module OsCtld
       /usr/sbin
       /run/current-system/sw/bin
       /nix/var/nix/profiles/system/sw/bin
+      /run/current-system/profile/bin
+      /run/current-system/profile/sbin
+      /var/guix/profiles/system/profile/bin
+      /var/guix/profiles/system/profile/sbin
     )
 
     # Fork into a new process
