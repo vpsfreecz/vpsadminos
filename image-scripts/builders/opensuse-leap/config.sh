@@ -1,2 +1,2 @@
 DISTNAME=opensuse
-RELVER=leap-15.2
+RELVER=leap-15.5
