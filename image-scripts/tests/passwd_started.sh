@@ -4,5 +4,6 @@ osctl ct start $CTID || fail "unable to start container"
 # we need the initial system activation to take place before the password
 # can be set.
 [ "$DISTNAME" == "nixos" ] && sleep 10
+[ "$DISTNAME" == "guix" ] && sleep 10
 
 osctl ct passwd $CTID root suCHS3crET || fail "unable to set password"

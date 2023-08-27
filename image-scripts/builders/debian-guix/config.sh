@@ -1,0 +1,2 @@
+DISTNAME=debian
+RELVER=stable

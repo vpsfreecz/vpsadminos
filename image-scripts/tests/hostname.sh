@@ -12,7 +12,7 @@ function hostname_is {
 	fi
 }
 
-if [ "$DISTNAME" == "nixos" ] ; then
+if [ "$DISTNAME" == "nixos" ] || [ "$DISTNAME" == "guix" ] ; then
 	# Hostname on NixOS cannot be changed from the outside using osctl
 	exit 0
 fi
