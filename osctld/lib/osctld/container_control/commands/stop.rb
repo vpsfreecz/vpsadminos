@@ -95,6 +95,8 @@ module OsCtld
 
       def run_halt
         pid = lxc_ct.attach do
+          setup_exec_env
+
           %w(halt poweroff shutdown).each do |cmd|
             begin
               LXC.run_command(cmd)
