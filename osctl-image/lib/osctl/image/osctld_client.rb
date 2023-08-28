@@ -124,6 +124,13 @@ module OsCtl::Image
     end
 
     # @param ctid [String]
+    def kill_container(ctid)
+      connect do |client|
+        client.cmd_data!(:ct_stop, id: ctid, method: 'kill')
+      end
+    end
+
+    # @param ctid [String]
     # @param cmd [Array<String>]
     def exec(ctid, cmd)
       connect do |client|
