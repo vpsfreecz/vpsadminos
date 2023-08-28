@@ -45,6 +45,9 @@ func startMenu(opts *options) {
 	nixosMenu := tview.NewList()
 	nixosGenerations := listNixosGenerations()
 
+	guixMenu := tview.NewList()
+	guixGenerations := listGuixGenerations()
+
 	mainMenu.
 		AddItem("Start system", fmt.Sprintf("Executes %s", initCommand), 'i', func() {
 			sendExec(opts.args)
@@ -53,6 +56,13 @@ func startMenu(opts *options) {
 	if len(nixosGenerations) > 0 {
 		mainMenu.AddItem("Select NixOS generation", "Start into older system version", 'g', func() {
 			pages.SwitchToPage("nixosMenu")
+			setFrameTextMenu()
+		})
+	}
+
+	if len(guixGenerations) > 0 {
+		mainMenu.AddItem("Select Guix generation", "Start into older system version", 'g', func() {
+			pages.SwitchToPage("guixMenu")
 			setFrameTextMenu()
 		})
 	}
@@ -83,6 +93,14 @@ func startMenu(opts *options) {
 			})
 	}
 
+	if len(guixGenerations) > 0 {
+		makeGuixMenu(guixMenu, guixGenerations).
+			SetDoneFunc(func() {
+				pages.SwitchToPage("mainMenu")
+				setFrameTextNoTimeout()
+			})
+	}
+
 	commandField.
 		SetLabel("Run command: ").
 		SetText(strings.Join(opts.args, " ")).
@@ -98,6 +116,7 @@ func startMenu(opts *options) {
 
 	pages.AddPage("mainMenu", mainMenu, true, true)
 	pages.AddPage("nixosMenu", nixosMenu, true, false)
+	pages.AddPage("guixMenu", guixMenu, true, false)
 	pages.AddPage("customCommand", commandField, true, false)
 
 	frame = tview.NewFrame(pages).
@@ -173,4 +192,14 @@ func timeoutRoutine(timeout uint, c <-chan string, command []string) {
 			queueFrameTextTimeout(timeout)
 		}
 	}
+}
+
+func getItemRune(i int) rune {
+	n := i + 1
+
+	if n > 9 {
+		return rune(0)
+	}
+
+	return rune(fmt.Sprint(n)[0])
 }

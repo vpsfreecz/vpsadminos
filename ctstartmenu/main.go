@@ -22,8 +22,9 @@ type options struct {
 }
 
 type startCommand struct {
-	Action string
-	Args   []string
+	Action      string
+	Args        []string
+	Environment map[string]string
 }
 
 const (
@@ -118,7 +119,13 @@ func supervisor(opts *options) {
 				os.Remove(os.Args[0])
 			}
 
-			if err = unix.Exec(data.Args[0], data.Args, os.Environ()); err != nil {
+			env := os.Environ()
+
+			for k, v := range data.Environment {
+				env = append(env, fmt.Sprintf("%s=%s", k, v))
+			}
+
+			if err = unix.Exec(data.Args[0], data.Args, env); err != nil {
 				panic(err)
 			}
 		} else if data.Action == "shell" {
@@ -234,6 +241,10 @@ func doReboot() error {
 
 func sendExec(command []string) {
 	sendResult(&startCommand{Action: "exec", Args: command})
+}
+
+func sendExecEnv(command []string, env map[string]string) {
+	sendResult(&startCommand{Action: "exec", Args: command, Environment: env})
 }
 
 func sendShell() {

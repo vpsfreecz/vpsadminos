@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"github.com/rivo/tview"
 	"os"
 	"path/filepath"
@@ -11,8 +12,8 @@ import (
 	"strconv"
 )
 
-func listNixosGenerations() []*systemGeneration {
-	base := "/nix/var/nix/profiles"
+func listGuixGenerations() []*systemGeneration {
+	base := "/var/guix/profiles"
 	files, err := os.ReadDir(base)
 	if err != nil {
 		return []*systemGeneration{}
@@ -46,13 +47,13 @@ func listNixosGenerations() []*systemGeneration {
 			continue
 		}
 
-		version, err := readNixosGenerationVersion(storePath)
+		version, err := readGuixGenerationVersion(storePath)
 		if err != nil {
 			continue
 		}
 
 		gen := &systemGeneration{
-			system:    "NixOS",
+			system:    "Guix",
 			id:        intId,
 			time:      info.ModTime(),
 			linkPath:  linkPath,
@@ -70,8 +71,8 @@ func listNixosGenerations() []*systemGeneration {
 	return generations
 }
 
-func readNixosGenerationVersion(path string) (string, error) {
-	file, err := os.Open(filepath.Join(path, "nixos-version"))
+func readGuixGenerationVersion(path string) (string, error) {
+	file, err := os.Open(filepath.Join(path, "provenance"))
 
 	if err != nil {
 		return "", err
@@ -80,25 +81,48 @@ func readNixosGenerationVersion(path string) (string, error) {
 	scanner := bufio.NewScanner(file)
 	scanner.Split(bufio.ScanLines)
 
+	branchRx := regexp.MustCompile("\\(branch\\s\"([^\"]+)\"\\)")
+	commitRx := regexp.MustCompile("\\(commit\\s\"([^\"]+)\"\\)")
+
 	for scanner.Scan() {
 		line := scanner.Text()
 		file.Close()
-		return line, nil
+
+		branchMatch := branchRx.FindStringSubmatch(line)
+
+		if len(branchMatch) < 2 {
+			continue
+		}
+
+		commitMatch := commitRx.FindStringSubmatch(line)
+
+		if len(commitMatch) < 2 {
+			continue
+		}
+
+		return fmt.Sprintf("%s-%s", branchMatch[1], commitMatch[1][0:8]), nil
 	}
 
 	return "", errors.New("unable to read version")
 }
 
-func getNixosInit(gen *systemGeneration) string {
-	return filepath.Join(gen.linkPath, "init")
+func getGuixInit(gen *systemGeneration) []string {
+	return []string{
+		filepath.Join(gen.linkPath, "profile/bin/guile"),
+		filepath.Join(gen.linkPath, "boot"),
+	}
 }
 
-func makeNixosMenu(menu *tview.List, generations []*systemGeneration) *tview.List {
+func getGuixEnvironment(gen *systemGeneration) map[string]string {
+	return map[string]string{"GUIX_NEW_SYSTEM": gen.storePath}
+}
+
+func makeGuixMenu(menu *tview.List, generations []*systemGeneration) *tview.List {
 	for i, gen := range generations {
 		selectedGen := gen
 
 		menu.AddItem(gen.getLabel(), gen.getSecondaryLabel(), getItemRune(i), func() {
-			sendExec([]string{getNixosInit(selectedGen)})
+			sendExecEnv(getGuixInit(selectedGen), getGuixEnvironment(selectedGen))
 		})
 	}
 
