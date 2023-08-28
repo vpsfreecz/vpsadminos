@@ -38,6 +38,10 @@ module OsCtld
       # Shepherd gets stuck when it is sent a signal, so shut it down only using
       # halt.
       if %i(stop shutdown).include?(opts[:mode])
+        wait_until = Time.now + opts[:timeout]
+        stopped = false
+        event_queue = Eventd.subscribe
+
         begin
           ContainerControl::Commands::StopByHalt.run!(
             ct,
@@ -48,7 +52,36 @@ module OsCtld
           log(:warn, ct, "Unable to gracefully shutdown shepherd: #{e.message}")
         end
 
-        super(opts.merge(message: nil))
+        loop do
+          unless ct.running?
+            stopped = true
+            break
+          end
+
+          timeout = wait_until - Time.now
+          break if timeout < 0
+
+          event = event_queue.pop(timeout: timeout)
+          break if event.nil?
+
+          # Ignore irrelevant events
+          next if event.type != :state \
+                  || event.opts[:pool] != ct.pool.name \
+                  || event.opts[:id] != ct.id
+
+          if event.opts[:state] == :stopped
+            stopped = true
+            break
+          end
+        end
+
+        Eventd.unsubscribe(event_queue)
+
+        if !stopped && opts[:mode] != :shutdown
+          super(opts.merge(mode: :kill, message: nil))
+        elsif ct.running?
+          raise ContainerControl::Error, 'Timeout while waiting for halt'
+        end
       else
         super
       end
