@@ -1,10 +1,19 @@
 module github.com/vpsfreecz/vpsadminos/ctstartmenu
 
-go 1.16
+go 1.20
 
 require (
-	github.com/creack/pty v1.1.17
-	github.com/gdamore/tcell/v2 v2.4.1-0.20210905002822-f057f0a857a1
-	github.com/rivo/tview v0.0.0-20220106183741-90d72bc664f5
-	golang.org/x/sys v0.0.0-20220114195835-da31bd327af9
+	github.com/creack/pty v1.1.18
+	github.com/gdamore/tcell/v2 v2.6.0
+	github.com/rivo/tview v0.0.0-20230826224341-9754ab44dc1c
+	golang.org/x/sys v0.11.0
+)
+
+require (
+	github.com/gdamore/encoding v1.0.0 // indirect
+	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
+	github.com/mattn/go-runewidth v0.0.15 // indirect
+	github.com/rivo/uniseg v0.4.4 // indirect
+	golang.org/x/term v0.11.0 // indirect
+	golang.org/x/text v0.12.0 // indirect
 )
