@@ -51,6 +51,8 @@
         musl = { tags = [ "latest-musl" "stable-musl" ]; };
       };
 
+      guix.rolling = { name = "guix"; tags = [ "latest" "stable" ]; };
+
       nixos = {
         "23.05" = { tags = [ "latest" "stable" ]; };
         "unstable" = { tags = [ "unstable" ]; };
@@ -123,6 +125,11 @@
       {
         distribution = "gentoo";
         version = "musl-\\d+";
+        keep = 4;
+      }
+      {
+        distribution = "guix";
+        version = "\\d+";
         keep = 4;
       }
       {
