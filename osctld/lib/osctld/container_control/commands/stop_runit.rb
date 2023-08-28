@@ -64,8 +64,7 @@ module OsCtld
         if $?.exitstatus == 0
           ok
         else
-          log(:warn, ct, "runit-stop exited with #{$?.exitstatus}")
-          error('runit-stop failed')
+          error("runit-stop failed with exit status #{$?.exitstatus}")
         end
       end
     end
