@@ -13,6 +13,7 @@ if [ -e /dev/pts/ptmx ] ; then
 fi
 
 guix pull
+hash guix
 
 GUILE_LOAD_PATH="$IMAGEDIR" guix system init --no-bootloader "$IMAGEDIR"/system.scm "$INSTALL"
 
