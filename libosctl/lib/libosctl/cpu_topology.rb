@@ -36,6 +36,13 @@ module OsCtl::Lib
       end
 
       cpu_list.sort.each do |cpu_id|
+        begin
+          online = File.read(File.join(sys_dir, "cpu#{cpu_id}", 'online')).strip
+          next if online != '1'
+        rescue Errno::ENOENT
+          # If online file does not exist, we assume it is online
+        end
+
         pkg_id = File.read(File.join(sys_dir, "cpu#{cpu_id}", 'topology/physical_package_id')).strip.to_i
 
         cpu = Cpu.new(id: cpu_id, package_id: pkg_id)
