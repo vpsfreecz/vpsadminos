@@ -1,5 +1,5 @@
 source 'https://rubygems.org'
 
 source 'https://rubygems.vpsfree.cz' do
-  gem 'osvm', '23.05.0.build20230901084938'
+  gem 'osvm', '23.05.0.build20230902113047'
 end
