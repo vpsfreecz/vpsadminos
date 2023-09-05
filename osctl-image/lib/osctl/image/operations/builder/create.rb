@@ -43,6 +43,7 @@ module OsCtl::Image
             'builder'
           )
 
+          client.set_container_nesting(builder.ctid)
           client.unset_container_start_menu(builder.ctid)
 
           client.add_netif_bridge(builder.ctid, 'eth0', 'lxcbr0')

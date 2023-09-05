@@ -110,6 +110,13 @@ module OsCtl::Image
     end
 
     # @param ctid [String]
+    def set_container_nesting(ctid)
+      connect do |client|
+        client.cmd_data!(:ct_set, id: ctid, nesting: true)
+      end
+    end
+
+    # @param ctid [String]
     def start_container(ctid)
       connect do |client|
         client.cmd_data!(:ct_start, id: ctid)
