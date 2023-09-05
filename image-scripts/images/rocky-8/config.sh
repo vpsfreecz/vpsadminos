@@ -1,1 +1,1 @@
-BUILDER=almalinux
+BUILDER=almalinux-8
