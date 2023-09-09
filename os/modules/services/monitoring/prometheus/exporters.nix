@@ -20,6 +20,7 @@ let
   #  runit service must be provided by specifying `serviceRun`
 
   exporterOpts = genAttrs [
+    "ipmi"
     "node"
   ] (name:
     import (./. + "/exporters/${name}.nix") { inherit config lib pkgs options; }
