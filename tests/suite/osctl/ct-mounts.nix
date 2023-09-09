@@ -52,5 +52,24 @@ import ../../make-test.nix (pkgs: {
     if output.strip != "started"
       fail "invalid mount: expected 'started', got #{output.inspect}"
     end
+
+    # tmpfs mounts
+    machine.succeeds("ct mounts new --fs tmpfs --type tmpfs --opts create=dir --mountpoint /mnt/tmpfs testct")
+
+    # tmpfs cannot be activated at runtime
+    _, output = machine.fails("ct mounts activate testct /mnt/tmpfs")
+
+    if !output.include?("can activate only bind mounts")
+      fail "unexpected tmpfs activate message: #{output.inspect}"
+    end
+
+    # The tmpfs mount should be present after restart
+    machine.succeeds("ct restart testct")
+
+    _, output = machine.succeeds("osctl ct exec testct grep /mnt/tmpfs /proc/mounts")
+
+    if !output.strip.start_with?("tmpfs /mnt/tmpfs tmpfs")
+      fail "tmpfs not mounted at /mnt/tmpfs"
+    end
   '';
 })
