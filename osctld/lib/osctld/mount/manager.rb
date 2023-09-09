@@ -33,7 +33,7 @@ module OsCtld
       ct.save_config
       ct.lxc_config.configure_mounts
 
-      return unless mnt.automount?
+      return if !mnt.automount? || mnt.type != 'bind'
 
       ct.exclusively do
         next unless ct.fresh_state == :running
@@ -123,8 +123,14 @@ module OsCtld
     # @param mountpoint [String]
     def activate(mountpoint)
       mnt = find_at(mountpoint)
-      raise MountNotFound, mountpoint unless mnt
-      raise MountInvalid if !mnt.fs || !mnt.type || !mnt.opts
+
+      if mnt.nil?
+        raise MountNotFound, mountpoint
+      elsif !mnt.fs || !mnt.type || !mnt.opts
+        raise MountInvalid, "incomplete mount: missing fs, type or opts"
+      elsif mnt.type != 'bind'
+        raise MountInvalid, "can activate only bind mounts, not #{mnt.type}"
+      end
 
       shared_dir.propagate(mnt)
     end
