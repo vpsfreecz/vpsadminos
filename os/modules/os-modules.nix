@@ -30,7 +30,7 @@
   ./services/misc/nix-daemon.nix
   ./services/monitoring/apcupsd.nix
   ./services/monitoring/munin.nix
-  ./services/monitoring/prometheus/node_exporter.nix
+  ./services/monitoring/prometheus/exporters.nix
   ./services/monitoring/prometheus/osbench
   ./services/network-filesystems/nfs.nix
   ./services/networking/bird.nix
