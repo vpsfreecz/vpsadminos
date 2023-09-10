@@ -5,7 +5,7 @@ readonly ARCH=${ARCH:=x86_64}
 
 readonly DISTNAME='alpine'
 # Don't use https:// for this script, it doesn't work for an unknown reason.
-readonly BASEURL="http://mirror.fit.cvut.cz/alpine/v$RELVER"
+readonly BASEURL="http://mirror.fel.cvut.cz/alpine/v$RELVER"
 
 readonly APORTS_URI="git://git.alpinelinux.org/aports"
 readonly APORTS_DIR="$DOWNLOAD/aports"
