@@ -47,14 +47,14 @@ let
 
     performance = {
       RCU_EXPERT                = yes;
-      RCU_BOOST                 = yes;
+      RCU_BOOST                 = whenAtLeast "6.1" yes;
       RCU_NOCB_CPU              = yes;
       TASKS_TRACE_RCU_READ_MB   = yes;
       BLK_WBT                   = no;
       HW_RANDOM                 = yes;
       HW_RANDOM_AMD             = yes;
       PSI                       = no;
-      CGROUP_FAVOR_DYNMODS      = yes;
+      CGROUP_FAVOR_DYNMODS      = whenAtLeast "6.1" yes;
     };
 
     preempt_rt = optionalAttrs (RTKernel) {
