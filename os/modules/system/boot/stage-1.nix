@@ -159,6 +159,7 @@ let
 
   initialRamdisk = pkgs.makeInitrd {
     compressor = "pigz";
+    inherit (config.boot.initrd) prepend;
 
     contents = [
       {
@@ -200,6 +201,13 @@ in
         Whether to enable the NixOS initial RAM disk (initrd). This may be
         needed to perform some initialisation tasks (like mounting
         network/encrypted file systems) before continuing the boot process.
+      '';
+    };
+    boot.initrd.prepend = mkOption {
+      default = [ ];
+      type = types.listOf types.str;
+      description = lib.mdDoc ''
+        Other initrd files to prepend to the final initrd we are building.
       '';
     };
     boot.initrd.supportedFilesystems = mkOption {

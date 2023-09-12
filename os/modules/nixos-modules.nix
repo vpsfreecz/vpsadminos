@@ -1,5 +1,7 @@
 [
   <nixpkgs/nixos/modules/hardware/all-firmware.nix>
+  <nixpkgs/nixos/modules/hardware/cpu/amd-microcode.nix>
+  <nixpkgs/nixos/modules/hardware/cpu/intel-microcode.nix>
   <nixpkgs/nixos/modules/misc/extra-arguments.nix>
   <nixpkgs/nixos/modules/programs/ssh.nix>
   <nixpkgs/nixos/modules/system/etc/etc.nix>
