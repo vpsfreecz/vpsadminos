@@ -402,12 +402,22 @@ in {
       secretsDir = config.system.secretsDir;
     };
 
-    system.build.dist = pkgs.runCommand "vpsadminos-dist" {} ''
-      mkdir $out
-      cp ${config.system.build.squashfs} $out/root.squashfs
-      cp ${config.system.build.kernel}/*zImage $out/kernel
-      cp ${config.system.build.initialRamdisk}/initrd $out/initrd
-      echo "init=${config.system.build.toplevel}/init ${builtins.unsafeDiscardStringContext (toString config.boot.kernelParams)}" > $out/command-line
-    '';
+    system.build.dist =
+      let
+        microcode =
+          if config.hardware.cpu.intel.updateMicrocode then
+            "cp ${pkgs.microcodeIntel}/intel-ucode.img $out/microcode"
+          else if config.hardware.cpu.amd.updateMicrocode then
+            "cp ${pkgs.microcodeAmd}/amd-ucode.img $out/microcode"
+          else
+            "";
+      in pkgs.runCommand "vpsadminos-dist" {} ''
+        mkdir $out
+        cp ${config.system.build.squashfs} $out/root.squashfs
+        cp ${config.system.build.kernel}/*zImage $out/kernel
+        cp ${config.system.build.initialRamdisk}/initrd $out/initrd
+        ${microcode}
+        echo "init=${config.system.build.toplevel}/init ${builtins.unsafeDiscardStringContext (toString config.boot.kernelParams)}" > $out/command-line
+      '';
   };
 }
