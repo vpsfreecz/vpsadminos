@@ -49,7 +49,7 @@ let
       RCU_EXPERT                = yes;
       RCU_BOOST                 = whenAtLeast "6.1" yes;
       RCU_NOCB_CPU              = yes;
-      TASKS_TRACE_RCU_READ_MB   = yes;
+      TASKS_TRACE_RCU_READ_MB   = no;
       BLK_WBT                   = no;
       HW_RANDOM                 = yes;
       HW_RANDOM_AMD             = yes;
