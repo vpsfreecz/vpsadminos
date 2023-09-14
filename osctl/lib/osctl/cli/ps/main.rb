@@ -74,25 +74,32 @@ module OsCtl::Cli
         warn "No processes found"
       end
 
-      if slow_os_procs.any?
-        warn "\nSlow processes:"
-        slow_os_procs.sort do |a, b|
-          b.duration <=> a.duration
-        end.each do |slow_proc|
-          pool, id = slow_proc.os_process.ct_id
-          ctid = pool.nil? ? '[host]' : "#{pool}:#{id}"
-          warn(sprintf(
-            '%16s: %10d %-18s %.2fs',
-            ctid,
-            slow_proc.os_process.pid,
-            slow_proc.os_process.name,
-            slow_proc.duration,
-          ))
-        end
-      end
+      print_slow_processes(slow_os_procs) if slow_os_procs.any?
     end
 
     protected
+    def print_slow_processes(slow_os_procs)
+      warn "\nSlow processes:"
+      slow_os_procs.sort do |a, b|
+        b.duration <=> a.duration
+      end.each do |slow_proc|
+        begin
+          pool, id = slow_proc.os_process.ct_id
+          ctid = pool.nil? ? '[host]' : "#{pool}:#{id}"
+        rescue OsCtl::Lib::Exceptions::OsProcessNotFound
+          ctid = "[unknown]"
+        end
+
+        warn(sprintf(
+          '%16s: %10d %-18s %.2fs',
+          ctid,
+          slow_proc.os_process.pid,
+          slow_proc.os_process.name,
+          slow_proc.duration,
+        ))
+      end
+    end
+
     def get_process_list(ctids, filters)
       spinner = TTY::Spinner.new("[:spinner] :title", clear: true)
       spinner.update(title: 'Listing processes...')
