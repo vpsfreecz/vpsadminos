@@ -17,7 +17,7 @@ Gem::Specification.new do |s|
   s.email       = 'jakub.skokan@vpsfree.cz'
   s.files       = `git ls-files -z`.split("\x0")
   s.executables = s.files.grep(%r{^bin/}) { |f| File.basename(f) }
-  s.license     = 'Apache-2.0'
+  s.license     = 'MIT'
 
   s.required_ruby_version = '>= 2.0.0'
 

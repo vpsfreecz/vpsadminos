@@ -19,7 +19,7 @@ Gem::Specification.new do |s|
   s.executables   = s.files.grep(%r{^bin/}) { |f| File.basename(f) }
   s.extensions   << 'ext/osctld/extconf.rb'
   s.require_paths = ['lib', 'ext']
-  s.license       = 'Apache-2.0'
+  s.license       = 'MIT'
 
   s.required_ruby_version = '>= 2.0.0'
 

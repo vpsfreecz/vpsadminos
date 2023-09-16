@@ -47,7 +47,7 @@ in stdenv.mkDerivation rec {
     description = "FUSE filesystem for LXC";
     homepage = "https://linuxcontainers.org/lxcfs";
     changelog = "https://linuxcontainers.org/lxcfs/news/";
-    license = licenses.asl20;
+    license = licenses.mit;
     platforms = platforms.linux;
     maintainers = with maintainers; [];
   };
