@@ -18,7 +18,7 @@ module SvCtl
           sprintf('%-10s', sv_runlevels.include?(rlv) ? rlv : '')
         end.join('  ')
 
-        puts sprintf('%-20s    %s', s.name, rlv_line)
+        puts sprintf('%-30s    %s', s.name, rlv_line)
       end
     end
 
