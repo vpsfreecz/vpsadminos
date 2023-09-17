@@ -10,7 +10,7 @@ module OsCtld
     end
 
     def execute(ct)
-      ct.prlimit_unset(opts[:name])
+      ct.prlimits.unset(opts[:name])
       ok
     end
   end

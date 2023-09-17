@@ -56,6 +56,7 @@ module OsCtld
     def unset(name)
       exclusively { prlimits.delete(name) }
       ct.save_config
+      ct.lxc_config.configure_prlimits
     end
 
     # @param name [String]

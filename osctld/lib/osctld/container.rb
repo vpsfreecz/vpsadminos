@@ -604,33 +604,6 @@ module OsCtld
       lxc_config.configure_base
     end
 
-    def prlimit_set(name, soft, hard)
-      exclusively do
-        limit = @prlimits.detect { |v| v.name == name }
-
-        if limit
-          limit.set(soft, hard)
-
-        else
-          @prlimits << PrLimit.new(name, soft, hard)
-        end
-      end
-
-      save_config
-      lxc_config.configure
-    end
-
-    def prlimit_unset(name)
-      exclusively do
-        limit = @prlimits.detect { |v| v.name == name }
-        next unless limit
-        @prlimits.delete(limit)
-      end
-
-      save_config
-      lxc_config.configure_prlimits
-    end
-
     def setup_start_menu
       menu = start_menu
       menu.deploy if menu
