@@ -139,8 +139,8 @@ module OsCtld
         PrLimits.set(
           pid,
           PrLimits.resource_to_const(name),
-          limit[:soft],
-          limit[:hard]
+          limit[:soft] == 'unlimited' ? PrLimits::INFINITY : limit[:soft],
+          limit[:hard] == 'unlimited' ? PrLimits::INFINITY : limit[:hard],
         )
       end
     end

@@ -40,7 +40,7 @@ module OsCtld
     def parse(v)
       return v if v.is_a?(Integer)
       fail "a limit must be an integer or 'unlimited'" if v != 'unlimited'
-      v.to_sym
+      v
     end
 
     def validate(name, soft, hard)
