@@ -14,6 +14,8 @@ module OsCtld
     AUTHORIZED_KEYS = File.join(RunState::SEND_RECEIVE_DIR, 'authorized_keys')
     HOOK = File.join(RunState::SEND_RECEIVE_DIR, 'run')
 
+    MUTEX = Mutex.new
+
     def self.setup
       Server.start
 
@@ -25,23 +27,22 @@ module OsCtld
     end
 
     def self.deploy
-      regenerate_file(AUTHORIZED_KEYS, 0400) do |new, old|
-        DB::Pools.get.each { |pool| pool.send_receive_key_chain.deploy(new) }
-      end
+      sync do
+        regenerate_file(AUTHORIZED_KEYS, 0400) do |new, old|
+          DB::Pools.get.each { |pool| pool.send_receive_key_chain.deploy(new) }
+        end
 
-      File.chown(UID, 0, AUTHORIZED_KEYS)
+        File.chown(UID, 0, AUTHORIZED_KEYS)
+      end
     end
 
     def self.started_using_key(pool, name)
-      if pool.send_receive_key_chain.started_using_key(name)
-        pool.send_receive_key_chain.save
-      end
+      pool.send_receive_key_chain.started_using_key(name)
     end
 
     def self.stopped_using_key(pool, name)
-      if pool.send_receive_key_chain.stopped_using_key(name)
-        pool.send_receive_key_chain.save
-        deploy
+      sync do
+        deploy if pool.send_receive_key_chain.stopped_using_key(name)
       end
     end
 
@@ -60,6 +61,14 @@ module OsCtld
       )
 
       Server.assets(add)
+    end
+
+    def self.sync
+      if MUTEX.owned?
+        yield
+      else
+        MUTEX.synchronize { yield }
+      end
     end
   end
 end

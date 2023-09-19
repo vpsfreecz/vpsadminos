@@ -167,31 +167,39 @@ module OsCtld
     end
 
     # @param name [String]
+    # @return [Boolean] true if the key has been updated
     def started_using_key(name)
+      ret = false
+
       exclusively do
         key = keys.detect { |v| v.name == name }
 
         if key && key.single_use?
+          ret = true
           key.in_use = true
-          true
-        else
-          false
+          save
         end
       end
+
+      ret
     end
 
     # @param name [String]
+    # @return [Boolean] true if the key has been deleted
     def stopped_using_key(name)
+      ret = false
+
       exclusively do
         key = keys.detect { |v| v.name == name }
 
         if key && key.single_use?
+          ret = true
           keys.delete(key)
-          true
-        else
-          false
+          save
         end
       end
+
+      ret
     end
 
     def export
