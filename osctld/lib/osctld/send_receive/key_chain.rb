@@ -190,11 +190,11 @@ module OsCtld
       ret = false
 
       exclusively do
-        key = keys.detect { |v| v.name == name }
+        i = keys.index { |v| v.name == name }
 
-        if key && key.single_use?
+        if i && keys[i].single_use?
           ret = true
-          keys.delete(key)
+          keys.delete_at(i)
           save
         end
       end
