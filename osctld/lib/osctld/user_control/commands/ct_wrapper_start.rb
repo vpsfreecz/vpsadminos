@@ -23,12 +23,7 @@ module OsCtld
         attach: true,
         leaf: false,
         pid: opts[:pid],
-        debug: true,
       )
-
-      # There's a rare issue when sometimes the PID is not attached to all controllers
-      # and is left in the wrapper's cgroup path. It happens especially on node boot.
-      ensure_reattached(ct, cgpath, opts[:pid]) if CGroup.v1?
 
       # Reset oom_score_adj of the calling process. The reset has to come from
       # a process with CAP_SYS_RESOURCE (which osctld is), so that
@@ -40,22 +35,6 @@ module OsCtld
       end
 
       ok
-    end
-
-    protected
-    def ensure_reattached(ct, cgpath, pid)
-      mismatch = false
-
-      CGroup.get_process_cgroups(pid).each do |subsys, path|
-        if path != "/#{cgpath}"
-          log(:warn, ct, "PID #{pid} expected in cgroup #{subsys}:/#{cgpath}, found in #{path} as read from /proc/#{pid}/cgroup")
-          mismatch = true
-        end
-      end
-
-      sleep(10) if mismatch
-
-      nil
     end
   end
 end
