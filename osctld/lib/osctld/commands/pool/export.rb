@@ -143,6 +143,9 @@ module OsCtld
 
         # Remove pool from the database
         DB::Pools.remove(pool)
+
+        # Remove outdated send/receive keys
+        SendReceive.deploy
       end
 
       Hook.run(pool, :post_export)

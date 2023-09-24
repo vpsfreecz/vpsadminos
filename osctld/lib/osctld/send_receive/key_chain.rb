@@ -51,6 +51,7 @@ module OsCtld
     end
 
     include Lockable
+    include OsCtl::Lib::Utils::Log
 
     def initialize(pool)
       init_lock
@@ -199,6 +200,8 @@ module OsCtld
         end
       end
 
+      log(:info, "Removed single-use key #{name}") if ret
+
       ret
     end
 
@@ -224,6 +227,10 @@ module OsCtld
 
     def key_chain_path
       File.join(pool.conf_path, 'send-receive', 'keychain.yml')
+    end
+
+    def log_type
+      "#{pool.name}:key-chain"
     end
 
     protected
