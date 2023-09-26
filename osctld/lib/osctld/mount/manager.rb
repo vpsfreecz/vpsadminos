@@ -128,7 +128,7 @@ module OsCtld
         raise MountNotFound, mountpoint
       elsif !mnt.fs || !mnt.type || !mnt.opts
         raise MountInvalid, "incomplete mount: missing fs, type or opts"
-      elsif mnt.type != 'bind'
+      elsif !%w(bind none).include?(mnt.type)
         raise MountInvalid, "can activate only bind mounts, not #{mnt.type}"
       end
 
