@@ -87,7 +87,14 @@ in
       paths = config.environment.systemPackages;
       inherit (config.environment) pathsToLink extraOutputsToInstall;
       postBuild = ''
-        # TODO, any system level caches that need to regenerate
+        # Remove wrapped binaries, they shouldn't be accessible via PATH.
+        find $out/bin -maxdepth 1 -name ".*-wrapped" -type l -delete
+
+        if [ -x $out/bin/glib-compile-schemas -a -w $out/share/glib-2.0/schemas ]; then
+            $out/bin/glib-compile-schemas $out/share/glib-2.0/schemas
+        fi
+
+        ${config.environment.extraSetup}
       '';
     };
   };
