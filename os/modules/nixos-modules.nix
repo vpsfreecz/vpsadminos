@@ -44,6 +44,10 @@
   <nixpkgs/nixos/modules/system/boot/kernel.nix>
   <nixpkgs/nixos/modules/misc/assertions.nix>
   <nixpkgs/nixos/modules/misc/lib.nix>
+  <nixpkgs/nixos/modules/config/nix.nix>
+  <nixpkgs/nixos/modules/config/nix-channel.nix>
+  <nixpkgs/nixos/modules/config/nix-flakes.nix>
+  <nixpkgs/nixos/modules/config/nix-remote-build.nix>
   <nixpkgs/nixos/modules/config/sysctl.nix>
   <nixpkgs/nixos/modules/config/users-groups.nix>
   <nixpkgs/nixos/modules/config/i18n.nix>
