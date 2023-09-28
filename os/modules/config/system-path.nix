@@ -69,6 +69,11 @@ in
         example = [ "doc" "info" "docdev" ];
         description = "List of additional package outputs to be symlinked into <filename>/run/current-system/sw</filename>.";
       };
+      extraSetup = mkOption {
+        type = types.lines;
+        default = "";
+        description = lib.mdDoc "Shell fragments to be run after the system environment has been created. This should only be used for things that need to modify the internals of the environment, e.g. generating MIME caches. The environment being built can be accessed at $out.";
+      };
     };
     system.path = mkOption {
       internal = true;
