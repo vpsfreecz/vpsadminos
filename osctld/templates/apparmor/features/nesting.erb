@@ -1,6 +1,5 @@
   mount -> /usr/lib/*/lxc/{**,},
   mount -> /usr/lib/lxc/{**,},
-  mount fstype=devpts,
   mount options=bind /dev/pts/ptmx/ -> /dev/ptmx/,
   mount options=bind /dev/pts/** -> /dev/**,
   # allow pre-mount hooks to stage mounts under /var/lib/lxc/<container>/

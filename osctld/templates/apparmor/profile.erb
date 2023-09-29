@@ -63,6 +63,7 @@ profile "<%= name %>" flags=(attach_disconnected,mediate_deleted) {
   deny mount fstype=debugfs -> /var/lib/ureadahead/debugfs/,
   mount fstype=proc,
   mount fstype=sysfs,
+  mount fstype=devpts,
 
   # Allow switching AppArmor to namespaced profiles
   change_profile -> ":<%= namespace %>:*",
