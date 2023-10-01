@@ -82,6 +82,7 @@ module OsCtld
       @config = Config.new(config_file)
       @started_at = Time.now
       @initialized = false
+      @stopping = false
 
       Thread.abort_on_exception = true
       CGroup.init
@@ -206,7 +207,8 @@ module OsCtld
     end
 
     def stop
-      log(:info, 'Shutting down')
+      @stopping = true
+      log(:info, 'Stopping daemon')
       Eventd.shutdown
       @server.stop if @server
       File.unlink(SOCKET) if File.exist?(SOCKET)
@@ -218,8 +220,12 @@ module OsCtld
       ThreadReaper.stop
       Monitor::Master.stop
       LockRegistry.stop
-      log(:info, 'Shutdown successful')
+      log(:info, 'Daemon stopped successfully')
       exit(false)
+    end
+
+    def stopping?
+      @stopping
     end
 
     def begin_shutdown

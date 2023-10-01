@@ -35,7 +35,7 @@ module OsCtld
 
         # Wait for the container to enter state `running`
         progress('Waiting for the container to start')
-        started = wait_for_ct(event_queue, ct)
+        started, msg = wait_for_ct(event_queue, ct)
         Eventd.unsubscribe(event_queue)
 
         case started
@@ -50,11 +50,11 @@ module OsCtld
 
           ok
         when :timeout
-          error('timed out while waiting for container to start')
+          error(msg || 'timed out while waiting for container to start')
         when :error
-          error('container failed to start')
+          error(msg || 'container failed to start')
         else
-          error('unknown error')
+          error(msg || 'unknown error')
         end
       end
     end
@@ -226,7 +226,7 @@ module OsCtld
     end
 
     # Wait for the container to start or fail
-    # @return [:running, :timeout, :error]
+    # @return [Array<Symbol, String>] :running, :timeout or :error and string message
     def wait_for_ct(event_queue, ct)
       # Sequence of events that lead to the container being started.
       # We're accepting even `stopping` and `stopped`, since when the container
@@ -244,11 +244,16 @@ module OsCtld
       loop do
         if wait_until
           timeout = wait_until - Time.now
-          return :timeout if timeout < 0
+          return [:timeout] if timeout < 0
         end
 
         event = event_queue.pop(timeout: timeout)
-        return :timeout if event.nil?
+        return [:timeout] if event.nil?
+
+        if event.type == :osctld_shutdown
+          log(:info, ct, "osctld is shutting down, giving up waiting")
+          return [:error, 'osctld is shutting down']
+        end
 
         # Ignore irrelevant events
         next if event.type != :state \
@@ -258,8 +263,8 @@ module OsCtld
         state = event.opts[:state]
         cur_i = sequence.index(state)
 
-        return :error if cur_i.nil? || (last_i && cur_i < last_i)
-        return :running if state == sequence.last
+        return [:error] if cur_i.nil? || (last_i && cur_i < last_i)
+        return [:running] if state == sequence.last
 
         last_i = cur_i
       end
