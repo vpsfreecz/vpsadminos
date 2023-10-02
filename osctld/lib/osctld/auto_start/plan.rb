@@ -11,12 +11,14 @@ module OsCtld
       @pool = pool
       @plan = ContinuousExecutor.new(pool.parallel_start)
       @state = AutoStart::State.load(pool)
+      @reboot = AutoStart::Reboot.load(pool)
       @stop = false
       @nproc = Etc.nprocessors
     end
 
     def assets(add)
       state.assets(add)
+      reboot.assets(add)
     end
 
     def start(force: false)
@@ -29,7 +31,10 @@ module OsCtld
 
       # Select containers for autostart
       cts = DB::Containers.get.select do |ct|
-        ct.pool == pool && ct.autostart && ct.can_start? && (force || !state.is_started?(ct))
+        next(false) if ct.pool != pool
+        next(true) if reboot.include?(ct) && ct.can_start?
+        next(true) if ct.autostart && ct.can_start? && (force || !state.is_started?(ct))
+        next(false)
       end
 
       # Preschedule the containers
@@ -103,12 +108,21 @@ module OsCtld
       )
     end
 
+    def request_reboot(ct)
+      reboot.add(ct)
+    end
+
+    def fulfil_reboot(ct)
+      reboot.clear(ct)
+    end
+
     def stop_ct(ct)
       plan.remove(ct.id)
     end
 
     def clear_ct(ct)
       state.clear(ct)
+      reboot.clear(ct)
     end
 
     def clear
@@ -129,7 +143,7 @@ module OsCtld
     end
 
     protected
-    attr_reader :plan, :state
+    attr_reader :plan, :state, :reboot
 
     def do_try_start_ct(ct, attempts: 5, cooldown: 5, start_opts: {})
       attempts.times do |i|

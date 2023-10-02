@@ -379,6 +379,14 @@ module OsCtld
       autostop_plan.wait
     end
 
+    def request_reboot(ct)
+      autostart_plan.request_reboot(ct)
+    end
+
+    def fulfil_reboot(ct)
+      autostart_plan.fulfil_reboot(ct)
+    end
+
     def begin_stop
       autostart_plan.stop
       trash_bin.stop
@@ -413,6 +421,10 @@ module OsCtld
 
     def imported?
       state != :importing
+    end
+
+    def disabled?
+      state == :disabled
     end
 
     def disable

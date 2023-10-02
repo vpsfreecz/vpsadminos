@@ -14,6 +14,9 @@ module OsCtld
 
       ct.starting
 
+      # Fulfil possible reboot request
+      ct.pool.fulfil_reboot(ct)
+
       # Mount datasets
       ct.run_conf.mount(force: true)
 
