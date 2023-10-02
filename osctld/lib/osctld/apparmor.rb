@@ -10,6 +10,20 @@ module OsCtld
     # Paths where `apparmor_parser` searches for configuration files
     PATHS = [RunState::APPARMOR_DIR]
 
+    def self.enabled?
+      if @enabled.nil?
+        begin
+          @enabled = Daemon.get.config.apparmor_paths.any? \
+            && Dir.exist?('/sys/kernel/security/apparmor') \
+            && File.read('/sys/module/apparmor/parameters/enabled').strip.downcase == 'y'
+        rescue Errno::ENOENT
+          @enabled = false
+        end
+      else
+        @enabled
+      end
+    end
+
     # Prepare shared files in `/run/osctl`
     def self.setup
       PATHS.concat(Daemon.get.config.apparmor_paths)

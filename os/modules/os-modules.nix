@@ -20,6 +20,7 @@
   ./programs/bash.nix
   ./programs/htop.nix
   ./rename.nix
+  ./security/apparmor.nix
   ./services/backup/znapzend.nix
   ./services/hardware/eudev.nix
   ./services/livepatches/default.nix

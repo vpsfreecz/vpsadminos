@@ -53,7 +53,7 @@ in
 
   config = {
     osctld.settings = {
-      apparmor_paths = map (s: "${s}/etc/apparmor.d") apparmorPaths;
+      apparmor_paths = optionals config.security.apparmor.enable (map (s: "${s}/etc/apparmor.d") apparmorPaths);
 
       ctstartmenu = "${pkgs.ctstartmenu}/bin/ctstartmenu";
 

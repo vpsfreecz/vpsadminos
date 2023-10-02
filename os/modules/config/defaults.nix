@@ -86,7 +86,7 @@
     supportedLocales = [ "en_US.UTF-8/UTF-8" ];
   };
 
-  security.apparmor.enable = true;
+  security.apparmor.enable = lib.mkDefault true;
 
   virtualisation = {
     lxc = {

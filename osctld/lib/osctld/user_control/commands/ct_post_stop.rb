@@ -13,9 +13,11 @@ module OsCtld
       return error('container not found') unless ct
       return error('access denied') unless owns_ct?(ct)
 
-      # Unload AppArmor profile and destroy namespace
-      ct.apparmor.destroy_namespace
-      ct.apparmor.unload_profile
+      if AppArmor.enabled?
+        # Unload AppArmor profile and destroy namespace
+        ct.apparmor.destroy_namespace
+        ct.apparmor.unload_profile
+      end
 
       if opts[:target] == 'reboot'
         log(:info, ct, 'Reboot requested')

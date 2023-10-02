@@ -23,7 +23,9 @@ lxc.idmap = g <%= entry.ns_id %> <%= entry.host_id %> <%= entry.count %>
 
 # Security
 lxc.seccomp.profile = <%= ct.seccomp_profile %>
+<% if AppArmor.enabled? -%>
 lxc.apparmor.profile = <%= ct.apparmor.namespace_profile_name %>
+<% end -%>
 lxc.autodev = 1
 
 # Init

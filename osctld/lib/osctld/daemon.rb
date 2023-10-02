@@ -124,7 +124,12 @@ module OsCtld
       PrLimits.set(Process.pid, PrLimits::NOFILE, 131072, 131072)
 
       # Setup shared AppArmor files
-      AppArmor.setup
+      if AppArmor.enabled?
+        log(:info, 'AppArmor enabled')
+        AppArmor.setup
+      else
+        log(:info, 'AppArmor disabled')
+      end
 
       # Setup BPF FS
       BpfFs.setup

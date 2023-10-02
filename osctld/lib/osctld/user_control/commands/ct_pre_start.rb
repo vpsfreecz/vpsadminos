@@ -21,7 +21,7 @@ module OsCtld
       ct.run_conf.mount(force: true)
 
       # Load AppArmor profile
-      ct.apparmor.setup
+      ct.apparmor.setup if AppArmor.enabled?
 
       # Configure CGroups
       ret = call_cmd(

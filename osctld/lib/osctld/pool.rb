@@ -244,15 +244,18 @@ module OsCtld
           group: 0,
           mode: 0711
         )
-        add.directory(
-          apparmor_dir,
-          desc: 'AppArmor files',
-          user: 0,
-          group: 0,
-          mode: 0700
-        )
 
-        AppArmor.assets(add, pool)
+        if AppArmor.enabled?
+          add.directory(
+            apparmor_dir,
+            desc: 'AppArmor files',
+            user: 0,
+            group: 0,
+            mode: 0700
+          )
+
+          AppArmor.assets(add, pool)
+        end
 
         add.directory(
           autostart_dir,
@@ -296,7 +299,7 @@ module OsCtld
       load_cts
 
       # Setup AppArmor profiles
-      AppArmor.setup_pool(pool)
+      AppArmor.setup_pool(pool) if AppArmor.enabled?
 
       # Allow containers to create veth interfaces
       Commands::User::LxcUsernet.run

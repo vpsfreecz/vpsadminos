@@ -71,9 +71,11 @@ module OsCtld
           # If some of the cgroups are busy, just leave them be
         end
 
-        progress('Removing AppArmor profile')
-        ct.apparmor.destroy_namespace
-        ct.apparmor.destroy_profile
+        if AppArmor.enabled?
+          progress('Removing AppArmor profile')
+          ct.apparmor.destroy_namespace
+          ct.apparmor.destroy_profile
+        end
 
         bashrc = File.join(ct.lxc_dir, '.bashrc')
         File.unlink(bashrc) if File.exist?(bashrc)

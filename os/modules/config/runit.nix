@@ -146,9 +146,13 @@ in
     # BPF FS
     mount -t bpf bpf /sys/fs/bpf
 
-    # AppArmor
+    # securityfs
     mount -t securityfs securityfs /sys/kernel/security
+
+    ${optionalString config.security.apparmor.enable ''
+    # AppArmor
     ${pkgs.apparmor-parser}/bin/apparmor_parser -rKv ${apparmor_paths_include} "${profile}"
+    ''}
 
     # DebugFS
     mount -t debugfs none /sys/kernel/debug/

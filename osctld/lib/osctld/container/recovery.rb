@@ -27,8 +27,10 @@ module OsCtld
         ct.netifs.take_down
 
         # Unload AppArmor profile and destroy namespace
-        ct.apparmor.destroy_namespace
-        ct.apparmor.unload_profile
+        if AppArmor.enabled?
+          ct.apparmor.destroy_namespace
+          ct.apparmor.unload_profile
+        end
 
         ct.stopped
 

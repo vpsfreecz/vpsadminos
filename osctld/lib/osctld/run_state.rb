@@ -84,13 +84,16 @@ module OsCtld
         group: 0,
         mode: 0755
       )
-      add.directory(
-        RunState::APPARMOR_DIR,
-        desc: 'Shared AppArmor files',
-        user: 0,
-        group: 0,
-        mode: 0755
-      )
+
+      if AppArmor.enabled?
+        add.directory(
+          RunState::APPARMOR_DIR,
+          desc: 'Shared AppArmor files',
+          user: 0,
+          group: 0,
+          mode: 0755
+        )
+      end
 
       Lxcfs::Scheduler.assets(add)
       SendReceive.assets(add)
