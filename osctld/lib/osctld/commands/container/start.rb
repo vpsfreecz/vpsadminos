@@ -247,8 +247,20 @@ module OsCtld
           return [:timeout] if timeout < 0
         end
 
+        if timeout.nil? || timeout > 15
+          timeout = 15
+        end
+
         event = event_queue.pop(timeout: timeout)
-        return [:timeout] if event.nil?
+
+        if event.nil?
+          if Daemon.get.stopping?
+            log(:info, ct, "osctld is shutting down, giving up waiting")
+            return [:error, 'osctld is shutting down']
+          end
+
+          next
+        end
 
         if event.type == :osctld_shutdown
           log(:info, ct, "osctld is shutting down, giving up waiting")
