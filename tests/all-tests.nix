@@ -69,6 +69,8 @@ in tests [
   "osctl/ct-runscript"
   "osctl/pool/export-cleanup"
   "osctl-exportfs/mount"
+  "snap/hello-fedora"
+  "snap/hello-ubuntu"
   "systemd/credentials"
   { template = "systemd/device-units"; instances = distributions.systemd; }
   "zfs/ugidmap"
