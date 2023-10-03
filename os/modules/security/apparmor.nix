@@ -1,6 +1,6 @@
 { config, lib, ... }:
 let
-  inherit (lib) literalExpression mdDoc mkAfter mkDefault mkIf mkMerge mkOption types;
+  inherit (lib) literalExpression mdDoc mkAfter mkIf mkOption types;
 
   cfg = config.security.apparmor;
 in {
@@ -8,7 +8,7 @@ in {
     security.apparmor = {
       enableOnBoot = mkOption {
         type = types.bool;
-        defaultText = literalExpression "config.security.apparmor.enable";
+        default = false;
         description = mdDoc ''
           Enable apparmor using kernel command line parameters
 
@@ -20,13 +20,7 @@ in {
     };
   };
 
-  config = mkMerge [
-    {
-      security.apparmor.enableOnBoot = mkDefault config.security.apparmor.enable;
-    }
-
-    (mkIf (cfg.enable && !cfg.enableOnBoot) {
-      boot.kernelParams = mkAfter [ "apparmor=0" "security=none" ];
-    })
-  ];
+  config = mkIf (cfg.enable && !cfg.enableOnBoot) {
+    boot.kernelParams = mkAfter [ "apparmor=0" "security=none" ];
+  };
 }
