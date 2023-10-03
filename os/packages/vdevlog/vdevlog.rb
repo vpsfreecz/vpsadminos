@@ -722,8 +722,14 @@ module VdevLog
 
     def find_disk_symlinks(disks)
       disks.each do |disk|
-        # This is always a partition name, even if ZFS uses the whole disk
-        dev_path = File.realpath(disk.path)
+        begin
+          # This is always a partition name, even if ZFS uses the whole disk
+          dev_path = File.realpath(disk.path)
+        rescue Errno::ENOENT
+          # The disk might no longer be in the system
+          next
+        end
+
         short_name = File.basename(dev_path)
 
         lookup_name =
@@ -932,8 +938,8 @@ module VdevLog
               state.vdevs << vdev
             else
               vdev.state = disk.state
-              vdev.ids = disk.ids
-              vdev.paths = disk.paths
+              vdev.ids = disk.ids if disk.ids.any?
+              vdev.paths = disk.paths if disk.paths.any?
             end
 
             if @options[:record] && disk.errors.any?
