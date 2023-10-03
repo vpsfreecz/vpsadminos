@@ -71,6 +71,8 @@ in tests [
   "osctl-exportfs/mount"
   "snap/hello-fedora"
   "snap/hello-ubuntu"
+  "snap/lxd-fedora"
+  "snap/lxd-ubuntu"
   "systemd/credentials"
   { template = "systemd/device-units"; instances = distributions.systemd; }
   "zfs/ugidmap"
