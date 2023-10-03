@@ -29,7 +29,6 @@ vpsAdminOS uses:
 - ZFS for storage,
 - our own tools for system container management called [osctl](https://man.vpsadminos.org/man8/osctl.8.html),
 - LXC is used to run the containers,
-- AppArmor for additional security,
 - BIRD for network routing.
 
 ## Building OS

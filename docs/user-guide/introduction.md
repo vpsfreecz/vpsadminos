@@ -28,7 +28,6 @@ vpsAdminOS uses [LTS Linux kernel with a mix of out-of-tree patches]. These
 patches are essential, providing e.g. a syslog namespace to isolate kernel logs,
 virtualized views of selected files in `/proc` and `/sys` and other tweaks.
 Under the hood, *osctld* uses [LXC] to start and monitor the containers.
-Container processes are also restricted by [AppArmor].
 
 # Design goals
 vpsAdminOS is made for administrators. The people who have to get up during the
@@ -60,5 +59,4 @@ The learning curve is pretty steep, but we think it is well worth it.
 [LTS Linux kernel with a mix of out-of-tree patches]: https://github.com/vpsfreecz/linux
 [LXC]: https://linuxcontainers.org/lxc/
 [LXCFS]: https://linuxcontainers.org/lxcfs/
-[AppArmor]: https://en.wikipedia.org/wiki/AppArmor
 [vpsFree.cz]: https://vpsfree.org
