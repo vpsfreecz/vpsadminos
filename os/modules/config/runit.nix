@@ -149,7 +149,7 @@ in
     # securityfs
     mount -t securityfs securityfs /sys/kernel/security
 
-    ${optionalString config.security.apparmor.enable ''
+    ${optionalString (config.security.apparmor.enable && config.security.apparmor.enableOnBoot) ''
     # AppArmor
     ${pkgs.apparmor-parser}/bin/apparmor_parser -rKv ${apparmor_paths_include} "${profile}"
     ''}
