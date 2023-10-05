@@ -7,13 +7,13 @@ let
   python = python3Packages.python.withPackages (ps: [ ps.jinja2 ]);
 in stdenv.mkDerivation rec {
   pname = "lxcfs";
-  version = "5.0.3";
+  version = "5.0.4";
 
   src = fetchFromGitHub {
     owner = "vpsfreecz";
     repo = "lxcfs";
-    rev = "f4da1e4f7a36a235ea674f729678d9736c8478dd";
-    sha256 = "sha256-3086t7Qa3ou+DoxGjSfvlDq2uwc+7p5mbDB16flflLY=";
+    rev = "a2ad76fcc422d2849e195728e30985bf527d210b";
+    sha256 = "sha256-hM25lfhT9j9zaqej/aKtfvqivgWQ8RDKZs1ZruphS+U=";
   };
 
   nativeBuildInputs = [ pkg-config help2man meson ninja python makeWrapper ];
