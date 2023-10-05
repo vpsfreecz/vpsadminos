@@ -34,16 +34,20 @@
   <nixpkgs/nixos/modules/misc/ids.nix>
   <nixpkgs/nixos/modules/virtualisation/lxc.nix>
   <nixpkgs/nixos/modules/virtualisation/lxcfs.nix>
-  <nixpkgs/nixos/modules/services/misc/nix-daemon.nix>
   <nixpkgs/nixos/modules/services/networking/dhcpd.nix>
   <nixpkgs/nixos/modules/services/networking/firewall.nix>
   <nixpkgs/nixos/modules/services/networking/firewall-iptables.nix>
   <nixpkgs/nixos/modules/services/networking/firewall-nftables.nix>
   <nixpkgs/nixos/modules/services/networking/nftables.nix>
   <nixpkgs/nixos/modules/services/networking/ssh/sshd.nix>
+  <nixpkgs/nixos/modules/services/system/nix-daemon.nix>
   <nixpkgs/nixos/modules/system/boot/kernel.nix>
   <nixpkgs/nixos/modules/misc/assertions.nix>
   <nixpkgs/nixos/modules/misc/lib.nix>
+  <nixpkgs/nixos/modules/config/nix.nix>
+  <nixpkgs/nixos/modules/config/nix-channel.nix>
+  <nixpkgs/nixos/modules/config/nix-flakes.nix>
+  <nixpkgs/nixos/modules/config/nix-remote-build.nix>
   <nixpkgs/nixos/modules/config/sysctl.nix>
   <nixpkgs/nixos/modules/config/users-groups.nix>
   <nixpkgs/nixos/modules/config/i18n.nix>
