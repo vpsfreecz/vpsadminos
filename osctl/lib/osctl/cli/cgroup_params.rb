@@ -210,7 +210,7 @@ module OsCtl
           version: 2,
           subsystem: 'memory',
           parameter: 'memory.swap.max',
-          value: ['max'],
+          value: ['0'],
         }
       end
 
