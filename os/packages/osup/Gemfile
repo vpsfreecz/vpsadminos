@@ -1,5 +1,5 @@
 source 'https://rubygems.org'
 
 source 'https://rubygems.vpsfree.cz' do
-  gem 'osup', '23.05.0.build20231003131316'
+  gem 'osup', '23.05.0.build20231006130533'
 end
