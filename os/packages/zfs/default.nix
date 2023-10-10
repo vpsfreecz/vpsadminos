@@ -8,7 +8,7 @@
 , nfs-utils
 , gawk, gnugrep, gnused, systemd
 , smartmontools, sysstat, sudo
-, pkgconfig
+, pkgconfig, installShellFiles
 
 # Kernel dependencies
 , kernel ? null
@@ -55,7 +55,8 @@ let
 	substituteInPlace ./lib/libshare/os/linux/nfs.c --replace "/usr/sbin/exportfs"    "${nfs-utils}/bin/exportfs"
         substituteInPlace ./config/user-systemd.m4    --replace "/usr/lib/modules-load.d" "$out/etc/modules-load.d"
         substituteInPlace ./config/zfs-build.m4       --replace "\$sysconfdir/init.d"     "$out/etc/init.d" \
-                                                      --replace "/etc/default"            "$out/etc/default"
+                                                      --replace "/etc/default"            "$out/etc/default" \
+                                                      --replace "/etc/bash_completion.d"  "$out/etc/bash_completion.d"
         [ -f ./etc/zfs/Makefile.am ] && \
           substituteInPlace ./etc/zfs/Makefile.am       --replace "\$(sysconfdir)"          "$out/etc"
         substituteInPlace ./cmd/zed/Makefile.am       --replace "\$(sysconfdir)"          "$out/etc"
@@ -103,7 +104,7 @@ let
 	  --replace "@udevdir@/rules.d/69-vdev.rules" "pllm"
       '';
 
-      nativeBuildInputs = [ autoreconfHook nukeReferences ]
+      nativeBuildInputs = [ autoreconfHook nukeReferences installShellFiles ]
         ++ optionals buildKernel (kernel.moduleBuildDependencies ++ [ perl ])
         ++ optional buildUser pkgconfig;
       buildInputs = optionals buildUser [ zlib libuuid attr libtirpc python3 ]
@@ -152,8 +153,7 @@ let
       '' + optionalString buildUser ''
         rm -rf $out/share/zfs/zfs-tests
         # Add Bash completions.
-        install -v -m444 -D -t $out/share/bash-completion/completions contrib/bash_completion.d/zfs
-        (cd $out/share/bash-completion/completions; ln -s zfs zpool)
+        installShellCompletion etc/bash_completion.d/*
       '';
 
       postFixup = ''

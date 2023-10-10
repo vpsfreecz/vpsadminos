@@ -23,6 +23,13 @@ let
   # configuration items have to be part of a subattrs
   flattenKConf =  nested: mapAttrs (_: head) (zipAttrs (attrValues nested));
 
+  pstore = if builtins.hasAttr "pstore" features
+             then features.pstore
+             else
+               if versionAtLeast version "6.1.54"
+                 then true
+                 else false;
+
   RTKernel = if builtins.hasAttr "preempt_rt" features
              then features.preempt_rt
              else false;
@@ -482,6 +489,20 @@ let
       # Enable the 9P cache to speed up NixOS VM tests.
       "9P_FSCACHE"      = option yes;
       "9P_FS_POSIX_ACL" = option yes;
+    };
+
+    pstore = optionalAttrs pstore {
+      # Enable PSTORE support
+      PSTORE                    = yes;
+      PSTORE_DEFAULT_KMSG_BYTES = freeform "32768";
+      PSTORE_COMPRESS           = yes;
+      PSTORE_DEFLATE_COMPRESS   = yes;
+      # Enable UEFI pstore backend
+      EFI_VARS_PSTORE                 = yes;
+      EFI_VARS_PSTORE_DEFAULT_DISABLE = yes;
+
+      # Enable ACPI ERST pstore backend
+      ACPI_APEI			= yes;
     };
 
     huge-page = optionalAttrs (!RTKernel) {
