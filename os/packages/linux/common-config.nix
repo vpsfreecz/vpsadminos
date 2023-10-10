@@ -113,6 +113,8 @@ let
       CPU_IDLE_GOV_LADDER              = yes;
       CPU_IDLE_GOV_MENU                = yes;
       HALTPOLL_CPUIDLE                 = yes;
+      X86_INTEL_PSTATE                 = yes;
+      X86_AMD_PSTATE                   = whenAtLeast "5.17" yes;
     };
 
     external-firmware = {
@@ -668,6 +670,7 @@ let
 
       KEYBOARD_APPLESPI   = no;
 
+      CRYPTO_DEV_CCP  = yes;
       CRYPTO_SHA256       = yes;
       KEXEC_FILE          = yes;
 
