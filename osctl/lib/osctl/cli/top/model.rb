@@ -236,7 +236,11 @@ module OsCtl::Cli
     end
 
     def calc_cpu_usage(part, total)
-      part.to_f / total * 100 * nproc
+      if part < 0
+        0.0
+      else
+        part.to_f / total * 100 * nproc
+      end
     end
 
     def calc_host_cpu_usage(cpu)
