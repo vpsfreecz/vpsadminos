@@ -7,13 +7,13 @@ GEM
   specs:
     gli (2.20.1)
     json (2.6.3)
-    libosctl (23.05.0.build20231006130533)
+    libosctl (23.05.0.build20231027085352)
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
-    osup (23.05.0.build20231006130533)
+    osup (23.05.0.build20231027085352)
       gli (~> 2.20.0)
       json
-      libosctl (= 23.05.0.build20231006130533)
+      libosctl (= 23.05.0.build20231027085352)
       require_all (~> 2.0.0)
     rainbow (3.1.1)
     require_all (2.0.0)
@@ -22,7 +22,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  osup (= 23.05.0.build20231006130533)!
+  osup (= 23.05.0.build20231027085352)!
 
 BUNDLED WITH
    2.4.13
