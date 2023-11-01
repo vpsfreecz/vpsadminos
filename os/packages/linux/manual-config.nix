@@ -1,5 +1,5 @@
 { lib, buildPackages, runCommand, nettools, bc, bison, flex, perl, rsync, gmp, libmpc, mpfr, openssl
-, libelf, cpio, elfutils, zstd, gawk, python3Minimal, zlib, pahole
+, libelf, cpio, elfutils, zstd, gawk, python3Minimal, zlib, pahole, kmod
 , writeTextFile
 }:
 
@@ -114,7 +114,6 @@ let
             echo "stripping FHS paths in \`$mf'..."
             sed -i "$mf" -e 's|/usr/bin/||g ; s|/bin/||g ; s|/sbin/||g'
         done
-        sed -i Makefile -e 's|= depmod|= ${buildPackages.kmod}/bin/depmod|'
 
         # Don't include a (random) NT_GNU_BUILD_ID, to make the build more deterministic.
         # This way kernels can be bit-by-bit reproducible depending on settings
@@ -126,6 +125,8 @@ let
       '';
 
       postPatch = ''
+        sed -i Makefile -e 's|= depmod|= ${buildPackages.kmod}/bin/depmod|'
+
         # Set randstruct seed to a deterministic but diversified value. Note:
         # we could have instead patched gen-random-seed.sh to take input from
         # the buildFlags, but that would require also patching the kernel's
@@ -214,7 +215,7 @@ let
         make modules_install $makeFlags "''${makeFlagsArray[@]}" \
           $installFlags "''${installFlagsArray[@]}"
         unlink $out/lib/modules/${modDirVersion}/build
-        unlink $out/lib/modules/${modDirVersion}/source
+        rm -f $out/lib/modules/${modDirVersion}/source
 
         mkdir -p $dev/lib/modules/${modDirVersion}/{build,source}
 
@@ -322,6 +323,7 @@ stdenv.mkDerivation ((drvAttrs config stdenv.hostPlatform.linux-kernel kernelPat
       ++ optionals (lib.versionAtLeast version "4.16") [ bison flex ]
       ++ optional  (lib.versionAtLeast version "5.2")  cpio
       ++ optional  (lib.versionAtLeast version "5.8")  elfutils
+      ++ optional  (lib.versionAtLeast version "6.6")  kmod
       ;
 
   hardeningDisable = [ "bindnow" "format" "fortify" "stackprotector" "pic" "pie" ];

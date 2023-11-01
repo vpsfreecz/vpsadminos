@@ -74,7 +74,8 @@ let
       CONSOLE_LOGLEVEL_DEFAULT  = freeform "7";
       DEBUG_INFO                = whenOlder "5.18" yes;
       DEBUG_INFO_BTF            = whenAtLeast "5.18" yes;
-      DEBUG_INFO_COMPRESSED     = whenAtLeast "6.1.38" yes;
+      DEBUG_INFO_COMPRESSED     = whenBetween "6.1.38" "6.6.0" yes;
+      DEBUG_INFO_COMPRESSED_ZLIB = whenAtLeast "6.6.0" yes;
       DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT = whenAtLeast "5.18" yes;
       DEBUG_KERNEL              = yes;
       DEBUG_DEVRES              = no;
@@ -329,7 +330,7 @@ let
       F2FS_FS             = no;
       UDF_FS              = module;
 
-      NFSD_V2_ACL            = yes;
+      NFSD_V2_ACL            = whenOlder "6.6" yes;
       NFSD_V3                = whenOlder "5.18" yes;
       NFSD_V3_ACL            = yes;
       NFSD_V4                = yes;
@@ -352,7 +353,7 @@ let
       CEPH_FS_POSIX_ACL = yes;
 
       SQUASHFS_FILE_DIRECT         = yes;
-      SQUASHFS_DECOMP_MULTI_PERCPU = yes;
+      SQUASHFS_DECOMP_MULTI_PERCPU = whenOlder "6.6" yes;
       SQUASHFS_XATTR               = yes;
       SQUASHFS_ZLIB                = yes;
       SQUASHFS_LZO                 = yes;
@@ -403,8 +404,8 @@ let
 
     microcode = {
       MICROCODE       = yes;
-      MICROCODE_INTEL = yes;
-      MICROCODE_AMD   = yes;
+      MICROCODE_INTEL = whenOlder "6.6" yes;
+      MICROCODE_AMD   = whenOlder "6.6" yes;
     };
 
     container = {
@@ -498,7 +499,7 @@ let
       PSTORE                    = yes;
       PSTORE_DEFAULT_KMSG_BYTES = freeform "32768";
       PSTORE_COMPRESS           = yes;
-      PSTORE_DEFLATE_COMPRESS   = yes;
+      PSTORE_DEFLATE_COMPRESS   = whenOlder "6.6" yes;
       # Enable UEFI pstore backend
       EFI_VARS_PSTORE                 = yes;
       EFI_VARS_PSTORE_DEFAULT_DISABLE = yes;
@@ -657,7 +658,7 @@ let
       SECCOMP             = yes; # used by systemd >= 231
       SECCOMP_FILTER      = yes; # ditto
       POSIX_MQUEUE        = yes;
-      FRONTSWAP           = yes;
+      FRONTSWAP           = whenOlder "6.6" yes;
       FUSION              = yes; # Fusion MPT device support
       IDE                 = whenOlder "5.19" no; # deprecated IDE support
       IDLE_PAGE_TRACKING  = yes;
