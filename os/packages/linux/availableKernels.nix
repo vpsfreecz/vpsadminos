@@ -3,6 +3,14 @@ with lib.kernel;
 let
   defaultKernelVersion = "6.1.59";
   kernels = {
+    "6.6.0" = {
+      url = linuxGhUrl vpsfGh "d6fdff019d8668d729a2bbad2c797f573a0c3e43";
+      sha256 = "sha256-RVJj50Xr4xtkm2sspdY71MA2tRxfi1NXBfX9eVHVH6U=";
+      zfs = {
+        rev = "a7336fd693896d733ed04437ac5173304884996c";
+        sha256 = "sha256-jaOkdYNgW6jXWIToCoykgcdKJRndoylimBiHnGOOTwM=";
+      };
+    };
     "6.1.59" = {
       url = linuxGhUrl vpsfGh "cab768aebbd3711dfe66064d2e5d54de64d6fdaa";
       sha256 = "sha256-6AT1xMBl9swewgKdxFfWX9HFcXmpjA6zXP4UjX6TtbM=";
