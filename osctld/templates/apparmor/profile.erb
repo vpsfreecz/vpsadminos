@@ -42,6 +42,7 @@ profile "<%= name %>" flags=(attach_disconnected,mediate_deleted) {
 
   # allow tmpfs mounts everywhere
   mount fstype=tmpfs,
+  mount fstype=ramfs,
 
   # allow hugetlbfs mounts everywhere
   mount fstype=hugetlbfs,
