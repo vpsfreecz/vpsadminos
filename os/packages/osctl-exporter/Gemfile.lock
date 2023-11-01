@@ -13,32 +13,32 @@ GEM
     highline (2.0.3)
     ipaddress (0.8.3)
     json (2.6.3)
-    libosctl (23.05.0.build20231027085352)
+    libosctl (23.05.0.build20231101133033)
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
-    osctl (23.05.0.build20231027085352)
+    osctl (23.05.0.build20231101133033)
       curses
       gli (~> 2.20.0)
       highline (~> 2.0.3)
       ipaddress (~> 0.8.3)
       json
-      libosctl (= 23.05.0.build20231027085352)
+      libosctl (= 23.05.0.build20231101133033)
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
       ruby-progressbar (~> 1.11.0)
       tty-spinner (~> 0.9.3)
-    osctl-exporter (23.05.0.build20231027085352)
+    osctl-exporter (23.05.0.build20231101133033)
       json
-      libosctl (= 23.05.0.build20231027085352)
-      osctl (= 23.05.0.build20231027085352)
-      osctl-exportfs (= 23.05.0.build20231027085352)
+      libosctl (= 23.05.0.build20231101133033)
+      osctl (= 23.05.0.build20231101133033)
+      osctl-exportfs (= 23.05.0.build20231101133033)
       prometheus-client (~> 4.0.0)
       require_all (~> 2.0.0)
       thin (~> 1.8.1)
-    osctl-exportfs (23.05.0.build20231027085352)
+    osctl-exportfs (23.05.0.build20231101133033)
       filelock
       gli (~> 2.20.0)
-      libosctl (= 23.05.0.build20231027085352)
+      libosctl (= 23.05.0.build20231101133033)
       require_all (~> 2.0.0)
     prometheus-client (4.0.0)
     rack (2.2.6.4)
@@ -57,7 +57,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  osctl-exporter (= 23.05.0.build20231027085352)!
+  osctl-exporter (= 23.05.0.build20231101133033)!
 
 BUNDLED WITH
    2.4.13
