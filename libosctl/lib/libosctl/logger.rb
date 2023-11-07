@@ -31,6 +31,11 @@ module OsCtl::Lib
       end
     end
 
+    # @return [Logger, nil]
+    def self.get
+      @logger == :none ? nil : @logger
+    end
+
     def self.log(severity, msg)
       return if @logger == :none
       @logger.send(severity, msg)
