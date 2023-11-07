@@ -41,8 +41,8 @@
       };
 
       fedora = {
-        "37" = {};
-        "38" = { tags = [ "latest" "stable" ]; };
+        "38" = {};
+        "39" = { tags = [ "latest" "stable" ]; };
       };
 
       gentoo = {
