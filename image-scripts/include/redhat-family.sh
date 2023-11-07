@@ -58,6 +58,9 @@ EOF
 
 	mkdir -p $DOWNLOAD/var/cache/yum
 	mkdir -p $DOWNLOAD/var/log
+	mkdir -p $INSTALL/proc $INSTALL/sys
+	mount --bind /proc $INSTALL/proc
+	mount --bind /sys $INSTALL/sys
 
 	$YUM_GROUPINSTALL "$GROUPNAME"
 	for rpm in $EXTRAPKGS; do
@@ -69,6 +72,8 @@ EOF
 	done
 	$YUM clean all
 
+	umount $INSTALL/sys
+	umount $INSTALL/proc
 }
 
 function configure-redhat-common {
