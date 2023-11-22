@@ -1,6 +1,6 @@
 . "$IMAGEDIR/config.sh"
-POINTVER=9.2
-RELEASE=https://ftp.sh.cvut.cz/rocky/${POINTVER}/BaseOS/x86_64/os/Packages/r/rocky-release-${POINTVER}-1.6.el9.noarch.rpm
+POINTVER=9.3
+RELEASE=https://ftp.sh.cvut.cz/rocky/${POINTVER}/BaseOS/x86_64/os/Packages/r/rocky-release-${POINTVER}-1.1.el9.noarch.rpm
 BASEURL=https://ftp.sh.cvut.cz/rocky/${POINTVER}/BaseOS/x86_64/os/
 
 # CentOS 8 does not seem to have an updates repo, so this variable is used to
