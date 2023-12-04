@@ -21,6 +21,7 @@ module OsCtld
         enabled?
         needed?
         use?
+        use_sequential_start_stop?
         enable
         disable
         enable_package
@@ -28,6 +29,7 @@ module OsCtld
         schedule_ct
         unschedule_ct
         preschedule_ct
+        get_preschedule_package_id
         cancel_preschedule_ct
         upkeep
         export_status
@@ -183,6 +185,17 @@ module OsCtld
       inclusively { enabled? && needed? }
     end
 
+    # Return `true` if containers should be started/stopped in order of CPU packages
+    #
+    # If there are two packages, then containers are first started on package1
+    # and then on package0. Stop goes in reverse order: package0, package1.
+    #
+    # This setting interferes with container start priorities, see cpu scheduler
+    # config option `sequential_start_priority_threshold`.
+    def use_sequential_start_stop?
+      inclusively { use? && topology.packages.length == 2 }
+    end
+
     # @param package_id [Integer]
     # @return [Boolean]
     def enable_package(package_id)
@@ -242,6 +255,16 @@ module OsCtld
     # @param ct [Container]
     def preschedule_ct(ct)
       assign_package_for(ct, reservation: true)
+    end
+
+    # Get prescheduler package id
+    # @param ct [Container]
+    # @return [Integer, nil]
+    def get_preschedule_package_id(ct)
+      exclusively do
+        sched = scheduled_cts[ct.ident]
+        sched && sched.package_id
+      end
     end
 
     # Cancel a reservation in the scheduler
@@ -423,6 +446,11 @@ module OsCtld
             if wanted_pkg_id
               # static pin
               get_package_by_preference(wanted_pkg_id, daily_use)
+            elsif use_sequential_start_stop? && priority_start?(ct)
+              # prioritized containers are always put on the second package
+              target_pkg_id = package_info.keys.sort.last
+              log(:debug, "Priority start for #{ct.ident}, using CPU package #{target_pkg_id}")
+              get_package_by_preference(target_pkg_id, daily_use)
             elsif daily_use == 0 || !can_schedule_by_score?
               # no usage stats available, choose package based on number of cts
               get_package_by_count(daily_use)
@@ -503,6 +531,13 @@ module OsCtld
         reservation: reservation,
         reserved_at: reservation ? Time.now : nil,
       )
+    end
+
+    def priority_start?(ct)
+      daemon_cfg = Daemon.get.config.cpu_scheduler
+      autostart = ct.autostart
+
+      autostart ? autostart.priority < daemon_cfg.sequential_start_priority_threshold : false
     end
 
     def run_upkeep

@@ -49,12 +49,46 @@ module OsCtld
       end
 
       # Start the containers
-      plan << (cts.map do |ct|
+      #
+      # If the CPU scheduler is in use, we want to start containers from the
+      # second CPU package first. {CpuScheduler.preschedule_ct} already put
+      # prioritized containers to the second package.
+      start_cts =
+        if CpuScheduler.use_sequential_start_stop?
+          cts.sort do |a, b|
+            a_package = CpuScheduler.get_preschedule_package_id(a)
+            b_package = CpuScheduler.get_preschedule_package_id(b)
+
+            # Start containers with a CPU package first
+            if a_package && !b_package
+              -1
+            elsif !a_package && b_package
+              1
+
+            # Neither container has CPU package, sort by start priority
+            elsif !a_package && !b_package
+              a.autostart <=> b.autostart
+
+            # Same CPU package, sort by start priority
+            elsif a_package == b_package
+              a.autostart <=> b.autostart
+
+            # Sort by CPU package, higher package first
+            else
+              b_package <=> a_package
+            end
+          end.each_with_index
+        else
+          cts
+        end
+
+      plan << (start_cts.map do |ct, i|
         ContinuousExecutor::Command.new(
           id: ct.id,
-          priority: ct.autostart.priority,
+          priority: i || ct.autostart.priority,
         ) do |cmd|
           cur_ct = DB::Containers.find(cmd.id, pool)
+
           if cur_ct.nil? || !cur_ct.can_start?
             CpuScheduler.cancel_preschedule_ct(ct)
             next

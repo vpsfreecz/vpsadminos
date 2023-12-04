@@ -14,6 +14,17 @@ module OsCtld
       # @return [Hash<Integer, CpuPackage>]
       attr_reader :packages
 
+      # Containers with priority beneath this threshold are put on the second
+      # CPU package on systems with two CPU packages if sequential start/stop
+      # is enabled. Containers with priority equal or higher than the threshold
+      # might be started out of priority order on systems with two CPU packages.
+      #
+      # Note that all thus prioritized containers will be put on the second CPU
+      # package, and so it is possible to cause imbalance in CPU usage if all
+      # the containers are heavy CPU users.
+      # @return [Integer]
+      attr_reader :sequential_start_priority_threshold
+
       def initialize(cfg)
         @enable = cfg.fetch('enable', false)
         @min_package_container_count_percent = cfg.fetch('min_package_container_count_percent', 90)
@@ -21,6 +32,8 @@ module OsCtld
           pkg = CpuPackage.new(k, v)
           [pkg.id, pkg]
         end]
+
+        @sequential_start_priority_threshold = cfg.fetch('sequential_start_priority_threshold', 1000)
       end
     end
 

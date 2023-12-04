@@ -31,21 +31,58 @@ module OsCtld
       # Sort containers by reversed autostart priority -- containers with
       # the lowest priority are stopped first
       cts = DB::Containers.get.select { |ct| ct.pool == pool }
-      cts.sort! do |a, b|
-        if a.autostart && b.autostart
-          a.autostart <=> b.autostart
 
-        elsif a.autostart
-          -1
+      if CpuScheduler.use_sequential_start_stop?
+        cts.sort! do |a, b|
+          a_conf = a.run_conf
+          b_conf = b.run_conf
 
-        elsif b.autostart
-          1
+          # Stop running containers first
+          if a_conf && !b_conf
+            -1
+          elsif !a_conf && b_conf
+            1
+          elsif !a_conf && !b_conf
+            0
 
-        else
-          0
+          # Stop containers with a CPU package first
+          elsif a_conf.cpu_package && !b_conf.cpu_package
+            -1
+          elsif !a_conf.cpu_package && b_conf.cpu_package
+            1
+          elsif !a_conf.cpu_package && !b_conf.cpu_package
+            0
+
+          # Same CPU package, sort by autostart priority
+          elsif a_conf.cpu_package == b_conf.cpu_package
+            if a.autostart && b.autostart
+              b.autostart <=> a.autostart
+            elsif a.autostart
+              1
+            elsif b.autostart
+              -1
+            else
+              0
+            end
+
+          # Sort by CPU package, lower package first
+          else
+            a_conf.cpu_package <=> b_conf.cpu_package
+          end
+        end
+      else
+        cts.sort! do |a, b|
+          if a.autostart && b.autostart
+            b.autostart <=> a.autostart
+          elsif a.autostart
+            1
+          elsif b.autostart
+            -1
+          else
+            0
+          end
         end
       end
-      cts.reverse!
 
       # Progress counters
       total = cts.count
@@ -53,8 +90,8 @@ module OsCtld
       mutex = Mutex.new
 
       # Stop the containers
-      cmds = cts.map do |ct|
-        ContinuousExecutor::Command.new(id: ct.id, priority: 0) do |cmd|
+      cmds = cts.each_with_index.map do |ct, i|
+        ContinuousExecutor::Command.new(id: ct.id, priority: i) do |cmd|
           if client_handler
             mutex.synchronize do
               done += 1
