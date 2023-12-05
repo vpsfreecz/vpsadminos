@@ -519,6 +519,8 @@ module OsCtl::Cli
     end
 
     def set_autostart
+      require_args!('id')
+
       set(:autostart) do
         {
           priority: opts[:priority],
@@ -528,24 +530,30 @@ module OsCtl::Cli
     end
 
     def unset_autostart
+      require_args!('id')
       unset(:autostart)
     end
 
     def set_ephemeral
+      require_args!('id')
       set(:ephemeral) { true }
     end
 
     def unset_ephemeral
+      require_args!('id')
       unset(:ephemeral)
     end
 
     def set_hostname
+      require_args!('id', 'hostname')
+
       set(:hostname) do |args|
         args[0] || (fail 'expected hostname')
       end
     end
 
     def unset_hostname
+      require_args!('id')
       unset(:hostname)
     end
 
@@ -557,16 +565,20 @@ module OsCtl::Cli
     end
 
     def unset_dns_resolver
+      require_args!('id')
       unset(:dns_resolvers)
     end
 
     def set_nesting
+      require_args!('id')
+
       set(:nesting) do |args|
         true
       end
     end
 
     def unset_nesting
+      require_args!('id')
       unset(:nesting)
     end
 
@@ -609,6 +621,8 @@ module OsCtl::Cli
     end
 
     def set_cpu_package
+      require_args!('id', 'cpu-package')
+
       set(:cpu_package) do |args|
         str = args[0]
 
@@ -632,10 +646,13 @@ module OsCtl::Cli
     end
 
     def unset_cpu_package
+      require_args!('id')
       unset(:cpu_package)
     end
 
     def set_seccomp_profile
+      require_args!('id', 'profile')
+
       set(:seccomp_profile) do |args|
         if args.count != 1
           raise GLI::BadCommandLine, 'expected <profile>'
@@ -650,6 +667,7 @@ module OsCtl::Cli
     end
 
     def unset_seccomp_profile
+      require_args!('id')
       unset(:seccomp_profile)
     end
 
@@ -662,6 +680,8 @@ module OsCtl::Cli
     end
 
     def set_start_menu
+      require_args!('id')
+
       set(:start_menu) do
         {
           timeout: opts[:timeout],
@@ -670,10 +690,13 @@ module OsCtl::Cli
     end
 
     def unset_start_menu
+      require_args!('id')
       unset(:start_menu)
     end
 
     def set_lxcfs
+      require_args!('id')
+
       set(:lxcfs) do
         {
           loadavg: opts[:loadavg],
@@ -683,14 +706,17 @@ module OsCtl::Cli
     end
 
     def unset_lxcfs
+      require_args!('id')
       unset(:lxcfs)
     end
 
     def set_raw_lxc
+      require_args!('id')
       set(:raw_lxc) { |args| STDIN.read }
     end
 
     def unset_raw_lxc
+      require_args!('id')
       unset(:raw_lxc)
     end
 
