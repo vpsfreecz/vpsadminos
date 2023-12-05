@@ -24,7 +24,7 @@ module OsCtld
       @stop = false
 
       log(
-        :info, pool,
+        :info,
         "Auto-stopping containers, #{pool.parallel_stop} containers at a time"
       )
 
@@ -32,7 +32,11 @@ module OsCtld
       # the lowest priority are stopped first
       cts = DB::Containers.get.select { |ct| ct.pool == pool }
 
+      log(:info, "#{cts.size} containers to stop")
+
       if CpuScheduler.use_sequential_start_stop?
+        log(:info, 'Using sequential auto-stop')
+
         cts.sort! do |a, b|
           a_conf = a.run_conf
           b_conf = b.run_conf
@@ -71,6 +75,8 @@ module OsCtld
           end
         end
       else
+        log(:info, 'Using priority auto-stop')
+
         cts.sort! do |a, b|
           if a.autostart && b.autostart
             b.autostart <=> a.autostart
@@ -88,9 +94,19 @@ module OsCtld
       total = cts.count
       done = 0
       mutex = Mutex.new
+      debug = Daemon.get.config.debug?
 
       # Stop the containers
       cmds = cts.each_with_index.map do |ct, i|
+        if debug
+          run_conf = ct.run_conf
+
+          log(
+            :debug,
+            "[#{(i+1).to_s.rjust(4)}/#{total}] #{ct.id} priority=#{ct.autostart ? ct.autostart.priority : '-'} cpu-package=#{run_conf ? run_conf.cpu_package : '-'}"
+          )
+        end
+
         ContinuousExecutor::Command.new(id: ct.id, priority: i) do |cmd|
           if client_handler
             mutex.synchronize do
@@ -130,6 +146,10 @@ module OsCtld
 
     def queue
       plan.queue
+    end
+
+    def log_type
+      "#{pool.name}:auto-stop"
     end
 
     protected

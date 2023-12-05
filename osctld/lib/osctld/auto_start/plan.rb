@@ -25,7 +25,7 @@ module OsCtld
       @stop = false
 
       log(
-        :info, pool,
+        :info,
         "Auto-starting containers, #{pool.parallel_start} containers at a time"
       )
 
@@ -36,6 +36,8 @@ module OsCtld
         next(true) if ct.autostart && ct.can_start? && (force || !state.is_started?(ct))
         next(false)
       end
+
+      log(:info, "#{cts.size} containers to start")
 
       # Preschedule the containers
       if CpuScheduler.use?
@@ -55,6 +57,8 @@ module OsCtld
       # prioritized containers to the second package.
       start_cts =
         if CpuScheduler.use_sequential_start_stop?
+          log(:info, 'Using sequential auto-start')
+
           cts.sort do |a, b|
             a_package = CpuScheduler.get_preschedule_package_id(a)
             b_package = CpuScheduler.get_preschedule_package_id(b)
@@ -79,10 +83,26 @@ module OsCtld
             end
           end.each_with_index
         else
+          log(:info, 'Using priority auto-start')
           cts
         end
 
+      debug = Daemon.get.config.debug?
+
+      if debug
+        counter = 1 # we cannot use i, because it is used only for sequential auto-start
+        total = start_cts.size
+      end
+
       plan << (start_cts.map do |ct, i|
+        if debug
+          log(
+            :debug,
+            "[#{counter.to_s.rjust(4)}/#{total}] #{ct.id} priority=#{ct.autostart.priority} cpu-package=#{CpuScheduler.get_preschedule_package_id(ct) || '-'}"
+          )
+          counter += 1
+        end
+
         ContinuousExecutor::Command.new(
           id: ct.id,
           priority: i || ct.autostart.priority,
@@ -174,6 +194,10 @@ module OsCtld
 
     def queue
       plan.queue
+    end
+
+    def log_type
+      "#{pool.name}:auto-start"
     end
 
     protected
