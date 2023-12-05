@@ -25,7 +25,7 @@ module OsCtld
 
       log(
         :info, pool,
-        "Auto-stopping containers, #{pool.parallel_start} containers at a time"
+        "Auto-stopping containers, #{pool.parallel_stop} containers at a time"
       )
 
       # Sort containers by reversed autostart priority -- containers with
