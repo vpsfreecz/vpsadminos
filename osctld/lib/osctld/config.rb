@@ -125,6 +125,11 @@ module OsCtld
       end
     end
 
+    # Enable extra debug logs
+    # @return [Boolean]
+    attr_reader :debug
+    alias_method :debug?, :debug
+
     # @return [Array<String>]
     attr_reader :apparmor_paths
 
@@ -151,6 +156,7 @@ module OsCtld
     def initialize(path)
       cfg = JSON.parse(File.read(path))
 
+      @debug = cfg.fetch('debug', false)
       @apparmor_paths = cfg.fetch('apparmor_paths', [])
       @ctstartmenu = cfg['ctstartmenu']
       @lxcfs = Lxcfs.new(cfg['lxcfs'])
