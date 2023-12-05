@@ -25,6 +25,8 @@ let
   apparmorPaths = [ pkgs.apparmor-profiles ];
 
   osctldConfig = {
+    debug = true;
+
     apparmor_paths = map (s: "${s}/etc/apparmor.d") apparmorPaths;
 
     ctstartmenu = "${pkgs.ctstartmenu}/bin/ctstartmenu";
