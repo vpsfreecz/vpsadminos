@@ -1,6 +1,6 @@
 require_cmd wget
 
-BASEURL=http://alpha.de.repo.voidlinux.org/live/current
+BASEURL=https://repo-default.voidlinux.org/live/current
 ROOTFS=
 
 fetch() {
