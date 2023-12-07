@@ -1,5 +1,5 @@
 . "$IMAGEDIR/config.sh"
-POINTVER=8.8
+POINTVER=8.9
 RELEASE=https://repo.almalinux.org/almalinux/${POINTVER}/BaseOS/x86_64/os/Packages/almalinux-release-${POINTVER}-1.el8.x86_64.rpm
 BASEURL=https://repo.almalinux.org/almalinux/${POINTVER}/BaseOS/x86_64/os/
 
