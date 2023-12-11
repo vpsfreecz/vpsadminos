@@ -12,7 +12,7 @@ in buildGoModule {
     sha256 = "sha256-a7EA094ESZZzXJi+5ehV5MN860u1KUS2o494N/zruqE=";
   };
 
-  vendorSha256 = "sha256-jqEaopGSiLxngEKNX8j2erzMS4+I9RWcH9+Fd9O9uss=";
+  vendorHash = "sha256-jqEaopGSiLxngEKNX8j2erzMS4+I9RWcH9+Fd9O9uss=";
 
   meta = with lib; {
     description = "Tool to configure cgroupv2 device controller";
