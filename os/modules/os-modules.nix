@@ -21,6 +21,7 @@
   ./programs/htop.nix
   ./rename.nix
   ./security/apparmor.nix
+  ./security/wrappers.nix
   ./services/backup/znapzend.nix
   ./services/hardware/eudev.nix
   ./services/livepatches/default.nix
