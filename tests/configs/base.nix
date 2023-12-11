@@ -12,9 +12,7 @@ with lib;
 
   networking.hostName = mkDefault "vpsadminos";
   networking.static.enable = mkDefault true;
-  networking.lxcbr = mkDefault true;
-  networking.nat = mkDefault true;
-  networking.dhcpd = mkDefault true;
+  networking.lxcbr.enable = mkDefault true;
   networking.nameservers = mkDefault [ "10.0.2.3" ];
   osctl.test-shell.enable = true;
   tty.autologin.enable = mkDefault true;

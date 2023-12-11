@@ -82,29 +82,31 @@ in {
           default = "10.0.2.0/24";
         };
 
-        gw = mkOption {
+        gateway = mkOption {
           type = types.str;
-          description = "gateway IP address for static networking configuration";
+          description = "Gateway IP address for static networking configuration";
           default = "10.0.2.2";
         };
       };
 
-      dhcp = mkOption {
+      useDHCP = mkOption {
         type = types.bool;
-        description = "use DHCP to obtain IP";
+        description = "Use DHCP to obtain IP address";
         default = false;
       };
 
-      lxcbr = mkOption {
-        type = types.bool;
-        description = "create lxc bridge interface";
-        default = false;
-      };
+      lxcbr = {
+        enable = mkOption {
+          type = types.bool;
+          description = "Create bridge interface for containers";
+          default = false;
+        };
 
-      nat = mkOption {
-        type = types.bool;
-        description = "enable NAT for containers";
-        default = true;
+        enableDHCPServer = mkOption {
+          type = types.bool;
+          description = "Enable DHCP server on bridge interface for containers";
+          default = config.networking.lxcbr.enable;
+        };
       };
 
       hosts = lib.mkOption {
@@ -188,13 +190,6 @@ in {
   };
 
   config = {
-    boot.kernelModules = optionals cfg.nat [
-      "ip_tables"
-      "iptable_nat"
-      "ip6_tables"
-      "ip6table_nat"
-    ];
-
     environment.etc = {
       # /etc/hosts: Hostname-to-IP mappings.
       "hosts".text =
@@ -239,14 +234,14 @@ in {
         ip addr add ${cfg.static.ip} dev ${cfg.static.interface}
         ip link set ${cfg.static.interface} up
         ip route add ${cfg.static.route} dev ${cfg.static.interface}
-        ip route add default via ${cfg.static.gw} dev ${cfg.static.interface}
+        ip route add default via ${cfg.static.gateway} dev ${cfg.static.interface}
         ''}
 
-        ${optionalString cfg.dhcp ''
+        ${optionalString cfg.useDHCP ''
         ${pkgs.dhcpcd}/sbin/dhcpcd
         ''}
 
-        ${optionalString cfg.lxcbr ''
+        ${optionalString cfg.lxcbr.enable ''
         brctl addbr lxcbr0
         brctl setfd lxcbr0 0
         ip addr add 192.168.1.1 dev lxcbr0
@@ -280,7 +275,7 @@ in {
       log.sendTo = "127.0.0.1";
     };
 
-    networking.firewall.extraCommands = optionalString cfg.lxcbr ''
+    networking.firewall.extraCommands = optionalString cfg.lxcbr.enable ''
       iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
     '';
   };

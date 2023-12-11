@@ -8,10 +8,8 @@
   ];
 
   networking.hostName = "vpsadminos";
-  networking.lxcbr = true;
-  networking.nat = true;
-  networking.dhcp = true;
-  networking.dhcpd = true;
+  networking.lxcbr.enable = true;
+  networking.useDHCP = true;
 
   tty.autologin.enable = true;
 

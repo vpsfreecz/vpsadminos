@@ -11,9 +11,7 @@
   networking.hostId = lib.mkDefault "f3276671";
   networking.hostName = lib.mkDefault "vpsadminos";
   networking.static.enable = lib.mkDefault true;
-  networking.lxcbr = true;
-  networking.nat = true;
-  networking.dhcpd = true;
+  networking.lxcbr.enable = true;
   networking.nameservers = [ "10.0.2.3" ];
   networking.waitOnline.method = "http";
 

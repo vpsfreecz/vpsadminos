@@ -4,8 +4,5 @@
 with lib;
 
 {
-  imports = [
-    # Networking
-    (mkAliasOptionModule [ "networking" "useDHCP" ] [ "networking" "dhcp" ])
-  ];
+  imports = [];
 }

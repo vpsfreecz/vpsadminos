@@ -1,8 +1,7 @@
 function test_network {
 	# We assume that the bridge is setup in OS configuration using
 	#
-	#   networking.lxcbr = true;
-	#   networking.dhcpd = true;
+	#   networking.lxcbr.enable = true;
 	#
 	local ip=$(osctl ct exec $CTID ip route get 192.168.1.1 | awk -F"src " 'NR==1{split($2,a," ");print a[1]}')
 	local rc=$?

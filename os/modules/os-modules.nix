@@ -37,8 +37,8 @@
   ./services/network-filesystems/nfs.nix
   ./services/networking/bird.nix
   ./services/networking/chronyd.nix
-  ./services/networking/dhcpd.nix
   ./services/networking/firewall-iptables.nix
+  ./services/networking/lxcbr-dnsmasq.nix
   ./services/networking/nftables.nix
   ./services/networking/rpcbind.nix
   ./services/networking/sshd.nix

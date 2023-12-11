@@ -5,7 +5,7 @@ to be running on the linked interface, so that containers are assigned IP
 addresses dynamically.
 
 Virtual machines run with `make qemu` have `lxcbr0` preconfigured. To enable
-`lxcbr0` in other configurations, set option `networking.lxcbr = true;`,
+`lxcbr0` in other configurations, set option `networking.lxcbr.enable = true;`,
 e.g. in your `config/local.nix`.
 
 To create a bridged veth, use:

@@ -2,6 +2,8 @@
 let
   inherit (lib) mkEnableOption mkIf;
 
+  cfg = config.networking.lxcbr;
+
   stateDir = "/var/lib/lxcbr-dnsmasq";
 
   bridge = "lxcbr0";
@@ -19,11 +21,7 @@ let
     dhcp-authoritative
   '';
 in {
-  options = {
-    networking.dhcpd = mkEnableOption "Enable DHCP server for containers using ${bridge}";
-  };
-
-  config = mkIf config.networking.dhcpd {
+  config = mkIf (cfg.enable && cfg.enableDHCPServer) {
     users.users.${user} = {
       isSystemUser = true;
       group = user;
