@@ -7,6 +7,7 @@ let
     apparmor-parser
     coreutils
     iproute
+    getent
     glibc.bin
     gzip
     lxc
