@@ -134,7 +134,6 @@ in {
       "nft_log"
       "nft_masq"
       "nft_nat"
-      "nft_objref"
       "nft_redir"
       "nft_reject"
       "nft_reject_inet"
