@@ -1,39 +1,55 @@
-{ config, lib, pkgs, utils, ... }:
-with utils;
-with lib;
+{ config, lib, pkgs, ... }:
+let
+  inherit (lib) mkEnableOption mkIf;
 
-{
-  ###### interface
+  stateDir = "/var/lib/lxcbr-dnsmasq";
 
+  bridge = "lxcbr0";
+
+  user = "lxcbr-dnsmasq";
+
+  dnsmasqConf = pkgs.writeText "lxcbr-dnsmasq.conf" ''
+    interface=${bridge}
+    listen-address=192.168.1.1
+    bind-interfaces
+    dhcp-option=3,192.168.1.1 # gateway
+    dhcp-option=6,192.168.1.1 # dns servers
+    dhcp-range=192.168.1.100,192.168.1.200,255.255.255.0,1h
+    dhcp-leasefile=${stateDir}/dnsmasq.leases
+    dhcp-authoritative
+  '';
+in {
   options = {
-    networking.dhcpd = mkEnableOption "Enable dhcpd for lxc containers";
+    networking.dhcpd = mkEnableOption "Enable DHCP server for containers using ${bridge}";
   };
 
-  ###### implementation
+  config = mkIf config.networking.dhcpd {
+    users.users.${user} = {
+      isSystemUser = true;
+      group = user;
+      description = "Dnsmasq daemon for lxcbr";
+    };
+    users.groups.${user} = {};
 
-  config = mkMerge [
-    (mkIf (config.networking.dhcpd) {
-      runit.services.dhcpd.run = ''
-        ensureServiceStarted networking
-        mkdir -p /var/lib/dhcp
-        touch /var/lib/dhcp/dhcpd4.leases
-        exec ${pkgs.dhcp}/sbin/dhcpd -4 -f \
-          -pf /run/dhcpd4.pid \
-          -cf /etc/dhcpd/dhcpd4.conf \
-          -lf /var/lib/dhcp/dhcpd4.leases \
-          lxcbr0
-      '';
+    runit.services.lxcbr-dnsmasq = {
+      run = ''
+        until ip link show dev ${bridge} >/dev/null 2>&1 ; do
+          echo "lxcbr-dnsmasq waiting for interface ${bridge}"
+          sleep 1
+        done
 
-      environment.etc."dhcpd/dhcpd4.conf".text = ''
-        authoritative;
-        option routers 192.168.1.1;
-        option domain-name-servers 208.67.222.222, 208.67.220.220;
-        option subnet-mask 255.255.255.0;
-        option broadcast-address 192.168.1.255;
-        subnet 192.168.1.0 netmask 255.255.255.0 {
-          range 192.168.1.100 192.168.1.200;
-        }
+        mkdir -p "${stateDir}"
+        touch ${stateDir}/dnsmasq.leases
+        chown -R ${user} ${stateDir}
+
+        exec ${pkgs.dnsmasq}/bin/dnsmasq -k --user=${user} -C ${dnsmasqConf}
       '';
-    })
-  ];
+    };
+
+    # See https://github.com/NixOS/nixpkgs/issues/263359
+    networking.firewall.interfaces.${bridge} = {
+      allowedTCPPorts = [ 53 ];
+      allowedUDPPorts = [ 53 67 ];
+    };
+  };
 }

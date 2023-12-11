@@ -36,7 +36,6 @@
   <nixpkgs/nixos/modules/misc/ids.nix>
   <nixpkgs/nixos/modules/virtualisation/lxc.nix>
   <nixpkgs/nixos/modules/virtualisation/lxcfs.nix>
-  <nixpkgs/nixos/modules/services/networking/dhcpd.nix>
   <nixpkgs/nixos/modules/services/networking/firewall.nix>
   <nixpkgs/nixos/modules/services/networking/firewall-iptables.nix>
   <nixpkgs/nixos/modules/services/networking/firewall-nftables.nix>
