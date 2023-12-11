@@ -8,7 +8,7 @@
 , nfs-utils
 , gawk, gnugrep, gnused, systemd
 , smartmontools, sysstat, sudo
-, pkgconfig, installShellFiles
+, pkg-config, installShellFiles
 
 # Kernel dependencies
 , kernel ? null
@@ -106,7 +106,7 @@ let
 
       nativeBuildInputs = [ autoreconfHook nukeReferences installShellFiles ]
         ++ optionals buildKernel (kernel.moduleBuildDependencies ++ [ perl ])
-        ++ optional buildUser pkgconfig;
+        ++ optional buildUser pkg-config;
       buildInputs = optionals buildUser [ zlib libuuid attr libtirpc python3 ]
         ++ optional buildUser openssl;
 

@@ -190,6 +190,55 @@ let
     ];
   };
 
+  initialRamdiskSecretAppender =
+    let
+      compressorExe = initialRamdisk.compressorExecutableFunction pkgs;
+    in pkgs.writeScriptBin "append-initrd-secrets"
+      ''
+        #!${pkgs.bash}/bin/bash -e
+        function usage {
+          echo "USAGE: $0 INITRD_FILE" >&2
+          echo "Appends this configuration's secrets to INITRD_FILE" >&2
+        }
+
+        if [ $# -ne 1 ]; then
+          usage
+          exit 1
+        fi
+
+        if [ "$1"x = "--helpx" ]; then
+          usage
+          exit 0
+        fi
+
+        ${lib.optionalString (config.boot.initrd.secrets == {})
+            "exit 0"}
+
+        export PATH=${pkgs.coreutils}/bin:${pkgs.libarchive}/bin:${pkgs.gzip}/bin:${pkgs.findutils}/bin
+
+        function cleanup {
+          if [ -n "$tmp" -a -d "$tmp" ]; then
+            rm -fR "$tmp"
+          fi
+        }
+        trap cleanup EXIT
+
+        tmp=$(mktemp -d ''${TMPDIR:-/tmp}/initrd-secrets.XXXXXXXXXX)
+
+        ${lib.concatStringsSep "\n" (mapAttrsToList (dest: source:
+            let source' = if source == null then dest else toString source; in
+              ''
+                mkdir -p $(dirname "$tmp/.initrd-secrets/${dest}")
+                cp -a ${source'} "$tmp/.initrd-secrets/${dest}"
+              ''
+          ) config.boot.initrd.secrets)
+         }
+
+        # mindepth 1 so that we don't change the mode of /
+        (cd "$tmp" && find . -mindepth 1 | xargs touch -amt 197001010000 && find . -mindepth 1 -print0 | sort -z | bsdtar --uid 0 --gid 0 -cnf - -T - | bsdtar --null -cf - --format=newc @-) | \
+          ${compressorExe} ${lib.escapeShellArgs initialRamdisk.compressorArgs} >> "$1"
+      '';
+
 in
 {
   options = {
@@ -323,9 +372,9 @@ in
     };
   };
   config = {
-    system.build.bootStage1 = bootStage1;
-    system.build.initialRamdisk = initialRamdisk;
-    system.build.extraUtils = extraUtils;
+    system.build = {
+      inherit bootStage1 initialRamdisk initialRamdiskSecretAppender extraUtils;
+    };
     boot.initrd.availableKernelModules = [ ];
     boot.initrd.kernelModules = [ "tun" "loop" "squashfs" "overlay" ];
   };

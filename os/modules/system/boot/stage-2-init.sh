@@ -8,7 +8,7 @@ echo
 echo -e "\e[1;32m<<< vpsAdminOS Stage 2 >>>\e[0m"
 echo
 
-mkdir -p /proc /sys /dev /tmp /var/log /etc /root /run /nix/var/nix/gcroots
+mkdir -p /proc /sys /dev /tmp /var/empty /var/log /etc /root /run /nix/var/nix/gcroots
 mount -t proc proc /proc
 if [ @procHidePid@ ]; then
   mount -o remount,rw,hidepid=2 /proc

@@ -6,8 +6,8 @@ let
     name = "nmd";
     owner = "vpsfreecz";
     repo = "nmd";
-    rev = "1ba00b0fe2fbf89d8b314de62a1065a301681c0b";
-    sha256 = "sha256-CINlbjDD7Yf2ZLLInOscMsY5IK6ac9eIfEdERTrvOwo=";
+    rev = "ef6aabc21cdc61e8f0d8e0206bb22dcb39b795ee";
+    sha256 = "sha256-K9XfRlVPHH74A5/mW49Z3QpN1PN8u/h2wDGB1mmT62I=";
   };
 
   nmd = import nmdSrc { inherit pkgs; };

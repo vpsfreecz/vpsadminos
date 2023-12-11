@@ -5,12 +5,6 @@ with lib;
 let
   systemBuilder =
     let
-      kernelPath = "${config.boot.kernelPackages.kernel}/" +
-        "${config.system.boot.loader.kernelFile}";
-
-      initrdPath = "${config.system.build.initialRamdisk}/" +
-        "${config.system.boot.loader.initrdFile}";
-
       serviceList = pkgs.writeText "services.json" (builtins.toJSON {
         defaultRunlevel = config.runit.defaultRunlevel;
 
@@ -24,11 +18,7 @@ let
       substituteInPlace $out/init --subst-var-by systemConfig $out
       ln -s ${config.system.build.etc}/etc $out/etc
       ln -s ${config.system.path} $out/sw
-      ln -s ${kernelPath} $out/kernel
-      ln -s ${initrdPath} $out/initrd
-      ln -s ${config.system.modulesTree} $out/kernel-modules
       echo -n "$vpsadminosLabel" > $out/os-version
-      echo -n "$kernelParams" > $out/kernel-params
       ln -s ${serviceList} $out/services
 
       echo "$activationScript" > $out/activate
@@ -134,26 +124,6 @@ in {
     };
 
     system.build = {
-      installBootLoader = mkOption {
-        internal = true;
-        # "; true" => make the `$out` argument from switch-to-configuration.pl
-        #             go to `true` instead of `echo`, hiding the useless path
-        #             from the log.
-        default = "echo 'Warning: do not know how to make this configuration bootable; please enable a boot loader.' 1>&2; true";
-        description = lib.mdDoc ''
-          A program that writes a bootloader installation script to the path passed in the first command line argument.
-
-          See `vpsadminos/os/modules/system/activation/switch-to-configuration.rb`.
-        '';
-        type = types.unique {
-          message = ''
-            Only one bootloader can be enabled at a time. This requirement has not
-            been checked until NixOS 22.05. Earlier versions defaulted to the last
-            definition. Change your configuration to enable only one bootloader.
-          '';
-        } (types.either types.str types.package);
-      };
-
       toplevel = mkOption {
         type = types.package;
         readOnly = true;

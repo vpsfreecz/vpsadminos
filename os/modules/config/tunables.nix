@@ -60,7 +60,7 @@ with lib;
     "net.ipv6.neigh.default.gc_thresh3" = mkDefault 8192;
     "net.ipv4.route.max_size" = mkDefault (2 * 1024 * 1024 * 1024 - 1);
     "net.ipv6.route.max_size" = mkDefault (2 * 1024 * 1024 * 1024 - 1);
-    "vm.max_map_count" = mkDefault 262144;
+    # "vm.max_map_count" = mkDefault 1048576; # defined in NixOS >= 23.11
     "vm.min_free_kbytes" = mkDefault (1 * 1024 * 1024);
     "vm.min_slab_ratio" = mkDefault 12;
     "vm.overcommit_ratio" = mkDefault 3200;
