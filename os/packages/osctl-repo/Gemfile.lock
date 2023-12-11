@@ -8,14 +8,14 @@ GEM
     filelock (1.1.1)
     gli (2.20.1)
     json (2.6.3)
-    libosctl (23.05.0.build20231205110107)
+    libosctl (23.11.0.build20231212085733)
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
-    osctl-repo (23.05.0.build20231205110107)
+    osctl-repo (23.11.0.build20231212085733)
       filelock
       gli (~> 2.20.0)
       json
-      libosctl (= 23.05.0.build20231205110107)
+      libosctl (= 23.11.0.build20231212085733)
       require_all (~> 2.0.0)
     rainbow (3.1.1)
     require_all (2.0.0)
@@ -24,7 +24,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  osctl-repo (= 23.05.0.build20231205110107)!
+  osctl-repo (= 23.11.0.build20231212085733)!
 
 BUNDLED WITH
-   2.4.13
+   2.4.22

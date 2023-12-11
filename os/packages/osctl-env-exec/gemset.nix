@@ -77,10 +77,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1ywpr79ss2z1dszzg5z7bg2kqrl6x4mvzamcr06ssc5i3b4zk8xs";
+      sha256 = "0jn865nwqmfx5yshax96nl86db7ywfc49q7h7cj9gpylvd1g5j73";
       type = "gem";
     };
-    version = "23.05.0.build20230606094012";
+    version = "23.11.0.build20231212085733";
   };
   rake = {
   };
