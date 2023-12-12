@@ -16,7 +16,7 @@ GEM
       redcarpet (~> 3.0)
       rouge (~> 3.0)
     opener (0.1.0)
-    osctl-env-exec (23.11.0.build20231212085733)
+    osctl-env-exec (23.11.0.build20231212172001)
       gli (~> 2.20.0)
       highline (~> 2.0.3)
       ipaddress (~> 0.8.3)
@@ -38,7 +38,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  osctl-env-exec (= 23.11.0.build20231212085733)!
+  osctl-env-exec (= 23.11.0.build20231212172001)!
 
 BUNDLED WITH
    2.4.22
