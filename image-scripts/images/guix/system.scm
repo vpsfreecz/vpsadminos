@@ -3,9 +3,9 @@
 (use-modules (vpsadminos))
 
 ;; System configuration
-(use-modules (gnu) (gnu system locale))
-(use-service-modules admin networking shepherd ssh sysctl)
-(use-package-modules certs ssh bash package-management vim)
+(use-modules (gnu))
+(use-package-modules certs ssh)
+(use-service-modules ssh)
 
 (operating-system
   (host-name "guix")
@@ -15,8 +15,9 @@
   (firmware '())
   (initrd-modules '())
   (kernel %ct-dummy-kernel)
-  (packages (cons* vim
-                   %ct-packages))
+
+  (packages (cons* nss-certs
+                   %base-packages))
 
   (essential-services (modify-services
                           (operating-system-default-essential-services this-operating-system)
