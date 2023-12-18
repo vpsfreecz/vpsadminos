@@ -22,10 +22,16 @@
 (use-service-modules admin networking shepherd ssh sysctl)
 (use-package-modules certs ssh bash package-management)
 
+;;; The bootloader is not required.  This is running inside a container, and the
+;;; start menu is populated by parsing /var/guix/profiles.  However bootloader
+;;; is a mandatory field, and the typical grub-bootloader requires users to
+;;; always pass the --no-bootloader flag.  By providing this bootloader
+;;; configuration (it does not do anything, but installs fine), we remove the
+;;; need to remember to pass the flag.  At the cost of ~8MB in /boot.
 (define %ct-bootloader
   (bootloader-configuration
-   (bootloader grub-bootloader)
-   (targets '("/dev/null"))))
+   (bootloader grub-efi-netboot-removable-bootloader)
+   (targets '("/boot"))))
 
 (define %ct-dummy-kernel
   (package
