@@ -22,11 +22,6 @@
                         (delete firmware-service-type)
                         (delete (service-kind %linux-bare-metal-service))))
 
-  (locale-definitions (list (locale-definition
-                             (name "en_US.utf8")
-                             (source "en_US")
-                             (charset "UTF-8"))))
-
   (bootloader %ct-bootloader)
 
   (file-systems %ct-file-systems)
