@@ -13,7 +13,7 @@
   (locale "en_US.utf8")
   (firmware '())
   (initrd-modules '())
-  (kernel hello)
+  (kernel %ct-dummy-kernel)
   (packages (cons* vim
                    %ct-packages))
 

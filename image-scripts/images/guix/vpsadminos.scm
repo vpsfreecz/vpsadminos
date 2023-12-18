@@ -6,9 +6,18 @@
 ;;  https://github.com/vpsfreecz/vpsadminos/blob/staging/image-scripts/images/guix/vpsadminos.scm
 ;;
 (define-module (vpsadminos)
-  #:export (%ct-bootloader %ct-file-systems %ct-packages %ct-services))
+  #:export (%ct-bootloader
+            %ct-dummy-kernel
+            %ct-file-systems
+            %ct-packages
+            %ct-services))
 
-(use-modules (gnu) (gnu system locale))
+(use-modules (gnu)
+             (gnu packages)
+             (guix build-system trivial)
+             (guix gexp)
+             (guix packages))
+
 (use-modules (vpsadminos))
 (use-service-modules admin networking shepherd ssh sysctl)
 (use-package-modules certs ssh bash package-management)
@@ -17,6 +26,23 @@
   (bootloader-configuration
    (bootloader grub-bootloader)
    (targets '("/dev/null"))))
+
+(define %ct-dummy-kernel
+  (package
+    (name "dummy-kernel")
+    (version "1")
+    (source #f)
+    (build-system trivial-build-system)
+    (arguments
+     (list
+      #:builder #~(mkdir #$output)))
+    (synopsis "Dummy kernel")
+    (description
+     "In container environment, the kernel is provided by the host.  However we
+still need to specify a kernel in the operating-system definition, hence this
+package.")
+    (home-page #f)
+    (license #f)))
 
 (define %ct-file-systems
   (list
