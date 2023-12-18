@@ -9,7 +9,8 @@
 
 (operating-system
   (host-name "guix")
-  (timezone "Europe/Amsterdam")
+  ;; Servers usually use UTC regardless of the location.
+  (timezone "Etc/UTC")
   (locale "en_US.utf8")
   (firmware '())
   (initrd-modules '())
