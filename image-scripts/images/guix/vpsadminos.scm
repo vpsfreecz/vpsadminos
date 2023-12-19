@@ -19,8 +19,8 @@
              (srfi srfi-1))
 
 (use-modules (vpsadminos))
-(use-service-modules admin networking shepherd ssh sysctl)
-(use-package-modules certs ssh bash package-management)
+(use-package-modules bash)
+(use-service-modules networking shepherd)
 
 ;;; The bootloader is not required.  This is running inside a container, and the
 ;;; start menu is populated by parsing /var/guix/profiles.  However bootloader
@@ -91,37 +91,25 @@ package.")
 ;; We start mingetty only on /dev/console and add our own service to handle
 ;; networking.
 (define %ct-services
-  (list (service login-service-type)
+  (cons* (service mingetty-service-type
+                  (mingetty-configuration
+                   (tty "console")))
+         (simple-service 'vpsadminos-networking
+                         shepherd-root-service-type (list vpsadminos-networking))
+         ;; dhcp provisions 'networking and it is useful for development setup.
+         ;; Maybe in the future we could handle it by 'vpsadminos-networking
+         ;; and to run dhcp only when there is an actual interface.
+         (service dhcp-client-service-type)
 
-        (service virtual-terminal-service-type)
-
-        (service syslog-service-type)
-
-        (service mingetty-service-type (mingetty-configuration
-                                        (tty "console")))
-
-        (simple-service 'vpsadminos-networking shepherd-root-service-type (list vpsadminos-networking))
-
-        ;; dhcp provisions 'networking and it is useful for development setup.
-        ;; Maybe in the future we could handle it by 'vpsadminos-networking
-        ;; and to run dhcp only when there is an actual interface.
-        (service dhcp-client-service-type)
-
-        (service guix-service-type)
-        (service nscd-service-type)
-
-        (service rottlog-service-type)
-
-        ;; Periodically delete old build logs.
-        (service log-cleanup-service-type
-                 (log-cleanup-configuration
-                  (directory "/var/log/guix/drvs")))
-
-        ;; Inside a container, we do not need any udev rules
-        (service udev-service-type (udev-configuration (rules '())))
-
-        (service sysctl-service-type)
-
-        (service special-files-service-type
-                 `(("/bin/sh" ,(file-append bash "/bin/sh"))
-                   ("/usr/bin/env" ,(file-append coreutils "/bin/env"))))))
+         (modify-services %base-services
+           (delete console-font-service-type)
+           (delete agetty-service-type)
+           (delete mingetty-service-type)
+           (delete urandom-seed-service-type)
+           ;; loopback is configured by vpsadminos-networking
+           (delete static-networking-service-type)
+           ;; We need no rules.
+           (udev-service-type config =>
+                              (udev-configuration
+                               (inherit config)
+                               (rules '()))))))
