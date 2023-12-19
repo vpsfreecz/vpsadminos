@@ -55,6 +55,16 @@ package.")
            (device "/dev/null")
            (mount-point "/")
            (type "dummy"))
+         ;; Used by vpsadminos scripting.  Can go away once /run as a whole is
+         ;; on tmpfs.
+         (file-system
+           (device "none")
+           (mount-point "/run/vpsadminos")
+           (type "tmpfs")
+           (check? #f)
+           (flags '(no-suid no-dev no-exec))
+           (options "mode=0755")
+           (create-mount-point? #t))
          (map (λ (fs)
                 (cond
                  ;; %immutable-store is usually mounted with no-atime.  That
@@ -79,10 +89,16 @@ package.")
 ;; from vpsAdminOS
 (define vpsadminos-networking
   (shepherd-service
+   (requirement '(file-system-/run/vpsadminos))
    (provision '(vpsadminos-networking loopback))
    (documentation "Setup network on vpsAdminOS")
    (one-shot? #t)
-   (start #~(lambda _ (invoke #$(file-append bash "/bin/bash") "/ifcfg.add")))))
+   (start #~(lambda _ (invoke #$(file-append bash "/bin/bash")
+                              "-c" "
+[ -f  /run/vpsadminos/network ] && exit 0
+touch /run/vpsadminos/network
+\"$SHELL\" /ifcfg.add
+")))))
 
 ;; Modified %base-services from
 ;;
