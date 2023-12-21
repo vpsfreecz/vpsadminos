@@ -77,7 +77,7 @@ in
   config = mkIf cfg.enable {
     services.cron.enable = true;
     services.cron.systemCronJobs = [
-      "*/15 * * * *  root  exec ${pkgs.logrotate}/sbin/logrotate ${configFile}"
+      "*/2 * * * *  root  exec ${pkgs.logrotate}/sbin/logrotate ${configFile}"
     ];
   };
 }
