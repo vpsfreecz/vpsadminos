@@ -128,16 +128,6 @@ class Configuration
 
     puts '> osctld start config:'
 
-    if services.reload.detect { |s| s.name == 'lxcfs' && !s.skip? }
-      if opts[:dry_run]
-        puts '- would reactivate lxcfs'
-      else
-        puts '- reactivate lxcfs'
-      end
-
-      cfg['activate_lxcfs'] = true
-    end
-
     if cfg.empty?
       puts '- no changes'
       return
@@ -155,17 +145,10 @@ class Configuration
   end
 
   def activate_osctl(services)
-    # If osctld is restarted, it will regenerate system files by itself and
-    # lxcfs is handled by the start config in this case.
+    # If osctld is restarted, it will regenerate system files by itself
     return if services.restart.detect { |s| s.name == 'osctld' && !s.skip? }
 
     args = ['--system']
-
-    if services.reload.detect { |s| s.name == 'lxcfs' && !s.skip? }
-      args << '--lxcfs'
-    else
-      args << '--no-lxcfs'
-    end
 
     puts "> osctl activate #{args.join(' ')}"
     return if opts[:dry_run]

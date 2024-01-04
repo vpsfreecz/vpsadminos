@@ -14,28 +14,6 @@ module OsCtld
         call_cmd(Commands::User::LxcUsernet)
       end
 
-      if opts[:lxcfs]
-        progress('Refreshing LXCFS')
-
-        ep = ExecutionPlan.new
-
-        DB::Containers.get.each do |ct|
-          ep << ct
-        end
-
-        ep.run do |ct|
-          next unless ct.running?
-
-          begin
-            ContainerControl::Commands::ActivateLxcfs.run!(ct)
-          rescue ContainerControl::Error
-            # pass
-          end
-        end
-
-        ep.wait
-      end
-
       ok
     end
   end

@@ -74,7 +74,7 @@ module OsCtl::Cli
     end
 
     def activate
-      osctld_fmt(:self_activate, cmd_opts: {system: opts[:system], lxcfs: opts[:lxcfs]})
+      osctld_fmt(:self_activate, cmd_opts: {system: opts[:system]})
     end
 
     def shutdown

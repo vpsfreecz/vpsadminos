@@ -1,7 +1,6 @@
 module OsCtl::Lib
   # Reads and parses per-container load averages from LXCFS
   class LoadAvgReader
-    SYSTEM_LXCFS = '/var/lib/lxcfs'
     FILE = 'proc/.loadavgs'
 
     LoadAvg = Struct.new(:pool_name, :ctid, :avg, :runnable, :total, :last_pid) do
@@ -20,19 +19,6 @@ module OsCtl::Lib
     def self.read_for(containers)
       reader = new
       lavgs = {}
-
-      # First read from the system lxcfs instance
-      # TODO: remove this in the future
-      if Dir.exist?(File.join(SYSTEM_LXCFS, 'proc'))
-        index = Hash[ containers.map { |ct| ["#{ct[:pool]}:#{ct[:id]}", true] } ]
-
-        reader.read_lxcfs(SYSTEM_LXCFS) do |lavg|
-          lavgs[ lavg.ident ] = lavg
-
-          index.delete(lavg.ident)
-          index.empty? ? :stop : nil
-        end
-      end
 
       lxcfs_workers = {}
 

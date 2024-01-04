@@ -163,10 +163,6 @@ module OsCtld
       if shutdown?
         log(:info, 'Resuming shutdown')
         Commands::Self::Shutdown.run
-
-      elsif start_cfg.activate_lxcfs?
-        log(:info, 'Activating LXCFS')
-        Commands::Self::Activate.run(lxcfs: true)
       end
 
       # Close start config

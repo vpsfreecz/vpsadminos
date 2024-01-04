@@ -60,5 +60,4 @@
   ./tasks/filesystems/zfs
   ./tasks/network-interfaces.nix
   ./tools/tools.nix
-  ./virtualisation/lxcfs.nix
 ]

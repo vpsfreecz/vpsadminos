@@ -2233,9 +2233,6 @@ module OsCtl::Cli
         c.desc 'Regenerate system files'
         c.switch :system, default_value: true
 
-        c.desc 'Ensure all containers are tracked by LXCFS'
-        c.switch :lxcfs, default_value: true
-
         c.action &Command.run(Self, :activate)
       end
 

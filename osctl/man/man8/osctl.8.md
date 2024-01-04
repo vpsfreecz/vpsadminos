@@ -2989,11 +2989,6 @@ The following shortcuts are supported:
       `/etc/sub{u,g}id` and `/etc/lxc/lxc-usernet`. If this option is enabled,
       the required files are regenerated. Enabled by default.
 
-    `--[no-]lxcfs`
-      In case LXCFS was reloaded, it is necessary to access `/proc/stat` and
-      `/proc/loadavg` in all containers, in order for LXCFS to start tracking
-      them. Enabled by default.
-
 `shutdown` [`-f`|`--force`] [`--abort`]
   Export all pools and stop all containers. This command should be used at
   system shutdown. Since all pools are immediately disabled, no container can be

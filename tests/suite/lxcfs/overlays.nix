@@ -8,25 +8,18 @@ import ../../make-template.nix ({ distribution, version }: rec {
       Test LXCFS is mounted in containers with ${distribution}-${version}
     '';
 
-    machine = import ../../machines/with-tank.nix {
-      inherit pkgs;
-      config =
-        { config, ... }:
-        {
-          services.lxcfs.enable = false;
-        };
-    };
+    machine = import ../../machines/tank.nix pkgs;
 
     testScript = ''
       be_mounted = %w(
         /proc/cpuinfo
         /proc/diskstats
-        /proc/loadavg
         /proc/uptime
         /var/lib/lxcfs
       )
 
       be_unmounted = %w(
+        /proc/loadavg
         /proc/meminfo
         /proc/stat
         /proc/swaps

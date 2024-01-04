@@ -16,10 +16,6 @@ module OsCtld
       @exist
     end
 
-    def activate_lxcfs?
-      cfg['activate_lxcfs'] ? true : false
-    end
-
     def close
       File.unlink(path) if exist?
     rescue Errno::ENOENT
