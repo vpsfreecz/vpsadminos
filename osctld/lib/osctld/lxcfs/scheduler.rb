@@ -163,8 +163,6 @@ module OsCtld
         worker = Lxcfs::Worker.new(
           name,
           max_size: 1,
-          loadavg: lxcfs.loadavg,
-          cfs: lxcfs.cfs,
           enabled: false,
         )
         worker.add_user

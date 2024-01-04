@@ -8,8 +8,6 @@ module OsCtl::Cli
       size
       max_size
       cpu_package
-      loadavg
-      cfs
       mountpoint
     )
 

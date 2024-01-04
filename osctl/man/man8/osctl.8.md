@@ -1203,12 +1203,6 @@ The following shortcuts are supported:
   the container is stopped and started, however not on restart or reboot
   from the inside. LXCFS is enabled by default.
 
-    `--[no-]loadavg`
-      Enable load average tracking. Enabled by default.
-
-    `--[no-]cfs`
-      Enable CPU view based on CPU quotas. Enabled by default.
-
 `ct unset lxcfs` *ctid*
   Disable LXCFS. The next time the container is started, LXCFS will not be mounted
   inside.

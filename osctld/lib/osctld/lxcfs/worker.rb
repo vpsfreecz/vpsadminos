@@ -28,7 +28,7 @@ module OsCtld
     # @return [Time, nil]
     attr_reader :last_used
 
-    def_delegators :lxcfs, :loadavg, :cfs, :mountpoint, :mount_files
+    def_delegators :lxcfs, :mountpoint, :mount_files
 
     # @param name [String]
     # @param ctrc [Container::RunConfiguration]
@@ -36,12 +36,7 @@ module OsCtld
     def self.new_for_ctrc(name, ctrc)
       lxcfs = ctrc.ct.lxcfs
 
-      new(
-        name,
-        cpu_package: ctrc.cpu_package,
-        loadavg: lxcfs.loadavg,
-        cfs: lxcfs.cfs,
-      )
+      new(name, cpu_package: ctrc.cpu_package)
     end
 
     # @return [Lxcfs::Worker]
@@ -51,18 +46,14 @@ module OsCtld
         enabled: cfg['enabled'],
         max_size: cfg['max_size'],
         cpu_package: cfg['cpu_package'],
-        loadavg: cfg['loadavg'],
-        cfs: cfg['cfs'],
       )
     end
 
     # @param name [String]
     # @param max_size [Integer]
     # @param cpu_package [Integer]
-    # @param loadavg [Boolean]
-    # @param cfs [Boolean]
     # @param enabled [Boolean]
-    def initialize(name, max_size: nil, cpu_package: nil, loadavg: true, cfs: true, enabled: true)
+    def initialize(name, max_size: nil, cpu_package: nil, enabled: true)
       init_lock
       @name = name
       @max_size = max_size || Daemon.get.config.lxcfs.max_worker_size
@@ -70,8 +61,6 @@ module OsCtld
       @lxcfs = Lxcfs::Server.new(
         name,
         cpuset: cpu_package && CpuScheduler.topology.packages[cpu_package].cpus.keys.join(','),
-        loadavg: loadavg,
-        cfs: cfs,
       )
       @enabled = enabled
       @size = 0
@@ -119,9 +108,7 @@ module OsCtld
       inclusively do
         enabled \
           && (!check_size || size < max_size) \
-          && (ctrc.cpu_package.nil? || ctrc.cpu_package == cpu_package) \
-          && ctrc.ct.lxcfs.loadavg == loadavg \
-          && ctrc.ct.lxcfs.cfs == cfs
+          && (ctrc.cpu_package.nil? || ctrc.cpu_package == cpu_package)
       end
     end
 
@@ -163,8 +150,6 @@ module OsCtld
           size: size,
           max_size: max_size,
           cpu_package: cpu_package,
-          loadavg: loadavg,
-          cfs: cfs,
           mountpoint: lxcfs.mountpoint,
         }
       end
@@ -177,8 +162,6 @@ module OsCtld
           'enabled' => enabled,
           'max_size' => max_size,
           'cpu_package' => cpu_package,
-          'loadavg' => loadavg,
-          'cfs' => cfs,
         }
       end
     end

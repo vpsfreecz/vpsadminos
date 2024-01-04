@@ -52,8 +52,6 @@ module OsCtl::Cli
       lxcfs_enable
       lxcfs_worker
       lxcfs_mountpoint
-      lxcfs_loadavg
-      lxcfs_cfs
     ) + CGroupParams::CGPARAM_STATS
 
     FILTERS = %i(
@@ -696,13 +694,7 @@ module OsCtl::Cli
 
     def set_lxcfs
       require_args!('id')
-
-      set(:lxcfs) do
-        {
-          loadavg: opts[:loadavg],
-          cfs: opts[:cfs],
-        }
-      end
+      set(:lxcfs)
     end
 
     def unset_lxcfs

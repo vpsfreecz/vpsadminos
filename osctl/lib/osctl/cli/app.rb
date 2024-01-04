@@ -942,12 +942,6 @@ module OsCtl::Cli
           set.desc 'Enable or configure LXCFS'
           set.arg_name '<ctid>'
           set.command :lxcfs do |c|
-            c.desc 'Enable load average tracking'
-            c.switch :loadavg, default_value: true
-
-            c.desc 'Enable CPU view based on CPU quotas'
-            c.switch :cfs, default_value: true
-
             c.action &Command.run(Container, :set_lxcfs)
           end
 

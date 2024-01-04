@@ -17,12 +17,6 @@ module OsCtld
     # @return [String, nil]
     attr_reader :cpuset
 
-    # @return [Boolean]
-    attr_reader :loadavg
-
-    # @return [Boolean]
-    attr_reader :cfs
-
     # @return [String]
     attr_reader :mountroot
 
@@ -34,16 +28,12 @@ module OsCtld
     # @param gid [Integer] group ID with access to the mountpoint
     # @param mode [Integer] mountpoint access mode
     # @param cpuset [String, nil] cpuset mask
-    # @param loadavg [Boolean] enable load average tracking
-    # @param cfs [Boolean] enable virtualized CPU usage view based on CFS quotas
-    def initialize(name, uid: 0, gid: 0, mode: 0555, cpuset: nil, loadavg: true, cfs: true)
+    def initialize(name, uid: 0, gid: 0, mode: 0555, cpuset: nil)
       @name = name
       @uid = uid
       @gid = gid
       @mode = mode
       @cpuset = cpuset
-      @loadavg = loadavg
-      @cfs = cfs
       @runsv_source = File.join(RUNDIR_SERVERS, name)
       @runsv_target = File.join(RUNDIR_RUNSVDIR, name)
       @runsv_run = File.join(runsv_source, 'run')
@@ -134,9 +124,7 @@ module OsCtld
       end
     end
 
-    def configure(loadavg: true, cfs: true)
-      @loadavg = loadavg
-      @cfs = cfs
+    def configure
       create
     end
 
@@ -227,8 +215,6 @@ module OsCtld
     def options
       ret = []
       ret << "--pidfile=#{File.join(runsv_source, 'lxcfs.pid')}"
-      ret << '--enable-loadavg' if loadavg
-      ret << '--enable-cfs' if cfs
       ret
     end
 

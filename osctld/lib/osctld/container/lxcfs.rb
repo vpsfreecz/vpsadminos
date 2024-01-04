@@ -4,8 +4,6 @@ module OsCtld
     def self.load(cfg)
       new(
         enable: cfg.fetch('enable', true),
-        loadavg: cfg.fetch('loadavg', true),
-        cfs: cfg.fetch('cfs', true),
       )
     end
 
@@ -14,24 +12,14 @@ module OsCtld
     # @return [Boolean]
     attr_reader :enable
 
-    # @return [Boolean]
-    attr_reader :loadavg
-
-    # @return [Boolean]
-    attr_reader :cfs
-
-    def initialize(enable: true, loadavg: true, cfs: true)
+    def initialize(enable: true)
       init_lock
       @enable = enable
-      @loadavg = loadavg
-      @cfs = cfs
     end
 
-    def configure(loadavg: true, cfs: true)
+    def configure
       exclusively do
         @enable = true
-        @loadavg = loadavg
-        @cfs = cfs
       end
     end
 
@@ -45,8 +33,6 @@ module OsCtld
       inclusively do
         {
           'enable' => enable,
-          'loadavg' => loadavg,
-          'cfs' => cfs,
         }
       end
     end

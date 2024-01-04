@@ -542,7 +542,7 @@ module OsCtld
           self.start_menu = Container::StartMenu.new(self, v[:timeout])
 
         when :lxcfs
-          self.lxcfs.configure(loadavg: v[:loadavg], cfs: v[:cfs])
+          self.lxcfs.configure
 
         when :raw_lxc
           self.raw_configs.lxc = v
@@ -717,8 +717,6 @@ module OsCtld
           lxcfs_enable: lxcfs.enable,
           lxcfs_worker: lxcfs_worker && lxcfs_worker.name,
           lxcfs_mountpoint: lxcfs_worker && lxcfs_worker.mountpoint,
-          lxcfs_loadavg: lxcfs.loadavg,
-          lxcfs_cfs: lxcfs.cfs,
           raw_lxc: raw_configs.lxc,
           log_file: log_path,
         }.merge!(attrs.export)
