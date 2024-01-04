@@ -4,34 +4,10 @@ with lib;
 let
 
   availablePatches = [
-    { name = "bp-6.1.37-cumulative";
-      filterFn = availableFor "6.1.37";
-      version = 1;
-    }
-    { name = "bp-5.10.164-cumulative";
-      filterFn = availableFor "5.10.164";
-      version = 2;
-    }
-    { name = "bp-5.10.159-cumulative";
-      filterFn = availableFor "5.10.159";
-      version = 2;
-    }
-    { name = "bp-5.10.154-cumulative";
-      filterFn = availableFor "5.10.154";
-      version = 2;
-    }
-    { name = "bp-5.10.149-cumulative";
-      filterFn = availableFor "5.10.149";
-      version = 1;
-    }
-    { name = "bp-5.10.147-cumulative";
-      filterFn = availableFor "5.10.147";
-      version = 8;
-    }
-    { name = "bp-5.10.98-cumulative";
-      filterFn = availableFor "5.10.98";
-      version = 25;
-    }
+#    { name = "bp-6.1.37-cumulative";
+#      filterFn = availableFor "6.1.37";
+#      version = 1;
+#    }
   ];
 
   availableForAllKernels = kernelVersion: true;
