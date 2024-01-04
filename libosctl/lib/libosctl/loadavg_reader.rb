@@ -1,9 +1,12 @@
 module OsCtl::Lib
-  # Reads and parses per-container load averages from LXCFS
+  # Returns per-container load averages
   class LoadAvgReader
-    FILE = 'proc/.loadavgs'
+    # This file contains a list of load averages from first-level cgroup namespaces
+    #
+    # Available only on vpsAdminOS
+    FILE = '/proc/vpsadminos/loadavg'
 
-    LoadAvg = Struct.new(:pool_name, :ctid, :avg, :runnable, :total, :last_pid) do
+    LoadAvg = Struct.new(:pool_name, :ctid, :avg, :runnable, :total) do
       def ident
         "#{pool_name}:#{ctid}"
       end
@@ -20,80 +23,72 @@ module OsCtl::Lib
       reader = new
       lavgs = {}
 
-      lxcfs_workers = {}
-
-      containers.each do |ct|
-        mountpoint = ct[:lxcfs_mountpoint]
-        next if mountpoint.nil?
-
-        k = "#{ct[:pool]}:#{ct[:id]}"
-
-        lxcfs_workers[mountpoint] ||= {}
-        lxcfs_workers[mountpoint][k] = true
+      reader.read(containers) do |lavg|
+        lavgs[lavg.ident] = lavg
       end
 
-      lxcfs_workers.each do |mountpoint, cts|
-        reader.read_lxcfs(mountpoint) do |lavg|
-          lavgs[ lavg.ident ] = lavg if cts.has_key?(lavg.ident)
-        end
-      end
-
-      ret = {}
-
-      containers.each do |ct|
-        k = "#{ct[:pool]}:#{ct[:id]}"
-
-        ret[k] = lavgs[k] if lavgs.has_key?(k)
-      end
-
-      ret
+      lavgs
     end
 
-    # Read load averages from LXCFS
-    # @param mountpoint [String]
+    # Read container load averages
+    # @param containers [Array<Hash>] list of containers as received from osctld
     # @yieldparam lavg [LoadAvg]
     # @yieldreturn [:stop, any]
-    def read_lxcfs(mountpoint)
-      File.open(File.join(mountpoint, FILE), 'r') do |f|
+    def read(containers)
+      cgns_ids = get_cgroup_ns_ids(containers)
+
+      File.open(FILE, 'r') do |f|
         f.each_line do |line|
-          lavg = parse(line)
+          lavg = parse(line, cgns_ids)
           next if lavg.nil?
           break if yield(lavg) == :stop
         end
       end
 
+      nil
+
     rescue Errno::ENOENT
     end
 
     protected
-    def parse(line)
-      # <cgroup> <avg1> <avg5> <avg15> <runnable>/<total> <last_pid>
-      cols = line.strip.split
-      return if cols.size != 6
+    def get_cgroup_ns_ids(containers)
+      ret = {}
 
-      pool, ctid = parse_ct(cols[0])
-      return if pool.nil?
+      containers.each do |ct|
+        next if ct[:init_pid].nil?
 
-      runnable, total = cols[4].split('/').map(&:to_i)
+        begin
+          ptr = File.readlink(File.join('/proc', ct[:init_pid].to_s, 'ns/cgroup'))
+        rescue Errno::ENOENT
+          next
+        end
 
-      LoadAvg.new(
-        pool,
-        ctid,
-        {1 => cols[1].to_f, 5 => cols[2].to_f, 15 => cols[3].to_f},
-        runnable,
-        total,
-        cols[5].to_i
-      )
+        next if /^cgroup\:\[(\d+)\]$/ !~ ptr
+
+        cg_id = $1
+        ret[cg_id] = ct
+      end
+
+      ret
     end
 
-    def parse_ct(cgroup)
-      return if /^\/osctl\/pool\.([^\/]+)/ !~ cgroup
-      pool = $1
+    def parse(line, cgns_ids)
+      # <cgns id> <avg1> <avg5> <avg15> <runnable>/<total>
+      cols = line.strip.split
+      return if cols.size != 5
 
-      return if /ct\.([^\/]+)\/user\-owned\// !~ cgroup
-      ct = $1
+      ct = cgns_ids[cols[0]]
+      return if ct.nil?
 
-      [pool, ct]
+      runnable, total = cols[4].split('/')
+
+      LoadAvg.new(
+        ct[:pool],
+        ct[:id],
+        {1 => cols[1].to_f, 5 => cols[2].to_f, 15 => cols[3].to_f},
+        runnable.to_i,
+        total.to_i,
+      )
     end
   end
 end

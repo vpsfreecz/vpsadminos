@@ -35,6 +35,8 @@ module OsCtl::Cli
         @pool
       when :lxcfs_mountpoint
         @lxcfs_mountpoint
+      when :init_pid
+        @init_pid
       else
         raise ArgumentError, "key #{k.inspect} is not supported"
       end
