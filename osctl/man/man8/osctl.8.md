@@ -1197,16 +1197,6 @@ The following shortcuts are supported:
 `ct unset start-menu` *ctid*
   Disable the start menu.
 
-`ct set lxcfs` [*options*] *ctid*
-  Enable or configure LXCFS. The next time the container is started, LXCFS
-  will be mounted inside. Changes to LXCFS configuration will take effect after
-  the container is stopped and started, however not on restart or reboot
-  from the inside. LXCFS is enabled by default.
-
-`ct unset lxcfs` *ctid*
-  Disable LXCFS. The next time the container is started, LXCFS will not be mounted
-  inside.
-
 `ct set raw lxc` *ctid*
   Append raw LXC configuration read from the standard input to the *osctld*
   generated LXC configuration file.
@@ -2905,7 +2895,8 @@ The following shortcuts are supported:
   Prevent the scheduler from assigning containers to *package*
 
 `lxcfs worker ls`
-  List LXCFS workers.
+  List LXCFS workers. Note that LXCFS is deprecated and new containers aren't
+  assigned to LXCFS workers anymore, so there might not be any workers.
 
     `-H`, `--hide-header`
       Do not show header, useful for scripting.

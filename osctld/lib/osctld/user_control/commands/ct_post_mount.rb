@@ -22,12 +22,6 @@ module OsCtld
         ns_pid: opts[:client_pid],
       )
 
-      lxcfs_worker = run_conf.lxcfs_worker
-      lxcfs_params = lxcfs_worker && {
-        mountpoint: lxcfs_worker.mountpoint,
-        mount_files: lxcfs_worker.mount_files,
-      }
-
       begin
         Hook.run(
           ct,
@@ -38,7 +32,7 @@ module OsCtld
       rescue HookFailed => e
         error(e.message)
       else
-        ok(lxcfs: lxcfs_params)
+        ok
       end
     end
   end

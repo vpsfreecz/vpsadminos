@@ -63,7 +63,6 @@ in tests [
   "docker/ubuntu-20.04"
   "docker/ubuntu-22.04"
   "driver"
-  { template = "lxcfs/overlays"; instances = distributions.all; }
   "osctl/ct-exec"
   "osctl/ct-mounts"
   "osctl/ct-runscript"

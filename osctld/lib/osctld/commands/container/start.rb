@@ -40,14 +40,6 @@ module OsCtld
 
         case started
         when :running
-          # Access `/proc/stat` and `/proc/loadavg` within the container, so that
-          # LXCFS starts tracking it immediately.
-          begin
-            ContainerControl::Commands::ActivateLxcfs.run!(ct)
-          rescue ContainerControl::Error => e
-            log(:warn, ct, "Failed to initiate lxcfs accounting: #{e.message}")
-          end
-
           ok
         when :timeout
           error(msg || 'timed out while waiting for container to start')
@@ -112,13 +104,6 @@ module OsCtld
 
       # CPU scheduler
       CpuScheduler.schedule_ct(ct.run_conf)
-
-      # Start LXCFS
-      begin
-        Lxcfs::Scheduler.assign_ctrc(ct.run_conf)
-      rescue Lxcfs::Timeout => e
-        return error("lxcfs not starting: #{e.message}")
-      end
 
       # Optionally add new mounts
       (opts[:mounts] || []).each do |mnt|

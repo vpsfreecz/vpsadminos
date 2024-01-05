@@ -939,12 +939,6 @@ module OsCtl::Cli
             c.action &Command.run(Container, :set_start_menu)
           end
 
-          set.desc 'Enable or configure LXCFS'
-          set.arg_name '<ctid>'
-          set.command :lxcfs do |c|
-            c.action &Command.run(Container, :set_lxcfs)
-          end
-
           set.desc 'Append raw configuration to auto-generated config files'
           set.command :raw do |raw|
             raw.desc 'Append raw LXC configuration'
@@ -1012,12 +1006,6 @@ module OsCtl::Cli
           unset.arg_name '<ctid>'
           unset.command :'start-menu' do |c|
             c.action &Command.run(Container, :unset_start_menu)
-          end
-
-          unset.desc 'Disable LXCFS'
-          unset.arg_name '<ctid>'
-          unset.command :lxcfs do |c|
-            c.action &Command.run(Container, :unset_lxcfs)
           end
 
           unset.desc 'Remove raw configuration from auto-generated config files'

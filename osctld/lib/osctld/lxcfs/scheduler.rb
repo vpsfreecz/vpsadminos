@@ -14,8 +14,8 @@ module OsCtld
 
     class << self
       %i(
-        assets setup stop assign_ctrc remove_ct worker_by_name change_worker
-        add_legacy_perct_worker prune_workers export_workers
+        assets setup stop worker_by_name change_worker
+        prune_workers export_workers
       ).each do |v|
         define_method(v) do |*args, **kwargs, &block|
           instance.send(v, *args, **kwargs, &block)
@@ -97,41 +97,6 @@ module OsCtld
       end
     end
 
-    # Assign container to a LXCFS worker
-    #
-    # This method blocks until the LXCFS instance is available for use.
-    #
-    # @param ctrc [Container::RunConfiguration]
-    # @raise [Lxcfs::Timeout]
-    def assign_ctrc(ctrc)
-      return unless ctrc.ct.lxcfs.enable
-
-      worker, created = get_or_create_worker(ctrc)
-      worker.start if created
-      request_save
-      worker.wait
-      ctrc.lxcfs_worker = worker
-      ctrc.save
-      nil
-    end
-
-    # @param ct [Container]
-    def remove_ct(ct)
-      worker = nil
-
-      exclusively do
-        worker = @containers[ct.ident]
-        return if worker.nil?
-
-        worker.remove_user
-        @containers.delete(ct.ident)
-      end
-
-      request_save
-
-      nil
-    end
-
     # @param name [String]
     # @return [Lxcfs::Worker, nil]
     def worker_by_name(name)
@@ -147,37 +112,6 @@ module OsCtld
       ret = yield(worker)
       request_save
       ret
-    end
-
-    # @param ctrc [Container::RunConfiguration]
-    # @return [Lxcfs::Worker]
-    def add_legacy_perct_worker(ctrc)
-      worker = nil
-
-      exclusively do
-        name = "ct.#{ctrc.ident}"
-        return @workers[name] if @workers.has_key?(name)
-
-        lxcfs = ctrc.ct.lxcfs
-
-        worker = Lxcfs::Worker.new(
-          name,
-          max_size: 1,
-          enabled: false,
-        )
-        worker.add_user
-
-        @workers[worker.name] = worker
-        @containers[ctrc.ident] = worker
-        @worker_id += 1
-
-        log(:info, "#{ctrc.ident} created legacy worker #{worker.name}")
-      end
-
-      worker.adjust_legacy_worker
-
-      request_save
-      worker
     end
 
     def prune_workers

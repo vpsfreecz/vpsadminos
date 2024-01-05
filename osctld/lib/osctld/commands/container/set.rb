@@ -15,7 +15,7 @@ module OsCtld
 
         %i(
           autostart ephemeral hostname dns_resolvers nesting distribution
-          cpu_package seccomp_profile init_cmd start_menu lxcfs raw_lxc attrs
+          cpu_package seccomp_profile init_cmd start_menu raw_lxc attrs
         ).each do |attr|
           next unless opts.has_key?(attr)
 

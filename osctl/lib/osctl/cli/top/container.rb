@@ -19,7 +19,6 @@ module OsCtl::Cli
       @group_path = ct[:group_path]
       @state = ct[:state].to_sym
       @cpu_package_inuse = ct[:cpu_package_inuse]
-      @lxcfs_mountpoint = ct[:lxcfs_mountpoint]
       @init_pid = ct[:init_pid]
       @netifs = []
       @measurements = []
@@ -33,8 +32,6 @@ module OsCtl::Cli
         @id
       when :pool
         @pool
-      when :lxcfs_mountpoint
-        @lxcfs_mountpoint
       when :init_pid
         @init_pid
       else

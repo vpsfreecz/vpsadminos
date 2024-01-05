@@ -51,9 +51,6 @@ module OsCtld
           # Remove any left-over temporary mounts
           ct.mounts.prune
 
-          # Start LXCFS
-          Lxcfs::Scheduler.assign_ctrc(ct.run_conf)
-
           # Pre-start distconfig hook
           DistConfig.run(ct.run_conf, :pre_start)
         end

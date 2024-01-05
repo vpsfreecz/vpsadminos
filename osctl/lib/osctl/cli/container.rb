@@ -49,9 +49,6 @@ module OsCtl::Cli
       init_cmd
       raw_lxc
       loadavg
-      lxcfs_enable
-      lxcfs_worker
-      lxcfs_mountpoint
     ) + CGroupParams::CGPARAM_STATS
 
     FILTERS = %i(
@@ -690,16 +687,6 @@ module OsCtl::Cli
     def unset_start_menu
       require_args!('id')
       unset(:start_menu)
-    end
-
-    def set_lxcfs
-      require_args!('id')
-      set(:lxcfs)
-    end
-
-    def unset_lxcfs
-      require_args!('id')
-      unset(:lxcfs)
     end
 
     def set_raw_lxc

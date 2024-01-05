@@ -166,11 +166,6 @@ module OsCtld
       end
     end
 
-    def adjust_legacy_worker
-      File.chmod(0555, lxcfs.mountroot)
-      File.chown(0, 0, lxcfs.mountroot)
-    end
-
     protected
     attr_reader :lxcfs
   end

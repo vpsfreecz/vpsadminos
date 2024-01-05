@@ -24,7 +24,7 @@ module OsCtld
       :version, :arch, :autostart, :ephemeral, :hostname, :dns_resolvers,
       :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams, :cpu_package,
       :devices, :seccomp_profile, :apparmor, :attrs, :state, :lxc_config,
-      :init_cmd, :start_menu, :lxcfs, :raw_configs, :run_conf, :hints
+      :init_cmd, :start_menu, :raw_configs, :run_conf, :hints
 
     alias_method :ephemeral?, :ephemeral
 
@@ -67,7 +67,6 @@ module OsCtld
       @cpu_package = 'auto'
       @seccomp_profile = nil
       @apparmor = AppArmor.new(self)
-      @lxcfs = user && group ? Container::Lxcfs.new : nil
       @lxc_config = Container::LxcConfig.new(self)
       @init_cmd = nil
       @raw_configs = Container::RawConfigs.new
@@ -541,9 +540,6 @@ module OsCtld
         when :start_menu
           self.start_menu = Container::StartMenu.new(self, v[:timeout])
 
-        when :lxcfs
-          self.lxcfs.configure
-
         when :raw_lxc
           self.raw_configs.lxc = v
 
@@ -588,9 +584,6 @@ module OsCtld
         when :start_menu
           clear_start_menu
           self.start_menu = nil
-
-        when :lxcfs
-          self.lxcfs.disable
 
         when :raw_lxc
           self.raw_configs.lxc = nil
@@ -676,10 +669,6 @@ module OsCtld
     # Export to clients
     def export
       inclusively do
-        if run_conf && run_conf.lxcfs_worker
-          lxcfs_worker = run_conf.lxcfs_worker
-        end
-
         {
           pool: pool.name,
           id: id,
@@ -714,9 +703,6 @@ module OsCtld
           swap_limit: find_swap_limit(parents: false),
           start_menu: start_menu ? true : false,
           start_menu_timeout: start_menu && start_menu.timeout,
-          lxcfs_enable: lxcfs.enable,
-          lxcfs_worker: lxcfs_worker && lxcfs_worker.name,
-          lxcfs_mountpoint: lxcfs_worker && lxcfs_worker.mountpoint,
           raw_lxc: raw_configs.lxc,
           log_file: log_path,
         }.merge!(attrs.export)
@@ -748,7 +734,6 @@ module OsCtld
           'cpu_package' => cpu_package,
           'init_cmd' => init_cmd,
           'start_menu' => start_menu && start_menu.dump,
-          'lxcfs' => lxcfs.dump,
           'raw' => raw_configs.dump,
           'attrs' => attrs.dump,
           'hints' => hints.dump,
@@ -895,8 +880,6 @@ module OsCtld
             nil
           end
 
-        @lxcfs = Container::Lxcfs.load(cfg['lxcfs'] || {})
-
         @run_conf = Container::RunConfiguration.load(self)
 
         if cfg['send_log']
@@ -959,7 +942,6 @@ module OsCtld
       @prlimits = prlimits.dup(self)
       @mounts = mounts.dup(self)
       @start_menu = @start_menu && @start_menu.dup(self)
-      @lxcfs = lxcfs.dup
       @lxc_config = lxc_config.dup(self)
       @raw_configs = raw_configs.dup
       @attrs = attrs.dup
