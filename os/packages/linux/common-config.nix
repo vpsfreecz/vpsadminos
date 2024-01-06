@@ -62,6 +62,7 @@ let
       HW_RANDOM_AMD             = yes;
       PSI                       = no;
       CGROUP_FAVOR_DYNMODS      = whenAtLeast "6.1" yes;
+      KERNEL_REPLICATION        = whenAtLeast "6.6.10" yes;
     };
 
     preempt_rt = optionalAttrs (RTKernel) {
