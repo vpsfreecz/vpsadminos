@@ -13,7 +13,6 @@ module OsCtld
     module Group ; end
     module History ; end
     module IdRange ; end
-    module Lxcfs ; end
     module NetInterface ; end
     module Pool ; end
     module Receive ; end
@@ -83,7 +82,6 @@ require_rel 'osctld/eventd'
 require_rel 'osctld/generic'
 require_rel 'osctld/hook'
 require_rel 'osctld/id_range'
-require_rel 'osctld/lxcfs'
 require_rel 'osctld/monitor'
 require_rel 'osctld/mount'
 require_rel 'osctld/net_interface'

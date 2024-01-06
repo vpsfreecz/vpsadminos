@@ -91,7 +91,7 @@
   virtualisation = {
     lxc = {
       enable = true;
-      lxcfs.enable = true;
+      lxcfs.enable = false;
     };
   };
 
@@ -109,7 +109,6 @@
       hosts:     files  dns   myhostname mymachines
       networks:  files dns
     '';
-    "lxc/common.conf.d/00-lxcfs.conf".source = "${pkgs.lxcfs}/share/lxc/config/common.conf.d/00-lxcfs.conf";
     # needed for osctl to access distro specific configs
     "lxc/config".source = "${pkgs.lxc}/share/lxc/config";
 

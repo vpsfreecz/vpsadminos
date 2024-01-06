@@ -41,8 +41,6 @@ self: super:
       systemd = null;
     };
 
-  lxcfs = super.callPackage ../packages/lxcfs {};
-
   mbuffer = super.mbuffer.overrideAttrs (oldAttrs: rec {
     version = "20211018";
 

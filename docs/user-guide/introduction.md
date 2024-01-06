@@ -58,5 +58,4 @@ The learning curve is pretty steep, but we think it is well worth it.
 [OpenZFS]: https://openzfs.org
 [LTS Linux kernel with a mix of out-of-tree patches]: https://github.com/vpsfreecz/linux
 [LXC]: https://linuxcontainers.org/lxc/
-[LXCFS]: https://linuxcontainers.org/lxcfs/
 [vpsFree.cz]: https://vpsfree.org

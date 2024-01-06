@@ -43,7 +43,6 @@ let
     nettools
     bird
     su
-    lxcfs
     pciutils
     eudev
     rsyslog-light

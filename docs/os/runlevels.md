@@ -76,7 +76,6 @@ getty-ttyS0             single      rescue      default
 getty-ttyS1             single      rescue      default   
 haveged                                         default   
 histfile-tank                                   default   
-lxcfs                                           default   
 networking                          rescue      default   
 nfsd                                            default   
 nix                                 rescue      default   

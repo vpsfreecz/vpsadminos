@@ -32,8 +32,6 @@ let
 
     ctstartmenu = "${pkgs.ctstartmenu}/bin/ctstartmenu";
 
-    lxcfs.path = "${pkgs.lxcfs}/bin/lxcfs";
-
     lock_registry = true;
 
     cpu_scheduler = {

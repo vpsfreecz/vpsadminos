@@ -118,7 +118,6 @@ module OsCtld
       SystemLimits.instance
 
       CpuScheduler.setup
-      Lxcfs::Scheduler.setup
 
       # Increase allowed number of open files
       PrLimits.set(Process.pid, PrLimits::NOFILE, 131072, 131072)
@@ -216,7 +215,6 @@ module OsCtld
       UserControl.stop
       SendReceive.stop
       DB::Pools.get.each { |pool| pool.stop }
-      Lxcfs::Scheduler.stop
       CpuScheduler.shutdown
       ThreadReaper.stop
       Monitor::Master.stop

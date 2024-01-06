@@ -24,7 +24,6 @@ import ../../../make-test.nix (pkgs: {
       "id tank-testct",
       "osctl group show /default",
       "osctl ct show testct",
-      "ls -l /run/osctl/lxcfs/runsvdir/ct.tank:testct",
     )
 
     # Export must fail, because of running containers
@@ -47,8 +46,6 @@ import ../../../make-test.nix (pkgs: {
       "id tank-testct",
       "osctl group show /default",
       "osctl ct show testct",
-      "ls -l /run/osctl/lxcfs/runsvdir/ct.tank:testct",
-      "ls -l /run/osctl/lxcfs/servers/ct.tank:testct",
     )
   '';
 })

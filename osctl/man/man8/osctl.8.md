@@ -2894,38 +2894,6 @@ The following shortcuts are supported:
 `cpu-scheduler package disable` *package*
   Prevent the scheduler from assigning containers to *package*
 
-`lxcfs worker ls`
-  List LXCFS workers. Note that LXCFS is deprecated and new containers aren't
-  assigned to LXCFS workers anymore, so there might not be any workers.
-
-    `-H`, `--hide-header`
-      Do not show header, useful for scripting.
-
-    `-L`, `--list`
-      List available parameters and exit.
-
-    `-o`, `--output` *parameters*
-      Select parameters to output.
-
-    `-s`, `--sort` *parameters*
-      Sort output by parameters, comma separated. Sorted by usage score by default.
-
-`lxcfs worker enable` *worker*
-  Enable LXCFS worker for further use. If it is not full, starting containers
-  can be assigned to it.
-
-`lxcfs worker disable` *worker*
-  Disable the LXCFS worker. It will continue running as long as containers
-  are using it, but new containers will not be assigned to it.
-
-`lxcfs worker set max-size` *worker* *size*
-  Change the maximum size of LXCFS *worker*. It has no effect on containers that
-  are already using it.
-
-`lxcfs worker prune`
-  Unused workers are automatically destroyed. This command will trigger the check
-  immediately.
-
 `trash-bin dataset` add *dataset*
   Add custom dataset to its pool's trash bin. This can be used for user-created
   datasets outside of `osctld`'s control. The dataset is placed in the trash bin

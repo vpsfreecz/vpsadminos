@@ -57,8 +57,6 @@ in
       apparmor_paths = optionals config.security.apparmor.enable (map (s: "${s}/etc/apparmor.d") apparmorPaths);
 
       ctstartmenu = "${pkgs.ctstartmenu}/bin/ctstartmenu";
-
-      lxcfs.path = "${pkgs.lxcfs}/bin/lxcfs";
     };
 
     runit.services.osctld = {

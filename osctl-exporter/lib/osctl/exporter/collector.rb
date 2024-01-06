@@ -43,7 +43,6 @@ module OsCtl::Exporter
         CollectorConfig.new(Collectors::ZpoolList, false, 60),
         CollectorConfig.new(Collectors::ZpoolStatus, false, 60),
         CollectorConfig.new(Collectors::CpuScheduler, true, 60),
-        CollectorConfig.new(Collectors::Lxcfs, true, 60),
         CollectorConfig.new(Collectors::HealthCheck, true, 600),
       ]
 

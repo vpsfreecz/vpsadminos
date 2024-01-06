@@ -69,10 +69,6 @@ module OsCtl::Exporter
       client.cmd_data!(:cpu_scheduler_package_list)
     end
 
-    def list_lxcfs_workers
-      client.cmd_data!(:lxcfs_worker_list)
-    end
-
     def health_check
       client.cmd_data!(:self_healthcheck, all: true)
     end
