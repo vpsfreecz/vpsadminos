@@ -91,7 +91,7 @@ in
         ];
         config = ''
           daily
-          rotate 2
+          rotate 1
           nodateext
           copytruncate
           notifempty
