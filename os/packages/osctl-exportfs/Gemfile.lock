@@ -7,13 +7,13 @@ GEM
   specs:
     filelock (1.1.1)
     gli (2.20.1)
-    libosctl (23.11.0.build20240105155140)
+    libosctl (23.11.0.build20240106103057)
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
-    osctl-exportfs (23.11.0.build20240105155140)
+    osctl-exportfs (23.11.0.build20240106103057)
       filelock
       gli (~> 2.20.0)
-      libosctl (= 23.11.0.build20240105155140)
+      libosctl (= 23.11.0.build20240106103057)
       require_all (~> 2.0.0)
     rainbow (3.1.1)
     require_all (2.0.0)
@@ -22,7 +22,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  osctl-exportfs (= 23.11.0.build20240105155140)!
+  osctl-exportfs (= 23.11.0.build20240106103057)!
 
 BUNDLED WITH
    2.4.22
