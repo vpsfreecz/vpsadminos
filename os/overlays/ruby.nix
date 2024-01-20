@@ -12,7 +12,7 @@ let
   });
 in
 {
-  ruby = super.ruby_3_1;
+  ruby = super.ruby_3_2;
 
   defaultGemConfig =
     super.callPackage (
