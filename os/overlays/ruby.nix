@@ -38,12 +38,12 @@ in
 
   bundix = super.bundix.overrideAttrs (oldAttrs: rec {
     name = "bundix-${version}";
-    version = "master-3d7820ef";
+    version = "master-1b7df693";
     src = super.fetchFromGitHub {
       owner = "nix-community";
       repo = "bundix";
-      rev = "3d7820efdd77281234182a9b813c2895ef49ae1f";
-      sha256 = "sha256-0CMDJR3xfewNuDthm3fEh6UPeRH9PURYxJ0PI1WPv4U=";
+      rev = "1b7df693f9660b4c27b16770b096094954c4aa9b";
+      sha256 = "sha256-zJQKsC9sId+ui2wZ0nUaDRP1SmzrNTWoDJxUdLoATqI=";
     };
   });
 
