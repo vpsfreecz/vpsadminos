@@ -1,2 +1,5 @@
-source 'https://rubygems.vpsfree.cz'
-gem 'svctl', '23.11.0.build20240106103057'
+source 'https://rubygems.org'
+
+source 'https://rubygems.vpsfree.cz' do
+  gem 'svctl', '23.11.0.build20240120145104'
+end
