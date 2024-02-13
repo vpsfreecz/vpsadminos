@@ -13,7 +13,7 @@ module VpsAdminOS::Converter
 
       {
         'priority' => priority,
-        'delay' => delay,
+        'delay' => delay
       }
     end
   end

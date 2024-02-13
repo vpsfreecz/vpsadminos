@@ -3,7 +3,7 @@ require 'libosctl'
 module SvCtl
   class Cli::Command < OsCtl::Lib::Cli::Command
     def self.run(method)
-      Proc.new do |global_opts, opts, args|
+      proc do |global_opts, opts, args|
         cmd = new(global_opts, opts, args)
         cmd.method(method).call
       end
@@ -15,10 +15,10 @@ module SvCtl
       SvCtl.all_services.sort.each do |s|
         sv_runlevels = s.runlevels
         rlv_line = all_runlevels.map do |rlv|
-          sprintf('%-10s', sv_runlevels.include?(rlv) ? rlv : '')
+          format('%-10s', sv_runlevels.include?(rlv) ? rlv : '')
         end.join('  ')
 
-        puts sprintf('%-30s    %s', s.name, rlv_line)
+        puts format('%-30s    %s', s.name, rlv_line)
       end
     end
 
@@ -28,7 +28,7 @@ module SvCtl
         list_all
 
       else
-        require_args!(optional: %w(runlevel))
+        require_args!(optional: %w[runlevel])
 
         SvCtl.runlevel_services(args[0] || 'current').each do |s|
           puts s.name
@@ -37,12 +37,12 @@ module SvCtl
     end
 
     def enable
-      require_args!('service', optional: %w(runlevel))
+      require_args!('service', optional: %w[runlevel])
       SvCtl.enable(args[0], args[1] || 'current')
     end
 
     def disable
-      require_args!('service', optional: %w(runlevel))
+      require_args!('service', optional: %w[runlevel])
       SvCtl.disable(args[0], args[1] || 'current')
     end
 

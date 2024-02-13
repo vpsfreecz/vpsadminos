@@ -3,12 +3,12 @@ require 'json'
 require 'socket'
 
 class SendReceive
-  COMMANDS = %w(skel base incremental transfer cancel)
+  COMMANDS = %w[skel base incremental transfer cancel]
 
   def initialize(pool, key_name, cmdline, connection)
     @key_pool = pool
     @key_name = key_name
-    @client_ip, _, _, _ = connection
+    @client_ip, = connection
     error! unless cmdline
 
     args = cmdline.split(' ')
@@ -20,6 +20,7 @@ class SendReceive
   end
 
   protected
+
   attr_reader :key_pool, :key_name, :client_ip, :args, :client
 
   def skel
@@ -35,9 +36,9 @@ class SendReceive
       :receive_skel,
       pool: to_pool,
       passphrase: args[1],
-      client_ip: client_ip,
-      key_pool: key_pool,
-      key_name: key_name,
+      client_ip:,
+      key_pool:,
+      key_name:
     )
 
     if recv_resp! != 'continue'
@@ -56,8 +57,8 @@ class SendReceive
     error! if args.count < 2
     send_cmd(
       :receive_base,
-      key_pool: key_pool,
-      key_name: key_name,
+      key_pool:,
+      key_name:,
       token: parse_token,
       dataset: args[1],
       snapshot: args[2]
@@ -76,8 +77,8 @@ class SendReceive
     error! if args.count < 2
     send_cmd(
       :receive_incremental,
-      key_pool: key_pool,
-      key_name: key_name,
+      key_pool:,
+      key_name:,
       token: parse_token,
       dataset: args[1],
       snapshot: args[2]
@@ -95,8 +96,8 @@ class SendReceive
   def transfer
     send_cmd(
       :receive_transfer,
-      key_pool: key_pool,
-      key_name: key_name,
+      key_pool:,
+      key_name:,
       token: parse_token,
       start: args[1] == 'start'
     )
@@ -106,9 +107,9 @@ class SendReceive
   def cancel
     send_cmd(
       :receive_cancel,
-      key_pool: key_pool,
-      key_name: key_name,
-      token: parse_token,
+      key_pool:,
+      key_name:,
+      token: parse_token
     )
     recv_resp!
   end
@@ -118,7 +119,7 @@ class SendReceive
   end
 
   def send_cmd(cmd, opts = {})
-    client.puts({cmd: cmd, opts: opts}.to_json)
+    client.puts({ cmd:, opts: }.to_json)
   end
 
   def send_stdin
@@ -146,14 +147,14 @@ class SendReceive
   end
 
   def usage
-    warn <<END
-Usage:
-  receive skel [pool|- [passphrase]]
-  receive base <token> <dataset> [snapshot]
-  receive incremental <token> <dataset> [snapshot]
-  receive transfer <token> [start]
-  receive cancel <token>
-END
+    warn <<~END
+      Usage:
+        receive skel [pool|- [passphrase]]
+        receive base <token> <dataset> [snapshot]
+        receive incremental <token> <dataset> [snapshot]
+        receive transfer <token> [start]
+        receive cancel <token>
+    END
   end
 
   def error!
@@ -163,13 +164,13 @@ END
 end
 
 if ARGV.length != 2
-  warn "Usage: $0 <pool> <key name>"
+  warn 'Usage: $0 <pool> <key name>'
   exit(false)
 end
 
 SendReceive.new(
   ARGV[0],
   ARGV[1],
-  ENV['SSH_ORIGINAL_COMMAND'],
-  ENV['SSH_CONNECTION'].split,
+  ENV.fetch('SSH_ORIGINAL_COMMAND', nil),
+  ENV['SSH_CONNECTION'].split
 )

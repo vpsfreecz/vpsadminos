@@ -25,17 +25,17 @@ module TestRunner::Cli
       desc 'List available tests'
       arg_name '[path-pattern]'
       command 'ls' do |c|
-        c.action &Command.run(:list)
+        c.action(&Command.run(:list))
       end
 
       desc 'Run test'
       arg_name '[path-pattern]'
       command 'test' do |c|
         c.desc 'How many tests to run in parallel'
-        c.flag %w(j jobs), type: Integer, default_value: 1
+        c.flag %w[j jobs], type: Integer, default_value: 1
 
         c.desc 'Default timeout for machine commands, in seconds'
-        c.flag %w(t timeout), type: Integer, default_value: 900
+        c.flag %w[t timeout], type: Integer, default_value: 900
 
         c.desc 'Stop testing when one test fails'
         c.switch 'stop-on-failure', default_value: false
@@ -46,7 +46,7 @@ module TestRunner::Cli
         c.desc 'Directory where test logs and state are stored'
         c.flag 'state-dir'
 
-        c.action &Command.run(:test)
+        c.action(&Command.run(:test))
       end
 
       desc 'Debug test'
@@ -56,9 +56,9 @@ module TestRunner::Cli
         c.flag 'state-dir'
 
         c.desc 'Default timeout for machine commands, in seconds'
-        c.flag %w(t timeout), type: Integer, default_value: 900
+        c.flag %w[t timeout], type: Integer, default_value: 900
 
-        c.action &Command.run(:debug)
+        c.action(&Command.run(:debug))
       end
 
       default_command 'ls'

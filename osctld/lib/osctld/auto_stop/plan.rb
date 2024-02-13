@@ -103,24 +103,24 @@ module OsCtld
 
           log(
             :debug,
-            "[#{(i+1).to_s.rjust(4)}/#{total}] #{ct.id} priority=#{ct.autostart ? ct.autostart.priority : '-'} cpu-package=#{run_conf ? run_conf.cpu_package : '-'}"
+            "[#{(i + 1).to_s.rjust(4)}/#{total}] #{ct.id} priority=#{ct.autostart ? ct.autostart.priority : '-'} cpu-package=#{run_conf ? run_conf.cpu_package : '-'}"
           )
         end
 
-        ContinuousExecutor::Command.new(id: ct.id, priority: i) do |cmd|
+        ContinuousExecutor::Command.new(id: ct.id, priority: i) do |_cmd|
           if client_handler
             mutex.synchronize do
               done += 1
               client_handler.send_update(
-                "[#{done}/#{total}] "+
-                (ct.ephemeral? ? 'Deleting ephemeral container' : 'Stopping container')+
+                "[#{done}/#{total}] " +
+                (ct.ephemeral? ? 'Deleting ephemeral container' : 'Stopping container') +
                 " #{ct.ident}"
               )
             end
           end
 
           log(:info, ct, 'Auto-stopping container')
-          do_stop_ct(ct, message: message)
+          do_stop_ct(ct, message:)
         end
       end
 
@@ -153,6 +153,7 @@ module OsCtld
     end
 
     protected
+
     attr_reader :plan
 
     def do_stop_ct(ct, message: nil)
@@ -163,7 +164,7 @@ module OsCtld
           force: true,
           progress: false,
           manipulation_lock: 'ignore',
-          message: message,
+          message:
         )
       else
         Commands::Container::Stop.run(
@@ -171,7 +172,7 @@ module OsCtld
           id: ct.id,
           progress: false,
           manipulation_lock: 'ignore',
-          message: message,
+          message:
         )
 
         pool.autostart_plan.clear_ct(ct)

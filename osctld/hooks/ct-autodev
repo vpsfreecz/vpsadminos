@@ -3,7 +3,7 @@ require 'fileutils'
 require 'json'
 require 'socket'
 
-ctid = ENV['LXC_NAME']
+ctid = ENV.fetch('LXC_NAME', nil)
 
 if ctid.nil?
   warn 'Expected environment variables:'
@@ -11,18 +11,18 @@ if ctid.nil?
   exit(false)
 end
 
-if /^\/run\/osctl\/pools\/([^\/]+)\/hooks/ !~ $0
+if %r{^/run/osctl/pools/([^/]+)/hooks} !~ $0
   warn "Unable to detect pool name from '#{$0}'"
   exit(false)
 end
 
-pool = $1
+pool = Regexp.last_match(1)
 
-s = UNIXSocket.new("/run/osctl/user-control/namespaced.sock")
-s.puts({cmd: :ct_autodev, opts: {
+s = UNIXSocket.new('/run/osctl/user-control/namespaced.sock')
+s.puts({ cmd: :ct_autodev, opts: {
   id: ctid,
-  pool: pool,
-}}.to_json)
+  pool:
+} }.to_json)
 ret = JSON.parse(s.readline, symbolize_names: true)
 s.close
 
@@ -31,7 +31,7 @@ unless ret[:status]
   exit(false)
 end
 
-dst = ENV['LXC_ROOTFS_MOUNT']
+dst = ENV.fetch('LXC_ROOTFS_MOUNT', nil)
 
 ret[:response][:devices].each do |dev|
   dstdev = File.join(dst, dev[:name])
@@ -54,13 +54,12 @@ ret[:response][:devices].each do |dev|
       File.chmod(dev[:permission], dstdev)
       next
     end
-
   rescue Errno::ENOENT
     # pass
   end
 
   unless system("mknod #{dstdev} #{dev[:type_s]} #{dev[:major]} #{dev[:minor]}")
-    fail "unable to create device '#{dstdev}'"
+    raise "unable to create device '#{dstdev}'"
   end
 
   File.chown(0, 0, dstdev)

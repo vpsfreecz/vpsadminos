@@ -5,6 +5,7 @@ module OsCtld
     register :symlink
 
     protected
+
     def validate(run)
       begin
         add_error('not a symlink') if exist? && !opts[:optional] && !stat.symlink?

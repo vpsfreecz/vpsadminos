@@ -26,18 +26,18 @@ module OsCtl::Image::Cli
       desc 'List available images'
       command 'ls' do |c|
         c.desc 'Select parameters to output'
-        c.flag %i(o output), arg_name: 'parameters'
+        c.flag %i[o output], arg_name: 'parameters'
 
         c.desc 'Do not show header'
-        c.switch %i(H hide-header), negatable: false
+        c.switch %i[H hide-header], negatable: false
 
         c.desc 'List available parameters'
-        c.switch %i(L list), negatable: false
+        c.switch %i[L list], negatable: false
 
         c.desc 'Sort by parameter(s)'
-        c.flag %i(s sort), arg_name: 'parameters'
+        c.flag %i[s sort], arg_name: 'parameters'
 
-        c.action &Command.run(Image, :list)
+        c.action(&Command.run(Image, :list))
       end
 
       desc 'Build image'
@@ -55,7 +55,7 @@ module OsCtl::Image::Cli
         c.desc 'How many images build in parallel'
         c.flag 'jobs', arg_name: 'n', type: Integer, default_value: 1
 
-        c.action &Command.run(Image, :build)
+        c.action(&Command.run(Image, :build))
       end
 
       desc 'Test image'
@@ -76,7 +76,7 @@ module OsCtl::Image::Cli
         c.desc 'Keep containers from failed tests'
         c.switch 'keep-failed'
 
-        c.action &Command.run(Image, :test)
+        c.action(&Command.run(Image, :test))
       end
 
       desc 'Build the image and use it in a container'
@@ -97,7 +97,7 @@ module OsCtl::Image::Cli
         c.desc 'Instantiate in an existing container'
         c.flag 'container', arg_name: 'ctid'
 
-        c.action &Command.run(Image, :instantiate)
+        c.action(&Command.run(Image, :instantiate))
       end
 
       desc 'Build image, test it and deploy to repository'
@@ -127,7 +127,7 @@ module OsCtl::Image::Cli
         c.desc 'Keep containers from failed tests'
         c.switch 'keep-failed'
 
-        c.action &Command.run(Image, :deploy)
+        c.action(&Command.run(Image, :deploy))
       end
 
       desc 'Manage build and test containers'
@@ -135,30 +135,30 @@ module OsCtl::Image::Cli
         ct.desc 'List managed containers'
         ct.command :ls do |c|
           c.desc 'Select parameters to output'
-          c.flag %i(o output), arg_name: 'parameters'
+          c.flag %i[o output], arg_name: 'parameters'
 
           c.desc 'Do not show header'
-          c.switch %i(H hide-header), negatable: false
+          c.switch %i[H hide-header], negatable: false
 
           c.desc 'List available parameters'
-          c.switch %i(L list), negatable: false
+          c.switch %i[L list], negatable: false
 
           c.desc 'Sort by parameter(s)'
-          c.flag %i(s sort), arg_name: 'parameters'
+          c.flag %i[s sort], arg_name: 'parameters'
 
-          c.action &Command.run(Containers, :list)
+          c.action(&Command.run(Containers, :list))
         end
 
         ct.desc 'Delete managed containers'
         ct.arg_name '[ctid...]'
         ct.command :del do |c|
           c.desc 'Delete containers of selected type'
-          c.flag 'type', must_match: %w(builder test instance)
+          c.flag 'type', must_match: %w[builder test instance]
 
           c.desc 'Do not ask and immediately delete the containers'
-          c.switch %w(f force)
+          c.switch %w[f force]
 
-          c.action &Command.run(Containers, :delete)
+          c.action(&Command.run(Containers, :delete))
         end
       end
     end

@@ -40,6 +40,7 @@ module OsCtl::Lib
     end
 
     protected
+
     def key(obj)
       @block.call(obj)
     end

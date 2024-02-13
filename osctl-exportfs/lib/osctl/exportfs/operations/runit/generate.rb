@@ -12,28 +12,29 @@ module OsCtl::ExportFS
     def initialize(server, config)
       @server = server
       @vars = {
-        server: server,
-        config: config,
+        server:,
+        config:
       }
     end
 
     def execute
       FileUtils.mkdir_p('/etc/runit')
-      %w(1 2 3).each do |v|
+      %w[1 2 3].each do |v|
         write_script("runit/#{v}", "/etc/runit/#{v}")
       end
 
       FileUtils.mkdir_p('/etc/runit/runsvdir')
-      %w(rpcbind nfsd statd).each do |sv|
+      %w[rpcbind nfsd statd].each do |sv|
         write_service("runsvdir/#{sv}", '/etc/runit/runsvdir', sv)
       end
 
-      unless File.exist?('/service')
-        File.symlink('/etc/runit/runsvdir', '/service')
-      end
+      return if File.exist?('/service')
+
+      File.symlink('/etc/runit/runsvdir', '/service')
     end
 
     protected
+
     attr_reader :server, :vars
 
     def write_service(template, runsvdir, name)
@@ -46,7 +47,7 @@ module OsCtl::ExportFS
 
     def write_script(template, path)
       ErbTemplate.render_to(template, vars, path)
-      File.chmod(0755, path)
+      File.chmod(0o755, path)
     end
   end
 end

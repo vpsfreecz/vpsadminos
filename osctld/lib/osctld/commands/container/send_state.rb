@@ -51,7 +51,7 @@ module OsCtld
           ct.send_log.state = :incremental
           ct.save_config
 
-          if !ct.send_log.can_send_continue?(:transfer)
+          unless ct.send_log.can_send_continue?(:transfer)
             error!('invalid send sequence')
           end
         end
@@ -79,19 +79,20 @@ module OsCtld
     end
 
     protected
+
     def send_dataset(ct, ds, snap)
       stream = OsCtl::Lib::Zfs::Stream.new(
         ds,
         snap,
         ct.send_log.snapshots[-2],
-        intermediary: ct.send_log.opts.snapshots,
+        intermediary: ct.send_log.opts.snapshots
       )
-      stream.progress do |total, transfered, changed|
+      stream.progress do |total, _transfered, changed|
         progress(type: :progress, data: {
           time: Time.now.to_i,
           size: stream.size,
           transfered: total,
-          changed: changed,
+          changed:
         })
       end
 
@@ -110,9 +111,9 @@ module OsCtld
 
       _, status = Process.wait2(pid)
 
-      if status.exitstatus != 0
-        error!('sync failed')
-      end
+      return unless status.exitstatus != 0
+
+      error!('sync failed')
     end
   end
 end

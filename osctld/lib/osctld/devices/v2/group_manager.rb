@@ -8,7 +8,7 @@ module OsCtld
         desc: 'Controls access to devices',
         program_name: configurator.prog_name,
         attach_type: 'cgroup_device',
-        attach_flags: 'multi',
+        attach_flags: 'multi'
       )
     end
 
@@ -28,7 +28,6 @@ module OsCtld
       group.name
     end
 
-    protected
-    alias_method :group, :owner
+    alias group owner
   end
 end

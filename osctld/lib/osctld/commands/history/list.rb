@@ -9,6 +9,7 @@ module OsCtld
     end
 
     protected
+
     def pools
       if opts[:pools]
         opts[:pools].map do |name|

@@ -38,7 +38,7 @@ module OsCtld
         unless ct.group.setup_for?(new_user)
           dir = ct.group.userdir(new_user)
 
-          FileUtils.mkdir_p(dir, mode: 0751)
+          FileUtils.mkdir_p(dir, mode: 0o751)
           File.chown(0, new_user.ugid, dir)
         end
 
@@ -66,7 +66,7 @@ module OsCtld
             progress("Setting UID/GID mapping of #{ds.relative_name}")
             zfs(
               :set,
-              "uidmap=\"#{ct.uid_map.map(&:to_s).join(',')}\" "+
+              "uidmap=\"#{ct.uid_map.map(&:to_s).join(',')}\" " +
               "gidmap=\"#{ct.gid_map.map(&:to_s).join(',')}\"",
               ds
             )

@@ -23,7 +23,7 @@ module OsCtl::Lib
 
     def [](key)
       warn "Accessing command result using [#{key}] is deprecated"
-      warn "Caller backtrace:"
+      warn 'Caller backtrace:'
       warn caller.join("\n")
       send(key)
     end

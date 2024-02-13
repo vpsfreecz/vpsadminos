@@ -15,7 +15,6 @@ module OsCtld
       begin
         ip(:all, [:link, :show, :dev, INTERFACE])
         return
-
       rescue SystemCommandFailed => e
         raise if e.rc != 1
       end
@@ -42,7 +41,7 @@ module OsCtld
 
     def save
       super.merge({
-        'routes' => @routes.dump,
+        'routes' => @routes.dump
       })
     end
 
@@ -53,16 +52,16 @@ module OsCtld
 
       iplist = ip(:all, [:addr, :show, :dev, veth], valid_rcs: [1])
 
-      if iplist.exitstatus == 1
-        log(
-          :info,
-          ct,
-          "veth '#{veth}' of container '#{ct.id}' no longer exists, "+
-          "ignoring"
-        )
-        @veth = nil
-        return
-      end
+      return unless iplist.exitstatus == 1
+
+      log(
+        :info,
+        ct,
+        "veth '#{veth}' of container '#{ct.id}' no longer exists, " +
+        'ignoring'
+      )
+      @veth = nil
+      nil
     end
 
     def up(veth)
@@ -72,7 +71,7 @@ module OsCtld
         next if @routes.empty?(v)
 
         @routes.each_version(v) do |route|
-          ip(v, [:route, :add] + route.ip_spec + [:dev, veth])
+          ip(v, %i[route add] + route.ip_spec + [:dev, veth])
         end
       end
 
@@ -94,7 +93,7 @@ module OsCtld
         next if ct.state != :running
 
         # Add host route
-        ip(v, [:route, :add] + r.ip_spec + [:dev, veth]) if r
+        ip(v, %i[route add] + r.ip_spec + [:dev, veth]) if r
 
         # Add IP within the CT
         ct_syscmd(
@@ -145,7 +144,7 @@ module OsCtld
 
         # Remove host route
         routes_to_remove.each do |route|
-          ip(v, [:route, :del] + route.ip_spec + [:dev, veth])
+          ip(v, %i[route del] + route.ip_spec + [:dev, veth])
         end
 
         # Remove IP from within the CT
@@ -171,12 +170,12 @@ module OsCtld
     end
 
     def add_route(addr, via: nil)
-      route = @routes.add(addr, via: via)
+      route = @routes.add(addr, via:)
 
       ct.inclusively do
         next if ct.state != :running
 
-        ip(route.ip_version, [:route, :add] + route.ip_spec + [:dev, veth])
+        ip(route.ip_version, %i[route add] + route.ip_spec + [:dev, veth])
       end
     end
 
@@ -187,7 +186,7 @@ module OsCtld
       ct.inclusively do
         next if ct.state != :running
 
-        ip(route.ip_version, [:route, :del] + route.ip_spec + [:dev, veth])
+        ip(route.ip_version, %i[route del] + route.ip_spec + [:dev, veth])
       end
     end
 
@@ -199,7 +198,7 @@ module OsCtld
         next if ct.state != :running
 
         removed.each do |route|
-          ip(route.ip_version, [:route, :del] + route.ip_spec + [:dev, veth])
+          ip(route.ip_version, %i[route del] + route.ip_spec + [:dev, veth])
         end
       end
     end
@@ -216,6 +215,7 @@ module OsCtld
     end
 
     protected
+
     def get_ipv6_link_local
       link = exclusively { veth.clone }
 
@@ -223,9 +223,9 @@ module OsCtld
         ifaddr.name == link && ifaddr.addr.ip? && ifaddr.addr.ipv6?
       end
 
-      fail "unable to find link-local IPv6 address for #{veth}" unless ifaddr
+      raise "unable to find link-local IPv6 address for #{veth}" unless ifaddr
 
-      return IPAddress.parse(ifaddr.addr.ip_address.split('%').first)
+      IPAddress.parse(ifaddr.addr.ip_address.split('%').first)
     end
   end
 end

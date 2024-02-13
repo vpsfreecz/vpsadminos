@@ -15,7 +15,7 @@ conf_dir = zfs(:get, '-Hp -o value mountpoint', File.join($DATASET, 'conf')).out
 ugid_map = {}
 
 Dir.glob(File.join(conf_dir, 'user', '*.yml')).each do |f|
-  name = File.basename(f)[0..(('.yml'.length+1) * -1)]
+  name = File.basename(f)[0..(('.yml'.length + 1) * -1)]
   cfg = YAML.load_file(f)
   ugid_map[name] = cfg['ugid']
   cfg.delete('ugid')

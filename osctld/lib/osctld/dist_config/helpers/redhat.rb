@@ -5,11 +5,11 @@ module OsCtld
     def set_params(file, params)
       return unless writable?(file)
 
-      regenerate_file(file, 0644) do |new, old|
+      regenerate_file(file, 0o644) do |new, old|
         if old
           # Overwrite existing params and keep unchanged ones
           old.each_line do |line|
-            param, value = params.detect { |k, v| /^#{k}=/ =~ line }
+            param, value = params.detect { |k, _v| /^#{k}=/ =~ line }
 
             if param
               new.puts("#{param}=\"#{value}\"")

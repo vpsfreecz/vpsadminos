@@ -3,11 +3,12 @@ require 'require_all'
 module OsCtl
   module Lib
     module Cli
-      module Completion ; end
+      module Completion; end
     end
-    module Exporter ; end
-    module Utils ; end
-    module Zfs ; end
+
+    module Exporter; end
+    module Utils; end
+    module Zfs; end
   end
 end
 

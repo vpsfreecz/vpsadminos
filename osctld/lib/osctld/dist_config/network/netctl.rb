@@ -16,12 +16,12 @@ module OsCtld
     end
 
     # Remove netctl profile and systemd service
-    def remove_netif(netifs, netif)
+    def remove_netif(_netifs, netif)
       do_remove_netif(netif.name)
     end
 
     # Rename netctl profile and systemd service
-    def rename_netif(netifs, netif, old_name)
+    def rename_netif(_netifs, netif, old_name)
       # Remove old network interface
       do_remove_netif(old_name)
 
@@ -30,6 +30,7 @@ module OsCtld
     end
 
     protected
+
     def do_create_netif(netif)
       profile = netctl_profile(netif.name)
       return unless writable?(profile)
@@ -37,7 +38,7 @@ module OsCtld
       # Create netctl profile
       OsCtld::ErbTemplate.render_to_if_changed(
         File.join('dist_config/network/netctl', netif.type.to_s),
-        {netif: netif},
+        { netif: },
         profile
       )
 
@@ -49,9 +50,9 @@ module OsCtld
       # Start the service on boot
       s_link = service_symlink(netif.name)
 
-      if !File.symlink?(s_link) && !File.exist?(s_link)
-        File.symlink(File.join('/etc/systemd/system', s_name), s_link)
-      end
+      return unless !File.symlink?(s_link) && !File.exist?(s_link)
+
+      File.symlink(File.join('/etc/systemd/system', s_name), s_link)
     end
 
     def do_remove_netif(name)

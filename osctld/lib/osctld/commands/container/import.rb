@@ -19,16 +19,17 @@ module OsCtld
     end
 
     protected
+
     def import(pool, io, image_file)
       importer = Container::Importer.new(
         pool,
         io,
         ct_id: opts[:as_id],
-        image_file: image_file,
+        image_file:
       )
       importer.load_metadata
 
-      if !importer.has_ct_id?
+      unless importer.has_ct_id?
         error!('the image does not include container id, specify it')
       end
 
@@ -56,15 +57,15 @@ module OsCtld
 
       ct = importer.load_ct(
         id: ctid,
-        user: user,
-        group: group,
+        user:,
+        group:,
         dataset: opts[:dataset] && OsCtl::Lib::Zfs::Dataset.new(
           opts[:dataset],
           base: opts[:dataset]
         ),
         ct_opts: {
           devices: false, # skip device initialization, see below
-          staged: true,
+          staged: true
         }
       )
 
@@ -91,7 +92,6 @@ module OsCtld
         else
           begin
             ct.devices.check_all_available!
-
           rescue DeviceNotAvailable, DeviceModeInsufficient => e
             error!(e.message)
           end

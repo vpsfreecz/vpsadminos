@@ -33,7 +33,7 @@ module OsVm
       @shell_up = false
       @shared_dir = SharedDir.new(self)
       @shared_filesystems = {
-        shared_dir.fs_name => shared_dir.host_path,
+        shared_dir.fs_name => shared_dir.host_path
       }.merge(config.shared_filesystems)
       @virtiofsd_pids = []
       @mutex = Mutex.new
@@ -52,7 +52,7 @@ module OsVm
     # @return [Machine]
     def start(kernel_params: [])
       if running?
-        fail 'Machine already started'
+        raise 'Machine already started'
       end
 
       log.start
@@ -80,13 +80,13 @@ module OsVm
         qemu_kwargs = {
           in: :close,
           out: w,
-          err: w,
+          err: w
         }
       end
 
       @qemu_pid = Process.spawn(
-        *qemu_command(kernel_params: kernel_params),
-        **qemu_kwargs,
+        *qemu_command(kernel_params:),
+        **qemu_kwargs
       )
       w.close unless @interactive_console
       run_qemu_reaper(qemu_pid)
@@ -167,10 +167,8 @@ module OsVm
       end
 
       shared_filesystems.each_key do |fs_name|
-        begin
-          File.unlink(virtiofs_socket_path(fs_name))
-        rescue Errno::ENOENT
-        end
+        File.unlink(virtiofs_socket_path(fs_name))
+      rescue Errno::ENOENT
       end
 
       self
@@ -189,7 +187,7 @@ module OsVm
     # Wait until the system has booted
     # @param timeout [Integer]
     def wait_for_boot(timeout: @default_timeout)
-      wait_for_shell(timeout: timeout)
+      wait_for_shell(timeout:)
     end
 
     # Execute a command
@@ -209,7 +207,7 @@ module OsVm
 
       shell.write("( #{cmd} ); echo '|!=EOF' $?\n")
       log.execute_begin(cmd)
-      rx = /(.*)\|\!=EOF\s+(\d+)/m
+      rx = /(.*)\|!=EOF\s+(\d+)/m
       buffer = ''
 
       loop do
@@ -218,7 +216,7 @@ module OsVm
           raise TimeoutError, "Timeout occured while running command '#{cmd}'"
         end
 
-        rs, _ = IO.select([shell], [], [], 1)
+        rs, = IO.select([shell], [], [], 1)
         next if rs.nil?
 
         rs.each do |io|
@@ -228,13 +226,13 @@ module OsVm
           end
         end
 
-        if rx =~ buffer
-          status = $2.to_i
-          output = $1.strip
+        next unless rx =~ buffer
 
-          log.execute_end(status, output)
-          return [status, output]
-        end
+        status = ::Regexp.last_match(2).to_i
+        output = ::Regexp.last_match(1).strip
+
+        log.execute_end(status, output)
+        return [status, output]
       end
     end
 
@@ -243,13 +241,13 @@ module OsVm
     # @param timeout [Integer]
     # @return [Array<Integer, String>]
     def succeeds(cmd, timeout: @default_timeout)
-      status, output = execute(cmd, timeout: timeout)
+      status, output = execute(cmd, timeout:)
 
       if status != 0
         raise CommandFailed, "Command '#{cmd}' failed with status #{status}. Output:\n #{output}"
       end
 
-      return [status, output]
+      [status, output]
     end
 
     # Execute command and check that it fails
@@ -257,13 +255,13 @@ module OsVm
     # @param timeout [Integer]
     # @return [Array<Integer, String>]
     def fails(cmd, timeout: @default_timeout)
-      status, output = execute(cmd, timeout: timeout)
+      status, output = execute(cmd, timeout:)
 
       if status == 0
         raise CommandSucceeded, "Command '#{cmd}' succeeds with status #{status}. Output:\n #{output}"
       end
 
-      return [status, output]
+      [status, output]
     end
 
     # Execute all commands and check that they all succeed
@@ -325,7 +323,7 @@ module OsVm
     # Wait until network is operational, including DNS
     # @return [Machine]
     def wait_until_online(timeout: @default_timeout)
-      wait_until_succeeds("curl --head https://vpsadminos.org", timeout: timeout)
+      wait_until_succeeds('curl --head https://vpsadminos.org', timeout:)
       self
     end
 
@@ -339,7 +337,7 @@ module OsVm
         return self unless running?
 
         if t1 + timeout < Time.now
-          raise TimeoutError, "Timeout occured while waiting for shutdown"
+          raise TimeoutError, 'Timeout occured while waiting for shutdown'
         end
 
         sleep(1)
@@ -367,7 +365,7 @@ module OsVm
     # @param timeout [Integer]
     # @return [Machine]
     def wait_for_zpool(name, timeout: @default_timeout)
-      wait_until_succeeds("zpool list #{name}", timeout: timeout)
+      wait_until_succeeds("zpool list #{name}", timeout:)
       self
     end
 
@@ -382,7 +380,7 @@ module OsVm
       loop do
         status, output = wait_until_succeeds(
           "osctl pool show -H -o state #{name}",
-          timeout: cur_timeout,
+          timeout: cur_timeout
         )
 
         return self if output == 'active'
@@ -415,7 +413,7 @@ module OsVm
     # @return [Machine]
     def push_file(src, dst, preserve: false, mkpath: false)
       unless can_use_virtiofs?
-        fail "#{$0} must be run as root for push_file() to work"
+        raise "#{$0} must be run as root for push_file() to work"
       end
 
       mkdir_p(File.dirname(dst)) if mkpath
@@ -428,44 +426,45 @@ module OsVm
     # @return [String] path to the file on the host
     def pull_file(src, preserve: false)
       unless can_use_virtiofs?
-        fail "#{$0} must be run as root for pull_file() to work"
+        raise "#{$0} must be run as root for pull_file() to work"
       end
 
-      shared_dir.pull_file(src, preserve: preserve)
+      shared_dir.pull_file(src, preserve:)
     end
 
     def inspect
-      "#<#{self.class.name}:#{self.object_id} name=#{name}>"
+      "#<#{self.class.name}:#{object_id} name=#{name}>"
     end
 
     protected
+
     attr_reader :config, :tmpdir, :sockdir, :qemu_pid, :qemu_read, :qemu_reaper,
-      :console_thread, :shell_server, :shell, :log, :virtiofsd_pids, :shared_dir,
-      :hash_base, :shared_filesystems
+                :console_thread, :shell_server, :shell, :log, :virtiofsd_pids, :shared_dir,
+                :hash_base, :shared_filesystems
 
     def qemu_command(kernel_params: [])
       all_kernel_params = [
-        "console=ttyS0",
-        "init=#{config.toplevel}/init",
+        'console=ttyS0',
+        "init=#{config.toplevel}/init"
       ] + config.kernel_params + kernel_params
 
       [
         "#{config.qemu}/bin/qemu-kvm",
-        "-name", "os-vm-#{name}",
-        "-m", "#{config.memory}",
-        "-cpu", "host",
-        "-smp", "cpus=#{config.cpus},cores=#{config.cpu.cores},threads=#{config.cpu.threads},sockets=#{config.cpu.sockets}",
-        "--no-reboot",
-        "-device", "ahci,id=ahci",
+        '-name', "os-vm-#{name}",
+        '-m', "#{config.memory}",
+        '-cpu', 'host',
+        '-smp', "cpus=#{config.cpus},cores=#{config.cpu.cores},threads=#{config.cpu.threads},sockets=#{config.cpu.sockets}",
+        '--no-reboot',
+        '-device', 'ahci,id=ahci'
       ] + config.network.qemu_options + [
-        "-drive", "index=0,id=drive1,file=#{config.squashfs},readonly=on,media=cdrom,format=raw,if=virtio",
-        "-chardev", "socket,id=shell,path=#{shell_socket_path}",
-        "-device", "virtio-serial",
-        "-device", "virtconsole,chardev=shell",
-        "-kernel", config.kernel,
-        "-initrd", config.initrd,
-        "-append", "#{all_kernel_params.join(' ')}",
-        "-nographic",
+        '-drive', "index=0,id=drive1,file=#{config.squashfs},readonly=on,media=cdrom,format=raw,if=virtio",
+        '-chardev', "socket,id=shell,path=#{shell_socket_path}",
+        '-device', 'virtio-serial',
+        '-device', 'virtconsole,chardev=shell',
+        '-kernel', config.kernel,
+        '-initrd', config.initrd,
+        '-append', "#{all_kernel_params.join(' ')}",
+        '-nographic'
       ] + qemu_disk_options + qemu_virtiofs_options + config.extra_qemu_options
     end
 
@@ -473,8 +472,8 @@ module OsVm
       ret = []
 
       config.disks.each_with_index do |disk, i|
-        ret << "-drive" << "id=disk#{i},file=#{disk_path(disk.device)},if=none,format=raw"
-        ret << "-device" << "ide-hd,drive=disk#{i},bus=ahci.#{i}"
+        ret << '-drive' << "id=disk#{i},file=#{disk_path(disk.device)},if=none,format=raw"
+        ret << '-device' << "ide-hd,drive=disk#{i},bus=ahci.#{i}"
       end
 
       ret
@@ -485,14 +484,14 @@ module OsVm
       return ret unless can_use_virtiofs?
 
       shared_filesystems.each_with_index do |fs, i|
-        name, _ = fs
-        ret << "-chardev" << "socket,id=char#{i},path=#{virtiofs_socket_path(name)}"
-        ret << "-device" << "vhost-user-fs-pci,queue-size=1024,chardev=char#{i},tag=#{name}"
+        name, = fs
+        ret << '-chardev' << "socket,id=char#{i},path=#{virtiofs_socket_path(name)}"
+        ret << '-device' << "vhost-user-fs-pci,queue-size=1024,chardev=char#{i},tag=#{name}"
       end
 
       if ret.any?
-        ret << "-object" << "memory-backend-file,id=m0,size=#{config.memory}M,mem-path=/dev/shm,share=on"
-        ret << "-numa" << "node,memdev=m0"
+        ret << '-object' << "memory-backend-file,id=m0,size=#{config.memory}M,mem-path=/dev/shm,share=on"
+        ret << '-numa' << 'node,memdev=m0'
       end
 
       ret
@@ -504,12 +503,12 @@ module OsVm
 
         virtiofsd_pids << Process.spawn(
           File.join(config.virtiofsd, 'bin/virtiofsd'),
-          "--socket-path", virtiofs_socket_path(name),
-          "--shared-dir", path,
-          "--cache", "never",
+          '--socket-path', virtiofs_socket_path(name),
+          '--shared-dir', path,
+          '--cache', 'never',
           in: :close,
           out: f,
-          err: f,
+          err: f
         )
 
         f.close
@@ -518,12 +517,10 @@ module OsVm
 
     def stop_virtiofs
       virtiofsd_pids.delete_if do |pid|
-        begin
-          Process.kill('TERM', pid)
-          false
-        rescue Errno::ESRCH
-          true
-        end
+        Process.kill('TERM', pid)
+        false
+      rescue Errno::ESRCH
+        true
       end
 
       virtiofsd_pids.delete_if do |pid|
@@ -573,7 +570,7 @@ module OsVm
 
         begin
           loop do
-            rs, _ = IO.select([qemu_read])
+            rs, = IO.select([qemu_read])
 
             rs.each do |io|
               case io
@@ -609,7 +606,7 @@ module OsVm
     end
 
     def wait_for_shell(timeout: @default_timeout)
-      fail "machine #{name} is not running" unless running?
+      raise "machine #{name} is not running" unless running?
       return if shell_up?
 
       t1 = Time.now
@@ -617,10 +614,10 @@ module OsVm
 
       loop do
         if t1 + timeout < Time.now
-          raise TimeoutError, "Timeout occured while waiting for shell"
+          raise TimeoutError, 'Timeout occured while waiting for shell'
         end
 
-        rs, _ = IO.select([shell], [], [], 1)
+        rs, = IO.select([shell], [], [], 1)
         next if rs.nil?
 
         rs.each do |io|
@@ -630,12 +627,12 @@ module OsVm
           end
         end
 
-        if buffer.include?("test-shell-ready\r\n")
-          @shell_up = true
-          succeeds("stty -F /dev/hvc0 -echo")
-          shared_dir.mount if can_use_virtiofs?
-          return
-        end
+        next unless buffer.include?("test-shell-ready\r\n")
+
+        @shell_up = true
+        succeeds('stty -F /dev/hvc0 -echo')
+        shared_dir.mount if can_use_virtiofs?
+        return
       end
     end
 
@@ -678,7 +675,6 @@ module OsVm
 
     def read_nonblock(io)
       io.read_nonblock(4096)
-
     rescue IO::WaitReadable
       ''
     end

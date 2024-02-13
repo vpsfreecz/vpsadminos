@@ -20,7 +20,7 @@ module OsCtld
     def dump
       {
         'priority' => priority,
-        'delay' => delay,
+        'delay' => delay
       }
     end
 

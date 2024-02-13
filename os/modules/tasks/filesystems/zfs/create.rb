@@ -25,26 +25,27 @@ class Pool
   end
 
   protected
+
   def preview
     puts "WARNING: this program creates zpool #{pool} and may destroy existing"
-    puts "data on configured disks in the process. Use at own risk!"
+    puts 'data on configured disks in the process. Use at own risk!'
     puts
 
     if wipe?
-      puts "Disks to wipe:"
+      puts 'Disks to wipe:'
       puts "  #{config['wipe'].join(' ')}"
       puts
     end
 
     if partition?
-      puts "Disks to partition:"
+      puts 'Disks to partition:'
       puts "  #{config['partition'].keys.join(' ')}"
       puts
     end
 
-    puts "zpool to create:"
-    puts "  zpool create "+
-         config['properties'].map { |k, v| "-o \"#{k}=#{v}\"" }.join(' ')+
+    puts 'zpool to create:'
+    puts '  zpool create ' +
+         config['properties'].map { |k, v| "-o \"#{k}=#{v}\"" }.join(' ') +
          " #{pool} #{format_layout.join(' ')}"
 
     if has_spare?
@@ -66,50 +67,51 @@ class Pool
     STDOUT.write "Write uppercase 'yes' to confinue: "
     STDOUT.flush
 
-    if STDIN.readline.strip != 'YES'
-      puts "Aborting"
-      exit(false)
-    end
+    return unless STDIN.readline.strip != 'YES'
+
+    puts 'Aborting'
+    exit(false)
   end
 
   def do_create
     if wipe?
-      puts "Wiping disks"
+      puts 'Wiping disks'
       do_wipe
     end
 
     if partition?
-      puts "Partitioning disks"
+      puts 'Partitioning disks'
       do_partition
     end
 
-    puts "Creating the pool"
+    puts 'Creating the pool'
     system(
       'zpool', 'create',
-      *(config['properties'].map { |k, v| ["-o", "#{k}=#{v}"] }.flatten),
+      *config['properties'].map { |k, v| ['-o', "#{k}=#{v}"] }.flatten,
       pool,
       *format_layout
     )
 
     if has_spare?
-      puts "Adding spares"
+      puts 'Adding spares'
       system('zpool', 'add', pool, 'spare', *config['spare'])
     end
 
     if has_log?
-      puts "Adding logs"
+      puts 'Adding logs'
       system('zpool', 'add', pool, 'log', *format_log)
     end
 
-    if has_cache?
-      puts "Adding caches"
-      system('zpool', 'add', pool, 'cache', *config['cache'])
-    end
+    return unless has_cache?
+
+    puts 'Adding caches'
+    system('zpool', 'add', pool, 'cache', *config['cache'])
   end
 
   def do_wipe
     find_devices(config['wipe']).each do |dev|
-      fail "Device #{dev} not found" unless File.exist?(dev)
+      raise "Device #{dev} not found" unless File.exist?(dev)
+
       File.open(dev, 'wb') do |f|
         f.syswrite("\0" * 4096)
         f.sysseek(-4096, IO::SEEK_END)
@@ -126,15 +128,15 @@ class Pool
         partitions.each do |part, opts|
           part_index = part[1..-1]
 
-          fields = {type: opts['type']}
+          fields = { type: opts['type'] }
           fields[:size] = opts['sizeGB'] * 2048 * 1024 if opts['sizeGB']
 
-          stdin.puts "#{part_index}:#{fields.map { |k,v| "#{k}=#{v}" }.join(',')}"
+          stdin.puts "#{part_index}:#{fields.map { |k, v| "#{k}=#{v}" }.join(',')}"
         end
 
         stdin.close
         stdout.read
-        fail "Unable to partition #{dev_path}" unless status_thread.value.success?
+        raise "Unable to partition #{dev_path}" unless status_thread.value.success?
       end
     end
   end
@@ -236,14 +238,14 @@ class Pool
   end
 
   def system(*args)
-    unless Kernel.system(*args)
-      fail "Command #{args.join(' ')} failed"
-    end
+    return if Kernel.system(*args)
+
+    raise "Command #{args.join(' ')} failed"
   end
 end
 
 if Process.uid != 0
-  warn "Must be run as root"
+  warn 'Must be run as root'
   exit(false)
 end
 

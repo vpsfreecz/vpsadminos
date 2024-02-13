@@ -16,13 +16,11 @@ module OsCtld
           raise ContainerControl::Error, 'container not running'
         end
 
-        if opts[:message]
-          msg = make_message(opts[:message])
-        else
-          msg = nil
-        end
+        msg = if opts[:message]
+                make_message(opts[:message])
+              end
 
-        ret = exec_runner(args: [{message: msg}])
+        ret = exec_runner(args: [{ message: msg }])
         ret.ok? || ret
       end
     end
@@ -51,10 +49,10 @@ module OsCtld
 
         Process.wait(pid)
 
-        if $?.exitstatus != 0
-          ok
-        else
+        if $?.exitstatus == 0
           error("halt failed with exit status #{$?.exitstatus}")
+        else
+          ok
         end
       end
     end

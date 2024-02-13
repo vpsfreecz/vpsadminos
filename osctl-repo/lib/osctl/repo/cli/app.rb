@@ -24,12 +24,12 @@ module OsCtl::Repo::Cli
       command :local do |local|
         local.desc 'Create a new empty repository in the current directory'
         local.command :init do |c|
-          c.action &Command.run(Repo, :init)
+          c.action(&Command.run(Repo, :init))
         end
 
         local.desc 'List images'
-        local.command %i(ls list) do |c|
-          c.action &Command.run(Repo, :local_list)
+        local.command %i[ls list] do |c|
+          c.action(&Command.run(Repo, :local_list))
         end
 
         local.desc 'Add file into the repository'
@@ -44,7 +44,7 @@ module OsCtl::Repo::Cli
           c.desc 'Image with rootfs stream'
           c.flag :stream
 
-          c.action &Command.run(Repo, :add)
+          c.action(&Command.run(Repo, :add))
         end
 
         local.desc 'Access images from the repository'
@@ -52,20 +52,20 @@ module OsCtl::Repo::Cli
           get.desc 'Get path to an image inside the repository'
           get.arg_name '<vendor> <variant> <arch> <distribution> <version> tar|zfs'
           get.command :path do |c|
-            c.action &Command.run(Repo, :local_get_path)
+            c.action(&Command.run(Repo, :local_get_path))
           end
         end
 
         local.desc "Set default vendor or default vendor's variant"
         local.arg_name '<vendor> [variant]'
         local.command :default do |c|
-          c.action &Command.run(Repo, :set_default)
+          c.action(&Command.run(Repo, :set_default))
         end
 
         local.desc 'Remove image from the repository'
         local.arg_name '<vendor> <variant> <arch> <distribution> <version>'
         local.command :rm do |c|
-          c.action &Command.run(Repo, :rm)
+          c.action(&Command.run(Repo, :rm))
         end
       end
 
@@ -73,11 +73,11 @@ module OsCtl::Repo::Cli
       command :remote do |remote|
         remote.desc 'List available images'
         remote.arg_name '<repo>'
-        remote.command %i(ls list) do |c|
+        remote.command %i[ls list] do |c|
           c.desc 'Cache directory'
           c.flag :cache
 
-          c.action &Command.run(Repo, :remote_list)
+          c.action(&Command.run(Repo, :remote_list))
         end
 
         remote.desc 'Fetch file from the repository and store it in a local cache'
@@ -86,7 +86,7 @@ module OsCtl::Repo::Cli
           c.desc 'Cache directory'
           c.flag :cache, required: true
 
-          c.action &Command.run(Repo, :fetch)
+          c.action(&Command.run(Repo, :fetch))
         end
 
         remote.desc 'Get a file from the repository'
@@ -100,7 +100,7 @@ module OsCtl::Repo::Cli
             c.desc 'Force remote repository check'
             c.switch 'force-check', default_value: false
 
-            c.action &Command.run(Repo, :remote_get_path)
+            c.action(&Command.run(Repo, :remote_get_path))
           end
 
           get.desc 'Dump image to stdout'
@@ -112,7 +112,7 @@ module OsCtl::Repo::Cli
             c.desc 'Force remote repository check'
             c.switch 'force-check', default_value: false
 
-            c.action &Command.run(Repo, :remote_get_stream)
+            c.action(&Command.run(Repo, :remote_get_stream))
           end
         end
       end

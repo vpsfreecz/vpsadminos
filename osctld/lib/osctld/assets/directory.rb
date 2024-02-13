@@ -5,6 +5,7 @@ module OsCtld
     register :directory
 
     protected
+
     def validate(run)
       begin
         add_error('not a directory') if exist? && !opts[:optional] && !stat.directory?

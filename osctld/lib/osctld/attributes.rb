@@ -21,7 +21,7 @@ module OsCtld
     # Set an attribute
     def set(name, value)
       k = key(name)
-      fail 'invalid attribute name' if /^[^:]+:.+$/ !~ k
+      raise 'invalid attribute name' if /^[^:]+:.+$/ !~ k
 
       exclusively { attrs[k] = value }
     end
@@ -52,7 +52,7 @@ module OsCtld
 
     # Export attributes to client
     def export
-      inclusively { Hash[ attrs.map { |k, v| [k.to_sym, v] } ] }
+      inclusively { Hash[attrs.map { |k, v| [k.to_sym, v] }] }
     end
 
     def dup
@@ -62,6 +62,7 @@ module OsCtld
     end
 
     protected
+
     attr_reader :attrs
 
     def key(v)

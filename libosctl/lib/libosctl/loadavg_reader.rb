@@ -46,11 +46,11 @@ module OsCtl::Lib
       end
 
       nil
-
     rescue Errno::ENOENT
     end
 
     protected
+
     def get_cgroup_ns_ids(containers)
       ret = {}
 
@@ -63,9 +63,9 @@ module OsCtl::Lib
           next
         end
 
-        next if /^cgroup\:\[(\d+)\]$/ !~ ptr
+        next if /^cgroup:\[(\d+)\]$/ !~ ptr
 
-        cg_id = $1
+        cg_id = ::Regexp.last_match(1)
         ret[cg_id] = ct
       end
 
@@ -85,9 +85,9 @@ module OsCtl::Lib
       LoadAvg.new(
         ct[:pool],
         ct[:id],
-        {1 => cols[1].to_f, 5 => cols[2].to_f, 15 => cols[3].to_f},
+        { 1 => cols[1].to_f, 5 => cols[2].to_f, 15 => cols[3].to_f },
         runnable.to_i,
-        total.to_i,
+        total.to_i
       )
     end
   end

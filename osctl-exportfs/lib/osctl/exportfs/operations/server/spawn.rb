@@ -28,8 +28,8 @@ module OsCtl::ExportFS
 
     def execute
       server.synchronize do
-        fail 'server is already running' if server.running?
-        fail 'provide server address' if cfg.address.nil?
+        raise 'server is already running' if server.running?
+        raise 'provide server address' if cfg.address.nil?
       end
 
       @rand_id = SecureRandom.hex(3)
@@ -70,7 +70,7 @@ module OsCtl::ExportFS
       end
 
       # Forward SIGTERM and SIGINT
-      %w(TERM INT).each do |sig|
+      %w[TERM INT].each do |sig|
         Signal.trap(sig) do
           Process.kill(sig, main)
         end
@@ -86,6 +86,7 @@ module OsCtl::ExportFS
     end
 
     protected
+
     attr_reader :server, :cfg, :cgroup, :rand_id, :netif_host, :netif_ns, :sys
 
     def run_server
@@ -110,7 +111,7 @@ module OsCtl::ExportFS
         FileUtils.mkdir_p(File.join(RunState::ROOTFS, 'etc/runit'))
         FileUtils.mkdir_p(File.join(RunState::ROOTFS, 'proc'))
         FileUtils.mkdir_p(File.join(RunState::ROOTFS, RunState::DIR))
-        File.chmod(0750, File.join(RunState::ROOTFS, RunState::DIR))
+        File.chmod(0o750, File.join(RunState::ROOTFS, RunState::DIR))
         FileUtils.mkdir_p(File.join(RunState::ROOTFS, RunState::CURRENT_SERVER))
         FileUtils.mkdir_p(File.join(RunState::ROOTFS, 'nix/store'))
         FileUtils.mkdir_p(File.join(RunState::ROOTFS, 'sys'))
@@ -141,9 +142,9 @@ module OsCtl::ExportFS
           File.join(RunState::ROOTFS, 'etc/static')
         )
 
-        %w(group passwd shadow).each do |v|
+        %w[group passwd shadow].each do |v|
           dst = File.join(RunState::ROOTFS, 'etc', v)
-          File.open(dst, 'w'){}
+          File.open(dst, 'w') {}
           sys.bind_mount(File.join('/etc', v), dst)
         end
 
@@ -157,7 +158,7 @@ module OsCtl::ExportFS
         # Switch to the new rootfs
         Dir.chdir(RunState::ROOTFS)
         Dir.mkdir('old-root')
-        syscmd("pivot_root . old-root")
+        syscmd('pivot_root . old-root')
         sys.chroot('.')
         sys.unmount_lazy('/old-root')
         Dir.rmdir('/old-root')
@@ -167,7 +168,7 @@ module OsCtl::ExportFS
         # where they're expected
         sys.bind_mount(server.nfs_state, '/var/lib/nfs')
         File.symlink('/run', '/var/run')
-        %w(hosts localtime services).each do |v|
+        %w[hosts localtime services].each do |v|
           File.symlink("/etc/static/#{v}", "/etc/#{v}")
         end
         File.symlink(server.exports_file, '/etc/exports')
@@ -189,9 +190,9 @@ module OsCtl::ExportFS
 
         # Instruct runit to exit on SIGCONT
         if File.exist?('/etc/runit/stopit')
-          File.chmod(0100, '/etc/runit/stopit')
+          File.chmod(0o100, '/etc/runit/stopit')
         else
-          File.open('/etc/runit/stopit', 'w', 0100) {}
+          File.open('/etc/runit/stopit', 'w', 0o100) {}
         end
 
         puts 'Starting nfsd...'
@@ -199,10 +200,10 @@ module OsCtl::ExportFS
       end
 
       # Save the server's PID file
-      File.open(server.pid_file, 'w') { |f| f.write(main.to_s) }
+      File.write(server.pid_file, main.to_s)
 
       # Forward SIGTERM and SIGINT
-      %w(TERM INT).each do |sig|
+      %w[TERM INT].each do |sig|
         Signal.trap(sig) do
           Process.kill('CONT', main)
         end
@@ -213,7 +214,7 @@ module OsCtl::ExportFS
 
     def clear_mounts
       mounts = []
-      whitelist = %W(
+      whitelist = %W[
         /
         /dev
         /nix/store
@@ -226,7 +227,7 @@ module OsCtl::ExportFS
         /sys
         /sys/fs/cgroup
         /sys/fs/cgroup/*
-      )
+      ]
 
       File.open('/proc/mounts').each_line do |line|
         fs, mountpoint = line.split(' ')
@@ -239,16 +240,14 @@ module OsCtl::ExportFS
       end
 
       mounts.sort.reverse_each do |mnt|
-        begin
-          sys.unmount_lazy(mnt)
-        rescue Errno::ENOENT
-          next
-        end
+        sys.unmount_lazy(mnt)
+      rescue Errno::ENOENT
+        next
       end
     end
 
     def add_exports
-      cfg.exports.group_by_as.each do |dir, as, exports|
+      cfg.exports.group_by_as.each do |dir, as, _exports|
         target_as = File.join(RunState::ROOTFS, as)
 
         FileUtils.mkdir_p(target_as)

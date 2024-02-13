@@ -1,6 +1,6 @@
 module OsCtld
   module Monitor
-    STATES = %i(
+    STATES = %i[
       stopped
       starting
       running
@@ -9,6 +9,6 @@ module OsCtld
       freezing
       frozen
       thawed
-    )
+    ]
   end
 end

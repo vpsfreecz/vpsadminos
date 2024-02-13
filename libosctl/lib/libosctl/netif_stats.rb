@@ -13,12 +13,12 @@ module OsCtl::Lib
       @cache[netif] ||= {
         tx: {
           bytes: read_stat(netif, :tx, :bytes),
-          packets: read_stat(netif, :tx, :packets),
+          packets: read_stat(netif, :tx, :packets)
         },
         rx: {
           bytes: read_stat(netif, :rx, :bytes),
-          packets: read_stat(netif, :rx, :packets),
-        },
+          packets: read_stat(netif, :rx, :packets)
+        }
       }
     end
 
@@ -40,7 +40,7 @@ module OsCtl::Lib
     end
 
     def list_netifs
-      Dir.entries('/sys/class/net') - %w(. ..)
+      Dir.entries('/sys/class/net') - %w[. ..]
     end
 
     # Read cached stats
@@ -50,12 +50,12 @@ module OsCtl::Lib
     end
 
     protected
+
     attr_reader :cache
 
     def read_stat(netif, dir, type)
       ret = File.read("/sys/class/net/#{netif}/statistics/#{dir}_#{type}")
       ret.strip.to_i
-
     rescue SystemCallError
       0
     end

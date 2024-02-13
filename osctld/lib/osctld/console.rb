@@ -21,7 +21,7 @@ module OsCtld
     # Reconnect tty0 pipes on osctld restart
     def self.reconnect_tty0(ct)
       @mutex.synchronize do
-        log(:info, ct, "Reopening TTY0")
+        log(:info, ct, 'Reopening TTY0')
 
         socket = socket_path(ct)
 
@@ -47,7 +47,7 @@ module OsCtld
 
     # Return {Console::Container} for `ct`
     def self.container(ct)
-      @cts[ct.id] = Container.new(ct) if !@cts.has_key?(ct.id)
+      @cts[ct.id] = Container.new(ct) unless @cts.has_key?(ct.id)
       @cts[ct.id]
     end
 

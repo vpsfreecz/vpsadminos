@@ -27,7 +27,7 @@ class Rollback
 
     users.each do |user|
       ugid, last_ugid = get_ugid(user, last_ugid)
-      fail "unable to assign static ugid to user '#{user.name}'" unless ugid
+      raise "unable to assign static ugid to user '#{user.name}'" unless ugid
 
       user.opts.delete('type')
       user.opts['ugid'] = ugid
@@ -38,6 +38,7 @@ class Rollback
   end
 
   protected
+
   def get_ugid(user, start_ugid)
     orig_ugid = ugid_map[user.name]
 
@@ -53,7 +54,7 @@ class Rollback
 
   def get_free_ugid(start_ugid)
     ugid = start_ugid
-    max = 2**31 - 2
+    max = (2**31) - 2
 
     loop do
       ugid += 1
@@ -69,7 +70,7 @@ class Rollback
   end
 
   def ugid_usable?(ugid)
-    ugid != 65534 && !system_uids.include?(ugid) && !assigned_ugids.include?(ugid)
+    ugid != 65_534 && !system_uids.include?(ugid) && !assigned_ugids.include?(ugid)
   end
 
   def load_ugid_map
@@ -91,7 +92,7 @@ class Rollback
 
   def load_users
     Dir.glob(File.join(conf_dir, 'user', '*.yml')).map do |f|
-      name = File.basename(f)[0..(('.yml'.length+1) * -1)]
+      name = File.basename(f)[0..(('.yml'.length + 1) * -1)]
       cfg = YAML.load_file(f)
 
       User.new(name, f, cfg)

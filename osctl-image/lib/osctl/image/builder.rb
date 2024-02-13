@@ -40,7 +40,7 @@ module OsCtl::Image
         version: 'RELVER',
         arch: 'ARCH',
         vendor: 'VENDOR',
-        variant: 'VARIANT',
+        variant: 'VARIANT'
       }.each do |attr, var|
         instance_variable_set(:"@#{attr}", cfg[var]) if cfg.has_key?(var)
       end

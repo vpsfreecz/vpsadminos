@@ -35,6 +35,7 @@ module VpsAdminOS::Converter
     end
 
     protected
+
     def src_rootfs
       target_ct.rootfs
     end
@@ -52,8 +53,8 @@ module VpsAdminOS::Converter
 
     def rsync(src, dst, cmd_opts = {})
       syscmd(
-        "rsync -rlptgoDHX --numeric-ids --inplace --delete-after --exclude .zfs/ "+
-        "-e \"ssh -p #{opts[:port]}\" "+
+        'rsync -rlptgoDHX --numeric-ids --inplace --delete-after --exclude .zfs/ ' +
+        "-e \"ssh -p #{opts[:port]}\" " +
         "#{src} #{opts[:dst]}:#{dst}",
         cmd_opts
       )

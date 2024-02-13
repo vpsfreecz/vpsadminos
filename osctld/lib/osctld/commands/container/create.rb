@@ -54,7 +54,7 @@ module OsCtld
         as_user: opts[:user],
         as_group: opts[:group],
         dataset: opts[:dataset],
-        file: tpl_path,
+        file: tpl_path
       )
     end
   end

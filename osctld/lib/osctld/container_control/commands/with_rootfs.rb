@@ -18,9 +18,9 @@ module OsCtld
         ret = fork_runner(
           args: [{
             ctrc: opts.fetch(:ctrc, ct.get_run_conf),
-            block: opts[:block],
+            block: opts[:block]
           }],
-          switch_to_system: false,
+          switch_to_system: false
         )
         ret.ok? ? ret.data : ret
       end
@@ -38,7 +38,7 @@ module OsCtld
           '',
           opts[:ctrc].ct.root_host_uid,
           opts[:ctrc].ct.root_host_gid,
-          '/',
+          '/'
         )
 
         # After chroot, we can no longer access syslog logger. Log to stdout

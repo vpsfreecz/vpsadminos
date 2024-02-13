@@ -36,7 +36,6 @@ module OsCtld
 
         ok
       end
-
     rescue CGroupSubsystemNotFound, CGroupParameterNotFound => e
       error(e.message)
     end
@@ -45,8 +44,8 @@ module OsCtld
       manipulate(groupable) do
         groupable.cgparams.unset(
           opts[:parameters],
-          reset: reset,
-          keep_going: keep_going
+          reset:,
+          keep_going:
         ) do |subsystem|
           if groupable.respond_to?(:abs_apply_cgroup_path)
             groupable.abs_apply_cgroup_path(subsystem)
@@ -90,12 +89,12 @@ module OsCtld
 
         apply(groupable)
       end
-
     rescue CGroupSubsystemNotFound, CGroupParameterNotFound => e
       error(e.message)
     end
 
     protected
+
     def info(groupable)
       ret = []
 

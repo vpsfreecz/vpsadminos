@@ -3,7 +3,7 @@ require 'json'
 
 module OsCtl
   class Console
-    END_SEQ = ["\x01", "q"]
+    END_SEQ = ["\x01", 'q']
 
     def self.open(socket, input, output)
       c = new(socket, input, output)
@@ -35,12 +35,11 @@ module OsCtl
           end
         end
       end
-
     rescue IOError
     end
 
     def resize(rows, cols)
-      send_cmd(rows: rows, cols: cols)
+      send_cmd(rows:, cols:)
     end
 
     def close
@@ -48,6 +47,7 @@ module OsCtl
     end
 
     protected
+
     def raw?
       @raw
     end
@@ -62,8 +62,8 @@ module OsCtl
       end
 
       data.each_char do |char|
-        if char == END_SEQ[ @end_i ]
-          if @end_i == END_SEQ.size-1
+        if char == END_SEQ[@end_i]
+          if @end_i == END_SEQ.size - 1
             @socket.close
             return :stop
           end

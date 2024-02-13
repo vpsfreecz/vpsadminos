@@ -41,14 +41,14 @@ module OsCtl::Exporter
     end
 
     # Forward write methods to the new registry
-    %i(register unregister counter summary gauge histogram).each do |m|
+    %i[register unregister counter summary gauge histogram].each do |m|
       define_method(m) do |*args, **kwargs|
         @new_registry.send(m, *args, **kwargs)
       end
     end
 
     # Forward read methods to the exported registry
-    %i(exist? get metrics).each do |m|
+    %i[exist? get metrics].each do |m|
       define_method(m) do |*args, **kwargs|
         @exported_registry.send(m, *args, **kwargs)
       end

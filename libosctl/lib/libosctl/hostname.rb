@@ -10,6 +10,6 @@ module OsCtl::Lib
       @fqdn = fqdn
     end
 
-    alias_method :to_s, :fqdn
+    alias to_s fqdn
   end
 end

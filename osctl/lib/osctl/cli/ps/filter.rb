@@ -2,9 +2,9 @@ require 'libosctl'
 
 module OsCtl::Cli
   class Ps::Filter
-    OPERANDS = %w(=~ !~ != >= <= = > <)
+    OPERANDS = %w[=~ !~ != >= <= = > <]
 
-    NUMERIC = %i(
+    NUMERIC = %i[
       pid
       ctpid
       ruid
@@ -15,25 +15,25 @@ module OsCtl::Cli
       ctrgid
       cteuid
       ctegid
-    )
+    ]
 
-    BYTES = %i(
+    BYTES = %i[
       vmsize
       rss
-    )
+    ]
 
-    TIMES = %i(
+    TIMES = %i[
       start
       time
-    )
+    ]
 
-    STRINGS = %i(
+    STRINGS = %i[
       pool
       ctid
       state
       command
       name
-    )
+    ]
 
     ALL_PARAMS = NUMERIC + BYTES + TIMES + STRINGS
 
@@ -59,6 +59,7 @@ module OsCtl::Cli
     end
 
     protected
+
     def parse_rule(str_rule)
       ret_param, ret_op, ret_value = nil
 
@@ -66,7 +67,7 @@ module OsCtl::Cli
         i = str_rule.index(op)
         next if i.nil?
 
-        ret_param = str_rule[0..(i-1)].to_sym
+        ret_param = str_rule[0..(i - 1)].to_sym
 
         unless ALL_PARAMS.include?(ret_param)
           raise ArgumentError, "invalid parameter #{ret_param.to_s.inspect}"
@@ -78,11 +79,11 @@ module OsCtl::Cli
         is_time = !is_string && !is_num && !is_data && TIMES.include?(ret_param)
         ret_op = op == '=' ? :== : op.to_sym
 
-        if !is_string && %i(=~ !~).include?(ret_op)
+        if !is_string && %i[=~ !~].include?(ret_op)
           raise ArgumentError, "invalid parameter filter #{str_rule.inspect}: #{ret_op} cannot be used on numbers"
         end
 
-        value = str_rule[(i+op.size)..-1]
+        value = str_rule[(i + op.size)..-1]
         ret_value =
           if is_num
             value.to_i
@@ -90,7 +91,7 @@ module OsCtl::Cli
             parse_data(value)
           elsif is_time
             value.to_i
-          elsif %i(=~ !~).include?(ret_op)
+          elsif %i[=~ !~].include?(ret_op)
             Regexp.new(value)
           else
             value

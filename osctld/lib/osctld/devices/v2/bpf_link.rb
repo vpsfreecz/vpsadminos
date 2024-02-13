@@ -8,11 +8,11 @@ module OsCtld
     # @param name [String] link file name
     # @return [Devices::V2::BpfLink]
     def self.from_name(pool_name, name)
-      if /\Adevcg\-([^\-]+)\-on\-([^\Z]+)\Z/ !~ name
+      if /\Adevcg-([^\-]+)-on-([^\Z]+)\Z/ !~ name
         raise ArgumentError, "#{name}.inspect is not valid link name"
       end
 
-      new($1, pool_name, OsCtl::Lib::StringEscape.unescape_path($2))
+      new(::Regexp.last_match(1), pool_name, OsCtl::Lib::StringEscape.unescape_path(::Regexp.last_match(2)))
     end
 
     # @return [String]

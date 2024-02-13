@@ -1,7 +1,7 @@
 module OsCtl::Lib
   module Utils::Log
     module PrivateMethods
-      LEVELS = %i(debug info warn error fatal unknown)
+      LEVELS = %i[debug info warn error fatal unknown]
 
       def self.log(level, type, msg)
         Logger.log(
@@ -49,7 +49,7 @@ module OsCtl::Lib
           PrivateMethods.log(:info, :general, args.first)
 
         else
-          fail 'Provide either one or three arguments'
+          raise 'Provide either one or three arguments'
         end
       end
     end

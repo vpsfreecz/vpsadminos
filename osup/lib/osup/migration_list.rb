@@ -23,8 +23,8 @@ module OsUp
       index[id]
     end
 
-    def each(&block)
-      migrations.each(&block)
+    def each(&)
+      migrations.each(&)
     end
 
     def count
@@ -36,6 +36,7 @@ module OsUp
     end
 
     protected
+
     attr_reader :migrations, :index
 
     def load_migrations

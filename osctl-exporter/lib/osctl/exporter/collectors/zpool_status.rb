@@ -5,20 +5,20 @@ module OsCtl::Exporter
   class Collectors::ZpoolStatus < Collectors::Base
     include OsCtl::Lib::Utils::Log
 
-    POOL_STATES = %i(online degraded suspended faulted)
+    POOL_STATES = %i[online degraded suspended faulted]
 
-    SCAN_TYPES = %i(none scrub resilver)
+    SCAN_TYPES = %i[none scrub resilver]
 
-    VDEV_STATES = %i(degraded faulted offline online removed avail unavail)
+    VDEV_STATES = %i[degraded faulted offline online removed avail unavail]
 
     def setup
       @zpool_status_success = registry.gauge(
         :zpool_status_success,
-        docstring: 'Process exit code',
+        docstring: 'Process exit code'
       )
       @zpool_status_parse_success = registry.gauge(
         :zpool_status_parse_success,
-        docstring: 'Parsing successful',
+        docstring: 'Parsing successful'
       )
 
       POOL_STATES.each do |state|
@@ -27,7 +27,7 @@ module OsCtl::Exporter
           :gauge,
           :"zpool_status_state_#{state}",
           docstring: "Set if pool is in state #{state}",
-          labels: [:pool],
+          labels: [:pool]
         )
       end
 
@@ -37,7 +37,7 @@ module OsCtl::Exporter
           :gauge,
           :"zpool_status_scan_#{scan}",
           docstring: "Set if pool scan is #{scan}",
-          labels: [:pool],
+          labels: [:pool]
         )
       end
 
@@ -46,7 +46,7 @@ module OsCtl::Exporter
         :gauge,
         :zpool_status_scan_percent,
         docstring: 'Pool scan percent',
-        labels: [:pool, :scan],
+        labels: %i[pool scan]
       )
 
       VDEV_STATES.each do |state|
@@ -55,7 +55,7 @@ module OsCtl::Exporter
           :gauge,
           :"zpool_status_vdev_state_#{state}",
           docstring: "Set if virtual device state is #{state}",
-          labels: [:pool, :vdev_name, :vdev_role, :vdev_type],
+          labels: %i[pool vdev_name vdev_role vdev_type]
         )
       end
 
@@ -64,28 +64,28 @@ module OsCtl::Exporter
         :gauge,
         :zpool_status_vdev_read_errors,
         docstring: 'Number of read errors of a pool virtual device',
-        labels: [:pool, :vdev_name, :vdev_role, :vdev_type, :vdev_state],
+        labels: %i[pool vdev_name vdev_role vdev_type vdev_state]
       )
       add_metric(
         :zpool_status_vdev_write_errors,
         :gauge,
         :zpool_status_vdev_write_errors,
         docstring: 'Number of write errors of a pool virtual device',
-        labels: [:pool, :vdev_name, :vdev_role, :vdev_type, :vdev_state],
+        labels: %i[pool vdev_name vdev_role vdev_type vdev_state]
       )
       add_metric(
         :zpool_status_vdev_checksum_errors,
         :gauge,
         :zpool_status_vdev_checksum_errors,
         docstring: 'Number of checksum errors of a pool virtual device',
-        labels: [:pool, :vdev_name, :vdev_role, :vdev_type, :vdev_state],
+        labels: %i[pool vdev_name vdev_role vdev_type vdev_state]
       )
     end
 
-    def collect(client)
+    def collect(_client)
       begin
         st = OsCtl::Lib::Zfs::ZpoolStatus.new
-      rescue => e
+      rescue StandardError => e
         log(:warn, "Failed to parse zpool status: #{e.message} (#{e.class})")
       end
 
@@ -101,19 +101,19 @@ module OsCtl::Exporter
         POOL_STATES.each do |state|
           metrics["zpool_status_state_#{state}"].set(
             pool.state == state ? 1 : 0,
-            labels: {pool: pool.name},
+            labels: { pool: pool.name }
           )
         end
 
         SCAN_TYPES.each do |scan|
           metrics["zpool_status_scan_#{scan}"].set(
             pool.scan == scan ? 1 : 0,
-            labels: {pool: pool.name},
+            labels: { pool: pool.name }
           )
 
           @zpool_status_scan_percent.set(
             pool.scan == scan ? pool.scan_percent || 0 : 0,
-            labels: {pool: pool.name, scan: scan},
+            labels: { pool: pool.name, scan: }
           )
         end
 
@@ -122,22 +122,22 @@ module OsCtl::Exporter
     end
 
     protected
+
     def add_vdevs(pool, root)
       root.virtual_devices.each do |vdev|
         labels = vdev_labels(pool, vdev)
         labels.delete(:vdev_state)
         VDEV_STATES.each do |state|
-
           metrics["zpool_status_vdev_state_#{state}"].set(
             vdev.state == state ? 1 : 0,
-            labels: labels,
+            labels:
           )
         end
 
         labels = vdev_labels(pool, vdev)
-        @zpool_status_vdev_read_errors.set(vdev.read, labels: labels)
-        @zpool_status_vdev_write_errors.set(vdev.write, labels: labels)
-        @zpool_status_vdev_checksum_errors.set(vdev.checksum, labels: labels)
+        @zpool_status_vdev_read_errors.set(vdev.read, labels:)
+        @zpool_status_vdev_write_errors.set(vdev.write, labels:)
+        @zpool_status_vdev_checksum_errors.set(vdev.checksum, labels:)
 
         add_vdevs(pool, vdev)
       end
@@ -149,7 +149,7 @@ module OsCtl::Exporter
         vdev_name: vdev.name,
         vdev_role: vdev.role,
         vdev_type: vdev.type,
-        vdev_state: vdev.state,
+        vdev_state: vdev.state
       }
     end
   end

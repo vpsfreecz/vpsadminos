@@ -20,9 +20,9 @@ module OsCtld
 
       begin
         c = UNIXSocket.new(socket)
-
       rescue Errno::ENOENT
         raise if tries >= (0.2 * 50 * 10) # try for 10 seconds
+
         tries += 1
         sleep(0.2)
         retry
@@ -38,10 +38,11 @@ module OsCtld
     end
 
     protected
+
     def on_close
-      if ct.state == :stopped
-        on_ct_stop
-      end
+      return unless ct.state == :stopped
+
+      on_ct_stop
     end
 
     def on_ct_stop
@@ -103,14 +104,14 @@ module OsCtld
         reboot_ct
 
       elsif ctrc.aborted?
-        return
+        nil
 
       elsif ct.ephemeral? && !ct.is_being_manipulated?
         Commands::Container::Delete.run(
           pool: ct.pool.name,
           id: ct.id,
           force: true,
-          manipulation_lock: 'wait',
+          manipulation_lock: 'wait'
         )
       end
     end
@@ -128,11 +129,10 @@ module OsCtld
           pool: ct.pool.name,
           id: ct.id,
           force: true,
-          manipulation_lock: 'wait',
+          manipulation_lock: 'wait'
         )
       rescue CommandFailed => e
         log(:warn, ct, "Reboot failed: #{e.message}")
-
       else
         if !ret.is_a?(Hash)
           log(:warn, ct, 'Reboot failed: reason unknown')

@@ -21,17 +21,17 @@ module OsCtld
         )
       end
 
-      ok(devices: devices)
+      ok(devices:)
     end
 
     protected
+
     # Return device access mode for the device on the host, if it exists
     def device_access_mode(dev_name)
       st = File.stat(File.join('/', dev_name))
-      st.mode & 07777
-
+      st.mode & 0o7777
     rescue Errno::ENOENT
-      0644
+      0o644
     end
   end
 end

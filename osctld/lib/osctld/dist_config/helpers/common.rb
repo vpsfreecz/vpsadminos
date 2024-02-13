@@ -8,7 +8,7 @@ module OsCtld
     # @yieldparam path [String]
     def writable?(path)
       begin
-        return if (File.stat(path).mode & 0200) != 0200
+        return if (File.stat(path).mode & 0o200) != 0o200
       rescue Errno::ENOENT
         # pass
       end
@@ -19,13 +19,11 @@ module OsCtld
 
     # @param service [String]
     def systemd_service_masked?(service)
-      begin
-        dst = File.readlink(File.join(rootfs, 'etc/systemd/system', service))
-      rescue Errno::ENOENT, Errno::EINVAL
-        return false
-      else
-        return dst == '/dev/null'
-      end
+      dst = File.readlink(File.join(rootfs, 'etc/systemd/system', service))
+    rescue Errno::ENOENT, Errno::EINVAL
+      false
+    else
+      dst == '/dev/null'
     end
 
     # @param service [String]
@@ -35,14 +33,14 @@ module OsCtld
         rootfs,
         'etc/systemd/system',
         "#{target}.wants",
-        service,
+        service
       )
 
       begin
         File.lstat(wanted)
-        return true
+        true
       rescue Errno::ENOENT
-        return false
+        false
       end
     end
   end

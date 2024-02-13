@@ -13,6 +13,7 @@ module OsCtl::Lib
     end
 
     protected
+
     def rebuild_index(datasets)
       @index.clear
       datasets.each { |ds| @index[ds.name] = ds }

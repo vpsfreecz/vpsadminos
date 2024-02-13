@@ -27,7 +27,6 @@ module OsCtld
         host_veth: opts[:veth]
       )
       ok
-
     rescue HookFailed => e
       error(e.message)
     end

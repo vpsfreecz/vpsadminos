@@ -7,7 +7,7 @@ module OsCtld
     include Singleton
 
     class << self
-      %i(get register free find_container).each do |m|
+      %i[get register free find_container].each do |m|
         define_method(m) do |*args, &block|
           instance.send(m, *args, &block)
         end
@@ -32,14 +32,14 @@ module OsCtld
         end
       end
 
-      fail 'unable to generate a unique token'
+      raise 'unable to generate a unique token'
     end
 
     # Register an existing token in use
     def register(token)
       sync do
         if tokens.has_key?(token)
-          fail "token #{token} already in use"
+          raise "token #{token} already in use"
         end
 
         tokens[token] = true
@@ -63,10 +63,11 @@ module OsCtld
     end
 
     protected
+
     attr_reader :tokens, :mutex
 
-    def sync(&block)
-      mutex.synchronize(&block)
+    def sync(&)
+      mutex.synchronize(&)
     end
   end
 end

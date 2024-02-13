@@ -28,7 +28,7 @@ module OsCtld
       # @return [Routing::Route]
       def add(addr, via: nil)
         exclusively do
-          r = Routing::Route.new(addr, via: via)
+          r = Routing::Route.new(addr, via:)
           routes << r
           r
         end
@@ -93,6 +93,7 @@ module OsCtld
       end
 
       protected
+
       attr_reader :routes
     end
 
@@ -101,12 +102,12 @@ module OsCtld
     def self.load(cfg)
       new(tables: {
         4 => (cfg['v4'] && Version.load(cfg['v4'])) || Version.new,
-        6 => (cfg['v6'] && Version.load(cfg['v6'])) || Version.new,
+        6 => (cfg['v6'] && Version.load(cfg['v6'])) || Version.new
       })
     end
 
     def initialize(tables: nil)
-      @tables = tables || {4 => Version.new, 6 => Version.new}
+      @tables = tables || { 4 => Version.new, 6 => Version.new }
     end
 
     # @param addr [IPAddress::IPv4, IPAddress::IPv6]
@@ -119,7 +120,7 @@ module OsCtld
     # @param via [IPAddress::IPv4, IPAddress::IPv6]
     # @return [Routing::Route]
     def add(addr, via: nil)
-      t(addr).add(addr, via: via)
+      t(addr).add(addr, via:)
     end
 
     # @param addr [IPAddress::IPv4, IPAddress::IPv6]
@@ -167,44 +168,45 @@ module OsCtld
     # Iterate over all routes
     # @yieldparam version [Integer] IP version
     # @yieldparam addr [Routing::Route]
-    def each(ip_v, &block)
+    def each(_ip_v, &)
       ret = []
 
       tables.each do |version, table|
         ret.concat(table.get.map { |route| [version, route] })
       end
 
-      Hash[ret].each(&block)
+      Hash[ret].each(&)
     end
 
     # Iterate over all routes for IP version
     # @param ip_v [Integer]
     # @yieldparam addr [Routing::Route]
-    def each_version(ip_v, &block)
-      tables[ip_v].get.each(&block)
+    def each_version(ip_v, &)
+      tables[ip_v].get.each(&)
     end
 
     # Remove routes for which the block returns truthy value
     # @param ip_v [Integer]
     # @yieldparam addr [Routing::Route]
     # @yieldreturn [Boolean]
-    def remove_version_if(ip_v, &block)
-      tables[ip_v].remove_if(&block)
+    def remove_version_if(ip_v, &)
+      tables[ip_v].remove_if(&)
     end
 
     # Export the table to clients
     # @return [Hash]
     def export
-      Hash[ tables.map { |version, table| [version, table.export] } ]
+      Hash[tables.map { |version, table| [version, table.export] }]
     end
 
     # Dump the table into config
     # @return [Hash]
     def dump
-      Hash[ tables.map { |version, table| ["v#{version}", table.dump] } ]
+      Hash[tables.map { |version, table| ["v#{version}", table.dump] }]
     end
 
     protected
+
     attr_reader :tables
 
     def t(addr)

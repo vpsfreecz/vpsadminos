@@ -15,7 +15,7 @@ module OsCtl::Cli
     def monitor_ct
       c = osctld_open
 
-      cmd_opts = {type: 'state', opts: {}}
+      cmd_opts = { type: 'state', opts: {} }
       cmd_opts[:opts][:id] = args if args.any?
 
       ret = c.cmd_data!(:event_subscribe, **cmd_opts)
@@ -37,7 +37,7 @@ module OsCtl::Cli
         id = args[0]
       end
 
-      cmd_opts = {type: 'state', opts: {id: id}}
+      cmd_opts = { type: 'state', opts: { id: } }
       cmd_opts[:opts][:pool] = pool if pool
       states = args[1..-1]
 
@@ -57,6 +57,7 @@ module OsCtl::Cli
     end
 
     protected
+
     def monitor_loop(c)
       loop do
         resp = c.response!
@@ -64,13 +65,14 @@ module OsCtl::Cli
 
         if block_given?
           return if yield(resp.data) == :stop
+
           next
         end
 
         if gopts[:json]
           puts resp.data.to_json
 
-        elsif %w(management state).include?(resp.data[:type])
+        elsif %w[management state].include?(resp.data[:type])
           send(:"print_#{resp.data[:type]}", resp.data[:opts])
 
         else
@@ -82,7 +84,7 @@ module OsCtl::Cli
     end
 
     def print_management(opts)
-      puts "management id=#{opts[:id]} state=#{opts[:state]} "+
+      puts "management id=#{opts[:id]} state=#{opts[:state]} " +
            "command=#{opts[:cmd]} opts=#{PP.pp(opts[:opts], '')}"
     end
 

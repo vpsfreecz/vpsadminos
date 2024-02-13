@@ -16,7 +16,7 @@ module OsCtld
           netif.load(v)
           netif.setup
           netif
-        end,
+        end
       )
     end
 
@@ -43,7 +43,7 @@ module OsCtld
         action: :add,
         pool: ct.pool.name,
         id: ct.id,
-        name: netif.name,
+        name: netif.name
       )
     end
 
@@ -57,7 +57,7 @@ module OsCtld
         action: :remove,
         pool: ct.pool.name,
         id: ct.id,
-        name: netif.name,
+        name: netif.name
       )
     end
 
@@ -84,8 +84,8 @@ module OsCtld
       inclusively { netifs.clone }
     end
 
-    def each(&block)
-      get.each(&block)
+    def each(&)
+      get.each(&)
     end
 
     include Enumerable
@@ -103,6 +103,7 @@ module OsCtld
     end
 
     protected
+
     attr_reader :ct, :netifs
   end
 end

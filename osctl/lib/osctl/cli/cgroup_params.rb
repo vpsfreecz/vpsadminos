@@ -2,26 +2,26 @@ require 'libosctl'
 
 module OsCtl
   module Cli::CGroupParams
-    CGPARAM_FIELDS = %i(
+    CGPARAM_FIELDS = %i[
       version
       subsystem
       parameter
       value
       group
       abs_path
-    )
+    ]
 
-    CGPARAM_FILTERS = %i(
+    CGPARAM_FILTERS = %i[
       subsystem
-    )
+    ]
 
-    CGPARAM_DEFAULT_FIELDS = %i(
+    CGPARAM_DEFAULT_FIELDS = %i[
       version
       parameter
       value
-    )
+    ]
 
-    CGPARAM_STATS = %i(
+    CGPARAM_STATS = %i[
       memory
       memory_pct
       kmemory
@@ -32,12 +32,12 @@ module OsCtl
       cpu_user_hz
       cpu_system_hz
       nproc
-    )
+    ]
 
     def do_cgparam_list(cmd, cmd_opts)
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
         all_params: CGPARAM_FIELDS,
-        default_params: CGPARAM_DEFAULT_FIELDS,
+        default_params: CGPARAM_DEFAULT_FIELDS
       )
 
       if opts[:list]
@@ -45,7 +45,7 @@ module OsCtl
         return
       end
 
-      fmt_opts = {layout: :columns}
+      fmt_opts = { layout: :columns }
 
       case opts[:version]
       when '1', '2'
@@ -70,7 +70,7 @@ module OsCtl
         value: {
           label: 'VALUE',
           align: 'right',
-          display: Proc.new do |values|
+          display: proc do |values|
             values.map do |v|
               if gopts[:parsable] \
                  || gopts[:json] \
@@ -88,8 +88,8 @@ module OsCtl
 
       osctld_fmt(
         cmd,
-        cmd_opts: cmd_opts,
-        fmt_opts: fmt_opts,
+        cmd_opts:,
+        fmt_opts:
       )
     end
 
@@ -98,36 +98,36 @@ module OsCtl
         version: opts[:version],
         subsystem: parse_subsystem(args[1]),
         parameter: args[1],
-        value: args[2..-1].map { |v| parse_data(v) },
+        value: args[2..-1].map { |v| parse_data(v) }
       }.compact]
 
       cmd_opts.update({
         parameters: params,
-        append: opts[:append],
+        append: opts[:append]
       })
 
-      osctld_fmt(cmd, cmd_opts: cmd_opts)
+      osctld_fmt(cmd, cmd_opts:)
     end
 
     def do_cgparam_unset(cmd, cmd_opts, params = nil)
       params ||= [{
         version: opts[:version],
         subsystem: parse_subsystem(args[1]),
-        parameter: args[1],
+        parameter: args[1]
       }.compact]
 
       cmd_opts.update(parameters: params)
 
-      osctld_fmt(cmd, cmd_opts: cmd_opts)
+      osctld_fmt(cmd, cmd_opts:)
     end
 
     def do_cgparam_apply(cmd, cmd_opts)
-      osctld_fmt(cmd, cmd_opts: cmd_opts)
+      osctld_fmt(cmd, cmd_opts:)
     end
 
     def do_cgparam_replace(cmd, cmd_opts)
       osctld_fmt(cmd, cmd_opts: cmd_opts.merge(
-        parameters: JSON.parse(STDIN.read)['parameters'],
+        parameters: JSON.parse(STDIN.read)['parameters']
       ))
     end
 
@@ -147,14 +147,14 @@ module OsCtl
           version: 1,
           subsystem: 'cpu',
           parameter: 'cpu.cfs_period_us',
-          value: [opts[:period]],
+          value: [opts[:period]]
         },
         {
           version: 1,
           subsystem: 'cpu',
           parameter: 'cpu.cfs_quota_us',
-          value: [quota.round],
-        },
+          value: [quota.round]
+        }
       ]
 
       do_cgparam_set(cmd, cmd_opts, params)
@@ -166,25 +166,25 @@ module OsCtl
         {
           version: 2,
           subsystem: 'cpu',
-          parameter: 'cpu.max',
+          parameter: 'cpu.max'
         },
         # cgroup v1
         {
           version: 1,
           subsystem: 'cpu',
-          parameter: 'cpu.cfs_period_us',
+          parameter: 'cpu.cfs_period_us'
         },
         {
           version: 1,
           subsystem: 'cpu',
-          parameter: 'cpu.cfs_quota_us',
-        },
+          parameter: 'cpu.cfs_quota_us'
+        }
       ]
 
       do_cgparam_unset(unset_cmd, cmd_opts, params)
     end
 
-    def do_set_memory(set_cmd, unset_cmd, cmd_opts)
+    def do_set_memory(set_cmd, _unset_cmd, cmd_opts)
       mem = parse_data(args[1])
       swap = parse_data(args[2]) if args[2]
 
@@ -195,48 +195,48 @@ module OsCtl
         version: 2,
         subsystem: 'memory',
         parameter: 'memory.max',
-        value: [mem],
+        value: [mem]
       }
 
-      if swap
-        limits << {
-          version: 2,
-          subsystem: 'memory',
-          parameter: 'memory.swap.max',
-          value: [swap],
-        }
-      else
-        limits << {
-          version: 2,
-          subsystem: 'memory',
-          parameter: 'memory.swap.max',
-          value: ['0'],
-        }
-      end
+      limits << if swap
+                  {
+                    version: 2,
+                    subsystem: 'memory',
+                    parameter: 'memory.swap.max',
+                    value: [swap]
+                  }
+                else
+                  {
+                    version: 2,
+                    subsystem: 'memory',
+                    parameter: 'memory.swap.max',
+                    value: ['0']
+                  }
+                end
 
       # cgroup v1
       limits << {
         version: 1,
         subsystem: 'memory',
         parameter: 'memory.limit_in_bytes',
-        value: [mem],
+        value: [mem]
       }
 
-      if swap
-        limits << {
-          version: 1,
-          subsystem: 'memory',
-          parameter: 'memory.memsw.limit_in_bytes',
-          value: [mem+swap],
-        }
-      else
-        limits << {
-          version: 1,
-          subsystem: 'memory',
-          parameter: 'memory.memsw.limit_in_bytes',
-          value: [mem],
-        }
-      end
+      limits << if swap
+                  {
+                    version: 1,
+                    subsystem: 'memory',
+                    parameter: 'memory.memsw.limit_in_bytes',
+                    value: [mem + swap]
+                  }
+                else
+                  {
+                    version: 1,
+                    subsystem: 'memory',
+                    parameter: 'memory.memsw.limit_in_bytes',
+                    value: [mem]
+                  }
+                end
 
       do_cgparam_set(set_cmd, cmd_opts, limits)
     end
@@ -247,24 +247,24 @@ module OsCtl
         {
           version: 2,
           subsystem: 'memory',
-          parameter: 'memory.swap.max',
+          parameter: 'memory.swap.max'
         },
         {
           version: 2,
           subsystem: 'memory',
-          parameter: 'memory.max',
+          parameter: 'memory.max'
         },
         # cgroup v1
         {
           version: 1,
           subsystem: 'memory',
-          parameter: 'memory.memsw.limit_in_bytes',
+          parameter: 'memory.memsw.limit_in_bytes'
         },
         {
           version: 1,
           subsystem: 'memory',
-          parameter: 'memory.limit_in_bytes',
-        },
+          parameter: 'memory.limit_in_bytes'
+        }
       ]
 
       do_cgparam_unset(unset_cmd, cmd_opts, params)
@@ -272,11 +272,11 @@ module OsCtl
 
     # @param client [OsCtl::Client]
     def cg_init_subsystems(client)
-      if OsCtl::Lib::CGroup.v2?
-        @cg_subsystems ||= {nil => OsCtl::Lib::CGroup::FS}
-      else
-        @cg_subsystems ||= client.cmd_data!(:group_cgsubsystems)
-      end
+      @cg_subsystems ||= if OsCtl::Lib::CGroup.v2?
+                           { nil => OsCtl::Lib::CGroup::FS }
+                         else
+                           client.cmd_data!(:group_cgsubsystems)
+                         end
     end
 
     # Add runtime stats from CGroup parameters to `data`
@@ -338,12 +338,13 @@ module OsCtl
     end
 
     protected
+
     def parse_cgparams
       opts[:cgparam].map do |v|
         parts = v.split('=')
 
         unless parts.count == 2
-          fail "invalid cgparam '#{v}': expected <parameter>=<value>"
+          raise "invalid cgparam '#{v}': expected <parameter>=<value>"
         end
 
         k, v = parts
@@ -351,7 +352,7 @@ module OsCtl
         {
           subsystem: parse_subsystem(k),
           parameter: k,
-          value: parse_data(v),
+          value: parse_data(v)
         }
       end
     end

@@ -48,12 +48,12 @@ module OsCtl::Image
           :ct_create,
           id: ctid,
           image: {
-            distribution: distribution,
-            version: version,
-            arch: arch,
-            vendor: vendor,
-            variant: variant,
-          },
+            distribution:,
+            version:,
+            arch:,
+            vendor:,
+            variant:
+          }
         )
       end
     end
@@ -65,7 +65,7 @@ module OsCtl::Image
         client.cmd_data!(
           :ct_import,
           as_id: ctid,
-          file: File.absolute_path(file),
+          file: File.absolute_path(file)
         )
       end
     end
@@ -78,9 +78,9 @@ module OsCtl::Image
         client.cmd_data!(
           :ct_reinstall,
           id: ctid,
-          remove_snapshots: remove_snapshots,
+          remove_snapshots:,
           type: :image,
-          path: File.absolute_path(image_path),
+          path: File.absolute_path(image_path)
         )
       end
     end
@@ -90,7 +90,7 @@ module OsCtl::Image
     # @param value [String]
     def set_container_attr(ctid, attr, value)
       connect do |client|
-        client.cmd_data!(:ct_set, id: ctid, attrs: {attr => value})
+        client.cmd_data!(:ct_set, id: ctid, attrs: { attr => value })
       end
     end
 
@@ -98,7 +98,7 @@ module OsCtl::Image
     # @param dns_resolvers [Array<String>]
     def set_container_dns_resolvers(ctid, dns_resolvers)
       connect do |client|
-        client.cmd_data!(:ct_set, id: ctid, dns_resolvers: dns_resolvers)
+        client.cmd_data!(:ct_set, id: ctid, dns_resolvers:)
       end
     end
 
@@ -144,12 +144,12 @@ module OsCtl::Image
         cont = client.cmd_data!(
           :ct_exec,
           id: ctid,
-          cmd: cmd,
-          run: false,
+          cmd:,
+          run: false
         )
 
         if cont != 'continue'
-          fail "exec not available: invalid response '#{cont}'"
+          raise "exec not available: invalid response '#{cont}'"
         end
 
         null = File.open('/dev/null', 'r')
@@ -163,7 +163,7 @@ module OsCtl::Image
         resp = client.receive_resp
 
         if resp.error?
-          fail (resp['message'] || 'exec failed')
+          raise(resp['message'] || 'exec failed')
         end
 
         resp[:exitstatus]
@@ -177,12 +177,12 @@ module OsCtl::Image
         cont = client.cmd_data!(
           :ct_runscript,
           id: ctid,
-          script: script,
-          run: false,
+          script:,
+          run: false
         )
 
         if cont != 'continue'
-          fail "runscript not available: invalid response '#{cont}'"
+          raise "runscript not available: invalid response '#{cont}'"
         end
 
         null = File.open('/dev/null', 'r')
@@ -196,7 +196,7 @@ module OsCtl::Image
         resp = client.receive_resp
 
         if resp.error?
-          fail (resp['message'] || 'runscript failed')
+          raise(resp['message'] || 'runscript failed')
         end
 
         resp[:exitstatus]
@@ -218,8 +218,8 @@ module OsCtl::Image
           id: ctid,
           name: netif,
           type: 'bridge',
-          link: link,
-          dhcp: true,
+          link:,
+          dhcp: true
         )
       end
     end
@@ -236,7 +236,7 @@ module OsCtl::Image
           mountpoint: dst,
           type: 'bind',
           opts: 'bind,create=dir',
-          automount: false,
+          automount: false
         )
       end
     end
@@ -248,7 +248,7 @@ module OsCtl::Image
         client.cmd_data!(
           :ct_mount_activate,
           id: ctid,
-          mountpoint: dst,
+          mountpoint: dst
         )
       end
     end
@@ -260,7 +260,7 @@ module OsCtl::Image
         client.cmd_data!(
           :ct_mount_delete,
           id: ctid,
-          mountpoint: dst,
+          mountpoint: dst
         )
       end
     end
@@ -273,7 +273,7 @@ module OsCtl::Image
           :user_idmap_list,
           name: user,
           uid: true,
-          gid: true,
+          gid: true
         )
       end
     end
@@ -283,12 +283,13 @@ module OsCtl::Image
       connect do |client|
         client.cmd_data!(
           :user_delete,
-          name: user,
+          name: user
         )
       end
     end
 
     protected
+
     # @yieldparam client [OsCtl::Client]
     def connect
       @client.open unless @connected

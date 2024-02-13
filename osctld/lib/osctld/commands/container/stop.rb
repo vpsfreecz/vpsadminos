@@ -22,7 +22,7 @@ module OsCtld
         ct.pool.autostart_plan.stop_ct(ct)
 
         mode =
-          case (opts[:method] || 'shutdown_or_kill')
+          case opts[:method] || 'shutdown_or_kill'
           when 'shutdown_or_kill'
             :stop
           when 'shutdown_or_fail'
@@ -33,7 +33,7 @@ module OsCtld
             error!("unknown stop method '#{opts[:method]}'")
           end
 
-        if %i(freezing frozen).include?(ct.state)
+        if %i[freezing frozen].include?(ct.state)
           if mode == :stop
             mode = :kill
           elsif mode == :shutdown
@@ -43,7 +43,6 @@ module OsCtld
 
         begin
           Hook.run(ct, :pre_stop)
-
         rescue HookFailed => e
           error!(e.message)
         end
@@ -56,9 +55,9 @@ module OsCtld
           DistConfig.run(
             ct.get_run_conf,
             :stop,
-            mode: mode,
+            mode:,
             message: opts[:message],
-            timeout: opts[:timeout] || Container::DEFAULT_STOP_TIMEOUT,
+            timeout: opts[:timeout] || Container::DEFAULT_STOP_TIMEOUT
           )
         rescue ContainerControl::UserRunnerError
           ct.log(:warn, 'Unable to stop, killing by force')
@@ -79,7 +78,7 @@ module OsCtld
             Commands::Container::Delete,
             pool: ct.pool.name,
             id: ct.id,
-            force: true,
+            force: true
           )
         end
 
@@ -88,6 +87,7 @@ module OsCtld
     end
 
     protected
+
     # @return [Boolean]
     def force_kill(ct)
       recovery = Container::Recovery.new(ct)

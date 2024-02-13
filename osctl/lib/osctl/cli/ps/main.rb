@@ -9,7 +9,7 @@ module OsCtl::Cli
 
     def run
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
-        all_params: Ps::Columns::COLS,
+        all_params: Ps::Columns::COLS
       )
 
       if opts[:list]
@@ -17,7 +17,7 @@ module OsCtl::Cli
         return
       end
 
-      require_args!(optional: %w(id), strict: false)
+      require_args!(optional: %w[id], strict: false)
 
       filters = opts[:parameter].map { |v| Ps::Filter.new(v) }
 
@@ -55,7 +55,7 @@ module OsCtl::Cli
       out_cols, out_data = Ps::Columns.generate(
         pl,
         param_selector.parse_option(opts[:output], default_params: default_cols),
-        gopts[:parsable],
+        gopts[:parsable]
       )
 
       OsCtl::Lib::Cli::OutputFormatter.print(
@@ -63,7 +63,7 @@ module OsCtl::Cli
         cols: out_cols,
         layout: :columns,
         header: opts['hide-header'] ? false : true,
-        sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
+        sort: opts[:sort] && param_selector.parse_option(opts[:sort])
       )
 
       if pl.size > 1
@@ -71,13 +71,14 @@ module OsCtl::Cli
       elsif pl.size == 1
         warn "#{pl.size} process"
       else
-        warn "No processes found"
+        warn 'No processes found'
       end
 
       print_slow_processes(slow_os_procs) if slow_os_procs.any?
     end
 
     protected
+
     def print_slow_processes(slow_os_procs)
       warn "\nSlow processes:"
       slow_os_procs.sort do |a, b|
@@ -87,21 +88,21 @@ module OsCtl::Cli
           pool, id = slow_proc.os_process.ct_id
           ctid = pool.nil? ? '[host]' : "#{pool}:#{id}"
         rescue OsCtl::Lib::Exceptions::OsProcessNotFound
-          ctid = "[unknown]"
+          ctid = '[unknown]'
         end
 
-        warn(sprintf(
-          '%16s: %10d %-18s %.2fs',
-          ctid,
-          slow_proc.os_process.pid,
-          slow_proc.os_process.name,
-          slow_proc.duration,
-        ))
+        warn(format(
+               '%16s: %10d %-18s %.2fs',
+               ctid,
+               slow_proc.os_process.pid,
+               slow_proc.os_process.name,
+               slow_proc.duration
+             ))
       end
     end
 
     def get_process_list(ctids, filters)
-      spinner = TTY::Spinner.new("[:spinner] :title", clear: true)
+      spinner = TTY::Spinner.new('[:spinner] :title', clear: true)
       spinner.update(title: 'Listing processes...')
       spinner.auto_spin
 
@@ -133,7 +134,7 @@ module OsCtl::Cli
             if last_os_proc.nil?
               'Taking long to list /proc entries'
             else
-              sprintf('Taking long to process pid %d', last_os_proc.pid)
+              format('Taking long to process pid %d', last_os_proc.pid)
             end
 
           set_title(spinner, msg)
@@ -156,10 +157,10 @@ module OsCtl::Cli
         last_os_proc = os_proc
 
         if os_proc && error
-          set_title(spinner, sprintf('Listing processes... %8d', total))
+          set_title(spinner, format('Listing processes... %8d', total))
           error = false
         elsif os_proc
-          set_title(spinner, sprintf('Listing processes... %8d', total))
+          set_title(spinner, format('Listing processes... %8d', total))
           @update_count = false
         end
       end
@@ -177,7 +178,7 @@ module OsCtl::Cli
     end
 
     def set_title(spinner, str)
-      spinner.tokens[:title] = sprintf('%-40s', str)
+      spinner.tokens[:title] = format('%-40s', str)
     end
 
     def list_processes(queue, ctids, filters)
@@ -211,6 +212,7 @@ module OsCtl::Cli
     def update_loop(queue)
       loop do
         return if queue.pop(timeout: 0.2) == :stop
+
         @update_count = true
       end
     end

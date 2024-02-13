@@ -13,20 +13,20 @@ module OsCtld
     end
 
     def start
-      fail 'already started' if @ct_thread
+      raise 'already started' if @ct_thread
 
       @stop = false
       @ct_thread = Thread.new { run_ct_updates }
     end
 
     def stop
-      if @ct_thread
-        @stop = true
-        @ct_queue.clear
-        @ct_queue << :stop
-        @ct_thread.join
-        @ct_thread = nil
-      end
+      return unless @ct_thread
+
+      @stop = true
+      @ct_queue.clear
+      @ct_queue << :stop
+      @ct_thread.join
+      @ct_thread = nil
     end
 
     def log_type
@@ -34,9 +34,10 @@ module OsCtld
     end
 
     protected
+
     def run_ct_updates
       loop do
-        v = @ct_queue.pop(timeout: 8*60*60)
+        v = @ct_queue.pop(timeout: 8 * 60 * 60)
         return if v == :stop
 
         t1 = Time.now

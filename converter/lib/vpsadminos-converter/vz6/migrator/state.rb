@@ -4,7 +4,7 @@ module VpsAdminOS::Converter
   # Store/load migration state to/from disk
   class Vz6::Migrator::State
     DIR = '~/.vpsadminos-converter'
-    STEPS = %i(stage sync cancel transfer cleanup)
+    STEPS = %i[stage sync cancel transfer cleanup]
 
     # Create a new migration state, save it to disk and return it
     # @param vz_ct [Vz6::Container]
@@ -20,10 +20,10 @@ module VpsAdminOS::Converter
     def self.create(vz_ct, target_ct, opts)
       new(target_ct.id, {
         step: :stage,
-        vz_ct: vz_ct,
-        target_ct: target_ct,
-        opts: opts,
-        snapshots: [],
+        vz_ct:,
+        target_ct:,
+        opts:,
+        snapshots: []
       })
     end
 
@@ -32,10 +32,11 @@ module VpsAdminOS::Converter
     # @return [Cli::Vz6::State]
     def self.load(ctid)
       ret = File.open(state_file(ctid)) do |f|
-         Marshal.load(f)
+        Marshal.load(f)
       end
 
-      fail 'invalid state format' unless ret.is_a?(Hash)
+      raise 'invalid state format' unless ret.is_a?(Hash)
+
       new(ctid, ret)
     end
 
@@ -85,29 +86,31 @@ module VpsAdminOS::Converter
       return false if new_i < cur_i
       return true if new_step == :transfer && step == :sync
       return false if new_step != :cancel && new_i != (cur_i + 1)
+
       true
     end
 
     # @param new_step [Symbol]
     def set_step(new_step)
-      fail 'invalid migration sequence' unless can_proceed?(new_step)
+      raise 'invalid migration sequence' unless can_proceed?(new_step)
+
       @step = new_step
     end
 
     # Persist the state to disk
     def save
-      Dir.mkdir(state_dir, 0700) unless Dir.exist?(state_dir)
+      Dir.mkdir(state_dir, 0o700) unless Dir.exist?(state_dir)
 
       orig = state_file
       tmp = "#{orig}.new"
 
-      File.open(tmp, 'w', 0700) do |f|
+      File.open(tmp, 'w', 0o700) do |f|
         Marshal.dump({
-          step: step,
-          vz_ct: vz_ct,
-          target_ct: target_ct,
-          opts: opts,
-          snapshots: snapshots,
+          step:,
+          vz_ct:,
+          target_ct:,
+          opts:,
+          snapshots:
         }, f)
       end
 
@@ -120,6 +123,7 @@ module VpsAdminOS::Converter
     end
 
     protected
+
     def state_dir
       self.class.state_dir
     end

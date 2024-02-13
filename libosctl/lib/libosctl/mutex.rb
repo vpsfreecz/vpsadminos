@@ -3,7 +3,7 @@ require 'thread'
 module OsCtl::Lib
   # Extended mutex with an optional timeout on lock
   class Mutex
-    class Timeout < ::StandardError ; end
+    class Timeout < ::StandardError; end
 
     def initialize
       @mutex = ::Mutex.new
@@ -39,11 +39,9 @@ module OsCtl::Lib
 
           @queue -= 1
 
-          if @thread && is_timeout
-            raise Timeout
-          else
-            @thread = Thread.current
-          end
+          raise Timeout if @thread && is_timeout
+
+          @thread = Thread.current
 
         else
           @thread = Thread.current
@@ -57,13 +55,10 @@ module OsCtl::Lib
     # @raise [ThreadError] when the current thread does not own the mutex
     def unlock
       sync do
-        if @thread == Thread.current
-          @thread = nil
-          @cond.signal if @queue > 0
+        raise ThreadError, 'attempted to unlock mutex owned by another thread' unless @thread == Thread.current
 
-        else
-          raise ThreadError, 'attempted to unlock mutex owned by another thread'
-        end
+        @thread = nil
+        @cond.signal if @queue > 0
       end
 
       nil
@@ -105,8 +100,9 @@ module OsCtl::Lib
     end
 
     protected
-    def sync
-      @mutex.synchronize { yield }
+
+    def sync(&)
+      @mutex.synchronize(&)
     end
   end
 end

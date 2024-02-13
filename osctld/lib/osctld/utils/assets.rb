@@ -9,7 +9,7 @@ module OsCtld
           path: asset.path,
           opts: asset.opts,
           state: asset.state,
-          errors: asset.errors,
+          errors: asset.errors
         }
       end
     end

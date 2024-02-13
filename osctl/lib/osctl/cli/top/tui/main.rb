@@ -30,8 +30,8 @@ module OsCtl::Cli::Top
     end
 
     def open
-      empty_data = {containers: []}
-      data = {containers: []}
+      empty_data = { containers: [] }
+      data = { containers: [] }
       procs_stats, @last_procs_check = enable_procs && procs_thread.get_stats
 
       # Initial render
@@ -145,12 +145,12 @@ module OsCtl::Cli::Top
           modes = Model::MODES
           i = modes.index(mode)
 
-          if i+1 >= modes.count
-            model_thread.mode = modes[0]
+          model_thread.mode = if i + 1 >= modes.count
+                                modes[0]
 
-          else
-            model_thread.mode = modes[i+1]
-          end
+                              else
+                                modes[i + 1]
+                              end
 
         when 'p'
           paused? ? unpause : pause
@@ -170,15 +170,14 @@ module OsCtl::Cli::Top
     end
 
     protected
-    attr_reader :rate, :model_thread, :procs_thread, :highlighted_cts,
-      :last_measurement, :last_generation, :last_procs_check, :last_mode,
-      :view_page, :view_page_max, :enable_procs
+
+    attr_reader :rate, :model_thread, :procs_thread, :highlighted_cts, :last_measurement, :last_generation, :last_procs_check, :last_mode, :view_page, :view_page_max, :enable_procs, :search_string
     attr_accessor :last_count, :last_data, :current_row
 
     def render(t, procs_stats, data)
       Curses.setpos(0, 0)
       Curses.addstr("#{File.basename($0)} ct top - #{t.strftime('%H:%M:%S')}")
-      Curses.addstr(sprintf(" [%.1fs]", last_measurement - t)) if last_measurement
+      Curses.addstr(format(' [%.1fs]', last_measurement - t)) if last_measurement
 
       lavg = data[:loadavg] ? format_loadavgs(data[:loadavg]) : '?'
       Curses.addstr(" #{model_thread.mode} mode, load average #{lavg}")
@@ -186,7 +185,7 @@ module OsCtl::Cli::Top
       i = status_bar(1, t, procs_stats, data)
 
       Curses.attron(Curses.color_pair(1))
-      i = header(i+1)
+      i = header(i + 1)
       j = 0
       Curses.attroff(Curses.color_pair(1))
 
@@ -214,18 +213,16 @@ module OsCtl::Cli::Top
 
         Curses.setpos(i, 0)
 
-        if current_row == j && highlighted_cts.include?(ct[:id])
-          attr = Curses.color_pair(Tui::SELECTED_HIGHLIGHTED)
+        attr = if current_row == j && highlighted_cts.include?(ct[:id])
+                 Curses.color_pair(Tui::SELECTED_HIGHLIGHTED)
 
-        elsif current_row == j
-          attr = Curses.color_pair(Tui::SELECTED)
+               elsif current_row == j
+                 Curses.color_pair(Tui::SELECTED)
 
-        elsif highlighted_cts.include?(ct[:id])
-          attr = Curses.color_pair(Tui::HIGHLIGHTED)
+               elsif highlighted_cts.include?(ct[:id])
+                 Curses.color_pair(Tui::HIGHLIGHTED)
 
-        else
-          attr = nil
-        end
+               end
 
         Curses.attron(attr) if attr
         print_row(ct)
@@ -250,19 +247,19 @@ module OsCtl::Cli::Top
       if enable_procs
         Curses.setpos(pos, 0)
         Curses.addstr('Tasks')
-        Curses.addstr(sprintf(" [%.1fs]", @last_procs_check - t)) if @last_procs_check
+        Curses.addstr(format(' [%.1fs]', @last_procs_check - t)) if @last_procs_check
         Curses.addstr(': ')
-        bold { Curses.addstr(sprintf('%5d', procs_stats['TOTAL'])) }
+        bold { Curses.addstr(format('%5d', procs_stats['TOTAL'])) }
         Curses.addstr(' total, ')
-        bold { Curses.addstr(sprintf('%3d', procs_stats['R'])) }
+        bold { Curses.addstr(format('%3d', procs_stats['R'])) }
         Curses.addstr(' running, ')
-        bold { Curses.addstr(sprintf('%3d', procs_stats['D'])) }
+        bold { Curses.addstr(format('%3d', procs_stats['D'])) }
         Curses.addstr(' blocked, ')
-        bold { Curses.addstr(sprintf('%5d', procs_stats['S'])) }
+        bold { Curses.addstr(format('%5d', procs_stats['S'])) }
         Curses.addstr(' sleeping, ')
-        bold { Curses.addstr(sprintf('%2d', procs_stats['T'])) }
+        bold { Curses.addstr(format('%2d', procs_stats['T'])) }
         Curses.addstr(' stopped, ')
-        bold { Curses.addstr(sprintf('%2d', procs_stats['Z'])) }
+        bold { Curses.addstr(format('%2d', procs_stats['Z'])) }
         Curses.addstr(' zombie ')
         pos += 1
       end
@@ -274,19 +271,19 @@ module OsCtl::Cli::Top
       Curses.addstr('%CPU: ')
 
       if cpu
-        bold { Curses.addstr(sprintf('%5.1f', format_percent(cpu[:user]))) }
+        bold { Curses.addstr(format('%5.1f', format_percent(cpu[:user]))) }
         Curses.addstr(' us, ')
-        bold { Curses.addstr(sprintf('%5.1f', format_percent(cpu[:system]))) }
+        bold { Curses.addstr(format('%5.1f', format_percent(cpu[:system]))) }
         Curses.addstr(' sy, ')
-        bold { Curses.addstr(sprintf('%5.1f', format_percent(cpu[:nice]))) }
+        bold { Curses.addstr(format('%5.1f', format_percent(cpu[:nice]))) }
         Curses.addstr(' ni, ')
-        bold { Curses.addstr(sprintf('%5.1f', format_percent(cpu[:idle]))) }
+        bold { Curses.addstr(format('%5.1f', format_percent(cpu[:idle]))) }
         Curses.addstr(' id, ')
-        bold { Curses.addstr(sprintf('%5.1f', format_percent(cpu[:iowait]))) }
+        bold { Curses.addstr(format('%5.1f', format_percent(cpu[:iowait]))) }
         Curses.addstr(' wa, ')
-        bold { Curses.addstr(sprintf('%5.1f', format_percent(cpu[:irq]))) }
+        bold { Curses.addstr(format('%5.1f', format_percent(cpu[:irq]))) }
         Curses.addstr(' hi, ')
-        bold { Curses.addstr(sprintf('%5.1f', format_percent(cpu[:softirq]))) }
+        bold { Curses.addstr(format('%5.1f', format_percent(cpu[:softirq]))) }
         Curses.addstr(' si')
 
       else
@@ -300,24 +297,24 @@ module OsCtl::Cli::Top
       Curses.addstr('Memory: ')
 
       if mem
-        bold { Curses.addstr(sprintf('%8s', humanize_data(mem[:total]))) }
+        bold { Curses.addstr(format('%8s', humanize_data(mem[:total]))) }
         Curses.addstr(' total, ')
-        bold { Curses.addstr(sprintf('%8s', humanize_data(mem[:free]))) }
+        bold { Curses.addstr(format('%8s', humanize_data(mem[:free]))) }
         Curses.addstr(' free, ')
-        bold { Curses.addstr(sprintf('%8s', humanize_data(mem[:used]))) }
+        bold { Curses.addstr(format('%8s', humanize_data(mem[:used]))) }
         Curses.addstr(' used, ')
-        bold { Curses.addstr(sprintf('%8s', humanize_data(mem[:buffers] + mem[:cached]))) }
+        bold { Curses.addstr(format('%8s', humanize_data(mem[:buffers] + mem[:cached]))) }
         Curses.addstr(' buff/cache')
 
         if mem[:swap_total] > 0
           Curses.setpos(pos += 1, 0)
           Curses.addstr('Swap:   ')
 
-          bold { Curses.addstr(sprintf('%8s', humanize_data(mem[:swap_total]))) }
+          bold { Curses.addstr(format('%8s', humanize_data(mem[:swap_total]))) }
           Curses.addstr(' total, ')
-          bold { Curses.addstr(sprintf('%8s', humanize_data(mem[:swap_free]))) }
+          bold { Curses.addstr(format('%8s', humanize_data(mem[:swap_free]))) }
           Curses.addstr(' free, ')
-          bold { Curses.addstr(sprintf('%8s', humanize_data(mem[:swap_used]))) }
+          bold { Curses.addstr(format('%8s', humanize_data(mem[:swap_used]))) }
           Curses.addstr(' used')
         end
 
@@ -332,15 +329,15 @@ module OsCtl::Cli::Top
       Curses.addstr('ARC:    ')
 
       if arc
-        bold { Curses.addstr(sprintf('%8s', humanize_data(arc[:c_max]))) }
+        bold { Curses.addstr(format('%8s', humanize_data(arc[:c_max]))) }
         Curses.addstr(' c_max, ')
-        bold { Curses.addstr(sprintf('%8s', humanize_data(arc[:c]))) }
+        bold { Curses.addstr(format('%8s', humanize_data(arc[:c]))) }
         Curses.addstr(' c,    ')
-        bold { Curses.addstr(sprintf('%8s', humanize_data(arc[:size]))) }
+        bold { Curses.addstr(format('%8s', humanize_data(arc[:size]))) }
         Curses.addstr(' size, ')
-        bold { Curses.addstr(sprintf('%8.2f', format_percent(arc[:hit_rate]))) }
+        bold { Curses.addstr(format('%8.2f', format_percent(arc[:hit_rate]))) }
         Curses.addstr(' hitrate, ')
-        bold { Curses.addstr(sprintf('%6d', arc[:misses])) }
+        bold { Curses.addstr(format('%6d', arc[:misses])) }
         Curses.addstr(' missed ')
 
       else
@@ -351,30 +348,30 @@ module OsCtl::Cli::Top
 
       if l2arc && l2arc[:size] > 0
         Curses.setpos(pos += 1, 0)
-        Curses.addstr('L2ARC:  ' + ' ' * 16)
+        Curses.addstr('L2ARC:  ' + (' ' * 16))
 
-        bold { Curses.addstr(sprintf('%8s', humanize_data(l2arc[:size]))) }
+        bold { Curses.addstr(format('%8s', humanize_data(l2arc[:size]))) }
         Curses.addstr(' size, ')
-        bold { Curses.addstr(sprintf('%8s', humanize_data(l2arc[:asize]))) }
+        bold { Curses.addstr(format('%8s', humanize_data(l2arc[:asize]))) }
         Curses.addstr(' asize,')
-        bold { Curses.addstr(sprintf('%8.2f', humanize_data(l2arc[:hit_rate]))) }
+        bold { Curses.addstr(format('%8.2f', humanize_data(l2arc[:hit_rate]))) }
         Curses.addstr(' hitrate, ')
-        bold { Curses.addstr(sprintf('%6d', l2arc[:misses])) }
+        bold { Curses.addstr(format('%6d', l2arc[:misses])) }
         Curses.addstr(' missed ')
       end
 
       # Containers
       Curses.setpos(pos += 1, 0)
       Curses.addstr('Containers: ')
-      bold { Curses.addstr(sprintf('%3d', model_thread.containers.count)) }
+      bold { Curses.addstr(format('%3d', model_thread.containers.count)) }
       Curses.addstr(' total, ')
-      bold { Curses.addstr(sprintf('%3d', model_thread.containers.count{ |ct| ct.state == :starting })) }
+      bold { Curses.addstr(format('%3d', model_thread.containers.count { |ct| ct.state == :starting })) }
       Curses.addstr(' starting, ')
-      bold { Curses.addstr(sprintf('%3d', data[:containers].count-1)) } # -1 for [host]
+      bold { Curses.addstr(format('%3d', data[:containers].count - 1)) } # -1 for [host]
       Curses.addstr(' running, ')
-      bold { Curses.addstr(sprintf('%3d', model_thread.containers.count{ |ct| ct.state == :stopping })) }
+      bold { Curses.addstr(format('%3d', model_thread.containers.count { |ct| ct.state == :stopping })) }
       Curses.addstr(' stopping, ')
-      bold { Curses.addstr(sprintf('%3d', model_thread.containers.count{ |ct| ct.state == :stopped })) }
+      bold { Curses.addstr(format('%3d', model_thread.containers.count { |ct| ct.state == :stopped })) }
       Curses.addstr(' stopped')
 
       @status_bar_cols += pos - orig_pos + 1
@@ -385,7 +382,7 @@ module OsCtl::Cli::Top
       unless @header
         ret = []
 
-        ret << sprintf(
+        ret << format(
           '%-14s %9s %8s %6s %27s %27s %17s',
           'Container',
           'CPU',
@@ -393,10 +390,10 @@ module OsCtl::Cli::Top
           'Proc',
           'ZFSIO          ',
           'Network        ',
-          'LoadAvg    ',
+          'LoadAvg    '
         )
 
-        ret << sprintf(
+        ret << format(
           '%-14s %9s %7s %8s %13s %13s %13s %13s',
           '',
           '',
@@ -408,7 +405,7 @@ module OsCtl::Cli::Top
           'RX    '
         )
 
-        ret << sprintf(
+        ret << format(
           '%-14s %9s %8s %6s %6s %6s %6s %6s %6s %6s %6s %6s %5s %5s %5s',
           'ID',
           '',
@@ -422,7 +419,7 @@ module OsCtl::Cli::Top
           rt? ? 'pps' : 'Packet',
           rt? ? 'bps' : 'Bytes',
           rt? ? 'pps' : 'Packet',
-          '1m', '5m', '15m',
+          '1m', '5m', '15m'
         )
 
         # Fill to the edge of the screen
@@ -441,36 +438,36 @@ module OsCtl::Cli::Top
     end
 
     def print_row(ct)
-      Curses.addstr(sprintf('%-14s ', format_ctid(ct[:id])))
+      Curses.addstr(format('%-14s ', format_ctid(ct[:id])))
 
       cpu = (rt? ? format_percent(ct[:cpu_usage]) : humanize_time_us(ct[:cpu_us])).to_s
       cpu << "/#{ct[:cpu_package_inuse]}" if ct[:cpu_package_inuse]
 
       print_row_data([
-        cpu,
-        humanize_data(ct[:memory]),
-        ct[:nproc],
-        humanize_data(ct[:zfsio][:bytes][:r]),
-        humanize_number(ct[:zfsio][:ios][:r]),
-        humanize_data(ct[:zfsio][:bytes][:w]),
-        humanize_number(ct[:zfsio][:ios][:w]),
-        humanize_data(rt? ? ct[:tx][:bytes] * 8 : ct[:tx][:bytes]),
-        humanize_data(ct[:tx][:packets]),
-        humanize_data(rt? ? ct[:rx][:bytes] * 8 : ct[:rx][:bytes]),
-        humanize_data(ct[:rx][:packets]),
-        format_loadavg(ct[:loadavg][0]),
-        format_loadavg(ct[:loadavg][1]),
-        format_loadavg(ct[:loadavg][2]),
-      ])
+                       cpu,
+                       humanize_data(ct[:memory]),
+                       ct[:nproc],
+                       humanize_data(ct[:zfsio][:bytes][:r]),
+                       humanize_number(ct[:zfsio][:ios][:r]),
+                       humanize_data(ct[:zfsio][:bytes][:w]),
+                       humanize_number(ct[:zfsio][:ios][:w]),
+                       humanize_data(rt? ? ct[:tx][:bytes] * 8 : ct[:tx][:bytes]),
+                       humanize_data(ct[:tx][:packets]),
+                       humanize_data(rt? ? ct[:rx][:bytes] * 8 : ct[:rx][:bytes]),
+                       humanize_data(ct[:rx][:packets]),
+                       format_loadavg(ct[:loadavg][0]),
+                       format_loadavg(ct[:loadavg][1]),
+                       format_loadavg(ct[:loadavg][2])
+                     ])
     end
 
     def print_row_data(values)
-      fmts = %w(%9s %8s %6s %6s %6s %6s %6s %6s %6s %6s %6s %5s %5s %5s)
+      fmts = %w[%9s %8s %6s %6s %6s %6s %6s %6s %6s %6s %6s %5s %5s %5s]
       w = 15 # container ID is printed in {#print_row}
 
       fmts.zip(values).each_with_index do |pair, i|
         f, v = pair
-        s = sprintf("#{f} ", v)
+        s = format("#{f} ", v)
         w += s.length
 
         Curses.attron(Curses::A_BOLD) if i == @sort_index
@@ -495,74 +492,80 @@ module OsCtl::Cli::Top
       Curses.setpos(Curses.lines - pos, 0)
       pos -= 1
       Curses.addstr('─' * Curses.cols)
-      #Curses.addstr('-' * Curses.cols)
+      # Curses.addstr('-' * Curses.cols)
 
       Curses.setpos(Curses.lines - pos, 0)
       pos -= 1
-      Curses.addstr(sprintf('%-14s ', 'Containers:'))
+      Curses.addstr(format('%-14s ', 'Containers:'))
       print_row_data([
-        rt? ? format_percent(sum(cts, :cpu_usage, false)) \
-            : humanize_time_us(sum(cts, :cpu_us, false)),
-        humanize_data(sum(cts, :memory, false)),
-        sum(cts, :nproc, false),
-        humanize_data(sum(cts, [:zfsio, :bytes, :r], false)),
-        humanize_number(sum(cts, [:zfsio, :ios, :r], false)),
-        humanize_data(sum(cts, [:zfsio, :bytes, :w], false)),
-        humanize_number(sum(cts, [:zfsio, :ios, :w], false)),
-        humanize_data(sum(cts, [:tx, :bytes], false) * (rt? ? 8 : 1)),
-        humanize_data(sum(cts, [:tx, :packets], false)),
-        humanize_data(sum(cts, [:rx, :bytes], false) * (rt? ? 8 : 1)),
-        humanize_data(sum(cts, [:rx, :packets], false)),
-        format_loadavg(sum(cts, [:loadavg, 0], false)),
-        format_loadavg(sum(cts, [:loadavg, 1], false)),
-        format_loadavg(sum(cts, [:loadavg, 2], false)),
-      ])
+                       if rt?
+                         format_percent(sum(cts, :cpu_usage, false))
+                       else
+                         humanize_time_us(sum(cts, :cpu_us, false))
+                       end,
+                       humanize_data(sum(cts, :memory, false)),
+                       sum(cts, :nproc, false),
+                       humanize_data(sum(cts, %i[zfsio bytes r], false)),
+                       humanize_number(sum(cts, %i[zfsio ios r], false)),
+                       humanize_data(sum(cts, %i[zfsio bytes w], false)),
+                       humanize_number(sum(cts, %i[zfsio ios w], false)),
+                       humanize_data(sum(cts, %i[tx bytes], false) * (rt? ? 8 : 1)),
+                       humanize_data(sum(cts, %i[tx packets], false)),
+                       humanize_data(sum(cts, %i[rx bytes], false) * (rt? ? 8 : 1)),
+                       humanize_data(sum(cts, %i[rx packets], false)),
+                       format_loadavg(sum(cts, [:loadavg, 0], false)),
+                       format_loadavg(sum(cts, [:loadavg, 1], false)),
+                       format_loadavg(sum(cts, [:loadavg, 2], false))
+                     ])
 
       Curses.setpos(Curses.lines - pos, 0)
       pos -= 1
-      Curses.addstr(sprintf('%-14s ', 'All:'))
+      Curses.addstr(format('%-14s ', 'All:'))
       print_row_data([
-        rt? ? format_percent(sum(cts, :cpu_usage, true)) \
-            : humanize_time_us(sum(cts, :cpu_us, true)),
-        humanize_data(sum(cts, :memory, true)),
-        sum(cts, :nproc, true),
-        humanize_data(sum(cts, [:zfsio, :bytes, :r], true)),
-        humanize_number(sum(cts, [:zfsio, :ios, :r], true)),
-        humanize_data(sum(cts, [:zfsio, :bytes, :w], true)),
-        humanize_number(sum(cts, [:zfsio, :ios, :w], true)),
-        humanize_data(sum(cts, [:tx, :bytes], true) * (rt? ? 8 : 1)),
-        humanize_data(sum(cts, [:tx, :packets], true)),
-        humanize_data(sum(cts, [:rx, :bytes], true) * (rt? ? 8 : 1)),
-        humanize_data(sum(cts, [:rx, :packets], true)),
-        data[:loadavg] ? format_loadavg(data[:loadavg][0]) : '-',
-        data[:loadavg] ? format_loadavg(data[:loadavg][1]) : '-',
-        data[:loadavg] ? format_loadavg(data[:loadavg][2]) : '-',
-      ])
+                       if rt?
+                         format_percent(sum(cts, :cpu_usage, true))
+                       else
+                         humanize_time_us(sum(cts, :cpu_us, true))
+                       end,
+                       humanize_data(sum(cts, :memory, true)),
+                       sum(cts, :nproc, true),
+                       humanize_data(sum(cts, %i[zfsio bytes r], true)),
+                       humanize_number(sum(cts, %i[zfsio ios r], true)),
+                       humanize_data(sum(cts, %i[zfsio bytes w], true)),
+                       humanize_number(sum(cts, %i[zfsio ios w], true)),
+                       humanize_data(sum(cts, %i[tx bytes], true) * (rt? ? 8 : 1)),
+                       humanize_data(sum(cts, %i[tx packets], true)),
+                       humanize_data(sum(cts, %i[rx bytes], true) * (rt? ? 8 : 1)),
+                       humanize_data(sum(cts, %i[rx packets], true)),
+                       data[:loadavg] ? format_loadavg(data[:loadavg][0]) : '-',
+                       data[:loadavg] ? format_loadavg(data[:loadavg][1]) : '-',
+                       data[:loadavg] ? format_loadavg(data[:loadavg][2]) : '-'
+                     ])
 
       if model_thread.iostat_enabled?
         iostat = data[:zfs] && data[:zfs][:iostat]
 
         Curses.setpos(Curses.lines - pos, 0)
         pos -= 1
-        Curses.addstr(sprintf('%-14s ', 'iostat:'))
+        Curses.addstr(format('%-14s ', 'iostat:'))
 
         if iostat
           print_row_data([
-            '-',
-            '-',
-            '-',
-            humanize_data(iostat[:bytes_read]),
-            humanize_data(iostat[:io_read]),
-            humanize_data(iostat[:bytes_written]),
-            humanize_data(iostat[:io_written]),
-            '-',
-            '-',
-            '-',
-            '-',
-            '-',
-            '-',
-            '-',
-          ])
+                           '-',
+                           '-',
+                           '-',
+                           humanize_data(iostat[:bytes_read]),
+                           humanize_data(iostat[:io_read]),
+                           humanize_data(iostat[:bytes_written]),
+                           humanize_data(iostat[:io_written]),
+                           '-',
+                           '-',
+                           '-',
+                           '-',
+                           '-',
+                           '-',
+                           '-'
+                         ])
         end
       end
 
@@ -594,14 +597,14 @@ module OsCtl::Cli::Top
       end
 
       offset, view_count, ct_count = ct_view
-      page = sprintf('[%d-%d/%d]', offset + 1, offset + view_count, ct_count)
+      page = format('[%d-%d/%d]', offset + 1, offset + view_count, ct_count)
 
       Curses.setpos(Curses.lines - pos, Curses.cols - page.length)
       Curses.addstr(page)
 
-      if search_in_focus?
-        Curses.setpos(Curses.lines - pos, search_msg.length)
-      end
+      return unless search_in_focus?
+
+      Curses.setpos(Curses.lines - pos, search_msg.length)
     end
 
     def get_data
@@ -641,20 +644,20 @@ module OsCtl::Cli::Top
       ret = []
       ret << (rt? ? :cpu_usage : :cpu_us)
       ret.concat([
-        :memory,
-        :nproc,
-        [:zfsio, :bytes, :r],
-        [:zfsio, :ios, :r],
-        [:zfsio, :bytes, :w],
-        [:zfsio, :ios, :w],
-        [:tx, :bytes],
-        [:tx, :packets],
-        [:rx, :bytes],
-        [:rx, :packets],
-        [:loadavg, 0],
-        [:loadavg, 1],
-        [:loadavg, 2],
-      ])
+                   :memory,
+                   :nproc,
+                   %i[zfsio bytes r],
+                   %i[zfsio ios r],
+                   %i[zfsio bytes w],
+                   %i[zfsio ios w],
+                   %i[tx bytes],
+                   %i[tx packets],
+                   %i[rx bytes],
+                   %i[rx packets],
+                   [:loadavg, 0],
+                   [:loadavg, 1],
+                   [:loadavg, 2]
+                 ])
     end
 
     def run_sort
@@ -671,18 +674,16 @@ module OsCtl::Cli::Top
       if @current_row
         new_row = @current_row - 1
 
-        if new_row >= 0
-          @current_row = new_row
+        @current_row = if new_row >= 0
+                         new_row
 
-        elsif new_row == -1
-          @current_row = nil
+                       elsif new_row == -1
+                         nil
 
-        elsif last_data[:containers].any?
-          @current_row = last_row
+                       elsif last_data[:containers].any?
+                         last_row
 
-        else
-          @current_row = nil
-        end
+                       end
 
       elsif last_data[:containers].any?
         @current_row = last_row
@@ -693,15 +694,13 @@ module OsCtl::Cli::Top
       if @current_row
         new_row = @current_row + 1
 
-        if new_row < last_data[:containers].size && new_row < max_rows
-          @current_row = new_row
+        @current_row = if new_row < last_data[:containers].size && new_row < max_rows
+                         new_row
 
-        elsif last_data[:containers].any?
-          @current_row = 0
+                       elsif last_data[:containers].any?
+                         0
 
-        else
-          @current_row = nil
-        end
+                       end
 
       elsif last_data[:containers].any?
         @current_row = 0
@@ -725,11 +724,11 @@ module OsCtl::Cli::Top
     end
 
     def selection_open_top
-      selection_open_program { %w(top) }
+      selection_open_program { %w[top] }
     end
 
     def selection_open_htop
-      selection_open_program { %w(htop) }
+      selection_open_program { %w[htop] }
     end
 
     def selection_open_program(&block)
@@ -749,7 +748,7 @@ module OsCtl::Cli::Top
 
           sys.setns_path(
             File.join('/proc', ct[:init_pid].to_s, 'ns/pid'),
-            OsCtl::Lib::Sys::CLONE_NEWPID,
+            OsCtl::Lib::Sys::CLONE_NEWPID
           )
           sys.unshare_ns(OsCtl::Lib::Sys::CLONE_NEWNS)
 
@@ -782,9 +781,9 @@ module OsCtl::Cli::Top
     def view_page_down
       @view_page += 1
 
-      if @view_page_max && @view_page > @view_page_max
-        @view_page = @view_page_max
-      end
+      return unless @view_page_max && @view_page > @view_page_max
+
+      @view_page = @view_page_max
     end
 
     def view_page_up
@@ -834,10 +833,6 @@ module OsCtl::Cli::Top
 
     def search_chop
       @search_string.chop!
-    end
-
-    def search_string
-      @search_string
     end
 
     def sum(cts, field, host)
@@ -890,7 +885,7 @@ module OsCtl::Cli::Top
           '%4.0f'
         end
 
-      sprintf(fmt, lavg)
+      format(fmt, lavg)
     end
 
     def bold
@@ -916,7 +911,7 @@ module OsCtl::Cli::Top
         end
       end
 
-      m = res.match /(?<row>\d+);(?<column>\d+)/
+      m = res.match(/(?<row>\d+);(?<column>\d+)/)
       [m[:column].to_i, m[:row].to_i]
     end
 

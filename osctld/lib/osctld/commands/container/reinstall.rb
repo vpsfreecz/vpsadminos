@@ -10,7 +10,7 @@ module OsCtld
 
     def find
       ct = DB::Containers.find(opts[:id], opts[:pool])
-      ct || error!("container not found")
+      ct || error!('container not found')
     end
 
     def execute(ct)
@@ -87,12 +87,12 @@ module OsCtld
 
         ok
       end
-
     ensure
       fh && fh.close
     end
 
     protected
+
     def snapshots(ct)
       zfs(:list, '-H -r -d 1 -o name -t snapshot', ct.dataset).output.split("\n")
     end

@@ -51,13 +51,14 @@ module OsCtl::ExportFS
 
     def save
       server.synchronize do
-        regenerate_file(path, 0644) do |new|
+        regenerate_file(path, 0o644) do |new|
           new.write(OsCtl::Lib::ConfigFile.dump_yaml(dump))
         end
       end
     end
 
     protected
+
     def read_config
       data = server.synchronize { OsCtl::Lib::ConfigFile.load_yaml_file(path) }
       @netif = data['netif']
@@ -81,7 +82,7 @@ module OsCtl::ExportFS
         'mountd_port' => mountd_port,
         'lockd_port' => lockd_port,
         'statd_port' => statd_port,
-        'exports' => exports.dump,
+        'exports' => exports.dump
       }
     end
   end

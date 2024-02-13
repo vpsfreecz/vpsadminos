@@ -28,7 +28,7 @@ module OsCtld
 
           recovery.cleanup_netifs do |veth, routes|
             progress(
-              "#{veth}: "+(routes.map{ |v| v.addr.to_string}.join(' '))
+              "#{veth}: " + routes.map { |v| v.addr.to_string }.join(' ')
             )
           end
         end

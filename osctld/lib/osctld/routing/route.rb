@@ -44,7 +44,7 @@ module OsCtld
     # Dump to config
     def dump
       if via
-        {'address' => addr.to_string, 'via' => via.to_s}
+        { 'address' => addr.to_string, 'via' => via.to_s }
       else
         addr.to_string
       end
@@ -52,7 +52,7 @@ module OsCtld
 
     # Export to clients
     def export
-      {address: addr, via: via}
+      { address: addr, via: }
     end
   end
 end

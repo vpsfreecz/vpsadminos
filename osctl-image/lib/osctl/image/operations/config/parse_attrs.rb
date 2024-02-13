@@ -33,13 +33,13 @@ module OsCtl::Image
         File.join(base_dir, 'bin', 'config'),
         type.to_s,
         'show',
-        name,
+        name
       ].join(' ')).output.split("\n").each do |line|
         eq = line.index('=')
         next if eq.nil?
 
-        var = line[0..eq-1]
-        val = line[eq+1..-1]
+        var = line[0..eq - 1]
+        val = line[eq + 1..-1]
 
         next if val.empty?
 

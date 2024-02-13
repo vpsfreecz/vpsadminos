@@ -20,7 +20,7 @@ module OsCtld
     MIGRATION_DS = 'migration'
     TRASH_BIN_DS = 'trash'
 
-    OPTIONS = %i(parallel_start parallel_stop)
+    OPTIONS = %i[parallel_start parallel_stop]
 
     include Lockable
     include Manipulable
@@ -31,7 +31,7 @@ module OsCtld
     include OsCtl::Lib::Utils::Exception
 
     attr_reader :name, :dataset, :state, :send_receive_key_chain, :autostart_plan,
-      :autostop_plan, :trash_bin, :attrs
+                :autostop_plan, :trash_bin, :attrs
 
     def initialize(name, dataset)
       init_lock
@@ -72,49 +72,49 @@ module OsCtld
           desc: 'Contains container root filesystems',
           user: 0,
           group: 0,
-          mode: 0511
+          mode: 0o511
         )
         add.dataset(
           ds(CONF_DS),
           desc: 'Configuration files',
           user: 0,
           group: 0,
-          mode: 0500
+          mode: 0o500
         )
         add.dataset(
           ds(HOOK_DS),
           desc: 'User supplied script hooks',
           user: 0,
           group: 0,
-          mode: 0500
+          mode: 0o500
         )
         add.dataset(
           ds(LOG_DS),
           desc: 'Container log files, pool history',
           user: 0,
           group: 0,
-          mode: 0511
+          mode: 0o511
         )
         add.dataset(
           ds(REPOSITORY_DS),
           desc: 'Local image repository cache',
           user: Repository::UID,
           group: 0,
-          mode: 0500
+          mode: 0o500
         )
         add.dataset(
           ds(MIGRATION_DS),
           desc: 'Data for OS migrations',
           user: 0,
           group: 0,
-          mode: 0500
+          mode: 0o500
         )
         add.dataset(
           ds(TRASH_BIN_DS),
           desc: 'Trash bin',
           user: 0,
           group: 0,
-          mode: 0500
+          mode: 0o500
         )
 
         # Configs
@@ -123,7 +123,7 @@ module OsCtld
           desc: 'Pool configuration files for osctld',
           user: 0,
           group: 0,
-          mode: 0500
+          mode: 0o500
         )
         add.file(
           config_path,
@@ -135,42 +135,42 @@ module OsCtld
           desc: 'User configuration files for osctld',
           user: 0,
           group: 0,
-          mode: 0500
+          mode: 0o500
         )
         add.directory(
           File.join(conf_path, 'group'),
           desc: 'Group configuration files for osctld',
           user: 0,
           group: 0,
-          mode: 0500
+          mode: 0o500
         )
         add.directory(
           File.join(conf_path, 'ct'),
           desc: 'Container configuration files for osctld',
           user: 0,
           group: 0,
-          mode: 0500
+          mode: 0o500
         )
         add.directory(
           File.join(conf_path, 'send-receive'),
           desc: 'Identity and authorized keys for container send/receive',
           user: 0,
           group: 0,
-          mode: 0500
+          mode: 0o500
         )
         add.directory(
           File.join(conf_path, 'repository'),
           desc: 'Repository configuration files for osctld',
           user: 0,
           group: 0,
-          mode: 0500
+          mode: 0o500
         )
         add.directory(
           File.join(conf_path, 'id-range'),
           desc: 'ID range configuration files for osctld',
           user: 0,
           group: 0,
-          mode: 0500
+          mode: 0o500
         )
 
         # Logs
@@ -207,42 +207,42 @@ module OsCtld
           desc: 'Runtime configuration',
           user: 0,
           group: 0,
-          mode: 0711
+          mode: 0o711
         )
         add.directory(
           user_dir,
           desc: 'Contains user homes and LXC configuration',
           user: 0,
           group: 0,
-          mode: 0511
+          mode: 0o511
         )
         add.directory(
           ct_dir,
           desc: 'Contains runtime container state data',
           user: 0,
           group: 0,
-          mode: 0700
+          mode: 0o700
         )
         add.directory(
           console_dir,
           desc: 'Sockets for container consoles',
           user: 0,
           group: 0,
-          mode: 0711
+          mode: 0o711
         )
         add.directory(
           hook_dir,
           desc: 'Container hooks',
           user: 0,
           group: 0,
-          mode: 0711
+          mode: 0o711
         )
         add.directory(
           mount_dir,
           desc: 'Mount helper directories for containers',
           user: 0,
           group: 0,
-          mode: 0711
+          mode: 0o711
         )
 
         if AppArmor.enabled?
@@ -251,7 +251,7 @@ module OsCtld
             desc: 'AppArmor files',
             user: 0,
             group: 0,
-            mode: 0700
+            mode: 0o700
           )
 
           AppArmor.assets(add, pool)
@@ -262,7 +262,7 @@ module OsCtld
           desc: 'Contains runtime container auto-start state',
           user: 0,
           group: 0,
-          mode: 0700
+          mode: 0o700
         )
 
         autostart_plan.assets(add) if autostart_plan
@@ -343,7 +343,7 @@ module OsCtld
           attrs.update(v)
 
         else
-          fail "unsupported option '#{k}'"
+          raise "unsupported option '#{k}'"
         end
       end
 
@@ -374,11 +374,11 @@ module OsCtld
 
     def autostart(force: false)
       Hook.run(self, :pre_autostart)
-      autostart_plan.start(force: force)
+      autostart_plan.start(force:)
     end
 
     def autostop_and_wait(message: nil, client_handler: nil)
-      autostop_plan.start(message: message, client_handler: client_handler)
+      autostop_plan.start(message:, client_handler:)
       autostop_plan.wait
     end
 
@@ -515,6 +515,7 @@ module OsCtld
     end
 
     protected
+
     def load_config
       return unless File.exist?(config_path)
 
@@ -528,7 +529,7 @@ module OsCtld
     def default_opts
       {
         parallel_start: 2,
-        parallel_stop: 4,
+        parallel_stop: 4
       }
     end
 
@@ -544,13 +545,13 @@ module OsCtld
     end
 
     def save_config
-      regenerate_file(config_path, 0400) do |f|
+      regenerate_file(config_path, 0o400) do |f|
         f.write(OsCtl::Lib::ConfigFile.dump_yaml(dump_opts.merge(attrs.dump)))
       end
     end
 
     def mkdatasets
-      log(:info, "Ensuring presence of base datasets and directories")
+      log(:info, 'Ensuring presence of base datasets and directories')
       zfs(:create, '-p', ds(CT_DS))
       zfs(:create, '-p', ds(CONF_DS))
       zfs(:create, '-p', ds(HOOK_DS))
@@ -559,38 +560,38 @@ module OsCtld
       zfs(:create, '-p', ds(MIGRATION_DS))
       zfs(:create, '-p', ds(TRASH_BIN_DS))
 
-      File.chmod(0511, path(CT_DS))
-      File.chmod(0500, path(CONF_DS))
-      File.chmod(0500, path(HOOK_DS))
-      File.chmod(0511, path(LOG_DS))
+      File.chmod(0o511, path(CT_DS))
+      File.chmod(0o500, path(CONF_DS))
+      File.chmod(0o500, path(HOOK_DS))
+      File.chmod(0o511, path(LOG_DS))
 
       File.chown(Repository::UID, 0, path(REPOSITORY_DS))
-      File.chmod(0500, path(REPOSITORY_DS))
+      File.chmod(0o500, path(REPOSITORY_DS))
 
-      File.chmod(0500, path(MIGRATION_DS))
-      File.chmod(0500, path(TRASH_BIN_DS))
+      File.chmod(0o500, path(MIGRATION_DS))
+      File.chmod(0o500, path(TRASH_BIN_DS))
 
       # Configuration directories
-      %w(pool ct group user send-receive repository id-range).each do |dir|
+      %w[pool ct group user send-receive repository id-range].each do |dir|
         path = File.join(conf_path, dir)
-        Dir.mkdir(path, 0500) unless Dir.exist?(path)
+        Dir.mkdir(path, 0o500) unless Dir.exist?(path)
       end
 
       [
         File.join(root_user_hook_script_dir, 'ct'),
         user_hook_script_dir,
-        File.join(log_path, 'ct'),
+        File.join(log_path, 'ct')
       ].each do |path|
         Dir.mkdir(path) unless Dir.exist?(path)
       end
     end
 
     def load_id_ranges
-      log(:info, "Loading ID ranges")
+      log(:info, 'Loading ID ranges')
       DB::IdRanges.setup(self)
 
       Dir.glob(File.join(conf_path, 'id-range', '*.yml')).each do |f|
-        name = File.basename(f)[0..(('.yml'.length+1) * -1)]
+        name = File.basename(f)[0..(('.yml'.length + 1) * -1)]
         next if name == 'default'
 
         range = load_entity('id-range', name) { IdRange.new(self, name) }
@@ -601,10 +602,10 @@ module OsCtld
     end
 
     def load_users
-      log(:info, "Loading users")
+      log(:info, 'Loading users')
 
       Dir.glob(File.join(conf_path, 'user', '*.yml')).each do |f|
-        name = File.basename(f)[0..(('.yml'.length+1) * -1)]
+        name = File.basename(f)[0..(('.yml'.length + 1) * -1)]
         u = load_entity('user', name) { User.new(self, name) }
         next if !u || !check_user_conflict(u)
 
@@ -613,14 +614,15 @@ module OsCtld
     end
 
     def load_groups
-      log(:info, "Loading groups")
+      log(:info, 'Loading groups')
       DB::Groups.setup(self)
 
-      rx = /^#{Regexp.escape(File.join(conf_path, 'group'))}(.*)\/config\.yml$/
+      rx = %r{^#{Regexp.escape(File.join(conf_path, 'group'))}(.*)/config\.yml$}
 
       Dir.glob(File.join(conf_path, 'group', '**', 'config.yml')).each do |file|
         next unless rx =~ file
-        name = $1
+
+        name = ::Regexp.last_match(1)
         next if ['', '/default'].include?(name)
 
         grp = load_entity('group', name) do
@@ -643,16 +645,16 @@ module OsCtld
     end
 
     def load_cts
-      log(:info, "Loading containers")
+      log(:info, 'Loading containers')
 
       ds_cache = OsCtl::Lib::Zfs::DatasetCache.new(
-        OsCtl::Lib::Zfs::Dataset.new(ds(CT_DS)).list(properties: %w(name mountpoint))
+        OsCtl::Lib::Zfs::Dataset.new(ds(CT_DS)).list(properties: %w[name mountpoint])
       )
 
       ep = ExecutionPlan.new
 
       Dir.glob(File.join(conf_path, 'ct', '*.yml')).each do |f|
-        ep << File.basename(f)[0..(('.yml'.length+1) * -1)]
+        ep << File.basename(f)[0..(('.yml'.length + 1) * -1)]
       end
 
       log(:info, "Going to load #{ep.length} containers, #{ep.default_threads} at a time")
@@ -683,15 +685,15 @@ module OsCtld
       end
 
       ep.wait
-      log(:info, "All containers loaded")
+      log(:info, 'All containers loaded')
     end
 
     def load_repositories
-      log(:info, "Loading repositories")
+      log(:info, 'Loading repositories')
       DB::Repositories.setup(self)
 
       Dir.glob(File.join(conf_path, 'repository', '*.yml')).each do |f|
-        name = File.basename(f)[0..(('.yml'.length+1) * -1)]
+        name = File.basename(f)[0..(('.yml'.length + 1) * -1)]
         next if name == 'default'
 
         repo = load_entity('repository', name) { Repository.new(self, name) }
@@ -702,55 +704,52 @@ module OsCtld
     end
 
     def load_entity(type, name)
-      begin
-        return yield
-      rescue ConfigError => e
-        if e.original_exception
-          log(:fatal, "#{type} #{name}: #{e.message}: #{e.original_exception.message} (#{e.original_exception.class})")
-          log(:fatal, denixstorify(e.original_exception.backtrace).join("\n"))
-        else
-          log(:fatal, "Unable to load config of #{type} #{name}: #{e.message}")
-        end
-
-        return nil
+      yield
+    rescue ConfigError => e
+      if e.original_exception
+        log(:fatal, "#{type} #{name}: #{e.message}: #{e.original_exception.message} (#{e.original_exception.class})")
+        log(:fatal, denixstorify(e.original_exception.backtrace).join("\n"))
+      else
+        log(:fatal, "Unable to load config of #{type} #{name}: #{e.message}")
       end
+
+      nil
     end
 
     def runstate
-      Dir.mkdir(run_dir, 0711) unless Dir.exist?(run_dir)
+      Dir.mkdir(run_dir, 0o711) unless Dir.exist?(run_dir)
 
       if Dir.exist?(user_dir)
-        File.chmod(0511, user_dir)
+        File.chmod(0o511, user_dir)
       else
-        Dir.mkdir(user_dir, 0511)
+        Dir.mkdir(user_dir, 0o511)
       end
       File.chown(0, 0, user_dir)
 
       [console_dir, hook_dir, mount_dir].each do |dir|
-        Dir.mkdir(dir, 0711) unless Dir.exist?(dir)
+        Dir.mkdir(dir, 0o711) unless Dir.exist?(dir)
       end
 
       [ct_dir, apparmor_dir, autostart_dir].each do |dir|
-        Dir.mkdir(dir, 0700) unless Dir.exist?(dir)
+        Dir.mkdir(dir, 0o700) unless Dir.exist?(dir)
       end
 
-      %w(
+      %w[
         ct-pre-start
         ct-pre-mount
         ct-post-mount
         ct-autodev
         ct-on-start
         ct-post-stop
-      ).each do |hook|
+      ].each do |hook|
         symlink = OsCtld.hook_run(hook, self)
-        hook_src = OsCtld::hook_src(hook)
+        hook_src = OsCtld.hook_src(hook)
 
         if File.symlink?(symlink)
-          if File.readlink(symlink) == hook_src
-            next
-          else
-            File.unlink(symlink)
-          end
+          next if File.readlink(symlink) == hook_src
+
+          File.unlink(symlink)
+
         end
 
         File.symlink(hook_src, symlink)
@@ -762,7 +761,7 @@ module OsCtld
         if u = DB::Users.by_ugid(user.ugid)
           log(
             :warn,
-            "Unable to load user '#{user.name}': "+
+            "Unable to load user '#{user.name}': " +
             "user/group ID #{user.ugid} already taken by pool '#{u.pool.name}'"
           )
           return false
@@ -773,9 +772,9 @@ module OsCtld
     end
 
     def ensure_limits(ct)
-      if ct.prlimits.contains?('nofile')
-        SystemLimits.ensure_nofile(ct.prlimits['nofile'].hard)
-      end
+      return unless ct.prlimits.contains?('nofile')
+
+      SystemLimits.ensure_nofile(ct.prlimits['nofile'].hard)
     end
 
     def ds(path)

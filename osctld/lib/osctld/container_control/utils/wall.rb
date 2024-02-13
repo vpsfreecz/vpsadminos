@@ -43,9 +43,7 @@ module OsCtld
       # @param path [String] pty device
       # @param message [String]
       def write_to_tty(path, message)
-        File.open(path, 'w') do |f|
-          f.write(message)
-        end
+        File.write(path, message)
       end
     end
   end

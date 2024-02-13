@@ -21,8 +21,8 @@ module OsCtld
     def create_dataset(ds, opts = {})
       zfs_opts = {
         properties: {
-          canmount: 'noauto',
-        },
+          canmount: 'noauto'
+        }
       }
       zfs_opts[:parents] = true if opts[:parents]
 
@@ -50,7 +50,7 @@ module OsCtld
 
       zipped.each do |src_ds, dst_ds|
         progress("Copying dataset #{src_ds.relative_name}")
-        syscmd("zfs send -p -L #{from ? "-i @#{from}" : ''} #{src_ds}@#{snap} "+
+        syscmd("zfs send -p -L #{from ? "-i @#{from}" : ''} #{src_ds}@#{snap} " +
                "| zfs recv -F #{dst_ds}")
       end
 
@@ -62,7 +62,7 @@ module OsCtld
     # @param opts [Hash] options
     # @option opts [String] :distribution
     # @option opts [String] :version
-    def from_local_archive(image, dir, opts = {})
+    def from_local_archive(image, dir, _opts = {})
       progress('Extracting image')
       syscmd("tar -xzf #{image} -C #{dir}")
       shift_dataset
@@ -76,7 +76,7 @@ module OsCtld
       progress('Writing data stream')
 
       commands = [
-        ['tar', '-xOf', image, member],
+        ['tar', '-xOf', image, member]
       ]
 
       case compression
@@ -85,7 +85,7 @@ module OsCtld
       when :off
         # no command
       else
-        fail "unexpected compression type '#{compression}'"
+        raise "unexpected compression type '#{compression}'"
       end
 
       commands << ['zfs', 'recv', '-F', ds.to_s]
@@ -99,8 +99,8 @@ module OsCtld
       Process.wait(pid)
 
       if $?.exitstatus != 0
-        fail "failed to import stream: command '#{command_string}' "+
-             "exited with #{$?.exitstatus}"
+        raise "failed to import stream: command '#{command_string}' " +
+              "exited with #{$?.exitstatus}"
       end
 
       nil
@@ -124,7 +124,7 @@ module OsCtld
       end
 
       if set_opts.empty?
-        fail 'provide uid_map or gid_map'
+        raise 'provide uid_map or gid_map'
       end
 
       zfs(:unmount, nil, ds, valid_rcs: [1])
@@ -153,12 +153,14 @@ module OsCtld
         sleep(1 + i)
       end
 
-      fail 'unable to configure UID/GID mapping'
+      raise 'unable to configure UID/GID mapping'
     end
 
     protected
+
     def progress(msg)
       return unless @builder_opts[:cmd]
+
       @builder_opts[:cmd].send(:progress, msg)
     end
   end

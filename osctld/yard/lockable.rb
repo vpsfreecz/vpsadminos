@@ -6,6 +6,7 @@ class SynchronizedAttributeHandler < YARD::Handlers::Ruby::AttributeHandler
 
   process do
     return if statement.type == :var_ref || statement.type == :vcall
+
     read = true
     write = false
     params = statement.parameters(false).dup
@@ -14,8 +15,8 @@ class SynchronizedAttributeHandler < YARD::Handlers::Ruby::AttributeHandler
     case statement.method_name(true)
     when :attr
       # In the case of 'attr', the second parameter (if given) isn't a symbol.
-      if params.size == 2
-        write = true if params.pop == s(:var_ref, s(:kw, "true"))
+      if params.size == 2 && (params.pop == s(:var_ref, s(:kw, 'true')))
+        write = true
       end
     when :attr_synchronized_accessor
       write = true
@@ -28,10 +29,10 @@ class SynchronizedAttributeHandler < YARD::Handlers::Ruby::AttributeHandler
 
     # Add all attributes
     validated_attribute_names(params).each do |name|
-      namespace.attributes[scope][name] ||= SymbolHash[:read => nil, :write => nil]
+      namespace.attributes[scope][name] ||= SymbolHash[read: nil, write: nil]
 
       # Show their methods as well
-      {:read => name, :write => "#{name}="}.each do |type, meth|
+      { read: name, write: "#{name}=" }.each do |type, meth|
         if type == :read ? read : write
           o = MethodObject.new(namespace, meth, scope)
           if type == :write
@@ -52,7 +53,7 @@ class SynchronizedAttributeHandler < YARD::Handlers::Ruby::AttributeHandler
           # Regsiter the object explicitly
           namespace.attributes[scope][name][type] = o
         else
-          obj = namespace.children.find {|other| other.name == meth.to_sym && other.scope == scope }
+          obj = namespace.children.find { |other| other.name == meth.to_sym && other.scope == scope }
 
           # register an existing method as attribute
           namespace.attributes[scope][name][type] = obj if obj

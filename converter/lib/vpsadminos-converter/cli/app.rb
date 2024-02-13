@@ -32,12 +32,12 @@ module VpsAdminOS::Converter::Cli
           c.switch :consistent, default_value: true
 
           c.desc 'Compression'
-          c.flag %i(c compression), must_match: %w(auto off gzip),
-                  default_value: 'gzip'
+          c.flag %i[c compression], must_match: %w[auto off gzip],
+                                    default_value: 'gzip'
 
           vz6_opts(c)
 
-          c.action &Command.run(Vz6::Export, :export)
+          c.action(&Command.run(Vz6::Export, :export))
         end
 
         vz.desc 'Migrate OpenVZ container onto vpsAdminOS node'
@@ -46,58 +46,58 @@ module VpsAdminOS::Converter::Cli
           m.arg_name '<id> <dst>'
           m.command :stage do |c|
             c.desc 'SSH port'
-            c.flag %i(p port), type: Integer
+            c.flag %i[p port], type: Integer
 
             vz6_opts(c)
 
-            c.action &Command.run(Vz6::Migrate, :stage)
+            c.action(&Command.run(Vz6::Migrate, :stage))
           end
 
           m.desc 'Step 2., do an initial copy of container rootfs'
           m.arg_name '<id>'
           m.command :sync do |c|
-            c.action &Command.run(Vz6::Migrate, :sync)
+            c.action(&Command.run(Vz6::Migrate, :sync))
           end
 
           m.desc 'Step 3., transfer the container to target node'
           m.arg_name '<id>'
           m.command :transfer do |c|
-            c.action &Command.run(Vz6::Migrate, :transfer)
+            c.action(&Command.run(Vz6::Migrate, :transfer))
           end
 
           m.desc 'Step 4., cleanup the container on the source node'
           m.arg_name '<id>'
           m.command :cleanup do |c|
             c.desc 'Delete the container'
-            c.switch %i(d delete), default_value: false
+            c.switch %i[d delete], default_value: false
 
-            c.action &Command.run(Vz6::Migrate, :cleanup)
+            c.action(&Command.run(Vz6::Migrate, :cleanup))
           end
 
           m.desc 'Cancel ongoing migration in mid-step'
           m.arg_name '<id>'
           m.command :cancel do |c|
             c.desc 'Cancel the migration on the local node, even if remote fails'
-            c.switch %i(f force), negatable: false
+            c.switch %i[f force], negatable: false
 
-            c.action &Command.run(Vz6::Migrate, :cancel)
+            c.action(&Command.run(Vz6::Migrate, :cancel))
           end
 
           m.desc 'Migrate container at once (equals to steps 1-4 in succession)'
           m.arg_name '<id> <dst>'
           m.command :now do |c|
             c.desc 'SSH port'
-            c.flag %i(p port), type: Integer
+            c.flag %i[p port], type: Integer
 
             c.desc 'Delete the container after migration'
-            c.switch %i(d delete), default_value: false
+            c.switch %i[d delete], default_value: false
 
             c.desc 'Proceed with the migration or ask after successful staging'
-            c.switch %i(y proceed)
+            c.switch %i[y proceed]
 
             vz6_opts(c)
 
-            c.action &Command.run(Vz6::Migrate, :now)
+            c.action(&Command.run(Vz6::Migrate, :now))
           end
         end
       end
@@ -106,15 +106,16 @@ module VpsAdminOS::Converter::Cli
       command :man do |c|
         c.action do
           manpath = File.realpath(File.join(
-            __dir__,
-            '..', '..', '..', 'man'
-          ))
+                                    __dir__,
+                                    '..', '..', '..', 'man'
+                                  ))
           system("man -M #{manpath} vpsadminos-convert")
         end
       end
     end
 
     protected
+
     def vz6_opts(c)
       c.desc "Use when the container's private area is on a ZFS dataset"
       c.switch :zfs
@@ -129,7 +130,7 @@ module VpsAdminOS::Converter::Cli
       c.switch 'zfs-compressed-send', negatable: false
 
       c.desc 'Network interface type'
-      c.flag 'netif-type', must_match: %w(bridge routed), default_value: 'bridge'
+      c.flag 'netif-type', must_match: %w[bridge routed], default_value: 'bridge'
 
       c.desc 'Network interface name within the container'
       c.flag 'netif-name', default_value: 'eth0'

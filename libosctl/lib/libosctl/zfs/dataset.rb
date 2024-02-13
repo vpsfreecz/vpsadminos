@@ -82,11 +82,12 @@ module OsCtl::Lib
       if opts[:parents]
         parents.each do |ds|
           break if Dir.exist?(ds.private_path)
+
           ds.create_private!
         end
       end
 
-      Dir.mkdir(private_path, 0750)
+      Dir.mkdir(private_path, 0o750)
     end
 
     # @param opts [Hash] options
@@ -141,14 +142,15 @@ module OsCtl::Lib
         if !last || last.name != name
           ret << last unless last.nil?
 
-          if opts[:create]
-            last = opts[:create].call(name)
-          else
-            last = self.class.new(name, base: base)
-          end
+          last = if opts[:create]
+                   opts[:create].call(name)
+                 else
+                   self.class.new(name, base:)
+                 end
         end
 
         next if property == 'name'
+
         last.properties[property.to_sym] = value
       end
 
@@ -159,7 +161,7 @@ module OsCtl::Lib
     # @return [String]
     def mountpoint
       if @mountpoint
-        return @mountpoint
+        @mountpoint
 
       elsif properties[:mountpoint]
         @mountpoint = properties[:mountpoint]
@@ -175,7 +177,7 @@ module OsCtl::Lib
       zfs(
         :list,
         "-H -o name,mounted -t filesystem #{recursive ? '-r' : ''}",
-        name,
+        name
       ).output.split("\n").each do |line|
         ds, mounted = line.split
         next if mounted == 'yes'
@@ -190,7 +192,7 @@ module OsCtl::Lib
       zfs(
         :list,
         "-H -o name,mounted -t filesystem #{recursive ? '-r' : ''}",
-        name,
+        name
       ).output.split("\n").reverse_each do |line|
         ds, mounted = line.split
         next if mounted != 'yes'
@@ -218,7 +220,7 @@ module OsCtl::Lib
         nil
 
       else
-        self.class.new(parts[0..-2].join('/'), base: base)
+        self.class.new(parts[0..-2].join('/'), base:)
       end
     end
 
@@ -228,8 +230,8 @@ module OsCtl::Lib
       ret = []
       parts = name.split('/')[0..-2]
 
-      parts.each_with_index do |v, i|
-        ret << self.class.new(parts[0..i].join('/'), base: base)
+      parts.each_with_index do |_v, i|
+        ret << self.class.new(parts[0..i].join('/'), base:)
       end
 
       ret.reverse!
@@ -263,14 +265,14 @@ module OsCtl::Lib
       return @relative_name if @relative_name
 
       @relative_name = if base == name
-        '/'
+                         '/'
 
-      elsif !name.start_with?("#{base}/")
-        fail "invalid base '#{base}' for '#{name}'"
+                       elsif !name.start_with?("#{base}/")
+                         raise "invalid base '#{base}' for '#{name}'"
 
-      else
-        name[(base.length+1)..-1]
-      end
+                       else
+                         name[(base.length + 1)..-1]
+                       end
     end
 
     # Return the dataset's parent relative to the base
@@ -279,10 +281,10 @@ module OsCtl::Lib
       ret = parent
 
       @relative_parent = if ret.name.length < @base.length
-        nil
-      else
-        ret
-      end
+                           nil
+                         else
+                           ret
+                         end
     end
 
     # Return the parents up to the base
@@ -308,7 +310,7 @@ module OsCtl::Lib
     # Export to client
     # @return [Hash]
     def export
-      ret = {name: relative_name, dataset: name}
+      ret = { name: relative_name, dataset: name }
       ret.update(properties)
       ret
     end

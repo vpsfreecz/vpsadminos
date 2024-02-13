@@ -17,10 +17,11 @@ module OsCtld
     end
 
     def prefetch_zfs
-      [[path], %w(mountpoint uidmap gidmap)]
+      [[path], %w[mountpoint uidmap gidmap]]
     end
 
     protected
+
     def validate(run)
       ds = run.dataset_tree[path]
 
@@ -85,7 +86,7 @@ module OsCtld
       st = get_stat
 
       # Extract permission bits, see man inode(7)
-      st ? st.mode & 07777 : nil
+      st ? st.mode & 0o7777 : nil
     end
 
     def make_ugid_map(arr)

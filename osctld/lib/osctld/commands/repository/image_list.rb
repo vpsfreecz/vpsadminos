@@ -14,8 +14,9 @@ module OsCtld
     end
 
     protected
+
     def filter(t)
-      %i(vendor variant arch distribution version).each do |v|
+      %i[vendor variant arch distribution version].each do |v|
         return false if opts[v] && opts[v] != t.send(v)
       end
 

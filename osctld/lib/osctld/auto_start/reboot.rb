@@ -36,8 +36,8 @@ module OsCtld
         desc: 'Contains a list of containers to reboot',
         user: 0,
         group: 0,
-        mode: 0600,
-        optional: true,
+        mode: 0o600,
+        optional: true
       )
     end
 
@@ -93,11 +93,12 @@ module OsCtld
     end
 
     protected
+
     attr_reader :reboot_cts
 
     def save
       exclusively do
-        regenerate_file(state_path, 0600) do |new|
+        regenerate_file(state_path, 0o600) do |new|
           reboot_cts.each { |id| new.puts(id) }
         end
       end

@@ -20,7 +20,8 @@ module OsCtld
 
     # Enqueue item, cannot be called after the execution has been started
     def <<(v)
-      fail 'already in progress' if running?
+      raise 'already in progress' if running?
+
       @queue << v
     end
 
@@ -42,7 +43,7 @@ module OsCtld
     # @param threads [Integer, :all, :half] max number of threads to spawn
     # @yieldparam [v] queued item
     def run(threads: nil, &block)
-      fail 'already in progress' if running?
+      raise 'already in progress' if running?
 
       run_threads = [get_threads(threads), @queue.length].min
 
@@ -66,6 +67,7 @@ module OsCtld
 
       sync do
         next unless @thread
+
         @thread.join
         @thread = nil
       end
@@ -102,6 +104,7 @@ module OsCtld
     end
 
     protected
+
     def work(block)
       while @queue.any?
         v = @queue.shift(block: false)
@@ -120,16 +123,16 @@ module OsCtld
       when :half
         [Etc.nprocessors / 2, 1].max
       else
-        fail "unsupported threads value #{n.inspect}"
+        raise "unsupported threads value #{n.inspect}"
       end
     end
 
-    def sync
+    def sync(&)
       if @mutex.owned?
         yield
 
       else
-        @mutex.synchronize { yield }
+        @mutex.synchronize(&)
       end
     end
   end

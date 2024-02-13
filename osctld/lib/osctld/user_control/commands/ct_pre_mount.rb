@@ -16,10 +16,9 @@ module OsCtld
         ct,
         :pre_mount,
         rootfs_mount: opts[:rootfs_mount],
-        ns_pid: opts[:client_pid],
+        ns_pid: opts[:client_pid]
       )
       ok
-
     rescue HookFailed => e
       error(e.message)
     end

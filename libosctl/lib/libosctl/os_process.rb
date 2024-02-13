@@ -7,9 +7,7 @@ module OsCtl::Lib
     PAGE_SIZE = SysConf.page_size
 
     def self.system_start_time
-      unless @system_start_time
-        @system_start_time = Time.now - File.read('/proc/uptime').strip.split.first.to_i
-      end
+      @system_start_time ||= Time.now - File.read('/proc/uptime').strip.split.first.to_i
 
       @system_start_time
     end
@@ -135,11 +133,13 @@ module OsCtl::Lib
                 break
               end
 
-              next if /^\/osctl\/pool\.([^\/]+)/ !~ path
-              pool = $1
+              next if %r{^/osctl/pool\.([^/]+)} !~ path
 
-              next if /ct\.([^\/]+)\/user\-owned(\/|$)/ !~ path
-              ctid = $1
+              pool = ::Regexp.last_match(1)
+
+              next if %r{ct\.([^/]+)/user-owned(/|$)} !~ path
+
+              ctid = ::Regexp.last_match(1)
 
               return [pool, ctid]
             end
@@ -174,7 +174,7 @@ module OsCtl::Lib
     # @return [String]
     def cmdline
       cache(:cmdline) do
-        volatile { File.read(File.join(path, 'cmdline')).gsub("\0", " ").strip }
+        volatile { File.read(File.join(path, 'cmdline')).gsub("\0", ' ').strip }
       end
     end
 
@@ -185,6 +185,7 @@ module OsCtl::Lib
     end
 
     protected
+
     attr_reader :path, :opts
 
     def parse_stat
@@ -214,8 +215,8 @@ module OsCtl::Lib
           colon = line.index(':')
           next if colon.nil?
 
-          k = line[0..(colon-1)].strip
-          v = line[(colon+1)..-1].strip
+          k = line[0..(colon - 1)].strip
+          v = line[(colon + 1)..-1].strip
 
           case k
           when 'NSpid'

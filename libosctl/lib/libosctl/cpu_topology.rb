@@ -23,6 +23,7 @@ module OsCtl::Lib
     end
 
     protected
+
     def parse
       @packages = {}
       @cpus = {}
@@ -31,8 +32,9 @@ module OsCtl::Lib
       cpu_list = []
 
       Dir.glob(File.join(sys_dir, 'cpu*')).each do |f|
-        next unless /\/cpu(\d+)$/ =~ f
-        cpu_list << $1.to_i
+        next unless %r{/cpu(\d+)$} =~ f
+
+        cpu_list << ::Regexp.last_match(1).to_i
       end
 
       cpu_list.sort.each do |cpu_id|

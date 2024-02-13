@@ -17,7 +17,7 @@ module OsCtl::Lib
       valid_rcs = opts[:valid_rcs] || []
       stderr = opts[:stderr].nil? ? true : opts[:stderr]
 
-      out = ""
+      out = ''
       log(:work, cmd)
 
       IO.popen(
@@ -35,7 +35,6 @@ module OsCtl::Lib
             timeout(opts[:timeout]) do
               out = io.read
             end
-
           rescue Timeout::Error
             if opts[:on_timeout]
               opts[:on_timeout].call(io)
@@ -90,17 +89,14 @@ module OsCtl::Lib
       ret = []
 
       attempts.times do |i|
-        begin
-          return [true, yield]
+        return [true, yield]
+      rescue Exceptions::SystemCommandFailed => e
+        log(:warn, "Attempt #{i + 1} of #{attempts} failed for '#{e.cmd}'")
+        ret << e
 
-        rescue Exceptions::SystemCommandFailed => err
-          log(:warn, "Attempt #{i+1} of #{attempts} failed for '#{err.cmd}'")
-          ret << err
+        break if i == attempts - 1
 
-          break if i == attempts - 1
-
-          sleep(wait)
-        end
+        sleep(wait)
       end
 
       [false, ret]

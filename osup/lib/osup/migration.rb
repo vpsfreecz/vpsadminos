@@ -3,14 +3,14 @@ require 'libosctl'
 module OsUp
   class Migration
     attr_reader :id, :path, :dirname, :name, :summary, :description, :snapshot,
-      :export_pool, :stop_containers
+                :export_pool, :stop_containers
 
     def self.load(path, dirname)
-      if /^(\d+)\-(.+)$/ !~ dirname
-        fail "'#{dirname}' is not a valid migration"
+      if /^(\d+)-(.+)$/ !~ dirname
+        raise "'#{dirname}' is not a valid migration"
       end
 
-      new(path, dirname, $1.to_i, $2.gsub('-', ' ').capitalize)
+      new(path, dirname, ::Regexp.last_match(1).to_i, ::Regexp.last_match(2).gsub('-', ' ').capitalize)
     end
 
     def initialize(path, dirname, id, name)
@@ -30,6 +30,7 @@ module OsUp
     end
 
     protected
+
     def load_spec
       unless File.exist?(spec_path)
         @snapshot = []

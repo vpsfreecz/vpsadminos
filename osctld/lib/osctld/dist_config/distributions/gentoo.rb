@@ -8,7 +8,7 @@ module OsCtld
       def set_hostname(new_hostname, old_hostname: nil)
         # /etc/hostname
         writable?(File.join(rootfs, 'etc', 'conf.d', 'hostname')) do |path|
-          regenerate_file(path, 0644) do |f|
+          regenerate_file(path, 0o644) do |f|
             f.puts('# Set to the hostname of this machine')
             f.puts("hostname=\"#{new_hostname}\"")
           end
@@ -16,21 +16,19 @@ module OsCtld
       end
 
       protected
+
       def network_class
         [
           DistConfig::Network::Netifrc,
-          DistConfig::Network::SystemdNetworkd,
+          DistConfig::Network::SystemdNetworkd
         ]
       end
     end
 
     def apply_hostname
-      begin
-        ct_syscmd(ct, ['hostname', ct.hostname.local])
-
-      rescue SystemCommandFailed => e
-        log(:warn, ct, "Unable to apply hostname: #{e.message}")
-      end
+      ct_syscmd(ct, ['hostname', ct.hostname.local])
+    rescue SystemCommandFailed => e
+      log(:warn, ct, "Unable to apply hostname: #{e.message}")
     end
   end
 end

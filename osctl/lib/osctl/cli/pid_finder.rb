@@ -28,10 +28,11 @@ module OsCtl::Cli
     end
 
     protected
+
     attr_reader :finder
 
     def print(pid, ct, ctpid = '-', name = '-')
-      puts sprintf('%-10s %-20s %-10s %s', pid.to_s, ct, ctpid.to_s, name)
+      puts format('%-10s %-20s %-10s %s', pid.to_s, ct, ctpid.to_s, name)
     end
   end
 end

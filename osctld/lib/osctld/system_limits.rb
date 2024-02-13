@@ -6,10 +6,10 @@ module OsCtld
   # Configurator of system-level resource limits
   class SystemLimits
     FILE_MAX_PATH = '/proc/sys/fs/file-max'
-    FILE_MAX_DEFAULT = 1024*1024
+    FILE_MAX_DEFAULT = 1024 * 1024
 
     class << self
-      %i(ensure_nofile).each do |m|
+      %i[ensure_nofile].each do |m|
         define_method(m) do |*args, &block|
           instance.send(m, *args, &block)
         end
@@ -45,6 +45,7 @@ module OsCtld
     end
 
     protected
+
     attr_reader :values
   end
 end

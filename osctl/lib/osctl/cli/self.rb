@@ -15,7 +15,7 @@ module OsCtl::Cli
       entities = osctld_call(
         :self_healthcheck,
         all: opts[:all],
-        pools: (opts[:all] || args.empty?) ? nil : args
+        pools: opts[:all] || args.empty? ? nil : args
       )
 
       if gopts[:json]
@@ -44,7 +44,6 @@ module OsCtl::Cli
         (0..Float::INFINITY).each do |i|
           begin
             return if do_ping
-
           rescue GLI::CustomExit
             raise if secs > 0 && i >= secs
           end
@@ -52,8 +51,8 @@ module OsCtl::Cli
           sleep(1)
         end
 
-      else
-        puts 'pong' if do_ping
+      elsif do_ping
+        puts 'pong'
       end
     end
 
@@ -74,7 +73,7 @@ module OsCtl::Cli
     end
 
     def activate
-      osctld_fmt(:self_activate, cmd_opts: {system: opts[:system]})
+      osctld_fmt(:self_activate, cmd_opts: { system: opts[:system] })
     end
 
     def shutdown
@@ -85,23 +84,23 @@ module OsCtl::Cli
 
       unless opts[:force]
         STDOUT.write(
-          'Do you really wish to stop all containers and export all pools? '+
+          'Do you really wish to stop all containers and export all pools? ' +
           '[y/N]: '
         )
 
-        if !%w(y yes).include?(STDIN.readline.strip.downcase)
+        unless %w[y yes].include?(STDIN.readline.strip.downcase)
           puts 'Aborting'
           return
         end
       end
 
       # Ensure osctld will shutdown even if it crashes/restarts
-      File.open(SHUTDOWN_MARKER, 'w', 0000){}
+      File.open(SHUTDOWN_MARKER, 'w', 0o000) {}
 
       begin
         osctld_fmt(:self_shutdown, cmd_opts: {
           wall: opts[:wall],
-          message: opts[:message],
+          message: opts[:message]
         })
         return
       rescue OsCtl::Client::Error => e
@@ -116,7 +115,7 @@ module OsCtl::Cli
       (0..3600).each do |i|
         begin
           st = File.stat(SHUTDOWN_MARKER)
-          if st.mode & 0100 == 0100
+          if st.mode & 0o100 == 0o100
             warn ' ok'
             return
           end
@@ -138,13 +137,13 @@ module OsCtl::Cli
     end
 
     protected
+
     def do_ping
       return true if osctld_call(:self_ping) == 'pong'
-      raise GLI::CustomExit.new('unexpected response', 3)
 
+      raise GLI::CustomExit.new('unexpected response', 3)
     rescue Errno::ENOENT
       raise GLI::CustomExit.new('unable to connect', 2)
-
     rescue OsCtl::Client::Error
       raise GLI::CustomExit.new('invalid response', 3)
     end

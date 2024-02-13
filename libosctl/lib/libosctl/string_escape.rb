@@ -17,7 +17,7 @@ module OsCtl::Lib
         elsif /[a-zA-Z0-9:_]/ =~ c
           ret << c
         else
-          ret << "\\x" << c.ord.to_s(16)
+          ret << '\\x' << c.ord.to_s(16)
         end
 
         ret
@@ -34,7 +34,7 @@ module OsCtl::Lib
       escape_seq = nil
 
       ret << str.each_char.inject('') do |acc, c|
-        if c == "\\"
+        if c == '\\'
           acc << escape_seq if escape_seq
           escape_seq = c
 

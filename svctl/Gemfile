@@ -1,7 +1,6 @@
 source 'https://rubygems.org'
 gemspec
 
-
 if ENV.has_key?('OS_BUILD_ID')
   gem 'libosctl', source: 'https://rubygems.vpsfree.cz'
 else

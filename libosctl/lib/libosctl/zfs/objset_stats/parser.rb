@@ -15,6 +15,7 @@ module OsCtl::Lib
     end
 
     protected
+
     def parse_objset(path)
       objset = Zfs::ObjsetStats::Objset.new
 
@@ -43,7 +44,6 @@ module OsCtl::Lib
       end
 
       objset.dataset_name ? objset : nil
-
     rescue Errno::ENOENT
       # The objset file can disappear when datasets are being
       # created/received/destroyed.

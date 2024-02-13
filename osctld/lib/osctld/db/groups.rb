@@ -3,7 +3,7 @@ require 'osctld/db/pooled_list'
 module OsCtld
   class DB::Groups < DB::PooledList
     class << self
-      %i(setup root default by_path).each do |v|
+      %i[setup root default by_path].each do |v|
         define_method(v) do |*args, &block|
           instance.send(v, *args, &block)
         end
@@ -32,60 +32,60 @@ module OsCtld
           root.devices.add_new(
             :char, 1, 3, 'rwm',
             name: '/dev/null',
-            inherit: true,
+            inherit: true
           )
           root.devices.add_new(
             :char, 1, 5, 'rwm',
             name: '/dev/zero',
-            inherit: true,
+            inherit: true
           )
           root.devices.add_new(
             :char, 1, 7, 'rwm',
             name: '/dev/full',
-            inherit: true,
+            inherit: true
           )
           root.devices.add_new(
             :char, 1, 8, 'rwm',
             name: '/dev/random',
-            inherit: true,
+            inherit: true
           )
           root.devices.add_new(
             :char, 1, 9, 'rwm',
             name: '/dev/urandom',
-            inherit: true,
+            inherit: true
           )
           root.devices.add_new(
             :char, 1, 11, 'rwm',
             name: '/dev/kmsg',
-            inherit: true,
+            inherit: true
           )
           root.devices.add_new(
             :char, 5, 0, 'rwm',
             name: '/dev/tty',
-            inherit: true,
+            inherit: true
           )
           root.devices.add_new(
             :char, 5, 1, 'rwm',
-          #  name: '/dev/console', # setup by lxc
-            inherit: true,
+            #  name: '/dev/console', # setup by lxc
+            inherit: true
           )
           root.devices.add_new(
             :char, 5, 2, 'rwm',
-          #  name: '/dev/ptmx', # setup by lxc
-            inherit: true,
+            #  name: '/dev/ptmx', # setup by lxc
+            inherit: true
           )
           root.devices.add_new(
             :char, 136, '*', 'rwm',
-          #  name: '/dev/tty*', # setup by lxc
-            inherit: true,
+            #  name: '/dev/tty*', # setup by lxc
+            inherit: true
           )
           root.devices.add_new(
             :block, '*', '*', 'm',
-            inherit: true,
+            inherit: true
           )
           root.devices.add_new(
             :char, '*', '*', 'm',
-            inherit: true,
+            inherit: true
           )
 
           root.devices.init if CGroup.v2?
@@ -96,7 +96,7 @@ module OsCtld
         root.devices.init
       end
 
-      default, _ = load_or_create(pool, '/default')
+      default, = load_or_create(pool, '/default')
       default.devices.init
     end
 
@@ -128,22 +128,23 @@ module OsCtld
     def by_path(pool, name)
       sync do
         next nil unless @index.has_key?(pool.name)
+
         @index[pool.name][name]
       end
     end
 
     protected
+
     def load_or_create(pool, name, path = nil)
       grp = nil
       root = name == '/'
       created = false
 
       begin
-        grp = Group.new(pool, name, root: root, devices: false)
-
+        grp = Group.new(pool, name, root:, devices: false)
       rescue Errno::ENOENT
-        grp = Group.new(pool, name, load: false, root: root)
-        grp.configure(path: path, devices: false)
+        grp = Group.new(pool, name, load: false, root:)
+        grp.configure(path:, devices: false)
         created = true
       end
 

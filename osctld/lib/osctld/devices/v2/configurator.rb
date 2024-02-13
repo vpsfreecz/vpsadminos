@@ -10,6 +10,7 @@ module OsCtld
     end
 
     protected
+
     # @return [String] relative cgroup path
     def cgroup_path
       raise NotImplementedError
@@ -25,7 +26,7 @@ module OsCtld
         owner.pool.name,
         devices,
         abs_cgroup_path,
-        prog_name: @prog_name,
+        prog_name: @prog_name
       )
     end
 

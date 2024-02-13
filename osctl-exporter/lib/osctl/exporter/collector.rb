@@ -12,16 +12,16 @@ module OsCtl::Exporter
       :require_osctld,
       :interval,
       :collector_instance,
-      :registry,
+      :registry
     )
 
     ThreadConfig = Struct.new(
       :thread,
-      :queue,
+      :queue
     )
 
     class << self
-      %i(start stop).each do |m|
+      %i[start stop].each do |m|
         define_method(m) do
           instance.send(m)
         end
@@ -43,7 +43,7 @@ module OsCtl::Exporter
         CollectorConfig.new(Collectors::ZpoolList, false, 60),
         CollectorConfig.new(Collectors::ZpoolStatus, false, 60),
         CollectorConfig.new(Collectors::CpuScheduler, true, 60),
-        CollectorConfig.new(Collectors::HealthCheck, true, 600),
+        CollectorConfig.new(Collectors::HealthCheck, true, 600)
       ]
 
       @collector_index = {}
@@ -66,7 +66,7 @@ module OsCtl::Exporter
 
         log(
           :info,
-          "Starting collector thread with #{interval} second interval for: "+
+          "Starting collector thread with #{interval} second interval for: " +
           "#{thread_collectors.map { |c| c.collector_class.to_s.split('::').last }.join(', ')}"
         )
 
@@ -108,6 +108,7 @@ module OsCtl::Exporter
     end
 
     protected
+
     attr_reader :threads, :registry, :collectors, :collector_index
 
     def collect(client, thread_collectors)

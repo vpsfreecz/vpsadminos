@@ -45,10 +45,8 @@ module OsCtld
               sys.move_mount(src, opts[:dst])
               puts 'ok:done'
             end
-
-          rescue => e
+          rescue StandardError => e
             puts "error:Exception (#{e.class}): #{e.message}"
-
           ensure
             STDOUT.flush
           end
@@ -64,8 +62,8 @@ module OsCtld
         i = line.index(':')
         return error("invalid return value: #{line.inspect}") unless i
 
-        status = line[0..i-1]
-        msg = line[i+1..-1]
+        status = line[0..i - 1]
+        msg = line[i + 1..-1]
 
         if status == 'ok'
           ok

@@ -16,8 +16,8 @@ module OsCtl::ExportFS
     # Create the service and place it into runsvdir-managed directory
     def start
       server.synchronize do
-        fail 'server is already running' if started?
-        fail 'provide server address' if cfg.address.nil?
+        raise 'server is already running' if started?
+        raise 'provide server address' if cfg.address.nil?
 
         FileUtils.mkdir_p(server.runsv_dir)
         run = File.join(server.runsv_dir, 'run')
@@ -25,10 +25,10 @@ module OsCtl::ExportFS
         ErbTemplate.render_to('runsv', {
           name: server.name,
           address: cfg.address,
-          netif: cfg.netif,
+          netif: cfg.netif
         }, run)
 
-        File.chmod(0755, run)
+        File.chmod(0o755, run)
         File.symlink(server.runsv_dir, service_link)
       end
     end
@@ -37,13 +37,13 @@ module OsCtl::ExportFS
     def stop
       server.synchronize do
         File.unlink(service_link) if File.symlink?(service_link)
-        sleep(1) until !server.running?
+        sleep(1) while server.running?
       end
     end
 
     def restart
       server.synchronize do
-        fail 'provide server address' if cfg.address.nil?
+        raise 'provide server address' if cfg.address.nil?
 
         stop
         sleep(1)
@@ -52,6 +52,7 @@ module OsCtl::ExportFS
     end
 
     protected
+
     attr_reader :server, :cfg
 
     def started?

@@ -13,7 +13,7 @@ module OsCtld
           ok(pool.autostart_plan.queue.map do |cmd|
             {
               id: cmd.id,
-              priority: cmd.priority,
+              priority: cmd.priority
             }
           end)
         else

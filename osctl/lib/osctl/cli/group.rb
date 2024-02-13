@@ -10,7 +10,7 @@ module OsCtl::Cli
     include Assets
     include Attributes
 
-    FIELDS = %i(
+    FIELDS = %i[
       pool
       name
       path
@@ -18,18 +18,18 @@ module OsCtl::Cli
       cpu_limit
       memory_limit
       swap_limit
-    ) + CGroupParams::CGPARAM_STATS
+    ] + CGroupParams::CGPARAM_STATS
 
-    FILTERS = %i(
+    FILTERS = %i[
       pool
-    )
+    ]
 
-    DEFAULT_FIELDS = %i(
+    DEFAULT_FIELDS = %i[
       pool
       name
       memory
       cpu_us
-    )
+    ]
 
     def list
       c = osctld_open
@@ -39,7 +39,7 @@ module OsCtl::Cli
 
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
         all_params: FIELDS + cgparams,
-        default_params: DEFAULT_FIELDS,
+        default_params: DEFAULT_FIELDS
       )
 
       if opts[:list]
@@ -54,25 +54,25 @@ module OsCtl::Cli
         opts: {
           memory_limit: {
             align: 'right',
-            display: Proc.new do |v|
+            display: proc do |v|
               if v.nil? || gopts[:parsable] || gopts[:json]
                 v
               else
                 humanize_data(v)
               end
-            end,
+            end
           },
           swap_limit: {
             align: 'right',
-            display: Proc.new do |v|
+            display: proc do |v|
               if v.nil? || gopts[:parsable] || gopts[:json]
                 v
               else
                 humanize_data(v)
               end
-            end,
-          },
-        },
+            end
+          }
+        }
       }
 
       cmd_opts[:names] = args if args.count > 0
@@ -80,6 +80,7 @@ module OsCtl::Cli
       FILTERS.each do |v|
         [gopts, opts].each do |options|
           next unless options[v]
+
           cmd_opts[v] = options[v].split(',')
         end
       end
@@ -91,7 +92,7 @@ module OsCtl::Cli
 
       groups = cg_add_stats(
         c.cmd_data!(:group_list, **cmd_opts),
-        lambda { |g| g[:full_path] },
+        ->(g) { g[:full_path] },
         cols,
         gopts[:parsable]
       )
@@ -99,7 +100,7 @@ module OsCtl::Cli
 
       cg_add_raw_cgroup_params(
         groups,
-        lambda { |g| g[:full_path] },
+        ->(g) { g[:full_path] },
         cols & cgparams.map(&:to_sym)
       )
 
@@ -119,7 +120,7 @@ module OsCtl::Cli
 
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
         all_params: FIELDS + cgparams,
-        default_params: DEFAULT_FIELDS,
+        default_params: DEFAULT_FIELDS
       )
 
       if opts[:list]
@@ -133,29 +134,29 @@ module OsCtl::Cli
 
       fmt_opts = {
         layout: :rows,
-        cols: cols,
+        cols:,
         opts: {
           memory_limit: {
             align: 'right',
-            display: Proc.new do |v|
+            display: proc do |v|
               if v.nil? || gopts[:parsable] || gopts[:json]
                 v
               else
                 humanize_data(v)
               end
-            end,
+            end
           },
           swap_limit: {
             align: 'right',
-            display: Proc.new do |v|
+            display: proc do |v|
               if v.nil? || gopts[:parsable] || gopts[:json]
                 v
               else
                 humanize_data(v)
               end
-            end,
-          },
-        },
+            end
+          }
+        }
       }
       fmt_opts[:header] = false if opts['hide-header']
 
@@ -184,15 +185,15 @@ module OsCtl::Cli
         name: args[0],
         pool: opts[:pool] || gopts[:pool],
         parents: opts[:parents],
-        cgparams: parse_cgparams,
+        cgparams: parse_cgparams
       }
 
-      osctld_fmt(:group_create, cmd_opts: cmd_opts)
+      osctld_fmt(:group_create, cmd_opts:)
     end
 
     def delete
       require_args!('name')
-      osctld_fmt(:group_delete, cmd_opts: {name: args[0], pool: gopts[:pool]})
+      osctld_fmt(:group_delete, cmd_opts: { name: args[0], pool: gopts[:pool] })
     end
 
     def set_cpu_limit
@@ -210,7 +211,7 @@ module OsCtl::Cli
     end
 
     def set_memory_limit
-      require_args!('name', 'memory', optional: %w(swap))
+      require_args!('name', 'memory', optional: %w[swap])
       do_set_memory(
         :group_cgparam_set,
         :group_cgparam_unset,
@@ -232,9 +233,9 @@ module OsCtl::Cli
       require_args!('name', 'attribute', 'value')
       do_set_attr(
         :group_set,
-        {name: args[0], pool: gopts[:pool]},
+        { name: args[0], pool: gopts[:pool] },
         args[1],
-        args[2],
+        args[2]
       )
     end
 
@@ -242,8 +243,8 @@ module OsCtl::Cli
       require_args!('name', 'attribute')
       do_unset_attr(
         :group_unset,
-        {name: args[0], pool: gopts[:pool]},
-        args[1],
+        { name: args[0], pool: gopts[:pool] },
+        args[1]
       )
     end
 
@@ -283,7 +284,7 @@ module OsCtl::Cli
     end
 
     def device_add
-      require_args!('name', 'type', 'major', 'minor', 'mode', optional: %w(device))
+      require_args!('name', 'type', 'major', 'minor', 'mode', optional: %w[device])
       do_device_add(:group_device_add, name: args[0], pool: gopts[:pool])
     end
 

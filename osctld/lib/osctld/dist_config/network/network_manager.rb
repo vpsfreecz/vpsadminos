@@ -50,6 +50,7 @@ module OsCtld
     end
 
     protected
+
     def do_create_connection(netif)
       tpl_base = File.join('dist_config/network/network_manager')
       ct_base = File.join(rootfs, 'etc', 'NetworkManager/system-connections')
@@ -59,16 +60,16 @@ module OsCtld
 
       OsCtld::ErbTemplate.render_to_if_changed(
         File.join(tpl_base, netif.type.to_s),
-        {netif: netif},
+        { netif: },
         keyfile,
-        perm: 0600,
+        perm: 0o600
       )
     end
 
     def do_remove_connection(name)
       base = File.join(rootfs, 'etc', 'NetworkManager', 'system-connections')
       files = [
-        "#{name}.nmconnection",
+        "#{name}.nmconnection"
       ]
 
       files.each do |f|
@@ -93,8 +94,8 @@ module OsCtld
 
       OsCtld::ErbTemplate.render_to_if_changed(
         File.join('dist_config/network/network_manager/nm_conf'),
-        {netifs: netifs},
-        file,
+        { netifs: },
+        file
       )
     end
 
@@ -107,8 +108,8 @@ module OsCtld
 
       OsCtld::ErbTemplate.render_to_if_changed(
         File.join('dist_config/network/network_manager/udev_rules'),
-        {netifs: netifs},
-        file,
+        { netifs: },
+        file
       )
     end
   end

@@ -1,6 +1,6 @@
 module OsCtld
   class Repository::Image
-    ATTRS = %i(vendor variant arch distribution version tags)
+    ATTRS = %i[vendor variant arch distribution version tags]
     attr_reader :vendor, :variant, :arch, :distribution, :version, :tags
 
     # @param attrs [Hash]

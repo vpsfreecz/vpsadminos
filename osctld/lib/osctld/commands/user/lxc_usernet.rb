@@ -17,6 +17,7 @@ module OsCtld
     end
 
     protected
+
     def generate
       f = File.open("#{LXC_USERNET}.new", 'w')
 

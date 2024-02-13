@@ -11,7 +11,7 @@ module OsCtld
         @@instances[self]
       end
 
-      %i(sync each get count add remove find contains?).each do |v|
+      %i[sync each get count add remove find contains?].each do |v|
         define_method(v) do |*args, &block|
           instance.send(v, *args, &block)
         end
@@ -19,12 +19,14 @@ module OsCtld
     end
 
     private
+
     def initialize
       @mutex = Mutex.new
       @objects = []
     end
 
     public
+
     def sync(&block)
       if @mutex.owned?
         block.call
@@ -94,6 +96,7 @@ module OsCtld
     end
 
     protected
+
     attr_reader :objects
   end
 end

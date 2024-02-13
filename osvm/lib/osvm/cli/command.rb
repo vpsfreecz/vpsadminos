@@ -3,7 +3,7 @@ require 'libosctl'
 module OsVm
   class Cli::Command < OsCtl::Lib::Cli::Command
     def self.run(method)
-      Proc.new do |global_opts, opts, args|
+      proc do |global_opts, opts, args|
         cmd = new(global_opts, opts, args)
         cmd.method(method).call
       end

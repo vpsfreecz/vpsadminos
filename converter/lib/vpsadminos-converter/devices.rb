@@ -26,7 +26,7 @@ module VpsAdminOS::Converter
           'minor' => minor,
           'mode' => mode,
           'name' => name,
-          'inherit' => inherit,
+          'inherit' => inherit
         }
       end
     end

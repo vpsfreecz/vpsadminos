@@ -26,7 +26,7 @@ module OsCtld
         return error('invalid input') unless req.is_a?(Hash)
 
         # For now, allow only ct_autodev
-        if !%w(ct_autodev ct_pre_mount ct_post_mount).include?(req[:cmd])
+        unless %w[ct_autodev ct_pre_mount ct_post_mount].include?(req[:cmd])
           return error('invalid cmd')
         end
 
@@ -54,23 +54,23 @@ module OsCtld
         # uid/gid with the user's uid/gid within user namespace.
         {
           uid: [user.uid_map.ns_to_host(0), uid],
-          gid: [user.gid_map.ns_to_host(0), gid],
+          gid: [user.gid_map.ns_to_host(0), gid]
         }.each do |type, ids|
           expected, got = ids
 
-          if expected != got
-            log(:warn, "Caller's #{type} does not match the located user: "+
-                       "user=#{user.ident}, expected #{type}=#{expected}, "+
-                       "got #{type}=#{got}")
-            return error('invalid user')
-          end
+          next unless expected != got
+
+          log(:warn, "Caller's #{type} does not match the located user: " +
+                     "user=#{user.ident}, expected #{type}=#{expected}, " +
+                     "got #{type}=#{got}")
+          return error('invalid user')
         end
 
         req[:opts].update(client_pid: pid) if req[:opts].is_a?(Hash)
 
         # Forward to a real client handler
         log(:info, "Forwarding request to user #{user.ident}")
-        handler = ClientHandler.new(@sock, user: user)
+        handler = ClientHandler.new(@sock, user:)
         handler.handle_cmd(req)
       end
 
@@ -82,12 +82,12 @@ module OsCtld
     @@instance = nil
 
     def self.instance
-      @@instance = new unless @@instance
+      @@instance ||= new
       @@instance
     end
 
     class << self
-      %i(start_server stop_server stop_all).each do |v|
+      %i[start_server stop_server stop_all].each do |v|
         define_method(v) do |*args, &block|
           instance.send(v, *args, &block)
         end
@@ -95,6 +95,7 @@ module OsCtld
     end
 
     private
+
     def initialize
       @mutex = Mutex.new
       @servers = {}
@@ -103,16 +104,17 @@ module OsCtld
     end
 
     public
+
     def start_server(user)
       sync do
         path = socket_path(user)
         socket = UNIXServer.new(path)
 
         File.chown(0, user.ugid, path)
-        File.chmod(0660, path)
+        File.chmod(0o660, path)
 
         s = Generic::Server.new(socket, ClientHandler, opts: {
-          user: user,
+          user:
         })
         t = Thread.new { s.start }
 
@@ -135,7 +137,7 @@ module OsCtld
         socket = UNIXServer.new(path)
 
         File.chown(0, 0, path)
-        File.chmod(0666, path)
+        File.chmod(0o666, path)
 
         s = Generic::Server.new(socket, NamespacedClientHandler)
         t = Thread.new { s.start }
@@ -146,8 +148,8 @@ module OsCtld
 
     def stop_all
       sync do
-        @servers.each { |user, st| st[0].stop }
-        @servers.each { |user, st| st[1].join }
+        @servers.each { |_user, st| st[0].stop }
+        @servers.each { |_user, st| st[1].join }
       end
 
       s, t = @servers[:namespaced]
@@ -156,8 +158,9 @@ module OsCtld
     end
 
     private
-    def sync
-      @mutex.synchronize { yield }
+
+    def sync(&)
+      @mutex.synchronize(&)
     end
 
     def socket_path(user)

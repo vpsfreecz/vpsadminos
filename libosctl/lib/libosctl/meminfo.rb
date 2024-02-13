@@ -49,15 +49,14 @@ module OsCtl::Lib
     end
 
     protected
+
     def read_param(name)
       if @values.has_key?(name)
         @values[name]
 
       elsif @content =~ /^#{Regexp.escape(name)}:\s*(\d+)\s+kB$/
-        @values[name] = $1.to_i
+        @values[name] = ::Regexp.last_match(1).to_i
 
-      else
-        nil
       end
     end
   end

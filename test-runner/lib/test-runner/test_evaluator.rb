@@ -25,7 +25,7 @@ module TestRunner
           opts[:state_dir],
           opts[:sock_dir],
           default_timeout: opts[:default_timeout],
-          hash_base: test.path,
+          hash_base: test.path
         )
         instance_variable_set(var, m)
 
@@ -62,6 +62,7 @@ module TestRunner
     end
 
     protected
+
     attr_reader :test, :config, :opts
 
     def test_script

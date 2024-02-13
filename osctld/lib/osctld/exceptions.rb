@@ -13,10 +13,10 @@ module OsCtld
     end
   end
 
-  class CommandFailed < StandardError ; end
-  class GroupNotFound < StandardError ; end
-  class CGroupSubsystemNotFound < StandardError ; end
-  class CGroupParameterNotFound < StandardError ; end
+  class CommandFailed < StandardError; end
+  class GroupNotFound < StandardError; end
+  class CGroupSubsystemNotFound < StandardError; end
+  class CGroupParameterNotFound < StandardError; end
 
   class CGroupFileNotFound < StandardError
     def initialize(path, value)
@@ -24,8 +24,8 @@ module OsCtld
     end
   end
 
-  class ImageNotFound < StandardError ; end
-  class ImageRepositoryUnavailable < StandardError ; end
+  class ImageNotFound < StandardError; end
+  class ImageRepositoryUnavailable < StandardError; end
 
   class DeviceNotAvailable < StandardError
     def initialize(dev, grp)
@@ -47,7 +47,7 @@ module OsCtld
     end
   end
 
-  class DeviceInUse < StandardError ; end
+  class DeviceInUse < StandardError; end
 
   class DeviceInheritNeeded < DeviceInUse
     # @param entity [Devices::Owner]
@@ -56,11 +56,11 @@ module OsCtld
     end
   end
 
-  class MountNotFound < StandardError ; end
+  class MountNotFound < StandardError; end
 
-  class MountInvalid < StandardError ; end
+  class MountInvalid < StandardError; end
 
-  class UnmountError < StandardError ; end
+  class UnmountError < StandardError; end
 
   class HookFailed < StandardError
     # @param hook [Hook::Base]
@@ -71,7 +71,7 @@ module OsCtld
     end
   end
 
-  class PoolExists < StandardError ; end
+  class PoolExists < StandardError; end
 
   class PoolUpgradeError < StandardError
     attr_reader :pool, :exception

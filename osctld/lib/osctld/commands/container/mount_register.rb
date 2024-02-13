@@ -30,9 +30,10 @@ module OsCtld
     end
 
     protected
-    def lock(ct)
+
+    def lock(ct, &)
       if opts[:lock]
-        manipulate(ct) { yield }
+        manipulate(ct, &)
 
       else
         yield

@@ -40,6 +40,7 @@ module OsCtl::Cli
 
         each_pair do |k, v|
           next if k == :idle
+
           sum += v
         end
 
@@ -48,6 +49,7 @@ module OsCtl::Cli
 
       def total
         return @total if @total
+
         @total = reduce(:+)
       end
     end
@@ -102,6 +104,7 @@ module OsCtl::Cli
     end
 
     protected
+
     attr_reader :iostat_reader
 
     def measure_host_cpu_hz
@@ -117,7 +120,7 @@ module OsCtl::Cli
     def measure_zfs
       @zfs << {
         arcstats: Top::ArcStats.new,
-        iostat: iostat_reader && iostat_reader.current_all,
+        iostat: iostat_reader && iostat_reader.current_all
       }
       @zfs.shift if @zfs.size > 2
     end
@@ -131,7 +134,7 @@ module OsCtl::Cli
     def diff_zfs(current, previous)
       {
         arcstats: diff_arcstats(current[:arcstats], previous[:arcstats]),
-        iostat: current[:iostat] && get_iostat(current[:iostat]),
+        iostat: current[:iostat] && get_iostat(current[:iostat])
       }
     end
 
@@ -144,14 +147,14 @@ module OsCtl::Cli
           c: current.c,
           size: current.size,
           hit_rate: current.hit_rate(previous),
-          misses: current.misses(previous),
+          misses: current.misses(previous)
         },
         l2arc: {
           size: current.l2_size,
           asize: current.l2_asize,
           hit_rate: current.l2_hit_rate(previous),
-          misses: current.l2_misses(previous),
-        },
+          misses: current.l2_misses(previous)
+        }
       }
     end
 
@@ -160,7 +163,7 @@ module OsCtl::Cli
         io_read: current.io_read,
         io_written: current.io_written,
         bytes_read: current.bytes_read,
-        bytes_written: current.bytes_written,
+        bytes_written: current.bytes_written
       }
     end
   end

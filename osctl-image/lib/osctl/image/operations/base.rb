@@ -1,7 +1,7 @@
 module OsCtl::Image
   class Operations::Base
-    def self.run(*args, **kwargs)
-      op = new(*args, **kwargs)
+    def self.run(*, **)
+      op = new(*, **)
       op.execute
     end
 

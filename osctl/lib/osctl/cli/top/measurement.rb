@@ -4,7 +4,7 @@ require 'osctl/cli/cgroup_params'
 
 module OsCtl::Cli
   class Top::Measurement
-    class Error < StandardError ; end
+    class Error < StandardError; end
 
     include CGroupParams
 
@@ -24,14 +24,13 @@ module OsCtl::Cli
       cg_reader = OsCtl::Lib::CGroup::PathReader.new(subsystems, group_path)
 
       data.update(cg_reader.read_stats(
-        %i(cpu_us cpu_hz memory nproc),
-        true
-      ))
+                    %i[cpu_us cpu_hz memory nproc],
+                    true
+                  ))
 
       add_zfs_io_stats
 
       data.update(netif_stats)
-
     rescue SystemCallError => e
       raise Error, e.message
     end
@@ -41,6 +40,7 @@ module OsCtl::Cli
     end
 
     protected
+
     attr_reader :host, :subsystems, :group_path, :dataset, :netifs
 
     def do_diff_from(other, mine, mode, delta)
@@ -50,15 +50,15 @@ module OsCtl::Cli
         if v.is_a?(Hash)
           ret[k] = do_diff_from(v, mine[k], mode, delta)
 
-        elsif %i(memory nproc).include?(k)
+        elsif %i[memory nproc].include?(k)
           ret[k] = mine[k]
 
         else
-          if mode == :realtime
-            ret[k] = ((mine[k] - v) / delta.to_f).round
-          else
-            ret[k] = mine[k] - v
-          end
+          ret[k] = if mode == :realtime
+                     ((mine[k] - v) / delta.to_f).round
+                   else
+                     mine[k] - v
+                   end
 
           ret[k] = 0 if ret[k] < 0
         end
@@ -68,10 +68,10 @@ module OsCtl::Cli
     end
 
     def netif_stats
-      ret = {tx: {bytes: 0, packets: 0}, rx: {bytes: 0, packets: 0}}
+      ret = { tx: { bytes: 0, packets: 0 }, rx: { bytes: 0, packets: 0 } }
 
       if netifs == :all
-        host.netif_stats.get_stats_for_all.each do |netif, st|
+        host.netif_stats.get_stats_for_all.each do |_netif, st|
           ret[:tx][:bytes] += st[:tx][:bytes]
           ret[:tx][:packets] += st[:tx][:packets]
           ret[:rx][:bytes] += st[:rx][:bytes]
@@ -102,12 +102,12 @@ module OsCtl::Cli
         data[:zfsio] = {
           ios: {
             w: st.write_ios,
-            r: st.read_ios,
+            r: st.read_ios
           },
           bytes: {
             w: st.write_bytes,
-            r: st.read_bytes,
-          },
+            r: st.read_bytes
+          }
         }
       else
         ds = host.objsets[dataset]
@@ -117,17 +117,17 @@ module OsCtl::Cli
           data[:zfsio] = {
             ios: {
               w: st.write_ios,
-              r: st.read_ios,
+              r: st.read_ios
             },
             bytes: {
               w: st.write_bytes,
-              r: st.read_bytes,
-            },
+              r: st.read_bytes
+            }
           }
         else
           data[:zfsio] = {
-            ios: {w: 0, r: 0},
-            bytes: {w: 0, r: 0},
+            ios: { w: 0, r: 0 },
+            bytes: { w: 0, r: 0 }
           }
         end
       end

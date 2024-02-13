@@ -18,6 +18,7 @@ module OsCtld
 
       groups.each do |grp|
         next if rx =~ grp
+
         error!("invalid name, allowed format: #{rx.source}")
       end
 
@@ -27,7 +28,6 @@ module OsCtld
       unless opts[:parents]
         begin
           grp.parents
-
         rescue GroupNotFound => e
           error!(e)
         end
@@ -62,7 +62,6 @@ module OsCtld
       end
 
       ok
-
     rescue CGroupSubsystemNotFound, CGroupParameterNotFound => e
       error(e.message)
     end

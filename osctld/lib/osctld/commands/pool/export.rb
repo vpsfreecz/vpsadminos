@@ -49,7 +49,7 @@ module OsCtld
         # Stop all containers
         if opts[:stop_containers]
           progress('Stopping all containers')
-          pool.autostop_and_wait(client_handler: client_handler, message: opts[:message])
+          pool.autostop_and_wait(client_handler:, message: opts[:message])
           check_abort!(pool)
 
           # Verify that all containers are stopped
@@ -59,12 +59,12 @@ module OsCtld
             DB::Containers.get.each do |ct|
               next if ct.pool != pool
 
-              unless %i(staged stopped).include?(ct.state)
-                msg = "Container #{ct.ident} is still #{ct.state}, waiting until stopped"
-                progress(msg)
-                log(:warn, msg)
-                all_stopped = false
-              end
+              next if %i[staged stopped].include?(ct.state)
+
+              msg = "Container #{ct.ident} is still #{ct.state}, waiting until stopped"
+              progress(msg)
+              log(:warn, msg)
+              all_stopped = false
             end
 
             check_abort!(pool)
@@ -89,7 +89,7 @@ module OsCtld
           DB::Users,
           DB::Groups,
           DB::Repositories,
-          DB::IdRanges,
+          DB::IdRanges
         ].each do |klass|
           klass.get.each do |obj|
             next if obj.pool != pool
@@ -153,23 +153,22 @@ module OsCtld
     end
 
     protected
+
     def grab_cts(pool)
       progress('Grabbing all containers')
       cts = DB::Containers.get.select { |ct| ct.pool == pool }
 
       loop do
         cts.delete_if do |ct|
-          begin
-            ct.acquire_manipulation_lock(self)
-            true
-
-          rescue ResourceLocked => e
-            progress(e.message)
-            false
-          end
+          ct.acquire_manipulation_lock(self)
+          true
+        rescue ResourceLocked => e
+          progress(e.message)
+          false
         end
 
         break if cts.empty?
+
         sleep(1)
       end
     end

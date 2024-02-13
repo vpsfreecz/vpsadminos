@@ -45,6 +45,7 @@ module VpsAdminOS::Converter
     end
 
     protected
+
     def export_streams(vz_ct, exporter)
       exporter.dump_rootfs do
         puts '> base stream'
@@ -77,7 +78,6 @@ module VpsAdminOS::Converter
 
       puts '> packing rootfs'
       exporter.pack_rootfs
-
     ensure
       if status[:running] && opts[:consistent]
         puts '> restarting container'
@@ -98,7 +98,6 @@ module VpsAdminOS::Converter
 
       puts '> packing rootfs'
       exporter.pack_rootfs
-
     ensure
       if running
         puts '> restarting container'

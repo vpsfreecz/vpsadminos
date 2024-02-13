@@ -61,6 +61,7 @@ class GarbageCollector
   end
 
   protected
+
   attr_reader :matchers, :images
 
   def read_config(path)
@@ -101,7 +102,7 @@ class GarbageCollector
 end
 
 if ARGV.length != 1
-  warn "Usage: $0 <json config>"
+  warn 'Usage: $0 <json config>'
   exit(false)
 end
 

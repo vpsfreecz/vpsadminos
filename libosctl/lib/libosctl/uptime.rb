@@ -15,6 +15,7 @@ module OsCtl::Lib
     end
 
     protected
+
     def parse(path)
       values = File.read(path).strip.split
 

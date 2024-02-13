@@ -17,7 +17,7 @@ module OsCtl::Lib
       zfs_opts = [
         '-Hp',
         '-o', 'name,property,value',
-        '-t', type,
+        '-t', type
       ]
 
       zfs_opts << '-r' if recursive
@@ -27,7 +27,7 @@ module OsCtl::Lib
         :get,
         zfs_opts.join(' '),
         dataset_names.join(' '),
-        {stderr: false, valid_rcs: ignore_error ? :all : [0]},
+        { stderr: false, valid_rcs: ignore_error ? :all : [0] }
       ).output.strip.split("\n").each do |line|
         dataset, prop, val = line.split("\t")
 

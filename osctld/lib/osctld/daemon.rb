@@ -20,22 +20,21 @@ module OsCtld
         error!("Unsupported command '#{req[:cmd]}'") unless cmd_class
 
         id = Command.get_id
-        Eventd.report(:management, id: id, state: :run, cmd: req[:cmd], opts: req[:opts])
+        Eventd.report(:management, id:, state: :run, cmd: req[:cmd], opts: req[:opts])
 
-        @cmd = cmd = cmd_class.new(req[:opts], id: id, handler: self)
+        @cmd = cmd = cmd_class.new(req[:opts], id:, handler: self)
         ret = cmd.base_execute
 
         if ret.is_a?(Hash) && ret[:status]
-          Eventd.report(:management, id: id, state: :done, cmd: req[:cmd], opts: req[:opts])
+          Eventd.report(:management, id:, state: :done, cmd: req[:cmd], opts: req[:opts])
 
         else
-          Eventd.report(:management, id: id, state: :failed, cmd: req[:cmd], opts: req[:opts])
+          Eventd.report(:management, id:, state: :failed, cmd: req[:cmd], opts: req[:opts])
         end
 
         ret
-
-      rescue => err
-        Eventd.report(:management, id: id, state: :failed, cmd: req[:cmd], opts: req[:opts])
+      rescue StandardError => e
+        Eventd.report(:management, id:, state: :failed, cmd: req[:cmd], opts: req[:opts])
         raise
       end
 
@@ -57,7 +56,7 @@ module OsCtld
     class << self
       # @param config [String] path to config file
       def create(config)
-        fail 'Daemon already instantiated' if @instance
+        raise 'Daemon already instantiated' if @instance
 
         @@instance = new(config)
       end
@@ -77,6 +76,7 @@ module OsCtld
     attr_reader :initialized
 
     private
+
     # @param config_file [String] path to config file
     def initialize(config_file)
       @config = Config.new(config_file)
@@ -108,6 +108,7 @@ module OsCtld
     end
 
     public
+
     def setup
       # Setup /run/osctl
       RunState.create
@@ -120,7 +121,7 @@ module OsCtld
       CpuScheduler.setup
 
       # Increase allowed number of open files
-      PrLimits.set(Process.pid, PrLimits::NOFILE, 131072, 131072)
+      PrLimits.set(Process.pid, PrLimits::NOFILE, 131_072, 131_072)
 
       # Setup shared AppArmor files
       if AppArmor.enabled?
@@ -149,7 +150,7 @@ module OsCtld
       if KernelParams.import_pools?
         autostart = KernelParams.autostart_cts?
 
-        Commands::Pool::Import.run(all: true, autostart: autostart)
+        Commands::Pool::Import.run(all: true, autostart:)
 
         unless autostart
           log(:info, 'Container autostart disabled by kernel parameter')
@@ -183,7 +184,7 @@ module OsCtld
           desc: 'Management socket',
           user: 0,
           group: 0,
-          mode: 0600
+          mode: 0o600
         )
 
         Devices::V2::BpfProgramCache.assets(add)
@@ -195,7 +196,7 @@ module OsCtld
         log(:info, "Listening on control socket at #{SOCKET}")
 
         socket = UNIXServer.new(SOCKET)
-        File.chmod(0600, SOCKET)
+        File.chmod(0o600, SOCKET)
 
         @server = Generic::Server.new(socket, Daemon::ClientHandler)
         @server.start
@@ -229,7 +230,7 @@ module OsCtld
 
     def begin_shutdown
       @abort_shutdown = false
-      File.open(RunState::SHUTDOWN_MARKER, 'w', 0000){}
+      File.open(RunState::SHUTDOWN_MARKER, 'w', 0o000) {}
     end
 
     def abort_shutdown
@@ -243,10 +244,10 @@ module OsCtld
 
     def confirm_shutdown
       unless File.exist?(RunState::SHUTDOWN_MARKER)
-        File.open(RunState::SHUTDOWN_MARKER, 'w', 0100){}
+        File.open(RunState::SHUTDOWN_MARKER, 'w', 0o100) {}
       end
 
-      File.chmod(0100, RunState::SHUTDOWN_MARKER)
+      File.chmod(0o100, RunState::SHUTDOWN_MARKER)
     end
 
     def shutdown?

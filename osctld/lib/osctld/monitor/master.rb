@@ -11,11 +11,11 @@ module OsCtld
 
     class << self
       def instance
-        @@instance = new unless @@instance
+        @@instance ||= new
         @@instance
       end
 
-      %i(monitor demonitor stop).each do |v|
+      %i[monitor demonitor stop].each do |v|
         define_method(v) do |*args, &block|
           instance.send(v, *args, &block)
         end
@@ -23,12 +23,14 @@ module OsCtld
     end
 
     private
+
     def initialize
       @mutex = Mutex.new
       @monitors = {}
     end
 
     public
+
     def monitor(ct)
       sync do
         k = key(ct)
@@ -83,6 +85,7 @@ module OsCtld
     end
 
     private
+
     def handle_monitor(ct)
       loop do
         log(
@@ -129,11 +132,11 @@ module OsCtld
       "#{ct.pool.name}:#{ct.user.name}:#{ct.group.name}"
     end
 
-    def sync
+    def sync(&)
       if @mutex.owned?
         yield
       else
-        @mutex.synchronize { yield }
+        @mutex.synchronize(&)
       end
     end
 
@@ -142,6 +145,7 @@ module OsCtld
         # PID is nil if the thread is starting
         3.times do
           break if entry.pid
+
           sleep(1)
         end
       end

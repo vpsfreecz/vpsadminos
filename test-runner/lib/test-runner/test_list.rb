@@ -11,24 +11,25 @@ module TestRunner
     # Filter through all tests, return those that the filter matched
     # @yieldparam [Test]
     # @return [Array<Test>]
-    def filter(&block)
-      all.select(&block)
+    def filter(&)
+      all.select(&)
     end
 
     # Return one test specified by path
     # @return [Test]
     def by_path(path)
-      parse_one(path, extract(path: path))
+      parse_one(path, extract(path:))
     end
 
     protected
+
     def extract(path: nil)
       cmd = [
         'nix-instantiate',
         '--eval',
         '--json',
         '--strict',
-        '--read-write-mode',
+        '--read-write-mode'
       ]
 
       cmd << '--attr' << "\\\"#{path}\\\"" if path
@@ -37,7 +38,7 @@ module TestRunner
       json = `#{cmd.join(' ')}`
 
       if $?.exitstatus != 0
-        fail "nix-instantiate failed with exit status #{$?.exitstatus}"
+        raise "nix-instantiate failed with exit status #{$?.exitstatus}"
       end
 
       json
@@ -61,7 +62,7 @@ module TestRunner
         args: data[:args],
         name: data[:name],
         description: data[:description],
-        expect_failure: data[:expectFailure],
+        expect_failure: data[:expectFailure]
       )
     end
   end

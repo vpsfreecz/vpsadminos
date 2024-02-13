@@ -20,6 +20,7 @@ module OsCtld
     end
 
     protected
+
     def export(ct, io)
       exporter = OsCtl::Lib::Exporter::Zfs.new(
         ct,

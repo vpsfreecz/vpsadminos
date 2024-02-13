@@ -15,7 +15,7 @@ module OsCtl::Lib
           tf.write(io.read(BLOCK_SIZE)) until io.eof?
         end
 
-        fail "tar failed with exit status #{$?.exitstatus}" if $?.exitstatus != 0
+        raise "tar failed with exit status #{$?.exitstatus}" if $?.exitstatus != 0
       end
     end
 

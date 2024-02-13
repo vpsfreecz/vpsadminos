@@ -3,10 +3,10 @@ require 'require_all'
 module OsCtl
   module ExportFS
     module Operations
-      module Export ; end
-      module Exportfs ; end
-      module Runit ; end
-      module Server ; end
+      module Export; end
+      module Exportfs; end
+      module Runit; end
+      module Server; end
     end
 
     def self.root

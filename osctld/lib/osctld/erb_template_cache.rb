@@ -32,6 +32,7 @@ module OsCtld
     end
 
     protected
+
     attr_reader :templates
   end
 end

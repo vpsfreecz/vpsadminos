@@ -16,7 +16,7 @@ module OsCtld
         desc: 'LXC config',
         user: 0,
         group: 0,
-        mode: 0644
+        mode: 0o644
       )
     end
 
@@ -25,21 +25,21 @@ module OsCtld
         ErbTemplate.render_to('ct/config', {
           distribution: ct.get_run_conf.distribution,
           version: ct.get_run_conf.version,
-          ct: ct,
+          ct:,
           cgparams: ct.cgparams,
           prlimits: ct.prlimits,
           netifs: ct.netifs,
           mounts: ct.mounts.all_entries,
-          raw: ct.raw_configs.lxc,
+          raw: ct.raw_configs.lxc
         }, config_path)
       end
     end
 
-    alias_method :configure_base, :configure
-    alias_method :configure_cgparams, :configure
-    alias_method :configure_prlimits, :configure
-    alias_method :configure_network, :configure
-    alias_method :configure_mounts, :configure
+    alias configure_base configure
+    alias configure_cgparams configure
+    alias configure_prlimits configure
+    alias configure_network configure
+    alias configure_mounts configure
 
     def config_path
       File.join(ct.lxc_dir, 'config')
@@ -53,6 +53,7 @@ module OsCtld
     end
 
     protected
+
     attr_reader :ct
   end
 end

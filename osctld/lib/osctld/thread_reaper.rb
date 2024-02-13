@@ -9,7 +9,7 @@ module OsCtld
   # threads to prematurely exit and waits for all of them to finish their job.
   class ThreadReaper
     class << self
-      %i(start stop add export).each do |m|
+      %i[start stop add export].each do |m|
         define_method(m) do |*args, &block|
           instance.send(m, *args, &block)
         end
@@ -46,6 +46,7 @@ module OsCtld
     end
 
     protected
+
     attr_reader :queue, :thread, :threads, :stop_at
 
     def run
@@ -66,7 +67,7 @@ module OsCtld
           sync { threads << v }
 
         else
-          fail "unknown command '#{v}'"
+          raise "unknown command '#{v}'"
         end
 
         return if do_stop && can_stop?
@@ -75,7 +76,7 @@ module OsCtld
 
     def join_dead_threads
       sync do
-        threads.delete_if { |t, m| !t.alive? && t.join(0.05) }
+        threads.delete_if { |t, _m| !t.alive? && t.join(0.05) }
       end
     end
 
@@ -101,7 +102,7 @@ module OsCtld
           if (Time.now - stop_at) >= 30
             threads.each_with_index do |v, i|
               t, m = v
-              log(:info, 'threadreaper', "Thread ##{i+1}: manager=#{m}")
+              log(:info, 'threadreaper', "Thread ##{i + 1}: manager=#{m}")
               log(:info, 'threadreaper', denixstorify(t.backtrace).join("\n"))
             end
           end
@@ -111,8 +112,8 @@ module OsCtld
       end
     end
 
-    def sync(&block)
-      @mutex.synchronize(&block)
+    def sync(&)
+      @mutex.synchronize(&)
     end
   end
 end

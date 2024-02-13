@@ -1,7 +1,7 @@
 module VpsAdminOS::Converter
   class Container
     attr_accessor :id, :user, :group, :dataset, :rootfs, :distribution, :version,
-      :arch, :hostname, :nesting
+                  :arch, :hostname, :nesting
     attr_reader :dns_resolvers, :netifs, :cgparams, :devices, :autostart
 
     def initialize(id, user, group)
@@ -40,7 +40,7 @@ module VpsAdminOS::Converter
         'autostart' => autostart.dump,
         'hostname' => hostname,
         'dns_resolvers' => dns_resolvers.empty? ? nil : dns_resolvers,
-        'nesting' => nesting,
+        'nesting' => nesting
       }
     end
   end

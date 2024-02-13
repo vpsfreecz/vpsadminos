@@ -7,11 +7,13 @@ module OsCtld
 
     def self.types
       return [] unless @types
+
       @types.keys
     end
 
     def self.for_type(t)
       return unless @types
+
       @types[t]
     end
   end

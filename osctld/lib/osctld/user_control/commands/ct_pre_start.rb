@@ -28,7 +28,7 @@ module OsCtld
         Commands::Container::CGParamApply,
         id: ct.id,
         pool: ct.pool.name,
-        manipulation_lock: 'ignore',
+        manipulation_lock: 'ignore'
       )
       return ret unless ret[:status]
 
@@ -45,7 +45,6 @@ module OsCtld
       Hook.run(ct, :pre_start)
 
       ok
-
     rescue HookFailed => e
       error(e.message)
     end

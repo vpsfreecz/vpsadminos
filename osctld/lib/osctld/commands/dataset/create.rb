@@ -24,7 +24,7 @@ module OsCtld
               properties: {
                 uidmap: ct.uid_map.map(&:to_s).join(','),
                 gidmap: ct.gid_map.map(&:to_s).join(','),
-                canmount: 'noauto',
+                canmount: 'noauto'
               }
             )
             ds.mount
@@ -32,7 +32,6 @@ module OsCtld
 
             created << ds
           end
-
         rescue SystemCommandFailed
           error!('unable to create dataset, perhaps a parent dataset is missing?')
         end
@@ -62,15 +61,16 @@ module OsCtld
     end
 
     protected
+
     def mount(ct, ds, mountpoint)
       call_cmd!(
         Commands::Container::MountDataset,
         id: ct.id,
         pool: ct.pool.name,
         name: ds.relative_name,
-        mountpoint: mountpoint,
+        mountpoint:,
         mode: 'rw',
-        automount: opts[:mount],
+        automount: opts[:mount]
       )
     end
 

@@ -13,7 +13,7 @@ module OsCtl::Cli
 
       else
         klass = Top::Tui
-        kwargs = {enable_procs: opts[:processes]}
+        kwargs = { enable_procs: opts[:processes] }
       end
 
       view = klass.new(model, opts[:rate], **kwargs)

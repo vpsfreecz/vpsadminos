@@ -6,7 +6,7 @@ module OsCtl::Cli
     include OsCtl::Lib::Utils::Humanize
 
     def self.run(klass, method, method_args = [])
-      Proc.new do |global_opts, opts, args|
+      proc do |global_opts, opts, args|
         OsCtl::Lib::Logger.setup(:none)
 
         cmd = klass.new(global_opts, opts, args)
@@ -20,18 +20,18 @@ module OsCtl::Cli
       c
     end
 
-    def osctld_call(cmd, **opts, &block)
+    def osctld_call(cmd, **opts, &)
       c = osctld_open
       opts[:cli] ||= cli_opt
-      ret = c.cmd_data!(cmd, **opts, &block)
+      ret = c.cmd_data!(cmd, **opts, &)
       c.close
       ret
     end
 
-    def osctld_resp(cmd, **opts, &block)
+    def osctld_resp(cmd, **opts, &)
       c = osctld_open
       opts[:cli] ||= cli_opt
-      ret = c.cmd_response(cmd, **opts, &block)
+      ret = c.cmd_response(cmd, **opts, &)
       c.close
       ret
     end
@@ -39,11 +39,11 @@ module OsCtl::Cli
     def osctld_fmt(cmd, cmd_opts: {}, fmt_opts: {}, &block)
       cmd_opts[:cli] ||= cli_opt
 
-      if block
-        ret = osctld_call(cmd, **cmd_opts, &block)
-      else
-        ret = osctld_call(cmd, **cmd_opts) { |msg| puts msg unless gopts[:quiet] }
-      end
+      ret = if block
+              osctld_call(cmd, **cmd_opts, &block)
+            else
+              osctld_call(cmd, **cmd_opts) { |msg| puts msg unless gopts[:quiet] }
+            end
 
       if ret.is_a?(String)
         puts ret
@@ -64,6 +64,7 @@ module OsCtl::Cli
     end
 
     protected
+
     def cli_opt
       "#{File.basename($0)} #{ARGV.join(' ')}"
     end

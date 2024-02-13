@@ -15,7 +15,6 @@ module OsCtld
         ct.mounts.deactivate(opts[:mountpoint])
         ok
       end
-
     rescue MountNotFound
       error!('mount not found')
     end

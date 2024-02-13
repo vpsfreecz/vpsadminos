@@ -3,7 +3,7 @@ require 'libosctl'
 
 module OsCtl::Cli
   class CpuScheduler < Command
-    PACKAGE_FIELDS = %i(
+    PACKAGE_FIELDS = %i[
       id
       cpus
       ncpus
@@ -12,7 +12,7 @@ module OsCtl::Cli
       usage_score
       usage_score_per_cpu
       enabled
-    )
+    ]
 
     def status
       require_args!
@@ -38,7 +38,7 @@ module OsCtl::Cli
       require_args!
 
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
-        all_params: PACKAGE_FIELDS,
+        all_params: PACKAGE_FIELDS
       )
 
       if opts[:list]
@@ -53,9 +53,9 @@ module OsCtl::Cli
         opts: {
           cpus: {
             label: 'CPUS',
-            display: Proc.new { |v| OsCtl::Lib::CpuMask.format(v) },
-          },
-        },
+            display: proc { |v| OsCtl::Lib::CpuMask.format(v) }
+          }
+        }
       }
 
       fmt_opts[:header] = false if opts['hide-header']
@@ -76,12 +76,12 @@ module OsCtl::Cli
 
     def package_enable
       require_args!('package')
-      osctld_fmt(:cpu_scheduler_package_enable, cmd_opts: {package: args[0].to_i})
+      osctld_fmt(:cpu_scheduler_package_enable, cmd_opts: { package: args[0].to_i })
     end
 
     def package_disable
       require_args!('package')
-      osctld_fmt(:cpu_scheduler_package_disable, cmd_opts: {package: args[0].to_i})
+      osctld_fmt(:cpu_scheduler_package_disable, cmd_opts: { package: args[0].to_i })
     end
   end
 end

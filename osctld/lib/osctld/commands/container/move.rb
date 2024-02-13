@@ -6,7 +6,7 @@ module OsCtld
 
     def find
       ct = DB::Containers.find(opts[:id], opts[:pool])
-      ct || error!("container not found")
+      ct || error!('container not found')
     end
 
     def execute(ct)
@@ -18,18 +18,20 @@ module OsCtld
           **opts.merge(consistent: true, restart: false)
         )
 
-        call_cmd!(
-          Commands::Container::Start,
+        if state == :running
+          call_cmd!(
+            Commands::Container::Start,
             id: opts[:target_id],
             pool: opts[:target_pool] || ct.pool.name,
-            force: true,
-        ) if state == :running
+            force: true
+          )
+        end
 
         call_cmd!(
           Commands::Container::Delete,
           id: opts[:id],
           pool: opts[:pool],
-          force: true,
+          force: true
         )
       end
     end

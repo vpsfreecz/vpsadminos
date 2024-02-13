@@ -5,22 +5,22 @@ module OsCtl::Exporter
     def setup
       @osctld_up = registry.gauge(
         :osctld_up,
-        docstring: '1 if osctld is up and running, 0 if it is down',
+        docstring: '1 if osctld is up and running, 0 if it is down'
       )
 
       @osctld_responsive = registry.gauge(
         :osctld_responsive,
-        docstring: '1 if osctld is responding, 0 if not',
+        docstring: '1 if osctld is responding, 0 if not'
       )
 
       @osctld_initialized = registry.gauge(
         :osctld_initialized,
-        docstring: '1 if osctld is initialized, 0 if not',
+        docstring: '1 if osctld is initialized, 0 if not'
       )
 
       @osctld_uptime = registry.gauge(
         :osctld_start_time_seconds,
-        docstring: 'Number of seconds osctld is running for',
+        docstring: 'Number of seconds osctld is running for'
       )
     end
 
@@ -32,7 +32,7 @@ module OsCtl::Exporter
       if client.connected?
         begin
           ping = client.ping?
-        rescue
+        rescue StandardError
           # pass
         end
       end

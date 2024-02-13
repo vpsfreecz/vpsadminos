@@ -9,12 +9,12 @@ module OsCtl::Lib
   # To export the container's rootfs, use either {Exporter::Zfs} or
   # {Exporter::Tar}.
   class Exporter::Base
-    BLOCK_SIZE = 32*1024
-    DIR_MODE = 16877 # 0755
-    FILE_MODE = 33188 # 0644
+    BLOCK_SIZE = 32 * 1024
+    DIR_MODE = 16_877 # 0755
+    FILE_MODE = 33_188 # 0644
 
     class ConfigDump
-      %i(user group container).each do |name|
+      %i[user group container].each do |name|
         define_method(name) do |v = nil|
           var = :"@#{name}"
 
@@ -48,14 +48,14 @@ module OsCtl::Lib
     def dump_metadata(type, opts = {})
       tar.add_file('metadata.yml', FILE_MODE) do |tf|
         tf.write(ConfigFile.dump_yaml(
-          'type' => type,
-          'format' => format.to_s,
-          'user' => opts[:user] || (ct.user && ct.user.name),
-          'group' => opts[:group] || (ct.group && ct.group.name),
-          'container' => opts[:id] || ct.id,
-          'datasets' => datasets.map { |ds| ds.relative_name },
-          'exported_at' => Time.now.to_i,
-        ))
+                   'type' => type,
+                   'format' => format.to_s,
+                   'user' => opts[:user] || (ct.user && ct.user.name),
+                   'group' => opts[:group] || (ct.group && ct.group.name),
+                   'container' => opts[:id] || ct.id,
+                   'datasets' => datasets.map { |ds| ds.relative_name },
+                   'exported_at' => Time.now.to_i
+                 ))
       end
     end
 
@@ -81,7 +81,7 @@ module OsCtl::Lib
         elsif ct.respond_to?(:config_path)
           dump.container(File.read(ct.config_path))
         else
-          fail "don't know how to dump container config"
+          raise "don't know how to dump container config"
         end
       end
 
@@ -97,12 +97,10 @@ module OsCtl::Lib
         end
       end
 
-      if dump.container
-        tar.add_file('config/container.yml', FILE_MODE) do |tf|
-          tf.write(dump.container)
-        end
-      else
-        fail 'container config not set'
+      raise 'container config not set' unless dump.container
+
+      tar.add_file('config/container.yml', FILE_MODE) do |tf|
+        tf.write(dump.container)
       end
     end
 
@@ -118,7 +116,7 @@ module OsCtl::Lib
         slashes = hs.rel_path.count('/')
 
         if slashes > 1
-          fail "unable to export hook at '#{hs.rel_path}': too many sublevels"
+          raise "unable to export hook at '#{hs.rel_path}': too many sublevels"
         elsif slashes == 1
           dir = File.dirname(hs.rel_path)
 
@@ -136,9 +134,10 @@ module OsCtl::Lib
       tar.close
     end
 
-    def format; nil; end
+    def format = nil
 
     protected
+
     attr_reader :ct, :tar, :opts, :datasets, :base_snap
 
     # Add file from disk to the created tar archive

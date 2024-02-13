@@ -11,16 +11,13 @@ module OsCtld
       ct = DB::Containers.find(opts[:id], opts[:pool])
       error!('container not found') unless ct
 
-      if opts[:from_snapshot]
-        from_snapshot =
-          if opts[:from_snapshot].start_with?('@')
-            opts[:from_snapshot][1..-1]
-          else
-            opts[:from_snapshot]
-          end
-      else
-        from_snapshot = nil
-      end
+      from_snapshot = if opts[:from_snapshot]
+                        if opts[:from_snapshot].start_with?('@')
+                          opts[:from_snapshot][1..-1]
+                        else
+                          opts[:from_snapshot]
+                        end
+                      end
 
       manipulate(ct) do
         next error('this container is already being sent') if ct.send_log
@@ -31,25 +28,25 @@ module OsCtld
         export(
           ct,
           f,
-          ctid: ctid,
+          ctid:,
           user: opts[:as_user] || ct.user.name,
           group: opts[:as_group] || ct.group.name,
-          network_interfaces: opts[:network_interfaces],
+          network_interfaces: opts[:network_interfaces]
         )
         f.seek(0)
 
         m_opts = {
-          ctid: ctid,
+          ctid:,
           port: opts[:port] || 22,
           dst: opts[:dst],
           snapshots: opts.fetch(:snapshots, true),
-          from_snapshot: from_snapshot,
-          preexisting_datasets: opts.fetch(:preexisting_datasets, false),
+          from_snapshot:,
+          preexisting_datasets: opts.fetch(:preexisting_datasets, false)
         }
 
         recv_opts = [
           'receive', 'skel',
-          opts[:to_pool] ? opts[:to_pool] : '-'
+          opts[:to_pool] || '-'
         ]
 
         recv_opts << opts[:passphrase] if opts[:passphrase]
@@ -57,12 +54,12 @@ module OsCtld
         ssh = send_ssh_cmd(
           ct.pool.send_receive_key_chain,
           m_opts,
-          recv_opts,
+          recv_opts
         )
         token = nil
 
         IO.popen("exec #{ssh.join(' ')}", 'r+') do |io|
-          io.write(f.readpartial(32*1024)) until f.eof?
+          io.write(f.readpartial(32 * 1024)) until f.eof?
           io.close_write
           token = io.readline.strip
         end
@@ -80,6 +77,7 @@ module OsCtld
     end
 
     protected
+
     # @param ct [Container]
     # @param io [IO]
     # @param opts [Hash]
@@ -93,14 +91,14 @@ module OsCtld
         'skel',
         id: opts[:ctid],
         user: opts[:user],
-        group: opts[:group],
+        group: opts[:group]
       )
       exporter.dump_configs do |dump|
         dump.user(File.read(ct.user.config_path))
         dump.group(File.read(ct.group.config_path))
 
         ct_cfg = ct.dump_config
-        ct_cfg.delete('net_interfaces') if !opts[:network_interfaces]
+        ct_cfg.delete('net_interfaces') unless opts[:network_interfaces]
         ct_cfg['user'] = opts[:user]
         ct_cfg['group'] = opts[:group]
         dump.container(OsCtl::Lib::ConfigFile.dump_yaml(ct_cfg))

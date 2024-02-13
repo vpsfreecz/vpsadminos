@@ -12,14 +12,15 @@ module Sys
     extend Fiddle::Importer
     dlload Fiddle.dlopen(nil)
 
-    extern 'int mount(const char *source, const char *target, '+
-           '          const char *filesystemtype, unsigned long mountflags, '+
+    extern 'int mount(const char *source, const char *target, ' +
+           '          const char *filesystemtype, unsigned long mountflags, ' +
            '          const void *data)'
   end
 
   def self.bind_mount(src, dst)
     ret = Int.mount(src, dst, 0, MS_MGC_VAL | MS_BIND, 0)
     raise SystemCallError, Fiddle.last_error if ret != 0
+
     ret
   end
 end
@@ -36,13 +37,14 @@ class CtPostMount
   end
 
   protected
+
   def call_osctld!
-    s = UNIXSocket.new("/run/osctl/user-control/namespaced.sock")
-    s.puts({cmd: :ct_post_mount, opts: {
+    s = UNIXSocket.new('/run/osctl/user-control/namespaced.sock')
+    s.puts({ cmd: :ct_post_mount, opts: {
       id: @ctid,
       pool: @pool,
-      rootfs_mount: @rootfs,
-    }}.to_json)
+      rootfs_mount: @rootfs
+    } }.to_json)
     ret = JSON.parse(s.readline, symbolize_names: true)
     s.close
 
@@ -55,7 +57,7 @@ class CtPostMount
   end
 end
 
-ctid = ENV['LXC_NAME']
+ctid = ENV.fetch('LXC_NAME', nil)
 
 if ctid.nil?
   warn 'Expected environment variables:'
@@ -63,14 +65,14 @@ if ctid.nil?
   exit(false)
 end
 
-if /^\/run\/osctl\/pools\/([^\/]+)\/hooks/ !~ $0
+if %r{^/run/osctl/pools/([^/]+)/hooks} !~ $0
   warn "Unable to detect pool name from '#{$0}'"
   exit(false)
 end
 
-pool = $1
+pool = Regexp.last_match(1)
 
-hook = CtPostMount.new(pool, ctid, ENV['LXC_ROOTFS_MOUNT'])
+hook = CtPostMount.new(pool, ctid, ENV.fetch('LXC_ROOTFS_MOUNT', nil))
 hook.run
 
 exit(true)

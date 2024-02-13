@@ -2,43 +2,49 @@ require 'require_all'
 require 'osctld/native'
 
 module OsCtld
-  module AutoStart ; end
-  module AutoStop ; end
+  module AutoStart; end
+  module AutoStop; end
+
   module Commands
-    module Container ; end
-    module CpuScheduler ; end
-    module Dataset ; end
-    module Debug ; end
-    module Event ; end
-    module Group ; end
-    module History ; end
-    module IdRange ; end
-    module NetInterface ; end
-    module Pool ; end
-    module Receive ; end
-    module Repository ; end
-    module Self ; end
-    module Send ; end
-    module TrashBin ; end
-    module User ; end
+    module Container; end
+    module CpuScheduler; end
+    module Dataset; end
+    module Debug; end
+    module Event; end
+    module Group; end
+    module History; end
+    module IdRange; end
+    module NetInterface; end
+    module Pool; end
+    module Receive; end
+    module Repository; end
+    module Self; end
+    module Send; end
+    module TrashBin; end
+    module User; end
   end
-  module DB ; end
+
+  module DB; end
+
   module Devices
-    module V1 ; end
-    module V2 ; end
+    module V1; end
+    module V2; end
   end
-  module Generic ; end
-  module Hook ; end
-  module Mount ; end
-  module PrLimits ; end
-  module Routing ; end
-  module Utils ; end
+
+  module Generic; end
+  module Hook; end
+  module Mount; end
+  module PrLimits; end
+  module Routing; end
+  module Utils; end
+
   module UserControl
-    module Commands ; end
+    module Commands; end
   end
+
   module ContainerControl
-    module Commands ; end
-    module Utils ; end
+    module Commands; end
+    module Utils; end
   end
 
   def self.root

@@ -16,7 +16,7 @@ module OsCtl::Cli
     include Assets
     include Attributes
 
-    FIELDS = %i(
+    FIELDS = %i[
       pool
       id
       user
@@ -49,18 +49,18 @@ module OsCtl::Cli
       init_cmd
       raw_lxc
       loadavg
-    ) + CGroupParams::CGPARAM_STATS
+    ] + CGroupParams::CGPARAM_STATS
 
-    FILTERS = %i(
+    FILTERS = %i[
       pool
       user
       group
       distribution
       version
       state
-    )
+    ]
 
-    DEFAULT_FIELDS = %i(
+    DEFAULT_FIELDS = %i[
       pool
       id
       user
@@ -71,20 +71,20 @@ module OsCtl::Cli
       init_pid
       memory
       cpu_us
-    )
+    ]
 
-    PRLIMIT_FIELDS = %i(
+    PRLIMIT_FIELDS = %i[
       name
       soft
       hard
-    )
+    ]
 
-    DATASET_FIELDS = %i(
+    DATASET_FIELDS = %i[
       name
       dataset
-    )
+    ]
 
-    MOUNT_FIELDS = %i(
+    MOUNT_FIELDS = %i[
       fs
       dataset
       mountpoint
@@ -92,7 +92,7 @@ module OsCtl::Cli
       opts
       automount
       temporary
-    )
+    ]
 
     def list
       c = osctld_open
@@ -104,7 +104,7 @@ module OsCtl::Cli
 
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
         all_params: FIELDS + cgparams + zfsprops.list_property_names + keyring.list_param_names,
-        default_params: DEFAULT_FIELDS,
+        default_params: DEFAULT_FIELDS
       )
 
       if opts[:list]
@@ -119,30 +119,31 @@ module OsCtl::Cli
         opts: {
           memory_limit: {
             align: 'right',
-            display: Proc.new do |v|
+            display: proc do |v|
               if v.nil? || gopts[:parsable] || gopts[:json]
                 v
               else
                 humanize_data(v)
               end
-            end,
+            end
           },
           swap_limit: {
             align: 'right',
-            display: Proc.new do |v|
+            display: proc do |v|
               if v.nil? || gopts[:parsable] || gopts[:json]
                 v
               else
                 humanize_data(v)
               end
-            end,
-          },
-        },
+            end
+          }
+        }
       }
 
       FILTERS.each do |v|
         [gopts, opts].each do |options|
           next unless options[v]
+
           cmd_opts[v] = options[v].split(',')
         end
       end
@@ -167,7 +168,7 @@ module OsCtl::Cli
 
       cts = cg_add_stats(
         c.cmd_data!(:ct_list, **cmd_opts),
-        lambda { |ct| ct[:group_path] },
+        ->(ct) { ct[:group_path] },
         cols,
         gopts[:parsable]
       )
@@ -176,7 +177,7 @@ module OsCtl::Cli
 
       cg_add_raw_cgroup_params(
         cts,
-        lambda { |ct| ct[:group_path] },
+        ->(ct) { ct[:group_path] },
         cols & cgparams.map(&:to_sym)
       )
 
@@ -206,7 +207,7 @@ module OsCtl::Cli
 
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
         all_params: FIELDS + cgparams + zfsprops.list_property_names + keyring.list_param_names,
-        default_params: DEFAULT_FIELDS,
+        default_params: DEFAULT_FIELDS
       )
 
       if opts[:list]
@@ -221,7 +222,7 @@ module OsCtl::Cli
 
       cmd_opts = {
         id: args[0],
-        pool: gopts[:pool],
+        pool: gopts[:pool]
       }
 
       if cols.include?(:hostname_readout)
@@ -244,27 +245,27 @@ module OsCtl::Cli
       zfsprops.add_container_values(ct, cols, precise: gopts[:parsable])
       keyring.add_container_values(ct, cols, precise: gopts[:parsable])
 
-      format_output(ct, cols: cols, header: !opts['hide-header'], opts: {
+      format_output(ct, cols:, header: !opts['hide-header'], opts: {
         memory_limit: {
           align: 'right',
-          display: Proc.new do |v|
+          display: proc do |v|
             if v.nil? || gopts[:parsable] || gopts[:json]
               v
             else
               humanize_data(v)
             end
-          end,
+          end
         },
         swap_limit: {
           align: 'right',
-          display: Proc.new do |v|
+          display: proc do |v|
             if v.nil? || gopts[:parsable] || gopts[:json]
               v
             else
               humanize_data(v)
             end
-          end,
-        },
+          end
+        }
       })
     end
 
@@ -284,7 +285,7 @@ module OsCtl::Cli
       osctld_fmt(:ct_delete, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
-        force: opts[:force],
+        force: opts[:force]
       })
     end
 
@@ -295,27 +296,27 @@ module OsCtl::Cli
         id: args[0],
         pool: opts[:pool] || gopts[:pool],
         repository: opts[:repository],
-        remove_snapshots: opts['remove-snapshots'],
+        remove_snapshots: opts['remove-snapshots']
       }
 
       if opts['from-file']
         cmd_opts.update(
           type: :image,
-          path: File.absolute_path(opts['from-file']),
+          path: File.absolute_path(opts['from-file'])
         )
       else
         cmd_opts.update(
           type: :remote,
-          image: repo_image_attrs(defaults: false),
+          image: repo_image_attrs(defaults: false)
         )
       end
 
-      osctld_fmt(:ct_reinstall, cmd_opts: cmd_opts)
+      osctld_fmt(:ct_reinstall, cmd_opts:)
     end
 
     def mount
       require_args!('id')
-      osctld_fmt(:ct_mount, cmd_opts: {id: args[0], pool: gopts[:pool]})
+      osctld_fmt(:ct_mount, cmd_opts: { id: args[0], pool: gopts[:pool] })
     end
 
     def start
@@ -331,7 +332,7 @@ module OsCtl::Cli
         wait: get_ct_wait(opts[:wait]),
         queue: opts[:queue],
         priority: opts[:priority],
-        debug: opts[:debug],
+        debug: opts[:debug]
       }
 
       if opts[:foreground]
@@ -342,12 +343,12 @@ module OsCtl::Cli
         return
       end
 
-      osctld_fmt(:ct_start, cmd_opts: cmd_opts)
+      osctld_fmt(:ct_start, cmd_opts:)
 
-      if opts[:attach]
-        puts 'Attaching'
-        attach
-      end
+      return unless opts[:attach]
+
+      puts 'Attaching'
+      attach
     end
 
     def stop
@@ -371,10 +372,10 @@ module OsCtl::Cli
         pool: gopts[:pool],
         timeout: opts[:timeout],
         method: m,
-        message: opts[:message],
+        message: opts[:message]
       }
 
-      return osctld_fmt(:ct_stop, cmd_opts: cmd_opts) unless opts[:foreground]
+      return osctld_fmt(:ct_stop, cmd_opts:) unless opts[:foreground]
 
       open_console(args[0], gopts[:pool], 0, gopts[:json]) do |sock|
         sock.close if osctld_resp(:ct_stop, **cmd_opts).error?
@@ -411,9 +412,8 @@ module OsCtl::Cli
         reboot: opts[:reboot],
         stop_timeout: opts[:timeout],
         stop_method: m,
-        message: opts[:message],
+        message: opts[:message]
       }
-
 
       if opts[:foreground]
         open_console(args[0], gopts[:pool], 0, gopts[:json]) do |sock|
@@ -423,12 +423,12 @@ module OsCtl::Cli
         return
       end
 
-      osctld_fmt(:ct_restart, cmd_opts: cmd_opts)
+      osctld_fmt(:ct_restart, cmd_opts:)
 
-      if opts[:attach]
-        puts 'Attaching'
-        attach
-      end
+      return unless opts[:attach]
+
+      puts 'Attaching'
+      attach
     end
 
     def console
@@ -444,7 +444,7 @@ module OsCtl::Cli
         :ct_attach,
         id: args[0],
         pool: gopts[:pool],
-        user_shell: opts['user-shell'],
+        user_shell: opts['user-shell']
       )
 
       handle_ct_attach(cmd)
@@ -460,7 +460,7 @@ module OsCtl::Cli
         pool: gopts[:pool],
         cmd: args[1..-1],
         run: opts['run-container'],
-        network: opts['network'],
+        network: opts['network']
       )
 
       if cont != 'continue'
@@ -482,7 +482,7 @@ module OsCtl::Cli
         script: args[1] == '-' ? nil : File.realpath(args[1]),
         arguments: args[2..-1],
         run: opts['run-container'],
-        network: opts['network'],
+        network: opts['network']
       )
 
       if cont != 'continue'
@@ -501,8 +501,8 @@ module OsCtl::Cli
         cmd_opts: {
           ids: args.empty? ? nil : args,
           message: msg,
-          banner: !opts['hide-banner'],
-        },
+          banner: !opts['hide-banner']
+        }
       )
     end
 
@@ -519,7 +519,7 @@ module OsCtl::Cli
       set(:autostart) do
         {
           priority: opts[:priority],
-          delay: opts[:delay],
+          delay: opts[:delay]
         }
       end
     end
@@ -543,7 +543,7 @@ module OsCtl::Cli
       require_args!('id', 'hostname')
 
       set(:hostname) do |args|
-        args[0] || (fail 'expected hostname')
+        args[0] || (raise 'expected hostname')
       end
     end
 
@@ -555,6 +555,7 @@ module OsCtl::Cli
     def set_dns_resolver
       set(:dns_resolvers) do |args|
         raise GLI::BadCommandLine, 'expected at least one address' if args.empty?
+
         args
       end
     end
@@ -567,7 +568,7 @@ module OsCtl::Cli
     def set_nesting
       require_args!('id')
 
-      set(:nesting) do |args|
+      set(:nesting) do |_args|
         true
       end
     end
@@ -586,7 +587,7 @@ module OsCtl::Cli
         {
           name: args[0],
           version: args[1],
-          arch: args[2],
+          arch: args[2]
         }
       end
     end
@@ -598,21 +599,21 @@ module OsCtl::Cli
         id: args[0],
         pool: opts[:pool] || gopts[:pool],
         repository: opts[:repository],
-        image: repo_image_attrs(defaults: false),
+        image: repo_image_attrs(defaults: false)
       }
 
       if opts['from-file']
         cmd_opts.update(
           type: :image,
-          path: File.absolute_path(opts['from-file']),
+          path: File.absolute_path(opts['from-file'])
         )
       else
         cmd_opts.update(
-          type: :remote,
+          type: :remote
         )
       end
 
-      osctld_fmt(:ct_set_image_config, cmd_opts: cmd_opts)
+      osctld_fmt(:ct_set_image_config, cmd_opts:)
     end
 
     def set_cpu_package
@@ -621,7 +622,7 @@ module OsCtl::Cli
       set(:cpu_package) do |args|
         str = args[0]
 
-        if %w(auto none).include?(str)
+        if %w[auto none].include?(str)
           str
         elsif /^\d+$/ =~ str
           pkg_id = str.to_i
@@ -635,7 +636,7 @@ module OsCtl::Cli
 
           pkg_id
         else
-          raise GLI::BadCommandLine, "CPU package must be a number or auto/none"
+          raise GLI::BadCommandLine, 'CPU package must be a number or auto/none'
         end
       end
     end
@@ -679,7 +680,7 @@ module OsCtl::Cli
 
       set(:start_menu) do
         {
-          timeout: opts[:timeout],
+          timeout: opts[:timeout]
         }
       end
     end
@@ -691,7 +692,7 @@ module OsCtl::Cli
 
     def set_raw_lxc
       require_args!('id')
-      set(:raw_lxc) { |args| STDIN.read }
+      set(:raw_lxc) { |_args| STDIN.read }
     end
 
     def unset_raw_lxc
@@ -710,7 +711,7 @@ module OsCtl::Cli
     end
 
     def set_memory_limit
-      require_args!('id', 'memory', optional: %w(swap))
+      require_args!('id', 'memory', optional: %w[swap])
       do_set_memory(
         :ct_cgparam_set,
         :ct_cgparam_unset,
@@ -728,9 +729,9 @@ module OsCtl::Cli
       require_args!('id', 'attribute', 'value')
       do_set_attr(
         :ct_set,
-        {id: args[0], pool: gopts[:pool]},
+        { id: args[0], pool: gopts[:pool] },
         args[1],
-        args[2],
+        args[2]
       )
     end
 
@@ -738,8 +739,8 @@ module OsCtl::Cli
       require_args!('id', 'attribute')
       do_unset_attr(
         :ct_unset,
-        {id: args[0], pool: gopts[:pool]},
-        args[1],
+        { id: args[0], pool: gopts[:pool] },
+        args[1]
       )
     end
 
@@ -756,17 +757,17 @@ module OsCtl::Cli
       cmd_opts = {
         pool: gopts[:pool],
         id: args[0],
-        target_pool: target_pool,
-        target_id: target_id,
+        target_pool:,
+        target_id:,
         consistent: opts[:consistent],
-        network_interfaces: opts['network-interfaces'],
+        network_interfaces: opts['network-interfaces']
       }
 
       cmd_opts[:target_user] = opts[:user] if opts[:user]
       cmd_opts[:target_group] = opts[:group] if opts[:group]
       cmd_opts[:target_dataset] = opts[:dataset] if opts[:dataset]
 
-      osctld_fmt(:ct_copy, cmd_opts: cmd_opts)
+      osctld_fmt(:ct_copy, cmd_opts:)
     end
 
     def move
@@ -782,15 +783,15 @@ module OsCtl::Cli
       cmd_opts = {
         pool: gopts[:pool],
         id: args[0],
-        target_pool: target_pool,
-        target_id: target_id,
+        target_pool:,
+        target_id:
       }
 
       cmd_opts[:target_user] = opts[:user] if opts[:user]
       cmd_opts[:target_group] = opts[:group] if opts[:group]
       cmd_opts[:target_dataset] = opts[:dataset] if opts[:dataset]
 
-      osctld_fmt(:ct_move, cmd_opts: cmd_opts)
+      osctld_fmt(:ct_move, cmd_opts:)
     end
 
     def chown
@@ -798,7 +799,7 @@ module OsCtl::Cli
       osctld_fmt(:ct_chown, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
-        user: args[1],
+        user: args[1]
       })
     end
 
@@ -834,18 +835,18 @@ module OsCtl::Cli
         wait: get_ct_wait(opts[:wait]),
         queue: opts[:queue],
         priority: opts[:priority],
-        debug: opts[:debug],
+        debug: opts[:debug]
       }
 
       if opts['from-file']
         cmd_opts.update(
           type: :image,
-          path: File.absolute_path(opts['from-file']),
+          path: File.absolute_path(opts['from-file'])
         )
       else
         cmd_opts.update(
           type: :remote,
-          image: repo_image_attrs(defaults: false),
+          image: repo_image_attrs(defaults: false)
         )
       end
 
@@ -857,19 +858,19 @@ module OsCtl::Cli
         return
       end
 
-      osctld_fmt(:ct_boot, cmd_opts: cmd_opts)
+      osctld_fmt(:ct_boot, cmd_opts:)
 
-      if opts[:attach]
-        puts 'Attaching'
-        attach
-      end
+      return unless opts[:attach]
+
+      puts 'Attaching'
+      attach
     end
 
     def config_reload
       require_args!('id')
       osctld_fmt(:ct_cfg_reload, cmd_opts: {
         id: args[0],
-        pool: gopts[:pool],
+        pool: gopts[:pool]
       })
     end
 
@@ -878,12 +879,12 @@ module OsCtl::Cli
       osctld_fmt(:ct_cfg_replace, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
-        config: STDIN.read,
+        config: STDIN.read
       })
     end
 
     def passwd
-      require_args!('id', 'user', optional: %w(password))
+      require_args!('id', 'user', optional: %w[password])
 
       if args[2]
         password = args[2]
@@ -897,7 +898,7 @@ module OsCtl::Cli
         id: args[0],
         pool: gopts[:pool],
         user: args[1],
-        password: password,
+        password:
       })
     end
 
@@ -917,15 +918,15 @@ module OsCtl::Cli
       require_args!('file')
 
       file = File.expand_path(args[0])
-      fail "#{file}: not found" unless File.exist?(file)
+      raise "#{file}: not found" unless File.exist?(file)
 
-      cmd_opts = {file: file}
+      cmd_opts = { file: }
 
-      %w(as-id as-user as-group dataset missing-devices).each do |v|
+      %w[as-id as-user as-group dataset missing-devices].each do |v|
         cmd_opts[v.sub('-', '_').to_sym] = opts[v] if opts[v]
       end
 
-      osctld_fmt(:ct_import, cmd_opts: cmd_opts)
+      osctld_fmt(:ct_import, cmd_opts:)
     end
 
     def log_cat
@@ -947,17 +948,17 @@ module OsCtl::Cli
 
     def reconfigure
       require_args!('id')
-      osctld_fmt(:ct_reconfigure, cmd_opts: {id: args[0], pool: gopts[:pool]})
+      osctld_fmt(:ct_reconfigure, cmd_opts: { id: args[0], pool: gopts[:pool] })
     end
 
     def freeze
       require_args!('id')
-      osctld_fmt(:ct_freeze, cmd_opts: {id: args[0], pool: gopts[:pool]})
+      osctld_fmt(:ct_freeze, cmd_opts: { id: args[0], pool: gopts[:pool] })
     end
 
     def unfreeze
       require_args!('id')
-      osctld_fmt(:ct_unfreeze, cmd_opts: {id: args[0], pool: gopts[:pool]})
+      osctld_fmt(:ct_unfreeze, cmd_opts: { id: args[0], pool: gopts[:pool] })
     end
 
     def bisect
@@ -968,7 +969,7 @@ module OsCtl::Cli
 
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
         all_params: FIELDS + cgparams,
-        default_params: DEFAULT_FIELDS,
+        default_params: DEFAULT_FIELDS
       )
 
       if opts[:list]
@@ -977,12 +978,13 @@ module OsCtl::Cli
       end
 
       cmd_opts = {
-        state: 'running',
+        state: 'running'
       }
 
       FILTERS.each do |v|
         [gopts, opts].each do |options|
           next unless options[v]
+
           cmd_opts[v] = options[v].split(',')
         end
       end
@@ -1018,7 +1020,7 @@ module OsCtl::Cli
 
       cg_add_stats(
         cts,
-        lambda { |ct| ct[:group_path] },
+        ->(ct) { ct[:group_path] },
         cols,
         gopts[:parsable]
       )
@@ -1027,7 +1029,7 @@ module OsCtl::Cli
 
       cg_add_raw_cgroup_params(
         cts,
-        lambda { |ct| ct[:group_path] },
+        ->(ct) { ct[:group_path] },
         cols & cgparams
       )
 
@@ -1048,6 +1050,7 @@ module OsCtl::Cli
 
           next(-1) if [nil, false].detect { |v| a_vals.include?(v) }
           next(1) if [nil, false].detect { |v| b_vals.include?(v) }
+
           0
         end
       end
@@ -1055,7 +1058,7 @@ module OsCtl::Cli
       bis = Bisect.new(
         cts,
         suspend_action: opts[:action].to_sym,
-        cols: cols,
+        cols:
       )
       bis.run
     end
@@ -1079,20 +1082,20 @@ module OsCtl::Cli
       print_assets(:ct_assets, id: args[0], pool: gopts[:pool])
     end
 
-    def open_console(ctid, pool, tty, raw, &block)
+    def open_console(ctid, pool, tty, raw, &)
       if raw
         open_console_raw(ctid, pool, tty)
 
       else
-        open_console_tty(ctid, pool, tty, &block)
+        open_console_tty(ctid, pool, tty, &)
       end
     end
 
     def open_console_tty(ctid, pool, tty)
       c = osctld_open
-      c.cmd_response!(:ct_console, id: ctid, pool: pool, tty: tty)
+      c.cmd_response!(:ct_console, id: ctid, pool:, tty:)
 
-      puts "Press Ctrl+a q to detach the console"
+      puts 'Press Ctrl+a q to detach the console'
       puts
 
       state = `stty -g`
@@ -1118,7 +1121,7 @@ module OsCtl::Cli
 
     def open_console_raw(ctid, pool, tty)
       c = osctld_open
-      c.cmd_response!(:ct_console, id: ctid, pool: pool, tty: tty)
+      c.cmd_response!(:ct_console, id: ctid, pool:, tty:)
 
       console = OsCtl::Console.new(c.socket, STDIN, STDOUT, raw: true)
 
@@ -1161,7 +1164,7 @@ module OsCtl::Cli
     end
 
     def device_add
-      require_args!('id', 'type', 'major', 'minor', 'mode', optional: %w(device))
+      require_args!('id', 'type', 'major', 'minor', 'mode', optional: %w[device])
       do_device_add(:ct_device_add, id: args[0], pool: gopts[:pool])
     end
 
@@ -1202,7 +1205,7 @@ module OsCtl::Cli
 
     def prlimit_list
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
-        all_params: PRLIMIT_FIELDS,
+        all_params: PRLIMIT_FIELDS
       )
 
       if opts[:list]
@@ -1212,8 +1215,8 @@ module OsCtl::Cli
 
       require_args!('id', strict: false)
 
-      cmd_opts = {id: args[0], pool: gopts[:pool]}
-      fmt_opts = {layout: :columns}
+      cmd_opts = { id: args[0], pool: gopts[:pool] }
+      fmt_opts = { layout: :columns }
 
       cmd_opts[:limits] = args[1..-1] if args.count > 1
       fmt_opts[:header] = false if opts['hide-header']
@@ -1221,11 +1224,11 @@ module OsCtl::Cli
       fmt_opts[:cols] = param_selector.parse_option(opts[:output])
 
       data = osctld_call(:ct_prlimit_list, **cmd_opts)
-      format_output(data.map { |k, v| v.merge(name: k)}, **fmt_opts)
+      format_output(data.map { |k, v| v.merge(name: k) }, **fmt_opts)
     end
 
     def prlimit_set
-      require_args!('id', 'limit', 'value', optional: %w(hard))
+      require_args!('id', 'limit', 'value', optional: %w[hard])
 
       soft, hard = args[2..3].map { |v| /^\d+$/ =~ v ? v.to_i : v }
       hard = soft if hard.nil?
@@ -1234,8 +1237,8 @@ module OsCtl::Cli
         id: args[0],
         pool: gopts[:pool],
         name: args[1],
-        soft: soft,
-        hard: hard
+        soft:,
+        hard:
       })
     end
 
@@ -1253,7 +1256,7 @@ module OsCtl::Cli
     def dataset_list
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
         all_params: DATASET_FIELDS,
-        default_params: DATASET_FIELDS,
+        default_params: DATASET_FIELDS
       )
 
       if opts[:list]
@@ -1264,17 +1267,17 @@ module OsCtl::Cli
       require_args!('id', strict: false)
       props = args[1..-1]
 
-      cmd_opts = {id: args[0], pool: gopts[:pool], properties: props}
-      fmt_opts = {layout: :columns}
+      cmd_opts = { id: args[0], pool: gopts[:pool], properties: props }
+      fmt_opts = { layout: :columns }
 
       fmt_opts[:header] = false if opts['hide-header']
       fmt_opts[:cols] = param_selector.parse_option(opts[:output])
 
-      osctld_fmt(:ct_dataset_list, cmd_opts: cmd_opts, fmt_opts: fmt_opts)
+      osctld_fmt(:ct_dataset_list, cmd_opts:, fmt_opts:)
     end
 
     def dataset_create
-      require_args!('id', 'name', optional: %w(mountpoint))
+      require_args!('id', 'name', optional: %w[mountpoint])
       osctld_fmt(:ct_dataset_create, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
@@ -1298,7 +1301,7 @@ module OsCtl::Cli
     def mount_list
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
         all_params: MOUNT_FIELDS,
-        default_params: MOUNT_FIELDS,
+        default_params: MOUNT_FIELDS
       )
 
       if opts[:list]
@@ -1308,13 +1311,13 @@ module OsCtl::Cli
 
       require_args!('id')
 
-      cmd_opts = {id: args[0], pool: gopts[:pool]}
-      fmt_opts = {layout: :columns}
+      cmd_opts = { id: args[0], pool: gopts[:pool] }
+      fmt_opts = { layout: :columns }
 
       fmt_opts[:header] = false if opts['hide-header']
       fmt_opts[:cols] = param_selector.parse_option(opts[:output])
 
-      osctld_fmt(:ct_mount_list, cmd_opts: cmd_opts, fmt_opts: fmt_opts)
+      osctld_fmt(:ct_mount_list, cmd_opts:, fmt_opts:)
     end
 
     def mount_create
@@ -1327,7 +1330,7 @@ module OsCtl::Cli
         mountpoint: opts[:mountpoint],
         type: opts[:type],
         opts: opts[:opts],
-        automount: opts[:automount],
+        automount: opts[:automount]
       })
     end
 
@@ -1352,8 +1355,8 @@ module OsCtl::Cli
         pool: gopts[:pool],
         name: args[1],
         mountpoint: args[2],
-        mode: mode,
-        automount: opts[:automount],
+        mode:,
+        automount: opts[:automount]
       })
     end
 
@@ -1367,7 +1370,7 @@ module OsCtl::Cli
         mountpoint: args[1],
         type: opts[:type],
         opts: opts[:opts],
-        lock: !opts['on-ct-start'],
+        lock: !opts['on-ct-start']
       })
     end
 
@@ -1402,7 +1405,7 @@ module OsCtl::Cli
     end
 
     def recover_kill
-      require_args!('id', optional: %w(signal))
+      require_args!('id', optional: %w[signal])
 
       if args[0].index(':')
         pool, id = args[0].split(':')
@@ -1421,11 +1424,10 @@ module OsCtl::Cli
         else
           name = args[1].upcase
 
-          if Signal.list.has_key?(name)
-            signal = name
-          else
-            raise GLI::BadCommandLine, "invalid signal '#{args[1]}'"
-          end
+          raise GLI::BadCommandLine, "invalid signal '#{args[1]}'" unless Signal.list.has_key?(name)
+
+          signal = name
+
         end
       else
         signal = 'KILL'
@@ -1437,32 +1439,31 @@ module OsCtl::Cli
         next(false) if ctid.nil?
 
         if pool.nil?
-          if ctid[1] == id
-            pool = ctid[0]
-          else
-            next(false)
-          end
+          next(false) unless ctid[1] == id
+
+          pool = ctid[0]
+
         end
 
         ctid[0] == pool && ctid[1] == id
       end
 
       if pl.empty?
-        puts "No processes found"
+        puts 'No processes found'
         return
       end
 
       out_cols, out_data = Ps::Columns.generate(
         pl,
         Ps::Columns::DEFAULT_ONE_CT,
-        gopts[:parsable],
+        gopts[:parsable]
       )
 
       OsCtl::Lib::Cli::OutputFormatter.print(
         out_data,
         cols: out_cols,
         layout: :columns,
-        header: true,
+        header: true
       )
 
       puts
@@ -1475,7 +1476,7 @@ module OsCtl::Cli
           Process.kill(signal, p.pid)
         end
       else
-        puts "Aborted"
+        puts 'Aborted'
       end
     end
 
@@ -1485,7 +1486,7 @@ module OsCtl::Cli
       osctld_fmt(:ct_recover_state, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
-        manipulation_lock: opts[:lock] ? nil : 'ignore',
+        manipulation_lock: opts[:lock] ? nil : 'ignore'
       })
     end
 
@@ -1502,30 +1503,31 @@ module OsCtl::Cli
         id: args[0],
         pool: gopts[:pool],
         force: opts[:force],
-        cleanup: cleanup,
+        cleanup:
       })
     end
 
     protected
+
     def create_with_remote_image
       cmd_opts = {
         id: args[0],
         pool: opts[:pool] || gopts[:pool],
         user: opts[:user],
-        repository: opts[:repository],
+        repository: opts[:repository]
       }
 
-      %i(group dataset).each do |v|
+      %i[group dataset].each do |v|
         cmd_opts[v] = opts[v] if opts[v]
       end
 
-      if !opts[:distribution]
+      unless opts[:distribution]
         raise GLI::BadCommandLine, 'provide --distribution'
       end
 
       cmd_opts[:image] = repo_image_attrs
 
-      osctld_fmt(:ct_create, cmd_opts: cmd_opts)
+      osctld_fmt(:ct_create, cmd_opts:)
     end
 
     def create_empty
@@ -1543,30 +1545,30 @@ module OsCtl::Cli
         user: opts[:user],
         distribution: opts[:distribution],
         version: opts[:version],
-        arch: opts[:arch],
+        arch: opts[:arch]
       }
 
-      %i(group dataset).each do |v|
+      %i[group dataset].each do |v|
         cmd_opts[v] = opts[v] if opts[v]
       end
 
-      osctld_fmt(:ct_create_empty, cmd_opts: cmd_opts)
+      osctld_fmt(:ct_create_empty, cmd_opts:)
     end
 
     def set(option)
       require_args!('id', strict: false)
-      cmd_opts = {id: args[0], pool: gopts[:pool]}
+      cmd_opts = { id: args[0], pool: gopts[:pool] }
       cmd_opts[option] = yield(args[1..-1])
 
-      osctld_fmt(:ct_set, cmd_opts: cmd_opts)
+      osctld_fmt(:ct_set, cmd_opts:)
     end
 
     def unset(option)
       require_args!('id', strict: false)
-      cmd_opts = {id: args[0], pool: gopts[:pool]}
+      cmd_opts = { id: args[0], pool: gopts[:pool] }
       cmd_opts[option] = block_given? ? yield(args[1..-1]) : true
 
-      osctld_fmt(:ct_unset, cmd_opts: cmd_opts)
+      osctld_fmt(:ct_unset, cmd_opts:)
     end
 
     def repo_image_attrs(defaults: true)
@@ -1620,7 +1622,7 @@ module OsCtl::Cli
           next
         end
 
-        lavg = lavgs[ "#{ct[:pool]}:#{ct[:id]}" ]
+        lavg = lavgs["#{ct[:pool]}:#{ct[:id]}"]
         ct[:loadavg] = lavg ? lavg.averages : nil
       end
     end
@@ -1693,7 +1695,6 @@ module OsCtl::Cli
           end
         end
       end
-
     rescue IOError
       handle_exec_response(c)
     end
@@ -1702,7 +1703,7 @@ module OsCtl::Cli
       resp = c.receive_resp
 
       if resp.error?
-        fail (resp['message'] || 'exec failed')
+        raise(resp['message'] || 'exec failed')
 
       elsif resp[:exitstatus] && resp[:exitstatus] > 0
         raise GLI::CustomExit.new('executed command failed', resp[:exitstatus])
@@ -1723,7 +1724,6 @@ module OsCtl::Cli
       end
 
       Process.wait(pid)
-
     ensure
       begin
         f && File.unlink(f.path)

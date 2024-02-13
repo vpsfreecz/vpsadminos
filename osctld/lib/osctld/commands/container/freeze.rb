@@ -9,7 +9,7 @@ module OsCtld
       return error('container not found') unless ct
 
       manipulate(ct) do
-        if %i(freezing frozen stopped).include?(ct.state)
+        if %i[freezing frozen stopped].include?(ct.state)
           next ok
         end
 

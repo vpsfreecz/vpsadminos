@@ -2,7 +2,7 @@ require 'osctl/cli/command'
 
 module OsCtl::Cli
   class Pool < Command
-    FIELDS = %i(
+    FIELDS = %i[
       name
       dataset
       state
@@ -11,21 +11,21 @@ module OsCtl::Cli
       containers
       parallel_start
       parallel_stop
-    )
+    ]
 
-    DEFAULT_FIELDS = %i(
+    DEFAULT_FIELDS = %i[
       name
       dataset
       state
       users
       groups
       containers
-    )
+    ]
 
-    AUTOSTART_FIELDS = %i(
+    AUTOSTART_FIELDS = %i[
       id
       priority
-    )
+    ]
 
     include Assets
     include Attributes
@@ -33,7 +33,7 @@ module OsCtl::Cli
     def list
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
         all_params: FIELDS,
-        default_params: DEFAULT_FIELDS,
+        default_params: DEFAULT_FIELDS
       )
 
       if opts[:list]
@@ -44,19 +44,19 @@ module OsCtl::Cli
       cmd_opts = {}
       fmt_opts = {
         layout: :columns,
-        sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
+        sort: opts[:sort] && param_selector.parse_option(opts[:sort])
       }
 
       cmd_opts[:names] = args if args.count > 0
       fmt_opts[:header] = false if opts['hide-header']
       fmt_opts[:cols] = param_selector.parse_option(opts[:output])
 
-      osctld_fmt(:pool_list, cmd_opts: cmd_opts, fmt_opts: fmt_opts)
+      osctld_fmt(:pool_list, cmd_opts:, fmt_opts:)
     end
 
     def show
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
-        all_params: FIELDS,
+        all_params: FIELDS
       )
 
       if opts[:list]
@@ -66,12 +66,12 @@ module OsCtl::Cli
 
       require_args!('name')
 
-      cmd_opts = {name: args[0]}
-      fmt_opts = {layout: :rows}
+      cmd_opts = { name: args[0] }
+      fmt_opts = { layout: :rows }
       fmt_opts[:header] = false if opts['hide-header']
       fmt_opts[:cols] = param_selector.parse_option(opts[:output])
 
-      osctld_fmt(:pool_show, cmd_opts: cmd_opts, fmt_opts: fmt_opts)
+      osctld_fmt(:pool_show, cmd_opts:, fmt_opts:)
     end
 
     def import
@@ -82,7 +82,7 @@ module OsCtl::Cli
       osctld_fmt(:pool_import, cmd_opts: {
         name: args[0],
         all: opts[:all],
-        autostart: opts[:autostart],
+        autostart: opts[:autostart]
       })
     end
 
@@ -90,7 +90,7 @@ module OsCtl::Cli
       require_args!('name')
 
       if opts[:abort]
-        osctld_fmt(:pool_abort_export, cmd_opts: {name: args[0]})
+        osctld_fmt(:pool_abort_export, cmd_opts: { name: args[0] })
       else
         osctld_fmt(:pool_export, cmd_opts: {
           name: args[0],
@@ -98,7 +98,7 @@ module OsCtl::Cli
           stop_containers: opts['stop-containers'],
           unregister_users: opts['unregister-users'],
           message: opts['message'],
-          if_imported: opts['if-imported'],
+          if_imported: opts['if-imported']
         })
       end
     end
@@ -106,15 +106,15 @@ module OsCtl::Cli
     def install
       require_args!('name')
 
-      cmd_opts = {name: args[0]}
+      cmd_opts = { name: args[0] }
       cmd_opts[:dataset] = opts[:dataset] if opts[:dataset]
 
-      osctld_fmt(:pool_install, cmd_opts: cmd_opts)
+      osctld_fmt(:pool_install, cmd_opts:)
     end
 
     def uninstall
       require_args!('name')
-      osctld_fmt(:pool_uninstall, cmd_opts: {name: args[0]})
+      osctld_fmt(:pool_uninstall, cmd_opts: { name: args[0] })
     end
 
     def assets
@@ -125,7 +125,7 @@ module OsCtl::Cli
 
     def autostart_queue
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
-        all_params: AUTOSTART_FIELDS,
+        all_params: AUTOSTART_FIELDS
       )
 
       if opts[:list]
@@ -137,46 +137,46 @@ module OsCtl::Cli
 
       fmt_opts = {
         layout: :columns,
-        cols: param_selector.parse_option(opts[:output]),
+        cols: param_selector.parse_option(opts[:output])
       }
       fmt_opts[:header] = false if opts['hide-header']
 
       osctld_fmt(
         :pool_autostart_queue,
-        cmd_opts: {name: args[0]},
-        fmt_opts: fmt_opts,
+        cmd_opts: { name: args[0] },
+        fmt_opts:
       )
     end
 
     def autostart_trigger
       require_args!('name')
-      osctld_fmt(:pool_autostart_trigger, cmd_opts: {name: args[0]})
+      osctld_fmt(:pool_autostart_trigger, cmd_opts: { name: args[0] })
     end
 
     def autostart_cancel
       require_args!('name')
-      osctld_fmt(:pool_autostart_cancel, cmd_opts: {name: args[0]})
+      osctld_fmt(:pool_autostart_cancel, cmd_opts: { name: args[0] })
     end
 
     def set(key)
       require_args!('name', 'n')
 
-      osctld_fmt(:pool_set, cmd_opts: {name: args[0], key => args[1]})
+      osctld_fmt(:pool_set, cmd_opts: { name: args[0], key => args[1] })
     end
 
     def unset(key)
       require_args!('name')
 
-      osctld_fmt(:pool_unset, cmd_opts: {name: args[0], options: [key]})
+      osctld_fmt(:pool_unset, cmd_opts: { name: args[0], options: [key] })
     end
 
     def set_attr
       require_args!('name', 'attribute', 'value')
       do_set_attr(
         :pool_set,
-        {name: args[0]},
+        { name: args[0] },
         args[1],
-        args[2],
+        args[2]
       )
     end
 
@@ -184,8 +184,8 @@ module OsCtl::Cli
       require_args!('name', 'attribute')
       do_unset_attr(
         :pool_unset,
-        {name: args[0]},
-        args[1],
+        { name: args[0] },
+        args[1]
       )
     end
   end

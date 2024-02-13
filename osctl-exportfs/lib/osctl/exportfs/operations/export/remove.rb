@@ -24,12 +24,13 @@ module OsCtl::ExportFS
 
       remove_from_exports
 
-      if server.running?
-        disable_share(unmount: cfg.exports.find_by_as(export.as).nil?)
-      end
+      return unless server.running?
+
+      disable_share(unmount: cfg.exports.find_by_as(export.as).nil?)
     end
 
     protected
+
     attr_reader :server, :cfg, :export, :sys
 
     # Remove the export from the database

@@ -5,7 +5,7 @@ module OsCtl::Lib
   class SysConf
     include Singleton
 
-    VALUES = %i(page_size tics_per_second)
+    VALUES = %i[page_size tics_per_second]
 
     class << self
       VALUES.each do |v|
@@ -31,6 +31,7 @@ module OsCtl::Lib
     end
 
     protected
+
     def get_page_size
       Etc.sysconf(Etc::SC_PAGESIZE)
     end

@@ -46,6 +46,7 @@ module OsCtld
     end
 
     protected
+
     def run_worker
       loop do
         event = @queue.pop

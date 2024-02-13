@@ -36,12 +36,13 @@ module OsCtl::Image
           build,
           test,
           keep_failed: opts[:keep_failed],
-          ip_allocator: opts[:ip_allocator],
+          ip_allocator: opts[:ip_allocator]
         )
       end
     end
 
     protected
+
     attr_reader :tests, :opts
   end
 end

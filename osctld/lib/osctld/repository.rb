@@ -41,14 +41,14 @@ module OsCtld
           desc: 'Configuration file',
           user: 0,
           group: 0,
-          mode: 0400
+          mode: 0o400
         )
         add.directory(
           cache_path,
           desc: 'Local cache',
           user: UID,
           group: 0,
-          mode: 0700
+          mode: 0o700
         )
       end
     end
@@ -83,7 +83,7 @@ module OsCtld
           attrs.update(v)
 
         else
-          fail "unsupported option '#{k}'"
+          raise "unsupported option '#{k}'"
         end
       end
 
@@ -99,7 +99,7 @@ module OsCtld
           v.each { |attr| attrs.unset(attr) }
 
         else
-          fail "unsupported option '#{k}'"
+          raise "unsupported option '#{k}'"
         end
       end
 
@@ -123,6 +123,7 @@ module OsCtld
     end
 
     protected
+
     attr_reader :state
 
     def load_config
@@ -134,11 +135,11 @@ module OsCtld
     end
 
     def save_config
-      File.open(config_path, 'w', 0400) do |f|
+      File.open(config_path, 'w', 0o400) do |f|
         f.write(OsCtl::Lib::ConfigFile.dump_yaml({
           'url' => url,
           'enabled' => enabled?,
-          'attrs' => attrs.dump,
+          'attrs' => attrs.dump
         }))
       end
 

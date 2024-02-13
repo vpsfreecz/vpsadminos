@@ -6,7 +6,7 @@ module OsUp
     include OsCtl::Lib::Utils::System
 
     def status
-      require_args!(optional: %w(pool))
+      require_args!(optional: %w[pool])
 
       if args[0]
         pool_status(args[0])
@@ -17,7 +17,7 @@ module OsUp
     end
 
     def check
-      require_args!(optional: %w(pool))
+      require_args!(optional: %w[pool])
 
       if args[0]
         pool_check(args[0])
@@ -39,20 +39,19 @@ module OsUp
     end
 
     def upgrade
-      require_args!('pool', optional: %w(version))
+      require_args!('pool', optional: %w[version])
 
       OsUp.upgrade(
         args[0],
         to: args[1] && args[1].to_i,
-        dry_run: gopts['dry-run'],
+        dry_run: gopts['dry-run']
       )
-
     rescue PoolUpToDate => e
       puts e.message
     end
 
     def upgrade_all
-      require_args!(optional: %w(version))
+      require_args!(optional: %w[version])
 
       target = args[0] && args[0].to_i
 
@@ -61,10 +60,8 @@ module OsUp
 
         begin
           OsUp.upgrade(pool, version: target, dry_run: gops['dry-run'])
-
         rescue PoolUpToDate
           next
-
         rescue RuntimeError => e
           warn e.message
           next
@@ -73,28 +70,25 @@ module OsUp
     end
 
     def rollback
-      require_args!('pool', optional: %w(version))
+      require_args!('pool', optional: %w[version])
 
       OsUp.rollback(
         args[0],
         to: args[1] && args[1].to_i,
-        dry_run: gopts['dry-run'],
+        dry_run: gopts['dry-run']
       )
     end
 
     def rollback_all
-      require_args!(optional: %w(version))
+      require_args!(optional: %w[version])
 
       target = args[0] && args[0].to_i
 
       active_pools.each do |pool|
-        begin
-          OsUp.rollback(pool, to: target, dry_run: gopts['dry-run'])
-
-        rescue RuntimeError => e
-          warn e.message
-          next
-        end
+        OsUp.rollback(pool, to: target, dry_run: gopts['dry-run'])
+      rescue RuntimeError => e
+        warn e.message
+        next
       end
     end
 
@@ -104,20 +98,23 @@ module OsUp
     end
 
     protected
+
     def global_status
-      puts sprintf(
-        '%-15s %-12s %10s %10s %10s',
-        'POOL', 'STATUS', 'MIGRATIONS', 'UP', 'DOWN'
-      ) unless opts['hide-header']
+      unless opts['hide-header']
+        puts format(
+          '%-15s %-12s %10s %10s %10s',
+          'POOL', 'STATUS', 'MIGRATIONS', 'UP', 'DOWN'
+        )
+      end
 
       active_pools.each do |pool|
         pool_migrations = PoolMigrations.new(pool)
 
         total = pool_migrations.all.count
-        up = pool_migrations.all.count { |id, m| m ? pool_migrations.applied?(m) : true }
+        up = pool_migrations.all.count { |_id, m| m ? pool_migrations.applied?(m) : true }
         down = total - up
 
-        puts sprintf(
+        puts format(
           '%-15s %-12s %10d %10d %10d',
           pool,
           pool_state(pool_migrations),
@@ -131,16 +128,22 @@ module OsUp
     def pool_status(pool)
       pool_migrations = PoolMigrations.new(pool)
 
-      puts sprintf(
-        '%-20s %-10s  %s',
-        'MIGRATION', 'STATUS', 'NAME'
-      ) unless opts['hide-header']
+      unless opts['hide-header']
+        puts format(
+          '%-20s %-10s  %s',
+          'MIGRATION', 'STATUS', 'NAME'
+        )
+      end
 
       pool_migrations.all.each do |id, m|
-        puts sprintf(
+        puts format(
           '%-20d %-10s  %s',
           id,
-          m ? (pool_migrations.applied?(m) ? 'up' : 'down') : 'up',
+          if m
+            pool_migrations.applied?(m) ? 'up' : 'down'
+          else
+            'up'
+          end,
           m ? m.name : '** migration not found **'
         )
       end
@@ -154,12 +157,12 @@ module OsUp
       pool_migrations = PoolMigrations.new(pool)
       state = pool_state(pool_migrations)
 
-      puts sprintf(
+      puts format(
         '%-15s %-15s %-15s %s',
         pool,
         state,
         MigrationList.get.last.id,
-        state == 'outdated' ? pool_flags_upgrade(pool_migrations) : '-',
+        state == 'outdated' ? pool_flags_upgrade(pool_migrations) : '-'
       )
     end
 

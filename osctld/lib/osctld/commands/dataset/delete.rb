@@ -33,10 +33,12 @@ module OsCtld
         mounts = find_mounts(ct, ds, descendants, opts[:recursive])
 
         if mounts.any?
-          error!(
-            "the following mountpoints need to be unmounted:\n  "+
-            mounts.map { |m| m.mountpoint }.join("\n  ")
-          ) if !opts[:unmount]
+          unless opts[:unmount]
+            error!(
+              "the following mountpoints need to be unmounted:\n  " +
+              mounts.map { |m| m.mountpoint }.join("\n  ")
+            )
+          end
 
           delete_mounts(ct, mounts)
         end
@@ -44,7 +46,6 @@ module OsCtld
         begin
           ds.destroy!(recursive: opts[:recursive])
           ok
-
         rescue SystemCommandFailed => e
           log(:warn, "Unable to delete dataset: #{e.message}")
           error('delete failed, the dataset is either busy or has children')
@@ -53,14 +54,16 @@ module OsCtld
     end
 
     protected
+
     def find_mounts(ct, ds, descendants, recursive)
       datasets = [ds]
       datasets.concat(descendants) if recursive
 
       ct.mounts.select do |mnt|
         next(false) unless mnt.dataset
+
         datasets.detect { |ds| ds.relative_name == mnt.dataset.relative_name }
-      end.sort { |a, b| a.mountpoint <=> b.mountpoint}.reverse!
+      end.sort { |a, b| a.mountpoint <=> b.mountpoint }.reverse!
     end
 
     def delete_mounts(ct, mounts)
@@ -78,7 +81,6 @@ module OsCtld
             if ret.exitstatus == 1 && /not mounted/ !~ ret.output
               error!("unable to unmount #{mnt.mountpoint}: #{ret.output}")
             end
-
           rescue SystemCommandFailed => e
             error!("unable to unmount #{mnt.mountpoint}: #{e.message}")
           end

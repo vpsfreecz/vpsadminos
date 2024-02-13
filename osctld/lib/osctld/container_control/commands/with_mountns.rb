@@ -24,9 +24,9 @@ module OsCtld
             ns_pid: opts[:ns_pid],
             chroot: opts[:chroot],
             switch_to_system: opts.fetch(:switch_to_system, true),
-            block: opts[:block],
+            block: opts[:block]
           }],
-          switch_to_system: false,
+          switch_to_system: false
         )
         ret.ok? ? ret.data : ret
       end
@@ -42,7 +42,7 @@ module OsCtld
         sys = OsCtl::Lib::Sys.new
         sys.setns_path(
           File.join('/proc', opts[:ns_pid].to_s, 'ns', 'mnt'),
-          OsCtl::Lib::Sys::CLONE_NEWNS,
+          OsCtl::Lib::Sys::CLONE_NEWNS
         )
 
         if opts[:chroot]
@@ -59,7 +59,7 @@ module OsCtld
             '',
             opts[:ctrc].ct.root_host_uid,
             opts[:ctrc].ct.root_host_gid,
-            '/',
+            '/'
           )
         end
 

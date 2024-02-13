@@ -18,7 +18,7 @@ module VpsAdminOS::Converter
       {
         'ugid' => ugid,
         'uid_map' => uid_map,
-        'gid_map' => gid_map,
+        'gid_map' => gid_map
       }
     end
   end

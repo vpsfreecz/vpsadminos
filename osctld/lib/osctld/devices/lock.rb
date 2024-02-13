@@ -12,7 +12,7 @@ module OsCtld
     include Singleton
 
     class << self
-      %i(acquire release locked? sync).each do |m|
+      %i[acquire release locked? sync].each do |m|
         define_method(m) do |*args, &block|
           instance.send(m, *args, &block)
         end
@@ -56,6 +56,7 @@ module OsCtld
     end
 
     protected
+
     def mutex(pool)
       @main.synchronize do
         if @pools.has_key?(pool.name)

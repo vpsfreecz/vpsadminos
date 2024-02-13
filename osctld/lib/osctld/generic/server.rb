@@ -19,15 +19,11 @@ module OsCtld
 
     def start
       loop do
-        begin
-          c = @socket.accept
-
-        rescue IOError
-          return
-
-        else
-          handle_client(c)
-        end
+        c = @socket.accept
+      rescue IOError
+        return
+      else
+        handle_client(c)
       end
     end
 
@@ -36,6 +32,7 @@ module OsCtld
     end
 
     protected
+
     def handle_client(socket)
       c = @client_handler.new(socket, @opts[:opts] || {})
       t = Thread.new { c.communicate }

@@ -29,16 +29,16 @@ module OsCtl::Image
         repo_dir,
         {
           tar: build.output_tar,
-          zfs: build.output_stream,
+          zfs: build.output_stream
         },
         {
           distribution: t.distribution,
           version: t.version,
           arch: t.arch,
           vendor: t.vendor,
-          variant: t.variant,
+          variant: t.variant
         },
-        tags,
+        tags
       )
     end
   end

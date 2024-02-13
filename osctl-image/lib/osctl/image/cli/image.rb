@@ -6,11 +6,11 @@ module OsCtl::Image
   class Cli::Image < Cli::Command
     BUILD_SCRIPTS_DIR = '/etc/vpsadminos-image-scripts'
 
-    FIELDS = %i(name distribution version arch vendor variant)
+    FIELDS = %i[name distribution version arch vendor variant]
 
     def list
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
-        all_params: FIELDS,
+        all_params: FIELDS
       )
 
       if opts[:list]
@@ -27,7 +27,7 @@ module OsCtl::Image
           version: tpl.version,
           arch: tpl.arch,
           vendor: tpl.vendor,
-          variant: tpl.variant,
+          variant: tpl.variant
         }
       end
 
@@ -35,7 +35,7 @@ module OsCtl::Image
         layout: :columns,
         cols: param_selector.parse_option(opts[:output]),
         sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
-        header: !opts['hide-header'],
+        header: !opts['hide-header']
       }
 
       OsCtl::Lib::Cli::OutputFormatter.print(tpls, **fmt_opts)
@@ -44,12 +44,12 @@ module OsCtl::Image
     def build
       require_args!('image')
 
-      results, _ = build_images(select_images(args[0]))
+      results, = build_images(select_images(args[0]))
       process_build_results(results)
     end
 
     def test
-      require_args!('image', optional: %w(test))
+      require_args!('image', optional: %w[test])
 
       images = select_images(args[0])
       tests = select_tests(args[1])
@@ -61,7 +61,7 @@ module OsCtl::Image
       require_args!('image')
 
       image = image_list.detect { |t| t.name == args[0] }
-      fail "image '#{args[0]}' not found" unless image
+      raise "image '#{args[0]}' not found" unless image
 
       ctid = Operations::Image::Instantiate.run(
         File.absolute_path(build_scripts_path),
@@ -70,7 +70,7 @@ module OsCtl::Image
         build_dataset: opts['build-dataset'],
         vendor: opts[:vendor],
         rebuild: opts[:rebuild],
-        ctid: opts[:container],
+        ctid: opts[:container]
       )
 
       puts "Container ID: #{ctid}"
@@ -85,7 +85,7 @@ module OsCtl::Image
       images = select_images(args[0])
       build_results, cached_builds = build_images(
         select_images(args[0]),
-        rebuild: opts[:rebuild],
+        rebuild: opts[:rebuild]
       )
       process_build_results(build_results)
 
@@ -94,7 +94,7 @@ module OsCtl::Image
         + \
         cached_builds
 
-      fail 'no images to test and deploy' if successful_builds.empty?
+      raise 'no images to test and deploy' if successful_builds.empty?
 
       if opts['skip-tests']
         puts 'Skipping tests'
@@ -121,11 +121,9 @@ module OsCtl::Image
       end
 
       if verified_builds.empty?
-        if unchanged
-          puts 'no images to deploy'
-        else
-          fail 'no images to deploy'
-        end
+        raise 'no images to deploy' unless unchanged
+
+        puts 'no images to deploy'
 
         return
       end
@@ -139,6 +137,7 @@ module OsCtl::Image
     end
 
     protected
+
     def build_images(images, rebuild: true)
       cached = []
       op = Operations::Execution::Parallel.new(opts[:jobs])
@@ -149,7 +148,7 @@ module OsCtl::Image
           tpl,
           output_dir: opts['output-dir'],
           build_dataset: opts['build-dataset'],
-          vendor: opts[:vendor],
+          vendor: opts[:vendor]
         )
 
         if rebuild || !build.cached?
@@ -165,7 +164,7 @@ module OsCtl::Image
     end
 
     def process_build_results(results)
-      puts "Build results:"
+      puts 'Build results:'
       results.each do |res|
         tpl = res.obj
         build = res.return_value
@@ -194,9 +193,9 @@ module OsCtl::Image
             output_dir: opts['output-dir'],
             build_dataset: opts['build-dataset'],
             vendor: opts[:vendor],
-            rebuild: rebuild,
+            rebuild:,
             keep_failed: opts['keep-failed'],
-            ip_allocator: ip_allocator,
+            ip_allocator:
           )
         )
       end
@@ -208,18 +207,18 @@ module OsCtl::Image
       succeded = results.select { |t| t.success? }
       failed = results.reject { |t| t.success? }
 
-      puts "#{results.length} tests run, #{succeded.length} succeeded, "+
+      puts "#{results.length} tests run, #{succeded.length} succeeded, " +
            "#{failed.length} failed"
       return if failed.length == 0
 
       puts
-      puts "Failed tests:"
+      puts 'Failed tests:'
 
       failed.each_with_index do |st, i|
-        puts "#{i+1}) Test #{st.test} on #{st.image}:"
+        puts "#{i + 1}) Test #{st.test} on #{st.image}:"
         puts "  Exit status: #{st.exitstatus}"
-        puts "  Output:"
-        st.output.split("\n").each { |line| puts (' '*4)+line }
+        puts '  Output:'
+        st.output.split("\n").each { |line| puts (' ' * 4) + line }
         puts
       end
     end
@@ -235,13 +234,12 @@ module OsCtl::Image
           version: img.version,
           arch: img.arch,
           variant: img.variant,
-          vendor: img.vendor,
+          vendor: img.vendor
         },
-        :zfs,
+        :zfs
       )
 
       Operations::File::Compare.run(path, build.output_stream)
-
     rescue OperationError
       false
     end
@@ -257,6 +255,7 @@ module OsCtl::Image
         arg.split(',').map do |v|
           tpl = existing_images.detect { |t| t.name == v }
           raise GLI::BadCommandLine, "image '#{v}' not found" if tpl.nil?
+
           tpl
         end
       end
@@ -273,6 +272,7 @@ module OsCtl::Image
         arg.split(',').map do |v|
           test = existing_tests.detect { |t| t.name == v }
           raise GLI::BadCommandLine, "test '#{v}' not found" if test.nil?
+
           test
         end
       end

@@ -2,7 +2,7 @@ module OsCtl::Lib
   module Utils::Humanize
     def humanize_data(v)
       bits = 39
-      units = %i(T G M K)
+      units = %i[T G M K]
 
       units.each do |u|
         threshold = 2 << bits
@@ -10,11 +10,10 @@ module OsCtl::Lib
         if v >= threshold
           division = v / threshold.to_f
 
-          if division >= 1000
-            return "#{division.round}#{u}"
-          else
-            return "#{division.round(1)}#{u}"
-          end
+          return "#{division.round}#{u}" if division >= 1000
+
+          return "#{division.round(1)}#{u}"
+
         end
 
         bits -= 10
@@ -30,8 +29,8 @@ module OsCtl::Lib
     end
 
     def humanize_number(v)
-      divider = 10.0 ** 12
-      units = %i(T G M K)
+      divider = 10.0**12
+      units = %i[T G M K]
 
       units.each do |u|
         division = v / divider
@@ -66,9 +65,9 @@ module OsCtl::Lib
       d, h, m, s = break_interval(interval)
 
       if d > 0
-        "%d days, %02d:%02d:%02d" % [d, h, m, s]
+        format('%d days, %02d:%02d:%02d', d, h, m, s)
       else
-        "%02d:%02d:%02d" % [h, m, s]
+        format('%02d:%02d:%02d', h, m, s)
       end
     end
 
@@ -79,13 +78,13 @@ module OsCtl::Lib
         "#{s}s"
 
       elsif d == 0 && h == 0
-        '%02d:%02d' % [m, s]
+        format('%02d:%02d', m, s)
 
       elsif d == 0
-        '%02d:%02d:%02d' % [h, m, s]
+        format('%02d:%02d:%02d', h, m, s)
 
       else
-        '%dd, %02d:%02d:%02d' % [d, h, m, s]
+        format('%dd, %02d:%02d:%02d', d, h, m, s)
       end
     end
 
@@ -98,16 +97,16 @@ module OsCtl::Lib
     end
 
     def parse_data(v)
-      units = %w(k m g t)
+      units = %w[k m g t]
 
       if /^\d+$/ =~ v
         v.to_i
 
       elsif /^(\d+)(#{units.join('|')})$/i =~ v
-        n = $1.to_i
-        i = units.index($2.downcase)
+        n = ::Regexp.last_match(1).to_i
+        i = units.index(::Regexp.last_match(2).downcase)
 
-        n * (2 << (9 + (10*i)))
+        n * (2 << (9 + (10 * i)))
 
       else
         v
@@ -115,8 +114,9 @@ module OsCtl::Lib
     end
 
     protected
+
     def break_interval(interval)
-      d = interval / 86400
+      d = interval / 86_400
       h = interval / 3600 % 24
       m = interval / 60 % 60
       s = interval % 60

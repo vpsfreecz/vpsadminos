@@ -14,14 +14,14 @@ module OsCtl::Cli
         branch: '├── ',
         leaf: '└── ',
         continuation: '│   '
-      },
+      }
     }
 
     include OsCtl::Lib::Utils::Humanize
     include CGroupParams
 
-    def self.print(*args, **kwargs)
-      tree = new(*args, **kwargs)
+    def self.print(*, **)
+      tree = new(*, **)
       tree.render
       tree.print
     end
@@ -43,13 +43,13 @@ module OsCtl::Cli
 
       groups.map! do |grp|
         # Look ahead to see if the group has any more siblings on the same level
-        has_sibling = groups[i+1..-1].detect { |g| g[:parent] == grp[:parent] }
+        has_sibling = groups[i + 1..-1].detect { |g| g[:parent] == grp[:parent] }
 
-        if has_sibling
-          dir_indent = decor[:branch]
-        else
-          dir_indent = decor[:leaf]
-        end
+        dir_indent = if has_sibling
+                       decor[:branch]
+                     else
+                       decor[:leaf]
+                     end
 
         res = ''
 
@@ -59,23 +59,23 @@ module OsCtl::Cli
         res << grp[:parts][0..-3].inject('') do |acc, v|
           t = File.join(t, v)
 
-          has_sibling = groups[i+1..-1].detect { |g| g[:parent] == t }
+          has_sibling = groups[i + 1..-1].detect { |g| g[:parent] == t }
 
-          if has_sibling
-            acc << decor[:continuation]
-          else
-            acc << '    '
-          end
+          acc << if has_sibling
+                   decor[:continuation]
+                 else
+                   '    '
+                 end
         end
 
         res << dir_indent if grp[:parent]
 
-        if grp.has_key?(:name)
-          res << Rainbow(grp[:shortname]).blue.bright
+        res << if grp.has_key?(:name)
+                 Rainbow(grp[:shortname]).blue.bright
 
-        else
-          res << Rainbow(grp[:shortname]).red.bright
-        end
+               else
+                 Rainbow(grp[:shortname]).red.bright
+               end
 
         grp[:branch] = res
 
@@ -88,7 +88,7 @@ module OsCtl::Cli
       OsCtl::Lib::Cli::OutputFormatter.print(
         groups,
         cols: [
-          {label: cts ? 'GROUP/CONTAINER' : 'GROUP', name: :branch},
+          { label: cts ? 'GROUP/CONTAINER' : 'GROUP', name: :branch },
           :memory,
           :cpu_us
         ],
@@ -97,6 +97,7 @@ module OsCtl::Cli
     end
 
     protected
+
     attr_reader :pool, :parsable, :client, :groups, :cts
 
     def fetch
@@ -105,11 +106,11 @@ module OsCtl::Cli
 
       cg_init_subsystems(@client)
 
-      @groups = @client.cmd_data!(:group_list, pool: pool).sort! do |a, b|
+      @groups = @client.cmd_data!(:group_list, pool:).sort! do |a, b|
         a[:name] <=> b[:name]
       end
 
-      @cts = @client.cmd_data!(:ct_list, pool: pool) if @containers
+      @cts = @client.cmd_data!(:ct_list, pool:) if @containers
     end
 
     def preprocess
@@ -118,7 +119,7 @@ module OsCtl::Cli
         cg_add_stats(
           grp,
           grp[:full_path],
-          %i(memory cpu_us),
+          %i[memory cpu_us],
           parsable
         )
 
@@ -149,7 +150,7 @@ module OsCtl::Cli
           cg_add_stats(
             ct,
             ct[:group_path],
-            %i(memory cpu_us),
+            %i[memory cpu_us],
             parsable
           )
 
@@ -167,7 +168,7 @@ module OsCtl::Cli
 
     def decorations
       if ENV['LANG']
-        DECORATIONS[ /UTF-8/i =~ ENV['LANG'] ? :unicode : :ascii ]
+        DECORATIONS[/UTF-8/i =~ ENV['LANG'] ? :unicode : :ascii]
 
       else
         DECORATIONS[:ascii]

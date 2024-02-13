@@ -17,7 +17,7 @@ module OsCtl::ExportFS
     def execute
       server.synchronize do
         if server.running?
-          fail 'the server is running'
+          raise 'the server is running'
         end
 
         cleanup_shared_dir
@@ -40,6 +40,7 @@ module OsCtl::ExportFS
     end
 
     protected
+
     attr_reader :server, :sys
 
     # Safely unmount and remove contents of the shared directory
@@ -50,7 +51,7 @@ module OsCtl::ExportFS
     # directories, otherwise there's something wrong.
     def cleanup_shared_dir
       Dir.entries(server.shared_dir).each do |v|
-        next if %w(. ..).include?(v)
+        next if %w[. ..].include?(v)
 
         path = File.join(server.shared_dir, v)
 

@@ -2,7 +2,7 @@ require 'vpsadminos-converter'
 
 module VpsAdminOS::Converter
   module Cli
-    module Vz6 ; end
+    module Vz6; end
 
     def self.run
       App.run

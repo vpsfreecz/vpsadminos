@@ -58,6 +58,7 @@ module OsCtl::Image
     end
 
     protected
+
     attr_reader :client, :ctid, :keep_failed, :ip_allocator, :status
 
     def create_container(file)
@@ -74,9 +75,9 @@ module OsCtl::Image
         File.join(base_dir, 'shell-test.nix'),
         [
           File.join(base_dir, 'bin/test'), 'image', 'run',
-          build.image.name, test.name, ctid,
+          build.image.name, test.name, ctid
         ],
-        {env: ENV.to_h.update({'OSCTL_IMAGE_TEST_IPV4_ADDRESS' => ip.to_s})}
+        { env: ENV.to_h.update({ 'OSCTL_IMAGE_TEST_IPV4_ADDRESS' => ip.to_s }) }
       )
       log(:warn, "Test '#{test}' successful")
       @status = Status.new(build.image, test, true, 0, nil)

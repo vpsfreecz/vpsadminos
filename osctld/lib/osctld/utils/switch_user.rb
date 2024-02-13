@@ -9,14 +9,14 @@ module OsCtld
       {
         cmd: ::OsCtld.bin('osctld-ct-exec'),
         args: args.map(&:to_s),
-        env: Hash[ENV.select { |k,_v| k.start_with?('BUNDLE') || k.start_with?('GEM') }],
+        env: Hash[ENV.select { |k, _v| k.start_with?('BUNDLE') || k.start_with?('GEM') }],
         settings: {
           user: ct.user.sysusername,
           ugid: ct.user.ugid,
           homedir: ct.user.homedir,
           cgroup_path: ct.entry_cgroup_path,
-          prlimits: ct.prlimits.export,
-        },
+          prlimits: ct.prlimits.export
+        }
       }
     end
 

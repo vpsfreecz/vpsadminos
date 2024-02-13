@@ -21,7 +21,7 @@ module OsCtld
 
       @link = opts[:link]
       @dhcp = opts.has_key?(:dhcp) ? opts[:dhcp] : true
-      @gateways = opts[:gateways] || {4 => 'auto', 6 => 'auto'}
+      @gateways = opts[:gateways] || { 4 => 'auto', 6 => 'auto' }
     end
 
     def load(cfg)
@@ -30,13 +30,13 @@ module OsCtld
       @link = cfg['link']
       @dhcp = cfg.has_key?('dhcp') ? cfg['dhcp'] : true
 
-      if cfg['gateways']
-        @gateways = Hash[ [4, 6].map do |ip_v|
-          [ip_v, cfg['gateways']["v#{ip_v}"] || 'auto']
-        end]
-      else
-        @gateways = {4 => 'auto', 6 => 'auto'}
-      end
+      @gateways = if cfg['gateways']
+                    Hash[ [4, 6].map do |ip_v|
+                      [ip_v, cfg['gateways']["v#{ip_v}"] || 'auto']
+                    end]
+                  else
+                    { 4 => 'auto', 6 => 'auto' }
+                  end
     end
 
     def save
@@ -44,7 +44,7 @@ module OsCtld
         super.merge({
           'link' => link,
           'dhcp' => dhcp,
-          'gateways' => gateways.any? ? Hash[gateways.map { |k,v| ["v#{k}", v] }] : nil,
+          'gateways' => gateways.any? ? Hash[gateways.map { |k, v| ["v#{k}", v] }] : nil
         })
       end
     end
@@ -69,7 +69,7 @@ module OsCtld
     def render_opts
       inclusively do
         super.merge({
-          link: link,
+          link:
         })
       end
     end
@@ -117,29 +117,30 @@ module OsCtld
     # @param v [Integer] IP version
     # @return [String]
     def gateway(v)
-      get_gateway(v) || (fail 'no gateway set')
+      get_gateway(v) || (raise 'no gateway set')
     end
 
     protected
+
     def get_gateway(v)
       inclusively do
         @gateway_cache ||= {}
         return @gateway_cache[v] if @gateway_cache.has_key?(v)
 
         gw = case gateways[v]
-        when nil, 'auto'
-          ifaddr = Socket.getifaddrs.detect do |ifaddr|
-            ifaddr.name == link && ifaddr.addr.ip? && ifaddr.addr.send(:"ipv#{v}?")
-          end
+             when nil, 'auto'
+               ifaddr = Socket.getifaddrs.detect do |ifaddr|
+                 ifaddr.name == link && ifaddr.addr.ip? && ifaddr.addr.send(:"ipv#{v}?")
+               end
 
-          ifaddr ? ifaddr.addr.ip_address : nil
+               ifaddr ? ifaddr.addr.ip_address : nil
 
-        when 'none'
-          nil
+             when 'none'
+               nil
 
-        else
-          gateways[v]
-        end
+             else
+               gateways[v]
+             end
 
         @gateway_cache[v] = gw
       end

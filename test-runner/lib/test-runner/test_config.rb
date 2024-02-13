@@ -22,7 +22,7 @@ module TestRunner
       cmd = [
         'nix-build',
         '--attr', 'json',
-        '--out-link', config_path,
+        '--out-link', config_path
       ]
 
       if test.template?
@@ -34,7 +34,8 @@ module TestRunner
       FileUtils.mkdir_p('result/tests')
       pid = spawn(*cmd)
       Process.wait(pid)
-      fail 'nix-build failed' if $?.exitstatus != 0
+      raise 'nix-build failed' if $?.exitstatus != 0
+
       @config = JSON.parse(File.read(config_path), symbolize_names: true)
     end
 
@@ -43,6 +44,7 @@ module TestRunner
     end
 
     protected
+
     def config_path
       "result/tests/#{test.name}-config.json"
     end

@@ -10,11 +10,11 @@ module OsCtl::Lib
       # @option opts [Symbol] :name
       # @option opts [String] :expand
       def initialize(opts)
-        if opts[:cmd].is_a?(Symbol)
-          @cmd = opts[:cmd]
-        else
-          @cmd = opts[:cmd].map(&:to_s)
-        end
+        @cmd = if opts[:cmd].is_a?(Symbol)
+                 opts[:cmd]
+               else
+                 opts[:cmd].map(&:to_s)
+               end
 
         @name = opts[:name].to_s
         @expand = opts[:expand]
@@ -68,13 +68,14 @@ module OsCtl::Lib
     def generate
       ERB.new(
         File.new(File.join(
-          __dir__, '../../../..', 'templates/completion/bash.erb'
-        )).read,
-        trim_mode: '-',
+                   __dir__, '../../../..', 'templates/completion/bash.erb'
+                 )).read,
+        trim_mode: '-'
       ).result(binding)
     end
 
     protected
+
     attr_reader :app, :opts, :args
 
     def commands(cmd = nil)
@@ -110,7 +111,7 @@ module OsCtl::Lib
       end
     end
 
-    def opt_word_list(cmd, path, name, opt, arg_name)
+    def opt_word_list(cmd, path, name, _opt, arg_name)
       optarg = opts.detect { |v| v.applicable?(path, arg_name) }
 
       if optarg
@@ -123,7 +124,7 @@ module OsCtl::Lib
       end
     end
 
-    def arg_word_list(cmd, path, arg)
+    def arg_word_list(_cmd, path, arg)
       optarg = args.detect { |v| v.applicable?(path, arg) }
       optarg ? optarg.expand : ''
     end
@@ -146,7 +147,7 @@ module OsCtl::Lib
       # Flags with arguments
       (cmd || app).flags.each_value do |fl|
         fl.all_forms(', ').split(', ').each do |form|
-          opt, _ = form.split('=')
+          opt, = form.split('=')
           ret << opt
         end
       end
@@ -160,7 +161,7 @@ module OsCtl::Lib
       # Flags with arguments
       (cmd || app).flags.each_value do |fl|
         fl.all_forms(', ').split(', ').each do |form|
-          opt, _ = form.split('=')
+          opt, = form.split('=')
           ret << opt
         end
       end
@@ -179,7 +180,7 @@ module OsCtl::Lib
     end
 
     def fmt_opt(v)
-      v.gsub(/-/, '_')
+      v.gsub('-', '_')
     end
 
     def arguments(cmd)

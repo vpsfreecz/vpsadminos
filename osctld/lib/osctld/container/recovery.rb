@@ -20,7 +20,7 @@ module OsCtld
       current_state = ct.current_state
 
       if orig_state == current_state
-        return
+        nil
 
       elsif current_state == :stopped
         # Put all network interfaces down
@@ -64,13 +64,13 @@ module OsCtld
         ctid = p.ct_id
         next if ctid.nil?
 
-        if ctid[0] == ct.pool.name && ctid[1] == ct.id
-          log(:info, "kill -SIG#{signal} #{p.pid} #{p.name}")
+        next unless ctid[0] == ct.pool.name && ctid[1] == ct.id
 
-          begin
-            Process.kill(signal, p.pid)
-          rescue Errno::ESRCH
-          end
+        log(:info, "kill -SIG#{signal} #{p.pid} #{p.name}")
+
+        begin
+          Process.kill(signal, p.pid)
+        rescue Errno::ESRCH
         end
       end
     end
@@ -82,14 +82,14 @@ module OsCtld
 
       begin
         cleanup_cgroups
-      rescue => e
+      rescue StandardError => e
         log(:warn, "Failed to cleanup cgroups: #{e.class}: #{e.message}")
         taint = true
       end
 
       begin
         cleanup_netifs
-      rescue => e
+      rescue StandardError => e
         log(:warn, "Failed to cleanup netifs: #{e.class}: #{e.message}")
         taint = true
       end
@@ -121,11 +121,11 @@ module OsCtld
           netif.routes.each_version(ip_v) do |route|
             veth = routes.veth_of(route)
 
-            if veth
-              log(:info, "Found route #{route.addr.to_string} on #{veth}")
-              veths[veth] = [] unless veths.has_key?(veth)
-              veths[veth] << route
-            end
+            next unless veth
+
+            log(:info, "Found route #{route.addr.to_string} on #{veth}")
+            veths[veth] = [] unless veths.has_key?(veth)
+            veths[veth] << route
           end
         end
       end
@@ -176,6 +176,7 @@ module OsCtld
       end
 
       protected
+
       attr_reader :index
 
       def key(route)
@@ -190,6 +191,7 @@ module OsCtld
     end
 
     protected
+
     attr_reader :ct
   end
 end

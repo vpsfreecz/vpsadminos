@@ -8,7 +8,7 @@ module OsCtld
           hash['subsystem'],
           hash['name'],
           hash['value'],
-          true,
+          true
         )
       end
 
@@ -25,17 +25,17 @@ module OsCtld
 
       # Dump to config
       def dump
-        Hash[to_h.map { |k,v| [k.to_s, v] }]
+        Hash[to_h.map { |k, v| [k.to_s, v] }]
       end
 
       # Export to client
       def export
         {
-          version: version,
-          subsystem: subsystem,
+          version:,
+          subsystem:,
           parameter: name,
-          value: value,
-          persistent: persistent ? true : false,
+          value:,
+          persistent: persistent ? true : false
         }
       end
     end

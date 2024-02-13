@@ -14,7 +14,7 @@ module OsCtl::Repo
     end
 
     attr_reader :repo, :vendor, :variant, :arch, :distribution, :version,
-      :tags, :image
+                :tags, :image
 
     def initialize(repo, vendor, variant, arch, dist, ver, opts)
       @repo = repo
@@ -29,13 +29,13 @@ module OsCtl::Repo
 
     def dump
       {
-        vendor: vendor,
-        variant: variant,
-        arch: arch,
-        distribution: distribution,
-        version: version,
+        vendor:,
+        variant:,
+        arch:,
+        distribution:,
+        version:,
         tags: tags.sort,
-        image: Hash[image.map { |v| [v, image_path(v)] } ],
+        image: Hash[image.map { |v| [v, image_path(v)] }]
       }
     end
 
@@ -87,7 +87,7 @@ module OsCtl::Repo
     def <=>(other)
       [vendor, variant, arch, distribution, version] \
       <=> \
-      [other.vendor, other.variant, other.arch, other.distribution, other.version]
+        [other.vendor, other.variant, other.arch, other.distribution, other.version]
     end
 
     def to_s
@@ -95,6 +95,7 @@ module OsCtl::Repo
     end
 
     protected
+
     attr_reader :repo
   end
 end

@@ -26,24 +26,25 @@ module OsCtld
       end
     end
 
-    def remove_netif(netifs, netif)
+    def remove_netif(_netifs, netif)
       do_remove_netif(netif.name)
     end
 
-    def rename_netif(netifs, netif, old_name)
+    def rename_netif(_netifs, netif, old_name)
       do_remove_netif(old_name)
       do_create_netif(netif)
     end
 
     protected
+
     def do_create_netif(netif)
       f = network_file(netif.name)
       return unless writable?(f)
 
       OsCtld::ErbTemplate.render_to_if_changed(
         File.join('dist_config/network/systemd_networkd', netif.type.to_s),
-        {netif: netif},
-        f,
+        { netif: },
+        f
       )
     end
 

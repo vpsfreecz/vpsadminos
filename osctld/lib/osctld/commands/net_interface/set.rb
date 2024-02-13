@@ -5,7 +5,7 @@ module OsCtld
   class Commands::NetInterface::Set < Commands::Logged
     handle :netif_set
 
-    UNCHANGEABLE_AT_RUNTIME = %i(hwaddr link dhcp gateways)
+    UNCHANGEABLE_AT_RUNTIME = %i[hwaddr link dhcp gateways]
 
     def find
       ct = DB::Containers.find(opts[:id], opts[:pool])
@@ -13,7 +13,6 @@ module OsCtld
     end
 
     def execute(ct)
-
       manipulate(ct) do
         if ct.state != :stopped
           opts.each_key do |k|
@@ -39,18 +38,19 @@ module OsCtld
     end
 
     protected
-    def bridge_opts(netif)
-      ret = {link: opts[:link]}
+
+    def bridge_opts(_netif)
+      ret = { link: opts[:link] }
       ret[:dhcp] = opts[:dhcp] if opts.has_key?(:dhcp)
 
       if opts[:gateways]
-        ret[:gateways] = Hash[ opts[:gateways].map { |k,v| [k.to_s.to_i, v] } ]
+        ret[:gateways] = Hash[opts[:gateways].map { |k, v| [k.to_s.to_i, v] }]
       end
 
       ret
     end
 
-    def routed_opts(netif)
+    def routed_opts(_netif)
       {}
     end
 
@@ -69,7 +69,7 @@ module OsCtld
         end
       end
 
-      %i(tx_queues rx_queues).each do |v|
+      %i[tx_queues rx_queues].each do |v|
         next unless opts[v]
 
         if !opts[v].is_a?(Integer) || opts[v] < 1
@@ -79,7 +79,7 @@ module OsCtld
         ret[v] = opts[v]
       end
 
-      %i(max_tx max_rx).each do |v|
+      %i[max_tx max_rx].each do |v|
         next unless opts[v]
 
         if !opts[v].is_a?(Integer) || opts[v] < 0

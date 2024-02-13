@@ -14,22 +14,22 @@ module OsCtld
     # @param pool [String, Array<String>, Pool, nil]
     def initialize(id, pool = nil)
       if i = id.index(':')
-        @pool = id[0..i-1]
-        @id = id[i+1..-1]
+        @pool = id[0..i - 1]
+        @id = id[i + 1..-1]
       else
         @id = id
       end
 
-      if pool && @pool.nil?
-        @pool =
-          if pool.is_a?(Pool)
-            pool.name
-          elsif pool.is_a?(String) || pool.is_a?(Array)
-            pool
-          else
-            fail "invalid pool type '#{pool.class}', expected OsCtld::Pool or String"
-          end
-      end
+      return unless pool && @pool.nil?
+
+      @pool =
+        if pool.is_a?(Pool)
+          pool.name
+        elsif pool.is_a?(String) || pool.is_a?(Array)
+          pool
+        else
+          raise "invalid pool type '#{pool.class}', expected OsCtld::Pool or String"
+        end
     end
 
     # Check if objects matches id

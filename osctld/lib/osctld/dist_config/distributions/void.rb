@@ -8,7 +8,7 @@ module OsCtld
       def set_hostname(new_hostname, old_hostname: nil)
         # /etc/hostname
         writable?(File.join(rootfs, 'etc', 'hostname')) do |path|
-          regenerate_file(path, 0644) do |f|
+          regenerate_file(path, 0o644) do |f|
             f.puts(new_hostname.local)
           end
         end
@@ -20,16 +20,16 @@ module OsCtld
         sv = File.join(
           rootfs,
           'etc/runit/core-services',
-          '10-vpsadminos-hostname.sh',
+          '10-vpsadminos-hostname.sh'
         )
 
-        if writable?(sv)
-          OsCtld::ErbTemplate.render_to_if_changed(
-            'dist_config/network/void/hostname',
-            {},
-            sv
-          )
-        end
+        return unless writable?(sv)
+
+        OsCtld::ErbTemplate.render_to_if_changed(
+          'dist_config/network/void/hostname',
+          {},
+          sv
+        )
       end
 
       def network(netifs)
@@ -38,7 +38,7 @@ module OsCtld
         cmds = netifs.map do |netif|
           OsCtld::ErbTemplate.render(
             File.join(tpl_base, netif.type.to_s),
-            {netif: netif}
+            { netif: }
           )
         end
 
@@ -51,6 +51,7 @@ module OsCtld
       end
 
       protected
+
       def network_class
         nil
       end
@@ -70,25 +71,23 @@ module OsCtld
     end
 
     def apply_hostname
-      begin
-        ct_syscmd(ct, ['hostname', ct.hostname.local])
-
-      rescue SystemCommandFailed => e
-        log(:warn, ct, "Unable to apply hostname: #{e.message}")
-      end
+      ct_syscmd(ct, ['hostname', ct.hostname.local])
+    rescue SystemCommandFailed => e
+      log(:warn, ct, "Unable to apply hostname: #{e.message}")
     end
 
     def passwd(opts)
       # Without the -c switch, the password is not set (bug?)
       ret = ct_syscmd(
         ct,
-        %w(chpasswd -c SHA512),
+        %w[chpasswd -c SHA512],
         stdin: "#{opts[:user]}:#{opts[:password]}\n",
         run: true,
         valid_rcs: :all
       )
 
       return true if ret.success?
+
       log(:warn, ct, "Unable to set password: #{ret.output}")
     end
   end

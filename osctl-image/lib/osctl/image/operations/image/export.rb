@@ -19,13 +19,13 @@ module OsCtl::Image
       container_config.arch = build.image.arch
       container_config.dataset = OsCtl::Lib::Zfs::Dataset.new(
         build.output_dataset,
-        base: build.output_dataset,
+        base: build.output_dataset
       )
       container_config.rootfs = build.install_dir
 
-      if build.has_config_file?
-        container_config.override_with(build.read_config_file)
-      end
+      return unless build.has_config_file?
+
+      container_config.override_with(build.read_config_file)
     end
 
     def execute
@@ -34,6 +34,7 @@ module OsCtl::Image
     end
 
     protected
+
     attr_reader :container_config
 
     def export_archive
@@ -41,13 +42,12 @@ module OsCtl::Image
       exporter = OsCtl::Lib::Exporter::Tar.new(
         container_config,
         f,
-        compression: :auto,
+        compression: :auto
       )
 
       exporter.dump_metadata('full')
       exporter.dump_configs
       exporter.pack_rootfs
-
     ensure
       f && f.close
     end
@@ -58,7 +58,7 @@ module OsCtl::Image
         container_config,
         f,
         compression: :gzip,
-        compressed_send: false,
+        compressed_send: false
       )
 
       exporter.dump_metadata('full')
@@ -66,7 +66,6 @@ module OsCtl::Image
       exporter.dump_rootfs do
         exporter.dump_base
       end
-
     ensure
       f && f.close
     end

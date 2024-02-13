@@ -17,6 +17,7 @@ class Halt
 
   def run
     return halt if @force
+
     @hostname = Socket.gethostname
 
     reason
@@ -26,6 +27,7 @@ class Halt
   end
 
   protected
+
   def parse(args)
     @force = false
     @action = default_action
@@ -63,7 +65,7 @@ class Halt
     when 'reboot'
       'reboot'
     else
-      fail "invalid executable name #{@name.inspect}"
+      raise "invalid executable name #{@name.inspect}"
     end
   end
 
@@ -73,11 +75,11 @@ class Halt
     puts "Composing #{@action} message..."
 
     file = Tempfile.new("#{@action}-reason")
-    file.puts(<<END)
-# Please enter reason for #{@action} of #{@hostname}.
-# Lines starting with '#' will be ignored, and an empty message will
-# abort #{@action}.
-END
+    file.puts(<<~END)
+      # Please enter reason for #{@action} of #{@hostname}.
+      # Lines starting with '#' will be ignored, and an empty message will
+      # abort #{@action}.
+    END
 
     if @wall
       file.puts('# The reason will be sent to logged-in container users.')
@@ -92,7 +94,7 @@ END
 
     begin
       unless Kernel.system(ENV['EDITOR'] || 'vim', file.path)
-        fail "Failed to get #{@action} reason"
+        raise "Failed to get #{@action} reason"
       end
 
       file.rewind
@@ -102,10 +104,10 @@ END
       file.unlink
     end
 
-    if @message.empty?
-      puts "Aborting due to empty message"
-      exit(false)
-    end
+    return unless @message.empty?
+
+    puts 'Aborting due to empty message'
+    exit(false)
   end
 
   def apply_reason_templates(file)
@@ -150,15 +152,15 @@ END
   end
 
   def confirm
-    puts "The following containers will be stopped:"
+    puts 'The following containers will be stopped:'
     puts
 
     st = Kernel.system('osctl', 'ct', 'ls', '-S', 'running')
-    fail "Unable to list containers" unless st
+    raise 'Unable to list containers' unless st
 
     puts
     puts "Reason for #{@action}:"
-    puts (@message.empty? ? '[not given]' : @message)
+    puts(@message.empty? ? '[not given]' : @message)
     puts
 
     if @wall
@@ -173,12 +175,10 @@ END
       STDOUT.write("Enter machine hostname to #{@action}: ")
       STDOUT.flush
 
-      if STDIN.readline.strip == @hostname
-        return true
-      else
-        puts "Invalid hostname, this is #{@hostname}"
-        puts
-      end
+      return true if STDIN.readline.strip == @hostname
+
+      puts "Invalid hostname, this is #{@hostname}"
+      puts
     end
   end
 
@@ -195,14 +195,14 @@ END
   end
 
   def halt
-    puts "Shutting down containers, this operation can still be interrupted"
+    puts 'Shutting down containers, this operation can still be interrupted'
     puts
 
     @logger.info("System #{@action}, reason: #{@message}, wall #{@wall ? 'yes' : 'no'}")
 
     begin
       shutdown_pid = Process.fork do
-        cmd = %w(osctl shutdown --force)
+        cmd = %w[osctl shutdown --force]
 
         if @wall
           cmd << '--wall'
@@ -219,7 +219,7 @@ END
       return
     end
 
-    fail "Unable to shutdown osctld" if $?.exitstatus != 0
+    raise 'Unable to shutdown osctld' if $?.exitstatus != 0
 
     run_hook('pre-system')
 
@@ -231,7 +231,7 @@ END
     when 'reboot'
       Process.exec('runit-init', '6')
     else
-      fail "invalid action #{@action.inspect}"
+      raise "invalid action #{@action.inspect}"
     end
   end
 
@@ -285,15 +285,15 @@ END
     begin
       Process.wait(shutdown_pid)
     rescue Interrupt
-      warn "Shutdown abort in progress"
+      warn 'Shutdown abort in progress'
       cnt += 1
       retry if cnt <= 5
       raise
     end
 
     puts
-    puts "Some pools may be already exported, disabled, or have stopped containers,"
-    puts "see man osctl(8) for more information about shutdown abort."
+    puts 'Some pools may be already exported, disabled, or have stopped containers,'
+    puts 'see man osctl(8) for more information about shutdown abort.'
     exit(false)
   end
 
@@ -304,7 +304,7 @@ END
     end
 
     st = Kernel.system('osctl', 'shutdown', '--abort')
-    fail "Unable to abort osctld shutdown" unless st
+    raise 'Unable to abort osctld shutdown' unless st
   end
 end
 

@@ -10,11 +10,11 @@ module OsCtld
 
     def find
       ct = DB::Containers.find(opts[:id], opts[:pool])
-      ct || error!("container not found")
+      ct || error!('container not found')
     end
 
     def execute(ct)
-      if !opts[:force]
+      unless opts[:force]
         ct.exclusively do
           error!('the container is running') if ct.running?
         end
@@ -28,7 +28,7 @@ module OsCtld
           id: ct.id,
           manipulation_lock: opts[:manipulation_lock],
           progress: opts[:progress],
-          message: opts[:message],
+          message: opts[:message]
         )
 
         if ct.send_log
@@ -89,7 +89,7 @@ module OsCtld
         call_cmd!(
           Commands::User::Delete,
           pool: ct.user.pool.name,
-          name: ct.user.name,
+          name: ct.user.name
         )
       end
 

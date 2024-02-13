@@ -49,9 +49,9 @@ module OsCtld
     # @param target [Mode] target mode
     # @return [Hash<Symbol, String>]
     def diff(target)
-      ret = {allow: [], deny: []}
+      ret = { allow: [], deny: [] }
 
-      %w(r w m).each do |m|
+      %w[r w m].each do |m|
         if target.mode.include?(m) && !mode.include?(m)
           ret[:allow] << m
 
@@ -60,11 +60,11 @@ module OsCtld
         end
       end
 
-      Hash[ret.map { |k,v| [k, v.join('')] }]
+      Hash[ret.map { |k, v| [k, v.join('')] }]
     end
 
     def to_s
-      %w(r w m).select { |m| mode.include?(m) }.join('')
+      %w[r w m].select { |m| mode.include?(m) }.join('')
     end
 
     def clone
@@ -78,7 +78,7 @@ module OsCtld
     {
       read: 'r',
       write: 'w',
-      create: 'm',
+      create: 'm'
     }.each do |k, v|
       define_method(:"can_#{k}?") { mode.include?(v) }
     end

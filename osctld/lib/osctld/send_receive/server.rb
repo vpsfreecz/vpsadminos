@@ -9,7 +9,7 @@ module OsCtld
         cmd = SendReceive::Command.find(req[:cmd].to_sym)
         error!("Unsupported command '#{req[:cmd]}'") unless cmd
 
-        cmd.run(internal: {handler: self}, **req[:opts])
+        cmd.run(internal: { handler: self }, **req[:opts])
       end
 
       def log_type
@@ -20,12 +20,12 @@ module OsCtld
     @@instance = nil
 
     def self.instance
-      @@instance = new unless @@instance
+      @@instance ||= new
       @@instance
     end
 
     class << self
-      %i(start stop assets).each do |v|
+      %i[start stop assets].each do |v|
         define_method(v) do |*args, &block|
           instance.send(v, *args, &block)
         end
@@ -33,14 +33,15 @@ module OsCtld
     end
 
     private
-    def initialize
-    end
+
+    def initialize; end
 
     public
+
     def start
       socket = UNIXServer.new(SendReceive::SOCKET)
       File.chown(SendReceive::UID, 0, SendReceive::SOCKET)
-      File.chmod(0600, SendReceive::SOCKET)
+      File.chmod(0o600, SendReceive::SOCKET)
 
       @server = Generic::Server.new(socket, ClientHandler)
       @thread = Thread.new { @server.start }
@@ -58,7 +59,7 @@ module OsCtld
         desc: 'Socket for send/receive control',
         user: SendReceive::UID,
         group: 0,
-        mode: 0600
+        mode: 0o600
       )
     end
   end

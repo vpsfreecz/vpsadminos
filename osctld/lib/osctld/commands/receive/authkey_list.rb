@@ -5,12 +5,12 @@ module OsCtld
     handle :receive_authkey_list
 
     def execute
-      if opts[:pool]
-        pool = DB::Pools.find(opts[:pool])
+      pool = if opts[:pool]
+               DB::Pools.find(opts[:pool])
 
-      else
-        pool = DB::Pools.get_or_default(nil)
-      end
+             else
+               DB::Pools.get_or_default(nil)
+             end
 
       error!('pool not found') unless pool
 

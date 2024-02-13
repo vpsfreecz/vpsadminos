@@ -20,7 +20,7 @@ module OsCtld
       [
         File.join(CONFIGS, 'common.conf'),
         File.join(CONFIGS, name, 'common.conf'),
-        File.join(CONFIGS, name, "#{ver}.conf"),
+        File.join(CONFIGS, name, "#{ver}.conf")
       ].select { |cfg| File.exist?(cfg) }
     end
 
@@ -46,7 +46,7 @@ module OsCtld
       end
 
       Process.wait(pid)
-      fail 'unable to install lxc configs' if $?.exitstatus != 0
+      raise 'unable to install lxc configs' if $?.exitstatus != 0
     end
   end
 end

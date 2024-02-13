@@ -111,6 +111,7 @@ module OsCtld
     end
 
     protected
+
     # @return [DistConfig::Network::Base, nil]
     attr_reader :network_backend
 
@@ -135,8 +136,8 @@ module OsCtld
       klass = network_class
 
       if klass.nil?
-        log(:debug, "Using distribution-specific network configuration")
-        return nil
+        log(:debug, 'Using distribution-specific network configuration')
+        nil
 
       elsif klass.is_a?(Array)
         klass.each do |k|
@@ -149,11 +150,11 @@ module OsCtld
         end
 
         log(:warn, "No network class usable for #{self.class}")
-        return nil
+        nil
 
       else
         log(:debug, "Using #{network_class} for network configuration")
-        return network_class.new(self)
+        network_class.new(self)
       end
     end
   end

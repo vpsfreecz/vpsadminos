@@ -3,7 +3,7 @@ require 'thread'
 
 module OsCtl::Cli
   class Top::Model
-    MODES = %i(realtime cumulative)
+    MODES = %i[realtime cumulative]
 
     attr_reader :containers
     attr_accessor :mode
@@ -56,7 +56,7 @@ module OsCtl::Cli
 
         begin
           @ct_lavgs = OsCtl::Lib::LoadAvgReader.read_for(containers)
-        rescue
+        rescue StandardError
           @ct_lavgs = {}
         end
       end
@@ -88,7 +88,7 @@ module OsCtl::Cli
             id: ct.id,
             cpu_package_inuse: ct.cpu_package_inuse,
             init_pid: ct.init_pid,
-            loadavg: ct_lavg ? ct_lavg.averages : [0.0, 0.0, 0.0],
+            loadavg: ct_lavg ? ct_lavg.averages : [0.0, 0.0, 0.0]
           }.merge(ct_result)
 
           if mode == :realtime
@@ -96,7 +96,7 @@ module OsCtl::Cli
             sum_ct_cpu_hz += ct_cpu_hz
 
             ct_data.update(
-              cpu_usage: calc_cpu_usage(ct_cpu_hz, host_cpu.total),
+              cpu_usage: calc_cpu_usage(ct_cpu_hz, host_cpu.total)
             )
           end
 
@@ -106,12 +106,12 @@ module OsCtl::Cli
 
       host_data = {
         id: host.id,
-        loadavg: lavg.to_a,
+        loadavg: lavg.to_a
       }.merge(host_result)
 
       if mode == :realtime
         host_data.update(
-          cpu_usage: calc_cpu_usage(host_cpu.total_used - sum_ct_cpu_hz, host_cpu.total),
+          cpu_usage: calc_cpu_usage(host_cpu.total_used - sum_ct_cpu_hz, host_cpu.total)
         )
       end
 
@@ -128,10 +128,10 @@ module OsCtl::Cli
           cached: mem.cached * 1024,
           swap_total: mem.swap_total * 1024,
           swap_used: mem.swap_used * 1024,
-          swap_free: mem.swap_free * 1024,
+          swap_free: mem.swap_free * 1024
         },
         zfs: host_zfs,
-        containers: cts,
+        containers: cts
       }
     end
 
@@ -150,12 +150,12 @@ module OsCtl::Cli
     end
 
     def add_ct(pool, id)
-      ct = client.cmd_data!(:ct_show, pool: pool, id: id)
+      ct = client.cmd_data!(:ct_show, pool:, id:)
       ct = Top::Container.new(ct)
       ct.netifs = client.cmd_data!(
         :netif_list,
-        id: id,
-        pool: pool
+        id:,
+        pool:
       ).map do |netif_attrs|
         Top::Container::NetIf.new(netif_attrs)
       end
@@ -164,9 +164,8 @@ module OsCtl::Cli
         containers << ct
         index << ct
       end
-
     rescue OsCtl::Client::Error
-      fail "Container #{pool}:#{id} announced, but not found"
+      raise "Container #{pool}:#{id} announced, but not found"
     end
 
     def remove_ct(ct)
@@ -185,22 +184,22 @@ module OsCtl::Cli
     end
 
     def add_ct_netif(ct, name)
-      attrs = client.cmd_data!(:netif_show, pool: ct.pool, id: ct.id, name: name)
+      attrs = client.cmd_data!(:netif_show, pool: ct.pool, id: ct.id, name:)
       sync { ct.netifs << Top::Container::NetIf.new(attrs) }
-
     rescue OsCtl::Client::Error
-      fail "Unable to find netif #{name} for container #{ct.pool}:#{ct.id}"
+      raise "Unable to find netif #{name} for container #{ct.pool}:#{ct.id}"
     end
 
-    def sync
+    def sync(&)
       if @mutex.owned?
         yield
       else
-        @mutex.synchronize { yield }
+        @mutex.synchronize(&)
       end
     end
 
     protected
+
     attr_reader :client, :nproc, :host, :subsystems, :monitor, :index, :iostat
 
     def open
@@ -217,6 +216,7 @@ module OsCtl::Cli
       client.cmd_data!(:netif_list).each do |netif_attrs|
         ct = index["#{netif_attrs[:pool]}:#{netif_attrs[:ctid]}"]
         next if ct.nil?
+
         ct.netifs << Top::Container::NetIf.new(netif_attrs)
       end
     end

@@ -10,7 +10,7 @@ module OsCtl
               "attribute name is not in the required format '<vendor>:<key>'"
       end
 
-      osctld_fmt(cmd, cmd_opts: opts.merge(attrs: {name => value}))
+      osctld_fmt(cmd, cmd_opts: opts.merge(attrs: { name => value }))
     end
 
     # @param cmd [Symbol] osctld command to use

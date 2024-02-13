@@ -41,7 +41,7 @@ module OsCtld
 
     def dump
       {
-        'timeout' => timeout,
+        'timeout' => timeout
       }
     end
 

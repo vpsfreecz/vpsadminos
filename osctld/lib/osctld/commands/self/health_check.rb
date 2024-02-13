@@ -38,13 +38,13 @@ module OsCtld
       daemon_errors = []
 
       daemon_assets.each do |asset|
-        next if %i(valid unknown).include?(asset.state)
+        next if %i[valid unknown].include?(asset.state)
 
         daemon_errors << {
           type: asset.type,
           path: asset.path,
           opts: asset.opts,
-          errors: asset.errors,
+          errors: asset.errors
         }
       end
 
@@ -53,22 +53,22 @@ module OsCtld
           pool: nil,
           type: 'osctld',
           id: nil,
-          assets: daemon_errors,
+          assets: daemon_errors
         }
       end
 
-      pool_entity_assets.each do |pool, entities|
+      pool_entity_assets.each do |_pool, entities|
         entities.each do |ent, ent_assets|
           ent_errors = []
 
           ent_assets.each do |asset|
-            next if %i(valid unknown).include?(asset.state)
+            next if %i[valid unknown].include?(asset.state)
 
             ent_errors << {
               type: asset.type,
               path: asset.path,
               opts: asset.opts,
-              errors: asset.errors,
+              errors: asset.errors
             }
           end
 
@@ -78,7 +78,7 @@ module OsCtld
             pool: ent.pool.name,
             type: ent.class.name.split('::').last.downcase,
             id: ent.id,
-            assets: ent_errors,
+            assets: ent_errors
           }
         end
       end
@@ -87,6 +87,7 @@ module OsCtld
     end
 
     protected
+
     def pools
       if opts[:pools]
         opts[:pools].map do |name|

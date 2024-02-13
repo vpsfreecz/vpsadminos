@@ -37,6 +37,7 @@ module OsCtl::Image
     end
 
     protected
+
     def read_capabilities
       file_caps = []
 

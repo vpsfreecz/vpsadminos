@@ -88,6 +88,7 @@ module OsCtl::ExportFS
     end
 
     protected
+
     attr_reader :lock_file
 
     def set_paths

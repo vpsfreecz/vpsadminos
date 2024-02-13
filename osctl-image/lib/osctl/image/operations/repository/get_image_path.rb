@@ -39,7 +39,7 @@ module OsCtl::Image
         attrs[:variant],
         attrs[:arch],
         attrs[:distribution],
-        attrs[:version],
+        attrs[:version]
       )
 
       raise OperationError, 'image not found' unless img

@@ -29,7 +29,7 @@ module OsCtl::Image
       begin
         rc = Operations::Builder::RunscriptFromString.run(
           builder,
-          start_script,
+          start_script
         )
       ensure
         clear_cgroup
@@ -39,16 +39,17 @@ module OsCtl::Image
     end
 
     protected
+
     attr_reader :id, :client
 
     def start_script
-      <<EOF
-#!/bin/sh
-cgroup="#{inner_cgroup_path}"
-mkdir "$cgroup"
-echo $$ >> "$cgroup/cgroup.procs"
-exec #{command.join(' ')}
-EOF
+      <<~EOF
+        #!/bin/sh
+        cgroup="#{inner_cgroup_path}"
+        mkdir "$cgroup"
+        echo $$ >> "$cgroup/cgroup.procs"
+        exec #{command.join(' ')}
+      EOF
     end
 
     def clear_cgroup
@@ -67,7 +68,6 @@ EOF
       end
 
       Dir.rmdir(cgroup)
-
     rescue Errno::ENOENT
     end
 
@@ -105,14 +105,14 @@ EOF
           '/sys/fs/cgroup',
           builder.attrs[:group_path],
           "lxc.payload.#{builder.ctid}",
-          cgroup_name,
+          cgroup_name
         )
       else
         File.join(
           '/sys/fs/cgroup/systemd',
           builder.attrs[:group_path],
           "lxc.payload.#{builder.ctid}",
-          cgroup_name,
+          cgroup_name
         )
       end
     end

@@ -25,7 +25,7 @@ module OsCtld
       # @return [Integer] exit status
       def execute(opts)
         runner_opts = {
-          cmd: opts[:cmd],
+          cmd: opts[:cmd]
         }
 
         mode =
@@ -43,7 +43,7 @@ module OsCtld
           add_network_opts(runner_opts)
         end
 
-        if %i(run run_network).include?(mode)
+        if %i[run run_network].include?(mode)
           ct.ensure_run_conf
 
           # Remove any left-over temporary mounts
@@ -57,10 +57,9 @@ module OsCtld
           args: [mode, runner_opts],
           stdin: opts[:stdin],
           stdout: opts[:stdout],
-          stderr: opts[:stderr],
+          stderr: opts[:stderr]
         )
         ret.ok? ? ret.data : ret
-
       ensure
         cleanup_init_script
       end
@@ -86,11 +85,12 @@ module OsCtld
       end
 
       protected
+
       def exec_running(opts)
         pid = lxc_ct.attach(
-          stdin: stdin,
-          stdout: stdout,
-          stderr: stderr,
+          stdin:,
+          stdout:,
+          stderr:
         ) do
           setup_exec_env
           ENV['HOME'] = '/root'
@@ -116,10 +116,10 @@ module OsCtld
             '-n', ctid,
             '-o', log_file,
             '-s', "lxc.environment=PATH=#{system_path.join(':')}",
-            '-s', "lxc.environment=HOME=/root",
-            '-s', "lxc.environment=USER=root",
+            '-s', 'lxc.environment=HOME=/root',
+            '-s', 'lxc.environment=USER=root',
             '--',
-            opts[:cmd],
+            opts[:cmd]
           ].flatten
 
           Process.exec(*cmd)
@@ -132,7 +132,7 @@ module OsCtld
       def exec_run_network(opts)
         with_configured_network(
           init_script: opts[:init_script],
-          net_config: opts[:net_config],
+          net_config: opts[:net_config]
         ) { exec_running(opts) }
       end
     end

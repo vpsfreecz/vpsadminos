@@ -3,7 +3,7 @@ require 'require_all'
 
 module VpsAdminOS
   module Converter
-    module Vz6 ; end
+    module Vz6; end
   end
 end
 

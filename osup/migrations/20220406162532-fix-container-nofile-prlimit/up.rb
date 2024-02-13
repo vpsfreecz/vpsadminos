@@ -23,7 +23,7 @@ Dir.glob(File.join(conf_ct, '*.yml')).each do |cfg_path|
     prlimits.delete(:nofile)
   end
 
-  regenerate_file(cfg_path, 0400) do |new|
+  regenerate_file(cfg_path, 0o400) do |new|
     new.write(YAML.dump(cfg))
   end
 end

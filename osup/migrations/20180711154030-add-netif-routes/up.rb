@@ -19,7 +19,7 @@ Dir.glob(File.join(conf_ct, '*.yml')).each do |cfg_path|
     next if netif['type'] != 'routed' || netif['routes'] || !netif['ip_addresses']
 
     puts "  netif #{netif['name']}"
-    routes = {'v4' => [], 'v6' => []}
+    routes = { 'v4' => [], 'v6' => [] }
 
     netif['ip_addresses'].each do |ip_v, addrs|
       routes[ip_v] = addrs.clone
@@ -28,7 +28,7 @@ Dir.glob(File.join(conf_ct, '*.yml')).each do |cfg_path|
     netif['routes'] = routes
   end
 
-  regenerate_file(cfg_path, 0400) do |new|
+  regenerate_file(cfg_path, 0o400) do |new|
     new.write(YAML.dump(cfg))
   end
 end

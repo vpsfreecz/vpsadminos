@@ -6,11 +6,12 @@ module OsCtld
 
     class Configurator < DistConfig::Distributions::RedHat::Configurator
       protected
+
       def network_class
         [
           DistConfig::Network::NetworkManager,
           DistConfig::Network::RedHatNetworkManager,
-          DistConfig::Network::RedHatInitScripts,
+          DistConfig::Network::RedHatInitScripts
         ]
       end
     end

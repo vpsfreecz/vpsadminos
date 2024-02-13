@@ -1,7 +1,7 @@
 module OsCtl::ExportFS
   class Operations::Base
-    def self.run(*args, &block)
-      op = new(*args, &block)
+    def self.run(*, &)
+      op = new(*, &)
       op.execute
     end
 

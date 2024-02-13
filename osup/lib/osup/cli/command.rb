@@ -3,7 +3,7 @@ require 'libosctl'
 module OsUp
   class Cli::Command < OsCtl::Lib::Cli::Command
     def self.run(klass, method)
-      Proc.new do |global_opts, opts, args|
+      proc do |global_opts, opts, args|
         if global_opts[:debug]
           OsCtl::Lib::Logger.setup(:stdout)
         else

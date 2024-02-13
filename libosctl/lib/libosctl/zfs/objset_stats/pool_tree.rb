@@ -40,7 +40,7 @@ module OsCtl::Lib
           parent_n = i + 1
         end
 
-        parent_stack = parent_stack[ 0 .. (parent_stack.size - parent_n) ]
+        parent_stack = parent_stack[0..(parent_stack.size - parent_n)]
         parent_stack << objset
       end
 
@@ -48,7 +48,7 @@ module OsCtl::Lib
     end
 
     def aggregate_stats(into: nil)
-      root.aggregate_stats(into: into)
+      root.aggregate_stats(into:)
     end
 
     def print(objset, indent: 0)

@@ -34,6 +34,7 @@ module OsCtld
         next(false) if ct.pool != pool
         next(true) if reboot.include?(ct) && ct.can_start?
         next(true) if ct.autostart && ct.can_start? && (force || !state.is_started?(ct))
+
         next(false)
       end
 
@@ -105,7 +106,7 @@ module OsCtld
 
         ContinuousExecutor::Command.new(
           id: ct.id,
-          priority: i || ct.autostart.priority,
+          priority: i || ct.autostart.priority
         ) do |cmd|
           cur_ct = DB::Containers.find(cmd.id, pool)
 
@@ -127,7 +128,7 @@ module OsCtld
 
     def enqueue(ct, priority: 10, start_opts: {})
       plan << (
-        ContinuousExecutor::Command.new(id: ct.id, priority: priority) do |cmd|
+        ContinuousExecutor::Command.new(id: ct.id, priority:) do |cmd|
           cur_ct = DB::Containers.find(cmd.id, pool)
           next if cur_ct.nil? || cur_ct.running?
 
@@ -135,7 +136,7 @@ module OsCtld
           log(:info, ct, 'Starting enqueued container')
           do_try_start_ct(
             cur_ct,
-            start_opts: start_opts.merge(queue: false),
+            start_opts: start_opts.merge(queue: false)
           )
         end
       )
@@ -143,7 +144,7 @@ module OsCtld
 
     def start_ct(ct, priority: 10, start_opts: {}, client_handler: nil)
       plan.execute(
-        ContinuousExecutor::Command.new(id: ct.id, priority: priority) do |cmd|
+        ContinuousExecutor::Command.new(id: ct.id, priority:) do |cmd|
           cur_ct = DB::Containers.find(cmd.id, pool)
           next if cur_ct.nil? || cur_ct.running?
 
@@ -154,11 +155,11 @@ module OsCtld
               pool: cur_ct.pool.name,
               id: cur_ct.id,
               queue: false,
-              internal: {handler: client_handler},
-            ),
+              internal: { handler: client_handler }
+            )
           )
         end,
-        timeout: start_opts ? (start_opts[:wait] || Container::DEFAULT_START_TIMEOUT) : nil,
+        timeout: start_opts ? (start_opts[:wait] || Container::DEFAULT_START_TIMEOUT) : nil
       )
     end
 
@@ -201,6 +202,7 @@ module OsCtld
     end
 
     protected
+
     attr_reader :plan, :state, :reboot
 
     def do_try_start_ct(ct, attempts: 5, cooldown: 5, start_opts: {})
@@ -210,7 +212,7 @@ module OsCtld
         ret = Commands::Container::Start.run(**start_opts.merge(
           pool: ct.pool.name,
           id: ct.id,
-          wait: 'infinity',
+          wait: 'infinity'
         ))
 
         if ret[:status]
@@ -227,16 +229,16 @@ module OsCtld
           return
         end
 
-        if i+1 == attempts
+        if i + 1 == attempts
           log(:warn, ct, 'All attempts to start the container have failed')
           return
         end
 
         if stop?
-          log(:warn, ct, "Unable to start the container, giving up to stop")
+          log(:warn, ct, 'Unable to start the container, giving up to stop')
           return
         else
-          pause = cooldown + i * cooldown
+          pause = cooldown + (i * cooldown)
           log(:warn, ct, "Unable to start the container, retrying in #{pause} seconds")
           sleep(pause)
         end

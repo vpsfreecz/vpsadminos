@@ -18,7 +18,7 @@ module OsCtld
         File.join(OsCtl::Repo.root, 'bin', 'osctl-repo'),
         'remote', 'ls',
         '--cache', repo.cache_path,
-        repo.url,
+        repo.url
       )
 
       case exit_status
@@ -29,7 +29,7 @@ module OsCtld
         raise ImageRepositoryUnavailable
 
       else
-        fail "osctl-repo remote ls failed with exit status #{exit_status}"
+        raise "osctl-repo remote ls failed with exit status #{exit_status}"
       end
     end
 
@@ -48,7 +48,7 @@ module OsCtld
         '--cache', repo.cache_path,
         repo.url,
         tpl[:vendor], tpl[:variant], tpl[:arch], tpl[:distribution], tpl[:version],
-        format.to_s,
+        format.to_s
       )
 
       case exit_status
@@ -65,11 +65,12 @@ module OsCtld
         raise ImageRepositoryUnavailable
 
       else
-        fail "osctl-repo remote get path failed with exit status #{exit_status}"
+        raise "osctl-repo remote get path failed with exit status #{exit_status}"
       end
     end
 
     protected
+
     # @return [Array<Integer, String>] exit status and data
     def osctl_repo(*args)
       r, w = IO.pipe
@@ -79,7 +80,7 @@ module OsCtld
           Repository::USER,
           Repository::UID,
           Etc.getgrnam('nogroup').gid,
-          RunState::REPOSITORY_DIR,
+          RunState::REPOSITORY_DIR
         )
 
         ENV['GLI_DEBUG'] = 'true'

@@ -9,7 +9,7 @@ module OsCtld
       add.cgroup_device_list(
         group.abs_cgroup_path('devices'),
         desc: 'Controls access to devices',
-        devices: devices,
+        devices:
       )
     end
 
@@ -26,7 +26,8 @@ module OsCtld
     end
 
     protected
-    alias_method :group, :owner
+
+    alias group owner
 
     def add_to_changeset
       # not used on v1

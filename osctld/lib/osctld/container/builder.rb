@@ -17,7 +17,7 @@ module OsCtld
         user,
         group,
         dataset || Container.default_dataset(pool, id),
-        load: false,
+        load: false
       )
 
       ctrc = Container::RunConfiguration.new(ct)
@@ -54,7 +54,7 @@ module OsCtld
         errors << "invalid ID, allowed characters: #{ID_RX.source}"
       end
 
-      if !ctrc.dataset.on_pool?(ctrc.pool.name)
+      unless ctrc.dataset.on_pool?(ctrc.pool.name)
         errors << "dataset #{ctrc.dataset} does not belong to pool #{ctrc.pool.name}"
       end
 
@@ -79,7 +79,7 @@ module OsCtld
         ds,
         parents: opts[:parents],
         uid_map: opts[:mapping] ? ctrc.uid_map : nil,
-        gid_map: opts[:mapping] ? ctrc.gid_map : nil,
+        gid_map: opts[:mapping] ? ctrc.gid_map : nil
       )
     end
 
@@ -88,7 +88,7 @@ module OsCtld
     # @param from [String, nil] base snapshot
     # @return [String] snapshot name
     def copy_datasets(src, dst, from: nil)
-      ds_builder.copy_datasets(src, dst, from: from)
+      ds_builder.copy_datasets(src, dst, from:)
     end
 
     # @param image [String] path
@@ -119,21 +119,21 @@ module OsCtld
       ds_builder.shift_dataset(
         ctrc.dataset,
         uid_map: ctrc.uid_map,
-        gid_map: ctrc.gid_map,
+        gid_map: ctrc.gid_map
       )
     end
 
     def setup_ct_dir
       # Chown to 0:0, zfs will shift it using the mapping
       File.chown(0, 0, ctrc.dir)
-      File.chmod(0770, ctrc.dir)
+      File.chmod(0o770, ctrc.dir)
     end
 
     def setup_rootfs
       if Dir.exist?(ctrc.rootfs)
-        File.chmod(0755, ctrc.rootfs)
+        File.chmod(0o755, ctrc.rootfs)
       else
-        Dir.mkdir(ctrc.rootfs, 0755)
+        Dir.mkdir(ctrc.rootfs, 0o755)
       end
 
       File.chown(0, 0, ctrc.rootfs)
@@ -155,14 +155,14 @@ module OsCtld
       unless ctrc.group.setup_for?(ctrc.user)
         dir = ctrc.group.userdir(ctrc.user)
 
-        FileUtils.mkdir_p(dir, mode: 0751)
+        FileUtils.mkdir_p(dir, mode: 0o751)
         File.chown(0, ctrc.user.ugid, dir)
       end
 
       if Dir.exist?(ctrc.lxc_dir)
-        File.chmod(0750, ctrc.lxc_dir)
+        File.chmod(0o750, ctrc.lxc_dir)
       else
-        Dir.mkdir(ctrc.lxc_dir, 0750)
+        Dir.mkdir(ctrc.lxc_dir, 0o750)
       end
       File.chown(0, ctrc.user.ugid, ctrc.lxc_dir)
 
@@ -177,7 +177,7 @@ module OsCtld
     def setup_log_file
       progress('Preparing log file')
       File.open(ctrc.log_path, 'w').close
-      File.chmod(0660, ctrc.log_path)
+      File.chmod(0o660, ctrc.log_path)
       File.chown(0, ctrc.user.ugid, ctrc.log_path)
     end
 
@@ -185,7 +185,7 @@ module OsCtld
       return if Dir.exist?(ctrc.ct.user_hook_script_dir)
 
       progress('Preparing user script hook dir')
-      Dir.mkdir(ctrc.ct.user_hook_script_dir, 0700)
+      Dir.mkdir(ctrc.ct.user_hook_script_dir, 0o700)
     end
 
     def register
@@ -233,21 +233,23 @@ module OsCtld
 
       grp_dir = ctrc.group.userdir(ctrc.user)
 
-      if !ctrc.group.has_containers?(ctrc.user) && Dir.exist?(grp_dir)
-        Dir.rmdir(grp_dir)
-      end
+      return unless !ctrc.group.has_containers?(ctrc.user) && Dir.exist?(grp_dir)
+
+      Dir.rmdir(grp_dir)
     end
 
     def get_distribution_info(image)
-      distribution, version, arch, *_ = File.basename(image).split('-')
+      distribution, version, arch, = File.basename(image).split('-')
       [distribution, version, arch]
     end
 
     protected
+
     attr_reader :ds_builder
 
     def progress(msg)
       return unless @opts[:cmd]
+
       @opts[:cmd].send(:progress, msg)
     end
   end

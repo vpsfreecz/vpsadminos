@@ -1,6 +1,6 @@
 module OsCtl::Cli
   class Debug < Command
-    LOCK_FIELDS = %i(
+    LOCK_FIELDS = %i[
       id
       time
       thread
@@ -8,7 +8,7 @@ module OsCtl::Cli
       type
       state
       backtrace
-    )
+    ]
 
     def locks_ls
       data = osctld_call(:debug_lock_registry)
@@ -19,15 +19,15 @@ module OsCtl::Cli
             lock[:backtrace] = lock[:backtrace].join("\n")
             lock
           end,
-          cols: %i(id time thread object type state backtrace),
-          layout: :rows,
+          cols: %i[id time thread object type state backtrace],
+          layout: :rows
         )
 
       else
         format_output(
           data,
-          cols: %i(id thread object type state),
-          layout: :columns,
+          cols: %i[id thread object type state],
+          layout: :columns
         )
       end
     end
@@ -60,11 +60,11 @@ module OsCtl::Cli
         format_output(
           (data[:allocated] + data[:free]).sort!.map! do |ugid|
             {
-              ugid: ugid,
-              free: !data[:allocated].include?(ugid),
+              ugid:,
+              free: !data[:allocated].include?(ugid)
             }
           end,
-          layout: :columns,
+          layout: :columns
         )
 
       elsif args[0] == 'taken'

@@ -44,8 +44,8 @@ module OsCtl::Image
         attrs[:arch],
         attrs[:distribution],
         attrs[:version],
-        tags: tags,
-        image: images,
+        tags:,
+        image: images
       )
     end
   end

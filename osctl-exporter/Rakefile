@@ -5,6 +5,6 @@ YARD::Rake::YardocTask.new do |t|
   t.files   = ['lib/**/*.rb']
   t.options = [
     '--protected',
-    "--output-dir=#{ENV['YARD_OUTPUT'] || 'html_doc'}",
+    "--output-dir=#{ENV['YARD_OUTPUT'] || 'html_doc'}"
   ]
 end

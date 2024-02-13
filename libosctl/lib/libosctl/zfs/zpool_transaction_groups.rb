@@ -10,7 +10,7 @@ module OsCtl::Lib
       'W' => :wait_for_sync,
       'S' => :synced,
       'C' => :committed,
-      '?' => :unknown,
+      '?' => :unknown
     }
 
     # @!attribute [r] pool
@@ -56,7 +56,7 @@ module OsCtl::Lib
       :qtime_ns,
       :wtime_ns,
       :stime_ns,
-      keyword_init: true,
+      keyword_init: true
     ) do
       def open?
         state == :open
@@ -80,8 +80,8 @@ module OsCtl::Lib
       end
 
       # @yieldparam [TransactionGroup]
-      def each(&block)
-        @list.each(&block)
+      def each(&)
+        @list.each(&)
       end
 
       # @return [TransactionGroup, nil]
@@ -101,7 +101,8 @@ module OsCtl::Lib
       # @return [TransactionGroup]
       def opened
         txg = @list.last
-        fail 'expected the last txg to be open' unless txg.open?
+        raise 'expected the last txg to be open' unless txg.open?
+
         txg
       end
 
@@ -147,11 +148,12 @@ module OsCtl::Lib
 
     # @yieldparam [String] pool name
     # @yieldparam [TransactionGroupList] transaction groups
-    def each(&block)
-      @pools.each(&block)
+    def each(&)
+      @pools.each(&)
     end
 
     protected
+
     def read_paths(txgs_paths)
       ret = {}
       uptime = Uptime.new
@@ -176,10 +178,10 @@ module OsCtl::Lib
           birth_time = uptime.booted_at + (birth_ns / 1_000_000_000.to_f)
 
           ret << TransactionGroup.new(
-            pool: pool,
+            pool:,
             txg: values[0].to_i,
-            birth_time: birth_time,
-            birth_ns: birth_ns,
+            birth_time:,
+            birth_ns:,
             state: STATES[values[2]],
             ndirty: values[3].to_i,
             nread: values[4].to_i,
@@ -189,7 +191,7 @@ module OsCtl::Lib
             otime_ns: values[8].to_i,
             qtime_ns: values[9].to_i,
             wtime_ns: values[10].to_i,
-            stime_ns: values[11].to_i,
+            stime_ns: values[11].to_i
           )
         end
       end
@@ -201,8 +203,9 @@ module OsCtl::Lib
       ret = []
 
       Dir.entries(PROC_PATH).each do |f|
-        next if %w(. ..).include?(f)
+        next if %w[. ..].include?(f)
         next unless Dir.exist?(File.join(PROC_PATH, f))
+
         ret << f
       end
 

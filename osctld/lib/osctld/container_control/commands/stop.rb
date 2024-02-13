@@ -21,7 +21,7 @@ module OsCtld
       # @option opts [String, nil] :message
       # @return [true]
       def execute(mode, **opts)
-        if !%i(stop shutdown kill).include?(mode)
+        unless %i[stop shutdown kill].include?(mode)
           raise ArgumentError, "invalid stop mode '#{mode}'"
         end
 
@@ -34,7 +34,7 @@ module OsCtld
         end
 
         ret =
-          if %i(stop shutdown).include?(mode) && ct.running?
+          if %i[stop shutdown].include?(mode) && ct.running?
             exec_runner(args: [mode, opts.merge(halt_from_inside: true)])
           else
             fork_runner(args: [mode, opts])
@@ -70,6 +70,7 @@ module OsCtld
       end
 
       protected
+
       def do_stop(opts)
         if do_shutdown(opts)[:status]
           ok
@@ -86,7 +87,7 @@ module OsCtld
         error('unable to shutdown container')
       end
 
-      def do_kill(opts)
+      def do_kill(_opts)
         lxc_ct.stop
         ok
       rescue LXC::Error
@@ -97,12 +98,10 @@ module OsCtld
         pid = lxc_ct.attach do
           setup_exec_env
 
-          %w(halt poweroff shutdown).each do |cmd|
-            begin
-              LXC.run_command(cmd)
-            rescue LXC::Error
-              next
-            end
+          %w[halt poweroff shutdown].each do |cmd|
+            LXC.run_command(cmd)
+          rescue LXC::Error
+            next
           end
         end
 

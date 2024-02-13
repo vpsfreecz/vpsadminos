@@ -16,12 +16,12 @@ module OsCtl::Cli::Top
     end
 
     def stop
-      if @thread
-        @stop = true
-        @queue << :stop
-        @thread.join
-        @thread = nil
-      end
+      return unless @thread
+
+      @stop = true
+      @queue << :stop
+      @thread.join
+      @thread = nil
     end
 
     def get_stats
@@ -31,6 +31,7 @@ module OsCtl::Cli::Top
     end
 
     protected
+
     def work
       probe_processes
 
@@ -72,7 +73,7 @@ module OsCtl::Cli::Top
         'Z' => 0,
         'T' => 0,
         't' => 0,
-        'X' => 0,
+        'X' => 0
       }
     end
   end

@@ -40,6 +40,7 @@ module OsCtl::Image
     end
 
     protected
+
     attr_reader :threads, :mutex, :results
 
     def work_loop(i)
@@ -56,7 +57,7 @@ module OsCtl::Image
         begin
           ret = item.block.call
           exception = nil
-        rescue => e
+        rescue StandardError => e
           log(:info, "Worker ##{i} caught exception: #{e.class}: #{e.message}")
           log(:info, e.backtrace.join("\n"))
           ret = nil
@@ -64,11 +65,11 @@ module OsCtl::Image
         end
 
         add_result(Result.new(
-          exception.nil?,
-          item.obj,
-          ret,
-          exception,
-        ))
+                     exception.nil?,
+                     item.obj,
+                     ret,
+                     exception
+                   ))
       end
     end
 

@@ -45,7 +45,7 @@ module OsCtld
         dataset_hash.keys,
         property_hash.keys,
         recursive: false,
-        ignore_error: true,
+        ignore_error: true
       )
 
       run = Run.new(tree)

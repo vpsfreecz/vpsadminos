@@ -20,12 +20,12 @@ module OsCtld
 
     # Export to client
     def export
-      {soft: soft, hard: hard}
+      { soft:, hard: }
     end
 
     # Dump to config
     def dump
-      {'soft' => soft, 'hard' => hard}
+      { 'soft' => soft, 'hard' => hard }
     end
   end
 end

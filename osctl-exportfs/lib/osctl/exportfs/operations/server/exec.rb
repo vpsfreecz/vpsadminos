@@ -17,7 +17,7 @@ module OsCtl::ExportFS
 
     def execute
       unless server.running?
-        fail 'the server is not running'
+        raise 'the server is not running'
       end
 
       pid = server.read_pid
@@ -26,14 +26,14 @@ module OsCtl::ExportFS
         'net' => OsCtl::Lib::Sys::CLONE_NEWNET,
         'uts' => OsCtl::Lib::Sys::CLONE_NEWUTS,
         'ipc' => OsCtl::Lib::Sys::CLONE_NEWIPC,
-        'pid' => OsCtl::Lib::Sys::CLONE_NEWPID,
+        'pid' => OsCtl::Lib::Sys::CLONE_NEWPID
       }
       ios = {}
 
       main = Process.fork do
         cgroup.enter_payload
 
-        namespaces.each do |ns, type|
+        namespaces.each do |ns, _type|
           ios[ns] = File.open(File.join('/proc', pid.to_s, 'ns', ns), 'r')
         end
 
@@ -50,6 +50,7 @@ module OsCtl::ExportFS
     end
 
     protected
+
     attr_reader :server, :block, :cgroup, :sys
   end
 end

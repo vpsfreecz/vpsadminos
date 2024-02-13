@@ -21,9 +21,10 @@ module OsCtld
     end
 
     protected
+
     def do_apply(grp, force)
       log(:info, grp, "Configuring group '#{grp.path}'")
-      apply(grp, force: force)
+      apply(grp, force:)
     end
   end
 end

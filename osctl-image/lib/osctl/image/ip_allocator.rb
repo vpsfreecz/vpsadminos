@@ -24,7 +24,7 @@ module OsCtl::Image
     def put(ip)
       @mutex.synchronize do
         unless @taken.has_key?(ip.u32)
-          fail ArgumentError, "#{ip} was not allocated"
+          raise ArgumentError, "#{ip} was not allocated"
         end
 
         @taken.delete(ip.u32)

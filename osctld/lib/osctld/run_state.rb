@@ -14,24 +14,24 @@ module OsCtld
     CGROUP_VERSION = File.join(RUNDIR, 'cgroup.version')
 
     def self.create
-      mkdir_p(RUNDIR, 0711)
-      mkdir_p(POOL_DIR, 0711)
-      mkdir_p(USER_CONTROL_DIR, 0711)
-      mkdir_p(SEND_RECEIVE_DIR, 0100, uid: SendReceive::UID, gid: 0)
+      mkdir_p(RUNDIR, 0o711)
+      mkdir_p(POOL_DIR, 0o711)
+      mkdir_p(USER_CONTROL_DIR, 0o711)
+      mkdir_p(SEND_RECEIVE_DIR, 0o100, uid: SendReceive::UID, gid: 0)
 
       # Bundler needs to have some place to store its temp files
-      mkdir_p(REPOSITORY_DIR, 0700, uid: Repository::UID, gid: 0)
+      mkdir_p(REPOSITORY_DIR, 0o700, uid: Repository::UID, gid: 0)
 
       # LXC configs
-      mkdir_p(CONFIG_DIR, 0755)
-      mkdir_p(LXC_CONFIG_DIR, 0755)
+      mkdir_p(CONFIG_DIR, 0o755)
+      mkdir_p(LXC_CONFIG_DIR, 0o755)
 
       Lxc.install_lxc_configs(LXC_CONFIG_DIR)
 
       # AppArmor files
-      mkdir_p(APPARMOR_DIR, 0755)
+      mkdir_p(APPARMOR_DIR, 0o755)
 
-      mkdir_p(CPU_SCHEDULER_DIR, 0755)
+      mkdir_p(CPU_SCHEDULER_DIR, 0o755)
     end
 
     # @return [RunState::StartConfig]
@@ -45,28 +45,28 @@ module OsCtld
         desc: 'Runtime configuration',
         user: 0,
         group: 0,
-        mode: 0711
+        mode: 0o711
       )
       add.directory(
         RunState::POOL_DIR,
         desc: 'Runtime pool configuration',
         user: 0,
         group: 0,
-        mode: 0711
+        mode: 0o711
       )
       add.directory(
         RunState::USER_CONTROL_DIR,
         desc: 'Runtime user configuration',
         user: 0,
         group: 0,
-        mode: 0711
+        mode: 0o711
       )
       add.directory(
         RunState::SEND_RECEIVE_DIR,
         desc: 'Send/Receive configuration',
         user: SendReceive::UID,
         group: 0,
-        mode: 0100,
+        mode: 0o100,
         optional: true
       )
       add.directory(
@@ -74,14 +74,14 @@ module OsCtld
         desc: 'Home directory for the repository user',
         user: Repository::UID,
         group: 0,
-        mode: 0700
+        mode: 0o700
       )
       add.directory(
         RunState::CONFIG_DIR,
         desc: 'Global LXC configuration files',
         user: 0,
         group: 0,
-        mode: 0755
+        mode: 0o755
       )
 
       if AppArmor.enabled?
@@ -90,7 +90,7 @@ module OsCtld
           desc: 'Shared AppArmor files',
           user: 0,
           group: 0,
-          mode: 0755
+          mode: 0o755
         )
       end
 

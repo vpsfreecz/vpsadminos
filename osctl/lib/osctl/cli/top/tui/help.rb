@@ -22,6 +22,7 @@ module OsCtl::Cli::Top
     end
 
     protected
+
     def render
       Curses.setpos(0, 0)
       Curses.addstr('Key bindings:')
@@ -43,17 +44,17 @@ module OsCtl::Cli::Top
         ['m', 'Toggle between realtime and cumulative mode'],
         ['p', 'Pause/unpause resource tracking'],
         ['/', 'Filter containers by ID. Confirm by enter, cancel by esc'],
-        ['?', 'Show/hide this help message'],
+        ['?', 'Show/hide this help message']
       ].each_with_index do |arr, i|
         key, desc = arr
 
-        Curses.setpos(i+2, 4)
-        Curses.addstr(sprintf('%20s - %s', key, desc))
+        Curses.setpos(i + 2, 4)
+        Curses.addstr(format('%20s - %s', key, desc))
 
-        pos = i+2
+        pos = i + 2
       end
 
-      Curses.setpos(pos+2, 0)
+      Curses.setpos(pos + 2, 0)
       Curses.addstr("Press 'q', '?' or <Esc> to continue")
     end
   end

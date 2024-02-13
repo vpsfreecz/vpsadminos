@@ -4,7 +4,7 @@ module OsCtl
   class Cli::GenCompletion < Cli::Command
     def bash
       c = OsCtl::Lib::Cli::Completion::Bash.new(Cli::App.get)
-      c.shortcuts = %w(ct group healthcheck id-range pool repo user)
+      c.shortcuts = %w[ct group healthcheck id-range pool repo user]
 
       pools = "#{$0} pool ls -H -o name"
 
@@ -68,7 +68,7 @@ module OsCtl
       ct_cgparams = "#{$0} ct cgparams ls -H -o parameter $1"
       group_cgparams = "#{$0} group cgparams ls -H -o parameter $1"
 
-      c.opt(cmd: %i(osctl pool install), name: :dataset, expand: zfs_datasets)
+      c.opt(cmd: %i[osctl pool install], name: :dataset, expand: zfs_datasets)
 
       c.opt(cmd: :all, name: :pool, expand: pools)
       c.opt(cmd: :all, name: :ctid, expand: ctids)
@@ -81,34 +81,34 @@ module OsCtl
       c.opt(cmd: :all, name: :netif_type, expand: netif_types)
 
       # Do not suggest existing names when creating new cts/users/...
-      c.arg(cmd: %i(osctl pool install), name: :pool, expand: zfs_pools)
-      c.arg(cmd: %i(osctl pool import), name: :pool, expand: zfs_pools)
-      c.arg(cmd: %i(osctl ct new), name: :ctid, expand: '')
-      c.arg(cmd: %i(osctl vps new), name: :ctid, expand: '')
-      c.arg(cmd: %i(osctl ct netif new), name: :ifname, expand: '')
-      c.arg(cmd: %i(osctl vps netif new), name: :ifname, expand: '')
-      c.arg(cmd: %i(osctl ct netif ip add), name: :addr, expand: '')
-      c.arg(cmd: %i(osctl vps netif ip add), name: :addr, expand: '')
-      c.arg(cmd: %i(osctl user new), name: :user, expand: '')
-      c.arg(cmd: %i(osctl repo add), name: :repository, expand: '')
-      c.arg(cmd: %i(osctl id-range new), name: :'id-range', expand: '')
+      c.arg(cmd: %i[osctl pool install], name: :pool, expand: zfs_pools)
+      c.arg(cmd: %i[osctl pool import], name: :pool, expand: zfs_pools)
+      c.arg(cmd: %i[osctl ct new], name: :ctid, expand: '')
+      c.arg(cmd: %i[osctl vps new], name: :ctid, expand: '')
+      c.arg(cmd: %i[osctl ct netif new], name: :ifname, expand: '')
+      c.arg(cmd: %i[osctl vps netif new], name: :ifname, expand: '')
+      c.arg(cmd: %i[osctl ct netif ip add], name: :addr, expand: '')
+      c.arg(cmd: %i[osctl vps netif ip add], name: :addr, expand: '')
+      c.arg(cmd: %i[osctl user new], name: :user, expand: '')
+      c.arg(cmd: %i[osctl repo add], name: :repository, expand: '')
+      c.arg(cmd: %i[osctl id-range new], name: :'id-range', expand: '')
 
-      c.arg(cmd: %i(osctl ct dataset), name: :dataset, expand: ct_datasets)
-      c.arg(cmd: %i(osctl vps dataset), name: :dataset, expand: ct_datasets)
-      c.arg(cmd: %i(osctl ct mounts), name: :dataset, expand: ct_datasets)
-      c.arg(cmd: %i(osctl ct netif), name: :ifname, expand: ct_netifs)
-      c.arg(cmd: %i(osctl vps netif), name: :ifname, expand: ct_netifs)
-      c.arg(cmd: %i(osctl ct netif ip), name: :addr, expand: ct_ips)
-      c.arg(cmd: %i(osctl vps netif ip), name: :addr, expand: ct_ips)
-      c.arg(cmd: %i(osctl ct netif route), name: :addr, expand: ct_routes)
-      c.arg(cmd: %i(osctl vps netif route), name: :addr, expand: ct_routes)
+      c.arg(cmd: %i[osctl ct dataset], name: :dataset, expand: ct_datasets)
+      c.arg(cmd: %i[osctl vps dataset], name: :dataset, expand: ct_datasets)
+      c.arg(cmd: %i[osctl ct mounts], name: :dataset, expand: ct_datasets)
+      c.arg(cmd: %i[osctl ct netif], name: :ifname, expand: ct_netifs)
+      c.arg(cmd: %i[osctl vps netif], name: :ifname, expand: ct_netifs)
+      c.arg(cmd: %i[osctl ct netif ip], name: :addr, expand: ct_ips)
+      c.arg(cmd: %i[osctl vps netif ip], name: :addr, expand: ct_ips)
+      c.arg(cmd: %i[osctl ct netif route], name: :addr, expand: ct_routes)
+      c.arg(cmd: %i[osctl vps netif route], name: :addr, expand: ct_routes)
 
-      c.arg(cmd: %i(osctl ct cgparams set), name: :parameter, expand: all_cgparams)
-      c.arg(cmd: %i(osctl ct cgparams unset), name: :parameter, expand: ct_cgparams)
-      c.arg(cmd: %i(osctl vps cgparams set), name: :parameter, expand: all_cgparams)
-      c.arg(cmd: %i(osctl vps cgparams unset), name: :parameter, expand: ct_cgparams)
-      c.arg(cmd: %i(osctl group cgparams set), name: :parameter, expand: all_cgparams)
-      c.arg(cmd: %i(osctl group cgparams unset), name: :parameter, expand: group_cgparams)
+      c.arg(cmd: %i[osctl ct cgparams set], name: :parameter, expand: all_cgparams)
+      c.arg(cmd: %i[osctl ct cgparams unset], name: :parameter, expand: ct_cgparams)
+      c.arg(cmd: %i[osctl vps cgparams set], name: :parameter, expand: all_cgparams)
+      c.arg(cmd: %i[osctl vps cgparams unset], name: :parameter, expand: ct_cgparams)
+      c.arg(cmd: %i[osctl group cgparams set], name: :parameter, expand: all_cgparams)
+      c.arg(cmd: %i[osctl group cgparams unset], name: :parameter, expand: group_cgparams)
 
       c.arg(cmd: :all, name: :pool, expand: pools)
       c.arg(cmd: :all, name: :ctid, expand: ctids)

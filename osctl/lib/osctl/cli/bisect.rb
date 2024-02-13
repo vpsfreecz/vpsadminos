@@ -25,7 +25,7 @@ module OsCtl::Cli
         bisect
       rescue StandardError, Interrupt
         puts
-        puts "Resuming all affected containers..."
+        puts 'Resuming all affected containers...'
         reset
         raise
       end
@@ -36,6 +36,7 @@ module OsCtl::Cli
     end
 
     protected
+
     attr_reader :cts, :suspend_action, :cols, :mutex
 
     def bisect
@@ -82,7 +83,7 @@ module OsCtl::Cli
           end
 
         else
-          fail 'programming error'
+          raise 'programming error'
         end
 
         puts "Narrowed down to #{ct_set.size} containers"
@@ -90,15 +91,15 @@ module OsCtl::Cli
     end
 
     def print_set(ct_set)
-      OsCtl::Lib::Cli::OutputFormatter.print(ct_set, cols: cols, layout: :columns)
+      OsCtl::Lib::Cli::OutputFormatter.print(ct_set, cols:, layout: :columns)
     end
 
     def ask_confirmation!
-      STDOUT.write("Continue? [y/N]: ")
+      STDOUT.write('Continue? [y/N]: ')
       STDOUT.flush
 
-      unless %w(y yes).include?(STDIN.readline.strip.downcase)
-        fail 'Aborted'
+      unless %w[y yes].include?(STDIN.readline.strip.downcase)
+        raise 'Aborted'
       end
 
       puts
@@ -106,15 +107,15 @@ module OsCtl::Cli
 
     def ask_success?
       loop do
-        STDOUT.write("Has the situation changed? [y/n]: ")
+        STDOUT.write('Has the situation changed? [y/n]: ')
         STDOUT.flush
 
         s = STDIN.readline.strip.downcase
         ret = nil
 
-        if %w(y yes).include?(s)
+        if %w[y yes].include?(s)
           ret = true
-        elsif %w(n no).include?(s)
+        elsif %w[n no].include?(s)
           ret = false
         end
 
@@ -128,7 +129,7 @@ module OsCtl::Cli
     # @param action [:suspend, :resume]
     def execute_action_set(ct_set, action)
       queue = Queue.new
-      ct_set.each_with_index { |ct, i| queue << [i+1, ct] }
+      ct_set.each_with_index { |ct, i| queue << [i + 1, ct] }
       n = ct_set.length
 
       osctl_action =
@@ -137,7 +138,7 @@ module OsCtl::Cli
         elsif suspend_action == :stop
           action == :suspend ? :ct_stop : :ct_start
         else
-          fail "invalid action '#{suspend_action}'"
+          raise "invalid action '#{suspend_action}'"
         end
 
       threads = Etc.nprocessors.times.map do
@@ -155,7 +156,7 @@ module OsCtl::Cli
             resp = c.cmd_response(osctl_action, pool: ct[:pool], id: ct[:id])
 
             mutex.synchronize do
-              puts "[#{i}/#{n}] #{action_str(action)} #{ct[:pool]}:#{ct[:id]} "+
+              puts "[#{i}/#{n}] #{action_str(action)} #{ct[:pool]}:#{ct[:id]} " +
                    "... #{resp.ok? ? 'ok' : "error: #{resp.message}"}"
             end
           end
@@ -178,7 +179,7 @@ module OsCtl::Cli
       elsif suspend_action == :stop
         action == :suspend ? 'stop' : 'start'
       else
-        fail "invalid action '#{suspend_action}'"
+        raise "invalid action '#{suspend_action}'"
       end
     end
   end

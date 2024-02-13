@@ -11,7 +11,7 @@ module OsCtld
         cmd << '-6'
       when :all
       else
-        fail "unknown IP version '#{ip_v}'"
+        raise "unknown IP version '#{ip_v}'"
       end
 
       cmd.concat(args)

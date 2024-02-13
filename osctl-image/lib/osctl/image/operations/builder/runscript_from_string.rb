@@ -23,7 +23,7 @@ module OsCtl::Image
     # @return [Integer] exit status
     def execute
       tmp = Tempfile.new(name, '/tmp')
-      File.chmod(0755, tmp.path)
+      File.chmod(0o755, tmp.path)
       tmp.write(script)
       tmp.close
 
@@ -35,6 +35,7 @@ module OsCtl::Image
     end
 
     protected
+
     attr_reader :name, :client
   end
 end

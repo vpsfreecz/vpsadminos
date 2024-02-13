@@ -34,15 +34,15 @@ module OsCtld
     # Load the program to the kernel
     def create
       if @devices.nil?
-        fail "unable to create incomplete program"
+        raise 'unable to create incomplete program'
       end
 
-      args = %W(
+      args = %W[
         -name #{@name}
         new
         #{path}
         allow
-      )
+      ]
 
       @devices.each do |dev|
         args << "#{dev.type_s}:#{dev.major}:#{dev.minor}:#{dev.mode}"
@@ -73,7 +73,7 @@ module OsCtld
         'attach',
         path,
         link.cgroup_path,
-        link.path,
+        link.path
       )
     end
 
@@ -90,7 +90,7 @@ module OsCtld
         'replace',
         link.path,
         BpfFs.prog_pin_path(new_link.prog_name),
-        new_link.path,
+        new_link.path
       )
     end
 
@@ -101,6 +101,7 @@ module OsCtld
     end
 
     protected
+
     def run_devcgprog(*args)
       cmd = ['devcgprog'] + args
 
@@ -109,7 +110,7 @@ module OsCtld
       Process.wait(pid)
 
       if $?.exitstatus != 0
-        fail "#{cmd.join(' ')} failed with exit status #{$?.exitstatus}"
+        raise "#{cmd.join(' ')} failed with exit status #{$?.exitstatus}"
       end
 
       nil

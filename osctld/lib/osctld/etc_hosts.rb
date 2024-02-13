@@ -6,15 +6,15 @@ module OsCtld
     include OsCtl::Lib::Utils::File
 
     NOTICE_HEAD = '### Start of osctld-generated notice'
-    NOTICE_BODY = <<END
-# This file is updated by osctld from vpsAdminOS on every VPS start to configure
-# the hostname. If you would like to manage the hostname manually,
-# administrators can configure this by `osctl ct unset hostname` and users
-# in VPS details in vpsAdmin. In addition, osctld will not modify this file
-# if the write by user permission is removed:
-#
-#   chmod u-w /etc/hosts
-END
+    NOTICE_BODY = <<~END
+      # This file is updated by osctld from vpsAdminOS on every VPS start to configure
+      # the hostname. If you would like to manage the hostname manually,
+      # administrators can configure this by `osctl ct unset hostname` and users
+      # in VPS details in vpsAdmin. In addition, osctld will not modify this file
+      # if the write by user permission is removed:
+      #
+      #   chmod u-w /etc/hosts
+    END
     NOTICE_TAIL = '### End of osctld-generated notice'
 
     # @return [String]
@@ -31,7 +31,7 @@ END
 
       do_edit(names) do |new, old|
         each_line(old) do |line|
-          if (/^127\.0\.0\.1\s/ !~ line && /^::1\s/ !~ line)
+          if /^127\.0\.0\.1\s/ !~ line && /^::1\s/ !~ line
             new.write(line)
             next
           end
@@ -59,7 +59,7 @@ END
 
       do_edit(new_names) do |new, old|
         each_line(old) do |line|
-          if (/^127\.0\.0\.1\s/ !~ line && /^::1\s/ !~ line)
+          if /^127\.0\.0\.1\s/ !~ line && /^::1\s/ !~ line
             new.write(line)
             next
           end
@@ -85,13 +85,15 @@ END
     def unmanage
       return unless File.exist?(path)
 
-      regenerate_file(path, 0644) do |new, old|
+      regenerate_file(path, 0o644) do |new, old|
         next if old.nil?
+
         clear_notice(new, old)
       end
     end
 
     protected
+
     # Edit the hosts file and let the caller transform it
     #
     # If the target file exists, IOs to both new and old files are yielded.
@@ -104,14 +106,14 @@ END
     # @yieldparam new [IO]
     # @yieldparam old [IO]
     def do_edit(names)
-      regenerate_file(path, 0644) do |new, old|
+      regenerate_file(path, 0o644) do |new, old|
         write_notice(new)
 
         if old
           yield(new, old)
         else
-          new.puts("127.0.0.1 #{(names + %w(localhost)).join(' ')}")
-          new.puts("::1 #{(names + %w(localhost ip6-localhost ip6-loopback)).join(' ')}")
+          new.puts("127.0.0.1 #{(names + %w[localhost]).join(' ')}")
+          new.puts("::1 #{(names + %w[localhost ip6-localhost ip6-loopback]).join(' ')}")
         end
       end
     end
@@ -204,7 +206,7 @@ END
         return if line !~ /^([^\s]+)(\s+)/
 
         i = $~.end(2)
-        "#{$1}#{$2}#{name} #{line[i..-1]}"
+        "#{::Regexp.last_match(1)}#{::Regexp.last_match(2)}#{name} #{line[i..-1]}"
       end
     end
 

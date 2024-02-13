@@ -5,12 +5,12 @@ module VpsAdminOS::Converter
     end
 
     def set(param, v)
-      if v.is_a?(Array)
-        @params[param] = v
+      @params[param] = if v.is_a?(Array)
+                         v
 
-      else
-        @params[param] = [v]
-      end
+                       else
+                         [v]
+                       end
     end
 
     def [](param)
@@ -22,7 +22,7 @@ module VpsAdminOS::Converter
         {
           'subsystem' => param.split('.').first,
           'name' => param,
-          'value' => v,
+          'value' => v
         }
       end
     end

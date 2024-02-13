@@ -2,7 +2,7 @@ require 'osctld'
 require 'require_all'
 
 module OsCtld
-  module Cli ; end
+  module Cli; end
 end
 
 require_rel 'cli'

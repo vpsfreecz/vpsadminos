@@ -5,12 +5,12 @@ module OsCtld
     handle :receive_authkey_add
 
     def find
-      if opts[:pool]
-        pool = DB::Pools.find(opts[:pool])
+      pool = if opts[:pool]
+               DB::Pools.find(opts[:pool])
 
-      else
-        pool = DB::Pools.get_or_default(nil)
-      end
+             else
+               DB::Pools.get_or_default(nil)
+             end
 
       pool || error!('pool not found')
     end
@@ -32,7 +32,7 @@ module OsCtld
         from: opts[:from],
         ctid: opts[:ctid],
         passphrase: opts[:passphrase],
-        single_use: opts[:single_use] ? true : false,
+        single_use: opts[:single_use] ? true : false
       )
       key_chain.save
 

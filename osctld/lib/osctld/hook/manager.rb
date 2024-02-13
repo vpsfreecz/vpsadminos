@@ -60,6 +60,7 @@ module OsCtld
     end
 
     protected
+
     def get_script_singleton(hook_class, basedir, file_name)
       singleton = File.join(basedir, file_name)
       st = File.stat(singleton)
@@ -68,7 +69,7 @@ module OsCtld
       Hook::Script.new(
         hook_class.hook_name,
         singleton,
-        file_name,
+        file_name
       )
     rescue Errno::ENOENT
       nil
@@ -81,7 +82,7 @@ module OsCtld
 
       if Dir.exist?(hookd)
         Dir.entries(hookd).each do |v|
-          next if %w(. ..).include?(v)
+          next if %w[. ..].include?(v)
 
           abs_path = File.join(hookd, v)
 
@@ -91,13 +92,13 @@ module OsCtld
             next
           end
 
-          if st.file? && st.executable?
-            scripts << Hook::Script.new(
-              hook_class.hook_name,
-              abs_path,
-              File.join(dir_name, v),
-            )
-          end
+          next unless st.file? && st.executable?
+
+          scripts << Hook::Script.new(
+            hook_class.hook_name,
+            abs_path,
+            File.join(dir_name, v)
+          )
         end
       end
 

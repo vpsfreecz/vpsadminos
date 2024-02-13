@@ -23,6 +23,7 @@ module OsCtld
     end
 
     protected
+
     attr_reader :ct, :config
   end
 end

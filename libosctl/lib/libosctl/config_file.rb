@@ -6,7 +6,7 @@ module OsCtl::Lib
     # @param filename [String]
     def self.load_yaml_file(filename)
       File.open(filename, 'r:bom|utf-8') do |f|
-        YAML.safe_load(f, filename: filename)
+        YAML.safe_load(f, filename:)
       end
     end
 

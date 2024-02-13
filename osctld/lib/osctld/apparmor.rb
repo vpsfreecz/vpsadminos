@@ -32,7 +32,7 @@ module OsCtld
       features = File.join(base, 'features')
 
       [base, features].each do |dir|
-        Dir.mkdir(dir, 0755) unless Dir.exist?(dir)
+        Dir.mkdir(dir, 0o755) unless Dir.exist?(dir)
       end
 
       ErbTemplate.render_to(
@@ -46,7 +46,7 @@ module OsCtld
     # @param pool [Pool]
     def self.setup_pool(pool)
       [profile_dir(pool), cache_dir(pool)].each do |dir|
-        Dir.mkdir(dir, 0700) unless Dir.exist?(dir)
+        Dir.mkdir(dir, 0o700) unless Dir.exist?(dir)
       end
 
       cts = DB::Containers.get.select do |ct|
@@ -56,9 +56,9 @@ module OsCtld
         true
       end
 
-      if cts.any?
-        apparmor_parser(pool, 'r', cts.map { |ct| ct.apparmor.profile_path })
-      end
+      return unless cts.any?
+
+      apparmor_parser(pool, 'r', cts.map { |ct| ct.apparmor.profile_path })
     end
 
     # Per-pool runstate directory with profiles
@@ -77,14 +77,14 @@ module OsCtld
         desc: 'Per-container AppArmor profiles',
         user: 0,
         group: 0,
-        mode: 0700
+        mode: 0o700
       )
       add.directory(
         profile_dir(pool),
         desc: 'Cache for apparmor_parser',
         user: 0,
         group: 0,
-        mode: 0700
+        mode: 0o700
       )
     end
 
@@ -95,7 +95,7 @@ module OsCtld
     # @param opts [Hash] options for `syscmd`
     def self.apparmor_parser(pool, cmd, profiles, opts = {})
       syscmd(
-        "apparmor_parser -#{cmd} -W -v #{PATHS.map { |v| "-I #{v}" }.join(' ')} "+
+        "apparmor_parser -#{cmd} -W -v #{PATHS.map { |v| "-I #{v}" }.join(' ')} " +
         "-L #{cache_dir(pool)} #{profiles.join(' ')}",
         opts
       )
@@ -120,13 +120,13 @@ module OsCtld
     def generate_profile
       ErbTemplate.render_to_if_changed('apparmor/profile', {
         name: profile_name,
-        namespace: namespace,
-        ct: ct,
-        all_combinations_of: ->(arr) do
+        namespace:,
+        ct:,
+        all_combinations_of: lambda do |arr|
           ret = []
-          arr.count.times { |i| ret.concat(arr.combination(i+1).to_a) }
+          arr.count.times { |i| ret.concat(arr.combination(i + 1).to_a) }
           ret
-        end,
+        end
       }, profile_path)
     end
 
@@ -188,6 +188,7 @@ module OsCtld
     end
 
     protected
+
     attr_reader :ct
 
     def namespace_path

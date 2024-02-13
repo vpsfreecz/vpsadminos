@@ -4,7 +4,7 @@ require 'osctld/lockable'
 module OsCtld
   # Registry for user/group IDs allocated to dynamic users
   class UGidRegistry
-    ID_POOL = (100000..199999)
+    ID_POOL = (100_000..199_999)
 
     include Singleton
     include Lockable
@@ -14,7 +14,7 @@ module OsCtld
         instance
       end
 
-      %i(<< remove taken? get export).each do |v|
+      %i[<< remove taken? get export].each do |v|
         define_method(v) { |*args| instance.send(v, *args) }
       end
     end
@@ -38,6 +38,7 @@ module OsCtld
 
       exclusively do
         next if taken?(ugid)
+
         @free.delete(ugid)
         insert_sort(@allocated, ugid)
       end
@@ -79,12 +80,13 @@ module OsCtld
       inclusively do
         {
           allocated: @allocated.clone,
-          free: @free.clone,
+          free: @free.clone
         }
       end
     end
 
     protected
+
     def insert_sort(arr, i)
       index = arr.bsearch_index { |v| v >= i }
 

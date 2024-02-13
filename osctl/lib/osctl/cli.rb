@@ -2,9 +2,9 @@ require 'osctl'
 
 module OsCtl
   module Cli
-    module Completion ; end
-    module Ps ; end
-    module Top ; end
+    module Completion; end
+    module Ps; end
+    module Top; end
 
     def self.run
       App.run

@@ -11,11 +11,11 @@ module OsCtld
     def base_execute
       obj = find
 
-      if obj.is_a?(Pool)
-        pool = obj
-      else
-        pool = obj.pool
-      end
+      pool = if obj.is_a?(Pool)
+               obj
+             else
+               obj.pool
+             end
 
       ret = execute(obj)
 

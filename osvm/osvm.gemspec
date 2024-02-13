@@ -1,18 +1,18 @@
-lib = File.expand_path('../lib', __FILE__)
+lib = File.expand_path('lib', __dir__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 require 'osvm/version'
 
 Gem::Specification.new do |s|
-  s.name        = 'osvm'
+  s.name = 'osvm'
 
-  if ENV['OS_BUILD_ID']
-    s.version   = "#{OsVm::VERSION}.build#{ENV['OS_BUILD_ID']}"
-  else
-    s.version   = OsVm::VERSION
-  end
+  s.version = if ENV['OS_BUILD_ID']
+                "#{OsVm::VERSION}.build#{ENV['OS_BUILD_ID']}"
+              else
+                OsVm::VERSION
+              end
 
   s.summary     =
-  s.description = "Run and interact with vpsAdminOS virtual machines"
+    s.description = 'Run and interact with vpsAdminOS virtual machines'
   s.authors     = 'Jakub Skokan'
   s.email       = 'jakub.skokan@vpsfree.cz'
   s.files       = `git ls-files -z`.split("\x0")

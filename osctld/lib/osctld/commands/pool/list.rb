@@ -18,7 +18,7 @@ module OsCtld
           groups: DB::Groups.get.count { |v| v.pool == pool },
           containers: DB::Containers.get.count { |v| v.pool == pool },
           parallel_start: pool.parallel_start,
-          parallel_stop: pool.parallel_stop,
+          parallel_stop: pool.parallel_stop
         }.merge!(pool.attrs.export)
       end
 

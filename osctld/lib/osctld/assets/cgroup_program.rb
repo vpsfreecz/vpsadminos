@@ -21,8 +21,9 @@ module OsCtld
     end
 
     protected
-    def validate(run)
-      if !exist?
+
+    def validate(_run)
+      unless exist?
         return if opts[:optional]
 
         add_error('cgroup not found')
@@ -56,9 +57,9 @@ module OsCtld
         add_error("invalid attach_type: expected #{opts[:attach_type]}, got #{prog['attach_type']}")
       end
 
-      if opts[:attach_flags] && prog['attach_flags'] != opts[:attach_flags]
-        add_error("invalid attach_flags: expected #{opts[:attach_flags]}, got #{prog['attach_flags']}")
-      end
+      return unless opts[:attach_flags] && prog['attach_flags'] != opts[:attach_flags]
+
+      add_error("invalid attach_flags: expected #{opts[:attach_flags]}, got #{prog['attach_flags']}")
     end
   end
 end

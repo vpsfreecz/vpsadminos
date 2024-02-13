@@ -3,7 +3,7 @@ require 'prometheus_ext/client/registry'
 
 module OsCtl
   module Exporter
-    module Formats ; end
+    module Formats; end
 
     # @return [MultiRegistry]
     def self.registry

@@ -20,6 +20,7 @@ module OsCtl::Image
     end
 
     protected
+
     def find_root(idmap, type)
       idmap.each do |entry|
         if entry[:type] == type && entry[:ns_id] == 0

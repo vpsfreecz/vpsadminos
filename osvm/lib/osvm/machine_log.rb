@@ -5,7 +5,7 @@ module OsVm
       @file = File.open(path, 'w')
     end
 
-    %i(start stop destroy).each do |m|
+    %i[start stop destroy].each do |m|
       define_method(m) do
         log do |io|
           io.puts("ACTION: #{m}")
@@ -15,14 +15,14 @@ module OsVm
 
     def kill(signal)
       log do |io|
-        io.puts("ACTION: kill")
+        io.puts('ACTION: kill')
         io.puts("SIGNAL: #{signal}")
       end
     end
 
     def exit(status)
       log do |io|
-        io.puts("ACTION: qemu_exit")
+        io.puts('ACTION: qemu_exit')
         io.puts("STATUS: #{status}")
       end
     end
@@ -36,7 +36,7 @@ module OsVm
     def execute_end(status, output)
       log_end do |io|
         io.puts("STATUS: #{status}")
-        io.puts("OUTPUT:")
+        io.puts('OUTPUT:')
         io.puts(output)
       end
     end
@@ -51,11 +51,12 @@ module OsVm
     end
 
     protected
+
     attr_reader :path, :file
 
-    def log(&block)
+    def log(&)
       log_begin
-      log_cont(&block)
+      log_cont(&)
       log_end
     end
 
@@ -77,7 +78,7 @@ module OsVm
       file.puts("ELAPSED: #{(t - @log_begun_at).round(2)}s")
       file.flush
       log_cont(&block) if block
-      file.puts("---")
+      file.puts('---')
       file.puts
       file.flush
     end

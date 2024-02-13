@@ -66,7 +66,7 @@ module OsCtl::Image
         image.version,
         image.arch,
         opts[:vendor] || image.vendor,
-        image.variant,
+        image.variant
       ].join('-')
 
       @output_tar = File.join(output_dir, "#{name}-archive.tar")
@@ -103,6 +103,7 @@ module OsCtl::Image
     end
 
     protected
+
     attr_reader :client, :build_dataset, :work_dir, :output_dir
 
     def build
@@ -147,15 +148,15 @@ module OsCtl::Image
           build_id,
           builder_work_dir,
           builder_install_dir,
-          image.name,
+          image.name
         ],
         id: build_id,
-        client: client,
+        client:
       )
 
       if rc != 0
         raise OperationError,
-              "build of #{image.name} on #{builder.name} failed with "+
+              "build of #{image.name} on #{builder.name} failed with " +
               "exit status #{rc}"
       end
 
@@ -179,10 +180,8 @@ module OsCtl::Image
 
       if builder.attrs
         [builder_base_dir, builder_work_dir, builder_install_dir].each do |dir|
-          begin
-            Dir.rmdir(File.join(builder.attrs[:rootfs], dir))
-          rescue Errno::ENOENT
-          end
+          Dir.rmdir(File.join(builder.attrs[:rootfs], dir))
+        rescue Errno::ENOENT
         end
       end
 

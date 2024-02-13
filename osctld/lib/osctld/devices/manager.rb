@@ -17,14 +17,14 @@ module OsCtld
       when Container
         mod::ContainerManager
       else
-        fail "unsupported device owner #{owner.inspect}"
+        raise "unsupported device owner #{owner.inspect}"
       end
     end
 
     # @param owner [Devices::Owner]
     # @return [Devices::Manager]
-    def self.new_for(owner, **kwargs)
-      class_for(owner).new(owner, **kwargs)
+    def self.new_for(owner, **)
+      class_for(owner).new(owner, **)
     end
 
     # @param owner [Devices::Owner]
@@ -42,13 +42,11 @@ module OsCtld
     end
 
     # @param add [Assets::Definition]
-    def assets(add)
-
-    end
+    def assets(add); end
 
     # Initialize device list
     # @param opts [Hash] can be used by subclasses
-    def init(**opts)
+    def init(**_opts)
       sync do
         if parent
           parent.devices.each do |parent_dev|
@@ -75,8 +73,8 @@ module OsCtld
     #                                 inherit this device?
     # @option opts [Boolean] :inherited was this device inherited from the
     #                                   parent group?
-    def add_new(type, major, minor, mode, **opts)
-      add(Devices::Device.new(type, major.to_s, minor.to_s, mode, **opts))
+    def add_new(type, major, minor, mode, **)
+      add(Devices::Device.new(type, major.to_s, minor.to_s, mode, **))
     end
 
     # Add new device and ensure that parent groups provide it
@@ -98,7 +96,7 @@ module OsCtld
     # Inherit device from a parent
     # @param device [Devices::Device]
     # @param opts [Hash] can be used by subclasses
-    def inherit(device, **opts)
+    def inherit(device, **_opts)
       sync do
         dev = device.clone
         dev.inherited = true
@@ -177,7 +175,7 @@ module OsCtld
     # @param parents [Boolean]
     # @param promote [Boolean]
     # @param descendants [Boolean]
-    def chmod(device, mode, parents: false, promote: false, descendants: false, **opts)
+    def chmod(device, mode, parents: false, promote: false, descendants: false, **_opts)
       sync do
         if parents && parent
           dev = device.clone
@@ -242,7 +240,7 @@ module OsCtld
         # Parent does not provide the device, remove it
         if used_by_descendants?(device)
           raise DeviceInUse,
-                'the device would be removed, but child groups or containers '+
+                'the device would be removed, but child groups or containers ' +
                 'are using it'
         end
 
@@ -328,8 +326,8 @@ module OsCtld
     # @param descendants [Boolean]
     def apply(parents: false, descendants: false)
       sync do
-        if parents
-          parent.devices.apply(parents: true) if parent
+        if parents && parent
+          parent.devices.apply(parents: true)
         end
 
         configurator.reconfigure(devices)
@@ -485,6 +483,7 @@ module OsCtld
       sync do
         dev = devices.detect { |v| v == device }
         next(false) unless dev
+
         dev.inherited?
       end
     end
@@ -496,6 +495,7 @@ module OsCtld
       sync do
         dev = devices.detect { |v| v == device }
         next(false) unless dev
+
         !dev.inherited?
       end
     end
@@ -558,6 +558,7 @@ module OsCtld
     end
 
     protected
+
     attr_reader :owner, :devices, :configurator
 
     def do_add(device)
@@ -592,11 +593,9 @@ module OsCtld
 
       else
         check_owner.devices.children.each do |child|
-          if child.devices.used?(device)
-            raise DeviceInheritNeeded, child
-          else
-            check_unset_inherit!(device, check_owner: child)
-          end
+          raise DeviceInheritNeeded, child if child.devices.used?(device)
+
+          check_unset_inherit!(device, check_owner: child)
         end
       end
     end
@@ -612,8 +611,8 @@ module OsCtld
       Devices::ChangeSet.add(owner.pool, self, changeset_sort_key)
     end
 
-    def sync(&block)
-      Devices::Lock.sync(owner.pool, &block)
+    def sync(&)
+      Devices::Lock.sync(owner.pool, &)
     end
   end
 end

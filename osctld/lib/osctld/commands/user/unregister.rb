@@ -13,7 +13,6 @@ module OsCtld
 
             begin
               unregister_user(u)
-
             rescue ResourceLocked => e
               progress("User #{u.ident} is locked, skipping")
             end
@@ -34,6 +33,7 @@ module OsCtld
     end
 
     protected
+
     def unregister_user(u)
       manipulate(u) do
         progress("Unregistering user #{u.ident}")

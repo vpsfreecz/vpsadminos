@@ -50,7 +50,7 @@ module OsCtl::Lib
 
     # @return [Zfs::Dataset]
     def as_dataset(base: '')
-      Zfs::Dataset.new(name, base: base, properties: properties)
+      Zfs::Dataset.new(name, base:, properties:)
     end
 
     # Print the tree to the console
@@ -67,6 +67,7 @@ module OsCtl::Lib
     end
 
     protected
+
     def do_add_property(path, name, parts, property, value)
       datasets[name] ||= self.class.new(name: (path + [name]).join('/'))
 

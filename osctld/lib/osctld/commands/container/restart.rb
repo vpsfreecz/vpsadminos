@@ -30,14 +30,14 @@ module OsCtld
             id: ct.id,
             timeout: opts[:stop_timeout],
             method: opts[:stop_method],
-            message: opts[:message],
+            message: opts[:message]
           )
           call_cmd!(
             Commands::Container::Start,
             pool: ct.pool.name,
             id: ct.id,
             force: true,
-            wait: opts[:wait],
+            wait: opts[:wait]
           )
         end
       end

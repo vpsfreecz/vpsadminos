@@ -1,5 +1,5 @@
 module TestRunner
-  module Cli ; end
+  module Cli; end
 end
 
 require 'test-runner/executor'

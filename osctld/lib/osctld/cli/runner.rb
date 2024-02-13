@@ -32,9 +32,9 @@ module OsCtld
         lxc_home: cfg[:lxc_home],
         user_home: cfg[:user_home],
         log_file: cfg[:log_file],
-        stdin: stdin,
-        stdout: stdout,
-        stderr: stderr,
+        stdin:,
+        stdout:,
+        stderr:
       )
       val = runner.execute(*cfg[:args], **cfg[:kwargs])
       ret.puts(val.to_json)

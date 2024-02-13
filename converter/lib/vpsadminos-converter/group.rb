@@ -15,7 +15,7 @@ module VpsAdminOS::Converter
     def dump_config
       {
         'path' => path,
-        'cgparams' => [], # TODO
+        'cgparams' => [] # TODO
       }
     end
   end

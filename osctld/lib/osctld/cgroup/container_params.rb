@@ -13,7 +13,7 @@ module OsCtld
       super
       return unless owner.running?
 
-      apply_container_params_and_retry(usable_params, keep_going: keep_going, &block)
+      apply_container_params_and_retry(usable_params, keep_going:, &block)
     end
 
     # Temporarily expand container memory by given percentage
@@ -54,6 +54,7 @@ module OsCtld
     end
 
     protected
+
     def apply_container_params(param_list, keep_going: false)
       failed = []
 
@@ -62,12 +63,11 @@ module OsCtld
           yield(p.subsystem),
           'user-owned',
           "lxc.payload.#{owner.id}",
-          p.name,
+          p.name
         )
 
         begin
           failed << p unless CGroup.set_param(path, p.value)
-
         rescue CGroupFileNotFound
           next
         end
@@ -79,13 +79,13 @@ module OsCtld
     def apply_container_params_and_retry(param_list, keep_going: false, &block)
       failed = apply_container_params(
         param_list,
-        keep_going: keep_going,
+        keep_going:,
         &block
       ).select { |p| p.name.start_with?('memory.') }
 
-      if failed.any?
-        apply_container_params(failed, keep_going: keep_going, &block)
-      end
+      return unless failed.any?
+
+      apply_container_params(failed, keep_going:, &block)
     end
   end
 end

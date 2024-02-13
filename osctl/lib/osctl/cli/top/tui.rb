@@ -17,7 +17,7 @@ module OsCtl::Cli
       Curses.start_color
       Curses.crmode
       Curses.stdscr.keypad = true
-      Curses.curs_set(0)  # hide cursor
+      Curses.curs_set(0) # hide cursor
       Curses.use_default_colors
       Curses.init_pair(SELECTED, Curses::COLOR_BLACK, Curses::COLOR_WHITE)
       Curses.init_pair(HIGHLIGHTED, Curses::COLOR_YELLOW, Curses::COLOR_BLACK)
@@ -31,7 +31,6 @@ module OsCtl::Cli
 
         Curses.clear
       end
-
     rescue Interrupt
     ensure
       Curses.close_screen

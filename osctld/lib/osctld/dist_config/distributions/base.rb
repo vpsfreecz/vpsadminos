@@ -26,54 +26,51 @@ module OsCtld
     end
 
     def configurator_class
-      if self.class.const_defined?(:Configurator)
-        cls = self.class::Configurator
-        log(:debug, "Using #{cls} for #{ctrc.distribution}")
-        cls
-      else
-        fail "define #{self.class}#configurator_class"
-      end
+      raise "define #{self.class}#configurator_class" unless self.class.const_defined?(:Configurator)
+
+      cls = self.class::Configurator
+      log(:debug, "Using #{cls} for #{ctrc.distribution}")
+      cls
     end
 
     # Called before container start, can be used to e.g. add temporary mounts
-    def pre_start(opts = {})
-      if volatile_is_systemd?
-        # systemd by default does not monitor udev events in containers, which
-        # means that there are no device units to depend on, e.g. for network
-        # interfaces. systemd decides this by the  existence of socket
-        # /run/udev/control and that /dev is devtmpfs. Our /dev cannot be
-        # devtmpfs since that doesn't work in containers, and /run/udev/control
-        # is created by a socket unit *after* systemd makes the decision to not
-        # monitor udev events. After `systemctl daemon-reload`, it actually
-        # starts to monitor udev events and the device units are created.
-        #
-        # See https://github.com/systemd/systemd/blob/729d2df8065ac90ac606e1fff91dc2d588b2795d/src/libsystemd/sd-device/device-monitor.c#L125
-        #
-        # We therefore mount /run as tmpfs before systemd is run and create
-        # a stub for /run/udev/control, so that the check passes and udev events
-        # are monitored from the start.
-        #
-        # /run has to be mounted by LXC from the container's user namespace, so
-        # that it is owned by that user namespace. File /run/udev/control is
-        # created later in {#post_mount}.
+    def pre_start(_opts = {})
+      return unless volatile_is_systemd?
+      # systemd by default does not monitor udev events in containers, which
+      # means that there are no device units to depend on, e.g. for network
+      # interfaces. systemd decides this by the  existence of socket
+      # /run/udev/control and that /dev is devtmpfs. Our /dev cannot be
+      # devtmpfs since that doesn't work in containers, and /run/udev/control
+      # is created by a socket unit *after* systemd makes the decision to not
+      # monitor udev events. After `systemctl daemon-reload`, it actually
+      # starts to monitor udev events and the device units are created.
+      #
+      # See https://github.com/systemd/systemd/blob/729d2df8065ac90ac606e1fff91dc2d588b2795d/src/libsystemd/sd-device/device-monitor.c#L125
+      #
+      # We therefore mount /run as tmpfs before systemd is run and create
+      # a stub for /run/udev/control, so that the check passes and udev events
+      # are monitored from the start.
+      #
+      # /run has to be mounted by LXC from the container's user namespace, so
+      # that it is owned by that user namespace. File /run/udev/control is
+      # created later in {#post_mount}.
 
-        # Check if /run isn't mounted already by user configuration
-        if ct.mounts.detect { |mnt| %w(/run /run/).include?(mnt.mountpoint) }.nil?
-          mem_limit = ct.find_memory_limit
-          mnt_opts = %w(nosuid nodev mode=755 create=dir)
-          mnt_opts << "size=#{mem_limit / 2}" if mem_limit
+      # Check if /run isn't mounted already by user configuration
+      return unless ct.mounts.detect { |mnt| %w[/run /run/].include?(mnt.mountpoint) }.nil?
 
-          ct.mounts.add(Mount::Entry.new(
-            'tmpfs',
-            '/run',
-            'tmpfs',
-            mnt_opts.join(','),
-            false,
-            temp: true,
-            in_config: true,
-          ))
-        end
-      end
+      mem_limit = ct.find_memory_limit
+      mnt_opts = %w[nosuid nodev mode=755 create=dir]
+      mnt_opts << "size=#{mem_limit / 2}" if mem_limit
+
+      ct.mounts.add(Mount::Entry.new(
+                      'tmpfs',
+                      '/run',
+                      'tmpfs',
+                      mnt_opts.join(','),
+                      false,
+                      temp: true,
+                      in_config: true
+                    ))
     end
 
     # Run by LXC post-mount hook on container start
@@ -87,7 +84,7 @@ module OsCtld
         ct,
         ns_pid: opts[:ns_pid],
         chroot: opts[:rootfs_mount],
-        block: Proc.new do
+        block: proc do
           # /run is mounted by {#pre_start}
           FileUtils.mkdir_p('/run/udev')
 
@@ -99,29 +96,29 @@ module OsCtld
           end
 
           true
-        end,
+        end
       )
     end
 
     # Run just before the container is started
-    def start(opts = {})
-      if ct.hostname || ct.dns_resolvers || ctrc.dist_configure_network?
-        net_configured = with_rootfs do
-          ret = false
+    def start(_opts = {})
+      return unless ct.hostname || ct.dns_resolvers || ctrc.dist_configure_network?
 
-          set_hostname if ct.hostname
-          dns_resolvers if ct.dns_resolvers
+      net_configured = with_rootfs do
+        ret = false
 
-          if ctrc.dist_configure_network?
-            network
-            ret = true
-          end
+        set_hostname if ct.hostname
+        dns_resolvers if ct.dns_resolvers
 
-          ret
+        if ctrc.dist_configure_network?
+          network
+          ret = true
         end
 
-        ctrc.dist_network_configured = true if net_configured
+        ret
       end
+
+      ctrc.dist_network_configured = true if net_configured
     end
 
     # Gracefully stop the container
@@ -134,7 +131,7 @@ module OsCtld
         ct,
         opts[:mode],
         message: opts[:message],
-        timeout: opts[:timeout],
+        timeout: opts[:timeout]
       )
     end
 
@@ -168,7 +165,7 @@ module OsCtld
     end
 
     # Remove the osctld-generated notice from /etc/hosts
-    def unset_etc_hosts(opts = {})
+    def unset_etc_hosts(_opts = {})
       with_rootfs do
         configurator.unset_etc_hosts
       end
@@ -220,13 +217,14 @@ module OsCtld
     def passwd(opts)
       ret = ct_syscmd(
         ct,
-        %w(chpasswd),
+        %w[chpasswd],
         stdin: "#{opts[:user]}:#{opts[:password]}\n",
         run: true,
         valid_rcs: :all
       )
 
       return true if ret.success?
+
       log(:warn, ct, "Unable to set password: #{ret.output}")
     end
 
@@ -241,6 +239,7 @@ module OsCtld
     end
 
     protected
+
     attr_reader :configurator
 
     def with_rootfs(&block)
@@ -249,17 +248,17 @@ module OsCtld
       else
         ContainerControl::Commands::WithRootfs.run!(
           ctrc.ct,
-          ctrc: ctrc,
-          block: Proc.new do
+          ctrc:,
+          block: proc do
             @configurator = configurator_class.new(
               ct.id,
               '/',
               ct.distribution,
-              ct.version,
+              ct.version
             )
             @within_rootfs = true
             block.call
-          end,
+          end
         )
       end
     end

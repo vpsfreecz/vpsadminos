@@ -38,6 +38,7 @@ module OsCtld
       end
 
       protected
+
       attr_writer :order
 
       def return_queue
@@ -88,7 +89,7 @@ module OsCtld
     def execute(cmd, timeout: nil)
       q = cmd.send(:return_queue)
       enqueue(cmd)
-      q.shift(timeout: timeout)
+      q.shift(timeout:)
     end
 
     # Remove enqueued command identified by its id
@@ -128,6 +129,7 @@ module OsCtld
     end
 
     protected
+
     def start
       @main = Thread.new do
         loop do
@@ -154,9 +156,7 @@ module OsCtld
                 @exec_queue.concat(arg)
                 @exec_queue.sort!
 
-                while @workers.size < @size && @exec_queue.any?
-                  exec(@exec_queue.shift)
-                end
+                exec(@exec_queue.shift) while @workers.size < @size && @exec_queue.any?
               end
             end
 
@@ -164,9 +164,7 @@ module OsCtld
             sync do
               @workers.delete(arg)
 
-              while @workers.size < @size && @exec_queue.any?
-                exec(@exec_queue.shift)
-              end
+              exec(@exec_queue.shift) while @workers.size < @size && @exec_queue.any?
 
               wake_waiters
             end
@@ -197,9 +195,7 @@ module OsCtld
             sync do
               @size = arg
 
-              while @workers.size < @size && @exec_queue.any?
-                exec(@exec_queue.shift)
-              end
+              exec(@exec_queue.shift) while @workers.size < @size && @exec_queue.any?
             end
 
           when :wait
@@ -219,33 +215,29 @@ module OsCtld
 
     def exec(cmd)
       t = Thread.new do
-        begin
-          ret = cmd.send(:exec)
-
-        rescue Exception => e
-          log(:warn, 'cont', "Exception raised during command execution: #{e.message}")
-          puts denixstorify(e.backtrace).join("\n")
-
-        ensure
-          @front_queue << [:thread, Thread.current]
-          cmd.send(:done, ret)
-        end
+        ret = cmd.send(:exec)
+      rescue Exception => e
+        log(:warn, 'cont', "Exception raised during command execution: #{e.message}")
+        puts denixstorify(e.backtrace).join("\n")
+      ensure
+        @front_queue << [:thread, Thread.current]
+        cmd.send(:done, ret)
       end
 
       @workers << t
     end
 
     def wake_waiters(force: false)
-      if force || (@workers.empty? && @exec_queue.empty?)
-        @waiters.delete_if do |q|
-          q << true
-          true
-        end
+      return unless force || (@workers.empty? && @exec_queue.empty?)
+
+      @waiters.delete_if do |q|
+        q << true
+        true
       end
     end
 
-    def sync
-      @mutex.synchronize { yield }
+    def sync(&)
+      @mutex.synchronize(&)
     end
   end
 end

@@ -18,11 +18,12 @@ module OsCtl::Lib
     #
     # @param opts [Hash] options passed to {OsProcess}
     # @yieldparam [OsProcess] process
-    def initialize(**opts, &block)
-      list_processes(**opts, &block)
+    def initialize(**, &)
+      list_processes(**, &)
     end
 
     protected
+
     def list_processes(**opts)
       Dir.foreach('/proc') do |entry|
         next if /^\d+$/ !~ entry || !Dir.exist?(File.join('/proc', entry))

@@ -8,7 +8,7 @@ module OsCtl::Exporter
         :gauge,
         :osctl_health_check_error_count,
         docstring: 'Number of health check errors detected by osctld',
-        labels: [:pool, :entity_type, :entity_id],
+        labels: %i[pool entity_type entity_id]
       )
     end
 
@@ -17,7 +17,7 @@ module OsCtl::Exporter
         @error_count.set(entity[:assets].length, labels: {
           pool: entity[:pool],
           entity_type: entity[:type],
-          entity_id: entity[:id],
+          entity_id: entity[:id]
         })
       end
     end

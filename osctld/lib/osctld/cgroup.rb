@@ -19,7 +19,7 @@ module OsCtld
         @version = 1
       end
 
-      @version = 1 if ![1, 2].include?(@version)
+      @version = 1 unless [1, 2].include?(@version)
 
       @subsystems =
         if @version == 1
@@ -45,8 +45,9 @@ module OsCtld
     # Convert a single subsystem name to the mountpoint name, because some
     # CGroup subsystems are mounted in a shared mountpoint.
     def self.real_subsystem(subsys)
-      return 'cpu,cpuacct' if %w(cpu cpuacct).include?(subsys)
-      return 'net_cls,net_prio' if %w(net_cls net_prio).include?(subsys)
+      return 'cpu,cpuacct' if %w[cpu cpuacct].include?(subsys)
+      return 'net_cls,net_prio' if %w[net_cls net_prio].include?(subsys)
+
       subsys
     end
 
@@ -58,7 +59,7 @@ module OsCtld
 
     # @return [Hash<Symbol, String>]
     def self.subsystem_paths
-      Hash[%i(cpu cpuacct memory pids).map do |subsys|
+      Hash[%i[cpu cpuacct memory pids].map do |subsys|
         [subsys, abs_cgroup_path(real_subsystem(subsys.to_s))]
       end]
     end
@@ -117,9 +118,9 @@ module OsCtld
 
         created = create(
           cgroup,
-          delegate: i+1 < path.length || (!leaf && !attach),
-          type: type,
-          base: base,
+          delegate: i + 1 < path.length || (!leaf && !attach),
+          type:,
+          base:
         )
       end
 
@@ -131,15 +132,13 @@ module OsCtld
 
         if v2? || type == 'unified'
           DELEGATE_FILES.each do |f|
-            begin
-              File.chown(chown, chown, File.join(cgroup, f))
-            rescue Errno::ENOENT
-            end
+            File.chown(chown, chown, File.join(cgroup, f))
+          rescue Errno::ENOENT
           end
         end
       end
 
-      self.attach_to(type, path, pid: pid, debug: debug) if attach
+      attach_to(type, path, pid:, debug:) if attach
 
       created
     end
@@ -153,7 +152,7 @@ module OsCtld
     # @param debug [Boolean] enable extra logging
     def self.mkpath_all(path, chown: nil, attach: false, leaf: true, pid: nil, debug: false)
       subsystems.each do |subsys|
-        mkpath(subsys, path, chown: chown, attach: attach, pid: pid, debug: debug)
+        mkpath(subsys, path, chown:, attach:, pid:, debug:)
       end
     end
 
@@ -213,7 +212,7 @@ module OsCtld
       end
 
       unless attached
-        fail "unable to attach pid #{attach_pid} to cgroup #{cgroup.inspect}"
+        raise "unable to attach pid #{attach_pid} to cgroup #{cgroup.inspect}"
       end
 
       nil
@@ -224,7 +223,7 @@ module OsCtld
     # @param pid [Integer, nil] pid to attach, default to the current process
     def self.attach_to_all(path, pid: nil)
       subsystems.each do |subsys|
-        attach_to(subsys, path, pid: pid)
+        attach_to(subsys, path, pid:)
       end
     end
 
@@ -260,7 +259,7 @@ module OsCtld
     def self.inherit_param(base, cgroup, param)
       v = File.read(File.join(cgroup, param)).strip
       return v unless v.empty?
-      fail "parameter #{param} not set in root cgroup #{base}" if base == cgroup
+      raise "parameter #{param} not set in root cgroup #{base}" if base == cgroup
 
       v = inherit_param(base, File.dirname(cgroup), param)
       set_param(File.join(cgroup, param), [v])
@@ -286,6 +285,7 @@ module OsCtld
     # @return [Boolean]
     def self.set_param(path, value)
       raise CGroupFileNotFound.new(path, value) unless File.exist?(path)
+
       ret = true
 
       value.each do |v|
@@ -293,8 +293,7 @@ module OsCtld
 
         begin
           File.write(path, v.to_s)
-
-        rescue => e
+        rescue StandardError => e
           log(
             :warn,
             :cgroup,
@@ -315,7 +314,7 @@ module OsCtld
 
       # Remove subdirectories recursively
       Dir.entries(abs_path).each do |dir|
-        next if dir == '.' || dir == '..'
+        next if ['.', '..'].include?(dir)
         next unless Dir.exist?(File.join(abs_path, dir))
 
         rmpath(subsystem, File.join(path, dir))
@@ -328,7 +327,6 @@ module OsCtld
         # Remove pinned links for the cgroup
         Devices::V2::BpfProgramCache.prune_cgroup_links(abs_path)
       end
-
     rescue Errno::ENOENT
       # pass
     end
@@ -343,7 +341,7 @@ module OsCtld
     # @param pid [Integer]
     # @return [Hash<String, String>] subsystem => cgroup path, relative to the mountpoint
     def self.get_process_cgroups(pid)
-      fail "CGroup.get_process_cgroups is for cgroup v1 only" unless CGroup.v1?
+      raise 'CGroup.get_process_cgroups is for cgroup v1 only' unless CGroup.v1?
 
       ret = {}
 
@@ -355,29 +353,30 @@ module OsCtld
           colon = s.index(':')
           next if colon.nil?
 
-          s = s[(colon+1)..-1]
+          s = s[(colon + 1)..-1]
 
           # Controllers
           colon = s.index(':')
           next if colon.nil?
 
-          if colon == 0
-            subsystems = 'unified'
-          else
-            subsystems = s[0..(colon-1)].split(',').map do |subsys|
-              # Remove name= from named controllers
-              if eq = subsys.index('=')
-                subsys[(eq+1)..-1]
-              else
-                subsys
-              end
-            end.join(',')
-          end
+          subsystems = if colon == 0
+                         'unified'
+                       else
+                         s[0..(colon - 1)].split(',').map do |subsys|
+                           # Remove name= from named controllers
+                           if eq = subsys.index('=')
+                             subsys[(eq + 1)..-1]
+                           else
+                             subsys
+                           end
+                         end.join(',')
+                       end
 
-          s = s[(colon+1)..-1]
+          s = s[(colon + 1)..-1]
 
           # Path
           next if s.nil?
+
           path = s
 
           ret[subsystems] = path
@@ -413,7 +412,7 @@ module OsCtld
         state = File.join(abs_path, 'freezer.state')
 
         begin
-          File.open(state, 'w') { |f| f.write('FROZEN') }
+          File.write(state, 'FROZEN')
         rescue SystemCallError => e
           log(:warn, "Unable to freeze #{abs_path}: #{e.message} (#{e.class})")
         end
@@ -422,7 +421,7 @@ module OsCtld
         state = File.join(abs_path, 'cgroup.freeze')
 
         begin
-          File.open(state, 'w') { |f| f.write('1') }
+          File.write(state, '1')
         rescue SystemCallError => e
           log(:warn, "Unable to freeze #{abs_path}: #{e.message} (#{e.class})")
         end
@@ -435,7 +434,7 @@ module OsCtld
       abs_path = abs_cgroup_path('freezer', path)
 
       Dir.entries(abs_path).each do |dir|
-        next if dir == '.' || dir == '..'
+        next if ['.', '..'].include?(dir)
         next unless Dir.exist?(File.join(abs_path, dir))
 
         thaw_tree(File.join(path, dir))
@@ -445,9 +444,9 @@ module OsCtld
         state = File.join(abs_path, 'freezer.state')
 
         begin
-          if %w(FREEZING FROZEN).include?(File.read(state).strip)
+          if %w[FREEZING FROZEN].include?(File.read(state).strip)
             log(:info, "Thawing #{abs_path}")
-            File.open(state, 'w') { |f| f.write('THAWED') }
+            File.write(state, 'THAWED')
           end
         rescue SystemCallError => e
           log(:warn, "Unable to thaw #{abs_path}: #{e.message} (#{e.class})")
@@ -459,7 +458,7 @@ module OsCtld
         begin
           if File.read(state).strip == '1'
             log(:info, "Thawing #{abs_path}")
-            File.open(state, 'w') { |f| f.write('0') }
+            File.write(state, '0')
           end
         rescue SystemCallError => e
           log(:warn, "Unable to thaw #{abs_path}: #{e.message} (#{e.class})")

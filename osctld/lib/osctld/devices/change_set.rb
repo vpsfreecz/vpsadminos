@@ -47,8 +47,9 @@ module OsCtld
     end
 
     protected
-    def sync(&block)
-      @mutex.synchronize(&block)
+
+    def sync(&)
+      @mutex.synchronize(&)
     end
   end
 end

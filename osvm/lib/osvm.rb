@@ -1,4 +1,4 @@
-module OsVm ; end
+module OsVm; end
 
 require 'osvm/exceptions'
 require 'osvm/machine'

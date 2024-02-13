@@ -45,8 +45,6 @@ module OsCtld
         wall_msg =
           if opts[:wall]
             opts[:message] || 'System is shutting down'
-          else
-            nil
           end
 
         call_cmd!(
@@ -56,7 +54,7 @@ module OsCtld
           grab_containers: false,
           stop_containers: true,
           unregister_users: false,
-          message: wall_msg,
+          message: wall_msg
         )
       end
 
@@ -67,6 +65,7 @@ module OsCtld
     end
 
     protected
+
     def grab_pools
       progress('Grabbing pools')
       pools = DB::Pools.get
@@ -82,7 +81,6 @@ module OsCtld
             pool.acquire_manipulation_lock(self)
             grabbed << pool
             true
-
           rescue ResourceLocked => e
             progress(e.message)
             false
@@ -90,6 +88,7 @@ module OsCtld
         end
 
         break if pools.empty?
+
         sleep(1)
       end
 
@@ -111,7 +110,6 @@ module OsCtld
             ct.acquire_manipulation_lock(self)
             grabbed << ct
             true
-
           rescue ResourceLocked => e
             progress(e.message)
             false
@@ -119,6 +117,7 @@ module OsCtld
         end
 
         break if cts.empty?
+
         sleep(1)
       end
 

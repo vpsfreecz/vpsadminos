@@ -32,14 +32,15 @@ module OsCtld
     end
 
     protected
+
     attr_reader :stdin, :stdout, :stderr
 
     def ok(out = nil)
-      {status: true, output: out}
+      { status: true, output: out }
     end
 
     def error(msg)
-      {status: false, message: msg}
+      { status: false, message: msg }
     end
 
     def lxc_ct
@@ -58,7 +59,7 @@ module OsCtld
 
     def setup_exec_run_env
       setup_exec_env
-      ENV['PATH'] = ['/run/wrappers/bin', ENV['PATH']].join(':')
+      ENV['PATH'] = ['/run/wrappers/bin', ENV.fetch('PATH', nil)].join(':')
     end
   end
 end

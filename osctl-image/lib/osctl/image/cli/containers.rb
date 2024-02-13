@@ -4,17 +4,17 @@ require 'osctl/image/cli/command'
 
 module OsCtl::Image
   class Cli::Containers < Cli::Command
-    FIELDS = %i(
+    FIELDS = %i[
       pool
       id
       type
       distribution
       version
-    )
+    ]
 
     def list
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
-        all_params: FIELDS,
+        all_params: FIELDS
       )
 
       if opts[:list]
@@ -28,7 +28,7 @@ module OsCtl::Image
         layout: :columns,
         cols: param_selector.parse_option(opts[:output]),
         sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
-        header: !opts['hide-header'],
+        header: !opts['hide-header']
       }
 
       OsCtl::Lib::Cli::OutputFormatter.print(cts, **fmt_opts)
@@ -54,6 +54,7 @@ module OsCtl::Image
     end
 
     protected
+
     def get_cts(client)
       cts = client.list_containers.select do |ct|
         ct.has_key?(:'org.vpsadminos.osctl-image:type')

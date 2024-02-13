@@ -17,11 +17,12 @@ module OsCtld
       end
 
       protected
+
       def environment
         super.merge({
           'OSCTL_POOL_NAME' => pool.name,
           'OSCTL_POOL_DATASET' => pool.dataset,
-          'OSCTL_POOL_STATE' => pool.state.to_s,
+          'OSCTL_POOL_STATE' => pool.state.to_s
         })
       end
     end

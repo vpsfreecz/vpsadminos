@@ -1,6 +1,6 @@
 module OsCtld
   module Utils::Devices
-    def list(groupable, opts)
+    def list(groupable, _opts)
       ok(groupable.devices.export)
     end
 
@@ -11,7 +11,7 @@ module OsCtld
       check_mode!
 
       Devices::Lock.sync(entity.pool) do
-        if !opts[:parents]
+        unless opts[:parents]
           entity.devices.check_availability!(dev)
         end
 
@@ -20,7 +20,6 @@ module OsCtld
       end
 
       ok
-
     rescue DeviceNotAvailable, DeviceModeInsufficient => e
       error(e.message)
     end
@@ -35,12 +34,12 @@ module OsCtld
 
       Devices::Lock.sync(entity.pool) do
         # Check parents for device & mode
-        if !opts[:parents]
+        unless opts[:parents]
           entity.devices.check_availability!(dev, mode: new_mode)
         end
 
         # Check if descendants do not require broader access mode
-        if !opts[:recursive]
+        unless opts[:recursive]
           entity.devices.check_descendants!(dev, mode: new_mode)
         end
 
@@ -55,7 +54,6 @@ module OsCtld
       end
 
       ok
-
     rescue DeviceModeInsufficient, DeviceDescendantRequiresMode => e
       error(e.message)
     end
@@ -82,7 +80,6 @@ module OsCtld
       end
 
       ok
-
     rescue DeviceInUse => e
       error(e.message)
     end
@@ -111,7 +108,6 @@ module OsCtld
       end
 
       ok
-
     rescue DeviceInUse => e
       error(e.message)
     end
@@ -124,19 +120,19 @@ module OsCtld
       end
 
       ok
-
     rescue DeviceNotAvailable, DeviceModeInsufficient => e
       error(e.message)
     end
 
     protected
+
     def check_mode!
-      if /^[rwm]{1,3}$/ !~ opts[:mode] || /(.)\1+/ =~ opts[:mode]
-        error!(
-          'invalid mode, allowed characters are: r for read, w for write, '+
-          'm for mknod'
-        )
-      end
+      return unless /^[rwm]{1,3}$/ !~ opts[:mode] || /(.)\1+/ =~ opts[:mode]
+
+      error!(
+        'invalid mode, allowed characters are: r for read, w for write, ' +
+        'm for mknod'
+      )
     end
   end
 end

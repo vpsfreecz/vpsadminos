@@ -2,8 +2,7 @@ require 'filelock'
 
 module OsCtl::Repo
   class Remote::Repository
-    attr_reader :url
-    attr_reader :path
+    attr_reader :url, :path
 
     def initialize(url)
       @url = File.join(url, "v#{SCHEMA}")
@@ -18,8 +17,8 @@ module OsCtl::Repo
       File.exist?(index_path)
     end
 
-    def lock_index
-      Filelock(File.join(path, '.INDEX.json.lock')) { yield }
+    def lock_index(&)
+      Filelock(File.join(path, '.INDEX.json.lock'), &)
     end
 
     def index_path

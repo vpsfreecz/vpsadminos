@@ -10,7 +10,7 @@ module OsCtld
 
     def find
       ct = DB::Containers.find(opts[:id], opts[:pool])
-      ct || error!("container not found")
+      ct || error!('container not found')
     end
 
     def execute(ct)
@@ -31,7 +31,7 @@ module OsCtld
               version: tpl[:version] || ct.version,
               arch: tpl[:arch] || ct.arch,
               vendor: tpl[:vendor] || 'default',
-              variant: tpl[:variant] || 'default',
+              variant: tpl[:variant] || 'default'
             }
           )
 
@@ -53,7 +53,7 @@ module OsCtld
           ct.set(distribution: {
             name: tpl[:distribution] || ct.distribution,
             version: tpl[:version] || ct.version,
-            arch: tpl[:arch] || ct.arch,
+            arch: tpl[:arch] || ct.arch
           })
         end
 

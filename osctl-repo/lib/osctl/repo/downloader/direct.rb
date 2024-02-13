@@ -13,21 +13,19 @@ module OsCtl::Repo
     end
 
     # yieldparam [String] downloaded data
-    def get(vendor, variant, arch, dist, vtag, format, opts = {})
+    def get(vendor, variant, arch, dist, vtag, format, _opts = {}, &block)
       connect do |http|
         index = Remote::Index.from_string(repo, http.get(index_uri.path).body)
         t = index.lookup(vendor, variant, arch, dist, vtag)
 
-        fail 'image not found' unless t
-        fail 'image not in given format' unless t.has_image?(format)
+        raise 'image not found' unless t
+        raise 'image not in given format' unless t.has_image?(format)
 
         uri = URI(t.abs_image_url(format))
         http.request_get(uri.path) do |res|
-          fail 'bad response' unless res.code == '200'
+          raise 'bad response' unless res.code == '200'
 
-          res.read_body do |fragment|
-            yield(fragment)
-          end
+          res.read_body(&block)
         end
       end
     end

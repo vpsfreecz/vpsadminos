@@ -19,7 +19,7 @@ module OsCtl::ExportFS
 
     def execute
       if Dir.exist?(server.dir)
-        fail 'server already exists'
+        raise 'server already exists'
       end
 
       FileUtils.mkdir_p(server.dir)
@@ -38,11 +38,12 @@ module OsCtl::ExportFS
         Operations::Server::Configure.run(server, opts[:options])
 
         # Create an empty exports file
-        File.open(server.exports_file, 'w'){}
+        File.open(server.exports_file, 'w') {}
       end
     end
 
     protected
+
     attr_reader :server, :opts, :sys
 
     # Forcefully create a symlink be removing existing `dst`

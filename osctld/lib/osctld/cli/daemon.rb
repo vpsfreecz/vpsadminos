@@ -8,9 +8,10 @@ module OsCtld
       d = OsCtld::Daemon.create(opts.config)
       stopping = false
 
-      %w(INT TERM).each do |sig|
+      %w[INT TERM].each do |sig|
         Signal.trap(sig) do
           next if stopping
+
           stopping = true
 
           Thread.new do

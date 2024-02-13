@@ -10,7 +10,7 @@ module OsCtld
       # @param hook_name [Symbol]
       def hook(event_class, hook_name, hook_class)
         @hook_name = hook_name
-        @user_hook_name = hook_name.to_s.gsub(/_/, '-')
+        @user_hook_name = hook_name.to_s.gsub('_', '-')
         Hook.register(event_class, hook_name, hook_class)
       end
 
@@ -36,7 +36,7 @@ module OsCtld
       setup
     end
 
-    def setup ; end
+    def setup; end
 
     # Execute the user script hook.
     #
@@ -55,7 +55,7 @@ module OsCtld
       env = environment
 
       pid = Process.fork do
-        ENV.delete_if { |k,_| k != 'PATH' }
+        ENV.delete_if { |k, _| k != 'PATH' }
         env.each { |k, v| ENV[k] = v }
 
         Process.exec(*executable(hook_path))
@@ -83,6 +83,7 @@ module OsCtld
     end
 
     protected
+
     # @return [Hash]
     attr_reader :opts
 
@@ -91,7 +92,7 @@ module OsCtld
     # @return [Hash<String, String>]
     def environment
       {
-        'OSCTL_HOOK_NAME' => self.class.user_hook_name,
+        'OSCTL_HOOK_NAME' => self.class.user_hook_name
       }
     end
 

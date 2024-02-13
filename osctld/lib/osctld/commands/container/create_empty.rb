@@ -19,11 +19,11 @@ module OsCtld
         user = create_user(pool)
       end
 
-      if opts[:group]
-        group = DB::Groups.find(opts[:group], pool)
-      else
-        group = DB::Groups.default(pool)
-      end
+      group = if opts[:group]
+                DB::Groups.find(opts[:group], pool)
+              else
+                DB::Groups.default(pool)
+              end
 
       if !opts[:distribution]
         error!('provide distribution')
@@ -42,7 +42,7 @@ module OsCtld
         group,
         opts[:dataset] && OsCtl::Lib::Zfs::Dataset.new(
           opts[:dataset],
-          base: opts[:dataset],
+          base: opts[:dataset]
         ),
         cmd: self
       )
@@ -67,8 +67,7 @@ module OsCtld
           builder.setup_user_hook_script_dir
           builder.monitor
           ok
-
-        rescue
+        rescue StandardError
           progress('Error occurred, cleaning up')
           builder.cleanup(dataset: !opts[:dataset])
           raise
@@ -77,6 +76,7 @@ module OsCtld
     end
 
     protected
+
     def create_user(pool)
       name = opts[:id]
 
@@ -86,11 +86,11 @@ module OsCtld
       call_cmd!(
         Commands::User::Create,
         pool: pool.name,
-        name: name,
-        standalone: false,
+        name:,
+        standalone: false
       )
 
-      return DB::Users.find(name, pool) || (fail 'expected user')
+      DB::Users.find(name, pool) || (raise 'expected user')
     end
   end
 end

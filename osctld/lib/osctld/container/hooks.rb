@@ -17,6 +17,7 @@ module OsCtld
       end
 
       protected
+
       def environment
         super.merge({
           'OSCTL_POOL_NAME' => ct.pool.name,
@@ -31,7 +32,7 @@ module OsCtld
           'OSCTL_CT_DISTRIBUTION' => ct.get_run_conf.distribution,
           'OSCTL_CT_VERSION' => ct.get_run_conf.version,
           'OSCTL_CT_HOSTNAME' => ct.hostname.to_s,
-          'OSCTL_CT_LOG_FILE' => ct.log_path,
+          'OSCTL_CT_LOG_FILE' => ct.log_path
         })
       end
     end
@@ -46,10 +47,11 @@ module OsCtld
       blocking true
 
       protected
+
       def environment
         super.merge({
           'OSCTL_HOST_VETH' => opts[:host_veth],
-          'OSCTL_CT_VETH' => opts[:ct_veth],
+          'OSCTL_CT_VETH' => opts[:ct_veth]
         })
       end
     end
@@ -59,9 +61,10 @@ module OsCtld
       blocking true
 
       protected
+
       def environment
         super.merge({
-          'OSCTL_CT_ROOTFS_MOUNT' => opts[:rootfs_mount],
+          'OSCTL_CT_ROOTFS_MOUNT' => opts[:rootfs_mount]
         })
       end
 
@@ -75,9 +78,10 @@ module OsCtld
       blocking true
 
       protected
+
       def environment
         super.merge({
-          'OSCTL_CT_ROOTFS_MOUNT' => opts[:rootfs_mount],
+          'OSCTL_CT_ROOTFS_MOUNT' => opts[:rootfs_mount]
         })
       end
 
@@ -96,9 +100,10 @@ module OsCtld
       blocking true
 
       protected
+
       def environment
         super.merge({
-          'OSCTL_CT_INIT_PID' => opts[:init_pid].to_s,
+          'OSCTL_CT_INIT_PID' => opts[:init_pid].to_s
         })
       end
     end
@@ -118,10 +123,11 @@ module OsCtld
       blocking false
 
       protected
+
       def environment
         super.merge({
           'OSCTL_HOST_VETH' => opts[:host_veth],
-          'OSCTL_CT_VETH' => opts[:ct_veth],
+          'OSCTL_CT_VETH' => opts[:ct_veth]
         })
       end
     end

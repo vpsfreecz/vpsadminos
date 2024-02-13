@@ -1,18 +1,18 @@
-lib = File.expand_path('../lib', __FILE__)
+lib = File.expand_path('lib', __dir__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 require 'svctl/version'
 
 Gem::Specification.new do |s|
-  s.name        = 'svctl'
+  s.name = 'svctl'
 
-  if ENV['OS_BUILD_ID']
-    s.version   = "#{SvCtl::VERSION}.build#{ENV['OS_BUILD_ID']}"
-  else
-    s.version   = SvCtl::VERSION
-  end
+  s.version = if ENV['OS_BUILD_ID']
+                "#{SvCtl::VERSION}.build#{ENV['OS_BUILD_ID']}"
+              else
+                SvCtl::VERSION
+              end
 
   s.summary     =
-  s.description = "runit service and runlevel manager"
+    s.description = 'runit service and runlevel manager'
   s.authors     = 'Jakub Skokan'
   s.email       = 'jakub.skokan@vpsfree.cz'
   s.files       = `git ls-files -z`.split("\x0")

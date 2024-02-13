@@ -5,24 +5,24 @@ module OsCtl::Repo
   class Cli::Repo < Cli::Command
     def init
       repo = Local::Repository.new(Dir.pwd)
-      fail 'repository already exists' if repo.exist?
+      raise 'repository already exists' if repo.exist?
 
       repo.create
     end
 
     def local_list
       repo = Local::Repository.new(Dir.pwd)
-      fail 'repository not found' unless repo.exist?
+      raise 'repository not found' unless repo.exist?
 
       fmt = '%-18s %-18s %-10s %-20s %-10s %s'
 
-      puts sprintf(
+      puts format(
         fmt,
         'VENDOR', 'VARIANT', 'ARCH', 'DISTRIBUTION', 'VERSION', 'TAGS'
       )
 
       repo.images.each do |t|
-        puts sprintf(
+        puts format(
           fmt,
           t.vendor,
           t.variant,
@@ -38,7 +38,7 @@ module OsCtl::Repo
       require_args!('vendor', 'variant', 'arch', 'distribution', 'version')
 
       repo = Local::Repository.new(Dir.pwd)
-      fail 'repository not found' unless repo.exist?
+      raise 'repository not found' unless repo.exist?
 
       vendor, variant, arch, distribution, version = args
 
@@ -51,8 +51,8 @@ module OsCtl::Repo
 
       image = Hash[{
         tar: opts[:archive],
-        zfs: opts[:stream],
-      }.select{ |_, v| v }]
+        zfs: opts[:stream]
+      }.select { |_, v| v }]
 
       if image.empty?
         raise GLI::BadCommandLine, 'no image, use --archive or --stream'
@@ -65,7 +65,7 @@ module OsCtl::Repo
         distribution,
         version,
         tags: opts[:tag],
-        image: image
+        image:
       )
     end
 
@@ -75,21 +75,21 @@ module OsCtl::Repo
       )
 
       repo = Local::Repository.new(Dir.pwd)
-      fail 'repository not found' unless repo.exist?
+      raise 'repository not found' unless repo.exist?
 
       vendor, variant, arch, distribution, version, format = args
       img = repo.find(vendor, variant, arch, distribution, version)
-      fail 'image not found' unless img
-      fail 'image format not found' unless img.has_image?(format)
+      raise 'image not found' unless img
+      raise 'image format not found' unless img.has_image?(format)
 
       puts img.version_image_path(format)
     end
 
     def set_default
-      require_args!('vendor', optional: %w(variant))
+      require_args!('vendor', optional: %w[variant])
 
       repo = Local::Repository.new(Dir.pwd)
-      fail 'repository not found' unless repo.exist?
+      raise 'repository not found' unless repo.exist?
 
       if args.count == 1
         repo.set_default_vendor(args[0])
@@ -106,10 +106,10 @@ module OsCtl::Repo
       require_args!('vendor', 'variant', 'arch', 'distribution', 'version')
 
       repo = Local::Repository.new(Dir.pwd)
-      fail 'repository not found' unless repo.exist?
+      raise 'repository not found' unless repo.exist?
 
       tpl = repo.find(*args)
-      fail 'image not found' unless tpl
+      raise 'image not found' unless tpl
 
       repo.remove(tpl)
     end
@@ -155,6 +155,7 @@ module OsCtl::Repo
     end
 
     protected
+
     def remote_get_common
       require_args!(
         'repo', 'vendor', 'variant', 'arch', 'distribution', 'version|tag',

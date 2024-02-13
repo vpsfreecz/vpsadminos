@@ -14,7 +14,7 @@ module VpsAdminOS::Converter
       @state = state
     end
 
-    %i(vz_ct target_ct opts can_proceed?).each do |v|
+    %i[vz_ct target_ct opts can_proceed?].each do |v|
       define_method(v) { |*args| state.send(v, *args) }
     end
 
@@ -28,17 +28,17 @@ module VpsAdminOS::Converter
       ssh = send_ssh_cmd(
         nil,
         opts,
-        ['receive', 'skel']
+        %w[receive skel]
       )
 
       IO.popen("exec #{ssh.join(' ')}", 'r+') do |io|
-        io.write(f.read(32*1024)) until f.eof?
+        io.write(f.read(32 * 1024)) until f.eof?
       end
 
       f.close
       f.unlink
 
-      fail 'stage failed' if $?.exitstatus != 0
+      raise 'stage failed' if $?.exitstatus != 0
 
       state.save
     end
@@ -60,6 +60,7 @@ module VpsAdminOS::Converter
     end
 
     protected
+
     attr_accessor :progress_handler
 
     def export_skel(ct, io)
@@ -79,7 +80,7 @@ module VpsAdminOS::Converter
         )
       )
 
-      fail 'transfer failed' if ret.nil? || $?.exitstatus != 0
+      raise 'transfer failed' if ret.nil? || $?.exitstatus != 0
 
       state.set_step(:transfer)
       state.save
@@ -94,13 +95,14 @@ module VpsAdminOS::Converter
         )
       )
 
-      if ret.nil? || $?.exitstatus != 0 && !nofail
-        fail 'cancel failed'
-      end
+      return unless ret.nil? || ($?.exitstatus != 0 && !nofail)
+
+      raise 'cancel failed'
     end
 
     def progress(type, value)
       return unless progress_handler
+
       progress_handler.call(type, value)
     end
   end

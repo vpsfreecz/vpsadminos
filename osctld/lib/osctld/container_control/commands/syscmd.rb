@@ -37,12 +37,12 @@ module OsCtld
         begin
           ret = ContainerControl::Commands::Exec.run!(
             ct,
-            cmd: cmd,
+            cmd:,
             stdin: in_r,
             stdout: out_w,
             stderr: out_w,
             run: opts[:run],
-            network: opts[:network],
+            network: opts[:network]
           )
         rescue ContainerControl::Error => e
           out_r.close
@@ -59,13 +59,13 @@ module OsCtld
         out = out_r.read
         out_r.close
 
-        if ret != 0 && \
-           opts[:valid_rcs] != :all && \
+        if ret != 0 &&
+           opts[:valid_rcs] != :all &&
            !opts[:valid_rcs].include?(ret)
           raise OsCtld::SystemCommandFailed.new(
             cmd,
             1,
-            "Command '#{cmd}' within CT #{ct.id} failed with exit code "+
+            "Command '#{cmd}' within CT #{ct.id} failed with exit code " +
             "#{ret}: #{out}"
           )
         end

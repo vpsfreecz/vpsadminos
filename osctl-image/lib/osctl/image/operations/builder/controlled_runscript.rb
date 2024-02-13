@@ -23,7 +23,7 @@ module OsCtl::Image
     # @param name [nil, String]
     # @param client [nil, OsCtldClient]
     def initialize(builder, file: nil, script: nil, id: nil, name: nil, client: nil)
-      if (file && script ) || (!file && !script)
+      if (file && script) || (!file && !script)
         raise ArgumentError, 'provide file or script'
       end
 
@@ -39,25 +39,25 @@ module OsCtl::Image
     def execute
       fh, path = create_file
 
-
       if file
         File.open(file, 'r') { |f| IO.copy_stream(f, fh) }
       elsif script
         fh.write(script)
       else
-        fail 'programming error'
+        raise 'programming error'
       end
 
       fh.close
 
       begin
-        Operations::Builder::ControlledExec.run(builder, [path], id: id, client: client)
+        Operations::Builder::ControlledExec.run(builder, [path], id:, client:)
       ensure
         unlink(fh.path)
       end
     end
 
     protected
+
     attr_reader :id, :name, :client
 
     # @return [File, String] file, path relative from builder's rootfs
@@ -69,19 +69,17 @@ module OsCtl::Image
         builder_path = File.join('/', "#{name}#{SecureRandom.hex(5)}")
         host_path = File.join(builder.attrs[:rootfs], builder_path)
 
-        if File.exist?(host_path)
-          host_path = nil
-        else
-          break
-        end
+        break unless File.exist?(host_path)
+
+        host_path = nil
       end
 
       if host_path.nil?
-        fail 'unable to create temporary file'
+        raise 'unable to create temporary file'
       end
 
       fh = File.open(host_path, 'w')
-      File.chmod(0755, host_path)
+      File.chmod(0o755, host_path)
       [fh, builder_path]
     end
 

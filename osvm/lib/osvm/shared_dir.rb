@@ -21,7 +21,7 @@ module OsVm
     def initialize(machine)
       @machine = machine
       @fs_name = 'vmSharedDir'
-      @host_path = File.join(machine.send(:tmpdir), "shared-dir")
+      @host_path = File.join(machine.send(:tmpdir), 'shared-dir')
       @host_push = File.join(host_path, 'push')
       @host_pull = File.join(host_path, 'pull')
       @machine_mountpoint = '/run/osvm/shared-dir'
@@ -40,20 +40,20 @@ module OsVm
     def mount
       machine.all_succeed(
         "mkdir -p \"#{machine_mountpoint}\"",
-        "mount -t virtiofs #{fs_name} \"#{machine_mountpoint}\"",
+        "mount -t virtiofs #{fs_name} \"#{machine_mountpoint}\""
       )
     end
 
     # Destroy the shared directory on the host
     def destroy
       system('rm', '-rf', host_path) \
-        || (fail "unable to delete shared directory at '#{host_path}'")
+        || (raise "unable to delete shared directory at '#{host_path}'")
     end
 
     # Push file to the machine
     def push_file(src, dst, preserve: false)
       safe_name = path_to_safe_name(src)
-      FileUtils.cp(src, File.join(host_push, safe_name), preserve: preserve)
+      FileUtils.cp(src, File.join(host_push, safe_name), preserve:)
       machine.succeeds("mv \"#{File.join(machine_push, safe_name)}\" \"#{dst}\"")
       dst
     end
@@ -68,11 +68,12 @@ module OsVm
     end
 
     protected
+
     attr_reader :host_push, :host_pull, :machine_push, :machine_pull
 
     def path_to_safe_name(path)
       pn = Pathname.new(path)
-      name = pn.cleanpath.to_s.sub(/^\//, '').gsub('/', '--')
+      name = pn.cleanpath.to_s.sub(%r{^/}, '').gsub('/', '--')
       "#{SecureRandom.hex(4)}-#{name}"
     end
   end

@@ -29,12 +29,12 @@ module OsCtld
     end
 
     def stop
-      if @thread
-        @stop = true
-        @queue << :stop
-        @thread.join
-        @thread = nil
-      end
+      return unless @thread
+
+      @stop = true
+      @queue << :stop
+      @thread.join
+      @thread = nil
     end
 
     def prune
@@ -45,7 +45,7 @@ module OsCtld
     def add_dataset(dataset)
       # Set canmount on the dataset and umount it with and all its descendants
       dataset.list.reverse_each do |ds|
-        zfs(:set, "canmount=noauto", ds.name)
+        zfs(:set, 'canmount=noauto', ds.name)
 
         # We ignore errors, because the dataset may belong to
         # a hung container, etc.
@@ -65,13 +65,13 @@ module OsCtld
       # Set metadata properties
       meta = {
         original_name: dataset.name,
-        trashed_at: t.to_i,
+        trashed_at: t.to_i
       }
 
       zfs(
         :set,
         meta.map { |k, v| "org.vpsadminos.osctl.trash-bin:#{k}=#{v}" }.join(' '),
-        trash_ds,
+        trash_ds
       )
     end
 
@@ -80,6 +80,7 @@ module OsCtld
     end
 
     protected
+
     def run_gc
       loop do
         v = @queue.pop(timeout: Daemon.get.config.trash_bin.prune_interval)
@@ -96,8 +97,8 @@ module OsCtld
       @trash_dataset.list(depth: 1, include_self: false).each do |ds|
         break if @stop
 
-        if !ds.name.start_with?("#{@trash_dataset}/")
-          fail "programming error: refusing to destroy dataset #{ds.name.inspect}"
+        unless ds.name.start_with?("#{@trash_dataset}/")
+          raise "programming error: refusing to destroy dataset #{ds.name.inspect}"
         end
 
         log(:info, "Destroying #{ds}")
@@ -110,6 +111,7 @@ module OsCtld
         end
 
         break if @stop
+
         sleep([txg_timeout, 5].max)
       end
     end
@@ -122,8 +124,8 @@ module OsCtld
         [
           dataset.name.split('/')[1..-1].join('-'),
           t.to_i,
-          SecureRandom.hex(3),
-        ].join('.'),
+          SecureRandom.hex(3)
+        ].join('.')
       )
 
       [path, t]

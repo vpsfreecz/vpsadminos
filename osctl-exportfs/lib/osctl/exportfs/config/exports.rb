@@ -22,8 +22,8 @@ module OsCtl::ExportFS
       db.delete(export)
     end
 
-    def each(&block)
-      db.each(&block)
+    def each(&)
+      db.each(&)
     end
 
     # @param as [String]
@@ -46,8 +46,8 @@ module OsCtl::ExportFS
 
         exports.each do |ex|
           if ex.dir != first_ex.dir
-            fail "target export path #{as} has two source paths: #{ex.dir} "+
-                 "and #{first_ex.dir}"
+            raise "target export path #{as} has two source paths: #{ex.dir} " +
+                  "and #{first_ex.dir}"
           end
         end
 
@@ -60,6 +60,7 @@ module OsCtl::ExportFS
     end
 
     protected
+
     attr_reader :db
   end
 end

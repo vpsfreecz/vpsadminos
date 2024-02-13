@@ -15,7 +15,7 @@ module OsCtld
         if init_pid.nil?
           return ContainerControl::Result.new(
             false,
-            message: 'container not running or init PID not set',
+            message: 'container not running or init PID not set'
           )
         end
 
@@ -29,7 +29,7 @@ module OsCtld
         sys = OsCtl::Lib::Sys.new
         sys.setns_path(
           File.join('/proc', init_pid.to_s, 'ns/uts'),
-          OsCtl::Lib::Sys::CLONE_NEWUTS,
+          OsCtl::Lib::Sys::CLONE_NEWUTS
         )
         ok(Socket.gethostname)
       end

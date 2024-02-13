@@ -13,18 +13,18 @@ module OsCtld
       return unless writable?(config)
 
       vars = {
-        netifs: netifs,
+        netifs:,
         head: nil,
         interfacesd: Dir.exist?(File.join(base, 'interfaces.d')),
-        tail: nil,
+        tail: nil
       }
 
-      %i(head tail).each do |v|
+      %i[head tail].each do |v|
         f = File.join(base, "interfaces.#{v}")
 
         begin
           # Ignore large files
-          if File.size(f) > 10*1024*1024
+          if File.size(f) > 10 * 1024 * 1024
             log(:warn, "/etc/network/interfaces.#{v} found, but is too large")
             next
           end

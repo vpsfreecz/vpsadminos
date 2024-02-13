@@ -10,15 +10,16 @@ module OsCtld
     end
 
     protected
-    def to_cgroup_v1
-      if systemd_distros.include?(config['distribution'])
-        config['init_cmd'] ||= ['/sbin/init']
 
-        unless config['init_cmd'].include?(systemd_opt)
-          log(:info, "Adding option #{systemd_opt} to init command")
-          config['init_cmd'] << systemd_opt
-        end
-      end
+    def to_cgroup_v1
+      return unless systemd_distros.include?(config['distribution'])
+
+      config['init_cmd'] ||= ['/sbin/init']
+
+      return if config['init_cmd'].include?(systemd_opt)
+
+      log(:info, "Adding option #{systemd_opt} to init command")
+      config['init_cmd'] << systemd_opt
     end
 
     def to_cgroup_v2
@@ -35,7 +36,7 @@ module OsCtld
     end
 
     def systemd_distros
-      %w(almalinux arch centos debian fedora gentoo opensuse rocky ubuntu)
+      %w[almalinux arch centos debian fedora gentoo opensuse rocky ubuntu]
     end
   end
 end

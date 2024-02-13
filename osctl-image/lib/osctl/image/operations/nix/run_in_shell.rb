@@ -35,17 +35,18 @@ module OsCtl::Image
     end
 
     protected
+
     attr_reader :name, :expression, :opts
 
     def create_executable
       tmp = Tempfile.new(name, '/tmp')
-      tmp.write(<<EOF
-#!/bin/sh
-exec #{command.join(' ')}
-EOF
-)
+      tmp.write(<<~EOF
+        #!/bin/sh
+        exec #{command.join(' ')}
+      EOF
+               )
       tmp.close
-      File.chmod(0700, tmp.path)
+      File.chmod(0o700, tmp.path)
       tmp
     end
   end

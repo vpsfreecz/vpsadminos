@@ -42,16 +42,16 @@ module OsUp
     end
 
     # @yieldparam m [Migration, nil]
-    def each(&block)
-      applied.lazy.map { |id| MigrationList[id] }.each(&block)
+    def each(&)
+      applied.lazy.map { |id| MigrationList[id] }.each(&)
     end
 
     def uptodate?
-      all.detect { |id, m| m && !applied?(m) } ? false : true
+      all.detect { |_id, m| m && !applied?(m) } ? false : true
     end
 
     def upgradable?
-      all.detect { |id, m| m.nil? } ? false : true
+      all.detect { |_id, m| m.nil? } ? false : true
     end
 
     # @param m [Migration]
@@ -80,14 +80,15 @@ module OsUp
     end
 
     protected
+
     def load_pool
       mnt, active, ds = zfs(
         :get,
         '-Hp -ovalue mountpoint,org.vpsadminos.osctl:active,org.vpsadminos.osctl:dataset',
-        pool,
+        pool
       ).output.strip.split
 
-      fail "pool #{pool} is not used by osctld" if active != 'yes'
+      raise "pool #{pool} is not used by osctld" if active != 'yes'
 
       if ds == '-'
         @dataset = pool
@@ -115,7 +116,6 @@ module OsUp
       end
 
       applied.uniq!
-
     rescue Errno::ENOENT
       # no migrations applied
     end
@@ -129,7 +129,7 @@ module OsUp
     end
 
     def save
-      regenerate_file(version_file, 0600) do |new|
+      regenerate_file(version_file, 0o600) do |new|
         applied.each { |id| new.puts(id) }
       end
     end

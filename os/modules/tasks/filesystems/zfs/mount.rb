@@ -5,8 +5,7 @@ require 'open3'
 require 'thread'
 
 class Dataset
-  attr_reader :pool, :name, :type, :base_name, :parent_name, :mountpoint, :level
-  attr_reader :real_properties, :declarative_properties
+  attr_reader :pool, :name, :type, :base_name, :parent_name, :mountpoint, :level, :real_properties, :declarative_properties
   attr_accessor :error
 
   def initialize(pool, name, type)
@@ -46,9 +45,7 @@ class Dataset
     end
   end
 
-  def exist=(exist)
-    @exist = exist
-  end
+  attr_writer :exist
 
   def exist?
     @exist || false
@@ -59,7 +56,7 @@ class Dataset
   end
 
   def mount?
-    !mounted? && canmount == 'on' && !%w(legacy none).include?(mountpoint)
+    !mounted? && canmount == 'on' && !%w[legacy none].include?(mountpoint)
   end
 
   def configure?
@@ -79,7 +76,8 @@ class Dataset
   end
 
   def resolve_mountpoint
-    fail 'not a filesystem' unless filesystem?
+    raise 'not a filesystem' unless filesystem?
+
     @mountpoint = declarative_properties['mountpoint'] \
                   || real_properties['mountpoint'] \
                   || find_mountpoint
@@ -120,8 +118,8 @@ class DatasetList
     index.has_key?(name)
   end
 
-  def each(&block)
-    list.each(&block)
+  def each(&)
+    list.each(&)
   end
 
   include Enumerable
@@ -152,6 +150,7 @@ class DatasetList
       groups << filesystems unless filesystems.empty?
 
       break if sorted_list.empty?
+
       i += 1
     end
 
@@ -160,6 +159,7 @@ class DatasetList
   end
 
   protected
+
   attr_reader :list, :index
 
   def take_if(arr)
@@ -184,7 +184,7 @@ class Pool
   end
 
   attr_reader :pool, :datasets
-  alias_method :name, :pool
+  alias name pool
 
   def initialize(pool, config)
     @pool = pool
@@ -239,6 +239,7 @@ class Pool
       dataset.declarative_properties.each do |k, v|
         next if dataset.volume? && k == 'volsize'
         next if v == 'inherit'
+
         args << '-o' << "#{k}=#{property_value(v)}"
       end
     end
@@ -261,6 +262,7 @@ class Pool
   end
 
   protected
+
   attr_reader :printer
 
   def list_existing_datasets
@@ -273,7 +275,7 @@ class Pool
       '-o', 'name,property,value',
       'type,canmount,mounted,mountpoint',
       pool
-    ) do |stdin, stdout, status_thread|
+    ) do |_stdin, stdout, status_thread|
       stdout.each_line do |line|
         name, property, value = line.split
 
@@ -290,13 +292,13 @@ class Pool
         end
       end
 
-      fail 'Unable to list filesystems' unless status_thread.value.success?
+      raise 'Unable to list filesystems' unless status_thread.value.success?
     end
 
-    if current_ds
-      current_ds.resolve_mountpoint if current_ds.filesystem?
-      datasets << current_ds
-    end
+    return unless current_ds
+
+    current_ds.resolve_mountpoint if current_ds.filesystem?
+    datasets << current_ds
   end
 
   def list_declarative_datasets
@@ -323,7 +325,7 @@ class Pool
     end
 
     # Sort by name
-    list.sort! { |a,b| a.name <=> b.name }
+    list.sort! { |a, b| a.name <=> b.name }
 
     # Fill-in missing parent datasets and resolve mountpoints
     list.each do |ds|
@@ -337,7 +339,7 @@ class Pool
     ret = [dataset]
     child = dataset
 
-    until child.root? || child.parent do
+    until child.root? || child.parent
       parent = Dataset.new(self, child.parent_name, 'filesystem')
       datasets << parent
       ret << parent
@@ -379,6 +381,7 @@ class ThreadPool
   end
 
   protected
+
   attr_reader :threads, :queue
 
   def work
@@ -425,14 +428,15 @@ class ProgressPrinter
   end
 
   protected
+
   attr_reader :mutex, :index
 end
 
 if ARGV.count < 1
-  warn "Usage: $0 <pool> [json datasets]"
+  warn 'Usage: $0 <pool> [json datasets]'
   exit(false)
 elsif Process.uid != 0
-  warn "Must be run as root"
+  warn 'Must be run as root'
   exit(false)
 end
 

@@ -13,6 +13,7 @@ module OsCtld
     end
 
     protected
+
     def cgroup_path
       owner.cgroup_path
     end

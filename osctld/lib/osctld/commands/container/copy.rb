@@ -9,7 +9,7 @@ module OsCtld
 
     def find
       ct = DB::Containers.find(opts[:id], opts[:pool])
-      ct || error!("container not found")
+      ct || error!('container not found')
     end
 
     def execute(ct)
@@ -39,7 +39,7 @@ module OsCtld
           user: target_user,
           group: target_group,
           dataset: opts[:target_dataset],
-          network_interfaces: opts[:network_interfaces],
+          network_interfaces: opts[:network_interfaces]
         )
       end
 
@@ -61,8 +61,7 @@ module OsCtld
           builder.setup_user_hook_script_dir
           builder.monitor
           new_ct.state = :complete
-
-        rescue
+        rescue StandardError
           progress('Error occurred, cleaning up')
           builder.cleanup(dataset: !opts[:target_dataset])
           raise
@@ -74,13 +73,14 @@ module OsCtld
     end
 
     protected
+
     def copy_datasets_from(builder, ct)
       snaps = []
       src_datasets = ct.datasets
       dst_datasets = [builder.ctrc.dataset] + ct.dataset.descendants.map do |ds|
         OsCtl::Lib::Zfs::Dataset.new(
           File.join(builder.ctrc.dataset.name, ds.relative_name),
-          base: builder.ctrc.dataset.name,
+          base: builder.ctrc.dataset.name
         )
       end
 
@@ -95,13 +95,15 @@ module OsCtld
 
         snaps << builder.copy_datasets(src_datasets, dst_datasets, from: snaps.last)
 
-        call_cmd(
-          Commands::Container::Start,
-          id: ct.id,
-          pool: ct.pool.name,
-          force: true,
-          wait: false,
-        ) if opts[:restart].nil? || opts[:restart]
+        if opts[:restart].nil? || opts[:restart]
+          call_cmd(
+            Commands::Container::Start,
+            id: ct.id,
+            pool: ct.pool.name,
+            force: true,
+            wait: false
+          )
+        end
       end
 
       # Cleanup snapshots

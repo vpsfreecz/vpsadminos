@@ -5,12 +5,12 @@ module OsCtld
     handle :receive_authkey_delete
 
     def find
-      if opts[:pool]
-        pool = DB::Pools.find(opts[:pool])
+      pool = if opts[:pool]
+               DB::Pools.find(opts[:pool])
 
-      else
-        pool = DB::Pools.get_or_default(nil)
-      end
+             else
+               DB::Pools.get_or_default(nil)
+             end
 
       pool || error!('pool not found')
     end

@@ -13,17 +13,17 @@ module OsCtld
 
       manipulate(u) do
         if Dir.exist?(u.userdir)
-          File.chmod(0751, u.userdir)
+          File.chmod(0o751, u.userdir)
         else
-          Dir.mkdir(u.userdir, 0751)
+          Dir.mkdir(u.userdir, 0o751)
         end
 
         File.chown(0, u.ugid, u.userdir)
 
         if Dir.exist?(u.homedir)
-          File.chmod(0751, u.homedir)
+          File.chmod(0o751, u.homedir)
         else
-          Dir.mkdir(u.homedir, 0751)
+          Dir.mkdir(u.homedir, 0o751)
         end
 
         File.chown(u.ugid, u.ugid, u.homedir)

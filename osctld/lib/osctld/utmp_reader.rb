@@ -20,7 +20,7 @@ module OsCtld
     end
 
     class Entry < BinData::Record
-      TYPES = %i(
+      TYPES = %i[
         empty
         run_lvl
         boot_time
@@ -31,7 +31,7 @@ module OsCtld
         user_process
         dead_process
         accounting
-      )
+      ]
 
       endian :little
 
@@ -64,7 +64,7 @@ module OsCtld
     # @yieldparam [Entry] entry
     # @raise [IOError]
     # @return [Array<Entry>, nil]
-    def self.read(path, max_entries: MAX_ENTRIES)
+    def self.read(_path, max_entries: MAX_ENTRIES)
       ret = []
       i = 0
 
@@ -92,12 +92,10 @@ module OsCtld
     # @raise [IOError, Errno::ENOENT]
     # @return [Array<Entry>, nil]
     def self.read_utmp_fhs(max_entries: MAX_ENTRIES, &block)
-      %w(/run/utmp /var/log/utmp).each do |path|
-        begin
-          return read(path, max_entries: max_entries, &block)
-        rescue Errno::ENOENT
-          next
-        end
+      %w[/run/utmp /var/log/utmp].each do |path|
+        return read(path, max_entries:, &block)
+      rescue Errno::ENOENT
+        next
       end
 
       raise Errno::ENOENT, 'utmp file not found'

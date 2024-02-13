@@ -6,7 +6,7 @@ module OsCtld
     class CpuScheduler
       # @return [Boolean]
       attr_reader :enable
-      alias_method :enable?, :enable
+      alias enable? enable
 
       # @return [Integer]
       attr_reader :min_package_container_count_percent
@@ -43,7 +43,7 @@ module OsCtld
 
       # @return [Boolean]
       attr_reader :enable
-      alias_method :enable?, :enable
+      alias enable? enable
 
       # @return [OsCtl::Lib::CpuMask]
       attr_reader :cpu_mask
@@ -64,7 +64,7 @@ module OsCtld
 
       def initialize(cfg)
         @send_mbuffer = Mbuffer.new(cfg.fetch('send_mbuffer', {
-          'start_writing_at' => 5,
+          'start_writing_at' => 5
         }))
         @receive_mbuffer = Mbuffer.new(cfg.fetch('receive_mbuffer', {}))
       end
@@ -93,12 +93,12 @@ module OsCtld
         @as_cli_options = [
           '-s', block_size,
           '-m', buffer_size,
-          '-P', start_writing_at.to_s,
+          '-P', start_writing_at.to_s
         ]
         @as_hash_options = {
-          block_size: block_size,
-          buffer_size: buffer_size,
-          start_writing_at: start_writing_at,
+          block_size:,
+          buffer_size:,
+          start_writing_at:
         }
       end
     end
@@ -108,14 +108,14 @@ module OsCtld
       attr_reader :prune_interval
 
       def initialize(cfg)
-        @prune_interval = cfg.fetch('prune_interval', 6*60*60)
+        @prune_interval = cfg.fetch('prune_interval', 6 * 60 * 60)
       end
     end
 
     # Enable extra debug logs
     # @return [Boolean]
     attr_reader :debug
-    alias_method :debug?, :debug
+    alias debug? debug
 
     # @return [Array<String>]
     attr_reader :apparmor_paths
@@ -125,7 +125,7 @@ module OsCtld
 
     # @return [Boolean]
     attr_reader :enable_lock_registry
-    alias_method :enable_lock_registry?, :enable_lock_registry
+    alias enable_lock_registry? enable_lock_registry
 
     # @return [CpuScheduler]
     attr_reader :cpu_scheduler

@@ -19,6 +19,7 @@ module OsCtld
     end
 
     protected
+
     def owns_ct?(ct)
       ct.user == user
     end

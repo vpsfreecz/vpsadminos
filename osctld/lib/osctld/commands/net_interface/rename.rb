@@ -28,8 +28,8 @@ module OsCtld
         DistConfig.run(
           ct.get_run_conf,
           :rename_netif,
-          netif: netif,
-          original_name: orig_name,
+          netif:,
+          original_name: orig_name
         )
 
         ok

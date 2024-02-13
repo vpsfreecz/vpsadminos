@@ -2,8 +2,8 @@
 require 'json'
 require 'socket'
 
-ctid = ENV['LXC_NAME']
-veth = ENV['LXC_NET_PEER']
+ctid = ENV.fetch('LXC_NAME', nil)
+veth = ENV.fetch('LXC_NET_PEER', nil)
 
 if ctid.nil? || veth.nil?
   warn 'Expected environment variables:'
@@ -12,12 +12,12 @@ if ctid.nil? || veth.nil?
   exit(false)
 end
 
-if /^\/run\/osctl\/pools\/([^\/]+)\/hooks/ !~ $0
+if %r{^/run/osctl/pools/([^/]+)/hooks} !~ $0
   warn "Unable to detect pool name from '#{$0}'"
   exit(false)
 end
 
-pool = $1
+pool = Regexp.last_match(1)
 
 base = File.basename($0)
 ctid2, ifname = base.split('.')
@@ -27,18 +27,18 @@ if ctid != ctid2
   exit(false)
 
 elsif !ifname
-  warn "Expected to be called via symlink named as: <ctid>.<interface>, "+
-    "called as '#{base}' instead"
+  warn 'Expected to be called via symlink named as: <ctid>.<interface>, ' +
+       "called as '#{base}' instead"
   exit(false)
 end
 
 s = UNIXSocket.new("/run/osctl/user-control/#{Process.uid}.sock")
-s.puts({cmd: :veth_down, opts: {
+s.puts({ cmd: :veth_down, opts: {
   id: ctid,
-  pool: pool,
+  pool:,
   interface: ifname,
-  veth: veth,
-}}.to_json)
+  veth:
+} }.to_json)
 ret = JSON.parse(s.readline, symbolize_names: true)
 s.close
 

@@ -5,9 +5,9 @@ module OsCtld
     def init(devices)
       log(:info, owner, "Configuring cgroup #{owner.cgroup_path} for devices")
 
-      if CGroup.mkpath('devices', owner.cgroup_path.split('/'))
-        reconfigure(devices)
-      end
+      return unless CGroup.mkpath('devices', owner.cgroup_path.split('/'))
+
+      reconfigure(devices)
     end
 
     def reconfigure(devices)
@@ -28,6 +28,7 @@ module OsCtld
     end
 
     protected
+
     def clear
       return if @cleared
 

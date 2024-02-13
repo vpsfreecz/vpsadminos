@@ -16,7 +16,7 @@ module OsCtld
           raise ContainerControl::Error, 'container not running'
         end
 
-        ret = exec_runner(args: [make_message(message, banner: banner)])
+        ret = exec_runner(args: [make_message(message, banner:)])
         ret.ok? || ret
       end
     end

@@ -18,10 +18,8 @@ module OsCtld
         ct.mounts.activate(opts[:mountpoint])
         ok
       end
-
     rescue MountNotFound
       error!('mount not found')
-
     rescue MountInvalid => e
       error!(e.message)
     end

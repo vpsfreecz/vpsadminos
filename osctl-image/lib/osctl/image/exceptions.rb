@@ -1,3 +1,3 @@
 module OsCtl::Image
-  class OperationError < StandardError ; end
+  class OperationError < StandardError; end
 end

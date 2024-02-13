@@ -37,6 +37,7 @@ module OsCtl::Cli
     end
 
     protected
+
     attr_reader :client, :thread, :model
 
     def monitor_loop
@@ -141,6 +142,7 @@ module OsCtl::Cli
 
     def process_saved_events
       return if @buffer.empty?
+
       @buffer.each { |event| process_event(event[:type].to_sym, event[:opts]) }
       @buffer.clear
     end

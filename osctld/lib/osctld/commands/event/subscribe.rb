@@ -38,22 +38,23 @@ module OsCtld
     end
 
     protected
+
     def filter?(event)
       if opts[:type]
         if opts[:type].is_a?(Array)
           return false if opts[:type].include?(event.type)
-        else
-          return false if opts[:type] != event.type.to_s
+        elsif opts[:type] != event.type.to_s
+          return false
         end
       end
 
       if opts[:opts]
         opts[:opts].each do |k, v|
           if v.is_a?(Array)
-            return false if !v.include?(event.opts[k])
+            return false unless v.include?(event.opts[k])
 
-          else
-            return false if v != event.opts[k]
+          elsif v != event.opts[k]
+            return false
           end
         end
       end
@@ -64,7 +65,7 @@ module OsCtld
     def export_event(e)
       {
         type: e.type,
-        opts: e.opts,
+        opts: e.opts
       }
     end
   end

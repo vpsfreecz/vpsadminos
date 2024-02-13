@@ -25,12 +25,12 @@ module OsCtl::ExportFS
       server.synchronize do
         cfg = server.open_config
 
-        %i(address netif mountd_port lockd_port statd_port).each do |v|
+        %i[address netif mountd_port lockd_port statd_port].each do |v|
           cfg.send(:"#{v}=", opts[v]) unless opts[v].nil?
         end
 
         if opts[:nfsd]
-          %i(port nproc tcp udp versions syslog).each do |v|
+          %i[port nproc tcp udp versions syslog].each do |v|
             cfg.nfsd.send(:"#{v}=", opts[:nfsd][v]) unless opts[:nfsd][v].nil?
           end
         end
@@ -40,6 +40,7 @@ module OsCtl::ExportFS
     end
 
     protected
+
     attr_reader :server, :opts
   end
 end

@@ -12,7 +12,6 @@ module OsCtld
 
       ok(LockRegistry.export.each do |lock|
         lock[:backtrace] = denixstorify(lock[:backtrace])
-        lock
       end)
     end
   end

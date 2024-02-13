@@ -17,12 +17,13 @@ module OsCtld
     end
 
     protected
+
     def import_all
       props = [
         'name',
         'mounted',
         Pool::PROPERTY_ACTIVE,
-        Pool::PROPERTY_DATASET,
+        Pool::PROPERTY_DATASET
       ]
 
       zfs(
@@ -66,7 +67,6 @@ module OsCtld
       begin
         do_import(name, dataset)
         ok
-
       rescue PoolExists, PoolUpgradeError, HookFailed => e
         error(e.message)
       end
@@ -76,6 +76,7 @@ module OsCtld
       sv = "pool-#{name}"
 
       return true unless Dir.exist?(File.join('/service', sv))
+
       File.exist?(File.join('/run/service', sv, 'done'))
     end
 
@@ -124,11 +125,9 @@ module OsCtld
 
     def upgrade(name)
       OsUp.upgrade(name)
-
     rescue OsUp::PoolUpToDate
       # pass
-
-    rescue => e
+    rescue StandardError => e
       raise PoolUpgradeError.new(name, e)
     end
   end

@@ -14,7 +14,7 @@ module OsCtld
     def configure(netifs)
       set_params(
         File.join(rootfs, 'etc/sysconfig/network'),
-        {'NETWORKING' => 'yes'}
+        { 'NETWORKING' => 'yes' }
       )
 
       netifs.each do |netif|
@@ -23,17 +23,18 @@ module OsCtld
     end
 
     # Cleanup old config files
-    def remove_netif(netifs, netif)
+    def remove_netif(_netifs, netif)
       do_remove_netif(netif.name)
     end
 
     # Rename config files
-    def rename_netif(netifs, netif, old_name)
+    def rename_netif(_netifs, netif, old_name)
       do_remove_netif(old_name)
       do_create_netif(netif)
     end
 
     protected
+
     def do_create_netif(netif)
       tpl_base = File.join('dist_config/network/redhat_initscripts')
       ct_base = File.join(rootfs, 'etc', 'sysconfig')
@@ -43,22 +44,22 @@ module OsCtld
 
       OsCtld::ErbTemplate.render_to_if_changed(
         File.join(tpl_base, netif.type.to_s, 'ifcfg'),
-        {netif: netif},
+        { netif: },
         ifcfg
       )
 
-      if netif.type == :routed
-        netif.active_ip_versions.each do |ip_v|
-          OsCtld::ErbTemplate.render_to_if_changed(
-            File.join(tpl_base, netif.type.to_s, "route_v#{ip_v}"),
-            {netif: netif},
-            File.join(
-              ct_base,
-              'network-scripts',
-              "route#{ip_v == 6 ? '6' : ''}-#{netif.name}"
-            )
+      return unless netif.type == :routed
+
+      netif.active_ip_versions.each do |ip_v|
+        OsCtld::ErbTemplate.render_to_if_changed(
+          File.join(tpl_base, netif.type.to_s, "route_v#{ip_v}"),
+          { netif: },
+          File.join(
+            ct_base,
+            'network-scripts',
+            "route#{ip_v == 6 ? '6' : ''}-#{netif.name}"
           )
-        end
+        )
       end
     end
 

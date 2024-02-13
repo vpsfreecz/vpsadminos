@@ -14,7 +14,7 @@ module OsCtld
     include OsCtl::Lib::Utils::File
 
     class << self
-      %i(
+      %i[
         assets
         setup
         shutdown
@@ -35,7 +35,7 @@ module OsCtld
         export_status
         export_packages
         topology
-      ).each do |v|
+      ].each do |v|
         define_method(v) do |*args, **kwargs|
           instance.send(v, *args, **kwargs)
         end
@@ -48,7 +48,7 @@ module OsCtld
       :usage_score,
       :container_count,
       :enabled,
-      keyword_init: true,
+      keyword_init: true
     ) do
       def usage_score_per_cpu
         usage_score / cpu_mask.size.to_f
@@ -65,7 +65,7 @@ module OsCtld
       :package_id,
       :reservation,
       :reserved_at,
-      keyword_init: true,
+      keyword_init: true
     )
 
     # @return [OsCtl::Lib::CpuTopology]
@@ -98,10 +98,10 @@ module OsCtld
 
         @package_info[pkg.id] = PackageInfo.new(
           id: pkg.id,
-          cpu_mask: cpu_mask,
+          cpu_mask:,
           usage_score: 0,
           container_count: 0,
-          enabled: pkg_cfg ? pkg_cfg.enable : true,
+          enabled: pkg_cfg ? pkg_cfg.enable : true
         )
       end
     end
@@ -112,15 +112,15 @@ module OsCtld
         desc: 'CPU scheduler state files',
         user: 0,
         group: 0,
-        mode: 0755,
+        mode: 0o755
       )
       add.file(
         STATE_FILE,
         desc: 'CPU scheduler state file',
         user: 0,
         group: 0,
-        mode: 0400,
-        optional: true,
+        mode: 0o400,
+        optional: true
       )
     end
 
@@ -317,7 +317,7 @@ module OsCtld
             cpus: pkg_info.cpu_mask.to_a,
             containers: pkg_info.container_count,
             usage_score: pkg_info.usage_score,
-            enabled: pkg_info.enabled,
+            enabled: pkg_info.enabled
           }
         end
       end
@@ -328,8 +328,9 @@ module OsCtld
     end
 
     protected
+
     attr_reader :package_info, :scheduled_cts,
-      :upkeep_thread, :upkeep_queue, :save_thread, :save_queue
+                :upkeep_thread, :upkeep_queue, :save_thread, :save_queue
 
     # Start background container upkeeping
     def start_upkeep
@@ -378,7 +379,7 @@ module OsCtld
         subsystem: 'cpuset',
         parameter: 'cpuset.cpus',
         value: [pkg.cpu_mask.to_s],
-        persistent: false,
+        persistent: false
       )])
 
       ctrc.cpu_package = pkg.id
@@ -387,7 +388,7 @@ module OsCtld
         :ct_scheduled,
         pool: ctrc.pool.name,
         id: ctrc.id,
-        cpu_package_inuse: pkg.id,
+        cpu_package_inuse: pkg.id
       )
 
       sched
@@ -423,8 +424,8 @@ module OsCtld
       elsif !topology.packages.has_key?(ct_pkg)
         log(
           :warn,
-          "#{ct.ident} prefers package #{ct_pkg.inspect}, which does not "+
-          "exist on this system; disregarding"
+          "#{ct.ident} prefers package #{ct_pkg.inspect}, which does not " +
+          'exist on this system; disregarding'
         )
       else
         wanted_pkg_id = ct_pkg
@@ -516,7 +517,7 @@ module OsCtld
       if scheduled_cts[ct.ident]
         # This container has already been scheduled, so fix the leak
         sched = scheduled_cts[ct.ident]
-        sched_pkg = package_info[ sched.package_id ]
+        sched_pkg = package_info[sched.package_id]
 
         log(:warn, "Fixing schedule leak for #{ct.ident}: scheduling on #{pkg.id}, while already scheduled on #{sched_pkg.id}")
 
@@ -526,10 +527,10 @@ module OsCtld
 
       scheduled_cts[ct.ident] = ScheduleInfo.new(
         ctid: ct.ident,
-        usage_score: usage_score,
+        usage_score:,
         package_id: pkg.id,
-        reservation: reservation,
-        reserved_at: reservation ? Time.now : nil,
+        reservation:,
+        reserved_at: reservation ? Time.now : nil
       )
     end
 
@@ -544,7 +545,7 @@ module OsCtld
       unschedule_table = {}
 
       loop do
-        v = upkeep_queue.pop(timeout: 60*5)
+        v = upkeep_queue.pop(timeout: 60 * 5)
         return if v == :stop
 
         now = Time.now
@@ -558,7 +559,7 @@ module OsCtld
             sched = scheduled_cts[ct.ident]
 
             if stopped && ctrc.nil? && sched
-              if !sched.reservation || sched.reserved_at + 60*60 < now
+              if !sched.reservation || sched.reserved_at + (60 * 60) < now
                 should_unschedule = true
               end
             elsif ctrc && ctrc.cpu_package.nil? && sched
@@ -600,7 +601,7 @@ module OsCtld
       package_info.map do |pkg_id, pkg|
         {
           'id' => pkg_id,
-          'enabled' => pkg.enabled,
+          'enabled' => pkg.enabled
         }
       end
     end
@@ -612,7 +613,7 @@ module OsCtld
           'usage_score' => sched.usage_score,
           'package_id' => sched.package_id,
           'reservation' => sched.reservation,
-          'reserved_at' => sched.reserved_at && sched.reserved_at.to_i,
+          'reserved_at' => sched.reserved_at && sched.reserved_at.to_i
         }
       end
     end
@@ -623,7 +624,7 @@ module OsCtld
         ret['enabled'] = enabled? if @manual_toggle
         ret.update({
           'packages' => dump_packages,
-          'scheduled_cts' => dump_scheduled,
+          'scheduled_cts' => dump_scheduled
         })
         ret
       end
@@ -636,7 +637,7 @@ module OsCtld
     def do_save_state
       data = dump_state
 
-      regenerate_file(STATE_FILE, 0400) do |new|
+      regenerate_file(STATE_FILE, 0o400) do |new|
         new.write(OsCtl::Lib::ConfigFile.dump_yaml(data))
       end
 
@@ -668,7 +669,7 @@ module OsCtld
           usage_score: ct['usage_score'],
           package_id: ct['package_id'],
           reservation: ct['reservation'],
-          reserved_at: ct['reserved_at'] && Time.at(ct['reserved_at']),
+          reserved_at: ct['reserved_at'] && Time.at(ct['reserved_at'])
         )
 
         next unless package_info.has_key?(sched.package_id)

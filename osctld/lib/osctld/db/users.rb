@@ -4,7 +4,7 @@ require 'osctld/db/pooled_list'
 module OsCtld::DB
   class Users < PooledList
     class << self
-      %i(by_ugid).each do |v|
+      %i[by_ugid].each do |v|
         define_method(v) do |*args, &block|
           instance.send(v, *args, &block)
         end

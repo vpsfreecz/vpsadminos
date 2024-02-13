@@ -6,11 +6,11 @@ module OsCtld
   # can proceed, stores names of snapshots created during the send and
   # other settings.
   class SendReceive::Log
-    STATES = %i(stage base incremental transfer cleanup)
+    STATES = %i[stage base incremental transfer cleanup]
 
     class Options
       def self.load(cfg)
-        new(Hash[cfg.map { |k,v| [k.to_sym, v] }])
+        new(Hash[cfg.map { |k, v| [k.to_sym, v] }])
       end
 
       # @return [String]
@@ -52,9 +52,9 @@ module OsCtld
         @from_snapshot = opts.delete(:from_snapshot)
         @preexisting_datasets = opts.delete(:preexisting_datasets)
 
-        unless opts.empty?
-          raise ArgumentError, "unsupported options: #{opts.keys.join(', ')}"
-        end
+        return if opts.empty?
+
+        raise ArgumentError, "unsupported options: #{opts.keys.join(', ')}"
       end
 
       # @param opt [Symbol]
@@ -75,7 +75,7 @@ module OsCtld
           'key_name' => key_name,
           'snapshots' => snapshots,
           'from_snapshot' => from_snapshot,
-          'preexisting_datasets' => preexisting_datasets,
+          'preexisting_datasets' => preexisting_datasets
         }
       end
     end
@@ -88,7 +88,7 @@ module OsCtld
         token: cfg['token'],
         state: cfg['state'].to_sym,
         snapshots: cfg['snapshots'],
-        opts: Options.load(cfg['opts']),
+        opts: Options.load(cfg['opts'])
       )
     end
 
@@ -112,7 +112,7 @@ module OsCtld
         'token' => token,
         'state' => state.to_s,
         'snapshots' => snapshots,
-        'opts' => opts.dump,
+        'opts' => opts.dump
       }
     end
 
@@ -130,13 +130,13 @@ module OsCtld
     end
 
     def can_send_cancel?(force)
-      cancellable = %i(stage base incremental)
+      cancellable = %i[stage base incremental]
       cancellable << :transfer if force
       cancellable.include?(state)
     end
 
     def can_receive_continue?(next_state)
-      syncs = %i(base incremental)
+      syncs = %i[base incremental]
       cur_i = STATES.index(state)
       next_i = STATES.index(next_state)
 
@@ -150,11 +150,12 @@ module OsCtld
     end
 
     def can_receive_cancel?
-      %i(stage base incremental).include?(state)
+      %i[stage base incremental].include?(state)
     end
 
     def state=(v)
-      fail "invalid state '#{v}'" unless STATES.include?(v)
+      raise "invalid state '#{v}'" unless STATES.include?(v)
+
       @state = v
     end
 

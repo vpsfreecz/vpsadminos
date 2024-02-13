@@ -14,21 +14,21 @@ class Command
   end
 
   protected
+
   def do_restrict(path)
     st = File.stat(path)
-    File.chmod(st.mode & 0770, path)
+    File.chmod(st.mode & 0o770, path)
   end
 
-  def do_skip(path)
-  end
+  def do_skip(path); end
 
   def do_grant(path)
     st = File.stat(path)
 
     if st.directory?
-      File.chmod(0777, path)
+      File.chmod(0o777, path)
     else
-      File.chmod(0666, path)
+      File.chmod(0o666, path)
     end
   end
 end
@@ -52,6 +52,7 @@ class RestrictDirs
   end
 
   protected
+
   attr_reader :cmds, :ops
 
   def parse(config_path)

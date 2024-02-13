@@ -17,7 +17,7 @@ module OsCtld
         )
         error!("dataset #{ds.name} does not exist") unless ds.exist?
 
-        m_opts = %w(bind create=dir)
+        m_opts = %w[bind create=dir]
         m_opts << opts[:mode]
 
         mnt = Mount::Entry.new(

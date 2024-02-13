@@ -36,6 +36,7 @@ module OsCtl::Repo
     end
 
     protected
+
     attr_reader :vendors, :contents
   end
 end

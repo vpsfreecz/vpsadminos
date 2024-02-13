@@ -23,7 +23,7 @@ module OsCtl::ExportFS::Cli
         dir: opts[:directory],
         as: opts[:as],
         host: opts[:host],
-        options: opts[:options],
+        options: opts[:options]
       )
 
       OsCtl::ExportFS::Operations::Export::Add.run(
@@ -38,11 +38,12 @@ module OsCtl::ExportFS::Cli
       OsCtl::ExportFS::Operations::Export::Remove.run(
         OsCtl::ExportFS::Server.new(args[0]),
         opts[:as],
-        opts[:host],
+        opts[:host]
       )
     end
 
     protected
+
     def servers
       if args[0]
         [OsCtl::ExportFS::Server.new(args[0])]

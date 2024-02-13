@@ -19,7 +19,7 @@ module OsCtld
           ct.user.sysusername,
           ct.user.ugid,
           ct.user.homedir,
-          cg_path,
+          cg_path
         )
 
         Process.exec('lxc-monitor', '-P', ct.lxc_home, '-n', '.*')
@@ -35,7 +35,7 @@ module OsCtld
           ct.user.sysusername,
           ct.user.ugid,
           ct.user.homedir,
-          cgroup_path(ct),
+          cgroup_path(ct)
         )
 
         Process.exec('lxc-monitor', '-P', ct.lxc_home, '--quit')
@@ -69,6 +69,7 @@ module OsCtld
       until @stdout.eof?
         line = @stdout.readline
         next if line == @last_line
+
         @last_line = line
 
         state = parse(line)
@@ -78,20 +79,20 @@ module OsCtld
       end
 
       true
-
     rescue IOError
       log(:info, :monitor, "Monitoring of #{@pool.name}:#{@user.name}:#{@group.name} failed")
       false
     end
 
     protected
+
     def parse(line)
       if /'([^']+)' changed state to \[([^\]]+)\]/ =~ line
-        log(:info, :monitor, "Container #{@pool.name}:#{$1} entered state #{$2}")
-        return {pool: @pool.name, ctid: $1, state: $2.downcase.to_sym}
+        log(:info, :monitor, "Container #{@pool.name}:#{::Regexp.last_match(1)} entered state #{::Regexp.last_match(2)}")
+        return { pool: @pool.name, ctid: ::Regexp.last_match(1), state: ::Regexp.last_match(2).downcase.to_sym }
 
       elsif /'([^']+)' exited with status \[(\d+)\]/ =~ line
-        log(:info, :monitor, "Container #{@pool.name}:#{$1} exited with #{$2}")
+        log(:info, :monitor, "Container #{@pool.name}:#{::Regexp.last_match(1)} exited with #{::Regexp.last_match(2)}")
 
       else
         log(:warn, :monitor, "Line from lxc-monitor not recognized: '#{line}'")
@@ -123,7 +124,7 @@ module OsCtld
         end
 
         if init_pid
-          Eventd.report(:ct_init_pid, pool: ct.pool.name, id: ct.id, init_pid: init_pid)
+          Eventd.report(:ct_init_pid, pool: ct.pool.name, id: ct.id, init_pid:)
         end
 
         Hook.run(ct, :post_start, init_pid: ct.init_pid)

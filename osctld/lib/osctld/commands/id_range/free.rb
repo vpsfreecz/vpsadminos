@@ -17,7 +17,6 @@ module OsCtld
       end
 
       ok
-
     rescue IdRange::AllocationError => e
       error(e.message)
     end

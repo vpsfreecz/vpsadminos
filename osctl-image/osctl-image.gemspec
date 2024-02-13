@@ -1,18 +1,18 @@
-lib = File.expand_path('../lib', __FILE__)
+lib = File.expand_path('lib', __dir__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 require 'osctl/image/version'
 
 Gem::Specification.new do |s|
-  s.name        = 'osctl-image'
+  s.name = 'osctl-image'
 
-  if ENV['OS_BUILD_ID']
-    s.version   = "#{OsCtl::Image::VERSION}.build#{ENV['OS_BUILD_ID']}"
-  else
-    s.version   = OsCtl::Image::VERSION
-  end
+  s.version = if ENV['OS_BUILD_ID']
+                "#{OsCtl::Image::VERSION}.build#{ENV['OS_BUILD_ID']}"
+              else
+                OsCtl::Image::VERSION
+              end
 
   s.summary     =
-  s.description = 'Build, test and deploy vpsAdminOS images'
+    s.description = 'Build, test and deploy vpsAdminOS images'
   s.authors     = 'Jakub Skokan'
   s.email       = 'jakub.skokan@vpsfree.cz'
   s.files       = `git ls-files -z`.split("\x0")

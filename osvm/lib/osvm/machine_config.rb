@@ -37,7 +37,7 @@ module OsVm
         @device = cfg.fetch(:device)
         @type = cfg.fetch(:type)
 
-        unless %w(file blockdev).include?(@type)
+        unless %w[file blockdev].include?(@type)
           raise ArgumentError, "unsupported disk type #{@type.inspect}"
         end
 
@@ -82,8 +82,8 @@ module OsVm
         net_opts << ",hostfwd=#{@opts[:hostForward]}" if @opts[:hostForward]
 
         [
-          "-device", "virtio-net,netdev=net0",
-          "-netdev", "user,id=net0,#{net_opts}",
+          '-device', 'virtio-net,netdev=net0',
+          '-netdev', "user,id=net0,#{net_opts}"
         ]
       end
     end
@@ -103,12 +103,13 @@ module OsVm
 
       def qemu_options
         [
-          "-device", "virtio-net,netdev=net1,mac=#{@mac}",
-          "-netdev", "bridge,id=net1,br=#{link}",
+          '-device', "virtio-net,netdev=net1,mac=#{@mac}",
+          '-netdev', "bridge,id=net1,br=#{link}"
         ]
       end
 
       protected
+
       def gen_mac_address
         "00:60:2f:#{SecureRandom.hex(3).chars.each_slice(2).map(&:join).join(':')}"
       end
@@ -184,8 +185,8 @@ module OsVm
         opts: {
           network: '10.0.2.0/24',
           host: '10.0.2.2',
-          dns: '10.0.2.3',
-        },
+          dns: '10.0.2.3'
+        }
       }))
     end
   end

@@ -15,7 +15,8 @@ module OsCtld
     end
 
     protected
-    def validate(run)
+
+    def validate(_run)
       begin
         devices_list = File.read(File.join(path, 'devices.list'))
       rescue Errno::ENOENT

@@ -9,6 +9,7 @@ module OsCtl::Lib
       end
 
       protected
+
       attr_reader :cache
 
       def meminfo
@@ -83,7 +84,7 @@ module OsCtl::Lib
             ),
             cpu_system_us: Cli::Presentable.new(
               sys, formatted: precise ? nil : humanize_time_us(sys)
-            ),
+            )
           }
 
         when :cpu_hz, :cpu_user_hz, :cpu_system_hz
@@ -105,8 +106,6 @@ module OsCtl::Lib
             'pids.current'
           ).to_i
 
-        else
-          nil
         end
       end
 
@@ -117,7 +116,7 @@ module OsCtl::Lib
 
       # @return [Integer]
       def read_memory_limit
-        unlimited = 9223372036854771712
+        unlimited = 9_223_372_036_854_771_712
 
         limit_path =
           if path.end_with?('/user-owned')
@@ -186,14 +185,14 @@ module OsCtl::Lib
           end
 
           entries.each do |v|
-            next if %w(. .. notify_on_release release_agent tasks).include?(v)
+            next if %w[. .. notify_on_release release_agent tasks].include?(v)
             next if v.start_with?('cgroup.')
 
             st = File.stat(File.join(cgpath, v))
             next if st.directory?
 
             # Ignore files that do not have read by user permission
-            next if (st.mode & 0400) != 0400
+            next if (st.mode & 0o400) != 0o400
 
             params << v
           end
@@ -205,6 +204,7 @@ module OsCtl::Lib
       end
 
       protected
+
       attr_reader :subsystems, :path
 
       def read_cgparam(subsys_name, group_path, param)
@@ -254,7 +254,7 @@ module OsCtl::Lib
             ),
             cpu_system_us: Cli::Presentable.new(
               stat[:system], formatted: precise ? nil : humanize_time_us(stat[:system])
-            ),
+            )
           }
 
         when :cpu_hz, :cpu_user_hz, :cpu_system_hz
@@ -262,14 +262,12 @@ module OsCtl::Lib
 
           {
             cpu_user_hz: stat[:user] / (1_000_000 / OsProcess::TICS_PER_SECOND),
-            cpu_system_hz: stat[:system] / (1_000_000 / OsProcess::TICS_PER_SECOND),
+            cpu_system_hz: stat[:system] / (1_000_000 / OsProcess::TICS_PER_SECOND)
           }
 
         when :nproc
           read_cgparam(path, 'pids.current').to_i
 
-        else
-          nil
         end
       end
 
@@ -300,7 +298,7 @@ module OsCtl::Lib
         {
           all: params['usage_usec'].to_i,
           user: params['user_usec'].to_i,
-          system: params['system_usec'].to_i,
+          system: params['system_usec'].to_i
         }
       end
 
@@ -355,14 +353,14 @@ module OsCtl::Lib
         end
 
         entries.each do |v|
-          next if %w(. .. notify_on_release release_agent tasks).include?(v)
+          next if %w[. .. notify_on_release release_agent tasks].include?(v)
           next if v.start_with?('cgroup.')
 
           st = File.stat(File.join(cgpath, v))
           next if st.directory?
 
           # Ignore files that do not have read by user permission
-          next if (st.mode & 0400) != 0400
+          next if (st.mode & 0o400) != 0o400
 
           params << v
         end
@@ -372,6 +370,7 @@ module OsCtl::Lib
       end
 
       protected
+
       attr_reader :cg_root, :path
 
       def read_cgparam(group_path, param)
@@ -400,21 +399,18 @@ module OsCtl::Lib
       ret = {}
 
       params.each do |field|
-        begin
-          next if ret[field]
+        next if ret[field]
 
-          v = cg_reader.read_stats_param(field, precise)
-          next if v.nil?
+        v = cg_reader.read_stats_param(field, precise)
+        next if v.nil?
 
-          if v.is_a?(Hash)
-            ret.update(v)
-          else
-            ret[field] = v
-          end
-
-        rescue Errno::ENOENT
-          ret[field] = nil
+        if v.is_a?(Hash)
+          ret.update(v)
+        else
+          ret[field] = v
         end
+      rescue Errno::ENOENT
+        ret[field] = nil
       end
 
       ret
@@ -434,6 +430,7 @@ module OsCtl::Lib
     end
 
     protected
+
     attr_reader :cg_reader
   end
 end

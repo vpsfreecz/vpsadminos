@@ -6,7 +6,7 @@ module OsCtl::Lib
 
     # @param pool_tree [Zfs::ObjsetStats::PoolTree]
     def <<(pool_tree)
-      @pool_trees[ pool_tree.pool ] = pool_tree
+      @pool_trees[pool_tree.pool] = pool_tree
     end
 
     # @param dataset [String]

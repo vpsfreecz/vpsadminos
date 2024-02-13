@@ -3,6 +3,7 @@ require 'vpsadminos-converter/cli/command'
 module VpsAdminOS::Converter
   class Cli::Vz6::Base < Cli::Command
     protected
+
     def convert_ct(ctid)
       if opts[:vpsadmin]
         opts[:zfs] = true
@@ -14,22 +15,21 @@ module VpsAdminOS::Converter
 
       if opts[:zfs] && opts['zfs-subdir'] != 'private'
         # TODO
-        fail "unsupported configuration, only '--zfs-subdir private' is implemented"
+        raise "unsupported configuration, only '--zfs-subdir private' is implemented"
       end
 
       vz_ct = Vz6::Container.new(ctid)
-      fail 'container not found' unless vz_ct.exist?
+      raise 'container not found' unless vz_ct.exist?
 
       begin
         puts 'Parsing config'
         vz_ct.load
-
       rescue RuntimeError => e
-        fail "unable to parse config: #{e.message}"
+        raise "unable to parse config: #{e.message}"
       end
 
       if opts[:zfs] && vz_ct.ploop?
-        fail "container uses ploop, but ZFS was enabled"
+        raise 'container uses ploop, but ZFS was enabled'
       end
 
       target_ct = vz_ct.convert(
@@ -39,7 +39,7 @@ module VpsAdminOS::Converter
           type: opts['netif-type'].to_sym,
           name: opts['netif-name'],
           hwaddr: opts['netif-hwaddr'],
-          link: opts['bridge-link'],
+          link: opts['bridge-link']
         }
       )
 
@@ -57,12 +57,14 @@ module VpsAdminOS::Converter
       puts 'Consumed config items:'
       vz_ct.config.each do |it|
         next unless it.consumed?
+
         puts "  #{it.key} = #{it.value.inspect}"
       end
       puts
       puts 'Ignored config items:'
       vz_ct.config.each do |it|
         next if it.consumed?
+
         puts "  #{it.key} = #{it.value.inspect}"
       end
     end

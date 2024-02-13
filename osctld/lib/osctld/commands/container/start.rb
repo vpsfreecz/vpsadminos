@@ -52,6 +52,7 @@ module OsCtld
     end
 
     protected
+
     def start_queued(ct)
       progress('Joining the queue')
 
@@ -59,7 +60,7 @@ module OsCtld
         ct.pool.autostart_plan.enqueue(
           ct,
           priority: opts[:priority],
-          start_opts: opts,
+          start_opts: opts
         )
         return ok
       end
@@ -68,7 +69,7 @@ module OsCtld
         ct,
         priority: opts[:priority],
         start_opts: opts,
-        client_handler: client_handler,
+        client_handler:
       )
 
       if ret.nil?
@@ -81,7 +82,7 @@ module OsCtld
 
     def start_now(ct)
       error!('start not available') unless ct.can_start?
-      return ok if %i(starting running).include?(ct.state) && !opts[:force]
+      return ok if %i[starting running].include?(ct.state) && !opts[:force]
 
       # Remove pre-existing accounting cgroups to reset counters
       remove_accounting_cgroups(ct)
@@ -112,7 +113,7 @@ module OsCtld
 
       # Reset log file
       File.open(ct.log_path, 'w').close
-      File.chmod(0660, ct.log_path)
+      File.chmod(0o660, ct.log_path)
       File.chown(0, ct.user.ugid, ct.log_path)
 
       # Update LXC configuration
@@ -122,7 +123,7 @@ module OsCtld
       console_dir = File.join(ct.pool.console_dir, ct.id)
       Dir.mkdir(console_dir) unless Dir.exist?(console_dir)
       File.chown(ct.user.ugid, 0, console_dir)
-      File.chmod(0700, console_dir)
+      File.chmod(0o700, console_dir)
 
       # Remove stray sockets
       sock_path = Console.socket_path(ct)
@@ -176,7 +177,7 @@ module OsCtld
         ct.wrapper_cgroup_path,
         prlimits: ct.prlimits.export,
         oom_score_adj: -1000,
-        keep_fds: [w],
+        keep_fds: [w]
       ) do
         # Closed by SwitchUser.fork_and_switch_to
         # r.close
@@ -203,7 +204,7 @@ module OsCtld
       begin
         Console.connect_tty0(ct, wrapper_pid)
       rescue Errno::ENOENT
-        log(:warn, ct, "Unable to connect to tty0")
+        log(:warn, ct, 'Unable to connect to tty0')
       end
 
       Process.wait(pid)
@@ -217,7 +218,7 @@ module OsCtld
       # We're accepting even `stopping` and `stopped`, since when the container
       # is being restarted, these events may be received and should not cause
       # this method to exit.
-      sequence = %i(stopping stopped starting running)
+      sequence = %i[stopping stopped starting running]
       last_i = nil
       wait_until =
         if opts[:wait] == 'infinity'
@@ -236,11 +237,11 @@ module OsCtld
           timeout = 15
         end
 
-        event = event_queue.pop(timeout: timeout)
+        event = event_queue.pop(timeout:)
 
         if event.nil?
           if Daemon.get.stopping?
-            log(:info, ct, "osctld is shutting down, giving up waiting")
+            log(:info, ct, 'osctld is shutting down, giving up waiting')
             return [:error, 'osctld is shutting down']
           end
 
@@ -248,7 +249,7 @@ module OsCtld
         end
 
         if event.type == :osctld_shutdown
-          log(:info, ct, "osctld is shutting down, giving up waiting")
+          log(:info, ct, 'osctld is shutting down, giving up waiting')
           return [:error, 'osctld is shutting down']
         end
 

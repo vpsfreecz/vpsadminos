@@ -77,6 +77,7 @@ module OsCtld
     end
 
     protected
+
     attr_reader :ct
 
     def readme_path
@@ -86,11 +87,11 @@ module OsCtld
     def create_readme
       File.write(
         readme_path,
-        <<END
-Directory `#{File.join('/', mountpoint)}` is used by osctl from vpsAdminOS to
-propagate new mounts into this container. Do not remove nor unmount this
-directory, or you'll have to restart your container to create new mounts!
-END
+        <<~END
+          Directory `#{File.join('/', mountpoint)}` is used by osctl from vpsAdminOS to
+          propagate new mounts into this container. Do not remove nor unmount this
+          directory, or you'll have to restart your container to create new mounts!
+        END
       )
     end
   end

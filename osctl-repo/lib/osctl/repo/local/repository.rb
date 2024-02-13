@@ -41,6 +41,7 @@ module OsCtl::Repo
 
         if File.symlink?(path)
           next if File.readlink(path) == t.version
+
           File.unlink(path)
 
         elsif File.exist?(path)
@@ -85,15 +86,11 @@ module OsCtl::Repo
 
       5.times.map do |i|
         File.absolute_path(File.join(version_dir, *Array.new(i, '..')))
-
       end.each do |dir|
         # Use Dir.empty?(dir) when we don't care for Ruby < 2.4
-        if (Dir.entries(dir) - %w{ . .. }).empty?
-          Dir.rmdir(dir)
+        break unless (Dir.entries(dir) - %w[. ..]).empty?
 
-        else
-          break
-        end
+        Dir.rmdir(dir)
       end
     end
 
@@ -114,6 +111,7 @@ module OsCtl::Repo
     end
 
     protected
+
     attr_reader :index
 
     def install_symlink(type, base_path, link_name, target_name)
@@ -125,6 +123,7 @@ module OsCtl::Repo
 
       elsif File.symlink?(path)
         return if File.readlink(path) == target_name
+
         File.unlink(path)
 
       elsif File.exist?(path)

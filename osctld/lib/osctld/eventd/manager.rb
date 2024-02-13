@@ -143,6 +143,7 @@ module OsCtld
     end
 
     protected
+
     def get_worker
       ret = nil
       min_size = nil
@@ -156,7 +157,7 @@ module OsCtld
         end
       end
 
-      fail 'programming error: no worker found' if ret.nil?
+      raise 'programming error: no worker found' if ret.nil?
 
       ret
     end

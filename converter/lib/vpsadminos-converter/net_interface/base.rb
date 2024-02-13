@@ -19,7 +19,7 @@ module VpsAdminOS::Converter
       @name = name
       @hwaddr = hwaddr
       @type = self.class.type
-      @ip_addresses = {4 => [], 6 => []}
+      @ip_addresses = { 4 => [], 6 => [] }
     end
 
     def dump
@@ -29,7 +29,7 @@ module VpsAdminOS::Converter
         'hwaddr' => hwaddr,
         'ip_addresses' => Hash[ip_addresses.map do |v, ips|
           ["v#{v}", ips.map(&:to_string)]
-        end],
+        end]
       }
     end
   end

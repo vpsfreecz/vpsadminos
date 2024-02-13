@@ -28,10 +28,10 @@ module OsCtld
           error!('this address is already routed')
 
         elsif via && !netif.has_ip?(via, prefix: false)
-          error!("host address #{via.to_s} not found on #{netif.name}")
+          error!("host address #{via} not found on #{netif.name}")
         end
 
-        netif.add_route(addr, via: via)
+        netif.add_route(addr, via:)
         ct.save_config
         ct.lxc_config.configure_network
 

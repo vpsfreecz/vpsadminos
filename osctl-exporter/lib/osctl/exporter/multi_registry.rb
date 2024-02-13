@@ -12,9 +12,9 @@ module OsCtl::Exporter
     end
 
     # Disallow write operations
-    %i(register unregister counter summary gauge histogram).each do |m|
-      define_method(m) do |*args, **kwargs|
-        fail 'not supported on MultiRegistry'
+    %i[register unregister counter summary gauge histogram].each do |m|
+      define_method(m) do |*_args, **_kwargs|
+        raise 'not supported on MultiRegistry'
       end
     end
 

@@ -83,6 +83,7 @@ module TestRunner
     end
 
     protected
+
     attr_reader :workers, :queue, :mutex
 
     def start_worker(i)
@@ -93,7 +94,7 @@ module TestRunner
       workers.each(&:join)
     end
 
-    def run_worker(w_i)
+    def run_worker(_w_i)
       loop do
         return if stop_work?
 
@@ -103,7 +104,7 @@ module TestRunner
           return
         end
 
-        prefix = "[#{i+1}/#{tests.length}]"
+        prefix = "[#{i + 1}/#{tests.length}]"
         log("#{prefix} Running test '#{t.path}'")
         result = run_test(t)
 
@@ -146,7 +147,7 @@ module TestRunner
           state_dir: dir,
           sock_dir: test_sock_dir,
           default_timeout: opts[:default_timeout],
-          destructive: opts[:destructive],
+          destructive: opts[:destructive]
         )
         ev.run
       end

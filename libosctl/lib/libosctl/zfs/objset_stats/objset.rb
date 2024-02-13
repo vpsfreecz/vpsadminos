@@ -4,7 +4,7 @@ module OsCtl::Lib
       :write_ios,
       :write_bytes,
       :read_ios,
-      :read_bytes,
+      :read_bytes
     )
 
     attr_accessor :dataset_name, :write_ios, :write_bytes, :read_ios, :read_bytes
@@ -21,14 +21,13 @@ module OsCtl::Lib
 
     def aggregate_stats(into: nil)
       if @aggregated_stats
-        if into
-          into.write_ios += @aggregated_stats.write_ios
-          into.write_bytes += @aggregated_stats.write_bytes
-          into.read_ios += @aggregated_stats.read_ios
-          into.read_bytes += @aggregated_stats.read_bytes
-        else
-          return @aggregated_stats
-        end
+        return @aggregated_stats unless into
+
+        into.write_ios += @aggregated_stats.write_ios
+        into.write_bytes += @aggregated_stats.write_bytes
+        into.read_ios += @aggregated_stats.read_ios
+        into.read_bytes += @aggregated_stats.read_bytes
+
       end
 
       st = AggregatedStats.new(write_ios, write_bytes, read_ios, read_bytes)

@@ -14,7 +14,7 @@ module OsCtl::Repo
         @contents = data[:images].map { |v| Base::Image.load(repo, v) }
 
       else
-        @vendors = {default: nil}
+        @vendors = { default: nil }
         @contents = []
       end
     end
@@ -31,17 +31,17 @@ module OsCtl::Repo
         contents << image
       end
 
-      if image.tags.any?
-        # Remove the image's tags from previous distribution images
-        contents.each do |t|
-          next if t == image \
-                  || t.vendor != image.vendor \
-                  || t.variant != image.variant \
-                  || t.arch != image.arch \
-                  || t.distribution != image.distribution \
+      return unless image.tags.any?
 
-          t.tags.delete_if { |tag| image.tags.include?(tag) }
-        end
+      # Remove the image's tags from previous distribution images
+      contents.each do |t|
+        next if t == image \
+                || t.vendor != image.vendor \
+                || t.variant != image.variant \
+                || t.arch != image.arch \
+                || t.distribution != image.distribution \
+
+        t.tags.delete_if { |tag| image.tags.include?(tag) }
       end
     end
 
@@ -68,9 +68,9 @@ module OsCtl::Repo
     end
 
     def save
-      regenerate_file(path, 0644) do |f|
+      regenerate_file(path, 0o644) do |f|
         f.write({
-          vendors: vendors,
+          vendors:,
           images: contents.sort.map(&:dump)
         }.to_json)
       end
@@ -81,6 +81,7 @@ module OsCtl::Repo
     end
 
     protected
+
     attr_reader :repo, :vendors, :contents
 
     def path

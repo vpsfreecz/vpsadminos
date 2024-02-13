@@ -38,6 +38,7 @@ module SvCtl
     end
 
     protected
+
     def src_path
       File.join(SvCtl::SERVICE_DIR, name)
     end

@@ -50,11 +50,11 @@ module OsCtl::Lib
     end
 
     # @yieldparam cpu [Integer]
-    def each(&block)
+    def each(&)
       if @cpu_list == :all
-        all_range.each(&block)
+        all_range.each(&)
       else
-        @cpu_list.each(&block)
+        @cpu_list.each(&)
       end
     end
 
@@ -74,6 +74,7 @@ module OsCtl::Lib
     end
 
     protected
+
     def parse_cpus(str)
       return :all if str == '*'
 
@@ -90,7 +91,7 @@ module OsCtl::Lib
           end
 
           first, last = parts
-          ret.concat((first.to_i .. last.to_i).to_a)
+          ret.concat((first.to_i..last.to_i).to_a)
         else
           ret << grp.to_i
         end
@@ -101,7 +102,7 @@ module OsCtl::Lib
     end
 
     def all_range
-      @all_range ||= (0..(Etc.nprocessors-1))
+      @all_range ||= (0..(Etc.nprocessors - 1))
     end
 
     def format(cpu_list)
@@ -112,7 +113,7 @@ module OsCtl::Lib
       prev = nil
 
       cpu_list.each do |cpu|
-        if prev.nil? || cpu == prev+1
+        if prev.nil? || cpu == prev + 1
           prev = cpu
           acc << cpu
         else
@@ -135,8 +136,6 @@ module OsCtl::Lib
         acc.join(',')
       elsif len > 2
         "#{acc.first}-#{acc.last}"
-      else
-        nil
       end
     end
   end

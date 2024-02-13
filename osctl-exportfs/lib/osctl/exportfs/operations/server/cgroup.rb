@@ -44,6 +44,7 @@ module OsCtl::ExportFS
     end
 
     protected
+
     attr_reader :server, :cgroup
 
     def path

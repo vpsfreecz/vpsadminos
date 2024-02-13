@@ -15,17 +15,18 @@ module OsCtld
     end
 
     # Cleanup old config files
-    def remove_netif(netifs, netif)
+    def remove_netif(_netifs, netif)
       do_remove_netif(netif.name)
     end
 
     # Rename config files
-    def rename_netif(netifs, netif, old_name)
+    def rename_netif(_netifs, netif, old_name)
       do_remove_netif(old_name)
       do_create_netif(netif)
     end
 
     protected
+
     def do_create_netif(netif)
       tpl_base = File.join('dist_config/network', 'suse_sysconfig')
       ct_base = File.join(rootfs, 'etc', 'sysconfig')
@@ -36,17 +37,17 @@ module OsCtld
       OsCtld::ErbTemplate.render_to_if_changed(
         File.join(tpl_base, netif.type.to_s, 'ifcfg'),
         {
-          netif: netif,
+          netif:,
           all_ips: netif.active_ip_versions.inject([]) do |acc, ip_v|
             acc.concat(netif.ips(ip_v))
-          end,
+          end
         },
         ifcfg
       )
 
       OsCtld::ErbTemplate.render_to_if_changed(
         File.join(tpl_base, netif.type.to_s, 'ifroute'),
-        {netif: netif},
+        { netif: },
         File.join(
           ct_base,
           'network',
@@ -58,7 +59,7 @@ module OsCtld
     def do_remove_netif(name)
       base = File.join(rootfs, 'etc', 'sysconfig', 'network')
       files = [
-        "ifcfg-#{name}",
+        "ifcfg-#{name}"
       ]
 
       files.each do |f|

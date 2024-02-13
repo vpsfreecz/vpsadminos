@@ -27,7 +27,7 @@ module OsCtld
           @opts.config = v
         end
 
-        opts.on('-l', '--log LOGGER', %w(syslog stdout)) do |v|
+        opts.on('-l', '--log LOGGER', %w[syslog stdout]) do |v|
           @opts.log = v.to_sym
         end
 
@@ -45,7 +45,7 @@ module OsCtld
       end.parse!
 
       if @opts.config.nil?
-        warn "Provide option --config FILE"
+        warn 'Provide option --config FILE'
         warn opts
         exit(false)
       end
@@ -86,7 +86,7 @@ module OsCtld
         out_r.close
       end
 
-      %w(INT TERM HUP).each do |sig|
+      %w[INT TERM HUP].each do |sig|
         Signal.trap(sig) do
           Process.kill(sig, pid)
         end
@@ -96,7 +96,6 @@ module OsCtld
         out_r.each_line do |line|
           OsCtl::Lib::Logger.log(:unknown, line)
         end
-
       rescue IOError
         # pass
       ensure

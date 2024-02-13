@@ -11,7 +11,7 @@ module OsCtl::Exporter
         ret[metric.name] = metric.values.map do |label_set, value|
           {
             labels: label_set,
-            value: value,
+            value:
           }
         end
       end.to_json

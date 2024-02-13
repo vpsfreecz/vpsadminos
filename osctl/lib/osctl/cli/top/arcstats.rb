@@ -28,24 +28,24 @@ module OsCtl::Cli
 
     def method_missing(name, *args, **kwargs)
       if @data.has_key?(name) && args.size <= 1
-        if args[0]
-          return @data[name] - args[0].send(name)
-        else
-          return @data[name]
-        end
+        return @data[name] - args[0].send(name) if args[0]
+
+        return @data[name]
+
       end
 
       super(name, *args, **kwargs)
     end
 
     protected
+
     def parse(file)
       @data = {}
 
       File.readlines(file)[2..-1].each do |line|
         name, type, value = line.split
 
-        @data[ name.to_sym ] = value.to_i
+        @data[name.to_sym] = value.to_i
       end
     end
   end

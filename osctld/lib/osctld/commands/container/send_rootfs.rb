@@ -42,6 +42,7 @@ module OsCtld
     end
 
     protected
+
     def send_dataset(ct, ds, base_snap)
       progress("Syncing #{ds.relative_name}")
 
@@ -69,14 +70,14 @@ module OsCtld
         ds,
         snap,
         from_snap,
-        intermediary: ct.send_log.opts.snapshots,
+        intermediary: ct.send_log.opts.snapshots
       )
-      stream.progress do |total, transfered, changed|
+      stream.progress do |total, _transfered, changed|
         progress(type: :progress, data: {
           time: Time.now.to_i,
           size: stream.size,
           transfered: total,
-          changed: changed,
+          changed:
         })
       end
 
@@ -99,9 +100,9 @@ module OsCtld
 
       _, ssh_status = Process.wait2(pid)
 
-      if send_status.exitstatus != 0 || ssh_status.exitstatus != 0
-        error!('sync failed')
-      end
+      return unless send_status.exitstatus != 0 || ssh_status.exitstatus != 0
+
+      error!('sync failed')
     end
   end
 end

@@ -1,6 +1,6 @@
 module OsCtl::ExportFS
   class Config::Nfsd
-    VERSIONS = %w(3 4 4.0 4.1 4.2)
+    VERSIONS = %w[3 4 4.0 4.1 4.2]
 
     # @return [Integer, nil]
     attr_accessor :port
@@ -36,7 +36,7 @@ module OsCtl::ExportFS
         'tcp' => tcp,
         'udp' => udp,
         'versions' => versions,
-        'syslog' => syslog,
+        'syslog' => syslog
       }
     end
 

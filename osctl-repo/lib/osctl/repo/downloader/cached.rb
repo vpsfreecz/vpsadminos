@@ -27,11 +27,11 @@ module OsCtl::Repo
     # @yieldparam [String] downloaded data
     # @return [String] path to image
     def get(vendor, variant, arch, dist, vtag, format, opts = {}, &block)
-      if opts.has_key?(:force_check)
-        force_check = opts[:force_check]
-      else
-        force_check = false
-      end
+      force_check = if opts.has_key?(:force_check)
+                      opts[:force_check]
+                    else
+                      false
+                    end
 
       begin
         image_path, fh = download(
@@ -41,25 +41,25 @@ module OsCtl::Repo
           dist,
           vtag,
           format,
-          block ? true : false,
+          block ? true : false
         )
       rescue SystemCallError,
              OpenSSL::SSL::SSLError,
-             BadHttpResponse => dl_e
+             BadHttpResponse => e
         if force_check
           raise
         elsif block
           begin
             fh = read_from_cache(vendor, variant, arch, dist, vtag, format)
           rescue CacheMiss => cache_e
-            fail "Unable to reach remote repository: #{dl_e.message}; "+
-                 "not found in cache: #{cache_e.message}"
+            raise "Unable to reach remote repository: #{e.message}; " +
+                  "not found in cache: #{cache_e.message}"
           end
         end
       end
 
       if block
-        block.call(fh.read(32*1024)) until fh.eof?
+        block.call(fh.read(32 * 1024)) until fh.eof?
         fh.close
       end
 
@@ -67,6 +67,7 @@ module OsCtl::Repo
     end
 
     protected
+
     attr_reader :repo
 
     # @return [Array(String, [IO, nil])] `[image_path, io|nil]`
@@ -104,11 +105,9 @@ module OsCtl::Repo
       index = nil
 
       repo.lock_index do
-        begin
-          index = Remote::Index.from_file(repo, repo.index_path)
-        rescue Errno::ENOENT
-          raise CacheMiss, 'Repository index not found in cache'
-        end
+        index = Remote::Index.from_file(repo, repo.index_path)
+      rescue Errno::ENOENT
+        raise CacheMiss, 'Repository index not found in cache'
       end
 
       t = index.lookup(vendor, variant, arch, dist, vtag)
@@ -131,7 +130,7 @@ module OsCtl::Repo
       uri = index_uri
 
       if repo.has_index?
-        headers = {'If-Modified-Since' => File.stat(repo.index_path).mtime.httpdate}
+        headers = { 'If-Modified-Since' => File.stat(repo.index_path).mtime.httpdate }
 
         http.request_get(uri.path, headers) do |res|
           case res.code
@@ -183,7 +182,7 @@ module OsCtl::Repo
       t_tmp_path = "#{t_path}.new"
 
       if t.cached?(format)
-        headers = {'If-Modified-Since' => File.stat(t_path).mtime.httpdate}
+        headers = { 'If-Modified-Since' => File.stat(t_path).mtime.httpdate }
 
         http.request_get(uri.path, headers) do |res|
           case res.code

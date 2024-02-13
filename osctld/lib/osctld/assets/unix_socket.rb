@@ -5,6 +5,7 @@ module OsCtld
     register :socket
 
     protected
+
     def validate(run)
       begin
         add_error('not a socket') if exist? && !opts[:optional] && !stat.socket?

@@ -7,8 +7,8 @@ module OsUp
     include OsCtl::Lib::Utils::System
 
     # Create a new system state snapshot
-    def self.create(*args, **kwargs)
-      s = new(*args, **kwargs)
+    def self.create(*, **)
+      s = new(*, **)
       s.create
       s
     end
@@ -52,6 +52,7 @@ module OsUp
     end
 
     protected
+
     attr_reader :dataset, :id, :datasets, :snapshots
 
     def datasets_to_snapshot(snapshot)
@@ -62,7 +63,7 @@ module OsUp
         when :conf, :log, :hook
           ret << File.join(dataset, s.to_s)
         else
-          fail "unsupported snapshot '#{s}'"
+          raise "unsupported snapshot '#{s}'"
         end
       end
 

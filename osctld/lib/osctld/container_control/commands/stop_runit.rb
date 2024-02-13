@@ -16,13 +16,11 @@ module OsCtld
           raise ContainerControl::Error, 'container not running'
         end
 
-        if opts[:message]
-          msg = make_message(opts[:message])
-        else
-          msg = nil
-        end
+        msg = if opts[:message]
+                make_message(opts[:message])
+              end
 
-        ret = exec_runner(args: [{message: msg}])
+        ret = exec_runner(args: [{ message: msg }])
         ret.ok? || ret
       end
     end
@@ -55,8 +53,8 @@ module OsCtld
             File.chmod(0, '/etc/runit/reboot')
           end
 
-          File.open('/etc/runit/stopit', 'w', 0100) {}
-          File.chmod(0100, '/etc/runit/stopit')
+          File.open('/etc/runit/stopit', 'w', 0o100) {}
+          File.chmod(0o100, '/etc/runit/stopit')
         end
 
         Process.wait(pid)

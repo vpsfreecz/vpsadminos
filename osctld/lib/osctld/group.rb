@@ -55,7 +55,7 @@ module OsCtld
           desc: "osctld's group config",
           user: 0,
           group: 0,
-          mode: 0400
+          mode: 0o400
         )
 
         users.each do |u|
@@ -64,7 +64,7 @@ module OsCtld
             desc: "LXC path for #{u.name}:#{name}",
             user: 0,
             group: u.ugid,
-            mode: 0751
+            mode: 0o751
           )
         end
 
@@ -81,7 +81,7 @@ module OsCtld
           attrs.update(v)
 
         else
-          fail "unsupported option '#{k}'"
+          raise "unsupported option '#{k}'"
         end
       end
 
@@ -97,7 +97,7 @@ module OsCtld
           v.each { |attr| attrs.unset(attr) }
 
         else
-          fail "unsupported option '#{k}'"
+          raise "unsupported option '#{k}'"
         end
       end
 
@@ -172,6 +172,7 @@ module OsCtld
     # @return [Group, nil]
     def parent
       return if root?
+
       parents.last
     end
 
@@ -188,14 +189,13 @@ module OsCtld
       DB::Groups.get.select do |grp|
         next if grp.pool != pool || grp.name == name
 
-        if root?
-          s = '/'
-        else
-          s = "#{name}/"
-        end
+        s = if root?
+              '/'
+            else
+              "#{name}/"
+            end
 
         grp.name.start_with?(s) && grp.name[s.size..-1].index('/').nil?
-
       end.sort! { |a, b| a.name <=> b.name }
     end
 
@@ -228,6 +228,7 @@ module OsCtld
 
       DB::Containers.get.each do |ct|
         next if ct.pool != pool || ct.group != self || ret.include?(ct)
+
         ret << ct
       end
 
@@ -251,6 +252,7 @@ module OsCtld
 
       DB::Containers.get.each do |ct|
         next if ct.pool != pool || ct.group != self || ret.include?(ct.user)
+
         ret << ct.user
       end
 
@@ -315,12 +317,12 @@ module OsCtld
       inclusively do
         {
           pool: pool.name,
-          name: name,
-          path: path,
+          name:,
+          path:,
           full_path: cgroup_path,
           cpu_limit: find_cpu_limit(parents: false),
           memory_limit: find_memory_limit(parents: false),
-          swap_limit: find_swap_limit(parents: false),
+          swap_limit: find_swap_limit(parents: false)
         }
       end
     end
@@ -339,12 +341,12 @@ module OsCtld
       cfg = {
         'cgparams' => cgparams.dump,
         'devices' => devices.dump,
-        'attrs' => attrs.dump,
+        'attrs' => attrs.dump
       }
 
       cfg['path'] = path if root?
 
-      File.open(config_path, 'w', 0400) do |f|
+      File.open(config_path, 'w', 0o400) do |f|
         f.write(OsCtl::Lib::ConfigFile.dump_yaml(cfg))
       end
 
@@ -352,12 +354,13 @@ module OsCtld
     end
 
     protected
+
     def load_config(config = nil)
-      if config
-        cfg = OsCtl::Lib::ConfigFile.load_yaml(config)
-      else
-        cfg = OsCtl::Lib::ConfigFile.load_yaml_file(config_path)
-      end
+      cfg = if config
+              OsCtl::Lib::ConfigFile.load_yaml(config)
+            else
+              OsCtl::Lib::ConfigFile.load_yaml_file(config_path)
+            end
 
       @path = cfg['path'] if root?
       @cgparams = CGroup::Params.load(self, cfg['cgparams'])

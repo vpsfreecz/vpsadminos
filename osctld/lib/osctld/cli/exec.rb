@@ -4,7 +4,7 @@ module OsCtld
   class Cli::Exec
     def self.run
       if ARGV.size < 3 || ARGV[1] != '--'
-        warn "Usage: <settings file> -- <command> [arguments...]"
+        warn 'Usage: <settings file> -- <command> [arguments...]'
         exit(false)
       end
 

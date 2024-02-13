@@ -11,8 +11,8 @@ module OsUp
       # Find the last applied migration
       i = available.index do |id, m|
         if m.nil?
-          fail "unable to upgrade pool #{pool_migrations.pool}: "+
-               "unrecognized migration #{id}"
+          raise "unable to upgrade pool #{pool_migrations.pool}: " +
+                "unrecognized migration #{id}"
         end
 
         !pool_migrations.applied?(m)
@@ -24,25 +24,25 @@ module OsUp
       # Check that the list is clean
       list.each do |id, m|
         if m.nil?
-          fail "unable to upgrade pool #{pool_migrations.pool}: "+
-               "unrecognized migration #{id}"
+          raise "unable to upgrade pool #{pool_migrations.pool}: " +
+                "unrecognized migration #{id}"
         end
       end
 
       # Verify that target version is reachable
       if opts[:to]
-        j = list.index { |id, m| id == opts[:to] }
+        j = list.index { |id, _m| id == opts[:to] }
 
         if j.nil?
-          fail "unable to upgrade pool #{pool_migrations.pool}: "+
-               "target migration #{opts[:to]} not found or reachable"
+          raise "unable to upgrade pool #{pool_migrations.pool}: " +
+                "target migration #{opts[:to]} not found or reachable"
         end
 
         list = list[0..j]
       end
 
       # Convert to a list of migrations
-      list.map { |id, m| m }
+      list.map { |_id, m| m }
     end
 
     # @param pool_migrations [PoolMigrations]
@@ -75,16 +75,16 @@ module OsUp
       # Find the last applied migration
       i = available.rindex do |id, m|
         if m.nil?
-          fail "unable to rollback pool #{pool_migrations.pool}: "+
-               "unrecognized migration #{id}"
+          raise "unable to rollback pool #{pool_migrations.pool}: " +
+                "unrecognized migration #{id}"
         end
 
         pool_migrations.applied?(m)
       end
 
       if i.nil?
-        fail "unable to rollback pool #{pool_migrations.pool}: "+
-             "no applied migration found"
+        raise "unable to rollback pool #{pool_migrations.pool}: " +
+              'no applied migration found'
       end
 
       # List of applied migrations
@@ -94,30 +94,30 @@ module OsUp
         # Find the target version
         j = applied.index do |id, m|
           if m.nil?
-            fail "unable to rollback pool #{pool_migrations.pool}: "+
-                 "unrecognized migration #{id}"
+            raise "unable to rollback pool #{pool_migrations.pool}: " +
+                  "unrecognized migration #{id}"
           end
 
           id == opts[:to]
         end
 
         if j.nil?
-          fail "unable to rollback pool #{pool_migrations.pool}: "+
-               "migration #{opts[:to]} not found or reacheable"
+          raise "unable to rollback pool #{pool_migrations.pool}: " +
+                "migration #{opts[:to]} not found or reacheable"
 
         elsif j == 0
-          fail "unable to rollback pool #{pool_migrations.pool}: "+
-               "would rollback migration #{id}, but it is set as the target"
+          raise "unable to rollback pool #{pool_migrations.pool}: " +
+                "would rollback migration #{id}, but it is set as the target"
         end
 
-        list = applied[0..j-1]
+        list = applied[0..j - 1]
 
       else
         list = [applied.first]
       end
 
       # Convert to a list of migrations
-      list.map { |id, m| m }
+      list.map { |_id, m| m }
     end
 
     # @param pool_migrations [PoolMigrations]
@@ -151,18 +151,16 @@ module OsUp
       queue.each do |m|
         puts "> #{action} #{m.id} - #{m.name}"
 
-        if run_migration(m, action)
-          pool_migrations.send("set_#{action}", m)
+        raise "migration #{m.id} returned non-zero exit status" unless run_migration(m, action)
 
-        else
-          fail "migration #{m.id} returned non-zero exit status"
-        end
+        pool_migrations.send("set_#{action}", m)
       end
 
       true
     end
 
     protected
+
     attr_reader :pool_migrations, :queue
 
     def run_migration(m, action)
@@ -173,8 +171,8 @@ module OsUp
       )
 
       pid = Process.fork do
-        ENV.keep_if do |k, v|
-          %w(GLI_DEBUG HOME LANG LOGNAME PATH PWD USER).include?(k)
+        ENV.keep_if do |k, _v|
+          %w[GLI_DEBUG HOME LANG LOGNAME PATH PWD USER].include?(k)
         end
 
         # osup is intentionally run from /run/current-system, as we don't want

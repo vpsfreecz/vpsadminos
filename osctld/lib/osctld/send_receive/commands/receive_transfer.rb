@@ -25,12 +25,14 @@ module OsCtld
 
         ct.state = :complete
 
-        call_cmd!(
-          Commands::Container::Start,
-          id: ct.id,
-          pool: ct.pool.name,
-          force: true
-        ) if opts[:start]
+        if opts[:start]
+          call_cmd!(
+            Commands::Container::Start,
+            id: ct.id,
+            pool: ct.pool.name,
+            force: true
+          )
+        end
 
         ct.send_log.snapshots.each do |v|
           ds, snap = v

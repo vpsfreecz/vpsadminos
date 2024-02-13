@@ -15,7 +15,7 @@ module VpsAdminOS::Converter
           when 'c'
             'char'
           else
-            fail "unsupported device type '#{type}'"
+            raise "unsupported device type '#{type}'"
           end,
           major,
           minor,
@@ -41,6 +41,7 @@ module VpsAdminOS::Converter
     end
 
     protected
+
     def parse(ctid, v)
       case key
       # Miscellaneous
@@ -102,7 +103,7 @@ module VpsAdminOS::Converter
       when 'no'
         false
       else
-        fail "unexpected boolean value #{key}=\"#{v}\""
+        raise "unexpected boolean value #{key}=\"#{v}\""
       end
     end
 
@@ -111,8 +112,8 @@ module VpsAdminOS::Converter
     end
 
     def veid_subst(ctid, v)
-      v.gsub!(/\$VEID/, ctid)
-      v.gsub!(/\$\{VEID\}/, ctid)
+      v.gsub!('$VEID', ctid)
+      v.gsub!('${VEID}', ctid)
       v
     end
 
@@ -122,10 +123,10 @@ module VpsAdminOS::Converter
 
     def parse_limit(v, pages: nil)
       if v.index(':')
-        v.split(':')[0..1].map { |v| parse_unit(v, pages: pages) }
+        v.split(':')[0..1].map { |v| parse_unit(v, pages:) }
 
       else
-        ret = parse_unit(v, pages: pages)
+        ret = parse_unit(v, pages:)
         [ret, ret]
       end
     end
@@ -140,7 +141,7 @@ module VpsAdminOS::Converter
       if suffix.upcase == 'P'
         n
 
-      elsif i = %w(B K M G T).index(suffix.upcase)
+      elsif i = %w[B K M G T].index(suffix.upcase)
         i.times { n *= 1024 }
 
         if pages
@@ -150,7 +151,7 @@ module VpsAdminOS::Converter
         end
 
       else
-        fail "unsupported suffix '#{suffix}'"
+        raise "unsupported suffix '#{suffix}'"
       end
     end
 
@@ -169,7 +170,7 @@ module VpsAdminOS::Converter
           when 'off'
             [name.downcase, false]
           else
-            fail "unknown mode '#{name}:#{enabled}'"
+            raise "unknown mode '#{name}:#{enabled}'"
           end
         end
       ]

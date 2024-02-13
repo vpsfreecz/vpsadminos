@@ -6,7 +6,7 @@ module VpsAdminOS::Converter
       self.progress_handler = block
 
       if opts[:zfs_subdir] != 'private'
-        fail 'only zfs-subdir=private is implemented'
+        raise 'only zfs-subdir=private is implemented'
       end
 
       snap = "converter-migrate-base-#{Time.now.to_i}"
@@ -25,7 +25,7 @@ module VpsAdminOS::Converter
       self.progress_handler = block
 
       if opts[:zfs_subdir] != 'private'
-        fail 'only zfs-subdir=private is implemented'
+        raise 'only zfs-subdir=private is implemented'
       end
 
       # Stop the container
@@ -68,18 +68,21 @@ module VpsAdminOS::Converter
     end
 
     protected
+
     def send_dataset(ct, ds, base_snap)
       progress(:step, "Syncing #{ds.relative_name}")
 
       snaps = ds.snapshots
       send_snapshot(ct, ds, base_snap, snaps.first.snapshot)
+      return unless snaps.count > 1
+
       send_snapshot(
         ct,
         ds,
         base_snap,
         snaps.last.snapshot,
         snaps.first.snapshot
-      ) if snaps.count > 1
+      )
     end
 
     def send_dataset_incr(ct, ds, incr_snap, from_snap)
@@ -94,7 +97,7 @@ module VpsAdminOS::Converter
         from_snap,
         compressed: opts[:zfs_compressed_send]
       )
-      stream.progress do |total, transfered, changed|
+      stream.progress do |total, _transfered, _changed|
         progress(:transfer, [stream.size, total])
       end
 
@@ -115,7 +118,7 @@ module VpsAdminOS::Converter
 
       _, status = Process.wait2(pid)
 
-      fail 'sync failed' if status.exitstatus != 0
+      raise 'sync failed' if status.exitstatus != 0
     end
   end
 end

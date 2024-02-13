@@ -5,8 +5,8 @@ module OsCtld
       Assets.register(type, self)
     end
 
-    def self.type
-      @type
+    class << self
+      attr_reader :type
     end
 
     attr_reader :path, :opts, :errors
@@ -54,9 +54,9 @@ module OsCtld
 
     def valid?
       if @valid.nil?
-        fail 'asset not validated'
+        raise 'asset not validated'
       elsif !validate?
-        fail 'asset cannot be validated'
+        raise 'asset cannot be validated'
       end
 
       @valid
@@ -64,7 +64,8 @@ module OsCtld
 
     # @return [:valid, :invalid, :unknown]
     def state
-      fail 'asset not validated' if @state.nil?
+      raise 'asset not validated' if @state.nil?
+
       @state
     end
 
@@ -73,6 +74,7 @@ module OsCtld
     end
 
     protected
+
     # @param run [Assets::Validator::Run]
     def run_validation(run)
       @valid = nil
@@ -96,8 +98,6 @@ module OsCtld
 
     # Implement in subclasses to validate the asset
     # @param run [Assets::Validator::Run]
-    def validate(run)
-
-    end
+    def validate(run); end
   end
 end

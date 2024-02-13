@@ -22,7 +22,7 @@ module VpsAdminOS::Converter
       {
         exist: stats[2] == 'exist',
         mounted: stats[3] == 'mounted',
-        running: stats[4] == 'running',
+        running: stats[4] == 'running'
       }
     end
 
@@ -47,16 +47,17 @@ module VpsAdminOS::Converter
         'VE_ROOT',
         'VE_PRIVATE',
         'VE_LAYOUT', # TODO: check?
-        'NETFILTER',
+        'NETFILTER'
       ].each { |v| config.consume(v) }
 
-      if ploop?
-        ct.rootfs = config.consume('VE_ROOT')
-      else
-        ct.rootfs = config.consume('VE_PRIVATE')
-      end
+      ct.rootfs = if ploop?
+                    config.consume('VE_ROOT')
+                  else
+                    config.consume('VE_PRIVATE')
+                  end
 
-      fail 'config missing OSTEMPLATE' unless config['OSTEMPLATE']
+      raise 'config missing OSTEMPLATE' unless config['OSTEMPLATE']
+
       # TODO: we should probably guarantee distribution names and allowed version
       #       specification... e.g. allow debian-9.0, forbid debian-stretch
       ct.distribution, ct.version = config.consume('OSTEMPLATE').split('-')
@@ -75,7 +76,7 @@ module VpsAdminOS::Converter
         if config['SWAPPAGES']
           ct.cgparams.set(
             'memory.memsw.limit_in_bytes',
-            mem + config.consume('SWAPPAGES')[1] * 4 * 1024
+            mem + (config.consume('SWAPPAGES')[1] * 4 * 1024)
           )
         end
 
@@ -93,7 +94,7 @@ module VpsAdminOS::Converter
           netif.link = opts[:netif][:link]
 
         when :routed
-          netif.routes = {4 => [], 6 => []}
+          netif.routes = { 4 => [], 6 => [] }
         end
 
         all_ips = config.consume('IP_ADDRESS')
@@ -119,7 +120,8 @@ module VpsAdminOS::Converter
     end
 
     def layout
-      fail 'unable to determine VE_LAYOUT' unless config['VE_LAYOUT']
+      raise 'unable to determine VE_LAYOUT' unless config['VE_LAYOUT']
+
       config['VE_LAYOUT'].value
     end
 

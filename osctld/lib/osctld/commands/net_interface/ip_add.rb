@@ -42,7 +42,8 @@ module OsCtld
     end
 
     protected
-    def route(netif, addr)
+
+    def route(_netif, addr)
       if opts[:route] === true
         addr.network
 
@@ -58,8 +59,6 @@ module OsCtld
 
         ret
 
-      else
-        nil
       end
     end
   end

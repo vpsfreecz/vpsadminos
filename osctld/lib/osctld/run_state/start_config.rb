@@ -22,6 +22,7 @@ module OsCtld
     end
 
     protected
+
     attr_reader :cfg
 
     def open_config

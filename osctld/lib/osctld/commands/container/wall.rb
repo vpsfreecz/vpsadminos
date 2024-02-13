@@ -20,7 +20,7 @@ module OsCtld
           ContainerControl::Commands::Wall.run!(
             ct,
             message: opts[:message],
-            banner: opts[:banner],
+            banner: opts[:banner]
           )
         rescue ContainerControl::Error => e
           log(:info, 'ct-wall', "Error from ct #{ct.ident}: #{e.message}")

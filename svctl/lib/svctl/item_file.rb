@@ -11,11 +11,11 @@ module SvCtl
 
     # @param path [String] path to a file where the list is stored
     # @yieldparam [ItemFile]
-    def initialize(path, **opts, &block)
+    def initialize(path, **, &block)
       @path = path
       @lock_path = File.join(File.dirname(path), ".#{File.basename(path)}.lock")
       @opened = false
-      open(**opts, &block) if block
+      open(**, &block) if block
     end
 
     # @yieldparam [ItemFile]
@@ -41,9 +41,9 @@ module SvCtl
       items
     end
 
-    def each(&block)
+    def each(&)
       must_be_open!
-      items.each(&block)
+      items.each(&)
     end
 
     # Is item in the list?
@@ -76,16 +76,17 @@ module SvCtl
         return
       end
 
-      regenerate_file(path, 0644) do |new|
+      regenerate_file(path, 0o644) do |new|
         items.each { |item| new.puts(item) }
       end
     end
 
     protected
+
     attr_reader :lock_path, :items
 
     def must_be_open!
-      fail 'file list not open' unless open?
+      raise 'file list not open' unless open?
     end
 
     def sync

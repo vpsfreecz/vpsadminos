@@ -30,7 +30,6 @@ module OsCtld
       Hook.run(ct, :post_stop)
 
       ok
-
     rescue HookFailed => e
       log(:warn, ct, 'Error during post-stop hook')
       log(:warn, ct, "#{e.class}: #{e.message}")

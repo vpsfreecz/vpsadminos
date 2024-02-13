@@ -22,6 +22,7 @@ module OsCtld
     end
 
     protected
+
     # Fork&exec to the container user and invoke the runner.
     #
     # {#exec_runner} forks from osctld and then execs into osctld-ct-runner.
@@ -76,7 +77,7 @@ module OsCtld
         return: ret_w.fileno,
         stdin: stdin && stdin.fileno,
         stdout: stdout.fileno,
-        stderr: stderr.fileno,
+        stderr: stderr.fileno
       }
 
       CGroup.mkpath_all(cgroup_path.split('/'), chown: ugid)
@@ -87,8 +88,8 @@ module OsCtld
           ret_w,
           stdin,
           stdout,
-          stderr,
-        ].compact,
+          stderr
+        ].compact
       ) do
         # Closed by SwitchUser.fork
         # cmd_w.close
@@ -119,13 +120,12 @@ module OsCtld
         ret = JSON.parse(ret_r.readline, symbolize_names: true)
         Process.wait(pid)
         ContainerControl::Result.from_runner(ret)
-
       rescue EOFError
         Process.wait(pid)
         ContainerControl::Result.new(
           false,
           message: 'user runner failed',
-          user_runner: true,
+          user_runner: true
         )
       end
     end
@@ -158,9 +158,9 @@ module OsCtld
         lxc_home: ct.lxc_home,
         user_home: ct.user.homedir,
         log_file: ct.log_path,
-        stdin: stdin,
-        stdout: stdout,
-        stderr: stderr,
+        stdin:,
+        stdout:,
+        stderr:
       }
 
       ctid = ct.ident
@@ -175,7 +175,7 @@ module OsCtld
         # r.close
 
         Process.setproctitle(
-          "osctld: #{ctid} "+
+          "osctld: #{ctid} " +
           "runner:#{command_class.name.split('::').last.downcase}"
         )
 
@@ -196,13 +196,12 @@ module OsCtld
         ret = JSON.parse(r.readline, symbolize_names: true)
         Process.wait(pid)
         ContainerControl::Result.from_runner(ret)
-
       rescue EOFError
         Process.wait(pid)
         ContainerControl::Result.new(
           false,
           message: 'user runner failed',
-          user_runner: true,
+          user_runner: true
         )
       end
     end

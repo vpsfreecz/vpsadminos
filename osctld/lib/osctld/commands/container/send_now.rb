@@ -22,14 +22,14 @@ module OsCtld
           network_interfaces: opts[:network_interfaces],
           snapshots: opts[:snapshots],
           from_snapshot: opts[:from_snapshot],
-          preexisting_datasets: opts[:preexisting_datasets],
+          preexisting_datasets: opts[:preexisting_datasets]
         )
 
         progress(type: :step, title: 'Sending rootfs')
         call_cmd!(
           Commands::Container::SendRootfs,
           id: ct.id,
-          pool: ct.pool.name,
+          pool: ct.pool.name
         )
 
         progress(type: :step, title: 'Sending state')
@@ -39,14 +39,14 @@ module OsCtld
           pool: ct.pool.name,
           clone: opts[:clone],
           restart: opts[:restart],
-          start: opts[:start],
+          start: opts[:start]
         )
 
         progress(type: :step, title: 'Cleaning up')
         call_cmd!(
           Commands::Container::SendCleanup,
           id: ct.id,
-          pool: ct.pool.name,
+          pool: ct.pool.name
         )
       end
     end

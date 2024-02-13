@@ -33,7 +33,7 @@ module OsCtld
             )
           )
 
-          if ret.nil? || $?.exitstatus != 0 && !opts[:force]
+          if ret.nil? || ($?.exitstatus != 0 && !opts[:force])
             error!('cancel failed')
           end
         end

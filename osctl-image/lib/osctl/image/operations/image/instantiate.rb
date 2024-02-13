@@ -45,6 +45,7 @@ module OsCtl::Image
     end
 
     protected
+
     attr_reader :opts, :client, :reinstall, :ctid
 
     def instantiate(build)
@@ -64,7 +65,7 @@ module OsCtl::Image
         client.reinstall_container_from_image(
           ctid,
           image_path,
-          remove_snapshots: true,
+          remove_snapshots: true
         )
       else
         client.create_container_from_file(ctid, image_path)

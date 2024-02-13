@@ -5,8 +5,8 @@ module OsCtld
       Command.register(name, self)
     end
 
-    def self.cmd
-      @cmd
+    class << self
+      attr_reader :cmd
     end
 
     # @param kwargs [Hash] command options
@@ -20,14 +20,14 @@ module OsCtld
       c.base_execute
     end
 
-    def self.run!(**kwargs)
-      ret = run(**kwargs)
+    def self.run!(**)
+      ret = run(**)
 
       if !ret.is_a?(Hash)
-        fail "invalid return value '#{ret.inspect}'"
+        raise "invalid return value '#{ret.inspect}'"
 
       elsif !ret[:status]
-        fail ret[:message]
+        raise ret[:message]
       end
 
       ret
@@ -55,9 +55,7 @@ module OsCtld
     end
 
     # Implement to prematurely stop the client thread
-    def request_stop
-
-    end
+    def request_stop; end
 
     def manipulation_holder
       if opts[:cli]
@@ -68,14 +66,15 @@ module OsCtld
     end
 
     protected
+
     attr_reader :client_handler
 
-    def call_cmd(klass, **opts)
-      klass.run(internal: {handler: client_handler, indirect: true}, **opts)
+    def call_cmd(klass, **)
+      klass.run(internal: { handler: client_handler, indirect: true }, **)
     end
 
-    def call_cmd!(*args, **kwargs)
-      ret = call_cmd(*args, **kwargs)
+    def call_cmd!(*, **)
+      ret = call_cmd(*, **)
 
       if !ret.is_a?(Hash)
         error!("invalid return value '#{ret.inspect}'")
@@ -101,10 +100,9 @@ module OsCtld
         # Acquire all locks
         begin
           manipulable.each do |m|
-            m.acquire_manipulation_lock(self, block: block) || (fail 'unable to lock')
+            m.acquire_manipulation_lock(self, block:) || (raise 'unable to lock')
             locked << m
           end
-
         rescue ResourceLocked
           locked.reverse_each(&:release_manipulation_lock)
           raise
@@ -113,26 +111,25 @@ module OsCtld
         # Call the block and release locks
         begin
           codeblock.call
-
         ensure
           locked.reverse_each(&:release_manipulation_lock)
         end
 
       else
-        manipulable.manipulate(self, block: block, &codeblock)
+        manipulable.manipulate(self, block:, &codeblock)
       end
     end
 
     def ok(resp = nil)
-      {status: true, output: resp}
+      { status: true, output: resp }
     end
 
     def handled
-      {status: :handled}
+      { status: :handled }
     end
 
     def error(msg)
-      {status: false, message: msg}
+      { status: false, message: msg }
     end
 
     def error!(msg)
@@ -140,9 +137,9 @@ module OsCtld
     end
 
     def progress(msg)
-      if @client_handler && (opts[:progress].nil? || opts[:progress])
-        @client_handler.send_update(msg)
-      end
+      return unless @client_handler && (opts[:progress].nil? || opts[:progress])
+
+      @client_handler.send_update(msg)
     end
 
     def indirect?

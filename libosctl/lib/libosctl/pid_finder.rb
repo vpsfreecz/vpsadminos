@@ -15,7 +15,6 @@ module OsCtl::Lib
         pool, id = ctid
         Result.new(pool, id, os_proc)
       end
-
     rescue Exceptions::OsProcessNotFound
       nil
     end

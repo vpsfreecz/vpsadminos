@@ -17,7 +17,7 @@ module OsCtl
       'refer' => 'referenced',
       'refreserv' => 'refreservation',
       'reserv' => 'reservation',
-      'volsize' => 'volblocksize',
+      'volsize' => 'volblocksize'
     }
 
     def list_property_names
@@ -59,6 +59,7 @@ module OsCtl
     end
 
     protected
+
     def add_property_values(index, zfs_props, precise)
       reader = OsCtl::Lib::Zfs::PropertyReader.new
       tree = reader.read(index.keys, zfs_props)
@@ -89,7 +90,7 @@ module OsCtl
         i = v.to_i
         OsCtl::Lib::Cli::Presentable.new(
           i,
-          formatted: precise ? nil : Time.at(i).strftime('%Y-%m-%d %H:%M:%S %Z'),
+          formatted: precise ? nil : Time.at(i).strftime('%Y-%m-%d %H:%M:%S %Z')
         )
 
       # Data units

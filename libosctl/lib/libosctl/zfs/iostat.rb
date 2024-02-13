@@ -9,7 +9,7 @@ module OsCtl::Lib
       :io_read,
       :io_written,
       :bytes_read,
-      :bytes_written,
+      :bytes_written
     ) do
       def <<(other)
         self.alloc = nil
@@ -63,10 +63,10 @@ module OsCtl::Lib
         @iostat_pid = nil
       end
 
-      if reader
-        reader.join
-        @reader = nil
-      end
+      return unless reader
+
+      reader.join
+      @reader = nil
     end
 
     # @param pool [String]
@@ -114,7 +114,6 @@ module OsCtl::Lib
       end
 
       start
-      nil
     end
 
     # @param pool [String]
@@ -140,8 +139,9 @@ module OsCtl::Lib
     end
 
     protected
+
     attr_reader :iostat_pid, :mutex, :reader,
-      :current_stats, :accumulated_stats
+                :current_stats, :accumulated_stats
 
     def parser(r)
       r.each_line do |line|
@@ -153,7 +153,7 @@ module OsCtl::Lib
           rio.to_i,
           wio.to_i,
           rbytes.to_i,
-          wbytes.to_i,
+          wbytes.to_i
         )
 
         sync do
@@ -169,12 +169,11 @@ module OsCtl::Lib
           @accumulated_all << st
         end
       end
-
     rescue IOError
     end
 
-    def sync
-      mutex.synchronize { yield }
+    def sync(&)
+      mutex.synchronize(&)
     end
   end
 end

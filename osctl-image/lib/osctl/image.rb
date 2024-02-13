@@ -3,14 +3,14 @@ require 'require_all'
 module OsCtl
   module Image
     module Operations
-      module Builder ; end
+      module Builder; end
       module Config; end
-      module Execution ; end
-      module File ; end
+      module Execution; end
+      module File; end
       module Image; end
-      module Nix ; end
-      module Repository ; end
-      module Test ; end
+      module Nix; end
+      module Repository; end
+      module Test; end
     end
   end
 end

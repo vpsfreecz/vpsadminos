@@ -17,10 +17,10 @@ module OsCtld
       maps.each do |type, map|
         map.each do |entry|
           ret << {
-            type: type,
+            type:,
             ns_id: entry.ns_id,
             host_id: entry.host_id,
-            count: entry.count,
+            count: entry.count
           }
         end
       end

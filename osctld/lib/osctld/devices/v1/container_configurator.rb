@@ -12,6 +12,7 @@ module OsCtld
 
       abs_all_cgroup_paths.each do |cgpath, req|
         next unless prepare_cgroup(cgpath, req)
+
         devices.each { |dev| do_allow_device(dev, cgpath) }
       end
     end
@@ -19,6 +20,7 @@ module OsCtld
     def add_device(device)
       abs_all_cgroup_paths.each do |cgpath, req|
         next unless prepare_cgroup(cgpath, req)
+
         do_allow_device(device, cgpath)
       end
     end
@@ -26,6 +28,7 @@ module OsCtld
     def remove_device(device)
       abs_all_cgroup_paths.reverse_each do |cgpath, req|
         next unless prepare_cgroup(cgpath, req)
+
         do_deny_device(device, cgpath)
       end
     end
@@ -33,12 +36,14 @@ module OsCtld
     def apply_changes(changes)
       abs_all_cgroup_paths.each do |cgpath, req|
         next unless prepare_cgroup(cgpath, req)
+
         do_apply_changes(changes, cgpath)
       end
     end
 
     protected
-    alias_method :ct, :owner
+
+    alias ct owner
 
     def create(devices)
       rel_group_cgroup_paths.zip(abs_group_cgroup_paths).each do |rel, abs|
@@ -67,6 +72,7 @@ module OsCtld
 
       abs_ct_chowned_cgroup_paths.each do |abs, req, uid, gid|
         next unless prepare_cgroup(abs, req)
+
         File.chown(uid || ct.user.ugid, gid || ct.user.ugid, abs)
       end
     end
@@ -79,7 +85,7 @@ module OsCtld
     def rel_group_cgroup_paths
       [
         # <group>/<user>
-        [ct.group.full_cgroup_path(ct.user), true],
+        [ct.group.full_cgroup_path(ct.user), true]
       ]
     end
 
@@ -102,7 +108,7 @@ module OsCtld
         [ct.cgroup_path, true],
 
         # <group>/<user>/<ct>/user-owned/lxc.payload.<ct>
-        [File.join(ct.cgroup_path, "lxc.payload.#{ct.id}"), false],
+        [File.join(ct.cgroup_path, "lxc.payload.#{ct.id}"), false]
       ]
     end
 
@@ -124,13 +130,13 @@ module OsCtld
     # @return [Array]
     def abs_ct_chowned_cgroup_paths
       to_abs_paths([
-        # <group>/<user>/<ct>/user-owned
-        [ct.cgroup_path, true],
+                     # <group>/<user>/<ct>/user-owned
+                     [ct.cgroup_path, true],
 
-        # <group>/<user>/<ct>/user-owned/lxc.payload.<ct>
-        [File.join(ct.cgroup_path, "lxc.payload.#{ct.id}"), false,
-         ct.user.ugid, ct.gid_map.ns_to_host(0)],
-      ])
+                     # <group>/<user>/<ct>/user-owned/lxc.payload.<ct>
+                     [File.join(ct.cgroup_path, "lxc.payload.#{ct.id}"), false,
+                      ct.user.ugid, ct.gid_map.ns_to_host(0)]
+                   ])
     end
 
     # @return [Array]
@@ -156,7 +162,6 @@ module OsCtld
       elsif create
         begin
           Dir.mkdir(cgpath)
-
         rescue Errno::EEXIST
           true
         end

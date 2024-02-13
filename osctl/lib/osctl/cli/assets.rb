@@ -11,19 +11,19 @@ module OsCtl::Cli
         {
           name: :purpose,
           label: 'PURPOSE',
-          display: ->(_, asset) { asset[:opts][:desc] },
-        },
+          display: ->(_, asset) { asset[:opts][:desc] }
+        }
       ]
 
       if opts[:verbose]
         cols << {
           name: :errors,
           label: 'ERRORS',
-          display: ->(_, asset) { asset[:errors].join('; ') },
+          display: ->(_, asset) { asset[:errors].join('; ') }
         }
       end
 
-      format_output(data, cols: cols, layout: opts[:verbose] ? :rows : :columns)
+      format_output(data, cols:, layout: opts[:verbose] ? :rows : :columns)
     end
   end
 end

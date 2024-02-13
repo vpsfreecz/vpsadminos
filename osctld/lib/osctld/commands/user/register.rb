@@ -13,7 +13,6 @@ module OsCtld
 
             begin
               register_user(u)
-
             rescue ResourceLocked => e
               progress("User #{u.ident} is locked, skipping")
             end
@@ -34,6 +33,7 @@ module OsCtld
     end
 
     protected
+
     def register_user(u)
       manipulate(u) do
         progress("Registering user #{u.ident}")

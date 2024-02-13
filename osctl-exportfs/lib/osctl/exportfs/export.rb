@@ -37,7 +37,7 @@ module OsCtl::ExportFS
         'dir' => dir,
         'as' => as,
         'host' => host,
-        'options' => options,
+        'options' => options
       }
     end
   end

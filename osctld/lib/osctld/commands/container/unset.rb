@@ -13,10 +13,10 @@ module OsCtld
       manipulate(ct) do
         changes = {}
 
-        %i(
+        %i[
           autostart ephemeral hostname dns_resolvers nesting cpu_package
           seccomp_profile init_cmd start_menu raw_lxc attrs
-        ).each do |attr|
+        ].each do |attr|
           changes[attr] = opts[attr] if opts.has_key?(attr)
         end
 

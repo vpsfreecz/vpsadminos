@@ -15,13 +15,14 @@ module OsCtl::ExportFS
       bin_bash = File.join(bash_interactive, 'bin/bash')
 
       Operations::Server::Exec.run(server) do
-        ENV['PATH'] = "#{ENV['PATH']}:/run/current-system/sw/bin"
+        ENV['PATH'] = "#{ENV.fetch('PATH', nil)}:/run/current-system/sw/bin"
         ENV['PS1'] = "[NFSD #{server.name}]# "
         Process.exec(bin_bash, '--norc')
       end
     end
 
     protected
+
     attr_reader :server
 
     def bash_interactive

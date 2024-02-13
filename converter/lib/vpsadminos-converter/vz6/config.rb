@@ -18,8 +18,8 @@ module VpsAdminOS::Converter
     end
 
     # yield [Vz6::ConfigItem]
-    def each(&block)
-      @items.each_value(&block)
+    def each(&)
+      @items.each_value(&)
     end
 
     # @param k [String] config key
@@ -37,17 +37,18 @@ module VpsAdminOS::Converter
     end
 
     protected
+
     def parse(io)
       io.each_line do |line|
         if /^\s*#/ =~ line || /^\s*$/ =~ line
           next
 
         elsif /^([A-Z_]+)="([^"]+)"/ =~ line
-          it = Vz6::ConfigItem.new(ctid, $1, $2)
+          it = Vz6::ConfigItem.new(ctid, ::Regexp.last_match(1), ::Regexp.last_match(2))
           @items[it.key] = it
 
         elsif /^([A-Z_]+)=([^\s]+)/ =~ line
-          it = Vz6::ConfigItem.new(ctid, $1, $2)
+          it = Vz6::ConfigItem.new(ctid, ::Regexp.last_match(1), ::Regexp.last_match(2))
           @items[it.key] = it
 
         else

@@ -21,7 +21,7 @@ module OsCtld
     include Singleton
 
     class << self
-      %i(setup enabled? start stop register export dump).each do |m|
+      %i[setup enabled? start stop register export dump].each do |m|
         define_method(m) do |*args, &block|
           instance.send(m, *args, &block)
         end
@@ -37,8 +37,8 @@ module OsCtld
     end
 
     def setup(enabled)
-      unless @enabled === nil
-        fail 'programming error: setup can be called only once'
+      unless @enabled.nil?
+        raise 'programming error: setup can be called only once'
       end
 
       @enabled = enabled
@@ -56,12 +56,12 @@ module OsCtld
     end
 
     def stop
-      if @thread
-        @queue.clear
-        @queue << :stop
-        @thread.join
-        @thread = nil
-      end
+      return unless @thread
+
+      @queue.clear
+      @queue << :stop
+      @thread.join
+      @thread = nil
     end
 
     # @param object [Object]
@@ -98,7 +98,7 @@ module OsCtld
       export.each do |lock|
         log(
           :debug,
-          "id=#{lock[:id]},thread=#{lock[:thread]},type=#{lock[:type]},"+
+          "id=#{lock[:id]},thread=#{lock[:thread]},type=#{lock[:type]}," +
           "state=#{lock[:state]}"
         )
         log(:debug, denixstorify(lock[:backtrace]).join("\n"))
@@ -112,6 +112,7 @@ module OsCtld
     end
 
     protected
+
     attr_reader :registry
 
     def run
@@ -154,11 +155,11 @@ module OsCtld
       end
     end
 
-    def sync(&block)
+    def sync(&)
       if @mutex.owned?
         yield
       else
-        @mutex.synchronize(&block)
+        @mutex.synchronize(&)
       end
     end
   end

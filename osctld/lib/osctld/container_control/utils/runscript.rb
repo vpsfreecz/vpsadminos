@@ -4,7 +4,7 @@ module OsCtld
       def add_network_opts(opts)
         opts.update(
           init_script: File.join('/', File.basename(init_script.path)),
-          net_config: NetConfig.create(ct).export,
+          net_config: NetConfig.create(ct).export
         )
       end
 
@@ -12,7 +12,7 @@ module OsCtld
         return @init_script if @init_script
 
         f = Tempfile.create(['.runscript', '.sh'], ct.get_run_conf.rootfs)
-        f.chmod(0500)
+        f.chmod(0o500)
         f.puts('#!/bin/sh')
         f.puts('echo ready')
         f.puts('read _')
@@ -66,10 +66,10 @@ module OsCtld
             '-n', ctid,
             '-o', log_file,
             '-s', "lxc.environment=PATH=#{system_path.join(':')}",
-            '-s', "lxc.environment=HOME=/root",
-            '-s', "lxc.environment=USER=root",
+            '-s', 'lxc.environment=HOME=/root',
+            '-s', 'lxc.environment=USER=root',
             '--',
-            opts[:script],
+            opts[:script]
           ]
 
           # opts[:cmd] can contain an arbitrary command with multiple arguments
@@ -113,7 +113,7 @@ module OsCtld
           stdout: out_w,
           stderr: nil,
           close_fds: [in_w, out_r],
-          wait: false,
+          wait: false
         )
 
         in_r.close

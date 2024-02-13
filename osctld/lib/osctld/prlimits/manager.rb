@@ -8,13 +8,13 @@ module OsCtld
     # @param ct [Container]
     # @param cfg [Array]
     def self.load(ct, cfg)
-      if cfg.is_a?(Array)
-        entries = cfg.map do |v|
-          [v['name'], PrLimits::PrLimit.load(v['name'], v)]
-        end
-      else
-        entries = cfg.map { |k, v| [k, PrLimits::PrLimit.load(k, v)] }
-      end
+      entries = if cfg.is_a?(Array)
+                  cfg.map do |v|
+                    [v['name'], PrLimits::PrLimit.load(v['name'], v)]
+                  end
+                else
+                  cfg.map { |k, v| [k, PrLimits::PrLimit.load(k, v)] }
+                end
 
       new(ct, entries: Hash[entries])
     end
@@ -23,7 +23,7 @@ module OsCtld
     # @param ct [Container]
     def self.default(ct)
       new(ct, entries: {
-        'nofile' => PrLimits::PrLimit.new('nofile', 1024, SystemLimits::FILE_MAX_DEFAULT),
+        'nofile' => PrLimits::PrLimit.new('nofile', 1024, SystemLimits::FILE_MAX_DEFAULT)
       })
     end
 
@@ -95,6 +95,7 @@ module OsCtld
     end
 
     protected
+
     attr_reader :ct, :prlimits
   end
 end

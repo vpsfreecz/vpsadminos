@@ -55,7 +55,6 @@ module OsCtld
             via = netif.default_via(ip_v).to_s
             n.routes << Route.new(ip_v, via, ip_v == 4 ? 32 : 128, nil)
             n.routes << Route.new(ip_v, '0.0.0.0', 0, via)
-
           rescue RuntimeError
             # IPv6 is routed via link-local address on the host interface, which
             # is not known when the container is stopped.
@@ -73,24 +72,20 @@ module OsCtld
 
       netifs.each do |netif|
         netif.ips.each do |ip|
-          begin
-            nl.addr.add(index: netif.name, local: ip.address, prefixlen: ip.prefix)
-          rescue Errno::EEXIST
-            next
-          end
+          nl.addr.add(index: netif.name, local: ip.address, prefixlen: ip.prefix)
+        rescue Errno::EEXIST
+          next
         end
 
         netif.routes.each do |route|
-          begin
-            nl.route.add(
-              oif: netif.name,
-              dst: route.address,
-              dst_len: route.prefix,
-              gateway: route.via,
-            )
-          rescue Errno::EEXIST
-            next
-          end
+          nl.route.add(
+            oif: netif.name,
+            dst: route.address,
+            dst_len: route.prefix,
+            gateway: route.via
+          )
+        rescue Errno::EEXIST
+          next
         end
       end
     end
@@ -100,7 +95,7 @@ module OsCtld
         {
           name: netif.name,
           ips: netif.ips.map(&:to_h),
-          routes: netif.routes.map(&:to_h),
+          routes: netif.routes.map(&:to_h)
         }
       end
     end
@@ -109,14 +104,12 @@ module OsCtld
       data.each do |netif_hash|
         netifs << NetIf.new(
           netif_hash[:name],
-
           netif_hash[:ips].map do |v|
             Addr.new(v[:version], v[:address], v[:prefix])
           end,
-
           netif_hash[:routes].map do |v|
             Route.new(v[:version], v[:address], v[:prefix], v[:via])
-          end,
+          end
         )
       end
     end

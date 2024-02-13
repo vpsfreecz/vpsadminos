@@ -73,7 +73,7 @@ module OsCtl::Lib
         '-m', buffer_size.to_s,
         '-P', start_writing_at.to_s,
         in: send_r,
-        out: mbuf_w,
+        out: mbuf_w
       )
       send_r.close
       mbuf_w.close
@@ -110,13 +110,13 @@ module OsCtl::Lib
     # @option opts [Integer] :timeout
     def send_to(addr, port, opts = {})
       cmd = [
-        "mbuffer",
-        "-q",
+        'mbuffer',
+        '-q',
         "-O #{addr}:#{port}",
         "-s #{opts.fetch(:block_size, '128k')}",
         "-m #{opts.fetch(:buffer_size, '64M')}",
         (opts[:log_file] ? "-l #{opts[:log_file]}" : nil),
-        "-W #{opts.fetch(:timeout, 900)}",
+        "-W #{opts.fetch(:timeout, 900)}"
       ].compact.join(' ')
 
       pipe_cmd(cmd)
@@ -146,6 +146,7 @@ module OsCtl::Lib
     end
 
     protected
+
     def pipe_cmd(cmd)
       @pipeline = []
       r, w = IO.pipe
@@ -217,7 +218,7 @@ module OsCtl::Lib
           transfered = n
           total += change
 
-        else  # Transfer of another snapshot has begun, zfs send is counting from 0
+        else # Transfer of another snapshot has begun, zfs send is counting from 0
           transfered = 0
           next
         end
@@ -233,15 +234,15 @@ module OsCtl::Lib
     end
 
     def approximate_size
-      opts = ['n', 'v']
+      opts = %w[n v]
       opts << 'c' if @opts[:compressed]
 
-      if @from_snapshot
-        cmd = zfs(:send, "-#{opts.join} -I @#{@from_snapshot}", "#{path}@#{@snapshot}")
+      cmd = if @from_snapshot
+              zfs(:send, "-#{opts.join} -I @#{@from_snapshot}", "#{path}@#{@snapshot}")
 
-      else
-        cmd = zfs(:send, "-#{opts.join}", "#{path}@#{@snapshot}")
-      end
+            else
+              zfs(:send, "-#{opts.join}", "#{path}@#{@snapshot}")
+            end
 
       rx = /^total estimated size is ([^$]+)$/
       m = rx.match(cmd.output)
@@ -256,7 +257,7 @@ module OsCtl::Lib
     def parse_total_size(fd)
       rx = /total estimated size is ([^$]+)$/
 
-      until fd.eof? do
+      until fd.eof?
         line = fd.readline
 
         m = rx.match(line)
@@ -265,7 +266,7 @@ module OsCtl::Lib
         return parse_size(m[1])
       end
 
-      fail 'unable to estimate total transfer size'
+      raise 'unable to estimate total transfer size'
     end
 
     def parse_transfered(str)
@@ -280,14 +281,12 @@ module OsCtl::Lib
       suffix = str.strip[-1]
 
       if suffix !~ /^\d+$/
-        units = %w(B K M G T)
+        units = %w[B K M G T]
 
-        if i = units.index(suffix)
-          i.times { size *= 1024 }
+        raise "unsupported suffix '#{suffix}'" unless i = units.index(suffix)
 
-        else
-          fail "unsupported suffix '#{suffix}'"
-        end
+        i.times { size *= 1024 }
+
       end
 
       (size / 1024 / 1024).round
@@ -303,15 +302,13 @@ module OsCtl::Lib
     end
 
     def zfs_send_cmd
-      cmd = ['zfs', 'send']
+      cmd = %w[zfs send]
       cmd << '-c' if @opts[:compressed]
       cmd << '-p' if @opts[:properties]
       cmd << '-L' if @opts[:large_block]
       cmd.join(' ')
     end
 
-    def notify_exec(pipeline)
-
-    end
+    def notify_exec(pipeline); end
   end
 end

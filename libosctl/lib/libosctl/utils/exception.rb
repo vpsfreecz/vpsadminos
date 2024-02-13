@@ -6,7 +6,7 @@ module OsCtl::Lib
     def denixstorify(backtrace)
       backtrace.map do |line|
         line.sub(
-          /^\/nix\/store\/[^\/]+\/lib\/ruby\/gems\/\d+\.\d+\.\d+\/gems\//,
+          %r{^/nix/store/[^/]+/lib/ruby/gems/\d+\.\d+\.\d+/gems/},
           ''
         )
       end

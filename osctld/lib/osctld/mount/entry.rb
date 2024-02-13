@@ -1,6 +1,6 @@
 module OsCtld
   class Mount::Entry
-    PARAMS = %i(fs mountpoint type opts automount dataset temp)
+    PARAMS = %i[fs mountpoint type opts automount dataset temp]
     attr_reader :mountpoint, :type, :opts, :automount, :dataset, :temp, :in_config
 
     # Load from config
@@ -15,7 +15,7 @@ module OsCtld
           File.join(ct.dataset.name, cfg['dataset']),
           base: ct.dataset.name
         ),
-        temp: cfg['temporary'],
+        temp: cfg['temporary']
       )
     end
 
@@ -43,13 +43,13 @@ module OsCtld
     # Export to client
     def export
       {
-        fs: fs,
-        mountpoint: mountpoint,
-        type: type,
-        opts: opts,
-        automount: automount,
+        fs:,
+        mountpoint:,
+        type:,
+        opts:,
+        automount:,
         dataset: dataset && dataset.relative_name,
-        temporary: temp,
+        temporary: temp
       }
     end
 
@@ -62,12 +62,12 @@ module OsCtld
         'opts' => opts,
         'automount' => automount,
         'dataset' => dataset && dataset.relative_name,
-        'temporary' => temp,
+        'temporary' => temp
       }
     end
 
-    alias_method :automount?, :automount
-    alias_method :temp?, :temp
-    alias_method :in_config?, :in_config
+    alias automount? automount
+    alias temp? temp
+    alias in_config? in_config
   end
 end

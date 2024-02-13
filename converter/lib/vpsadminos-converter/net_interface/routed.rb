@@ -10,7 +10,7 @@ module VpsAdminOS::Converter
       super.merge(
         'routes' => Hash[routes.map do |ip_v, addrs|
           ["v#{ip_v}", addrs.map(&:to_string)]
-        end],
+        end]
       )
     end
   end

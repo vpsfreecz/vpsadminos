@@ -11,6 +11,7 @@ module OsCtld
     end
 
     protected
+
     def netifs
       ret = []
 
@@ -56,7 +57,7 @@ module OsCtld
         :ctid => ct.id,
         :netif => netif.name,
         4 => netif.ips(4).map(&:to_string),
-        6 => netif.ips(6).map(&:to_string),
+        6 => netif.ips(6).map(&:to_string)
       }
     end
   end

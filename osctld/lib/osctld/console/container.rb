@@ -21,14 +21,14 @@ module OsCtld
 
     def tty(n)
       @mutex.synchronize do
-        if !@ttys.has_key?(n)
+        if @ttys.has_key?(n)
+          @ttys[n]
+        else
           klass = n == 0 ? Console::Console : Console::TTY
           @ttys[n] = tty = klass.new(ct, n)
           tty.start
           tty
 
-        else
-          @ttys[n]
         end
       end
     end
@@ -40,8 +40,9 @@ module OsCtld
     end
 
     protected
-    def sync
-      @mutex.synchronize { yield }
+
+    def sync(&)
+      @mutex.synchronize(&)
     end
   end
 end

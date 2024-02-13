@@ -9,12 +9,12 @@ module OsCtld
     include OsCtl::Lib::Utils::System
 
     def find
-      if opts[:pool]
-        pool = DB::Pools.find(opts[:pool])
+      pool = if opts[:pool]
+               DB::Pools.find(opts[:pool])
 
-      else
-        pool = DB::Pools.get_or_default(nil)
-      end
+             else
+               DB::Pools.get_or_default(nil)
+             end
 
       pool || error!('pool not found')
     end
@@ -29,15 +29,15 @@ module OsCtld
 
       type = opts[:type] || 'rsa'
 
-      if opts[:bits]
-        bits = opts[:bits]
+      bits = if opts[:bits]
+               opts[:bits]
 
-      elsif type == 'ecdsa'
-        bits = 521
+             elsif type == 'ecdsa'
+               521
 
-      else
-        bits = 4096
-      end
+             else
+               4096
+             end
 
       args = [
         'ssh-keygen',
@@ -46,13 +46,13 @@ module OsCtld
         '-b', bits.to_s,
         '-N', "''",
         '-C', "'#{pool.name}@#{Socket.gethostname}'",
-        '-f', privkey,
+        '-f', privkey
       ]
 
       syscmd(args.join(' '))
 
       [privkey, pubkey].each do |v|
-        File.chmod(0400, v)
+        File.chmod(0o400, v)
       end
 
       ok

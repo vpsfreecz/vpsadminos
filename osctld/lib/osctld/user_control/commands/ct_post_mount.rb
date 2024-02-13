@@ -19,7 +19,7 @@ module OsCtld
         run_conf,
         :post_mount,
         rootfs_mount: opts[:rootfs_mount],
-        ns_pid: opts[:client_pid],
+        ns_pid: opts[:client_pid]
       )
 
       begin
@@ -27,7 +27,7 @@ module OsCtld
           ct,
           :post_mount,
           rootfs_mount: opts[:rootfs_mount],
-          ns_pid: opts[:client_pid],
+          ns_pid: opts[:client_pid]
         )
       rescue HookFailed => e
         error(e.message)

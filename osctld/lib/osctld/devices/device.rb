@@ -82,24 +82,24 @@ module OsCtld
     def chmod(new_mode)
       diff = mode.diff(new_mode)
       self.mode = new_mode
-      Hash[ diff.reject { |k,v| v.empty? }.map { |k,v| [k, to_s(mode: v)] } ]
+      Hash[diff.reject { |_k, v| v.empty? }.map { |k, v| [k, to_s(mode: v)] }]
     end
 
     # Dump to config
     def dump
-      Hash[export.map { |k,v| [k.to_s, v] }]
+      Hash[export.map { |k, v| [k.to_s, v] }]
     end
 
     # Export to client
     def export
       {
         type: type.to_s,
-        major: major,
-        minor: minor,
+        major:,
+        minor:,
         mode: mode.to_s,
-        name: name,
+        name:,
         inherit: inherit?,
-        inherited: inherited?,
+        inherited: inherited?
       }
     end
 
@@ -110,7 +110,7 @@ module OsCtld
       when :block
         'b'
       else
-        fail "invalid device type '#{type}'"
+        raise "invalid device type '#{type}'"
       end
     end
 
@@ -124,7 +124,7 @@ module OsCtld
       type == other.type && major == other.major && minor == other.minor
     end
 
-    %i(read write create).each do |v|
+    %i[read write create].each do |v|
       m = :"can_#{v}?"
       define_method(m) { mode.send(m) }
     end

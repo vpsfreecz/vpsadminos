@@ -8,7 +8,7 @@ module OsCtld
       def set_hostname(new_hostname, old_hostname: nil)
         # /etc/hostname
         writable?(File.join(rootfs, 'etc', 'HOSTNAME')) do |path|
-          regenerate_file(path, 0644) do |f|
+          regenerate_file(path, 0o644) do |f|
             f.puts(new_hostname.local)
           end
         end
@@ -17,11 +17,11 @@ module OsCtld
       def network(netifs)
         tpl_base = 'dist_config/network/slackware'
 
-        {start: 'add', stop: 'del'}.each do |operation, cmd|
+        { start: 'add', stop: 'del' }.each do |operation, cmd|
           cmds = netifs.map do |netif|
             OsCtld::ErbTemplate.render(
               File.join(tpl_base, netif.type.to_s),
-              {netif: netif, cmd: cmd}
+              { netif:, cmd: }
             )
           end
 
@@ -32,18 +32,16 @@ module OsCtld
       end
 
       protected
+
       def network_class
         nil
       end
     end
 
     def apply_hostname
-      begin
-        ct_syscmd(ct, %w(hostname -F /etc/HOSTNAME))
-
-      rescue SystemCommandFailed => e
-        log(:warn, ct, "Unable to apply hostname: #{e.message}")
-      end
+      ct_syscmd(ct, %w[hostname -F /etc/HOSTNAME])
+    rescue SystemCommandFailed => e
+      log(:warn, ct, "Unable to apply hostname: #{e.message}")
     end
   end
 end

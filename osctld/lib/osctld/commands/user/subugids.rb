@@ -15,9 +15,10 @@ module OsCtld
     end
 
     protected
+
     def generate
       DB::Users.get do |users|
-        %w(u g).each do |v|
+        %w[u g].each do |v|
           File.open("/etc/sub#{v}id.new", 'w') do |f|
             users.each do |u|
               u.send("#{v}id_map").each do |entry|

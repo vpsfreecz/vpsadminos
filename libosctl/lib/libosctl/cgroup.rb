@@ -6,11 +6,11 @@ module OsCtl::Lib
     def self.version
       return @version if @version
 
-      if File.exist?(File.join(FS, 'cgroup.procs'))
-        @version = 2
-      else
-        @version = 1
-      end
+      @version = if File.exist?(File.join(FS, 'cgroup.procs'))
+                   2
+                 else
+                   1
+                 end
 
       @version
     end

@@ -3,7 +3,7 @@ require 'libosctl'
 
 module OsCtl::ExportFS::Cli
   class Server < Command
-    FIELDS = %i(server state netif address)
+    FIELDS = %i[server state netif address]
 
     def list
       if opts[:list]
@@ -14,7 +14,7 @@ module OsCtl::ExportFS::Cli
       fmt_opts = {
         layout: :columns,
         cols: opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS,
-        sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym),
+        sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym)
       }
 
       fmt_opts[:header] = false if opts['hide-header']
@@ -27,7 +27,7 @@ module OsCtl::ExportFS::Cli
             server: s.name,
             state: s.running? ? 'running' : 'stopped',
             netif: cfg.netif,
-            address: cfg.address,
+            address: cfg.address
           }
         end,
         **fmt_opts
@@ -38,7 +38,7 @@ module OsCtl::ExportFS::Cli
       require_args!('name')
       OsCtl::ExportFS::Operations::Server::Create.run(
         args[0],
-        options: server_options,
+        options: server_options
       )
     end
 
@@ -51,7 +51,7 @@ module OsCtl::ExportFS::Cli
       require_args!('name')
       OsCtl::ExportFS::Operations::Server::Configure.run(
         OsCtl::ExportFS::Server.new(args[0]),
-        server_options,
+        server_options
       )
     end
 
@@ -84,6 +84,7 @@ module OsCtl::ExportFS::Cli
     end
 
     protected
+
     def server_options
       {
         address: opts['address'],
@@ -94,11 +95,11 @@ module OsCtl::ExportFS::Cli
           tcp: opts['nfsd-tcp'],
           udp: opts['nfsd-udp'],
           versions: parse_nfs_versions(opts['nfs-versions']),
-          syslog: opts['nfsd-syslog'],
+          syslog: opts['nfsd-syslog']
         },
         mountd_port: opts['mountd-port'],
         lockd_port: opts['lockd-port'],
-        statd_port: opts['statd-port'],
+        statd_port: opts['statd-port']
       }
     end
 
@@ -110,7 +111,7 @@ module OsCtl::ExportFS::Cli
 
       ret.each do |v|
         unless choices.include?(v)
-          fail "invalid NFS version '#{v}', possible values are: #{choices.join(', ')}"
+          raise "invalid NFS version '#{v}', possible values are: #{choices.join(', ')}"
         end
       end
 

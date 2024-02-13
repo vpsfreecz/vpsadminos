@@ -4,7 +4,7 @@ module OsCtld
   class Commands::Container::PrLimitSet < Commands::Logged
     handle :ct_prlimit_set
 
-    LIMITS = %w(
+    LIMITS = %w[
       as
       core
       cpu
@@ -20,7 +20,7 @@ module OsCtld
       rttime
       sigpending
       stack
-    )
+    ]
 
     def find
       ct = DB::Containers.find(opts[:id], opts[:pool])
@@ -37,20 +37,22 @@ module OsCtld
     end
 
     protected
+
     def parse(v)
       return v if v.is_a?(Integer)
-      fail "a limit must be an integer or 'unlimited'" if v != 'unlimited'
+      raise "a limit must be an integer or 'unlimited'" if v != 'unlimited'
+
       v
     end
 
     def validate(name, soft, hard)
-      fail "'#{name}' is not supported" unless LIMITS.include?(name)
+      raise "'#{name}' is not supported" unless LIMITS.include?(name)
 
       if soft.is_a?(Integer) && hard.is_a?(Integer) && soft > hard
-        fail "soft has to be lower than hard"
+        raise 'soft has to be lower than hard'
 
       elsif (soft == :unlimited || hard == :unlimited) && soft != hard
-        fail "either both soft and hard are unlimited, or neither is"
+        raise 'either both soft and hard are unlimited, or neither is'
       end
     end
   end

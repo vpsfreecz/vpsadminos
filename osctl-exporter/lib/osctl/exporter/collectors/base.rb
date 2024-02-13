@@ -13,7 +13,7 @@ module OsCtl::Exporter
     # Implement to register metrics
     #
     # Metrics can be registered directly using {registry} or {#add_metric}.
-    def setup ; end
+    def setup; end
 
     def run_collect(client)
       metric_configs.each_value do |m|
@@ -35,6 +35,7 @@ module OsCtl::Exporter
     end
 
     protected
+
     attr_reader :manager, :registry, :metric_configs, :metrics
 
     Metric = Struct.new(:variable_name, :metric_type, :metric_name, :metric_opts)
@@ -48,7 +49,7 @@ module OsCtl::Exporter
         variable_name,
         metric_type,
         metric_name,
-        metric_opts,
+        metric_opts
       )
     end
   end

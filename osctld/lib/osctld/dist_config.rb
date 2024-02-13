@@ -2,9 +2,9 @@ require 'libosctl'
 
 module OsCtld
   module DistConfig
-    module Distributions ; end
-    module Helpers ; end
-    module Network ; end
+    module Distributions; end
+    module Helpers; end
+    module Network; end
 
     extend OsCtl::Lib::Utils::Exception
 
@@ -30,7 +30,6 @@ module OsCtld
 
       begin
         d.method(cmd).call(opts)
-
       rescue Exception => e
         ctrc.log(:warn, "DistConfig.#{cmd} failed: #{e.message}")
         ctrc.log(:warn, denixstorify(e.backtrace).join("\n"))

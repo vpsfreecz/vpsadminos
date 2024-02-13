@@ -9,6 +9,6 @@ root_group.ensure_device(Device.new({
   'mode' => 'rwm',
   'name' => '/dev/kmsg',
   'inherit' => true,
-  'inherited' => false,
+  'inherited' => false
 }))
 root_group.save

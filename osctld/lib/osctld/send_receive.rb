@@ -4,7 +4,7 @@ require 'osctld/run_state'
 
 module OsCtld
   module SendReceive
-    module Commands ; end
+    module Commands; end
 
     extend OsCtl::Lib::Utils::File
 
@@ -19,7 +19,7 @@ module OsCtld
     def self.setup
       Server.start
 
-      replace_symlink(HOOK, OsCtld::hook_src('send-receive'))
+      replace_symlink(HOOK, OsCtld.hook_src('send-receive'))
     end
 
     def self.stop
@@ -28,7 +28,7 @@ module OsCtld
 
     def self.deploy
       sync do
-        regenerate_file(AUTHORIZED_KEYS, 0400) do |new, old|
+        regenerate_file(AUTHORIZED_KEYS, 0o400) do |new, _old|
           DB::Pools.get.each { |pool| pool.send_receive_key_chain.deploy(new) }
         end
 
@@ -56,18 +56,18 @@ module OsCtld
         desc: 'Keys that are authorized to send containers to this node',
         user: UID,
         group: 0,
-        mode: 0400,
-        optional: true,
+        mode: 0o400,
+        optional: true
       )
 
       Server.assets(add)
     end
 
-    def self.sync
+    def self.sync(&)
       if MUTEX.owned?
         yield
       else
-        MUTEX.synchronize { yield }
+        MUTEX.synchronize(&)
       end
     end
   end

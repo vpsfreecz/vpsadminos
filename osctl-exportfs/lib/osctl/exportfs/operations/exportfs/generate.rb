@@ -13,7 +13,7 @@ module OsCtl::ExportFS
     def execute
       cfg = server.open_config
 
-      regenerate_file(server.exports_file, 0644) do |new|
+      regenerate_file(server.exports_file, 0o644) do |new|
         cfg.exports.each do |ex|
           new.puts("#{ex.as} #{ex.host}(#{ex.options})")
         end
@@ -21,6 +21,7 @@ module OsCtl::ExportFS
     end
 
     protected
+
     attr_reader :server
   end
 end

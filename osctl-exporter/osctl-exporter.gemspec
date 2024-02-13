@@ -1,18 +1,18 @@
-lib = File.expand_path('../lib', __FILE__)
+lib = File.expand_path('lib', __dir__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 require 'osctl/exporter/version'
 
 Gem::Specification.new do |s|
-  s.name        = 'osctl-exporter'
+  s.name = 'osctl-exporter'
 
-  if ENV['OS_BUILD_ID']
-    s.version   = "#{OsCtl::Exporter::VERSION}.build#{ENV['OS_BUILD_ID']}"
-  else
-    s.version   = OsCtl::Exporter::VERSION
-  end
+  s.version = if ENV['OS_BUILD_ID']
+                "#{OsCtl::Exporter::VERSION}.build#{ENV['OS_BUILD_ID']}"
+              else
+                OsCtl::Exporter::VERSION
+              end
 
   s.summary     =
-  s.description = 'Export osctl metrics to prometheus'
+    s.description = 'Export osctl metrics to prometheus'
   s.authors     = 'Jakub Skokan'
   s.email       = 'jakub.skokan@vpsfree.cz'
   s.files       = `git ls-files -z`.split("\x0")

@@ -11,29 +11,19 @@ module OsCtld
     end
 
     # @param devices [Array<Devices::Device>]
-    def init(devices)
-
-    end
+    def init(devices); end
 
     # @param device [Devices::Device]
-    def add_device(device)
-
-    end
+    def add_device(device); end
 
     # @param device [Devices::Device]
-    def remove_device(device)
-
-    end
+    def remove_device(device); end
 
     # @param devices [Array<Devices::Device>]
-    def reconfigure(devices)
-
-    end
+    def reconfigure(devices); end
 
     # @param changes [Hash]
-    def apply_changes(changes)
-
-    end
+    def apply_changes(changes); end
 
     # @param new_owner [Devices::Owner]
     def dup(new_owner)
@@ -43,6 +33,7 @@ module OsCtld
     end
 
     protected
+
     # @return [Devices::Owner]
     attr_reader :owner
   end

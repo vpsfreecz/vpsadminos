@@ -12,7 +12,7 @@ module OsCtld
           ctid: hash['ctid'],
           passphrase: hash['passphrase'],
           single_use: hash['single_use'],
-          in_use: hash['in_use'],
+          in_use: hash['in_use']
         )
       end
 
@@ -45,7 +45,7 @@ module OsCtld
           'ctid' => ctid,
           'passphrase' => passphrase,
           'single_use' => single_use,
-          'in_use' => in_use,
+          'in_use' => in_use
         }
       end
     end
@@ -65,7 +65,7 @@ module OsCtld
         desc: 'Identity private key',
         user: 0,
         group: 0,
-        mode: 0400,
+        mode: 0o400,
         optional: true
       )
       add.file(
@@ -73,7 +73,7 @@ module OsCtld
         desc: 'Identity public key',
         user: 0,
         group: 0,
-        mode: 0400,
+        mode: 0o400,
         optional: true
       )
       add.file(
@@ -81,7 +81,7 @@ module OsCtld
         desc: 'Keys authorized to send containers to this node',
         user: 0,
         group: 0,
-        mode: 0400,
+        mode: 0o400,
         optional: true
       )
     end
@@ -103,7 +103,7 @@ module OsCtld
         keys.each do |key|
           options = [
             "command=\"#{File.join(SendReceive::HOOK)} #{pool.name} #{key.name}\"",
-            'restrict',
+            'restrict'
           ]
 
           io.puts("#{options.join(',')} #{key.pubkey}")
@@ -113,7 +113,7 @@ module OsCtld
 
     # @param name [String]
     def key_exist?(name)
-      inclusively { !(keys.detect { |v| v.name == name }.nil?) }
+      inclusively { !keys.detect { |v| v.name == name }.nil? }
     end
 
     # Find key by name
@@ -156,6 +156,7 @@ module OsCtld
     def authorize_key(name, pubkey, opts = {})
       exclusively do
         raise ArgumentError, 'key exists' if keys.detect { |v| v.name == name }
+
         keys << Key.new(name, pubkey, opts)
       end
     end
@@ -211,7 +212,7 @@ module OsCtld
 
     def save
       exclusively do
-        File.open(key_chain_path, 'w', 0400) do |f|
+        File.open(key_chain_path, 'w', 0o400) do |f|
           f.write(OsCtl::Lib::ConfigFile.dump_yaml(keys.map(&:dump)))
         end
       end
@@ -234,6 +235,7 @@ module OsCtld
     end
 
     protected
+
     attr_reader :pool, :keys
   end
 end

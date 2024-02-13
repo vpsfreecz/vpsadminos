@@ -1,13 +1,13 @@
 require 'bundler/gem_tasks'
 require 'rake/extensiontask'
 require 'yard'
-require_relative './yard/lockable'
+require_relative 'yard/lockable'
 
 gemspec = Gem::Specification.load('osctld.gemspec')
 
 Rake::ExtensionTask.new do |ext|
   ext.name = 'native'
-  ext.source_pattern = "*.{c,h}"
+  ext.source_pattern = '*.{c,h}'
   ext.ext_dir = 'ext/osctld'
   ext.lib_dir = 'lib/osctld'
   ext.gem_spec = gemspec
@@ -17,6 +17,6 @@ YARD::Rake::YardocTask.new do |t|
   t.files   = ['ext/**/*.c', 'lib/**/*.rb']
   t.options = [
     '--protected',
-    "--output-dir=#{ENV['YARD_OUTPUT'] || 'html_doc'}",
+    "--output-dir=#{ENV['YARD_OUTPUT'] || 'html_doc'}"
   ]
 end

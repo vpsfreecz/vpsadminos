@@ -37,6 +37,7 @@ module OsCtld
 
       ct.exclusively do
         next unless ct.fresh_state == :running
+
         shared_dir.propagate(mnt)
       end
     end
@@ -71,6 +72,7 @@ module OsCtld
 
         ct.exclusively do
           next unless ct.fresh_state == :running
+
           unmount(mnt)
         end
 
@@ -127,8 +129,8 @@ module OsCtld
       if mnt.nil?
         raise MountNotFound, mountpoint
       elsif !mnt.fs || !mnt.type || !mnt.opts
-        raise MountInvalid, "incomplete mount: missing fs, type or opts"
-      elsif !%w(bind none).include?(mnt.type)
+        raise MountInvalid, 'incomplete mount: missing fs, type or opts'
+      elsif !%w[bind none].include?(mnt.type)
         raise MountInvalid, "can activate only bind mounts, not #{mnt.type}"
       end
 
@@ -154,6 +156,7 @@ module OsCtld
     end
 
     protected
+
     attr_reader :ct, :entries
 
     def unmount(mnt)

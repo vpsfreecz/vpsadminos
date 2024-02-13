@@ -19,7 +19,7 @@ module SvCtl
     ret = []
 
     Dir.entries(svdir).each do |v|
-      next if %w(. ..).include?(v)
+      next if %w[. ..].include?(v)
 
       ret << Service.new(v, nil)
     end
@@ -35,7 +35,7 @@ module SvCtl
     ret = []
 
     Dir.entries(svdir).each do |v|
-      next if %w(. ..).include?(v)
+      next if %w[. ..].include?(v)
 
       ret << Service.new(v, runlevel)
     end
@@ -48,7 +48,7 @@ module SvCtl
   # @param runlevel [String]
   def self.enable(service, runlevel = 'current')
     sv = Service.new(service, runlevel)
-    fail 'service not found' unless sv.exist?
+    raise 'service not found' unless sv.exist?
 
     sv.enable
   end
@@ -58,7 +58,7 @@ module SvCtl
   # @param runlevel [String]
   def self.disable(service, runlevel = 'current')
     sv = Service.new(service, runlevel)
-    fail 'service not found' unless sv.exist?
+    raise 'service not found' unless sv.exist?
 
     sv.disable if sv.enabled?
   end
@@ -97,7 +97,7 @@ module SvCtl
     ret = []
 
     Dir.entries(RUNSVDIR).each do |v|
-      next if %w(. .. current previous).include?(v)
+      next if %w[. .. current previous].include?(v)
       next unless Dir.exist?(File.join(RUNSVDIR, v))
 
       ret << v

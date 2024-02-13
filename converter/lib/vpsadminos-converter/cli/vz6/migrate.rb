@@ -14,7 +14,7 @@ module VpsAdminOS::Converter
         zfs: opts[:zfs],
         zfs_dataset: opts['zfs-dataset'],
         zfs_subdir: opts['zfs-subdir'],
-        zfs_compressed_send: opts['zfs-compressed-send'],
+        zfs_compressed_send: opts['zfs-compressed-send']
       })
       migrator.stage
 
@@ -27,10 +27,9 @@ module VpsAdminOS::Converter
     def sync
       require_args!('ctid')
       migrator = Vz6::Migrator.load(args[0])
-      fail 'invalid migration sequence' unless migrator.can_proceed?(:sync)
+      raise 'invalid migration sequence' unless migrator.can_proceed?(:sync)
 
       migrator.sync(&method(:progress))
-
     ensure
       progressbar_done
     end
@@ -38,10 +37,9 @@ module VpsAdminOS::Converter
     def transfer
       require_args!('ctid')
       migrator = Vz6::Migrator.load(args[0])
-      fail 'invalid migration sequence' unless migrator.can_proceed?(:transfer)
+      raise 'invalid migration sequence' unless migrator.can_proceed?(:transfer)
 
       migrator.transfer(&method(:progress))
-
     ensure
       progressbar_done
     end
@@ -49,7 +47,7 @@ module VpsAdminOS::Converter
     def cleanup
       require_args!('ctid')
       migrator = Vz6::Migrator.load(args[0])
-      fail 'invalid migration sequence' unless migrator.can_proceed?(:cleanup)
+      raise 'invalid migration sequence' unless migrator.can_proceed?(:cleanup)
 
       migrator.cleanup(opts)
     end
@@ -57,7 +55,7 @@ module VpsAdminOS::Converter
     def cancel
       require_args!('ctid')
       migrator = Vz6::Migrator.load(args[0])
-      fail 'invalid migration sequence' unless migrator.can_proceed?(:cancel)
+      raise 'invalid migration sequence' unless migrator.can_proceed?(:cancel)
 
       migrator.cancel(opts)
     end
@@ -90,6 +88,7 @@ module VpsAdminOS::Converter
     end
 
     protected
+
     def progress(type, value)
       case type
       when :step
@@ -109,7 +108,7 @@ module VpsAdminOS::Converter
         throttle_rate: 0.2,
         starting_at: 0,
         autofinish: false,
-        output: STDOUT,
+        output: STDOUT
       )
       @pb.total = current > total ? current : total
       @pb.progress = current
@@ -117,6 +116,7 @@ module VpsAdminOS::Converter
 
     def progressbar_done
       return unless @pb
+
       @pb.finish
       @pb = nil
     end

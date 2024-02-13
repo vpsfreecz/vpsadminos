@@ -29,35 +29,26 @@ module OsCtld
         if @hold.owned?
           # This thread already holds the lock, just call the block or return,
           # do not release the hold.
-          if codeblock
-            codeblock.call
+          return true unless codeblock
 
-          else
-            return true
-          end
+          codeblock.call
 
         elsif block
           # Get the lock, wait if necessary and release it when done
           @hold.lock
           self.holder = by
 
-          if codeblock
-            run_block(&codeblock)
+          return true unless codeblock
 
-          else
-            return true
-          end
+          run_block(&codeblock)
 
         elsif @hold.try_lock
           # Try to get the hold, but do not wait if it isn't available
           self.holder = by
 
-          if block_given?
-            run_block(&codeblock)
+          return true unless block_given?
 
-          else
-            return true
-          end
+          run_block(&codeblock)
 
         else
           raise ResourceLocked.new(resource, holder)
@@ -78,13 +69,13 @@ module OsCtld
       end
 
       protected
+
       def holder=(v)
         @meta.synchronize { @holder = v }
       end
 
       def run_block
         yield
-
       ensure
         @hold.unlock if @hold.owned?
         self.holder = nil
@@ -105,7 +96,7 @@ module OsCtld
     # @yield [] block called with the lock held
     # @return [Object]
     def manipulate(by, block: false, &codeblock)
-      @manipulation_lock.acquire(self, by, block: block, &codeblock)
+      @manipulation_lock.acquire(self, by, block:, &codeblock)
     end
 
     # Acquire the lock
@@ -113,7 +104,7 @@ module OsCtld
     # @param block [Boolean] wait for the lock or fail if it is taken
     # @return [Boolean]
     def acquire_manipulation_lock(by, block: false)
-      @manipulation_lock.acquire(self, by, block: block)
+      @manipulation_lock.acquire(self, by, block:)
     end
 
     # Release the lock

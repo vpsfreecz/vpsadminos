@@ -52,20 +52,19 @@ module OsCtld
 
     def communicate
       v = server_version
-      send_data({version: v}) if v
+      send_data({ version: v }) if v
 
       loop do
-        buf = ""
+        buf = ''
 
         while m = @sock.recv(1024)
-          buf = buf + m
+          buf += m
           break if m.empty? || m.end_with?("\n")
         end
 
         break if buf.empty?
         break if parse(buf) == :handled
       end
-
     rescue Errno::ECONNRESET
       # pass
     end
@@ -94,18 +93,16 @@ module OsCtld
     #
     # This method is not called from the client thread, so the implementation
     # has to communicate with the thread and tell it to quit.
-    def request_stop
-
-    end
+    def request_stop; end
 
     # Signal command success, send `output` to the client
     def ok(output = nil)
-      {status: true, output: output}
+      { status: true, output: }
     end
 
     # Signal error `msg`
     def error(msg)
-      {status: false, message: msg}
+      { status: false, message: msg }
     end
 
     # Signal error `msg`, raises an exception
@@ -114,15 +111,15 @@ module OsCtld
     end
 
     def send_update(msg)
-      send_data({status: true, progress: msg})
+      send_data({ status: true, progress: msg })
     end
 
     def reply_error(err)
-      send_data({status: false, message: err})
+      send_data({ status: false, message: err })
     end
 
     def reply_ok(res)
-      send_data({status: true, response: res})
+      send_data({ status: true, response: res })
     end
 
     def socket
@@ -130,10 +127,10 @@ module OsCtld
     end
 
     protected
+
     def parse(data)
       begin
         req = JSON.parse(data, symbolize_names: true)
-
       rescue TypeError, JSON::ParserError
         return error('syntax error, expected a valid JSON')
       end
@@ -143,7 +140,7 @@ module OsCtld
       begin
         ret = handle_cmd(req)
 
-        if !ret.is_a?(Hash)
+        unless ret.is_a?(Hash)
           log(:fatal, self, "Unrecognized return value #{ret.class}, expected Hash")
           reply_error('internal error')
           return
@@ -163,19 +160,16 @@ module OsCtld
         else
           reply_error(ret[:message])
         end
-
       rescue CommandFailed, ResourceLocked => e
         reply_error(e.message)
-
       rescue DeadlockDetected => e
         log(:fatal, self, 'Possible deadlock detected')
         log(:fatal, self, denixstorify(e.backtrace).join("\n"))
         LockRegistry.dump
         reply_error('internal error')
-
-      rescue => err
-        log(:fatal, self, "Error during command execution: #{err.message}")
-        log(:fatal, self, denixstorify(err.backtrace).join("\n"))
+      rescue StandardError => e
+        log(:fatal, self, "Error during command execution: #{e.message}")
+        log(:fatal, self, denixstorify(e.backtrace).join("\n"))
         reply_error('internal error')
       end
 
@@ -185,7 +179,6 @@ module OsCtld
     def send_data(data)
       @sock.puts(data.to_json)
       true
-
     rescue Errno::EPIPE
       false
     end

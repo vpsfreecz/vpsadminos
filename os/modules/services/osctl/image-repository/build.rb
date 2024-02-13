@@ -27,12 +27,12 @@ class Config
     @osctl_image = File.join(@cfg['osctl_image'], 'bin/osctl-image')
   end
 
-  %i(repo_dir cache_dir log_dir dataset script_dir default_vendor_variants
-     default_vendor post_build gc).each do |m|
+  %i[repo_dir cache_dir log_dir dataset script_dir default_vendor_variants
+     default_vendor post_build gc].each do |m|
     define_method(m) { @cfg[m.to_s] }
   end
 
-  %i(rebuild keep_failed_tests).each do |m|
+  %i[rebuild keep_failed_tests].each do |m|
     define_method(:"#{m}?") { @cfg[m.to_s] }
   end
 end
@@ -64,7 +64,7 @@ class Builder
   def run
     options, names = parse_args
 
-    ENV['NIX_PATH'] ||= "nixpkgs=/nix/var/nix/profiles/per-user/root/channels/nixos"
+    ENV['NIX_PATH'] ||= 'nixpkgs=/nix/var/nix/profiles/per-user/root/channels/nixos'
 
     # Initialize osctl-repo
     repo_init
@@ -84,6 +84,7 @@ class Builder
   end
 
   protected
+
   attr_reader :cfg
 
   def parse_args
@@ -92,7 +93,7 @@ class Builder
     OptionParser.new do |opts|
       opts.banner = "Usage: #{$0} [options] [image name...]"
 
-      opts.on('-L', '--list', 'List images to build') do |v|
+      opts.on('-L', '--list', 'List images to build') do |_v|
         cfg.images.each { |img| puts img.name }
         exit
       end
@@ -105,7 +106,7 @@ class Builder
         options[:keep_failed_tests] = v
       end
 
-      opts.on('-S', '--skip-tests', 'Skip tests') do |v|
+      opts.on('-S', '--skip-tests', 'Skip tests') do |_v|
         options[:skip_tests] = true
       end
     end.parse!
@@ -136,7 +137,7 @@ class Builder
         '--build-scripts', cfg.script_dir,
         'deploy',
         '--build-dataset', cfg.dataset,
-        '--output-dir', cfg.cache_dir,
+        '--output-dir', cfg.cache_dir
       ]
 
       if rebuild_image?(options, img)
@@ -158,7 +159,7 @@ class Builder
 
       log_name = File.join(
         cfg.log_dir,
-        "#{img.name}.#{Time.now.strftime('%Y-%m-%d-%H:%M:%S')}.#{SecureRandom.hex(3)}.log",
+        "#{img.name}.#{Time.now.strftime('%Y-%m-%d-%H:%M:%S')}.#{SecureRandom.hex(3)}.log"
       )
       log_file = File.open(log_name, 'w')
 
@@ -220,8 +221,8 @@ class Builder
     end
   end
 
-  def with_repo_dir(&block)
-    with_chdir(cfg.repo_dir, &block)
+  def with_repo_dir(&)
+    with_chdir(cfg.repo_dir, &)
   end
 
   def with_chdir(dir)
@@ -231,17 +232,17 @@ class Builder
     Dir.chdir(pwd)
   end
 
-  def osctl_repo(*args, **kwargs)
-    spawn_wait(cfg.osctl_repo, *args, **kwargs)
+  def osctl_repo(*, **)
+    spawn_wait(cfg.osctl_repo, *, **)
   end
 
-  def osctl_image(*args, **kwargs)
-    spawn_wait(cfg.osctl_image, *args, **kwargs)
+  def osctl_image(*, **)
+    spawn_wait(cfg.osctl_image, *, **)
   end
 
-  def spawn_wait(*args, **kwargs)
+  def spawn_wait(*args, **)
     puts "> #{args.join(' ')}"
-    pid = Process.spawn(*args, **kwargs)
+    pid = Process.spawn(*args, **)
     Process.wait(pid)
   end
 end

@@ -14,7 +14,6 @@ module OsCtld
         ct.mounts.delete_at(opts[:mountpoint])
         ok
       end
-
     rescue UnmountError
       error('unable to unmount the directory from the container')
     end

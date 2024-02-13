@@ -17,7 +17,7 @@ module OsCtl::Lib
       end
     end
 
-    alias_method :<<, :push
+    alias << push
 
     # Insert value to the beginning of the queue
     # @param v [any]
@@ -49,13 +49,11 @@ module OsCtl::Lib
 
           @queue.shift
 
-        else
-          nil
         end
       end
     end
 
-    alias_method :pop, :shift
+    alias pop shift
 
     # Clear the queue
     def clear
@@ -83,8 +81,9 @@ module OsCtl::Lib
     end
 
     protected
-    def sync
-      @mutex.synchronize { yield }
+
+    def sync(&)
+      @mutex.synchronize(&)
     end
   end
 end

@@ -10,9 +10,9 @@ module OsCtl::Cli
       unless opts[:force]
         ret = c.cmd_data!(:send_key_path, pool: gopts[:pool])
 
-        %i(public_key private_key).each do |v|
+        %i[public_key private_key].each do |v|
           if File.exist?(ret[v])
-            fail "File #{ret[v]} already exists, use -f, --force to overwrite"
+            raise "File #{ret[v]} already exists, use -f, --force to overwrite"
           end
         end
       end
@@ -26,7 +26,7 @@ module OsCtl::Cli
     end
 
     def key_path
-      if args[0] && !%w(public private).include?(args[0])
+      if args[0] && !%w[public private].include?(args[0])
         raise GLI::BadCommandLine, "expected public/private, got '#{args[0]}'"
       end
 
@@ -57,7 +57,7 @@ module OsCtl::Cli
         network_interfaces: opts['network-interfaces'],
         snapshots: opts[:snapshots],
         from_snapshot: opts['from-snapshot'],
-        preexisting_datasets: opts['preexisting-datasets'],
+        preexisting_datasets: opts['preexisting-datasets']
       )
     end
 
@@ -67,7 +67,7 @@ module OsCtl::Cli
       with_progress(
         :ct_send_rootfs,
         pool: gopts[:pool],
-        id: args[0],
+        id: args[0]
       )
     end
 
@@ -77,7 +77,7 @@ module OsCtl::Cli
       with_progress(
         :ct_send_sync,
         pool: gopts[:pool],
-        id: args[0],
+        id: args[0]
       )
     end
 
@@ -91,7 +91,7 @@ module OsCtl::Cli
         clone: opts[:clone],
         consistent: opts[:consistent],
         restart: opts[:restart],
-        start: opts[:start],
+        start: opts[:start]
       )
     end
 
@@ -101,7 +101,7 @@ module OsCtl::Cli
       with_progress(
         :ct_send_cleanup,
         pool: gopts[:pool],
-        id: args[0],
+        id: args[0]
       )
     end
 
@@ -113,7 +113,7 @@ module OsCtl::Cli
         pool: gopts[:pool],
         id: args[0],
         force: opts[:force],
-        local: opts[:local],
+        local: opts[:local]
       )
     end
 
@@ -138,11 +138,12 @@ module OsCtl::Cli
         network_interfaces: opts['network-interfaces'],
         snapshots: opts[:snapshots],
         from_snapshot: opts['from-snapshot'],
-        preexisting_datasets: opts['preexisting-datasets'],
+        preexisting_datasets: opts['preexisting-datasets']
       )
     end
 
     protected
+
     def with_progress(cmd, **opts)
       osctld_call(cmd, **opts) do |msg|
         if gopts[:json]
@@ -154,7 +155,6 @@ module OsCtl::Cli
       end
 
       @pb.finish if @pb
-
     rescue OsCtl::Client::Error
       @pb.cancel if @pb
       raise
@@ -191,7 +191,7 @@ module OsCtl::Cli
           throttle_rate: 0.2,
           starting_at: 0,
           autofinish: false,
-          output: STDOUT,
+          output: STDOUT
         )
 
         if data[:transfered] > @pb.total
@@ -209,16 +209,16 @@ module OsCtl::Cli
 
     def json_progress(msg)
       if msg.is_a?(String)
-        puts({type: :update, text: msg}.to_json)
+        puts({ type: :update, text: msg }.to_json)
         return
       end
 
       case msg[:type].to_sym
       when :step
-        puts({type: :step, text: msg[:title]}.to_json)
+        puts({ type: :step, text: msg[:title] }.to_json)
 
       when :progress
-        puts({type: :progress, data: msg[:data]}.to_json)
+        puts({ type: :progress, data: msg[:data] }.to_json)
       end
     end
   end

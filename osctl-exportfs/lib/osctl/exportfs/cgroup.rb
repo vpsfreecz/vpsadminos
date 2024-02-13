@@ -25,9 +25,7 @@ module OsCtl::ExportFS
 
     # @param name [String] cgroup name
     def enter(name)
-      File.open(proc_list(name), 'w') do |f|
-        f.write(Process.pid)
-      end
+      File.write(proc_list(name), Process.pid)
     end
 
     # @param name [String] cgroup name
@@ -54,11 +52,13 @@ module OsCtl::ExportFS
     def kill_all_until_empty(name)
       loop do
         break if kill_all(name) == 0
+
         sleep(3)
       end
     end
 
     protected
+
     def proc_list(name)
       abs_cgroup_path(name, 'cgroup.procs')
     end

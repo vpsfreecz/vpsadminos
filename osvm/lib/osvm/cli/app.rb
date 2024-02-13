@@ -25,7 +25,7 @@ module OsVm::Cli
       desc 'Run ruby script'
       arg_name '<file> [args...]'
       command 'script' do |c|
-        c.action &Command.run(:script)
+        c.action(&Command.run(:script))
       end
     end
   end

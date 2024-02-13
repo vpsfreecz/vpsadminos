@@ -3,7 +3,7 @@ require 'osctl/cli/command'
 module OsCtl::Cli
   class Receive < Command
     def authorized_keys_list
-      osctld_fmt(:receive_authkey_list, cmd_opts: {pool: gopts[:pool]})
+      osctld_fmt(:receive_authkey_list, cmd_opts: { pool: gopts[:pool] })
     end
 
     def authorized_keys_add
@@ -15,7 +15,7 @@ module OsCtl::Cli
         from: opts['from'],
         ctid: opts['ctid'],
         passphrase: opts['passphrase'],
-        single_use: opts['single-use'],
+        single_use: opts['single-use']
       })
     end
 
@@ -23,7 +23,7 @@ module OsCtl::Cli
       require_args!('name')
       osctld_fmt(:receive_authkey_delete, cmd_opts: {
         pool: gopts[:pool],
-        name: args[0],
+        name: args[0]
       })
     end
   end

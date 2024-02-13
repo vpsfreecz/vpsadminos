@@ -63,7 +63,7 @@ module OsCtld
           uid_map,
           gid_map,
           ugid: opts[:ugid],
-          standalone: opts[:standalone],
+          standalone: opts[:standalone]
         )
 
         call_cmd!(Commands::User::Setup, user: u)
@@ -75,6 +75,7 @@ module OsCtld
     end
 
     protected
+
     # Allocate a new block, create a default mapping
     def new_block_with_default_mapping(u)
       range = find_id_range
@@ -92,7 +93,7 @@ module OsCtld
         allocation = range.allocate(
           1,
           block_index: opts[:block_index],
-          owner: u.id_range_allocation_owner,
+          owner: u.id_range_allocation_owner
         )
         progress("Allocated block ##{allocation[:block_index]} from ID range #{range.name}")
       else
@@ -103,7 +104,7 @@ module OsCtld
     end
 
     # Do not allocate anything, use a custom map
-    def no_block_with_custom_mapping(u)
+    def no_block_with_custom_mapping(_u)
       [opts[:uid_map], opts[:gid_map]].map { |v| IdMap.from_string_list(v) }
     end
 
@@ -116,7 +117,7 @@ module OsCtld
         allocation = range.allocate(
           1,
           block_index: opts[:block_index],
-          owner: u.id_range_allocation_owner,
+          owner: u.id_range_allocation_owner
         )
         progress("Allocated block ##{allocation[:block_index]} from ID range #{range.name}")
       else
@@ -127,7 +128,7 @@ module OsCtld
       gid_map = IdMap.from_string_list(opts[:gid_map])
 
       # Check that the maps fit within the allocation
-      {uid_map: uid_map, gid_map: gid_map}.each do |name, map|
+      { uid_map:, gid_map: }.each do |name, map|
         map.each do |entry|
           if entry.host_id < allocation[:first_id] \
              || (entry.host_id + entry.count - 1) > allocation[:last_id]
@@ -154,11 +155,11 @@ module OsCtld
     end
 
     def find_id_range
-      if opts[:id_range]
-        range = DB::IdRanges.find(opts[:id_range], opts[:pool])
-      else
-        range = DB::IdRanges.find('default', opts[:pool])
-      end
+      range = if opts[:id_range]
+                DB::IdRanges.find(opts[:id_range], opts[:pool])
+              else
+                DB::IdRanges.find('default', opts[:pool])
+              end
 
       range || error!('ID range not found')
     end

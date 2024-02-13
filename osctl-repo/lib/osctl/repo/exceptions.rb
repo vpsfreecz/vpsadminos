@@ -24,6 +24,6 @@ module OsCtl
       end
     end
 
-    class CacheMiss < StandardError ; end
+    class CacheMiss < StandardError; end
   end
 end

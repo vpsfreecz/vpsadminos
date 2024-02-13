@@ -9,7 +9,7 @@ module OsCtld
         program_name: configurator.prog_name,
         attach_type: 'cgroup_device',
         attach_flags: 'multi',
-        optional: true,
+        optional: true
       )
     end
 
@@ -62,7 +62,6 @@ module OsCtld
       File.join(ct.group.name, ct.id)
     end
 
-    protected
-    alias_method :ct, :owner
+    alias ct owner
   end
 end

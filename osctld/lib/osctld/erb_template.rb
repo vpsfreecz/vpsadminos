@@ -8,14 +8,14 @@ module OsCtld
       t.render
     end
 
-    def self.render_to(name, vars, path, perm: 0644)
-      File.write("#{path}.new", render(name, vars), perm: perm)
+    def self.render_to(name, vars, path, perm: 0o644)
+      File.write("#{path}.new", render(name, vars), perm:)
       File.rename("#{path}.new", path)
     end
 
-    def self.render_to_if_changed(name, vars, path, perm: 0644)
+    def self.render_to_if_changed(name, vars, path, perm: 0o644)
       tmp_path = "#{path}.new"
-      File.write(tmp_path, render(name, vars), perm: perm)
+      File.write(tmp_path, render(name, vars), perm:)
 
       if !File.exist?(path) || !FileUtils.identical?(path, tmp_path)
         File.rename(tmp_path, path)

@@ -10,14 +10,14 @@ module OsCtld
       end
 
       def dump
-        Hash[to_h.map { |k,v| [k.to_s, v] }]
+        Hash[to_h.map { |k, v| [k.to_s, v] }]
       end
 
       def export
         {
           block_index: index,
           block_count: count,
-          owner: owner,
+          owner:
         }
       end
     end
@@ -121,7 +121,7 @@ module OsCtld
     # @param owner [String]
     # @return [Boolean]
     def free_by(owner)
-      table.delete_if.with_index do |alloc, t_i|
+      table.delete_if.with_index do |alloc, _t_i|
         alloc.owner == owner
       end
 
@@ -151,12 +151,12 @@ module OsCtld
     end
 
     def export_all
-      all_segments.map do |type, table_index, block_index, count, owner|
+      all_segments.map do |type, _table_index, block_index, count, owner|
         {
-          type: type,
-          block_index: block_index,
+          type:,
+          block_index:,
           block_count: count,
-          owner: owner,
+          owner:
         }
       end
     end
@@ -166,23 +166,23 @@ module OsCtld
     end
 
     def export_free
-      free_segments.map do |table_index, block_index, count|
+      free_segments.map do |_table_index, block_index, count|
         {
-          block_index: block_index,
-          block_count: count,
+          block_index:,
+          block_count: count
         }
       end
     end
 
     # @param index [Integer] block index
     def export_at(index)
-      all_segments.each do |type, table_index, block_index, count, owner|
+      all_segments.each do |type, _table_index, block_index, count, owner|
         if index >= block_index && index <= (block_index + count - 1)
           return {
-            type: type,
-            block_index: block_index,
+            type:,
+            block_index:,
             block_count: count,
-            owner: owner,
+            owner:
           }
         end
       end
@@ -191,6 +191,7 @@ module OsCtld
     end
 
     protected
+
     attr_reader :table
 
     # Iterate over allocated and free segments in the table
@@ -253,7 +254,7 @@ module OsCtld
     def free_segments(count = 1)
       all_segments.select do |type, _, _, cnt|
         type == :free && cnt >= count
-      end.map do |type, t_i, b_i, cnt|
+      end.map do |_type, t_i, b_i, cnt|
         [t_i, b_i, cnt]
       end
     end

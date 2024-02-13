@@ -20,26 +20,27 @@ module OsCtl::ExportFS
     end
 
     def execute
-      if !Dir.exist?(export.dir)
-        fail "dir #{export.dir} not found"
+      unless Dir.exist?(export.dir)
+        raise "dir #{export.dir} not found"
       end
 
       ex = cfg.exports.find_by_as(export.as)
 
       if ex && ex.dir != export.dir
-        fail "source directory mismatch: expected '#{ex.dir}', got '#{export.dir}'"
+        raise "source directory mismatch: expected '#{ex.dir}', got '#{export.dir}'"
       elsif ex && ex.host == export.host
-        fail "export of #{export.as} to #{export.host} already exists"
+        raise "export of #{export.as} to #{export.host} already exists"
       end
 
       add_to_exports
 
-      if server.running?
-        enable_share(propagate: ex.nil?)
-      end
+      return unless server.running?
+
+      enable_share(propagate: ex.nil?)
     end
 
     protected
+
     attr_reader :server, :export, :cfg, :sys
 
     # Add the export to the database
@@ -75,7 +76,6 @@ module OsCtl::ExportFS
 
           syscmd("exportfs -i -o \"#{export.options}\" \"#{export.host}:#{export.as}\"")
         end
-
       ensure
         if propagate
           sys.unmount(shared)

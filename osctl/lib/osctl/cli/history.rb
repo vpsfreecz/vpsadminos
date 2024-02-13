@@ -9,22 +9,22 @@ module OsCtl::Cli
         {
           name: :time,
           label: 'TIME',
-          display: Proc.new do |t|
+          display: proc do |t|
             Time.at(t).strftime('%Y-%m-%d %H:%M:%S')
-          end,
+          end
         },
         :pool,
         {
           name: :cmd,
           label: 'COMMAND',
-          display: Proc.new do |cmd, event|
+          display: proc do |cmd, event|
             if event[:opts] && event[:opts][:cli]
               event[:opts][:cli]
             else
               "#{cmd} #{event[:opts]}"
             end
-          end,
-        },
+          end
+        }
       ]
 
       cmd_opts = {}
@@ -35,7 +35,7 @@ module OsCtl::Cli
         data.each { puts data.to_json }
 
       else
-        OsCtl::Lib::Cli::OutputFormatter.print(data, cols: cols, layout: :columns)
+        OsCtl::Lib::Cli::OutputFormatter.print(data, cols:, layout: :columns)
       end
     end
   end

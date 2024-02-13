@@ -5,7 +5,7 @@ require 'osctld/assets/definition'
 
 module OsCtld
   class IdRange
-    class AllocationError < StandardError ; end
+    class AllocationError < StandardError; end
 
     include Lockable
     include Manipulable
@@ -68,6 +68,7 @@ module OsCtld
         unless allocations.free_at(block_index)
           raise AllocationError, "block at index #{block_index} not found"
         end
+
         save_config
       end
     end
@@ -91,7 +92,7 @@ module OsCtld
           desc: 'Configuration file',
           user: 0,
           group: 0,
-          mode: 0400
+          mode: 0o400
         )
       end
     end
@@ -105,7 +106,7 @@ module OsCtld
           attrs.update(v)
 
         else
-          fail "unsupported option '#{k}'"
+          raise "unsupported option '#{k}'"
         end
       end
 
@@ -121,7 +122,7 @@ module OsCtld
           v.each { |attr| attrs.unset(attr) }
 
         else
-          fail "unsupported option '#{k}'"
+          raise "unsupported option '#{k}'"
         end
       end
 
@@ -129,33 +130,33 @@ module OsCtld
     end
 
     def last_id
-      start_id + block_size * block_count - 1
+      start_id + (block_size * block_count) - 1
     end
 
     def export
       inclusively do
         {
           pool: pool.name,
-          name: name,
-          start_id: start_id,
-          last_id: last_id,
-          block_size: block_size,
-          block_count: block_count,
+          name:,
+          start_id:,
+          last_id:,
+          block_size:,
+          block_count:,
           allocated: allocations.count_allocated_blocks,
-          free: allocations.count_free_blocks,
+          free: allocations.count_free_blocks
         }.merge!(attrs.export)
       end
     end
 
     def export_all
       inclusively do
-        allocations.export_all.map { |v| add_block_ids(v)}
+        allocations.export_all.map { |v| add_block_ids(v) }
       end
     end
 
     def export_allocated
       inclusively do
-        allocations.export_allocated.map { |v| add_block_ids(v)}
+        allocations.export_allocated.map { |v| add_block_ids(v) }
       end
     end
 
@@ -181,14 +182,15 @@ module OsCtld
     end
 
     protected
+
     attr_reader :allocations
 
     def add_block_ids(block)
-      first_id = start_id + block[:block_index] * block_size
+      first_id = start_id + (block[:block_index] * block_size)
       block.merge(
-        first_id: first_id,
-        last_id: first_id + block_size * block[:block_count] - 1,
-        id_count: block_size * block[:block_count],
+        first_id:,
+        last_id: first_id + (block_size * block[:block_count]) - 1,
+        id_count: block_size * block[:block_count]
       )
     end
 
@@ -203,13 +205,13 @@ module OsCtld
     end
 
     def save_config
-      File.open(config_path, 'w', 0400) do |f|
+      File.open(config_path, 'w', 0o400) do |f|
         f.write(OsCtl::Lib::ConfigFile.dump_yaml({
           'start_id' => start_id,
           'block_size' => block_size,
           'block_count' => block_count,
           'allocations' => allocations.dump,
-          'attrs' => attrs.dump,
+          'attrs' => attrs.dump
         }))
       end
 

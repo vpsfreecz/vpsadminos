@@ -2,14 +2,14 @@ module OsCtld
   # Virtual interface with methods that a device owner must implement
   class Devices::Owner
     # @return [Devices::Manager]
-    def devices ; end
+    def devices; end
 
     # @return [Pool]
-    def pool ; end
+    def pool; end
 
     # @return [String]
-    def ident ; end
+    def ident; end
 
-    def save_config ; end
+    def save_config; end
   end
 end

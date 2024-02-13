@@ -16,7 +16,7 @@ module OsCtld
     class << self
       extend Forwardable
       def_delegators :instance, :assets, :set, :get_prog_name, :load_links,
-        :prune_cgroup_links
+                     :prune_cgroup_links
     end
 
     def initialize
@@ -37,7 +37,7 @@ module OsCtld
             desc: "BPF program #{prog.name}",
             user: 0,
             group: 0,
-            mode: 0600,
+            mode: 0o600
           )
         end
 
@@ -48,7 +48,7 @@ module OsCtld
               desc: "BPF program #{link.prog_name} attached on #{link.cgroup_path}",
               user: 0,
               group: 0,
-              mode: 0600,
+              mode: 0o600
             )
           end
         end
@@ -97,7 +97,7 @@ module OsCtld
           else
             @programs[new_prog_name] = Devices::V2::BpfProgram.new(
               new_prog_name,
-              devices,
+              devices
             )
           end
 
@@ -163,10 +163,11 @@ module OsCtld
     end
 
     def log_type
-      "bpf-program-cache"
+      'bpf-program-cache'
     end
 
     protected
+
     def load_programs
       sync do
         BpfFs.list_progs.each do |prog_name|

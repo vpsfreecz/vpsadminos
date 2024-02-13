@@ -6,7 +6,7 @@ module OsCtld
     include Singleton
 
     class << self
-      %i(params import_pools? autostart_cts?).each do |m|
+      %i[params import_pools? autostart_cts?].each do |m|
         define_method(m) do |*args, &block|
           instance.send(m, *args, &block)
         end
@@ -35,10 +35,10 @@ module OsCtld
         eq = param.index('=')
         next if eq.nil?
 
-        param_k = param[0..eq-1]
+        param_k = param[0..eq - 1]
         next if param_k != k
 
-        return param[eq+1..-1]
+        return param[eq + 1..-1]
       end
 
       default_v
@@ -59,8 +59,10 @@ module OsCtld
     end
 
     protected
+
     def cache(name)
       return @cache[name] if @cache.has_key?(name)
+
       @cache[name] = yield
     end
   end

@@ -54,7 +54,7 @@ module OsCtld
           desc: 'User directory',
           user: 0,
           group: ugid,
-          mode: 0751
+          mode: 0o751
         )
 
         add.directory(
@@ -62,7 +62,7 @@ module OsCtld
           desc: 'Home directory',
           user: ugid,
           group: ugid,
-          mode: 0751
+          mode: 0o751
         )
 
         add.file(
@@ -70,7 +70,7 @@ module OsCtld
           desc: "osctld's user config",
           user: 0,
           group: 0,
-          mode: 0400
+          mode: 0o400
         )
 
         add.entry('/etc/passwd', desc: 'System user') do |asset|
@@ -111,7 +111,7 @@ module OsCtld
           attrs.update(v)
 
         else
-          fail "unsupported option '#{k}'"
+          raise "unsupported option '#{k}'"
         end
       end
 
@@ -131,7 +131,7 @@ module OsCtld
           v.each { |attr| attrs.unset(attr) }
 
         else
-          fail "unsupported option '#{k}'"
+          raise "unsupported option '#{k}'"
         end
       end
 
@@ -184,6 +184,7 @@ module OsCtld
     end
 
     private
+
     attr_inclusive_reader :registered
 
     def dump
@@ -192,13 +193,13 @@ module OsCtld
           'uid_map' => uid_map.dump,
           'gid_map' => gid_map.dump,
           'standalone' => standalone,
-          'attrs' => attrs.dump,
+          'attrs' => attrs.dump
         }
       end
     end
 
     def save_config
-      File.open(config_path, 'w', 0400) do |f|
+      File.open(config_path, 'w', 0o400) do |f|
         f.write(OsCtl::Lib::ConfigFile.dump_yaml(dump))
       end
 
@@ -206,11 +207,11 @@ module OsCtld
     end
 
     def load_config(config)
-      if config
-        cfg = OsCtl::Lib::ConfigFile.load_yaml(config)
-      else
-        cfg = OsCtl::Lib::ConfigFile.load_yaml_file(config_path)
-      end
+      cfg = if config
+              OsCtl::Lib::ConfigFile.load_yaml(config)
+            else
+              OsCtl::Lib::ConfigFile.load_yaml_file(config_path)
+            end
 
       @ugid = SystemUsers.uid_of(sysusername) || UGidRegistry.get
       @uid_map = IdMap.load(cfg['uid_map'], cfg)

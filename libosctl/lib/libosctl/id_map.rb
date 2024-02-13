@@ -45,21 +45,20 @@ module OsCtl::Lib
       end
 
       true
-
     rescue Exceptions::IdMappingError
       false
     end
 
-    def add_from_string(str_entry, **opts)
-      @entries << Entry.from_string(str_entry, **opts)
+    def add_from_string(str_entry, **)
+      @entries << Entry.from_string(str_entry, **)
     end
 
     def add_from_hash(hash)
       @entries << Entry.from_hash(hash)
     end
 
-    def each(&block)
-      entries.each(&block)
+    def each(&)
+      entries.each(&)
     end
 
     include Enumerable
@@ -103,6 +102,7 @@ module OsCtl::Lib
     end
 
     protected
+
     attr_reader :entries
   end
 end

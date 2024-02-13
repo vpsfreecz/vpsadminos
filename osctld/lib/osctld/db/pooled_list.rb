@@ -3,7 +3,7 @@ require 'osctld/db/list'
 module OsCtld
   class DB::PooledList < DB::List
     class << self
-      %i(select_by_ids each_by_ids).each do |v|
+      %i[select_by_ids each_by_ids].each do |v|
         define_method(v) do |*args, **kwargs, &block|
           instance.send(v, *args, **kwargs, &block)
         end
@@ -49,14 +49,13 @@ module OsCtld
     # @return [Array]
     def select_by_ids(ids, pool = nil, &block)
       if ids.nil?
-        if block
-          return get.each(&block)
-        else
-          return get
-        end
+        return get.each(&block) if block
+
+        return get
+
       end
 
-      obj_ids = ids.map{ |id| DB::ObjectId.new(id, pool) }
+      obj_ids = ids.map { |id| DB::ObjectId.new(id, pool) }
 
       get.select do |obj|
         next(false) if obj_ids.detect { |obj_id| obj_id.match?(obj) }.nil?

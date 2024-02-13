@@ -34,7 +34,7 @@ module OsCtl::Lib
       @exported = opts.has_key?(:exported) ? opts[:exported] : raw
     end
 
-    %i(- + * / <= == >= <=>).each do |m|
+    %i[- + * / <= == >= <=>].each do |m|
       define_method(m) do |other|
         if other.is_a?(self.class)
           raw.send(m, other.raw)
@@ -54,13 +54,13 @@ module OsCtl::Lib
     end
 
     # Returns the raw value in JSON
-    def to_json(*args)
-      exported.to_json(*args)
+    def to_json(*)
+      exported.to_json(*)
     end
 
     # Forward `round` call to the raw value
-    def round(*args)
-      raw.round(*args)
+    def round(*)
+      raw.round(*)
     end
   end
 end

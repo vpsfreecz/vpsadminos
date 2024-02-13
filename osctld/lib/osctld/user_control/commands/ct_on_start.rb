@@ -17,7 +17,6 @@ module OsCtld
 
       Hook.run(ct, :on_start)
       ok
-
     rescue HookFailed => e
       error(e.message)
     end

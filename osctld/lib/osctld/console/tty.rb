@@ -49,13 +49,10 @@ module OsCtld
                 next if data.nil?
 
                 clients.each do |c|
-                  begin
-                    c.write(data)
-                    c.flush
-
-                  rescue SystemCallError
-                    remove_client(c)
-                  end
+                  c.write(data)
+                  c.flush
+                rescue SystemCallError
+                  remove_client(c)
                 end
 
               elsif io == @wake_r
@@ -100,9 +97,9 @@ module OsCtld
         @wake_w.close
 
         SwitchUser.close_fds(except: [
-          0, 1, 2,
-          in_r, out_w
-        ])
+                               0, 1, 2,
+                               in_r, out_w
+                             ])
 
         Process.setproctitle("osctld: #{ct.pool.name}:#{ct.id} tty#{n}")
 
@@ -146,7 +143,7 @@ module OsCtld
                     end
                   end
 
-                  buf = buf[i+1..-1]
+                  buf = buf[i + 1..-1]
                 end
 
               when fd
@@ -155,7 +152,6 @@ module OsCtld
               end
             end
           end
-
         rescue IOError
           exit
         end
@@ -192,6 +188,7 @@ module OsCtld
     end
 
     protected
+
     attr_accessor :tty_pid, :tty_in_io, :tty_out_io
 
     def opened?
@@ -212,7 +209,6 @@ module OsCtld
 
     def tty_read(io)
       io.read_nonblock(4096)
-
     rescue IOError, Errno::ECONNRESET => e
       log(:info, ct, "Closing TTY #{n} (#{e.class}: #{e.message})")
 
@@ -234,7 +230,6 @@ module OsCtld
 
     def client_read(io)
       io.read_nonblock(4096)
-
     rescue IOError, Errno::ECONNRESET
       remove_client(io)
       nil
@@ -245,15 +240,13 @@ module OsCtld
       sync { @clients.delete(io) }
     end
 
-    def on_close
+    def on_close; end
 
-    end
-
-    def sync
+    def sync(&)
       if @mutex.owned?
         yield
       else
-        @mutex.synchronize { yield }
+        @mutex.synchronize(&)
       end
     end
   end

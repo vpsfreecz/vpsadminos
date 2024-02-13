@@ -15,12 +15,10 @@ module VpsAdminOS::Converter
     def self.create(vz_ct, target_ct, opts)
       begin
         Vz6::Migrator::State.load(vz_ct.ctid)
-
       rescue Errno::ENOENT
         # ok
-
       else
-        fail "migration for CT #{vz_ct.ctid} has already been started"
+        raise "migration for CT #{vz_ct.ctid} has already been started"
       end
 
       state = Vz6::Migrator::State.create(vz_ct, target_ct, opts)

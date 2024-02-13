@@ -32,7 +32,7 @@ class GroupConfig
   end
 
   def save
-    regenerate_file(cfg_path, 0400) do |new|
+    regenerate_file(cfg_path, 0o400) do |new|
       cfg['devices'] = device_list.dump
       new.write(YAML.dump(cfg))
     end
@@ -51,9 +51,9 @@ class DeviceList < Array
 
     if found
       if found.major == '*' || found.minor == '*'
-        insert(dev) if !(found.inherit === dev.inherit)
-      else
-        found.inherit = true if !(found.inherit === dev.inherit)
+        insert(dev) unless found.inherit === dev.inherit
+      elsif !(found.inherit === dev.inherit)
+        found.inherit = true
       end
     else
       insert(dev)
@@ -123,7 +123,7 @@ class Device
       'mode' => mode,
       'name' => name,
       'inherit' => inherit,
-      'inherited' => inherited,
+      'inherited' => inherited
     }
   end
 end

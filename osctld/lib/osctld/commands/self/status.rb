@@ -9,7 +9,7 @@ module OsCtld
 
       ok({
         started_at: d.started_at.to_i,
-        initialized: d.initialized,
+        initialized: d.initialized
       })
     end
   end

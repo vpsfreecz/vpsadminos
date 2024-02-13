@@ -11,7 +11,7 @@ module OsCtld
 
     def find
       ct = DB::Containers.find(opts[:id], opts[:pool])
-      ct || error!("container not found")
+      ct || error!('container not found')
     end
 
     def execute(ct)
@@ -33,14 +33,14 @@ module OsCtld
             'bind,rw,create=dir',
             false,
             temp: true,
-            in_config: true,
+            in_config: true
           )
 
           mnt_at = ct.mounts.find_at(opts[:mount_root])
 
           if mnt_at && !mnt_at.temp
-            error!("unable to mount rootfs at '#{opts[:mount_root]}': the path "+
-                   "is already mounted")
+            error!("unable to mount rootfs at '#{opts[:mount_root]}': the path " +
+                   'is already mounted')
           end
         end
 
@@ -64,13 +64,13 @@ module OsCtld
         end
 
         # Prepare a new, temporary dataset
-        tmp_name =  "#{ct.dataset}.boot-#{SecureRandom.hex(3)}"
+        tmp_name = "#{ct.dataset}.boot-#{SecureRandom.hex(3)}"
         tmp_ds = OsCtl::Lib::Zfs::Dataset.new(
           tmp_name,
-          base: tmp_name,
+          base: tmp_name
         )
         tmp_ds.create!(properties: {
-          canmount: 'noauto',
+          canmount: 'noauto'
         }.merge(opts[:zfs_properties] || {}))
 
         ctrc = ct.new_run_conf
@@ -89,7 +89,7 @@ module OsCtld
           ct_cfg['distribution'] || ct.distribution,
           ct_cfg['version'] || ct.version,
           ct_cfg['arch'] || ct.arch,
-          destroy_dataset_on_stop: true,
+          destroy_dataset_on_stop: true
         )
 
         # Apply the image
@@ -102,7 +102,7 @@ module OsCtld
         call_cmd!(
           Commands::Container::Stop,
           pool: ct.pool.name,
-          id: ct.id,
+          id: ct.id
         )
 
         # Apply run configuration
@@ -115,12 +115,12 @@ module OsCtld
       # When starting as queued, we can't be holding the manipulation lock
       start_ct(ct, root_mnt) if opts[:queue]
       ok
-
     ensure
       fh && fh.close
     end
 
     protected
+
     def start_ct(ct, root_mnt)
       call_cmd!(
         Commands::Container::Start,
@@ -130,7 +130,7 @@ module OsCtld
         queue: opts[:queue],
         priority: opts[:priority],
         debug: opts[:debug],
-        mounts: [root_mnt].compact,
+        mounts: [root_mnt].compact
       )
     end
   end

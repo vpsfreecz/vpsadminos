@@ -8,7 +8,7 @@ module OsCtl::Exporter
         :gauge,
         :osctl_pool_count,
         docstring: 'Number of imported pools',
-        labels: [:state],
+        labels: [:state]
       )
 
       add_metric(
@@ -16,7 +16,7 @@ module OsCtl::Exporter
         :gauge,
         :osctl_pool_containers_count,
         docstring: 'Number of pool containers',
-        labels: [:pool, :state],
+        labels: %i[pool state]
       )
     end
 
@@ -26,13 +26,14 @@ module OsCtl::Exporter
     end
 
     protected
+
     attr_reader :pools, :pool_containers
 
     def collect_pools(client)
       states = {
         importing: 0,
         active: 0,
-        disabled: 0,
+        disabled: 0
       }
 
       client.list_pools.each do |pool|
@@ -47,7 +48,7 @@ module OsCtl::Exporter
       end
 
       states.each do |st, cnt|
-        pools.set(cnt, labels: {state: st})
+        pools.set(cnt, labels: { state: st })
       end
     end
 
@@ -66,7 +67,7 @@ module OsCtl::Exporter
           frozen: 0,
           thawed: 0,
           aborting: 0,
-          error: 0,
+          error: 0
         }
       end
 
@@ -81,7 +82,7 @@ module OsCtl::Exporter
 
       pool_cts.each do |pool, states|
         states.each do |st, cnt|
-          pool_containers.set(cnt, labels: {pool: pool, state: st})
+          pool_containers.set(cnt, labels: { pool:, state: st })
         end
       end
     end

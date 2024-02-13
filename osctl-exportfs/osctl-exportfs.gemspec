@@ -1,18 +1,18 @@
-lib = File.expand_path('../lib', __FILE__)
+lib = File.expand_path('lib', __dir__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 require 'osctl/exportfs/version'
 
 Gem::Specification.new do |s|
-  s.name        = 'osctl-exportfs'
+  s.name = 'osctl-exportfs'
 
-  if ENV['OS_BUILD_ID']
-    s.version   = "#{OsCtl::ExportFS::VERSION}.build#{ENV['OS_BUILD_ID']}"
-  else
-    s.version   = OsCtl::ExportFS::VERSION
-  end
+  s.version = if ENV['OS_BUILD_ID']
+                "#{OsCtl::ExportFS::VERSION}.build#{ENV['OS_BUILD_ID']}"
+              else
+                OsCtl::ExportFS::VERSION
+              end
 
   s.summary     =
-  s.description = 'Manage dedicated NFS servers for filesystem exports'
+    s.description = 'Manage dedicated NFS servers for filesystem exports'
   s.authors     = 'Jakub Skokan'
   s.email       = 'jakub.skokan@vpsfree.cz'
   s.files       = `git ls-files -z`.split("\x0")

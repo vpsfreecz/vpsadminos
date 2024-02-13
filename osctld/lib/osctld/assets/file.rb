@@ -5,6 +5,7 @@ module OsCtld
     register :file
 
     protected
+
     def validate(run)
       begin
         add_error('not a file') if exist? && !opts[:optional] && !stat.file?

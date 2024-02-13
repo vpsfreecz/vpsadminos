@@ -12,13 +12,14 @@ class Runner
     result = `su -s /bin/sh - nobody -c "#{@osbench}/bin/#{@test} #{@args}"`
     error! if $?.exitstatus != 0
 
-    time, unit, _ = result.strip.split("\n").last.split(' ')
+    time, unit, = result.strip.split("\n").last.split(' ')
     error! if time.nil? || time.to_f == 0 || unit.nil?
 
     success!(time, translate_unit(unit))
   end
 
   protected
+
   def success!(time, unit)
     write do |f|
       write_status(f, true)
@@ -48,11 +49,11 @@ class Runner
     f.puts "#{metric} #{time}"
   end
 
-  def write(&block)
+  def write(&)
     dst = "#{@textfile_dir}/osbench-#{@test}.prom"
     tmp = "#{dst}.tmp"
 
-    File.open(tmp, 'w', &block)
+    File.open(tmp, 'w', &)
     File.rename(tmp, dst)
   end
 

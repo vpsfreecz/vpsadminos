@@ -22,7 +22,7 @@ module OsCtl::Lib
       # @param idmap [IdMap]
       # @param id [Integer]
       def initialize(idmap, id)
-        super("unable to map id #{id} using #{idmap.to_s}")
+        super("unable to map id #{id} using #{idmap}")
       end
     end
   end

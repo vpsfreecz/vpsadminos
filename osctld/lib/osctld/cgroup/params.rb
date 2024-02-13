@@ -84,7 +84,8 @@ module OsCtld
             del = p.version == del_p.version \
                   && p.subsystem == del_p.subsystem \
                   && p.name == del_p.name
-            next(del) if !del
+            next(del) unless del
+
             reset(p, keep_going, &block) if reset && p.version == CGroup.version
             true
           end
@@ -94,21 +95,21 @@ module OsCtld
       owner.save_config if save
     end
 
-    def each(&block)
-      params.each(&block)
+    def each(&)
+      params.each(&)
     end
 
     # @param version [1, 2]
-    def each_version(version, &block)
-      params.select { |p| p.version == version }.each(&block)
+    def each_version(version, &)
+      params.select { |p| p.version == version }.each(&)
     end
 
-    def each_usable(&block)
-      each_version(CGroup.version, &block)
+    def each_usable(&)
+      each_version(CGroup.version, &)
     end
 
-    def detect(&block)
-      params.detect(&block)
+    def detect(&)
+      params.detect(&)
     end
 
     # Apply configured cgroup parameters into the system
@@ -116,7 +117,7 @@ module OsCtld
     # @yieldparam subsystem [String] cgroup subsystem
     # @yieldreturn [String] absolute path to the cgroup directory
     def apply(keep_going: false, &block)
-      apply_params_and_retry(usable_params, keep_going: keep_going, &block)
+      apply_params_and_retry(usable_params, keep_going:, &block)
     end
 
     # Replace all parameters by a new list of parameters
@@ -149,9 +150,9 @@ module OsCtld
 
       path = File.join(yield(param.subsystem), param.name)
       CGroup.set_param(path, v)
-
     rescue CGroupFileNotFound
       raise unless keep_going
+
       log(
         :info,
         :cgroup,
@@ -190,8 +191,6 @@ module OsCtld
         memsw_limit
       elsif mem_limit > 0
         mem_limit
-      else
-        nil
       end
     end
 
@@ -226,8 +225,6 @@ module OsCtld
         memsw_limit
       elsif mem_limit > 0
         memsw_limit - mem_limit
-      else
-        nil
       end
     end
 
@@ -240,11 +237,9 @@ module OsCtld
 
           quota, period = p.value.last.split
 
-          if quota == 'max'
-            return nil
-          else
-            return (quota.to_i / period.to_i) * 100
-          end
+          return nil if quota == 'max'
+
+          return (quota.to_i / period.to_i) * 100
         end
 
         return nil
@@ -283,6 +278,7 @@ module OsCtld
     end
 
     protected
+
     attr_reader :owner, :params
 
     def usable_params
@@ -300,7 +296,6 @@ module OsCtld
 
         begin
           failed << p unless CGroup.set_param(path, p.value)
-
         rescue CGroupFileNotFound
           raise unless keep_going
 
@@ -319,13 +314,13 @@ module OsCtld
     def apply_params_and_retry(param_list, keep_going: false, &block)
       failed = apply_params(
         param_list,
-        keep_going: keep_going,
+        keep_going:,
         &block
       ).select { |p| p.name.start_with?('memory.') }
 
-      if failed.any?
-        apply_params(failed, keep_going: keep_going, &block)
-      end
+      return unless failed.any?
+
+      apply_params(failed, keep_going:, &block)
     end
 
     def reset_value(param)
@@ -345,8 +340,6 @@ module OsCtld
       when 'memory.high', 'memory.max'
         ['max']
 
-      else
-        nil
       end
     end
   end

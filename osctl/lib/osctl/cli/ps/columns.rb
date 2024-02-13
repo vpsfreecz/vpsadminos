@@ -2,7 +2,7 @@ require 'libosctl'
 
 module OsCtl::Cli
   class Ps::Columns
-    COLS = %i(
+    COLS = %i[
       pool
       ctid
       pid
@@ -22,9 +22,9 @@ module OsCtl::Cli
       time
       command
       name
-    )
+    ]
 
-    DEFAULT_ONE_CT = %i(
+    DEFAULT_ONE_CT = %i[
       pid
       ctpid
       cteuid
@@ -34,13 +34,13 @@ module OsCtl::Cli
       start
       time
       command
-    )
+    ]
 
-    DEFAULT_ONE_POOL = %i(ctid) + DEFAULT_ONE_CT
+    DEFAULT_ONE_POOL = %i[ctid] + DEFAULT_ONE_CT
 
-    DEFAULT_MULTIPLE_POOLS = %i(pool) + DEFAULT_ONE_POOL
+    DEFAULT_MULTIPLE_POOLS = %i[pool] + DEFAULT_ONE_POOL
 
-    ALIGN_RIGHT = %i(
+    ALIGN_RIGHT = %i[
       pid
       ruid
       rgid
@@ -53,7 +53,7 @@ module OsCtl::Cli
       vmsize
       rss
       time
-    )
+    ]
 
     # @param process_list <OsCtl::Lib::ProcessList>
     # @param cols [Array<Symbol>]
@@ -64,7 +64,7 @@ module OsCtl::Cli
         {
           name: c,
           label: c.to_s.upcase,
-          align: ALIGN_RIGHT.include?(c) ? :right : :left,
+          align: ALIGN_RIGHT.include?(c) ? :right : :left
         }
       end
 
@@ -93,7 +93,7 @@ module OsCtl::Cli
     end
 
     def pool
-      pool, _ = os_proc.ct_id
+      pool, = os_proc.ct_id
       pool.nil? ? '-' : pool
     end
 
@@ -177,6 +177,7 @@ module OsCtl::Cli
     end
 
     protected
+
     attr_reader :os_proc
 
     def present_data(v)
@@ -194,7 +195,7 @@ module OsCtl::Cli
     def format_time(v)
       now = Time.now
 
-      if now - v > 24*60*60
+      if now - v > 24 * 60 * 60
         v.strftime('%b%d')
       else
         v.strftime('%H:%M')

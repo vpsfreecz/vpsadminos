@@ -5,16 +5,16 @@ module OsCtl::Lib
         'ssh',
         '-o', 'StrictHostKeyChecking=no',
         '-T',
-        '-p', m_opts[:port].to_s,
+        '-p', m_opts[:port].to_s
       ]
 
       ret.concat(['-i', key_chain.private_key_path]) if key_chain
 
       ret.concat([
-        '-l', 'osctl-ct-receive',
-        m_opts[:dst],
-        *cmd
-      ])
+                   '-l', 'osctl-ct-receive',
+                   m_opts[:dst],
+                   *cmd
+                 ])
     end
   end
 end

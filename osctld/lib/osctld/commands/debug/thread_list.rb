@@ -12,7 +12,7 @@ module OsCtld
         {
           thread: thread.to_s,
           manager: manager.to_s,
-          backtrace: thread.backtrace && denixstorify(thread.backtrace),
+          backtrace: thread.backtrace && denixstorify(thread.backtrace)
         }
       end)
     end

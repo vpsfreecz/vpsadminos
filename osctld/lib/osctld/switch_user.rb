@@ -5,7 +5,7 @@ module OsCtld
     include OsCtl::Lib::Utils::Log
     extend OsCtl::Lib::Utils::System
 
-    SYSTEM_PATH = %w(
+    SYSTEM_PATH = %w[
       /bin
       /usr/bin
       /sbin
@@ -16,7 +16,7 @@ module OsCtld
       /run/current-system/profile/sbin
       /var/guix/profiles/system/profile/bin
       /var/guix/profiles/system/profile/sbin
-    )
+    ]
 
     # Fork into a new process
     #
@@ -58,16 +58,14 @@ module OsCtld
       CGroup.mkpath_all(cgroup_path.split('/'), chown: chown_cgroups ? ugid : false)
 
       pid = self.fork(
-        keep_fds: keep_fds,
-        keep_stdfds: opts.fetch(:keep_stdfds, true),
+        keep_fds:,
+        keep_stdfds: opts.fetch(:keep_stdfds, true)
       ) do
         # Closed by self.fork
         # w.close
 
         if opts[:oom_score_adj]
-          File.open('/proc/self/oom_score_adj', 'w') do |f|
-            f.write(opts[:oom_score_adj].to_s)
-          end
+          File.write('/proc/self/oom_score_adj', opts[:oom_score_adj].to_s)
         end
 
         switch_to(sysuser, ugid, homedir, cgroup_path)
@@ -140,7 +138,7 @@ module OsCtld
           pid,
           PrLimits.resource_to_const(name),
           limit[:soft] == 'unlimited' ? PrLimits::INFINITY : limit[:soft],
-          limit[:hard] == 'unlimited' ? PrLimits::INFINITY : limit[:hard],
+          limit[:hard] == 'unlimited' ? PrLimits::INFINITY : limit[:hard]
         )
       end
     end
@@ -170,7 +168,8 @@ module OsCtld
     # @yieldparam [Integer] fd
     def self.walk_fds
       Dir.entries('/proc/self/fd').each do |v|
-        next if %w(. ..).include?(v)
+        next if %w[. ..].include?(v)
+
         yield(v.to_i)
       end
     end

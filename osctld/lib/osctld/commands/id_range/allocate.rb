@@ -15,11 +15,10 @@ module OsCtld
       end
 
       ok(range.allocate(
-        opts[:block_count],
-        block_index: opts[:block_index],
-        owner: opts[:owner],
-      ))
-
+           opts[:block_count],
+           block_index: opts[:block_index],
+           owner: opts[:owner]
+         ))
     rescue IdRange::AllocationError => e
       error(e.message)
     end

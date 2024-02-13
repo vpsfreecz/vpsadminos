@@ -23,7 +23,7 @@ module OsCtld
         '-v', 'LOGNAME=root',
         '-v', 'HOME=/root',
         '-v', "PATH=#{SwitchUser::SYSTEM_PATH.join(':')}",
-        '-v', 'HISTFILE=/root/.osctl_ct_attach_history',
+        '-v', 'HISTFILE=/root/.osctl_ct_attach_history'
       ]
 
       if opts[:user_shell]
@@ -34,26 +34,26 @@ module OsCtld
         error!('no supported shell located') unless shell
 
         ok(ct_attach(
-          ct,
-          *base_args,
-          '--keep-var', 'LANG',
-          '-v', "PS1=#{prompt(ct, shell)}",
-          '--',
-          *shell_args(shell)
-        ))
+             ct,
+             *base_args,
+             '--keep-var', 'LANG',
+             '-v', "PS1=#{prompt(ct, shell)}",
+             '--',
+             *shell_args(shell)
+           ))
       end
     end
 
     protected
+
     def find_shell(ct)
       rootfs = File.join('/proc', ct.init_pid.to_s, 'root')
 
-      %i(bash busybox sh).each do |type|
+      %i[bash busybox sh].each do |type|
         path = DistConfig.run(ct.get_run_conf, :bin_path)
 
         begin
           File.lstat(File.join(rootfs, path, type.to_s))
-
         rescue Errno::ENOENT
           next
         end
@@ -80,8 +80,8 @@ module OsCtld
     def prompt(ct, shell)
       case shell.type
       when :bash
-        "\\n\\[\\033[1;31m\\][CT #{ct.id}]\\[\\033[0m\\] "+
-        "\\[\\033[1;95m\\]\\u@\\h:\\w\\$\\[\\033[0m\\] "
+        "\\n\\[\\033[1;31m\\][CT #{ct.id}]\\[\\033[0m\\] " +
+          '\\[\\033[1;95m\\]\\u@\\h:\\w\\$\\[\\033[0m\\] '
 
       when :busybox
         "\\n[CT #{ct.id}] \\u@\\h:\\w\\$ "

@@ -19,6 +19,7 @@ module OsCtld
     end
 
     protected
+
     def validate(run)
       return if !exist? && opts[:optional]
 
@@ -51,7 +52,7 @@ module OsCtld
 
     def mode
       # Extract permission bits, see man inode(7)
-      stat.mode & 07777
+      stat.mode & 0o7777
     end
   end
 end

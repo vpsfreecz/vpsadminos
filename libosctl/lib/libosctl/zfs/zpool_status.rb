@@ -17,7 +17,7 @@ module OsCtl::Lib
       :scan,
       :scan_percent,
       :virtual_devices,
-      keyword_init: true,
+      keyword_init: true
     )
 
     # @!attribute [r] role
@@ -45,7 +45,7 @@ module OsCtl::Lib
       :write,
       :checksum,
       :virtual_devices,
-      keyword_init: true,
+      keyword_init: true
     )
 
     include Utils::Log
@@ -67,6 +67,7 @@ module OsCtl::Lib
     end
 
     protected
+
     def read(pools, status_string)
       list = []
       index = {}
@@ -93,7 +94,7 @@ module OsCtl::Lib
             state: :unknown,
             scan: :none,
             scan_percent: nil,
-            virtual_devices: [],
+            virtual_devices: []
           )
 
           config_parser = nil
@@ -121,7 +122,7 @@ module OsCtl::Lib
           config_parser = ConfigParser.new(cur_pool)
 
         elsif cur_pool && cur_pool.scan != :none && /, (\d+\.\d+)% done,/ =~ stripped
-          cur_pool.scan_percent = $1.to_f
+          cur_pool.scan_percent = ::Regexp.last_match(1).to_f
         end
       end
 
@@ -174,24 +175,24 @@ module OsCtl::Lib
           return
         end
 
-        if indent_level == 6
-          @vdev_3rd = create_vdev(vdev, state, read, write, checksum)
-          @vdev_2nd.virtual_devices << @vdev_3rd
-          return
-        end
+        return unless indent_level == 6
+
+        @vdev_3rd = create_vdev(vdev, state, read, write, checksum)
+        @vdev_2nd.virtual_devices << @vdev_3rd
+        nil
       end
 
       def create_vdev(vdev, state, read, write, checksum)
-          VirtualDevice.new(
-            role: @role,
-            name: vdev,
-            type: vdev.start_with?('/') ? 'disk' : vdev.split('-').first,
-            state: state.downcase.to_sym,
-            read: read.to_i,
-            write: write.to_i,
-            checksum: checksum.to_i,
-            virtual_devices: [],
-          )
+        VirtualDevice.new(
+          role: @role,
+          name: vdev,
+          type: vdev.start_with?('/') ? 'disk' : vdev.split('-').first,
+          state: state.downcase.to_sym,
+          read: read.to_i,
+          write: write.to_i,
+          checksum: checksum.to_i,
+          virtual_devices: []
+        )
       end
     end
   end

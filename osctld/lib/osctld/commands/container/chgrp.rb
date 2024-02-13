@@ -31,10 +31,9 @@ module OsCtld
         error!('container has to be stopped first') if ct.state != :stopped
 
         # Check that devices are available in the new group
-        unless %w(provide remove).include?(opts[:missing_devices])
+        unless %w[provide remove].include?(opts[:missing_devices])
           begin
             ct.devices.check_all_available!(group: new_group)
-
           rescue DeviceNotAvailable, DeviceModeInsufficient => e
             error!(e.message)
           end
@@ -49,7 +48,7 @@ module OsCtld
         unless new_group.setup_for?(ct.user)
           dir = new_group.userdir(ct.user)
 
-          FileUtils.mkdir_p(dir, mode: 0751)
+          FileUtils.mkdir_p(dir, mode: 0o751)
           File.chown(0, ct.user.ugid, dir)
         end
 

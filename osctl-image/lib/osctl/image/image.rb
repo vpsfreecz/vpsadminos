@@ -36,7 +36,7 @@ module OsCtl::Image
       cfg = Operations::Config::ParseAttrs.run(base_dir, :image, name)
 
       unless cfg.has_key?('BUILDER')
-        fail "builder not set for #{name}"
+        raise "builder not set for #{name}"
       end
 
       {
@@ -45,7 +45,7 @@ module OsCtl::Image
         version: 'RELVER',
         arch: 'ARCH',
         vendor: 'VENDOR',
-        variant: 'VARIANT',
+        variant: 'VARIANT'
       }.each do |attr, var|
         instance_variable_set(:"@#{attr}", cfg[var]) if cfg.has_key?(var)
       end
@@ -56,6 +56,7 @@ module OsCtl::Image
     end
 
     protected
+
     def parse_name
       if name.index('-')
         @distribution, @version, @arch, @vendor, @variant = name.split('-')

@@ -17,7 +17,7 @@ module OsCtl::Cli::Top
       @last_measurement = nil
       @generation = 0
       @mode = model.mode
-      @data = {containers: []}
+      @data = { containers: [] }
       @queue = OsCtl::Lib::Queue.new
       @mutex = Mutex.new
     end
@@ -51,6 +51,7 @@ module OsCtl::Cli::Top
     end
 
     protected
+
     def work
       measure
 

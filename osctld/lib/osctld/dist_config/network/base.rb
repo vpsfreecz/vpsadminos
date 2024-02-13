@@ -27,23 +27,21 @@ module OsCtld
     # Called when a new network interface is added to a container
     # @param netifs [Array<NetInterface::Base>]
     # @param netif [NetInterface::Base]
-    def add_netif(netifs, netif)
-    end
+    def add_netif(netifs, netif); end
 
     # Called when a network interface is removed from a container
     # @param netifs [Array<NetInterface::Base>]
     # @param netif [NetInterface::Base]
-    def remove_netif(netifs, netif)
-    end
+    def remove_netif(netifs, netif); end
 
     # Called when an existing network interface is renamed
     # @param netifs [Array<NetInterface::Base>]
     # @param netif [NetInterface::Base]
     # @param old_name [String]
-    def rename_netif(netifs, netif, old_name)
-    end
+    def rename_netif(netifs, netif, old_name); end
 
     protected
+
     attr_reader :configurator
 
     def_delegators :configurator, :ctid, :rootfs, :distribution, :version

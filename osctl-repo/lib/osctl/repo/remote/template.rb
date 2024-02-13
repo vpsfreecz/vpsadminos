@@ -15,18 +15,18 @@ module OsCtl::Repo
       File.exist?(abs_cache_path(format))
     end
 
-    def lock(format)
+    def lock(format, &)
       Filelock(
         File.join(abs_dir_path, ".#{image_name(format)}.lock"),
-        timeout: 60*60
-      ) { yield }
+        timeout: 60 * 60, &
+      )
     end
 
     def dump
       ret = super
-      ret[:cached] = ret[:image].select do |format, path|
+      ret[:cached] = ret[:image].select do |format, _path|
         cached?(format)
-      end.map { |format, path| format }
+      end.map { |format, _path| format }
       ret
     end
   end

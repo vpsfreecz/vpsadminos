@@ -19,7 +19,7 @@ module OsUp
     Migrator.upgrade(
       pool_migrations,
       to: opts[:to],
-      dry_run: opts[:dry_run],
+      dry_run: opts[:dry_run]
     )
   end
 
@@ -34,7 +34,7 @@ module OsUp
     Migrator.rollback(
       pool_migrations,
       to: opts[:to],
-      dry_run: opts[:dry_run],
+      dry_run: opts[:dry_run]
     )
   end
 

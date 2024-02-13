@@ -2,7 +2,7 @@
 require 'json'
 require 'socket'
 
-ctid = ENV['LXC_NAME']
+ctid = ENV.fetch('LXC_NAME', nil)
 
 if ctid.nil?
   warn 'Expected environment variables:'
@@ -10,19 +10,19 @@ if ctid.nil?
   exit(false)
 end
 
-if /^\/run\/osctl\/pools\/([^\/]+)\/hooks/ !~ $0
+if %r{^/run/osctl/pools/([^/]+)/hooks} !~ $0
   warn "Unable to detect pool name from '#{$0}'"
   exit(false)
 end
 
-pool = $1
+pool = Regexp.last_match(1)
 
-s = UNIXSocket.new("/run/osctl/user-control/namespaced.sock")
-s.puts({cmd: :ct_pre_mount, opts: {
+s = UNIXSocket.new('/run/osctl/user-control/namespaced.sock')
+s.puts({ cmd: :ct_pre_mount, opts: {
   id: ctid,
-  pool: pool,
-  rootfs_mount: ENV['LXC_ROOTFS_MOUNT'],
-}}.to_json)
+  pool:,
+  rootfs_mount: ENV.fetch('LXC_ROOTFS_MOUNT', nil)
+} }.to_json)
 ret = JSON.parse(s.readline, symbolize_names: true)
 s.close
 

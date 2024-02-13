@@ -6,7 +6,7 @@ module OsCtl::Cli
     include Assets
     include Attributes
 
-    FIELDS = %i(
+    FIELDS = %i[
       pool
       name
       username
@@ -16,25 +16,25 @@ module OsCtl::Cli
       homedir
       registered
       standalone
-    )
+    ]
 
-    FILTERS = %i(pool registered)
+    FILTERS = %i[pool registered]
 
-    DEFAULT_FIELDS = %i(
+    DEFAULT_FIELDS = %i[
       pool
       name
       registered
       standalone
-    )
+    ]
 
-    IDMAP_FIELDS = %i(type ns_id host_id count)
+    IDMAP_FIELDS = %i[type ns_id host_id count]
 
     def list
       keyring = KernelKeyring.new
 
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
         all_params: FIELDS + keyring.list_param_names,
-        default_params: DEFAULT_FIELDS,
+        default_params: DEFAULT_FIELDS
       )
 
       if opts[:list]
@@ -45,7 +45,7 @@ module OsCtl::Cli
       cmd_opts = {}
       fmt_opts = {
         layout: :columns,
-        sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
+        sort: opts[:sort] && param_selector.parse_option(opts[:sort])
       }
 
       cmd_opts[:names] = args if args.count > 0
@@ -59,6 +59,7 @@ module OsCtl::Cli
       FILTERS.each do |v|
         [gopts, opts].each do |options|
           next unless options[v]
+
           cmd_opts[v] = options[v].split(',')
         end
       end
@@ -80,7 +81,7 @@ module OsCtl::Cli
 
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
         all_params: FIELDS + keyring.list_param_names,
-        default_params: DEFAULT_FIELDS,
+        default_params: DEFAULT_FIELDS
       )
 
       if opts[:list]
@@ -90,7 +91,7 @@ module OsCtl::Cli
 
       require_args!('name')
 
-      fmt_opts = {layout: :rows}
+      fmt_opts = { layout: :rows }
       fmt_opts[:header] = false if opts['hide-header']
 
       cols = param_selector.parse_option(opts[:output])
@@ -121,22 +122,22 @@ module OsCtl::Cli
         block_index: opts['id-range-block-index'],
         uid_map: uid_map.any? ? uid_map : nil,
         gid_map: gid_map.any? ? gid_map : nil,
-        standalone: opts['standalone'],
+        standalone: opts['standalone']
       })
     end
 
     def delete
       require_args!('name')
-      osctld_fmt(:user_delete, cmd_opts: {name: args[0], pool: gopts[:pool]})
+      osctld_fmt(:user_delete, cmd_opts: { name: args[0], pool: gopts[:pool] })
     end
 
     def register
       require_args!('name')
 
       if args[0] == 'all'
-        osctld_fmt(:user_register, cmd_opts: {all: true})
+        osctld_fmt(:user_register, cmd_opts: { all: true })
       else
-        osctld_fmt(:user_register, cmd_opts: {name: args[0], pool: gopts[:pool]})
+        osctld_fmt(:user_register, cmd_opts: { name: args[0], pool: gopts[:pool] })
       end
     end
 
@@ -144,9 +145,9 @@ module OsCtl::Cli
       require_args!('name')
 
       if args[0] == 'all'
-        osctld_fmt(:user_unregister, cmd_opts: {all: true})
+        osctld_fmt(:user_unregister, cmd_opts: { all: true })
       else
-        osctld_fmt(:user_unregister, cmd_opts: {name: args[0], pool: gopts[:pool]})
+        osctld_fmt(:user_unregister, cmd_opts: { name: args[0], pool: gopts[:pool] })
       end
     end
 
@@ -161,7 +162,7 @@ module OsCtl::Cli
 
     def idmap_ls
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
-        all_params: IDMAP_FIELDS,
+        all_params: IDMAP_FIELDS
       )
 
       if opts[:list]
@@ -169,12 +170,12 @@ module OsCtl::Cli
         return
       end
 
-      require_args!('name', optional: %w(type))
+      require_args!('name', optional: %w[type])
 
-      cmd_opts = {name: args[0], uid: true, gid: true}
+      cmd_opts = { name: args[0], uid: true, gid: true }
       fmt_opts = {
         layout: :columns,
-        cols: param_selector.parse_option(opts[:output]),
+        cols: param_selector.parse_option(opts[:output])
       }
 
       case args[1]
@@ -192,8 +193,8 @@ module OsCtl::Cli
 
       osctld_fmt(
         :user_idmap_list,
-        cmd_opts: cmd_opts,
-        fmt_opts: fmt_opts,
+        cmd_opts:,
+        fmt_opts:
       )
     end
 
@@ -202,7 +203,7 @@ module OsCtl::Cli
       osctld_fmt(:user_set, cmd_opts: {
         name: args[0],
         pool: gopts[:pool],
-        standalone: true,
+        standalone: true
       })
     end
 
@@ -211,7 +212,7 @@ module OsCtl::Cli
       osctld_fmt(:user_unset, cmd_opts: {
         name: args[0],
         pool: gopts[:pool],
-        standalone: true,
+        standalone: true
       })
     end
 
@@ -219,9 +220,9 @@ module OsCtl::Cli
       require_args!('name', 'attribute', 'value')
       do_set_attr(
         :user_set,
-        {name: args[0], pool: gopts[:pool]},
+        { name: args[0], pool: gopts[:pool] },
         args[1],
-        args[2],
+        args[2]
       )
     end
 
@@ -229,8 +230,8 @@ module OsCtl::Cli
       require_args!('name', 'attribute')
       do_unset_attr(
         :user_unset,
-        {name: args[0], pool: gopts[:pool]},
-        args[1],
+        { name: args[0], pool: gopts[:pool] },
+        args[1]
       )
     end
   end

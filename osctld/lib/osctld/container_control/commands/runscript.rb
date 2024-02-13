@@ -26,7 +26,7 @@ module OsCtld
       # @return [Integer] exit status
       def execute(opts)
         runner_opts = {
-          args: opts[:args],
+          args: opts[:args]
         }
 
         mode =
@@ -45,7 +45,7 @@ module OsCtld
         script = copy_script(opts[:script], opts[:stdin])
         runner_opts[:script] = File.join('/', File.basename(script.path))
 
-        if %i(run run_network).include?(mode)
+        if %i[run run_network].include?(mode)
           ct.ensure_run_conf
 
           # Remove any left-over temporary mounts
@@ -59,10 +59,9 @@ module OsCtld
           args: [mode, runner_opts],
           stdin: opts[:script].nil? ? nil : opts[:stdin],
           stdout: opts[:stdout],
-          stderr: opts[:stderr],
+          stderr: opts[:stderr]
         )
         ret.ok? ? ret.data : ret
-
       ensure
         if script
           script.close
@@ -72,9 +71,10 @@ module OsCtld
       end
 
       protected
+
       def copy_script(src, stdin)
         script = Tempfile.create(['.runscript', '.sh'], ct.get_run_conf.rootfs)
-        script.chmod(0500)
+        script.chmod(0o500)
 
         if src.nil?
           IO.copy_stream(stdin, script)
@@ -108,11 +108,12 @@ module OsCtld
       end
 
       protected
+
       def runscript_running(opts)
         pid = lxc_ct.attach(
-          stdin: stdin,
-          stdout: stdout,
-          stderr: stderr,
+          stdin:,
+          stdout:,
+          stderr:
         ) do
           setup_exec_env
           ENV['HOME'] = '/root'
@@ -123,12 +124,10 @@ module OsCtld
           # which LXC translates to LXC::Error. So we try to call the script
           # multiple times, until *something* releases the file.
           10.times do
-            begin
-              LXC.run_command([opts[:script]] + opts[:args])
-              break
-            rescue LXC::Error
-              sleep(0.1)
-            end
+            LXC.run_command([opts[:script]] + opts[:args])
+            break
+          rescue LXC::Error
+            sleep(0.1)
           end
         end
 
@@ -139,7 +138,7 @@ module OsCtld
       def runscript_run_network(opts)
         with_configured_network(
           init_script: opts[:init_script],
-          net_config: opts[:net_config],
+          net_config: opts[:net_config]
         ) { runscript_running(opts) }
       end
     end

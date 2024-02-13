@@ -4,7 +4,7 @@ module OsCtld
   class Commands::NetInterface::List < Commands::Base
     handle :netif_list
 
-    FIELDS = %i(
+    FIELDS = %i[
       name
       index
       type
@@ -17,7 +17,7 @@ module OsCtld
       rx_queues
       max_tx
       max_rx
-    )
+    ]
 
     def execute
       ret = []
@@ -30,6 +30,7 @@ module OsCtld
     end
 
     protected
+
     def cts
       if opts[:id]
         ct = DB::Containers.find(opts[:id], opts[:pool])
@@ -52,10 +53,11 @@ module OsCtld
 
           Hash[FIELDS.map do |f|
             next [f, nil] unless netif.respond_to?(f)
+
             [f, netif.send(f)]
           end].merge(
             pool: ct.pool.name,
-            ctid: ct.id,
+            ctid: ct.id
           )
         end.compact
       end

@@ -13,7 +13,7 @@ module OsCtld
     include OsCtl::Lib::Utils::System
 
     class << self
-      %i(add remove include? uid_of).each do |m|
+      %i[add remove include? uid_of].each do |m|
         define_method(m) do |*args, &block|
           instance.send(m, *args, &block)
         end
@@ -31,7 +31,8 @@ module OsCtld
     # @param ugid [Integer]
     # @param homedir [String]
     def add(name, ugid, homedir)
-      fail 'user already exists' if include?(name)
+      raise 'user already exists' if include?(name)
+
       syscmd("groupadd -g #{ugid} #{name}")
       syscmd("useradd -u #{ugid} -g #{ugid} -d #{homedir} -c #{COMMENT} #{name}")
       exclusively { users[name] = ugid }
@@ -62,6 +63,7 @@ module OsCtld
     end
 
     protected
+
     attr_reader :users
 
     def load_users

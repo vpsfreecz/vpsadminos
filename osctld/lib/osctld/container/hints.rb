@@ -4,7 +4,7 @@ module OsCtld
       def self.load(cfg)
         new(
           user_us: cfg.fetch('user_us', 0),
-          system_us: cfg.fetch('system_us', 0),
+          system_us: cfg.fetch('system_us', 0)
         )
       end
 
@@ -21,19 +21,19 @@ module OsCtld
 
         cur_user_us = new_user_us / runtime_days
 
-        if @user_us > 0
-          @user_us = ((@user_us + cur_user_us) / 2).round
-        else
-          @user_us = cur_user_us.round
-        end
+        @user_us = if @user_us > 0
+                     ((@user_us + cur_user_us) / 2).round
+                   else
+                     cur_user_us.round
+                   end
 
         cur_system_us = new_system_us / runtime_days
 
-        if @system_us > 0
-          @system_us = ((@system_us + cur_system_us) / 2).round
-        else
-          @system_us = cur_system_us.round
-        end
+        @system_us = if @system_us > 0
+                       ((@system_us + cur_system_us) / 2).round
+                     else
+                       cur_system_us.round
+                     end
 
         @usage_us = @user_us + @system_us
       end
@@ -41,7 +41,7 @@ module OsCtld
       def dump
         {
           'user_us' => user_us,
-          'system_us' => system_us,
+          'system_us' => system_us
         }
       end
     end
@@ -51,7 +51,7 @@ module OsCtld
     def self.load(ct, cfg)
       new(
         ct,
-        cpu_daily: CpuDaily.load(cfg.fetch('cpu_daily', {})),
+        cpu_daily: CpuDaily.load(cfg.fetch('cpu_daily', {}))
       )
     end
 
@@ -73,10 +73,10 @@ module OsCtld
     def account_cpu_use
       cg_reader = OsCtl::Lib::CGroup::PathReader.new(
         CGroup.subsystem_paths,
-        ct.base_cgroup_path,
+        ct.base_cgroup_path
       )
 
-      vals = cg_reader.read_stats(%i(cpu_us cpu_user_us, cpu_system_us), true)
+      vals = cg_reader.read_stats(%i[cpu_us cpu_user_us cpu_system_us], true)
       return if !vals[:cpu_us] || !vals[:cpu_user_us] || !vals[:cpu_system_us]
 
       begin
@@ -94,7 +94,7 @@ module OsCtld
 
     def dump
       {
-        'cpu_daily' => cpu_daily.dump,
+        'cpu_daily' => cpu_daily.dump
       }
     end
 

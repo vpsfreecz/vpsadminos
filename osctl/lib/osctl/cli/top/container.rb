@@ -94,6 +94,7 @@ module OsCtl::Cli
     end
 
     protected
+
     attr_reader :measurements, :initial
 
     def find_netif(name)

@@ -1,7 +1,7 @@
 module OsCtld
-  class ContainerControl::Error < StandardError ; end
+  class ContainerControl::Error < StandardError; end
 
-  class ContainerControl::UserRunnerError < ContainerControl::Error ; end
+  class ContainerControl::UserRunnerError < ContainerControl::Error; end
 
   # Container control is used to interact with LXC containers
   #
@@ -26,9 +26,9 @@ module OsCtld
     # @param args [Hash] command arguments
     # @param kwargs [Hash] command arguments
     # @raise [ContainerControl::Error]
-    def self.run!(ct, *args, **kwargs)
+    def self.run!(ct, *, **)
       f = self::Frontend.new(self, ct)
-      ret = f.execute(*args, **kwargs)
+      ret = f.execute(*, **)
 
       if ret.is_a?(ContainerControl::Result)
         if ret.ok?

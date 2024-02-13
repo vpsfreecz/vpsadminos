@@ -5,7 +5,7 @@ module OsCtl
   class Client
     SOCKET = '/run/osctl/osctld.sock'
 
-    class Error < StandardError ; end
+    class Error < StandardError; end
 
     class Response
       def initialize(resp)
@@ -36,8 +36,8 @@ module OsCtl
         data[k]
       end
 
-      def each(&block)
-        data.each(&block)
+      def each(&)
+        data.each(&)
       end
     end
 
@@ -55,7 +55,7 @@ module OsCtl
     end
 
     def cmd(cmd, **opts)
-      @sock.puts({cmd: cmd, opts: opts}.to_json)
+      @sock.puts({ cmd:, opts: }.to_json)
     end
 
     def send_io(io)
@@ -63,10 +63,10 @@ module OsCtl
     end
 
     def receive
-      buf = ""
+      buf = ''
 
       while m = @sock.recv(1024)
-        buf = buf + m
+        buf += m
         raise Error, 'osctld closed connection' if m.nil? || m.empty?
         break if m[-1].chr == "\n"
       end
@@ -80,12 +80,12 @@ module OsCtl
 
     def receive_resp(&block)
       loop do
-        if @buffer.any?
-          msgs = @buffer
+        msgs = if @buffer.any?
+                 @buffer
 
-        else
-          msgs = receive
-        end
+               else
+                 receive
+               end
 
         while msgs.any?
           msg = msgs.shift
@@ -104,29 +104,31 @@ module OsCtl
       end
     end
 
-    def response!(&block)
-      ret = receive_resp(&block)
+    def response!(&)
+      ret = receive_resp(&)
       raise Error, ret.message if ret.error?
+
       ret
     end
 
-    def cmd_response(cmd, **opts, &block)
-      cmd(cmd, **opts)
-      receive_resp(&block)
+    def cmd_response(cmd, **, &)
+      cmd(cmd, **)
+      receive_resp(&)
     end
 
-    def cmd_response!(cmd, **opts, &block)
-      ret = cmd_response(cmd, **opts, &block)
+    def cmd_response!(cmd, **, &)
+      ret = cmd_response(cmd, **, &)
       raise Error, ret.message if ret.error?
+
       ret
     end
 
-    def data!(&block)
-      receive_resp!(&block).data
+    def data!(&)
+      receive_resp!(&).data
     end
 
-    def cmd_data!(cmd, **opts, &block)
-      cmd_response!(cmd, **opts, &block).data
+    def cmd_data!(cmd, **, &)
+      cmd_response!(cmd, **, &).data
     end
 
     def close

@@ -11,6 +11,7 @@ module OsCtld
     end
 
     protected
+
     def netifs
       ret = []
 
@@ -29,6 +30,7 @@ module OsCtld
           else
             ct.netifs.each do |netif|
               next if netif.type != :routed
+
               ret << [ct, netif]
             end
           end
@@ -41,6 +43,7 @@ module OsCtld
           ct.inclusively do
             ct.netifs.each do |netif|
               next if netif.type != :routed
+
               ret << [ct, netif]
             end
           end
@@ -51,6 +54,7 @@ module OsCtld
           ct.inclusively do
             ct.netifs.each do |netif|
               next if netif.type != :routed
+
               ret << [ct, netif]
             end
           end
@@ -64,7 +68,7 @@ module OsCtld
       netif.routes.export.merge(
         pool: ct.pool.name,
         ctid: ct.id,
-        netif: netif.name,
+        netif: netif.name
       )
     end
   end

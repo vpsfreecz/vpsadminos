@@ -26,25 +26,25 @@ module OsCtl::ExportFS::Cli
         srv.arg_name '<name>'
         srv.command :ls do |c|
           c.desc 'Select parameters to output'
-          c.flag %i(o output), arg_name: 'parameters'
+          c.flag %i[o output], arg_name: 'parameters'
 
           c.desc 'Do not show header'
-          c.switch %i(H hide-header), negatable: false
+          c.switch %i[H hide-header], negatable: false
 
           c.desc 'List available parameters'
-          c.switch %i(L list), negatable: false
+          c.switch %i[L list], negatable: false
 
           c.desc 'Sort by parameter(s)'
-          c.flag %i(s sort), arg_name: 'parameters'
+          c.flag %i[s sort], arg_name: 'parameters'
 
-          c.action &Command.run(Server, :list)
+          c.action(&Command.run(Server, :list))
         end
 
         srv.desc 'Create a new NFS server'
         srv.arg_name '<name>'
         srv.command :new do |c|
           c.desc 'Listen on address'
-          c.flag %i(a address), arg_name: 'address'
+          c.flag %i[a address], arg_name: 'address'
 
           c.desc 'Host network interface name'
           c.flag :netif, arg_name: 'netif'
@@ -76,20 +76,20 @@ module OsCtl::ExportFS::Cli
           c.desc 'Configure port for rpc.statd'
           c.flag 'statd-port', arg_name: 'port', type: Integer
 
-          c.action &Command.run(Server, :create)
+          c.action(&Command.run(Server, :create))
         end
 
         srv.desc 'Delete NFS server'
         srv.arg_name '<name>'
         srv.command :del do |c|
-          c.action &Command.run(Server, :delete)
+          c.action(&Command.run(Server, :delete))
         end
 
         srv.desc 'Configure NFS server'
         srv.arg_name '<name>'
         srv.command :set do |c|
           c.desc 'Listen on address'
-          c.flag %i(a address), arg_name: 'address'
+          c.flag %i[a address], arg_name: 'address'
 
           c.desc 'Host network interface name'
           c.flag :netif, arg_name: 'netif'
@@ -121,37 +121,37 @@ module OsCtl::ExportFS::Cli
           c.desc 'Configure port for rpc.statd'
           c.flag 'statd-port', arg_name: 'port', type: Integer
 
-          c.action &Command.run(Server, :set)
+          c.action(&Command.run(Server, :set))
         end
 
         srv.desc 'Start NFS server'
         srv.arg_name '<name>'
         srv.command :start do |c|
-          c.action &Command.run(Server, :start)
+          c.action(&Command.run(Server, :start))
         end
 
         srv.desc 'Stop NFS server'
         srv.arg_name '<name>'
         srv.command :stop do |c|
-          c.action &Command.run(Server, :stop)
+          c.action(&Command.run(Server, :stop))
         end
 
         srv.desc 'Restart NFS server'
         srv.arg_name '<name>'
         srv.command :restart do |c|
-          c.action &Command.run(Server, :restart)
+          c.action(&Command.run(Server, :restart))
         end
 
         srv.desc 'Run NFS server'
         srv.arg_name '<name>'
         srv.command :spawn do |c|
-          c.action &Command.run(Server, :spawn)
+          c.action(&Command.run(Server, :spawn))
         end
 
         srv.desc 'Run shell in NFS server container'
         srv.arg_name '<name>'
         srv.command :attach do |c|
-          c.action &Command.run(Server, :attach)
+          c.action(&Command.run(Server, :attach))
         end
       end
 
@@ -160,37 +160,37 @@ module OsCtl::ExportFS::Cli
         exp.desc 'List exported filesystems'
         exp.arg_name '[server]'
         exp.command :ls do |c|
-          c.action &Command.run(Export, :list)
+          c.action(&Command.run(Export, :list))
         end
 
         exp.desc 'Export filesystem'
         exp.arg_name '<server>'
         exp.command :add do |c|
           c.desc 'Directory to export'
-          c.flag %w(d directory), required: true
+          c.flag %w[d directory], required: true
 
           c.desc 'Export the directory as'
-          c.flag %w(a as)
+          c.flag %w[a as]
 
           c.desc 'Mask for allowed hosts'
-          c.flag %w(h host), default_value: '*'
+          c.flag %w[h host], default_value: '*'
 
           c.desc 'Options'
-          c.flag %w(o options), default_value: 'rw,no_subtree_check,no_root_squash'
+          c.flag %w[o options], default_value: 'rw,no_subtree_check,no_root_squash'
 
-          c.action &Command.run(Export, :add)
+          c.action(&Command.run(Export, :add))
         end
 
         exp.desc 'Unexport filesystem'
         exp.arg_name '<server>'
         exp.command :del do |c|
           c.desc 'Directory to unexport'
-          c.flag %w(a as), required: true
+          c.flag %w[a as], required: true
 
           c.desc 'Mask for allowed hosts'
-          c.flag %w(h host), default_value: '*'
+          c.flag %w[h host], default_value: '*'
 
-          c.action &Command.run(Export, :remove)
+          c.action(&Command.run(Export, :remove))
         end
       end
     end

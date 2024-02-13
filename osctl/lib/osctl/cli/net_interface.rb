@@ -3,7 +3,7 @@ require 'osctl/cli/command'
 
 module OsCtl::Cli
   class NetInterface < Command
-    FIELDS = %i(
+    FIELDS = %i[
       pool
       ctid
       name
@@ -18,43 +18,43 @@ module OsCtl::Cli
       rx_queues
       max_tx
       max_rx
-    )
+    ]
 
-    FILTERS = %i(
+    FILTERS = %i[
       type
       link
-    )
+    ]
 
-    DEFAULT_FIELDS = %i(
+    DEFAULT_FIELDS = %i[
       name
       type
       link
       veth
       max_tx
       max_rx
-    )
+    ]
 
-    IP_FIELDS = %i(
+    IP_FIELDS = %i[
       pool
       ctid
       netif
       version
       addr
-    )
+    ]
 
-    ROUTE_FIELDS = %i(
+    ROUTE_FIELDS = %i[
       pool
       ctid
       netif
       version
       addr
       via
-    )
+    ]
 
     def list
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
         all_params: FIELDS,
-        default_params: DEFAULT_FIELDS,
+        default_params: DEFAULT_FIELDS
       )
 
       if opts[:list]
@@ -62,15 +62,15 @@ module OsCtl::Cli
         return
       end
 
-      cmd_opts = {pool: gopts[:pool]}
+      cmd_opts = { pool: gopts[:pool] }
       fmt_opts = {
         layout: :columns,
         sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
-        opts: Hash[%i(max_tx max_rx).map do |limit|
+        opts: Hash[%i[max_tx max_rx].map do |limit|
           [limit, {
             label: limit.to_s.upcase,
             align: 'right',
-            display: Proc.new do |v|
+            display: proc do |v|
               if gopts[:parsable] \
                  || gopts[:json] \
                  || (!v.is_a?(Integer) && /^\d+$/ !~ v)
@@ -80,13 +80,14 @@ module OsCtl::Cli
               end
             end
           }]
-        end],
+        end]
       }
 
       cmd_opts[:id] = args[0] if args[0]
 
       FILTERS.each do |v|
         next unless opts[v]
+
         cmd_opts[v] = opts[v].split(',')
       end
 
@@ -102,7 +103,7 @@ module OsCtl::Cli
 
       fmt_opts[:cols] = cols
 
-      osctld_fmt(:netif_list, cmd_opts: cmd_opts, fmt_opts: fmt_opts)
+      osctld_fmt(:netif_list, cmd_opts:, fmt_opts:)
     end
 
     def create_bridge
@@ -117,13 +118,13 @@ module OsCtl::Cli
         tx_queues: opts['tx-queues'],
         rx_queues: opts['rx-queues'],
         link: opts[:link],
-        dhcp: opts[:dhcp],
+        dhcp: opts[:dhcp]
       }
 
       parse_gateway(cmd_opts)
       parse_shaper(cmd_opts)
 
-      osctld_fmt(:netif_create, cmd_opts: cmd_opts)
+      osctld_fmt(:netif_create, cmd_opts:)
     end
 
     def create_routed
@@ -136,12 +137,12 @@ module OsCtl::Cli
         type: 'routed',
         hwaddr: opts[:hwaddr],
         tx_queues: opts['tx-queues'],
-        rx_queues: opts['rx-queues'],
+        rx_queues: opts['rx-queues']
       }
 
       parse_shaper(cmd_opts)
 
-      osctld_fmt(:netif_create, cmd_opts: cmd_opts)
+      osctld_fmt(:netif_create, cmd_opts:)
     end
 
     def delete
@@ -149,7 +150,7 @@ module OsCtl::Cli
       osctld_fmt(:netif_delete, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
-        name: args[1],
+        name: args[1]
       })
     end
 
@@ -169,7 +170,7 @@ module OsCtl::Cli
       cmd_opts = {
         id: args[0],
         pool: gopts[:pool],
-        name: args[1],
+        name: args[1]
       }
 
       cmd_opts[:hwaddr] = (opts[:hwaddr] == '-' ? nil : opts[:hwaddr]) if opts[:hwaddr]
@@ -186,12 +187,12 @@ module OsCtl::Cli
 
       parse_shaper(cmd_opts)
 
-      osctld_fmt(:netif_set, cmd_opts: cmd_opts)
+      osctld_fmt(:netif_set, cmd_opts:)
     end
 
     def ip_list
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
-        all_params: IP_FIELDS,
+        all_params: IP_FIELDS
       )
 
       if opts[:list]
@@ -199,10 +200,10 @@ module OsCtl::Cli
         return
       end
 
-      cmd_opts = {pool: gopts[:pool]}
+      cmd_opts = { pool: gopts[:pool] }
       fmt_opts = {
         layout: :columns,
-        sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
+        sort: opts[:sort] && param_selector.parse_option(opts[:sort])
       }
 
       cmd_opts[:id] = args[0] if args[0]
@@ -223,7 +224,7 @@ module OsCtl::Cli
               ctid: netif[:ctid],
               netif: netif[:netif],
               version: ip_v,
-              addr: addr,
+              addr:
             }
           end
         end
@@ -253,7 +254,7 @@ module OsCtl::Cli
         pool: gopts[:pool],
         name: args[1],
         addr: args[2],
-        route: opts['route-as'] || opts[:route],
+        route: opts['route-as'] || opts[:route]
       })
     end
 
@@ -266,13 +267,13 @@ module OsCtl::Cli
         name: args[1],
         addr: args[2],
         keep_route: opts['keep-route'],
-        version: opts[:version],
+        version: opts[:version]
       })
     end
 
     def route_list
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
-        all_params: ROUTE_FIELDS,
+        all_params: ROUTE_FIELDS
       )
 
       if opts[:list]
@@ -280,10 +281,10 @@ module OsCtl::Cli
         return
       end
 
-      cmd_opts = {pool: gopts[:pool]}
+      cmd_opts = { pool: gopts[:pool] }
       fmt_opts = {
         layout: :columns,
-        sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
+        sort: opts[:sort] && param_selector.parse_option(opts[:sort])
       }
 
       cmd_opts[:id] = args[0] if args[0]
@@ -305,7 +306,7 @@ module OsCtl::Cli
               netif: netif[:netif],
               version: ip_v,
               addr: addr[:address],
-              via: addr[:via],
+              via: addr[:via]
             }
           end
         end
@@ -337,7 +338,7 @@ module OsCtl::Cli
         pool: gopts[:pool],
         name: args[1],
         addr: args[2],
-        via: opts[:via],
+        via: opts[:via]
       })
     end
 
@@ -349,13 +350,14 @@ module OsCtl::Cli
         pool: gopts[:pool],
         name: args[1],
         addr: args[2],
-        version: opts[:version],
+        version: opts[:version]
       })
     end
 
     protected
+
     def parse_gateway(cmd_opts)
-      gws = [4, 6].map { |v| [v, "gateway-v#{v}"] }.select { |v, opt| opts[opt] }
+      gws = [4, 6].map { |v| [v, "gateway-v#{v}"] }.select { |_v, opt| opts[opt] }
       return if gws.empty?
 
       cmd_opts[:gateways] = Hash[gws.map do |v, opt|
@@ -373,14 +375,14 @@ module OsCtl::Cli
           end
       end
 
-      if opts['max-rx']
-        cmd_opts[:max_rx] =
-          if opts['max-rx'] == 'unlimited'
-            0
-          else
-            parse_data(opts['max-rx'])
-          end
-      end
+      return unless opts['max-rx']
+
+      cmd_opts[:max_rx] =
+        if opts['max-rx'] == 'unlimited'
+          0
+        else
+          parse_data(opts['max-rx'])
+        end
     end
   end
 end

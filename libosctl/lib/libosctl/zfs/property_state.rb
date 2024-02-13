@@ -37,8 +37,8 @@ module OsCtl::Lib
     def apply_to(dataset)
       zfs(
         :set,
-        option_strings.map { |opt| "-o #{opt}" }.join(" "),
-        dataset,
+        option_strings.map { |opt| "-o #{opt}" }.join(' '),
+        dataset
       )
     end
 
@@ -48,10 +48,12 @@ module OsCtl::Lib
     end
 
     protected
+
     # @param property [String]
     # @param value [String]
     def to_option(property, value)
-      return 'none' if %w(quota refquota).include?(property) && value.to_i == 0
+      return 'none' if %w[quota refquota].include?(property) && value.to_i == 0
+
       value
     end
   end

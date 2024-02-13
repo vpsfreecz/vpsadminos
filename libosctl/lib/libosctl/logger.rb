@@ -27,7 +27,7 @@ module OsCtl::Lib
         @logger = :none
 
       else
-        fail "unsupported logger type '#{type}'"
+        raise "unsupported logger type '#{type}'"
       end
     end
 
@@ -38,6 +38,7 @@ module OsCtl::Lib
 
     def self.log(severity, msg)
       return if @logger == :none
+
       @logger.send(severity, msg)
       STDOUT.flush if @logger.is_a?(::Logger)
     end

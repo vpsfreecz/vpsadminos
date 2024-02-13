@@ -107,7 +107,6 @@ module OsCtld
 
           begin
             yield
-
           ensure
             release_inclusive
           end
@@ -135,7 +134,7 @@ module OsCtld
 
         elsif @in_held.include?(Thread.current)
           @mutex.unlock
-          fail 'attempted to acquire exclusive lock while holding inclusive lock'
+          raise 'attempted to acquire exclusive lock while holding inclusive lock'
 
         else
           @ex_queued << Thread.current
@@ -170,7 +169,7 @@ module OsCtld
 
       def release_exclusive
         unless @mutex.owned?
-          raise "expected to own the mutex, have you called acquire_exclusive first?"
+          raise 'expected to own the mutex, have you called acquire_exclusive first?'
         end
 
         # Leave exlusive block, signal waiting inclusive blocks to continue
@@ -198,7 +197,6 @@ module OsCtld
 
           begin
             yield
-
           ensure
             release_exclusive
           end
@@ -206,6 +204,7 @@ module OsCtld
       end
 
       private
+
       def sync
         begin
           @mutex.lock(TIMEOUT)
@@ -261,7 +260,7 @@ module OsCtld
         @lock.acquire_exclusive
 
       else
-        fail "unknown lock type '#{type}'"
+        raise "unknown lock type '#{type}'"
       end
     end
 
@@ -274,16 +273,16 @@ module OsCtld
         @lock.release_exclusive
 
       else
-        fail "unknown lock type '#{type}'"
+        raise "unknown lock type '#{type}'"
       end
     end
 
-    def inclusively(&block)
-      @lock.inclusively(&block)
+    def inclusively(&)
+      @lock.inclusively(&)
     end
 
-    def exclusively(&block)
-      @lock.exclusively(&block)
+    def exclusively(&)
+      @lock.exclusively(&)
     end
   end
 end

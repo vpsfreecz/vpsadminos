@@ -22,7 +22,7 @@ state = 'MISSING'
 
 cmd = [
   '@zpool@',
-  'import',
+  'import'
 ] + dirs.map { |v| "-d \"#{v}\"" }
 
 IO.popen("#{cmd.join(' ')} 2>/dev/null") do |io|

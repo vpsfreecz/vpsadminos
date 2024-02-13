@@ -76,6 +76,7 @@ module OsCtl::Lib
     end
 
     protected
+
     attr_reader :snapshots, :base_snap
 
     # Iterate over all datasets
@@ -122,11 +123,11 @@ module OsCtl::Lib
     def dump_stream(name, dataset, snap, from_snap = nil)
       compression = get_compression(dataset)
 
-      if from_snap
-        cmd = "#{zfs_send} -I @#{from_snap} #{dataset}@#{snap}"
-      else
-        cmd = "#{zfs_send} #{dataset}@#{snap}"
-      end
+      cmd = if from_snap
+              "#{zfs_send} -I @#{from_snap} #{dataset}@#{snap}"
+            else
+              "#{zfs_send} #{dataset}@#{snap}"
+            end
 
       tar.add_file(dump_file_name(compression, name), FILE_MODE) do |tf|
         IO.popen("exec #{cmd}") do |io|
@@ -146,7 +147,7 @@ module OsCtl::Lib
         tf.write(stream.read(BLOCK_SIZE)) until stream.eof?
 
       else
-        fail "unexpected compression type '#{compression}'"
+        raise "unexpected compression type '#{compression}'"
       end
     end
 
@@ -155,7 +156,7 @@ module OsCtl::Lib
       when :auto
         if !opts[:compressed_send]
           :gzip
-        elsif zfs(:get, "-H -o value compression", dataset).output.strip == 'off'
+        elsif zfs(:get, '-H -o value compression', dataset).output.strip == 'off'
           :gzip
         else
           :off

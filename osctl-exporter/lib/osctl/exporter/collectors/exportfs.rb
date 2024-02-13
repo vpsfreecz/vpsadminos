@@ -10,7 +10,7 @@ module OsCtl::Exporter
         :gauge,
         :osctl_exportfs_server_count,
         docstring: 'Number of osctl-exportfs servers',
-        labels: [:state],
+        labels: [:state]
       )
 
       add_metric(
@@ -18,7 +18,7 @@ module OsCtl::Exporter
         :gauge,
         :osctl_exportfs_server_receive_bytes_total,
         docstring: 'Number of received bytes over network',
-        labels: [:nfs_server, :hostdevice, :ip_address],
+        labels: %i[nfs_server hostdevice ip_address]
       )
 
       add_metric(
@@ -26,7 +26,7 @@ module OsCtl::Exporter
         :gauge,
         :osctl_exportfs_server_transmit_bytes_total,
         docstring: 'Number of transmitted bytes over network',
-        labels: [:nfs_server, :hostdevice, :ip_address],
+        labels: %i[nfs_server hostdevice ip_address]
       )
 
       add_metric(
@@ -34,7 +34,7 @@ module OsCtl::Exporter
         :gauge,
         :osctl_exportfs_server_receive_packets_total,
         docstring: 'Number of received packets over network',
-        labels: [:nfs_server, :hostdevice, :ip_address],
+        labels: %i[nfs_server hostdevice ip_address]
       )
 
       add_metric(
@@ -42,11 +42,11 @@ module OsCtl::Exporter
         :gauge,
         :osctl_exportfs_server_transmit_packets_total,
         docstring: 'Number of transmitted packets over network',
-        labels: [:nfs_server, :hostdevice, :ip_address],
+        labels: %i[nfs_server hostdevice ip_address]
       )
     end
 
-    def collect(client)
+    def collect(_client)
       return unless OsCtl::ExportFS.enabled?
 
       servers = OsCtl::ExportFS::Operations::Server::List.run
@@ -64,32 +64,33 @@ module OsCtl::Exporter
 
           @netif_rx_bytes.set(
             st[:tx][:bytes],
-            labels: netif_labels(s, cfg),
+            labels: netif_labels(s, cfg)
           )
           @netif_tx_bytes.set(
             st[:rx][:bytes],
-            labels: netif_labels(s, cfg),
+            labels: netif_labels(s, cfg)
           )
           @netif_rx_packets.set(
             st[:tx][:packets],
-            labels: netif_labels(s, cfg),
+            labels: netif_labels(s, cfg)
           )
           @netif_tx_packets.set(
             st[:rx][:packets],
-            labels: netif_labels(s, cfg),
+            labels: netif_labels(s, cfg)
           )
         else
           stopped += 1
         end
       end
 
-      @server_count.set(running, labels: {state: :running})
-      @server_count.set(stopped, labels: {state: :stopped})
+      @server_count.set(running, labels: { state: :running })
+      @server_count.set(stopped, labels: { state: :stopped })
     end
 
     protected
+
     def netif_labels(server, cfg)
-      {nfs_server: server.name, hostdevice: cfg.netif, ip_address: cfg.address}
+      { nfs_server: server.name, hostdevice: cfg.netif, ip_address: cfg.address }
     end
   end
 end

@@ -6,7 +6,7 @@ module OsCtl
 
     PREFIX = 'keyring.'
 
-    PARAMS = %w(nkeys nikeys qnkeys qnbytes)
+    PARAMS = %w[nkeys nikeys qnkeys qnbytes]
 
     def list_param_names
       PARAMS.map { |v| name_to_cli(v) }
@@ -25,10 +25,11 @@ module OsCtl
       end
     end
 
-    alias_method :add_container_values, :add_values
-    alias_method :add_user_values, :add_values
+    alias add_container_values add_values
+    alias add_user_values add_values
 
     protected
+
     def add_param_values(data, params, precise)
       uid_map = OsCtl::Lib::IdMap.from_hash_list(data[:uid_map])
       key_users = keyring.for_id_map(uid_map)
@@ -38,7 +39,7 @@ module OsCtl
         # key users, we sum them all.
         sum = key_users.inject(0) { |acc, ku| acc + ku.send(param) }
 
-        data[ name_to_cli(param).to_sym ] = param_value(param, sum, precise)
+        data[name_to_cli(param).to_sym] = param_value(param, sum, precise)
       end
     end
 

@@ -11,7 +11,7 @@ class Configuration
   INSTALL_BOOTLOADER = '@installBootLoader@'
 
   class << self
-    %i(boot switch test).each do |m|
+    %i[boot switch test].each do |m|
       define_method(m) { new(dry_run: false).send(m) }
     end
   end
@@ -21,7 +21,7 @@ class Configuration
   end
 
   def initialize(dry_run: true)
-    @opts = {dry_run: dry_run}
+    @opts = { dry_run: }
   end
 
   def dry_run
@@ -68,7 +68,7 @@ class Configuration
       return
     end
 
-    system(INSTALL_BOOTLOADER, OUT) || (fail 'unable to install boot loader')
+    system(INSTALL_BOOTLOADER, OUT) || (raise 'unable to install boot loader')
   end
 
   def switch
@@ -115,10 +115,12 @@ class Configuration
 
   def activate
     return if opts[:dry_run]
+
     system(File.join(OUT, 'activate'))
   end
 
   protected
+
   attr_reader :opts
 
   def osctld_start_config(services)
@@ -139,9 +141,7 @@ class Configuration
 
     dir = '/run/osctl/configs/osctld'
     FileUtils.mkdir_p(dir)
-    File.open(File.join(dir, 'start-config.json'), 'w') do |f|
-      f.write(cfg.to_json)
-    end
+    File.write(File.join(dir, 'start-config.json'), cfg.to_json)
   end
 
   def activate_osctl(services)
@@ -168,6 +168,7 @@ class Services
     end
 
     protected
+
     def parse(path)
       ret = []
 
@@ -195,7 +196,7 @@ class Services
       run_path == other.run_path
     end
 
-    %i(start stop restart).each do |m|
+    %i[start stop restart].each do |m|
       define_method(m) do
         if opts[:skip]
           puts "> skip service #{name}"
@@ -204,9 +205,9 @@ class Services
 
         puts "> sv #{m} #{name}"
 
-        unless opts[:dry_run]
-          system(File.join(Configuration::CURRENT_BIN, 'sv'), m.to_s, name)
-        end
+        return if opts[:dry_run]
+
+        system(File.join(Configuration::CURRENT_BIN, 'sv'), m.to_s, name)
       end
     end
 
@@ -218,9 +219,9 @@ class Services
 
       puts "> sv #{reload_method} #{name}"
 
-      unless opts[:dry_run]
-        system(File.join(Configuration::CURRENT_BIN, 'sv'), reload_method, name)
-      end
+      return if opts[:dry_run]
+
+      system(File.join(Configuration::CURRENT_BIN, 'sv'), reload_method, name)
     end
 
     def skip
@@ -233,7 +234,7 @@ class Services
   end
 
   def initialize(dry_run: true)
-    @opts = {dry_run: dry_run}
+    @opts = { dry_run: }
 
     @old_cfg = read_cfg(File.join(Configuration::CURRENT_SYSTEM, '/services'))
     @new_cfg = read_cfg(File.join(Configuration::OUT, '/services'))
@@ -291,11 +292,8 @@ class Services
   end
 
   protected
-  attr_reader :old_cfg, :new_cfg
-  attr_reader :protected_list
-  attr_reader :old_services, :new_services
-  attr_reader :old_runlevel, :new_runlevel
-  attr_reader :opts
+
+  attr_reader :old_cfg, :new_cfg, :protected_list, :old_services, :new_services, :old_runlevel, :new_runlevel, :opts
 
   # Parse service config
   # @param path [String]
@@ -321,9 +319,8 @@ class Services
           name,
           etc_dir,
           service,
-          opts.merge({skip: protected_list.include?(name)}),
+          opts.merge({ skip: protected_list.include?(name) })
         )
-
       rescue Errno::ENOENT
         warn "service '#{name}' not found"
         next
@@ -338,7 +335,7 @@ class Services
     if cfg['defaultRunlevel'] == old_runlevel
       old_runlevel
 
-    elsif cfg['services'].map { |k,v| v['runlevels']}.flatten.include?(old_runlevel)
+    elsif cfg['services'].map { |_k, v| v['runlevels'] }.flatten.include?(old_runlevel)
       old_runlevel
 
     else
@@ -348,7 +345,7 @@ class Services
 end
 
 class PoolFlags
-  KNOWN_FLAGS = %w(export stop)
+  KNOWN_FLAGS = %w[export stop]
 
   def initialize(string_flags)
     @flags = {}
@@ -388,10 +385,11 @@ class PoolFlags
   end
 
   protected
+
   def set_default_flags
     @flags.update({
       'export' => true,
-      'stop' => true,
+      'stop' => true
     })
   end
 end
@@ -402,7 +400,7 @@ class Pools
   attr_reader :uptodate, :to_upgrade, :to_rollback, :error
 
   def initialize(dry_run: true)
-    @opts = {dry_run: dry_run}
+    @opts = { dry_run: }
 
     @uptodate = []
     @to_upgrade = []
@@ -428,7 +426,7 @@ class Pools
       )
 
       unless ret
-        fail "rollback of pool #{pool.name} failed, cannot proceed"
+        raise "rollback of pool #{pool.name} failed, cannot proceed"
       end
     end
   end
@@ -453,6 +451,7 @@ class Pools
   end
 
   protected
+
   attr_reader :opts, :old_pools, :new_pools
 
   def resolve
@@ -495,22 +494,22 @@ class Pools
       File.join(Configuration::CURRENT_BIN, 'osctl'),
       'pool',
       'export',
-      '-f',
+      '-f'
     ]
 
-    if flags.stop_containers?
-      cmd << '--stop-containers'
-    else
-      cmd << '--no-stop-containers'
-    end
+    cmd << if flags.stop_containers?
+             '--stop-containers'
+           else
+             '--no-stop-containers'
+           end
 
     cmd << pool.name
 
     ret = system(*cmd)
 
-    unless ret
-      fail "export of pool #{pool.name} failed, cannot proceed"
-    end
+    return if ret
+
+    raise "export of pool #{pool.name} failed, cannot proceed"
   end
 
   def check(swbin)
@@ -524,7 +523,6 @@ class Pools
     end
 
     ret
-
   rescue Errno::ENOENT
     # osup isn't available in the to-be-replaced OS version
     {}

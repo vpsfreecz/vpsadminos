@@ -11,12 +11,10 @@ module OsCtld
     def self.load(ct)
       ctrc = new(ct, load_conf: false)
 
-      if ctrc.exist?
-        ctrc.load_conf
-        ctrc
-      else
-        nil
-      end
+      return unless ctrc.exist?
+
+      ctrc.load_conf
+      ctrc
     end
 
     # @return [Container]
@@ -24,7 +22,7 @@ module OsCtld
 
     attr_inclusive_reader :dataset, :distribution, :version, :arch
     attr_synchronized_accessor :cpu_package, :init_pid,
-      :dist_network_configured
+                               :dist_network_configured
 
     # @param ct [Container]
     def initialize(ct, load_conf: true)
@@ -44,15 +42,15 @@ module OsCtld
         desc: 'Container runtime configuration',
         user: 0,
         group: 0,
-        mode: 0400,
-        optional: true,
+        mode: 0o400,
+        optional: true
       )
     end
 
-    %i(
+    %i[
       id ident pool user group uid_map gid_map lxc_dir log_path config_path
       can_dist_configure_network? log_type
-    ).each do |v|
+    ].each do |v|
       define_method(v) do |*args, **kwargs|
         ct.send(v, *args, **kwargs)
       end
@@ -83,7 +81,6 @@ module OsCtld
     # @return [String]
     def rootfs
       File.join(dir, 'private')
-
     rescue SystemCommandFailed
       # Dataset for staged containers does not have to exist yet, relevant
       # primarily for ct show/list
@@ -95,6 +92,7 @@ module OsCtld
     #                        already mounted them
     def mount(force: false)
       return if !force && mounted
+
       dataset.mount(recursive: true)
       self.mounted = true
     end
@@ -112,14 +110,12 @@ module OsCtld
 
     def runtime_rootfs
       pid = init_pid
-      fail 'init_pid not set' unless pid
+      raise 'init_pid not set' unless pid
 
       File.join('/proc', pid.to_s, 'root')
     end
 
-    def aborted=(v)
-      @aborted = v
-    end
+    attr_writer :aborted
 
     def aborted?
       @aborted
@@ -151,7 +147,7 @@ module OsCtld
         'version' => version,
         'arch' => arch,
         'cpu_package' => cpu_package,
-        'destroy_dataset_on_stop' => destroy_dataset_on_stop?,
+        'destroy_dataset_on_stop' => destroy_dataset_on_stop?
       }
     end
 
@@ -188,7 +184,7 @@ module OsCtld
       rescue Errno::EEXIST
       end
 
-      regenerate_file(file_path, 0400) do |new|
+      regenerate_file(file_path, 0o400) do |new|
         new.write(OsCtl::Lib::ConfigFile.dump_yaml(dump))
       end
     end
@@ -199,6 +195,7 @@ module OsCtld
     end
 
     protected
+
     attr_synchronized_accessor :mounted
 
     def dir_path

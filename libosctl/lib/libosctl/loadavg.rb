@@ -22,18 +22,19 @@ module OsCtl::Lib
       [
         @avg[1],
         @avg[5],
-        @avg[15],
+        @avg[15]
       ]
     end
 
     protected
+
     def parse(path)
       parsed = File.read(path).strip.split(' ')
 
       @avg = {
         1 => parsed[0].to_f,
         5 => parsed[1].to_f,
-        15 => parsed[2].to_f,
+        15 => parsed[2].to_f
       }
 
       runnable, total = parsed[3].split('/')

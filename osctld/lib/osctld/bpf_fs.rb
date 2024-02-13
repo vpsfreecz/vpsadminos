@@ -18,7 +18,7 @@ module OsCtld
       extend Forwardable
 
       def_delegators :instance, :setup, :add_pool, :remove_pool, :prog_pin_path,
-        :prog_pinned?, :list_progs, :link_pin_path, :link_pinned?, :list_links
+                     :prog_pinned?, :list_progs, :link_pin_path, :link_pinned?, :list_links
     end
 
     def setup
@@ -45,7 +45,7 @@ module OsCtld
       dir = PROG_DIR
 
       Dir.entries(dir).select do |f|
-        !%w(. ..).include?(f) && File.file?(File.join(dir, f))
+        !%w[. ..].include?(f) && File.file?(File.join(dir, f))
       end
     rescue Errno::ENOENT
       []
@@ -63,13 +63,14 @@ module OsCtld
       dir = File.join(pool_dir(pool_name), 'links')
 
       Dir.entries(dir).select do |f|
-        !%w(. ..).include?(f) && File.file?(File.join(dir, f))
+        !%w[. ..].include?(f) && File.file?(File.join(dir, f))
       end
     rescue Errno::ENOENT
       []
     end
 
     protected
+
     def pool_dir(pool_name)
       File.join(POOL_DIR, pool_name)
     end

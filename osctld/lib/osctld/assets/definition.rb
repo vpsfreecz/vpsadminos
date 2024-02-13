@@ -10,8 +10,8 @@ module OsCtld
         @assets = []
       end
 
-      def asset(type, path, opts = {}, &block)
-        @assets << Assets.for_type(type).new(path, opts, &block)
+      def asset(type, path, opts = {}, &)
+        @assets << Assets.for_type(type).new(path, opts, &)
       end
 
       Assets.types.each do |t|

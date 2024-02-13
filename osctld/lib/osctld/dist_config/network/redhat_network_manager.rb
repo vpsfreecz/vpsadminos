@@ -24,7 +24,7 @@ module OsCtld
     def configure(netifs)
       set_params(
         File.join(rootfs, 'etc/sysconfig/network'),
-        {'NETWORKING' => 'yes'}
+        { 'NETWORKING' => 'yes' }
       )
 
       netifs.each do |netif|
@@ -48,6 +48,7 @@ module OsCtld
     end
 
     protected
+
     def do_create_netif(netif)
       tpl_base = File.join('dist_config/network/redhat_network_manager')
       ct_base = File.join(rootfs, 'etc', 'sysconfig')
@@ -57,22 +58,22 @@ module OsCtld
 
       OsCtld::ErbTemplate.render_to_if_changed(
         File.join(tpl_base, netif.type.to_s, 'ifcfg'),
-        {netif: netif},
+        { netif: },
         ifcfg
       )
 
-      if netif.type == :routed
-        netif.active_ip_versions.each do |ip_v|
-          OsCtld::ErbTemplate.render_to_if_changed(
-            File.join(tpl_base, netif.type.to_s, "route_v#{ip_v}"),
-            {netif: netif},
-            File.join(
-              ct_base,
-              'network-scripts',
-              "route#{ip_v == 6 ? '6' : ''}-#{netif.name}"
-            )
+      return unless netif.type == :routed
+
+      netif.active_ip_versions.each do |ip_v|
+        OsCtld::ErbTemplate.render_to_if_changed(
+          File.join(tpl_base, netif.type.to_s, "route_v#{ip_v}"),
+          { netif: },
+          File.join(
+            ct_base,
+            'network-scripts',
+            "route#{ip_v == 6 ? '6' : ''}-#{netif.name}"
           )
-        end
+        )
       end
     end
 
@@ -106,8 +107,8 @@ module OsCtld
 
       OsCtld::ErbTemplate.render_to_if_changed(
         File.join('dist_config/network/redhat_network_manager/nm_conf'),
-        {netifs: netifs},
-        file,
+        { netifs: },
+        file
       )
     end
 
@@ -120,8 +121,8 @@ module OsCtld
 
       OsCtld::ErbTemplate.render_to_if_changed(
         File.join('dist_config/network/redhat_network_manager/udev_rules'),
-        {netifs: netifs},
-        file,
+        { netifs: },
+        file
       )
     end
   end

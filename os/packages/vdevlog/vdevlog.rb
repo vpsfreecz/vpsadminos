@@ -31,7 +31,7 @@ module VdevLog
         hash['read'],
         hash['write'],
         hash['checksum'],
-        hash['zio_request'] && ZioRequest.from_state(hash['zio_request']),
+        hash['zio_request'] && ZioRequest.from_state(hash['zio_request'])
       )
     end
 
@@ -57,7 +57,7 @@ module VdevLog
         'read' => read,
         'write' => write,
         'checksum' => checksum,
-        'zio_request' => zio_request && zio_request.dump,
+        'zio_request' => zio_request && zio_request.dump
       }
     end
   end
@@ -68,7 +68,7 @@ module VdevLog
       new(
         read: hash['read'],
         write: hash['write'],
-        checksum: hash['checksum'],
+        checksum: hash['checksum']
       )
     end
 
@@ -101,7 +101,7 @@ module VdevLog
       {
         'read' => read,
         'write' => write,
-        'checksum' => checksum,
+        'checksum' => checksum
       }
     end
   end
@@ -113,7 +113,7 @@ module VdevLog
         read: hash['read'],
         write: hash['write'],
         checksum: hash['checksum'],
-        last: hash['last'] && LastErrors.from_state(hash['last']),
+        last: hash['last'] && LastErrors.from_state(hash['last'])
       )
     end
 
@@ -153,7 +153,7 @@ module VdevLog
           [
             errors.read - last.read,
             errors.write - last.write,
-            errors.checksum - last.checksum,
+            errors.checksum - last.checksum
           ]
         end
 
@@ -172,16 +172,17 @@ module VdevLog
         'read' => read,
         'write' => write,
         'checksum' => checksum,
-        'last' => last.dump,
+        'last' => last.dump
       }
     end
 
     protected
+
     attr_reader :last
   end
 
   class ZioRequest
-    ATTRS = %i(
+    ATTRS = %i[
       objset
       object
       level
@@ -196,7 +197,7 @@ module VdevLog
       delay
       timestamp
       delta
-    )
+    ]
 
     def self.from_state(hash)
       kwargs = {}
@@ -289,7 +290,7 @@ module VdevLog
         when 'ereport.fs.zfs.io'
           IOZEvent
         else
-          fail "unsupported zevent class #{env['ZEVENT_CLASS'].inspect}"
+          raise "unsupported zevent class #{env['ZEVENT_CLASS'].inspect}"
         end
 
       klass.new(env)
@@ -313,6 +314,7 @@ module VdevLog
     end
 
     protected
+
     def parse_env(env)
       @eid = env['ZEVENT_EID'].to_i
       @event_class = env['ZEVENT_CLASS']
@@ -338,6 +340,7 @@ module VdevLog
     attr_reader :zio_request
 
     protected
+
     def parse_env(env)
       super
       @vdev_guid = env['ZEVENT_VDEV_GUID'].to_i(16)
@@ -346,7 +349,7 @@ module VdevLog
       @vdev_errors = Errors.new(
         read: env['ZEVENT_VDEV_READ_ERRORS'].to_i,
         write: env['ZEVENT_VDEV_WRITE_ERRORS'].to_i,
-        checksum: env['ZEVENT_VDEV_CKSUM_ERRORS'].to_i,
+        checksum: env['ZEVENT_VDEV_CKSUM_ERRORS'].to_i
       )
       @zio_request = ZioRequest.from_env(env)
     end
@@ -360,7 +363,7 @@ module VdevLog
         ids: hash['ids'],
         paths: hash['paths'],
         state: hash['state'],
-        errors: Errors.from_state(hash['errors']),
+        errors: Errors.from_state(hash['errors'])
       )
     end
 
@@ -392,14 +395,14 @@ module VdevLog
       @errors = errors || Errors.new
     end
 
-    def to_json(*args, **kwargs)
+    def to_json(*, **)
       {
         'guid' => guid,
         'ids' => ids,
         'paths' => paths,
         'state' => state,
-        'errors' => errors.dump,
-      }.to_json(*args, **kwargs)
+        'errors' => errors.dump
+      }.to_json(*, **)
     end
   end
 
@@ -443,10 +446,10 @@ module VdevLog
       mountpoint, mounted = `zfs get -Hp -o value mountpoint,mounted #{pool}`.strip.split
 
       if $?.exitstatus != 0
-        fail "zfs get failed with exit status #{$?.exitstatus}"
+        raise "zfs get failed with exit status #{$?.exitstatus}"
       end
 
-      fail "pool #{pool.inspect} is not mounted" if mounted != 'yes'
+      raise "pool #{pool.inspect} is not mounted" if mounted != 'yes'
 
       @logger = logger
       @pool = pool
@@ -461,7 +464,7 @@ module VdevLog
     def lock(type: File::LOCK_EX)
       make_state_dir
 
-      File.open(@lock_file, File::RDWR|File::CREAT, 0600) do |f|
+      File.open(@lock_file, File::RDWR | File::CREAT, 0o600) do |f|
         f.flock(type)
         yield(self)
       end
@@ -510,12 +513,13 @@ module VdevLog
     end
 
     protected
+
     def add_io_errors(event)
       vdev = @vdevs.detect { |v| v.guid == event.vdev_guid }
 
       if vdev.nil?
         @logger.warn(
-          "Unable to log IO errors from eid=#{event.eid} on vdev pool=#{@pool} "+
+          "Unable to log IO errors from eid=#{event.eid} on vdev pool=#{@pool} " +
           "guid=#{event.vdev_guid} path=#{event.vdev_path}: vdev not found in state file"
         )
         return
@@ -523,7 +527,7 @@ module VdevLog
 
       read, write, checksum = vdev.errors.add(event.vdev_errors)
       @logger.info(
-        "Recording IO errors from eid=#{event.eid} on vdev pool=#{@pool} guid=#{vdev.guid} "+
+        "Recording IO errors from eid=#{event.eid} on vdev pool=#{@pool} guid=#{vdev.guid} " +
         "ids=#{vdev.ids.join(',')} read=#{read} write=#{write} checksum=#{checksum}"
       )
       log << LogEntry.new(event.time, vdev.guid, read, write, checksum, event.zio_request)
@@ -534,14 +538,14 @@ module VdevLog
       replace_file(@state_file) do |f|
         f.write({
           'vdevs' => @vdevs,
-          'log' => @log.map(&:dump),
+          'log' => @log.map(&:dump)
         }.to_json)
       end
     end
 
     def gen_prom_file
       replace_file(@prom_file) do |f|
-        %i(read write checksum).each do |err|
+        %i[read write checksum].each do |err|
           metric = "zfs_vdevlog_vdev_#{err}_errors"
           f.puts("# HELP #{metric} Total number of #{err} errors")
           f.puts("# TYPE #{metric} gauge")
@@ -551,7 +555,7 @@ module VdevLog
               pool: @pool,
               vdev_guid: vdev.guid,
               vdev_id: vdev.ids.first,
-              vdev_state: vdev.state,
+              vdev_state: vdev.state
             }
             f.puts("#{metric}{#{labels.map { |k, v| "#{k}=\"#{v}\"" }.join(',')}} #{vdev.errors.send(err)}")
           end
@@ -559,9 +563,9 @@ module VdevLog
       end
     end
 
-    def replace_file(path)
+    def replace_file(path, &)
       tmp = "#{path}.new"
-      File.open(tmp, 'w') { |f| yield(f) }
+      File.open(tmp, 'w', &)
       File.rename(tmp, path)
     end
 
@@ -594,13 +598,14 @@ module VdevLog
     end
 
     protected
+
     def list_vdevs(read_pools)
       # zdb will list all zpools and their vdevs. One known caveat is that it
       # does not include cache devices. Those are thus not tracked by vdevlog.
       info = `zdb`.strip
 
       if $?.exitstatus != 0
-        fail "zdb exited with #{$?.exitstatus}"
+        raise "zdb exited with #{$?.exitstatus}"
       end
 
       pools = {}
@@ -638,8 +643,8 @@ module VdevLog
         colon = stripped.index(':')
         next if colon.nil?
 
-        k = stripped[0..colon-1]
-        v = stripped[colon+2..-1]
+        k = stripped[0..colon - 1]
+        v = stripped[colon + 2..-1]
 
         next if v.nil?
 
@@ -688,7 +693,7 @@ module VdevLog
       status = `zpool status -g #{pools.keys.join(' ')}`
 
       if $?.exitstatus != 0
-        fail "zpool status exited with #{$?.exitstatus}"
+        raise "zpool status exited with #{$?.exitstatus}"
       end
 
       cur_pool = nil
@@ -702,7 +707,7 @@ module VdevLog
         elsif cur_pool && stripped.start_with?('config:')
           in_config = true
         elsif cur_pool && in_config
-          guid, state, read, write, checksum, _ = stripped.split
+          guid, state, read, write, checksum, = stripped.split
           next unless /^\d+$/ =~ guid
 
           guid_i = guid.to_i
@@ -714,7 +719,7 @@ module VdevLog
           disk.errors = Errors.new(
             read: read.to_i,
             write: write.to_i,
-            checksum: checksum.to_i,
+            checksum: checksum.to_i
           )
         end
       end
@@ -742,7 +747,7 @@ module VdevLog
         symlinks = `udevadm info -q symlink --path=/sys/class/block/#{lookup_name}`.strip.split
 
         if $?.exitstatus != 0
-          fail "udevadm on #{lookup_name.inspect} failed with exit status #{$?.exitstatus}"
+          raise "udevadm on #{lookup_name.inspect} failed with exit status #{$?.exitstatus}"
         end
 
         symlinks.each do |symlink|
@@ -771,7 +776,6 @@ module VdevLog
     def run
       parse_opts
       send(@options[:action])
-
     rescue Exception => e
       if @options[:action] == :run_zedlet
         @logger.fatal("Exception occurred: #{e.message} (#{e.class})")
@@ -781,12 +785,13 @@ module VdevLog
     end
 
     protected
+
     def parse_opts
       @options = {
         action: :run_zedlet,
         verbose: 0,
         record: false,
-        clear: true,
+        clear: true
       }
 
       parser = OptionParser.new do |opts|
@@ -831,11 +836,11 @@ module VdevLog
         exit(false)
       end
 
-      if @options[:action] == :run_zedlet && !@env['ZEVENT_CLASS']
-        warn 'Specify command or invoke by ZED'
-        warn parser
-        exit(false)
-      end
+      return unless @options[:action] == :run_zedlet && !@env['ZEVENT_CLASS']
+
+      warn 'Specify command or invoke by ZED'
+      warn parser
+      exit(false)
     end
 
     def run_list
@@ -856,7 +861,7 @@ module VdevLog
         row_log_nozio_fmt << '%s'
       end
 
-      puts sprintf(
+      puts format(
         header_fmt,
         'POOL',
         'GUID',
@@ -864,52 +869,55 @@ module VdevLog
         'WRITE',
         'CHECKSUM',
         @options[:verbose] > 0 ? 'ID/TIME' : 'ID',
-        *(@options[:verbose] > 1 ? %w(SIZE OFFSET ERR FLAGS BOOKMARK) : [])
+        *(@options[:verbose] > 1 ? %w[SIZE OFFSET ERR FLAGS BOOKMARK] : [])
       )
 
       each_pool do |pool|
         State.read(@logger, pool) do |state|
           log_per_vdev =
-            state.log.inject({}) do |acc, entry|
+            state.log.each_with_object({}) do |entry, acc|
               acc[entry.guid] ||= []
               acc[entry.guid] << entry
-              acc
             end
 
           state.vdevs.each do |vdev|
             next unless vdev.errors.any?
 
-            puts sprintf(
+            puts format(
               row_vdev_fmt,
               pool,
               vdev.guid,
               vdev.errors.read,
               vdev.errors.write,
               vdev.errors.checksum,
-              vdev.ids.first,
+              vdev.ids.first
             )
 
-            if @options[:verbose] > 0
-              log_per_vdev.fetch(vdev.guid, []).each do |entry|
-                zio = entry.zio_request
+            next unless @options[:verbose] > 0
 
-                puts sprintf(
-                  zio ? row_log_fmt : row_log_nozio_fmt,
-                  '',
-                  '',
-                  entry.read,
-                  entry.write,
-                  entry.checksum,
-                  entry.time.to_s,
-                  *(zio && @options[:verbose] > 1 ? [
-                    zio.size,
-                    zio.offset,
-                    zio.err,
-                    "0x#{zio.flags.to_s(16)}",
-                    zio.objset ? [zio.objset, zio.object, zio.level, zio.blkid].join(':') : '-',
-                  ] : [])
-                )
-              end
+            log_per_vdev.fetch(vdev.guid, []).each do |entry|
+              zio = entry.zio_request
+
+              puts format(
+                zio ? row_log_fmt : row_log_nozio_fmt,
+                '',
+                '',
+                entry.read,
+                entry.write,
+                entry.checksum,
+                entry.time.to_s,
+                *(if zio && @options[:verbose] > 1
+                    [
+                      zio.size,
+                      zio.offset,
+                      zio.err,
+                      "0x#{zio.flags.to_s(16)}",
+                      zio.objset ? [zio.objset, zio.object, zio.level, zio.blkid].join(':') : '-'
+                    ]
+                  else
+                    []
+                  end)
+              )
             end
           end
         end
@@ -932,7 +940,7 @@ module VdevLog
                 disk.guid,
                 ids: disk.ids,
                 paths: disk.paths,
-                state: disk.state,
+                state: disk.state
               )
 
               state.vdevs << vdev
@@ -950,10 +958,10 @@ module VdevLog
 
           # Remove obsoleted vdevs
           state.vdevs.delete_if do |vdev|
-            if disks.detect { |v| v.guid == vdev.guid}.nil?
+            if disks.detect { |v| v.guid == vdev.guid }.nil?
               @logger.info(
-                "Removing obsolete vdev pool=#{pool} guid=#{vdev.guid} "+
-                "ids=#{vdev.ids.join(',')} read=#{vdev.errors.read} "+
+                "Removing obsolete vdev pool=#{pool} guid=#{vdev.guid} " +
+                "ids=#{vdev.ids.join(',')} read=#{vdev.errors.read} " +
                 "write=#{vdev.errors.write} checksum=#{vdev.errors.checksum}"
               )
               true
@@ -965,10 +973,8 @@ module VdevLog
           state.install_prom_file(@options[:install]) if @options[:install]
         end
 
-        if @options[:record] && @options[:clear]
-          unless Kernel.system('zpool', 'clear', pool)
-            warn "Failed to clear zpool #{pool}"
-          end
+        if @options[:record] && @options[:clear] && !Kernel.system('zpool', 'clear', pool)
+          warn "Failed to clear zpool #{pool}"
         end
       end
     end
@@ -981,17 +987,17 @@ module VdevLog
       end
     end
 
-    def each_pool(&block)
+    def each_pool(&)
       if @options[:pools].any?
-        @options[:pools].each(&block)
+        @options[:pools].each(&)
       else
         pools = `zpool list -H -o name`.strip.split
 
         if $?.exitstatus != 0
-          fail "zpool list exited with #{$?.exitstatus}"
+          raise "zpool list exited with #{$?.exitstatus}"
         end
 
-        pools.each(&block)
+        pools.each(&)
       end
     end
   end

@@ -25,7 +25,7 @@ module OsCtl::Lib
       :qnkeys,
       :maxkeys,
       :qnbytes,
-      :maxbytes,
+      :maxbytes
     )
 
     def initialize(key_users: '/proc/key-users')
@@ -66,11 +66,12 @@ module OsCtl::Lib
 
     # Iterate over keyring users
     # @yieldparam [KeyUser]
-    def each(&block)
-      @key_users.each_value(&block)
+    def each(&)
+      @key_users.each_value(&)
     end
 
     protected
+
     def parse_key_users(path)
       ret = {}
 
@@ -92,7 +93,7 @@ module OsCtl::Lib
             qnkeys.to_i,
             maxkeys.to_i,
             qnbytes.to_i,
-            maxbytes.to_i,
+            maxbytes.to_i
           )
         end
       end

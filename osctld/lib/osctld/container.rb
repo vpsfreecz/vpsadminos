@@ -21,12 +21,12 @@ module OsCtld
     end
 
     attr_inclusive_reader :pool, :id, :user, :dataset, :group, :distribution,
-      :version, :arch, :autostart, :ephemeral, :hostname, :dns_resolvers,
-      :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams, :cpu_package,
-      :devices, :seccomp_profile, :apparmor, :attrs, :state, :lxc_config,
-      :init_cmd, :start_menu, :raw_configs, :run_conf, :hints
+                          :version, :arch, :autostart, :ephemeral, :hostname, :dns_resolvers,
+                          :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams, :cpu_package,
+                          :devices, :seccomp_profile, :apparmor, :attrs, :state, :lxc_config,
+                          :init_cmd, :start_menu, :raw_configs, :run_conf, :hints
 
-    alias_method :ephemeral?, :ephemeral
+    alias ephemeral? ephemeral
 
     # @param pool [Pool]
     # @param id [String]
@@ -74,17 +74,17 @@ module OsCtld
       @run_conf = nil
       @hints = Container::Hints.new(self)
 
-      if opts[:load]
-        load_opts = {
-          init_devices: !opts.has_key?(:devices) || opts[:devices],
-          dataset_cache: opts[:dataset_cache],
-        }
+      return unless opts[:load]
 
-        if opts[:load_from]
-          load_config_string(opts[:load_from], **load_opts)
-        else
-          load_config_file(config_path, **load_opts)
-        end
+      load_opts = {
+        init_devices: !opts.has_key?(:devices) || opts[:devices],
+        dataset_cache: opts[:dataset_cache]
+      }
+
+      if opts[:load_from]
+        load_config_string(opts[:load_from], **load_opts)
+      else
+        load_config_file(config_path, **load_opts)
       end
     end
 
@@ -120,8 +120,8 @@ module OsCtld
           gidmap: gid_map.map(&:to_a),
           user: root_host_uid,
           group: root_host_gid,
-          mode: 0770,
-          validate_if: mounted?,
+          mode: 0o770,
+          validate_if: mounted?
         )
 
         # Directories and files
@@ -130,8 +130,8 @@ module OsCtld
           desc: "Container's rootfs",
           user: root_host_uid,
           group: root_host_gid,
-          mode_bit_and: 0111, # has all executable bits set
-          validate_if: mounted?,
+          mode_bit_and: 0o111, # has all executable bits set
+          validate_if: mounted?
         )
 
         add.directory(
@@ -139,14 +139,14 @@ module OsCtld
           desc: 'User supplied script hooks',
           user: 0,
           group: 0,
-          mode: 0700
+          mode: 0o700
         )
         add.directory(
           lxc_dir,
           desc: 'LXC configuration',
           user: 0,
           group: user.ugid,
-          mode: 0750
+          mode: 0o750
         )
 
         lxc_config.assets(add)
@@ -156,7 +156,7 @@ module OsCtld
           desc: 'Shell configuration file for osctl ct su',
           user: 0,
           group: 0,
-          mode: 0644
+          mode: 0o644
         )
 
         add.file(
@@ -164,14 +164,14 @@ module OsCtld
           desc: 'Container config for osctld',
           user: 0,
           group: 0,
-          mode: 0400
+          mode: 0o400
         )
         add.file(
           log_path,
           desc: 'LXC log file',
           user: 0,
           group: user.ugid,
-          mode: 0660
+          mode: 0o660
         )
 
         run_conf.assets(add) if run_conf
@@ -250,6 +250,7 @@ module OsCtld
     #                        already mounted them
     def mount(force: false)
       return if !force && mounted
+
       dataset.mount(recursive: true)
       self.mounted = true
     end
@@ -288,7 +289,7 @@ module OsCtld
         devices.check_all_available!(group: grp)
 
       else
-        fail "unsupported action for missing devices: '#{missing_devices}'"
+        raise "unsupported action for missing devices: '#{missing_devices}'"
       end
 
       save_config
@@ -317,11 +318,9 @@ module OsCtld
     # Fetch current container state by forking into it
     # @return [Symbol]
     def current_state
-      begin
-        self.state = ContainerControl::Commands::State.run!(self).state
-      rescue ContainerControl::Error
-        self.state = :error
-      end
+      self.state = ContainerControl::Commands::State.run!(self).state
+    rescue ContainerControl::Error
+      self.state = :error
     end
 
     # Fetch current state if the state is not known, otherwise return the known state
@@ -370,6 +369,7 @@ module OsCtld
     def can_dist_configure_network?
       inclusively do
         next false if netifs.detect { |netif| !netif.can_run_distconfig? }
+
         true
       end
     end
@@ -383,12 +383,11 @@ module OsCtld
     end
 
     def lxc_dir(user: nil, group: nil)
-      inclusively { File.join(lxc_home(user: user, group: group), id) }
+      inclusively { File.join(lxc_home(user:, group:), id) }
     end
 
     def rootfs
       File.join(dir, 'private')
-
     rescue SystemCommandFailed
       # Dataset for staged containers does not have to exist yet, relevant
       # primarily for ct show/list
@@ -428,8 +427,8 @@ module OsCtld
 
     # Iterate over all container datasets
     # @yieldparam ds [OsCtl::Lib::Zfs::Dataset]
-    def each_dataset(&block)
-      datasets.each(&block)
+    def each_dataset(&)
+      datasets.each(&)
     end
 
     def base_cgroup_path
@@ -466,7 +465,7 @@ module OsCtld
         return
       end
 
-      group.find_memory_limit(parents: parents)
+      group.find_memory_limit(parents:)
     end
 
     # @return [Integer, nil] swap limit in bytes
@@ -479,7 +478,7 @@ module OsCtld
         return
       end
 
-      group.find_swap_limit(parents: parents)
+      group.find_swap_limit(parents:)
     end
 
     # @return [Integer, nil] CPU limit in percent (100 % for one CPU)
@@ -492,7 +491,7 @@ module OsCtld
         return
       end
 
-      group.find_cpu_limit(parents: parents)
+      group.find_cpu_limit(parents:)
     end
 
     def set(opts)
@@ -512,7 +511,7 @@ module OsCtld
             @hostname = OsCtl::Lib::Hostname.new(v)
           end
 
-          DistConfig.run(get_run_conf, :set_hostname, original: original)
+          DistConfig.run(get_run_conf, :set_hostname, original:)
 
         when :dns_resolvers
           self.dns_resolvers = v
@@ -541,7 +540,7 @@ module OsCtld
           self.start_menu = Container::StartMenu.new(self, v[:timeout])
 
         when :raw_lxc
-          self.raw_configs.lxc = v
+          raw_configs.lxc = v
 
         when :attrs
           attrs.update(v)
@@ -586,7 +585,7 @@ module OsCtld
           self.start_menu = nil
 
         when :raw_lxc
-          self.raw_configs.lxc = nil
+          raw_configs.lxc = nil
 
         when :attrs
           v.each { |attr| attrs.unset(attr) }
@@ -613,10 +612,10 @@ module OsCtld
       return nil unless running?
 
       begin
-        return ContainerControl::Commands::GetHostname.run!(self)
+        ContainerControl::Commands::GetHostname.run!(self)
       rescue ContainerControl::Error => e
         log(:warn, "Unable to read container hostname: #{e.message}")
-        return nil
+        nil
       end
     end
 
@@ -633,27 +632,27 @@ module OsCtld
     def configure_bashrc
       ErbTemplate.render_to('ct/bashrc', {
         ct: self,
-        override: %w(
+        override: %w[
           attach cgroup console device execute freeze info ls monitor stop top
           unfreeze wait
-        ),
-        disable: %w(
+        ],
+        disable: %w[
           autostart checkpoint clone copy create destroy snapshot
           start-ephemeral unshare
-        ),
+        ]
       }, File.join(lxc_dir, '.bashrc'))
     end
 
     def open_send_log(role, token, opts = {})
       exclusively do
-        self.send_log = SendReceive::Log.new(role: role, token: token, opts: opts)
+        self.send_log = SendReceive::Log.new(role:, token:, opts:)
         save_config
       end
     end
 
     def close_send_log(save: true)
       exclusively do
-        self.send_log.close
+        send_log.close
         self.send_log = nil
         save_config if save
       end
@@ -671,30 +670,30 @@ module OsCtld
       inclusively do
         {
           pool: pool.name,
-          id: id,
+          id:,
           user: user.name,
           group: group.name,
           uid_map: user.uid_map.map(&:to_h),
           gid_map: user.gid_map.map(&:to_h),
           dataset: dataset.name,
-          rootfs: rootfs,
+          rootfs:,
           boot_dataset: run_conf ? run_conf.dataset.name : dataset.name,
           boot_rootfs: run_conf ? run_conf.rootfs : rootfs,
           lxc_path: lxc_home,
-          lxc_dir: lxc_dir,
+          lxc_dir:,
           group_path: cgroup_path,
           distribution: run_conf ? run_conf.distribution : distribution,
           version: run_conf ? run_conf.version : version,
-          state: state,
-          init_pid: init_pid,
+          state:,
+          init_pid:,
           autostart: autostart ? true : false,
           autostart_priority: autostart && autostart.priority,
           autostart_delay: autostart && autostart.delay,
-          ephemeral: ephemeral,
-          hostname: hostname,
-          dns_resolvers: dns_resolvers,
-          nesting: nesting,
-          seccomp_profile: seccomp_profile,
+          ephemeral:,
+          hostname:,
+          dns_resolvers:,
+          nesting:,
+          seccomp_profile:,
           init_cmd: format_user_init_cmd,
           cpu_package_inuse: run_conf ? run_conf.cpu_package : nil,
           cpu_package_set: cpu_package,
@@ -704,7 +703,7 @@ module OsCtld
           start_menu: start_menu ? true : false,
           start_menu_timeout: start_menu && start_menu.timeout,
           raw_lxc: raw_configs.lxc,
-          log_file: log_path,
+          log_file: log_path
         }.merge!(attrs.export)
       end
     end
@@ -729,14 +728,17 @@ module OsCtld
           'hostname' => hostname && hostname.to_s,
           'dns_resolvers' => dns_resolvers,
           'nesting' => nesting,
-          'seccomp_profile' => seccomp_profile == default_seccomp_profile \
-                               ? nil : seccomp_profile,
+          'seccomp_profile' => if seccomp_profile == default_seccomp_profile
+                                 nil
+                               else
+                                 seccomp_profile
+                               end,
           'cpu_package' => cpu_package,
           'init_cmd' => init_cmd,
           'start_menu' => start_menu && start_menu.dump,
           'raw' => raw_configs.dump,
           'attrs' => attrs.dump,
-          'hints' => hints.dump,
+          'hints' => hints.dump
         }
 
         data['state'] = 'staged' if state == :staged
@@ -749,7 +751,7 @@ module OsCtld
     def save_config
       data = dump_config
 
-      File.open(config_path, 'w', 0400) do |f|
+      File.open(config_path, 'w', 0o400) do |f|
         f.write(OsCtl::Lib::ConfigFile.dump_yaml(data))
       end
 
@@ -782,7 +784,7 @@ module OsCtld
     end
 
     def format_exec_init_cmd
-      cmd = (init_cmd || default_init_cmd)
+      cmd = init_cmd || default_init_cmd
       menu = start_menu
 
       if menu
@@ -805,32 +807,31 @@ module OsCtld
     end
 
     protected
+
     attr_exclusive_writer :pool, :id, :user, :dataset, :group, :distribution,
-      :version, :arch, :autostart, :ephemeral, :hostname, :dns_resolvers,
-      :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams, :cpu_package,
-      :devices, :seccomp_profile, :apparmor, :attrs, :lxc_config, :init_cmd,
-      :start_menu
+                          :version, :arch, :autostart, :ephemeral, :hostname, :dns_resolvers,
+                          :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams, :cpu_package,
+                          :devices, :seccomp_profile, :apparmor, :attrs, :lxc_config, :init_cmd,
+                          :start_menu
     attr_synchronized_accessor :mounted
 
-    def load_config_file(path = nil, **opts)
+    def load_config_file(path = nil, **)
       cfg = parse_yaml do
         OsCtl::Lib::ConfigFile.load_yaml_file(path || config_path)
       end
 
-      load_config_hash(cfg, **opts)
+      load_config_hash(cfg, **)
     end
 
-    def load_config_string(str, **opts)
+    def load_config_string(str, **)
       cfg = parse_yaml { OsCtl::Lib::ConfigFile.load_yaml(str) }
-      load_config_hash(cfg, **opts)
+      load_config_hash(cfg, **)
     end
 
     def parse_yaml
-      begin
-        yield
-      rescue Psych::Exception => e
-        raise ConfigError.new("Unable to load config of container #{id}", e)
-      end
+      yield
+    rescue Psych::Exception => e
+      raise ConfigError.new("Unable to load config of container #{id}", e)
     end
 
     def load_config_hash(cfg, init_devices: true, dataset_cache: nil)
@@ -838,28 +839,22 @@ module OsCtld
 
       exclusively do
         @state = cfg['state'].to_sym if cfg['state']
-        @user ||= DB::Users.find(cfg['user'], pool) || (raise ConfigError.new(
-          "container #{id}: user '#{cfg['user']}' not found"
-        ))
-        @group ||= DB::Groups.find(cfg['group'], pool) || (raise ConfigError.new(
-          "container #{id}: group '#{cfg['group']}' not found"
-        ))
+        @user ||= DB::Users.find(cfg['user'], pool) || (raise ConfigError, "container #{id}: user '#{cfg['user']}' not found")
+        @group ||= DB::Groups.find(cfg['group'], pool) || (raise ConfigError, "container #{id}: group '#{cfg['group']}' not found")
 
-        unless @dataset
-          if cfg['dataset']
-            @dataset = OsCtl::Lib::Zfs::Dataset.new(
-              cfg['dataset'],
-              base: cfg['dataset'],
-              cache: dataset_cache,
-            )
-          else
-            @dataset = Container.default_dataset(
-              pool,
-              id,
-              dataset_cache: dataset_cache,
-            )
-          end
-        end
+        @dataset ||= if cfg['dataset']
+                       OsCtl::Lib::Zfs::Dataset.new(
+                         cfg['dataset'],
+                         base: cfg['dataset'],
+                         cache: dataset_cache
+                       )
+                     else
+                       Container.default_dataset(
+                         pool,
+                         id,
+                         dataset_cache:
+                       )
+                     end
 
         @distribution = cfg['distribution']
         @version = cfg['version']
@@ -876,8 +871,6 @@ module OsCtld
         @start_menu =
           if !cfg.has_key?('start_menu') || cfg['start_menu']
             Container::StartMenu.load(self, cfg['start_menu'] || {})
-          else
-            nil
           end
 
         @run_conf = Container::RunConfiguration.load(self)
@@ -916,7 +909,7 @@ module OsCtld
     # @option opts [Group] :group target group, optional
     # @option opts [String] :dataset target dataset, optional
     # @option opts [Boolean] :network_interfaces
-    def clone_from(ct, id, opts = {})
+    def clone_from(_ct, id, opts = {})
       init_lock
       init_manipulable
 
@@ -927,21 +920,21 @@ module OsCtld
       @state = :staged
       @send_log = nil
 
-      if opts[:dataset]
-        @dataset = OsCtl::Lib::Zfs::Dataset.new(
-          opts[:dataset],
-          base: opts[:dataset],
-        )
-      else
-        @dataset = Container.default_dataset(@pool, @id)
-      end
+      @dataset = if opts[:dataset]
+                   OsCtl::Lib::Zfs::Dataset.new(
+                     opts[:dataset],
+                     base: opts[:dataset]
+                   )
+                 else
+                   Container.default_dataset(@pool, @id)
+                 end
 
       @apparmor = @apparmor.dup(self)
-      @autostart = @autostart && @autostart.dup(self)
+      @autostart &&= @autostart.dup(self)
       @cgparams = cgparams.dup(self)
       @prlimits = prlimits.dup(self)
       @mounts = mounts.dup(self)
-      @start_menu = @start_menu && @start_menu.dup(self)
+      @start_menu &&= @start_menu.dup(self)
       @lxc_config = lxc_config.dup(self)
       @raw_configs = raw_configs.dup
       @attrs = attrs.dup

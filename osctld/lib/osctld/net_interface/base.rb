@@ -10,9 +10,7 @@ module OsCtld
       end
     end
 
-    def self.setup
-
-    end
+    def self.setup; end
 
     include Lockable
 
@@ -56,7 +54,7 @@ module OsCtld
           'name' => name,
           'hwaddr' => hwaddr,
           'max_tx' => max_tx,
-          'max_rx' => max_rx,
+          'max_rx' => max_rx
         }
       end
     end
@@ -73,7 +71,7 @@ module OsCtld
         pool: ct.pool.name,
         id: ct.id,
         name: old_name,
-        new_name: new_name,
+        new_name:
       )
     end
 
@@ -91,9 +89,7 @@ module OsCtld
     end
 
     # Initialize the interface on creation / osctld restart
-    def setup
-
-    end
+    def setup; end
 
     # Return variables for template generating LXC configuration for this
     # interface
@@ -103,14 +99,10 @@ module OsCtld
     end
 
     # Called when the interface goes up
-    def up(*_args)
-
-    end
+    def up(*_args); end
 
     # Called when the interface goes down
-    def down(*_args)
-
-    end
+    def down(*_args); end
 
     def is_up?
       raise NotImplementedError
@@ -134,10 +126,14 @@ module OsCtld
 
     # @return [Boolean]
     def has_ip?(addr)
-      ips(addr.ipv4? ? 4 : 6).detect { |v| v == addr } ? true : false
+      if ips(addr.ipv4? ? 4 : 6).detect { |v| v == addr }
+        true
+      else
+        false
+      end
     end
 
-    def can_add_ip?(addr)
+    def can_add_ip?(_addr)
       true
     end
 
@@ -160,6 +156,7 @@ module OsCtld
     end
 
     protected
+
     attr_reader :ct
   end
 end

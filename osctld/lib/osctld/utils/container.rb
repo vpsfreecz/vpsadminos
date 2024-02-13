@@ -30,7 +30,7 @@ module OsCtld
         osctl_repo = OsCtlRepo.new(repo)
 
         begin
-          %i(zfs tar).each do |format|
+          %i[zfs tar].each do |format|
             path = osctl_repo.get_image_path(tpl, format)
             return path if path
           end
@@ -47,13 +47,14 @@ module OsCtld
       tries = 0
 
       begin
-        %w(cpuacct cpuset memory).each do |subsys|
+        %w[cpuacct cpuset memory].each do |subsys|
           CGroup.rmpath(subsys, ct.base_cgroup_path)
         end
       rescue SystemCallError => e
         ct.log(:warn, "Error occurred while pruning cgroups: #{e.message}")
 
         return if tries >= 5
+
         tries += 1
         sleep(0.5)
         retry
