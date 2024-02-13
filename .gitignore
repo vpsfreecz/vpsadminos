@@ -7,5 +7,6 @@ site
 .*.swp
 os/.osvm-qemu
 os/configs/local.nix
+osctld/tmp
 .gems
 shellhook.local.sh

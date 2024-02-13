@@ -1,0 +1,10 @@
+Layout/LineLength:
+  Enabled: false
+
+Lint/UnusedMethodArgument:
+  Enabled: false
+
+Style/ClassVars:
+  Enabled: false
+Style/OptionalBooleanParameter:
+  Enabled: false
