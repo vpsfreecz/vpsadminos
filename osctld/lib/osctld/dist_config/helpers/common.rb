@@ -8,7 +8,7 @@ module OsCtld
     # @yieldparam path [String]
     def writable?(path)
       begin
-        return if (File.stat(path).mode & 0o200) != 0o200
+        return false if (File.stat(path).mode & 0o200) != 0o200
       rescue Errno::ENOENT
         # pass
       end
