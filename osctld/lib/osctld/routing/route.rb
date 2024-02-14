@@ -33,7 +33,7 @@ module OsCtld
       @via = via
       @ip_version = addr.ipv4? ? 4 : 6
       @ip_spec = [addr.to_string]
-      @ip_spec.concat(['via', via.to_s, 'onlink']) if via
+      @ip_spec.push('via', via.to_s, 'onlink') if via
     end
 
     # @param addr [IPAddress::IPv4, IPAddress::IPv6]

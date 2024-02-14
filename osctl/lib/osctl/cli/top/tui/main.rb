@@ -643,21 +643,21 @@ module OsCtl::Cli::Top
     def sortable_fields
       ret = []
       ret << (rt? ? :cpu_usage : :cpu_us)
-      ret.concat([
-                   :memory,
-                   :nproc,
-                   %i[zfsio bytes r],
-                   %i[zfsio ios r],
-                   %i[zfsio bytes w],
-                   %i[zfsio ios w],
-                   %i[tx bytes],
-                   %i[tx packets],
-                   %i[rx bytes],
-                   %i[rx packets],
-                   [:loadavg, 0],
-                   [:loadavg, 1],
-                   [:loadavg, 2]
-                 ])
+      ret.push(
+        :memory,
+        :nproc,
+        %i[zfsio bytes r],
+        %i[zfsio ios r],
+        %i[zfsio bytes w],
+        %i[zfsio ios w],
+        %i[tx bytes],
+        %i[tx packets],
+        %i[rx bytes],
+        %i[rx packets],
+        [:loadavg, 0],
+        [:loadavg, 1],
+        [:loadavg, 2]
+      )
     end
 
     def run_sort

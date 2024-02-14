@@ -8,13 +8,13 @@ module OsCtl::Lib
         '-p', m_opts[:port].to_s
       ]
 
-      ret.concat(['-i', key_chain.private_key_path]) if key_chain
+      ret.push('-i', key_chain.private_key_path) if key_chain
 
-      ret.concat([
-                   '-l', 'osctl-ct-receive',
-                   m_opts[:dst],
-                   *cmd
-                 ])
+      ret.push(
+        '-l', 'osctl-ct-receive',
+        m_opts[:dst],
+        *cmd
+      )
     end
   end
 end
