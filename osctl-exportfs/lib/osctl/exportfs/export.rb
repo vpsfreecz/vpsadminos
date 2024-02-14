@@ -17,7 +17,7 @@ module OsCtl::ExportFS
     attr_reader :options
 
     def self.load(data)
-      new(data.to_h { |k, v| [k.to_sym, v] })
+      new(data.transform_keys { |k| k.to_sym })
     end
 
     # @param export [Hash]

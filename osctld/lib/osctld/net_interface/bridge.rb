@@ -44,7 +44,7 @@ module OsCtld
         super.merge({
           'link' => link,
           'dhcp' => dhcp,
-          'gateways' => gateways.any? ? gateways.to_h { |k, v| ["v#{k}", v] } : nil
+          'gateways' => gateways.any? ? gateways.transform_keys { |k| "v#{k}" } : nil
         })
       end
     end

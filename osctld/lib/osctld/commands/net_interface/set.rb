@@ -44,7 +44,7 @@ module OsCtld
       ret[:dhcp] = opts[:dhcp] if opts.has_key?(:dhcp)
 
       if opts[:gateways]
-        ret[:gateways] = opts[:gateways].to_h { |k, v| [k.to_s.to_i, v] }
+        ret[:gateways] = opts[:gateways].transform_keys { |k| k.to_s.to_i }
       end
 
       ret
