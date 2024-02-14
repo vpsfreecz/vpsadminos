@@ -66,7 +66,7 @@ module TestRunner
     attr_reader :test, :config, :opts
 
     def test_script
-      binding.eval(config[:testScript])
+      binding.eval(config[:testScript]) # rubocop:disable Security/Eval
     end
 
     def do_run
