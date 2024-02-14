@@ -45,12 +45,12 @@ module OsCtl::Lib::Cli
       if cols
         @cols = parse_cols(cols)
 
-      elsif @objects.is_a?(::Array)
+      elsif @objects.is_a?(::Array) # A list of items
         if @objects.count == 0
           @cols = []
         else
           @cols ||= parse_cols(@objects.first.keys)
-        end # A list of items
+        end
 
       elsif @objects.is_a?(::Hash) # Single item
         @cols ||= parse_cols(@objects.keys)
