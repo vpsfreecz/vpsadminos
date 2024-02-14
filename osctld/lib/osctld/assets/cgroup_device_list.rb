@@ -10,7 +10,7 @@ module OsCtld
 
     # @param opts [Hash] options
     # @option opts [Array<Devices::Device>] devices
-    def initialize(cgroup_path, opts)
+    def initialize(cgroup_path, opts) # rubocop:disable all
       super
     end
 

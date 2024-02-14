@@ -12,7 +12,7 @@ module OsCtld
     # @option opts [String] attach_type
     # @option opts [String] attach_flags
     # @option opts [Boolean] optional
-    def initialize(cgroup_path, opts)
+    def initialize(cgroup_path, opts) # rubocop:disable all
       super
     end
 

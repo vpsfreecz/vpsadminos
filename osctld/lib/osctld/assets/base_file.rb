@@ -10,7 +10,7 @@ module OsCtld
     # @option opts [Integer, nil] mode
     # @option opts [Integer, nil] mode_bit_and
     # @option opts [Boolean] optional
-    def initialize(path, opts)
+    def initialize(path, opts) # rubocop:disable all
       super
     end
 
