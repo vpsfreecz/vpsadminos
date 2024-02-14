@@ -1,7 +1,10 @@
 require 'fileutils'
+require 'libosctl'
 
 module OsCtl::Repo
   class Local::Repository
+    include OsCtl::Lib::Utils::File
+
     attr_reader :path
 
     def initialize(path)
@@ -44,8 +47,8 @@ module OsCtl::Repo
 
           File.unlink(path)
 
-        elsif File.exist?(path)
-          File.unlink(path)
+        else
+          unlink_if_exists(path)
         end
 
         File.symlink(t.version, path)
@@ -126,8 +129,8 @@ module OsCtl::Repo
 
         File.unlink(path)
 
-      elsif File.exist?(path)
-        File.unlink(path)
+      else
+        unlink_if_exists(path)
       end
 
       File.symlink(target_name, path)
