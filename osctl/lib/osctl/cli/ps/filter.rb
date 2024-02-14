@@ -85,12 +85,10 @@ module OsCtl::Cli
 
         value = str_rule[(i + op.size)..]
         ret_value =
-          if is_num
+          if is_num || is_time
             value.to_i
           elsif is_data
             parse_data(value)
-          elsif is_time
-            value.to_i
           elsif %i[=~ !~].include?(ret_op)
             Regexp.new(value)
           else

@@ -139,15 +139,10 @@ module OsCtld
         st = File.stat(f.path)
         File.unlink(f.path)
 
-        mapped = false
-
-        if opts[:uid_map] && st.uid == opts[:uid_map].ns_to_host(0)
-          mapped = true
-        elsif opts[:gid_map] && st.gid == opts[:gid_map].ns_to_host(0)
-          mapped = true
+        if (opts[:uid_map] && st.uid == opts[:uid_map].ns_to_host(0)) \
+           || (opts[:gid_map] && st.gid == opts[:gid_map].ns_to_host(0))
+          return
         end
-
-        return if mapped
 
         zfs(:unmount, nil, ds)
         sleep(1 + i)

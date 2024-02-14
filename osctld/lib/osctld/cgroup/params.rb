@@ -325,21 +325,14 @@ module OsCtld
 
     def reset_value(param)
       case param.name
-      when 'cpu.cfs_quota_us'
+      when 'cpu.cfs_quota_us', 'memory.limit_in_bytes', 'memory.memsw.limit_in_bytes'
         [-1]
 
-      when 'cpu.max'
+      when 'cpu.max', 'memory.high', 'memory.max'
         ['max']
-
-      when 'memory.limit_in_bytes', 'memory.memsw.limit_in_bytes'
-        [-1]
 
       when 'memory.min', 'memory.low'
         [0]
-
-      when 'memory.high', 'memory.max'
-        ['max']
-
       end
     end
   end

@@ -41,6 +41,8 @@ module OsCtld
           a_conf = a.run_conf
           b_conf = b.run_conf
 
+          # rubocop:disable Lint/DuplicateBranch
+          #
           # Stop running containers first
           if a_conf && !b_conf
             -1
@@ -73,6 +75,8 @@ module OsCtld
           else
             a_conf.cpu_package <=> b_conf.cpu_package
           end
+
+          # rubocop:enable Lint/DuplicateBranch
         end
       else
         log(:info, 'Using priority auto-stop')

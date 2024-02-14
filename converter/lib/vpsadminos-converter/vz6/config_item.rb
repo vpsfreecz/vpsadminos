@@ -43,6 +43,8 @@ module VpsAdminOS::Converter
     protected
 
     def parse(ctid, v)
+      # rubocop:disable Lint/DuplicateBranch
+
       case key
       # Miscellaneous
       when 'NAME', 'DESCRIPTION', 'OSTEMPLATE', 'MOUNT_OPTS', 'ORIGIN_SAMPLE',
@@ -90,6 +92,8 @@ module VpsAdminOS::Converter
       else
         v
       end
+
+      # rubocop:enable Lint/DuplicateBranch
     end
 
     def parse_list(v)

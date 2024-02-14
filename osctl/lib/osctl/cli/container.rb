@@ -1343,9 +1343,6 @@ module OsCtl::Cli
       elsif opts[:ro]
         mode = 'ro'
 
-      elsif opts[:rw]
-        mode = 'rw'
-
       else
         mode = 'rw'
       end
@@ -1638,9 +1635,7 @@ module OsCtl::Cli
 
       if v_i < 0
         raise GLI::BadCommandLine, 'invalid value for --wait'
-      elsif v_i == 0
-        false
-      elsif opts[:foreground]
+      elsif v_i == 0 || opts[:foreground]
         false
       else
         v_i

@@ -332,10 +332,8 @@ class Services
 
   # Return target runlevel
   def get_runlevel(cfg, old_runlevel)
-    if cfg['defaultRunlevel'] == old_runlevel
-      old_runlevel
-
-    elsif cfg['services'].map { |_k, v| v['runlevels'] }.flatten.include?(old_runlevel)
+    if cfg['defaultRunlevel'] == old_runlevel \
+        || cfg['services'].map { |_k, v| v['runlevels'] }.flatten.include?(old_runlevel)
       old_runlevel
 
     else

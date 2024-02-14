@@ -73,7 +73,7 @@ module OsCtld
               a.autostart <=> b.autostart
 
             # Same CPU package, sort by start priority
-            elsif a_package == b_package
+            elsif a_package == b_package # rubocop:disable Lint/DuplicateBranch
               a.autostart <=> b.autostart
 
             # Sort by CPU package, higher package first
