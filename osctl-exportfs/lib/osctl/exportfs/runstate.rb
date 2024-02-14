@@ -1,7 +1,7 @@
 module OsCtl::ExportFS
   module RunState
     # Root directory for osctl-exportfs
-    DIR = '/run/osctl/exportfs'
+    DIR = '/run/osctl/exportfs'.freeze
 
     # Directory that the host's runsvdir is run with, used for NFS server
     # services

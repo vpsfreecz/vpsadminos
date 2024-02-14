@@ -17,7 +17,7 @@ module OsCtld
       rx_queues
       max_tx
       max_rx
-    ]
+    ].freeze
 
     def execute
       ret = []

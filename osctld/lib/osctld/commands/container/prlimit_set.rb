@@ -20,7 +20,7 @@ module OsCtld
       rttime
       sigpending
       stack
-    ]
+    ].freeze
 
     def find
       ct = DB::Containers.find(opts[:id], opts[:pool])

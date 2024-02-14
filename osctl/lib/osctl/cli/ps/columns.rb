@@ -22,7 +22,7 @@ module OsCtl::Cli
       time
       command
       name
-    ]
+    ].freeze
 
     DEFAULT_ONE_CT = %i[
       pid
@@ -34,7 +34,7 @@ module OsCtl::Cli
       start
       time
       command
-    ]
+    ].freeze
 
     DEFAULT_ONE_POOL = %i[ctid] + DEFAULT_ONE_CT
 
@@ -53,7 +53,7 @@ module OsCtl::Cli
       vmsize
       rss
       time
-    ]
+    ].freeze
 
     # @param process_list <OsCtl::Lib::ProcessList>
     # @param cols [Array<Symbol>]

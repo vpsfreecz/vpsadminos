@@ -1,6 +1,6 @@
 module OsCtld
   class Mount::Entry
-    PARAMS = %i[fs mountpoint type opts automount dataset temp]
+    PARAMS = %i[fs mountpoint type opts automount dataset temp].freeze
     attr_reader :mountpoint, :type, :opts, :automount, :dataset, :temp, :in_config
 
     # Load from config

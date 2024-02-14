@@ -8,7 +8,7 @@ module OsCtl::Cli
       type
       state
       backtrace
-    ]
+    ].freeze
 
     def locks_ls
       data = osctld_call(:debug_lock_registry)

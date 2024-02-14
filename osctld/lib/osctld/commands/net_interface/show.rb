@@ -11,7 +11,7 @@ module OsCtld
       link
       dhcp
       veth
-    ]
+    ].freeze
 
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])

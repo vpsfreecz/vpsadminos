@@ -4,9 +4,9 @@ module OsCtl
   class Cli::KernelKeyring
     include OsCtl::Lib::Utils::Humanize
 
-    PREFIX = 'keyring.'
+    PREFIX = 'keyring.'.freeze
 
-    PARAMS = %w[nkeys nikeys qnkeys qnbytes]
+    PARAMS = %w[nkeys nikeys qnkeys qnbytes].freeze
 
     def list_param_names
       PARAMS.map { |v| name_to_cli(v) }

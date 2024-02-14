@@ -10,7 +10,7 @@ module OsCtld
     include Manipulable
     include Assets::Definition
 
-    USER = 'repository'
+    USER = 'repository'.freeze
     UID = Etc.getpwnam(USER).uid
 
     attr_reader :pool, :name, :url, :attrs

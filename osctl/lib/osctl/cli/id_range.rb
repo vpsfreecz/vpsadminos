@@ -5,9 +5,9 @@ module OsCtl::Cli
     include Assets
     include Attributes
 
-    FIELDS = %i[pool name start_id last_id block_size block_count allocated free]
+    FIELDS = %i[pool name start_id last_id block_size block_count allocated free].freeze
 
-    TABLE_FIELDS = %i[type block_index block_count owner first_id last_id id_count]
+    TABLE_FIELDS = %i[type block_index block_count owner first_id last_id id_count].freeze
 
     def list
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(

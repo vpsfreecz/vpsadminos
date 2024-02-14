@@ -3,7 +3,7 @@ require 'libosctl'
 
 module OsCtl::ExportFS
   class CGroup
-    FS = '/sys/fs/cgroup'
+    FS = '/sys/fs/cgroup'.freeze
 
     # @return [String]
     attr_reader :path

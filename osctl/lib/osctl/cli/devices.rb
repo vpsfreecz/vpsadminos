@@ -8,7 +8,7 @@ module OsCtl
       name
       inherit
       inherited
-    ]
+    ].freeze
 
     def do_device_list(cmd, cmd_opts)
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(

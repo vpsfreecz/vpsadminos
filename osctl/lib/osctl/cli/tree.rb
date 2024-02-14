@@ -15,7 +15,7 @@ module OsCtl::Cli
         leaf: '└── ',
         continuation: '│   '
       }
-    }
+    }.freeze
 
     include OsCtl::Lib::Utils::Humanize
     include CGroupParams

@@ -2,9 +2,9 @@ require 'json'
 
 module OsCtl::Exporter
   class Formats::Json
-    MEDIA_TYPE   = 'application/json'
-    VERSION      = '0.0.1'
-    CONTENT_TYPE = "#{MEDIA_TYPE}; version=#{VERSION}"
+    MEDIA_TYPE   = 'application/json'.freeze
+    VERSION      = '0.0.1'.freeze
+    CONTENT_TYPE = "#{MEDIA_TYPE}; version=#{VERSION}".freeze
 
     def self.marshal(registry)
       registry.metrics.each_with_object({}) do |metric, ret|

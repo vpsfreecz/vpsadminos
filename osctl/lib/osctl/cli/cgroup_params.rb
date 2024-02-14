@@ -9,17 +9,17 @@ module OsCtl
       value
       group
       abs_path
-    ]
+    ].freeze
 
     CGPARAM_FILTERS = %i[
       subsystem
-    ]
+    ].freeze
 
     CGPARAM_DEFAULT_FIELDS = %i[
       version
       parameter
       value
-    ]
+    ].freeze
 
     CGPARAM_STATS = %i[
       memory
@@ -32,7 +32,7 @@ module OsCtl
       cpu_user_hz
       cpu_system_hz
       nproc
-    ]
+    ].freeze
 
     def do_cgparam_list(cmd, cmd_opts)
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(

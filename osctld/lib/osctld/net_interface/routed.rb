@@ -8,7 +8,7 @@ module OsCtld
     extend OsCtl::Lib::Utils::System
     extend Utils::Ip
 
-    INTERFACE = 'osrtr0'
+    INTERFACE = 'osrtr0'.freeze
     DEFAULT_IPV4 = IPAddress.parse('255.255.255.254/32')
 
     def self.setup

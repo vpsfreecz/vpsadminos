@@ -2,7 +2,7 @@ require 'osctld/lockable'
 
 module OsCtld
   class Container::RawConfigs
-    KEYS = %i[lxc]
+    KEYS = %i[lxc].freeze
 
     include Lockable
 

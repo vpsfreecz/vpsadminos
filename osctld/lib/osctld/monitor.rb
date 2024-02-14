@@ -9,6 +9,6 @@ module OsCtld
       freezing
       frozen
       thawed
-    ]
+    ].freeze
   end
 end

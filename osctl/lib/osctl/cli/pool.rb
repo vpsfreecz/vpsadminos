@@ -11,7 +11,7 @@ module OsCtl::Cli
       containers
       parallel_start
       parallel_stop
-    ]
+    ].freeze
 
     DEFAULT_FIELDS = %i[
       name
@@ -20,12 +20,12 @@ module OsCtl::Cli
       users
       groups
       containers
-    ]
+    ].freeze
 
     AUTOSTART_FIELDS = %i[
       id
       priority
-    ]
+    ].freeze
 
     include Assets
     include Attributes

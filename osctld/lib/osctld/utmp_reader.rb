@@ -31,7 +31,7 @@ module OsCtld
         user_process
         dead_process
         accounting
-      ]
+      ].freeze
 
       endian :little
 

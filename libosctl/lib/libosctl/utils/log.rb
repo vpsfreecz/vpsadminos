@@ -1,7 +1,7 @@
 module OsCtl::Lib
   module Utils::Log
     module PrivateMethods
-      LEVELS = %i[debug info warn error fatal unknown]
+      LEVELS = %i[debug info warn error fatal unknown].freeze
 
       def self.log(level, type, msg)
         Logger.log(

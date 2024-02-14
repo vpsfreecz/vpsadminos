@@ -18,7 +18,7 @@ module OsCtl
       'refreserv' => 'refreservation',
       'reserv' => 'reservation',
       'volsize' => 'volblocksize'
-    }
+    }.freeze
 
     def list_property_names
       zpools = `zpool list -H -o name`.strip.split("\n")

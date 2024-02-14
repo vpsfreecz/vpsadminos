@@ -5,7 +5,7 @@ module OsCtl::Lib
   class SysConf
     include Singleton
 
-    VALUES = %i[page_size tics_per_second]
+    VALUES = %i[page_size tics_per_second].freeze
 
     class << self
       VALUES.each do |v|

@@ -6,7 +6,7 @@ module OsCtld
   # can proceed, stores names of snapshots created during the send and
   # other settings.
   class SendReceive::Log
-    STATES = %i[stage base incremental transfer cleanup]
+    STATES = %i[stage base incremental transfer cleanup].freeze
 
     class Options
       def self.load(cfg)

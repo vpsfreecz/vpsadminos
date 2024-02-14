@@ -5,7 +5,7 @@ module OsCtl::Cli
   class Self < Command
     include Assets
 
-    SHUTDOWN_MARKER = '/run/osctl/shutdown'
+    SHUTDOWN_MARKER = '/run/osctl/shutdown'.freeze
 
     def assets
       print_assets(:self_assets)

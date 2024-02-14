@@ -5,9 +5,9 @@ module OsCtl::Cli
     include Assets
     include Attributes
 
-    FIELDS = %i[pool name url enabled]
-    IMAGE_FIELDS = %i[vendor variant arch distribution version tags cached]
-    IMAGE_FILTERS = %i[vendor variant arch distribution version tag cached]
+    FIELDS = %i[pool name url enabled].freeze
+    IMAGE_FIELDS = %i[vendor variant arch distribution version tags cached].freeze
+    IMAGE_FILTERS = %i[vendor variant arch distribution version tag cached].freeze
 
     def list
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(

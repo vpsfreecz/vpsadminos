@@ -58,7 +58,7 @@ module OsCtl::Cli
       distribution
       version
       state
-    ]
+    ].freeze
 
     DEFAULT_FIELDS = %i[
       pool
@@ -71,18 +71,18 @@ module OsCtl::Cli
       init_pid
       memory
       cpu_us
-    ]
+    ].freeze
 
     PRLIMIT_FIELDS = %i[
       name
       soft
       hard
-    ]
+    ].freeze
 
     DATASET_FIELDS = %i[
       name
       dataset
-    ]
+    ].freeze
 
     MOUNT_FIELDS = %i[
       fs
@@ -92,7 +92,7 @@ module OsCtl::Cli
       opts
       automount
       temporary
-    ]
+    ].freeze
 
     def list
       c = osctld_open

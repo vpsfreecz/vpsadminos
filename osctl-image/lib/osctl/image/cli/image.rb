@@ -4,9 +4,9 @@ require 'osctl/image/cli/command'
 
 module OsCtl::Image
   class Cli::Image < Cli::Command
-    BUILD_SCRIPTS_DIR = '/etc/vpsadminos-image-scripts'
+    BUILD_SCRIPTS_DIR = '/etc/vpsadminos-image-scripts'.freeze
 
-    FIELDS = %i[name distribution version arch vendor variant]
+    FIELDS = %i[name distribution version arch vendor variant].freeze
 
     def list
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(

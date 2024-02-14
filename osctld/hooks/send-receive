@@ -3,7 +3,7 @@ require 'json'
 require 'socket'
 
 class SendReceive
-  COMMANDS = %w[skel base incremental transfer cancel]
+  COMMANDS = %w[skel base incremental transfer cancel].freeze
 
   def initialize(pool, key_name, cmdline, connection)
     @key_pool = pool

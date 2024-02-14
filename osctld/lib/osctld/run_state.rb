@@ -1,6 +1,6 @@
 module OsCtld
   module RunState
-    RUNDIR = '/run/osctl'
+    RUNDIR = '/run/osctl'.freeze
     POOL_DIR = File.join(RUNDIR, 'pools')
     USER_CONTROL_DIR = File.join(RUNDIR, 'user-control')
     SEND_RECEIVE_DIR = File.join(RUNDIR, 'send-receive')

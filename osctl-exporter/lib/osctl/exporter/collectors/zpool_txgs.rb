@@ -3,9 +3,9 @@ require 'libosctl'
 
 module OsCtl::Exporter
   class Collectors::ZpoolTxgs < Collectors::Base
-    TIMES = %i[otime qtime wtime stime]
-    BYTES = %i[ndirty nread nwritten]
-    OPERATIONS = %i[reads writes]
+    TIMES = %i[otime qtime wtime stime].freeze
+    BYTES = %i[ndirty nread nwritten].freeze
+    OPERATIONS = %i[reads writes].freeze
 
     def setup
       add_metric(

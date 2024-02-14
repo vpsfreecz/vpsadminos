@@ -2,7 +2,7 @@ require 'libosctl'
 
 module OsUp
   class PoolMigrations
-    FILE = '/.migrations'
+    FILE = '/.migrations'.freeze
 
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System

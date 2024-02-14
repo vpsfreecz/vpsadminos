@@ -2,7 +2,7 @@ require 'libosctl'
 
 module OsCtl::Cli
   class Ps::Filter
-    OPERANDS = %w[=~ !~ != >= <= = > <]
+    OPERANDS = %w[=~ !~ != >= <= = > <].freeze
 
     NUMERIC = %i[
       pid
@@ -15,17 +15,17 @@ module OsCtl::Cli
       ctrgid
       cteuid
       ctegid
-    ]
+    ].freeze
 
     BYTES = %i[
       vmsize
       rss
-    ]
+    ].freeze
 
     TIMES = %i[
       start
       time
-    ]
+    ].freeze
 
     STRINGS = %i[
       pool
@@ -33,7 +33,7 @@ module OsCtl::Cli
       state
       command
       name
-    ]
+    ].freeze
 
     ALL_PARAMS = NUMERIC + BYTES + TIMES + STRINGS
 

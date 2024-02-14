@@ -2,7 +2,7 @@ require 'osctl/exportfs/operations/base'
 
 module OsCtl::ExportFS
   class Operations::Server::CGroup < Operations::Base
-    PATH = 'osctl/exportfs/server'
+    PATH = 'osctl/exportfs/server'.freeze
 
     # @param server [Server]
     def initialize(server)

@@ -5,7 +5,7 @@ require 'optparse'
 require 'securerandom'
 
 class Config
-  JSON_CONFIG = '@json_config@'
+  JSON_CONFIG = '@json_config@'.freeze
 
   # @return [Array<Image>]
   attr_reader :images

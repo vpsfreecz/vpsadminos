@@ -10,17 +10,17 @@ module OsCtld
   # Data pool contains users, groups and containers, both data
   # and configuration. Each user/group/ct belongs to exactly one pool.
   class Pool
-    PROPERTY_ACTIVE = 'org.vpsadminos.osctl:active'
-    PROPERTY_DATASET = 'org.vpsadminos.osctl:dataset'
-    CT_DS = 'ct'
-    CONF_DS = 'conf'
-    HOOK_DS = 'hook'
-    LOG_DS = 'log'
-    REPOSITORY_DS = 'repository'
-    MIGRATION_DS = 'migration'
-    TRASH_BIN_DS = 'trash'
+    PROPERTY_ACTIVE = 'org.vpsadminos.osctl:active'.freeze
+    PROPERTY_DATASET = 'org.vpsadminos.osctl:dataset'.freeze
+    CT_DS = 'ct'.freeze
+    CONF_DS = 'conf'.freeze
+    HOOK_DS = 'hook'.freeze
+    LOG_DS = 'log'.freeze
+    REPOSITORY_DS = 'repository'.freeze
+    MIGRATION_DS = 'migration'.freeze
+    TRASH_BIN_DS = 'trash'.freeze
 
-    OPTIONS = %i[parallel_start parallel_stop]
+    OPTIONS = %i[parallel_start parallel_stop].freeze
 
     include Lockable
     include Manipulable

@@ -3,12 +3,12 @@ require 'fileutils'
 require 'json'
 
 class Configuration
-  OUT = '@out@'
+  OUT = '@out@'.freeze
   ETC = File.join(OUT, 'etc')
-  CURRENT_SYSTEM = '/run/current-system'
+  CURRENT_SYSTEM = '/run/current-system'.freeze
   CURRENT_BIN = File.join(CURRENT_SYSTEM, 'sw/bin')
   NEW_BIN = File.join(OUT, 'sw', 'bin')
-  INSTALL_BOOTLOADER = '@installBootLoader@'
+  INSTALL_BOOTLOADER = '@installBootLoader@'.freeze
 
   class << self
     %i[boot switch test].each do |m|
@@ -345,7 +345,7 @@ class Services
 end
 
 class PoolFlags
-  KNOWN_FLAGS = %w[export stop]
+  KNOWN_FLAGS = %w[export stop].freeze
 
   def initialize(string_flags)
     @flags = {}

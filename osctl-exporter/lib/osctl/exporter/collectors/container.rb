@@ -19,7 +19,7 @@ module OsCtl::Exporter
       thawed
       aborting
       error
-    ]
+    ].freeze
 
     def setup
       @mutex = Mutex.new

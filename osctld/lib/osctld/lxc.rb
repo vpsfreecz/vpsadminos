@@ -2,7 +2,7 @@ require 'fileutils'
 
 module OsCtld
   module Lxc
-    CONFIGS = '/run/osctl/configs/lxc'
+    CONFIGS = '/run/osctl/configs/lxc'.freeze
 
     def self.dist_name(dist)
       case dist

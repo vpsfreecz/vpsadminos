@@ -3,7 +3,7 @@ require 'libosctl'
 
 module OsCtl::ExportFS::Cli
   class Server < Command
-    FIELDS = %i[server state netif address]
+    FIELDS = %i[server state netif address].freeze
 
     def list
       if opts[:list]

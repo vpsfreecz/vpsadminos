@@ -4,7 +4,7 @@ module OsCtl::Lib
     # This file contains a list of load averages from first-level cgroup namespaces
     #
     # Available only on vpsAdminOS
-    FILE = '/proc/vpsadminos/loadavg'
+    FILE = '/proc/vpsadminos/loadavg'.freeze
 
     LoadAvg = Struct.new(:pool_name, :ctid, :avg, :runnable, :total) do
       def ident

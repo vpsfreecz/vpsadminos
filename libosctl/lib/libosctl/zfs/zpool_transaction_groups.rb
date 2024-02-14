@@ -1,7 +1,7 @@
 module OsCtl::Lib
   # Read interface to /proc/spl/kstat/zfs/<pool>/txgs
   class Zfs::ZpoolTransactionGroups
-    PROC_PATH = '/proc/spl/kstat/zfs'
+    PROC_PATH = '/proc/spl/kstat/zfs'.freeze
 
     STATES = {
       'B' => :birth,
@@ -11,7 +11,7 @@ module OsCtl::Lib
       'S' => :synced,
       'C' => :committed,
       '?' => :unknown
-    }
+    }.freeze
 
     # @!attribute [r] pool
     #   @return [String] Pool name

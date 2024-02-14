@@ -1,6 +1,6 @@
 module OsCtl::ExportFS
   class Config::Nfsd
-    VERSIONS = %w[3 4 4.0 4.1 4.2]
+    VERSIONS = %w[3 4 4.0 4.1 4.2].freeze
 
     # @return [Integer, nil]
     attr_accessor :port

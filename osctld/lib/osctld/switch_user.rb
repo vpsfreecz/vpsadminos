@@ -16,7 +16,7 @@ module OsCtld
       /run/current-system/profile/sbin
       /var/guix/profiles/system/profile/bin
       /var/guix/profiles/system/profile/sbin
-    ]
+    ].freeze
 
     # Fork into a new process
     #

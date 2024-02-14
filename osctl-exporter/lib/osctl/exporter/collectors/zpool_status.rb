@@ -5,11 +5,11 @@ module OsCtl::Exporter
   class Collectors::ZpoolStatus < Collectors::Base
     include OsCtl::Lib::Utils::Log
 
-    POOL_STATES = %i[online degraded suspended faulted]
+    POOL_STATES = %i[online degraded suspended faulted].freeze
 
-    SCAN_TYPES = %i[none scrub resilver]
+    SCAN_TYPES = %i[none scrub resilver].freeze
 
-    VDEV_STATES = %i[degraded faulted offline online removed avail unavail]
+    VDEV_STATES = %i[degraded faulted offline online removed avail unavail].freeze
 
     def setup
       @zpool_status_success = registry.gauge(

@@ -8,7 +8,7 @@ module OsCtld
     extend OsCtl::Lib::Utils::System
 
     # Paths where `apparmor_parser` searches for configuration files
-    PATHS = [RunState::APPARMOR_DIR]
+    PATHS = [RunState::APPARMOR_DIR].freeze
 
     def self.enabled?
       if @enabled.nil?

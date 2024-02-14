@@ -4,13 +4,13 @@ require 'svctl/item_file'
 
 module SvCtl
   # Directory with runlevels
-  RUNSVDIR = '/etc/runit/runsvdir'
+  RUNSVDIR = '/etc/runit/runsvdir'.freeze
 
   # Directory with available services
-  SERVICE_DIR = '/etc/runit/services'
+  SERVICE_DIR = '/etc/runit/services'.freeze
 
   # A list of protected services
-  PROTECTED_SERVICES_FILE = '/run/runit/protected-services.txt'
+  PROTECTED_SERVICES_FILE = '/run/runit/protected-services.txt'.freeze
 
   # List all available services
   # @return [Array<Service>]

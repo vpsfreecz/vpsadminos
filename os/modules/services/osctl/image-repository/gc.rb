@@ -18,7 +18,7 @@
 require 'json'
 
 class GarbageCollector
-  OSCTL_REPO = '@osctlRepo@/bin/osctl-repo'
+  OSCTL_REPO = '@osctlRepo@/bin/osctl-repo'.freeze
 
   def initialize(config)
     @matchers = {}

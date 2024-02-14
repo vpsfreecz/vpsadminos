@@ -3,7 +3,7 @@ require 'json'
 
 module OsCtl
   class Console
-    END_SEQ = ["\x01", 'q']
+    END_SEQ = ["\x01", 'q'].freeze
 
     def self.open(socket, input, output)
       c = new(socket, input, output)

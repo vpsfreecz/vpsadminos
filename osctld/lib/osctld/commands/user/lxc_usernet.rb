@@ -4,7 +4,7 @@ module OsCtld
   class Commands::User::LxcUsernet < Commands::Base
     handle :user_lxc_usernet
 
-    LXC_USERNET = '/etc/lxc/lxc-usernet'
+    LXC_USERNET = '/etc/lxc/lxc-usernet'.freeze
 
     @@mutex = Mutex.new
 

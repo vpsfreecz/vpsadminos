@@ -8,7 +8,7 @@ module OsCtld
 
     extend OsCtl::Lib::Utils::File
 
-    USER = 'osctl-ct-receive'
+    USER = 'osctl-ct-receive'.freeze
     UID = Etc.getpwnam(USER).uid
     SOCKET = File.join(RunState::SEND_RECEIVE_DIR, 'control.sock')
     AUTHORIZED_KEYS = File.join(RunState::SEND_RECEIVE_DIR, 'authorized_keys')

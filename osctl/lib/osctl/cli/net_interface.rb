@@ -18,12 +18,12 @@ module OsCtl::Cli
       rx_queues
       max_tx
       max_rx
-    ]
+    ].freeze
 
     FILTERS = %i[
       type
       link
-    ]
+    ].freeze
 
     DEFAULT_FIELDS = %i[
       name
@@ -32,7 +32,7 @@ module OsCtl::Cli
       veth
       max_tx
       max_rx
-    ]
+    ].freeze
 
     IP_FIELDS = %i[
       pool
@@ -40,7 +40,7 @@ module OsCtl::Cli
       netif
       version
       addr
-    ]
+    ].freeze
 
     ROUTE_FIELDS = %i[
       pool
@@ -49,7 +49,7 @@ module OsCtl::Cli
       version
       addr
       via
-    ]
+    ].freeze
 
     def list
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(

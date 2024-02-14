@@ -5,9 +5,9 @@ require 'syslog/logger'
 require 'tempfile'
 
 class Halt
-  REASON_TEMPLATE_DIR = '/etc/runit/halt.reason.d'
+  REASON_TEMPLATE_DIR = '/etc/runit/halt.reason.d'.freeze
 
-  HOOK_DIR = '/etc/runit/halt.hook.d'
+  HOOK_DIR = '/etc/runit/halt.hook.d'.freeze
 
   def initialize(name, args)
     @name = name

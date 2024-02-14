@@ -12,7 +12,7 @@ module OsCtl::Cli
       usage_score
       usage_score_per_cpu
       enabled
-    ]
+    ].freeze
 
     def status
       require_args!

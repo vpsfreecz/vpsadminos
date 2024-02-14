@@ -5,7 +5,7 @@ require 'singleton'
 module OsCtld
   # Cache for existing system users
   class SystemUsers
-    COMMENT = 'osctl'
+    COMMENT = 'osctl'.freeze
 
     include Lockable
     include Singleton

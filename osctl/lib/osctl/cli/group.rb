@@ -22,14 +22,14 @@ module OsCtl::Cli
 
     FILTERS = %i[
       pool
-    ]
+    ].freeze
 
     DEFAULT_FIELDS = %i[
       pool
       name
       memory
       cpu_us
-    ]
+    ].freeze
 
     def list
       c = osctld_open

@@ -4,9 +4,9 @@ module OsCtld
   module CGroup
     include OsCtl::Lib::Utils::Log
 
-    FS = '/sys/fs/cgroup'
+    FS = '/sys/fs/cgroup'.freeze
 
-    ROOT_GROUP = 'osctl'
+    ROOT_GROUP = 'osctl'.freeze
 
     DELEGATE_FILES = File.read('/sys/kernel/cgroup/delegate').strip.split
 

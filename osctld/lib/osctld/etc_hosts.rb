@@ -5,8 +5,8 @@ module OsCtld
   class EtcHosts
     include OsCtl::Lib::Utils::File
 
-    NOTICE_HEAD = '### Start of osctld-generated notice'
-    NOTICE_BODY = <<~END
+    NOTICE_HEAD = '### Start of osctld-generated notice'.freeze
+    NOTICE_BODY = <<~END.freeze
       # This file is updated by osctld from vpsAdminOS on every VPS start to configure
       # the hostname. If you would like to manage the hostname manually,
       # administrators can configure this by `osctl ct unset hostname` and users
@@ -15,7 +15,7 @@ module OsCtld
       #
       #   chmod u-w /etc/hosts
     END
-    NOTICE_TAIL = '### End of osctld-generated notice'
+    NOTICE_TAIL = '### End of osctld-generated notice'.freeze
 
     # @return [String]
     attr_reader :path

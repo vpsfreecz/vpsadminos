@@ -197,7 +197,7 @@ module VdevLog
       delay
       timestamp
       delta
-    ]
+    ].freeze
 
     def self.from_state(hash)
       kwargs = {}

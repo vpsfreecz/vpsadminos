@@ -3,8 +3,8 @@ require 'vpsadminos-converter/vz6/migrator'
 module VpsAdminOS::Converter
   # Store/load migration state to/from disk
   class Vz6::Migrator::State
-    DIR = '~/.vpsadminos-converter'
-    STEPS = %i[stage sync cancel transfer cleanup]
+    DIR = '~/.vpsadminos-converter'.freeze
+    STEPS = %i[stage sync cancel transfer cleanup].freeze
 
     # Create a new migration state, save it to disk and return it
     # @param vz_ct [Vz6::Container]

@@ -3,7 +3,7 @@ require 'thread'
 
 module OsCtl::Cli
   class Top::Model
-    MODES = %i[realtime cumulative]
+    MODES = %i[realtime cumulative].freeze
 
     attr_reader :containers
     attr_accessor :mode

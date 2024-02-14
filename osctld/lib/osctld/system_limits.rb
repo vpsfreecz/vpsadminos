@@ -5,7 +5,7 @@ require 'singleton'
 module OsCtld
   # Configurator of system-level resource limits
   class SystemLimits
-    FILE_MAX_PATH = '/proc/sys/fs/file-max'
+    FILE_MAX_PATH = '/proc/sys/fs/file-max'.freeze
     FILE_MAX_DEFAULT = 1024 * 1024
 
     class << self

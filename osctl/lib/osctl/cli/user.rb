@@ -16,18 +16,18 @@ module OsCtl::Cli
       homedir
       registered
       standalone
-    ]
+    ].freeze
 
-    FILTERS = %i[pool registered]
+    FILTERS = %i[pool registered].freeze
 
     DEFAULT_FIELDS = %i[
       pool
       name
       registered
       standalone
-    ]
+    ].freeze
 
-    IDMAP_FIELDS = %i[type ns_id host_id count]
+    IDMAP_FIELDS = %i[type ns_id host_id count].freeze
 
     def list
       keyring = KernelKeyring.new

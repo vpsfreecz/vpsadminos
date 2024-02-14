@@ -3,7 +3,7 @@ require 'socket'
 
 module OsCtl
   class Client
-    SOCKET = '/run/osctl/osctld.sock'
+    SOCKET = '/run/osctl/osctld.sock'.freeze
 
     class Error < StandardError; end
 

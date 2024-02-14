@@ -1,6 +1,6 @@
 module OsCtl::Lib
   module CGroup
-    FS = '/sys/fs/cgroup'
+    FS = '/sys/fs/cgroup'.freeze
 
     # @return [1, 2] cgroup hierarchy version
     def self.version

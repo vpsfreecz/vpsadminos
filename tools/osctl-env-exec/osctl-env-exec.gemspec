@@ -1,4 +1,4 @@
-VERSION = '23.11.0'
+VERSION = '23.11.0'.freeze
 
 Gem::Specification.new do |s|
   s.name = 'osctl-env-exec'

@@ -10,7 +10,7 @@ module OsCtl::Image
       type
       distribution
       version
-    ]
+    ].freeze
 
     def list
       param_selector = OsCtl::Lib::Cli::ParameterSelector.new(
