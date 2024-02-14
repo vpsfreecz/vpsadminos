@@ -277,6 +277,7 @@ module OsCtl
                          else
                            client.cmd_data!(:group_cgsubsystems)
                          end
+      nil
     end
 
     # Add runtime stats from CGroup parameters to `data`

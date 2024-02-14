@@ -67,6 +67,7 @@ module OsCtl::Image
       @arch ||= 'x86_64'
       @vendor ||= 'vpsadminos'
       @variant ||= 'minimal'
+      nil
     end
   end
 end

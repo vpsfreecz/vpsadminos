@@ -70,7 +70,7 @@ module OsCtl::Lib
 
     # @return [String]
     def to_s
-      @string ||= format(@cpu_list == :all ? all_range : @cpu_list)
+      @to_s ||= format(@cpu_list == :all ? all_range : @cpu_list)
     end
 
     protected

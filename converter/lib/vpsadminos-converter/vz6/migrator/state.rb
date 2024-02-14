@@ -41,7 +41,7 @@ module VpsAdminOS::Converter
     end
 
     def self.state_dir
-      @dir ||= File.expand_path(DIR)
+      @state_dir ||= File.expand_path(DIR)
     end
 
     def self.state_file(ctid)

@@ -48,6 +48,7 @@ module OsCtl::Image
       @arch ||= 'x86_64'
       @vendor ||= 'vpsadminos'
       @variant ||= 'minimal'
+      nil
     end
 
     def load_attrs(client = nil)
