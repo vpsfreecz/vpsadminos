@@ -37,7 +37,7 @@ module OsCtl::Image
 
     protected
 
-    attr_reader :name, :expression, :opts
+    attr_reader :name, :opts
 
     def create_executable
       tmp = Tempfile.new(name, '/tmp')

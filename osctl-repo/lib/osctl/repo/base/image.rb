@@ -93,9 +93,5 @@ module OsCtl::Repo
     def to_s
       "#{distribution}-#{version}-#{arch}-#{vendor}-#{variant}"
     end
-
-    protected
-
-    attr_reader :repo
   end
 end

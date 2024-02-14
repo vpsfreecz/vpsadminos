@@ -105,7 +105,7 @@ module OsCtl::Image
 
     protected
 
-    attr_reader :client, :build_dataset, :work_dir, :output_dir
+    attr_reader :client, :build_dataset, :work_dir
 
     def build
       Operations::Builder::UseOrCreate.run(builder, base_dir)
