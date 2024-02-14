@@ -10,9 +10,6 @@ module OsCtld
     end
 
     def execute(ct)
-      ct = DB::Containers.find(opts[:id], opts[:pool])
-      error!('container not found') unless ct
-
       manipulate(ct) do
         error!('the container has to be running') if ct.current_state != :running
         ct.mounts.activate(opts[:mountpoint])
