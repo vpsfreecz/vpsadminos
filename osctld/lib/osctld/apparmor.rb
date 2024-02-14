@@ -148,6 +148,7 @@ module OsCtld
         cached = File.join(cache_dir, profile_name)
         File.unlink(cached)
       rescue Errno::ENOENT
+        # ignore
       end
     end
 

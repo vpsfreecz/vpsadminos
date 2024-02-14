@@ -26,6 +26,7 @@ module OsCtl::ExportFS
           begin
             sys.unmount(server.shared_dir)
           rescue SystemCallError
+            # ignore
           end
 
           Dir.rmdir(server.shared_dir)
@@ -58,6 +59,7 @@ module OsCtl::ExportFS
         begin
           sys.unmount(path)
         rescue SystemCallError
+          # ignore
         end
 
         Dir.rmdir(path)

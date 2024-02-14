@@ -33,11 +33,13 @@ module OsCtl::ExportFS
       begin
         clear_manager
       rescue Errno::ENOENT
+        # ignore
       end
 
       begin
         clear_payload
       rescue Errno::ENOENT
+        # ignore
       end
 
       nil

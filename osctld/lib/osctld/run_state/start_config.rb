@@ -19,6 +19,7 @@ module OsCtld
     def close
       File.unlink(path) if exist?
     rescue Errno::ENOENT
+      # ignore
     end
 
     protected

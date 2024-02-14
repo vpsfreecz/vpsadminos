@@ -69,6 +69,7 @@ module OsCtl::Image
 
       Dir.rmdir(cgroup)
     rescue Errno::ENOENT
+      # ignore
     end
 
     def kill_all(cgroup, signal)

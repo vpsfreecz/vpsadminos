@@ -168,6 +168,7 @@ module OsCtl::Lib
         end
       end
     rescue IOError
+      # ignore
     end
 
     def sync(&)

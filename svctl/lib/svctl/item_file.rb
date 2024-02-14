@@ -111,6 +111,7 @@ module SvCtl
         end
       end
     rescue Errno::ENOENT
+      # ignore
     end
   end
 end

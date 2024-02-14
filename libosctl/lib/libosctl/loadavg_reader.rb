@@ -47,6 +47,7 @@ module OsCtl::Lib
 
       nil
     rescue Errno::ENOENT
+      # ignore
     end
 
     protected

@@ -86,6 +86,7 @@ module OsCtl::Image
     def unlink(path)
       File.unlink(path)
     rescue Errno::ENOENT
+      # ignore
     end
   end
 end

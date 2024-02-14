@@ -134,6 +134,7 @@ module OsCtld
           DELEGATE_FILES.each do |f|
             File.chown(chown, chown, File.join(cgroup, f))
           rescue Errno::ENOENT
+            # ignore
           end
         end
       end

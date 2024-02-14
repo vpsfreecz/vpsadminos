@@ -182,6 +182,7 @@ module OsCtl::Image
         [builder_base_dir, builder_work_dir, builder_install_dir].each do |dir|
           Dir.rmdir(File.join(builder.attrs[:rootfs], dir))
         rescue Errno::ENOENT
+          # ignore
         end
       end
 

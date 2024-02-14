@@ -238,6 +238,7 @@ module OsCtld
       begin
         File.unlink(RunState::SHUTDOWN_MARKER)
       rescue Errno::ENOENT
+        # ignore
       end
     end
 

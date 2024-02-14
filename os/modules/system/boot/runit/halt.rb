@@ -301,6 +301,7 @@ class Halt
     begin
       File.unlink('/run/osctl/shutdown')
     rescue Errno::ENOENT
+      # ignore
     end
 
     st = Kernel.system('osctl', 'shutdown', '--abort')

@@ -91,12 +91,14 @@ module OsCtld
       begin
         Dir.mkdir(veth_hook_dir, 0o711)
       rescue Errno::EEXIST
+        # ignore
       end
 
       %w[up down].each do |v|
         begin
           Dir.mkdir(mode_path(v), 0o711)
         rescue Errno::EEXIST
+          # ignore
         end
 
         symlink = hook_path(v)

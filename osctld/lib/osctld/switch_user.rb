@@ -160,6 +160,7 @@ module OsCtld
         begin
           IO.new(fd).close
         rescue ArgumentError, Errno::EBADF
+          # ignore
         end
       end
     end

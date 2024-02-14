@@ -25,6 +25,7 @@ module OsCtld
     def unlink
       File.unlink(host_path)
     rescue Errno::ENOENT
+      # ignore
     end
 
     def init_cmd(cmd)

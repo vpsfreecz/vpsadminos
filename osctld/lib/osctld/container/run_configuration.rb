@@ -182,6 +182,7 @@ module OsCtld
       begin
         Dir.mkdir(dir_path)
       rescue Errno::EEXIST
+        # ignore
       end
 
       regenerate_file(file_path, 0o400) do |new|
@@ -192,6 +193,7 @@ module OsCtld
     def destroy
       File.unlink(file_path)
     rescue Errno::ENOENT
+      # ignore
     end
 
     protected

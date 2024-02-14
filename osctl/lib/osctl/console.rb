@@ -36,6 +36,7 @@ module OsCtl
         end
       end
     rescue IOError
+      # stop
     end
 
     def resize(rows, cols)

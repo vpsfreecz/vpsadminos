@@ -41,6 +41,7 @@ module OsCtl::ExportFS
             killed += 1
             Process.kill('TERM', pid)
           rescue Errno::ESRCH
+            # ignore
           end
         end
       end

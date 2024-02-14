@@ -18,6 +18,7 @@ module OsCtl::Image
     def ignore_error
       yield(self)
     rescue OsCtl::Client::Error
+      # ignore
     end
 
     # @return [Array]

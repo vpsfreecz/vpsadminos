@@ -71,6 +71,7 @@ module OsCtld
         begin
           Process.kill(signal, p.pid)
         rescue Errno::ESRCH
+          # ignore
         end
       end
     end

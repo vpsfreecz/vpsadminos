@@ -14,6 +14,7 @@ module OsCtld
       def each
         yield(parse) until @f.eof?
       rescue EOFError
+        # stop
       end
 
       include Enumerable

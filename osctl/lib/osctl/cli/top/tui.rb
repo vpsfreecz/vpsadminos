@@ -32,6 +32,7 @@ module OsCtl::Cli
         Curses.clear
       end
     rescue Interrupt
+      # stop
     ensure
       Curses.close_screen
     end

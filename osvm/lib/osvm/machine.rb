@@ -61,6 +61,7 @@ module OsVm
       begin
         File.unlink(shell_socket_path)
       rescue Errno::ENOENT
+        # ignore
       end
 
       @shell_server = UNIXServer.new(shell_socket_path)
@@ -163,11 +164,13 @@ module OsVm
       begin
         File.unlink(shell_socket_path)
       rescue Errno::ENOENT
+        # ignore
       end
 
       shared_filesystems.each_key do |fs_name|
         File.unlink(virtiofs_socket_path(fs_name))
       rescue Errno::ENOENT
+        # ignore
       end
 
       self

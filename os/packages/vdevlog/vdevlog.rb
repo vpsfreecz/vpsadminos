@@ -507,6 +507,7 @@ module VdevLog
       begin
         File.unlink(target)
       rescue Errno::ENOENT
+        # ignore
       end
 
       File.symlink(@prom_file, target)
@@ -572,6 +573,7 @@ module VdevLog
     def make_state_dir
       Dir.mkdir(@state_dir)
     rescue Errno::EEXIST
+      # ignore
     end
   end
 
