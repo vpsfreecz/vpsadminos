@@ -5,9 +5,9 @@ module OsCtl::Lib::Cli
   class OutputFormatter
     # Format data and return as string
     # @return [String]
-    def self.format(*, **)
+    def self.to_s(*, **)
       f = new(*, **)
-      f.format
+      f.to_s
     end
 
     # Format data and print to standard output
@@ -61,7 +61,7 @@ module OsCtl::Lib::Cli
     end
 
     # @return [String]
-    def format
+    def to_s
       @out = ''
       generate
       @out
