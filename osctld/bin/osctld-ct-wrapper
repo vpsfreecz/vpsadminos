@@ -169,11 +169,7 @@ class Wrapper
   end
 
   def send_to_client(data)
-    if client
-      client.send(data, 0) unless data.empty?
-    else
-      # client not connected, data is dropped
-    end
+    client.send(data, 0) if client && !data.empty?
   rescue SystemCallError
     # osctld has crashed/exited
     @client.close

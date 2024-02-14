@@ -10,6 +10,7 @@ module OsCtld
       when 6
         cmd << '-6'
       when :all
+        # nothing to do
       else
         raise "unknown IP version '#{ip_v}'"
       end

@@ -51,6 +51,7 @@ module OsCtl
       when '1', '2'
         cmd_opts[:version] = opts[:version].to_i
       when 'all'
+        # nothing to do
       else
         raise GLI::BadCommandLine, "invalid cgroup version '#{opts[:version]}'"
       end

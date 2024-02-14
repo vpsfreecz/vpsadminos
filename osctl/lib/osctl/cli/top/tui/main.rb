@@ -159,8 +159,6 @@ module OsCtl::Cli::Top
         when '/'
           search_start_focus
 
-        when Tui::Key::ESCAPE
-
         when '?'
           return Tui::Help.new(self)
 
