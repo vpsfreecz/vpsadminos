@@ -575,7 +575,7 @@ module OsCtl::Cli::Top
 
       search_msg = nil
 
-      fillRow do
+      fill_row do
         if search_in_focus? || search_active?
           search_msg = "Search: #{search_string}"
           Curses.addstr(search_msg)
@@ -893,7 +893,7 @@ module OsCtl::Cli::Top
       Curses.attroff(Curses::A_BOLD)
     end
 
-    def fillRow
+    def fill_row
       yield
       x, y = cursor
       Curses.addstr(' ' * (Curses.cols - y))
