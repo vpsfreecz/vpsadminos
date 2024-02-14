@@ -22,7 +22,7 @@ module OsCtld
           File.open("/etc/sub#{v}id.new", 'w') do |f|
             users.each do |u|
               u.send("#{v}id_map").each do |entry|
-                f.write("#{u.ugid}:#{entry.host_id}:#{entry.count}\n")
+                f.write("#{u.ugid}:#{entry.host_id}:#{entry.id_count}\n")
               end
             end
           end

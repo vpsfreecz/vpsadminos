@@ -20,7 +20,7 @@ module OsCtld
             type:,
             ns_id: entry.ns_id,
             host_id: entry.host_id,
-            count: entry.count
+            count: entry.id_count
           }
         end
       end

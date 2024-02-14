@@ -131,7 +131,7 @@ module OsCtld
       { uid_map:, gid_map: }.each do |name, map|
         map.each do |entry|
           if entry.host_id < allocation[:first_id] \
-             || (entry.host_id + entry.count - 1) > allocation[:last_id]
+             || (entry.host_id + entry.id_count - 1) > allocation[:last_id]
             error!("#{name} does not fit within the ID range allocation")
           end
         end

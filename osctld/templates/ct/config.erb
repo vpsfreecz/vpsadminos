@@ -15,10 +15,10 @@ lxc.syslogns = 1
 
 # UID/GID mapping
 <% ct.user.uid_map.each do |entry| -%>
-lxc.idmap = u <%= entry.ns_id %> <%= entry.host_id %> <%= entry.count %>
+lxc.idmap = u <%= entry.ns_id %> <%= entry.host_id %> <%= entry.id_count %>
 <% end -%>
 <% ct.user.gid_map.each do |entry| -%>
-lxc.idmap = g <%= entry.ns_id %> <%= entry.host_id %> <%= entry.count %>
+lxc.idmap = g <%= entry.ns_id %> <%= entry.host_id %> <%= entry.id_count %>
 <% end -%>
 
 # Security
