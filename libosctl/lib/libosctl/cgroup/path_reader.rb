@@ -88,16 +88,14 @@ module OsCtl::Lib
           }
 
         when :cpu_hz, :cpu_user_hz, :cpu_system_hz
-          Hash[
-            read_cgparam(
-              :cpuacct,
-              path,
-              'cpuacct.stat'
-            ).split("\n").map do |line|
-              type, hz = line.split(' ')
-              [:"cpu_#{type}_hz", hz.to_i]
-            end
-          ]
+          read_cgparam(
+            :cpuacct,
+            path,
+            'cpuacct.stat'
+          ).split("\n").to_h do |line|
+            type, hz = line.split(' ')
+            [:"cpu_#{type}_hz", hz.to_i]
+          end
 
         when :nproc
           read_cgparam(
@@ -293,7 +291,7 @@ module OsCtl::Lib
 
       # @return [Hash] cpu usage in microseconds
       def read_cpu_stat
-        params = Hash[read_cgparam(path, 'cpu.stat').strip.split("\n").map(&:split)]
+        params = read_cgparam(path, 'cpu.stat').strip.split("\n").to_h(&:split)
 
         {
           all: params['usage_usec'].to_i,

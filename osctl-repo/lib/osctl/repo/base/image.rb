@@ -35,7 +35,7 @@ module OsCtl::Repo
         distribution:,
         version:,
         tags: tags.sort,
-        image: Hash[image.map { |v| [v, image_path(v)] }]
+        image: image.to_h { |v| [v, image_path(v)] }
       }
     end
 

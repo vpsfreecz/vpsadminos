@@ -52,7 +52,7 @@ module OsCtl
       if data.is_a?(::Hash)
         index = { data[:dataset] => data }
       elsif data.is_a?(::Array)
-        index = Hash[data.map { |ct| [ct[:dataset], ct] }]
+        index = data.to_h { |ct| [ct[:dataset], ct] }
       end
 
       add_property_values(index, zfs_props, precise)

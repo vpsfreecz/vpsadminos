@@ -28,10 +28,10 @@ module OsCtld
       def initialize(cfg)
         @enable = cfg.fetch('enable', false)
         @min_package_container_count_percent = cfg.fetch('min_package_container_count_percent', 90)
-        @packages = Hash[cfg.fetch('packages', {}).map do |k, v|
+        @packages = cfg.fetch('packages', {}).to_h do |k, v|
           pkg = CpuPackage.new(k, v)
           [pkg.id, pkg]
-        end]
+        end
 
         @sequential_start_priority_threshold = cfg.fetch('sequential_start_priority_threshold', 1000)
       end

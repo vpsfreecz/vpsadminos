@@ -8,9 +8,9 @@ module VpsAdminOS::Converter
 
     def dump
       super.merge(
-        'routes' => Hash[routes.map do |ip_v, addrs|
+        'routes' => routes.to_h do |ip_v, addrs|
           ["v#{ip_v}", addrs.map(&:to_string)]
-        end]
+        end
       )
     end
   end

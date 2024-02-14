@@ -22,11 +22,11 @@ module OsCtld
         next error('interface not found') unless netif
 
         ok(
-          Hash[FIELDS.map do |f|
+          FIELDS.to_h do |f|
             next [f, nil] unless netif.respond_to?(f)
 
             [f, netif.send(f)]
-          end]
+          end
         )
       end
     end

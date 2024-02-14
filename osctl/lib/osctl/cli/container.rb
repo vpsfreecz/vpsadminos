@@ -826,12 +826,12 @@ module OsCtl::Cli
         repository: opts[:repository],
         force: opts[:force],
         mount_root: opts['mount-root-dataset'],
-        zfs_properties: Hash[opts['zfs-property'].map do |v|
+        zfs_properties: opts['zfs-property'].to_h do |v|
           k, v = v.split('=')
           raise GLI::BadCommandLine, "invalid ZFS property '#{v}'" if v.nil?
 
           [k, v]
-        end],
+        end,
         wait: get_ct_wait(opts[:wait]),
         queue: opts[:queue],
         priority: opts[:priority],

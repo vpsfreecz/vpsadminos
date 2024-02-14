@@ -160,20 +160,18 @@ module VpsAdminOS::Converter
     end
 
     def parse_onoff_list(v)
-      Hash[
-        parse_list(v).map do |cap|
-          name, enabled = cap.split(':')
+      parse_list(v).to_h do |cap|
+        name, enabled = cap.split(':')
 
-          case enabled
-          when 'on'
-            [name.downcase, true]
-          when 'off'
-            [name.downcase, false]
-          else
-            raise "unknown mode '#{name}:#{enabled}'"
-          end
+        case enabled
+        when 'on'
+          [name.downcase, true]
+        when 'off'
+          [name.downcase, false]
+        else
+          raise "unknown mode '#{name}:#{enabled}'"
         end
-      ]
+      end
     end
   end
 end

@@ -66,14 +66,14 @@ class GarbageCollector
 
   def read_config(path)
     @matchers = JSON.parse(File.read(path))['gc'].map do |m|
-      Hash[m.map do |k, v|
+      m.to_h do |k, v|
         case k
         when 'keep'
           [k, v]
         else
           [k, v.nil? ? nil : Regexp.new(v)]
         end
-      end]
+      end
     end
   end
 

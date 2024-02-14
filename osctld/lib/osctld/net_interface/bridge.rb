@@ -31,9 +31,9 @@ module OsCtld
       @dhcp = cfg.has_key?('dhcp') ? cfg['dhcp'] : true
 
       @gateways = if cfg['gateways']
-                    Hash[ [4, 6].map do |ip_v|
+                    [4, 6].to_h do |ip_v|
                       [ip_v, cfg['gateways']["v#{ip_v}"] || 'auto']
-                    end]
+                    end
                   else
                     { 4 => 'auto', 6 => 'auto' }
                   end
@@ -44,7 +44,7 @@ module OsCtld
         super.merge({
           'link' => link,
           'dhcp' => dhcp,
-          'gateways' => gateways.any? ? Hash[gateways.map { |k, v| ["v#{k}", v] }] : nil
+          'gateways' => gateways.any? ? gateways.to_h { |k, v| ["v#{k}", v] } : nil
         })
       end
     end

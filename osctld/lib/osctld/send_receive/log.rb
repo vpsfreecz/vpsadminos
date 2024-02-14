@@ -10,7 +10,7 @@ module OsCtld
 
     class Options
       def self.load(cfg)
-        new(Hash[cfg.map { |k, v| [k.to_sym, v] }])
+        new(cfg.to_h { |k, v| [k.to_sym, v] })
       end
 
       # @return [String]

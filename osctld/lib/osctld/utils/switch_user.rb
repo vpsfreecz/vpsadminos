@@ -9,7 +9,7 @@ module OsCtld
       {
         cmd: ::OsCtld.bin('osctld-ct-exec'),
         args: args.map(&:to_s),
-        env: Hash[ENV.select { |k, _v| k.start_with?('BUNDLE') || k.start_with?('GEM') }],
+        env: ENV.select { |k, _v| k.start_with?('BUNDLE') || k.start_with?('GEM') }.to_h,
         settings: {
           user: ct.user.sysusername,
           ugid: ct.user.ugid,

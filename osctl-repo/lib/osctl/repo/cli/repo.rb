@@ -49,10 +49,10 @@ module OsCtl::Repo
         raise GLI::BadCommandLine, 'unable to set variant to default, name reserved'
       end
 
-      image = Hash[{
+      image = {
         tar: opts[:archive],
         zfs: opts[:stream]
-      }.select { |_, v| v }]
+      }.select { |_, v| v }.to_h
 
       if image.empty?
         raise GLI::BadCommandLine, 'no image, use --archive or --stream'

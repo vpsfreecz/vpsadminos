@@ -52,7 +52,7 @@ module OsCtld
 
     # Export attributes to client
     def export
-      inclusively { Hash[attrs.map { |k, v| [k.to_sym, v] }] }
+      inclusively { attrs.to_h { |k, v| [k.to_sym, v] } }
     end
 
     def dup

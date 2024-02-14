@@ -51,11 +51,11 @@ module OsCtld
           next if opts[:type] && !opts[:type].include?(netif.type.to_s)
           next if opts[:link] && (netif.type != :bridge || !opts[:link].include?(netif.link))
 
-          Hash[FIELDS.map do |f|
+          FIELDS.to_h do |f|
             next [f, nil] unless netif.respond_to?(f)
 
             [f, netif.send(f)]
-          end].merge(
+          end.merge(
             pool: ct.pool.name,
             ctid: ct.id
           )

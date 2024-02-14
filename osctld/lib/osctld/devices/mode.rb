@@ -60,7 +60,7 @@ module OsCtld
         end
       end
 
-      Hash[ret.map { |k, v| [k, v.join('')] }]
+      ret.to_h { |k, v| [k, v.join('')] }
     end
 
     def to_s

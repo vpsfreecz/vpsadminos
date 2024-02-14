@@ -10,7 +10,7 @@ module OsCtld
       end
 
       def dump
-        Hash[to_h.map { |k, v| [k.to_s, v] }]
+        to_h.to_h { |k, v| [k.to_s, v] }
       end
 
       def export

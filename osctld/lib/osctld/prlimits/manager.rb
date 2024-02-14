@@ -16,7 +16,7 @@ module OsCtld
                   cfg.map { |k, v| [k, PrLimits::PrLimit.load(k, v)] }
                 end
 
-      new(ct, entries: Hash[entries])
+      new(ct, entries: entries.to_h)
     end
 
     # Create new resource limits with default values
@@ -78,12 +78,12 @@ module OsCtld
 
     # Dump to config
     def dump
-      inclusively { Hash[prlimits.map { |k, v| [k, v.dump] }] }
+      inclusively { prlimits.to_h { |k, v| [k, v.dump] } }
     end
 
     def export
       inclusively do
-        Hash[prlimits.map { |k, v| [k, v.export] }]
+        prlimits.to_h { |k, v| [k, v.export] }
       end
     end
 

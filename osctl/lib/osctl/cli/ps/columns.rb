@@ -74,7 +74,7 @@ module OsCtl::Cli
         row = new(os_proc, precise)
 
         begin
-          data << Hash[cols.map { |c| [c, row.send(c)] }]
+          data << cols.to_h { |c| [c, row.send(c)] }
         rescue OsCtl::Lib::Exceptions::OsProcessNotFound
           next
         end

@@ -66,7 +66,7 @@ module OsCtl::Cli
       fmt_opts = {
         layout: :columns,
         sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
-        opts: Hash[%i[max_tx max_rx].map do |limit|
+        opts: %i[max_tx max_rx].to_h do |limit|
           [limit, {
             label: limit.to_s.upcase,
             align: 'right',
@@ -80,7 +80,7 @@ module OsCtl::Cli
               end
             end
           }]
-        end]
+        end
       }
 
       cmd_opts[:id] = args[0] if args[0]
@@ -360,9 +360,9 @@ module OsCtl::Cli
       gws = [4, 6].map { |v| [v, "gateway-v#{v}"] }.select { |_v, opt| opts[opt] }
       return if gws.empty?
 
-      cmd_opts[:gateways] = Hash[gws.map do |v, opt|
+      cmd_opts[:gateways] = gws.to_h do |v, opt|
         [v, opts[opt]]
-      end]
+      end
     end
 
     def parse_shaper(cmd_opts)

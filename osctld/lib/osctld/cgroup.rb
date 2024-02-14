@@ -59,9 +59,9 @@ module OsCtld
 
     # @return [Hash<Symbol, String>]
     def self.subsystem_paths
-      Hash[%i[cpu cpuacct memory pids].map do |subsys|
+      %i[cpu cpuacct memory pids].to_h do |subsys|
         [subsys, abs_cgroup_path(real_subsystem(subsys.to_s))]
-      end]
+      end
     end
 
     # Return an absolute path to a cgroup

@@ -82,12 +82,12 @@ module OsCtld
     def chmod(new_mode)
       diff = mode.diff(new_mode)
       self.mode = new_mode
-      Hash[diff.reject { |_k, v| v.empty? }.map { |k, v| [k, to_s(mode: v)] }]
+      diff.reject { |_k, v| v.empty? }.to_h { |k, v| [k, to_s(mode: v)] }
     end
 
     # Dump to config
     def dump
-      Hash[export.map { |k, v| [k.to_s, v] }]
+      export.to_h { |k, v| [k.to_s, v] }
     end
 
     # Export to client

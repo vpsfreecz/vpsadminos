@@ -141,7 +141,7 @@ module OsCtl::Lib
     # @param pools [Array<String>]
     def initialize(pools: [])
       read_pools = pools.empty? ? list_pools : pools
-      paths = Hash[read_pools.map { |pool| [pool, txgs_path(pool)] }]
+      paths = read_pools.to_h { |pool| [pool, txgs_path(pool)] }
 
       @pools = read_paths(paths)
     end

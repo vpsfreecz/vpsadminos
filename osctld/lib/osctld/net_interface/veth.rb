@@ -316,7 +316,7 @@ module OsCtld
     # @yieldparam value [String, Array<String>]
     # @return [Hash<String, String>, Hash<String, Array<String>>]
     def save_ip_list(ip_list)
-      Hash[ip_list.map { |ip_v, value| ["v#{ip_v}", yield(value)] }]
+      ip_list.to_h { |ip_v, value| ["v#{ip_v}", yield(value)] }
     end
 
     # Take an IP list stored in a config file and return an internal
@@ -325,7 +325,7 @@ module OsCtld
     # @yieldparam value [String, Array<String>]
     # @return [Hash<Integer, String>, Hash<Integer, Array<String>>]
     def load_ip_list(ip_list)
-      Hash[ ip_list.map do |ip_v, value|
+      ip_list.to_h do |ip_v, value|
         # Load also integer keys for backward compatibility
         if [4, 6].include?(ip_v)
           [ip_v, yield(value)]
@@ -336,7 +336,7 @@ module OsCtld
         else
           raise "unsupported IP version '#{ip_v}': expected v4 or v6"
         end
-      end]
+      end
     end
   end
 end

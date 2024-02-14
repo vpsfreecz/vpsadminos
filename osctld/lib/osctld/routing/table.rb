@@ -175,7 +175,7 @@ module OsCtld
         ret.concat(table.get.map { |route| [version, route] })
       end
 
-      Hash[ret].each(&)
+      ret.to_h.each(&)
     end
 
     # Iterate over all routes for IP version
@@ -196,13 +196,13 @@ module OsCtld
     # Export the table to clients
     # @return [Hash]
     def export
-      Hash[tables.map { |version, table| [version, table.export] }]
+      tables.to_h { |version, table| [version, table.export] }
     end
 
     # Dump the table into config
     # @return [Hash]
     def dump
-      Hash[tables.map { |version, table| ["v#{version}", table.dump] }]
+      tables.to_h { |version, table| ["v#{version}", table.dump] }
     end
 
     protected
