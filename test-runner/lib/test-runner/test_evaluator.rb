@@ -47,7 +47,7 @@ module TestRunner
     # Run interactive shell
     def interactive
       do_run do
-        binding.pry
+        binding.pry # rubocop:disable Lint/Debugger
       end
     end
 
@@ -58,7 +58,7 @@ module TestRunner
 
     # Invoke interactive shell from within a test
     def breakpoint
-      binding.pry
+      binding.pry # rubocop:disable Lint/Debugger
     end
 
     protected
