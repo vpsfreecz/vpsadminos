@@ -11,7 +11,7 @@ parser = OptionParser.new do |opts|
 end
 parser.parse!
 
-if ARGV.length < 1
+if ARGV.empty?
   warn parser.banner
   exit(false)
 end

@@ -209,7 +209,7 @@ module OsCtl::Image
 
       puts "#{results.length} tests run, #{succeded.length} succeeded, " \
            "#{failed.length} failed"
-      return if failed.length == 0
+      return if failed.empty?
 
       puts
       puts 'Failed tests:'

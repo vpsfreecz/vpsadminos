@@ -4,7 +4,7 @@ require 'json'
 module OsCtld
   class Cli::Runner
     def self.run
-      if ARGV.length > 0
+      unless ARGV.empty?
         warn "Usage: #{$0}"
         exit(false)
       end

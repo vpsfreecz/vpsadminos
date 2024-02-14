@@ -28,7 +28,7 @@ module OsCtld
         ret << data
       end
 
-      if opts[:read_hostname] && hostname_reader.length > 0
+      if opts[:read_hostname] && !hostname_reader.empty?
         hostname_reader.run do |ct, data|
           data[:hostname_readout] = ct.read_hostname
         end
