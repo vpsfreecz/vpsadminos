@@ -5,11 +5,18 @@ require 'socket'
 pool, ctid = ARGV
 
 s = UNIXSocket.new("/run/osctl/user-control/#{Process.uid}.sock")
-s.send({ cmd: :ct_wrapper_start, opts: {
-  id: ctid,
-  pool:,
-  pid: Process.pid
-} }.to_json + "\n", 0)
+
+payload = {
+  cmd: :ct_wrapper_start,
+  opts: {
+    id: ctid,
+    pool:,
+    pid: Process.pid
+  }
+}
+
+s.send("#{payload.to_json}\n", 0)
+
 ret = JSON.parse(s.readline, symbolize_names: true)
 s.close
 
