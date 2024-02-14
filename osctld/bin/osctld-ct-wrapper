@@ -73,7 +73,8 @@ class Wrapper
           # Send buffer contents, if any
           send_to_client('')
 
-        elsif c.close
+        else
+          c.close
         end
 
       when client # command from client
