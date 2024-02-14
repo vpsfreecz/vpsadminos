@@ -424,7 +424,7 @@ module OsCtld
       elsif !topology.packages.has_key?(ct_pkg)
         log(
           :warn,
-          "#{ct.ident} prefers package #{ct_pkg.inspect}, which does not " +
+          "#{ct.ident} prefers package #{ct_pkg.inspect}, which does not " \
           'exist on this system; disregarding'
         )
       else

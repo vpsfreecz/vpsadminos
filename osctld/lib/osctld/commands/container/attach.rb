@@ -80,8 +80,8 @@ module OsCtld
     def prompt(ct, shell)
       case shell.type
       when :bash
-        "\\n\\[\\033[1;31m\\][CT #{ct.id}]\\[\\033[0m\\] " +
-          '\\[\\033[1;95m\\]\\u@\\h:\\w\\$\\[\\033[0m\\] '
+        "\\n\\[\\033[1;31m\\][CT #{ct.id}]\\[\\033[0m\\] " \
+        '\\[\\033[1;95m\\]\\u@\\h:\\w\\$\\[\\033[0m\\] '
 
       when :busybox
         "\\n[CT #{ct.id}] \\u@\\h:\\w\\$ "

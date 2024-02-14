@@ -97,7 +97,7 @@ module OsCtld
       export.each do |lock|
         log(
           :debug,
-          "id=#{lock[:id]},thread=#{lock[:thread]},type=#{lock[:type]}," +
+          "id=#{lock[:id]},thread=#{lock[:thread]},type=#{lock[:type]}," \
           "state=#{lock[:state]}"
         )
         log(:debug, denixstorify(lock[:backtrace]).join("\n"))

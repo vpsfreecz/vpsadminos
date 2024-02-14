@@ -28,9 +28,9 @@ module OsCtl::Lib
 
       extern 'int setresuid(unsigned int ruid, unsigned int euid, unsigned int suid)'
       extern 'int setresgid(unsigned int rgid, unsigned int egid, unsigned int sgid)'
-      extern 'int mount(const char *source, const char *target, ' +
-             '          const char *filesystemtype, unsigned long mountflags, ' +
-             '          const void *data)'
+      extern 'int mount(const char *source, const char *target,           ' \
+             'const char *filesystemtype, unsigned long mountflags,           ' \
+             'const void *data)'
 
       extern 'int umount2(const char *target, int flags)'
       extern 'int unshare(int flags)'

@@ -11,7 +11,7 @@ module OsUp
       # Find the last applied migration
       i = available.index do |id, m|
         if m.nil?
-          raise "unable to upgrade pool #{pool_migrations.pool}: " +
+          raise "unable to upgrade pool #{pool_migrations.pool}: " \
                 "unrecognized migration #{id}"
         end
 
@@ -24,7 +24,7 @@ module OsUp
       # Check that the list is clean
       list.each do |id, m|
         if m.nil?
-          raise "unable to upgrade pool #{pool_migrations.pool}: " +
+          raise "unable to upgrade pool #{pool_migrations.pool}: " \
                 "unrecognized migration #{id}"
         end
       end
@@ -34,7 +34,7 @@ module OsUp
         j = list.index { |id, _m| id == opts[:to] }
 
         if j.nil?
-          raise "unable to upgrade pool #{pool_migrations.pool}: " +
+          raise "unable to upgrade pool #{pool_migrations.pool}: " \
                 "target migration #{opts[:to]} not found or reachable"
         end
 
@@ -75,7 +75,7 @@ module OsUp
       # Find the last applied migration
       i = available.rindex do |id, m|
         if m.nil?
-          raise "unable to rollback pool #{pool_migrations.pool}: " +
+          raise "unable to rollback pool #{pool_migrations.pool}: " \
                 "unrecognized migration #{id}"
         end
 
@@ -83,7 +83,7 @@ module OsUp
       end
 
       if i.nil?
-        raise "unable to rollback pool #{pool_migrations.pool}: " +
+        raise "unable to rollback pool #{pool_migrations.pool}: " \
               'no applied migration found'
       end
 
@@ -94,7 +94,7 @@ module OsUp
         # Find the target version
         j = applied.index do |id, m|
           if m.nil?
-            raise "unable to rollback pool #{pool_migrations.pool}: " +
+            raise "unable to rollback pool #{pool_migrations.pool}: " \
                   "unrecognized migration #{id}"
           end
 
@@ -102,11 +102,11 @@ module OsUp
         end
 
         if j.nil?
-          raise "unable to rollback pool #{pool_migrations.pool}: " +
+          raise "unable to rollback pool #{pool_migrations.pool}: " \
                 "migration #{opts[:to]} not found or reacheable"
 
         elsif j == 0
-          raise "unable to rollback pool #{pool_migrations.pool}: " +
+          raise "unable to rollback pool #{pool_migrations.pool}: " \
                 "would rollback migration #{id}, but it is set as the target"
         end
 

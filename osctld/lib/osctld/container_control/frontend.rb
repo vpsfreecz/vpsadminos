@@ -175,7 +175,7 @@ module OsCtld
         # r.close
 
         Process.setproctitle(
-          "osctld: #{ctid} " +
+          "osctld: #{ctid} " \
           "runner:#{command_class.name.split('::').last.downcase}"
         )
 

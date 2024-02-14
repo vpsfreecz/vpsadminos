@@ -519,7 +519,7 @@ module VdevLog
 
       if vdev.nil?
         @logger.warn(
-          "Unable to log IO errors from eid=#{event.eid} on vdev pool=#{@pool} " +
+          "Unable to log IO errors from eid=#{event.eid} on vdev pool=#{@pool} " \
           "guid=#{event.vdev_guid} path=#{event.vdev_path}: vdev not found in state file"
         )
         return
@@ -527,7 +527,7 @@ module VdevLog
 
       read, write, checksum = vdev.errors.add(event.vdev_errors)
       @logger.info(
-        "Recording IO errors from eid=#{event.eid} on vdev pool=#{@pool} guid=#{vdev.guid} " +
+        "Recording IO errors from eid=#{event.eid} on vdev pool=#{@pool} guid=#{vdev.guid} " \
         "ids=#{vdev.ids.join(',')} read=#{read} write=#{write} checksum=#{checksum}"
       )
       log << LogEntry.new(event.time, vdev.guid, read, write, checksum, event.zio_request)
@@ -960,8 +960,8 @@ module VdevLog
           state.vdevs.delete_if do |vdev|
             if disks.detect { |v| v.guid == vdev.guid }.nil?
               @logger.info(
-                "Removing obsolete vdev pool=#{pool} guid=#{vdev.guid} " +
-                "ids=#{vdev.ids.join(',')} read=#{vdev.errors.read} " +
+                "Removing obsolete vdev pool=#{pool} guid=#{vdev.guid} " \
+                "ids=#{vdev.ids.join(',')} read=#{vdev.errors.read} " \
                 "write=#{vdev.errors.write} checksum=#{vdev.errors.checksum}"
               )
               true

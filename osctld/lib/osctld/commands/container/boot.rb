@@ -39,7 +39,7 @@ module OsCtld
           mnt_at = ct.mounts.find_at(opts[:mount_root])
 
           if mnt_at && !mnt_at.temp
-            error!("unable to mount rootfs at '#{opts[:mount_root]}': the path " +
+            error!("unable to mount rootfs at '#{opts[:mount_root]}': the path " \
                    'is already mounted')
           end
         end

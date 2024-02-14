@@ -66,7 +66,7 @@ module OsCtl::Exporter
 
         log(
           :info,
-          "Starting collector thread with #{interval} second interval for: " +
+          "Starting collector thread with #{interval} second interval for: " \
           "#{thread_collectors.map { |c| c.collector_class.to_s.split('::').last }.join(', ')}"
         )
 

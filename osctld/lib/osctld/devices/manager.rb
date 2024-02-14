@@ -240,7 +240,7 @@ module OsCtld
         # Parent does not provide the device, remove it
         if used_by_descendants?(device)
           raise DeviceInUse,
-                'the device would be removed, but child groups or containers ' +
+                'the device would be removed, but child groups or containers ' \
                 'are using it'
         end
 

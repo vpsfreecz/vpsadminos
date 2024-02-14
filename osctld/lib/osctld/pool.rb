@@ -761,7 +761,7 @@ module OsCtld
         if (u = DB::Users.by_ugid(user.ugid))
           log(
             :warn,
-            "Unable to load user '#{user.name}': " +
+            "Unable to load user '#{user.name}': " \
             "user/group ID #{user.ugid} already taken by pool '#{u.pool.name}'"
           )
           return false

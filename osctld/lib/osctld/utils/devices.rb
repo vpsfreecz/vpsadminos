@@ -130,7 +130,7 @@ module OsCtld
       return unless /^[rwm]{1,3}$/ !~ opts[:mode] || /(.)\1+/ =~ opts[:mode]
 
       error!(
-        'invalid mode, allowed characters are: r for read, w for write, ' +
+        'invalid mode, allowed characters are: r for read, w for write, ' \
         'm for mknod'
       )
     end

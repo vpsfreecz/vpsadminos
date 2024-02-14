@@ -27,7 +27,7 @@ if ctid != ctid2
   exit(false)
 
 elsif !ifname
-  warn 'Expected to be called via symlink named as: <ctid>.<interface>, ' +
+  warn 'Expected to be called via symlink named as: <ctid>.<interface>, ' \
        "called as '#{base}' instead"
   exit(false)
 end

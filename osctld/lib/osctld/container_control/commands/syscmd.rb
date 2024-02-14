@@ -65,7 +65,7 @@ module OsCtld
           raise OsCtld::SystemCommandFailed.new(
             cmd,
             1,
-            "Command '#{cmd}' within CT #{ct.id} failed with exit code " +
+            "Command '#{cmd}' within CT #{ct.id} failed with exit code " \
             "#{ret}: #{out}"
           )
         end

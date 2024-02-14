@@ -12,9 +12,9 @@ module Sys
     extend Fiddle::Importer
     dlload Fiddle.dlopen(nil)
 
-    extern 'int mount(const char *source, const char *target, ' +
-           '          const char *filesystemtype, unsigned long mountflags, ' +
-           '          const void *data)'
+    extern 'int mount(const char *source, const char *target,           ' \
+           'const char *filesystemtype, unsigned long mountflags,           ' \
+           'const void *data)'
   end
 
   def self.bind_mount(src, dst)

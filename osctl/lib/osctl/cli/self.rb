@@ -84,7 +84,7 @@ module OsCtl::Cli
 
       unless opts[:force]
         $stdout.write(
-          'Do you really wish to stop all containers and export all pools? ' +
+          'Do you really wish to stop all containers and export all pools? ' \
           '[y/N]: '
         )
 

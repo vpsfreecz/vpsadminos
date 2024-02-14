@@ -57,7 +57,7 @@ module OsCtld
       log(
         :info,
         ct,
-        "veth '#{veth}' of container '#{ct.id}' no longer exists, " +
+        "veth '#{veth}' of container '#{ct.id}' no longer exists, " \
         'ignoring'
       )
       @veth = nil

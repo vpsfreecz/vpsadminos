@@ -84,7 +84,7 @@ module OsCtl::Cli
     end
 
     def print_management(opts)
-      puts "management id=#{opts[:id]} state=#{opts[:state]} " +
+      puts "management id=#{opts[:id]} state=#{opts[:state]} " \
            "command=#{opts[:cmd]} opts=#{PP.pp(opts[:opts], '')}"
     end
 

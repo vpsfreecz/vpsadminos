@@ -59,8 +59,8 @@ module OsCtld
 
           next unless expected != got
 
-          log(:warn, "Caller's #{type} does not match the located user: " +
-                     "user=#{user.ident}, expected #{type}=#{expected}, " +
+          log(:warn, "Caller's #{type} does not match the located user: " \
+                     "user=#{user.ident}, expected #{type}=#{expected}, " \
                      "got #{type}=#{got}")
           return error('invalid user')
         end

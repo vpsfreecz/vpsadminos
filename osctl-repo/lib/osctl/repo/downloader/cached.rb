@@ -52,7 +52,7 @@ module OsCtl::Repo
           begin
             fh = read_from_cache(vendor, variant, arch, dist, vtag, format)
           rescue CacheMiss => cache_e
-            raise "Unable to reach remote repository: #{e.message}; " +
+            raise "Unable to reach remote repository: #{e.message}; " \
                   "not found in cache: #{cache_e.message}"
           end
         end

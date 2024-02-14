@@ -66,7 +66,7 @@ module OsCtld
             progress("Setting UID/GID mapping of #{ds.relative_name}")
             zfs(
               :set,
-              "uidmap=\"#{ct.uid_map.map(&:to_s).join(',')}\" " +
+              "uidmap=\"#{ct.uid_map.map(&:to_s).join(',')}\" " \
               "gidmap=\"#{ct.gid_map.map(&:to_s).join(',')}\"",
               ds
             )

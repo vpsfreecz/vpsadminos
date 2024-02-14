@@ -46,7 +46,7 @@ module OsCtl::ExportFS
 
         exports.each do |ex|
           if ex.dir != first_ex.dir
-            raise "target export path #{as} has two source paths: #{ex.dir} " +
+            raise "target export path #{as} has two source paths: #{ex.dir} " \
                   "and #{first_ex.dir}"
           end
         end

@@ -50,7 +50,7 @@ module OsCtld
 
       zipped.each do |src_ds, dst_ds|
         progress("Copying dataset #{src_ds.relative_name}")
-        syscmd("zfs send -p -L #{from ? "-i @#{from}" : ''} #{src_ds}@#{snap} " +
+        syscmd("zfs send -p -L #{from ? "-i @#{from}" : ''} #{src_ds}@#{snap} " \
                "| zfs recv -F #{dst_ds}")
       end
 
@@ -99,7 +99,7 @@ module OsCtld
       Process.wait(pid)
 
       if $?.exitstatus != 0
-        raise "failed to import stream: command '#{command_string}' " +
+        raise "failed to import stream: command '#{command_string}' " \
               "exited with #{$?.exitstatus}"
       end
 

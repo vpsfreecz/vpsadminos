@@ -207,7 +207,7 @@ module OsCtl::Image
       succeded = results.select(&:success?)
       failed = results.reject(&:success?)
 
-      puts "#{results.length} tests run, #{succeded.length} succeeded, " +
+      puts "#{results.length} tests run, #{succeded.length} succeeded, " \
            "#{failed.length} failed"
       return if failed.length == 0
 

@@ -95,7 +95,7 @@ module OsCtld
     # @param opts [Hash] options for `syscmd`
     def self.apparmor_parser(pool, cmd, profiles, opts = {})
       syscmd(
-        "apparmor_parser -#{cmd} -W -v #{PATHS.map { |v| "-I #{v}" }.join(' ')} " +
+        "apparmor_parser -#{cmd} -W -v #{PATHS.map { |v| "-I #{v}" }.join(' ')} " \
         "-L #{cache_dir(pool)} #{profiles.join(' ')}",
         opts
       )

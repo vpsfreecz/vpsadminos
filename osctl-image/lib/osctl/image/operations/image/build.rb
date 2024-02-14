@@ -156,7 +156,7 @@ module OsCtl::Image
 
       if rc != 0
         raise OperationError,
-              "build of #{image.name} on #{builder.name} failed with " +
+              "build of #{image.name} on #{builder.name} failed with " \
               "exit status #{rc}"
       end
 

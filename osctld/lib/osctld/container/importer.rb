@@ -274,7 +274,7 @@ module OsCtld
         other = u.send(param)
         next if mine == other
 
-        raise "user #{pool.name}:#{name} already exists: #{param} mismatch: " +
+        raise "user #{pool.name}:#{name} already exists: #{param} mismatch: " \
               "existing #{mine}, trying to import #{other}"
       end
 
@@ -345,7 +345,7 @@ module OsCtld
 
       return unless $?.exitstatus != 0
 
-      raise "failed to unpack rootfs: command '#{command_string}' " +
+      raise "failed to unpack rootfs: command '#{command_string}' " \
             "exited with #{$?.exitstatus}"
     end
 

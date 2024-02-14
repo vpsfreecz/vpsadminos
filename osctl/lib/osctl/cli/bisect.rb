@@ -155,7 +155,7 @@ module OsCtl::Cli
             resp = c.cmd_response(osctl_action, pool: ct[:pool], id: ct[:id])
 
             mutex.synchronize do
-              puts "[#{i}/#{n}] #{action_str(action)} #{ct[:pool]}:#{ct[:id]} " +
+              puts "[#{i}/#{n}] #{action_str(action)} #{ct[:pool]}:#{ct[:id]} " \
                    "... #{resp.ok? ? 'ok' : "error: #{resp.message}"}"
             end
           end
