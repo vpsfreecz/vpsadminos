@@ -196,7 +196,7 @@ module OsCtld
     # Export the table to clients
     # @return [Hash]
     def export
-      tables.to_h { |version, table| [version, table.export] }
+      tables.transform_values(&:export)
     end
 
     # Dump the table into config

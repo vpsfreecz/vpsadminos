@@ -360,8 +360,8 @@ module OsCtl::Cli
       gws = [4, 6].map { |v| [v, "gateway-v#{v}"] }.select { |_v, opt| opts[opt] }
       return if gws.empty?
 
-      cmd_opts[:gateways] = gws.to_h do |v, opt|
-        [v, opts[opt]]
+      cmd_opts[:gateways] = gws.transform_values do |opt|
+        opts[opt]
       end
     end
 

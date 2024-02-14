@@ -82,7 +82,7 @@ module OsCtld
     def chmod(new_mode)
       diff = mode.diff(new_mode)
       self.mode = new_mode
-      diff.reject { |_k, v| v.empty? }.to_h { |k, v| [k, to_s(mode: v)] }
+      diff.reject { |_k, v| v.empty? }.transform_values { |v| to_s(mode: v) }
     end
 
     # Dump to config

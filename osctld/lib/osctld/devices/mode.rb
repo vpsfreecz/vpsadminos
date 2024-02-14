@@ -60,7 +60,7 @@ module OsCtld
         end
       end
 
-      ret.to_h { |k, v| [k, v.join] }
+      ret.transform_values(&:join)
     end
 
     def to_s

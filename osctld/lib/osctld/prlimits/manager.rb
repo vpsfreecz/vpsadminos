@@ -78,12 +78,12 @@ module OsCtld
 
     # Dump to config
     def dump
-      inclusively { prlimits.to_h { |k, v| [k, v.dump] } }
+      inclusively { prlimits.transform_values(&:dump) }
     end
 
     def export
       inclusively do
-        prlimits.to_h { |k, v| [k, v.export] }
+        prlimits.transform_values(&:export)
       end
     end
 
