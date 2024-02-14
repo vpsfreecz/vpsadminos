@@ -1,0 +1,6 @@
+PreCommit:
+  RuboCop:
+    enabled: true
+CommitMsg:
+  CapitalizedSubject:
+    enabled: false

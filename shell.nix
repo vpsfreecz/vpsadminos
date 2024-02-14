@@ -24,7 +24,7 @@ in stdenv.mkDerivation rec {
     export GEM_HOME="$(pwd)/.gems"
     export PATH="$(ruby -e 'puts Gem.bindir'):$PATH"
     export RUBYLIB="$GEM_HOME"
-    gem install --no-document bundler geminabox rubocop rubocop-rake
+    gem install --no-document bundler geminabox overcommit rubocop rubocop-rake
     [ -f shellhook.local.sh ] && . shellhook.local.sh
   '';
 }
