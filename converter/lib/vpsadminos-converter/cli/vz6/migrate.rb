@@ -110,7 +110,7 @@ module VpsAdminOS::Converter
         autofinish: false,
         output: $stdout
       )
-      @pb.total = current > total ? current : total
+      @pb.total = [current, total].max
       @pb.progress = current
     end
 
