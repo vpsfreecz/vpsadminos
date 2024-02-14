@@ -15,7 +15,11 @@ module SvCtl
       @path = path
       @lock_path = File.join(File.dirname(path), ".#{File.basename(path)}.lock")
       @opened = false
+
+      # rubocop:disable Security/Open
+      # rubocop thinks this is Kernel#open
       open(**, &block) if block
+      # rubocop:enable Security/Open
     end
 
     # @yieldparam [ItemFile]
