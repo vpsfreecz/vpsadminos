@@ -1,12 +1,16 @@
 module OsCtld
   class IdRange::AllocationTable
-    Allocation = Struct.new(:index, :count, :owner) do
+    Allocation = Struct.new(:block_index, :block_count, :owner) do
       def self.load(data)
-        new(data['index'], data['count'], data['owner'])
+        new(
+          data.fetch('block_index', data['index']),
+          data.fetch('block_count', data['count']),
+          data['owner']
+        )
       end
 
       def last_index
-        index + count - 1
+        block_index + block_count - 1
       end
 
       def dump
@@ -15,8 +19,8 @@ module OsCtld
 
       def export
         {
-          block_index: index,
-          block_count: count,
+          block_index:,
+          block_count:,
           owner:
         }
       end
@@ -27,7 +31,7 @@ module OsCtld
 
       data.each do |v|
         allocation = Allocation.load(v)
-        t.allocate_at(allocation.index, allocation.count, allocation.owner)
+        t.allocate_at(allocation.block_index, allocation.block_count, allocation.owner)
       end
 
       t
@@ -79,7 +83,7 @@ module OsCtld
       end
 
       table.each_with_index do |v, t_i|
-        if v.index > index
+        if v.block_index > index
           table.insert(t_i, alloc)
           return alloc.export
         end
@@ -107,7 +111,7 @@ module OsCtld
     # @return [Boolean]
     def free_at(index)
       table.each_with_index do |alloc, t_i|
-        if alloc.index == index
+        if alloc.block_index == index
           table.delete_at(t_i)
           return true
         end
@@ -129,7 +133,7 @@ module OsCtld
 
     # @return [Integer]
     def count_allocated_blocks
-      table.inject(0) { |sum, v| sum + v.count }
+      table.inject(0) { |sum, v| sum + v.block_count }
     end
 
     # @return [Integer]
@@ -211,7 +215,7 @@ module OsCtld
         t_i = 0
 
         # Check if there is space before the first allocation
-        free = table.first.index
+        free = table.first.block_index
         yielder << [:free, t_i, 0, free, nil] if free > 0
 
         loop do
@@ -220,7 +224,7 @@ module OsCtld
           a2 = table[next_t_i]
 
           # Yield allocated block
-          yielder << [:allocated, t_i, a1.index, a1.count, a1.owner]
+          yielder << [:allocated, t_i, a1.block_index, a1.block_count, a1.owner]
 
           if a2.nil?
             # a1 is the last allocation, check if there is free space behind it
@@ -234,7 +238,7 @@ module OsCtld
           end
 
           # Report free space between a1 and a2
-          free = a2.index - a1.last_index - 1
+          free = a2.block_index - a1.last_index - 1
           yielder << [:free, next_t_i, a1.last_index + 1, free, nil] if free > 0
 
           t_i = next_t_i
