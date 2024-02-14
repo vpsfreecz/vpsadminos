@@ -141,7 +141,7 @@ module OsCtld
 
         if (opts[:uid_map] && st.uid == opts[:uid_map].ns_to_host(0)) \
            || (opts[:gid_map] && st.gid == opts[:gid_map].ns_to_host(0))
-          return
+          return # rubocop:disable Lint/NonLocalExitFromIterator
         end
 
         zfs(:unmount, nil, ds)

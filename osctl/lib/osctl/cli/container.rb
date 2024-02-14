@@ -1686,7 +1686,7 @@ module OsCtl::Cli
             r_err.close
 
             handle_exec_response(c)
-            return
+            return # rubocop:disable Lint/NonLocalExitFromIterator
           end
         end
       end

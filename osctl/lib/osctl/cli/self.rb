@@ -43,7 +43,7 @@ module OsCtl::Cli
 
         (0..Float::INFINITY).each do |i|
           begin
-            return if do_ping
+            break if do_ping
           rescue GLI::CustomExit
             raise if secs > 0 && i >= secs
           end
@@ -117,11 +117,11 @@ module OsCtl::Cli
           st = File.stat(SHUTDOWN_MARKER)
           if st.mode & 0o100 == 0o100
             warn ' ok'
-            return
+            return # rubocop:disable Lint/NonLocalExitFromIterator
           end
         rescue Errno::ENOENT
           warn 'Shutdown mark does not exist, osctld will not shutdown'
-          return
+          return # rubocop:disable Lint/NonLocalExitFromIterator
         end
 
         if i % 5 == 0

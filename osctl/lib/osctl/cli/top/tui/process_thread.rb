@@ -48,13 +48,15 @@ module OsCtl::Cli::Top
       cnt = 0
 
       OsCtl::Lib::ProcessList.each(parse_status: false) do |p|
-        return if @stop
+        break if @stop
 
         st = p.state
 
         cnt += 1
         new_stats[st] += 1 if new_stats.has_key?(st)
       end
+
+      return if @stop
 
       new_stats['TOTAL'] = cnt
 

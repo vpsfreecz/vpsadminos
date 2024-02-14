@@ -205,7 +205,7 @@ module OsCtld
 
     def do_try_start_ct(ct, attempts: 5, cooldown: 5, start_opts: {})
       attempts.times do |i|
-        return if stop?
+        break if stop?
 
         ret = Commands::Container::Start.run(**start_opts.merge(
           pool: ct.pool.name,
@@ -215,7 +215,7 @@ module OsCtld
 
         if ret[:status]
           state.set_started(ct)
-          return if stop?
+          break if stop?
 
           if delay_after_start?
             log(:info, ct, "Autostart delay for #{ct.autostart.delay} seconds")
@@ -224,17 +224,17 @@ module OsCtld
             log(:info, ct, 'Skipping autostart delay thanks to low system load average')
           end
 
-          return
+          break
         end
 
         if i + 1 == attempts
           log(:warn, ct, 'All attempts to start the container have failed')
-          return
+          break
         end
 
         if stop?
           log(:warn, ct, 'Unable to start the container, giving up to stop')
-          return
+          break
         else
           pause = cooldown + (i * cooldown)
           log(:warn, ct, "Unable to start the container, retrying in #{pause} seconds")

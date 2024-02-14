@@ -44,7 +44,7 @@ module OsCtld
         log(:info, 'Updating container hints')
 
         DB::Containers.get.each do |ct|
-          return if @stop
+          break if @stop
 
           next if ct.pool != @pool || !ct.running?
 
@@ -57,6 +57,8 @@ module OsCtld
 
           sleep(0.2)
         end
+
+        break if @stop
 
         log(:info, "Finished updating container hints in #{(Time.now - t1).round(2)}s")
       end
