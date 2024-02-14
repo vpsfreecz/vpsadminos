@@ -10,6 +10,7 @@ module OsCtl::ExportFS
 
     # @param name [String]
     def initialize(name)
+      super()
       @server = Server.new(name)
       @sys = OsCtl::Lib::Sys.new
     end

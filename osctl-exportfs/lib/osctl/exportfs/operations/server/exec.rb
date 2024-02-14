@@ -9,6 +9,7 @@ module OsCtl::ExportFS
   class Operations::Server::Exec < Operations::Base
     # @param server [Server]
     def initialize(server, &block)
+      super()
       @server = server
       @block = block
       @cgroup = Operations::Server::CGroup.new(server)

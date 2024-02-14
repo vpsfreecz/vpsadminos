@@ -13,6 +13,7 @@ module OsCtl::Image
 
     # @param jobs [Integer]
     def initialize(jobs)
+      super()
       @jobs = jobs
       @mutex = ::Mutex.new
       @queue = OsCtl::Lib::Queue.new

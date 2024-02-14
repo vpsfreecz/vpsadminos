@@ -19,6 +19,7 @@ module OsCtl::Image
     # @option opts [Boolean] :keep_failed
     # @option opts [IpAllocator] :ip_allocator
     def initialize(base_dir, image, tests, opts)
+      super()
       @base_dir = base_dir
       @image = image
       @tests = tests

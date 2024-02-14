@@ -11,6 +11,7 @@ module OsCtl::Image
 
     # @param build [Operations::Image::Build]
     def initialize(build)
+      super()
       @build = build
       @container_config = ContainerConfig.new
 

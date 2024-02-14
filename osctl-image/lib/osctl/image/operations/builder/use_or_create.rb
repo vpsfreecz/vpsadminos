@@ -10,6 +10,7 @@ module OsCtl::Image
     attr_reader :base_dir
 
     def initialize(builder, base_dir)
+      super()
       @builder = builder
       @base_dir = base_dir
     end

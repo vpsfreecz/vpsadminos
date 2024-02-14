@@ -22,6 +22,7 @@ module OsCtl::Image
     # @option opts [Boolean] :rebuild
     # @option opts [String] :ctid
     def initialize(base_dir, image, opts)
+      super()
       @base_dir = base_dir
       @image = image
       @opts = opts

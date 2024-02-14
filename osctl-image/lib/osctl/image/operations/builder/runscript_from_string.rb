@@ -14,6 +14,7 @@ module OsCtl::Image
     # @param name [nil, String]
     # @param client [nil, OsCtldClient]
     def initialize(builder, script, name: nil, client: nil)
+      super()
       @builder = builder
       @script = script
       @name = name || 'osctl-image-runscript'

@@ -10,6 +10,7 @@ module OsCtl::ExportFS
     # @param server [Server]
     # @param config [Config::TopLevel]
     def initialize(server, config)
+      super()
       @server = server
       @vars = {
         server:,

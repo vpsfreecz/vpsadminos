@@ -43,6 +43,7 @@ class DeviceList < Array
   attr_reader :devices
 
   def initialize(cfg)
+    super()
     @devices = cfg.map { |d| Device.new(d) }
   end
 

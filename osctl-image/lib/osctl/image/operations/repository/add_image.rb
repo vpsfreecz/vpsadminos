@@ -25,6 +25,7 @@ module OsCtl::Image
     # @option attrs [String] :variant
     # @param tags [Array<String>]
     def initialize(repo_dir, images, attrs, tags)
+      super()
       @repo_dir = repo_dir
       @images = images
       @attrs = attrs

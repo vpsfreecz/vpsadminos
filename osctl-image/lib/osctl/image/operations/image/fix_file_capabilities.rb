@@ -24,6 +24,7 @@ module OsCtl::Image
     end
 
     def initialize(image, install_dir)
+      super()
       @image = image
       @install_dir = install_dir
     end

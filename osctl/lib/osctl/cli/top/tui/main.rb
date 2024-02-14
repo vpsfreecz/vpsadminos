@@ -7,6 +7,7 @@ module OsCtl::Cli::Top
     include OsCtl::Lib::Utils::Humanize
 
     def initialize(model, rate, enable_procs: true)
+      super()
       @rate = rate
       @last_count = nil
       @sort_index = 0

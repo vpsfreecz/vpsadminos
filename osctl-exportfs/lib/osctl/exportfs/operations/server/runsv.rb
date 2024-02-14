@@ -9,6 +9,7 @@ module OsCtl::ExportFS
 
     # @param name [String]
     def initialize(name)
+      super()
       @server = Server.new(name)
       @cfg = server.open_config
     end

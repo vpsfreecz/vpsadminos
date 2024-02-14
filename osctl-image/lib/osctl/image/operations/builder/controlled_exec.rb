@@ -18,6 +18,7 @@ module OsCtl::Image
     # @param id [nil, String] optional run identifier
     # @param client [nil, OsCtldClient]
     def initialize(builder, command, id: nil, client: nil)
+      super()
       @builder = builder
       @command = command
       @id = id || SecureRandom.hex(10)

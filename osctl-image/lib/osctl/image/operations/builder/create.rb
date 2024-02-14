@@ -14,6 +14,7 @@ module OsCtl::Image
     attr_reader :setup_id
 
     def initialize(builder, base_dir)
+      super()
       @builder = builder
       @base_dir = base_dir
       @setup_id = SecureRandom.hex(4)

@@ -13,6 +13,7 @@ module OsCtl::ExportFS
     # @param server [Server]
     # @param export [Export]
     def initialize(server, export)
+      super()
       @server = server
       @export = export
       @cfg = server.open_config

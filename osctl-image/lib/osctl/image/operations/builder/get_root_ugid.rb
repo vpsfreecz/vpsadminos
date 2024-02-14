@@ -7,6 +7,7 @@ module OsCtl::Image
 
     # @param builder [Builder]
     def initialize(builder)
+      super()
       @builder = builder
     end
 

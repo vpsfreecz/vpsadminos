@@ -13,7 +13,7 @@ module OsCtld
 
     attr_reader :user
 
-    def initialize(user, opts)
+    def initialize(user, opts) # rubocop:disable Lint/MissingSuper
       @user = user
       @opts = opts
     end

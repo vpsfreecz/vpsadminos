@@ -15,6 +15,7 @@ module OsCtl::Image
     # @param repo_dir [String]
     # @param tags [Array<String>]
     def initialize(build, repo_dir, tags: [])
+      super()
       @build = build
       @repo_dir = repo_dir
       @tags = tags

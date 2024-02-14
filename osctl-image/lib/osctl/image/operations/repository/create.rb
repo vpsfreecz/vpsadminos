@@ -9,6 +9,7 @@ module OsCtl::Image
 
     # @param repo_dir [String]
     def initialize(repo_dir)
+      super()
       @repo_dir = repo_dir
     end
 

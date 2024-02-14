@@ -12,6 +12,7 @@ module OsCtl::Image
     # @param file1 [String]
     # @param file2 [String]
     def initialize(file1, file2)
+      super()
       @files = [file1, file2]
     end
 

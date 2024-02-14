@@ -12,6 +12,7 @@ module OsCtl::ExportFS
     # @param opts [Hash] options
     # @option opts [Hash] :options
     def initialize(name, opts = {})
+      super()
       @server = Server.new(name)
       @opts = opts
       @sys = OsCtl::Lib::Sys.new

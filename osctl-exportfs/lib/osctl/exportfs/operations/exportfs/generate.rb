@@ -7,6 +7,7 @@ module OsCtl::ExportFS
 
     # @param server [Server]
     def initialize(server)
+      super()
       @server = server
     end
 

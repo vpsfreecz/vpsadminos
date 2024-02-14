@@ -19,6 +19,7 @@ module OsCtl::Image
     # @option opts [String] :expression nix file
     # @option opts [Hash] :env environment variables
     def initialize(expression, command, opts = {})
+      super()
       @expression = expression
       @command = command
       @name = opts.delete(:name) || 'nix-shell-run'

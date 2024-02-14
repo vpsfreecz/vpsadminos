@@ -13,6 +13,7 @@ module OsCtl::ExportFS
     # @param as [String]
     # @param host [String]
     def initialize(server, as, host)
+      super()
       @server = server
       @cfg = server.open_config
       @export = cfg.exports.lookup(as, host)

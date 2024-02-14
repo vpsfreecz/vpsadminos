@@ -21,6 +21,7 @@ module OsCtl::Image
     # @option attrs [String] :variant
     # @param format [:tar, :zfs]
     def initialize(repo_dir, attrs, format)
+      super()
       @repo_dir = repo_dir
       @attrs = attrs
       @format = format.to_s

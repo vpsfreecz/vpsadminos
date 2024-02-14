@@ -17,6 +17,7 @@ module OsCtl::ExportFS
     # @option opts [Integer] :lockd_port
     # @option opts [Integer] :statd_port
     def initialize(server, opts)
+      super()
       @server = server
       @opts = opts
     end

@@ -2,8 +2,6 @@ require 'osctl/exportfs/operations/base'
 
 module OsCtl::ExportFS
   class Operations::Server::List < Operations::Base
-    def initialize; end
-
     def execute
       ret = []
 

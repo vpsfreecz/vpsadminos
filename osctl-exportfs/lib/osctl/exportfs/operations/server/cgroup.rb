@@ -6,6 +6,7 @@ module OsCtl::ExportFS
 
     # @param server [Server]
     def initialize(server)
+      super()
       @server = server
       @cgroup = OsCtl::ExportFS::CGroup.new(PATH)
     end

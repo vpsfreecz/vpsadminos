@@ -4,6 +4,7 @@ require 'osctl/cli/top/tui/screen'
 module OsCtl::Cli::Top
   class Tui::Help < Tui::Screen
     def initialize(main_screen)
+      super()
       @main_screen = main_screen
     end
 

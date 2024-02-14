@@ -27,6 +27,8 @@ module OsCtl::Image
         raise ArgumentError, 'provide file or script'
       end
 
+      super()
+
       @builder = builder
       @file = file
       @script = script

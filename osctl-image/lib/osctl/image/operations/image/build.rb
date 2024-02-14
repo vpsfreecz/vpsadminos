@@ -47,6 +47,7 @@ module OsCtl::Image
     # @option opts [String] :output_dir
     # @option opts [String] :vendor
     def initialize(base_dir, image, opts)
+      super()
       @base_dir = base_dir
 
       @image = image

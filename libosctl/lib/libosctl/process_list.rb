@@ -19,6 +19,7 @@ module OsCtl::Lib
     # @param opts [Hash] options passed to {OsProcess}
     # @yieldparam [OsProcess] process
     def initialize(**, &)
+      super()
       list_processes(**, &)
     end
 

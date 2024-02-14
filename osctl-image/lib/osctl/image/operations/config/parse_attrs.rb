@@ -19,6 +19,7 @@ module OsCtl::Image
     # @param type [:builder, :image]
     # @param name [String]
     def initialize(base_dir, type, name)
+      super()
       @base_dir = base_dir
       @type = type
       @name = name
