@@ -31,10 +31,17 @@ module OsCtl::Cli
         return @data[name] - args[0].send(name) if args[0]
 
         return @data[name]
-
       end
 
       super(name, *args, **kwargs)
+    end
+
+    def respond_to_missing?(name, *args, **kwargs)
+      if @data.has_key?(name) && args.size <= 1
+        true
+      else
+        super(name, *args, **kwargs)
+      end
     end
 
     protected
