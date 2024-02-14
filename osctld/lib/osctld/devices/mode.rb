@@ -3,7 +3,7 @@ module OsCtld
     # @param str [String] mode as string, e.g. `rwm`, `r`, rw`
     # @return [Array<String>]
     def self.normalize(str)
-      mode = str.split('')
+      mode = str.chars
       mode.sort!
       mode.uniq!
       mode
