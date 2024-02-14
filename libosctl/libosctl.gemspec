@@ -19,7 +19,7 @@ Gem::Specification.new do |s|
   s.executables = s.files.grep(%r{^bin/}) { |f| File.basename(f) }
   s.license     = 'MIT'
 
-  s.required_ruby_version = '>= 2.0.0'
+  s.required_ruby_version = ">= #{File.read('../.ruby-version').strip}"
 
   s.add_runtime_dependency 'rainbow', '~> 3.1.1'
   s.add_runtime_dependency 'require_all', '~> 2.0.0'

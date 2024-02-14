@@ -21,7 +21,7 @@ Gem::Specification.new do |s|
   s.require_paths = %w[lib ext]
   s.license       = 'MIT'
 
-  s.required_ruby_version = '>= 2.0.0'
+  s.required_ruby_version = ">= #{File.read('../.ruby-version').strip}"
 
   s.add_runtime_dependency 'bindata', '~> 2.4.15'
   s.add_runtime_dependency 'concurrent-ruby', '~> 1.1.9'

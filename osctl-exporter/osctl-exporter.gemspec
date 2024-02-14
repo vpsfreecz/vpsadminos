@@ -19,7 +19,7 @@ Gem::Specification.new do |s|
   s.executables = s.files.grep(%r{^bin/}) { |f| File.basename(f) }
   s.license     = 'MIT'
 
-  s.required_ruby_version = '>= 2.0.0'
+  s.required_ruby_version = ">= #{File.read('../.ruby-version').strip}"
 
   s.add_runtime_dependency 'json'
   s.add_runtime_dependency 'libosctl', s.version
