@@ -19,17 +19,11 @@ module OsCtld
               new.write(line)
             end
           end
+        end
 
-          # Write new params
-          params.each do |k, v|
-            new.puts("#{k}=\"#{v}\"")
-          end
-
-        else
-          # File did not exist, write all params
-          params.each do |k, v|
-            new.puts("#{k}=\"#{v}\"")
-          end
+        # Write params
+        params.each do |k, v|
+          new.puts("#{k}=\"#{v}\"")
         end
       end
     end

@@ -16,12 +16,11 @@ Dir.glob(File.join(conf_ct, '*.yml')).each do |cfg_path|
   prlimits = cfg['prlimits']
   next if prlimits.nil? || !prlimits.has_key?(:nofile)
 
-  if prlimits.has_key?('nofile')
-    prlimits.delete(:nofile)
-  else
+  unless prlimits.has_key?('nofile')
     prlimits['nofile'] = prlimits[:nofile]
-    prlimits.delete(:nofile)
   end
+
+  prlimits.delete(:nofile)
 
   regenerate_file(cfg_path, 0o400) do |new|
     new.write(YAML.dump(cfg))

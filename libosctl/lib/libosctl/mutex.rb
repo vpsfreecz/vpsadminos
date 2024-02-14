@@ -38,12 +38,9 @@ module OsCtl::Lib
           @queue -= 1
 
           raise Timeout if @thread && is_timeout
-
-          @thread = Thread.current
-
-        else
-          @thread = Thread.current
         end
+
+        @thread = Thread.current
       end
 
       nil
