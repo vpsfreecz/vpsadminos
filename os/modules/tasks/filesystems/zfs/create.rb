@@ -44,9 +44,8 @@ class Pool
     end
 
     puts 'zpool to create:'
-    puts '  zpool create ' +
-         config['properties'].map { |k, v| "-o \"#{k}=#{v}\"" }.join(' ') +
-         " #{pool} #{format_layout.join(' ')}"
+    puts "  zpool create #{config['properties'].map { |k, v| "-o \"#{k}=#{v}\"" }.join(' ')} " \
+         "#{pool} #{format_layout.join(' ')}"
 
     if has_spare?
       puts "  zpool add #{pool} spare #{config['spare'].join(' ')}"
