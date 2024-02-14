@@ -29,7 +29,7 @@ module OsCtld
       if @mutex.owned?
         block.call
       else
-        @mutex.synchronize { block.call }
+        @mutex.synchronize(&block)
       end
     end
 
