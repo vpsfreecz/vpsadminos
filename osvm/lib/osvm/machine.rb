@@ -453,7 +453,7 @@ module OsVm
       [
         "#{config.qemu}/bin/qemu-kvm",
         '-name', "os-vm-#{name}",
-        '-m', "#{config.memory}",
+        '-m', config.memory.to_s,
         '-cpu', 'host',
         '-smp', "cpus=#{config.cpus},cores=#{config.cpu.cores},threads=#{config.cpu.threads},sockets=#{config.cpu.sockets}",
         '--no-reboot',
@@ -465,7 +465,7 @@ module OsVm
         '-device', 'virtconsole,chardev=shell',
         '-kernel', config.kernel,
         '-initrd', config.initrd,
-        '-append', "#{all_kernel_params.join(' ')}",
+        '-append', all_kernel_params.join(' '),
         '-nographic'
       ] + qemu_disk_options + qemu_virtiofs_options + config.extra_qemu_options
     end
