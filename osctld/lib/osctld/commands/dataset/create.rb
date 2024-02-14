@@ -9,15 +9,15 @@ module OsCtld
       return error('container not found') unless ct
 
       manipulate(ct) do
-        ds = OsCtl::Lib::Zfs::Dataset.new(
+        wanted_ds = OsCtl::Lib::Zfs::Dataset.new(
           File.join(ct.dataset.name, opts[:name]),
           base: ct.dataset.name
         )
-        parents = ds.relative_parents.reverse! # top-level to deepest level
+        parents = wanted_ds.relative_parents.reverse! # top-level to deepest level
         created = []
 
         begin
-          (parents + [ds]).each do |ds|
+          (parents + [wanted_ds]).each do |ds|
             next if ds.exist?
 
             ds.create!(
@@ -47,13 +47,13 @@ module OsCtld
         end
 
         # Mount target dataset
-        parent_mnt = parent_mountpoint(ct, ds)
+        parent_mnt = parent_mountpoint(ct, wanted_ds)
 
         if opts[:mountpoint]
-          mount(ct, ds, opts[:mountpoint])
+          mount(ct, wanted_ds, opts[:mountpoint])
 
         elsif parent_mnt
-          mount(ct, ds, File.join(parent_mnt, ds.base_name))
+          mount(ct, wanted_ds, File.join(parent_mnt, wanted_ds.base_name))
         end
 
         ok

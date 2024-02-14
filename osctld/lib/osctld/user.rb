@@ -159,10 +159,10 @@ module OsCtld
     end
 
     def has_containers?
-      ct = DB::Containers.get.detect do |ct|
+      any_ct = DB::Containers.get.detect do |ct|
         ct.user.name == name && ct.pool.name == pool.name
       end
-      ct ? true : false
+      any_ct ? true : false
     end
 
     def containers

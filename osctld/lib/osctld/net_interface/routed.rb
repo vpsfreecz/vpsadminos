@@ -219,13 +219,13 @@ module OsCtld
     def get_ipv6_link_local
       link = exclusively { veth.clone }
 
-      ifaddr = Socket.getifaddrs.detect do |ifaddr|
+      local_ifaddr = Socket.getifaddrs.detect do |ifaddr|
         ifaddr.name == link && ifaddr.addr.ip? && ifaddr.addr.ipv6?
       end
 
-      raise "unable to find link-local IPv6 address for #{veth}" unless ifaddr
+      raise "unable to find link-local IPv6 address for #{veth}" unless local_ifaddr
 
-      IPAddress.parse(ifaddr.addr.ip_address.split('%').first)
+      IPAddress.parse(local_ifaddr.addr.ip_address.split('%').first)
     end
   end
 end

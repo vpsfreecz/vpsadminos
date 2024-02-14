@@ -46,7 +46,7 @@ module OsCtld
 
       add_error('more than one program attached') if progs.length > 2
 
-      prog = progs.detect { |prog| prog['name'] == opts[:program_name] }
+      prog = progs.detect { |v| v['name'] == opts[:program_name] }
 
       if prog.nil?
         add_error("program #{opts[:program_name]} not attached")

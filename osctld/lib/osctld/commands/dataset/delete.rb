@@ -55,8 +55,8 @@ module OsCtld
 
     protected
 
-    def find_mounts(ct, ds, descendants, recursive)
-      datasets = [ds]
+    def find_mounts(ct, dataset, descendants, recursive)
+      datasets = [dataset]
       datasets.concat(descendants) if recursive
 
       ct.mounts.select do |mnt|

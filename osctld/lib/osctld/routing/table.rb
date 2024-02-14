@@ -38,9 +38,9 @@ module OsCtld
       # @return [Routing::Route, nil]
       def remove(addr)
         exclusively do
-          r = routes.detect { |r| r.addr == addr }
-          routes.delete(r) if r
-          r
+          route = routes.detect { |r| r.addr == addr }
+          routes.delete(route) if route
+          route
         end
       end
 

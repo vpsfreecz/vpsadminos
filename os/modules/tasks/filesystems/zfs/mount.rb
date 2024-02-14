@@ -327,8 +327,8 @@ class Pool
     list.sort! { |a, b| a.name <=> b.name }
 
     # Fill-in missing parent datasets and resolve mountpoints
-    list.each do |ds|
-      with_parents(ds).each do |ds|
+    list.each do |decl_ds|
+      with_parents(decl_ds).each do |ds|
         ds.resolve_mountpoint if ds.filesystem?
       end
     end

@@ -214,13 +214,13 @@ module OsCtld
 
     # @param user [User, nil]
     def has_containers?(user = nil)
-      ct = DB::Containers.get.detect do |ct|
+      any_ct = DB::Containers.get.detect do |ct|
         ct.pool.name == pool.name \
           && ct.group.name == name \
           && (user.nil? || ct.user.name == user.name)
       end
 
-      ct ? true : false
+      any_ct ? true : false
     end
 
     def containers

@@ -129,11 +129,11 @@ module OsCtld
 
         gw = case gateways[v]
              when nil, 'auto'
-               ifaddr = Socket.getifaddrs.detect do |ifaddr|
+               any_ifaddr = Socket.getifaddrs.detect do |ifaddr|
                  ifaddr.name == link && ifaddr.addr.ip? && ifaddr.addr.send(:"ipv#{v}?")
                end
 
-               ifaddr ? ifaddr.addr.ip_address : nil
+               any_ifaddr ? any_ifaddr.addr.ip_address : nil
 
              when 'none'
                nil

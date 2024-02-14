@@ -141,8 +141,8 @@ module OsCtld
     end
 
     def create_default_mapping(allocation)
-      v = "0:#{allocation[:first_id]}:#{allocation[:id_count]}"
-      [v, v].map { |v| IdMap.from_string_list([v]) }
+      s = "0:#{allocation[:first_id]}:#{allocation[:id_count]}"
+      [s, s].map { |v| IdMap.from_string_list([v]) }
     end
 
     def check_mappings!(uid_map, gid_map)

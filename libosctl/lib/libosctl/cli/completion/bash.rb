@@ -78,9 +78,9 @@ module OsCtl::Lib
 
     attr_reader :app, :opts, :args
 
-    def commands(cmd = nil)
-      (cmd || app).commands.reject do |name, cmd|
-        cmd.description.nil? || name.to_s.start_with?('_')
+    def commands(command = nil)
+      (command || app).commands.reject do |name, subcommand|
+        subcommand.description.nil? || name.to_s.start_with?('_')
       end
     end
 
