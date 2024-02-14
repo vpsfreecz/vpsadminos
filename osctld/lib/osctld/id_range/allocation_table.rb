@@ -94,13 +94,12 @@ module OsCtld
     # @param owner [String] arbitrary allocation owner
     # @return [Hash, false]
     def allocate(count, owner)
-      free_segments(count).each do |table_index, block_index, _count|
-        alloc = Allocation.new(block_index, count, owner)
-        table.insert(table_index, alloc)
-        return alloc.export
-      end
+      table_index, block_index, _count = free_segments(count).first
+      return false if table_index.nil?
 
-      false
+      alloc = Allocation.new(block_index, count, owner)
+      table.insert(table_index, alloc)
+      alloc.export
     end
 
     # Free allocation starting at a specified position
