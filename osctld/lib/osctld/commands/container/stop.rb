@@ -22,7 +22,7 @@ module OsCtld
         ct.pool.autostart_plan.stop_ct(ct)
 
         mode =
-          case opts[:method] || 'shutdown_or_kill'
+          case opts.fetch(:method, 'shutdown_or_kill')
           when 'shutdown_or_kill'
             :stop
           when 'shutdown_or_fail'
