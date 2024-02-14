@@ -122,7 +122,7 @@ module OsCtld
       path = File.join(
         @trash_dataset.name,
         [
-          dataset.name.split('/')[1..-1].join('-'),
+          dataset.name.split('/')[1..].join('-'),
           t.to_i,
           SecureRandom.hex(3)
         ].join('.')

@@ -14,7 +14,7 @@ ret = JSON.parse(s.readline, symbolize_names: true)
 s.close
 
 if ret[:status]
-  Process.exec(*ARGV[2..-1])
+  Process.exec(*ARGV[2..])
 else
   warn "Error: #{ret[:message]}"
   exit(false)

@@ -191,7 +191,7 @@ module OsCtl::Lib
     def parse_stat
       File.open(File.join(path, 'stat'), 'r') do |f|
         line = f.readline
-        fields = line[line.rindex(')') + 1..-1].split
+        fields = line[line.rindex(')') + 1..].split
 
         # The third field in /proc/<pid>/stat (State) is the first in here, i.e.
         # substract 3 from field index documented in man proc to get
@@ -216,7 +216,7 @@ module OsCtl::Lib
           next if colon.nil?
 
           k = line[0..(colon - 1)].strip
-          v = line[(colon + 1)..-1].strip
+          v = line[(colon + 1)..].strip
 
           case k
           when 'NSpid'

@@ -113,7 +113,7 @@ module OsCtl::Cli
       f.close
 
       values = str.strip.split
-      @cpu << Cpu.new(* values[1..-1].map(&:to_i))
+      @cpu << Cpu.new(* values[1..].map(&:to_i))
       @cpu.shift if @cpu.size > 2
     end
 

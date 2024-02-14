@@ -38,7 +38,7 @@ module OsCtld
         param_k = param[0..eq - 1]
         next if param_k != k
 
-        return param[eq + 1..-1]
+        return param[eq + 1..]
       end
 
       default_v

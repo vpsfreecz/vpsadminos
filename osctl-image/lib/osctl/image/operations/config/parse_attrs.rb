@@ -39,7 +39,7 @@ module OsCtl::Image
         next if eq.nil?
 
         var = line[0..eq - 1]
-        val = line[eq + 1..-1]
+        val = line[eq + 1..]
 
         next if val.empty?
 

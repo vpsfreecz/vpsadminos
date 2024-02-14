@@ -458,7 +458,7 @@ module OsCtl::Cli
         :ct_exec,
         id: args[0],
         pool: gopts[:pool],
-        cmd: args[1..-1],
+        cmd: args[1..],
         run: opts['run-container'],
         network: opts['network']
       )
@@ -480,7 +480,7 @@ module OsCtl::Cli
         id: args[0],
         pool: gopts[:pool],
         script: args[1] == '-' ? nil : File.realpath(args[1]),
-        arguments: args[2..-1],
+        arguments: args[2..],
         run: opts['run-container'],
         network: opts['network']
       )
@@ -1218,7 +1218,7 @@ module OsCtl::Cli
       cmd_opts = { id: args[0], pool: gopts[:pool] }
       fmt_opts = { layout: :columns }
 
-      cmd_opts[:limits] = args[1..-1] if args.count > 1
+      cmd_opts[:limits] = args[1..] if args.count > 1
       fmt_opts[:header] = false if opts['hide-header']
 
       fmt_opts[:cols] = param_selector.parse_option(opts[:output])
@@ -1265,7 +1265,7 @@ module OsCtl::Cli
       end
 
       require_args!('id', strict: false)
-      props = args[1..-1]
+      props = args[1..]
 
       cmd_opts = { id: args[0], pool: gopts[:pool], properties: props }
       fmt_opts = { layout: :columns }
@@ -1558,7 +1558,7 @@ module OsCtl::Cli
     def set(option)
       require_args!('id', strict: false)
       cmd_opts = { id: args[0], pool: gopts[:pool] }
-      cmd_opts[option] = yield(args[1..-1])
+      cmd_opts[option] = yield(args[1..])
 
       osctld_fmt(:ct_set, cmd_opts:)
     end
@@ -1566,7 +1566,7 @@ module OsCtl::Cli
     def unset(option)
       require_args!('id', strict: false)
       cmd_opts = { id: args[0], pool: gopts[:pool] }
-      cmd_opts[option] = block_given? ? yield(args[1..-1]) : true
+      cmd_opts[option] = block_given? ? yield(args[1..]) : true
 
       osctld_fmt(:ct_unset, cmd_opts:)
     end

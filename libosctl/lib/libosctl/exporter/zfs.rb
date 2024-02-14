@@ -20,7 +20,7 @@ module OsCtl::Lib
     def initialize(*_)
       super
 
-      @datasets = ct.datasets[1..-1] # skip the root dataset
+      @datasets = ct.datasets[1..] # skip the root dataset
       @snapshots = []
     end
 

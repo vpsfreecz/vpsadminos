@@ -19,7 +19,7 @@ module OsUp
       end
 
       # List of migrations to apply
-      list = available[i..-1]
+      list = available[i..]
 
       # Check that the list is clean
       list.each do |id, m|

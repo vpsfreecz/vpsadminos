@@ -43,7 +43,7 @@ module OsCtl::Cli
 
       groups.map! do |grp|
         # Look ahead to see if the group has any more siblings on the same level
-        has_sibling = groups[i + 1..-1].detect { |g| g[:parent] == grp[:parent] }
+        has_sibling = groups[i + 1..].detect { |g| g[:parent] == grp[:parent] }
 
         dir_indent = if has_sibling
                        decor[:branch]
@@ -59,7 +59,7 @@ module OsCtl::Cli
         res << grp[:parts][0..-3].inject('') do |acc, v|
           t = File.join(t, v)
 
-          has_sibling = groups[i + 1..-1].detect { |g| g[:parent] == t }
+          has_sibling = groups[i + 1..].detect { |g| g[:parent] == t }
 
           acc << if has_sibling
                    decor[:continuation]

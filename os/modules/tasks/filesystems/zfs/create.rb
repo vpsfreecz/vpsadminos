@@ -126,7 +126,7 @@ class Pool
 
       Open3.popen2('sfdisk', '-q', dev_path) do |stdin, stdout, status_thread|
         partitions.each do |part, opts|
-          part_index = part[1..-1]
+          part_index = part[1..]
 
           fields = { type: opts['type'] }
           fields[:size] = opts['sizeGB'] * 2048 * 1024 if opts['sizeGB']

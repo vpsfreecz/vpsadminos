@@ -20,7 +20,7 @@ module OsCtld
         cfg[:homedir],
         cfg[:cgroup_path]
       )
-      Process.exec(*ARGV[2..-1])
+      Process.exec(*ARGV[2..])
     end
   end
 end

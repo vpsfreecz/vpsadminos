@@ -13,7 +13,7 @@ module OsCtld
 
       from_snapshot = if opts[:from_snapshot]
                         if opts[:from_snapshot].start_with?('@')
-                          opts[:from_snapshot][1..-1]
+                          opts[:from_snapshot][1..]
                         else
                           opts[:from_snapshot]
                         end

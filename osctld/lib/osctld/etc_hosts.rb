@@ -206,7 +206,7 @@ module OsCtld
         return if line !~ /^([^\s]+)(\s+)/
 
         i = $~.end(2)
-        "#{::Regexp.last_match(1)}#{::Regexp.last_match(2)}#{name} #{line[i..-1]}"
+        "#{::Regexp.last_match(1)}#{::Regexp.last_match(2)}#{name} #{line[i..]}"
       end
     end
 

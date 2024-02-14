@@ -203,7 +203,7 @@ module OsCtl::Cli::Top
             offset = ct_count - view_ct_count
           end
 
-          data[:containers][offset..-1]
+          data[:containers][offset..]
         else
           data[:containers]
         end

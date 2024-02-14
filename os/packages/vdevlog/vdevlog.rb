@@ -644,7 +644,7 @@ module VdevLog
         next if colon.nil?
 
         k = stripped[0..colon - 1]
-        v = stripped[colon + 2..-1]
+        v = stripped[colon + 2..]
 
         next if v.nil?
 
@@ -703,7 +703,7 @@ module VdevLog
         stripped = line.strip
 
         if stripped.start_with?('pool:')
-          cur_pool = stripped[5..-1].strip
+          cur_pool = stripped[5..].strip
         elsif cur_pool && stripped.start_with?('config:')
           in_config = true
         elsif cur_pool && in_config

@@ -195,7 +195,7 @@ module OsCtl::Lib::Cli
 
           if o[i].is_a?(::String) && o[i].index("\n")
             lines = o[i].split("\n")
-            v = ([lines.first] + lines[1..-1].map { |l| (' ' * (w + 3)) + l }).join("\n")
+            v = ([lines.first] + lines[1..].map { |l| (' ' * (w + 3)) + l }).join("\n")
 
           else
             v = o[i]

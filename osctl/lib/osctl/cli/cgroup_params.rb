@@ -55,7 +55,7 @@ module OsCtl
         raise GLI::BadCommandLine, "invalid cgroup version '#{opts[:version]}'"
       end
 
-      cmd_opts[:parameters] = args[1..-1] if args.count > 1
+      cmd_opts[:parameters] = args[1..] if args.count > 1
       cmd_opts[:subsystem] = opts[:subsystem].split(',') if opts[:subsystem]
       cmd_opts[:all] = true if opts[:all]
       fmt_opts[:header] = false if opts['hide-header']
@@ -98,7 +98,7 @@ module OsCtl
         version: opts[:version],
         subsystem: parse_subsystem(args[1]),
         parameter: args[1],
-        value: args[2..-1].map { |v| parse_data(v) }
+        value: args[2..].map { |v| parse_data(v) }
       }.compact]
 
       cmd_opts.update({

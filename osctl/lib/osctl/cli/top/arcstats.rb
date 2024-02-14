@@ -42,7 +42,7 @@ module OsCtl::Cli
     def parse(file)
       @data = {}
 
-      File.readlines(file)[2..-1].each do |line|
+      File.readlines(file)[2..].each do |line|
         name, type, value = line.split
 
         @data[name.to_sym] = value.to_i

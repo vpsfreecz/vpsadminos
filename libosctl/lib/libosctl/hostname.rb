@@ -6,7 +6,7 @@ module OsCtl::Lib
     def initialize(fqdn)
       names = fqdn.split('.')
       @local = names.first
-      @domain = names[1..-1].join('.')
+      @domain = names[1..].join('.')
       @fqdn = fqdn
     end
 

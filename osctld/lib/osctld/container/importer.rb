@@ -170,7 +170,7 @@ module OsCtld
       tar.each do |entry|
         next unless entry.full_name.start_with?('hooks/')
 
-        name = entry.full_name[('hooks/'.length - 1)..-1]
+        name = entry.full_name[('hooks/'.length - 1)..]
 
         if entry.directory?
           FileUtils.mkdir_p(

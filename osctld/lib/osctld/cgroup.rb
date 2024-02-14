@@ -353,7 +353,7 @@ module OsCtld
           colon = s.index(':')
           next if colon.nil?
 
-          s = s[(colon + 1)..-1]
+          s = s[(colon + 1)..]
 
           # Controllers
           colon = s.index(':')
@@ -365,14 +365,14 @@ module OsCtld
                          s[0..(colon - 1)].split(',').map do |subsys|
                            # Remove name= from named controllers
                            if (eq = subsys.index('='))
-                             subsys[(eq + 1)..-1]
+                             subsys[(eq + 1)..]
                            else
                              subsys
                            end
                          end.join(',')
                        end
 
-          s = s[(colon + 1)..-1]
+          s = s[(colon + 1)..]
 
           # Path
           next if s.nil?

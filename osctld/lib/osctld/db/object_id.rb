@@ -15,7 +15,7 @@ module OsCtld
     def initialize(id, pool = nil)
       if (i = id.index(':'))
         @pool = id[0..i - 1]
-        @id = id[i + 1..-1]
+        @id = id[i + 1..]
       else
         @id = id
       end

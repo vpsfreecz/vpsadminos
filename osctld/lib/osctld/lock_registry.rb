@@ -77,7 +77,7 @@ module OsCtld
         object,
         type,
         state,
-        caller[1..-1]
+        caller[1..]
       )
     end
 

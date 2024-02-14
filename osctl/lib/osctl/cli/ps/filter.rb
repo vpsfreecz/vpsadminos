@@ -83,7 +83,7 @@ module OsCtl::Cli
           raise ArgumentError, "invalid parameter filter #{str_rule.inspect}: #{ret_op} cannot be used on numbers"
         end
 
-        value = str_rule[(i + op.size)..-1]
+        value = str_rule[(i + op.size)..]
         ret_value =
           if is_num
             value.to_i

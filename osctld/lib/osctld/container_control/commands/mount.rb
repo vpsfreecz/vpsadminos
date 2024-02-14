@@ -63,7 +63,7 @@ module OsCtld
         return error("invalid return value: #{line.inspect}") unless i
 
         status = line[0..i - 1]
-        msg = line[i + 1..-1]
+        msg = line[i + 1..]
 
         if status == 'ok'
           ok

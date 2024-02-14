@@ -139,17 +139,17 @@ module OsCtl::Repo
       repo.path = opts[:cache]
 
       dl = Downloader::Cached.new(repo)
-      puts dl.get(*args[1..-1], force_check: true)
+      puts dl.get(*args[1..], force_check: true)
     end
 
     def remote_get_path
       dl = remote_get_common
-      puts dl.get(*args[1..-1], force_check: opts['force-check'])
+      puts dl.get(*args[1..], force_check: opts['force-check'])
     end
 
     def remote_get_stream
       dl = remote_get_common
-      dl.get(*args[1..-1], force_check: opts['force-check']) do |fragment|
+      dl.get(*args[1..], force_check: opts['force-check']) do |fragment|
         $stdout.write(fragment)
       end
     end

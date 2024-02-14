@@ -39,7 +39,7 @@ module OsCtl::Cli
 
       cmd_opts = { type: 'state', opts: { id: } }
       cmd_opts[:opts][:pool] = pool if pool
-      states = args[1..-1]
+      states = args[1..]
 
       # First, subscribe for events
       ret = c.cmd_data!(:event_subscribe, **cmd_opts)

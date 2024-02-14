@@ -23,7 +23,7 @@ module OsCtl::Lib
     # @param value [String]
     def add_property(dataset, property, value)
       parts = dataset.split('/')
-      do_add_property([], parts.first, parts[1..-1], property, value)
+      do_add_property([], parts.first, parts[1..], property, value)
     end
 
     # Lookup dataset in the subtree
@@ -77,7 +77,7 @@ module OsCtl::Lib
         datasets[name].do_add_property(
           path + [name],
           parts.first,
-          parts[1..-1],
+          parts[1..],
           property,
           value
         )

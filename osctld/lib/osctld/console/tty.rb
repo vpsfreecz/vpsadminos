@@ -143,7 +143,7 @@ module OsCtld
                     end
                   end
 
-                  buf = buf[i + 1..-1]
+                  buf = buf[i + 1..]
                 end
 
               when fd

@@ -195,7 +195,7 @@ module OsCtld
               "#{name}/"
             end
 
-        grp.name.start_with?(s) && grp.name[s.size..-1].index('/').nil?
+        grp.name.start_with?(s) && grp.name[s.size..].index('/').nil?
       end.sort! { |a, b| a.name <=> b.name }
     end
 

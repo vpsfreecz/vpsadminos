@@ -72,7 +72,7 @@ module OsCtl
     end
 
     def name_to_zfs(v)
-      v[4..-1]
+      v[4..]
     end
 
     def name_to_cli(v)

@@ -20,7 +20,7 @@ module OsCtl::Lib
         raise GLI::BadCommandLine, "missing argument <#{arg}>"
 
       elsif strict && args.count > (required.count + optional.count)
-        unknown = args[(required.count + optional.count)..-1]
+        unknown = args[(required.count + optional.count)..]
 
         msg = ''
 

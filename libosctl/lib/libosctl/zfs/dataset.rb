@@ -271,7 +271,7 @@ module OsCtl::Lib
                          raise "invalid base '#{base}' for '#{name}'"
 
                        else
-                         name[(base.length + 1)..-1]
+                         name[(base.length + 1)..]
                        end
     end
 

@@ -90,7 +90,7 @@ module OsCtl::Lib
           end
 
           cur_pool = Pool.new(
-            name: stripped[5..-1].strip,
+            name: stripped[5..].strip,
             state: :unknown,
             scan: :none,
             scan_percent: nil,
@@ -103,10 +103,10 @@ module OsCtl::Lib
           config_parser.parse_line(line, stripped)
 
         elsif cur_pool && stripped.start_with?('state:')
-          cur_pool.state = stripped[6..-1].strip.downcase.to_sym
+          cur_pool.state = stripped[6..].strip.downcase.to_sym
 
         elsif cur_pool && stripped.start_with?('scan:')
-          scan = stripped[5..-1].strip
+          scan = stripped[5..].strip
 
           cur_pool.scan =
             if scan.start_with?('resilver in progress')
@@ -150,7 +150,7 @@ module OsCtl::Lib
       def parse_line(line, stripped)
         return unless line.start_with?("\t")
 
-        indent_level = line[1..-1][/\A */].size
+        indent_level = line[1..][/\A */].size
         vdev, state, read, write, checksum = stripped.split
 
         if indent_level == 0

@@ -65,7 +65,7 @@ module OsCtl
     end
 
     def name_to_internal(v)
-      v[PREFIX.length..-1]
+      v[PREFIX.length..]
     end
 
     def param_value(param, v, precise)
