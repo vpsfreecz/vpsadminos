@@ -218,16 +218,10 @@ module OsVm
           raise TimeoutError, "Timeout occured while running command '#{cmd}'"
         end
 
-        rs, = IO.select([shell], [], [], 1)
-        next if rs.nil?
+        rs = shell.wait_readable(1)
+        next unless rs
 
-        rs.each do |io|
-          case io
-          when shell
-            buffer << read_nonblock(shell)
-          end
-        end
-
+        buffer << read_nonblock(shell)
         next unless rx =~ buffer
 
         status = ::Regexp.last_match(2).to_i
@@ -572,15 +566,11 @@ module OsVm
 
         begin
           loop do
-            rs, = IO.select([qemu_read])
+            rs = qemu_read.wait_readable
+            next unless rs
 
-            rs.each do |io|
-              case io
-              when qemu_read
-                console_log.write(read_nonblock(qemu_read))
-                console_log.flush
-              end
-            end
+            console_log.write(read_nonblock(qemu_read))
+            console_log.flush
           end
         rescue EOFError
           console_log.close
@@ -619,16 +609,10 @@ module OsVm
           raise TimeoutError, 'Timeout occured while waiting for shell'
         end
 
-        rs, = IO.select([shell], [], [], 1)
-        next if rs.nil?
+        rs = shell.wait_readable(1)
+        next unless rs
 
-        rs.each do |io|
-          case io
-          when shell
-            buffer << read_nonblock(shell)
-          end
-        end
-
+        buffer << read_nonblock(shell)
         next unless buffer.include?("test-shell-ready\r\n")
 
         @shell_up = true
