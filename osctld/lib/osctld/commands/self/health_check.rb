@@ -57,7 +57,7 @@ module OsCtld
         }
       end
 
-      pool_entity_assets.each do |_pool, entities|
+      pool_entity_assets.each_value do |entities|
         entities.each do |ent, ent_assets|
           ent_errors = []
 

@@ -70,7 +70,7 @@ module OsCtl::Cli
       ret = { tx: { bytes: 0, packets: 0 }, rx: { bytes: 0, packets: 0 } }
 
       if netifs == :all
-        host.netif_stats.get_stats_for_all.each do |_netif, st|
+        host.netif_stats.get_stats_for_all.each_value do |st|
           ret[:tx][:bytes] += st[:tx][:bytes]
           ret[:tx][:packets] += st[:tx][:packets]
           ret[:rx][:bytes] += st[:rx][:bytes]

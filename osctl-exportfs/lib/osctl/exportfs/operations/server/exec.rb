@@ -33,7 +33,7 @@ module OsCtl::ExportFS
       main = Process.fork do
         cgroup.enter_payload
 
-        namespaces.each do |ns, _type|
+        namespaces.each_key do |ns|
           ios[ns] = File.open(File.join('/proc', pid.to_s, 'ns', ns), 'r')
         end
 

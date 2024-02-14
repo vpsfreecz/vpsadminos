@@ -33,7 +33,7 @@ module OsCtld
 
     def close_all
       @mutex.synchronize do
-        @ttys.each { |_n, tty| tty.close }
+        @ttys.each_value(&:close)
       end
     end
 

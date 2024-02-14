@@ -147,8 +147,8 @@ module OsCtld
 
     def stop_all
       sync do
-        @servers.each { |_user, st| st[0].stop }
-        @servers.each { |_user, st| st[1].join }
+        @servers.each_value { |st| st[0].stop }
+        @servers.each_value { |st| st[1].join }
       end
 
       s, t = @servers[:namespaced]
