@@ -1,8 +1,11 @@
+require 'singleton'
 require 'socket'
 require 'osctld/generic/client_handler'
 
 module OsCtld
   class SendReceive::Server
+    include Singleton
+
     class ClientHandler < Generic::ClientHandler
       def handle_cmd(req)
         cmd = SendReceive::Command.find(req[:cmd].to_sym)
@@ -16,13 +19,6 @@ module OsCtld
       end
     end
 
-    @@instance = nil
-
-    def self.instance
-      @@instance ||= new
-      @@instance
-    end
-
     class << self
       %i[start stop assets].each do |v|
         define_method(v) do |*args, &block|
@@ -30,12 +26,6 @@ module OsCtld
         end
       end
     end
-
-    private
-
-    def initialize; end
-
-    public
 
     def start
       socket = UNIXServer.new(SendReceive::SOCKET)
