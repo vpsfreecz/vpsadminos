@@ -35,17 +35,18 @@ module OsCtl::Lib
       # Log levels: {PrivateMethods::LEVELS}
       # Types: init, general, regular, special types and any other
       def log(*args)
-        if args.count == 3
+        case args.count
+        when 3
           level, type, msg = args
 
           PrivateMethods.log(level, PrivateMethods.resolve_type(type), msg)
 
-        elsif args.count == 2
+        when 2
           level, msg = args
 
           PrivateMethods.log(level, PrivateMethods.resolve_type(self), msg)
 
-        elsif args.count == 1
+        when 1
           PrivateMethods.log(:info, :general, args.first)
 
         else

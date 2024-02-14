@@ -40,14 +40,11 @@ module VpsAdminOS::Converter
 
     def parse(io)
       io.each_line do |line|
-        if /^\s*#/ =~ line || /^\s*$/ =~ line
+        case line
+        when /^\s*#/, /^\s*$/
           next
 
-        elsif /^([A-Z_]+)="([^"]+)"/ =~ line
-          it = Vz6::ConfigItem.new(ctid, ::Regexp.last_match(1), ::Regexp.last_match(2))
-          @items[it.key] = it
-
-        elsif /^([A-Z_]+)=([^\s]+)/ =~ line
+        when /^([A-Z_]+)="([^"]+)"/, /^([A-Z_]+)=([^\s]+)/
           it = Vz6::ConfigItem.new(ctid, ::Regexp.last_match(1), ::Regexp.last_match(2))
           @items[it.key] = it
 
