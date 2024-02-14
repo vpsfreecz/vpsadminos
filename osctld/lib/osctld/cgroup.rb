@@ -364,7 +364,7 @@ module OsCtld
                        else
                          s[0..(colon - 1)].split(',').map do |subsys|
                            # Remove name= from named controllers
-                           if eq = subsys.index('=')
+                           if (eq = subsys.index('='))
                              subsys[(eq + 1)..-1]
                            else
                              subsys

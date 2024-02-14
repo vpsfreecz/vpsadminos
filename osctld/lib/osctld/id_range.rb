@@ -52,7 +52,7 @@ module OsCtld
             raise AllocationError, e.message
           end
         else
-          unless ret = allocations.allocate(block_count, opts[:owner])
+          unless (ret = allocations.allocate(block_count, opts[:owner]))
             raise AllocationError, 'no free space found'
           end
         end

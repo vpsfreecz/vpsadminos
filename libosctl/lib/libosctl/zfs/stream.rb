@@ -283,7 +283,7 @@ module OsCtl::Lib
       if suffix !~ /^\d+$/
         units = %w[B K M G T]
 
-        raise "unsupported suffix '#{suffix}'" unless i = units.index(suffix)
+        raise "unsupported suffix '#{suffix}'" unless (i = units.index(suffix))
 
         i.times { size *= 1024 }
 

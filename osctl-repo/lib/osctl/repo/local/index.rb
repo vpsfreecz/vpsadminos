@@ -24,7 +24,7 @@ module OsCtl::Repo
     end
 
     def add(image)
-      if i = contents.index(image)
+      if (i = contents.index(image))
         contents[i] = image
 
       else

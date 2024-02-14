@@ -125,7 +125,7 @@ module OsCtld
               when $stdin
                 buf << $stdin.read_nonblock(4096)
 
-                while i = buf.index("\n")
+                while (i = buf.index("\n"))
                   cmd = JSON.parse(buf[0..i], symbolize_names: true)
 
                   if cmd[:keys]

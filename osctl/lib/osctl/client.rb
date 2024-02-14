@@ -65,7 +65,7 @@ module OsCtl
     def receive
       buf = ''
 
-      while m = @sock.recv(1024)
+      while (m = @sock.recv(1024))
         buf += m
         raise Error, 'osctld closed connection' if m.nil? || m.empty?
         break if m[-1].chr == "\n"

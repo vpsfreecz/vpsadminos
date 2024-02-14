@@ -141,7 +141,7 @@ module VpsAdminOS::Converter
       if suffix.upcase == 'P'
         n
 
-      elsif i = %w[B K M G T].index(suffix.upcase)
+      elsif (i = %w[B K M G T].index(suffix.upcase))
         i.times { n *= 1024 }
 
         if pages

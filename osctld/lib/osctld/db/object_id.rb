@@ -13,7 +13,7 @@ module OsCtld
     # @param id [String]
     # @param pool [String, Array<String>, Pool, nil]
     def initialize(id, pool = nil)
-      if i = id.index(':')
+      if (i = id.index(':'))
         @pool = id[0..i - 1]
         @id = id[i + 1..-1]
       else

@@ -82,7 +82,7 @@ class Wrapper
 
         cmd_buf << str
 
-        while i = cmd_buf.index("\n")
+        while (i = cmd_buf.index("\n"))
           t = cmd_buf[0..i]
           @cmd_buf = cmd_buf[i + 1..-1]
 

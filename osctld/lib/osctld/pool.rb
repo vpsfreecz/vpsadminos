@@ -758,7 +758,7 @@ module OsCtld
 
     def check_user_conflict(user)
       DB::Users.sync do
-        if u = DB::Users.by_ugid(user.ugid)
+        if (u = DB::Users.by_ugid(user.ugid))
           log(
             :warn,
             "Unable to load user '#{user.name}': " +

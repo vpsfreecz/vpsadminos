@@ -57,7 +57,7 @@ module OsCtld
       loop do
         buf = ''
 
-        while m = @sock.recv(1024)
+        while (m = @sock.recv(1024))
           buf += m
           break if m.empty? || m.end_with?("\n")
         end
