@@ -494,7 +494,7 @@ module OsCtl::Cli
     end
 
     def wall
-      msg = opts[:message] || STDIN.read
+      msg = opts[:message] || $stdin.read
 
       osctld_fmt(
         :ct_wall,
@@ -692,7 +692,7 @@ module OsCtl::Cli
 
     def set_raw_lxc
       require_args!('id')
-      set(:raw_lxc) { |_args| STDIN.read }
+      set(:raw_lxc) { |_args| $stdin.read }
     end
 
     def unset_raw_lxc
@@ -879,7 +879,7 @@ module OsCtl::Cli
       osctld_fmt(:ct_cfg_replace, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
-        config: STDIN.read
+        config: $stdin.read
       })
     end
 
@@ -1069,7 +1069,7 @@ module OsCtl::Cli
       finder = PidFinder.new(header: !opts['hide-header'])
 
       if args[0] == '-'
-        finder.find(STDIN.readline.strip.to_i) until STDIN.eof?
+        finder.find($stdin.readline.strip.to_i) until $stdin.eof?
 
       else
         args.each { |pid| finder.find(pid.to_i) }
@@ -1102,10 +1102,10 @@ module OsCtl::Cli
       `stty raw -echo -icanon -isig`
 
       pid = Process.fork do
-        console = OsCtl::Console.new(c.socket, STDIN, STDOUT)
+        console = OsCtl::Console.new(c.socket, $stdin, $stdout)
 
         Signal.trap('WINCH') do
-          console.resize(*STDIN.winsize)
+          console.resize(*$stdin.winsize)
         end
 
         console.open
@@ -1123,7 +1123,7 @@ module OsCtl::Cli
       c = osctld_open
       c.cmd_response!(:ct_console, id: ctid, pool:, tty:)
 
-      console = OsCtl::Console.new(c.socket, STDIN, STDOUT, raw: true)
+      console = OsCtl::Console.new(c.socket, $stdin, $stdout, raw: true)
 
       Signal.trap('TERM') do
         console.close
@@ -1467,10 +1467,10 @@ module OsCtl::Cli
       )
 
       puts
-      STDOUT.write("Kill #{pl.length} processes with SIG#{signal}? [yes/NO]: ")
-      STDOUT.flush
+      $stdout.write("Kill #{pl.length} processes with SIG#{signal}? [yes/NO]: ")
+      $stdout.flush
 
-      if STDIN.readline.strip.downcase == 'yes'
+      if $stdin.readline.strip.downcase == 'yes'
         pl.each do |p|
           puts "kill -SIG#{signal} #{p.pid}"
           Process.kill(signal, p.pid)
@@ -1660,7 +1660,7 @@ module OsCtl::Cli
       w_out.close
       w_err.close
 
-      watch_ios = [STDIN, r_out, r_err, c.socket]
+      watch_ios = [$stdin, r_out, r_err, c.socket]
 
       loop do
         rs, ws, = IO.select(watch_ios)
@@ -1669,21 +1669,21 @@ module OsCtl::Cli
           case r
           when r_out
             data = r.read_nonblock(4096)
-            STDOUT.write(data)
-            STDOUT.flush
+            $stdout.write(data)
+            $stdout.flush
 
           when r_err
             data = r.read_nonblock(4096)
-            STDERR.write(data)
-            STDERR.flush
+            $stderr.write(data)
+            $stderr.flush
 
-          when STDIN
+          when $stdin
             begin
               data = r.read_nonblock(4096)
               w_in.write(data)
             rescue EOFError
               w_in.close
-              watch_ios.delete(STDIN)
+              watch_ios.delete($stdin)
             end
 
           when c.socket

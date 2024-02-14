@@ -83,12 +83,12 @@ module OsCtl::Cli
       end
 
       unless opts[:force]
-        STDOUT.write(
+        $stdout.write(
           'Do you really wish to stop all containers and export all pools? ' +
           '[y/N]: '
         )
 
-        unless %w[y yes].include?(STDIN.readline.strip.downcase)
+        unless %w[y yes].include?($stdin.readline.strip.downcase)
           puts 'Aborting'
           return
         end
@@ -109,8 +109,8 @@ module OsCtl::Cli
         warn 'Unable to connect to osctld: socket not found'
       end
 
-      STDOUT.write('Waiting for osctld to prepare for shutdown...')
-      STDOUT.flush
+      $stdout.write('Waiting for osctld to prepare for shutdown...')
+      $stdout.flush
 
       (0..3600).each do |i|
         begin
@@ -125,8 +125,8 @@ module OsCtl::Cli
         end
 
         if i % 5 == 0
-          STDOUT.write('.')
-          STDOUT.flush
+          $stdout.write('.')
+          $stdout.flush
         end
 
         sleep(1)

@@ -12,7 +12,7 @@ module OsCtld
       CGroup.mkpath_all(cg_path.split('/'))
 
       pid = Process.fork do
-        STDOUT.reopen(out_w)
+        $stdout.reopen(out_w)
         out_r.close
 
         SwitchUser.switch_to(

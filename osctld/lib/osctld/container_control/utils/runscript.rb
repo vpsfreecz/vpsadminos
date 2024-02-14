@@ -48,13 +48,13 @@ module OsCtld
           cur_stderr = opts.fetch(:stderr, stderr)
 
           if cur_stdin
-            STDIN.reopen(cur_stdin)
+            $stdin.reopen(cur_stdin)
           else
-            STDIN.close
+            $stdin.close
           end
 
-          STDOUT.reopen(cur_stdout)
-          STDERR.reopen(cur_stderr) if cur_stderr
+          $stdout.reopen(cur_stdout)
+          $stderr.reopen(cur_stderr) if cur_stderr
 
           opts[:close_fds] && opts[:close_fds].each { |fd| fd.close }
 

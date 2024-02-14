@@ -11,7 +11,7 @@ module OsCtl::Cli
       osctld_fmt(:receive_authkey_add, cmd_opts: {
         pool: gopts[:pool],
         name: args[0],
-        public_key: STDIN.readline.strip,
+        public_key: $stdin.readline.strip,
         from: opts['from'],
         ctid: opts['ctid'],
         passphrase: opts['passphrase'],

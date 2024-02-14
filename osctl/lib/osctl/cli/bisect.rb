@@ -95,10 +95,10 @@ module OsCtl::Cli
     end
 
     def ask_confirmation!
-      STDOUT.write('Continue? [y/N]: ')
-      STDOUT.flush
+      $stdout.write('Continue? [y/N]: ')
+      $stdout.flush
 
-      unless %w[y yes].include?(STDIN.readline.strip.downcase)
+      unless %w[y yes].include?($stdin.readline.strip.downcase)
         raise 'Aborted'
       end
 
@@ -107,10 +107,10 @@ module OsCtl::Cli
 
     def ask_success?
       loop do
-        STDOUT.write('Has the situation changed? [y/n]: ')
-        STDOUT.flush
+        $stdout.write('Has the situation changed? [y/n]: ')
+        $stdout.flush
 
-        s = STDIN.readline.strip.downcase
+        s = $stdin.readline.strip.downcase
         ret = nil
 
         if %w[y yes].include?(s)

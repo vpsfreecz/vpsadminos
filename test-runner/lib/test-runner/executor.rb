@@ -138,9 +138,9 @@ module TestRunner
         FileUtils.mkdir_p(dir)
 
         out = File.open(File.join(dir, 'test-runner.log'), 'w')
-        STDOUT.reopen(out)
-        STDERR.reopen(out)
-        STDIN.close
+        $stdout.reopen(out)
+        $stderr.reopen(out)
+        $stdin.close
 
         ev = TestRunner::TestEvaluator.new(
           test,

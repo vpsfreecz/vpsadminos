@@ -12,7 +12,7 @@ module OsCtld
       OsCtl::Lib::Logger.setup(:none)
       CGroup.init
 
-      cfg = JSON.parse(STDIN.readline, symbolize_names: true)
+      cfg = JSON.parse($stdin.readline, symbolize_names: true)
 
       Process.setproctitle(
         "osctld: #{cfg[:pool]}:#{cfg[:id]} runner:#{cfg[:name].downcase}"

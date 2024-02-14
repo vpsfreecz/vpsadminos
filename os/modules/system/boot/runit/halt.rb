@@ -172,10 +172,10 @@ class Halt
     puts
 
     loop do
-      STDOUT.write("Enter machine hostname to #{@action}: ")
-      STDOUT.flush
+      $stdout.write("Enter machine hostname to #{@action}: ")
+      $stdout.flush
 
-      return true if STDIN.readline.strip == @hostname
+      return true if $stdin.readline.strip == @hostname
 
       puts "Invalid hostname, this is #{@hostname}"
       puts

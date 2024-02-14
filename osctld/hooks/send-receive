@@ -123,7 +123,7 @@ class SendReceive
   end
 
   def send_stdin
-    client.send_io(STDIN)
+    client.send_io($stdin)
   end
 
   def recv_msg

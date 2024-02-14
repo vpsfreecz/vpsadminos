@@ -17,7 +17,7 @@ module OsCtl::Cli
 
         model.measure
         puts model.data.to_json
-        STDOUT.flush
+        $stdout.flush
       end
     end
   end

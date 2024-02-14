@@ -191,7 +191,7 @@ module OsCtl::Cli
           throttle_rate: 0.2,
           starting_at: 0,
           autofinish: false,
-          output: STDOUT
+          output: $stdout
         )
 
         if data[:transfered] > @pb.total

@@ -67,10 +67,10 @@ module VpsAdminOS::Converter
       stage
 
       unless opts[:proceed]
-        STDOUT.write('Do you wish to continue? [y/N]: ')
-        STDOUT.flush
+        $stdout.write('Do you wish to continue? [y/N]: ')
+        $stdout.flush
 
-        if STDIN.readline.strip.downcase != 'y'
+        if $stdin.readline.strip.downcase != 'y'
           puts '* Cancelling migration'
           cancel
           return
@@ -108,7 +108,7 @@ module VpsAdminOS::Converter
         throttle_rate: 0.2,
         starting_at: 0,
         autofinish: false,
-        output: STDOUT
+        output: $stdout
       )
       @pb.total = current > total ? current : total
       @pb.progress = current

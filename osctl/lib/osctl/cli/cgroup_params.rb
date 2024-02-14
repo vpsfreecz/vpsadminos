@@ -127,7 +127,7 @@ module OsCtl
 
     def do_cgparam_replace(cmd, cmd_opts)
       osctld_fmt(cmd, cmd_opts: cmd_opts.merge(
-        parameters: JSON.parse(STDIN.read)['parameters']
+        parameters: JSON.parse($stdin.read)['parameters']
       ))
     end
 

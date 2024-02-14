@@ -86,9 +86,9 @@ module OsCtld
       CGroup.mkpath_all(ct.entry_cgroup_path.split('/'), chown: ct.user.ugid)
 
       pid = Process.fork do
-        STDIN.reopen(in_r)
-        STDOUT.reopen(out_w)
-        STDERR.reopen(out_w)
+        $stdin.reopen(in_r)
+        $stdout.reopen(out_w)
+        $stderr.reopen(out_w)
 
         in_w.close
         out_r.close
@@ -118,12 +118,12 @@ module OsCtld
 
         begin
           loop do
-            rs, = IO.select([STDIN, fd])
+            rs, = IO.select([$stdin, fd])
 
             rs.each do |io|
               case io
-              when STDIN
-                buf << STDIN.read_nonblock(4096)
+              when $stdin
+                buf << $stdin.read_nonblock(4096)
 
                 while i = buf.index("\n")
                   cmd = JSON.parse(buf[0..i], symbolize_names: true)
@@ -147,8 +147,8 @@ module OsCtld
                 end
 
               when fd
-                STDOUT.write(fd.read_nonblock(4096))
-                STDOUT.flush
+                $stdout.write(fd.read_nonblock(4096))
+                $stdout.flush
               end
             end
           end

@@ -104,9 +104,9 @@ module OsCtld
 
       def exec_run(opts)
         pid = Process.fork do
-          STDIN.reopen(stdin)
-          STDOUT.reopen(stdout)
-          STDERR.reopen(stderr)
+          $stdin.reopen(stdin)
+          $stdout.reopen(stdout)
+          $stderr.reopen(stderr)
 
           setup_exec_run_env
 

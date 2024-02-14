@@ -155,8 +155,8 @@ module OsCtl::Image
         null = File.open('/dev/null', 'r')
 
         client.send_io(null)
-        client.send_io(STDOUT)
-        client.send_io(STDOUT)
+        client.send_io($stdout)
+        client.send_io($stdout)
 
         null.close
 
@@ -188,8 +188,8 @@ module OsCtl::Image
         null = File.open('/dev/null', 'r')
 
         client.send_io(null)
-        client.send_io(STDOUT)
-        client.send_io(STDOUT)
+        client.send_io($stdout)
+        client.send_io($stdout)
 
         null.close
 

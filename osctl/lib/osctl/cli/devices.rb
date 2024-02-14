@@ -127,7 +127,7 @@ module OsCtl
 
     def do_device_replace(cmd, cmd_opts)
       osctld_fmt(cmd, cmd_opts: cmd_opts.merge(
-        devices: JSON.parse(STDIN.read)['devices']
+        devices: JSON.parse($stdin.read)['devices']
       ))
     end
   end

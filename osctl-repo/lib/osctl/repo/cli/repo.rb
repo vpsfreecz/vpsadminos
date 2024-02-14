@@ -150,7 +150,7 @@ module OsCtl::Repo
     def remote_get_stream
       dl = remote_get_common
       dl.get(*args[1..-1], force_check: opts['force-check']) do |fragment|
-        STDOUT.write(fragment)
+        $stdout.write(fragment)
       end
     end
 

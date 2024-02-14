@@ -85,7 +85,7 @@ module OsCtld
 
         ENV['GLI_DEBUG'] = 'true'
 
-        STDOUT.reopen(w)
+        $stdout.reopen(w)
         r.close
 
         Process.exec(*args)

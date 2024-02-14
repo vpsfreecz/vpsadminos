@@ -48,7 +48,7 @@ module OsCtld
           rescue StandardError => e
             puts "error:Exception (#{e.class}): #{e.message}"
           ensure
-            STDOUT.flush
+            $stdout.flush
           end
         end
 

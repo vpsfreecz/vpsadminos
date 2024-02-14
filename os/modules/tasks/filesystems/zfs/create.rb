@@ -64,10 +64,10 @@ class Pool
   end
 
   def confirm
-    STDOUT.write "Write uppercase 'yes' to confinue: "
-    STDOUT.flush
+    $stdout.write "Write uppercase 'yes' to confinue: "
+    $stdout.flush
 
-    return unless STDIN.readline.strip != 'YES'
+    return unless $stdin.readline.strip != 'YES'
 
     puts 'Aborting'
     exit(false)

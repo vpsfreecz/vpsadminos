@@ -10,7 +10,7 @@ module OsCtl::Lib
       case type
       when :stdout
         require 'logger'
-        @logger = ::Logger.new(STDOUT)
+        @logger = ::Logger.new($stdout)
 
       when :io
         require 'logger'
@@ -40,7 +40,7 @@ module OsCtl::Lib
       return if @logger == :none
 
       @logger.send(severity, msg)
-      STDOUT.flush if @logger.is_a?(::Logger)
+      $stdout.flush if @logger.is_a?(::Logger)
     end
   end
 end

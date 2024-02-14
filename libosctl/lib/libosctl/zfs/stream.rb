@@ -152,7 +152,7 @@ module OsCtl::Lib
       r, w = IO.pipe
 
       cmd_pid = Process.fork do
-        STDIN.reopen(r)
+        $stdin.reopen(r)
         w.close
         Process.exec(cmd)
       end
@@ -193,8 +193,8 @@ module OsCtl::Lib
 
       pid = Process.fork do
         r_err.close
-        STDOUT.reopen(stdout)
-        STDERR.reopen(w_err)
+        $stdout.reopen(stdout)
+        $stderr.reopen(w_err)
 
         Process.exec(cmd)
       end

@@ -66,9 +66,9 @@ module OsCtld
       pid = Process.fork do
         out_r.close
 
-        STDIN.close
-        STDOUT.reopen(out_w)
-        STDERR.reopen(out_w)
+        $stdin.close
+        $stdout.reopen(out_w)
+        $stderr.reopen(out_w)
 
         Process.exec(
           File.expand_path($0),

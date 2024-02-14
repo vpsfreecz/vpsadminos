@@ -79,7 +79,7 @@ module OsCtl::Cli
           p resp.data
         end
 
-        STDOUT.flush
+        $stdout.flush
       end
     end
 

@@ -43,9 +43,9 @@ module OsCtl::Image
       unless opts[:force]
         puts 'The following containers will be deleted:'
         cts.each { |ct| puts "  #{ct[:pool]}:#{ct[:id]}" }
-        STDOUT.write('Continue? [y/N]: ')
-        STDOUT.flush
-        return if STDIN.readline.strip != 'y'
+        $stdout.write('Continue? [y/N]: ')
+        $stdout.flush
+        return if $stdin.readline.strip != 'y'
       end
 
       cts.each do |ct|

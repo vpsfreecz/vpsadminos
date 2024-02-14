@@ -51,8 +51,8 @@ module OsCtld
 
       # File descriptors to capture output/feed input
       stdin = opts[:stdin]
-      stdout = opts.fetch(:stdout, STDOUT)
-      stderr = opts.fetch(:stderr, STDERR)
+      stdout = opts.fetch(:stdout, $stdout)
+      stderr = opts.fetch(:stderr, $stderr)
 
       # User configuration
       sysuser = ct.user.sysusername
@@ -95,7 +95,7 @@ module OsCtld
         # cmd_w.close
         # ret_r.close
 
-        STDIN.reopen(cmd_r)
+        $stdin.reopen(cmd_r)
 
         [cmd_r, ret_w, stdin, stdout, stderr].compact.each do |io|
           io.close_on_exec = false
@@ -108,8 +108,8 @@ module OsCtld
       end
 
       stdin.close if stdin
-      stdout.close if stdout != STDOUT
-      stderr.close if stderr != STDERR
+      stdout.close if stdout != $stdout
+      stderr.close if stderr != $stderr
 
       cmd_w.write(runner_opts.to_json)
       cmd_w.close
@@ -150,8 +150,8 @@ module OsCtld
       r, w = IO.pipe
 
       stdin = opts[:stdin]
-      stdout = opts.fetch(:stdout, STDOUT)
-      stderr = opts.fetch(:stderr, STDERR)
+      stdout = opts.fetch(:stdout, $stdout)
+      stderr = opts.fetch(:stderr, $stderr)
 
       runner_opts = {
         id: ct.id,
