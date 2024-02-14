@@ -39,7 +39,7 @@ module OsCtl::ExportFS
         Operations::Server::Configure.run(server, opts[:options])
 
         # Create an empty exports file
-        File.open(server.exports_file, 'w') {}
+        File.new(server.exports_file, 'w').close
       end
     end
 

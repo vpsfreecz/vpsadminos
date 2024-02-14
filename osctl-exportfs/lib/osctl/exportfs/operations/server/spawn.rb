@@ -145,7 +145,7 @@ module OsCtl::ExportFS
 
         %w[group passwd shadow].each do |v|
           dst = File.join(RunState::ROOTFS, 'etc', v)
-          File.open(dst, 'w') {}
+          File.new(dst, 'w').close
           sys.bind_mount(File.join('/etc', v), dst)
         end
 
@@ -193,7 +193,7 @@ module OsCtl::ExportFS
         if File.exist?('/etc/runit/stopit')
           File.chmod(0o100, '/etc/runit/stopit')
         else
-          File.open('/etc/runit/stopit', 'w', 0o100) {}
+          File.new('/etc/runit/stopit', 'w', 0o100).close
         end
 
         puts 'Starting nfsd...'

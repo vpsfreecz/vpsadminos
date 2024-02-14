@@ -229,7 +229,7 @@ module OsCtld
 
     def begin_shutdown
       @abort_shutdown = false
-      File.open(RunState::SHUTDOWN_MARKER, 'w', 0o000) {}
+      File.new(RunState::SHUTDOWN_MARKER, 'w', 0o000).close
     end
 
     def abort_shutdown
@@ -244,7 +244,7 @@ module OsCtld
 
     def confirm_shutdown
       unless File.exist?(RunState::SHUTDOWN_MARKER)
-        File.open(RunState::SHUTDOWN_MARKER, 'w', 0o100) {}
+        File.new(RunState::SHUTDOWN_MARKER, 'w', 0o100).close
       end
 
       File.chmod(0o100, RunState::SHUTDOWN_MARKER)

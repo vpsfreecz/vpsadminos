@@ -92,7 +92,7 @@ module OsCtld
           begin
             File.stat('/run/udev/control')
           rescue Errno::ENOENT
-            File.open('/run/udev/control', 'w') {}
+            File.new('/run/udev/control', 'w').close
           end
 
           true

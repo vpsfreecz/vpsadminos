@@ -49,11 +49,11 @@ module OsCtld
 
           # Only the existence of the reboot file can trigger reboot
           if File.exist?('/etc/runit/reboot')
-            File.open('/etc/runit/reboot', 'w', 0) {}
+            File.new('/etc/runit/reboot', 'w', 0).close
             File.chmod(0, '/etc/runit/reboot')
           end
 
-          File.open('/etc/runit/stopit', 'w', 0o100) {}
+          File.new('/etc/runit/stopit', 'w', 0o100).close
           File.chmod(0o100, '/etc/runit/stopit')
         end
 

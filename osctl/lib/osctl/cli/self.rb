@@ -95,7 +95,7 @@ module OsCtl::Cli
       end
 
       # Ensure osctld will shutdown even if it crashes/restarts
-      File.open(SHUTDOWN_MARKER, 'w', 0o000) {}
+      File.new(SHUTDOWN_MARKER, 'w', 0o000).close
 
       begin
         osctld_fmt(:self_shutdown, cmd_opts: {
