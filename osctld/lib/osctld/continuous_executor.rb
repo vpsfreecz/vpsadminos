@@ -215,7 +215,7 @@ module OsCtld
     def exec(cmd)
       t = Thread.new do
         ret = cmd.send(:exec)
-      rescue Exception => e
+      rescue StandardError => e
         log(:warn, 'cont', "Exception raised during command execution: #{e.message}")
         puts denixstorify(e.backtrace).join("\n")
       ensure

@@ -183,7 +183,7 @@ end
 begin
   w = Wrapper.new(ARGV)
   w.run
-rescue Exception => e
+rescue Exception => e # rubocop:disable Lint/RescueException
   File.open('/tmp/dafuq', 'w') do |f|
     f.puts(e.class)
     f.puts(e.message)

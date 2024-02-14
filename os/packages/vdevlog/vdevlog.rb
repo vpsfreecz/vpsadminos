@@ -778,7 +778,7 @@ module VdevLog
     def run
       parse_opts
       send(@options[:action])
-    rescue Exception => e
+    rescue StandardError => e
       if @options[:action] == :run_zedlet
         @logger.fatal("Exception occurred: #{e.message} (#{e.class})")
       end

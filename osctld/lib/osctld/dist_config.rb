@@ -30,7 +30,7 @@ module OsCtld
 
       begin
         d.method(cmd).call(opts)
-      rescue Exception => e
+      rescue StandardError => e
         ctrc.log(:warn, "DistConfig.#{cmd} failed: #{e.message}")
         ctrc.log(:warn, denixstorify(e.backtrace).join("\n"))
       end

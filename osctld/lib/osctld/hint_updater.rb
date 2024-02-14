@@ -50,7 +50,7 @@ module OsCtld
 
           begin
             ct.update_hints
-          rescue Exception => e
+          rescue StandardError => e
             log(:warn, ct, "Unable to update hints: #{e.message} (#{e.class})")
             log(:warn, ct, denixstorify(e.backtrace))
           end
