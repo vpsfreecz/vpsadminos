@@ -15,7 +15,7 @@ module OsCtld
       ct.inclusively do
         next error('container not running') if ct.state != :running && opts[:tty] != 0
 
-        client.send({ status: true, response: 'continue' }.to_json + "\n", 0)
+        client.send("#{{ status: true, response: 'continue' }.to_json}\n", 0)
 
         Console.client(ct, opts[:tty], client)
         next handled

@@ -185,7 +185,7 @@ module OsCtld
 
         runner = command_class::Runner.new(**runner_opts)
         ret = runner.execute(*args, **kwargs)
-        w.write(ret.to_json + "\n")
+        w.write("#{ret.to_json}\n")
 
         exit
       end

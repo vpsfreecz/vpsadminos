@@ -98,7 +98,7 @@ module OsCtl
     end
 
     def send_cmd(hash)
-      @socket.write(hash.to_json + "\n")
+      @socket.write("#{hash.to_json}\n")
       @socket.flush
     end
   end

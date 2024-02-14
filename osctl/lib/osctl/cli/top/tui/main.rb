@@ -349,7 +349,7 @@ module OsCtl::Cli::Top
 
       if l2arc && l2arc[:size] > 0
         Curses.setpos(pos += 1, 0)
-        Curses.addstr('L2ARC:  ' + (' ' * 16))
+        Curses.addstr("L2ARC:  #{' ' * 16}")
 
         bold { Curses.addstr(format('%8s', humanize_data(l2arc[:size]))) }
         Curses.addstr(' size, ')
@@ -866,7 +866,7 @@ module OsCtl::Cli::Top
 
     def format_ctid(ctid)
       if ctid.length > 12
-        ctid[0..11] + '..'
+        "#{ctid[0..11]}.."
       else
         ctid
       end

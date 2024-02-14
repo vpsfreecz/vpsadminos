@@ -10,7 +10,7 @@ module OsCtld
     include OsCtl::Lib::Utils::System
 
     def execute
-      client.send({ status: true, response: 'continue' }.to_json + "\n", 0)
+      client.send("#{{ status: true, response: 'continue' }.to_json}\n", 0)
 
       io = client.recv_io
       f = Tempfile.open('ct-skel')

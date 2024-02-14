@@ -35,8 +35,7 @@ module OsCtld
         if mounts.any?
           unless opts[:unmount]
             error!(
-              "the following mountpoints need to be unmounted:\n  " +
-              mounts.map(&:mountpoint).join("\n  ")
+              "the following mountpoints need to be unmounted:\n  #{mounts.map(&:mountpoint).join("\n  ")}"
             )
           end
 

@@ -15,7 +15,7 @@ module OsCtld
       # Ensure the container is mounted
       ct.mount
 
-      client.send({ status: true, response: 'continue' }.to_json + "\n", 0)
+      client.send("#{{ status: true, response: 'continue' }.to_json}\n", 0)
 
       st = ContainerControl::Commands::Runscript.run!(
         ct,
