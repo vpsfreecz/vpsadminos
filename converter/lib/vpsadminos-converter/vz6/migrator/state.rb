@@ -32,7 +32,7 @@ module VpsAdminOS::Converter
     # @return [Cli::Vz6::State]
     def self.load(ctid)
       ret = File.open(state_file(ctid)) do |f|
-        Marshal.load(f)
+        Marshal.load(f) # rubocop:disable Security/MarshalLoad
       end
 
       raise 'invalid state format' unless ret.is_a?(Hash)
