@@ -18,3 +18,9 @@ else
   gem 'osctl-repo', path: '../osctl-repo'
   gem 'osup', path: '../osup'
 end
+
+group :development do
+  gem 'rake'
+  gem 'rake-compiler'
+  gem 'yard'
+end

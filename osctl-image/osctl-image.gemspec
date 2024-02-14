@@ -29,7 +29,4 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency 'osctl', s.version
   s.add_runtime_dependency 'osctl-repo', s.version
   s.add_runtime_dependency 'require_all', '~> 2.0.0'
-  s.add_development_dependency 'md2man'
-  s.add_development_dependency 'rake'
-  s.add_development_dependency 'yard'
 end

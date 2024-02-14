@@ -33,7 +33,4 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency 'osup', s.version
   s.add_runtime_dependency 'require_all', '~> 2.0.0'
   s.add_runtime_dependency 'ruby-lxc', '1.2.4.vpsadminos.3'
-  s.add_development_dependency 'rake'
-  s.add_development_dependency 'rake-compiler'
-  s.add_development_dependency 'yard'
 end

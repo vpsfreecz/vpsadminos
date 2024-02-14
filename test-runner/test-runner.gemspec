@@ -26,7 +26,4 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency 'libosctl', s.version
   s.add_runtime_dependency 'osvm', s.version
   s.add_runtime_dependency 'pry', '~> 0.13.1'
-  s.add_development_dependency 'md2man'
-  s.add_development_dependency 'rake'
-  s.add_development_dependency 'yard'
 end

@@ -10,3 +10,9 @@ else
   gem 'libosctl', path: '../libosctl'
   gem 'osvm', path: '../osvm'
 end
+
+group :development do
+  gem 'md2man'
+  gem 'rake'
+  gem 'yard'
+end

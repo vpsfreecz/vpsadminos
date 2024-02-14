@@ -12,3 +12,9 @@ else
   gem 'osctl', path: '../osctl'
   gem 'osctl-repo', path: '../osctl-repo'
 end
+
+group :development do
+  gem 'md2man'
+  gem 'rake'
+  gem 'yard'
+end

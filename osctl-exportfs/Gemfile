@@ -8,3 +8,9 @@ if ENV.has_key?('OS_BUILD_ID')
 else
   gem 'libosctl', path: '../libosctl'
 end
+
+group :development do
+  gem 'md2man'
+  gem 'rake'
+  gem 'yard'
+end
