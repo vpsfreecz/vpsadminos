@@ -574,7 +574,7 @@ module OsCtld
       # Configuration directories
       %w[pool ct group user send-receive repository id-range].each do |dir|
         path = File.join(conf_path, dir)
-        Dir.mkdir(path, 0o500) unless Dir.exist?(path)
+        FileUtils.mkdir_p(path, mode: 0o500)
       end
 
       [
@@ -582,7 +582,7 @@ module OsCtld
         user_hook_script_dir,
         File.join(log_path, 'ct')
       ].each do |path|
-        Dir.mkdir(path) unless Dir.exist?(path)
+        FileUtils.mkdir_p(path)
       end
     end
 
@@ -717,7 +717,7 @@ module OsCtld
     end
 
     def runstate
-      Dir.mkdir(run_dir, 0o711) unless Dir.exist?(run_dir)
+      FileUtils.mkdir_p(run_dir, mode: 0o711)
 
       if Dir.exist?(user_dir)
         File.chmod(0o511, user_dir)
@@ -727,11 +727,11 @@ module OsCtld
       File.chown(0, 0, user_dir)
 
       [console_dir, hook_dir, mount_dir].each do |dir|
-        Dir.mkdir(dir, 0o711) unless Dir.exist?(dir)
+        FileUtils.mkdir_p(dir, mode: 0o711)
       end
 
       [ct_dir, apparmor_dir, autostart_dir].each do |dir|
-        Dir.mkdir(dir, 0o700) unless Dir.exist?(dir)
+        FileUtils.mkdir_p(dir, mode: 0o700)
       end
 
       %w[

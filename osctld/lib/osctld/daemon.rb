@@ -212,7 +212,7 @@ module OsCtld
       log(:info, 'Stopping daemon')
       Eventd.shutdown
       @server.stop if @server
-      File.unlink(SOCKET) if File.exist?(SOCKET)
+      FileUtils.rm_f(SOCKET)
       UserControl.stop
       SendReceive.stop
       DB::Pools.get.each(&:stop)

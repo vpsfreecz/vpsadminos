@@ -19,7 +19,7 @@ class RenameMigration
     old_dir = File.join(conf_dir, old_name)
     new_dir = File.join(conf_dir, new_name)
 
-    Dir.mkdir(new_dir, 0o500) unless Dir.exist?(new_dir)
+    FileUtils.mkdir_p(new_dir, mode: 0o500)
 
     puts "Moving contents of #{old_dir} to #{new_dir}"
     move_contents(old_dir, new_dir)

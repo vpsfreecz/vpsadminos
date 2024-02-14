@@ -232,7 +232,7 @@ module OsCtl::Repo
     end
 
     def ensure_cache_dir
-      FileUtils.mkpath(repo.path) unless Dir.exist?(repo.path)
+      FileUtils.mkpath(repo.path)
     end
   end
 end

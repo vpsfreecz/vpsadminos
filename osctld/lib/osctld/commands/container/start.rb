@@ -121,7 +121,7 @@ module OsCtld
 
       # Console dir
       console_dir = File.join(ct.pool.console_dir, ct.id)
-      Dir.mkdir(console_dir) unless Dir.exist?(console_dir)
+      FileUtils.mkdir_p(console_dir)
       File.chown(ct.user.ugid, 0, console_dir)
       File.chmod(0o700, console_dir)
 

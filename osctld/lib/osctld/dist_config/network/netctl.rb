@@ -67,7 +67,7 @@ module OsCtld
       unlink_if_exists(deprecated_service_path(name))
 
       # Remove netctl profile
-      File.unlink(profile) if File.exist?(profile)
+      FileUtils.rm_f(profile)
     end
 
     def netctl_profile(name)

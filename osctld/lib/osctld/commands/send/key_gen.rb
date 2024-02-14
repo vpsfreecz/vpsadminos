@@ -24,7 +24,7 @@ module OsCtld
       pubkey = pool.send_receive_key_chain.public_key_path
 
       [privkey, pubkey].each do |v|
-        File.unlink(v) if File.exist?(v)
+        FileUtils.rm_f(v)
       end
 
       type = opts[:type] || 'rsa'

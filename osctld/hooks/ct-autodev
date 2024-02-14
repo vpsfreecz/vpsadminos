@@ -36,7 +36,7 @@ dst = ENV.fetch('LXC_ROOTFS_MOUNT', nil)
 ret[:response][:devices].each do |dev|
   dstdev = File.join(dst, dev[:name])
   devdir = File.dirname(dstdev)
-  FileUtils.mkdir_p(devdir) unless Dir.exist?(devdir)
+  FileUtils.mkdir_p(devdir)
 
   begin
     st = File.stat(dstdev)

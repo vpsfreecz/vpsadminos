@@ -601,7 +601,7 @@ module OsVm
         next if disk.type != 'file'
 
         path = disk_path(disk.device)
-        File.unlink(path) if File.exist?(path)
+        FileUtils.rm_f(path)
       end
     end
 

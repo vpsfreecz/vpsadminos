@@ -78,7 +78,7 @@ module OsCtld
         end
 
         bashrc = File.join(ct.lxc_dir, '.bashrc')
-        File.unlink(bashrc) if File.exist?(bashrc)
+        FileUtils.rm_f(bashrc)
 
         unless ct.group.has_containers?(ct.user)
           Dir.rmdir(ct.group.userdir(ct.user))

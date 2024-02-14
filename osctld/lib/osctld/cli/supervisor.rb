@@ -107,13 +107,13 @@ module OsCtld
     end
 
     def cleanup
-      File.unlink(Daemon::SOCKET) if File.exist?(Daemon::SOCKET)
+      FileUtils.rm_f(Daemon::SOCKET)
 
       Dir.glob(File.join(RunState::USER_CONTROL_DIR, '*.sock')).each do |f|
         File.unlink(f)
       end
 
-      File.unlink(SendReceive::SOCKET) if File.exist?(SendReceive::SOCKET)
+      FileUtils.rm_f(SendReceive::SOCKET)
     end
   end
 end

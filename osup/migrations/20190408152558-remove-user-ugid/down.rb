@@ -82,8 +82,8 @@ class Rollback
   end
 
   def remove_ugid_map
-    File.unlink(ugid_map_path) if File.exist?(ugid_map_path)
-    Dir.rmdir(migration_dir) if Dir.exist?(migration_dir)
+    FileUtils.rm_f(ugid_map_path)
+    FileUtils.rm_f(migration_dir)
   end
 
   def ugid_map_path

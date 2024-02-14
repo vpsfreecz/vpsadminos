@@ -99,7 +99,7 @@ module VpsAdminOS::Converter
 
     # Persist the state to disk
     def save
-      Dir.mkdir(state_dir, 0o700) unless Dir.exist?(state_dir)
+      FileUtils.mkdir_p(state_dir, mode: 0o700)
 
       orig = state_file
       tmp = "#{orig}.new"

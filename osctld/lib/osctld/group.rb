@@ -336,7 +336,7 @@ module OsCtld
     end
 
     def save_config
-      Dir.mkdir(config_dir) unless Dir.exist?(config_dir)
+      FileUtils.mkdir_p(config_dir)
 
       cfg = {
         'cgparams' => cgparams.dump,

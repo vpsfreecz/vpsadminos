@@ -71,7 +71,7 @@ module OsCtl::Repo
       image.image.each do |v|
         path = image.abs_image_path(v)
 
-        File.unlink(path) if File.exist?(path)
+        FileUtils.rm_f(path)
       end
 
       # Remove tags

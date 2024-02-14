@@ -29,7 +29,7 @@ module OsCtld
     def remove
       dir = Pathname.new(path)
       syscmd("umount -f \"#{dir}\"", valid_rcs: [32]) # 32 = not mounted
-      File.unlink(readme_path) if File.exist?(readme_path)
+      FileUtils.rm_f(readme_path)
       dir.rmdir if dir.exist?
     end
 

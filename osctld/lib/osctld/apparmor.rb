@@ -32,7 +32,7 @@ module OsCtld
       features = File.join(base, 'features')
 
       [base, features].each do |dir|
-        Dir.mkdir(dir, 0o755) unless Dir.exist?(dir)
+        FileUtils.mkdir_p(dir, mode: 0o755)
       end
 
       ErbTemplate.render_to(
@@ -46,7 +46,7 @@ module OsCtld
     # @param pool [Pool]
     def self.setup_pool(pool)
       [profile_dir(pool), cache_dir(pool)].each do |dir|
-        Dir.mkdir(dir, 0o700) unless Dir.exist?(dir)
+        FileUtils.mkdir_p(dir, mode: 0o700)
       end
 
       cts = DB::Containers.get.select do |ct|
@@ -154,13 +154,13 @@ module OsCtld
     # Create an AppArmor namespace for the container
     def create_namespace
       path = namespace_path
-      Dir.mkdir(path) unless Dir.exist?(path)
+      FileUtils.mkdir_p(path)
     end
 
     # Destroy the container's AppArmor namespace
     def destroy_namespace
       path = namespace_path
-      Dir.rmdir(path) if Dir.exist?(path)
+      FileUtils.rm_f(path)
     end
 
     def profile_name

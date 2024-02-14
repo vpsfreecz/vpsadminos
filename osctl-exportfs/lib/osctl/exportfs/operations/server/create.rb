@@ -48,7 +48,7 @@ module OsCtl::ExportFS
 
     # Forcefully create a symlink be removing existing `dst`
     def symlink!(src, dst)
-      File.unlink(dst) if File.exist?(dst)
+      FileUtils.rm_f(dst)
       File.symlink(src, dst)
     end
   end

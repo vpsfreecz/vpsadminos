@@ -59,7 +59,7 @@ module OsCtld
       del_init_script(name)
 
       # Remove netifrc config
-      File.unlink(netifrc_conf(name)) if File.exist?(netifrc_conf(name))
+      FileUtils.rm_f(netifrc_conf(name))
     end
 
     def add_init_script(name)

@@ -212,8 +212,8 @@ module OsCtld
       zfs(:destroy, '-r', ctrc.dataset, valid_rcs: [1]) if opts[:dataset]
 
       syscmd("rm -rf #{ctrc.lxc_dir} #{ctrc.ct.user_hook_script_dir}")
-      File.unlink(ctrc.log_path) if File.exist?(ctrc.log_path)
-      File.unlink(ctrc.config_path) if File.exist?(ctrc.config_path)
+      FileUtils.rm_f(ctrc.log_path)
+      FileUtils.rm_f(ctrc.config_path)
 
       DB::Containers.remove(ctrc.ct)
 
@@ -229,7 +229,7 @@ module OsCtld
       end
 
       bashrc = File.join(ctrc.lxc_dir, '.bashrc')
-      File.unlink(bashrc) if File.exist?(bashrc)
+      FileUtils.rm_f(bashrc)
 
       grp_dir = ctrc.group.userdir(ctrc.user)
 
