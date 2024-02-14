@@ -1,4 +1,3 @@
-require 'thread'
 require 'prometheus/client/registry'
 
 module OsCtl::Exporter

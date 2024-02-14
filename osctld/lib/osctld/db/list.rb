@@ -1,5 +1,3 @@
-require 'thread'
-
 module OsCtld
   # Thread-safe singleton object list
   class DB::List

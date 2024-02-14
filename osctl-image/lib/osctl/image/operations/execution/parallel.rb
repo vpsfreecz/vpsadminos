@@ -1,6 +1,5 @@
 require 'libosctl'
 require 'osctl/image/operations/base'
-require 'thread'
 
 module OsCtl::Image
   class Operations::Execution::Parallel < Operations::Base

@@ -1,5 +1,3 @@
-require 'thread'
-
 module OsCtl::Lib
   # Extended mutex with an optional timeout on lock
   class Mutex

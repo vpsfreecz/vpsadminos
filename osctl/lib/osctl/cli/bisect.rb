@@ -1,5 +1,4 @@
 require 'etc'
-require 'thread'
 
 module OsCtl::Cli
   class Bisect

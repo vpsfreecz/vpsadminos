@@ -1,5 +1,4 @@
 require 'fileutils'
-require 'thread'
 
 module TestRunner
   class Executor

@@ -1,6 +1,5 @@
 require 'etc'
 require 'libosctl'
-require 'thread'
 
 module OsCtld
   # Parallel executor of queued operations

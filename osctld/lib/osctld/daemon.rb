@@ -1,7 +1,6 @@
 require 'json'
 require 'libosctl'
 require 'socket'
-require 'thread'
 require 'osctld/assets/definition'
 require 'osctld/run_state'
 require 'osctld/generic/client_handler'

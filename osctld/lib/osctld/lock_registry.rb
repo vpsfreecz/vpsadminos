@@ -1,6 +1,5 @@
 require 'libosctl'
 require 'singleton'
-require 'thread'
 
 module OsCtld
   # Global registry of all inclusive/exclusive logs for debugging purposes

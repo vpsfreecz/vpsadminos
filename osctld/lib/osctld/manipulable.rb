@@ -1,5 +1,3 @@
-require 'thread'
-
 module OsCtld
   # Adds support for manipulation locks.
   #

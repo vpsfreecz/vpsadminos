@@ -1,5 +1,4 @@
 require 'ipaddress'
-require 'thread'
 
 module OsCtl::Image
   # Allocate unique IP addresses from network

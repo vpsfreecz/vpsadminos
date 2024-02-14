@@ -1,5 +1,4 @@
 require 'singleton'
-require 'thread'
 
 module OsCtld
   # Protect manipulation of device access trees

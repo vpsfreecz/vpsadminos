@@ -1,5 +1,3 @@
-require 'thread'
-
 module OsCtl::Lib
   class Zfs::IOStat
     PoolStats = Struct.new(

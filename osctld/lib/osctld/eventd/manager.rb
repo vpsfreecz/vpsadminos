@@ -1,6 +1,5 @@
 require 'etc'
 require 'libosctl'
-require 'thread'
 
 module OsCtld
   # Event pub/sub server

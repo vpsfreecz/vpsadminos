@@ -1,5 +1,3 @@
-require 'thread'
-
 module OsCtl::Lib
   # Replacement for stock Queue
   class Queue

@@ -1,5 +1,4 @@
 require 'filelock'
-require 'thread'
 
 module OsCtl::ExportFS
   # Represents a NFS server

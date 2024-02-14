@@ -1,5 +1,3 @@
-require 'thread'
-
 module OsCtld
   # This module adds support for inclusive/exclusive object locking.
   #

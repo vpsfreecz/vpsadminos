@@ -1,5 +1,4 @@
 require 'libosctl'
-require 'thread'
 
 module OsCtld
   # Module holding functions and classes working with container consoles/ttys

@@ -1,6 +1,5 @@
 require 'concurrent'
 require 'libosctl'
-require 'thread'
 
 module OsCtld
   # Continuous execution queue

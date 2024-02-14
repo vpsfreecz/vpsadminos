@@ -1,5 +1,3 @@
-require 'thread'
-
 module OsCtld
   # Instance per container, each holding a list of opened ttys
   class Console::Container

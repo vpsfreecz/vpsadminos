@@ -2,7 +2,6 @@
 require 'etc'
 require 'json'
 require 'open3'
-require 'thread'
 
 class Dataset
   attr_reader :pool, :name, :type, :base_name, :parent_name, :mountpoint, :level, :real_properties, :declarative_properties

@@ -1,5 +1,3 @@
-require 'thread'
-
 module OsCtl::Cli
   class Top::Monitor
     def initialize(model)

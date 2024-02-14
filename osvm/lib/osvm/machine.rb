@@ -1,7 +1,6 @@
 require 'digest'
 require 'fileutils'
 require 'socket'
-require 'thread'
 
 module OsVm
   class Machine

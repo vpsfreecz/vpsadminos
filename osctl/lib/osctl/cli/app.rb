@@ -1,5 +1,4 @@
 require 'gli'
-require 'thread'
 
 module OsCtl::Cli
   class App

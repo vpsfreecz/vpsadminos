@@ -1,6 +1,5 @@
 require 'securerandom'
 require 'singleton'
-require 'thread'
 
 module OsCtld
   class SendReceive::Tokens

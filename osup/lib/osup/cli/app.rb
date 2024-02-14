@@ -1,5 +1,4 @@
 require 'gli'
-require 'thread'
 
 module OsUp::Cli
   class App

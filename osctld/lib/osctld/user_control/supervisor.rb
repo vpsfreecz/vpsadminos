@@ -1,5 +1,4 @@
 require 'libosctl'
-require 'thread'
 require 'osctld/generic/client_handler'
 
 module OsCtld

@@ -2,7 +2,6 @@ require 'base64'
 require 'json'
 require 'libosctl'
 require 'lxc'
-require 'thread'
 require 'io/console'
 
 module OsCtld

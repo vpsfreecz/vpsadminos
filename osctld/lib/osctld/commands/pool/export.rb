@@ -1,5 +1,4 @@
 require 'osctld/commands/base'
-require 'thread'
 
 module OsCtld
   class Commands::Pool::Export < Commands::Base
