@@ -204,8 +204,8 @@ module OsCtl::Image
     end
 
     def process_test_results(results)
-      succeded = results.select { |t| t.success? }
-      failed = results.reject { |t| t.success? }
+      succeded = results.select(&:success?)
+      failed = results.reject(&:success?)
 
       puts "#{results.length} tests run, #{succeded.length} succeeded, " +
            "#{failed.length} failed"

@@ -42,9 +42,7 @@ module OsCtld
 
       # Preschedule the containers
       if CpuScheduler.use?
-        cts.reject do |ct|
-          ct.running?
-        end.sort do |a, b|
+        cts.reject(&:running?).sort do |a, b|
           b.hints.cpu_daily.usage_us <=> a.hints.cpu_daily.usage_us
         end.each do |ct|
           CpuScheduler.preschedule_ct(ct)

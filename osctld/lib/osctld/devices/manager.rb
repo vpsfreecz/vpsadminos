@@ -538,13 +538,13 @@ module OsCtld
     # Export devices to clients
     # @return [Array<Hash>]
     def export
-      sync { devices.map { |dev| dev.export } }
+      sync { devices.map(&:export) }
     end
 
     # Dump device configuration into the config
     # @return [Array<Hash>]
     def dump
-      sync { devices.reject(&:inherited?).map { |dev| dev.dump } }
+      sync { devices.reject(&:inherited?).map(&:dump) }
     end
 
     def dup(new_owner)
@@ -567,7 +567,7 @@ module OsCtld
       else
         # Add promoted devices before inherited devices, as those are always
         # added later when read from configuration files.
-        i = devices.index { |dev| dev.inherited? }
+        i = devices.index(&:inherited?)
 
         if i.nil?
           devices << device

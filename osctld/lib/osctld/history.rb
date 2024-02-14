@@ -126,7 +126,7 @@ module OsCtld
         end
       end
 
-      files.each_value { |f| f.close }
+      files.each_value(&:close)
     end
 
     def do_log(files, pool, cmd, opts)

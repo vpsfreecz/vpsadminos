@@ -86,7 +86,7 @@ module OsCtld
     # Remote temporal mounts
     def prune
       exclusively do
-        entries.delete_if { |m| m.temp? }
+        entries.delete_if(&:temp?)
       end
     end
 

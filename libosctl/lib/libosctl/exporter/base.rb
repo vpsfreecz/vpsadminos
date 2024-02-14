@@ -53,7 +53,7 @@ module OsCtl::Lib
                    'user' => opts[:user] || (ct.user && ct.user.name),
                    'group' => opts[:group] || (ct.group && ct.group.name),
                    'container' => opts[:id] || ct.id,
-                   'datasets' => datasets.map { |ds| ds.relative_name },
+                   'datasets' => datasets.map(&:relative_name),
                    'exported_at' => Time.now.to_i
                  ))
       end

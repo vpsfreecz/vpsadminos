@@ -10,7 +10,7 @@ module OsCtld
       end
 
       def dump
-        to_h.transform_keys { |k| k.to_s }
+        to_h.transform_keys(&:to_s)
       end
 
       def export

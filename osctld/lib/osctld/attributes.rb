@@ -52,7 +52,7 @@ module OsCtld
 
     # Export attributes to client
     def export
-      inclusively { attrs.transform_keys { |k| k.to_sym } }
+      inclusively { attrs.transform_keys(&:to_sym) }
     end
 
     def dup

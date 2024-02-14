@@ -80,7 +80,7 @@ class DeviceList < Array
   end
 
   def dump
-    devices.map { |d| d.dump }
+    devices.map(&:dump)
   end
 end
 

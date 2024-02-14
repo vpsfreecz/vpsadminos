@@ -215,7 +215,7 @@ module OsCtld
       File.unlink(SOCKET) if File.exist?(SOCKET)
       UserControl.stop
       SendReceive.stop
-      DB::Pools.get.each { |pool| pool.stop }
+      DB::Pools.get.each(&:stop)
       CpuScheduler.shutdown
       ThreadReaper.stop
       Monitor::Master.stop

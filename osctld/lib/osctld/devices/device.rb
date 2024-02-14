@@ -87,7 +87,7 @@ module OsCtld
 
     # Dump to config
     def dump
-      export.transform_keys { |k| k.to_s }
+      export.transform_keys(&:to_s)
     end
 
     # Export to client

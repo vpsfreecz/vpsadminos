@@ -10,7 +10,7 @@ module OsCtld
     end
 
     def self.setup
-      @types.each_value { |v| v.setup }
+      @types.each_value(&:setup)
     end
   end
 end

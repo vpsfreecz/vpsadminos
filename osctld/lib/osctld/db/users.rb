@@ -13,7 +13,7 @@ module OsCtld::DB
 
     def initialize(*_)
       super
-      @ugid_index = OsCtl::Lib::Index.new { |u| u.ugid }
+      @ugid_index = OsCtl::Lib::Index.new(&:ugid)
     end
 
     def add(user)

@@ -56,7 +56,7 @@ module OsCtld
           $stdout.reopen(cur_stdout)
           $stderr.reopen(cur_stderr) if cur_stderr
 
-          opts[:close_fds] && opts[:close_fds].each { |fd| fd.close }
+          opts[:close_fds] && opts[:close_fds].each(&:close)
 
           setup_exec_run_env
 

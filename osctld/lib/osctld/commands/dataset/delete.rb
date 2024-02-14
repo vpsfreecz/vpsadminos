@@ -36,7 +36,7 @@ module OsCtld
           unless opts[:unmount]
             error!(
               "the following mountpoints need to be unmounted:\n  " +
-              mounts.map { |m| m.mountpoint }.join("\n  ")
+              mounts.map(&:mountpoint).join("\n  ")
             )
           end
 

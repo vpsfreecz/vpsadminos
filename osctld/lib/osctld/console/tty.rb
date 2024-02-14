@@ -64,7 +64,7 @@ module OsCtld
           end
         end
 
-        sync { @clients.each { |c| c.close } }
+        sync { @clients.each(&:close) }
 
         # TODO: why is this happening?
         begin

@@ -68,7 +68,7 @@ module OsCtld
       User.new(
         pool,
         metadata['user'],
-        config: tar.seek('config/user.yml') { |entry| entry.read }
+        config: tar.seek('config/user.yml', &:read)
       )
     end
 
@@ -83,7 +83,7 @@ module OsCtld
       Group.new(
         pool,
         metadata['group'],
-        config: tar.seek('config/group.yml') { |entry| entry.read },
+        config: tar.seek('config/group.yml', &:read),
         devices: false
       )
     end
@@ -105,7 +105,7 @@ module OsCtld
       user = opts[:user] || get_or_create_user
       group = opts[:group] || get_or_create_group
       ct_opts = opts[:ct_opts] || {}
-      ct_opts[:load_from] = tar.seek('config/container.yml') { |entry| entry.read }
+      ct_opts[:load_from] = tar.seek('config/container.yml', &:read)
 
       Container.new(
         pool,
@@ -119,7 +119,7 @@ module OsCtld
 
     # @return [Hash]
     def get_container_config
-      OsCtl::Lib::ConfigFile.load_yaml(tar.seek('config/container.yml') { |entry| entry.read })
+      OsCtl::Lib::ConfigFile.load_yaml(tar.seek('config/container.yml', &:read))
     end
 
     # Load the user from the archive and register him, or create a new user

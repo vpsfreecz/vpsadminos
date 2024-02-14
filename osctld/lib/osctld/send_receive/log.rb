@@ -10,7 +10,7 @@ module OsCtld
 
     class Options
       def self.load(cfg)
-        new(cfg.transform_keys { |k| k.to_sym })
+        new(cfg.transform_keys(&:to_sym))
       end
 
       # @return [String]
