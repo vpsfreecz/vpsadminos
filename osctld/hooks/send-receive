@@ -11,7 +11,7 @@ class SendReceive
     @client_ip, = connection
     error! unless cmdline
 
-    args = cmdline.split(' ')
+    args = cmdline.split
     error! if args.count < 2 || args[0] != 'receive' || !COMMANDS.include?(args[1])
 
     @args = args[2..-1]

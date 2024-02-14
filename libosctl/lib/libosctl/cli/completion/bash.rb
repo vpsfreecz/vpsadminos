@@ -187,7 +187,7 @@ module OsCtl::Lib
       ret = []
       return ret unless cmd.respond_to?(:arguments_description)
 
-      cmd.arguments_description.split(' ').each do |arg|
+      cmd.arguments_description.split.each do |arg|
         if (arg.start_with?('<') && arg.end_with?('>')) \
            || (arg.start_with?('[') && arg.end_with?(']'))
           ret << arg[1..-2].gsub('|', '')

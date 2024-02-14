@@ -60,11 +60,11 @@ module OsCtld
         end
       end
 
-      ret.to_h { |k, v| [k, v.join('')] }
+      ret.to_h { |k, v| [k, v.join] }
     end
 
     def to_s
-      %w[r w m].select { |m| mode.include?(m) }.join('')
+      %w[r w m].select { |m| mode.include?(m) }.join
     end
 
     def clone

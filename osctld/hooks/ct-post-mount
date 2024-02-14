@@ -75,4 +75,4 @@ pool = Regexp.last_match(1)
 hook = CtPostMount.new(pool, ctid, ENV.fetch('LXC_ROOTFS_MOUNT', nil))
 hook.run
 
-exit(true)
+exit

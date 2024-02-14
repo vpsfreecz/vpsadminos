@@ -66,4 +66,4 @@ ret[:response][:devices].each do |dev|
   File.chmod(dev[:permission], dstdev)
 end
 
-exit(true)
+exit

@@ -17,7 +17,7 @@ module VpsAdminOS::Converter
     end
 
     def status
-      stats = syscmd("vzctl status #{ctid}").output.strip.split(' ')
+      stats = syscmd("vzctl status #{ctid}").output.strip.split
 
       {
         exist: stats[2] == 'exist',

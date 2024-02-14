@@ -12,7 +12,7 @@ class Runner
     result = `su -s /bin/sh - nobody -c "#{@osbench}/bin/#{@test} #{@args}"`
     error! if $?.exitstatus != 0
 
-    time, unit, = result.strip.split("\n").last.split(' ')
+    time, unit, = result.strip.split("\n").last.split
     error! if time.nil? || time.to_f == 0 || unit.nil?
 
     success!(time, translate_unit(unit))
@@ -26,7 +26,7 @@ class Runner
       write_result(f, time, unit)
     end
 
-    exit(true)
+    exit
   end
 
   def error!

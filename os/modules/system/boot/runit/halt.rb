@@ -98,7 +98,7 @@ class Halt
       end
 
       file.rewind
-      @message = file.each_line.reject { |line| line.start_with?('#') }.join('')
+      @message = file.each_line.reject { |line| line.start_with?('#') }.join
     ensure
       file.close
       file.unlink

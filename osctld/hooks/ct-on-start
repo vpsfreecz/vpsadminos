@@ -25,6 +25,6 @@ s.puts({ cmd: :ct_on_start, opts: {
 ret = JSON.parse(s.readline, symbolize_names: true)
 s.close
 
-exit(true) if ret[:status]
+exit if ret[:status]
 warn "Error: #{ret[:message]}"
 exit(false)

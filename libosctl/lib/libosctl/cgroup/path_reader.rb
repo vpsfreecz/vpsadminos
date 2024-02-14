@@ -93,7 +93,7 @@ module OsCtl::Lib
             path,
             'cpuacct.stat'
           ).split("\n").to_h do |line|
-            type, hz = line.split(' ')
+            type, hz = line.split
             [:"cpu_#{type}_hz", hz.to_i]
           end
 

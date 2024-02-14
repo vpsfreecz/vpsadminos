@@ -29,7 +29,7 @@ module OsCtl::Lib
     protected
 
     def parse(path)
-      parsed = File.read(path).strip.split(' ')
+      parsed = File.read(path).strip.split
 
       @avg = {
         1 => parsed[0].to_f,

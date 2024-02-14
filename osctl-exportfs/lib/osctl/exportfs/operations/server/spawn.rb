@@ -230,7 +230,7 @@ module OsCtl::ExportFS
       ]
 
       File.open('/proc/mounts').each_line do |line|
-        fs, mountpoint = line.split(' ')
+        fs, mountpoint = line.split
 
         keep = whitelist.detect do |pattern|
           File.fnmatch?(pattern, mountpoint)
