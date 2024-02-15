@@ -25,5 +25,5 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency 'gli', '~> 2.20.0'
   s.add_runtime_dependency 'libosctl', s.version
   s.add_runtime_dependency 'osvm', s.version
-  s.add_runtime_dependency 'pry', '~> 0.13.1'
+  s.add_runtime_dependency 'pry', '~> 0.14.2'
 end
