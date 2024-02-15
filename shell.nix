@@ -17,7 +17,7 @@ in stdenv.mkDerivation rec {
     lxc
     mkdocs
     ncurses
-    ruby
+    ruby_3_2
   ];
 
   shellHook = ''
