@@ -129,6 +129,8 @@ in {
         chown smtpq.root /var/spool/smtpd/purge
         chmod 700 /var/spool/smtpd/purge
 
+        mkdir -p /var/mail
+
         exec ${cfg.package}/sbin/smtpd -d -f ${conf} ${args}
       '';
 
