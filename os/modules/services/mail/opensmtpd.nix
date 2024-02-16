@@ -122,11 +122,11 @@ in {
         chmod 711 /var/spool/smtpd
 
         mkdir -p /var/spool/smtpd/offline
-        chown root.smtpq /var/spool/smtpd/offline
+        chown root:smtpq /var/spool/smtpd/offline
         chmod 770 /var/spool/smtpd/offline
 
         mkdir -p /var/spool/smtpd/purge
-        chown smtpq.root /var/spool/smtpd/purge
+        chown smtpq:root /var/spool/smtpd/purge
         chmod 700 /var/spool/smtpd/purge
 
         mkdir -p /var/mail
