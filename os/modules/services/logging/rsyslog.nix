@@ -85,7 +85,6 @@ in
       {
         files = [
           "/var/log/messages"
-          "/var/log/warn"
           "/var/log/osctld"
           "/var/log/nodectld"
         ];
