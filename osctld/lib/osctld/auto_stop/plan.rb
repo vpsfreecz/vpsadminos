@@ -20,8 +20,10 @@ module OsCtld
     #
     # @param message [String]
     # @param client_handler [Generic::ClientHandler, nil]
-    def start(message: nil, client_handler: nil)
+    # @param progress_tracker [ProgressTracker]
+    def start(message: nil, client_handler: nil, progress_tracker: nil)
       @stop = false
+      progress_tracker ||= ProgressTracker.new
 
       log(
         :info,
@@ -95,9 +97,7 @@ module OsCtld
       end
 
       # Progress counters
-      total = cts.count
-      done = 0
-      mutex = Mutex.new
+      progress_tracker.add_total(cts.count)
       debug = Daemon.get.config.debug?
 
       # Stop the containers
@@ -107,20 +107,21 @@ module OsCtld
 
           log(
             :debug,
-            "[#{(i + 1).to_s.rjust(4)}/#{total}] #{ct.id} priority=#{ct.autostart ? ct.autostart.priority : '-'} cpu-package=#{run_conf ? run_conf.cpu_package : '-'}"
+            progress_tracker.progress_line(
+              "#{ct.id} priority=#{ct.autostart ? ct.autostart.priority : '-'} cpu-package=#{run_conf ? run_conf.cpu_package : '-'}",
+              increment_by: nil
+            )
           )
         end
 
         ContinuousExecutor::Command.new(id: ct.id, priority: i) do |_cmd|
           if client_handler
-            mutex.synchronize do
-              done += 1
-              client_handler.send_update(
-                "[#{done}/#{total}] " +
-                (ct.ephemeral? ? 'Deleting ephemeral container' : 'Stopping container') +
-                " #{ct.ident}"
-              )
-            end
+            progress = progress_tracker.progress_line(
+              (ct.ephemeral? ? 'Deleting ephemeral container' : 'Stopping container') +
+              " #{ct.ident}"
+            )
+
+            client_handler.send_update(progress)
           end
 
           log(:info, ct, 'Auto-stopping container')

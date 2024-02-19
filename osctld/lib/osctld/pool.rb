@@ -382,8 +382,8 @@ module OsCtld
       autostop_plan.wait
     end
 
-    def autostop_no_wait(message: nil, client_handler: nil)
-      autostop_plan.start(message:, client_handler:)
+    def autostop_no_wait(message: nil, client_handler: nil, progress_tracker: nil)
+      autostop_plan.start(message:, client_handler:, progress_tracker:)
     end
 
     def wait_for_autostop

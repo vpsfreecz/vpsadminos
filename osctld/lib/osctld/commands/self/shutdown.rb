@@ -42,12 +42,13 @@ module OsCtld
 
       if stop_pools.length > 1
         progress('Stopping all containers')
+        progress_tracker = ProgressTracker.new
 
         stop_pools.each do |pool|
           break if check_abort?
 
           pool.begin_stop
-          pool.autostop_no_wait(message: wall_msg, client_handler:)
+          pool.autostop_no_wait(message: wall_msg, client_handler:, progress_tracker:)
         end
 
         stop_pools.each do |pool|
