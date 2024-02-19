@@ -37,6 +37,10 @@ module OsCtld
       @thread = nil
     end
 
+    def started?
+      !@stop
+    end
+
     def prune
       @queue << :prune
     end

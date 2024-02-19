@@ -5,6 +5,11 @@ module OsCtld
     handle :self_shutdown
 
     def execute
+      wall_msg =
+        if opts[:wall]
+          opts[:message] || 'System is shutting down'
+        end
+
       # Make sure that osctld crash/restart will not stop the shutdown
       Daemon.get.begin_shutdown
 
@@ -32,6 +37,32 @@ module OsCtld
         error!('shutdown aborted')
       end
 
+      # Stop containers from all pools
+      stop_pools = DB::Pools.get
+
+      if stop_pools.length > 1
+        progress('Stopping all containers')
+
+        stop_pools.each do |pool|
+          break if check_abort?
+
+          pool.begin_stop
+          pool.autostop_no_wait(message: wall_msg, client_handler:)
+        end
+
+        stop_pools.each do |pool|
+          break if check_abort?
+
+          pool.wait_for_autostop
+        end
+
+        if check_abort?
+          release_grabbed(grabbed_cts)
+          release_grabbed(grabbed_pools)
+          error!('shutdown aborted')
+        end
+      end
+
       # Export pools one by one
       DB::Pools.get.each do |pool|
         if check_abort?
@@ -41,11 +72,6 @@ module OsCtld
         end
 
         progress("Exporting pool #{pool.name}")
-
-        wall_msg =
-          if opts[:wall]
-            opts[:message] || 'System is shutting down'
-          end
 
         call_cmd!(
           Commands::Pool::Export,

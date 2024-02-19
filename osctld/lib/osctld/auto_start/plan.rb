@@ -191,6 +191,10 @@ module OsCtld
       plan.stop
     end
 
+    def started?
+      !@stop
+    end
+
     def queue
       plan.queue
     end

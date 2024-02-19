@@ -382,6 +382,14 @@ module OsCtld
       autostop_plan.wait
     end
 
+    def autostop_no_wait(message: nil, client_handler: nil)
+      autostop_plan.start(message:, client_handler:)
+    end
+
+    def wait_for_autostop
+      autostop_plan.wait
+    end
+
     def request_reboot(ct)
       autostart_plan.request_reboot(ct)
     end
@@ -391,8 +399,8 @@ module OsCtld
     end
 
     def begin_stop
-      autostart_plan.stop
-      trash_bin.stop
+      autostart_plan.stop if autostart_plan.started?
+      trash_bin.stop if trash_bin.started?
     end
 
     def all_stop
