@@ -96,6 +96,12 @@ module OsCtld
       @queue.length
     end
 
+    # Return true if the queue is empty
+    # @return [Boolean]
+    def empty?
+      @queue.empty?
+    end
+
     # Number of default threads unless overriden in {#run}
     # @return [Integer]
     def default_threads
