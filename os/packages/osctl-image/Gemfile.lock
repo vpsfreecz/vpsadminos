@@ -17,40 +17,40 @@ GEM
 GEM
   remote: https://rubygems.vpsfree.cz/
   specs:
-    libosctl (23.11.0.build20240219183223)
+    libosctl (23.11.0.build20240304203826)
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
-    osctl (23.11.0.build20240219183223)
+    osctl (23.11.0.build20240304203826)
       curses
       gli (~> 2.20.0)
       highline (~> 2.0.3)
       ipaddress (~> 0.8.3)
       json
-      libosctl (= 23.11.0.build20240219183223)
+      libosctl (= 23.11.0.build20240304203826)
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
       ruby-progressbar (~> 1.11.0)
       tty-spinner (~> 0.9.3)
-    osctl-image (23.11.0.build20240219183223)
+    osctl-image (23.11.0.build20240304203826)
       gli (~> 2.20.0)
       ipaddress (~> 0.8.3)
       json
-      libosctl (= 23.11.0.build20240219183223)
-      osctl (= 23.11.0.build20240219183223)
-      osctl-repo (= 23.11.0.build20240219183223)
+      libosctl (= 23.11.0.build20240304203826)
+      osctl (= 23.11.0.build20240304203826)
+      osctl-repo (= 23.11.0.build20240304203826)
       require_all (~> 2.0.0)
-    osctl-repo (23.11.0.build20240219183223)
+    osctl-repo (23.11.0.build20240304203826)
       filelock
       gli (~> 2.20.0)
       json
-      libosctl (= 23.11.0.build20240219183223)
+      libosctl (= 23.11.0.build20240304203826)
       require_all (~> 2.0.0)
 
 PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  osctl-image (= 23.11.0.build20240219183223)!
+  osctl-image (= 23.11.0.build20240304203826)!
 
 BUNDLED WITH
    2.4.22
