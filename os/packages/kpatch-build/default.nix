@@ -1,12 +1,12 @@
 { pkgs, getopt, fetchFromGitHub, ... }:
 pkgs.stdenv.mkDerivation rec {
   name = "kpatch-build";
-  version = "0.9.8";
+  version = "0.9.9";
   src = fetchFromGitHub {
     owner = "dynup";
     repo = "kpatch";
-    rev = "f8d253421036e030116a6216c327d564f23d4198";
-    sha256 = "sha256-TdVPV8bTOBRNBdBXmaCuzTZ1+7zHvAD6w8FOJZSPnR4=";
+    rev = "0edd6e42bfc3ededc04a2690ecabc0433bdfb271";
+    sha256 = "sha256-JIqvBFk7Zcmiq2uDkU+NL2/E8kzU+Ygs7ziBbkRPLCI=";
   };
   postPatch = ''
     substituteInPlace ./kpatch-build/kpatch-build --replace /bin/bash "${pkgs.bashInteractive}/bin/bash"
