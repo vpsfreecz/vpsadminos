@@ -85,6 +85,8 @@ Style/PreferredHashMethods:
   EnforcedStyle: verbose
 Style/RedundantConstantBase:
   Enabled: false
+Style/RedundantLineContinuation:
+  Enabled: false
 Style/SafeNavigation:
   Enabled: false
 Style/SpecialGlobalVars:
