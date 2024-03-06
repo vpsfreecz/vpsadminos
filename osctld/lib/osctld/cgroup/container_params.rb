@@ -9,11 +9,11 @@ module OsCtld
       end
     end
 
-    def apply(keep_going: false, &block)
+    def apply(keep_going: false, &)
       super
       return unless owner.running?
 
-      apply_container_params_and_retry(usable_params, keep_going:, &block)
+      apply_container_params_and_retry(usable_params, keep_going:, &)
     end
 
     # Temporarily expand container memory by given percentage
@@ -76,16 +76,16 @@ module OsCtld
       failed
     end
 
-    def apply_container_params_and_retry(param_list, keep_going: false, &block)
+    def apply_container_params_and_retry(param_list, keep_going: false, &)
       failed = apply_container_params(
         param_list,
         keep_going:,
-        &block
+        &
       ).select { |p| p.name.start_with?('memory.') }
 
       return unless failed.any?
 
-      apply_container_params(failed, keep_going:, &block)
+      apply_container_params(failed, keep_going:, &)
     end
   end
 end

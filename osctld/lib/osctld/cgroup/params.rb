@@ -75,7 +75,7 @@ module OsCtld
     # @param keep_going [Boolean] skip parameters that do not exist
     # @yieldparam subsystem [String] cgroup subsystem
     # @yieldreturn [String] absolute path to the cgroup directory
-    def unset(del_params, save: true, reset: true, keep_going: false, &block)
+    def unset(del_params, save: true, reset: true, keep_going: false, &)
       exclusively do
         del_params.each do |del_h|
           del_p = CGroup::Param.import(del_h)
@@ -86,7 +86,7 @@ module OsCtld
                   && p.name == del_p.name
             next(del) unless del
 
-            reset(p, keep_going, &block) if reset && p.version == CGroup.version
+            reset(p, keep_going, &) if reset && p.version == CGroup.version
             true
           end
         end
@@ -116,20 +116,20 @@ module OsCtld
     # @param keep_going [Boolean] skip parameters that do not exist
     # @yieldparam subsystem [String] cgroup subsystem
     # @yieldreturn [String] absolute path to the cgroup directory
-    def apply(keep_going: false, &block)
-      apply_params_and_retry(usable_params, keep_going:, &block)
+    def apply(keep_going: false, &)
+      apply_params_and_retry(usable_params, keep_going:, &)
     end
 
     # Replace all parameters by a new list of parameters
     # @param new_params [Array<CGroup::Param>]
     # @param save [Boolean] update the owner's config file
-    def replace(new_params, save: true, &block)
+    def replace(new_params, save: true, &)
       @params.each do |p|
         found = new_params.detect do |n|
           n.version == p.version && n.subsystem == p.subsystem && n.name == p.name
         end
 
-        reset(p, true, &block) unless found
+        reset(p, true, &) unless found
       end
 
       @params = new_params
@@ -311,16 +311,16 @@ module OsCtld
       failed
     end
 
-    def apply_params_and_retry(param_list, keep_going: false, &block)
+    def apply_params_and_retry(param_list, keep_going: false, &)
       failed = apply_params(
         param_list,
         keep_going:,
-        &block
+        &
       ).select { |p| p.name.start_with?('memory.') }
 
       return unless failed.any?
 
-      apply_params(failed, keep_going:, &block)
+      apply_params(failed, keep_going:, &)
     end
 
     def reset_value(param)
