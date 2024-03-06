@@ -8,7 +8,10 @@ module OsCtld
       protected
 
       def network_class
-        DistConfig::Network::RedHatNetworkManager
+        [
+          DistConfig::Network::NetworkManager,
+          DistConfig::Network::RedHatNetworkManager
+        ]
       end
     end
   end
