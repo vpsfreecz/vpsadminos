@@ -2,6 +2,7 @@ inherit_from: .rubocop_todo.yml
 require: rubocop-rake
 
 AllCops:
+  TargetRubyVersion: 3.2
   NewCops: enable
   Exclude:
     - '*.rb'
