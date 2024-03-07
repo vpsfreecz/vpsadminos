@@ -16,7 +16,7 @@ let
     bind-interfaces
     dhcp-option=3,192.168.1.1 # gateway
     dhcp-option=6,192.168.1.1 # dns servers
-    dhcp-range=192.168.1.100,192.168.1.200,255.255.255.0,1h
+    dhcp-range=192.168.1.100,192.168.1.200,255.255.255.0,24h
     dhcp-leasefile=${stateDir}/dnsmasq.leases
     dhcp-authoritative
   '';
