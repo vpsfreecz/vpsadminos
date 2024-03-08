@@ -25,6 +25,9 @@ let
       version = toString patchVersion;
       src = patchesDir;
 
+      hardeningDisable = [ "bindnow" "format" "fortify" "stackprotector" "pic" "pie" ];
+      depsBuildBuild = [ pkgs.stdenv.cc ];
+
       buildPhase = ''
         # set to 3 if you want to see compile process
         export DEBUG=0

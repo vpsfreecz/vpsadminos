@@ -72,10 +72,11 @@ let
     debug = {
       CONSOLE_LOGLEVEL_QUIET    = freeform "1";
       CONSOLE_LOGLEVEL_DEFAULT  = freeform "7";
+      DEBUG_INFO_SPLIT          = no;
       DEBUG_INFO                = whenOlder "5.18" yes;
       DEBUG_INFO_BTF            = whenAtLeast "5.18" yes;
       DEBUG_INFO_COMPRESSED     = whenBetween "6.1.38" "6.6.0" yes;
-      DEBUG_INFO_COMPRESSED_ZLIB = whenAtLeast "6.6.0" yes;
+      DEBUG_INFO_COMPRESSED_NONE = whenAtLeast "6.6.0" yes;
       DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT = whenAtLeast "5.18" yes;
       DEBUG_KERNEL              = yes;
       DEBUG_DEVRES              = no;
@@ -98,6 +99,7 @@ let
       LOCK_STAT                 = no;
       PROVE_LOCKING		= no;
       #DEBUG_RT_MUTEXES		= yes;
+      WERROR			= no;
     };
 
     power-management = {
