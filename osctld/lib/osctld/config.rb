@@ -120,6 +120,10 @@ module OsCtld
     # @return [Array<String>]
     attr_reader :apparmor_paths
 
+    # @return [Boolean]
+    attr_reader :enable_time_namespace
+    alias enable_time_namespace? enable_time_namespace
+
     # @return [String]
     attr_reader :ctstartmenu
 
@@ -142,6 +146,7 @@ module OsCtld
 
       @debug = cfg.fetch('debug', false)
       @apparmor_paths = cfg.fetch('apparmor_paths', [])
+      @enable_time_namespace = cfg.fetch('enable_time_namespace', true)
       @ctstartmenu = cfg['ctstartmenu']
       @enable_lock_registry = cfg.fetch('lock_registry', false)
       @cpu_scheduler = CpuScheduler.new(cfg.fetch('cpu_scheduler', {}))

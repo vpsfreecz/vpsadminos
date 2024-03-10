@@ -29,8 +29,12 @@ lxc.apparmor.profile = <%= ct.apparmor.namespace_profile_name %>
 lxc.autodev = 1
 
 # Time namespace
+<% if OsCtld::Daemon.get.config.enable_time_namespace? -%>
 lxc.time.offset.boot = -<%= Process.clock_gettime(Process::CLOCK_BOOTTIME, :second) %>s
 lxc.time.offset.monotonic = -<%= Process.clock_gettime(Process::CLOCK_MONOTONIC, :second) %>s
+<% else -%>
+# Disabled in configuration
+<% end -%>
 
 # Init
 lxc.init.cmd = <%= ct.format_exec_init_cmd %>
