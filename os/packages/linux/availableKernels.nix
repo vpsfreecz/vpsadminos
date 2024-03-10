@@ -1,11 +1,11 @@
 { pkgs, lib, ... }:
 with lib.kernel;
 let
-  defaultKernelVersion = "6.6.17-2";
+  defaultKernelVersion = "6.6.21";
   kernels = {
-    "6.6.17-2" = {
-      url = linuxGhUrl vpsfGh "e6eeb21beeb36518d9c6e22aae5b772576ea2cfb";
-      sha256 = "sha256-ztGcZnqSqSKS+krY35Tv/v6zlzyveIdezGs1LdYqOBo=";
+    "6.6.21" = {
+      url = linuxGhUrl vpsfGh "3e10a2ec5c3eed4a6999c89cd00cfd5e586a9890";
+      sha256 = "sha256-xu4/i6NvHn+n7NbQVnw6CrXowYluK0XOvvCOuMUAO6I=";
       zfs = {
         rev = "639b42ba4c5131ba289124b90e4dc194f62fa91f";
         sha256 = "sha256-hAmZ+YWwbKfb0MC7W8BZdb3A8JtILAOkCU1fetDyADA=";
