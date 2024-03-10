@@ -187,8 +187,8 @@ module OsCtld
 
     # Return `true` if containers should be started/stopped in order of CPU packages
     #
-    # If there are two packages, then containers are first started on package1
-    # and then on package0. Stop goes in reverse order: package0, package1.
+    # If there are two packages, then containers are first started on package0
+    # and then on package1. Stop goes in reverse order: package1, package0.
     #
     # This setting interferes with container start priorities, see cpu scheduler
     # config option `sequential_start_priority_threshold`.
@@ -448,8 +448,8 @@ module OsCtld
               # static pin
               get_package_by_preference(wanted_pkg_id, daily_use)
             elsif use_sequential_start_stop? && priority_start?(ct)
-              # prioritized containers are always put on the second package
-              target_pkg_id = package_info.keys.max
+              # prioritized containers are always put on the first package
+              target_pkg_id = package_info.keys.min
               log(:debug, "Priority start for #{ct.ident}, using CPU package #{target_pkg_id}")
               get_package_by_preference(target_pkg_id, daily_use)
             elsif daily_use == 0 || !can_schedule_by_score?

@@ -73,9 +73,9 @@ module OsCtld
               0
             end
 
-          # Sort by CPU package, lower package first
+          # Sort by CPU package, higher package first
           else
-            a_conf.cpu_package <=> b_conf.cpu_package
+            b_conf.cpu_package <=> a_conf.cpu_package
           end
 
           # rubocop:enable Lint/DuplicateBranch

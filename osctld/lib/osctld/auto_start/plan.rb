@@ -52,8 +52,8 @@ module OsCtld
       # Start the containers
       #
       # If the CPU scheduler is in use, we want to start containers from the
-      # second CPU package first. {CpuScheduler.preschedule_ct} already put
-      # prioritized containers to the second package.
+      # first CPU package first. {CpuScheduler.preschedule_ct} already put
+      # prioritized containers to the first package.
       start_cts =
         if CpuScheduler.use_sequential_start_stop?
           log(:info, 'Using sequential auto-start')
@@ -76,9 +76,9 @@ module OsCtld
             elsif a_package == b_package # rubocop:disable Lint/DuplicateBranch
               a.autostart <=> b.autostart
 
-            # Sort by CPU package, higher package first
+            # Sort by CPU package, lower package first
             else
-              b_package <=> a_package
+              a_package <=> b_package
             end
           end.each_with_index
         else
