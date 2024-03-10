@@ -28,6 +28,10 @@ lxc.apparmor.profile = <%= ct.apparmor.namespace_profile_name %>
 <% end -%>
 lxc.autodev = 1
 
+# Time namespace
+lxc.time.offset.boot = -<%= Process.clock_gettime(Process::CLOCK_BOOTTIME, :second) %>s
+lxc.time.offset.monotonic = -<%= Process.clock_gettime(Process::CLOCK_MONOTONIC, :second) %>s
+
 # Init
 lxc.init.cmd = <%= ct.format_exec_init_cmd %>
 

@@ -234,6 +234,9 @@ module OsCtld
 
         @run_conf.save
       end
+
+      # Generate LXC configs for current time namespace offsets
+      reconfigure
     end
 
     # Call {#init_run_conf} unless {#run_conf} is already set
