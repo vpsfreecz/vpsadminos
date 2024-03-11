@@ -89,7 +89,7 @@ index ade38ef833da..5e5705aa5be3 100644
  		switch (type) {
  		case FILE_CPULIST:
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index e6c848b0479e..0195103e2df3 100644
+index e6c848b0479e..a57e67ed52b8 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -65,7 +65,6 @@
@@ -118,12 +118,14 @@ index e6c848b0479e..0195103e2df3 100644
  		goto out_put_task;
  	}
  orig:
-@@ -8518,7 +8517,7 @@ long sched_getaffinity(pid_t pid, struct cpumask *mask)
+@@ -8517,8 +8516,8 @@ long sched_getaffinity(pid_t pid, struct cpumask *mask)
+ 		goto out_unlock;
  
  	raw_spin_lock_irqsave(&p->pi_lock, flags);
- 	cpumask_and(mask, &p->cpus_mask, cpu_active_mask);
+-	cpumask_and(mask, &p->cpus_mask, cpu_active_mask);
 -	fake_cpumask(p, mask);
-+	fake_affinity_cpumask(p, mask);
++	if (!fake_affinity_cpumask(p, mask))
++		cpumask_and(mask, &p->cpus_mask, cpu_active_mask);
  	raw_spin_unlock_irqrestore(&p->pi_lock, flags);
  
  out_unlock:
@@ -139,7 +141,7 @@ index 6c4ce9963b30..cbf68fc1f678 100644
 \ No newline at end of file
 +				 u64 user, u64 system);
 diff --git a/kernel/vpsadminos.c b/kernel/vpsadminos.c
-index afe9bc20ae1c..9d39c40fb0d5 100644
+index afe9bc20ae1c..0eba3f87b91f 100644
 --- a/kernel/vpsadminos.c
 +++ b/kernel/vpsadminos.c
 @@ -10,6 +10,26 @@
@@ -178,32 +180,43 @@ index afe9bc20ae1c..9d39c40fb0d5 100644
  {
  	if (!online_cpus_in_cpu_cgroup(p))
  		return;
-@@ -69,15 +89,20 @@ void set_fake_cpumask(struct task_struct *p, const struct cpumask *srcmask)
+@@ -69,16 +89,11 @@ void set_fake_cpumask(struct task_struct *p, const struct cpumask *srcmask)
  }
  
  // Caller's responsibility to make sure p lives throughout
 -int fake_cpumask(struct task_struct *p, struct cpumask *dstmask)
-+int fake_affinity_cpumask(struct task_struct *p, struct cpumask *dstmask)
- {
--	int cpus;
--	int cpu, enabled;
--
- 	if (p->set_fake_cpu_mask) {
- 		cpumask_copy(dstmask, &p->fake_cpu_mask);
- 		return 1;
- 	}
-+	return 0;
-+}
-+
-+// Caller's responsibility to make sure p lives throughout
 +int fake_online_cpumask(struct task_struct *p, struct cpumask *dstmask)
-+{
-+	int cpus;
-+	int cpu, enabled;
+ {
+ 	int cpus;
+ 	int cpu, enabled;
  
+-	if (p->set_fake_cpu_mask) {
+-		cpumask_copy(dstmask, &p->fake_cpu_mask);
+-		return 1;
+-	}
+-
  	cpus = online_cpus_in_cpu_cgroup(p);
  	if (!cpus)
-@@ -122,7 +147,7 @@ void fake_cputime_readout_v1(struct task_struct *p, u64 timestamp, u64 *user, u6
+ 		return 0;
+@@ -95,6 +110,17 @@ int fake_cpumask(struct task_struct *p, struct cpumask *dstmask)
+ 	return 1;
+ }
+ 
++// Caller's responsibility to make sure p lives throughout
++int fake_affinity_cpumask(struct task_struct *p, struct cpumask *dstmask)
++{
++	if (p->set_fake_cpu_mask) {
++		cpumask_copy(dstmask, &p->fake_cpu_mask);
++		return 1;
++	}
++
++	return fake_online_cpumask(p, dstmask);
++}
++
+ void fake_cputime_readout_v1(struct task_struct *p, u64 timestamp, u64 *user, u64 *system, int *cpus)
+ {
+ 	struct cgroup_subsys_state *css = p->nsproxy->cgroup_ns->root_cset->subsys[cpuacct_cgrp_id];
+@@ -122,7 +148,7 @@ void fake_cputime_readout_v1(struct task_struct *p, u64 timestamp, u64 *user, u6
  	*user = usr;
  	*system = sys;
  	*cpus = online_cpus_in_cpu_cgroup(p);
@@ -212,7 +225,7 @@ index afe9bc20ae1c..9d39c40fb0d5 100644
  
  	user_time = usr - usr_old;
  	system_time = sys - sys_old;
-@@ -184,7 +209,7 @@ void fake_cputime_readout_v2(struct task_struct *p, u64 timestamp, u64 *user, u6
+@@ -184,7 +210,7 @@ void fake_cputime_readout_v2(struct task_struct *p, u64 timestamp, u64 *user, u6
  	*user = usr;
  	*system = sys;
  	*cpus = online_cpus_in_cpu_cgroup(p);
