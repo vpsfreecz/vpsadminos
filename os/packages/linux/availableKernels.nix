@@ -4,11 +4,11 @@ let
   defaultKernelVersion = "6.6.21";
   kernels = {
     "6.6.21" = {
-      url = linuxGhUrl vpsfGh "3e10a2ec5c3eed4a6999c89cd00cfd5e586a9890";
-      sha256 = "sha256-xu4/i6NvHn+n7NbQVnw6CrXowYluK0XOvvCOuMUAO6I=";
+      url = linuxGhUrl vpsfGh "86e0c00fd80469aea354b9fc4ca5913d33ea0d92";
+      sha256 = "sha256-zJHOmvyBr0aR97boNZHtfBJviqpmv69RNKqR6eBkJ9A=";
       zfs = {
-        rev = "639b42ba4c5131ba289124b90e4dc194f62fa91f";
-        sha256 = "sha256-hAmZ+YWwbKfb0MC7W8BZdb3A8JtILAOkCU1fetDyADA=";
+        rev = "5ee3b2fc6eba2df3b2a4501ccf6c469ebd7889ed";
+        sha256 = "sha256-jebuLXVqFPoASF4OptpcCHPSvynGIHiIZgw+nDHtGeU=";
       };
     };
     "6.6.1-2" = {
