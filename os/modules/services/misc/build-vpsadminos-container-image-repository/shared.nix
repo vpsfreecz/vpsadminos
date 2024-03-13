@@ -70,7 +70,7 @@ let
       cmd = [
         'build-image-repository-${repoName}',
       ] + ARGV.map { |v| "\"#{v}\"" }
-      machine.succeeds(cmd.join(' '), timeout: 12*60*60)
+      machine.succeeds(cmd.join(' '), timeout: 24*60*60)
 
       machine.stop
       machine.wait_for_shutdown
