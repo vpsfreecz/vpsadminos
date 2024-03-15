@@ -50,9 +50,9 @@ module OsCtld
         Process.wait(pid)
 
         if $?.exitstatus == 0
-          error("halt failed with exit status #{$?.exitstatus}")
-        else
           ok
+        else
+          error("halt failed with exit status #{$?.exitstatus}")
         end
       end
     end
