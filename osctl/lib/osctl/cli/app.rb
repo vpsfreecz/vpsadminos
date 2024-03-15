@@ -736,7 +736,7 @@ module OsCtl::Cli
           c.flag %i[m message], arg_name: 'message'
 
           c.desc 'How many seconds to wait before killing the container'
-          c.flag %i[t timeout], type: Integer, default_value: 120, arg_name: 'n'
+          c.flag %i[t timeout], type: Integer, default_value: 300, arg_name: 'n'
 
           c.desc 'Do not request a clean shutdown, kill the container'
           c.switch %i[k kill], negatable: false
@@ -763,7 +763,7 @@ module OsCtl::Cli
           c.switch %i[r reboot]
 
           c.desc 'How many seconds to wait before killing the container'
-          c.flag %i[t timeout], type: Integer, default_value: 120, arg_name: 'n'
+          c.flag %i[t timeout], type: Integer, default_value: 300, arg_name: 'n'
 
           c.desc 'Do not request a clean shutdown, kill the container'
           c.switch %i[k kill], negatable: false
