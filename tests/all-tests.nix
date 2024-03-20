@@ -56,6 +56,7 @@ in tests [
   "dist-config/systemd-rundir-limits"
   "docker/almalinux-8"
   "docker/alpine-latest"
+  "docker/arch-latest"
   "docker/centos-7"
   "docker/debian-latest"
   "docker/fedora-latest"
