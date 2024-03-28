@@ -10,7 +10,7 @@ let
     }
     { name = "bp-6.6.13-cumulative";
       filterFn = availableFor "6.6.13";
-      version = 2;
+      version = 3;
     }
     { name = "bp-6.6.10-cumulative";
       filterFn = availableFor "6.6.10";

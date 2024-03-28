@@ -234,3 +234,37 @@ index 814a130d2159..ae47aa1123c8 100644
  
  	user_time = usr - usr_old;
  	system_time = sys - sys_old;
+diff --git a/net/netfilter/nf_tables_api.c b/net/netfilter/nf_tables_api.c
+index 5a14e1ab0b13..40cf6f2c8d4c 100644
+--- a/net/netfilter/nf_tables_api.c
++++ b/net/netfilter/nf_tables_api.c
+@@ -10841,16 +10841,10 @@ static int nft_verdict_init(const struct nft_ctx *ctx, struct nft_data *data,
+ 	data->verdict.code = ntohl(nla_get_be32(tb[NFTA_VERDICT_CODE]));
+ 
+ 	switch (data->verdict.code) {
+-	default:
+-		switch (data->verdict.code & NF_VERDICT_MASK) {
+-		case NF_ACCEPT:
+-		case NF_DROP:
+-		case NF_QUEUE:
+-			break;
+-		default:
+-			return -EINVAL;
+-		}
+-		fallthrough;
++	case NF_ACCEPT:
++	case NF_DROP:
++	case NF_QUEUE:
++		break;
+ 	case NFT_CONTINUE:
+ 	case NFT_BREAK:
+ 	case NFT_RETURN:
+@@ -10885,6 +10879,8 @@ static int nft_verdict_init(const struct nft_ctx *ctx, struct nft_data *data,
+ 
+ 		data->verdict.chain = chain;
+ 		break;
++	default:
++		return -EINVAL;
+ 	}
+ 
+ 	desc->len = sizeof(data->verdict);
