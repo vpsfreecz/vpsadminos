@@ -6,20 +6,15 @@
 ;;  https://github.com/vpsfreecz/vpsadminos/blob/staging/image-scripts/images/guix/vpsadminos.scm
 ;;
 (define-module (vpsadminos)
+  #:use-module (gnu)
+  #:use-module (gnu packages)
+  #:use-module (gnu packages bash)
+  #:use-module (gnu services networking)
+  #:use-module (gnu services shepherd)
+  #:use-module (srfi srfi-1)
   #:export (%ct-bootloader
             %ct-file-systems
             %ct-services))
-
-(use-modules (gnu)
-             (gnu packages)
-             (guix build-system trivial)
-             (guix gexp)
-             (guix packages)
-             (srfi srfi-1))
-
-(use-modules (vpsadminos))
-(use-package-modules bash)
-(use-service-modules networking shepherd)
 
 ;;; The bootloader is not required.  This is running inside a container, and the
 ;;; start menu is populated by parsing /var/guix/profiles.  However bootloader
