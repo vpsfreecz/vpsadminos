@@ -7,7 +7,6 @@
 ;;
 (define-module (vpsadminos)
   #:export (%ct-bootloader
-            %ct-dummy-kernel
             %ct-file-systems
             %ct-services))
 
@@ -32,23 +31,6 @@
   (bootloader-configuration
    (bootloader grub-efi-netboot-removable-bootloader)
    (targets '("/boot"))))
-
-(define %ct-dummy-kernel
-  (package
-    (name "dummy-kernel")
-    (version "1")
-    (source #f)
-    (build-system trivial-build-system)
-    (arguments
-     (list
-      #:builder #~(mkdir #$output)))
-    (synopsis "Dummy kernel")
-    (description
-     "In container environment, the kernel is provided by the host.  However we
-still need to specify a kernel in the operating-system definition, hence this
-package.")
-    (home-page #f)
-    (license #f)))
 
 (define %ct-file-systems
   (cons* (file-system                   ; Dummy rootfs

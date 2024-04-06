@@ -4,7 +4,7 @@
 
 ;; System configuration
 (use-modules (gnu))
-(use-package-modules certs ssh)
+(use-package-modules certs linux ssh)
 (use-service-modules ssh)
 
 (operating-system
@@ -14,7 +14,8 @@
   (locale "en_US.utf8")
   (firmware '())
   (initrd-modules '())
-  (kernel %ct-dummy-kernel)
+  ;; The kernel is not used (this is a container), but needs to be specified
+  (kernel linux-libre)
 
   (packages (cons* nss-certs
                    %base-packages))
