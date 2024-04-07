@@ -168,7 +168,6 @@ in {
           networking.static.enable = mkDefault true;
           networking.lxcbr.enable = mkDefault true;
           networking.nameservers = mkDefault [ "10.0.2.3" ];
-          networking.waitOnline.method = "http";
 
           osctl.test-shell.enable = true;
           osctld.settings = {

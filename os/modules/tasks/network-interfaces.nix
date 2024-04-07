@@ -3,15 +3,14 @@ with lib;
 let
   cfg = config.networking;
 
+  quoteStrings = list: map (v: "\"${v}\"") list;
+
   waitOnlineMethods = {
     ping = ''
-      wait_online() {
-        for i in {1..300} ; do
-          ${concatMapStringsSep "\n\n" (host: ''
+      check_online_ping() {
+        for host in ${toString (quoteStrings cfg.waitOnline.ping.hosts)} ; do
           sleep 1
-          ping -c 1 ${host} >/dev/null 2>&1 && return 0
-          warn "Waiting for network to come online..."
-          '') cfg.waitOnline.ping.hosts}
+          ping -c 1 "$host" >/dev/null 2>&1 && return 0
         done
 
         return 1
@@ -19,13 +18,10 @@ let
     '';
 
     http = ''
-      wait_online() {
-        for i in {1..300} ; do
-          ${concatMapStringsSep "\n\n" (url: ''
+      check_online_http() {
+        for url in ${toString (quoteStrings cfg.waitOnline.http.urls)} ; do
           sleep 1
-          ${pkgs.curl}/bin/curl --head "${url}" >/dev/null 2>&1 && return 0
-          warn "Waiting for network to come online..."
-          '') cfg.waitOnline.http.urls}
+          ${pkgs.curl}/bin/curl --head "$url" >/dev/null 2>&1 && return 0
         done
 
         return 1
@@ -160,11 +156,12 @@ in {
       };
 
       waitOnline = {
-        method = mkOption {
-          type = types.enum [ "ping" "http" ];
-          default = "ping";
+        methods = mkOption {
+          type = types.listOf (types.enum [ "ping" "http" ]);
+          default = [ "ping" "http" ];
           description = ''
-            Which method to use to check network connectivity
+            Which methods to use to check network connectivity. It is enough
+            for one method to work.
           '';
         };
 
@@ -261,7 +258,20 @@ in {
       run = ''
         ensureServiceStarted networking
 
-        ${waitOnlineMethods.${cfg.waitOnline.method}}
+        ${concatMapStringsSep "\n\n" (m: waitOnlineMethods.${m}) cfg.waitOnline.methods}
+
+        wait_online() {
+          for i in {1..300} ; do
+            for method in ${toString cfg.waitOnline.methods} ; do
+              check_online_$method && return 0
+            done
+
+            warn "Waiting for network to come online..."
+            sleep 1
+          done
+
+          return 1
+        }
 
         if ! wait_online ; then
           warn "Timed out while waiting for network to come online"

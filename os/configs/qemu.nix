@@ -13,7 +13,6 @@
   networking.static.enable = lib.mkDefault true;
   networking.lxcbr.enable = true;
   networking.nameservers = [ "10.0.2.3" ];
-  networking.waitOnline.method = "http";
 
   boot.qemu.enable = true;
   boot.qemu.disks = lib.mkDefault [
