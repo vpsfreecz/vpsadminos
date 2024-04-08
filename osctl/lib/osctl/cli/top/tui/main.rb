@@ -131,15 +131,19 @@ module OsCtl::Cli::Top
           selection_open_top
 
         when Curses::Key::NPAGE # Page Down
+          Curses.clear
           view_page_down
 
         when Curses::Key::PPAGE # Page Up
+          Curses.clear
           view_page_up
 
         when Curses::Key::HOME
+          Curses.clear
           view_page_reset
 
         when Curses::Key::END
+          Curses.clear
           view_page_end
 
         when 'h'
