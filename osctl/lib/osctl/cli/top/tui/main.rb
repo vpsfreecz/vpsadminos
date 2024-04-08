@@ -9,6 +9,7 @@ module OsCtl::Cli::Top
     def initialize(model, rate, enable_procs: true)
       super()
       @rate = rate
+      @containers = []
       @last_count = nil
       @sort_index = 0
       @sort_desc = true
@@ -56,15 +57,22 @@ module OsCtl::Cli::Top
           data = last_data
         end
 
+        @containers =
+          if search_active?
+            data[:containers].select { |ct| ct[:id].include?(search_string) }
+          else
+            data[:containers]
+          end
+
         if last_mode != model_thread.mode
           @header = nil
           Curses.clear
           @last_mode = model_thread.mode
-        elsif last_count != data[:containers].count
+        elsif last_count != @containers.count
           Curses.clear
         end
 
-        self.last_count = data[:containers].count
+        self.last_count = @containers.count
 
         if enable_procs && !paused?
           procs_stats, @last_procs_check = procs_thread.get_stats
@@ -188,28 +196,23 @@ module OsCtl::Cli::Top
       j = 0
       Curses.attroff(Curses.color_pair(1))
 
-      ct_count = data[:containers].length
+      ct_count = @containers.length
       offset = 0
       view_ct_count = Curses.lines - stats_rows - i
 
       @view_page_max = ((ct_count - view_ct_count) / (view_ct_count / 2).to_f).ceil
 
-      ct_view =
-        if view_page > 0
-          offset = (view_ct_count / 2) * view_page
+      if view_page > 0
+        @view_offset = (view_ct_count / 2) * view_page
 
-          if offset >= ct_count - view_ct_count
-            offset = ct_count - view_ct_count
-          end
-
-          data[:containers][offset..]
-        else
-          data[:containers]
+        if offset >= ct_count - view_ct_count
+          @view_offset = ct_count - view_ct_count
         end
+      else
+        @view_offset = 0
+      end
 
-      ct_view.each do |ct|
-        next if search_active? && !ct[:id].include?(search_string)
-
+      @containers[@view_offset..].each do |ct|
         Curses.setpos(i, 0)
 
         attr = if current_row == j && highlighted_cts.include?(ct[:id])
@@ -233,7 +236,7 @@ module OsCtl::Cli::Top
         break if i >= (Curses.lines - stats_rows)
       end
 
-      stats(data, [offset, view_ct_count, data[:containers].length])
+      stats(data, [offset, view_ct_count, ct_count])
 
       Curses.refresh
     end
@@ -584,7 +587,7 @@ module OsCtl::Cli::Top
 
         Curses.addstr('Selected container: ')
 
-        if @current_row && (ct = last_data[:containers][@current_row])
+        if @current_row && (ct = @containers[@view_offset + @current_row])
           if ct[:id] == '[host]'
             Curses.addstr('host system')
           else
@@ -668,7 +671,7 @@ module OsCtl::Cli::Top
     end
 
     def selection_up
-      last_row = [max_rows - 1, last_data[:containers].size - 1].min
+      last_row = [max_rows - 1, @containers.size - 1].min
 
       if @current_row
         new_row = @current_row - 1
@@ -679,12 +682,12 @@ module OsCtl::Cli::Top
                        elsif new_row == -1
                          nil
 
-                       elsif last_data[:containers].any?
+                       elsif @containers.any?
                          last_row
 
                        end
 
-      elsif last_data[:containers].any?
+      elsif @containers.any?
         @current_row = last_row
       end
     end
@@ -693,15 +696,15 @@ module OsCtl::Cli::Top
       if @current_row
         new_row = @current_row + 1
 
-        @current_row = if new_row < last_data[:containers].size && new_row < max_rows
+        @current_row = if new_row < @containers.size && new_row < max_rows
                          new_row
 
-                       elsif last_data[:containers].any?
+                       elsif @containers.any?
                          0
 
                        end
 
-      elsif last_data[:containers].any?
+      elsif @containers.any?
         @current_row = 0
       end
     end
@@ -709,7 +712,7 @@ module OsCtl::Cli::Top
     def selection_highlight
       return unless @current_row
 
-      ct = last_data[:containers][@current_row]
+      ct = @containers[@view_offset + @current_row]
       return unless ct
 
       ctid = ct[:id]
@@ -733,7 +736,7 @@ module OsCtl::Cli::Top
     def selection_open_program(&block)
       return unless @current_row
 
-      ct = last_data[:containers][@current_row]
+      ct = @containers[@view_offset + @current_row]
       return unless ct
 
       if ct[:id] == '[host]'
