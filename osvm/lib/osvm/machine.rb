@@ -264,26 +264,14 @@ module OsVm
     # @param cmds [String]
     # @return [Array<Array<[Integer, String]>>]
     def all_succeed(*cmds)
-      ret = []
-
-      cmds.each do |cmd|
-        ret << succeeds(cmd)
-      end
-
-      ret
+      cmds.map { |cmd| succeeds(cmd) }
     end
 
     # Execute all commands and check that they all fail
     # @param cmds [String]
     # @return [Array<Array<[Integer, String]>>]
     def all_fail(*cmds)
-      ret = []
-
-      cmds.each do |cmd|
-        ret << fails(cmd)
-      end
-
-      ret
+      cmds.map { |cmd| fails(cmd) }
     end
 
     # Wait until command succeeds
