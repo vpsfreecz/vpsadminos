@@ -76,16 +76,23 @@ module OsCtld
       inclusively { prlimits.each(&block) }
     end
 
+    # rubocop:disable Style/HashTransformValues
+    # prlimits is an array of two-element arrays, not a hash, so we
+    # cannot use #transform_values.
+
     # Dump to config
     def dump
-      inclusively { prlimits.transform_values(&:dump) }
+      inclusively { prlimits.to_h { |k, v| [k, v.dump] } }
     end
 
+    # Export to client
     def export
       inclusively do
-        prlimits.transform_values(&:export)
+        prlimits.to_h { |k, v| [k, v.export] }
       end
     end
+
+    # rubocop:enable Style/HashTransformValues
 
     def dup(new_ct)
       ret = super()
