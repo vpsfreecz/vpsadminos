@@ -7,7 +7,7 @@ set -e
 guix pull
 hash guix
 
-guix system init -L "$IMAGEDIR" "$IMAGEDIR"/system.scm "$INSTALL"
+guix system init --verbosity=3 -L "$IMAGEDIR" "$IMAGEDIR"/system.scm "$INSTALL"
 
 mkdir "$INSTALL"/etc/config "$INSTALL"/sbin
 
