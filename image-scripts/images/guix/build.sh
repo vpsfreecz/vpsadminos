@@ -7,7 +7,7 @@ set -e
 guix pull
 hash guix
 
-GUILE_LOAD_PATH="$IMAGEDIR" guix system init --no-bootloader "$IMAGEDIR"/system.scm "$INSTALL"
+GUILE_LOAD_PATH="$IMAGEDIR" guix system init "$IMAGEDIR"/system.scm "$INSTALL"
 
 mkdir "$INSTALL"/etc/config "$INSTALL"/sbin
 
