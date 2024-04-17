@@ -2,6 +2,8 @@
 
 . /etc/profile.d/guix.sh
 
+set -e
+
 guix pull
 hash guix
 
