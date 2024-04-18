@@ -15,7 +15,7 @@
   (firmware '())
   (initrd-modules '())
   ;; The kernel is not used (this is a container), but needs to be specified
-  (kernel linux-libre)
+  (kernel %ct-dummy-kernel)
 
   (packages (cons* nss-certs
                    %base-packages))

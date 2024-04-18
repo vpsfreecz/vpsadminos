@@ -11,8 +11,12 @@
   #:use-module (gnu packages bash)
   #:use-module (gnu services networking)
   #:use-module (gnu services shepherd)
+  #:use-module (guix build-system trivial)
+  #:use-module (guix gexp)
+  #:use-module (guix packages)
   #:use-module (srfi srfi-1)
   #:export (%ct-bootloader
+            %ct-dummy-kernel
             %ct-file-systems
             %ct-services))
 
@@ -26,6 +30,25 @@
   (bootloader-configuration
    (bootloader grub-efi-netboot-removable-bootloader)
    (targets '("/boot"))))
+
+;;; It seems any package can be passed as an kernel, so create empty one for
+;;; that purpose.
+(define %ct-dummy-kernel
+  (package
+    (name "dummy-kernel")
+    (version "1")
+    (source #f)
+    (build-system trivial-build-system)
+    (arguments
+     (list
+      #:builder #~(mkdir #$output)))
+    (synopsis "Dummy kernel")
+    (description
+     "In container environment, the kernel is provided by the host.  However we
+still need to specify a kernel in the operating-system definition, hence this
+package.")
+    (home-page #f)
+    (license #f)))
 
 (define %ct-file-systems
   (cons* (file-system                   ; Dummy rootfs
