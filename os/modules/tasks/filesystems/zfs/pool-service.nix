@@ -29,7 +29,7 @@ let
         ''
           echo "Sharing datasets..."
           waitForService nfsd
-          ${zfs} share -r ${name}
+          ${zfs} share -R ${name}
         ''
       else
         ''
@@ -44,7 +44,7 @@ let
           else
             echo "Sharing filesystems of pool ${name}..."
             waitForService nfsd
-            ${zfs} share -r ${name}
+            ${zfs} share -R ${name}
           fi
         ''
       else
