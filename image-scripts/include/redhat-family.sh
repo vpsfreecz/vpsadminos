@@ -115,6 +115,7 @@ dnf -y clean all
 > /etc/resolv.conf
 
 systemctl mask auditd.service
+systemctl mask audit-rules.service
 systemctl mask systemd-journald-audit.socket
 systemctl mask proc-sys-fs-binfmt_misc.mount
 systemctl mask sys-kernel-debug.mount
