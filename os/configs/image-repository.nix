@@ -77,7 +77,8 @@
       ubuntu = {
         "18.04" = { tags = [ "oldoldlts" ]; };
         "20.04" = { tags = [ "oldlts" ]; };
-        "22.04" = { tags = [ "latest" "stable" "lts" ]; };
+        "22.04" = { tags = [ "oldlts" ]; };
+        "24.04" = { tags = [ "latest" "stable" "lts" ]; };
       };
 
       void = {
