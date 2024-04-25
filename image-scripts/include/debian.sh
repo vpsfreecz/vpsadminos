@@ -5,6 +5,22 @@ CONFIGURE_DEBIAN="$CONFIGURE.debian"
 function bootstrap {
 	mkdir $INSTALL/etc
 	echo nameserver 8.8.8.8 > $INSTALL/etc/resolv.conf
+
+	# This is a workaround for debian/ubuntu debootstrap not having support for their
+	# own latest release. We modify the builder to provide support for the current
+	# $RELNAME.
+	if [ ! -e "/usr/share/debootstrap/scripts/$RELNAME" ] ; then
+		case "$DISTNAME" in
+			debian)
+				ln -s sid "/usr/share/debootstrap/scripts/$RELNAME"
+				;;
+			ubuntu)
+				ln -s gutsy "/usr/share/debootstrap/scripts/$RELNAME"
+				;;
+		esac
+
+	fi
+
 	debootstrap --include locales --arch amd64 $RELNAME $INSTALL $BASEURL
 }
 
