@@ -30,6 +30,8 @@ self: super:
 
   irq_heatmap = super.callPackage ../packages/irq_heatmap {};
 
+  ksvcmon = super.callPackage ../packages/ksvcmon {};
+
   lxc =
     let
       libcap = super.libcap.overrideAttrs (oldAttrs: rec {
