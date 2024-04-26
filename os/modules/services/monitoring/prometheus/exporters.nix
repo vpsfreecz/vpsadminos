@@ -21,8 +21,8 @@ let
 
   exporterOpts = genAttrs [
     "ipmi"
-    "node"
     "ksvcmon"
+    "node"
   ] (name:
     import (./. + "/exporters/${name}.nix") { inherit config lib pkgs options; }
   );
