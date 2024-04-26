@@ -23,6 +23,7 @@ let
     "ipmi"
     "ksvcmon"
     "node"
+    "osctl"
   ] (name:
     import (./. + "/exporters/${name}.nix") { inherit config lib pkgs options; }
   );
