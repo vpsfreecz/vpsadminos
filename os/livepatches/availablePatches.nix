@@ -4,6 +4,10 @@ with lib;
 let
 
   availablePatches = [
+    { name = "bp-6.6.28-cumulative";
+      filterFn = availableFor "6.6.28";
+      version = 1;
+    }
   ];
 
   availableForAllKernels = kernelVersion: true;

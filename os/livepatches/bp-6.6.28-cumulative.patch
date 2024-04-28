@@ -1,0 +1,101 @@
+diff --git a/kernel/vpsadminos.c b/kernel/vpsadminos.c
+index c08f1ebfab6c..ae47aa1123c8 100644
+--- a/kernel/vpsadminos.c
++++ b/kernel/vpsadminos.c
+@@ -10,6 +10,26 @@
+ #include <asm/page.h>
+ #include <linux/sched/cputime.h>
+ #include "sched/sched.h"
++#include <linux/utsname.h>
++#include <linux/vpsadminos-livepatch.h>
++#include "kpatch-macros.h"
++char old_uname[65];
++char new_uname[65];
++
++static int patch(patch_object *obj)
++{
++	scnprintf(new_uname, 64, "%s.%s", LIVEPATCH_ORIG_KERNEL_VERSION,
++	    LIVEPATCH_NAME);
++	scnprintf(old_uname, 64, "%s", init_uts_ns.name.release);
++	scnprintf(init_uts_ns.name.release, 64, "%s", new_uname);
++	return 0;
++}
++KPATCH_PRE_PATCH_CALLBACK(patch);
++static void unpatch(patch_object *obj)
++{
++	scnprintf(init_uts_ns.name.release, 64, "%s", old_uname);
++}
++KPATCH_POST_UNPATCH_CALLBACK(unpatch);
+ 
+ struct proc_dir_entry *proc_vpsadminos;
+ 
+diff --git a/mm/shmem.c b/mm/shmem.c
+index 916eeb434473..2cb189c2d994 100644
+--- a/mm/shmem.c
++++ b/mm/shmem.c
+@@ -148,9 +148,11 @@ static unsigned long shmem_default_max_inodes(void)
+ {
+ 	unsigned long nr_pages = totalram_pages();
+ 	struct mem_cgroup *memcg = get_current_most_limited_memcg();
+-	if (memcg)
+-		return (u64)READ_ONCE(memcg->memory.max);
+-
++	if (memcg) {
++		nr_pages = READ_ONCE(memcg->memory.max);
++		mem_cgroup_put(memcg);
++		return nr_pages;
++	}
+ 	return min3(nr_pages - totalhigh_pages(), nr_pages / 2,
+ 			ULONG_MAX / BOGO_INODE_SIZE);
+ }
+diff --git a/mm/vmstat.c b/mm/vmstat.c
+index 54975457f401..f1c2bf1d5acf 100644
+--- a/mm/vmstat.c
++++ b/mm/vmstat.c
+@@ -28,6 +28,7 @@
+ #include <linux/mm_inline.h>
+ #include <linux/page_owner.h>
+ #include <linux/sched/isolation.h>
++#include <linux/vpsadminos.h>
+ 
+ #include "internal.h"
+ 
+@@ -1841,26 +1842,19 @@ static int vmstat_show(struct seq_file *m, void *arg)
+ 	unsigned long *l = arg;
+ 	unsigned long off = l - (unsigned long *)m->private;
+ 	unsigned long fake = 0;
++	struct mem_cgroup *mem;
+ 
+-	do {
+-		struct mem_cgroup *mem, *mem_orig, *cgns_root_mem;
+-		if (strncmp(vmstat_text[off], "oom_kill", 8))
+-			break;
+-		mem_orig = mem = get_mem_cgroup_from_mm(current->mm);
+-		if (!mem)
+-			break;
+-		if (mem_cgroup_is_root(mem))
+-			break;
+-		cgns_root_mem = mem_cgroup_from_css(current->nsproxy->cgroup_ns->root_cset->subsys[memory_cgrp_id]);
+-		if (mem_cgroup_is_root(cgns_root_mem))
+-			break;
+-		while (parent_mem_cgroup(mem) != cgns_root_mem)
+-			mem = parent_mem_cgroup(mem);
+-		WARN_ON_ONCE(mem_cgroup_is_root(mem));
+-		fake = atomic_long_read(&mem->memory_events[MEMCG_OOM_KILL]);
+-		l = &fake;
+-		css_put(&mem_orig->css);
+-	} while (0);
++	if (strncmp(vmstat_text[off], "oom_kill", 8))
++		goto oom_orig;
++
++	mem = get_current_most_limited_memcg();
++	if (!mem)
++		goto oom_orig;
++
++	fake = atomic_long_read(&mem->memory_events[MEMCG_OOM_KILL]);
++	l = &fake;
++	mem_cgroup_put(mem);
++oom_orig:
+ 
+ 	seq_puts(m, vmstat_text[off]);
+ 	seq_put_decimal_ull(m, " ", *l);
