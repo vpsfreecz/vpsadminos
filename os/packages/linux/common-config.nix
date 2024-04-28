@@ -520,7 +520,7 @@ let
       ZRAM     = module;
       ZSWAP    = option yes;
       ZBUD     = option yes;
-      ZSMALLOC = module;
+      ZSMALLOC = if (versionAtLeast version "6.8") then yes else module;
     };
 
     # Support x2APIC (which requires IRQ remapping)
