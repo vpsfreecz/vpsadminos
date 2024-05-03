@@ -152,6 +152,15 @@ in {
       };
     };
 
+    system.distBuilderCommands = mkOption {
+      type = types.lines;
+      internal = true;
+      default = "";
+      description = ''
+        This code will be added to the builder creating the dist store path.
+      '';
+    };
+
     system.systemBuilderCommands = mkOption {
       type = types.lines;
       internal = true;
@@ -378,6 +387,7 @@ in {
       cp ${config.system.build.kernel}/*zImage $out/kernel
       cp ${config.system.build.initialRamdisk}/initrd $out/initrd
       echo "init=${config.system.build.toplevel}/init ${builtins.unsafeDiscardStringContext (toString config.boot.kernelParams)}" > $out/command-line
+      ${config.system.distBuilderCommands}
     '';
   };
 }
