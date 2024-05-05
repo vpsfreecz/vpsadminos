@@ -389,5 +389,10 @@ in {
       echo "init=${config.system.build.toplevel}/init ${builtins.unsafeDiscardStringContext (toString config.boot.kernelParams)}" > $out/kernel-params
       ${config.system.distBuilderCommands}
     '';
+
+    system.build.distCopy = pkgs.runCommand "vpsadminos-distcopy" {} ''
+      mkdir $out
+      cp -r ${config.system.build.dist}/. $out/
+    '';
   };
 }
