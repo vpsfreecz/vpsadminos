@@ -386,7 +386,7 @@ in {
       cp ${config.system.build.squashfs} $out/root.squashfs
       cp ${config.system.build.kernel}/bzImage $out/bzImage
       cp ${config.system.build.initialRamdisk}/initrd $out/initrd
-      echo "init=${config.system.build.toplevel}/init ${builtins.unsafeDiscardStringContext (toString config.boot.kernelParams)}" > $out/command-line
+      echo "init=${config.system.build.toplevel}/init ${builtins.unsafeDiscardStringContext (toString config.boot.kernelParams)}" > $out/kernel-params
       ${config.system.distBuilderCommands}
     '';
   };
