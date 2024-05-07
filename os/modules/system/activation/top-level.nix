@@ -383,16 +383,11 @@ in {
 
     system.build.dist = pkgs.runCommand "vpsadminos-dist" {} ''
       mkdir $out
-      cp ${config.system.build.squashfs} $out/root.squashfs
-      cp ${config.system.build.kernel}/bzImage $out/bzImage
-      cp ${config.system.build.initialRamdisk}/initrd $out/initrd
-      echo "init=${config.system.build.toplevel}/init ${builtins.unsafeDiscardStringContext (toString config.boot.kernelParams)}" > $out/kernel-params
+      cp ${builtins.unsafeDiscardOutputDependency config.system.build.squashfs} $out/root.squashfs
+      cp ${builtins.unsafeDiscardOutputDependency config.system.build.kernel}/bzImage $out/bzImage
+      cp ${builtins.unsafeDiscardOutputDependency config.system.build.initialRamdisk}/initrd $out/initrd
+      echo "init=${builtins.unsafeDiscardOutputDependency config.system.build.toplevel}/init ${builtins.unsafeDiscardOutputDependency (toString config.boot.kernelParams)}" > $out/kernel-params
       ${config.system.distBuilderCommands}
-    '';
-
-    system.build.distCopy = pkgs.runCommand "vpsadminos-distcopy" {} ''
-      mkdir $out
-      cp -r ${config.system.build.dist}/. $out/
     '';
   };
 }
