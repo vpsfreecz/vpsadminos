@@ -48,7 +48,7 @@ When you have at least one zpool imported and installed, you can proceed
 to [container](containers.md) management.
 
 [Nix]: https://nixos.org/nix/
-[ccache]: https://nixos.wiki/wiki/CCache
+[ccache]: https://wiki.nixos.org/wiki/CCache
 [install-nix]: https://nixos.org/nix/download.html
 [nixpkgs]: https://nixos.org/nixpkgs/
 [man osctl]: https://man.vpsadminos.org/man8/osctl.8.html

@@ -33,7 +33,7 @@ vpsAdminOS uses:
 
 ## Building OS
 
-Our kernel live-patch facility requires [ccache](https://nixos.wiki/wiki/CCache)
+Our kernel live-patch facility requires [ccache](https://wiki.nixos.org/wiki/CCache)
 to build the OS.
 
 ```bash
