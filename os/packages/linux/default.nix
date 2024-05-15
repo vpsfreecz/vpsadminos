@@ -1,9 +1,11 @@
-{ pkgs, lib, callPackage, buildPackages, fetchurl, perl, buildLinux, elfutils, kernelVersion, url, sha256, features, ... }:
+{ pkgs, lib, callPackage, buildPackages, fetchurl, perl, buildLinux, elfutils, kernelVersion, url, sha256, features, zfsBuiltinPkg ? null, ... }:
 
 with lib;
 
 callPackage ./generic.nix ( rec {
   version = kernelVersion;
+
+  inherit zfsBuiltinPkg;
 
   # modDirVersion needs to be x.y.z, will automatically add .0 if needed
   modDirVersion = concatStrings (intersperse "." (take 3 (splitString "." "${version}.0")));
@@ -14,6 +16,7 @@ callPackage ./generic.nix ( rec {
   src = fetchurl {
     inherit url; inherit sha256;
   };
+
   kernelPatches = [ pkgs.kernelPatches.bridge_stp_helper ];
 
   inherit features;

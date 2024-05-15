@@ -82,6 +82,29 @@ let
                else {};
   };
 
+  genKernelPackageWithZfsBuiltin = {kernelVersion, zfsBuiltinPkg}:
+    (pkgs.callPackage ../../packages/linux {
+      inherit kernelVersion;
+      url = kernels.${kernelVersion}.url;
+      sha256 = kernels.${kernelVersion}.sha256;
+      zfsBuiltinPkg = zfsBuiltinPkg;
+      features = lib.mkMerge
+        [ (
+            if builtins.hasAttr "features" kernels.${kernelVersion}
+            then kernels.${kernelVersion}.features
+            else {}
+          )
+          { zfsBuiltin = true; }
+        ];
+    });
+
+  genZfsBuiltinPackage = kernel: (pkgs.callPackage ../../packages/zfs {
+      configFile = "builtin";
+      kernel = kernel;
+      rev = kernels.${kernel.version}.zfs.rev;
+      sha256 = kernels.${kernel.version}.zfs.sha256;
+    }).zfsStable;
+
   genZfsUserPackage = kernelVersion: (pkgs.callPackage ../../packages/zfs {
       configFile = "user";
       rev = kernels.${kernelVersion}.zfs.rev;
@@ -90,7 +113,5 @@ let
 in
 {
   defaultVersion = defaultKernelVersion;
-  genKernelPackage = genKernelPackage;
-  genZfsUserPackage = genZfsUserPackage;
-  kernels = kernels;
+  inherit genKernelPackage genKernelPackageWithZfsBuiltin genZfsBuiltinPackage genZfsUserPackage kernels;
 }

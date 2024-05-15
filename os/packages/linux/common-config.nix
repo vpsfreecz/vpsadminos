@@ -34,6 +34,10 @@ let
              then features.preempt_rt
              else false;
 
+  zfsBuiltin = if builtins.hasAttr "zfsBuiltin" features
+             then features.zfsBuiltin
+             else false;
+
   whenPlatformHasEBPFJit =
     mkIf (stdenv.hostPlatform.isAarch32 ||
           stdenv.hostPlatform.isAarch64 ||
@@ -50,6 +54,11 @@ let
 
       SYSLOG_NS                 = yes;
       MEMCG_32BIT_IDS           = whenOlder "6.1" yes;
+    };
+
+    zfs = optionalAttrs (zfsBuiltin) {
+      SPL                       = yes;
+      ZFS                       = yes;
     };
 
     performance = {

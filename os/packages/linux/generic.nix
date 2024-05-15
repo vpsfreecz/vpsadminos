@@ -55,6 +55,7 @@
 , preferBuiltin ? stdenv.hostPlatform.linux-kernel.preferBuiltin or false
 , kernelArch ? stdenv.hostPlatform.linuxArch
 , kernelTests ? []
+, zfsBuiltinPkg
 , ...
 }:
 
@@ -172,7 +173,7 @@ let
   }; # end of configfile derivation
 
   kernel = (callPackage ./manual-config.nix {}) {
-    inherit version modDirVersion src kernelPatches randstructSeed lib stdenv extraMeta configfile;
+    inherit version modDirVersion src kernelPatches randstructSeed lib stdenv extraMeta configfile zfsBuiltinPkg;
 
     config = { CONFIG_MODULES = "y"; CONFIG_FW_LOADER = "m"; };
   };
