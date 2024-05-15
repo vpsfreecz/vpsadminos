@@ -2,19 +2,30 @@
 with lib;
 let
   origKernel = config.boot.kernelPackage;
+  zfsBuiltin = config.boot.zfsBuiltin;
+  kernelForBuiltinsConfig = config.boot.kernelForBuiltinsConfig;
 
   availableKernels = import ../../packages/linux/availableKernels.nix { inherit pkgs; inherit lib; };
 
   # we also need to override zfs/spl via linuxPackagesFor
-  myLinuxPackages = (pkgs.linuxPackagesFor origKernel).extend (
-    self: super: {
-      zfs = (super.callPackage ../../packages/zfs {
-        configFile = "kernel";
-        kernel = origKernel;
-        rev = availableKernels.kernels.${config.boot.kernelVersion}.zfs.rev;
-        sha256 = availableKernels.kernels.${config.boot.kernelVersion}.zfs.sha256;
-       }).zfsStable;
-    });
+    myLinuxPackages = (pkgs.linuxPackagesFor origKernel).extend (
+    self: super:
+      {
+        zfs = if (!zfsBuiltin)
+          then (super.callPackage ../../packages/zfs {
+              configFile = "kernel";
+              kernel = origKernel;
+              rev = availableKernels.kernels.${config.boot.kernelVersion}.zfs.rev;
+              sha256 = availableKernels.kernels.${config.boot.kernelVersion}.zfs.sha256;
+            }).zfsStable
+          else (super.stdenv.mkDerivation {
+              name = "zfs";
+              buildCommand = ''
+                mkdir -p $out
+              '';
+            });
+      }
+    );
 
   hwSupportModules = [
     # SATA/PATA/NVME
@@ -57,19 +68,42 @@ in {
     boot.kernelVersion = mkOption {
       type = types.str;
       default = availableKernels.defaultVersion;
-      description = "TODO";
+      description = "Linux kernel version from availableKernels.nix to use";
     };
 
     boot.kernelPackage = mkOption {
       type = types.package;
-      description = "base linux kernel package";
-      default = availableKernels.genKernelPackage config.boot.kernelVersion;
+      description = "vpsAdminOS Linux kernel package";
+      default = if zfsBuiltin
+                then (availableKernels.genKernelPackageWithZfsBuiltin {
+                  kernelVersion = config.boot.kernelVersion;
+                  zfsBuiltinPkg = config.boot.zfsBuiltinPkg;
+                })
+                else availableKernels.genKernelPackage config.boot.kernelVersion;
     };
 
     boot.zfsUserPackage = mkOption {
       type = types.package;
-      description = "TODO";
+      description = "ZFS userland package";
       default = availableKernels.genZfsUserPackage config.boot.kernelVersion;
+    };
+
+    boot.kernelForBuiltinsConfig = mkOption {
+      type = types.package;
+      description = "Kernel package for builtins config";
+      default = availableKernels.genKernelPackage config.boot.kernelVersion;
+    };
+
+    boot.zfsBuiltin = mkOption {
+      type = types.bool;
+      description = "Build ZFS as a builtin module";
+      default = true;
+    };
+
+    boot.zfsBuiltinPkg = mkOption {
+      type = types.package;
+      description = "ZFS builtin package";
+      default = availableKernels.genZfsBuiltinPackage kernelForBuiltinsConfig;
     };
   };
 

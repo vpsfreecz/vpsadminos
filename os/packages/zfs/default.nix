@@ -17,8 +17,12 @@
 
 with lib;
 let
-  buildKernel = any (n: n == configFile) [ "kernel" "all" ];
+  buildKernelBuiltin = any (n: n == configFile) [ "builtin" ];
+  buildKernelModules = any (n: n == configFile) [ "kernel" "all" ];
   buildUser = any (n: n == configFile) [ "user" "all" ];
+  buildKernel = (buildKernelBuiltin) || (buildKernelModules);
+
+  realConfigFile = if configFile == "builtin" then "kernel" else configFile;
 
   common = { version
     , sha256
@@ -52,7 +56,7 @@ let
       '' + optionalString buildUser ''
         substituteInPlace ./lib/libzfs/libzfs_mount.c --replace "/bin/umount"             "${util-linux}/bin/umount" \
                                                       --replace "/bin/mount"              "${util-linux}/bin/mount"
-	substituteInPlace ./lib/libshare/os/linux/nfs.c --replace "/usr/sbin/exportfs"    "${nfs-utils}/bin/exportfs"
+      	substituteInPlace ./lib/libshare/os/linux/nfs.c --replace "/usr/sbin/exportfs"    "${nfs-utils}/bin/exportfs"
         substituteInPlace ./config/user-systemd.m4    --replace "/usr/lib/modules-load.d" "$out/etc/modules-load.d"
         substituteInPlace ./config/zfs-build.m4       --replace "\$sysconfdir/init.d"     "$out/etc/init.d" \
                                                       --replace "/etc/default"            "$out/etc/default" \
@@ -101,7 +105,7 @@ let
 
         [ -f ./udev/rules.d/69-vdev.rules.in ] && \
         substituteInPlace ./udev/rules.d/69-vdev.rules.in \
-	  --replace "@udevdir@/rules.d/69-vdev.rules" "pllm"
+	        --replace "@udevdir@/rules.d/69-vdev.rules" "pllm"
       '';
 
       nativeBuildInputs = [ autoreconfHook nukeReferences installShellFiles ]
@@ -116,8 +120,8 @@ let
       hardeningDisable = [ "fortify" "stackprotector" "pic" ];
 
       configureFlags = [
-        "--with-config=${configFile}"
-	"--with-tirpc=1"
+        "--with-config=${realConfigFile}"
+	      "--with-tirpc=1"
         (withFeatureAs buildUser "python" python3.interpreter)
       ] ++ optionals buildUser [
         "--with-dracutdir=$(out)/lib/dracut"
@@ -126,6 +130,8 @@ let
         "--libexecdir=$(out)/libexec"
         "--sysconfdir=/etc"
         "--localstatedir=/var"
+      ] ++ optionals buildKernelBuiltin [
+        "--enable-linux-builtin"
       ] ++ optionals buildKernel ([
         "--with-linux=${kernel.dev}/lib/modules/${kernel.modDirVersion}/source"
         "--with-linux-obj=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build"
@@ -135,18 +141,26 @@ let
 
       enableParallelBuilding = true;
 
+      buildPhase = optionalString (buildKernelBuiltin) ''
+      '';
+
+      installPhase = optionalString (buildKernelBuiltin) ''
+        mkdir -p $out
+        cp -r ./* $out
+      '';
+
       installFlags = [
         "sysconfdir=\${out}/etc"
-	"hooksdir=\${out}/usr/share/initramfs-tools/hooks"
-	"scriptsdir=\${out}/usr/share/initramfs-tools/scripts"
-	"localtopdir=\${out}/usr/share/initramfs-tools/scripts/local-top"
-	"initrddir=\${out}/usr/share/initramfs-tools"
-	"DEFAULT_INIT_DIR=\${out}/etc/init.d"
+        "hooksdir=\${out}/usr/share/initramfs-tools/hooks"
+        "scriptsdir=\${out}/usr/share/initramfs-tools/scripts"
+        "localtopdir=\${out}/usr/share/initramfs-tools/scripts/local-top"
+        "initrddir=\${out}/usr/share/initramfs-tools"
+        "DEFAULT_INIT_DIR=\${out}/etc/init.d"
         "DEFAULT_INITCONF_DIR=\${out}/default"
         "INSTALL_MOD_PATH=\${out}"
       ];
 
-      postInstall = optionalString buildKernel ''
+      postInstall = optionalString buildKernelModules ''
         # Add reference that cannot be detected due to compressed kernel module
         mkdir -p "$out/nix-support"
         echo "${util-linux}" >> "$out/nix-support/extra-refs"

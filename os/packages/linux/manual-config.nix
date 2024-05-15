@@ -45,6 +45,7 @@ in {
   allowImportFromDerivation ? false,
   # ignored
   features ? null,
+  zfsBuiltinPkg ? null,
 }:
 
 let
@@ -109,7 +110,14 @@ let
         # Fixes determinism by normalizing metadata for the archive of kheaders
         ++ optional (lib.versionAtLeast version "5.2" && lib.versionOlder version "5.4") ./gen-kheaders-metadata.patch;
 
-      prePatch = ''
+      prePatch = optionalString (zfsBuiltinPkg != null) ''
+        echo "Copying ZFS builtin package..."
+        cp -r ${zfsBuiltinPkg} ./zfsBuiltin
+        chmod -R u+w ./zfsBuiltin
+        pushd ./zfsBuiltin
+        ./copy-builtin ..
+        popd
+      '' + ''
         for mf in $(find -name Makefile -o -name Makefile.include -o -name install.sh); do
             echo "stripping FHS paths in \`$mf'..."
             sed -i "$mf" -e 's|/usr/bin/||g ; s|/bin/||g ; s|/sbin/||g'
@@ -122,6 +130,7 @@ let
         sed -i Makefile -e 's|--build-id|--build-id=none|'
 
         patchShebangs scripts/ld-version.sh
+
       '';
 
       postPatch = ''
