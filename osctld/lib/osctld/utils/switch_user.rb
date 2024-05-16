@@ -15,7 +15,8 @@ module OsCtld
           ugid: ct.user.ugid,
           homedir: ct.user.homedir,
           cgroup_path: ct.entry_cgroup_path,
-          prlimits: ct.prlimits.export
+          prlimits: ct.prlimits.export,
+          syslogns_pid: ct.init_pid
         }
       }
     end

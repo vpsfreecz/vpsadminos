@@ -60,6 +60,8 @@ module OsCtld
       homedir = ct.user.homedir
       cgroup_path = ct.entry_cgroup_path
       prlimits = ct.prlimits.export
+      syslogns_pid = ct.init_pid
+      syslogns_tag = ct.init_pid && syslogns_tag
 
       # Runner configuration
       runner_opts = {
@@ -102,7 +104,14 @@ module OsCtld
         end
 
         SwitchUser.apply_prlimits(Process.pid, prlimits)
-        SwitchUser.switch_to(sysuser, ugid, homedir, cgroup_path)
+        SwitchUser.switch_to(
+          sysuser,
+          ugid,
+          homedir,
+          cgroup_path,
+          syslogns_pid:,
+          syslogns_tag:
+        )
         Process.exec(::OsCtld.bin('osctld-ct-runner'))
         exit
       end

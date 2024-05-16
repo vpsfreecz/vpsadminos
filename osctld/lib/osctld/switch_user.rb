@@ -47,6 +47,8 @@ module OsCtld
     # @option opts [Integer, nil] :oom_score_adj
     # @option opts [Array<IO, Integer>] :keep_fds
     # @option opts [Boolean] :keep_stdfds (true)
+    # @option opts [String, nil] :syslogns_tag (nil)
+    # @option opts [Integer, nil] :syslogns_pid (nil)
     def self.fork_and_switch_to(sysuser, ugid, homedir, cgroup_path, **opts, &block)
       chown_cgroups = opts.has_key?(:chown_cgroups) ? opts[:chown_cgroups] : true
 
@@ -68,7 +70,14 @@ module OsCtld
           File.write('/proc/self/oom_score_adj', opts[:oom_score_adj].to_s)
         end
 
-        switch_to(sysuser, ugid, homedir, cgroup_path)
+        switch_to(
+          sysuser,
+          ugid,
+          homedir,
+          cgroup_path,
+          syslogns_tag: opts.fetch(:syslogns_tag, nil),
+          syslogns_pid: opts.fetch(:syslogns_pid, nil)
+        )
 
         msg = r.readline.strip
         r.close
@@ -90,7 +99,11 @@ module OsCtld
     end
 
     # Switch the current process to an unprivileged user
-    def self.switch_to(sysuser, ugid, homedir, cgroup_path)
+    def self.switch_to(sysuser, ugid, homedir, cgroup_path, syslogns_tag: nil, syslogns_pid: nil)
+      if syslogns_tag && syslogns_pid
+        raise ArgumentError, 'provide either syslogns_tag or syslogns_pid, not both'
+      end
+
       # Environment
       ENV.delete('XDG_SESSION_ID')
 
@@ -102,6 +115,13 @@ module OsCtld
 
       # CGroups
       CGroup.attach_to_all(cgroup_path.split('/'))
+
+      # syslog namespace
+      if syslogns_tag
+        OsCtl::Lib::Sys.new.create_syslogns(syslogns_tag)
+      elsif syslogns_pid
+        OsCtl::Lib::Sys.new.attach_syslogns(syslogns_pid)
+      end
 
       # Switch
       Process.groups = [ugid]

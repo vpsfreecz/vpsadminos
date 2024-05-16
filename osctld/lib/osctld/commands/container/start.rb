@@ -177,7 +177,8 @@ module OsCtld
         ct.wrapper_cgroup_path,
         prlimits: ct.prlimits.export,
         oom_score_adj: -1000,
-        keep_fds: [w]
+        keep_fds: [w],
+        syslogns_tag: ct.syslogns_tag
       ) do
         # Closed by SwitchUser.fork_and_switch_to
         # r.close

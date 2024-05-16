@@ -37,6 +37,7 @@ module OsCtl::Lib
       extern 'int setns(int fd, int nstype)'
       extern 'int chroot(const char *path)'
       extern 'int syncfs(int fd)'
+      extern 'int klogctl(int type, char *bufp, int len)'
     end
 
     def setresuid(ruid, euid, suid)
@@ -158,6 +159,26 @@ module OsCtl::Lib
       raise SystemCallError, Fiddle.last_error if ret != 0
 
       ret
+    end
+
+    # @param tag [String] syslogns tag prepended to all messages
+    def create_syslogns(tag)
+      if tag.bytesize > 12
+        raise ArgumentError, 'prefix can have at most 12 bytes'
+      end
+
+      klogctl_ret = Int.klogctl(11, tag, tag.bytesize)
+      raise SystemCallError, Fiddle.last_error if klogctl_ret != 0
+
+      unshare_ret = Int.unshare(0)
+      raise SystemCallError, Fiddle.last_error if unshare_ret != 0
+
+      0
+    end
+
+    # @param pid [Integer] attach to syslogns of PID
+    def attach_syslogns(pid)
+      setns_path(File.join('/proc', pid.to_s, 'ns/syslog'), 0)
     end
 
     # @param path [String] filesystem directory

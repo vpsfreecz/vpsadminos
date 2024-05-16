@@ -11,7 +11,6 @@ lxc.log.syslog = local4
 lxc.rootfs.path = dir:<%= ct.get_run_conf.rootfs %>
 lxc.arch = <%= ct.arch %>
 lxc.uts.name = <%= ct.hostname || ct.id %>
-lxc.syslogns = 1
 
 # UID/GID mapping
 <% ct.user.uid_map.each do |entry| -%>

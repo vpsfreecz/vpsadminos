@@ -797,6 +797,10 @@ module OsCtld
       end.join(' ')
     end
 
+    def syslogns_tag
+      "#{id}:#{pool.name}"[0..11].rjust(12)
+    end
+
     def log_path
       inclusively { File.join(pool.log_path, 'ct', "#{id}.log") }
     end
