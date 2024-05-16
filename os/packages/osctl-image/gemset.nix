@@ -4,10 +4,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.org"];
-      sha256 = "00y9g79lzfffxarj3rmhnkblsnyx7izx91mh8c1sdcs9y2pdfq53";
+      sha256 = "146j3n053pc0zg6aj2aik72k7fkkgxgfzw6i9ff1g8l8zda7z8lj";
       type = "gem";
     };
-    version = "1.4.4";
+    version = "1.4.5";
   };
   filelock = {
     groups = ["default"];
@@ -65,10 +65,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1dpf4pg5j3nsp86ygl204qgq7fc32dwy2x6pkx07b2w90l85wfqx";
+      sha256 = "1mrpk80cpal266ba95ff78zwcg3yqz72fl3xh8sdywll7qnmskk2";
       type = "gem";
     };
-    version = "23.11.0.build20240416143729";
+    version = "23.11.0.build20240516161747";
   };
   osctl = {
     dependencies = ["curses" "gli" "highline" "ipaddress" "json" "libosctl" "rainbow" "require_all" "ruby-progressbar" "tty-spinner"];
@@ -76,10 +76,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1jv5wgvxx546i1h3gjv1n2wk44i65vrgsisl3781ahq1ikigg1jx";
+      sha256 = "1v5cl98gnx2bnwray7bzf61d4v1xn5s94z2mlh9jqzy3k5pa3k98";
       type = "gem";
     };
-    version = "23.11.0.build20240416143729";
+    version = "23.11.0.build20240516161747";
   };
   osctl-image = {
     dependencies = ["gli" "ipaddress" "json" "libosctl" "osctl" "osctl-repo" "require_all"];
@@ -87,10 +87,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0lwk0bc3gd8xncwy4m2lr0h554n5vbagmz4w8khbsmssq91n3vln";
+      sha256 = "10n2fgq1bcyq2011l79vra8b1wii6jrrxy0a9bc9mph9w7db062b";
       type = "gem";
     };
-    version = "23.11.0.build20240416143729";
+    version = "23.11.0.build20240516161747";
   };
   osctl-repo = {
     dependencies = ["filelock" "gli" "json" "libosctl" "require_all"];
@@ -98,10 +98,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1gx9vg45x4rbyl0277ap6v530n9q08jp886l6j8k40zakkyrc7al";
+      sha256 = "10xjbmfmy1v4xrsx612r7254fpgnnz93b8c5f7034vp72cydyxpk";
       type = "gem";
     };
-    version = "23.11.0.build20240416143729";
+    version = "23.11.0.build20240516161747";
   };
   rainbow = {
     groups = ["default"];
