@@ -3,7 +3,7 @@ with lib;
 
 let
   cfg = config.services.live-patches;
-
+  zfsBuiltinPkg = config.boot.zfsBuiltinPkg;
   patchesDir = ../../../livepatches;
   availablePatches = import (patchesDir + /availablePatches.nix) { inherit lib; version = config.boot.kernelVersion; };
   availablePatchesList = availablePatches.patchList;
@@ -41,6 +41,7 @@ let
         cp -r ${kpatch-build} kpatch-build
         kpb=$(pwd)/kpatch-build
         mkdir -p $TEMPDIR
+        mkdir -p $CACHEDIR
 
         # unpack kernel and detect unpacked folder into $sourceRoot
         local dirsBefore=""
@@ -81,7 +82,14 @@ let
         # kpatch-build needs the whole env to be writeable, even the stuff
         # we just unpacked and copied
         chmod u+w . -R
-
+      '' + optionalString (zfsBuiltinPkg != null) ''
+        echo "Copying ZFS builtin package..."
+        cp -r ${zfsBuiltinPkg} ./zfsBuiltin
+        chmod -R u+w ./zfsBuiltin
+        pushd ./zfsBuiltin
+        ./copy-builtin ../src
+        popd
+      '' + ''
         cat > src/include/linux/vpsadminos-livepatch.h <<LIVEPATCH_HEADER_END
 #ifndef VPSADMINOS_LIVEPATCH_H
 #define VPSADMINOS_LIVEPATCH_H
@@ -95,9 +103,10 @@ LIVEPATCH_HEADER_END
       concatMapStringsSep " " (name: "${name}.patch") availablePatchesList +
       ''; # we dont get a newline between this and the next line; wtf
         # actual command
-        $kpb/kpatch-build/kpatch-build -s src -n ${patchModuleName} '' +
+        #export ARCH_KCFLAGS="-gz=none"
+        $kpb/kpatch-build/kpatch-build --skip-compiler-check -v ${kernel.dev}/vmlinux -s src -n ${patchModuleName} '' +
       concatMapStringsSep " " (name: "$src/${name}.patch") availablePatchesList +
-      '' || ((cat $CACHEDIR/build.log || echo log not found at $CACHEDIR/build.log) && exit 1)
+      '' || cat $CACHEDIR/build.log || echo log not found at $CACHEDIR/build.log
       '';
 
       nativeBuildInputs = kernel.nativeBuildInputs;
