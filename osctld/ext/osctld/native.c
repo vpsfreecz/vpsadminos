@@ -23,8 +23,8 @@ VALUE osctld_prlimits_set(VALUE self, VALUE vPid, VALUE vResource, VALUE vSoft, 
 	pid_t pid = (pid_t) NUM2LONG(vPid);
 	int resource = NUM2INT(vResource);
 	struct rlimit limit = {
-		.rlim_cur = (rlim_t) NUM2LONG(vSoft),
-		.rlim_max = (rlim_t) NUM2LONG(vHard)
+		.rlim_cur = (rlim_t) NUM2ULONG(vSoft),
+		.rlim_max = (rlim_t) NUM2ULONG(vHard)
 	};
 	int ret;
 	char error[255];
@@ -59,7 +59,7 @@ void Init_native() {
 	rb_define_const(OsCtldPrLimits, "RTTIME", INT2NUM(RLIMIT_RTTIME));
 	rb_define_const(OsCtldPrLimits, "SIGPENDING", INT2NUM(RLIMIT_SIGPENDING));
 	rb_define_const(OsCtldPrLimits, "STACK", INT2NUM(RLIMIT_STACK));
-	rb_define_const(OsCtldPrLimits, "INFINITY", INT2NUM(RLIM_INFINITY));
+	rb_define_const(OsCtldPrLimits, "INFINITY", ULONG2NUM(RLIM_INFINITY));
 
 	rb_define_singleton_method(OsCtldPrLimits, "set", osctld_prlimits_set, 4);
 }
