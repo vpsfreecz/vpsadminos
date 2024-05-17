@@ -798,9 +798,11 @@ module OsCtld
     end
 
     def syslogns_tag
+      max_size = OsCtl::Lib::Sys::SYSLOGNS_MAX_TAG_BYTESIZE
+
       tag = ident
-      tag = tag[1..] while tag.bytesize > 12
-      tag.rjust(12)
+      tag = tag[1..] while tag.bytesize > max_size
+      tag.rjust(max_size)
     end
 
     def log_path

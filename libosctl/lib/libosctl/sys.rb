@@ -20,6 +20,8 @@ module OsCtl::Lib
     MS_SLAVE = 1 << 19
     MS_SHARED = 1 << 20
 
+    SYSLOGNS_MAX_TAG_BYTESIZE = 12
+
     module Int
       extend Fiddle::Importer
       dlload Fiddle.dlopen(nil)
@@ -163,8 +165,8 @@ module OsCtl::Lib
 
     # @param tag [String] syslogns tag prepended to all messages
     def create_syslogns(tag)
-      if tag.bytesize > 12
-        raise ArgumentError, 'tag can have at most 12 bytes'
+      if tag.bytesize > SYSLOGNS_MAX_TAG_BYTESIZE
+        raise ArgumentError, "tag can have at most #{SYSLOGNS_MAX_TAG_BYTESIZE} bytes"
       end
 
       klogctl_ret = Int.klogctl(11, tag, tag.bytesize)
