@@ -61,7 +61,7 @@ module OsCtld
       cgroup_path = ct.entry_cgroup_path
       prlimits = ct.prlimits.export
       syslogns_pid = ct.init_pid
-      syslogns_tag = ct.init_pid && syslogns_tag
+      syslogns_tag = syslogns_pid.nil? && ct.syslogns_tag
 
       # Runner configuration
       runner_opts = {
