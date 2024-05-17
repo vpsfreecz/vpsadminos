@@ -798,7 +798,9 @@ module OsCtld
     end
 
     def syslogns_tag
-      "#{id}:#{pool.name}"[0..11].rjust(12)
+      tag = ident
+      tag = tag[1..] while tag.bytesize > 12
+      tag.rjust(12)
     end
 
     def log_path
