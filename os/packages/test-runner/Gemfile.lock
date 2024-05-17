@@ -13,23 +13,23 @@ GEM
 GEM
   remote: https://rubygems.vpsfree.cz/
   specs:
-    libosctl (23.11.0.build20240516161747)
+    libosctl (23.11.0.build20240517191131)
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
-    osvm (23.11.0.build20240516161747)
+    osvm (23.11.0.build20240517191131)
       gli (~> 2.20.0)
-      libosctl (= 23.11.0.build20240516161747)
-    test-runner (23.11.0.build20240516161747)
+      libosctl (= 23.11.0.build20240517191131)
+    test-runner (23.11.0.build20240517191131)
       gli (~> 2.20.0)
-      libosctl (= 23.11.0.build20240516161747)
-      osvm (= 23.11.0.build20240516161747)
+      libosctl (= 23.11.0.build20240517191131)
+      osvm (= 23.11.0.build20240517191131)
       pry (~> 0.14.2)
 
 PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  test-runner (= 23.11.0.build20240516161747)!
+  test-runner (= 23.11.0.build20240517191131)!
 
 BUNDLED WITH
    2.4.22
