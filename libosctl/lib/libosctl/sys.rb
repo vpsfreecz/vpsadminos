@@ -164,7 +164,7 @@ module OsCtl::Lib
     # @param tag [String] syslogns tag prepended to all messages
     def create_syslogns(tag)
       if tag.bytesize > 12
-        raise ArgumentError, 'prefix can have at most 12 bytes'
+        raise ArgumentError, 'tag can have at most 12 bytes'
       end
 
       klogctl_ret = Int.klogctl(11, tag, tag.bytesize)
