@@ -800,8 +800,15 @@ module OsCtld
     def syslogns_tag
       max_size = OsCtl::Lib::Sys::SYSLOGNS_MAX_TAG_BYTESIZE
 
-      tag = ident
-      tag = tag[1..] while tag.bytesize > max_size
+      tag =
+        if id.bytesize >= max_size - 1 # -1 for colon used as a separator
+          id[0..(max_size - 1)]
+        else
+          v = ident
+          v = v[1..] while v.bytesize > max_size
+          v
+        end
+
       tag.rjust(max_size)
     end
 
