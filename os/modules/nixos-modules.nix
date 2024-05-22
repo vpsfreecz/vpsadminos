@@ -18,6 +18,7 @@
   <nixpkgs/nixos/modules/config/shells-environment.nix>
   <nixpkgs/nixos/modules/config/system-environment.nix>
   <nixpkgs/nixos/modules/config/locale.nix>
+  <nixpkgs/nixos/modules/config/terminfo.nix>
   <nixpkgs/nixos/modules/tasks/filesystems.nix>
   <nixpkgs/nixos/modules/programs/bash/bash.nix>
   <nixpkgs/nixos/modules/programs/bash/bash-completion.nix>
