@@ -1,7 +1,7 @@
 { pkgs, lib, ... }:
 with lib.kernel;
 let
-  defaultKernelVersion = "6.8.10";
+  defaultKernelVersion = "6.8.9";
   kernels = {
     "6.8.10" = {
       url = linuxGhUrl vpsfGh "84107397de8f9982b5fe78f0e5e85e711ad39ea2";
