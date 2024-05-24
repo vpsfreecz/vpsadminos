@@ -5,8 +5,8 @@ pkgs.stdenv.mkDerivation rec {
   src = fetchFromGitHub {
     owner = "snajpa";
     repo = "irq_heatmap";
-    rev = "357eb7f2d8302c97bf7d889fa1a89045016fed7f";
-    sha256 = "sha256-4ERfs/uipdRjr/ScnvwOXj/q6TtFM6QaAEf9JgcVacI=";
+    rev = "044a6a97dc2d8b0d16211105b8e208136257f900";
+    sha256 = "sha256-2a2rmW9k5Ha+cEDXCHtU1QSAqL0w4EyVZbEUhXWyh2o=";
   };
   buildInputs = with pkgs; [
     gnumake numactl
