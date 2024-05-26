@@ -1,0 +1,79 @@
+diff --git a/kernel/syslog_namespace.c b/kernel/syslog_namespace.c
+index 504be64d4ead..2b1470ad4981 100644
+--- a/kernel/syslog_namespace.c
++++ b/kernel/syslog_namespace.c
+@@ -53,12 +53,12 @@ int syslog_ns_setup_log_buf(struct syslog_namespace *ns,
+ 	ns->log_buf_len = new_log_buf_len;
+ 
+ 	descs_size = descs_count * sizeof(struct prb_desc);
+-	descs = kvmalloc(descs_size, GFP_KERNEL);
++	descs = kvzalloc(descs_size, GFP_KERNEL);
+ 	if (unlikely(!descs))
+ 		goto fail_free_log_buf;
+ 
+ 	infos_size = descs_count * sizeof(struct printk_info);
+-	infos = kvmalloc(infos_size, GFP_KERNEL);
++	infos = kvzalloc(infos_size, GFP_KERNEL);
+ 	if (unlikely(!infos))
+ 		goto fail_free_descs;
+ 
+diff --git a/kernel/vpsadminos.c b/kernel/vpsadminos.c
+index c08f1ebfab6c..ae47aa1123c8 100644
+--- a/kernel/vpsadminos.c
++++ b/kernel/vpsadminos.c
+@@ -10,6 +10,26 @@
+ #include <asm/page.h>
+ #include <linux/sched/cputime.h>
+ #include "sched/sched.h"
++#include <linux/utsname.h>
++#include <linux/vpsadminos-livepatch.h>
++#include "kpatch-macros.h"
++char old_uname[65];
++char new_uname[65];
++
++static int patch(patch_object *obj)
++{
++	scnprintf(new_uname, 64, "%s.%s", LIVEPATCH_ORIG_KERNEL_VERSION,
++	    LIVEPATCH_NAME);
++	scnprintf(old_uname, 64, "%s", init_uts_ns.name.release);
++	scnprintf(init_uts_ns.name.release, 64, "%s", new_uname);
++	return 0;
++}
++KPATCH_PRE_PATCH_CALLBACK(patch);
++static void unpatch(patch_object *obj)
++{
++	scnprintf(init_uts_ns.name.release, 64, "%s", old_uname);
++}
++KPATCH_POST_UNPATCH_CALLBACK(unpatch);
+ 
+ struct proc_dir_entry *proc_vpsadminos;
+ 
+diff --git a/mm/memcontrol.c b/mm/memcontrol.c
+index ad7771caf63d..bfe1eb1344b6 100644
+--- a/mm/memcontrol.c
++++ b/mm/memcontrol.c
+@@ -72,6 +72,7 @@
+ #include "slab.h"
+ #include "swap.h"
+ #include <linux/vpsadminos.h>
++#include <linux/syslog_namespace.h>
+ 
+ #include <linux/uaccess.h>
+ 
+@@ -6144,8 +6145,15 @@ static void mem_cgroup_css_rstat_flush(struct cgroup_subsys_state *css, int cpu)
+ 
+ 		if (delta) {
+ 			memcg->vmstats->state[i] += delta;
+-			if (parent)
++			if (memcg == root_mem_cgroup && parent)
++				ns_pr_warn(&init_syslog_ns,
++				    "parent %p\n", parent);
++			if (memcg != root_mem_cgroup && parent) {
++				if (parent < 4096)
++					ns_pr_warn(&init_syslog_ns, "%s:%d: parent %p\n",
++					    __func__, __LINE__, parent);
+ 				parent->vmstats->state_pending[i] += delta;
++			}
+ 		}
+ 	}
+ 
