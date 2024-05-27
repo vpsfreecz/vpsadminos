@@ -40,7 +40,9 @@ module OsCtl::Lib
     end
 
     def list_netifs
-      Dir.entries('/sys/class/net') - %w[. ..]
+      Dir.entries('/sys/class/net').select do |v|
+        v != '.' && v != '..' && /^(lo|bond\d+|face|.+\.\d+)$/ !~ v
+      end
     end
 
     # Read cached stats
