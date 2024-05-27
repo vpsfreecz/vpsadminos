@@ -6,8 +6,17 @@ module OsCtl::Cli::Top
   class Tui::Main < Tui::Screen
     include OsCtl::Lib::Utils::Humanize
 
+    MIN_COLS = 114
+    MIN_LINES = 18
+
     def initialize(model, rate, enable_procs: true)
       super()
+
+      if Curses.cols < MIN_COLS || Curses.lines < MIN_LINES
+        raise "Terminal #{Curses.cols}x#{Curses.lines} is too small, " \
+              "minimum required size is #{MIN_COLS}x#{MIN_LINES}"
+      end
+
       @rate = rate
       @containers = []
       @last_count = nil
