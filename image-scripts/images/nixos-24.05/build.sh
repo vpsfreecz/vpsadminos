@@ -1,5 +1,5 @@
 . "$IMAGEDIR/config.sh"
 . "$INCLUDE/nixos.sh"
 
-CHANNEL=nixos-23.11
+CHANNEL=nixos-24.05
 build-nixos
