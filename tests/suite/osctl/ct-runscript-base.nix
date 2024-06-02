@@ -1,5 +1,8 @@
+{ name, config }:
 import ../../make-test.nix (pkgs:
 let
+  templateConfig = config;
+
   scripts = {
     stdout = pkgs.writeScript "test-stdout-script" ''
       #!/bin/sh
@@ -25,7 +28,7 @@ let
     '';
   };
 in {
-  name = "osctl-ct-runscript";
+  name = "osctl-ct-runscript-${name}";
 
   description = ''
     Test osctl ct runscript
@@ -36,6 +39,8 @@ in {
     config =
       { config, ... }:
       {
+        imports = [ templateConfig ];
+
         # Add the test scripts to the test machine
         environment.etc."test-scripts".text = builtins.toJSON scripts;
       };

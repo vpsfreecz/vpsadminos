@@ -1,11 +1,14 @@
+{ name, config }:
 import ../../make-test.nix (pkgs: {
-  name = "osctl-ct-exec";
+  name = "osctl-ct-exec-${name}";
 
   description = ''
     Test osctl ct exec
   '';
 
-  machine = import ../../machines/tank.nix pkgs;
+  machine = import ../../machines/with-tank.nix {
+    inherit pkgs config;
+  };
 
   testScript = ''
     machine.start
