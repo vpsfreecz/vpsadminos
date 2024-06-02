@@ -59,8 +59,10 @@ module OsCtld
           args: [mode, runner_opts],
           stdin: opts[:script].nil? ? nil : opts[:stdin],
           stdout: opts[:stdout],
-          stderr: opts[:stderr]
+          stderr: opts[:stderr],
+          reset_subtree_control: mode != :running
         )
+
         ret.ok? ? ret.data : ret
       ensure
         if script
@@ -91,7 +93,7 @@ module OsCtld
     class Runner < ContainerControl::Runner
       include ContainerControl::Utils::Runscript::Runner
 
-      # @param mode [:running, :run_network, :run]
+      # @param mode ['running', 'run_network', 'run']
       # @param opts [Hash]
       # @option opts [String] :script path to the script relative to the rootfs
       # @option opts [Array<String>] :args script arguments

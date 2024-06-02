@@ -3,9 +3,10 @@ require 'lxc'
 module OsCtld
   # Runner is run in a forked&execed process and under the container's user
   class ContainerControl::Runner
-    attr_reader :ctid, :lxc_home, :user_home, :log_file
+    attr_reader :pool, :ctid, :lxc_home, :user_home, :log_file
 
     # @param opts [Hash] container options
+    # @option opts [String] :pool
     # @option opts [String] :id
     # @option opts [String] :lxc_home
     # @option opts [String] :user_home
@@ -14,6 +15,7 @@ module OsCtld
     # @option opts [IO] :stdout
     # @option opts [IO] :stderr
     def initialize(**opts)
+      @pool = opts[:pool]
       @ctid = opts[:id]
       @lxc_home = opts[:lxc_home]
       @user_home = opts[:user_home]

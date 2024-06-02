@@ -1,3 +1,6 @@
+require 'json'
+require 'socket'
+
 module OsCtld
   module ContainerControl::Utils::Runscript
     module Frontend
@@ -59,6 +62,7 @@ module OsCtld
           opts[:close_fds] && opts[:close_fds].each(&:close)
 
           setup_exec_run_env
+          osctld_wrapper_callback
 
           cmd = [
             'lxc-execute',
@@ -141,6 +145,29 @@ module OsCtld
 
         _, status = Process.wait2(init_pid)
         ret || ok(status.exitstatus)
+      end
+
+      # Callback to osctld to relocate self-process from container's wrapper cgroup
+      def osctld_wrapper_callback
+        s = UNIXSocket.new("/run/osctl/user-control/#{Process.uid}.sock")
+
+        payload = {
+          cmd: :ct_wrapper_start,
+          opts: {
+            id: ctid,
+            pool:,
+            pid: Process.pid
+          }
+        }
+
+        s.send("#{payload.to_json}\n", 0)
+
+        ret = JSON.parse(s.readline, symbolize_names: true)
+        s.close
+
+        return if ret[:status]
+
+        raise "Error during ct_wrapper_start callback: #{ret[:message]}"
       end
     end
   end

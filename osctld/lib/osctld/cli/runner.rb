@@ -28,6 +28,7 @@ module OsCtld
       end
 
       runner = OsCtld::ContainerControl::Commands.const_get(cfg[:name])::Runner.new(
+        pool: cfg[:pool],
         id: cfg[:id],
         lxc_home: cfg[:lxc_home],
         user_home: cfg[:user_home],

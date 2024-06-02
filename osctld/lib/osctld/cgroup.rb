@@ -283,6 +283,25 @@ module OsCtld
       File.read(File.join(cgroup, 'cgroup.controllers')).strip.split
     end
 
+    # Remove controller delegation from a cgroup
+    # @param cgroup [String] absolute path of the cgroup
+    def self.reset_subtree_control(cgroup)
+      changes = subtree_control(cgroup).map do |controller|
+        "-#{controller}"
+      end
+
+      return if changes.empty?
+
+      File.write(File.join(cgroup, 'cgroup.subtree_control'), changes.join(' '))
+    end
+
+    # Return controllers from `cgroup.subtree_control`
+    # @param cgroup [String] absolute path of the cgroup
+    # @return [Array<String>]
+    def self.subtree_control(cgroup)
+      File.read(File.join(cgroup, 'cgroup.subtree_control')).strip.split
+    end
+
     # @return [Boolean]
     def self.set_param(path, value)
       raise CGroupFileNotFound.new(path, value) unless File.exist?(path)

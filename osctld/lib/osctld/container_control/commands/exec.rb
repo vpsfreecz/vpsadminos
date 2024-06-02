@@ -57,8 +57,10 @@ module OsCtld
           args: [mode, runner_opts],
           stdin: opts[:stdin],
           stdout: opts[:stdout],
-          stderr: opts[:stderr]
+          stderr: opts[:stderr],
+          reset_subtree_control: mode != :running
         )
+
         ret.ok? ? ret.data : ret
       ensure
         cleanup_init_script
@@ -68,7 +70,7 @@ module OsCtld
     class Runner < ContainerControl::Runner
       include ContainerControl::Utils::Runscript::Runner
 
-      # @param mode [:running, :run_network, :run]
+      # @param mode ['running', 'run_network', 'run']
       # @param opts [Hash]
       # @option opts [Array<String>] :cmd command to execute
       # @option opts [IO] :stdin
@@ -109,6 +111,7 @@ module OsCtld
           $stderr.reopen(stderr)
 
           setup_exec_run_env
+          osctld_wrapper_callback
 
           cmd = [
             'lxc-execute',
@@ -126,6 +129,7 @@ module OsCtld
         end
 
         _, status = Process.wait2(pid)
+
         ok(status.exitstatus)
       end
 

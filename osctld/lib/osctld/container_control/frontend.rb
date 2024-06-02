@@ -37,6 +37,7 @@ module OsCtld
     # @param opts [Hash]
     # @option opts [Array] :args command arguments
     # @option opts [Hash] :kwargs command arguments
+    # @option opts [Boolean, nil] :reset_subtree_control
     # @option opts [IO, nil] :stdin
     # @option opts [IO, nil] :stdout
     # @option opts [IO, nil] :stderr
@@ -83,6 +84,13 @@ module OsCtld
       }
 
       CGroup.mkpath_all(cgroup_path.split('/'), chown: ugid)
+
+      # On cgroup v2, we must reset subtree control for lxc-execute to work.
+      # The subtree control is configured by osctld when creating the entry_cgroup_path,
+      # which is a bit unfortunate in this case.
+      if opts.fetch(:reset_subtree_control, false) && CGroup.v2?
+        CGroup.reset_subtree_control(ct.abs_cgroup_path(nil))
+      end
 
       pid = SwitchUser.fork(
         keep_fds: [
