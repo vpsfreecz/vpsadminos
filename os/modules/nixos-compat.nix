@@ -53,16 +53,16 @@ with lib;
   config = {
     services = {
       avahi = { enable = false; nssmdns = false; };
-      cgmanager = { enable = false; };
-      displayManager = { enable = false; };
+      cgmanager.enable = false;
+      displayManager.enable = false;
       intune.enable = false;
-      sssd = { enable = false; };
-      nscd = { enable = false; };
-      fprintd = { enable = false; };
+      sssd.enable = false;
+      nscd.enable = false;
+      fprintd.enable = false;
       samba = { enable = false; syncPasswordsByPam = false; nsswins = false; };
-      xserver = { enable = false; };
+      xserver.enable = false;
     };
-    security.krb5 = { enable = false; };
+    security.krb5.enable = false;
     security.pam.oath.enable = false;
     security.pam.usb.enable = false;
     security.pam.mount.enable = false;
