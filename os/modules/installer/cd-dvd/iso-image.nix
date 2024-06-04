@@ -240,7 +240,7 @@ in
 
     # Add vfat support to the initrd to enable people to copy the
     # contents of the CD to a bootable USB stick.
-    boot.initrd.supportedFilesystems = [ "vfat" ];
+    boot.initrd.supportedFilesystems = { vfat = true; };
 
     boot.qemu.extraQemuOptions = [
       "-cdrom" "${config.system.build.isoImage}/iso/${config.isoImage.isoName}"

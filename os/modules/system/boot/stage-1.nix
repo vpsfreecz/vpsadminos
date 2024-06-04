@@ -1,4 +1,4 @@
-{ lib, utils, pkgs, config, ... }:
+{ lib, utils, pkgs, config, options, ... }:
 with lib;
 let
   modulesTree = config.system.modulesTree;
@@ -260,10 +260,8 @@ in
       '';
     };
     boot.initrd.supportedFilesystems = mkOption {
-      default = [ ];
-      example = [ "btrfs" ];
-      type = types.listOf types.str;
-      description = "Names of supported filesystem types in the initial ramdisk.";
+      default = { };
+      inherit (options.boot.supportedFilesystems) example type description;
     };
     boot.initrd.extraUtilsCommands = mkOption {
       internal = true;

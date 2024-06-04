@@ -33,8 +33,8 @@ let
   cfgZED = config.services.zfs.zed;
   cfgVdevLog = config.services.zfs.vdevlog;
 
-  inInitrd = any (fs: fs == "zfs") config.boot.initrd.supportedFilesystems;
-  inSystem = any (fs: fs == "zfs") config.boot.supportedFilesystems;
+  inInitrd = config.boot.initrd.supportedFilesystems.zfs or false;
+  inSystem = config.boot.supportedFilesystems.zfs or false;
 
   enableZfs = inInitrd || inSystem;
   enableAutoScrub = cfgScrub.enable;

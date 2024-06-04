@@ -140,7 +140,7 @@ in
   ###### implementation
 
   config = mkMerge [
-    (mkIf (any (fs: fs == "nfs" || fs == "nfs4") config.boot.supportedFilesystems) {
+    (mkIf ((config.boot.supportedFilesystems.nfs or false) || (config.boot.supportedFilesystems.nfs4 or false)) {
 
       services.rpcbind.enable = true;
 
@@ -160,7 +160,7 @@ in
 
     (mkIf cfg.server.enable {
 
-      boot.supportedFilesystems = [ "nfs" ];
+      boot.supportedFilesystems = { nfs = true; };
 
       environment.etc."exports".source = exports;
 
