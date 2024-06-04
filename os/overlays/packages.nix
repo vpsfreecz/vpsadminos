@@ -40,7 +40,7 @@ self: super:
       });
     in super.callPackage ../packages/lxc/default.nix {
       inherit libcap;
-      systemd = null;
+      dbus = null;
     };
 
   mbuffer = super.mbuffer.overrideAttrs (oldAttrs: rec {

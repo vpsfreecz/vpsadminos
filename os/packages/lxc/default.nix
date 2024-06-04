@@ -3,19 +3,19 @@
 
 # Optional Dependencies
 , libapparmor ? null, gnutls ? null, libselinux ? null, libseccomp ? null
-, libcap ? null, systemd ? null
+, libcap ? null, dbus ? null
 }:
 
 with lib;
 stdenv.mkDerivation rec {
   pname = "lxc";
-  version = "5.0.3";
+  version = "6.0.0";
 
   src = fetchFromGitHub {
     owner = "vpsfreecz";
     repo = "lxc";
-    rev = "b0a2c16471c24d584a39eaa86561142a6234c07b";
-    sha256 = "sha256-SZfO/N6HoZ5N56Asx031EO8zSy/Iafolkdb/jvZ6JGw=";
+    rev = "78c7d903723c604093c2112cf54d457612314c0a";
+    sha256 = "sha256-beCJnPkTKI39IlABPAQPeG54IsBTIoarYWFNKgo+2e8=";
   };
 
   nativeBuildInputs = [
@@ -44,7 +44,7 @@ stdenv.mkDerivation rec {
     "-Dusernet-config-path=/etc/lxc/lxc-usernet"
     "-Dpam-cgroup=true"
     "-Dinit-script=sysvinit"
-    (if isNull systemd then "-Dsd-bus=disabled" else "-Dsd-bus=enabled")
+    (if isNull dbus then "-Ddbus=false" else "-Ddbus=true")
   ] ++ optional (libapparmor != null) "-Dapparmor=true"
     ++ optional (libselinux != null) "-Dselinux=true"
     ++ optional (libseccomp != null) "-Dseccomp=true"
