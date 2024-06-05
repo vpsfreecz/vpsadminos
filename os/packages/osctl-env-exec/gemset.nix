@@ -45,10 +45,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.org"];
-      sha256 = "0r9jmjhg2ly3l736flk7r2al47b5c8cayh0gqkq0yhjqzc9a6zhq";
+      sha256 = "0b4qsi8gay7ncmigr0pnbxyb17y3h8kavdyhsh7nrlqwr35vb60q";
       type = "gem";
     };
-    version = "2.7.1";
+    version = "2.7.2";
   };
   md2man = {
     dependencies = ["binman" "redcarpet" "rouge"];
@@ -77,20 +77,20 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "03c7m7ls3vp2m73h1cjij7ydi3ddrmviyaj066n4sxd49yn0iyzk";
+      sha256 = "1diwjxk0fr4k309y4syvhamdn6kfhclkj12ga80g5vvy4hi9vbkk";
       type = "gem";
     };
-    version = "23.11.0.build20240120145104";
+    version = "24.05.0.build20240605095131";
   };
   rake = {
     groups = ["default"];
     platforms = [];
     source = {
       remotes = ["https://rubygems.org"];
-      sha256 = "1ilr853hawi09626axx0mps4rkkmxcs54mapz9jnqvpnlwd3wsmy";
+      sha256 = "17850wcwkgi30p7yqh60960ypn7yibacjjha0av78zaxwvd3ijs6";
       type = "gem";
     };
-    version = "13.1.0";
+    version = "13.2.1";
   };
   rake-compiler = {
     dependencies = ["rake"];
@@ -98,10 +98,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.org"];
-      sha256 = "1b5j73p577qrnb47yv03dwbdgk1vmq63rwngipxqikjzvfk076xb";
+      sha256 = "1vhdkwblhzp4wp1jh95qiibly2zsnmg3659r6d5xp1mzgd9ghxji";
       type = "gem";
     };
-    version = "1.2.5";
+    version = "1.2.7";
   };
   redcarpet = {
     groups = ["default"];
@@ -138,9 +138,9 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.org"];
-      sha256 = "013yrnwx1zhzhn1fnc19zck22a1qgimsaglp2iwgf5bz9l8h93js";
+      sha256 = "1r0b8w58p7gy06wph1qdjv2p087hfnmhd9jk23vjdj803dn761am";
       type = "gem";
     };
-    version = "0.9.34";
+    version = "0.9.36";
   };
 }
