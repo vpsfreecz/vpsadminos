@@ -30,6 +30,7 @@
   ./services/misc/build-vpsadminos-container-image-repository/vpsadminos.nix
   ./services/misc/nix-daemon.nix
   ./services/monitoring/apcupsd.nix
+  ./services/monitoring/goresheat.nix
   ./services/monitoring/munin.nix
   ./services/monitoring/prometheus/exporters.nix
   ./services/monitoring/prometheus/osbench
