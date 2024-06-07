@@ -7,6 +7,8 @@ self: super:
 
   devcgprog = super.callPackage ../packages/devcgprog {};
 
+  goresheat = super.callPackage ../packages/goresheat {};
+
   htop = super.htop.overrideAttrs (oldAttrs: rec {
     src = super.fetchFromGitHub {
       owner = "vpsfreecz";
