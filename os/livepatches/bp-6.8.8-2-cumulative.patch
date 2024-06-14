@@ -18,7 +18,7 @@ index 504be64d4ead..2b1470ad4981 100644
  		goto fail_free_descs;
  
 diff --git a/kernel/vpsadminos.c b/kernel/vpsadminos.c
-index c08f1ebfab6c..ae47aa1123c8 100644
+index c08f1ebfab6c..3ab4a2a01a9b 100644
 --- a/kernel/vpsadminos.c
 +++ b/kernel/vpsadminos.c
 @@ -10,6 +10,26 @@
@@ -47,6 +47,16 @@ index c08f1ebfab6c..ae47aa1123c8 100644
 +KPATCH_POST_UNPATCH_CALLBACK(unpatch);
  
  struct proc_dir_entry *proc_vpsadminos;
+ 
+@@ -30,6 +50,9 @@ unsigned int online_cpus_in_cpu_cgroup(struct task_struct *p)
+ 	long quota, period;
+ 	int cpus = 0, mincpus = INT_MAX;
+ 
++	if (!p->nsproxy)
++		return 0;
++
+ 	if (p->nsproxy->cgroup_ns == &init_cgroup_ns)
+ 		return 0;
  
 diff --git a/mm/memcontrol.c b/mm/memcontrol.c
 index ad7771caf63d..bfe1eb1344b6 100644
