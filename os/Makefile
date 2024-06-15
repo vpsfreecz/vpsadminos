@@ -1,11 +1,18 @@
 CORES = 0
+JOBS = 2
+
+ifeq ($(DEBUG),0)
+  TRACE =
+else
+  TRACE = --show-trace
+endif
 
 # default build (configs/qemu.nix)
 build: result
 	nix-build \
 	 --arg configuration $(or $(VPSADMINOS_CONFIG),./configs/qemu.nix) \
 	 --out-link result/qemu \
-	 --cores $(CORES)
+	 --cores $(CORES) -j $(JOBS) $(TRACE)
 
 # build the system closure without building the squashfs image
 toplevel: result
