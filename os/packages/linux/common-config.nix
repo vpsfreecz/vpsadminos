@@ -411,6 +411,16 @@ let
 
       # Detect buffer overflows on the stack
       CC_STACKPROTECTOR_REGULAR = {optional = true; tristate = whenOlder "4.18" "y";};
+    } // optionalAttrs (versionAtLeast version "6.9.0") {
+      INIT_ON_ALLOC_DEFAULT_ON         = yes;
+      INIT_ON_FREE_DEFAULT_ON          = yes;
+      INIT_STACK_ALL_ZERO              = yes;
+      STACKPROTECTOR_STRONG            = yes;
+      SCHED_STACK_END_CHECK            = yes;
+      STRICT_KERNEL_RWX                = yes;
+      STACKLEAK_METRICS                = yes;
+      GCC_PLUGIN_STACKLEAK             = yes;
+      RANDOMIZE_MEMORY                 = yes;
     };
 
     microcode = {
