@@ -1,5 +1,11 @@
-{ configs, pkgs, lib, ... }:
+{ config, pkgs, lib, ... }:
 with lib;
+with lib.kernel;
+let
+  kernelVersion = config.boot.kernelVersion;
+  whenKernelAtLeast = v: attrs:
+    optionalAttrs (versionAtLeast kernelVersion v) attrs;
+in
 {
   boot.kernel.sysctl = {
     "fs.protected_hardlinks" = mkDefault 1;
@@ -65,5 +71,13 @@ with lib;
     "vm.min_slab_ratio" = mkDefault 12;
     "vm.overcommit_ratio" = mkDefault 3200;
     "vm.swappiness" = mkDefault 0;
+  } // whenKernelAtLeast "6.9" {
+    # Enable unprivileged eBPF as systemd uses the available functionality to
+    # implement application-bound firewall.
+    # Our kernel implements a coarse-enough time-rounding shield against
+    # timing attacks. The downside is that we can't support eBPF programs
+    # requiring precise timing.
+    "kernel.unprivileged_bpf_disabled" = 0;
+    "kernel.sysctl_unprivileged_bpf_time_adjust_nsec" = 5 * 1000 * 1000; # 5ms
   };
 }
