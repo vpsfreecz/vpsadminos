@@ -1,7 +1,6 @@
 BUILD_ID := $(shell date +%Y%m%d%H%M%S)
 VERSION := $(shell cat .version)
 RELEASE_DATE := $(shell date +%Y-%m-%d)
-CORES = 0
 
 build:
 	$(MAKE) -C os build
