@@ -5,8 +5,8 @@ pkgs.stdenv.mkDerivation rec {
   src = fetchFromGitHub {
     owner = "snajpa";
     repo = "kpatch";
-    rev = "d967e91d33b796f251433d9958819ce2b5c336b7";
-    sha256 = "sha256-7uBkHqquiESkzc117lm0QaVzbOdvrw4Qf8lYrcKYvp8=";
+    rev = "b3a3ef1f730554faae2e8ff04459e4eaf271e8fb";
+    sha256 = "sha256-xM92sy2h29KlYDmuwjnStnN+lP87TEdxPVkkEuMJ9DM=";
   };
   postPatch = ''
     substituteInPlace ./kpatch-build/kpatch-build --replace /bin/bash "${pkgs.bashInteractive}/bin/bash"
