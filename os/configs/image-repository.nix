@@ -94,11 +94,6 @@
       }
       {
         distribution = "centos";
-        version = "8-stream-\\d+";
-        keep = 4;
-      }
-      {
-        distribution = "centos";
         version = "9-stream-\\d+";
         keep = 4;
       }

@@ -50,9 +50,9 @@ import ../../make-template.nix ({ distribution, version }: rec {
         end
       end
 
-      # unified cgroup is not mounted on CentOS 7 and 8
+      # unified cgroup is not mounted on CentOS 7
       check_unified =
-        if ("${distribution}" == "centos" && %w(7 latest-8-stream).include?("${version}")) \
+        if ("${distribution}" == "centos" && %w(7).include?("${version}")) \
            || ("${distribution}" == "almalinux" && "${version}" == "8")
           false
         else

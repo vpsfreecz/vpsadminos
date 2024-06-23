@@ -6,7 +6,6 @@ let
     alpine           = { distribution = "alpine";    version = "latest";          };
     arch             = { distribution = "arch";      version = "latest";          };
     centos_7         = { distribution = "centos";    version = "7";               };
-    centos_8_stream  = { distribution = "centos";    version = "latest-8-stream"; };
     centos_9_stream  = { distribution = "centos";    version = "latest-9-stream"; };
     debian_oldstable = { distribution = "debian";    version = "oldstable";       };
     debian_stable    = { distribution = "debian";    version = "stable";          };
@@ -34,7 +33,6 @@ in {
     alma_stable
     alpine
     arch
-    centos_8_stream
     centos_9_stream
     debian_oldstable
     debian_stable
@@ -64,7 +62,6 @@ in {
     alma_stable
     arch
     centos_7
-    centos_8_stream
     centos_9_stream
     debian_oldstable
     debian_stable
