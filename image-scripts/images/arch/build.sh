@@ -5,7 +5,7 @@ require_cmd curl
 
 bootstrap-arch() {
 	# Find out the bootstrap archive's name from checksum list
-	rx='archlinux-bootstrap-\d+\.\d+\.\d+-x86_64\.tar\.gz'
+	rx='archlinux-bootstrap-\d+\.\d+\.\d+-x86_64\.tar\.zst'
 	curl "$BASEURL/sha256sums.txt" | grep -P "$rx" > "$DOWNLOAD/sha256sums.txt"
 	bfile=$(grep -oP "$rx" "$DOWNLOAD/sha256sums.txt")
 
@@ -17,7 +17,7 @@ bootstrap-arch() {
 	fi
 
 	# Extract
-	tar -xzf "$DOWNLOAD/$bfile" --preserve-permissions --preserve-order --numeric-owner \
+	tar --zstd -xf "$DOWNLOAD/$bfile" --preserve-permissions --preserve-order --numeric-owner \
 		-C "$INSTALL"
 
 	# Bootstrap the base system to $INSTALL/root.x86_64/mnt
