@@ -32,7 +32,7 @@ bootstrap-arch() {
 	# an unprivileged container. We have to mount it as tmpfs and mknod
 	# devices and create directories before mounting devpts and shm.
 	cat <<'EOF' | patch "$BOOTSTRAP/bin/pacstrap"
-101,103c101,109
+127,129c127,135
 <   chroot_add_mount udev "$1/dev" -t devtmpfs -o mode=0755,nosuid &&
 <   chroot_add_mount devpts "$1/dev/pts" -t devpts -o mode=0620,gid=5,nosuid,noexec &&
 <   chroot_add_mount shm "$1/dev/shm" -t tmpfs -o mode=1777,nosuid,nodev &&
