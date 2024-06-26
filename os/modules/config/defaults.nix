@@ -79,6 +79,7 @@
   environment.shellAliases = {
     ll = "ls -l";
     vim = "vi";
+    dstat = "dool";
   };
 
   i18n = {
