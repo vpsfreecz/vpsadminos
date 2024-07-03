@@ -11,6 +11,7 @@ module OsCtld
         [
           DistConfig::Network::NetworkManager,
           DistConfig::Network::RedHatNetworkManager,
+          DistConfig::Network::SystemdNetworkd,
           DistConfig::Network::RedHatInitScripts
         ]
       end
