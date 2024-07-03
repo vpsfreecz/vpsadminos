@@ -7,6 +7,6 @@ interface-name=<%= netif.name %>
 [ipv<%= v %>]
 method=manual
 addresses=<%= netif.ips(v).map(&:to_string).join(',') %>
-routes=<%= netif.default_via(v) %>
+routes=<%= netif.default_via(v).to_string %>
 gateway=<%= netif.default_via(v) %>
 <% end -%>
