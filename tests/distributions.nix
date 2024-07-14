@@ -8,6 +8,7 @@ let
     centos_7         = { distribution = "centos";    version = "7";               };
     centos_8_stream  = { distribution = "centos";    version = "latest-8-stream"; };
     centos_9_stream  = { distribution = "centos";    version = "latest-9-stream"; };
+    chimera          = { distribution = "chimera";   version = "latest";          };
     debian_oldstable = { distribution = "debian";    version = "oldstable";       };
     debian_stable    = { distribution = "debian";    version = "stable";          };
     debian_testing   = { distribution = "debian";    version = "testing";         };
@@ -36,6 +37,7 @@ in {
     arch
     centos_8_stream
     centos_9_stream
+    chimera
     debian_oldstable
     debian_stable
     debian_testing
@@ -83,6 +85,7 @@ in {
 
   non-systemd = with table; [
     alpine
+    chimera
     devuan
     gentoo_openrc
     gentoo_musl
