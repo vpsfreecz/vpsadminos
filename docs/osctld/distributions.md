@@ -8,6 +8,7 @@ Currently supported distributions within a container are:
  - Alpine
  - Arch
  - CentOS
+ - Chimera
  - Debian
  - Devuan
  - Fedora

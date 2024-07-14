@@ -25,6 +25,7 @@ The following distributions support cgroupv2:
 
  - Alpine Linux with up-to-date init script
  - CentOS / Alma Linux / Rocky Linux >= 8
+ - Chimera Linux
  - Debian >= 9
  - Devuan with up-to-date init script
  - Fedora >= 31 (possibly older)

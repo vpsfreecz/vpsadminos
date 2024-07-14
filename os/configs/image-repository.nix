@@ -26,6 +26,8 @@
         "9-stream" = { tags = [ "latest-9-stream" "latest-stream" ]; };
       };
 
+      chimera.rolling = { tags = [ "latest" "stable" ] };
+
       debian = {
         "10" = { tags = [ "oldoldstable" ]; };
         "11" = { tags = [ "oldstable" ]; };
@@ -95,6 +97,11 @@
       {
         distribution = "centos";
         version = "9-stream-\\d+";
+        keep = 4;
+      }
+      {
+        distribution = "chimera";
+        version = "\\d+";
         keep = 4;
       }
       {

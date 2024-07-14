@@ -9,6 +9,7 @@ Distribution         | Name                   | Version                | Example
 Alpine Linux         | `alpine`               | `<major>.<minor>`      | `alpine-3.7`
 Arch Linux           | `arch`                 | `<YYYYMMDD>`           | `arch-20180210`
 CentOS               | `centos`               | `<major>.<minor>`      | `centos-7`
+Chimera Linux        | `chimera`              | `<YYYYMMDD>`           | `chimera-20240707`
 Debian               | `debian`               | `<major>.<minor>`      | `debian-9`
 Devuan               | `devuan`               | `<major>.<minor>`      | `devuan-1.0`
 Gentoo               | `gentoo`               | `<profile>-<YYYYMMDD>` | `gentoo-20180210`
