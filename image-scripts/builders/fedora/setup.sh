@@ -1,3 +1,3 @@
 set -e
 dnf -y update
-dnf -y install curl debootstrap git openssl patch wget zstd
+dnf -y install curl debootstrap git minisign openssl patch wget zstd
