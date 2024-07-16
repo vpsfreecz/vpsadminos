@@ -22,7 +22,6 @@
       arch.rolling = { name = "arch"; tags = [ "latest" "stable" ]; };
 
       centos = {
-        "7" = {};
         "9-stream" = { tags = [ "latest-9-stream" "latest-stream" ]; };
       };
 
