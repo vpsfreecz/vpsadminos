@@ -26,7 +26,7 @@
         "9-stream" = { tags = [ "latest-9-stream" "latest-stream" ]; };
       };
 
-      chimera.rolling = { tags = [ "latest" "stable" ] };
+      chimera.rolling = { tags = [ "latest" "stable" ]; };
 
       debian = {
         "10" = { tags = [ "oldoldstable" ]; };
