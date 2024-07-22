@@ -9,20 +9,20 @@ GEM
 GEM
   remote: https://rubygems.vpsfree.cz/
   specs:
-    libosctl (24.05.0.build20240716123725)
+    libosctl (24.05.0.build20240722151756)
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
-    svctl (24.05.0.build20240716123725)
+    svctl (24.05.0.build20240722151756)
       filelock
       gli (~> 2.20.0)
-      libosctl (= 24.05.0.build20240716123725)
+      libosctl (= 24.05.0.build20240722151756)
 
 PLATFORMS
   ruby
   x86_64-linux
 
 DEPENDENCIES
-  svctl (= 24.05.0.build20240716123725)!
+  svctl (= 24.05.0.build20240722151756)!
 
 BUNDLED WITH
    2.5.9
