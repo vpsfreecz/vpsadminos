@@ -7,8 +7,8 @@ buildGoModule {
   src = pkgs.fetchFromGitHub {
     owner = "snajpa";
     repo = "goresheat";
-    rev = "a2938f28e349f271099f17e21ed1121a2266ca31";
-    sha256 = "sha256-rUWUmZkV09O34qUi/2GNQPYH9u9AY6WtT11RyZ7+s1Q=";
+    rev = "a62afb7d1b4a123e8949cb35bc896d96ffb906ef";
+    sha256 = "sha256-DWpXf/sP7rC3fjQFfL0ARm0FMigTkYqluct5sGIzcsY=";
   };
 
   vendorHash = "sha256-iVGS9bvZ01AKuaFt1XLOKp6gW1NnPYTk0LoZzjsNmTg=";
