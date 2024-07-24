@@ -33,6 +33,13 @@ in
           The port on which goresheat will listen for incoming connections.
         '';
       };
+      url = mkOption {
+        default = null;
+        type = types.nullOr types.str;
+        description = ''
+          Custom URL on which goresheat is accessible, use e.g. when it is behind a proxy
+        '';
+      };
       rectSize = mkOption {
         default = 9;
         type = types.int;
@@ -56,7 +63,7 @@ in
     runit.services.goresheat = {
       run = ''
         mkdir -p /run/goresheat
-        exec ${pkgs.goresheat}/bin/goresheat -host ${cfg.host} -port ${toString cfg.port} -rectsize ${toString cfg.rectSize} -interval ${cfg.interval}
+        exec ${pkgs.goresheat}/bin/goresheat -host ${cfg.host} -port ${toString cfg.port} ${optionalString (!isNull cfg.url) "-url ${cfg.url}"} -rectsize ${toString cfg.rectSize} -interval ${cfg.interval}
       '';
       log.enable = true;
       log.sendTo = "127.0.0.1";
