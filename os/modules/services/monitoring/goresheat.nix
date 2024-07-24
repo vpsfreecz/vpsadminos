@@ -63,10 +63,18 @@ in
     runit.services.goresheat = {
       run = ''
         mkdir -p /run/goresheat
-        exec ${pkgs.goresheat}/bin/goresheat -host ${cfg.host} -port ${toString cfg.port} ${optionalString (!isNull cfg.url) "-url ${cfg.url}"} -rectsize ${toString cfg.rectSize} -interval ${cfg.interval}
+        exec chpst -u goresheat ${pkgs.goresheat}/bin/goresheat -host ${cfg.host} -port ${toString cfg.port} ${optionalString (!isNull cfg.url) "-url ${cfg.url}"} -rectsize ${toString cfg.rectSize} -interval ${cfg.interval}
       '';
       log.enable = true;
       log.sendTo = "127.0.0.1";
+    };
+
+    users = {
+      users.goresheat = {
+        isSystemUser = true;
+        group = "goresheat";
+      };
+      groups.goresheat = {};
     };
   };
 }
