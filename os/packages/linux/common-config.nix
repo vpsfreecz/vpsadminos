@@ -63,14 +63,15 @@ let
 
     performance = {
       RCU_EXPERT                = yes;
-      RCU_BOOST                 = whenAtLeast "6.1" yes;
-      RCU_NOCB_CPU              = yes;
-      TASKS_TRACE_RCU_READ_MB   = no;
+      RCU_BOOST                 = yes;
       BLK_WBT                   = no;
       HW_RANDOM                 = yes;
       HW_RANDOM_AMD             = yes;
+      X86_AMD_PSTATE_DEFAULT_MODE = freeform "3";
+      X86_AMD_FREQ_SENSITIVITY  = yes;
+      CPU_FREQ_GOV_ONDEMAND     = yes;
       PSI                       = no;
-      CGROUP_FAVOR_DYNMODS      = whenAtLeast "6.1" yes;
+      CGROUP_FAVOR_DYNMODS      = no;
     };
 
     preempt_rt = optionalAttrs (RTKernel) {
@@ -386,8 +387,7 @@ let
       SLAB_FREELIST_RANDOM             = yes;
       SLAB_FREELIST_HARDENED           = yes;
       SHUFFLE_PAGE_ALLOCATOR           = yes;
-      HARDENED_USERCOPY                = yes;
-      HARDENED_USERCOPY_FALLBACK       = whenOlder "6.1" yes;
+      HARDENED_USERCOPY                = no; # Too high overhead
       FORTIFY_SOURCE                   = yes;
       INIT_ON_ALLOC_DEFAULT_ON         = no;
       INIT_ON_FREE_DEFAULT_ON          = no;
@@ -396,15 +396,14 @@ let
       RANDOMIZE_BASE                   = yes;
       STRICT_DEVMEM                    = yes; # Filter access to /dev/mem
       IO_STRICT_DEVMEM                 = yes; # Filter access to /dev/mem
-      SECURITY_SELINUX_BOOTPARAM_VALUE = whenOlder "5.1" (freeform "0"); # Disable SELinux by default
+      SECURITY_SELINUX_BOOTPARAM_VALUE = freeform "0";
       # Prevent processes from ptracing non-children processes
       SECURITY_YAMA                    = yes;
       DEVKMEM                          = whenOlder "5.13" no; # Disable /dev/kmem
 
       USER_NS                          = yes; # Support for user namespaces
 
-      SECURITY_APPARMOR                = yes;
-      DEFAULT_SECURITY_APPARMOR        = yes;
+      SECURITY_APPARMOR                = no; # In fact AA has very poor design
 
       SECURITY_LOCKDOWN_LSM            = whenAtLeast "5.4" yes;
     } // optionalAttrs (!stdenv.hostPlatform.isAarch32) {
@@ -430,7 +429,7 @@ let
     };
 
     container = {
-      NAMESPACES     = yes; #  Required by 'unshare' used by 'nixos-install'
+      NAMESPACES     = yes;
       RT_GROUP_SCHED = no;
       CGROUP_DEVICE  = yes;
       CGROUP_HUGETLB = yes;
