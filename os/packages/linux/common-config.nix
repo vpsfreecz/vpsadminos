@@ -53,7 +53,6 @@ let
       CFS_BANDWIDTH             = yes;
 
       SYSLOG_NS                 = yes;
-      MEMCG_32BIT_IDS           = whenOlder "6.1" yes;
     };
 
     zfs = optionalAttrs (zfsBuiltin) {
@@ -62,13 +61,11 @@ let
     };
 
     performance = {
-      RCU_EXPERT                = yes;
-      RCU_BOOST                 = yes;
       BLK_WBT                   = no;
       HW_RANDOM                 = yes;
       HW_RANDOM_AMD             = yes;
       X86_AMD_PSTATE_DEFAULT_MODE = freeform "3";
-      X86_AMD_FREQ_SENSITIVITY  = yes;
+      X86_AMD_FREQ_SENSITIVITY  = module;
       CPU_FREQ_GOV_ONDEMAND     = yes;
       PSI                       = no;
       CGROUP_FAVOR_DYNMODS      = no;
@@ -384,6 +381,7 @@ let
     };
 
     security = {
+      SLAB_MERGE_DEFAULT               = no;
       SLAB_FREELIST_RANDOM             = yes;
       SLAB_FREELIST_HARDENED           = yes;
       SHUFFLE_PAGE_ALLOCATOR           = yes;
@@ -396,7 +394,7 @@ let
       RANDOMIZE_BASE                   = yes;
       STRICT_DEVMEM                    = yes; # Filter access to /dev/mem
       IO_STRICT_DEVMEM                 = yes; # Filter access to /dev/mem
-      SECURITY_SELINUX_BOOTPARAM_VALUE = freeform "0";
+      SECURITY_SELINUX                 = no; # Irrelevant for containers
       # Prevent processes from ptracing non-children processes
       SECURITY_YAMA                    = yes;
       DEVKMEM                          = whenOlder "5.13" no; # Disable /dev/kmem
@@ -756,7 +754,6 @@ let
       MEMORY_FAILURE = yes;
       MEM_SOFT_DIRTY = yes;
       KSM = yes;
-      SLAB_MERGE_DEFAULT = no;
 
       X86_AMD_PLATFORM_DEVICE = yes;
 
