@@ -62,6 +62,7 @@ in
   config = mkIf cfg.enable {
     runit.services.goresheat = {
       run = ''
+        ensureServiceStarted eudev-trigger
         exec chpst -u goresheat ${pkgs.goresheat}/bin/goresheat -host ${cfg.host} -port ${toString cfg.port} ${optionalString (!isNull cfg.url) "-url ${cfg.url}"} -rectsize ${toString cfg.rectSize} -interval ${cfg.interval}
       '';
       log.enable = true;
