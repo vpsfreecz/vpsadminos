@@ -166,6 +166,9 @@ let
 
     networking = {
       NET                = yes;
+      NET_KEY            = yes;
+      NET_KEY_MIGRATE    = yes;
+      INET               = yes;
       IP_ADVANCED_ROUTER = yes;
       IP_PNP             = no;
       IP_VS_PROTO_TCP    = yes;
@@ -191,6 +194,7 @@ let
       IP_MROUTE_MULTIPLE_TABLES   = yes;
       IP_MULTICAST                = yes;
       IP_MULTIPLE_TABLES          = yes;
+      IPV6                        = yes;
       IPV6_ROUTER_PREF            = yes;
       IPV6_ROUTE_INFO             = yes;
       IPV6_OPTIMISTIC_DAD         = yes;
@@ -200,6 +204,7 @@ let
       IPV6_MROUTE_MULTIPLE_TABLES = yes;
       IPV6_PIMSM_V2               = yes;
       IPV6_FOU_TUNNEL             = whenAtLeast "4.7" module;
+      IPV6_TUNNEL                 = yes;
       NET_CLS_BPF                 = whenAtLeast "4.4" module;
       NET_ACT_BPF                 = whenAtLeast "4.4" module;
       NET_SCHED                   = yes;
@@ -211,6 +216,30 @@ let
       NET_L3_MASTER_DEV           = option yes;
       NET_FOU_IP_TUNNELS          = option yes;
       IP_NF_TARGET_REDIRECT       = module;
+      INET_AH                     = yes;
+      INET_ESP                    = yes;
+      INET_ESP_OFFLOAD            = yes;
+      INET_IPCOMP                 = yes;
+      INET_TUNNEL                 = yes;
+      INET_XFRM_TUNNEL            = yes;
+      INET6_AH                    = yes;
+      INET6_ESP                   = yes;
+      INET6_ESP_OFFLOAD           = yes;
+      INET6_IPCOMP                = yes;
+      INET6_TUNNEL                = yes;
+      INET6_XFRM_TUNNEL           = yes;
+      XFRM                        = yes;
+      XFRM_OFFLOAD                = yes;
+      XFRM_ALGO                   = yes;
+      XFRM_USER                   = yes;
+      XFRM_USER_COMPAT            = yes;
+      XFRM_INTERFACE              = yes;
+      XFRM_SUB_POLICY             = yes;
+      XFRM_MIGRATE                = yes;
+      XFRM_STATISTICS             = yes;
+      XFRM_AH                     = yes;
+      XFRM_ESP                    = yes;
+      XFRM_IPCOMP                 = yes;
 
       PPP_MULTILINK = yes; # PPP multilink support
       PPP_FILTER    = yes;
