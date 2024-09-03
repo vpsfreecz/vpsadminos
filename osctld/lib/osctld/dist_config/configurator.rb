@@ -100,6 +100,7 @@ module OsCtld
       writable?(File.join(rootfs, 'etc', 'resolv.conf')) do |path|
         File.open("#{path}.new", 'w') do |f|
           resolvers.each { |v| f.puts("nameserver #{v}") }
+          f.puts('options edns0')
         end
 
         File.rename("#{path}.new", path)
