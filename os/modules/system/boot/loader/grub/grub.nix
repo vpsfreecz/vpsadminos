@@ -371,7 +371,7 @@ in
         '';
       };
 
-      extraEntriesBeforeNixOS = mkOption {
+      extraEntriesBeforeVpsAdminOS = mkOption {
         default = false;
         type = types.bool;
         description = lib.mdDoc ''
