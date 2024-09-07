@@ -342,7 +342,7 @@ in {
   config = {
     system.build.installBootLoader = mkIf config.boot.isLiveSystem "none";
 
-    boot.kernelParams = optional (!config.boot.isLiveSystem) [ "nolive" ];
+    boot.kernelParams = optional (!config.boot.isLiveSystem) "nolive";
 
     system.extraSystemBuilderCmds =
       optionalString
