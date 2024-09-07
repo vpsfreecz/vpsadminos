@@ -223,8 +223,6 @@ in {
 
     runit.services.networking = {
       run = ''
-        ensureServiceStarted eudev-trigger
-
         ${cfg.preConfig}
 
         ${optionalString cfg.static.enable ''
@@ -232,10 +230,6 @@ in {
         ip link set ${cfg.static.interface} up
         ip route add ${cfg.static.route} dev ${cfg.static.interface}
         ip route add default via ${cfg.static.gateway} dev ${cfg.static.interface}
-        ''}
-
-        ${optionalString cfg.useDHCP ''
-        ${pkgs.dhcpcd}/sbin/dhcpcd
         ''}
 
         ${optionalString cfg.lxcbr.enable ''
@@ -251,6 +245,16 @@ in {
       '';
       oneShot = true;
       onChange = "ignore";
+      runlevels = [ "rescue" "default" ];
+    };
+
+    runit.services.dhcpcd = mkIf cfg.useDHCP {
+      run = ''
+        ensureServiceStarted eudev-trigger
+        ensureServiceStarted networking
+
+        exec ${pkgs.dhcpcd}/sbin/dhcpcd -B
+      '';
       runlevels = [ "rescue" "default" ];
     };
 
