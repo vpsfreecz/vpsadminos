@@ -510,7 +510,7 @@ my $hwConfig = <<EOF;
   boot.kernelModules = [$kernelModules ];
   boot.extraModulePackages = [$modulePackages ];
 $fsAndSwap
-  nix.maxJobs = lib.mkDefault $cpus;
+  nix.settings.max-jobs = lib.mkDefault $cpus;
 ${\join "", (map { "  $_\n" } (uniq @attrs))}}
 EOF
 
@@ -541,12 +541,12 @@ EOF
             $bootLoaderConfig = <<EOF;
   # Use the GRUB 2 boot loader.
   boot.loader.grub.enable = true;
-  boot.loader.grub.version = 2;
   # boot.loader.grub.efiSupport = true;
   # boot.loader.grub.efiInstallAsRemovable = true;
   # boot.loader.efi.efiSysMountPoint = "/boot/efi";
   # Define on which hard drive you want to install Grub.
   # boot.loader.grub.device = "/dev/sda"; # or "nodev" for efi only
+  boot.isLiveSystem = false;
 EOF
         }
 
@@ -568,11 +568,7 @@ $bootLoaderConfig
   # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
 
   # Select internationalisation properties.
-  # i18n = {
-  #   consoleFont = "Lat2-Terminus16";
-  #   consoleKeyMap = "us";
-  #   defaultLocale = "en_US.UTF-8";
-  # };
+  # i18n.defaultLocale = "en_US.UTF-8";
 
   # Set your time zone.
   # time.timeZone = "Europe/Amsterdam";
@@ -610,7 +606,7 @@ $bootLoaderConfig
   # servers. You should change this only after vpsAdminOS release notes say you
   # should.
   # XXX:
-  #system.nixos.stateVersion = "${\(qw(@release@))}"; # Did you read the comment?
+  #system.stateVersion = "${\(qw(@release@))}"; # Did you read the comment?
 
 }
 EOF
