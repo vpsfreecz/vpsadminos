@@ -92,9 +92,9 @@ sub="auto?trusted=1"
 if [[ -z $system ]]; then
     echo "building the configuration in $VPSADMINOS_CONFIG..."
     outLink="$tmpdir/system"
-    nix build --out-link "$outLink" --store "$mountPoint" "${extraBuildFlags[@]}" \
+    nix-build --out-link "$outLink" --store "$mountPoint" "${extraBuildFlags[@]}" \
         --extra-substituters "$sub" \
-        -f '<vpsadminos/os>' config.system.build.toplevel --arg configuration "$VPSADMINOS_CONFIG"
+        '<vpsadminos/os>' -A config.system.build.toplevel --arg configuration "$VPSADMINOS_CONFIG"
     system=$(readlink -f $outLink)
 fi
 
