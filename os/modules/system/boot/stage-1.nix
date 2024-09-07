@@ -149,7 +149,12 @@ let
 
     bootloader = config.system.boot.loader.id;
     fsInfo =
-      let f = fs: [ fs.mountPoint (if fs.device != null then fs.device else "/dev/disk/by-label/${fs.label}") fs.fsType (builtins.concatStringsSep "," fs.options) ];
+      let
+        # busybox mount does not recognize x-initrd.mount option, which is added
+        # by nixpkgs to mounts in initrd.
+        fsOptions = fs: filter (opt: opt != "x-initrd.mount") fs.options;
+
+        f = fs: [ fs.mountPoint (if fs.device != null then fs.device else "/dev/disk/by-label/${fs.label}") fs.fsType (builtins.concatStringsSep "," (fsOptions fs)) ];
       in pkgs.writeText "initrd-fsinfo" (concatStringsSep "\n" (concatMap f fileSystems));
 
     inherit (config.boot) predefinedFailAction;
