@@ -109,13 +109,13 @@ nix-env --store "$mountPoint" "${extraBuildFlags[@]}" \
 # of the NixOS channel.
 if [[ -z $noChannelCopy ]]; then
     if [[ -z $channelPath ]]; then
-        channelPath="$(nix-env -p /nix/var/nix/profiles/per-user/root/channels -q nixos --no-name --out-path 2>/dev/null || echo -n "")"
+        channelPath="$(nix-env -p /nix/var/nix/profiles/per-user/root/channels -q nixos vpsadminos --no-name --out-path 2>/dev/null || echo -n "")"
     fi
     if [[ -n $channelPath ]]; then
         echo "copying channel..."
         mkdir -p $mountPoint/nix/var/nix/profiles/per-user/root
         nix-env --store "$mountPoint" "${extraBuildFlags[@]}" --extra-substituters "$sub" \
-                -p $mountPoint/nix/var/nix/profiles/per-user/root/channels --set "$channelPath" --quiet
+                -p $mountPoint/nix/var/nix/profiles/per-user/root/channels --install $channelPath --quiet
         install -m 0700 -d $mountPoint/root/.nix-defexpr
         ln -sfn /nix/var/nix/profiles/per-user/root/channels $mountPoint/root/.nix-defexpr/channels
     fi
