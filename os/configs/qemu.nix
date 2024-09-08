@@ -31,6 +31,7 @@
 
   tty.autologin.enable = true;
   services.haveged.enable = true;
+  os.channel-registration.enable = lib.mkDefault true;
 
   environment.systemPackages = with pkgs; [
     git

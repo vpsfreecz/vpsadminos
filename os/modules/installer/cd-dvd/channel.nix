@@ -52,7 +52,7 @@ in
   options = {
     os.channel-registration.enable = mkOption {
       type = types.bool;
-      default = true;
+      default = false;
     };
   };
 

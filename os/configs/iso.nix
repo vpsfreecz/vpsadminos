@@ -22,6 +22,7 @@
     vim
   ];
 
+  os.channel-registration.enable = lib.mkDefault true;
   services.openssh.settings.PermitRootLogin = lib.mkDefault "yes";
 
   isoImage.makeUsbBootable = true;
