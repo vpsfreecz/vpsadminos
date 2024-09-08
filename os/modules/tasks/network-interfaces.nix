@@ -253,6 +253,7 @@ in {
         ensureServiceStarted eudev-trigger
         ensureServiceStarted networking
 
+        mkdir -p /var/db/dhcpcd
         exec ${pkgs.dhcpcd}/sbin/dhcpcd -B
       '';
       runlevels = [ "rescue" "default" ];
