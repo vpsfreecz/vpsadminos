@@ -2,6 +2,7 @@ require 'osctld/container_control/command'
 require 'osctld/container_control/frontend'
 require 'osctld/container_control/runner'
 require 'osctld/container_control/utils/wall'
+require 'libosctl'
 
 module OsCtld
   # Stop/shutdown/kill container
@@ -80,8 +81,15 @@ module OsCtld
       end
 
       def do_shutdown(opts)
-        run_halt if opts[:halt_from_inside]
-        lxc_ct.shutdown(opts[:timeout])
+        timeout = opts[:timeout]
+
+        if opts[:halt_from_inside]
+          halt_seconds = run_halt(timeout)
+          timeout -= halt_seconds
+          timeout = 60 if timeout < 60
+        end
+
+        lxc_ct.shutdown(timeout)
         ok
       rescue LXC::Error
         error('unable to shutdown container')
@@ -94,7 +102,11 @@ module OsCtld
         error('unable to kill container')
       end
 
-      def run_halt
+      # @return [Integer] halt duration in seconds
+      def run_halt(timeout)
+        queue = OsCtl::Lib::Queue.new
+        t1 = Time.now
+
         pid = lxc_ct.attach do
           setup_exec_env
 
@@ -105,7 +117,19 @@ module OsCtld
           end
         end
 
+        timeout_thread = Thread.new do
+          next if queue.pop(timeout:) == :done
+
+          Process.kill('KILL', pid) if pid && pid > 1
+        rescue Errno::ESRCH
+          next
+        end
+
         Process.wait(pid) if pid && pid > 1
+        queue << :done
+        timeout_thread.join
+
+        Time.now - t1
       end
     end
   end
