@@ -5,7 +5,7 @@ let
   zfsBuiltin = config.boot.zfsBuiltin;
   kernelForBuiltinsConfig = config.boot.kernelForBuiltinsConfig;
 
-  availableKernels = import ../../packages/linux/availableKernels.nix { inherit pkgs; inherit lib; };
+  availableKernels = import ../../packages/linux/availableKernels.nix { inherit config pkgs lib; };
 
   # we also need to override zfs/spl via linuxPackagesFor
     myLinuxPackages = (pkgs.linuxPackagesFor origKernel).extend (

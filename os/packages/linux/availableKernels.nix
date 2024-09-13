@@ -1,7 +1,9 @@
-{ pkgs, lib, ... }:
+{ config, lib, pkgs, ... }:
 with lib.kernel;
 let
-  defaultKernelVersion = "6.10.10";
+  stableKernelVersion = "6.9.12-2";
+  unstableKernelVersion = "6.10.10";
+
   kernels = {
     "6.10.10" = {
       url = linuxGhUrl vpsfGh "744b7fe9e585bda8cd701842a3ebe5838b4bc80d";
@@ -160,6 +162,8 @@ let
     }).zfsStable;
 in
 {
-  defaultVersion = defaultKernelVersion;
+  defaultVersion = if config.system.vpsadminos.enableUnstable
+                   then unstableKernelVersion
+                   else stableKernelVersion;
   inherit genKernelPackage genKernelPackageWithZfsBuiltin genZfsBuiltinPackage genZfsUserPackage kernels;
 }
