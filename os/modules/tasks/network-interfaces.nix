@@ -223,6 +223,8 @@ in {
 
     runit.services.networking = {
       run = ''
+        ensureServiceStarted eudev-trigger
+
         ${cfg.preConfig}
 
         ${optionalString cfg.static.enable ''
