@@ -2,13 +2,13 @@
 
 buildGoModule {
   pname = "goresheat";
-  version = "1.1";
+  version = "1.2";
 
   src = pkgs.fetchFromGitHub {
     owner = "snajpa";
     repo = "goresheat";
-    rev = "a62afb7d1b4a123e8949cb35bc896d96ffb906ef";
-    sha256 = "sha256-DWpXf/sP7rC3fjQFfL0ARm0FMigTkYqluct5sGIzcsY=";
+    rev = "cfbfe7fd292d2e640dd3775c216b7e48ca4f497a";
+    sha256 = "sha256-Yl8vnMU4BFM6WYv7PIFS9vyzR7D9wbMN/MS0g1eT4hA=";
   };
 
   vendorHash = "sha256-iVGS9bvZ01AKuaFt1XLOKp6gW1NnPYTk0LoZzjsNmTg=";
