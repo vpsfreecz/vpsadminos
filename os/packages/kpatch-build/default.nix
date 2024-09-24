@@ -3,10 +3,10 @@ pkgs.stdenv.mkDerivation rec {
   name = "kpatch-build";
   version = "0.9.9";
   src = fetchFromGitHub {
-    owner = "snajpa";
+    owner = "dynup";
     repo = "kpatch";
-    rev = "b3a3ef1f730554faae2e8ff04459e4eaf271e8fb";
-    sha256 = "sha256-xM92sy2h29KlYDmuwjnStnN+lP87TEdxPVkkEuMJ9DM=";
+    rev = "2f6a812a5f985750a85ede565b21375e6a468d1b";
+    sha256 = "sha256-+Rcz5XeNsb7RQCVE1ca32GjV5rGxxeKAkZqIA9Uf2/o=";
   };
   postPatch = ''
     substituteInPlace ./kpatch-build/kpatch-build --replace /bin/bash "${pkgs.bashInteractive}/bin/bash"
