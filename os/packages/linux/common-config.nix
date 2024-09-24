@@ -83,7 +83,8 @@ let
       DEBUG_INFO                = whenOlder "5.18" yes;
       DEBUG_INFO_BTF            = whenAtLeast "5.18" yes;
       DEBUG_INFO_COMPRESSED     = whenBetween "6.1.38" "6.6.0" yes;
-      DEBUG_INFO_COMPRESSED_NONE = whenAtLeast "6.6.0" yes;
+      DEBUG_INFO_COMPRESSED_NONE = whenBetween "6.6.0" "6.10.11" yes;
+      DEBUG_INFO_COMPRESSED_ZLIB = whenAtLeast "6.10.11" yes;
       DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT = whenAtLeast "5.18" yes;
       DEBUG_KERNEL              = yes;
       DEBUG_DEVRES              = no;
@@ -503,6 +504,7 @@ let
       KALLSYMS_ALL             = yes;
       TRIM_UNUSED_KSYMS        = no;
       LIVEPATCH                = yes;
+      X86_KERNEL_IBT           = whenAtLeast "6.10.11" no;
     };
 
     virtualisation = {
