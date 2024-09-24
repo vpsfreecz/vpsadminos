@@ -93,7 +93,8 @@ let
       DEBUG_NX_TEST             = whenOlder "4.11" no;
       DEBUG_STACK_USAGE         = no;
       RCU_TORTURE_TEST          = no;
-      SCHEDSTATS                = no;
+      SCHEDSTATS                = whenAtLeast "6.10.11" yes;
+      LATENCYTOP                = whenAtLeast "6.10.11" yes;
       DETECT_HUNG_TASK          = yes;
       CRASH_DUMP                = yes;
       PROC_VMCORE               = yes;
