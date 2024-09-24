@@ -104,7 +104,7 @@ LIVEPATCH_HEADER_END
       ''; # we dont get a newline between this and the next line; wtf
         # actual command
         #export ARCH_KCFLAGS="-gz=none"
-        $kpb/kpatch-build/kpatch-build --skip-compiler-check -v ${kernel.dev}/vmlinux -s src -n ${patchModuleName} '' +
+        $kpb/kpatch-build/kpatch-build -v ${kernel.dev}/vmlinux -s src -n ${patchModuleName} '' +
       concatMapStringsSep " " (name: "$src/${name}.patch") availablePatchesList +
       '' || cat $CACHEDIR/build.log || echo log not found at $CACHEDIR/build.log
       '';
