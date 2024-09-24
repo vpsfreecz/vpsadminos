@@ -1,0 +1,45 @@
+diff --git a/fs/nfs/fs_context.c b/fs/nfs/fs_context.c
+index fb05e2f4c091..8a61392333a7 100644
+--- a/fs/nfs/fs_context.c
++++ b/fs/nfs/fs_context.c
+@@ -1396,6 +1396,11 @@ static int nfs_fs_context_validate(struct fs_context *fc)
+ 	int port = 0;
+ 	int ret;
+ 
++	if ((fc->user_ns != &init_user_ns) &&
++	    !(ctx->flags & NFS_MOUNT_SOFTERR)) {
++		ctx->flags |= NFS_MOUNT_SOFT;
++	}
++
+ 	if (!fc->source)
+ 		goto out_no_device_name;
+ 
+diff --git a/kernel/vpsadminos.c b/kernel/vpsadminos.c
+index 6399d5699299..ffe43f6c90b6 100644
+--- a/kernel/vpsadminos.c
++++ b/kernel/vpsadminos.c
+@@ -375,3 +375,24 @@ ssize_t fake_sysfs_kf_write(struct kernfs_open_file *of, char *buf,
+ 	}
+ 	return 0;
+ }
++
++#include <linux/utsname.h>
++#include <linux/vpsadminos-livepatch.h>
++#include "kpatch-macros.h"
++char old_uname[65];
++char new_uname[65];
++
++static int patch(patch_object *obj)
++{
++	scnprintf(new_uname, 64, "%s.%s", LIVEPATCH_ORIG_KERNEL_VERSION,
++	    LIVEPATCH_NAME);
++	scnprintf(old_uname, 64, "%s", init_uts_ns.name.release);
++	scnprintf(init_uts_ns.name.release, 64, "%s", new_uname);
++	return 0;
++}
++KPATCH_PRE_PATCH_CALLBACK(patch);
++static void unpatch(patch_object *obj)
++{
++	scnprintf(init_uts_ns.name.release, 64, "%s", old_uname);
++}
++KPATCH_POST_UNPATCH_CALLBACK(unpatch);
