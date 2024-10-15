@@ -22,11 +22,11 @@ Gem::Specification.new do |s|
 
   s.required_ruby_version = ">= #{File.read('../.ruby-version').strip}"
 
-  s.add_runtime_dependency 'gli', '~> 2.20.0'
-  s.add_runtime_dependency 'highline', '~> 2.0.3'
-  s.add_runtime_dependency 'ipaddress', '~> 0.8.3'
-  s.add_runtime_dependency 'json'
-  s.add_runtime_dependency 'libosctl', s.version
-  s.add_runtime_dependency 'require_all', '~> 2.0.0'
-  s.add_runtime_dependency 'ruby-progressbar', '~> 1.11.0'
+  s.add_dependency 'gli', '~> 2.20.0'
+  s.add_dependency 'highline', '~> 2.0.3'
+  s.add_dependency 'ipaddress', '~> 0.8.3'
+  s.add_dependency 'json'
+  s.add_dependency 'libosctl', s.version
+  s.add_dependency 'require_all', '~> 2.0.0'
+  s.add_dependency 'ruby-progressbar', '~> 1.11.0'
 end

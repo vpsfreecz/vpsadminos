@@ -23,14 +23,14 @@ Gem::Specification.new do |s|
 
   s.required_ruby_version = ">= #{File.read('../.ruby-version').strip}"
 
-  s.add_runtime_dependency 'bindata', '~> 2.4.15'
-  s.add_runtime_dependency 'concurrent-ruby', '~> 1.1.9'
-  s.add_runtime_dependency 'ipaddress', '~> 0.8.3'
-  s.add_runtime_dependency 'json'
-  s.add_runtime_dependency 'libosctl', s.version
-  s.add_runtime_dependency 'netlinkrb', '0.18.vpsadminos.0'
-  s.add_runtime_dependency 'osctl-repo', s.version
-  s.add_runtime_dependency 'osup', s.version
-  s.add_runtime_dependency 'require_all', '~> 2.0.0'
-  s.add_runtime_dependency 'ruby-lxc', '1.2.4.vpsadminos.3'
+  s.add_dependency 'bindata', '~> 2.4.15'
+  s.add_dependency 'concurrent-ruby', '~> 1.1.9'
+  s.add_dependency 'ipaddress', '~> 0.8.3'
+  s.add_dependency 'json'
+  s.add_dependency 'libosctl', s.version
+  s.add_dependency 'netlinkrb', '0.18.vpsadminos.0'
+  s.add_dependency 'osctl-repo', s.version
+  s.add_dependency 'osup', s.version
+  s.add_dependency 'require_all', '~> 2.0.0'
+  s.add_dependency 'ruby-lxc', '1.2.4.vpsadminos.3'
 end
