@@ -94,11 +94,9 @@ module OsCtld
 
       begin
         out_r.each_line do |line|
-          begin
-            OsCtl::Lib::Logger.log(:unknown, line)
-          rescue EncodingError
-            next
-          end
+          OsCtl::Lib::Logger.log(:unknown, line)
+        rescue EncodingError
+          next
         end
       rescue IOError
         # pass
