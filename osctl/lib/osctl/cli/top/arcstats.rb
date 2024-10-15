@@ -26,21 +26,21 @@ module OsCtl::Cli
       hits.to_f / sum * 100
     end
 
-    def method_missing(name, *args, **kwargs)
+    def method_missing(name, *args, **)
       if @data.has_key?(name) && args.size <= 1
         return @data[name] - args[0].send(name) if args[0]
 
         return @data[name]
       end
 
-      super(name, *args, **kwargs)
+      super
     end
 
-    def respond_to_missing?(name, *args, **kwargs)
+    def respond_to_missing?(name, *args, **)
       if @data.has_key?(name) && args.size <= 1
         true
       else
-        super(name, *args, **kwargs)
+        super
       end
     end
 

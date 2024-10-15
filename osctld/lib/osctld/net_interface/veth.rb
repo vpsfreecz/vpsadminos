@@ -241,7 +241,7 @@ module OsCtld
     end
 
     def dup(new_ct)
-      ret = super(new_ct)
+      ret = super
       ret.instance_variable_set('@veth', nil)
       ret
     end
