@@ -24,7 +24,12 @@ module OsCtld
       klass = self.for(ctrc.distribution.to_sym)
 
       # Make sure the container's dataset is mounted
-      ctrc.mount
+      #
+      # We skip the mount if for the stop command, that way running
+      # `ct stop` will not mount the container unnecessarily. Mounting also causes
+      # problems when we try to work with container that has its dataset bugged,
+      # e.g. when zfs mount/umount commands hang, we get stuck here for no reason.
+      ctrc.mount if cmd != :stop
 
       d = (klass || self.for(:other)).new(ctrc)
 
