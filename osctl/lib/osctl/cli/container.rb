@@ -40,6 +40,8 @@ module OsCtl::Cli
       autostart
       autostart_priority
       autostart_delay
+      impermanence
+      impermanence_zfs_properties
       ephemeral
       hostname
       hostname_readout
@@ -688,6 +690,26 @@ module OsCtl::Cli
     def unset_start_menu
       require_args!('id')
       unset(:start_menu)
+    end
+
+    def set_impermanence
+      require_args!('id')
+
+      set(:impermanence) do
+        {
+          zfs_properties: opts['zfs-property'].to_h do |v|
+            k, v = v.split('=')
+            raise GLI::BadCommandLine, "invalid ZFS property '#{v}'" if v.nil?
+
+            [k, v]
+          end
+        }
+      end
+    end
+
+    def unset_impermanence
+      require_args!('id')
+      unset(:impermanence)
     end
 
     def set_raw_lxc

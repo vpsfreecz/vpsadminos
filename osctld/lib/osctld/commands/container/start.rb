@@ -90,6 +90,11 @@ module OsCtld
       # Initiate run configuration
       ct.init_run_conf
 
+      # NixOS impermanence
+      if ct.impermanence && ct.distribution == 'nixos' && !opts[:custom_boot]
+        setup_impermanence(ct.run_conf)
+      end
+
       # Remove any left-over temporary mounts
       ct.mounts.prune
 
@@ -266,6 +271,35 @@ module OsCtld
         return [:running] if state == sequence.last
 
         last_i = cur_i
+      end
+    end
+
+    def setup_impermanence(ctrc)
+      tmp_name = "#{ctrc.ct.dataset}.impermanence-#{SecureRandom.hex(3)}"
+
+      tmp_ds = OsCtl::Lib::Zfs::Dataset.new(
+        tmp_name,
+        base: tmp_name
+      )
+      tmp_ds.create!(properties: {
+        canmount: 'noauto'
+      }.merge(ctrc.ct.impermanence.zfs_properties))
+
+      ctrc.boot_from(
+        tmp_ds,
+        ctrc.distribution,
+        ctrc.version,
+        ctrc.arch,
+        destroy_dataset_on_stop: true
+      )
+
+      builder = Container::Builder.new(ctrc, cmd: self)
+      builder.shift_dataset
+      builder.setup_ct_dir
+      builder.setup_rootfs
+
+      %w[boot dev etc proc run sbin sys var].each do |dir|
+        Dir.mkdir(File.join(ctrc.rootfs, dir))
       end
     end
   end

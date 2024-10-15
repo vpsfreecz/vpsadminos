@@ -1197,6 +1197,18 @@ The following shortcuts are supported:
 `ct unset start-menu` *ctid*
   Disable the start menu.
 
+`ct set impermanence` [*options*] *ctid*
+  Enable support for impermanence mode, applicable only on NixOS containers.
+  The container's root filesystem will be destroyed after each run. This feature
+  must be used in conjunction with a mount that will provide the Nix store at `/nix`.
+
+    `--zfs-property` *property*=*value*
+      A ZFS property passed to the impermanent ZFS dataset used
+      as a root filesystem for the container. Can be used multiple times.
+
+`ct unset impermanence` *ctid*
+  Disable impermanence mode.
+
 `ct set raw lxc` *ctid*
   Append raw LXC configuration read from the standard input to the *osctld*
   generated LXC configuration file.

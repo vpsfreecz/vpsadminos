@@ -130,7 +130,8 @@ module OsCtld
         queue: opts[:queue],
         priority: opts[:priority],
         debug: opts[:debug],
-        mounts: [root_mnt].compact
+        mounts: [root_mnt].compact,
+        custom_boot: true
       )
     end
   end

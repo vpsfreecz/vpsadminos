@@ -938,6 +938,15 @@ module OsCtl::Cli
             c.action(&Command.run(Container, :set_start_menu))
           end
 
+          set.desc 'Enable impermanence'
+          set.arg_name '<ctid>'
+          set.command :impermanence do |c|
+            c.desc 'ZFS properties for the impermanent rootfs dataset'
+            c.flag 'zfs-property', arg_name: 'property=value', multiple: true
+
+            c.action(&Command.run(Container, :set_impermanence))
+          end
+
           set.desc 'Append raw configuration to auto-generated config files'
           set.command :raw do |raw|
             raw.desc 'Append raw LXC configuration'
@@ -1005,6 +1014,12 @@ module OsCtl::Cli
           unset.arg_name '<ctid>'
           unset.command :'start-menu' do |c|
             c.action(&Command.run(Container, :unset_start_menu))
+          end
+
+          unset.desc 'Disable impermanence'
+          unset.arg_name '<ctid>'
+          unset.command :impermanence do |c|
+            c.action(&Command.run(Container, :unset_impermanence))
           end
 
           unset.desc 'Remove raw configuration from auto-generated config files'

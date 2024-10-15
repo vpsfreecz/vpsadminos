@@ -24,7 +24,7 @@ module OsCtld
                           :version, :arch, :autostart, :ephemeral, :hostname, :dns_resolvers,
                           :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams, :cpu_package,
                           :devices, :seccomp_profile, :apparmor, :attrs, :state, :lxc_config,
-                          :init_cmd, :start_menu, :raw_configs, :run_conf, :hints
+                          :init_cmd, :start_menu, :impermanence, :raw_configs, :run_conf, :hints
 
     alias ephemeral? ephemeral
 
@@ -542,6 +542,9 @@ module OsCtld
         when :start_menu
           self.start_menu = Container::StartMenu.new(self, v[:timeout])
 
+        when :impermanence
+          self.impermanence = Container::Impermanence.new(v[:zfs_properties].transform_keys(&:to_s))
+
         when :raw_lxc
           raw_configs.lxc = v
 
@@ -586,6 +589,9 @@ module OsCtld
         when :start_menu
           clear_start_menu
           self.start_menu = nil
+
+        when :impermanence
+          self.impermanence = nil
 
         when :raw_lxc
           raw_configs.lxc = nil
@@ -705,6 +711,8 @@ module OsCtld
           swap_limit: find_swap_limit(parents: false),
           start_menu: start_menu ? true : false,
           start_menu_timeout: start_menu && start_menu.timeout,
+          impermanence: impermanence ? true : false,
+          impermanence_zfs_properties: impermanence&.zfs_properties,
           raw_lxc: raw_configs.lxc,
           log_file: log_path
         }.merge!(attrs.export)
@@ -739,6 +747,7 @@ module OsCtld
           'cpu_package' => cpu_package,
           'init_cmd' => init_cmd,
           'start_menu' => start_menu && start_menu.dump,
+          'impermanence' => impermanence && impermanence.dump,
           'raw' => raw_configs.dump,
           'attrs' => attrs.dump,
           'hints' => hints.dump
@@ -830,7 +839,7 @@ module OsCtld
                           :version, :arch, :autostart, :ephemeral, :hostname, :dns_resolvers,
                           :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams, :cpu_package,
                           :devices, :seccomp_profile, :apparmor, :attrs, :lxc_config, :init_cmd,
-                          :start_menu
+                          :start_menu, :impermanence
     attr_synchronized_accessor :mounted
 
     def load_config_file(path = nil, **)
@@ -889,6 +898,11 @@ module OsCtld
         @start_menu =
           if !cfg.has_key?('start_menu') || cfg['start_menu']
             Container::StartMenu.load(self, cfg['start_menu'] || {})
+          end
+
+        @impermanence =
+          if cfg['impermanence']
+            Container::Impermanence.load(cfg['impermanence'])
           end
 
         @run_conf = Container::RunConfiguration.load(self)
@@ -953,6 +967,7 @@ module OsCtld
       @prlimits = prlimits.dup(self)
       @mounts = mounts.dup(self)
       @start_menu &&= @start_menu.dup(self)
+      @impermanence &&= @impermanence.dup
       @lxc_config = lxc_config.dup(self)
       @raw_configs = raw_configs.dup
       @attrs = attrs.dup

@@ -33,6 +33,27 @@ module OsCtld
       end
     end
 
+    def post_mount(opts)
+      super
+      return if ct.impermanence.nil?
+
+      ContainerControl::Commands::WithMountns.run!(
+        ct,
+        ns_pid: opts[:ns_pid],
+        chroot: opts[:rootfs_mount],
+        block: proc do
+          begin
+            Dir.mkdir('/sbin')
+          rescue Errno::EEXIST
+            # pass
+          end
+
+          File.symlink('/nix/var/nix/profiles/system/init', '/sbin/init')
+          true
+        end
+      )
+    end
+
     def bin_path(_opts)
       with_rootfs do
         File.realpath('/nix/var/nix/profiles/system/sw/bin')

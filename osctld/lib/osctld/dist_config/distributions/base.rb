@@ -73,7 +73,7 @@ module OsCtld
                     ))
     end
 
-    # Run by LXC post-mount hook on container start
+    # Called by LXC post-mount hook on container start
     # @param opts [Hash]
     # @option opts [Integer] :ns_pid
     # @option opts [String] :rootfs_mount
