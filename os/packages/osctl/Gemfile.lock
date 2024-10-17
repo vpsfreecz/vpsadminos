@@ -16,16 +16,16 @@ GEM
 GEM
   remote: https://rubygems.vpsfree.cz/
   specs:
-    libosctl (24.05.0.build20240912180723)
+    libosctl (24.05.0.build20241017211650)
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
-    osctl (24.05.0.build20240912180723)
+    osctl (24.05.0.build20241017211650)
       curses
       gli (~> 2.20.0)
       highline (~> 2.0.3)
       ipaddress (~> 0.8.3)
       json
-      libosctl (= 24.05.0.build20240912180723)
+      libosctl (= 24.05.0.build20241017211650)
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
       ruby-progressbar (~> 1.11.0)
@@ -37,7 +37,7 @@ PLATFORMS
 
 DEPENDENCIES
   libosctl!
-  osctl (= 24.05.0.build20240912180723)!
+  osctl (= 24.05.0.build20241017211650)!
 
 BUNDLED WITH
    2.5.9

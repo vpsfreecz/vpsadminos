@@ -10,7 +10,7 @@ GEM
     ipaddress (0.8.3)
     json (2.7.2)
     prometheus-client (4.0.0)
-    rack (2.2.9)
+    rack (2.2.10)
     rainbow (3.1.1)
     require_all (2.0.0)
     ruby-progressbar (1.11.0)
@@ -25,32 +25,32 @@ GEM
 GEM
   remote: https://rubygems.vpsfree.cz/
   specs:
-    libosctl (24.05.0.build20240912180723)
+    libosctl (24.05.0.build20241017211650)
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
-    osctl (24.05.0.build20240912180723)
+    osctl (24.05.0.build20241017211650)
       curses
       gli (~> 2.20.0)
       highline (~> 2.0.3)
       ipaddress (~> 0.8.3)
       json
-      libosctl (= 24.05.0.build20240912180723)
+      libosctl (= 24.05.0.build20241017211650)
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
       ruby-progressbar (~> 1.11.0)
       tty-spinner (~> 0.9.3)
-    osctl-exporter (24.05.0.build20240912180723)
+    osctl-exporter (24.05.0.build20241017211650)
       json
-      libosctl (= 24.05.0.build20240912180723)
-      osctl (= 24.05.0.build20240912180723)
-      osctl-exportfs (= 24.05.0.build20240912180723)
+      libosctl (= 24.05.0.build20241017211650)
+      osctl (= 24.05.0.build20241017211650)
+      osctl-exportfs (= 24.05.0.build20241017211650)
       prometheus-client (~> 4.0.0)
       require_all (~> 2.0.0)
       thin (~> 1.8.1)
-    osctl-exportfs (24.05.0.build20240912180723)
+    osctl-exportfs (24.05.0.build20241017211650)
       filelock
       gli (~> 2.20.0)
-      libosctl (= 24.05.0.build20240912180723)
+      libosctl (= 24.05.0.build20241017211650)
       require_all (~> 2.0.0)
 
 PLATFORMS
@@ -58,7 +58,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  osctl-exporter (= 24.05.0.build20240912180723)!
+  osctl-exporter (= 24.05.0.build20241017211650)!
 
 BUNDLED WITH
    2.5.9
