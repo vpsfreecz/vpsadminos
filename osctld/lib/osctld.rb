@@ -11,6 +11,7 @@ module OsCtld
     module Dataset; end
     module Debug; end
     module Event; end
+    module GarbageCollector; end
     module Group; end
     module History; end
     module IdRange; end

@@ -24,7 +24,8 @@ module OsCtld
                           :version, :arch, :autostart, :ephemeral, :hostname, :dns_resolvers,
                           :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams, :cpu_package,
                           :devices, :seccomp_profile, :apparmor, :attrs, :state, :lxc_config,
-                          :init_cmd, :start_menu, :impermanence, :raw_configs, :run_conf, :hints
+                          :init_cmd, :start_menu, :impermanence, :raw_configs, :run_conf, :next_run_conf,
+                          :hints
 
     alias ephemeral? ephemeral
 

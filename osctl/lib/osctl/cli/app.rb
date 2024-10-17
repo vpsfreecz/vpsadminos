@@ -2146,6 +2146,15 @@ module OsCtl::Cli
         end
       end
 
+      desc 'Manage garbage collector'
+      command 'garbage-collector' do |t|
+        t.desc 'Run garbage collector'
+        t.arg_name '[pool...]'
+        t.command :prune do |c|
+          c.action(&Command.run(GarbageCollector, :prune))
+        end
+      end
+
       desc 'Monitor'
       command :monitor do |c|
         c.action(&Command.run(Event, :monitor))

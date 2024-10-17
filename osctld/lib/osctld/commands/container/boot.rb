@@ -107,6 +107,7 @@ module OsCtld
 
         # Apply run configuration
         ct.set_next_run_conf(ctrc)
+        GarbageCollector.add_container_run_dataset(ctrc, tmp_ds)
 
         # Boot it
         start_ct(ct, root_mnt) unless opts[:queue]

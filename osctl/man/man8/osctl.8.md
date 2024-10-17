@@ -2914,6 +2914,9 @@ The following shortcuts are supported:
 `trash-bin prune` [*pool...*]
   Empty the trash bin on all or selected pools.
 
+`garbage-collector prune` [*pool...*]
+  Run garbage collector on all or selected pools.
+
 `monitor`
   Print all events reported by `osctld` to standard output. If global option
   `-j`, `--json` is used, the events are printed in JSON.

@@ -112,6 +112,15 @@ module OsCtld
       end
     end
 
+    class GarbageCollector
+      # @return [Integer] number of seconds between prunes
+      attr_reader :prune_interval
+
+      def initialize(cfg)
+        @prune_interval = cfg.fetch('prune_interval', 6 * 60 * 60)
+      end
+    end
+
     # Enable extra debug logs
     # @return [Boolean]
     attr_reader :debug
@@ -140,6 +149,9 @@ module OsCtld
     # @return [TrashBin]
     attr_reader :trash_bin
 
+    # @return [GarbageCollector]
+    attr_reader :garbage_collector
+
     # @param path [String]
     def initialize(path)
       cfg = JSON.parse(File.read(path))
@@ -152,6 +164,7 @@ module OsCtld
       @cpu_scheduler = CpuScheduler.new(cfg.fetch('cpu_scheduler', {}))
       @send_receive = SendReceive.new(cfg.fetch('send_receive', {}))
       @trash_bin = TrashBin.new(cfg.fetch('trash_bin', {}))
+      @garbage_collector = GarbageCollector.new(cfg.fetch('garbage_bin', {}))
     end
   end
 end

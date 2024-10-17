@@ -42,6 +42,12 @@ module OsCtld
         ns_pid: opts[:ns_pid],
         chroot: opts[:rootfs_mount],
         block: proc do
+          # If /sbin/init already exists, it means we're *not* in impermanence mode
+          # right now, even if it is enabled. While in impermanence mode, we start
+          # with an empty dataset. Existing /sbin/init suggest custom `osctl ct boot`
+          # is active.
+          next if File.exist?('/sbin/init')
+
           begin
             Dir.mkdir('/sbin')
           rescue Errno::EEXIST
