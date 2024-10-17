@@ -285,6 +285,8 @@ module OsCtld
         canmount: 'noauto'
       }.merge(ctrc.ct.impermanence.zfs_properties))
 
+      GarbageCollector.add_container_run_dataset(ctrc, tmp_ds)
+
       ctrc.boot_from(
         tmp_ds,
         ctrc.distribution,

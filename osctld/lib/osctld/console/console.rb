@@ -92,11 +92,7 @@ module OsCtld
       end
 
       if ctrc.destroy_dataset_on_stop?
-        begin
-          TrashBin.add_dataset(ctrc.pool, ctrc.dataset)
-        rescue SystemCommandFailed => e
-          log(:warn, ctrc, "Unable to trash dataset '#{ctrc.dataset}': #{e.message}")
-        end
+        GarbageCollector.free_container_run_dataset(ctrc, ctrc.dataset)
       end
 
       if ctrc.reboot?

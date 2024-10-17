@@ -17,6 +17,9 @@ module OsCtld
       ctrc
     end
 
+    # @return [Container::RunId]
+    attr_reader :run_id
+
     # @return [Container]
     attr_reader :ct
 
@@ -142,6 +145,7 @@ module OsCtld
 
     def dump
       {
+        'id' => run_id.dump,
         'dataset' => dataset.to_s,
         'distribution' => distribution,
         'version' => version,
@@ -159,6 +163,12 @@ module OsCtld
           {}
         end
 
+      @run_id =
+        if cfg.has_key?('id')
+          Container::RunId.load(cfg['id'])
+        else
+          Container::RunId.new(pool_name: pool.name, container_id: id)
+        end
       @dataset =
         if cfg['dataset']
           OsCtl::Lib::Zfs::Dataset.new(cfg['dataset'], base: cfg['dataset'])

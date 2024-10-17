@@ -31,7 +31,7 @@ module OsCtld
     include OsCtl::Lib::Utils::Exception
 
     attr_reader :name, :dataset, :state, :send_receive_key_chain, :autostart_plan,
-                :autostop_plan, :trash_bin, :attrs
+                :autostop_plan, :trash_bin, :garbage_collector, :attrs
 
     def initialize(name, dataset)
       init_lock
@@ -52,6 +52,7 @@ module OsCtld
         @autostart_plan = AutoStart::Plan.new(self)
         @autostop_plan = AutoStop::Plan.new(self)
         @trash_bin = TrashBin.new(self)
+        @garbage_collector = GarbageCollector.new(self)
         @hint_updater = HintUpdater.new(self)
       end
     end
@@ -266,6 +267,7 @@ module OsCtld
         )
 
         autostart_plan.assets(add) if autostart_plan
+        garbage_collector.assets(add)
       end
     end
 
@@ -316,6 +318,9 @@ module OsCtld
 
       # Start trash-bin GC
       trash_bin.start
+
+      # Start garbage collector
+      garbage_collector.start
 
       exclusively { @state = :active }
 
