@@ -60,6 +60,13 @@ template:
 	-A config.system.build.tarball \
 	--out-link result/template
 
+template-impermanence:
+	nix-build \
+	'<nixpkgs/nixos>' \
+	--arg configuration ./lib/nixos-container/impermanence.nix \
+	-A config.system.build.impermanenceTarball \
+	--out-link result/template-impermanence
+
 os-rebuild:
 	nix-build \
 	 --arg configuration ./configs/qemu.nix \

@@ -1,10 +1,23 @@
 { config, pkgs, lib, ... }:
 let
+  # Use custom nixpkgs instance to fetch impermanence module, as otherwise
+  # having it in imports results in infinite recursion
+  impermanence = (import <nixpkgs> {}).fetchFromGitHub {
+    owner = "nix-community";
+    repo = "impermanence";
+    rev = "e337457502571b23e449bf42153d7faa10c0a562";
+    sha256 = "sha256-C2sGRJl1EmBq0nO98TNd4cbUy20ABSgnHWXLIJQWRFA=";
+  };
+
   configClone = pkgs.writeText "configuration.nix" ''
     { config, pkgs, ... }:
     {
       imports = [
         ./vpsadminos.nix
+
+        # Copy of the impermanence module is stored in /etc/nixos/impermanence.
+        # See https://github.com/nix-community/impermanence for the latest version.
+        ./impermanence/nixos.nix
       ];
 
       environment.systemPackages = with pkgs; [
@@ -22,6 +35,18 @@ let
 
       time.timeZone = "Europe/Amsterdam";
 
+      environment.persistence."/persistent" = {
+        hideMounts = true;
+        directories = [
+          "/etc/nixos"
+          "/var/log"
+          "/var/lib/nixos"
+        ];
+        files = [
+          "/etc/machine-id"
+        ];
+      };
+
       system.stateVersion = "${lib.trivial.release}";
     }
   '';
@@ -31,6 +56,7 @@ in {
     <nixpkgs/nixos/modules/installer/cd-dvd/channel.nix>
     <nixpkgs/nixos/modules/virtualisation/container-config.nix>
     ./vpsadminos.nix
+    "${impermanence}/nixos.nix"
   ];
 
   environment.systemPackages = with pkgs; [ vim ];
@@ -43,6 +69,18 @@ in {
   systemd.extraConfig = ''
     DefaultTimeoutStartSec=900s
   '';
+
+  environment.persistence."/persistent" = {
+    hideMounts = true;
+    directories = [
+      "/etc/nixos"
+      "/var/log"
+      "/var/lib/nixos"
+    ];
+    files = [
+      "/etc/machine-id"
+    ];
+  };
 
   boot.postBootCommands = ''
     # After booting, register the contents of the Nix store in the Nix database.
@@ -58,18 +96,25 @@ in {
     ln -sf /nix/var/nix/profiles /nix/var/nix/gcroots/profiles
 
     # Copy configuration required to reproduce this build
-    if ! [ -e /etc/nixos/configuration.nix ]; then
-      cp ${configClone} /etc/nixos/configuration.nix
-      chmod +w /etc/nixos/configuration.nix
+    mkdir -p /persistent/etc/nixos
+
+    if ! [ -e /persistent/etc/nixos/configuration.nix ]; then
+      cp ${configClone} /persistent/etc/nixos/configuration.nix
+      chmod +w /persistent/etc/nixos/configuration.nix
     fi
 
-    if ! [ -e /etc/nixos/vpsadminos.nix ]; then
-      cp ${./vpsadminos.nix} /etc/nixos/vpsadminos.nix
+    if ! [ -e /persistent/etc/nixos/vpsadminos.nix ]; then
+      cp ${./vpsadminos.nix} /persistent/etc/nixos/vpsadminos.nix
       chmod +w /etc/nixos/vpsadminos.nix
+    fi
+
+    if ! [ -d /persistent/etc/nixos/impermanence ]; then
+      cp -r ${impermanence} /persistent/etc/nixos/impermanence
+      find /persistent/etc/nixos/impermanence -type f -exec chmod u+w {} \;
     fi
   '';
 
-  system.build.tarball = import <nixpkgs/nixos/lib/make-system-tarball.nix> {
+  system.build.impermanenceTarball = import <nixpkgs/nixos/lib/make-system-tarball.nix> {
     inherit (pkgs) stdenv closureInfo pixz;
     compressCommand = "gzip";
     compressionExtension = ".gz";
@@ -81,9 +126,12 @@ in {
         symlink = "/run/current-system";
       }
     ];
+
     extraCommands = pkgs.writeScript "extra-commands.sh" ''
-      mkdir -p boot dev etc proc sbin sys
-      ln -s ${config.system.build.toplevel}/init sbin/init
+      # Needed for first container start; impermanence support in osctld relies on
+      # /nix/var/nix/profiles/system
+      mkdir -p nix/var/nix/profiles
+      ln -s ${config.system.build.toplevel} nix/var/nix/profiles/system
     '';
   };
 }

@@ -1,5 +1,5 @@
 . "$IMAGEDIR/config.sh"
 . "$INCLUDE/nixos.sh"
 
-CHANNEL=nixos-24.05
+CHANNEL="nixos-$RELVER"
 build-nixos

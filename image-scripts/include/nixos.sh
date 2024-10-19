@@ -16,7 +16,19 @@ function build-nixos {
 
 	export NIX_PATH="nixpkgs=$nixpkgs:vpsadminos=$vpsadminos"
 	cd "$vpsadminos/os"
-	make template || fail "failed to build the template"
 
-	tar -xzf result/template/tarball/*.tar.gz -C "$INSTALL"
+	case "$VARIANT" in
+		impermanence)
+			build_command="make template-impermanence"
+			result_dir=template-impermanence
+			;;
+		*)
+			build_command="make template"
+			result_dir=template
+	esac
+
+	$build_command || fail "failed to build the template"
+
+	tar -xzf result/$result_dir/tarball/*.tar.gz -C "$INSTALL"
+	mv "$INSTALL/nix-path-registration" "$INSTALL/nix/nix-path-registration"
 }
