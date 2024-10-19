@@ -10,7 +10,7 @@ let
       sha256 = "sha256-3Q6KCWBnG0P3LEqmQqvvgigcNO23bOoWIB9welrquUo=";
       zfs = {
         rev = "fdf2b81963ee04b6ca2edbaafa46601c47d67878";
-        sha256 = "sha256-UZ56+CT4w47UKDChlFQLuiAsIMT5w666fIupdpvl8N4=";
+        sha256 = "sha256-opPhxDNkbVtUX4lUlEQtJJ8HbRS0IvuIC7clZCKPhvo=";
       };
     };
     "6.10.11" = {
