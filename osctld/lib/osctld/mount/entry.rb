@@ -12,7 +12,7 @@ module OsCtld
         cfg['opts'],
         cfg['automount'],
         dataset: cfg['dataset'] && OsCtl::Lib::Zfs::Dataset.new(
-          File.join(ct.dataset.name, cfg['dataset']),
+          cfg['dataset'] == '/' ? ct.dataset.name : File.join(ct.dataset.name, cfg['dataset']),
           base: ct.dataset.name
         ),
         temp: cfg['temporary']
