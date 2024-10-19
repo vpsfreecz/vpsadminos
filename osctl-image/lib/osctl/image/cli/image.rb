@@ -170,7 +170,7 @@ module OsCtl::Image
         build = res.return_value
 
         if res.status
-          puts "#{tpl.name}: #{build.output_tar}"
+          puts "#{tpl.name}: #{build.output_tar}" if build.output_tar
           puts "#{tpl.name}: #{build.output_stream}"
         else
           puts "#{tpl.name}: failed with #{res.exception.class}: #{res.exception.message}"

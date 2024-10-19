@@ -24,6 +24,9 @@ module OsCtl::Image
     # @return [String]
     attr_reader :variant
 
+    # @return [Hash<String, String>] dataset name => mountpoint
+    attr_reader :datasets
+
     # @param base_dir [String]
     # @param name [String]
     def initialize(base_dir, name)
@@ -49,6 +52,13 @@ module OsCtl::Image
       }.each do |attr, var|
         instance_variable_set(:"@#{attr}", cfg[var]) if cfg.has_key?(var)
       end
+
+      @datasets =
+        if cfg.has_key?('DATASETS')
+          cfg['DATASETS'].split(':').to_h { |v| v.split('=') }
+        else
+          {}
+        end
     end
 
     def to_s

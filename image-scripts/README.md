@@ -123,6 +123,8 @@ Additional variables are optional:
  - `ARCH` (defaults to `x86_64`)
  - `VENDOR` (defaults to `vpsadminos`)
  - `VARIANT` (defaults to `minimal`)
+ - `DATASETS` to create and mount subdatasets, e.g. `myds=/mymount` will create
+   subdataset `myds` and mount it to `$INSTALL/mymount`.
 
 If not set, `osctl-image` tries to extract the values from the image name,
 which should be in the following form:

@@ -83,6 +83,7 @@ function build_image {
 	INSTALL="$3"
 	IMAGE="$4"
 	CONFIGFILE="$INSTALL/container.yml"
+	EXTRA_CONTAINER_CONFIG=
 
 	INCLUDE="$BASEDIR/include"
 	IMAGEDIR="$BASEDIR/images/$IMAGE"
@@ -111,6 +112,7 @@ function write_image_config {
 	cat <<EOF >> "$CONFIGFILE"
 init_cmd:
 $(echo -e $INITCMD)
+$EXTRA_CONTAINER_CONFIG
 EOF
 }
 

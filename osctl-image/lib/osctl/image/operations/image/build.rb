@@ -34,7 +34,7 @@ module OsCtl::Image
     # @return [String]
     attr_reader :build_id
 
-    # @return [String]
+    # @return [String, nil]
     attr_reader :output_tar
 
     # @return [String]
@@ -70,7 +70,7 @@ module OsCtl::Image
         image.variant
       ].join('-')
 
-      @output_tar = File.join(output_dir, "#{name}-archive.tar")
+      @output_tar = File.join(output_dir, "#{name}-archive.tar") if image.datasets.empty?
       @output_stream = File.join(output_dir, "#{name}-stream.tar")
 
       @client = OsCtldClient.new
@@ -96,7 +96,7 @@ module OsCtl::Image
     end
 
     def cached?
-      File.exist?(output_tar) || File.exist?(output_stream)
+      (output_tar && File.exist?(output_tar)) || File.exist?(output_stream)
     end
 
     def log_type
@@ -123,12 +123,24 @@ module OsCtl::Image
         output_dataset
       )
 
+      image.datasets.each_key do |dataset|
+        zfs(
+          :create,
+          "-p -o uidmap=0:#{root_uid}:65536 -o gidmap=0:#{root_gid}:65536",
+          File.join(output_dataset, dataset)
+        )
+      end
+
       @work_dir = zfs(:get, '-H -o value mountpoint', work_dataset).output.strip
       @output_dir = zfs(:get, '-H -o value mountpoint', output_dataset).output.strip
       @install_dir = File.join(output_dir, 'private')
       @config_file = File.join(install_dir, 'container.yml')
 
       Dir.mkdir(install_dir)
+
+      image.datasets.each_key do |dataset|
+        Dir.mkdir(File.join(output_dir, dataset, 'private'))
+      end
 
       client.batch do
         client.bind_mount(builder.ctid, base_dir, builder_base_dir)
@@ -138,6 +150,17 @@ module OsCtl::Image
         client.activate_mount(builder.ctid, builder_base_dir)
         client.activate_mount(builder.ctid, builder_work_dir)
         client.activate_mount(builder.ctid, builder_install_dir)
+
+        image.datasets.sort { |a, b| a[0] <=> b[0] }.each do |dataset, mountpoint|
+          install_mountpoint = File.join(builder_install_dir, mountpoint)
+
+          client.bind_mount(
+            builder.ctid,
+            File.join(output_dir, dataset, 'private'),
+            install_mountpoint
+          )
+          client.activate_mount(builder.ctid, install_mountpoint)
+        end
       end
 
       rc = Operations::Builder::ControlledExec.run(
@@ -175,6 +198,12 @@ module OsCtl::Image
     def cleanup
       client.batch do
         client.ignore_error { client.unmount(builder.ctid, builder_work_dir) }
+
+        image.datasets.sort { |a, b| b[0] <=> a[0] }.each do |_, mountpoint|
+          install_mountpoint = File.join(builder_install_dir, mountpoint)
+          client.ignore_error { client.unmount(builder.ctid, install_mountpoint) }
+        end
+
         client.ignore_error { client.unmount(builder.ctid, builder_install_dir) }
         client.ignore_error { client.unmount(builder.ctid, builder_base_dir) }
       end
@@ -197,7 +226,7 @@ module OsCtl::Image
         end
       end
 
-      zfs(:destroy, nil, output_dataset, valid_rcs: :all)
+      zfs(:destroy, '-r', output_dataset, valid_rcs: :all)
       zfs(:destroy, nil, build_dataset, valid_rcs: :all)
     end
 

@@ -30,7 +30,7 @@ module OsCtl::Image
     end
 
     def execute
-      export_archive
+      export_archive if build.output_tar
       export_stream
     end
 
