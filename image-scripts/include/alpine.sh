@@ -88,7 +88,7 @@ fetch-apk-static() {
 
 	[ -f "$APK" ] || die 2 "$APK not found"
 
-	local keyname=$(echo "$APK".*.pub | sed 's/.*\.SIGN\.RSA\.//')
+	local keyname=$(echo "$APK".*.pub | sed 's/.*\.SIGN\.RSA\.sha256\.//')
 	openssl dgst -sha1 \
 		-verify "$APK_KEYS_DIR/$keyname" \
 		-signature "$APK.SIGN.RSA.$keyname" \
