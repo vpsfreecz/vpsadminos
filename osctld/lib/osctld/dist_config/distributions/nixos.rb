@@ -68,6 +68,10 @@ module OsCtld
       # not supported
     end
 
+    def dns_resolvers(_opts = {})
+      super if ct.impermanence.nil? || ct.running?
+    end
+
     def bin_path(_opts)
       with_rootfs do
         File.realpath('/nix/var/nix/profiles/system/sw/bin')
