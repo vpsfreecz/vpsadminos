@@ -453,7 +453,14 @@ module OsCtld
     def self.thaw_tree(path)
       abs_path = abs_cgroup_path('freezer', path)
 
-      Dir.entries(abs_path).each do |dir|
+      begin
+        entries = Dir.entries(abs_path)
+      rescue Errno::ENOENT
+        log(:warn, "Unable to thaw #{abs_path}: directory not found")
+        return
+      end
+
+      entries.each do |dir|
         next if ['.', '..'].include?(dir)
         next unless Dir.exist?(File.join(abs_path, dir))
 
