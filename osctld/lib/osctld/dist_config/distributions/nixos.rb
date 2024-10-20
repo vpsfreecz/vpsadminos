@@ -5,10 +5,6 @@ module OsCtld
     distribution :nixos
 
     class Configurator < DistConfig::Configurator
-      def set_hostname(_new_hostname, old_hostname: nil)
-        log(:warn, 'Unable to apply hostname to NixOS container')
-      end
-
       def network(netifs)
         tpl_base = 'dist_config/network/nixos'
 
@@ -58,6 +54,18 @@ module OsCtld
           true
         end
       )
+    end
+
+    def set_hostname(_opts = {})
+      log(:warn, 'Unable to apply hostname to NixOS container')
+    end
+
+    def update_etc_hosts(_opts = {})
+      # not supported
+    end
+
+    def unset_etc_hosts(_opts = {})
+      # not supported
     end
 
     def bin_path(_opts)
