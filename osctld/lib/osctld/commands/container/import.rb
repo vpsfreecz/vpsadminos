@@ -98,7 +98,7 @@ module OsCtld
         end
 
         progress('Creating datasets')
-        importer.create_datasets(builder)
+        importer.create_datasets(builder, accept_existing: !opts[:dataset].nil?)
 
         builder.setup_lxc_home
 
