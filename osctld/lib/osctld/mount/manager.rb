@@ -83,6 +83,17 @@ module OsCtld
       ct.lxc_config.configure_mounts
     end
 
+    # Remove all mounts
+    def clear
+      exclusively do
+        if ct.fresh_state == :running
+          entries.reverse_each { |m| unmount(m) }
+        end
+
+        entries.clear
+      end
+    end
+
     # Remote temporal mounts
     def prune
       exclusively do

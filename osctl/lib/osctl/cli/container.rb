@@ -1423,6 +1423,15 @@ module OsCtl::Cli
       })
     end
 
+    def mount_clear
+      require_args!('id')
+
+      osctld_fmt(:ct_mount_clear, cmd_opts: {
+        id: args[0],
+        pool: gopts[:pool]
+      })
+    end
+
     def recover_kill
       require_args!('id', optional: %w[signal])
 

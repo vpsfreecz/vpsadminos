@@ -1854,6 +1854,12 @@ module OsCtl::Cli
           m.command %i[del delete] do |c|
             c.action(&Command.run(Container, :mount_delete))
           end
+
+          m.desc 'Clear mounts'
+          m.arg_name '<ctid>'
+          m.command :clear do |c|
+            c.action(&Command.run(Container, :mount_clear))
+          end
         end
 
         ct.desc 'Recover container from errors'

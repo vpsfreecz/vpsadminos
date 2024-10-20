@@ -2401,6 +2401,9 @@ The following shortcuts are supported:
 `ct mounts del` *ctid* *mountpoint*
   Remove *mountpoint* from container *ctid*.
 
+`ct mounts clear` *ctid*
+  Remove all mounts from container *ctid*.
+
 `ct recover kill` *ctid* [*signal*]
   Search and kill all processes of container *ctid*. Useful when even LXC is
   stuck. *signal* defaults to `SIGKILL`. After a container is killed in this
