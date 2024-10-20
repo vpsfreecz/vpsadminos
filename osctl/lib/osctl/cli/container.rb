@@ -942,7 +942,7 @@ module OsCtl::Cli
       file = File.expand_path(args[0])
       raise "#{file}: not found" unless File.exist?(file)
 
-      cmd_opts = { file: }
+      cmd_opts = { pool: gopts[:pool], file: }
 
       %w[as-id as-user as-group dataset missing-devices].each do |v|
         cmd_opts[v.sub('-', '_').to_sym] = opts[v] if opts[v]
