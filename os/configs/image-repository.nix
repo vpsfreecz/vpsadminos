@@ -56,6 +56,9 @@
       nixos = {
         "24.05" = { tags = [ "latest" "stable" ]; };
         "unstable" = { tags = [ "unstable" ]; };
+
+        "24.05-impermanence" = { tags = [ "latest-impermanence" "stable-impermanence" ]; };
+        "unstable-impermanence" = { tags = [ "unstable-impermanence" ]; };
       };
 
       opensuse = {
@@ -136,6 +139,13 @@
       {
         distribution = "nixos";
         version = "unstable-\\d+";
+        variant = "impermanence";
+        keep = 4;
+      }
+      {
+        distribution = "nixos";
+        version = "unstable-\\d+";
+        variant = "minimal";
         keep = 4;
       }
       {
