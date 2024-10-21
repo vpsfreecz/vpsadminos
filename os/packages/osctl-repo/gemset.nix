@@ -35,10 +35,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1y498rws4p27mmrxh78k68zbn6yhvprzzk22ci3dv9h1hqgzh5cy";
+      sha256 = "0i57x4xx5m07j1db3hcvvv7d6lvrq7ixj2lxdan1bd93vkxjs6l2";
       type = "gem";
     };
-    version = "24.05.0.build20241017211650";
+    version = "24.05.0.build20241021092749";
   };
   osctl-repo = {
     dependencies = ["filelock" "gli" "json" "libosctl" "require_all"];
@@ -46,10 +46,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "117m3lf4zjafp7pafm04gp1ig96swbwyjklnjj7ygr16icrv1lfw";
+      sha256 = "051vjh0x36xmknm46xdsca08xwl3y2b20py6wg1absqz22n9m2rq";
       type = "gem";
     };
-    version = "24.05.0.build20241017211650";
+    version = "24.05.0.build20241021092749";
   };
   rainbow = {
     groups = ["default"];
