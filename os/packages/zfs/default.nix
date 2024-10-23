@@ -120,6 +120,7 @@ let
       hardeningDisable = [ "fortify" "stackprotector" "pic" ];
 
       configureFlags = [
+        "--enable-debug"
         "--with-config=${realConfigFile}"
 	      "--with-tirpc=1"
         (withFeatureAs buildUser "python" python3.interpreter)
