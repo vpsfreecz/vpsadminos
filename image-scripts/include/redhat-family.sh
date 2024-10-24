@@ -62,7 +62,7 @@ EOF
 	mount --bind /proc $INSTALL/proc
 	mount --bind /sys $INSTALL/sys
 
-	$YUM_GROUPINSTALL "$GROUPNAME"
+	[ -n "$GROUPNAME" ] && $YUM_GROUPINSTALL "$GROUPNAME"
 	for rpm in $EXTRAPKGS; do
 		$YUM install $rpm
 	done

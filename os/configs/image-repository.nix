@@ -45,6 +45,8 @@
       fedora = {
         "39" = {};
         "40" = { tags = [ "latest" "stable" ]; };
+
+        "rawhide" = { tags = [ "rawhide" ]; };
       };
 
       gentoo = {
@@ -121,6 +123,11 @@
       {
         distribution = "debian";
         version = "unstable-\\d+";
+        keep = 4;
+      }
+      {
+        distribution = "fedora";
+        version = "rawhide-\\d+";
         keep = 4;
       }
       {
