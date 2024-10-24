@@ -10,6 +10,8 @@
       almalinux = {
         "8" = { tags = [ "oldstable" ]; };
         "9" = { tags = [ "latest" "stable" ]; };
+
+        "10-kitten" = { tags = [ "kitten" ]; };
       };
 
       alpine = {
@@ -91,6 +93,11 @@
     };
 
     garbageCollection = [
+      {
+        distribution = "almalinux";
+        version = "10-kitten-\\d+";
+        keep = 4;
+      }
       {
         distribution = "arch";
         version = "\\d+";
