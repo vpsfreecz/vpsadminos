@@ -31,7 +31,7 @@ module OsCtl::Image
         {
           tar: build.output_tar,
           zfs: build.output_stream
-        },
+        }.compact,
         {
           distribution: t.distribution,
           version: t.version,
