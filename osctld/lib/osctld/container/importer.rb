@@ -312,7 +312,7 @@ module OsCtld
       tar.seek('snapshots.yml') do |entry|
         snapshots = OsCtl::Lib::ConfigFile.load_yaml(entry.read)
 
-        datasets(builder).each do |ds|
+        datasets.each do |ds|
           snapshots.each { |snap| zfs(:destroy, nil, "#{ds}@#{snap}") }
         end
       end
