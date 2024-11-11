@@ -3,21 +3,21 @@ GEM
   specs:
     filelock (1.1.1)
     gli (2.20.1)
-    json (2.7.5)
+    json (2.8.1)
     rainbow (3.1.1)
     require_all (2.0.0)
 
 GEM
   remote: https://rubygems.vpsfree.cz/
   specs:
-    libosctl (24.05.0.build20241101175555)
+    libosctl (24.05.0.build20241111085743)
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
-    osctl-repo (24.05.0.build20241101175555)
+    osctl-repo (24.05.0.build20241111085743)
       filelock
       gli (~> 2.20.0)
       json
-      libosctl (= 24.05.0.build20241101175555)
+      libosctl (= 24.05.0.build20241111085743)
       require_all (~> 2.0.0)
 
 PLATFORMS
@@ -25,7 +25,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  osctl-repo (= 24.05.0.build20241101175555)!
+  osctl-repo (= 24.05.0.build20241111085743)!
 
 BUNDLED WITH
    2.5.9
