@@ -28,8 +28,8 @@ module OsCtld
           tpl[:distribution] ||= ct.distribution
           tpl[:version] ||= ct.version
           tpl[:arch] ||= ct.arch
-          tpl[:vendor] ||= 'default'
-          tpl[:variant] ||= 'default'
+          tpl[:vendor] ||= ct.vendor
+          tpl[:variant] ||= ct.variant
 
           tpl_path = get_image_path(get_repositories(ct.pool), tpl)
           error!('image not found in searched repositories') if tpl_path.nil?

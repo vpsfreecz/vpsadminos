@@ -1,6 +1,6 @@
 module OsCtl::Image
   class ContainerConfig
-    attr_accessor :distribution, :version, :arch, :dataset, :rootfs
+    attr_accessor :distribution, :version, :arch, :vendor, :variant, :dataset, :rootfs
 
     def id = nil
     def user = nil
@@ -18,7 +18,9 @@ module OsCtl::Image
       ret = {
         'distribution' => distribution,
         'version' => version,
-        'arch' => arch
+        'arch' => arch,
+        'vendor' => vendor,
+        'variant' => variant
       }
 
       ret.update(@overrides) if @overrides

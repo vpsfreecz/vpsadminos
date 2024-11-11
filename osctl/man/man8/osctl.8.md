@@ -1081,10 +1081,10 @@ The following shortcuts are supported:
 `ct unset ephemeral` *ctid*
   Do not destroy the container after it is stopped.
 
-`ct set distribution` *ctid* *distribution* *version* [*arch*]
+`ct set distribution` *ctid* *distribution* *version* [*arch* [*vendor* [*variant*]]]
   Change the information about the container's *distribution*, *version*
-  and optionally *arch*. This information is used to configure the container's
-  hostname, DNS resolver, networking, etc.
+  and optionally *arch*, *vendor* and *variant*. This information is used to
+  configure the container's hostname, DNS resolver, networking, etc.
 
 `ct set image-config` *ctid*
   Reapply container configuration from source container image, based on the

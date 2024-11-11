@@ -47,6 +47,9 @@ module OsCtld
       return false if opts[:group] && !opts[:group].include?(ct.group.name)
       return false if opts[:distribution] && !opts[:distribution].include?(ct.distribution)
       return false if opts[:version] && !opts[:version].include?(ct.version)
+      return false if opts[:arch] && !opts[:arch].include?(ct.arch)
+      return false if opts[:vendor] && !opts[:vendor].include?(ct.vendor)
+      return false if opts[:variant] && !opts[:variant].include?(ct.variant)
       return false if opts[:state] && !opts[:state].include?(ct.state.to_s)
 
       # rubocop:disable Style/DoubleNegation

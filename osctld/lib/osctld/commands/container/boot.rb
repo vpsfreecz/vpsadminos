@@ -85,10 +85,12 @@ module OsCtld
         ct_cfg = importer.get_container_config
 
         ctrc.boot_from(
-          tmp_ds,
-          ct_cfg['distribution'] || ct.distribution,
-          ct_cfg['version'] || ct.version,
-          ct_cfg['arch'] || ct.arch,
+          dataset: tmp_ds,
+          distribution: ct_cfg['distribution'] || ct.distribution,
+          version: ct_cfg['version'] || ct.version,
+          arch: ct_cfg['arch'] || ct.arch,
+          vendor: ct_cfg['vendor'] || ct.vendor,
+          variant: ct_cfg['variant'] || ct.variant,
           destroy_dataset_on_stop: true
         )
 

@@ -20,8 +20,8 @@ module OsCtld
       OsCtl::Lib::Zfs::Dataset.new(name, base: name, cache: dataset_cache)
     end
 
-    attr_inclusive_reader :pool, :id, :user, :dataset, :group, :distribution,
-                          :version, :arch, :autostart, :ephemeral, :hostname, :dns_resolvers,
+    attr_inclusive_reader :pool, :id, :user, :dataset, :group, :distribution, :version, :arch,
+                          :vendor, :variant, :autostart, :ephemeral, :hostname, :dns_resolvers,
                           :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams, :cpu_package,
                           :devices, :seccomp_profile, :apparmor, :attrs, :state, :lxc_config,
                           :init_cmd, :start_menu, :impermanence, :raw_configs, :run_conf, :next_run_conf,
@@ -529,6 +529,8 @@ module OsCtld
             @distribution = v[:name]
             @version = v[:version]
             @arch = v[:arch] if v[:arch]
+            @vendor = v[:vendor]
+            @variant = v[:variant]
           end
 
         when :cpu_package
@@ -694,6 +696,9 @@ module OsCtld
           group_path: cgroup_path,
           distribution: run_conf ? run_conf.distribution : distribution,
           version: run_conf ? run_conf.version : version,
+          arch: run_conf ? run_conf.arch : arch,
+          vendor: run_conf ? run_conf.vendor : vendor,
+          variant: run_conf ? run_conf.variant : variant,
           state:,
           init_pid:,
           autostart: autostart ? true : false,
@@ -730,6 +735,8 @@ module OsCtld
           'distribution' => distribution,
           'version' => version,
           'arch' => arch,
+          'vendor' => vendor,
+          'variant' => variant,
           'net_interfaces' => netifs.dump,
           'cgparams' => cgparams.dump,
           'devices' => devices.dump,
@@ -836,8 +843,8 @@ module OsCtld
 
     protected
 
-    attr_exclusive_writer :pool, :id, :user, :dataset, :group, :distribution,
-                          :version, :arch, :autostart, :ephemeral, :hostname, :dns_resolvers,
+    attr_exclusive_writer :pool, :id, :user, :dataset, :group, :distribution, :version, :arch,
+                          :vendor, :variant, :autostart, :ephemeral, :hostname, :dns_resolvers,
                           :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams, :cpu_package,
                           :devices, :seccomp_profile, :apparmor, :attrs, :lxc_config, :init_cmd,
                           :start_menu, :impermanence
@@ -887,6 +894,8 @@ module OsCtld
         @distribution = cfg['distribution']
         @version = cfg['version']
         @arch = cfg['arch']
+        @vendor = cfg.fetch('vendor', 'default')
+        @variant = cfg.fetch('variant', 'default')
         @autostart = cfg['autostart'] && AutoStart::Config.load(self, cfg['autostart'])
         @ephemeral = cfg['ephemeral']
         @hostname = cfg['hostname'] && OsCtl::Lib::Hostname.new(cfg['hostname'])

@@ -288,10 +288,12 @@ module OsCtld
       GarbageCollector.add_container_run_dataset(ctrc, tmp_ds)
 
       ctrc.boot_from(
-        tmp_ds,
-        ctrc.distribution,
-        ctrc.version,
-        ctrc.arch,
+        dataset: tmp_ds,
+        distribution: ctrc.distribution,
+        version: ctrc.version,
+        arch: ctrc.arch,
+        vendor: ctrc.vendor,
+        variant: ctrc.variant,
         destroy_dataset_on_stop: true
       )
 

@@ -30,8 +30,8 @@ module OsCtld
               distribution: tpl[:distribution] || ct.distribution,
               version: tpl[:version] || ct.version,
               arch: tpl[:arch] || ct.arch,
-              vendor: tpl[:vendor] || 'default',
-              variant: tpl[:variant] || 'default'
+              vendor: tpl[:vendor] || ct.vendor,
+              variant: tpl[:variant] || ct.variant
             }
           )
 
@@ -53,7 +53,9 @@ module OsCtld
           ct.set(distribution: {
             name: tpl[:distribution] || ct.distribution,
             version: tpl[:version] || ct.version,
-            arch: tpl[:arch] || ct.arch
+            arch: tpl[:arch] || ct.arch,
+            vendor: tpl[:vendor] || ct.vendor,
+            variant: tpl[:variant] || ct.variant
           })
         end
 

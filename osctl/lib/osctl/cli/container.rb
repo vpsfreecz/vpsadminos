@@ -30,6 +30,9 @@ module OsCtl::Cli
       group_path
       distribution
       version
+      arch
+      vendor
+      variant
       state
       init_pid
       cpu_package_inuse
@@ -59,6 +62,9 @@ module OsCtl::Cli
       group
       distribution
       version
+      arch
+      vendor
+      variant
       state
     ].freeze
 
@@ -582,14 +588,16 @@ module OsCtl::Cli
 
     def set_distribution
       set(:distribution) do |args|
-        if args.count < 2 || args.count > 3
-          raise GLI::BadCommandLine, 'expected <distribution> <version> [arch]'
+        if args.count < 2 || args.count > 5
+          raise GLI::BadCommandLine, 'expected <distribution> <version> [arch [vendor [variant]]]'
         end
 
         {
           name: args[0],
           version: args[1],
-          arch: args[2]
+          arch: args[2],
+          vendor: args[3],
+          variant: args[4]
         }
       end
     end

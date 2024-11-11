@@ -23,7 +23,7 @@ module OsCtld
     # @return [Container]
     attr_reader :ct
 
-    attr_inclusive_reader :dataset, :distribution, :version, :arch
+    attr_inclusive_reader :dataset, :distribution, :version, :arch, :vendor, :variant
     attr_synchronized_accessor :cpu_package, :init_pid,
                                :dist_network_configured
 
@@ -60,12 +60,14 @@ module OsCtld
     end
 
     # Set custom boot dataset
-    def boot_from(dataset, distribution, version, arch, destroy_dataset_on_stop: false)
+    def boot_from(dataset:, distribution:, version:, arch:, vendor:, variant:, destroy_dataset_on_stop: false)
       exclusively do
         @dataset = dataset
         @distribution = distribution
         @version = version
         @arch = arch
+        @vendor = vendor
+        @variant = variant
         @destroy_dataset_on_stop = destroy_dataset_on_stop
       end
     end
@@ -150,6 +152,8 @@ module OsCtld
         'distribution' => distribution,
         'version' => version,
         'arch' => arch,
+        'vendor' => vendor,
+        'variant' => variant,
         'cpu_package' => cpu_package,
         'destroy_dataset_on_stop' => destroy_dataset_on_stop?
       }
@@ -178,6 +182,8 @@ module OsCtld
       @distribution = cfg['distribution'] || ct.distribution
       @version = cfg['version'] || ct.version
       @arch = cfg['arch'] || ct.arch
+      @vendor = cfg['vendor'] || ct.vendor
+      @variant = cfg['variant'] || ct.variant
       @cpu_package = cfg['cpu_package']
       @destroy_dataset_on_stop =
         if cfg.has_key?('destroy_dataset_on_stop')

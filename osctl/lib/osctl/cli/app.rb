@@ -570,6 +570,15 @@ module OsCtl::Cli
           ls.desc 'Filter by distribution version, comma separated'
           ls.flag %i[v version], arg_name: 'version'
 
+          ls.desc 'Filter by distribution arch, comma separated'
+          ls.flag :arch, arg_name: 'arch'
+
+          ls.desc 'Filter by distribution vendor, comma separated'
+          ls.flag :vendor, arg_name: 'vendor'
+
+          ls.desc 'Filter by distribution variant, comma separated'
+          ls.flag :variant, arg_name: 'variant'
+
           ls.desc 'Filter by state, comma separated'
           ls.flag %i[S state], arg_name: 'state'
 
@@ -879,7 +888,7 @@ module OsCtl::Cli
           end
 
           set.desc 'Change distribution and version info'
-          set.arg_name '<ctid> <distribution> <version> [arch]'
+          set.arg_name '<ctid> <distribution> <version> [arch [vendor [variant]]]'
           set.command :distribution do |c|
             c.action(&Command.run(Container, :set_distribution))
           end
