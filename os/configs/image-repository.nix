@@ -85,7 +85,8 @@
         "18.04" = { tags = [ "oldoldlts" ]; };
         "20.04" = { tags = [ "oldlts" ]; };
         "22.04" = { tags = [ "oldlts" ]; };
-        "24.04" = { tags = [ "latest" "stable" "lts" ]; };
+        "24.04" = { tags = [ "stable" "lts" ]; };
+        "24.10" = { tags = [ "latest" ]; };
       };
 
       void = {
