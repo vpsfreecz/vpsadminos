@@ -53,6 +53,7 @@ let
       CFS_BANDWIDTH             = yes;
 
       SYSLOG_NS                 = yes;
+      MEMCG_V1                  = whenAtLeast "6.11" yes;
     };
 
     zfs = optionalAttrs (zfsBuiltin) {
