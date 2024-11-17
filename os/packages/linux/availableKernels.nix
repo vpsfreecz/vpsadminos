@@ -2,23 +2,23 @@
 with lib.kernel;
 let
   stableKernelVersion = "6.9.12-2";
-  unstableKernelVersion = "6.10.12";
+  unstableKernelVersion = "6.11.8";
 
   kernels = {
+    "6.11.8" = {
+      url = linuxGhUrl vpsfGh "c33f306a4e5f5af5fd5d9d04553267dde080e318";
+      sha256 = "sha256-GINnaldpNviEZ+R1Vt911TZzptZ6t4RuNIvYH4IXbF4=";
+      zfs = {
+        rev = "302d2a16d4ac1ff908dad11fb8a61411717da91a";
+        sha256 = "sha256-pOxvc7OyrdXiHivFNeD+dlamrrGz9FhEb3FzwmA+FkI=";
+      };
+    };
     "6.10.12" = {
       url = linuxGhUrl vpsfGh "fb63ad71c1e9811d576d5d89888ef0d371781c52";
       sha256 = "sha256-3Q6KCWBnG0P3LEqmQqvvgigcNO23bOoWIB9welrquUo=";
       zfs = {
         rev = "d41953021ca5d1dfd68e882a24e91b9be9f852c3";
         sha256 = "sha256-Ts0Z5UO7OfQQfpvg1H/VoQxIyF8NXpA8M7kIIzdt6DY=";
-      };
-    };
-    "6.10.11" = {
-      url = linuxGhUrl vpsfGh "d2926bd25028418b7c1f97287d6b53c03c7f4f2e";
-      sha256 = "sha256-Yb9gqj4Lad3o+lUMJFq/XfTXU6Grw/K2XqiGRhdT7cQ=";
-      zfs = {
-        rev = "76906127e558c6499fbf5421d44ea3587d359d58";
-        sha256 = "sha256-E8VWxGdMbCiIob5LPsNMZLbYLjznDCVmSfyvTPI1qtQ=";
       };
     };
     "6.10.10" = {
