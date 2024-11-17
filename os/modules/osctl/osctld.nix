@@ -62,6 +62,8 @@ in
     runit.services.osctld = {
       run = ''
         export PATH="${config.security.wrapperDir}:${pathJoined}"
+        export LANG=en_US.UTF-8
+        export LOCALE_ARCHIVE=/run/current-system/sw/lib/locale/locale-archive
 
         ${optionalString config.system.boot.restrict-proc-sysfs.enable ''
         waitForService restrict-proc-sysfs
