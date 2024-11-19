@@ -22,4 +22,3 @@ EOF
 configure-gentoo-end
 run-configure
 
-set-initcmd "/sbin/init" "systemd.unified_cgroup_hierarchy=0"
