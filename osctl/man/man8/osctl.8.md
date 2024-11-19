@@ -1039,6 +1039,10 @@ The following shortcuts are supported:
       Note that only static IP address and route configuration can be setup
       in this way. DHCP client is not run.
 
+`ct cat` *ctid* *file...*
+  Read *file* from container *ctid* and print its contents to the standard
+  output. The container needs to be running for this command to work.
+
 `ct wall` [*options*] [*ctid...*]
   Send message to users logged-in in all or the selected containers.
 

@@ -831,6 +831,12 @@ module OsCtl::Cli
           c.action(&Command.run(Container, :runscript))
         end
 
+        ct.desc 'Cat files from container'
+        ct.arg_name '<ctid> <file...>'
+        ct.command %i[cat] do |c|
+          c.action(&Command.run(Container, :cat))
+        end
+
         ct.desc 'Send message to users logged-in containers'
         ct.arg_name '[ctid...]'
         ct.command %i[wall] do |c|

@@ -64,6 +64,7 @@ in tests [
   "docker/ubuntu-20.04"
   "docker/ubuntu-22.04"
   "driver"
+  "osctl/ct-cat"
   "osctl/ct-exec-v1"
   "osctl/ct-exec-v2"
   "osctl/ct-mounts"

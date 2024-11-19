@@ -501,6 +501,33 @@ module OsCtl::Cli
       handle_exec_io(c)
     end
 
+    def cat
+      require_args!('id', 'file', strict: false)
+
+      c = osctld_open
+      cont = c.cmd_data!(
+        :ct_cat,
+        id: args[0],
+        pool: gopts[:pool],
+        files: args[1..]
+      )
+
+      if cont != 'continue'
+        warn "cat not available: invalid response '#{cont}'"
+        exit(false)
+      end
+
+      c.send_io($stdout)
+      resp = c.response!
+      return if resp[:errors].empty?
+
+      resp[:errors].each do |file, error|
+        warn "'#{file}': #{error}"
+      end
+
+      raise 'failed to read one or more files'
+    end
+
     def wall
       msg = opts[:message] || $stdin.read
 

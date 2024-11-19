@@ -14,11 +14,12 @@ module OsCtld
       # @option opts [Integer] :ns_pid
       # @option opts [String, nil] :chroot
       # @option opts [Boolean] :switch_to_system
+      # @option opts [IO, nil] :stdout
       # @option opts [Proc] :block
       def execute(opts)
         ct.mount
 
-        ret = fork_runner(
+        ret = fork_runner({
           args: [{
             ctrc: opts.fetch(:ctrc, ct.get_run_conf),
             ns_pid: opts[:ns_pid],
@@ -26,8 +27,9 @@ module OsCtld
             switch_to_system: opts.fetch(:switch_to_system, true),
             block: opts[:block]
           }],
-          switch_to_system: false
-        )
+          switch_to_system: false,
+          stdout: opts[:stdout]
+        }.compact)
         ret.ok? ? ret.data : ret
       end
     end
