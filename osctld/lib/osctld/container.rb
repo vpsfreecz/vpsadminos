@@ -533,6 +533,16 @@ module OsCtld
             @variant = v[:variant]
           end
 
+          if (rc = run_conf)
+            rc.set_distribution(
+              distribution:,
+              version:,
+              arch:,
+              vendor:,
+              variant:
+            )
+          end
+
         when :cpu_package
           self.cpu_package = v
 

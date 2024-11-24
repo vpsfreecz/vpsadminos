@@ -72,6 +72,18 @@ module OsCtld
       end
     end
 
+    # Update distribution info
+    def set_distribution(distribution:, version:, arch:, vendor:, variant:)
+      exclusively do
+        @distribution = distribution
+        @version = version
+        @arch = arch
+        @vendor = vendor
+        @variant = variant
+        save
+      end
+    end
+
     def destroy_dataset_on_stop?
       inclusively { @destroy_dataset_on_stop }
     end
