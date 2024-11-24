@@ -23,6 +23,6 @@ Gem::Specification.new do |s|
   s.required_ruby_version = ">= #{File.read('../.ruby-version').strip}"
 
   s.add_dependency 'filelock'
-  s.add_dependency 'gli', '~> 2.20.0'
+  s.add_dependency 'gli', '~> 2.22.0'
   s.add_dependency 'libosctl', s.version
 end

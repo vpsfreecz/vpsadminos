@@ -22,7 +22,7 @@ Gem::Specification.new do |s|
 
   s.required_ruby_version = ">= #{File.read('../.ruby-version').strip}"
 
-  s.add_dependency 'gli', '~> 2.20.0'
+  s.add_dependency 'gli', '~> 2.22.0'
   s.add_dependency 'ipaddress', '~> 0.8.3'
   s.add_dependency 'json'
   s.add_dependency 'libosctl', s.version
