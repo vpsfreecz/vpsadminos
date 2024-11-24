@@ -3,42 +3,47 @@ GEM
   specs:
     binman (5.1.0)
       opener (>= 0.1.0, < 1)
-    gli (2.20.1)
-    highline (2.0.3)
+    gli (2.22.0)
+    highline (3.1.1)
+      reline
+    io-console (0.7.2)
     ipaddress (0.8.3)
-    json (2.7.2)
+    json (2.8.2)
     md2man (5.1.2)
       binman (~> 5.0)
       redcarpet (~> 3.0)
       rouge (~> 3.0)
     opener (0.1.0)
     rake (13.2.1)
-    rake-compiler (1.2.7)
+    rake-compiler (1.2.8)
       rake
     redcarpet (3.6.0)
+    reline (0.5.11)
+      io-console (~> 0.5)
     rouge (3.30.0)
-    ruby-progressbar (1.11.0)
-    yard (0.9.36)
+    ruby-progressbar (1.13.0)
+    yard (0.9.37)
 
 GEM
   remote: https://rubygems.vpsfree.cz/
   specs:
-    osctl-env-exec (24.05.0.build20240605095131)
-      gli (~> 2.20.0)
-      highline (~> 2.0.3)
+    osctl-env-exec (24.05.0.build20241124114328)
+      gli (~> 2.22.0)
+      highline (~> 3.1.1)
       ipaddress (~> 0.8.3)
       json
       md2man
       rake
       rake-compiler
-      ruby-progressbar (~> 1.11.0)
+      ruby-progressbar (~> 1.13.0)
       yard
 
 PLATFORMS
+  ruby
   x86_64-linux
 
 DEPENDENCIES
-  osctl-env-exec (= 24.05.0.build20240605095131)!
+  osctl-env-exec (= 24.05.0.build20241124114328)!
 
 BUNDLED WITH
-   2.4.22
+   2.5.9
