@@ -26,6 +26,7 @@ Gem::Specification.new do |s|
   s.add_dependency 'osctl', s.version
   s.add_dependency 'osctl-exportfs', s.version
   s.add_dependency 'prometheus-client', '~> 4.2.3'
+  s.add_dependency 'puma'
+  s.add_dependency 'rack', '~> 3.1'
   s.add_dependency 'require_all', '~> 2.0.0'
-  s.add_dependency 'thin', '~> 1.8.1'
 end

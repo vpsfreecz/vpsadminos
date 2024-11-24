@@ -3,6 +3,13 @@ let
   inherit (lib) concatMapStringsSep concatStringsSep;
 
   cfg = config.services.prometheus.exporters.osctl;
+
+  pumaConfig = pkgs.writeText "puma.rb" ''
+    bind 'tcp://${cfg.listenAddress}:${toString cfg.port}'
+    rackup '${pkgs.osctl-exporter}/config.ru'
+    environment 'production'
+    tag 'osctl-exporter'
+   '';
 in {
   user = "root";
   group = "root";
@@ -10,12 +17,7 @@ in {
   serviceRun = ''
     export PATH="${pkgs.osctl-exporter}/env/bin:$PATH"
 
-    execExporter thin \
-      -a ${cfg.listenAddress} \
-      -p ${toString cfg.port} \
-      -R ${pkgs.osctl-exporter}/config.ru \
-      -e production \
-      ${concatStringsSep " \\\n  " cfg.extraFlags} \
-      start
+    execExporter puma -C ${pumaConfig} \
+      ${concatStringsSep " \\\n  " cfg.extraFlags}
   '';
 }

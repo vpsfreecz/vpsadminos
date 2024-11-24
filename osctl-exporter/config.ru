@@ -10,4 +10,6 @@ OsCtl::Exporter::Collector.start
 use Rack::Deflater
 use Prometheus::Middleware::Exporter, { registry: OsCtl::Exporter.registry }
 
-run ->(_) { [200, { 'Content-Type' => 'text/html' }, ['OK']] }
+run do
+  [200, { 'content-type' => 'text/html' }, ['OK']]
+end
