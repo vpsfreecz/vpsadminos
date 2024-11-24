@@ -158,17 +158,19 @@ module OsCtld
     end
 
     def dump
-      {
-        'id' => run_id.dump,
-        'dataset' => dataset.to_s,
-        'distribution' => distribution,
-        'version' => version,
-        'arch' => arch,
-        'vendor' => vendor,
-        'variant' => variant,
-        'cpu_package' => cpu_package,
-        'destroy_dataset_on_stop' => destroy_dataset_on_stop?
-      }
+      inclusively do
+        {
+          'id' => run_id.dump,
+          'dataset' => dataset.to_s,
+          'distribution' => distribution,
+          'version' => version,
+          'arch' => arch,
+          'vendor' => vendor,
+          'variant' => variant,
+          'cpu_package' => cpu_package,
+          'destroy_dataset_on_stop' => destroy_dataset_on_stop?
+        }
+      end
     end
 
     def load_conf(from_file: true)
