@@ -23,6 +23,7 @@
   ./security/wrappers.nix
   ./services/backup/znapzend.nix
   ./services/hardware/eudev.nix
+  ./services/hardware/irqbalance.nix
   ./services/livepatches/default.nix
   ./services/logging/logrotate.nix
   ./services/logging/rsyslog.nix
