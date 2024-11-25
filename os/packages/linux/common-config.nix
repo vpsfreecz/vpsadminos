@@ -490,6 +490,9 @@ let
       FTRACE                = yes;
       KPROBES               = yes;
       FUNCTION_TRACER       = yes;
+      IRQSOFF_TRACER        = whenAtLeast "6.11.10" yes;
+      PREEMPT_TRACER        = whenAtLeast "6.11.10" yes;
+      HWLAT_TRACER          = whenAtLeast "6.11.10" yes;
       FTRACE_SYSCALLS       = yes;
       SCHED_TRACER          = yes;
       STACK_TRACER          = yes;
