@@ -70,7 +70,7 @@ ln -s @modules@/lib/modules /lib/modules
 
 echo @extraUtils@/bin/modprobe > /proc/sys/kernel/modprobe
 for x in @modprobeList@; do
-  modprobe $x
+  modprobe -b $x
 done
 
 root=/root.squashfs
