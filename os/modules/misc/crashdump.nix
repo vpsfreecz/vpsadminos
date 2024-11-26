@@ -45,11 +45,11 @@ in
             parameters that will be passed to the kernel kexec-ed on crash.
           '';
         };
-        execAfterDump = mkOption {
-          type = types.str;
+        commands = mkOption {
+          type = types.lines;
           default = "";
           description = ''
-            shell commands to be executed after makedumpfile outputs /dmesg
+            Shell commands to be executed within stage-1 while in crashdump
           '';
         };
         consoleSerial = {
@@ -105,11 +105,8 @@ in
         '';
         preLVMCommands = ''
           if grep this_is_a_crash_kernel /proc/cmdline; then
-            echo This is a crash kernel;
-            echo ${makedumpfile.src.rev}
-            makedumpfile -D --dump-dmesg /proc/vmcore /dmesg
-            ls -lah /dmesg
-            ${cfg.execAfterDump}
+            echo "This is a crash kernel"
+            ${cfg.commands}
             exit 1
           fi
         '';
