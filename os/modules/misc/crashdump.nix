@@ -1,14 +1,20 @@
 { config, lib, pkgs, ... }:
 let
-  inherit (lib) concatStringsSep filter hasPrefix mkIf mkOption optional optionalString types;
+  inherit (lib) any concatStringsSep filter hasPrefix mkIf mkOption optional optionalString types;
 
   cfg = config.boot.crashDump;
 
-  kernelParams = concatStringsSep " " cfg.kernelParams;
-
   makedumpfile = pkgs.callPackage (import ../../packages/makedumpfile/default.nix) {};
 
-  filteredParams = filter (param: !(hasPrefix "crashkernel=" param)) config.boot.kernelParams;
+  kernelParams = concatStringsSep " " cfg.kernelParams;
+
+  # Ensure that root= is present, as without this the kernel refuses to boot
+  # for some reason
+  filteredParams =
+    let
+      filtered = filter (param: !(hasPrefix "crashkernel=" param)) config.boot.kernelParams;
+      hasRoot = any (param: hasPrefix "root=" param) filtered;
+    in if hasRoot then filtered else filtered ++ [ "root=none" ];
 
 in {
   options = {
@@ -118,7 +124,7 @@ in {
         --console-serial \
         --serial=${cfg.consoleSerial.port} --serial-baud=${toString cfg.consoleSerial.baudRate} \
       '' + ''
-        --command-line="${concatStringsSep " " filteredParams} init=$(readlink -f /run/current-system/init) root=nothing reset_devices irqpoll maxcpus=1 modprobe.blacklist=zfs,spl this_is_a_crash_kernel ${kernelParams}"
+        --command-line="${concatStringsSep " " filteredParams} init=$(readlink -f /run/current-system/init) reset_devices irqpoll maxcpus=1 modprobe.blacklist=zfs,spl this_is_a_crash_kernel ${kernelParams}"
       '';
       kernelParams = [
        "crashkernel=${cfg.reservedMemory}"
