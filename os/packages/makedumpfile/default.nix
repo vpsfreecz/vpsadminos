@@ -4,8 +4,8 @@ pkgs.stdenv.mkDerivation rec {
   src = fetchFromGitHub {
     owner = "makedumpfile";
     repo = "makedumpfile";
-    rev = "09b5c879b9f787c52f1963555d8d46127c457f2a";
-    sha256 = "sha256-RJ1Rcfp5d1fYt45cJ4/fR9PxnaakoNEkESPrJFKOHSY=";
+    rev = "97a89484e2c960dd64933e1cea7a7248138f8a76";
+    sha256 = "sha256-k9L7+OxY0wR6hByBjTkE7wj/Ow4IMH3OfhAuehW9q04=";
   };
   postPatch = ''
   '';
