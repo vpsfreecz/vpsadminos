@@ -78,7 +78,7 @@ let
       mode = cfg.network.mode;
       opts = {
         user = { inherit (cfg.network.user) network host dns hostForward; };
-        bridge = { link = cfg.network.bridge.link; };
+        bridge = { inherit (cfg.network.bridge) link mac; };
       }.${cfg.network.mode} or {};
     };
   };
@@ -201,11 +201,19 @@ in {
           };
         };
 
-        bridge.link = mkOption {
-          type = types.str;
-          description = ''
-            Name of the bridge interface on the host to use
-          '';
+        bridge = {
+          link = mkOption {
+            type = types.str;
+            description = ''
+              Name of the bridge interface on the host to use
+            '';
+          };
+
+          mac = mkOption {
+            type = types.nullOr types.str;
+            default = null;
+            description = "MAC address, generated randomly by default";
+          };
         };
       };
 

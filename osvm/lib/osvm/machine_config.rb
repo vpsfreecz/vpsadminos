@@ -98,7 +98,7 @@ module OsVm
       def initialize(cfg)
         super
         @link = @opts.fetch(:link)
-        @mac = gen_mac_address
+        @mac = @opts[:mac] || gen_mac_address
       end
 
       def qemu_options
