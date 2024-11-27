@@ -124,7 +124,7 @@ in {
         --console-serial \
         --serial=${cfg.consoleSerial.port} --serial-baud=${toString cfg.consoleSerial.baudRate} \
       '' + ''
-        --command-line="${concatStringsSep " " filteredParams} init=$(readlink -f /run/current-system/init) reset_devices irqpoll maxcpus=1 modprobe.blacklist=zfs,spl this_is_a_crash_kernel ${kernelParams}"
+        --command-line="${concatStringsSep " " filteredParams} init=$(readlink -f /run/current-system/init) reset_devices irqpoll modprobe.blacklist=zfs,spl this_is_a_crash_kernel ${kernelParams}"
       '';
       kernelParams = [
        "crashkernel=${cfg.reservedMemory}"
