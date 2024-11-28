@@ -13,6 +13,7 @@ pkgs.stdenv.mkDerivation rec {
     bzip2
     zlib
     lzma
+    gcc
     gnumake
     elfutils
   ];
