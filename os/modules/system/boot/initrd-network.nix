@@ -71,6 +71,16 @@ in
       '';
     };
 
+    boot.initrd.network.enableSetupInCrashDump = mkOption {
+      type = types.bool;
+      default = true;
+      description = ''
+        Enable ipconfig/DHCP also within crashdump system, see {option}`boot.crashDump.enable`.
+        When disabled, you can use {}`boot.initrd.network.customSetupCommands` to run your
+        own commands.
+      '';
+    };
+
     boot.initrd.network.flushBeforeStage2 = mkOption {
       type = types.bool;
       default = true;
@@ -131,28 +141,35 @@ in
       # Search for interface definitions in command line.
       ''
         ifaces=""
-        for o in $(cat /proc/cmdline); do
-          case $o in
-            ip=*)
-              ipconfig $o && ifaces="$ifaces $(echo $o | cut -d: -f6)"
-              ;;
-          esac
-        done
+
+        if ${if cfg.enableSetupInCrashDump then "true" else "! grep -q this_is_a_crash_kernel /proc/cmdline"}; then
+          for o in $(cat /proc/cmdline); do
+            case $o in
+              ip=*)
+                ipconfig $o && ifaces="$ifaces $(echo $o | cut -d: -f6)"
+                ;;
+            esac
+          done
+        fi
       ''
 
       # Otherwise, use DHCP.
       + optionalString doDhcp ''
-        sleep 3
-        # Bring up all interfaces.
-        for iface in ${dhcpIfShellExpr}; do
-          echo "bringing up network interface $iface..."
-          ip link set "$iface" up && ifaces="$ifaces $iface"
-        done
-        # Acquire DHCP leases.
-        for iface in ${dhcpIfShellExpr}; do
-          echo "acquiring IP address via DHCP on $iface..."
-          udhcpc --quit --now -i $iface -t 5 -O staticroutes --script ${udhcpcScript} ${udhcpcArgs}
-        done
+        if ${if cfg.enableSetupInCrashDump then "true" else "! grep -q this_is_a_crash_kernel /proc/cmdline"}; then
+          sleep 3
+          # Bring up all interfaces.
+          for iface in ${dhcpIfShellExpr}; do
+            echo "bringing up network interface $iface..."
+            ip link set "$iface" up && ifaces="$ifaces $iface"
+          done
+          # Acquire DHCP leases.
+          for iface in ${dhcpIfShellExpr}; do
+            echo "acquiring IP address via DHCP on $iface..."
+            udhcpc --quit --now -i $iface -t 5 -O staticroutes --script ${udhcpcScript} ${udhcpcArgs}
+          done
+        else
+          echo "Skipping DHCP in crash kernel"
+        fi
       ''
 
       + optionalString cfg.setClock ''
