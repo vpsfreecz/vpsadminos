@@ -47,7 +47,11 @@ echo
 
 export LD_LIBRARY_PATH=@extraUtils@/lib
 export PATH=@extraUtils@/bin/
-mkdir -p /proc /sys /dev /etc/udev /tmp /run/ /lib/ /mnt/ /var/log /bin
+ln -s @extraUtils@/bin /bin
+# hardcoded in util-linux's mount helper search path `/run/wrappers/bin:/run/current-system/sw/bin:/sbin`
+ln -s @extraUtils@/bin /sbin
+
+mkdir -p /proc /sys /dev /etc/udev /tmp /run/ /lib/ /mnt/ /var/log
 
 mount -t devtmpfs devtmpfs /dev/
 mkdir /dev/pts
@@ -64,8 +68,6 @@ if [ -d "@extraUtils@/secrets" ]; then
     done
 fi
 
-ln -sv @shell@ /bin/sh
-ln -sv @shell@ /bin/ash
 ln -s @modules@/lib/modules /lib/modules
 
 echo @extraUtils@/bin/modprobe > /proc/sys/kernel/modprobe
