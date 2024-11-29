@@ -117,6 +117,16 @@ in
       '';
     };
 
+    boot.initrd.network.customSetupCommands = mkOption {
+      default = "";
+      type = types.lines;
+      description = ''
+        Shell commands to be executed after stage 1 of the
+        boot has initialised the network using DHCP, but before clock is set
+        and {option}`boot.initrd.network.postCommands` are run.
+      '';
+    };
+
     boot.initrd.network.postCommands = mkOption {
       default = "";
       type = types.lines;
@@ -171,6 +181,8 @@ in
           echo "Skipping DHCP in crash kernel"
         fi
       ''
+
+      + cfg.customSetupCommands
 
       + optionalString cfg.setClock ''
         ntpd -q ${concatMapStringsSep " " (v: "-p ${v}") config.networking.timeServers}
