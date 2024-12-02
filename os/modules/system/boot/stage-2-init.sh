@@ -25,7 +25,10 @@ ln -sfn /run /var/run
 ln -sf /proc/mounts /etc/mtab
 
 touch /run/{u,w}tmp
-mkdir /run/wrappers /run/lock
+mkdir /run/lock
+
+mkdir @parentWrapperDir@
+mount -t tmpfs -o nodev,mode=755,size=@wrapperDirSize@ tmpfs @parentWrapperDir@
 
 chmod a+rxw /dev/kmsg
 chmod a+rxw /proc/kmsg

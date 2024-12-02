@@ -46,6 +46,8 @@ in
       inherit (config.networking) hostName;
       inherit (config.boot) procHidePid readOnlyNixStore;
       inherit postBootCommands;
+      parentWrapperDir = dirOf config.security.wrapperDir;
+      wrapperDirSize = config.security.wrapperDirSize;
     };
 
     boot.readOnlyNixStore = mkIf (!config.boot.isLiveSystem) (mkDefault true);
