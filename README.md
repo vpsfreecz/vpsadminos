@@ -45,7 +45,7 @@ vpsAdminOS is developed on top of the latest NixOS release, so make sure that
 the correct version of nixpkgs is in `NIX_PATH`, or set it as follows:
 
 ```bash
-git clone https://github.com/NixOS/nixpkgs --branch nixos-24.05
+git clone https://github.com/NixOS/nixpkgs --branch nixos-24.11
 export NIX_PATH=`pwd`
 ```
 
