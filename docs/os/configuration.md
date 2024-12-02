@@ -1,9 +1,8 @@
 # Configuration
 
 vpsAdminOS uses Nix configuration language. It reuses a number of NixOS modules
-for system configuration and also adds some of its own. The full list of
-supported options can be found in the
-[OS reference documentation](https://ref.vpsadminos.org/os/options.html).
+for system configuration and also adds some of its own. Explore `os/modules/`
+to see its capabilities.
 
 Default and example configs are included in `os/configs/` directory.
 
