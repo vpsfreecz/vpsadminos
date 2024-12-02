@@ -38,6 +38,7 @@ with lib;
 
     systemd = {
       globalEnvironment = mkOption { type = types.unspecified; };
+      mounts = mkOption { type = types.unspecified; };
       package = mkOption { type = types.unspecified; default = "/not-on-vpsadminos"; };
       packages = mkOption { type = types.unspecified; };
       services = mkOption {

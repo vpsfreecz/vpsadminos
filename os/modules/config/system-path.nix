@@ -5,12 +5,12 @@
 with lib;
 
 let
-  zfstools_ovl = pkgs.callPackage <nixpkgs/pkgs/tools/filesystems/zfstools/default.nix> { zfs = config.boot.zfsUserPackage; };
+  zfstools_ovl = pkgs.callPackage <nixpkgs/pkgs/by-name/zf/zfstools/package.nix> { zfs = config.boot.zfsUserPackage; };
   requiredPackages = with pkgs; [
     zfstools_ovl
     util-linux
     coreutils
-    iproute
+    iproute2
     iputils
     iptables
     mingetty

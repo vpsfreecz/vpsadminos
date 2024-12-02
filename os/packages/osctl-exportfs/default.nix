@@ -1,4 +1,4 @@
-{ bash, bundlerApp, coreutils, iproute, lib, makeWrapper, nfs-utils, nix,
+{ bash, bundlerApp, coreutils, iproute2, lib, makeWrapper, nfs-utils, nix,
   runCommand, rpcbind, runit, util-linux }:
 let
   app = bundlerApp {
@@ -18,7 +18,7 @@ let
   runtimeDeps = [
     bash
     coreutils
-    iproute
+    iproute2
     nfs-utils
     nix
     rpcbind

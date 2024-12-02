@@ -6,7 +6,7 @@ let
   path = with pkgs; [
     apparmor-parser
     coreutils
-    iproute
+    iproute2
     getent
     glibc.bin
     gzip
@@ -18,7 +18,7 @@ let
     shadow
     util-linux
     devcgprog
-    bpftool
+    bpftools
   ];
 
   pathJoined = lib.concatMapStringsSep ":" (s: "${s}/bin") path;

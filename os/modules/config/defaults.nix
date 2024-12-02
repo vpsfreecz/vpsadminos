@@ -53,7 +53,7 @@
 
   environment.systemPackages = with pkgs; [
     acl
-    bpftool
+    bpftools
     conntrack-tools
     glibc
     iotop
@@ -150,5 +150,8 @@
 
   programs.ssh.package = pkgs.openssh;
   programs.htop.enable = true;
-  programs.vim.defaultEditor = true;
+  programs.vim = {
+    enable = true;
+    defaultEditor = true;
+  };
 }
