@@ -1,33 +1,34 @@
 diff --git a/src/runit.c b/src/runit.c
-index 48620b3..03fa227 100644
+index 70d1cfa..4a1ecaa 100644
 --- a/src/runit.c
 +++ b/src/runit.c
-@@ -304,9 +304,15 @@ int main (int argc, const char * const *argv, char * const *envp) {
+@@ -309,9 +309,15 @@ int main (int argc, const char * const *argv, char * const *envp) {
    case  0:
    case -1:
    if ((stat(REBOOT, &s) != -1) && (s.st_mode & S_IXUSR)) {
 -    strerr_warn2(INFO, "system reboot.", 0);
--    sync();
+-    sync_if_needed();
 -    reboot_system(RB_AUTOBOOT);
 +    if ((stat(KEXEC, &s) != -1) && (s.st_mode & S_IXUSR)) {
-+        strerr_warn2(INFO, "system kexec.", 0);
-+        sync();
-+        reboot_system(RB_KEXEC);
++      strerr_warn2(INFO, "system kexec.", 0);
++      sync_if_needed();
++      reboot_system(RB_KEXEC);
 +    } else {
-+        strerr_warn2(INFO, "system reboot.", 0);
-+        sync();
-+        reboot_system(RB_AUTOBOOT);
++      strerr_warn2(INFO, "system reboot.", 0);
++      sync_if_needed();
++      reboot_system(RB_AUTOBOOT);
 +    }
    }
    else {
  #ifdef RB_POWER_OFF
 diff --git a/src/runit.h b/src/runit.h
-index ba98386..0904ed4 100644
+index 3d52001..7368d27 100644
 --- a/src/runit.h
 +++ b/src/runit.h
-@@ -1,4 +1,5 @@
+@@ -1,5 +1,6 @@
  #define RUNIT "/sbin/runit"
  #define STOPIT "/etc/runit/stopit"
  #define REBOOT "/etc/runit/reboot"
 +#define KEXEC "/etc/runit/kexec"
+ #define NOSYNC "/etc/runit/nosync"
  #define CTRLALTDEL "/etc/runit/ctrlaltdel"
