@@ -88,10 +88,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "08rgs2njs86mqp5jpsg5ks7qp5rmbv8b10xb4scn4vjf2ifxa45z";
+      sha256 = "0a43v4x8xzzm6xskw61c2ni1clpic70hmby4hzpifsabnqy3yzq1";
       type = "gem";
     };
-    version = "24.05.0.build20241124114328";
+    version = "24.11.0.build20241202165851";
   };
   rake = {
     groups = ["default"];
@@ -130,10 +130,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.org"];
-      sha256 = "0rfblw8mnk8bwzcpqpan9vpblw4b4pxgdxw206kszjnrpx6mz3c6";
+      sha256 = "18jml0hcrk4g70j0wdi90l9m2psqp69jmf7qk6g1daiazp9kdas1";
       type = "gem";
     };
-    version = "0.5.11";
+    version = "0.5.12";
   };
   rouge = {
     groups = ["default"];
