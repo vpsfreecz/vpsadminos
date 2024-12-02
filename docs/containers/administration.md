@@ -211,19 +211,6 @@ scroll through the list of containers, paging position is shown in the bottom
 right corner. Containers can be filtered by ID using `/` key. Press `?` to show
 all key bindings.
 
-## Process monitor
-*htop* in vpsAdminOS is patched to be able to identify to which containers
-processes belong. It has four extra columns: `POOL`, `CTID`, `NSPID` and `NSUID`.
-For container processes, `NSPID` shows the process ID and `NSUID` the process
-user ID as it is seen inside the container, i.e. its user namespace.
-
-![htop](../img/htop.png)
-
-Our *htop* can filter processes by container ID. You can use CLI option
-`-c`, `--container` to select which container to filter at start, e.g.:
-`htop -c tank:10796`. Filters can also be changed at runtime, press `n`
-and select a container, the host, or all processes.
-
 ## Log file
 You don't need to remember the path to a container's log file, because *osctl*
 can either dump it for you or just print the path:
