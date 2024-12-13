@@ -24,7 +24,8 @@
       arch.rolling = { name = "arch"; tags = [ "latest" "stable" ]; };
 
       centos = {
-        "9-stream" = { tags = [ "latest-9-stream" "latest-stream" ]; };
+        "9-stream" = { tags = [ "latest-9-stream" ]; };
+        "10-stream" = { tags = [ "latest-10-stream" "latest-stream" ]; };
       };
 
       chimera.rolling = { name = "chimera"; tags = [ "latest" "stable" ]; };
