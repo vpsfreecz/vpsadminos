@@ -12,10 +12,10 @@ pkgs.stdenv.mkDerivation rec {
   buildInputs = with pkgs; [
     bzip2
     zlib
-    lzma
     gcc
     gnumake
     elfutils
+    xz
   ];
   buildPhase = ''
     make LINKTYPE=dynamic -j$NIX_BUILD_CORES
