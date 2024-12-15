@@ -99,6 +99,17 @@ in
       '';
     };
 
+    boot.initrd.network.preferredDHCPInterfaceMacAddresses = mkOption {
+      type = types.listOf types.str;
+      default = [];
+      description = ''
+        List of network interface MAC addresses that should be tried for DHCP first.
+        Use this to run DHCP on specific interfaces first and skip network interfaces
+        wouldn't work. If no interface from this is list found or don't work,
+        all network interfaces within the system will be tried.
+      '';
+    };
+
     boot.initrd.network.udhcpc.extraArgs = mkOption {
       default = [];
       type = types.listOf types.str;
@@ -167,21 +178,50 @@ in
       + optionalString doDhcp ''
         if ${if cfg.enableSetupInCrashDump then "true" else "! grep -q this_is_a_crash_kernel /proc/cmdline"}; then
           sleep 3
-          # Bring up all interfaces.
-          for iface in ${dhcpIfShellExpr}; do
-            echo "bringing up network interface $iface..."
-            ip link set "$iface" up && ifaces="$ifaces $iface"
-          done
-          # Acquire DHCP leases.
-          for iface in ${dhcpIfShellExpr}; do
-            echo "acquiring IP address via DHCP on $iface..."
+
+          runUdhcpc() {
+            local iface="$1"
+
+            echo "Acquiring IP address via DHCP on $iface..."
             udhcpc --quit --now -i $iface -t 5 -O staticroutes --script ${udhcpcScript} ${udhcpcArgs}
 
             if ip route | grep -q "^default"; then
               echo "Default route exists, DHCP successful on $iface"
-              break
+              return 0
+            fi
+
+            return 1
+          }
+
+          # Bring up all interfaces
+          for iface in ${dhcpIfShellExpr}; do
+            echo "Bringing up network interface $iface..."
+            ip link set "$iface" up && ifaces="$ifaces $iface"
+          done
+
+          touch /.tried-dhcp-interfaces
+
+          ${optionalString (cfg.preferredDHCPInterfaceMacAddresses != []) ''
+          # Try preferred interfaces
+          for mac in ${concatStringsSep " " cfg.preferredDHCPInterfaceMacAddresses}; do
+            iface=$(ip -o link | grep "$mac" | awk -F': ' '{print $2}')
+
+            if [ -n "$iface" ]; then
+              echo "$iface" >> /.tried-dhcp-interfaces
+              runUdhcpc "$iface" && break
+            else
+              echo "Preferred interface with $mac not found"
             fi
           done
+          ''}
+
+          # Acquire DHCP leases
+          if ! ip route | grep -q "^default"; then
+            for iface in ${dhcpIfShellExpr}; do
+              grep -q -x "$iface" /.tried-dhcp-interfaces && continue
+              runUdhcpc "$iface" && break
+            done
+          fi
         else
           echo "Skipping DHCP in crash kernel"
         fi
