@@ -176,6 +176,11 @@ in
           for iface in ${dhcpIfShellExpr}; do
             echo "acquiring IP address via DHCP on $iface..."
             udhcpc --quit --now -i $iface -t 5 -O staticroutes --script ${udhcpcScript} ${udhcpcArgs}
+
+            if ip route | grep -q "^default"; then
+              echo "Default route exists, DHCP successful on $iface"
+              break
+            fi
           done
         else
           echo "Skipping DHCP in crash kernel"
