@@ -15,7 +15,7 @@ let
       cfg.useDHCP;
 
   dhcpIfShellExpr = if config.networking.useDHCP || cfg.useDHCP
-                      then "$(ls /sys/class/net/ | grep -v ^lo$)"
+                      then "$(ls /sys/class/net/ | grep -v ^lo$ | grep -v ^ip6tnl)"
                       else lib.concatMapStringsSep " " lib.escapeShellArg dhcpInterfaces;
 
   udhcpcScript = pkgs.writeScript "udhcp-script"
