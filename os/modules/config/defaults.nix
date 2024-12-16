@@ -44,8 +44,8 @@
 
   time.timeZone = lib.mkDefault "Europe/Amsterdam";
 
-  boot.supportedFilesystems = { nfs = true; };
-  boot.initrd.supportedFilesystems = { zfs = true; };
+  boot.supportedFilesystems = { nfs = true; zfs = true; };
+  boot.initrd.supportedFilesystems = { zfs = lib.mkDefault (!config.boot.isLiveSystem); };
   boot.zfs.moduleParams.spl = {
     "spl_taskq_thread_dynamic" = lib.mkDefault 0;
     "spl_taskq_thread_priority" = lib.mkDefault 0;
