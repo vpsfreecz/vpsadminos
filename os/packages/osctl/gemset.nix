@@ -35,10 +35,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.org"];
-      sha256 = "08d2lx42pa8jjav0lcjbzfzmw61b8imxr9041pva8xzqabrczp7h";
+      sha256 = "18pgvl7lfjpichdfh1g50rpz0zpaqrpr52ybn9liv1v9pjn9ysnd";
       type = "gem";
     };
-    version = "0.7.2";
+    version = "0.8.0";
   };
   ipaddress = {
     groups = ["default"];
@@ -55,10 +55,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.org"];
-      sha256 = "1kw68hs5jfii7p4pkhsd9nxzsmc9xmb6x8vfp1rczbhxr34sckyx";
+      sha256 = "1kvbzh8530pp3qf63zvx9hnb708x7plv9wfn5ibns3h3knnvs3kw";
       type = "gem";
     };
-    version = "2.8.2";
+    version = "2.9.0";
   };
   libosctl = {
     dependencies = ["rainbow" "require_all"];
@@ -66,10 +66,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1w8g1fdanlmkvap98br1z0cka827w8qh47b548icyb1fvqrvpgg2";
+      sha256 = "0jrv4fc8id89k03a6gwv594fdpb3whz0xajg51c4mx7x7rayqvms";
       type = "gem";
     };
-    version = "24.11.0.build20241202165851";
+    version = "24.11.0.build20241217185649";
   };
   osctl = {
     dependencies = ["curses" "gli" "highline" "ipaddress" "json" "libosctl" "rainbow" "require_all" "ruby-progressbar" "tty-spinner"];
@@ -77,10 +77,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1q98i5hzn85icybbf702nm52gxhl165pdxsy04jfc8mbs9p5ixx4";
+      sha256 = "02njsy7i23qm3ax4xmyiz6kxjz6prhfsr2jlcz9q2rn9m3qf23ak";
       type = "gem";
     };
-    version = "24.11.0.build20241202165851";
+    version = "24.11.0.build20241217185649";
   };
   rainbow = {
     groups = ["default"];
@@ -98,10 +98,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.org"];
-      sha256 = "18jml0hcrk4g70j0wdi90l9m2psqp69jmf7qk6g1daiazp9kdas1";
+      sha256 = "1lirwlw59apc8m1wjk85y2xidiv0fkxjn6f7p84yqmmyvish6qjp";
       type = "gem";
     };
-    version = "0.5.12";
+    version = "0.6.0";
   };
   require_all = {
     groups = ["default"];
