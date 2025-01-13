@@ -169,9 +169,9 @@ module OsCtl::Lib
       ret = TransactionGroupList.new
 
       File.open(txgs_path) do |f|
-        it = f.each_line
-        it.next # skip the header
-        it.each do |line|
+        item = f.each_line
+        item.next # skip the header
+        item.each do |line|
           values = line.strip.split
 
           birth_ns = values[1].to_i

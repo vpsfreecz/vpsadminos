@@ -153,7 +153,7 @@ module OsCtl::Image
           raise "exec not available: invalid response '#{cont}'"
         end
 
-        null = File.open('/dev/null', 'r')
+        null = File.open(File::NULL, 'r')
 
         client.send_io(null)
         client.send_io($stdout)
@@ -186,7 +186,7 @@ module OsCtl::Image
           raise "runscript not available: invalid response '#{cont}'"
         end
 
-        null = File.open('/dev/null', 'r')
+        null = File.open(File::NULL, 'r')
 
         client.send_io(null)
         client.send_io($stdout)

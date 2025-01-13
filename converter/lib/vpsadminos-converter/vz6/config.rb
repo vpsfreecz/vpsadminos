@@ -45,8 +45,8 @@ module VpsAdminOS::Converter
           next
 
         when /^([A-Z_]+)="([^"]+)"/, /^([A-Z_]+)=([^\s]+)/
-          it = Vz6::ConfigItem.new(ctid, ::Regexp.last_match(1), ::Regexp.last_match(2))
-          @items[it.key] = it
+          item = Vz6::ConfigItem.new(ctid, ::Regexp.last_match(1), ::Regexp.last_match(2))
+          @items[item.key] = item
 
         else
           warn "Unknown line '#{line}'"

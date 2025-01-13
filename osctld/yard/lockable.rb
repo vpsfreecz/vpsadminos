@@ -5,7 +5,7 @@ class SynchronizedAttributeHandler < YARD::Handlers::Ruby::AttributeHandler
   namespace_only
 
   process do
-    return if statement.type == :var_ref || statement.type == :vcall
+    return if %i[var_ref vcall].include?(statement.type)
 
     read = true
     write = false

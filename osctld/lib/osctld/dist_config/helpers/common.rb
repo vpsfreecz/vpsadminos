@@ -23,7 +23,7 @@ module OsCtld
     rescue Errno::ENOENT, Errno::EINVAL
       false
     else
-      dst == '/dev/null'
+      dst == File::NULL
     end
 
     # @param service [String]

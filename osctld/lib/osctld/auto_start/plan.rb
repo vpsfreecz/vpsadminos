@@ -149,12 +149,10 @@ module OsCtld
           prestart_delay(cur_ct)
           log(:info, ct, 'Starting enqueued container')
           Commands::Container::Start.run(
-            **start_opts.merge(
-              pool: cur_ct.pool.name,
-              id: cur_ct.id,
-              queue: false,
-              internal: { handler: client_handler }
-            )
+            **start_opts, pool: cur_ct.pool.name,
+                          id: cur_ct.id,
+                          queue: false,
+                          internal: { handler: client_handler }
           )
         end,
         timeout: start_opts ? (start_opts[:wait] || Container::DEFAULT_START_TIMEOUT) : nil
@@ -215,11 +213,9 @@ module OsCtld
       attempts.times do |i|
         break if stop?
 
-        ret = Commands::Container::Start.run(**start_opts.merge(
-          pool: ct.pool.name,
-          id: ct.id,
-          wait: 'infinity'
-        ))
+        ret = Commands::Container::Start.run(**start_opts, pool: ct.pool.name,
+                                                           id: ct.id,
+                                                           wait: 'infinity')
 
         if ret[:status]
           state.set_started(ct)
