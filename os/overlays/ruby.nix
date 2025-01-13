@@ -16,7 +16,7 @@ in
 
   defaultGemConfig =
     super.callPackage (
-      { lib, apparmor-parser, ncurses, openssl, zlib }:
+      { lib, apparmor-parser, libffi, ncurses, openssl, zlib }:
 
       lib.mergeAttrs super.defaultGemConfig {
         curses = attrs: {
@@ -25,6 +25,10 @@ in
             "--with-cflags=-I${ncurses.dev}/include"
             "--with-ldflags=-L${ncurses.out}/lib"
           ];
+        };
+
+        fiddle = attrs: {
+          buildInputs = [ libffi ];
         };
 
         osctld = attrs: {

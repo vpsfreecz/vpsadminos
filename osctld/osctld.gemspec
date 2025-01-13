@@ -23,8 +23,10 @@ Gem::Specification.new do |s|
 
   s.required_ruby_version = ">= #{File.read('../.ruby-version').strip}"
 
+  s.add_dependency 'base64'
   s.add_dependency 'bindata', '~> 2.5.0'
   s.add_dependency 'concurrent-ruby', '~> 1.3.4'
+  s.add_dependency 'fiddle'
   s.add_dependency 'ipaddress', '~> 0.8.3'
   s.add_dependency 'json'
   s.add_dependency 'libosctl', s.version

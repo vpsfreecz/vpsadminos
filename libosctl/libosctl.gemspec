@@ -21,6 +21,9 @@ Gem::Specification.new do |s|
 
   s.required_ruby_version = ">= #{File.read('../.ruby-version').strip}"
 
+  s.add_dependency 'fiddle'
+  s.add_dependency 'logger'
   s.add_dependency 'rainbow', '~> 3.1.1'
   s.add_dependency 'require_all', '~> 2.0.0'
+  s.add_dependency 'syslog'
 end

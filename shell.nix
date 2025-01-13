@@ -14,6 +14,7 @@ in stdenv.mkDerivation rec {
     bundix
     git
     gnumake
+    libffi
     lxc
     mkdocs
     ncurses
