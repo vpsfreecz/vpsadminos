@@ -9,13 +9,13 @@
 with lib;
 stdenv.mkDerivation rec {
   pname = "lxc";
-  version = "6.0.2";
+  version = "6.0.3";
 
   src = fetchFromGitHub {
     owner = "vpsfreecz";
     repo = "lxc";
-    rev = "44deb5de79ef2ec6dfcaa480eba4077b646de74b";
-    sha256 = "sha256-pMDLDdkbKcMxkEr5ULnxfLXeDKDfA8T/DK1DRrSxWYo=";
+    rev = "7d3344385eff1a277915a38e61882eb913cb0323";
+    sha256 = "sha256-kFegHxG62Ytp+48pGuxxDrk8bSc+1VdyEqltQexGMu8=";
   };
 
   nativeBuildInputs = [
