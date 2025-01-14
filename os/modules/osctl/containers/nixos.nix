@@ -131,6 +131,7 @@ let
 
         ln -sf /run/current-system "$rootfs/nix/var/nix/gcroots/current-system"
 
+        ${optionalString (!cfg.shareStore) ''
         if [ "$currentState" == "running" ] ; then
           PATH="${sshOverride}/bin:$PATH" \
             nix copy \
@@ -166,6 +167,7 @@ let
             i=$(($i+1))
           done
         fi
+        ''}
 
         echo "Installing user script hooks"
         lines=( $(zfs get -Hp -o value mountpoint,org.vpsadminos.osctl:dataset ${pool}) )
@@ -184,8 +186,12 @@ let
 
         if [ "$?" != "0" ] || [ "$currentSystem" != "${toplevel}" ] ; then
           echo "Configuring current system"
+
+          ${optionalString (!cfg.shareStore) ''
           [ "$registerPaths" == "y" ] && \
             cat ${closureInfo}/registration >> "$rootfs/nix/nix-path-registration"
+          ''}
+
           nix-env -p "$rootfs/nix/var/nix/profiles/system" --set ${toplevel}
           ln -sf ${toplevel}/init "$rootfs/sbin/init"
 

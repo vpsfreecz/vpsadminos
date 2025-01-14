@@ -27,10 +27,12 @@ let
   };
 
   backendFor = cfg:
-    if cfg.distribution == null && cfg.image.path == null then
+    if isNixos cfg then
       backends.nixos
     else
       backends.image;
+
+  isNixos = cfg: cfg.distribution == null && cfg.image.path == null;
 
   mkService = pool: name: cfg: (
     let
@@ -384,7 +386,7 @@ let
       };
 
       type = mkOption {
-        type = types.enum [ "bind" "tmpfs" ];
+        type = types.enum [ "bind" "overlay" "tmpfs" ];
         default = "bind";
         description = "Mount type";
       };
@@ -531,6 +533,21 @@ let
           <option>config</option>, you can specify the path to
           the evaluated NixOS system configuration, typically a
           symlink to a system profile.
+        '';
+      };
+
+      shareStore = mkOption {
+        type = types.bool;
+        default = true;
+        description = ''
+          When enabled, the container will share Nix store with the vpsAdminOS
+          host system, although it will have read-only access. Note that the container
+          will see the entire Nix store from the host.
+
+          If disabled, container and host stores are separated. Relevant store paths
+          are copied to the container's ZFS dataset before the container is started.
+
+          Applicable only for NixOS containers.
         '';
       };
 
@@ -811,6 +828,35 @@ let
     config = mkMerge [
       (mkIf options.config.isDefined {
         path = config.config.system.build.toplevel;
+      })
+
+      (mkIf ((isNixos config) && config.shareStore) {
+        mounts = mkBefore [
+          {
+            fs = "/nix/.ro-store";
+            mountpoint = "/nix/.ro-store";
+            type = "bind";
+            opts = "bind,ro,create=dir";
+            automount = true;
+            map_ids = true;
+          }
+          {
+            fs = "/nix/.overlay-store";
+            mountpoint = "/nix/.overlay-store";
+            type = "bind";
+            opts = "bind,ro,create=dir";
+            automount = true;
+            map_ids = true;
+          }
+          {
+            fs = "overlay";
+            mountpoint = "/nix/store";
+            type = "overlay";
+            opts = "lowerdir=/var/lib/lxc/rootfs/nix/.ro-store:/var/lib/lxc/rootfs/nix/.overlay-store/rw,create=dir";
+            automount = true;
+            map_ids = false;
+          }
+        ];
       })
     ];
   };
