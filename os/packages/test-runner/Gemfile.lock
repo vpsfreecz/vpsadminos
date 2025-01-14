@@ -2,27 +2,35 @@ GEM
   remote: https://rubygems.org/
   specs:
     coderay (1.1.3)
-    gli (2.22.0)
+    fiddle (1.1.6)
+    gli (2.22.1)
+      ostruct
+    logger (1.6.5)
     method_source (1.1.0)
-    pry (0.15.0)
+    ostruct (0.6.1)
+    pry (0.15.2)
       coderay (~> 1.1)
       method_source (~> 1.0)
     rainbow (3.1.1)
     require_all (2.0.0)
+    syslog (0.2.0)
 
 GEM
   remote: https://rubygems.vpsfree.cz/
   specs:
-    libosctl (24.11.0.build20241217185649)
+    libosctl (24.11.0.build20250114092210)
+      fiddle
+      logger
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
-    osvm (24.11.0.build20241217185649)
+      syslog
+    osvm (24.11.0.build20250114092210)
       gli (~> 2.22.0)
-      libosctl (= 24.11.0.build20241217185649)
-    test-runner (24.11.0.build20241217185649)
+      libosctl (= 24.11.0.build20250114092210)
+    test-runner (24.11.0.build20250114092210)
       gli (~> 2.22.0)
-      libosctl (= 24.11.0.build20241217185649)
-      osvm (= 24.11.0.build20241217185649)
+      libosctl (= 24.11.0.build20250114092210)
+      osvm (= 24.11.0.build20250114092210)
       pry (~> 0.15.0)
 
 PLATFORMS
@@ -30,7 +38,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  test-runner (= 24.11.0.build20241217185649)!
+  test-runner (= 24.11.0.build20250114092210)!
 
 BUNDLED WITH
    2.5.22

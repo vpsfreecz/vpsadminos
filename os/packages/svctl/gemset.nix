@@ -1,4 +1,14 @@
 {
+  fiddle = {
+    groups = ["default"];
+    platforms = [];
+    source = {
+      remotes = ["https://rubygems.org"];
+      sha256 = "1as92bp6pgkab73kj3mh5d1idjr9wykczz7r9i1pkn82wq4xks3r";
+      type = "gem";
+    };
+    version = "1.1.6";
+  };
   filelock = {
     groups = ["default"];
     platforms = [];
@@ -10,25 +20,46 @@
     version = "1.1.1";
   };
   gli = {
+    dependencies = ["ostruct"];
     groups = ["default"];
     platforms = [];
     source = {
       remotes = ["https://rubygems.org"];
-      sha256 = "14m132y05s90zpy5r464vkydl521jy91wfnkbb9hig04k8p87gdv";
+      sha256 = "11xgf947dls652hllcyaywmaywf3535sy4zy46h546zc3xl186h6";
       type = "gem";
     };
-    version = "2.22.0";
+    version = "2.22.1";
   };
   libosctl = {
-    dependencies = ["rainbow" "require_all"];
+    dependencies = ["fiddle" "logger" "rainbow" "require_all" "syslog"];
     groups = ["default"];
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0jrv4fc8id89k03a6gwv594fdpb3whz0xajg51c4mx7x7rayqvms";
+      sha256 = "0cazp9f96my1nfnk3yifk2ib33f4qv7pjcqvml3aps2qzrs12l88";
       type = "gem";
     };
-    version = "24.11.0.build20241217185649";
+    version = "24.11.0.build20250114092210";
+  };
+  logger = {
+    groups = ["default"];
+    platforms = [];
+    source = {
+      remotes = ["https://rubygems.org"];
+      sha256 = "0sz584vw17pwrrc5zg6yd8lqcgfpjf4qplq3s7fr0r3505nybky3";
+      type = "gem";
+    };
+    version = "1.6.5";
+  };
+  ostruct = {
+    groups = ["default"];
+    platforms = [];
+    source = {
+      remotes = ["https://rubygems.org"];
+      sha256 = "05xqijcf80sza5pnlp1c8whdaay8x5dc13214ngh790zrizgp8q9";
+      type = "gem";
+    };
+    version = "0.6.1";
   };
   rainbow = {
     groups = ["default"];
@@ -56,9 +87,19 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0azsxrxvl1r4vvvkw17qx4qnk32wqq9grd2gvmm47lzjri9n8w4p";
+      sha256 = "1ivlvrc42hxqccpjcpj56340iph7chrd2vvfs7y4x52lj7zfqryn";
       type = "gem";
     };
-    version = "24.11.0.build20241217185649";
+    version = "24.11.0.build20250114092210";
+  };
+  syslog = {
+    groups = ["default"];
+    platforms = [];
+    source = {
+      remotes = ["https://rubygems.org"];
+      sha256 = "1agbkwj904p84gb4s7xk4zmpp9a5av2scdvdbg55i86ma42lw7nf";
+      type = "gem";
+    };
+    version = "0.2.0";
   };
 }
