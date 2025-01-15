@@ -47,6 +47,7 @@ in stdenv.mkDerivation rec {
   buildInputs = [
     pkgs.ruby
     pkgs.git
+    pkgs.libffi
     pkgs.lxc
     pkgs.zlib
     pkgs.openssl
