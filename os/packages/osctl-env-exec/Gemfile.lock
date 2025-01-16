@@ -33,7 +33,7 @@ GEM
 GEM
   remote: https://rubygems.vpsfree.cz/
   specs:
-    osctl-env-exec (24.11.0.build20250114092210)
+    osctl-env-exec (24.11.0.build20250116134239)
       base64
       fiddle
       gli (~> 2.22.0)
@@ -53,7 +53,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  osctl-env-exec (= 24.11.0.build20250114092210)!
+  osctl-env-exec (= 24.11.0.build20250116134239)!
 
 BUNDLED WITH
    2.5.22

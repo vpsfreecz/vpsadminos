@@ -119,10 +119,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "10ilq6iqlxwfjl4x4c6b3hw85ya9s836kal3ngq6pnm8bxlqbh30";
+      sha256 = "1k1pcagq3sb96m1rwknkp1jmx48gijp21bxvx50yzs9815g1vljz";
       type = "gem";
     };
-    version = "24.11.0.build20250114092210";
+    version = "24.11.0.build20250116134239";
   };
   ostruct = {
     groups = ["default"];
