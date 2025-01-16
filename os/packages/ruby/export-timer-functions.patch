@@ -1,0 +1,17 @@
+diff --git a/vm_core.h b/vm_core.h
+index 30bfb8404a..a1a6beeeb3 100644
+--- a/vm_core.h
++++ b/vm_core.h
+@@ -1823,10 +1823,12 @@ VALUE rb_vm_call_kw(rb_execution_context_t *ec, VALUE recv, VALUE id, int argc,
+ void rb_vm_pop_frame_no_int(rb_execution_context_t *ec);
+ void rb_vm_pop_frame(rb_execution_context_t *ec);
+
++RUBY_SYMBOL_EXPORT_BEGIN
+ void rb_thread_start_timer_thread(void);
+ void rb_thread_stop_timer_thread(void);
+ void rb_thread_reset_timer_thread(void);
+ void rb_thread_wakeup_timer_thread(int);
++RUBY_SYMBOL_EXPORT_END
+
+ static inline void
+ rb_vm_living_threads_init(rb_vm_t *vm)

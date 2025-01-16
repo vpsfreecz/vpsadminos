@@ -12,7 +12,11 @@ let
   });
 in
 {
-  ruby = super.ruby_3_3;
+  ruby = super.ruby_3_3.overrideAttrs (oldAttrs: rec {
+    patches = oldAttrs.patches ++ [
+      ../packages/ruby/export-timer-functions.patch
+    ];
+  });
 
   defaultGemConfig =
     super.callPackage (

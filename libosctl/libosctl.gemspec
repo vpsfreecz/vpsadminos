@@ -17,6 +17,7 @@ Gem::Specification.new do |s|
   s.email       = 'jakub.skokan@vpsfree.cz'
   s.files       = `git ls-files -z`.split("\x0")
   s.executables = s.files.grep(%r{^bin/}) { |f| File.basename(f) }
+  s.extensions << 'ext/libosctl/extconf.rb'
   s.license     = 'MIT'
 
   s.required_ruby_version = ">= #{File.read('../.ruby-version').strip}"

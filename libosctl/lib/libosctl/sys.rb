@@ -1,5 +1,6 @@
 require 'fiddle'
 require 'fiddle/import'
+require 'libosctl/native'
 
 module OsCtl::Lib
   class Sys
@@ -36,7 +37,6 @@ module OsCtl::Lib
 
       extern 'int umount2(const char *target, int flags)'
       extern 'int unshare(int flags)'
-      extern 'int setns(int fd, int nstype)'
       extern 'int chroot(const char *path)'
       extern 'int syncfs(int fd)'
       extern 'int klogctl(int type, char *bufp, int len)'
@@ -135,25 +135,20 @@ module OsCtl::Lib
 
     def setns_path(path, nstype)
       f = File.open(path)
-      ret = Int.setns(f.fileno, nstype)
+      Native.setns(f.fileno, nstype)
       f.close
-      raise SystemCallError, Fiddle.last_error if ret != 0
 
-      ret
+      nil
     end
 
     def setns_io(io, nstype)
-      ret = Int.setns(io.fileno, nstype)
-      raise SystemCallError, Fiddle.last_error if ret != 0
-
-      ret
+      Native.setns(io.fileno, nstype)
+      nil
     end
 
     def unshare_ns(type)
-      ret = Int.unshare(type)
-      raise SystemCallError, Fiddle.last_error if ret != 0
-
-      ret
+      Native.unshare(type)
+      nil
     end
 
     def chroot(path)

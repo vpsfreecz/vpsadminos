@@ -2,3 +2,7 @@ Gemfile.lock
 pkg
 html_doc
 .yardoc
+ext/**/*.o
+ext/**/*.so
+ext/**/Makefile
+**/*.so
