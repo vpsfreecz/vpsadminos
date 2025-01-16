@@ -1,16 +1,4 @@
 self: super:
-let
-  mariadb-connector-c = super.mariadb-connector-c.overrideAttrs (oldAttrs: rec {
-    name = "mariadb-connector-c-${version}";
-    version = "3.3.4";
-
-    src = super.fetchurl {
-      url = "https://downloads.mariadb.com/Connectors/c/connector-c-${version}/mariadb-connector-c-${version}-src.tar.gz";
-      sha256 = "sha256-SG5f35dqjn+t9YOukSEoZV4BOsV1+nmy0a8PuIJ6eO0=";
-      name   = "mariadb-connector-c-${version}-src.tar.gz";
-    };
-  });
-in
 {
   ruby = super.ruby_3_3.overrideAttrs (oldAttrs: rec {
     patches = oldAttrs.patches ++ [
@@ -20,7 +8,7 @@ in
 
   defaultGemConfig =
     super.callPackage (
-      { lib, apparmor-parser, ncurses, openssl, zlib }:
+      { lib, apparmor-parser, ncurses }:
 
       lib.mergeAttrs super.defaultGemConfig {
         curses = attrs: {
@@ -33,10 +21,6 @@ in
 
         osctld = attrs: {
           buildInputs = [ apparmor-parser ];
-        };
-
-        mysql2 = attrs: {
-          buildInputs = [ mariadb-connector-c zlib openssl ];
         };
       }) {};
 
