@@ -1,10 +1,10 @@
-{ lib, bundlerApp }:
+{ lib, bundlerApp, defaultGemConfig }:
 
 bundlerApp {
   pname = "osctl-env-exec";
   gemdir = ./.;
   exes = [ "osctl-env-exec" ];
-  gemConfig = {
+  gemConfig = lib.mergeAttrs defaultGemConfig {
     binman = attrs: {
       dontInstallManpages = true;
     };
