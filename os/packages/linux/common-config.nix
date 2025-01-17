@@ -659,10 +659,12 @@ let
       THRUSTMASTER_FF    = no;
       ZEROPLUS_FF        = no;
 
-      MODULE_COMPRESS    = if (versionOlder version "5.13")
-                           then yes
-                           else (whenAtLeast "6.12" (yes));
-      MODULE_COMPRESS_XZ = whenOlder "6.12" yes;
+      MODULE_COMPRESS    = lib.mkMerge [
+                             (whenOlder "5.13" yes)
+                             (whenAtLeast "6.12" yes)
+                           ];
+      MODULE_COMPRESS_XZ = yes;
+      MODULE_COMPRESS_ALL = whenAtLeast "6.12" yes;
 
       SYSVIPC            = yes;  # System-V IPC
 
