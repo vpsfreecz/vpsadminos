@@ -234,19 +234,23 @@ in {
     };
   };
 
-  config = mkIf cfg.enable {
-    boot.qemu.stateDir = mkDefault "~/.osvm-qemu/${config.networking.hostName}";
+  config = mkMerge [
+    (mkIf cfg.enable {
+      boot.qemu.stateDir = mkDefault "~/.osvm-qemu/${config.networking.hostName}";
 
-    boot.kernelParams = [ "console=ttyS0" ];
+      boot.kernelParams = [ "console=ttyS0" ];
 
-    system.build.runvm = pkgs.writeScript "vpsadminos-qemu-runner" ''
-      #!${pkgs.stdenv.shell}
-      exec ${pkgs.osvm}/bin/osvm script ${osvmScript}
-    '';
+      system.build.runvm = pkgs.writeScript "vpsadminos-qemu-runner" ''
+        #!${pkgs.stdenv.shell}
+        exec ${pkgs.osvm}/bin/osvm script ${osvmScript}
+      '';
 
-    system.activationScripts.qemu-sharedFileSystems =
-      "mkdir -p " + concatMapStringsSep " " (fs: "\"${fs.guestPath}\"") cfg.sharedFileSystems;
+      fileSystems = mkSharedFileSystems;
+    })
 
-    fileSystems = mkSharedFileSystems;
-  };
+    (mkIf (cfg.enable && cfg.sharedFileSystems != []) {
+      system.activationScripts.qemu-sharedFileSystems =
+        "mkdir -p " + concatMapStringsSep " " (fs: "\"${fs.guestPath}\"") cfg.sharedFileSystems;
+    })
+  ];
 }
