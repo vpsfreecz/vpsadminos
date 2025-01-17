@@ -54,6 +54,7 @@ let
 
       SYSLOG_NS                 = yes;
       MEMCG_V1                  = whenAtLeast "6.11" yes;
+      CPUSETS_V1                = whenAtLeast "6.12" yes;
     };
 
     zfs = optionalAttrs (zfsBuiltin) {
@@ -658,8 +659,10 @@ let
       THRUSTMASTER_FF    = no;
       ZEROPLUS_FF        = no;
 
-      MODULE_COMPRESS    = whenOlder "5.13" yes;
-      MODULE_COMPRESS_XZ = yes;
+      MODULE_COMPRESS    = if (versionOlder version "5.13")
+                           then yes
+                           else (whenAtLeast "6.12" (yes));
+      MODULE_COMPRESS_XZ = whenOlder "6.12" yes;
 
       SYSVIPC            = yes;  # System-V IPC
 
