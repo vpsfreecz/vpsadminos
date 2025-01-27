@@ -2,12 +2,12 @@
 with lib.kernel;
 let
   stableKernelVersion = "6.9.12-2";
-  unstableKernelVersion = "6.12.9";
+  unstableKernelVersion = "6.12.11";
 
   kernels = {
-    "6.12.9" = {
-      url = linuxGhUrl vpsfGh "92c9e3d9f31a9d43ab857c9dc434d5ac4380acfb";
-      sha256 = "sha256-9aeW4AzYvJDbNyS7Eyye7WHMRHPoDlJj6CVTnDH62Rc=";
+    "6.12.11" = {
+      url = linuxGhUrl vpsfGh "7a9be5748313e20df1dcc0e094d0ab5efa110e78";
+      sha256 = "sha256-uGK+0kl++RQhCNU37BQwPqzl73eIhNGjkLiQhXc2fxE=";
       zfs = {
         rev = "82a17bb777b038b198314cf3e5d4d98c57ac399a";
         sha256 = "sha256-QdziamQo3F0HmQ3jdmP5OHkc0VfAaAyL3Ur0TPl7jFE=";
