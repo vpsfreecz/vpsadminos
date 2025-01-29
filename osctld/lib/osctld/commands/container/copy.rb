@@ -93,6 +93,9 @@ module OsCtld
       if ct.running? && opts[:consistent]
         call_cmd(Commands::Container::Stop, id: ct.id, pool: ct.pool.name)
 
+        # Force write-out of dirtied pages
+        ct.unmount
+
         snaps << builder.copy_datasets(src_datasets, dst_datasets, from: snaps.last)
 
         if opts[:restart].nil? || opts[:restart]

@@ -25,6 +25,9 @@ module OsCtld
 
         if !opts[:clone] || opts[:consistent]
           call_cmd(Commands::Container::Stop, id: ct.id, pool: ct.pool.name)
+
+          # Force write-out of dirtied pages
+          ct.unmount
         end
 
         snap = "osctl-send-incr-#{Time.now.to_i}"

@@ -259,6 +259,14 @@ module OsCtld
       self.mounted = true
     end
 
+    # Unmount the container's dataset
+    def unmount(force: false)
+      return if !force && !mounted
+
+      dataset.unmount(recursive: true)
+      self.mounted = false
+    end
+
     # Check if the container's dataset is mounted
     # @param force [Boolean] check if the dataset is mounted even if osctld
     #                        already mounted it
