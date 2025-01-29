@@ -16,6 +16,9 @@ module OsCtld
 
     attr_reader :name, :index, :hwaddr, :max_tx, :max_rx
 
+    # @return [Boolean]
+    attr_reader :enable
+
     def initialize(ct, index)
       @ct = ct
       @index = index
@@ -33,6 +36,7 @@ module OsCtld
       @hwaddr = opts[:hwaddr]
       @max_tx = opts.fetch(:max_tx, 0)
       @max_rx = opts.fetch(:max_rx, 0)
+      @enable = opts.fetch(:enable, true)
     end
 
     # Load configuration
@@ -42,6 +46,7 @@ module OsCtld
       @hwaddr = cfg['hwaddr']
       @max_tx = cfg.fetch('max_tx', 0)
       @max_rx = cfg.fetch('max_rx', 0)
+      @enable = cfg.fetch('enable', true)
     end
 
     # Dump configuration
@@ -54,7 +59,8 @@ module OsCtld
           'name' => name,
           'hwaddr' => hwaddr,
           'max_tx' => max_tx,
-          'max_rx' => max_rx
+          'max_rx' => max_rx,
+          'enable' => enable
         }
       end
     end
@@ -85,6 +91,7 @@ module OsCtld
         @hwaddr = opts[:hwaddr] if opts.has_key?(:hwaddr)
         @max_tx = opts[:max_tx] if opts.has_key?(:max_tx)
         @max_rx = opts[:max_rx] if opts.has_key?(:max_rx)
+        @enable = opts[:enable] if opts.has_key?(:enable)
       end
     end
 
@@ -104,12 +111,16 @@ module OsCtld
     # Called when the interface goes down
     def down(*_args); end
 
-    def is_up?
+    # True if the interface is created on the host system
+    # @return [Boolean]
+    def is_created?
       raise NotImplementedError
     end
 
-    def is_down?
-      !is_up?
+    # True if the interface is created and up
+    # @return [Boolean]
+    def is_up?
+      inclusively { is_created? && enable }
     end
 
     # Called to check if DistConfig for network can be run

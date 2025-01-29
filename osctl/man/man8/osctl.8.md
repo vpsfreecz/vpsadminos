@@ -2051,6 +2051,13 @@ The following shortcuts are supported:
     `--link` *bridge*
       What bridge should the interface be linked with, required.
 
+    `--enable`
+      Enable the interface. This is the default.
+
+    `--disable`
+      Disable the interface. Disabled interface is kept down on the host,
+      it remains up inside the container.
+
     `--[no-]dhcp`
       If enabled, the container's interface will be setup by DHCP. This option
       controls DHCP client within the container for supported distributions.
@@ -2102,6 +2109,13 @@ The following shortcuts are supported:
   
   The container has to be stopped for this command to be allowed.
 
+    `--enable`
+      Enable the interface. This is the default.
+
+    `--disable`
+      Disable the interface. Disabled interface is kept down on the host,
+      it remains up inside the container.
+
     `--hwaddr` *addr*
       Set a custom MAC address. Every **x** in the address is replaced by
       a random value. By default, the address is dynamically allocated.
@@ -2134,6 +2148,13 @@ The following shortcuts are supported:
   Change network interface properties. Only the shaper can be changed while the
   container is running. For other changes, the container has to be stopped first.
   Available options depend on interface type.
+
+    `--enable`
+      Enable the interface.
+
+    `--disable`
+      Disable the interface. Disabled interface is kept down on the host,
+      it remains up inside the container.
 
     `--link` *bridge*
       What bridge should the interface be linked with. Applicable only for
@@ -3081,8 +3102,10 @@ All pool script hooks have the following environment variables set:
 `veth-up`
   `veth-up` hook is run in the host's namespace when the veth pair is created.
   Names of created veth interfaces are available in environment variables
-  `OSCTL_HOST_VETH` and `OSCTL_CT_VETH`. If `veth-up` exits with a non-zero
-  status, the container's start is aborted.
+  `OSCTL_HOST_VETH` and `OSCTL_CT_VETH`. Variable `OSCTL_VETH_ENABLE` is set to `1`
+  when then interface is enabled, `0` otherwise. Disabled interfaces are not up
+  on the host-side. If `veth-up` exits with a non-zero status, the container's
+  start is aborted.
 
 `pre-mount`
   `pre-mount` is run in the container's mount namespace, before its rootfs is

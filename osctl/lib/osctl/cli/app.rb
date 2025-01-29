@@ -1521,6 +1521,12 @@ module OsCtl::Cli
               c.desc 'What bridge should the interface be linked with'
               c.flag :link, required: true, arg_name: 'host_netif'
 
+              c.desc 'Enable the interface'
+              c.switch :enable, negatable: false
+
+              c.desc 'Disable the interface'
+              c.switch :disable, negatable: false
+
               c.desc 'Use DHCP client within the container'
               c.switch :dhcp, default_value: true
 
@@ -1551,6 +1557,12 @@ module OsCtl::Cli
             create.desc 'Create a new routed veth interface'
             create.arg_name '<ctid> <ifname>'
             create.command :routed do |c|
+              c.desc 'Enable the interface'
+              c.switch :enable, negatable: false
+
+              c.desc 'Disable the interface'
+              c.switch :disable, negatable: false
+
               c.desc 'MAC address'
               c.flag :hwaddr, arg_name: 'hwaddr'
 
@@ -1585,6 +1597,12 @@ module OsCtl::Cli
           net.desc 'Configure network interface'
           net.arg_name '<ctid> <ifname>'
           net.command :set do |c|
+            c.desc 'Enable the interface'
+            c.switch :enable, negatable: false
+
+            c.desc 'Disable the interface'
+            c.switch :disable, negatable: false
+
             c.desc 'What bridge should the interface be linked with'
             c.flag :link, arg_name: 'host_netif'
 

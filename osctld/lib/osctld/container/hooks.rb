@@ -51,7 +51,8 @@ module OsCtld
       def environment
         super.merge({
           'OSCTL_HOST_VETH' => opts[:host_veth],
-          'OSCTL_CT_VETH' => opts[:ct_veth]
+          'OSCTL_CT_VETH' => opts[:ct_veth],
+          'OSCTL_VETH_ENABLE' => opts[:enable] ? '1' : '0'
         })
       end
     end

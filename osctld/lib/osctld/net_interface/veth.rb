@@ -58,6 +58,7 @@ module OsCtld
 
       orig_max_rx = max_rx
       orig_max_tx = max_tx
+      orig_enable = enable
 
       # max_tx/rx is assigned by the parent
       super
@@ -72,13 +73,33 @@ module OsCtld
         end
       end
 
-      return unless opts[:max_tx] && opts[:max_tx] != orig_max_tx
-
-      if max_tx > 0
-        set_shaper_tx
-      else
-        unset_shaper_tx
+      if opts[:max_tx] && opts[:max_tx] != orig_max_tx
+        if max_tx > 0
+          set_shaper_tx
+        else
+          unset_shaper_tx
+        end
       end
+
+      # rubocop:disable Style/GuardClause
+
+      if opts.has_key?(:enable) && opts[:enable] != orig_enable
+        if !opts[:enable] && orig_enable
+          begin
+            ip(:all, %W[link set #{veth} down])
+          rescue SystemCommandFailed => e
+            log(:warn, ct, "Unable to disable host veth #{veth}: #{e.message}")
+          end
+        elsif opts[:enable] && !orig_enable
+          begin
+            ip(:all, %W[link set #{veth} up])
+          rescue SystemCommandFailed => e
+            log(:warn, ct, "Unable to enable host veth #{veth}: #{e.message}")
+          end
+        end
+      end
+
+      # rubocop:enable Style/GuardClause
     end
 
     def setup
@@ -150,6 +171,8 @@ module OsCtld
     def up(veth)
       exclusively { @veth = veth }
 
+      ip(:all, %W[link set #{veth} down]) unless enable
+
       set_shaper_rx if max_rx > 0
       set_shaper_tx if max_tx > 0
 
@@ -159,7 +182,8 @@ module OsCtld
         pool: ct.pool.name,
         id: ct.id,
         name:,
-        veth:
+        veth:,
+        enable:
       )
     end
 
@@ -195,7 +219,7 @@ module OsCtld
       )
     end
 
-    def is_up?
+    def is_created?
       inclusively { !veth.nil? }
     end
 

@@ -18,6 +18,7 @@ module OsCtl::Cli
       rx_queues
       max_tx
       max_rx
+      enable
     ].freeze
 
     FILTERS = %i[
@@ -30,6 +31,7 @@ module OsCtl::Cli
       type
       link
       veth
+      enable
       max_tx
       max_rx
     ].freeze
@@ -121,6 +123,7 @@ module OsCtl::Cli
         dhcp: opts[:dhcp]
       }
 
+      parse_enable(cmd_opts)
       parse_gateway(cmd_opts)
       parse_shaper(cmd_opts)
 
@@ -140,6 +143,7 @@ module OsCtl::Cli
         rx_queues: opts['rx-queues']
       }
 
+      parse_enable(cmd_opts)
       parse_shaper(cmd_opts)
 
       osctld_fmt(:netif_create, cmd_opts:)
@@ -172,6 +176,8 @@ module OsCtl::Cli
         pool: gopts[:pool],
         name: args[1]
       }
+
+      parse_enable(cmd_opts)
 
       cmd_opts[:hwaddr] = (opts[:hwaddr] == '-' ? nil : opts[:hwaddr]) if opts[:hwaddr]
       cmd_opts[:tx_queues] = opts['tx-queues'] if opts['tx-queues']
@@ -355,6 +361,16 @@ module OsCtl::Cli
     end
 
     protected
+
+    def parse_enable(cmd_opts)
+      if opts[:enable] && opts[:disable]
+        raise GLI::BadCommandLine, 'set either --enable or --disable, not both'
+      elsif opts[:enable] === true
+        cmd_opts[:enable] = true
+      elsif opts[:disable] === true
+        cmd_opts[:enable] = false
+      end
+    end
 
     def parse_gateway(cmd_opts)
       gws = [4, 6].map { |v| [v, "gateway-v#{v}"] }.select { |_v, opt| opts[opt] }

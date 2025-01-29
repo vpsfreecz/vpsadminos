@@ -64,7 +64,7 @@ module OsCtld
     def take_down
       inclusively do
         netifs.each do |n|
-          n.down if n.is_up?
+          n.down if n.is_created?
         end
       end
     end

@@ -17,13 +17,16 @@ module OsCtld
         ct,
         "veth interface coming up: ct=#{opts[:interface]}, host=#{opts[:veth]}"
       )
-      ct.netifs[opts[:interface]].up(opts[:veth])
+
+      netif = ct.netifs[opts[:interface]]
+      netif.up(opts[:veth])
 
       Hook.run(
         ct,
         :veth_up,
         ct_veth: opts[:interface],
-        host_veth: opts[:veth]
+        host_veth: opts[:veth],
+        enable: netif.enable
       )
       ok
     rescue HookFailed => e

@@ -45,6 +45,26 @@ module OsCtld
       })
     end
 
+    def set(opts)
+      orig_enable = enable
+
+      super
+
+      # rubocop:disable Style/GuardClause
+
+      if veth && opts.has_key?(:enable) && opts[:enable] && !orig_enable
+        [4, 6].each do |v|
+          next if @routes.empty?(v)
+
+          @routes.each_version(v) do |route|
+            ip(v, %i[route add] + route.ip_spec + [:dev, veth])
+          end
+        end
+      end
+
+      # rubocop:enable Style/GuardClause
+    end
+
     def setup
       super
 
@@ -67,11 +87,13 @@ module OsCtld
     def up(veth)
       super
 
-      [4, 6].each do |v|
-        next if @routes.empty?(v)
+      if enable
+        [4, 6].each do |v|
+          next if @routes.empty?(v)
 
-        @routes.each_version(v) do |route|
-          ip(v, %i[route add] + route.ip_spec + [:dev, veth])
+          @routes.each_version(v) do |route|
+            ip(v, %i[route add] + route.ip_spec + [:dev, veth])
+          end
         end
       end
 
@@ -93,7 +115,7 @@ module OsCtld
         next if ct.state != :running
 
         # Add host route
-        ip(v, %i[route add] + r.ip_spec + [:dev, veth]) if r
+        ip(v, %i[route add] + r.ip_spec + [:dev, veth]) if r && enable
 
         # Add IP within the CT
         ct_syscmd(
@@ -143,8 +165,10 @@ module OsCtld
         next if ct.state != :running
 
         # Remove host route
-        routes_to_remove.each do |route|
-          ip(v, %i[route del] + route.ip_spec + [:dev, veth])
+        if enable
+          routes_to_remove.each do |route|
+            ip(v, %i[route del] + route.ip_spec + [:dev, veth])
+          end
         end
 
         # Remove IP from within the CT
@@ -171,6 +195,7 @@ module OsCtld
 
     def add_route(addr, via: nil)
       route = @routes.add(addr, via:)
+      return unless enable
 
       ct.inclusively do
         next if ct.state != :running
@@ -181,7 +206,7 @@ module OsCtld
 
     def del_route(addr)
       route = @routes.remove(addr)
-      return unless route
+      return if !route || !enable
 
       ct.inclusively do
         next if ct.state != :running
@@ -193,6 +218,7 @@ module OsCtld
     # @param ip_v [Integer, nil]
     def del_all_routes(ip_v = nil)
       removed = @routes.remove_all(ip_v)
+      return unless enable
 
       ct.inclusively do
         next if ct.state != :running

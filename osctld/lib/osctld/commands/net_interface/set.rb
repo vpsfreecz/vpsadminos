@@ -89,6 +89,16 @@ module OsCtld
         ret[v] = opts[v]
       end
 
+      %i[enable].each do |v|
+        next unless opts.has_key?(v)
+
+        unless [TrueClass, FalseClass].include?(opts[v].class)
+          error!("#{v} must be a boolean")
+        end
+
+        ret[v] = opts[v]
+      end
+
       ret
     end
   end
