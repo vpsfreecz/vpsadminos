@@ -1,5 +1,16 @@
 require 'bundler/gem_tasks'
+require 'rake/extensiontask'
 require 'yard'
+
+gemspec = Gem::Specification.load('libosctl.gemspec')
+
+Rake::ExtensionTask.new do |ext|
+  ext.name = 'native'
+  ext.source_pattern = '*.{c,h}'
+  ext.ext_dir = 'ext/libosctl'
+  ext.lib_dir = 'lib/libosctl'
+  ext.gem_spec = gemspec
+end
 
 YARD::Rake::YardocTask.new do |t|
   t.files   = ['lib/**/*.rb']
