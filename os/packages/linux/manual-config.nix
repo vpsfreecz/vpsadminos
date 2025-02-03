@@ -93,7 +93,7 @@ let
     in (optionalAttrs isModular { outputs = [ "out" "dev" ]; }) // {
       passthru = {
         inherit version modDirVersion config kernelPatches configfile
-          moduleBuildDependencies stdenv;
+          moduleBuildDependencies stdenv commonMakeFlags;
         inherit isZen isHardened isLibre;
         isXen = lib.warn "The isXen attribute is deprecated. All Nixpkgs kernels that support it now have Xen enabled." true;
         kernelOlder = lib.versionOlder version;
