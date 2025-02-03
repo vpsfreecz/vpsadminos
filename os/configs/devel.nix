@@ -8,5 +8,6 @@
   nix.nixPath = [
     "nixpkgs=/mnt/nix-path/nixpkgs"
     "nixpkgs-overlays=/mnt/vpsadminos/os/overlays"
+    "vpsadminos=/mnt/vpsadminos"
   ];
 }
