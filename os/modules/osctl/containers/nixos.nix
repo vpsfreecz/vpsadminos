@@ -178,7 +178,7 @@ let
         if [ "$?" != "0" ] || [ "$currentSystem" != "${toplevel}" ] ; then
           echo "Configuring current system"
           [ "$registerPaths" == "y" ] && \
-            cat ${closureInfo}/registration >> "$rootfs/nix-path-registration"
+            cat ${closureInfo}/registration >> "$rootfs/nix/nix-path-registration"
           nix-env -p "$rootfs/nix/var/nix/profiles/system" --set ${toplevel}
           ln -sf ${toplevel}/init "$rootfs/sbin/init"
 
