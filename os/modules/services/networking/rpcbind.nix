@@ -18,9 +18,13 @@ in
 
   config = mkMerge [
     (mkIf cfg.enable {
-      runit.services.rpcbind.run = ''
-        exec ${pkgs.rpcbind}/bin/rpcbind -f
-      '';
+      runit.services.rpcbind = {
+        run = ''
+          exec ${pkgs.rpcbind}/bin/rpcbind -f
+        '';
+
+        onChange = "ignore";
+      };
 
       environment.systemPackages = [ pkgs.rpcbind ];
 

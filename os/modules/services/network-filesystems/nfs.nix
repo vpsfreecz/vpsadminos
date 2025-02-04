@@ -146,16 +146,20 @@ in
 
       environment.systemPackages = [ pkgs.nfs-utils ];
 
-      runit.services.statd.run = ''
-        ensureServiceStarted rpcbind
-        ${waitForRpcBind}
-        mkdir -p ${nfsStateDir}/{sm,sm.bak}
-        exec ${pkgs.nfs-utils}/bin/rpc.statd \
-          --foreground \
-          ${optionalString (cfg.server.statdPort != null) "--port ${toString cfg.server.statdPort}"} \
-          ${optionalString (cfg.server.lockdPort != null) "--nlm-port ${toString cfg.server.lockdPort}"} \
-          ${optionalString (cfg.server.lockdPort != null) "--nlm-udp-port ${toString cfg.server.lockdPort}"}
-      '';
+      runit.services.statd = {
+        run = ''
+          ensureServiceStarted rpcbind
+          ${waitForRpcBind}
+          mkdir -p ${nfsStateDir}/{sm,sm.bak}
+          exec ${pkgs.nfs-utils}/bin/rpc.statd \
+            --foreground \
+            ${optionalString (cfg.server.statdPort != null) "--port ${toString cfg.server.statdPort}"} \
+            ${optionalString (cfg.server.lockdPort != null) "--nlm-port ${toString cfg.server.lockdPort}"} \
+            ${optionalString (cfg.server.lockdPort != null) "--nlm-udp-port ${toString cfg.server.lockdPort}"}
+        '';
+
+        onChange = "ignore";
+      };
     })
 
     (mkIf cfg.server.enable {
@@ -164,36 +168,40 @@ in
 
       environment.etc."exports".source = exports;
 
-      runit.services.nfsd.run = ''
-        ensureServiceStarted rpcbind
-        ensureServiceStarted statd
-        ${waitForRpcBind}
+      runit.services.nfsd = {
+        run = ''
+          ensureServiceStarted rpcbind
+          ensureServiceStarted statd
+          ${waitForRpcBind}
 
-        mkdir -p ${rpcMountpoint}
-        if ! mountpoint -q ${rpcMountpoint}; then
-          mount -t rpc_pipefs rpc_pipefs ${rpcMountpoint} -o defaults || exit 1
-        fi
+          mkdir -p ${rpcMountpoint}
+          if ! mountpoint -q ${rpcMountpoint}; then
+            mount -t rpc_pipefs rpc_pipefs ${rpcMountpoint} -o defaults || exit 1
+          fi
 
-        if ! mountpoint -q /proc/fs/nfsd; then
-          mount -t nfsd nfsd /proc/fs/nfsd || exit 1
-        fi
+          if ! mountpoint -q /proc/fs/nfsd; then
+            mount -t nfsd nfsd /proc/fs/nfsd || exit 1
+          fi
 
-        exportfs -ra &> /dev/null || exit 1
+          exportfs -ra &> /dev/null || exit 1
 
-        ${pkgs.nfs-utils}/bin/rpc.nfsd \
-          --port ${toString cfg.server.nfsd.port} \
-          ${if cfg.server.nfsd.tcp then "--tcp" else "--no-tcp"} \
-          ${if cfg.server.nfsd.udp then "--udp" else "--no-udp"} \
-          ${optionalString (cfg.server.nfsd.allowedVersions != []) "--nfs-version ${concatStringsSep "," cfg.server.nfsd.allowedVersions}"} \
-          ${optionalString (cfg.server.nfsd.disallowedVersions != []) "--no-nfs-version ${concatStringsSep "," cfg.server.nfsd.allowedVersions}"} \
-          ${optionalString cfg.server.nfsd.syslog "--syslog"} \
-          -- ${toString cfg.server.nfsd.nproc}
+          ${pkgs.nfs-utils}/bin/rpc.nfsd \
+            --port ${toString cfg.server.nfsd.port} \
+            ${if cfg.server.nfsd.tcp then "--tcp" else "--no-tcp"} \
+            ${if cfg.server.nfsd.udp then "--udp" else "--no-udp"} \
+            ${optionalString (cfg.server.nfsd.allowedVersions != []) "--nfs-version ${concatStringsSep "," cfg.server.nfsd.allowedVersions}"} \
+            ${optionalString (cfg.server.nfsd.disallowedVersions != []) "--no-nfs-version ${concatStringsSep "," cfg.server.nfsd.allowedVersions}"} \
+            ${optionalString cfg.server.nfsd.syslog "--syslog"} \
+            -- ${toString cfg.server.nfsd.nproc}
 
-        exec ${pkgs.nfs-utils}/bin/rpc.mountd \
-          --foreground \
-          ${optionalString (cfg.server.mountdPort != null) "--port ${toString cfg.server.mountdPort}"} \
-          &> /dev/null
-      '';
+          exec ${pkgs.nfs-utils}/bin/rpc.mountd \
+            --foreground \
+            ${optionalString (cfg.server.mountdPort != null) "--port ${toString cfg.server.mountdPort}"} \
+            &> /dev/null
+        '';
+
+        onChange = "ignore";
+      };
     })
   ];
 }
