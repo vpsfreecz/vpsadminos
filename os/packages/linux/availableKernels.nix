@@ -1,10 +1,18 @@
 { config, lib, pkgs, ... }:
 with lib.kernel;
 let
-  stableKernelVersion = "6.9.12-2";
-  unstableKernelVersion = "6.12.11";
+  stableKernelVersion = "6.12.13";
+  unstableKernelVersion = "6.12.13";
 
   kernels = {
+    "6.12.13" = {
+      url = linuxGhUrl vpsfGh "dbe3b890168c9bdd3d742c52b7b92a085f3c6eb0";
+      sha256 = "sha256-vs/nRVWK3OEB8mW8OqeoFGNWNcf55gqVz9ZzdeG7jIo=";
+      zfs = {
+        rev = "2b287937fa5695fbb964fd9923817569353d85e8";
+        sha256 = "sha256-bgSZ3O0DBr3KwE027/tO8tdzZpEUs8h5rQKpgVG9YWY=";
+      };
+    };
     "6.12.11" = {
       url = linuxGhUrl vpsfGh "7a9be5748313e20df1dcc0e094d0ab5efa110e78";
       sha256 = "sha256-uGK+0kl++RQhCNU37BQwPqzl73eIhNGjkLiQhXc2fxE=";
