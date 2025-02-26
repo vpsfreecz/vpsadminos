@@ -59,13 +59,15 @@ module OsCtld
 
     # @param image [String] image path
     # @param dir [String] dir to extract it to
+    # @param ds [OsCtl::Lib::Zfs::Dataset]
     # @param opts [Hash] options
     # @option opts [String] :distribution
     # @option opts [String] :version
-    def from_local_archive(image, dir, _opts = {})
+    # @option opts [Boolean] :mapping
+    def from_local_archive(image, dir, ds, opts = {})
       progress('Extracting image')
       syscmd("tar -xzf #{image} -C #{dir}")
-      shift_dataset
+      shift_dataset(ds, opts) if opts[:mapping]
     end
 
     # @param image [String] image path

@@ -26,6 +26,7 @@ module OsCtld
           'OSCTL_CT_GROUP' => ct.group.name,
           'OSCTL_CT_DATASET' => ct.get_run_conf.dataset.to_s,
           'OSCTL_CT_ROOTFS' => ct.get_run_conf.rootfs,
+          'OSCTL_CT_MAP_MODE' => ct.map_mode,
           'OSCTL_CT_LXC_PATH' => ct.lxc_home,
           'OSCTL_CT_LXC_DIR' => ct.lxc_dir,
           'OSCTL_CT_CGROUP_PATH' => ct.cgroup_path,

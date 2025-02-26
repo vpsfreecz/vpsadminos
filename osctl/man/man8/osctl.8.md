@@ -729,6 +729,9 @@ The following shortcuts are supported:
       `--skip-image`, the dataset is expected to already contain the rootfs
       and `--distribution` and `--version` have to be provided.
 
+    `--map-mode` `native`|`zfs`
+      Specify UID/GID mapping mode. Defaults to `native`.
+
     `--skip-image`
       Do not import any image, leave the container's root filesystem empty.
       Useful for when you wish to setup the container manually.
@@ -1213,6 +1216,13 @@ The following shortcuts are supported:
 `ct unset impermanence` *ctid*
   Disable impermanence mode.
 
+`ct set map-mode` *ctid* `native`|`zfs`
+  Configure UID/GID mapping mode. `native` uses ID-mapped bind-mounts and is the
+  recommended setting for new containers. `zfs` maps UID/GID using vpsAdminOS-specific
+  ZFS properties `uidmap`/`gidmap` that predate ID-mapped bind-mounts.
+
+  The container must be stopped for `map-mode` to be changed.
+
 `ct set raw lxc` *ctid*
   Append raw LXC configuration read from the standard input to the *osctld*
   generated LXC configuration file.
@@ -1541,6 +1551,9 @@ The following shortcuts are supported:
     `--dataset` *dataset*
       Use a custom dataset for the container's rootfs. The dataset and all its
       parents are created, if it doesn't already exist.
+
+    `--map-mode` `native`|`zfs`
+      Specify UID/GID mapping mode. Defaults to `native`.
 
     `--missing-devices` `check`|`provide`|`remove`
       The imported container may require access to devices that are not configured
@@ -3159,6 +3172,7 @@ All container script hooks have the following environment variables set:
 - `OSCTL_CT_GROUP`
 - `OSCTL_CT_DATASET`
 - `OSCTL_CT_ROOTFS`
+- `OSCTL_CT_MAP_MODE`
 - `OSCTL_CT_LXC_PATH`
 - `OSCTL_CT_LXC_DIR`
 - `OSCTL_CT_CGROUP_PATH`

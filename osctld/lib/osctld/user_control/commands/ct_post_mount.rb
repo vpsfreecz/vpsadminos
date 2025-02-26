@@ -15,6 +15,16 @@ module OsCtld
 
       run_conf = ct.run_conf
 
+      if ct.map_mode == 'native'
+        ct.mounts.shared_dir.cleanup_pushed(run_conf.rootfs)
+
+        ct.mounts.each do |mnt|
+          next unless mnt.id_mapped?
+
+          ct.mounts.shared_dir.cleanup_pushed(mnt.fs)
+        end
+      end
+
       DistConfig.run(
         run_conf,
         :post_mount,

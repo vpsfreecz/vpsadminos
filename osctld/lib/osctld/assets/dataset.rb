@@ -8,6 +8,7 @@ module OsCtld
     # @param opts [Hash] options
     # @option opts [Array, nil] uidmap
     # @option opts [Array, nil] gidmap
+    # @option opts [Hash, nil] properties
     # @option opts [Integer, nil] user
     # @option opts [Integer, nil] group
     # @option opts [Integer, nil] mode
@@ -17,7 +18,11 @@ module OsCtld
     end
 
     def prefetch_zfs
-      [[path], %w[mountpoint uidmap gidmap]]
+      prefetch_props = %w[mountpoint uidmap gidmap]
+      prefetch_props.concat(opts[:properties].keys) if opts[:properties]
+      prefetch_props.uniq!
+
+      [[path], prefetch_props]
     end
 
     protected
@@ -70,6 +75,16 @@ module OsCtld
 
         if expected_gidmap != gidmap
           add_error("invalid gidmap: expected #{expected_gidmap}, got #{gidmap}")
+        end
+      end
+
+      if opts[:properties]
+        opts[:properties].each do |prop, expected_v|
+          v = ds.properties[prop]
+
+          if v != expected_v
+            add_error("invalid ZFS property #{prop}: expected #{expected_v}, got #{v}")
+          end
         end
       end
 

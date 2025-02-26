@@ -12,6 +12,8 @@ module OsCtld
     include OsCtl::Lib::Utils::System
     include Utils::SwitchUser
 
+    MAP_MODES = %w[native zfs].freeze
+
     DEFAULT_START_TIMEOUT = 120
     DEFAULT_STOP_TIMEOUT = 300
 
@@ -25,7 +27,7 @@ module OsCtld
                           :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams, :cpu_package,
                           :devices, :seccomp_profile, :apparmor, :attrs, :state, :lxc_config,
                           :init_cmd, :start_menu, :impermanence, :raw_configs, :run_conf, :next_run_conf,
-                          :hints
+                          :hints, :map_mode
 
     alias ephemeral? ephemeral
 
@@ -39,6 +41,7 @@ module OsCtld
     # @option opts [String] load_from load from this string instead of config file
     # @option opts [Boolean] staged create a staged container
     # @option opts [Boolean] devices determines whether devices are initialized
+    # @option opts [String] map_mode
     # @option opts [OsCtl::Lib::Zfs::DatasetCache] dataset_cache
     def initialize(pool, id, user = nil, group = nil, dataset = nil, opts = {})
       init_lock
@@ -55,6 +58,7 @@ module OsCtld
       @user = user
       @group = group
       @dataset = dataset
+      @map_mode = opts[:map_mode]
       @state = opts[:staged] ? :staged : :unknown
       @ephemeral = false
       @netifs = NetInterface::Manager.new(self)
@@ -117,10 +121,16 @@ module OsCtld
         add.dataset(
           dataset.to_s,
           desc: "Container's rootfs dataset",
-          uidmap: uid_map.map(&:to_a),
-          gidmap: gid_map.map(&:to_a),
-          user: root_host_uid,
-          group: root_host_gid,
+          uidmap: map_mode == 'zfs' ? uid_map.map(&:to_a) : nil,
+          gidmap: map_mode == 'zfs' ? gid_map.map(&:to_a) : nil,
+          properties: if map_mode == 'native'
+                        {
+                          'uidmap' => 'none',
+                          'gidmap' => 'none'
+                        }
+                      end,
+          user: map_mode == 'zfs' ? root_host_uid : 0,
+          group: map_mode == 'zfs' ? root_host_gid : 0,
           mode: 0o770,
           validate_if: mounted?
         )
@@ -129,8 +139,8 @@ module OsCtld
         add.directory(
           rootfs,
           desc: "Container's rootfs",
-          user: root_host_uid,
-          group: root_host_gid,
+          user: map_mode == 'zfs' ? root_host_uid : 0,
+          group: map_mode == 'zfs' ? root_host_gid : 0,
           mode_bit_and: 0o111, # has all executable bits set
           validate_if: mounted?
         )
@@ -276,6 +286,12 @@ module OsCtld
       else
         mounted
       end
+    end
+
+    def map_mode=(new_mode)
+      @map_mode = new_mode
+      save_config
+      lxc_config.configure
     end
 
     def chown(user)
@@ -705,6 +721,7 @@ module OsCtld
           group: group.name,
           uid_map: user.uid_map.map(&:to_h),
           gid_map: user.gid_map.map(&:to_h),
+          map_mode: map_mode,
           dataset: dataset.name,
           rootfs:,
           boot_dataset: run_conf ? run_conf.dataset.name : dataset.name,
@@ -750,6 +767,7 @@ module OsCtld
           'user' => user.name,
           'group' => group.name,
           'dataset' => dataset.name,
+          'map_mode' => map_mode,
           'distribution' => distribution,
           'version' => version,
           'arch' => arch,
@@ -909,6 +927,7 @@ module OsCtld
                        )
                      end
 
+        @map_mode ||= cfg.fetch('map_mode', 'zfs')
         @distribution = cfg['distribution']
         @version = cfg['version']
         @arch = cfg['arch']

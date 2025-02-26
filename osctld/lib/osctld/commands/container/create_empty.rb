@@ -33,6 +33,9 @@ module OsCtld
 
       elsif !opts[:arch]
         error!('provide architecture')
+
+      elsif opts[:map_mode] && !Container::MAP_MODES.include?(opts[:map_mode])
+        error!('invalid map mode')
       end
 
       builder = Container::Builder.create(
@@ -57,8 +60,8 @@ module OsCtld
         error!('container already exists') unless builder.register
 
         begin
-          builder.create_root_dataset(mapping: true, parents: true)
-          builder.shift_dataset if opts[:dataset]
+          builder.create_root_dataset(mapping: builder.ctrc.map_mode == 'zfs', parents: true)
+          builder.shift_or_mount_dataset if opts[:dataset]
           builder.configure(opts[:distribution], opts[:version], opts[:arch])
           builder.setup_ct_dir
           builder.setup_lxc_home

@@ -11,6 +11,10 @@ module OsCtld
     def execute(pool)
       error!('the pool is disabled') unless pool.active?
 
+      if opts[:map_mode] && !Container::MAP_MODES.include?(opts[:map_mode])
+        error!('invalid map mode')
+      end
+
       File.open(opts[:file], 'r') do |f|
         import(pool, f, opts[:file])
       end
@@ -64,6 +68,7 @@ module OsCtld
           base: opts[:dataset]
         ),
         ct_opts: {
+          map_mode: opts[:map_mode] || 'native',
           devices: false, # skip device initialization, see below
           staged: true
         }

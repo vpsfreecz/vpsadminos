@@ -639,6 +639,9 @@ module OsCtl::Cli
           new.desc 'Use a custom dataset for the rootfs'
           new.flag :dataset, arg_name: 'dataset'
 
+          new.desc 'Map mode'
+          new.flag :map_mode, arg_name: 'map_mode'
+
           new.desc 'Do not extract any image'
           new.switch 'skip-image', negatable: false
 
@@ -962,6 +965,12 @@ module OsCtl::Cli
             c.action(&Command.run(Container, :set_impermanence))
           end
 
+          set.desc 'Set map mode'
+          set.arg_name '<ctid> <mode>'
+          set.command :'map-mode' do |c|
+            c.action(&Command.run(Container, :set_map_mode))
+          end
+
           set.desc 'Append raw configuration to auto-generated config files'
           set.command :raw do |raw|
             raw.desc 'Append raw LXC configuration'
@@ -1272,6 +1281,9 @@ module OsCtl::Cli
 
           c.desc 'Use a custom dataset for the rootfs'
           c.flag :dataset, arg_name: 'dataset'
+
+          c.desc 'Map mode'
+          c.flag :map_mode, arg_name: 'map_mode'
 
           c.desc 'Provide or remove missing devices'
           c.flag 'missing-devices', must_match: %w[provide remove check]

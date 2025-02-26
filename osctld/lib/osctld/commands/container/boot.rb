@@ -96,7 +96,8 @@ module OsCtld
 
         # Apply the image
         importer.import_root_dataset(builder)
-        builder.shift_dataset
+
+        builder.shift_or_mount_dataset
         builder.setup_ct_dir
         builder.setup_rootfs
 

@@ -191,7 +191,7 @@ module OsCtld
       datasets(builder).each do |ds|
         next if accept_existing && ds.exist?
 
-        builder.create_dataset(ds, mapping: true, parents: ds.root?)
+        builder.create_dataset(ds, mapping: builder.ctrc.map_mode == 'zfs', parents: ds.root?)
       end
     end
 

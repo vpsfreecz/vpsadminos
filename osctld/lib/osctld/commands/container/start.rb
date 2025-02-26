@@ -298,7 +298,7 @@ module OsCtld
       )
 
       builder = Container::Builder.new(ctrc, cmd: self)
-      builder.shift_dataset
+      builder.shift_or_mount_dataset
       builder.setup_ct_dir
       builder.setup_rootfs
 

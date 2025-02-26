@@ -20,13 +20,16 @@ module OsCtld
           (parents + [wanted_ds]).each do |ds|
             next if ds.exist?
 
-            ds.create!(
-              properties: {
+            properties = { canmount: 'noauto' }
+
+            if ct.map_mode == 'zfs'
+              properties.update({
                 uidmap: ct.uid_map.map(&:to_s).join(','),
-                gidmap: ct.gid_map.map(&:to_s).join(','),
-                canmount: 'noauto'
-              }
-            )
+                gidmap: ct.gid_map.map(&:to_s).join(',')
+              })
+            end
+
+            ds.create!(properties:)
             ds.mount
             ds.create_private!
 

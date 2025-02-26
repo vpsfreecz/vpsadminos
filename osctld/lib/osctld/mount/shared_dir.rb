@@ -36,19 +36,24 @@ module OsCtld
     # Propagate a new mount inside the container via the shared directory
     # @param mnt [Mount::Entry]
     def propagate(mnt)
-      tmp = Digest::SHA2.hexdigest(mnt.mountpoint)
-
       # Bind-mount the new mount into the shared directory
-      host_path = File.join(path, tmp)
+      host_path = host_path_for(mnt.mountpoint)
+
       Dir.mkdir(host_path)
-      syscmd("mount --bind \"#{mnt.fs}\" \"#{host_path}\"")
+
+      opts =
+        if ct.map_mode == 'native' && mnt.id_mapped?
+          "-o X-mount.idmap=/proc/#{ct.init_pid}/ns/user"
+        end
+
+      syscmd("mount --bind #{opts} \"#{mnt.fs}\" \"#{host_path}\"")
 
       # Move the mount inside the container to the right place
       begin
         ContainerControl::Commands::Mount.run!(
           ct,
           shared_dir: File.join('/', mountpoint),
-          src: tmp,
+          src: File.basename(host_path),
           dst: File.join('/', mnt.mountpoint)
         )
       rescue ContainerControl::Error => e
@@ -57,6 +62,35 @@ module OsCtld
 
       syscmd("umount \"#{host_path}\"")
       Dir.rmdir(host_path)
+    end
+
+    # Bind-mount path with ID-mapping and push it through the shared directory
+    # @param dir [String]
+    # @param ns_pid [Integer]
+    # @param [String] path to the mountpoint, same in both init and ct mount namespaces
+    def map_and_push(dir, ns_pid)
+      host_path = host_path_for(dir)
+
+      Dir.mkdir(host_path)
+      syscmd("mount --bind -o X-mount.idmap=/proc/#{ns_pid}/ns/user #{dir} #{host_path}")
+
+      host_path
+    end
+
+    # Cleanup after {#map_and_push}
+    # @param dir [String]
+    def cleanup_pushed(dir)
+      host_path = host_path_for(dir)
+
+      syscmd("umount \"#{host_path}\"")
+      Dir.rmdir(host_path)
+
+      nil
+    end
+
+    # @return [String]
+    def host_path_for(dir)
+      File.join(path, Digest::SHA2.hexdigest(dir))
     end
 
     # @return [String]

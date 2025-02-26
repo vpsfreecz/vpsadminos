@@ -34,12 +34,14 @@ module OsCtld
         sys = OsCtl::Lib::Sys.new
         sys.chroot(opts[:ctrc].rootfs)
 
-        SwitchUser.switch_to_system(
-          '',
-          opts[:ctrc].ct.root_host_uid,
-          opts[:ctrc].ct.root_host_gid,
-          '/'
-        )
+        if opts[:ctrc].ct.map_mode == 'zfs'
+          SwitchUser.switch_to_system(
+            '',
+            opts[:ctrc].ct.root_host_uid,
+            opts[:ctrc].ct.root_host_gid,
+            '/'
+          )
+        end
 
         # After chroot, we can no longer access syslog logger. Log to stdout
         # instead, which will be picked up by osctld supervisor and sent to

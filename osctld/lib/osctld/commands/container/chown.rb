@@ -53,8 +53,8 @@ module OsCtld
         ct.chown(new_user)
 
         # Configure datasets
-        if new_user.uid_map != old_user.uid_map \
-           || new_user.gid_map != old_user.gid_map
+        if ct.map_mode == 'zfs' \
+           && (new_user.uid_map != old_user.uid_map || new_user.gid_map != old_user.gid_map)
           datasets = ct.datasets
 
           datasets.reverse_each do |ds|

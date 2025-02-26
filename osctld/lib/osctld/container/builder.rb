@@ -17,7 +17,8 @@ module OsCtld
         user,
         group,
         dataset || Container.default_dataset(pool, id),
-        load: false
+        load: false,
+        map_mode: opts[:map_mode] || 'native'
       )
 
       ctrc = Container::RunConfiguration.new(ct)
@@ -96,7 +97,12 @@ module OsCtld
     # @option opts [String] :distribution
     # @option opts [String] :version
     def from_local_archive(image, opts = {})
-      ds_builder.from_local_archive(image, ctrc.rootfs, opts)
+      ds_builder.from_local_archive(
+        image,
+        ctrc.rootfs,
+        ctrc.dataset,
+        opts.merge({ mapping: ctrc.map_mode == 'zfs' })
+      )
 
       distribution, version, arch = get_distribution_info(image)
 
@@ -115,12 +121,16 @@ module OsCtld
       ds_builder.from_tar_stream(image, member, compression, ds || ctrc.dataset)
     end
 
-    def shift_dataset
-      ds_builder.shift_dataset(
-        ctrc.dataset,
-        uid_map: ctrc.uid_map,
-        gid_map: ctrc.gid_map
-      )
+    def shift_or_mount_dataset
+      if ctrc.map_mode == 'zfs'
+        ds_builder.shift_dataset(
+          ctrc.dataset,
+          uid_map: ctrc.uid_map,
+          gid_map: ctrc.gid_map
+        )
+      else
+        ctrc.dataset.mount
+      end
     end
 
     def setup_ct_dir

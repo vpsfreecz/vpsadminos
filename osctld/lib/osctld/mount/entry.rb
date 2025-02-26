@@ -40,6 +40,10 @@ module OsCtld
       ret
     end
 
+    def id_mapped?
+      !dataset.nil?
+    end
+
     # Export to client
     def export
       {

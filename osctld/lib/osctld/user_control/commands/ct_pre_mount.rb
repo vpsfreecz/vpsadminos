@@ -6,6 +6,7 @@ module OsCtld
     handle :ct_pre_mount
 
     include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::System
 
     def execute
       ct = DB::Containers.find(opts[:id], opts[:pool])
@@ -18,6 +19,19 @@ module OsCtld
         rootfs_mount: opts[:rootfs_mount],
         ns_pid: opts[:client_pid]
       )
+
+      if ct.map_mode == 'native'
+        rc = ct.get_run_conf
+
+        ct.mounts.shared_dir.map_and_push(rc.rootfs, opts[:client_pid])
+
+        ct.mounts.each do |mnt|
+          next unless mnt.id_mapped?
+
+          ct.mounts.shared_dir.map_and_push(mnt.fs, opts[:client_pid])
+        end
+      end
+
       ok
     rescue HookFailed => e
       error(e.message)

@@ -67,6 +67,7 @@ in tests [
   "osctl/ct-cat"
   "osctl/ct-exec-v1"
   "osctl/ct-exec-v2"
+  "osctl/ct-map-mode"
   "osctl/ct-mounts"
   "osctl/ct-runscript-v1"
   "osctl/ct-runscript-v2"

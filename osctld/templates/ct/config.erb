@@ -8,7 +8,11 @@ lxc.include = <%= File.join(Lxc::CONFIGS, 'nesting.conf') %>
 <% end -%>
 
 lxc.log.syslog = local4
+<% if ct.map_mode == 'native' -%>
+lxc.rootfs.path = dir:<%= ct.mounts.shared_dir.host_path_for(ct.get_run_conf.rootfs) %>
+<% elsif ct.map_mode == 'zfs' -%>
 lxc.rootfs.path = dir:<%= ct.get_run_conf.rootfs %>
+<% end -%>
 lxc.arch = <%= ct.arch %>
 lxc.uts.name = <%= ct.hostname || ct.id %>
 
@@ -67,7 +71,11 @@ lxc.prlimit.<%= name %> = <%= limit.soft %>:<%= limit.hard %>
 
 # Mounts
 <% mounts.each do |m| -%>
+<% if ct.map_mode == 'native' && m.id_mapped? -%>
+lxc.mount.entry = <%= ct.mounts.shared_dir.host_path_for(m.fs) %> <%= m.lxc_mountpoint %> <%= m.type %> <%= m.opts %>
+<% else -%>
 lxc.mount.entry = <%= m.fs %> <%= m.lxc_mountpoint %> <%= m.type %> <%= m.opts %>
+<% end -%>
 <% end -%>
 
 # Appended user raw config

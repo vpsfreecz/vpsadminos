@@ -21,6 +21,7 @@ module OsCtl::Cli
       id
       user
       group
+      map_mode
       dataset
       rootfs
       boot_dataset
@@ -747,6 +748,15 @@ module OsCtl::Cli
       unset(:impermanence)
     end
 
+    def set_map_mode
+      require_args!('id', 'mode')
+      osctld_fmt(:ct_map_mode, cmd_opts: {
+        id: args[0],
+        pool: gopts[:pool],
+        map_mode: args[1]
+      })
+    end
+
     def set_raw_lxc
       require_args!('id')
       set(:raw_lxc) { |_args| $stdin.read }
@@ -979,7 +989,7 @@ module OsCtl::Cli
 
       cmd_opts = { pool: gopts[:pool], file: }
 
-      %w[as-id as-user as-group dataset missing-devices].each do |v|
+      %w[as-id as-user as-group dataset map_mode missing-devices].each do |v|
         cmd_opts[v.sub('-', '_').to_sym] = opts[v] if opts[v]
       end
 
@@ -1580,7 +1590,7 @@ module OsCtl::Cli
         repository: opts[:repository]
       }
 
-      %i[group dataset].each do |v|
+      %i[group dataset map_mode].each do |v|
         cmd_opts[v] = opts[v] if opts[v]
       end
 
@@ -1611,7 +1621,7 @@ module OsCtl::Cli
         arch: opts[:arch]
       }
 
-      %i[group dataset].each do |v|
+      %i[group dataset map_mode].each do |v|
         cmd_opts[v] = opts[v] if opts[v]
       end
 

@@ -51,7 +51,7 @@ module OsCtld
     end
 
     %i[
-      id ident pool user group uid_map gid_map lxc_dir log_path config_path
+      id ident pool user group uid_map gid_map map_mode lxc_dir log_path config_path
       can_dist_configure_network? log_type
     ].each do |v|
       define_method(v) do |*args, **kwargs|
