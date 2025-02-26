@@ -66,7 +66,8 @@ module OsCtld
 
       def environment
         super.merge({
-          'OSCTL_CT_ROOTFS_MOUNT' => opts[:rootfs_mount]
+          'OSCTL_CT_ROOTFS_MOUNT' => opts[:rootfs_mount],
+          'OSCTL_CT_NS_PID' => opts[:ns_pid].to_s
         })
       end
 
@@ -83,7 +84,8 @@ module OsCtld
 
       def environment
         super.merge({
-          'OSCTL_CT_ROOTFS_MOUNT' => opts[:rootfs_mount]
+          'OSCTL_CT_ROOTFS_MOUNT' => opts[:rootfs_mount],
+          'OSCTL_CT_NS_PID' => opts[:ns_pid].to_s
         })
       end
 

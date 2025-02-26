@@ -3123,13 +3123,15 @@ All pool script hooks have the following environment variables set:
 `pre-mount`
   `pre-mount` is run in the container's mount namespace, before its rootfs is
   mounted. The path to the container's runtime rootfs is in environment variable
-  `OSCTL_CT_ROOTFS_MOUNT`. If `pre-mount` exits with a non-zero status, the
+  `OSCTL_CT_ROOTFS_MOUNT`. `OSCTL_CT_NS_PID` contains the PID of a process with
+  the container's user namespace. If `pre-mount` exits with a non-zero status, the
   container's start is aborted.
 
 `post-mount`
   `post-mount` is run in the container's mount namespace, after its rootfs
   and all LXC mount entries are mounted. The path to the container's runtime
-  rootfs is in environment variable `OSCTL_CT_ROOTFS_MOUNT`. If `post-mount`
+  rootfs is in environment variable `OSCTL_CT_ROOTFS_MOUNT`. `OSCTL_CT_NS_PID`
+  contains the PID of a process with the container's user namespace. If `post-mount`
   exits with a non-zero status, the container's start is aborted.
 
 `on-start`
