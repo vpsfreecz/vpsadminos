@@ -44,7 +44,7 @@ module OsCtld
 
       else
         # Announce the change
-        Eventd.report(:state, pool: ct.pool.name, id: ct.id, state: change[:state])
+        Eventd.report(:state, pool: ct.pool.name, id: ct.id, state: current_state)
       end
     end
 
