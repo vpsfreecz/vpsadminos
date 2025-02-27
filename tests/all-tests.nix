@@ -55,6 +55,7 @@ in tests [
   { template = "dist-config/systemd-rundir"; instances = distributions.systemd; }
   "dist-config/systemd-rundir-limits"
   "docker/almalinux-8"
+  "docker/almalinux-9"
   "docker/alpine-latest"
   "docker/arch-latest"
   "docker/debian-latest"
