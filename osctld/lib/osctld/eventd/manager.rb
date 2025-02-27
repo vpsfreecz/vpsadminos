@@ -42,6 +42,16 @@ module OsCtld
   #       state: new state
   #     }
   #
+  # === `:state_recovery`
+  # Used to report container state when the administrator recovered it.
+  # Options:
+  #
+  #     {
+  #       pool: pool name,
+  #       id: container id,
+  #       state: new state
+  #     }
+  #
   # === `:db`
   # Reports about changes in osctld database.
   # Options:

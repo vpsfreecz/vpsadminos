@@ -20,7 +20,7 @@ module OsCtld
       current_state = ct.current_state
 
       if orig_state == current_state
-        nil
+        # do nothing
 
       elsif current_state == :stopped
         # Put all network interfaces down
@@ -46,6 +46,9 @@ module OsCtld
         # Announce the change
         Eventd.report(:state, pool: ct.pool.name, id: ct.id, state: current_state)
       end
+
+      Eventd.report(:state_recovery, pool: ct.pool.name, id: ct.id, state: current_state)
+      nil
     end
 
     # Kill all processes found in the container's cgroup with signal

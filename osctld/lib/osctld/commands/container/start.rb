@@ -257,6 +257,11 @@ module OsCtld
         if event.type == :osctld_shutdown
           log(:info, ct, 'osctld is shutting down, giving up waiting')
           return [:error, 'osctld is shutting down']
+        elsif event.type == :state_recovery \
+              && event.opts[:pool] == ct.pool.name \
+              && event.opts[:id] == ct.id \
+              && event.opts[:state] == :stopped
+          return [:error, 'start failed, container is found to be stopped']
         end
 
         # Ignore irrelevant events
