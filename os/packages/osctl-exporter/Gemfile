@@ -1,5 +1,5 @@
 source 'https://rubygems.org'
 
 source 'https://rubygems.vpsfree.cz' do
-  gem 'osctl-exporter', '24.11.0.build20250130172956'
+  gem 'osctl-exporter', '24.11.0.build20250227142503'
 end

@@ -5,8 +5,8 @@ GEM
     filelock (1.1.1)
     gli (2.22.2)
       ostruct
-    json (2.9.1)
-    logger (1.6.5)
+    json (2.10.1)
+    logger (1.6.6)
     ostruct (0.6.1)
     rainbow (3.1.1)
     require_all (2.0.0)
@@ -15,17 +15,17 @@ GEM
 GEM
   remote: https://rubygems.vpsfree.cz/
   specs:
-    libosctl (24.11.0.build20250130172956)
+    libosctl (24.11.0.build20250227142503)
       fiddle
       logger
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
       syslog
-    osctl-repo (24.11.0.build20250130172956)
+    osctl-repo (24.11.0.build20250227142503)
       filelock
       gli (~> 2.22.0)
       json
-      libosctl (= 24.11.0.build20250130172956)
+      libosctl (= 24.11.0.build20250227142503)
       require_all (~> 2.0.0)
 
 PLATFORMS
@@ -33,7 +33,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  osctl-repo (= 24.11.0.build20250130172956)!
+  osctl-repo (= 24.11.0.build20250227142503)!
 
 BUNDLED WITH
    2.5.22
