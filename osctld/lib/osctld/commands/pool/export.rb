@@ -96,7 +96,7 @@ module OsCtld
             if obj.is_a?(User)
               obj.exclusively { UserControl::Supervisor.stop_server(obj) }
 
-              if opts[:unregister_users] && opts[:stop_containers]
+              if opts[:unregister_users] && opts[:stop_containers] && !Daemon.get.shutdown?
                 call_cmd!(
                   Commands::User::Unregister,
                   pool: pool.name,
@@ -111,7 +111,7 @@ module OsCtld
 
             elsif obj.is_a?(Container)
               obj.unregister
-              Monitor::Master.demonitor(obj)
+              Monitor::Master.demonitor(obj) unless Daemon.get.shutdown?
               Console.remove(obj)
             end
 
@@ -121,7 +121,7 @@ module OsCtld
         end
 
         # Remove all cgroups & BPF
-        if opts[:stop_containers]
+        if opts[:stop_containers] && !Daemon.get.shutdown?
           progress('Removing cgroups')
           begin
             CGroup.rmpath_all(root_group.cgroup_path)
@@ -134,8 +134,10 @@ module OsCtld
         end
 
         # Regenerate /etc/sub{u,g}ids and lxc-usernet
-        call_cmd!(Commands::User::SubUGIds)
-        call_cmd!(Commands::User::LxcUsernet)
+        unless Daemon.get.shutdown?
+          call_cmd!(Commands::User::SubUGIds)
+          call_cmd!(Commands::User::LxcUsernet)
+        end
 
         # Close history
         History.close(pool)

@@ -35,6 +35,8 @@ module OsCtld
         k = key(ct)
 
         if @monitors.has_key?(k)
+          next if @monitors[k].cts.include?(ct.id)
+
           @monitors[k].cts << ct.id
           update_state(ct)
           next
