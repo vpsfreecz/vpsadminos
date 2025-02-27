@@ -93,6 +93,8 @@ module OsCtld
           klass.get.each do |obj|
             next if obj.pool != pool
 
+            check_abort!(pool)
+
             if obj.is_a?(User)
               obj.exclusively { UserControl::Supervisor.stop_server(obj) }
 
