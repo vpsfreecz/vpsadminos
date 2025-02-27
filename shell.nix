@@ -22,6 +22,9 @@ in stdenv.mkDerivation rec {
   ];
 
   shellHook = ''
+    # Workaround for broken TMPDIR in nix-shell
+    export TMPDIR=/tmp
+
     export GEM_HOME="$(pwd)/.gems"
     export PATH="$(ruby -e 'puts Gem.bindir'):$PATH"
     export RUBYLIB="$GEM_HOME"
