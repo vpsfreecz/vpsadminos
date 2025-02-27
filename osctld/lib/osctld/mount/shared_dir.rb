@@ -42,7 +42,7 @@ module OsCtld
       Dir.mkdir(host_path)
 
       opts =
-        if ct.map_mode == 'native' && mnt.id_mapped?
+        if ct.map_mode == 'native' && mnt.map_ids
           "-o X-mount.idmap=/proc/#{ct.init_pid}/ns/user"
         end
 

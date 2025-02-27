@@ -19,7 +19,7 @@ module OsCtld
         ct.mounts.shared_dir.cleanup_pushed(run_conf.rootfs)
 
         ct.mounts.each do |mnt|
-          next unless mnt.id_mapped?
+          next unless mnt.map_ids
 
           ct.mounts.shared_dir.cleanup_pushed(mnt.fs)
         end

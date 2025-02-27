@@ -17,6 +17,7 @@ module OsCtld
           opts[:type],
           opts[:opts] || '',
           false,
+          map_ids: opts[:map_ids],
           temp: true
         )
 

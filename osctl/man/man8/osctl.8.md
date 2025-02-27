@@ -2380,6 +2380,10 @@ The following shortcuts are supported:
     `--[no-]automount`
       Activate this mount when the container starts. Enabled by default.
 
+    `--[no-]map-ids`
+      Map UID/GID into the container's namespace. It has an effect only
+      when `native` map mode is used by the container. Enabled by default.
+
 `ct mounts dataset` *options* *ctid* *dataset* *mountpoint*
   Mount subdataset *dataset* into container *ctid*. Only subdatasets of container
   *ctid* can be mounted in this way. Dataset mounts can survive container
@@ -2421,6 +2425,10 @@ The following shortcuts are supported:
     `--opts` *opts*
       Mount options. Standard mount options depending on the filesystem
       type, with two extra options from LXC: `create=file` and `create=dir`.
+
+    `--[no-]map-ids`
+      Map UID/GID into the container's namespace. It has an effect only
+      when `native` map mode is used by the container. Enabled by default.
 
     `--on-ct-start`
       Use this option if you're calling `ct mounts register` from script hooks,

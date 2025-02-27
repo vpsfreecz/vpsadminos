@@ -32,6 +32,7 @@ module OsCtld
             'bind',
             'bind,rw,create=dir',
             false,
+            map_ids: true,
             temp: true,
             in_config: true
           )

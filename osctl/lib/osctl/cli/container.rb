@@ -100,6 +100,7 @@ module OsCtl::Cli
       type
       opts
       automount
+      map_ids
       temporary
     ].freeze
 
@@ -1397,7 +1398,8 @@ module OsCtl::Cli
         mountpoint: opts[:mountpoint],
         type: opts[:type],
         opts: opts[:opts],
-        automount: opts[:automount]
+        automount: opts[:automount],
+        map_ids: opts[:map_ids]
       })
     end
 
@@ -1434,6 +1436,7 @@ module OsCtl::Cli
         mountpoint: args[1],
         type: opts[:type],
         opts: opts[:opts],
+        map_ids: opts[:map_ids],
         lock: !opts['on-ct-start']
       })
     end

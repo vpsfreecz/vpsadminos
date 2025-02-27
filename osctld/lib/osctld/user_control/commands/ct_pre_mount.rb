@@ -26,7 +26,7 @@ module OsCtld
         ct.mounts.shared_dir.map_and_push(rc.rootfs, opts[:client_pid])
 
         ct.mounts.each do |mnt|
-          next unless mnt.id_mapped?
+          next unless mnt.map_ids
 
           ct.mounts.shared_dir.map_and_push(mnt.fs, opts[:client_pid])
         end

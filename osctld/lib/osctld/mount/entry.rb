@@ -1,31 +1,35 @@
 module OsCtld
   class Mount::Entry
     PARAMS = %i[fs mountpoint type opts automount dataset temp].freeze
-    attr_reader :mountpoint, :type, :opts, :automount, :dataset, :temp, :in_config
+    attr_reader :mountpoint, :type, :opts, :automount, :dataset, :map_ids, :temp, :in_config
 
     # Load from config
     def self.load(ct, cfg)
+      dataset = cfg['dataset'] && OsCtl::Lib::Zfs::Dataset.new(
+        cfg['dataset'] == '/' ? ct.dataset.name : File.join(ct.dataset.name, cfg['dataset']),
+        base: ct.dataset.name
+      )
+
       new(
         cfg['fs'],
         cfg['mountpoint'],
         cfg['type'],
         cfg['opts'],
         cfg['automount'],
-        dataset: cfg['dataset'] && OsCtl::Lib::Zfs::Dataset.new(
-          cfg['dataset'] == '/' ? ct.dataset.name : File.join(ct.dataset.name, cfg['dataset']),
-          base: ct.dataset.name
-        ),
+        dataset:,
+        map_ids: cfg.fetch('map_ids', !dataset.nil?),
         temp: cfg['temporary']
       )
     end
 
-    def initialize(fs, mountpoint, type, opts, automount, dataset: nil, temp: false, in_config: false)
+    def initialize(fs, mountpoint, type, opts, automount, dataset: nil, map_ids: false, temp: false, in_config: false)
       @fs = fs
       @mountpoint = mountpoint
       @type = type
       @opts = opts
       @automount = automount
       @dataset = dataset
+      @map_ids = map_ids
       @temp = temp
       @in_config = in_config
     end
@@ -40,10 +44,6 @@ module OsCtld
       ret
     end
 
-    def id_mapped?
-      !dataset.nil?
-    end
-
     # Export to client
     def export
       {
@@ -53,6 +53,7 @@ module OsCtld
         opts:,
         automount:,
         dataset: dataset && dataset.relative_name,
+        map_ids: map_ids,
         temporary: temp
       }
     end
@@ -66,6 +67,7 @@ module OsCtld
         'opts' => opts,
         'automount' => automount,
         'dataset' => dataset && dataset.relative_name,
+        'map_ids' => map_ids,
         'temporary' => temp
       }
     end

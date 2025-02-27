@@ -1846,6 +1846,9 @@ module OsCtl::Cli
             c.desc 'Activate this mount when the container starts'
             c.switch :automount, default_value: true
 
+            c.desc 'Map UID/GID'
+            c.switch :map_ids, default_value: true
+
             c.action(&Command.run(Container, :mount_create))
           end
 
@@ -1875,6 +1878,9 @@ module OsCtl::Cli
 
             c.desc 'Options'
             c.flag :opts
+
+            c.desc 'Map UID/GID'
+            c.switch :map_ids, default_value: true
 
             c.desc 'Skip container locking to prevent deadlocks'
             c.switch 'on-ct-start', negatable: false

@@ -16,7 +16,8 @@ module OsCtld
           opts[:mountpoint],
           opts[:type],
           opts[:opts],
-          opts[:automount]
+          opts[:automount],
+          map_ids: opts[:map_ids]
         )
 
         if ct.mounts.find_at(mnt.mountpoint)
