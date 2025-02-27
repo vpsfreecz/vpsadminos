@@ -57,7 +57,6 @@ in tests [
   "docker/almalinux-8"
   "docker/alpine-latest"
   "docker/arch-latest"
-  "docker/centos-7"
   "docker/debian-latest"
   "docker/fedora-latest"
   "docker/ubuntu-20.04"
