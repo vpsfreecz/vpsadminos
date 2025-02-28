@@ -72,6 +72,19 @@ module OsCtld
       }
     end
 
+    def dup(new_ct)
+      ret = super()
+
+      if dataset
+        ret.instance_variable_set('@dataset', OsCtl::Lib::Zfs::Dataset.new(
+                                                File.join(new_ct.dataset.name, dataset.relative_name).chomp('/'),
+                                                base: new_ct.dataset.name
+                                              ))
+      end
+
+      ret
+    end
+
     alias automount? automount
     alias temp? temp
     alias in_config? in_config
