@@ -86,6 +86,8 @@ Style/PreferredHashMethods:
   EnforcedStyle: verbose
 Style/RedundantConstantBase:
   Enabled: false
+Style/RedundantFormat:
+  Enabled: false
 Style/RedundantLineContinuation:
   Enabled: false
 Style/SafeNavigation:
