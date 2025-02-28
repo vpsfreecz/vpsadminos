@@ -85,7 +85,9 @@ module OsCtld
       end
 
       # Create datasets
-      dst_datasets.each { |ds| builder.create_dataset(ds, mapping: true) }
+      dst_datasets.each do |ds|
+        builder.create_dataset(ds, mapping: builder.ctrc.map_mode == 'zfs')
+      end
 
       # Copy data
       snaps << builder.copy_datasets(src_datasets, dst_datasets)
