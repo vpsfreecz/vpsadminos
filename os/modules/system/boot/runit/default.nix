@@ -485,7 +485,11 @@ in
     runit.halt.hooks = mkOption {
       type = types.attrsOf (types.submodule haltHook);
       default = {};
-      description = "Halt hooks";
+      description = ''
+        Halt hooks
+
+        See halt(8) for supported hooks.
+      '';
     };
   };
 
