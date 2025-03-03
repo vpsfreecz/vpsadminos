@@ -53,6 +53,8 @@ The following environment variables are set:
 *HALT_HOOK*:: pre-system
 *HALT_ACTION*:: poweroff/reboot
 *HALT_REASON*:: halt reason
+*HALT_FORCE*:: *1* if `--force` is used, *0* otherwise
+*HALT_KEXEC*:: *1* if `--kexec` is allowed, *0* otherwise
 
 Exit statuses of executed hooks are not evaluated.
 
@@ -74,6 +76,10 @@ The following options are understood:
 
 *-r*, *--reboot*::
   Reboot the machine, regardless of which one of the three commands is invoked.
+
+*-k*, *--[no-]kexec*::
+  Enable or disable reboot using kexec. Note that target kernel/initrd must already
+  be loaded. kexec is used by default on *reboot* if it is loaded.
 
 *-p*, *--poweroff*::
   Power-off the machine, regardless of which one of the three commands is invoked.

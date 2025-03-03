@@ -16,6 +16,11 @@ class Halt
   end
 
   def run
+    run_hook('pre-run')
+
+    @kexec_loaded = kexec_loaded?
+    @action = 'kexec' if @action == 'reboot' && @kexec_enabled && @kexec_loaded
+
     return halt if @force
 
     @hostname = Socket.gethostname
@@ -31,6 +36,7 @@ class Halt
   def parse(args)
     @force = false
     @action = default_action
+    @kexec_enabled = true
     @wall = true
     @message = nil
 
@@ -42,6 +48,11 @@ class Halt
 
       opts.on('-r', '--reboot', 'Reboot the machine') do
         @action = 'reboot'
+        @kexec_enabled = false
+      end
+
+      opts.on('-k', '--[no-]kexec', 'Use kexec to reboot the machine') do |v|
+        @kexec_enabled = v
       end
 
       opts.on('-p', '--poweroff', 'Power off the machine') do
@@ -226,6 +237,10 @@ class Halt
     puts "Proceeding with system #{@action}"
 
     case @action
+    when 'kexec'
+      File.open('/etc/runit/kexec', 'w').close
+      File.chmod(0o100, '/etc/runit/kexec')
+      Process.exec('runit-init', '6')
     when 'poweroff'
       Process.exec('runit-init', '0')
     when 'reboot'
@@ -259,6 +274,8 @@ class Halt
         ENV['HALT_HOOK'] = name
         ENV['HALT_ACTION'] = @action
         ENV['HALT_REASON'] = @message
+        ENV['HALT_FORCE'] = @force ? '1' : '0'
+        ENV['HALT_KEXEC'] = @kexec_enabled ? '1' : '0'
 
         Process.exec(abs_path)
       end
@@ -269,6 +286,10 @@ class Halt
         warn "Halt hook #{abs_path.inspect} failed with exit status #{$?.exitstatus}"
       end
     end
+  end
+
+  def kexec_loaded?
+    File.read('/sys/kernel/kexec_loaded').strip == '1'
   end
 
   def handle_abort(shutdown_pid)
