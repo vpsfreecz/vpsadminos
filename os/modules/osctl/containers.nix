@@ -90,6 +90,7 @@ let
         user = user;
         group = cfg.group;
         dataset = "${pool}/ct/${name}";
+        map_mode = cfg.mapMode;
         distribution = if cfg.distribution == null then "nixos" else cfg.distribution;
         version = if cfg.version == null then "18.09" else cfg.version;
         arch = if cfg.arch == null then (toString (head (splitString "-" system))) else cfg.arch;
@@ -401,6 +402,13 @@ let
         description = "Mount automatically";
         apply = boolToStr;
       };
+
+      map_ids = mkOption {
+        type = types.bool;
+        default = true;
+        description = "Map UID/GID into the container's namespace";
+        apply = boolToStr;
+      };
     };
   };
 
@@ -546,6 +554,14 @@ let
         description = ''
           Name of an osctl group declared by <option>osctl.groups</option> that
           the container belongs to.
+        '';
+      };
+
+      mapMode = mkOption {
+        type = types.enum [ "native" "zfs" ];
+        default = "native";
+        description = ''
+          UID/GID mapping mode
         '';
       };
 

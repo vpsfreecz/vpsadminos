@@ -19,6 +19,7 @@ let
             ${osctlPool} ct new \
                                 ${optionalString hasUser "--user ${user}"} \
                                 --group ${cfg.group} \
+                                --map-mode ${cfg.mapMode} \
                                 ${createCtNewArgs} \
                                 ${name} || exit 1
           '';
@@ -27,6 +28,7 @@ let
                                 --as-id ${name} \
                                 ${optionalString hasUser "--as-user ${user}"} \
                                 --as-group ${cfg.group} \
+                                --map-mode ${cfg.mapMode} \
                                 ${cfg.image.path} || exit 1
           '';
         };
@@ -49,7 +51,7 @@ let
 
         if osctlEntityExists ct "${name}" ; then
           echo "Container ${pool}:${name} already exists"
-          lines=( $(${osctlPool} ct show -H -o rootfs,state,user,group,org.vpsadminos.osctl:config ${name}) )
+          lines=( $(${osctlPool} ct show -H -o rootfs,state,user,group,map_mode,org.vpsadminos.osctl:config ${name}) )
           if [ "$?" != 0 ] ; then
             echo "Unable to get the container's status"
             exit 1
@@ -59,7 +61,8 @@ let
           currentState="''${lines[1]}"
           currentUser="''${lines[2]}"
           currentGroup="''${lines[3]}"
-          currentConfig="''${lines[4]}"
+          currentMapMode="''${lines[4]}"
+          currentConfig="''${lines[5]}"
 
           if [ "${user}" != "$currentUser" ] \
              || [ "${cfg.group}" != "$currentGroup" ] \
@@ -80,6 +83,11 @@ let
             if [ "${cfg.group}" != "$currentGroup" ] ; then
               echo "Changing group from $currentGroup to ${cfg.group}"
               ${osctlPool} ct chgrp ${name} ${cfg.group} || exit 1
+            fi
+
+            if [ "${cfg.mapMode}" != "$currentMapMode" ] ; then
+              echo "Changing map mode from $currentMapMode to ${cfg.mapMode}"
+              ${osctlPool} ct set map-mode ${name} ${cfg.mapMode} || exit 1
             fi
 
             if [ "${yml}" != "$currentConfig" ] ; then
