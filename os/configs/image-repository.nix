@@ -1,5 +1,9 @@
 { config, pkgs, lib, ... }:
-{
+let
+  variants = [ "minimal cloudinit" ];
+
+  gcVariants = filterAttrs: map (variant: filterAttrs // { inherit variant; }) variants;
+in {
   services.osctl.image-repository.vpsadminos = {
     rebuildAll = true;
 
@@ -8,34 +12,34 @@
 
     images = {
       almalinux = {
-        "8" = { tags = [ "oldstable" ]; };
-        "9" = { tags = [ "latest" "stable" ]; };
+        "8" = { inherit variants; tags = [ "oldstable" ]; };
+        "9" = { inherit variants; tags = [ "latest" "stable" ]; };
 
         "10-kitten" = { tags = [ "10-kitten" "kitten" ]; };
       };
 
       alpine = {
-        "3.18" = {};
-        "3.19" = {};
-        "3.20" = {};
-        "3.21" = { tags = [ "latest" "stable" ]; };
+        "3.18" = { inherit variants; };
+        "3.19" = { inherit variants; };
+        "3.20" = { inherit variants; };
+        "3.21" = { inherit variants; tags = [ "latest" "stable" ]; };
       };
 
-      arch.rolling = { name = "arch"; tags = [ "latest" "stable" ]; };
+      arch.rolling = { name = "arch"; inherit variants; tags = [ "latest" "stable" ]; };
 
       centos = {
-        "9-stream" = { tags = [ "latest-9-stream" ]; };
-        "10-stream" = { tags = [ "latest-10-stream" "latest-stream" ]; };
+        "9-stream" = { inherit variants; tags = [ "latest-9-stream" ]; };
+        "10-stream" = { inherit variants; tags = [ "latest-10-stream" "latest-stream" ]; };
       };
 
       chimera.rolling = { name = "chimera"; tags = [ "latest" "stable" ]; };
 
       debian = {
-        "10" = { tags = [ "oldoldstable" ]; };
-        "11" = { tags = [ "oldstable" ]; };
-        "12" = { tags = [ "latest" "stable" ]; };
-        "testing" = { tags = [ "testing" ]; };
-        "unstable" = { tags = [ "unstable" ]; };
+        "10" = { inherit variants; tags = [ "oldoldstable" ]; };
+        "11" = { inherit variants; tags = [ "oldstable" ]; };
+        "12" = { inherit variants; tags = [ "latest" "stable" ]; };
+        "testing" = { inherit variants; tags = [ "testing" ]; };
+        "unstable" = { inherit variants; tags = [ "unstable" ]; };
       };
 
       devuan = {
@@ -44,16 +48,16 @@
       };
 
       fedora = {
-        "40" = {};
-        "41" = { tags = [ "latest" "stable" ]; };
+        "40" = { inherit variants; };
+        "41" = { inherit variants; tags = [ "latest" "stable" ]; };
 
-        "rawhide" = { tags = [ "rawhide" ]; };
+        "rawhide" = { inherit variants; tags = [ "rawhide" ]; };
       };
 
       gentoo = {
-        openrc = { tags = [ "latest" "stable" "latest-openrc" "stable-openrc" ]; };
-        systemd = { tags = [ "latest-systemd" "stable-systemd" ]; };
-        musl = { tags = [ "latest-musl" "stable-musl" ]; };
+        openrc = { inherit variants; tags = [ "latest" "stable" "latest-openrc" "stable-openrc" ]; };
+        systemd = { inherit variants; tags = [ "latest-systemd" "stable-systemd" ]; };
+        musl = { inherit variants; tags = [ "latest-musl" "stable-musl" ]; };
       };
 
       guix.rolling = { name = "guix"; tags = [ "latest" "stable" ]; };
@@ -67,14 +71,14 @@
       };
 
       opensuse = {
-        "leap-15.5" = {};
-        "leap-15.6" = { tags = [ "latest" "stable" ]; };
-        "tumbleweed" = { tags = [ "latest-tumbleweed" ]; };
+        "leap-15.5" = { inherit variants; };
+        "leap-15.6" = { inherit variants; tags = [ "latest" "stable" ]; };
+        "tumbleweed" = { inherit variants; tags = [ "latest-tumbleweed" ]; };
       };
 
       rocky = {
-        "8" = { tags = [ "oldstable" ]; };
-        "9" = { tags = [ "latest" "stable" ]; };
+        "8" = { inherit variants; tags = [ "oldstable" ]; };
+        "9" = { inherit variants; tags = [ "latest" "stable" ]; };
       };
 
       slackware = {
@@ -84,10 +88,10 @@
 
       ubuntu = {
         "18.04" = {};
-        "20.04" = { tags = [ "oldoldlts" ]; };
-        "22.04" = { tags = [ "oldlts" ]; };
-        "24.04" = { tags = [ "stable" "lts" ]; };
-        "24.10" = { tags = [ "latest" ]; };
+        "20.04" = { inherit variants; tags = [ "oldoldlts" ]; };
+        "22.04" = { inherit variants; tags = [ "oldlts" ]; };
+        "24.04" = { inherit variants; tags = [ "stable" "lts" ]; };
+        "24.10" = { inherit variants; tags = [ "latest" ]; };
       };
 
       void = {
@@ -96,57 +100,57 @@
       };
     };
 
-    garbageCollection = [
+    garbageCollection = lib.flatten [
       {
         distribution = "almalinux";
         version = "10-kitten-\\d+";
         keep = 4;
       }
-      {
+      (gcVariants {
         distribution = "arch";
         version = "\\d+";
         keep = 4;
-      }
-      {
+      })
+      (gcVariants {
         distribution = "centos";
         version = "9-stream-\\d+";
         keep = 4;
-      }
+      })
       {
         distribution = "chimera";
         version = "\\d+";
         keep = 4;
       }
-      {
+      (gcVariants {
         distribution = "debian";
         version = "testing-\\d+";
         keep = 4;
-      }
-      {
+      })
+      (gcVariants {
         distribution = "debian";
         version = "unstable-\\d+";
         keep = 4;
-      }
-      {
+      })
+      (gcVariants {
         distribution = "fedora";
         version = "rawhide-\\d+";
         keep = 4;
-      }
-      {
+      })
+      (gcVariants {
         distribution = "gentoo";
         version = "openrc-\\d+";
         keep = 4;
-      }
-      {
+      })
+      (gcVariants {
         distribution = "gentoo";
         version = "systemd-\\d+";
         keep = 4;
-      }
-      {
+      })
+      (gcVariants {
         distribution = "gentoo";
         version = "musl-\\d+";
         keep = 4;
-      }
+      })
       {
         distribution = "guix";
         version = "\\d+";
