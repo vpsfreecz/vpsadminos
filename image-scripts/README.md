@@ -122,7 +122,7 @@ Additional variables are optional:
  - `RELVER`, e.g. `9` for Debian or `16.04` for Ubuntu
  - `ARCH` (defaults to `x86_64`)
  - `VENDOR` (defaults to `vpsadminos`)
- - `VARIANT` (defaults to `minimal`)
+ - `VARIANT` (comma-separated list of variants, defaults to `minimal`)
  - `DATASETS` to create and mount subdatasets, e.g. `myds=/mymount` will create
    subdataset `myds` and mount it to `$INSTALL/mymount`.
 
@@ -130,6 +130,9 @@ If not set, `osctl-image` tries to extract the values from the image name,
 which should be in the following form:
 
 	<DISTNAME>[-RELVER[-ARCH[-VENDOR[-VARIANT]]]]
+
+If there is more than one variant, the variant currently being built or tested
+can be found in variable `BUILD_VARIANT`.
 
 ### Builders
 Images are built in builders, which are vpsAdminOS containers. Builders

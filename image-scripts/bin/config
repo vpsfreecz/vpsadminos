@@ -4,6 +4,8 @@
 
 BASEDIR=$(realpath `dirname ${BASH_SOURCE[0]}`/..)
 
+. "$BASEDIR/include/lib.sh"
+
 function usage {
 	echo "Usage:"
 	echo "  $0 builder|image|test [command arguments...]"
@@ -79,22 +81,31 @@ function do_image {
 				| while read dir
 			do
 				[ ! -h "$dir" ] && [ -f "$dir"/abstract ] && continue
-				basename "$dir"
+
+				basename="$(basename "$dir")"
+
+				VARIANT=
+				. "$dir/config.sh"
+
+				if image_has_variants "$VARIANT"; then
+					for variant in $(image_variants "$VARIANT"); do
+						echo "$basename#variant=$variant"
+					done
+				else
+					echo "$basename"
+				fi
 			done
 			;;
 		show)
 			local name="$2"
-			local dir="$BASEDIR/images/$name"
 
 			if [ "$name" == "" ] ; then
 				image_usage
 				exit 1
-			elif [ ! -d "$dir" ] ; then
-				echo "Image '$name' not found"
-				image_usage
-				exit 1
 			fi
 
+			DIRNAME=
+			PARAMETERS=
 			BUILDER=
 			DISTNAME=
 			RELVER=
@@ -102,15 +113,31 @@ function do_image {
 			VENDOR=
 			VARIANT=
 			DATASETS=
-			IFS=- read DISTNAME RELVER ARCH VENDOR VARIANT <<< "$name"
+
+			BUILD_VARIANT=
+
+			image_parse_name "$name"
+
+			local dir="$BASEDIR/images/$DIRNAME"
+
+			if [ ! -d "$dir" ] ; then
+				echo "Image '$DIRNAME' not found"
+				image_usage
+				exit 1
+			fi
+
+			IFS=- read DISTNAME RELVER ARCH VENDOR VARIANT <<< "$DIRNAME"
 			[ "$ARCH" == "" ] && ARCH=x86_64
 			. "$dir/config.sh"
+
+			[ -z "$BUILD_VARIANT" ] && BUILD_VARIANT="$VARIANT"
+
 			echo "BUILDER=$BUILDER"
 			echo "DISTNAME=$DISTNAME"
 			echo "RELVER=$RELVER"
 			echo "ARCH=$ARCH"
 			echo "VENDOR=$VENDOR"
-			echo "VARIANT=$VARIANT"
+			echo "VARIANT=$BUILD_VARIANT"
 			echo "DATASETS=$DATASETS"
 			;;
 		*)

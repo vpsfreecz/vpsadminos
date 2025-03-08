@@ -4,6 +4,8 @@
 
 BASEDIR=$(realpath `dirname ${BASH_SOURCE[0]}`/..)
 
+. "$BASEDIR/include/lib.sh"
+
 function usage {
 	echo "Usage:"
 	echo "  $0 image [command arguments...]"
@@ -40,7 +42,12 @@ function test_image {
 		exit 1
 	fi
 
-	IMAGE="$1"
+	DIRNAME=
+	PARAMETERS=
+	BUILD_VARIANT=
+
+	image_parse_name "$1"
+
 	TEST="$2"
 	CTID="$3"
 
@@ -54,9 +61,11 @@ function test_image {
 	ARCH=
 	VENDOR=
 	VARIANT=
-	IFS=- read DISTNAME RELVER ARCH VENDOR VARIANT <<< "$IMAGE"
+	IFS=- read DISTNAME RELVER ARCH VENDOR VARIANT <<< "$DIRNAME"
 	[ "$ARCH" == "" ] && ARCH=x86_64
-	. "$BASEDIR/images/$IMAGE/config.sh"
+	. "$BASEDIR/images/$DIRNAME/config.sh"
+
+	[ -z "$BUILD_VARIANT" ] && BUILD_VARIANT="$VARIANT"
 
 	. "$BASEDIR/tests/$TEST.sh"
 }
