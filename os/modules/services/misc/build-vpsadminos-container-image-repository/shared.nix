@@ -109,7 +109,7 @@ let
       serviceConfig = {
         Type = "oneshot";
         ExecStart = "${buildScript repoName repoCfg}/bin/build-vpsadminos-repository-${repoName}";
-        TimeoutStartSec = "24h";
+        TimeoutStartSec = "72h";
       };
     };
 
