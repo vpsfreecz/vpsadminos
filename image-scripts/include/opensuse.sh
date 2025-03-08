@@ -21,6 +21,8 @@ do_bootstrap() ( # new subshell
 	$ZYPPER addrepo --refresh -g $UPDATES openSUSE-updates
 	$ZYPPER refresh
 	$ZYPPER install --no-recommends aaa_base shadow patterns-base-base patterns-base-sw_management $EXTRAPKGS
+
+	[ "$BUILD_VARIANT" == "cloudinit" ] && $ZYPPER install --no-recommends cloud-init
 )
 
 function bootstrap {
@@ -44,6 +46,13 @@ if [ -d /etc/ssh/sshd_config.d ] ; then
 PermitRootLogin yes
 PasswordAuthentication yes
 EOT
+fi
+
+if [ "$BUILD_VARIANT" == "cloudinit" ]; then
+	systemctl enable cloud-init.service
+	systemctl enable cloud-init-local.service
+	systemctl enable cloud-init-modules.service
+	systemctl enable cloud-final.service
 fi
 
 systemctl mask systemd-modules-load.service

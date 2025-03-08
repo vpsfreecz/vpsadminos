@@ -57,7 +57,11 @@ mknod /dev/urandom c 1 9
 pacman-key --init
 pacman-key --populate archlinux
 
-pacstrap -G /mnt base openssh dhcpcd inetutils vim
+EXTRAPKGS=
+
+[ "$BUILD_VARIANT" == "cloudinit" ] && EXTRAPKGS="\$EXTRAPKGS cloud-init"
+
+pacstrap -G /mnt base openssh dhcpcd inetutils vim \$EXTRAPKGS
 
 gpg-connect-agent --homedir /etc/pacman.d/gnupg "SCD KILLSCD" "SCD BYE" /bye
 gpg-connect-agent --homedir /etc/pacman.d/gnupg killagent /bye
@@ -97,6 +101,13 @@ sed -i 's/#DefaultTimeoutStartSec=90s/DefaultTimeoutStartSec=900s/' /etc/systemd
 systemctl enable sshd
 systemctl disable systemd-resolved
 systemctl enable systemd-networkd
+
+if [ "$BUILD_VARIANT" == "cloudinit" ]; then
+	systemctl enable cloud-init.service
+	systemctl enable cloud-init-local.service
+	systemctl enable cloud-init-modules.service
+	systemctl enable cloud-final.service
+fi
 
 mkdir -p /etc/systemd/system/systemd-udev-trigger.service.d
 cat <<EOT > /etc/systemd/system/systemd-udev-trigger.service.d/vpsadminos.conf

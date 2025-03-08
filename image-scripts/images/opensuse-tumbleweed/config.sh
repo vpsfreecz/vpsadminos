@@ -3,3 +3,4 @@ SPIN=tumbleweed
 SPINVER=$(date +%Y%m%d)
 RELVER=$SPIN-$SPINVER
 ARCH=x86_64
+VARIANT=minimal,cloudinit

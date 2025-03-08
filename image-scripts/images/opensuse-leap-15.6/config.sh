@@ -3,3 +3,4 @@ SPIN=leap
 SPINVER=15.6
 RELVER=$SPIN-$SPINVER
 ARCH=x86_64
+VARIANT=minimal,cloudinit

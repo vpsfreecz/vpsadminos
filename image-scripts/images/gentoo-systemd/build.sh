@@ -18,6 +18,13 @@ ExecStart=
 ExecStart=-udevadm trigger --subsystem-match=net --action=add
 EOT
 
+if [ "$BUILD_VARIANT" == "cloudinit" ]; then
+	systemctl enable cloud-init.service
+	systemctl enable cloud-init-local.service
+	systemctl enable cloud-init-modules.service
+	systemctl enable cloud-final.service
+fi
+
 echo > /etc/machine-id
 EOF
 

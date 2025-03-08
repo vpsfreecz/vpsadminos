@@ -46,6 +46,8 @@ echo 'MAKEOPTS="-j$(nproc)"' >> /etc/portage/make.conf
 
 emerge --update --deep --newuse --with-bdeps=y --backtrack=120 @system @world
 emerge net-misc/dhcpcd sys-apps/iproute2 app-editors/vim
+
+[ "$BUILD_VARIANT" == "cloudinit" ] && emerge app-emulation/cloud-init
 EOF
 }
 

@@ -53,6 +53,10 @@ PATH=/tmp/:\$PATH apt-get install -y vim openssh-server ca-certificates man net-
 PATH=/tmp/:\$PATH apt-get install -y fuse squashfuse
 mkdir /lib/modules
 
+if [ "$BUILD_VARIANT" == "cloudinit" ]; then
+	PATH=/tmp/:\$PATH apt-get install -y cloud-init
+fi
+
 for pkg in ureadahead eject ntpdate resolvconf ; do
 	PATH=/tmp/:\$PATH apt-get purge -y $pkg
 done

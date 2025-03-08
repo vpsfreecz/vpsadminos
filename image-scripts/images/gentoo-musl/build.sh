@@ -12,6 +12,13 @@ sed -ri 's/^([^#].*agetty.*)$/#\1/' /etc/inittab
 
 rc-update add sshd default
 
+if [ "$BUILD_VARIANT" == "cloudinit" ]; then
+	rc-update add cloud-init default
+	rc-update add cloud-init-local boot
+	rc-update add cloud-init-modules default
+	rc-update add cloud-final default
+fi
+
 cat >> /etc/inittab <<END
 
 # Start getty on /dev/console

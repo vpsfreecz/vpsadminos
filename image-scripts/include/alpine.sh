@@ -159,6 +159,11 @@ echo "$RC_SERVICES" | while read svcname runlevel; do
 	rc-update add \$svcname \$runlevel
 done
 
+if [ "$BUILD_VARIANT" == "cloudinit" ]; then
+	apk add cloud-init
+	setup-cloud-init
+fi
+
 # Enable apk cache
 ln -sf ../../var/cache/apk /etc/apk/cache
 

@@ -63,6 +63,9 @@ EOF
 	mount --bind /sys $INSTALL/sys
 
 	[ -n "$GROUPNAME" ] && $YUM_GROUPINSTALL "$GROUPNAME"
+
+	[ "$BUILD_VARIANT" == "cloudinit" ] && EXTRAPKGS="$EXTRAPKGS cloud-init"
+
 	for rpm in $EXTRAPKGS; do
 		$YUM install $rpm
 	done
@@ -136,6 +139,8 @@ EOT
 
 sed -i -e 's/^#PermitRootLogin\ prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
 EOF
+
+	configure-cloud-init
 }
 
 function configure-fedora-nm-initscripts {
@@ -184,6 +189,8 @@ cat <<EOT > /etc/systemd/system/user@.service.d/vpsadminos.conf
 TimeoutStopSec=15s
 EOT
 EOF
+
+	configure-cloud-init
 }
 
 function configure-rhel-9 {
@@ -201,6 +208,8 @@ plugins+=ifcfg-rh
 rc-manager=file
 EOT
 EOF
+
+	configure-cloud-init
 }
 
 function configure-rhel-10 {
@@ -217,5 +226,18 @@ cat <<EOT > /etc/NetworkManager/conf.d/vpsadminos.conf
 dns=none
 rc-manager=file
 EOT
+EOF
+
+	configure-cloud-init
+}
+
+function configure-cloud-init {
+	[ "$BUILD_VARIANT" != "cloudinit" ] && return 0
+
+	configure-append <<EOF
+/usr/bin/systemctl enable cloud-init.service
+/usr/bin/systemctl enable cloud-init-local.service
+/usr/bin/systemctl enable cloud-init-modules.service
+/usr/bin/systemctl enable cloud-final.service
 EOF
 }
