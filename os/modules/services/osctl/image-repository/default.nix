@@ -142,6 +142,14 @@ let
         '';
       };
 
+      variants = mkOption {
+        type = types.listOf types.str;
+        default = [];
+        description = ''
+          Optional image variants to build
+        '';
+      };
+
       tags = mkOption {
         type = types.listOf types.str;
         default = [];

@@ -19,7 +19,12 @@ class Config
 
     @cfg['images'].each do |name, versions|
       versions.each do |version, image_opts|
-        @images << Image.new(name, version, image_opts)
+        variants = image_opts['variants'].dup
+        variants << nil if variants.empty?
+
+        variants.each do |variant|
+          @images << Image.new(name, version, variant, image_opts)
+        end
       end
     end
 
@@ -38,10 +43,12 @@ class Config
 end
 
 class Image
-  attr_reader :name, :tags
+  attr_reader :name, :tags, :variant
 
-  def initialize(name, version, opts)
-    @name = opts['name'] || "#{name}-#{version}"
+  def initialize(name, version, variant, opts)
+    base_name = opts['name'] || "#{name}-#{version}"
+
+    @name = variant ? "#{base_name}#variant=#{variant}" : base_name
     @version = version
     @opts = opts
     @tags = opts['tags']
