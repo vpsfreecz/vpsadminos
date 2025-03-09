@@ -25,10 +25,24 @@ module OsCtld
 
         ct.mounts.shared_dir.map_and_push(rc.rootfs, opts[:client_pid])
 
-        ct.mounts.each do |mnt|
-          next unless mnt.map_ids
+        begin
+          ct.mounts.each do |mnt|
+            next unless mnt.map_ids
 
-          ct.mounts.shared_dir.map_and_push(mnt.fs, opts[:client_pid])
+            ct.mounts.shared_dir.map_and_push(mnt.fs, opts[:client_pid])
+          end
+        rescue SystemCommandFailed
+          log(:warn, 'Failed to map and push a mount, cleaning up')
+
+          ct.mounts.shared_dir.cleanup_pushed(rc.rootfs)
+
+          ct.mounts.each do |mnt|
+            next unless mnt.map_ids
+
+            ct.mounts.shared_dir.cleanup_pushed(mnt.fs)
+          end
+
+          raise
         end
       end
 

@@ -82,8 +82,13 @@ module OsCtld
     def cleanup_pushed(dir)
       host_path = host_path_for(dir)
 
-      syscmd("umount \"#{host_path}\"")
-      Dir.rmdir(host_path)
+      syscmd("umount \"#{host_path}\"", valid_rcs: [32]) # 32 = not mounted
+
+      begin
+        Dir.rmdir(host_path)
+      rescue Errno::ENOENT
+        # pass
+      end
 
       nil
     end
