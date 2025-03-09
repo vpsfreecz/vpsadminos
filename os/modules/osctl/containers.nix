@@ -103,7 +103,7 @@ let
         start_menu = cfg.startMenu;
         hostname = name;
         dns_resolvers = cfg.resolvers;
-        nesting = boolToStr cfg.nesting;
+        nesting = cfg.nesting;
         seccomp_profile = nullIfEmpty cfg.seccomp;
       };
 
@@ -400,14 +400,12 @@ let
         type = types.bool;
         default = true;
         description = "Mount automatically";
-        apply = boolToStr;
       };
 
       map_ids = mkOption {
         type = types.bool;
         default = true;
         description = "Map UID/GID into the container's namespace";
-        apply = boolToStr;
       };
     };
   };
