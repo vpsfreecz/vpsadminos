@@ -58,5 +58,7 @@ cat <<EOT > /etc/systemd/system/systemd-udev-trigger.service.d/vpsadminos.conf
 ExecStart=
 ExecStart=-udevadm trigger --subsystem-match=net --action=add
 EOT
+
+echo > /etc/machine-id
 EOF
 }

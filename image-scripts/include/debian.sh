@@ -77,6 +77,7 @@ ln -s /etc/systemd/system/sshd-keygen.service /etc/systemd/system/multi-user.tar
 
 $([ -f "$CONFIGURE_DEBIAN" ] && cat "$CONFIGURE_DEBIAN")
 
+> /etc/machine-id
 > /etc/resolv.conf
 rm -f /etc/hostname
 
