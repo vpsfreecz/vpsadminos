@@ -43,7 +43,8 @@ module OsCtl::Image
     # @param arch [String]
     # @param vendor [String]
     # @param variant [String]
-    def create_container_from_repo(ctid, distribution, version, arch, vendor, variant)
+    # @param map_mode ['native', 'zfs']
+    def create_container_from_repo(ctid, distribution, version, arch, vendor, variant, map_mode: 'zfs')
       connect do |client|
         client.cmd_data!(
           :ct_create,
@@ -54,19 +55,22 @@ module OsCtl::Image
             arch:,
             vendor:,
             variant:
-          }
+          },
+          map_mode:
         )
       end
     end
 
     # @param ctid [String]
     # @param file [String]
-    def create_container_from_file(ctid, file)
+    # @param map_mode ['native', 'zfs']
+    def create_container_from_file(ctid, file, map_mode: 'native')
       connect do |client|
         client.cmd_data!(
           :ct_import,
           as_id: ctid,
-          file: File.absolute_path(file)
+          file: File.absolute_path(file),
+          map_mode:
         )
       end
     end

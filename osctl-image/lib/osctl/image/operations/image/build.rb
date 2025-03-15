@@ -122,7 +122,6 @@ module OsCtl::Image
         "-p -o uidmap=0:#{root_uid}:65536 -o gidmap=0:#{root_gid}:65536",
         output_dataset
       )
-
       image.datasets.each_key do |dataset|
         zfs(
           :create,
