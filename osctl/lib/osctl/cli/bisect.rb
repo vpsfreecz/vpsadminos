@@ -10,6 +10,7 @@ module OsCtl::Cli
       @suspend_action = suspend_action
       @cols = cols
       @mutex = Mutex.new
+      @last_manifested = true
     end
 
     def run
@@ -106,17 +107,23 @@ module OsCtl::Cli
 
     def ask_success?
       loop do
-        $stdout.write('Has the situation changed? [y/n]: ')
+        $stdout.write('Is the issue manifesting? [y/n]: ')
         $stdout.flush
 
         s = $stdin.readline.strip.downcase
         ret = nil
 
+        # rubocop:disable Style/NegatedIfElseCondition
+
         if %w[y yes].include?(s)
-          ret = true
+          ret = !@last_manifested ? true : false
+          @last_manifested = true
         elsif %w[n no].include?(s)
-          ret = false
+          ret = @last_manifested ? true : false
+          @last_manifested = false
         end
+
+        # rubocop:enable Style/NegatedIfElseCondition
 
         puts
 
