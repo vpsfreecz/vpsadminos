@@ -1,5 +1,5 @@
 . "$IMAGEDIR/config.sh"
-RAWHIDE_RELVER=42-0.6
+RAWHIDE_RELVER=43-0.7
 BASEURL=http://ftp.fi.muni.cz/pub/linux/fedora/linux/development/rawhide/Everything/x86_64/os
 RELEASE="$BASEURL/Packages/f/fedora-release-server-$RAWHIDE_RELVER.noarch.rpm
 $BASEURL/Packages/f/fedora-release-$RAWHIDE_RELVER.noarch.rpm
