@@ -11,7 +11,7 @@ else
 	fail "unsupported spin"
 fi
 
-EXTRAPKGS='vim iproute2 iputils net-tools procps less psmisc timezone aaa_base-extras openssh curl ca-certificates ca-certificates-mozilla wicked'
+EXTRAPKGS='vim iproute2 iputils net-tools procps less psmisc timezone aaa_base-extras openssh curl ca-certificates ca-certificates-mozilla wicked hostname'
 
 ZYPPER="zypper -v --root=$INSTALL --non-interactive --gpg-auto-import-keys "
 
