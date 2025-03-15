@@ -43,6 +43,12 @@ module OsCtl::Image
           'builder'
         )
 
+        client.set_container_attr(
+          builder.ctid,
+          'org.vpsadminos.osctl-image:builder-name',
+          builder.name
+        )
+
         client.set_container_nesting(builder.ctid)
         client.unset_container_start_menu(builder.ctid)
 

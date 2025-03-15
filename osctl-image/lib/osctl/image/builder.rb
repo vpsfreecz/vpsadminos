@@ -1,7 +1,12 @@
+require 'digest'
+
 module OsCtl::Image
   class Builder
     # @return [String]
     attr_reader :base_dir
+
+    # @return [String]
+    attr_reader :ctid
 
     # @return [String]
     attr_reader :name
@@ -30,6 +35,7 @@ module OsCtl::Image
     def initialize(base_dir, name)
       @base_dir = base_dir
       @name = name
+      @ctid = "builder-#{Digest::SHA2.hexdigest(name)[0..7]}"
     end
 
     def load_config
@@ -53,10 +59,6 @@ module OsCtl::Image
 
     def load_attrs(client = nil)
       @attrs = (client || OsCtldClient.new).find_container(ctid)
-    end
-
-    def ctid
-      "builder-#{name}"
     end
   end
 end
