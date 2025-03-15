@@ -75,10 +75,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.org"];
-      sha256 = "1p4l5ycdxfsr8b51gnvlvhq6s21vmx9z4x617003zbqv3bcqmj6x";
+      sha256 = "01lbdaizhkxmrw4y8j3wpvsryvnvzmg0pfs56c52laq2jgdfmq1l";
       type = "gem";
     };
-    version = "2.10.1";
+    version = "2.10.2";
   };
   libosctl = {
     dependencies = ["fiddle" "logger" "rainbow" "require_all" "syslog"];
@@ -86,10 +86,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1fq22pczvcjsip95g1db1m7wh5b0q07zdnv06pi8z09nglhjm1k3";
+      sha256 = "0hxn3fl0jp0pdgv2qjm86yrnms62zfms9skkswi6sacnqbp8623m";
       type = "gem";
     };
-    version = "24.11.0.build20250309190441";
+    version = "24.11.0.build20250315145546";
   };
   logger = {
     groups = ["default"];
@@ -117,10 +117,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1qypcnkd0k2qs9mdwy4bd7awprfkfylzl9x6dhgv918i5fv4bi9a";
+      sha256 = "0znpby6fnpwazljvda25lwk1ilxirsi71x74scz7ga4pa49w3v5b";
       type = "gem";
     };
-    version = "24.11.0.build20250309190441";
+    version = "24.11.0.build20250315145546";
   };
   osctld = {
     dependencies = ["base64" "bindata" "concurrent-ruby" "fiddle" "ipaddress" "json" "libosctl" "netlinkrb" "osctl-repo" "osup" "require_all" "ruby-lxc"];
@@ -128,10 +128,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "192ms5vsgajvq8ldvhzssw64bnlbn0q97r8k913cvpz0rvxfnckh";
+      sha256 = "1hd8c1wkazl4l6hz5mnd4g3qcnl3s82b6mczjmb6cx6xgicxg132";
       type = "gem";
     };
-    version = "24.11.0.build20250309190441";
+    version = "24.11.0.build20250315145546";
   };
   ostruct = {
     groups = ["default"];
@@ -149,10 +149,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "11kglsmhqyjsqg8hpvg6n1dx0l82y65x6wxlyr350c7zsbp1r2ai";
+      sha256 = "1yy220r969x5wckc38ka9an91s4njbkinx79j6zr2xpfwyabiicp";
       type = "gem";
     };
-    version = "24.11.0.build20250309190441";
+    version = "24.11.0.build20250315145546";
   };
   rainbow = {
     groups = ["default"];
@@ -185,13 +185,14 @@
     version = "1.2.4.vpsadminos.3";
   };
   syslog = {
+    dependencies = ["logger"];
     groups = ["default"];
     platforms = [];
     source = {
       remotes = ["https://rubygems.org"];
-      sha256 = "1agbkwj904p84gb4s7xk4zmpp9a5av2scdvdbg55i86ma42lw7nf";
+      sha256 = "023lbh48fcn72gwyh1x52ycs1wx1bnhdajmv0qvkidmdsmxnxzjd";
       type = "gem";
     };
-    version = "0.2.0";
+    version = "0.3.0";
   };
 }

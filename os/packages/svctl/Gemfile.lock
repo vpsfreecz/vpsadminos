@@ -9,28 +9,29 @@ GEM
     ostruct (0.6.1)
     rainbow (3.1.1)
     require_all (2.0.0)
-    syslog (0.2.0)
+    syslog (0.3.0)
+      logger
 
 GEM
   remote: https://rubygems.vpsfree.cz/
   specs:
-    libosctl (24.11.0.build20250309190441)
+    libosctl (24.11.0.build20250315145546)
       fiddle
       logger
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
       syslog
-    svctl (24.11.0.build20250309190441)
+    svctl (24.11.0.build20250315145546)
       filelock
       gli (~> 2.22.0)
-      libosctl (= 24.11.0.build20250309190441)
+      libosctl (= 24.11.0.build20250315145546)
 
 PLATFORMS
   ruby
   x86_64-linux
 
 DEPENDENCIES
-  svctl (= 24.11.0.build20250309190441)!
+  svctl (= 24.11.0.build20250315145546)!
 
 BUNDLED WITH
    2.5.22
