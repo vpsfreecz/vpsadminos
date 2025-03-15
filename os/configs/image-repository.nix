@@ -113,6 +113,11 @@
         keep = 4;
       }
       {
+        distribution = "centos";
+        version = "10-stream-\\d+";
+        keep = 4;
+      }
+      {
         distribution = "chimera";
         version = "\\d+";
         keep = 4;
