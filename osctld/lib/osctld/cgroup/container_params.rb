@@ -18,8 +18,18 @@ module OsCtld
 
     # Temporarily expand container memory by given percentage
     def temporarily_expand_memory(percent: 30)
-      return if !CGroup.v1? || !owner.running?
+      return unless owner.running?
 
+      if CGroup.v1?
+        temporarily_expand_memory_v1(percent:)
+      else
+        temporarily_expand_memory_v2(percent:)
+      end
+    end
+
+    protected
+
+    def temporarily_expand_memory_v1(percent:)
       # Determine new memory limits
       mem_limit = each_usable.detect { |p| p.name == 'memory.limit_in_bytes' }
       memsw_limit = each_usable.detect { |p| p.name == 'memory.memsw.limit_in_bytes' }
@@ -53,7 +63,31 @@ module OsCtld
       nil
     end
 
-    protected
+    def temporarily_expand_memory_v2(percent:)
+      # Determine new memory limit
+      memory_max = each_usable.detect { |p| p.name == 'memory.max' }
+      return if memory_max.nil?
+
+      cur_limit = memory_max.value.last.to_i
+      new_limit = (cur_limit + (cur_limit / 100.0 * percent)).round
+
+      new_param = CGroup::Param.new(2, 'memory', 'memory.max', [new_limit], false)
+
+      # Apply new memory limits
+      return unless owner.running?
+
+      # First apply them on ct.<id>
+      apply_params_and_retry([new_param], keep_going: true) do |subsystem|
+        owner.abs_apply_cgroup_path(subsystem)
+      end
+
+      # Then apply them on lxc.payload
+      apply_container_params_and_retry([new_param], keep_going: true) do |subsystem|
+        owner.abs_apply_cgroup_path(subsystem)
+      end
+
+      nil
+    end
 
     def apply_container_params(param_list, keep_going: false)
       failed = []
