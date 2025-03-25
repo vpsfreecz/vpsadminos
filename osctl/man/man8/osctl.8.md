@@ -1662,6 +1662,19 @@ The following shortcuts are supported:
       Do not send existing snapshots to *destination*. Only temporary snapshots
       created for the send process are sent.
 
+    `--from-snapshot` *snapshot*
+      Start the transfer from *snapshot*. *snapshot* must be in the short form,
+      without dataset name. The at sign is optional, e.g. `@my-snapshot` or
+      `my-snapshot`. This snapshot must exist on all container datasets.
+
+    `--preexisting-datasets`
+      Assume that a common snapshot is on the local node and also already
+      on the destination node. Use option `--from-snapshot` to specify
+      the snapshot name. The common snapshot is then used as a base for
+      incremental streams.
+
+      Note that the common snapshot must exist for all container datasets.
+
 `ct send rootfs` *ctid*
   Continue sending of container *ctid* to previously configured
   *destination*. `ct send rootfs` takes snapshots of the container's datasets
