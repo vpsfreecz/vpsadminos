@@ -114,6 +114,15 @@ in {
       };
       postBootCommands = ''
         echo "loading crashdump kernel...";
+
+        crashdumpParams="${concatStringsSep " " filteredParams} init=$(readlink -f /run/current-system/init) reset_devices irqpoll modprobe.blacklist=zfs,spl this_is_a_crash_kernel ${kernelParams}"
+
+        http_root="$(sed -n 's/.*httproot=\([^[:space:]]*\).*/\1/p' /proc/cmdline)"
+
+        if [ -n "$http_root" ] ; then
+          crashdumpParams="httproot=$http_root $crashdumpParams"
+        fi
+
         ${pkgs.kexec-tools}/sbin/kexec -p /run/current-system/kernel \
         --initrd=/run/current-system/initrd \
       '' + optionalString cfg.consoleVGA.reset ''
@@ -124,7 +133,7 @@ in {
         --console-serial \
         --serial=${cfg.consoleSerial.port} --serial-baud=${toString cfg.consoleSerial.baudRate} \
       '' + ''
-        --command-line="${concatStringsSep " " filteredParams} init=$(readlink -f /run/current-system/init) reset_devices irqpoll modprobe.blacklist=zfs,spl this_is_a_crash_kernel ${kernelParams}"
+        --command-line="$crashdumpParams"
       '';
       kernelParams = [
        "crashkernel=${cfg.reservedMemory}"
