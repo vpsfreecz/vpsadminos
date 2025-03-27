@@ -114,6 +114,12 @@ in
       description = lib.mdDoc "Enables unstable vpsAdminOS features and components (unstable kernel especially)";
     };
 
+    vpsadminos.zfsDebug = mkOption {
+      type = types.bool;
+      default = false;
+      description = lib.mdDoc "Enables OpenZFS debug build";
+    };
+
     codeName = mkOption {
       readOnly = true;
       type = types.str;

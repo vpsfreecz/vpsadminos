@@ -29,6 +29,7 @@ let
     , extraPatches ? []
     , rev ? "zfs-${version}"
     , isUnstable ? false
+    , enableDebug ? false
     , incompatibleKernelVersion ? null }:
     if buildKernel &&
       (incompatibleKernelVersion != null) &&
@@ -135,6 +136,8 @@ let
       ] ++ optionals buildKernel ([
         "--with-linux=${kernel.dev}/lib/modules/${kernel.modDirVersion}/source"
         "--with-linux-obj=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build"
+      ] ++ optionals enableDebug [
+        "--enable-debug"
       ] ++ kernel.makeFlags);
 
       makeFlags = optionals buildKernel kernel.makeFlags;
@@ -194,8 +197,9 @@ let
       };
     };
 in {
-  zfsStable = common {
-    version = "2.0-vpsadminos";
+  zfsStable = { enableDebug ? false }: common {
+    inherit enableDebug;
+    version = "2.3-vpsadminos";
     inherit rev; inherit sha256;
   };
 }

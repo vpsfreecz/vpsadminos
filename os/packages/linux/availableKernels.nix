@@ -169,13 +169,13 @@ let
       kernel = kernel;
       rev = kernels.${kernel.version}.zfs.rev;
       sha256 = kernels.${kernel.version}.zfs.sha256;
-    }).zfsStable;
+    }).zfsStable { enableDebug = config.system.vpsadminos.zfsDebug; };
 
   genZfsUserPackage = kernelVersion: (pkgs.callPackage ../../packages/zfs {
       configFile = "user";
       rev = kernels.${kernelVersion}.zfs.rev;
       sha256 = kernels.${kernelVersion}.zfs.sha256;
-    }).zfsStable;
+    }).zfsStable { enableDebug = config.system.vpsadminos.zfsDebug; };
 in
 {
   defaultVersion = if config.system.vpsadminos.enableUnstable

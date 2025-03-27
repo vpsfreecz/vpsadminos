@@ -17,7 +17,7 @@ let
               kernel = origKernel;
               rev = availableKernels.kernels.${config.boot.kernelVersion}.zfs.rev;
               sha256 = availableKernels.kernels.${config.boot.kernelVersion}.zfs.sha256;
-            }).zfsStable
+            }).zfsStable { enableDebug = config.system.vpsadminos.zfsDebug; }
           else (super.stdenv.mkDerivation {
               name = "zfs";
               buildCommand = ''
