@@ -103,6 +103,10 @@ in {
       initrd = {
         extraUtilsCommands = ''
           copy_bin_and_libs ${makedumpfile}/bin/makedumpfile
+
+          # makedumpfile needs libgcc_s.so.1 at runtime, although it doesn't
+          # declare it as a dependency
+          cp ${pkgs.libgcc}/lib/libgcc_s.so* $out/lib
         '';
         preLVMCommands = ''
           if grep this_is_a_crash_kernel /proc/cmdline; then
