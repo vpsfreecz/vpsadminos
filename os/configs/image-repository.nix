@@ -77,11 +77,6 @@
         "9" = { tags = [ "latest" "stable" ]; };
       };
 
-      slackware = {
-        "15.0" = { tags = [ "latest" "stable" ]; };
-        "current" = { tags = [ "latest-current" ]; };
-      };
-
       ubuntu = {
         "18.04" = {};
         "20.04" = { tags = [ "oldoldlts" ]; };
