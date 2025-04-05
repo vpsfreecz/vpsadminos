@@ -100,6 +100,12 @@ module OsCtld
         GarbageCollector.free_container_run_dataset(ctrc, ctrc.dataset)
       end
 
+      unless ct.ephemeral?
+        # Force write-out of dirtied pages
+        ct.unmount
+        ct.mount
+      end
+
       ctrc.fulfil_exit
 
       if ctrc.reboot?
