@@ -5,7 +5,7 @@ GEM
     fiddle (1.1.6)
     gli (2.22.2)
       ostruct
-    logger (1.6.6)
+    logger (1.7.0)
     method_source (1.1.0)
     ostruct (0.6.1)
     pry (0.15.2)
@@ -19,19 +19,19 @@ GEM
 GEM
   remote: https://rubygems.vpsfree.cz/
   specs:
-    libosctl (24.11.0.build20250317154831)
+    libosctl (24.11.0.build20250405173043)
       fiddle
       logger
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
       syslog
-    osvm (24.11.0.build20250317154831)
+    osvm (24.11.0.build20250405173043)
       gli (~> 2.22.0)
-      libosctl (= 24.11.0.build20250317154831)
-    test-runner (24.11.0.build20250317154831)
+      libosctl (= 24.11.0.build20250405173043)
+    test-runner (24.11.0.build20250405173043)
       gli (~> 2.22.0)
-      libosctl (= 24.11.0.build20250317154831)
-      osvm (= 24.11.0.build20250317154831)
+      libosctl (= 24.11.0.build20250405173043)
+      osvm (= 24.11.0.build20250405173043)
       pry (~> 0.15.0)
 
 PLATFORMS
@@ -39,7 +39,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  test-runner (= 24.11.0.build20250317154831)!
+  test-runner (= 24.11.0.build20250405173043)!
 
 BUNDLED WITH
    2.5.22
