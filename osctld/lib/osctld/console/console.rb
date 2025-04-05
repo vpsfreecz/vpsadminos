@@ -102,7 +102,7 @@ module OsCtld
 
       unless ct.ephemeral?
         # Force write-out of dirtied pages
-        ct.unmount
+        ct.unmount(force: true)
         ct.mount
       end
 

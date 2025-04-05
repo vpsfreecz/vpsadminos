@@ -27,7 +27,7 @@ module OsCtld
           call_cmd(Commands::Container::Stop, id: ct.id, pool: ct.pool.name)
 
           # Force write-out of dirtied pages
-          ct.unmount
+          ct.unmount(force: true)
         end
 
         snap = "osctl-send-incr-#{Time.now.to_i}"
