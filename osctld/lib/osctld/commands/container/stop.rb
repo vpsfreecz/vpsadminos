@@ -51,6 +51,9 @@ module OsCtld
         # in low memory situations.
         ct.cgparams.temporarily_expand_memory if ct.running?
 
+        run_conf = ct.get_run_conf
+        promise = run_conf.get_exit_promise if run_conf.init_pid
+
         begin
           DistConfig.run(
             ct.get_run_conf,
@@ -69,6 +72,10 @@ module OsCtld
           end
         rescue ContainerControl::Error => e
           error!(e.message)
+        end
+
+        if promise && promise.wait.nil?
+          log(:warn, "Timeout while waiting for exit promise of #{ct.ident}")
         end
 
         remove_accounting_cgroups(ct)

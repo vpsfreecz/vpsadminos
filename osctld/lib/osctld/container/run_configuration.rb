@@ -35,6 +35,7 @@ module OsCtld
       @init_pid = nil
       @aborted = false
       @do_reboot = false
+      @exit_promise = Promise.new
       @dist_network_configured = false
       self.load_conf(from_file: load_conf)
     end
@@ -147,6 +148,14 @@ module OsCtld
 
     def reboot?
       @do_reboot
+    end
+
+    def get_exit_promise
+      @exit_promise.add
+    end
+
+    def fulfil_exit
+      @exit_promise.fulfil
     end
 
     def dist_configure_network?

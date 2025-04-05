@@ -75,15 +75,10 @@ module OsCtld
         )
       end
 
-      if ctrc.aborted? \
-         || ctrc.reboot? \
-         || (ct.ephemeral? && !ct.is_being_manipulated?) \
-         || ctrc.destroy_dataset_on_stop?
-        # The current thread is used to handle the console and has to exit.
-        # Manipulation must happen from another thread.
-        t = Thread.new { handle_ct_stop(ctrc) }
-        ThreadReaper.add(t, nil)
-      end
+      # The current thread is used to handle the console and has to exit.
+      # Manipulation must happen from another thread.
+      t = Thread.new { handle_ct_stop(ctrc) }
+      ThreadReaper.add(t, nil)
 
       ct.forget_past_run_conf
     end
@@ -104,6 +99,8 @@ module OsCtld
       if ctrc.destroy_dataset_on_stop?
         GarbageCollector.free_container_run_dataset(ctrc, ctrc.dataset)
       end
+
+      ctrc.fulfil_exit
 
       if ctrc.reboot?
         sleep(1)
