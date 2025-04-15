@@ -17,7 +17,7 @@ module OsCtld
     end
 
     # Temporarily expand container memory by given percentage
-    def temporarily_expand_memory(percent: 30)
+    def temporarily_expand_memory(percent: 50)
       return unless owner.running?
 
       if CGroup.v1?
