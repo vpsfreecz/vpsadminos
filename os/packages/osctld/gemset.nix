@@ -14,10 +14,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.org"];
-      sha256 = "08r67nglsqnxrbn803szf5bdnqhchhq8kf2by94f37fcl65wpp19";
+      sha256 = "0n4ymlgik3xcg94h52dzmh583ss40rl3sn0kni63v56sq8g6l62k";
       type = "gem";
     };
-    version = "2.5.0";
+    version = "2.5.1";
   };
   concurrent-ruby = {
     groups = ["default"];
@@ -86,10 +86,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0vz43jlzf5gafjh95zc4nng5mm02zf4hg4dvyljyr13pqzw7w1vg";
+      sha256 = "1z8mq8kdlfv3j80awc2by7z7551bs0qj1ca6dfh0d8wdqrshz08f";
       type = "gem";
     };
-    version = "24.11.0.build20250405173043";
+    version = "24.11.0.build20250415152142";
   };
   logger = {
     groups = ["default"];
@@ -117,10 +117,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "148nbfivjiyx2nbnmrgl9l32n9y91n68ywxxvwqx0sm63gvw7ygx";
+      sha256 = "1df9vzal9g4qgcsdg2y98bqkq97n7rw5r4g7bwfs6iqdk6rrbzkb";
       type = "gem";
     };
-    version = "24.11.0.build20250405173043";
+    version = "24.11.0.build20250415152142";
   };
   osctld = {
     dependencies = ["base64" "bindata" "concurrent-ruby" "fiddle" "ipaddress" "json" "libosctl" "netlinkrb" "osctl-repo" "osup" "require_all" "ruby-lxc"];
@@ -128,10 +128,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0mbmkbccv45hdz8zwxbay5rd743rfpxfka7bf9z73c6rvlwc3z0q";
+      sha256 = "1hs4n3pdjw4rf51vd0x8383xb4xxajy4pxf1vr1mxj10dd8sjj2h";
       type = "gem";
     };
-    version = "24.11.0.build20250405173043";
+    version = "24.11.0.build20250415152142";
   };
   ostruct = {
     groups = ["default"];
@@ -149,10 +149,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "077i6dz2qrq41gn49m61m59hxs39dhkq9kqckqvvh1cv9y3bgs0c";
+      sha256 = "16qjacn0426a9bsw66cahkzv8g2dsjzlr3y0vwfhz3g7zfmh3asx";
       type = "gem";
     };
-    version = "24.11.0.build20250405173043";
+    version = "24.11.0.build20250415152142";
   };
   rainbow = {
     groups = ["default"];

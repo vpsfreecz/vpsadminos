@@ -14,10 +14,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.org"];
-      sha256 = "0ywack2dm2q67qb2an0fagzbmwm7gcizw02arp87d7bhkx8h770y";
+      sha256 = "1kqa83ycvyly3b447g774syqwyblm7pp0a0y5z3528gr5sdjzkip";
       type = "gem";
     };
-    version = "1.4.7";
+    version = "1.5.0";
   };
   fiddle = {
     groups = ["default"];
@@ -97,10 +97,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0vz43jlzf5gafjh95zc4nng5mm02zf4hg4dvyljyr13pqzw7w1vg";
+      sha256 = "1z8mq8kdlfv3j80awc2by7z7551bs0qj1ca6dfh0d8wdqrshz08f";
       type = "gem";
     };
-    version = "24.11.0.build20250405173043";
+    version = "24.11.0.build20250415152142";
   };
   logger = {
     groups = ["default"];
@@ -118,10 +118,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0aq2gdiv1868ihd2g0ljkjmvhf3cir7viipxz96y8mrj74ja5kaw";
+      sha256 = "02rnfahqgzmvgy1la426h81a3frlqjz0hlyirpnp5yvdiidzqp5s";
       type = "gem";
     };
-    version = "24.11.0.build20250405173043";
+    version = "24.11.0.build20250415152142";
   };
   osctl-image = {
     dependencies = ["gli" "ipaddress" "json" "libosctl" "osctl" "osctl-repo" "require_all"];
@@ -129,10 +129,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1nyr065yv28d3ljadrh7zqvilydrwk6xwbw7rxvp8rwn19dc1vcy";
+      sha256 = "11mq1fak1ysjypf18fm2d6plxjy71wp1v1f5sbr8r2d9j57s4p9j";
       type = "gem";
     };
-    version = "24.11.0.build20250405173043";
+    version = "24.11.0.build20250415152142";
   };
   osctl-repo = {
     dependencies = ["filelock" "gli" "json" "libosctl" "require_all"];
@@ -140,10 +140,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "148nbfivjiyx2nbnmrgl9l32n9y91n68ywxxvwqx0sm63gvw7ygx";
+      sha256 = "1df9vzal9g4qgcsdg2y98bqkq97n7rw5r4g7bwfs6iqdk6rrbzkb";
       type = "gem";
     };
-    version = "24.11.0.build20250405173043";
+    version = "24.11.0.build20250415152142";
   };
   ostruct = {
     groups = ["default"];
