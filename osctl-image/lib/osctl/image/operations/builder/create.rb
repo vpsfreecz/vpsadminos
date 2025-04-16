@@ -65,7 +65,7 @@ module OsCtl::Image
 
         builder.load_attrs(client)
 
-        client.bind_mount(builder.ctid, base_dir, builder_base_dir)
+        client.bind_mount(builder.ctid, base_dir, builder_base_dir, map_ids: false)
         client.activate_mount(builder.ctid, builder_base_dir)
 
         Operations::Builder::WaitForNetwork.run(builder)

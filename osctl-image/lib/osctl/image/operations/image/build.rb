@@ -112,22 +112,11 @@ module OsCtl::Image
 
       root_uid, root_gid = Operations::Builder::GetRootUgid.run(builder)
 
-      zfs(
-        :create,
-        "-p -o uidmap=0:#{root_uid}:65536 -o gidmap=0:#{root_gid}:65536",
-        work_dataset
-      )
-      zfs(
-        :create,
-        "-p -o uidmap=0:#{root_uid}:65536 -o gidmap=0:#{root_gid}:65536",
-        output_dataset
-      )
+      zfs(:create, '-p', work_dataset)
+      zfs(:create, '-p', output_dataset)
+
       image.datasets.each_key do |dataset|
-        zfs(
-          :create,
-          "-p -o uidmap=0:#{root_uid}:65536 -o gidmap=0:#{root_gid}:65536",
-          File.join(output_dataset, dataset)
-        )
+        zfs(:create, '-p', File.join(output_dataset, dataset))
       end
 
       @work_dir = zfs(:get, '-H -o value mountpoint', work_dataset).output.strip
@@ -142,7 +131,11 @@ module OsCtl::Image
       end
 
       client.batch do
-        client.bind_mount(builder.ctid, base_dir, builder_base_dir)
+        # Directory with image-scripts is by default a part of the OS, i.e. usually
+        # stored on squashfs, which does not support ID mapping. Read-only access
+        # is enough for the build.
+        client.bind_mount(builder.ctid, base_dir, builder_base_dir, map_ids: false)
+
         client.bind_mount(builder.ctid, work_dir, builder_work_dir)
         client.bind_mount(builder.ctid, install_dir, builder_install_dir)
 
@@ -186,8 +179,8 @@ module OsCtl::Image
       sys = OsCtl::Lib::Sys.new
       sys.syncfs(install_dir)
 
+      # Remount just in case to write-out dirtied pages
       zfs(:unmount, nil, output_dataset)
-      zfs(:set, 'uidmap=none gidmap=none', output_dataset)
       zfs(:mount, nil, output_dataset)
 
       Operations::Image::FixFileCapabilities.run(image, install_dir)
