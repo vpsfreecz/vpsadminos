@@ -40,12 +40,27 @@ module OsCtld
     protected
 
     def on_close
-      return unless ct.state == :stopped
-
-      on_ct_stop
+      # The current thread is used to handle the console and has to exit.
+      # Manipulation must happen from another thread.
+      t = Thread.new { on_ct_stop }
+      ThreadReaper.add(t, nil)
     end
 
     def on_ct_stop
+      # The TTY may have closed due to an unforeseen error, check if the
+      # container is actually stopped.
+      60.times do
+        break if ct.state == :stopped
+
+        log(:info, ct, 'Console closed, waiting for stopped state')
+        sleep(1)
+      end
+
+      unless ct.state == :stopped
+        log(:fatal, ct, 'Console closed, but container is not stopped')
+        return
+      end
+
       ctrc = ct.get_past_run_conf
 
       CpuScheduler.unschedule_ct(ct)
@@ -75,10 +90,7 @@ module OsCtld
         )
       end
 
-      # The current thread is used to handle the console and has to exit.
-      # Manipulation must happen from another thread.
-      t = Thread.new { handle_ct_stop(ctrc) }
-      ThreadReaper.add(t, nil)
+      handle_ct_stop(ctrc)
 
       ct.forget_past_run_conf
     end
