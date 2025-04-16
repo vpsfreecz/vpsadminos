@@ -44,8 +44,8 @@
       };
 
       fedora = {
-        "40" = {};
-        "41" = { tags = [ "latest" "stable" ]; };
+        "41" = {};
+        "42" = { tags = [ "latest" "stable" ]; };
 
         "rawhide" = { tags = [ "rawhide" ]; };
       };
