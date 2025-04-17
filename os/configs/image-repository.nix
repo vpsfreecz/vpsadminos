@@ -82,7 +82,8 @@
         "20.04" = { tags = [ "oldoldlts" ]; };
         "22.04" = { tags = [ "oldlts" ]; };
         "24.04" = { tags = [ "stable" "lts" ]; };
-        "24.10" = { tags = [ "latest" ]; };
+        "24.10" = {};
+        "25.04" = { tags = [ "latest" ]; };
       };
 
       void = {
