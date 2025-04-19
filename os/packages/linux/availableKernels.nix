@@ -6,8 +6,8 @@ let
 
   kernels = {
     "6.12.23" = {
-      url = linuxGhUrl vpsfGh "0958da376e1be68199f017ec377f1c7c13a64034";
-      sha256 = "sha256-bSacEZ58wOMaBdD+1FPDCQ6tTMx3Exba7+MV/sd4S5o=";
+      url = linuxGhUrl vpsfGh "eb16add6c39362b4ef8e107c35291a6e9151b05f";
+      sha256 = "sha256-kQOWA/ILTxr3Kaovb79PN2zb0L3ncE/CnMIsKSwCw/o=";
       zfs = {
         rev = "7902dde1bfa49b9913fe46deace7e7adf8bc0f90";
         sha256 = "sha256-AunR+xi10uV486KvJoFnchDp2VosP5oMG9wQznRC8DE=";
