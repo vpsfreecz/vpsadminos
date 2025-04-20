@@ -1,7 +1,7 @@
 { config, lib, pkgs, ... }:
 with lib.kernel;
 let
-  stableKernelVersion = "6.12.21";
+  stableKernelVersion = "6.12.23";
   unstableKernelVersion = "6.12.23";
 
   kernels = {
