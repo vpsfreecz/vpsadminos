@@ -215,7 +215,8 @@ module OsVm
       loop do
         if t1 + timeout < Time.now
           log.execute_end(-1, buffer)
-          raise TimeoutError, "Timeout occured while running command '#{cmd}'"
+          raise TimeoutError, "Timeout occured while running command '#{cmd}', " \
+                              "buffer contents: #{buffer.inspect}"
         end
 
         rs = shell.wait_readable(1)
