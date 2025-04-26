@@ -3,6 +3,8 @@ module OsVm
 
   class TimeoutError < Error; end
 
+  class UnrecoverableTimeoutError < TimeoutError; end
+
   class CommandError < Error; end
 
   class CommandSucceeded < CommandError; end

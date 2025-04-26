@@ -1,5 +1,7 @@
+require 'base64'
 require 'digest'
 require 'fileutils'
+require 'shellwords'
 require 'socket'
 
 module OsVm
@@ -113,7 +115,7 @@ module OsVm
       execute('poweroff -f')
 
       if qemu_reaper.join(timeout).nil?
-        raise TimeoutError, "Timeout while stopping machine #{name}"
+        raise UnrecoverableTimeoutError, "Timeout while stopping machine #{name}"
       end
 
       self
@@ -199,38 +201,32 @@ module OsVm
     def execute(cmd, timeout: @default_timeout)
       start unless running?
       wait_for_shell
-      t1 = Time.now
 
-      # It is a bit of a mystery why this write is needed. The shell just
-      # sometimes swallows the first character, which would be a '(', and then
-      # it complains about a syntax error. So we first write a character that
-      # it can harmlessly swallow.
-      shell.write("\n")
+      real_timeout = [timeout, 5].max
+      vm_command = "set -euo pipefail; #{cmd}"
+      timeout_command = "timeout #{real_timeout}"
 
-      shell.write("( #{cmd} ); echo '|!=EOF' $?\n")
+      # For unknown reason, the first character written to the shell is cut. Sometimes
+      # more characters are lost. We therefore prefix the executed command with whitespace
+      # which can be lost.
+      workaround = ' ' * 10
+
+      shell.write("#{workaround}#{timeout_command} bash -c #{Shellwords.escape(vm_command)} 2>&1 | (base64 -w 0; echo)\n")
       log.execute_begin(cmd)
-      rx = /(.*)\|!=EOF\s+(\d+)/m
-      buffer = ''
 
-      loop do
-        if t1 + timeout < Time.now
-          log.execute_end(-1, buffer)
-          raise TimeoutError, "Timeout occured while running command '#{cmd}', " \
-                              "buffer contents: #{buffer.inspect}"
-        end
+      output = Base64.decode64(read_shell_output(timeout: real_timeout + 5, command: vm_command))
 
-        rs = shell.wait_readable(1)
-        next unless rs
+      shell.write("#{workaround}echo ${PIPESTATUS[0]}\n")
+      status = read_shell_output(timeout: 60, command: 'echo ${PIPESTATUS[0]}').strip.to_i
 
-        buffer << read_nonblock(shell)
-        next unless rx =~ buffer
-
-        status = ::Regexp.last_match(2).to_i
-        output = ::Regexp.last_match(1).strip
-
-        log.execute_end(status, output)
-        return [status, output]
+      if timeout && status == 124
+        log.execute_end(-1, output)
+        raise TimeoutError, "Timeout occured while running command '#{cmd}', " \
+                            "output: #{output.inspect}"
       end
+
+      log.execute_end(status, output)
+      return [status, output]
     end
 
     # Execute command and check that it succeeds
@@ -286,6 +282,7 @@ module OsVm
         return [status, output] if status == 0
 
         cur_timeout = timeout - (Time.now - t1)
+        raise TimeoutError, "Timeout occured while running command '#{cmd}'" if cur_timeout <= 0
         sleep(1)
       end
     end
@@ -301,6 +298,7 @@ module OsVm
         return [status, output] if status != 0
 
         cur_timeout = timeout - (Time.now - t1)
+        raise TimeoutError, "Timeout occured while running command '#{cmd}'" if cur_timeout <= 0
         sleep(1)
       end
     end
@@ -368,7 +366,7 @@ module OsVm
           timeout: cur_timeout
         )
 
-        return self if output == 'active'
+        return self if output.strip == 'active'
 
         cur_timeout = timeout - (Time.now - t1)
       end
@@ -602,10 +600,9 @@ module OsVm
         next unless rs
 
         buffer << read_nonblock(shell)
-        next unless buffer.include?("test-shell-ready\r\n")
+        next unless buffer.include?("test-shell-ready\n")
 
         @shell_up = true
-        succeeds('stty -F /dev/hvc0 -echo')
         shared_dir.mount if can_use_virtiofs?
         return
       end
@@ -646,6 +643,26 @@ module OsVm
 
     def shell_up?
       @shell_up
+    end
+
+    def read_shell_output(timeout:, command:)
+      t1 = Time.now
+      buffer = ''
+
+      loop do
+        if t1 + timeout < Time.now
+          raise UnrecoverableTimeoutError, "Timeout occured while running command '#{command}', " \
+                                           "buffer contents: #{buffer.inspect}"
+        end
+
+        rs = shell.wait_readable(1)
+        next unless rs
+
+        buffer << read_nonblock(shell)
+        break if buffer.end_with?("\n")
+      end
+
+      buffer
     end
 
     def read_nonblock(io)

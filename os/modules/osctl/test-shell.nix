@@ -27,13 +27,25 @@ in {
           sleep 1
         done
 
-        export PS1=""
+        export USER=root
+        export HOME=/root
 
-        exec ${pkgs.bash}/bin/bash \
-          --rcfile <(echo "echo test-shell-ready") \
-          < /dev/hvc0 \
-          > /dev/hvc0 \
-          2>&1
+        if [ -e /etc/profile ]; then
+          source /etc/profile
+        fi
+
+        export PAGER=
+        export PS1=
+
+        cd /tmp
+
+        exec < /dev/hvc0 > /dev/hvc0
+        exec 2>&1
+        stty -F /dev/hvc0 raw -echo # prevent nl -> cr/nl conversion
+
+        echo test-shell-ready
+
+        exec ${pkgs.bash}/bin/bash --norc /dev/hvc0
       '';
       oneShot = true;
     };
