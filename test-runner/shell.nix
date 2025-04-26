@@ -5,10 +5,11 @@ let
 in stdenv.mkDerivation rec {
   name = "test-runner";
 
-  buildInputs = [
-    pkgs.ruby
-    pkgs.git
-    pkgs.zlib
+  buildInputs = with pkgs; [
+    libffi
+    git
+    ruby
+    zlib
   ];
 
   shellHook = ''
