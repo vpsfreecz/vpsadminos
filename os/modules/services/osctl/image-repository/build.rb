@@ -171,12 +171,30 @@ class Builder
       log_file = File.open(log_name, 'w')
 
       osctl_image(*deploy_args, out: log_file, err: log_file)
+
+      deploy_status = $?.exitstatus
+
+      if deploy_status != 0
+        log_file.puts("\n\nFailed to deploy #{img.name} with exit status #{deploy_status}\n")
+        log_file.puts("/var/log/osctld:")
+
+        File.open('/var/log/osctld') do |f|
+          ::IO.copy_stream(f, log_file)
+        end
+
+        log_file.puts("\n\ndmesg:")
+
+        unless Kernel.system('dmesg', out: log_file, err: log_file)
+          log_file.puts('failed to read dmesg')
+        end
+      end
+
       log_file.close
 
-      if $?.exitstatus == 0
+      if deploy_status == 0
         File.unlink(log_file.path)
       else
-        warn "Build of #{img.name} failed with exit status #{$?.exitstatus}"
+        warn "Build of #{img.name} failed with exit status #{deploy_status}"
         warn "Log file: #{log_file.path}"
       end
     end
