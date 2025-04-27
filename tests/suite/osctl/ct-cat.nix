@@ -30,7 +30,7 @@ import ../../make-test.nix (pkgs: {
       "osctl ct cat testct"
     )
 
-    id_rx = /^ID=alpine\r\n/
+    id_rx = /^ID=alpine\n/
 
     # Read files
     _, cat_output = machine.succeeds("osctl ct cat testct /etc/os-release")

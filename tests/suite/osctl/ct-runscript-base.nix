@@ -157,7 +157,7 @@ in {
 
     _, output = machine.succeeds("osctl ct runscript -rn stoppedct ${scripts.net}")
 
-    if output != "default via 255.255.255.254 dev eth0 \r\n255.255.255.254 dev eth0 scope link"
+    if output != "default via 255.255.255.254 dev eth0 \n255.255.255.254 dev eth0 scope link"
       fail "unexpected default route: #{output.inspect}"
     end
 
