@@ -12,7 +12,14 @@ import ../../make-template.nix ({ distribution, version }: rec {
     # and possibly others.
     expectFailure = distribution == "gentoo" && (version == "latest-openrc" || version == "latest-musl");
 
-    machine = import ../../machines/tank.nix pkgs;
+    machine = import ../../machines/with-tank.nix {
+      inherit pkgs;
+      config =
+        { config, ... }:
+        {
+          boot.enableUnifiedCgroupHierarchy = false;
+        };
+    };
 
     testScript = ''
       machine.wait_for_osctl_pool("tank")

@@ -6,15 +6,8 @@ import ../../make-test.nix (pkgs: {
   '';
 
   machines = {
-    # Enable cgroupv2 by default
-    config_cgroup = import ../../machines/with-empty.nix {
-      inherit pkgs;
-      config =
-        { config, ... }:
-        {
-          boot.enableUnifiedCgroupHierarchy = true;
-        };
-    };
+    # We expect the default to be cgroupv2
+    default_cgroup = import ../../machines/empty.nix pkgs;
 
     # We set the default to cgroupv1, but expect it to start with cgroupv2
     runtime_cgroup = import ../../machines/with-empty.nix {
@@ -28,7 +21,7 @@ import ../../make-test.nix (pkgs: {
   };
 
   testScript = ''
-    config_cgroup.start
+    default_cgroup.start
     runtime_cgroup.start(kernel_params: ['osctl.cgroupv=2'])
 
     machines.each do |name, machine|
