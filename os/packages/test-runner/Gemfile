@@ -1,5 +1,5 @@
 source 'https://rubygems.org'
 
 source 'https://rubygems.vpsfree.cz' do
-  gem 'test-runner', '24.11.0.build20250426175320'
+  gem 'test-runner', '24.11.0.build20250428153051'
 end

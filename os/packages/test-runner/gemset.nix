@@ -1,4 +1,14 @@
 {
+  base64 = {
+    groups = ["default"];
+    platforms = [];
+    source = {
+      remotes = ["https://rubygems.org"];
+      sha256 = "01qml0yilb9basf7is2614skjp8384h2pycfx86cr8023arfj98g";
+      type = "gem";
+    };
+    version = "0.2.0";
+  };
   coderay = {
     groups = ["default"];
     platforms = [];
@@ -36,10 +46,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "11syyvi69c9hvrp9dmadgyygcign3wsb8vw05ycl0qan9qxpbga2";
+      sha256 = "1n2crz9x2005h77kjkh0ycj292s53r8vcsrz5nxwv01k386j3m3d";
       type = "gem";
     };
-    version = "24.11.0.build20250426175320";
+    version = "24.11.0.build20250428153051";
   };
   logger = {
     groups = ["default"];
@@ -72,15 +82,15 @@
     version = "0.6.1";
   };
   osvm = {
-    dependencies = ["gli" "libosctl"];
+    dependencies = ["base64" "gli" "libosctl"];
     groups = ["default"];
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1p1blb55869jp2533sfd1a7687wial7q1gxk0dbh5s4c3dg5nhv2";
+      sha256 = "0blsx78j5mgbyi9fz1cypg5q4l08hvghcx141xpxm37dkkh98pvs";
       type = "gem";
     };
-    version = "24.11.0.build20250426175320";
+    version = "24.11.0.build20250428153051";
   };
   pry = {
     dependencies = ["coderay" "method_source"];
@@ -130,9 +140,9 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "13ih0wwpsd8mbz8x59g9g0ml1fynk4d92psnhzysfscv0c32kfvx";
+      sha256 = "0a1lm8h1k7nrr4csxd1h1az4prspkhym007x7rpx54wgb8dwyxi1";
       type = "gem";
     };
-    version = "24.11.0.build20250426175320";
+    version = "24.11.0.build20250428153051";
   };
 }
