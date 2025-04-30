@@ -5,12 +5,13 @@ let
 in stdenv.mkDerivation rec {
   name = "osctl";
 
-  buildInputs = [
-    pkgs.ruby
-    pkgs.git
-    pkgs.zlib
-    pkgs.openssl
-    pkgs.ncurses
+  buildInputs = with pkgs; [
+    libffi
+    git
+    openssl
+    ncurses
+    ruby
+    zlib
   ];
 
   shellHook = ''
