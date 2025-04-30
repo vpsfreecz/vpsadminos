@@ -510,17 +510,17 @@ module OsCtl::Cli::Top
         Curses.addstr(format(' [%.1fs]', @last_procs_check - t)) if @last_procs_check
         Curses.addstr(': ')
         bold { Curses.addstr(format('%5d', procs_stats['TOTAL'])) }
-        Curses.addstr(' total, ')
+        Curses.addstr(compact? ? ' tot, ' : ' total, ')
         bold { Curses.addstr(format('%3d', procs_stats['R'])) }
-        Curses.addstr(' running, ')
+        Curses.addstr(compact? ? ' run, ' : ' running, ')
         bold { Curses.addstr(format('%3d', procs_stats['D'])) }
-        Curses.addstr(' blocked, ')
+        Curses.addstr(compact? ? ' block, ' : ' blocked, ')
         bold { Curses.addstr(format('%5d', procs_stats['S'])) }
-        Curses.addstr(' sleeping, ')
+        Curses.addstr(compact? ? ' sleep, ' : ' sleeping, ')
         bold { Curses.addstr(format('%2d', procs_stats['T'])) }
-        Curses.addstr(' stopped, ')
+        Curses.addstr(compact? ? ' stop, ' : ' stopped, ')
         bold { Curses.addstr(format('%2d', procs_stats['Z'])) }
-        Curses.addstr(' zombie ')
+        Curses.addstr(compact? ? ' zom' : ' zombie ')
         pos += 1
       end
 
@@ -594,11 +594,11 @@ module OsCtl::Cli::Top
         bold { Curses.addstr(format('%8s', humanize_data(arc[:c]))) }
         Curses.addstr(' c,    ')
         bold { Curses.addstr(format('%8s', humanize_data(arc[:size]))) }
-        Curses.addstr(' size, ')
+        Curses.addstr(compact? ? ' s, ' : ' size, ')
         bold { Curses.addstr(format('%8.2f', format_percent(arc[:hit_rate]))) }
-        Curses.addstr(' hitrate, ')
+        Curses.addstr(compact? ? ' hit, ' : ' hitrate, ')
         bold { Curses.addstr(format('%6d', arc[:misses])) }
-        Curses.addstr(' missed ')
+        Curses.addstr(compact? ? ' miss' : ' missed ')
 
       else
         Curses.addstr('calculating')
@@ -654,7 +654,10 @@ module OsCtl::Cli::Top
 
         # Fill to the edge of the screen
         @header = ret.map do |line|
-          line << (' ' * (Curses.cols - line.size)) << "\n"
+          padding = Curses.cols - line.size
+
+          line << (' ' * padding) if padding > 0
+          line << "\n"
         end
       end
 
@@ -1078,6 +1081,10 @@ module OsCtl::Cli::Top
     # Screen without header and footer
     def max_rows
       Curses.lines - @status_bar_cols - 1 - @header.size - 5 - 1
+    end
+
+    def compact?
+      Curses.cols < 91
     end
 
     def pause
