@@ -6,8 +6,35 @@ module OsCtl::Cli::Top
   class Tui::Main < Tui::Screen
     include OsCtl::Lib::Utils::Humanize
 
-    MIN_COLS = 114
+    MIN_COLS = 80
     MIN_LINES = 18
+
+    Module = Struct.new(
+      :name,
+      :header_fmts,
+      :header_labels,
+      :row_fmt,
+      :row_values,
+      :stats_cts_values,
+      :stats_all_values,
+      :stats_iostat_values,
+      keyword_init: true
+    )
+
+    class Module
+      attr_reader :name, :header_fmts, :header_labels, :row_fmt, :row_values, :stats_cts_values, :stats_all_values, :stats_iostat_values
+
+      def initialize(name:, header_fmts:, header_labels:, row_fmt:, row_values:, stats_cts_values:, stats_all_values:, stats_iostat_values: nil)
+        @name = name
+        @header_fmts = header_fmts
+        @header_labels = header_labels
+        @row_fmt = row_fmt
+        @row_values = row_values
+        @stats_cts_values = stats_cts_values
+        @stats_all_values = stats_all_values
+        @stats_iostat_values = stats_iostat_values || proc { ['-'] * row_fmt.length }
+      end
+    end
 
     def initialize(model, rate, enable_procs: true)
       super()
@@ -18,6 +45,7 @@ module OsCtl::Cli::Top
       end
 
       @rate = rate
+      @last_cols = Curses.cols
       @containers = []
       @last_count = nil
       @sort_index = 0
@@ -85,6 +113,12 @@ module OsCtl::Cli::Top
 
         if enable_procs && !paused?
           procs_stats, @last_procs_check = procs_thread.get_stats
+        end
+
+        if @last_cols != Curses.cols
+          @header = nil
+          @modules = nil
+          @last_cols = Curses.cols
         end
 
         render(now, procs_stats, data)
@@ -184,6 +218,7 @@ module OsCtl::Cli::Top
           return Tui::Help.new(self)
 
         when Curses::Key::RESIZE
+          @modules = nil
           Curses.clear
         end
       end
@@ -194,7 +229,217 @@ module OsCtl::Cli::Top
     attr_reader :rate, :model_thread, :procs_thread, :highlighted_cts, :last_measurement, :last_generation, :last_procs_check, :last_mode, :view_page, :view_page_max, :enable_procs, :search_string
     attr_accessor :last_count, :last_data, :current_row
 
+    def setup_modules
+      return if @modules
+
+      @modules = []
+
+      @modules << Module.new(
+        name: 'ctid',
+        header_fmts: ['%-14s'] * 3,
+        header_labels: [
+          ['Container'],
+          [''],
+          ['ID']
+        ],
+        row_fmt: ['%-14s'],
+        row_values: proc do |ct|
+          [format_ctid(ct[:id])]
+        end,
+        stats_cts_values: [],
+        stats_all_values: []
+      )
+
+      @modules << Module.new(
+        name: 'cpu',
+        header_fmts: ['%9s'] * 3,
+        header_labels: [
+          ['CPU'],
+          [''],
+          ['']
+        ],
+        row_fmt: ['%9s'],
+        row_values: proc do |ct|
+          cpu = (rt? ? format_percent(ct[:cpu_usage]) : humanize_time_us(ct[:cpu_us])).to_s
+          cpu << "/#{ct[:cpu_package_inuse]}" if ct[:cpu_package_inuse]
+          [cpu]
+        end,
+        stats_cts_values: proc do |cts|
+          if rt?
+            [format_percent(sum(cts, :cpu_usage, false))]
+          else
+            [humanize_time_us(sum(cts, :cpu_us, false))]
+          end
+        end,
+        stats_all_values: proc do |cts|
+          if rt?
+            [format_percent(sum(cts, :cpu_usage, true))]
+          else
+            [humanize_time_us(sum(cts, :cpu_us, true))]
+          end
+        end
+      )
+
+      @modules << Module.new(
+        name: 'memory',
+        header_fmts: ['%8s'] * 3,
+        header_labels: [
+          ['Memory'],
+          [''],
+          ['']
+        ],
+        row_fmt: ['%8s'],
+        row_values: proc do |ct|
+          [humanize_data(ct[:memory])]
+        end,
+        stats_cts_values: proc do |cts|
+          [humanize_data(sum(cts, :memory, false))]
+        end,
+        stats_all_values: proc do |cts|
+          [humanize_data(sum(cts, :memory, true))]
+        end
+      )
+
+      @modules << Module.new(
+        name: 'proc',
+        header_fmts: ['%6s'] * 3,
+        header_labels: [
+          ['Proc'],
+          [''],
+          ['']
+        ],
+        row_fmt: ['%6s'],
+        row_values: proc do |ct|
+          [ct[:nproc]]
+        end,
+        stats_cts_values: proc do |cts|
+          [sum(cts, :nproc, false)]
+        end,
+        stats_all_values: proc do |cts|
+          [sum(cts, :nproc, true)]
+        end
+      )
+
+      if Curses.cols >= 114
+        @modules << Module.new(
+          name: 'zfsio',
+          header_fmts: ['%27s', '%13s %13s', '%6s %6s %6s %6s'],
+          header_labels: proc do
+            [
+              ['ZFSIO          '],
+              ['Read   ', 'Write   '],
+              ['Bytes', rt? ? 'IOPS' : 'IO', 'Bytes', rt? ? 'IOPS' : 'IO']
+            ]
+          end,
+          row_fmt: ['%6s'] * 4,
+          row_values: proc do |ct|
+            [
+              humanize_data(ct[:zfsio][:bytes][:r]),
+              humanize_number(ct[:zfsio][:ios][:r]),
+              humanize_data(ct[:zfsio][:bytes][:w]),
+              humanize_number(ct[:zfsio][:ios][:w])
+            ]
+          end,
+          stats_cts_values: proc do |cts|
+            [
+              humanize_data(sum(cts, %i[zfsio bytes r], false)),
+              humanize_number(sum(cts, %i[zfsio ios r], false)),
+              humanize_data(sum(cts, %i[zfsio bytes w], false)),
+              humanize_number(sum(cts, %i[zfsio ios w], false))
+            ]
+          end,
+          stats_all_values: proc do |cts|
+            [
+              humanize_data(sum(cts, %i[zfsio bytes r], true)),
+              humanize_number(sum(cts, %i[zfsio ios r], true)),
+              humanize_data(sum(cts, %i[zfsio bytes w], true)),
+              humanize_number(sum(cts, %i[zfsio ios w], true))
+            ]
+          end,
+          stats_iostat_values: proc do |iostat|
+            [
+              humanize_data(iostat[:bytes_read]),
+              humanize_data(iostat[:io_read]),
+              humanize_data(iostat[:bytes_written]),
+              humanize_data(iostat[:io_written])
+            ]
+          end
+        )
+      end
+
+      @modules << Module.new(
+        name: 'network',
+        header_fmts: ['%27s', '%13s %13s', '%6s %6s %6s %6s'],
+        header_labels: proc do
+          [
+            ['Network        '],
+            ['TX    ', 'RX    '],
+            rt? ? %w[bps pps bps pps] : %w[Bytes Packet Bytes Packet]
+          ]
+        end,
+        row_fmt: ['%6s'] * 4,
+        row_values: proc do |ct|
+          [
+            humanize_data(rt? ? ct[:tx][:bytes] * 8 : ct[:tx][:bytes]),
+            humanize_data(ct[:tx][:packets]),
+            humanize_data(rt? ? ct[:rx][:bytes] * 8 : ct[:rx][:bytes]),
+            humanize_data(ct[:rx][:packets])
+          ]
+        end,
+        stats_cts_values: proc do |cts|
+          [
+            humanize_data(sum(cts, %i[tx bytes], false) * (rt? ? 8 : 1)),
+            humanize_data(sum(cts, %i[tx packets], false)),
+            humanize_data(sum(cts, %i[rx bytes], false) * (rt? ? 8 : 1)),
+            humanize_data(sum(cts, %i[rx packets], false))
+          ]
+        end,
+        stats_all_values: proc do |cts|
+          [
+            humanize_data(sum(cts, %i[tx bytes], true) * (rt? ? 8 : 1)),
+            humanize_data(sum(cts, %i[tx packets], true)),
+            humanize_data(sum(cts, %i[rx bytes], true) * (rt? ? 8 : 1)),
+            humanize_data(sum(cts, %i[rx packets], true))
+          ]
+        end
+      )
+
+      @modules << Module.new(
+        name: 'loadavg',
+        header_fmts: ['%17s', '%17s', '%5s %5s %5s'],
+        header_labels: [
+          ['LoadAvg    '],
+          [''],
+          ['1m', '5m', '15m']
+        ],
+        row_fmt: ['%5s'] * 3,
+        row_values: proc do |ct|
+          [
+            format_loadavg(ct[:loadavg][0]),
+            format_loadavg(ct[:loadavg][1]),
+            format_loadavg(ct[:loadavg][2])
+          ]
+        end,
+        stats_cts_values: proc do |cts|
+          [
+            format_loadavg(sum(cts, [:loadavg, 0], false)),
+            format_loadavg(sum(cts, [:loadavg, 1], false)),
+            format_loadavg(sum(cts, [:loadavg, 2], false))
+          ]
+        end,
+        stats_all_values: proc do |_cts, data|
+          [
+            data[:loadavg] ? format_loadavg(data[:loadavg][0]) : '-',
+            data[:loadavg] ? format_loadavg(data[:loadavg][1]) : '-',
+            data[:loadavg] ? format_loadavg(data[:loadavg][2]) : '-'
+          ]
+        end
+      )
+    end
+
     def render(t, procs_stats, data)
+      setup_modules
+
       Curses.setpos(0, 0)
       Curses.addstr("#{File.basename($0)} ct top - #{t.strftime('%H:%M:%S')}")
       Curses.addstr(format(' [%.1fs]', last_measurement - t)) if last_measurement
@@ -397,45 +642,15 @@ module OsCtl::Cli::Top
       unless @header
         ret = []
 
-        ret << format(
-          '%-14s %9s %8s %6s %27s %27s %17s',
-          'Container',
-          'CPU',
-          'Memory',
-          'Proc',
-          'ZFSIO          ',
-          'Network        ',
-          'LoadAvg    '
-        )
-
-        ret << format(
-          '%-14s %9s %7s %8s %13s %13s %13s %13s',
-          '',
-          '',
-          '',
-          '',
-          'Read   ',
-          'Write   ',
-          'TX    ',
-          'RX    '
-        )
-
-        ret << format(
-          '%-14s %9s %8s %6s %6s %6s %6s %6s %6s %6s %6s %6s %5s %5s %5s',
-          'ID',
-          '',
-          '',
-          '',
-          'Bytes',
-          rt? ? 'IOPS' : 'IO',
-          'Bytes',
-          rt? ? 'IOPS' : 'IO',
-          rt? ? 'bps' : 'Bytes',
-          rt? ? 'pps' : 'Packet',
-          rt? ? 'bps' : 'Bytes',
-          rt? ? 'pps' : 'Packet',
-          '1m', '5m', '15m'
-        )
+        3.times do |i|
+          ret << format(
+            @modules.map { |m| m.header_fmts[i] }.join(' '),
+            *@modules.map do |m|
+              labels = m.header_labels
+              labels.is_a?(Proc) ? labels.call[i] : labels[i]
+            end.flatten
+          )
+        end
 
         # Fill to the edge of the screen
         @header = ret.map do |line|
@@ -453,31 +668,14 @@ module OsCtl::Cli::Top
     end
 
     def print_row(ct)
-      Curses.addstr(format('%-14s ', format_ctid(ct[:id])))
+      # Special case for container ID as that is always visible
+      Curses.addstr(format("#{@modules[0].row_fmt.join(' ')} ", *@modules[0].row_values.call(ct)))
 
-      cpu = (rt? ? format_percent(ct[:cpu_usage]) : humanize_time_us(ct[:cpu_us])).to_s
-      cpu << "/#{ct[:cpu_package_inuse]}" if ct[:cpu_package_inuse]
-
-      print_row_data([
-                       cpu,
-                       humanize_data(ct[:memory]),
-                       ct[:nproc],
-                       humanize_data(ct[:zfsio][:bytes][:r]),
-                       humanize_number(ct[:zfsio][:ios][:r]),
-                       humanize_data(ct[:zfsio][:bytes][:w]),
-                       humanize_number(ct[:zfsio][:ios][:w]),
-                       humanize_data(rt? ? ct[:tx][:bytes] * 8 : ct[:tx][:bytes]),
-                       humanize_data(ct[:tx][:packets]),
-                       humanize_data(rt? ? ct[:rx][:bytes] * 8 : ct[:rx][:bytes]),
-                       humanize_data(ct[:rx][:packets]),
-                       format_loadavg(ct[:loadavg][0]),
-                       format_loadavg(ct[:loadavg][1]),
-                       format_loadavg(ct[:loadavg][2])
-                     ])
+      print_row_data(@modules[1..].map { |m| m.row_values.call(ct) }.flatten)
     end
 
     def print_row_data(values)
-      fmts = %w[%9s %8s %6s %6s %6s %6s %6s %6s %6s %6s %6s %5s %5s %5s]
+      fmts = @modules[1..].map(&:row_fmt).flatten
       w = 15 # container ID is printed in {#print_row}
 
       fmts.zip(values).each_with_index do |pair, i|
@@ -512,52 +710,14 @@ module OsCtl::Cli::Top
       Curses.setpos(Curses.lines - pos, 0)
       pos -= 1
       Curses.addstr(format('%-14s ', 'Containers:'))
-      print_row_data([
-                       if rt?
-                         format_percent(sum(cts, :cpu_usage, false))
-                       else
-                         humanize_time_us(sum(cts, :cpu_us, false))
-                       end,
-                       humanize_data(sum(cts, :memory, false)),
-                       sum(cts, :nproc, false),
-                       humanize_data(sum(cts, %i[zfsio bytes r], false)),
-                       humanize_number(sum(cts, %i[zfsio ios r], false)),
-                       humanize_data(sum(cts, %i[zfsio bytes w], false)),
-                       humanize_number(sum(cts, %i[zfsio ios w], false)),
-                       humanize_data(sum(cts, %i[tx bytes], false) * (rt? ? 8 : 1)),
-                       humanize_data(sum(cts, %i[tx packets], false)),
-                       humanize_data(sum(cts, %i[rx bytes], false) * (rt? ? 8 : 1)),
-                       humanize_data(sum(cts, %i[rx packets], false)),
-                       format_loadavg(sum(cts, [:loadavg, 0], false)),
-                       format_loadavg(sum(cts, [:loadavg, 1], false)),
-                       format_loadavg(sum(cts, [:loadavg, 2], false))
-                     ])
+      print_row_data(@modules[1..].map { |m| m.stats_cts_values.call(cts, data) }.flatten)
 
       Curses.setpos(Curses.lines - pos, 0)
       pos -= 1
       Curses.addstr(format('%-14s ', 'All:'))
-      print_row_data([
-                       if rt?
-                         format_percent(sum(cts, :cpu_usage, true))
-                       else
-                         humanize_time_us(sum(cts, :cpu_us, true))
-                       end,
-                       humanize_data(sum(cts, :memory, true)),
-                       sum(cts, :nproc, true),
-                       humanize_data(sum(cts, %i[zfsio bytes r], true)),
-                       humanize_number(sum(cts, %i[zfsio ios r], true)),
-                       humanize_data(sum(cts, %i[zfsio bytes w], true)),
-                       humanize_number(sum(cts, %i[zfsio ios w], true)),
-                       humanize_data(sum(cts, %i[tx bytes], true) * (rt? ? 8 : 1)),
-                       humanize_data(sum(cts, %i[tx packets], true)),
-                       humanize_data(sum(cts, %i[rx bytes], true) * (rt? ? 8 : 1)),
-                       humanize_data(sum(cts, %i[rx packets], true)),
-                       data[:loadavg] ? format_loadavg(data[:loadavg][0]) : '-',
-                       data[:loadavg] ? format_loadavg(data[:loadavg][1]) : '-',
-                       data[:loadavg] ? format_loadavg(data[:loadavg][2]) : '-'
-                     ])
+      print_row_data(@modules[1..].map { |m| m.stats_all_values.call(cts, data) }.flatten)
 
-      if model_thread.iostat_enabled?
+      if model_thread.iostat_enabled? && @modules.detect { |m| m.name == 'zfsio' }
         iostat = data[:zfs] && data[:zfs][:iostat]
 
         Curses.setpos(Curses.lines - pos, 0)
@@ -565,22 +725,7 @@ module OsCtl::Cli::Top
         Curses.addstr(format('%-14s ', 'iostat:'))
 
         if iostat
-          print_row_data([
-                           '-',
-                           '-',
-                           '-',
-                           humanize_data(iostat[:bytes_read]),
-                           humanize_data(iostat[:io_read]),
-                           humanize_data(iostat[:bytes_written]),
-                           humanize_data(iostat[:io_written]),
-                           '-',
-                           '-',
-                           '-',
-                           '-',
-                           '-',
-                           '-',
-                           '-'
-                         ])
+          print_row_data(@modules[1..].map { |m| m.stats_iostat_values.call(iostat) }.flatten)
         end
       end
 
