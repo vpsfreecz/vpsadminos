@@ -9,27 +9,17 @@ module OsCtl::Cli::Top
     MIN_COLS = 80
     MIN_LINES = 18
 
-    Module = Struct.new(
-      :name,
-      :header_fmts,
-      :header_labels,
-      :row_fmt,
-      :row_values,
-      :stats_cts_values,
-      :stats_all_values,
-      :stats_iostat_values,
-      keyword_init: true
-    )
-
     class Module
-      attr_reader :name, :header_fmts, :header_labels, :row_fmt, :row_values, :stats_cts_values, :stats_all_values, :stats_iostat_values
+      attr_reader :name, :header_fmts, :header_labels, :row_fmt, :row_values,
+                  :sortable_fields, :stats_cts_values, :stats_all_values, :stats_iostat_values
 
-      def initialize(name:, header_fmts:, header_labels:, row_fmt:, row_values:, stats_cts_values:, stats_all_values:, stats_iostat_values: nil)
+      def initialize(name:, header_fmts:, header_labels:, row_fmt:, row_values:, stats_cts_values:, stats_all_values:, sortable_fields: [], stats_iostat_values: nil)
         @name = name
         @header_fmts = header_fmts
         @header_labels = header_labels
         @row_fmt = row_fmt
         @row_values = row_values
+        @sortable_fields = sortable_fields
         @stats_cts_values = stats_cts_values
         @stats_all_values = stats_all_values
         @stats_iostat_values = stats_iostat_values || proc { ['-'] * row_fmt.length }
@@ -264,6 +254,9 @@ module OsCtl::Cli::Top
           cpu << "/#{ct[:cpu_package_inuse]}" if ct[:cpu_package_inuse]
           [cpu]
         end,
+        sortable_fields: proc do
+          rt? ? :cpu_usage : :cpu_us
+        end,
         stats_cts_values: proc do |cts|
           if rt?
             [format_percent(sum(cts, :cpu_usage, false))]
@@ -292,6 +285,7 @@ module OsCtl::Cli::Top
         row_values: proc do |ct|
           [humanize_data(ct[:memory])]
         end,
+        sortable_fields: :memory,
         stats_cts_values: proc do |cts|
           [humanize_data(sum(cts, :memory, false))]
         end,
@@ -312,6 +306,7 @@ module OsCtl::Cli::Top
         row_values: proc do |ct|
           [ct[:nproc]]
         end,
+        sortable_fields: :nproc,
         stats_cts_values: proc do |cts|
           [sum(cts, :nproc, false)]
         end,
@@ -340,6 +335,12 @@ module OsCtl::Cli::Top
               humanize_number(ct[:zfsio][:ios][:w])
             ]
           end,
+          sortable_fields: [
+            %i[zfsio bytes r],
+            %i[zfsio ios r],
+            %i[zfsio bytes w],
+            %i[zfsio ios w]
+          ],
           stats_cts_values: proc do |cts|
             [
               humanize_data(sum(cts, %i[zfsio bytes r], false)),
@@ -386,6 +387,10 @@ module OsCtl::Cli::Top
                 humanize_data(rt? ? ct[:rx][:bytes] * 8 : ct[:rx][:bytes])
               ]
             end,
+            sortable_fields: [
+              %i[tx bytes],
+              %i[rx bytes]
+            ],
             stats_cts_values: proc do |cts|
               [
                 humanize_data(sum(cts, %i[tx bytes], false) * (rt? ? 8 : 1)),
@@ -419,6 +424,12 @@ module OsCtl::Cli::Top
                 humanize_data(ct[:rx][:packets])
               ]
             end,
+            sortable_fields: [
+              %i[tx bytes],
+              %i[tx packets],
+              %i[rx bytes],
+              %i[rx packets]
+            ],
             stats_cts_values: proc do |cts|
               [
                 humanize_data(sum(cts, %i[tx bytes], false) * (rt? ? 8 : 1)),
@@ -455,6 +466,10 @@ module OsCtl::Cli::Top
                 format_loadavg(ct[:loadavg][1])
               ]
             end,
+            sortable_fields: [
+              [:loadavg, 0],
+              [:loadavg, 1]
+            ],
             stats_cts_values: proc do |cts|
               [
                 format_loadavg(sum(cts, [:loadavg, 0], false)),
@@ -485,6 +500,11 @@ module OsCtl::Cli::Top
                 format_loadavg(ct[:loadavg][2])
               ]
             end,
+            sortable_fields: [
+              [:loadavg, 0],
+              [:loadavg, 1],
+              [:loadavg, 2]
+            ],
             stats_cts_values: proc do |cts|
               [
                 format_loadavg(sum(cts, [:loadavg, 0], false)),
@@ -872,23 +892,13 @@ module OsCtl::Cli::Top
     end
 
     def sortable_fields
-      ret = []
-      ret << (rt? ? :cpu_usage : :cpu_us)
-      ret.push(
-        :memory,
-        :nproc,
-        %i[zfsio bytes r],
-        %i[zfsio ios r],
-        %i[zfsio bytes w],
-        %i[zfsio ios w],
-        %i[tx bytes],
-        %i[tx packets],
-        %i[rx bytes],
-        %i[rx packets],
-        [:loadavg, 0],
-        [:loadavg, 1],
-        [:loadavg, 2]
-      )
+      @modules[1..].map do |m|
+        if m.sortable_fields.is_a?(Proc)
+          m.sortable_fields.call
+        else
+          m.sortable_fields
+        end
+      end.flatten(1)
     end
 
     def run_sort
