@@ -1,5 +1,5 @@
 source 'https://rubygems.org'
 
 source 'https://rubygems.vpsfree.cz' do
-  gem 'svctl', '24.11.0.build20250428153051'
+  gem 'svctl', '24.11.0.build20250501095456'
 end
