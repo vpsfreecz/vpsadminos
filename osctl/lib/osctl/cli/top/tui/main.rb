@@ -367,74 +367,140 @@ module OsCtl::Cli::Top
         )
       end
 
-      @modules << Module.new(
-        name: 'network',
-        header_fmts: ['%27s', '%13s %13s', '%6s %6s %6s %6s'],
-        header_labels: proc do
-          [
-            ['Network        '],
-            ['TX    ', 'RX    '],
-            rt? ? %w[bps pps bps pps] : %w[Bytes Packet Bytes Packet]
-          ]
-        end,
-        row_fmt: ['%6s'] * 4,
-        row_values: proc do |ct|
-          [
-            humanize_data(rt? ? ct[:tx][:bytes] * 8 : ct[:tx][:bytes]),
-            humanize_data(ct[:tx][:packets]),
-            humanize_data(rt? ? ct[:rx][:bytes] * 8 : ct[:rx][:bytes]),
-            humanize_data(ct[:rx][:packets])
-          ]
-        end,
-        stats_cts_values: proc do |cts|
-          [
-            humanize_data(sum(cts, %i[tx bytes], false) * (rt? ? 8 : 1)),
-            humanize_data(sum(cts, %i[tx packets], false)),
-            humanize_data(sum(cts, %i[rx bytes], false) * (rt? ? 8 : 1)),
-            humanize_data(sum(cts, %i[rx packets], false))
-          ]
-        end,
-        stats_all_values: proc do |cts|
-          [
-            humanize_data(sum(cts, %i[tx bytes], true) * (rt? ? 8 : 1)),
-            humanize_data(sum(cts, %i[tx packets], true)),
-            humanize_data(sum(cts, %i[rx bytes], true) * (rt? ? 8 : 1)),
-            humanize_data(sum(cts, %i[rx packets], true))
-          ]
+      @modules <<
+        if compact?
+          Module.new(
+            name: 'network',
+            header_fmts: ['%18s', '', '%8s %8s'],
+            header_labels: proc do
+              [
+                ['Network     '],
+                [],
+                rt? ? ['TX bps', 'RX bps'] : ['TX bytes', 'RX bytes']
+              ]
+            end,
+            row_fmt: ['%8s'] * 2,
+            row_values: proc do |ct|
+              [
+                humanize_data(rt? ? ct[:tx][:bytes] * 8 : ct[:tx][:bytes]),
+                humanize_data(rt? ? ct[:rx][:bytes] * 8 : ct[:rx][:bytes])
+              ]
+            end,
+            stats_cts_values: proc do |cts|
+              [
+                humanize_data(sum(cts, %i[tx bytes], false) * (rt? ? 8 : 1)),
+                humanize_data(sum(cts, %i[rx bytes], false) * (rt? ? 8 : 1))
+              ]
+            end,
+            stats_all_values: proc do |cts|
+              [
+                humanize_data(sum(cts, %i[tx bytes], true) * (rt? ? 8 : 1)),
+                humanize_data(sum(cts, %i[rx bytes], true) * (rt? ? 8 : 1))
+              ]
+            end
+          )
+        else
+          Module.new(
+            name: 'network',
+            header_fmts: ['%27s', '%13s %13s', '%6s %6s %6s %6s'],
+            header_labels: proc do
+              [
+                ['Network        '],
+                ['TX    ', 'RX    '],
+                rt? ? %w[bps pps bps pps] : %w[Bytes Packet Bytes Packet]
+              ]
+            end,
+            row_fmt: ['%6s'] * 4,
+            row_values: proc do |ct|
+              [
+                humanize_data(rt? ? ct[:tx][:bytes] * 8 : ct[:tx][:bytes]),
+                humanize_data(ct[:tx][:packets]),
+                humanize_data(rt? ? ct[:rx][:bytes] * 8 : ct[:rx][:bytes]),
+                humanize_data(ct[:rx][:packets])
+              ]
+            end,
+            stats_cts_values: proc do |cts|
+              [
+                humanize_data(sum(cts, %i[tx bytes], false) * (rt? ? 8 : 1)),
+                humanize_data(sum(cts, %i[tx packets], false)),
+                humanize_data(sum(cts, %i[rx bytes], false) * (rt? ? 8 : 1)),
+                humanize_data(sum(cts, %i[rx packets], false))
+              ]
+            end,
+            stats_all_values: proc do |cts|
+              [
+                humanize_data(sum(cts, %i[tx bytes], true) * (rt? ? 8 : 1)),
+                humanize_data(sum(cts, %i[tx packets], true)),
+                humanize_data(sum(cts, %i[rx bytes], true) * (rt? ? 8 : 1)),
+                humanize_data(sum(cts, %i[rx packets], true))
+              ]
+            end
+          )
         end
-      )
 
-      @modules << Module.new(
-        name: 'loadavg',
-        header_fmts: ['%17s', '%17s', '%5s %5s %5s'],
-        header_labels: [
-          ['LoadAvg    '],
-          [''],
-          ['1m', '5m', '15m']
-        ],
-        row_fmt: ['%5s'] * 3,
-        row_values: proc do |ct|
-          [
-            format_loadavg(ct[:loadavg][0]),
-            format_loadavg(ct[:loadavg][1]),
-            format_loadavg(ct[:loadavg][2])
-          ]
-        end,
-        stats_cts_values: proc do |cts|
-          [
-            format_loadavg(sum(cts, [:loadavg, 0], false)),
-            format_loadavg(sum(cts, [:loadavg, 1], false)),
-            format_loadavg(sum(cts, [:loadavg, 2], false))
-          ]
-        end,
-        stats_all_values: proc do |_cts, data|
-          [
-            data[:loadavg] ? format_loadavg(data[:loadavg][0]) : '-',
-            data[:loadavg] ? format_loadavg(data[:loadavg][1]) : '-',
-            data[:loadavg] ? format_loadavg(data[:loadavg][2]) : '-'
-          ]
+      @modules <<
+        if compact?
+          Module.new(
+            name: 'loadavg',
+            header_fmts: ['%12s', '', '%5s %5s'],
+            header_labels: [
+              ['LoadAvg  '],
+              [''],
+              ['1m', '5m']
+            ],
+            row_fmt: ['%5s'] * 2,
+            row_values: proc do |ct|
+              [
+                format_loadavg(ct[:loadavg][0]),
+                format_loadavg(ct[:loadavg][1])
+              ]
+            end,
+            stats_cts_values: proc do |cts|
+              [
+                format_loadavg(sum(cts, [:loadavg, 0], false)),
+                format_loadavg(sum(cts, [:loadavg, 1], false))
+              ]
+            end,
+            stats_all_values: proc do |_cts, data|
+              [
+                data[:loadavg] ? format_loadavg(data[:loadavg][0]) : '-',
+                data[:loadavg] ? format_loadavg(data[:loadavg][1]) : '-'
+              ]
+            end
+          )
+        else
+          Module.new(
+            name: 'loadavg',
+            header_fmts: ['%17s', '%17s', '%5s %5s %5s'],
+            header_labels: [
+              ['LoadAvg    '],
+              [''],
+              ['1m', '5m', '15m']
+            ],
+            row_fmt: ['%5s'] * 3,
+            row_values: proc do |ct|
+              [
+                format_loadavg(ct[:loadavg][0]),
+                format_loadavg(ct[:loadavg][1]),
+                format_loadavg(ct[:loadavg][2])
+              ]
+            end,
+            stats_cts_values: proc do |cts|
+              [
+                format_loadavg(sum(cts, [:loadavg, 0], false)),
+                format_loadavg(sum(cts, [:loadavg, 1], false)),
+                format_loadavg(sum(cts, [:loadavg, 2], false))
+              ]
+            end,
+            stats_all_values: proc do |_cts, data|
+              [
+                data[:loadavg] ? format_loadavg(data[:loadavg][0]) : '-',
+                data[:loadavg] ? format_loadavg(data[:loadavg][1]) : '-',
+                data[:loadavg] ? format_loadavg(data[:loadavg][2]) : '-'
+              ]
+            end
+          )
         end
-      )
     end
 
     def render(t, procs_stats, data)
@@ -643,6 +709,8 @@ module OsCtl::Cli::Top
         ret = []
 
         3.times do |i|
+          next if i == 1 && compact?
+
           ret << format(
             @modules.map { |m| m.header_fmts[i] }.join(' '),
             *@modules.map do |m|
@@ -697,7 +765,7 @@ module OsCtl::Cli::Top
 
     def stats_rows
       i = 5
-      i += 1 if model_thread.iostat_enabled?
+      i += 1 if model_thread.iostat_enabled? && @modules.detect { |m| m.name == 'zfsio' }
       i
     end
 
