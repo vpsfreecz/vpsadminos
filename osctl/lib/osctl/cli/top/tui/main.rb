@@ -865,6 +865,7 @@ module OsCtl::Cli::Top
       @last_measurement = measured_at
       @last_generation = generation
 
+      setup_modules
       run_sort
       ret
     end
