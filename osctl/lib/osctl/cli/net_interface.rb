@@ -64,10 +64,12 @@ module OsCtl::Cli
         return
       end
 
+      sort = opts[:sort] && param_selector.parse_option(opts[:sort])
+
       cmd_opts = { pool: gopts[:pool] }
       fmt_opts = {
         layout: :columns,
-        sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
+        sort:,
         opts: %i[max_tx max_rx].to_h do |limit|
           [limit, {
             label: limit.to_s.upcase,
@@ -101,6 +103,12 @@ module OsCtl::Cli
       if opts[:output].nil? && opts[:id].nil?
         cols.insert(0, :pool)
         cols.insert(1, :ctid)
+      end
+
+      if sort
+        sort.each do |v|
+          cols << v unless cols.include?(v)
+        end
       end
 
       fmt_opts[:cols] = cols
@@ -206,10 +214,12 @@ module OsCtl::Cli
         return
       end
 
+      sort = opts[:sort] && param_selector.parse_option(opts[:sort])
+
       cmd_opts = { pool: gopts[:pool] }
       fmt_opts = {
         layout: :columns,
-        sort: opts[:sort] && param_selector.parse_option(opts[:sort])
+        sort:
       }
 
       cmd_opts[:id] = args[0] if args[0]
@@ -246,6 +256,12 @@ module OsCtl::Cli
           fmt_opts[:cols].insert(0, :netif)
           fmt_opts[:cols].insert(1, :version)
           fmt_opts[:cols].insert(2, :addr)
+        end
+      end
+
+      if sort
+        sort.each do |v|
+          fmt_opts[:cols] << v unless fmt_opts[:cols].include?(v)
         end
       end
 
@@ -287,10 +303,12 @@ module OsCtl::Cli
         return
       end
 
+      sort = opts[:sort] && param_selector.parse_option(opts[:sort])
+
       cmd_opts = { pool: gopts[:pool] }
       fmt_opts = {
         layout: :columns,
-        sort: opts[:sort] && param_selector.parse_option(opts[:sort])
+        sort:
       }
 
       cmd_opts[:id] = args[0] if args[0]
@@ -330,6 +348,12 @@ module OsCtl::Cli
           fmt_opts[:cols].insert(1, :version)
           fmt_opts[:cols].insert(2, :addr)
           fmt_opts[:cols].insert(3, :via)
+        end
+      end
+
+      if sort
+        sort.each do |v|
+          fmt_opts[:cols] << v unless fmt_opts[:cols].include?(v)
         end
       end
 

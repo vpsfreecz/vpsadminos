@@ -11,10 +11,19 @@ module OsCtl::ExportFS::Cli
         return
       end
 
+      cols = opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS
+      sort = opts[:sort] && opts[:sort].split(',').map(&:to_sym)
+
+      if sort
+        sort.each do |v|
+          cols << v unless cols.include?(v)
+        end
+      end
+
       fmt_opts = {
         layout: :columns,
-        cols: opts[:output] ? opts[:output].split(',').map(&:to_sym) : FIELDS,
-        sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym)
+        cols:,
+        sort:
       }
 
       fmt_opts[:header] = false if opts['hide-header']

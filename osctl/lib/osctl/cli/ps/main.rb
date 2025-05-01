@@ -52,9 +52,18 @@ module OsCtl::Cli
           Ps::Columns::DEFAULT_MULTIPLE_POOLS
         end
 
+      cols = param_selector.parse_option(opts[:output], default_params: default_cols)
+      sort = opts[:sort] && param_selector.parse_option(opts[:sort])
+
+      if sort
+        sort.each do |v|
+          cols << v unless cols.include?(v)
+        end
+      end
+
       out_cols, out_data = Ps::Columns.generate(
         pl,
-        param_selector.parse_option(opts[:output], default_params: default_cols),
+        cols,
         gopts[:parsable]
       )
 
@@ -63,7 +72,7 @@ module OsCtl::Cli
         cols: out_cols,
         layout: :columns,
         header: opts['hide-header'] ? false : true,
-        sort: opts[:sort] && param_selector.parse_option(opts[:sort])
+        sort:
       )
 
       if pl.size > 1

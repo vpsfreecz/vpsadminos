@@ -19,11 +19,20 @@ module OsCtl::Cli
         return
       end
 
+      cols = param_selector.parse_option(opts[:output])
+      sort = opts[:sort] && param_selector.parse_option(opts[:sort])
+
+      if sort
+        sort.each do |v|
+          cols << v unless cols.include?(v)
+        end
+      end
+
       cmd_opts = { pool: gopts[:pool] }
       fmt_opts = {
         layout: :columns,
-        cols: param_selector.parse_option(opts[:output]),
-        sort: opts[:sort] && param_selector.parse_option(opts[:sort])
+        cols:,
+        sort:
       }
 
       cmd_opts[:names] = args if args.count > 0
@@ -95,18 +104,28 @@ module OsCtl::Cli
         raise GLI::BadCommandLine, "type can be one of: #{types.join(', ')}"
       end
 
+      cols = param_selector.parse_option(opts[:output])
+      sort = opts[:sort] && param_selector.parse_option(opts[:sort])
+
+      if sort
+        sort.each do |v|
+          cols << v unless cols.include?(v)
+        end
+      end
+
       cmd_opts = {
         pool: gopts[:pool],
         name: args[0],
         type: args[1] || 'all'
       }
+
       fmt_opts = {
         layout: :columns,
-        sort: opts[:sort] && opts[:sort].split(',').map(&:to_sym)
+        cols:,
+        sort:
       }
 
       fmt_opts[:header] = false if opts['hide-header']
-      fmt_opts[:cols] = param_selector.parse_option(opts[:output])
 
       osctld_fmt(:id_range_table_list, cmd_opts:, fmt_opts:)
     end

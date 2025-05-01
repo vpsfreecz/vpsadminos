@@ -125,10 +125,19 @@ module OsCtl::Cli
       cmd_opts[:cached] = true if opts[:cached]
       cmd_opts[:cached] = false if opts[:uncached]
 
+      cols = param_selector.parse_option(opts[:output])
+      sort = opts[:sort] && param_selector.parse_option(opts[:sort])
+
+      if sort
+        sort.each do |v|
+          cols << v unless cols.include?(v)
+        end
+      end
+
       fmt_opts = {
         layout: :columns,
-        cols: param_selector.parse_option(opts[:output]),
-        sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
+        cols:,
+        sort:,
         opts: {
           tags: {
             label: 'TAGS',

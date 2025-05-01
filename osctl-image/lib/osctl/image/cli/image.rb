@@ -31,10 +31,19 @@ module OsCtl::Image
         }
       end
 
+      cols = param_selector.parse_option(opts[:output])
+      sort = opts[:sort] && param_selector.parse_option(opts[:sort])
+
+      if sort
+        sort.each do |v|
+          cols << v unless cols.include?(v)
+        end
+      end
+
       fmt_opts = {
         layout: :columns,
-        cols: param_selector.parse_option(opts[:output]),
-        sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
+        cols:,
+        sort:,
         header: !opts['hide-header']
       }
 

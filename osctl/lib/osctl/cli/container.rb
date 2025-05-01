@@ -122,10 +122,12 @@ module OsCtl::Cli
         return
       end
 
+      sort = opts[:sort] && param_selector.parse_option(opts[:sort])
+
       cmd_opts = {}
       fmt_opts = {
         layout: :columns,
-        sort: opts[:sort] && param_selector.parse_option(opts[:sort]),
+        sort:,
         opts: {
           memory_limit: {
             align: 'right',
@@ -169,6 +171,12 @@ module OsCtl::Cli
 
       cols = param_selector.parse_option(opts[:output])
       cols = zfsprops.validate_property_names(cols)
+
+      if sort
+        sort.each do |v|
+          cols << v unless cols.include?(v)
+        end
+      end
 
       fmt_opts[:cols] = cols
 

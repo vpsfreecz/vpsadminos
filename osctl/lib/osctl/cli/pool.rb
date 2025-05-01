@@ -41,15 +41,24 @@ module OsCtl::Cli
         return
       end
 
+      cols = param_selector.parse_option(opts[:output])
+      sort = opts[:sort] && param_selector.parse_option(opts[:sort])
+
+      if sort
+        sort.each do |v|
+          cols << v unless cols.include?(v)
+        end
+      end
+
       cmd_opts = {}
       fmt_opts = {
         layout: :columns,
-        sort: opts[:sort] && param_selector.parse_option(opts[:sort])
+        cols:,
+        sort:
       }
 
       cmd_opts[:names] = args if args.count > 0
       fmt_opts[:header] = false if opts['hide-header']
-      fmt_opts[:cols] = param_selector.parse_option(opts[:output])
 
       osctld_fmt(:pool_list, cmd_opts:, fmt_opts:)
     end
