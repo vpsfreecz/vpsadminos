@@ -69,7 +69,7 @@ module OsCtld
       # Set metadata properties
       meta = {
         original_name: dataset.name,
-        trashed_at: t.to_i
+        trashed_at: t.to_i # see check_property below when changing properties
       }
 
       zfs(
@@ -98,11 +98,23 @@ module OsCtld
     def prune_datasets
       txg_timeout = File.read('/sys/module/zfs/parameters/zfs_txg_timeout').strip.to_i
 
-      @trash_dataset.list(depth: 1, include_self: false).each do |ds|
+      # Check the property that is set when the dataset is moved to trash
+      check_property = 'org.vpsadminos.osctl.trash-bin:trashed_at'
+
+      @trash_dataset.list(
+        depth: 1,
+        include_self: false,
+        properties: %W[name #{check_property}]
+      ).each do |ds|
         break if @stop
 
         unless ds.name.start_with?("#{@trash_dataset}/")
           raise "programming error: refusing to destroy dataset #{ds.name.inspect}"
+        end
+
+        if ds.properties[check_property] == '-' || ds.properties[check_property].to_i <= 0
+          log(:debug, "Skipping #{ds} as it is still being trashed")
+          next
         end
 
         log(:info, "Destroying #{ds}")
