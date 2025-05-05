@@ -26,6 +26,12 @@ let
     initrd = "${os.config.system.build.initialRamdisk}/initrd";
     toplevel = os.config.system.build.toplevel;
     kernelParams = os.config.boot.kernelParams ++ [ "quiet" "panic=-1" ];
+    network = {
+      mode = "user";
+      opts = {
+        inherit (repoCfg.osVm.network) network host dns hostForward;
+      };
+    };
   };
 
   machineJsonConfig = repoCfg: builtins.toJSON (machineConfig repoCfg (machineOs repoCfg));

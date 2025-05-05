@@ -66,6 +66,28 @@ let
             ];
             description = "Disks available within the VM";
           };
+
+          network = {
+            network = mkOption {
+              type = types.str;
+              default = "10.0.2.0/24";
+            };
+
+            host = mkOption {
+              type = types.str;
+              default = "10.0.2.2";
+            };
+
+            dns = mkOption {
+              type = types.str;
+              default = "10.0.2.3";
+            };
+
+            hostForward = mkOption {
+              type = types.nullOr types.str;
+              default = "tcp::2222-:22";
+            };
+          };
         };
 
         buildScripts = mkOption {
@@ -178,6 +200,7 @@ in {
           tty.autologin.enable = mkDefault true;
           services.haveged.enable = mkDefault true;
           os.channel-registration.enable = mkDefault false;
+          services.openssh.enable = true;
 
           nix.nixPath = [
             "nixpkgs=${<nixpkgs>}"
