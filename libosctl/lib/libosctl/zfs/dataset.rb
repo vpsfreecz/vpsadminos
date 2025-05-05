@@ -32,13 +32,13 @@ module OsCtl::Lib
       @base = base
       @properties = properties
 
-      if properties[:mountpoint]
-        @mountpoint = properties[:mountpoint]
+      if properties['mountpoint']
+        @mountpoint = properties['mountpoint']
       elsif cache
         ds = cache[name]
 
-        if ds && ds.properties[:mountpoint]
-          @mountpoint = ds.properties[:mountpoint]
+        if ds && ds.properties['mountpoint']
+          @mountpoint = ds.properties['mountpoint']
         end
       end
     end
@@ -151,7 +151,7 @@ module OsCtl::Lib
 
         next if property == 'name'
 
-        last.properties[property.to_sym] = value
+        last.properties[property] = value
       end
 
       ret << last unless last.nil?
@@ -163,8 +163,8 @@ module OsCtl::Lib
       if @mountpoint
         @mountpoint
 
-      elsif properties[:mountpoint]
-        @mountpoint = properties[:mountpoint]
+      elsif properties['mountpoint']
+        @mountpoint = properties['mountpoint']
 
       else
         @mountpoint = zfs(:get, '-H -o value mountpoint', name).output.strip
@@ -310,7 +310,7 @@ module OsCtl::Lib
     # Export to client
     # @return [Hash]
     def export
-      ret = { name: relative_name, dataset: name }
+      ret = { 'name' => relative_name, 'dataset' => name }
       ret.update(properties)
       ret
     end
