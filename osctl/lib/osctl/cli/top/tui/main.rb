@@ -6,7 +6,7 @@ module OsCtl::Cli::Top
   class Tui::Main < Tui::Screen
     include OsCtl::Lib::Utils::Humanize
 
-    MIN_COLS = 80
+    MIN_COLS = 75
     MIN_LINES = 12
     MIN_STATS_LINES = MIN_LINES + 6
 
@@ -532,7 +532,12 @@ module OsCtl::Cli::Top
       Curses.addstr(format(' [%.1fs]', last_measurement - t)) if last_measurement
 
       lavg = data[:loadavg] ? format_loadavgs(data[:loadavg]) : '?'
-      Curses.addstr(" #{model_thread.mode} mode, load average #{lavg}")
+
+      if compact?
+        Curses.addstr(" #{model_thread.mode}, loadavg #{lavg}")
+      else
+        Curses.addstr(" #{model_thread.mode} mode, load average #{lavg}")
+      end
 
       i = status_bar(1, t, procs_stats, data)
 
@@ -685,7 +690,7 @@ module OsCtl::Cli::Top
         bold { Curses.addstr(format('%8.2f', format_percent(arc[:hit_rate]))) }
         Curses.addstr(compact? ? ' hit, ' : ' hitrate, ')
         bold { Curses.addstr(format('%6d', arc[:misses])) }
-        Curses.addstr(compact? ? ' miss' : ' missed ')
+        Curses.addstr(compact? ? ' mis' : ' missed ')
 
       else
         Curses.addstr('calculating')
