@@ -7,7 +7,8 @@ module OsCtl::Cli::Top
     include OsCtl::Lib::Utils::Humanize
 
     MIN_COLS = 80
-    MIN_LINES = 18
+    MIN_LINES = 12
+    MIN_STATS_LINES = MIN_LINES + 6
 
     class Module
       attr_reader :name, :header_fmts, :header_labels, :row_fmt, :row_values,
@@ -580,7 +581,7 @@ module OsCtl::Cli::Top
         break if i >= (Curses.lines - stats_rows)
       end
 
-      stats(data, [offset, view_ct_count, ct_count])
+      stats(data, [offset, view_ct_count, ct_count]) if Curses.lines >= MIN_STATS_LINES
 
       Curses.refresh
     end
@@ -784,6 +785,8 @@ module OsCtl::Cli::Top
     end
 
     def stats_rows
+      return 0 if Curses.lines < MIN_STATS_LINES
+
       i = 5
       i += 1 if model_thread.iostat_enabled? && @modules.detect { |m| m.name == 'zfsio' }
       i
@@ -1159,7 +1162,7 @@ module OsCtl::Cli::Top
 
     # Screen without header and footer
     def max_rows
-      Curses.lines - @status_bar_cols - 1 - @header.size - 5 - 1
+      Curses.lines - @status_bar_cols - 1 - @header.size - stats_rows - 1
     end
 
     def compact?
