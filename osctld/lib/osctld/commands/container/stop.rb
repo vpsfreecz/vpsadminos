@@ -52,7 +52,12 @@ module OsCtld
         ct.cgparams.temporarily_expand_memory if ct.running?
 
         run_conf = ct.get_run_conf
-        promise = run_conf.get_exit_promise if run_conf.init_pid
+
+        if run_conf.init_pid
+          promise = run_conf.get_exit_promise
+        else
+          ct.log(:debug, 'init_pid is not set, skipping exit promise')
+        end
 
         begin
           DistConfig.run(
