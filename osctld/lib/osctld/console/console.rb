@@ -108,14 +108,14 @@ module OsCtld
         recovery.cleanup_or_taint
       end
 
-      if ctrc.destroy_dataset_on_stop?
-        GarbageCollector.free_container_run_dataset(ctrc, ctrc.dataset)
-      end
-
-      unless ct.ephemeral?
+      if !ct.ephemeral? && !ctrc.destroy_dataset_on_stop?
         # Force write-out of dirtied pages
         ct.unmount(force: true)
         ct.mount
+      end
+
+      if ctrc.destroy_dataset_on_stop?
+        GarbageCollector.free_container_run_dataset(ctrc, ctrc.dataset)
       end
 
       ctrc.fulfil_exit
