@@ -149,7 +149,6 @@ module OsCtld
         ret = Commands::Container::Start.run(
           pool: ct.pool.name,
           id: ct.id,
-          force: true,
           manipulation_lock: 'wait'
         )
       rescue CommandFailed => e
