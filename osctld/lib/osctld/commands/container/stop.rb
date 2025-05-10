@@ -79,8 +79,12 @@ module OsCtld
           error!(e.message)
         end
 
-        if promise && promise.wait.nil?
-          log(:warn, "Timeout while waiting for exit promise of #{ct.ident}")
+        if promise
+          if promise.wait
+            ct.log(:debug, 'Exit promise fulfilled')
+          else
+            ct.log(:warn, 'Timeout while waiting for exit promise')
+          end
         end
 
         remove_accounting_cgroups(ct)
