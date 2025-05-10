@@ -108,7 +108,12 @@ module OsCtld
         return
       end
 
-      Eventd.report(:state, pool: ct.pool.name, id: ct.id, state: change[:state])
+      # When transitioning to `running`, send the event only after init_pid was set
+      # below, so that when {Commands::Container::Start} finishes waiting and returns,
+      # the init_pid is not nil.
+      if change[:state] != :running
+        Eventd.report(:state, pool: ct.pool.name, id: ct.id, state: change[:state])
+      end
 
       ct.state = change[:state]
       init_pid = nil
@@ -121,6 +126,8 @@ module OsCtld
         rescue ContainerControl::Error => e
           log(:warn, :monitor, "Unable to get state of container #{ct.ident}: #{e.message}")
         end
+
+        Eventd.report(:state, pool: ct.pool.name, id: ct.id, state: change[:state])
 
         if init_pid
           Eventd.report(:ct_init_pid, pool: ct.pool.name, id: ct.id, init_pid:)
