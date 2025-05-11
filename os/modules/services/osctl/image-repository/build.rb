@@ -176,13 +176,14 @@ class Builder
 
       if deploy_status != 0
         log_file.puts("\n\nFailed to deploy #{img.name} with exit status #{deploy_status}\n")
-        log_file.puts("/var/log/osctld:")
+        log_file.puts('/var/log/osctld:')
 
         File.open('/var/log/osctld') do |f|
           ::IO.copy_stream(f, log_file)
         end
 
         log_file.puts("\n\ndmesg:")
+        log_file.flush
 
         unless Kernel.system('dmesg', out: log_file, err: log_file)
           log_file.puts('failed to read dmesg')
