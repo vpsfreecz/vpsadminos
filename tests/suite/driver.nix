@@ -40,13 +40,13 @@ import ../make-test.nix (pkgs: {
       ret
     end
 
-    run_expect("execute", [0, "hey"]) { machine.execute("echo hey") }
-    run_expect("succeeds", [0, "root"]) { machine.succeeds("whoami") }
+    run_expect("execute", [0, "hey\n"]) { machine.execute("echo hey") }
+    run_expect("succeeds", [0, "root\n"]) { machine.succeeds("whoami") }
     run_expect("fails", [1, ""]) { machine.fails("false") }
 
     run_expect(
       "all_succeed",
-      [[0, "hey"], [0, "hou"]]
+      [[0, "hey\n"], [0, "hou\n"]]
     ) do
       machine.all_succeed("echo hey", "echo hou")
     end
