@@ -1,0 +1,140 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+env:
+  NIX_PATH: nixpkgs=https://channels.nixos.org/nixos-24.11/nixexprs.tar.xz
+
+jobs:
+  build:
+    name: Build OS and populate binary cache
+    runs-on: self-hosted
+    timeout-minutes: 180
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine branch name
+        id: vars
+        run: |
+          echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+
+      - name: Build toplevel closure
+        run: |
+          make toplevel
+          echo "BUILD_OUT=$(readlink -f os/result/toplevel)" >> $GITHUB_ENV
+
+      - name: Copy toplevel closure to binary cache
+        env:
+          VPSADMINOS_CACHE_SSH_KEY: ${{ secrets.VPSADMINOS_CACHE_SSH_KEY }}
+        run: |
+          install -m 600 -D <(echo "$VPSADMINOS_CACHE_SSH_KEY") .ssh/cache_id
+          NIX_SSHOPTS="-i .ssh/cache_id -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" nix-copy-closure --to push@cache.int.vpsadminos.org "$BUILD_OUT"
+
+      - name: Add new profile generation
+        env:
+          BRANCH: ${{ steps.vars.outputs.branch }}
+        run: |
+          ssh -i .ssh/cache_id \
+              -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              push@cache.int.vpsadminos.org \
+              sudo push-ci-generation "$BRANCH" "$BUILD_OUT"
+
+  test:
+    name: Run test suite
+    needs: build
+    runs-on: self-hosted
+    timeout-minutes: 200
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run tests
+        id: run-tests
+        timeout-minutes: 180
+        run: |
+          set -o pipefail
+          ./test-runner.sh test -j 5 | tee test.log
+
+      - name: Evaluate test results
+        if: always()
+        run: |
+          EXPECTED_SUCCESSFUL=$(grep -oP "\d+ tests successful" test.log | cut -f1 -d ' ')
+          EXPECTED_FAILED=$(grep -oP "\d+ tests failed as expected" test.log | cut -f1 -d ' ')
+          UNEXPECTED_FAILED=$(grep -oP "\d+ tests should have succeeded" test.log | cut -f1 -d ' ')
+          UNEXPECTED_SUCCESSFUL=$(grep -oP "\d+ tests should have failed" test.log | cut -f1 -d ' ')
+
+          echo "expected_successful=${EXPECTED_SUCCESS:-0}" >> $GITHUB_OUTPUT
+          echo "expected_failed=${EXPECTED_FAILED:-0}" >> $GITHUB_OUTPUT
+          echo "unexpected_failed=${UNEXPECTED_FAILED:-0}" >> $GITHUB_OUTPUT
+          echo "unexpected_successful=${UNEXPECTED_SUCCESSFUL:-0}" >> $GITHUB_OUTPUT
+
+          {
+            echo '### Test summary'
+            echo ""
+            echo "| Result | Count |"
+            echo "|--------|-------|"
+            echo "| ✅ Successful (expected) | ${EXPECTED_SUCCESSFUL:-0} |"
+            echo "| ⚠️ Failed (expected) | ${EXPECTED_FAILED:-0} |"
+            echo "| ❌ Failed (unexpected) | ${UNEXPECTED_FAILED:-0} |"
+            echo "| ❌ Successful (unexpected) | ${UNEXPECTED_SUCCESSFUL:-0} |"
+            echo ""
+          } >> $GITHUB_STEP_SUMMARY
+
+          if [ "${UNEXPECTED_FAILED:-0}" -gt 0 ] || [ "${UNEXPECTED_SUCCESSFUL:-0}" -gt 0 ]; then
+            echo "::error::${UNEXPECTED_FAILED:-0} tests unexpectedly failed, ${UNEXPECTED_SUCCESSFUL:-0} tests unexpectedly succeeded"
+            exit 1
+          fi
+
+      - name: Summarise test logs
+        if: always()
+        run: |
+          summary_file="$GITHUB_STEP_SUMMARY"
+          logs_root=/tmp/os-test-runner
+
+          if [ -d "$logs_root" ]; then
+            echo "## Per-test logs (tail, last 200 lines each)" >>"$summary_file"
+            echo >>"$summary_file"
+
+            # One collapsible <details> section per test
+            for test_dir in "$logs_root"/os-test-*; do
+              test_name=$(basename "$test_dir")
+              result_file="$test_dir"/test-result.txt
+
+              [ -e "$result_file" ] || continue
+
+              test_result=$(cat "$test_dir"/test-result.txt)
+
+              if [ "$test_result" == "expected_success" ] || [ "$test_result" == "expected_failure" ]; then
+                continue
+              fi
+
+              echo "<details><summary><code>$test_name</code></summary>" >>"$summary_file"
+              echo >>"$summary_file"
+
+              for f in "$test_dir"/*.log; do
+                echo "#### $(basename "$f")" >>"$summary_file"
+                echo '```' >>"$summary_file"
+                tail -n 200 "$f" >>"$summary_file"
+                echo '```' >>"$summary_file"
+                echo >>"$summary_file"
+              done
+
+              echo '</details>' >>"$summary_file"
+              echo >>"$summary_file"
+            done
+          fi
+
+      - name: Upload full test logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: os-test-logs-${{ github.run_id }}
+          path: |
+            /tmp/os-test-runner/**/*.log
+            /tmp/os-test-runner/**/*.txt
+          retention-days: 14
+          if-no-files-found: ignore
