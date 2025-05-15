@@ -17,12 +17,6 @@ module OsVm
     # @param hash_base [String]
     # @param interactive_console [Boolean]
     def initialize(name, config, tmpdir, sockdir, default_timeout: 900, hash_base: '', interactive_console: false)
-      @can_use_virtiofs = Process.uid == 0
-
-      if !@can_use_virtiofs && config.shared_filesystems.any?
-        raise ArgumentError, 'Unable to mount shared file systems, must be run as root'
-      end
-
       @name = name
       @config = config
       @tmpdir = tmpdir
@@ -68,11 +62,9 @@ module OsVm
 
       @shell_server = UNIXServer.new(shell_socket_path)
 
-      if can_use_virtiofs?
-        shared_dir.setup
-        start_virtiofs
-        sleep(1)
-      end
+      shared_dir.setup
+      start_virtiofs
+      sleep(1)
 
       qemu_kwargs = {}
 
@@ -226,7 +218,7 @@ module OsVm
       end
 
       log.execute_end(status, output)
-      return [status, output]
+      [status, output]
     end
 
     # Execute command and check that it succeeds
@@ -283,6 +275,7 @@ module OsVm
 
         cur_timeout = timeout - (Time.now - t1)
         raise TimeoutError, "Timeout occured while running command '#{cmd}'" if cur_timeout <= 0
+
         sleep(1)
       end
     end
@@ -299,6 +292,7 @@ module OsVm
 
         cur_timeout = timeout - (Time.now - t1)
         raise TimeoutError, "Timeout occured while running command '#{cmd}'" if cur_timeout <= 0
+
         sleep(1)
       end
     end
@@ -395,10 +389,6 @@ module OsVm
     # @param mkpath [Boolean]
     # @return [Machine]
     def push_file(src, dst, preserve: false, mkpath: false)
-      unless can_use_virtiofs?
-        raise "#{$0} must be run as root for push_file() to work"
-      end
-
       mkdir_p(File.dirname(dst)) if mkpath
       shared_dir.push_file(src, dst)
       self
@@ -408,10 +398,6 @@ module OsVm
     # @param src [String] file within the machine
     # @return [String] path to the file on the host
     def pull_file(src, preserve: false)
-      unless can_use_virtiofs?
-        raise "#{$0} must be run as root for pull_file() to work"
-      end
-
       shared_dir.pull_file(src, preserve:)
     end
 
@@ -464,7 +450,6 @@ module OsVm
 
     def qemu_virtiofs_options
       ret = []
-      return ret unless can_use_virtiofs?
 
       shared_filesystems.each_with_index do |fs, i|
         name, = fs
@@ -603,7 +588,7 @@ module OsVm
         next unless buffer.include?("test-shell-ready\n")
 
         @shell_up = true
-        shared_dir.mount if can_use_virtiofs?
+        shared_dir.mount
         return
       end
     end
@@ -622,10 +607,6 @@ module OsVm
       else
         File.join(tmpdir, path)
       end
-    end
-
-    def can_use_virtiofs?
-      @can_use_virtiofs
     end
 
     def virtiofs_socket_path(mount_name)
