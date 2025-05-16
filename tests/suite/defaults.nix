@@ -9,11 +9,6 @@ import ../make-test.nix (pkgs: {
 
   testScript = ''
     machine.start
-
-    _, output = machine.succeeds('cat /sys/module/apparmor/parameters/enabled')
-
-    if output.strip != 'N'
-      fail "apparmor enabled on boot, output=#{output.inspect}"
-    end
+    machine.fails('cat /sys/module/apparmor/parameters/enabled')
   '';
 })
