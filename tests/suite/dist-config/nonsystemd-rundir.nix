@@ -10,7 +10,7 @@ import ../../make-template.nix ({ distribution, version }: rec {
           exit 1
         }
 
-        grep -q /run /proc/mounts || fail "/run found in /proc/mounts"
+        grep -q /run /proc/mounts && fail "/run found in /proc/mounts"
 
         exit 0
       '';
