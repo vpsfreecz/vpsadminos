@@ -54,7 +54,8 @@ import ../../make-test.nix (pkgs: {
     end
 
     # tmpfs mounts
-    machine.succeeds("ct mounts new --fs tmpfs --type tmpfs --opts create=dir --mountpoint /mnt/tmpfs testct")
+    # TODO: it should probably work without adding --no-map-ids
+    machine.succeeds("ct mounts new --fs tmpfs --type tmpfs --opts create=dir --mountpoint /mnt/tmpfs --no-map-ids testct")
 
     # tmpfs cannot be activated at runtime
     _, output = machine.fails("ct mounts activate testct /mnt/tmpfs")
