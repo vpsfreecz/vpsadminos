@@ -8,7 +8,14 @@ import ../../make-template.nix ({ distribution, version }: rec {
       Test that containers with ${distribution}-${version} can be started/stopped
     '';
 
-    machine = import ../../machines/tank.nix pkgs;
+    machine = import ../../machines/with-tank.nix {
+      inherit pkgs;
+      config =
+        { config, ... }:
+        {
+          boot.enableUnifiedCgroupHierarchy = distribution != "centos" || version != "7";
+        };
+    };
 
     testScript = ''
       machine.wait_for_osctl_pool("tank")

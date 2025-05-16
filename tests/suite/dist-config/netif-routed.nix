@@ -8,7 +8,14 @@ import ../../make-template.nix ({ distribution, version }: rec {
       Test that routed network interface works with ${distribution}-${version}
     '';
 
-    machine = import ../../machines/tank.nix pkgs;
+    machine = import ../../machines/with-tank.nix {
+      inherit pkgs;
+      config =
+        { config, ... }:
+        {
+          boot.enableUnifiedCgroupHierarchy = distribution != "centos" || version != "7";
+        };
+    };
 
     testScript = ''
       machine.wait_for_osctl_pool("tank")
