@@ -44,6 +44,8 @@ module OsCtl::Cli
       autostart
       autostart_priority
       autostart_delay
+      start_menu
+      start_menu_timeout
       impermanence
       impermanence_zfs_properties
       ephemeral
