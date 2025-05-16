@@ -1601,9 +1601,11 @@ module OsCtl::Cli
         repository: opts[:repository]
       }
 
-      %i[group dataset map_mode].each do |v|
+      %i[group dataset].each do |v|
         cmd_opts[v] = opts[v] if opts[v]
       end
+
+      cmd_opts[:map_mode] = opts['map-mode'] if opts['map-mode']
 
       unless opts[:distribution]
         raise GLI::BadCommandLine, 'provide --distribution'
