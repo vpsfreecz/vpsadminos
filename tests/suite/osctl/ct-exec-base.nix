@@ -28,14 +28,14 @@ import ../../make-test.nix (pkgs: {
       # capture stdout
       _, output = machine.succeeds("osctl ct exec #{opts} #{ctid} echo hi")
 
-      if output != "hi"
+      if output.strip != "hi"
         fail "#{msg}: unexpected exec output: #{output.inspect}"
       end
 
       # capture stderr
       _, output = machine.succeeds("osctl ct exec #{opts} #{ctid} sh -c '>&2 echo hi'")
 
-      if output != "hi"
+      if output.strip != "hi"
         fail "#{msg}: unexpected exec output: #{output.inspect}"
       end
 
@@ -44,7 +44,7 @@ import ../../make-test.nix (pkgs: {
 
       if st != 33
         fail "#{msg}: unexpected exec status: #{st.inspect}"
-      elsif output != "error: executed command failed"
+      elsif output.strip != "error: executed command failed"
         fail "#{msg}: unexpected exec output: #{output.inspect}"
       end
 
@@ -63,7 +63,7 @@ import ../../make-test.nix (pkgs: {
     # Exec on a running container
     _, output = machine.succeeds("osctl ct show -H -o state startedct")
 
-    if output != "running"
+    if output.strip != "running"
       fail "startedct is in an unexpected state: #{output.inspect}"
     end
 
@@ -77,7 +77,7 @@ import ../../make-test.nix (pkgs: {
     # Exec on a stopped container
     _, output = machine.succeeds("osctl ct show -H -o state stoppedct")
 
-    if output != "stopped"
+    if output.strip != "stopped"
       fail "stoppedct is in an unexpected state: #{output.inspect}"
     end
 
@@ -91,7 +91,7 @@ import ../../make-test.nix (pkgs: {
     # Exec on a running container with -r
     _, output = machine.succeeds("osctl ct show -H -o state startedct")
 
-    if output != "running"
+    if output.strip != "running"
       fail "startedct is in an unexpected state: #{output.inspect}"
     end
 
@@ -105,7 +105,7 @@ import ../../make-test.nix (pkgs: {
     # Exec on a stopped container with networking
     _, output = machine.succeeds("osctl ct show -H -o state stoppedct")
 
-    if output != "stopped"
+    if output.strip != "stopped"
       fail "stoppedct is in an unexpected state: #{output.inspect}"
     end
 
@@ -120,7 +120,7 @@ import ../../make-test.nix (pkgs: {
 
     _, output = machine.succeeds("osctl ct exec -rn stoppedct ip route show")
 
-    if output != "default via 255.255.255.254 dev eth0 \n255.255.255.254 dev eth0 scope link"
+    if output.strip != "default via 255.255.255.254 dev eth0 \n255.255.255.254 dev eth0 scope link"
       fail "unexpected default route: #{output.inspect}"
     end
 
@@ -128,7 +128,7 @@ import ../../make-test.nix (pkgs: {
     # Exec on a running container with networking
     _, output = machine.succeeds("osctl ct show -H -o state startedct")
 
-    if output != "running"
+    if output.strip != "running"
       fail "startedct is in an unexpected state: #{output.inspect}"
     end
 

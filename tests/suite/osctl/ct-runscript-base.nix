@@ -64,14 +64,14 @@ in {
       # capture stdout
       _, output = machine.succeeds("osctl ct runscript #{opts} #{ctid} ${scripts.stdout}")
 
-      if output != "hi"
+      if output.strip != "hi"
         fail "#{msg}: unexpected runscript output: #{output.inspect}"
       end
 
       # capture stderr
       _, output = machine.succeeds("osctl ct runscript #{opts} #{ctid} ${scripts.stderr}")
 
-      if output != "hi"
+      if output.strip != "hi"
         fail "#{msg}: unexpected runscript output: #{output.inspect}"
       end
 
@@ -80,7 +80,7 @@ in {
 
       if st != 33
         fail "#{msg}: unexpected runscript status: #{st.inspect}"
-      elsif output != "error: executed command failed"
+      elsif output.strip != "error: executed command failed"
         fail "#{msg}: unexpected runscript output: #{output.inspect}"
       end
 
@@ -97,7 +97,7 @@ in {
     # Runscript on a running container
     _, output = machine.succeeds("osctl ct show -H -o state startedct")
 
-    if output != "running"
+    if output.strip != "running"
       fail "startedct is in an unexpected state: #{output.inspect}"
     end
 
@@ -110,7 +110,7 @@ in {
     # Runscript on a stopped container
     _, output = machine.succeeds("osctl ct show -H -o state stoppedct")
 
-    if output != "stopped"
+    if output.strip != "stopped"
       fail "stoppedct is in an unexpected state: #{output.inspect}"
     end
 
@@ -124,7 +124,7 @@ in {
     # Runscript on a running container with -r
     _, output = machine.succeeds("osctl ct show -H -o state startedct")
 
-    if output != "running"
+    if output.strip != "running"
       fail "startedct is in an unexpected state: #{output.inspect}"
     end
 
@@ -138,7 +138,7 @@ in {
     # Runscript on a stopped container with networking
     _, output = machine.succeeds("osctl ct show -H -o state startedct")
 
-    if output != "running"
+    if output.strip != "running"
       fail "startedct is in an unexpected state: #{output.inspect}"
     end
 
@@ -151,13 +151,13 @@ in {
     # Runscript on a stopped container with networking
     _, output = machine.succeeds("osctl ct show -H -o state stoppedct")
 
-    if output != "stopped"
+    if output.strip != "stopped"
       fail "stoppedct is in an unexpected state: #{output.inspect}"
     end
 
     _, output = machine.succeeds("osctl ct runscript -rn stoppedct ${scripts.net}")
 
-    if output != "default via 255.255.255.254 dev eth0 \n255.255.255.254 dev eth0 scope link"
+    if output.strip != "default via 255.255.255.254 dev eth0 \n255.255.255.254 dev eth0 scope link"
       fail "unexpected default route: #{output.inspect}"
     end
 
@@ -165,7 +165,7 @@ in {
     # Runscript on a running container with -rn
     _, output = machine.succeeds("osctl ct show -H -o state startedct")
 
-    if output != "running"
+    if output.strip != "running"
       fail "startedct is in an unexpected state: #{output.inspect}"
     end
 
