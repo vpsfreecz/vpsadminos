@@ -71,6 +71,10 @@ module TestRunner
 
     def do_run
       yield
+
+      machines.each_value do |m|
+        m.stop if m.running?
+      end
     ensure
       machines.each_value do |m|
         m.kill
