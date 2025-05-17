@@ -17,6 +17,10 @@ import ../../make-template.nix ({ distribution, version }: rec {
         };
     };
 
+    # These distributions do have the device unit, but it is inactive (dead) and so
+    # systemctl status returns non-zero exit status.
+    expectFailure = (distribution == "centos" && version == "7") || (distribution == "opensuse" && version == "latest");
+
     testScript = ''
       machine.wait_for_osctl_pool("tank")
       machine.wait_until_online
