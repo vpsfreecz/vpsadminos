@@ -24,7 +24,7 @@ import ../../make-test.nix (pkgs: {
       "osctl ct start podmanct",
     )
 
-    machine.wait_until_succeeds("osctl ct exec podmanct bash -c 'ping -c 1 vpsadminos.org || curl --head https://vpsadminos.org || wget -O - https://vpsadminos.org || getent hosts vpsadminos.org'")
+    machine.wait_until_succeeds("osctl ct exec podmanct sh -c 'ping -c 1 vpsadminos.org || curl --head https://vpsadminos.org || wget -O - https://vpsadminos.org || getent hosts vpsadminos.org'")
 
     ${setupScript}
 
