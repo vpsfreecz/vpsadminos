@@ -16,12 +16,12 @@ module OsVm
     # @param default_timeout [Integer]
     # @param hash_base [String]
     # @param interactive_console [Boolean]
-    def initialize(name, config, tmpdir, sockdir, default_timeout: 900, hash_base: '', interactive_console: false)
+    def initialize(name, config, tmpdir, sockdir, default_timeout: 600, hash_base: '', interactive_console: false)
       @name = name
       @config = config
       @tmpdir = tmpdir
       @sockdir = sockdir
-      @default_timeout = default_timeout || 900
+      @default_timeout = default_timeout
       @hash_base = hash_base
       @interactive_console = interactive_console
       @running = false

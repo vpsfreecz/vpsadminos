@@ -24,7 +24,7 @@ selected tests and reporting results.
       Default timeout for machine commands that wait until execution becomes
       possible, or until a command fails or succeeds. This option changes
       the default value, which is used when tests do not set the timeout
-      themselves. In seconds, defaults to `900`.
+      themselves. In seconds, defaults to `600`.
 
     `--stop-on-failure`
       Stop further execution when a test fails.
