@@ -1,6 +1,16 @@
 module TestRunner
   class TestResult
-    attr_reader :test, :success, :elapsed_time, :state_dir
+    # @return [Test]
+    attr_reader :test
+
+    # @return [Boolean]
+    attr_reader :success
+
+    # @return [Float]
+    attr_reader :elapsed_time
+
+    # @return [String]
+    attr_reader :state_dir
 
     def initialize(test, success, elapsed_time, state_dir)
       @test = test

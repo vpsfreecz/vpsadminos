@@ -3,6 +3,7 @@ require 'osvm'
 
 module TestRunner
   class TestEvaluator
+    # @return [Hash<String, OsVm::Machine>]
     attr_reader :machines
 
     # @param test [Test]

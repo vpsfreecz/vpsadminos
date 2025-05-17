@@ -10,6 +10,7 @@ module TestRunner
       tc
     end
 
+    # @return [Test]
     attr_reader :test
 
     # @param test [Test]

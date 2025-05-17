@@ -1,6 +1,25 @@
 module TestRunner
   class Test
-    attr_reader :path, :type, :template, :args, :name, :description, :expect_failure
+    # @return [String]
+    attr_reader :path
+
+    # @return [String]
+    attr_reader :type
+
+    # @return [String]
+    attr_reader :template
+
+    # @return [Hash]
+    attr_reader :args
+
+    # @return [String]
+    attr_reader :name
+
+    # @return [String]
+    attr_reader :description
+
+    # @return [Boolean]
+    attr_reader :expect_failure
 
     # @param opts [Hash]
     def initialize(**opts)

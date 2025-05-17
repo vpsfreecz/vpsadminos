@@ -2,7 +2,14 @@ require 'fileutils'
 
 module TestRunner
   class Executor
-    attr_reader :tests, :opts, :results
+    # @return [Array<Test>]
+    attr_reader :tests
+
+    # @return [Hash]
+    attr_reader :opts
+
+    # @return [Array<TestResult>]
+    attr_reader :results
 
     # @param tests [Array<Test>]
     # @param opts [Hash]
