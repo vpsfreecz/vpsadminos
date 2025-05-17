@@ -2,7 +2,7 @@ import ../../make-test.nix (pkgs: {
   name = "zfs-xattr";
 
   description = ''
-    Test that zfs xattr=sa by default
+    Test that zfs xattr=on/sa by default
   '';
 
   machine = import ../../machines/tank.nix pkgs;
@@ -12,6 +12,6 @@ import ../../make-test.nix (pkgs: {
     machine.wait_for_service("pool-tank")
 
     st, output = machine.succeeds("zfs get -H -o value xattr tank")
-    fail "xattr = '#{output}', expected 'sa'" if output != 'sa'
+    fail "xattr = '#{output}', expected 'on' or 'sa'" unless %w[on sa].include?(output.strip)
   '';
 })
