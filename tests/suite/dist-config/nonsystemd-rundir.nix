@@ -10,17 +10,26 @@ import ../../make-template.nix ({ distribution, version }: rec {
           exit 1
         }
 
-        grep -q /run /proc/mounts && fail "/run found in /proc/mounts"
+        if [ "${distribution}" == "alpine" ] || [ "${distribution}" == "chimera" ]; then
+          grep -q /run /proc/mounts || fail "/run not found in /proc/mounts"
+        else
+          grep -q /run /proc/mounts && fail "/run found in /proc/mounts"
+        fi
 
         exit 0
       '';
     in {
       name = "dist-config-nonsystemd-rundir@${instance}";
 
-      description = ''
-        Test that containers with ${distribution}-${version} do not have /run
-        pre-mounted before the init is started
-      '';
+      description =
+        if distribution == "alpine" || distribution == "chimera" then ''
+          Test that containers with ${distribution}-${version} have /run pre-mounted
+          before the init is started as configured
+          in osctld/configs/lxc/${distribution}/common.conf.
+        '' else  ''
+          Test that containers with ${distribution}-${version} do not have /run
+          pre-mounted before the init is started.
+        '';
 
       machine = import ../../machines/tank.nix pkgs;
 
