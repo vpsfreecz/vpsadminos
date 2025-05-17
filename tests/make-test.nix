@@ -51,6 +51,8 @@ let
     inherit (testAttrs) name description testScript;
     expectFailure = testAttrs.expectFailure or false;
     machines = machineTestConfigs;
+    tags = testAttrs.tags or [];
+    labels = testAttrs.labels or {};
   };
 
   jsonConfig = nixpkgs.pkgs.writeText "os-test-${testAttrs.name}.json" (builtins.toJSON testConfig);

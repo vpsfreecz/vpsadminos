@@ -14,13 +14,29 @@ selected tests and reporting results.
 `ls` [*path-pattern*]
   List available tests, filtered by *path-pattern* if provided.
 
+    `-l`, `--label` *label*`=`*value* | *label*`!=`*value*
+      Filter tests by selected label, which is either tested for
+      equality or inequality.
+
+    `-t`, `--tag` *tag*|`^`*tag*
+      Filter tests that have *tag* set. If the tag begins with `^`, then
+      filter tests that do not have *tag* set.
+
 `test` [*path-pattern*]
   Run all or selected tests.
+
+    `-l`, `--label` *label*`=`*value* | *label*`!=`*value*
+      Filter tests by selected label, which is either tested for
+      equality or inequality.
+
+    `-t`, `--tag` *tag*|`^`*tag*
+      Filter tests that have *tag* set. If the tag begins with `^`, then
+      filter tests that do not have *tag* set.
 
     `-j`, `--jobs`
       Number of tests to run in parallel.
 
-    `-t`, `--timeout` *n*
+    `--timeout` *n*
       Default timeout for machine commands that wait until execution becomes
       possible, or until a command fails or succeeds. This option changes
       the default value, which is used when tests do not set the timeout

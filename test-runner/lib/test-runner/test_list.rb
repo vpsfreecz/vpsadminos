@@ -62,7 +62,9 @@ module TestRunner
         args: data[:args],
         name: data[:name],
         description: data[:description],
-        expect_failure: data[:expectFailure]
+        expect_failure: data[:expectFailure],
+        tags: data[:tags],
+        labels: data[:labels].transform_keys(&:to_s)
       )
     end
   end

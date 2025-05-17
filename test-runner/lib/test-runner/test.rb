@@ -21,6 +21,12 @@ module TestRunner
     # @return [Boolean]
     attr_reader :expect_failure
 
+    # @return [Array<String>]
+    attr_reader :tags
+
+    # @return [Hash<String, String>]
+    attr_reader :labels
+
     # @param opts [Hash]
     def initialize(**opts)
       @path = opts[:path]
@@ -30,6 +36,8 @@ module TestRunner
       @name = opts[:name]
       @description = opts[:description]
       @expect_failure = opts[:expect_failure]
+      @tags = opts[:tags]
+      @labels = opts[:labels]
     end
 
     # @param pattern [String]

@@ -10,13 +10,7 @@ module TestRunner
     end
 
     def list
-      tl = TestRunner::TestList.new
-      tests =
-        if args[0]
-          tl.filter { |t| t.path_matches?(args[0]) }
-        else
-          tl.all
-        end
+      tests = select_tests(args[0])
 
       tests.each do |test|
         puts test.path
@@ -24,13 +18,7 @@ module TestRunner
     end
 
     def test
-      tl = TestRunner::TestList.new
-      tests =
-        if args[0]
-          tl.filter { |t| t.path_matches?(args[0]) }
-        else
-          tl.all
-        end
+      tests = select_tests(args[0])
 
       puts 'The following tests will be run:'
       tests.each { |t| puts "  #{t.path}" }
@@ -68,6 +56,20 @@ module TestRunner
     end
 
     protected
+
+    # @return [Array<Test>]
+    def select_tests(pattern)
+      tl = TestRunner::TestList.new
+
+      attr_filters = Cli::LabelFilters.new(opts['label'])
+      tag_filters = Cli::TagFilters.new(opts['tag'])
+
+      tl.filter do |test|
+        (pattern.nil? || test.path_matches?(pattern)) \
+        && attr_filters.pass?(test) \
+        && tag_filters.pass?(test)
+      end
+    end
 
     def state_dir
       File.join(opts['state-dir'] || File.join(ENV['TMPDIR'] || '/tmp', 'os-test-runner'))

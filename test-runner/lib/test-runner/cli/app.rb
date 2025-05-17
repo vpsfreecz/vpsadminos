@@ -25,17 +25,29 @@ module TestRunner::Cli
       desc 'List available tests'
       arg_name '[path-pattern]'
       command 'ls' do |c|
+        c.desc 'Filter by label'
+        c.flag %w[l label], multiple: true
+
+        c.desc 'Filter by tag'
+        c.flag %w[t tag], multiple: true
+
         c.action(&Command.run(:list))
       end
 
       desc 'Run test'
       arg_name '[path-pattern]'
       command 'test' do |c|
+        c.desc 'Filter by label'
+        c.flag %w[l label], multiple: true
+
+        c.desc 'Filter by tag'
+        c.flag %w[t tag], multiple: true
+
         c.desc 'How many tests to run in parallel'
         c.flag %w[j jobs], type: Integer, default_value: 1
 
         c.desc 'Default timeout for machine commands, in seconds'
-        c.flag %w[t timeout], type: Integer, default_value: 600
+        c.flag %w[timeout], type: Integer, default_value: 600
 
         c.desc 'Stop testing when one test fails'
         c.switch 'stop-on-failure', default_value: false
