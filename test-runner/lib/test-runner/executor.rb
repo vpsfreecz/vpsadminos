@@ -153,12 +153,31 @@ module TestRunner
 
       Process.wait(pid)
 
-      TestResult.new(
+      result = TestResult.new(
         test,
         $?.exitstatus == 0,
         Time.now - t1,
         dir
       )
+
+      File.open(File.join(dir, 'test-result.txt'), 'w') do |f|
+        str =
+          if result.expected_result?
+            if result.successful?
+              'expected_success'
+            else
+              'expected_failure'
+            end
+          elsif result.successful?
+            'unexpected_success'
+          else
+            'unexpected_failure'
+          end
+
+        f.puts(str)
+      end
+
+      result
     end
 
     def stop_work!
