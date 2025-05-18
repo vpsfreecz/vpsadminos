@@ -152,6 +152,23 @@ module OsVm
       self
     end
 
+    # Destroy file-backed disks
+    #
+    # Disks are destroyed automatically or when {#destroy} is called.
+    # {#destroy_disks} can be used to reset storage between machine runs.
+    #
+    # @return [Machine]
+    def destroy_disks
+      config.disks.each do |disk|
+        next if disk.type != 'file'
+
+        path = disk_path(disk.device)
+        FileUtils.rm_f(path)
+      end
+
+      self
+    end
+
     # Cleanup machine state
     # @return [Machine]
     def cleanup
@@ -557,15 +574,6 @@ module OsVm
         end
 
         `truncate -s#{disk.size} #{disk_path(disk.device)}`
-      end
-    end
-
-    def destroy_disks
-      config.disks.each do |disk|
-        next if disk.type != 'file'
-
-        path = disk_path(disk.device)
-        FileUtils.rm_f(path)
       end
     end
 
