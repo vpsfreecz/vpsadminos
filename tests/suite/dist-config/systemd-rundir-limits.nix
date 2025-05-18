@@ -52,7 +52,7 @@ import ../../make-test.nix (pkgs: {
         "osctl ct exec -r #{name}-testct df -t tmpfs --output=size /run | grep 524288",
       )
 
-      machine.kill
+      machine.stop
     end
   '';
 })
