@@ -21,7 +21,7 @@ module TestRunner
       config[:machines].each do |name, cfg|
         var = :"@#{name}"
         m = OsVm::Machine.new(
-          name,
+          name.to_s,
           OsVm::MachineConfig.new(cfg),
           opts[:state_dir],
           opts[:sock_dir],
