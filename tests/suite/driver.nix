@@ -28,6 +28,10 @@ import ../make-test.nix (pkgs: {
     fail "machine running but was killed" if machine.running?
     fail "machine booted but was killed" if machine.booted?
 
+    # It is possible that the machine.kill above left the pool in an unexpected
+    # state during initial osctld setup, etc., which is what we don't test for.
+    machine.destroy_disks
+
     machine.start
 
     def run_expect(name, expected)
