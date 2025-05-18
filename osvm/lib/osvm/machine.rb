@@ -616,10 +616,12 @@ module OsVm
     end
 
     def disk_path(path)
-      if path.start_with?('/')
-        path
+      resolved = path.gsub('{machine}', name)
+
+      if resolved.start_with?('/')
+        resolved
       else
-        File.join(tmpdir, path)
+        File.join(tmpdir, resolved)
       end
     end
 
