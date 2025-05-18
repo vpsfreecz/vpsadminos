@@ -380,6 +380,12 @@ module OsVm
         return self if output.strip == 'active'
 
         cur_timeout = timeout - (Time.now - t1)
+
+        if cur_timeout <= 0
+          raise TimeoutError, "Timeout occured while waiting for pool #{name.inspect} to become active"
+        end
+
+        sleep(1)
       end
     end
 
