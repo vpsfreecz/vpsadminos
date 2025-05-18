@@ -569,6 +569,8 @@ module OsVm
           end
         rescue EOFError
           console_log.close
+        rescue IOError
+          # pass
         end
       end
     end
