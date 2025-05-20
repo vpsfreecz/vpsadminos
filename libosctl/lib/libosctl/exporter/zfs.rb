@@ -140,7 +140,23 @@ module OsCtl::Lib
       case compression
       when :gzip
         gz = Zlib::GzipWriter.new(tf)
-        gz.write(stream.read(BLOCK_SIZE)) until stream.eof?
+        attempts = 0
+
+        until stream.eof?
+          data = stream.read(BLOCK_SIZE)
+
+          begin
+            gz.write(data)
+            attempts = 0
+          rescue Zlib::BufError
+            attempts += 1
+            raise if attempts > 5
+
+            sleep(0.1)
+            retry
+          end
+        end
+
         gz.close
 
       when :off
