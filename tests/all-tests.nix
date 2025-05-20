@@ -8,6 +8,17 @@ let
 
   distributions = import ./distributions.nix { inherit lib; };
 
+  imageScripts =
+    let
+      entriesAttrs = builtins.readDir ../image-scripts/images;
+
+      scriptsAttrs = lib.filterAttrs (name: type:
+        type == "symlink" || (type == "directory" && !(builtins.pathExists (../image-scripts/images + "/${name}/abstract")))
+      ) entriesAttrs;
+
+      scriptsList = lib.mapAttrsToList (name: type: { image-script = name; }) scriptsAttrs;
+    in scriptsList;
+
   makeSingleTest = name:
     import (./suite + "/${name}.nix") { inherit pkgs system; };
 
@@ -64,6 +75,7 @@ in tests [
   "docker/ubuntu-22.04"
   "docker/ubuntu-24.04"
   "driver"
+  { template = "image-scripts/test"; instances = imageScripts; }
   "osctl/ct-cat"
   "osctl/ct-exec-v1"
   "osctl/ct-exec-v2"
