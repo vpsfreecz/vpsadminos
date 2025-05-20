@@ -2,7 +2,39 @@ name: CI
 
 on:
   push:
+    paths:
+      - .github/workflows/ci.yml
+      - ctstartmenu/**
+      - libosctl/**
+      - os/**
+      - osctl/**
+      - osctl-exporter/**
+      - osctl-exportfs/**
+      - osctl-image/**
+      - osctl-repo/**
+      - osctld/**
+      - osup/**
+      - osvm/**
+      - svctl/**
+      - test-runner/**
+      - tests/**
   pull_request:
+    paths:
+      - .github/workflows/ci.yml
+      - ctstartmenu/**
+      - libosctl/**
+      - os/**
+      - osctl/**
+      - osctl-exporter/**
+      - osctl-exportfs/**
+      - osctl-image/**
+      - osctl-repo/**
+      - osctld/**
+      - osup/**
+      - osvm/**
+      - svctl/**
+      - test-runner/**
+      - tests/**
 
 env:
   NIX_PATH: nixpkgs=https://channels.nixos.org/nixos-24.11/nixexprs.tar.xz
