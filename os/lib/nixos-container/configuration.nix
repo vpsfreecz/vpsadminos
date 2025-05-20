@@ -11,9 +11,19 @@ let
         vim
       ];
 
-      services.openssh.enable = true;
-      services.openssh.settings.PermitRootLogin = "yes";
-      #users.extraUsers.root.openssh.authorizedKeys.keys =
+      services.openssh = {
+        enable = true;
+
+        # Allow root login with password, needed for passwords set through vpsAdmin
+        settings.PermitRootLogin = "yes";
+
+        # Needed for public keys deployed through vpsAdmin, can be disabled if you
+        # authorize your keys in configuration
+        authorizedKeysInHomedir = true;
+      };
+
+      # Add your public keys
+      #users.users.root.openssh.authorizedKeys.keys =
       #  [ "..." ];
 
       systemd.extraConfig = '''
@@ -37,8 +47,11 @@ in {
   time.timeZone = "Europe/Amsterdam";
   system.stateVersion = lib.trivial.release;
 
-  services.openssh.enable = lib.mkDefault true;
-  services.openssh.settings.PermitRootLogin = lib.mkDefault "yes";
+  services.openssh = {
+    enable = lib.mkDefault true;
+    settings.PermitRootLogin = lib.mkDefault "yes";
+    authorizedKeysInHomedir = true;
+  };
 
   systemd.extraConfig = ''
     DefaultTimeoutStartSec=900s
