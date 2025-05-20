@@ -5,6 +5,8 @@ import ../make-test.nix (pkgs: {
     Test expected default vpsAdminOS configuration
   '';
 
+  tags = [ "ci" ];
+
   machine = import ../machines/empty.nix pkgs;
 
   testScript = ''

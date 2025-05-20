@@ -8,6 +8,8 @@ import ../../make-template.nix ({ distribution, version }: rec {
       Test that containers with ${distribution}-${version} can be started/stopped
     '';
 
+    tags = [ "ci" ];
+
     machine = import ../../machines/with-tank.nix {
       inherit pkgs;
       config =

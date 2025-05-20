@@ -5,6 +5,8 @@ import ../../make-test.nix (pkgs: {
     Test device access on cgroupv1
   '';
 
+  tags = [ "ci" ];
+
   machine = import ../../machines/with-tank.nix {
     inherit pkgs;
     config =

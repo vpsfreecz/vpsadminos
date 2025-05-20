@@ -33,6 +33,8 @@ import ../../make-template.nix ({ distribution, version }: rec {
         pre-mounted before systemd is started
       '';
 
+      tags = [ "ci" ];
+
       machine = import ../../machines/with-tank.nix {
         inherit pkgs;
         config =

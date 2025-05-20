@@ -6,6 +6,8 @@ import ../../make-test.nix (pkgs: {
     Test podman hello-world on ${distribution} ${version}
   '';
 
+  tags = [ "ci" ];
+
   machine = import ../../machines/tank.nix pkgs;
 
   testScript = ''

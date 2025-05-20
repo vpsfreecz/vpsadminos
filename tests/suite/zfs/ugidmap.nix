@@ -8,6 +8,8 @@ import ../../make-test.nix (pkgs: {
     patch which added them to the ZFS test suite.
   '';
 
+  tags = [ "ci" ];
+
   machine = import ../../machines/tank.nix pkgs;
 
   testScript = ''

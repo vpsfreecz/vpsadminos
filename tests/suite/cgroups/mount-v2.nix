@@ -8,6 +8,8 @@ import ../../make-template.nix ({ distribution, version }: rec {
       Test cgroupv2 controllers are mounted in ${distribution}-${version} containers
     '';
 
+    tags = [ "ci" ];
+
     machine = import ../../machines/with-tank.nix {
       inherit pkgs;
       config =

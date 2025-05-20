@@ -57,7 +57,7 @@ jobs:
         timeout-minutes: 180
         run: |
           set -o pipefail
-          ./test-runner.sh test -j 5 | tee test.log
+          ./test-runner.sh test -j 5 -t ci | tee test.log
 
       - name: Evaluate test results
         if: always()

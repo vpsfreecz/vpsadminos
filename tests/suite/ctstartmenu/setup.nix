@@ -5,6 +5,8 @@ import ../../make-test.nix (pkgs: {
     Test container start menu integration
   '';
 
+  tags = [ "ci" ];
+
   machine = import ../../machines/tank.nix pkgs;
 
   testScript = ''

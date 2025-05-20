@@ -5,6 +5,8 @@ import ../../make-test.nix (pkgs: {
     Test osctl ct cat command
   '';
 
+  tags = [ "ci" ];
+
   machine = import ../../machines/tank.nix pkgs;
 
   testScript = ''

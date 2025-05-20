@@ -5,6 +5,8 @@ import ../../make-test.nix (pkgs: {
     Test osctl ct map mode
   '';
 
+  tags = [ "ci" ];
+
   machine = import ../../machines/tank.nix pkgs;
 
   testScript = ''

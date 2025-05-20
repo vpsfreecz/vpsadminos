@@ -6,6 +6,8 @@ import ../../make-test.nix (pkgs: {
     Test osctl ct exec
   '';
 
+  tags = [ "ci" ];
+
   machine = import ../../machines/with-tank.nix {
     inherit pkgs config;
   };

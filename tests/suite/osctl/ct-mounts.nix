@@ -5,6 +5,8 @@ import ../../make-test.nix (pkgs: {
     Test that mounts can be added to containers
   '';
 
+  tags = [ "ci" ];
+
   machine = import ../../machines/tank.nix pkgs;
 
   testScript = ''

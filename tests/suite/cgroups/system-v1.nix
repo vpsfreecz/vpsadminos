@@ -5,6 +5,8 @@ import ../../make-test.nix (pkgs: {
     Test cgroupv1 configuration
   '';
 
+  tags = [ "ci" ];
+
   machines = {
     # Enable cgroupv1 by default
     config_cgroup = import ../../machines/with-empty.nix {

@@ -5,6 +5,8 @@ import ../../make-test.nix (pkgs: {
     Test cgroupv2 configuration
   '';
 
+  tags = [ "ci" ];
+
   machines = {
     # We expect the default to be cgroupv2
     default_cgroup = import ../../machines/empty.nix pkgs;

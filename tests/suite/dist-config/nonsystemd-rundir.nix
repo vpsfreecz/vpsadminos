@@ -31,6 +31,8 @@ import ../../make-template.nix ({ distribution, version }: rec {
           pre-mounted before the init is started.
         '';
 
+      tags = [ "ci" ];
+
       machine = import ../../machines/tank.nix pkgs;
 
       testScript = ''

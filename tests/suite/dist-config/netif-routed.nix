@@ -8,6 +8,8 @@ import ../../make-template.nix ({ distribution, version }: rec {
       Test that routed network interface works with ${distribution}-${version}
     '';
 
+    tags = [ "ci" ];
+
     machine = import ../../machines/with-tank.nix {
       inherit pkgs;
       config =

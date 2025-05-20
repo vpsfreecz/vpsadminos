@@ -5,6 +5,8 @@ import ../make-test.nix (pkgs: {
     Test the test driver itself
   '';
 
+  tags = [ "ci" ];
+
   machine = import ../machines/tank.nix pkgs;
 
   testScript = ''

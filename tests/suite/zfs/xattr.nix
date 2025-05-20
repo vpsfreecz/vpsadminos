@@ -5,6 +5,8 @@ import ../../make-test.nix (pkgs: {
     Test that zfs xattr=on/sa by default
   '';
 
+  tags = [ "ci" ];
+
   machine = import ../../machines/tank.nix pkgs;
 
   testScript = ''

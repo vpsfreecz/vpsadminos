@@ -34,6 +34,8 @@ in {
     Test osctl ct runscript
   '';
 
+  tags = [ "ci" ];
+
   machine = import ../../machines/with-tank.nix {
     inherit pkgs;
     config =

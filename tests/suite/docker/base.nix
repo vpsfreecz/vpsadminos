@@ -6,6 +6,8 @@ import ../../make-test.nix (pkgs: {
     Test docker hello-world on ${distribution} ${version}
   '';
 
+  tags = [ "ci" ];
+
   machine = import ../../machines/tank.nix pkgs;
 
   testScript = ''

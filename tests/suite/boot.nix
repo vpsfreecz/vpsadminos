@@ -5,6 +5,8 @@ import ../make-test.nix (pkgs: {
     Test that the system is capable of booting
   '';
 
+  tags = [ "ci" ];
+
   machine = import ../machines/empty.nix pkgs;
 
   testScript = ''

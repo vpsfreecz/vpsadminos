@@ -5,6 +5,8 @@ import ../../make-test.nix (pkgs: {
     Test that osctld-mounted /run in containers respects memory limits
   '';
 
+  tags = [ "ci" ];
+
   machines = {
     cgv1 = import ../../machines/with-tank.nix {
       inherit pkgs;

@@ -8,6 +8,8 @@ import ../../make-template.nix ({ distribution, version }: rec {
       Test cgroupv1 controllers are mounted in ${distribution}-${version} containers
     '';
 
+    tags = [ "ci" ];
+
     # Gentoo with musl/openrc has problems mounting joined cpu,cpuacct cgroup
     # and possibly others.
     expectFailure = distribution == "gentoo" && (version == "latest-openrc" || version == "latest-musl");

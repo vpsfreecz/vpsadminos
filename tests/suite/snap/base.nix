@@ -6,6 +6,8 @@ import ../../make-test.nix (pkgs: {
     Test ${description} on ${distribution} ${version}
   '';
 
+  tags = [ "ci" ];
+
   machine = import ../../machines/tank.nix pkgs;
 
   testScript = ''

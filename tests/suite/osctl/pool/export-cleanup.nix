@@ -5,6 +5,8 @@ import ../../../make-test.nix (pkgs: {
     Test that users/groups/containers are removed on pool export
   '';
 
+  tags = [ "ci" ];
+
   machine = import ../../../machines/tank.nix pkgs;
 
   testScript = ''
