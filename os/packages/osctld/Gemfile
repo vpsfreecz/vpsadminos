@@ -3,7 +3,7 @@ source 'https://rubygems.org'
 source 'https://rubygems.vpsfree.cz' do
   gem 'libosctl'
   gem 'netlinkrb'
-  gem 'osctld', '24.11.0.build20250518195756'
+  gem 'osctld', '24.11.0.build20250520153501'
   gem 'osctl-repo'
   gem 'osup'
   gem 'ruby-lxc'
