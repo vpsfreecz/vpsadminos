@@ -1,5 +1,6 @@
 BUILD_ID := $(shell date +%Y%m%d%H%M%S)
 VERSION := $(shell cat .version)
+GEM_VERSION := "$(VERSION).0"
 RELEASE_DATE := $(shell date +%Y-%m-%d)
 
 build:
@@ -12,7 +13,7 @@ toplevel:
 	$(MAKE) -C os toplevel
 
 gems: libosctl osctl-repo osctl osctld osup osctl-image osctl-exporter osctl-exportfs converter svctl test-runner osvm
-	echo "$(VERSION).build$(BUILD_ID)" > .build_id
+	echo "$(GEM_VERSION).build$(BUILD_ID)" > .build_id
 
 commit-gems:
 	git commit -e -m "os: update gems to $(shell cat .build_id)" .build_id os/packages/*/{Gemfile,Gemfile.lock,gemset.nix}
@@ -73,28 +74,28 @@ doc_serve:
 
 version:
 	@echo "$(VERSION)" > .version
-	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" osctld/lib/osctld/version.rb
-	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" osctl/lib/osctl/version.rb
-	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" libosctl/lib/libosctl/version.rb
-	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" converter/lib/vpsadminos-converter/version.rb
-	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" osctl-exporter/lib/osctl/exporter/version.rb
-	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" osctl-exportfs/lib/osctl/exportfs/version.rb
-	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" osctl-repo/lib/osctl/repo/version.rb
-	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" osctl-image/lib/osctl/image/version.rb
-	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" osup/lib/osup/version.rb
-	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" svctl/lib/svctl/version.rb
-	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" test-runner/lib/test-runner/version.rb
-	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(VERSION)'/" osvm/lib/osvm/version.rb
-	@sed -ri "s/VERSION = '[^']+'/VERSION = '$(VERSION)'/" tools/osctl-env-exec/osctl-env-exec.gemspec
-	@sed -ri '1!b;s/[0-9]+\.[0-9]+\.[0-9]+$\/$(VERSION)/' osctl/man/man8/osctl.8.md
-	@sed -ri '1!b;s/[0-9]+\.[0-9]+\.[0-9]+$\/$(VERSION)/' osctl-exportfs/man/man8/osctl-exportfs.8.md
-	@sed -ri '1!b;s/[0-9]+\.[0-9]+\.[0-9]+$\/$(VERSION)/' osctl-image/man/man8/osctl-image.8.md
-	@sed -ri '1!b;s/[0-9]+\.[0-9]+\.[0-9]+$\/$(VERSION)/' osctl-repo/man/man8/osctl-repo.8.md
-	@sed -ri '1!b;s/[0-9]+\.[0-9]+\.[0-9]+$\/$(VERSION)/' osup/man/man8/osup.8.md
-	@sed -ri '1!b;s/[0-9]+\.[0-9]+\.[0-9]+$\/$(VERSION)/' osvm/man/man1/osvm.1.md
-	@sed -ri '1!b;s/[0-9]+\.[0-9]+\.[0-9]+$\/$(VERSION)/' converter/man/man8/vpsadminos-convert.8.md
-	@sed -ri '1!b;s/[0-9]+\.[0-9]+\.[0-9]+$\/$(VERSION)/' svctl/man/man8/svctl.8.md
-	@sed -ri '1!b;s/[0-9]+\.[0-9]+\.[0-9]+$\/$(VERSION)/' test-runner/man/man1/test-runner.1.md
+	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(GEM_VERSION)'/" osctld/lib/osctld/version.rb
+	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(GEM_VERSION)'/" osctl/lib/osctl/version.rb
+	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(GEM_VERSION)'/" libosctl/lib/libosctl/version.rb
+	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(GEM_VERSION)'/" converter/lib/vpsadminos-converter/version.rb
+	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(GEM_VERSION)'/" osctl-exporter/lib/osctl/exporter/version.rb
+	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(GEM_VERSION)'/" osctl-exportfs/lib/osctl/exportfs/version.rb
+	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(GEM_VERSION)'/" osctl-repo/lib/osctl/repo/version.rb
+	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(GEM_VERSION)'/" osctl-image/lib/osctl/image/version.rb
+	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(GEM_VERSION)'/" osup/lib/osup/version.rb
+	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(GEM_VERSION)'/" svctl/lib/svctl/version.rb
+	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(GEM_VERSION)'/" test-runner/lib/test-runner/version.rb
+	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(GEM_VERSION)'/" osvm/lib/osvm/version.rb
+	@sed -ri "s/VERSION = '[^']+'/VERSION = '$(GEM_VERSION)'/" tools/osctl-env-exec/osctl-env-exec.gemspec
+	@sed -ri '1!b;s/[0-9]+\.[0-9]+\.[0-9]+$\/$(GEM_VERSION)/' osctl/man/man8/osctl.8.md
+	@sed -ri '1!b;s/[0-9]+\.[0-9]+\.[0-9]+$\/$(GEM_VERSION)/' osctl-exportfs/man/man8/osctl-exportfs.8.md
+	@sed -ri '1!b;s/[0-9]+\.[0-9]+\.[0-9]+$\/$(GEM_VERSION)/' osctl-image/man/man8/osctl-image.8.md
+	@sed -ri '1!b;s/[0-9]+\.[0-9]+\.[0-9]+$\/$(GEM_VERSION)/' osctl-repo/man/man8/osctl-repo.8.md
+	@sed -ri '1!b;s/[0-9]+\.[0-9]+\.[0-9]+$\/$(GEM_VERSION)/' osup/man/man8/osup.8.md
+	@sed -ri '1!b;s/[0-9]+\.[0-9]+\.[0-9]+$\/$(GEM_VERSION)/' osvm/man/man1/osvm.1.md
+	@sed -ri '1!b;s/[0-9]+\.[0-9]+\.[0-9]+$\/$(GEM_VERSION)/' converter/man/man8/vpsadminos-convert.8.md
+	@sed -ri '1!b;s/[0-9]+\.[0-9]+\.[0-9]+$\/$(GEM_VERSION)/' svctl/man/man8/svctl.8.md
+	@sed -ri '1!b;s/[0-9]+\.[0-9]+\.[0-9]+$\/$(GEM_VERSION)/' test-runner/man/man1/test-runner.1.md
 	@sed -ri '1!b;s/ [0-9]{4}-[0-9]{1,2}-[0-9]{1,2} / $(RELEASE_DATE) /' osctl/man/man8/osctl.8.md
 	@sed -ri '1!b;s/ [0-9]{4}-[0-9]{1,2}-[0-9]{1,2} / $(RELEASE_DATE) /' osctl-exportfs/man/man8/osctl-exportfs.8.md
 	@sed -ri '1!b;s/ [0-9]{4}-[0-9]{1,2}-[0-9]{1,2} / $(RELEASE_DATE) /' osctl-image/man/man8/osctl-image.8.md
