@@ -74,6 +74,10 @@ doc_serve:
 
 version:
 	@echo "$(VERSION)" > .version
+	@sed -ri "s/nixos-[0-9]+\.[0-9]+/nixos-$(VERSION)/" .github/workflows/*.yml
+	@sed -ri "s/nixos-[0-9]+\.[0-9]+/nixos-$(VERSION)/" README.md
+	@sed -ri "s/nixos-[0-9]+\.[0-9]+/nixos-$(VERSION)/" docs/user-guide/setup.md
+	@sed -ri "s/ [0-9]+\.[0-9]+\.[0-9]+/ $(GEM_VERSION)/" image-scripts/README.md
 	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(GEM_VERSION)'/" osctld/lib/osctld/version.rb
 	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(GEM_VERSION)'/" osctl/lib/osctl/version.rb
 	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(GEM_VERSION)'/" libosctl/lib/libosctl/version.rb
