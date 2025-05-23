@@ -30,6 +30,17 @@ jobs:
         with:
           ruby-version: '3.3'
 
+      - name: Cache RuboCop gems
+        uses: actions/cache@v4
+        with:
+          path: vendor/gems
+          key: rubocop-gems-${{ runner.os }}-${{ hashFiles('.github/workflows/rubocop.yml') }}
+          restore-keys: |
+            rubocop-gems-${{ runner.os }}-
+
+      - name: Add cached gems to PATH
+        run: echo "${{ github.workspace }}/vendor/gems/bin" >> "$GITHUB_PATH"
+
       - name: Determine changed Ruby files
         id: diff
         shell: bash
@@ -42,7 +53,7 @@ jobs:
             HEAD_SHA="${{ github.sha }}"
           fi
 
-          # Ensure BASE_SHA is present locally (useful on force-pushes)
+          # Ensure BASE_SHA exists locally (covers force-pushes)
           git fetch --quiet origin "$BASE_SHA"
 
           mapfile -t RUBY_FILES < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- '*.rb')
@@ -56,16 +67,26 @@ jobs:
           printf 'Detected %d changed Ruby files:\n' "${#RUBY_FILES[@]}"
           printf '  %s\n' "${RUBY_FILES[@]}"
 
-          # Pass list to later steps via outputs
           echo "changed=true" >> "$GITHUB_OUTPUT"
           echo "files<<EOF"   >> "$GITHUB_OUTPUT"
           printf '%s\n' "${RUBY_FILES[@]}" >> "$GITHUB_OUTPUT"
           echo "EOF"          >> "$GITHUB_OUTPUT"
 
+      - name: Install RuboCop (if needed)
+        shell: bash
+        run: |
+          if ! command -v rubocop >/dev/null; then
+            echo "Rubocop not found in cache – installing…"
+            gem install --no-document \
+                         --install-dir vendor/gems \
+                         rubocop rubocop-rake
+          else
+            echo "Rubocop already cached – skipping install."
+          fi
+
       - name: RuboCop on changed files
         if: steps.diff.outputs.changed == 'true'
         shell: bash
         run: |
-          gem install --no-document rubocop rubocop-rake
           mapfile -t FILES <<< "${{ steps.diff.outputs.files }}"
           rubocop --parallel --force-exclusion "${FILES[@]}"
