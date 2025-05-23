@@ -6,11 +6,13 @@ on:
       - "**/*.rb"
       - "**/*.gemspec"
       - "Gemfile*"
+      - ".rubocop*"
   pull_request:
     paths:
       - "**/*.rb"
       - "**/*.gemspec"
       - "Gemfile*"
+      - ".rubocop*"
 
 jobs:
   rubocop:
@@ -25,21 +27,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Ruby
+      - name: Set up Ruby + Bundler cache
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
-
-      - name: Cache RuboCop gems
-        uses: actions/cache@v4
-        with:
-          path: vendor/gems
-          key: rubocop-gems-${{ runner.os }}-${{ hashFiles('.github/workflows/rubocop.yml') }}
-          restore-keys: |
-            rubocop-gems-${{ runner.os }}-
-
-      - name: Add cached gems to PATH
-        run: echo "${{ github.workspace }}/vendor/gems/bin" >> "$GITHUB_PATH"
+          bundler-cache: true
 
       - name: Determine changed Ruby files
         id: diff
@@ -53,13 +45,12 @@ jobs:
             HEAD_SHA="${{ github.sha }}"
           fi
 
-          # Ensure BASE_SHA exists locally (covers force-pushes)
           git fetch --quiet origin "$BASE_SHA"
 
           mapfile -t RUBY_FILES < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- '*.rb')
 
           if [[ ${#RUBY_FILES[@]} -eq 0 ]]; then
-            echo "No Ruby files were changed"
+            echo "No changed Ruby files detected"
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -72,21 +63,9 @@ jobs:
           printf '%s\n' "${RUBY_FILES[@]}" >> "$GITHUB_OUTPUT"
           echo "EOF"          >> "$GITHUB_OUTPUT"
 
-      - name: Install RuboCop (if needed)
-        shell: bash
-        run: |
-          if ! command -v rubocop >/dev/null; then
-            echo "Rubocop not found in cache – installing…"
-            gem install --no-document \
-                         --install-dir vendor/gems \
-                         rubocop rubocop-rake
-          else
-            echo "Rubocop already cached – skipping install."
-          fi
-
       - name: RuboCop on changed files
         if: steps.diff.outputs.changed == 'true'
         shell: bash
         run: |
           mapfile -t FILES <<< "${{ steps.diff.outputs.files }}"
-          rubocop --parallel --force-exclusion "${FILES[@]}"
+          bundle exec rubocop --parallel --force-exclusion "${FILES[@]}"
