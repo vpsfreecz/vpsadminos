@@ -28,10 +28,13 @@ in stdenv.mkDerivation rec {
     export GEM_HOME="$(pwd)/.gems"
     export PATH="$(ruby -e 'puts Gem.bindir'):$PATH"
     export RUBYLIB="$GEM_HOME"
-    gem install --no-document bundler geminabox overcommit rubocop rubocop-rake
+    gem install --no-document bundler
 
-    # TODO: remove when geminabox is fixed, see https://github.com/geminabox/geminabox/pull/572
-    gem install --no-document rubygems-generate_index
+    # Purity disabled because of prism gem, which has a native extension.
+    # The extension has its header files in .gems, which gets stripped but
+    # cc wrapper in Nix. Without NIX_ENFORCE_PURITY=0, we get prism.h not found
+    # error.
+    NIX_ENFORCE_PURITY=0 bundle install
 
     [ -f shellhook.local.sh ] && . shellhook.local.sh
   '';
