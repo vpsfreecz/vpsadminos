@@ -1,0 +1,71 @@
+name: RuboCop
+
+on:
+  push:
+    paths:
+      - "**/*.rb"
+      - "**/*.gemspec"
+      - "Gemfile*"
+  pull_request:
+    paths:
+      - "**/*.rb"
+      - "**/*.gemspec"
+      - "Gemfile*"
+
+jobs:
+  rubocop:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+
+      - name: Determine changed Ruby files
+        id: diff
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          else
+            BASE_SHA="${{ github.event.before }}"
+            HEAD_SHA="${{ github.sha }}"
+          fi
+
+          # Ensure BASE_SHA is present locally (useful on force-pushes)
+          git fetch --quiet origin "$BASE_SHA"
+
+          mapfile -t RUBY_FILES < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- '*.rb')
+
+          if [[ ${#RUBY_FILES[@]} -eq 0 ]]; then
+            echo "No Ruby files were changed"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          printf 'Detected %d changed Ruby files:\n' "${#RUBY_FILES[@]}"
+          printf '  %s\n' "${RUBY_FILES[@]}"
+
+          # Pass list to later steps via outputs
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "files<<EOF"   >> "$GITHUB_OUTPUT"
+          printf '%s\n' "${RUBY_FILES[@]}" >> "$GITHUB_OUTPUT"
+          echo "EOF"          >> "$GITHUB_OUTPUT"
+
+      - name: RuboCop on changed files
+        if: steps.diff.outputs.changed == 'true'
+        shell: bash
+        run: |
+          gem install --no-document rubocop rubocop-rake
+          mapfile -t FILES <<< "${{ steps.diff.outputs.files }}"
+          rubocop --parallel --force-exclusion "${FILES[@]}"
