@@ -72,6 +72,25 @@ doc:
 doc_serve:
 	mkdocs serve
 
+ruby-version:
+	@if [ -z "$(RUBY_VERSION)" ]; then \
+		echo "RUBY_VERSION=<major.minor> is required (e.g. 3.4)"; \
+		exit 1; \
+	fi
+
+	@UNDERSCORE_VER=$$(echo $(RUBY_VERSION) | tr . _); \
+	  DOT_VER=$(RUBY_VERSION); \
+	  DOT_VER_PATCH=$$(printf "%s.0" $(RUBY_VERSION)); \
+	  echo "Switching to Ruby $$DOT_VER_PATCH"; \
+	\
+	sed -ri "s/ruby_[0-9]+_[0-9]+/ruby_$${UNDERSCORE_VER}/g" \
+		os/overlays/ruby.nix shell.nix; \
+	\
+	sed -ri "s/(ruby-version:[[:space:]]*)'?[0-9]+\.[0-9]+'?/\\1'$$DOT_VER'/" \
+		.github/workflows/rubocop.yml; \
+	\
+	sed -ri "s/^[0-9]+\.[0-9]+\.[0-9]+$$/$$DOT_VER_PATCH/" .ruby-version
+
 version:
 	@echo "$(VERSION)" > .version
 	@sed -ri "s/nixos-[0-9]+\.[0-9]+/nixos-$(VERSION)/" .github/workflows/*.yml
@@ -114,4 +133,4 @@ migration:
 
 .PHONY: build converter doc doc_serve qemu gems libosctl osctl osctld osctl-repo osctl-exporter osup svctl test-runner osvm osctl-env-exec
 .PHONY: commit-gems build-commit-gems amend-gems build-amend-gems
-.PHONY: version migration
+.PHONY: ruby-version version migration
