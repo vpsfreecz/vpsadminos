@@ -1,0 +1,44 @@
+name: determine-test-jobs
+description: |
+  Compute a safe value for test-runner -j based on total RAM and CPU cores
+  on a Linux self-hosted runner and expose it as an output.
+
+inputs:
+  per_job_gib:
+    description: >-
+      How many GiB of RAM one test job needs. 64 GiB → -j 5 ⇒ 12.8 GiB/job.
+    required: false
+    default: "12"
+
+outputs:
+  jobs:
+    description: Number of jobs to run in parallel
+    value: ${{ steps.compute.outputs.jobs }}
+
+runs:
+  using: composite
+  steps:
+    - id: compute
+      shell: bash
+      run: |
+        set -eu
+
+        # Total RAM in GiB
+        mem_gib=$(( $(grep -E '^MemTotal:' /proc/meminfo | tr -s ' ' | cut -d' ' -f2) / 1024 / 1024 ))
+
+        # Logical CPU count
+        cpus=$(nproc)
+
+        # Inputs arrive as strings → keep arithmetic safe
+        per_job_gib="${{ inputs.per_job_gib }}"
+        per_job_gib=$(( per_job_gib + 0 ))
+
+        jobs_mem=$(( mem_gib / per_job_gib ))
+        (( jobs_mem < 1 )) && jobs_mem=1
+        (( jobs_mem > cpus )) && jobs=$cpus || jobs=$jobs_mem
+
+        echo "Memory : ${mem_gib} GiB"
+        echo "CPUs   : ${cpus}"
+        echo "Jobs   : ${jobs}"
+
+        echo "jobs=$jobs" >>"$GITHUB_OUTPUT"
