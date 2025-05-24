@@ -27,7 +27,7 @@ module OsCtld
           call_cmd(Commands::Container::Stop, id: ct.id, pool: ct.pool.name)
 
           # Force write-out of dirtied pages
-          ct.unmount(force: true)
+          ct.unmount(force: true) if Daemon.get.config.writeout_dirtied_pages?
         end
 
         snap = "osctl-send-incr-#{Time.now.to_i}"

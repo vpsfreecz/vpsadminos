@@ -108,7 +108,7 @@ module OsCtld
         recovery.cleanup_or_taint
       end
 
-      if !ct.ephemeral? && !ctrc.destroy_dataset_on_stop?
+      if !ct.ephemeral? && !ctrc.destroy_dataset_on_stop? && Daemon.get.config.writeout_dirtied_pages?
         # Force write-out of dirtied pages
         ct.unmount(force: true)
         ct.mount

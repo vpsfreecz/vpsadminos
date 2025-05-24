@@ -140,6 +140,10 @@ module OsCtld
     attr_reader :enable_lock_registry
     alias enable_lock_registry? enable_lock_registry
 
+    # @return [Boolean]
+    attr_reader :writeout_dirtied_pages
+    alias writeout_dirtied_pages? writeout_dirtied_pages
+
     # @return [CpuScheduler]
     attr_reader :cpu_scheduler
 
@@ -161,6 +165,7 @@ module OsCtld
       @enable_time_namespace = cfg.fetch('enable_time_namespace', true)
       @ctstartmenu = cfg['ctstartmenu']
       @enable_lock_registry = cfg.fetch('lock_registry', false)
+      @writeout_dirtied_pages = cfg.fetch('writeout_dirtied_pages', true)
       @cpu_scheduler = CpuScheduler.new(cfg.fetch('cpu_scheduler', {}))
       @send_receive = SendReceive.new(cfg.fetch('send_receive', {}))
       @trash_bin = TrashBin.new(cfg.fetch('trash_bin', {}))
