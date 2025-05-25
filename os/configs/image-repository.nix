@@ -57,10 +57,10 @@
       guix.rolling = { name = "guix"; tags = [ "latest" "stable" ]; };
 
       nixos = {
-        "24.11" = { tags = [ "latest" "stable" ]; };
+        "25.05" = { tags = [ "latest" "stable" ]; };
         "unstable" = { tags = [ "unstable" ]; };
 
-        "24.11-impermanence" = { tags = [ "latest" "stable" ]; };
+        "25.05-impermanence" = { tags = [ "latest" "stable" ]; };
         "unstable-impermanence" = { tags = [ "unstable" ]; };
       };
 
