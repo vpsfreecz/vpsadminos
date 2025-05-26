@@ -1,4 +1,4 @@
-# osvm 1                          2022-06-26                               24.11
+# osvm 1                          2022-06-26                               25.05
 
 ## NAME
 `osvm` - run vpsAdminOS in virtual machines and interact with them

@@ -11,7 +11,7 @@ on:
       - image-scripts/**
 
 env:
-  NIX_PATH: nixpkgs=https://channels.nixos.org/nixos-24.11/nixexprs.tar.xz
+  NIX_PATH: nixpkgs=https://channels.nixos.org/nixos-25.05/nixexprs.tar.xz
 
 jobs:
   build:

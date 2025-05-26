@@ -1,4 +1,4 @@
-# osctl-image 8                2024-12-02                               24.11
+# osctl-image 8                2025-05-26                               25.05
 
 ## NAME
 `osctl-image` - build, test and deploy vpsAdminOS container images
