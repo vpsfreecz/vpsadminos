@@ -86,10 +86,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1vawlb185vx8sq1vmd6hyrjdrghz4c0my2qa9m0a16mnd18n1580";
+      sha256 = "1adhh3zka6ghwxj00cr0i7bczaxa4layij9xg84qhq9xakvywkaj";
       type = "gem";
     };
-    version = "24.11.0.build20250524083418";
+    version = "25.05.0.build20250526141418";
   };
   logger = {
     groups = ["default"];
@@ -117,10 +117,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1492h7mczfjh1z017njncl2cld6nd96n3rzmbm78n9cii9xwrad5";
+      sha256 = "0qsk4sak6qy6m2lzxl7m216152jh8fwrq8nd2r6hrxxwbcnmgzsg";
       type = "gem";
     };
-    version = "24.11.0.build20250524083418";
+    version = "25.05.0.build20250526141418";
   };
   osctld = {
     dependencies = ["base64" "bindata" "concurrent-ruby" "fiddle" "ipaddress" "json" "libosctl" "netlinkrb" "osctl-repo" "osup" "require_all" "ruby-lxc"];
@@ -128,10 +128,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "01y0x5hq0g1xwyjd296zl732jpyvfhlfcw65xj3pi4kmia2mqqs1";
+      sha256 = "16k1j070m6vaqpvn10qfq7j37db3dgavjy5hjps9wr9b02vg8dpd";
       type = "gem";
     };
-    version = "24.11.0.build20250524083418";
+    version = "25.05.0.build20250526141418";
   };
   ostruct = {
     groups = ["default"];
@@ -149,10 +149,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "03ixampmwkd8cx0v5mqcl2w614w41hb7iyhisx34vr9bn6xz55l7";
+      sha256 = "0pjxp7kdzikvff2ng1crh98ydwiqd2z54ss6d79pmz612vw0xksh";
       type = "gem";
     };
-    version = "24.11.0.build20250524083418";
+    version = "25.05.0.build20250526141418";
   };
   rainbow = {
     groups = ["default"];
@@ -179,10 +179,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1p5zgv5fwdgfrhh7sc8mlcck0ckv73yza9yf1hb1j6q1637xqvv0";
+      sha256 = "08db047sg211i8agjmc6h9h0li1l16qf9bnmqlgbgbxdsjfddkrj";
       type = "gem";
     };
-    version = "1.2.4.vpsadminos.3";
+    version = "1.2.4.vpsadminos.5";
   };
   syslog = {
     dependencies = ["logger"];
