@@ -1,4 +1,4 @@
-# vpsadminos-convert 8            2024-12-02                             24.11.0
+# vpsadminos-convert 8            2024-12-02                               24.11
 
 ## NAME
 `vpsadminos-convert` - convert existing containers into vpsAdminOS.
