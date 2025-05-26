@@ -9,7 +9,9 @@ let
   };
 
   machineConfig = repoCfg: os: {
-    qemu = toString pkgs.qemu_kvm;
+    qemu = toString (pkgs.qemu_kvm.override {
+      nixosTestRunner = true;
+    });
     virtiofsd = toString pkgs.virtiofsd;
     memory = repoCfg.osVm.memory;
     cpus = repoCfg.osVm.cpus;

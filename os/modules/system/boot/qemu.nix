@@ -61,7 +61,10 @@ let
   }) cfg.sharedFileSystems);
 
   machineConfig = {
-    qemu = toString pkgs.qemu_kvm;
+    qemu = toString (pkgs.qemu_kvm.override {
+      hostCpuOnly = true;
+      nixosTestRunner = true;
+    });
     extraQemuOptions = cfg.extraQemuOptions;
     virtiofsd = toString pkgs.virtiofsd;
     memory = cfg.memory;

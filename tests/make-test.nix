@@ -30,7 +30,10 @@ let
     let
       qemuCfg = os.config.boot.qemu;
     in {
-      qemu = toString nixpkgs.pkgs.qemu_kvm;
+      qemu = toString (nixpkgs.pkgs.qemu_kvm.override {
+        hostCpuOnly = true;
+        nixosTestRunner = true;
+      });
       virtiofsd = toString nixpkgs.pkgs.virtiofsd;
       memory = qemuCfg.memory;
       cpus = qemuCfg.cpus;
