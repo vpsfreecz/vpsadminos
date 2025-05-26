@@ -41,7 +41,7 @@ let
     bzip2
     bridge-utils
     nettools
-    bird
+    bird2
     su
     pciutils
     eudev

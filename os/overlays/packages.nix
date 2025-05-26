@@ -1,8 +1,8 @@
 self: super:
 {
-  bird = super.bird.overrideAttrs (oldAttrs: rec {
-    patches = super.bird.patches ++
-      [ ../packages/bird/disable-kif-warnings-osrtr0.patch ];
+  bird2 = super.bird2.overrideAttrs (oldAttrs: rec {
+    patches = super.bird2.patches ++
+      [ ../packages/bird2/disable-kif-warnings-osrtr0.patch ];
     });
 
   devcgprog = super.callPackage ../packages/devcgprog {};

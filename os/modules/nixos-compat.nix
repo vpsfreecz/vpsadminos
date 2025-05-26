@@ -12,6 +12,10 @@ with lib;
       services = mkOption { type = types.unspecified; };
       storePaths = mkOption { type = types.unspecified; };
       network.enable = mkOption { type = types.bool; default = false; readOnly = true; };
+      additionalUpstreamUnits = mkOption { type = types.unspecified; };
+    };
+    programs = {
+      i3lock.enable = mkOption { type = types.bool; default = false; };
     };
     services = {
       cgmanager = mkOption { type = types.unspecified; };
@@ -26,6 +30,7 @@ with lib;
       samba = mkOption { type = types.unspecified; };
       xserver = mkOption { type = types.unspecified; };
       kanidm.enablePam = mkOption { type = types.bool; default = false; };
+      xscreensaver.enable = mkOption { type = types.bool; default = false; };
     };
     networking.enableIPv6 = mkOption { default = true; };
     networking.hostId = mkOption { type = types.unspecified; };
@@ -49,6 +54,8 @@ with lib;
       targets = mkOption { type = types.unspecified; };
       tmpfiles = mkOption { type = types.unspecified; };
       user = mkOption { type = types.unspecified; };
+      additionalUpstreamUnits = mkOption { type = types.unspecified; };
+      additionalUpstreamSystemUnits = mkOption { type = types.unspecified; };
     };
   };
   config = {

@@ -63,7 +63,7 @@ in {
   };
 
   config = mkIf cfg.enable {
-    environment.systemPackages = [ pkgs.bird ];
+    environment.systemPackages = [ pkgs.bird2 ];
 
     environment.etc."bird2.conf".source = pkgs.writeTextFile {
       name = "bird2";
@@ -71,7 +71,7 @@ in {
       checkPhase = optionalString cfg.checkConfig ''
         ln -s $out bird2.conf
         ${cfg.preCheckConfig}
-        ${pkgs.bird}/bin/bird -d -p -c bird2.conf
+        ${pkgs.bird2}/bin/bird -d -p -c bird2.conf
       '';
     };
 
@@ -81,7 +81,7 @@ in {
         chmod 0750 /run/bird
         chown ${cfg.user}:${cfg.group} /run/bird
         ${cfg.preStartCommands}
-        exec ${pkgs.bird}/bin/bird -c /etc/bird2.conf -u ${cfg.user} -g ${cfg.group} -f
+        exec ${pkgs.bird2}/bin/bird -c /etc/bird2.conf -u ${cfg.user} -g ${cfg.group} -f
       '';
       runlevels = [ "rescue" "default" ];
       onChange = mkDefault "ignore";

@@ -14,6 +14,7 @@
   <nixpkgs/nixos/modules/system/boot/loader/loader.nix>
   <nixpkgs/nixos/modules/system/boot/initrd-ssh.nix>
   <nixpkgs/nixos/modules/misc/nixpkgs.nix>
+  <nixpkgs/nixos/modules/config/console.nix>
   <nixpkgs/nixos/modules/config/debug-info.nix>
   <nixpkgs/nixos/modules/config/shells-environment.nix>
   <nixpkgs/nixos/modules/config/system-environment.nix>
@@ -27,6 +28,7 @@
   <nixpkgs/nixos/modules/programs/environment.nix>
   <nixpkgs/nixos/modules/programs/vim.nix>
   <nixpkgs/nixos/modules/security/ca.nix>
+  <nixpkgs/nixos/modules/security/default.nix>
   <nixpkgs/nixos/modules/security/apparmor.nix>
   <nixpkgs/nixos/modules/security/pam.nix>
   <nixpkgs/nixos/modules/security/sudo.nix>
