@@ -211,6 +211,10 @@ let
           else "install"))
       ];
 
+      # We remove a bunch of stuff that is symlinked from other places to save space,
+      # which trips the broken symlink check. So, just skip it. We'll know if it explodes.
+      dontCheckForBrokenSymlinks = true;
+
       postInstall = (optionalString installsFirmware ''
         mkdir -p $out/lib/firmware
       '') + (if (kernelConf.DTB or false) then ''
