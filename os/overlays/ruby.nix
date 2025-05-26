@@ -4,6 +4,15 @@ let
     patches = oldAttrs.patches ++ [
       ../packages/ruby/export-timer-functions.patch
     ];
+
+    # Workaround for these warning messages:
+    #
+    #   Ignoring debug-1.9.2 because its extensions are not built. Try: gem pristine debug --version 1.9.2
+    #   Ignoring racc-1.7.3 because its extensions are not built. Try: gem pristine racc --version 1.7.3
+    #   Ignoring rbs-3.4.0 because its extensions are not built. Try: gem pristine rbs --version 3.4.0
+    postFixup = ''
+      rm $out/lib/ruby/gems/*/specifications/{debug*,rbs*,racc*}.gemspec
+    '';
   });
 in {
   inherit ruby_3_3;
