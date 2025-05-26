@@ -1,10 +1,14 @@
 self: super:
-{
-  ruby = super.ruby_3_3.overrideAttrs (oldAttrs: rec {
+let
+  ruby_3_3 = super.ruby_3_3.overrideAttrs (oldAttrs: rec {
     patches = oldAttrs.patches ++ [
       ../packages/ruby/export-timer-functions.patch
     ];
   });
+in {
+  inherit ruby_3_3;
+
+  ruby = ruby_3_3;
 
   defaultGemConfig =
     super.callPackage (
