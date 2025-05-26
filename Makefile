@@ -1,6 +1,6 @@
 BUILD_ID := $(shell date +%Y%m%d%H%M%S)
 VERSION := $(shell cat .version)
-GEM_VERSION := "$(VERSION).0"
+GEM_VERSION := $(VERSION).0
 RELEASE_DATE := $(shell date +%Y-%m-%d)
 
 build:
