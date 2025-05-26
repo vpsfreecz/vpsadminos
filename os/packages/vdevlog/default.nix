@@ -1,10 +1,12 @@
-{ ruby, runCommand, substituteAll, asciidoctor }:
+{ ruby, runCommand, replaceVarsWith, asciidoctor }:
 let
-  vdevlog = substituteAll {
+  vdevlog = replaceVarsWith {
     name = "vdevlog";
     src = ./vdevlog.rb;
     isExecutable = true;
-    inherit ruby;
+    replacements = {
+      inherit ruby;
+    };
   };
 in runCommand "vdevlog" {} ''
   mkdir -p $out/bin

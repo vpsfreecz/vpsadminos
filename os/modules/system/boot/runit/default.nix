@@ -205,10 +205,12 @@ let
 
   controlsOptions = mapAttrs (name: c: controlOption name) controls;
 
-  helpers = name: pkgs.substituteAll {
+  helpers = name: pkgs.replaceVarsWith {
     src = ./helpers.sh;
     name = "service-helpers";
-    osctl = "${pkgs.osctl}/bin/osctl";
+    replacements = {
+      osctl = "${pkgs.osctl}/bin/osctl";
+    };
   };
 
   serviceCGroup = name: "/run/runit/cgroup.service/${name}";
@@ -406,10 +408,12 @@ let
 
   mkHaltHooks = hooks: mapAttrs' (k: v: nameValuePair "runit/halt.hook.d/${k}" (mkHaltHook k v)) hooks;
 
-  haltScript = pkgs.substituteAll {
+  haltScript = pkgs.replaceVarsWith {
     src = ./halt.rb;
     isExecutable = true;
-    ruby = pkgs.ruby;
+    replacements = {
+      ruby = pkgs.ruby;
+    };
   };
 
   haltBin = pkgs.runCommand "halt" {} ''

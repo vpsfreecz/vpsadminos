@@ -109,12 +109,14 @@ let
     chmod +x $out/bin/do-create-pool-${name}
   '';
 
-  zpoolCheckScript = pkgs.substituteAll {
+  zpoolCheckScript = pkgs.replaceVarsWith {
     name = "check-zpool.rb";
     src = ./check.rb;
     isExecutable = true;
-    ruby = pkgs.ruby;
-    zpool = "zpool";
+    replacements = {
+      ruby = pkgs.ruby;
+      zpool = "zpool";
+    };
   };
 
   zpoolCreateScripts = mapAttrsToList zpoolCreateScript;

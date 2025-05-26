@@ -142,24 +142,25 @@ let
     '';
   udevHwdb = config.environment.etc."udev/hwdb.bin".source;
 
-  bootStage1 = pkgs.substituteAll {
+  bootStage1 = pkgs.replaceVarsWith {
     src = ./stage-1-init.sh;
     isExecutable = true;
-    inherit shell modules modprobeList extraUtils dhcpHook udevRules udevHwdb;
+    replacements = {
+      inherit shell modules modprobeList extraUtils dhcpHook udevRules udevHwdb;
 
-    bootloader = config.system.boot.loader.id;
-    fsInfo =
-      let
-        # busybox mount does not recognize x-initrd.mount option, which is added
-        # by nixpkgs to mounts in initrd.
-        fsOptions = fs: filter (opt: opt != "x-initrd.mount") fs.options;
+      fsInfo =
+        let
+          # busybox mount does not recognize x-initrd.mount option, which is added
+          # by nixpkgs to mounts in initrd.
+          fsOptions = fs: filter (opt: opt != "x-initrd.mount") fs.options;
 
-        f = fs: [ fs.mountPoint (if fs.device != null then fs.device else "/dev/disk/by-label/${fs.label}") fs.fsType (builtins.concatStringsSep "," (fsOptions fs)) ];
-      in pkgs.writeText "initrd-fsinfo" (concatStringsSep "\n" (concatMap f fileSystems));
+          f = fs: [ fs.mountPoint (if fs.device != null then fs.device else "/dev/disk/by-label/${fs.label}") fs.fsType (builtins.concatStringsSep "," (fsOptions fs)) ];
+        in pkgs.writeText "initrd-fsinfo" (concatStringsSep "\n" (concatMap f fileSystems));
 
-    inherit (config.boot) predefinedFailAction;
-    inherit (config.boot.initrd) preFailCommands preLVMCommands postDeviceCommands postMountCommands;
-    inherit (config.system) storeOverlaySize;
+      inherit (config.boot) predefinedFailAction;
+      inherit (config.boot.initrd) preFailCommands preLVMCommands postDeviceCommands postMountCommands;
+      inherit (config.system) storeOverlaySize;
+    };
   };
 
   initialRamdisk = pkgs.makeInitrd {

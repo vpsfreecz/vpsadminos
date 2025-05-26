@@ -9,11 +9,13 @@ let
   zpool = "zpool";
   zfs = "zfs";
 
-  mount = pkgs.substituteAll {
+  mount = pkgs.replaceVarsWith {
     name = "mount.rb";
     src = ./mount.rb;
     isExecutable = true;
-    ruby = pkgs.ruby;
+    replacements = {
+      ruby = pkgs.ruby;
+    };
   };
 
   properties = mapAttrsToList (k: v: "\"${k}=${toString v}\"") pool.properties;

@@ -7,10 +7,12 @@ let
 
   textfileDirectory = "/run/metrics";
 
-  runner = pkgs.substituteAll {
+  runner = pkgs.replaceVarsWith {
     src = ./runner.rb;
     isExecutable = true;
-    ruby = pkgs.ruby;
+    replacements = {
+      ruby = pkgs.ruby;
+    };
   };
 
   tests = [

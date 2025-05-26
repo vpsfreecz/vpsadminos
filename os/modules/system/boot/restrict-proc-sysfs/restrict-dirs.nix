@@ -1,6 +1,8 @@
-{ ruby, substituteAll, writeText }:
-substituteAll {
+{ ruby, replaceVarsWith, writeText }:
+replaceVarsWith {
   src = ./restrict-dirs.rb;
   isExecutable = true;
-  inherit ruby;
+  replacements = {
+    inherit ruby;
+  };
 }

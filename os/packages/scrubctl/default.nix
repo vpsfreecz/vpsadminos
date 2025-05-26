@@ -1,4 +1,4 @@
-{ fetchFromGitHub, lib, ruby, stdenvNoCC, substituteAll }:
+{ fetchFromGitHub, lib, ruby, stdenvNoCC }:
 let
   rev = "566be0e2d23e0ecb144e16b1bb422d2473a367a6";
   shortRev = builtins.substring 0 7 rev;

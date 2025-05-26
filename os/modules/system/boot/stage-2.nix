@@ -39,15 +39,19 @@ in
     };
   };
   config = {
-    system.build.bootStage2 = pkgs.substituteAll {
+    system.build.bootStage2 = pkgs.replaceVarsWith {
       src = ./stage-2-init.sh;
       isExecutable = true;
-      path = config.system.path;
-      inherit (config.networking) hostName;
-      inherit (config.boot) procHidePid readOnlyNixStore;
-      inherit postBootCommands;
-      parentWrapperDir = dirOf config.security.wrapperDir;
-      wrapperDirSize = config.security.wrapperDirSize;
+      replacements = {
+        shell = "${pkgs.bash}/bin/bash";
+        systemConfig = null; # replaced in ../activation/top-level.nix
+        path = config.system.path;
+        inherit (config.networking) hostName;
+        inherit (config.boot) procHidePid readOnlyNixStore;
+        inherit postBootCommands;
+        parentWrapperDir = dirOf config.security.wrapperDir;
+        wrapperDirSize = config.security.wrapperDirSize;
+      };
     };
 
     boot.readOnlyNixStore = mkIf (!config.boot.isLiveSystem) (mkDefault true);

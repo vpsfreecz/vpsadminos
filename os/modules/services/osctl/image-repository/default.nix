@@ -257,11 +257,13 @@ let
         [gcRunner (gcConfigFile cfg.garbageCollection)];
   };
 
-  buildScript = repo: cfg: pkgs.substituteAll {
+  buildScript = repo: cfg: pkgs.replaceVarsWith {
     src = ./build.rb;
     isExecutable = true;
-    ruby = pkgs.ruby;
-    json_config = pkgs.writeText "repo-${repo}-config.json" (builtins.toJSON (buildConfig repo cfg));
+    replacements = {
+      ruby = pkgs.ruby;
+      json_config = pkgs.writeText "repo-${repo}-config.json" (builtins.toJSON (buildConfig repo cfg));
+    };
   };
 
   createBuildScript = repo: cfg: pkgs.runCommand "repo-${repo}-build" {} ''
@@ -269,12 +271,14 @@ let
     ln -s ${buildScript repo cfg} $out/bin/build-image-repository-${repo}
   '';
 
-  gcRunner = pkgs.substituteAll {
+  gcRunner = pkgs.replaceVarsWith {
     name = "container-image-gc.rb";
     src = ./gc.rb;
     isExecutable = true;
-    ruby = pkgs.ruby;
-    osctlRepo = pkgs.osctl-repo;
+    replacements = {
+      ruby = pkgs.ruby;
+      osctlRepo = pkgs.osctl-repo;
+    };
   };
 
   gcConfig = matchers: map (matcher:

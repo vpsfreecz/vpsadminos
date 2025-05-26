@@ -263,10 +263,12 @@ in
     # Individual files to be included on the CD, outside of the Nix
     # store on the CD.
     isoImage.contents =
-      [ { source = pkgs.substituteAll  {
+      [ { source = pkgs.replaceVarsWith {
             name = "isolinux.cfg";
             src = pkgs.writeText "isolinux.cfg-in" isolinuxCfg;
-            bootRoot = "/boot";
+            replacements = {
+              bootRoot = "/boot";
+            };
           };
           target = "/isolinux/isolinux.cfg";
         }

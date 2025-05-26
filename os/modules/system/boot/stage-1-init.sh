@@ -105,7 +105,7 @@ for o in $(cat /proc/cmdline); do
       set -- $(IFS==; echo $o)
       mkdir -pv /var/run /var/db
       sleep 5
-      dhcpcd eth0 -c ${dhcpHook}
+      dhcpcd eth0 -c @dhcpHook@
       tftp -g -r "$3" "$2"
       root=/root.squashfs
       ;;
