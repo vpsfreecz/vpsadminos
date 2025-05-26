@@ -6,6 +6,10 @@
 
 #include <sched.h>
 
+// Headers for needed functions from Ruby's vm_core.h
+RUBY_EXTERN void rb_thread_stop_timer_thread(void);
+RUBY_EXTERN void rb_thread_start_timer_thread(void);
+
 /**
  * @overload setns(fd, nstype)
  *   setns() system call
