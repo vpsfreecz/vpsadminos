@@ -4,6 +4,8 @@
 #define _GNU_SOURCE
 #endif
 
+#include <sched.h>
+
 /**
  * @overload setns(fd, nstype)
  *   setns() system call
