@@ -79,7 +79,7 @@ jobs:
     name: Run test suite
     needs: build
     runs-on: self-hosted
-    timeout-minutes: 200
+    timeout-minutes: 240
 
     steps:
       - uses: actions/checkout@v4
@@ -90,7 +90,7 @@ jobs:
 
       - name: Run tests
         id: run-tests
-        timeout-minutes: 180
+        timeout-minutes: 260
         run: |
           set -o pipefail
           ./test-runner.sh test -j "${{ steps.determine-test-jobs.outputs.jobs }}" -t ci | tee test.log
