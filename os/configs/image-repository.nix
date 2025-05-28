@@ -11,8 +11,6 @@
         "8" = { tags = [ "oldoldstable" ]; };
         "9" = { tags = [ "oldstable" ]; };
         "10" = { tags = [ "latest" "stable" ]; };
-
-        "10-kitten" = { tags = [ "10-kitten" "kitten" ]; };
       };
 
       alpine = {
@@ -92,11 +90,6 @@
     };
 
     garbageCollection = [
-      {
-        distribution = "almalinux";
-        version = "10-kitten-\\d+";
-        keep = 4;
-      }
       {
         distribution = "arch";
         version = "\\d+";
