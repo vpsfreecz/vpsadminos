@@ -8,8 +8,9 @@
 
     images = {
       almalinux = {
-        "8" = { tags = [ "oldstable" ]; };
-        "9" = { tags = [ "latest" "stable" ]; };
+        "8" = { tags = [ "oldoldstable" ]; };
+        "9" = { tags = [ "oldstable" ]; };
+        "10" = { tags = [ "latest" "stable" ]; };
 
         "10-kitten" = { tags = [ "10-kitten" "kitten" ]; };
       };
