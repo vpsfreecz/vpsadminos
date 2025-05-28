@@ -60,11 +60,10 @@ import ../../make-template.nix ({ distribution, version }: rec {
       end
 
       # unified cgroup is not mounted on CentOS/Alma/Rocky 7 and 8
-      # (oldstable = 8 at this moment)
       check_unified =
         if ("${distribution}" == "centos" && %w(7).include?("${version}")) \
-           || ("${distribution}" == "almalinux" && "${version}" == "oldstable") \
-           || ("${distribution}" == "rocky" && "${version}" == "oldstable")
+           || ("${distribution}" == "almalinux" && "${version}" == "8") \
+           || ("${distribution}" == "rocky" && "${version}" == "8")
           false
         else
           true

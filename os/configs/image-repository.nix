@@ -8,8 +8,8 @@
 
     images = {
       almalinux = {
-        "8" = { tags = [ "oldoldstable" ]; };
-        "9" = { tags = [ "oldstable" ]; };
+        "8" = {};
+        "9" = {};
         "10" = { tags = [ "latest" "stable" ]; };
       };
 
@@ -70,14 +70,14 @@
       };
 
       rocky = {
-        "8" = { tags = [ "oldstable" ]; };
+        "8" = {};
         "9" = { tags = [ "latest" "stable" ]; };
       };
 
       ubuntu = {
         "18.04" = {};
-        "20.04" = { tags = [ "oldoldlts" ]; };
-        "22.04" = { tags = [ "oldlts" ]; };
+        "20.04" = {};
+        "22.04" = {};
         "24.04" = { tags = [ "stable" "lts" ]; };
         "24.10" = {};
         "25.04" = { tags = [ "latest" ]; };

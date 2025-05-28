@@ -1,9 +1,9 @@
 { lib }:
 let
   table = {
-    alma_oldoldstable = { distribution = "almalinux"; version = "oldoldstable";     };
-    alma_oldstable    = { distribution = "almalinux"; version = "oldstable";        };
-    alma_stable       = { distribution = "almalinux"; version = "stable";           };
+    alma_8            = { distribution = "almalinux"; version = "8";                };
+    alma_9            = { distribution = "almalinux"; version = "9";                };
+    alma_10           = { distribution = "almalinux"; version = "10";               };
     alpine            = { distribution = "alpine";    version = "latest";           };
     arch              = { distribution = "arch";      version = "latest";           };
     centos_7          = { distribution = "centos";    version = "7";                };
@@ -20,20 +20,20 @@ let
     nixos_stable      = { distribution = "nixos";     version = "stable";           };
     nixos_unstable    = { distribution = "nixos";     version = "unstable";         };
     opensuse          = { distribution = "opensuse";  version = "latest";           };
-    rocky_oldstable   = { distribution = "rocky";     version = "oldstable";        };
-    rocky_stable      = { distribution = "rocky";     version = "stable";           };
+    rocky_8           = { distribution = "rocky";     version = "8";                };
+    rocky_9           = { distribution = "rocky";     version = "9";                };
     slackware         = { distribution = "slackware"; version = "latest";           };
-    ubuntu_oldoldlts  = { distribution = "ubuntu";    version = "oldoldlts";        };
-    ubuntu_oldlts     = { distribution = "ubuntu";    version = "oldlts";           };
-    ubuntu_lts        = { distribution = "ubuntu";    version = "lts";              };
+    ubuntu_2004       = { distribution = "ubuntu";    version = "20.04";            };
+    ubuntu_2204       = { distribution = "ubuntu";    version = "22.04";            };
+    ubuntu_2404       = { distribution = "ubuntu";    version = "24.04";            };
     void_glibc        = { distribution = "void";      version = "latest-glibc";     };
     void_musl         = { distribution = "void";      version = "latest-musl";      };
   };
 in {
   cgroupv2 = with table; [
-    alma_oldoldstable
-    alma_oldstable
-    alma_stable
+    alma_8
+    alma_9
+    alma_10
     alpine
     arch
     centos_10_stream
@@ -47,12 +47,12 @@ in {
     nixos_stable
     nixos_unstable
     opensuse
-    rocky_oldstable
-    rocky_stable
+    rocky_8
+    rocky_9
     slackware
-    ubuntu_oldoldlts
-    ubuntu_oldlts
-    ubuntu_lts
+    ubuntu_2004
+    ubuntu_2204
+    ubuntu_2404
     void_glibc
     void_musl
   ];
@@ -62,8 +62,9 @@ in {
   ];
 
   systemd = with table; [
-    alma_oldstable
-    alma_stable
+    alma_8
+    alma_9
+    alma_10
     arch
     centos_7
     centos_10_stream
@@ -75,11 +76,11 @@ in {
     nixos_stable
     nixos_unstable
     opensuse
-    rocky_oldstable
-    rocky_stable
-    ubuntu_oldoldlts
-    ubuntu_oldlts
-    ubuntu_lts
+    rocky_8
+    rocky_9
+    ubuntu_2004
+    ubuntu_2204
+    ubuntu_2404
   ];
 
   non-systemd = with table; [
