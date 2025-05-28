@@ -40,15 +40,15 @@ let
 
     LABEL boot
     MENU LABEL vpsAdminOS ${config.system.vpsadminos.version} (${config.system.codeName})
-    LINUX /boot/bzImage
+    LINUX @bootRoot@/bzImage
     APPEND init=${config.system.build.toplevel}/init ${toString config.boot.kernelParams}
-    INITRD /boot/initrd
+    INITRD @bootRoot@/initrd
   '';
 
   isolinuxMemtest86Entry = ''
     LABEL memtest
     MENU LABEL Memtest86+
-    LINUX /boot/memtest.bin
+    LINUX @bootRoot@/memtest.bin
     APPEND ${toString config.isoImage.memtest86.params}
   '';
 
