@@ -163,6 +163,9 @@ let
         "INSTALL_MOD_PATH=\${out}"
       ];
 
+      # Needed for zfs with kernel 6.9
+      dontCheckForBrokenSymlinks = true;
+
       postInstall = optionalString buildKernelModules ''
         # Add reference that cannot be detected due to compressed kernel module
         mkdir -p "$out/nix-support"
