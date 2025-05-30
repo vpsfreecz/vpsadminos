@@ -32,7 +32,7 @@ in {
           '';
         };
         reservedMemory = mkOption {
-          default = "1024M";
+          default = "1536M";
           type = types.str;
           description = ''
             The amount of memory reserved for the crashdump kernel.
