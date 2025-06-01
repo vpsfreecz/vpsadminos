@@ -14,17 +14,9 @@ testScripts = builtins.listToAttrs (map ({ distribution, version }: {
     value = {
       # These distributions do have the device unit, but it is inactive (dead) and so
       # systemctl status returns non-zero exit status.
-      expectFailure = (distribution == "centos" && version == "7") || (distribution == "opensuse" && version == "latest");
+      expectFailure = (distribution == "opensuse" && version == "latest");
 
       script = ''
-        # CentOS 7 requires cgroups v1, all other distributions use v2
-        kernel_params = ["osctl.cgroupv=${if distribution != "centos" || version != "7" then "2" else "1"}"]
-
-        if machine.running? && machine.start_kernel_params != kernel_params
-          machine.stop
-        end
-
-        machine.start(kernel_params:) unless machine.running?
         machine.wait_for_osctl_pool("tank")
         machine.wait_until_online
 

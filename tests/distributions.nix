@@ -66,7 +66,6 @@ in {
     alma_9
     alma_10
     arch
-    centos_7
     centos_10_stream
     debian_oldstable
     debian_stable
