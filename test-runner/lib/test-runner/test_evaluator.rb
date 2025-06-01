@@ -25,6 +25,7 @@ module TestRunner
       @config = TestConfig.build(test)
       @opts = opts
       @machines = {}
+      @used_container_ids = []
 
       config['machines'].each do |name, cfg|
         var = :"@#{name}"
@@ -92,6 +93,24 @@ module TestRunner
     # Invoke interactive shell from within a test
     def breakpoint
       binding.pry # rubocop:disable Lint/Debugger
+    end
+
+    # Generate container id that is unique to the test run
+    # @return [String]
+    def get_container_id(base = 'testct')
+      10.times do
+        new_id = "#{base}-#{SecureRandom.hex(2)}"
+
+        if @used_container_ids.include?(new_id)
+          sleep(0.05)
+          next
+        end
+
+        @used_container_ids << new_id
+        return new_id
+      end
+
+      raise 'Unable to generate unique container id'
     end
 
     protected
