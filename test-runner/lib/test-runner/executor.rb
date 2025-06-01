@@ -147,7 +147,7 @@ module TestRunner
 
         prefix = "[#{i + 1}/#{@test_count}]"
         log("#{prefix} Running test '#{test.path}' (#{scripts.map { |v| "##{v.name}" }.join(', ')})")
-        result = run_test(test, scripts)
+        result = run_test(test, scripts, prefix:)
 
         secs = result.elapsed_time.round(2)
 
@@ -171,7 +171,7 @@ module TestRunner
       end
     end
 
-    def run_test(test, scripts)
+    def run_test(test, scripts, prefix:)
       t1 = Time.now
       dir = test_state_dir(test)
       r, w = IO.pipe
@@ -194,16 +194,67 @@ module TestRunner
           destructive: opts[:destructive]
         )
 
-        w.puts(ev.run.to_json)
+        ev.run do |result_hash|
+          w.puts(result_hash.to_json)
+        end
       end
 
       w.close
 
-      script_results = JSON.parse(r.readline).map do |name, status|
-        TestScriptResult.new(test.test_scripts[name], status['success'], status['elapsed_time'])
+      script_results = []
+
+      begin
+        r.each_line do |line|
+          begin
+            result_hash = JSON.parse(line)
+          rescue JSON::ParserError
+            warn "Unable to parse test script result json: #{line.inspect}"
+            next
+          end
+
+          test_script = test.test_scripts[result_hash['script']]
+
+          script_result = TestScriptResult.new(
+            test_script,
+            result_hash['success'],
+            result_hash['elapsed_time']
+          )
+
+          script_results << script_result
+
+          next if test_script.singleton?
+
+          secs = script_result.elapsed_time.round(2)
+
+          if script_result.expected_result?
+            if script_result.successful?
+              log("#{prefix} Script '#{test_script.path}' successful in #{secs} seconds")
+            else
+              log("#{prefix} Script '#{test_script.path}' failed as expected in #{secs} seconds")
+            end
+          else # unexpected result
+            if script_result.successful?
+              log("#{prefix} Script '#{test_script.path}' unexpectedly succeeded in #{secs} seconds")
+            else
+              log("#{prefix} Script '#{test_script.path}' failed after #{secs} seconds")
+            end
+
+            stop_work! if opts[:stop_on_failure]
+          end
+        end
+      rescue EOFError
+        # pass
       end
 
       Process.wait(pid)
+
+      # Complement script results if some are missing
+      scripts.each do |script|
+        script_result = script_results.detect { |sr| sr.test_script == script }
+        next if script_result
+
+        script_results << TestScriptResult.new(script, false, -1)
+      end
 
       result = TestResult.new(
         test,

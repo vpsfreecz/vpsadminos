@@ -29,6 +29,7 @@ module TestRunner
       @expect_failure = expect_failure.nil? ? test.expect_failure : expect_failure
       @tags = test.tags + tags
       @labels = test.labels.merge(labels)
+      @singleton = false
     end
 
     # @param pattern [String]
@@ -38,6 +39,11 @@ module TestRunner
 
     def set_singleton
       @path = test.path
+      @singleton = true
+    end
+
+    def singleton?
+      @singleton
     end
   end
 end

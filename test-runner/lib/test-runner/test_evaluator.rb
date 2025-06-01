@@ -48,6 +48,7 @@ module TestRunner
     end
 
     # Run the test scripts
+    # @yieldparam [Hash] one result per test script
     # @return [Hash<String, Boolean>] script name => result
     def run
       ret = {}
@@ -68,10 +69,14 @@ module TestRunner
             success = true
           end
 
-          ret[script.name] = {
+          result = {
+            script: script.name,
             success:,
             elapsed_time: Time.now - t1
           }
+
+          ret[script.name] = result
+          yield(result) if block_given?
         end
       end
 
