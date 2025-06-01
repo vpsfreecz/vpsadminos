@@ -127,7 +127,7 @@ module VpsAdminOS::Converter
 
     def parse_limit(v, pages: nil)
       if v.index(':')
-        v.split(':')[0..1].map { |v| parse_unit(v, pages:) }
+        v.split(':')[0..1].map { |v2| parse_unit(v2, pages:) }
 
       else
         ret = parse_unit(v, pages:)

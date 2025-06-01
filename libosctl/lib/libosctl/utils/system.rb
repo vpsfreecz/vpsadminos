@@ -50,7 +50,7 @@ module OsCtl::Lib
         end
       end
 
-      if $?.exitstatus != 0 && (valid_rcs != :all && !valid_rcs.include?($?.exitstatus))
+      if $?.exitstatus != 0 && valid_rcs != :all && !valid_rcs.include?($?.exitstatus)
         raise Exceptions::SystemCommandFailed.new(cmd, $?.exitstatus, out)
       end
 

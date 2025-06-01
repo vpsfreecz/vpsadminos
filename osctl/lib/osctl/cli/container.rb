@@ -1041,7 +1041,7 @@ module OsCtl::Cli
     end
 
     def bisect
-      c = osctld_open
+      conn = osctld_open
       cg_init_subsystems(c)
 
       cgparams = cg_list_raw_cgroup_params.map(&:to_sym)
@@ -1076,7 +1076,7 @@ module OsCtl::Cli
 
       cmd_opts[:ids] = args if args.count > 0
 
-      cts = c.cmd_data!(:ct_list, **cmd_opts)
+      cts = conn.cmd_data!(:ct_list, **cmd_opts)
 
       if opts[:exclude]
         exclude_ctids = opts[:exclude].split(',').map do |v|
