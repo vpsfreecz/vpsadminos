@@ -9,6 +9,9 @@ module TestRunner
     # @return [String]
     attr_reader :path
 
+    # @return [String]
+    attr_reader :description
+
     # @return [Boolean, nil]
     attr_reader :expect_failure
 
@@ -18,10 +21,11 @@ module TestRunner
     # @return [Hash<String, String>]
     attr_reader :labels
 
-    def initialize(test, name, expect_failure:, tags:, labels:)
+    def initialize(test, name, description:, expect_failure:, tags:, labels:)
       @test = test
       @name = name
       @path = "#{test.path}##{name}"
+      @description = description || test.description
       @expect_failure = expect_failure.nil? ? test.expect_failure : expect_failure
       @tags = test.tags + tags
       @labels = test.labels.merge(labels)

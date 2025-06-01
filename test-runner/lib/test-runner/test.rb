@@ -51,6 +51,7 @@ module TestRunner
           TestScript.new(
             self,
             ts_name,
+            description: ts_opts['description'],
             expect_failure: ts_opts['expectFailure'],
             tags: ts_opts.fetch('tags', []),
             labels: ts_opts.fetch('labels', {})

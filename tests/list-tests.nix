@@ -9,6 +9,7 @@ let
         inherit (t) type testArgs;
         inherit (t.test.config) name description expectFailure tags labels;
         testScripts = nixpkgs.lib.mapAttrs (name: ts: {
+          description = ts.description or null;
           expectFailure = ts.expectFailure or null;
           tags = ts.tags or [];
           labels = ts.labels or {};
@@ -19,6 +20,7 @@ let
         inherit (t) type template templateArgs;
         inherit (t.test.config) name description expectFailure tags labels;
         testScripts = nixpkgs.lib.mapAttrs (name: ts: {
+          description = ts.description or null;
           expectFailure = ts.expectFailure or null;
           tags = ts.tags or [];
           labels = ts.labels or {};
