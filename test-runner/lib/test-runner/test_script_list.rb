@@ -18,7 +18,15 @@ module TestRunner
     def by_path(path)
       test_path, script_name = path.split('#')
 
-      TestList.new.by_path(test_path).test_scripts.detect { |ts| ts.name == script_name }
+      test = TestList.new.by_path(test_path)
+
+      if script_name
+        test.test_scripts.detect { |ts| ts.name == script_name }
+      elsif test.test_scripts.length == 1
+        test.test_scripts.first[1]
+      else
+        raise "Test #{test_path} has scripts #{test.test_scripts.each_key.map { |v| "##{v}" }.join(', ')}, choose one"
+      end
     end
 
     protected

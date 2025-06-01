@@ -58,6 +58,10 @@ module TestRunner
           )
         ]
       end
+
+      return if @test_scripts.length != 1 || !@test_scripts.has_key?('default')
+
+      @test_scripts['default'].set_singleton
     end
 
     def template?

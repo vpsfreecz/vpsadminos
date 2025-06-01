@@ -35,5 +35,9 @@ module TestRunner
     def path_matches?(pattern)
       File.fnmatch?(pattern, path, File::FNM_EXTGLOB)
     end
+
+    def set_singleton
+      @path = test.path
+    end
   end
 end
