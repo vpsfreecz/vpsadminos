@@ -1,26 +1,17 @@
-import ../../make-template.nix ({ distribution, version }: rec {
-  instance = "${distribution}-${version}";
+import ../../make-test.nix ({ pkgs, distributions }: {
+  name = "dist-config-nonsystemd-rundir";
 
-  test = pkgs:
-    let
-      runScript = pkgs.writeScript "dist-config-nonsystemd-rundir-script.sh" ''
-        #!/bin/sh
-        fail() {
-          echo $@
-          exit 1
-        }
+  description = ''
+    Test presence or absence of /run before the container's init is started
+  '';
 
-        if [ "${distribution}" == "alpine" ] || [ "${distribution}" == "chimera" ]; then
-          grep -q /run /proc/mounts || fail "/run not found in /proc/mounts"
-        else
-          grep -q /run /proc/mounts && fail "/run found in /proc/mounts"
-        fi
+  tags = [ "ci" ];
 
-        exit 0
-      '';
-    in {
-      name = "dist-config-nonsystemd-rundir@${instance}";
+  machine = import ../../machines/tank.nix pkgs;
 
+  testScripts = builtins.listToAttrs (map ({ distribution, version }: {
+    name = "${distribution}-${version}";
+    value = {
       description =
         if distribution == "alpine" || distribution == "chimera" then ''
           Test that containers with ${distribution}-${version} have /run pre-mounted
@@ -31,19 +22,36 @@ import ../../make-template.nix ({ distribution, version }: rec {
           pre-mounted before the init is started.
         '';
 
-      tags = [ "ci" ];
+      script =
+        let
+          runScript = pkgs.writeScript "dist-config-nonsystemd-rundir-script.sh" ''
+            #!/bin/sh
+            fail() {
+              echo $@
+              exit 1
+            }
 
-      machine = import ../../machines/tank.nix pkgs;
+            if [ "${distribution}" == "alpine" ] || [ "${distribution}" == "chimera" ]; then
+              grep -q /run /proc/mounts || fail "/run not found in /proc/mounts"
+            else
+              grep -q /run /proc/mounts && fail "/run found in /proc/mounts"
+            fi
 
-      testScript = ''
-        machine.wait_for_osctl_pool("tank")
-        machine.wait_until_online
+            exit 0
+          '';
+        in ''
+          machine.wait_for_osctl_pool("tank")
+          machine.wait_until_online
 
-        machine.succeeds(
-          "osctl ct new --distribution ${distribution} --version ${version} testct",
-        )
-        machine.push_file("${runScript}", "/tmp/test-script.sh")
-        machine.succeeds("osctl ct runscript -r testct /tmp/test-script.sh")
-      '';
+          testct = get_container_id
+
+          machine.succeeds(
+            "osctl ct new --distribution ${distribution} --version ${version} #{testct}",
+          )
+          machine.push_file("${runScript}", "/tmp/test-script.sh")
+          machine.succeeds("osctl ct runscript -r #{testct} /tmp/test-script.sh")
+          machine.succeeds("osctl ct del -f --prune #{testct}")
+        '';
     };
+  }) distributions);
 })

@@ -1,67 +1,71 @@
-import ../../make-template.nix ({ distribution, version }: rec {
-  instance = "${distribution}-${version}";
+import ../../make-test.nix ({ pkgs, distributions }:
+let
+  runScript = pkgs.writeScript "dist-config-systemd-rundir-script.sh" ''
+    #!/bin/sh
+    fail() {
+      echo $@
+      exit 1
+    }
 
-  test = pkgs:
-    let
-      runScript = pkgs.writeScript "dist-config-systemd-rundir-script.sh" ''
-        #!/bin/sh
-        fail() {
-          echo $@
-          exit 1
-        }
+    # On NixOS, /run/current-system/sw/bin is not available when osctld
+    # mounts /run as tmpfs
+    export PATH="$PATH:/nix/var/nix/profiles/system/sw/bin"
 
-        # On NixOS, /run/current-system/sw/bin is not available when osctld
-        # mounts /run as tmpfs
-        export PATH="$PATH:/nix/var/nix/profiles/system/sw/bin"
+    [ -d /run ] || fail "/run not found"
 
-        [ -d /run ] || fail "/run not found"
+    grep "tmpfs /run tmpfs " /proc/mounts | grep nosuid | grep nodev | grep -q mode=755 \
+      || fail "/run not found in /proc/mounts or has unexpected options:\n$(cat /proc/mounts)"
 
-        grep "tmpfs /run tmpfs " /proc/mounts | grep nosuid | grep nodev | grep -q mode=755 \
-          || fail "/run not found in /proc/mounts or has unexpected options:\n$(cat /proc/mounts)"
+    [ -d /run/udev ] || fail "/run/udev" not found
 
-        [ -d /run/udev ] || fail "/run/udev" not found
+    [ -e /run/udev/control ] || fail "/run/udev/control not found"
 
-        [ -e /run/udev/control ] || fail "/run/udev/control not found"
+    exit 0
+  '';
+in {
+  name = "dist-config-systemd-rundir";
 
-        exit 0
-      '';
-    in {
-      name = "dist-config-systemd-rundir@${instance}";
+  description = ''
+    Test that containers have /run pre-mounted before systemd is started
+  '';
 
-      description = ''
-        Test that containers with ${distribution}-${version} have /run
-        pre-mounted before systemd is started
-      '';
+  tags = [ "ci" ];
 
-      tags = [ "ci" ];
+  machine = import ../../machines/tank.nix pkgs;
 
-      machine = import ../../machines/with-tank.nix {
-        inherit pkgs;
-        config =
-          { config, ... }:
-          {
-            boot.enableUnifiedCgroupHierarchy = distribution != "centos" || version != "7";
-          };
-      };
+  testScripts = builtins.listToAttrs (map ({ distribution, version }: {
+    name = "${distribution}-${version}";
+    value = {
+      script = ''
+        # CentOS 7 requires cgroups v1, all other distributions use v2
+        kernel_params = ["osctl.cgroupv=${if distribution != "centos" || version != "7" then "2" else "1"}"]
 
-      testScript = ''
+        if machine.running? && machine.start_kernel_params != kernel_params
+          machine.stop
+        end
+
+        machine.start(kernel_params:) unless machine.running?
         machine.wait_for_osctl_pool("tank")
         machine.wait_until_online
 
+        testct = get_container_id
+
         machine.succeeds(
-          "osctl ct new --distribution ${distribution} --version ${version} testct",
+          "osctl ct new --distribution ${distribution} --version ${version} #{testct}",
         )
 
         ${pkgs.lib.optionalString (distribution == "nixos") ''
         # NixOS needs to be first activated in order for /bin/sh to exist.
-        machine.succeeds("osctl ct unset start-menu testct")
-        machine.succeeds("osctl ct start testct")
-        machine.wait_until_succeeds("osctl ct exec testct systemctl status")
-        machine.succeeds("osctl ct stop testct")
+        machine.succeeds("osctl ct unset start-menu #{testct}")
+        machine.succeeds("osctl ct start #{testct}")
+        machine.wait_until_succeeds("osctl ct exec #{testct} systemctl status")
+        machine.succeeds("osctl ct stop #{testct}")
         ''}
 
         machine.push_file("${runScript}", "/tmp/test-script.sh")
-        machine.succeeds("osctl ct runscript -r testct /tmp/test-script.sh")
+        machine.succeeds("osctl ct runscript -r #{testct} /tmp/test-script.sh")
+        machine.succeeds("osctl ct del -f --prune #{testct}")
       '';
     };
+  }) distributions);
 })

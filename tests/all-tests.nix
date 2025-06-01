@@ -55,16 +55,16 @@ in tests [
   "boot"
   "cgroups/devices-v1"
   "cgroups/devices-v2"
-  { template = "cgroups/mount-v1"; instances = distributions.all ; }
-  { template = "cgroups/mount-v2"; instances = distributions.cgroupv2; }
+  { test = "cgroups/mount-v1"; args = { distributions = distributions.all; }; }
+  { test = "cgroups/mount-v2"; args = { distributions = distributions.cgroupv2; }; }
   "cgroups/system-v1"
   "cgroups/system-v2"
   "ctstartmenu/setup"
   "defaults"
-  { template = "dist-config/netif-routed"; instances = distributions.all; }
-  { template = "dist-config/nonsystemd-rundir"; instances = distributions.non-systemd; }
-  { template = "dist-config/start-stop"; instances = distributions.all; }
-  { template = "dist-config/systemd-rundir"; instances = distributions.systemd; }
+  { test = "dist-config/netif-routed"; args = { distributions = distributions.all; }; }
+  { test = "dist-config/nonsystemd-rundir"; args = { distributions = distributions.non-systemd; }; }
+  { test = "dist-config/start-stop"; args = { distributions = distributions.all; }; }
+  { test = "dist-config/systemd-rundir"; args = { distributions = distributions.systemd; }; }
   "dist-config/systemd-rundir-limits"
   "docker/almalinux-8"
   "docker/almalinux-9"
@@ -95,7 +95,7 @@ in tests [
   "snap/lxd-fedora"
   "snap/lxd-ubuntu"
   "systemd/credentials"
-  { template = "systemd/device-units"; instances = distributions.systemd; }
+  { test = "systemd/device-units"; args = { distributions = distributions.systemd; }; }
   "zfs/ugidmap"
   "zfs/xattr"
 ]
