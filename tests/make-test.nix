@@ -50,12 +50,21 @@ let
     machineTestConfig machine (machineOs machine.config)
   ) machineAttrs;
 
+  testScripts = testAttrs.testScripts or {
+    default = {
+      script = testAttrs.testScript;
+      tags = [];
+      labels = {};
+    };
+  };
+
   testConfig = {
-    inherit (testAttrs) name description testScript;
+    inherit (testAttrs) name description;
     expectFailure = testAttrs.expectFailure or false;
     machines = machineTestConfigs;
     tags = testAttrs.tags or [];
     labels = testAttrs.labels or {};
+    inherit testScripts;
   };
 
   jsonConfig = nixpkgs.pkgs.writeText "os-test-${testAttrs.name}.json" (builtins.toJSON testConfig);

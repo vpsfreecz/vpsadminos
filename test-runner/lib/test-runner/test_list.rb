@@ -64,7 +64,8 @@ module TestRunner
         description: data[:description],
         expect_failure: data[:expectFailure],
         tags: data[:tags],
-        labels: data[:labels].transform_keys(&:to_s)
+        labels: data[:labels].transform_keys(&:to_s),
+        test_scripts: data[:testScripts]
       )
     end
   end

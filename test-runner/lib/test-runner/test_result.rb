@@ -3,6 +3,9 @@ module TestRunner
     # @return [Test]
     attr_reader :test
 
+    # @return [Array<TestScriptResult>]
+    attr_reader :script_results
+
     # @return [Boolean]
     attr_reader :success
 
@@ -12,9 +15,10 @@ module TestRunner
     # @return [String]
     attr_reader :state_dir
 
-    def initialize(test, success, elapsed_time, state_dir)
+    def initialize(test, script_results, success, elapsed_time, state_dir)
       @test = test
-      @success = success
+      @script_results = script_results
+      @success = success && script_results.all?(&:expected_result?)
       @elapsed_time = elapsed_time
       @state_dir = state_dir
     end

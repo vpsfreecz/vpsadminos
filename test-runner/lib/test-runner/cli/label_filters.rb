@@ -5,8 +5,8 @@ module TestRunner::Cli
       @filters = parse_all(str_filters)
     end
 
-    # @param test [TestRunner::Test]
-    def pass?(test)
+    # @param test_script [TestRunner::TestScript]
+    def pass?(test_script)
       filters.all? { |f| f.call(test) }
     end
 
@@ -20,16 +20,16 @@ module TestRunner::Cli
       str_filters.each do |s|
         k, v = parse_one(s, '!=')
         if k
-          ret << proc do |test|
-            test.labels[k].to_s != v
+          ret << proc do |test_script|
+            test_script.labels[k].to_s != v
           end
           next
         end
 
         k, v = parse_one(s, '=')
         if k
-          ret << proc do |test|
-            test.labels[k].to_s == v
+          ret << proc do |test_script|
+            test_script.labels[k].to_s == v
           end
           next
         end

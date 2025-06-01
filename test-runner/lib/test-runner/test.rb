@@ -27,6 +27,9 @@ module TestRunner
     # @return [Hash<String, String>]
     attr_reader :labels
 
+    # @return [Hash<String, TestScript>]
+    attr_reader :test_scripts
+
     # @param opts [Hash]
     def initialize(**opts)
       @path = opts[:path]
@@ -38,11 +41,18 @@ module TestRunner
       @expect_failure = opts[:expect_failure]
       @tags = opts[:tags]
       @labels = opts[:labels]
-    end
-
-    # @param pattern [String]
-    def path_matches?(pattern)
-      File.fnmatch?(pattern, path, File::FNM_EXTGLOB)
+      @test_scripts = opts[:test_scripts].to_h do |ts_name, ts_opts|
+        [
+          ts_name,
+          TestScript.new(
+            self,
+            ts_name.to_s,
+            expect_failure: ts_opts[:expectFailure],
+            tags: ts_opts.fetch(:tags, []),
+            labels: ts_opts.fetch(:labels, {})
+          )
+        ]
+      end
     end
 
     def template?

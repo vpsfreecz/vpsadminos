@@ -7,10 +7,10 @@ module TestRunner::Cli
       parse_all(str_tags)
     end
 
-    # @param test [TestRunner::Test]
-    def pass?(test)
-      must.all? { |t| test.tags.include?(t) } \
-        && cant.all? { |t| !test.tags.include?(t) }
+    # @param test_script [TestRunner::TestScript]
+    def pass?(test_script)
+      must.all? { |t| test_script.tags.include?(t) } \
+        && cant.all? { |t| !test_script.tags.include?(t) }
     end
 
     protected

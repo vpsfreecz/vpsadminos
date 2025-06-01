@@ -5,9 +5,25 @@ let
 
   testMeta = t:
     if t.type == "single" then
-      { inherit (t) type; inherit (t.test.config) name description expectFailure tags labels; }
+      {
+        inherit (t) type;
+        inherit (t.test.config) name description expectFailure tags labels;
+        testScripts = nixpkgs.lib.mapAttrs (name: ts: {
+          expectFailure = ts.expectFailure or null;
+          tags = ts.tags or [];
+          labels = ts.labels or {};
+        }) t.test.config.testScripts;
+      }
     else if t.type == "template" then
-      { inherit (t) type template args; inherit (t.test.config) name description expectFailure tags labels; }
+      {
+        inherit (t) type template args;
+        inherit (t.test.config) name description expectFailure tags labels;
+        testScripts = nixpkgs.lib.mapAttrs (name: ts: {
+          expectFailure = ts.expectFailure or null;
+          tags = ts.tags or [];
+          labels = ts.labels or {};
+        }) t.test.config.testScripts;
+      }
     else
       abort "unsupported test type";
 

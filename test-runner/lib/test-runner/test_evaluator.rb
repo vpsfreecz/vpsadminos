@@ -7,13 +7,21 @@ module TestRunner
     attr_reader :machines
 
     # @param test [Test]
+    # @param scripts [Array<TestScript>]
     # @param opts [Hash]
     # @option opts [Integer] :default_timeout
     # @option opts [Boolean] :destructive
     # @option opts [String] :state_dir
     # @option opts [String] :sock_dir
-    def initialize(test, **opts)
+    def initialize(test, scripts, **opts)
+      scripts.each do |s|
+        next if s.test == test
+
+        raise ArgumentError, "script #{s.name} is not of test #{test.path}"
+      end
+
       @test = test
+      @scripts = scripts
       @config = TestConfig.build(test)
       @opts = opts
       @machines = {}
@@ -38,11 +46,35 @@ module TestRunner
       end
     end
 
-    # Run the test script
+    # Run the test scripts
+    # @return [Hash<String, Boolean>] script name => result
     def run
+      ret = {}
+
       do_run do
-        test_script
+        scripts.each do |script|
+          success = false
+          t1 = Time.now
+
+          begin
+            warn "Running script #{script.name}"
+            test_script(script.name)
+            warn "Script #{script.name} finished"
+          rescue Exception => e # rubocop:disable Lint/RescueException
+            warn "Exception occurred while running script #{script.name}"
+            warn e.full_message
+          else
+            success = true
+          end
+
+          ret[script.name] = {
+            success:,
+            elapsed_time: Time.now - t1
+          }
+        end
       end
+
+      ret
     end
 
     # Run interactive shell
@@ -64,10 +96,10 @@ module TestRunner
 
     protected
 
-    attr_reader :test, :config, :opts
+    attr_reader :test, :scripts, :config, :opts
 
-    def test_script
-      binding.eval(config[:testScript]) # rubocop:disable Security/Eval
+    def test_script(name)
+      binding.eval(config[:testScripts][name.to_sym][:script]) # rubocop:disable Security/Eval
     end
 
     def do_run

@@ -1,9 +1,10 @@
 require 'fileutils'
+require 'json'
 
 module TestRunner
   class Executor
-    # @return [Array<Test>]
-    attr_reader :tests
+    # @return [Array<TestScript>]
+    attr_reader :test_scripts
 
     # @return [Hash]
     attr_reader :opts
@@ -11,27 +12,28 @@ module TestRunner
     # @return [Array<TestResult>]
     attr_reader :results
 
-    # @param tests [Array<Test>]
+    # @param tests [Array<TestScript>]
     # @param opts [Hash]
     # @option opts [String] :state_dir
     # @option opts [Integer] :jobs
     # @option opts [Integer] :default_timeout
     # @option opts [Boolean] :stop_on_failure
     # @option opts [Boolean] :destructive
-    def initialize(tests, **opts)
-      @tests = tests
+    def initialize(test_scripts, **opts)
+      @test_scripts = test_scripts
       @opts = opts
       @workers = []
       @queue = Queue.new
-      tests.each_with_index { |t, i| @queue << [i, t] }
       @results = []
       @stop_work = false
       @mutex = Mutex.new
+
+      fill_queue
     end
 
     # @return [Array<TestResult>]
     def run
-      log("Running #{tests.length} tests, #{opts[:jobs]} at a time")
+      log("Running #{test_scripts.length} scripts of #{@test_count} tests, #{opts[:jobs]} tests at a time")
       log("State directory is #{state_dir}")
       t1 = Time.now
 
@@ -41,7 +43,7 @@ module TestRunner
 
       wait_for_workers
 
-      log("Run #{results.length} tests in #{(Time.now - t1).round(2)} seconds")
+      log("Run #{results.inject(0) { |acc, r| acc + r.script_results.length }} test scripts of #{@test_count} tests in #{(Time.now - t1).round(2)} seconds")
 
       expected_successful = results.select do |r|
         r.expected_to_succeed? && r.successful?
@@ -76,12 +78,30 @@ module TestRunner
       end
 
       if unexpected_failed.any?
-        log("Unexpectedly failed tests:\n#{unexpected_failed.map { |r| "  #{r.test.path}" }.join("\n")}")
+        log('Unexpectedly failed test scripts:')
+
+        unexpected_failed.each do |test_result|
+          test_result.script_results.each do |test_script_result|
+            next if test_script_result.expected_result?
+
+            log("  #{test_script_result.test_script.path}")
+          end
+        end
+
         puts
       end
 
       if unexpected_successful.any?
-        log("Unexpectedly successful tests:\n#{unexpected_successful.map { |r| "  #{r.test.path}" }.join("\n")}")
+        log('Unexpectedly successful test scripts:')
+
+        unexpected_successful.each do |test_result|
+          test_result.script_results.each do |test_script_result|
+            next if test_script_result.expected_result?
+
+            log("  #{test_script_result.test_script.path}")
+          end
+        end
+
         puts
       end
 
@@ -91,6 +111,21 @@ module TestRunner
     protected
 
     attr_reader :workers, :queue, :mutex
+
+    def fill_queue
+      tests = {}
+
+      test_scripts.each do |ts|
+        tests[ts.test] ||= []
+        tests[ts.test] << ts
+      end
+
+      tests.each_with_index do |(test, scripts), i|
+        @queue << [i, test, scripts]
+      end
+
+      @test_count = tests.length
+    end
 
     def start_worker(i)
       workers << Thread.new { run_worker(i) }
@@ -105,28 +140,28 @@ module TestRunner
         return if stop_work?
 
         begin
-          i, t = queue.pop(true)
+          i, test, scripts = queue.pop(true)
         rescue ThreadError
           return
         end
 
-        prefix = "[#{i + 1}/#{tests.length}]"
-        log("#{prefix} Running test '#{t.path}'")
-        result = run_test(t)
+        prefix = "[#{i + 1}/#{@test_count}]"
+        log("#{prefix} Running test '#{test.path}' (#{scripts.map { |v| "##{v.name}" }.join(', ')})")
+        result = run_test(test, scripts)
 
         secs = result.elapsed_time.round(2)
 
         if result.expected_result?
           if result.successful?
-            log("#{prefix} Test '#{t.path}' successful in #{secs} seconds")
+            log("#{prefix} Test '#{test.path}' successful in #{secs} seconds")
           else
-            log("#{prefix} Test '#{t.path}' failed as expected in #{secs} seconds")
+            log("#{prefix} Test '#{test.path}' failed as expected in #{secs} seconds")
           end
         else # unexpected result
           if result.successful?
-            log("#{prefix} Test '#{t.path}' unexpectedly succeeded in #{secs} seconds, see #{result.state_dir}")
+            log("#{prefix} Test '#{test.path}' unexpectedly succeeded in #{secs} seconds, see #{result.state_dir}")
           else
-            log("#{prefix} Test '#{t.path}' failed after #{secs} seconds, see #{result.state_dir}")
+            log("#{prefix} Test '#{test.path}' failed after #{secs} seconds, see #{result.state_dir}")
           end
 
           stop_work! if opts[:stop_on_failure]
@@ -136,11 +171,13 @@ module TestRunner
       end
     end
 
-    def run_test(test)
+    def run_test(test, scripts)
       t1 = Time.now
       dir = test_state_dir(test)
+      r, w = IO.pipe
 
       pid = Process.fork do
+        r.close
         FileUtils.mkdir_p(dir)
 
         out = File.open(File.join(dir, 'test-runner.log'), 'w')
@@ -150,18 +187,27 @@ module TestRunner
 
         ev = TestRunner::TestEvaluator.new(
           test,
+          scripts,
           state_dir: dir,
           sock_dir: test_sock_dir,
           default_timeout: opts[:default_timeout],
           destructive: opts[:destructive]
         )
-        ev.run
+
+        w.puts(ev.run.to_json)
+      end
+
+      w.close
+
+      script_results = JSON.parse(r.readline).map do |name, status|
+        TestScriptResult.new(test.test_scripts[name.to_sym], status['success'], status['elapsed_time'])
       end
 
       Process.wait(pid)
 
       result = TestResult.new(
         test,
+        script_results,
         $?.exitstatus == 0,
         Time.now - t1,
         dir
@@ -207,7 +253,7 @@ module TestRunner
       opts[:state_dir]
     end
 
-    def log(msg)
+    def log(msg = '')
       mutex.synchronize { puts "[#{Time.now}] #{msg}" }
     end
   end
