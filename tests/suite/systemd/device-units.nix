@@ -29,11 +29,17 @@ testScripts = builtins.listToAttrs (map ({ distribution, version }: {
           "osctl ct start #{testct}",
         )
 
-        machine.wait_until_succeeds("osctl ct exec #{testct} systemctl status sys-devices-virtual-net-eth0.device")
+        machine.wait_until_succeeds(
+          "osctl ct exec #{testct} systemctl status sys-devices-virtual-net-eth0.device",
+          timeout: 60
+        )
 
         machine.fails("osctl ct exec #{testct} systemctl status sys-devices-virtual-net-dummy0.device")
         machine.succeeds("osctl ct exec #{testct} ip link add dummy0 type dummy")
-        machine.wait_until_succeeds("osctl ct exec #{testct} systemctl status sys-devices-virtual-net-dummy0.device")
+        machine.wait_until_succeeds(
+          "osctl ct exec #{testct} systemctl status sys-devices-virtual-net-dummy0.device",
+          timeout: 60
+        )
         machine.succeeds("osctl ct del -f --prune #{testct}")
       '';
     };
