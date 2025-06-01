@@ -1,7 +1,7 @@
 import ../../make-template.nix ({ image-script }: rec {
   instance = image-script;
 
-  test = pkgs: {
+  test = { pkgs }: {
     name = "image-scripts/test@${instance}";
 
     description = ''

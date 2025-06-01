@@ -1,4 +1,4 @@
-import ../../make-test.nix (pkgs: {
+import ../../make-test.nix ({ pkgs }: {
   name = "dist-config-systemd-rundir-limits";
 
   description = ''

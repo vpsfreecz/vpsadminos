@@ -1,7 +1,7 @@
 import ../../make-template.nix ({ distribution, version }: rec {
   instance = "${distribution}-${version}";
 
-  test = pkgs: {
+  test = { pkgs }: {
     name = "dist-config-start-stop@${instance}";
 
     description = ''

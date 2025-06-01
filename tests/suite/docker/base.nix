@@ -1,5 +1,5 @@
 { distribution, version, setupScript }:
-import ../../make-test.nix (pkgs: {
+import ../../make-test.nix ({ pkgs }: {
   name = "docker-${distribution}-${version}";
 
   description = ''

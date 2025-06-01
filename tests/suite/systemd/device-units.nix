@@ -1,7 +1,7 @@
 import ../../make-template.nix ({ distribution, version }: rec {
   instance = "${distribution}-${version}";
 
-  test = pkgs: {
+  test = { pkgs }: {
     name = "systemd-device-units@${instance}";
 
     description = ''

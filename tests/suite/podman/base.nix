@@ -1,5 +1,5 @@
 { distribution, version, setupScript }:
-import ../../make-test.nix (pkgs: {
+import ../../make-test.nix ({ pkgs }: {
   name = "podman-${distribution}-${version}";
 
   description = ''

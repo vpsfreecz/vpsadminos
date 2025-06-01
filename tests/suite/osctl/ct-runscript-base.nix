@@ -1,5 +1,5 @@
 { name, config }:
-import ../../make-test.nix (pkgs:
+import ../../make-test.nix ({ pkgs }:
 let
   templateConfig = config;
 

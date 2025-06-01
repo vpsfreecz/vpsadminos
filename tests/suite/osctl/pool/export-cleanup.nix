@@ -1,4 +1,4 @@
-import ../../../make-test.nix (pkgs: {
+import ../../../make-test.nix ({ pkgs }: {
   name = "osctl-pool-export-cleanup";
 
   description = ''

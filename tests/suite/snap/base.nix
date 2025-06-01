@@ -1,5 +1,5 @@
 { name, description, distribution, version, preSetupScript ? "", setupScript, testScript }:
-import ../../make-test.nix (pkgs: {
+import ../../make-test.nix ({ pkgs }: {
   name = "snap-${name}-${distribution}-${version}";
 
   description = ''

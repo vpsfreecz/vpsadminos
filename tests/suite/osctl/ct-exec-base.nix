@@ -1,5 +1,5 @@
 { name, config }:
-import ../../make-test.nix (pkgs: {
+import ../../make-test.nix ({ pkgs }: {
   name = "osctl-ct-exec-${name}";
 
   description = ''

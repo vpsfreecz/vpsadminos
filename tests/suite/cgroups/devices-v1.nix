@@ -1,4 +1,4 @@
-import ../../make-test.nix (pkgs: {
+import ../../make-test.nix ({ pkgs }: {
   name = "cgroups-devices-v1";
 
   description = ''
