@@ -5,11 +5,12 @@ let
 in stdenv.mkDerivation rec {
   name = "libosctl";
 
-  buildInputs = [
-    pkgs.ruby
-    pkgs.git
-    pkgs.zlib
-    pkgs.openssl
+  buildInputs = with pkgs; [
+    libffi
+    git
+    openssl
+    ruby
+    zlib
   ];
 
   shellHook = ''
