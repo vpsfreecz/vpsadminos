@@ -96,6 +96,8 @@ module OsCtld
       progress('Reconfiguring LXC usernet')
       call_cmd(Commands::User::LxcUsernet)
 
+      ct.pool.trash_bin.prune if opts[:prune]
+
       ok
     end
   end

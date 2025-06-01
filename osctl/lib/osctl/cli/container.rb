@@ -305,7 +305,8 @@ module OsCtl::Cli
       osctld_fmt(:ct_delete, cmd_opts: {
         id: args[0],
         pool: gopts[:pool],
-        force: opts[:force]
+        force: opts[:force],
+        prune: opts[:prune]
       })
     end
 

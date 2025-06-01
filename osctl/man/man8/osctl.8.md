@@ -764,6 +764,9 @@ The following shortcuts are supported:
       Delete the container even if it is running. By default, running containers
       cannot be deleted.
 
+    `--prune`
+      Prune the trash-bin after the container is deleted, see `trash-bin prune`.
+
 `ct reinstall` [*options*] *ctid*
   Reinstall container from image. The container's rootfs is deleted
   and an image is imported again. The container's subdatasets remain unaffected.

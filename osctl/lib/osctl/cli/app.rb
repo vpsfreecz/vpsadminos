@@ -672,6 +672,9 @@ module OsCtl::Cli
           c.desc 'Stop and delete running container'
           c.switch %i[f force], negatable: false
 
+          c.desc 'Prune trash-bin'
+          c.switch %i[prune], negatable: false
+
           c.action(&Command.run(Container, :delete))
         end
 
