@@ -27,7 +27,9 @@ module TestRunner
       ]
 
       if test.template?
-        cmd << '--argstr' << 'templateArgsInJson' << test.args.to_json
+        cmd << '--argstr' << 'templateArgsInJson' << test.template_args.to_json
+      elsif test.test_args.any?
+        cmd << '--argstr' << 'testArgsInJson' << test.test_args.to_json
       end
 
       cmd << "./tests/suite/#{test.file_path}"

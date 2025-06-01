@@ -10,7 +10,10 @@ module TestRunner
     attr_reader :template
 
     # @return [Hash]
-    attr_reader :args
+    attr_reader :template_args
+
+    # @return [Hash]
+    attr_reader :test_args
 
     # @return [String]
     attr_reader :name
@@ -35,7 +38,8 @@ module TestRunner
       @path = opts[:path]
       @type = opts[:type]
       @template = opts[:template]
-      @args = opts[:args]
+      @template_args = opts[:template_args]
+      @test_args = opts[:test_args]
       @name = opts[:name]
       @description = opts[:description]
       @expect_failure = opts[:expect_failure]

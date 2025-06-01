@@ -5,6 +5,9 @@ testFn:
 , modules ? []
   # extra arguments to be passed to modules
 , extraArgs ? {}
+  # arguments passed to the test function
+, testArgs ? null
+, testArgsInJson ? null
   # target system
 , system ? builtins.currentSystem }:
 let
@@ -12,7 +15,15 @@ let
 
   lib = nixpkgs.lib;
 
-  testAttrs = testFn nixpkgs;
+  effectiveTestArgs =
+    if !(isNull testArgs) then
+      testArgs
+    else if !(isNull testArgsInJson) then
+      builtins.fromJSON testArgsInJson
+    else
+      {};
+
+  testAttrs = testFn ({ pkgs = nixpkgs; } // effectiveTestArgs);
 
   machineOs = cfg: import ../os {
     inherit configuration pkgs extraArgs system;
