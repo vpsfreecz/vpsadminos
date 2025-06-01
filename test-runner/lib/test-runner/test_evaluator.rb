@@ -26,10 +26,10 @@ module TestRunner
       @opts = opts
       @machines = {}
 
-      config[:machines].each do |name, cfg|
+      config['machines'].each do |name, cfg|
         var = :"@#{name}"
         m = OsVm::Machine.new(
-          name.to_s,
+          name,
           OsVm::MachineConfig.new(cfg),
           opts[:state_dir],
           opts[:sock_dir],
@@ -99,7 +99,7 @@ module TestRunner
     attr_reader :test, :scripts, :config, :opts
 
     def test_script(name)
-      binding.eval(config[:testScripts][name.to_sym][:script]) # rubocop:disable Security/Eval
+      binding.eval(config['testScripts'][name]['script']) # rubocop:disable Security/Eval
     end
 
     def do_run

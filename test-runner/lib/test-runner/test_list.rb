@@ -45,27 +45,27 @@ module TestRunner
     end
 
     def parse_many(json)
-      JSON.parse(json, symbolize_names: true).map do |name, opts|
+      JSON.parse(json).map do |name, opts|
         create_test(name, opts)
       end
     end
 
     def parse_one(path, json)
-      create_test(path, JSON.parse(json, symbolize_names: true))
+      create_test(path, JSON.parse(json))
     end
 
     def create_test(path, data)
       Test.new(
-        path: path.to_s,
-        type: data[:type],
-        template: data[:template],
-        args: data[:args],
-        name: data[:name],
-        description: data[:description],
-        expect_failure: data[:expectFailure],
-        tags: data[:tags],
-        labels: data[:labels].transform_keys(&:to_s),
-        test_scripts: data[:testScripts]
+        path: path,
+        type: data['type'],
+        template: data['template'],
+        args: data['args'],
+        name: data['name'],
+        description: data['description'],
+        expect_failure: data['expectFailure'],
+        tags: data['tags'],
+        labels: data['labels'],
+        test_scripts: data['testScripts']
       )
     end
   end

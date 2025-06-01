@@ -37,7 +37,7 @@ module TestRunner
       Process.wait(pid)
       raise 'nix-build failed' if $?.exitstatus != 0
 
-      @config = JSON.parse(File.read(config_path), symbolize_names: true)
+      @config = JSON.parse(File.read(config_path))
     end
 
     def [](key)

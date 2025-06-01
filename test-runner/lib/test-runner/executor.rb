@@ -200,7 +200,7 @@ module TestRunner
       w.close
 
       script_results = JSON.parse(r.readline).map do |name, status|
-        TestScriptResult.new(test.test_scripts[name.to_sym], status['success'], status['elapsed_time'])
+        TestScriptResult.new(test.test_scripts[name], status['success'], status['elapsed_time'])
       end
 
       Process.wait(pid)

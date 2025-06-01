@@ -14,9 +14,9 @@ module OsVm
       attr_reader :sockets
 
       def initialize(cfg)
-        @cores = cfg.fetch(:cores)
-        @threads = cfg.fetch(:threads)
-        @sockets = cfg.fetch(:sockets)
+        @cores = cfg.fetch('cores')
+        @threads = cfg.fetch('threads')
+        @sockets = cfg.fetch('sockets')
       end
     end
 
@@ -34,22 +34,22 @@ module OsVm
       attr_reader :create
 
       def initialize(cfg)
-        @device = cfg.fetch(:device)
-        @type = cfg.fetch(:type)
+        @device = cfg.fetch('device')
+        @type = cfg.fetch('type')
 
         unless %w[file blockdev].include?(@type)
           raise ArgumentError, "unsupported disk type #{@type.inspect}"
         end
 
-        @size = cfg.fetch(:size)
-        @create = cfg.fetch(:create, true)
+        @size = cfg.fetch('size')
+        @create = cfg.fetch('create', true)
       end
     end
 
     class Network
       # @return [Network]
       def self.from_config(cfg)
-        mode = cfg.fetch(:mode)
+        mode = cfg.fetch('mode')
         klass =
           case mode
           when 'user'
@@ -67,8 +67,8 @@ module OsVm
       attr_reader :mode
 
       def initialize(cfg)
-        @mode = cfg.fetch(:mode)
-        @opts = cfg.fetch(:opts, {})
+        @mode = cfg.fetch('mode')
+        @opts = cfg.fetch('opts', {})
       end
 
       def qemu_options
@@ -78,8 +78,8 @@ module OsVm
 
     class UserNetwork < Network
       def qemu_options
-        net_opts = "net=#{@opts.fetch(:network)},host=#{@opts.fetch(:host)},dns=#{@opts.fetch(:dns)}"
-        net_opts << ",hostfwd=#{@opts[:hostForward]}" if @opts[:hostForward]
+        net_opts = "net=#{@opts.fetch('network')},host=#{@opts.fetch('host')},dns=#{@opts.fetch('dns')}"
+        net_opts << ",hostfwd=#{@opts['hostForward']}" if @opts['hostForward']
 
         [
           '-device', 'virtio-net,netdev=net0',
@@ -97,8 +97,8 @@ module OsVm
 
       def initialize(cfg)
         super
-        @link = @opts.fetch(:link)
-        @mac = @opts[:mac] || gen_mac_address
+        @link = @opts.fetch('link')
+        @mac = @opts['mac'] || gen_mac_address
       end
 
       def qemu_options
@@ -119,7 +119,7 @@ module OsVm
     # @param path [String]
     # @return [MachineConfig]
     def self.load_file(path)
-      cfg = JSON.parse(File.read(path), symbolize_names: true)
+      cfg = JSON.parse(File.read(path))
       new(cfg)
     end
 
@@ -167,25 +167,25 @@ module OsVm
 
     # @param cfg [Hash]
     def initialize(cfg)
-      @qemu = cfg.fetch(:qemu)
-      @extra_qemu_options = cfg.fetch(:extraQemuOptions, [])
-      @virtiofsd = cfg.fetch(:virtiofsd)
-      @squashfs = cfg.fetch(:squashfs)
-      @kernel = cfg.fetch(:kernel)
-      @initrd = cfg.fetch(:initrd)
-      @kernel_params = cfg.fetch(:kernelParams)
-      @toplevel = cfg.fetch(:toplevel)
-      @disks = cfg.fetch(:disks).map { |disk_cfg| Disk.new(disk_cfg) }
-      @memory = cfg.fetch(:memory)
-      @cpus = cfg.fetch(:cpus)
-      @cpu = Cpu.new(cfg.fetch(:cpu))
-      @shared_filesystems = cfg.fetch(:sharedFileSystems, {})
-      @network = Network.from_config(cfg.fetch(:network, {
-        mode: 'user',
-        opts: {
-          network: '10.0.2.0/24',
-          host: '10.0.2.2',
-          dns: '10.0.2.3'
+      @qemu = cfg.fetch('qemu')
+      @extra_qemu_options = cfg.fetch('extraQemuOptions', [])
+      @virtiofsd = cfg.fetch('virtiofsd')
+      @squashfs = cfg.fetch('squashfs')
+      @kernel = cfg.fetch('kernel')
+      @initrd = cfg.fetch('initrd')
+      @kernel_params = cfg.fetch('kernelParams')
+      @toplevel = cfg.fetch('toplevel')
+      @disks = cfg.fetch('disks').map { |disk_cfg| Disk.new(disk_cfg) }
+      @memory = cfg.fetch('memory')
+      @cpus = cfg.fetch('cpus')
+      @cpu = Cpu.new(cfg.fetch('cpu'))
+      @shared_filesystems = cfg.fetch('sharedFileSystems', {})
+      @network = Network.from_config(cfg.fetch('network', {
+        'mode' => 'user',
+        'opts' => {
+          'network' => '10.0.2.0/24',
+          'host' => '10.0.2.2',
+          'dns' => '10.0.2.3'
         }
       }))
     end

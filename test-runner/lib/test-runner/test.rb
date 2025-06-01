@@ -46,10 +46,10 @@ module TestRunner
           ts_name,
           TestScript.new(
             self,
-            ts_name.to_s,
-            expect_failure: ts_opts[:expectFailure],
-            tags: ts_opts.fetch(:tags, []),
-            labels: ts_opts.fetch(:labels, {})
+            ts_name,
+            expect_failure: ts_opts['expectFailure'],
+            tags: ts_opts.fetch('tags', []),
+            labels: ts_opts.fetch('labels', {})
           )
         ]
       end
