@@ -9,6 +9,10 @@ module OsVm
     # @return [String]
     attr_reader :name
 
+    # Kernel parameters passed to {#start}
+    # @return [Array<String>]
+    attr_reader :start_kernel_params
+
     # @param name [String]
     # @param config [MachineConfig]
     # @param tmpdir [String]
@@ -24,6 +28,7 @@ module OsVm
       @default_timeout = default_timeout
       @hash_base = hash_base
       @interactive_console = interactive_console
+      @start_kernel_params = []
       @running = false
       @shell_up = false
       @shared_dir = SharedDir.new(self)
@@ -77,6 +82,8 @@ module OsVm
           err: w
         }
       end
+
+      @start_kernel_params = kernel_params
 
       @qemu_pid = Process.spawn(
         *qemu_command(kernel_params:),
