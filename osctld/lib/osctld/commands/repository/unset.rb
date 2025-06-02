@@ -15,7 +15,7 @@ module OsCtld
 
         opts.each do |k, v|
           case k
-          when :attrs
+          when :prune_enabled, :attrs
             changes[k] = v
           end
         end

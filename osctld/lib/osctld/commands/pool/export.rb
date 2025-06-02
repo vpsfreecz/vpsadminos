@@ -95,7 +95,8 @@ module OsCtld
 
             check_abort!(pool)
 
-            if obj.is_a?(User)
+            case obj
+            when User
               obj.exclusively { UserControl::Supervisor.stop_server(obj) }
 
               if opts[:unregister_users] && opts[:stop_containers] && !Daemon.get.shutdown?
@@ -111,10 +112,13 @@ module OsCtld
                 syscmd("rm -rf \"#{obj.userdir}\"")
               end
 
-            elsif obj.is_a?(Container)
+            when Container
               obj.unregister
               Monitor::Master.demonitor(obj) unless Daemon.get.shutdown?
               Console.remove(obj)
+
+            when Repository
+              obj.stop
             end
 
             klass.remove(obj)

@@ -2046,6 +2046,15 @@ module OsCtl::Cli
         r.desc 'Add a new repository'
         r.arg_name '<repository> <url>'
         r.command :add do |c|
+          c.desc 'Enable periodic prune'
+          c.switch 'prune-enable', default_value: true
+
+          c.desc 'Pruning interval in seconds'
+          c.flag 'prune-interval', type: Integer, arg_name: 'n'
+
+          c.desc 'Prune only images older than n days'
+          c.flag 'prune-older-than-days', type: Integer, arg_name: 'n'
+
           c.action(&Command.run(Repository, :add))
         end
 
@@ -2075,11 +2084,29 @@ module OsCtl::Cli
             c.action(&Command.run(Repository, :set_url))
           end
 
+          set.desc 'Enable and configure periodic prune'
+          set.arg_name '<repository>'
+          set.command :prune do |c|
+            c.desc 'Pruning interval in seconds'
+            c.flag :interval, type: Integer, arg_name: 'n'
+
+            c.desc 'Prune only images older than n days'
+            c.flag 'older-than-days', type: Integer, arg_name: 'n'
+
+            c.action(&Command.run(Repository, :set_prune))
+          end
+
           set_attr(set, Repository, 'repository')
         end
 
         r.desc 'Clear configuration options'
         r.command :unset do |unset|
+          unset.desc 'Disable prune'
+          unset.arg_name '<repository>'
+          unset.command :prune do |c|
+            c.action(&Command.run(Repository, :unset_prune))
+          end
+
           unset_attr(unset, Repository, 'repository')
         end
 

@@ -2848,9 +2848,18 @@ The following shortcuts are supported:
     `-o`, `--output` *parameters*
       Select parameters to output.
 
-`repository add` *repository* *url*
+`repository add` [*options*] *repository* *url*
   Add *repository* with *url* to the default or the selected pool. The pool can
   be selected using global option `--pool`.
+
+    `--[no-]prune-enable`
+      Enable periodic pruning of locally cached images. Enabled by default.
+
+    `--prune-interval` *seconds*
+      How often is periodic prune run. Defaults to 24 hours.
+
+    `--prune-older-than-days` *n*
+      Delete only images older than *n* or more days. Defaults to `90`.
 
 `repository del` *repository*
   Remove *repository* from the default or the selected pool.
@@ -2865,6 +2874,18 @@ The following shortcuts are supported:
 
 `repository set url` *repository* *url*
   Change URL of *repository* to *url*.
+
+`repository set prune` [`--interval` | `--older-than-days`] *repository*
+  Enable and configure periodic pruning of locally cached images.
+
+    `--interval` *seconds*
+      How often is periodic prune run.
+
+    `--older-than-days` *n*
+      Delete only images older than *n* or more days.
+
+`repository unset prune` *repository*.
+  Disable periodic pruning of locally cached images.
 
 `repository set attr` *repository* *vendor*:*key* *value*
   Set custom user attribute *vendor*:*key* for *repository*. Configured

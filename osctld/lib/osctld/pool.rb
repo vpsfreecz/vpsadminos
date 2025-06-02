@@ -717,6 +717,7 @@ module OsCtld
         next unless repo
 
         DB::Repositories.add(repo)
+        repo.start
       end
     end
 

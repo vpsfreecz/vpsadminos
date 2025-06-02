@@ -15,7 +15,7 @@ module OsCtld
 
         opts.each do |k, v|
           case k
-          when :url, :attrs
+          when :url, :prune_enabled, :prune_interval, :prune_older_than_days, :attrs
             changes[k] = v
           end
         end

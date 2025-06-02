@@ -214,6 +214,7 @@ module OsCtld
       FileUtils.rm_f(SOCKET)
       UserControl.stop
       SendReceive.stop
+      DB::Repositories.each(&:stop)
       DB::Pools.get.each(&:stop)
       CpuScheduler.shutdown
       ThreadReaper.stop

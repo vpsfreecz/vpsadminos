@@ -5,7 +5,7 @@ module OsCtl::Cli
     include Assets
     include Attributes
 
-    FIELDS = %i[pool name url enabled].freeze
+    FIELDS = %i[pool name url enabled prune_enabled prune_interval prune_older_than_days].freeze
     IMAGE_FIELDS = %i[vendor variant arch distribution version tags cached].freeze
     IMAGE_FILTERS = %i[vendor variant arch distribution version tag cached].freeze
 
@@ -57,7 +57,18 @@ module OsCtl::Cli
 
     def add
       require_args!('name', 'url')
-      osctld_fmt(:repo_add, cmd_opts: { pool: gopts[:pool], name: args[0], url: args[1] })
+
+      cmd_opts = {
+        pool: gopts[:pool],
+        name: args[0],
+        url: args[1]
+      }
+
+      cmd_opts[:prune_enabled] = opts['prune-enable'] if opts['prune-enable']
+      cmd_opts[:prune_interval] = opts['prune-interval'] if opts['prune-interval']
+      cmd_opts[:prune_older_than_days] = opts['prune-older-than-days'] if opts['prune-older-than-days']
+
+      osctld_fmt(:repo_add, cmd_opts:)
     end
 
     def delete
@@ -78,6 +89,26 @@ module OsCtl::Cli
     def set_url
       require_args!('name', 'url')
       osctld_fmt(:repo_set, cmd_opts: { name: args[0], pool: gopts[:pool], url: args[1] })
+    end
+
+    def set_prune
+      require_args!('name')
+
+      cmd_opts = {
+        name: args[0],
+        pool: gopts[:pool],
+        prune_enabled: true
+      }
+
+      cmd_opts[:prune_interval] = opts['interval'] if opts['interval']
+      cmd_opts[:prune_older_than_days] = opts['older-than-days'] if opts['older-than-days']
+
+      osctld_fmt(:repo_set, cmd_opts:)
+    end
+
+    def unset_prune
+      require_args!('name')
+      osctld_fmt(:repo_unset, cmd_opts: { name: args[0], pool: gopts[:pool], prune_enabled: false })
     end
 
     def set_attr

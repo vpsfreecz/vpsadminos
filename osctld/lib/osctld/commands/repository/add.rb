@@ -26,12 +26,16 @@ module OsCtld
         end
 
         repo = Repository.new(pool, opts[:name], load: false)
-        repo.configure(opts[:url])
+        repo.configure(
+          opts[:url],
+          prune_enabled: opts[:prune_enabled]
+        )
 
         Dir.mkdir(repo.cache_path, 0o700)
         File.chown(Repository::UID, 0, repo.cache_path)
 
         DB::Repositories.add(repo)
+        repo.start
         ok
       end
     end
