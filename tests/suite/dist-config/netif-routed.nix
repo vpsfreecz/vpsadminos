@@ -38,7 +38,10 @@ import ../../make-test.nix ({ pkgs, distributions }: {
         )
 
         machine.wait_until_succeeds("ping -c 1 #{ip}")
-        machine.succeeds("osctl ct del -f --prune #{testct}")
+        machine.all_succeed(
+          "osctl ct del -f --prune #{testct}",
+          "osctl repository images prune"
+        )
       '';
     };
   }) distributions);

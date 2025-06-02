@@ -40,7 +40,10 @@ testScripts = builtins.listToAttrs (map ({ distribution, version }: {
           "osctl ct exec #{testct} systemctl status sys-devices-virtual-net-dummy0.device",
           timeout: 60
         )
-        machine.succeeds("osctl ct del -f --prune #{testct}")
+        machine.all_succeed(
+          "osctl ct del -f --prune #{testct}",
+          "osctl repository images prune"
+        )
       '';
     };
   }) distributions);

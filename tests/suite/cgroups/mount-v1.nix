@@ -75,7 +75,10 @@ import ../../make-test.nix ({ pkgs, distributions }: {
           fail "unified cgroup not mounted"
         end
 
-        machine.succeeds("osctl ct del -f --prune #{testct}")
+        machine.all_succeed(
+          "osctl ct del -f --prune #{testct}",
+          "osctl repository images prune"
+        )
       '';
     };
   }) distributions);

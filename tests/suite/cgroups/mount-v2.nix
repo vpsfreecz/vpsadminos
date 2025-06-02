@@ -71,7 +71,10 @@ import ../../make-test.nix ({ pkgs, distributions }: {
           machine.fails("osctl ct exec #{testct} ls /sys/fs/cgroup/#{v}")
         end
 
-        machine.succeeds("osctl ct del -f --prune #{testct}")
+        machine.all_succeed(
+          "osctl ct del -f --prune #{testct}",
+          "osctl repository images prune"
+        )
       '';
     };
   }) distributions);

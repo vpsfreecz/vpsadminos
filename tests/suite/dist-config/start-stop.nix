@@ -34,7 +34,10 @@ import ../../make-test.nix ({ pkgs, distributions }: {
         sleep(15)
 
         machine.succeeds("osctl ct stop --dont-kill #{testct}")
-        machine.succeeds("osctl ct del -f --prune #{testct}")
+        machine.all_succeed(
+          "osctl ct del -f --prune #{testct}",
+          "osctl repository images prune"
+        )
       '';
     };
   }) distributions);

@@ -56,7 +56,10 @@ in {
 
         machine.push_file("${runScript}", "/tmp/test-script.sh")
         machine.succeeds("osctl ct runscript -r #{testct} /tmp/test-script.sh")
-        machine.succeeds("osctl ct del -f --prune #{testct}")
+        machine.all_succeed(
+          "osctl ct del -f --prune #{testct}",
+          "osctl repository images prune"
+        )
       '';
     };
   }) distributions);
