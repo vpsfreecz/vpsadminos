@@ -2130,6 +2130,15 @@ module OsCtl::Cli
 
             c.action(&Command.run(Repository, :image_list))
           end
+
+          t.desc 'Prune locally cached images'
+          t.arg_name '[repository...]'
+          t.command :prune do |c|
+            c.desc 'Prune only older images'
+            c.flag 'older-than-days', type: Integer, arg_name: 'days'
+
+            c.action(&Command.run(Repository, :image_prune))
+          end
         end
       end
 

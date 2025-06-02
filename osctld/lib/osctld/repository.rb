@@ -29,6 +29,10 @@ module OsCtld
       name
     end
 
+    def ident
+      "#{pool.name}:#{name}"
+    end
+
     def configure(url)
       @url = url
       save_config
@@ -104,6 +108,11 @@ module OsCtld
       end
 
       save_config
+    end
+
+    # @return [Array(Boolean, Array<String>)] status and a list of deleted image files, if any
+    def prune_images(older_than_days: nil)
+      OsCtlRepo.new(self).prune_images(older_than_days:)
     end
 
     def images

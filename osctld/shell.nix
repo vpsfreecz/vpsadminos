@@ -6,6 +6,7 @@ let
   path = with pkgs; [
     apparmor-parser
     coreutils
+    findutils
     iproute2
     getent
     glibc.bin

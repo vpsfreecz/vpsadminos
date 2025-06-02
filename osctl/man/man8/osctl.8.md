@@ -2920,6 +2920,12 @@ The following shortcuts are supported:
     `--uncached`
       Show only locally uncached images.
 
+`repository images prune` [*options*] [*repository...*]
+  Prune locally cached images from all or selected repositories.
+
+    `--older-than-days` *n*
+      Prune only images that were cached *n* or more days ago.
+
 `cpu-scheduler status`
   Show status of the CPU scheduler.
 

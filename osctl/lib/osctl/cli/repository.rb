@@ -150,5 +150,16 @@ module OsCtl::Cli
 
       osctld_fmt(:repo_image_list, cmd_opts:, fmt_opts:)
     end
+
+    def image_prune
+      osctld_fmt(
+        :repo_image_prune,
+        cmd_opts: {
+          pool: gopts[:pool],
+          repositories: args,
+          older_than_days: opts['older-than-days']
+        }
+      )
+    end
   end
 end

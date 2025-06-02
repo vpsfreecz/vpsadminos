@@ -1,10 +1,14 @@
 require 'etc'
 require 'json'
+require 'libosctl'
 require 'osctl/repo/locator'
 require 'osctl/repo/constants'
 
 module OsCtld
   class OsCtlRepo
+    include OsCtl::Lib::Utils::Log
+
+    # @return [Repository]
     attr_reader :repo
 
     # @param repo [Repository]
@@ -31,6 +35,34 @@ module OsCtld
       else
         raise "osctl-repo remote ls failed with exit status #{exit_status}"
       end
+    end
+
+    # @return [Array(Boolean, Array<String>)] status and a list of deleted image files, if any
+    def prune_images(older_than_days: nil)
+      cmd = [
+        'find',
+        repo.cache_path,
+        '-name',
+        '*.tar'
+      ]
+      cmd << '-mtime' << "+#{older_than_days}" if older_than_days
+      cmd << '-print'
+      cmd << '-delete'
+
+      exit_status, output = exec_as_repo_user(*cmd)
+
+      if exit_status != 0
+        log(:warn, "Command #{cmd.join(' ').inspect} exited with status #{exit_status}")
+        return [false, []]
+      end
+
+      files = output.strip.split
+
+      files.each do |file|
+        log(:info, "Pruned image file #{file}")
+      end
+
+      [true, files]
     end
 
     # @param tpl [Hash]
@@ -69,10 +101,15 @@ module OsCtld
       end
     end
 
+    def log_type
+      "repository #{repo.ident}"
+    end
+
     protected
 
+    # Run command as an unprivileged user that has access to the repository data
     # @return [Array<Integer, String>] exit status and data
-    def osctl_repo(*args)
+    def exec_as_repo_user(*args)
       r, w = IO.pipe
 
       pid = Process.fork do
@@ -98,5 +135,7 @@ module OsCtld
       Process.wait(pid)
       [$?.exitstatus, data]
     end
+
+    alias osctl_repo exec_as_repo_user
   end
 end
