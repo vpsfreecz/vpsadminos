@@ -10,6 +10,7 @@ module OsCtld
     include Lockable
     include Manipulable
     include Assets::Definition
+    include OsCtl::Lib::Utils::File
 
     attr_reader :pool, :name, :start_id, :block_size, :block_count, :attrs
 
@@ -205,7 +206,7 @@ module OsCtld
     end
 
     def save_config
-      File.open(config_path, 'w', 0o400) do |f|
+      regenerate_file(config_path, 0o400) do |f|
         f.write(OsCtl::Lib::ConfigFile.dump_yaml({
           'start_id' => start_id,
           'block_size' => block_size,

@@ -10,6 +10,7 @@ module OsCtld
     include Assets::Definition
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
+    include OsCtl::Lib::Utils::File
     include Utils::SwitchUser
 
     MAP_MODES = %w[native zfs].freeze
@@ -807,7 +808,7 @@ module OsCtld
     def save_config
       data = dump_config
 
-      File.open(config_path, 'w', 0o400) do |f|
+      regenerate_file(config_path, 0o400) do |f|
         f.write(OsCtl::Lib::ConfigFile.dump_yaml(data))
       end
 

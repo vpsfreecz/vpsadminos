@@ -10,6 +10,7 @@ module OsCtld
     include Manipulable
     include Assets::Definition
     include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::File
 
     USER = 'repository'.freeze
     UID = Etc.getpwnam(USER).uid
@@ -213,7 +214,7 @@ module OsCtld
     end
 
     def save_config
-      File.open(config_path, 'w', 0o400) do |f|
+      regenerate_file(config_path, 0o400) do |f|
         f.write(OsCtl::Lib::ConfigFile.dump_yaml({
           'url' => url,
           'enabled' => enabled?,

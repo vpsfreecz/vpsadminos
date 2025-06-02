@@ -10,6 +10,7 @@ module OsCtld
     include Manipulable
     include Assets::Definition
     include OsCtl::Lib::Utils::Log
+    include OsCtl::Lib::Utils::File
 
     attr_inclusive_reader :pool, :name, :ugid, :uid_map, :gid_map, :standalone, :attrs
     attr_exclusive_writer :registered
@@ -199,7 +200,7 @@ module OsCtld
     end
 
     def save_config
-      File.open(config_path, 'w', 0o400) do |f|
+      regenerate_file(config_path, 0o400) do |f|
         f.write(OsCtl::Lib::ConfigFile.dump_yaml(dump))
       end
 

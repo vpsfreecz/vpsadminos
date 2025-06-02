@@ -8,6 +8,7 @@ module OsCtld
     include Lockable
     include Manipulable
     include Assets::Definition
+    include OsCtl::Lib::Utils::File
 
     attr_reader :pool, :name, :cgparams, :devices, :attrs
 
@@ -346,7 +347,7 @@ module OsCtld
 
       cfg['path'] = path if root?
 
-      File.open(config_path, 'w', 0o400) do |f|
+      regenerate_file(config_path, 0o400) do |f|
         f.write(OsCtl::Lib::ConfigFile.dump_yaml(cfg))
       end
 
