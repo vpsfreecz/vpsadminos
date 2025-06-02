@@ -4,10 +4,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.org"];
-      sha256 = "01qml0yilb9basf7is2614skjp8384h2pycfx86cr8023arfj98g";
+      sha256 = "0yx9yn47a8lkfcjmigk79fykxvr80r4m1i35q82sxzynpbm7lcr7";
       type = "gem";
     };
-    version = "0.2.0";
+    version = "0.3.0";
   };
   bindata = {
     groups = ["default"];
@@ -86,10 +86,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1adhh3zka6ghwxj00cr0i7bczaxa4layij9xg84qhq9xakvywkaj";
+      sha256 = "1sn7nmwwca7f9cb25l94fljfm5rickcx7r5kvl58kfyjgg0311r6";
       type = "gem";
     };
-    version = "25.05.0.build20250526141418";
+    version = "25.05.0.build20250602201001";
   };
   logger = {
     groups = ["default"];
@@ -117,10 +117,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0qsk4sak6qy6m2lzxl7m216152jh8fwrq8nd2r6hrxxwbcnmgzsg";
+      sha256 = "0crfi4nhycnn5hc3l7sw797mzddn93055qn848dhjfx3kga2sq2p";
       type = "gem";
     };
-    version = "25.05.0.build20250526141418";
+    version = "25.05.0.build20250602201001";
   };
   osctld = {
     dependencies = ["base64" "bindata" "concurrent-ruby" "fiddle" "ipaddress" "json" "libosctl" "netlinkrb" "osctl-repo" "osup" "require_all" "ruby-lxc"];
@@ -128,10 +128,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "16k1j070m6vaqpvn10qfq7j37db3dgavjy5hjps9wr9b02vg8dpd";
+      sha256 = "1y26v3ga26251sjia55jlv3dyckphnxl1va6kq7sqgdaxh6n6bad";
       type = "gem";
     };
-    version = "25.05.0.build20250526141418";
+    version = "25.05.0.build20250602201001";
   };
   ostruct = {
     groups = ["default"];
@@ -149,10 +149,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0pjxp7kdzikvff2ng1crh98ydwiqd2z54ss6d79pmz612vw0xksh";
+      sha256 = "03vcs2330s39gsc3sx3ff573j5jb3q3wmpwm4hikfvd2868knhzi";
       type = "gem";
     };
-    version = "25.05.0.build20250526141418";
+    version = "25.05.0.build20250602201001";
   };
   rainbow = {
     groups = ["default"];
