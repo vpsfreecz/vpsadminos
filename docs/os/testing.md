@@ -14,7 +14,7 @@ one or more virtual machines to run on and a Ruby script that is run from
 the host system and which can interact with the virtual machines.
 
 ```nix
-import ../make-test.nix (pkgs: {
+import ../make-test.nix ({ pkgs }: {
   name = "my-test";
 
   description = ''
@@ -35,7 +35,7 @@ tests. If only one machine is needed, it is simply called `machine` and declared
 as such. More machines can be defined as:
 
 ```nix
-import ../make-test.nix (pkgs: {
+import ../make-test.nix ({ pkgs }: {
   name = "my-test";
 
   description = ''
@@ -57,7 +57,7 @@ import ../make-test.nix (pkgs: {
 Disks can be added as:
 
 ```nix
-import ../make-test.nix (pkgs: {
+import ../make-test.nix ({ pkgs }: {
   name = "my-test";
 
   description = ''
@@ -129,7 +129,7 @@ in error exit status. If a test succeeds and we expected it to fail, it is
 considered as an error.
 
 ```nix
-import ../make-test.nix (pkgs: {
+import ../make-test.nix ({ pkgs }: {
   name = "my-failed-test";
 
   description = ''
