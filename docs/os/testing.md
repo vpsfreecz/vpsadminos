@@ -147,6 +147,95 @@ import ../make-test.nix ({ pkgs }: {
 })
 ```
 
+## Multiple test scripts
+Each test can contain multiple test scripts. Test scripts are a part of
+test name and be run selectively.
+
+```nix
+import ../make-test.nix ({ pkgs }: {
+  name = "my-test";
+
+  description = ''
+    It's a great test indeed
+  '';
+
+  expectFailure = true;
+
+  machine = import ../machines/empty.nix pkgs;
+
+  testScripts = {
+    script1 = {
+      # Each script be expected to fail
+      # expectFailure = false;
+
+      # The test itself
+      script = ''
+        machine.start
+        machine.succeeds("uptime")
+      '';
+    };
+
+    script2 = {
+      script = ''
+        machine.succeeds("ps aux")
+      '';
+    };
+  };
+})
+```
+
+`./test-runner.sh ls 'my-test#*'` would show these tests as:
+
+```
+my-test#script1
+my-test#script2
+```
+
+Script name is separated from test name by a hash (`#`). Test scripts of
+one test are run in the same environment one after the other -- they share
+the same virtual machines, etc. Execution order is not guaranteed.
+
+## Test templates
+Templates can be used to create multiple instances of a test. The difference between
+templates and multiple test scripts is that tests created by templates are isolated,
+have their own virtual machines and can run in parallel.
+
+```nix
+import ../make-template.nix ({ distribution, version }: rec {
+  instance = "${distribution}-${version}";
+
+  test = { pkgs }: {
+    name = "my-template@${instance}";
+
+    description = ''
+      Test something on ${distribution}-${version}
+    '';
+
+    machine = import ../machines/tank.nix pkgs;
+
+    testScript = ''
+      machine.wait_for_osctl_pool("tank")
+      machine.wait_until_online
+      machine.succeeds("osctl ct new --distribution ${distribution} --version ${version} testct")
+    '';
+  };
+})
+```
+
+Within `all-tests.nix`, the template would be listed as:
+
+```nix
+{ template = "my-template"; instances = distributions.all; }
+```
+
+`./test-runner.sh ls 'my-template@*'` would show these tests as:
+
+```
+my-template@debian-stable
+my-template@ubuntu-24.04
+...
+```
+
 ## Temporary config changes
 It is possible to change all test machine configurations by creating
 `os/configs/tests.nix` file, e.g. to change a kernel version used in tests:
