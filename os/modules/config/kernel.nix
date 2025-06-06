@@ -5,7 +5,7 @@ let
   zfsBuiltin = config.boot.zfsBuiltin;
   kernelForBuiltinsConfig = config.boot.kernelForBuiltinsConfig;
 
-  availableKernels = import ../../packages/linux/availableKernels.nix { inherit config pkgs lib; };
+  kernelPackages = import ../../packages/linux/packages.nix { inherit config pkgs lib; };
 
   # we also need to override zfs/spl via linuxPackagesFor
     myLinuxPackages = (pkgs.linuxPackagesFor origKernel).extend (
@@ -15,8 +15,8 @@ let
           then (super.callPackage ../../packages/zfs {
               configFile = "kernel";
               kernel = origKernel;
-              rev = availableKernels.kernels.${config.boot.kernelVersion}.zfs.rev;
-              sha256 = availableKernels.kernels.${config.boot.kernelVersion}.zfs.sha256;
+              rev = kernelPackages.kernels.${config.boot.kernelVersion}.zfs.rev;
+              sha256 = kernelPackages.kernels.${config.boot.kernelVersion}.zfs.sha256;
             }).zfsStable { enableDebug = config.system.vpsadminos.zfsDebug; }
           else (super.stdenv.mkDerivation {
               name = "zfs";
@@ -67,31 +67,31 @@ in {
 
     boot.kernelVersion = mkOption {
       type = types.str;
-      default = availableKernels.defaultVersion;
-      description = "Linux kernel version from availableKernels.nix to use";
+      default = kernelPackages.defaultVersion;
+      description = "Linux kernel version from available-kernels.nix to use";
     };
 
     boot.kernelPackage = mkOption {
       type = types.package;
       description = "vpsAdminOS Linux kernel package";
       default = if zfsBuiltin
-                then (availableKernels.genKernelPackageWithZfsBuiltin {
+                then (kernelPackages.genKernelPackageWithZfsBuiltin {
                   kernelVersion = config.boot.kernelVersion;
                   zfsBuiltinPkg = config.boot.zfsBuiltinPkg;
                 })
-                else availableKernels.genKernelPackage config.boot.kernelVersion;
+                else kernelPackages.genKernelPackage config.boot.kernelVersion;
     };
 
     boot.zfsUserPackage = mkOption {
       type = types.package;
       description = "ZFS userland package";
-      default = availableKernels.genZfsUserPackage config.boot.kernelVersion;
+      default = kernelPackages.genZfsUserPackage config.boot.kernelVersion;
     };
 
     boot.kernelForBuiltinsConfig = mkOption {
       type = types.package;
       description = "Kernel package for builtins config";
-      default = availableKernels.genKernelPackage config.boot.kernelVersion;
+      default = kernelPackages.genKernelPackage config.boot.kernelVersion;
     };
 
     boot.zfsBuiltin = mkOption {
@@ -103,7 +103,7 @@ in {
     boot.zfsBuiltinPkg = mkOption {
       type = types.package;
       description = "ZFS builtin package";
-      default = availableKernels.genZfsBuiltinPackage kernelForBuiltinsConfig;
+      default = kernelPackages.genZfsBuiltinPackage kernelForBuiltinsConfig;
     };
   };
 
