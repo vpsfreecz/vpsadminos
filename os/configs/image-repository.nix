@@ -15,7 +15,8 @@
 
       alpine = {
         "3.20" = {};
-        "3.21" = { tags = [ "latest" "stable" ]; };
+        "3.21" = {};
+        "3.22" = { tags = [ "latest" "stable" ]; };
       };
 
       arch.rolling = { name = "arch"; tags = [ "latest" "stable" ]; };
