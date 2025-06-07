@@ -30,7 +30,6 @@ jobs:
       - name: Set up Ruby + Bundler cache
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.3'
           bundler-cache: true
 
       - name: Determine changed Ruby files
