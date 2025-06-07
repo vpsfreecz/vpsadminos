@@ -31,6 +31,7 @@ nav:
     - Repositories: 'container-images/repositories.md'
 - vpsAdminOS:
     - Configuration: 'os/configuration.md'
+    - 'Binary cache': 'os/binary-cache.md'
     - Installation: 'os/installation.md'
     - Updates: 'os/updates.md'
     - Deployment: 'os/deployment.md'
