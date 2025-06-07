@@ -27,7 +27,14 @@ module OsCtld
           call_cmd(Commands::Container::Stop, id: ct.id, pool: ct.pool.name)
 
           # Force write-out of dirtied pages
-          ct.unmount(force: true) if Daemon.get.config.writeout_dirtied_pages?
+          if Daemon.get.config.writeout_dirtied_pages?
+            begin
+              ct.unmount(force: true)
+            rescue SystemCommandFailed => e
+              log(:warn, ct, "Unable to unmount dataset for writeback: #{e.message}")
+              ct.mount(force: true)
+            end
+          end
         end
 
         snap = "osctl-send-incr-#{Time.now.to_i}"

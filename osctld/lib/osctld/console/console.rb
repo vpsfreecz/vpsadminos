@@ -110,8 +110,16 @@ module OsCtld
 
       if !ct.ephemeral? && !ctrc.destroy_dataset_on_stop? && Daemon.get.config.writeout_dirtied_pages?
         # Force write-out of dirtied pages
-        ct.unmount(force: true)
-        ct.mount
+        force_mount = false
+
+        begin
+          ct.unmount(force: true)
+        rescue SystemCommandFailed => e
+          log(:warn, ctrc, "Unable to unmount dataset for writeback: #{e.message}")
+          force_mount = true
+        end
+
+        ct.mount(force: force_mount)
       end
 
       if ctrc.destroy_dataset_on_stop?
