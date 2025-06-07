@@ -99,18 +99,6 @@ man osctl
 # https://vpsadminos.org/containers/administration/
 ```
 
-### Nested containers
-vpsAdminOS supports nested containers, e.g. LXC/LXD or Docker.
-
-Nesting LXC/LXD containers can be enabled per container using:
-
-```
-osctl ct set nesting <id>
-```
-
-Docker works out-of-the-box with several
-[known issues](https://vpsadminos.org/services/docker/#known-issues).
-
 ## Docs
 
 * [vpsAdminOS documentation](https://vpsadminos.org)
