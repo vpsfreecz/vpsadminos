@@ -144,6 +144,7 @@ in
           exec ${pkgs.eudev}/bin/udevd
         '';
         runlevels = [ "rescue" "default" ];
+        onChange = "ignore";
       };
 
       runit.services.eudev-trigger = {
@@ -159,6 +160,7 @@ in
         '';
         oneShot = true;
         runlevels = [ "rescue" "default" ];
+        onChange = "ignore";
       };
 
       boot.extraModprobeConfig = "options firmware_class path=${config.hardware.firmware}/lib/firmware";
