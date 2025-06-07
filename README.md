@@ -1,10 +1,10 @@
 # vpsAdminOS
 
 vpsAdminOS is a small OS serving as a host for unprivileged Linux system
-containers. It is based on [not-os](https://github.com/cleverca22/not-os/)
-and [NixOS](https://nixos.org). It is designed to run full distributions inside
-unprivileged containers which look and feel as much as a virtual machine
-as possible.
+containers. It is based on [NixOS](https://nixos.org) and
+[not-os](https://github.com/cleverca22/not-os/). It is designed to run full
+distributions inside unprivileged containers which look and feel as much as
+a virtual machine as possible.
 
 vpsAdminOS is developed and used in production by [vpsFree.cz](https://vpsfree.cz),
 a non-profit organization which provides virtual servers to its members.
