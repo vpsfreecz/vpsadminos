@@ -1,6 +1,6 @@
 # Deployment
 vpsAdminOS is a custom spin of NixOS and as such is not supported by NixOS
-deployment tools such as [NixOps] or [morph], although it is not too hard
+deployment tools like [NixOps] or [morph], although it is not too hard
 to [patch them](#patching).
 
 vpsAdminOS can be built from its repository using `make`, which is calling
