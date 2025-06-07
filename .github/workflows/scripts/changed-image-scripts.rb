@@ -24,9 +24,19 @@ changed_files.each do |v|
 end
 
 # Detect changes in image-scripts/images/
-changed_images = changed_files
-                 .select { |v| File.fnmatch?("#{img_root}/*/*.sh", v) }
-                 .to_set { |v| File.basename(File.dirname(v)) }
+changed_images =
+  changed_files.select do |v|
+    File.fnmatch?("#{img_root}/**", v)
+  end.to_set do |v|
+    # Handle both changes to build scripts and symlinks, e.g.:
+    #   image-scripts/images/debian/build.sh (script file)
+    #   image-scripts/images/alpine-3.22 (symlink to alpine)
+    if v.count('/') >= 3
+      File.basename(File.dirname(v))
+    else
+      File.basename(v)
+    end
+  end
 
 # Expand abstract images
 changed_images.each do |image|
