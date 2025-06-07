@@ -99,11 +99,6 @@ man osctl
 # https://vpsadminos.org/containers/administration/
 ```
 
-### Converting OpenVZ Legacy containers into vpsAdminOS
-[vpsAdminOS Converter](converter) can be used to convert OpenVZ Legacy
-containers containers into vpsAdminOS. See the
-[documentation](https://vpsadminos.org/migration-paths/converter/).
-
 ### Nested containers
 vpsAdminOS supports nested containers, e.g. LXC/LXD or Docker.
 
