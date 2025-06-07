@@ -126,8 +126,8 @@ require_cmd curl
 
 download_index() {
 	mkdir -p "$LOCAL_REPO"
-	curl -L -o "$LOCAL_REPO/FILELIST.txt" $BASEURL/slackware64-$RELVER/FILELIST.TXT
-	curl -L -o "$LOCAL_REPO/CHECKSUMS.md5" $BASEURL/slackware64-$RELVER/CHECKSUMS.md5
+	curl -sSL -o "$LOCAL_REPO/FILELIST.txt" $BASEURL/slackware64-$RELVER/FILELIST.TXT
+	curl -sSL -o "$LOCAL_REPO/CHECKSUMS.md5" $BASEURL/slackware64-$RELVER/CHECKSUMS.md5
 }
 
 download_pkg() {
@@ -154,7 +154,7 @@ download_pkg() {
 	fi
 
 	mkdir -p "$LOCAL_REPO/$(dirname $path)"
-	curl -L -o "$LOCAL_REPO/$path" $BASEURL/slackware64-$RELVER/$path
+	curl -sSL -o "$LOCAL_REPO/$path" $BASEURL/slackware64-$RELVER/$path
 
 	if ! (cd "$LOCAL_REPO" ; grep "$path$" CHECKSUMS.md5 | md5sum -c > /dev/null)
 	then
