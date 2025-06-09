@@ -48,26 +48,30 @@ module OsVm
 
     class Network
       # @return [Network]
-      def self.from_config(cfg)
-        mode = cfg.fetch('mode')
+      def self.from_config(i, cfg)
+        type = cfg.fetch('type')
         klass =
-          case mode
+          case type
           when 'user'
             UserNetwork
           when 'bridge'
             BridgeNetwork
           else
-            raise ArgumentError, "unknown network mode #{mode.inspect}"
+            raise ArgumentError, "unknown network type #{type.inspect}"
           end
 
-        klass.new(cfg)
+        klass.new(i, cfg)
       end
 
-      # @return [String]
-      attr_reader :mode
+      # @return [Integer]
+      attr_reader :index
 
-      def initialize(cfg)
-        @mode = cfg.fetch('mode')
+      # @return [String]
+      attr_reader :type
+
+      def initialize(i, cfg)
+        @index = i
+        @type = cfg.fetch('type')
         @opts = cfg.fetch('opts', {})
       end
 
@@ -82,8 +86,8 @@ module OsVm
         net_opts << ",hostfwd=#{@opts['hostForward']}" if @opts['hostForward']
 
         [
-          '-device', 'virtio-net,netdev=net0',
-          '-netdev', "user,id=net0,#{net_opts}"
+          '-device', "virtio-net,netdev=net#{index}",
+          '-netdev', "user,id=net#{index},#{net_opts}"
         ]
       end
     end
@@ -95,7 +99,7 @@ module OsVm
       # @return [String]
       attr_reader :mac
 
-      def initialize(cfg)
+      def initialize(_i, cfg)
         super
         @link = @opts.fetch('link')
         @mac = @opts['mac'] || gen_mac_address
@@ -103,8 +107,8 @@ module OsVm
 
       def qemu_options
         [
-          '-device', "virtio-net,netdev=net1,mac=#{@mac}",
-          '-netdev', "bridge,id=net1,br=#{link}"
+          '-device', "virtio-net,netdev=net#{index},mac=#{@mac}",
+          '-netdev', "bridge,id=net#{index},br=#{link}"
         ]
       end
 
@@ -162,8 +166,8 @@ module OsVm
     # @return [Hash<String, String>] fs name => host directory
     attr_reader :shared_filesystems
 
-    # @return [Network]
-    attr_reader :network
+    # @return [Array<Network>]
+    attr_reader :networks
 
     # @param cfg [Hash]
     def initialize(cfg)
@@ -180,14 +184,14 @@ module OsVm
       @cpus = cfg.fetch('cpus')
       @cpu = Cpu.new(cfg.fetch('cpu'))
       @shared_filesystems = cfg.fetch('sharedFileSystems', {})
-      @network = Network.from_config(cfg.fetch('network', {
-        'mode' => 'user',
+      @networks = cfg.fetch('networks', [{
+        'type' => 'user',
         'opts' => {
           'network' => '10.0.2.0/24',
           'host' => '10.0.2.2',
           'dns' => '10.0.2.3'
         }
-      }))
+      }]).each_with_index.map { |net_cfg, i| Network.from_config(i, net_cfg) }
     end
   end
 end

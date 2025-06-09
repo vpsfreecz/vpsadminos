@@ -55,6 +55,66 @@ let
       };
     };
 
+  network =
+    { config, ... }:
+    {
+      options = {
+        type = mkOption {
+          type = types.enum [ "user" "bridge" ];
+          description = lib.mdDoc ''
+            Network type
+
+            `user` can create a network even when qemu is run as an unprivileged
+            user and without any additional configuration. However, there are
+            several limitations, see
+
+              https://wiki.qemu.org/Documentation/Networking#User_Networking_(SLIRP)
+
+            `bridge` can add the guest into an existing bridge interface,
+            making it a part of your network, etc. It requires the bridge to be
+            configured and the guest must be run as root.
+          '';
+        };
+
+        user = {
+          network = mkOption {
+            type = types.str;
+            default = "10.0.2.0/24";
+          };
+
+          host = mkOption {
+            type = types.str;
+            default = "10.0.2.2";
+          };
+
+          dns = mkOption {
+            type = types.str;
+            default = "10.0.2.3";
+          };
+
+          hostForward = mkOption {
+            type = types.nullOr types.str;
+            default = "tcp::2222-:22";
+          };
+        };
+
+        bridge = {
+          link = mkOption {
+            type = types.str;
+            description = ''
+              Name of the bridge interface on the host to use
+            '';
+          };
+
+          mac = mkOption {
+            type = types.nullOr types.str;
+            default = null;
+            description = "MAC address, generated randomly by default";
+          };
+        };
+      };
+    };
+
   mkSharedFileSystems = listToAttrs (map (fs: nameValuePair fs.guestPath {
     device = fs.handle;
     fsType = "virtiofs";
@@ -77,13 +137,13 @@ let
     initrd = "${config.system.build.initialRamdisk}/initrd";
     toplevel = config.system.build.toplevel;
     kernelParams = config.boot.kernelParams ++ [ "quiet" "panic=-1" ];
-    network = {
-      mode = cfg.network.mode;
+    networks = map (net: {
+      type = net.type;
       opts = {
-        user = { inherit (cfg.network.user) network host dns hostForward; };
-        bridge = { inherit (cfg.network.bridge) link mac; };
-      }.${cfg.network.mode} or {};
-    };
+        user = { inherit (net.user) network host dns hostForward; };
+        bridge = { inherit (net.bridge) link mac; };
+      }.${net.type} or {};
+    }) cfg.networks;
   };
 
   machineConfigFile = pkgs.writeText "machine-config.json" (builtins.toJSON machineConfig);
@@ -163,61 +223,14 @@ in {
         description = "Filesystems shared between the host and the VM (the guest)";
       };
 
-      network = {
-        mode = mkOption {
-          type = types.enum [ "user" "bridge" ];
-          default = "user";
-          description = lib.mdDoc ''
-            Network mode
-
-            Mode `user` can create a network even when qemu is run as an unprivileged
-            user and without any additional configuration. However, there are
-            several limitations, see
-
-              https://wiki.qemu.org/Documentation/Networking#User_Networking_(SLIRP)
-
-            Mode `bridge` can add the guest into an existing bridge interface,
-            making it a part of your network, etc. It requires the bridge to be
-            configured and the guest must be run as root.
-          '';
-        };
-
-        user = {
-          network = mkOption {
-            type = types.str;
-            default = "10.0.2.0/24";
-          };
-
-          host = mkOption {
-            type = types.str;
-            default = "10.0.2.2";
-          };
-
-          dns = mkOption {
-            type = types.str;
-            default = "10.0.2.3";
-          };
-
-          hostForward = mkOption {
-            type = types.nullOr types.str;
-            default = "tcp::2222-:22";
-          };
-        };
-
-        bridge = {
-          link = mkOption {
-            type = types.str;
-            description = ''
-              Name of the bridge interface on the host to use
-            '';
-          };
-
-          mac = mkOption {
-            type = types.nullOr types.str;
-            default = null;
-            description = "MAC address, generated randomly by default";
-          };
-        };
+      networks = mkOption {
+        type = types.listOf (types.submodule network);
+        default = [
+          { type = "user"; }
+        ];
+        description = ''
+          Network devices
+        '';
       };
 
       extraQemuOptions = mkOption {

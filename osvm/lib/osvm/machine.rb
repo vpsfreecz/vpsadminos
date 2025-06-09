@@ -455,7 +455,7 @@ module OsVm
         '-smp', "cpus=#{config.cpus},cores=#{config.cpu.cores},threads=#{config.cpu.threads},sockets=#{config.cpu.sockets}",
         '--no-reboot',
         '-device', 'ahci,id=ahci'
-      ] + config.network.qemu_options + [
+      ] + config.networks.map(&:qemu_options).flatten + [
         '-drive', "index=0,id=drive1,file=#{config.squashfs},readonly=on,media=cdrom,format=raw,if=virtio",
         '-chardev', "socket,id=shell,path=#{shell_socket_path}",
         '-device', 'virtio-serial',
