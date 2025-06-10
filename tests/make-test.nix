@@ -50,6 +50,7 @@ let
       cpus = qemuCfg.cpus;
       cpu = qemuCfg.cpu;
       disks = machineAttrs.disks or [];
+      networks = machineAttrs.networks or [ { type = "user"; } ];
       squashfs = os.config.system.build.squashfs;
       kernel = "${os.config.system.build.kernel}/bzImage";
       initrd = "${os.config.system.build.initialRamdisk}/initrd";

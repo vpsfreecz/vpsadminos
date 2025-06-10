@@ -176,6 +176,9 @@ module TestRunner
       dir = test_state_dir(test)
       r, w = IO.pipe
 
+      # 4 ports for use with boot.qemu.networks.[i].socket.mcast.port
+      mcast_ports = OsVm::PortReservation.get_ports(key: test.name, size: 4)
+
       pid = Process.fork do
         r.close
         FileUtils.mkdir_p(dir)
@@ -184,6 +187,8 @@ module TestRunner
         $stdout.reopen(out)
         $stderr.reopen(out)
         $stdin.close
+
+        OsVm::PortReservation.reset_to_ports(mcast_ports)
 
         ev = TestRunner::TestEvaluator.new(
           test,
@@ -247,6 +252,8 @@ module TestRunner
       end
 
       Process.wait(pid)
+
+      OsVm::PortReservation.release_ports(key: test.name)
 
       # Complement script results if some are missing
       scripts.each do |script|
