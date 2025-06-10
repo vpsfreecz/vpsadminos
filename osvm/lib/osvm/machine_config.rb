@@ -54,6 +54,8 @@ module OsVm
           case type
           when 'user'
             UserNetwork
+          when 'socket'
+            SocketNetwork
           when 'bridge'
             BridgeNetwork
           else
@@ -88,6 +90,41 @@ module OsVm
         [
           '-device', "virtio-net,netdev=net#{index}",
           '-netdev', "user,id=net#{index},#{net_opts}"
+        ]
+      end
+    end
+
+    class SocketNetwork < Network
+      # @return [String]
+      attr_reader :mcast_address
+
+      # @return [Integer]
+      attr_reader :mcast_port
+
+      def initialize(_i, cfg)
+        super
+
+        mcast = cfg.fetch('mcast')
+
+        @mcast_address = mcast.fetch('address')
+
+        mcast_port = mcast.fetch('port')
+
+        @mcast_port =
+          case mcast_port
+          when String
+            PortReservation.get_port(key: "mcast:#{mcast_port}")
+          when Integer
+            mcast_port
+          else
+            raise "Invalid mcast port value #{mcast_port.inspect} (expected string or a number)"
+          end
+      end
+
+      def qemu_options
+        [
+          '-device', "virtio-net,netdev=net#{index}",
+          '-netdev', "socket,id=net#{index},mcast=#{mcast_address}:#{mcast_port}"
         ]
       end
     end

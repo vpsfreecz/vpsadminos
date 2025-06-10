@@ -60,7 +60,7 @@ let
     {
       options = {
         type = mkOption {
-          type = types.enum [ "user" "bridge" ];
+          type = types.enum [ "user" "socket" "bridge" ];
           description = lib.mdDoc ''
             Network type
 
@@ -69,6 +69,11 @@ let
             several limitations, see
 
               https://wiki.qemu.org/Documentation/Networking#User_Networking_(SLIRP)
+
+            `socket` can be used to interconnect multiple qemu machines without requiring
+            any other configuration on the host, see
+
+              https://wiki.qemu.org/Documentation/Networking#Socket
 
             `bridge` can add the guest into an existing bridge interface,
             making it a part of your network, etc. It requires the bridge to be
@@ -95,6 +100,33 @@ let
           hostForward = mkOption {
             type = types.nullOr types.str;
             default = "tcp::2222-:22";
+          };
+        };
+
+        socket = {
+          mcast = {
+            address = mkOption {
+              type = types.str;
+              default = "230.0.0.1";
+              description = ''
+                Multicast address
+              '';
+            };
+
+            port = mkOption {
+              type = types.oneOf [
+                (types.enum [ "net1" "net2" "net3" "net4" ])
+                types.ints.positive
+              ];
+              default = "net1";
+              description = ''
+                Multicast port
+
+                Enum values are automatically assigned by `osvm`, each enum value
+                is assigned a unique port number, which makes it possible to create
+                four separate networks.
+              '';
+            };
           };
         };
 
@@ -141,6 +173,7 @@ let
       type = net.type;
       opts = {
         user = { inherit (net.user) network host dns hostForward; };
+        socket = { mcast = { inherit (net.socket.mcast) address port; }; };
         bridge = { inherit (net.bridge) link mac; };
       }.${net.type} or {};
     }) cfg.networks;
