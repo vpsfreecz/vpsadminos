@@ -6,7 +6,6 @@ module OsVm
     include Singleton
 
     class << self
-
       %i[get_port release_port get_ports release_ports reset_to_ports].each do |v|
         define_method(v) do |*args, **kwargs, &block|
           instance.send(v, *args, **kwargs, &block)

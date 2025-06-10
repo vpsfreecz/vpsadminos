@@ -74,7 +74,11 @@ module OsVm
       def initialize(i, cfg)
         @index = i
         @type = cfg.fetch('type')
-        @opts = cfg.fetch('opts', {})
+        @opts = cfg.fetch('opts', {
+          'network' => '10.0.2.0/24',
+          'host' => '10.0.2.2',
+          'dns' => '10.0.2.3'
+        })
       end
 
       def qemu_options
@@ -104,11 +108,11 @@ module OsVm
       def initialize(_i, cfg)
         super
 
-        mcast = cfg.fetch('mcast')
+        mcast = cfg.fetch('mcast', {})
 
-        @mcast_address = mcast.fetch('address')
+        @mcast_address = mcast.fetch('address', '230.0.0.1')
 
-        mcast_port = mcast.fetch('port')
+        mcast_port = mcast.fetch('port', 'net1')
 
         @mcast_port =
           case mcast_port
@@ -221,14 +225,9 @@ module OsVm
       @cpus = cfg.fetch('cpus')
       @cpu = Cpu.new(cfg.fetch('cpu'))
       @shared_filesystems = cfg.fetch('sharedFileSystems', {})
-      @networks = cfg.fetch('networks', [{
-        'type' => 'user',
-        'opts' => {
-          'network' => '10.0.2.0/24',
-          'host' => '10.0.2.2',
-          'dns' => '10.0.2.3'
-        }
-      }]).each_with_index.map { |net_cfg, i| Network.from_config(i, net_cfg) }
+      @networks = cfg.fetch('networks', [{ 'type' => 'user' }]).each_with_index.map do |net_cfg, i|
+        Network.from_config(i, net_cfg)
+      end
     end
   end
 end
