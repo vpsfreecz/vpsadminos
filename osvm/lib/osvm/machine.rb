@@ -358,7 +358,7 @@ module OsVm
     # @return [Hash]
     def osctl_json(cmd)
       status, output = succeeds("osctl -j #{cmd}")
-      JSON.parse(output, symbolize_names: true)
+      JSON.parse(output)
     end
 
     # Wait for zpool

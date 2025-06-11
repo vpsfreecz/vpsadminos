@@ -97,10 +97,10 @@ import ../make-test.nix ({ pkgs }: {
 
     if pools.length != 1
       fail "invalid pool list, got '#{pools.inspect}'"
-    elsif pools.first[:name] != 'tank'
-      fail "expected osctl pool 'tank', got '#{pools.first[:name]}'"
-    elsif pools.first[:state] != 'active'
-      fail "expected osctl pool to be active, is '#{pools.first[:state]}'"
+    elsif pools.first['name'] != 'tank'
+      fail "expected osctl pool 'tank', got '#{pools.first['name']}'"
+    elsif pools.first['state'] != 'active'
+      fail "expected osctl pool to be active, is '#{pools.first['state']}'"
     end
 
     machine.stop
