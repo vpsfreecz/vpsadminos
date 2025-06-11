@@ -27,7 +27,7 @@ module OsCtld
         FileUtils.rm_f(v)
       end
 
-      type = opts[:type] || 'rsa'
+      type = opts[:type] || 'ed25519'
 
       bits = if opts[:bits]
                opts[:bits]
