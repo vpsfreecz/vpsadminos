@@ -36,10 +36,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1wvnmy0b7xkwgabpw2p8xblc1psqa9fz4jg2b79wsgr2icbywygw";
+      sha256 = "1c76siirmf4z7mga9p1h1frhi839iw8whhaym79y1yinlr071nah";
       type = "gem";
     };
-    version = "25.05.0.build20250607175213";
+    version = "25.05.0.build20250611172640";
   };
   logger = {
     groups = ["default"];
@@ -67,10 +67,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "04w7jf848xlqr2qvdpd6w31pd5wnv1hw0dk8xwpchxv0q40z9z19";
+      sha256 = "1dk2a5ihkbsyp39g618lcrym82xdcp7j06dgffcsn6mm6bm14g98";
       type = "gem";
     };
-    version = "25.05.0.build20250607175213";
+    version = "25.05.0.build20250611172640";
   };
   rainbow = {
     groups = ["default"];
