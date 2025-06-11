@@ -120,8 +120,8 @@ module TestRunner
         tests[ts.test] << ts
       end
 
-      tests.each_with_index do |(test, scripts), i|
-        @queue << [i, test, scripts]
+      tests.to_a.shuffle!.each_with_index do |(test, scripts), i|
+        @queue << [i, test, scripts.shuffle!]
       end
 
       @test_count = tests.length
