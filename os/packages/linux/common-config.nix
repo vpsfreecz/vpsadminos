@@ -511,6 +511,9 @@ let
       TRIM_UNUSED_KSYMS        = no;
       LIVEPATCH                = yes;
       X86_KERNEL_IBT           = whenAtLeast "6.10.11" no;
+      BPF_KPROBE_OVERRIDE      = yes;
+      FUNCTION_ERROR_INJECTION = yes;
+      BPF_LSM                  = yes;
     };
 
     virtualisation = {
