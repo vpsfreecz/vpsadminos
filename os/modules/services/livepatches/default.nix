@@ -5,7 +5,7 @@ let
   cfg = config.services.live-patches;
   zfsBuiltinPkg = config.boot.zfsBuiltinPkg;
   patchesDir = ../../../livepatches;
-  availablePatches = import (patchesDir + /availablePatches.nix) { inherit lib; version = config.boot.kernelVersion; };
+  availablePatches = import (patchesDir + /available-patches.nix) { inherit lib; version = config.boot.kernelVersion; };
   availablePatchesList = availablePatches.patchList;
   patchVersion = availablePatches.patchVersion;
 
