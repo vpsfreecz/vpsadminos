@@ -4,6 +4,22 @@ with lib;
 let
 
   availablePatches = [
+    { name = "bp-6.9.12-2-cumulative";
+      filterFn = availableFor "6.9.12-2";
+      version = 1;
+    }
+    { name = "bp-6.12.14-cumulative";
+      filterFn = availableFor "6.12.14";
+      version = 1;
+    }
+    { name = "bp-6.12.18-cumulative";
+      filterFn = availableFor "6.12.18";
+      version = 1;
+    }
+    { name = "bp-6.12.29-cumulative";
+      filterFn = availableFor "6.12.29";
+      version = 1;
+    }
     { name = "bp-6.11.8-cumulative";
       filterFn = availableFor "6.11.8";
       version = 2;
