@@ -22,6 +22,7 @@ let
     opensuse          = { distribution = "opensuse";  version = "latest";           };
     rocky_8           = { distribution = "rocky";     version = "8";                };
     rocky_9           = { distribution = "rocky";     version = "9";                };
+    rocky_10          = { distribution = "rocky";     version = "10";               };
     slackware         = { distribution = "slackware"; version = "latest";           };
     ubuntu_2004       = { distribution = "ubuntu";    version = "20.04";            };
     ubuntu_2204       = { distribution = "ubuntu";    version = "22.04";            };
@@ -49,6 +50,7 @@ in {
     opensuse
     rocky_8
     rocky_9
+    rocky_10
     slackware
     ubuntu_2004
     ubuntu_2204
@@ -77,6 +79,7 @@ in {
     opensuse
     rocky_8
     rocky_9
+    rocky_10
     ubuntu_2004
     ubuntu_2204
     ubuntu_2404
