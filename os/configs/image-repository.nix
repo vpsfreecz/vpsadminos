@@ -72,7 +72,8 @@
 
       rocky = {
         "8" = {};
-        "9" = { tags = [ "latest" "stable" ]; };
+        "9" = {};
+        "10" = { tags = [ "latest" "stable" ]; };
       };
 
       slackware = {
