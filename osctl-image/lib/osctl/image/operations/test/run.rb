@@ -94,7 +94,7 @@ module OsCtl::Image
       if status.success? || !keep_failed
         log(:info, "Cleaning up assets of test '#{test}'")
         client.kill_container(ctid)
-        client.delete_container(ctid)
+        client.delete_container(ctid, prune: true)
       else
         log(:info, "Preserving container '#{ctid}' of failed test '#{test}'")
       end

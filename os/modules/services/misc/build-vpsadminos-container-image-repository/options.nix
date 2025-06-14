@@ -193,9 +193,6 @@ in {
           networking.nameservers = mkDefault [ "10.0.2.3" ];
 
           osctl.test-shell.enable = true;
-          osctld.settings = {
-            trash_bin.prune_interval = 1*60;
-          };
 
           tty.autologin.enable = mkDefault true;
           services.haveged.enable = mkDefault true;

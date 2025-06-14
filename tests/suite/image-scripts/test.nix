@@ -20,10 +20,6 @@ import ../../make-template.nix ({ image-script }: rec {
           };
 
           os.channel-registration.enable = true;
-
-          osctld.settings = {
-            trash_bin.prune_interval = 1 * 60;
-          };
         };
     };
 

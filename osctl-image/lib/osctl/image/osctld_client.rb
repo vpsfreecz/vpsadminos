@@ -207,9 +207,10 @@ module OsCtl::Image
     end
 
     # @param ctid [String]
-    def delete_container(ctid)
+    # @param prune [Boolean]
+    def delete_container(ctid, prune: false)
       connect do |client|
-        client.cmd_data!(:ct_delete, id: ctid, force: true)
+        client.cmd_data!(:ct_delete, id: ctid, force: true, prune:)
       end
     end
 
