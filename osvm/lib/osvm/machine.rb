@@ -237,7 +237,7 @@ module OsVm
 
       if timeout && status == 124
         log.execute_end(-1, output)
-        raise TimeoutError, "Timeout occured while running command '#{cmd}', " \
+        raise TimeoutError, "Timeout occurred while running command '#{cmd}', " \
                             "output: #{output.inspect}"
       end
 
@@ -298,7 +298,7 @@ module OsVm
         return [status, output] if status == 0
 
         cur_timeout = timeout - (Time.now - t1)
-        raise TimeoutError, "Timeout occured while running command '#{cmd}'" if cur_timeout <= 0
+        raise TimeoutError, "Timeout occurred while running command '#{cmd}'" if cur_timeout <= 0
 
         sleep(1)
       end
@@ -315,7 +315,7 @@ module OsVm
         return [status, output] if status != 0
 
         cur_timeout = timeout - (Time.now - t1)
-        raise TimeoutError, "Timeout occured while running command '#{cmd}'" if cur_timeout <= 0
+        raise TimeoutError, "Timeout occurred while running command '#{cmd}'" if cur_timeout <= 0
 
         sleep(1)
       end
@@ -338,7 +338,7 @@ module OsVm
         return self unless running?
 
         if t1 + timeout < Time.now
-          raise TimeoutError, 'Timeout occured while waiting for shutdown'
+          raise TimeoutError, 'Timeout occurred while waiting for shutdown'
         end
 
         sleep(1)
@@ -389,7 +389,7 @@ module OsVm
         cur_timeout = timeout - (Time.now - t1)
 
         if cur_timeout <= 0
-          raise TimeoutError, "Timeout occured while waiting for pool #{name.inspect} to become active"
+          raise TimeoutError, "Timeout occurred while waiting for pool #{name.inspect} to become active"
         end
 
         sleep(1)
@@ -601,7 +601,7 @@ module OsVm
 
       loop do
         if t1 + timeout < Time.now
-          raise TimeoutError, 'Timeout occured while waiting for shell'
+          raise TimeoutError, 'Timeout occurred while waiting for shell'
         end
 
         rs = shell.wait_readable(1)
@@ -657,7 +657,7 @@ module OsVm
 
       loop do
         if t1 + timeout < Time.now
-          raise UnrecoverableTimeoutError, "Timeout occured while running command '#{command}', " \
+          raise UnrecoverableTimeoutError, "Timeout occurred while running command '#{command}', " \
                                            "buffer contents: #{buffer.inspect}"
         end
 

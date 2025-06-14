@@ -137,7 +137,7 @@ module TestRunner
         cur_timeout = timeout - (Time.now - t1)
 
         if cur_timeout <= 0
-          raise TimeoutError, "Timeout occured while waiting for #{name}"
+          raise TimeoutError, "Timeout occurred while waiting for #{name}"
         end
 
         sleep(1)
