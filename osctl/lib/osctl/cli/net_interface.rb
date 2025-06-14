@@ -397,7 +397,7 @@ module OsCtl::Cli
     end
 
     def parse_gateway(cmd_opts)
-      gws = [4, 6].map { |v| [v, "gateway-v#{v}"] }.select { |_v, opt| opts[opt] }
+      gws = [4, 6].map { |v| [v, "gateway-v#{v}"] }.select { |_v, opt| opts[opt] }.to_h
       return if gws.empty?
 
       cmd_opts[:gateways] = gws.transform_values do |opt|
