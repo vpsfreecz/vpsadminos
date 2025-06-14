@@ -25,6 +25,7 @@ module TestRunner
       @config = TestConfig.build(test)
       @opts = opts
       @machines = {}
+      @default_timeout = opts.fetch(:default_timeout)
       @used_container_ids = []
 
       config['machines'].each do |name, cfg|
@@ -116,6 +117,31 @@ module TestRunner
       end
 
       raise 'Unable to generate unique container id'
+    end
+
+    # Wait for block to succeed
+    #
+    # Yield until the code block returns a truthy value or a timeout is reached.
+    #
+    # @param name [String] block name for error reporting
+    # @param timeout [Integer]
+    # @return [any] yielded value
+    def wait_for_block(name:, timeout: @default_timeout)
+      t1 = Time.now
+      cur_timeout = timeout
+
+      loop do
+        ret = yield
+        return ret if ret
+
+        cur_timeout = timeout - (Time.now - t1)
+
+        if cur_timeout <= 0
+          raise TimeoutError, "Timeout occured while waiting for #{name}"
+        end
+
+        sleep(1)
+      end
     end
 
     protected
