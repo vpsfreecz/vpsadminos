@@ -21,7 +21,7 @@ module TestRunner
       test = TestList.new.by_path(test_path)
 
       if script_name
-        test.test_scripts.detect { |ts| ts.name == script_name }
+        test.test_scripts[script_name]
       elsif test.test_scripts.length == 1
         test.test_scripts.first[1]
       else
