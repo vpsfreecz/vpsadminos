@@ -49,7 +49,7 @@ jobs:
     strategy:
       matrix:
         kernel: ${{ fromJson(needs.detect.outputs.kernelVersions) }}
-    timeout-minutes: 180
+    timeout-minutes: 240
 
     steps:
       - uses: actions/checkout@v4
