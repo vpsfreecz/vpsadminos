@@ -1,5 +1,6 @@
 inherit_from: .rubocop_todo.yml
-plugins: rubocop-rake
+plugins:
+  - rubocop-rake
 
 AllCops:
   TargetRubyVersion: 3.2
