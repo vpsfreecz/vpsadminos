@@ -73,6 +73,19 @@ let
     ${cfg.extraConfig}
   '';
 
+  checkConfig = pkgs.runCommand "rsyslog-check.conf" {} ''
+    substitute ${rsyslogConfig} $out --replace-fail "workDirectory=\"/var/spool/rsyslog\"" "workDirectory=\"/tmp\""
+  '';
+
+  checkedConfig =
+    if cfg.checkConfig then
+      pkgs.runCommand "rsyslog-checked.conf" {} ''
+        ln -sf ${rsyslogConfig} $out
+        ${pkgs.rsyslog-light}/sbin/rsyslogd -f ${checkConfig} -N1
+      ''
+    else
+      rsyslogConfig;
+
   pidFile = "/run/rsyslog.pid";
 in
 {
@@ -100,6 +113,12 @@ in
           example = "news.* -/var/log/news";
           description = "Additional text to append to syslog.conf";
         };
+
+        checkConfig = mkOption {
+          type = types.bool;
+          default = true;
+          description = "Check rsyslog config during build";
+        };
       };
     };
   };
@@ -110,7 +129,7 @@ in
     runit.services.rsyslog = {
       run = ''
         mkdir -p /var/spool/rsyslog
-        exec ${pkgs.rsyslog-light}/sbin/rsyslogd -f ${rsyslogConfig} -n -i ${pidFile}
+        exec ${pkgs.rsyslog-light}/sbin/rsyslogd -f ${checkedConfig} -n -i ${pidFile}
       '';
       runlevels = [ "rescue" "default" ];
     };
