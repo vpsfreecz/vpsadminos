@@ -31,7 +31,7 @@ let
     )
 
     module(load="imuxsock")
-    module(load="imklog")
+    module(load="imklog" permitnonkernelfacility="on")
     module(load="imudp")
 
     input(type="imudp" address="127.0.0.1" port="514")
