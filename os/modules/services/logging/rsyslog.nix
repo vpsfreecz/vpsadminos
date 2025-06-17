@@ -1,44 +1,78 @@
 { config, lib, pkgs, utils, ... }:
-with utils;
-with lib;
-
 let
+  inherit (lib) concatMapStringsSep mkOption optionalString splitString types;
+
   cfg = config.services.rsyslogd;
-  forwardHosts = concatMapStringsSep "\n" (hostPort: "*.* @@${hostPort};RSYSLOG_SyslogProtocol23Format") cfg.forward;
-  syslog_config = pkgs.writeText "syslog.conf" ''
-    ${optionalString (!isNull cfg.hostName) ''
-    $LocalHostName ${cfg.hostName}
-    ''}
 
-    $ModLoad imuxsock
-    $ModLoad imklog
-    $ModLoad imudp
-    $WorkDirectory /var/spool/rsyslog
+  forwardHostsRules = concatMapStringsSep "\n" (hostPort:
+    let parts = splitString ":" hostPort;
+        host  = builtins.elemAt parts 0;
+        port  = builtins.elemAt parts 1;
+    in ''
+      action(
+        name="fwd_${host}_${port}"
+        type="omfwd"
+        target="${host}"
+        port="${port}"
+        protocol="tcp"
+        template="RSYSLOG_SyslogProtocol23Format"
 
-    $UDPServerAddress 127.0.0.1
-    $UDPServerRun 514
+        queue.type="linkedlist"
+        queue.filename="fwdRule1"
+        queue.maxdiskspace="1g"
+        action.resumeRetryCount="-1"
+      )
+    '') cfg.forward;
 
-    # "local1" is used for dhcpd messages.
-    local1.*                     -/var/log/dhcpd
+  rsyslogConfig = pkgs.writeText "rsyslog.conf" ''
+    global(
+      workDirectory="/var/spool/rsyslog"
+      ${optionalString (!isNull cfg.hostName) ''localHostname="${cfg.hostName}"''}
+    )
 
-    mail.*                       -/var/log/mail
+    module(load="imuxsock")
+    module(load="imklog")
+    module(load="imudp")
 
-    local2.*                     -/var/log/osctld
-    local3.*                     -/var/log/nodectld
+    input(type="imudp" address="127.0.0.1" port="514")
 
-    *.*;mail.none;local1.none    -/var/log/messages
+    # "local1" is used for dhcpd messages
+    if ($syslogfacility-text == "local1") then {
+      action(type="omfile" file="/var/log/dhcpd")
+      stop
+    }
 
-    ${ optionalString (cfg.forward != []) ''
-    $ActionQueueFileName fwdRule1 # unique name prefix for spool files
-    $ActionQueueMaxDiskSpace 1g   # 1gb space limit (use as much as possible)
-    $ActionQueueType LinkedList   # run asynchronously
-    $ActionResumeRetryCount -1    # infinite retries if host is down
+    # mail.*
+    if ($syslogfacility-text == "mail") then {
+      action(type="omfile" file="/var/log/mail")
+      stop
+    }
 
-    ''}
-    ${forwardHosts}
+    # local2.*
+    if ($syslogfacility-text == "local2") then {
+      action(type="omfile" file="/var/log/osctld")
+      stop
+    }
+
+    # local3.*
+    if ($syslogfacility-text == "local3") then {
+      action(type="omfile" file="/var/log/nodectld")
+      stop
+    }
+
+    # default: everything else, except mail & local1 → /var/log/messages
+    if not (
+        $syslogfacility-text == "mail"
+      or $syslogfacility-text == "local1"
+    ) then {
+      action(type="omfile" file="/var/log/messages")
+    }
+
+    ${optionalString (cfg.forward != []) forwardHostsRules}
 
     ${cfg.extraConfig}
   '';
+
   pidFile = "/run/rsyslog.pid";
 in
 {
@@ -76,7 +110,7 @@ in
     runit.services.rsyslog = {
       run = ''
         mkdir -p /var/spool/rsyslog
-        exec ${pkgs.rsyslog-light}/sbin/rsyslogd -f ${syslog_config} -n -i ${pidFile}
+        exec ${pkgs.rsyslog-light}/sbin/rsyslogd -f ${rsyslogConfig} -n -i ${pidFile}
       '';
       runlevels = [ "rescue" "default" ];
     };
