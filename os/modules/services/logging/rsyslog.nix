@@ -39,34 +39,25 @@ let
     # "local1" is used for dhcpd messages
     if ($syslogfacility-text == "local1") then {
       action(type="omfile" file="/var/log/dhcpd")
-      stop
     }
 
     # mail.*
     if ($syslogfacility-text == "mail") then {
       action(type="omfile" file="/var/log/mail")
-      stop
     }
 
     # local2.*
     if ($syslogfacility-text == "local2") then {
       action(type="omfile" file="/var/log/osctld")
-      stop
     }
 
     # local3.*
     if ($syslogfacility-text == "local3") then {
       action(type="omfile" file="/var/log/nodectld")
-      stop
     }
 
-    # default: everything else, except mail & local1 → /var/log/messages
-    if not (
-        $syslogfacility-text == "mail"
-      or $syslogfacility-text == "local1"
-    ) then {
-      action(type="omfile" file="/var/log/messages")
-    }
+    # write everything to /var/log/messages
+    action(type="omfile" file="/var/log/messages")
 
     ${optionalString (cfg.forward != []) forwardHostsRules}
 
