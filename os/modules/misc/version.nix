@@ -181,6 +181,10 @@ in
       "os-release".text = attrsToText osReleaseContents;
     };
 
+    boot.postBootCommands = ''
+      echo "vpsAdminOS ${cfg.version} with kernel ${config.boot.kernelVersion}" > /dev/kmsg
+    '';
+
   };
 
   # uses version info nixpkgs, which requires a full nixpkgs path
