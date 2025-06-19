@@ -43,7 +43,7 @@ jobs:
   build:
     name: Build OS and populate binary cache
     runs-on: self-hosted
-    timeout-minutes: 240
+    timeout-minutes: 480
 
     steps:
       - uses: actions/checkout@v4
