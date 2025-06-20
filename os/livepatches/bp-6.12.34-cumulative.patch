@@ -1,0 +1,653 @@
+diff --git a/fs/proc/loadavg.c b/fs/proc/loadavg.c
+index 54c1d2306b40..817981e57223 100644
+--- a/fs/proc/loadavg.c
++++ b/fs/proc/loadavg.c
+@@ -9,29 +9,19 @@
+ #include <linux/seq_file.h>
+ #include <linux/seqlock.h>
+ #include <linux/time.h>
+-#include <linux/cgroup.h>
+-#include <linux/vpsadminos.h>
+ #include "internal.h"
+ 
+ static int loadavg_proc_show(struct seq_file *m, void *v)
+ {
+ 	unsigned long avnrun[3];
+-	int nr_r; uint nr_t;
+ 
+-	if (get_avenrun_fake(current, avnrun, FIXED_1/200, 0)) {
+-		nr_r = cgroup_ns_nr_running(current);
+-		nr_t = cgroup_ns_nr_threads(current);
+-	} else {
+-		get_avenrun(avnrun, FIXED_1/200, 0);
+-		nr_r = nr_running();
+-		nr_t = nr_threads;
+-	}
++	get_avenrun(avnrun, FIXED_1/200, 0);
+ 
+ 	seq_printf(m, "%lu.%02lu %lu.%02lu %lu.%02lu %u/%d %d\n",
+ 		LOAD_INT(avnrun[0]), LOAD_FRAC(avnrun[0]),
+ 		LOAD_INT(avnrun[1]), LOAD_FRAC(avnrun[1]),
+ 		LOAD_INT(avnrun[2]), LOAD_FRAC(avnrun[2]),
+-		nr_r, nr_t,
++		nr_running(), nr_threads,
+ 		idr_get_cursor(&task_active_pid_ns(current)->idr) - 1);
+ 	return 0;
+ }
+@@ -42,9 +32,6 @@ static int __init proc_loadavg_init(void)
+ 
+ 	pde = proc_create_single("loadavg", 0, NULL, loadavg_proc_show);
+ 	pde_make_permanent(pde);
+-
+-	pde = proc_create_single("loadavg", 0, proc_vpsadminos, virt_loadavg_proc_show);
+-	pde_make_permanent(pde);
+ 	return 0;
+ }
+ fs_initcall(proc_loadavg_init);
+diff --git a/fs/proc/uptime.c b/fs/proc/uptime.c
+index 3cafe3e7cb4a..b5343d209381 100644
+--- a/fs/proc/uptime.c
++++ b/fs/proc/uptime.c
+@@ -7,7 +7,6 @@
+ #include <linux/time.h>
+ #include <linux/time_namespace.h>
+ #include <linux/kernel_stat.h>
+-#include <linux/vpsadminos.h>
+ #include "internal.h"
+ 
+ static int uptime_proc_show(struct seq_file *m, void *v)
+@@ -18,13 +17,7 @@ static int uptime_proc_show(struct seq_file *m, void *v)
+ 	u32 rem;
+ 	int i;
+ 
+-	ktime_get_boottime_ts64(&uptime);
+-	timens_add_boottime(&uptime);
+-
+-	idle_nsec = fake_cputime_readout_idle(ktime_get_boottime_ns(), current);
+-	if (idle_nsec)
+-		goto out;
+-
++	idle_nsec = 0;
+ 	for_each_possible_cpu(i) {
+ 		struct kernel_cpustat kcs;
+ 
+@@ -32,7 +25,9 @@ static int uptime_proc_show(struct seq_file *m, void *v)
+ 		idle_nsec += get_idle_time(&kcs, i);
+ 	}
+ 
+-out:
++	ktime_get_boottime_ts64(&uptime);
++	timens_add_boottime(&uptime);
++
+ 	idle.tv_sec = div_u64_rem(idle_nsec, NSEC_PER_SEC, &rem);
+ 	idle.tv_nsec = rem;
+ 	seq_printf(m, "%lu.%02lu %lu.%02lu\n",
+diff --git a/include/linux/cgroup.h b/include/linux/cgroup.h
+index 91ee0647b3d8..fc1324ed597d 100644
+--- a/include/linux/cgroup.h
++++ b/include/linux/cgroup.h
+@@ -766,21 +766,11 @@ static inline void cgroup_sk_free(struct sock_cgroup_data *skcd) {}
+ 
+ #endif	/* CONFIG_CGROUP_DATA */
+ 
+-struct task_group;
+ struct cgroup_namespace {
+ 	struct ns_common	ns;
+-	struct cgroup_namespace	*parent;
+ 	struct user_namespace	*user_ns;
+ 	struct ucounts		*ucounts;
+ 	struct css_set          *root_cset;
+-
+-	bool			loadavg_virt_enabled;
+-	struct task_group	*loadavg_virt_task_group;
+-	struct list_head	cgns_avenrun_list;
+-	unsigned long		nr_threads;
+-	struct mutex		cgns_avenrun_lock; /* Protects these below: */
+-	atomic_t		nr_uninterruptible;
+-	unsigned long		avenrun[3];
+ };
+ 
+ extern struct cgroup_namespace init_cgroup_ns;
+diff --git a/include/linux/sched.h b/include/linux/sched.h
+index 58e1c0ddd824..baa208b78c89 100644
+--- a/include/linux/sched.h
++++ b/include/linux/sched.h
+@@ -895,8 +895,6 @@ struct task_struct {
+ 	bool				set_fake_cpu_mask;
+ 	cpumask_t			fake_cpu_mask;
+ 
+-	struct cgroup_namespace *sched_contributed_to_load;
+-
+ #ifdef CONFIG_PREEMPT_RCU
+ 	int				rcu_read_lock_nesting;
+ 	union rcu_special		rcu_read_unlock_special;
+@@ -2211,28 +2209,6 @@ static inline int sched_core_idle_cpu(int cpu) { return idle_cpu(cpu); }
+ #endif
+ 
+ extern void sched_set_stop_task(int cpu, struct task_struct *stop);
+-extern void cgns_calc_avenrun(void);
+-
+-struct cgroup_namespace;
+-extern int get_avenrun_fake(struct task_struct *p, unsigned long *loads, unsigned long offset, int shift);
+-extern unsigned long cgroup_ns_nr_running(struct task_struct *p);
+-extern void cgroup_ns_track_loadavg(struct cgroup_namespace *ns);
+-extern void cgroup_ns_untrack_loadavg(struct cgroup_namespace *ns);
+-extern void inc_cgns_nr_threads(struct task_struct *p);
+-extern void dec_cgns_nr_threads(struct task_struct *p);
+-extern unsigned long cgroup_ns_nr_threads(struct task_struct *p);
+-
+-extern void cgns_calc_avenrun(void);
+-
+-struct cgroup_namespace;
+-extern int get_avenrun_fake(struct task_struct *p, unsigned long *loads, unsigned long offset, int shift);
+-extern unsigned long cgroup_ns_nr_running(struct task_struct *p);
+-extern void cgroup_ns_track_loadavg(struct cgroup_namespace *ns);
+-extern void cgroup_ns_untrack_loadavg(struct cgroup_namespace *ns);
+-extern void inc_cgns_nr_threads(struct task_struct *p);
+-extern void dec_cgns_nr_threads(struct task_struct *p);
+-extern unsigned long cgroup_ns_nr_threads(struct task_struct *p);
+-
+ 
+ #ifdef CONFIG_MEM_ALLOC_PROFILING
+ static __always_inline struct alloc_tag *alloc_tag_save(struct alloc_tag *tag)
+diff --git a/include/linux/vpsadminos.h b/include/linux/vpsadminos.h
+index 74b3b19ac0a7..cf3999276267 100644
+--- a/include/linux/vpsadminos.h
++++ b/include/linux/vpsadminos.h
+@@ -38,9 +38,4 @@ void fake_cputime_readout_percpu(struct task_struct *p, int cpu, u64 *user, u64
+ extern void set_fake_affinity_cpumask(struct task_struct *p, const struct cpumask *srcmask);
+ extern int fake_affinity_cpumask(struct task_struct *p, struct cpumask *dstmask);
+ extern int fake_online_cpumask(struct task_struct *p, struct cpumask *dstmask);
+-
+-u64 fake_cputime_readout_idle(u64 timestamp, struct task_struct *p);
+-extern struct proc_dir_entry *proc_vpsadminos;
+-extern int virt_loadavg_proc_show(struct seq_file *m, void *v);
+-
+ #endif
+diff --git a/kernel/cgroup/cgroup.c b/kernel/cgroup/cgroup.c
+index c64dcf25f36d..62933468aaf4 100644
+--- a/kernel/cgroup/cgroup.c
++++ b/kernel/cgroup/cgroup.c
+@@ -212,7 +212,6 @@ static bool have_favordynmods __ro_after_init = IS_ENABLED(CONFIG_CGROUP_FAVOR_D
+ /* cgroup namespace for init task */
+ struct cgroup_namespace init_cgroup_ns = {
+ 	.ns.count	= REFCOUNT_INIT(2),
+-	.parent		= &init_cgroup_ns,
+ 	.user_ns	= &init_user_ns,
+ 	.ns.ops		= &cgroupns_operations,
+ 	.ns.inum	= PROC_CGROUP_INIT_INO,
+diff --git a/kernel/cgroup/namespace.c b/kernel/cgroup/namespace.c
+index da454e36174f..144a464e45c6 100644
+--- a/kernel/cgroup/namespace.c
++++ b/kernel/cgroup/namespace.c
+@@ -34,24 +34,14 @@ static struct cgroup_namespace *alloc_cgroup_ns(void)
+ 	}
+ 	refcount_set(&new_ns->ns.count, 1);
+ 	new_ns->ns.ops = &cgroupns_operations;
+-
+-	INIT_LIST_HEAD(&new_ns->cgns_avenrun_list);
+-	atomic_set(&new_ns->nr_uninterruptible, 0);
+-	new_ns->avenrun[0] = 0;
+-	new_ns->avenrun[1] = 0;
+-	new_ns->avenrun[2] = 0;
+-	mutex_init(&new_ns->cgns_avenrun_lock);
+-
+ 	return new_ns;
+ }
+ 
+ void free_cgroup_ns(struct cgroup_namespace *ns)
+ {
+-	cgroup_ns_untrack_loadavg(ns);
+ 	put_css_set(ns->root_cset);
+ 	dec_cgroup_namespaces(ns->ucounts);
+ 	put_user_ns(ns->user_ns);
+-	put_cgroup_ns(ns->parent);
+ 	ns_free_inum(&ns->ns);
+ 	kfree(ns);
+ }
+@@ -96,13 +86,6 @@ struct cgroup_namespace *copy_cgroup_ns(unsigned long flags,
+ 	new_ns->user_ns = get_user_ns(user_ns);
+ 	new_ns->ucounts = ucounts;
+ 	new_ns->root_cset = cset;
+-	get_cgroup_ns(old_ns);
+-	new_ns->parent = old_ns;
+-
+-	atomic_set(&new_ns->nr_uninterruptible, 0);
+-	if ((new_ns->user_ns->parent == &init_user_ns)
+-	    && (new_ns->user_ns != &init_user_ns))
+-		cgroup_ns_track_loadavg(new_ns);
+ 
+ 	return new_ns;
+ }
+diff --git a/kernel/exit.c b/kernel/exit.c
+index 745ae3962ed1..56b8bd9487b4 100644
+--- a/kernel/exit.c
++++ b/kernel/exit.c
+@@ -125,7 +125,6 @@ late_initcall(kernel_exit_sysfs_init);
+ 
+ static void __unhash_process(struct task_struct *p, bool group_dead)
+ {
+-	dec_cgns_nr_threads(p);
+ 	nr_threads--;
+ 	detach_pid(p, PIDTYPE_PID);
+ 	if (group_dead) {
+diff --git a/kernel/fork.c b/kernel/fork.c
+index fee1ddf846f7..189b023a3d05 100644
+--- a/kernel/fork.c
++++ b/kernel/fork.c
+@@ -2259,8 +2259,6 @@ __latent_entropy struct task_struct *copy_process(
+ 	 */
+ 	p->clear_child_tid = (clone_flags & CLONE_CHILD_CLEARTID) ? args->child_tid : NULL;
+ 
+-	p->sched_contributed_to_load = NULL;
+-
+ 	ftrace_graph_init_task(p);
+ 
+ 	rt_mutex_init_task(p);
+@@ -2621,7 +2619,6 @@ __latent_entropy struct task_struct *copy_process(
+ 		}
+ 		attach_pid(p, PIDTYPE_PID);
+ 		nr_threads++;
+-		inc_cgns_nr_threads(current);
+ 	}
+ 	total_forks++;
+ 	hlist_del_init(&delayed.node);
+diff --git a/kernel/sched/core.c b/kernel/sched/core.c
+index 86426a98a7ab..2e5499b81124 100644
+--- a/kernel/sched/core.c
++++ b/kernel/sched/core.c
+@@ -3665,7 +3665,6 @@ static inline void ttwu_do_wakeup(struct task_struct *p)
+ 	trace_sched_wakeup(p);
+ }
+ 
+-void dec_cgns_nr_uninterruptible(struct task_struct *p);
+ static void
+ ttwu_do_activate(struct rq *rq, struct task_struct *p, int wake_flags,
+ 		 struct rq_flags *rf)
+@@ -3674,10 +3673,8 @@ ttwu_do_activate(struct rq *rq, struct task_struct *p, int wake_flags,
+ 
+ 	lockdep_assert_rq_held(rq);
+ 
+-	if (p->sched_contributes_to_load) {
++	if (p->sched_contributes_to_load)
+ 		rq->nr_uninterruptible--;
+-		dec_cgns_nr_uninterruptible(p);
+-	}
+ 
+ #ifdef CONFIG_SMP
+ 	if (wake_flags & WF_RQ_SELECTED)
+@@ -6544,11 +6541,6 @@ static bool try_to_block_task(struct rq *rq, struct task_struct *p,
+ 		!(task_state & TASK_NOLOAD) &&
+ 		!(task_state & TASK_FROZEN);
+ 
+-	if (p->sched_contributes_to_load) {
+-		rq->nr_uninterruptible++;
+-		inc_cgns_nr_uninterruptible(p);
+-	}
+-
+ 	if (unlikely(is_special_task_state(task_state)))
+ 		flags |= DEQUEUE_SPECIAL;
+ 
+@@ -9303,283 +9295,6 @@ static u64 cpu_shares_read_u64(struct cgroup_subsys_state *css,
+ }
+ #endif /* CONFIG_GROUP_SCHED_WEIGHT */
+ 
+-LIST_HEAD(cgns_avenrun_list);
+-static DEFINE_MUTEX(cgns_avenrun_lock);
+-
+-static struct task_struct *cgns_avenrund_task;
+-
+-static unsigned long cgns_nr_running(struct cgroup_namespace *ns)
+-{
+-	unsigned long nr_active = 0;
+-	struct task_group *tg;
+-	int i;
+-
+-	rcu_read_lock();
+-	tg = css_tg(ns->root_cset->subsys[cpu_cgrp_id]);
+-	for_each_possible_cpu(i) {
+-#ifdef CONFIG_FAIR_GROUP_SCHED
+-		nr_active += tg->cfs_rq[i]->h_nr_running;
+-#endif
+-#ifdef CONFIG_RT_GROUP_SCHED
+-		nr_active += tg->rt_rq[i]->rt_nr_running;
+-#endif
+-	}
+-	rcu_read_unlock();
+-
+-	nr_active += atomic_read(&ns->nr_uninterruptible);
+-
+-	return nr_active;
+-}
+-
+-unsigned long cgroup_ns_nr_running(struct task_struct *p)
+-{
+-	struct cgroup_namespace *ns;
+-
+-	if (!p->nsproxy || !p->nsproxy->cgroup_ns)
+-		return nr_running();
+-
+-	ns = p->nsproxy->cgroup_ns;
+-	while (ns->parent != &init_cgroup_ns)
+-		ns = ns->parent;
+-
+-	if (!ns->loadavg_virt_enabled)
+-		return nr_running();
+-
+-	return cgns_nr_running(ns);
+-}
+-
+-void inc_cgns_nr_threads(struct task_struct *p)
+-{
+-	struct cgroup_namespace *ns;
+-
+-	if (!p->nsproxy || !p->nsproxy->cgroup_ns)
+-		return;
+-
+-	ns = p->nsproxy->cgroup_ns;
+-	while (ns->parent != &init_cgroup_ns)
+-		ns = ns->parent;
+-
+-	if (!ns->loadavg_virt_enabled)
+-		return;
+-
+-	ns->nr_threads++;
+-}
+-
+-void dec_cgns_nr_threads(struct task_struct *p)
+-{
+-	struct cgroup_namespace *ns;
+-
+-	if (!p->nsproxy || !p->nsproxy->cgroup_ns)
+-		return;
+-
+-	ns = p->nsproxy->cgroup_ns;
+-	while (ns->parent != &init_cgroup_ns)
+-		ns = ns->parent;
+-
+-	if (!ns->loadavg_virt_enabled)
+-		return;
+-
+-	ns->nr_threads--;
+-}
+-
+-unsigned long cgroup_ns_nr_threads(struct task_struct *p)
+-{
+-	struct cgroup_namespace *ns;
+-
+-	if (!p->nsproxy || !p->nsproxy->cgroup_ns)
+-		return nr_threads;
+-
+-	ns = p->nsproxy->cgroup_ns;
+-	while (ns->parent != &init_cgroup_ns)
+-		ns = ns->parent;
+-
+-	if (!ns->loadavg_virt_enabled)
+-		return nr_threads;
+-
+-	return ns->nr_threads;
+-}
+-
+-void inc_cgns_nr_uninterruptible(struct task_struct *p)
+-{
+-	struct cgroup_namespace *ns;
+-
+-	if (p->nsproxy && p->nsproxy->cgroup_ns)
+-		ns = p->nsproxy->cgroup_ns;
+-	else
+-		return;
+-
+-	if (ns == &init_cgroup_ns)
+-		return;
+-
+-	while (ns->parent != &init_cgroup_ns)
+-		ns = ns->parent;
+-
+-	if (ns->loadavg_virt_enabled) {
+-		atomic_inc(&ns->nr_uninterruptible);
+-		get_cgroup_ns(ns);
+-		p->sched_contributed_to_load = ns;
+-	}
+-}
+-
+-void dec_cgns_nr_uninterruptible(struct task_struct *p)
+-{
+-	struct cgroup_namespace *ns;
+-
+-	ns = p->sched_contributed_to_load;
+-	if (!ns)
+-		return;
+-	BUG_ON(!ns->loadavg_virt_enabled);
+-
+-	atomic_dec(&ns->nr_uninterruptible);
+-	p->sched_contributed_to_load = NULL;
+-	put_cgroup_ns(ns);
+-}
+-
+-void cgns_calc_avenrun(void)
+-{
+-	struct cgroup_namespace *ns;
+-	unsigned long nr_active;
+-
+-	mutex_lock(&cgns_avenrun_lock);
+-	list_for_each_entry(ns, &cgns_avenrun_list, cgns_avenrun_list) {
+-		nr_active = cgns_nr_running(ns);
+-		nr_active = nr_active > 0 ? nr_active * FIXED_1 : 0;
+-		mutex_lock(&ns->cgns_avenrun_lock);
+-		ns->avenrun[0] = calc_load(ns->avenrun[0], EXP_1, nr_active);
+-		ns->avenrun[1] = calc_load(ns->avenrun[1], EXP_5, nr_active);
+-		ns->avenrun[2] = calc_load(ns->avenrun[2], EXP_15, nr_active);
+-		mutex_unlock(&ns->cgns_avenrun_lock);
+-	}
+-	mutex_unlock(&cgns_avenrun_lock);
+-}
+-
+-static int cgns_avenrund(void *data)
+-{
+-	while (!kthread_should_stop()) {
+-		cgns_calc_avenrun();
+-		pr_debug("cgroup namespace loadavg updated\n");
+-		schedule_timeout_interruptible(LOAD_FREQ);
+-	}
+-
+-	return 0;
+-}
+-
+-static int cgns_avenrund_start(void)
+-{
+-	if (cgns_avenrund_task)
+-		return 0;
+-
+-	cgns_avenrund_task = kthread_run(cgns_avenrund, NULL, "cgns_avenrund");
+-	if (IS_ERR(cgns_avenrund_task))
+-		return PTR_ERR(cgns_avenrund_task);
+-
+-	pr_info("cgroup namespace loadavg tracking started\n");
+-	return 0;
+-}
+-
+-static void cgns_avenrund_stop(void)
+-{
+-	if (cgns_avenrund_task)
+-		kthread_stop(cgns_avenrund_task);
+-	cgns_avenrund_task = NULL;
+-	pr_info("cgroup namespace loadavg tracking stopped\n");
+-}
+-
+-void cgroup_ns_track_loadavg(struct cgroup_namespace *ns)
+-{
+-	if (ns == &init_cgroup_ns)
+-		return;
+-
+-	while (ns->parent != &init_cgroup_ns)
+-		ns = ns->parent;
+-
+-	if (ns->loadavg_virt_enabled)
+-		return;
+-
+-	cgns_avenrund_start();
+-
+-	mutex_lock(&cgns_avenrun_lock);
+-	get_cgroup_ns(ns);
+-	list_add(&ns->cgns_avenrun_list, &cgns_avenrun_list);
+-	ns->loadavg_virt_enabled = 1;
+-	mutex_unlock(&cgns_avenrun_lock);
+-}
+-
+-void cgroup_ns_untrack_loadavg(struct cgroup_namespace *ns)
+-{
+-	bool stop_avenrund = false;
+-
+-	if (ns == &init_cgroup_ns)
+-		return;
+-
+-	if (!ns->loadavg_virt_enabled)
+-		return;
+-
+-	mutex_lock(&cgns_avenrun_lock);
+-	list_del_init(&ns->cgns_avenrun_list);
+-	ns->loadavg_virt_enabled = 0;
+-	put_cgroup_ns(ns);
+-	if (list_empty(&cgns_avenrun_list))
+-		stop_avenrund = true;
+-	mutex_unlock(&cgns_avenrun_lock);
+-
+-	if (stop_avenrund)
+-		cgns_avenrund_stop();
+-}
+-
+-static void get_avenrun_fake_ns(struct cgroup_namespace *ns, unsigned long *loads, unsigned long offset, int shift)
+-{
+-	mutex_lock(&ns->cgns_avenrun_lock);
+-	loads[0] = (ns->avenrun[0] + offset) << shift;
+-	loads[1] = (ns->avenrun[1] + offset) << shift;
+-	loads[2] = (ns->avenrun[2] + offset) << shift;
+-	mutex_unlock(&ns->cgns_avenrun_lock);
+-}
+-
+-int get_avenrun_fake(struct task_struct *p, unsigned long *loads, unsigned long offset, int shift)
+-{
+-	struct cgroup_namespace *ns;
+-
+-	if (!p->nsproxy || !p->nsproxy->cgroup_ns)
+-		return 0;
+-
+-	ns = p->nsproxy->cgroup_ns;
+-	while (ns->parent != &init_cgroup_ns)
+-		ns = ns->parent;
+-
+-	if (!ns->loadavg_virt_enabled)
+-		return 0;
+-
+-	get_avenrun_fake_ns(ns, loads, offset, shift);
+-	return 1;
+-}
+-
+-int virt_loadavg_proc_show(struct seq_file *m, void *v)
+-{
+-	unsigned long avnrun[3];
+-	int nr_r; uint nr_t;
+-	struct cgroup_namespace *ns;
+-
+-	if (!capable(CAP_SYS_ADMIN))
+-		return -EPERM;
+-
+-	mutex_lock(&cgns_avenrun_lock);
+-	list_for_each_entry(ns, &cgns_avenrun_list, cgns_avenrun_list) {
+-		get_avenrun_fake_ns(ns, avnrun, FIXED_1/200, 0);
+-		nr_r = cgns_nr_running(ns);
+-		nr_t = ns->nr_threads;
+-
+-		seq_printf(m, "%u\t%lu.%02lu %lu.%02lu %lu.%02lu %u/%d\n",
+-			ns->ns.inum,
+-			LOAD_INT(avnrun[0]), LOAD_FRAC(avnrun[0]),
+-			LOAD_INT(avnrun[1]), LOAD_FRAC(avnrun[1]),
+-			LOAD_INT(avnrun[2]), LOAD_FRAC(avnrun[2]),
+-			nr_r, nr_t);
+-	}
+-	mutex_unlock(&cgns_avenrun_lock);
+-	return 0;
+-}
+-
+ #ifdef CONFIG_CFS_BANDWIDTH
+ static DEFINE_MUTEX(cfs_constraints_mutex);
+ 
+diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
+index d23bc700dce1..bb78eae00a42 100644
+--- a/kernel/sched/sched.h
++++ b/kernel/sched/sched.h
+@@ -2750,9 +2750,11 @@ static inline void sub_nr_running(struct rq *rq, unsigned count)
+ 	sched_update_tick_dependency(rq);
+ }
+ 
+-extern void inc_cgns_nr_uninterruptible(struct task_struct *p);
+ static inline void __block_task(struct rq *rq, struct task_struct *p)
+ {
++	if (p->sched_contributes_to_load)
++		rq->nr_uninterruptible++;
++
+ 	if (p->in_iowait) {
+ 		atomic_inc(&rq->nr_iowait);
+ 		delayacct_blkio_start();
+diff --git a/kernel/vpsadminos.c b/kernel/vpsadminos.c
+index d3bfe1a22571..2ec4a9fd2fea 100644
+--- a/kernel/vpsadminos.c
++++ b/kernel/vpsadminos.c
+@@ -10,8 +10,26 @@
+ #include <linux/cgroup.h>
+ #include <linux/sched/cputime.h>
+ #include "sched/sched.h"
++#include <linux/utsname.h>
++#include <linux/vpsadminos-livepatch.h>
++#include "kpatch-macros.h"
++char old_uname[65];
++char new_uname[65];
+ 
+-struct proc_dir_entry *proc_vpsadminos;
++static int patch(patch_object *obj)
++{
++	scnprintf(new_uname, 64, "%s.%s", LIVEPATCH_ORIG_KERNEL_VERSION,
++	    LIVEPATCH_NAME);
++	scnprintf(old_uname, 64, "%s", init_uts_ns.name.release);
++	scnprintf(init_uts_ns.name.release, 64, "%s", new_uname);
++	return 0;
++}
++KPATCH_PRE_PATCH_CALLBACK(patch);
++static void unpatch(patch_object *obj)
++{
++	scnprintf(init_uts_ns.name.release, 64, "%s", old_uname);
++}
++KPATCH_POST_UNPATCH_CALLBACK(unpatch);
+ 
+ static int __init vpsadminos_init(void)
+ {
+@@ -19,7 +37,6 @@ static int __init vpsadminos_init(void)
+ 
+ 	ret = sysfs_create_mount_point(fs_kobj, "vpsadminos");
+ 
+-	proc_vpsadminos = proc_mkdir("vpsadminos", NULL);
+ 	return ret;
+ }
+ fs_initcall(vpsadminos_init);
+@@ -491,21 +508,3 @@ void fake_cputime_readout_percpu(struct task_struct *p, int cpu, u64 *user, u64
+ 		css_put(css);
+ 	}
+ }
+-
+-u64 fake_cputime_readout_idle(u64 timestamp, struct task_struct *p)
+-{
+-	u64 user = 0, system = 0;
+-	int cpus;
+-
+-	task_lock(p);
+-	if (!p->nsproxy || !p->nsproxy->cgroup_ns->loadavg_virt_enabled) {
+-		task_unlock(p);
+-		return 0;
+-	}
+-	task_unlock(p);
+-
+-	fake_cputime_readout(p, timestamp, &user, &system, &cpus);
+-
+-	return (timestamp * cpus) - user - system;
+-}
+-
