@@ -4,8 +4,8 @@
 
   kernels = {
     "6.12.34-2" = {
-      rev = "5d12242fdfcef8b7e4ea837a13310db8996490c1";
-      sha256 = "sha256-S0QJz9BZJAqySyj2yaXBTyrqxZMXyeo2IF5v7KLCECw=";
+      rev = "a5364787e87a870fba4b6513cc918de56e7d7e61";
+      sha256 = "sha256-XCMr3/1q2HRKK5O+IyUbqlt/BmmNqH0VYFhcjJCONzg=";
       zfs = {
         rev = "e24cd603b883ad89c11172784485b290f742ef2d";
         sha256 = "sha256-ehV/dsXjTD4b9h16yxtQddnkmA/35ayr+4K7xNlW/Kg=";
