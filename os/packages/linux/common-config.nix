@@ -66,7 +66,7 @@ let
       BLK_WBT                   = no;
       HW_RANDOM                 = yes;
       HW_RANDOM_AMD             = yes;
-      X86_AMD_PSTATE_DEFAULT_MODE = freeform "3";
+      X86_AMD_PSTATE_DEFAULT_MODE = whenAtLeast "6.6" (freeform "3");
       X86_AMD_FREQ_SENSITIVITY  = module;
       CPU_FREQ_GOV_ONDEMAND     = yes;
       PSI                       = no;
@@ -372,7 +372,6 @@ let
       F2FS_FS             = no;
       UDF_FS              = module;
 
-      NFSD_V2_ACL            = whenOlder "6.6" yes;
       NFSD_V3                = whenOlder "5.18" yes;
       NFSD_V3_ACL            = yes;
       NFSD_V4                = yes;
