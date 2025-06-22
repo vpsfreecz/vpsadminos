@@ -415,7 +415,7 @@ let
     security = {
       SLAB_MERGE_DEFAULT               = no;
       SLAB_FREELIST_RANDOM             = yes;
-      SLAB_FREELIST_HARDENED           = no;
+      SLAB_FREELIST_HARDENED           = yes;
       SHUFFLE_PAGE_ALLOCATOR           = yes;
       HARDENED_USERCOPY                = no; # Too high overhead
       FORTIFY_SOURCE                   = yes;
