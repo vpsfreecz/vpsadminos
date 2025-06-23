@@ -1,6 +1,6 @@
 {
-  stableKernelVersion = "6.9.12-3";
-  unstableKernelVersion = "6.9.12-3";
+  stableKernelVersion = "6.12.33";
+  unstableKernelVersion = "6.12.33";
 
   kernels = {
     "6.9.12-3" = {
