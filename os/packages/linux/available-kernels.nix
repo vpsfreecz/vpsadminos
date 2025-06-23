@@ -7,8 +7,8 @@
       rev = "43566453ad31b9fa8e43fb3d48eb8e0bbae93ba5";
       sha256 = "sha256-/XfRopmX6enUzAnFXoxOvMhOfiaPj4MDwVVmRl3a+og=";
       zfs = {
-        rev = "108ef81d863b6fa09bb8f69a5c4abb399bd8e809";
-        sha256 = "sha256-MN4YahF1hGLsLmVDeA9li5UlpMKo1iCBiQSEuO37zaU=";
+        rev = "17e216729fa307a70a4f36bce00fd424783b414b";
+        sha256 = "sha256-zG/vTua1Z059AuImBoCzrtRV/cE6bXYKPXWgTm9rrw0=";
       };
     };
     "6.1.141" = {
