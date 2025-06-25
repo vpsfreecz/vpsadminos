@@ -1,8 +1,16 @@
 {
-  stableKernelVersion = "6.12.33";
-  unstableKernelVersion = "6.12.33";
+  stableKernelVersion = "6.12.34";
+  unstableKernelVersion = "6.12.34";
 
   kernels = {
+    "6.12.34" = {
+      rev = "ac64d280f3e416449a318a811987ae531c8f7e97";
+      sha256 = "sha256-fBwFGKuhxKnXf04Ck98cwoJ6HwC4LpDLGXcwd1JmYIY=";
+      zfs = {
+        rev = "4141537db87c361da46c28ca331f060083490561";
+        sha256 = "sha256-njIhH0VorwKj3Eyxrm8R7P/4o+w9knT58dJ13Te05qE=";
+      };
+    };
     "6.9.12-3" = {
       rev = "43566453ad31b9fa8e43fb3d48eb8e0bbae93ba5";
       sha256 = "sha256-/XfRopmX6enUzAnFXoxOvMhOfiaPj4MDwVVmRl3a+og=";
@@ -22,14 +30,6 @@
     "6.12.34-2" = {
       rev = "a5364787e87a870fba4b6513cc918de56e7d7e61";
       sha256 = "sha256-XCMr3/1q2HRKK5O+IyUbqlt/BmmNqH0VYFhcjJCONzg=";
-      zfs = {
-        rev = "e24cd603b883ad89c11172784485b290f742ef2d";
-        sha256 = "sha256-ehV/dsXjTD4b9h16yxtQddnkmA/35ayr+4K7xNlW/Kg=";
-      };
-    };
-    "6.12.34" = {
-      rev = "ec6a50f7e824695651f5cf148b70e7776e8d42c4";
-      sha256 = "sha256-7uAtgQEQZkF4gCfVLTAOdttxWqxSdh3ZAmVcnrgZuwM=";
       zfs = {
         rev = "e24cd603b883ad89c11172784485b290f742ef2d";
         sha256 = "sha256-ehV/dsXjTD4b9h16yxtQddnkmA/35ayr+4K7xNlW/Kg=";
