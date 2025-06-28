@@ -121,22 +121,28 @@ module OsVm
     end
 
     # Kill the machine
+    # @param signal ['TERM', 'KILL']
     # @return [Machine]
-    def kill
+    def kill(signal: 'TERM')
       unless running?
         log.kill('NONE')
         return
       end
 
-      log.kill('TERM')
+      log.kill(signal)
 
       begin
-        Process.kill('TERM', qemu_pid)
+        Process.kill(signal, qemu_pid)
       rescue Errno::ESRCH
-        warn "Unable to kill machine #{name} using SIGTERM"
+        warn "Unable to kill machine #{name} using SIG#{signal}"
       end
 
-      return if qemu_reaper.join(60)
+      if signal == 'KILL'
+        qemu_reaper.join
+        return self
+      elsif qemu_reaper.join(60)
+        return self
+      end
 
       log.kill('KILL')
 
