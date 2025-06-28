@@ -97,6 +97,7 @@ in tests [
   "snap/lxd-ubuntu"
   "systemd/credentials"
   { test = "systemd/device-units"; args = { distributions = distributions.systemd; }; }
+  "zfs/mmap-nosync"
   "zfs/ugidmap"
   "zfs/xattr"
 ]
