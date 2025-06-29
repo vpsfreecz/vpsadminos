@@ -97,10 +97,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "00pc9f2bib217rdrqynnacr3bgddxjpbnz9zprm4m37cfjxz2617";
+      sha256 = "14nip73mmp5hhscwkjlfiw0vs7yc6nd0jqq1w6qjwzhijyvg0wys";
       type = "gem";
     };
-    version = "25.05.0.build20250616223824";
+    version = "25.05.0.build20250629142024";
   };
   logger = {
     groups = ["default"];
@@ -128,10 +128,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0499p2z1lgv8b9ajnbdg1568cv74886q4dp9q0mxh2h0nqmza3mj";
+      sha256 = "1y6zrd5qr5izzmzk38n7vac0fvp0c7r8wil14vg243703d1rm8d2";
       type = "gem";
     };
-    version = "25.05.0.build20250616223824";
+    version = "25.05.0.build20250629142024";
   };
   osctl-exporter = {
     dependencies = ["json" "libosctl" "osctl" "osctl-exportfs" "prometheus-client" "puma" "rack" "require_all"];
@@ -139,10 +139,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1j92mysp1n11yhhclfrw5jz1fk0g8pwxvs627sk0fq12jzj6qz75";
+      sha256 = "06g61rffmzriqh346b0wic8si18gpy3cpvxl3hl0jvnbnj9zwc7m";
       type = "gem";
     };
-    version = "25.05.0.build20250616223824";
+    version = "25.05.0.build20250629142024";
   };
   osctl-exportfs = {
     dependencies = ["filelock" "gli" "libosctl" "require_all"];
@@ -150,20 +150,20 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0a14v94g90xzxcm0adrsblx4zyrwz5d1c5wvygk22y0zqjggn4nh";
+      sha256 = "1n882sa286ixx0fissrpcx14bhv726w2gf2842zw80n0anxmbm40";
       type = "gem";
     };
-    version = "25.05.0.build20250616223824";
+    version = "25.05.0.build20250629142024";
   };
   ostruct = {
     groups = ["default"];
     platforms = [];
     source = {
       remotes = ["https://rubygems.org"];
-      sha256 = "05xqijcf80sza5pnlp1c8whdaay8x5dc13214ngh790zrizgp8q9";
+      sha256 = "1h6gazp5837xbz1aqvq9x0a5ffpw32nhvknn931a4074k6i04wvd";
       type = "gem";
     };
-    version = "0.6.1";
+    version = "0.6.2";
   };
   prometheus-client = {
     dependencies = ["base64"];
