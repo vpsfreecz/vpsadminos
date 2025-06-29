@@ -116,8 +116,6 @@ in {
     machine.start
     machine.wait_for_osctl_pool('tank')
 
-    # machine.succeeds("zfs set xattr=dir acltype=posix tank/ct")
-
     variants = {
       # This is the problematic scenario
       'xattr-dir' => %w[xattr=dir acltype=posix],
