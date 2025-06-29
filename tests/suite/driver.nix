@@ -67,6 +67,34 @@ import ../make-test.nix ({ pkgs }: {
     machine.wait_until_succeeds("sleep 10")
     machine.wait_until_fails("sleep 10 ; false")
 
+    wait_i = 0
+
+    wait_ret =
+      wait_for_block(name: 'successful block', timeout: 5) do
+        if wait_i < 3
+          wait_i += 1
+          sleep(0.5)
+          next(false)
+        end
+
+        123
+      end
+
+    if wait_ret != 123
+      fail "#wait_for_block did not return expected value: got #{wait_ret.inspect}, expected 123"
+    end
+
+    begin
+      wait_for_block(name: 'failed block', timeout: 5) do
+        sleep(1)
+        false
+      end
+    rescue OsVm::TimeoutError
+      # ok
+    else
+      fail "#wait_for_block timeout not caught"
+    end
+
     begin
       machine.execute("sleep 10", timeout: 5)
     rescue OsVm::TimeoutError
