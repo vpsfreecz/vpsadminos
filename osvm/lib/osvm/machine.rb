@@ -341,6 +341,17 @@ module OsVm
       self
     end
 
+    # Wait until container's network is operational, including DNS
+    # @param ctid [String]
+    # @return [Machine]
+    def wait_until_container_online(ctid, timeout: @default_timeout)
+      wait_until_succeeds(
+        "osctl ct exec #{ctid} sh -c 'ping -c 1 vpsadminos.org || curl --head https://vpsadminos.org || wget -O - https://vpsadminos.org || getent hosts vpsadminos.org'",
+        timeout:
+      )
+      self
+    end
+
     # Wait until the machine shuts down
     # @param timeout [Integer]
     # @return [Machine]
