@@ -10,6 +10,18 @@ import ../make-test.nix ({ pkgs }: {
   machine = import ../machines/tank.nix pkgs;
 
   testScript = ''
+    ctids = []
+
+    100.times do
+      ctid = get_container_id
+
+      if ctids.include?(ctid)
+        fail "Duplicit container id #{ctid.inspect}"
+      end
+
+      ctids << ctid
+    end
+
     fail "machine running but not started" if machine.running?
     fail "machine booted but not started" if machine.booted?
 
