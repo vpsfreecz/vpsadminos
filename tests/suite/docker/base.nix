@@ -26,7 +26,7 @@ import ../../make-test.nix ({ pkgs }: {
       "osctl ct start docker",
     )
 
-    machine.wait_until_succeeds("osctl ct exec docker sh -c 'ping -c 1 vpsadminos.org || curl --head https://vpsadminos.org || wget -O - https://vpsadminos.org || getent hosts vpsadminos.org'")
+    machine.wait_until_container_online('docker')
 
     ${setupScript}
 

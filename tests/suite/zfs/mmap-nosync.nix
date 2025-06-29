@@ -137,7 +137,7 @@ in {
         "osctl ct start #{testct}"
       )
 
-      machine.wait_until_succeeds("osctl ct exec #{testct} ping -c 1 vpsadminos.org", timeout: 60)
+      machine.wait_until_container_online(testct, timeout: 60)
 
       machine.succeeds("osctl ct exec #{testct} apk add python3")
 
