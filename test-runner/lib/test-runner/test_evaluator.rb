@@ -127,6 +127,7 @@ module TestRunner
     #
     # @param name [String] block name for error reporting
     # @param timeout [Integer]
+    # @raise [OsVm::TimeoutError]
     # @return [any] yielded value
     def wait_for_block(name:, timeout: @default_timeout)
       t1 = Time.now
@@ -139,7 +140,7 @@ module TestRunner
         cur_timeout = timeout - (Time.now - t1)
 
         if cur_timeout <= 0
-          raise TimeoutError, "Timeout occurred while waiting for #{name}"
+          raise OsVm::TimeoutError, "Timeout occurred while waiting for #{name}"
         end
 
         sleep(1)
