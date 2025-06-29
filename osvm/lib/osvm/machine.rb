@@ -51,8 +51,15 @@ module OsVm
     # @param kernel_params [Array<String>]
     # @return [Machine]
     def start(kernel_params: [])
-      if running?
-        raise 'Machine already started'
+      raise 'Machine already started' if running?
+
+      # virtiofsd cannot be relaunched right away, it needs some time settle
+      # for unknown reasons, so we ensure there's a 5 second gap between stop
+      # and start of this machine
+      if @stopped_at
+        diff = Time.now - @stopped_at
+        delay = 5
+        sleep([delay - diff, delay].min) if diff <= delay
       end
 
       log.start
@@ -565,6 +572,7 @@ module OsVm
         @qemu_reaper = nil
         @shell_up = false
         @running = false
+        @stopped_at = Time.now
       end
     end
 
