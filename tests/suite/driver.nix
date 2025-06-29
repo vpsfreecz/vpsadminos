@@ -143,6 +143,38 @@ import ../make-test.nix ({ pkgs }: {
       fail "expected osctl pool to be active, is '#{pools.first['state']}'"
     end
 
+    begin
+      machine.wait_until_container_online('nonexistent-ct', timeout: 30)
+    rescue OsVm::TimeoutError
+      # ok
+    else
+      fail "wait_until_container_online() did not raise TimeoutError on non-existent container"
+    end
+
+    online_ct = get_container_id
+
+    machine.all_succeed(
+      "osctl ct new --distribution alpine #{online_ct}",
+      "osctl ct unset start-menu #{online_ct}",
+      "osctl ct start #{online_ct}"
+    )
+
+    begin
+      machine.wait_until_container_online(online_ct, timeout: 30)
+    rescue OsVm::TimeoutError
+      # ok
+    else
+      fail "wait_until_container_online() did not raise TimeoutError"
+    end
+
+    machine.all_succeed(
+      "osctl ct stop #{online_ct}",
+      "osctl ct netif new bridge --link lxcbr0 #{online_ct} eth0",
+      "osctl ct start #{online_ct}"
+    )
+
+    machine.wait_until_container_online(online_ct, timeout: 30)
+
     machine.stop
 
     machine.start
@@ -179,38 +211,6 @@ import ../make-test.nix ({ pkgs }: {
     unless File.exist?(pulled)
       fail "pulled file not found at '#{pulled}'"
     end
-
-    begin
-      machine.wait_until_container_online('nonexistent-ct', timeout: 30)
-    rescue OsVm::TimeoutError
-      # ok
-    else
-      fail "wait_until_container_online() did not raise TimeoutError on non-existent container"
-    end
-
-    online_ct = get_container_id
-
-    machine.all_succeed(
-      "osctl ct new --distribution alpine #{online_ct}",
-      "osctl ct unset start-menu #{online_ct}",
-      "osctl ct start #{online_ct}"
-    )
-
-    begin
-      machine.wait_until_container_online(online_ct, timeout: 30)
-    rescue OsVm::TimeoutError
-      # ok
-    else
-      fail "wait_until_container_online() did not raise TimeoutError"
-    end
-
-    machine.all_succeed(
-      "osctl ct stop #{online_ct}",
-      "osctl ct netif new bridge --link lxcbr0 #{online_ct} eth0",
-      "osctl ct start #{online_ct}"
-    )
-
-    machine.wait_until_container_online(online_ct, timeout: 30)
 
     machine.stop
   '';
