@@ -103,7 +103,11 @@ module OsCtld
         end
 
         progress('Creating datasets')
-        importer.create_datasets(builder, accept_existing: !opts[:dataset].nil?)
+        importer.create_datasets(
+          builder,
+          accept_existing: !opts[:dataset].nil?,
+          properties: opts[:zfs_properties] || {}
+        )
 
         builder.setup_lxc_home
 

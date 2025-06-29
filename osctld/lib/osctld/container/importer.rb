@@ -187,11 +187,17 @@ module OsCtld
     #
     # @param builder [Container::Builder]
     # @param accept_existing [Boolean]
-    def create_datasets(builder, accept_existing: false)
+    # @param properties [Hash<String, String>]
+    def create_datasets(builder, accept_existing: false, properties: {})
       datasets(builder).each do |ds|
         next if accept_existing && ds.exist?
 
-        builder.create_dataset(ds, mapping: builder.ctrc.map_mode == 'zfs', parents: ds.root?)
+        builder.create_dataset(
+          ds,
+          mapping: builder.ctrc.map_mode == 'zfs',
+          parents: ds.root?,
+          properties:
+        )
       end
     end
 

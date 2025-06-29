@@ -999,7 +999,16 @@ module OsCtl::Cli
       file = File.expand_path(args[0])
       raise "#{file}: not found" unless File.exist?(file)
 
-      cmd_opts = { pool: gopts[:pool], file: }
+      cmd_opts = {
+        pool: gopts[:pool],
+        file:,
+        zfs_properties: opts['zfs-property'].to_h do |v|
+          k, v = v.split('=')
+          raise GLI::BadCommandLine, "invalid ZFS property '#{v}'" if v.nil?
+
+          [k, v]
+        end
+      }
 
       %w[as-id as-user as-group dataset map_mode missing-devices].each do |v|
         cmd_opts[v.sub('-', '_').to_sym] = opts[v] if opts[v]
@@ -1601,7 +1610,13 @@ module OsCtl::Cli
         id: args[0],
         pool: opts[:pool] || gopts[:pool],
         user: opts[:user],
-        repository: opts[:repository]
+        repository: opts[:repository],
+        zfs_properties: opts['zfs-property'].to_h do |v|
+          k, v = v.split('=')
+          raise GLI::BadCommandLine, "invalid ZFS property '#{v}'" if v.nil?
+
+          [k, v]
+        end
       }
 
       %i[group dataset].each do |v|

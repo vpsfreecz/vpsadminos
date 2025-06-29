@@ -729,6 +729,10 @@ The following shortcuts are supported:
       `--skip-image`, the dataset is expected to already contain the rootfs
       and `--distribution` and `--version` have to be provided.
 
+    `--zfs-property` *property*=*value*
+      A ZFS property passed to ZFS when creating container datasets.
+      Can be used multiple times.
+
     `--map-mode` `native`|`zfs`
       Specify UID/GID mapping mode. Defaults to `native`.
 
@@ -1554,6 +1558,10 @@ The following shortcuts are supported:
     `--dataset` *dataset*
       Use a custom dataset for the container's rootfs. The dataset and all its
       parents are created, if it doesn't already exist.
+
+    `--zfs-property` *property*=*value*
+      A ZFS property passed to ZFS when creating container datasets.
+      Can be used multiple times.
 
     `--map-mode` `native`|`zfs`
       Specify UID/GID mapping mode. Defaults to `native`.

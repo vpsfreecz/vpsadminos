@@ -75,10 +75,12 @@ module OsCtld
     # @param opts [Hash] options
     # @option opts [Boolean] :mapping
     # @option opts [Boolean] :parents
+    # @option opts [Hash] :properties
     def create_dataset(ds, opts = {})
       ds_builder.create_dataset(
         ds,
         parents: opts[:parents],
+        properties: opts[:properties] || {},
         uid_map: opts[:mapping] ? ctrc.uid_map : nil,
         gid_map: opts[:mapping] ? ctrc.gid_map : nil
       )

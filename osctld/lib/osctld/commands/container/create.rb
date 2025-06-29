@@ -54,6 +54,7 @@ module OsCtld
         as_user: opts[:user],
         as_group: opts[:group],
         dataset: opts[:dataset],
+        zfs_properties: opts[:zfs_properties],
         map_mode: opts[:map_mode],
         file: tpl_path
       )

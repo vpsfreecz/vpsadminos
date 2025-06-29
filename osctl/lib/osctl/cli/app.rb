@@ -639,6 +639,9 @@ module OsCtl::Cli
           new.desc 'Use a custom dataset for the rootfs'
           new.flag :dataset, arg_name: 'dataset'
 
+          new.desc 'ZFS properties for the created datasets'
+          new.flag 'zfs-property', arg_name: 'property=value', multiple: true
+
           new.desc 'Map mode'
           new.flag :'map-mode', arg_name: 'map_mode'
 
@@ -1284,6 +1287,9 @@ module OsCtl::Cli
 
           c.desc 'Use a custom dataset for the rootfs'
           c.flag :dataset, arg_name: 'dataset'
+
+          c.desc 'ZFS properties for the created datasets'
+          c.flag 'zfs-property', arg_name: 'property=value', multiple: true
 
           c.desc 'Map mode'
           c.flag :'map-mode', arg_name: 'map_mode'

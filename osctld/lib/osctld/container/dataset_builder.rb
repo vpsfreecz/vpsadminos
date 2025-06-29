@@ -18,11 +18,12 @@ module OsCtld
     # @option opts [OsCtl::Lib::IdMap] :uid_map
     # @option opts [OsCtl::Lib::IdMap] :gid_map
     # @option opts [Boolean] :parents
+    # @option opts [Hash] :properties
     def create_dataset(ds, opts = {})
       zfs_opts = {
         properties: {
           canmount: 'noauto'
-        }
+        }.merge(opts[:properties] || {})
       }
       zfs_opts[:parents] = true if opts[:parents]
 
