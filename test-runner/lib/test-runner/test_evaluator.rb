@@ -60,11 +60,13 @@ module TestRunner
           t1 = Time.now
 
           begin
-            warn "Running script #{script.name}"
+            warn "[#{t1}] Running script #{script.name}"
             test_script(script.name)
-            warn "Script #{script.name} finished"
+            t2 = Time.now
+            warn "[#{t2}] Script #{script.name} finished in #{(t2 - t1).round(2)}s"
           rescue Exception => e # rubocop:disable Lint/RescueException
-            warn "Exception occurred while running script #{script.name}"
+            t2 = Time.now
+            warn "[#{t2}] Exception occurred while running script #{script.name} in #{(t2 - t1).round(2)}s"
             warn e.full_message
           else
             success = true
@@ -73,7 +75,7 @@ module TestRunner
           result = {
             script: script.name,
             success:,
-            elapsed_time: Time.now - t1
+            elapsed_time: t2 - t1
           }
 
           ret[script.name] = result
