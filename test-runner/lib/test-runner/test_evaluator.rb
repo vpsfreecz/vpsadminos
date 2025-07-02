@@ -27,8 +27,9 @@ module TestRunner
       @machines = {}
       @default_timeout = opts.fetch(:default_timeout)
       @used_container_ids = []
+      @message_stack = []
 
-      config['machines'].each do |name, cfg|
+      @config['machines'].each do |name, cfg|
         var = :"@#{name}"
         m = OsVm::Machine.new(
           name,
@@ -55,7 +56,7 @@ module TestRunner
       ret = {}
 
       do_run do
-        scripts.each do |script|
+        @scripts.each do |script|
           success = false
           t1 = Time.now
 
@@ -101,6 +102,23 @@ module TestRunner
     # Invoke interactive shell from within a test
     def breakpoint
       binding.pry # rubocop:disable Lint/Debugger
+    end
+
+    # Prefix exception messages
+    # @param message [String]
+    def test(message)
+      @message_stack << message
+
+      begin
+        yield
+      rescue StandardError => e
+        raise if e.message.start_with?('Test ')
+
+        raise e.exception("Test #{@message_stack.join(' ')}: #{e.message}")
+      end
+
+      @message_stack = @message_stack[0..-2]
+      nil
     end
 
     # Generate container id that is unique to the test run
@@ -149,10 +167,8 @@ module TestRunner
 
     protected
 
-    attr_reader :test, :scripts, :config, :opts
-
     def test_script(name)
-      binding.eval(config['testScripts'][name]['script']) # rubocop:disable Security/Eval
+      binding.eval(@config['testScripts'][name]['script']) # rubocop:disable Security/Eval
     end
 
     def do_run
@@ -164,7 +180,7 @@ module TestRunner
     ensure
       machines.each_value do |m|
         m.kill
-        m.destroy if opts[:destructive]
+        m.destroy if @opts[:destructive]
         m.finalize
         m.cleanup
       end
