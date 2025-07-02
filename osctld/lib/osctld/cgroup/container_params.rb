@@ -16,6 +16,13 @@ module OsCtld
       apply_container_params_and_retry(usable_params, keep_going:, &)
     end
 
+    def reset(param, keep_going, &)
+      super
+      return unless owner.running?
+
+      reset_container_param(param, keep_going, &)
+    end
+
     # Temporarily expand container memory by given percentage
     def temporarily_expand_memory(percent: 50)
       return unless owner.running?
@@ -120,6 +127,27 @@ module OsCtld
       return unless failed.any?
 
       apply_container_params(failed, keep_going:, &)
+    end
+
+    def reset_container_param(param, keep_going)
+      v = reset_value(param)
+      return unless v
+
+      path = File.join(
+        yield(param.subsystem),
+        'user-owned',
+        "lxc.payload.#{owner.id}",
+        param.name
+      )
+      CGroup.set_param(path, v)
+    rescue CGroupFileNotFound
+      raise unless keep_going
+
+      log(
+        :info,
+        :cgroup,
+        "Skip #{path}, group or parameter does not exist"
+      )
     end
   end
 end
