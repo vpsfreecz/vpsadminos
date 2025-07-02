@@ -7,7 +7,7 @@ import ../make-test.nix ({ pkgs }: {
 
   tags = [ "ci" ];
 
-  machine = import ../../machines/tank.nix pkgs;
+  machine = import ../machines/tank.nix pkgs;
 
   testScript = ''
     machine.start
