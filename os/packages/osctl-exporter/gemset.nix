@@ -97,10 +97,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1cypkyiyslpxwnfq5r2sjyj7q75418ifhb3rg228cawpa9kj1qaw";
+      sha256 = "13pka32a3a3wy7371dx598nkf300p891a9whdngn7pivpzcck033";
       type = "gem";
     };
-    version = "25.05.0.build20250702150208";
+    version = "25.05.0.build20250708215703";
   };
   logger = {
     groups = ["default"];
@@ -128,10 +128,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1zl688rj5vn3dfzzlv7sh11rhy1albq69xj1w8z85v87vhzrn7bh";
+      sha256 = "1i8861q5p9qnl4aln0f7r0j23w3725l0avrb8pn9xk22ylnk0m2n";
       type = "gem";
     };
-    version = "25.05.0.build20250702150208";
+    version = "25.05.0.build20250708215703";
   };
   osctl-exporter = {
     dependencies = ["json" "libosctl" "osctl" "osctl-exportfs" "prometheus-client" "puma" "rack" "require_all"];
@@ -139,10 +139,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1hdvw9bky8ghvgwwymk5sp6dqqna7w2957hfqkl9fzjjrl2vj9s2";
+      sha256 = "0zd7qnfj02ym0i9fbv129bvj34lqy46237a193aff2wnfb2x05kf";
       type = "gem";
     };
-    version = "25.05.0.build20250702150208";
+    version = "25.05.0.build20250708215703";
   };
   osctl-exportfs = {
     dependencies = ["filelock" "gli" "libosctl" "require_all"];
@@ -150,10 +150,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0myi5n4hp5h7n1ymbblfvkhqvvhnk9k4xh5lqjrl9igf0l0k8nbn";
+      sha256 = "0afxhfzqz1zi4sqyi9arjy2gigi4j2v7vs4g6ckvy6c8adkrzlqm";
       type = "gem";
     };
-    version = "25.05.0.build20250702150208";
+    version = "25.05.0.build20250708215703";
   };
   ostruct = {
     groups = ["default"];
@@ -171,10 +171,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.org"];
-      sha256 = "0bzypdh2586iwl7m9xrhn1gglrvhx0mvz297ih0770h6x8ja09ni";
+      sha256 = "09ajgmp3zvr417wasyr2imqg6f2kx0avx42dh56rzk9cx71ynyw0";
       type = "gem";
     };
-    version = "4.2.4";
+    version = "4.2.5";
   };
   puma = {
     dependencies = ["nio4r"];
