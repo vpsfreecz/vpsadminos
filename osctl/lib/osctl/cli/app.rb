@@ -1483,6 +1483,24 @@ module OsCtl::Cli
           c.action(&Command.run(Container, :pid))
         end
 
+        ct.desc 'Find containers by UID'
+        ct.arg_name '[uid...] | -'
+        ct.command :uid do |c|
+          c.desc 'Do not show header'
+          c.switch %i[H hide-header], negatable: false
+
+          c.action(&Command.run(Container, :uid))
+        end
+
+        ct.desc 'Find containers by GID'
+        ct.arg_name '[gid...] | -'
+        ct.command :gid do |c|
+          c.desc 'Do not show header'
+          c.switch %i[H hide-header], negatable: false
+
+          c.action(&Command.run(Container, :gid))
+        end
+
         ct.desc 'List container processes'
         ct.arg_name '[ctid...]'
         ct.command :ps do |c|

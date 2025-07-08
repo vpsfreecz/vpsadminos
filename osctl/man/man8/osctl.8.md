@@ -1801,6 +1801,22 @@ The following shortcuts are supported:
     `-H`, `--hide-header`
       Do not show header, useful for scripting.
 
+`ct uid` [*uid...*] | `-`
+  Find containers by user IDs as seen on the host. By default, the user IDs
+  are passed as command-line arguments. If the first UID is `-`, the user IDs
+  are read from the standard input, one UID per line.
+
+    `-H`, `--hide-header`
+      Do not show header, useful for scripting.
+
+`ct gid` [*gid...*] | `-`
+  Find containers by group IDs as seen on the host. By default, the group IDs
+  are passed as command-line arguments. If the first GID is `-`, the group IDs
+  are read from the standard input, one GID per line.
+
+    `-H`, `--hide-header`
+      Do not show header, useful for scripting.
+
 `ct ps` [*ctid*...] | `-`
   Filter processes belonging to containers with *ctid*. If no *ctid* is provided,
   all system processes are listed. `-` will filter processes from the host.

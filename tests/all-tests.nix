@@ -88,6 +88,7 @@ in tests [
   "osctl/ct-runscript-v1"
   "osctl/ct-runscript-v2"
   "osctl/ct-send-recv"
+  "osctl/ct-uid-gid"
   "osctl/pool/export-cleanup"
   "osctl-exportfs/mount"
   "podman/debian-latest"

@@ -1164,6 +1164,40 @@ module OsCtl::Cli
       end
     end
 
+    def uid
+      require_args!('uid|-', strict: false)
+
+      raw_uids = []
+
+      if args[0] == '-'
+        raw_uids << $stdin.readline.strip until $stdin.eof?
+      else
+        raw_uids = args
+      end
+
+      uids = filter_ugids(raw_uids)
+
+      finder = UgidFinder.new(header: !opts['hide-header'])
+      finder.list_by_uid(uids)
+    end
+
+    def gid
+      require_args!('gid|-', strict: false)
+
+      raw_gids = []
+
+      if args[0] == '-'
+        raw_gids << $stdin.readline.strip until $stdin.eof?
+      else
+        raw_gids = args
+      end
+
+      gids = filter_ugids(raw_gids)
+
+      finder = UgidFinder.new(header: !opts['hide-header'])
+      finder.list_by_gid(gids)
+    end
+
     def assets
       require_args!('id')
 
@@ -1832,6 +1866,30 @@ module OsCtl::Cli
       rescue Errno::ENOENT
         # pass
       end
+    end
+
+    def filter_ugids(raw_ids)
+      ret = []
+
+      raw_ids.each do |raw_id|
+        stripped = raw_id.strip
+
+        if /\A\d+\z/ !~ stripped
+          warn "Ignoring #{stripped.inspect}, not a valid user/group ID"
+          next
+        end
+
+        id = stripped.to_i
+
+        if id < 0
+          warn "Ignoring #{id}, not a valid user/group ID"
+          next
+        end
+
+        ret << id
+      end
+
+      ret
     end
   end
 end
