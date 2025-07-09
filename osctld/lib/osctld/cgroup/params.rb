@@ -331,6 +331,9 @@ module OsCtld
       when 'cpu.max', 'memory.high', 'memory.max'
         ['max']
 
+      when 'cpuset.cpus'
+        ['all']
+
       when 'memory.min', 'memory.low'
         [0]
       end
