@@ -2,6 +2,9 @@ module TestRunner
   module Cli; end
 end
 
+require 'test-runner/example'
+require 'test-runner/example_group'
+require 'test-runner/example_result'
 require 'test-runner/executor'
 require 'test-runner/test'
 require 'test-runner/test_config'

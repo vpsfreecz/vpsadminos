@@ -30,7 +30,6 @@ module TestRunner
       @machines = {}
       @default_timeout = opts.fetch(:default_timeout)
       @used_container_ids = []
-      @describe_stack = []
 
       @config['machines'].each do |name, cfg|
         var = :"@#{name}"
@@ -64,14 +63,14 @@ module TestRunner
           t1 = Time.now
 
           begin
-            warn "[#{t1}] Running script #{script.name}"
+            log "Running script #{script.name}"
             test_script(script.name)
             t2 = Time.now
-            warn "[#{t2}] Script #{script.name} finished in #{(t2 - t1).round(2)}s"
+            log "Script #{script.name} finished in #{(t2 - t1).round(2)}s"
           rescue Exception => e # rubocop:disable Lint/RescueException
             t2 = Time.now
-            warn "[#{t2}] Exception occurred while running script #{script.name} in #{(t2 - t1).round(2)}s"
-            warn e.full_message
+            log "Exception occurred while running script #{script.name} in #{(t2 - t1).round(2)}s"
+            log e.full_message
           else
             success = true
           end
@@ -107,29 +106,70 @@ module TestRunner
       binding.pry # rubocop:disable Lint/Debugger
     end
 
-    # Describe tested subject
+    # Create an example group
+    #
+    # Example groups can be nested. Groups are evaluated in random order.
+    # Groups contain examples which are defined within the yielded block
+    # using {#it}.
+    #
     # @param obj [#to_s]
-    def describe(obj)
-      @describe_stack << obj.to_s
+    def describe(obj, &)
+      grp = ExampleGroup.new(obj, parent: @group_stack.last, &)
 
-      begin
-        yield
-      rescue StandardError, RSpec::Expectations::ExpectationNotMetError => e
-        raise if e.message.start_with?('Test ')
-
-        raise e.exception("Test #{@describe_stack.join(' ')} #{message}:\n#{e.message}")
+      if @group_stack.any?
+        @group_stack.last.add_group(grp)
+      else
+        @example_groups << grp
       end
 
-      @describe_stack = @describe_stack[0..-2]
+      @group_stack << grp
+
+      grp.load
+
+      @group_stack = @group_stack[0..-2]
       nil
     end
 
-    # Tested behaviour
+    alias context describe
+
+    # Code block executed before suite, context or example
+    # @param type [:suite, :context, :example]
+    def before(type, &block)
+      if type == :suite
+        @before << block
+        return
+      end
+
+      raise 'Called outside of an example group, use from #describe block' if @group_stack.empty?
+
+      @group_stack.last.add_before(type, block)
+    end
+
+    # Code block executed after suite, context or example
+    # @param type [:suite, :context, :example]
+    def after(type, &block)
+      if type == :suite
+        @after << block
+        return
+      end
+
+      raise 'Called outside of an example group, use from #describe block' if @group_stack.empty?
+
+      @group_stack.last.add_after(type, block)
+    end
+
+    # Create a test example
+    #
+    # {#it} must be called from within a {#describe} block. Examples within a group
+    # are evaluated in random order.
+    #
     # @param message [String]
-    def it(message)
-      yield
-    rescue StandardError, RSpec::Expectations::ExpectationNotMetError => e
-      raise e.exception("Test #{@describe_stack.join(' ')} #{message}:\n#{e.message}")
+    def it(message, &)
+      raise 'Called outside of an example group, use from #describe block' if @group_stack.empty?
+
+      grp = @group_stack.last
+      grp.add_example(Example.new(grp, message, &))
+      nil
     end
 
     # Generate container id that is unique to the test run
@@ -179,7 +219,62 @@ module TestRunner
     protected
 
     def test_script(name)
+      @before = []
+      @after = []
+      @example_groups = []
+      @group_stack = []
+
       binding.eval(@config['testScripts'][name]['script']) # rubocop:disable Security/Eval
+
+      return if @example_groups.empty?
+
+      run_examples
+    end
+
+    def run_examples
+      example_count = get_example_count
+      i = 1
+
+      log 'Evaluating examples'
+
+      @before.each(&:call)
+
+      results = @example_groups.shuffle.map do |grp|
+        grp.evaluate do |example|
+          log "[#{i}/#{example_count}] Evaluating '#{example.full_message}'"
+          i += 1
+        end
+      end.flatten
+
+      @after.each(&:call)
+
+      failed = results.select(&:failure?)
+      return if failed.empty?
+
+      warn "\n#{failed.count} examples failed:"
+
+      failed.each do |result|
+        warn result.title
+        warn result.error
+        warn "\n\n"
+      end
+
+      raise 'One or more examples failed'
+    end
+
+    def get_example_count(groups: nil)
+      cnt = 0
+
+      (groups || @example_groups).each do |grp|
+        cnt += grp.examples.count
+        cnt += get_example_count(groups: grp.groups)
+      end
+
+      cnt
+    end
+
+    def log(msg)
+      warn "[#{Time.now}] #{msg}"
     end
 
     def do_run
