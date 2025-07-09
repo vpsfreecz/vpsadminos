@@ -26,4 +26,5 @@ Gem::Specification.new do |s|
   s.add_dependency 'libosctl', s.version
   s.add_dependency 'osvm', s.version
   s.add_dependency 'pry', '~> 0.15.0'
+  s.add_dependency 'rspec-expectations', '~> 3.13'
 end

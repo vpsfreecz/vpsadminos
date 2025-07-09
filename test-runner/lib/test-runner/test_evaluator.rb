@@ -1,8 +1,11 @@
 require 'pry'
 require 'osvm'
+require 'rspec/expectations'
 
 module TestRunner
   class TestEvaluator
+    include RSpec::Matchers
+
     # @return [Hash<String, OsVm::Machine>]
     attr_reader :machines
 
@@ -27,7 +30,7 @@ module TestRunner
       @machines = {}
       @default_timeout = opts.fetch(:default_timeout)
       @used_container_ids = []
-      @message_stack = []
+      @describe_stack = []
 
       @config['machines'].each do |name, cfg|
         var = :"@#{name}"
@@ -104,21 +107,29 @@ module TestRunner
       binding.pry # rubocop:disable Lint/Debugger
     end
 
-    # Prefix exception messages
-    # @param message [String]
-    def test(message)
-      @message_stack << message
+    # Describe tested subject
+    # @param obj [#to_s]
+    def describe(obj)
+      @describe_stack << obj.to_s
 
       begin
         yield
-      rescue StandardError => e
+      rescue StandardError, RSpec::Expectations::ExpectationNotMetError => e
         raise if e.message.start_with?('Test ')
 
-        raise e.exception("Test #{@message_stack.join(' ')}: #{e.message}")
+        raise e.exception("Test #{@describe_stack.join(' ')} #{message}:\n#{e.message}")
       end
 
-      @message_stack = @message_stack[0..-2]
+      @describe_stack = @describe_stack[0..-2]
       nil
+    end
+
+    # Tested behaviour
+    # @param message [String]
+    def it(message)
+      yield
+    rescue StandardError, RSpec::Expectations::ExpectationNotMetError => e
+      raise e.exception("Test #{@describe_stack.join(' ')} #{message}:\n#{e.message}")
     end
 
     # Generate container id that is unique to the test run
