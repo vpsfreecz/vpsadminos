@@ -41,12 +41,12 @@ import ../../make-test.nix ({ pkgs }: {
     end
 
     check_command = proc do |type, ids, line_array|
-      test "#{type}s as arguments" do
+      it "finds #{type}s as arguments" do
         _, output = machine.succeeds("osctl ct #{type} #{ids.join(' ')} 2> /dev/null")
         check_output.call(output, line_array)
       end
 
-      test "#{type}s from stdin" do
+      it "finds #{type}s from stdin" do
         _, output = machine.succeeds("echo -e \"#{ids.join("\n")}\" | osctl ct #{type} - 2> /dev/null")
         check_output.call(output, line_array)
       end
@@ -65,15 +65,17 @@ import ../../make-test.nix ({ pkgs }: {
       "osctl ct new --user #{id3} --distribution alpine #{id3}"
     )
 
-    test 'fail without arguments' do
-      machine.fails('osctl ct uid')
-      machine.fails('osctl ct gid')
+    describe 'ct uid/gid' do
+      it 'fails without arguments' do
+        machine.fails('osctl ct uid')
+        machine.fails('osctl ct gid')
+      end
     end
 
     uid_header = %w[UID CONTAINER CT_UID]
     gid_header = %w[GID CONTAINER CT_GID]
 
-    test 'uid on testct1' do
+    describe 'uid on testct1' do
       check_command.call(
         'uid',
         %w[0 1 -1 str 99999 100000 100001 165535 165536],
@@ -92,7 +94,7 @@ import ../../make-test.nix ({ pkgs }: {
       )
     end
 
-    test 'gid on testct1' do
+    describe 'gid on testct1' do
       check_command.call(
         'gid',
         %w[0 1 -1 str 199999 200000 200001 265535 265536],
@@ -111,7 +113,7 @@ import ../../make-test.nix ({ pkgs }: {
       )
     end
 
-    test 'uid on testct2/testct3' do
+    describe 'uid on testct2/testct3' do
       check_command.call(
         'uid',
         %w[299999 300000 300001 365535 365536],
@@ -129,7 +131,7 @@ import ../../make-test.nix ({ pkgs }: {
       )
     end
 
-    test 'gid on testct2/testct3' do
+    describe 'gid on testct2/testct3' do
       check_command.call(
         'gid',
         %w[299999 300000 300001 365535 365536],

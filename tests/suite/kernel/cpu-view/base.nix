@@ -85,22 +85,14 @@ in {
           _, host_output = machine.succeeds(command)
           _, ct_output = machine.succeeds("osctl ct exec #{testct} #{command}")
 
-          if host_output != ct_output
-            fail "#{message} differs when no limit is set:\n" \
-                "host output:\n#{host_output}\n\n" \
-                "container output:\n#{ct_output}"
-          end
+          expect(host_output).to eq(ct_output)
         end
 
         compare_runscript = proc do |message, script|
           _, host_output = machine.succeeds(script)
           _, ct_output = machine.succeeds("osctl ct runscript #{testct} #{script}")
 
-          if host_output != ct_output
-            fail "#{message} differs when no limit is set:\n" \
-                "host output:\n#{host_output}\n\n" \
-                "container output:\n#{ct_output}"
-          end
+          expect(host_output).to eq(ct_output)
         end
 
         nolimit_checks = proc do
@@ -110,7 +102,7 @@ in {
           compare_exec.call("/sys/devices/system/cpuN", "find /sys/devices/system/cpu -maxdepth 1 -type d | grep -P '/cpu\\d+' | sort")
         end
 
-        test 'Unlimited CPU view without cpuset' do
+        describe 'Unlimited CPU view without cpuset' do
           nolimit_checks.call
           compare_exec.call('nproc', 'nproc')
           compare_exec.call('getconf _NPROCESSORS_ONLN', 'getconf _NPROCESSORS_ONLN')
@@ -126,7 +118,7 @@ in {
         cpu_mask = '2,3,4'
         cpu_count = cpu_mask.split(',').count
 
-        test 'Unlimited CPU view with cpuset' do
+        describe 'Unlimited CPU view with cpuset' do
           machine.succeeds("osctl ct cgparams set #{testct} cpuset.cpus #{cpu_mask}")
 
           ${if cgroupsVersion == 2 then ''
@@ -166,168 +158,166 @@ in {
 
     limited = {
       description = ''
-        Test CPU view with cgroups v${toString cgroupsVersion} in containers with CPU limit
+        describe CPU view with cgroups v${toString cgroupsVersion} in containers with CPU limit
       '';
 
       script = mkScript ''
         check_cpus = proc do |cpu_count|
-          cpu_lines = cpu_count.times.map { |i| "cpu#{i}" }.join("\n")
+          it 'virtualizes view in /proc/stat' do
+            cpu_lines = cpu_count.times.map { |i| "cpu#{i}" }.join("\n")
+            _, limit_stat = machine.succeeds("osctl ct exec #{testct} cat /proc/stat | grep -P '^cpu\[\\d+\]* ' | awk '{ print $1; }'")
 
-          _, limit_stat = machine.succeeds("osctl ct exec #{testct} cat /proc/stat | grep -P '^cpu\[\\d+\]* ' | awk '{ print $1; }'")
-
-          if limit_stat.strip != "cpu\n#{cpu_lines}"
-            fail "Unexpected CPUs in /proc/stat: #{limit_stat.strip.inspect}"
+            expect(limit_stat.strip).to eq("cpu\n#{cpu_lines}")
           end
 
-          _, limit_cpuinfo = machine.succeeds("osctl ct exec #{testct} grep processor /proc/cpuinfo")
-          proc_count = limit_cpuinfo.strip.split("\n").count
-
-          if proc_count != cpu_count
-            fail "Expected #{cpu_count} processors in /proc/cpuinfo, got #{proc_count}"
+          it 'virtualizes view in /proc/cpuinfo' do
+            _, limit_cpuinfo = machine.succeeds("osctl ct exec #{testct} grep processor /proc/cpuinfo")
+            proc_count = limit_cpuinfo.strip.split("\n").count
+            expect(proc_count).to eq(cpu_count)
           end
 
-          _, limit_online = machine.succeeds("osctl ct exec #{testct} cat /sys/devices/system/cpu/online")
+          it 'virtualizes /sys/devices/system/cpu/online' do
+            _, limit_online = machine.succeeds("osctl ct exec #{testct} cat /sys/devices/system/cpu/online")
 
-          cpu_mask = cpu_count > 1 ? "0-#{cpu_count - 1}" : '0'
+            cpu_mask = cpu_count > 1 ? "0-#{cpu_count - 1}" : '0'
 
-          if limit_online.strip != cpu_mask
-            fail "Expected /sys/devices/system/cpu/online to contain #{cpu_mask}, got #{limit_online.strip.inspect}"
+            expect(limit_online.strip).to eq(cpu_mask)
           end
 
-          cpu_sys = cpu_count.times.map { |i| "/sys/devices/system/cpu/cpu#{i}" }.join("\n")
+          it 'virtualizes /sys/devices/system/cpu/cpuN' do
+            cpu_sys = cpu_count.times.map { |i| "/sys/devices/system/cpu/cpu#{i}" }.join("\n")
 
-          _, limit_cpus = machine.succeeds("osctl ct exec #{testct} find /sys/devices/system/cpu -maxdepth 1 -type d | grep -P '/cpu\\d+' | sort")
+            _, limit_cpus = machine.succeeds("osctl ct exec #{testct} find /sys/devices/system/cpu -maxdepth 1 -type d | grep -P '/cpu\\d+' | sort")
 
-          if limit_cpus.strip != cpu_sys
-            fail "Expected #{cpu_sys.inspect} in /sys/devices/system, got #{limit_cpus.strip.inspect}"
+            expect(limit_cpus.strip).to eq(cpu_sys)
           end
 
-          _, limit_nproc = machine.succeeds("osctl ct exec #{testct} nproc")
+          it 'virtualizes nproc' do
+            _, limit_nproc = machine.succeeds("osctl ct exec #{testct} nproc")
 
-          if limit_nproc.to_i != cpu_count
-            fail "Expected nproc to return #{cpu_count}, got #{limit_nproc.inspect}"
+            expect(limit_nproc.to_i).to eq(cpu_count)
           end
 
-          _, limit_getconf = machine.succeeds("osctl ct exec #{testct} getconf _NPROCESSORS_ONLN")
+          it 'virtualizes getconf' do
+            _, limit_getconf = machine.succeeds("osctl ct exec #{testct} getconf _NPROCESSORS_ONLN")
 
-          if limit_getconf.to_i != cpu_count
-            fail "Expected getconf to return #{cpu_count}, got #{limit_getconf.inspect}"
+            expect(limit_getconf.to_i).to eq(cpu_count)
           end
 
-          cpu_list = (0..(cpu_count - 1)).to_a.join(',')
+          it 'virtualizes sched_getaffinity()/sched_setaffinity()' do
+            cpu_list = (0..(cpu_count - 1)).to_a.join(',')
 
-          _, limit_affinity = machine.succeeds("osctl ct runscript #{testct} /scripts/sched_getaffinity.py")
+            _, limit_affinity = machine.succeeds("osctl ct runscript #{testct} /scripts/sched_getaffinity.py")
 
-          if limit_affinity.strip != cpu_list
-            fail "Expected sched_getaffinity() to return #{cpu_list.inspect}, got #{limit_affinity.strip.inspect}"
+            expect(limit_affinity.strip).to eq(cpu_list)
+
+            machine.succeeds("osctl ct runscript #{testct} /scripts/sched_setaffinity.py #{limit_affinity.strip}")
           end
-
-          machine.succeeds("osctl ct runscript #{testct} /scripts/sched_setaffinity.py #{limit_affinity.strip}")
         end
 
-        test 'CPU view without cpuset' do
-          test '300% limit' do
+        describe 'CPU view without cpuset' do
+          describe 'with 300% limit' do
             machine.succeeds("osctl ct set cpu-limit #{testct} 300")
             check_cpus.call(3)
           end
 
-          test '400% limit' do
+          describe 'with 400% limit' do
             machine.succeeds("osctl ct set cpu-limit #{testct} 400")
             check_cpus.call(4)
           end
 
-          test '250% limit' do
+          describe 'with 250% limit' do
             machine.succeeds("osctl ct set cpu-limit #{testct} 250")
             check_cpus.call(3)
           end
 
-          test '201% limit' do
+          describe 'with 201% limit' do
             machine.succeeds("osctl ct set cpu-limit #{testct} 201")
             check_cpus.call(3)
           end
 
-          test '200% limit' do
+          describe 'with 200% limit' do
             machine.succeeds("osctl ct set cpu-limit #{testct} 200")
             check_cpus.call(2)
           end
 
-          test '100% limit' do
+          describe 'with 100% limit' do
             machine.succeeds("osctl ct set cpu-limit #{testct} 100")
             check_cpus.call(1)
           end
 
-          test '50% limit' do
+          describe 'with 50% limit' do
             machine.succeeds("osctl ct set cpu-limit #{testct} 50")
             check_cpus.call(1)
           end
 
-          test 'raise to 800%' do
+          describe 'raise to 800%' do
             machine.succeeds("osctl ct set cpu-limit #{testct} 800")
             check_cpus.call(8)
           end
 
           # TODO: kernel bug in /proc/cpuinfo here
-          # test '1000% limit' do
+          # describe '1000% limit' do
           #   machine.succeeds("osctl ct set cpu-limit #{testct} 1000")
           #   check_cpus.call(8)
           # end
 
-          test '500% limit' do
+          describe 'with 500% limit' do
             machine.succeeds("osctl ct set cpu-limit #{testct} 500")
             check_cpus.call(5)
           end
 
-          test 'unset limit' do
+          describe 'unset limit' do
             machine.succeeds("osctl ct unset cpu-limit #{testct}")
             check_cpus.call(8)
           end
         end
 
-        test 'CPU view with cpuset' do
+        describe 'CPU view with cpuset' do
           machine.succeeds("osctl ct cgparams set #{testct} cpuset.cpus 2-5")
 
-          test '300% limit' do
+          describe 'with 300% limit' do
             machine.succeeds("osctl ct set cpu-limit #{testct} 300")
             check_cpus.call(3)
           end
 
-          test '400% limit' do
+          describe 'with 400% limit' do
             machine.succeeds("osctl ct set cpu-limit #{testct} 400")
             check_cpus.call(4)
           end
 
-          test '250% limit' do
+          describe 'with 250% limit' do
             machine.succeeds("osctl ct set cpu-limit #{testct} 250")
             check_cpus.call(3)
           end
 
-          test '201% limit' do
+          describe 'with 201% limit' do
             machine.succeeds("osctl ct set cpu-limit #{testct} 201")
             check_cpus.call(3)
           end
 
-          test '200% limit' do
+          describe 'with 200% limit' do
             machine.succeeds("osctl ct set cpu-limit #{testct} 200")
             check_cpus.call(2)
           end
 
-          test '100% limit' do
+          describe 'with 100% limit' do
             machine.succeeds("osctl ct set cpu-limit #{testct} 100")
             check_cpus.call(1)
           end
 
-          test '50% limit' do
+          describe 'with 50% limit' do
             machine.succeeds("osctl ct set cpu-limit #{testct} 50")
             check_cpus.call(1)
           end
 
-          test 'raise to 800%' do
+          describe 'raise to 800%' do
             machine.succeeds("osctl ct set cpu-limit #{testct} 800")
             check_cpus.call(8)
           end
 
           # TODO: kernel bug in /proc/cpuinfo here
-          # test '1000% limit' do
+          # describe 'with 1000% limit' do
           #   machine.succeeds("osctl ct set cpu-limit #{testct} 1000")
           #   check_cpus.call(8)
           # end
