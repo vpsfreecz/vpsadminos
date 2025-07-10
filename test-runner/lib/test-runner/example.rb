@@ -17,13 +17,17 @@ module TestRunner
     end
 
     def evaluate
-      @block.call
-    rescue StandardError, RSpec::Expectations::ExpectationNotMetError => e
-      ExampleResult.new(self, e)
-    else
-      ExampleResult.new(self)
-    ensure
-      @block = nil
+      t1 = Time.now
+
+      begin
+        @block.call
+      rescue StandardError, RSpec::Expectations::ExpectationNotMetError => e
+        ExampleResult.new(self, Time.now - t1, e)
+      else
+        ExampleResult.new(self, Time.now - t1)
+      ensure
+        @block = nil
+      end
     end
   end
 end

@@ -52,7 +52,8 @@ module TestRunner
       @after[type] << block
     end
 
-    # @yieldparam [Example] evaluated example
+    # @yieldparam [:before, :after]
+    # @yieldparam [Example, ExampleResult] evaluated example
     # @return [Array<ExampleResult>]
     def evaluate(&block)
       results = []
@@ -60,9 +61,22 @@ module TestRunner
       @before[:context].each(&:call)
 
       examples.shuffle.each do |example|
+        # before hooks
         @before[:example].each(&:call)
-        block.call(example) if block
-        results << example.evaluate
+
+        # before-progress hook
+        block.call(:before, example) if block
+
+        # evaluation
+        result = example.evaluate
+
+        # after-progress hook
+        block.call(:after, result) if block
+
+        # store result
+        results << result
+
+        # after hooks
         @after[:example].each(&:call)
       end
 

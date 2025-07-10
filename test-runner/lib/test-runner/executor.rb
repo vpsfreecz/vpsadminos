@@ -219,32 +219,36 @@ module TestRunner
 
           test_script = test.test_scripts[result_hash['script']]
 
-          script_result = TestScriptResult.new(
-            test_script,
-            result_hash['success'],
-            result_hash['elapsed_time']
-          )
+          if result_hash['type'] == 'script'
+            script_result = TestScriptResult.new(
+              test_script,
+              result_hash['success'],
+              result_hash['elapsed_time']
+            )
 
-          script_results << script_result
+            script_results << script_result
 
-          next if test_script.singleton?
+            next if test_script.singleton?
 
-          secs = script_result.elapsed_time.round(2)
+            secs = script_result.elapsed_time.round(2)
 
-          if script_result.expected_result?
-            if script_result.successful?
-              log("#{prefix} Script '#{test_script.path}' successful in #{secs} seconds")
-            else
-              log("#{prefix} Script '#{test_script.path}' failed as expected in #{secs} seconds")
+            if script_result.expected_result?
+              if script_result.successful?
+                log("#{prefix} Script '#{test_script.path}' successful in #{secs} seconds")
+              else
+                log("#{prefix} Script '#{test_script.path}' failed as expected in #{secs} seconds")
+              end
+            else # unexpected result
+              if script_result.successful?
+                log("#{prefix} Script '#{test_script.path}' unexpectedly succeeded in #{secs} seconds")
+              else
+                log("#{prefix} Script '#{test_script.path}' failed after #{secs} seconds")
+              end
+
+              stop_work! if opts[:stop_on_failure]
             end
-          else # unexpected result
-            if script_result.successful?
-              log("#{prefix} Script '#{test_script.path}' unexpectedly succeeded in #{secs} seconds")
-            else
-              log("#{prefix} Script '#{test_script.path}' failed after #{secs} seconds")
-            end
-
-            stop_work! if opts[:stop_on_failure]
+          elsif result_hash['type'] == 'example'
+            log("#{prefix} Example [#{result_hash['progress']}/#{result_hash['total']}] '#{result_hash['example']}' #{result_hash['success'] ? 'successful' : 'failed'} in #{result_hash['elapsed_time'].round(2)} seconds")
           end
         end
       rescue EOFError

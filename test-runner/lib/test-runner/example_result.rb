@@ -6,10 +6,15 @@ module TestRunner
     # @return [Exception]
     attr_reader :exception
 
+    # @return [Float]
+    attr_reader :elapsed_time
+
     # @param example [Example]
+    # @param elapsed_time [Float]
     # @param exception [Exception, nil]
-    def initialize(example, exception = nil)
+    def initialize(example, elapsed_time, exception = nil)
       @example = example
+      @elapsed_time = elapsed_time
       @exception = exception
     end
 

@@ -64,7 +64,21 @@ module TestRunner
 
           begin
             log "Running script #{script.name}"
-            test_script(script.name)
+
+            test_script(script.name) do |progress|
+              if progress[:type] == :example
+                yield({
+                  type: :example,
+                  script: script.name,
+                  example: progress[:result].example.full_message,
+                  progress: progress[:progress],
+                  total: progress[:total],
+                  success: progress[:result].success?,
+                  elapsed_time: progress[:result].elapsed_time
+                })
+              end
+            end
+
             t2 = Time.now
             log "Script #{script.name} finished in #{(t2 - t1).round(2)}s"
           rescue Exception => e # rubocop:disable Lint/RescueException
@@ -76,6 +90,7 @@ module TestRunner
           end
 
           result = {
+            type: :script,
             script: script.name,
             success:,
             elapsed_time: t2 - t1
@@ -218,7 +233,7 @@ module TestRunner
 
     protected
 
-    def test_script(name)
+    def test_script(name, &)
       @before = []
       @after = []
       @example_groups = []
@@ -228,7 +243,7 @@ module TestRunner
 
       return if @example_groups.empty?
 
-      run_examples
+      run_examples(&)
     end
 
     def run_examples
@@ -240,9 +255,15 @@ module TestRunner
       @before.each(&:call)
 
       results = @example_groups.shuffle.map do |grp|
-        grp.evaluate do |example|
-          log "[#{i}/#{example_count}] Evaluating '#{example.full_message}'"
-          i += 1
+        grp.evaluate do |type, example_or_result|
+          if type == :before
+            log "[#{i}/#{example_count}] Evaluating '#{example_or_result.full_message}'"
+          else
+            log "[#{i}/#{example_count}] '#{example_or_result.example.full_message}' #{example_or_result.success? ? 'succeeded' : 'failed'} in #{example_or_result.elapsed_time.round(2)}s"
+            yield({ type: :example, progress: i, total: example_count, result: example_or_result })
+
+            i += 1
+          end
         end
       end.flatten
 
