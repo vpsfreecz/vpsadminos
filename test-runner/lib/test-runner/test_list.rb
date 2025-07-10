@@ -63,6 +63,7 @@ module TestRunner
         test_args: data.fetch('testArgs', {}),
         name: data['name'],
         description: data['description'],
+        attempts: data['attempts'],
         expect_failure: data['expectFailure'],
         tags: data['tags'],
         labels: data['labels'],

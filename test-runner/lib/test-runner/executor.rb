@@ -145,30 +145,50 @@ module TestRunner
           return
         end
 
-        prefix = "[#{i + 1}/#{@test_count}]"
-        log("#{prefix} Running test '#{test.path}' (#{scripts.map { |v| "##{v.name}" }.join(', ')})")
-        result = run_test(test, scripts, prefix:)
+        result = nil
 
-        secs = result.elapsed_time.round(2)
+        test.attempts.times do |attempt|
+          result = run_test_attempt(i, test, scripts, attempt)
+          break if result.expected_result? || stop_work?
 
-        if result.expected_result?
-          if result.successful?
-            log("#{prefix} Test '#{test.path}' successful in #{secs} seconds")
-          else
-            log("#{prefix} Test '#{test.path}' failed as expected in #{secs} seconds")
-          end
-        else # unexpected result
-          if result.successful?
-            log("#{prefix} Test '#{test.path}' unexpectedly succeeded in #{secs} seconds, see #{result.state_dir}")
-          else
-            log("#{prefix} Test '#{test.path}' failed after #{secs} seconds, see #{result.state_dir}")
-          end
-
-          stop_work! if opts[:stop_on_failure]
+          sleep(5)
         end
 
         mutex.synchronize { results << result }
       end
+    end
+
+    def run_test_attempt(i, test, scripts, attempt)
+      prefix = "[#{i + 1}/#{@test_count}]"
+      script_list = scripts.map { |v| "##{v.name}" }.join(', ')
+
+      if attempt > 0
+        log("#{prefix} Retrying test '#{test.path}' (#{script_list}) (attempt #{attempt + 1}/#{test.attempts})")
+      else
+        log("#{prefix} Running test '#{test.path}' (#{script_list})")
+      end
+
+      result = run_test(test, scripts, prefix:)
+
+      secs = result.elapsed_time.round(2)
+
+      if result.expected_result?
+        if result.successful?
+          log("#{prefix} Test '#{test.path}' successful in #{secs} seconds")
+        else
+          log("#{prefix} Test '#{test.path}' failed as expected in #{secs} seconds")
+        end
+      else # unexpected result
+        if result.successful?
+          log("#{prefix} Test '#{test.path}' unexpectedly succeeded in #{secs} seconds, see #{result.state_dir}")
+        else
+          log("#{prefix} Test '#{test.path}' failed after #{secs} seconds, see #{result.state_dir}")
+        end
+
+        stop_work! if opts[:stop_on_failure]
+      end
+
+      result
     end
 
     def run_test(test, scripts, prefix:)

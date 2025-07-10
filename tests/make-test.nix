@@ -73,6 +73,7 @@ let
   testConfig = {
     inherit (testAttrs) name description;
     expectFailure = testAttrs.expectFailure or false;
+    attempts = testAttrs.attempts or 1;
     machines = machineTestConfigs;
     tags = testAttrs.tags or [];
     labels = testAttrs.labels or {};

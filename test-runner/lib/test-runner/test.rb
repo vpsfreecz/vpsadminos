@@ -21,6 +21,9 @@ module TestRunner
     # @return [String]
     attr_reader :description
 
+    # @return [Integer]
+    attr_reader :attempts
+
     # @return [Boolean]
     attr_reader :expect_failure
 
@@ -42,6 +45,7 @@ module TestRunner
       @test_args = opts[:test_args]
       @name = opts[:name]
       @description = opts[:description]
+      @attempts = opts[:attempts]
       @expect_failure = opts[:expect_failure]
       @tags = opts[:tags]
       @labels = opts[:labels]

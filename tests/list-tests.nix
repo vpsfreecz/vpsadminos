@@ -7,7 +7,7 @@ let
     if t.type == "single" then
       {
         inherit (t) type testArgs;
-        inherit (t.test.config) name description expectFailure tags labels;
+        inherit (t.test.config) name description attempts expectFailure tags labels;
         testScripts = nixpkgs.lib.mapAttrs (name: ts: {
           description = ts.description or null;
           expectFailure = ts.expectFailure or null;
@@ -18,7 +18,7 @@ let
     else if t.type == "template" then
       {
         inherit (t) type template templateArgs;
-        inherit (t.test.config) name description expectFailure tags labels;
+        inherit (t.test.config) name description attempts expectFailure tags labels;
         testScripts = nixpkgs.lib.mapAttrs (name: ts: {
           description = ts.description or null;
           expectFailure = ts.expectFailure or null;
