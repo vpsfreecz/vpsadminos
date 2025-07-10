@@ -236,6 +236,58 @@ my-template@ubuntu-24.04
 ...
 ```
 
+## RSpec expectations
+Test scripts can use RSpec expectations and optionally also example groups similar
+to RSpec.
+
+```nix
+import ../make-test.nix ({ pkgs }: {
+  name = "my-test";
+
+  description = ''
+    Test with RSpec expectations
+  '';
+
+  machine = import ../machines/tank.nix pkgs;
+
+  testScript = ''
+    before(:suite) do
+      puts 'block executed before all examples'
+    end
+
+    # Create an example group
+    describe 'machine' do
+      before(:context) do
+        puts 'block executed before examples in this group'
+      end
+
+      after(:context) do
+        puts 'block executed after examples in this group'
+      end
+
+      before(:example) do
+        puts 'block executed before each example'
+      end
+
+      after(:example) do
+        puts 'block executed after each example'
+      end
+
+      it 'can execute commands' do
+        _, output = machine.succeeds('echo hello')
+        expect(output.strip).to eq('hello')
+      end
+    end
+
+    after(:suite) do
+      puts 'block executed after all examples'
+    end
+  '';
+})
+```
+
+Groups and examples are evaluated in random order.
+
 ## Temporary config changes
 It is possible to change all test machine configurations by creating
 `os/configs/tests.nix` file, e.g. to change a kernel version used in tests:
