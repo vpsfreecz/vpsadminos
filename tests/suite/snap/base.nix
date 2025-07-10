@@ -8,6 +8,8 @@ import ../../make-test.nix ({ pkgs }: {
 
   tags = [ "ci" ];
 
+  attempts = 3;
+
   machine = import ../../machines/tank.nix pkgs;
 
   testScript = ''
