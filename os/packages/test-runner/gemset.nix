@@ -19,6 +19,16 @@
     };
     version = "1.1.3";
   };
+  diff-lcs = {
+    groups = ["default"];
+    platforms = [];
+    source = {
+      remotes = ["https://rubygems.org"];
+      sha256 = "0qlrj2qyysc9avzlr4zs1py3x684hqm61n4czrsk1pyllz5x5q4s";
+      type = "gem";
+    };
+    version = "1.6.2";
+  };
   fiddle = {
     groups = ["default"];
     platforms = [];
@@ -46,10 +56,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "13pka32a3a3wy7371dx598nkf300p891a9whdngn7pivpzcck033";
+      sha256 = "1wsfddlyw4ay1dsv3fx715k6791kbi6k357basic84z930gqhhly";
       type = "gem";
     };
-    version = "25.05.0.build20250708215703";
+    version = "25.05.0.build20250710195912";
   };
   logger = {
     groups = ["default"];
@@ -87,10 +97,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "06xfzc1vs2cbm6rgqyz2vxm6iwd66i49zbgc843qbmg5qjbd2f6c";
+      sha256 = "15v5534s1gxkbm7kyczszfbd26c1cgz5bbk1hydayxq7ab872v7z";
       type = "gem";
     };
-    version = "25.05.0.build20250708215703";
+    version = "25.05.0.build20250710195912";
   };
   pry = {
     dependencies = ["coderay" "method_source"];
@@ -123,6 +133,27 @@
     };
     version = "2.0.0";
   };
+  rspec-expectations = {
+    dependencies = ["diff-lcs" "rspec-support"];
+    groups = ["default"];
+    platforms = [];
+    source = {
+      remotes = ["https://rubygems.org"];
+      sha256 = "0dl8npj0jfpy31bxi6syc7jymyd861q277sfr6jawq2hv6hx791k";
+      type = "gem";
+    };
+    version = "3.13.5";
+  };
+  rspec-support = {
+    groups = ["default"];
+    platforms = [];
+    source = {
+      remotes = ["https://rubygems.org"];
+      sha256 = "1xx3f4mgr84jz07fifd3r68hm6giqy91hqyzawmi0s59yqa1hjqq";
+      type = "gem";
+    };
+    version = "3.13.4";
+  };
   syslog = {
     dependencies = ["logger"];
     groups = ["default"];
@@ -135,14 +166,14 @@
     version = "0.3.0";
   };
   test-runner = {
-    dependencies = ["gli" "libosctl" "osvm" "pry"];
+    dependencies = ["gli" "libosctl" "osvm" "pry" "rspec-expectations"];
     groups = ["default"];
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "12lgkj70vy400ngkssi309c2rs3l3m7d392zr1cc5734y4ig78z1";
+      sha256 = "0j6prjvjjjfrgk00fwn4w6sw6kxjkzaapvn3skpkrvl8q00vsgs8";
       type = "gem";
     };
-    version = "25.05.0.build20250708215703";
+    version = "25.05.0.build20250710195912";
   };
 }
