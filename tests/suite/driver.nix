@@ -237,6 +237,8 @@ import ../make-test.nix ({ pkgs }: {
         after(:suite) do
           execution_order << :after_suite
 
+          machine.stop if machine.running?
+
           expect(execution_order).to eq(%i[
             before_suite
             before_context
