@@ -74,6 +74,8 @@ module TestRunner
                   progress: progress[:progress],
                   total: progress[:total],
                   success: progress[:result].success?,
+                  pending: progress[:result].pending?,
+                  skip: progress[:result].skip?,
                   elapsed_time: progress[:result].elapsed_time
                 })
               end
@@ -179,12 +181,36 @@ module TestRunner
     # are evaluated in random order.
     #
     # @param message [String]
-    def it(message, &)
+    # @param pending [Boolean]
+    # @param skip [Boolean]
+    def it(message, pending: false, skip: false, &block)
       raise 'Called outside of an example group, use from #describe block' if @group_stack.empty?
 
       grp = @group_stack.last
-      grp.add_example(Example.new(grp, message, &))
+      grp.add_example(Example.new(grp, message, pending:, skip: skip || block.nil?, &block))
       nil
+    end
+
+    # Create a pending example or mark the currently evaluated example as pending
+    # @param message [String]
+    # @param skip [Boolean]
+    def pending(message = '', skip: false, &block)
+      if block || @current_example.nil?
+        it(message, pending: true, skip:, &block)
+      else
+        @current_example.send(:set_pending)
+      end
+    end
+
+    # Create a skipped example or mark the currently evaluated example as pending
+    # @param message [String]
+    def skip(message = '', &block)
+      if block || @current_example.nil?
+        it(message, skip: true, &block)
+      else
+        @current_example.send(:set_skip)
+        throw :skip
+      end
     end
 
     # Generate container id that is unique to the test run
@@ -258,9 +284,29 @@ module TestRunner
         grp.evaluate do |type, example_or_result|
           if type == :before
             log "[#{i}/#{example_count}] Evaluating '#{example_or_result.full_message}'"
+            @current_example = example_or_result
           else
-            log "[#{i}/#{example_count}] '#{example_or_result.example.full_message}' #{example_or_result.success? ? 'succeeded' : 'failed'} in #{example_or_result.elapsed_time.round(2)}s"
-            yield({ type: :example, progress: i, total: example_count, result: example_or_result })
+            result = example_or_result
+
+            status =
+              if result.success?
+                if result.pending?
+                  'pending'
+                elsif result.skip?
+                  'skipped'
+                else
+                  'succeeded'
+                end
+              elsif result.pending?
+                'unexpectedly succeeded'
+              else
+                'failed'
+              end
+
+            log "[#{i}/#{example_count}] '#{result.title}' #{status} in #{result.elapsed_time.round(2)}s"
+
+            yield({ type: :example, progress: i, total: example_count, result: result })
+            @current_example = nil
 
             i += 1
           end
@@ -287,7 +333,7 @@ module TestRunner
       cnt = 0
 
       (groups || @example_groups).each do |grp|
-        cnt += grp.examples.count
+        cnt += grp.examples.count(&:evaluate?)
         cnt += get_example_count(groups: grp.groups)
       end
 

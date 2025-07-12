@@ -61,6 +61,8 @@ module TestRunner
       @before[:context].each(&:call)
 
       examples.shuffle.each do |example|
+        next if example.skip?
+
         # before hooks
         @before[:example].each(&:call)
 

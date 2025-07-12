@@ -327,6 +327,76 @@ import ../make-test.nix ({ pkgs }: {
             end
           end
         end
+
+        describe 'pending' do
+          it 'can be marked as pending without reason' do
+            pending
+            expect(0).to eq(1)
+          end
+
+          it 'can be marked as pending with reason' do
+            pending('this needs fixing')
+            expect(0).to eq(1)
+          end
+
+          pending 'can be declared like this' do
+            expect(0).to eq(1)
+          end
+
+          pending 'without a block is skipped'
+
+          it 'can also be set by option', pending: true do
+            expect(0).to eq(1)
+          end
+
+          begin
+            pending 'pending with pending option cannot be called', pending: false
+          rescue ArgumentError
+            # pass
+          else
+            raise 'pending was called with pending option'
+          end
+        end
+
+        describe 'skip' do
+          it 'it without a block is skipped'
+
+          skip 'skip without a block is skipped'
+
+          skip 'declare as skipped' do
+            aise Exception, "this shouldn't be executed"
+          end
+
+          it 'can be skipped from example block without reason' do
+            skip
+            raise Exception, "this shouldn't be executed"
+          end
+
+          it 'can be skipped from example block with reason' do
+            skip("it's not ready")
+            raise Exception, "this shouldn't be executed"
+          end
+
+          it 'can be skipped using option', skip: true do
+            raise Exception, "this shouldn't be executed"
+          end
+
+          begin
+            skip 'skip with skip option cannot be called', skip: false
+          rescue ArgumentError
+            # pass
+          else
+            raise 'skip was called with skip option'
+          end
+
+          begin
+            skip 'skip with pending option cannot be called', pending: false
+          rescue ArgumentError
+            # pass
+          else
+            raise 'skip was called with pending option'
+          end
+        end
       '';
     };
   };

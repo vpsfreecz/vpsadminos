@@ -19,11 +19,23 @@ module TestRunner
     end
 
     def success?
-      @exception.nil?
+      if @example.pending?
+        !@exception.nil?
+      else
+        @example.skip? || @exception.nil?
+      end
     end
 
     def failure?
       !success?
+    end
+
+    def pending?
+      @example.pending?
+    end
+
+    def skip?
+      @example.skip?
     end
 
     def title
@@ -31,7 +43,14 @@ module TestRunner
     end
 
     def error
-      @exception.message
+      if @example.pending?
+        "Example that was pending due to '#{@example.reason}' unexpectedly " \
+          "succeeded: #{@exception.message}"
+      elsif @example.skip?
+        @example.reason
+      else
+        @exception.message
+      end
     end
   end
 end

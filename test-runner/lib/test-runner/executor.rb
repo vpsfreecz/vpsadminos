@@ -268,7 +268,22 @@ module TestRunner
               stop_work! if opts[:stop_on_failure]
             end
           elsif result_hash['type'] == 'example'
-            log("#{prefix} Example [#{result_hash['progress']}/#{result_hash['total']}] '#{result_hash['example']}' #{result_hash['success'] ? 'successful' : 'failed'} in #{result_hash['elapsed_time'].round(2)} seconds")
+            status =
+              if result_hash['success']
+                if result_hash['pending']
+                  'pending'
+                elsif result_hash['skip']
+                  'skipped'
+                else
+                  'succeeded'
+                end
+              elsif result_hash['pending']
+                'unexpectedly succeeded'
+              else
+                'failed'
+              end
+
+            log("#{prefix} Example [#{result_hash['progress']}/#{result_hash['total']}] '#{result_hash['example']}' #{status} in #{result_hash['elapsed_time'].round(2)} seconds")
           end
         end
       rescue EOFError
