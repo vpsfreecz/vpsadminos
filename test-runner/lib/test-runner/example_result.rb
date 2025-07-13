@@ -44,8 +44,7 @@ module TestRunner
 
     def error
       if @example.pending?
-        "Example that was pending due to '#{@example.reason}' unexpectedly " \
-          "succeeded: #{@exception.message}"
+        "Example that was pending due to '#{@example.reason}' unexpectedly succeeded"
       elsif @example.skip?
         @example.reason
       else
