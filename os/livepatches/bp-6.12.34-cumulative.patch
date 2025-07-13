@@ -1,0 +1,49 @@
+diff --git a/fs/zfs/os/linux/zfs/zfs_dir.c b/fs/zfs/os/linux/zfs/zfs_dir.c
+index 5cafea99f16d..3dd78b79e0ce 100644
+--- a/fs/zfs/os/linux/zfs/zfs_dir.c
++++ b/fs/zfs/os/linux/zfs/zfs_dir.c
+@@ -465,8 +465,11 @@ zfs_unlinked_add(znode_t *zp, dmu_tx_t *tx)
+ 	ASSERT(zp->z_unlinked);
+ 	ASSERT(ZTOI(zp)->i_nlink == 0);
+ 
+-	VERIFY3U(0, ==,
+-	    zap_add_int(zfsvfs->z_os, zfsvfs->z_unlinkedobj, zp->z_id, tx));
++	if (zap_add_int(zfsvfs->z_os, zfsvfs->z_unlinkedobj, zp->z_id, tx))
++		pr_err("zfs_unlinked_add: zap_add_int failed for "
++		    "z_unlinkedobj %llu, zp %llu\n",
++		    (u_longlong_t)zfsvfs->z_unlinkedobj,
++		    (u_longlong_t)zp->z_id);
+ 
+ 	dataset_kstats_update_nunlinks_kstat(&zfsvfs->z_kstat, 1);
+ }
+diff --git a/kernel/vpsadminos.c b/kernel/vpsadminos.c
+index d3bfe1a22571..9c5c56ea71c3 100644
+--- a/kernel/vpsadminos.c
++++ b/kernel/vpsadminos.c
+@@ -10,6 +10,26 @@
+ #include <linux/cgroup.h>
+ #include <linux/sched/cputime.h>
+ #include "sched/sched.h"
++#include <linux/utsname.h>
++#include <linux/vpsadminos-livepatch.h>
++#include "kpatch-macros.h"
++char old_uname[65];
++char new_uname[65];
++
++static int patch(patch_object *obj)
++{
++	scnprintf(new_uname, 64, "%s.%s", LIVEPATCH_ORIG_KERNEL_VERSION,
++	    LIVEPATCH_NAME);
++	scnprintf(old_uname, 64, "%s", init_uts_ns.name.release);
++	scnprintf(init_uts_ns.name.release, 64, "%s", new_uname);
++	return 0;
++}
++KPATCH_PRE_PATCH_CALLBACK(patch);
++static void unpatch(patch_object *obj)
++{
++	scnprintf(init_uts_ns.name.release, 64, "%s", old_uname);
++}
++KPATCH_POST_UNPATCH_CALLBACK(unpatch);
+ 
+ struct proc_dir_entry *proc_vpsadminos;
+ 
