@@ -16,6 +16,18 @@ index 5cafea99f16d..3dd78b79e0ce 100644
  
  	dataset_kstats_update_nunlinks_kstat(&zfsvfs->z_kstat, 1);
  }
+diff --git a/fs/zfs/os/linux/zfs/zfs_vnops_os.c b/fs/zfs/os/linux/zfs/zfs_vnops_os.c
+index 7d544dc62026..b60cd168a52e 100644
+--- a/fs/zfs/os/linux/zfs/zfs_vnops_os.c
++++ b/fs/zfs/os/linux/zfs/zfs_vnops_os.c
+@@ -3185,7 +3185,6 @@ zfs_rename(znode_t *sdzp, char *snm, znode_t *tdzp, char *tnm,
+ 			goto commit_unlink_td_szp;
+ 		}
+ 		VERIFY0(insert_inode_locked(ZTOI(wzp)));
+-		mark_inode_dirty(ZTOI(wzp));
+ 		unlock_new_inode(ZTOI(wzp));
+ 		break;
+ 	}
 diff --git a/kernel/vpsadminos.c b/kernel/vpsadminos.c
 index d3bfe1a22571..9c5c56ea71c3 100644
 --- a/kernel/vpsadminos.c
