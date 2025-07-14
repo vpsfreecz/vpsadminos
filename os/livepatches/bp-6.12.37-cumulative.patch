@@ -1,0 +1,43 @@
+diff --git a/fs/zfs/os/linux/zfs/zfs_vnops_os.c b/fs/zfs/os/linux/zfs/zfs_vnops_os.c
+index 49d2b782f83c..11e3a8d2ad87 100644
+--- a/fs/zfs/os/linux/zfs/zfs_vnops_os.c
++++ b/fs/zfs/os/linux/zfs/zfs_vnops_os.c
+@@ -3185,7 +3185,6 @@ zfs_rename(znode_t *sdzp, char *snm, znode_t *tdzp, char *tnm,
+ 			goto commit_unlink_td_szp;
+ 		}
+ 		VERIFY0(insert_inode_locked(ZTOI(wzp)));
+-		mark_inode_dirty(ZTOI(wzp));
+ 		unlock_new_inode(ZTOI(wzp));
+ 		break;
+ 	}
+diff --git a/kernel/vpsadminos.c b/kernel/vpsadminos.c
+index d3bfe1a22571..9c5c56ea71c3 100644
+--- a/kernel/vpsadminos.c
++++ b/kernel/vpsadminos.c
+@@ -10,6 +10,26 @@
+ #include <linux/cgroup.h>
+ #include <linux/sched/cputime.h>
+ #include "sched/sched.h"
++#include <linux/utsname.h>
++#include <linux/vpsadminos-livepatch.h>
++#include "kpatch-macros.h"
++char old_uname[65];
++char new_uname[65];
++
++static int patch(patch_object *obj)
++{
++	scnprintf(new_uname, 64, "%s.%s", LIVEPATCH_ORIG_KERNEL_VERSION,
++	    LIVEPATCH_NAME);
++	scnprintf(old_uname, 64, "%s", init_uts_ns.name.release);
++	scnprintf(init_uts_ns.name.release, 64, "%s", new_uname);
++	return 0;
++}
++KPATCH_PRE_PATCH_CALLBACK(patch);
++static void unpatch(patch_object *obj)
++{
++	scnprintf(init_uts_ns.name.release, 64, "%s", old_uname);
++}
++KPATCH_POST_UNPATCH_CALLBACK(unpatch);
+ 
+ struct proc_dir_entry *proc_vpsadminos;
+ 
