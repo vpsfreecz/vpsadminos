@@ -148,6 +148,32 @@ import ../make-test.nix ({ pkgs }: {
           fail "expected osctl pool to be active, is '#{pools.first['state']}'"
         end
 
+        existing_ct = get_container_id
+
+        begin
+          machine.wait_for_osctl_container(existing_ct, timeout: 10)
+        rescue OsVm::TimeoutError
+          # ok
+        else
+          fail "wait_for_osctl_container() did not raise TimeoutError on non-existent container"
+        end
+
+        machine.succeeds("osctl ct new --distribution alpine #{existing_ct}")
+
+        begin
+          machine.wait_for_osctl_container(existing_ct, timeout: 10)
+        rescue OsVm::TimeoutError
+          # ok
+        else
+          fail "wait_for_osctl_container() did not raise TimeoutError on stopped container"
+        end
+
+        machine.wait_for_osctl_container(existing_ct, state: 'stopped', timeout: 10)
+
+        machine.succeeds("osctl ct start --wait 0 #{existing_ct}")
+
+        machine.wait_for_osctl_container(existing_ct, timeout: 30)
+
         begin
           machine.wait_until_container_online('nonexistent-ct', timeout: 30)
         rescue OsVm::TimeoutError

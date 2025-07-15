@@ -422,6 +422,34 @@ module OsVm
       self
     end
 
+    # Wait for osctl container to exist and be in a given state
+    # @param id [String]
+    # @param state [String]
+    # @return [Machine]
+    def wait_for_osctl_container(id, state: 'running', timeout: @default_timeout)
+      t1 = Time.now
+      cur_timeout = timeout
+
+      loop do
+        status, output = wait_until_succeeds(
+          "osctl ct show -H -o state #{id}",
+          timeout: cur_timeout
+        )
+
+        return self if output.strip == state
+
+        cur_timeout = timeout - (Time.now - t1)
+
+        if cur_timeout <= 0
+          raise TimeoutError, "Timeout occurred while waiting for container #{id.inspect} to become #{state}"
+        end
+
+        sleep(1)
+      end
+
+      self
+    end
+
     # Create a directory inside the machine
     # @param path [String] path within the machine
     # @return [Machine]
