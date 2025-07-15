@@ -418,6 +418,8 @@ module OsVm
 
         sleep(1)
       end
+
+      self
     end
 
     # Create a directory inside the machine
