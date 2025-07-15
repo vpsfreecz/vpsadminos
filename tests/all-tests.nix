@@ -80,6 +80,7 @@ in tests [
   { template = "image-scripts/test"; instances = imageScripts; }
   "kernel/cpu-view/cgroups-v1"
   "kernel/cpu-view/cgroups-v2"
+  "kernel/loadavg"
   "kernel/memory-view/cgroups-v1"
   "kernel/memory-view/cgroups-v2"
   "kernel/syslogns"
