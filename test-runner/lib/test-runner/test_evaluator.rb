@@ -130,8 +130,9 @@ module TestRunner
     # using {#it}.
     #
     # @param obj [#to_s]
-    def describe(obj, &)
-      grp = ExampleGroup.new(obj, parent: @group_stack.last, &)
+    # @param order [:defined, :rand, Random, Integer] order in which examples and subgroups are evaluated
+    def describe(obj, order: :rand, &)
+      grp = ExampleGroup.new(obj, parent: @group_stack.last, order:, &)
 
       if @group_stack.any?
         @group_stack.last.add_group(grp)

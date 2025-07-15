@@ -8,9 +8,11 @@ module TestRunner
 
     # @param obj [#to_s]
     # @param parent [ExampleGroup]
-    def initialize(obj, parent: nil, &block)
+    # @param order [:defined, :rand, Random, Integer]
+    def initialize(obj, parent: nil, order: :rand, &block)
       @obj = obj
       @parent = parent
+      @order = order
       @block = block
       @groups = []
       @examples = []
@@ -60,7 +62,7 @@ module TestRunner
 
       @before[:context].each(&:call)
 
-      examples.shuffle.each do |example|
+      sort_by_order(examples).each do |example|
         next if example.skip?
 
         # before hooks
@@ -82,13 +84,30 @@ module TestRunner
         @after[:example].each(&:call)
       end
 
-      groups.shuffle.each do |grp|
+      sort_by_order(groups).each do |grp|
         results.concat(grp.evaluate(&block))
       end
 
       @after[:context].each(&:call)
 
       results
+    end
+
+    protected
+
+    def sort_by_order(array)
+      case @order
+      when :defined
+        array
+      when :rand
+        array.shuffle
+      when Random
+        array.shuffle(random: @order)
+      when Integer
+        array.shuffle(random: Random.new(@order))
+      else
+        raise "Invalid order #{@order.inspect}"
+      end
     end
   end
 end

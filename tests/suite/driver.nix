@@ -423,6 +423,103 @@ import ../make-test.nix ({ pkgs }: {
             raise 'skip was called with pending option'
           end
         end
+
+        example_range = (1..5).to_a
+        group_range = (6..10).to_a
+        order_rand = []
+        order_defined = []
+        order_nested = []
+        seed = 1
+
+        describe 'order' do
+          context 'by rand (default)' do
+            before(:context) do
+              order_rand.clear
+            end
+
+            example_range.each do |i|
+              example "example ##{i}" do
+                order_rand << i
+              end
+            end
+
+            group_range.each do |i|
+              context "context ##{i}" do
+                example "example ##{i}" do
+                  order_rand << i
+                end
+              end
+            end
+
+            after(:context) do
+              expect(order_rand.sort).to eq(example_range + group_range)
+            end
+          end
+
+          context 'by rand with seed', order: seed do
+            before(:context) do
+              order_rand.clear
+            end
+
+            example_range.each do |i|
+              example "example ##{i}" do
+                order_rand << i
+              end
+            end
+
+            group_range.each do |i|
+              context "context ##{i}" do
+                example "example ##{i}" do
+                  order_rand << i
+                end
+              end
+            end
+
+            after(:context) do
+              expect(order_rand).to eq(example_range.shuffle(random: Random.new(seed)) + group_range.shuffle(random: Random.new(seed)))
+            end
+          end
+
+          context 'by defined', order: :defined do
+            example_range.each do |i|
+              example "##{i}" do
+                order_defined << i
+              end
+            end
+
+            group_range.each do |i|
+              context "context ##{i}" do
+                example "example ##{i}" do
+                  order_defined << i
+                end
+              end
+            end
+
+            after(:context) do
+              expect(order_defined).to eq(example_range + group_range)
+            end
+          end
+
+          context 'is per group', order: seed do
+            example_range.each do |i|
+              example "##{i}" do
+                order_nested << i
+              end
+            end
+
+            context 'nested', order: :defined do
+              example_range.each do |i|
+                example "##{i}" do
+                  order_nested << i
+                end
+              end
+            end
+
+            after(:context) do
+              expect(order_nested).to eq(example_range.shuffle(random: Random.new(seed)) + example_range)
+            end
+          end
+        end
       '';
     };
   };
