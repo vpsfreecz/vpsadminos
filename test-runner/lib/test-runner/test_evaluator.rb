@@ -123,6 +123,12 @@ module TestRunner
       binding.pry # rubocop:disable Lint/Debugger
     end
 
+    # Configure default settings for example groups
+    # @yieldparam [ExampleConfiguration]
+    def configure_examples
+      yield(@example_config)
+    end
+
     # Create an example group
     #
     # Example groups can be nested. Groups are evaluated in random order.
@@ -130,9 +136,9 @@ module TestRunner
     # using {#it}.
     #
     # @param obj [#to_s]
-    # @param order [:defined, :rand, Random, Integer] order in which examples and subgroups are evaluated
-    def describe(obj, order: :rand, &)
-      grp = ExampleGroup.new(obj, parent: @group_stack.last, order:, &)
+    # @param order [nil, :defined, :rand, Random, Integer] order in which examples and subgroups are evaluated
+    def describe(obj, order: nil, &)
+      grp = ExampleGroup.new(obj, parent: @group_stack.last, order:, config: @example_config, &)
 
       if @group_stack.any?
         @group_stack.last.add_group(grp)
@@ -263,6 +269,7 @@ module TestRunner
     protected
 
     def test_script(name, &)
+      @example_config = ExampleConfiguration.new
       @before = []
       @after = []
       @example_groups = []

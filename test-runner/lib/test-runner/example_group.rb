@@ -7,12 +7,14 @@ module TestRunner
     attr_reader :examples
 
     # @param obj [#to_s]
+    # @param config [ExampleConfiguration]
     # @param parent [ExampleGroup]
-    # @param order [:defined, :rand, Random, Integer]
-    def initialize(obj, parent: nil, order: :rand, &block)
+    # @param order [nil, :defined, :rand, Random, Integer]
+    def initialize(obj, config:, parent: nil, order: nil, &block)
       @obj = obj
+      @config = config
       @parent = parent
-      @order = order
+      @order = order || @config.default_order
       @block = block
       @groups = []
       @examples = []

@@ -247,7 +247,7 @@ import ../make-test.nix ({ pkgs }: {
       '';
     };
 
-    rspec = {
+    rspec-base = {
       description = ''
         Test RSpec example groups and expectations
       '';
@@ -518,6 +518,33 @@ import ../make-test.nix ({ pkgs }: {
             after(:context) do
               expect(order_nested).to eq(example_range.shuffle(random: Random.new(seed)) + example_range)
             end
+          end
+        end
+      '';
+    };
+
+    rspec-config = {
+      description = ''
+        Test RSpec with modified default configuration
+      '';
+      script = ''
+        seed = 2
+        range = (1..5).to_a
+        order = []
+
+        configure_examples do |config|
+          config.default_order = seed
+        end
+
+        describe 'order by preconfigured random seed' do
+          range.each do |i|
+            example "example ##{i}" do
+              order << i
+            end
+          end
+
+          after(:context) do
+            expect(order).to eq(range.shuffle(random: Random.new(seed)))
           end
         end
       '';

@@ -3,6 +3,7 @@ module TestRunner
 end
 
 require 'test-runner/example'
+require 'test-runner/example_configuration'
 require 'test-runner/example_group'
 require 'test-runner/example_result'
 require 'test-runner/executor'
