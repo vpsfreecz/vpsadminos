@@ -183,13 +183,15 @@ module TestRunner
     # @param message [String]
     # @param pending [Boolean]
     # @param skip [Boolean]
-    def it(message, pending: false, skip: false, &block)
+    def example(message, pending: false, skip: false, &block)
       raise 'Called outside of an example group, use from #describe block' if @group_stack.empty?
 
       grp = @group_stack.last
       grp.add_example(Example.new(grp, message, pending:, skip: skip || block.nil?, &block))
       nil
     end
+
+    alias it example
 
     # Create a pending example or mark the currently evaluated example as pending
     # @param message [String]
