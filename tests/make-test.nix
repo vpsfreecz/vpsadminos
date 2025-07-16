@@ -11,7 +11,11 @@ testFn:
   # target system
 , system ? builtins.currentSystem }:
 let
-  nixpkgs = import pkgs { inherit system; config = {}; };
+  nixpkgs = import pkgs {
+    inherit system;
+    config = {};
+    overlays = [ (import ../os/overlays/packages.nix) ];
+  };
 
   lib = nixpkgs.lib;
 
