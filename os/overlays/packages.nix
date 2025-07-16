@@ -46,5 +46,7 @@ self: super:
 
   scrubctl = super.callPackage ../packages/scrubctl {};
 
+  sysinfo-to-json = super.callPackage ../packages/sysinfo-to-json {};
+
   vdevlog = super.callPackage ../packages/vdevlog {};
 }
