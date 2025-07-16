@@ -10,6 +10,10 @@ with lib;
     "virtio" "virtio_pci" "virtio_net" "virtio_rng" "virtio_blk" "virtio_console"
   ];
 
+  boot.zfs.moduleParams.spl = {
+    "spl_panic_halt" = 1;
+  };
+
   networking.hostName = mkDefault "vpsadminos";
   networking.static.enable = mkDefault true;
   networking.lxcbr.enable = mkDefault true;
