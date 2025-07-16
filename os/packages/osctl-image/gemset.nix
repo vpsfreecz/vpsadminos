@@ -66,10 +66,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.org"];
-      sha256 = "18pgvl7lfjpichdfh1g50rpz0zpaqrpr52ybn9liv1v9pjn9ysnd";
+      sha256 = "1jszj95hazqqpnrjjzr326nn1j32xmsc9xvd97mbcrrgdc54858y";
       type = "gem";
     };
-    version = "0.8.0";
+    version = "0.8.1";
   };
   ipaddress = {
     groups = ["default"];
@@ -97,10 +97,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "161c8r3a6xg2c91xw9q00hikcbg56732gxh4cnvnm6bx2j1nns9i";
+      sha256 = "0m49x7mfn2csj4g2p0f07b4f58fy6a7qrwag7097mvqjddh8f8b4";
       type = "gem";
     };
-    version = "25.05.0.build20250713170414";
+    version = "25.05.0.build20250716105744";
   };
   logger = {
     groups = ["default"];
@@ -118,10 +118,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0041c86y7zkmngc1vkar4pgc5ynysj145p26nlxpn2srb8fn70gw";
+      sha256 = "11cy16iisjb1ff4i1d36bkpvak9ypp9rx1ycg60r335sra5g3xq5";
       type = "gem";
     };
-    version = "25.05.0.build20250713170414";
+    version = "25.05.0.build20250716105744";
   };
   osctl-image = {
     dependencies = ["gli" "ipaddress" "json" "libosctl" "osctl" "osctl-repo" "require_all"];
@@ -129,10 +129,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "1df90xp0cqfr42lx7vvf9ab0avzid5wxpajzm33a3nzqn4p7wiq5";
+      sha256 = "1mv0cd4nxv12cgrgij47dby10pkr656ky0pxaqj59b689ka94q17";
       type = "gem";
     };
-    version = "25.05.0.build20250713170414";
+    version = "25.05.0.build20250716105744";
   };
   osctl-repo = {
     dependencies = ["filelock" "gli" "json" "libosctl" "require_all"];
@@ -140,10 +140,10 @@
     platforms = [];
     source = {
       remotes = ["https://rubygems.vpsfree.cz"];
-      sha256 = "0n9qszmx65bi1fyzag8zyzpd70drgavs9yrp817b7g5f5nzxgag6";
+      sha256 = "1cqvca7130zhwc0jxrwxv21lrgx9rmfpbkbz67yc7v24shhlq039";
       type = "gem";
     };
-    version = "25.05.0.build20250713170414";
+    version = "25.05.0.build20250716105744";
   };
   ostruct = {
     groups = ["default"];
