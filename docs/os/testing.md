@@ -238,7 +238,11 @@ my-template@ubuntu-24.04
 
 ## RSpec expectations
 Test scripts can use RSpec expectations and optionally also example groups similar
-to RSpec.
+to RSpec. We reuse [rspec-expectations](https://rspec.info/features/3-13/rspec-expectations/)
+and provide our own implementation of [rspec-core](https://rspec.info/features/3-13/rspec-core/).
+We aim to be compatible with RSpec when possible.
+
+The following test demostrates available RSpec features.
 
 ```nix
 import ../make-test.nix ({ pkgs }: {
@@ -251,6 +255,13 @@ import ../make-test.nix ({ pkgs }: {
   machine = import ../machines/tank.nix pkgs;
 
   testScript = ''
+    # Optional global configuration for example groups / examples
+    configure_examples do |config|
+      # `:defined`, `:rand`, instance of `Random` or `Integer` used as a seed
+      # Defaults to `:rand` if not set
+      config.default_order = :defined
+    end
+
     before(:suite) do
       puts 'block executed before all examples'
     end
@@ -277,6 +288,33 @@ import ../make-test.nix ({ pkgs }: {
         _, output = machine.succeeds('echo hello')
         expect(output.strip).to eq('hello')
       end
+
+      example 'without a block is skipped'
+
+      skip 'examples created by skip are also skipped' do
+        puts 'this will not run'
+      end
+
+      example 'can be skipped from the code block' do
+        skip
+        skip('with a reason')
+      end
+
+      pending 'examples are expected to fail' do
+        # This example will fail if expectations will be met
+        expect(0).to eq(1)
+      end
+
+      example 'can be marked as pending from the code block' do
+        pending
+        pending('this is expected to fail')
+        expect(0).to eq(1)
+      end
+
+      context 'nested example group with custom order of evaluation', order: :rand do
+        example '#1'
+        example '#2'
+      end
     end
 
     after(:suite) do
@@ -286,7 +324,7 @@ import ../make-test.nix ({ pkgs }: {
 })
 ```
 
-Groups and examples are evaluated in random order.
+Groups and examples are evaluated in random order unless configured otherwise.
 
 ## Temporary config changes
 It is possible to change all test machine configurations by creating
