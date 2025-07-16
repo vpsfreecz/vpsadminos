@@ -105,5 +105,6 @@ in tests [
   "systemd/credentials"
   { test = "systemd/device-units"; args = { distributions = distributions.systemd; }; }
   "zfs/mmap-nosync"
+  "zfs/overlayfs-deadlock"
   "zfs/ugidmap"
 ]
