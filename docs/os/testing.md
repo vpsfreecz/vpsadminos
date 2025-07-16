@@ -193,7 +193,7 @@ my-test#script2
 
 Script name is separated from test name by a hash (`#`). Test scripts of
 one test are run in the same environment one after the other -- they share
-the same virtual machines, etc. Execution order is not guaranteed.
+the same virtual machines, etc. Test scripts are executed in random order.
 
 ## Test templates
 Templates can be used to create multiple instances of a test. The difference between
