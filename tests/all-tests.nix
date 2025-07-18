@@ -83,6 +83,8 @@ in tests [
   "kernel/memory-view/cgroups-v1"
   "kernel/memory-view/cgroups-v2"
   "kernel/syslogns"
+  "kernel/tmpfs/cgroups-v1"
+  "kernel/tmpfs/cgroups-v2"
   "kernel/uptime"
   "osctl/ct-cat"
   "osctl/ct-exec-v1"
