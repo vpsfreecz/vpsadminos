@@ -12,10 +12,6 @@ let
       filterFn = availableFor "6.12.34";
       version = 2;
     }
-    { name = "bp-6.1.141-cumulative";
-      filterFn = availableFor "6.1.141";
-      version = 1;
-    }
   ];
 
   availableForAllKernels = kernelVersion: true;

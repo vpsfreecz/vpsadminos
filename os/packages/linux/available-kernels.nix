@@ -27,30 +27,6 @@
         sha256 = "sha256-AOgJm8fPDa0kDhyL4PFBuz+uz1Rz7zsH9C9AXn5GnMA=";
       };
     };
-    "6.9.12-3" = {
-      rev = "43566453ad31b9fa8e43fb3d48eb8e0bbae93ba5";
-      sha256 = "sha256-/XfRopmX6enUzAnFXoxOvMhOfiaPj4MDwVVmRl3a+og=";
-      zfs = {
-        rev = "1ffdfb77b2ab80ce0f5a0b7a813b26fea2eb9646";
-        sha256 = "sha256-0gUO4n8aYmiBkuFFN1f0XO+9RbfjAhcUrE16kj4/CYQ=";
-      };
-    };
-    "6.1.141" = {
-      rev = "55400cc00efd138b3264b6660a9e91cae36efd40";
-      sha256 = "sha256-dcidyBE/cm034gUqalfrDWBQpzdNsr5TMwrQJ0DoC/w=";
-      zfs = {
-        rev = "d0cdecb7badf2386c2e75009eb9e6f03198cc84f";
-        sha256 = "sha256-9TH4pch5qhgyeS6yQ8GYCaSY7TmYbtZUXKWpIE8YzCU=";
-      };
-    };
-    "6.12.34-2" = {
-      rev = "a5364787e87a870fba4b6513cc918de56e7d7e61";
-      sha256 = "sha256-XCMr3/1q2HRKK5O+IyUbqlt/BmmNqH0VYFhcjJCONzg=";
-      zfs = {
-        rev = "e24cd603b883ad89c11172784485b290f742ef2d";
-        sha256 = "sha256-ehV/dsXjTD4b9h16yxtQddnkmA/35ayr+4K7xNlW/Kg=";
-      };
-    };
     "6.12.33" = {
       rev = "0655f700a3545ee3a865824694b77c0d2928f17d";
       sha256 = "sha256-2D8OZsXEW3BJODxDTutV8kjCNRnJG+KKk7t8YtJoLdE=";
