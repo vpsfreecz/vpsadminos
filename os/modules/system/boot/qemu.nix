@@ -3,6 +3,11 @@ with lib;
 let
   cfg = config.boot.qemu;
 
+  qemu = pkgs.qemu_kvm.override {
+    hostCpuOnly = true;
+    nixosTestRunner = true;
+  };
+
   qemuDisk =
     { config, ... }:
     {
@@ -153,10 +158,7 @@ let
   }) cfg.sharedFileSystems);
 
   machineConfig = {
-    qemu = toString (pkgs.qemu_kvm.override {
-      hostCpuOnly = true;
-      nixosTestRunner = true;
-    });
+    qemu = toString qemu;
     extraQemuOptions = cfg.extraQemuOptions;
     virtiofsd = toString pkgs.virtiofsd;
     memory = cfg.memory;
@@ -293,6 +295,43 @@ in {
         #!${pkgs.stdenv.shell}
         exec ${pkgs.osvm}/bin/osvm script ${osvmScript}
       '';
+
+      system.build.runvmScript =
+        let
+          diskPath = disk:
+            if hasPrefix "/" disk.device then
+              disk.device
+            else "${cfg.stateDir}/${disk.device}";
+
+          diskParams = (flatten (imap0 (i: disk: [
+            "-drive id=disk${toString i},file=${diskPath disk},if=none,format=raw"
+            "-device ide-hd,drive=disk${toString i},bus=ahci.${toString i}"
+          ]) cfg.disks));
+        in pkgs.writeScript "vpsadminos-qemu-runner.sh" ''
+          #!${pkgs.stdenv.shell}
+          mkdir -p "${cfg.stateDir}"
+
+          ${concatStringsSep "\n" (map (disk: ''
+            devicePath="${disk.device}"
+            [[ "$devicePath" == /* ]] || devicePath="${cfg.stateDir}/$devicePath"
+            [ ! -f "$devicePath" ] && truncate -s${toString disk.size} "$devicePath"
+          '') (filter (disk: disk.type == "file" && disk.create) cfg.disks))}
+
+          exec ${qemu}/bin/qemu-kvm -name vpsadminos -m ${toString cfg.memory} \
+            -cpu host \
+            -smp cpus=${toString cfg.cpus},cores=${toString cfg.cpu.cores},threads=${toString cfg.cpu.threads},sockets=${toString cfg.cpu.sockets} \
+            -no-reboot \
+            -device ahci,id=ahci \
+            -device virtio-net,netdev=net0 \
+            -netdev user,id=net0,net=10.0.2.0/24,host=10.0.2.2,dns=10.0.2.3,hostfwd=tcp::2222-:22 \
+            -drive index=0,id=drive1,file=${config.system.build.squashfs},readonly=on,media=cdrom,format=raw,if=virtio \
+            -kernel ${config.system.build.kernel}/bzImage \
+            -initrd ${config.system.build.initialRamdisk}/initrd \
+            -append "init=${config.system.build.toplevel}/init ${toString config.boot.kernelParams} quiet panic=-1" \
+            -nographic \
+            ${lib.concatStringsSep " \\\n  " diskParams} \
+            ${lib.concatStringsSep " \\\n  " cfg.extraQemuOptions}
+        '';
 
       fileSystems = mkSharedFileSystems;
     })

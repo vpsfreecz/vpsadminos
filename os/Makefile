@@ -48,6 +48,16 @@ qemu: build
 qemu-iso: iso-local
 	./result/iso
 
+build-qemu-script:
+	nix-build \
+	 --arg configuration $(or $(VPSADMINOS_CONFIG),./configs/qemu.nix) \
+	 -A config.system.build.runvmScript \
+	 --out-link result/qemu-script \
+	 --cores $(CORES) -j $(JOBS) $(TRACE)
+
+qemu-script: build-qemu-script
+	./result/qemu-script
+
 # flash ISO to /dev/disk/by-label/VPSADMINOS_BOOT_CD
 flash: iso
 	sudo dd if=result/iso/vpsadminos.iso of=/dev/disk/by-label/VPSADMINOS_BOOT_CD bs=1M

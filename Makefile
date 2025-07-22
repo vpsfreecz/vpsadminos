@@ -12,6 +12,12 @@ qemu:
 toplevel:
 	$(MAKE) -C os toplevel
 
+build-qemu-script:
+	$(MAKE) -C os build-qemu-script
+
+qemu-script:
+	$(MAKE) -C os qemu-script
+
 gems: libosctl osctl-repo osctl osctld osup osctl-image osctl-exporter osctl-exportfs converter svctl test-runner osvm
 	echo "$(GEM_VERSION).build$(BUILD_ID)" > .build_id
 
@@ -133,4 +139,5 @@ migration:
 
 .PHONY: build converter doc doc_serve qemu gems libosctl osctl osctld osctl-repo osctl-exporter osup svctl test-runner osvm osctl-env-exec
 .PHONY: commit-gems build-commit-gems amend-gems build-amend-gems
+.PHONY: build-qemu-script qemu-script
 .PHONY: ruby-version version migration
