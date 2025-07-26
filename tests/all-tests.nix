@@ -58,6 +58,7 @@ in tests [
   { test = "cgroups/mount-v2"; args = { distributions = distributions.cgroupv2; }; }
   "cgroups/system-v1"
   "cgroups/system-v2"
+  "crashdump"
   "ctstartmenu/setup"
   "defaults"
   { test = "dist-config/netif-routed"; args = { distributions = distributions.all; }; }
