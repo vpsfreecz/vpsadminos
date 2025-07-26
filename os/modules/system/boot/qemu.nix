@@ -170,7 +170,7 @@ let
     kernel = "${config.system.build.kernel}/bzImage";
     initrd = "${config.system.build.initialRamdisk}/initrd";
     toplevel = config.system.build.toplevel;
-    kernelParams = config.boot.kernelParams ++ [ "quiet" "panic=-1" ];
+    kernelParams = config.boot.kernelParams ++ [ "panic=-1" ];
     networks = map (net: {
       type = net.type;
       opts = {
@@ -327,7 +327,7 @@ in {
             -drive index=0,id=drive1,file=${config.system.build.squashfs},readonly=on,media=cdrom,format=raw,if=virtio \
             -kernel ${config.system.build.kernel}/bzImage \
             -initrd ${config.system.build.initialRamdisk}/initrd \
-            -append "init=${config.system.build.toplevel}/init ${toString config.boot.kernelParams} quiet panic=-1" \
+            -append "init=${config.system.build.toplevel}/init ${toString config.boot.kernelParams} panic=-1" \
             -nographic \
             ${lib.concatStringsSep " \\\n  " diskParams} \
             ${lib.concatStringsSep " \\\n  " cfg.extraQemuOptions}
