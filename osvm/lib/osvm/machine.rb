@@ -337,7 +337,7 @@ module OsVm
     # Wait until network is operational, including DNS
     # @return [Machine]
     def wait_until_online(timeout: @default_timeout)
-      wait_until_succeeds('curl --head https://vpsadminos.org', timeout:)
+      wait_until_succeeds('curl --head https://check-online.vpsadminos.org', timeout:)
       self
     end
 
@@ -346,7 +346,7 @@ module OsVm
     # @return [Machine]
     def wait_until_container_online(ctid, timeout: @default_timeout)
       wait_until_succeeds(
-        "osctl ct exec #{ctid} sh -c 'ping -c 1 vpsadminos.org || curl --head https://vpsadminos.org || wget -O - https://vpsadminos.org || getent hosts vpsadminos.org'",
+        "osctl ct exec #{ctid} sh -c 'ping -c 1 check-online.vpsadminos.org || curl --head https://check-online.vpsadminos.org || wget -O - https://check-online.vpsadminos.org || getent hosts check-online.vpsadminos.org'",
         timeout:
       )
       self

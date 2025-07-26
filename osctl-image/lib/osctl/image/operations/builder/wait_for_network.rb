@@ -16,13 +16,13 @@ module OsCtl::Image
         #!/bin/sh
 
         test_network() {
-          curl --head https://images.vpsadminos.org > /dev/null 2>&1
+          curl --head https://check-online.vpsadminos.org > /dev/null 2>&1
           [ $? = 0 ] && return 0
 
-          wget -q -O - https://images.vpsadminos.org > /dev/null 2>&1
+          wget -q -O - https://check-online.vpsadminos.org > /dev/null 2>&1
           [ $? = 0 ] && return 0
 
-          ping -c 1 images.vpsadminos.org > /dev/null 2>&1
+          ping -c 1 check-online.vpsadminos.org > /dev/null 2>&1
           [ $? = 0 ] && return 0
 
           return 1

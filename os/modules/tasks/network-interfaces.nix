@@ -176,7 +176,7 @@ in {
 
         http.urls = mkOption {
           type = types.listOf types.str;
-          default = [ "http://1.1.1.1" "http://vpsadminos.org" ];
+          default = [ "http://1.1.1.1" "http://check-online.vpsadminos.org" ];
           description = ''
             A list URLs which are queried. We are online when any one of these
             sends a HTTP response.
