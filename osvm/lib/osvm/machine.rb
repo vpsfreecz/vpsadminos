@@ -217,6 +217,11 @@ module OsVm
       shell_up?
     end
 
+    # @return [Boolean]
+    def can_execute?
+      shell_up?
+    end
+
     # Wait until the system has booted
     # @param timeout [Integer]
     def wait_for_boot(timeout: @default_timeout)
@@ -226,6 +231,7 @@ module OsVm
     # Execute a command
     # @param cmd [String]
     # @param timeout [Integer]
+    # @raise [MachineShellClosed]
     # @return [Array<Integer, String>] exit status and output
     def execute(cmd, timeout: @default_timeout)
       start unless running?
@@ -662,7 +668,12 @@ module OsVm
         rs = shell.wait_readable(1)
         next unless rs
 
-        buffer << read_nonblock(shell)
+        begin
+          buffer << read_nonblock(shell)
+        rescue EOFError
+          raise MachineShellClosed
+        end
+
         next unless buffer.include?("test-shell-ready\n")
 
         @shell_up = true
@@ -719,7 +730,13 @@ module OsVm
         rs = shell.wait_readable(1)
         next unless rs
 
-        buffer << read_nonblock(shell)
+        begin
+          buffer << read_nonblock(shell)
+        rescue EOFError
+          @shell_up = false
+          raise MachineShellClosed
+        end
+
         break if buffer.end_with?("\n")
       end
 

@@ -358,7 +358,7 @@ module TestRunner
       yield
 
       machines.each_value do |m|
-        m.stop if m.running?
+        m.stop if m.running? && m.can_execute?
       end
     ensure
       machines.each_value do |m|

@@ -10,4 +10,6 @@ module OsVm
   class CommandSucceeded < CommandError; end
 
   class CommandFailed < CommandError; end
+
+  class MachineShellClosed < CommandError; end
 end
