@@ -116,33 +116,47 @@ in {
           fi
         '';
       };
-      postBootCommands = ''
-        echo "loading crashdump kernel...";
-
-        crashdumpParams="${concatStringsSep " " filteredParams} init=$(readlink -f /run/current-system/init) reset_devices irqpoll modprobe.blacklist=zfs,spl this_is_a_crash_kernel ${kernelParams}"
-
-        http_root="$(sed -n 's/.*httproot=\([^[:space:]]*\).*/\1/p' /proc/cmdline)"
-
-        if [ -n "$http_root" ] ; then
-          crashdumpParams="httproot=$http_root $crashdumpParams"
-        fi
-
-        ${pkgs.kexec-tools}/sbin/kexec -p /run/current-system/kernel \
-        --initrd=/run/current-system/initrd \
-      '' + optionalString cfg.consoleVGA.reset ''
-        --reset-vga \
-      '' + optionalString cfg.consoleVGA.enable ''
-        --console-vga \
-      '' + optionalString cfg.consoleSerial.enable ''
-        --console-serial \
-        --serial=${cfg.consoleSerial.port} --serial-baud=${toString cfg.consoleSerial.baudRate} \
-      '' + ''
-        --command-line="$crashdumpParams"
-      '';
       kernelParams = [
        "crashkernel=${cfg.reservedMemory}"
        "softlockup_panic=1"
       ];
+    };
+
+    runit.services.crashdump = {
+      run = ''
+        crashdumpParams="${concatStringsSep " " filteredParams} init=$(readlink -f /run/current-system/init) reset_devices irqpoll modprobe.blacklist=zfs,spl this_is_a_crash_kernel ${kernelParams}"
+
+        httpRoot="$(sed -n 's/.*httproot=\([^[:space:]]*\).*/\1/p' /proc/cmdline)"
+
+        if [ -n "$httpRoot" ] ; then
+          crashdumpParams="httproot=$httpRoot $crashdumpParams"
+        fi
+
+        kernel=$(realpath /run/current-system/kernel)
+        initrd=$(realpath /run/current-system/initrd)
+
+        echo "Loading crashdump kernel"
+        echo "kernel=$kernel"
+        echo "initrd=$initrd"
+        echo "params=$crashdumpParams"
+
+        ${pkgs.kexec-tools}/sbin/kexec \
+          --load-panic $kernel \
+          --initrd=$initrd \
+          ${optionalString cfg.consoleVGA.reset "--reset-vga"} \
+          ${optionalString cfg.consoleVGA.enable "--console-vga"} \
+          ${optionalString cfg.consoleSerial.enable "--console-serial --serial=${cfg.consoleSerial.port} --serial-baud=${toString cfg.consoleSerial.baudRate}"} \
+          --command-line="$crashdumpParams"
+
+        rc=$?
+
+        if [ $rc != 0 ] ; then
+          echo "Unable to load crashdump kernel, kexec failed with $rc"
+        fi
+      '';
+      oneShot = true;
+      log.enable = true;
+      log.sendTo = "127.0.0.1";
     };
   };
 }
