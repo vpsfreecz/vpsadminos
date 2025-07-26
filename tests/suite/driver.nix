@@ -253,6 +253,27 @@ import ../make-test.nix ({ pkgs }: {
           fail "wait_for_console_text() did not raise TimeoutError"
         end
 
+        begin
+          machine.execute('echo b > /proc/sysrq-trigger')
+        rescue OsVm::MachineShellClosed
+          # pass
+        else
+          fail 'Expected OsVm::MachineShellClosed to be raised after reset'
+        end
+
+        15.times do
+          break unless machine.running?
+
+          sleep(1)
+        end
+
+        if machine.running?
+          fail "Expected machine to be stopped after echo b > /proc/sysrq-trigger"
+        end
+
+        machine.start
+        machine.wait_for_boot
+        machine.succeeds('uptime')
         machine.stop
       '';
     };
