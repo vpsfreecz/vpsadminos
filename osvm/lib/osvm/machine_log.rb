@@ -46,6 +46,20 @@ module OsVm
       execute_end(status, output)
     end
 
+    def console_wait_begin(regex)
+      log_begin do |io|
+        io.puts('ACTION: console-wait')
+        io.puts("REGEXP: #{regex.inspect}")
+      end
+    end
+
+    def console_wait_end(status, error = nil)
+      log_end do |io|
+        io.puts("MATCH: #{status}")
+        io.puts("ERROR: #{error}") if error
+      end
+    end
+
     def close
       file.close
     end

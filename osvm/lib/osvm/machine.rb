@@ -249,10 +249,23 @@ module OsVm
       shell.write("#{workaround}#{timeout_command} bash -c #{Shellwords.escape(vm_command)} 2>&1 | (base64 -w 0; echo)\n")
       log.execute_begin(cmd)
 
-      output = Base64.decode64(read_shell_output(timeout: real_timeout + 5, command: vm_command))
+      begin
+        raw_output = read_shell_output(timeout: real_timeout + 5, command: vm_command)
+      rescue MachineShellClosed
+        log.execute_end(-1, '[machine shell closed]')
+        raise
+      end
+
+      output = Base64.decode64(raw_output)
 
       shell.write("#{workaround}echo ${PIPESTATUS[0]}\n")
-      status = read_shell_output(timeout: 60, command: 'echo ${PIPESTATUS[0]}').strip.to_i
+
+      begin
+        status = read_shell_output(timeout: 60, command: 'echo ${PIPESTATUS[0]}').strip.to_i
+      rescue MachineShellClosed
+        log.execute_end(-1, output)
+        raise
+      end
 
       if timeout && status == 124
         log.execute_end(-1, output)
@@ -456,6 +469,37 @@ module OsVm
       self
     end
 
+    # Wait for text to appear in console output
+    # @param regex [Regexp]
+    # @return [Machine]
+    def wait_for_console_text(regex, timeout: @default_timeout)
+      t1 = Time.now
+      cur_timeout = timeout
+
+      log.console_wait_begin(regex)
+
+      loop do
+        if regex =~ @console_output
+          log.console_wait_end(true)
+          return self
+        end
+
+        cur_timeout = timeout - (Time.now - t1)
+
+        if cur_timeout <= 0
+          log.console_wait_end(false, 'timeout')
+          raise TimeoutError, "Timeout occurred while waiting for #{regex.inspect} on the console"
+        elsif !running?
+          log.console_wait_end(false, 'machine not running')
+          raise Error, 'Machine is not running'
+        end
+
+        sleep(1)
+      end
+
+      self
+    end
+
     # Create a directory inside the machine
     # @param path [String] path within the machine
     # @return [Machine]
@@ -624,6 +668,8 @@ module OsVm
     end
 
     def run_console_thread
+      @console_output = ''
+
       @console_thread = Thread.new do
         console_log = File.open(console_log_path, 'w')
 
@@ -632,7 +678,10 @@ module OsVm
             rs = qemu_read.wait_readable
             next unless rs
 
-            console_log.write(read_nonblock(qemu_read))
+            data = read_nonblock(qemu_read)
+            @console_output << data
+
+            console_log.write(data)
             console_log.flush
           end
         rescue EOFError
