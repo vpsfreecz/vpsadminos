@@ -31,7 +31,7 @@ import ../../make-test.nix ({ pkgs }: {
       "osctl ct start snapct",
     )
 
-    machine.wait_until_succeeds("osctl ct exec snapct sh -c 'curl --head https://vpsadminos.org || wget -O - https://vpsadminos.org || getent hosts vpsadminos.org'")
+    machine.wait_until_container_online('snapct')
 
     ${setupScript}
 
