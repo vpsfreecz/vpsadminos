@@ -243,6 +243,16 @@ import ../make-test.nix ({ pkgs }: {
           fail "pulled file not found at '#{pulled}'"
         end
 
+        machine.wait_for_console_text(/vpsadminos login:/, timeout: 30)
+
+        begin
+          machine.wait_for_console_text(/something completely made up/, timeout: 10)
+        rescue OsVm::TimeoutError
+          # pass
+        else
+          fail "wait_for_console_text() did not raise TimeoutError"
+        end
+
         machine.stop
       '';
     };
