@@ -7,7 +7,7 @@ import ../make-test.nix ({ pkgs }: {
 
   tags = [ "ci" ];
 
-  machine = import ../machines/with-empty.nix {
+  machine = import ../machines/with-tank.nix {
     inherit pkgs;
     config =
       { config, ... }:
@@ -30,7 +30,22 @@ import ../make-test.nix ({ pkgs }: {
   testScript = ''
     message = 'hello crash kernel test'
     machine.start
-    machine.wait_for_boot
+
+    # We create containers to test that syslog namespace will not distrupt
+    # dumping of kernel log from the host
+    machine.wait_for_osctl_pool('tank')
+
+    3.times do
+      testct = get_container_id
+
+      machine.all_succeed(
+        "osctl ct new --distribution #{%w[almalinux alpine arch debian ubuntu].sample} #{testct}",
+        "osctl ct start #{testct}"
+      )
+    end
+
+    sleep(5)
+
     machine.wait_for_service('crashdump')
 
     _, loaded = machine.succeeds('cat /sys/kernel/kexec_crash_loaded')
@@ -47,10 +62,12 @@ import ../make-test.nix ({ pkgs }: {
     end
 
     # At this point, the machine is down and the console output is complete
-    machine.wait_for_console_text(/sysrq: Trigger a crash/, timeout: 1)
-    machine.wait_for_console_text(/Kernel panic - not syncing: sysrq triggered crash/, timeout: 1)
-    machine.wait_for_console_text(/This is a crash kernel/, timeout: 1)
-    machine.wait_for_console_text(/Dumping dmesg/, timeout: 1)
-    machine.wait_for_console_text(/#{Regexp.escape(message)}/, timeout: 1)
+    timeout = 1
+
+    machine.wait_for_console_text(/sysrq: Trigger a crash/, timeout:)
+    machine.wait_for_console_text(/Kernel panic - not syncing: sysrq triggered crash/, timeout:)
+    machine.wait_for_console_text(/This is a crash kernel/, timeout:)
+    machine.wait_for_console_text(/Dumping dmesg/, timeout:)
+    machine.wait_for_console_text(/#{Regexp.escape(message)}/, timeout:)
   '';
 })
