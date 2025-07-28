@@ -384,7 +384,7 @@ let
       };
 
       type = mkOption {
-        type = types.enum [ "bind" ];
+        type = types.enum [ "bind" "tmpfs" ];
         default = "bind";
         description = "Mount type";
       };
