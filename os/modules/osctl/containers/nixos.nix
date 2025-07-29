@@ -197,7 +197,14 @@ let
 
           if [ "$currentState" == "running" ] ; then
             echo "Switching to ${toplevel}"
+
+            ${if cfg.shareStore then ''
+            # The store's overlayfs layers were modified and that is not a supported
+            # configuration by the kernel. Restart the VPS to remount the overlay.
+            ${osctlPool} ct restart ${name}
+            '' else ''
             ${osctlPool} ct exec ${name} ${toplevel}/bin/switch-to-configuration switch
+            ''}
           fi
 
         else
