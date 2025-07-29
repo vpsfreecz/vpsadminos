@@ -73,11 +73,17 @@ module OsCtld
     end
 
     def bin_path(_opts)
-      with_rootfs do
-        File.realpath('/nix/var/nix/profiles/system/sw/bin')
-      rescue Errno::ENOENT
-        '/bin'
-      end
+      raise "#{ct.ident} not running" unless ct.running?
+
+      ContainerControl::Commands::WithMountns.run!(
+        ct,
+        ns_pid: ct.init_pid,
+        block: proc do
+          File.realpath('/nix/var/nix/profiles/system/sw/bin')
+        rescue Errno::ENOENT
+          '/bin'
+        end
+      )
     end
   end
 end
