@@ -60,6 +60,7 @@ in tests [
   "cgroups/system-v2"
   "crashdump"
   "ctstartmenu/setup"
+  "declarative-containers"
   "defaults"
   { test = "dist-config/netif-routed"; args = { distributions = distributions.all; }; }
   { test = "dist-config/nonsystemd-rundir"; args = { distributions = distributions.non-systemd; }; }
