@@ -156,15 +156,22 @@ if [ "$live" == "yes" ] ; then
   mkdir -p /mnt/nix/store/
 
   # make the store writeable
-  mkdir -p /mnt/nix/.ro-store /mnt/nix/.overlay-store /mnt/nix/store
-  mount $root /mnt/nix/.ro-store -t squashfs || fail "Can't mount root from $root"
+  mkdir -p /.rootfs-image /mnt/nix/.ro-store /mnt/nix/.overlay-store /mnt/nix/store
+  mount $root /.rootfs-image -t squashfs || fail "Can't mount root from $root"
+  mount --bind /.rootfs-image/nix/store /mnt/nix/.ro-store
   mount tmpfs -t tmpfs /mnt/nix/.overlay-store -o size=@storeOverlaySize@
   mkdir -pv /mnt/nix/.overlay-store/work /mnt/nix/.overlay-store/rw
   modprobe overlay
   mount -t overlay overlay -o lowerdir=/mnt/nix/.ro-store,upperdir=/mnt/nix/.overlay-store/rw,workdir=/mnt/nix/.overlay-store/work /mnt/nix/store
 
-  if [ -d /mnt/nix/store/secrets ] ; then
-    chmod 0500 /mnt/nix/store/secrets
+  if [ -e /.rootfs-image/nix-path-registration ] ; then
+    cp -p /.rootfs-image/nix-path-registration /mnt/nix-path-registration
+  fi
+
+  if [ -d /.rootfs-image/secrets ] ; then
+    mkdir -p /mnt/var/secrets
+    cp -rp /.rootfs-image/secrets/. /mnt/var/secrets/
+    chmod 0500 /mnt/var/secrets
   fi
 
 else

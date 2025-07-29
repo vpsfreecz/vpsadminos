@@ -377,6 +377,7 @@ in {
     system.build.squashfs = pkgs.callPackage ../../../lib/make-squashfs.nix {
       storeContents = [ config.system.build.toplevel ];
       secretsDir = config.system.secretsDir;
+      noStrip = true;
     };
 
     system.build.dist = pkgs.runCommand "vpsadminos-dist" {} ''

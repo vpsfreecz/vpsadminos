@@ -34,13 +34,6 @@ chmod a+rxw /dev/kmsg
 chmod a+rxw /proc/kmsg
 chmod a+r /proc/slabinfo
 
-# Move secrets in place before making /nix/store read-only, otherwise
-# mv will fail to remove them from /nix/store/secrets.
-if [ -d /nix/store/secrets ] ; then
-  [ -d /var/secrets ] && rm -rf /var/secrets
-  mv /nix/store/secrets /var/secrets
-fi
-
 # Make /nix/store a read-only bind mount to enforce immutability of
 # the Nix store.  Note that we can't use "chown root:nixbld" here
 # because users/groups might not exist yet.

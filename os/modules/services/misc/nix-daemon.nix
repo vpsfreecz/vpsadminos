@@ -20,7 +20,10 @@ in
     (mkIf cfg.enable {
       runit.services.nix = {
         run = ''
-          nix-store --load-db < /nix/store/nix-path-registration
+          if [ -e /nix-path-registration ] ; then
+            nix-store --load-db < /nix-path-registration
+            rm -f /nix-path-registration
+          fi
 
           if ! isKernelParamSet nolive && [ ! -e /nix/var/nix/profiles/system ] ; then
             nix-env -p /nix/var/nix/profiles/system --set /run/current-system
