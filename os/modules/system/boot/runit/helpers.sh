@@ -8,6 +8,7 @@ function fail {
 }
 
 function osctldStarted {
+  [ -e /run/osctl/osctld.sock ] || return 1
   @osctl@ ping &> /dev/null
 }
 
