@@ -22,14 +22,4 @@ with lib;
       '';
     };
   };
-
-  config = {
-    assertions = [
-      {
-        assertion = config.system.secretsDir == null
-                    || (baseNameOf config.system.secretsDir) == "secrets";
-        message = "Base name of system.secretsDir has to be 'secrets'";
-      }
-    ];
-  };
 }
