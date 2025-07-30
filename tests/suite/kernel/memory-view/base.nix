@@ -26,7 +26,7 @@ in {
   };
 
   testScript = ''
-    parse_meminfo = proc do |content|
+    def self.parse_meminfo(content)
       content.strip.each_line.to_h do |line|
         # <param>: <value> [kB]
         param, value, _ = line.split
@@ -34,16 +34,16 @@ in {
       end
     end
 
-    parse_sysinfo = proc do |content|
+    def self.parse_sysinfo(content)
       JSON.parse(content)
     end
 
     # Swap size is in kB and -4 kB from the original value
-    bytes_to_swap_size = proc do |bytes|
+    def self.bytes_to_swap_size(bytes)
       bytes / 1024 - 4
     end
 
-    container_tests = proc do
+    def self.container_tests
       context 'without memory limit' do
         testct = get_container_id
 
@@ -63,8 +63,8 @@ in {
 
         context 'in /proc/meminfo' do
           before(:context) do
-            @host_mem = parse_meminfo.call(machine.succeeds('cat /proc/meminfo')[1])
-            @ct_mem = parse_meminfo.call(machine.succeeds("osctl ct exec #{testct} cat /proc/meminfo")[1])
+            @host_mem = parse_meminfo(machine.succeeds('cat /proc/meminfo')[1])
+            @ct_mem = parse_meminfo(machine.succeeds("osctl ct exec #{testct} cat /proc/meminfo")[1])
           end
 
           it 'has the same number of values' do
@@ -81,8 +81,8 @@ in {
 
         context 'in sysinfo()' do
           before(:context) do
-            @host_sys = parse_sysinfo.call(machine.succeeds('sysinfo-to-json')[1])
-            @ct_sys = parse_sysinfo.call(machine.succeeds("osctl ct runscript #{testct} /scripts/sysinfo.py")[1])
+            @host_sys = parse_sysinfo(machine.succeeds('sysinfo-to-json')[1])
+            @ct_sys = parse_sysinfo(machine.succeeds("osctl ct runscript #{testct} /scripts/sysinfo.py")[1])
           end
 
           %w[totalram totalhigh totalswap freeswap].each do |v|
@@ -130,8 +130,8 @@ in {
 
             context 'in /proc/meminfo' do
               before(:context) do
-                @host_mem = parse_meminfo.call(machine.succeeds('cat /proc/meminfo')[1])
-                @ct_mem = parse_meminfo.call(machine.succeeds("osctl ct exec #{testct} cat /proc/meminfo")[1])
+                @host_mem = parse_meminfo(machine.succeeds('cat /proc/meminfo')[1])
+                @ct_mem = parse_meminfo(machine.succeeds("osctl ct exec #{testct} cat /proc/meminfo")[1])
                 @mem_total = memory_limit / 1024
                 @swap_total = swap_limit / 1024
               end
@@ -180,8 +180,8 @@ in {
 
             context 'in sysinfo()' do
               before(:context) do
-                @host_sys = parse_sysinfo.call(machine.succeeds('sysinfo-to-json')[1])
-                @ct_sys = parse_sysinfo.call(machine.succeeds("osctl ct runscript #{testct} /scripts/sysinfo.py")[1])
+                @host_sys = parse_sysinfo(machine.succeeds('sysinfo-to-json')[1])
+                @ct_sys = parse_sysinfo(machine.succeeds("osctl ct runscript #{testct} /scripts/sysinfo.py")[1])
               end
 
               it 'has virtualized totalram' do
@@ -235,7 +235,7 @@ in {
 
                 it 'has virtual swap device with expected size' do
                   pending('https://github.com/vpsfreecz/vpsadminos/issues/76')
-                  expect(@swap_lines[1].split).to eq(%W[virtual virtual #{bytes_to_swap_size.call(swap_limit)} 0 -1])
+                  expect(@swap_lines[1].split).to eq(%W[virtual virtual #{bytes_to_swap_size(swap_limit)} 0 -1])
                 end
               else
                 it 'is empty' do
@@ -265,7 +265,7 @@ in {
         expect(lines.first).to start_with('Filename')
       end
 
-      container_tests.call
+      container_tests
     end
 
     describe 'memory view in container with swap device on the host' do
@@ -297,10 +297,10 @@ in {
         expect(lines.count).to eq(2)
         expect(lines.first).to start_with('Filename')
 
-        expect(lines[1].split).to eq(%W[#{@zram_device} partition #{bytes_to_swap_size.call(@swap_size)} 0 -2])
+        expect(lines[1].split).to eq(%W[#{@zram_device} partition #{bytes_to_swap_size(@swap_size)} 0 -2])
       end
 
-      container_tests.call
+      container_tests
     end
   '';
 })
