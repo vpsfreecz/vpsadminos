@@ -103,6 +103,7 @@ in tests [
   "podman/debian-latest"
   "podman/fedora-latest"
   "podman/ubuntu-latest"
+  "secrets"
   "snap/hello-fedora"
   "snap/hello-ubuntu"
   "snap/lxd-fedora"
