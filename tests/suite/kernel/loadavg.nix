@@ -115,32 +115,32 @@ in {
     testcts = %w[testct1 testct2]
     loadavgs = %w[1m 5m 15m]
 
-    start_genload = proc do |testct, n_blocked:, n_running:|
+    def self.start_genload(testct, n_blocked:, n_running:)
       machine.succeeds("osctl ct exec #{testct} sh -c 'echo -e \"N_BLOCKED=#{n_blocked}\nN_RUNNING=#{n_running}\" > /run/genload.conf'")
       machine.succeeds("osctl ct exec #{testct} systemctl restart genload")
     end
 
-    stop_genload = proc do |testct|
+    def self.stop_genload(testct)
       machine.succeeds("osctl ct exec #{testct} systemctl stop genload")
     end
 
-    parse_loadavg = proc do |content|
+    def self.parse_loadavg(content)
       content.strip.split[0..2].map(&:to_f)
     end
 
-    read_host_load = proc do
-      parse_loadavg.call(machine.succeeds('cat /proc/loadavg')[1])
+    def self.read_host_load
+      parse_loadavg(machine.succeeds('cat /proc/loadavg')[1])
     end
 
-    read_container_load = proc do |testct|
-      parse_loadavg.call(machine.succeeds("osctl ct exec #{testct} cat /proc/loadavg")[1])
+    def self.read_container_load(testct)
+      parse_loadavg(machine.succeeds("osctl ct exec #{testct} cat /proc/loadavg")[1])
     end
 
-    host_sysinfo = proc do
+    def self.host_sysinfo
       JSON.parse(machine.succeeds("sysinfo-to-json")[1])
     end
 
-    container_sysinfo = proc do |testct|
+    def self.container_sysinfo(testct)
       JSON.parse(machine.succeeds("osctl ct exec #{testct} sysinfo-to-json")[1])
     end
 
@@ -164,12 +164,12 @@ in {
         context "in container #{testct}" do
           loadavgs.each_with_index do |lavg, i|
             it "has low #{lavg} load in /proc/loadavg on start" do
-              expect(read_container_load.call(testct)[i]).to be < 1
+              expect(read_container_load(testct)[i]).to be < 1
             end
 
             it "has low #{lavg} load in sysinfo()" do
               skip('https://github.com/vpsfreecz/vpsadminos/issues/78')
-              expect(container_sysinfo.call(testct)['loads'][i]).to be < 1
+              expect(container_sysinfo(testct)['loads'][i]).to be < 1
             end
           end
 
@@ -183,7 +183,7 @@ in {
           ].each do |load_config|
             context "loadavg with blocked=#{load_config[:n_blocked]} running=#{load_config[:n_running]}" do
               before(:context) do
-                start_genload.call(testct, **load_config)
+                start_genload(testct, **load_config)
               end
 
               loadavgs.each_with_index do |lavg, i|
@@ -195,7 +195,7 @@ in {
                   interval = 5
 
                   (seconds * 2 / interval).times do
-                    cur_load = read_container_load.call(testct)[i]
+                    cur_load = read_container_load(testct)[i]
 
                     if last_load
                       expect(cur_load).to be >= last_load
@@ -213,44 +213,44 @@ in {
 
               loadavgs.each_with_index do |lavg, i|
                 it "saturates #{lavg} load inside /proc/loadavg" do
-                  ct_load = read_container_load.call(testct)
+                  ct_load = read_container_load(testct)
                   expect(ct_load[i]).to be >= (load_config.values.sum / increase_ratio)
                 end
 
                 it "saturates #{lavg} load in sysinfo()" do
                   skip('https://github.com/vpsfreecz/vpsadminos/issues/78')
-                  expect(container_sysinfo.call(testct)['loads'][i]).to be >= (load_config.values.sum / increase_ratio)
+                  expect(container_sysinfo(testct)['loads'][i]).to be >= (load_config.values.sum / increase_ratio)
                 end
               end
 
               (testcts - [testct]).each do |other_ct|
                 loadavgs.each_with_index do |lavg, i|
                   it "does not affect #{lavg} load in other container #{other_ct} in /proc/loadavg" do
-                    other_load = read_container_load.call(other_ct)
+                    other_load = read_container_load(other_ct)
                     expect(other_load[i]).to be < 1
                   end
 
                   it "does not affect #{lavg} load in other container #{other_ct} in sysinfo()" do
                     pending('https://github.com/vpsfreecz/vpsadminos/issues/78')
-                    expect(container_sysinfo.call(other_ct)['loads'][i]).to be < 1
+                    expect(container_sysinfo(other_ct)['loads'][i]).to be < 1
                   end
                 end
               end
 
               loadavgs.each_with_index do |lavg, i|
                 it "is included in #{lavg} host load in /proc/loadavg" do
-                  host_load = read_host_load.call
+                  host_load = read_host_load
 
                   expect(host_load[i]).to be >= (load_config.values.sum / increase_ratio)
                 end
 
                 it "is included in #{lavg} host load in sysinfo()" do
-                  expect(host_sysinfo.call['loads'][i]).to be >= (load_config.values.sum / increase_ratio)
+                  expect(host_sysinfo['loads'][i]).to be >= (load_config.values.sum / increase_ratio)
                 end
               end
 
               it 'stops genload' do
-                stop_genload.call(testct)
+                stop_genload(testct)
               end
 
               loadavgs.each_with_index do |lavg, i|
@@ -262,7 +262,7 @@ in {
                   interval = 5
 
                   (seconds * 2 / interval).times do
-                    cur_load = read_container_load.call(testct)[i]
+                    cur_load = read_container_load(testct)[i]
 
                     if last_load
                       expect(cur_load).to be <= last_load
@@ -281,7 +281,7 @@ in {
               loadavgs.each_with_index do |lavg, i|
                 it "decreases #{lavg} load in sysinfo()" do
                   skip('https://github.com/vpsfreecz/vpsadminos/issues/78')
-                  expect(container_sysinfo.call(testct)['loads'][i]).to be <= (load_config.values.sum / decrease_ratio)
+                  expect(container_sysinfo(testct)['loads'][i]).to be <= (load_config.values.sum / decrease_ratio)
                 end
               end
 
@@ -292,12 +292,12 @@ in {
 
               loadavgs.each_with_index do |lavg, i|
                 it "resets #{lavg} load in /proc/loadavg on container restart" do
-                  expect(read_container_load.call(testct)[i]).to be < 1
+                  expect(read_container_load(testct)[i]).to be < 1
                 end
 
                 it "resets #{lavg} load in sysinfo() on container restart" do
                   skip('https://github.com/vpsfreecz/vpsadminos/issues/78')
-                  expect(container_sysinfo.call(testct)['loads'][i]).to be < 1
+                  expect(container_sysinfo(testct)['loads'][i]).to be < 1
                 end
               end
             end
@@ -336,7 +336,7 @@ in {
       context 'from the host' do
         before(:context) do
           testcts.each_with_index do |testct, i|
-            start_genload.call(testct, n_blocked: (i + 1) * 2, n_running: 0)
+            start_genload(testct, n_blocked: (i + 1) * 2, n_running: 0)
           end
         end
 
