@@ -24,7 +24,9 @@ let
   '';
 
   mkScript = script: ''
-    testct = get_container_id
+    def self.testct
+      @testct ||= get_container_id
+    end
 
     before(:suite) do
       machine.wait_for_osctl_pool("tank")
@@ -85,35 +87,35 @@ in {
 
       script = mkScript ''
         # Containers without limits and without cpuset have the same view as the host
-        compare_exec = proc do |command|
+        def self.compare_exec(command)
           _, host_output = machine.succeeds(command)
           _, ct_output = machine.succeeds("osctl ct exec #{testct} #{command}")
 
           expect(host_output).to eq(ct_output)
         end
 
-        compare_runscript = proc do |script|
+        def self.compare_runscript(script)
           _, host_output = machine.succeeds(script)
           _, ct_output = machine.succeeds("osctl ct runscript #{testct} #{script}")
 
           expect(host_output).to eq(ct_output)
         end
 
-        nolimit_checks = proc do
+        def self.nolimit_checks
           it 'has unmodified /proc/stat' do
-            compare_exec.call("cat /proc/stat | grep -P '^cpu\[\\d+\]* ' | awk '{ print $1; }'")
+            compare_exec("cat /proc/stat | grep -P '^cpu\[\\d+\]* ' | awk '{ print $1; }'")
           end
 
           it 'has unmodified /proc/cpuinfo' do
-            compare_exec.call('grep processor /proc/cpuinfo')
+            compare_exec('grep processor /proc/cpuinfo')
           end
 
           it 'has unmodified /sys/devices/system/cpu/online' do
-            compare_exec.call('cat /sys/devices/system/cpu/online')
+            compare_exec('cat /sys/devices/system/cpu/online')
           end
 
           it 'has unmodified /sys/devices/system/cpuN' do
-            compare_exec.call("find /sys/devices/system/cpu -maxdepth 1 -type d | grep -P '/cpu\\d+' | sort")
+            compare_exec("find /sys/devices/system/cpu -maxdepth 1 -type d | grep -P '/cpu\\d+' | sort")
           end
         end
 
@@ -122,18 +124,18 @@ in {
             machine.succeeds("osctl ct cgparams unset #{testct} cpuset.cpus")
           end
 
-          nolimit_checks.call
+          nolimit_checks
 
           it 'has identical nproc' do
-            compare_exec.call('nproc')
+            compare_exec('nproc')
           end
 
           it 'has identical getconf' do
-            compare_exec.call('getconf _NPROCESSORS_ONLN')
+            compare_exec('getconf _NPROCESSORS_ONLN')
           end
 
           it 'can get/set affinity' do
-            compare_runscript.call('/scripts/sched_getaffinity.py')
+            compare_runscript('/scripts/sched_getaffinity.py')
 
             _, nolimit_affinity = machine.succeeds("osctl ct runscript #{testct} /scripts/sched_getaffinity.py")
             machine.succeeds("osctl ct runscript #{testct} /scripts/sched_setaffinity.py #{nolimit_affinity.strip}")
@@ -160,7 +162,7 @@ in {
             expect(cpus.strip).to eq('2-4')
           end
 
-          nolimit_checks.call
+          nolimit_checks
 
           it 'affects nproc' do
             _, cpuset_nproc = machine.succeeds("osctl ct exec #{testct} nproc")
@@ -191,7 +193,7 @@ in {
       '';
 
       script = mkScript ''
-        check_cpus = proc do |limit, cpu_count|
+        def self.check_cpus(limit, cpu_count)
           before(:context) do
             if limit
               machine.succeeds("osctl ct set cpu-limit #{testct} #{limit}")
@@ -257,49 +259,49 @@ in {
             machine.succeeds("osctl ct cgparams unset #{testct} cpuset.cpus")
           end
 
-          describe 'with 300% limit' do
-            check_cpus.call(300, 3)
+          context 'with 300% limit' do
+            check_cpus(300, 3)
           end
 
-          describe 'with 400% limit' do
-            check_cpus.call(400, 4)
+          context 'with 400% limit' do
+            check_cpus(400, 4)
           end
 
-          describe 'with 250% limit' do
-            check_cpus.call(250, 3)
+          context 'with 250% limit' do
+            check_cpus(250, 3)
           end
 
-          describe 'with 201% limit' do
-            check_cpus.call(201, 3)
+          context 'with 201% limit' do
+            check_cpus(201, 3)
           end
 
-          describe 'with 200% limit' do
-            check_cpus.call(200, 2)
+          context 'with 200% limit' do
+            check_cpus(200, 2)
           end
 
-          describe 'with 100% limit' do
-            check_cpus.call(100, 1)
+          context 'with 100% limit' do
+            check_cpus(100, 1)
           end
 
-          describe 'with 50% limit' do
-            check_cpus.call(50, 1)
+          context 'with 50% limit' do
+            check_cpus(50, 1)
           end
 
-          describe 'raise to 800%' do
-            check_cpus.call(800, 8)
+          context 'raise to 800%' do
+            check_cpus(800, 8)
           end
 
           # TODO: kernel bug in /proc/cpuinfo here
-          # describe '1000% limit' do
-          #   check_cpus.call(1000, 8)
+          # context '1000% limit' do
+          #   check_cpus(1000, 8)
           # end
 
-          describe 'with 500% limit' do
-            check_cpus.call(500, 5)
+          context 'with 500% limit' do
+            check_cpus(500, 5)
           end
 
-          describe 'unset limit' do
-            check_cpus.call(nil, 8)
+          context 'unset limit' do
+            check_cpus(nil, 8)
           end
         end
 
@@ -308,41 +310,41 @@ in {
             machine.succeeds("osctl ct cgparams set #{testct} cpuset.cpus 2-5")
           end
 
-          describe 'with 300% limit' do
-            check_cpus.call(300, 3)
+          context 'with 300% limit' do
+            check_cpus(300, 3)
           end
 
-          describe 'with 400% limit' do
-            check_cpus.call(400, 4)
+          context 'with 400% limit' do
+            check_cpus(400, 4)
           end
 
-          describe 'with 250% limit' do
-            check_cpus.call(250, 3)
+          context 'with 250% limit' do
+            check_cpus(250, 3)
           end
 
-          describe 'with 201% limit' do
-            check_cpus.call(201, 3)
+          context 'with 201% limit' do
+            check_cpus(201, 3)
           end
 
-          describe 'with 200% limit' do
-            check_cpus.call(200, 2)
+          context 'with 200% limit' do
+            check_cpus(200, 2)
           end
 
-          describe 'with 100% limit' do
-            check_cpus.call(100, 1)
+          context 'with 100% limit' do
+            check_cpus(100, 1)
           end
 
-          describe 'with 50% limit' do
-            check_cpus.call(50, 1)
+          context 'with 50% limit' do
+            check_cpus(50, 1)
           end
 
-          describe 'raise to 800%' do
-            check_cpus.call(800, 8)
+          context 'raise to 800%' do
+            check_cpus(800, 8)
           end
 
           # TODO: kernel bug in /proc/cpuinfo here
-          # describe 'with 1000% limit' do
-          #   check_cpus.call(1000, 8)
+          # context 'with 1000% limit' do
+          #   check_cpus(1000, 8)
           # end
         end
       '';
