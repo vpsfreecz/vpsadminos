@@ -25,7 +25,7 @@ import ../../make-test.nix ({ pkgs }: {
     id3 = get_container_id
     testct3 = "#{pool}:#{id3}"
 
-    check_output = proc do |output, line_array|
+    def self.check_output(output, line_array)
       lines = output.strip.split("\n")
 
       if lines.empty? && line_array.any?
@@ -40,15 +40,15 @@ import ../../make-test.nix ({ pkgs }: {
       end
     end
 
-    check_command = proc do |type, ids, line_array|
+    def self.check_command(type, ids, line_array)
       it "finds #{type}s as arguments" do
         _, output = machine.succeeds("osctl ct #{type} #{ids.join(' ')} 2> /dev/null")
-        check_output.call(output, line_array)
+        check_output(output, line_array)
       end
 
       it "finds #{type}s from stdin" do
         _, output = machine.succeeds("echo -e \"#{ids.join("\n")}\" | osctl ct #{type} - 2> /dev/null")
-        check_output.call(output, line_array)
+        check_output(output, line_array)
       end
     end
 
@@ -76,7 +76,7 @@ import ../../make-test.nix ({ pkgs }: {
     gid_header = %w[GID CONTAINER CT_GID]
 
     describe 'uid on testct1' do
-      check_command.call(
+      check_command(
         'uid',
         %w[0 1 -1 str 99999 100000 100001 165535 165536],
         [
@@ -95,7 +95,7 @@ import ../../make-test.nix ({ pkgs }: {
     end
 
     describe 'gid on testct1' do
-      check_command.call(
+      check_command(
         'gid',
         %w[0 1 -1 str 199999 200000 200001 265535 265536],
         [
@@ -114,7 +114,7 @@ import ../../make-test.nix ({ pkgs }: {
     end
 
     describe 'uid on testct2/testct3' do
-      check_command.call(
+      check_command(
         'uid',
         %w[299999 300000 300001 365535 365536],
         [
@@ -132,7 +132,7 @@ import ../../make-test.nix ({ pkgs }: {
     end
 
     describe 'gid on testct2/testct3' do
-      check_command.call(
+      check_command(
         'gid',
         %w[299999 300000 300001 365535 365536],
         [
