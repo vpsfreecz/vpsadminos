@@ -44,9 +44,6 @@ nav:
 - Services:
     - Docker: 'services/docker.md'
     - Snappy: 'services/snappy.md'
-- Migration Paths:
-    - Converter: 'migration-paths/converter.md'
-    - OpenVZ Legacy: 'migration-paths/openvz-legacy.md'
 - osctld:
     - Distribution support: 'osctld/distributions.md'
     - cgroups: 'osctld/cgroups.md'
