@@ -10,7 +10,7 @@ imperative containers using *osctl*.
 Naturally, NixOS works best for declarative containers, as all such containers
 can be build and deployed together with the host node. However, it is also
 possible to declaratively create containers with any other distribution
-using [images]. These containers are not build together with the host node,
+using [images]. These containers are not built together with the host node,
 but are created when the host node boots or is redeployed.
 
 ## Example configuration
