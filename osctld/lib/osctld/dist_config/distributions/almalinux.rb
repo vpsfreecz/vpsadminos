@@ -10,7 +10,8 @@ module OsCtld
       def network_class
         [
           DistConfig::Network::NetworkManager,
-          DistConfig::Network::RedHatNetworkManager
+          DistConfig::Network::RedHatNetworkManager,
+          DistConfig::Network::RedHatInitScripts
         ]
       end
     end
