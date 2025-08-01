@@ -1,4 +1,6 @@
 PreCommit:
+  Nixfmt:
+    enabled: true
   RuboCop:
     enabled: true
 CommitMsg:

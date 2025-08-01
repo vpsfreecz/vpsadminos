@@ -6,7 +6,6 @@ let
     ];
   };
   stdenv = pkgs.stdenv;
-
 in
 stdenv.mkDerivation rec {
   name = "vpsadminos";
@@ -19,6 +18,7 @@ stdenv.mkDerivation rec {
     lxc
     mkdocs
     ncurses
+    nixfmt-rfc-style
     nixfmt-tree
     ruby_3_3
   ];
