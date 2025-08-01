@@ -1,4 +1,10 @@
-{ config, lib, pkgs, utils, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  utils,
+  ...
+}:
 with utils;
 with lib;
 
@@ -43,33 +49,36 @@ let
     create_files = test: ''"${test.testDirectory}"'';
   };
 
-  testCommand = name: test:
-    if hasAttr name testArgs then
-      "${name} ${testArgs.${name} test}"
-    else
-      name;
+  testCommand =
+    name: test: if hasAttr name testArgs then "${name} ${testArgs.${name} test}" else name;
 
-  mkTestModule = name: {
-    enable = mkOption {
-      type = types.bool;
-      default = true;
-      description = ''
-        Enable osbench test ${name}
-      '';
-    };
+  mkTestModule =
+    name:
+    {
+      enable = mkOption {
+        type = types.bool;
+        default = true;
+        description = ''
+          Enable osbench test ${name}
+        '';
+      };
 
-    cronInterval = mkOption {
-      type = types.str;
-      default = cronIntervals.${name} or "*/1 * * * *";
-      description = ''
-        Date and time expression in a crontab format for when to run the test
-      '';
-    };
-  } // (extraOptions.${name} or {});
+      cronInterval = mkOption {
+        type = types.str;
+        default = cronIntervals.${name} or "*/1 * * * *";
+        description = ''
+          Date and time expression in a crontab format for when to run the test
+        '';
+      };
+    }
+    // (extraOptions.${name} or { });
 
-  testCronJobs = tests: mapAttrsToList (name: test:
-    "${test.cronInterval} root ${runner} ${textfileDirectory} ${pkgs.osbench} ${testCommand name test}"
-  ) tests;
+  testCronJobs =
+    tests:
+    mapAttrsToList (
+      name: test:
+      "${test.cronInterval} root ${runner} ${textfileDirectory} ${pkgs.osbench} ${testCommand name test}"
+    ) tests;
 in
 {
   options = {

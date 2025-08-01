@@ -6,6 +6,6 @@
       config
     ];
 
-    boot.zfs.pools = {};
+    boot.zfs.pools = { };
   };
 }

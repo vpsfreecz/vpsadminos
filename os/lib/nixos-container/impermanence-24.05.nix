@@ -1,8 +1,13 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 let
   # Use custom nixpkgs instance to fetch impermanence module, as otherwise
   # having it in imports results in infinite recursion
-  impermanence = (import <nixpkgs> {}).fetchFromGitHub {
+  impermanence = (import <nixpkgs> { }).fetchFromGitHub {
     owner = "nix-community";
     repo = "impermanence";
     rev = "e337457502571b23e449bf42153d7faa10c0a562";
@@ -51,7 +56,8 @@ let
     }
   '';
 
-in {
+in
+{
   imports = [
     <nixpkgs/nixos/modules/installer/cd-dvd/channel.nix>
     <nixpkgs/nixos/modules/virtualisation/container-config.nix>
@@ -120,9 +126,10 @@ in {
     compressionExtension = ".gz";
     extraInputs = [ pkgs.gzip ];
 
-    contents = [];
+    contents = [ ];
     storeContents = [
-      { object = config.system.build.toplevel;
+      {
+        object = config.system.build.toplevel;
         symlink = "/run/current-system";
       }
     ];

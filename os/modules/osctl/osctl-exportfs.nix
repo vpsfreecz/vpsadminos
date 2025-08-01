@@ -1,8 +1,15 @@
-{ config, lib, pkgs, utils, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  utils,
+  ...
+}:
 with lib;
 let
   cfg = config.osctl.exportfs;
-in {
+in
+{
   ###### interface
 
   options = {

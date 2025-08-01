@@ -1,4 +1,9 @@
-{ pkgs, getopt, fetchFromGitHub, ... }:
+{
+  pkgs,
+  getopt,
+  fetchFromGitHub,
+  ...
+}:
 pkgs.stdenv.mkDerivation rec {
   name = "makedumpfile";
   src = fetchFromGitHub {
@@ -7,8 +12,7 @@ pkgs.stdenv.mkDerivation rec {
     rev = "c81e096287623a9695c47f54d47c7114d05840e2";
     sha256 = "sha256-ZEejJSPiEHYX6Xxdc0C76DobER588cwG+J2tvbEHQlQ=";
   };
-  postPatch = ''
-  '';
+  postPatch = '''';
   buildInputs = with pkgs; [
     bzip2
     zlib

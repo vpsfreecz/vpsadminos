@@ -1,8 +1,23 @@
-{ pkgs, lib, callPackage, buildPackages, fetchurl, perl, buildLinux, elfutils, kernelVersion, url, sha256, features, zfsBuiltinPkg ? null, ... }:
+{
+  pkgs,
+  lib,
+  callPackage,
+  buildPackages,
+  fetchurl,
+  perl,
+  buildLinux,
+  elfutils,
+  kernelVersion,
+  url,
+  sha256,
+  features,
+  zfsBuiltinPkg ? null,
+  ...
+}:
 
 with lib;
 
-callPackage ./generic.nix ( rec {
+callPackage ./generic.nix (rec {
   version = kernelVersion;
 
   inherit zfsBuiltinPkg;
@@ -14,7 +29,8 @@ callPackage ./generic.nix ( rec {
   extraMeta.branch = concatStrings (intersperse "." (take 2 (splitString "." version)));
 
   src = fetchurl {
-    inherit url; inherit sha256;
+    inherit url;
+    inherit sha256;
   };
 
   kernelPatches = [ pkgs.kernelPatches.bridge_stp_helper ];

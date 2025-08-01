@@ -1,77 +1,97 @@
-{ config, lib, pkgs, utils, shared, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  utils,
+  shared,
+  ...
+}:
 with lib;
 let
   osctl = "osctl";
 
-  sortGroups = groups:
-    sort (a: b: a.group < b.group)
-         (mapAttrsToList (group: cfg: { inherit group cfg; }) groups);
+  sortGroups =
+    groups: sort (a: b: a.group < b.group) (mapAttrsToList (group: cfg: { inherit group cfg; }) groups);
 
-  createGroups = pool: groups: concatStringsSep "\n\n" (map ({group, cfg}: (
-    let
-      osctlPool = "${osctl} --pool ${pool}";
+  createGroups =
+    pool: groups:
+    concatStringsSep "\n\n" (
+      map (
+        { group, cfg }:
+        (
+          let
+            osctlPool = "${osctl} --pool ${pool}";
 
-      cgparams = {
-        parameters = map (cgparam: {
-          subsystem = cgparam.subsystem;
-          parameter = cgparam.name;
-          value = cgparam.value;
-        }) (shared.buildCGroupParams cfg.cgparams);
-      };
+            cgparams = {
+              parameters = map (cgparam: {
+                subsystem = cgparam.subsystem;
+                parameter = cgparam.name;
+                value = cgparam.value;
+              }) (shared.buildCGroupParams cfg.cgparams);
+            };
 
-      safeName = replaceStrings [ "/" ] [ "." ] group;
+            safeName = replaceStrings [ "/" ] [ "." ] group;
 
-      cgparamsJson = pkgs.writeText "group-${safeName}-cgparams.json" (builtins.toJSON cgparams);
+            cgparamsJson = pkgs.writeText "group-${safeName}-cgparams.json" (builtins.toJSON cgparams);
 
-      devices = {
-        devices = map (dev: {
-          inherit (dev) type major minor mode;
-          dev_name = if dev.name == "" then null else dev.name;
-          "inherit" = dev.provide;
-        }) cfg.devices;
-      };
+            devices = {
+              devices = map (dev: {
+                inherit (dev)
+                  type
+                  major
+                  minor
+                  mode
+                  ;
+                dev_name = if dev.name == "" then null else dev.name;
+                "inherit" = dev.provide;
+              }) cfg.devices;
+            };
 
-      devicesJson = pkgs.writeText "group-${safeName}-devices.json" (builtins.toJSON devices);
+            devicesJson = pkgs.writeText "group-${safeName}-devices.json" (builtins.toJSON devices);
 
-    in ''
-      ### Group ${pool}:${group}
-      ${osctlPool} group show ${group} &> /dev/null
-      hasGroup=$?
-      if [ "$hasGroup" == "0" ] ; then
-        echo "Group ${pool}:${group} already exists"
+          in
+          ''
+            ### Group ${pool}:${group}
+            ${osctlPool} group show ${group} &> /dev/null
+            hasGroup=$?
+            if [ "$hasGroup" == "0" ] ; then
+              echo "Group ${pool}:${group} already exists"
 
-        ${osctlPool} group set attr ${group} org.vpsadminos.osctl:declarative yes
+              ${osctlPool} group set attr ${group} org.vpsadminos.osctl:declarative yes
 
-        lines=( $(${osctlPool} group show -H -o org.vpsadminos.osctl:cgparams,org.vpsadminos.osctl:devices ${group}) )
-        currentCgparams="''${lines[0]}"
-        currentDevices="''${lines[1]}"
+              lines=( $(${osctlPool} group show -H -o org.vpsadminos.osctl:cgparams,org.vpsadminos.osctl:devices ${group}) )
+              currentCgparams="''${lines[0]}"
+              currentDevices="''${lines[1]}"
 
-        if [ "${cgparamsJson}" != "$currentCgparams" ] ; then
-          echo "Reconfiguring cgroup parameters"
-          cat ${cgparamsJson} | ${osctlPool} group cgparams replace ${group} \
-            && ${osctlPool} group set attr ${group} org.vpsadminos.osctl:cgparams ${cgparamsJson}
-        fi
+              if [ "${cgparamsJson}" != "$currentCgparams" ] ; then
+                echo "Reconfiguring cgroup parameters"
+                cat ${cgparamsJson} | ${osctlPool} group cgparams replace ${group} \
+                  && ${osctlPool} group set attr ${group} org.vpsadminos.osctl:cgparams ${cgparamsJson}
+              fi
 
-        if [ "${devicesJson}" != "$currentDevices" ] ; then
-          echo "Reconfiguring devices"
-          cat ${devicesJson} | ${osctlPool} group devices replace ${group} \
-            && ${osctlPool} group set attr ${group} org.vpsadminos.osctl:devices ${devicesJson}
-        fi
+              if [ "${devicesJson}" != "$currentDevices" ] ; then
+                echo "Reconfiguring devices"
+                cat ${devicesJson} | ${osctlPool} group devices replace ${group} \
+                  && ${osctlPool} group set attr ${group} org.vpsadminos.osctl:devices ${devicesJson}
+              fi
 
-      else
-        echo "Creating group ${pool}:${group}"
-        ${osctlPool} group new ${group}
-        ${osctlPool} group set attr ${group} org.vpsadminos.osctl:declarative yes
+            else
+              echo "Creating group ${pool}:${group}"
+              ${osctlPool} group new ${group}
+              ${osctlPool} group set attr ${group} org.vpsadminos.osctl:declarative yes
 
-        echo "Configuring cgroup parameters"
-        cat ${cgparamsJson} | ${osctlPool} group cgparams replace ${group} \
-          && ${osctlPool} group set attr ${group} org.vpsadminos.osctl:cgparams ${cgparamsJson}
+              echo "Configuring cgroup parameters"
+              cat ${cgparamsJson} | ${osctlPool} group cgparams replace ${group} \
+                && ${osctlPool} group set attr ${group} org.vpsadminos.osctl:cgparams ${cgparamsJson}
 
-        echo "Configuring devices"
-        cat ${devicesJson} | ${osctlPool} group devices replace ${group} \
-          && ${osctlPool} group set attr ${group} org.vpsadminos.osctl:devices ${devicesJson}
-      fi
-    '')) (sortGroups groups));
+              echo "Configuring devices"
+              cat ${devicesJson} | ${osctlPool} group devices replace ${group} \
+                && ${osctlPool} group set attr ${group} org.vpsadminos.osctl:devices ${devicesJson}
+            fi
+          ''
+        )
+      ) (sortGroups groups)
+    );
 in
 {
   type = {
@@ -81,16 +101,18 @@ in
     };
   };
 
-  mkServices = pool: groups: mkIf (groups != {}) {
-    "groups-${pool}" = {
-      run = ''
-        waitForOsctld
-        waitForOsctlEntityAttr pool "${pool}" state active
-        ${createGroups pool groups}
-      '';
-      oneShot = true;
-      log.enable = true;
-      log.sendTo = "127.0.0.1";
+  mkServices =
+    pool: groups:
+    mkIf (groups != { }) {
+      "groups-${pool}" = {
+        run = ''
+          waitForOsctld
+          waitForOsctlEntityAttr pool "${pool}" state active
+          ${createGroups pool groups}
+        '';
+        oneShot = true;
+        log.enable = true;
+        log.sendTo = "127.0.0.1";
+      };
     };
-  };
 }

@@ -1,19 +1,44 @@
-{ lib, buildPackages, runCommand, nettools, bc, bison, flex, perl, rsync, gmp, libmpc, mpfr, openssl
-, libelf, cpio, elfutils, zstd, gawk, python3Minimal, zlib, pahole, kmod
-, writeTextFile
+{
+  lib,
+  buildPackages,
+  runCommand,
+  nettools,
+  bc,
+  bison,
+  flex,
+  perl,
+  rsync,
+  gmp,
+  libmpc,
+  mpfr,
+  openssl,
+  libelf,
+  cpio,
+  elfutils,
+  zstd,
+  gawk,
+  python3Minimal,
+  zlib,
+  pahole,
+  kmod,
+  writeTextFile,
 }:
 
 let
-  readConfig = configfile: import (runCommand "config.nix" {} ''
-    echo "{" > "$out"
-    while IFS='=' read key val; do
-      [ "x''${key#CONFIG_}" != "x$key" ] || continue
-      no_firstquote="''${val#\"}";
-      echo '  "'"$key"'" = "'"''${no_firstquote%\"}"'";' >> "$out"
-    done < "${configfile}"
-    echo "}" >> $out
-  '').outPath;
-in {
+  readConfig =
+    configfile:
+    import
+      (runCommand "config.nix" { } ''
+        echo "{" > "$out"
+        while IFS='=' read key val; do
+          [ "x''${key#CONFIG_}" != "x$key" ] || continue
+          no_firstquote="''${val#\"}";
+          echo '  "'"$key"'" = "'"''${no_firstquote%\"}"'";' >> "$out"
+        done < "${configfile}"
+        echo "}" >> $out
+      '').outPath;
+in
+{
   lib,
   # Allow overriding stdenv on each buildLinux call
   stdenv,
@@ -24,7 +49,7 @@ in {
   # The kernel source (tarball, git checkout, etc.)
   src,
   # a list of { name=..., patch=..., extraConfig=...} patches
-  kernelPatches ? [],
+  kernelPatches ? [ ],
   # The kernel .config file
   configfile,
   # Manually specified nixexpr representing the config
@@ -34,11 +59,11 @@ in {
   # automatically extended with extra per-version and per-config values.
   randstructSeed ? "",
   # Use defaultMeta // extraMeta
-  extraMeta ? {},
+  extraMeta ? { },
 
   # for module compatibility
-  isZen      ? false,
-  isLibre    ? false,
+  isZen ? false,
+  isLibre ? false,
   isHardened ? false,
 
   # Whether to utilize the controversial import-from-derivation feature to parse the config
@@ -50,50 +75,87 @@ in {
 
 let
   inherit (lib)
-    hasAttr getAttr optional optionals optionalString optionalAttrs maintainers platforms;
+    hasAttr
+    getAttr
+    optional
+    optionals
+    optionalString
+    optionalAttrs
+    maintainers
+    platforms
+    ;
 
   # Dependencies that are required to build kernel modules
   moduleBuildDependencies = optional (lib.versionAtLeast version "4.14") libelf;
 
-  installkernel = writeTextFile { name = "installkernel"; executable=true; text = ''
-    #!${stdenv.shell} -e
-    mkdir -p $4
-    cp -av $2 $4
-    cp -av $3 $4
-  ''; };
+  installkernel = writeTextFile {
+    name = "installkernel";
+    executable = true;
+    text = ''
+      #!${stdenv.shell} -e
+      mkdir -p $4
+      cp -av $2 $4
+      cp -av $3 $4
+    '';
+  };
 
-  commonMakeFlags = [
-    "O=$(buildRoot)"
-  ] ++ lib.optionals (stdenv.hostPlatform.linux-kernel ? makeFlags)
-    stdenv.hostPlatform.linux-kernel.makeFlags;
+  commonMakeFlags =
+    [
+      "O=$(buildRoot)"
+    ]
+    ++ lib.optionals (
+      stdenv.hostPlatform.linux-kernel ? makeFlags
+    ) stdenv.hostPlatform.linux-kernel.makeFlags;
 
-  drvAttrs = config_: kernelConf: kernelPatches: configfile:
+  drvAttrs =
+    config_: kernelConf: kernelPatches: configfile:
     let
-      config = let attrName = attr: "CONFIG_" + attr; in {
-        isSet = attr: hasAttr (attrName attr) config;
+      config =
+        let
+          attrName = attr: "CONFIG_" + attr;
+        in
+        {
+          isSet = attr: hasAttr (attrName attr) config;
 
-        getValue = attr: if config.isSet attr then getAttr (attrName attr) config else null;
+          getValue = attr: if config.isSet attr then getAttr (attrName attr) config else null;
 
-        isYes = attr: (config.getValue attr) == "y";
+          isYes = attr: (config.getValue attr) == "y";
 
-        isNo = attr: (config.getValue attr) == "n";
+          isNo = attr: (config.getValue attr) == "n";
 
-        isModule = attr: (config.getValue attr) == "m";
+          isModule = attr: (config.getValue attr) == "m";
 
-        isEnabled = attr: (config.isModule attr) || (config.isYes attr);
+          isEnabled = attr: (config.isModule attr) || (config.isYes attr);
 
-        isDisabled = attr: (!(config.isSet attr)) || (config.isNo attr);
-      } // config_;
+          isDisabled = attr: (!(config.isSet attr)) || (config.isNo attr);
+        }
+        // config_;
 
       isModular = config.isYes "MODULES";
 
-      installsFirmware = (config.isEnabled "FW_LOADER") &&
-        (isModular || (config.isDisabled "FIRMWARE_IN_KERNEL")) &&
-        (lib.versionOlder version "4.14");
-    in (optionalAttrs isModular { outputs = [ "out" "dev" ]; }) // {
+      installsFirmware =
+        (config.isEnabled "FW_LOADER")
+        && (isModular || (config.isDisabled "FIRMWARE_IN_KERNEL"))
+        && (lib.versionOlder version "4.14");
+    in
+    (optionalAttrs isModular {
+      outputs = [
+        "out"
+        "dev"
+      ];
+    })
+    // {
       passthru = {
-        inherit version modDirVersion config kernelPatches configfile
-          moduleBuildDependencies stdenv commonMakeFlags;
+        inherit
+          version
+          modDirVersion
+          config
+          kernelPatches
+          configfile
+          moduleBuildDependencies
+          stdenv
+          commonMakeFlags
+          ;
         inherit isZen isHardened isLibre;
         isXen = lib.warn "The isXen attribute is deprecated. All Nixpkgs kernels that support it now have Xen enabled." true;
         kernelOlder = lib.versionOlder version;
@@ -105,33 +167,39 @@ let
       patches =
         map (p: p.patch) kernelPatches
         # Required for deterministic builds along with some postPatch magic.
-        ++ optional (lib.versionAtLeast version "4.13" && lib.versionOlder version "5.18") ./randstruct-provide-seed.patch
+        ++ optional (
+          lib.versionAtLeast version "4.13" && lib.versionOlder version "5.18"
+        ) ./randstruct-provide-seed.patch
         ++ optional (lib.versionAtLeast version "5.19") ./randstruct-provide-seed-5.19.patch
         # Fixes determinism by normalizing metadata for the archive of kheaders
-        ++ optional (lib.versionAtLeast version "5.2" && lib.versionOlder version "5.4") ./gen-kheaders-metadata.patch;
+        ++ optional (
+          lib.versionAtLeast version "5.2" && lib.versionOlder version "5.4"
+        ) ./gen-kheaders-metadata.patch;
 
-      prePatch = optionalString (zfsBuiltinPkg != null) ''
-        echo "Copying ZFS builtin package..."
-        cp -r ${zfsBuiltinPkg} ./zfsBuiltin
-        chmod -R u+w ./zfsBuiltin
-        pushd ./zfsBuiltin
-        ./copy-builtin ..
-        popd
-      '' + ''
-        for mf in $(find -name Makefile -o -name Makefile.include -o -name install.sh); do
-            echo "stripping FHS paths in \`$mf'..."
-            sed -i "$mf" -e 's|/usr/bin/||g ; s|/bin/||g ; s|/sbin/||g'
-        done
+      prePatch =
+        optionalString (zfsBuiltinPkg != null) ''
+          echo "Copying ZFS builtin package..."
+          cp -r ${zfsBuiltinPkg} ./zfsBuiltin
+          chmod -R u+w ./zfsBuiltin
+          pushd ./zfsBuiltin
+          ./copy-builtin ..
+          popd
+        ''
+        + ''
+          for mf in $(find -name Makefile -o -name Makefile.include -o -name install.sh); do
+              echo "stripping FHS paths in \`$mf'..."
+              sed -i "$mf" -e 's|/usr/bin/||g ; s|/bin/||g ; s|/sbin/||g'
+          done
 
-        # Don't include a (random) NT_GNU_BUILD_ID, to make the build more deterministic.
-        # This way kernels can be bit-by-bit reproducible depending on settings
-        # (e.g. MODULE_SIG and SECURITY_LOCKDOWN_LSM need to be disabled).
-        # See also https://kernelnewbies.org/BuildId
-        sed -i Makefile -e 's|--build-id|--build-id=none|'
+          # Don't include a (random) NT_GNU_BUILD_ID, to make the build more deterministic.
+          # This way kernels can be bit-by-bit reproducible depending on settings
+          # (e.g. MODULE_SIG and SECURITY_LOCKDOWN_LSM need to be disabled).
+          # See also https://kernelnewbies.org/BuildId
+          sed -i Makefile -e 's|--build-id|--build-id=none|'
 
-        patchShebangs scripts/ld-version.sh
+          patchShebangs scripts/ld-version.sh
 
-      '';
+        '';
 
       postPatch = ''
         sed -i Makefile -e 's|= depmod|= ${buildPackages.kmod}/bin/depmod|'
@@ -190,14 +258,16 @@ let
       buildFlags = [
         "KBUILD_BUILD_VERSION=1-vpsAdminOS"
         kernelConf.target
-        "vmlinux"  # for "perf" and things like that
+        "vmlinux" # for "perf" and things like that
       ] ++ optional isModular "modules";
 
-      installFlags = [
-        "INSTALLKERNEL=${installkernel}"
-        "INSTALL_PATH=$(out)"
-      ] ++ (optional isModular "INSTALL_MOD_PATH=$(out)")
-      ++ optional installsFirmware "INSTALL_FW_PATH=$(out)/lib/firmware";
+      installFlags =
+        [
+          "INSTALLKERNEL=${installkernel}"
+          "INSTALL_PATH=$(out)"
+        ]
+        ++ (optional isModular "INSTALL_MOD_PATH=$(out)")
+        ++ optional installsFirmware "INSTALL_FW_PATH=$(out)/lib/firmware";
 
       preInstall = ''
         installFlagsArray+=("-j$NIX_BUILD_CORES")
@@ -206,107 +276,127 @@ let
       # Some image types need special install targets (e.g. uImage is installed with make uinstall)
       installTargets = [
         (kernelConf.installTarget or (
-          /**/ if kernelConf.target == "uImage" then "uinstall"
-          else if kernelConf.target == "zImage" || kernelConf.target == "Image.gz" then "zinstall"
-          else "install"))
+          if kernelConf.target == "uImage" then
+            "uinstall"
+          else if kernelConf.target == "zImage" || kernelConf.target == "Image.gz" then
+            "zinstall"
+          else
+            "install"
+        )
+        )
       ];
 
       # We remove a bunch of stuff that is symlinked from other places to save space,
       # which trips the broken symlink check. So, just skip it. We'll know if it explodes.
       dontCheckForBrokenSymlinks = true;
 
-      postInstall = (optionalString installsFirmware ''
-        mkdir -p $out/lib/firmware
-      '') + (if (kernelConf.DTB or false) then ''
-        make $makeFlags "''${makeFlagsArray[@]}" dtbs dtbs_install INSTALL_DTBS_PATH=$out/dtbs
-      '' else "") + (if isModular then ''
-        mkdir -p $dev
-        cp vmlinux $dev/
-        if [ -z "''${dontStrip-}" ]; then
-          installFlagsArray+=("INSTALL_MOD_STRIP=1")
-        fi
-        make modules_install $makeFlags "''${makeFlagsArray[@]}" \
-          $installFlags "''${installFlagsArray[@]}"
-        unlink $out/lib/modules/${modDirVersion}/build
-        rm -f $out/lib/modules/${modDirVersion}/source
+      postInstall =
+        (optionalString installsFirmware ''
+          mkdir -p $out/lib/firmware
+        '')
+        + (
+          if (kernelConf.DTB or false) then
+            ''
+              make $makeFlags "''${makeFlagsArray[@]}" dtbs dtbs_install INSTALL_DTBS_PATH=$out/dtbs
+            ''
+          else
+            ""
+        )
+        + (
+          if isModular then
+            ''
+              mkdir -p $dev
+              cp vmlinux $dev/
+              if [ -z "''${dontStrip-}" ]; then
+                installFlagsArray+=("INSTALL_MOD_STRIP=1")
+              fi
+              make modules_install $makeFlags "''${makeFlagsArray[@]}" \
+                $installFlags "''${installFlagsArray[@]}"
+              unlink $out/lib/modules/${modDirVersion}/build
+              rm -f $out/lib/modules/${modDirVersion}/source
 
-        mkdir -p $dev/lib/modules/${modDirVersion}/{build,source}
+              mkdir -p $dev/lib/modules/${modDirVersion}/{build,source}
 
-        # To save space, exclude a bunch of unneeded stuff when copying.
-        (cd .. && rsync --archive --prune-empty-dirs \
-            --exclude='/build/' \
-            * $dev/lib/modules/${modDirVersion}/source/)
+              # To save space, exclude a bunch of unneeded stuff when copying.
+              (cd .. && rsync --archive --prune-empty-dirs \
+                  --exclude='/build/' \
+                  * $dev/lib/modules/${modDirVersion}/source/)
 
-        cd $dev/lib/modules/${modDirVersion}/source
+              cd $dev/lib/modules/${modDirVersion}/source
 
-        cp $buildRoot/{.config,Module.symvers} $dev/lib/modules/${modDirVersion}/build
-        make modules_prepare $makeFlags "''${makeFlagsArray[@]}" O=$dev/lib/modules/${modDirVersion}/build
+              cp $buildRoot/{.config,Module.symvers} $dev/lib/modules/${modDirVersion}/build
+              make modules_prepare $makeFlags "''${makeFlagsArray[@]}" O=$dev/lib/modules/${modDirVersion}/build
 
-        # For reproducibility, removes accidental leftovers from a `cc1` call
-        # from a `try-run` call from the Makefile
-        rm -f $dev/lib/modules/${modDirVersion}/build/.[0-9]*.d
+              # For reproducibility, removes accidental leftovers from a `cc1` call
+              # from a `try-run` call from the Makefile
+              rm -f $dev/lib/modules/${modDirVersion}/build/.[0-9]*.d
 
-        # Keep some extra files on some arches (powerpc, aarch64)
-        for f in arch/powerpc/lib/crtsavres.o arch/arm64/kernel/ftrace-mod.o; do
-          if [ -f "$buildRoot/$f" ]; then
-            cp $buildRoot/$f $dev/lib/modules/${modDirVersion}/build/$f
-          fi
-        done
+              # Keep some extra files on some arches (powerpc, aarch64)
+              for f in arch/powerpc/lib/crtsavres.o arch/arm64/kernel/ftrace-mod.o; do
+                if [ -f "$buildRoot/$f" ]; then
+                  cp $buildRoot/$f $dev/lib/modules/${modDirVersion}/build/$f
+                fi
+              done
 
-        # !!! No documentation on how much of the source tree must be kept
-        # If/when kernel builds fail due to missing files, you can add
-        # them here. Note that we may see packages requiring headers
-        # from drivers/ in the future; it adds 50M to keep all of its
-        # headers on 3.10 though.
+              # !!! No documentation on how much of the source tree must be kept
+              # If/when kernel builds fail due to missing files, you can add
+              # them here. Note that we may see packages requiring headers
+              # from drivers/ in the future; it adds 50M to keep all of its
+              # headers on 3.10 though.
 
-        chmod u+w -R ..
-        arch=$(cd $dev/lib/modules/${modDirVersion}/build/arch; ls)
+              chmod u+w -R ..
+              arch=$(cd $dev/lib/modules/${modDirVersion}/build/arch; ls)
 
-        # Remove unused arches
-        for d in $(cd arch/; ls); do
-          if [ "$d" = "$arch" ]; then continue; fi
-          if [ "$arch" = arm64 ] && [ "$d" = arm ]; then continue; fi
-          rm -rf arch/$d
-        done
+              # Remove unused arches
+              for d in $(cd arch/; ls); do
+                if [ "$d" = "$arch" ]; then continue; fi
+                if [ "$arch" = arm64 ] && [ "$d" = arm ]; then continue; fi
+                rm -rf arch/$d
+              done
 
-        # Remove all driver-specific code (50M of which is headers)
-        rm -fR drivers
+              # Remove all driver-specific code (50M of which is headers)
+              rm -fR drivers
 
-        # Keep all headers
-        find .  -type f -name '*.h' -print0 | xargs -0 -r chmod u-w
+              # Keep all headers
+              find .  -type f -name '*.h' -print0 | xargs -0 -r chmod u-w
 
-        # Keep linker scripts (they are required for out-of-tree modules on aarch64)
-        find .  -type f -name '*.lds' -print0 | xargs -0 -r chmod u-w
+              # Keep linker scripts (they are required for out-of-tree modules on aarch64)
+              find .  -type f -name '*.lds' -print0 | xargs -0 -r chmod u-w
 
-        # Keep root and arch-specific Makefiles
-        chmod u-w Makefile
-        chmod u-w arch/$arch/Makefile*
+              # Keep root and arch-specific Makefiles
+              chmod u-w Makefile
+              chmod u-w arch/$arch/Makefile*
 
-        # Keep whole scripts dir
-        chmod u-w -R scripts
+              # Keep whole scripts dir
+              chmod u-w -R scripts
 
-        # Delete everything not kept
-        find . -type f -perm -u=w -print0 | xargs -0 -r rm
+              # Delete everything not kept
+              find . -type f -perm -u=w -print0 | xargs -0 -r rm
 
-        # Delete empty directories
-        find -empty -type d -delete
+              # Delete empty directories
+              find -empty -type d -delete
 
-        # Remove reference to kmod
-        sed -i Makefile -e 's|= ${buildPackages.kmod}/bin/depmod|= depmod|'
-      '' else optionalString installsFirmware ''
-        make firmware_install $makeFlags "''${makeFlagsArray[@]}" \
-          $installFlags "''${installFlagsArray[@]}"
-      '');
+              # Remove reference to kmod
+              sed -i Makefile -e 's|= ${buildPackages.kmod}/bin/depmod|= depmod|'
+            ''
+          else
+            optionalString installsFirmware ''
+              make firmware_install $makeFlags "''${makeFlagsArray[@]}" \
+                $installFlags "''${installFlagsArray[@]}"
+            ''
+        );
 
       requiredSystemFeatures = [ "big-parallel" ];
 
       meta = {
         description =
-          "The Linux kernel" +
-          (if kernelPatches == [] then "" else
-            " (with patches: "
-            + lib.concatStringsSep ", " (map (x: x.name) kernelPatches)
-            + ")");
+          "The Linux kernel"
+          + (
+            if kernelPatches == [ ] then
+              ""
+            else
+              " (with patches: " + lib.concatStringsSep ", " (map (x: x.name) kernelPatches) + ")"
+          );
         license = lib.licenses.gpl2Only;
         homepage = "https://www.kernel.org/";
         repositories.git = "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git";
@@ -322,33 +412,63 @@ in
 assert (lib.versionAtLeast version "4.14" && lib.versionOlder version "5.8") -> libelf != null;
 assert lib.versionAtLeast version "5.8" -> elfutils != null;
 
-stdenv.mkDerivation ((drvAttrs config stdenv.hostPlatform.linux-kernel kernelPatches configfile) // {
-  pname = "linux";
-  inherit version;
+stdenv.mkDerivation (
+  (drvAttrs config stdenv.hostPlatform.linux-kernel kernelPatches configfile)
+  // {
+    pname = "linux";
+    inherit version;
 
-  enableParallelBuilding = true;
+    enableParallelBuilding = true;
 
-  depsBuildBuild = [ buildPackages.stdenv.cc ];
-  nativeBuildInputs = [ perl bc nettools openssl rsync gmp libmpc mpfr gawk zstd python3Minimal zlib pahole ]
-      ++ optional  (stdenv.hostPlatform.linux-kernel.target == "uImage") buildPackages.ubootTools
-      ++ optional  (lib.versionAtLeast version "4.14" && lib.versionOlder version "5.8") libelf
+    depsBuildBuild = [ buildPackages.stdenv.cc ];
+    nativeBuildInputs =
+      [
+        perl
+        bc
+        nettools
+        openssl
+        rsync
+        gmp
+        libmpc
+        mpfr
+        gawk
+        zstd
+        python3Minimal
+        zlib
+        pahole
+      ]
+      ++ optional (stdenv.hostPlatform.linux-kernel.target == "uImage") buildPackages.ubootTools
+      ++ optional (lib.versionAtLeast version "4.14" && lib.versionOlder version "5.8") libelf
       # Removed util-linuxMinimal since it should not be a dependency.
-      ++ optionals (lib.versionAtLeast version "4.16") [ bison flex ]
-      ++ optional  (lib.versionAtLeast version "5.2")  cpio
-      ++ optional  (lib.versionAtLeast version "5.8")  elfutils
-      ++ optional  (lib.versionAtLeast version "6.6")  kmod
-      ;
+      ++ optionals (lib.versionAtLeast version "4.16") [
+        bison
+        flex
+      ]
+      ++ optional (lib.versionAtLeast version "5.2") cpio
+      ++ optional (lib.versionAtLeast version "5.8") elfutils
+      ++ optional (lib.versionAtLeast version "6.6") kmod;
 
-  hardeningDisable = [ "bindnow" "format" "fortify" "stackprotector" "pic" "pie" ];
+    hardeningDisable = [
+      "bindnow"
+      "format"
+      "fortify"
+      "stackprotector"
+      "pic"
+      "pie"
+    ];
 
-  # Absolute paths for compilers avoid any PATH-clobbering issues.
-  makeFlags = commonMakeFlags ++ [
-    "CC=${stdenv.cc}/bin/${stdenv.cc.targetPrefix}cc"
-    "HOSTCC=${buildPackages.stdenv.cc}/bin/${buildPackages.stdenv.cc.targetPrefix}cc"
-    "ARCH=${stdenv.hostPlatform.linuxArch}"
-  ] ++ lib.optional (stdenv.hostPlatform != stdenv.buildPlatform) [
-    "CROSS_COMPILE=${stdenv.cc.targetPrefix}"
-  ];
+    # Absolute paths for compilers avoid any PATH-clobbering issues.
+    makeFlags =
+      commonMakeFlags
+      ++ [
+        "CC=${stdenv.cc}/bin/${stdenv.cc.targetPrefix}cc"
+        "HOSTCC=${buildPackages.stdenv.cc}/bin/${buildPackages.stdenv.cc.targetPrefix}cc"
+        "ARCH=${stdenv.hostPlatform.linuxArch}"
+      ]
+      ++ lib.optional (stdenv.hostPlatform != stdenv.buildPlatform) [
+        "CROSS_COMPILE=${stdenv.cc.targetPrefix}"
+      ];
 
-  karch = stdenv.hostPlatform.linuxArch;
-})
+    karch = stdenv.hostPlatform.linuxArch;
+  }
+)

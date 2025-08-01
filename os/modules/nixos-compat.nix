@@ -5,17 +5,28 @@ with lib;
 {
   options = {
     boot.initrd.systemd = {
-      enable = mkOption { type = types.bool; default = false; readOnly = true; };
+      enable = mkOption {
+        type = types.bool;
+        default = false;
+        readOnly = true;
+      };
       contents = mkOption { type = types.unspecified; };
       managerEnvironment = mkOption { type = types.unspecified; };
       mounts = mkOption { type = types.unspecified; };
       services = mkOption { type = types.unspecified; };
       storePaths = mkOption { type = types.unspecified; };
-      network.enable = mkOption { type = types.bool; default = false; readOnly = true; };
+      network.enable = mkOption {
+        type = types.bool;
+        default = false;
+        readOnly = true;
+      };
       additionalUpstreamUnits = mkOption { type = types.unspecified; };
     };
     programs = {
-      i3lock.enable = mkOption { type = types.bool; default = false; };
+      i3lock.enable = mkOption {
+        type = types.bool;
+        default = false;
+      };
     };
     services = {
       cgmanager = mkOption { type = types.unspecified; };
@@ -24,13 +35,22 @@ with lib;
       geoclue2 = mkOption { type = types.unspecified; };
       intune = mkOption { type = types.unspecified; };
       sssd = mkOption { type = types.unspecified; };
-      homed.enable = mkOption { type = types.bool; default = false; };
+      homed.enable = mkOption {
+        type = types.bool;
+        default = false;
+      };
       nscd = mkOption { type = types.unspecified; };
       avahi = mkOption { type = types.unspecified; };
       samba = mkOption { type = types.unspecified; };
       xserver = mkOption { type = types.unspecified; };
-      kanidm.enablePam = mkOption { type = types.bool; default = false; };
-      xscreensaver.enable = mkOption { type = types.bool; default = false; };
+      kanidm.enablePam = mkOption {
+        type = types.bool;
+        default = false;
+      };
+      xscreensaver.enable = mkOption {
+        type = types.bool;
+        default = false;
+      };
     };
     networking.enableIPv6 = mkOption { default = true; };
     networking.hostId = mkOption { type = types.unspecified; };
@@ -44,7 +64,10 @@ with lib;
     systemd = {
       globalEnvironment = mkOption { type = types.unspecified; };
       mounts = mkOption { type = types.unspecified; };
-      package = mkOption { type = types.unspecified; default = "/not-on-vpsadminos"; };
+      package = mkOption {
+        type = types.unspecified;
+        default = "/not-on-vpsadminos";
+      };
       packages = mkOption { type = types.unspecified; };
       services = mkOption {
         type = types.attrsOf types.unspecified;
@@ -60,14 +83,21 @@ with lib;
   };
   config = {
     services = {
-      avahi = { enable = false; nssmdns = false; };
+      avahi = {
+        enable = false;
+        nssmdns = false;
+      };
       cgmanager.enable = false;
       displayManager.enable = false;
       intune.enable = false;
       sssd.enable = false;
       nscd.enable = false;
       fprintd.enable = false;
-      samba = { enable = false; syncPasswordsByPam = false; nsswins = false; };
+      samba = {
+        enable = false;
+        syncPasswordsByPam = false;
+        nsswins = false;
+      };
       xserver.enable = false;
     };
     security.krb5.enable = false;

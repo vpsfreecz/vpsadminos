@@ -1,4 +1,9 @@
-{ config, lib, pkgs, options }:
+{
+  config,
+  lib,
+  pkgs,
+  options,
+}:
 let
   inherit (lib) concatMapStringsSep concatStringsSep;
 
@@ -9,8 +14,9 @@ let
     rackup '${pkgs.osctl-exporter}/config.ru'
     environment 'production'
     tag 'osctl-exporter'
-   '';
-in {
+  '';
+in
+{
   user = "root";
   group = "root";
   port = 9101;

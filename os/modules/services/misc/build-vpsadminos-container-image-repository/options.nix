@@ -1,4 +1,9 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 with lib;
 let
   varDir = "/var/lib/vpsadminos-container-image-repository";
@@ -13,7 +18,7 @@ let
 
         osModules = mkOption {
           type = types.listOf types.anything;
-          default = [];
+          default = [ ];
           description = ''
             Modules included in the vpsAdminOS virtual machine
 
@@ -62,7 +67,12 @@ let
           disks = mkOption {
             type = types.listOf (types.submodule qemuDisk);
             example = [
-              { device = "sda.img"; type = "file"; size = "8G"; create = true; }
+              {
+                device = "sda.img";
+                type = "file";
+                size = "8G";
+                create = true;
+              }
             ];
             description = "Disks available within the VM";
           };
@@ -141,7 +151,10 @@ let
       };
 
       type = mkOption {
-        type = types.enum [ "file" "blockdev" ];
+        type = types.enum [
+          "file"
+          "blockdev"
+        ];
         description = "Device type";
       };
 
@@ -161,7 +174,8 @@ let
       };
     };
   };
-in {
+in
+{
   options = {
     services.build-vpsadminos-container-image-repository = mkOption {
       type = types.attrsOf (types.submodule repoModule);
@@ -175,54 +189,61 @@ in {
   config = {
     services.build-vpsadminos-container-image-repository.vpsadminos = {
       osModules = [
-        ({ config, ... }:
-        {
-          imports = [
-            ../../../../configs/image-repository.nix
-          ];
-
-          boot.kernelParams = [ "root=/dev/vda" ];
-          boot.initrd.kernelModules = [
-            "virtio" "virtio_pci" "virtio_net" "virtio_rng" "virtio_blk" "virtio_console"
-          ];
-          boot.enableUnifiedCgroupHierarchy = true;
-
-          networking.hostName = mkDefault "vpsadminos";
-          networking.static.enable = mkDefault true;
-          networking.lxcbr.enable = mkDefault true;
-          networking.nameservers = mkDefault [ "10.0.2.3" ];
-
-          osctl.test-shell.enable = true;
-
-          tty.autologin.enable = mkDefault true;
-          services.haveged.enable = mkDefault true;
-          os.channel-registration.enable = mkDefault false;
-          services.openssh.enable = true;
-
-          nix.nixPath = [
-            "nixpkgs=${<nixpkgs>}"
-          ];
-
-          boot.zfs.pools.tank = {
-            layout = [
-              { devices = [ "sda" ]; }
+        (
+          { config, ... }:
+          {
+            imports = [
+              ../../../../configs/image-repository.nix
             ];
-            importAttempts = lib.mkDefault 3;
-            doCreate = true;
-            install = true;
-            datasets = {
-              "image-repository/build-dataset" = {};
-            };
-          };
 
-          services.osctl.image-repository.vpsadminos = {
-            path = "/mnt/repoDir";
-            cacheDir = "/mnt/cacheDir";
-            buildScriptDir = "/mnt/buildScripts";
-            buildDataset = "tank/image-repository/build-dataset";
-            logDir = "/mnt/logDir";
-          };
-        })
+            boot.kernelParams = [ "root=/dev/vda" ];
+            boot.initrd.kernelModules = [
+              "virtio"
+              "virtio_pci"
+              "virtio_net"
+              "virtio_rng"
+              "virtio_blk"
+              "virtio_console"
+            ];
+            boot.enableUnifiedCgroupHierarchy = true;
+
+            networking.hostName = mkDefault "vpsadminos";
+            networking.static.enable = mkDefault true;
+            networking.lxcbr.enable = mkDefault true;
+            networking.nameservers = mkDefault [ "10.0.2.3" ];
+
+            osctl.test-shell.enable = true;
+
+            tty.autologin.enable = mkDefault true;
+            services.haveged.enable = mkDefault true;
+            os.channel-registration.enable = mkDefault false;
+            services.openssh.enable = true;
+
+            nix.nixPath = [
+              "nixpkgs=${<nixpkgs>}"
+            ];
+
+            boot.zfs.pools.tank = {
+              layout = [
+                { devices = [ "sda" ]; }
+              ];
+              importAttempts = lib.mkDefault 3;
+              doCreate = true;
+              install = true;
+              datasets = {
+                "image-repository/build-dataset" = { };
+              };
+            };
+
+            services.osctl.image-repository.vpsadminos = {
+              path = "/mnt/repoDir";
+              cacheDir = "/mnt/cacheDir";
+              buildScriptDir = "/mnt/buildScripts";
+              buildDataset = "tank/image-repository/build-dataset";
+              logDir = "/mnt/logDir";
+            };
+          }
+        )
       ];
     };
   };

@@ -1,10 +1,16 @@
-{ config, lib, pkgs, options }:
+{
+  config,
+  lib,
+  pkgs,
+  options,
+}:
 
 with lib;
 
 let
   cfg = config.services.prometheus.exporters.ipmi;
-in {
+in
+{
   user = "root";
   group = "root";
   port = 9290;
@@ -27,13 +33,20 @@ in {
     };
   };
 
-  serviceRun = with cfg; concatStringsSep " " ([
-      "execExporter"
-      "${pkgs.prometheus-ipmi-exporter}/bin/ipmi_exporter"
-      "--web.listen-address ${listenAddress}:${toString port}"
-    ] ++ optionals (cfg.webConfigFile != null) [
-      "--web.config.file ${escapeShellArg cfg.webConfigFile}"
-    ] ++ optionals (cfg.configFile != null) [
-      "--config.file ${escapeShellArg cfg.configFile}"
-    ] ++ extraFlags);
+  serviceRun =
+    with cfg;
+    concatStringsSep " " (
+      [
+        "execExporter"
+        "${pkgs.prometheus-ipmi-exporter}/bin/ipmi_exporter"
+        "--web.listen-address ${listenAddress}:${toString port}"
+      ]
+      ++ optionals (cfg.webConfigFile != null) [
+        "--web.config.file ${escapeShellArg cfg.webConfigFile}"
+      ]
+      ++ optionals (cfg.configFile != null) [
+        "--config.file ${escapeShellArg cfg.configFile}"
+      ]
+      ++ extraFlags
+    );
 }

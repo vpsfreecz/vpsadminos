@@ -1,11 +1,18 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 # based heavily on https://github.com/NixOS/nixpkgs/blob/master/nixos/modules/config/system-path.nix
 
 with lib;
 
 let
-  zfstools_ovl = pkgs.callPackage <nixpkgs/pkgs/by-name/zf/zfstools/package.nix> { zfs = config.boot.zfsUserPackage; };
+  zfstools_ovl = pkgs.callPackage <nixpkgs/pkgs/by-name/zf/zfstools/package.nix> {
+    zfs = config.boot.zfsUserPackage;
+  };
   requiredPackages = with pkgs; [
     zfstools_ovl
     util-linux
@@ -53,19 +60,23 @@ in
     environment = {
       systemPackages = mkOption {
         type = types.listOf types.package;
-        default = [];
+        default = [ ];
         example = literalExpression "[ pkgs.firefox pkgs.thunderbird ]";
       };
       pathsToLink = mkOption {
         type = types.listOf types.str;
-        default = [];
-        example = ["/"];
+        default = [ ];
+        example = [ "/" ];
         description = "List of directories to be symlinked in <filename>/run/current-system/sw</filename>.";
       };
       extraOutputsToInstall = mkOption {
         type = types.listOf types.str;
         default = [ ];
-        example = [ "doc" "info" "docdev" ];
+        example = [
+          "doc"
+          "info"
+          "docdev"
+        ];
         description = "List of additional package outputs to be symlinked into <filename>/run/current-system/sw</filename>.";
       };
       extraSetup = mkOption {
@@ -80,7 +91,12 @@ in
   };
   config = {
     environment.systemPackages = requiredPackages;
-    environment.pathsToLink = [ "/bin" "/lib" "/man" "/share/man" ];
+    environment.pathsToLink = [
+      "/bin"
+      "/lib"
+      "/man"
+      "/share/man"
+    ];
     system.path = pkgs.buildEnv {
       name = "system-path";
       paths = config.environment.systemPackages;

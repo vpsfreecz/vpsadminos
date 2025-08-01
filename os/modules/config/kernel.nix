@@ -1,4 +1,9 @@
-{ pkgs, config, lib, ... }:
+{
+  pkgs,
+  config,
+  lib,
+  ...
+}:
 with lib;
 let
   origKernel = config.boot.kernelPackage;
@@ -8,24 +13,26 @@ let
   kernelPackages = import ../../packages/linux/packages.nix { inherit config pkgs lib; };
 
   # we also need to override zfs/spl via linuxPackagesFor
-    myLinuxPackages = (pkgs.linuxPackagesFor origKernel).extend (
-    self: super:
-      {
-        zfs = if (!zfsBuiltin)
-          then (super.callPackage ../../packages/zfs {
-              configFile = "kernel";
-              kernel = origKernel;
-              rev = kernelPackages.kernels.${config.boot.kernelVersion}.zfs.rev;
-              sha256 = kernelPackages.kernels.${config.boot.kernelVersion}.zfs.sha256;
-            }).zfsStable { enableDebug = config.system.vpsadminos.zfsDebug; }
-          else (super.stdenv.mkDerivation {
-              name = "zfs";
-              buildCommand = ''
-                mkdir -p $out
-              '';
-            });
-      }
-    );
+  myLinuxPackages = (pkgs.linuxPackagesFor origKernel).extend (
+    self: super: {
+      zfs =
+        if (!zfsBuiltin) then
+          (super.callPackage ../../packages/zfs {
+            configFile = "kernel";
+            kernel = origKernel;
+            rev = kernelPackages.kernels.${config.boot.kernelVersion}.zfs.rev;
+            sha256 = kernelPackages.kernels.${config.boot.kernelVersion}.zfs.sha256;
+          }).zfsStable
+            { enableDebug = config.system.vpsadminos.zfsDebug; }
+        else
+          (super.stdenv.mkDerivation {
+            name = "zfs";
+            buildCommand = ''
+              mkdir -p $out
+            '';
+          });
+    }
+  );
 
   hwSupportModules = [
     # SATA/PATA/NVME
@@ -51,13 +58,20 @@ let
     "xhci_hcd"
     "xhci_pci"
     "usbhid"
-    "hid_generic" "hid_lenovo" "hid_apple" "hid_roccat"
-    "hid_logitech_hidpp" "hid_logitech_dj"
+    "hid_generic"
+    "hid_lenovo"
+    "hid_apple"
+    "hid_roccat"
+    "hid_logitech_hidpp"
+    "hid_logitech_dj"
 
     # PS2
-    "pcips2" "atkbd" "i8042"
+    "pcips2"
+    "atkbd"
+    "i8042"
   ];
-in {
+in
+{
   options = {
     boot.initrd.withHwSupport = mkOption {
       type = types.bool;
@@ -74,12 +88,14 @@ in {
     boot.kernelPackage = mkOption {
       type = types.package;
       description = "vpsAdminOS Linux kernel package";
-      default = if zfsBuiltin
-                then (kernelPackages.genKernelPackageWithZfsBuiltin {
-                  kernelVersion = config.boot.kernelVersion;
-                  zfsBuiltinPkg = config.boot.zfsBuiltinPkg;
-                })
-                else kernelPackages.genKernelPackage config.boot.kernelVersion;
+      default =
+        if zfsBuiltin then
+          (kernelPackages.genKernelPackageWithZfsBuiltin {
+            kernelVersion = config.boot.kernelVersion;
+            zfsBuiltinPkg = config.boot.zfsBuiltinPkg;
+          })
+        else
+          kernelPackages.genKernelPackage config.boot.kernelVersion;
     };
 
     boot.zfsUserPackage = mkOption {

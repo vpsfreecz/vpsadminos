@@ -1,4 +1,9 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 with lib;
 
@@ -13,7 +18,8 @@ let
     ln -s ${cfg.package}/sbin/smtpctl $out/bin/sendmail
   '';
 
-in {
+in
+{
 
   ###### interface
 
@@ -42,8 +48,11 @@ in {
 
       extraServerArgs = mkOption {
         type = types.listOf types.str;
-        default = [];
-        example = [ "-v" "-P mta" ];
+        default = [ ];
+        example = [
+          "-v"
+          "-P mta"
+        ];
         description = lib.mdDoc ''
           Extra command line arguments provided when the smtpd process
           is started.
@@ -64,7 +73,7 @@ in {
 
       procPackages = mkOption {
         type = types.listOf types.package;
-        default = [];
+        default = [ ];
         description = lib.mdDoc ''
           Packages to search for filters, tables, queues, and schedulers.
 
@@ -74,7 +83,6 @@ in {
       };
     };
   };
-
 
   ###### implementation
 
@@ -113,34 +121,36 @@ in {
       }
     );
 
-    runit.services.opensmtpd = let
-      procEnv = pkgs.buildEnv {
-        name = "opensmtpd-procs";
-        paths = [ cfg.package ] ++ cfg.procPackages;
-        pathsToLink = [ "/libexec/opensmtpd" ];
+    runit.services.opensmtpd =
+      let
+        procEnv = pkgs.buildEnv {
+          name = "opensmtpd-procs";
+          paths = [ cfg.package ] ++ cfg.procPackages;
+          pathsToLink = [ "/libexec/opensmtpd" ];
+        };
+      in
+      {
+        run = ''
+          export OPENSMTPD_PROC_PATH="${procEnv}/libexec/opensmtpd"
+
+          mkdir -p /var/spool/smtpd
+          chmod 711 /var/spool/smtpd
+
+          mkdir -p /var/spool/smtpd/offline
+          chown root:smtpq /var/spool/smtpd/offline
+          chmod 770 /var/spool/smtpd/offline
+
+          mkdir -p /var/spool/smtpd/purge
+          chown smtpq:root /var/spool/smtpd/purge
+          chmod 700 /var/spool/smtpd/purge
+
+          mkdir -p /var/mail
+
+          exec ${cfg.package}/sbin/smtpd -d -f ${conf} ${args}
+        '';
+
+        log.enable = true;
+        log.sendTo = "127.0.0.1";
       };
-    in {
-      run = ''
-        export OPENSMTPD_PROC_PATH="${procEnv}/libexec/opensmtpd"
-
-        mkdir -p /var/spool/smtpd
-        chmod 711 /var/spool/smtpd
-
-        mkdir -p /var/spool/smtpd/offline
-        chown root:smtpq /var/spool/smtpd/offline
-        chmod 770 /var/spool/smtpd/offline
-
-        mkdir -p /var/spool/smtpd/purge
-        chown smtpq:root /var/spool/smtpd/purge
-        chmod 700 /var/spool/smtpd/purge
-
-        mkdir -p /var/mail
-
-        exec ${cfg.package}/sbin/smtpd -d -f ${conf} ${args}
-      '';
-
-      log.enable = true;
-      log.sendTo = "127.0.0.1";
-    };
   };
 }

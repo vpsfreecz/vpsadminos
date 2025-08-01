@@ -1,15 +1,19 @@
-{ lib, stdenv, squashfsTools, closureInfo,
+{
+  lib,
+  stdenv,
+  squashfsTools,
+  closureInfo,
 
   # The root directory of the squashfs filesystem is filled with the
   # closures of the Nix store paths listed here.
-  storeContents ? [],
+  storeContents ? [ ],
 
   # Directory containing secret files that shouldn't be present in the nix
   # store. The directory's basename has to be `secrets`.
   secretsDir ? null,
 
   # Add -no-strip to mksquashfs
-  noStrip ? false
+  noStrip ? false,
 }:
 
 stdenv.mkDerivation {
@@ -18,21 +22,21 @@ stdenv.mkDerivation {
   nativeBuildInputs = [ squashfsTools ];
 
   buildCommand = ''
-      closureInfo=${closureInfo { rootPaths = storeContents; }}
+    closureInfo=${closureInfo { rootPaths = storeContents; }}
 
-      # Also include a manifest of the closures in a format suitable
-      # for nix-store --load-db.
-      cp $closureInfo/registration nix-path-registration
+    # Also include a manifest of the closures in a format suitable
+    # for nix-store --load-db.
+    cp $closureInfo/registration nix-path-registration
 
-      ${lib.optionalString (secretsDir != null) ''
+    ${lib.optionalString (secretsDir != null) ''
       mkdir secrets
       cp -rp ${secretsDir}/. secrets/
-      ''}
+    ''}
 
-      # Generate the squashfs image.
-      mksquashfs nix-path-registration $(cat $closureInfo/store-paths) \
-        ${lib.optionalString (secretsDir != null) "secrets"} \
-        $out -keep-as-directory -all-root -b 1048576 -comp xz -Xdict-size 100% \
-        ${lib.optionalString noStrip "-no-strip"}
-    '';
+    # Generate the squashfs image.
+    mksquashfs nix-path-registration $(cat $closureInfo/store-paths) \
+      ${lib.optionalString (secretsDir != null) "secrets"} \
+      $out -keep-as-directory -all-root -b 1048576 -comp xz -Xdict-size 100% \
+      ${lib.optionalString noStrip "-no-strip"}
+  '';
 }

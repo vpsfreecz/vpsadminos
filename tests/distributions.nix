@@ -1,36 +1,121 @@
 { lib }:
 let
   table = {
-    alma_8            = { distribution = "almalinux"; version = "8";                };
-    alma_9            = { distribution = "almalinux"; version = "9";                };
-    alma_10           = { distribution = "almalinux"; version = "10";               };
-    alpine            = { distribution = "alpine";    version = "latest";           };
-    arch              = { distribution = "arch";      version = "latest";           };
-    centos_7          = { distribution = "centos";    version = "7";                };
-    centos_10_stream  = { distribution = "centos";    version = "latest-10-stream"; };
-    chimera           = { distribution = "chimera";   version = "latest";           };
-    debian_oldstable  = { distribution = "debian";    version = "oldstable";        };
-    debian_stable     = { distribution = "debian";    version = "stable";           };
-    debian_testing    = { distribution = "debian";    version = "testing";          };
-    devuan            = { distribution = "devuan";    version = "latest";           };
-    fedora            = { distribution = "fedora";    version = "latest";           };
-    gentoo_openrc     = { distribution = "gentoo";    version = "latest-openrc";    };
-    gentoo_systemd    = { distribution = "gentoo";    version = "latest-systemd";   };
-    gentoo_musl       = { distribution = "gentoo";    version = "latest-musl";      };
-    nixos_stable      = { distribution = "nixos";     version = "stable";           };
-    nixos_unstable    = { distribution = "nixos";     version = "unstable";         };
-    opensuse          = { distribution = "opensuse";  version = "latest";           };
-    rocky_8           = { distribution = "rocky";     version = "8";                };
-    rocky_9           = { distribution = "rocky";     version = "9";                };
-    rocky_10          = { distribution = "rocky";     version = "10";               };
-    slackware         = { distribution = "slackware"; version = "latest";           };
-    ubuntu_2004       = { distribution = "ubuntu";    version = "20.04";            };
-    ubuntu_2204       = { distribution = "ubuntu";    version = "22.04";            };
-    ubuntu_2404       = { distribution = "ubuntu";    version = "24.04";            };
-    void_glibc        = { distribution = "void";      version = "latest-glibc";     };
-    void_musl         = { distribution = "void";      version = "latest-musl";      };
+    alma_8 = {
+      distribution = "almalinux";
+      version = "8";
+    };
+    alma_9 = {
+      distribution = "almalinux";
+      version = "9";
+    };
+    alma_10 = {
+      distribution = "almalinux";
+      version = "10";
+    };
+    alpine = {
+      distribution = "alpine";
+      version = "latest";
+    };
+    arch = {
+      distribution = "arch";
+      version = "latest";
+    };
+    centos_7 = {
+      distribution = "centos";
+      version = "7";
+    };
+    centos_10_stream = {
+      distribution = "centos";
+      version = "latest-10-stream";
+    };
+    chimera = {
+      distribution = "chimera";
+      version = "latest";
+    };
+    debian_oldstable = {
+      distribution = "debian";
+      version = "oldstable";
+    };
+    debian_stable = {
+      distribution = "debian";
+      version = "stable";
+    };
+    debian_testing = {
+      distribution = "debian";
+      version = "testing";
+    };
+    devuan = {
+      distribution = "devuan";
+      version = "latest";
+    };
+    fedora = {
+      distribution = "fedora";
+      version = "latest";
+    };
+    gentoo_openrc = {
+      distribution = "gentoo";
+      version = "latest-openrc";
+    };
+    gentoo_systemd = {
+      distribution = "gentoo";
+      version = "latest-systemd";
+    };
+    gentoo_musl = {
+      distribution = "gentoo";
+      version = "latest-musl";
+    };
+    nixos_stable = {
+      distribution = "nixos";
+      version = "stable";
+    };
+    nixos_unstable = {
+      distribution = "nixos";
+      version = "unstable";
+    };
+    opensuse = {
+      distribution = "opensuse";
+      version = "latest";
+    };
+    rocky_8 = {
+      distribution = "rocky";
+      version = "8";
+    };
+    rocky_9 = {
+      distribution = "rocky";
+      version = "9";
+    };
+    rocky_10 = {
+      distribution = "rocky";
+      version = "10";
+    };
+    slackware = {
+      distribution = "slackware";
+      version = "latest";
+    };
+    ubuntu_2004 = {
+      distribution = "ubuntu";
+      version = "20.04";
+    };
+    ubuntu_2204 = {
+      distribution = "ubuntu";
+      version = "22.04";
+    };
+    ubuntu_2404 = {
+      distribution = "ubuntu";
+      version = "24.04";
+    };
+    void_glibc = {
+      distribution = "void";
+      version = "latest-glibc";
+    };
+    void_musl = {
+      distribution = "void";
+      version = "latest-musl";
+    };
   };
-in {
+in
+{
   cgroupv2 = with table; [
     alma_8
     alma_9

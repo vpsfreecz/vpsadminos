@@ -14,20 +14,21 @@ let
       rm $out/lib/ruby/gems/*/specifications/{debug*,rbs*,racc*}.gemspec
     '';
   });
-in {
+in
+{
   inherit ruby_3_3;
 
   ruby = ruby_3_3;
 
-  defaultGemConfig =
-    super.callPackage (
-      { lib, apparmor-parser }:
+  defaultGemConfig = super.callPackage (
+    { lib, apparmor-parser }:
 
-      lib.mergeAttrs super.defaultGemConfig {
-        osctld = attrs: {
-          buildInputs = [ apparmor-parser ];
-        };
-      }) {};
+    lib.mergeAttrs super.defaultGemConfig {
+      osctld = attrs: {
+        buildInputs = [ apparmor-parser ];
+      };
+    }
+  ) { };
 
   bundix = super.bundix.overrideAttrs (oldAttrs: rec {
     name = "bundix-${version}";
@@ -40,5 +41,5 @@ in {
     };
   });
 
-  osBundlerApp = super.callPackage ../packages/os-bundler-app {};
+  osBundlerApp = super.callPackage ../packages/os-bundler-app { };
 }

@@ -1,17 +1,26 @@
-{ bundlerEnv, ruby, stdenv, lib }:
+{
+  bundlerEnv,
+  ruby,
+  stdenv,
+  lib,
+}:
 let
   env = bundlerEnv {
     name = "osctl-exporter";
     gemdir = ./.;
     inherit ruby;
   };
-in stdenv.mkDerivation rec {
+in
+stdenv.mkDerivation rec {
   name = "osctl-exporter-${version}";
   version = (import ./gemset.nix).osctl-exporter.version;
   src = ../../../osctl-exporter;
 
   buildInputs = [ env ];
-  phases = [ "installPhase" "fixupPhase" ];
+  phases = [
+    "installPhase"
+    "fixupPhase"
+  ];
   installPhase = ''
     mkdir -p $out
     ln -sf ${env} $out/env
@@ -24,9 +33,9 @@ in stdenv.mkDerivation rec {
 
   meta = with lib; {
     description = "";
-    homepage    = https://github.com/vpsfreecz/vpsadminos;
-    license     = licenses.mit;
-    maintainers = [];
-    platforms   = platforms.unix;
+    homepage = "https://github.com/vpsfreecz/vpsadminos";
+    license = licenses.mit;
+    maintainers = [ ];
+    platforms = platforms.unix;
   };
 }

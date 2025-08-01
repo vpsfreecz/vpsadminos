@@ -1,42 +1,45 @@
-import ../../make-test.nix ({ pkgs }: {
-  name = "zfs-ugidmap";
+import ../../make-test.nix (
+  { pkgs }:
+  {
+    name = "zfs-ugidmap";
 
-  description = ''
-    Test ZFS UID/GID mapping patch
+    description = ''
+      Test ZFS UID/GID mapping patch
 
-    These tests are in form of shell scripts, they have been taken from the
-    patch which added them to the ZFS test suite.
-  '';
+      These tests are in form of shell scripts, they have been taken from the
+      patch which added them to the ZFS test suite.
+    '';
 
-  tags = [ "ci" ];
+    tags = [ "ci" ];
 
-  machine = import ../../machines/tank.nix pkgs;
+    machine = import ../../machines/tank.nix pkgs;
 
-  testScript = ''
-    machine.start
-    machine.wait_for_service("pool-tank")
+    testScript = ''
+      machine.start
+      machine.wait_for_service("pool-tank")
 
-    test_dir = "/ugidmap"
-    test_run = File.join(test_dir, "run.sh")
+      test_dir = "/ugidmap"
+      test_run = File.join(test_dir, "run.sh")
 
-    # Deploy tests
-    machine.mkdir(test_dir)
+      # Deploy tests
+      machine.mkdir(test_dir)
 
-    tests = %w(defaults properties send-recv mappings acl-host acl-ct)
-    files = %w(run setup cleanup) + tests
+      tests = %w(defaults properties send-recv mappings acl-host acl-ct)
+      files = %w(run setup cleanup) + tests
 
-    files.each do |name|
-      machine.push_file(
-        File.join("${./ugidmap}", "#{name}.sh"),
-        File.join(test_dir, "#{name}.sh"),
-      )
-    end
+      files.each do |name|
+        machine.push_file(
+          File.join("${./ugidmap}", "#{name}.sh"),
+          File.join(test_dir, "#{name}.sh"),
+        )
+      end
 
-    machine.succeeds("chmod +x #{test_run}")
+      machine.succeeds("chmod +x #{test_run}")
 
-    # Run tests
-    tests.each do |name|
-      machine.succeeds("#{test_run} #{test_dir} #{name}")
-    end
-  '';
-})
+      # Run tests
+      tests.each do |name|
+        machine.succeeds("#{test_run} #{test_dir} #{name}")
+      end
+    '';
+  }
+)

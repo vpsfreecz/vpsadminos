@@ -1,8 +1,16 @@
-{ config, lib, pkgs, utils, ... }@args:
+{
+  config,
+  lib,
+  pkgs,
+  utils,
+  ...
+}@args:
 with lib;
 let
   shared = import ./shared.nix args;
-  modArgs = args // { inherit shared; };
+  modArgs = args // {
+    inherit shared;
+  };
 
   users = import ./users.nix modArgs;
   groups = import ./groups.nix modArgs;
@@ -31,13 +39,13 @@ let
 
       users = mkOption {
         type = types.attrsOf (types.submodule users.type);
-        default = {};
+        default = { };
         description = "osctl users to include";
       };
 
       groups = mkOption {
         type = types.attrsOf (types.submodule groups.type);
-        default = {};
+        default = { };
         description = ''
           osctl groups to include.
 
@@ -48,19 +56,19 @@ let
 
       containers = mkOption {
         type = types.attrsOf (types.submodule containers.type);
-        default = {};
+        default = { };
         description = "osctl containers to include";
       };
 
       repositories = mkOption {
         type = types.attrsOf (types.submodule repositories.type);
-        default = {};
+        default = { };
         description = "Remote osctl repositories for container images";
       };
 
       idRanges = mkOption {
         type = types.attrsOf (types.submodule idRanges.type);
-        default = {};
+        default = { };
         description = ''
           ID ranges are used to track user/group ID allocations into user namespace maps.
           There is one default ID range on each pool, with the possibility of creating
@@ -106,7 +114,10 @@ let
       };
 
       destroyMethod = mkOption {
-        type = types.enum [ "manual" "auto" ];
+        type = types.enum [
+          "manual"
+          "auto"
+        ];
         default = "manual";
         description = ''
           If set to <literal>manual</literal>, the garbage collector has to be
@@ -123,19 +134,16 @@ let
     };
   };
 
-  buildServices = pools: mkMerge (
-    (mapAttrsToList (name: pool: users.mkServices name pool.users) pools)
-    ++
-    (mapAttrsToList (name: pool: groups.mkServices name pool.groups) pools)
-    ++
-    (mapAttrsToList (name: pool: containers.mkServices name pool.containers) pools)
-    ++
-    (mapAttrsToList (name: pool: repositories.mkServices name pool.repositories) pools)
-    ++
-    (mapAttrsToList (name: pool: idRanges.mkServices name pool.idRanges) pools)
-    ++
-    (mapAttrsToList (name: pool: gc.mkService name pool) pools)
-  );
+  buildServices =
+    pools:
+    mkMerge (
+      (mapAttrsToList (name: pool: users.mkServices name pool.users) pools)
+      ++ (mapAttrsToList (name: pool: groups.mkServices name pool.groups) pools)
+      ++ (mapAttrsToList (name: pool: containers.mkServices name pool.containers) pools)
+      ++ (mapAttrsToList (name: pool: repositories.mkServices name pool.repositories) pools)
+      ++ (mapAttrsToList (name: pool: idRanges.mkServices name pool.idRanges) pools)
+      ++ (mapAttrsToList (name: pool: gc.mkService name pool) pools)
+    );
 
   buildSystemPackages = pools: flatten (mapAttrsToList gc.systemPackages pools);
 in
@@ -145,7 +153,7 @@ in
   options = {
     osctl.pools = mkOption {
       type = types.attrsOf (types.submodule pool);
-      default = {};
+      default = { };
       description = "osctl pools to configure";
     };
   };
@@ -153,7 +161,7 @@ in
   ###### implementation
 
   config = mkMerge [
-    (mkIf (config.osctl.pools != {}) {
+    (mkIf (config.osctl.pools != { }) {
       runit.services = buildServices config.osctl.pools;
       environment.systemPackages = buildSystemPackages config.osctl.pools;
     })

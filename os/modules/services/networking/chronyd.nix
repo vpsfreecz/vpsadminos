@@ -1,4 +1,10 @@
-{ config, lib, pkgs, utils, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  utils,
+  ...
+}:
 with utils;
 with lib;
 
@@ -70,7 +76,9 @@ in
       };
 
       environment.systemPackages = [ pkgs.chrony ];
-      users.groups.chrony = { gid = config.ids.gids.chrony; };
+      users.groups.chrony = {
+        gid = config.ids.gids.chrony;
+      };
 
       users.users.chrony = {
         uid = config.ids.uids.chrony;

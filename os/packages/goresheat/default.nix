@@ -1,4 +1,8 @@
-{ pkgs, lib, buildGoModule }:
+{
+  pkgs,
+  lib,
+  buildGoModule,
+}:
 
 buildGoModule {
   pname = "goresheat";
@@ -15,9 +19,9 @@ buildGoModule {
 
   meta = with lib; {
     description = "Go Resource monitor";
-    homepage    = https://github.com/snajpa/goresheat;
-    license     = licenses.unlicense;
-    maintainers = [];
-    platforms   = platforms.unix;
+    homepage = "https://github.com/snajpa/goresheat";
+    license = licenses.unlicense;
+    maintainers = [ ];
+    platforms = platforms.unix;
   };
 }

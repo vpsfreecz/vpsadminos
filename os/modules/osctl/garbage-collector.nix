@@ -1,4 +1,11 @@
-{ config, lib, pkgs, utils, shared, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  utils,
+  shared,
+  ...
+}:
 with lib;
 
 let
@@ -6,20 +13,27 @@ let
 
   osctl = "osctl";
 
-  entities = [ "containers" "groups" "users" "repositories" "idRanges" ];
+  entities = [
+    "containers"
+    "groups"
+    "users"
+    "repositories"
+    "idRanges"
+  ];
 
-  sweepScript = pool: cfg:
+  sweepScript =
+    pool: cfg:
     let
       osctlPool = "${osctl} --pool ${pool}";
 
-      writeList = type: list:
-        pkgs.writeText "gc-${pool}-${type}" (concatStringsSep "\n" list);
+      writeList = type: list: pkgs.writeText "gc-${pool}-${type}" (concatStringsSep "\n" list);
 
-      definitions = listToAttrs (map (ent:
-        nameValuePair ent (writeList ent (mapAttrsToList (k: v: k) cfg.${ent}))
-      ) entities);
+      definitions = listToAttrs (
+        map (ent: nameValuePair ent (writeList ent (mapAttrsToList (k: v: k) cfg.${ent}))) entities
+      );
 
-    in pkgs.writeScriptBin "gc-sweep-${pool}" ''
+    in
+    pkgs.writeScriptBin "gc-sweep-${pool}" ''
       #!${pkgs.bash}/bin/bash
 
       destroyUndeclared=n
@@ -256,26 +270,28 @@ let
 
 in
 {
-  mkService = pool: cfg: mkIf (cfg.destroyMethod == "auto") {
-    "gc-${pool}" = {
-      run = ''
-        ${osctl} pool show ${pool} &> /dev/null
-        hasPool=$?
-        if [ "$hasPool" != "0" ] ; then
-          echo "Waiting for pool ${pool}"
-          exit 1
-        fi
+  mkService =
+    pool: cfg:
+    mkIf (cfg.destroyMethod == "auto") {
+      "gc-${pool}" = {
+        run = ''
+          ${osctl} pool show ${pool} &> /dev/null
+          hasPool=$?
+          if [ "$hasPool" != "0" ] ; then
+            echo "Waiting for pool ${pool}"
+            exit 1
+          fi
 
-        ${sweepScript pool cfg}/bin/gc-sweep-${pool} \
-          ${optionalString cfg.destroyUndeclared "--destroy-undeclared"} \
-          ${optionalString cfg.pure "--destroy-imperative"} \
-          || exit 1
-      '';
-      oneShot = true;
-      log.enable = true;
-      log.sendTo = "127.0.0.1";
+          ${sweepScript pool cfg}/bin/gc-sweep-${pool} \
+            ${optionalString cfg.destroyUndeclared "--destroy-undeclared"} \
+            ${optionalString cfg.pure "--destroy-imperative"} \
+            || exit 1
+        '';
+        oneShot = true;
+        log.enable = true;
+        log.sendTo = "127.0.0.1";
+      };
     };
-  };
 
   systemPackages = pool: cfg: [ (sweepScript pool cfg) ];
 }

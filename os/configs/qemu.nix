@@ -1,12 +1,24 @@
-{ configs, pkgs, lib, ... }:
+{
+  configs,
+  pkgs,
+  lib,
+  ...
+}:
 
 {
-  imports = lib.optionals
-    (lib.pathExists ./local.nix)
-    (builtins.trace "Using os/configs/local.nix" [ ./local.nix ]);
+  imports = lib.optionals (lib.pathExists ./local.nix) (
+    builtins.trace "Using os/configs/local.nix" [ ./local.nix ]
+  );
 
   boot.kernelParams = [ "root=/dev/vda" ];
-  boot.initrd.kernelModules = [ "virtio" "virtio_pci" "virtio_net" "virtio_rng" "virtio_blk" "virtio_console" ];
+  boot.initrd.kernelModules = [
+    "virtio"
+    "virtio_pci"
+    "virtio_net"
+    "virtio_rng"
+    "virtio_blk"
+    "virtio_console"
+  ];
 
   networking.hostId = lib.mkDefault "f3276671";
   networking.hostName = lib.mkDefault "vpsadminos";
@@ -16,7 +28,12 @@
 
   boot.qemu.enable = true;
   boot.qemu.disks = lib.mkDefault [
-    { device = "sda.img"; type = "file"; size = "8G"; create = true; }
+    {
+      device = "sda.img";
+      type = "file";
+      size = "8G";
+      create = true;
+    }
   ];
 
   boot.zfs.pools = lib.mkDefault {
@@ -56,5 +73,5 @@
 
     More information:
       man osctl
-    '';
+  '';
 }

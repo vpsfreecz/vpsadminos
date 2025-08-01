@@ -1,4 +1,10 @@
-{ config, lib, pkgs, utils, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  utils,
+  ...
+}:
 with utils;
 with lib;
 
@@ -33,11 +39,14 @@ in
 
           exec nix-daemon
         '';
-        runlevels = [ "rescue" "default" ];
+        runlevels = [
+          "rescue"
+          "default"
+        ];
       };
 
-      system.activationScripts.nix = mkForce (stringAfter [ "etc" "users" ]
-        ''
+      system.activationScripts.nix = mkForce (
+        stringAfter [ "etc" "users" ] ''
           install -m 0755 -d /nix/var/nix/{gcroots,profiles}/per-user
 
           # Subscribe the root user to the NixOS and vpsAdminOS channel by default.
@@ -45,7 +54,8 @@ in
               echo "${config.system.defaultChannel} nixos" > "/root/.nix-channels"
               echo "${config.system.defaultOsChannel} vpsadminos" >> "/root/.nix-channels"
           fi
-        '');
+        ''
+      );
     })
   ];
 }

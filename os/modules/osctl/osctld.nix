@@ -1,4 +1,10 @@
-{ config, lib, pkgs, utils, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  utils,
+  ...
+}:
 with utils;
 with lib;
 
@@ -43,7 +49,7 @@ in
         type = types.submodule {
           freeformType = settingsFormat.type;
         };
-        default = {};
+        default = { };
         description = ''
           osctld configuration options
         '';
@@ -55,7 +61,9 @@ in
 
   config = {
     osctld.settings = {
-      apparmor_paths = optionals config.security.apparmor.enable (map (s: "${s}/etc/apparmor.d") apparmorPaths);
+      apparmor_paths = optionals config.security.apparmor.enable (
+        map (s: "${s}/etc/apparmor.d") apparmorPaths
+      );
 
       ctstartmenu = "${pkgs.ctstartmenu}/bin/ctstartmenu";
     };
@@ -67,7 +75,7 @@ in
         export LOCALE_ARCHIVE=/run/current-system/sw/lib/locale/locale-archive
 
         ${optionalString config.system.boot.restrict-proc-sysfs.enable ''
-        waitForService restrict-proc-sysfs
+          waitForService restrict-proc-sysfs
         ''}
 
         waitForNetworkOnline 60
@@ -75,7 +83,7 @@ in
         waitForService live-patches 120
 
         ${optionalString config.networking.chronyd ''
-        waitForService set-clock 30
+          waitForService set-clock 30
         ''}
 
         exec 2>&1

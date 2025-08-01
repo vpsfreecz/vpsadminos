@@ -1,10 +1,25 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
-  inherit (lib) any concatStringsSep filter hasPrefix mkIf mkOption optional optionalString types;
+  inherit (lib)
+    any
+    concatStringsSep
+    filter
+    hasPrefix
+    mkIf
+    mkOption
+    optional
+    optionalString
+    types
+    ;
 
   cfg = config.boot.crashDump;
 
-  makedumpfile = pkgs.callPackage (import ../../packages/makedumpfile/default.nix) {};
+  makedumpfile = pkgs.callPackage (import ../../packages/makedumpfile/default.nix) { };
 
   kernelParams = concatStringsSep " " cfg.kernelParams;
 
@@ -14,9 +29,11 @@ let
     let
       filtered = filter (param: !(hasPrefix "crashkernel=" param)) config.boot.kernelParams;
       hasRoot = any (param: hasPrefix "root=" param) filtered;
-    in if hasRoot then filtered else filtered ++ [ "root=none" ];
+    in
+    if hasRoot then filtered else filtered ++ [ "root=none" ];
 
-in {
+in
+{
   options = {
     boot = {
       crashDump = {
@@ -42,8 +59,15 @@ in {
         };
         kernelParams = mkOption {
           type = types.listOf types.str;
-          default = [ "1" "boot.shell_on_fail" "loglevel=8" ]
-            ++ optional (config.boot.qemu.enable && config.networking.static.enable) "ip=10.0.2.15:10.0.2.3:10.0.2.2:255.255.255.0:eth0";
+          default =
+            [
+              "1"
+              "boot.shell_on_fail"
+              "loglevel=8"
+            ]
+            ++ optional (
+              config.boot.qemu.enable && config.networking.static.enable
+            ) "ip=10.0.2.15:10.0.2.3:10.0.2.2:255.255.255.0:eth0";
           description = ''
             parameters that will be passed to the kernel kexec-ed on crash.
           '';
@@ -117,8 +141,8 @@ in {
         '';
       };
       kernelParams = [
-       "crashkernel=${cfg.reservedMemory}"
-       "softlockup_panic=1"
+        "crashkernel=${cfg.reservedMemory}"
+        "softlockup_panic=1"
       ];
     };
 

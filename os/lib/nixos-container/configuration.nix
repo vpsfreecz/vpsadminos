@@ -1,4 +1,9 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 let
   configClone = pkgs.writeText "configuration.nix" ''
     { config, pkgs, ... }:
@@ -36,7 +41,8 @@ let
     }
   '';
 
-in {
+in
+{
   imports = [
     <nixpkgs/nixos/modules/installer/cd-dvd/channel.nix>
     <nixpkgs/nixos/modules/virtualisation/container-config.nix>
@@ -88,9 +94,10 @@ in {
     compressionExtension = ".gz";
     extraInputs = [ pkgs.gzip ];
 
-    contents = [];
+    contents = [ ];
     storeContents = [
-      { object = config.system.build.toplevel;
+      {
+        object = config.system.build.toplevel;
         symlink = "/run/current-system";
       }
     ];

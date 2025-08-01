@@ -1,14 +1,29 @@
-{ config, lib, pkgs, utils, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  utils,
+  ...
+}:
 let
-  inherit (lib) concatMapStringsSep mkOption optionalString splitString types;
+  inherit (lib)
+    concatMapStringsSep
+    mkOption
+    optionalString
+    splitString
+    types
+    ;
 
   cfg = config.services.rsyslogd;
 
-  forwardHostsRules = concatMapStringsSep "\n" (hostPort:
-    let parts = splitString ":" hostPort;
-        host  = builtins.elemAt parts 0;
-        port  = builtins.elemAt parts 1;
-    in ''
+  forwardHostsRules = concatMapStringsSep "\n" (
+    hostPort:
+    let
+      parts = splitString ":" hostPort;
+      host = builtins.elemAt parts 0;
+      port = builtins.elemAt parts 1;
+    in
+    ''
       action(
         name="fwd_${host}_${port}"
         type="omfwd"
@@ -22,7 +37,8 @@ let
         queue.maxdiskspace="1g"
         action.resumeRetryCount="-1"
       )
-    '') cfg.forward;
+    ''
+  ) cfg.forward;
 
   rsyslogConfig = pkgs.writeText "rsyslog.conf" ''
     global(
@@ -59,18 +75,18 @@ let
     # write everything to /var/log/messages
     action(type="omfile" file="/var/log/messages")
 
-    ${optionalString (cfg.forward != []) forwardHostsRules}
+    ${optionalString (cfg.forward != [ ]) forwardHostsRules}
 
     ${cfg.extraConfig}
   '';
 
-  checkConfig = pkgs.runCommand "rsyslog-check.conf" {} ''
+  checkConfig = pkgs.runCommand "rsyslog-check.conf" { } ''
     substitute ${rsyslogConfig} $out --replace-fail "workDirectory=\"/var/spool/rsyslog\"" "workDirectory=\"/tmp\""
   '';
 
   checkedConfig =
     if cfg.checkConfig then
-      pkgs.runCommand "rsyslog-checked.conf" {} ''
+      pkgs.runCommand "rsyslog-checked.conf" { } ''
         ln -sf ${rsyslogConfig} $out
         ${pkgs.rsyslog-light}/sbin/rsyslogd -f ${checkConfig} -N1
       ''
@@ -95,7 +111,7 @@ in
           type = types.listOf types.str;
           description = "Forward logs over TCP to a set of hosts";
           example = [ "10.0.0.1:11514" ];
-          default = [];
+          default = [ ];
         };
 
         extraConfig = mkOption {
@@ -122,7 +138,10 @@ in
         mkdir -p /var/spool/rsyslog
         exec ${pkgs.rsyslog-light}/sbin/rsyslogd -f ${checkedConfig} -n -i ${pidFile}
       '';
-      runlevels = [ "rescue" "default" ];
+      runlevels = [
+        "rescue"
+        "default"
+      ];
     };
 
     services.logrotate.logFiles = [

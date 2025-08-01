@@ -1,4 +1,8 @@
-{ distribution, version, setupScript }:
+{
+  distribution,
+  version,
+  setupScript,
+}:
 import ./base.nix {
   name = "lxd";
   description = "lxd in snap";

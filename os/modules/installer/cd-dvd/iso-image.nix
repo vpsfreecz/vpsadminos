@@ -2,18 +2,20 @@
 # configuration.  The derivation for the ISO image will be placed in
 # config.system.build.isoImage.
 
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 with lib;
 
 let
   # Timeout in syslinux is in units of 1/10 of a second.
   # 0 is used to disable timeouts.
-  syslinuxTimeout = if config.boot.loader.timeout == null then
-      0
-    else
-      max (config.boot.loader.timeout * 10) 1;
-
+  syslinuxTimeout =
+    if config.boot.loader.timeout == null then 0 else max (config.boot.loader.timeout * 10) 1;
 
   max = x: y: if x > y then x else y;
 
@@ -52,10 +54,11 @@ let
     APPEND ${toString config.isoImage.memtest86.params}
   '';
 
-  isolinuxCfg = baseIsolinuxCfg + (optionalString config.isoImage.memtest86.enable isolinuxMemtest86Entry);
+  isolinuxCfg =
+    baseIsolinuxCfg + (optionalString config.isoImage.memtest86.enable isolinuxMemtest86Entry);
 
   # The EFI boot image.
-  efiDir = pkgs.runCommand "efi-directory" {} ''
+  efiDir = pkgs.runCommand "efi-directory" { } ''
     mkdir -p $out/EFI/boot
     cp -v ${pkgs.systemd}/lib/systemd/boot/efi/systemd-boot${targetArch}.efi $out/EFI/boot/boot${targetArch}.efi
     mkdir -p $out/loader/entries
@@ -68,36 +71,44 @@ let
     EOF
   '';
 
-  efiImg = pkgs.runCommand "efi-image_eltorito" { buildInputs = [ pkgs.mtools pkgs.libfaketime ]; }
-    # Be careful about determinism: du --apparent-size,
-    #   dates (cp -p, touch, mcopy -m, faketime for label), IDs (mkfs.vfat -i)
-    ''
-      mkdir ./contents && cd ./contents
-      cp -rp "${efiDir}"/* .
-      mkdir ./boot
-      cp -p "${config.boot.kernelPackages.kernel}/bzImage" \
-        "${config.system.build.initialRamdisk}/initrd" ./boot/
-      touch --date=@0 ./*
+  efiImg =
+    pkgs.runCommand "efi-image_eltorito"
+      {
+        buildInputs = [
+          pkgs.mtools
+          pkgs.libfaketime
+        ];
+      }
+      # Be careful about determinism: du --apparent-size,
+      #   dates (cp -p, touch, mcopy -m, faketime for label), IDs (mkfs.vfat -i)
+      ''
+        mkdir ./contents && cd ./contents
+        cp -rp "${efiDir}"/* .
+        mkdir ./boot
+        cp -p "${config.boot.kernelPackages.kernel}/bzImage" \
+          "${config.system.build.initialRamdisk}/initrd" ./boot/
+        touch --date=@0 ./*
 
-      usage_size=$(du -sb --apparent-size . | tr -cd '[:digit:]')
-      # Make the image 110% as big as the files need to make up for FAT overhead
-      image_size=$(( ($usage_size * 110) / 100 ))
-      # Make the image fit blocks of 1M
-      block_size=$((1024*1024))
-      image_size=$(( ($image_size / $block_size + 1) * $block_size ))
-      echo "Usage size: $usage_size"
-      echo "Image size: $image_size"
-      truncate --size=$image_size "$out"
-      ${pkgs.libfaketime}/bin/faketime "2000-01-01 00:00:00" ${pkgs.dosfstools}/sbin/mkfs.vfat -i 12345678 -n EFIBOOT "$out"
-      mcopy -bpsvm -i "$out" ./* ::
-    ''; # */
+        usage_size=$(du -sb --apparent-size . | tr -cd '[:digit:]')
+        # Make the image 110% as big as the files need to make up for FAT overhead
+        image_size=$(( ($usage_size * 110) / 100 ))
+        # Make the image fit blocks of 1M
+        block_size=$((1024*1024))
+        image_size=$(( ($image_size / $block_size + 1) * $block_size ))
+        echo "Usage size: $usage_size"
+        echo "Image size: $image_size"
+        truncate --size=$image_size "$out"
+        ${pkgs.libfaketime}/bin/faketime "2000-01-01 00:00:00" ${pkgs.dosfstools}/sbin/mkfs.vfat -i 12345678 -n EFIBOOT "$out"
+        mcopy -bpsvm -i "$out" ./* ::
+      ''; # */
 
-  targetArch = if pkgs.stdenv.isi686 then
-    "ia32"
-  else if pkgs.stdenv.isx86_64 then
-    "x64"
-  else
-    throw "Unsupported architecture";
+  targetArch =
+    if pkgs.stdenv.isi686 then
+      "ia32"
+    else if pkgs.stdenv.isx86_64 then
+      "x64"
+    else
+      throw "Unsupported architecture";
 
 in
 
@@ -192,7 +203,7 @@ in
       enable = mkEnableOption "Add memtest86 to ISO image";
       params = mkOption {
         type = types.listOf types.str;
-        default = [];
+        default = [ ];
         example = [ "console=ttyS0,115200" ];
         description = ''
           Parameters added to the Memtest86+ command line.
@@ -213,11 +224,16 @@ in
     # UUID of the USB stick.  It would be nicer to write
     # `root=/dev/disk/by-label/...' here, but UNetbootin doesn't
     # recognise that.
-    boot.kernelParams =
-      [ "root=LABEL=${config.isoImage.volumeID}"
-      ];
+    boot.kernelParams = [
+      "root=LABEL=${config.isoImage.volumeID}"
+    ];
 
-    boot.initrd.kernelModules = [ "loop" "iso9660" "usb-storage" "uas" ];
+    boot.initrd.kernelModules = [
+      "loop"
+      "iso9660"
+      "usb-storage"
+      "uas"
+    ];
 
     boot.initrd.postDeviceCommands = ''
       mkdir /media
@@ -236,23 +252,26 @@ in
       done
       echo
       root=/media/nix-store.squashfs
-      '';
+    '';
 
     # Add vfat support to the initrd to enable people to copy the
     # contents of the CD to a bootable USB stick.
-    boot.initrd.supportedFilesystems = { vfat = true; };
+    boot.initrd.supportedFilesystems = {
+      vfat = true;
+    };
 
     boot.qemu.extraQemuOptions = [
-      "-cdrom" "${config.system.build.isoImage}/iso/${config.isoImage.isoName}"
-      "-boot" "d"
+      "-cdrom"
+      "${config.system.build.isoImage}/iso/${config.isoImage.isoName}"
+      "-boot"
+      "d"
     ];
 
     # Closures to be copied to the Nix store on the CD, namely the init
     # script and the top-level system configuration directory.
-    isoImage.storeContents =
-      [ config.system.build.toplevel ] ++
-      optional config.isoImage.includeSystemBuildDependencies
-        config.system.build.toplevel.drvPath;
+    isoImage.storeContents = [
+      config.system.build.toplevel
+    ] ++ optional config.isoImage.includeSystemBuildDependencies config.system.build.toplevel.drvPath;
 
     # Create the squashfs image that contains the Nix store.
     system.build.squashfsStore = pkgs.callPackage <nixpkgs/nixos/lib/make-squashfs.nix> {
@@ -264,7 +283,9 @@ in
     # Individual files to be included on the CD, outside of the Nix
     # store on the CD.
     isoImage.contents =
-      [ { source = pkgs.replaceVarsWith {
+      [
+        {
+          source = pkgs.replaceVarsWith {
             name = "isolinux.cfg";
             src = pkgs.writeText "isolinux.cfg-in" isolinuxCfg;
             replacements = {
@@ -273,36 +294,48 @@ in
           };
           target = "/isolinux/isolinux.cfg";
         }
-        { source = config.boot.kernelPackages.kernel + "/bzImage";
+        {
+          source = config.boot.kernelPackages.kernel + "/bzImage";
           target = "/boot/bzImage";
         }
-        { source = config.system.build.initialRamdisk + "/initrd";
+        {
+          source = config.system.build.initialRamdisk + "/initrd";
           target = "/boot/initrd";
         }
-        { source = config.system.build.squashfsStore;
+        {
+          source = config.system.build.squashfsStore;
           target = "/nix-store.squashfs";
         }
-        { source = "${pkgs.syslinux}/share/syslinux";
+        {
+          source = "${pkgs.syslinux}/share/syslinux";
           target = "/isolinux";
         }
-        { source = config.isoImage.splashImage;
+        {
+          source = config.isoImage.splashImage;
           target = "/isolinux/background.png";
         }
-        { source = pkgs.writeText "version" config.system.vpsadminos.version;
+        {
+          source = pkgs.writeText "version" config.system.vpsadminos.version;
           target = "/version.txt";
         }
-      ] ++ optionals config.isoImage.makeEfiBootable [
-        { source = efiImg;
+      ]
+      ++ optionals config.isoImage.makeEfiBootable [
+        {
+          source = efiImg;
           target = "/boot/efi.img";
         }
-        { source = "${efiDir}/EFI";
+        {
+          source = "${efiDir}/EFI";
           target = "/EFI";
         }
-        { source = "${efiDir}/loader";
+        {
+          source = "${efiDir}/loader";
           target = "/loader";
         }
-      ] ++ optionals config.isoImage.memtest86.enable [
-        { source = "${pkgs.memtest86plus}/memtest.bin";
+      ]
+      ++ optionals config.isoImage.memtest86.enable [
+        {
+          source = "${pkgs.memtest86plus}/memtest.bin";
           target = "/boot/memtest.bin";
         }
       ];
@@ -310,19 +343,28 @@ in
     boot.loader.timeout = 10;
 
     # Create the ISO image.
-    system.build.isoImage = pkgs.callPackage <nixpkgs/nixos/lib/make-iso9660-image.nix> ({
-      inherit (pkgs) stdenv xorriso syslinux;
+    system.build.isoImage = pkgs.callPackage <nixpkgs/nixos/lib/make-iso9660-image.nix> (
+      {
+        inherit (pkgs) stdenv xorriso syslinux;
 
-      inherit (config.isoImage) isoName compressImage volumeID contents;
+        inherit (config.isoImage)
+          isoName
+          compressImage
+          volumeID
+          contents
+          ;
 
-      bootable = true;
-      bootImage = "/isolinux/isolinux.bin";
-    } // optionalAttrs config.isoImage.makeUsbBootable {
-      usbBootable = true;
-      isohybridMbrImage = "${pkgs.syslinux}/share/syslinux/isohdpfx.bin";
-    } // optionalAttrs config.isoImage.makeEfiBootable {
-      efiBootable = true;
-      efiBootImage = "boot/efi.img";
-    });
+        bootable = true;
+        bootImage = "/isolinux/isolinux.bin";
+      }
+      // optionalAttrs config.isoImage.makeUsbBootable {
+        usbBootable = true;
+        isohybridMbrImage = "${pkgs.syslinux}/share/syslinux/isohdpfx.bin";
+      }
+      // optionalAttrs config.isoImage.makeEfiBootable {
+        efiBootable = true;
+        efiBootImage = "boot/efi.img";
+      }
+    );
   };
 }

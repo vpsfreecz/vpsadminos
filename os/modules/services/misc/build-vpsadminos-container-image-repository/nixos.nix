@@ -1,4 +1,9 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 with lib;
 let
   cfg = config.services.build-vpsadminos-container-image-repository;
@@ -22,7 +27,8 @@ let
         };
       };
     };
-in {
+in
+{
   imports = [
     ./options.nix
   ];

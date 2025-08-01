@@ -1,9 +1,10 @@
 # Used for test runs
 let
-  pkgs = import <nixpkgs> {};
+  pkgs = import <nixpkgs> { };
   stdenv = pkgs.stdenv;
 
-in stdenv.mkDerivation rec {
+in
+stdenv.mkDerivation rec {
   name = "vpsadminos-image-build-scripts";
 
   buildInputs = with pkgs; [

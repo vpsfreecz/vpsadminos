@@ -1,25 +1,23 @@
-self: super:
-{
+self: super: {
   bird2 = super.bird2.overrideAttrs (oldAttrs: rec {
-    patches = super.bird2.patches ++
-      [ ../packages/bird2/disable-kif-warnings-osrtr0.patch ];
-    });
+    patches = super.bird2.patches ++ [ ../packages/bird2/disable-kif-warnings-osrtr0.patch ];
+  });
 
-  devcgprog = super.callPackage ../packages/devcgprog {};
+  devcgprog = super.callPackage ../packages/devcgprog { };
 
-  goresheat = super.callPackage ../packages/goresheat {};
+  goresheat = super.callPackage ../packages/goresheat { };
 
-  irq_heatmap = super.callPackage ../packages/irq_heatmap {};
+  irq_heatmap = super.callPackage ../packages/irq_heatmap { };
 
-  ksvcmon = super.callPackage ../packages/ksvcmon {};
+  ksvcmon = super.callPackage ../packages/ksvcmon { };
 
   lxc =
     let
       libcap = super.libcap.overrideAttrs (oldAttrs: rec {
-        postInstall = builtins.replaceStrings [ ''rm "$lib"/lib/*.a'' ] [ "" ]
-                                              oldAttrs.postInstall;
+        postInstall = builtins.replaceStrings [ ''rm "$lib"/lib/*.a'' ] [ "" ] oldAttrs.postInstall;
       });
-    in super.callPackage ../packages/lxc/default.nix {
+    in
+    super.callPackage ../packages/lxc/default.nix {
       inherit libcap;
       dbus = null;
     };
@@ -44,9 +42,9 @@ self: super:
     ];
   });
 
-  scrubctl = super.callPackage ../packages/scrubctl {};
+  scrubctl = super.callPackage ../packages/scrubctl { };
 
-  sysinfo-to-json = super.callPackage ../packages/sysinfo-to-json {};
+  sysinfo-to-json = super.callPackage ../packages/sysinfo-to-json { };
 
-  vdevlog = super.callPackage ../packages/vdevlog {};
+  vdevlog = super.callPackage ../packages/vdevlog { };
 }

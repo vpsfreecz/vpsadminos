@@ -1,11 +1,18 @@
-{ config, lib, oslib, pkgs, ... }:
+{
+  config,
+  lib,
+  oslib,
+  pkgs,
+  ...
+}:
 with lib;
 let
   cfg = config.networking.nftables;
   systemdService = config.systemd.services.nftables;
   cmd = opt: oslib.systemd.extractExecCommand opt;
   systemPath = concatMapStringsSep ":" (pkg: "${pkg}/bin") systemdService.path;
-in {
+in
+{
   # Based on <nixpkgs/nixos/modules/services/networking/nftables.nix>
 
   config = mkIf cfg.enable {

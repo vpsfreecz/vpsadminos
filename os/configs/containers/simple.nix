@@ -1,12 +1,21 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 {
   # example of simple container
 
   osctl.pools.tank = {
-    users.sampleuser = let mapping = [ "0:666000:65536" ]; in {
-      uidMap = mapping;
-      gidMap = mapping;
-    };
+    users.sampleuser =
+      let
+        mapping = [ "0:666000:65536" ];
+      in
+      {
+        uidMap = mapping;
+        gidMap = mapping;
+      };
 
     containers.simple = {
       config =

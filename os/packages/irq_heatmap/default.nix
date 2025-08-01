@@ -1,4 +1,9 @@
-{ pkgs, getopt, fetchFromGitHub, ... }:
+{
+  pkgs,
+  getopt,
+  fetchFromGitHub,
+  ...
+}:
 pkgs.stdenv.mkDerivation rec {
   name = "irq_heatmap";
   version = "1.3";
@@ -9,7 +14,8 @@ pkgs.stdenv.mkDerivation rec {
     sha256 = "sha256-2a2rmW9k5Ha+cEDXCHtU1QSAqL0w4EyVZbEUhXWyh2o=";
   };
   buildInputs = with pkgs; [
-    gnumake numactl
+    gnumake
+    numactl
   ];
   buildPhase = ''
     make -j$NIX_BUILD_CORES

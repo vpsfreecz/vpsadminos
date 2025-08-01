@@ -1,4 +1,9 @@
-{ lib, config, pkgs, ... }:
+{
+  lib,
+  config,
+  pkgs,
+  ...
+}:
 with lib;
 
 let
@@ -41,7 +46,10 @@ let
       };
 
       killMode = mkOption {
-        type = types.enum [ "control-group" "process" ];
+        type = types.enum [
+          "control-group"
+          "process"
+        ];
         default = "control-group";
         description = ''
           Specifies how should processes started by this service be killed.
@@ -61,7 +69,11 @@ let
       };
 
       onChange = mkOption {
-        type = types.enum [ "restart" "reload" "ignore" ];
+        type = types.enum [
+          "restart"
+          "reload"
+          "ignore"
+        ];
         default = "restart";
         description = ''
           The action switch-to-configuration should perform when the service is
@@ -192,40 +204,48 @@ let
     "exit" = "x";
   };
 
-  controlOption = name: mkOption {
-    type = types.nullOr types.str;
-    default = null;
-    description = ''
-      Override runsv control for ${name}
+  controlOption =
+    name:
+    mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      description = ''
+        Override runsv control for ${name}
 
-      If the script exits with <literal>0</literal>, runsv refrains from sending
-      the service the corresponding signal. See man runsv(8) for more information.
-    '';
-  };
+        If the script exits with <literal>0</literal>, runsv refrains from sending
+        the service the corresponding signal. See man runsv(8) for more information.
+      '';
+    };
 
   controlsOptions = mapAttrs (name: c: controlOption name) controls;
 
-  helpers = name: pkgs.replaceVarsWith {
-    src = ./helpers.sh;
-    name = "service-helpers";
-    replacements = {
-      osctl = "${pkgs.osctl}/bin/osctl";
+  helpers =
+    name:
+    pkgs.replaceVarsWith {
+      src = ./helpers.sh;
+      name = "service-helpers";
+      replacements = {
+        osctl = "${pkgs.osctl}/bin/osctl";
+      };
     };
-  };
 
   serviceCGroup = name: "/run/runit/cgroup.service/${name}";
 
-  mkScript = name: script: pkgs.writeScript name
-    ''
-    #!${pkgs.stdenv.shell}
-    ${script}
+  mkScript =
+    name: script:
+    pkgs.writeScript name ''
+      #!${pkgs.stdenv.shell}
+      ${script}
     '';
 
   mkStage = type: script: mkScript "runit-stage-${type}" script;
 
-  mkService = name: type: script: mkScript "sv-${name}-${type}" script;
+  mkService =
+    name: type: script:
+    mkScript "sv-${name}-${type}" script;
 
-  mkServiceRun = name: service:
+  mkServiceRun =
+    name: service:
     mkService name "run" ''
       mkdir -p "${serviceCGroup name}"
       echo $$ >> "${serviceCGroup name}/cgroup.procs"
@@ -233,14 +253,15 @@ let
       ${optionalString service.includeHelpers "source ./helpers"}
       ${service.run}
       ${optionalString service.oneShot ''
-      echo "Service ${name} successfully finished"
-      mkdir -p /run/service/${name}
-      touch /run/service/${name}/done
-      sv once ${name}
+        echo "Service ${name} successfully finished"
+        mkdir -p /run/service/${name}
+        touch /run/service/${name}/done
+        sv once ${name}
       ''}
     '';
 
-  mkServiceCheck = name: service:
+  mkServiceCheck =
+    name: service:
     mkService name "check" ''
       test -f "/run/service/${name}/done"
     '';
@@ -256,91 +277,118 @@ let
     [ -n "$pids" ] && kill -SIGTERM $pids
   '';
 
-  mkServiceFinish = name: service:
+  mkServiceFinish =
+    name: service:
     mkService name "finish" ''
       ${optionalString (service.killMode == "control-group") ''
-      ${killCGroup} ${serviceCGroup name}
+        ${killCGroup} ${serviceCGroup name}
       ''}
       ${service.finish}
     '';
 
-  mkControlScript = name: action: script:
+  mkControlScript =
+    name: action: script:
     mkService name "control-${action}" script;
 
-  mkLogRun = name: service:
-    if service.log.run == "" then ''
-      mkdir -p /var/log/${name}
-      chown log /var/log/${name}
-      ln -sf ${mkLogConfig name service} /var/log/${name}/config
-      exec chpst -ulog svlogd -l 4000 -b 4096 -tt /var/log/${name}
-    '' else service.log.run;
+  mkLogRun =
+    name: service:
+    if service.log.run == "" then
+      ''
+        mkdir -p /var/log/${name}
+        chown log /var/log/${name}
+        ln -sf ${mkLogConfig name service} /var/log/${name}/config
+        exec chpst -ulog svlogd -l 4000 -b 4096 -tt /var/log/${name}
+      ''
+    else
+      service.log.run;
 
-  mkLogLinePrefix = name: service:
+  mkLogLinePrefix =
+    name: service:
     if isNull service.log.linePrefix then
       "${config.networking.hostName} ${name} "
     else
       service.log.linePrefix;
 
-  mkLogConfig = name: service:
+  mkLogConfig =
+    name: service:
     pkgs.writeText "sv-${name}-log-config" ''
       s${toString service.log.maxFileSize}
       n${toString service.log.logFiles}
       ${optionalString (service.log.minLogFiles > 0) "N${toString service.log.minLogFiles}"}
       ${optionalString (service.log.timeout > 0) "t${toString service.log.timeout}"}
-      ${optionalString (service.log.sendTo != "") "${if service.log.sendOnly then "U" else "u"}${service.log.sendTo}"}
+      ${optionalString (service.log.sendTo != "")
+        "${if service.log.sendOnly then "U" else "u"}${service.log.sendTo}"
+      }
       ${optionalString (service.log.linePrefix != "") "p${mkLogLinePrefix name service}"}
     '';
 
-  runlevels = lib.unique (lib.flatten (mapAttrsToList (name: service: service.runlevels) config.runit.services));
+  runlevels = lib.unique (
+    lib.flatten (mapAttrsToList (name: service: service.runlevels) config.runit.services)
+  );
 
-  runlevelServices = rv: lib.remove null (mapAttrsToList (name: service:
-    if elem rv service.runlevels then
-      name
-    else
-      null
-  ) config.runit.services);
+  runlevelServices =
+    rv:
+    lib.remove null (
+      mapAttrsToList (
+        name: service: if elem rv service.runlevels then name else null
+      ) config.runit.services
+    );
 
-  mkControls = name: service: mapAttrsToList (action: script:
-    mkIf (script != null) {
-      "runit/services/${name}/control/${controls.${action}}".source =
-        mkControlScript name action script;
-    }
-  ) service.control;
-
-  mkServices = mkMerge (mapAttrsToList (name: service:
-    mkMerge ([
-      {
-        "runit/services/${name}/run".source = mkServiceRun name service;
+  mkControls =
+    name: service:
+    mapAttrsToList (
+      action: script:
+      mkIf (script != null) {
+        "runit/services/${name}/control/${controls.${action}}".source = mkControlScript name action script;
       }
+    ) service.control;
 
-      (mkIf (service.finish != "" || service.killMode == "control-group") {
-        "runit/services/${name}/finish".source = mkServiceFinish name service;
-      })
+  mkServices = mkMerge (
+    mapAttrsToList (
+      name: service:
+      mkMerge (
+        [
+          {
+            "runit/services/${name}/run".source = mkServiceRun name service;
+          }
 
-      (mkIf (service.check != "" || service.oneShot) {
-        "runit/services/${name}/check".source =
-          if service.check != "" then
-            mkService name "check" service.check
-          else mkServiceCheck name service;
-      })
+          (mkIf (service.finish != "" || service.killMode == "control-group") {
+            "runit/services/${name}/finish".source = mkServiceFinish name service;
+          })
 
-      (mkIf service.includeHelpers {
-        "runit/services/${name}/helpers".source = helpers name;
-      })
+          (mkIf (service.check != "" || service.oneShot) {
+            "runit/services/${name}/check".source =
+              if service.check != "" then mkService name "check" service.check else mkServiceCheck name service;
+          })
 
-      (mkIf (service.log.enable) {
-        "runit/services/${name}/log/run".source = mkService name "log-run" (mkLogRun name service);
-      })
-    ] ++ (mkControls name service))
-  ) config.runit.services);
+          (mkIf service.includeHelpers {
+            "runit/services/${name}/helpers".source = helpers name;
+          })
 
-  mkRunlevels = mkMerge (flatten (map (rv:
-    map (name:
-      { "runit/runsvdir/${rv}/${name}".source = "/etc/runit/services/${name}"; }
-    ) (runlevelServices rv)
-  ) runlevels));
+          (mkIf (service.log.enable) {
+            "runit/services/${name}/log/run".source = mkService name "log-run" (mkLogRun name service);
+          })
+        ]
+        ++ (mkControls name service)
+      )
+    ) config.runit.services
+  );
 
-  mkEnvironment = mkMerge [mkServices mkRunlevels];
+  mkRunlevels = mkMerge (
+    flatten (
+      map (
+        rv:
+        map (name: { "runit/runsvdir/${rv}/${name}".source = "/etc/runit/services/${name}"; }) (
+          runlevelServices rv
+        )
+      ) runlevels
+    )
+  );
+
+  mkEnvironment = mkMerge [
+    mkServices
+    mkRunlevels
+  ];
 
   haltReasonTemplate =
     { config, ... }:
@@ -373,15 +421,18 @@ let
       };
     };
 
-  mkHaltReason = name: tpl:
+  mkHaltReason =
+    name: tpl:
     if isNull tpl.text then
       { inherit (tpl) enable source; }
-    else {
-      inherit (tpl) enable;
-      source = pkgs.writeText "halt-reason-${name}" tpl.text;
-    };
+    else
+      {
+        inherit (tpl) enable;
+        source = pkgs.writeText "halt-reason-${name}" tpl.text;
+      };
 
-  mkHaltReasons = tpls: mapAttrs' (k: v: nameValuePair "runit/halt.reason.d/${k}" (mkHaltReason k v)) tpls;
+  mkHaltReasons =
+    tpls: mapAttrs' (k: v: nameValuePair "runit/halt.reason.d/${k}" (mkHaltReason k v)) tpls;
 
   haltHook =
     { config, ... }:
@@ -406,7 +457,8 @@ let
 
   mkHaltHook = name: hook: { inherit (hook) enable source; };
 
-  mkHaltHooks = hooks: mapAttrs' (k: v: nameValuePair "runit/halt.hook.d/${k}" (mkHaltHook k v)) hooks;
+  mkHaltHooks =
+    hooks: mapAttrs' (k: v: nameValuePair "runit/halt.hook.d/${k}" (mkHaltHook k v)) hooks;
 
   haltScript = pkgs.replaceVarsWith {
     src = ./halt.rb;
@@ -416,7 +468,7 @@ let
     };
   };
 
-  haltBin = pkgs.runCommand "halt" {} ''
+  haltBin = pkgs.runCommand "halt" { } ''
     mkdir -p $out/bin
     ln -s ${haltScript} $out/bin/halt
 
@@ -476,19 +528,19 @@ in
 
     runit.services = mkOption {
       type = types.attrsOf (types.submodule service);
-      default = {};
+      default = { };
       description = "System services";
     };
 
     runit.halt.reasonTemplates = mkOption {
       type = types.attrsOf (types.submodule haltReasonTemplate);
-      default = {};
+      default = { };
       description = "Halt reason templates";
     };
 
     runit.halt.hooks = mkOption {
       type = types.attrsOf (types.submodule haltHook);
-      default = {};
+      default = { };
       description = ''
         Halt hooks
 
@@ -504,7 +556,7 @@ in
         uid = 497;
         group = "log";
       };
-      users.groups.log = {};
+      users.groups.log = { };
 
       environment.etc = {
         "runit/1".source = mkStage "1" config.runit.stage1;
@@ -513,9 +565,12 @@ in
       };
     }
 
-    (mkIf (config.runit.services != {}) {
+    (mkIf (config.runit.services != { }) {
       environment.etc = mkEnvironment;
-      environment.systemPackages = [ pkgs.svctl haltBin ];
+      environment.systemPackages = [
+        pkgs.svctl
+        haltBin
+      ];
     })
 
     {

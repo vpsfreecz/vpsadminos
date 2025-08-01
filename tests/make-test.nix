@@ -1,19 +1,25 @@
 testFn:
-{ configuration ? let cfg = builtins.getEnv "VPSADMINOS_CONFIG"; in if cfg == "" then null else import cfg
-, pkgs ? <nixpkgs>
+{
+  configuration ?
+    let
+      cfg = builtins.getEnv "VPSADMINOS_CONFIG";
+    in
+    if cfg == "" then null else import cfg,
+  pkgs ? <nixpkgs>,
   # extra modules to include
-, modules ? []
+  modules ? [ ],
   # extra arguments to be passed to modules
-, extraArgs ? {}
+  extraArgs ? { },
   # arguments passed to the test function
-, testArgs ? null
-, testArgsInJson ? null
+  testArgs ? null,
+  testArgsInJson ? null,
   # target system
-, system ? builtins.currentSystem }:
+  system ? builtins.currentSystem,
+}:
 let
   nixpkgs = import pkgs {
     inherit system;
-    config = {};
+    config = { };
     overlays = [ (import ../os/overlays/packages.nix) ];
   };
 
@@ -25,67 +31,84 @@ let
     else if !(isNull testArgsInJson) then
       builtins.fromJSON testArgsInJson
     else
-      {};
+      { };
 
   testAttrs = testFn ({ pkgs = nixpkgs; } // effectiveTestArgs);
 
-  machineOs = cfg: import ../os {
-    inherit configuration pkgs extraArgs system;
-    modules = modules ++ [ cfg ];
-  };
+  machineOs =
+    cfg:
+    import ../os {
+      inherit
+        configuration
+        pkgs
+        extraArgs
+        system
+        ;
+      modules = modules ++ [ cfg ];
+    };
 
   machineAttrs =
     if lib.hasAttr "machine" testAttrs then
       { machine = testAttrs.machine; }
     else if lib.hasAttr "machines" testAttrs then
       testAttrs.machines
-    else { machine = {}; };
+    else
+      { machine = { }; };
 
-  machineTestConfig = machineAttrs: os:
+  machineTestConfig =
+    machineAttrs: os:
     let
       qemuCfg = os.config.boot.qemu;
-    in {
-      qemu = toString (nixpkgs.pkgs.qemu_kvm.override {
-        hostCpuOnly = true;
-        nixosTestRunner = true;
-      });
+    in
+    {
+      qemu = toString (
+        nixpkgs.pkgs.qemu_kvm.override {
+          hostCpuOnly = true;
+          nixosTestRunner = true;
+        }
+      );
       virtiofsd = toString nixpkgs.pkgs.virtiofsd;
       memory = qemuCfg.memory;
       cpus = qemuCfg.cpus;
       cpu = qemuCfg.cpu;
-      disks = machineAttrs.disks or [];
+      disks = machineAttrs.disks or [ ];
       networks = machineAttrs.networks or [ { type = "user"; } ];
       squashfs = os.config.system.build.squashfs;
       kernel = "${os.config.system.build.kernel}/bzImage";
       initrd = "${os.config.system.build.initialRamdisk}/initrd";
       toplevel = os.config.system.build.toplevel;
-      kernelParams = os.config.boot.kernelParams ++ [ "quiet" "panic=-1" ];
+      kernelParams = os.config.boot.kernelParams ++ [
+        "quiet"
+        "panic=-1"
+      ];
     };
 
-  machineTestConfigs = lib.mapAttrs (name: machine:
-    machineTestConfig machine (machineOs machine.config)
+  machineTestConfigs = lib.mapAttrs (
+    name: machine: machineTestConfig machine (machineOs machine.config)
   ) machineAttrs;
 
-  testScripts = testAttrs.testScripts or {
-    default = {
-      script = testAttrs.testScript;
-      tags = [];
-      labels = {};
+  testScripts =
+    testAttrs.testScripts or {
+      default = {
+        script = testAttrs.testScript;
+        tags = [ ];
+        labels = { };
+      };
     };
-  };
 
   testConfig = {
     inherit (testAttrs) name description;
     expectFailure = testAttrs.expectFailure or false;
     attempts = testAttrs.attempts or 1;
     machines = machineTestConfigs;
-    tags = testAttrs.tags or [];
-    labels = testAttrs.labels or {};
+    tags = testAttrs.tags or [ ];
+    labels = testAttrs.labels or { };
     inherit testScripts;
   };
 
   jsonConfig = nixpkgs.pkgs.writeText "os-test-${testAttrs.name}.json" (builtins.toJSON testConfig);
-in {
+in
+{
   config = testConfig;
   json = jsonConfig;
 }

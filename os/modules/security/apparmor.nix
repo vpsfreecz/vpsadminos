@@ -1,9 +1,17 @@
 { config, lib, ... }:
 let
-  inherit (lib) literalExpression mdDoc mkAfter mkIf mkOption types;
+  inherit (lib)
+    literalExpression
+    mdDoc
+    mkAfter
+    mkIf
+    mkOption
+    types
+    ;
 
   cfg = config.security.apparmor;
-in {
+in
+{
   options = {
     security.apparmor = {
       enableOnBoot = mkOption {
@@ -21,6 +29,9 @@ in {
   };
 
   config = mkIf (cfg.enable && !cfg.enableOnBoot) {
-    boot.kernelParams = mkAfter [ "apparmor=0" "security=none" ];
+    boot.kernelParams = mkAfter [
+      "apparmor=0"
+      "security=none"
+    ];
   };
 }

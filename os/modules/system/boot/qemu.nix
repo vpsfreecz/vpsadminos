@@ -1,4 +1,9 @@
-{ pkgs, config, lib, ... }:
+{
+  pkgs,
+  config,
+  lib,
+  ...
+}:
 with lib;
 let
   cfg = config.boot.qemu;
@@ -18,7 +23,10 @@ let
         };
 
         type = mkOption {
-          type = types.enum [ "file" "blockdev" ];
+          type = types.enum [
+            "file"
+            "blockdev"
+          ];
           description = "Device type";
         };
 
@@ -65,7 +73,11 @@ let
     {
       options = {
         type = mkOption {
-          type = types.enum [ "user" "socket" "bridge" ];
+          type = types.enum [
+            "user"
+            "socket"
+            "bridge"
+          ];
           description = lib.mdDoc ''
             Network type
 
@@ -120,7 +132,12 @@ let
 
             port = mkOption {
               type = types.oneOf [
-                (types.enum [ "net1" "net2" "net3" "net4" ])
+                (types.enum [
+                  "net1"
+                  "net2"
+                  "net3"
+                  "net4"
+                ])
                 types.ints.positive
               ];
               default = "net1";
@@ -152,10 +169,15 @@ let
       };
     };
 
-  mkSharedFileSystems = listToAttrs (map (fs: nameValuePair fs.guestPath {
-    device = fs.handle;
-    fsType = "virtiofs";
-  }) cfg.sharedFileSystems);
+  mkSharedFileSystems = listToAttrs (
+    map (
+      fs:
+      nameValuePair fs.guestPath {
+        device = fs.handle;
+        fsType = "virtiofs";
+      }
+    ) cfg.sharedFileSystems
+  );
 
   machineConfig = {
     qemu = toString qemu;
@@ -165,7 +187,9 @@ let
     cpus = cfg.cpus;
     cpu = cfg.cpu;
     disks = cfg.disks;
-    sharedFileSystems = listToAttrs (map (fs: nameValuePair fs.handle fs.hostPath) cfg.sharedFileSystems);
+    sharedFileSystems = listToAttrs (
+      map (fs: nameValuePair fs.handle fs.hostPath) cfg.sharedFileSystems
+    );
     squashfs = config.system.build.squashfs;
     kernel = "${config.system.build.kernel}/bzImage";
     initrd = "${config.system.build.initialRamdisk}/initrd";
@@ -173,11 +197,22 @@ let
     kernelParams = config.boot.kernelParams ++ [ "panic=-1" ];
     networks = map (net: {
       type = net.type;
-      opts = {
-        user = { inherit (net.user) network host dns hostForward; };
-        socket = { mcast = { inherit (net.socket.mcast) address port; }; };
-        bridge = { inherit (net.bridge) link mac; };
-      }.${net.type} or {};
+      opts =
+        {
+          user = {
+            inherit (net.user)
+              network
+              host
+              dns
+              hostForward
+              ;
+          };
+          socket = {
+            mcast = { inherit (net.socket.mcast) address port; };
+          };
+          bridge = { inherit (net.bridge) link mac; };
+        }
+        .${net.type} or { };
     }) cfg.networks;
   };
 
@@ -198,7 +233,8 @@ let
     machine.finalize
     machine.cleanup
   '';
-in {
+in
+{
   options = {
     boot.qemu = {
       enable = mkOption {
@@ -247,14 +283,19 @@ in {
       disks = mkOption {
         type = types.listOf (types.submodule qemuDisk);
         default = [
-          { device = "sda.img"; type = "file"; size = "8G"; create = true; }
+          {
+            device = "sda.img";
+            type = "file";
+            size = "8G";
+            create = true;
+          }
         ];
         description = "Disks available within the VM";
       };
 
       sharedFileSystems = mkOption {
         type = types.listOf (types.submodule sharedFileSystem);
-        default = [];
+        default = [ ];
         description = "Filesystems shared between the host and the VM (the guest)";
       };
 
@@ -270,7 +311,7 @@ in {
 
       extraQemuOptions = mkOption {
         type = types.listOf types.str;
-        default = [];
+        default = [ ];
         description = "Extra command-line arguments passed to qemu";
       };
 
@@ -298,24 +339,29 @@ in {
 
       system.build.runvmScript =
         let
-          diskPath = disk:
-            if hasPrefix "/" disk.device then
-              disk.device
-            else "${cfg.stateDir}/${disk.device}";
+          diskPath =
+            disk: if hasPrefix "/" disk.device then disk.device else "${cfg.stateDir}/${disk.device}";
 
-          diskParams = (flatten (imap0 (i: disk: [
-            "-drive id=disk${toString i},file=${diskPath disk},if=none,format=raw"
-            "-device ide-hd,drive=disk${toString i},bus=ahci.${toString i}"
-          ]) cfg.disks));
-        in pkgs.writeScript "vpsadminos-qemu-runner.sh" ''
+          diskParams = (
+            flatten (
+              imap0 (i: disk: [
+                "-drive id=disk${toString i},file=${diskPath disk},if=none,format=raw"
+                "-device ide-hd,drive=disk${toString i},bus=ahci.${toString i}"
+              ]) cfg.disks
+            )
+          );
+        in
+        pkgs.writeScript "vpsadminos-qemu-runner.sh" ''
           #!${pkgs.stdenv.shell}
           mkdir -p "${cfg.stateDir}"
 
-          ${concatStringsSep "\n" (map (disk: ''
-            devicePath="${disk.device}"
-            [[ "$devicePath" == /* ]] || devicePath="${cfg.stateDir}/$devicePath"
-            [ ! -f "$devicePath" ] && truncate -s${toString disk.size} "$devicePath"
-          '') (filter (disk: disk.type == "file" && disk.create) cfg.disks))}
+          ${concatStringsSep "\n" (
+            map (disk: ''
+              devicePath="${disk.device}"
+              [[ "$devicePath" == /* ]] || devicePath="${cfg.stateDir}/$devicePath"
+              [ ! -f "$devicePath" ] && truncate -s${toString disk.size} "$devicePath"
+            '') (filter (disk: disk.type == "file" && disk.create) cfg.disks)
+          )}
 
           exec ${qemu}/bin/qemu-kvm -name vpsadminos -m ${toString cfg.memory} \
             -cpu host \
@@ -336,7 +382,7 @@ in {
       fileSystems = mkSharedFileSystems;
     })
 
-    (mkIf (cfg.enable && cfg.sharedFileSystems != []) {
+    (mkIf (cfg.enable && cfg.sharedFileSystems != [ ]) {
       system.activationScripts.qemu-sharedFileSystems =
         "mkdir -p " + concatMapStringsSep " " (fs: "\"${fs.guestPath}\"") cfg.sharedFileSystems;
     })

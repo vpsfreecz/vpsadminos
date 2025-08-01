@@ -4,5 +4,5 @@
 with lib;
 
 {
-  imports = [];
+  imports = [ ];
 }

@@ -1,4 +1,10 @@
-{ config, lib, pkgs, utils, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  utils,
+  ...
+}:
 with utils;
 with lib;
 
@@ -7,12 +13,16 @@ let
 
   fileNames = map (v: "\"${v}\"");
 
-  genLogFiles = logFiles: concatStringsSep "\n\n" (map (log: ''
-    ${concatStringsSep "\n" (fileNames log.files)}
-    {
-      ${log.config}
-    }
-  '') logFiles);
+  genLogFiles =
+    logFiles:
+    concatStringsSep "\n\n" (
+      map (log: ''
+        ${concatStringsSep "\n" (fileNames log.files)}
+        {
+          ${log.config}
+        }
+      '') logFiles
+    );
 
   configFile = pkgs.writeText "logrotate.conf" ''
     ${genLogFiles cfg.logFiles}
@@ -23,7 +33,10 @@ let
     options = {
       files = mkOption {
         type = types.listOf types.str;
-        example = [ "/var/log/messages" "/var/log/*.log" ];
+        example = [
+          "/var/log/messages"
+          "/var/log/*.log"
+        ];
         description = "Files to rotate";
       };
 
@@ -52,7 +65,7 @@ in
 
         logFiles = mkOption {
           type = types.listOf (types.submodule mkLogFiles);
-          default = [];
+          default = [ ];
         };
 
         extraConfig = mkOption {

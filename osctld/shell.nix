@@ -42,7 +42,8 @@ let
 
   jsonConfigFile = pkgs.writeText "osctld-config.json" (builtins.toJSON osctldConfig);
 
-in stdenv.mkDerivation rec {
+in
+stdenv.mkDerivation rec {
   name = "osctld";
 
   buildInputs = [

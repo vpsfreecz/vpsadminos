@@ -1,8 +1,14 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 with lib;
 let
   cfg = config.services.bird2;
-in {
+in
+{
   options = {
     services.bird2 = {
       enable = mkEnableOption "BIRD Internet Routing Daemon";
@@ -83,7 +89,10 @@ in {
         ${cfg.preStartCommands}
         exec ${pkgs.bird2}/bin/bird -c /etc/bird2.conf -u ${cfg.user} -g ${cfg.group} -f
       '';
-      runlevels = [ "rescue" "default" ];
+      runlevels = [
+        "rescue"
+        "default"
+      ];
       onChange = mkDefault "ignore";
     };
 
@@ -93,7 +102,7 @@ in {
         description = "BIRD Internet Routing Daemon user";
         group = cfg.group;
       };
-      groups.${cfg.group} = {};
+      groups.${cfg.group} = { };
     };
   };
 }

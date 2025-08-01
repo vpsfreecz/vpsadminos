@@ -1,4 +1,9 @@
-{ pkgs, getopt, fetchFromGitHub, ... }:
+{
+  pkgs,
+  getopt,
+  fetchFromGitHub,
+  ...
+}:
 pkgs.stdenv.mkDerivation rec {
   name = "kpatch-build";
   version = "0.9.9";

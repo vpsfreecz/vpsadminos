@@ -1,8 +1,15 @@
-{ config, lib, pkgs, utils, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  utils,
+  ...
+}:
 with lib;
 let
   cfg = config.osctl.test-shell;
-in {
+in
+{
   ###### interface
 
   options = {

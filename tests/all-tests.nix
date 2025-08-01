@@ -1,9 +1,9 @@
 {
   pkgs ? <nixpkgs>,
-  system ? builtins.currentSystem
+  system ? builtins.currentSystem,
 }:
 let
-  nixpkgs = import pkgs {};
+  nixpkgs = import pkgs { };
   lib = nixpkgs.lib;
 
   distributions = import ./distributions.nix { inherit lib; };
@@ -12,27 +12,44 @@ let
     let
       entriesAttrs = builtins.readDir ../image-scripts/images;
 
-      scriptsAttrs = lib.filterAttrs (name: type:
-        type == "symlink" || (type == "directory" && !(builtins.pathExists (../image-scripts/images + "/${name}/abstract")))
+      scriptsAttrs = lib.filterAttrs (
+        name: type:
+        type == "symlink"
+        || (type == "directory" && !(builtins.pathExists (../image-scripts/images + "/${name}/abstract")))
       ) entriesAttrs;
 
       scriptsList = lib.mapAttrsToList (name: type: { image-script = name; }) scriptsAttrs;
-    in scriptsList;
+    in
+    scriptsList;
 
-  makeSingleTest = { test, args ? {} }: {
-    name = test;
-    value = {
-      type = "single";
-      test = import (./suite + "/${test}.nix") { inherit pkgs system; testArgs = args; };
-      testArgs = args;
+  makeSingleTest =
+    {
+      test,
+      args ? { },
+    }:
+    {
+      name = test;
+      value = {
+        type = "single";
+        test = import (./suite + "/${test}.nix") {
+          inherit pkgs system;
+          testArgs = args;
+        };
+        testArgs = args;
+      };
     };
-  };
 
-  makeTemplateTest = { template, instances }:
-    map (args:
+  makeTemplateTest =
+    { template, instances }:
+    map (
+      args:
       let
-        t = import (./suite + "/${template}.nix") { templateArgs = args; inherit pkgs system; };
-      in {
+        t = import (./suite + "/${template}.nix") {
+          templateArgs = args;
+          inherit pkgs system;
+        };
+      in
+      {
         name = "${template}@${t.instance}";
         value = {
           type = "template";
@@ -43,29 +60,60 @@ let
       }
     ) instances;
 
-  makeTest = v:
+  makeTest =
+    v:
     if builtins.isAttrs v then
-      if builtins.hasAttr "template" v then
-        makeTemplateTest v
-      else makeSingleTest v
-    else makeSingleTest { test = v; };
+      if builtins.hasAttr "template" v then makeTemplateTest v else makeSingleTest v
+    else
+      makeSingleTest { test = v; };
 
   tests = list: builtins.listToAttrs (lib.flatten (map makeTest list));
-in tests [
+in
+tests [
   "cgroups/devices-v1"
   "cgroups/devices-v2"
-  { test = "cgroups/mount-v1"; args = { distributions = distributions.all; }; }
-  { test = "cgroups/mount-v2"; args = { distributions = distributions.cgroupv2; }; }
+  {
+    test = "cgroups/mount-v1";
+    args = {
+      distributions = distributions.all;
+    };
+  }
+  {
+    test = "cgroups/mount-v2";
+    args = {
+      distributions = distributions.cgroupv2;
+    };
+  }
   "cgroups/system-v1"
   "cgroups/system-v2"
   "crashdump"
   "ctstartmenu/setup"
   "declarative-containers"
   "defaults"
-  { test = "dist-config/netif-routed"; args = { distributions = distributions.all; }; }
-  { test = "dist-config/nonsystemd-rundir"; args = { distributions = distributions.non-systemd; }; }
-  { test = "dist-config/start-stop"; args = { distributions = distributions.all; }; }
-  { test = "dist-config/systemd-rundir"; args = { distributions = distributions.systemd; }; }
+  {
+    test = "dist-config/netif-routed";
+    args = {
+      distributions = distributions.all;
+    };
+  }
+  {
+    test = "dist-config/nonsystemd-rundir";
+    args = {
+      distributions = distributions.non-systemd;
+    };
+  }
+  {
+    test = "dist-config/start-stop";
+    args = {
+      distributions = distributions.all;
+    };
+  }
+  {
+    test = "dist-config/systemd-rundir";
+    args = {
+      distributions = distributions.systemd;
+    };
+  }
   "dist-config/systemd-rundir-limits"
   "docker/almalinux-8"
   "docker/almalinux-9"
@@ -78,7 +126,10 @@ in tests [
   "docker/ubuntu-22.04"
   "docker/ubuntu-24.04"
   "driver"
-  { template = "image-scripts/test"; instances = imageScripts; }
+  {
+    template = "image-scripts/test";
+    instances = imageScripts;
+  }
   "kernel/cpu-view/cgroups-v1"
   "kernel/cpu-view/cgroups-v2"
   "kernel/loadavg"
@@ -109,7 +160,12 @@ in tests [
   "snap/lxd-fedora"
   "snap/lxd-ubuntu"
   "systemd/credentials"
-  { test = "systemd/device-units"; args = { distributions = distributions.systemd; }; }
+  {
+    test = "systemd/device-units";
+    args = {
+      distributions = distributions.systemd;
+    };
+  }
   "zfs/mmap-nosync"
   "zfs/overlayfs-deadlock"
   "zfs/ugidmap"

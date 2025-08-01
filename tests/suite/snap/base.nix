@@ -1,43 +1,54 @@
-{ name, description, distribution, version, preSetupScript ? "", setupScript, testScript }:
-import ../../make-test.nix ({ pkgs }: {
-  name = "snap-${name}-${distribution}-${version}";
+{
+  name,
+  description,
+  distribution,
+  version,
+  preSetupScript ? "",
+  setupScript,
+  testScript,
+}:
+import ../../make-test.nix (
+  { pkgs }:
+  {
+    name = "snap-${name}-${distribution}-${version}";
 
-  description = ''
-    Test ${description} on ${distribution} ${version}
-  '';
+    description = ''
+      Test ${description} on ${distribution} ${version}
+    '';
 
-  tags = [ "ci" ];
+    tags = [ "ci" ];
 
-  attempts = 3;
+    attempts = 3;
 
-  machine = import ../../machines/tank.nix pkgs;
+    machine = import ../../machines/tank.nix pkgs;
 
-  testScript = ''
-    machine.start
-    machine.wait_for_osctl_pool("tank")
-    machine.wait_until_online
+    testScript = ''
+      machine.start
+      machine.wait_for_osctl_pool("tank")
+      machine.wait_until_online
 
-    ${preSetupScript}
+      ${preSetupScript}
 
-    machine.all_succeed(
-      "osctl ct new --distribution ${distribution} --version ${version} snapct",
-      "osctl ct unset start-menu snapct",
-      "osctl ct netif new bridge --link lxcbr0 snapct eth0",
-      "osctl ct devices add -p snapct char 10 229 rwm /dev/fuse",
+      machine.all_succeed(
+        "osctl ct new --distribution ${distribution} --version ${version} snapct",
+        "osctl ct unset start-menu snapct",
+        "osctl ct netif new bridge --link lxcbr0 snapct eth0",
+        "osctl ct devices add -p snapct char 10 229 rwm /dev/fuse",
 
-      # TODO: why is this needed?
-      "osctl ct set dns-resolver snapct 1.1.1.1",
+        # TODO: why is this needed?
+        "osctl ct set dns-resolver snapct 1.1.1.1",
 
-      "osctl ct start snapct",
-    )
+        "osctl ct start snapct",
+      )
 
-    machine.wait_until_container_online('snapct')
+      machine.wait_until_container_online('snapct')
 
-    ${setupScript}
+      ${setupScript}
 
-    sleep(15)
-    machine.succeeds("osctl ct exec snapct snap wait system seed.loaded")
+      sleep(15)
+      machine.succeeds("osctl ct exec snapct snap wait system seed.loaded")
 
-    ${testScript}
-  '';
-})
+      ${testScript}
+    '';
+  }
+)

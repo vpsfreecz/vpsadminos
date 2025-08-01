@@ -1,12 +1,18 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 with lib;
 let
   cfg = config.system.boot.restrict-proc-sysfs;
 
-  restrictProcSysfs = pkgs.callPackage ./restrict-dirs.nix {};
+  restrictProcSysfs = pkgs.callPackage ./restrict-dirs.nix { };
 
   configFile = pkgs.writeText "restrict-proc-sysfs-config.txt" cfg.config;
-in {
+in
+{
   options = {
     system.boot.restrict-proc-sysfs = {
       enable = mkOption {

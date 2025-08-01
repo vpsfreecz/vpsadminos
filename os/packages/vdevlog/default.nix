@@ -1,4 +1,9 @@
-{ ruby, runCommand, replaceVarsWith, asciidoctor }:
+{
+  ruby,
+  runCommand,
+  replaceVarsWith,
+  asciidoctor,
+}:
 let
   vdevlog = replaceVarsWith {
     name = "vdevlog";
@@ -8,7 +13,8 @@ let
       inherit ruby;
     };
   };
-in runCommand "vdevlog" {} ''
+in
+runCommand "vdevlog" { } ''
   mkdir -p $out/bin
   ln -s ${vdevlog} $out/bin/vdevlog
 

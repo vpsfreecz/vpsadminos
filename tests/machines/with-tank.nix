@@ -1,7 +1,11 @@
 { pkgs, config }:
 {
   disks = [
-    { type = "file"; device = "{machine}-sda.img"; size = "10G"; }
+    {
+      type = "file";
+      device = "{machine}-sda.img";
+      size = "10G";
+    }
   ];
 
   config = {

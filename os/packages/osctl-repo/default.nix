@@ -1,4 +1,8 @@
-{ pkgs, lib, bundlerApp }:
+{
+  pkgs,
+  lib,
+  bundlerApp,
+}:
 
 bundlerApp {
   pname = "osctl-repo";
@@ -7,9 +11,9 @@ bundlerApp {
 
   meta = with lib; {
     description = "";
-    homepage    = https://github.com/vpsfreecz/vpsadminos;
-    license     = licenses.mit;
-    maintainers = [];
-    platforms   = platforms.unix;
+    homepage = "https://github.com/vpsfreecz/vpsadminos";
+    license = licenses.mit;
+    maintainers = [ ];
+    platforms = platforms.unix;
   };
 }

@@ -1,7 +1,12 @@
-{ lib, buildGoModule, fetchFromGitHub }:
+{
+  lib,
+  buildGoModule,
+  fetchFromGitHub,
+}:
 let
   rev = "0ace4c99df64f27d278be4b3852fd9988bb123c5";
-in buildGoModule {
+in
+buildGoModule {
   pname = "devcgprog";
   version = lib.substring 0 7 rev;
 
@@ -16,9 +21,9 @@ in buildGoModule {
 
   meta = with lib; {
     description = "Tool to configure cgroupv2 device controller";
-    homepage    = https://github.com/vpsfreecz/devcgprog;
-    license     = licenses.mit;
-    maintainers = [];
-    platforms   = platforms.unix;
+    homepage = "https://github.com/vpsfreecz/devcgprog";
+    license = licenses.mit;
+    maintainers = [ ];
+    platforms = platforms.unix;
   };
 }

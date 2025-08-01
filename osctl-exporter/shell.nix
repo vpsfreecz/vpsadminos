@@ -2,7 +2,8 @@ let
   pkgs = import <nixpkgs> { overlays = (import ../os/overlays); };
   stdenv = pkgs.stdenv;
 
-in stdenv.mkDerivation rec {
+in
+stdenv.mkDerivation rec {
   name = "osctl-exporter";
 
   buildInputs = [

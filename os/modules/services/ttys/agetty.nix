@@ -1,20 +1,37 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 let
-  inherit (lib) mkEnableOption mkIf mkOption types;
+  inherit (lib)
+    mkEnableOption
+    mkIf
+    mkOption
+    types
+    ;
 
   cfg = config.tty;
 
   gettyAutoLogin = if cfg.autologin.enable then "--autologin ${cfg.autologin.user}" else "";
-  gettyCmd = extraArgs: "${pkgs.util-linux}/bin/setsid ${pkgs.util-linux}/sbin/agetty ${gettyAutoLogin} --login-program ${pkgs.shadow}/bin/login ${extraArgs}";
+  gettyCmd =
+    extraArgs:
+    "${pkgs.util-linux}/bin/setsid ${pkgs.util-linux}/sbin/agetty ${gettyAutoLogin} --login-program ${pkgs.shadow}/bin/login ${extraArgs}";
 
-  mkGetty = extraArgs: termtype: tty: lib.nameValuePair "getty-${tty}"
-    {
+  mkGetty =
+    extraArgs: termtype: tty:
+    lib.nameValuePair "getty-${tty}" {
       run = ''
         ${gettyCmd "${extraArgs} --keep-baud ${tty} 115200,38400,9600 ${termtype}"}
       '';
 
-      runlevels = [ "single" "rescue" "default" ];
+      runlevels = [
+        "single"
+        "rescue"
+        "default"
+      ];
 
       onChange = "ignore";
     };
@@ -42,9 +59,9 @@ in
       autologin = {
         enable = mkEnableOption "Enable autologin on ttys";
         user = mkOption {
-         type = types.str;
-         description = "Autologin user";
-         default = "root";
+          type = types.str;
+          description = "Autologin user";
+          default = "root";
         };
       };
     };
@@ -54,8 +71,8 @@ in
   config = {
     runit.services = lib.listToAttrs (
       lib.optional (cfg.spawnStandard != 0) tty1
-      ++ map mkTTY (map (x: "tty" + toString x) (lib.range 2 cfg.spawnStandard))  # [ "tty2", "tty3" ... ]
+      ++ map mkTTY (map (x: "tty" + toString x) (lib.range 2 cfg.spawnStandard)) # [ "tty2", "tty3" ... ]
       ++ map mkSTTY (map (x: "ttyS" + toString x) (lib.range 0 cfg.spawnSerial)) # [ "ttyS0", .. ]
-      );
+    );
   };
 }

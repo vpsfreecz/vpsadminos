@@ -1,9 +1,24 @@
-{ lib, stdenv, fetchFromGitHub, meson, ninja, pkg-config, perl, docbook2x
-, docbook_xml_dtd_45, pam, glibc, openssl
+{
+  lib,
+  stdenv,
+  fetchFromGitHub,
+  meson,
+  ninja,
+  pkg-config,
+  perl,
+  docbook2x,
+  docbook_xml_dtd_45,
+  pam,
+  glibc,
+  openssl,
 
-# Optional Dependencies
-, libapparmor ? null, gnutls ? null, libselinux ? null, libseccomp ? null
-, libcap ? null, dbus ? null
+  # Optional Dependencies
+  libapparmor ? null,
+  gnutls ? null,
+  libselinux ? null,
+  libseccomp ? null,
+  libcap ? null,
+  dbus ? null,
 }:
 
 with lib;
@@ -19,12 +34,22 @@ stdenv.mkDerivation rec {
   };
 
   nativeBuildInputs = [
-    pkg-config meson ninja docbook2x
+    pkg-config
+    meson
+    ninja
+    docbook2x
   ];
 
   buildInputs = [
-    pam libapparmor gnutls libselinux libseccomp libcap openssl
-    glibc glibc.static
+    pam
+    libapparmor
+    gnutls
+    libselinux
+    libseccomp
+    libcap
+    openssl
+    glibc
+    glibc.static
   ];
 
   patchPhase = ''
@@ -38,22 +63,24 @@ stdenv.mkDerivation rec {
     sed -i 's/install: true/install: false/' doc/rootfs/meson.build
   '';
 
-  mesonFlags = [
-    "--localstatedir=/var"
-    "-Ddistrosysconfdir=${placeholder "out"}/etc/default"
-    "-Dusernet-config-path=/etc/lxc/lxc-usernet"
-    "-Dpam-cgroup=true"
-    "-Dinit-script=sysvinit"
-    (if isNull dbus then "-Ddbus=false" else "-Ddbus=true")
-  ] ++ optional (libapparmor != null) "-Dapparmor=true"
+  mesonFlags =
+    [
+      "--localstatedir=/var"
+      "-Ddistrosysconfdir=${placeholder "out"}/etc/default"
+      "-Dusernet-config-path=/etc/lxc/lxc-usernet"
+      "-Dpam-cgroup=true"
+      "-Dinit-script=sysvinit"
+      (if isNull dbus then "-Ddbus=false" else "-Ddbus=true")
+    ]
+    ++ optional (libapparmor != null) "-Dapparmor=true"
     ++ optional (libselinux != null) "-Dselinux=true"
     ++ optional (libseccomp != null) "-Dseccomp=true"
     ++ optional (libcap != null) "-Dcapabilities=true"
     ++ [
-    "-Dexamples=false"
-    (if doCheck then "-Dtests=true" else "-Dtests=false")
-    "-Drootfs-mount-path=/var/lib/lxc/rootfs"
-  ];
+      "-Dexamples=false"
+      (if doCheck then "-Dtests=true" else "-Dtests=false")
+      "-Drootfs-mount-path=/var/lib/lxc/rootfs"
+    ];
 
   postInstall = ''
     # Remove unused init-script

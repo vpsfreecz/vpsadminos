@@ -1,4 +1,10 @@
-{ config, lib, pkgs, utils, ... }@args:
+{
+  config,
+  lib,
+  pkgs,
+  utils,
+  ...
+}@args:
 #
 # todo:
 #   - crontab for scrubs, etc
@@ -9,24 +15,32 @@ with lib;
 
 let
 
-  moduleRuntimeConfigContent = module: moduleParams:
+  moduleRuntimeConfigContent =
+    module: moduleParams:
     let
       val = v: if v == false then "0" else toString v;
       f = k: "/sys/module/${module}/parameters/${k}";
     in
-      concatStrings (mapAttrsToList (n: v:
+    concatStrings (
+      mapAttrsToList (
+        n: v:
         optionalString (v != null) ''
           if [ "`cat ${f n}`" != "${val v}" ]; then
             echo ${val v} > ${f n};
           fi || true;
-        '') moduleParams);
+        ''
+      ) moduleParams
+    );
 
-  moduleModprobeConfigContent = name: optionsAttr:
-    "options ${name}" +
-      concatStrings (mapAttrsToList (n: v:
-        optionalString (v != null)
-          " ${n}=${if v == false then "0" else toString v}"
-      ) optionsAttr) + "\n";
+  moduleModprobeConfigContent =
+    name: optionsAttr:
+    "options ${name}"
+    + concatStrings (
+      mapAttrsToList (
+        n: v: optionalString (v != null) " ${n}=${if v == false then "0" else toString v}"
+      ) optionsAttr
+    )
+    + "\n";
 
   cfgZfs = config.boot.zfs;
   cfgScrub = config.services.zfs.autoScrub;
@@ -46,9 +60,9 @@ let
     zfsUser = config.boot.zfsUserPackage;
   };
 
-  partitioningSupport = elem true (mapAttrsToList (name: pool:
-    pool.partition != {}
-  ) config.boot.zfs.pools);
+  partitioningSupport = elem true (
+    mapAttrsToList (name: pool: pool.partition != { }) config.boot.zfs.pools
+  );
 
   zfsFilesystems = filter (x: x.fsType == "zfs") config.system.build.fileSystems;
 
@@ -60,10 +74,12 @@ let
 
   # safe import of ZFS pool
   # according to https://github.com/NixOS/nixpkgs/commit/cfd8c4ee88fec3a7f989663e09d8e39513b8488e
-  importLib = { cfgZfs }:
+  importLib =
+    { cfgZfs }:
     let
       devOptions = concatMapStringsSep " " (v: "-d \"${v}\"") cfgZfs.devNodes;
-    in ''
+    in
+    ''
       poolReady() {
         pool="$1"
         guid="$2"
@@ -90,24 +106,48 @@ let
       }
     '';
 
-  poolService = name: pool: (import ./pool-service.nix args) {
-    inherit name pool zpoolCreateScript packages;
-    importLib = importLib { inherit cfgZfs; };
-  };
+  poolService =
+    name: pool:
+    (import ./pool-service.nix args) {
+      inherit
+        name
+        pool
+        zpoolCreateScript
+        packages
+        ;
+      importLib = importLib { inherit cfgZfs; };
+    };
 
-  poolConfig = name: pool: pkgs.writeText "pool-${name}-config.json" (builtins.toJSON {
-    inherit (pool) layout spare log cache partition wipe properties install;
-  });
+  poolConfig =
+    name: pool:
+    pkgs.writeText "pool-${name}-config.json" (
+      builtins.toJSON {
+        inherit (pool)
+          layout
+          spare
+          log
+          cache
+          partition
+          wipe
+          properties
+          install
+          ;
+      }
+    );
 
-  zpoolCreateScript = name: pool: pkgs.runCommand "do-create-pool-${name}" {
-    ruby = pkgs.ruby;
-    poolName = name;
-    poolConfig = poolConfig name pool;
-  } ''
-    mkdir -p $out/bin
-    substituteAll ${./create.rb} $out/bin/do-create-pool-${name}
-    chmod +x $out/bin/do-create-pool-${name}
-  '';
+  zpoolCreateScript =
+    name: pool:
+    pkgs.runCommand "do-create-pool-${name}"
+      {
+        ruby = pkgs.ruby;
+        poolName = name;
+        poolConfig = poolConfig name pool;
+      }
+      ''
+        mkdir -p $out/bin
+        substituteAll ${./create.rb} $out/bin/do-create-pool-${name}
+        chmod +x $out/bin/do-create-pool-${name}
+      '';
 
   zpoolCheckScript = pkgs.replaceVarsWith {
     name = "check-zpool.rb";
@@ -122,57 +162,79 @@ let
   zpoolCreateScripts = mapAttrsToList zpoolCreateScript;
 
   autoScrubZpools =
-    if cfgScrub.pools == [] then
+    if cfgScrub.pools == [ ] then
       "$(${packages.zfsUser}/bin/zpool list -H -o name)"
     else
       concatStringsSep " " cfgScrub.pools;
 
   autoScrubJobs = optionals enableAutoScrub (flatten [
-    (map (i: "${i} root ${pkgs.scrubctl}/bin/scrubctl start ${autoScrubZpools}") cfgScrub.startIntervals)
-    (map (i: "${i} root ${pkgs.scrubctl}/bin/scrubctl pause ${autoScrubZpools}") cfgScrub.pauseIntervals)
-    (map (i: "${i} root ${pkgs.scrubctl}/bin/scrubctl resume ${autoScrubZpools}") cfgScrub.resumeIntervals)
+    (map (
+      i: "${i} root ${pkgs.scrubctl}/bin/scrubctl start ${autoScrubZpools}"
+    ) cfgScrub.startIntervals)
+    (map (
+      i: "${i} root ${pkgs.scrubctl}/bin/scrubctl pause ${autoScrubZpools}"
+    ) cfgScrub.pauseIntervals)
+    (map (
+      i: "${i} root ${pkgs.scrubctl}/bin/scrubctl resume ${autoScrubZpools}"
+    ) cfgScrub.resumeIntervals)
   ]);
 
   zpoolsToScrub = filterAttrs (name: pool: pool.scrub.enable) cfgZfs.pools;
 
-  zpoolScrubCommand = name: pool: action: userCmd:
-    if isNull userCmd then
-      "${pkgs.scrubctl}/bin/scrubctl ${action} ${name}"
-    else
-      userCmd;
+  zpoolScrubCommand =
+    name: pool: action: userCmd:
+    if isNull userCmd then "${pkgs.scrubctl}/bin/scrubctl ${action} ${name}" else userCmd;
 
-  perZpoolJobs =
-    flatten ((mapAttrsToList (name: pool: flatten ([
-      (map (i: "${i} root ${zpoolScrubCommand name pool "start" pool.scrub.startCommand}") pool.scrub.startIntervals)
-      (map (i: "${i} root ${zpoolScrubCommand name pool "pause" pool.scrub.pauseCommand}") pool.scrub.pauseIntervals)
-      (map (i: "${i} root ${zpoolScrubCommand name pool "resume" pool.scrub.resumeCommand}") pool.scrub.resumeIntervals)
-    ])) zpoolsToScrub));
+  perZpoolJobs = flatten (
+    (mapAttrsToList (
+      name: pool:
+      flatten ([
+        (map (
+          i: "${i} root ${zpoolScrubCommand name pool "start" pool.scrub.startCommand}"
+        ) pool.scrub.startIntervals)
+        (map (
+          i: "${i} root ${zpoolScrubCommand name pool "pause" pool.scrub.pauseCommand}"
+        ) pool.scrub.pauseIntervals)
+        (map (
+          i: "${i} root ${zpoolScrubCommand name pool "resume" pool.scrub.resumeCommand}"
+        ) pool.scrub.resumeIntervals)
+      ])
+    ) zpoolsToScrub)
+  );
 
-  perZpoolAssertions =
-    mapAttrsToList (name: pool: {
-      assertion = !pool.scrub.enable || pool.scrub.startIntervals != [];
-      message = "Set boot.zfs.pools.${name}.scrub.startIntervals or disable boot.zfs.pools.${name}.scrub.enable";
-    }) zpoolsToScrub;
+  perZpoolAssertions = mapAttrsToList (name: pool: {
+    assertion = !pool.scrub.enable || pool.scrub.startIntervals != [ ];
+    message = "Set boot.zfs.pools.${name}.scrub.startIntervals or disable boot.zfs.pools.${name}.scrub.enable";
+  }) zpoolsToScrub;
 
   zedConf = generators.toKeyValue {
     mkKeyValue = generators.mkKeyValueDefault {
-      mkValueString = v:
-        if isInt           v then toString v
-        else if isString   v then "\"${v}\""
-        else if true  ==   v then "1"
-        else if false ==   v then "0"
-        else if isList     v then "\"" + (concatStringsSep " " v) + "\""
-        else err "this value is" (toString v);
+      mkValueString =
+        v:
+        if isInt v then
+          toString v
+        else if isString v then
+          "\"${v}\""
+        else if true == v then
+          "1"
+        else if false == v then
+          "0"
+        else if isList v then
+          "\"" + (concatStringsSep " " v) + "\""
+        else
+          err "this value is" (toString v);
     } "=";
   } cfgZED.settings;
 
-  makeZedlet = name: zedlet:
+  makeZedlet =
+    name: zedlet:
     if isNull zedlet.script then
       { inherit (zedlet) enable source; }
-    else {
-      inherit (zedlet) enable;
-      source = pkgs.writeScript "zedlet-${name}" zedlet.script;
-    };
+    else
+      {
+        inherit (zedlet) enable;
+        source = pkgs.writeScript "zedlet-${name}" zedlet.script;
+      };
 
   makeZedlets = mapAttrs' (k: v: nameValuePair "zfs/zed.d/${k}" (makeZedlet k v)) cfgZED.zedlets;
 
@@ -223,17 +285,18 @@ let
 
   moduleParam = mkOptionType {
     name = "module option value";
-    check = val:
+    check =
+      val:
       let
         checkType = x: isBool x || isString x || isInt x || x == null;
       in
-        checkType val || (val._type or "" == "override" && checkType val.content);
+      checkType val || (val._type or "" == "override" && checkType val.content);
     merge = loc: defs: mergeOneOption loc (filterOverrides defs);
   };
   moduleParams = {
     options = {
       spl = mkOption {
-        default = {};
+        default = { };
         example = literalExpression ''
           { "spl_taskq_thread_priority" = true; "spl_taskq_thread_sequential" = 2; }
         '';
@@ -243,7 +306,7 @@ let
         '';
       };
       zfs = mkOption {
-        default = {};
+        default = { };
         example = literalExpression ''
           { "zfs_arc_min" = 1073741824; }
         '';
@@ -258,14 +321,22 @@ let
   datasets = {
     options = {
       type = mkOption {
-        type = types.enum [ "filesystem" "volume" ];
+        type = types.enum [
+          "filesystem"
+          "volume"
+        ];
         default = "filesystem";
         description = "Dataset type";
       };
 
       properties = mkOption {
-        type = types.attrsOf (types.oneOf [ types.str types.int ]);
-        default = {};
+        type = types.attrsOf (
+          types.oneOf [
+            types.str
+            types.int
+          ]
+        );
+        default = { };
         description = "ZFS properties, see man zfs(8).";
       };
     };
@@ -285,7 +356,7 @@ let
 
         layout = mkOption {
           type = types.listOf (types.submodule layoutVdev);
-          default = [];
+          default = [ ];
           description = ''
             Pool layout to pass to zpool create. The pool can be created either
             manually using script <literal>do-create-pool-&lt;pool&gt;</literal>
@@ -296,10 +367,13 @@ let
 
         log = mkOption {
           type = types.listOf (types.submodule logVdev);
-          default = [];
+          default = [ ];
           example = {
             mirror = true;
-            devices = [ "sde1" "sdf1" ];
+            devices = [
+              "sde1"
+              "sdf1"
+            ];
           };
           description = ''
             Devices used for ZFS Intent Log (ZIL).
@@ -308,8 +382,11 @@ let
 
         cache = mkOption {
           type = types.listOf types.str;
-          default = [];
-          example = [ "sde2" "sdf2" ];
+          default = [ ];
+          example = [
+            "sde2"
+            "sdf2"
+          ];
           description = ''
             Devices used for secondary read cache (L2ARC).
           '';
@@ -317,7 +394,7 @@ let
 
         spare = mkOption {
           type = types.listOf types.str;
-          default = [];
+          default = [ ];
           description = ''
             List of devices to be used as hot spares.
           '';
@@ -340,8 +417,11 @@ let
 
         wipe = mkOption {
           type = types.listOf types.str;
-          default = [];
-          example = [ "sda" "sdb" ];
+          default = [ ];
+          example = [
+            "sda"
+            "sdb"
+          ];
           description = ''
             Wipe disks prior to disk partitioning and pool creation (dangerous!).
 
@@ -350,26 +430,35 @@ let
         };
 
         partition = mkOption {
-          type = types.attrsOf (types.attrsOf (types.submodule {
-            options = {
-              sizeGB = mkOption {
-                type = types.nullOr types.ints.positive;
-                default = null;
-                description = "Partition size in gigabytes";
-              };
-              type = mkOption {
-                type = types.enum [ "fd" ];
-                default = "fd";
-                description = "Partition type (list with `sfdisk -T`)";
-              };
-            };
-          }));
-          default = {};
+          type = types.attrsOf (
+            types.attrsOf (
+              types.submodule {
+                options = {
+                  sizeGB = mkOption {
+                    type = types.nullOr types.ints.positive;
+                    default = null;
+                    description = "Partition size in gigabytes";
+                  };
+                  type = mkOption {
+                    type = types.enum [ "fd" ];
+                    default = "fd";
+                    description = "Partition type (list with `sfdisk -T`)";
+                  };
+                };
+              }
+            )
+          );
+          default = { };
           example = {
             sde = {
-              p1 = { sizeGB=20; };
-              p2 = { sizeGB=10; type="fd"; };
-              p3 = {};
+              p1 = {
+                sizeGB = 20;
+              };
+              p2 = {
+                sizeGB = 10;
+                type = "fd";
+              };
+              p3 = { };
             };
           };
           description = ''
@@ -401,8 +490,13 @@ let
         };
 
         properties = mkOption {
-          type = types.attrsOf (types.oneOf [ types.str types.int ]);
-          default = {};
+          type = types.attrsOf (
+            types.oneOf [
+              types.str
+              types.int
+            ]
+          );
+          default = { };
           example = {
             readonly = "on";
           };
@@ -414,7 +508,7 @@ let
         datasets = mkOption {
           type = types.attrsOf (types.submodule datasets);
           default = {
-            "/" = {};
+            "/" = { };
           };
           example = {
             "/".properties.sharenfs = "on";
@@ -439,7 +533,11 @@ let
         };
 
         share = mkOption {
-          type = types.enum [ "always" "once" "off" ];
+          type = types.enum [
+            "always"
+            "once"
+            "off"
+          ];
           default = "always";
           description = ''
             Determines whether ZFS filesystems with sharenfs set should be
@@ -464,7 +562,7 @@ let
           };
 
           startIntervals = mkOption {
-            default = [];
+            default = [ ];
             type = types.listOf types.str;
             description = ''
               Date and time expression for when to scrub the pool in a crontab
@@ -474,7 +572,7 @@ let
           };
 
           pauseIntervals = mkOption {
-            default = [];
+            default = [ ];
             type = types.listOf types.str;
             description = ''
               Date and time expression for when to pause a running scrub in a crontab
@@ -484,7 +582,7 @@ let
           };
 
           resumeIntervals = mkOption {
-            default = [];
+            default = [ ];
             type = types.listOf types.str;
             description = ''
               Date and time expression for when to resume a paused scrub in a crontab
@@ -572,12 +670,12 @@ in
     boot.zfs = {
       moduleParams = mkOption {
         type = types.submodule moduleParams;
-        default = {};
+        default = { };
       };
 
       pools = mkOption {
         type = types.attrsOf (types.submodule pools);
-        default = {};
+        default = { };
       };
       forceImportRoot = mkOption {
         type = types.bool;
@@ -608,7 +706,7 @@ in
       };
 
       startIntervals = mkOption {
-        default = [];
+        default = [ ];
         type = types.listOf types.str;
         description = ''
           Date and time expression for when to scrub the pool in a crontab
@@ -618,7 +716,7 @@ in
       };
 
       pauseIntervals = mkOption {
-        default = [];
+        default = [ ];
         type = types.listOf types.str;
         description = ''
           Date and time expression for when to pause a running scrub in a crontab
@@ -628,7 +726,7 @@ in
       };
 
       resumeIntervals = mkOption {
-        default = [];
+        default = [ ];
         type = types.listOf types.str;
         description = ''
           Date and time expression for when to resume a paused scrub in a crontab
@@ -638,7 +736,7 @@ in
       };
 
       pools = mkOption {
-        default = [];
+        default = [ ];
         type = types.listOf types.str;
         example = [ "tank" ];
         description = ''
@@ -651,14 +749,21 @@ in
     services.zfs.zed = {
       zedlets = mkOption {
         type = types.attrsOf (types.submodule zedletModule);
-        default = {};
+        default = { };
         description = ''
           ZEDLET executable to install to /etc/zfs/zed.d, see man zed(8)
         '';
       };
 
       settings = mkOption {
-        type = with types; attrsOf (oneOf [ str int bool (listOf str) ]);
+        type =
+          with types;
+          attrsOf (oneOf [
+            str
+            int
+            bool
+            (listOf str)
+          ]);
         example = literalExpression ''
           {
             ZED_DEBUG_LOG = "/tmp/zed.debug.log";
@@ -706,21 +811,37 @@ in
       assertions = [
         (
           let
-            filterDatasets = pool: foldr ({k,v}: acc:
-              if v.type == "volume" && !(hasAttr "volsize" v.properties) then
-                acc ++ [(concatStringsSep "/" [pool k])]
-              else
-                acc
-            ) [];
+            filterDatasets =
+              pool:
+              foldr (
+                { k, v }:
+                acc:
+                if v.type == "volume" && !(hasAttr "volsize" v.properties) then
+                  acc
+                  ++ [
+                    (concatStringsSep "/" [
+                      pool
+                      k
+                    ])
+                  ]
+                else
+                  acc
+              ) [ ];
 
-            filterPools = foldr ({k,v}: acc:
-              acc ++ (filterDatasets k (mapAttrsToList (k: v: {inherit k v;}) v))
-            ) [];
+            filterPools = foldr (
+              { k, v }: acc: acc ++ (filterDatasets k (mapAttrsToList (k: v: { inherit k v; }) v))
+            ) [ ];
 
-            pools = filterPools (mapAttrsToList (k: v: {k = k; v = v.datasets;}) cfgZfs.pools);
+            pools = filterPools (
+              mapAttrsToList (k: v: {
+                k = k;
+                v = v.datasets;
+              }) cfgZfs.pools
+            );
 
             msg = concatMapStringsSep ", " (v: v) pools;
-          in {
+          in
+          {
             assertion = length pools == 0;
             message = "These volumes are missing the volsize property: " + msg;
           }
@@ -728,46 +849,56 @@ in
       ];
 
       boot = {
-        kernelModules = [ "zfs" ] ;
+        kernelModules = [ "zfs" ];
         extraModulePackages = with packages; [ zfs ];
       };
 
-      boot.extraModprobeConfig = "\n" +
-        optionalString (cfgZfs.moduleParams.spl != {}) (moduleModprobeConfigContent "spl" cfgZfs.moduleParams.spl + "\n") +
-        optionalString (cfgZfs.moduleParams.zfs != {}) (moduleModprobeConfigContent "zfs" cfgZfs.moduleParams.zfs + "\n");
+      boot.extraModprobeConfig =
+        "\n"
+        + optionalString (cfgZfs.moduleParams.spl != { }) (
+          moduleModprobeConfigContent "spl" cfgZfs.moduleParams.spl + "\n"
+        )
+        + optionalString (cfgZfs.moduleParams.zfs != { }) (
+          moduleModprobeConfigContent "zfs" cfgZfs.moduleParams.zfs + "\n"
+        );
 
       boot.initrd = mkIf inInitrd {
         kernelModules = [ "zfs" ];
-        extraUtilsCommands =
-          ''
-            copy_bin_and_libs ${packages.zfsUser}/sbin/zfs
-            copy_bin_and_libs ${packages.zfsUser}/sbin/zdb
-            copy_bin_and_libs ${packages.zfsUser}/sbin/zpool
-            ${optionalString partitioningSupport ''
-              copy_bin_and_libs ${pkgs.util-linux}/bin/sfdisk
-            ''}
-          '';
-        extraUtilsCommandsTest = mkIf inInitrd
-          ''
-            $out/bin/zfs --help >/dev/null 2>&1
-            $out/bin/zpool --help >/dev/null 2>&1
-            ${optionalString partitioningSupport ''
-              $out/bin/sfdisk --help >/dev/null 2>&1
-            ''}
-          '';
-         postDeviceCommands = concatStringsSep "\n" ([''
-            ZFS_FORCE="${optionalString cfgZfs.forceImportRoot "-f"}"
+        extraUtilsCommands = ''
+          copy_bin_and_libs ${packages.zfsUser}/sbin/zfs
+          copy_bin_and_libs ${packages.zfsUser}/sbin/zdb
+          copy_bin_and_libs ${packages.zfsUser}/sbin/zpool
+          ${optionalString partitioningSupport ''
+            copy_bin_and_libs ${pkgs.util-linux}/bin/sfdisk
+          ''}
+        '';
+        extraUtilsCommandsTest = mkIf inInitrd ''
+          $out/bin/zfs --help >/dev/null 2>&1
+          $out/bin/zpool --help >/dev/null 2>&1
+          ${optionalString partitioningSupport ''
+            $out/bin/sfdisk --help >/dev/null 2>&1
+          ''}
+        '';
+        postDeviceCommands = concatStringsSep "\n" (
+          [
+            ''
+              ZFS_FORCE="${optionalString cfgZfs.forceImportRoot "-f"}"
 
-            for o in $(cat /proc/cmdline); do
-              case $o in
-                zfs_force|zfs_force=1)
-                  ZFS_FORCE="-f"
-                  ;;
-              esac
-            done
-          ''] ++ [ (importLib {
-            inherit cfgZfs;
-          }) ] ++ (map (pool: ''
+              for o in $(cat /proc/cmdline); do
+                case $o in
+                  zfs_force|zfs_force=1)
+                    ZFS_FORCE="-f"
+                    ;;
+                esac
+              done
+            ''
+          ]
+          ++ [
+            (importLib {
+              inherit cfgZfs;
+            })
+          ]
+          ++ (map (pool: ''
             echo -n "importing root ZFS pool \"${pool}\"..."
             # Loop across the import until it succeeds, because the devices needed may not be discovered yet.
             if ! poolImported "${pool}"; then
@@ -783,8 +914,9 @@ in
               poolImported "${pool}" || poolImport "${pool}"  # Try one last time, e.g. to import a degraded pool.
               poolImported "${pool}" || fail "Unable to import pool"
             fi
-         '') rootPools));
-     };
+          '') rootPools)
+        );
+      };
 
       boot.loader.grub = mkIf (inInitrd || inSystem) {
         zfsSupport = true;
@@ -793,23 +925,17 @@ in
       services.udev.packages = [ packages.zfsUser ];
 
       runit.services = mkMerge [
-        (mapAttrs' (name: pool:
-          nameValuePair "pool-${name}" (poolService name pool))
-          cfgZfs.pools)
+        (mapAttrs' (name: pool: nameValuePair "pool-${name}" (poolService name pool)) cfgZfs.pools)
 
         {
           spl-module-parameters = {
-            run =
-              moduleRuntimeConfigContent "spl" cfgZfs.moduleParams.spl + "\n" +
-              "sleep inf";
+            run = moduleRuntimeConfigContent "spl" cfgZfs.moduleParams.spl + "\n" + "sleep inf";
             finish = "";
             runlevels = [ "default" ];
           };
 
           zfs-module-parameters = {
-            run =
-              moduleRuntimeConfigContent "zfs" cfgZfs.moduleParams.zfs + "\n" +
-              "sleep inf";
+            run = moduleRuntimeConfigContent "zfs" cfgZfs.moduleParams.zfs + "\n" + "sleep inf";
             finish = "";
             runlevels = [ "default" ];
           };
@@ -843,18 +969,23 @@ in
         ];
       };
 
-      services.zfs.zed.zedlets = genAttrs [
-        "all-syslog.sh"
-        "pool_import-led.sh"
-        "resilver_finish-start-scrub.sh"
-        "statechange-led.sh"
-        "vdev_attach-led.sh"
-        "data-notify.sh"
-        "resilver_finish-notify.sh"
-        "scrub_finish-notify.sh"
-        "statechange-notify.sh"
-        "vdev_clear-led.sh"
-      ] (name: { source = "${packages.zfsUser}/etc/zfs/zed.d/${name}"; });
+      services.zfs.zed.zedlets =
+        genAttrs
+          [
+            "all-syslog.sh"
+            "pool_import-led.sh"
+            "resilver_finish-start-scrub.sh"
+            "statechange-led.sh"
+            "vdev_attach-led.sh"
+            "data-notify.sh"
+            "resilver_finish-notify.sh"
+            "scrub_finish-notify.sh"
+            "statechange-notify.sh"
+            "vdev_clear-led.sh"
+          ]
+          (name: {
+            source = "${packages.zfsUser}/etc/zfs/zed.d/${name}";
+          });
 
       environment.etc = {
         "zfs/zed.d/zed.rc".text = zedConf;
@@ -886,7 +1017,7 @@ in
     {
       assertions = [
         {
-          assertion = !cfgScrub.enable || cfgScrub.startIntervals != [];
+          assertion = !cfgScrub.enable || cfgScrub.startIntervals != [ ];
           message = "Set services.zfs.autoScrub.startIntervals or disable services.zfs.autoScrub.enable";
         }
       ] ++ perZpoolAssertions;

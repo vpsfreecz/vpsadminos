@@ -1,4 +1,9 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 with lib;
 
 let
@@ -93,25 +98,31 @@ in
       };
 
       historyControl = mkOption {
-        type = types.listOf (types.enum [
-          "erasedups"
-          "ignoredups"
-          "ignorespace"
-        ]);
-        default = [];
+        type = types.listOf (
+          types.enum [
+            "erasedups"
+            "ignoredups"
+            "ignorespace"
+          ]
+        );
+        default = [ ];
         description = "Controlling how commands are saved on the history list.";
       };
 
       historyIgnore = mkOption {
         type = types.listOf types.str;
-        default = [];
-        example = [ "ls" "cd" "exit" ];
+        default = [ ];
+        example = [
+          "ls"
+          "cd"
+          "exit"
+        ];
         description = "List of commands that should not be saved to the history list.";
       };
 
       historyPools = mkOption {
         type = types.listOf types.str;
-        default = [];
+        default = [ ];
         example = [ "tank" ];
         description = ''
           Names of ZFS pools where <option>programs.bash.root.historyFile</option>
@@ -153,37 +164,37 @@ in
 
   config =
     let
-      shoptsStr = concatStringsSep "\n" (
-        map (v: "shopt -s ${v}") cfg.shellOptions
-      );
+      shoptsStr = concatStringsSep "\n" (map (v: "shopt -s ${v}") cfg.shellOptions);
 
-      historyControlStr =
-        concatStringsSep "\n" (mapAttrsToList (n: v: "${n}=${v}") (
+      historyControlStr = concatStringsSep "\n" (
+        mapAttrsToList (n: v: "${n}=${v}") (
           {
             HISTFILE = "\"${cfg.historyFile}\"";
             HISTFILESIZE = toString cfg.historyFileSize;
             HISTSIZE = toString cfg.historySize;
           }
-          // optionalAttrs (cfg.historyControl != []) {
+          // optionalAttrs (cfg.historyControl != [ ]) {
             HISTCONTROL = concatStringsSep ":" cfg.historyControl;
           }
-          // optionalAttrs (cfg.historyIgnore != []) {
+          // optionalAttrs (cfg.historyIgnore != [ ]) {
             HISTIGNORE = concatStringsSep ":" cfg.historyIgnore;
           }
-        ));
+        )
+      );
 
       bashrc = pkgs.writeText "root-bashrc" ''
         ${historyControlStr}
         ${shoptsStr}
       '';
 
-    in {
+    in
+    {
       programs.bash.interactiveShellInit = ''
         [ "$UID" == "0" ] && . ${bashrc}
       '';
 
-      runit.services = listToAttrs (map (pool:
-        nameValuePair "histfile-${pool}" (poolService pool)
-      ) cfg.historyPools);
+      runit.services = listToAttrs (
+        map (pool: nameValuePair "histfile-${pool}" (poolService pool)) cfg.historyPools
+      );
     };
 }

@@ -1,30 +1,37 @@
 # Provide an initial copy of the NixOS/vpsAdminOS channel(s) so that the user
 # doesn't need to run "nix-channel --update" first.
 
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 with lib;
 
 let
   nixpkgs = lib.cleanSource pkgs.path;
 
-  os = (builtins.filterSource (path: type:
-    (lib.cleanSourceFilter path type)
-    && (!lib.hasSuffix "img" (baseNameOf path))
-    && (!hasInfix "/os/result/" path)
-    && (baseNameOf path != "local.nix")
-  ) ../../../.);
+  os = (
+    builtins.filterSource (
+      path: type:
+      (lib.cleanSourceFilter path type)
+      && (!lib.hasSuffix "img" (baseNameOf path))
+      && (!hasInfix "/os/result/" path)
+      && (baseNameOf path != "local.nix")
+    ) ../../../.
+  );
 
-  ctStartMenu = builtins.filterSource (path: type:
-    (lib.cleanSourceFilter path type)
-    && (baseNameOf path != "ctstartmenu") # exclude the locally-built binary
+  ctStartMenu = builtins.filterSource (
+    path: type: (lib.cleanSourceFilter path type) && (baseNameOf path != "ctstartmenu") # exclude the locally-built binary
   ) ../../../../ctstartmenu;
 
-  imageScripts = builtins.filterSource (path: type:
-    (lib.cleanSourceFilter path type)
+  imageScripts = builtins.filterSource (
+    path: type: (lib.cleanSourceFilter path type)
   ) ../../../../image-scripts;
 
-  nixosChannel = pkgs.runCommand "nixos-${config.system.vpsadminos.version}" {} ''
+  nixosChannel = pkgs.runCommand "nixos-${config.system.vpsadminos.version}" { } ''
     mkdir $out
     cp -prd ${nixpkgs} $out/nixos
     chmod -R u+w $out/nixos
@@ -33,7 +40,7 @@ let
     fi
   '';
 
-  vpsadminosChannel = pkgs.runCommand "vpsadminos-${config.system.vpsadminos.version}" {} ''
+  vpsadminosChannel = pkgs.runCommand "vpsadminos-${config.system.vpsadminos.version}" { } ''
     mkdir -p $out $out/vpsadminos $out/vpsadminos/artwork
     cp -prd ${ctStartMenu} $out/vpsadminos/ctstartmenu
     cp -prd ${imageScripts} $out/vpsadminos/image-scripts

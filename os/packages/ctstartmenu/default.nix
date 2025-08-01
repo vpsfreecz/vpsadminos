@@ -10,9 +10,9 @@ buildGoModule {
 
   meta = with lib; {
     description = "Start menu for containers";
-    homepage    = https://github.com/vpsfreecz/vpsadminos;
-    license     = licenses.mit;
-    maintainers = [];
-    platforms   = platforms.unix;
+    homepage = "https://github.com/vpsfreecz/vpsadminos";
+    license = licenses.mit;
+    maintainers = [ ];
+    platforms = platforms.unix;
   };
 }

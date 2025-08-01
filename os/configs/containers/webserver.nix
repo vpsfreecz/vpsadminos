@@ -1,6 +1,11 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 let
-  demoRoot = pkgs.runCommand "demoRoot" {} ''
+  demoRoot = pkgs.runCommand "demoRoot" { } ''
     mkdir $out
     echo "Hello from NixOS running on vpsAdminOS" > $out/index.html
   '';
@@ -9,10 +14,14 @@ in
   # example of a webserver using declarative containers
 
   osctl.pools.tank = {
-    users.webuser = let mapping = [ "0:999000:65536" ]; in {
-      uidMap = mapping;
-      gidMap = mapping;
-    };
+    users.webuser =
+      let
+        mapping = [ "0:999000:65536" ];
+      in
+      {
+        uidMap = mapping;
+        gidMap = mapping;
+      };
 
     containers.webserver = {
       config =

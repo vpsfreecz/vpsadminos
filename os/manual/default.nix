@@ -30,20 +30,18 @@ let
   isOsModule = path: lib.hasPrefix "os/" path;
 
   osModulesDocs = nmd.buildModulesDocs {
-    modules =
-      import ../modules/module-list.nix
-      ++ [ scrubbedPkgsModule ];
-    moduleRootPaths = [ ./../.. <nixpkgs> ];
-    mkModuleUrl = path:
+    modules = import ../modules/module-list.nix ++ [ scrubbedPkgsModule ];
+    moduleRootPaths = [
+      ./../..
+      <nixpkgs>
+    ];
+    mkModuleUrl =
+      path:
       if isOsModule path then
         "https://github.com/vpsfreecz/vpsadminos/blob/staging/${path}#blob-path"
       else
         "https://github.com/NixOS/nixpkgs/blob/master/${path}#blob-path";
-    mkChannelPath = path:
-      if isOsModule path then
-        "vpsadminos/${path}"
-      else
-        "nixpkgs/${path}";
+    mkChannelPath = path: if isOsModule path then "vpsadminos/${path}" else "nixpkgs/${path}";
     docBook.id = "vpsadminos-options";
   };
 
@@ -60,7 +58,8 @@ let
       </toc>
     '';
   };
-in {
+in
+{
   inherit nmdSrc;
 
   options = {

@@ -1,18 +1,30 @@
 # This module generates os-install, os-rebuild,
 # os-generate-config, etc. (inspired by nixos-* tools)
 
-{ config, lib, pkgs, modulesPath, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  modulesPath,
+  ...
+}:
 
 with lib;
 
 let
   cfg = config.installer;
 
-  makeProg = { name, src, replacements ? {} }: pkgs.replaceVarsWith {
-    dir = "bin";
-    isExecutable = true;
-    inherit name src replacements;
-  };
+  makeProg =
+    {
+      name,
+      src,
+      replacements ? { },
+    }:
+    pkgs.replaceVarsWith {
+      dir = "bin";
+      isExecutable = true;
+      inherit name src replacements;
+    };
 
   os-install = makeProg {
     name = "os-install";
@@ -24,7 +36,9 @@ let
   };
 
   os-rebuild =
-    let fallback = import ./nix-fallback-paths.nix; in
+    let
+      fallback = import ./nix-fallback-paths.nix;
+    in
     makeProg {
       name = "os-rebuild";
       src = ./os-rebuild.sh;
@@ -69,16 +83,21 @@ in
 
   config = {
 
-    environment.systemPackages =
-      [ os-install
-        os-rebuild
-        os-generate-config
-        os-version
-        os-enter
-      ];
+    environment.systemPackages = [
+      os-install
+      os-rebuild
+      os-generate-config
+      os-version
+      os-enter
+    ];
 
     system.build = {
-      inherit os-install os-generate-config os-rebuild os-enter;
+      inherit
+        os-install
+        os-generate-config
+        os-rebuild
+        os-enter
+        ;
     };
 
   };

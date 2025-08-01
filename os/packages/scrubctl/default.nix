@@ -1,8 +1,14 @@
-{ fetchFromGitHub, lib, ruby, stdenvNoCC }:
+{
+  fetchFromGitHub,
+  lib,
+  ruby,
+  stdenvNoCC,
+}:
 let
   rev = "566be0e2d23e0ecb144e16b1bb422d2473a367a6";
   shortRev = builtins.substring 0 7 rev;
-in stdenvNoCC.mkDerivation {
+in
+stdenvNoCC.mkDerivation {
   pname = "scrubctl";
   version = shortRev;
 
@@ -32,6 +38,6 @@ in stdenvNoCC.mkDerivation {
     homepage = "https://github.com/vpsfreecz/scrubctl";
     license = licenses.mit;
     platforms = platforms.all;
-    maintainers = with maintainers; [];
+    maintainers = with maintainers; [ ];
   };
 }

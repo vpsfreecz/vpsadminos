@@ -1,11 +1,12 @@
 let
-  pkgs = import <nixpkgs> {};
+  pkgs = import <nixpkgs> { };
   stdenv = pkgs.stdenv;
 
-in stdenv.mkDerivation rec {
+in
+stdenv.mkDerivation rec {
   name = "ctstartmenu";
 
-  buildInputs = with pkgs;[
+  buildInputs = with pkgs; [
     git
     go
     gotools

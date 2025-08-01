@@ -1,75 +1,85 @@
-{ config, lib, pkgs, utils, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  utils,
+  ...
+}:
 
 with lib;
 let
   cfg = config.services.udev;
-  hwdbBin = pkgs.runCommand "hwdb.bin"
-    { preferLocalBuild = true;
-      allowSubstitutes = false;
-    }
-    ''
-      mkdir -p etc/udev/hwdb.d
-      for i in ${pkgs.eudev}/var/lib/udev/hwdb.d/*; do
-        ln -s $i etc/udev/hwdb.d/$(basename $i)
-      done
+  hwdbBin =
+    pkgs.runCommand "hwdb.bin"
+      {
+        preferLocalBuild = true;
+        allowSubstitutes = false;
+      }
+      ''
+        mkdir -p etc/udev/hwdb.d
+        for i in ${pkgs.eudev}/var/lib/udev/hwdb.d/*; do
+          ln -s $i etc/udev/hwdb.d/$(basename $i)
+        done
 
-      echo "Generating hwdb database..."
-      # hwdb --update doesn't return error code even on errors!
-      res="$(${pkgs.eudev}/bin/udevadm hwdb --update --root=$(pwd) 2>&1)"
-      echo $res
-      [ -z "$(echo "$res" | egrep '^Error')" ]
-      mv etc/udev/hwdb.bin $out
-    '';
+        echo "Generating hwdb database..."
+        # hwdb --update doesn't return error code even on errors!
+        res="$(${pkgs.eudev}/bin/udevadm hwdb --update --root=$(pwd) 2>&1)"
+        echo $res
+        [ -z "$(echo "$res" | egrep '^Error')" ]
+        mv etc/udev/hwdb.bin $out
+      '';
 
   # Perform substitutions in all udev rules files.
-  udevRules = pkgs.runCommand "udev-rules"
-    { preferLocalBuild = true;
-      allowSubstitutes = false;
-      packages = unique (map toString cfg.packages);
-    }
-    ''
-      mkdir -p $out
-      shopt -s nullglob
-      set +o pipefail
+  udevRules =
+    pkgs.runCommand "udev-rules"
+      {
+        preferLocalBuild = true;
+        allowSubstitutes = false;
+        packages = unique (map toString cfg.packages);
+      }
+      ''
+        mkdir -p $out
+        shopt -s nullglob
+        set +o pipefail
 
-      # Set a reasonable $PATH for programs called by udev rules.
-      echo 'ENV{PATH}="${udevPath}/bin:${udevPath}/sbin"' > $out/00-path.rules
+        # Set a reasonable $PATH for programs called by udev rules.
+        echo 'ENV{PATH}="${udevPath}/bin:${udevPath}/sbin"' > $out/00-path.rules
 
-      # Add the udev rules from other packages.
-      for i in $packages; do
-        echo "Adding rules for package $i"
-        for j in $i/{etc,lib,var/lib}/udev/rules.d/*; do
-          echo "Copying $j to $out/$(basename $j)"
-          cat $j > $out/$(basename $j)
+        # Add the udev rules from other packages.
+        for i in $packages; do
+          echo "Adding rules for package $i"
+          for j in $i/{etc,lib,var/lib}/udev/rules.d/*; do
+            echo "Copying $j to $out/$(basename $j)"
+            cat $j > $out/$(basename $j)
+          done
         done
-      done
 
-      # Fix some paths in the standard udev rules.  Hacky.
-      for i in $out/*.rules; do
-        substituteInPlace $i \
-          --replace \"/sbin/modprobe \"${pkgs.kmod}/bin/modprobe \
-          --replace \"/sbin/mdadm \"${pkgs.mdadm}/sbin/mdadm \
-          --replace \"/sbin/blkid \"${pkgs.util-linux}/sbin/blkid \
-          --replace \"/bin/mount \"${pkgs.util-linux}/bin/mount \
-          --replace /usr/bin/readlink ${pkgs.coreutils}/bin/readlink \
-          --replace /usr/bin/basename ${pkgs.coreutils}/bin/basename \
-          --subst-var-by rootbindir ${pkgs.eudev}/bin
-      done
+        # Fix some paths in the standard udev rules.  Hacky.
+        for i in $out/*.rules; do
+          substituteInPlace $i \
+            --replace \"/sbin/modprobe \"${pkgs.kmod}/bin/modprobe \
+            --replace \"/sbin/mdadm \"${pkgs.mdadm}/sbin/mdadm \
+            --replace \"/sbin/blkid \"${pkgs.util-linux}/sbin/blkid \
+            --replace \"/bin/mount \"${pkgs.util-linux}/bin/mount \
+            --replace /usr/bin/readlink ${pkgs.coreutils}/bin/readlink \
+            --replace /usr/bin/basename ${pkgs.coreutils}/bin/basename \
+            --subst-var-by rootbindir ${pkgs.eudev}/bin
+        done
 
-      echo -n "Checking that all programs called by relative paths in udev rules exist in ${pkgs.eudev}/lib/udev... "
-      import_progs=$(grep 'IMPORT{program}="[^/$]' $out/* |
-        sed -e 's/.*IMPORT{program}="\([^ "]*\)[ "].*/\1/' | uniq)
-      run_progs=$(grep -v '^[[:space:]]*#' $out/* | grep 'RUN+="[^/$]' |
-        sed -e 's/.*RUN+="\([^ "]*\)[ "].*/\1/' | uniq)
-      for i in $import_progs $run_progs; do
-        if [[ ! -x ${pkgs.eudev}/lib/udev/$i && ! $i =~ socket:.* ]]; then
-          echo "FAIL"
-          echo "$i is called in udev rules but not installed by udev"
-          exit 1
-        fi
-      done
-      echo "OK"
-    '';
+        echo -n "Checking that all programs called by relative paths in udev rules exist in ${pkgs.eudev}/lib/udev... "
+        import_progs=$(grep 'IMPORT{program}="[^/$]' $out/* |
+          sed -e 's/.*IMPORT{program}="\([^ "]*\)[ "].*/\1/' | uniq)
+        run_progs=$(grep -v '^[[:space:]]*#' $out/* | grep 'RUN+="[^/$]' |
+          sed -e 's/.*RUN+="\([^ "]*\)[ "].*/\1/' | uniq)
+        for i in $import_progs $run_progs; do
+          if [[ ! -x ${pkgs.eudev}/lib/udev/$i && ! $i =~ socket:.* ]]; then
+            echo "FAIL"
+            echo "$i is called in udev rules but not installed by udev"
+            exit 1
+          fi
+        done
+        echo "OK"
+      '';
 
   extraUdevRules = pkgs.writeTextFile {
     name = "extra-udev-rules";
@@ -82,7 +92,10 @@ let
   udevPath = pkgs.buildEnv {
     name = "udev-path";
     paths = cfg.path;
-    pathsToLink = [ "/bin" "/sbin" ];
+    pathsToLink = [
+      "/bin"
+      "/sbin"
+    ];
     ignoreCollisions = true;
   };
 in
@@ -100,7 +113,7 @@ in
 
       packages = mkOption {
         type = types.listOf types.path;
-        default = [];
+        default = [ ];
         description = ''
           List of packages containing udev rules.
         '';
@@ -109,7 +122,7 @@ in
 
       path = mkOption {
         type = types.listOf types.path;
-        default = [];
+        default = [ ];
         description = ''
           Packages added to the <envar>PATH</envar> environment variable when
           executing programs from Udev rules.
@@ -119,20 +132,33 @@ in
 
     hardware.firmware = mkOption {
       type = types.listOf types.package;
-      default = [];
-      apply = list: pkgs.buildEnv {
-        name = "firmware";
-        paths = list;
-        pathsToLink = [ "/lib/firmware" ];
-        ignoreCollisions = true;
-      };
+      default = [ ];
+      apply =
+        list:
+        pkgs.buildEnv {
+          name = "firmware";
+          paths = list;
+          pathsToLink = [ "/lib/firmware" ];
+          ignoreCollisions = true;
+        };
     };
   };
 
   config = mkMerge [
     (mkIf (!config.boot.isContainer) {
-      services.udev.packages = [ pkgs.eudev extraUdevRules pkgs.lvm2 ];
-      services.udev.path = [ pkgs.coreutils pkgs.gnused pkgs.gnugrep pkgs.util-linux pkgs.eudev pkgs.lvm2 ];
+      services.udev.packages = [
+        pkgs.eudev
+        extraUdevRules
+        pkgs.lvm2
+      ];
+      services.udev.path = [
+        pkgs.coreutils
+        pkgs.gnused
+        pkgs.gnugrep
+        pkgs.util-linux
+        pkgs.eudev
+        pkgs.lvm2
+      ];
 
       environment.etc = {
         "udev/rules.d".source = udevRules;
@@ -143,7 +169,10 @@ in
         run = ''
           exec ${pkgs.eudev}/bin/udevd
         '';
-        runlevels = [ "rescue" "default" ];
+        runlevels = [
+          "rescue"
+          "default"
+        ];
         onChange = "ignore";
       };
 
@@ -159,7 +188,10 @@ in
           ${pkgs.eudev}/bin/udevadm trigger --action=add
         '';
         oneShot = true;
-        runlevels = [ "rescue" "default" ];
+        runlevels = [
+          "rescue"
+          "default"
+        ];
         onChange = "ignore";
       };
 
@@ -174,4 +206,3 @@ in
     })
   ];
 }
-

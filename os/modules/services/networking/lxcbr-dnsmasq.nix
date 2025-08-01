@@ -1,4 +1,9 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   inherit (lib) mkEnableOption mkIf;
 
@@ -20,14 +25,15 @@ let
     dhcp-leasefile=${stateDir}/dnsmasq.leases
     dhcp-authoritative
   '';
-in {
+in
+{
   config = mkIf (cfg.enable && cfg.enableDHCPServer) {
     users.users.${user} = {
       isSystemUser = true;
       group = user;
       description = "Dnsmasq daemon for lxcbr";
     };
-    users.groups.${user} = {};
+    users.groups.${user} = { };
 
     runit.services.lxcbr-dnsmasq = {
       run = ''
@@ -47,7 +53,10 @@ in {
     # See https://github.com/NixOS/nixpkgs/issues/263359
     networking.firewall.interfaces.${bridge} = {
       allowedTCPPorts = [ 53 ];
-      allowedUDPPorts = [ 53 67 ];
+      allowedUDPPorts = [
+        53
+        67
+      ];
     };
   };
 }

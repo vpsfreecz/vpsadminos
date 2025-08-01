@@ -1,4 +1,9 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 with lib;
 
@@ -6,44 +11,44 @@ let
 
   cfg = config.boot.initrd.network;
 
-  dhcpInterfaces = lib.attrNames (lib.filterAttrs (iface: v: v.useDHCP == true) (config.networking.interfaces or {}));
+  dhcpInterfaces = lib.attrNames (
+    lib.filterAttrs (iface: v: v.useDHCP == true) (config.networking.interfaces or { })
+  );
 
   doDhcp =
-    if isNull cfg.useDHCP then
-      config.networking.useDHCP || dhcpInterfaces != []
+    if isNull cfg.useDHCP then config.networking.useDHCP || dhcpInterfaces != [ ] else cfg.useDHCP;
+
+  dhcpIfShellExpr =
+    if config.networking.useDHCP || cfg.useDHCP then
+      "$(ls /sys/class/net/ | grep -v ^lo$ | grep -v ^ip6tnl)"
     else
-      cfg.useDHCP;
+      lib.concatMapStringsSep " " lib.escapeShellArg dhcpInterfaces;
 
-  dhcpIfShellExpr = if config.networking.useDHCP || cfg.useDHCP
-                      then "$(ls /sys/class/net/ | grep -v ^lo$ | grep -v ^ip6tnl)"
-                      else lib.concatMapStringsSep " " lib.escapeShellArg dhcpInterfaces;
-
-  udhcpcScript = pkgs.writeScript "udhcp-script"
-    ''
-      #! /bin/sh
-      if [ "$1" = bound ]; then
-        ip address add "$ip/$mask" dev "$interface"
-        if [ -n "$mtu" ]; then
-          ip link set mtu "$mtu" dev "$interface"
-        fi
-        if [ -n "$staticroutes" ]; then
-          echo "$staticroutes" \
-            | sed -r "s@(\S+) (\S+)@ ip route add \"\1\" via \"\2\" dev \"$interface\" ; @g" \
-            | sed -r "s@ via \"0\.0\.0\.0\"@@g" \
-            | /bin/sh
-        fi
-        if [ -n "$router" ]; then
-          ip route add "$router" dev "$interface" # just in case if "$router" is not within "$ip/$mask" (e.g. Hetzner Cloud)
-          ip route add default via "$router" dev "$interface"
-        fi
-        if [ -n "$dns" ]; then
-          rm -f /etc/resolv.conf
-          for server in $dns; do
-            echo "nameserver $server" >> /etc/resolv.conf
-          done
-        fi
+  udhcpcScript = pkgs.writeScript "udhcp-script" ''
+    #! /bin/sh
+    if [ "$1" = bound ]; then
+      ip address add "$ip/$mask" dev "$interface"
+      if [ -n "$mtu" ]; then
+        ip link set mtu "$mtu" dev "$interface"
       fi
-    '';
+      if [ -n "$staticroutes" ]; then
+        echo "$staticroutes" \
+          | sed -r "s@(\S+) (\S+)@ ip route add \"\1\" via \"\2\" dev \"$interface\" ; @g" \
+          | sed -r "s@ via \"0\.0\.0\.0\"@@g" \
+          | /bin/sh
+      fi
+      if [ -n "$router" ]; then
+        ip route add "$router" dev "$interface" # just in case if "$router" is not within "$ip/$mask" (e.g. Hetzner Cloud)
+        ip route add default via "$router" dev "$interface"
+      fi
+      if [ -n "$dns" ]; then
+        rm -f /etc/resolv.conf
+        for server in $dns; do
+          echo "nameserver $server" >> /etc/resolv.conf
+        done
+      fi
+    fi
+  '';
 
   udhcpcArgs = toString cfg.udhcpc.extraArgs;
 
@@ -101,7 +106,7 @@ in
 
     boot.initrd.network.preferredDHCPInterfaceMacAddresses = mkOption {
       type = types.listOf types.str;
-      default = [];
+      default = [ ];
       description = ''
         List of network interface MAC addresses that should be tried for DHCP first.
         Use this to run DHCP on specific interfaces first and skip network interfaces
@@ -111,7 +116,7 @@ in
     };
 
     boot.initrd.network.udhcpc.extraArgs = mkOption {
-      default = [];
+      default = [ ];
       type = types.listOf types.str;
       description = ''
         Additional command-line arguments passed verbatim to udhcpc if
@@ -147,7 +152,6 @@ in
       '';
     };
 
-
   };
 
   config = mkIf cfg.enable {
@@ -163,7 +167,9 @@ in
       ''
         ifaces=""
 
-        if ${if cfg.enableSetupInCrashDump then "true" else "! grep -q this_is_a_crash_kernel /proc/cmdline"}; then
+        if ${
+          if cfg.enableSetupInCrashDump then "true" else "! grep -q this_is_a_crash_kernel /proc/cmdline"
+        }; then
           for o in $(cat /proc/cmdline); do
             case $o in
               ip=*)
@@ -176,7 +182,9 @@ in
 
       # Otherwise, use DHCP.
       + optionalString doDhcp ''
-        if ${if cfg.enableSetupInCrashDump then "true" else "! grep -q this_is_a_crash_kernel /proc/cmdline"}; then
+        if ${
+          if cfg.enableSetupInCrashDump then "true" else "! grep -q this_is_a_crash_kernel /proc/cmdline"
+        }; then
           sleep 3
 
           runUdhcpc() {
@@ -201,18 +209,18 @@ in
 
           touch /.tried-dhcp-interfaces
 
-          ${optionalString (cfg.preferredDHCPInterfaceMacAddresses != []) ''
-          # Try preferred interfaces
-          for mac in ${concatStringsSep " " cfg.preferredDHCPInterfaceMacAddresses}; do
-            iface=$(ip -o link | grep "$mac" | awk -F': ' '{print $2}')
+          ${optionalString (cfg.preferredDHCPInterfaceMacAddresses != [ ]) ''
+            # Try preferred interfaces
+            for mac in ${concatStringsSep " " cfg.preferredDHCPInterfaceMacAddresses}; do
+              iface=$(ip -o link | grep "$mac" | awk -F': ' '{print $2}')
 
-            if [ -n "$iface" ]; then
-              echo "$iface" >> /.tried-dhcp-interfaces
-              runUdhcpc "$iface" && break
-            else
-              echo "Preferred interface with $mac not found"
-            fi
-          done
+              if [ -n "$iface" ]; then
+                echo "$iface" >> /.tried-dhcp-interfaces
+                runUdhcpc "$iface" && break
+              else
+                echo "Preferred interface with $mac not found"
+              fi
+            done
           ''}
 
           # Acquire DHCP leases
@@ -233,7 +241,8 @@ in
         ntpd -q ${concatMapStringsSep " " (v: "-p ${v}") config.networking.timeServers}
       ''
 
-      + cfg.postCommands);
+      + cfg.postCommands
+    );
 
     boot.initrd.postMountCommands = mkIf cfg.flushBeforeStage2 ''
       for iface in $ifaces; do

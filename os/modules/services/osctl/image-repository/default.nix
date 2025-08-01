@@ -1,4 +1,9 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 with lib;
 let
   repository = {
@@ -85,9 +90,11 @@ let
 
       vendors = mkOption {
         type = types.attrsOf (types.submodule vendor);
-        default = {};
+        default = { };
         example = {
-          vpsadminos = { defaultVariant = "minimal"; };
+          vpsadminos = {
+            defaultVariant = "minimal";
+          };
         };
         description = ''
           Vendors
@@ -104,7 +111,7 @@ let
 
       images = mkOption {
         type = types.attrsOf (types.attrsOf (types.submodule image));
-        default = {};
+        default = { };
         description = ''
           Configure container images
         '';
@@ -112,7 +119,7 @@ let
 
       garbageCollection = mkOption {
         type = types.listOf (types.submodule gc);
-        default = [];
+        default = [ ];
         description = ''
           Garbage collection of old images
         '';
@@ -144,7 +151,7 @@ let
 
       variants = mkOption {
         type = types.listOf types.str;
-        default = [];
+        default = [ ];
         description = ''
           Optional image variants to build
         '';
@@ -152,7 +159,7 @@ let
 
       tags = mkOption {
         type = types.listOf types.str;
-        default = [];
+        default = [ ];
         description = ''
           Image tags
         '';
@@ -251,25 +258,32 @@ let
     default_vendor = cfg.defaultVendor;
     post_build = pkgs.writers.writeBash "repo-${repo}-post-build.sh" cfg.postBuild;
     gc =
-      if cfg.garbageCollection == [] then
+      if cfg.garbageCollection == [ ] then
         null
       else
-        [gcRunner (gcConfigFile cfg.garbageCollection)];
+        [
+          gcRunner
+          (gcConfigFile cfg.garbageCollection)
+        ];
   };
 
-  buildScript = repo: cfg: pkgs.replaceVarsWith {
-    src = ./build.rb;
-    isExecutable = true;
-    replacements = {
-      ruby = pkgs.ruby;
-      json_config = pkgs.writeText "repo-${repo}-config.json" (builtins.toJSON (buildConfig repo cfg));
+  buildScript =
+    repo: cfg:
+    pkgs.replaceVarsWith {
+      src = ./build.rb;
+      isExecutable = true;
+      replacements = {
+        ruby = pkgs.ruby;
+        json_config = pkgs.writeText "repo-${repo}-config.json" (builtins.toJSON (buildConfig repo cfg));
+      };
     };
-  };
 
-  createBuildScript = repo: cfg: pkgs.runCommand "repo-${repo}-build" {} ''
-    mkdir -p $out/bin
-    ln -s ${buildScript repo cfg} $out/bin/build-image-repository-${repo}
-  '';
+  createBuildScript =
+    repo: cfg:
+    pkgs.runCommand "repo-${repo}-build" { } ''
+      mkdir -p $out/bin
+      ln -s ${buildScript repo cfg} $out/bin/build-image-repository-${repo}
+    '';
 
   gcRunner = pkgs.replaceVarsWith {
     name = "container-image-gc.rb";
@@ -281,24 +295,27 @@ let
     };
   };
 
-  gcConfig = matchers: map (matcher:
-    filterAttrs (k: v: k != "_module" ) matcher
-  ) matchers;
+  gcConfig = matchers: map (matcher: filterAttrs (k: v: k != "_module") matcher) matchers;
 
-  gcConfigFile = matchers:
-    pkgs.writeText "image-repository-gc-config.json" (builtins.toJSON ({
-      gc = gcConfig matchers;
-    }));
+  gcConfigFile =
+    matchers:
+    pkgs.writeText "image-repository-gc-config.json" (
+      builtins.toJSON ({
+        gc = gcConfig matchers;
+      })
+    );
 
-  gcImages = repoCfg: optionalString (repoCfg.garbageCollection != []) ''
-    ${gcRunner} ${gcConfigFile repoCfg.garbageCollection}
-  '';
+  gcImages =
+    repoCfg:
+    optionalString (repoCfg.garbageCollection != [ ]) ''
+      ${gcRunner} ${gcConfigFile repoCfg.garbageCollection}
+    '';
 in
 {
   options = {
     services.osctl.image-repository = mkOption {
       type = types.attrsOf (types.submodule repository);
-      default = {};
+      default = { };
       description = ''
         Configure container image repositories
       '';
@@ -309,10 +326,11 @@ in
     let
       repos = createRepositories config.services.osctl.image-repository;
       packages = map (repo: repo.buildScript) repos;
-      cronjobs = flatten (map (repo:
-        optional repo.enableCronJob "${repo.buildInterval} root ${repo.buildScriptBin}"
-      ) repos);
-    in {
+      cronjobs = flatten (
+        map (repo: optional repo.enableCronJob "${repo.buildInterval} root ${repo.buildScriptBin}") repos
+      );
+    in
+    {
       environment.systemPackages = packages;
       services.cron.systemCronJobs = cronjobs;
     };

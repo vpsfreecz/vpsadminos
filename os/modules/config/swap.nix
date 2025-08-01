@@ -1,4 +1,10 @@
-{ config, lib, pkgs, utils, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  utils,
+  ...
+}:
 
 with utils;
 with lib;
@@ -17,19 +23,21 @@ with lib;
     runit.services =
       let
 
-        createSwapDevice = sw:
+        createSwapDevice =
+          sw:
           assert sw.device != "";
-          assert !(sw.randomEncryption.enable && lib.hasPrefix "/dev/disk/by-uuid"  sw.device);
+          assert !(sw.randomEncryption.enable && lib.hasPrefix "/dev/disk/by-uuid" sw.device);
           assert !(sw.randomEncryption.enable && lib.hasPrefix "/dev/disk/by-label" sw.device);
           let
             realDevice' = escapeSystemdPath sw.realDevice;
             path = [ pkgs.util-linux ] ++ optional sw.randomEncryption.enable pkgs.cryptsetup;
-          in nameValuePair "swap-${sw.deviceName}" {
+          in
+          nameValuePair "swap-${sw.deviceName}" {
             run = ''
               export PATH="${concatMapStringsSep ":" (v: "${v}/bin") path}:$PATH"
 
               ${optionalString (config.services.haveged.enable && sw.randomEncryption.enable) ''
-              waitForService haveged
+                waitForService haveged
               ''}
 
               ${optionalString (sw.size != null) ''
@@ -61,7 +69,8 @@ with lib;
             log.sendTo = "127.0.0.1";
           };
 
-      in listToAttrs (map createSwapDevice config.swapDevices);
+      in
+      listToAttrs (map createSwapDevice config.swapDevices);
 
   };
 }

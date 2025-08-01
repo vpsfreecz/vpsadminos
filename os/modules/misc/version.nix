@@ -1,44 +1,67 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 let
   cfg = config.system.vpsadminos;
   opt = config.system.vpsadminos;
 
-  versionFile  = ../../../.version;
-  suffixFile   = ../../../.version-suffix;
+  versionFile = ../../../.version;
+  suffixFile = ../../../.version-suffix;
   revisionFile = ../../../.git-revision;
-  gitRepo      = "${toString ../../..}/.git";
-  gitCommitId  = lib.substring 0 7 (commitIdFromGitRepo gitRepo);
+  gitRepo = "${toString ../../..}/.git";
+  gitCommitId = lib.substring 0 7 (commitIdFromGitRepo gitRepo);
 
   inherit (lib)
-    concatStringsSep mapAttrsToList toLower
-    literalExpression mkRenamedOptionModule mkDefault mkOption mkIf trivial types
-    commitIdFromGitRepo fileContents pathExists pathIsDirectory;
+    concatStringsSep
+    mapAttrsToList
+    toLower
+    literalExpression
+    mkRenamedOptionModule
+    mkDefault
+    mkOption
+    mkIf
+    trivial
+    types
+    commitIdFromGitRepo
+    fileContents
+    pathExists
+    pathIsDirectory
+    ;
 
   needsEscaping = s: null != builtins.match "[a-zA-Z0-9]+" s;
   escapeIfNecessary = s: if needsEscaping s then s else ''"${lib.escape [ "\$" "\"" "\\" "\`" ] s}"'';
-  attrsToText = attrs:
-    concatStringsSep "\n" (
-      mapAttrsToList (n: v: ''${n}=${escapeIfNecessary (toString v)}'') attrs
-    ) + "\n";
+  attrsToText =
+    attrs:
+    concatStringsSep "\n" (mapAttrsToList (n: v: ''${n}=${escapeIfNecessary (toString v)}'') attrs)
+    + "\n";
 
-  osReleaseContents = {
-    NAME = "${cfg.distroName}";
-    ID = "${cfg.distroId}";
-    VERSION = "${cfg.release} (${cfg.codeName})";
-    VERSION_CODENAME = toLower cfg.codeName;
-    VERSION_ID = cfg.release;
-    BUILD_ID = cfg.version;
-    PRETTY_NAME = "${cfg.distroName} ${cfg.release} (${cfg.codeName})";
-    LOGO = "nix-snowflake";
-    HOME_URL = lib.optionalString (cfg.distroId == "vpsadminos") "https://vpsadminos.org/";
-    DOCUMENTATION_URL = lib.optionalString (cfg.distroId == "vpsadminos") "https://vpsadminos.org";
-    SUPPORT_URL = lib.optionalString (cfg.distroId == "vpsadminos") "https://github.com/vpsfreecz/vpsadminos";
-    BUG_REPORT_URL = lib.optionalString (cfg.distroId == "vpsadminos") "https://github.com/vpsfreecz/vpsadminos/issues";
-    SUPPORT_END = "2023-12-31";
-  } // lib.optionalAttrs (cfg.variant_id != null) {
-    VARIANT_ID = cfg.variant_id;
-  };
+  osReleaseContents =
+    {
+      NAME = "${cfg.distroName}";
+      ID = "${cfg.distroId}";
+      VERSION = "${cfg.release} (${cfg.codeName})";
+      VERSION_CODENAME = toLower cfg.codeName;
+      VERSION_ID = cfg.release;
+      BUILD_ID = cfg.version;
+      PRETTY_NAME = "${cfg.distroName} ${cfg.release} (${cfg.codeName})";
+      LOGO = "nix-snowflake";
+      HOME_URL = lib.optionalString (cfg.distroId == "vpsadminos") "https://vpsadminos.org/";
+      DOCUMENTATION_URL = lib.optionalString (cfg.distroId == "vpsadminos") "https://vpsadminos.org";
+      SUPPORT_URL = lib.optionalString (
+        cfg.distroId == "vpsadminos"
+      ) "https://github.com/vpsfreecz/vpsadminos";
+      BUG_REPORT_URL = lib.optionalString (
+        cfg.distroId == "vpsadminos"
+      ) "https://github.com/vpsfreecz/vpsadminos/issues";
+      SUPPORT_END = "2023-12-31";
+    }
+    // lib.optionalAttrs (cfg.variant_id != null) {
+      VARIANT_ID = cfg.variant_id;
+    };
 
   initrdReleaseContents = osReleaseContents // {
     PRETTY_NAME = "${osReleaseContents.PRETTY_NAME} (Initrd)";
@@ -74,9 +97,13 @@ in
     vpsadminos.revision = mkOption {
       internal = true;
       type = types.nullOr types.str;
-      default = if pathIsDirectory gitRepo then commitIdFromGitRepo gitRepo
-                else if pathExists revisionFile then fileContents revisionFile
-                else "staging";
+      default =
+        if pathIsDirectory gitRepo then
+          commitIdFromGitRepo gitRepo
+        else if pathExists revisionFile then
+          fileContents revisionFile
+        else
+          "staging";
       description = lib.mdDoc "The Git revision from which this vpsAdminOS configuration was built.";
     };
 
@@ -145,7 +172,7 @@ in
     defaultOsChannel = mkOption {
       internal = true;
       type = types.str;
-      default = https://github.com/vpsfreecz/vpsadminos/archive/refs/heads/staging.tar.gz;
+      default = "https://github.com/vpsfreecz/vpsadminos/archive/refs/heads/staging.tar.gz";
       description = "Default vpsAdminOS channel to which the root user is subscribed.";
     };
 

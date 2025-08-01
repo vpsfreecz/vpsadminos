@@ -1,4 +1,9 @@
-{ pkgs, config, lib, ... }:
+{
+  pkgs,
+  config,
+  lib,
+  ...
+}:
 with lib;
 let
   cfg = config.networking;
@@ -28,7 +33,8 @@ let
       }
     '';
   };
-in {
+in
+{
   options = {
     networking = {
       hostName = mkOption {
@@ -106,8 +112,8 @@ in {
       };
 
       hosts = lib.mkOption {
-        type = types.attrsOf ( types.listOf types.str );
-        default = {};
+        type = types.attrsOf (types.listOf types.str);
+        default = { };
         example = literalExpression ''
           {
             "127.0.0.1" = [ "foo.bar.baz" ];
@@ -130,16 +136,22 @@ in {
 
       nameservers = mkOption {
         type = types.listOf types.str;
-        default = [];
-        example = ["208.67.222.222" "208.67.220.220"];
+        default = [ ];
+        example = [
+          "208.67.222.222"
+          "208.67.220.220"
+        ];
         description = ''
           The list of nameservers.  It can be left empty if it is auto-detected through DHCP.
         '';
       };
 
       search = mkOption {
-        default = [];
-        example = [ "example.com" "local.domain" ];
+        default = [ ];
+        example = [
+          "example.com"
+          "local.domain"
+        ];
         type = types.listOf types.str;
         description = ''
           The list of search paths used when resolving domain names.
@@ -157,8 +169,16 @@ in {
 
       waitOnline = {
         methods = mkOption {
-          type = types.listOf (types.enum [ "ping" "http" ]);
-          default = [ "ping" "http" ];
+          type = types.listOf (
+            types.enum [
+              "ping"
+              "http"
+            ]
+          );
+          default = [
+            "ping"
+            "http"
+          ];
           description = ''
             Which methods to use to check network connectivity. It is enough
             for one method to work.
@@ -167,7 +187,10 @@ in {
 
         ping.hosts = mkOption {
           type = types.listOf types.str;
-          default = [ "8.8.8.8" "1.1.1.1" ];
+          default = [
+            "8.8.8.8"
+            "1.1.1.1"
+          ];
           description = ''
             A list of hosts which are pinged. We are online when any one of these
             pongs back.
@@ -176,7 +199,10 @@ in {
 
         http.urls = mkOption {
           type = types.listOf types.str;
-          default = [ "http://1.1.1.1" "http://check-online.vpsadminos.org" ];
+          default = [
+            "http://1.1.1.1"
+            "http://check-online.vpsadminos.org"
+          ];
           description = ''
             A list URLs which are queried. We are online when any one of these
             sends a HTTP response.
@@ -191,15 +217,20 @@ in {
       # /etc/hosts: Hostname-to-IP mappings.
       "hosts".text =
         let
-            oneToString = set : ip : ip + " " + concatStringsSep " " ( getAttr ip set );
-            allToString = set : concatMapStringsSep "\n" ( oneToString set ) ( attrNames set );
-            userLocalHosts = optionalString
-              ( builtins.hasAttr "127.0.0.1" cfg.hosts )
-              ( concatStringsSep " " ( remove "localhost" cfg.hosts."127.0.0.1" ));
-            userLocalHosts6 = optionalString
-              ( builtins.hasAttr "::1" cfg.hosts )
-              ( concatStringsSep " " ( remove "localhost" cfg.hosts."::1" ));
-            otherHosts = allToString ( removeAttrs cfg.hosts [ "127.0.0.1" "::1" ]);
+          oneToString = set: ip: ip + " " + concatStringsSep " " (getAttr ip set);
+          allToString = set: concatMapStringsSep "\n" (oneToString set) (attrNames set);
+          userLocalHosts = optionalString (builtins.hasAttr "127.0.0.1" cfg.hosts) (
+            concatStringsSep " " (remove "localhost" cfg.hosts."127.0.0.1")
+          );
+          userLocalHosts6 = optionalString (builtins.hasAttr "::1" cfg.hosts) (
+            concatStringsSep " " (remove "localhost" cfg.hosts."::1")
+          );
+          otherHosts = allToString (
+            removeAttrs cfg.hosts [
+              "127.0.0.1"
+              "::1"
+            ]
+          );
         in
         ''
           127.0.0.1 ${userLocalHosts} localhost
@@ -211,14 +242,14 @@ in {
         '';
 
       "resolv.conf".text = lib.mkDefault ''
-          ${optionalString (cfg.nameservers != [] && cfg.domain != null) ''
-            domain ${cfg.domain}
-          ''}
-          ${optionalString (cfg.search != []) ("search " + concatStringsSep " " cfg.search)}
-          ${flip concatMapStrings cfg.nameservers (ns: ''
-            nameserver ${ns}
-          '')}
-        '';
+        ${optionalString (cfg.nameservers != [ ] && cfg.domain != null) ''
+          domain ${cfg.domain}
+        ''}
+        ${optionalString (cfg.search != [ ]) ("search " + concatStringsSep " " cfg.search)}
+        ${flip concatMapStrings cfg.nameservers (ns: ''
+          nameserver ${ns}
+        '')}
+      '';
     };
 
     runit.services.networking = {
@@ -228,26 +259,29 @@ in {
         ${cfg.preConfig}
 
         ${optionalString cfg.static.enable ''
-        ip addr add ${cfg.static.ip} dev ${cfg.static.interface}
-        ip link set ${cfg.static.interface} up
-        ip route add ${cfg.static.route} dev ${cfg.static.interface}
-        ip route add default via ${cfg.static.gateway} dev ${cfg.static.interface}
+          ip addr add ${cfg.static.ip} dev ${cfg.static.interface}
+          ip link set ${cfg.static.interface} up
+          ip route add ${cfg.static.route} dev ${cfg.static.interface}
+          ip route add default via ${cfg.static.gateway} dev ${cfg.static.interface}
         ''}
 
         ${optionalString cfg.lxcbr.enable ''
-        brctl addbr lxcbr0
-        brctl setfd lxcbr0 0
-        ip addr add 192.168.1.1 dev lxcbr0
-        ip link set promisc on lxcbr0
-        ip link set lxcbr0 up
-        ip route add 192.168.1.0/24 dev lxcbr0
+          brctl addbr lxcbr0
+          brctl setfd lxcbr0 0
+          ip addr add 192.168.1.1 dev lxcbr0
+          ip link set promisc on lxcbr0
+          ip link set lxcbr0 up
+          ip route add 192.168.1.0/24 dev lxcbr0
         ''}
 
         ${cfg.custom}
       '';
       oneShot = true;
       onChange = "ignore";
-      runlevels = [ "rescue" "default" ];
+      runlevels = [
+        "rescue"
+        "default"
+      ];
     };
 
     runit.services.dhcpcd = mkIf cfg.useDHCP {
@@ -258,7 +292,10 @@ in {
         mkdir -p /var/db/dhcpcd
         exec ${pkgs.dhcpcd}/sbin/dhcpcd -B
       '';
-      runlevels = [ "rescue" "default" ];
+      runlevels = [
+        "rescue"
+        "default"
+      ];
     };
 
     runit.services.network-online = {

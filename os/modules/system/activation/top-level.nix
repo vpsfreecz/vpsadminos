@@ -1,18 +1,26 @@
-{ pkgs, config, lib, ... }:
+{
+  pkgs,
+  config,
+  lib,
+  ...
+}:
 
 with lib;
 
 let
   systemBuilder =
     let
-      serviceList = pkgs.writeText "services.json" (builtins.toJSON {
-        defaultRunlevel = config.runit.defaultRunlevel;
+      serviceList = pkgs.writeText "services.json" (
+        builtins.toJSON {
+          defaultRunlevel = config.runit.defaultRunlevel;
 
-        services = lib.mapAttrs (k: v: {
-          inherit (v) runlevels onChange reloadMethod;
-        }) config.runit.services;
-      });
-    in ''
+          services = lib.mapAttrs (k: v: {
+            inherit (v) runlevels onChange reloadMethod;
+          }) config.runit.services;
+        }
+      );
+    in
+    ''
       mkdir $out
       cp ${config.system.build.bootStage2} $out/init
       substituteInPlace $out/init --subst-var-by systemConfig $out
@@ -52,49 +60,58 @@ let
   # kernel, systemd units, init scripts, etc.) as well as a script
   # `switch-to-configuration' that activates the configuration and
   # makes it bootable.
-  baseSystem = pkgs.stdenvNoCC.mkDerivation ({
-    name = "vpsadminos-system-${config.system.name}-${config.system.vpsadminos.label}";
-    preferLocalBuild = true;
-    allowSubstitutes = false;
-    passAsFile = [ "extraDependencies" ];
-    buildCommand = systemBuilder;
+  baseSystem = pkgs.stdenvNoCC.mkDerivation (
+    {
+      name = "vpsadminos-system-${config.system.name}-${config.system.vpsadminos.label}";
+      preferLocalBuild = true;
+      allowSubstitutes = false;
+      passAsFile = [ "extraDependencies" ];
+      buildCommand = systemBuilder;
 
-    inherit (pkgs) coreutils;
-    shell = "${pkgs.bash}/bin/sh";
-    su = "${pkgs.shadow.su}/bin/su";
-    utillinux = pkgs.util-linux;
-    ruby = pkgs.ruby;
+      inherit (pkgs) coreutils;
+      shell = "${pkgs.bash}/bin/sh";
+      su = "${pkgs.shadow.su}/bin/su";
+      utillinux = pkgs.util-linux;
+      ruby = pkgs.ruby;
 
-    kernelParams = config.boot.kernelParams;
-    installBootLoader = config.system.build.installBootLoader;
-    activationScript = config.system.activationScripts.script;
-    dryActivationScript = config.system.dryActivationScript;
-    vpsadminosLabel = config.system.vpsadminos.label;
+      kernelParams = config.boot.kernelParams;
+      installBootLoader = config.system.build.installBootLoader;
+      activationScript = config.system.activationScripts.script;
+      dryActivationScript = config.system.dryActivationScript;
+      vpsadminosLabel = config.system.vpsadminos.label;
 
-    inherit (config.system) extraDependencies;
-  } // config.system.systemBuilderArgs);
+      inherit (config.system) extraDependencies;
+    }
+    // config.system.systemBuilderArgs
+  );
 
   # Handle assertions and warnings
 
   failedAssertions = map (x: x.message) (filter (x: !x.assertion) config.assertions);
 
-  baseSystemAssertWarn = if failedAssertions != []
-    then throw "\nFailed assertions:\n${concatStringsSep "\n" (map (x: "- ${x}") failedAssertions)}"
-    else showWarnings config.warnings baseSystem;
+  baseSystemAssertWarn =
+    if failedAssertions != [ ] then
+      throw "\nFailed assertions:\n${concatStringsSep "\n" (map (x: "- ${x}") failedAssertions)}"
+    else
+      showWarnings config.warnings baseSystem;
 
   # Replace runtime dependencies
-  system = foldr ({ oldDependency, newDependency }: drv:
-      pkgs.replaceDependency { inherit oldDependency newDependency drv; }
-    ) baseSystemAssertWarn config.system.replaceRuntimeDependencies;
+  system = foldr (
+    { oldDependency, newDependency }:
+    drv: pkgs.replaceDependency { inherit oldDependency newDependency drv; }
+  ) baseSystemAssertWarn config.system.replaceRuntimeDependencies;
 
   systemWithBuildDeps = system.overrideAttrs (o: {
     systemBuildClosure = pkgs.closureInfo { rootPaths = [ system.drvPath ]; };
-    buildCommand = o.buildCommand + ''
-      ln -sn $systemBuildClosure $out/build-closure
-    '';
+    buildCommand =
+      o.buildCommand
+      + ''
+        ln -sn $systemBuildClosure $out/build-closure
+      '';
   });
 
-in {
+in
+{
   options = {
     system.boot.loader.id = mkOption {
       internal = true;
@@ -173,7 +190,7 @@ in {
     system.systemBuilderArgs = mkOption {
       type = types.attrsOf types.unspecified;
       internal = true;
-      default = {};
+      default = { };
       description = lib.mdDoc ''
         `lib.mkDerivation` attributes that will be passed to the top level system builder.
       '';
@@ -200,7 +217,7 @@ in {
 
     system.extraDependencies = mkOption {
       type = types.listOf types.package;
-      default = [];
+      default = [ ];
       description = lib.mdDoc ''
         A list of packages that should be included in the system
         closure but generally not visible to users.
@@ -213,7 +230,7 @@ in {
 
     system.checks = mkOption {
       type = types.listOf types.package;
-      default = [];
+      default = [ ];
       description = lib.mdDoc ''
         Packages that are added as dependencies of the system's build, usually
         for the purpose of validating some part of the configuration.
@@ -224,25 +241,31 @@ in {
     };
 
     system.replaceRuntimeDependencies = mkOption {
-      default = [];
+      default = [ ];
       example = lib.literalExpression "[ ({ original = pkgs.openssl; replacement = pkgs.callPackage /path/to/openssl { }; }) ]";
-      type = types.listOf (types.submodule (
-        { ... }: {
-          options.original = mkOption {
-            type = types.package;
-            description = lib.mdDoc "The original package to override.";
-          };
+      type = types.listOf (
+        types.submodule (
+          { ... }:
+          {
+            options.original = mkOption {
+              type = types.package;
+              description = lib.mdDoc "The original package to override.";
+            };
 
-          options.replacement = mkOption {
-            type = types.package;
-            description = lib.mdDoc "The replacement package.";
-          };
-        })
+            options.replacement = mkOption {
+              type = types.package;
+              description = lib.mdDoc "The replacement package.";
+            };
+          }
+        )
       );
-      apply = map ({ original, replacement, ... }: {
-        oldDependency = original;
-        newDependency = replacement;
-      });
+      apply = map (
+        { original, replacement, ... }:
+        {
+          oldDependency = original;
+          newDependency = replacement;
+        }
+      );
       description = lib.mdDoc ''
         List of packages to override without doing a full rebuild.
         The original derivation and replacement derivation must have the same
@@ -252,10 +275,7 @@ in {
 
     system.name = mkOption {
       type = types.str;
-      default =
-        if config.networking.hostName == ""
-        then "unnamed"
-        else config.networking.hostName;
+      default = if config.networking.hostName == "" then "unnamed" else config.networking.hostName;
       defaultText = literalExpression ''
         if config.networking.hostName == ""
         then "unnamed"
@@ -314,7 +334,13 @@ in {
     };
 
     boot.predefinedFailAction = mkOption {
-      type = types.enum ["" "n" "i" "r" "*" ];
+      type = types.enum [
+        ""
+        "n"
+        "i"
+        "r"
+        "*"
+      ];
       default = "";
       description = ''
         Action to take automatically if stage-1 fails.
@@ -342,37 +368,41 @@ in {
 
     boot.kernelParams = optional (!config.boot.isLiveSystem) "nolive";
 
-    system.extraSystemBuilderCmds =
-      optionalString
-        (config.system.forbiddenDependenciesRegex != "")
-        ''
-          if [[ $forbiddenDependenciesRegex != "" && -n $closureInfo ]]; then
-            if forbiddenPaths="$(grep -E -- "$forbiddenDependenciesRegex" $closureInfo/store-paths)"; then
-              echo -e "System closure $out contains the following disallowed paths:\n$forbiddenPaths"
-              exit 1
-            fi
-          fi
-        '';
+    system.extraSystemBuilderCmds = optionalString (config.system.forbiddenDependenciesRegex != "") ''
+      if [[ $forbiddenDependenciesRegex != "" && -n $closureInfo ]]; then
+        if forbiddenPaths="$(grep -E -- "$forbiddenDependenciesRegex" $closureInfo/store-paths)"; then
+          echo -e "System closure $out contains the following disallowed paths:\n$forbiddenPaths"
+          exit 1
+        fi
+      fi
+    '';
 
-    system.systemBuilderArgs = {
-      # Not actually used in the builder. `passedChecks` is just here to create
-      # the build dependencies. Checks are similar to build dependencies in the
-      # sense that if they fail, the system build fails. However, checks do not
-      # produce any output of value, so they are not used by the system builder.
-      # In fact, using them runs the risk of accidentally adding unneeded paths
-      # to the system closure, which defeats the purpose of the `system.checks`
-      # option, as opposed to `system.extraDependencies`.
-      passedChecks = concatStringsSep " " config.system.checks;
-    }
-    // lib.optionalAttrs (config.system.forbiddenDependenciesRegex != "") {
-      inherit (config.system) forbiddenDependenciesRegex;
-      closureInfo = pkgs.closureInfo { rootPaths = [
-        # override to avoid  infinite recursion (and to allow using extraDependencies to add forbidden dependencies)
-        (config.system.build.toplevel.overrideAttrs (_: { extraDependencies = []; closureInfo = null; }))
-      ]; };
-    };
+    system.systemBuilderArgs =
+      {
+        # Not actually used in the builder. `passedChecks` is just here to create
+        # the build dependencies. Checks are similar to build dependencies in the
+        # sense that if they fail, the system build fails. However, checks do not
+        # produce any output of value, so they are not used by the system builder.
+        # In fact, using them runs the risk of accidentally adding unneeded paths
+        # to the system closure, which defeats the purpose of the `system.checks`
+        # option, as opposed to `system.extraDependencies`.
+        passedChecks = concatStringsSep " " config.system.checks;
+      }
+      // lib.optionalAttrs (config.system.forbiddenDependenciesRegex != "") {
+        inherit (config.system) forbiddenDependenciesRegex;
+        closureInfo = pkgs.closureInfo {
+          rootPaths = [
+            # override to avoid  infinite recursion (and to allow using extraDependencies to add forbidden dependencies)
+            (config.system.build.toplevel.overrideAttrs (_: {
+              extraDependencies = [ ];
+              closureInfo = null;
+            }))
+          ];
+        };
+      };
 
-    system.build.toplevel = if config.system.includeBuildDependencies then systemWithBuildDeps else system;
+    system.build.toplevel =
+      if config.system.includeBuildDependencies then systemWithBuildDeps else system;
 
     system.build.squashfs = pkgs.callPackage ../../../lib/make-squashfs.nix {
       storeContents = [ config.system.build.toplevel ];
@@ -380,7 +410,7 @@ in {
       noStrip = true;
     };
 
-    system.build.dist = pkgs.runCommand "vpsadminos-dist" {} ''
+    system.build.dist = pkgs.runCommand "vpsadminos-dist" { } ''
       mkdir $out
       ln -s ${config.system.build.squashfs} $out/root.squashfs
       ln -s ${config.system.build.kernel}/bzImage $out/bzImage

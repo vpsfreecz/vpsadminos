@@ -1,63 +1,64 @@
-{ buildPackages
-, callPackage
-, perl
-, bison ? null
-, flex ? null
-, gmp ? null
-, libmpc ? null
-, mpfr ? null
-, pahole
-, lib
-, stdenv
+{
+  buildPackages,
+  callPackage,
+  perl,
+  bison ? null,
+  flex ? null,
+  gmp ? null,
+  libmpc ? null,
+  mpfr ? null,
+  pahole,
+  lib,
+  stdenv,
 
-, # The kernel source tarball.
-  src
+  # The kernel source tarball.
+  src,
 
-, # The kernel version.
-  version
+  # The kernel version.
+  version,
 
-, # Allows overriding the default defconfig
-  defconfig ? null
+  # Allows overriding the default defconfig
+  defconfig ? null,
 
-, # Legacy overrides to the intermediate kernel config, as string
+  # Legacy overrides to the intermediate kernel config, as string
   extraConfig ? ""
 
-, # kernel intermediate config overrides, as a set
- structuredExtraConfig ? {}
+  , # kernel intermediate config overrides, as a set
+  structuredExtraConfig ? { },
 
-, # The version number used for the module directory
-  modDirVersion ? version
+  # The version number used for the module directory
+  modDirVersion ? version,
 
-, # An attribute set whose attributes express the availability of
+  # An attribute set whose attributes express the availability of
   # certain features in this kernel.  E.g. `{iwlwifi = true;}'
   # indicates a kernel that provides Intel wireless support.  Used in
   # NixOS to implement kernel-specific behaviour.
-  features ? {}
+  features ? { },
 
-, # Custom seed used for CONFIG_GCC_PLUGIN_RANDSTRUCT if enabled. This is
+  # Custom seed used for CONFIG_GCC_PLUGIN_RANDSTRUCT if enabled. This is
   # automatically extended with extra per-version and per-config values.
-  randstructSeed ? ""
+  randstructSeed ? "",
 
-, # A list of patches to apply to the kernel.  Each element of this list
+  # A list of patches to apply to the kernel.  Each element of this list
   # should be an attribute set {name, patch} where `name' is a
   # symbolic name and `patch' is the actual patch.  The patch may
   # optionally be compressed with gzip or bzip2.
-  kernelPatches ? []
-, ignoreConfigErrors ? stdenv.hostPlatform.linux-kernel.name != "pc" ||
-                       stdenv.hostPlatform != stdenv.buildPlatform
-, extraMeta ? {}
+  kernelPatches ? [ ],
+  ignoreConfigErrors ?
+    stdenv.hostPlatform.linux-kernel.name != "pc" || stdenv.hostPlatform != stdenv.buildPlatform,
+  extraMeta ? { },
 
-, isZen      ? false
-, isLibre    ? false
-, isHardened ? false
+  isZen ? false,
+  isLibre ? false,
+  isHardened ? false,
 
-# easy overrides to stdenv.hostPlatform.linux-kernel members
-, autoModules ? stdenv.hostPlatform.linux-kernel.autoModules
-, preferBuiltin ? stdenv.hostPlatform.linux-kernel.preferBuiltin or false
-, kernelArch ? stdenv.hostPlatform.linuxArch
-, kernelTests ? []
-, zfsBuiltinPkg
-, ...
+  # easy overrides to stdenv.hostPlatform.linux-kernel members
+  autoModules ? stdenv.hostPlatform.linux-kernel.autoModules,
+  preferBuiltin ? stdenv.hostPlatform.linux-kernel.preferBuiltin or false,
+  kernelArch ? stdenv.hostPlatform.linuxArch,
+  kernelTests ? [ ],
+  zfsBuiltinPkg,
+  ...
 }:
 
 # Note: this package is used for bootstrapping fetchurl, and thus
@@ -69,13 +70,16 @@ assert stdenv.isLinux;
 
 let
   # Combine the `features' attribute sets of all the kernel patches.
-  kernelFeatures = lib.fold (x: y: (x.features or {}) // y) ({
-    iwlwifi = true;
-    efiBootStub = true;
-    needsCifsUtils = true;
-    netfilterRPFilter = true;
-    ia32Emulation = true;
-  } // features) kernelPatches;
+  kernelFeatures = lib.fold (x: y: (x.features or { }) // y) (
+    {
+      iwlwifi = true;
+      efiBootStub = true;
+      needsCifsUtils = true;
+      netfilterRPFilter = true;
+      ia32Emulation = true;
+    }
+    // features
+  ) kernelPatches;
 
   commonStructuredConfig = import ./common-config.nix {
     inherit lib stdenv version;
@@ -83,23 +87,43 @@ let
     features = kernelFeatures; # Ensure we know of all extra patches, etc.
   };
 
-  intermediateNixConfig = configfile.moduleStructuredConfig.intermediateNixConfig
+  intermediateNixConfig =
+    configfile.moduleStructuredConfig.intermediateNixConfig
     # extra config in legacy string format
     + extraConfig
     + stdenv.hostPlatform.linux-kernel.extraConfig or "";
 
-  structuredConfigFromPatches =
-        map ({extraStructuredConfig ? {}, ...}: {settings=extraStructuredConfig;}) kernelPatches;
+  structuredConfigFromPatches = map (
+    {
+      extraStructuredConfig ? { },
+      ...
+    }:
+    {
+      settings = extraStructuredConfig;
+    }
+  ) kernelPatches;
 
   # appends kernel patches extraConfig
-  kernelConfigFun = baseConfigStr:
+  kernelConfigFun =
+    baseConfigStr:
     let
-      configFromPatches =
-        map ({extraConfig ? "", ...}: extraConfig) kernelPatches;
-    in lib.concatStringsSep "\n" ([baseConfigStr] ++ configFromPatches);
+      configFromPatches = map (
+        {
+          extraConfig ? "",
+          ...
+        }:
+        extraConfig
+      ) kernelPatches;
+    in
+    lib.concatStringsSep "\n" ([ baseConfigStr ] ++ configFromPatches);
 
   configfile = stdenv.mkDerivation {
-    inherit ignoreConfigErrors autoModules preferBuiltin kernelArch;
+    inherit
+      ignoreConfigErrors
+      autoModules
+      preferBuiltin
+      kernelArch
+      ;
     pname = "linux-config";
     inherit version;
 
@@ -109,20 +133,33 @@ let
     passAsFile = [ "kernelConfig" ];
 
     depsBuildBuild = [ buildPackages.stdenv.cc ];
-    nativeBuildInputs = [ perl gmp libmpc mpfr pahole ]
-      ++ lib.optionals (lib.versionAtLeast version "4.16") [ bison flex ];
+    nativeBuildInputs =
+      [
+        perl
+        gmp
+        libmpc
+        mpfr
+        pahole
+      ]
+      ++ lib.optionals (lib.versionAtLeast version "4.16") [
+        bison
+        flex
+      ];
 
     platformName = stdenv.hostPlatform.linux-kernel.name;
     # e.g. "defconfig"
-    kernelBaseConfig = if defconfig != null then defconfig else stdenv.hostPlatform.linux-kernel.baseConfig;
+    kernelBaseConfig =
+      if defconfig != null then defconfig else stdenv.hostPlatform.linux-kernel.baseConfig;
     # e.g. "bzImage"
     kernelTarget = stdenv.hostPlatform.linux-kernel.target;
 
-    prePatch = kernel.prePatch + ''
-      # Patch kconfig to print "###" after every question so that
-      # generate-config.pl from the generic builder can answer them.
-      sed -e '/fflush(stdout);/i\printf("###");' -i scripts/kconfig/conf.c
-    '';
+    prePatch =
+      kernel.prePatch
+      + ''
+        # Patch kconfig to print "###" after every question so that
+        # generate-config.pl from the generic builder can answer them.
+        sed -e '/fflush(stdout);/i\printf("###");' -i scripts/kconfig/conf.c
+      '';
 
     preUnpack = kernel.preUnpack or "";
 
@@ -159,29 +196,54 @@ let
       # { modules = [ { options = res.options; config = svc.config or svc; } ];
       #   check = false;
       # The result is a set of two attributes
-      moduleStructuredConfig = (lib.evalModules {
-        modules = [
-          module
-          { settings = commonStructuredConfig; _file = "pkgs/os-specific/linux/kernel/common-config.nix"; }
-          { settings = structuredExtraConfig; _file = "structuredExtraConfig"; }
-        ]
-        ++  structuredConfigFromPatches
-        ;
-      }).config;
+      moduleStructuredConfig =
+        (lib.evalModules {
+          modules = [
+            module
+            {
+              settings = commonStructuredConfig;
+              _file = "pkgs/os-specific/linux/kernel/common-config.nix";
+            }
+            {
+              settings = structuredExtraConfig;
+              _file = "structuredExtraConfig";
+            }
+          ] ++ structuredConfigFromPatches;
+        }).config;
 
       structuredConfig = moduleStructuredConfig.settings;
     };
   }; # end of configfile derivation
 
-  kernel = (callPackage ./manual-config.nix {}) {
-    inherit version modDirVersion src kernelPatches randstructSeed lib stdenv extraMeta configfile zfsBuiltinPkg;
+  kernel = (callPackage ./manual-config.nix { }) {
+    inherit
+      version
+      modDirVersion
+      src
+      kernelPatches
+      randstructSeed
+      lib
+      stdenv
+      extraMeta
+      configfile
+      zfsBuiltinPkg
+      ;
 
-    config = { CONFIG_MODULES = "y"; CONFIG_FW_LOADER = "m"; };
+    config = {
+      CONFIG_MODULES = "y";
+      CONFIG_FW_LOADER = "m";
+    };
   };
 
   passthru = {
     features = kernelFeatures;
-    inherit commonStructuredConfig isZen isHardened isLibre modDirVersion;
+    inherit
+      commonStructuredConfig
+      isZen
+      isHardened
+      isLibre
+      modDirVersion
+      ;
     isXen = lib.warn "The isXen attribute is deprecated. All Nixpkgs kernels that support it now have Xen enabled." true;
     kernelOlder = lib.versionOlder version;
     kernelAtLeast = lib.versionAtLeast version;
@@ -189,4 +251,5 @@ let
     tests = kernelTests;
   };
 
-in lib.extendDerivation true passthru kernel
+in
+lib.extendDerivation true passthru kernel

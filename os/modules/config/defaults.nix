@@ -1,4 +1,9 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 {
   imports = [
     ../installer/cd-dvd/channel.nix
@@ -24,7 +29,8 @@
           abuse: root
           hostmaster: root
         '';
-      in ''
+      in
+      ''
         listen on localhost
 
         table aliases file:${aliases}
@@ -44,8 +50,13 @@
 
   time.timeZone = lib.mkDefault "Europe/Amsterdam";
 
-  boot.supportedFilesystems = { nfs = true; zfs = true; };
-  boot.initrd.supportedFilesystems = { zfs = lib.mkDefault (!config.boot.isLiveSystem); };
+  boot.supportedFilesystems = {
+    nfs = true;
+    zfs = true;
+  };
+  boot.initrd.supportedFilesystems = {
+    zfs = lib.mkDefault (!config.boot.isLiveSystem);
+  };
   boot.zfs.moduleParams.spl = {
     "spl_taskq_thread_dynamic" = lib.mkDefault 0;
     "spl_taskq_thread_priority" = lib.mkDefault 0;
@@ -60,7 +71,7 @@
     ipset
     irq_heatmap
     less
-    libcap             # needed by osctl-image
+    libcap # needed by osctl-image
     man-pages
     ncurses
     numactl
@@ -117,10 +128,10 @@
       tcptimeout = 0
     '';
 
-     # /etc/services: TCP/UDP port assignments.
+    # /etc/services: TCP/UDP port assignments.
     "services".source = pkgs.iana-etc + "/etc/services";
     # /etc/protocols: IP protocol numbers.
-    "protocols".source  = pkgs.iana-etc + "/etc/protocols";
+    "protocols".source = pkgs.iana-etc + "/etc/protocols";
     # /etc/rpc: RPC program numbers.
     "rpc".source = pkgs.glibc.out + "/etc/rpc";
 
@@ -136,7 +147,7 @@
       group = "osctl-ct-receive";
     };
 
-    groups.osctl-ct-receive = {};
+    groups.osctl-ct-receive = { };
 
     users.repository = {
       uid = 498;
@@ -145,7 +156,7 @@
       group = "repository";
     };
 
-    groups.repository = {};
+    groups.repository = { };
   };
 
   programs.ssh.package = pkgs.openssh;

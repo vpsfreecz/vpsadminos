@@ -1,4 +1,11 @@
-{ config, lib, pkgs, utils, shared, ... }@args:
+{
+  config,
+  lib,
+  pkgs,
+  utils,
+  shared,
+  ...
+}@args:
 with utils;
 with lib;
 
@@ -12,129 +19,148 @@ let
   boolToStr = x: if x then "true" else "false";
   nullIfEmpty = s: if s == "" then null else s;
 
-  buildDevices = devices: map (dev: {
-    inherit (dev) type major minor mode;
-    name = nullIfEmpty dev.name;
-  }) devices;
+  buildDevices =
+    devices:
+    map (dev: {
+      inherit (dev)
+        type
+        major
+        minor
+        mode
+        ;
+      name = nullIfEmpty dev.name;
+    }) devices;
 
-  buildPrlimits = prlimits:
-    mapAttrs (name: cfg: _filter cfg)
-             (filterAttrs (name: cfg: cfg != null) prlimits);
+  buildPrlimits =
+    prlimits: mapAttrs (name: cfg: _filter cfg) (filterAttrs (name: cfg: cfg != null) prlimits);
 
   backends = {
     nixos = import ./containers/nixos.nix args;
     image = import ./containers/image.nix args;
   };
 
-  backendFor = cfg:
-    if isNixos cfg then
-      backends.nixos
-    else
-      backends.image;
+  backendFor = cfg: if isNixos cfg then backends.nixos else backends.image;
 
   isNixos = cfg: cfg.distribution == null && cfg.image.path == null;
 
-  mkService = pool: name: cfg: (
-    let
-      osctl = "osctl";
-      osctlPool = "${osctl} --pool ${pool}";
+  mkService =
+    pool: name: cfg:
+    (
+      let
+        osctl = "osctl";
+        osctlPool = "${osctl} --pool ${pool}";
 
-      hasUser = cfg.user != null;
-      user = if hasUser then cfg.user else name;
+        hasUser = cfg.user != null;
+        user = if hasUser then cfg.user else name;
 
-      osHooks = [ "pre-create" "on-create" "post-create" ];
+        osHooks = [
+          "pre-create"
+          "on-create"
+          "post-create"
+        ];
 
-      configuredHooks = filter ({hook, script}: script != null && !(elem hook osHooks))
-                               (mapAttrsToList (hook: script:
-                               { inherit hook script; }
-                               ) cfg.hooks);
+        configuredHooks = filter ({ hook, script }: script != null && !(elem hook osHooks)) (
+          mapAttrsToList (hook: script: { inherit hook script; }) cfg.hooks
+        );
 
-      hooks = concatStringsSep "\n" (map ({hook, script}:
-        ''ln -sf ${script} "$hookDir/${hook}"''
-      ) configuredHooks);
+        hooks = concatStringsSep "\n" (
+          map ({ hook, script }: ''ln -sf ${script} "$hookDir/${hook}"'') configuredHooks
+        );
 
-      hookCaller = hook: script: pkgs.writeScript "container-${name}-${hook}-caller" ''
-        #!${pkgs.stdenv.shell}
+        hookCaller =
+          hook: script:
+          pkgs.writeScript "container-${name}-${hook}-caller" ''
+            #!${pkgs.stdenv.shell}
 
-        lines=( $(${osctlPool} ct show -Ho dataset,rootfs,lxc_path,lxc_dir,group_path,distribution,version,hostname ${name}) )
-        ctExists=$?
+            lines=( $(${osctlPool} ct show -Ho dataset,rootfs,lxc_path,lxc_dir,group_path,distribution,version,hostname ${name}) )
+            ctExists=$?
 
-        export OSCTL_HOOK_NAME="${hook}"
-        export OSCTL_POOL_NAME="${pool}"
-        export OSCTL_CT_ID="${name}"
-        export OSCTL_CT_USER="${user}"
-        export OSCTL_CT_GROUP="${cfg.group}"
+            export OSCTL_HOOK_NAME="${hook}"
+            export OSCTL_POOL_NAME="${pool}"
+            export OSCTL_CT_ID="${name}"
+            export OSCTL_CT_USER="${user}"
+            export OSCTL_CT_GROUP="${cfg.group}"
 
-        if [ "$ctExists" == "0" ] ; then
-          export OSCTL_CT_DATASET="''${lines[0]}"
-          export OSCTL_CT_ROOTFS="''${lines[1]}"
-          export OSCTL_CT_LXC_PATH="''${lines[2]}"
-          export OSCTL_CT_LXC_DIR="''${lines[3]}"
-          export OSCTL_CT_CGROUP_PATH="''${lines[4]}"
-          export OSCTL_CT_DISTRIBUTION="''${lines[5]}"
-          export OSCTL_CT_VERSION="''${lines[6]}"
-          export OSCTL_CT_HOSTNAME="''${lines[7]}"
+            if [ "$ctExists" == "0" ] ; then
+              export OSCTL_CT_DATASET="''${lines[0]}"
+              export OSCTL_CT_ROOTFS="''${lines[1]}"
+              export OSCTL_CT_LXC_PATH="''${lines[2]}"
+              export OSCTL_CT_LXC_DIR="''${lines[3]}"
+              export OSCTL_CT_CGROUP_PATH="''${lines[4]}"
+              export OSCTL_CT_DISTRIBUTION="''${lines[5]}"
+              export OSCTL_CT_VERSION="''${lines[6]}"
+              export OSCTL_CT_HOSTNAME="''${lines[7]}"
 
-          lines=( $(zfs get -Hp -o value mountpoint,org.vpsadminos.osctl:dataset ${pool}) )
-          mountpoint="''${lines[0]}"
-          osctlDataset="''${lines[1]}"
+              lines=( $(zfs get -Hp -o value mountpoint,org.vpsadminos.osctl:dataset ${pool}) )
+              mountpoint="''${lines[0]}"
+              osctlDataset="''${lines[1]}"
 
-          [ "$osctlDataset" != "-" ] \
-            && mountpoint="$(zfs get -Hp -o value mountpoint $osctlDataset)"
+              [ "$osctlDataset" != "-" ] \
+                && mountpoint="$(zfs get -Hp -o value mountpoint $osctlDataset)"
 
-          export OSCTL_CT_LOG_FILE="$mountpoint/log/ct/${name}.log"
-        fi
+              export OSCTL_CT_LOG_FILE="$mountpoint/log/ct/${name}.log"
+            fi
 
-        ${script}
-      '';
+            ${script}
+          '';
 
-      conf = {
-        user = user;
-        group = cfg.group;
-        dataset = "${pool}/ct/${name}";
-        map_mode = cfg.mapMode;
-        distribution = if cfg.distribution == null then "nixos" else cfg.distribution;
-        version = if cfg.version == null then "18.09" else cfg.version;
-        arch = if cfg.arch == null then (toString (head (splitString "-" system))) else cfg.arch;
-        net_interfaces = cfg.interfaces;
-        cgparams = shared.buildCGroupParams cfg.cgparams;
-        devices = buildDevices cfg.devices;
-        prlimits = buildPrlimits cfg.prlimits;
-        mounts = cfg.mounts;
-        autostart = null; # autostart is handled by the runit service
-        start_menu = cfg.startMenu;
-        hostname = name;
-        dns_resolvers = cfg.resolvers;
-        nesting = cfg.nesting;
-        seccomp_profile = nullIfEmpty cfg.seccomp;
-      };
+        conf = {
+          user = user;
+          group = cfg.group;
+          dataset = "${pool}/ct/${name}";
+          map_mode = cfg.mapMode;
+          distribution = if cfg.distribution == null then "nixos" else cfg.distribution;
+          version = if cfg.version == null then "18.09" else cfg.version;
+          arch = if cfg.arch == null then (toString (head (splitString "-" system))) else cfg.arch;
+          net_interfaces = cfg.interfaces;
+          cgparams = shared.buildCGroupParams cfg.cgparams;
+          devices = buildDevices cfg.devices;
+          prlimits = buildPrlimits cfg.prlimits;
+          mounts = cfg.mounts;
+          autostart = null; # autostart is handled by the runit service
+          start_menu = cfg.startMenu;
+          hostname = name;
+          dns_resolvers = cfg.resolvers;
+          nesting = cfg.nesting;
+          seccomp_profile = nullIfEmpty cfg.seccomp;
+        };
 
-      yml = pkgs.writeText "container-${name}.yml" (builtins.toJSON conf);
+        yml = pkgs.writeText "container-${name}.yml" (builtins.toJSON conf);
 
-      backend = backendFor cfg;
+        backend = backendFor cfg;
 
-      backendArgs = {
-        inherit pool name cfg;
-        inherit osctl osctlPool hooks hookCaller conf yml;
-        inherit boolToStr;
-        inherit hasUser user;
-      };
+        backendArgs = {
+          inherit pool name cfg;
+          inherit
+            osctl
+            osctlPool
+            hooks
+            hookCaller
+            conf
+            yml
+            ;
+          inherit boolToStr;
+          inherit hasUser user;
+        };
 
-    in {
-      run = backend.serviceRun backendArgs;
-      oneShot = true;
-      log.enable = true;
-      log.sendTo = "127.0.0.1";
-    }
-  );
+      in
+      {
+        run = backend.serviceRun backendArgs;
+        oneShot = true;
+        log.enable = true;
+        log.sendTo = "127.0.0.1";
+      }
+    );
 
-  mkServices = pool: containers: mapAttrs' (name: cfg:
-    nameValuePair "ct-${pool}-${name}" (mkService pool name cfg)
-  ) containers;
+  mkServices =
+    pool: containers:
+    mapAttrs' (name: cfg: nameValuePair "ct-${pool}-${name}" (mkService pool name cfg)) containers;
 
-  addrOpts = v:
+  addrOpts =
+    v:
     assert v == 4 || v == 6;
-    { options = {
+    {
+      options = {
         address = mkOption {
           type = types.str;
           description = ''
@@ -152,143 +178,188 @@ let
       };
     };
 
-  netInterface = { config, lib, pkgs, ... }: {
-    options = {
-      type = mkOption {
-        type = types.enum [ "bridge" "routed" ];
-        description = "Network interface type";
-      };
-      name = mkOption {
-        type = types.str;
-        example = "eth0";
-        description = "Network interface name";
-      };
-      hwaddr = mkOption {
-        type = types.str;
-        example = "52:54:00:2d:09:26";
-        default = "";
-        description = "Network interface hardware address";
-      };
-      link = mkOption {
-        type = types.str;
-        example = "lxcbr0";
-        default = "";
-        description = ''
-          Link this network interface to bridge
-
-          (type = "bridge" only)
-        '';
-      };
-      dhcp = mkOption {
-        type = types.nullOr types.bool;
-        default = null;
-        description = ''
-          Determines whether the interface is configured using DHCP client
-          within the container,
-
-          (type = "bridge" only)
-        '';
-      };
-      ipv4 = {
-        routes = mkOption {
-          type =  types.listOf (types.submodule (addrOpts 4));
-          default = [];
-          example = [
-            { address = "10.0.0.0"; prefixLength = 16; }
-            { address = "192.168.1.0"; prefixLength = 24; }
+  netInterface =
+    {
+      config,
+      lib,
+      pkgs,
+      ...
+    }:
+    {
+      options = {
+        type = mkOption {
+          type = types.enum [
+            "bridge"
+            "routed"
           ];
-          description = ''
-            List of IPv4 addresses that will be routed to the interface.
-          '';
-          apply = x: map addrToStr x;
+          description = "Network interface type";
         };
-        addresses = mkOption {
-          type =  types.listOf (types.submodule (addrOpts 4));
-          default = [];
-          example = [
-            { address = "10.0.0.1"; prefixLength = 16; }
-            { address = "192.168.1.1"; prefixLength = 24; }
-          ];
-          description = ''
-            List of IPv4 addresses that will be statically assigned to the interface.
-          '';
-          apply = x: map addrToStr x;
-        };
-        gateway = mkOption {
+        name = mkOption {
           type = types.str;
-          default = "auto";
+          example = "eth0";
+          description = "Network interface name";
+        };
+        hwaddr = mkOption {
+          type = types.str;
+          example = "52:54:00:2d:09:26";
+          default = "";
+          description = "Network interface hardware address";
+        };
+        link = mkOption {
+          type = types.str;
+          example = "lxcbr0";
+          default = "";
           description = ''
-            IPv4 gateway for statically configured bridged interfaces.
-            Set to <literal>auto</literal> to use the primary address from
-            the linked interface, <literal>none</literal> to do not set any
-            gateway or an IPv4 address.
+            Link this network interface to bridge
 
             (type = "bridge" only)
           '';
         };
-      };
-
-      ipv6 = {
-        routes = mkOption {
-          type =  types.listOf (types.submodule (addrOpts 4));
-          default = [];
-          example = [
-            { address = "2a03:3b40:7:666::"; prefixLength = 64; }
-          ];
+        dhcp = mkOption {
+          type = types.nullOr types.bool;
+          default = null;
           description = ''
-            List of IPv6 addresses that will be routed to the interface.
-          '';
-          apply = x: map addrToStr x;
-        };
-        addresses = mkOption {
-          type =  types.listOf (types.submodule (addrOpts 6));
-          default = [];
-          example = [
-            { address = "2a03:3b40:7:666::"; prefixLength = 64; }
-          ];
-          description = ''
-            List of IPv6 addresses that will be statically assigned to the interface.
-          '';
-          apply = x: map addrToStr x;
-        };
-        gateway = mkOption {
-          type = types.str;
-          default = "auto";
-          description = ''
-            IPv6 gateway for statically configured bridged interfaces.
-            Set to <literal>auto</literal> to use the primary address from
-            the linked interface, <literal>none</literal> to do not set any
-            gateway or an IPv6 address.
+            Determines whether the interface is configured using DHCP client
+            within the container,
 
             (type = "bridge" only)
           '';
         };
+        ipv4 = {
+          routes = mkOption {
+            type = types.listOf (types.submodule (addrOpts 4));
+            default = [ ];
+            example = [
+              {
+                address = "10.0.0.0";
+                prefixLength = 16;
+              }
+              {
+                address = "192.168.1.0";
+                prefixLength = 24;
+              }
+            ];
+            description = ''
+              List of IPv4 addresses that will be routed to the interface.
+            '';
+            apply = x: map addrToStr x;
+          };
+          addresses = mkOption {
+            type = types.listOf (types.submodule (addrOpts 4));
+            default = [ ];
+            example = [
+              {
+                address = "10.0.0.1";
+                prefixLength = 16;
+              }
+              {
+                address = "192.168.1.1";
+                prefixLength = 24;
+              }
+            ];
+            description = ''
+              List of IPv4 addresses that will be statically assigned to the interface.
+            '';
+            apply = x: map addrToStr x;
+          };
+          gateway = mkOption {
+            type = types.str;
+            default = "auto";
+            description = ''
+              IPv4 gateway for statically configured bridged interfaces.
+              Set to <literal>auto</literal> to use the primary address from
+              the linked interface, <literal>none</literal> to do not set any
+              gateway or an IPv4 address.
+
+              (type = "bridge" only)
+            '';
+          };
+        };
+
+        ipv6 = {
+          routes = mkOption {
+            type = types.listOf (types.submodule (addrOpts 4));
+            default = [ ];
+            example = [
+              {
+                address = "2a03:3b40:7:666::";
+                prefixLength = 64;
+              }
+            ];
+            description = ''
+              List of IPv6 addresses that will be routed to the interface.
+            '';
+            apply = x: map addrToStr x;
+          };
+          addresses = mkOption {
+            type = types.listOf (types.submodule (addrOpts 6));
+            default = [ ];
+            example = [
+              {
+                address = "2a03:3b40:7:666::";
+                prefixLength = 64;
+              }
+            ];
+            description = ''
+              List of IPv6 addresses that will be statically assigned to the interface.
+            '';
+            apply = x: map addrToStr x;
+          };
+          gateway = mkOption {
+            type = types.str;
+            default = "auto";
+            description = ''
+              IPv6 gateway for statically configured bridged interfaces.
+              Set to <literal>auto</literal> to use the primary address from
+              the linked interface, <literal>none</literal> to do not set any
+              gateway or an IPv6 address.
+
+              (type = "bridge" only)
+            '';
+          };
+        };
       };
+
+      config = mkMerge [
+        (mkIf (config.type == "bridge") {
+          dhcp = mkDefault true;
+        })
+      ];
     };
-
-    config = mkMerge [
-      (mkIf (config.type == "bridge") {
-        dhcp = mkDefault true;
-      })
-    ];
-  };
 
   mkNetInterfacesOption = mkOption {
     type = types.listOf (types.submodule netInterface);
-    default = [];
+    default = [ ];
     example = [
-      { name = "eth0";
+      {
+        name = "eth0";
         type = "bridge";
         link = "lxcbr0";
-        ipv4.addresses = [ { address = "10.0.0.1"; prefixLength = 16; } ];
+        ipv4.addresses = [
+          {
+            address = "10.0.0.1";
+            prefixLength = 16;
+          }
+        ];
       }
-      { name = "eth1";
+      {
+        name = "eth1";
         type = "routed";
-        ipv4 =  {
-          addresses = [ { address = "172.17.66.66"; prefixLength = 32; } ];
+        ipv4 = {
+          addresses = [
+            {
+              address = "172.17.66.66";
+              prefixLength = 32;
+            }
+          ];
         };
         ipv6 = {
-          addresses = [ { address = "2a03:3b40:7:667::1"; prefixLength=64; } ];
+          addresses = [
+            {
+              address = "2a03:3b40:7:667::1";
+              prefixLength = 64;
+            }
+          ];
         };
       }
     ];
@@ -299,31 +370,39 @@ let
       See also https://vpsadminos.org/user-guide/networking/
     '';
 
-    apply = x: map (iface: filterAttrs (n: v: !(n == "ipv4" || n == "ipv6")) (iface //
-          { routes.v4 = iface.ipv4.routes;
+    apply =
+      x:
+      map (
+        iface:
+        filterAttrs (n: v: !(n == "ipv4" || n == "ipv6")) (
+          iface
+          // {
+            routes.v4 = iface.ipv4.routes;
             routes.v6 = iface.ipv6.routes;
             ip_addresses.v4 = iface.ipv4.addresses;
             ip_addresses.v6 = iface.ipv6.addresses;
             gateways.v4 = iface.ipv4.gateway;
             gateways.v6 = iface.ipv6.gateway;
           }
-          ))
-          (map _filter x);
+        )
+      ) (map _filter x);
   };
 
-  prlimit = { lib, pkgs, ... }: {
-    options = {
-      soft = mkOption {
-        type = with types; either ints.positive (enum [ "unlimited" ]);
-        description = "Soft limit";
-      };
+  prlimit =
+    { lib, pkgs, ... }:
+    {
+      options = {
+        soft = mkOption {
+          type = with types; either ints.positive (enum [ "unlimited" ]);
+          description = "Soft limit";
+        };
 
-      hard = mkOption {
-        type = with types; either ints.positive (enum [ "unlimited" ]);
-        description = "Hard limit";
+        hard = mkOption {
+          type = with types; either ints.positive (enum [ "unlimited" ]);
+          description = "Hard limit";
+        };
       };
     };
-  };
 
   mkPrlimitsOption =
     let
@@ -346,77 +425,90 @@ let
       ];
 
       defaultValues = {
-        nofile = { soft = 1024; hard = 1024*1024; };
+        nofile = {
+          soft = 1024;
+          hard = 1024 * 1024;
+        };
       };
 
       defaultFor = name: defaultValues.${name} or null;
 
-      optionFor = name: mkOption {
-        type = types.nullOr (types.submodule prlimit);
-        default = defaultFor name;
-        description = ''
-          Process resource limit, see man prlimit(2) and
-          https://vpsadminos.org/containers/resources/#process-resource-limits
-        '';
-      };
+      optionFor =
+        name:
+        mkOption {
+          type = types.nullOr (types.submodule prlimit);
+          default = defaultFor name;
+          description = ''
+            Process resource limit, see man prlimit(2) and
+            https://vpsadminos.org/containers/resources/#process-resource-limits
+          '';
+        };
 
       optionList = map (name: { "${name}" = optionFor name; }) limitNames;
-    in fold (v: acc: acc // v) {} optionList;
+    in
+    fold (v: acc: acc // v) { } optionList;
 
-  mount = { lib, pkgs, ... }: {
-    options = {
-      fs = mkOption {
-        type = types.str;
-        example = "/var/shared";
-        default = "";
-        description = "Filesystem mountpoint (host side)";
-      };
+  mount =
+    { lib, pkgs, ... }:
+    {
+      options = {
+        fs = mkOption {
+          type = types.str;
+          example = "/var/shared";
+          default = "";
+          description = "Filesystem mountpoint (host side)";
+        };
 
-      dataset = mkOption {
-        type = types.nullOr types.str;
-        example = "subdataset";
-        default = null;
-        description = "Relative path to containers dataset";
-      };
+        dataset = mkOption {
+          type = types.nullOr types.str;
+          example = "subdataset";
+          default = null;
+          description = "Relative path to containers dataset";
+        };
 
-      mountpoint = mkOption {
-        type = types.str;
-        example = "/mnt";
-        description = "Filesystem mountpoint (container side)";
-      };
+        mountpoint = mkOption {
+          type = types.str;
+          example = "/mnt";
+          description = "Filesystem mountpoint (container side)";
+        };
 
-      type = mkOption {
-        type = types.enum [ "bind" "overlay" "tmpfs" ];
-        default = "bind";
-        description = "Mount type";
-      };
+        type = mkOption {
+          type = types.enum [
+            "bind"
+            "overlay"
+            "tmpfs"
+          ];
+          default = "bind";
+          description = "Mount type";
+        };
 
-      opts = mkOption {
-        type = types.str;
-        default = "bind,create=dir,rw";
-        example = "bind,create=dir,rw";
-        description = "Mount options";
-      };
+        opts = mkOption {
+          type = types.str;
+          default = "bind,create=dir,rw";
+          example = "bind,create=dir,rw";
+          description = "Mount options";
+        };
 
-      automount = mkOption {
-        type = types.bool;
-        default = true;
-        description = "Mount automatically";
-      };
+        automount = mkOption {
+          type = types.bool;
+          default = true;
+          description = "Mount automatically";
+        };
 
-      map_ids = mkOption {
-        type = types.bool;
-        default = true;
-        description = "Map UID/GID into the container's namespace";
+        map_ids = mkOption {
+          type = types.bool;
+          default = true;
+          description = "Map UID/GID into the container's namespace";
+        };
       };
     };
-  };
 
   mkMountsOption = mkOption {
     type = types.listOf (types.submodule mount);
-    default = [];
+    default = [ ];
     example = [
-      { fs = "/var/shared";
+      {
+        fs = "/var/shared";
         mountpoint = "/mnt";
       }
     ];
@@ -429,21 +521,23 @@ let
     '';
   };
 
-  autostart = { lib, pkgs, ... }: {
-    options = {
-      enable = mkEnableOption "Enable container autostart";
-      priority = mkOption {
-        type = types.ints.positive;
-        default = 1000;
-        description = "Autostart priority";
-      };
-      delay = mkOption {
-        type = types.ints.positive;
-        default = 5;
-        description = "Autostart delay";
+  autostart =
+    { lib, pkgs, ... }:
+    {
+      options = {
+        enable = mkEnableOption "Enable container autostart";
+        priority = mkOption {
+          type = types.ints.positive;
+          default = 1000;
+          description = "Autostart priority";
+        };
+        delay = mkOption {
+          type = types.ints.positive;
+          default = 5;
+          description = "Autostart delay";
+        };
       };
     };
-  };
 
   mkAutostartOption = mkOption {
     type = types.nullOr (types.submodule autostart);
@@ -462,17 +556,19 @@ let
     '';
   };
 
-  startMenu = { lib, pkgs, ... }: {
-    options = {
-      enable = mkEnableOption "Enable container start menu";
+  startMenu =
+    { lib, pkgs, ... }:
+    {
+      options = {
+        enable = mkEnableOption "Enable container start menu";
 
-      timeout = mkOption {
-        type = types.ints.positive;
-        default = 5;
-        description = "Number of seconds before the system is automatically started";
+        timeout = mkOption {
+          type = types.ints.positive;
+          default = 5;
+          description = "Number of seconds before the system is automatically started";
+        };
       };
     };
-  };
 
   mkStartMenuOption = mkOption {
     type = types.nullOr (types.submodule startMenu);
@@ -486,380 +582,393 @@ let
       timeout = 5;
     };
 
-    apply = x:
-      if x != null && x.enable then
-        filterAttrs (k: v: k != "enable") (_filter x)
-      else null;
+    apply = x: if x != null && x.enable then filterAttrs (k: v: k != "enable") (_filter x) else null;
 
     description = ''
       Start menu options
     '';
   };
 
-  container = { config, options, name, ... }: {
-    options = {
-      config = mkOption {
-        description = ''
-          A specification of the desired configuration of this
-          container, as a NixOS module.
-        '';
-        type = lib.mkOptionType {
-          name = "Toplevel NixOS config";
-          merge = loc: defs: (import <nixpkgs/nixos/lib/eval-config.nix> {
-            inherit system;
-            modules =
-              let
-                hasBridge = any (i: i.type == "bridge") config.interfaces;
-                extraConfig =
-                  { boot.isContainer = true;
+  container =
+    {
+      config,
+      options,
+      name,
+      ...
+    }:
+    {
+      options = {
+        config = mkOption {
+          description = ''
+            A specification of the desired configuration of this
+            container, as a NixOS module.
+          '';
+          type = lib.mkOptionType {
+            name = "Toplevel NixOS config";
+            merge =
+              loc: defs:
+              (import <nixpkgs/nixos/lib/eval-config.nix> {
+                inherit system;
+                modules =
+                  let
+                    hasBridge = any (i: i.type == "bridge") config.interfaces;
+                    extraConfig = {
+                      boot.isContainer = true;
 
-                    networking.hostName = mkDefault name;
-                    networking.useDHCP = hasBridge;
+                      networking.hostName = mkDefault name;
+                      networking.useDHCP = hasBridge;
 
-                    imports = [ ../../lib/nixos-container/configuration.nix ];
+                      imports = [ ../../lib/nixos-container/configuration.nix ];
 
-                  };
-              in [ extraConfig ] ++ (map (x: x.value) defs);
-            prefix = [ "containers" name ];
-          }).config;
+                    };
+                  in
+                  [ extraConfig ] ++ (map (x: x.value) defs);
+                prefix = [
+                  "containers"
+                  name
+                ];
+              }).config;
+          };
         };
-      };
 
-      path = mkOption {
-        type = types.path;
-        example = "/nix/var/nix/profiles/containers/webserver";
-        description = ''
-          As an alternative to specifying
-          <option>config</option>, you can specify the path to
-          the evaluated NixOS system configuration, typically a
-          symlink to a system profile.
-        '';
-      };
-
-      shareStore = mkOption {
-        type = types.bool;
-        default = true;
-        description = ''
-          When enabled, the container will share Nix store with the vpsAdminOS
-          host system, although it will have read-only access. Note that the container
-          will see the entire Nix store from the host.
-
-          If disabled, container and host stores are separated. Relevant store paths
-          are copied to the container's ZFS dataset before the container is started.
-
-          Applicable only for NixOS containers.
-        '';
-      };
-
-      user = mkOption {
-        type = types.nullOr types.str;
-        default = null;
-        example = "myuser01";
-        description = ''
-          Name of an osctl user declared by <option>osctl.users</option> that
-          the container belongs to. If not provided, a new user is created with
-          its name matching the container ID. If such user already exists, it
-          is used instead.
-        '';
-      };
-
-      group = mkOption {
-        type = types.str;
-        default = "/default";
-        description = ''
-          Name of an osctl group declared by <option>osctl.groups</option> that
-          the container belongs to.
-        '';
-      };
-
-      mapMode = mkOption {
-        type = types.enum [ "native" "zfs" ];
-        default = "native";
-        description = ''
-          UID/GID mapping mode
-        '';
-      };
-
-      # per container
-      distribution = mkOption {
-        type = types.nullOr types.str;
-        default = null;
-        description = ''
-          Name of the distribution to install.
-        '';
-      };
-
-      version = mkOption {
-        type = types.nullOr types.str;
-        default = null;
-        description = ''
-          Version of the distribution to install.
-        '';
-      };
-
-      arch = mkOption {
-        type = types.nullOr types.str;
-        default = null;
-        description = ''
-          Architecture of the distribution to install, must be compatible with
-          the host's architecture.
-        '';
-      };
-
-      vendor = mkOption {
-        type = types.nullOr types.str;
-        default = null;
-        description = ''
-          Template vendor for use with osctl remote repositories.
-        '';
-      };
-
-      variant = mkOption {
-        type = types.nullOr types.str;
-        default = null;
-        description = ''
-          Template variant for use with osctl remote repositories.
-        '';
-      };
-
-      image = {
         path = mkOption {
+          type = types.path;
+          example = "/nix/var/nix/profiles/containers/webserver";
+          description = ''
+            As an alternative to specifying
+            <option>config</option>, you can specify the path to
+            the evaluated NixOS system configuration, typically a
+            symlink to a system profile.
+          '';
+        };
+
+        shareStore = mkOption {
+          type = types.bool;
+          default = true;
+          description = ''
+            When enabled, the container will share Nix store with the vpsAdminOS
+            host system, although it will have read-only access. Note that the container
+            will see the entire Nix store from the host.
+
+            If disabled, container and host stores are separated. Relevant store paths
+            are copied to the container's ZFS dataset before the container is started.
+
+            Applicable only for NixOS containers.
+          '';
+        };
+
+        user = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          example = "myuser01";
+          description = ''
+            Name of an osctl user declared by <option>osctl.users</option> that
+            the container belongs to. If not provided, a new user is created with
+            its name matching the container ID. If such user already exists, it
+            is used instead.
+          '';
+        };
+
+        group = mkOption {
+          type = types.str;
+          default = "/default";
+          description = ''
+            Name of an osctl group declared by <option>osctl.groups</option> that
+            the container belongs to.
+          '';
+        };
+
+        mapMode = mkOption {
+          type = types.enum [
+            "native"
+            "zfs"
+          ];
+          default = "native";
+          description = ''
+            UID/GID mapping mode
+          '';
+        };
+
+        # per container
+        distribution = mkOption {
           type = types.nullOr types.str;
           default = null;
           description = ''
-            Path to container image.
+            Name of the distribution to install.
           '';
         };
 
-        repository = mkOption {
+        version = mkOption {
           type = types.nullOr types.str;
           default = null;
           description = ''
-            Name of the remote repository the container image is searched in.
+            Version of the distribution to install.
           '';
+        };
+
+        arch = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          description = ''
+            Architecture of the distribution to install, must be compatible with
+            the host's architecture.
+          '';
+        };
+
+        vendor = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          description = ''
+            Template vendor for use with osctl remote repositories.
+          '';
+        };
+
+        variant = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          description = ''
+            Template variant for use with osctl remote repositories.
+          '';
+        };
+
+        image = {
+          path = mkOption {
+            type = types.nullOr types.str;
+            default = null;
+            description = ''
+              Path to container image.
+            '';
+          };
+
+          repository = mkOption {
+            type = types.nullOr types.str;
+            default = null;
+            description = ''
+              Name of the remote repository the container image is searched in.
+            '';
+          };
+        };
+
+        cgparams = shared.mkCGParamsOption;
+        devices = shared.mkDevicesOption;
+        prlimits = mkPrlimitsOption;
+        mounts = mkMountsOption;
+
+        interfaces = mkNetInterfacesOption;
+        resolvers = mkOption {
+          type = types.listOf types.str;
+          default = [ ];
+          example = [
+            "1.1.1.1"
+            "10.0.0.1"
+          ];
+          description = "List of nameservers";
+        };
+
+        autostart = mkAutostartOption;
+
+        startMenu = mkStartMenuOption;
+
+        nesting = mkEnableOption "Enable container nesting";
+
+        seccomp = mkOption {
+          type = types.str;
+          default = "";
+          example = "/run/osctl/configs/lxc/common.seccomp";
+          description = "Path to seccomp profile";
+        };
+
+        hooks = {
+          pre-create = mkOption {
+            type = types.nullOr types.path;
+            default = null;
+            description = ''
+              <literal>pre-create</literal> hook is run in the host's namespace
+              before the container is created. If <literal>pre-create</literal>
+              exits with status `1`, the creation attempt will be aborted
+              and retried repeatedly, as the container's runit service restarts
+              until the hook script exits with `0`. If
+              <literal>pre-create</literal> exits with status `2`, the container
+              will not be created and the runit service will not be automatically
+              restarted.
+            '';
+          };
+
+          on-create = mkOption {
+            type = types.nullOr types.path;
+            default = null;
+            description = ''
+              <literal>on-create</literal> hook is run in the host's namespace
+              after the container was created and configured, but before it is
+              started. The script hook's exit status is not evaluated.
+            '';
+          };
+
+          post-create = mkOption {
+            type = types.nullOr types.path;
+            default = null;
+            description = ''
+              <literal>post-create</literal> hook is run in the host's namespace
+              after the container was created, configured and started. The script
+              hook's exit status is not evaluated.
+            '';
+          };
+
+          pre-start = mkOption {
+            type = types.nullOr types.path;
+            default = null;
+            description = ''
+              <literal>pre-start</literal> hook is run in the host's namespace
+              before the container is mounted. The container's cgroups have
+              already been configured and distribution-support code has been run.
+              If <literal>pre-start</literal> exits with a non-zero status, the
+              container's start is aborted.
+            '';
+          };
+
+          veth-up = mkOption {
+            type = types.nullOr types.path;
+            default = null;
+            description = ''
+              <literal>veth-up</literal> hook is run in the host's namespace when
+              the veth pair is created. Names of created veth interfaces are
+              available in environment variables <literal>OSCTL_HOST_VETH</literal>
+              and <literal>OSCTL_CT_VETH</literal>. If <literal>veth-up</literal>
+              exits with a non-zero status, the container's start is aborted.
+            '';
+          };
+
+          pre-mount = mkOption {
+            type = types.nullOr types.path;
+            default = null;
+            description = ''
+              <literal>pre-mount</literal> is run in the container's mount
+              namespace, before its rootfs is mounted. The path to the container's
+              runtime rootfs is in environment variable
+              <literal>OSCTL_CT_ROOTFS_MOUNT</literal>. If
+              <literal>pre-mount</literal> exits with a non-zero status, the
+              container's start is aborted.
+            '';
+          };
+
+          post-mount = mkOption {
+            type = types.nullOr types.path;
+            default = null;
+            description = ''
+              <literal>post-mount</literal> is run in the container's mount
+              namespace, after its rootfs and all LXC mount entries are mounted.
+              The path to the container's runtime rootfs is in environment variable
+              <literal>OSCTL_CT_ROOTFS_MOUNT</literal>. If
+              <literal>post-mount</literal> exits with a non-zero status, the
+              container's start is aborted.
+            '';
+          };
+
+          on-start = mkOption {
+            type = types.nullOr types.path;
+            default = null;
+            description = ''
+              <literal>on-start</literal> is run in the host's namespace, after
+              the container has been mounted and right before its init process is
+              executed. If <literal>on-start</literal> exits with a non-zero
+              status, the container's start is aborted.
+            '';
+          };
+
+          post-start = mkOption {
+            type = types.nullOr types.path;
+            default = null;
+            description = ''
+              <literal>post-start</literal> is run in the host's namespace after
+              the container entered state <literal>running</literal>. The
+              container's init PID is passed in environment varible
+              <literal>OSCTL_CT_INIT_PID</literal>. The script hook's exit status
+              is not evaluated.
+            '';
+          };
+
+          pre-stop = mkOption {
+            type = types.nullOr types.path;
+            default = null;
+            description = ''
+              <literal>pre-stop</literal> hook is run in the host's namespace when
+              the container is being stopped using <literal>ct stop</literal>. If
+              <literal>pre-stop</literal> exits with a non-zero exit status,
+              the container will not be stopped. This hook is not called when the
+              container is shutdown from the inside.
+            '';
+          };
+
+          on-stop = mkOption {
+            type = types.nullOr types.path;
+            default = null;
+            description = ''
+              <literal>on-stop</literal> is run in the host's namespace when the
+              container enters state <literal>stopping</literal>. The hook's exit
+              status is not evaluated.
+            '';
+          };
+
+          veth-down = mkOption {
+            type = types.nullOr types.path;
+            default = null;
+            description = ''
+              <literal>veth-down</literal> hook is run in the host's namespace
+              when the veth pair is removed. Names of the removed veth interfaces
+              are available in environment variables
+              <literal>OSCTL_HOST_VETH</literal> and
+              <literal>OSCTL_CT_VETH</literal>. The hook's exit status is not
+              evaluated.
+            '';
+          };
+
+          post-stop = mkOption {
+            type = types.nullOr types.path;
+            default = null;
+            description = ''
+              <literal>post-stop</literal> is run in the host's namespace when
+              the container enters state <literal>stopped</literal>. The hook's
+              exit status is not evaluated.
+            '';
+          };
         };
       };
 
-      cgparams = shared.mkCGParamsOption;
-      devices = shared.mkDevicesOption;
-      prlimits = mkPrlimitsOption;
-      mounts = mkMountsOption;
+      config = mkMerge [
+        (mkIf options.config.isDefined {
+          path = config.config.system.build.toplevel;
+        })
 
-      interfaces = mkNetInterfacesOption;
-      resolvers = mkOption {
-        type = types.listOf types.str;
-        default = [];
-        example = [
-          "1.1.1.1"
-          "10.0.0.1"
-        ];
-        description = "List of nameservers";
-      };
-
-      autostart = mkAutostartOption;
-
-      startMenu = mkStartMenuOption;
-
-      nesting = mkEnableOption "Enable container nesting";
-
-      seccomp = mkOption {
-        type = types.str;
-        default = "";
-        example = "/run/osctl/configs/lxc/common.seccomp";
-        description = "Path to seccomp profile";
-      };
-
-      hooks = {
-        pre-create = mkOption {
-          type = types.nullOr types.path;
-          default = null;
-          description = ''
-            <literal>pre-create</literal> hook is run in the host's namespace
-            before the container is created. If <literal>pre-create</literal>
-            exits with status `1`, the creation attempt will be aborted
-            and retried repeatedly, as the container's runit service restarts
-            until the hook script exits with `0`. If
-            <literal>pre-create</literal> exits with status `2`, the container
-            will not be created and the runit service will not be automatically
-            restarted.
-          '';
-        };
-
-        on-create = mkOption {
-          type = types.nullOr types.path;
-          default = null;
-          description = ''
-            <literal>on-create</literal> hook is run in the host's namespace
-            after the container was created and configured, but before it is
-            started. The script hook's exit status is not evaluated.
-          '';
-        };
-
-        post-create = mkOption {
-          type = types.nullOr types.path;
-          default = null;
-          description = ''
-            <literal>post-create</literal> hook is run in the host's namespace
-            after the container was created, configured and started. The script
-            hook's exit status is not evaluated.
-          '';
-        };
-
-        pre-start = mkOption {
-          type = types.nullOr types.path;
-          default = null;
-          description = ''
-            <literal>pre-start</literal> hook is run in the host's namespace
-            before the container is mounted. The container's cgroups have
-            already been configured and distribution-support code has been run.
-            If <literal>pre-start</literal> exits with a non-zero status, the
-            container's start is aborted.
-          '';
-        };
-
-        veth-up = mkOption {
-          type = types.nullOr types.path;
-          default = null;
-          description = ''
-            <literal>veth-up</literal> hook is run in the host's namespace when
-            the veth pair is created. Names of created veth interfaces are
-            available in environment variables <literal>OSCTL_HOST_VETH</literal>
-            and <literal>OSCTL_CT_VETH</literal>. If <literal>veth-up</literal>
-            exits with a non-zero status, the container's start is aborted.
-          '';
-        };
-
-        pre-mount = mkOption {
-          type = types.nullOr types.path;
-          default = null;
-          description = ''
-            <literal>pre-mount</literal> is run in the container's mount
-            namespace, before its rootfs is mounted. The path to the container's
-            runtime rootfs is in environment variable
-            <literal>OSCTL_CT_ROOTFS_MOUNT</literal>. If
-            <literal>pre-mount</literal> exits with a non-zero status, the
-            container's start is aborted.
-          '';
-        };
-
-        post-mount = mkOption {
-          type = types.nullOr types.path;
-          default = null;
-          description = ''
-            <literal>post-mount</literal> is run in the container's mount
-            namespace, after its rootfs and all LXC mount entries are mounted.
-            The path to the container's runtime rootfs is in environment variable
-            <literal>OSCTL_CT_ROOTFS_MOUNT</literal>. If
-            <literal>post-mount</literal> exits with a non-zero status, the
-            container's start is aborted.
-          '';
-        };
-
-        on-start = mkOption {
-          type = types.nullOr types.path;
-          default = null;
-          description = ''
-            <literal>on-start</literal> is run in the host's namespace, after
-            the container has been mounted and right before its init process is
-            executed. If <literal>on-start</literal> exits with a non-zero
-            status, the container's start is aborted.
-          '';
-        };
-
-        post-start = mkOption {
-          type = types.nullOr types.path;
-          default = null;
-          description = ''
-            <literal>post-start</literal> is run in the host's namespace after
-            the container entered state <literal>running</literal>. The
-            container's init PID is passed in environment varible
-            <literal>OSCTL_CT_INIT_PID</literal>. The script hook's exit status
-            is not evaluated.
-          '';
-        };
-
-        pre-stop = mkOption {
-          type = types.nullOr types.path;
-          default = null;
-          description = ''
-            <literal>pre-stop</literal> hook is run in the host's namespace when
-            the container is being stopped using <literal>ct stop</literal>. If
-            <literal>pre-stop</literal> exits with a non-zero exit status,
-            the container will not be stopped. This hook is not called when the
-            container is shutdown from the inside.
-          '';
-        };
-
-        on-stop = mkOption {
-          type = types.nullOr types.path;
-          default = null;
-          description = ''
-            <literal>on-stop</literal> is run in the host's namespace when the
-            container enters state <literal>stopping</literal>. The hook's exit
-            status is not evaluated.
-          '';
-        };
-
-        veth-down = mkOption {
-          type = types.nullOr types.path;
-          default = null;
-          description = ''
-            <literal>veth-down</literal> hook is run in the host's namespace
-            when the veth pair is removed. Names of the removed veth interfaces
-            are available in environment variables
-            <literal>OSCTL_HOST_VETH</literal> and
-            <literal>OSCTL_CT_VETH</literal>. The hook's exit status is not
-            evaluated.
-          '';
-        };
-
-        post-stop = mkOption {
-          type = types.nullOr types.path;
-          default = null;
-          description = ''
-            <literal>post-stop</literal> is run in the host's namespace when
-            the container enters state <literal>stopped</literal>. The hook's
-            exit status is not evaluated.
-          '';
-        };
-      };
+        (mkIf ((isNixos config) && config.shareStore) {
+          mounts = mkBefore [
+            {
+              fs = "/nix/.ro-store";
+              mountpoint = "/nix/.ro-store";
+              type = "bind";
+              opts = "bind,ro,create=dir";
+              automount = true;
+              map_ids = true;
+            }
+            {
+              fs = "/nix/.overlay-store";
+              mountpoint = "/nix/.overlay-store";
+              type = "bind";
+              opts = "bind,ro,create=dir";
+              automount = true;
+              map_ids = true;
+            }
+            {
+              fs = "overlay";
+              mountpoint = "/nix/store";
+              type = "overlay";
+              opts = "lowerdir=/var/lib/lxc/rootfs/nix/.ro-store:/var/lib/lxc/rootfs/nix/.overlay-store/rw,create=dir";
+              automount = true;
+              map_ids = false;
+            }
+          ];
+        })
+      ];
     };
-
-    config = mkMerge [
-      (mkIf options.config.isDefined {
-        path = config.config.system.build.toplevel;
-      })
-
-      (mkIf ((isNixos config) && config.shareStore) {
-        mounts = mkBefore [
-          {
-            fs = "/nix/.ro-store";
-            mountpoint = "/nix/.ro-store";
-            type = "bind";
-            opts = "bind,ro,create=dir";
-            automount = true;
-            map_ids = true;
-          }
-          {
-            fs = "/nix/.overlay-store";
-            mountpoint = "/nix/.overlay-store";
-            type = "bind";
-            opts = "bind,ro,create=dir";
-            automount = true;
-            map_ids = true;
-          }
-          {
-            fs = "overlay";
-            mountpoint = "/nix/store";
-            type = "overlay";
-            opts = "lowerdir=/var/lib/lxc/rootfs/nix/.ro-store:/var/lib/lxc/rootfs/nix/.overlay-store/rw,create=dir";
-            automount = true;
-            map_ids = false;
-          }
-        ];
-      })
-    ];
-  };
 in
 {
   type = container;

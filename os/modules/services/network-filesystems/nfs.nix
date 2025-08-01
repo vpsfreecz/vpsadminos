@@ -1,4 +1,10 @@
-{ config, lib, pkgs, utils, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  utils,
+  ...
+}:
 
 with utils;
 with lib;
@@ -74,8 +80,17 @@ in
         };
 
         allowedVersions = mkOption {
-          type = types.listOf (types.enum [ "2" "3" "4" "4.0" "4.1" "4.2" ]);
-          default = [];
+          type = types.listOf (
+            types.enum [
+              "2"
+              "3"
+              "4"
+              "4.0"
+              "4.1"
+              "4.2"
+            ]
+          );
+          default = [ ];
           description = ''
             This  option can be used to request that rpc.nfsd offer certain
             versions of NFS. The current version of rpc.nfsd can support major
@@ -84,8 +99,17 @@ in
         };
 
         disallowedVersions = mkOption {
-          type = types.listOf (types.enum [ "2" "3" "4" "4.0" "4.1" "4.2" ]);
-          default = [];
+          type = types.listOf (
+            types.enum [
+              "2"
+              "3"
+              "4"
+              "4.0"
+              "4.1"
+              "4.2"
+            ]
+          );
+          default = [ ];
           description = ''
             This  option can be used to request that rpc.nfsd does not offer
             certain versions of NFS. The current version of rpc.nfsd can support
@@ -140,31 +164,38 @@ in
   ###### implementation
 
   config = mkMerge [
-    (mkIf ((config.boot.supportedFilesystems.nfs or false) || (config.boot.supportedFilesystems.nfs4 or false)) {
+    (mkIf
+      (
+        (config.boot.supportedFilesystems.nfs or false) || (config.boot.supportedFilesystems.nfs4 or false)
+      )
+      {
 
-      services.rpcbind.enable = true;
+        services.rpcbind.enable = true;
 
-      environment.systemPackages = [ pkgs.nfs-utils ];
+        environment.systemPackages = [ pkgs.nfs-utils ];
 
-      runit.services.statd = {
-        run = ''
-          ensureServiceStarted rpcbind
-          ${waitForRpcBind}
-          mkdir -p ${nfsStateDir}/{sm,sm.bak}
-          exec ${pkgs.nfs-utils}/bin/rpc.statd \
-            --foreground \
-            ${optionalString (cfg.server.statdPort != null) "--port ${toString cfg.server.statdPort}"} \
-            ${optionalString (cfg.server.lockdPort != null) "--nlm-port ${toString cfg.server.lockdPort}"} \
-            ${optionalString (cfg.server.lockdPort != null) "--nlm-udp-port ${toString cfg.server.lockdPort}"}
-        '';
+        runit.services.statd = {
+          run = ''
+            ensureServiceStarted rpcbind
+            ${waitForRpcBind}
+            mkdir -p ${nfsStateDir}/{sm,sm.bak}
+            exec ${pkgs.nfs-utils}/bin/rpc.statd \
+              --foreground \
+              ${optionalString (cfg.server.statdPort != null) "--port ${toString cfg.server.statdPort}"} \
+              ${optionalString (cfg.server.lockdPort != null) "--nlm-port ${toString cfg.server.lockdPort}"} \
+              ${optionalString (cfg.server.lockdPort != null) "--nlm-udp-port ${toString cfg.server.lockdPort}"}
+          '';
 
-        onChange = "ignore";
-      };
-    })
+          onChange = "ignore";
+        };
+      }
+    )
 
     (mkIf cfg.server.enable {
 
-      boot.supportedFilesystems = { nfs = true; };
+      boot.supportedFilesystems = {
+        nfs = true;
+      };
 
       environment.etc."exports".source = exports;
 
@@ -189,8 +220,16 @@ in
             --port ${toString cfg.server.nfsd.port} \
             ${if cfg.server.nfsd.tcp then "--tcp" else "--no-tcp"} \
             ${if cfg.server.nfsd.udp then "--udp" else "--no-udp"} \
-            ${optionalString (cfg.server.nfsd.allowedVersions != []) "--nfs-version ${concatStringsSep "," cfg.server.nfsd.allowedVersions}"} \
-            ${optionalString (cfg.server.nfsd.disallowedVersions != []) "--no-nfs-version ${concatStringsSep "," cfg.server.nfsd.allowedVersions}"} \
+            ${
+              optionalString (
+                cfg.server.nfsd.allowedVersions != [ ]
+              ) "--nfs-version ${concatStringsSep "," cfg.server.nfsd.allowedVersions}"
+            } \
+            ${
+              optionalString (
+                cfg.server.nfsd.disallowedVersions != [ ]
+              ) "--no-nfs-version ${concatStringsSep "," cfg.server.nfsd.allowedVersions}"
+            } \
             ${optionalString cfg.server.nfsd.syslog "--syslog"} \
             -- ${toString cfg.server.nfsd.nproc}
 
@@ -205,4 +244,3 @@ in
     })
   ];
 }
-

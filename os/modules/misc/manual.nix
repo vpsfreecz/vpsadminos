@@ -1,9 +1,15 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 with lib;
 let
   cfg = config.manual;
   manual = import ../../manual { inherit pkgs; };
-in {
+in
+{
   options = {
     manual.html.enable = mkOption {
       type = types.bool;

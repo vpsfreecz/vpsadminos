@@ -1,4 +1,10 @@
-{ config, lib, pkgs, utils, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  utils,
+  ...
+}:
 with utils;
 with lib;
 
@@ -8,7 +14,7 @@ in
 {
   ###### interface
 
-  options = {};
+  options = { };
 
   ###### implementation
 
@@ -47,7 +53,10 @@ in
           # Config: ${config.environment.etc."ssh/sshd_config".source}
         '';
         killMode = "process";
-        runlevels = [ "rescue" "default" ];
+        runlevels = [
+          "rescue"
+          "default"
+        ];
       };
     })
   ];

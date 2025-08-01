@@ -45,7 +45,7 @@ in
 
     vpsadminos.tags = mkOption {
       type = types.listOf types.str;
-      default = [];
+      default = [ ];
       example = [ "with-xen" ];
       description = lib.mdDoc ''
         Strings to prefix to the default
@@ -68,9 +68,13 @@ in
   config = {
     # This is set here rather than up there so that changing it would
     # not rebuild the manual
-    system.vpsadminos.label = mkDefault (maybeEnv "VPSADMINOS_LABEL"
-                                             (concatStringsSep "-" ((sort (x: y: x < y) cfg.tags)
-                                              ++ [ (maybeEnv "VPSADMINOS_LABEL_VERSION" cfg.version) ])));
+    system.vpsadminos.label = mkDefault (
+      maybeEnv "VPSADMINOS_LABEL" (
+        concatStringsSep "-" (
+          (sort (x: y: x < y) cfg.tags) ++ [ (maybeEnv "VPSADMINOS_LABEL_VERSION" cfg.version) ]
+        )
+      )
+    );
   };
 
 }

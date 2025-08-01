@@ -1,5 +1,17 @@
-{ bash, bundlerApp, coreutils, iproute2, lib, makeWrapper, nfs-utils, nix,
-  runCommand, rpcbind, runit, util-linux }:
+{
+  bash,
+  bundlerApp,
+  coreutils,
+  iproute2,
+  lib,
+  makeWrapper,
+  nfs-utils,
+  nix,
+  runCommand,
+  rpcbind,
+  runit,
+  util-linux,
+}:
 let
   app = bundlerApp {
     pname = "osctl-exportfs";
@@ -8,10 +20,10 @@ let
 
     meta = with lib; {
       description = "";
-      homepage    = https://github.com/vpsfreecz/vpsadminos;
-      license     = licenses.mit;
-      maintainers = [];
-      platforms   = platforms.unix;
+      homepage = "https://github.com/vpsfreecz/vpsadminos";
+      license = licenses.mit;
+      maintainers = [ ];
+      platforms = platforms.unix;
     };
   };
 
@@ -27,7 +39,8 @@ let
   ];
 
   systemPath = lib.concatMapStringsSep ":" (pkg: "${pkg}/bin") runtimeDeps;
-in runCommand app.name { buildInputs = [ makeWrapper ]; } ''
+in
+runCommand app.name { buildInputs = [ makeWrapper ]; } ''
   mkdir -p $out/bin
 
   # Symlink everything except bin/

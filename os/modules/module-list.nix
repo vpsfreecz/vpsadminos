@@ -1,3 +1,1 @@
-(import ./nixos-modules.nix)
-++
-(import ./os-modules.nix)
+(import ./nixos-modules.nix) ++ (import ./os-modules.nix)
