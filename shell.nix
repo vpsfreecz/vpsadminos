@@ -7,7 +7,8 @@ let
   };
   stdenv = pkgs.stdenv;
 
-in stdenv.mkDerivation rec {
+in
+stdenv.mkDerivation rec {
   name = "vpsadminos";
 
   buildInputs = with pkgs; [
@@ -18,6 +19,7 @@ in stdenv.mkDerivation rec {
     lxc
     mkdocs
     ncurses
+    nixfmt-tree
     ruby_3_3
   ];
 
