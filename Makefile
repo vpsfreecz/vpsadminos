@@ -20,6 +20,7 @@ qemu-script:
 
 gems: libosctl osctl-repo osctl osctld osup osctl-image osctl-exporter osctl-exportfs converter svctl test-runner osvm
 	echo "$(GEM_VERSION).build$(BUILD_ID)" > .build_id
+	nixfmt os/packages/*/gemset.nix
 
 commit-gems:
 	git commit -e -m "os: update gems to $(shell cat .build_id)" .build_id os/packages/*/{Gemfile,Gemfile.lock,gemset.nix}
