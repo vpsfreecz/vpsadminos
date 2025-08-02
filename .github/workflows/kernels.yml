@@ -43,7 +43,7 @@ jobs:
           echo "kernelVersions=$kernelVersions" >> "$GITHUB_OUTPUT"
 
   build:
-    name: Build OS with kernel ${{ matrix.kernel }} and populate binary cache
+    name: Kernel ${{ matrix.kernel }}
     needs: detect
     runs-on: self-hosted
     strategy:
