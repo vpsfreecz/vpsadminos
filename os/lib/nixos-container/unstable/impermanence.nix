@@ -27,9 +27,9 @@ let
       #users.extraUsers.root.openssh.authorizedKeys.keys =
       #  [ "..." ];
 
-      systemd.extraConfig = '''
-        DefaultTimeoutStartSec=900s
-      ''';
+      systemd.settings.Manager = {
+        DefaultTimeoutStartSec = "900s";
+      };
 
       time.timeZone = "Europe/Amsterdam";
 
@@ -65,9 +65,9 @@ in
   services.openssh.enable = lib.mkDefault true;
   services.openssh.settings.PermitRootLogin = lib.mkDefault "yes";
 
-  systemd.extraConfig = ''
-    DefaultTimeoutStartSec=900s
-  '';
+  systemd.settings.Manager = {
+    DefaultTimeoutStartSec = "900s";
+  };
 
   environment.persistence."/persistent" = {
     hideMounts = true;
