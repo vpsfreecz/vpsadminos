@@ -27,7 +27,13 @@ function build-nixos {
 			result_dir=template
 	esac
 
-	$build_command || fail "failed to build the template"
+	if [ "$CHANNEL" == "nixos-unstable" ] ; then
+		TEMPLATE_CHANNEL=unstable
+	else
+		TEMPLATE_CHANNEL=stable
+	fi
+
+	$build_command TEMPLATE_CHANNEL=$TEMPLATE_CHANNEL || fail "failed to build the template"
 
 	tar -xzf result/$result_dir/tarball/*.tar.gz -C "$INSTALL"
 	mv "$INSTALL/nix-path-registration" "$INSTALL/nix/nix-path-registration"
