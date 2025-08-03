@@ -618,7 +618,7 @@ let
                       networking.hostName = mkDefault name;
                       networking.useDHCP = hasBridge;
 
-                      imports = [ ../../lib/nixos-container/configuration.nix ];
+                      imports = [ ../../lib/nixos-container/stable/minimal.nix ];
 
                     };
                   in
