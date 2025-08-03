@@ -5,10 +5,12 @@ on:
     paths:
       - .github/workflows/image-scripts.yml
       - image-scripts/**
+      - os/lib/nixos-container/**
   pull_request:
     paths:
       - .github/workflows/image-scripts.yml
       - image-scripts/**
+      - os/lib/nixos-container/**
 
 env:
   NIX_PATH: nixpkgs=https://channels.nixos.org/nixos-25.05/nixexprs.tar.xz
