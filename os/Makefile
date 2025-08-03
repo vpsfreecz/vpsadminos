@@ -1,5 +1,6 @@
 CORES = 0
 JOBS = 2
+TEMPLATE_CHANNEL = stable
 
 ifeq ($(DEBUG),0)
   TRACE =
@@ -66,14 +67,14 @@ flash: iso
 template:
 	nix-build \
 	'<nixpkgs/nixos>' \
-	--arg configuration ./lib/nixos-container/configuration.nix \
+	--arg configuration ./lib/nixos-container/$(TEMPLATE_CHANNEL)/minimal.nix \
 	-A config.system.build.tarball \
 	--out-link result/template
 
 template-impermanence:
 	nix-build \
 	'<nixpkgs/nixos>' \
-	--arg configuration ./lib/nixos-container/impermanence.nix \
+	--arg configuration ./lib/nixos-container/$(TEMPLATE_CHANNEL)/impermanence.nix \
 	-A config.system.build.impermanenceTarball \
 	--out-link result/template-impermanence
 

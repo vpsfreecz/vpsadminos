@@ -5,14 +5,7 @@
   ...
 }:
 let
-  # Use custom nixpkgs instance to fetch impermanence module, as otherwise
-  # having it in imports results in infinite recursion
-  impermanence = (import <nixpkgs> { }).fetchFromGitHub {
-    owner = "nix-community";
-    repo = "impermanence";
-    rev = "e337457502571b23e449bf42153d7faa10c0a562";
-    sha256 = "sha256-C2sGRJl1EmBq0nO98TNd4cbUy20ABSgnHWXLIJQWRFA=";
-  };
+  impermanence = (import ../impermanence-module.nix).unstable;
 
   configClone = pkgs.writeText "configuration.nix" ''
     { config, pkgs, ... }:
