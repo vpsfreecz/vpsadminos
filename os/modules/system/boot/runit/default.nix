@@ -35,6 +35,22 @@ let
         description = "Called to check service status.";
       };
 
+      path = mkOption {
+        type = types.listOf (types.either types.package types.str);
+        default = [ ];
+        description = ''
+          List of packages added to PATH
+        '';
+      };
+
+      environment = mkOption {
+        type = types.attrsOf types.str;
+        default = { };
+        description = ''
+          Environment variables
+        '';
+      };
+
       oneShot = mkOption {
         type = types.bool;
         default = false;
@@ -231,6 +247,17 @@ let
 
   serviceCGroup = name: "/run/runit/cgroup.service/${name}";
 
+  setPath =
+    service:
+    optionalString (service.path != [ ]) ''
+      export PATH="${
+        concatMapStringsSep ":" (s: if (isString s) then s else "${s}/bin") service.path
+      }:$PATH"
+    '';
+
+  setEnvironment =
+    service: concatStringsSep "\n" (mapAttrsToList (k: v: "export ${k}=\"${v}\"") service.environment);
+
   mkScript =
     name: script:
     pkgs.writeScript name ''
@@ -251,6 +278,8 @@ let
       echo $$ >> "${serviceCGroup name}/cgroup.procs"
       ${optionalString (service.log.enable && service.log.logStandardError) "exec 2>&1"}
       ${optionalString service.includeHelpers "source ./helpers"}
+      ${setPath service}
+      ${setEnvironment service}
       ${service.run}
       ${optionalString service.oneShot ''
         echo "Service ${name} successfully finished"
@@ -283,6 +312,8 @@ let
       ${optionalString (service.killMode == "control-group") ''
         ${killCGroup} ${serviceCGroup name}
       ''}
+      ${setPath service}
+      ${setEnvironment service}
       ${service.finish}
     '';
 
