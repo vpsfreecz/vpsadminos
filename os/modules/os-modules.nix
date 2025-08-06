@@ -57,6 +57,7 @@
   ./system/boot/runit
   ./system/boot/stage-1.nix
   ./system/boot/stage-2.nix
+  ./system/dbus.nix
   ./tasks/cpu-freq.nix
   ./tasks/filesystems/zfs
   ./tasks/network-interfaces.nix
