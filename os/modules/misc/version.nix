@@ -39,29 +39,28 @@ let
     concatStringsSep "\n" (mapAttrsToList (n: v: ''${n}=${escapeIfNecessary (toString v)}'') attrs)
     + "\n";
 
-  osReleaseContents =
-    {
-      NAME = "${cfg.distroName}";
-      ID = "${cfg.distroId}";
-      VERSION = "${cfg.release} (${cfg.codeName})";
-      VERSION_CODENAME = toLower cfg.codeName;
-      VERSION_ID = cfg.release;
-      BUILD_ID = cfg.version;
-      PRETTY_NAME = "${cfg.distroName} ${cfg.release} (${cfg.codeName})";
-      LOGO = "nix-snowflake";
-      HOME_URL = lib.optionalString (cfg.distroId == "vpsadminos") "https://vpsadminos.org/";
-      DOCUMENTATION_URL = lib.optionalString (cfg.distroId == "vpsadminos") "https://vpsadminos.org";
-      SUPPORT_URL = lib.optionalString (
-        cfg.distroId == "vpsadminos"
-      ) "https://github.com/vpsfreecz/vpsadminos";
-      BUG_REPORT_URL = lib.optionalString (
-        cfg.distroId == "vpsadminos"
-      ) "https://github.com/vpsfreecz/vpsadminos/issues";
-      SUPPORT_END = "2023-12-31";
-    }
-    // lib.optionalAttrs (cfg.variant_id != null) {
-      VARIANT_ID = cfg.variant_id;
-    };
+  osReleaseContents = {
+    NAME = "${cfg.distroName}";
+    ID = "${cfg.distroId}";
+    VERSION = "${cfg.release} (${cfg.codeName})";
+    VERSION_CODENAME = toLower cfg.codeName;
+    VERSION_ID = cfg.release;
+    BUILD_ID = cfg.version;
+    PRETTY_NAME = "${cfg.distroName} ${cfg.release} (${cfg.codeName})";
+    LOGO = "nix-snowflake";
+    HOME_URL = lib.optionalString (cfg.distroId == "vpsadminos") "https://vpsadminos.org/";
+    DOCUMENTATION_URL = lib.optionalString (cfg.distroId == "vpsadminos") "https://vpsadminos.org";
+    SUPPORT_URL = lib.optionalString (
+      cfg.distroId == "vpsadminos"
+    ) "https://github.com/vpsfreecz/vpsadminos";
+    BUG_REPORT_URL = lib.optionalString (
+      cfg.distroId == "vpsadminos"
+    ) "https://github.com/vpsfreecz/vpsadminos/issues";
+    SUPPORT_END = "2023-12-31";
+  }
+  // lib.optionalAttrs (cfg.variant_id != null) {
+    VARIANT_ID = cfg.variant_id;
+  };
 
   initrdReleaseContents = osReleaseContents // {
     PRETTY_NAME = "${osReleaseContents.PRETTY_NAME} (Initrd)";

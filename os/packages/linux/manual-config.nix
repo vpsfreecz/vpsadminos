@@ -99,13 +99,12 @@ let
     '';
   };
 
-  commonMakeFlags =
-    [
-      "O=$(buildRoot)"
-    ]
-    ++ lib.optionals (
-      stdenv.hostPlatform.linux-kernel ? makeFlags
-    ) stdenv.hostPlatform.linux-kernel.makeFlags;
+  commonMakeFlags = [
+    "O=$(buildRoot)"
+  ]
+  ++ lib.optionals (
+    stdenv.hostPlatform.linux-kernel ? makeFlags
+  ) stdenv.hostPlatform.linux-kernel.makeFlags;
 
   drvAttrs =
     config_: kernelConf: kernelPatches: configfile:
@@ -259,15 +258,15 @@ let
         "KBUILD_BUILD_VERSION=1-vpsAdminOS"
         kernelConf.target
         "vmlinux" # for "perf" and things like that
-      ] ++ optional isModular "modules";
+      ]
+      ++ optional isModular "modules";
 
-      installFlags =
-        [
-          "INSTALLKERNEL=${installkernel}"
-          "INSTALL_PATH=$(out)"
-        ]
-        ++ (optional isModular "INSTALL_MOD_PATH=$(out)")
-        ++ optional installsFirmware "INSTALL_FW_PATH=$(out)/lib/firmware";
+      installFlags = [
+        "INSTALLKERNEL=${installkernel}"
+        "INSTALL_PATH=$(out)"
+      ]
+      ++ (optional isModular "INSTALL_MOD_PATH=$(out)")
+      ++ optional installsFirmware "INSTALL_FW_PATH=$(out)/lib/firmware";
 
       preInstall = ''
         installFlagsArray+=("-j$NIX_BUILD_CORES")
@@ -405,7 +404,8 @@ let
         ];
         platforms = platforms.linux;
         timeout = 14400; # 4 hours
-      } // extraMeta;
+      }
+      // extraMeta;
     };
 in
 
@@ -421,32 +421,31 @@ stdenv.mkDerivation (
     enableParallelBuilding = true;
 
     depsBuildBuild = [ buildPackages.stdenv.cc ];
-    nativeBuildInputs =
-      [
-        perl
-        bc
-        nettools
-        openssl
-        rsync
-        gmp
-        libmpc
-        mpfr
-        gawk
-        zstd
-        python3Minimal
-        zlib
-        pahole
-      ]
-      ++ optional (stdenv.hostPlatform.linux-kernel.target == "uImage") buildPackages.ubootTools
-      ++ optional (lib.versionAtLeast version "4.14" && lib.versionOlder version "5.8") libelf
-      # Removed util-linuxMinimal since it should not be a dependency.
-      ++ optionals (lib.versionAtLeast version "4.16") [
-        bison
-        flex
-      ]
-      ++ optional (lib.versionAtLeast version "5.2") cpio
-      ++ optional (lib.versionAtLeast version "5.8") elfutils
-      ++ optional (lib.versionAtLeast version "6.6") kmod;
+    nativeBuildInputs = [
+      perl
+      bc
+      nettools
+      openssl
+      rsync
+      gmp
+      libmpc
+      mpfr
+      gawk
+      zstd
+      python3Minimal
+      zlib
+      pahole
+    ]
+    ++ optional (stdenv.hostPlatform.linux-kernel.target == "uImage") buildPackages.ubootTools
+    ++ optional (lib.versionAtLeast version "4.14" && lib.versionOlder version "5.8") libelf
+    # Removed util-linuxMinimal since it should not be a dependency.
+    ++ optionals (lib.versionAtLeast version "4.16") [
+      bison
+      flex
+    ]
+    ++ optional (lib.versionAtLeast version "5.2") cpio
+    ++ optional (lib.versionAtLeast version "5.8") elfutils
+    ++ optional (lib.versionAtLeast version "6.6") kmod;
 
     hardeningDisable = [
       "bindnow"

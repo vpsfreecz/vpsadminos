@@ -118,18 +118,17 @@ let
       ncurses
       which
       perl
-    ] ++ lib.optional withPython python;
+    ]
+    ++ lib.optional withPython python;
 
     buildInputs = [ libxcrypt ] ++ lib.optional withPerl perl ++ lib.optional withPython python;
 
     # required to build apparmor-parser
     dontDisableStatic = true;
 
-    prePatch =
-      prePatchCommon
-      + ''
-        substituteInPlace ./libraries/libapparmor/swig/perl/Makefile.am --replace install_vendor install_site
-      '';
+    prePatch = prePatchCommon + ''
+      substituteInPlace ./libraries/libapparmor/swig/perl/Makefile.am --replace install_vendor install_site
+    '';
     inherit patches;
 
     postPatch = ''
@@ -272,19 +271,17 @@ let
 
     buildInputs = [ libapparmor ];
 
-    prePatch =
-      prePatchCommon
-      + ''
-        ## techdoc.pdf still doesn't build ...
-        substituteInPlace ./parser/Makefile \
-          --replace "/usr/bin/bison" "${bison}/bin/bison" \
-          --replace "/usr/bin/flex" "${flex}/bin/flex" \
-          --replace "/usr/include/linux/capability.h" "${linuxHeaders}/include/linux/capability.h" \
-          --replace "manpages htmlmanpages pdf" "manpages htmlmanpages"
-        substituteInPlace parser/rc.apparmor.functions \
-         --replace "/sbin/apparmor_parser" "$out/bin/apparmor_parser"
-        sed -i parser/rc.apparmor.functions -e '2i . ${./fix-rc.apparmor.functions.sh}'
-      '';
+    prePatch = prePatchCommon + ''
+      ## techdoc.pdf still doesn't build ...
+      substituteInPlace ./parser/Makefile \
+        --replace "/usr/bin/bison" "${bison}/bin/bison" \
+        --replace "/usr/bin/flex" "${flex}/bin/flex" \
+        --replace "/usr/include/linux/capability.h" "${linuxHeaders}/include/linux/capability.h" \
+        --replace "manpages htmlmanpages pdf" "manpages htmlmanpages"
+      substituteInPlace parser/rc.apparmor.functions \
+       --replace "/sbin/apparmor_parser" "$out/bin/apparmor_parser"
+      sed -i parser/rc.apparmor.functions -e '2i . ${./fix-rc.apparmor.functions.sh}'
+    '';
     inherit patches;
     postPatch = ''
       cd ./parser

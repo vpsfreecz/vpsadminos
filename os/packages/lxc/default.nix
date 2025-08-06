@@ -63,24 +63,23 @@ stdenv.mkDerivation rec {
     sed -i 's/install: true/install: false/' doc/rootfs/meson.build
   '';
 
-  mesonFlags =
-    [
-      "--localstatedir=/var"
-      "-Ddistrosysconfdir=${placeholder "out"}/etc/default"
-      "-Dusernet-config-path=/etc/lxc/lxc-usernet"
-      "-Dpam-cgroup=true"
-      "-Dinit-script=sysvinit"
-      (if isNull dbus then "-Ddbus=false" else "-Ddbus=true")
-    ]
-    ++ optional (libapparmor != null) "-Dapparmor=true"
-    ++ optional (libselinux != null) "-Dselinux=true"
-    ++ optional (libseccomp != null) "-Dseccomp=true"
-    ++ optional (libcap != null) "-Dcapabilities=true"
-    ++ [
-      "-Dexamples=false"
-      (if doCheck then "-Dtests=true" else "-Dtests=false")
-      "-Drootfs-mount-path=/var/lib/lxc/rootfs"
-    ];
+  mesonFlags = [
+    "--localstatedir=/var"
+    "-Ddistrosysconfdir=${placeholder "out"}/etc/default"
+    "-Dusernet-config-path=/etc/lxc/lxc-usernet"
+    "-Dpam-cgroup=true"
+    "-Dinit-script=sysvinit"
+    (if isNull dbus then "-Ddbus=false" else "-Ddbus=true")
+  ]
+  ++ optional (libapparmor != null) "-Dapparmor=true"
+  ++ optional (libselinux != null) "-Dselinux=true"
+  ++ optional (libseccomp != null) "-Dseccomp=true"
+  ++ optional (libcap != null) "-Dcapabilities=true"
+  ++ [
+    "-Dexamples=false"
+    (if doCheck then "-Dtests=true" else "-Dtests=false")
+    "-Drootfs-mount-path=/var/lib/lxc/rootfs"
+  ];
 
   postInstall = ''
     # Remove unused init-script

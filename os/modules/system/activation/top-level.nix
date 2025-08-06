@@ -103,11 +103,9 @@ let
 
   systemWithBuildDeps = system.overrideAttrs (o: {
     systemBuildClosure = pkgs.closureInfo { rootPaths = [ system.drvPath ]; };
-    buildCommand =
-      o.buildCommand
-      + ''
-        ln -sn $systemBuildClosure $out/build-closure
-      '';
+    buildCommand = o.buildCommand + ''
+      ln -sn $systemBuildClosure $out/build-closure
+    '';
   });
 
 in
@@ -377,29 +375,28 @@ in
       fi
     '';
 
-    system.systemBuilderArgs =
-      {
-        # Not actually used in the builder. `passedChecks` is just here to create
-        # the build dependencies. Checks are similar to build dependencies in the
-        # sense that if they fail, the system build fails. However, checks do not
-        # produce any output of value, so they are not used by the system builder.
-        # In fact, using them runs the risk of accidentally adding unneeded paths
-        # to the system closure, which defeats the purpose of the `system.checks`
-        # option, as opposed to `system.extraDependencies`.
-        passedChecks = concatStringsSep " " config.system.checks;
-      }
-      // lib.optionalAttrs (config.system.forbiddenDependenciesRegex != "") {
-        inherit (config.system) forbiddenDependenciesRegex;
-        closureInfo = pkgs.closureInfo {
-          rootPaths = [
-            # override to avoid  infinite recursion (and to allow using extraDependencies to add forbidden dependencies)
-            (config.system.build.toplevel.overrideAttrs (_: {
-              extraDependencies = [ ];
-              closureInfo = null;
-            }))
-          ];
-        };
+    system.systemBuilderArgs = {
+      # Not actually used in the builder. `passedChecks` is just here to create
+      # the build dependencies. Checks are similar to build dependencies in the
+      # sense that if they fail, the system build fails. However, checks do not
+      # produce any output of value, so they are not used by the system builder.
+      # In fact, using them runs the risk of accidentally adding unneeded paths
+      # to the system closure, which defeats the purpose of the `system.checks`
+      # option, as opposed to `system.extraDependencies`.
+      passedChecks = concatStringsSep " " config.system.checks;
+    }
+    // lib.optionalAttrs (config.system.forbiddenDependenciesRegex != "") {
+      inherit (config.system) forbiddenDependenciesRegex;
+      closureInfo = pkgs.closureInfo {
+        rootPaths = [
+          # override to avoid  infinite recursion (and to allow using extraDependencies to add forbidden dependencies)
+          (config.system.build.toplevel.overrideAttrs (_: {
+            extraDependencies = [ ];
+            closureInfo = null;
+          }))
+        ];
       };
+    };
 
     system.build.toplevel =
       if config.system.includeBuildDependencies then systemWithBuildDeps else system;

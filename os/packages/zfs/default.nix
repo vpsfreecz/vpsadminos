@@ -154,14 +154,13 @@ let
             	        --replace "@udevdir@/rules.d/69-vdev.rules" "pllm"
           '';
 
-        nativeBuildInputs =
-          [
-            autoreconfHook
-            nukeReferences
-            installShellFiles
-          ]
-          ++ optionals buildKernel (kernel.moduleBuildDependencies ++ [ perl ])
-          ++ optional buildUser pkg-config;
+        nativeBuildInputs = [
+          autoreconfHook
+          nukeReferences
+          installShellFiles
+        ]
+        ++ optionals buildKernel (kernel.moduleBuildDependencies ++ [ perl ])
+        ++ optional buildUser pkg-config;
         buildInputs =
           optionals buildUser [
             zlib
@@ -181,33 +180,32 @@ let
           "pic"
         ];
 
-        configureFlags =
+        configureFlags = [
+          "--with-config=${realConfigFile}"
+          "--with-tirpc=1"
+          (withFeatureAs buildUser "python" python3.interpreter)
+        ]
+        ++ optionals buildUser [
+          "--with-dracutdir=$(out)/lib/dracut"
+          "--with-udevdir=$(out)/lib/udev"
+          "--with-mounthelperdir=$(out)/bin"
+          "--libexecdir=$(out)/libexec"
+          "--sysconfdir=/etc"
+          "--localstatedir=/var"
+        ]
+        ++ optionals buildKernelBuiltin [
+          "--enable-linux-builtin"
+        ]
+        ++ optionals buildKernel (
           [
-            "--with-config=${realConfigFile}"
-            "--with-tirpc=1"
-            (withFeatureAs buildUser "python" python3.interpreter)
+            "--with-linux=${kernel.dev}/lib/modules/${kernel.modDirVersion}/source"
+            "--with-linux-obj=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build"
           ]
-          ++ optionals buildUser [
-            "--with-dracutdir=$(out)/lib/dracut"
-            "--with-udevdir=$(out)/lib/udev"
-            "--with-mounthelperdir=$(out)/bin"
-            "--libexecdir=$(out)/libexec"
-            "--sysconfdir=/etc"
-            "--localstatedir=/var"
+          ++ optionals enableDebug [
+            "--enable-debug"
           ]
-          ++ optionals buildKernelBuiltin [
-            "--enable-linux-builtin"
-          ]
-          ++ optionals buildKernel (
-            [
-              "--with-linux=${kernel.dev}/lib/modules/${kernel.modDirVersion}/source"
-              "--with-linux-obj=${kernel.dev}/lib/modules/${kernel.modDirVersion}/build"
-            ]
-            ++ optionals enableDebug [
-              "--enable-debug"
-            ]
-            ++ kernel.makeFlags
-          );
+          ++ kernel.makeFlags
+        );
 
         makeFlags = optionals buildKernel kernel.makeFlags;
 
@@ -246,27 +244,26 @@ let
             installShellCompletion etc/bash_completion.d/*
           '';
 
-        postFixup =
-          ''
-            path="PATH=${
-              makeBinPath [
-                coreutils
-                gawk
-                gnused
-                gnugrep
-                util-linux
-                smartmontools
-                sysstat
-                sudo
-              ]
-            }"
-            for i in $out/libexec/zfs/zpool.d/*; do
-              sed -i "2i$path" $i
-            done
-          ''
-          + optionalString buildUser ''
-            patchShebangs $out/bin
-          '';
+        postFixup = ''
+          path="PATH=${
+            makeBinPath [
+              coreutils
+              gawk
+              gnused
+              gnugrep
+              util-linux
+              smartmontools
+              sysstat
+              sudo
+            ]
+          }"
+          for i in $out/libexec/zfs/zpool.d/*; do
+            sed -i "2i$path" $i
+          done
+        ''
+        + optionalString buildUser ''
+          patchShebangs $out/bin
+        '';
 
         outputs = [ "out" ] ++ optionals buildUser [ "dev" ];
 

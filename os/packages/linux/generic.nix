@@ -133,18 +133,17 @@ let
     passAsFile = [ "kernelConfig" ];
 
     depsBuildBuild = [ buildPackages.stdenv.cc ];
-    nativeBuildInputs =
-      [
-        perl
-        gmp
-        libmpc
-        mpfr
-        pahole
-      ]
-      ++ lib.optionals (lib.versionAtLeast version "4.16") [
-        bison
-        flex
-      ];
+    nativeBuildInputs = [
+      perl
+      gmp
+      libmpc
+      mpfr
+      pahole
+    ]
+    ++ lib.optionals (lib.versionAtLeast version "4.16") [
+      bison
+      flex
+    ];
 
     platformName = stdenv.hostPlatform.linux-kernel.name;
     # e.g. "defconfig"
@@ -153,13 +152,11 @@ let
     # e.g. "bzImage"
     kernelTarget = stdenv.hostPlatform.linux-kernel.target;
 
-    prePatch =
-      kernel.prePatch
-      + ''
-        # Patch kconfig to print "###" after every question so that
-        # generate-config.pl from the generic builder can answer them.
-        sed -e '/fflush(stdout);/i\printf("###");' -i scripts/kconfig/conf.c
-      '';
+    prePatch = kernel.prePatch + ''
+      # Patch kconfig to print "###" after every question so that
+      # generate-config.pl from the generic builder can answer them.
+      sed -e '/fflush(stdout);/i\printf("###");' -i scripts/kconfig/conf.c
+    '';
 
     preUnpack = kernel.preUnpack or "";
 
@@ -208,7 +205,8 @@ let
               settings = structuredExtraConfig;
               _file = "structuredExtraConfig";
             }
-          ] ++ structuredConfigFromPatches;
+          ]
+          ++ structuredConfigFromPatches;
         }).config;
 
       structuredConfig = moduleStructuredConfig.settings;

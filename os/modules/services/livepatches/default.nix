@@ -45,91 +45,90 @@ let
       ];
       depsBuildBuild = [ pkgs.stdenv.cc ];
 
-      buildPhase =
-        ''
-          # set to 3 if you want to see compile process
-          export DEBUG=0
+      buildPhase = ''
+        # set to 3 if you want to see compile process
+        export DEBUG=0
 
-          # prepare kpatch-build and its environment
-          export CCACHE_UMASK=007
-          export CCACHE_DIR=/nix/var/cache/ccache
-          export CACHEDIR=$(pwd)/tmp/cache
-          export TEMPDIR=$(pwd)/tmp
-          echo copying kpatch-build locally
-          cp -r ${kpatch-build} kpatch-build
-          kpb=$(pwd)/kpatch-build
-          mkdir -p $TEMPDIR
-          mkdir -p $CACHEDIR
+        # prepare kpatch-build and its environment
+        export CCACHE_UMASK=007
+        export CCACHE_DIR=/nix/var/cache/ccache
+        export CACHEDIR=$(pwd)/tmp/cache
+        export TEMPDIR=$(pwd)/tmp
+        echo copying kpatch-build locally
+        cp -r ${kpatch-build} kpatch-build
+        kpb=$(pwd)/kpatch-build
+        mkdir -p $TEMPDIR
+        mkdir -p $CACHEDIR
 
-          # unpack kernel and detect unpacked folder into $sourceRoot
-          local dirsBefore=""
-          for i in *; do
-              if [ -d "$i" ]; then
-                  dirsBefore="$dirsBefore $i "
-              fi
-          done
-          echo unpacking ${kernel.src}
-          tar xf ${kernel.src}
-          sourceRoot=
-          for i in *; do
-              if [ -d "$i" ]; then
-                  case $dirsBefore in
-                      *\ $i\ *)
-                          ;;
-                      *)
-                          if [ -n "$sourceRoot" ]; then
-                              echo "unpacker produced multiple directories"
-                              exit 1
-                          fi
-                          sourceRoot="$i"
-                          ;;
-                  esac
-              fi
-          done
+        # unpack kernel and detect unpacked folder into $sourceRoot
+        local dirsBefore=""
+        for i in *; do
+            if [ -d "$i" ]; then
+                dirsBefore="$dirsBefore $i "
+            fi
+        done
+        echo unpacking ${kernel.src}
+        tar xf ${kernel.src}
+        sourceRoot=
+        for i in *; do
+            if [ -d "$i" ]; then
+                case $dirsBefore in
+                    *\ $i\ *)
+                        ;;
+                    *)
+                        if [ -n "$sourceRoot" ]; then
+                            echo "unpacker produced multiple directories"
+                            exit 1
+                        fi
+                        sourceRoot="$i"
+                        ;;
+                esac
+            fi
+        done
 
-          # prepare kernel source at src/
-          # with ./vmlinux (from kernel.dev) and .config
-          mv $sourceRoot src
-          export KERNEL_SRCDIR=$(pwd)/src
-          cp -r ${kernel.dev}/. ./src/
-          ln -snf ${kernel.configfile.outPath} ./src/.config
+        # prepare kernel source at src/
+        # with ./vmlinux (from kernel.dev) and .config
+        mv $sourceRoot src
+        export KERNEL_SRCDIR=$(pwd)/src
+        cp -r ${kernel.dev}/. ./src/
+        ln -snf ${kernel.configfile.outPath} ./src/.config
 
-          echo patchShebangs src/scripts
-          patchShebangs src/scripts > /dev/null
+        echo patchShebangs src/scripts
+        patchShebangs src/scripts > /dev/null
 
-          # kpatch-build needs the whole env to be writeable, even the stuff
-          # we just unpacked and copied
-          chmod u+w . -R
-        ''
-        + optionalString (zfsBuiltinPkg != null) ''
-          echo "Copying ZFS builtin package..."
-          cp -r ${zfsBuiltinPkg} ./zfsBuiltin
-          chmod -R u+w ./zfsBuiltin
-          pushd ./zfsBuiltin
-          ./copy-builtin ../src
-          popd
-        ''
-        + ''
-                  cat > src/include/linux/vpsadminos-livepatch.h <<LIVEPATCH_HEADER_END
-          #ifndef VPSADMINOS_LIVEPATCH_H
-          #define VPSADMINOS_LIVEPATCH_H
-          #define LIVEPATCH_ORIG_KERNEL_VERSION        "${kernel.modDirVersion}"
-          #define LIVEPATCH_NAME                       "${patchName}"
-          #endif
-          LIVEPATCH_HEADER_END
+        # kpatch-build needs the whole env to be writeable, even the stuff
+        # we just unpacked and copied
+        chmod u+w . -R
+      ''
+      + optionalString (zfsBuiltinPkg != null) ''
+        echo "Copying ZFS builtin package..."
+        cp -r ${zfsBuiltinPkg} ./zfsBuiltin
+        chmod -R u+w ./zfsBuiltin
+        pushd ./zfsBuiltin
+        ./copy-builtin ../src
+        popd
+      ''
+      + ''
+                cat > src/include/linux/vpsadminos-livepatch.h <<LIVEPATCH_HEADER_END
+        #ifndef VPSADMINOS_LIVEPATCH_H
+        #define VPSADMINOS_LIVEPATCH_H
+        #define LIVEPATCH_ORIG_KERNEL_VERSION        "${kernel.modDirVersion}"
+        #define LIVEPATCH_NAME                       "${patchName}"
+        #endif
+        LIVEPATCH_HEADER_END
 
-                  # command preview:
-                  echo kpatch-build -n ${patchModuleName} ''
-        + concatMapStringsSep " " (name: "${name}.patch") availablePatchesList
-        + ''
-          ; # we dont get a newline between this and the next line; wtf
-                  # actual command
-                  #export ARCH_KCFLAGS="-gz=none"
-                  $kpb/kpatch-build/kpatch-build -v ${kernel.dev}/vmlinux -s src -n ${patchModuleName} ''
-        + concatMapStringsSep " " (name: "$src/${name}.patch") availablePatchesList
-        + ''
-          || cat $CACHEDIR/build.log || echo log not found at $CACHEDIR/build.log
-        '';
+                # command preview:
+                echo kpatch-build -n ${patchModuleName} ''
+      + concatMapStringsSep " " (name: "${name}.patch") availablePatchesList
+      + ''
+        ; # we dont get a newline between this and the next line; wtf
+                # actual command
+                #export ARCH_KCFLAGS="-gz=none"
+                $kpb/kpatch-build/kpatch-build -v ${kernel.dev}/vmlinux -s src -n ${patchModuleName} ''
+      + concatMapStringsSep " " (name: "$src/${name}.patch") availablePatchesList
+      + ''
+        || cat $CACHEDIR/build.log || echo log not found at $CACHEDIR/build.log
+      '';
 
       nativeBuildInputs = kernel.nativeBuildInputs;
 
@@ -237,39 +236,35 @@ let
       ) availablePatches.filteredPatches
     );
 
-  moduleLoadContent =
-    ''
-      livepatch=$(cat /etc/livepatch-store-path)
-      mkdir -p /lib/modules
-      ln -snf /run/current-system/kernel-modules/lib/modules/${kernel.modDirVersion} /lib/modules/${kernel.modDirVersion}.${patchName}
-    ''
-    + moduleLoadGen {
-      installModPath = "$livepatch/${installModPath}";
-      moduleName = patchModuleName;
-    }
-    + '''';
+  moduleLoadContent = ''
+    livepatch=$(cat /etc/livepatch-store-path)
+    mkdir -p /lib/modules
+    ln -snf /run/current-system/kernel-modules/lib/modules/${kernel.modDirVersion} /lib/modules/${kernel.modDirVersion}.${patchName}
+  ''
+  + moduleLoadGen {
+    installModPath = "$livepatch/${installModPath}";
+    moduleName = patchModuleName;
+  }
+  + '''';
 
-  moduleUnloadContent =
-    ''
-      livepatch=$(cat /etc/livepatch-store-path)
-      # Patches built with build-kpatch
-    ''
-    + moduleUnloadGen { moduleName = patchModuleName; }
-    + "\n";
+  moduleUnloadContent = ''
+    livepatch=$(cat /etc/livepatch-store-path)
+    # Patches built with build-kpatch
+  ''
+  + moduleUnloadGen { moduleName = patchModuleName; }
+  + "\n";
 
-  moduleListContent =
-    ''
-      livepatch=$(cat /etc/livepatch-store-path)
-    ''
-    + moduleListGen { moduleName = patchModuleName; }
-    + "\n";
+  moduleListContent = ''
+    livepatch=$(cat /etc/livepatch-store-path)
+  ''
+  + moduleListGen { moduleName = patchModuleName; }
+  + "\n";
 
-  moduleStatusContent =
-    ''
-      livepatch=$(cat /etc/livepatch-store-path)
-    ''
-    + moduleStatusGen { moduleName = patchModuleName; }
-    + "\n";
+  moduleStatusContent = ''
+    livepatch=$(cat /etc/livepatch-store-path)
+  ''
+  + moduleStatusGen { moduleName = patchModuleName; }
+  + "\n";
 
   live-patches-util = pkgs.writeScriptBin "live-patches" (
     optionalString (!buildEnable) ''

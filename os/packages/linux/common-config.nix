@@ -161,15 +161,14 @@ let
     };
 
     # Enable NUMA.
-    numa =
-      {
-        EXPERT = yes;
-        NUMA = option yes;
-      }
-      // optionalAttrs (!RTKernel) {
-        NUMA_BALANCING = yes;
-        NUMA_BALANCING_DEFAULT_ENABLED = yes;
-      };
+    numa = {
+      EXPERT = yes;
+      NUMA = option yes;
+    }
+    // optionalAttrs (!RTKernel) {
+      NUMA_BALANCING = yes;
+      NUMA_BALANCING_DEFAULT_ENABLED = yes;
+    };
 
     networking = {
       NET = yes;
@@ -323,26 +322,25 @@ let
       SOUND = no;
     };
 
-    usb-serial =
-      {
-        USB_SERIAL_GENERIC = yes; # USB Generic Serial Driver
-      }
-      // optionalAttrs (versionOlder version "4.16") {
-        # Include firmware for various USB serial devices.
-        # Only applicable for kernels below 4.16, after that no firmware is shipped in the kernel tree.
-        USB_SERIAL_KEYSPAN_MPR = yes;
-        USB_SERIAL_KEYSPAN_USA28 = yes;
-        USB_SERIAL_KEYSPAN_USA28X = yes;
-        USB_SERIAL_KEYSPAN_USA28XA = yes;
-        USB_SERIAL_KEYSPAN_USA28XB = yes;
-        USB_SERIAL_KEYSPAN_USA19 = yes;
-        USB_SERIAL_KEYSPAN_USA18X = yes;
-        USB_SERIAL_KEYSPAN_USA19W = yes;
-        USB_SERIAL_KEYSPAN_USA19QW = yes;
-        USB_SERIAL_KEYSPAN_USA19QI = yes;
-        USB_SERIAL_KEYSPAN_USA49W = yes;
-        USB_SERIAL_KEYSPAN_USA49WLC = yes;
-      };
+    usb-serial = {
+      USB_SERIAL_GENERIC = yes; # USB Generic Serial Driver
+    }
+    // optionalAttrs (versionOlder version "4.16") {
+      # Include firmware for various USB serial devices.
+      # Only applicable for kernels below 4.16, after that no firmware is shipped in the kernel tree.
+      USB_SERIAL_KEYSPAN_MPR = yes;
+      USB_SERIAL_KEYSPAN_USA28 = yes;
+      USB_SERIAL_KEYSPAN_USA28X = yes;
+      USB_SERIAL_KEYSPAN_USA28XA = yes;
+      USB_SERIAL_KEYSPAN_USA28XB = yes;
+      USB_SERIAL_KEYSPAN_USA19 = yes;
+      USB_SERIAL_KEYSPAN_USA18X = yes;
+      USB_SERIAL_KEYSPAN_USA19W = yes;
+      USB_SERIAL_KEYSPAN_USA19QW = yes;
+      USB_SERIAL_KEYSPAN_USA19QI = yes;
+      USB_SERIAL_KEYSPAN_USA49W = yes;
+      USB_SERIAL_KEYSPAN_USA49WLC = yes;
+    };
 
     usb = {
       USB_DEBUG = {
@@ -432,54 +430,53 @@ let
       DEVTMPFS = yes;
     };
 
-    security =
-      {
-        SLAB_MERGE_DEFAULT = no;
-        SLAB_FREELIST_RANDOM = yes;
-        SLAB_FREELIST_HARDENED = yes;
-        SHUFFLE_PAGE_ALLOCATOR = yes;
-        HARDENED_USERCOPY = no; # Too high overhead
-        FORTIFY_SOURCE = yes;
-        INIT_ON_ALLOC_DEFAULT_ON = no;
-        INIT_ON_FREE_DEFAULT_ON = no;
-        # Detect writes to read-only module pages
-        DEBUG_SET_MODULE_RONX = {
-          optional = true;
-          tristate = whenOlder "4.11" "y";
-        };
-        RANDOMIZE_BASE = yes;
-        STRICT_DEVMEM = yes; # Filter access to /dev/mem
-        IO_STRICT_DEVMEM = yes; # Filter access to /dev/mem
-        SECURITY_SELINUX = no; # Irrelevant for containers
-        # Prevent processes from ptracing non-children processes
-        SECURITY_YAMA = yes;
-        DEVKMEM = whenOlder "5.13" no; # Disable /dev/kmem
-
-        USER_NS = yes; # Support for user namespaces
-
-        SECURITY_APPARMOR = no; # In fact AA has very poor design
-
-        SECURITY_LOCKDOWN_LSM = whenAtLeast "5.4" yes;
-      }
-      // optionalAttrs (!stdenv.hostPlatform.isAarch32) {
-
-        # Detect buffer overflows on the stack
-        CC_STACKPROTECTOR_REGULAR = {
-          optional = true;
-          tristate = whenOlder "4.18" "y";
-        };
-      }
-      // optionalAttrs (versionAtLeast version "6.9.0") {
-        INIT_ON_ALLOC_DEFAULT_ON = yes;
-        INIT_ON_FREE_DEFAULT_ON = yes;
-        INIT_STACK_ALL_ZERO = yes;
-        STACKPROTECTOR_STRONG = yes;
-        SCHED_STACK_END_CHECK = yes;
-        STRICT_KERNEL_RWX = yes;
-        STACKLEAK_METRICS = yes;
-        GCC_PLUGIN_STACKLEAK = yes;
-        RANDOMIZE_MEMORY = yes;
+    security = {
+      SLAB_MERGE_DEFAULT = no;
+      SLAB_FREELIST_RANDOM = yes;
+      SLAB_FREELIST_HARDENED = yes;
+      SHUFFLE_PAGE_ALLOCATOR = yes;
+      HARDENED_USERCOPY = no; # Too high overhead
+      FORTIFY_SOURCE = yes;
+      INIT_ON_ALLOC_DEFAULT_ON = no;
+      INIT_ON_FREE_DEFAULT_ON = no;
+      # Detect writes to read-only module pages
+      DEBUG_SET_MODULE_RONX = {
+        optional = true;
+        tristate = whenOlder "4.11" "y";
       };
+      RANDOMIZE_BASE = yes;
+      STRICT_DEVMEM = yes; # Filter access to /dev/mem
+      IO_STRICT_DEVMEM = yes; # Filter access to /dev/mem
+      SECURITY_SELINUX = no; # Irrelevant for containers
+      # Prevent processes from ptracing non-children processes
+      SECURITY_YAMA = yes;
+      DEVKMEM = whenOlder "5.13" no; # Disable /dev/kmem
+
+      USER_NS = yes; # Support for user namespaces
+
+      SECURITY_APPARMOR = no; # In fact AA has very poor design
+
+      SECURITY_LOCKDOWN_LSM = whenAtLeast "5.4" yes;
+    }
+    // optionalAttrs (!stdenv.hostPlatform.isAarch32) {
+
+      # Detect buffer overflows on the stack
+      CC_STACKPROTECTOR_REGULAR = {
+        optional = true;
+        tristate = whenOlder "4.18" "y";
+      };
+    }
+    // optionalAttrs (versionAtLeast version "6.9.0") {
+      INIT_ON_ALLOC_DEFAULT_ON = yes;
+      INIT_ON_FREE_DEFAULT_ON = yes;
+      INIT_STACK_ALL_ZERO = yes;
+      STACKPROTECTOR_STRONG = yes;
+      SCHED_STACK_END_CHECK = yes;
+      STRICT_KERNEL_RWX = yes;
+      STACKLEAK_METRICS = yes;
+      GCC_PLUGIN_STACKLEAK = yes;
+      RANDOMIZE_MEMORY = yes;
+    };
 
     microcode = {
       MICROCODE = yes;
@@ -629,55 +626,54 @@ let
     };
 
     # Disable various self-test modules that have no use in a production system
-    tests =
-      {
-        # This menu disables all/most of them on >= 4.16
-        RUNTIME_TESTING_MENU = option no;
-      }
-      // optionalAttrs (versionOlder version "4.16") {
-        # For older kernels, painstakingly disable each symbol.
-        ARM_KPROBES_TEST = option no;
-        ASYNC_RAID6_TEST = option no;
-        ATOMIC64_SELFTEST = option no;
-        BACKTRACE_SELF_TEST = option no;
-        INTERVAL_TREE_TEST = option no;
-        PERCPU_TEST = option no;
-        RBTREE_TEST = option no;
-        TEST_BITMAP = option no;
-        TEST_BPF = option no;
-        TEST_FIRMWARE = option no;
-        TEST_HASH = option no;
-        TEST_HEXDUMP = option no;
-        TEST_KMOD = option no;
-        TEST_KSTRTOX = option no;
-        TEST_LIST_SORT = option no;
-        TEST_LKM = option no;
-        TEST_PARMAN = option no;
-        TEST_PRINTF = option no;
-        TEST_RHASHTABLE = option no;
-        TEST_SORT = option no;
-        TEST_STATIC_KEYS = option no;
-        TEST_STRING_HELPERS = option no;
-        TEST_UDELAY = option no;
-        TEST_USER_COPY = option no;
-        TEST_UUID = option no;
-      }
-      // {
-        CRC32_SELFTEST = option no;
-        CRYPTO_TEST = option no;
-        EFI_TEST = option no;
-        GLOB_SELFTEST = option no;
-        LNET_SELFTEST = {
-          optional = true;
-          tristate = whenOlder "4.18" "n";
-        };
-        LOCK_TORTURE_TEST = option no;
-        MTD_TESTS = option no;
-        NOTIFIER_ERROR_INJECTION = option no;
-        TEST_ASYNC_DRIVER_PROBE = option no;
-        WW_MUTEX_SELFTEST = option no;
-        XZ_DEC_TEST = option no;
+    tests = {
+      # This menu disables all/most of them on >= 4.16
+      RUNTIME_TESTING_MENU = option no;
+    }
+    // optionalAttrs (versionOlder version "4.16") {
+      # For older kernels, painstakingly disable each symbol.
+      ARM_KPROBES_TEST = option no;
+      ASYNC_RAID6_TEST = option no;
+      ATOMIC64_SELFTEST = option no;
+      BACKTRACE_SELF_TEST = option no;
+      INTERVAL_TREE_TEST = option no;
+      PERCPU_TEST = option no;
+      RBTREE_TEST = option no;
+      TEST_BITMAP = option no;
+      TEST_BPF = option no;
+      TEST_FIRMWARE = option no;
+      TEST_HASH = option no;
+      TEST_HEXDUMP = option no;
+      TEST_KMOD = option no;
+      TEST_KSTRTOX = option no;
+      TEST_LIST_SORT = option no;
+      TEST_LKM = option no;
+      TEST_PARMAN = option no;
+      TEST_PRINTF = option no;
+      TEST_RHASHTABLE = option no;
+      TEST_SORT = option no;
+      TEST_STATIC_KEYS = option no;
+      TEST_STRING_HELPERS = option no;
+      TEST_UDELAY = option no;
+      TEST_USER_COPY = option no;
+      TEST_UUID = option no;
+    }
+    // {
+      CRC32_SELFTEST = option no;
+      CRYPTO_TEST = option no;
+      EFI_TEST = option no;
+      GLOB_SELFTEST = option no;
+      LNET_SELFTEST = {
+        optional = true;
+        tristate = whenOlder "4.18" "n";
       };
+      LOCK_TORTURE_TEST = option no;
+      MTD_TESTS = option no;
+      NOTIFIER_ERROR_INJECTION = option no;
+      TEST_ASYNC_DRIVER_PROBE = option no;
+      WW_MUTEX_SELFTEST = option no;
+      XZ_DEC_TEST = option no;
+    };
 
     criu =
       if (versionAtLeast version "4.19") then

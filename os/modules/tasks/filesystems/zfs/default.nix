@@ -991,7 +991,8 @@ in
         "zfs/zed.d/zed.rc".text = zedConf;
         "zfs/zed.d/zed-functions.sh".source = "${packages.zfsUser}/etc/zfs/zed.d/zed-functions.sh";
         "zfs/zpool.d".source = "${packages.zfsUser}/etc/zfs/zpool.d/";
-      } // makeZedlets;
+      }
+      // makeZedlets;
 
       system.fsPackages = [ packages.zfsUser ]; # XXX: needed? zfs doesn't have (need) a fsck
       environment.systemPackages = [ packages.zfsUser ] ++ (zpoolCreateScripts cfgZfs.pools);
@@ -1020,7 +1021,8 @@ in
           assertion = !cfgScrub.enable || cfgScrub.startIntervals != [ ];
           message = "Set services.zfs.autoScrub.startIntervals or disable services.zfs.autoScrub.enable";
         }
-      ] ++ perZpoolAssertions;
+      ]
+      ++ perZpoolAssertions;
 
       services.cron.systemCronJobs = autoScrubJobs ++ perZpoolJobs;
     }

@@ -271,7 +271,8 @@ in
     # script and the top-level system configuration directory.
     isoImage.storeContents = [
       config.system.build.toplevel
-    ] ++ optional config.isoImage.includeSystemBuildDependencies config.system.build.toplevel.drvPath;
+    ]
+    ++ optional config.isoImage.includeSystemBuildDependencies config.system.build.toplevel.drvPath;
 
     # Create the squashfs image that contains the Nix store.
     system.build.squashfsStore = pkgs.callPackage <nixpkgs/nixos/lib/make-squashfs.nix> {
@@ -282,63 +283,62 @@ in
 
     # Individual files to be included on the CD, outside of the Nix
     # store on the CD.
-    isoImage.contents =
-      [
-        {
-          source = pkgs.replaceVarsWith {
-            name = "isolinux.cfg";
-            src = pkgs.writeText "isolinux.cfg-in" isolinuxCfg;
-            replacements = {
-              bootRoot = "/boot";
-            };
+    isoImage.contents = [
+      {
+        source = pkgs.replaceVarsWith {
+          name = "isolinux.cfg";
+          src = pkgs.writeText "isolinux.cfg-in" isolinuxCfg;
+          replacements = {
+            bootRoot = "/boot";
           };
-          target = "/isolinux/isolinux.cfg";
-        }
-        {
-          source = config.boot.kernelPackages.kernel + "/bzImage";
-          target = "/boot/bzImage";
-        }
-        {
-          source = config.system.build.initialRamdisk + "/initrd";
-          target = "/boot/initrd";
-        }
-        {
-          source = config.system.build.squashfsStore;
-          target = "/nix-store.squashfs";
-        }
-        {
-          source = "${pkgs.syslinux}/share/syslinux";
-          target = "/isolinux";
-        }
-        {
-          source = config.isoImage.splashImage;
-          target = "/isolinux/background.png";
-        }
-        {
-          source = pkgs.writeText "version" config.system.vpsadminos.version;
-          target = "/version.txt";
-        }
-      ]
-      ++ optionals config.isoImage.makeEfiBootable [
-        {
-          source = efiImg;
-          target = "/boot/efi.img";
-        }
-        {
-          source = "${efiDir}/EFI";
-          target = "/EFI";
-        }
-        {
-          source = "${efiDir}/loader";
-          target = "/loader";
-        }
-      ]
-      ++ optionals config.isoImage.memtest86.enable [
-        {
-          source = "${pkgs.memtest86plus}/memtest.bin";
-          target = "/boot/memtest.bin";
-        }
-      ];
+        };
+        target = "/isolinux/isolinux.cfg";
+      }
+      {
+        source = config.boot.kernelPackages.kernel + "/bzImage";
+        target = "/boot/bzImage";
+      }
+      {
+        source = config.system.build.initialRamdisk + "/initrd";
+        target = "/boot/initrd";
+      }
+      {
+        source = config.system.build.squashfsStore;
+        target = "/nix-store.squashfs";
+      }
+      {
+        source = "${pkgs.syslinux}/share/syslinux";
+        target = "/isolinux";
+      }
+      {
+        source = config.isoImage.splashImage;
+        target = "/isolinux/background.png";
+      }
+      {
+        source = pkgs.writeText "version" config.system.vpsadminos.version;
+        target = "/version.txt";
+      }
+    ]
+    ++ optionals config.isoImage.makeEfiBootable [
+      {
+        source = efiImg;
+        target = "/boot/efi.img";
+      }
+      {
+        source = "${efiDir}/EFI";
+        target = "/EFI";
+      }
+      {
+        source = "${efiDir}/loader";
+        target = "/loader";
+      }
+    ]
+    ++ optionals config.isoImage.memtest86.enable [
+      {
+        source = "${pkgs.memtest86plus}/memtest.bin";
+        target = "/boot/memtest.bin";
+      }
+    ];
 
     boot.loader.timeout = 10;
 
