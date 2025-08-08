@@ -11,29 +11,6 @@ with lib;
 let
   cfg = config.osctld;
 
-  path = with pkgs; [
-    apparmor-parser
-    coreutils
-    findutils
-    iproute2
-    getent
-    glibc.bin
-    gzip
-    lxc
-    mbuffer
-    nettools
-    gnutar
-    openssh
-    runit
-    shadow
-    util-linux
-    devcgprog
-    bpftools
-    config.boot.zfsUserPackage
-  ];
-
-  pathJoined = concatMapStringsSep ":" (s: "${s}/bin") path;
-
   apparmorPaths = [ pkgs.apparmor-profiles ] ++ config.security.apparmor.packages;
 
   settingsFormat = pkgs.formats.json { };
@@ -69,11 +46,34 @@ in
     };
 
     runit.services.osctld = {
-      run = ''
-        export PATH="${config.security.wrapperDir}:${pathJoined}"
-        export LANG=en_US.UTF-8
-        export LOCALE_ARCHIVE=/run/current-system/sw/lib/locale/locale-archive
+      path = with pkgs; [
+        config.security.wrapperDir
+        apparmor-parser
+        coreutils
+        findutils
+        iproute2
+        getent
+        glibc.bin
+        gzip
+        lxc
+        mbuffer
+        nettools
+        gnutar
+        openssh
+        runit
+        shadow
+        util-linux
+        devcgprog
+        bpftools
+        config.boot.zfsUserPackage
+      ];
 
+      environment = {
+        LANG = "en_US.UTF-8";
+        LOCALE_ARCHIVE = "/run/current-system/sw/lib/locale/locale-archive";
+      };
+
+      run = ''
         ${optionalString config.system.boot.restrict-proc-sysfs.enable ''
           waitForService restrict-proc-sysfs
         ''}

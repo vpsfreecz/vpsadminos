@@ -100,14 +100,6 @@ let
     }
   ) cfg.zetup;
 
-  paths = with pkgs; [
-    config.boot.zfsUserPackage
-    mbuffer
-    openssh
-  ];
-
-  systemPath = concatMapStringsSep ":" (v: "${v}/bin") paths;
-
   execCommand =
     let
       args = concatStringsSep " " [
@@ -130,9 +122,13 @@ in
     environment.systemPackages = [ pkgs.znapzend ];
 
     runit.services.znapzend = {
-      run = ''
-        export PATH="${systemPath}:$PATH"
+      path = with pkgs; [
+        config.boot.zfsUserPackage
+        mbuffer
+        openssh
+      ];
 
+      run = ''
         ${
           optionalString cfg.pure ''
             echo Resetting znapzend zetups

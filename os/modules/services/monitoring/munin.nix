@@ -87,16 +87,6 @@ let
     )
   );
 
-  systemPath = map (v: "${v}/bin") (
-    with pkgs;
-    [
-      munin
-      smartmontools
-      "/run/current-system/sw"
-      "/run/wrappers"
-    ]
-  );
-
 in
 
 {
@@ -231,12 +221,20 @@ in
       };
 
       runit.services.munin-node = {
-        run = ''
-          export PATH="${concatStringsSep ":" systemPath}:$PATH"
-          export MUNIN_LIBDIR="${pkgs.munin}/lib"
-          export MUNIN_PLUGSTATE="/run/munin"
-          export MUNIN_LOGDIR="/var/log/munin"
+        path = with pkgs; [
+          munin
+          smartmontools
+          config.security.wrapperDir
+          "/run/current-system/sw/bin"
+        ];
 
+        environment = {
+          MUNIN_LIBDIR = "${pkgs.munin}/lib";
+          MUNIN_PLUGSTATE = "/run/munin";
+          MUNIN_LOGDIR = "/var/log/munin";
+        };
+
+        run = ''
           # munin_stats plugin breaks as of 2.0.33 when this doesn't exist
           mkdir -p /run/munin
           chown munin:munin /run/munin

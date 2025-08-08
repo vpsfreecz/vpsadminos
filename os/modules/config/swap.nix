@@ -30,12 +30,11 @@ with lib;
           assert !(sw.randomEncryption.enable && lib.hasPrefix "/dev/disk/by-label" sw.device);
           let
             realDevice' = escapeSystemdPath sw.realDevice;
-            path = [ pkgs.util-linux ] ++ optional sw.randomEncryption.enable pkgs.cryptsetup;
           in
           nameValuePair "swap-${sw.deviceName}" {
-            run = ''
-              export PATH="${concatMapStringsSep ":" (v: "${v}/bin") path}:$PATH"
+            path = [ pkgs.util-linux ] ++ optional sw.randomEncryption.enable pkgs.cryptsetup;
 
+            run = ''
               ${optionalString (config.services.haveged.enable && sw.randomEncryption.enable) ''
                 waitForService haveged
               ''}
