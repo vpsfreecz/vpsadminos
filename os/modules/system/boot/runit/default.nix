@@ -318,8 +318,12 @@ let
     '';
 
   mkControlScript =
-    name: action: script:
-    mkService name "control-${action}" script;
+    name: service: action: script:
+    mkService name "control-${action}" ''
+      ${setPath service}
+      ${setEnvironment service}
+      ${script}
+    '';
 
   mkLogRun =
     name: service:
@@ -370,7 +374,9 @@ let
     mapAttrsToList (
       action: script:
       mkIf (script != null) {
-        "runit/services/${name}/control/${controls.${action}}".source = mkControlScript name action script;
+        "runit/services/${name}/control/${controls.${action}}".source =
+          mkControlScript name service action
+            script;
       }
     ) service.control;
 
