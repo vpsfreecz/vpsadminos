@@ -72,6 +72,9 @@
           tags = [ "oldstable" ];
         };
         "12" = {
+          tags = [ "oldstable" ];
+        };
+        "13" = {
           tags = [
             "latest"
             "stable"
