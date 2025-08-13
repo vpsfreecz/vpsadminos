@@ -15,6 +15,7 @@
   ./osctl/osctld.nix
   ./osctl/osctl-exporter.nix
   ./osctl/osctl-exportfs.nix
+  ./osctl/osctl-oomd.nix
   ./osctl/test-shell.nix
   ./programs/bash.nix
   ./programs/htop.nix

@@ -1,0 +1,17 @@
+source 'https://rubygems.org'
+gemspec
+
+if ENV.has_key?('OS_BUILD_ID')
+  source 'https://rubygems.vpsfree.cz' do
+    gem 'libosctl'
+    gem 'osctl'
+  end
+else
+  gem 'libosctl', path: '../libosctl'
+  gem 'osctl', path: '../osctl'
+end
+
+group :development do
+  gem 'rake'
+  gem 'yard'
+end

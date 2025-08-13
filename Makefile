@@ -18,7 +18,7 @@ build-qemu-script:
 qemu-script:
 	$(MAKE) -C os qemu-script
 
-gems: libosctl osctl-repo osctl osctld osup osctl-image osctl-exporter osctl-exportfs converter svctl test-runner osvm
+gems: libosctl osctl-repo osctl osctld osup osctl-image osctl-exporter osctl-exportfs osctl-oomd converter svctl test-runner osvm
 	echo "$(GEM_VERSION).build$(BUILD_ID)" > .build_id
 	nixfmt os/packages/*/gemset.nix
 
@@ -54,6 +54,9 @@ osctl-exporter: libosctl osctl osctl-exportfs
 
 osctl-exportfs: libosctl
 	./tools/update_gem.sh os/packages osctl-exportfs $(BUILD_ID)
+
+osctl-oomd: libosctl osctl
+	./tools/update_gem.sh os/packages osctl-oomd $(BUILD_ID)
 
 osup: libosctl
 	./tools/update_gem.sh os/packages osup $(BUILD_ID)
@@ -112,6 +115,7 @@ version:
 	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(GEM_VERSION)'/" osctl-exportfs/lib/osctl/exportfs/version.rb
 	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(GEM_VERSION)'/" osctl-repo/lib/osctl/repo/version.rb
 	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(GEM_VERSION)'/" osctl-image/lib/osctl/image/version.rb
+	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(GEM_VERSION)'/" osctl-oomd/lib/osctl/oomd/version.rb
 	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(GEM_VERSION)'/" osup/lib/osup/version.rb
 	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(GEM_VERSION)'/" svctl/lib/svctl/version.rb
 	@sed -ri "s/ VERSION = '[^']+'/ VERSION = '$(GEM_VERSION)'/" test-runner/lib/test-runner/version.rb
@@ -138,7 +142,7 @@ version:
 migration:
 	$(MAKE) -C osup migration
 
-.PHONY: build converter doc doc_serve qemu gems libosctl osctl osctld osctl-repo osctl-exporter osup svctl test-runner osvm osctl-env-exec
+.PHONY: build converter doc doc_serve qemu gems libosctl osctl osctld osctl-repo osctl-exporter osctl-oomd osup svctl test-runner osvm osctl-env-exec
 .PHONY: commit-gems build-commit-gems amend-gems build-amend-gems
 .PHONY: build-qemu-script qemu-script
 .PHONY: ruby-version version migration

@@ -1,0 +1,4 @@
+#!/usr/bin/env ruby
+require 'osctl/oomd/cli'
+
+OsCtl::Oomd::Cli.run
