@@ -222,6 +222,8 @@ module OsCtl::Cli
 
     def update_host_result(host_result, ct_result)
       ct_result.each do |k, v|
+        next if host_result[k].nil?
+
         if v.is_a?(Hash)
           host_result[k] = update_host_result(host_result[k], v)
 

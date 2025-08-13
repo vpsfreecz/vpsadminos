@@ -8,6 +8,13 @@ module OsCtl::Lib
         @cache = {}
       end
 
+      def read_stats
+        @cpu_limit = nil
+        @memory_limit = nil
+        @memory_usage = nil
+        yield
+      end
+
       protected
 
       attr_reader :cache
@@ -39,8 +46,8 @@ module OsCtl::Lib
       def read_stats_param(field, precise)
         case field
         when :memory
-          t = read_memory_usage
-          Cli::Presentable.new(t, formatted: precise ? nil : humanize_data(t))
+          @memory_usage ||= read_memory_usage
+          Cli::Presentable.new(@memory_usage, formatted: precise ? nil : humanize_data(@memory_usage))
 
         when :kmemory
           t = read_cgparam(
@@ -51,10 +58,14 @@ module OsCtl::Lib
           Cli::Presentable.new(t, formatted: precise ? nil : humanize_data(t))
 
         when :memory_pct
-          limit = read_memory_limit
-          usage = read_memory_usage
-          t = usage.to_f / limit * 100
+          @memory_limit ||= read_memory_limit
+          @memory_usage ||= read_memory_usage
+          t = @memory_usage.to_f / @memory_limit * 100
           Cli::Presentable.new(t, formatted: precise ? nil : humanize_percent(t))
+
+        when :memory_limit
+          @memory_limit ||= read_memory_limit
+          Cli::Presentable.new(@memory_limit, formatted: precise || !@memory_limit ? nil : humanize_data(@memory_limit))
 
         when :cpu_us, :cpu_user_us, :cpu_system_us
           all = read_cgparam(
@@ -97,6 +108,10 @@ module OsCtl::Lib
             [:"cpu_#{type}_hz", hz.to_i]
           end
 
+        when :cpu_limit
+          t = read_cpu_limit
+          Cli::Presentable.new(t, formatted: precise || !t ? nil : humanize_percent(t))
+
         when :nproc
           read_cgparam(
             :pids,
@@ -130,6 +145,21 @@ module OsCtl::Lib
         return v if v != unlimited
 
         meminfo.total * 1024
+      end
+
+      def read_cpu_limit
+        limit_path =
+          if path.end_with?('/user-owned')
+            path.split('/')[0..-2].join('/')
+          else
+            path
+          end
+
+        quota = read_cgparam(:cpu, limit_path, 'cpu.cfs_quota_us')
+        period = read_cgparam(:cpu, limit_path, 'cpu.cfs_period_us')
+        return if quota == '-1'
+
+        (quota.to_i / period.to_i) * 100
       end
 
       def read_params(params)
@@ -228,16 +258,20 @@ module OsCtl::Lib
       def read_stats_param(field, precise)
         case field
         when :memory
-          t = read_cgparam(path, 'memory.current').to_i
-          Cli::Presentable.new(t, formatted: precise ? nil : humanize_data(t))
+          @memory_usage ||= read_cgparam(path, 'memory.current').to_i
+          Cli::Presentable.new(@memory_usage, formatted: precise ? nil : humanize_data(@memory_usage))
 
         when :kmemory
           nil
 
+        when :memory_limit
+          @memory_limit ||= read_memory_limit
+          Cli::Presentable.new(@memory_limit, formatted: precise || !@memory_limit ? nil : humanize_data(@memory_limit))
+
         when :memory_pct
-          limit = read_memory_limit
-          usage = read_cgparam(path, 'memory.current').to_i
-          t = usage.to_f / limit * 100
+          @memory_limit ||= read_memory_limit
+          @memory_usage ||= read_cgparam(path, 'memory.current').to_i
+          t = @memory_usage.to_f / @memory_limit * 100
           Cli::Presentable.new(t, formatted: precise ? nil : humanize_percent(t))
 
         when :cpu_us, :cpu_user_us, :cpu_system_us
@@ -262,6 +296,10 @@ module OsCtl::Lib
             cpu_user_hz: stat[:user] / (1_000_000 / OsProcess::TICS_PER_SECOND),
             cpu_system_hz: stat[:system] / (1_000_000 / OsProcess::TICS_PER_SECOND)
           }
+
+        when :cpu_limit
+          t = read_cpu_limit
+          Cli::Presentable.new(t, formatted: precise || !t ? nil : humanize_percent(t))
 
         when :nproc
           read_cgparam(path, 'pids.current').to_i
@@ -298,6 +336,20 @@ module OsCtl::Lib
           user: params['user_usec'].to_i,
           system: params['system_usec'].to_i
         }
+      end
+
+      def read_cpu_limit
+        limit_path =
+          if path.end_with?('/user-owned')
+            path.split('/')[0..-2].join('/')
+          else
+            path
+          end
+
+        quota, period = read_cgparam(limit_path, 'cpu.max').strip.split
+        return if quota == 'max'
+
+        (quota.to_i / period.to_i) * 100
       end
 
       # @return [Hash]
@@ -396,19 +448,21 @@ module OsCtl::Lib
     def read_stats(params, precise)
       ret = {}
 
-      params.each do |field|
-        next if ret[field]
+      cg_reader.read_stats do
+        params.each do |field|
+          next if ret[field]
 
-        v = cg_reader.read_stats_param(field, precise)
-        next if v.nil?
+          v = cg_reader.read_stats_param(field, precise)
+          next if v.nil?
 
-        if v.is_a?(Hash)
-          ret.update(v)
-        else
-          ret[field] = v
+          if v.is_a?(Hash)
+            ret.update(v)
+          else
+            ret[field] = v
+          end
+        rescue Errno::ENOENT
+          ret[field] = nil
         end
-      rescue Errno::ENOENT
-        ret[field] = nil
       end
 
       ret

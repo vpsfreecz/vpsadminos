@@ -23,7 +23,7 @@ module OsCtl::Cli
       cg_reader = OsCtl::Lib::CGroup::PathReader.new(subsystems, group_path)
 
       data.update(cg_reader.read_stats(
-                    %i[cpu_us cpu_hz memory nproc],
+                    %i[cpu_us cpu_hz cpu_limit memory memory_limit nproc],
                     true
                   ))
 
@@ -49,7 +49,7 @@ module OsCtl::Cli
         if v.is_a?(Hash)
           ret[k] = do_diff_from(v, mine[k], mode, delta)
 
-        elsif %i[memory nproc].include?(k)
+        elsif %i[cpu_limit memory memory_limit nproc].include?(k)
           ret[k] = mine[k]
 
         else
