@@ -13,6 +13,8 @@ GEM
     json (2.13.2)
     logger (1.7.0)
     ostruct (0.6.3)
+    prometheus-client (4.2.5)
+      base64
     rainbow (3.1.1)
     reline (0.6.2)
       io-console (~> 0.5)
@@ -45,14 +47,18 @@ GEM
       require_all (~> 2.0.0)
       ruby-progressbar (~> 1.13.0)
       tty-spinner (~> 0.9.3)
+    osctl-oomd (25.05.0.build20250813185735)
+      json
+      libosctl (= 25.05.0.build20250813185735)
+      osctl (= 25.05.0.build20250813185735)
+      prometheus-client (~> 4.2.3)
 
 PLATFORMS
   ruby
   x86_64-linux
 
 DEPENDENCIES
-  libosctl!
-  osctl (= 25.05.0.build20250813185735)!
+  osctl-oomd (= 25.05.0.build20250813185735)!
 
 BUNDLED WITH
    2.6.6
