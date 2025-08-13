@@ -60,12 +60,14 @@ module OsCtl::Lib
         when :memory_pct
           @memory_limit ||= read_memory_limit
           @memory_usage ||= read_memory_usage
-          t = @memory_usage.to_f / @memory_limit * 100
+          effective_limit = @memory_limit == :none ? meminfo.total * 1024 : @memory_limit
+          t = @memory_usage.to_f / effective_limit * 100
           Cli::Presentable.new(t, formatted: precise ? nil : humanize_percent(t))
 
         when :memory_limit
           @memory_limit ||= read_memory_limit
-          Cli::Presentable.new(@memory_limit, formatted: precise || !@memory_limit ? nil : humanize_data(@memory_limit))
+          t = @memory_limit == :none ? nil : @memory_limit
+          Cli::Presentable.new(t, formatted: precise || !t ? nil : humanize_data(t))
 
         when :cpu_us, :cpu_user_us, :cpu_system_us
           all = read_cgparam(
@@ -109,7 +111,8 @@ module OsCtl::Lib
           end
 
         when :cpu_limit
-          t = read_cpu_limit
+          cpu_limit = read_cpu_limit
+          t = cpu_limit == :none ? nil : cpu_limit
           Cli::Presentable.new(t, formatted: precise || !t ? nil : humanize_percent(t))
 
         when :nproc
@@ -144,7 +147,7 @@ module OsCtl::Lib
         v = read_cgparam(:memory, limit_path, 'memory.limit_in_bytes').to_i
         return v if v != unlimited
 
-        meminfo.total * 1024
+        :none
       end
 
       def read_cpu_limit
@@ -157,7 +160,7 @@ module OsCtl::Lib
 
         quota = read_cgparam(:cpu, limit_path, 'cpu.cfs_quota_us')
         period = read_cgparam(:cpu, limit_path, 'cpu.cfs_period_us')
-        return if quota == '-1'
+        return :none if quota == '-1'
 
         (quota.to_i / period.to_i) * 100
       end
@@ -266,12 +269,14 @@ module OsCtl::Lib
 
         when :memory_limit
           @memory_limit ||= read_memory_limit
-          Cli::Presentable.new(@memory_limit, formatted: precise || !@memory_limit ? nil : humanize_data(@memory_limit))
+          t = @memory_limit == :none ? nil : @memory_limit
+          Cli::Presentable.new(t, formatted: precise || !t ? nil : humanize_data(t))
 
         when :memory_pct
           @memory_limit ||= read_memory_limit
           @memory_usage ||= read_cgparam(path, 'memory.current').to_i
-          t = @memory_usage.to_f / @memory_limit * 100
+          effective_limit = @memory_limit == :none ? meminfo.total * 1024 : @memory_limit
+          t = @memory_usage.to_f / effective_limit * 100
           Cli::Presentable.new(t, formatted: precise ? nil : humanize_percent(t))
 
         when :cpu_us, :cpu_user_us, :cpu_system_us
@@ -298,7 +303,8 @@ module OsCtl::Lib
           }
 
         when :cpu_limit
-          t = read_cpu_limit
+          cpu_limit = read_cpu_limit
+          t = cpu_limit == :none ? nil : cpu_limit
           Cli::Presentable.new(t, formatted: precise || !t ? nil : humanize_percent(t))
 
         when :nproc
@@ -319,12 +325,9 @@ module OsCtl::Lib
           end
 
         raw_v = read_cgparam(limit_path, 'memory.max')
+        return :none if raw_v == unlimited
 
-        if raw_v == unlimited
-          meminfo.total * 1024
-        else
-          raw_v.to_i
-        end
+        raw_v.to_i
       end
 
       # @return [Hash] cpu usage in microseconds
@@ -347,7 +350,7 @@ module OsCtl::Lib
           end
 
         quota, period = read_cgparam(limit_path, 'cpu.max').strip.split
-        return if quota == 'max'
+        return :none if quota == 'max'
 
         (quota.to_i / period.to_i) * 100
       end
