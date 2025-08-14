@@ -67,7 +67,7 @@ module OsCtl::Lib
         when :memory_limit
           @memory_limit ||= read_memory_limit
           t = @memory_limit == :none ? nil : @memory_limit
-          Cli::Presentable.new(t, formatted: precise || !t ? nil : humanize_data(t))
+          t && Cli::Presentable.new(t, formatted: precise ? nil : humanize_data(t))
 
         when :cpu_us, :cpu_user_us, :cpu_system_us
           all = read_cgparam(
@@ -113,7 +113,7 @@ module OsCtl::Lib
         when :cpu_limit
           cpu_limit = read_cpu_limit
           t = cpu_limit == :none ? nil : cpu_limit
-          Cli::Presentable.new(t, formatted: precise || !t ? nil : humanize_percent(t))
+          t && Cli::Presentable.new(t, formatted: precise ? nil : humanize_percent(t))
 
         when :nproc
           read_cgparam(
@@ -270,7 +270,7 @@ module OsCtl::Lib
         when :memory_limit
           @memory_limit ||= read_memory_limit
           t = @memory_limit == :none ? nil : @memory_limit
-          Cli::Presentable.new(t, formatted: precise || !t ? nil : humanize_data(t))
+          t && Cli::Presentable.new(t, formatted: precise ? nil : humanize_data(t))
 
         when :memory_pct
           @memory_limit ||= read_memory_limit
@@ -305,7 +305,7 @@ module OsCtl::Lib
         when :cpu_limit
           cpu_limit = read_cpu_limit
           t = cpu_limit == :none ? nil : cpu_limit
-          Cli::Presentable.new(t, formatted: precise || !t ? nil : humanize_percent(t))
+          t && Cli::Presentable.new(t, formatted: precise ? nil : humanize_percent(t))
 
         when :nproc
           read_cgparam(path, 'pids.current').to_i
