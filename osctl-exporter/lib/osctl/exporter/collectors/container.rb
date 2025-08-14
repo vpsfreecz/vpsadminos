@@ -179,6 +179,20 @@ module OsCtl::Exporter
         docstring: "Number of bytes used by owned keys of the container's user IDs",
         labels: %i[pool id]
       )
+      add_metric(
+        :nf_conntrack_entries,
+        :gauge,
+        :osctl_container_nf_conntrack_entries,
+        docstring: "Number of conntrack entries in the container's netns",
+        labels: %i[pool id]
+      )
+      add_metric(
+        :nf_conntrack_entries_limit,
+        :gauge,
+        :osctl_container_nf_conntrack_limit,
+        docstring: "Maximum number of conntrack entries in the container's netns",
+        labels: %i[pool id]
+      )
     end
 
     def collect(client)
@@ -335,6 +349,10 @@ module OsCtl::Exporter
           key_users.inject(0) { |acc, ku| acc + ku.qnbytes },
           labels: { pool: ct[:pool], id: ct[:id] }
         )
+
+        next if ct[:state] != 'running'
+
+        read_from_container_netns(ct)
       end
     end
 
@@ -349,7 +367,7 @@ module OsCtl::Exporter
                 :dataset_avail, :dataset_quota, :dataset_refquota, :dataset_bytes_written,
                 :dataset_bytes_read, :dataset_ios_written, :dataset_ios_read,
                 :netif_rx_bytes, :netif_tx_bytes, :netif_rx_packets, :netif_tx_packets,
-                :keyring_qnkeys, :keyring_qnbytes
+                :keyring_qnkeys, :keyring_qnbytes, :nf_conntrack_entries, :nf_conntrack_entries_limit
 
     def dataset_labels(ct, ds)
       {
@@ -393,6 +411,43 @@ module OsCtl::Exporter
       end
 
       ret
+    end
+
+    def read_from_container_netns(ct)
+      r, w = IO.pipe
+
+      pid = Process.fork do
+        r.close
+
+        sys = OsCtl::Lib::Sys.new
+        sys.setns_path(File.join('/proc', ct[:init_pid].to_s, 'ns/net'), OsCtl::Lib::Sys::CLONE_NEWNET)
+
+        w.puts({
+          'nf_conntrack_count' => File.read('/proc/sys/net/netfilter/nf_conntrack_count').strip.to_i,
+          'nf_conntrack_max' => File.read('/proc/sys/net/netfilter/nf_conntrack_max').strip.to_i
+        }.to_json)
+      end
+
+      w.close
+
+      data = r.read
+      r.close
+      Process.wait(pid)
+
+      if $?.exitstatus != 0
+        log(:warn, "Failed to read from netns of #{ct[:pool]}:#{ct[:id]}, exited with #{$?.exitstatus}")
+        return
+      end
+
+      begin
+        parsed = JSON.parse(data)
+      rescue TypeError, JSON::ParserError => e
+        log(:warn, "Failed to parse JSON from netns of #{ct[:pool]}:#{ct[:id]}: #{e.message}")
+        return
+      end
+
+      nf_conntrack_entries.set(parsed['nf_conntrack_count'], labels: { pool: ct[:pool], id: ct[:id] })
+      nf_conntrack_entries_limit.set(parsed['nf_conntrack_max'], labels: { pool: ct[:pool], id: ct[:id] })
     end
 
     def parse_processes
