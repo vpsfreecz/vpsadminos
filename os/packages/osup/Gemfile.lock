@@ -15,16 +15,16 @@ GEM
 GEM
   remote: https://rubygems.vpsfree.cz/
   specs:
-    libosctl (25.05.0.build20250814172319)
+    libosctl (25.05.0.build20250814224028)
       fiddle
       logger
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
       syslog
-    osup (25.05.0.build20250814172319)
+    osup (25.05.0.build20250814224028)
       gli (~> 2.22.0)
       json
-      libosctl (= 25.05.0.build20250814172319)
+      libosctl (= 25.05.0.build20250814224028)
       require_all (~> 2.0.0)
 
 PLATFORMS
@@ -32,7 +32,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  osup (= 25.05.0.build20250814172319)!
+  osup (= 25.05.0.build20250814224028)!
 
 BUNDLED WITH
    2.6.6
