@@ -350,7 +350,7 @@ module OsCtl::Exporter
           labels: { pool: ct[:pool], id: ct[:id] }
         )
 
-        next if ct[:state] != 'running'
+        next if ct[:state] != 'running' || !ct[:init_pid]
 
         read_from_container_netns(ct)
       end
