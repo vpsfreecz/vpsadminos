@@ -102,7 +102,7 @@ jobs:
         timeout-minutes: 260
         run: |
           set -o pipefail
-          ./test-runner.sh test -j "${{ steps.determine-test-jobs.outputs.jobs }}" -t ci | tee test.log
+          ./test-runner.sh test -f -j "${{ steps.determine-test-jobs.outputs.jobs }}" -t ci | tee test.log
 
       - name: Evaluate test results
         if: always()
