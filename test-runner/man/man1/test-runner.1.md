@@ -36,6 +36,9 @@ selected tests and reporting results.
     `-j`, `--jobs`
       Number of tests to run in parallel.
 
+    `-f`, `--fresh`
+      Recreate disk files for virtual machines if they already exist.
+
     `--timeout` *n*
       Default timeout for machine commands that wait until execution becomes
       possible, or until a command fails or succeeds. This option changes

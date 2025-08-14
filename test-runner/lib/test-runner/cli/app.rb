@@ -46,6 +46,9 @@ module TestRunner::Cli
         c.desc 'How many tests to run in parallel'
         c.flag %w[j jobs], type: Integer, default_value: 1
 
+        c.desc 'Recreate disk files'
+        c.switch %w[f fresh], default_value: false
+
         c.desc 'Default timeout for machine commands, in seconds'
         c.flag %w[timeout], type: Integer, default_value: 600
 

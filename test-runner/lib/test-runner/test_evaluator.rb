@@ -14,6 +14,7 @@ module TestRunner
     # @param opts [Hash]
     # @option opts [Integer] :default_timeout
     # @option opts [Boolean] :destructive
+    # @option opts [Boolean] :recreate_disks
     # @option opts [String] :state_dir
     # @option opts [String] :sock_dir
     def initialize(test, scripts, **opts)
@@ -39,7 +40,8 @@ module TestRunner
           opts[:state_dir],
           opts[:sock_dir],
           default_timeout: opts[:default_timeout],
-          hash_base: test.path
+          hash_base: test.path,
+          recreate_disks: opts[:recreate_disks]
         )
         instance_variable_set(var, m)
 

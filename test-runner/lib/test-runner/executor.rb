@@ -19,6 +19,7 @@ module TestRunner
     # @option opts [Integer] :default_timeout
     # @option opts [Boolean] :stop_on_failure
     # @option opts [Boolean] :destructive
+    # @option opts [Boolean] :recreate_disks
     def initialize(test_scripts, **opts)
       @test_scripts = test_scripts
       @opts = opts
@@ -216,7 +217,8 @@ module TestRunner
           state_dir: dir,
           sock_dir: test_sock_dir,
           default_timeout: opts[:default_timeout],
-          destructive: opts[:destructive]
+          destructive: opts[:destructive],
+          recreate_disks: opts[:recreate_disks]
         )
 
         ev.run do |result_hash|

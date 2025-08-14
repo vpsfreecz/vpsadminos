@@ -30,7 +30,8 @@ module TestRunner
         jobs: opts['jobs'],
         default_timeout: opts['timeout'],
         stop_on_failure: opts['stop-on-failure'],
-        destructive: opts['destructive']
+        destructive: opts['destructive'],
+        recreate_disks: opts['fresh']
       )
       results = exec.run
 
