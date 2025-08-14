@@ -180,10 +180,9 @@ module OsVm
     # @return [Machine]
     def destroy_disks
       config.disks.each do |disk|
-        next if disk.type != 'file'
+        next if disk.type != 'file' || !disk.create
 
-        path = disk_path(disk.device)
-        FileUtils.rm_f(path)
+        FileUtils.rm_f(disk_path(disk.device))
       end
 
       self
