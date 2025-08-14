@@ -55,6 +55,15 @@ jobs:
 
       - name: Build toplevel closure
         run: |
+          cat <<'EOF' > os/configs/local.nix
+          { config, ... }:
+          {
+            system.systemBuilderCommands = ''
+              ln -sf ${config.boot.kernelPackage.dev} $out/kernel-dev
+            '';
+          }
+          EOF
+
           make toplevel
           echo "BUILD_OUT=$(readlink -f os/result/toplevel)" >> $GITHUB_ENV
 

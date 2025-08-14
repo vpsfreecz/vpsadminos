@@ -61,10 +61,13 @@ jobs:
 
       - name: Build toplevel closure with kernel ${{ matrix.kernel }}
         run: |
-          cat <<EOF > os/configs/local.nix
+          cat <<'EOF' > os/configs/local.nix
           { config, ... }:
           {
             boot.kernelVersion = "${{ matrix.kernel }}";
+            system.systemBuilderCommands = ''
+              ln -sf ${config.boot.kernelPackage.dev} $out/kernel-dev
+            '';
           }
           EOF
 
