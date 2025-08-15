@@ -3037,6 +3037,19 @@ The following shortcuts are supported:
   Print all events reported by `osctld` to standard output. If global option
   `-j`, `--json` is used, the events are printed in JSON.
 
+`event broadcast`
+  Broadcast custom events through `osctld`, all subscribers will receive them.
+  The events are read from standard input and must be encoded in JSON on a single line.
+  Multiple lines can be written. Example input:
+
+  ```
+  {
+    "events": [
+      { "type": "mytype"; "opts": { "myoption": 123 } }
+    ]
+  }
+  ```
+
 `history` [*pool...*]
   Print management history of all or selected pools. If global option
   `-j`, `--json` is used, the events are printed in JSON.

@@ -56,6 +56,25 @@ module OsCtl::Cli
       end
     end
 
+    def broadcast
+      require_args!
+
+      c = osctld_open
+
+      $stdin.each_line do |line|
+        events = JSON.parse(line).fetch('events').map do |event|
+          {
+            type: event.fetch('type'),
+            opts: event.fetch('opts')
+          }
+        end
+
+        c.cmd_data!(:event_broadcast, events:)
+      end
+
+      c.close
+    end
+
     protected
 
     def monitor_loop(c)

@@ -2280,6 +2280,14 @@ module OsCtl::Cli
         c.action(&Command.run(Event, :monitor))
       end
 
+      desc 'Events'
+      command :event do |ev|
+        ev.desc 'Broadcast custom event'
+        ev.command :broadcast do |c|
+          c.action(&Command.run(Event, :broadcast))
+        end
+      end
+
       desc 'Browse pool management history'
       arg_name '[pool]'
       command :history do |c|

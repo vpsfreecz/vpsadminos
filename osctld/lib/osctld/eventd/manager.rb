@@ -163,6 +163,8 @@ module OsCtld
       nil
     end
 
+    alias broadcast report
+
     protected
 
     def get_worker
