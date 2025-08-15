@@ -102,7 +102,7 @@ module OsCtl::Oomd
           log(:info, "#{ctid} #{event}, #{ct.restart_hits}/#{@restart_hits} restart hits, #{ct.stop_hits}/#{@stop_hits} stop hits")
         end
 
-        take_action(ctid, action) if action
+        take_action(pool, id, action) if action
       end
     end
 
@@ -114,11 +114,38 @@ module OsCtl::Oomd
       end
     end
 
-    def take_action(ctid, action)
+    def take_action(pool, id, action)
+      ctid = "#{pool}:#{id}"
       log(:info, "#{action} #{ctid}")
+      now = Time.now
 
-      if !@dry_run && !Kernel.system('osctl', 'ct', action.to_s, '--kill', ctid)
-        log(:warn, "osctl ct #{action} #{ctid} failed")
+      unless @dry_run
+        if Kernel.system('osctl', 'ct', action.to_s, '--kill', ctid)
+          event = {
+            events: [
+              type: 'osctl_oomd',
+              opts: {
+                pool: pool,
+                id: id,
+                action: action,
+                time: now.to_i
+              }
+            ]
+          }
+
+          r, w = IO.pipe
+          pid = Process.spawn('osctl', 'event', 'broadcast', in: r, close_others: true)
+          r.close
+          w.puts(event.to_json)
+          w.close
+          Process.wait(pid)
+
+          if $?.exitstatus != 0
+            log(:warn, "osctl event broadcast exited with #{$?.exitstatus}")
+          end
+        else
+          log(:warn, "osctl ct #{action} #{ctid} failed")
+        end
       end
 
       @mutex.synchronize do
