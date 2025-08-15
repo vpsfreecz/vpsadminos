@@ -34,15 +34,18 @@ module TestRunner
 
       @config['machines'].each do |name, cfg|
         var = :"@#{name}"
+
         m = OsVm::Machine.new(
           name,
           OsVm::MachineConfig.new(cfg),
           opts[:state_dir],
           opts[:sock_dir],
           default_timeout: opts[:default_timeout],
-          hash_base: test.path,
-          recreate_disks: opts[:recreate_disks]
+          hash_base: test.path
         )
+
+        m.destroy_disks if opts[:recreate_disks]
+
         instance_variable_set(var, m)
 
         define_singleton_method(name) do

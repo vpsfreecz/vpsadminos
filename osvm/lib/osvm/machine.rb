@@ -20,8 +20,7 @@ module OsVm
     # @param default_timeout [Integer]
     # @param hash_base [String]
     # @param interactive_console [Boolean]
-    # @param recreate_disks [Boolean]
-    def initialize(name, config, tmpdir, sockdir, default_timeout: 600, hash_base: '', interactive_console: false, recreate_disks: false)
+    def initialize(name, config, tmpdir, sockdir, default_timeout: 600, hash_base: '', interactive_console: false)
       @name = name
       @config = config
       @tmpdir = tmpdir
@@ -29,7 +28,6 @@ module OsVm
       @default_timeout = default_timeout
       @hash_base = hash_base
       @interactive_console = interactive_console
-      @recreate_disks = recreate_disks
       @start_kernel_params = []
       @running = false
       @shell_up = false
@@ -694,8 +692,6 @@ module OsVm
     end
 
     def prepare_disks
-      destroy_disks if @recreate_disks
-
       config.disks.each do |disk|
         next if disk.type != 'file' || !disk.create || File.exist?(disk_path(disk.device))
 
