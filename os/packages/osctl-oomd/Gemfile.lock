@@ -29,28 +29,28 @@ GEM
 GEM
   remote: https://rubygems.vpsfree.cz/
   specs:
-    libosctl (25.05.0.build20250815172934)
+    libosctl (25.05.0.build20250815223132)
       fiddle
       logger
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
       syslog
-    osctl (25.05.0.build20250815172934)
+    osctl (25.05.0.build20250815223132)
       base64
       curses
       gli (~> 2.22.0)
       highline (~> 3.1.1)
       ipaddress (~> 0.8.3)
       json
-      libosctl (= 25.05.0.build20250815172934)
+      libosctl (= 25.05.0.build20250815223132)
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
       ruby-progressbar (~> 1.13.0)
       tty-spinner (~> 0.9.3)
-    osctl-oomd (25.05.0.build20250815172934)
+    osctl-oomd (25.05.0.build20250815223132)
       json
-      libosctl (= 25.05.0.build20250815172934)
-      osctl (= 25.05.0.build20250815172934)
+      libosctl (= 25.05.0.build20250815223132)
+      osctl (= 25.05.0.build20250815223132)
       prometheus-client (~> 4.2.3)
 
 PLATFORMS
@@ -58,7 +58,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  osctl-oomd (= 25.05.0.build20250815172934)!
+  osctl-oomd (= 25.05.0.build20250815223132)!
 
 BUNDLED WITH
    2.6.6
