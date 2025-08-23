@@ -16,6 +16,7 @@ let
     kernel = modulesTree;
     allowMissing = true;
     firmware = firmware;
+    inherit (config.boot.initrd) extraFirmwarePaths;
   };
   dhcpcd = pkgs.dhcpcd.override { udev = null; };
   extraUtils =
@@ -303,6 +304,13 @@ in
       type = types.listOf types.str;
       description = lib.mdDoc ''
         Other initrd files to prepend to the final initrd we are building.
+      '';
+    };
+    boot.initrd.extraFirmwarePaths = mkOption {
+      default = [ ];
+      type = types.listOf types.str;
+      description = ''
+        Other firmware files (relative to `"''${config.hardware.firmware}/lib/firmware"`) to include in the final initrd we are building.
       '';
     };
     boot.initrd.supportedFilesystems = mkOption {
