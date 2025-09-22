@@ -60,6 +60,9 @@ ln -sfn "$systemConfig" /run/booted-system
 # and garbage collected all, we could not load kernel modules anymore.
 ln -sfn /run/booted-system /nix/var/nix/gcroots/booted-system
 
+# Prevent the current system from being garbage-collected
+ln -sfn /run/current-system /nix/var/nix/gcroots/current-system
+
 # Run any user-specified commands.
 @shell@ @postBootCommands@
 
