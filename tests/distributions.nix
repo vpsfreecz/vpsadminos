@@ -116,17 +116,16 @@ let
   };
 in
 {
-  cgroupv2 = with table; [
+  # Distributions that support both cgroups v1 and v2
+  cgroupAll = with table; [
     alma_8
     alma_9
     alma_10
     alpine
-    arch
     centos_10_stream
     chimera
     debian_oldstable
     debian_stable
-    debian_testing
     devuan
     fedora
     gentoo_systemd
@@ -144,6 +143,16 @@ in
     void_musl
   ];
 
+  # Distributions that support only cgroups v2.
+  # On hosts with cgroups v1, these distributions still mount /sys/fs/cgroup
+  # as v2.
+  cgroupv2 = with table; [
+    arch
+    debian_testing
+  ];
+
+  # Distributions that support only cgroups v1 and do not boot on hosts
+  # with cgroups v2 at all.
   cgroupv1 = with table; [
     centos_7
   ];

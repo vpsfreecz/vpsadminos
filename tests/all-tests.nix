@@ -75,11 +75,17 @@ tests [
   {
     test = "cgroups/mount-v1";
     args = {
-      distributions = distributions.all;
+      distributions = distributions.cgroupAll ++ distributions.cgroupv1;
     };
   }
   {
     test = "cgroups/mount-v2";
+    args = {
+      distributions = distributions.cgroupAll ++ distributions.cgroupv2;
+    };
+  }
+  {
+    test = "cgroups/mount-v2-on-v1";
     args = {
       distributions = distributions.cgroupv2;
     };
