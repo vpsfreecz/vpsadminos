@@ -72,7 +72,7 @@ EOF
 }
 
 configure-arch() {
-	configure-append <<EOF
+	configure-append <<'EOF'
 cat <<EOT > /etc/resolv.conf
 $(cat /etc/resolv.conf)
 EOT
@@ -103,6 +103,14 @@ cat <<EOT > /etc/systemd/system/systemd-udev-trigger.service.d/vpsadminos.conf
 [Service]
 ExecStart=
 ExecStart=-udevadm trigger --subsystem-match=net --action=add
+EOT
+
+# Fixup console-getty (the stock version is not working for unknown reason)
+mkdir -p /etc/systemd/system/console-getty.service.d
+cat <<EOT > /etc/systemd/system/console-getty.service.d/vpsadminos.conf
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --noreset --noclear --issue-file=/etc/issue:/etc/issue.d:/run/issue.d:/usr/lib/issue.d --keep-baud console 115200,57600,38400,9600 ${TERM}
 EOT
 
 mkdir -p /var/log/journal
