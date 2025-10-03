@@ -25,7 +25,7 @@ module OsCtl::ExportFS
       @nproc = cfg['nproc'] || 8
       @tcp = cfg['tcp'].nil? ? true : cfg['tcp']
       @udp = cfg['udp'].nil? ? false : cfg['udp']
-      @versions = cfg['versions'] || ['3']
+      @versions = cfg['versions'] || ['3', '4', '4.0', '4.1', '4.2']
       @syslog = cfg['syslog'].nil? ? false : cfg['syslog']
     end
 

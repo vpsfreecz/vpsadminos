@@ -12,8 +12,8 @@ rpc.nfsd \
   <%= config.nfsd.port ? "--port #{config.nfsd.port}" : '' %> \
   <%= config.nfsd.tcp ? '--tcp' : '--no-tcp' %> \
   <%= config.nfsd.udp ? '--udp' : '--no-udp' %> \
-  --nfs-version <%= config.nfsd.allowed_versions.join(',') %> \
-  --no-nfs-version <%= config.nfsd.disallowed_versions.join(',') %> \
+  <%= config.nfsd.allowed_versions.any? ? "--nfs-version #{config.nfsd.allowed_versions.join(',')}" : '' %> \
+  <%= config.nfsd.disallowed_versions.any? ? "--no-nfs-version #{config.nfsd.disallowed_versions.join(',')}" : '' %> \
   <%= config.nfsd.syslog ? '--syslog' : '' %> \
   -- <%= config.nfsd.nproc %>
 

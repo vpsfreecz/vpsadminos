@@ -61,7 +61,7 @@ module OsCtl::ExportFS::Cli
           c.switch 'nfsd-udp', default_value: false
 
           c.desc 'Select supported NFS versions'
-          c.flag 'nfs-versions', default_value: '3'
+          c.flag 'nfs-versions', default_value: '3,4,4.0,4.1,4.2'
 
           c.desc 'Direct messages from rpc.nfsd to syslog'
           c.switch 'nfsd-syslog', default_value: false
