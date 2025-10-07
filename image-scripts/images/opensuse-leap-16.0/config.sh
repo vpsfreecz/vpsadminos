@@ -1,0 +1,5 @@
+BUILDER=opensuse-leap
+SPIN=leap
+SPINVER=16.0
+RELVER=$SPIN-$SPINVER
+ARCH=x86_64

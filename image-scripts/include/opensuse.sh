@@ -3,7 +3,7 @@ require_cmd zypper
 
 if [ "$SPIN" == "leap" ]; then
 	REPOSITORY=http://download.opensuse.org/distribution/leap/$SPINVER/repo/oss/
-	UPDATES=http://download.opensuse.org/update/leap/$SPINVER/oss/
+	[[ "$SPINVER" == 15.* ]] && UPDATES=http://download.opensuse.org/update/leap/$SPINVER/oss/
 elif [ "$SPIN" == "tumbleweed" ]; then
 	REPOSITORY=http://download.opensuse.org/tumbleweed/repo/oss/
 	UPDATES=http://download.opensuse.org/update/tumbleweed/
@@ -18,7 +18,7 @@ ZYPPER="zypper -v --root=$INSTALL --non-interactive --gpg-auto-import-keys "
 do_bootstrap() ( # new subshell
 	set -e
 	$ZYPPER addrepo --refresh -g $REPOSITORY openSUSE-oss
-	$ZYPPER addrepo --refresh -g $UPDATES openSUSE-updates
+	[ -n "$UPDATES" ] && $ZYPPER addrepo --refresh -g $UPDATES openSUSE-updates
 	$ZYPPER refresh
 	$ZYPPER install --no-recommends aaa_base shadow patterns-base-base patterns-base-sw_management $EXTRAPKGS
 )
@@ -33,8 +33,12 @@ function bootstrap {
 
 function configure-opensuse {
 	configure-append <<EOF
+# 16.0 seems to use a different format than 15.*
+rpmdb --rebuilddb
+
 [ ! -e /sbin/init ] && ln -sf /usr/lib/systemd/systemd /sbin/init
 systemctl enable  wicked.service
+systemctl mask chronyd.service # since 16.0
 usermod -L root
 
 systemctl enable sshd.service
