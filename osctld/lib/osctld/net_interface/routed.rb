@@ -10,6 +10,7 @@ module OsCtld
 
     INTERFACE = 'osrtr0'.freeze
     DEFAULT_IPV4 = IPAddress.parse('255.255.255.254/32')
+    DEFAULT_IPV6 = IPAddress.parse('fe80::1/64')
 
     def self.setup
       begin
@@ -95,6 +96,8 @@ module OsCtld
             ip(v, %i[route add] + route.ip_spec + [:dev, veth])
           end
         end
+
+        ip(6, %i[addr add] + [DEFAULT_IPV6.to_string] + [:dev, veth])
       end
 
       File.write(File.join('/proc/sys/net/ipv4/conf', veth, 'rp_filter'), '1')
@@ -236,22 +239,8 @@ module OsCtld
       when 4
         DEFAULT_IPV4
       when 6
-        get_ipv6_link_local
+        DEFAULT_IPV6
       end
-    end
-
-    protected
-
-    def get_ipv6_link_local
-      link = exclusively { veth.clone }
-
-      local_ifaddr = Socket.getifaddrs.detect do |ifaddr|
-        ifaddr.name == link && ifaddr.addr.ip? && ifaddr.addr.ipv6?
-      end
-
-      raise "unable to find link-local IPv6 address for #{veth}" unless local_ifaddr
-
-      IPAddress.parse(local_ifaddr.addr.ip_address.split('%').first)
     end
   end
 end
