@@ -9,7 +9,7 @@ module OsCtld
     extend Utils::Ip
 
     INTERFACE = 'osrtr0'.freeze
-    DEFAULT_IPV4 = IPAddress.parse('255.255.255.254/32')
+    DEFAULT_IPV4 = IPAddress.parse('172.31.255.254/32')
     DEFAULT_IPV6 = IPAddress.parse('fe80::1/64')
 
     def self.setup
@@ -22,6 +22,9 @@ module OsCtld
 
       ip(:all, [:link, :add, INTERFACE, :type, :dummy])
       ip(4, [:addr, :add, DEFAULT_IPV4.to_string, :dev, INTERFACE])
+
+      # Legacy address
+      ip(4, [:addr, :add, '255.255.255.254/32', :dev, INTERFACE])
     end
 
     attr_reader :routes
