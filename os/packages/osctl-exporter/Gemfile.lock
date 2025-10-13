@@ -11,7 +11,7 @@ GEM
       reline
     io-console (0.8.1)
     ipaddress (0.8.3)
-    json (2.15.0)
+    json (2.15.1)
     logger (1.7.0)
     nio4r (2.7.4)
     ostruct (0.6.3)
@@ -19,7 +19,7 @@ GEM
       base64
     puma (7.0.4)
       nio4r (~> 2.0)
-    rack (3.2.1)
+    rack (3.2.3)
     rainbow (3.1.1)
     reline (0.6.2)
       io-console (~> 0.5)
@@ -34,37 +34,37 @@ GEM
 GEM
   remote: https://rubygems.vpsfree.cz/
   specs:
-    libosctl (25.05.0.build20251003132229)
+    libosctl (25.05.0.build20251013204426)
       fiddle
       logger
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
       syslog
-    osctl (25.05.0.build20251003132229)
+    osctl (25.05.0.build20251013204426)
       base64
       curses
       gli (~> 2.22.0)
       highline (~> 3.1.1)
       ipaddress (~> 0.8.3)
       json
-      libosctl (= 25.05.0.build20251003132229)
+      libosctl (= 25.05.0.build20251013204426)
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
       ruby-progressbar (~> 1.13.0)
       tty-spinner (~> 0.9.3)
-    osctl-exporter (25.05.0.build20251003132229)
+    osctl-exporter (25.05.0.build20251013204426)
       json
-      libosctl (= 25.05.0.build20251003132229)
-      osctl (= 25.05.0.build20251003132229)
-      osctl-exportfs (= 25.05.0.build20251003132229)
+      libosctl (= 25.05.0.build20251013204426)
+      osctl (= 25.05.0.build20251013204426)
+      osctl-exportfs (= 25.05.0.build20251013204426)
       prometheus-client (~> 4.2.3)
       puma
       rack (~> 3.1)
       require_all (~> 2.0.0)
-    osctl-exportfs (25.05.0.build20251003132229)
+    osctl-exportfs (25.05.0.build20251013204426)
       filelock
       gli (~> 2.22.0)
-      libosctl (= 25.05.0.build20251003132229)
+      libosctl (= 25.05.0.build20251013204426)
       require_all (~> 2.0.0)
 
 PLATFORMS
@@ -72,7 +72,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  osctl-exporter (= 25.05.0.build20251003132229)!
+  osctl-exporter (= 25.05.0.build20251013204426)!
 
 BUNDLED WITH
    2.6.6
