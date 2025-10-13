@@ -15,16 +15,17 @@ module OsCtld
     def self.setup
       begin
         ip(:all, [:link, :show, :dev, INTERFACE])
-        return
       rescue SystemCommandFailed => e
-        raise if e.rc != 1
+        raise if e.rc != 1 # interface exists
+
+        ip(:all, [:link, :add, INTERFACE, :type, :dummy])
       end
 
-      ip(:all, [:link, :add, INTERFACE, :type, :dummy])
-      ip(4, [:addr, :add, DEFAULT_IPV4.to_string, :dev, INTERFACE])
-
-      # Legacy address
-      ip(4, [:addr, :add, '255.255.255.254/32', :dev, INTERFACE])
+      [DEFAULT_IPV4.to_string, '255.255.255.254/32'].each do |addr|
+        ip(4, [:addr, :add, addr, :dev, INTERFACE])
+      rescue SystemCommandFailed => e
+        raise if e.rc != 2 # address already assigned
+      end
     end
 
     attr_reader :routes
