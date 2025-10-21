@@ -12,7 +12,7 @@ DHCP=false
 <% netif.active_ip_versions.each do |v| -%>
 [Route]
 Destination=<%= netif.default_via(v) %>
-Scope=link
+<% if v == 4 %>Scope=link<% end -%>
 
 <%   netif.ips(v).each do |addr| -%>
 [Address]
