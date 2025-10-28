@@ -105,12 +105,16 @@ ExecStart=
 ExecStart=-udevadm trigger --subsystem-match=net --action=add
 EOT
 
-# Fixup console-getty (the stock version is not working for unknown reason)
+# Fixup console-getty
+# https://github.com/systemd/systemd/issues/39036)
+# https://github.com/lxc/incus/pull/2554
 mkdir -p /etc/systemd/system/console-getty.service.d
 cat <<EOT > /etc/systemd/system/console-getty.service.d/vpsadminos.conf
 [Service]
 ExecStart=
 ExecStart=-/sbin/agetty --noreset --noclear --issue-file=/etc/issue:/etc/issue.d:/run/issue.d:/usr/lib/issue.d --keep-baud console 115200,57600,38400,9600 ${TERM}
+StandardInput=null
+StandardOutput=null
 EOT
 
 mkdir -p /var/log/journal
