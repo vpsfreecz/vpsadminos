@@ -127,10 +127,8 @@ in
     debian_oldstable
     debian_stable
     devuan
-    fedora
     gentoo_systemd
     nixos_stable
-    nixos_unstable
     opensuse
     rocky_8
     rocky_9
@@ -149,6 +147,8 @@ in
   cgroupv2 = with table; [
     arch
     debian_testing
+    fedora
+    nixos_unstable
   ];
 
   # Distributions that support only cgroups v1 and do not boot on hosts
