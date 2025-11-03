@@ -89,10 +89,10 @@
       };
 
       devuan = {
-        "4" = {
+        "5" = {
           tags = [ "oldstable" ];
         };
-        "5" = {
+        "6" = {
           tags = [
             "latest"
             "stable"
