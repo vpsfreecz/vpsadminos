@@ -1,8 +1,16 @@
 {
-  stableKernelVersion = "6.12.58";
-  unstableKernelVersion = "6.12.58";
+  stableKernelVersion = "6.12.59";
+  unstableKernelVersion = "6.12.59";
 
   kernels = {
+    "6.12.59" = {
+      rev = "51ef910ea3116f8c41a5643d4d5c83eb18b03f32";
+      sha256 = "sha256-YFodbgNJlkZhm35kQMuNcgkeX765dbvs9OxClSiZ6KA=";
+      zfs = {
+        rev = "82692f213319780c6546ee4f835afb849b932391";
+        sha256 = "sha256-4AyHAyTryhAKs4JRn/Yebn83P1oM1e7Ts69gwjlNWa0=";
+      };
+    };
     "6.12.58" = {
       rev = "ca71e50004db2e50e769faeded42be79070f1fb1";
       sha256 = "sha256-/7uiLy9WJgWyg1DhyDm1a6ul/oP7/GkiPAxbPe6k5VA=";
