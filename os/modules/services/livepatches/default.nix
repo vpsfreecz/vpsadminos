@@ -41,7 +41,6 @@ let
         "fortify"
         "stackprotector"
         "pic"
-        "pie"
       ];
       depsBuildBuild = [ pkgs.stdenv.cc ];
 

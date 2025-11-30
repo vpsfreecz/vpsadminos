@@ -453,7 +453,6 @@ stdenv.mkDerivation (
       "fortify"
       "stackprotector"
       "pic"
-      "pie"
     ];
 
     # Absolute paths for compilers avoid any PATH-clobbering issues.
