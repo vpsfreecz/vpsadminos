@@ -31,9 +31,9 @@ let
       #users.users.root.openssh.authorizedKeys.keys =
       #  [ "..." ];
 
-      systemd.extraConfig = '''
-        DefaultTimeoutStartSec=900s
-      ''';
+      systemd.settings.Manager = {
+        DefaultTimeoutStartSec = "900s";
+      };
 
       time.timeZone = "Europe/Amsterdam";
 
@@ -59,9 +59,9 @@ in
     authorizedKeysInHomedir = true;
   };
 
-  systemd.extraConfig = ''
-    DefaultTimeoutStartSec=900s
-  '';
+  systemd.settings.Manager = {
+    DefaultTimeoutStartSec = "900s";
+  };
 
   boot.postBootCommands = ''
     # After booting, register the contents of the Nix store in the Nix database.
