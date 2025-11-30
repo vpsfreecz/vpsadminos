@@ -17,7 +17,7 @@ on:
       - os/packages/linux/**
 
 env:
-  NIX_PATH: nixpkgs=https://channels.nixos.org/nixos-25.05/nixexprs.tar.xz
+  NIX_PATH: nixpkgs=https://channels.nixos.org/nixos-25.11/nixexprs.tar.xz
 
 jobs:
   detect:
@@ -33,7 +33,7 @@ jobs:
 
       - uses: cachix/install-nix-action@v31
         with:
-          nix_path: nixpkgs=channel:nixos-25.05
+          nix_path: nixpkgs=channel:nixos-25.11
 
       - id: set
         shell: bash

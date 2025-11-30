@@ -1,3 +1,3 @@
 module OsCtl
-  VERSION = '25.05.0'.freeze
+  VERSION = '25.11.0'.freeze
 end
