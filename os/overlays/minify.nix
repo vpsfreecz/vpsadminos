@@ -7,7 +7,6 @@ self: super: {
   };
   util-linux = super.util-linux.override {
     systemdSupport = false;
-    systemd = null;
   };
-  dhcpcd = super.dhcpcd.override { udev = null; };
+  dhcpcd = super.dhcpcd.override { withUdev = false; };
 }

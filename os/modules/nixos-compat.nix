@@ -22,6 +22,10 @@ with lib;
       };
       additionalUpstreamUnits = mkOption { type = types.unspecified; };
     };
+    boot.isNspawnContainer = mkOption {
+      type = types.bool;
+      default = false;
+    };
     programs = {
       i3lock.enable = mkOption {
         type = types.bool;
@@ -31,6 +35,10 @@ with lib;
     services = {
       cgmanager = mkOption { type = types.unspecified; };
       displayManager = mkOption { type = types.unspecified; };
+      firewalld.enable = mkOption {
+        type = types.bool;
+        default = false;
+      };
       fprintd = mkOption { type = types.unspecified; };
       geoclue2 = mkOption { type = types.unspecified; };
       intune = mkOption { type = types.unspecified; };
@@ -44,6 +52,10 @@ with lib;
       samba = mkOption { type = types.unspecified; };
       xserver = mkOption { type = types.unspecified; };
       kanidm.enablePam = mkOption {
+        type = types.bool;
+        default = false;
+      };
+      userborn.enable = mkOption {
         type = types.bool;
         default = false;
       };
