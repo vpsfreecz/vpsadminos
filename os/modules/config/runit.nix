@@ -61,6 +61,9 @@ in
     mkdir -p /run/runit /run/runit/service
     ln -sf /run/runit/service /run/service
 
+    # pam_lastlog
+    mkdir -p /var/lib/lastlog
+
     # LXC
     mkdir -p /var/lib/lxc/rootfs
 
