@@ -49,8 +49,8 @@ in
 
     "fs.aio-max-nr" = mkDefault (3 * 1024 * 1024 * 1024 - 1);
     "fs.inotify.max_queued_events" = mkDefault (2 * 1024 * 1024 * 1024 - 1);
-    "fs.inotify.max_user_instances" = mkDefault (2 * 1024 * 1024 * 1024 - 1);
-    "fs.inotify.max_user_watches" = mkDefault (2 * 1024 * 1024 * 1024 - 1);
+    "fs.inotify.max_user_instances" = 2 * 1024 * 1024 * 1024 - 1;
+    "fs.inotify.max_user_watches" = 2 * 1024 * 1024 * 1024 - 1;
     "kernel.keys.maxkeys" = mkDefault 100000;
     "kernel.keys.maxbytes" = mkDefault 2500000;
 
