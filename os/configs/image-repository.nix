@@ -146,7 +146,7 @@
       };
 
       nixos = {
-        "25.05" = {
+        "25.11" = {
           tags = [
             "latest"
             "stable"
@@ -156,7 +156,7 @@
           tags = [ "unstable" ];
         };
 
-        "25.05-impermanence" = {
+        "25.11-impermanence" = {
           tags = [
             "latest"
             "stable"
