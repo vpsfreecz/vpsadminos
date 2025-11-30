@@ -38,9 +38,11 @@ import ../../make-test.nix (
 
       st, output = machine.succeeds("osctl ct exec docker docker info")
 
+      expected_storage_drivers = %w[overlay2 overlayfs]
+
       if /Storage Driver: ([^\s]+)\s/ =~ output
-        if $1.strip != 'overlay2'
-          fail "using '#{$1}' storage driver instead of overlay2"
+        unless expected_storage_drivers.include?($1.strip)
+          fail "using '#{$1}' storage driver instead of one of #{expected_storage_drivers.join(', ')}"
         end
       else
         fail "unable to find storage driver in docker info, output:\n#{output}"
