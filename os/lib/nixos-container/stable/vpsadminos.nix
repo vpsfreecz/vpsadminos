@@ -35,6 +35,12 @@ in
   ];
   systemd.services.rpc-gssd.enable = false;
 
+  # Needed for systemd since v258, see issue #39036
+  systemd.services.console-getty.serviceConfig = {
+    StandardInput = "null";
+    StandardOutput = "null";
+  };
+
   # Due to our restrictions in /sys, the default systemd-udev-trigger fails
   # on accessing PCI devices, etc. Override it to match only network devices.
   # In addition, boot.isContainer prevents systemd-udev-trigger.service from
