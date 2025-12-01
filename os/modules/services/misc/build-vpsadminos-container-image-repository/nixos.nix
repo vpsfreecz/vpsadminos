@@ -40,7 +40,10 @@ in
   };
 
   config = {
-    nixpkgs.overlays = import ../../../../overlays;
+    nixpkgs.overlays = [
+      (import ../../../../overlays/osctl.nix)
+      (import ../../../../overlays/ruby.nix)
+    ];
 
     environment.systemPackages = shared.createSystemPackages cfg;
 
