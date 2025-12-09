@@ -128,7 +128,6 @@ in
     debian_stable
     devuan
     gentoo_systemd
-    nixos_stable
     opensuse
     rocky_8
     rocky_9
@@ -148,6 +147,7 @@ in
     arch
     debian_testing
     fedora
+    nixos_stable
     nixos_unstable
   ];
 
