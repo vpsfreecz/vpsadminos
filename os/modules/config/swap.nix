@@ -56,7 +56,7 @@ with lib;
                 mkswap ${sw.realDevice}
               ''}
 
-              swapon ${sw.realDevice}
+              swapon ${optionalString (!isNull sw.priority) "-p ${toString sw.priority}"} ${sw.realDevice}
             '';
 
             finish = optionalString sw.randomEncryption.enable "${pkgs.cryptsetup}/bin/cryptsetup luksClose ${sw.deviceName}";
