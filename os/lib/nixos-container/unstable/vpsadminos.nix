@@ -8,8 +8,10 @@
 
 {
   config,
-  pkgs,
   lib,
+  options,
+  pkgs,
+  utils,
   ...
 }:
 let
@@ -61,9 +63,33 @@ in
   boot.isContainer = true;
   boot.enableContainers = mkDefault true;
   boot.loader.initScript.enable = true;
-  boot.specialFileSystems."/run/keys".fsType = mkForce "tmpfs";
   boot.systemdExecutable = mkDefault "/run/current-system/systemd/lib/systemd/systemd systemd.unified_cgroup_hierarchy=0";
   console.enable = true;
+
+  # Mount paths that are needed for boot (e.g. /var/lib/nixos) earlier.
+  # This fixes UIDs and GIDs changing on reboot when using impermanence.
+  # impermanence mounts them in the initrd, which doesn't exist in a container.
+  boot.specialFileSystems =
+    (lib.pipe config.fileSystems [
+      # nixos supplies utils.fsNeededForBoot (also used by impermanence to find out which directories to mount early)
+      # found here: https://github.com/nix-community/impermanence/blob/4b3e914cdf97a5b536a889e939fb2fd2b043a170/nixos.nix#L727
+      (lib.filterAttrs (_: v: utils.fsNeededForBoot v))
+      # config.boot.specialFileSystems only accepts a subset of the options from config.fileSystems
+      # so filter out the rest.
+      (builtins.mapAttrs (
+        path: v:
+        # throw a warning if some options not known by boot.specialFileSystems are set
+        lib.warnIf (v.autoFormat || v.autoResize || v.encrypted.enable || v.overlay.workdir != null)
+          "fileSystems.${path} has options set that are not supported by boot.specialFileSystems."
+
+          # filter out the unknown options
+          (lib.intersectAttrs (options.boot.specialFileSystems.type.getSubOptions { }) v)
+      ))
+    ])
+    # this is here since 14937d20c0587f1c8a48f7f3a9bce7fcae255785 idk why it is needed
+    // {
+      "/run/keys".fsType = mkForce "tmpfs";
+    };
 
   # Overrides for <nixpkgs/nixos/modules/virtualisation/container-config.nix>
   documentation.enable = mkOverride 500 true;
