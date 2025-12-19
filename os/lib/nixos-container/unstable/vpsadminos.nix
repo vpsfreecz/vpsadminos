@@ -91,6 +91,9 @@ in
       "/run/keys".fsType = mkForce "tmpfs";
     };
 
+  # auto-allocate-uids doesn't work in containers due to being restricted to 16 bit UIDs and GIDs
+  nix.settings.auto-allocate-uids = mkForce false;
+
   # Overrides for <nixpkgs/nixos/modules/virtualisation/container-config.nix>
   documentation.enable = mkOverride 500 true;
   documentation.nixos.enable = mkOverride 500 true;
