@@ -1,6 +1,6 @@
 self: super:
 let
-  ruby_3_3 = super.ruby_3_3.overrideAttrs (oldAttrs: rec {
+  ruby_3_4 = super.ruby_3_4.overrideAttrs (oldAttrs: rec {
     patches = oldAttrs.patches ++ [
       ../packages/ruby/export-timer-functions.patch
     ];
@@ -16,9 +16,9 @@ let
   });
 in
 {
-  inherit ruby_3_3;
+  inherit ruby_3_4;
 
-  ruby = ruby_3_3;
+  ruby = ruby_3_4;
 
   defaultGemConfig = super.callPackage (
     { lib, apparmor-parser }:
