@@ -31,7 +31,6 @@ in
   services.resolved = mkDefault { fallbackDns = nameservers; };
   networking.dhcpcd.extraConfig = "noipv4ll";
 
-  systemd.services.systemd-sysctl.enable = false;
   systemd.services.systemd-oomd.enable = false;
   systemd.sockets."systemd-journald-audit".enable = false;
   systemd.mounts = [
