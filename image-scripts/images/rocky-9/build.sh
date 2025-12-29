@@ -1,5 +1,5 @@
 . "$IMAGEDIR/config.sh"
-POINTVER=9.6
+POINTVER=9.7
 RELEASE=https://ftp.linux.cz/pub/linux/rocky/${POINTVER}/BaseOS/x86_64/os/Packages/r/rocky-release-${POINTVER}-1.3.el9.noarch.rpm
 BASEURL=https://ftp.linux.cz/pub/linux/rocky/${POINTVER}/BaseOS/x86_64/os/
 
