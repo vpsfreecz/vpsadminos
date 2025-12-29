@@ -74,7 +74,7 @@ EOF
 }
 
 configure-arch() {
-	configure-append <<EOF
+	configure-append <<'EOF'
 cat <<EOT > /etc/resolv.conf
 $(cat /etc/resolv.conf)
 EOT
@@ -83,6 +83,45 @@ cat >> /etc/fstab <<EOT
 devpts       /dev/pts        devpts  gid=5,mode=620    0       0
 tmpfs        /tmp            tmpfs   nodev,nosuid      0       0
 EOT
+
+# Workaround for pacman sandboxing errors
+# Add/uncomment DisableSandboxFilesystem in [options] section in /etc/pacman.conf
+awk '
+  BEGIN { in_options=0; done=0 }
+
+  # Enter [options]
+  /^\[options\][[:space:]]*$/ { in_options=1; print; next }
+
+  # If we are in [options], treat BOTH real and commented-out section headers
+  # as a boundary where we should insert before them.
+  in_options && /^[[:space:]]*#?\[[^]]+\][[:space:]]*$/ {
+    if (!done) { print "DisableSandboxFilesystem"; done=1 }
+    in_options=0
+    print
+    next
+  }
+
+  {
+    if (in_options) {
+      # Uncomment exact "#DisableSandboxFilesystem"
+      if ($0 ~ /^[[:space:]]*#DisableSandboxFilesystem[[:space:]]*$/) {
+        print "DisableSandboxFilesystem"
+        done=1
+        next
+      }
+      # Already enabled
+      if ($0 ~ /^[[:space:]]*DisableSandboxFilesystem[[:space:]]*$/) {
+        done=1
+      }
+    }
+    print
+  }
+
+  END {
+    # If [options] is last (no following section header, real or commented)
+    if (in_options && !done) print "DisableSandboxFilesystem"
+  }
+' /etc/pacman.conf | tee /etc/pacman.conf.new > /dev/null && mv /etc/pacman.conf.new /etc/pacman.conf
 
 pacman-key --init
 pacman-key --populate archlinux
