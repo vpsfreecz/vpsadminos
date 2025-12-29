@@ -9,6 +9,7 @@ EXTRAPKGS="@core vim man fedora-gpg-keys fedora-repos glibc-langpack-en"
 REMOVEPKGS="plymouth"
 
 . $INCLUDE/redhat-family.sh
+. "$INCLUDE/systemd.sh"
 
 bootstrap
 configure-common
@@ -16,5 +17,6 @@ configure-common
 configure-redhat-common
 configure-fedora
 configure-fedora-nm-keyfiles
+configure-systemd-console-getty
 run-configure
 

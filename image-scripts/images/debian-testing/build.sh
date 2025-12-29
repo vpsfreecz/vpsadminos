@@ -3,6 +3,7 @@ RELNAME=testing
 BASEURL=http://ftp.cz.debian.org/debian
 
 . "$INCLUDE/debian.sh"
+. "$INCLUDE/systemd.sh"
 
 bootstrap
 
@@ -23,5 +24,7 @@ SOURCES
 configure-append <<EOF
 sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
 EOF
+
+configure-systemd-console-getty
 
 run-configure

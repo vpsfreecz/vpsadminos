@@ -1,6 +1,7 @@
 VARIANT=systemd
 . "$IMAGEDIR/config.sh"
 . "$INCLUDE/gentoo.sh"
+. "$INCLUDE/systemd.sh"
 
 fetch
 extract
@@ -21,6 +22,7 @@ EOT
 echo > /etc/machine-id
 EOF
 
+configure-systemd-console-getty
 configure-gentoo-end
 run-configure
 
