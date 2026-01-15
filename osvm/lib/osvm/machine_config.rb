@@ -165,8 +165,27 @@ module OsVm
     # @return [MachineConfig]
     def self.load_file(path)
       cfg = JSON.parse(File.read(path))
-      new(cfg)
+      from_config(cfg)
     end
+
+    # Build machine config from hash
+    # @param cfg [Hash]
+    # @return [MachineConfig]
+    def self.from_config(cfg)
+      spin = cfg.fetch('spin', 'vpsadminos')
+
+      case spin
+      when 'vpsadminos'
+        VpsadminosMachineConfig.new(cfg)
+      when 'nixos'
+        NixosMachineConfig.new(cfg)
+      else
+        raise ArgumentError, "Unknown machine spin #{spin.inspect}"
+      end
+    end
+
+    # @return [String]
+    attr_reader :spin
 
     # @return [String] path to qemu package
     attr_reader :qemu
@@ -176,9 +195,6 @@ module OsVm
 
     # @return [String] path to virtiofsd package
     attr_reader :virtiofsd
-
-    # @return [String] path to squashfs rootfs image
-    attr_reader :squashfs
 
     # @return [String] path to kernel bzImage
     attr_reader :kernel
@@ -212,15 +228,15 @@ module OsVm
 
     # @param cfg [Hash]
     def initialize(cfg)
+      @spin = cfg.fetch('spin', 'vpsadminos')
       @qemu = cfg.fetch('qemu')
       @extra_qemu_options = cfg.fetch('extraQemuOptions', [])
       @virtiofsd = cfg.fetch('virtiofsd')
-      @squashfs = cfg.fetch('squashfs')
       @kernel = cfg.fetch('kernel')
       @initrd = cfg.fetch('initrd')
       @kernel_params = cfg.fetch('kernelParams')
       @toplevel = cfg.fetch('toplevel')
-      @disks = cfg.fetch('disks').map { |disk_cfg| Disk.new(disk_cfg) }
+      @disks = cfg.fetch('disks', []).map { |disk_cfg| Disk.new(disk_cfg) }
       @memory = cfg.fetch('memory')
       @cpus = cfg.fetch('cpus')
       @cpu = Cpu.new(cfg.fetch('cpu'))
@@ -228,6 +244,28 @@ module OsVm
       @networks = cfg.fetch('networks', [{ 'type' => 'user' }]).each_with_index.map do |net_cfg, i|
         Network.from_config(i, net_cfg)
       end
+    end
+  end
+
+  class VpsadminosMachineConfig < MachineConfig
+    # @return [String] path to squashfs rootfs image
+    attr_reader :squashfs
+
+    # @param cfg [Hash]
+    def initialize(cfg)
+      @squashfs = cfg.fetch('squashfs')
+      super
+    end
+  end
+
+  class NixosMachineConfig < MachineConfig
+    # @return [String] path to disk image containing the root filesystem
+    attr_reader :disk_image
+
+    # @param cfg [Hash]
+    def initialize(cfg)
+      @disk_image = cfg.fetch('diskImage')
+      super
     end
   end
 end

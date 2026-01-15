@@ -15,6 +15,7 @@ let
     };
 
   machineConfig = repoCfg: os: {
+    spin = "vpsadminos";
     qemu = toString (
       pkgs.qemu_kvm.override {
         nixosTestRunner = true;
@@ -71,7 +72,7 @@ let
       stateDir = '${stateDir repoName}'
       FileUtils.mkdir_p(stateDir)
 
-      machine = OsVm::Machine.new(
+      machine = OsVm::VpsadminosMachine.new(
         "builder-${repoName}",
         cfg,
         stateDir,

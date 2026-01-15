@@ -180,6 +180,7 @@ let
   );
 
   machineConfig = {
+    spin = "vpsadminos";
     qemu = toString qemu;
     extraQemuOptions = cfg.extraQemuOptions;
     virtiofsd = toString pkgs.virtiofsd;
@@ -221,13 +222,30 @@ let
   osvmScript = pkgs.writeText "osvm-script.rb" ''
     guest_dir = File.expand_path("${cfg.stateDir}")
 
-    machine = OsVm::Machine.new(
-      "${config.networking.hostName}",
-      OsVm::MachineConfig.load_file("${machineConfigFile}"),
-      guest_dir,
-      guest_dir,
-      interactive_console: true,
-    )
+    machine_config = OsVm::MachineConfig.load_file("${machineConfigFile}")
+
+    machine =
+      case machine_config.spin
+      when 'vpsadminos'
+        OsVm::VpsadminosMachine.new(
+          "${config.networking.hostName}",
+          machine_config,
+          guest_dir,
+          guest_dir,
+          interactive_console: true,
+        )
+      when 'nixos'
+        OsVm::NixosMachine.new(
+          "${config.networking.hostName}",
+          machine_config,
+          guest_dir,
+          guest_dir,
+          interactive_console: true,
+        )
+      else
+        raise "Unknown machine spin #{machine_config.spin.inspect}"
+      end
+
     machine.start
     machine.join(timeout: nil)
     machine.finalize

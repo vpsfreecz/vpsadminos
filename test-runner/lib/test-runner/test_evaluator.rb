@@ -35,9 +35,11 @@ module TestRunner
       @config['machines'].each do |name, cfg|
         var = :"@#{name}"
 
-        m = OsVm::Machine.new(
+        machine_config = OsVm::MachineConfig.from_config(cfg)
+
+        m = machine_class_for(machine_config).new(
           name,
-          OsVm::MachineConfig.new(cfg),
+          machine_config,
           opts[:state_dir],
           opts[:sock_dir],
           default_timeout: opts[:default_timeout],
@@ -371,6 +373,17 @@ module TestRunner
         m.destroy if @opts[:destructive]
         m.finalize
         m.cleanup
+      end
+    end
+
+    def machine_class_for(config)
+      case config.spin
+      when 'vpsadminos'
+        OsVm::VpsadminosMachine
+      when 'nixos'
+        OsVm::NixosMachine
+      else
+        raise ArgumentError, "Unknown machine spin #{config.spin.inspect}"
       end
     end
   end
