@@ -32,6 +32,9 @@
 - When there are **no local changes** in `osvm` or `test-runner`, prefer the prebuilt gems: run from repo root with `./test-runner.sh …`.
 - After modifying `osvm` or `test-runner`, run under nix-shell to pick up local code: `nix-shell test-runner/shell.nix --run 'bundle exec ./test-runner/bin/test-runner <args>'` (cwd must be repo root so `$PWD/tests` is found).
 
+### Overcommit hooks
+- Do not bypass overcommit hooks. Commits must be created with the pre-commit hooks enabled (nixfmt, RuboCop, etc.) or run `nix-shell --run 'overcommit --run'` from repository root to ensure they pass before committing.
+
 ## Commit & Pull Request Guidelines
 - Follow existing history: `<area>: <change>` (e.g., `os: ...`, `tests/distributions: ...`); present tense, scoped subjects.
 - Keep commits focused and update docs/man pages when behavior changes.
