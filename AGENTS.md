@@ -28,6 +28,10 @@
 - Use `my-test#script` for multi-script cases; set `expectFailure = true` when capturing known failures.
 - While developing, run `./test-runner.sh ls '<pattern>'` to explore cases and `./test-runner.sh debug <name>` for stepwise checks; per-test state lives under `result/`.
 
+### Test runner tips
+- When there are **no local changes** in `osvm` or `test-runner`, prefer the prebuilt gems: run from repo root with `./test-runner.sh …`.
+- After modifying `osvm` or `test-runner`, run under nix-shell to pick up local code: `nix-shell test-runner/shell.nix --run 'bundle exec ./test-runner/bin/test-runner <args>'` (cwd must be repo root so `$PWD/tests` is found).
+
 ## Commit & Pull Request Guidelines
 - Follow existing history: `<area>: <change>` (e.g., `os: ...`, `tests/distributions: ...`); present tense, scoped subjects.
 - Keep commits focused and update docs/man pages when behavior changes.
