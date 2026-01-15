@@ -131,7 +131,9 @@ tests [
   "docker/ubuntu-20.04"
   "docker/ubuntu-22.04"
   "docker/ubuntu-24.04"
-  "driver"
+  "driver/nixos"
+  "driver/rspec"
+  "driver/vpsadminos"
   {
     template = "image-scripts/test";
     instances = imageScripts;
