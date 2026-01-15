@@ -100,6 +100,38 @@ themselves in `tests/suite/`.
 All tests have to be registered in `tests/all-tests.nix`, otherwise they cannot
 be run.
 
+### Machine spins (vpsAdminOS vs NixOS)
+Machines default to vpsAdminOS. To boot NixOS instead, set `spin = "nixos"` on
+the machine definition and provide the NixOS config you want to test. You can
+mix vpsAdminOS and NixOS machines within a single test.
+
+Minimal NixOS example:
+
+```nix
+import ../make-test.nix ({ pkgs }: {
+  name = "nixos-example";
+  description = "NixOS machine example";
+
+  machine = {
+    spin = "nixos";
+    config = {
+      networking.hostName = "nixos";
+      virtualisation.memorySize = 2048;
+      virtualisation.cores = 2;
+    };
+    # optional extra modules
+    # modules = [ ./extra-module.nix ];
+  };
+
+  testScript = ''
+    machine.start
+    machine.wait_for_boot
+    machine.wait_for_service("test-shell")
+    machine.succeeds("echo hello")
+  '';
+})
+```
+
 ## Running tests
 To run the entire test suite, use:
 
