@@ -11,10 +11,10 @@ import ../../make-test.nix (
 
     machines = {
       # We expect the default to be cgroupv2
-      default_cgroup = import ../../machines/empty.nix pkgs;
+      default_cgroup = import ../../machines/vpsadminos/empty.nix pkgs;
 
       # We set the default to cgroupv1, but expect it to start with cgroupv2
-      runtime_cgroup = import ../../machines/with-empty.nix {
+      runtime_cgroup = import ../../machines/vpsadminos/with-empty.nix {
         inherit pkgs;
         config =
           { config, ... }:

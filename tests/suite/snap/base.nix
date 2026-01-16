@@ -20,7 +20,7 @@ import ../../make-test.nix (
 
     attempts = 3;
 
-    machine = import ../../machines/tank.nix pkgs;
+    machine = import ../../machines/vpsadminos/tank.nix pkgs;
 
     testScript = ''
       machine.start

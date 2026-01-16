@@ -9,7 +9,7 @@ import ../make-test.nix (
 
     tags = [ "ci" ];
 
-    machine = import ../machines/with-tank.nix {
+    machine = import ../machines/vpsadminos/with-tank.nix {
       inherit pkgs;
       config =
         { config, ... }:

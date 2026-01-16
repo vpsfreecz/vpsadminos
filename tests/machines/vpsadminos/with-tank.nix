@@ -1,4 +1,5 @@
-pkgs: {
+{ pkgs, config }:
+{
   disks = [
     {
       type = "file";
@@ -9,8 +10,9 @@ pkgs: {
 
   config = {
     imports = [
-      ../configs/base.nix
-      ../configs/pool-tank.nix
+      ../../configs/vpsadminos/base.nix
+      ../../configs/vpsadminos/pool-tank.nix
+      config
     ];
   };
 }

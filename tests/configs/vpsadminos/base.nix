@@ -6,8 +6,8 @@
 }:
 with lib;
 {
-  imports = optionals (lib.pathExists ../../os/configs/tests.nix) (
-    trace "Using os/configs/tests.nix" [ ../../os/configs/tests.nix ]
+  imports = optionals (lib.pathExists ../../../os/configs/tests.nix) (
+    trace "Using os/configs/tests.nix" [ ../../../os/configs/tests.nix ]
   );
 
   boot.kernelParams = [ "root=/dev/vda" ];

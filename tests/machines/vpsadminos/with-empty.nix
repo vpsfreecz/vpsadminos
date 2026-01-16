@@ -2,7 +2,7 @@
 {
   config = {
     imports = [
-      ../configs/base.nix
+      ../../configs/vpsadminos/base.nix
       config
     ];
 

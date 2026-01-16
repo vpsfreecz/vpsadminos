@@ -63,7 +63,7 @@ let
         modules
         ++ [ (nixpkgs.path + "/nixos/modules/virtualisation/qemu-vm.nix") ]
         ++ (machine.modules or [ ])
-        ++ [ ./nixos/configs/base.nix ]
+        ++ [ ./configs/nixos/base.nix ]
         ++ [ machine.config or { } ];
     };
 

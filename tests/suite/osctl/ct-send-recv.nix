@@ -15,8 +15,8 @@ let
 
     config = {
       imports = [
-        ../../configs/base.nix
-        ../../configs/pool-tank.nix
+        ../../configs/vpsadminos/base.nix
+        ../../configs/vpsadminos/pool-tank.nix
       ];
 
       networking.custom = ''

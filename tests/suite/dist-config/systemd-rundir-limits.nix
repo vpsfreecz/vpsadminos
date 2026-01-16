@@ -10,7 +10,7 @@ import ../../make-test.nix (
     tags = [ "ci" ];
 
     machines = {
-      cgv1 = import ../../machines/with-tank.nix {
+      cgv1 = import ../../machines/vpsadminos/with-tank.nix {
         inherit pkgs;
         config =
           { config, ... }:
@@ -19,7 +19,7 @@ import ../../make-test.nix (
           };
       };
 
-      cgv2 = import ../../machines/with-tank.nix {
+      cgv2 = import ../../machines/vpsadminos/with-tank.nix {
         inherit pkgs;
         config =
           { config, ... }:

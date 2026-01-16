@@ -29,7 +29,7 @@ import ../../make-test.nix (
 
     tags = [ "ci" ];
 
-    machine = import ../../machines/tank.nix pkgs;
+    machine = import ../../machines/vpsadminos/tank.nix pkgs;
 
     testScripts = {
       attrs = {

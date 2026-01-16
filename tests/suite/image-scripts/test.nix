@@ -12,7 +12,7 @@ import ../../make-template.nix (
           Test that container image ${image-script} can be built and passes the tests
         '';
 
-        machine = import ../../machines/with-tank.nix {
+        machine = import ../../machines/vpsadminos/with-tank.nix {
           inherit pkgs;
           config =
             { config, ... }:

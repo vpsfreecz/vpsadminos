@@ -11,7 +11,7 @@ import ../../make-test.nix (
 
     machines = {
       # Enable cgroupv1 by default
-      config_cgroup = import ../../machines/with-empty.nix {
+      config_cgroup = import ../../machines/vpsadminos/with-empty.nix {
         inherit pkgs;
         config =
           { config, ... }:
@@ -21,7 +21,7 @@ import ../../make-test.nix (
       };
 
       # We set the default to cgroupv2, but expect it to start with cgroupv1
-      runtime_cgroup = import ../../machines/with-empty.nix {
+      runtime_cgroup = import ../../machines/vpsadminos/with-empty.nix {
         inherit pkgs;
         config =
           { config, ... }:

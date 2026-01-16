@@ -1,6 +1,6 @@
 pkgs: {
   config = {
-    imports = [ ../configs/base.nix ];
+    imports = [ ../../configs/vpsadminos/base.nix ];
 
     boot.zfs.pools = { };
   };

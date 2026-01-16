@@ -74,7 +74,7 @@ import ../../make-test.nix (
       "regression"
     ];
 
-    machine = import ../../machines/tank.nix pkgs;
+    machine = import ../../machines/vpsadminos/tank.nix pkgs;
 
     testScript = ''
       machine.start
