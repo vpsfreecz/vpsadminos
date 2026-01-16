@@ -17,6 +17,7 @@ Gem::Specification.new do |s|
   s.email       = 'jakub.skokan@vpsfree.cz'
   s.files       = `git ls-files -z`.split("\x0")
   s.files      += Dir['man/man?/*.?']
+  s.files      += Dir['nix/**/*.nix']
   s.executables = s.files.grep(%r{^bin/}) { |f| File.basename(f) }
   s.license     = 'MIT'
 

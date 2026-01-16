@@ -24,6 +24,9 @@ module TestRunner
     protected
 
     def extract(path: nil)
+      list_tests = File.expand_path('../../nix/list-tests.nix', __dir__)
+      tests_root = File.expand_path('tests', Dir.pwd)
+
       cmd = [
         'nix-instantiate',
         '--eval',
@@ -32,8 +35,9 @@ module TestRunner
         '--read-write-mode'
       ]
 
+      cmd << '--arg' << 'testsRoot' << tests_root
       cmd << '--attr' << "\\\"#{path}\\\"" if path
-      cmd << 'tests/list-tests.nix'
+      cmd << list_tests
 
       json = `#{cmd.join(' ')}`
 

@@ -5,6 +5,10 @@
 let
   nixpkgs = import pkgs { };
   lib = nixpkgs.lib;
+  testLib = import ../test-runner/nix/lib.nix {
+    inherit pkgs system lib;
+    suitePath = ./suite;
+  };
 
   distributions = import ./distributions.nix { inherit lib; };
 
@@ -21,55 +25,8 @@ let
       scriptsList = lib.mapAttrsToList (name: type: { image-script = name; }) scriptsAttrs;
     in
     scriptsList;
-
-  makeSingleTest =
-    {
-      test,
-      args ? { },
-    }:
-    {
-      name = test;
-      value = {
-        type = "single";
-        test = import (./suite + "/${test}.nix") {
-          inherit pkgs system;
-          testArgs = args;
-        };
-        testArgs = args;
-      };
-    };
-
-  makeTemplateTest =
-    { template, instances }:
-    map (
-      args:
-      let
-        t = import (./suite + "/${template}.nix") {
-          templateArgs = args;
-          inherit pkgs system;
-        };
-      in
-      {
-        name = "${template}@${t.instance}";
-        value = {
-          type = "template";
-          template = template;
-          templateArgs = args;
-          test = t;
-        };
-      }
-    ) instances;
-
-  makeTest =
-    v:
-    if builtins.isAttrs v then
-      if builtins.hasAttr "template" v then makeTemplateTest v else makeSingleTest v
-    else
-      makeSingleTest { test = v; };
-
-  tests = list: builtins.listToAttrs (lib.flatten (map makeTest list));
 in
-tests [
+testLib.makeTests [
   "cgroups/devices-v1"
   "cgroups/devices-v2"
   {
