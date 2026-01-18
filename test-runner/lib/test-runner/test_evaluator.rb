@@ -322,7 +322,11 @@ module TestRunner
 
             log "[#{i}/#{example_count}] '#{result.title}' #{status} in #{result.elapsed_time.round(2)}s"
 
-            yield({ type: :example, progress: i, total: example_count, result: result })
+            # No block is given in debug mode
+            if block_given?
+              yield({ type: :example, progress: i, total: example_count, result: result })
+            end
+
             @current_example = nil
 
             i += 1
