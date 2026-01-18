@@ -47,10 +47,11 @@ in
   ];
 
   boot.kernelModules = [ "virtiofs" ];
-  boot.supportedFilesystems = [
-    "ext4"
-    "virtiofs"
-  ];
+
+  boot.supportedFilesystems = {
+    ext4 = true;
+    virtiofs = true;
+  };
 
   fileSystems."/" = {
     device = "/dev/disk/by-label/nixos";
