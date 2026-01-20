@@ -28,7 +28,7 @@ let
 in
 {
   networking.nameservers = mkDefault nameservers;
-  services.resolved = mkDefault { fallbackDns = nameservers; };
+  services.resolved.settings.Resolve = mkDefault { FallbackDNS = nameservers; };
   networking.dhcpcd.extraConfig = "noipv4ll";
 
   systemd.services.systemd-oomd.enable = false;
