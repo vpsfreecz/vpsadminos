@@ -138,7 +138,8 @@ module TestRunner
 
     # Create an example group
     #
-    # Example groups can be nested. Groups are evaluated in random order.
+    # Example groups can be nested. Groups are evaluated in the configured order,
+    # which defaults to random.
     # Groups contain examples which are defined within the yielded block
     # using {#it}.
     #
@@ -192,7 +193,7 @@ module TestRunner
     # Create a test example
     #
     # {#it} must be called from within a {#describe} block. Examples within a group
-    # are evaluated in random order.
+    # are evaluated in the group's configured order.
     #
     # @param message [String]
     # @param pending [Boolean]
@@ -297,7 +298,7 @@ module TestRunner
 
       @before.each(&:call)
 
-      results = @example_groups.shuffle.map do |grp|
+      results = ExampleOrdering.sort_by_order(@example_groups, @example_config.default_order).map do |grp|
         grp.evaluate do |type, example_or_result|
           if type == :before
             log "[#{i}/#{example_count}] Evaluating '#{example_or_result.full_message}'"

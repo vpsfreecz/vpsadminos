@@ -1,3 +1,5 @@
+require 'test-runner/example_ordering'
+
 module TestRunner
   class ExampleGroup
     # @return [Array<ExampleGroup>]
@@ -98,18 +100,7 @@ module TestRunner
     protected
 
     def sort_by_order(array)
-      case @order
-      when :defined
-        array
-      when :rand
-        array.shuffle
-      when Random
-        array.shuffle(random: @order)
-      when Integer
-        array.shuffle(random: Random.new(@order))
-      else
-        raise "Invalid order #{@order.inspect}"
-      end
+      ExampleOrdering.sort_by_order(array, @order)
     end
   end
 end
