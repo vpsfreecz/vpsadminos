@@ -1,8 +1,11 @@
 require 'pry'
 require 'osvm'
 require 'rspec/expectations'
+require 'test-runner/hook'
 
 module TestRunner
+  Hook.register(:machine_class_for)
+
   class TestEvaluator
     include RSpec::Matchers
 
@@ -382,6 +385,9 @@ module TestRunner
     end
 
     def machine_class_for(config)
+      klass = Hook.call(:machine_class_for, args: [config])
+      return klass if klass
+
       case config.spin
       when 'vpsadminos'
         OsVm::VpsadminosMachine
