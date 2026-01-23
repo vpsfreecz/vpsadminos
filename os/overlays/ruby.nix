@@ -1,6 +1,6 @@
 self: super:
 let
-  ruby_3_4 = super.ruby_3_4.overrideAttrs (oldAttrs: rec {
+  ruby_vpsadminos = super.ruby_3_4.overrideAttrs (oldAttrs: rec {
     patches = oldAttrs.patches ++ [
       ../packages/ruby/export-timer-functions.patch
     ];
@@ -16,9 +16,9 @@ let
   });
 in
 {
-  inherit ruby_3_4;
+  inherit ruby_vpsadminos;
 
-  ruby = ruby_3_4;
+  ruby = ruby_vpsadminos;
 
   defaultGemConfig = super.callPackage (
     { lib, apparmor-parser }:

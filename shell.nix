@@ -20,7 +20,7 @@ stdenv.mkDerivation rec {
     ncurses
     nixfmt-rfc-style
     nixfmt-tree
-    ruby_3_4
+    ruby_vpsadminos
   ];
 
   shellHook = ''
