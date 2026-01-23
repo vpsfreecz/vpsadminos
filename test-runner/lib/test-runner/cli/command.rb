@@ -5,6 +5,7 @@ module TestRunner
     def self.run(method)
       proc do |global_opts, opts, args|
         cmd = new(global_opts, opts, args)
+        cmd.send(:load_extensions)
         cmd.method(method).call
       end
     end
@@ -75,6 +76,19 @@ module TestRunner
 
     def state_dir
       File.join(opts['state-dir'] || File.join(ENV['TMPDIR'] || '/tmp', 'os-test-runner'))
+    end
+
+    def load_extensions
+      return if @extensions_loaded
+
+      @extensions_loaded = true
+
+      ext_dir = File.expand_path(File.join('tests', 'runner', 'extensions'), Dir.pwd)
+      return unless Dir.exist?(ext_dir)
+
+      Dir[File.join(ext_dir, '*.rb')].each do |file|
+        load(file)
+      end
     end
   end
 end
