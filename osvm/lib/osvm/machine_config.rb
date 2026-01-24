@@ -226,6 +226,12 @@ module OsVm
     # @return [Array<Network>]
     attr_reader :networks
 
+    # @return [Array<String>]
+    attr_reader :tags
+
+    # @return [Hash<String, String>]
+    attr_reader :labels
+
     # @param cfg [Hash]
     def initialize(cfg)
       @spin = cfg.fetch('spin', 'vpsadminos')
@@ -244,6 +250,8 @@ module OsVm
       @networks = cfg.fetch('networks', [{ 'type' => 'user' }]).each_with_index.map do |net_cfg, i|
         Network.from_config(i, net_cfg)
       end
+      @tags = cfg.fetch('tags', [])
+      @labels = cfg.fetch('labels', {})
     end
   end
 

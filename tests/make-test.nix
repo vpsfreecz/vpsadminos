@@ -102,6 +102,8 @@ let
       disks = machine.disks or [ ];
       networks = machine.networks or defaultNetworks;
       sharedFileSystems = machine.sharedFileSystems or { };
+      tags = machine.tags or [ ];
+      labels = machine.labels or { };
       squashfs = vpsadminos.config.system.build.squashfs;
       kernel = "${vpsadminos.config.system.build.kernel}/bzImage";
       initrd = "${vpsadminos.config.system.build.initialRamdisk}/initrd";
@@ -158,6 +160,8 @@ let
       disks = machine.disks or [ ];
       networks = machine.networks or defaultNetworks;
       sharedFileSystems = machine.sharedFileSystems or { };
+      tags = machine.tags or [ ];
+      labels = machine.labels or { };
       kernel = "${nixos.config.system.build.kernel}/bzImage";
       initrd = "${nixos.config.system.build.initialRamdisk}/initrd";
       toplevel = nixos.config.system.build.toplevel;
