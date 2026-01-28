@@ -1,5 +1,5 @@
 require 'json'
-require 'securerandom'
+require 'osvm/mac_address_generator'
 
 module OsVm
   class MachineConfig
@@ -65,24 +65,43 @@ module OsVm
         klass.new(i, cfg)
       end
 
+      # @return [String]
       # @return [Integer]
       attr_reader :index
 
       # @return [String]
       attr_reader :type
 
+      # @return [String]
+      attr_reader :mac
+
       def initialize(i, cfg)
         @index = i
         @type = cfg.fetch('type')
-        @opts = cfg.fetch('opts', {
-          'network' => '10.0.2.0/24',
-          'host' => '10.0.2.2',
-          'dns' => '10.0.2.3'
-        })
+        @opts = cfg.fetch('opts', default_opts)
+        @mac = resolve_mac_address(cfg)
       end
 
       def qemu_options
         raise NotImplementedError
+      end
+
+      protected
+
+      def resolve_mac_address(cfg)
+        mac = cfg['macAddress'] || cfg['mac'] || @opts['macAddress'] || @opts['mac']
+        mac = mac.to_s.downcase unless mac.nil?
+        return MacAddressGenerator.register_mac(mac) if mac && !mac.empty?
+
+        MacAddressGenerator.next_mac
+      end
+
+      def default_opts
+        {
+          'network' => '10.0.2.0/24',
+          'host' => '10.0.2.2',
+          'dns' => '10.0.2.3'
+        }
       end
     end
 
@@ -92,7 +111,7 @@ module OsVm
         net_opts << ",hostfwd=#{@opts['hostForward']}" if @opts['hostForward']
 
         [
-          '-device', "virtio-net,netdev=net#{index}",
+          '-device', "virtio-net,netdev=net#{index},mac=#{mac}",
           '-netdev', "user,id=net#{index},#{net_opts}"
         ]
       end
@@ -127,7 +146,7 @@ module OsVm
 
       def qemu_options
         [
-          '-device', "virtio-net,netdev=net#{index}",
+          '-device', "virtio-net,netdev=net#{index},mac=#{mac}",
           '-netdev', "socket,id=net#{index},mcast=#{mcast_address}:#{mcast_port}"
         ]
       end
@@ -137,26 +156,16 @@ module OsVm
       # @return [String]
       attr_reader :link
 
-      # @return [String]
-      attr_reader :mac
-
       def initialize(_i, cfg)
         super
         @link = @opts.fetch('link')
-        @mac = @opts['mac'] || gen_mac_address
       end
 
       def qemu_options
         [
-          '-device', "virtio-net,netdev=net#{index},mac=#{@mac}",
+          '-device', "virtio-net,netdev=net#{index},mac=#{mac}",
           '-netdev', "bridge,id=net#{index},br=#{link}"
         ]
-      end
-
-      protected
-
-      def gen_mac_address
-        "00:60:2f:#{SecureRandom.hex(3).chars.each_slice(2).map(&:join).join(':')}"
       end
     end
 
