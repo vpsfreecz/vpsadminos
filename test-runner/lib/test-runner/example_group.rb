@@ -8,6 +8,9 @@ module TestRunner
     # @return [Array<Example>]
     attr_reader :examples
 
+    # @return [nil, :defined, :rand, Random, Integer]
+    attr_reader :order
+
     # @param obj [#to_s]
     # @param config [ExampleConfiguration]
     # @param parent [ExampleGroup]
@@ -16,7 +19,7 @@ module TestRunner
       @obj = obj
       @config = config
       @parent = parent
-      @order = order || @config.default_order
+      @order = order || parent&.order || @config.default_order
       @block = block
       @groups = []
       @examples = []
