@@ -96,6 +96,19 @@ import ../../make-test.nix (
         fail "#wait_for_block did not return expected value: got #{wait_ret.inspect}, expected 123"
       end
 
+      expect_wait_i = 0
+
+      wait_ret =
+        wait_for_block(name: 'expectation block', timeout: 5) do
+          expect_wait_i += 1
+          expect(expect_wait_i).to be >= 3
+          expect_wait_i
+        end
+
+      if wait_ret != 3
+        fail "#wait_for_block did not retry on expectation failure: got #{wait_ret.inspect}, expected 3"
+      end
+
       begin
         wait_for_block(name: 'failed block', timeout: 5) do
           sleep(1)

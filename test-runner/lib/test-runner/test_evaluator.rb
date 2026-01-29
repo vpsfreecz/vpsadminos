@@ -254,6 +254,8 @@ module TestRunner
     # Wait for block to succeed
     #
     # Yield until the code block returns a truthy value or a timeout is reached.
+    # RSpec expectation failures inside the block are treated as a falsey
+    # return value and retried until the timeout.
     #
     # @param name [String] block name for error reporting
     # @param timeout [Integer]
@@ -264,7 +266,12 @@ module TestRunner
       cur_timeout = timeout
 
       loop do
-        ret = yield
+        ret =
+          begin
+            yield
+          rescue RSpec::Expectations::ExpectationNotMetError
+            false
+          end
         return ret if ret
 
         cur_timeout = timeout - (Time.now - t1)
