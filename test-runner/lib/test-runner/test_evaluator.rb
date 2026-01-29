@@ -284,6 +284,83 @@ module TestRunner
       end
     end
 
+    # Wait for a block that eventually succeeds
+    #
+    # Intended for polling code that can temporarily fail with
+    # {OsVm::CommandFailed} (treated as a retry) or signal success via
+    # {OsVm::CommandSucceeded}. RSpec expectation failures are also treated as
+    # retryable. The method returns as soon as the block yields a truthy value
+    # or raises {OsVm::CommandSucceeded}.
+    #
+    # @param name [String] block name for error reporting
+    # @param timeout [Integer]
+    # @return [any] block return value or true when success is signaled with
+    #   {OsVm::CommandSucceeded}
+    # @raise [OsVm::TimeoutError] when the block does not succeed in time
+    def wait_until_block_succeeds(name:, timeout: @default_timeout)
+      t1 = Time.now
+      cur_timeout = timeout
+
+      loop do
+        ret =
+          begin
+            yield
+          rescue OsVm::CommandFailed, RSpec::Expectations::ExpectationNotMetError
+            false
+          rescue OsVm::CommandSucceeded
+            true
+          end
+        return ret if ret
+
+        cur_timeout = timeout - (Time.now - t1)
+
+        if cur_timeout <= 0
+          raise OsVm::TimeoutError, "Timeout occurred while waiting for #{name} to succeed"
+        end
+
+        sleep(1)
+      end
+    end
+
+    # Wait for a block that eventually fails
+    #
+    # Intended for polling code that is expected to start failing with
+    # {OsVm::CommandFailed}. {OsVm::CommandSucceeded} is treated as a retryable
+    # result, because the block may succeed before it starts failing. If no
+    # exception is raised, the method returns once the block yields a falsey
+    # value. RSpec expectations are not handled here because they cannot be
+    # reliably distinguished.
+    #
+    # @param name [String] block name for error reporting
+    # @param timeout [Integer]
+    # @return [any] block return value or true when failure is signaled with
+    #   {OsVm::CommandFailed}
+    # @raise [OsVm::TimeoutError] when the block does not fail in time
+    def wait_until_block_fails(name:, timeout: @default_timeout)
+      t1 = Time.now
+      cur_timeout = timeout
+
+      loop do
+        begin
+          ret = yield
+        rescue OsVm::CommandFailed
+          return true
+        rescue OsVm::CommandSucceeded
+          ret = true
+        end
+
+        return ret unless ret
+
+        cur_timeout = timeout - (Time.now - t1)
+
+        if cur_timeout <= 0
+          raise OsVm::TimeoutError, "Timeout occurred while waiting for #{name} to fail"
+        end
+
+        sleep(1)
+      end
+    end
+
     protected
 
     def test_script(name, &)

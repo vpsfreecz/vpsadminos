@@ -109,6 +109,67 @@ import ../../make-test.nix (
         fail "#wait_for_block did not retry on expectation failure: got #{wait_ret.inspect}, expected 3"
       end
 
+      wait_success_i = 0
+
+      wait_ret =
+        wait_until_block_succeeds(name: 'block eventually succeeds', timeout: 5) do
+          wait_success_i += 1
+
+          if wait_success_i < 3
+            machine.succeeds("false")
+          else
+            "ok"
+          end
+        end
+
+      if wait_ret != "ok"
+        fail "#wait_until_block_succeeds did not return expected value: got #{wait_ret.inspect}, expected 'ok'"
+      end
+
+      wait_ret =
+        wait_until_block_succeeds(name: 'CommandSucceeded success', timeout: 5) do
+          machine.fails("true")
+        end
+
+      if wait_ret != true
+        fail "#wait_until_block_succeeds did not handle CommandSucceeded: got #{wait_ret.inspect}"
+      end
+
+      wait_ret =
+        wait_until_block_fails(name: 'CommandFailed failure', timeout: 5) do
+          machine.succeeds("false")
+        end
+
+      if wait_ret != true
+        fail "#wait_until_block_fails did not handle CommandFailed: got #{wait_ret.inspect}"
+      end
+
+      retry_i = 0
+
+      wait_ret =
+        wait_until_block_fails(name: 'CommandSucceeded retry', timeout: 5) do
+          retry_i += 1
+
+          if retry_i < 3
+            machine.fails("true")
+          else
+            machine.succeeds("false")
+          end
+        end
+
+      if wait_ret != true
+        fail "#wait_until_block_fails did not retry on CommandSucceeded: got #{wait_ret.inspect}"
+      end
+
+      wait_ret =
+        wait_until_block_fails(name: 'falsey failure', timeout: 5) do
+          false
+        end
+
+      if wait_ret != false
+        fail "#wait_until_block_fails did not return block value: got #{wait_ret.inspect}"
+      end
+
       begin
         wait_for_block(name: 'failed block', timeout: 5) do
           sleep(1)
