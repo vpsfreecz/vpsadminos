@@ -41,6 +41,7 @@ nav:
     - 'Control groups': 'os/cgroups.md'
     - Shell history: 'os/shell-history.md'
     - Testing: 'os/testing.md'
+    - 'Test framework integration': 'os/test-framework-integration.md'
 - Services:
     - Docker: 'services/docker.md'
     - Snappy: 'services/snappy.md'
