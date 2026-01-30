@@ -2,6 +2,8 @@ require 'pry'
 require 'osvm'
 require 'rspec/expectations'
 require 'test-runner/hook'
+require 'test-runner/test_script_result'
+require 'test-runner/example_result'
 
 module TestRunner
   Hook.register(:machine_class_for)
@@ -62,8 +64,8 @@ module TestRunner
     end
 
     # Run the test scripts
-    # @yieldparam [Hash] one result per test script
-    # @return [Hash<String, Boolean>] script name => result
+    # @yieldparam [TestScriptResult, Hash] one result per test event
+    # @return [Hash<String, TestScriptResult>] script name => result
     def run
       ret = {}
 
@@ -77,17 +79,13 @@ module TestRunner
 
             test_script(script.name) do |progress|
               if progress[:type] == :example
-                yield({
-                  type: :example,
+                example_result = progress[:result].to_h(
                   script: script.name,
-                  example: progress[:result].example.full_message,
                   progress: progress[:progress],
-                  total: progress[:total],
-                  success: progress[:result].success?,
-                  pending: progress[:result].pending?,
-                  skip: progress[:result].skip?,
-                  elapsed_time: progress[:result].elapsed_time
-                })
+                  total: progress[:total]
+                )
+
+                yield(example_result) if block_given?
               end
             end
 
@@ -101,15 +99,10 @@ module TestRunner
             success = true
           end
 
-          result = {
-            type: :script,
-            script: script.name,
-            success:,
-            elapsed_time: t2 - t1
-          }
+          script_result = TestScriptResult.new(script, success, t2 - t1)
 
-          ret[script.name] = result
-          yield(result) if block_given?
+          ret[script.name] = script_result
+          yield(script_result) if block_given?
         end
       end
 

@@ -1,3 +1,5 @@
+require 'json'
+
 module TestRunner
   class TestScriptResult
     # @return [TestScript]
@@ -41,6 +43,32 @@ module TestRunner
 
     def expected_to_fail?
       test_script.expect_failure
+    end
+
+    # @return [Hash]
+    def to_h
+      {
+        'type' => 'script',
+        'script' => test_script.name,
+        'success' => success,
+        'elapsed_time' => elapsed_time,
+        'expected_to_succeed' => expected_to_succeed?,
+        'expected_result' => expected_result?
+      }
+    end
+
+    # @param json [Hash]
+    # @return [TestScriptResult]
+    def self.from_h(test_script, json)
+      new(
+        test_script,
+        json.fetch('success'),
+        json.fetch('elapsed_time')
+      )
+    end
+
+    def to_json(*)
+      to_h.to_json(*)
     end
   end
 end

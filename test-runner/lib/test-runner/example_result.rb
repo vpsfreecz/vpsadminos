@@ -51,5 +51,20 @@ module TestRunner
         @exception.message
       end
     end
+
+    # @return [Hash]
+    def to_h(script:, progress:, total:)
+      {
+        'type' => 'example',
+        'script' => script,
+        'example' => example.full_message,
+        'progress' => progress,
+        'total' => total,
+        'success' => success?,
+        'pending' => pending?,
+        'skip' => skip?,
+        'elapsed_time' => elapsed_time
+      }
+    end
   end
 end

@@ -239,15 +239,10 @@ module TestRunner
             next
           end
 
-          test_script = test.test_scripts[result_hash['script']]
-
-          if result_hash['type'] == 'script'
-            script_result = TestScriptResult.new(
-              test_script,
-              result_hash['success'],
-              result_hash['elapsed_time']
-            )
-
+          case result_hash['type']
+          when 'script'
+            test_script = test.test_scripts[result_hash['script']]
+            script_result = TestScriptResult.from_h(test_script, result_hash)
             script_results << script_result
 
             next if test_script.singleton?
@@ -269,7 +264,7 @@ module TestRunner
 
               stop_work! if opts[:stop_on_failure]
             end
-          elsif result_hash['type'] == 'example'
+          when 'example'
             status =
               if result_hash['success']
                 if result_hash['pending']
