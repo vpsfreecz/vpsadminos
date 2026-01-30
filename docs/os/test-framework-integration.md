@@ -71,6 +71,21 @@ Custom helpers can be added under `tests/runner/extensions/`. vpsAdmin adds
   end
   ```
 Use the same hook points to add helpers for your own services or machine types.
+Two more hooks are available for post-run diagnostics:
+- `:after_test_run` receives the test, scripts, machines and a `TestRunner::TestResult`.
+- `:after_test_script_run` receives the test, machines and a `TestRunner::TestScriptResult`.
+Example: gather logs only when a script ends with an unexpected result:
+```ruby
+TestRunner::Hook.subscribe(:after_test_script_run) do |script_result:, machines:, **|
+  next if script_result.expected_result?
+
+  machines.each_value do |machine|
+    next unless machine.can_execute?
+
+    machine.execute("journalctl -n 200 --unit #{script_result.test_script.name}")
+  end
+end
+```
 
 ### Run the suite
 Invoke the wrapper with the usual runner commands:

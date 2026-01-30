@@ -2,11 +2,14 @@ require 'pry'
 require 'osvm'
 require 'rspec/expectations'
 require 'test-runner/hook'
+require 'test-runner/test_result'
 require 'test-runner/test_script_result'
 require 'test-runner/example_result'
 
 module TestRunner
   Hook.register(:machine_class_for)
+  Hook.register(:after_test_run)
+  Hook.register(:after_test_script_run)
 
   class TestEvaluator
     include RSpec::Matchers
@@ -68,6 +71,8 @@ module TestRunner
     # @return [Hash<String, TestScriptResult>] script name => result
     def run
       ret = {}
+      script_results = []
+      test_started_at = Time.now
 
       do_run do
         @scripts.each do |script|
@@ -102,8 +107,13 @@ module TestRunner
           script_result = TestScriptResult.new(script, success, t2 - t1)
 
           ret[script.name] = script_result
+          script_results << script_result
+          call_after_test_script_hook(script_result)
           yield(script_result) if block_given?
         end
+
+        test_result = build_test_result(script_results, Time.now - test_started_at)
+        call_after_test_run_hook(test_result)
       end
 
       ret
@@ -355,6 +365,44 @@ module TestRunner
     end
 
     protected
+
+    def call_after_test_run_hook(test_result)
+      Hook.call(
+        :after_test_run,
+        kwargs: {
+          test: @test,
+          test_result:,
+          scripts: @scripts,
+          machines:,
+          state_dir: @opts[:state_dir]
+        }
+      )
+    end
+
+    def call_after_test_script_hook(script_result)
+      Hook.call(
+        :after_test_script_run,
+        kwargs: {
+          test: @test,
+          script: script_result.test_script,
+          script_result:,
+          machines:,
+          state_dir: @opts[:state_dir]
+        }
+      )
+    end
+
+    def build_test_result(script_results, elapsed_time)
+      test_success = script_results.all?(&:expected_result?)
+
+      TestResult.new(
+        @test,
+        script_results,
+        test_success,
+        elapsed_time,
+        @opts[:state_dir]
+      )
+    end
 
     def test_script(name, &)
       @example_config = ExampleConfiguration.new
