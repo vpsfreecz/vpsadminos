@@ -18,27 +18,27 @@ GEM
     rspec-expectations (3.13.5)
       diff-lcs (>= 1.2.0, < 2.0)
       rspec-support (~> 3.13.0)
-    rspec-support (3.13.6)
-    syslog (0.3.0)
+    rspec-support (3.13.7)
+    syslog (0.4.0)
       logger
 
 GEM
   remote: https://rubygems.vpsfree.cz/
   specs:
-    libosctl (25.11.0.build20260118213558)
+    libosctl (25.11.0.build20260130175827)
       fiddle
       logger
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
       syslog
-    osvm (25.11.0.build20260118213558)
+    osvm (25.11.0.build20260130175827)
       base64
       gli (~> 2.22.0)
-      libosctl (= 25.11.0.build20260118213558)
-    test-runner (25.11.0.build20260118213558)
+      libosctl (= 25.11.0.build20260130175827)
+    test-runner (25.11.0.build20260130175827)
       gli (~> 2.22.0)
-      libosctl (= 25.11.0.build20260118213558)
-      osvm (= 25.11.0.build20260118213558)
+      libosctl (= 25.11.0.build20260130175827)
+      osvm (= 25.11.0.build20260130175827)
       pry (~> 0.15.0)
       rspec-expectations (~> 3.13)
 
@@ -47,7 +47,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  test-runner (= 25.11.0.build20260118213558)!
+  test-runner (= 25.11.0.build20260130175827)!
 
 BUNDLED WITH
    2.7.2

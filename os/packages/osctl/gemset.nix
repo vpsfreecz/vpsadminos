@@ -93,10 +93,10 @@
     platforms = [ ];
     source = {
       remotes = [ "https://rubygems.vpsfree.cz" ];
-      sha256 = "1mhw1dziz7hlb071ha5ahraxbmnb0mmxm5f12q6mbgqm2drmcpsp";
+      sha256 = "1n52b0caz478zy4qnmwdkhyjn3bnlrhis3wh5cf75kjhlkv2z1xq";
       type = "gem";
     };
-    version = "25.11.0.build20260118213558";
+    version = "25.11.0.build20260130175827";
   };
   logger = {
     groups = [ "default" ];
@@ -126,10 +126,10 @@
     platforms = [ ];
     source = {
       remotes = [ "https://rubygems.vpsfree.cz" ];
-      sha256 = "0i74hixyan79kcw96xpcr61imi0yvh5jz9a20a9sisrq7xvfir0n";
+      sha256 = "04kba7m1h5mv0q3400fv7ly0dh6r1byf7kn5wn2cpdki2djb3l7s";
       type = "gem";
     };
-    version = "25.11.0.build20260118213558";
+    version = "25.11.0.build20260130175827";
   };
   ostruct = {
     groups = [ "default" ];
@@ -188,10 +188,10 @@
     platforms = [ ];
     source = {
       remotes = [ "https://rubygems.org" ];
-      sha256 = "023lbh48fcn72gwyh1x52ycs1wx1bnhdajmv0qvkidmdsmxnxzjd";
+      sha256 = "0wklh86rhpiff34ja0hda5pwdfywybjvb50hqhz90wpyhblqmhy4";
       type = "gem";
     };
-    version = "0.3.0";
+    version = "0.4.0";
   };
   tty-cursor = {
     groups = [ "default" ];
