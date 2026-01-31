@@ -36,10 +36,13 @@ runs:
           exit 1
         fi
 
+        # Disable pipefail while grepping so missing matches do not fail the step
+        set +o pipefail
         EXPECTED_SUCCESSFUL=$(grep -oP "\d+ tests successful" "$log_file" | cut -f1 -d ' ')
         EXPECTED_FAILED=$(grep -oP "\d+ tests failed as expected" "$log_file" | cut -f1 -d ' ')
         UNEXPECTED_FAILED=$(grep -oP "\d+ tests should have succeeded" "$log_file" | cut -f1 -d ' ')
         UNEXPECTED_SUCCESSFUL=$(grep -oP "\d+ tests should have failed" "$log_file" | cut -f1 -d ' ')
+        set -o pipefail
 
         echo "expected_successful=${EXPECTED_SUCCESSFUL:-0}" >>"$GITHUB_OUTPUT"
         echo "expected_failed=${EXPECTED_FAILED:-0}" >>"$GITHUB_OUTPUT"
