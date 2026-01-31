@@ -1,0 +1,33 @@
+name: upload-test-logs
+description: Upload full test-runner logs as an artifact
+
+inputs:
+  name:
+    description: Artifact name
+    required: false
+    default: os-test-logs-${{ github.run_id }}
+  paths:
+    description: Paths to include in the artifact upload
+    required: false
+    default: |
+      /tmp/os-test-runner/**/*.log
+      /tmp/os-test-runner/**/*.txt
+  retention-days:
+    description: Days to retain the artifact
+    required: false
+    default: "14"
+  if-no-files-found:
+    description: Behavior when no files are found (error, warn, ignore)
+    required: false
+    default: ignore
+
+runs:
+  using: composite
+  steps:
+    - name: Upload logs
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ inputs.paths }}
+        retention-days: ${{ inputs.retention-days }}
+        if-no-files-found: ${{ inputs.if-no-files-found }}

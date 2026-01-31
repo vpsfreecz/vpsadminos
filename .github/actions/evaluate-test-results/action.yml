@@ -1,0 +1,64 @@
+name: evaluate-test-results
+description: Parse test-runner output, publish a summary, and fail on unexpected outcomes
+
+inputs:
+  log-file:
+    description: Path to the test-runner log
+    required: false
+    default: test.log
+
+outputs:
+  expected_successful:
+    description: Number of expected successful tests
+    value: ${{ steps.evaluate.outputs.expected_successful }}
+  expected_failed:
+    description: Number of expected failing tests
+    value: ${{ steps.evaluate.outputs.expected_failed }}
+  unexpected_failed:
+    description: Number of unexpectedly failed tests
+    value: ${{ steps.evaluate.outputs.unexpected_failed }}
+  unexpected_successful:
+    description: Number of unexpectedly successful tests
+    value: ${{ steps.evaluate.outputs.unexpected_successful }}
+
+runs:
+  using: composite
+  steps:
+    - id: evaluate
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        log_file="${{ inputs.log-file }}"
+
+        if [ ! -f "$log_file" ]; then
+          echo "::error::Test log '$log_file' not found"
+          exit 1
+        fi
+
+        EXPECTED_SUCCESSFUL=$(grep -oP "\d+ tests successful" "$log_file" | cut -f1 -d ' ')
+        EXPECTED_FAILED=$(grep -oP "\d+ tests failed as expected" "$log_file" | cut -f1 -d ' ')
+        UNEXPECTED_FAILED=$(grep -oP "\d+ tests should have succeeded" "$log_file" | cut -f1 -d ' ')
+        UNEXPECTED_SUCCESSFUL=$(grep -oP "\d+ tests should have failed" "$log_file" | cut -f1 -d ' ')
+
+        echo "expected_successful=${EXPECTED_SUCCESSFUL:-0}" >>"$GITHUB_OUTPUT"
+        echo "expected_failed=${EXPECTED_FAILED:-0}" >>"$GITHUB_OUTPUT"
+        echo "unexpected_failed=${UNEXPECTED_FAILED:-0}" >>"$GITHUB_OUTPUT"
+        echo "unexpected_successful=${UNEXPECTED_SUCCESSFUL:-0}" >>"$GITHUB_OUTPUT"
+
+        {
+          echo '### Test summary'
+          echo ""
+          echo "| Result | Count |"
+          echo "|--------|-------|"
+          echo "| ✅ Successful (expected) | ${EXPECTED_SUCCESSFUL:-0} |"
+          echo "| ⚠️ Failed (expected) | ${EXPECTED_FAILED:-0} |"
+          echo "| ❌ Failed (unexpected) | ${UNEXPECTED_FAILED:-0} |"
+          echo "| ❌ Successful (unexpected) | ${UNEXPECTED_SUCCESSFUL:-0} |"
+          echo ""
+        } >>"$GITHUB_STEP_SUMMARY"
+
+        if [ "${UNEXPECTED_FAILED:-0}" -gt 0 ] || [ "${UNEXPECTED_SUCCESSFUL:-0}" -gt 0 ]; then
+          echo "::error::${UNEXPECTED_FAILED:-0} tests unexpectedly failed, ${UNEXPECTED_SUCCESSFUL:-0} tests unexpectedly succeeded"
+          exit 1
+        fi

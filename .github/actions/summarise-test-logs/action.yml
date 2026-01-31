@@ -1,0 +1,58 @@
+name: summarise-test-logs
+description: Append per-test log tails to the GitHub step summary
+
+inputs:
+  logs-root:
+    description: Directory containing per-test logs
+    required: false
+    default: /tmp/os-test-runner
+  tail-lines:
+    description: Number of lines to include from each log file
+    required: false
+    default: "200"
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+
+        summary_file="$GITHUB_STEP_SUMMARY"
+        logs_root="${{ inputs.logs-root }}"
+        tail_lines="${{ inputs.tail-lines }}"
+
+        if [ ! -d "$logs_root" ]; then
+          echo "No logs directory at $logs_root, skipping summary"
+          exit 0
+        fi
+
+        echo "## Per-test logs (tail, last ${tail_lines} lines each)" >>"$summary_file"
+        echo >>"$summary_file"
+
+        for test_dir in "$logs_root"/os-test-*; do
+          test_name=$(basename "$test_dir")
+          result_file="$test_dir"/test-result.txt
+
+          [ -e "$result_file" ] || continue
+
+          test_result=$(cat "$result_file")
+
+          if [ "$test_result" == "expected_success" ] || [ "$test_result" == "expected_failure" ]; then
+            continue
+          fi
+
+          echo "<details><summary><code>$test_name</code></summary>" >>"$summary_file"
+          echo >>"$summary_file"
+
+          for f in "$test_dir"/*.log; do
+            echo "#### $(basename "$f")" >>"$summary_file"
+            echo '```' >>"$summary_file"
+            tail -n "$tail_lines" "$f" >>"$summary_file"
+            echo '```' >>"$summary_file"
+            echo >>"$summary_file"
+          done
+
+          echo '</details>' >>"$summary_file"
+          echo >>"$summary_file"
+        done
