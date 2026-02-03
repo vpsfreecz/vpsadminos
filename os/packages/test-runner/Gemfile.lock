@@ -7,13 +7,17 @@ GEM
     fiddle (1.1.8)
     gli (2.22.2)
       ostruct
+    io-console (0.8.2)
     logger (1.7.0)
     method_source (1.1.0)
     ostruct (0.6.3)
-    pry (0.15.2)
+    pry (0.16.0)
       coderay (~> 1.1)
       method_source (~> 1.0)
+      reline (>= 0.6.0)
     rainbow (3.1.1)
+    reline (0.6.3)
+      io-console (~> 0.5)
     require_all (2.0.0)
     rspec-expectations (3.13.5)
       diff-lcs (>= 1.2.0, < 2.0)
@@ -25,21 +29,21 @@ GEM
 GEM
   remote: https://rubygems.vpsfree.cz/
   specs:
-    libosctl (25.11.0.build20260130175827)
+    libosctl (25.11.0.build20260203155902)
       fiddle
       logger
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
       syslog
-    osvm (25.11.0.build20260130175827)
+    osvm (25.11.0.build20260203155902)
       base64
       gli (~> 2.22.0)
-      libosctl (= 25.11.0.build20260130175827)
-    test-runner (25.11.0.build20260130175827)
+      libosctl (= 25.11.0.build20260203155902)
+    test-runner (25.11.0.build20260203155902)
       gli (~> 2.22.0)
-      libosctl (= 25.11.0.build20260130175827)
-      osvm (= 25.11.0.build20260130175827)
-      pry (~> 0.15.0)
+      libosctl (= 25.11.0.build20260203155902)
+      osvm (= 25.11.0.build20260203155902)
+      pry (~> 0.16.0)
       rspec-expectations (~> 3.13)
 
 PLATFORMS
@@ -47,7 +51,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  test-runner (= 25.11.0.build20260130175827)!
+  test-runner (= 25.11.0.build20260203155902)!
 
 BUNDLED WITH
    2.7.2
