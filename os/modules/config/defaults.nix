@@ -61,6 +61,10 @@
     "spl_taskq_thread_dynamic" = lib.mkDefault 0;
     "spl_taskq_thread_priority" = lib.mkDefault 0;
   };
+  boot.zfs.moduleParams.zfs = {
+    # Needed for overlayfs metadata xattrs in first-level user namespaces.
+    "zfs_xattr_trusted_userns_enable" = lib.mkDefault 1;
+  };
 
   environment.systemPackages = with pkgs; [
     acl

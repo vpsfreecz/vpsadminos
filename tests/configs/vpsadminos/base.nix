@@ -24,6 +24,10 @@ with lib;
     "spl_panic_halt" = 1;
   };
 
+  boot.zfs.moduleParams.zfs = {
+    "zfs_xattr_trusted_userns_enable" = 1;
+  };
+
   networking.hostName = mkDefault "vpsadminos";
   networking.static.enable = mkDefault true;
   networking.lxcbr.enable = mkDefault true;
