@@ -2,6 +2,7 @@
   config,
   lib,
   pkgs,
+  nixpkgsPath,
   ...
 }:
 
@@ -10,7 +11,7 @@
 with lib;
 
 let
-  zfstools_ovl = pkgs.callPackage <nixpkgs/pkgs/by-name/zf/zfstools/package.nix> {
+  zfstools_ovl = pkgs.callPackage (nixpkgsPath + "/pkgs/by-name/zf/zfstools/package.nix") {
     zfs = config.boot.zfsUserPackage;
   };
 

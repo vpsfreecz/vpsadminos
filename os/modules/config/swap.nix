@@ -2,6 +2,7 @@
   config,
   lib,
   pkgs,
+  modulesPath,
   utils,
   ...
 }:
@@ -11,7 +12,7 @@ with lib;
 
 {
   imports = [
-    <nixpkgs/nixos/modules/config/swap.nix>
+    (modulesPath + "/config/swap.nix")
   ];
 
   config = mkIf ((length config.swapDevices) != 0) {

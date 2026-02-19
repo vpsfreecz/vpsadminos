@@ -4,8 +4,9 @@
       cfg = builtins.getEnv "VPSADMINOS_CONFIG";
     in
     if cfg == "" then null else import cfg,
-  pkgs ? <nixpkgs>,
+  pkgs ? null,
   importedPkgs ? null,
+  nixpkgsPath ? null,
   # extra modules to include
   modules ? [ ],
   # extra arguments to be passed to modules
@@ -16,9 +17,17 @@
 }:
 
 let
+  pkgsPath =
+    if nixpkgsPath != null then
+      nixpkgsPath
+    else if importedPkgs != null then
+      importedPkgs.path
+    else
+      pkgs;
+
   pkgs_ =
     if isNull importedPkgs then
-      import pkgs {
+      import pkgsPath {
         inherit system;
         platform = platform;
         config = { };
@@ -38,12 +47,19 @@ let
       nixpkgs.overlays = import ./overlays;
     };
   };
-  baseModules = import ./modules/module-list.nix;
+  baseModules = import ./modules/module-list.nix { nixpkgsPath = pkgsPath; };
   evalConfig =
     modulesArgs:
     pkgs_.lib.evalModules {
       prefix = [ ];
       modules = baseModules ++ [ pkgsModule ] ++ modules ++ modulesArgs;
+
+      # Make these available externally, before `config` is evaluated,
+      # so module imports can safely use them without recursion.
+      specialArgs = extraArgs // {
+        modulesPath = pkgsPath + "/nixos/modules";
+        nixpkgsPath = pkgsPath;
+      };
     };
 in
 rec {

@@ -2,6 +2,7 @@
   config,
   lib,
   pkgs,
+  modulesPath,
   ...
 }:
 
@@ -115,7 +116,7 @@ let
 in
 {
   imports = [
-    <nixpkgs/nixos/modules/services/backup/znapzend.nix>
+    (modulesPath + "/services/backup/znapzend.nix")
   ];
 
   config = mkIf cfg.enable {

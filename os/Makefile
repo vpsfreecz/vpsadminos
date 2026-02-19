@@ -1,6 +1,8 @@
 CORES = 0
 JOBS = 2
 TEMPLATE_CHANNEL = stable
+NIXPKGS_PATH ?= $(shell nix-instantiate --find-file nixpkgs 2>/dev/null)
+CHECK_NIXPKGS = test -n "$(NIXPKGS_PATH)" || (echo "NIXPKGS_PATH is empty; set NIXPKGS_PATH or NIX_PATH" >&2; exit 1)
 
 ifeq ($(DEBUG),0)
   TRACE =
@@ -10,14 +12,18 @@ endif
 
 # default build (configs/qemu.nix)
 build: result
+	@$(CHECK_NIXPKGS)
 	nix-build \
+	 --arg nixpkgsPath "$(NIXPKGS_PATH)" \
 	 --arg configuration $(or $(VPSADMINOS_CONFIG),./configs/qemu.nix) \
 	 --out-link result/qemu \
 	 --cores $(CORES) -j $(JOBS) $(TRACE)
 
 # build the system closure without building the squashfs image
 toplevel: result
+	@$(CHECK_NIXPKGS)
 	nix-build \
+	 --arg nixpkgsPath "$(NIXPKGS_PATH)" \
 	 --arg configuration $(or $(VPSADMINOS_CONFIG),./configs/qemu.nix) \
 	 --attr config.system.build.toplevel \
 	 --out-link result/toplevel \
@@ -25,7 +31,9 @@ toplevel: result
 
 # build iso image
 iso: result
+	@$(CHECK_NIXPKGS)
 	nix-build \
+	 --arg nixpkgsPath "$(NIXPKGS_PATH)" \
 	 --arg configuration $(or $(VPSADMINOS_CONFIG),"{ imports  = [ ./configs/iso.nix ]; }") \
 	 -A config.system.build.isoImage \
 	 --out-link result/iso \
@@ -33,7 +41,9 @@ iso: result
 
 # build iso image runner
 iso-local: result
+	@$(CHECK_NIXPKGS)
 	nix-build \
+	 --arg nixpkgsPath "$(NIXPKGS_PATH)" \
 	 --arg configuration $(or $(VPSADMINOS_CONFIG),"{ imports  = [ \
 	     ./configs/iso.nix \
 	     ./configs/qemu.nix \
@@ -50,7 +60,9 @@ qemu-iso: iso-local
 	./result/iso
 
 build-qemu-script:
+	@$(CHECK_NIXPKGS)
 	nix-build \
+	 --arg nixpkgsPath "$(NIXPKGS_PATH)" \
 	 --arg configuration $(or $(VPSADMINOS_CONFIG),./configs/qemu.nix) \
 	 -A config.system.build.runvmScript \
 	 --out-link result/qemu-script \
@@ -79,7 +91,9 @@ template-impermanence:
 	--out-link result/template-impermanence
 
 os-rebuild:
+	@$(CHECK_NIXPKGS)
 	nix-build \
+	 --arg nixpkgsPath "$(NIXPKGS_PATH)" \
 	 --arg configuration ./configs/qemu.nix \
 	 --out-link result/os-rebuild \
 	 --cores $(CORES) \

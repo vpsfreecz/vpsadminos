@@ -219,9 +219,29 @@ if [ -z "$_OS_REBUILD_REEXEC" ]; then
     export PATH=@nix@/bin:$PATH
 fi
 
+findNixpkgsPath() {
+    if [ -n "$NIXPKGS_PATH" ]; then
+        echo "$NIXPKGS_PATH"
+        return 0
+    fi
+
+    nix-instantiate --find-file nixpkgs "${extraBuildFlags[@]}"
+}
+
+nixpkgsPath=""
+if nixpkgsPath="$(findNixpkgsPath 2>/dev/null)"; then
+    :
+else
+    nixpkgsPath=""
+fi
+if [ -z "$nixpkgsPath" ]; then
+    echo "$0: could not determine nixpkgs path; set NIXPKGS_PATH or NIX_PATH" >&2
+    exit 1
+fi
+
 # Re-execute os-rebuild from the Nixpkgs tree.
 if [ -z "$_OS_REBUILD_REEXEC" -a -n "$canRun" -a -z "$fast" ]; then
-    if p=$(nix-build --no-out-link --expr 'with import <vpsadminos/os> {}; config.system.build.os-rebuild' "${extraBuildFlags[@]}"); then
+    if p=$(nix-build --no-out-link --expr "with import <vpsadminos/os> { nixpkgsPath = \"${nixpkgsPath}\"; }; config.system.build.os-rebuild" "${extraBuildFlags[@]}"); then
         export _OS_REBUILD_REEXEC=1
         exec $p/bin/os-rebuild "${origArgs[@]}"
         exit 1
@@ -239,7 +259,6 @@ cleanup() {
     rm -rf "$tmpDir"
 }
 trap cleanup EXIT
-
 
 
 # If the Nix daemon is running, then use it.  This allows us to use
@@ -278,7 +297,12 @@ remotePATH=
 if [ -n "$buildNix" ]; then
     echo "building Nix..." >&2
     nixDrv=
-    if ! nixDrv="$(nix-instantiate '<nixpkgs>' --add-root $tmpDir/nix.drv --indirect -A nix "${extraBuildFlags[@]}")"; then
+    if [ -n "$nixpkgsPath" ]; then
+        if ! nixDrv="$(nix-instantiate "$nixpkgsPath" --add-root $tmpDir/nix.drv --indirect -A nix "${extraBuildFlags[@]}")"; then
+            nixDrv=
+        fi
+    fi
+    if [ -z "$nixDrv" ]; then
         nixStorePath="$(prebuiltNix "$(uname -m)")"
         if ! nix-store -r $nixStorePath --add-root $tmpDir/nix --indirect \
             --option extra-binary-caches https://cache.nixos.org/; then
@@ -313,10 +337,10 @@ fi
 # Update the version suffix if we're building from Git (so that
 # os-version shows something useful).
 if [ -n "$canRun" ]; then
-    if nixpkgs=$(nix-instantiate --find-file nixpkgs "${extraBuildFlags[@]}"); then
-        suffix=$($SHELL $nixpkgs/nixos/modules/installer/tools/get-version-suffix "${extraBuildFlags[@]}" || true)
+    if [ -n "$nixpkgsPath" ]; then
+        suffix=$($SHELL $nixpkgsPath/nixos/modules/installer/tools/get-version-suffix "${extraBuildFlags[@]}" || true)
         if [ -n "$suffix" ]; then
-            echo -n "$suffix" > "$nixpkgs/.version-suffix" || true
+            echo -n "$suffix" > "$nixpkgsPath/.version-suffix" || true
         fi
     fi
 fi
@@ -347,15 +371,15 @@ fi
 if [ -z "$rollback" ]; then
     echo "building the system configuration..." >&2
     if [ "$action" = switch -o "$action" = boot ]; then
-        pathToConfig="$(nixBuild '<vpsadminos/os>' --no-out-link --arg configuration "$VPSADMINOS_CONFIG" -A config.system.build.toplevel "${extraBuildFlags[@]}")"
+        pathToConfig="$(nixBuild '<vpsadminos/os>' --no-out-link --arg nixpkgsPath "$nixpkgsPath" --arg configuration "$VPSADMINOS_CONFIG" -A config.system.build.toplevel "${extraBuildFlags[@]}")"
         copyToTarget "$pathToConfig"
         targetHostCmd nix-env -p "$profile" --set "$pathToConfig"
     elif [ "$action" = test -o "$action" = build -o "$action" = dry-build -o "$action" = dry-activate ]; then
-        pathToConfig="$(nixBuild '<vpsadminos/os>' --arg configuration "$VPSADMINOS_CONFIG" -A config.system.build.toplevel -k "${extraBuildFlags[@]}")"
+        pathToConfig="$(nixBuild '<vpsadminos/os>' --arg nixpkgsPath "$nixpkgsPath" --arg configuration "$VPSADMINOS_CONFIG" -A config.system.build.toplevel -k "${extraBuildFlags[@]}")"
     elif [ "$action" = build-vm ]; then
-        pathToConfig="$(nixBuild '<vpsadminos/os>' --arg configuration "$VPSADMINOS_CONFIG" -A vm -k "${extraBuildFlags[@]}")"
+        pathToConfig="$(nixBuild '<vpsadminos/os>' --arg nixpkgsPath "$nixpkgsPath" --arg configuration "$VPSADMINOS_CONFIG" -A vm -k "${extraBuildFlags[@]}")"
     elif [ "$action" = build-vm-with-bootloader ]; then
-        pathToConfig="$(nixBuild '<vpsadminos/os>' --arg configuration "$VPSADMINOS_CONFIG" -A vmWithBootLoader -k "${extraBuildFlags[@]}")"
+        pathToConfig="$(nixBuild '<vpsadminos/os>' --arg nixpkgsPath "$nixpkgsPath" --arg configuration "$VPSADMINOS_CONFIG" -A vmWithBootLoader -k "${extraBuildFlags[@]}")"
     else
         showSyntax
     fi

@@ -188,7 +188,7 @@ let
 
     passthru = rec {
 
-      module = import <nixpkgs/nixos/modules/system/boot/kernel_config.nix>;
+      module = import "${buildPackages.path}/nixos/modules/system/boot/kernel_config.nix";
       # used also in apache
       # { modules = [ { options = res.options; config = svc.config or svc; } ];
       #   check = false;

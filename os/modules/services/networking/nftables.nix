@@ -12,7 +12,7 @@ let
   cmd = opt: oslib.systemd.extractExecCommand opt;
 in
 {
-  # Based on <nixpkgs/nixos/modules/services/networking/nftables.nix>
+  # Based on nixpkgs/nixos/modules/services/networking/nftables.nix
 
   config = mkIf cfg.enable {
     runit.services.nftables = {

@@ -1,1 +1,1 @@
-(import ./nixos-modules.nix) ++ (import ./os-modules.nix)
+{ nixpkgsPath }: (import ./nixos-modules.nix { inherit nixpkgsPath; }) ++ (import ./os-modules.nix)

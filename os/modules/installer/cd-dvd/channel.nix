@@ -5,13 +5,14 @@
   config,
   lib,
   pkgs,
+  nixpkgsPath,
   ...
 }:
 
 with lib;
 
 let
-  nixpkgs = lib.cleanSource pkgs.path;
+  nixpkgs = lib.cleanSource nixpkgsPath;
 
   os = (
     builtins.filterSource (

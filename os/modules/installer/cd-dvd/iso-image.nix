@@ -6,6 +6,7 @@
   config,
   lib,
   pkgs,
+  nixpkgsPath,
   ...
 }:
 
@@ -275,7 +276,7 @@ in
     ++ optional config.isoImage.includeSystemBuildDependencies config.system.build.toplevel.drvPath;
 
     # Create the squashfs image that contains the Nix store.
-    system.build.squashfsStore = pkgs.callPackage <nixpkgs/nixos/lib/make-squashfs.nix> {
+    system.build.squashfsStore = pkgs.callPackage (nixpkgsPath + "/nixos/lib/make-squashfs.nix") {
       #inherit (pkgs) stdenv squashfsTools perl pathsFromGraph;
       storeContents = config.isoImage.storeContents;
       noStrip = true;
@@ -343,7 +344,7 @@ in
     boot.loader.timeout = 10;
 
     # Create the ISO image.
-    system.build.isoImage = pkgs.callPackage <nixpkgs/nixos/lib/make-iso9660-image.nix> (
+    system.build.isoImage = pkgs.callPackage (nixpkgsPath + "/nixos/lib/make-iso9660-image.nix") (
       {
         inherit (pkgs) stdenv xorriso syslinux;
 

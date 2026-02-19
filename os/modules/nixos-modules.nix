@@ -1,60 +1,61 @@
+{ nixpkgsPath }:
 [
-  <nixpkgs/nixos/modules/hardware/all-firmware.nix>
-  <nixpkgs/nixos/modules/hardware/cpu/amd-microcode.nix>
-  <nixpkgs/nixos/modules/hardware/cpu/intel-microcode.nix>
-  <nixpkgs/nixos/modules/hardware/device-tree.nix>
-  <nixpkgs/nixos/modules/misc/extra-arguments.nix>
-  <nixpkgs/nixos/modules/programs/ssh.nix>
-  <nixpkgs/nixos/modules/system/etc/etc.nix>
-  <nixpkgs/nixos/modules/system/etc/etc-activation.nix>
-  <nixpkgs/nixos/modules/system/activation/activation-script.nix>
-  <nixpkgs/nixos/modules/system/boot/modprobe.nix>
-  <nixpkgs/nixos/modules/system/boot/loader/efi.nix>
-  <nixpkgs/nixos/modules/system/boot/loader/generations-dir/generations-dir.nix>
-  <nixpkgs/nixos/modules/system/boot/loader/loader.nix>
-  <nixpkgs/nixos/modules/system/boot/initrd-ssh.nix>
-  <nixpkgs/nixos/modules/misc/nixpkgs.nix>
-  <nixpkgs/nixos/modules/config/console.nix>
-  <nixpkgs/nixos/modules/config/debug-info.nix>
-  <nixpkgs/nixos/modules/config/shells-environment.nix>
-  <nixpkgs/nixos/modules/config/system-environment.nix>
-  <nixpkgs/nixos/modules/config/locale.nix>
-  <nixpkgs/nixos/modules/config/terminfo.nix>
-  <nixpkgs/nixos/modules/tasks/filesystems.nix>
-  <nixpkgs/nixos/modules/programs/bash/bash.nix>
-  <nixpkgs/nixos/modules/programs/bash/bash-completion.nix>
-  <nixpkgs/nixos/modules/programs/less.nix>
-  <nixpkgs/nixos/modules/programs/shadow.nix>
-  <nixpkgs/nixos/modules/programs/environment.nix>
-  <nixpkgs/nixos/modules/programs/vim.nix>
-  <nixpkgs/nixos/modules/security/ca.nix>
-  <nixpkgs/nixos/modules/security/default.nix>
-  <nixpkgs/nixos/modules/security/apparmor.nix>
-  <nixpkgs/nixos/modules/security/pam.nix>
-  <nixpkgs/nixos/modules/security/sudo.nix>
-  <nixpkgs/nixos/modules/security/sudo-rs.nix>
-  <nixpkgs/nixos/modules/security/wrappers/default.nix>
-  <nixpkgs/nixos/modules/config/ldap.nix>
-  <nixpkgs/nixos/modules/config/nsswitch.nix>
-  <nixpkgs/nixos/modules/misc/ids.nix>
-  <nixpkgs/nixos/modules/virtualisation/lxc.nix>
-  <nixpkgs/nixos/modules/virtualisation/lxcfs.nix>
-  <nixpkgs/nixos/modules/services/mail/mail.nix>
-  <nixpkgs/nixos/modules/services/networking/firewall.nix>
-  <nixpkgs/nixos/modules/services/networking/firewall-iptables.nix>
-  <nixpkgs/nixos/modules/services/networking/firewall-nftables.nix>
-  <nixpkgs/nixos/modules/services/networking/nftables.nix>
-  <nixpkgs/nixos/modules/services/networking/ssh/sshd.nix>
-  <nixpkgs/nixos/modules/services/system/nix-daemon.nix>
-  <nixpkgs/nixos/modules/system/boot/kernel.nix>
-  <nixpkgs/nixos/modules/misc/assertions.nix>
-  <nixpkgs/nixos/modules/misc/lib.nix>
-  <nixpkgs/nixos/modules/config/nix.nix>
-  <nixpkgs/nixos/modules/config/nix-channel.nix>
-  <nixpkgs/nixos/modules/config/nix-flakes.nix>
-  <nixpkgs/nixos/modules/config/nix-remote-build.nix>
-  <nixpkgs/nixos/modules/config/sysctl.nix>
-  <nixpkgs/nixos/modules/config/users-groups.nix>
-  <nixpkgs/nixos/modules/config/i18n.nix>
-  <nixpkgs/nixos/modules/config/mysql.nix>
+  (nixpkgsPath + "/nixos/modules/hardware/all-firmware.nix")
+  (nixpkgsPath + "/nixos/modules/hardware/cpu/amd-microcode.nix")
+  (nixpkgsPath + "/nixos/modules/hardware/cpu/intel-microcode.nix")
+  (nixpkgsPath + "/nixos/modules/hardware/device-tree.nix")
+  (nixpkgsPath + "/nixos/modules/misc/extra-arguments.nix")
+  (nixpkgsPath + "/nixos/modules/programs/ssh.nix")
+  (nixpkgsPath + "/nixos/modules/system/etc/etc.nix")
+  (nixpkgsPath + "/nixos/modules/system/etc/etc-activation.nix")
+  (nixpkgsPath + "/nixos/modules/system/activation/activation-script.nix")
+  (nixpkgsPath + "/nixos/modules/system/boot/modprobe.nix")
+  (nixpkgsPath + "/nixos/modules/system/boot/loader/efi.nix")
+  (nixpkgsPath + "/nixos/modules/system/boot/loader/generations-dir/generations-dir.nix")
+  (nixpkgsPath + "/nixos/modules/system/boot/loader/loader.nix")
+  (nixpkgsPath + "/nixos/modules/system/boot/initrd-ssh.nix")
+  (nixpkgsPath + "/nixos/modules/misc/nixpkgs.nix")
+  (nixpkgsPath + "/nixos/modules/config/console.nix")
+  (nixpkgsPath + "/nixos/modules/config/debug-info.nix")
+  (nixpkgsPath + "/nixos/modules/config/shells-environment.nix")
+  (nixpkgsPath + "/nixos/modules/config/system-environment.nix")
+  (nixpkgsPath + "/nixos/modules/config/locale.nix")
+  (nixpkgsPath + "/nixos/modules/config/terminfo.nix")
+  (nixpkgsPath + "/nixos/modules/tasks/filesystems.nix")
+  (nixpkgsPath + "/nixos/modules/programs/bash/bash.nix")
+  (nixpkgsPath + "/nixos/modules/programs/bash/bash-completion.nix")
+  (nixpkgsPath + "/nixos/modules/programs/less.nix")
+  (nixpkgsPath + "/nixos/modules/programs/shadow.nix")
+  (nixpkgsPath + "/nixos/modules/programs/environment.nix")
+  (nixpkgsPath + "/nixos/modules/programs/vim.nix")
+  (nixpkgsPath + "/nixos/modules/security/ca.nix")
+  (nixpkgsPath + "/nixos/modules/security/default.nix")
+  (nixpkgsPath + "/nixos/modules/security/apparmor.nix")
+  (nixpkgsPath + "/nixos/modules/security/pam.nix")
+  (nixpkgsPath + "/nixos/modules/security/sudo.nix")
+  (nixpkgsPath + "/nixos/modules/security/sudo-rs.nix")
+  (nixpkgsPath + "/nixos/modules/security/wrappers/default.nix")
+  (nixpkgsPath + "/nixos/modules/config/ldap.nix")
+  (nixpkgsPath + "/nixos/modules/config/nsswitch.nix")
+  (nixpkgsPath + "/nixos/modules/misc/ids.nix")
+  (nixpkgsPath + "/nixos/modules/virtualisation/lxc.nix")
+  (nixpkgsPath + "/nixos/modules/virtualisation/lxcfs.nix")
+  (nixpkgsPath + "/nixos/modules/services/mail/mail.nix")
+  (nixpkgsPath + "/nixos/modules/services/networking/firewall.nix")
+  (nixpkgsPath + "/nixos/modules/services/networking/firewall-iptables.nix")
+  (nixpkgsPath + "/nixos/modules/services/networking/firewall-nftables.nix")
+  (nixpkgsPath + "/nixos/modules/services/networking/nftables.nix")
+  (nixpkgsPath + "/nixos/modules/services/networking/ssh/sshd.nix")
+  (nixpkgsPath + "/nixos/modules/services/system/nix-daemon.nix")
+  (nixpkgsPath + "/nixos/modules/system/boot/kernel.nix")
+  (nixpkgsPath + "/nixos/modules/misc/assertions.nix")
+  (nixpkgsPath + "/nixos/modules/misc/lib.nix")
+  (nixpkgsPath + "/nixos/modules/config/nix.nix")
+  (nixpkgsPath + "/nixos/modules/config/nix-channel.nix")
+  (nixpkgsPath + "/nixos/modules/config/nix-flakes.nix")
+  (nixpkgsPath + "/nixos/modules/config/nix-remote-build.nix")
+  (nixpkgsPath + "/nixos/modules/config/sysctl.nix")
+  (nixpkgsPath + "/nixos/modules/config/users-groups.nix")
+  (nixpkgsPath + "/nixos/modules/config/i18n.nix")
+  (nixpkgsPath + "/nixos/modules/config/mysql.nix")
 ]

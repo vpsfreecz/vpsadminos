@@ -2,6 +2,7 @@
   config,
   pkgs,
   lib,
+  nixpkgsPath,
   ...
 }:
 with lib;
@@ -220,7 +221,7 @@ in
             services.openssh.enable = true;
 
             nix.nixPath = [
-              "nixpkgs=${<nixpkgs>}"
+              "nixpkgs=${nixpkgsPath}"
             ];
 
             boot.zfs.pools.tank = {

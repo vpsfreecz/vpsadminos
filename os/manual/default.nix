@@ -20,6 +20,7 @@ let
         _module.args = {
           pkgs = lib.mkForce (nmd.scrubDerivations "pkgs" pkgs);
           pkgs_i686 = lib.mkForce { };
+          nixpkgsPath = pkgs.path;
         };
 
         nixpkgs.system = lib.mkDefault builtins.currentSystem;
@@ -30,10 +31,10 @@ let
   isOsModule = path: lib.hasPrefix "os/" path;
 
   osModulesDocs = nmd.buildModulesDocs {
-    modules = import ../modules/module-list.nix ++ [ scrubbedPkgsModule ];
+    modules = import ../modules/module-list.nix { nixpkgsPath = pkgs.path; } ++ [ scrubbedPkgsModule ];
     moduleRootPaths = [
       ./../..
-      <nixpkgs>
+      pkgs.path
     ];
     mkModuleUrl =
       path:

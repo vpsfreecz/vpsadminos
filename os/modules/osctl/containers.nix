@@ -2,6 +2,7 @@
   config,
   lib,
   pkgs,
+  nixpkgsPath,
   utils,
   shared,
   ...
@@ -607,7 +608,7 @@ let
             name = "Toplevel NixOS config";
             merge =
               loc: defs:
-              (import <nixpkgs/nixos/lib/eval-config.nix> {
+              (import (nixpkgsPath + "/nixos/lib/eval-config.nix") {
                 inherit system;
                 modules =
                   let

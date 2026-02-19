@@ -12,7 +12,7 @@ let
   cmd = opt: oslib.systemd.extractExecCommand opt;
 in
 {
-  # Based on <nixpkgs/nixos/modules/services/networking/firewall-iptables.nix>
+  # Based on nixpkgs/nixos/modules/services/networking/firewall-iptables.nix
 
   config = mkIf (cfg.enable && config.networking.nftables.enable == false) {
     runit.services.firewall = {

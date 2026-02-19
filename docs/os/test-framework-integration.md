@@ -28,9 +28,10 @@ ROOT="$(cd -- "$(dirname "$0")" && pwd)"
 OS_ROOT="${VPSADMINOS_PATH:-${ROOT}/../vpsadminos}"
 
 export NIX_PATH="vpsadminos=${OS_ROOT}${NIX_PATH:+:${NIX_PATH}}"
+NIXPKGS_PATH="${NIXPKGS_PATH:-$(nix-instantiate --find-file nixpkgs)}"
 
 mkdir -p "$ROOT/result"
-nix-build --out-link "$ROOT/result/test-runner" "$OS_ROOT/os/packages/test-runner/entry.nix" >/dev/null
+nix-build --out-link "$ROOT/result/test-runner" --arg nixpkgsPath "$NIXPKGS_PATH" "$OS_ROOT/os/packages/test-runner/entry.nix" >/dev/null
 exec "$ROOT/result/test-runner/bin/test-runner" "$@"
 ```
 

@@ -1,6 +1,7 @@
 {
   config,
   pkgs,
+  modulesPath,
   lib,
   options,
   ...
@@ -228,7 +229,7 @@ in
     type = types.submodule {
       options = (mkSubModules);
       imports = [
-        <nixpkgs/nixos/modules/misc/assertions.nix>
+        (modulesPath + "/misc/assertions.nix")
       ];
     };
     description = lib.mdDoc "Prometheus exporter configuration";
