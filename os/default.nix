@@ -63,7 +63,20 @@ let
     };
 in
 rec {
-  test1 = evalConfig (if configuration != null then [ configuration ] else [ ]);
-  runner = test1.config.system.build.runvm;
-  config = test1.config;
+  # Raw evalModules result (better name than `test1`)
+  eval = evalConfig (if configuration != null then [ configuration ] else [ ]);
+
+  # Backward compatibility: keep old name
+  test1 = eval;
+
+  # Conventional exports for external consumers (confctl, tooling, etc.)
+  config = eval.config;
+  options = eval.options;
+
+  # Export the module-system pkgs (includes nixpkgs.config + overlays)
+  pkgs = eval._module.args.pkgs;
+
+  # Convenience
+  runner = eval.config.system.build.runvm;
+  toplevel = eval.config.system.build.toplevel;
 }
