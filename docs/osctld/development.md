@@ -7,7 +7,7 @@ Rinse and repeat.
 
 To make the process faster, there is a way to mount the source codes into the OS
 running within VM. All components have a `default.nix` file, which makes it
-possible to use `nix-shell` to automatically setup the environment in which you
+possible to use `nix develop` to automatically setup the environment in which you
 can test the changed code immediately.
 
 While this text assumes you're developing in a VM run with `make qemu`, you can
@@ -17,8 +17,8 @@ or clone the git repository locally.
 
 ## Configuration
 To make the source codes available in the VM, you have to configure qemu to
-share those directories and then mount them within the VM. For `nix-shell` to
-work, you also need to mount *nixpkgs* from the host. Change your
+share those directories and then mount them within the VM. For `nix develop` to
+work, you also need to mount the vpsAdminOS repository from the host. Change your
 `os/configs/local.nix` to include `os/configs/devel.nix`:
 
 ```nix
@@ -50,15 +50,15 @@ $ ssh -p 2222 root@localhost
 
 [root@vpsadminos:~]# cd /mnt/vpsadminos/osctl
 
-[root@vpsadminos:/mnt/vpsadminos/osctl]# nix-shell
-[... nix-shell setup ...]
+[root@vpsadminos:/mnt/vpsadminos/osctl]# nix develop ..#osctl
+[... nix develop setup ...]
 [... bundle setup ...]
 
 [nix-shell:/mnt/vpsadminos/osctl]$ which osctl
 /tmp/dev-ruby-gems/bin/osctl
 ```
 
-Edit sources on the host, then launch *osctl* within the `nix-shell` in the VM
+Edit sources on the host, then launch *osctl* within the `nix develop` shell in the VM
 and the changed code will be run.
 
 If you'd like to work on *osctld*, you'll need to stop it as a system service
@@ -73,8 +73,8 @@ Then you can start it from the source code:
 ```shell
 [root@vpsadminos:~]# cd /mnt/vpsadminos/osctld
 
-[root@vpsadminos:/mnt/vpsadminos/osctld]# nix-shell
-[... nix-shell setup ...]
+[root@vpsadminos:/mnt/vpsadminos/osctld]# nix develop ..#osctld
+[... nix develop setup ...]
 [... bundle setup ...]
 
 [nix-shell:/mnt/vpsadminos/osctld]$ run-osctld
@@ -88,14 +88,14 @@ environment themselves.
 
 By default, the gems are pushed and installed from <https://rubygems.vpsfree.cz>.
 Pushing requires authentication, you'll have to ask for credentials.
-Use `nix-shell` to enter a prepared environment.
+Use `nix develop` to enter a prepared environment.
 
 ```shell
 # Configure remote repository for geminabox
 $ gem inabox -c
 ```
 
-Within `nix-shell`, you can use `make` to build gems and the OS:
+Within `nix develop`, you can use `make` to build gems and the OS:
 
 ```shell
 # Build and push gems
