@@ -34,18 +34,29 @@ chmod a+rxw /dev/kmsg
 chmod a+rxw /proc/kmsg
 chmod a+r /proc/slabinfo
 
-# Make /nix/store a read-only bind mount to enforce immutability of
-# the Nix store.  Note that we can't use "chown root:nixbld" here
+# Apply the configured mount options on /nix/store to enforce immutability
+# and harden the store. Note that we can't use "chown root:nixbld" here
 # because users/groups might not exist yet.
 # Silence chown/chmod to fail gracefully on a readonly filesystem
 # like squashfs.
 chown -f 0:30000 /nix/store
 chmod -f 1775 /nix/store
-if [ -n "@readOnlyNixStore@" ]; then
-  if ! [[ "$(findmnt --noheadings --output OPTIONS /nix/store)" =~ ro(,|$) ]]; then
-    mount --bind /nix/store /nix/store
-    mount -o remount,ro,bind /nix/store
+
+missing_opts=() # stores the missing mount options that still need to be applied to the nix store
+current_opts="$(findmnt --direction backward --first-only --noheadings --output OPTIONS /nix/store)"
+for mount_opt in @nixStoreMountOpts@ ; do
+  # matches '$opt', 'foo,$opt', '$opt,foo', 'foo,$opt,bar'
+  # crucially, it does not match 'foo$opt', otherwise e.g. 'errors=remount-ro'
+  # would yield false positives for 'ro'
+  if ! [[ "$current_opts" =~ (^|,)"$mount_opt"(,|$) ]]; then
+    missing_opts+=("$mount_opt")
   fi
+done
+
+# only change the mount options if any need changing
+if [[ ${#missing_opts[@]} != 0 ]]; then
+  mount --bind /nix/store /nix/store
+  mount -o remount,"$(IFS=, ; echo "${missing_opts[*]}")",bind /nix/store
 fi
 
 hostname @hostName@

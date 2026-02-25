@@ -29,10 +29,41 @@ in
         type = types.bool;
         default = false;
         description = lib.mdDoc ''
-          If set, NixOS will enforce the immutability of the Nix store
-          by making {file}`/nix/store` a read-only bind
-          mount.  Nix will automatically make the store writable when
-          needed.
+          Deprecated. Prefer {option}`boot.nixStoreMountOpts`.
+
+          If set, vpsAdminOS will enforce the immutability of the Nix store
+          by making {file}`/nix/store` a read-only bind mount. Nix will
+          automatically make the store writable when needed.
+        '';
+      };
+
+      nixStoreMountOpts = mkOption {
+        type = types.listOf types.nonEmptyStr;
+        default =
+          if config.boot.readOnlyNixStore then
+            [
+              "ro"
+              "nodev"
+              "nosuid"
+            ]
+          else
+            [
+              "nodev"
+              "nosuid"
+            ];
+        defaultText = literalExpression ''
+          if boot.readOnlyNixStore
+          then [ "ro" "nodev" "nosuid" ]
+          else [ "nodev" "nosuid" ]
+        '';
+        description = lib.mdDoc ''
+          Defines the mount options used on a bind mount for the {file}`/nix/store`.
+          This affects the whole system. The Nix daemon will remount the store
+          as needed.
+
+          `ro` enforces immutability of the Nix store.
+          The store daemon should already not put device mappers or suid binaries in the store,
+          meaning `nosuid` and `nodev` enforce what should already be the case.
         '';
       };
 
@@ -52,7 +83,8 @@ in
         systemConfig = null; # replaced in ../activation/top-level.nix
         path = config.system.path;
         inherit (config.networking) hostName;
-        inherit (config.boot) procHidePid readOnlyNixStore;
+        inherit (config.boot) procHidePid;
+        nixStoreMountOpts = concatStringsSep " " (map escapeShellArg config.boot.nixStoreMountOpts);
         inherit postBootCommands;
         parentWrapperDir = dirOf config.security.wrapperDir;
         wrapperDirSize = config.security.wrapperDirSize;
