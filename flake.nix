@@ -127,6 +127,13 @@
           overlays = import ./os/overlays;
           pkgs = pkgsBase.extend (lib.composeManyExtensions overlays);
 
+          devShellPrompt = name: ''
+            export VPSADMINOS_DEV_SHELL=1
+            if [ -n "$PS1" ]; then
+              export PS1="(dev:${name}) $PS1"
+            fi
+          '';
+
           mkRubyBundlerShell =
             {
               name,
@@ -154,7 +161,8 @@
 
                 export RUBYOPT=-rbundler/setup
               ''
-              + extraHook;
+              + extraHook
+              + (devShellPrompt name);
             };
 
           osctldPath = with pkgs; [
@@ -218,7 +226,8 @@
               NIX_ENFORCE_PURITY=0 bundle install
 
               [ -f shellhook.local.sh ] && . shellhook.local.sh
-            '';
+            ''
+            + devShellPrompt "vpsadminos";
           };
         in
         {
@@ -232,6 +241,7 @@
               go
               gotools
             ];
+            shellHook = devShellPrompt "ctptywrapper";
           };
 
           ctstartmenu = pkgsBase.mkShell {
@@ -241,6 +251,7 @@
               go
               gotools
             ];
+            shellHook = devShellPrompt "ctstartmenu";
           };
 
           converter = mkRubyBundlerShell {
@@ -410,7 +421,8 @@
               NIX_ENFORCE_PURITY=0 $BUNDLE install
 
               export RUBYOPT=-rbundler/setup
-            '';
+            ''
+            + devShellPrompt "test-runner";
           };
         }
       );
