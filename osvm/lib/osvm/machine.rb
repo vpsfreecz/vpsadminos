@@ -518,7 +518,7 @@ module OsVm
           File.join(config.virtiofsd, 'bin/virtiofsd'),
           '--socket-path', virtiofs_socket_path(name),
           '--shared-dir', path,
-          '--cache', 'never',
+          '--cache', 'auto',
           in: :close,
           out: f,
           err: f
