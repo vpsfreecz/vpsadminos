@@ -46,6 +46,10 @@
 
   nix = {
     daemon.enable = lib.mkDefault true;
+    settings.experimental-features = lib.mkDefault [
+      "nix-command"
+      "flakes"
+    ];
   };
 
   time.timeZone = lib.mkDefault "Europe/Amsterdam";
