@@ -3,10 +3,11 @@
   pkgs,
   lib,
   modulesPath,
+  impermanence,
   ...
 }:
 let
-  impermanence = (import ../impermanence-module.nix { inherit pkgs; }).unstable;
+  impermanenceModule = impermanence;
 
   configClone = pkgs.writeText "configuration.nix" ''
     { config, pkgs, ... }:
@@ -56,7 +57,7 @@ in
     "${modulesPath}/installer/cd-dvd/channel.nix"
     "${modulesPath}/virtualisation/container-config.nix"
     ./vpsadminos.nix
-    "${impermanence}/nixos.nix"
+    "${impermanenceModule}/nixos.nix"
   ];
 
   environment.systemPackages = with pkgs; [ vim ];
@@ -109,7 +110,7 @@ in
     fi
 
     if ! [ -d /persistent/etc/nixos/impermanence ]; then
-      cp -r ${impermanence} /persistent/etc/nixos/impermanence
+      cp -r ${impermanenceModule} /persistent/etc/nixos/impermanence
       find /persistent/etc/nixos/impermanence -type f -exec chmod u+w {} \;
     fi
   '';

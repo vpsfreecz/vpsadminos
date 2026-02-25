@@ -2,17 +2,12 @@
   config,
   pkgs,
   lib,
+  modulesPath,
+  impermanence,
   ...
 }:
 let
-  # Use custom nixpkgs instance to fetch impermanence module, as otherwise
-  # having it in imports results in infinite recursion
-  impermanence = (import <nixpkgs> { }).fetchFromGitHub {
-    owner = "nix-community";
-    repo = "impermanence";
-    rev = "e337457502571b23e449bf42153d7faa10c0a562";
-    sha256 = "sha256-C2sGRJl1EmBq0nO98TNd4cbUy20ABSgnHWXLIJQWRFA=";
-  };
+  impermanenceModule = impermanence;
 
   configClone = pkgs.writeText "configuration.nix" ''
     { config, pkgs, ... }:
@@ -59,10 +54,10 @@ let
 in
 {
   imports = [
-    <nixpkgs/nixos/modules/installer/cd-dvd/channel.nix>
-    <nixpkgs/nixos/modules/virtualisation/container-config.nix>
+    "${modulesPath}/installer/cd-dvd/channel.nix"
+    "${modulesPath}/virtualisation/container-config.nix"
     ./vpsadminos.nix
-    "${impermanence}/nixos.nix"
+    "${impermanenceModule}/nixos.nix"
   ];
 
   environment.systemPackages = with pkgs; [ vim ];
@@ -115,12 +110,12 @@ in
     fi
 
     if ! [ -d /persistent/etc/nixos/impermanence ]; then
-      cp -r ${impermanence} /persistent/etc/nixos/impermanence
+      cp -r ${impermanenceModule} /persistent/etc/nixos/impermanence
       find /persistent/etc/nixos/impermanence -type f -exec chmod u+w {} \;
     fi
   '';
 
-  system.build.impermanenceTarball = import <nixpkgs/nixos/lib/make-system-tarball.nix> {
+  system.build.impermanenceTarball = import "${pkgs.path}/nixos/lib/make-system-tarball.nix" {
     inherit (pkgs) stdenv closureInfo pixz;
     compressCommand = "gzip";
     compressionExtension = ".gz";

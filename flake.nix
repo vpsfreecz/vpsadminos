@@ -2,6 +2,7 @@
   description = "vpsAdminOS flake";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
+  inputs.impermanence.url = "github:nix-community/impermanence";
 
   outputs =
     {
@@ -12,6 +13,7 @@
     let
       supportedSystems = [ "x86_64-linux" ];
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
+      impermanence = inputs.impermanence;
 
       vpsadminosSystem =
         {
@@ -87,6 +89,7 @@
               inherit system;
               pkgs = nixpkgs.legacyPackages.${system};
               modules = [ module ];
+              specialArgs = { inherit impermanence; };
             };
 
           templateStableSystem = mkNixosTemplate ./os/lib/nixos-container/stable/minimal.nix;
