@@ -39,7 +39,6 @@ read-only. This means that qemu has to be run as root, in order to have access
 to your files:
 
 ```shell
-$ export NIX_PATH=/where/is/your/nix/path
 $ sudo -E make qemu
 ```
 

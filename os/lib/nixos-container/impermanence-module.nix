@@ -1,6 +1,5 @@
+{ pkgs }:
 let
-  pkgs = import <nixpkgs> { };
-
   module = pkgs.fetchFromGitHub {
     owner = "nix-community";
     repo = "impermanence";
@@ -10,6 +9,5 @@ let
 in
 {
   stable = module;
-
   unstable = module;
 }

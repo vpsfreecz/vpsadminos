@@ -32,13 +32,9 @@ git clone https://github.com/vpsfreecz/vpsadminos/
 cd vpsadminos
 ```
 
-vpsAdminOS is developed on top of the latest NixOS release, so make sure that
-the correct version of nixpkgs is in `NIX_PATH`, or set it as follows:
-
-```bash
-git clone https://github.com/NixOS/nixpkgs --branch nixos-25.11
-export NIX_PATH=`pwd`
-```
+vpsAdminOS is developed on top of the latest NixOS release and pins nixpkgs in
+`flake.lock`, so you do not need to set `NIX_PATH`. Ensure flakes are enabled
+(Nix >= 2.4 or `experimental-features = nix-command flakes` in `nix.conf`).
 
 # Building the OS
 The easiest way to try vpsAdminOS is to run it in virtual machine using QEMU:

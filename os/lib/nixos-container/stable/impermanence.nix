@@ -2,10 +2,11 @@
   config,
   pkgs,
   lib,
+  modulesPath,
   ...
 }:
 let
-  impermanence = (import ../impermanence-module.nix).stable;
+  impermanence = (import ../impermanence-module.nix { inherit pkgs; }).stable;
 
   configClone = pkgs.writeText "configuration.nix" ''
     { config, pkgs, ... }:
@@ -52,8 +53,8 @@ let
 in
 {
   imports = [
-    <nixpkgs/nixos/modules/installer/cd-dvd/channel.nix>
-    <nixpkgs/nixos/modules/virtualisation/container-config.nix>
+    "${modulesPath}/installer/cd-dvd/channel.nix"
+    "${modulesPath}/virtualisation/container-config.nix"
     ./vpsadminos.nix
     "${impermanence}/nixos.nix"
   ];
@@ -113,7 +114,7 @@ in
     fi
   '';
 
-  system.build.impermanenceTarball = import <nixpkgs/nixos/lib/make-system-tarball.nix> {
+  system.build.impermanenceTarball = import "${pkgs.path}/nixos/lib/make-system-tarball.nix" {
     inherit (pkgs) stdenv closureInfo pixz;
     compressCommand = "gzip";
     compressionExtension = ".gz";

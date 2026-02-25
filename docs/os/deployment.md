@@ -3,8 +3,8 @@ vpsAdminOS is a custom spin of NixOS and as such is not supported by NixOS
 deployment tools like [NixOps] or [morph], although it is not too hard
 to [patch them](#patching).
 
-vpsAdminOS can be built from its repository using `make`, which is calling
-`nix-build` under the hood. Check the [Makefile] for more information. Another
+vpsAdminOS can be built from its repository using `make`, which calls
+`nix build` under the hood. Check the [Makefile] for more information. Another
 approach is to use `os-rebuild`, an alternative to `nixos-rebuild`, from
 an already installed system.
 

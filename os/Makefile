@@ -1,8 +1,15 @@
 CORES = 0
 JOBS = 2
 TEMPLATE_CHANNEL = stable
-NIXPKGS_PATH ?= $(shell nix-instantiate --find-file nixpkgs 2>/dev/null)
-CHECK_NIXPKGS = test -n "$(NIXPKGS_PATH)" || (echo "NIXPKGS_PATH is empty; set NIXPKGS_PATH or NIX_PATH" >&2; exit 1)
+OS_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+ROOT := $(abspath $(OS_DIR)/..)
+NIX ?= nix
+NIX_IMPURE =
+
+ifneq ($(VPSADMINOS_CONFIG),)
+  export VPSADMINOS_CONFIG
+  NIX_IMPURE = --impure
+endif
 
 ifeq ($(DEBUG),0)
   TRACE =
@@ -12,45 +19,31 @@ endif
 
 # default build (configs/qemu.nix)
 build: result
-	@$(CHECK_NIXPKGS)
-	nix-build \
-	 --arg nixpkgsPath "$(NIXPKGS_PATH)" \
-	 --arg configuration $(or $(VPSADMINOS_CONFIG),./configs/qemu.nix) \
+	$(NIX) build $(NIX_IMPURE) \
 	 --out-link result/qemu \
-	 --cores $(CORES) -j $(JOBS) $(TRACE)
+	 --cores $(CORES) -j $(JOBS) $(TRACE) \
+	 $(ROOT)#qemu
 
 # build the system closure without building the squashfs image
 toplevel: result
-	@$(CHECK_NIXPKGS)
-	nix-build \
-	 --arg nixpkgsPath "$(NIXPKGS_PATH)" \
-	 --arg configuration $(or $(VPSADMINOS_CONFIG),./configs/qemu.nix) \
-	 --attr config.system.build.toplevel \
+	$(NIX) build $(NIX_IMPURE) \
 	 --out-link result/toplevel \
-	 --cores $(CORES)
+	 --cores $(CORES) $(TRACE) \
+	 $(ROOT)#toplevel
 
 # build iso image
 iso: result
-	@$(CHECK_NIXPKGS)
-	nix-build \
-	 --arg nixpkgsPath "$(NIXPKGS_PATH)" \
-	 --arg configuration $(or $(VPSADMINOS_CONFIG),"{ imports  = [ ./configs/iso.nix ]; }") \
-	 -A config.system.build.isoImage \
+	$(NIX) build $(NIX_IMPURE) \
 	 --out-link result/iso \
-	 --cores $(CORES) || exit 1
+	 --cores $(CORES) $(TRACE) \
+	 $(ROOT)#iso || exit 1
 
 # build iso image runner
 iso-local: result
-	@$(CHECK_NIXPKGS)
-	nix-build \
-	 --arg nixpkgsPath "$(NIXPKGS_PATH)" \
-	 --arg configuration $(or $(VPSADMINOS_CONFIG),"{ imports  = [ \
-	     ./configs/iso.nix \
-	     ./configs/qemu.nix \
-	   ]; }") \
-	 -A config.system.build.runvm \
+	$(NIX) build $(NIX_IMPURE) \
 	 --out-link result/iso \
-	 --cores $(CORES) || exit 1
+	 --cores $(CORES) $(TRACE) \
+	 $(ROOT)#iso-local || exit 1
 
 qemu: build
 	./result/qemu
@@ -60,13 +53,10 @@ qemu-iso: iso-local
 	./result/iso
 
 build-qemu-script:
-	@$(CHECK_NIXPKGS)
-	nix-build \
-	 --arg nixpkgsPath "$(NIXPKGS_PATH)" \
-	 --arg configuration $(or $(VPSADMINOS_CONFIG),./configs/qemu.nix) \
-	 -A config.system.build.runvmScript \
+	$(NIX) build $(NIX_IMPURE) \
 	 --out-link result/qemu-script \
-	 --cores $(CORES) -j $(JOBS) $(TRACE)
+	 --cores $(CORES) -j $(JOBS) $(TRACE) \
+	 $(ROOT)#qemu-script
 
 qemu-script: build-qemu-script
 	./result/qemu-script
@@ -77,27 +67,22 @@ flash: iso
 
 # build nixos container template (rootfs tarball)
 template:
-	nix-build \
-	'<nixpkgs/nixos>' \
-	--arg configuration ./lib/nixos-container/$(TEMPLATE_CHANNEL)/minimal.nix \
-	-A config.system.build.tarball \
-	--out-link result/template
+	$(NIX) build \
+	 --out-link result/template \
+	 --cores $(CORES) $(TRACE) \
+	 $(ROOT)#template-$(TEMPLATE_CHANNEL)
 
 template-impermanence:
-	nix-build \
-	'<nixpkgs/nixos>' \
-	--arg configuration ./lib/nixos-container/$(TEMPLATE_CHANNEL)/impermanence.nix \
-	-A config.system.build.impermanenceTarball \
-	--out-link result/template-impermanence
+	$(NIX) build \
+	 --out-link result/template-impermanence \
+	 --cores $(CORES) $(TRACE) \
+	 $(ROOT)#template-impermanence-$(TEMPLATE_CHANNEL)
 
 os-rebuild:
-	@$(CHECK_NIXPKGS)
-	nix-build \
-	 --arg nixpkgsPath "$(NIXPKGS_PATH)" \
-	 --arg configuration ./configs/qemu.nix \
+	$(NIX) build $(NIX_IMPURE) \
 	 --out-link result/os-rebuild \
-	 --cores $(CORES) \
-	 -A config.system.build.os-rebuild
+	 --cores $(CORES) $(TRACE) \
+	 $(ROOT)#os-rebuild
 
 result:
 	mkdir -p result

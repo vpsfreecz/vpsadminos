@@ -36,9 +36,6 @@ on:
       - test-runner/**
       - tests/**
 
-env:
-  NIX_PATH: nixpkgs=https://channels.nixos.org/nixos-25.11/nixexprs.tar.xz
-
 jobs:
   build:
     name: Build OS and populate binary cache

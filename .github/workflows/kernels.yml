@@ -16,9 +16,6 @@ on:
       - .github/workflows/kernels.yml
       - os/packages/linux/**
 
-env:
-  NIX_PATH: nixpkgs=https://channels.nixos.org/nixos-25.11/nixexprs.tar.xz
-
 jobs:
   detect:
     name: Detect available kernel versions
@@ -32,13 +29,11 @@ jobs:
           fetch-depth: 0
 
       - uses: cachix/install-nix-action@v31
-        with:
-          nix_path: nixpkgs=channel:nixos-25.11
 
       - id: set
         shell: bash
         run: |
-          kernelVersions=$(nix-instantiate --eval --json --strict os/packages/linux/available-kernels.nix | jq -c '.kernels | keys')
+          kernelVersions=$(nix eval --json --file os/packages/linux/available-kernels.nix | jq -c '.kernels | keys')
           echo "Detected available kernels: $kernelVersions"
           echo "kernelVersions=$kernelVersions" >> "$GITHUB_OUTPUT"
 

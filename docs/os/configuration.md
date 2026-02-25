@@ -30,28 +30,19 @@ This functionality is experimental and mostly used for testing.
 
 ## Explicit configuration and dependencies
 
-Most of the `make` targets are just wrappers for `nix-build`. It is possible
-to build the `os` by specifying required arguments directly without relying on
-`nixops` or setting the correct `NIX_PATH`. The following example demonstrates
-how to build the `os` directly without `make`.
+Most of the `make` targets are wrappers for `nix build` using the repository
+flake. The following example demonstrates how to build the `os` directly
+without `make`.
 
 ```bash
 cd os
-nix-build \
- --arg configuration /where/is/your/config.nix \
- --arg nixpkgs "../../nixpkgs" \
- --cores 0
+nix build --out-link result/qemu ..#qemu
 ```
 
-`configuration` can also be passed via environmental variable `VPSADMINOS_CONFIG`,
-so this is equivalent:
+To use a custom configuration, set `VPSADMINOS_CONFIG` to an absolute path and
+build with `--impure`, e.g.:
 
 ```bash
 cd os
-export VPSADMINOS_CONFIG=/where/is/your/config.nix
-nix-build \
- --arg nixpkgs "../../nixpkgs" \
- --cores 0
+VPSADMINOS_CONFIG=/where/is/your/config.nix nix build --impure --out-link result/qemu ..#qemu
 ```
-
-`VPSADMINOS_CONFIG` has to be an absolute path.
