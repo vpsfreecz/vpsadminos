@@ -1,5 +1,6 @@
 require 'json'
 require 'fileutils'
+require 'open3'
 
 module TestRunner
   class TestConfig
@@ -20,24 +21,19 @@ module TestRunner
     end
 
     def build
+      FileUtils.mkdir_p('result/tests')
+      ref = ".#tests.#{nix_system}.\"#{nix_quote_attr(test.path)}\""
+
       cmd = [
-        'nix-build',
-        '--attr', 'json',
-        '--out-link', config_path
+        'nix', 'build',
+        '--impure',
+        '--out-link', config_path,
+        ref
       ]
 
-      if test.template?
-        cmd << '--argstr' << 'templateArgsInJson' << test.template_args.to_json
-      elsif test.test_args.any?
-        cmd << '--argstr' << 'testArgsInJson' << test.test_args.to_json
-      end
-
-      cmd << "./tests/suite/#{test.file_path}"
-
-      FileUtils.mkdir_p('result/tests')
       pid = spawn(*cmd)
       Process.wait(pid)
-      raise 'nix-build failed' if $?.exitstatus != 0
+      raise 'nix build failed' if $?.exitstatus != 0
 
       @config = JSON.parse(File.read(config_path))
     end
@@ -47,6 +43,26 @@ module TestRunner
     end
 
     protected
+
+    def nix_system
+      @nix_system ||= begin
+        out, status = Open3.capture2(
+          'nix',
+          'eval',
+          '--raw',
+          '--impure',
+          '--expr',
+          'builtins.currentSystem'
+        )
+        raise "nix eval builtins.currentSystem failed (#{status.exitstatus})" unless status.success?
+
+        out.strip
+      end
+    end
+
+    def nix_quote_attr(s)
+      s.to_s.gsub('\\', '\\\\').gsub('"', '\\"')
+    end
 
     def config_path
       "result/tests/#{test.name}-config.json"

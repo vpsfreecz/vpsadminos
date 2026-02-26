@@ -1,12 +1,18 @@
 {
   pkgs ? <nixpkgs>,
   system ? builtins.currentSystem,
+  suiteArgs ? { },
 }:
 let
-  nixpkgs = import pkgs { };
+  nixpkgs = import pkgs { inherit system; };
   lib = nixpkgs.lib;
   testLib = import ../test-runner/nix/lib.nix {
-    inherit pkgs system lib;
+    inherit
+      pkgs
+      system
+      lib
+      suiteArgs
+      ;
     suitePath = ./suite;
   };
 

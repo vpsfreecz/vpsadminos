@@ -3,9 +3,10 @@
   system ? builtins.currentSystem,
   lib ? null,
   suitePath ? ./suite,
+  suiteArgs ? { },
 }:
 let
-  nixpkgs = import pkgs { };
+  nixpkgs = import pkgs { inherit system; };
   l = if lib == null then nixpkgs.lib else lib;
 
   makeSingleTest =
@@ -14,10 +15,9 @@ let
       args ? { },
     }:
     let
-      testModule = import (suitePath + "/${test}.nix") {
-        inherit pkgs system;
-        testArgs = args;
-      };
+      testModule = import (suitePath + "/${test}.nix") (
+        { inherit pkgs system; } // suiteArgs // { testArgs = args; }
+      );
     in
     {
       name = test;
@@ -33,10 +33,9 @@ let
     map (
       args:
       let
-        t = import (suitePath + "/${template}.nix") {
-          inherit pkgs system;
-          templateArgs = args;
-        };
+        t = import (suitePath + "/${template}.nix") (
+          { inherit pkgs system; } // suiteArgs // { templateArgs = args; }
+        );
       in
       {
         name = "${template}@${t.instance}";

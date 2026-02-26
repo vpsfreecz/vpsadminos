@@ -1,11 +1,12 @@
 require 'json'
+require 'open3'
 
 module TestRunner
   class TestList
     # Return a list of all known tests
     # @return [Array<Test>]
     def all
-      parse_many(extract)
+      parse_many(extract_all)
     end
 
     # Filter through all tests, return those that the filter matched
@@ -18,34 +19,46 @@ module TestRunner
     # Return one test specified by path
     # @return [Test]
     def by_path(path)
-      parse_one(path, extract(path:))
+      parse_one(path, extract_one(path))
     end
 
     protected
 
-    def extract(path: nil)
-      list_tests = File.expand_path('../../nix/list-tests.nix', __dir__)
-      tests_root = File.expand_path('tests', Dir.pwd)
+    def nix_system
+      @nix_system ||= begin
+        out, status = Open3.capture2(
+          'nix',
+          'eval',
+          '--raw',
+          '--impure',
+          '--expr',
+          'builtins.currentSystem'
+        )
+        raise "nix eval builtins.currentSystem failed (#{status.exitstatus})" unless status.success?
 
-      cmd = [
-        'nix-instantiate',
-        '--eval',
-        '--json',
-        '--strict',
-        '--read-write-mode'
-      ]
-
-      cmd << '--arg' << 'testsRoot' << tests_root
-      cmd << '--attr' << "\\\"#{path}\\\"" if path
-      cmd << list_tests
-
-      json = `#{cmd.join(' ')}`
-
-      if $?.exitstatus != 0
-        raise "nix-instantiate failed with exit status #{$?.exitstatus}"
+        out.strip
       end
+    end
 
-      json
+    def nix_quote_attr(s)
+      s.to_s.gsub('\\', '\\\\').gsub('"', '\\"')
+    end
+
+    def extract_all
+      cmd = ['nix', 'eval', '--json', '--impure', ".#testsMeta.#{nix_system}"]
+      out, status = Open3.capture2(*cmd)
+      raise "nix eval testsMeta failed (#{status.exitstatus})" unless status.success?
+
+      out
+    end
+
+    def extract_one(path)
+      ref = ".#testsMeta.#{nix_system}.\"#{nix_quote_attr(path)}\""
+      cmd = ['nix', 'eval', '--json', '--impure', ref]
+      out, status = Open3.capture2(*cmd)
+      raise "nix eval testsMeta[#{path}] failed (#{status.exitstatus})" unless status.success?
+
+      out
     end
 
     def parse_many(json)

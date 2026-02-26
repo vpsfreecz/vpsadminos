@@ -40,6 +40,48 @@
     in
     {
       lib.vpsadminosSystem = vpsadminosSystem;
+      lib.testFramework = {
+        mkTests =
+          {
+            system,
+            pkgsPath ? nixpkgs.outPath,
+            testsRoot,
+            suiteArgs ? { },
+          }:
+          let
+            allTests = import (testsRoot + "/all-tests.nix") {
+              pkgs = pkgsPath;
+              inherit system suiteArgs;
+            };
+          in
+          builtins.mapAttrs (_: t: t.test.json) allTests;
+
+        mkTestsMeta =
+          {
+            system,
+            pkgsPath ? nixpkgs.outPath,
+            testsRoot,
+            suiteArgs ? { },
+          }:
+          let
+            nixpkgs' = import pkgsPath { inherit system; };
+            lib' = nixpkgs'.lib;
+
+            testLib = import (self.outPath + "/test-runner/nix/lib.nix") {
+              pkgs = pkgsPath;
+              inherit system;
+              lib = lib';
+              suitePath = testsRoot + "/suite";
+              inherit suiteArgs;
+            };
+
+            allTests = import (testsRoot + "/all-tests.nix") {
+              pkgs = pkgsPath;
+              inherit system suiteArgs;
+            };
+          in
+          testLib.metaFromAllTests allTests;
+      };
       nixpkgsPath = nixpkgs.outPath;
 
       nixosModules.vpsadminos =
@@ -56,9 +98,49 @@
         containerUnstable = import ./os/lib/nixos-container/unstable/vpsadminos.nix;
       };
 
+      tests = forAllSystems (
+        system:
+        let
+          allTests = import ./tests/all-tests.nix {
+            pkgs = nixpkgs.outPath;
+            inherit system;
+            suiteArgs = { };
+          };
+        in
+        builtins.mapAttrs (_: t: t.test.json) allTests
+      );
+
+      testsMeta = forAllSystems (
+        system:
+        let
+          pkgsPath = nixpkgs.outPath;
+          nixpkgs' = import pkgsPath { inherit system; };
+          lib' = nixpkgs'.lib;
+
+          testLib = import ./test-runner/nix/lib.nix {
+            pkgs = pkgsPath;
+            inherit system;
+            lib = lib';
+            suitePath = ./tests/suite;
+            suiteArgs = { };
+          };
+
+          allTests = import ./tests/all-tests.nix {
+            pkgs = pkgsPath;
+            inherit system;
+            suiteArgs = { };
+          };
+        in
+        testLib.metaFromAllTests allTests
+      );
+
       packages = forAllSystems (
         system:
         let
+          pkgsBase = nixpkgs.legacyPackages.${system};
+          overlays = import ./os/overlays;
+          pkgsWithOverlays = pkgsBase.extend (nixpkgs.lib.composeManyExtensions overlays);
+
           qemuSystem = vpsadminosSystem {
             inherit system;
             modules = [ ./os/configs/qemu.nix ];
@@ -113,8 +195,8 @@
             templateStableImpermanenceSystem.config.system.build.impermanenceTarball;
           template-impermanence-unstable =
             templateUnstableImpermanenceSystem.config.system.build.impermanenceTarball;
-          test-runner = import ./os/packages/test-runner/entry.nix {
-            pkgs = nixpkgs.legacyPackages.${system};
+          test-runner = import ./test-runner/nix/package.nix {
+            pkgs = pkgsWithOverlays;
           };
         }
       );
