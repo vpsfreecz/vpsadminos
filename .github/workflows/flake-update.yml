@@ -1,0 +1,59 @@
+name: Update flake inputs
+
+on:
+  schedule:
+    - cron: '30 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    name: Update flake.lock
+    if: github.repository == 'vpsfreecz/vpsadminos'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: cachix/install-nix-action@v31
+
+      - name: Update flake inputs
+        run: |
+          cp -f flake.lock /tmp/flake.lock.old
+          nix flake update
+
+      - name: Commit and push changes
+        run: |
+          if git diff --quiet; then
+            echo "No flake.lock changes."
+            exit 0
+          fi
+
+          changed_inputs=$(ruby .github/workflows/scripts/flake-update-commit-message.rb inputs /tmp/flake.lock.old flake.lock)
+          changed_body=$(ruby .github/workflows/scripts/flake-update-commit-message.rb body /tmp/flake.lock.old flake.lock)
+
+          git add flake.lock
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if [ -n "$changed_inputs" ]; then
+            commit_message="flake: update $changed_inputs"
+          else
+            commit_message="flake: update flake inputs"
+          fi
+          if [ -n "$changed_body" ]; then
+            commit_file=$(mktemp)
+            {
+              printf '%s\n\n' "$commit_message"
+              printf '%s\n' "$changed_body"
+            } > "$commit_file"
+            git commit -F "$commit_file"
+            rm -f "$commit_file"
+          else
+            git commit -m "$commit_message"
+          fi
+          git push
