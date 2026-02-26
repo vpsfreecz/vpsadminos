@@ -1,72 +1,142 @@
 # Using the vpsAdminOS test framework in other projects
 
-The vpsAdminOS test framework can be reused without copying its sources. It
-builds a Ruby test runner from the `#test-runner` flake output, boots QEMU
-machines defined in Nix and runs Ruby test scripts against them. Tests are
-discovered from `tests/all-tests.nix`, where each entry points to a Nix file
-under `tests/suite/`. Flake users must expose `tests` and `testsMeta` outputs
-for the runner.
+The vpsAdminOS test framework can be reused without copying its sources:
+
+- Nix code defines QEMU machines and turns test definitions under `tests/suite/`
+  into flake outputs.
+- The upstream Ruby runner (`vpsadminos#test-runner`) evaluates your project's
+  flake outputs, boots the machines and runs Ruby `testScript`s against them.
+
+The important bit: the runner always evaluates/builds tests from the *current
+working directory* using these flake outputs:
+
+- `.#testsMeta.<system>` (discovery: `ls`, tags/labels, templates, ...)
+- `.#tests.<system>."<test-path>"` (build JSON config for a test)
+
+So to integrate the runner into another repository, your project needs:
+
+1. A Nix flake that exports `tests` and `testsMeta`.
+2. A `tests/` tree with `all-tests.nix` + `suite/` (and usually `make-test.nix`).
+
+For writing tests (machine definition, `testScript`, tags, multiple scripts),
+see [Testing](testing.md).
 
 ## Integration example (vpsAdmin)
 The [vpsAdmin repository](https://github.com/vpsfreecz/vpsadmin) reuses the
-framework directly. The same pattern can be followed by other projects:
+framework directly via a flake input. The sections below describe the same
+setup in a copy/paste-friendly way.
 
-### Provide access to vpsAdminOS
-- Keep a vpsAdminOS checkout next to your project or set `VPSADMINOS_PATH` to
-  its location.
-- Add vpsAdminOS as a flake input and pass its path into your test suites via
-  `suiteArgs` instead of relying on `NIX_PATH`.
+## Step-by-step integration (recommended, flake-based)
 
-### Wrap the runner
-Add a small wrapper that builds and runs the upstream runner with the current
-repository as the working directory, e.g. `test-runner.sh` from vpsAdmin:
+### 1) Add vpsAdminOS as a flake input
+In your `flake.nix`, add vpsAdminOS and (recommended) align nixpkgs with it:
 
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
+```nix
+{
+  inputs = {
+    vpsadminos.url = "github:vpsfreecz/vpsadminos/<ref>";
+    nixpkgs.follows = "vpsadminos/nixpkgs";
+  };
 
-ROOT="$(cd -- "$(dirname "$0")" && pwd)"
-OS_ROOT="${VPSADMINOS_PATH:-${ROOT}/../vpsadminos}"
-
-mkdir -p "$ROOT/result"
-nix build --out-link "$ROOT/result/test-runner" "$OS_ROOT#test-runner" >/dev/null
-exec "$ROOT/result/test-runner/bin/test-runner" "$@"
+  outputs = { self, nixpkgs, vpsadminos, ... }:
+  let
+    systems = [ "x86_64-linux" ];
+    forAllSystems = nixpkgs.lib.genAttrs systems;
+  in
+  {
+    # filled in below
+  };
+}
 ```
 
-### Mirror the test layout
-### Mirror the test layout
-- `tests/make-test.nix` can re-export the upstream helper using an explicit
-  path (from `suiteArgs`):
-  ```
-  { vpsadminosPath }:
-  import (vpsadminosPath + "/tests/make-test.nix")
-  ```
-- `tests/all-tests.nix` uses the upstream library to enumerate tests:
-  ```nix
-  {
-    pkgs ? <nixpkgs>,
-    system ? builtins.currentSystem,
-    suiteArgs ? { },
-  }:
-  let
-    nixpkgs = import pkgs { inherit system; };
-    lib = nixpkgs.lib;
-    testLib = import (suiteArgs.vpsadminosPath + "/test-runner/nix/lib.nix") {
-      inherit pkgs system lib suiteArgs;
-      suitePath = ./suite;
-    };
-  in
-  testLib.makeTests [
-    "vpsadmin/services-up"
-  ]
-  ```
-- Place your Nix test definitions in `tests/suite/`, importing modules from
-  vpsAdminOS via `suiteArgs.vpsadminosPath` and adding project-specific
-  configs.
+Tip for local development: point the input at a local checkout:
+`vpsadminos.url = "path:../vpsadminos";`.
 
-### Export flake outputs
-Downstream flakes must export `tests` and `testsMeta` so the runner can list
-and build configs via `nix eval`/`nix build`:
+### 2) Add the `tests/` tree
+Create this minimal layout in your project:
+
+```text
+tests/
+  all-tests.nix
+  make-test.nix
+  suite/
+    hello/
+      boot.nix
+```
+
+`tests/make-test.nix` should delegate to the upstream helper (this is what
+each suite file imports):
+
+```nix
+testFn:
+{ vpsadminosPath, ... }@args:
+let
+  upstream = import (vpsadminosPath + "/tests/make-test.nix") testFn;
+
+  # Optional: pass extra args to NixOS/vpsAdminOS modules as `specialArgs`.
+  # The vpsAdmin repo uses this to make the vpsAdminOS checkout available as
+  # `vpsadminos` inside NixOS module evaluation.
+  mergedExtraArgs = { vpsadminos = vpsadminosPath; } // (args.extraArgs or { });
+in
+upstream (args // { extraArgs = mergedExtraArgs; })
+```
+
+`tests/all-tests.nix` lists tests (and templates) and is evaluated by the flake
+helpers:
+
+```nix
+{
+  pkgs ? <nixpkgs>,
+  system ? builtins.currentSystem,
+  suiteArgs ? { },
+}:
+let
+  vpsadminosPath = suiteArgs.vpsadminosPath or (throw "suiteArgs.vpsadminosPath is required");
+
+  nixpkgs = import pkgs { inherit system; };
+  lib = nixpkgs.lib;
+
+  testLib = import (vpsadminosPath + "/test-runner/nix/lib.nix") {
+    inherit pkgs system lib suiteArgs;
+    suitePath = ./suite;
+  };
+in
+testLib.makeTests [
+  "hello/boot"
+]
+```
+
+And a minimal suite test, `tests/suite/hello/boot.nix`:
+
+```nix
+import ../../make-test.nix ({ ... }: {
+  name = "hello-boot";
+  description = "Boot a VM and run a simple command";
+
+  machine = {
+    spin = "nixos";
+    config = {
+      networking.hostName = "hello";
+      virtualisation.memorySize = 1024;
+      virtualisation.cores = 2;
+    };
+  };
+
+  testScript = ''
+    machine.start
+    machine.wait_for_boot
+    machine.wait_for_service("test-shell")
+    machine.succeeds("echo hello")
+  '';
+})
+```
+
+Note: test paths in `all-tests.nix` map to files under `tests/suite/` without
+the `.nix` suffix, e.g. `hello/boot` -> `tests/suite/hello/boot.nix`.
+
+### 3) Export flake outputs
+Your flake must export `tests` and `testsMeta` so the runner can list and build
+tests via `nix eval`/`nix build`:
 
 ```nix
 {
@@ -93,7 +163,67 @@ and build configs via `nix eval`/`nix build`:
 }
 ```
 
-### Extend the runner when needed
+If your project uses a different nixpkgs than vpsAdminOS, also pass
+`pkgsPath = nixpkgs.outPath;` to both `mkTests` and `mkTestsMeta`.
+
+### 4) Expose the runner and add a wrapper script
+Expose the upstream runner as an app:
+
+```nix
+{
+  outputs = { self, nixpkgs, vpsadminos, ... }:
+  let
+    systems = [ "x86_64-linux" ];
+    forAllSystems = nixpkgs.lib.genAttrs systems;
+  in
+  {
+    apps = forAllSystems (system: {
+      test-runner = {
+        type = "app";
+        program = "${vpsadminos.packages.${system}.test-runner}/bin/test-runner";
+      };
+    });
+
+    # Optional convenience
+    packages = forAllSystems (system: {
+      test-runner = vpsadminos.packages.${system}.test-runner;
+    });
+  };
+}
+```
+
+Then add a small wrapper script in your repo root, e.g. `test-runner.sh` (so
+`$PWD` is correct):
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd -- "$(dirname "$0")" && pwd)"
+cd "$ROOT"
+
+exec nix run .#test-runner -- "$@"
+```
+
+Make it executable:
+
+```bash
+chmod +x test-runner.sh
+```
+
+The runner loads `tests/runner/extensions/*.rb` (if present) relative to the
+current directory and writes JSON configs under `result/tests/`, so it is
+important to run it from the flake root.
+
+### 5) Run the suite
+Invoke the wrapper with the usual runner commands:
+
+- `./test-runner.sh ls` to list available tests.
+- `./test-runner.sh test hello/boot` to run a single test.
+- `./test-runner.sh test 'hello/*'` to run selected tests.
+- `./test-runner.sh debug hello/boot` to open the interactive REPL.
+
+### 6) Extend the runner when needed (optional)
 Custom helpers can be added under `tests/runner/extensions/`. vpsAdmin adds
 `tests/runner/extensions/vpsadmin_services.rb`, which:
 - wraps `vpsadminctl` to make JSON-friendly `succeeds`/`fails` helpers;
@@ -122,9 +252,11 @@ TestRunner::Hook.subscribe(:after_test_script_run) do |script_result:, machines:
 end
 ```
 
-### Run the suite
-Invoke the wrapper with the usual runner commands:
-
-- `./test-runner.sh ls` to list available tests.
-- `./test-runner.sh test 'pattern/*'` to run selected tests.
-- `./test-runner.sh debug <test>` to open the interactive REPL.
+## Common gotchas
+- `nix eval testsMeta failed`: the runner must be executed from the directory
+  that contains your `flake.nix` and exports `testsMeta`.
+- `suiteArgs.vpsadminosPath is required`: ensure `suiteArgs = { vpsadminosPath =
+  vpsadminos.outPath; };` is passed in both `mkTests` and `mkTestsMeta`.
+- If your repository uses `result` as a symlink (e.g. from `nix build`), change
+  that. The runner writes to `result/tests/...` and will fail if `result`
+  points into the Nix store.
