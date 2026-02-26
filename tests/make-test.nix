@@ -1,5 +1,5 @@
 testFn:
-{
+args@{
   configuration ?
     let
       cfg = builtins.getEnv "VPSADMINOS_CONFIG";
@@ -15,6 +15,7 @@ testFn:
   testArgsInJson ? null,
   # target system
   system ? builtins.currentSystem,
+  ...
 }:
 let
   nixpkgs = import pkgs {
@@ -40,7 +41,17 @@ let
     else
       { };
 
-  testAttrs = testFn ({ pkgs = nixpkgs; } // effectiveTestArgs);
+  forwardedArgs = builtins.removeAttrs args [
+    "configuration"
+    "pkgs"
+    "modules"
+    "extraArgs"
+    "testArgs"
+    "testArgsInJson"
+    "system"
+  ];
+
+  testAttrs = testFn ({ pkgs = nixpkgs; } // forwardedArgs // effectiveTestArgs);
 
   vpsadminosSystem =
     cfg:
