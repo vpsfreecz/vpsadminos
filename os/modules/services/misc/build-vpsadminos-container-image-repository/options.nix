@@ -2,7 +2,6 @@
   config,
   pkgs,
   lib,
-  nixpkgsPath,
   ...
 }:
 with lib;
@@ -219,10 +218,6 @@ in
             services.haveged.enable = mkDefault true;
             os.channel-registration.enable = mkDefault false;
             services.openssh.enable = true;
-
-            nix.nixPath = [
-              "nixpkgs=${nixpkgsPath}"
-            ];
 
             boot.zfs.pools.tank = {
               layout = [
