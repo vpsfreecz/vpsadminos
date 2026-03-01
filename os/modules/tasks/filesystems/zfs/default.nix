@@ -47,6 +47,16 @@ let
   cfgZED = config.services.zfs.zed;
   cfgVdevLog = config.services.zfs.vdevlog;
 
+  # Some ZFS params are vpsAdminOS-specific and only exist in newer pinned ZFS
+  # revisions. If passed to the module loader for an older rollback kernel, ZFS
+  # fails to load due to unknown parameters. Set them at runtime instead.
+  runtimeOnlyZfsModuleParams = [
+    "zfs_xattr_trusted_userns_enable"
+    "zfs_statfs_shack_enabled"
+  ];
+
+  zfsModprobeParams = removeAttrs cfgZfs.moduleParams.zfs runtimeOnlyZfsModuleParams;
+
   inInitrd = config.boot.initrd.supportedFilesystems.zfs or false;
   inSystem = config.boot.supportedFilesystems.zfs or false;
 
@@ -858,8 +868,8 @@ in
         + optionalString (cfgZfs.moduleParams.spl != { }) (
           moduleModprobeConfigContent "spl" cfgZfs.moduleParams.spl + "\n"
         )
-        + optionalString (cfgZfs.moduleParams.zfs != { }) (
-          moduleModprobeConfigContent "zfs" cfgZfs.moduleParams.zfs + "\n"
+        + optionalString (zfsModprobeParams != { }) (
+          moduleModprobeConfigContent "zfs" zfsModprobeParams + "\n"
         );
 
       boot.initrd = mkIf inInitrd {

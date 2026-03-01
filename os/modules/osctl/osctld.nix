@@ -78,6 +78,10 @@ in
           waitForService restrict-proc-sysfs
         ''}
 
+        ${optionalString (config.boot.supportedFilesystems.zfs or false) ''
+          waitForService zfs-module-parameters
+        ''}
+
         waitForNetworkOnline 60
 
         waitForService live-patches 120
