@@ -9,6 +9,7 @@
   nix,
   runCommand,
   rpcbind,
+  ruby,
   runit,
   util-linux,
 }:
@@ -16,6 +17,7 @@ let
   app = bundlerApp {
     pname = "osctl-exportfs";
     gemdir = ./.;
+    inherit ruby;
     exes = [ "osctl-exportfs" ];
 
     meta = with lib; {

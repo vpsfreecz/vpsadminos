@@ -18,8 +18,6 @@ in
 {
   inherit ruby_vpsadminos;
 
-  ruby = ruby_vpsadminos;
-
   defaultGemConfig = super.callPackage (
     { lib, apparmor-parser }:
 

@@ -1,8 +1,13 @@
-{ lib, bundlerApp }:
+{
+  lib,
+  bundlerApp,
+  ruby,
+}:
 
 bundlerApp {
   pname = "test-runner";
   gemdir = ./.;
+  inherit ruby;
   exes = [ "test-runner" ];
 
   meta = with lib; {

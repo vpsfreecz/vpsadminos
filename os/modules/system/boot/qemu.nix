@@ -335,7 +335,7 @@ in
 
       stateDir = mkOption {
         type = types.str;
-        defaultText = ''~/.osvm-qemu/''${config.networking.hostName}'';
+        defaultText = "~/.osvm-qemu/\${config.networking.hostName}";
         description = ''
           Directory where qemu-related files are stored, e.g. socket files,
           disk files, etc.

@@ -1,8 +1,13 @@
-{ lib, osBundlerApp }:
+{
+  lib,
+  osBundlerApp,
+  ruby,
+}:
 
 osBundlerApp {
   pname = "osctl";
   gemdir = ./.;
+  inherit ruby;
   exes = [
     "osctl"
     "ct"

@@ -1,8 +1,13 @@
-{ lib, osBundlerApp }:
+{
+  lib,
+  osBundlerApp,
+  ruby,
+}:
 
 osBundlerApp {
   pname = "svctl";
   gemdir = ./.;
+  inherit ruby;
   exes = [ "svctl" ];
 
   meta = with lib; {

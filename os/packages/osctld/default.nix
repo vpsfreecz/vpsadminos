@@ -2,11 +2,13 @@
   pkgs,
   lib,
   bundlerApp,
+  ruby,
 }:
 
 bundlerApp {
   pname = "osctld";
   gemdir = ./.;
+  inherit ruby;
   exes = [ "osctld" ];
 
   meta = with lib; {

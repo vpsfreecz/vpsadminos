@@ -1,8 +1,13 @@
-{ lib, bundlerApp }:
+{
+  lib,
+  bundlerApp,
+  ruby,
+}:
 
 bundlerApp {
   pname = "osvm";
   gemdir = ./.;
+  inherit ruby;
   exes = [ "osvm" ];
 
   meta = with lib; {

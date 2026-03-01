@@ -244,7 +244,7 @@ let
     installModPath = "$livepatch/${installModPath}";
     moduleName = patchModuleName;
   }
-  + '''';
+  + "";
 
   moduleUnloadContent = ''
     livepatch=$(cat /etc/livepatch-store-path)

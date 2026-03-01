@@ -211,7 +211,7 @@ let
 
         enableParallelBuilding = true;
 
-        buildPhase = optionalString (buildKernelBuiltin) '''';
+        buildPhase = optionalString (buildKernelBuiltin) "";
 
         installPhase = optionalString (buildKernelBuiltin) ''
           mkdir -p $out
