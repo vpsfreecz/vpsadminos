@@ -40,20 +40,28 @@ jobs:
           git add flake.lock
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if [ -n "$changed_inputs" ]; then
-            commit_message="flake: update $changed_inputs"
+
+          body_lines=$(printf '%s\n' "$changed_body" | sed '/^$/d' | wc -l | awk '{print $1}')
+          if [ "$body_lines" -eq 1 ]; then
+            single_line=$(printf '%s\n' "$changed_body" | head -n1 | sed 's/: / /')
+            git commit -m "flake: $single_line"
           else
-            commit_message="flake: update flake inputs"
-          fi
-          if [ -n "$changed_body" ]; then
-            commit_file=$(mktemp)
-            {
-              printf '%s\n\n' "$commit_message"
-              printf '%s\n' "$changed_body"
-            } > "$commit_file"
-            git commit -F "$commit_file"
-            rm -f "$commit_file"
-          else
-            git commit -m "$commit_message"
+            if [ -n "$changed_inputs" ]; then
+              commit_message="flake: update $changed_inputs"
+            else
+              commit_message="flake: update inputs"
+            fi
+
+            if [ -n "$changed_body" ]; then
+              commit_file=$(mktemp)
+              {
+                printf '%s\n\n' "$commit_message"
+                printf '%s\n' "$changed_body"
+              } > "$commit_file"
+              git commit -F "$commit_file"
+              rm -f "$commit_file"
+            else
+              git commit -m "$commit_message"
+            fi
           fi
           git push
