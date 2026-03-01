@@ -7,7 +7,7 @@
       rev = "bd0ac1922db0adb7153672bbca8bd1270a367613";
       sha256 = "sha256-Ti+xZg+9DSqAURo6XTAfnVWVAkf5N3k3V2LP1PpqVT8=";
       zfs = {
-        rev = "ae4ac9cdfc1def38554d7af52830b0395bae6c89";
+        rev = "891f51bdf61be7d337281a87842adce8597ff9fe";
         sha256 = "sha256-QvecpL7smKAKpAl/RCSFg2yN2m6+rAc1K0b1GZJGWVA=";
       };
     };
