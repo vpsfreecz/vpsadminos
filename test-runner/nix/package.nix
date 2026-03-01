@@ -1,14 +1,15 @@
 { pkgs }:
 let
+  ruby = pkgs.ruby_vpsadminos;
   deps = pkgs.bundlerEnv {
     name = "test-runner-deps";
     gemdir = ../.;
     lockfile = ./Gemfile.lock.packaging;
     groups = [ "default" ];
+    inherit ruby;
   };
 
   testRunnerSrc = ../.;
-  ruby = pkgs.ruby;
 in
 pkgs.writeShellScriptBin "test-runner" ''
   export GEM_HOME=${deps}/${ruby.gemPath}

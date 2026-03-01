@@ -22,4 +22,6 @@ let
     else
       throw "os/packages/test-runner/entry.nix: provide pkgs or nixpkgsPath (or set NIXPKGS_PATH)";
 in
-pkgs_.callPackage ./default.nix { }
+pkgs_.callPackage ./default.nix {
+  ruby = pkgs_.ruby_vpsadminos;
+}
