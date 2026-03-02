@@ -24,15 +24,39 @@
           configuration ? null,
           platform ? null,
         }:
+        let
+          flakeRev = self.rev or (self.dirtyRev or null);
+          flakeShortRev =
+            self.shortRev or (
+              if self ? dirtyShortRev then
+                self.dirtyShortRev
+              else if flakeRev == null then
+                null
+              else
+                builtins.substring 0 7 flakeRev
+            );
+          flakeVersionInfoModule =
+            { lib, ... }:
+            {
+              system.vpsadminos = lib.optionalAttrs (flakeRev != null) (
+                {
+                  revision = lib.mkDefault flakeRev;
+                }
+                // lib.optionalAttrs (flakeShortRev != null) {
+                  versionSuffix = lib.mkDefault ".git.${flakeShortRev}";
+                }
+              );
+            };
+        in
         import ./os/default.nix (
           {
             inherit
               system
-              modules
               platform
               ;
             importedPkgs = pkgs;
             nixpkgsPath = pkgs.path;
+            modules = modules ++ [ flakeVersionInfoModule ];
             extraArgs = specialArgs;
           }
           // nixpkgs.lib.optionalAttrs (configuration != null) { inherit configuration; }
