@@ -11,6 +11,8 @@ self: super: {
 
   ksvcmon = super.callPackage ../packages/ksvcmon { };
 
+  prometheus-ebpf-exporter = super.callPackage ../packages/prometheus-ebpf-exporter { };
+
   lxc =
     let
       libcap = super.libcap.overrideAttrs (oldAttrs: rec {

@@ -122,6 +122,7 @@ testLib.makeTests [
   "osctl/ct-uid-gid"
   "osctl/pool/export-cleanup"
   "osctl-exportfs/mount"
+  "prometheus/ebpf-exporter"
   "podman/debian-latest"
   "podman/fedora-latest"
   "podman/ubuntu-latest"

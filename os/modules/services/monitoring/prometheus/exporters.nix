@@ -46,6 +46,7 @@ let
   exporterOpts =
     genAttrs
       [
+        "ebpf"
         "ipmi"
         "ksvcmon"
         "node"
