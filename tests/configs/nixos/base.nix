@@ -60,8 +60,8 @@ in
 
   networking.hostName = lib.mkDefault "nixos";
   networking.useDHCP = lib.mkDefault false;
+  # NixOS test VMs use stable ethX names via qemu-vm.nix.
   networking.interfaces.eth0.useDHCP = lib.mkDefault true;
-  networking.interfaces.enp0s3.useDHCP = lib.mkDefault true;
   networking.nameservers = lib.mkDefault [ "10.0.2.3" ];
 
   time.timeZone = "UTC";
