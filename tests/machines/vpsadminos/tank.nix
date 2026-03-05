@@ -9,7 +9,6 @@ pkgs: {
 
   config = {
     imports = [
-      ../../configs/vpsadminos/base.nix
       ../../configs/vpsadminos/pool-tank.nix
     ];
   };

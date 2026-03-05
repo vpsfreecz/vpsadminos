@@ -62,7 +62,8 @@ let
         extraArgs
         system
         ;
-      modules = modules ++ (cfg.modules or [ ]) ++ [ cfg.config or { } ];
+      modules =
+        modules ++ (cfg.modules or [ ]) ++ [ ./configs/vpsadminos/base.nix ] ++ [ cfg.config or { } ];
     };
 
   nixosSystem =
