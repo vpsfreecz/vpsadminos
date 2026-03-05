@@ -119,7 +119,7 @@ module OsVm
     def stop(timeout: @default_timeout)
       log.stop
       begin
-        execute('poweroff -f')
+        execute(poweroff_command)
       rescue MachineShellClosed
         log.execute_end(-1, '[machine shell closed]')
       end
@@ -473,6 +473,10 @@ module OsVm
 
     def service_check_command(_name)
       nil
+    end
+
+    def poweroff_command
+      'poweroff -f'
     end
 
     def base_kernel_params(kernel_params)

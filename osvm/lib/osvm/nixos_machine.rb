@@ -12,6 +12,10 @@ module OsVm
       "systemctl is-active --quiet #{name}"
     end
 
+    def poweroff_command
+      'poweroff'
+    end
+
     def qemu_command(kernel_params: [])
       all_kernel_params = base_kernel_params(kernel_params)
 
