@@ -2,7 +2,7 @@ GEM
   remote: https://rubygems.org/
   specs:
     base64 (0.3.0)
-    curses (1.5.3)
+    curses (1.5.4)
     fiddle (1.1.8)
     filelock (1.1.1)
     gli (2.22.2)
@@ -28,37 +28,37 @@ GEM
 GEM
   remote: https://rubygems.vpsfree.cz/
   specs:
-    libosctl (25.11.0.build20260226101250)
+    libosctl (25.11.0.build20260305161826)
       fiddle
       logger
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
       syslog
-    osctl (25.11.0.build20260226101250)
+    osctl (25.11.0.build20260305161826)
       base64
       curses
       gli (~> 2.22.0)
       highline (~> 3.1.1)
       ipaddress (~> 0.8.3)
       json
-      libosctl (= 25.11.0.build20260226101250)
+      libosctl (= 25.11.0.build20260305161826)
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
       ruby-progressbar (~> 1.13.0)
       tty-spinner (~> 0.9.3)
-    osctl-image (25.11.0.build20260226101250)
+    osctl-image (25.11.0.build20260305161826)
       gli (~> 2.22.0)
       ipaddress (~> 0.8.3)
       json
-      libosctl (= 25.11.0.build20260226101250)
-      osctl (= 25.11.0.build20260226101250)
-      osctl-repo (= 25.11.0.build20260226101250)
+      libosctl (= 25.11.0.build20260305161826)
+      osctl (= 25.11.0.build20260305161826)
+      osctl-repo (= 25.11.0.build20260305161826)
       require_all (~> 2.0.0)
-    osctl-repo (25.11.0.build20260226101250)
+    osctl-repo (25.11.0.build20260305161826)
       filelock
       gli (~> 2.22.0)
       json
-      libosctl (= 25.11.0.build20260226101250)
+      libosctl (= 25.11.0.build20260305161826)
       require_all (~> 2.0.0)
 
 PLATFORMS
@@ -66,7 +66,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  osctl-image (= 25.11.0.build20260226101250)!
+  osctl-image (= 25.11.0.build20260305161826)!
 
 BUNDLED WITH
    2.7.2
