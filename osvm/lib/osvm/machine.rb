@@ -634,8 +634,6 @@ module OsVm
       raise "machine #{name} is not running" unless running?
       return if shell_up?
 
-      accept_shell(timeout:) if shell.nil?
-
       t1 = Time.now
       buffer = ''
 
@@ -644,13 +642,18 @@ module OsVm
           raise TimeoutError, 'Timeout occurred while waiting for shell'
         end
 
+        reset_shell if shell&.closed?
+        accept_shell(timeout: t1 + timeout - Time.now) if shell.nil?
+
         rs = shell.wait_readable(1)
         next unless rs
 
         begin
           buffer << read_nonblock(shell)
         rescue EOFError
-          raise MachineShellClosed
+          reset_shell
+          buffer = ''
+          next
         end
 
         next unless buffer.include?("test-shell-ready\n")
@@ -737,7 +740,7 @@ module OsVm
         begin
           buffer << read_nonblock(shell)
         rescue EOFError
-          @shell_up = false
+          reset_shell
           raise MachineShellClosed
         end
 
@@ -745,6 +748,18 @@ module OsVm
       end
 
       buffer
+    end
+
+    def reset_shell
+      @shell_up = false
+
+      return if shell.nil?
+
+      shell.close unless shell.closed?
+    rescue IOError
+      # ignore
+    ensure
+      @shell = nil
     end
 
     def read_nonblock(io)
