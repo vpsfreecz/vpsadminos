@@ -49,8 +49,9 @@ module OsVm
 
     # Start the machine
     # @param kernel_params [Array<String>]
+    # @param wait_for_boot [Boolean]
     # @return [Machine]
-    def start(kernel_params: [])
+    def start(kernel_params: [], wait_for_boot: true)
       raise 'Machine already started' if running?
 
       # virtiofsd cannot be relaunched right away, it needs some time settle
@@ -103,7 +104,7 @@ module OsVm
 
       run_console_thread unless @interactive_console
 
-      @shell = @shell_server.accept
+      accept_shell if wait_for_boot
       self
     end
 
@@ -633,6 +634,8 @@ module OsVm
       raise "machine #{name} is not running" unless running?
       return if shell_up?
 
+      accept_shell(timeout:) if shell.nil?
+
       t1 = Time.now
       buffer = ''
 
@@ -655,6 +658,31 @@ module OsVm
         @shell_up = true
         shared_dir.mount
         return
+      end
+    end
+
+    def accept_shell(timeout: @default_timeout)
+      raise "machine #{name} is not running" unless running?
+      return shell unless shell.nil?
+
+      t1 = Time.now
+
+      loop do
+        if t1 + timeout < Time.now
+          raise TimeoutError, 'Timeout occurred while waiting for shell connection'
+        elsif !running?
+          raise Error, 'Machine is not running'
+        end
+
+        rs = @shell_server.wait_readable(1)
+        next unless rs
+
+        begin
+          @shell = @shell_server.accept_nonblock
+          return shell
+        rescue IO::WaitReadable, Errno::EINTR
+          next
+        end
       end
     end
 
