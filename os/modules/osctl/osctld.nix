@@ -22,6 +22,22 @@ in
 
   options = {
     osctld = {
+      waitForNetworkOnline = mkOption {
+        type = types.bool;
+        default = true;
+        description = ''
+          Wait for the network to come online before starting osctld.
+        '';
+      };
+
+      waitForSetClock = mkOption {
+        type = types.bool;
+        default = true;
+        description = ''
+          Wait for the set-clock service before starting osctld.
+        '';
+      };
+
       settings = mkOption {
         type = types.submodule {
           freeformType = settingsFormat.type;
@@ -82,11 +98,13 @@ in
           waitForService zfs-module-parameters
         ''}
 
-        waitForNetworkOnline 60
+        ${optionalString cfg.waitForNetworkOnline ''
+          waitForNetworkOnline 60
+        ''}
 
         waitForService live-patches 120
 
-        ${optionalString config.networking.chronyd ''
+        ${optionalString (config.networking.chronyd && cfg.waitForSetClock) ''
           waitForService set-clock 30
         ''}
 
