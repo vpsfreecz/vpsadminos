@@ -55,6 +55,7 @@ in
         exec ${pkgs.bash}/bin/bash --norc /dev/hvc0
       '';
       oneShot = true;
+      onChange = "ignore";
     };
   };
 }

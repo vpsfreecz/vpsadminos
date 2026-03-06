@@ -89,6 +89,9 @@ in
     description = "osvm test shell";
     wantedBy = [ "multi-user.target" ];
     after = [ "dev-hvc0.device" ];
+    restartIfChanged = false;
+    stopIfChanged = false;
+    reloadIfChanged = false;
     serviceConfig = {
       Type = "simple";
       StandardInput = "tty";
