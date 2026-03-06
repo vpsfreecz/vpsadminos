@@ -17,8 +17,6 @@ module OsVm
     end
 
     def qemu_command(kernel_params: [])
-      all_kernel_params = base_kernel_params(kernel_params)
-
       [
         "#{config.qemu}/bin/qemu-kvm",
         '-name', "os-vm-#{name}",
@@ -31,21 +29,20 @@ module OsVm
         '-chardev', "socket,id=shell,path=#{shell_socket_path}",
         '-device', 'virtio-serial',
         '-device', 'virtconsole,chardev=shell',
-        '-kernel', config.kernel,
-        '-initrd', config.initrd,
-        '-append', all_kernel_params.join(' '),
         '-nographic'
-      ] + qemu_disk_options + qemu_virtiofs_options + config.extra_qemu_options
+      ] + qemu_boot_options(kernel_params) + qemu_disk_options + qemu_virtiofs_options + config.extra_qemu_options
     end
 
     def qemu_disk_options
       ret = []
 
-      ret << '-drive' << "id=diskroot,file=#{root_disk_path},if=none,format=raw"
-      ret << '-device' << 'ide-hd,drive=diskroot,bus=ahci.0'
+      if config.disk_image
+        ret << '-drive' << "id=diskroot,file=#{root_disk_path},if=none,format=raw"
+        ret << '-device' << 'ide-hd,drive=diskroot,bus=ahci.0'
+      end
 
       config.disks.each_with_index do |disk, i|
-        idx = i + 1
+        idx = config.disk_image ? i + 1 : i
         ret << '-drive' << "id=disk#{idx},file=#{disk_path(disk.device)},if=none,format=raw"
         ret << '-device' << "ide-hd,drive=disk#{idx},bus=ahci.#{idx}"
       end
@@ -55,6 +52,8 @@ module OsVm
 
     def prepare_disks
       super
+
+      return unless config.disk_image
 
       # Copy the NixOS disk image into a writable location for the VM.
       # Always refresh to ensure a clean state between runs.

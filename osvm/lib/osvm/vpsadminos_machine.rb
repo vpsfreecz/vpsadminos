@@ -94,8 +94,6 @@ module OsVm
     end
 
     def qemu_command(kernel_params: [])
-      all_kernel_params = base_kernel_params(kernel_params)
-
       [
         "#{config.qemu}/bin/qemu-kvm",
         '-name', "os-vm-#{name}",
@@ -104,16 +102,20 @@ module OsVm
         '-smp', "cpus=#{config.cpus},cores=#{config.cpu.cores},threads=#{config.cpu.threads},sockets=#{config.cpu.sockets}",
         '--no-reboot',
         '-device', 'ahci,id=ahci'
-      ] + config.networks.map(&:qemu_options).flatten + [
-        '-drive', "index=0,id=drive1,file=#{config.squashfs},readonly=on,media=cdrom,format=raw,if=virtio",
+      ] + config.networks.map(&:qemu_options).flatten + qemu_boot_media_options + [
         '-chardev', "socket,id=shell,path=#{shell_socket_path}",
         '-device', 'virtio-serial',
         '-device', 'virtconsole,chardev=shell',
-        '-kernel', config.kernel,
-        '-initrd', config.initrd,
-        '-append', all_kernel_params.join(' '),
         '-nographic'
-      ] + qemu_disk_options + qemu_virtiofs_options + config.extra_qemu_options
+      ] + qemu_boot_options(kernel_params) + qemu_disk_options + qemu_virtiofs_options + config.extra_qemu_options
+    end
+
+    def qemu_boot_media_options
+      return [] if config.squashfs.nil?
+
+      [
+        '-drive', "index=0,id=drive1,file=#{config.squashfs},readonly=on,media=cdrom,format=raw,if=virtio"
+      ]
     end
   end
 end

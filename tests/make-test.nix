@@ -87,12 +87,54 @@ let
     else
       { machine = { }; };
 
+  machineBootMode =
+    machine:
+    if machine ? bootMode then
+      machine.bootMode
+    else if builtins.hasAttr "config" machine && machine.config == null then
+      "firmware"
+    else
+      "direct";
+
+  bareMachineTestConfig =
+    machine:
+    let
+      spin = machine.spin or "vpsadminos";
+      cpuCfg =
+        machine.cpu or {
+          cores = machine.cores or 2;
+          threads = machine.threads or 1;
+          sockets = machine.sockets or 1;
+        };
+      cpus = if machine ? cpus then machine.cpus else cpuCfg.cores * cpuCfg.threads * cpuCfg.sockets;
+    in
+    {
+      inherit spin;
+      qemu = toString qemuPackage;
+      virtiofsd = toString virtiofsdPackage;
+      memory = machine.memory or 2048;
+      cpus = cpus;
+      cpu = cpuCfg;
+      disks = machine.disks or [ ];
+      networks = machine.networks or defaultNetworks;
+      sharedFileSystems = machine.sharedFileSystems or { };
+      tags = machine.tags or [ ];
+      labels = machine.labels or { };
+      bootMode = "firmware";
+      bootOrder = machine.bootOrder or "n";
+      kernelParams = machine.kernelParams or [ ];
+      extraQemuOptions = machine.extraQemuOptions or [ ];
+    };
+
   machineTestConfig =
     name: machine:
     let
       spin = machine.spin or "vpsadminos";
+      bootMode = machineBootMode machine;
     in
-    if spin == "nixos" then
+    if bootMode == "firmware" then
+      bareMachineTestConfig machine
+    else if spin == "nixos" then
       nixosMachineTestConfig name machine (nixosSystem name machine)
     else if spin == "vpsadminos" then
       vpsadminosMachineTestConfig machine (vpsadminosSystem machine)

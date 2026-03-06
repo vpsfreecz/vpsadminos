@@ -486,6 +486,20 @@ module OsVm
       ] + config.kernel_params + kernel_params
     end
 
+    def qemu_boot_options(kernel_params)
+      if config.boot_mode == 'direct'
+        [
+          '-kernel', config.kernel,
+          '-initrd', config.initrd,
+          '-append', base_kernel_params(kernel_params).join(' ')
+        ]
+      else
+        ret = []
+        ret += ['-boot', "order=#{config.boot_order}"] if config.boot_order
+        ret
+      end
+    end
+
     def qemu_disk_options
       ret = []
 

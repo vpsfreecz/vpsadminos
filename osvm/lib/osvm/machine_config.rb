@@ -75,11 +75,15 @@ module OsVm
       # @return [String]
       attr_reader :mac
 
+      # @return [String]
+      attr_reader :model
+
       def initialize(i, cfg)
         @index = i
         @type = cfg.fetch('type')
         @opts = cfg.fetch('opts', default_opts)
         @mac = resolve_mac_address(cfg)
+        @model = resolve_model(cfg)
       end
 
       def qemu_options
@@ -94,6 +98,11 @@ module OsVm
         return MacAddressGenerator.register_mac(mac) if mac && !mac.empty?
 
         MacAddressGenerator.next_mac
+      end
+
+      def resolve_model(cfg)
+        model = cfg['model'] || @opts['model'] || 'virtio-net'
+        model.to_s
       end
 
       def default_opts
@@ -111,7 +120,7 @@ module OsVm
         net_opts << ",hostfwd=#{@opts['hostForward']}" if @opts['hostForward']
 
         [
-          '-device', "virtio-net,netdev=net#{index},mac=#{mac}",
+          '-device', "#{model},netdev=net#{index},mac=#{mac}",
           '-netdev', "user,id=net#{index},#{net_opts}"
         ]
       end
@@ -146,7 +155,7 @@ module OsVm
 
       def qemu_options
         [
-          '-device', "virtio-net,netdev=net#{index},mac=#{mac}",
+          '-device', "#{model},netdev=net#{index},mac=#{mac}",
           '-netdev', "socket,id=net#{index},mcast=#{mcast_address}:#{mcast_port}"
         ]
       end
@@ -163,7 +172,7 @@ module OsVm
 
       def qemu_options
         [
-          '-device', "virtio-net,netdev=net#{index},mac=#{mac}",
+          '-device', "#{model},netdev=net#{index},mac=#{mac}",
           '-netdev', "bridge,id=net#{index},br=#{link}"
         ]
       end
@@ -198,6 +207,12 @@ module OsVm
 
     # @return [String] path to qemu package
     attr_reader :qemu
+
+    # @return ['direct', 'firmware']
+    attr_reader :boot_mode
+
+    # @return [String, nil]
+    attr_reader :boot_order
 
     # @return [Array<String>]
     attr_reader :extra_qemu_options
@@ -245,12 +260,14 @@ module OsVm
     def initialize(cfg)
       @spin = cfg.fetch('spin', 'vpsadminos')
       @qemu = cfg.fetch('qemu')
+      @boot_mode = cfg.fetch('bootMode', 'direct')
+      @boot_order = cfg['bootOrder']
       @extra_qemu_options = cfg.fetch('extraQemuOptions', [])
       @virtiofsd = cfg.fetch('virtiofsd')
-      @kernel = cfg.fetch('kernel')
-      @initrd = cfg.fetch('initrd')
-      @kernel_params = cfg.fetch('kernelParams')
-      @toplevel = cfg.fetch('toplevel')
+      @kernel = cfg['kernel']
+      @initrd = cfg['initrd']
+      @kernel_params = cfg.fetch('kernelParams', [])
+      @toplevel = cfg['toplevel']
       @disks = cfg.fetch('disks', []).map { |disk_cfg| Disk.new(disk_cfg) }
       @memory = cfg.fetch('memory')
       @cpus = cfg.fetch('cpus')
@@ -261,6 +278,18 @@ module OsVm
       end
       @tags = cfg.fetch('tags', [])
       @labels = cfg.fetch('labels', {})
+
+      unless %w[direct firmware].include?(@boot_mode)
+        raise ArgumentError, "unsupported boot mode #{@boot_mode.inspect}"
+      end
+
+      return unless @boot_mode == 'direct'
+
+      %w[kernel initrd toplevel].each do |v|
+        next if cfg[v]
+
+        raise ArgumentError, "missing #{v.inspect} for direct boot machine"
+      end
     end
   end
 
@@ -270,8 +299,12 @@ module OsVm
 
     # @param cfg [Hash]
     def initialize(cfg)
-      @squashfs = cfg.fetch('squashfs')
+      @squashfs = cfg['squashfs']
       super
+
+      return unless boot_mode == 'direct'
+
+      raise ArgumentError, "missing 'squashfs' for direct boot machine" if @squashfs.nil?
     end
   end
 
@@ -281,8 +314,12 @@ module OsVm
 
     # @param cfg [Hash]
     def initialize(cfg)
-      @disk_image = cfg.fetch('diskImage')
+      @disk_image = cfg['diskImage']
       super
+
+      return unless boot_mode == 'direct'
+
+      raise ArgumentError, "missing 'diskImage' for direct boot machine" if @disk_image.nil?
     end
   end
 end
