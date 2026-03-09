@@ -169,9 +169,9 @@ within build containers managed by `osctl-image`.
 
 `bin/test` is used to test built images. It is run on the vpsAdminOS host
 and can use `osctl` to test containers managed by `osctl-image`. Since
-the tests may require additional programs, `bin/test` is invoked by a `nix-shell`
-operating on `./shell-test.nix`. You can configure your dependencies in this Nix
-file.
+the tests may require additional programs, `bin/test` is invoked by
+`nix develop` operating on `./shell-test-flake.nix`. You can configure your
+dependencies in this Nix file.
 
 All executables have to implement argument-based commands described below.
 

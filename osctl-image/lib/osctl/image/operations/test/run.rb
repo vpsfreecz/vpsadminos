@@ -73,7 +73,7 @@ module OsCtl::Image
       ip = ip_allocator.get
 
       Operations::Nix::RunInShell.run(
-        File.join(base_dir, 'shell-test.nix'),
+        File.join(base_dir, 'shell-test-flake.nix'),
         [
           File.join(base_dir, 'bin/test'), 'image', 'run',
           build.image.name, test.name, ctid

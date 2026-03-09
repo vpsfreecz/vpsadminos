@@ -1,5 +1,6 @@
 require 'libosctl'
 require 'osctl/image/operations/base'
+require 'shellwords'
 
 module OsCtl::Image
   class Operations::Nix::RunInShell < Operations::Base
@@ -22,7 +23,7 @@ module OsCtl::Image
       super()
       @expression = expression
       @command = command
-      @name = opts.delete(:name) || 'nix-shell-run'
+      @name = opts.delete(:name) || 'nix-develop-run'
       @opts = opts
     end
 
@@ -30,7 +31,13 @@ module OsCtl::Image
     # @raise [OsCtl::Lib::SystemCommandError]
     def execute
       exe = create_executable
-      syscmd("nix-shell --run #{exe.path} #{expression}", opts)
+      syscmd(
+        'nix --extra-experimental-features ' \
+        "#{Shellwords.escape('nix-command flakes')} " \
+        "develop --file #{Shellwords.escape(expression)} " \
+        "--command #{Shellwords.escape(exe.path)}",
+        opts
+      )
     ensure
       exe.unlink
     end

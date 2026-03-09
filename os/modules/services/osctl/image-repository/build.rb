@@ -71,8 +71,6 @@ class Builder
   def run
     options, names = parse_args
 
-    ENV['NIX_PATH'] ||= 'nixpkgs=/nix/var/nix/profiles/per-user/root/channels/nixos'
-
     # Initialize osctl-repo
     repo_init
 
