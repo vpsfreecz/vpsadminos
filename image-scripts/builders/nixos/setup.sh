@@ -35,7 +35,7 @@ EOF
 
 rm -f /etc/nixos/flake.lock
 
-if [ -n "$NIX_CONFIG" ] ; then
+if [ -n "${NIX_CONFIG-}" ] ; then
   export NIX_CONFIG="$NIX_CONFIG
 experimental-features = nix-command flakes"
 else

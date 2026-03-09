@@ -1,5 +1,6 @@
 function build-nixos {
 	local vpsadminos=
+	local nix_config=
 
 	git clone --depth 1 https://github.com/vpsfreecz/vpsadminos.git \
 		|| fail "unable to fetch vpsadminos"
@@ -22,7 +23,15 @@ function build-nixos {
 		TEMPLATE_CHANNEL=stable
 	fi
 
-	$build_command TEMPLATE_CHANNEL=$TEMPLATE_CHANNEL || fail "failed to build the template"
+	if [ -n "${NIX_CONFIG-}" ] ; then
+		nix_config="$NIX_CONFIG
+experimental-features = nix-command flakes"
+	else
+		nix_config="experimental-features = nix-command flakes"
+	fi
+
+	NIX_CONFIG="$nix_config" \
+		$build_command TEMPLATE_CHANNEL=$TEMPLATE_CHANNEL || fail "failed to build the template"
 
 	tar -xzf result/$result_dir/tarball/*.tar.gz -C "$INSTALL"
 	mv "$INSTALL/nix-path-registration" "$INSTALL/nix/nix-path-registration"
