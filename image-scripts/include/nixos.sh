@@ -1,20 +1,9 @@
-OS_BRANCH=staging
-
 function build-nixos {
 	local vpsadminos=
-	local nixpkgs=
 
-	curl -L https://github.com/vpsfreecz/vpsadminos/archive/$OS_BRANCH.tar.gz \
-		| tar -xz \
+	git clone --depth 1 https://github.com/vpsfreecz/vpsadminos.git \
 		|| fail "unable to fetch vpsadminos"
-	vpsadminos="$PWD/vpsadminos-$OS_BRANCH"
-
-	curl -L https://nixos.org/channels/$CHANNEL/nixexprs.tar.xz \
-		| tar -xJ \
-		|| fail "unable to fetch nixpkgs"
-	nixpkgs=$(echo $PWD/nixos-*)
-
-	export NIX_PATH="nixpkgs=$nixpkgs:vpsadminos=$vpsadminos"
+	vpsadminos="$PWD/vpsadminos"
 	cd "$vpsadminos/os"
 
 	case "$VARIANT" in

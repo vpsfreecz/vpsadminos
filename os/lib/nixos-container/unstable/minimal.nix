@@ -3,14 +3,55 @@
   pkgs,
   lib,
   modulesPath,
+  impermanenceNode,
+  impermanenceNixpkgsNode,
+  homeManagerNode,
+  nixpkgsNode,
+  stableNixpkgsNode,
+  unstableNixpkgsNode,
+  vpsadminosGithubRev ? null,
   ...
 }:
 let
+  flakeClone = import ../template-flake.nix {
+    inherit
+      homeManagerNode
+      impermanenceNode
+      impermanenceNixpkgsNode
+      lib
+      nixpkgsNode
+      pkgs
+      stableNixpkgsNode
+      unstableNixpkgsNode
+      ;
+    containerModule = "containerUnstable";
+  };
+  flakeLockClone = import ../template-flake-lock.nix {
+    inherit
+      homeManagerNode
+      impermanenceNode
+      impermanenceNixpkgsNode
+      lib
+      nixpkgsNode
+      pkgs
+      stableNixpkgsNode
+      unstableNixpkgsNode
+      vpsadminosGithubRev
+      ;
+  };
+  copyFlakeLockCommands = lib.optionalString (flakeLockClone != null) ''
+    if ! [ -e /etc/nixos/flake.lock ]; then
+      cp ${flakeLockClone} /etc/nixos/flake.lock
+      chmod +w /etc/nixos/flake.lock
+    fi
+  '';
+
   configClone = pkgs.writeText "configuration.nix" ''
-    { config, pkgs, ... }:
+    { inputs, lib, pkgs, ... }:
     {
-      imports = [
-        ./vpsadminos.nix
+      nix.settings.experimental-features = [
+        "nix-command"
+        "flakes"
       ];
 
       environment.systemPackages = with pkgs; [
@@ -44,25 +85,12 @@ let
 
 in
 {
-  imports = [
-    "${modulesPath}/installer/cd-dvd/channel.nix"
-    "${modulesPath}/virtualisation/container-config.nix"
-    ./vpsadminos.nix
+  imports = [ ./base.nix ];
+
+  nix.settings.experimental-features = [
+    "nix-command"
+    "flakes"
   ];
-
-  environment.systemPackages = with pkgs; [ vim ];
-  time.timeZone = "Europe/Amsterdam";
-  system.stateVersion = lib.trivial.release;
-
-  services.openssh = {
-    enable = lib.mkDefault true;
-    settings.PermitRootLogin = lib.mkDefault "yes";
-    authorizedKeysInHomedir = true;
-  };
-
-  systemd.settings.Manager = {
-    DefaultTimeoutStartSec = "900s";
-  };
 
   boot.postBootCommands = ''
     # After booting, register the contents of the Nix store in the Nix database.
@@ -78,14 +106,18 @@ in
     ln -sf /nix/var/nix/profiles /nix/var/nix/gcroots/profiles
 
     # Copy configuration required to reproduce this build
+    mkdir -p /etc/nixos
+
+    if ! [ -e /etc/nixos/flake.nix ]; then
+      cp ${flakeClone} /etc/nixos/flake.nix
+      chmod +w /etc/nixos/flake.nix
+    fi
+
+    ${copyFlakeLockCommands}
+
     if ! [ -e /etc/nixos/configuration.nix ]; then
       cp ${configClone} /etc/nixos/configuration.nix
       chmod +w /etc/nixos/configuration.nix
-    fi
-
-    if ! [ -e /etc/nixos/vpsadminos.nix ]; then
-      cp ${./vpsadminos.nix} /etc/nixos/vpsadminos.nix
-      chmod +w /etc/nixos/vpsadminos.nix
     fi
   '';
 

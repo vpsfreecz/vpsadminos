@@ -4,20 +4,60 @@
   lib,
   modulesPath,
   impermanence,
+  impermanenceNode,
+  impermanenceNixpkgsNode,
+  homeManagerNode,
+  nixpkgsNode,
+  stableNixpkgsNode,
+  unstableNixpkgsNode,
+  vpsadminosGithubRev ? null,
   ...
 }:
 let
   impermanenceModule = impermanence;
+  flakeClone = import ../template-flake.nix {
+    inherit
+      homeManagerNode
+      lib
+      impermanenceNode
+      impermanenceNixpkgsNode
+      nixpkgsNode
+      pkgs
+      stableNixpkgsNode
+      unstableNixpkgsNode
+      ;
+    containerModule = "containerStable";
+  };
+  flakeLockClone = import ../template-flake-lock.nix {
+    inherit
+      homeManagerNode
+      lib
+      impermanenceNode
+      impermanenceNixpkgsNode
+      nixpkgsNode
+      pkgs
+      stableNixpkgsNode
+      unstableNixpkgsNode
+      vpsadminosGithubRev
+      ;
+  };
+  copyFlakeLockCommands = lib.optionalString (flakeLockClone != null) ''
+    if ! [ -e /persistent/etc/nixos/flake.lock ]; then
+      cp ${flakeLockClone} /persistent/etc/nixos/flake.lock
+      chmod +w /persistent/etc/nixos/flake.lock
+    fi
+  '';
 
   configClone = pkgs.writeText "configuration.nix" ''
-    { config, pkgs, ... }:
+    { inputs, lib, pkgs, ... }:
     {
       imports = [
-        ./vpsadminos.nix
+        inputs.impermanence.nixosModules.impermanence
+      ];
 
-        # Copy of the impermanence module is stored in /etc/nixos/impermanence.
-        # See https://github.com/nix-community/impermanence for the latest version.
-        ./impermanence/nixos.nix
+      nix.settings.experimental-features = [
+        "nix-command"
+        "flakes"
       ];
 
       environment.systemPackages = with pkgs; [
@@ -54,22 +94,14 @@ let
 in
 {
   imports = [
-    "${modulesPath}/installer/cd-dvd/channel.nix"
-    "${modulesPath}/virtualisation/container-config.nix"
-    ./vpsadminos.nix
+    ./base.nix
     "${impermanenceModule}/nixos.nix"
   ];
 
-  environment.systemPackages = with pkgs; [ vim ];
-  time.timeZone = "Europe/Amsterdam";
-  system.stateVersion = lib.trivial.release;
-
-  services.openssh.enable = lib.mkDefault true;
-  services.openssh.settings.PermitRootLogin = lib.mkDefault "yes";
-
-  systemd.settings.Manager = {
-    DefaultTimeoutStartSec = "900s";
-  };
+  nix.settings.experimental-features = [
+    "nix-command"
+    "flakes"
+  ];
 
   environment.persistence."/persistent" = {
     hideMounts = true;
@@ -99,19 +131,16 @@ in
     # Copy configuration required to reproduce this build
     mkdir -p /persistent/etc/nixos
 
+    if ! [ -e /persistent/etc/nixos/flake.nix ]; then
+      cp ${flakeClone} /persistent/etc/nixos/flake.nix
+      chmod +w /persistent/etc/nixos/flake.nix
+    fi
+
+    ${copyFlakeLockCommands}
+
     if ! [ -e /persistent/etc/nixos/configuration.nix ]; then
       cp ${configClone} /persistent/etc/nixos/configuration.nix
       chmod +w /persistent/etc/nixos/configuration.nix
-    fi
-
-    if ! [ -e /persistent/etc/nixos/vpsadminos.nix ]; then
-      cp ${./vpsadminos.nix} /persistent/etc/nixos/vpsadminos.nix
-      chmod +w /etc/nixos/vpsadminos.nix
-    fi
-
-    if ! [ -d /persistent/etc/nixos/impermanence ]; then
-      cp -r ${impermanenceModule} /persistent/etc/nixos/impermanence
-      find /persistent/etc/nixos/impermanence -type f -exec chmod u+w {} \;
     fi
   '';
 

@@ -2,18 +2,41 @@
   description = "vpsAdminOS flake";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
+  inputs.nixpkgsUnstable.url = "github:NixOS/nixpkgs/nixos-unstable";
   inputs.impermanence.url = "github:nix-community/impermanence";
 
   outputs =
     {
       self,
       nixpkgs,
+      nixpkgsUnstable,
       ...
     }@inputs:
     let
       supportedSystems = [ "x86_64-linux" ];
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
       impermanence = inputs.impermanence;
+      flakeLock = builtins.fromJSON (builtins.readFile ./flake.lock);
+      stableNixpkgsNode = flakeLock.nodes.${flakeLock.nodes.root.inputs.nixpkgs};
+      unstableNixpkgsNode = flakeLock.nodes.${flakeLock.nodes.root.inputs.nixpkgsUnstable};
+      impermanenceNode = flakeLock.nodes.${flakeLock.nodes.root.inputs.impermanence};
+      impermanenceNixpkgsNode = flakeLock.nodes.${impermanenceNode.inputs.nixpkgs};
+      homeManagerNode = flakeLock.nodes.${impermanenceNode.inputs."home-manager"};
+      vpsadminosGithubRev =
+        if self ? rev then
+          self.rev
+        else if self ? dirtyRev then
+          builtins.substring 0 40 self.dirtyRev
+        else
+          null;
+      containerStableModule = import ./os/lib/nixos-container/stable/vpsadminos.nix;
+      containerStable2211Module = import ./os/lib/nixos-container/stable/vpsadminos-22.11.nix;
+      containerStable2305Module = import ./os/lib/nixos-container/stable/vpsadminos-23.05.nix;
+      containerStable2311Module = import ./os/lib/nixos-container/stable/vpsadminos-23.11.nix;
+      containerStable2405Module = import ./os/lib/nixos-container/stable/vpsadminos-24.05.nix;
+      containerStable2411Module = import ./os/lib/nixos-container/stable/vpsadminos-24.11.nix;
+      containerStable2505Module = import ./os/lib/nixos-container/stable/vpsadminos-25.05.nix;
+      containerUnstableModule = import ./os/lib/nixos-container/unstable/vpsadminos.nix;
 
       vpsadminosSystem =
         {
@@ -108,18 +131,28 @@
       };
       nixpkgsPath = nixpkgs.outPath;
 
-      nixosModules.vpsadminos =
-        { pkgs, ... }:
-        {
-          imports = import ./os/modules/module-list.nix { nixpkgsPath = pkgs.path; };
-        };
+      nixosModules = {
+        vpsadminos =
+          { pkgs, ... }:
+          {
+            imports = import ./os/modules/module-list.nix { nixpkgsPath = pkgs.path; };
+          };
+
+        container = containerStableModule;
+        containerStable = containerStableModule;
+        container_22_11 = containerStable2211Module;
+        container_23_05 = containerStable2305Module;
+        container_23_11 = containerStable2311Module;
+        container_24_05 = containerStable2405Module;
+        container_24_11 = containerStable2411Module;
+        container_25_05 = containerStable2505Module;
+        containerUnstable = containerUnstableModule;
+      };
 
       nixosConfigurations = {
-        container = import ./os/lib/nixos-container/stable/vpsadminos.nix;
-
-        containerStable = import ./os/lib/nixos-container/stable/vpsadminos.nix;
-
-        containerUnstable = import ./os/lib/nixos-container/unstable/vpsadminos.nix;
+        container = containerStableModule;
+        containerStable = containerStableModule;
+        containerUnstable = containerUnstableModule;
       };
 
       tests = forAllSystems (
@@ -190,18 +223,49 @@
           };
 
           mkNixosTemplate =
-            module:
-            nixpkgs.lib.nixosSystem {
+            {
+              module,
+              nixpkgsInput,
+              nixpkgsNode,
+            }:
+            nixpkgsInput.lib.nixosSystem {
               inherit system;
-              pkgs = nixpkgs.legacyPackages.${system};
+              pkgs = nixpkgsInput.legacyPackages.${system};
               modules = [ module ];
-              specialArgs = { inherit impermanence; };
+              specialArgs = {
+                inherit
+                  impermanenceNode
+                  impermanenceNixpkgsNode
+                  homeManagerNode
+                  impermanence
+                  nixpkgsNode
+                  stableNixpkgsNode
+                  unstableNixpkgsNode
+                  vpsadminosGithubRev
+                  ;
+              };
             };
 
-          templateStableSystem = mkNixosTemplate ./os/lib/nixos-container/stable/minimal.nix;
-          templateStableImpermanenceSystem = mkNixosTemplate ./os/lib/nixos-container/stable/impermanence.nix;
-          templateUnstableSystem = mkNixosTemplate ./os/lib/nixos-container/unstable/minimal.nix;
-          templateUnstableImpermanenceSystem = mkNixosTemplate ./os/lib/nixos-container/unstable/impermanence.nix;
+          templateStableSystem = mkNixosTemplate {
+            module = ./os/lib/nixos-container/stable/minimal.nix;
+            nixpkgsInput = nixpkgs;
+            nixpkgsNode = stableNixpkgsNode;
+          };
+          templateStableImpermanenceSystem = mkNixosTemplate {
+            module = ./os/lib/nixos-container/stable/impermanence.nix;
+            nixpkgsInput = nixpkgs;
+            nixpkgsNode = stableNixpkgsNode;
+          };
+          templateUnstableSystem = mkNixosTemplate {
+            module = ./os/lib/nixos-container/unstable/minimal.nix;
+            nixpkgsInput = nixpkgsUnstable;
+            nixpkgsNode = unstableNixpkgsNode;
+          };
+          templateUnstableImpermanenceSystem = mkNixosTemplate {
+            module = ./os/lib/nixos-container/unstable/impermanence.nix;
+            nixpkgsInput = nixpkgsUnstable;
+            nixpkgsNode = unstableNixpkgsNode;
+          };
         in
         {
           default = qemuSystem.config.system.build.runvm;

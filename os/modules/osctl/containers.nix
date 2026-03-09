@@ -619,7 +619,7 @@ let
                       networking.hostName = mkDefault name;
                       networking.useDHCP = hasBridge;
 
-                      imports = [ ../../lib/nixos-container/stable/minimal.nix ];
+                      imports = [ ../../lib/nixos-container/stable/base.nix ];
 
                     };
                   in
