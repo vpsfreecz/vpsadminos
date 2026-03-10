@@ -13,18 +13,14 @@
   ...
 }:
 let
+  containerModule = "container_${lib.replaceStrings [ "." ] [ "_" ] lib.trivial.release}";
   flakeClone = import ../template-flake.nix {
     inherit
-      homeManagerNode
-      impermanenceNode
-      impermanenceNixpkgsNode
       lib
       nixpkgsNode
       pkgs
-      stableNixpkgsNode
-      unstableNixpkgsNode
       ;
-    containerModule = "containerStable";
+    inherit containerModule;
   };
   flakeLockClone = import ../template-flake-lock.nix {
     inherit
@@ -38,6 +34,7 @@ let
       unstableNixpkgsNode
       vpsadminosGithubRev
       ;
+    includeImpermanence = false;
   };
   copyFlakeLockCommands = lib.optionalString (flakeLockClone != null) ''
     if ! [ -e /etc/nixos/flake.lock ]; then

@@ -36,6 +36,7 @@
       containerStable2405Module = import ./os/lib/nixos-container/stable/vpsadminos-24.05.nix;
       containerStable2411Module = import ./os/lib/nixos-container/stable/vpsadminos-24.11.nix;
       containerStable2505Module = import ./os/lib/nixos-container/stable/vpsadminos-25.05.nix;
+      containerStable2511Module = import ./os/lib/nixos-container/stable/vpsadminos-25.11.nix;
       containerUnstableModule = import ./os/lib/nixos-container/unstable/vpsadminos.nix;
 
       vpsadminosSystem =
@@ -146,6 +147,7 @@
         container_24_05 = containerStable2405Module;
         container_24_11 = containerStable2411Module;
         container_25_05 = containerStable2505Module;
+        container_25_11 = containerStable2511Module;
         containerUnstable = containerUnstableModule;
       };
 

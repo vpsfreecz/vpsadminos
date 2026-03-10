@@ -5,6 +5,7 @@
   stableNixpkgsNode,
   unstableNixpkgsNode,
   vpsadminosGithubRev ? null,
+  includeImpermanence ? false,
   impermanenceNode,
   impermanenceNixpkgsNode,
   homeManagerNode,
@@ -13,11 +14,14 @@ if vpsadminosGithubRev == null then
   null
 else
   let
-    rootInputs = {
-      impermanence = "impermanence";
-      nixpkgs = "nixpkgs";
-      vpsadminos = "vpsadminos";
-    };
+    rootInputs =
+      lib.optionalAttrs includeImpermanence {
+        impermanence = "impermanence";
+      }
+      // {
+        nixpkgs = "nixpkgs";
+        vpsadminos = "vpsadminos";
+      };
   in
   pkgs.writeText "flake.lock" (
     builtins.toJSON {

@@ -17,16 +17,13 @@ let
   impermanenceModule = impermanence;
   flakeClone = import ../template-flake.nix {
     inherit
-      homeManagerNode
       lib
       impermanenceNode
-      impermanenceNixpkgsNode
       nixpkgsNode
       pkgs
-      stableNixpkgsNode
-      unstableNixpkgsNode
       ;
     containerModule = "containerUnstable";
+    includeImpermanence = true;
   };
   flakeLockClone = import ../template-flake-lock.nix {
     inherit
@@ -40,6 +37,7 @@ let
       unstableNixpkgsNode
       vpsadminosGithubRev
       ;
+    includeImpermanence = true;
   };
   copyFlakeLockCommands = lib.optionalString (flakeLockClone != null) ''
     if ! [ -e /persistent/etc/nixos/flake.lock ]; then
@@ -51,10 +49,6 @@ let
   configClone = pkgs.writeText "configuration.nix" ''
     { inputs, lib, pkgs, ... }:
     {
-      imports = [
-        inputs.impermanence.nixosModules.impermanence
-      ];
-
       nix.settings.experimental-features = [
         "nix-command"
         "flakes"

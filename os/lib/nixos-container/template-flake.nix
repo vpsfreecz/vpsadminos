@@ -3,11 +3,8 @@
   pkgs,
   containerModule,
   nixpkgsNode,
-  stableNixpkgsNode,
-  unstableNixpkgsNode,
-  impermanenceNode,
-  impermanenceNixpkgsNode,
-  homeManagerNode,
+  includeImpermanence ? false,
+  impermanenceNode ? null,
 }:
 let
   githubInputUrl =
@@ -19,52 +16,52 @@ let
 
   vpsadminosInputUrl = "github:vpsfreecz/vpsadminos";
   nixpkgsInputUrl = githubInputUrl nixpkgsNode;
-
-  vpsadminosInputs = ''
-    vpsadminos.url = "${vpsadminosInputUrl}";
-    vpsadminos.inputs.nixpkgs.url = "${githubInputUrl stableNixpkgsNode}";
-    vpsadminos.inputs.nixpkgsUnstable.url = "${githubInputUrl unstableNixpkgsNode}";
-    vpsadminos.inputs.impermanence.url = "${githubInputUrl impermanenceNode}";
-    vpsadminos.inputs.impermanence.inputs.nixpkgs.url = "${githubInputUrl impermanenceNixpkgsNode}";
-    vpsadminos.inputs.impermanence.inputs.home-manager.url = "${githubInputUrl homeManagerNode}";
-  '';
-
-  impermanenceInputs = ''
-    impermanence.url = "${githubInputUrl impermanenceNode}";
-    impermanence.inputs.nixpkgs.url = "${githubInputUrl impermanenceNixpkgsNode}";
-    impermanence.inputs.home-manager.url = "${githubInputUrl homeManagerNode}";
-  '';
+  inputLines = [
+    "    vpsadminos.url = \"${vpsadminosInputUrl}\";"
+    ""
+    "    nixpkgs.url = \"${nixpkgsInputUrl}\";"
+  ]
+  ++ lib.optional includeImpermanence "    impermanence.url = \"${githubInputUrl impermanenceNode}\";";
+  moduleLines = [
+    "          vpsadminos.nixosModules.${containerModule}"
+  ]
+  ++ lib.optional includeImpermanence "          inputs.impermanence.nixosModules.impermanence"
+  ++ [
+    "          ./configuration.nix"
+  ];
+  flakeLines = [
+    "{"
+    "  description = \"vpsAdminOS container\";"
+    ""
+    "  inputs = {"
+  ]
+  ++ inputLines
+  ++ [
+    "  };"
+    ""
+    "  outputs ="
+    "    inputs@{"
+    "      nixpkgs,"
+    "      vpsadminos,"
+    "      ..."
+    "    }:"
+    "    let"
+    "      system = \"x86_64-linux\";"
+    "    in"
+    "    {"
+    "      nixosConfigurations.vps = nixpkgs.lib.nixosSystem {"
+    "        inherit system;"
+    "        modules = ["
+  ]
+  ++ moduleLines
+  ++ [
+    "        ];"
+    "        specialArgs = {"
+    "          inherit inputs;"
+    "        };"
+    "      };"
+    "    };"
+    "}"
+  ];
 in
-pkgs.writeText "flake.nix" ''
-  {
-    description = "vpsAdminOS container";
-
-    inputs = {
-      ${vpsadminosInputs}
-      nixpkgs.url = "${nixpkgsInputUrl}";
-      ${impermanenceInputs}
-    };
-
-    outputs =
-      inputs@{
-        nixpkgs,
-        vpsadminos,
-        ...
-      }:
-      let
-        system = "x86_64-linux";
-      in
-      {
-        nixosConfigurations.vps = nixpkgs.lib.nixosSystem {
-          inherit system;
-          modules = [
-            vpsadminos.nixosModules.${containerModule}
-            ./configuration.nix
-          ];
-          specialArgs = {
-            inherit inputs;
-          };
-        };
-      };
-  }
-''
+pkgs.writeText "flake.nix" (lib.concatStringsSep "\n" flakeLines + "\n")

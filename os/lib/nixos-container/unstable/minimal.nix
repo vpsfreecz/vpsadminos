@@ -15,14 +15,9 @@
 let
   flakeClone = import ../template-flake.nix {
     inherit
-      homeManagerNode
-      impermanenceNode
-      impermanenceNixpkgsNode
       lib
       nixpkgsNode
       pkgs
-      stableNixpkgsNode
-      unstableNixpkgsNode
       ;
     containerModule = "containerUnstable";
   };
@@ -38,6 +33,7 @@ let
       unstableNixpkgsNode
       vpsadminosGithubRev
       ;
+    includeImpermanence = false;
   };
   copyFlakeLockCommands = lib.optionalString (flakeLockClone != null) ''
     if ! [ -e /etc/nixos/flake.lock ]; then
