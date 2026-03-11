@@ -78,6 +78,7 @@ module OsCtl::Image
         output_dir: opts['output-dir'],
         build_dataset: opts['build-dataset'],
         vendor: opts[:vendor],
+        vpsadminos_dir: vpsadminos_dir,
         rebuild: opts[:rebuild],
         ctid: opts[:container]
       )
@@ -157,7 +158,8 @@ module OsCtl::Image
           tpl,
           output_dir: opts['output-dir'],
           build_dataset: opts['build-dataset'],
-          vendor: opts[:vendor]
+          vendor: opts[:vendor],
+          vpsadminos_dir: vpsadminos_dir
         )
 
         if rebuild || !build.cached?
@@ -202,6 +204,7 @@ module OsCtl::Image
             output_dir: opts['output-dir'],
             build_dataset: opts['build-dataset'],
             vendor: opts[:vendor],
+            vpsadminos_dir: vpsadminos_dir,
             rebuild:,
             keep_failed: opts['keep-failed'],
             ip_allocator:
@@ -321,6 +324,54 @@ module OsCtl::Image
       File.executable?(File.join(path, 'bin/config')) \
         && File.executable?(File.join(path, 'bin/runner')) \
         && File.executable?(File.join(path, 'bin/test'))
+    end
+
+    def vpsadminos_dir
+      return @vpsadminos_dir if defined?(@vpsadminos_dir)
+
+      if gopts['vpsadminos-dir']
+        path = File.realpath(gopts['vpsadminos-dir'])
+
+        unless vpsadminos_dir?(path)
+          raise GLI::BadCommandLine, "#{gopts['vpsadminos-dir'].inspect} is not a vpsadminos checkout"
+        end
+
+        return @vpsadminos_dir = path
+      end
+
+      @vpsadminos_dir = auto_vpsadminos_dir
+    rescue Errno::ENOENT
+      raise GLI::BadCommandLine, "#{gopts['vpsadminos-dir'].inspect} does not exist"
+    end
+
+    def auto_vpsadminos_dir
+      return @auto_vpsadminos_dir if defined?(@auto_vpsadminos_dir)
+
+      script_dir = File.realpath(build_scripts_path)
+      cur = File.dirname(script_dir)
+
+      loop do
+        if vpsadminos_dir?(cur, script_dir)
+          return @auto_vpsadminos_dir = cur
+        end
+
+        parent = File.dirname(cur)
+        break if parent == cur
+
+        cur = parent
+      end
+
+      @auto_vpsadminos_dir = nil
+    end
+
+    def vpsadminos_dir?(path, script_dir = nil)
+      candidate = File.join(path, 'image-scripts')
+
+      File.directory?(File.join(path, 'os', 'lib', 'nixos-container')) \
+        && File.directory?(candidate) \
+        && (script_dir.nil? || File.realpath(candidate) == script_dir)
+    rescue Errno::ENOENT
+      false
     end
   end
 end

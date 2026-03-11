@@ -34,6 +34,7 @@ VERSION
 
 GLOBAL OPTIONS
     --build-scripts=dir - Path to directory with image build scripts
+    --vpsadminos-dir=dir - Path to vpsAdminOS checkout for NixOS image scripts
     --help              - Show this message
     --version           - Display the program version
 

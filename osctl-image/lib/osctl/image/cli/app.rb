@@ -22,6 +22,9 @@ module OsCtl::Image::Cli
       desc 'Path to directory with image build scripts'
       flag 'build-scripts', arg_name: 'dir'
 
+      desc 'Path to vpsAdminOS checkout used by NixOS image scripts'
+      flag 'vpsadminos-dir', arg_name: 'dir'
+
       desc 'List available images'
       command 'ls' do |c|
         c.desc 'Select parameters to output'

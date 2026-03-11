@@ -2,9 +2,17 @@ function build-nixos {
 	local vpsadminos=
 	local nix_config=
 
-	git clone --depth 1 https://github.com/vpsfreecz/vpsadminos.git \
-		|| fail "unable to fetch vpsadminos"
+	[ -n "${OSCTL_IMAGE_VPSADMINOS_DIR-}" ] \
+		|| fail "path to vpsadminos sources not provided"
+	[ -d "$OSCTL_IMAGE_VPSADMINOS_DIR/os" ] \
+		|| fail "invalid vpsadminos checkout: $OSCTL_IMAGE_VPSADMINOS_DIR"
+
+	cp -a "$OSCTL_IMAGE_VPSADMINOS_DIR" "$PWD/vpsadminos" \
+		|| fail "unable to copy vpsadminos from $OSCTL_IMAGE_VPSADMINOS_DIR"
+
 	vpsadminos="$PWD/vpsadminos"
+	rm -rf "$vpsadminos/.git" "$vpsadminos/result"
+
 	cd "$vpsadminos/os"
 
 	case "$VARIANT" in

@@ -25,6 +25,11 @@ of `osctl-image` with image building programs.
   Provide path to a custom build scripts *directory*. If not set, build scripts
   are looked for in the current working directory and `/etc/vpsadminos-image-scripts`.
 
+`--vpsadminos-dir` *directory*
+  Provide path to a vpsAdminOS checkout for NixOS image scripts. If not set,
+  `osctl-image` auto-detects the enclosing checkout when `image-scripts` are
+  used from inside the vpsAdminOS repository.
+
 ## COMMANDS
 `ls` [*options*]
   List available images.
@@ -202,6 +207,15 @@ All executables have to implement argument-based commands described below.
 `bin/test image run` *image* *test* *ctid*
   Run *test* on container *ctid*, which is an instance of *image*. The test is
   considered successful when the programs exits with `0`.
+
+When the selected build scripts are located inside a vpsAdminOS checkout,
+`osctl-image` uses that checkout as the default value of option
+`--vpsadminos-dir`.
+
+For `bin/runner`, `osctl-image` exports:
+
+ - `OSCTL_IMAGE_VPSADMINOS_DIR`: path to the checkout mounted inside the build
+   container
 
 ### Builder attributes
 

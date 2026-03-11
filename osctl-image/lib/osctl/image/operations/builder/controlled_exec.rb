@@ -1,6 +1,7 @@
 require 'libosctl'
 require 'osctl/image/operations/base'
 require 'securerandom'
+require 'shellwords'
 
 module OsCtl::Image
   class Operations::Builder::ControlledExec < Operations::Base
@@ -17,12 +18,14 @@ module OsCtl::Image
     # @param command [Array<String>]
     # @param id [nil, String] optional run identifier
     # @param client [nil, OsCtldClient]
-    def initialize(builder, command, id: nil, client: nil)
+    # @param env [Hash<String, String>]
+    def initialize(builder, command, id: nil, client: nil, env: {})
       super()
       @builder = builder
       @command = command
       @id = id || SecureRandom.hex(10)
       @client = client || OsCtldClient.new
+      @env = env
     end
 
     # @return [Integer] exit status
@@ -41,15 +44,19 @@ module OsCtl::Image
 
     protected
 
-    attr_reader :id, :client
+    attr_reader :id, :client, :env
 
     def start_script
+      exec_cmd = ['env']
+      exec_cmd.concat(env.map { |k, v| "#{k}=#{v}" }) unless env.empty?
+      exec_cmd.concat(command)
+
       <<~EOF
         #!/bin/sh
         cgroup="#{inner_cgroup_path}"
         mkdir "$cgroup"
         echo $$ >> "$cgroup/cgroup.procs"
-        exec #{command.join(' ')}
+        exec #{Shellwords.join(exec_cmd)}
       EOF
     end
 

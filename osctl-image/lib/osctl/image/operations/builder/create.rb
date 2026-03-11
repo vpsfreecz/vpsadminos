@@ -10,13 +10,17 @@ module OsCtl::Image
     # @return [String]
     attr_reader :base_dir
 
+    # @return [String, nil]
+    attr_reader :vpsadminos_dir
+
     # @return [String]
     attr_reader :setup_id
 
-    def initialize(builder, base_dir)
+    def initialize(builder, base_dir, vpsadminos_dir: nil)
       super()
       @builder = builder
       @base_dir = base_dir
+      @vpsadminos_dir = vpsadminos_dir
       @setup_id = SecureRandom.hex(4)
     end
 
@@ -68,15 +72,32 @@ module OsCtl::Image
         client.bind_mount(builder.ctid, base_dir, builder_base_dir, map_ids: false)
         client.activate_mount(builder.ctid, builder_base_dir)
 
+        if vpsadminos_dir
+          client.bind_mount(
+            builder.ctid,
+            vpsadminos_dir,
+            builder_vpsadminos_dir,
+            map_ids: false
+          )
+          client.activate_mount(builder.ctid, builder_vpsadminos_dir)
+        end
+
         Operations::Builder::WaitForNetwork.run(builder)
 
-        rc = client.exec(builder.ctid, [
-                           File.join(builder_base_dir, 'bin', 'runner'),
-                           'builder',
-                           'setup',
-                           builder.name
-                         ])
+        rc = Operations::Builder::ControlledExec.run(
+          builder,
+          [
+            File.join(builder_base_dir, 'bin', 'runner'),
+            'builder',
+            'setup',
+            builder.name
+          ],
+          id: setup_id,
+          client:,
+          env: build_environment
+        )
 
+        client.unmount(builder.ctid, builder_vpsadminos_dir) if vpsadminos_dir
         client.unmount(builder.ctid, builder_base_dir)
 
         if rc != 0
@@ -99,6 +120,16 @@ module OsCtl::Image
 
     def builder_base_dir
       "/build/basedir.#{setup_id}"
+    end
+
+    def builder_vpsadminos_dir
+      "/build/vpsadminos.#{setup_id}"
+    end
+
+    def build_environment
+      return {} unless vpsadminos_dir
+
+      { 'OSCTL_IMAGE_VPSADMINOS_DIR' => builder_vpsadminos_dir }
     end
   end
 end

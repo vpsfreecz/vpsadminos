@@ -40,12 +40,16 @@ module OsCtl::Image
     # @return [String]
     attr_reader :output_stream
 
+    # @return [String, nil]
+    attr_reader :vpsadminos_dir
+
     # @param base_dir [String]
     # @param image [Image]
     # @param opts [Hash]
     # @option opts [String] :build_dataset
     # @option opts [String] :output_dir
     # @option opts [String] :vendor
+    # @option opts [String] :vpsadminos_dir
     def initialize(base_dir, image, opts)
       super()
       @base_dir = base_dir
@@ -61,6 +65,7 @@ module OsCtl::Image
       @output_dataset = File.join(build_dataset, 'output')
       @work_dataset = File.join(build_dataset, 'work')
       @output_dir = opts[:output_dir]
+      @vpsadminos_dir = opts[:vpsadminos_dir]
 
       name = [
         image.distribution,
@@ -108,7 +113,7 @@ module OsCtl::Image
     attr_reader :client, :build_dataset, :work_dir
 
     def build
-      Operations::Builder::UseOrCreate.run(builder, base_dir)
+      Operations::Builder::UseOrCreate.run(builder, base_dir, vpsadminos_dir:)
 
       root_uid, root_gid = Operations::Builder::GetRootUgid.run(builder)
 
@@ -139,9 +144,19 @@ module OsCtl::Image
         client.bind_mount(builder.ctid, work_dir, builder_work_dir)
         client.bind_mount(builder.ctid, install_dir, builder_install_dir)
 
+        if vpsadminos_dir
+          client.bind_mount(
+            builder.ctid,
+            vpsadminos_dir,
+            builder_vpsadminos_dir,
+            map_ids: false
+          )
+        end
+
         client.activate_mount(builder.ctid, builder_base_dir)
         client.activate_mount(builder.ctid, builder_work_dir)
         client.activate_mount(builder.ctid, builder_install_dir)
+        client.activate_mount(builder.ctid, builder_vpsadminos_dir) if vpsadminos_dir
 
         image.datasets.sort { |a, b| a[0] <=> b[0] }.each do |dataset, mountpoint|
           install_mountpoint = File.join(builder_install_dir, mountpoint)
@@ -167,7 +182,8 @@ module OsCtl::Image
           image.name
         ],
         id: build_id,
-        client:
+        client:,
+        env: build_environment
       )
 
       if rc != 0
@@ -190,6 +206,7 @@ module OsCtl::Image
     def cleanup
       client.batch do
         client.ignore_error { client.unmount(builder.ctid, builder_work_dir) }
+        client.ignore_error { client.unmount(builder.ctid, builder_vpsadminos_dir) } if vpsadminos_dir
 
         image.datasets.sort { |a, b| b[0] <=> a[0] }.each do |_, mountpoint|
           install_mountpoint = File.join(builder_install_dir, mountpoint)
@@ -201,7 +218,10 @@ module OsCtl::Image
       end
 
       if builder.attrs
-        [builder_base_dir, builder_work_dir, builder_install_dir].each do |dir|
+        dirs = [builder_base_dir, builder_work_dir, builder_install_dir]
+        dirs << builder_vpsadminos_dir if vpsadminos_dir
+
+        dirs.each do |dir|
           Dir.rmdir(File.join(builder.attrs[:rootfs], dir))
         rescue Errno::ENOENT
           # ignore
@@ -232,6 +252,16 @@ module OsCtl::Image
 
     def builder_install_dir
       "/build/installdir.#{build_id}"
+    end
+
+    def builder_vpsadminos_dir
+      "/build/vpsadminos.#{build_id}"
+    end
+
+    def build_environment
+      return {} unless vpsadminos_dir
+
+      { 'OSCTL_IMAGE_VPSADMINOS_DIR' => builder_vpsadminos_dir }
     end
   end
 end

@@ -1,6 +1,13 @@
+[ -n "${OSCTL_IMAGE_VPSADMINOS_DIR-}" ] \
+  || { echo "path to vpsadminos sources not provided" >&2; exit 1; }
+[ -d "$OSCTL_IMAGE_VPSADMINOS_DIR/os" ] \
+  || { echo "invalid vpsadminos checkout: $OSCTL_IMAGE_VPSADMINOS_DIR" >&2; exit 1; }
+
+vpsadminos_input_url="path:${OSCTL_IMAGE_VPSADMINOS_DIR}"
+
 cat <<EOF > /etc/nixos/flake.nix
 {
-  inputs.vpsadminos.url = "github:vpsfreecz/vpsadminos";
+  inputs.vpsadminos.url = "${vpsadminos_input_url}";
   inputs.nixpkgs.follows = "vpsadminos/nixpkgsUnstable";
 
   outputs = { nixpkgs, vpsadminos, ... }: {
