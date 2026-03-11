@@ -5,7 +5,9 @@ import ./base.nix {
     machine.all_succeed(
       "osctl ct exec docker apk update",
       "osctl ct exec docker apk add docker",
-      "osctl ct exec docker service docker start",
     )
+
+    configure_docker_registry_mirrors('docker')
+    machine.succeeds("osctl ct exec docker service docker start")
   '';
 }

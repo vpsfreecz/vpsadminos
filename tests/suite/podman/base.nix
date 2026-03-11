@@ -17,6 +17,71 @@ import ../../make-test.nix (
     machine = import ../../machines/vpsadminos/tank.nix pkgs;
 
     testScript = ''
+      require 'shellwords'
+
+      def ct_shell(ct, script, timeout: 600)
+        machine.succeeds(
+          "osctl ct exec #{ct} sh -c #{Shellwords.escape(script)}",
+          timeout:
+        )
+      end
+
+      def ct_write_file(ct, path, contents)
+        ct_shell(
+          ct,
+          <<~SH
+            mkdir -p #{Shellwords.escape(File.dirname(path))}
+            cat > #{Shellwords.escape(path)} <<'EOF'
+            #{contents}
+            EOF
+          SH
+        )
+      end
+
+      def podman_docker_io_mirrors
+        Array(test_config.dig('podman', 'dockerIoMirrors'))
+      end
+
+      def podman_aliases
+        test_config.dig('podman', 'aliases') || {}
+      end
+
+      def configure_podman_registry_mirrors(ct)
+        mirrors = podman_docker_io_mirrors
+        aliases = podman_aliases
+        return if mirrors.empty? && aliases.empty?
+
+        lines = []
+
+        unless mirrors.empty?
+          lines << '[[registry]]'
+          lines << 'prefix = "docker.io"'
+          lines << 'location = "docker.io"'
+          lines << ""
+
+          mirrors.each do |mirror|
+            lines << '  [[registry.mirror]]'
+            lines << %(  location = "#{mirror}")
+            lines << '  pull-from-mirror = "all"'
+            lines << ""
+          end
+        end
+
+        unless aliases.empty?
+          lines << '[aliases]'
+          aliases.each do |short_name, image|
+            lines << %(#{short_name.inspect} = #{image.inspect})
+          end
+          lines << ""
+        end
+
+        ct_write_file(
+          ct,
+          '/etc/containers/registries.conf.d/10-vpsadminos-mirror.conf',
+          lines.join("\n")
+        )
+      end
+
       machine.start
       machine.wait_for_osctl_pool("tank")
       machine.wait_until_online
@@ -35,6 +100,24 @@ import ../../make-test.nix (
       machine.wait_until_container_online('podmanct')
 
       ${setupScript}
+
+      unless podman_docker_io_mirrors.empty? && podman_aliases.empty?
+        _, registries_conf = machine.succeeds(
+          "osctl ct exec podmanct cat /etc/containers/registries.conf.d/10-vpsadminos-mirror.conf"
+        )
+
+        podman_docker_io_mirrors.each do |mirror|
+          unless registries_conf.include?(%{location = "#{mirror}"})
+            fail "podman mirror #{mirror.inspect} not present in registries.conf drop-in"
+          end
+        end
+
+        podman_aliases.each do |short_name, image|
+          unless registries_conf.include?(%{"#{short_name}" = "#{image}"})
+            fail "podman alias #{short_name.inspect} not present in registries.conf drop-in"
+          end
+        end
+      end
 
       st, output = machine.succeeds("osctl ct exec podmanct podman info")
 

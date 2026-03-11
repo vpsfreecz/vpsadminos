@@ -11,5 +11,8 @@ import ./base.nix {
       "osctl ct exec docker apt-get update -y",
       "osctl ct exec docker apt-get -y install docker-ce docker-ce-cli containerd.io",
     )
+
+    configure_docker_registry_mirrors('docker')
+    machine.succeeds("osctl ct exec docker systemctl restart docker")
   '';
 }

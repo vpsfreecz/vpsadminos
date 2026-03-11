@@ -17,6 +17,43 @@ import ../../make-test.nix (
     machine = import ../../machines/vpsadminos/tank.nix pkgs;
 
     testScript = ''
+      require 'json'
+      require 'shellwords'
+
+      def ct_shell(ct, script, timeout: 600)
+        machine.succeeds(
+          "osctl ct exec #{ct} sh -c #{Shellwords.escape(script)}",
+          timeout:
+        )
+      end
+
+      def ct_write_file(ct, path, contents)
+        ct_shell(
+          ct,
+          <<~SH
+            mkdir -p #{Shellwords.escape(File.dirname(path))}
+            cat > #{Shellwords.escape(path)} <<'EOF'
+            #{contents}
+            EOF
+          SH
+        )
+      end
+
+      def docker_registry_mirrors
+        Array(test_config.dig('docker', 'registryMirrors'))
+      end
+
+      def configure_docker_registry_mirrors(ct)
+        mirrors = docker_registry_mirrors
+        return if mirrors.empty?
+
+        ct_write_file(
+          ct,
+          '/etc/docker/daemon.json',
+          JSON.pretty_generate('registry-mirrors' => mirrors) + "\n"
+        )
+      end
+
       machine.start
       machine.wait_for_osctl_pool("tank")
       machine.wait_until_online
@@ -36,6 +73,15 @@ import ../../make-test.nix (
 
       ${setupScript}
 
+      unless docker_registry_mirrors.empty?
+        _, daemon_json = machine.succeeds("osctl ct exec docker cat /etc/docker/daemon.json")
+        parsed_daemon_json = JSON.parse(daemon_json)
+
+        unless parsed_daemon_json.fetch('registry-mirrors', []) == docker_registry_mirrors
+          fail "unexpected docker registry mirrors: #{parsed_daemon_json.inspect}"
+        end
+      end
+
       st, output = machine.succeeds("osctl ct exec docker docker info")
 
       expected_storage_drivers = %w[overlay2 overlayfs]
@@ -54,12 +100,8 @@ import ../../make-test.nix (
         fail "docker hello-world not working, output:\n#{output}"
       end
 
-      st, output = machine.succeeds("osctl ct exec docker docker pull gitlab/gitlab-ee:latest", timeout: 900)
-
-      if (output !~ /Status: Image is up to date for gitlab\/gitlab-ee:latest/) &&
-         (output !~ /Status: Downloaded newer image for gitlab\/gitlab-ee:latest/)
-        fail "docker pull gitlab/gitlab-ee:latest not working, output:\n#{output}"
-      end
+      machine.succeeds("osctl ct exec docker docker pull gitlab/gitlab-ee:latest", timeout: 900)
+      machine.succeeds("osctl ct exec docker docker image inspect gitlab/gitlab-ee:latest")
     '';
   }
 )

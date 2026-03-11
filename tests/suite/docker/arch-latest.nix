@@ -5,7 +5,9 @@ import ./base.nix {
     machine.all_succeed(
       "osctl ct exec docker pacman -Syu --noconfirm docker",
       "osctl ct exec docker systemctl enable docker.service",
-      "osctl ct exec docker systemctl start docker.service",
     )
+
+    configure_docker_registry_mirrors('docker')
+    machine.succeeds("osctl ct exec docker systemctl start docker.service")
   '';
 }

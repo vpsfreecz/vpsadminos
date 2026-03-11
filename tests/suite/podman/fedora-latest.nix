@@ -6,5 +6,7 @@ import ./base.nix {
       "osctl ct exec podmanct dnf -y update",
       "osctl ct exec podmanct dnf -y install podman",
     )
+
+    configure_podman_registry_mirrors('podmanct')
   '';
 }
