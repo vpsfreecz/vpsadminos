@@ -15,22 +15,22 @@ GEM
 GEM
   remote: https://rubygems.vpsfree.cz/
   specs:
-    libosctl (25.11.0.build20260311101743)
+    libosctl (25.11.0.build20260311165743)
       fiddle
       logger
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
       syslog
-    svctl (25.11.0.build20260311101743)
+    svctl (25.11.0.build20260311165743)
       filelock
       gli (~> 2.22.0)
-      libosctl (= 25.11.0.build20260311101743)
+      libosctl (= 25.11.0.build20260311165743)
 
 PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  svctl (= 25.11.0.build20260311101743)!
+  svctl (= 25.11.0.build20260311165743)!
 
 BUNDLED WITH
    2.7.2
