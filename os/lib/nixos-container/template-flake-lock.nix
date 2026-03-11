@@ -14,6 +14,21 @@ if vpsadminosGithubRev == null then
   null
 else
   let
+    homeManagerInputs =
+      if includeImpermanence then
+        homeManagerNode.inputs
+      else
+        homeManagerNode.inputs
+        // {
+          # Non-impermanence templates do not expose impermanence as a root input,
+          # so this follow path has to go through the vpsadminos input graph.
+          nixpkgs = [
+            "vpsadminos"
+            "impermanence"
+            "nixpkgs"
+          ];
+        };
+
     rootInputs =
       lib.optionalAttrs includeImpermanence {
         impermanence = "impermanence";
@@ -53,7 +68,7 @@ else
         };
         home-manager = {
           inherit (homeManagerNode) locked original;
-          inputs = homeManagerNode.inputs;
+          inputs = homeManagerInputs;
         };
         vpsadminos = {
           inputs = {
