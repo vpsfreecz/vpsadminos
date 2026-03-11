@@ -214,6 +214,8 @@ module TestRunner
         ev = TestRunner::TestEvaluator.new(
           test,
           scripts,
+          system: opts[:system],
+          test_config_path: opts[:test_config_path],
           state_dir: dir,
           sock_dir: test_sock_dir,
           default_timeout: opts[:default_timeout],

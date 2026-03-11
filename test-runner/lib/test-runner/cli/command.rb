@@ -32,7 +32,9 @@ module TestRunner
         default_timeout: opts['timeout'],
         stop_on_failure: opts['stop-on-failure'],
         destructive: opts['destructive'],
-        recreate_disks: opts['fresh']
+        recreate_disks: opts['fresh'],
+        system: opts['system'],
+        test_config_path: opts['test-config']
       )
       results = exec.run
 
@@ -44,12 +46,14 @@ module TestRunner
     def debug
       require_args!('test')
 
-      tsl = TestRunner::TestScriptList.new
+      tsl = TestRunner::TestScriptList.new(system: opts['system'], test_config_path: opts['test-config'])
       test_script = tsl.by_path(args[0])
 
       ev = TestRunner::TestEvaluator.new(
         test_script.test,
         [test_script],
+        system: opts['system'],
+        test_config_path: opts['test-config'],
         state_dir: File.join(state_dir, "os-test-#{test_script.test.name}"),
         sock_dir: File.join(state_dir, 'socks'),
         default_timeout: opts['timeout'],
@@ -62,7 +66,7 @@ module TestRunner
 
     # @return [Array<TestScript>]
     def select_test_scripts(pattern)
-      tsl = TestRunner::TestScriptList.new
+      tsl = TestRunner::TestScriptList.new(system: opts['system'], test_config_path: opts['test-config'])
 
       attr_filters = Cli::LabelFilters.new(opts['label'])
       tag_filters = Cli::TagFilters.new(opts['tag'])

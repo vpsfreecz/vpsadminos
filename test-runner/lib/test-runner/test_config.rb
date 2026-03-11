@@ -1,12 +1,11 @@
 require 'json'
 require 'fileutils'
-require 'open3'
 
 module TestRunner
   class TestConfig
     # @param test [Test]
-    def self.build(test)
-      tc = new(test)
+    def self.build(test, system: NixCli::DEFAULT_SYSTEM, test_config_path: nil)
+      tc = new(test, system:, test_config_path:)
       tc.build
       tc
     end
@@ -15,26 +14,15 @@ module TestRunner
     attr_reader :test
 
     # @param test [Test]
-    def initialize(test)
+    def initialize(test, system: NixCli::DEFAULT_SYSTEM, test_config_path: nil)
       @test = test
+      @nix = NixCli.new(system:, test_config_path:)
       @config = {}
     end
 
     def build
       FileUtils.mkdir_p('result/tests')
-      ref = ".#tests.#{nix_system}.\"#{nix_quote_attr(test.path)}\""
-
-      cmd = [
-        'nix', 'build',
-        '--impure',
-        '--out-link', config_path,
-        ref
-      ]
-
-      pid = spawn(*cmd)
-      Process.wait(pid)
-      raise 'nix build failed' if $?.exitstatus != 0
-
+      @nix.build_test_json(test.path, config_path)
       @config = JSON.parse(File.read(config_path))
     end
 
@@ -42,27 +30,11 @@ module TestRunner
       @config[key]
     end
 
+    def dig(*keys)
+      @config.dig(*keys)
+    end
+
     protected
-
-    def nix_system
-      @nix_system ||= begin
-        out, status = Open3.capture2(
-          'nix',
-          'eval',
-          '--raw',
-          '--impure',
-          '--expr',
-          'builtins.currentSystem'
-        )
-        raise "nix eval builtins.currentSystem failed (#{status.exitstatus})" unless status.success?
-
-        out.strip
-      end
-    end
-
-    def nix_quote_attr(s)
-      s.to_s.gsub('\\', '\\\\').gsub('"', '\\"')
-    end
 
     def config_path
       "result/tests/#{test.name}-config.json"

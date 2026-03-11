@@ -9,4 +9,5 @@ nix build \
   "$ROOT#test-runner" \
   > /dev/null
 
+export TEST_RUNNER_REPO_ROOT="$ROOT"
 exec "$ROOT/result/test-runner/bin/test-runner" "$@"

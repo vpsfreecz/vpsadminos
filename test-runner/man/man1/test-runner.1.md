@@ -22,6 +22,12 @@ selected tests and reporting results.
       Filter tests that have *tag* set. If the tag begins with `^`, then
       filter tests that do not have *tag* set.
 
+    `--system` *system*
+      Nix system to evaluate tests for. Defaults to `x86_64-linux`.
+
+    `--test-config` *path*
+      Path to a Nix file returning additional test framework configuration.
+
 `test` [*path-pattern*]
   Run all or selected tests.
 
@@ -39,6 +45,12 @@ selected tests and reporting results.
     `-f`, `--fresh`
       Recreate disk files for virtual machines if they already exist.
 
+    `--system` *system*
+      Nix system to evaluate tests for. Defaults to `x86_64-linux`.
+
+    `--test-config` *path*
+      Path to a Nix file returning additional test framework configuration.
+
     `--timeout` *n*
       Default timeout for machine commands that wait until execution becomes
       possible, or until a command fails or succeeds. This option changes
@@ -54,6 +66,12 @@ selected tests and reporting results.
     `--state-dir` *dir*
       Set custom path to directory where the test logs and state are stored.
       Defaults to `$TMPDIR` or `/tmp`.
+
+    `--system` *system*
+      Nix system to evaluate tests for. Defaults to `x86_64-linux`.
+
+    `--test-config` *path*
+      Path to a Nix file returning additional test framework configuration.
 
 `debug` *test*
   Run test interactively. The test script is not run, instead Ruby REPL is opened.

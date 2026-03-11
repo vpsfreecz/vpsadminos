@@ -1,9 +1,13 @@
 module TestRunner
   class TestScriptList
+    def initialize(system: NixCli::DEFAULT_SYSTEM, test_config_path: nil)
+      @test_list = TestList.new(system:, test_config_path:)
+    end
+
     # Return a list of all known test scripts
     # @return [Array<TestScript>]
     def all
-      expand_scripts(TestList.new.all)
+      expand_scripts(@test_list.all)
     end
 
     # Filter through all test scripts, return those that the filter matched
@@ -18,7 +22,7 @@ module TestRunner
     def by_path(path)
       test_path, script_name = path.split('#')
 
-      test = TestList.new.by_path(test_path)
+      test = @test_list.by_path(test_path)
 
       if script_name
         test.test_scripts[script_name]

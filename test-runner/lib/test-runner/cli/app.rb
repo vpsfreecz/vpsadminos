@@ -31,6 +31,12 @@ module TestRunner::Cli
         c.desc 'Filter by tag'
         c.flag %w[t tag], multiple: true
 
+        c.desc 'Nix system to evaluate tests for'
+        c.flag 'system', default_value: TestRunner::NixCli::DEFAULT_SYSTEM
+
+        c.desc 'Path to a Nix file returning the test framework configuration'
+        c.flag 'test-config'
+
         c.action(&Command.run(:list))
       end
 
@@ -48,6 +54,12 @@ module TestRunner::Cli
 
         c.desc 'Recreate disk files'
         c.switch %w[f fresh], default_value: false
+
+        c.desc 'Nix system to evaluate tests for'
+        c.flag 'system', default_value: TestRunner::NixCli::DEFAULT_SYSTEM
+
+        c.desc 'Path to a Nix file returning the test framework configuration'
+        c.flag 'test-config'
 
         c.desc 'Default timeout for machine commands, in seconds'
         c.flag %w[timeout], type: Integer, default_value: 600
@@ -69,6 +81,12 @@ module TestRunner::Cli
       command 'debug' do |c|
         c.desc 'Directory where test logs and state are stored'
         c.flag 'state-dir'
+
+        c.desc 'Nix system to evaluate tests for'
+        c.flag 'system', default_value: TestRunner::NixCli::DEFAULT_SYSTEM
+
+        c.desc 'Path to a Nix file returning the test framework configuration'
+        c.flag 'test-config'
 
         c.desc 'Default timeout for machine commands, in seconds'
         c.flag %w[t timeout], type: Integer, default_value: 600

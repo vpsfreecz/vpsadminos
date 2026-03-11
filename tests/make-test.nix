@@ -13,6 +13,7 @@ args@{
   # arguments passed to the test function
   testArgs ? null,
   testArgsInJson ? null,
+  testConfig ? { },
   # target system
   system ? builtins.currentSystem,
   ...
@@ -49,6 +50,7 @@ let
     "testArgs"
     "testArgsInJson"
     "system"
+    "testConfig"
   ];
 
   testAttrs = testFn ({ pkgs = nixpkgs; } // forwardedArgs // effectiveTestArgs);
@@ -241,7 +243,7 @@ let
       };
     };
 
-  testConfig = {
+  renderedTestConfig = {
     inherit (testAttrs) name description;
     expectFailure = testAttrs.expectFailure or false;
     attempts = testAttrs.attempts or 1;
@@ -249,11 +251,16 @@ let
     tags = testAttrs.tags or [ ];
     labels = testAttrs.labels or { };
     inherit testScripts;
+    framework = {
+      inherit testConfig;
+    };
   };
 
-  jsonConfig = nixpkgs.pkgs.writeText "os-test-${testAttrs.name}.json" (builtins.toJSON testConfig);
+  jsonConfig = nixpkgs.pkgs.writeText "os-test-${testAttrs.name}.json" (
+    builtins.toJSON renderedTestConfig
+  );
 in
 {
-  config = testConfig;
+  config = renderedTestConfig;
   json = jsonConfig;
 }

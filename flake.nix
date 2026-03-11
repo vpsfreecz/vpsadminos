@@ -95,11 +95,18 @@
             pkgsPath ? nixpkgs.outPath,
             testsRoot,
             suiteArgs ? { },
+            testConfig ? { },
+            configuration ? null,
           }:
           let
             allTests = import (testsRoot + "/all-tests.nix") {
               pkgs = pkgsPath;
-              inherit system suiteArgs;
+              inherit
+                system
+                suiteArgs
+                testConfig
+                configuration
+                ;
             };
           in
           builtins.mapAttrs (_: t: t.test.json) allTests;
@@ -110,6 +117,8 @@
             pkgsPath ? nixpkgs.outPath,
             testsRoot,
             suiteArgs ? { },
+            testConfig ? { },
+            configuration ? null,
           }:
           let
             nixpkgs' = import pkgsPath { inherit system; };
@@ -117,7 +126,11 @@
 
             testLib = import (self.outPath + "/test-runner/nix/lib.nix") {
               pkgs = pkgsPath;
-              inherit system;
+              inherit
+                system
+                configuration
+                testConfig
+                ;
               lib = lib';
               suitePath = testsRoot + "/suite";
               inherit suiteArgs;
@@ -125,7 +138,12 @@
 
             allTests = import (testsRoot + "/all-tests.nix") {
               pkgs = pkgsPath;
-              inherit system suiteArgs;
+              inherit
+                system
+                suiteArgs
+                testConfig
+                configuration
+                ;
             };
           in
           testLib.metaFromAllTests allTests;
@@ -164,6 +182,8 @@
             pkgs = nixpkgs.outPath;
             inherit system;
             suiteArgs = { };
+            testConfig = { };
+            configuration = null;
           };
         in
         builtins.mapAttrs (_: t: t.test.json) allTests
@@ -182,12 +202,16 @@
             lib = lib';
             suitePath = ./tests/suite;
             suiteArgs = { };
+            testConfig = { };
+            configuration = null;
           };
 
           allTests = import ./tests/all-tests.nix {
             pkgs = pkgsPath;
             inherit system;
             suiteArgs = { };
+            testConfig = { };
+            configuration = null;
           };
         in
         testLib.metaFromAllTests allTests

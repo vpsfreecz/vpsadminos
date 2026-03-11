@@ -12,6 +12,7 @@ templateFn:
   modules ? [ ],
   # extra arguments to be passed to modules
   extraArgs ? { },
+  testConfig ? { },
   # target system
   system ? builtins.currentSystem,
 }:
@@ -35,6 +36,7 @@ let
       modules
       extraArgs
       system
+      testConfig
       ;
   };
 in

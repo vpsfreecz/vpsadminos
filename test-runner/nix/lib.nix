@@ -4,6 +4,8 @@
   lib ? null,
   suitePath ? ./suite,
   suiteArgs ? { },
+  configuration ? null,
+  testConfig ? { },
 }:
 let
   nixpkgs = import pkgs { inherit system; };
@@ -16,7 +18,18 @@ let
     }:
     let
       testModule = import (suitePath + "/${test}.nix") (
-        { inherit pkgs system; } // suiteArgs // { testArgs = args; }
+        {
+          inherit
+            pkgs
+            system
+            configuration
+            testConfig
+            ;
+        }
+        // suiteArgs
+        // {
+          testArgs = args;
+        }
       );
     in
     {
@@ -34,7 +47,18 @@ let
       args:
       let
         t = import (suitePath + "/${template}.nix") (
-          { inherit pkgs system; } // suiteArgs // { templateArgs = args; }
+          {
+            inherit
+              pkgs
+              system
+              configuration
+              testConfig
+              ;
+          }
+          // suiteArgs
+          // {
+            templateArgs = args;
+          }
         );
       in
       {

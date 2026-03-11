@@ -2,6 +2,8 @@
   pkgs ? <nixpkgs>,
   system ? builtins.currentSystem,
   suiteArgs ? { },
+  configuration ? null,
+  testConfig ? { },
 }:
 let
   nixpkgs = import pkgs { inherit system; };
@@ -12,6 +14,8 @@ let
       system
       lib
       suiteArgs
+      configuration
+      testConfig
       ;
     suitePath = ./suite;
   };

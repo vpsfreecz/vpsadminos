@@ -25,7 +25,7 @@ module TestRunner
     # @option opts [Boolean] :recreate_disks
     # @option opts [String] :state_dir
     # @option opts [String] :sock_dir
-    def initialize(test, scripts, **opts)
+    def initialize(test, scripts, system: NixCli::DEFAULT_SYSTEM, test_config_path: nil, **opts)
       scripts.each do |s|
         next if s.test == test
 
@@ -34,7 +34,7 @@ module TestRunner
 
       @test = test
       @scripts = scripts
-      @config = TestConfig.build(test)
+      @config = TestConfig.build(test, system:, test_config_path:)
       @opts = opts
       @machines = {}
       @default_timeout = opts.fetch(:default_timeout)
@@ -64,6 +64,10 @@ module TestRunner
 
         machines[name] = m
       end
+    end
+
+    def test_config
+      @config.dig('framework', 'testConfig') || {}
     end
 
     # Run the test scripts

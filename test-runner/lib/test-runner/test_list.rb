@@ -1,8 +1,11 @@
 require 'json'
-require 'open3'
 
 module TestRunner
   class TestList
+    def initialize(system: NixCli::DEFAULT_SYSTEM, test_config_path: nil)
+      @nix = NixCli.new(system:, test_config_path:)
+    end
+
     # Return a list of all known tests
     # @return [Array<Test>]
     def all
@@ -24,41 +27,12 @@ module TestRunner
 
     protected
 
-    def nix_system
-      @nix_system ||= begin
-        out, status = Open3.capture2(
-          'nix',
-          'eval',
-          '--raw',
-          '--impure',
-          '--expr',
-          'builtins.currentSystem'
-        )
-        raise "nix eval builtins.currentSystem failed (#{status.exitstatus})" unless status.success?
-
-        out.strip
-      end
-    end
-
-    def nix_quote_attr(s)
-      s.to_s.gsub('\\', '\\\\').gsub('"', '\\"')
-    end
-
     def extract_all
-      cmd = ['nix', 'eval', '--json', '--impure', ".#testsMeta.#{nix_system}"]
-      out, status = Open3.capture2(*cmd)
-      raise "nix eval testsMeta failed (#{status.exitstatus})" unless status.success?
-
-      out
+      @nix.eval_tests_meta_all
     end
 
     def extract_one(path)
-      ref = ".#testsMeta.#{nix_system}.\"#{nix_quote_attr(path)}\""
-      cmd = ['nix', 'eval', '--json', '--impure', ref]
-      out, status = Open3.capture2(*cmd)
-      raise "nix eval testsMeta[#{path}] failed (#{status.exitstatus})" unless status.success?
-
-      out
+      @nix.eval_test_meta(path)
     end
 
     def parse_many(json)
