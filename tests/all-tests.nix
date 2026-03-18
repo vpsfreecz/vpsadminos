@@ -105,6 +105,9 @@ testLib.makeTests [
     template = "image-scripts/test";
     instances = imageScripts;
   }
+  "incus/arch-latest"
+  "incus/debian-latest"
+  "incus/fedora-latest"
   "kernel/cpu-view/cgroups-v1"
   "kernel/cpu-view/cgroups-v2"
   "kernel/loadavg"
