@@ -6,9 +6,10 @@ to rubygems repository, then build the OS, boot it and finally test the program.
 Rinse and repeat.
 
 To make the process faster, there is a way to mount the source codes into the OS
-running within VM. All components have a `default.nix` file, which makes it
-possible to use `nix develop` to automatically setup the environment in which you
-can test the changed code immediately.
+running within VM. The repository flake exports development shells for the
+individual components, which makes it possible to use `nix develop` to
+automatically setup the environment in which you can test the changed code
+immediately.
 
 While this text assumes you're developing in a VM run with `make qemu`, you can
 use this method to develop on any machine running vpsAdminOS. The difference
@@ -54,7 +55,7 @@ $ ssh -p 2222 root@localhost
 [... nix develop setup ...]
 [... bundle setup ...]
 
-[nix-shell:/mnt/vpsadminos/osctl]$ which osctl
+(dev:osctl) [root@vpsadminos:/mnt/vpsadminos/osctl]# which osctl
 /tmp/dev-ruby-gems/bin/osctl
 ```
 
@@ -77,7 +78,7 @@ Then you can start it from the source code:
 [... nix develop setup ...]
 [... bundle setup ...]
 
-[nix-shell:/mnt/vpsadminos/osctld]$ run-osctld
+(dev:osctld) [root@vpsadminos:/mnt/vpsadminos/osctld]# run-osctld
 ```
 
 ## Deployment

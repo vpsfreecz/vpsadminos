@@ -26,7 +26,7 @@ In the build mode, the build scripts are supposed to prepare a root filesystem,
 which is then packed into the container image by `osctl-image`. The build scripts
 can use whatever dependencies their build containers have at their disposal.
 
-Tests are run from the host, but using `nix-shell` so that the build scripts
+Tests are run from the host, but using `nix develop` so that the build scripts
 can use whatever dependencies from nixpkgs they require. Each test is run
 with a dedicated container, the script verifies if the container passes the test.
 

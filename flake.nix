@@ -407,7 +407,7 @@
               ruby_vpsadminos
             ];
             shellHook = ''
-              # Workaround for broken TMPDIR in nix-shell
+              # Work around TMPDIR not being set correctly in development shells
               export TMPDIR=/tmp
 
               export GEM_HOME="$(pwd)/.gems"

@@ -6,7 +6,7 @@
 - `image-scripts/`: install media helpers; `tools/`: maintenance scripts (e.g., gem updates); `docs/`: MkDocs sources; `tests/`: Nix VM test suites plus machines/configs.
 
 ## Development Environment
-- Enter via `nix develop` (flakes) or `nix-shell` to pull Ruby, Nix, mkdocs, and ccache; set `NIX_PATH` to the matching NixOS release noted in `README.md`.
+- Enter via `nix develop` to pull Ruby, Nix, mkdocs, and ccache.
 - Keep ccache available for kernel builds; build/test commands create `result/` symlinks in the repo root.
 
 ## Build, Test, and Development Commands
@@ -30,10 +30,10 @@
 
 ### Test runner tips
 - When there are **no local changes** in `osvm` or `test-runner`, prefer the prebuilt gems: run from repo root with `./test-runner.sh …`.
-- After modifying `osvm` or `test-runner`, run under nix-shell to pick up local code: `nix-shell test-runner/shell.nix --run 'bundle exec ./test-runner/bin/test-runner <args>'` (cwd must be repo root so `$PWD/tests` is found).
+- After modifying `osvm` or `test-runner`, run under `nix develop` to pick up local code: `nix develop .#test-runner --command bundle exec ./test-runner/bin/test-runner <args>` (cwd must be repo root so `$PWD/tests` is found).
 
 ### Overcommit hooks
-- Do not bypass overcommit hooks. Commits must be created with the pre-commit hooks enabled (nixfmt, RuboCop, etc.) or run `nix-shell --run 'overcommit --run'` from repository root to ensure they pass before committing.
+- Do not bypass overcommit hooks. Commits must be created with the pre-commit hooks enabled (nixfmt, RuboCop, etc.) or run `nix develop --command overcommit --run` from repository root to ensure they pass before committing.
 
 ## Commit & Pull Request Guidelines
 - Follow existing history: `<area>: <change>` (e.g., `os: ...`, `tests/distributions: ...`); present tense, scoped subjects.
