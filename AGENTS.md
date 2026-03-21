@@ -41,9 +41,5 @@
 - PRs should describe problem and solution, list commands/tests executed, link related issues, and attach logs/screenshots for user-visible changes.
 - Note any NIX_PATH/binary cache expectations reviewers need to reproduce builds.
 
-## Image-Scripts Release Bump Checklist
-- Always fetch exact release RPM versions from the HTTP repo directory listings (no guessing). Inspect the `Packages/*` listing for each distro.
-- Rocky (9, 10, future): set `POINTVER` to the current minor (e.g. 9.7, 10.1) and point `RELEASE` to `rocky-release-${POINTVER}-<version>.rpm` under `BaseOS/.../Packages/r/`.
-- AlmaLinux (9, 10, future): set `POINTVER` to the current minor (e.g. 9.7, 10.1) and point `RELEASE` to `almalinux-release-${POINTVER}-<version>.rpm` under `BaseOS/.../Packages/`.
-- Fedora rawhide: set `RAWHIDE_RELVER` to the version found in `fedora-release*` RPMs in `Packages/f/`; the `RELEASE` URLs must use that same value.
-- Make separate commits per distribution bump, e.g. `image-scripts: update rocky-9 to <ver>`, `image-scripts: update almalinux-9 to <ver>`, `image-scripts: update fedora-rawhide release to <ver>`.
+## Image-Scripts Release Bumps
+- Use the `update-redhat-family-image-releases` skill for Rocky, AlmaLinux, Fedora, or full Red Hat-family image release updates. The versioned skill lives in `skills/update-redhat-family-image-releases/` and covers upstream HTTP repo lookups, the exact `build.sh` edits, required `./test-runner.sh test image-scripts/test@<image-name>` verification, and commit split guidance.

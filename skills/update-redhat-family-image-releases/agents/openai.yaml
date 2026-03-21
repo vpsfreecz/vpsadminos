@@ -1,0 +1,4 @@
+interface:
+  display_name: "Update Red Hat Image Releases"
+  short_description: "Bump Rocky, AlmaLinux, and Fedora image releases"
+  default_prompt: "Use $update-redhat-family-image-releases to update Rocky, AlmaLinux, Fedora, or all Red Hat-family image release files and run the matching image-scripts tests."
