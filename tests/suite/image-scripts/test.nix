@@ -18,6 +18,8 @@ import ../../make-template.nix (
             config =
               { config, ... }:
               {
+                boot.qemu.memory = 24 * 1024;
+
                 boot.zfs.pools.tank.datasets = {
                   "image-scripts" = { };
                   "image-scripts/build" = { };
