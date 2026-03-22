@@ -165,6 +165,7 @@ module OsCtl::Repo
 
     def update_index(http)
       uri = index_uri
+      tmp_path = "#{repo.index_path}.new"
 
       if repo.has_index?
         headers = { 'If-Modified-Since' => File.stat(repo.index_path).mtime.httpdate }
@@ -172,17 +173,8 @@ module OsCtl::Repo
         request_get(http, uri, headers) do |res|
           case res.code
           when '200'
-            File.open(repo.index_path, 'w') do |f|
-              res.read_body { |fragment| f.write(fragment) }
-            end
-
-            if res['last-modified']
-              # Save the modtime for later requests
-              FileUtils.touch(
-                repo.index_path,
-                mtime: Time.httpdate(res['last-modified'])
-              )
-            end
+            write_index(tmp_path, res)
+            File.rename(tmp_path, repo.index_path)
 
           when '304'
             # index unchanged
@@ -196,19 +188,8 @@ module OsCtl::Repo
         request_get(http, uri) do |res|
           raise BadHttpResponse, res.code if res.code != '200'
 
-          File.open(repo.index_path, 'w') do |f|
-            res.read_body do |fragment|
-              f.write(fragment)
-            end
-          end
-
-          if res['last-modified']
-            # Save the modtime for later requests
-            FileUtils.touch(
-              repo.index_path,
-              mtime: Time.httpdate(res['last-modified'])
-            )
-          end
+          write_index(tmp_path, res)
+          File.rename(tmp_path, repo.index_path)
         end
       end
     end
@@ -270,6 +251,25 @@ module OsCtl::Repo
 
     def ensure_cache_dir
       FileUtils.mkpath(repo.path)
+    end
+
+    def write_index(path, res)
+      File.open(path, 'w') do |f|
+        res.read_body do |fragment|
+          f.write(fragment)
+        end
+      end
+
+      return unless res['last-modified']
+
+      # Save the modtime for later requests
+      FileUtils.touch(
+        path,
+        mtime: Time.httpdate(res['last-modified'])
+      )
+    rescue StandardError
+      FileUtils.rm_f(path)
+      raise
     end
   end
 end
