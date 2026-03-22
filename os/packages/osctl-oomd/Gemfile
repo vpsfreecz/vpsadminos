@@ -1,5 +1,5 @@
 source 'https://rubygems.org'
 
 source 'https://rubygems.vpsfree.cz' do
-  gem 'osctl-oomd', '25.11.0.build20260322125928'
+  gem 'osctl-oomd', '25.11.0.build20260322190433'
 end
