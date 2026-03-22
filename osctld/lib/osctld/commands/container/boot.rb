@@ -58,8 +58,7 @@ module OsCtld
           tpl[:vendor] ||= 'default'
           tpl[:variant] ||= 'default'
 
-          tpl_path = get_image_path(get_repositories(ct.pool), tpl)
-          error!('image not found in searched repositories') if tpl_path.nil?
+          tpl_path = get_image_path!(get_repositories(ct.pool), tpl)
         else
           error!('invalid type')
         end

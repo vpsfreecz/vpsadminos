@@ -30,7 +30,7 @@ module OsCtld
         JSON.parse(data, symbolize_names: true).map { |v| Repository::Image.new(v) }
 
       when OsCtl::Repo::EXIT_HTTP_ERROR, OsCtl::Repo::EXIT_NETWORK_ERROR
-        raise ImageRepositoryUnavailable
+        raise ImageRepositoryUnavailable, repo_error_message(data)
 
       else
         raise "osctl-repo remote ls failed with exit status #{exit_status}"
@@ -91,10 +91,10 @@ module OsCtld
         nil
 
       when OsCtl::Repo::EXIT_IMAGE_NOT_FOUND
-        raise ImageNotFound
+        raise ImageNotFound, requested_image(tpl)
 
       when OsCtl::Repo::EXIT_HTTP_ERROR, OsCtl::Repo::EXIT_NETWORK_ERROR
-        raise ImageRepositoryUnavailable
+        raise ImageRepositoryUnavailable, repo_error_message(data)
 
       else
         raise "osctl-repo remote get path failed with exit status #{exit_status}"
@@ -120,8 +120,6 @@ module OsCtld
           RunState::REPOSITORY_DIR
         )
 
-        ENV['GLI_DEBUG'] = 'true'
-
         $stdout.reopen(w)
         r.close
 
@@ -137,5 +135,16 @@ module OsCtld
     end
 
     alias osctl_repo exec_as_repo_user
+
+    def requested_image(tpl)
+      "#{tpl[:distribution]}:#{tpl[:version]} " \
+        "(arch=#{tpl[:arch]}, vendor=#{tpl[:vendor]}, " \
+        "variant=#{tpl[:variant]})"
+    end
+
+    def repo_error_message(data)
+      ret = data.strip
+      ret.empty? ? 'repository unavailable' : ret
+    end
   end
 end

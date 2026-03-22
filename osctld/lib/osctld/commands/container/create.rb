@@ -44,8 +44,7 @@ module OsCtld
       end
 
       progress('Fetching image')
-      tpl_path = get_image_path(get_repositories(pool), opts[:image])
-      error!('image not found in searched repositories') if tpl_path.nil?
+      tpl_path = get_image_path!(get_repositories(pool), opts[:image])
 
       call_cmd!(
         Commands::Container::Import,

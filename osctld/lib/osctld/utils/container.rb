@@ -24,22 +24,71 @@ module OsCtld
     # @option tpl [String] :arch
     # @option tpl [String] :vendor
     # @option tpl [String] :variant
-    # @return [String, nil]
+    # @return [Array<String, Hash<String, String>>]
     def get_image_path(repos, tpl)
+      unavailable = {}
+
       repos.each do |repo|
         osctl_repo = OsCtlRepo.new(repo)
 
         begin
           %i[zfs tar].each do |format|
             path = osctl_repo.get_image_path(tpl, format)
-            return path if path
+            return [path, unavailable] if path
           end
-        rescue ImageNotFound, ImageRepositoryUnavailable
+        rescue ImageNotFound
+          next
+        rescue ImageRepositoryUnavailable => e
+          unavailable[repo.name] = e.message
           next
         end
       end
 
-      nil
+      [nil, unavailable]
+    end
+
+    # @param repos [Array<Repository>]
+    # @param tpl [Hash]
+    # @return [String]
+    def get_image_path!(repos, tpl)
+      if repos.empty?
+        error!('no enabled repositories are available for container images')
+      end
+
+      path, unavailable = get_image_path(repos, tpl)
+      return path if path
+
+      if unavailable.any?
+        error!(image_unavailable_message(tpl, unavailable))
+      end
+
+      error!(image_not_found_message(tpl, repos))
+    end
+
+    def image_not_found_message(tpl, repos)
+      "container image #{image_spec(tpl)} not found in repositories: " \
+        "#{repos.map(&:name).join(', ')}"
+    end
+
+    def image_unavailable_message(tpl, unavailable)
+      "unable to fetch container image #{image_spec(tpl)}; repositories " \
+        "unavailable: #{format_unavailable_repositories(unavailable)}"
+    end
+
+    def format_unavailable_repositories(unavailable)
+      unavailable.map do |name, message|
+        if message && !message.empty?
+          "#{name} (#{message})"
+        else
+          name
+        end
+      end.join(', ')
+    end
+
+    def image_spec(tpl)
+      "#{tpl[:distribution]}:#{tpl[:version]} " \
+        "(arch=#{tpl[:arch]}, vendor=#{tpl[:vendor]}, " \
+        "variant=#{tpl[:variant]})"
     end
 
     # Remove accounting cgroups to reset counters

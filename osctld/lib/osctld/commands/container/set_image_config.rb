@@ -18,24 +18,19 @@ module OsCtld
         error!('container is running') if ct.running?
 
         tpl = opts[:image]
+        image = {
+          distribution: tpl[:distribution] || ct.distribution,
+          version: tpl[:version] || ct.version,
+          arch: tpl[:arch] || ct.arch,
+          vendor: tpl[:vendor] || ct.vendor,
+          variant: tpl[:variant] || ct.variant
+        }
 
         if opts[:type] == 'image'
           tpl_path = opts[:path]
         elsif opts[:type] == 'remote'
           progress('Fetching image')
-
-          tpl_path = get_image_path(
-            get_repositories(ct.pool),
-            {
-              distribution: tpl[:distribution] || ct.distribution,
-              version: tpl[:version] || ct.version,
-              arch: tpl[:arch] || ct.arch,
-              vendor: tpl[:vendor] || ct.vendor,
-              variant: tpl[:variant] || ct.variant
-            }
-          )
-
-          error!('image not found in searched repositories') if tpl_path.nil?
+          tpl_path = get_image_path!(get_repositories(ct.pool), image)
         else
           error!('invalid type')
         end
@@ -51,11 +46,11 @@ module OsCtld
         # If changed, update also distribution/version/arch info
         if tpl[:distribution] || tpl[:version] || tpl[:arch]
           ct.set(distribution: {
-            name: tpl[:distribution] || ct.distribution,
-            version: tpl[:version] || ct.version,
-            arch: tpl[:arch] || ct.arch,
-            vendor: tpl[:vendor] || ct.vendor,
-            variant: tpl[:variant] || ct.variant
+            name: image[:distribution],
+            version: image[:version],
+            arch: image[:arch],
+            vendor: image[:vendor],
+            variant: image[:variant]
           })
         end
 
