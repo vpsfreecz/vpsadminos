@@ -27,7 +27,8 @@ bootstrap-arch() {
 	local SETUP="/install.sh"
 
 	sed -i 's/CheckSpace/#CheckSpace/' "$BOOTSTRAP/etc/pacman.conf"
-	sed -ri 's/^#(.*vpsfree\.cz.*)$/\1/' "$BOOTSTRAP/etc/pacman.d/mirrorlist"
+	printf '%s\n' 'Server = https://mirror.vpsfree.cz/archlinux/$repo/os/$arch' \
+		> "$BOOTSTRAP/etc/pacman.d/mirrorlist"
 	echo nameserver 8.8.8.8 > "$BOOTSTRAP/etc/resolv.conf"
 
 	# pacstrap tries to mount /dev as devtmpfs, which is not possible in
