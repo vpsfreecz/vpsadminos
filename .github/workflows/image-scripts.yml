@@ -82,6 +82,11 @@ jobs:
       - name: Determine job count
         id: determine-test-jobs
         uses: ./.github/actions/determine-test-jobs
+        with:
+          # Image tests boot full VMs and then build container images inside
+          # them, so use a much more conservative parallelism limit than the
+          # rest of the suite.
+          per_job_gib: "32"
 
       - name: Build and test images
         run: |
