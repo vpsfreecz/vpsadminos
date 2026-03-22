@@ -456,6 +456,7 @@ let
 
       SECURITY_APPARMOR = no; # In fact AA has very poor design
 
+      SECURITY_LANDLOCK = yes;
       SECURITY_LOCKDOWN_LSM = whenAtLeast "5.4" yes;
     }
     // optionalAttrs (!stdenv.hostPlatform.isAarch32) {
