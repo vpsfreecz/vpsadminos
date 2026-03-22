@@ -1,5 +1,7 @@
 #!/usr/bin/env ruby
 
+require 'set'
+
 base = ENV.fetch('BASE_SHA')
 head = ENV.fetch('HEAD_SHA')
 
@@ -48,7 +50,7 @@ changed_images.each do |image|
     rescue Errno::EINVAL
       next
     end
-  else
+  elsif all_images.include?(image)
     test_images << image
   end
 end
