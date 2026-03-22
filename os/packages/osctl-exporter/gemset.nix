@@ -86,10 +86,10 @@
     platforms = [ ];
     source = {
       remotes = [ "https://rubygems.org" ];
-      sha256 = "0b888h9v2y4aasi9aapxqimiaj1i1csk56l22dczigs8kv2zv56x";
+      sha256 = "1kw39sqnr0lprwsd2h0zx1ic96skhqf88i14xv7c8drcicqvvqg7";
       type = "gem";
     };
-    version = "2.19.1";
+    version = "2.19.2";
   };
   libosctl = {
     dependencies = [
@@ -103,10 +103,10 @@
     platforms = [ ];
     source = {
       remotes = [ "https://rubygems.vpsfree.cz" ];
-      sha256 = "18461nd68k340j1h01avp7c0rgdf4lpqz53gla8qs3xz0snfn920";
+      sha256 = "19pjpz5j4sq74r5mzdy4rvj1c3iwd5kdllb0ffjd4vihq07wv6dn";
       type = "gem";
     };
-    version = "25.11.0.build20260311165743";
+    version = "25.11.0.build20260322125928";
   };
   logger = {
     groups = [ "default" ];
@@ -146,10 +146,10 @@
     platforms = [ ];
     source = {
       remotes = [ "https://rubygems.vpsfree.cz" ];
-      sha256 = "0akq8zjyir0rkxgk745d9cldlads1pnxbn1bxq08bsc94ns581l3";
+      sha256 = "0iaxdb9xmfmg5lpfkp05lc0lgamc8yj22iwdw9x89r5c498b8272";
       type = "gem";
     };
-    version = "25.11.0.build20260311165743";
+    version = "25.11.0.build20260322125928";
   };
   osctl-exporter = {
     dependencies = [
@@ -166,10 +166,10 @@
     platforms = [ ];
     source = {
       remotes = [ "https://rubygems.vpsfree.cz" ];
-      sha256 = "1lq5a3j8b5qkbk8i64v8nxh45xch98dk8qvl55a6xn6fxf2nkf4w";
+      sha256 = "113i46kzs9kbpiji9rn9lw7gh73bliryl5cfkk9rzxwfc4pkdxkj";
       type = "gem";
     };
-    version = "25.11.0.build20260311165743";
+    version = "25.11.0.build20260322125928";
   };
   osctl-exportfs = {
     dependencies = [
@@ -182,10 +182,10 @@
     platforms = [ ];
     source = {
       remotes = [ "https://rubygems.vpsfree.cz" ];
-      sha256 = "1ahj1fsbr9g098yahqsjsg62i0p8p0ircsyxzsnf6kknn2c4kalh";
+      sha256 = "09ad89mf63q658is0pg25wnmh4mr7clv6vqqch0qgxds3a1mkx7z";
       type = "gem";
     };
-    version = "25.11.0.build20260311165743";
+    version = "25.11.0.build20260322125928";
   };
   ostruct = {
     groups = [ "default" ];

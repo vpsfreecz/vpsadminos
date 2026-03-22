@@ -75,10 +75,10 @@
     platforms = [ ];
     source = {
       remotes = [ "https://rubygems.org" ];
-      sha256 = "0b888h9v2y4aasi9aapxqimiaj1i1csk56l22dczigs8kv2zv56x";
+      sha256 = "1kw39sqnr0lprwsd2h0zx1ic96skhqf88i14xv7c8drcicqvvqg7";
       type = "gem";
     };
-    version = "2.19.1";
+    version = "2.19.2";
   };
   libosctl = {
     dependencies = [
@@ -92,10 +92,10 @@
     platforms = [ ];
     source = {
       remotes = [ "https://rubygems.vpsfree.cz" ];
-      sha256 = "18461nd68k340j1h01avp7c0rgdf4lpqz53gla8qs3xz0snfn920";
+      sha256 = "19pjpz5j4sq74r5mzdy4rvj1c3iwd5kdllb0ffjd4vihq07wv6dn";
       type = "gem";
     };
-    version = "25.11.0.build20260311165743";
+    version = "25.11.0.build20260322125928";
   };
   logger = {
     groups = [ "default" ];
@@ -129,10 +129,10 @@
     platforms = [ ];
     source = {
       remotes = [ "https://rubygems.vpsfree.cz" ];
-      sha256 = "1lsc6136fadx7h662gs04qn8panfcsxgq5lxsf9aqhlb36ws2613";
+      sha256 = "1z4xi5xpjhjwcmw2hi8pw02q21n470aj0na7bhim2mw58bj5zc7z";
       type = "gem";
     };
-    version = "25.11.0.build20260311165743";
+    version = "25.11.0.build20260322125928";
   };
   osctld = {
     dependencies = [
@@ -153,10 +153,10 @@
     platforms = [ ];
     source = {
       remotes = [ "https://rubygems.vpsfree.cz" ];
-      sha256 = "1814ihkhkml5ddvm4zif3nxdxpnw5wrw1z0cq65w6fccvfpfnjd4";
+      sha256 = "1jd2aihx5rlhrhg8lr5224snzn43kv1yr1pmzlldwr3yabw07rc9";
       type = "gem";
     };
-    version = "25.11.0.build20260311165743";
+    version = "25.11.0.build20260322125928";
   };
   ostruct = {
     groups = [ "default" ];
@@ -179,10 +179,10 @@
     platforms = [ ];
     source = {
       remotes = [ "https://rubygems.vpsfree.cz" ];
-      sha256 = "11ci38i13my1zpp8p1ajbk7rbc5nzhcbdg9rcx53q0chxpz5fnxn";
+      sha256 = "0dynlsalg511y43c4s14n77pwbfq2bc4182k0bkary8mxxdnd7jd";
       type = "gem";
     };
-    version = "25.11.0.build20260311165743";
+    version = "25.11.0.build20260322125928";
   };
   rainbow = {
     groups = [ "default" ];
