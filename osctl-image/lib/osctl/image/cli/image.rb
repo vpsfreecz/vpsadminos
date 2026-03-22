@@ -63,7 +63,8 @@ module OsCtl::Image
       images = select_images(args[0])
       tests = select_tests(args[1])
       results = test_images(images, tests)
-      process_test_results(results)
+      failed = process_test_results(results)
+      raise GLI::CustomExit.new('one or more tests failed', 1) unless failed.empty?
     end
 
     def instantiate
@@ -221,7 +222,7 @@ module OsCtl::Image
 
       puts "#{results.length} tests run, #{succeded.length} succeeded, " \
            "#{failed.length} failed"
-      return if failed.empty?
+      return failed if failed.empty?
 
       puts
       puts 'Failed tests:'
@@ -233,6 +234,8 @@ module OsCtl::Image
         st.output.split("\n").each { |line| puts (' ' * 4) + line }
         puts
       end
+
+      failed
     end
 
     # @param build [Operations::Image::Build]
