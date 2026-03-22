@@ -10,15 +10,17 @@ module OsCtl::Repo
     def list
       ensure_cache_dir
 
-      connect do |http|
-        index = nil
+      with_retries do
+        connect do |http|
+          index = nil
 
-        repo.lock_index do
-          update_index(http)
-          index = Remote::Index.from_file(repo, repo.index_path)
+          repo.lock_index do
+            update_index(http)
+            index = Remote::Index.from_file(repo, repo.index_path)
+          end
+
+          index.images
         end
-
-        index.images
       end
     end
 
@@ -43,17 +45,29 @@ module OsCtl::Repo
           format,
           block ? true : false
         )
-      rescue SystemCallError,
-             OpenSSL::SSL::SSLError,
-             BadHttpResponse => e
+      rescue NetworkError, BadHttpResponse => e
         if force_check
           raise
+
         elsif block
           begin
             fh = read_from_cache(vendor, variant, arch, dist, vtag, format)
-          rescue CacheMiss => cache_e
-            raise "Unable to reach remote repository: #{e.message}; " \
-                  "not found in cache: #{cache_e.message}"
+          rescue CacheMiss
+            raise e
+          end
+
+        else
+          begin
+            image_path = cached_image_path(
+              vendor,
+              variant,
+              arch,
+              dist,
+              vtag,
+              format
+            )
+          rescue CacheMiss
+            raise e
           end
         end
       end
@@ -76,24 +90,26 @@ module OsCtl::Repo
 
       ensure_cache_dir
 
-      connect do |http|
-        index = nil
+      with_retries do
+        connect do |http|
+          index = nil
 
-        repo.lock_index do
-          update_index(http)
-          index = Remote::Index.from_file(repo, repo.index_path)
-        end
+          repo.lock_index do
+            update_index(http)
+            index = Remote::Index.from_file(repo, repo.index_path)
+          end
 
-        t = index.lookup(vendor, variant, arch, dist, vtag)
+          t = index.lookup(vendor, variant, arch, dist, vtag)
 
-        raise ImageNotFound, t unless t
-        raise FormatNotFound.new(t, format) unless t.has_image?(format)
+          raise ImageNotFound, t unless t
+          raise FormatNotFound.new(t, format) unless t.has_image?(format)
 
-        FileUtils.mkdir_p(t.abs_dir_path)
+          FileUtils.mkdir_p(t.abs_dir_path)
 
-        t.lock(format) do
-          path = fetch_image(http, t, format)
-          fh = File.open(path, 'r') if open
+          t.lock(format) do
+            path = fetch_image(http, t, format)
+            fh = File.open(path, 'r') if open
+          end
         end
       end
 
@@ -102,6 +118,33 @@ module OsCtl::Repo
 
     def read_from_cache(vendor, variant, arch, dist, vtag, format)
       fh = nil
+
+      with_cached_image(vendor, variant, arch, dist, vtag, format) do |t|
+        unless t.cached?(format)
+          raise CacheMiss, "Image #{t} not found in cache"
+        end
+
+        fh = File.open(t.abs_cache_path(format), 'r')
+      end
+
+      fh
+    end
+
+    def cached_image_path(vendor, variant, arch, dist, vtag, format)
+      path = nil
+
+      with_cached_image(vendor, variant, arch, dist, vtag, format) do |t|
+        unless t.cached?(format)
+          raise CacheMiss, "Image #{t} not found in cache"
+        end
+
+        path = t.abs_cache_path(format)
+      end
+
+      path
+    end
+
+    def with_cached_image(vendor, variant, arch, dist, vtag, format)
       index = nil
 
       repo.lock_index do
@@ -116,14 +159,8 @@ module OsCtl::Repo
       raise FormatNotFound.new(t, format) unless t.has_image?(format)
 
       t.lock(format) do
-        unless t.cached?(format)
-          raise CacheMiss, "Image #{t} not found in cache"
-        end
-
-        fh = File.open(t.abs_cache_path(format), 'r')
+        yield(t)
       end
-
-      fh
     end
 
     def update_index(http)
@@ -132,7 +169,7 @@ module OsCtl::Repo
       if repo.has_index?
         headers = { 'If-Modified-Since' => File.stat(repo.index_path).mtime.httpdate }
 
-        http.request_get(uri.path, headers) do |res|
+        request_get(http, uri, headers) do |res|
           case res.code
           when '200'
             File.open(repo.index_path, 'w') do |f|
@@ -156,7 +193,7 @@ module OsCtl::Repo
         end
 
       else
-        http.request_get(uri.path) do |res|
+        request_get(http, uri) do |res|
           raise BadHttpResponse, res.code if res.code != '200'
 
           File.open(repo.index_path, 'w') do |f|
@@ -184,7 +221,7 @@ module OsCtl::Repo
       if t.cached?(format)
         headers = { 'If-Modified-Since' => File.stat(t_path).mtime.httpdate }
 
-        http.request_get(uri.path, headers) do |res|
+        request_get(http, uri, headers) do |res|
           case res.code
           when '200'
             File.open(t_tmp_path, 'w') do |f|
@@ -210,7 +247,7 @@ module OsCtl::Repo
         end
 
       else # download it
-        http.request_get(uri.path) do |res|
+        request_get(http, uri) do |res|
           File.open(t_tmp_path, 'w') do |f|
             raise BadHttpResponse, res.code if res.code != '200'
 

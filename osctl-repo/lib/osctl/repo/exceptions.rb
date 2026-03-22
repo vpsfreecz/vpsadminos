@@ -13,14 +13,27 @@ module OsCtl
     end
 
     class BadHttpResponse < StandardError
+      attr_reader :code
+
       def initialize(code)
+        @code = code.to_i
         super("HTTP server returned #{code}")
       end
     end
 
     class NetworkError < StandardError
+      attr_reader :original_exception
+
       def initialize(exception)
-        super(exception.message)
+        @original_exception = exception
+
+        super(
+          if exception.respond_to?(:message)
+            exception.message
+          else
+            exception.to_s
+          end
+        )
       end
     end
 
