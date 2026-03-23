@@ -146,6 +146,7 @@ testLib.makeTests [
       distributions = distributions.systemd;
     };
   }
+  "zfs/full-suite"
   "zfs/mmap-nosync"
   "zfs/overlayfs-deadlock"
   "zfs/ugidmap"

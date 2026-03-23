@@ -59,6 +59,24 @@ The QEMU runner creates two disk images - `sda.img` and `sdb.img` which are adde
 as QEMU ATA drives and can be used to create a mirrored ZFS pool that persists
 across reboots.
 
+## Explicit ZFS Full Suite
+
+OpenZFS full-suite execution is available as an explicit `test-runner` tag and is
+not part of default `-t ci` runs.
+
+```bash
+# Full profile (long run)
+./run-zfs-full-suite.sh
+
+# Quicker profiles
+PROFILE=sanity ./run-zfs-full-suite.sh
+PROFILE=smoke ./run-zfs-full-suite.sh
+
+# Start multiple runs in parallel by using unique state dirs/run ids
+RUN_ID=zfs-full-a ./run-zfs-full-suite.sh
+RUN_ID=zfs-full-b ./run-zfs-full-suite.sh
+```
+
 ## Usage
 
 ```bash
