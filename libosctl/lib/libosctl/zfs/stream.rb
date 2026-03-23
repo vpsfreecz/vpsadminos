@@ -1,3 +1,5 @@
+require 'shellwords'
+
 module OsCtl::Lib
   # Control class for ZFS send invocation.
   #
@@ -60,14 +62,14 @@ module OsCtl::Lib
 
     # Spawn zfs send with mbuffer and return {IO} with its standard output
     # @return [Array<IO, Array>]
-    def spawn_with_mbuffer(block_size: '128k', buffer_size: '256M', start_writing_at: 60)
+    def spawn_with_mbuffer(command: 'mbuffer', block_size: '128k', buffer_size: '256M', start_writing_at: 60)
       send_r, send_w = IO.pipe
       send_pid, send_err = zfs_send(send_w)
       send_w.close
 
       mbuf_r, mbuf_w = IO.pipe
       mbuf_pid = Process.spawn(
-        'mbuffer',
+        command,
         '-q',
         '-s', block_size.to_s,
         '-m', buffer_size.to_s,
@@ -110,21 +112,21 @@ module OsCtl::Lib
     # @option opts [Integer] :timeout
     def send_to(addr, port, opts = {})
       cmd = [
-        'mbuffer',
+        opts.fetch(:command, 'mbuffer'),
         '-q',
         "-O #{addr}:#{port}",
         "-s #{opts.fetch(:block_size, '128k')}",
         "-m #{opts.fetch(:buffer_size, '64M')}",
         (opts[:log_file] ? "-l #{opts[:log_file]}" : nil),
         "-W #{opts.fetch(:timeout, 900)}"
-      ].compact.join(' ')
+      ].compact
 
       pipe_cmd(cmd)
     end
 
     # Send stream to a local filesystem.
     def send_recv(fs)
-      pipe_cmd("zfs recv -F #{fs}")
+      pipe_cmd(['zfs', 'recv', '-F', fs])
     end
 
     # Get approximate stream size.
@@ -154,13 +156,13 @@ module OsCtl::Lib
       cmd_pid = Process.fork do
         $stdin.reopen(r)
         w.close
-        Process.exec(cmd)
+        Process.exec(*cmd)
       end
 
       r.close
 
       zfs_pid, err = zfs_send(w)
-      @pipeline << cmd
+      @pipeline << Shellwords.join(cmd)
 
       w.close
 
@@ -169,8 +171,11 @@ module OsCtl::Lib
       monitor_progress(err)
       err.close
 
-      Process.wait(zfs_pid)
-      Process.wait(cmd_pid)
+      zfs_status = wait_for_pipeline_process(zfs_pid)
+      cmd_status = wait_for_pipeline_process(cmd_pid)
+
+      raise_pipeline_failure(cmd_status) unless cmd_status.success?
+      raise_pipeline_failure(zfs_status) unless zfs_status.success?
     end
 
     def pipe_io(io)
@@ -183,6 +188,19 @@ module OsCtl::Lib
       err.close
 
       Process.wait(zfs_pid)
+    end
+
+    def wait_for_pipeline_process(pid)
+      _, status = Process.wait2(pid)
+      status
+    end
+
+    def raise_pipeline_failure(status)
+      raise Exceptions::SystemCommandFailed.new(
+        @pipeline.join(' | '),
+        status.exitstatus || (128 + status.termsig),
+        ''
+      )
     end
 
     def zfs_send(stdout)
