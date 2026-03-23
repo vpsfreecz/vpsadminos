@@ -8,15 +8,24 @@ The vpsAdminOS test framework can be reused without copying its sources:
   flake outputs, boots the machines and runs Ruby `testScript`s against them.
 
 The important bit: the runner always evaluates/builds tests from the *current
-working directory* using these flake outputs:
+working directory*.
+
+By default it uses these flake outputs:
 
 - `.#testsMeta.<system>` (discovery: `ls`, tags/labels, templates, ...)
 - `.#tests.<system>."<test-path>"` (build JSON config for a test)
+
+If you use `test-runner --test-config`, the runner re-evaluates the suite and
+also needs an optional flake API:
+
+- `.#lib.testFramework.mkTests`
+- `.#lib.testFramework.mkTestsMeta`
 
 So to integrate the runner into another repository, your project needs:
 
 1. A Nix flake that exports `tests` and `testsMeta`.
 2. A `tests/` tree with `all-tests.nix` + `suite/` (and usually `make-test.nix`).
+3. Optional: `lib.testFramework` if you want `test-runner --test-config`.
 
 For writing tests (machine definition, `testScript`, tags, multiple scripts),
 see [Testing](testing.md).
@@ -166,6 +175,35 @@ tests via `nix eval`/`nix build`:
 If your project uses a different nixpkgs than vpsAdminOS, also pass
 `pkgsPath = nixpkgs.outPath;` to both `mkTests` and `mkTestsMeta`.
 
+This is enough for normal `test-runner ls/test/debug` usage.
+
+### 3a) Support `--test-config` (optional)
+If you want to use `test-runner --test-config`, also export
+`lib.testFramework`. The runner uses it to re-evaluate the suite with the
+provided Nix configuration.
+
+```nix
+{
+  outputs = { self, nixpkgs, vpsadminos, ... }:
+  let
+    withTestFrameworkDefaults = args:
+      args // {
+        pkgsPath = args.pkgsPath or nixpkgs.outPath;
+        suiteArgs = { vpsadminosPath = vpsadminos.outPath; } // (args.suiteArgs or { });
+      };
+  in
+  {
+    lib.testFramework = {
+      mkTests = args: vpsadminos.lib.testFramework.mkTests (withTestFrameworkDefaults args);
+      mkTestsMeta = args: vpsadminos.lib.testFramework.mkTestsMeta (withTestFrameworkDefaults args);
+    };
+  };
+}
+```
+
+If you do not export `lib.testFramework`, the runner still works without
+`--test-config`, but `--test-config` will fail with a clear error.
+
 ### 4) Expose the runner and add a wrapper script
 Expose the upstream runner as an app:
 
@@ -257,6 +295,10 @@ end
   that contains your `flake.nix` and exports `testsMeta`.
 - `suiteArgs.vpsadminosPath is required`: ensure `suiteArgs = { vpsadminosPath =
   vpsadminos.outPath; };` is passed in both `mkTests` and `mkTestsMeta`.
+- `--test-config` fails with a `lib.testFramework` error`: export
+  `lib.testFramework.mkTests` and `lib.testFramework.mkTestsMeta` if you want
+  the runner to re-evaluate your suite with `--test-config`. Repositories that
+  do not use `--test-config` only need `tests` and `testsMeta`.
 - If your repository uses `result` as a symlink (e.g. from `nix build`), change
   that. The runner writes to `result/tests/...` and will fail if `result`
   points into the Nix store.

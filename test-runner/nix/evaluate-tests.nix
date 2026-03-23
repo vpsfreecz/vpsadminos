@@ -7,20 +7,46 @@
 }:
 let
   flake = builtins.getFlake (builtins.toString repoRoot);
+  haveTestFramework =
+    flake ? lib
+    && flake.lib ? testFramework
+    && flake.lib.testFramework ? mkTests
+    && flake.lib.testFramework ? mkTestsMeta;
 
-  testConfig = if testConfigPath == null then { } else import testConfigPath;
+  testFramework =
+    if testConfigPath == null then
+      null
+    else if haveTestFramework then
+      flake.lib.testFramework
+    else
+      builtins.throw ''
+        The tested repository does not export flake.lib.testFramework.mkTests
+        and flake.lib.testFramework.mkTestsMeta, which are required when using
+        --test-config. Repositories that do not use --test-config only need to
+        export flake.tests and flake.testsMeta.
+      '';
 
-  tests = flake.lib.testFramework.mkTests {
-    inherit system testConfig;
-    testsRoot = repoRoot + "/tests";
-    configuration = null;
-  };
+  testConfig = if testConfigPath == null then null else import testConfigPath;
 
-  testsMeta = flake.lib.testFramework.mkTestsMeta {
-    inherit system testConfig;
-    testsRoot = repoRoot + "/tests";
-    configuration = null;
-  };
+  tests =
+    if testConfigPath == null then
+      flake.tests.${system}
+    else
+      testFramework.mkTests {
+        inherit system testConfig;
+        testsRoot = repoRoot + "/tests";
+        configuration = null;
+      };
+
+  testsMeta =
+    if testConfigPath == null then
+      flake.testsMeta.${system}
+    else
+      testFramework.mkTestsMeta {
+        inherit system testConfig;
+        testsRoot = repoRoot + "/tests";
+        configuration = null;
+      };
 in
 if mode == "testsMetaAll" then
   testsMeta

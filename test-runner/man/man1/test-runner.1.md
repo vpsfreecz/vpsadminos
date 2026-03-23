@@ -27,6 +27,8 @@ selected tests and reporting results.
 
     `--test-config` *path*
       Path to a Nix file returning additional test framework configuration.
+      Requires the tested flake to export
+      `lib.testFramework.mkTests` and `lib.testFramework.mkTestsMeta`.
 
 `test` [*path-pattern*]
   Run all or selected tests.
@@ -50,6 +52,8 @@ selected tests and reporting results.
 
     `--test-config` *path*
       Path to a Nix file returning additional test framework configuration.
+      Requires the tested flake to export
+      `lib.testFramework.mkTests` and `lib.testFramework.mkTestsMeta`.
 
     `--timeout` *n*
       Default timeout for machine commands that wait until execution becomes
