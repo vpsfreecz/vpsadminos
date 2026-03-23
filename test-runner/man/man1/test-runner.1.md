@@ -68,7 +68,8 @@ selected tests and reporting results.
       Determines whether machine disk files are kept
 
     `--state-dir` *dir*
-      Set custom path to directory where the test logs and state are stored.
+      Set custom path to directory where generated configs, logs, and test
+      state are stored.
       Defaults to `$TMPDIR` or `/tmp`.
 
     `--system` *system*
@@ -84,7 +85,8 @@ selected tests and reporting results.
   runs.
 
     `--state-dir` *dir*
-      Set custom path to directory where the test logs and state are stored.
+      Set custom path to directory where generated configs, logs, and test
+      state are stored.
       Defaults to `$TMPDIR` or `/tmp`.
 
 ## BUGS

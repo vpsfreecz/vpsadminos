@@ -250,8 +250,9 @@ chmod +x test-runner.sh
 ```
 
 The runner loads `tests/runner/extensions/*.rb` (if present) relative to the
-current directory and writes JSON configs under `result/tests/`, so it is
-important to run it from the flake root.
+current directory, so it is important to run it from the flake root. Generated
+test configs, logs and VM state are stored under the selected state directory
+for each run.
 
 ### 5) Run the suite
 Invoke the wrapper with the usual runner commands:
@@ -299,6 +300,3 @@ end
   `lib.testFramework.mkTests` and `lib.testFramework.mkTestsMeta` if you want
   the runner to re-evaluate your suite with `--test-config`. Repositories that
   do not use `--test-config` only need `tests` and `testsMeta`.
-- If your repository uses `result` as a symlink (e.g. from `nix build`), change
-  that. The runner writes to `result/tests/...` and will fail if `result`
-  points into the Nix store.

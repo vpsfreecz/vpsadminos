@@ -4,24 +4,27 @@ require 'fileutils'
 module TestRunner
   class TestConfig
     # @param test [Test]
-    def self.build(test, system: NixCli::DEFAULT_SYSTEM, test_config_path: nil)
-      tc = new(test, system:, test_config_path:)
+    # @param config_path [String]
+    def self.build(test, config_path:, system: NixCli::DEFAULT_SYSTEM, test_config_path: nil)
+      tc = new(test, system:, test_config_path:, config_path:)
       tc.build
       tc
     end
 
     # @return [Test]
-    attr_reader :test
+    attr_reader :test, :config_path
 
     # @param test [Test]
-    def initialize(test, system: NixCli::DEFAULT_SYSTEM, test_config_path: nil)
+    # @param config_path [String]
+    def initialize(test, config_path:, system: NixCli::DEFAULT_SYSTEM, test_config_path: nil)
       @test = test
       @nix = NixCli.new(system:, test_config_path:)
+      @config_path = config_path
       @config = {}
     end
 
     def build
-      FileUtils.mkdir_p('result/tests')
+      FileUtils.mkdir_p(File.dirname(config_path))
       @nix.build_test_json(test.path, config_path)
       @config = JSON.parse(File.read(config_path))
     end
@@ -32,12 +35,6 @@ module TestRunner
 
     def dig(*keys)
       @config.dig(*keys)
-    end
-
-    protected
-
-    def config_path
-      "result/tests/#{test.name}-config.json"
     end
   end
 end

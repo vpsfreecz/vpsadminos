@@ -34,8 +34,13 @@ module TestRunner
 
       @test = test
       @scripts = scripts
-      @config = TestConfig.build(test, system:, test_config_path:)
       @opts = opts
+      @config = TestConfig.build(
+        test,
+        system:,
+        test_config_path:,
+        config_path: File.join(@opts.fetch(:state_dir), 'config.json')
+      )
       @machines = {}
       @default_timeout = opts.fetch(:default_timeout)
       @used_container_ids = []
