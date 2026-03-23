@@ -36,7 +36,7 @@ module TestRunner
     protected
 
     def helper_file
-      File.join(repo_root, 'test-runner', 'nix', 'evaluate-tests.nix')
+      File.expand_path('../../nix/evaluate-tests.nix', __dir__)
     end
 
     def eval_cmd(mode:, test_path: nil)
