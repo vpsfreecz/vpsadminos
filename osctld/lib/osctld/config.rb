@@ -72,6 +72,9 @@ module OsCtld
 
     class Mbuffer
       # @return [String]
+      attr_reader :command
+
+      # @return [String]
       attr_reader :block_size
 
       # @return [String]
@@ -87,6 +90,7 @@ module OsCtld
       attr_reader :as_hash_options
 
       def initialize(cfg)
+        @command = cfg.fetch('command', 'mbuffer')
         @block_size = cfg.fetch('block_size', '128k')
         @buffer_size = cfg.fetch('buffer_size', '256M')
         @start_writing_at = cfg.fetch('start_writing_at', 80)
@@ -96,6 +100,7 @@ module OsCtld
           '-P', start_writing_at.to_s
         ]
         @as_hash_options = {
+          command:,
           block_size:,
           buffer_size:,
           start_writing_at:

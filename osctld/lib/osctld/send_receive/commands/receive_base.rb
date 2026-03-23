@@ -27,10 +27,12 @@ module OsCtld
 
         r, w = IO.pipe
 
+        mbuffer_cfg = Daemon.get.config.send_receive.receive_mbuffer
+
         mbuffer_pid = Process.spawn(
-          'mbuffer',
+          mbuffer_cfg.command,
           '-q',
-          *Daemon.get.config.send_receive.receive_mbuffer.as_cli_options,
+          *mbuffer_cfg.as_cli_options,
           in: io,
           out: w
         )
