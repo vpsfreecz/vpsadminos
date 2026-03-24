@@ -114,11 +114,12 @@ module OsCtl::Lib
       cmd = [
         opts.fetch(:command, 'mbuffer'),
         '-q',
-        "-O #{addr}:#{port}",
-        "-s #{opts.fetch(:block_size, '128k')}",
-        "-m #{opts.fetch(:buffer_size, '64M')}",
-        (opts[:log_file] ? "-l #{opts[:log_file]}" : nil),
-        "-W #{opts.fetch(:timeout, 900)}"
+        '-O', "#{addr}:#{port}",
+        '-s', opts.fetch(:block_size, '128k').to_s,
+        '-m', opts.fetch(:buffer_size, '64M').to_s,
+        ('-l' if opts[:log_file]),
+        opts[:log_file],
+        '-W', opts.fetch(:timeout, 900).to_s
       ].compact
 
       pipe_cmd(cmd)
