@@ -4,6 +4,7 @@ TEMPLATE_CHANNEL = stable
 OS_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 ROOT := $(abspath $(OS_DIR)/..)
 NIX ?= nix
+OUTPUT ?= toplevel
 NIX_IMPURE =
 
 ifneq ($(VPSADMINOS_CONFIG),)
@@ -29,7 +30,7 @@ toplevel: result
 	$(NIX) build $(NIX_IMPURE) \
 	 --out-link result/toplevel \
 	 --cores $(CORES) $(TRACE) \
-	 $(ROOT)#toplevel
+	 $(ROOT)#$(OUTPUT)
 
 # build iso image
 iso: result

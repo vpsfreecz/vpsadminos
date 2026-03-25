@@ -56,19 +56,10 @@ jobs:
 
       - name: Build toplevel closure with kernel ${{ matrix.kernel }}
         run: |
-          cat <<'EOF' > os/configs/local.nix
-          { config, ... }:
-          {
-            boot.kernelVersion = "${{ matrix.kernel }}";
-            system.systemBuilderCommands = ''
-              ln -sf ${config.boot.kernelPackage.dev} $out/kernel-dev
-            '';
-          }
-          EOF
-
-          make toplevel
+          KERNEL_OUTPUT_VERSION="${{ matrix.kernel }}"
+          KERNEL_OUTPUT_VERSION="${KERNEL_OUTPUT_VERSION//[.-]/_}"
+          make OUTPUT="ci-toplevel-kernel-$KERNEL_OUTPUT_VERSION" toplevel
           echo "BUILD_OUT=$(readlink -f os/result/toplevel)" >> $GITHUB_ENV
-          rm -f os/configs/local.nix
 
       - name: Copy toplevel closure with kernel ${{ matrix.kernel }} to binary cache
         env:

@@ -15,6 +15,10 @@
     let
       supportedSystems = [ "x86_64-linux" ];
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
+      kernelVersions = builtins.attrNames (import ./os/packages/linux/available-kernels.nix).kernels;
+      ciKernelOutputName =
+        kernelVersion:
+        "ci-toplevel-kernel-" + nixpkgs.lib.replaceStrings [ "." "-" ] [ "_" "_" ] kernelVersion;
       impermanence = inputs.impermanence;
       flakeLock = builtins.fromJSON (builtins.readFile ./flake.lock);
       stableNixpkgsNode = flakeLock.nodes.${flakeLock.nodes.root.inputs.nixpkgs};
@@ -38,6 +42,13 @@
       containerStable2505Module = import ./os/lib/nixos-container/stable/vpsadminos-25.05.nix;
       containerStable2511Module = import ./os/lib/nixos-container/stable/vpsadminos-25.11.nix;
       containerUnstableModule = import ./os/lib/nixos-container/unstable/vpsadminos.nix;
+      kernelDevToplevelModule =
+        { config, ... }:
+        {
+          system.systemBuilderCommands = ''
+            ln -sf ${config.boot.kernelPackage.dev} $out/kernel-dev
+          '';
+        };
 
       vpsadminosSystem =
         {
@@ -224,10 +235,31 @@
           overlays = import ./os/overlays;
           pkgsWithOverlays = pkgsBase.extend (nixpkgs.lib.composeManyExtensions overlays);
 
-          qemuSystem = vpsadminosSystem {
-            inherit system;
-            modules = [ ./os/configs/qemu.nix ];
-          };
+          mkQemuSystem =
+            extraModules:
+            vpsadminosSystem {
+              inherit system;
+              modules = [ ./os/configs/qemu.nix ] ++ extraModules;
+            };
+
+          qemuSystem = mkQemuSystem [ ];
+          ciQemuSystem = mkQemuSystem [ kernelDevToplevelModule ];
+
+          kernelCiQemuSystems = builtins.listToAttrs (
+            map (kernelVersion: {
+              name = ciKernelOutputName kernelVersion;
+              value = mkQemuSystem [
+                kernelDevToplevelModule
+                {
+                  boot.kernelVersion = kernelVersion;
+                }
+              ];
+            }) kernelVersions
+          );
+
+          ciKernelToplevelPackages = builtins.mapAttrs (
+            _: kernelSystem: kernelSystem.config.system.build.toplevel
+          ) kernelCiQemuSystems;
 
           isoSystem = vpsadminosSystem {
             inherit system;
@@ -293,26 +325,30 @@
             nixpkgsNode = unstableNixpkgsNode;
           };
         in
-        {
-          default = qemuSystem.config.system.build.runvm;
-          qemu = qemuSystem.config.system.build.runvm;
-          toplevel = qemuSystem.config.system.build.toplevel;
-          qemu-script = qemuSystem.config.system.build.runvmScript;
-          os-rebuild = qemuSystem.config.system.build.os-rebuild;
-          iso = isoSystem.config.system.build.isoImage;
-          iso-local = isoLocalSystem.config.system.build.runvm;
-          template = templateStableSystem.config.system.build.tarball;
-          template-stable = templateStableSystem.config.system.build.tarball;
-          template-unstable = templateUnstableSystem.config.system.build.tarball;
-          template-impermanence = templateStableImpermanenceSystem.config.system.build.impermanenceTarball;
-          template-impermanence-stable =
-            templateStableImpermanenceSystem.config.system.build.impermanenceTarball;
-          template-impermanence-unstable =
-            templateUnstableImpermanenceSystem.config.system.build.impermanenceTarball;
-          test-runner = import ./test-runner/nix/package.nix {
-            pkgs = pkgsWithOverlays;
-          };
-        }
+        (
+          {
+            default = qemuSystem.config.system.build.runvm;
+            qemu = qemuSystem.config.system.build.runvm;
+            toplevel = qemuSystem.config.system.build.toplevel;
+            ci-toplevel = ciQemuSystem.config.system.build.toplevel;
+            qemu-script = qemuSystem.config.system.build.runvmScript;
+            os-rebuild = qemuSystem.config.system.build.os-rebuild;
+            iso = isoSystem.config.system.build.isoImage;
+            iso-local = isoLocalSystem.config.system.build.runvm;
+            template = templateStableSystem.config.system.build.tarball;
+            template-stable = templateStableSystem.config.system.build.tarball;
+            template-unstable = templateUnstableSystem.config.system.build.tarball;
+            template-impermanence = templateStableImpermanenceSystem.config.system.build.impermanenceTarball;
+            template-impermanence-stable =
+              templateStableImpermanenceSystem.config.system.build.impermanenceTarball;
+            template-impermanence-unstable =
+              templateUnstableImpermanenceSystem.config.system.build.impermanenceTarball;
+            test-runner = import ./test-runner/nix/package.nix {
+              pkgs = pkgsWithOverlays;
+            };
+          }
+          // ciKernelToplevelPackages
+        )
       );
 
       devShells = forAllSystems (
