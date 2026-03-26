@@ -1,4 +1,5 @@
 require 'libosctl'
+require 'concurrent'
 require 'singleton'
 
 module OsCtld
