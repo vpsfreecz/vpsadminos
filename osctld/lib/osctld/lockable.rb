@@ -35,6 +35,7 @@ module OsCtld
         @in_queued = []
         @ex_queued = []
         @ex = nil
+        @allow_inclusive_after_exclusive = false
         @cond_ex = ConditionVariable.new
         @cond_in = ConditionVariable.new
         @object = object
@@ -45,7 +46,7 @@ module OsCtld
         is_timeout = false
 
         sync do
-          if @ex_queued.any?
+          if @ex_queued.any? && !@allow_inclusive_after_exclusive
             @in_queued << Thread.current
 
             # Wait for the exclusive lock to finish, if there is one
@@ -58,14 +59,14 @@ module OsCtld
                 is_timeout = true
                 break
 
-              elsif @ex.nil?
+              elsif @ex.nil? && (@allow_inclusive_after_exclusive || @ex_queued.empty?)
                 break
               end
 
               @cond_in.wait(@mutex, TIMEOUT - (now - t))
             end
 
-            if @ex && is_timeout
+            if (@ex || (!@allow_inclusive_after_exclusive && @ex_queued.any?)) && is_timeout
               LockRegistry.register(@object, :inclusive, :timeout)
               raise OsCtld::DeadlockDetected.new(@object, :inclusive)
             else
@@ -87,7 +88,10 @@ module OsCtld
           LockRegistry.register(@object, :inclusive, :unlocked)
 
           # Start exclusive block, if there is one waiting
-          @cond_ex.signal if @in_held.empty? && @ex_queued.any?
+          if @in_held.empty? && @ex_queued.any?
+            @allow_inclusive_after_exclusive = false
+            @cond_ex.signal
+          end
         end
       end
 
@@ -127,6 +131,7 @@ module OsCtld
         end
 
         if @in_held.empty?
+          @allow_inclusive_after_exclusive = false
           @ex = Thread.current
           LockRegistry.register(@object, :exclusive, :locked)
 
@@ -159,6 +164,7 @@ module OsCtld
             @mutex.unlock
             raise OsCtld::DeadlockDetected.new(@object, :exclusive)
           else
+            @allow_inclusive_after_exclusive = false
             @ex = @ex_queued.shift
             LockRegistry.register(@object, :exclusive, :locked)
           end
@@ -177,9 +183,11 @@ module OsCtld
         # Give the first chance to a round of inclusive locks, then exclusive
         # ones
         if @in_queued.any?
+          @allow_inclusive_after_exclusive = true
           @cond_in.broadcast
 
         elsif @ex_queued.any?
+          @allow_inclusive_after_exclusive = false
           @cond_ex.signal
         end
 
