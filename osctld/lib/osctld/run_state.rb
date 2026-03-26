@@ -1,3 +1,5 @@
+require 'fileutils'
+
 module OsCtld
   module RunState
     RUNDIR = '/run/osctl'.freeze
@@ -24,6 +26,7 @@ module OsCtld
 
       # LXC configs
       mkdir_p(CONFIG_DIR, 0o755)
+      mkdir_p(OSCTLD_CONFIG_DIR, 0o755)
       mkdir_p(LXC_CONFIG_DIR, 0o755)
 
       Lxc.install_lxc_configs(LXC_CONFIG_DIR)
@@ -99,11 +102,8 @@ module OsCtld
     end
 
     def self.mkdir_p(path, mode, uid: nil, gid: nil)
-      begin
-        Dir.mkdir(path, mode)
-      rescue Errno::EEXIST
-        File.chmod(mode, path)
-      end
+      FileUtils.mkdir_p(path, mode:)
+      File.chmod(mode, path)
 
       File.chown(uid, gid, path) if uid && gid
     end
