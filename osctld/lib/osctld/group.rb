@@ -242,7 +242,7 @@ module OsCtld
       groups = [self] + descendants
 
       DB::Containers.get.each do |ct|
-        return true if ct.pool == pool && groups.include?(self) && ct.running?
+        return true if ct.pool == pool && groups.include?(ct.group) && ct.running?
       end
 
       false
