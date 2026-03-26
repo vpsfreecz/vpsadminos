@@ -110,7 +110,7 @@ module OsCtld
           pool = args.pop
 
           unless files.has_key?(pool.name)
-            files[pool.name] = File.open(log_path(pool), 'a', 0o400)
+            files[pool.name] = open_log(log_path(pool))
           end
 
         when :close
@@ -131,7 +131,7 @@ module OsCtld
 
     def do_log(files, pool, cmd, opts)
       unless files.has_key?(pool.name)
-        files[pool.name] = File.open(log_path(pool), 'a', 0o400)
+        files[pool.name] = open_log(log_path(pool))
       end
 
       write_log(files[pool.name], cmd, opts)
@@ -144,6 +144,14 @@ module OsCtld
 
     def log_path(pool)
       File.join(pool.log_path, '.history')
+    end
+
+    def open_log(path)
+      File.chmod(0o600, path) if File.exist?(path)
+
+      file = File.open(path, 'a', 0o400)
+      File.chmod(0o400, path)
+      file
     end
   end
 end
