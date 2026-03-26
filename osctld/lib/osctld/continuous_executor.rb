@@ -169,7 +169,10 @@ module OsCtld
             end
 
           when :clear
+            pending = @front_queue.to_a.reject { |entry| entry.first == :command }
             @front_queue.clear
+            pending.each { |entry| @front_queue << entry }
+
             sync do
               @exec_queue.clear
               wake_waiters
