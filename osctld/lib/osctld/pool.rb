@@ -366,7 +366,7 @@ module OsCtld
           OPTIONS.each do |opt|
             next unless v.include?(opt)
 
-            remove_instance_variable(:"@#{opt}")
+            remove_instance_variable(:"@#{opt}") if instance_variable_defined?(:"@#{opt}")
           end
 
         when :attrs
@@ -562,8 +562,12 @@ module OsCtld
     end
 
     def save_config
+      data = dump_opts.merge(
+        'attrs' => attrs.dump
+      )
+
       regenerate_file(config_path, 0o400) do |f|
-        f.write(OsCtl::Lib::ConfigFile.dump_yaml(dump_opts.merge(attrs.dump)))
+        f.write(OsCtl::Lib::ConfigFile.dump_yaml(data))
       end
     end
 
