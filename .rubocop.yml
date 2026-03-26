@@ -1,6 +1,7 @@
 inherit_from: .rubocop_todo.yml
 plugins:
   - rubocop-rake
+  - rubocop-rspec
 
 AllCops:
   TargetRubyVersion: 3.2
@@ -103,3 +104,12 @@ Style/SpecialGlobalVars:
   Enabled: true
   RequireEnglish: false
   EnforcedStyle: use_perl_names
+
+RSpec/BeforeAfterAll:
+  Enabled: false
+RSpec/ExampleLength:
+  Enabled: false
+RSpec/MultipleExpectations:
+  Enabled: false
+RSpec/SpecFilePathFormat:
+  Enabled: false
