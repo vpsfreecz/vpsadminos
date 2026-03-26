@@ -212,9 +212,13 @@ module OsCtld
 
     def save
       exclusively do
-        File.open(key_chain_path, 'w', 0o400) do |f|
+        replacement = "#{key_chain_path}.new"
+
+        File.open(replacement, 'w', 0o400) do |f|
           f.write(OsCtl::Lib::ConfigFile.dump_yaml(keys.map(&:dump)))
         end
+
+        File.rename(replacement, key_chain_path)
       end
     end
 
