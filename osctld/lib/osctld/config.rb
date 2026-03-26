@@ -174,7 +174,7 @@ module OsCtld
       @cpu_scheduler = CpuScheduler.new(cfg.fetch('cpu_scheduler', {}))
       @send_receive = SendReceive.new(cfg.fetch('send_receive', {}))
       @trash_bin = TrashBin.new(cfg.fetch('trash_bin', {}))
-      @garbage_collector = GarbageCollector.new(cfg.fetch('garbage_bin', {}))
+      @garbage_collector = GarbageCollector.new(cfg.fetch('garbage_collector', {}))
     end
   end
 end

@@ -72,6 +72,22 @@ RSpec.describe OsCtld::Config do
     end
   end
 
+  it 'uses garbage collector defaults' do
+    build_config({}) do |config|
+      expect(config.garbage_collector.prune_interval).to eq(6 * 60 * 60)
+    end
+  end
+
+  it 'loads garbage collector settings from garbage_collector' do
+    build_config(
+      'garbage_collector' => {
+        'prune_interval' => 123
+      }
+    ) do |config|
+      expect(config.garbage_collector.prune_interval).to eq(123)
+    end
+  end
+
   it 'overrides defaults from explicit json values' do
     build_config(
       'debug' => true,
@@ -89,6 +105,9 @@ RSpec.describe OsCtld::Config do
       },
       'trash_bin' => {
         'prune_interval' => 60
+      },
+      'garbage_collector' => {
+        'prune_interval' => 120
       }
     ) do |config|
       expect(config.debug?).to be(true)
@@ -99,6 +118,7 @@ RSpec.describe OsCtld::Config do
       expect(config.send_receive.send_mbuffer.command).to eq('custom-mbuffer')
       expect(config.send_receive.send_mbuffer.as_cli_options).to eq(['-s', '64k', '-m', '128M', '-P', '10'])
       expect(config.trash_bin.prune_interval).to eq(60)
+      expect(config.garbage_collector.prune_interval).to eq(120)
     end
   end
 end
