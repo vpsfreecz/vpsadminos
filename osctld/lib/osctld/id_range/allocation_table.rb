@@ -72,15 +72,10 @@ module OsCtld
     # @param owner [String] arbitrary allocation owner
     # @return [Hash, false]
     def allocate_at(index, count, owner)
+      raise ArgumentError, "unable to allocate #{count} blocks at #{index}" if count <= 0
+      raise ArgumentError, "unable to allocate #{count} blocks at #{index}" unless free_at?(index, count)
+
       alloc = Allocation.new(index, count, owner)
-
-      if table.empty?
-        table << alloc
-        return alloc.export
-
-      elsif !free_at?(index, count)
-        raise ArgumentError, "unable to allocate #{count} blocks at #{index}"
-      end
 
       table.each_with_index do |v, t_i|
         if v.block_index > index
