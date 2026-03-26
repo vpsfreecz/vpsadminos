@@ -74,7 +74,7 @@ module OsCtld
 
     # @return [Boolean]
     def running?
-      sync { @thread && @thread.alive? }
+      !!sync { @thread && @thread.alive? }
     end
 
     # Wait for the execution to finish, if it is running
@@ -123,6 +123,8 @@ module OsCtld
       case n
       when nil
         default_threads
+      when Integer
+        n
       when :all
         Etc.nprocessors
       when :half
