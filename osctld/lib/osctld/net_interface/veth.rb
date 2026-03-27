@@ -267,6 +267,7 @@ module OsCtld
     def dup(new_ct)
       ret = super
       ret.instance_variable_set('@veth', nil)
+      ret.instance_variable_set('@ips', @ips.transform_values(&:dup))
       ret
     end
 

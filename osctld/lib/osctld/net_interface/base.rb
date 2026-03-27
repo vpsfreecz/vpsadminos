@@ -162,6 +162,7 @@ module OsCtld
 
     def dup(new_ct)
       ret = super()
+      ret.init_lock
       ret.instance_variable_set('@ct', new_ct)
       ret
     end

@@ -240,6 +240,12 @@ module OsCtld
       end
     end
 
+    def dup(new_ct)
+      ret = super
+      ret.instance_variable_set('@routes', Routing::Table.load(routes.dump))
+      ret
+    end
+
     protected
 
     def get_ipv6_link_local

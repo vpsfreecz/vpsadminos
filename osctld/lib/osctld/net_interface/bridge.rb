@@ -120,6 +120,13 @@ module OsCtld
       get_gateway(v) || (raise 'no gateway set')
     end
 
+    def dup(new_ct)
+      ret = super
+      ret.instance_variable_set('@gateways', gateways.dup)
+      ret.instance_variable_set('@gateway_cache', nil)
+      ret
+    end
+
     protected
 
     def get_gateway(v)
