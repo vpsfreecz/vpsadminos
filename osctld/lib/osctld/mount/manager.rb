@@ -92,6 +92,9 @@ module OsCtld
 
         entries.clear
       end
+
+      ct.save_config
+      ct.lxc_config.configure_mounts
     end
 
     # Remote temporal mounts
