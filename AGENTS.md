@@ -37,6 +37,9 @@
 
 ## Commit & Pull Request Guidelines
 - Follow existing history: `<area>: <change>` (e.g., `os: ...`, `tests/distributions: ...`); present tense, scoped subjects.
+- Each commit message must explain what the change does and why the change is necessary.
+- Limit all commit message lines to 80 characters or fewer.
+- Always write the commit message to a temporary file and commit with `git commit -F <tempfile>` instead of `git commit -m`.
 - Keep commits focused and update docs/man pages when behavior changes.
 - PRs should describe problem and solution, list commands/tests executed, link related issues, and attach logs/screenshots for user-visible changes.
 - Note any NIX_PATH/binary cache expectations reviewers need to reproduce builds.
