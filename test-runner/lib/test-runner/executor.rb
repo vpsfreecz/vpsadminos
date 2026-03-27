@@ -231,9 +231,30 @@ module TestRunner
       w.close
 
       script_results = []
+      test_runner_log = File.join(dir, 'test-runner.log')
+      heartbeat_interval = 300
+      next_heartbeat_at = Time.now + heartbeat_interval
 
       begin
-        r.each_line do |line|
+        loop do
+          timeout = [next_heartbeat_at - Time.now, 0].max
+          ready = IO.select([r], nil, nil, timeout)
+
+          if ready.nil?
+            elapsed = (Time.now - t1).round(2)
+            msg = "#{prefix} Test '#{test.path}' still running after #{elapsed} seconds, log: #{test_runner_log}"
+            last_line = last_nonempty_line(test_runner_log)
+            msg += ", last output: #{last_line}" if last_line
+            log(msg)
+            next_heartbeat_at = Time.now + heartbeat_interval
+            next
+          end
+
+          line = r.gets
+          break if line.nil?
+
+          next_heartbeat_at = Time.now + heartbeat_interval
+
           begin
             result_hash = JSON.parse(line)
           rescue JSON::ParserError
@@ -347,6 +368,28 @@ module TestRunner
 
     def state_dir
       opts[:state_dir]
+    end
+
+    def last_nonempty_line(path, max_bytes: 8192)
+      return nil unless File.file?(path)
+
+      size = File.size(path)
+      return nil if size <= 0
+
+      offset = [size - max_bytes, 0].max
+      data = File.open(path, 'rb') do |f|
+        f.seek(offset)
+        f.read
+      end
+
+      data.lines.reverse_each do |line|
+        stripped = line.strip
+        return stripped unless stripped.empty?
+      end
+
+      nil
+    rescue Errno::ENOENT, Errno::EACCES
+      nil
     end
 
     def log(msg = '')
