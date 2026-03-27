@@ -132,7 +132,13 @@ module OsCtld
       begin
         req = JSON.parse(data, symbolize_names: true)
       rescue TypeError, JSON::ParserError
-        return error('syntax error, expected a valid JSON')
+        reply_error('syntax error, expected a valid JSON')
+        return true
+      end
+
+      unless req.is_a?(Hash)
+        reply_error('invalid input')
+        return true
       end
 
       log(:debug, self, "Received command '#{req[:cmd]}'")
