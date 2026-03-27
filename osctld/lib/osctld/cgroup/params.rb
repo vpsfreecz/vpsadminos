@@ -239,7 +239,7 @@ module OsCtld
 
           return nil if quota == 'max'
 
-          return ((quota.to_f / period) * 100).round
+          return ((quota.to_f / period.to_i) * 100).round
         end
 
         return nil
