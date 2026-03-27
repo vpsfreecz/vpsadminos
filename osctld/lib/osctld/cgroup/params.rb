@@ -273,7 +273,12 @@ module OsCtld
       ret = super()
       ret.init_lock
       ret.instance_variable_set('@owner', new_owner)
-      ret.instance_variable_set('@params', params.map(&:clone))
+      ret.instance_variable_set(
+        '@params',
+        params.map do |param|
+          param.clone.tap { |copy| copy.value = param.value.dup }
+        end
+      )
       ret
     end
 
