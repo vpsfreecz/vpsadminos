@@ -34,6 +34,14 @@ module DbRegistryHelpers
       end
     end)
   end
+
+  def stub_users_registry(users)
+    stub_const('OsCtld::DB::Users', Object.new.tap do |registry|
+      registry.define_singleton_method(:find) do |name, _pool|
+        users.find { |user| user.name == name }
+      end
+    end)
+  end
 end
 
 RSpec.configure do |config|
