@@ -449,9 +449,12 @@ module OsCtld
               get_package_by_preference(wanted_pkg_id, daily_use)
             elsif use_sequential_start_stop? && priority_start?(ct)
               # prioritized containers are always put on the first package
-              target_pkg_id = package_info.keys.min
-              log(:debug, "Priority start for #{ct.ident}, using CPU package #{target_pkg_id}")
-              get_package_by_preference(target_pkg_id, daily_use)
+              target_pkg = package_info.values.select(&:enabled).min_by(&:id)
+
+              if target_pkg
+                log(:debug, "Priority start for #{ct.ident}, using CPU package #{target_pkg.id}")
+                get_package_by_preference(target_pkg.id, daily_use)
+              end
             elsif daily_use == 0 || !can_schedule_by_score?
               # no usage stats available, choose package based on number of cts
               get_package_by_count(daily_use)
@@ -482,6 +485,8 @@ module OsCtld
 
     def get_package_by_preference(pkg_id, usage_score)
       pkg = package_info[pkg_id]
+      return if pkg.nil? || !pkg.enabled
+
       pkg.container_count += 1
       pkg.usage_score += usage_score
       pkg
