@@ -47,14 +47,14 @@ module OsCtld
         case netif.type
         when :bridge
           if netif.has_gateway?(ip_v)
-            n.routes << Route.new(ip_v, '0.0.0.0', 0, netif.gateway(ip_v))
+            n.routes << Route.new(ip_v, default_route_addr(ip_v), 0, netif.gateway(ip_v))
           end
 
         when :routed
           begin
             via = netif.default_via(ip_v).to_s
             n.routes << Route.new(ip_v, via, ip_v == 4 ? 32 : 128, nil)
-            n.routes << Route.new(ip_v, '0.0.0.0', 0, via)
+            n.routes << Route.new(ip_v, default_route_addr(ip_v), 0, via)
           rescue RuntimeError
             # IPv6 is routed via link-local address on the host interface, which
             # is not known when the container is stopped.
@@ -112,6 +112,12 @@ module OsCtld
           end
         )
       end
+    end
+
+    protected
+
+    def default_route_addr(ip_v)
+      ip_v == 4 ? '0.0.0.0' : '::'
     end
   end
 end
