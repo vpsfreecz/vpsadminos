@@ -41,9 +41,11 @@ module OsCtld
 
     def filter?(event)
       if opts[:type]
+        event_type = event.type.to_s
+
         if opts[:type].is_a?(Array)
-          return false if opts[:type].include?(event.type)
-        elsif opts[:type] != event.type.to_s
+          return false unless opts[:type].map(&:to_s).include?(event_type)
+        elsif opts[:type].to_s != event_type
           return false
         end
       end
