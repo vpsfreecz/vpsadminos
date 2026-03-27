@@ -70,11 +70,11 @@ module OsCtld
 
             # Neither container has CPU package, sort by start priority
             elsif !a_package && !b_package
-              a.autostart <=> b.autostart
+              autostart_sort_key(a) <=> autostart_sort_key(b)
 
             # Same CPU package, sort by start priority
             elsif a_package == b_package # rubocop:disable Lint/DuplicateBranch
-              a.autostart <=> b.autostart
+              autostart_sort_key(a) <=> autostart_sort_key(b)
 
             # Sort by CPU package, lower package first
             else
@@ -97,14 +97,14 @@ module OsCtld
         if debug
           log(
             :debug,
-            "[#{counter.to_s.rjust(4)}/#{total}] #{ct.id} priority=#{ct.autostart.priority} cpu-package=#{CpuScheduler.get_preschedule_package_id(ct) || '-'}"
+            "[#{counter.to_s.rjust(4)}/#{total}] #{ct.id} priority=#{autostart_priority(ct)} cpu-package=#{CpuScheduler.get_preschedule_package_id(ct) || '-'}"
           )
           counter += 1
         end
 
         ContinuousExecutor::Command.new(
           id: ct.id,
-          priority: i || ct.autostart.priority
+          priority: i || autostart_priority(ct)
         ) do |cmd|
           cur_ct = DB::Containers.find(cmd.id, pool)
 
@@ -222,8 +222,8 @@ module OsCtld
           break if stop?
 
           if delay_after_start?
-            log(:info, ct, "Autostart delay for #{ct.autostart.delay} seconds")
-            sleep(ct.autostart.delay)
+            log(:info, ct, "Autostart delay for #{autostart_delay(ct)} seconds")
+            sleep(autostart_delay(ct))
           else
             log(:info, ct, 'Skipping autostart delay thanks to low system load average')
           end
@@ -256,6 +256,18 @@ module OsCtld
     def delay_after_start?
       lavg = OsCtl::Lib::LoadAvg.new
       lavg.avg[1] >= @nproc
+    end
+
+    def autostart_sort_key(ct)
+      [autostart_priority(ct), ct.id]
+    end
+
+    def autostart_priority(ct)
+      ct.autostart ? ct.autostart.priority : 10
+    end
+
+    def autostart_delay(ct)
+      ct.autostart ? ct.autostart.delay : 0
     end
 
     def stop?
