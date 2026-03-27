@@ -96,8 +96,9 @@ module OsCtld
 
     def dup(new_ct)
       ret = super()
+      ret.init_lock
       ret.instance_variable_set('@ct', new_ct)
-      ret.instance_variable_set('@prlimits', prlimits.map(&:clone))
+      ret.instance_variable_set('@prlimits', prlimits.transform_values(&:clone))
       ret
     end
 
