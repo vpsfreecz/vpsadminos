@@ -182,6 +182,18 @@ import ../../make-test.nix (
       live_root = "/run/osvm/shared-dir/zfs-full-suite"
       live_log = "#{live_root}/zfs-tests-#{profile}.log"
       work_dir = "#{live_root}/work"
+      zpool_import_path = [
+        work_dir,
+        "/dev/disk/by-vdev",
+        "/dev/mapper",
+        "/dev/disk/by-partlabel",
+        "/dev/disk/by-partuuid",
+        "/dev/disk/by-label",
+        "/dev/disk/by-uuid",
+        "/dev/disk/by-id",
+        "/dev/disk/by-path",
+        "/dev"
+      ].join(":")
       state_dir = File.dirname(machine.send(:console_log_path))
       host_live_root = File.join(state_dir, "shared-dir", "zfs-full-suite")
       host_live_log = File.join(host_live_root, "zfs-tests-#{profile}.log")
@@ -200,18 +212,18 @@ import ../../make-test.nix (
       )
 
       if single_test && !single_test.empty?
-        cmd = "set -o pipefail; cd #{work_dir} && LOSETUP=$(command -v losetup) DMSETUP=$(command -v dmsetup) SCRIPT_COMMON=#{script_common} #{zfs_tests_path} -v -x -f -d #{work_dir} -t #{single_test} 2>&1 | tee #{live_log}"
+        cmd = "set -o pipefail; cd #{work_dir} && LOSETUP=$(command -v losetup) DMSETUP=$(command -v dmsetup) SCRIPT_COMMON=#{script_common} ZPOOL_IMPORT_PATH=#{zpool_import_path} #{zfs_tests_path} -v -x -f -d #{work_dir} -t #{single_test} 2>&1 | tee #{live_log}"
         timeout = 2 * 60 * 60
       else
         case profile
         when 'full'
-          cmd = "set -o pipefail; cd #{work_dir} && LOSETUP=$(command -v losetup) DMSETUP=$(command -v dmsetup) SCRIPT_COMMON=#{script_common} #{zfs_tests_path} -v -x -d #{work_dir} -r common.run,linux.run -T functional 2>&1 | tee #{live_log}"
+          cmd = "set -o pipefail; cd #{work_dir} && LOSETUP=$(command -v losetup) DMSETUP=$(command -v dmsetup) SCRIPT_COMMON=#{script_common} ZPOOL_IMPORT_PATH=#{zpool_import_path} #{zfs_tests_path} -v -x -d #{work_dir} -r common.run,linux.run -T functional 2>&1 | tee #{live_log}"
           timeout = 12 * 60 * 60
         when 'sanity'
-          cmd = "set -o pipefail; cd #{work_dir} && LOSETUP=$(command -v losetup) DMSETUP=$(command -v dmsetup) SCRIPT_COMMON=#{script_common} #{zfs_tests_path} -v -x -d #{work_dir} -r sanity.run -T functional 2>&1 | tee #{live_log}"
+          cmd = "set -o pipefail; cd #{work_dir} && LOSETUP=$(command -v losetup) DMSETUP=$(command -v dmsetup) SCRIPT_COMMON=#{script_common} ZPOOL_IMPORT_PATH=#{zpool_import_path} #{zfs_tests_path} -v -x -d #{work_dir} -r sanity.run -T functional 2>&1 | tee #{live_log}"
           timeout = 3 * 60 * 60
         when 'smoke'
-          cmd = "set -o pipefail; cd #{work_dir} && LOSETUP=$(command -v losetup) DMSETUP=$(command -v dmsetup) SCRIPT_COMMON=#{script_common} #{zfs_tests_path} -v -x -f -d #{work_dir} -t tests/functional/cli_root/zfs_create/zfs_create_001_pos.ksh 2>&1 | tee #{live_log}"
+          cmd = "set -o pipefail; cd #{work_dir} && LOSETUP=$(command -v losetup) DMSETUP=$(command -v dmsetup) SCRIPT_COMMON=#{script_common} ZPOOL_IMPORT_PATH=#{zpool_import_path} #{zfs_tests_path} -v -x -f -d #{work_dir} -t tests/functional/cli_root/zfs_create/zfs_create_001_pos.ksh 2>&1 | tee #{live_log}"
           timeout = 60 * 60
         else
           raise "Unsupported VPSADMINOS_ZFS_FULL_PROFILE=#{profile.inspect}, expected full|sanity|smoke"
