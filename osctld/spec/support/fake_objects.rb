@@ -42,9 +42,37 @@ module FakeObjects
     :log_path,
     :repo_path,
     :user_dir,
+    :mount_dir,
+    :hook_dir,
+    :autostart_dir,
+    :parallel_start,
+    :parallel_stop,
+    :autostart_plan,
     keyword_init: true
   )
   FakeNamed = Struct.new(:name)
+
+  class FakeLxcConfig
+    attr_reader :mount_calls, :prlimit_calls, :cgparam_calls
+
+    def initialize
+      @mount_calls = 0
+      @prlimit_calls = 0
+      @cgparam_calls = 0
+    end
+
+    def configure_mounts
+      @mount_calls += 1
+    end
+
+    def configure_prlimits
+      @prlimit_calls += 1
+    end
+
+    def configure_cgparams
+      @cgparam_calls += 1
+    end
+  end
 
   class FakeUser
     attr_reader :name, :userdir, :ugid, :uid_map, :gid_map
@@ -149,13 +177,92 @@ module FakeObjects
     end
   end
 
+  class FakeRuntimeContainer
+    attr_accessor :autostart, :hints, :run_conf, :fresh_state, :state, :init_pid,
+                  :map_mode, :lxc_config, :cgparams, :base_cgroup_path, :netifs,
+                  :cpu_package
+    attr_reader :id, :pool, :ident, :save_config_calls, :dataset
+
+    def initialize(pool:, id: 'ct1', dataset: nil, autostart: nil, can_start: true,
+                   running: false, ephemeral: false, hints: nil, run_conf: nil,
+                   fresh_state: nil, state: nil, init_pid: 1234, map_mode: 'zfs',
+                   lxc_config: FakeLxcConfig.new, cgparams: nil,
+                   base_cgroup_path: '/osctl/pool.tank/ct.ct1', netifs: [],
+                   cpu_package: 'auto')
+      @pool = pool
+      @id = id
+      @ident = "#{pool.name}:#{id}"
+      @dataset = dataset
+      @autostart = autostart
+      @can_start = can_start
+      @running = running
+      @ephemeral = ephemeral
+      @hints = hints || Struct.new(:cpu_daily).new(Struct.new(:usage_us).new(0))
+      @run_conf = run_conf
+      @fresh_state = fresh_state || (@running ? :running : :stopped)
+      @state = state || (@running ? :running : :stopped)
+      @init_pid = init_pid
+      @map_mode = map_mode
+      @lxc_config = lxc_config
+      @cgparams = cgparams
+      @base_cgroup_path = base_cgroup_path
+      @netifs = netifs
+      @cpu_package = cpu_package
+      @save_config_calls = 0
+    end
+
+    def can_start?
+      @can_start
+    end
+
+    def running?
+      @running
+    end
+
+    def running=(v)
+      @running = v
+      @state = v ? :running : :stopped
+      @fresh_state = @state
+    end
+
+    def ephemeral?
+      @ephemeral
+    end
+
+    def save_config
+      @save_config_calls += 1
+    end
+
+    def exclusively(&block)
+      block.call
+    end
+
+    def inclusively(&block)
+      block.call
+    end
+
+    def abs_apply_cgroup_path(subsystem)
+      File.join('/sys/fs/cgroup', subsystem, "ct.#{id}")
+    end
+  end
+
   def build_fake_pool(root:, name: 'tank', dataset: nil)
     conf_path = File.join(root, 'conf')
     log_path = File.join(root, 'log')
     repo_path = File.join(root, 'repo')
     user_dir = File.join(root, 'run', 'users')
+    mount_dir = File.join(root, 'run', 'mounts')
+    hook_dir = File.join(root, 'run', 'hooks')
+    autostart_dir = File.join(root, 'run', 'autostart')
 
-    [conf_path, log_path, repo_path, user_dir].each { |path| FileUtils.mkdir_p(path) }
+    [conf_path, log_path, repo_path, user_dir, mount_dir, hook_dir, autostart_dir].each do |path|
+      FileUtils.mkdir_p(path)
+    end
+
+    autostart_plan = Object.new
+    autostart_plan.define_singleton_method(:clear_ct) do |_ct|
+      nil
+    end
 
     FakePool.new(
       name: name,
@@ -163,7 +270,13 @@ module FakeObjects
       conf_path: conf_path,
       log_path: log_path,
       repo_path: repo_path,
-      user_dir: user_dir
+      user_dir: user_dir,
+      mount_dir: mount_dir,
+      hook_dir: hook_dir,
+      autostart_dir: autostart_dir,
+      parallel_start: 2,
+      parallel_stop: 2,
+      autostart_plan: autostart_plan
     )
   end
 end

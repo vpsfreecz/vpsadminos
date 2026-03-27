@@ -10,6 +10,10 @@ module DbRegistryHelpers
       registry.define_singleton_method(:each) do |&block|
         containers.each(&block)
       end
+
+      registry.define_singleton_method(:find) do |id, pool|
+        containers.find { |ct| ct.id == id && ct.pool == pool }
+      end
     end)
   end
 
