@@ -111,7 +111,7 @@ module OsCtld
     def mount(force: false)
       return if !force && mounted
 
-      ct.mount
+      ct.mount(force: force)
       dataset.mount(recursive: true) if ct.dataset.name != dataset.name
 
       self.mounted = true
