@@ -17,7 +17,7 @@ module OsCtld
       end
 
       def update(new_user_us, new_system_us, runtime_secs)
-        runtime_days = runtime_secs / 60.0 / 60
+        runtime_days = runtime_secs / 60.0 / 60 / 24
 
         cur_user_us = new_user_us / runtime_days
 
