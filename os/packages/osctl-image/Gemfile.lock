@@ -11,7 +11,7 @@ GEM
       reline
     io-console (0.8.2)
     ipaddress (0.8.3)
-    json (2.19.2)
+    json (2.19.3)
     logger (1.7.0)
     ostruct (0.6.3)
     rainbow (3.1.1)
@@ -28,44 +28,44 @@ GEM
 GEM
   remote: https://rubygems.vpsfree.cz/
   specs:
-    libosctl (25.11.0.build20260324100730)
+    libosctl (25.11.0.build20260328192735)
       fiddle
       logger
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
       syslog
-    osctl (25.11.0.build20260324100730)
+    osctl (25.11.0.build20260328192735)
       base64
       curses
       gli (~> 2.22.0)
       highline (~> 3.1.1)
       ipaddress (~> 0.8.3)
       json
-      libosctl (= 25.11.0.build20260324100730)
+      libosctl (= 25.11.0.build20260328192735)
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
       ruby-progressbar (~> 1.13.0)
       tty-spinner (~> 0.9.3)
-    osctl-image (25.11.0.build20260324100730)
+    osctl-image (25.11.0.build20260328192735)
       gli (~> 2.22.0)
       ipaddress (~> 0.8.3)
       json
-      libosctl (= 25.11.0.build20260324100730)
-      osctl (= 25.11.0.build20260324100730)
-      osctl-repo (= 25.11.0.build20260324100730)
+      libosctl (= 25.11.0.build20260328192735)
+      osctl (= 25.11.0.build20260328192735)
+      osctl-repo (= 25.11.0.build20260328192735)
       require_all (~> 2.0.0)
-    osctl-repo (25.11.0.build20260324100730)
+    osctl-repo (25.11.0.build20260328192735)
       filelock
       gli (~> 2.22.0)
       json
-      libosctl (= 25.11.0.build20260324100730)
+      libosctl (= 25.11.0.build20260328192735)
       require_all (~> 2.0.0)
 
 PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  osctl-image (= 25.11.0.build20260324100730)!
+  osctl-image (= 25.11.0.build20260328192735)!
 
 BUNDLED WITH
    2.7.2
