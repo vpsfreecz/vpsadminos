@@ -164,6 +164,7 @@ import ../../make-test.nix (
         "chown zfstest /var/tmp/test_results",
         "mkdir -p /mnt",
         "mkdir -p /var/tmp/zfs-full-suite",
+        "chown zfstest /var/tmp/zfs-full-suite",
         "chmod 1777 /var/tmp/zfs-full-suite",
         "mkdir -p /run/osvm/shared-dir/zfs-full-suite",
         "chown zfstest /run/osvm/shared-dir/zfs-full-suite",
@@ -182,7 +183,8 @@ import ../../make-test.nix (
       single_test = ENV['VPSADMINOS_ZFS_FULL_TEST']
       live_root = "/run/osvm/shared-dir/zfs-full-suite"
       live_log = "#{live_root}/zfs-tests-#{profile}.log"
-      work_dir = "#{live_root}/work"
+      vm_work_root = "/var/tmp/zfs-full-suite"
+      work_dir = "#{vm_work_root}/work"
       zpool_import_path = [
         work_dir,
         "/dev/disk/by-vdev",
@@ -204,9 +206,11 @@ import ../../make-test.nix (
       captured_results_dir = File.join(state_dir, "zfs-test-results")
 
       machine.all_succeed(
+        "rm -rf #{work_dir}",
         "mkdir -p #{work_dir}",
         "chown zfstest #{work_dir}",
         "chmod 1777 #{work_dir}",
+        "mkdir -p #{live_root}/work",
         "rm -f #{live_log}",
         "rm -rf #{live_root}/test_results",
         "rm -f #{live_root}/dmesg-after.log"
@@ -314,6 +318,15 @@ import ../../make-test.nix (
         begin
           machine.execute(
             "sh -c 'dmesg -T > #{live_root}/dmesg-after.log'",
+            timeout: 30
+          )
+        rescue StandardError
+          # pass
+        end
+
+        begin
+          machine.execute(
+            "sh -c 'cp -a #{work_dir}/zts-results.* #{live_root}/work/ 2>/dev/null || true'",
             timeout: 30
           )
         rescue StandardError
