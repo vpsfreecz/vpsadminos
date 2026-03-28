@@ -26,6 +26,16 @@ module OsCtld
   unless const_defined?(:Commands)
     module Commands
       module Event; end unless const_defined?(:Event)
+      module Self; end unless const_defined?(:Self)
+      module Debug; end unless const_defined?(:Debug)
+      module History; end unless const_defined?(:History)
+      module TrashBin; end unless const_defined?(:TrashBin)
+      module GarbageCollector; end unless const_defined?(:GarbageCollector)
+      module Send; end unless const_defined?(:Send)
+      module Receive; end unless const_defined?(:Receive)
+      module IdRange; end unless const_defined?(:IdRange)
+      module Repository; end unless const_defined?(:Repository)
+      module Container; end unless const_defined?(:Container)
     end
   end
 
