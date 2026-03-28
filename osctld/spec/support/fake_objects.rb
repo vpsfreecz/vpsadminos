@@ -30,8 +30,16 @@ module FakeObjects
       @entries.each(&)
     end
 
+    def export
+      @entries.map(&:to_h)
+    end
+
     def ns_to_host(id)
       @entries.first.host_id + id
+    end
+
+    def ==(other)
+      other.is_a?(self.class) && other.to_a == to_a
     end
   end
 
@@ -87,13 +95,17 @@ module FakeObjects
   end
 
   class FakeDataset
-    attr_reader :name, :mountpoint, :descendants, :mount_calls, :unmount_calls
+    attr_reader :name, :mountpoint, :descendants, :mount_calls, :unmount_calls, :exist
 
-    def initialize(name:, mountpoint:, mounted: false, descendants: [])
+    def initialize(name:, mountpoint:, mounted: false, descendants: [], exist: false,
+                   root: false, relative_name: nil)
       @name = name
       @mountpoint = mountpoint
       @mounted = mounted
       @descendants = descendants
+      @exist = exist
+      @root = root
+      @relative_name = relative_name
       @mount_calls = []
       @unmount_calls = []
     end
@@ -102,6 +114,14 @@ module FakeObjects
 
     def on_pool?(pool_name)
       name == pool_name || name.start_with?("#{pool_name}/")
+    end
+
+    def root?
+      @root
+    end
+
+    def relative_name
+      @relative_name || name
     end
 
     def mount(recursive: true)

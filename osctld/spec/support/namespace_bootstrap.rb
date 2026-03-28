@@ -7,6 +7,7 @@ module OsCtld
   IdRange = Class.new unless const_defined?(:IdRange)
   Repository = Class.new unless const_defined?(:Repository)
   Container = Class.new unless const_defined?(:Container)
+  Pool = Class.new unless const_defined?(:Pool)
   ThreadReaper = Class.new unless const_defined?(:ThreadReaper)
 
   module DB; end unless const_defined?(:DB)
@@ -52,9 +53,13 @@ module OsCtld
 
   module CGroup; end unless const_defined?(:CGroup)
   module Devices; end unless const_defined?(:Devices)
+  module Utils; end unless const_defined?(:Utils)
   module Mount; end unless const_defined?(:Mount)
   module NetInterface; end unless const_defined?(:NetInterface)
   module PrLimits; end unless const_defined?(:PrLimits)
+
+  module Devices::V1; end unless Devices.const_defined?(:V1)
+  module Devices::V2; end unless Devices.const_defined?(:V2)
 
   unless const_defined?(:TrashBin)
     TrashBin = Class.new do
