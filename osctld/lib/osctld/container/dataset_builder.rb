@@ -142,8 +142,10 @@ module OsCtld
         st = File.stat(f.path)
         File.unlink(f.path)
 
-        if (opts[:uid_map] && st.uid == opts[:uid_map].ns_to_host(0)) \
-           || (opts[:gid_map] && st.gid == opts[:gid_map].ns_to_host(0))
+        uid_ok = !opts[:uid_map] || st.uid == opts[:uid_map].ns_to_host(0)
+        gid_ok = !opts[:gid_map] || st.gid == opts[:gid_map].ns_to_host(0)
+
+        if uid_ok && gid_ok
           return # rubocop:disable Lint/NonLocalExitFromIterator
         end
 
