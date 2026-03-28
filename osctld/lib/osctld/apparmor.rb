@@ -80,7 +80,7 @@ module OsCtld
         mode: 0o700
       )
       add.directory(
-        profile_dir(pool),
+        cache_dir(pool),
         desc: 'Cache for apparmor_parser',
         user: 0,
         group: 0,
