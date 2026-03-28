@@ -135,11 +135,13 @@ module OsCtld
       end
 
       veths.each do |veth, routes|
-        found = DB::Containers.get.detect do |ct|
-          n = ct.netifs.detect do |netif|
+        found = DB::Containers.get.detect do |other_ct|
+          next(false) if other_ct == ct
+
+          n = other_ct.netifs.detect do |netif|
             netif.respond_to?(:veth) && netif.veth == veth
           end
-          n && ct
+          n && other_ct
         end
 
         if found
