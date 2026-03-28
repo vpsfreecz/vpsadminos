@@ -55,7 +55,7 @@ module OsCtld
     class << self
       # @param config [String] path to config file
       def create(config)
-        raise 'Daemon already instantiated' if @instance
+        raise 'Daemon already instantiated' if @@instance
 
         @@instance = new(config)
       end
