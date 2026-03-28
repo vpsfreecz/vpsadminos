@@ -8,7 +8,7 @@ module OsCtld
 
     def validate(run)
       begin
-        add_error('not a socket') if exist? && !opts[:optional] && !stat.socket?
+        add_error('not a socket') if exist? && !stat.socket?
       rescue Errno::ENOENT
         add_error('does not exist')
       end

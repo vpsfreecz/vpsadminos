@@ -8,7 +8,7 @@ module OsCtld
 
     def validate(run)
       begin
-        add_error('not a symlink') if exist? && !opts[:optional] && !stat.symlink?
+        add_error('not a symlink') if exist? && !stat.symlink?
       rescue Errno::ENOENT
         add_error('does not exist')
       end

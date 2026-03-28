@@ -8,7 +8,7 @@ module OsCtld
 
     def validate(run)
       begin
-        add_error('not a directory') if exist? && !opts[:optional] && !stat.directory?
+        add_error('not a directory') if exist? && !stat.directory?
       rescue Errno::ENOENT
         add_error('does not exist')
       end

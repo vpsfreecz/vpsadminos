@@ -8,7 +8,7 @@ module OsCtld
 
     def validate(run)
       begin
-        add_error('not a file') if exist? && !opts[:optional] && !stat.file?
+        add_error('not a file') if exist? && !stat.file?
       rescue Errno::ENOENT
         add_error('does not exist')
       end
