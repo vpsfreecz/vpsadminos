@@ -59,7 +59,8 @@ module OsCtld
     def do_remove_netif(name)
       base = File.join(rootfs, 'etc', 'sysconfig', 'network')
       files = [
-        "ifcfg-#{name}"
+        "ifcfg-#{name}",
+        "ifroute-#{name}"
       ]
 
       files.each do |f|
