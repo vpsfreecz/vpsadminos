@@ -64,11 +64,11 @@ module OsCtld
     # @yieldparam [Entry] entry
     # @raise [IOError]
     # @return [Array<Entry>, nil]
-    def self.read(_path, max_entries: MAX_ENTRIES)
+    def self.read(path, max_entries: MAX_ENTRIES)
       ret = []
       i = 0
 
-      File.open('/run/utmp', 'rb') do |f|
+      File.open(path, 'rb') do |f|
         until f.eof?
           e = Entry.read(f)
 
