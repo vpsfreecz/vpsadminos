@@ -26,11 +26,14 @@ module OsCtld
 
       def execute(message)
         st = ct_wall(message)
+        exitstatus = st.respond_to?(:exitstatus) ? st.exitstatus : nil
 
-        if st.exitstatus == 0
+        if exitstatus == 0
           ok
+        elsif exitstatus
+          error("failed to send message: exit status #{exitstatus}")
         else
-          error("failed to send message: exit status #{$?.exitstatus}")
+          error('failed to send message')
         end
       end
     end
