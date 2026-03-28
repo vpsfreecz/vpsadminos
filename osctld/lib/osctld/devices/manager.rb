@@ -386,6 +386,7 @@ module OsCtld
 
         # Apply changes
         to_add.each { |dev| add(dev) }
+        owner.save_config if to_add.any?
         to_promote.each { |dev| promote(dev) }
         to_chmod.each do |dev, mode|
           chmod(dev, mode, promote: true, descendants: true)
