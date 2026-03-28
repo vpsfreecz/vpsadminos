@@ -136,7 +136,7 @@ module OsCtld
     # @param devices [Array<Devices::Device>]
     # @return [String]
     def get_prog_name(devices)
-      data = devices.map(&:to_s).join(';')
+      data = devices.map(&:to_s).sort.join(';')
       Digest::SHA2.hexdigest(data)[0..10]
     end
 
