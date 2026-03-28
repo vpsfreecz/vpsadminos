@@ -21,6 +21,7 @@ module OsCtld
         devices_list = File.read(File.join(path, 'devices.list'))
       rescue Errno::ENOENT
         add_error("devices.list not found in cgroup #{path.inspect}")
+        return
       end
 
       cgroup_devices = devices_list.strip.split("\n")
