@@ -162,6 +162,7 @@ import ../../make-test.nix (
         "chmod 1777 /var/tmp",
         "mkdir -p /var/tmp/test_results",
         "chown zfstest /var/tmp/test_results",
+        "mkdir -p /mnt",
         "mkdir -p /var/tmp/zfs-full-suite",
         "chmod 1777 /var/tmp/zfs-full-suite",
         "mkdir -p /run/osvm/shared-dir/zfs-full-suite",
@@ -212,7 +213,7 @@ import ../../make-test.nix (
       )
 
       if single_test && !single_test.empty?
-        cmd = "set -o pipefail; cd #{work_dir} && LOSETUP=$(command -v losetup) DMSETUP=$(command -v dmsetup) SCRIPT_COMMON=#{script_common} ZPOOL_IMPORT_PATH=#{zpool_import_path} #{zfs_tests_path} -v -x -f -d #{work_dir} -t #{single_test} 2>&1 | tee #{live_log}"
+        cmd = "set -o pipefail; cd #{work_dir} && LOSETUP=$(command -v losetup) DMSETUP=$(command -v dmsetup) SCRIPT_COMMON=#{script_common} ZPOOL_IMPORT_PATH=#{zpool_import_path} #{zfs_tests_path} -v -x -d #{work_dir} -t #{single_test} 2>&1 | tee #{live_log}"
         timeout = 2 * 60 * 60
       else
         case profile
