@@ -44,7 +44,7 @@ module OsCtld
         fh.close
 
         # If changed, update also distribution/version/arch info
-        if tpl[:distribution] || tpl[:version] || tpl[:arch]
+        if tpl[:distribution] || tpl[:version] || tpl[:arch] || tpl[:vendor] || tpl[:variant]
           ct.set(distribution: {
             name: image[:distribution],
             version: image[:version],
