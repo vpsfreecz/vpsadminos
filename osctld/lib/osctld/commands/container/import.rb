@@ -87,56 +87,62 @@ module OsCtld
           error!("container #{pool.name}:#{ctid} already exists")
         end
 
-        case opts[:missing_devices]
-        when 'provide'
-          ct.devices.ensure_all
+        begin
+          case opts[:missing_devices]
+          when 'provide'
+            ct.devices.ensure_all
 
-        when 'remove'
-          ct.devices.remove_missing
+          when 'remove'
+            ct.devices.remove_missing
 
-        else
-          begin
-            ct.devices.check_all_available!
-          rescue DeviceNotAvailable, DeviceModeInsufficient => e
-            error!(e.message)
+          else
+            begin
+              ct.devices.check_all_available!
+            rescue DeviceNotAvailable, DeviceModeInsufficient => e
+              error!(e.message)
+            end
           end
+
+          progress('Creating datasets')
+          importer.create_datasets(
+            builder,
+            accept_existing: !opts[:dataset].nil?,
+            properties: opts[:zfs_properties] || {}
+          )
+
+          builder.setup_lxc_home
+
+          progress('Importing rootfs')
+          importer.import_all_datasets(builder)
+
+          builder.setup_ct_dir
+          builder.setup_rootfs
+
+          # Delayed initialization, when we have ensured all required devices
+          # are present, or that missing devices were removed and rootfs is present,
+          # so we can create device nodes
+          ct.devices.init
+
+          ct.save_config
+          builder.setup_lxc_configs
+          builder.setup_log_file
+          builder.setup_user_hook_script_dir
+          importer.install_user_hook_scripts(ct)
+          builder.monitor
+
+          if ct.netifs.any?
+            progress('Reconfiguring LXC usernet')
+            call_cmd(Commands::User::LxcUsernet)
+          end
+
+          ct.state = :complete
+
+          ok
+        rescue StandardError
+          progress('Error occurred, cleaning up')
+          builder.cleanup(dataset: !opts[:dataset])
+          raise
         end
-
-        progress('Creating datasets')
-        importer.create_datasets(
-          builder,
-          accept_existing: !opts[:dataset].nil?,
-          properties: opts[:zfs_properties] || {}
-        )
-
-        builder.setup_lxc_home
-
-        progress('Importing rootfs')
-        importer.import_all_datasets(builder)
-
-        builder.setup_ct_dir
-        builder.setup_rootfs
-
-        # Delayed initialization, when we have ensured all required devices
-        # are present, or that missing devices were removed and rootfs is present,
-        # so we can create device nodes
-        ct.devices.init
-
-        ct.save_config
-        builder.setup_lxc_configs
-        builder.setup_log_file
-        builder.setup_user_hook_script_dir
-        importer.install_user_hook_scripts(ct)
-        builder.monitor
-
-        if ct.netifs.any?
-          progress('Reconfiguring LXC usernet')
-          call_cmd(Commands::User::LxcUsernet)
-        end
-
-        ct.state = :complete
-
-        ok
       end
     end
   end
