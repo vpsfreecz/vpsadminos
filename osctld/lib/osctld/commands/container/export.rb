@@ -34,11 +34,11 @@ module OsCtld
         exporter.dump_base
 
         if ct.state == :running && opts[:consistent]
-          call_cmd(Commands::Container::Stop, id: ct.id, pool: ct.pool.name)
+          call_cmd!(Commands::Container::Stop, id: ct.id, pool: ct.pool.name)
 
           exporter.dump_incremental
 
-          call_cmd(
+          call_cmd!(
             Commands::Container::Start,
             id: ct.id,
             pool: ct.pool.name,
