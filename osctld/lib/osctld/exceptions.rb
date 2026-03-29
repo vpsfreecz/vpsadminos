@@ -74,13 +74,13 @@ module OsCtld
   class PoolExists < StandardError; end
 
   class PoolUpgradeError < StandardError
-    attr_reader :pool, :exception
+    attr_reader :pool, :original_exception
 
     # @param pool [String]
     # @param exception [Exception]
     def initialize(pool, exception)
       @pool = pool
-      @exception = exception
+      @original_exception = exception
 
       super("unable to upgrade pool #{pool}: #{exception.message}")
     end
