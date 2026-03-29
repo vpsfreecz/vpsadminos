@@ -50,10 +50,10 @@ module OsCtld
         r.close
         w.close
 
-        Process.wait(mbuffer_pid)
-        Process.wait(recv_pid)
+        _, mbuffer_status = Process.wait2(mbuffer_pid)
+        _, recv_status = Process.wait2(recv_pid)
 
-        if $?.exitstatus == 0
+        if mbuffer_status.exitstatus == 0 && recv_status.exitstatus == 0
           ct.exclusively do
             ct.send_log.state = :incremental
             ct.send_log.snapshots << [ds.name, opts[:snapshot]] if opts[:snapshot]
@@ -61,7 +61,7 @@ module OsCtld
           end
           ok
         else
-          error("unable to receive stream, zfs recv exited with #{$?.exitstatus}")
+          error(receive_pipeline_error(mbuffer_status, recv_status))
         end
       end
     end

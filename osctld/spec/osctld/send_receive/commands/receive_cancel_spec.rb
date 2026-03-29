@@ -79,4 +79,15 @@ RSpec.describe OsCtld::SendReceive::Commands::ReceiveCancel do
 
     expect { command.execute }.to raise_error(OsCtld::CommandFailed, 'container not found')
   end
+
+  it 'rejects invalid send sequences and authentication key mismatches' do
+    allow(ct.send_log).to receive(:can_receive_cancel?).and_return(false)
+
+    expect { command.execute }.to raise_error(OsCtld::CommandFailed, 'invalid send sequence')
+
+    allow(ct.send_log).to receive(:can_receive_cancel?).and_return(true)
+    allow(command).to receive(:check_auth_pubkey).and_return(false)
+
+    expect { command.execute }.to raise_error(OsCtld::CommandFailed, 'authentication key mismatch')
+  end
 end

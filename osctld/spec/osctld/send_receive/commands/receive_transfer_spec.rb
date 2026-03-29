@@ -104,4 +104,27 @@ RSpec.describe OsCtld::SendReceive::Commands::Transfer do
       force: true
     )
   end
+
+  it 'rejects containers that cannot be found' do
+    allow(OsCtld::SendReceive::Tokens).to receive(:find_container).with('abc').and_return(nil)
+
+    expect { command.execute }.to raise_error(OsCtld::CommandFailed, 'container not found')
+  end
+
+  it 'rejects inactive target pools' do
+    allow(pool).to receive(:active?).and_return(false)
+
+    expect { command.execute }.to raise_error(OsCtld::CommandFailed, 'the pool is disabled')
+  end
+
+  it 'rejects invalid send sequences and authentication key mismatches' do
+    allow(ct.send_log).to receive(:can_receive_continue?).with(:transfer).and_return(false)
+
+    expect { command.execute }.to raise_error(OsCtld::CommandFailed, 'invalid send sequence')
+
+    allow(ct.send_log).to receive(:can_receive_continue?).with(:transfer).and_return(true)
+    allow(command).to receive(:check_auth_pubkey).and_return(false)
+
+    expect { command.execute }.to raise_error(OsCtld::CommandFailed, 'authentication key mismatch')
+  end
 end

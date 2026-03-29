@@ -1,5 +1,12 @@
 module OsCtld
   module Utils::Receive
+    def receive_pipeline_error(mbuffer_status, recv_status)
+      failures = []
+      failures << "mbuffer exited with #{mbuffer_status.exitstatus}" if mbuffer_status.exitstatus != 0
+      failures << "zfs recv exited with #{recv_status.exitstatus}" if recv_status.exitstatus != 0
+      "unable to receive stream, #{failures.join(' and ')}"
+    end
+
     def check_auth_pubkey(key_pool_name, key_name, ct)
       key_pool = DB::Pools.find(key_pool_name)
       error!('key pool not found') unless key_pool
