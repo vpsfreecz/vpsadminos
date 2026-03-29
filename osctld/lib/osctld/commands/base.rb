@@ -15,7 +15,7 @@ module OsCtld
     # @option internal [Generic::ClientHandler, nil] :handler
     # @option internal [Boolean] :indirect
     def self.run(internal: {}, **kwargs)
-      kwargs[:id] ||= Command.get_id
+      internal[:id] ||= Command.get_id
       c = new(kwargs, internal)
       c.base_execute
     end
