@@ -24,6 +24,7 @@ module OsCtld
               else
                 DB::Groups.default(pool)
               end
+      error!('group not found') if group.nil?
 
       if !opts[:distribution]
         error!('provide distribution')
