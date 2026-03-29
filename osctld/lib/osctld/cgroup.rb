@@ -153,7 +153,7 @@ module OsCtld
     # @param debug [Boolean] enable extra logging
     def self.mkpath_all(path, chown: nil, attach: false, leaf: true, pid: nil, debug: false)
       subsystems.each do |subsys|
-        mkpath(subsys, path, chown:, attach:, pid:, debug:)
+        mkpath(subsys, path, chown:, attach:, leaf:, pid:, debug:)
       end
     end
 
