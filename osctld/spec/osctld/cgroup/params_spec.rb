@@ -9,6 +9,23 @@ RSpec.describe OsCtld::CGroup::Params do
     OsCtld::CGroup::Param.new(version, subsystem, name, value, persistent)
   end
 
+  around do |example|
+    names = %i[version v1? v2? real_subsystem abs_cgroup_path set_param set_param_calls]
+    methods = names.to_h do |name|
+      [name, OsCtld::CGroup.respond_to?(name) ? OsCtld::CGroup.method(name) : nil]
+    end
+
+    example.run
+  ensure
+    methods.each do |name, method|
+      if method
+        OsCtld::CGroup.define_singleton_method(name, method)
+      elsif OsCtld::CGroup.respond_to?(name)
+        OsCtld::CGroup.singleton_class.remove_method(name)
+      end
+    end
+  end
+
   let(:owner) { FakeObjects::FakeRuntimeContainer.new(pool: Struct.new(:name).new('tank'), id: 'ct1') }
   let(:cgroup_state) { Struct.new(:version, :set_param_calls).new(2, []) }
 

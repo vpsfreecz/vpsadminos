@@ -4,6 +4,14 @@ require 'osctld/exceptions'
 require 'osctld/cgroup/param'
 
 RSpec.describe OsCtld::CGroup::Param do
+  around do |example|
+    version = OsCtld::CGroup.method(:version)
+
+    example.run
+  ensure
+    OsCtld::CGroup.define_singleton_method(:version, version)
+  end
+
   before do
     OsCtld::CGroup.define_singleton_method(:version) { 2 }
   end
