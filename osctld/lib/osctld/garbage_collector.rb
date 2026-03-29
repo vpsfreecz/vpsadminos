@@ -102,7 +102,7 @@ module OsCtld
     end
 
     def started?
-      !@stop
+      !@thread.nil? && @thread.alive?
     end
 
     def prune
