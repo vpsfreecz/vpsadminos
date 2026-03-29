@@ -46,16 +46,18 @@ module OsCtld
 
     # Return {Console::Container} for `ct`
     def self.container(ct)
-      @cts[ct.id] = Container.new(ct) unless @cts.has_key?(ct.id)
-      @cts[ct.id]
+      key = container_key(ct)
+      @cts[key] = Container.new(ct) unless @cts.has_key?(key)
+      @cts[key]
     end
 
     # Remove {Console::Container} for `ct` and close all ttys
     def self.remove(ct)
       @mutex.synchronize do
-        next unless @cts.has_key?(ct.id)
+        key = container_key(ct)
+        next unless @cts.has_key?(key)
 
-        @cts.delete(ct.id).close_all
+        @cts.delete(key).close_all
       end
     end
 
@@ -63,5 +65,10 @@ module OsCtld
     def self.socket_path(ct)
       File.join(ct.pool.console_dir, ct.id, 'tty0.sock')
     end
+
+    def self.container_key(ct)
+      [ct.pool.name, ct.id]
+    end
+    private_class_method :container_key
   end
 end
