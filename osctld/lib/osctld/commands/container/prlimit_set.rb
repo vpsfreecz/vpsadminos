@@ -51,7 +51,7 @@ module OsCtld
       if soft.is_a?(Integer) && hard.is_a?(Integer) && soft > hard
         raise 'soft has to be lower than hard'
 
-      elsif (soft == :unlimited || hard == :unlimited) && soft != hard
+      elsif (soft == 'unlimited' || hard == 'unlimited') && soft != hard
         raise 'either both soft and hard are unlimited, or neither is'
       end
     end
