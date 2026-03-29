@@ -38,7 +38,7 @@ module OsCtld
         [ct]
 
       elsif opts[:pool]
-        DB::Container.get.select { |ct| ct.pool.name == opts[:pool] }
+        DB::Containers.get.select { |ct| ct.pool.name == opts[:pool] }
 
       else
         DB::Containers.get

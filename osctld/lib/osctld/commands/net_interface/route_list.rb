@@ -37,7 +37,7 @@ module OsCtld
         end
 
       elsif opts[:pool]
-        DB::Container.get.each do |ct|
+        DB::Containers.get.each do |ct|
           next if ct.pool.name != opts[:pool]
 
           ct.inclusively do
