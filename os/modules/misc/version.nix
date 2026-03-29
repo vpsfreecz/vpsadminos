@@ -146,6 +146,21 @@ in
       description = lib.mdDoc "Enables OpenZFS debug build";
     };
 
+    vpsadminos.rubyCrashReportTemplate = mkOption {
+      type = types.nullOr types.str;
+      default = "/var/log/crash-reports/%f-crash-%p-%t.log";
+      example = "/var/log/crash-reports/%f-crash-%p-%t.log";
+      description = lib.mdDoc ''
+        Template exported as `RUBY_CRASH_REPORT` by selected vpsAdminOS Ruby
+        daemons.
+
+        This keeps Ruby fatal crash reports out of service logs by default and
+        stores them in per-crash files under `/var/log/crash-reports`. Set to
+        `/dev/null` to discard crash reports or to `null` to let Ruby write
+        them to stderr.
+      '';
+    };
+
     codeName = mkOption {
       readOnly = true;
       type = types.str;
@@ -208,6 +223,8 @@ in
     };
 
     boot.postBootCommands = ''
+      mkdir -p /var/log/crash-reports
+      chmod 0700 /var/log/crash-reports
       echo "vpsAdminOS ${cfg.version} with kernel ${config.boot.kernelVersion}" > /dev/kmsg
     '';
 

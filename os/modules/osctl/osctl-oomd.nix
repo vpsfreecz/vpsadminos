@@ -7,13 +7,16 @@
 
 let
   inherit (lib)
+    escapeShellArg
     mkEnableOption
     mkIf
     mkOption
+    optionalString
     types
     ;
 
   cfg = config.osctl.oomd;
+  rubyCrashReportTemplate = config.system.vpsadminos.rubyCrashReportTemplate;
 
   settingsFormat = pkgs.formats.json { };
 
@@ -40,6 +43,10 @@ in
     runit.services.osctl-oomd = {
       run = ''
         waitForService osctld
+
+        ${optionalString (!isNull rubyCrashReportTemplate) ''
+          export RUBY_CRASH_REPORT=${escapeShellArg rubyCrashReportTemplate}
+        ''}
 
         exec 2>&1
         exec ${pkgs.osctl-oomd}/bin/osctl-oomd --config ${configurationJson}

@@ -10,6 +10,7 @@ with lib;
 
 let
   cfg = config.osctld;
+  rubyCrashReportTemplate = config.system.vpsadminos.rubyCrashReportTemplate;
 
   apparmorPaths = [ pkgs.apparmor-profiles ] ++ config.security.apparmor.packages;
 
@@ -106,6 +107,10 @@ in
 
         ${optionalString (config.networking.chronyd && cfg.waitForSetClock) ''
           waitForService set-clock 30
+        ''}
+
+        ${optionalString (!isNull rubyCrashReportTemplate) ''
+          export RUBY_CRASH_REPORT=${escapeShellArg rubyCrashReportTemplate}
         ''}
 
         exec 2>&1

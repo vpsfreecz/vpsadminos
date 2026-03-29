@@ -5,9 +5,15 @@
   options,
 }:
 let
-  inherit (lib) concatMapStringsSep concatStringsSep;
+  inherit (lib)
+    concatMapStringsSep
+    concatStringsSep
+    escapeShellArg
+    optionalString
+    ;
 
   cfg = config.services.prometheus.exporters.osctl;
+  rubyCrashReportTemplate = config.system.vpsadminos.rubyCrashReportTemplate;
 
   pumaConfig = pkgs.writeText "puma.rb" ''
     bind 'tcp://${cfg.listenAddress}:${toString cfg.port}'
@@ -21,6 +27,10 @@ in
   group = "root";
   port = 9101;
   serviceRun = ''
+    ${optionalString (!isNull rubyCrashReportTemplate) ''
+      export RUBY_CRASH_REPORT=${escapeShellArg rubyCrashReportTemplate}
+    ''}
+
     export PATH="${pkgs.osctl-exporter}/env/bin:$PATH"
 
     execExporter puma -C ${pumaConfig} \
