@@ -40,9 +40,9 @@ module OsCtld
         Process.exec('lxc-monitor', '-P', ct.lxc_home, '--quit')
       end
 
-      Process.wait(pid)
+      _, status = Process.wait2(pid)
 
-      if $?.exitstatus == 0
+      if status.exitstatus == 0
         log(:info, :monitor, 'Stopped lxc-monitord')
 
       else
