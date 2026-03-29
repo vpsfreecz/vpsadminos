@@ -62,6 +62,7 @@
   ./tasks/cpu-freq.nix
   ./tasks/filesystems/zfs
   ./tasks/network-interfaces.nix
+  ./tasks/swraid.nix
   ./tools/tools.nix
   ./virtualisation/libvirtd.nix
 ]
