@@ -1,7 +1,7 @@
 require 'osctld/commands/logged'
 
 module OsCtld
-  class Commands::Container::DeviceSetInherit < Commands::Logged
+  class Commands::Container::DeviceUnsetInherit < Commands::Logged
     handle :ct_device_unset_inherit
 
     include OsCtl::Lib::Utils::Log
