@@ -72,6 +72,26 @@ RSpec.describe OsCtld::Commands::Base do
     expect(klass.seen[:client]).to be_nil
   end
 
+  it 'keeps the generated internal command id separate from command kwargs' do
+    klass = Class.new(described_class) do
+      handle :spec_base_internal_id
+
+      class << self
+        attr_accessor :seen
+      end
+
+      def execute
+        self.class.seen = { id:, opts: }
+        ok
+      end
+    end
+
+    klass.run(foo: 'bar')
+
+    expect(klass.seen[:id]).to be_a(Integer)
+    expect(klass.seen[:opts]).to eq(foo: 'bar')
+  end
+
   it 'returns successful results from run!' do
     klass = Class.new(described_class) do
       handle :spec_base_run_bang_success

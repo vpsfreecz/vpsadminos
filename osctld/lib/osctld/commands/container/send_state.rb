@@ -24,7 +24,7 @@ module OsCtld
         end
 
         if !opts[:clone] || opts[:consistent]
-          call_cmd(Commands::Container::Stop, id: ct.id, pool: ct.pool.name)
+          call_cmd!(Commands::Container::Stop, id: ct.id, pool: ct.pool.name)
 
           # Force write-out of dirtied pages
           if Daemon.get.config.writeout_dirtied_pages?
@@ -46,7 +46,7 @@ module OsCtld
         end
 
         if opts[:clone] && opts[:restart] && running
-          call_cmd(Commands::Container::Start, id: ct.id, pool: ct.pool.name)
+          call_cmd!(Commands::Container::Start, id: ct.id, pool: ct.pool.name)
         end
 
         progress("Syncing #{ct.dataset.relative_name}")
