@@ -46,7 +46,7 @@ module OsCtld
         elsif opts[:block_index] && !opts[:uid_map] && !opts[:gid_map]
           block_index_with_default_mapping(u)
 
-        elsif !opts[:range] && !opts[:block_index] && opts[:uid_map] && opts[:gid_map]
+        elsif !opts[:id_range] && !opts[:block_index] && opts[:uid_map] && opts[:gid_map]
           no_block_with_custom_mapping(u)
 
         elsif opts[:block_index] && opts[:uid_map] && opts[:gid_map]
