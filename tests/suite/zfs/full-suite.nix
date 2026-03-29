@@ -71,6 +71,7 @@ import ../../make-test.nix (
           # zfs-tests.sh requires ksh and passwordless sudo for the run user.
           environment.systemPackages = [
             pkgs.attr
+            pkgs.bash
             pkgs.bc
             pkgs.binutils
             pkgs.cryptsetup
@@ -153,9 +154,11 @@ import ../../make-test.nix (
         "command -v net",
         "command -v strings",
         "command -v getent",
+        "ln -sf $(command -v bash) /bin/bash",
         "ln -sf $(command -v ksh) /bin/ksh",
         "mkdir -p /usr/local/bin",
         "if command -v xxh128sum >/dev/null 2>&1; then true; else ln -sf $(command -v xxhsum) /usr/local/bin/xxh128sum; fi",
+        "test -x /bin/bash",
         "test -x /bin/ksh",
         "su - zfstest -c 'sudo -n id -un | grep -x root'",
         "mkdir -p /var/tmp",
@@ -169,6 +172,15 @@ import ../../make-test.nix (
         "mkdir -p /run/osvm/shared-dir/zfs-full-suite",
         "chown zfstest /run/osvm/shared-dir/zfs-full-suite",
         "chmod 1777 /run/osvm/shared-dir/zfs-full-suite"
+      )
+
+      # zfs-tests starts its own ZED instance in several test groups.
+      # Stop the system service first so zed_start does not fail with:
+      # "ZED already running".
+      machine.all_succeed(
+        "sh -c 'if command -v sv >/dev/null 2>&1; then sv down zfs-zed >/dev/null 2>&1 || true; sv force-stop zfs-zed >/dev/null 2>&1 || true; fi'",
+        "sh -c 'pkill -x zed >/dev/null 2>&1 || true; pkill -x lt-zed >/dev/null 2>&1 || true'",
+        "sh -c 'for i in $(seq 1 30); do if ! pgrep -x zed >/dev/null 2>&1 && ! pgrep -x lt-zed >/dev/null 2>&1; then exit 0; fi; sleep 1; done; echo \"zed process still running\" >&2; exit 1'"
       )
 
       # Ask kernel hung-task detector to emit CPU backtraces so lockups
