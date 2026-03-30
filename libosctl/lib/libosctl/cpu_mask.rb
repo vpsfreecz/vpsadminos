@@ -106,7 +106,7 @@ module OsCtl::Lib
     end
 
     def format(cpu_list)
-      return if cpu_list.empty?
+      return if cpu_list.none?
 
       groups = []
       acc = []
@@ -118,7 +118,7 @@ module OsCtl::Lib
           acc << cpu
         else
           groups << format_range(acc)
-          prev = nil
+          prev = cpu
           acc = [cpu]
         end
       end
