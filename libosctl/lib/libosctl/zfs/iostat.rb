@@ -163,7 +163,8 @@ module OsCtl::Lib
             accumulated_stats[pool] = st
           end
 
-          @current_all = st
+          @current_all = PoolStats.new(nil, nil, nil, 0, 0, 0, 0)
+          current_stats.each_value { |pool_stat| @current_all << pool_stat }
           @accumulated_all << st
         end
       end
