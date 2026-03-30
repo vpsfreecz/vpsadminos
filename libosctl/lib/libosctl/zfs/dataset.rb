@@ -280,7 +280,7 @@ module OsCtl::Lib
     def relative_parent
       ret = parent
 
-      @relative_parent = if ret.name.length < @base.length
+      @relative_parent = if ret.nil? || ret.name.length < @base.length
                            nil
                          else
                            ret
