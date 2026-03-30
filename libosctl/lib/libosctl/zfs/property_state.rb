@@ -37,7 +37,7 @@ module OsCtl::Lib
     def apply_to(dataset)
       zfs(
         :set,
-        option_strings.map { |opt| "-o #{opt}" }.join(' '),
+        option_strings.join(' '),
         dataset
       )
     end
