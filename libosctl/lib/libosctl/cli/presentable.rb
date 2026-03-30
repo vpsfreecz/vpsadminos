@@ -9,6 +9,8 @@ module OsCtl::Lib
   # the `formatted` value. If `presenter` is given, it is called to format
   # the value, otherwise `formatted` is used.
   class Cli::Presentable
+    include Comparable
+
     # Return the raw, precise value
     attr_reader :raw
 
