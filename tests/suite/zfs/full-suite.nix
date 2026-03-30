@@ -18,95 +18,134 @@ import ../../make-test.nix (
       gate = "manual";
     };
 
-    machine = import ../../machines/vpsadminos/with-tank.nix {
-      inherit pkgs;
-      config =
-        { config, pkgs, lib, ... }:
-        let
-          kernelPackages = import ../../../os/packages/linux/packages.nix {
-            inherit
-              config
-              pkgs
-              lib
-              ;
+    machine =
+      (import ../../machines/vpsadminos/with-tank.nix {
+        inherit pkgs;
+        config =
+          { config, pkgs, lib, ... }:
+          let
+            kernelPackages = import ../../../os/packages/linux/packages.nix {
+              inherit
+                config
+                pkgs
+                lib
+                ;
+            };
+
+            # Keep OpenZFS test-suite files in the userspace package for this test only.
+            zfsUserWithTests = (kernelPackages.genZfsUserPackage config.boot.kernelVersion).overrideAttrs (
+              old: {
+                postInstall =
+                  (lib.replaceStrings
+                    [ "rm -rf $out/share/zfs/zfs-tests" ]
+                    [ "echo 'keeping zfs-tests for zfs-full-suite'" ]
+                    (old.postInstall or ""))
+                  + ''
+                    # vpsAdminOS exposes most commands under /run/current-system/sw.
+                    substituteInPlace $out/usr/share/initramfs-tools/scripts/zfs-tests.sh \
+                      --replace 'SYSTEM_DIRS="/usr/local/bin /usr/local/sbin"' \
+                                'SYSTEM_DIRS="/run/wrappers/bin /usr/local/bin /usr/local/sbin /run/current-system/sw/bin /run/current-system/sw/sbin"'
+                    # Single-test mode (`-t`) writes an ad-hoc runfile with a fixed
+                    # 10-minute timeout. Raise it for our slower VM test environment.
+                    substituteInPlace $out/usr/share/initramfs-tools/scripts/zfs-tests.sh \
+                      --replace 'timeout = 600' 'timeout = 1800'
+
+                    # Full-suite runfiles also inherit a 10-minute default timeout.
+                    # Override the direct test group to avoid false KILLED results.
+                    awk '
+                      { print }
+                      /^\[tests\/functional\/direct\]$/ { print "timeout = 1800" }
+                    ' $out/share/zfs/runfiles/common.run > $out/share/zfs/runfiles/common.run.new
+                    mv $out/share/zfs/runfiles/common.run.new $out/share/zfs/runfiles/common.run
+
+                    awk '
+                      { print }
+                      /^\[tests\/functional\/direct:Linux\]$/ { print "timeout = 1800" }
+                    ' $out/share/zfs/runfiles/linux.run > $out/share/zfs/runfiles/linux.run.new
+                    mv $out/share/zfs/runfiles/linux.run.new $out/share/zfs/runfiles/linux.run
+
+                    # Some test helper binaries are optional in our build, don't report
+                    # them as missing when they are not installed.
+                    if [ ! -x "$out/share/zfs/zfs-tests/bin/devname2devid" ]; then
+                      sed -i '/^[[:space:]]*devname2devid$/d' \
+                        "$out/share/zfs/zfs-tests/include/commands.cfg"
+                    fi
+
+                    if [ ! -x "$out/share/zfs/zfs-tests/bin/mmap_libaio" ]; then
+                      sed -i '/^[[:space:]]*mmap_libaio$/d' \
+                        "$out/share/zfs/zfs-tests/include/commands.cfg"
+                    fi
+                  '';
+              }
+            );
+          in
+          {
+            # Keep bisect/repro runs fast: avoid rebuilding kernel with ZFS built-in.
+            boot.zfsBuiltin = lib.mkForce false;
+            boot.zfsUserPackage = lib.mkForce zfsUserWithTests;
+            # Prevent fd0 probing noise/stalls during long ZFS test runs.
+            boot.blacklistedKernelModules = [ "floppy" ];
+            boot.kernelParams = [ "floppy=off" ];
+            boot.qemu = {
+              memory = lib.mkForce 12288;
+              cpus = lib.mkForce 4;
+              cpu = {
+                cores = lib.mkForce 4;
+                threads = lib.mkForce 1;
+                sockets = lib.mkForce 1;
+              };
+            };
+
+            # zfs-tests.sh requires ksh and passwordless sudo for the run user.
+            environment.systemPackages = [
+              pkgs.attr
+              pkgs.bash
+              pkgs.bc
+              pkgs.binutils
+              pkgs.cryptsetup
+              pkgs.e2fsprogs
+              pkgs.file
+              pkgs.fio
+              pkgs.getent
+              pkgs.jq
+              pkgs.ksh
+              pkgs.lvm2
+              pkgs.lsscsi
+              pkgs.openssl
+              pkgs.pamtester
+              pkgs.parted
+              pkgs.pax
+              pkgs.python3
+              pkgs.samba
+              pkgs.sudo
+              pkgs.util-linux
+              pkgs.xxHash
+            ];
+
+            security.sudo.extraRules = [
+              {
+                users = [ "zfstest" ];
+                commands = [
+                  {
+                    command = "ALL";
+                    options = [ "NOPASSWD" ];
+                  }
+                ];
+              }
+            ];
           };
-
-          # Keep OpenZFS test-suite files in the userspace package for this test only.
-          zfsUserWithTests = (kernelPackages.genZfsUserPackage config.boot.kernelVersion).overrideAttrs (
-            old: {
-              postInstall =
-                (lib.replaceStrings
-                  [ "rm -rf $out/share/zfs/zfs-tests" ]
-                  [ "echo 'keeping zfs-tests for zfs-full-suite'" ]
-                  (old.postInstall or ""))
-                + ''
-                  # vpsAdminOS exposes most commands under /run/current-system/sw.
-                  substituteInPlace $out/usr/share/initramfs-tools/scripts/zfs-tests.sh \
-                    --replace 'SYSTEM_DIRS="/usr/local/bin /usr/local/sbin"' \
-                              'SYSTEM_DIRS="/run/wrappers/bin /usr/local/bin /usr/local/sbin /run/current-system/sw/bin /run/current-system/sw/sbin"'
-
-                  # Some test helper binaries are optional in our build, don't report
-                  # them as missing when they are not installed.
-                  if [ ! -x "$out/share/zfs/zfs-tests/bin/devname2devid" ]; then
-                    sed -i '/^[[:space:]]*devname2devid$/d' \
-                      "$out/share/zfs/zfs-tests/include/commands.cfg"
-                  fi
-
-                  if [ ! -x "$out/share/zfs/zfs-tests/bin/mmap_libaio" ]; then
-                    sed -i '/^[[:space:]]*mmap_libaio$/d' \
-                      "$out/share/zfs/zfs-tests/include/commands.cfg"
-                  fi
-                '';
-            }
-          );
-        in
-        {
-          # Keep bisect/repro runs fast: avoid rebuilding kernel with ZFS built-in.
-          boot.zfsBuiltin = lib.mkForce false;
-          boot.zfsUserPackage = lib.mkForce zfsUserWithTests;
-          # Prevent fd0 probing noise/stalls during long ZFS test runs.
-          boot.blacklistedKernelModules = [ "floppy" ];
-          boot.kernelParams = [ "floppy=off" ];
-
-          # zfs-tests.sh requires ksh and passwordless sudo for the run user.
-          environment.systemPackages = [
-            pkgs.attr
-            pkgs.bash
-            pkgs.bc
-            pkgs.binutils
-            pkgs.cryptsetup
-            pkgs.e2fsprogs
-            pkgs.file
-            pkgs.fio
-            pkgs.getent
-            pkgs.jq
-            pkgs.ksh
-            pkgs.lvm2
-            pkgs.lsscsi
-            pkgs.openssl
-            pkgs.pamtester
-            pkgs.parted
-            pkgs.pax
-            pkgs.python3
-            pkgs.samba
-            pkgs.sudo
-            pkgs.util-linux
-            pkgs.xxHash
-          ];
-
-          security.sudo.extraRules = [
-            {
-              users = [ "zfstest" ];
-              commands = [
-                {
-                  command = "ALL";
-                  options = [ "NOPASSWD" ];
-                }
-              ];
-            }
-          ];
-        };
-    };
+      })
+      // {
+        # The full suite allocates large file-vdev workloads for hours.
+        # Keep this test on a larger VM-local disk to reduce ENOSPC churn.
+        disks = [
+          {
+            type = "file";
+            device = "{machine}-sda.img";
+            size = "64G";
+          }
+        ];
+      };
 
     testScript = ''
       require 'fileutils'
@@ -166,9 +205,9 @@ import ../../make-test.nix (
         "mkdir -p /var/tmp/test_results",
         "chown zfstest /var/tmp/test_results",
         "mkdir -p /mnt",
-        "mkdir -p /var/tmp/zfs-full-suite",
-        "chown zfstest /var/tmp/zfs-full-suite",
-        "chmod 1777 /var/tmp/zfs-full-suite",
+        "mkdir -p /tank/zfs-full-suite",
+        "chown zfstest /tank/zfs-full-suite",
+        "chmod 1777 /tank/zfs-full-suite",
         "mkdir -p /run/osvm/shared-dir/zfs-full-suite",
         "chown zfstest /run/osvm/shared-dir/zfs-full-suite",
         "chmod 1777 /run/osvm/shared-dir/zfs-full-suite"
@@ -195,7 +234,7 @@ import ../../make-test.nix (
       single_test = ENV['VPSADMINOS_ZFS_FULL_TEST']
       live_root = "/run/osvm/shared-dir/zfs-full-suite"
       live_log = "#{live_root}/zfs-tests-#{profile}.log"
-      vm_work_root = "/var/tmp/zfs-full-suite"
+      vm_work_root = "/tank/zfs-full-suite"
       work_dir = "#{vm_work_root}/work"
       zpool_import_path = [
         work_dir,
@@ -214,10 +253,14 @@ import ../../make-test.nix (
       host_live_log = File.join(host_live_root, "zfs-tests-#{profile}.log")
       captured_live_log = File.join(state_dir, "zfs-tests-#{profile}.captured.log")
       captured_hung_stacks = File.join(state_dir, "hung-task-stacks.log")
+      captured_oom_events = File.join(state_dir, "oom-events.log")
       captured_dmesg_log = File.join(state_dir, "zfs-tests-#{profile}.dmesg.log")
       captured_results_dir = File.join(state_dir, "zfs-test-results")
 
       machine.all_succeed(
+        "mkdir -p #{vm_work_root}",
+        "chown zfstest #{vm_work_root}",
+        "chmod 1777 #{vm_work_root}",
         "rm -rf #{work_dir}",
         "mkdir -p #{work_dir}",
         "chown zfstest #{work_dir}",
@@ -248,8 +291,11 @@ import ../../make-test.nix (
       end
 
       hung_regex = /INFO: task (txg_sync|zpool):[0-9]+ blocked for more than/
+      oom_regex = /(invoked oom-killer|Out of memory: Killed process)/
       hung_detected = false
+      oom_detected = false
       hung_wait_error = nil
+      oom_wait_error = nil
       run_error = nil
 
       run_thread = Thread.new do
@@ -271,36 +317,61 @@ import ../../make-test.nix (
         end
       end
 
-      while run_thread.alive? && !hung_detected
+      oom_thread = Thread.new do
+        begin
+          machine.wait_for_console_text(oom_regex, timeout: timeout)
+          oom_detected = true
+        rescue OsVm::TimeoutError
+          # OOM signature did not appear before run finished.
+        rescue StandardError => e
+          oom_wait_error = e
+        end
+      end
+
+      while run_thread.alive? && !hung_detected && !oom_detected
         sleep(1)
       end
 
-      if hung_detected
+      if hung_detected || oom_detected
         console_log = machine.send(:console_log_path)
-        hung_pairs = []
 
-        if File.file?(console_log)
-          hung_pairs = File.binread(console_log)
-                           .scan(/INFO: task (txg_sync|zpool):([0-9]+) blocked for more than/)
-                           .uniq
-        end
+        if hung_detected
+          hung_pairs = []
 
-        if hung_pairs.any?
-          File.open(captured_hung_stacks, "w") do |f|
-            hung_pairs.each do |task, pid|
-              f.puts("#{task}:#{pid}")
+          if File.file?(console_log)
+            hung_pairs = File.binread(console_log)
+                             .scan(/INFO: task (txg_sync|zpool):([0-9]+) blocked for more than/)
+                             .uniq
+          end
+
+          if hung_pairs.any?
+            File.open(captured_hung_stacks, "w") do |f|
+              hung_pairs.each do |task, pid|
+                f.puts("#{task}:#{pid}")
+              end
             end
+          end
+
+          # Best-effort sysrq trigger from guest shell without blocking test flow.
+          begin
+            machine.execute(
+              "sh -c '(echo w > /proc/sysrq-trigger; sleep 1; echo t > /proc/sysrq-trigger) >/dev/null 2>&1 &'",
+              timeout: 5
+            )
+          rescue StandardError
+            # pass
           end
         end
 
-        # Best-effort sysrq trigger from guest shell without blocking test flow.
-        begin
-          machine.execute(
-            "sh -c '(echo w > /proc/sysrq-trigger; sleep 1; echo t > /proc/sysrq-trigger) >/dev/null 2>&1 &'",
-            timeout: 5
-          )
-        rescue StandardError
-          # pass
+        if oom_detected && File.file?(console_log)
+          oom_lines = File.binread(console_log)
+                          .lines
+                          .grep(/invoked oom-killer|Out of memory: Killed process/)
+          if oom_lines.any?
+            File.open(captured_oom_events, "w") do |f|
+              oom_lines.last(200).each { |line| f.write(line) }
+            end
+          end
         end
 
         # Keep VM running briefly so kernel logs can flush to serial console.
@@ -316,8 +387,10 @@ import ../../make-test.nix (
       run_thread.join
       hung_thread.kill if hung_thread.alive?
       hung_thread.join
+      oom_thread.kill if oom_thread.alive?
+      oom_thread.join
 
-      unless hung_detected
+      unless hung_detected || oom_detected
         begin
           machine.execute(
             "sh -c 'if [ -d /var/tmp/test_results ]; then rm -rf #{live_root}/test_results; mkdir -p #{live_root}/test_results; cp -a /var/tmp/test_results/. #{live_root}/test_results/; fi'",
@@ -405,7 +478,13 @@ import ../../make-test.nix (
         raise "Detected kernel hung task during ZFS test-suite run (#{hung_regex.inspect}). Live log in guest: #{live_log}; captured live log on host: #{captured_live_log}; captured hung stacks on host: #{captured_hung_stacks}; console log on host: #{console_log}"
       end
 
+      if oom_detected
+        console_log = machine.send(:console_log_path)
+        raise "Detected guest OOM during ZFS test-suite run (#{oom_regex.inspect}). Live log in guest: #{live_log}; captured live log on host: #{captured_live_log}; captured OOM events on host: #{captured_oom_events}; console log on host: #{console_log}"
+      end
+
       raise hung_wait_error if hung_wait_error
+      raise oom_wait_error if oom_wait_error
       raise run_error if run_error
     '';
   }
