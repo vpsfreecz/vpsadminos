@@ -298,6 +298,7 @@ module OsCtl::Lib
           stat = read_cpu_stat
 
           {
+            cpu_hz: (stat[:all] / (1_000_000 / OsProcess::TICS_PER_SECOND)),
             cpu_user_hz: stat[:user] / (1_000_000 / OsProcess::TICS_PER_SECOND),
             cpu_system_hz: stat[:system] / (1_000_000 / OsProcess::TICS_PER_SECOND)
           }
