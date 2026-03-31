@@ -448,6 +448,15 @@ import ../../make-test.nix (
           rescue StandardError
             # pass
           end
+
+          begin
+            machine.execute(
+              "sh -c 'echo \"===== exportfs -v =====\"; exportfs -v 2>&1 || true; echo \"===== /etc/exports =====\"; sed -n \"1,200p\" /etc/exports 2>&1 || true; echo \"===== /etc/exports.d/zfs.exports =====\"; sed -n \"1,200p\" /etc/exports.d/zfs.exports 2>&1 || true'",
+              timeout: 30
+            )
+          rescue StandardError
+            # pass
+          end
         end
       end
 
