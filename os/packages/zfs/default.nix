@@ -16,6 +16,7 @@
   python3,
   attr,
   openssl,
+  curl,
   libtirpc,
   nfs-utils,
   gawk,
@@ -95,7 +96,9 @@ let
           + optionalString buildUser ''
                     substituteInPlace ./lib/libzfs/libzfs_mount.c --replace "/bin/umount"             "${util-linux}/bin/umount" \
                                                                   --replace "/bin/mount"              "${util-linux}/bin/mount"
-                  	substituteInPlace ./lib/libshare/os/linux/nfs.c --replace "/usr/sbin/exportfs"    "${nfs-utils}/bin/exportfs"
+                    substituteInPlace ./lib/libshare/os/linux/nfs.c --replace "/usr/sbin/exportfs"    "${nfs-utils}/bin/exportfs"
+                    # Disable dynamic loading of libcurl for keylocation=https:// backend.
+                    substituteInPlace ./config/user-libfetch.m4   --replace "curl-config --built-shared" "true"
                     substituteInPlace ./config/user-systemd.m4    --replace "/usr/lib/modules-load.d" "$out/etc/modules-load.d"
                     substituteInPlace ./config/zfs-build.m4       --replace "\$sysconfdir/init.d"     "$out/etc/init.d" \
                                                                   --replace "/etc/default"            "$out/etc/default" \
@@ -168,6 +171,7 @@ let
             attr
             libtirpc
             python3
+            curl
           ]
           ++ optional buildUser openssl;
 

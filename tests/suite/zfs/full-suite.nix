@@ -151,7 +151,9 @@ import ../../make-test.nix (
       require 'fileutils'
 
       machine.start
-      machine.wait_for_osctl_pool('tank')
+      # Under heavy parallel test load, osctld/pool activation can exceed the
+      # default timeout and cause false-negative bootstrap failures.
+      machine.wait_for_osctl_pool('tank', timeout: 20 * 60)
 
       _, zfs_root = machine.succeeds(
         "sh -c 'zfs_bin=$(readlink -f $(command -v zfs)); dirname $(dirname \"$zfs_bin\")'"
@@ -195,15 +197,25 @@ import ../../make-test.nix (
         "command -v getent",
         "ln -sf $(command -v bash) /bin/bash",
         "ln -sf $(command -v ksh) /bin/ksh",
+        # ZFS helper mode executes hardcoded /bin/mount and /bin/umount.
+        "ln -sf $(command -v mount) /bin/mount",
+        "ln -sf $(command -v umount) /bin/umount",
         "mkdir -p /usr/local/bin",
         "if command -v xxh128sum >/dev/null 2>&1; then true; else ln -sf $(command -v xxhsum) /usr/local/bin/xxh128sum; fi",
         "test -x /bin/bash",
         "test -x /bin/ksh",
+        "test -x /bin/mount",
+        "test -x /bin/umount",
         "su - zfstest -c 'sudo -n id -un | grep -x root'",
         "mkdir -p /var/tmp",
         "chmod 1777 /var/tmp",
         "mkdir -p /var/tmp/test_results",
         "chown zfstest /var/tmp/test_results",
+        # Helper-based mount path (`/bin/mount`) expects a valid mtab target.
+        "ln -snf /proc/self/mounts /etc/mtab",
+        # zfs_share setup uses exportfs -r and expects /etc/exports to exist.
+        "touch /etc/exports",
+        "chmod 644 /etc/exports",
         "mkdir -p /mnt",
         "mkdir -p /tank/zfs-full-suite",
         "chown zfstest /tank/zfs-full-suite",
