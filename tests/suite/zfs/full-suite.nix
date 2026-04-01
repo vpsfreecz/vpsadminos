@@ -22,7 +22,12 @@ import ../../make-test.nix (
       (import ../../machines/vpsadminos/with-tank.nix {
         inherit pkgs;
         config =
-          { config, pkgs, lib, ... }:
+          {
+            config,
+            pkgs,
+            lib,
+            ...
+          }:
           let
             kernelPackages = import ../../../os/packages/linux/packages.nix {
               inherit
@@ -33,51 +38,52 @@ import ../../make-test.nix (
             };
 
             # Keep OpenZFS test-suite files in the userspace package for this test only.
-            zfsUserWithTests = (kernelPackages.genZfsUserPackage config.boot.kernelVersion).overrideAttrs (
-              old: {
-                postInstall =
-                  (lib.replaceStrings
-                    [ "rm -rf $out/share/zfs/zfs-tests" ]
-                    [ "echo 'keeping zfs-tests for zfs-full-suite'" ]
-                    (old.postInstall or ""))
-                  + ''
-                    # vpsAdminOS exposes most commands under /run/current-system/sw.
-                    substituteInPlace $out/usr/share/initramfs-tools/scripts/zfs-tests.sh \
-                      --replace 'SYSTEM_DIRS="/usr/local/bin /usr/local/sbin"' \
-                                'SYSTEM_DIRS="/run/wrappers/bin /usr/local/bin /usr/local/sbin /run/current-system/sw/bin /run/current-system/sw/sbin"'
-                    # Single-test mode (`-t`) writes an ad-hoc runfile with a fixed
-                    # 10-minute timeout. Raise it for our slower VM test environment.
-                    substituteInPlace $out/usr/share/initramfs-tools/scripts/zfs-tests.sh \
-                      --replace 'timeout = 600' 'timeout = 1800'
+            zfsUserWithTests =
+              (kernelPackages.genZfsUserPackage config.boot.kernelVersion).overrideAttrs
+                (old: {
+                  postInstall =
+                    (lib.replaceStrings
+                      [ "rm -rf $out/share/zfs/zfs-tests" ]
+                      [ "echo 'keeping zfs-tests for zfs-full-suite'" ]
+                      (old.postInstall or "")
+                    )
+                    + ''
+                      # vpsAdminOS exposes most commands under /run/current-system/sw.
+                      substituteInPlace $out/usr/share/initramfs-tools/scripts/zfs-tests.sh \
+                        --replace 'SYSTEM_DIRS="/usr/local/bin /usr/local/sbin"' \
+                                  'SYSTEM_DIRS="/run/wrappers/bin /usr/local/bin /usr/local/sbin /run/current-system/sw/bin /run/current-system/sw/sbin"'
+                      # Single-test mode (`-t`) writes an ad-hoc runfile with a fixed
+                      # 10-minute timeout. Raise it for our slower VM test environment.
+                      substituteInPlace $out/usr/share/initramfs-tools/scripts/zfs-tests.sh \
+                        --replace 'timeout = 600' 'timeout = 1800'
 
-                    # Full-suite runfiles also inherit a 10-minute default timeout.
-                    # Override the direct test group to avoid false KILLED results.
-                    awk '
-                      { print }
-                      /^\[tests\/functional\/direct\]$/ { print "timeout = 1800" }
-                    ' $out/share/zfs/runfiles/common.run > $out/share/zfs/runfiles/common.run.new
-                    mv $out/share/zfs/runfiles/common.run.new $out/share/zfs/runfiles/common.run
+                      # Full-suite runfiles also inherit a 10-minute default timeout.
+                      # Override the direct test group to avoid false KILLED results.
+                      awk '
+                        { print }
+                        /^\[tests\/functional\/direct\]$/ { print "timeout = 1800" }
+                      ' $out/share/zfs/runfiles/common.run > $out/share/zfs/runfiles/common.run.new
+                      mv $out/share/zfs/runfiles/common.run.new $out/share/zfs/runfiles/common.run
 
-                    awk '
-                      { print }
-                      /^\[tests\/functional\/direct:Linux\]$/ { print "timeout = 1800" }
-                    ' $out/share/zfs/runfiles/linux.run > $out/share/zfs/runfiles/linux.run.new
-                    mv $out/share/zfs/runfiles/linux.run.new $out/share/zfs/runfiles/linux.run
+                      awk '
+                        { print }
+                        /^\[tests\/functional\/direct:Linux\]$/ { print "timeout = 1800" }
+                      ' $out/share/zfs/runfiles/linux.run > $out/share/zfs/runfiles/linux.run.new
+                      mv $out/share/zfs/runfiles/linux.run.new $out/share/zfs/runfiles/linux.run
 
-                    # Some test helper binaries are optional in our build, don't report
-                    # them as missing when they are not installed.
-                    if [ ! -x "$out/share/zfs/zfs-tests/bin/devname2devid" ]; then
-                      sed -i '/^[[:space:]]*devname2devid$/d' \
-                        "$out/share/zfs/zfs-tests/include/commands.cfg"
-                    fi
+                      # Some test helper binaries are optional in our build, don't report
+                      # them as missing when they are not installed.
+                      if [ ! -x "$out/share/zfs/zfs-tests/bin/devname2devid" ]; then
+                        sed -i '/^[[:space:]]*devname2devid$/d' \
+                          "$out/share/zfs/zfs-tests/include/commands.cfg"
+                      fi
 
-                    if [ ! -x "$out/share/zfs/zfs-tests/bin/mmap_libaio" ]; then
-                      sed -i '/^[[:space:]]*mmap_libaio$/d' \
-                        "$out/share/zfs/zfs-tests/include/commands.cfg"
-                    fi
-                  '';
-              }
-            );
+                      if [ ! -x "$out/share/zfs/zfs-tests/bin/mmap_libaio" ]; then
+                        sed -i '/^[[:space:]]*mmap_libaio$/d' \
+                          "$out/share/zfs/zfs-tests/include/commands.cfg"
+                      fi
+                    '';
+                });
           in
           {
             # Keep bisect/repro runs fast: avoid rebuilding kernel with ZFS built-in.

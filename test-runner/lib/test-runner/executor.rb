@@ -238,7 +238,7 @@ module TestRunner
       begin
         loop do
           timeout = [next_heartbeat_at - Time.now, 0].max
-          ready = IO.select([r], nil, nil, timeout)
+          ready = r.wait_readable(timeout)
 
           if ready.nil?
             elapsed = (Time.now - t1).round(2)
