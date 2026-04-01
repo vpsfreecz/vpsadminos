@@ -1,7 +1,5 @@
 #!/usr/bin/env ruby
 
-require 'set'
-
 base = ENV.fetch('BASE_SHA')
 head = ENV.fetch('HEAD_SHA')
 
@@ -18,7 +16,7 @@ img_root = 'image-scripts/images'
 include_root = 'image-scripts/include'
 nixos_dir = 'os/lib/nixos-container'
 all_images = Dir.entries(img_root).reject { |v| %w[. ..].include?(v) }
-test_images = Set.new
+test_images = []
 
 warn 'Changed files:'
 changed_files.each do |v|
@@ -29,7 +27,7 @@ end
 changed_images =
   changed_files.select do |v|
     File.fnmatch?("#{img_root}/**", v)
-  end.to_set do |v|
+  end.map do |v|
     # Handle both changes to build scripts and symlinks, e.g.:
     #   image-scripts/images/debian/build.sh (script file)
     #   image-scripts/images/alpine-3.22 (symlink to alpine)
@@ -38,7 +36,7 @@ changed_images =
     else
       File.basename(v)
     end
-  end
+  end.uniq
 
 # Expand abstract images
 changed_images.each do |image|
@@ -85,4 +83,4 @@ if includes_modified.any?
   end
 end
 
-puts test_images.to_a.sort.join(',')
+puts test_images.uniq.sort.join(',')
