@@ -248,6 +248,7 @@ import ../../make-test.nix (
       live_log = "#{live_root}/zfs-tests-#{profile}.log"
       vm_work_root = "/tank/zfs-full-suite"
       work_dir = "#{vm_work_root}/work"
+      work_img = "#{vm_work_root}/work-ext4.img"
       zpool_import_path = [
         work_dir,
         "/dev/disk/by-vdev",
@@ -273,8 +274,16 @@ import ../../make-test.nix (
         "mkdir -p #{vm_work_root}",
         "chown zfstest #{vm_work_root}",
         "chmod 1777 #{vm_work_root}",
+        # Keep ZFS test workdir on ext4 to avoid sparse-zero accounting
+        # differences for file-vdev TRIM tests running on top of a ZFS host.
+        "sh -c 'if mountpoint -q #{work_dir}; then umount #{work_dir}; fi'",
         "rm -rf #{work_dir}",
+        "rm -f #{work_img}",
+        "truncate -s 48G #{work_img}",
+        "mkfs.ext4 -F -q #{work_img}",
         "mkdir -p #{work_dir}",
+        "mount -o loop #{work_img} #{work_dir}",
+        "test \"$(stat -f -c %T #{work_dir})\" = ext2/ext3",
         "chown zfstest #{work_dir}",
         "chmod 1777 #{work_dir}",
         "mkdir -p #{live_root}/work",
