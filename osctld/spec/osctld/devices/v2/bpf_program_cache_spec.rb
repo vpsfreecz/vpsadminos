@@ -15,7 +15,9 @@ RSpec.describe OsCtld::Devices::V2::BpfProgramCache do
     allow(OsCtld::BpfFs).to receive(:list_progs).and_return([])
   end
 
-  it 'hashes devices independently of ordering' do
-    expect(cache.get_prog_name([dev_a, dev_b])).to eq(cache.get_prog_name([dev_b, dev_a]))
+  it 'hashes devices according to ordering' do
+    expect(cache.get_prog_name([dev_a, dev_b])).not_to eq(
+      cache.get_prog_name([dev_b, dev_a])
+    )
   end
 end
