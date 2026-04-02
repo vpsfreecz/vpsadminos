@@ -36,6 +36,8 @@ with lib;
             path = [ pkgs.util-linux ] ++ optional sw.randomEncryption.enable pkgs.cryptsetup;
 
             run = ''
+              waitForService eudev-trigger
+
               ${optionalString (config.services.haveged.enable && sw.randomEncryption.enable) ''
                 waitForService haveged
               ''}
