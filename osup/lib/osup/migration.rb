@@ -32,17 +32,20 @@ module OsUp
     protected
 
     def load_spec
+      @snapshot = []
+      @export_pool = true
+      @stop_containers = true
+
       unless File.exist?(spec_path)
-        @snapshot = []
         return
       end
 
       spec = OsCtl::Lib::ConfigFile.load_yaml_file(spec_path)
       @name = spec['name'] || @name
       @description = spec['description']
-      @snapshot = spec['snapshot'].map(&:to_sym)
-      @export_pool = spec.fetch('export_pool', true)
-      @stop_containers = spec.fetch('stop_containers', true)
+      @snapshot = spec.fetch('snapshot', []).map(&:to_sym)
+      @export_pool = spec.fetch('export_pool', @export_pool)
+      @stop_containers = spec.fetch('stop_containers', @stop_containers)
     end
 
     def spec_path
