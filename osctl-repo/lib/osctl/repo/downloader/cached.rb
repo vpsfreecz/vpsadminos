@@ -51,7 +51,14 @@ module OsCtl::Repo
 
         elsif block
           begin
-            fh = read_from_cache(vendor, variant, arch, dist, vtag, format)
+            image_path, fh = read_from_cache(
+              vendor,
+              variant,
+              arch,
+              dist,
+              vtag,
+              format
+            )
           rescue CacheMiss
             raise e
           end
@@ -117,17 +124,18 @@ module OsCtl::Repo
     end
 
     def read_from_cache(vendor, variant, arch, dist, vtag, format)
-      fh = nil
+      path = fh = nil
 
       with_cached_image(vendor, variant, arch, dist, vtag, format) do |t|
         unless t.cached?(format)
           raise CacheMiss, "Image #{t} not found in cache"
         end
 
-        fh = File.open(t.abs_cache_path(format), 'r')
+        path = t.abs_cache_path(format)
+        fh = File.open(path, 'r')
       end
 
-      fh
+      [path, fh]
     end
 
     def cached_image_path(vendor, variant, arch, dist, vtag, format)
