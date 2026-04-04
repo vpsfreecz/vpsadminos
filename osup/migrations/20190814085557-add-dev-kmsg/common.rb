@@ -86,7 +86,8 @@ class DeviceList < Array
 end
 
 class Device
-  attr_reader :type, :major, :minor, :mode, :name, :inherit, :inherited
+  attr_reader :type, :major, :minor, :mode, :name, :inherited
+  attr_accessor :inherit
 
   def initialize(cfg)
     @type = cfg['type']
