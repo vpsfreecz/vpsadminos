@@ -100,7 +100,7 @@ module OsCtl::Cli
 
       cols = param_selector.parse_option(opts[:output])
 
-      if opts[:output].nil? && opts[:id].nil?
+      if opts[:output].nil? && args[0].nil?
         cols.insert(0, :pool)
         cols.insert(1, :ctid)
       end
