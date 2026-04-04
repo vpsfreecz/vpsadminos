@@ -1,5 +1,6 @@
 require 'fiddle'
 require 'fiddle/import'
+require 'tempfile'
 require 'libosctl/native'
 
 module OsCtl::Lib
@@ -136,9 +137,10 @@ module OsCtl::Lib
     def setns_path(path, nstype)
       f = File.open(path)
       Native.setns(f.fileno, nstype)
-      f.close
 
       nil
+    ensure
+      f.close if f
     end
 
     def setns_io(io, nstype)
