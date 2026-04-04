@@ -35,4 +35,10 @@ RSpec.describe OsCtl::Lib::Zfs::ObjsetStats::Tree do
     expect(tree['tank/ct']).to eq(tank_child)
     expect(tree.aggregate_stats.write_ios).to eq(6)
   end
+
+  it 'returns nil for missing pools and datasets' do
+    tree = described_class.new
+
+    expect(tree['tank/ct']).to be_nil
+  end
 end
