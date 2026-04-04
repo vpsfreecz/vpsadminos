@@ -115,7 +115,7 @@ module OsCtl
       c.arg(cmd: :all, name: :user, expand: usernames)
       c.arg(cmd: :all, name: :group, expand: groupnames)
       c.arg(cmd: :all, name: :repository, expand: repos)
-      c.arg(cmd: :all, name: :'id-range', expand: repos)
+      c.arg(cmd: :all, name: :'id-range', expand: id_ranges)
       c.arg(cmd: :all, name: :tag, expand: tags)
       c.arg(cmd: :all, name: :host_netif, expand: host_netifs)
       c.arg(cmd: :all, name: :netif_type, expand: netif_types)
