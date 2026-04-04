@@ -1839,7 +1839,7 @@ module OsCtl::Cli
       resp = c.receive_resp
 
       if resp.error?
-        raise(resp['message'] || 'exec failed')
+        raise(resp.message || 'exec failed')
 
       elsif resp[:exitstatus] && resp[:exitstatus] > 0
         raise GLI::CustomExit.new('executed command failed', resp[:exitstatus])
