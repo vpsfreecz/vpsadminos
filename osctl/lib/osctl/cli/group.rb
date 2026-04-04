@@ -309,7 +309,7 @@ module OsCtl::Cli
 
     def device_promote
       require_args!('name', 'type', 'major', 'minor')
-      do_device_chmod(:group_device_promote, name: args[0], pool: gopts[:pool])
+      do_device_promote(:group_device_promote, name: args[0], pool: gopts[:pool])
     end
 
     def device_inherit
