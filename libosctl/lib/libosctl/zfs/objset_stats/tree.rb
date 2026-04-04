@@ -12,7 +12,10 @@ module OsCtl::Lib
     # @param dataset [String]
     def [](dataset)
       pool = dataset.split('/').first
-      @pool_trees[pool][dataset]
+      pool_tree = @pool_trees[pool]
+      return nil unless pool_tree
+
+      pool_tree[dataset]
     end
 
     def aggregate_stats(into: nil)
