@@ -27,6 +27,7 @@ module OsCtl::Lib
         into.write_bytes += @aggregated_stats.write_bytes
         into.read_ios += @aggregated_stats.read_ios
         into.read_bytes += @aggregated_stats.read_bytes
+        return into
 
       end
 
