@@ -23,7 +23,7 @@ module OsCtl::Lib
       # @param cmd_path [Array<String>]
       # @param arg [String]
       def applicable?(cmd_path, arg)
-        return false if name != arg
+        return false if name != arg.to_s
         return true if cmd == :all
 
         cmd.zip(cmd_path).each do |x, y|
@@ -87,7 +87,7 @@ module OsCtl::Lib
     def global_commands
       ret = []
 
-      app.commands.each_value do |c|
+      commands.each_value do |c|
         ret << c.name
         ret.concat(c.aliases) if c.aliases
       end
@@ -101,7 +101,7 @@ module OsCtl::Lib
         each_command(parent: app, path: [app.exe_name], &block)
 
       else
-        parent.commands.each_value do |c|
+        commands(parent).each_value do |c|
           ([c.name] + (c.aliases || [])).each do |name|
             name_s = name.to_s
             block.call(c, path + [name_s])
@@ -112,7 +112,7 @@ module OsCtl::Lib
     end
 
     def opt_word_list(cmd, path, name, _opt, arg_name)
-      optarg = opts.detect { |v| v.applicable?(path, arg_name) }
+      optarg = opts.detect { |v| v.applicable?(path, name) }
 
       if optarg
         optarg.expand
@@ -186,6 +186,7 @@ module OsCtl::Lib
     def arguments(cmd)
       ret = []
       return ret unless cmd.respond_to?(:arguments_description)
+      return ret if cmd.arguments_description.nil?
 
       cmd.arguments_description.split.each do |arg|
         if (arg.start_with?('<') && arg.end_with?('>')) \
