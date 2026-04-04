@@ -47,7 +47,7 @@ module OsCtl::Cli
 
       # Then check the current state using another connection, exit if we're
       # in awaited state
-      ct = osctld_call(:ct_show, id: args[0], pool: gopts[:pool])
+      ct = osctld_call(:ct_show, id:, pool:)
       return if states.include?(ct[:state])
 
       # Wait for chosen state
