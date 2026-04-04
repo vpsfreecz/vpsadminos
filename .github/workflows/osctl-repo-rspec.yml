@@ -1,0 +1,80 @@
+name: osctl-repo RSpec
+
+on:
+  push:
+    paths:
+      - .github/workflows/osctl-repo-rspec.yml
+      - .ruby-version
+      - flake.nix
+      - flake.lock
+      - os/overlays/osctl.nix
+      - os/overlays/ruby.nix
+      - os/packages/ruby/**
+      - libosctl/**
+      - osctl-repo/**
+  pull_request:
+    paths:
+      - .github/workflows/osctl-repo-rspec.yml
+      - .ruby-version
+      - flake.nix
+      - flake.lock
+      - os/overlays/osctl.nix
+      - os/overlays/ruby.nix
+      - os/packages/ruby/**
+      - libosctl/**
+      - osctl-repo/**
+
+concurrency:
+  group: osctl-repo-rspec-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  rspec:
+    name: osctl-repo RSpec
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            extra-substituters = https://cache.vpsadminos.org
+            extra-trusted-public-keys = cache.vpsadminos.org:wpIJlNZQIhS+0gFf1U3MC9sLZdLW3sh5qakOWGDoDrE=
+            fallback = true
+            connect-timeout = 15
+
+      - name: Run RSpec
+        run: |
+          nix develop .#vpsadminos -c bash -lc '
+            set -euo pipefail
+
+            build_native_extension() {
+              local extension_dir="$1"
+              local target_path="$2"
+
+              cd "$extension_dir"
+              ruby extconf.rb
+              make
+              cp native.so "$target_path"
+            }
+
+            export BUNDLE_GEMFILE="$GITHUB_WORKSPACE/osctl-repo/Gemfile"
+            export BUNDLE_PATH="$GITHUB_WORKSPACE/.gems/osctl-repo"
+
+            cd "$GITHUB_WORKSPACE/osctl-repo"
+            bundle install
+
+            build_native_extension \
+              "$GITHUB_WORKSPACE/libosctl/ext/libosctl" \
+              "$GITHUB_WORKSPACE/libosctl/lib/libosctl/native.so"
+
+            cd "$GITHUB_WORKSPACE/osctl-repo"
+            bundle exec rspec \
+              --format progress \
+              --profile 10
+          '
