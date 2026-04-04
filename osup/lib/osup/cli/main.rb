@@ -56,16 +56,12 @@ module OsUp
       target = args[0] && args[0].to_i
 
       active_pools.each do |pool|
-        pool_migrations = PoolMigrations.new(pool)
-
-        begin
-          OsUp.upgrade(pool, version: target, dry_run: gops['dry-run'])
-        rescue PoolUpToDate
-          next
-        rescue RuntimeError => e
-          warn e.message
-          next
-        end
+        OsUp.upgrade(pool, to: target, dry_run: gopts['dry-run'])
+      rescue PoolUpToDate
+        next
+      rescue RuntimeError => e
+        warn e.message
+        next
       end
     end
 
