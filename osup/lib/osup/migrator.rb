@@ -107,7 +107,7 @@ module OsUp
 
         elsif j == 0
           raise "unable to rollback pool #{pool_migrations.pool}: " \
-                "would rollback migration #{id}, but it is set as the target"
+                "would rollback migration #{applied[j][0]}, but it is set as the target"
         end
 
         list = applied[0..j - 1]
