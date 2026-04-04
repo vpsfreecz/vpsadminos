@@ -4,7 +4,7 @@ module OsUp
       require_args!('pool', 'dataset', 'migration dirname', 'action')
 
       m = Migration.load(OsUp.migration_dir, args[2])
-      Process.setproctitle("osup: #{args[0]} #{m.id} up")
+      Process.setproctitle("osup: #{args[0]} #{m.id} #{args[3]}")
 
       $MIGRATION_ID = m.id
       $POOL = args[0]
