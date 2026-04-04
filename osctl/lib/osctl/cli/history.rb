@@ -32,7 +32,7 @@ module OsCtl::Cli
       data = osctld_call(:history_list, **cmd_opts)
 
       if gopts[:json]
-        data.each { puts data.to_json }
+        puts data.to_json
 
       else
         OsCtl::Lib::Cli::OutputFormatter.print(data, cols:, layout: :columns)
