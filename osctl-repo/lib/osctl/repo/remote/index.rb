@@ -20,6 +20,8 @@ module OsCtl::Repo
 
     def lookup(vendor, variant, arch, dist, vtag)
       real_vendor = vendor == 'default' ? vendors[:default] : vendor
+      return nil if real_vendor.nil?
+
       real_variant = variant == 'default' ? vendors[real_vendor.to_sym] : variant
 
       contents.detect do |t|
