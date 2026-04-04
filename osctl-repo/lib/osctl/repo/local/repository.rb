@@ -32,8 +32,10 @@ module OsCtl::Repo
         tags: opts[:tags],
         image: opts[:image].keys.map(&:to_s)
       )
+      existing = index.find(vendor, variant, arch, dist, ver)
 
       FileUtils.mkdir_p(t.abs_dir_path)
+      cleanup_replaced_image(existing, new_image: t) if existing && existing.version == ver
 
       opts[:image].each do |format, file|
         FileUtils.cp(file, t.abs_image_path(format))
@@ -134,6 +136,17 @@ module OsCtl::Repo
       end
 
       File.symlink(target_name, path)
+    end
+
+    def cleanup_replaced_image(image, new_image:)
+      (image.image - new_image.image).each do |format|
+        FileUtils.rm_f(image.abs_image_path(format))
+      end
+
+      (image.tags - new_image.tags).each do |tag|
+        path = image.abs_tag_path(tag)
+        File.unlink(path) if File.symlink?(path)
+      end
     end
   end
 end
