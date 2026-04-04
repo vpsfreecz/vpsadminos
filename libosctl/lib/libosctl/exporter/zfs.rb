@@ -36,16 +36,14 @@ module OsCtl::Lib
 
       yield
 
-      snapshots.reverse!
-
+      tar.add_file('snapshots.yml', FILE_MODE) do |tf|
+        tf.write(ConfigFile.dump_yaml(snapshots.reverse))
+      end
+    ensure
       each_dataset do |ds|
-        snapshots.each do |snap|
+        snapshots.reverse_each do |snap|
           zfs(:destroy, '', "#{ds}@#{snap}")
         end
-      end
-
-      tar.add_file('snapshots.yml', FILE_MODE) do |tf|
-        tf.write(ConfigFile.dump_yaml(snapshots))
       end
     end
 
@@ -122,6 +120,7 @@ module OsCtl::Lib
 
     def dump_stream(name, dataset, snap, from_snap = nil)
       compression = get_compression(dataset)
+      status = nil
 
       cmd = if from_snap
               "#{zfs_send} -I @#{from_snap} #{dataset}@#{snap}"
@@ -133,7 +132,11 @@ module OsCtl::Lib
         IO.popen("exec #{cmd}") do |io|
           process_stream(compression, io, tf)
         end
+
+        status = $?
       end
+
+      raise "zfs send failed with exit status #{status.exitstatus}" if status.exitstatus != 0
     end
 
     def process_stream(compression, stream, tf)
