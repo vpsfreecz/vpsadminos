@@ -124,7 +124,7 @@ module OsCtl
     end
 
     def data!(&)
-      receive_resp!(&).data
+      response!(&).data
     end
 
     def cmd_data!(cmd, **, &)
