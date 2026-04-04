@@ -2,7 +2,10 @@
 
 module OsCtl
   module Lib
-    module Cli; end
+    module Cli
+      module Completion; end
+    end
+
     module Exporter; end
     module Utils; end
     module Zfs; end
