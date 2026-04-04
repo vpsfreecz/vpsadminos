@@ -52,7 +52,7 @@ module OsUp
   end
 
   def self.root
-    File.join(__dir__, '..')
+    File.expand_path('..', __dir__)
   end
 
   def self.migration_dir
