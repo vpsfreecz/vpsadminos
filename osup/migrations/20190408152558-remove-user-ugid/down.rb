@@ -1,3 +1,4 @@
+require 'fileutils'
 require 'libosctl'
 require 'yaml'
 
@@ -83,7 +84,7 @@ class Rollback
 
   def remove_ugid_map
     FileUtils.rm_f(ugid_map_path)
-    FileUtils.rm_f(migration_dir)
+    FileUtils.rm_rf(migration_dir)
   end
 
   def ugid_map_path
