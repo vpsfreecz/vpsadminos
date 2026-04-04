@@ -1051,7 +1051,7 @@ module OsCtl::Cli
 
     def bisect
       conn = osctld_open
-      cg_init_subsystems(c)
+      cg_init_subsystems(conn)
 
       cgparams = cg_list_raw_cgroup_params.map(&:to_sym)
 
