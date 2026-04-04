@@ -69,6 +69,7 @@ module OsCtl::Cli
       FILTERS.each do |v|
         [gopts, opts].each do |options|
           next unless options[v]
+          next unless options[v].is_a?(String)
 
           cmd_opts[v] = options[v].split(',')
         end
