@@ -172,7 +172,7 @@ module OsCtl::Image
         resp = client.receive_resp
 
         if resp.error?
-          raise(resp['message'] || 'exec failed')
+          raise(resp.message || 'exec failed')
         end
 
         resp[:exitstatus]
@@ -205,7 +205,7 @@ module OsCtl::Image
         resp = client.receive_resp
 
         if resp.error?
-          raise(resp['message'] || 'runscript failed')
+          raise(resp.message || 'runscript failed')
         end
 
         resp[:exitstatus]
