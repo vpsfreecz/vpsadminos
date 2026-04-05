@@ -44,10 +44,14 @@ module OsCtl::ExportFS
         end
 
         pid = Process.fork { block.call }
-        Process.wait(pid)
+        _waited, status = Process.wait2(pid)
+        exit!(status.exitstatus || 1) unless status.success?
       end
 
-      Process.wait(main)
+      _waited, status = Process.wait2(main)
+      return if status.success?
+
+      raise "server exec failed with exit status #{status.exitstatus || 1}"
     end
 
     protected
