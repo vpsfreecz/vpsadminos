@@ -29,11 +29,8 @@ module OsCtl::Exporter
       @mutex.synchronize do
         @new_registry = @exported_registry.clone
 
-        begin
-          yield(@new_registry)
-        ensure
-          @exported_registry = @new_registry
-        end
+        yield(@new_registry)
+        @exported_registry = @new_registry
       end
 
       nil
