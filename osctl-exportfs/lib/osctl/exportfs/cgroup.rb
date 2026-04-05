@@ -38,8 +38,8 @@ module OsCtl::ExportFS
           pid = line.strip.to_i
 
           begin
-            killed += 1
             Process.kill('TERM', pid)
+            killed += 1
           rescue Errno::ESRCH
             # ignore
           end
