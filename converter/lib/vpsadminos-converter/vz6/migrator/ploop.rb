@@ -11,24 +11,27 @@ module VpsAdminOS::Converter
       end
 
       super
-
+    ensure
       syscmd("vzctl umount #{vz_ct.ctid}") if mounted
     end
 
     def transfer(&block)
       self.progress_handler = block
+      mounted = false
 
       # Stop the container
       running = vz_ct.running?
       syscmd("vzctl stop #{vz_ct.ctid}")
       syscmd("vzctl mount #{vz_ct.ctid}")
+      mounted = true
 
       # Second sync
       do_sync
 
       # Transfer to dst
       transfer_container(running)
-      syscmd("vzctl umount #{vz_ct.ctid}")
+    ensure
+      syscmd("vzctl umount #{vz_ct.ctid}") if mounted
     end
   end
 end
