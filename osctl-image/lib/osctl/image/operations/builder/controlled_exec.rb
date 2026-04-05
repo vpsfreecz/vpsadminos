@@ -33,7 +33,8 @@ module OsCtl::Image
       begin
         rc = Operations::Builder::RunscriptFromString.run(
           builder,
-          start_script
+          start_script,
+          client:
         )
       ensure
         clear_cgroup

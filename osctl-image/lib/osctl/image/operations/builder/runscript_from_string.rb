@@ -30,7 +30,7 @@ module OsCtl::Image
       tmp.close
 
       begin
-        OsCtldClient.new.runscript(builder.ctid, tmp.path)
+        client.runscript(builder.ctid, tmp.path)
       ensure
         tmp&.unlink
       end
