@@ -100,16 +100,16 @@ module OsCtl::ExportFS::Cli
           c.flag 'nfsd-nproc', arg_name: 'nproc', type: Integer
 
           c.desc 'Open and listen on a TCP socket'
-          c.switch 'nfsd-tcp', default_value: true
+          c.switch 'nfsd-tcp', default_value: nil
 
           c.desc 'Open and listen on a UDP socket'
-          c.switch 'nfsd-udp', default_value: false
+          c.switch 'nfsd-udp', default_value: nil
 
           c.desc 'Select supported NFS versions'
           c.flag 'nfs-versions'
 
           c.desc 'Direct messages from rpc.nfsd to syslog'
-          c.switch 'nfsd-syslog', default_value: false
+          c.switch 'nfsd-syslog', default_value: nil
 
           c.desc 'Configure port for rpc.mountd'
           c.flag 'mountd-port', arg_name: 'port', type: Integer

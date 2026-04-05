@@ -4,6 +4,11 @@ require 'libosctl'
 module OsCtl::ExportFS::Cli
   class Server < Command
     FIELDS = %i[server state netif address].freeze
+    DEFAULT_NFSD_SWITCHES = {
+      'nfsd-tcp' => true,
+      'nfsd-udp' => false,
+      'nfsd-syslog' => false
+    }.freeze
 
     def list
       if opts[:list]
@@ -47,7 +52,7 @@ module OsCtl::ExportFS::Cli
       require_args!('name')
       OsCtl::ExportFS::Operations::Server::Create.run(
         args[0],
-        options: server_options
+        options: server_options(preserve_defaults: true)
       )
     end
 
@@ -60,7 +65,7 @@ module OsCtl::ExportFS::Cli
       require_args!('name')
       OsCtl::ExportFS::Operations::Server::Configure.run(
         OsCtl::ExportFS::Server.new(args[0]),
-        server_options
+        server_options(preserve_defaults: false)
       )
     end
 
@@ -94,22 +99,38 @@ module OsCtl::ExportFS::Cli
 
     protected
 
-    def server_options
+    def server_options(preserve_defaults:)
       {
         address: opts['address'],
         netif: opts['netif'],
         nfsd: {
           port: opts['nfsd-port'],
           nproc: opts['nfsd-nproc'],
-          tcp: opts['nfsd-tcp'],
-          udp: opts['nfsd-udp'],
+          tcp: nfsd_switch_value('nfsd-tcp', preserve_defaults:),
+          udp: nfsd_switch_value('nfsd-udp', preserve_defaults:),
           versions: parse_nfs_versions(opts['nfs-versions']),
-          syslog: opts['nfsd-syslog']
+          syslog: nfsd_switch_value('nfsd-syslog', preserve_defaults:)
         },
         mountd_port: opts['mountd-port'],
         lockd_port: opts['lockd-port'],
         statd_port: opts['statd-port']
       }
+    end
+
+    def nfsd_switch_value(name, preserve_defaults:)
+      if preserve_defaults
+        return opts[name] if option_specified?(name)
+
+        return DEFAULT_NFSD_SWITCHES.fetch(name)
+      end
+
+      return nil unless option_specified?(name)
+
+      opts[name]
+    end
+
+    def option_specified?(name)
+      ARGV.include?("--#{name}") || ARGV.include?("--no-#{name}")
     end
 
     def parse_nfs_versions(opt)
