@@ -1,3 +1,4 @@
+require 'fileutils'
 require 'vpsadminos-converter/vz6/migrator'
 
 module VpsAdminOS::Converter
