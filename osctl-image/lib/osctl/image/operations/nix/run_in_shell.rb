@@ -1,6 +1,7 @@
 require 'libosctl'
 require 'osctl/image/operations/base'
 require 'shellwords'
+require 'tempfile'
 
 module OsCtl::Image
   class Operations::Nix::RunInShell < Operations::Base
@@ -39,7 +40,7 @@ module OsCtl::Image
         opts
       )
     ensure
-      exe.unlink
+      exe&.unlink
     end
 
     protected

@@ -1,5 +1,6 @@
 require 'libosctl'
 require 'osctl/image/operations/base'
+require 'tempfile'
 
 module OsCtl::Image
   class Operations::Builder::RunscriptFromString < Operations::Base
@@ -31,7 +32,7 @@ module OsCtl::Image
       begin
         OsCtldClient.new.runscript(builder.ctid, tmp.path)
       ensure
-        tmp.unlink
+        tmp&.unlink
       end
     end
 
