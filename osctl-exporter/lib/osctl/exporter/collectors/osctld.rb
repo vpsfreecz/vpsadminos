@@ -18,9 +18,9 @@ module OsCtl::Exporter
         docstring: '1 if osctld is initialized, 0 if not'
       )
 
-      @osctld_uptime = registry.gauge(
+      @osctld_start_time = registry.gauge(
         :osctld_start_time_seconds,
-        docstring: 'Number of seconds osctld is running for'
+        docstring: 'Unix timestamp when osctld was started'
       )
     end
 
@@ -43,10 +43,10 @@ module OsCtl::Exporter
         st = client.status
 
         @osctld_initialized.set(st[:initialized] ? 1 : 0)
-        @osctld_uptime.set((Time.now - st[:started_at]).to_i)
+        @osctld_start_time.set(st[:started_at].to_i)
       else
         @osctld_initialized.set(0)
-        @osctld_uptime.set(0)
+        @osctld_start_time.set(0)
       end
     end
   end
