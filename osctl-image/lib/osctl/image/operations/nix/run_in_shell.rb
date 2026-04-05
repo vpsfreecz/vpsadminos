@@ -51,7 +51,7 @@ module OsCtl::Image
       tmp = Tempfile.new(name, '/tmp')
       tmp.write(<<~EOF
         #!/bin/sh
-        exec #{command.join(' ')}
+        exec #{Shellwords.join(command)}
       EOF
                )
       tmp.close
