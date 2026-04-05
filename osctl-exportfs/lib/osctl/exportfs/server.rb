@@ -41,9 +41,15 @@ module OsCtl::ExportFS
     end
 
     def running?
-      File.stat(pid_file).size > 0
-    rescue Errno::ENOENT
+      return false if !File.exist?(pid_file) || File.stat(pid_file).size <= 0
+
+      pid = read_pid
+      Process.kill(0, pid)
+      true
+    rescue Errno::ENOENT, Errno::ESRCH
       false
+    rescue Errno::EPERM
+      true
     end
 
     # @return [Integer]
