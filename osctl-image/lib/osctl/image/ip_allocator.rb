@@ -14,6 +14,8 @@ module OsCtl::Image
     def get
       @mutex.synchronize do
         ip = @available.shift
+        raise OperationError, 'no IP addresses available' if ip.nil?
+
         @taken[ip.u32] = ip
         ip
       end
