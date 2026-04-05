@@ -114,19 +114,27 @@ module OsCtl::Exporter
     def collect(client, thread_collectors)
       client.try_to_connect do
         thread_collectors.reject(&:require_osctld).each do |c|
-          c.registry.atomic_replace do
-            c.collector_instance.run_collect(client)
-          end
+          run_collector(client, c)
         end
 
         if client.connected?
           thread_collectors.select(&:require_osctld).each do |c|
-            c.registry.atomic_replace do
-              c.collector_instance.run_collect(client)
-            end
+            run_collector(client, c)
           end
         end
       end
+    end
+
+    def run_collector(client, collector_cfg)
+      collector_cfg.registry.atomic_replace do
+        collector_cfg.collector_instance.run_collect(client)
+      end
+    rescue StandardError => e
+      log(
+        :warn,
+        "Collector #{collector_cfg.collector_class} failed: " \
+        "#{e.message} (#{e.class})"
+      )
     end
   end
 end
