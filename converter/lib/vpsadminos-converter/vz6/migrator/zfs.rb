@@ -103,7 +103,7 @@ module VpsAdminOS::Converter
 
       r, send = stream.spawn
       pid = Process.spawn(
-        *migrate_ssh_cmd(
+        *send_ssh_cmd(
           nil,
           opts,
           [
