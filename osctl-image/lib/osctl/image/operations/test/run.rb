@@ -86,12 +86,12 @@ module OsCtl::Image
       log(:warn, "Test '#{test}' failed with status #{e.rc}: #{e.output}")
       @status = Status.new(build.image, test, false, e.rc, e.output)
     ensure
-      ip_allocator.put(ip)
+      ip_allocator.put(ip) if ip
       cleanup(ctid)
     end
 
     def cleanup(ctid)
-      if status.success? || !keep_failed
+      if status&.success? || !keep_failed
         log(:info, "Cleaning up assets of test '#{test}'")
         client.kill_container(ctid)
         client.delete_container(ctid, prune: true)
