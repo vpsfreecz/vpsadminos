@@ -34,10 +34,8 @@ module OsCtl::Image
     # @return [String] ctid
     def execute
       build = Operations::Image::Build.new(base_dir, image, opts)
-      build.execute if opts[:rebuild]
-
-      if (!File.exist?(build.output_stream) && !File.exist?(build.output_tar)) \
-         || opts[:rebuild]
+      if opts[:rebuild] \
+         || (!File.exist?(build.output_stream) && !File.exist?(build.output_tar))
         build.execute
       end
 
