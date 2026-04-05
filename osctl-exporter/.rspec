@@ -1,0 +1,4 @@
+--default-path
+spec
+--pattern
+spec/**/*_spec.rb
