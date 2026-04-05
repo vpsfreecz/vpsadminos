@@ -26,38 +26,26 @@ module VpsAdminOS::Converter
 
     def sync
       require_args!('ctid')
-      migrator = Vz6::Migrator.load(args[0])
-      raise 'invalid migration sequence' unless migrator.can_proceed?(:sync)
-
-      migrator.sync(&method(:progress))
+      perform_sync(args[0])
     ensure
       progressbar_done
     end
 
     def transfer
       require_args!('ctid')
-      migrator = Vz6::Migrator.load(args[0])
-      raise 'invalid migration sequence' unless migrator.can_proceed?(:transfer)
-
-      migrator.transfer(&method(:progress))
+      perform_transfer(args[0])
     ensure
       progressbar_done
     end
 
     def cleanup
       require_args!('ctid')
-      migrator = Vz6::Migrator.load(args[0])
-      raise 'invalid migration sequence' unless migrator.can_proceed?(:cleanup)
-
-      migrator.cleanup(opts)
+      perform_cleanup(args[0])
     end
 
     def cancel
       require_args!('ctid')
-      migrator = Vz6::Migrator.load(args[0])
-      raise 'invalid migration sequence' unless migrator.can_proceed?(:cancel)
-
-      migrator.cancel(opts)
+      perform_cancel(args[0])
     end
 
     def now
@@ -72,19 +60,23 @@ module VpsAdminOS::Converter
 
         if $stdin.readline.strip.downcase != 'y'
           puts '* Cancelling migration'
-          cancel
+          perform_cancel(args[0])
           return
         end
       end
 
       puts '* Performing initial synchronization'
-      sync
+      perform_sync(args[0])
+      progressbar_done
 
       puts '* Transfering container to the destination'
-      transfer
+      perform_transfer(args[0])
+      progressbar_done
 
       puts '* Cleaning up'
-      cleanup
+      perform_cleanup(args[0])
+    ensure
+      progressbar_done
     end
 
     protected
@@ -119,6 +111,36 @@ module VpsAdminOS::Converter
 
       @pb.finish
       @pb = nil
+    end
+
+    private
+
+    def perform_sync(ctid)
+      migrator = Vz6::Migrator.load(ctid)
+      raise 'invalid migration sequence' unless migrator.can_proceed?(:sync)
+
+      migrator.sync(&method(:progress))
+    end
+
+    def perform_transfer(ctid)
+      migrator = Vz6::Migrator.load(ctid)
+      raise 'invalid migration sequence' unless migrator.can_proceed?(:transfer)
+
+      migrator.transfer(&method(:progress))
+    end
+
+    def perform_cleanup(ctid)
+      migrator = Vz6::Migrator.load(ctid)
+      raise 'invalid migration sequence' unless migrator.can_proceed?(:cleanup)
+
+      migrator.cleanup(opts)
+    end
+
+    def perform_cancel(ctid)
+      migrator = Vz6::Migrator.load(ctid)
+      raise 'invalid migration sequence' unless migrator.can_proceed?(:cancel)
+
+      migrator.cancel(opts)
     end
   end
 end
