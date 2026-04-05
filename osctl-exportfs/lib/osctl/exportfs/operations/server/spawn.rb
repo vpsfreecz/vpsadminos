@@ -78,12 +78,16 @@ module OsCtl::ExportFS
       end
 
       # Wait for the child to terminate and then cleanup
-      Process.wait(main)
-      File.unlink(server.pid_file)
+      _waited, status = Process.wait2(main)
+      FileUtils.rm_f(server.pid_file)
       syscmd("ip link del #{netif_host}")
 
       log(:info, 'Killing remaining processes')
       cgroup.clear_payload
+
+      return if status.success?
+
+      raise "server spawn failed with exit status #{status.exitstatus || 1}"
     end
 
     protected
@@ -210,7 +214,8 @@ module OsCtl::ExportFS
         end
       end
 
-      Process.wait(main)
+      _waited, status = Process.wait2(main)
+      exit!(status.exitstatus || 1) unless status.success?
     end
 
     def clear_mounts
