@@ -2,6 +2,8 @@ require 'osctl/exporter/collectors/base'
 
 module OsCtl::Exporter
   class Collectors::Pool < Collectors::Base
+    include OsCtl::Lib::Utils::Log
+
     def setup
       add_metric(
         :pools,
