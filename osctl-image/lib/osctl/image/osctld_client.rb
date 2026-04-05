@@ -9,10 +9,16 @@ module OsCtl::Image
 
     # Execute multiple commands within one connection
     def batch
+      opened_before_batch = @connected
       @batch = true
       yield(self)
     ensure
       @batch = false
+
+      if !opened_before_batch && @connected
+        @client.close
+        @connected = false
+      end
     end
 
     def ignore_error
