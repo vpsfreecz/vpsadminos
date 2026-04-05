@@ -39,6 +39,7 @@ module OsCtl::Exporter
 
       if $?.exitstatus != 0
         @zpool_list_success.set(0)
+        @zpool_list_parse_success.set(0)
         return
       end
 

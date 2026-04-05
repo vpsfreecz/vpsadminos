@@ -91,6 +91,7 @@ module OsCtl::Exporter
 
       if st.nil?
         @zpool_status_success.set(0)
+        @zpool_status_parse_success.set(0)
         return
       end
 
