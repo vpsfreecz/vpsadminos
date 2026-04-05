@@ -1,0 +1,68 @@
+# frozen_string_literal: true
+
+require 'spec_helper'
+
+RSpec.describe OsCtl::ExportFS::Operations::Export::Remove do
+  let(:exports_cfg) { OsCtl::ExportFS::Config::Exports.new([]) }
+  let(:cfg) { instance_double(OsCtl::ExportFS::Config::TopLevel, exports: exports_cfg, save: nil) }
+  let(:server) { instance_double(OsCtl::ExportFS::Server, open_config: cfg, running?: false) }
+  let(:sys) { build_fake_sys }
+
+  before do
+    allow(OsCtl::Lib::Sys).to receive(:new).and_return(sys)
+  end
+
+  it 'is a no-op when the export is absent' do
+    expect(described_class.new(server, '/exports/data', '*').execute).to be_nil
+    expect(cfg).not_to have_received(:save)
+  end
+
+  it 'removes the export from config and saves' do
+    export = OsCtl::ExportFS::Export.new(dir: '/srv/data', as: '/exports/data', host: '*', options: 'rw')
+    exports_cfg << export
+
+    described_class.new(server, '/exports/data', '*').execute
+
+    expect(exports_cfg.lookup('/exports/data', '*')).to be_nil
+    expect(cfg).to have_received(:save)
+  end
+
+  it 'unexports a running share and unmounts only the last target' do
+    export = OsCtl::ExportFS::Export.new(dir: '/srv/data', as: '/exports/data', host: '*', options: 'rw')
+    exports_cfg << export
+    allow(server).to receive(:running?).and_return(true)
+    allow(server).to receive(:enter_ns)
+    allow(OsCtl::ExportFS::Operations::Server::Exec).to receive(:run) do |_server, &block|
+      block.call
+    end
+    allow(OsCtl::ExportFS::Operations::Exportfs::Generate).to receive(:run)
+
+    op = described_class.new(server, '/exports/data', '*')
+    allow(op).to receive(:syscmd)
+    op.execute
+
+    expect(OsCtl::ExportFS::Operations::Exportfs::Generate).to have_received(:run).with(server)
+    expect(op).to have_received(:syscmd).with(%(exportfs -u "*:/exports/data"))
+    expect(sys).to have_received(:unmount).with('/exports/data')
+  end
+
+  it 'keeps the mount when another export still uses the same target' do
+    first = OsCtl::ExportFS::Export.new(dir: '/srv/data', as: '/exports/data', host: '*', options: 'rw')
+    second = OsCtl::ExportFS::Export.new(dir: '/srv/data', as: '/exports/data', host: '10.0.0.0/24', options: 'ro')
+    exports_cfg << first
+    exports_cfg << second
+    allow(server).to receive(:running?).and_return(true)
+    allow(server).to receive(:enter_ns)
+    allow(OsCtl::ExportFS::Operations::Server::Exec).to receive(:run) do |_server, &block|
+      block.call
+    end
+    allow(OsCtl::ExportFS::Operations::Exportfs::Generate).to receive(:run)
+
+    op = described_class.new(server, '/exports/data', '*')
+    allow(op).to receive(:syscmd)
+    op.execute
+
+    expect(sys).not_to have_received(:unmount)
+    expect(op).to have_received(:syscmd).with(%(exportfs -u "*:/exports/data"))
+  end
+end
