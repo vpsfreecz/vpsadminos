@@ -33,7 +33,7 @@ module VpsAdminOS::Converter::Cli
 
           c.desc 'Compression'
           c.flag %i[c compression], must_match: %w[auto off gzip],
-                                    default_value: 'gzip'
+                                    default_value: 'auto'
 
           vz6_opts(c)
 
