@@ -40,16 +40,19 @@ module VpsAdminOS::Converter
 
     def parse(io)
       io.each_line do |line|
+        raw_line = line
+        line = line.strip
+
         case line
-        when /^\s*#/, /^\s*$/
+        when /\A#/, /\A\z/
           next
 
-        when /^([A-Z_]+)="([^"]+)"/, /^([A-Z_]+)=([^\s]+)/
+        when /\A([A-Z_]+)="([^"]*)"\z/, /\A([A-Z_]+)=([^\s]+)\z/
           item = Vz6::ConfigItem.new(ctid, ::Regexp.last_match(1), ::Regexp.last_match(2))
           @items[item.key] = item
 
         else
-          warn "Unknown line '#{line}'"
+          warn "Unknown line '#{raw_line}'"
         end
       end
     end
