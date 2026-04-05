@@ -24,21 +24,13 @@ module OsCtl::Image
     def execute
       Operations::Repository::Create.run(repo_dir)
 
-      t = build.image
-
       Operations::Repository::AddImage.run(
         repo_dir,
         {
           tar: build.output_tar,
           zfs: build.output_stream
         }.compact,
-        {
-          distribution: t.distribution,
-          version: t.version,
-          arch: t.arch,
-          vendor: t.vendor,
-          variant: t.variant
-        },
+        build.image_attrs,
         tags
       )
     end

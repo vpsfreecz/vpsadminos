@@ -53,6 +53,7 @@ module OsCtl::Image
     def initialize(base_dir, image, opts)
       super()
       @base_dir = base_dir
+      @opts = opts
 
       @image = image
       image.load_config
@@ -104,13 +105,27 @@ module OsCtl::Image
       (output_tar && File.exist?(output_tar)) || File.exist?(output_stream)
     end
 
+    def effective_vendor
+      @effective_vendor ||= @opts[:vendor] || image.vendor
+    end
+
+    def image_attrs
+      @image_attrs ||= {
+        distribution: image.distribution,
+        version: image.version,
+        arch: image.arch,
+        vendor: effective_vendor,
+        variant: image.variant
+      }
+    end
+
     def log_type
       "build #{image.name}@#{builder.name}"
     end
 
     protected
 
-    attr_reader :client, :build_dataset, :work_dir
+    attr_reader :client, :build_dataset, :work_dir, :opts
 
     def build
       Operations::Builder::UseOrCreate.run(builder, base_dir, vpsadminos_dir:)

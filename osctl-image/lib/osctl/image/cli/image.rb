@@ -241,16 +241,9 @@ module OsCtl::Image
     # @param build [Operations::Image::Build]
     # @param repo [String] path to the repository
     def image_in_repo_unchanged?(build, repo)
-      img = build.image
       path = Operations::Repository::GetImagePath.run(
         repo,
-        {
-          distribution: img.distribution,
-          version: img.version,
-          arch: img.arch,
-          variant: img.variant,
-          vendor: img.vendor
-        },
+        build.image_attrs,
         :zfs
       )
 

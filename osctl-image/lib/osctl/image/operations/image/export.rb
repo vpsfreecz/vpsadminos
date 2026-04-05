@@ -15,11 +15,11 @@ module OsCtl::Image
       @build = build
       @container_config = ContainerConfig.new
 
-      container_config.distribution = build.image.distribution
-      container_config.version = build.image.version
-      container_config.arch = build.image.arch
-      container_config.vendor = build.image.vendor
-      container_config.variant = build.image.variant
+      container_config.distribution = build.image_attrs[:distribution]
+      container_config.version = build.image_attrs[:version]
+      container_config.arch = build.image_attrs[:arch]
+      container_config.vendor = build.image_attrs[:vendor]
+      container_config.variant = build.image_attrs[:variant]
       container_config.dataset = OsCtl::Lib::Zfs::Dataset.new(
         build.output_dataset,
         base: build.output_dataset
