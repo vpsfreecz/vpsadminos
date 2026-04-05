@@ -51,13 +51,16 @@ module VpsAdminOS::Converter
         puts '> base stream'
         exporter.dump_base
 
-        if vz_ct.running? && opts[:consistent]
-          puts '> stopping container'
-          syscmd("vzctl stop #{vz_ct.ctid}")
+        running = vz_ct.running? && opts[:consistent]
+        next unless running
 
+        puts '> stopping container'
+        syscmd("vzctl stop #{vz_ct.ctid}")
+
+        begin
           puts '> incremental stream'
           exporter.dump_incremental
-
+        ensure
           puts '> restarting container'
           syscmd("vzctl start #{vz_ct.ctid}")
         end
