@@ -116,9 +116,9 @@ module VpsAdminOS::Converter
     end
 
     def veid_subst(ctid, v)
-      v.gsub!('$VEID', ctid)
-      v.gsub!('${VEID}', ctid)
       v
+        .gsub('$VEID', ctid)
+        .gsub('${VEID}', ctid)
     end
 
     def parse_addrs(v)
