@@ -44,7 +44,7 @@ module OsCtl::Image
       )
 
       raise OperationError, 'image not found' unless img
-      raise OperationError 'image format not found' unless img.has_image?(format)
+      raise OperationError, 'image format not found' unless img.has_image?(format)
 
       File.join(repo_dir, img.version_image_path(format))
     end
