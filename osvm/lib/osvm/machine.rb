@@ -447,7 +447,7 @@ module OsVm
     # @return [Machine]
     def push_file(src, dst, preserve: false, mkpath: false)
       mkdir_p(File.dirname(dst)) if mkpath
-      shared_dir.push_file(src, dst)
+      shared_dir.push_file(src, dst, preserve:)
       self
     end
 
