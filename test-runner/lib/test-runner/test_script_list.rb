@@ -25,7 +25,10 @@ module TestRunner
       test = @test_list.by_path(test_path)
 
       if script_name
-        test.test_scripts[script_name]
+        script = test.test_scripts[script_name]
+        raise "Test #{test_path} does not have script ##{script_name}" if script.nil?
+
+        script
       elsif test.test_scripts.length == 1
         test.test_scripts.first[1]
       else
