@@ -50,7 +50,7 @@ module SvCtl
     sv = Service.new(service, runlevel)
     raise 'service not found' unless sv.exist?
 
-    sv.enable
+    sv.enable unless sv.enabled?
   end
 
   # Disable service from selected runlevel
