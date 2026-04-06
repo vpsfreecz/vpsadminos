@@ -138,7 +138,7 @@ module OsVm
     def kill(signal: 'TERM')
       unless running?
         log.kill('NONE')
-        return
+        return self
       end
 
       log.kill(signal)
