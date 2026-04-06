@@ -1,0 +1,77 @@
+name: RSpec
+
+on:
+  push:
+    paths:
+      - .github/workflows/rspec.yml
+      - .github/workflows/scripts/run-rspec-all.sh
+      - .ruby-version
+      - flake.nix
+      - flake.lock
+      - os/overlays/osctl.nix
+      - os/overlays/ruby.nix
+      - converter/**
+      - libosctl/**
+      - osctl/**
+      - osctl-exporter/**
+      - osctl-exportfs/**
+      - osctl-image/**
+      - osctl-oomd/**
+      - osctl-repo/**
+      - osctld/**
+      - osup/**
+      - osvm/**
+      - svctl/**
+      - test-runner/**
+  pull_request:
+    paths:
+      - .github/workflows/rspec.yml
+      - .github/workflows/scripts/run-rspec-all.sh
+      - .ruby-version
+      - flake.nix
+      - flake.lock
+      - os/overlays/osctl.nix
+      - os/overlays/ruby.nix
+      - converter/**
+      - libosctl/**
+      - osctl/**
+      - osctl-exporter/**
+      - osctl-exportfs/**
+      - osctl-image/**
+      - osctl-oomd/**
+      - osctl-repo/**
+      - osctld/**
+      - osup/**
+      - osvm/**
+      - svctl/**
+      - test-runner/**
+
+concurrency:
+  group: rspec-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  rspec:
+    name: RSpec
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            extra-substituters = https://cache.vpsadminos.org
+            extra-trusted-public-keys = cache.vpsadminos.org:wpIJlNZQIhS+0gFf1U3MC9sLZdLW3sh5qakOWGDoDrE=
+            fallback = true
+            connect-timeout = 15
+
+      - name: Run all RSpec suites
+        run: |
+          nix develop .#vpsadminos -c bash .github/workflows/scripts/run-rspec-all.sh
