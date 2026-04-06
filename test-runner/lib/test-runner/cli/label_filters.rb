@@ -7,7 +7,7 @@ module TestRunner::Cli
 
     # @param test_script [TestRunner::TestScript]
     def pass?(test_script)
-      filters.all? { |f| f.call(test) }
+      filters.all? { |f| f.call(test_script) }
     end
 
     protected
@@ -34,7 +34,7 @@ module TestRunner::Cli
           next
         end
 
-        raise GLI::BadCommandLine, "Invalid filter '#{v}'"
+        raise GLI::BadCommandLine, "Invalid filter '#{s}'"
       end
 
       ret
