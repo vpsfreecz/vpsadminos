@@ -24,7 +24,7 @@ jobs:
     outputs:
       kernelVersions: ${{ steps.set.outputs.kernelVersions }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -47,7 +47,7 @@ jobs:
     timeout-minutes: 480
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Determine branch name
         id: vars

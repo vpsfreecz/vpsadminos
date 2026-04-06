@@ -43,7 +43,7 @@ jobs:
     timeout-minutes: 480
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Determine branch name
         id: vars
@@ -79,7 +79,7 @@ jobs:
     timeout-minutes: 240
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Determine job count
         id: determine-test-jobs

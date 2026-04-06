@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 180
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Determine branch name
         id: vars
@@ -56,7 +56,7 @@ jobs:
     outputs:
       images: ${{ steps.set.outputs.images }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -85,7 +85,7 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 86400
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Determine job count
         id: determine-test-jobs
