@@ -66,7 +66,7 @@ module OsCtl::Oomd
     def watched?(pool, id)
       @mutex.synchronize do
         ct = @containers["#{pool}:#{id}"]
-        ct && (ct.restart_hits > 0 || ct.stop_hits > 0)
+        !ct.nil? && (ct.restart_hits > 0 || ct.stop_hits > 0)
       end
     end
 
@@ -118,9 +118,11 @@ module OsCtl::Oomd
       ctid = "#{pool}:#{id}"
       log(:info, "#{action} #{ctid}")
       now = Time.now
+      reset_hits = @dry_run
 
       unless @dry_run
         if Kernel.system('osctl', 'ct', action.to_s, '--kill', ctid)
+          reset_hits = true
           event = {
             events: [
               type: 'osctl_oomd',
@@ -148,9 +150,9 @@ module OsCtl::Oomd
         end
       end
 
-      @mutex.synchronize do
-        @containers[ctid]&.send(:"reset_#{action}_hits")
-      end
+      return unless reset_hits
+
+      @mutex.synchronize { @containers[ctid]&.send(:"reset_#{action}_hits") }
     end
 
     def prune
