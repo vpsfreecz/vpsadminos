@@ -137,7 +137,7 @@ module TestRunner
 
     # Start all machines
     def start_all
-      machines.each(&:start)
+      machines.each_value(&:start)
     end
 
     # Invoke interactive shell from within a test
