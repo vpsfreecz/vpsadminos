@@ -1,5 +1,6 @@
 require 'fileutils'
 require 'json'
+require 'digest'
 
 module TestRunner
   class Executor
@@ -198,7 +199,7 @@ module TestRunner
       r, w = IO.pipe
 
       # 4 ports for use with boot.qemu.networks.[i].socket.mcast.port
-      mcast_ports = OsVm::PortReservation.get_ports(key: test.name, size: 4)
+      mcast_ports = OsVm::PortReservation.get_ports(key: "test:#{test.path}", size: 4)
 
       pid = Process.fork do
         r.close
@@ -312,7 +313,7 @@ module TestRunner
 
       Process.wait(pid)
 
-      OsVm::PortReservation.release_ports(key: test.name)
+      OsVm::PortReservation.release_ports(key: "test:#{test.path}")
 
       # Complement script results if some are missing
       scripts.each do |script|
@@ -359,7 +360,7 @@ module TestRunner
     end
 
     def test_state_dir(test)
-      File.join(state_dir, "os-test-#{test.name}")
+      File.join(state_dir, "os-test-#{test_state_key(test)}")
     end
 
     def test_sock_dir
@@ -368,6 +369,11 @@ module TestRunner
 
     def state_dir
       opts[:state_dir]
+    end
+
+    def test_state_key(test)
+      slug = test.path.gsub(/[^A-Za-z0-9_.-]+/, '__')
+      "#{slug}-#{Digest::SHA256.hexdigest(test.path)[0, 8]}"
     end
 
     def last_nonempty_line(path, max_bytes: 8192)
