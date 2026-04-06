@@ -129,6 +129,7 @@ let
         "kernel/tmpfs/cgroups-v2"
         "kernel/uptime"
         "osctl/ct-cat"
+        "osctl/ct-chown-filecaps"
         "osctl/ct-exec-v1"
         "osctl/ct-exec-v2"
         "osctl/ct-image-fetch"
