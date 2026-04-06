@@ -31,25 +31,25 @@ module OsCtl::Oomd
     protected
 
     def parse(args)
-      interval = 15
-
       options = {
-        'interval' => interval,
+        'interval' => 15,
         'cpu_percent' => 90,
         'memory_percent' => 95,
         'load_multiplier' => 2.0,
         'load_top' => 5,
-        'restart_hits' => 120 / interval,
-        'stop_hits' => 600 / interval,
         'export_file' => '/run/metrics/osctl-oomd.prom',
         'verbose' => false
       }
+      explicit_restart_hits = false
+      explicit_stop_hits = false
 
       parser = OptionParser.new do |opts|
         opts.banner = "Usage: #{$0} [options]"
 
         opts.on('-c', '--config FILE', 'Config file') do |v|
           cfg = OsCtl::Lib::ConfigFile.load_yaml_file(v)
+          explicit_restart_hits ||= cfg.has_key?('restart_hits')
+          explicit_stop_hits ||= cfg.has_key?('stop_hits')
           options.update(cfg)
         end
 
@@ -74,10 +74,12 @@ module OsCtl::Oomd
         end
 
         opts.on('--restart-hits HITS', Integer, 'Containers with N hits are restarted') do |v|
+          explicit_restart_hits = true
           options['restart_hits'] = v
         end
 
         opts.on('--stop-hits HITS', Integer, 'Containers with N hits are stopped') do |v|
+          explicit_stop_hits = true
           options['stop_hits'] = v
         end
 
@@ -94,6 +96,9 @@ module OsCtl::Oomd
         warn parser
         exit(false)
       end
+
+      options['restart_hits'] = 120 / options.fetch('interval') unless explicit_restart_hits
+      options['stop_hits'] = 600 / options.fetch('interval') unless explicit_stop_hits
 
       options
     end
