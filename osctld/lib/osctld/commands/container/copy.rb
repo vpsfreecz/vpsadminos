@@ -93,7 +93,7 @@ module OsCtld
       snaps << builder.copy_datasets(src_datasets, dst_datasets)
 
       if ct.running? && opts[:consistent]
-        call_cmd(Commands::Container::Stop, id: ct.id, pool: ct.pool.name)
+        call_cmd!(Commands::Container::Stop, id: ct.id, pool: ct.pool.name)
 
         # Force write-out of dirtied pages
         if Daemon.get.config.writeout_dirtied_pages?
@@ -108,7 +108,7 @@ module OsCtld
         snaps << builder.copy_datasets(src_datasets, dst_datasets, from: snaps.last)
 
         if opts[:restart].nil? || opts[:restart]
-          call_cmd(
+          call_cmd!(
             Commands::Container::Start,
             id: ct.id,
             pool: ct.pool.name,
@@ -117,10 +117,19 @@ module OsCtld
           )
         end
       end
+    ensure
+      cleanup_copy_snapshots(src_datasets, dst_datasets, snaps, ct)
+    end
 
-      # Cleanup snapshots
+    def cleanup_copy_snapshots(src_datasets, dst_datasets, snaps, ct)
+      return if snaps.empty?
+
       (src_datasets + dst_datasets).each do |ds|
-        snaps.each { |s| zfs(:destroy, nil, "#{ds}@#{s}") }
+        snaps.reverse_each do |snap|
+          zfs(:destroy, nil, "#{ds.name}@#{snap}")
+        rescue StandardError => e
+          log(:warn, ct, "Unable to destroy copy snapshot #{ds.name}@#{snap}: #{e.message}")
+        end
       end
     end
   end
