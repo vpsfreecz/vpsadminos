@@ -35,8 +35,14 @@ let
       scriptsList = lib.mapAttrsToList (name: type: { image-script = name; }) scriptsAttrs;
     in
     scriptsList;
+
+  proactiveSwapTests =
+    if builtins.getEnv "VPSADMINOS_ENABLE_PROACTIVE_SWAP_TEST" == "1" then
+      [ "kernel/proactive-swap" ]
+    else
+      [ ];
 in
-testLib.makeTests [
+testLib.makeTests ([
   "cgroups/devices-v1"
   "cgroups/devices-v2"
   {
@@ -150,4 +156,4 @@ testLib.makeTests [
   "zfs/mmap-nosync"
   "zfs/overlayfs-deadlock"
   "zfs/ugidmap"
-]
+] ++ proactiveSwapTests)
