@@ -6,7 +6,7 @@
 }:
 with lib.kernel;
 let
-  availableKernels = import ./available-kernels.nix;
+  availableKernels = import ./available-kernels.nix { inherit lib; };
 
   inherit (availableKernels) kernels;
 
@@ -24,6 +24,11 @@ let
       inherit kernelVersion;
       url = linuxGhUrl vpsfGh kernels.${kernelVersion}.rev;
       sha256 = kernels.${kernelVersion}.sha256;
+      structuredExtraConfig =
+        if builtins.hasAttr "structuredExtraConfig" kernels.${kernelVersion} then
+          kernels.${kernelVersion}.structuredExtraConfig
+        else
+          { };
       features =
         if builtins.hasAttr "features" kernels.${kernelVersion} then
           kernels.${kernelVersion}.features
@@ -38,6 +43,11 @@ let
       url = linuxGhUrl vpsfGh kernels.${kernelVersion}.rev;
       sha256 = kernels.${kernelVersion}.sha256;
       zfsBuiltinPkg = zfsBuiltinPkg;
+      structuredExtraConfig =
+        if builtins.hasAttr "structuredExtraConfig" kernels.${kernelVersion} then
+          kernels.${kernelVersion}.structuredExtraConfig
+        else
+          { };
       features = lib.mkMerge [
         (
           if builtins.hasAttr "features" kernels.${kernelVersion} then

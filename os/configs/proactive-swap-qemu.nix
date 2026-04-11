@@ -9,37 +9,42 @@ let
   diskPathEnv = builtins.getEnv "VPSADMINOS_PROACTIVE_SWAP_DISK";
 
   kernelVersion = if kernelVersionEnv == "" then "6.12.79" else kernelVersionEnv;
-  linuxSrc =
-    if linuxSnapshot == "" then
-      throw "VPSADMINOS_LINUX_SNAPSHOT must point to a prepared linux tree"
-    else
-      /. + linuxSnapshot;
   diskPath = if diskPathEnv == "" then "/root/ai/tmp/proactive-swap-sda.img" else diskPathEnv;
 
-  localKernel = pkgs.callPackage ../packages/linux/generic.nix (rec {
-    version = kernelVersion;
-    modDirVersion = lib.concatStringsSep "." (lib.take 3 (lib.splitString "." "${version}.0"));
-    extraMeta.branch = lib.concatStringsSep "." (lib.take 2 (lib.splitString "." version));
-    src = linuxSrc;
-    kernelPatches = [ pkgs.kernelPatches.bridge_stp_helper ];
-    structuredExtraConfig = with lib.kernel; {
-      DAMON = yes;
-      DAMON_VADDR = yes;
-      DAMON_PADDR = yes;
-      DAMON_SYSFS = yes;
-      DAMON_RECLAIM = yes;
-    };
-    features =
-      if builtins.hasAttr "features" kernelPackages.kernels.${version} then
-        kernelPackages.kernels.${version}.features
-      else
-        { };
-    zfsBuiltinPkg = null;
-  });
+  localKernel =
+    if linuxSnapshot == "" then
+      null
+    else
+      pkgs.callPackage ../packages/linux/generic.nix (rec {
+        version = kernelVersion;
+        modDirVersion = lib.concatStringsSep "." (lib.take 3 (lib.splitString "." "${version}.0"));
+        extraMeta.branch = lib.concatStringsSep "." (lib.take 2 (lib.splitString "." version));
+        src = /. + linuxSnapshot;
+        kernelPatches = [ pkgs.kernelPatches.bridge_stp_helper ];
+        structuredExtraConfig = with lib.kernel; {
+          DAMON = yes;
+          DAMON_VADDR = yes;
+          DAMON_PADDR = yes;
+          DAMON_SYSFS = yes;
+          DAMON_RECLAIM = yes;
+        };
+        features =
+          if builtins.hasAttr "features" kernelPackages.kernels.${version} then
+            kernelPackages.kernels.${version}.features
+          else
+            { };
+        zfsBuiltinPkg = null;
+      });
 in
 {
   boot.kernelVersion = lib.mkForce kernelVersion;
-  boot.kernelPackage = lib.mkForce localKernel;
+  boot.kernelPackage =
+    lib.mkForce (
+      if localKernel != null then
+        localKernel
+      else
+        kernelPackages.genKernelPackage kernelVersion
+    );
   boot.zfsBuiltin = lib.mkForce false;
 
   boot.qemu.disks = lib.mkForce [

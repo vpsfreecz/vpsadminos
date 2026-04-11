@@ -15,7 +15,8 @@
     let
       supportedSystems = [ "x86_64-linux" ];
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
-      kernelVersions = builtins.attrNames (import ./os/packages/linux/available-kernels.nix).kernels;
+      kernelVersions =
+        builtins.attrNames (import ./os/packages/linux/available-kernels.nix { lib = nixpkgs.lib; }).kernels;
       ciKernelOutputName =
         kernelVersion:
         "ci-toplevel-kernel-" + nixpkgs.lib.replaceStrings [ "." "-" ] [ "_" "_" ] kernelVersion;

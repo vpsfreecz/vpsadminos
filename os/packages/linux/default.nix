@@ -11,6 +11,7 @@
   url,
   sha256,
   features,
+  structuredExtraConfig ? { },
   zfsBuiltinPkg ? null,
   ...
 }:
@@ -34,6 +35,8 @@ callPackage ./generic.nix (rec {
   };
 
   kernelPatches = [ pkgs.kernelPatches.bridge_stp_helper ];
+
+  inherit structuredExtraConfig;
 
   inherit features;
 })

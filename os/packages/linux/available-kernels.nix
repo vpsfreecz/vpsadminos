@@ -1,11 +1,20 @@
+{ lib ? import <nixpkgs/lib> { } }:
+with lib.kernel;
 {
   stableKernelVersion = "6.12.79";
   unstableKernelVersion = "6.12.79";
 
   kernels = {
     "6.12.79" = {
-      rev = "d2c357a7def0248c08084e4f0bf97d6a2fe53826";
-      sha256 = "sha256-KFXNgxsSNKCiQTEI+XLgmp4i47p977q8Ut5bwWis3Js=";
+      rev = "ba2e5771d4cf731b6cc5a6de78e39ecb377a7d34";
+      sha256 = "sha256-mw1npph/YnU1cOVYKHCgzh5LRo3n63JTPj1TrrS516U=";
+      structuredExtraConfig = {
+        DAMON = yes;
+        DAMON_VADDR = yes;
+        DAMON_PADDR = yes;
+        DAMON_SYSFS = yes;
+        DAMON_RECLAIM = yes;
+      };
       zfs = {
         rev = "d4d28949b5a5d774d8677528659e3e84497cc18b";
         sha256 = "sha256-6EtwS4ONz49Z2oAx31bKHf9c7NiVsoXnIB4ngCqFyd4=";
