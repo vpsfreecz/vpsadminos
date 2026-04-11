@@ -1,5 +1,6 @@
 [
   ./config/defaults.nix
+  ./config/damon-reclaim.nix
   ./config/kernel.nix
   ./config/runit.nix
   ./config/system-path.nix
