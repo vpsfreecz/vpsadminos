@@ -18,6 +18,12 @@ build-qemu-script:
 qemu-script:
 	$(MAKE) -C os qemu-script
 
+build-qemu-proactive-swap:
+	$(MAKE) -C os build-qemu-proactive-swap
+
+qemu-proactive-swap:
+	$(MAKE) -C os qemu-proactive-swap
+
 gems: libosctl osctl-repo osctl osctld osup osctl-image osctl-exporter osctl-exportfs osctl-oomd converter svctl test-runner osvm
 	echo "$(GEM_VERSION).build$(BUILD_ID)" > .build_id
 	nixfmt os/packages/*/gemset.nix

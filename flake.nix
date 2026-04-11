@@ -243,6 +243,7 @@
             };
 
           qemuSystem = mkQemuSystem [ ];
+          proactiveSwapQemuSystem = mkQemuSystem [ ./os/configs/proactive-swap-qemu.nix ];
           ciQemuSystem = mkQemuSystem [ kernelDevToplevelModule ];
 
           kernelCiQemuSystems = builtins.listToAttrs (
@@ -329,9 +330,11 @@
           {
             default = qemuSystem.config.system.build.runvm;
             qemu = qemuSystem.config.system.build.runvm;
+            qemu-proactive-swap = proactiveSwapQemuSystem.config.system.build.runvm;
             toplevel = qemuSystem.config.system.build.toplevel;
             ci-toplevel = ciQemuSystem.config.system.build.toplevel;
             qemu-script = qemuSystem.config.system.build.runvmScript;
+            qemu-script-proactive-swap = proactiveSwapQemuSystem.config.system.build.runvmScript;
             os-rebuild = qemuSystem.config.system.build.os-rebuild;
             iso = isoSystem.config.system.build.isoImage;
             iso-local = isoLocalSystem.config.system.build.runvm;

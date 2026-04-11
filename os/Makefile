@@ -62,6 +62,15 @@ build-qemu-script:
 qemu-script: build-qemu-script
 	./result/qemu-script
 
+build-qemu-proactive-swap:
+	$(NIX) build --impure \
+	 --out-link result/qemu-proactive-swap \
+	 --cores $(CORES) -j $(JOBS) $(TRACE) \
+	 $(ROOT)#qemu-proactive-swap
+
+qemu-proactive-swap: build-qemu-proactive-swap
+	./result/qemu-proactive-swap
+
 # flash ISO to /dev/disk/by-label/VPSADMINOS_BOOT_CD
 flash: iso
 	sudo dd if=result/iso/vpsadminos.iso of=/dev/disk/by-label/VPSADMINOS_BOOT_CD bs=1M
