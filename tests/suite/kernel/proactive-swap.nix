@@ -20,6 +20,7 @@ import ../../make-test.nix (
 
           boot.enableUnifiedCgroupHierarchy = true;
           boot.qemu.memory = lib.mkOverride 40 2048;
+          boot.kernel.sysctl."vm.min_free_kbytes" = lib.mkOverride 40 65536;
 
           environment.systemPackages = with pkgs; [
             python3
@@ -106,12 +107,14 @@ import ../../make-test.nix (
 
       machine.succeeds(<<~SH)
         sh -eu -c '
+          : > /tmp/proactive-holder.out
           python3 /tmp/proactive-holder.py >/tmp/proactive-holder.out 2>&1 &
           pid=$!
           echo "$pid" > /tmp/proactive-holder.pid
           echo "$pid" > #{cgroup}/cgroup.procs
           for i in $(seq 1 100); do
             grep -q "^ready$" /tmp/proactive-holder.out && exit 0
+            kill -0 "$pid" 2>/dev/null || { cat /tmp/proactive-holder.out >&2; exit 1; }
             sleep 0.1
           done
           exit 1
