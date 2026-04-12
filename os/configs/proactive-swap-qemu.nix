@@ -8,7 +8,7 @@ let
   kernelVersionEnv = builtins.getEnv "VPSADMINOS_PROACTIVE_SWAP_KERNEL_VERSION";
   diskPathEnv = builtins.getEnv "VPSADMINOS_PROACTIVE_SWAP_DISK";
 
-  kernelVersion = if kernelVersionEnv == "" then "6.12.79" else kernelVersionEnv;
+  kernelVersion = if kernelVersionEnv == "" then "6.12.81" else kernelVersionEnv;
   diskPath = if diskPathEnv == "" then "/root/ai/tmp/proactive-swap-sda.img" else diskPathEnv;
 
   localKernel =
