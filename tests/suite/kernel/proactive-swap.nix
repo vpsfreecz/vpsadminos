@@ -112,11 +112,12 @@ import ../../make-test.nix (
           pid=$!
           echo "$pid" > /tmp/proactive-holder.pid
           echo "$pid" > #{cgroup}/cgroup.procs
-          for i in $(seq 1 100); do
+          for i in $(seq 1 300); do
             grep -q "^ready$" /tmp/proactive-holder.out && exit 0
             kill -0 "$pid" 2>/dev/null || { cat /tmp/proactive-holder.out >&2; exit 1; }
             sleep 0.1
           done
+          cat /tmp/proactive-holder.out >&2 || true
           exit 1
         '
       SH
@@ -124,23 +125,105 @@ import ../../make-test.nix (
       machine.wait_until_succeeds("test $(cat #{cgroup}/memory.current) -gt #{900 * 1024 * 1024}")
       machine.succeeds("sleep 5")
 
+      machine.all_succeed(
+        "sv down damon-reclaim",
+        "printf N > /sys/module/damon_reclaim/parameters/enabled"
+      )
+      machine.wait_until_succeeds("test \"$(cat /sys/module/damon_reclaim/parameters/enabled)\" = N")
+
       machine.succeeds(<<~'SH')
         sh -eu -c '
-          params=/sys/module/damon_reclaim/parameters
-          avail_kb=$(awk "/MemAvailable:/ {print \$2}" /proc/meminfo)
-          target_bytes=$((avail_kb * 1024 + 512 * 1024 * 1024))
-          echo 100000 > "$params/min_age"
-          echo 1000 > "$params/quota_ms"
-          echo 1073741824 > "$params/quota_sz"
-          echo 1000 > "$params/quota_reset_interval_ms"
-          echo "$target_bytes" > "$params/quota_free_mem_bytes"
-          echo N > "$params/skip_anon"
-          echo Y > "$params/commit_inputs"
+          admin=/sys/kernel/mm/damon/admin
+          kd="$admin/kdamonds/0"
+          ctx="$kd/contexts/0"
+          target="$ctx/targets/0"
+          scheme="$ctx/schemes/0"
+          region="$target/regions/0"
+          filters="$scheme/filters"
+
+          echo 1 > "$admin/kdamonds/nr_kdamonds"
+          echo 1 > "$kd/contexts/nr_contexts"
+          echo paddr > "$ctx/operations"
+
+          echo 5000 > "$ctx/monitoring_attrs/intervals/sample_us"
+          echo 100000 > "$ctx/monitoring_attrs/intervals/aggr_us"
+          echo 0 > "$ctx/monitoring_attrs/intervals/update_us"
+          echo 10 > "$ctx/monitoring_attrs/nr_regions/min"
+          echo 1000 > "$ctx/monitoring_attrs/nr_regions/max"
+
+          echo 1 > "$ctx/targets/nr_targets"
+          echo 1 > "$target/regions/nr_regions"
+
+          python3 - <<'PY' > /tmp/damon-target-region
+import re
+
+best = None
+with open("/proc/iomem") as f:
+    for line in f:
+        m = re.match(r"^([0-9a-fA-F]+)-([0-9a-fA-F]+) : System RAM$", line.strip())
+        if not m:
+            continue
+        start = int(m.group(1), 16)
+        end = int(m.group(2), 16) + 1
+        size = end - start
+        if best is None or size > best[0]:
+            best = (size, start, end)
+
+if best is None:
+    raise SystemExit("failed to find System RAM region")
+
+print(best[1])
+print(best[2])
+PY
+
+          start=$(sed -n "1p" /tmp/damon-target-region)
+          end=$(sed -n "2p" /tmp/damon-target-region)
+          echo "$start" > "$region/start"
+          echo "$end" > "$region/end"
+
+          echo 1 > "$ctx/schemes/nr_schemes"
+          echo pageout > "$scheme/action"
+          echo 0 > "$scheme/apply_interval_us"
+          echo 4096 > "$scheme/access_pattern/sz/min"
+          echo 1073741824 > "$scheme/access_pattern/sz/max"
+          echo 0 > "$scheme/access_pattern/nr_accesses/min"
+          echo 0 > "$scheme/access_pattern/nr_accesses/max"
+          echo 10 > "$scheme/access_pattern/age/min"
+          echo 4294967295 > "$scheme/access_pattern/age/max"
+
+          echo 0 > "$scheme/quotas/ms"
+          echo 1073741824 > "$scheme/quotas/bytes"
+          echo 1000 > "$scheme/quotas/reset_interval_ms"
+
+          echo none > "$scheme/watermarks/metric"
+          echo 5000000 > "$scheme/watermarks/interval_us"
+          echo 1000 > "$scheme/watermarks/high"
+          echo 1000 > "$scheme/watermarks/mid"
+          echo 0 > "$scheme/watermarks/low"
+
+          echo 2 > "$filters/nr_filters"
+          echo anon > "$filters/0/type"
+          echo N > "$filters/0/matching"
+          echo memcg > "$filters/1/type"
+          echo N > "$filters/1/matching"
+          echo /proactive-test > "$filters/1/memcg_path"
+
+          echo on > "$kd/state"
         '
       SH
 
-      machine.wait_until_succeeds("test $(cat #{cgroup}/memory.swap.current) -gt 0", timeout: 180)
+      machine.wait_until_succeeds(
+        "sh -eu -c 'echo update_schemes_stats > /sys/kernel/mm/damon/admin/kdamonds/0/state; test $(cat /sys/kernel/mm/damon/admin/kdamonds/0/contexts/0/schemes/0/stats/sz_applied) -gt 0'",
+        timeout: 180
+      )
+      machine.wait_until_succeeds("test $(cat #{cgroup}/memory.swap.current) -gt #{normal_swap_bytes}", timeout: 180)
       machine.wait_until_succeeds("test $(awk '/^proactive / {print $2}' #{cgroup}/memory.swap.events) -gt 0", timeout: 180)
+
+      machine.all_succeed(
+        "echo off > /sys/kernel/mm/damon/admin/kdamonds/0/state",
+        "sleep 1"
+      )
+      machine.wait_until_succeeds("test \"$(cat /sys/kernel/mm/damon/admin/kdamonds/0/state)\" = off")
 
       proactive_swap_bytes =
         machine.succeeds("cat #{cgroup}/memory.swap.current")[1].strip.to_i
