@@ -63,13 +63,21 @@ import ../../make-test.nix (
       _, kdamond_pid = machine.succeeds("cat /sys/module/damon_reclaim/parameters/kdamond_pid")
       expect(kdamond_pid.strip.to_i).to be > 0
 
+      host_swap_bytes = 1024 * 1024 * 1024
+
+      _, host_swap_device = machine.succeeds(<<~SH)
+        sh -eu -c '
+          modprobe zram
+          zramctl --find --size #{host_swap_bytes}
+        '
+      SH
+      host_swap_device = host_swap_device.strip
+
       machine.all_succeed(
-        "dd if=/dev/zero of=/swapfile bs=1M count=1024 status=none",
-        "chmod 600 /swapfile",
-        "mkswap /swapfile",
-        "swapon /swapfile"
+        "mkswap #{host_swap_device}",
+        "swapon #{host_swap_device}"
       )
-      machine.wait_until_succeeds("grep -q '^/swapfile' /proc/swaps")
+      machine.wait_until_succeeds("grep -q '^#{host_swap_device}' /proc/swaps")
 
       cgroup = "/sys/fs/cgroup/proactive-test"
       normal_swap_bytes = 64 * 1024 * 1024
