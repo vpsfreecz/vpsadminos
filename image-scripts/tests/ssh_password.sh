@@ -15,10 +15,15 @@ function try_password {
 		root@$IPADDR hostname
 }
 
+function has_password_hash {
+	osctl ct exec $CTID sh -c "grep -q '^root:[^!*]' /etc/shadow"
+}
+
 function test_ssh {
 	try_password notreally && fail "accepted unset password"
 	try_password "" && fail "accepted empty password"
 	osctl ct passwd $CTID root $PASSWORD || fail "unable to set password"
+	has_password_hash || fail "password was not applied"
 	try_password justno && fail "accepted invalid password"
 	try_password $PASSWORD || fail "rejected valid password"
 }

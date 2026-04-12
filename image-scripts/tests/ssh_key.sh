@@ -26,6 +26,10 @@ function install_key {
 	osctl ct runscript $CTID <(install_script)
 }
 
+function has_key {
+	osctl ct exec $CTID cat /root/.ssh/authorized_keys | grep -qxF "$PUBLIC_KEY"
+}
+
 function reject_nokey {
 	ssh -o StrictHostKeyChecking=no \
 		-o UserKnownHostsFile=/dev/null \
@@ -51,6 +55,7 @@ function accept_key {
 
 function test_ssh {
 	install_key || fail "failed to install public key"
+	has_key || fail "public key was not installed"
 	reject_nokey || fail "accepted invalid key"
 	accept_key || fail "rejected valid key"
 }

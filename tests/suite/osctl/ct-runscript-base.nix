@@ -20,6 +20,11 @@ import ../../make-test.nix (
         exit 33
       '';
 
+      sideEffect = pkgs.writeScript "test-side-effect-script" ''
+        #!/bin/sh
+        touch /root/runscript-side-effect
+      '';
+
       net = pkgs.writeScript "test-net-script" ''
         #!/bin/sh
         set -e
@@ -96,6 +101,16 @@ import ../../make-test.nix (
         elsif !output.start_with?('error: ')
           fail "#{msg}: unexpected runscript output: #{output.inspect}"
         end
+
+        # silent side effect
+        machine.succeeds("osctl ct exec -r #{ctid} rm -f /root/runscript-side-effect")
+        _, output = machine.succeeds("osctl ct runscript #{opts} #{ctid} ${scripts.sideEffect}")
+
+        if !output.empty?
+          fail "#{msg}: unexpected runscript output: #{output.inspect}"
+        end
+
+        machine.succeeds("osctl ct exec -r #{ctid} test -f /root/runscript-side-effect")
       end
 
       # Runscript on a running container

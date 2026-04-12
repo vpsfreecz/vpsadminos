@@ -125,12 +125,20 @@ module OsCtld
           # runscript is run in parallel, 1-2 out of 10 calls fail with ETXTBSY,
           # which LXC translates to LXC::Error. So we try to call the script
           # multiple times, until *something* releases the file.
+          last_error = nil
+
           10.times do
-            LXC.run_command([opts[:script]] + opts[:args])
-            break
-          rescue LXC::Error
-            sleep(0.1)
+            begin
+              LXC.run_command([opts[:script]] + opts[:args])
+              last_error = nil
+              break
+            rescue LXC::Error => e
+              last_error = e
+              sleep(0.1)
+            end
           end
+
+          raise last_error if last_error
         end
 
         _, status = Process.wait2(pid)

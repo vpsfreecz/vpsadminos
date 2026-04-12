@@ -10,19 +10,9 @@ module OsCtld
       log(:warn, ct, "Unable to apply hostname: #{e.message}")
     end
 
-    def passwd(opts)
+    def chpasswd_command
       # Without the -c switch, the password is not set (bug?)
-      ret = ct_syscmd(
-        ct,
-        %w[chpasswd -c SHA512],
-        stdin: "#{opts[:user]}:#{opts[:password]}\n",
-        run: true,
-        valid_rcs: :all
-      )
-
-      return true if ret.success?
-
-      log(:warn, ct, "Unable to set password: #{ret.output}")
+      %w[chpasswd -c SHA512]
     end
   end
 end
