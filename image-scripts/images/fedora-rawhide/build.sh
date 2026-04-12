@@ -17,5 +17,12 @@ configure-common
 configure-redhat-common
 configure-fedora
 configure-fedora-nm-keyfiles
+
+configure-append <<'EOF'
+systemctl mask systemd-hostnamed.service
+systemctl mask kmscon.service
+systemctl mask kmsconvt@.service
+EOF
+
 configure-systemd-console-getty
 run-configure
