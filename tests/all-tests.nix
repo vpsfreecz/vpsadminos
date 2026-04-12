@@ -137,6 +137,7 @@ let
         "osctl/ct-image-fetch"
         "osctl/ct-map-mode"
         "osctl/ct-mounts"
+        "osctl/ct-passwd"
         "osctl/ct-runscript-v1"
         "osctl/ct-runscript-v2"
         "osctl/ct-send-recv"
