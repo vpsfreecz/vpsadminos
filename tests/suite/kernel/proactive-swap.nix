@@ -19,6 +19,7 @@ import ../../make-test.nix (
           ];
 
           boot.enableUnifiedCgroupHierarchy = true;
+          boot.qemu.memory = lib.mkForce 2048;
 
           environment.systemPackages = with pkgs; [
             python3
@@ -93,7 +94,7 @@ import ../../make-test.nix (
         cat > /tmp/proactive-holder.py <<'PY'
         import time
 
-        size = 768 * 1024 * 1024
+        size = 1024 * 1024 * 1024
         buf = bytearray(size)
         for i in range(0, size, 4096):
             buf[i] = 1
@@ -117,7 +118,8 @@ import ../../make-test.nix (
         '
       SH
 
-      machine.wait_until_succeeds("test $(cat #{cgroup}/memory.current) -gt #{700 * 1024 * 1024}")
+      machine.wait_until_succeeds("test $(cat #{cgroup}/memory.current) -gt #{900 * 1024 * 1024}")
+      machine.succeeds("sleep 5")
 
       machine.succeeds(<<~'SH')
         sh -eu -c '
