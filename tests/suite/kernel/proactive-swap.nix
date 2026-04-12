@@ -19,7 +19,7 @@ import ../../make-test.nix (
           ];
 
           boot.enableUnifiedCgroupHierarchy = true;
-          boot.qemu.memory = lib.mkForce 2048;
+          boot.qemu.memory = lib.mkOverride 40 2048;
 
           environment.systemPackages = with pkgs; [
             python3
