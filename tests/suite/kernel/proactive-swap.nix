@@ -19,7 +19,6 @@ import ../../make-test.nix (
           ];
 
           boot.enableUnifiedCgroupHierarchy = true;
-          tty.autologin.enable = lib.mkForce false;
 
           environment.systemPackages = with pkgs; [
             python3
@@ -51,7 +50,6 @@ import ../../make-test.nix (
 
       machine.start
 
-      machine.wait_for_service("test-shell")
       machine.wait_for_service("damon-reclaim")
       machine.wait_until_succeeds("test -d /sys/module/damon_reclaim/parameters")
       machine.wait_until_succeeds("test \"$(cat /sys/module/damon_reclaim/parameters/enabled)\" = Y")
