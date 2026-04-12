@@ -128,14 +128,12 @@ module OsCtld
           last_error = nil
 
           10.times do
-            begin
-              LXC.run_command([opts[:script]] + opts[:args])
-              last_error = nil
-              break
-            rescue LXC::Error => e
-              last_error = e
-              sleep(0.1)
-            end
+            LXC.run_command([opts[:script]] + opts[:args])
+            last_error = nil
+            break
+          rescue LXC::Error => e
+            last_error = e
+            sleep(0.1)
           end
 
           raise last_error if last_error

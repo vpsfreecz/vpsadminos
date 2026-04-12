@@ -22,7 +22,7 @@ import ../../make-test.nix (
 
       sideEffect = pkgs.writeScript "test-side-effect-script" ''
         #!/bin/sh
-        touch /root/runscript-side-effect
+        touch /root/runscript-side-effect.single
       '';
 
       net = pkgs.writeScript "test-net-script" ''
@@ -69,7 +69,7 @@ import ../../make-test.nix (
         "osctl ct start startedct",
       )
 
-      common_tests = Proc.new do |msg, ctid, opts|
+      common_tests = Proc.new do |msg, ctid, opts, parallel|
         # capture stdout
         _, output = machine.succeeds("osctl ct runscript #{opts} #{ctid} ${scripts.stdout}")
 
@@ -103,14 +103,32 @@ import ../../make-test.nix (
         end
 
         # silent side effect
-        machine.succeeds("osctl ct exec -r #{ctid} rm -f /root/runscript-side-effect")
+        machine.succeeds("osctl ct exec -r #{ctid} rm -f /root/runscript-side-effect.*")
         _, output = machine.succeeds("osctl ct runscript #{opts} #{ctid} ${scripts.sideEffect}")
 
         if !output.empty?
           fail "#{msg}: unexpected runscript output: #{output.inspect}"
         end
 
-        machine.succeeds("osctl ct exec -r #{ctid} test -f /root/runscript-side-effect")
+        machine.succeeds("osctl ct exec -r #{ctid} test -f /root/runscript-side-effect.single")
+
+        if parallel
+          # Run the same script in parallel to surface ETXTBSY retries.
+          machine.succeeds(
+            "seq 1 20 | xargs -I{} -P 20 sh -c " \
+            "'tmp=$(mktemp); " \
+            "printf \"#!/bin/sh\\ntouch /root/runscript-side-effect.{}\\n\" > \"$tmp\"; " \
+            "chmod 500 \"$tmp\"; " \
+            "osctl ct runscript #{opts} #{ctid} \"$tmp\"; " \
+            "rc=$?; " \
+            "rm -f \"$tmp\"; " \
+            "exit $rc'"
+          )
+
+          (1..20).each do |i|
+            machine.succeeds("osctl ct exec -r #{ctid} test -f /root/runscript-side-effect.#{i}")
+          end
+        end
       end
 
       # Runscript on a running container
@@ -124,6 +142,7 @@ import ../../make-test.nix (
         'runscript on a running container',
         'startedct',
         "",
+        true,
       )
 
       # Runscript on a stopped container
@@ -137,6 +156,7 @@ import ../../make-test.nix (
         'runscript on a stopped container',
         'stoppedct',
         '-r',
+        false,
       )
 
 
@@ -151,6 +171,7 @@ import ../../make-test.nix (
         'runscript on a running container with -r',
         'startedct',
         '-r',
+        true,
       )
 
 
@@ -165,6 +186,7 @@ import ../../make-test.nix (
         'runscript on a stopped container with networking',
         'startedct',
         '-rn',
+        true,
       )
 
       # Runscript on a stopped container with networking
@@ -192,6 +214,7 @@ import ../../make-test.nix (
         'runscript on a running container with -rn',
         'startedct',
         '-rn',
+        true,
       )
     '';
   }
