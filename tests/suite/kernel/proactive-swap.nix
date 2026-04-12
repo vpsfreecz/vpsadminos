@@ -19,6 +19,7 @@ import ../../make-test.nix (
           ];
 
           boot.enableUnifiedCgroupHierarchy = true;
+          tty.autologin.enable = lib.mkForce false;
 
           environment.systemPackages = with pkgs; [
             python3
