@@ -1,6 +1,9 @@
 require_cmd debootstrap
 
 CONFIGURE_DEBIAN="$CONFIGURE.debian"
+# Keep root password auth effectively disabled, but do not lock the account:
+# newer Debian/OpenSSH rejects public-key auth for locked root accounts.
+DISABLED_ROOT_PASSWORD_HASH='$6$ul8FqSw0PsE6fHPL$XLZMyMhoPWj9u3xVmJENhtPpE0llHiZpXNcWHec7PgEXN8rf//HZon6dnReHFNzm17uBGH5hAdh/Yegb51zh30'
 
 function bootstrap {
 	mkdir $INSTALL/etc
@@ -56,7 +59,11 @@ mkdir /lib/modules
 for pkg in ureadahead eject ntpdate resolvconf ; do
 	PATH=/tmp/:\$PATH apt-get purge -y $pkg
 done
-usermod -L root
+usermod -p '$DISABLED_ROOT_PASSWORD_HASH' root
+sed -ri 's/^#?PasswordAuthentication .*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+grep -q '^PasswordAuthentication ' /etc/ssh/sshd_config || echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config
+sed -ri 's/^#?PermitRootLogin .*/PermitRootLogin yes/' /etc/ssh/sshd_config
+grep -q '^PermitRootLogin ' /etc/ssh/sshd_config || echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
 rm -f /etc/ssh/ssh_host_*
 
 cat > /etc/systemd/system/sshd-keygen.service <<"KEYGENSVC"
