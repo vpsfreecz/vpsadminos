@@ -521,12 +521,28 @@ module OsVm
         ret << '-device' << "vhost-user-fs-pci,queue-size=1024,chardev=char#{i},tag=#{name}"
       end
 
-      if ret.any?
+      if ret.any? && !custom_qemu_numa_memory_backend?
         ret << '-object' << "memory-backend-file,id=m0,size=#{config.memory}M,mem-path=/dev/shm,share=on"
         ret << '-numa' << 'node,memdev=m0'
       end
 
       ret
+    end
+
+    def custom_qemu_numa_memory_backend?
+      opts = config.extra_qemu_options
+      has_memory_backend = false
+      has_numa_memdev = false
+
+      opts.each_cons(2) do |arg, value|
+        if arg == '-object' && value.start_with?('memory-backend-')
+          has_memory_backend = true
+        elsif arg == '-numa' && value.start_with?('node,') && value.include?('memdev=')
+          has_numa_memdev = true
+        end
+      end
+
+      has_memory_backend && has_numa_memdev
     end
 
     def start_virtiofs
