@@ -66,9 +66,6 @@
       };
 
       debian = {
-        "10" = {
-          tags = [ "oldoldstable" ];
-        };
         "11" = {
           tags = [ "oldstable" ];
         };
