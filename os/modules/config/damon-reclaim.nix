@@ -23,6 +23,21 @@ in
       '';
     };
 
+    scope = mkOption {
+      type = types.enum [
+        "global"
+        "perNode"
+      ];
+      default = "global";
+      description = ''
+        Reclaim scope.
+
+        ``global`` uses one DAMON_RECLAIM scheme for the configured global
+        target region. ``perNode`` applies the same policy independently on
+        each NUMA node that has matching System RAM.
+      '';
+    };
+
     minAge = mkOption {
       type = types.int;
       default = 120000000;
@@ -295,6 +310,8 @@ in
       ];
 
       run = ''
+        set -eu
+
         params=/sys/module/damon_reclaim/parameters
         target_enabled="${boolString cfg.enable}"
 
@@ -323,6 +340,7 @@ in
         fi
 
         write_param min_age "${toString cfg.minAge}"
+        write_param scope "${if cfg.scope == "perNode" then "per-node" else "global"}"
         write_param quota_ms "${toString cfg.quota.ms}"
         write_param quota_sz "${toString cfg.quota.size}"
         write_param quota_reset_interval_ms "${toString cfg.quota.resetIntervalMs}"

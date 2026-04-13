@@ -101,6 +101,7 @@ in
         echo "PROACTIVE_SWAP_SMOKE param_dir=MISSING" > /dev/console
       fi
       show_param enabled
+      show_param scope
       show_param quota_free_mem_bytes
       show_param quota_free_mem_rate
       show_param kdamond_pid
