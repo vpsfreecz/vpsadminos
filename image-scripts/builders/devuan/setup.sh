@@ -1,3 +1,3 @@
 set -e
 apt-get update
-apt-get -y install curl debootstrap
+apt-get -y install curl debootstrap openssl

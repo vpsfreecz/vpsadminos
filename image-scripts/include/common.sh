@@ -53,6 +53,15 @@ function configure-append {
 	cat >> $CONFIGURE
 }
 
+function generate_unusable_password_hash {
+	require_cmd openssl
+
+	# Generate a per-build password hash from a one-time 72-byte random
+	# secret (~576 bits of entropy). This keeps password auth effectively
+	# unusable without baking one shared fallback password into all images.
+	openssl rand -base64 72 | tr -d '\n' | openssl passwd -6 -stdin
+}
+
 function configure-common {
 	configure-append <<EOF
 export PATH="/bin:/sbin:/usr/bin:$PATH"
@@ -83,4 +92,3 @@ function set-initcmd {
 		shift
 	done
 }
-

@@ -1,9 +1,6 @@
 require_cmd debootstrap
 
 CONFIGURE_DEBIAN="$CONFIGURE.debian"
-# Keep root password auth effectively disabled, but do not lock the account:
-# newer Debian/OpenSSH rejects public-key auth for locked root accounts.
-DISABLED_ROOT_PASSWORD_HASH='$6$ul8FqSw0PsE6fHPL$XLZMyMhoPWj9u3xVmJENhtPpE0llHiZpXNcWHec7PgEXN8rf//HZon6dnReHFNzm17uBGH5hAdh/Yegb51zh30'
 
 function bootstrap {
 	mkdir $INSTALL/etc
@@ -32,6 +29,10 @@ function configure-debian-append {
 }
 
 function configure-debian {
+	local disabled_root_password_hash
+
+	disabled_root_password_hash=$(generate_unusable_password_hash)
+
 	configure-shebang "#!/bin/bash"
 	configure-append <<EOF
 fakefiles="initctl invoke-rc.d restart start stop start-stop-daemon service"
@@ -59,7 +60,10 @@ mkdir /lib/modules
 for pkg in ureadahead eject ntpdate resolvconf ; do
 	PATH=/tmp/:\$PATH apt-get purge -y $pkg
 done
-usermod -p '$DISABLED_ROOT_PASSWORD_HASH' root
+# Keep root key-based logins working: newer Debian/OpenSSH rejects locked
+# root accounts, so use a per-build high-entropy random password hash
+# instead of usermod -L.
+usermod -p '$disabled_root_password_hash' root
 sed -ri 's/^#?PasswordAuthentication .*/PasswordAuthentication yes/' /etc/ssh/sshd_config
 grep -q '^PasswordAuthentication ' /etc/ssh/sshd_config || echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config
 sed -ri 's/^#?PermitRootLogin .*/PermitRootLogin yes/' /etc/ssh/sshd_config

@@ -33,6 +33,7 @@ cat <<EOF > /etc/nixos/configuration.nix
   environment.systemPackages = with pkgs; [
     git
     gnumake
+    openssl
   ];
 
   time.timeZone = "Europe/Amsterdam";
