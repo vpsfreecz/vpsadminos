@@ -149,12 +149,6 @@ import ../../../make-test.nix (
 
                 %w[SwapTotal SwapFree].each do |v|
                   it "has virtualized #{v}" do
-                    ${pkgs.lib.optionalString (cgroupsVersion == 1) ''
-                      if v == 'SwapFree' && swap_limit > 0
-                        pending('broken on cgroups v1, it returns 0 or actual swap device size')
-                      end
-                    ''}
-
                     expect(@ct_mem[v]).to eq(@swap_total)
                   end
                 end
