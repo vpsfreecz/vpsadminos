@@ -4,7 +4,8 @@ import ../../make-test.nix (
     name = "kernel-proactive-swap";
 
     description = ''
-      Smoke test the proactive DAMON reclaim configuration
+      Smoke test proactive DAMON reclaim, including NUMA-node scoped reclaim
+      and cgroup virtual swap reporting
     '';
 
     tags = [ "proactive-swap" ];
@@ -19,8 +20,33 @@ import ../../make-test.nix (
           ];
 
           boot.enableUnifiedCgroupHierarchy = true;
-          boot.qemu.memory = lib.mkOverride 40 2048;
+          boot.qemu.memory = lib.mkOverride 0 3072;
+          boot.qemu.cpus = lib.mkOverride 0 2;
+          boot.qemu.cpu.cores = lib.mkOverride 0 1;
+          boot.qemu.cpu.threads = lib.mkOverride 0 1;
+          boot.qemu.cpu.sockets = lib.mkOverride 0 2;
+          boot.qemu.extraQemuOptions = lib.mkOverride 0 [
+            "-object"
+            "memory-backend-file,id=node0,size=1536M,mem-path=/dev/shm,share=on"
+            "-object"
+            "memory-backend-file,id=node1,size=1536M,mem-path=/dev/shm,share=on"
+            "-numa"
+            "node,nodeid=0,cpus=0,memdev=node0"
+            "-numa"
+            "node,nodeid=1,cpus=1,memdev=node1"
+          ];
           boot.kernel.sysctl."vm.min_free_kbytes" = lib.mkOverride 40 65536;
+          boot.damon.reclaim = {
+            scope = lib.mkOverride 0 "global";
+            minAge = lib.mkOverride 0 1000000;
+            quota.ms = lib.mkOverride 0 0;
+            quota.size = lib.mkOverride 0 1073741824;
+            quota.freeMemRate = lib.mkOverride 0 0;
+            quota.freeMemBytes = lib.mkOverride 0 0;
+            watermarks.high = lib.mkOverride 0 530;
+            watermarks.mid = lib.mkOverride 0 430;
+            watermarks.low = lib.mkOverride 0 0;
+          };
 
           environment.systemPackages = with pkgs; [
             python3
@@ -54,10 +80,37 @@ import ../../make-test.nix (
 
       machine.wait_for_service("damon-reclaim")
       machine.wait_until_succeeds("test -d /sys/module/damon_reclaim/parameters")
-      machine.wait_until_succeeds("test \"$(cat /sys/module/damon_reclaim/parameters/enabled)\" = Y")
+
+      enable_status, enable_output = machine.execute(<<~'SH')
+        sh -eu -c '
+          params=/sys/module/damon_reclaim/parameters
+
+          for i in $(seq 1 30); do
+            if [ "$(cat "$params/enabled")" = Y ]; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "enabled=$(cat "$params/enabled")"
+          echo "scope=$(cat "$params/scope")"
+          echo "kdamond_pid=$(cat "$params/kdamond_pid")"
+          grep . "$params"/* || true
+          sv status damon-reclaim || true
+          dmesg | tail -n 200 || true
+
+          echo Y > "$params/enabled"
+        '
+      SH
+      expect(enable_status).to eq(0), enable_output
+
+      machine.wait_until_succeeds("test -d /sys/devices/system/node/node1")
+
+      _, scope = machine.succeeds("cat /sys/module/damon_reclaim/parameters/scope")
+      expect(scope.strip).to eq("global")
 
       _, free_mem_bytes = machine.succeeds("cat /sys/module/damon_reclaim/parameters/quota_free_mem_bytes")
-      expect(free_mem_bytes.strip).to eq("536870912")
+      expect(free_mem_bytes.strip).to eq("0")
 
       _, free_mem_rate = machine.succeeds("cat /sys/module/damon_reclaim/parameters/quota_free_mem_rate")
       expect(free_mem_rate.strip).to eq("0")
@@ -84,6 +137,7 @@ import ../../make-test.nix (
       cgroup = "/sys/fs/cgroup/proactive-test"
       normal_swap_bytes = 64 * 1024 * 1024
       normal_swap_kb = normal_swap_bytes / 1024
+      holder_bytes = 768 * 1024 * 1024
 
       machine.all_succeed(
         "mkdir -p #{cgroup}",
@@ -91,11 +145,11 @@ import ../../make-test.nix (
         "printf '%d' #{normal_swap_bytes} > #{cgroup}/memory.swap.max"
       )
 
-      machine.succeeds(<<~'SH')
+      machine.succeeds(<<~SH)
         cat > /tmp/proactive-holder.py <<'PY'
         import time
 
-        size = 1024 * 1024 * 1024
+        size = #{holder_bytes}
         buf = bytearray(size)
         for i in range(0, size, 4096):
             buf[i] = 1
@@ -108,7 +162,8 @@ import ../../make-test.nix (
       machine.succeeds(<<~SH)
         sh -eu -c '
           : > /tmp/proactive-holder.out
-          python3 /tmp/proactive-holder.py >/tmp/proactive-holder.out 2>&1 &
+          numactl --cpunodebind=1 --membind=1 \
+            python3 /tmp/proactive-holder.py >/tmp/proactive-holder.out 2>&1 &
           pid=$!
           echo "$pid" > /tmp/proactive-holder.pid
           echo "$pid" > #{cgroup}/cgroup.procs
@@ -122,8 +177,53 @@ import ../../make-test.nix (
         '
       SH
 
-      machine.wait_until_succeeds("test $(cat #{cgroup}/memory.current) -gt #{900 * 1024 * 1024}")
+      machine.wait_until_succeeds("test $(cat #{cgroup}/memory.current) -gt #{650 * 1024 * 1024}")
+      machine.wait_until_succeeds("grep -Eq '(^| )N1=[1-9]' /proc/$(cat /tmp/proactive-holder.pid)/numa_maps")
       machine.succeeds("sleep 5")
+      global_memtotal_kb =
+        machine.succeeds("awk '/^MemTotal:/ {print $2}' /proc/meminfo")[1].strip.to_i
+      global_memfree_kb =
+        machine.succeeds("awk '/^MemFree:/ {print $2}' /proc/meminfo")[1].strip.to_i
+      node1_memtotal_kb =
+        machine.succeeds("awk '$3 == \"MemTotal:\" {print $4}' /sys/devices/system/node/node1/meminfo")[1].strip.to_i
+      node1_memfree_kb =
+        machine.succeeds("awk '$3 == \"MemFree:\" {print $4}' /sys/devices/system/node/node1/meminfo")[1].strip.to_i
+
+      global_free_rate = global_memfree_kb * 1000 / global_memtotal_kb
+      node1_free_rate = node1_memfree_kb * 1000 / node1_memtotal_kb
+
+      expect(global_free_rate).to be > 530
+      expect(node1_free_rate).to be < 430
+
+      initial_tried_bytes =
+        machine.succeeds("cat /sys/module/damon_reclaim/parameters/bytes_reclaim_tried_regions")[1].strip.to_i
+
+      machine.succeeds(<<~SH)
+        sh -eu -c '
+          initial=#{initial_tried_bytes}
+          params=/sys/module/damon_reclaim/parameters
+
+          for i in $(seq 1 15); do
+            current=$(cat "$params/bytes_reclaim_tried_regions")
+            test "$current" -eq "$initial"
+            sleep 1
+          done
+        '
+      SH
+
+      machine.all_succeed(
+        "printf 'per-node' > /sys/module/damon_reclaim/parameters/scope",
+        "printf Y > /sys/module/damon_reclaim/parameters/commit_inputs"
+      )
+      machine.wait_until_succeeds("test \"$(cat /sys/module/damon_reclaim/parameters/commit_inputs)\" = N")
+
+      _, scope = machine.succeeds("cat /sys/module/damon_reclaim/parameters/scope")
+      expect(scope.strip).to eq("per-node")
+
+      machine.wait_until_succeeds(
+        "test $(cat /sys/module/damon_reclaim/parameters/bytes_reclaim_tried_regions) -gt #{initial_tried_bytes}",
+        timeout: 180
+      )
 
       machine.all_succeed(
         "sv down damon-reclaim",
