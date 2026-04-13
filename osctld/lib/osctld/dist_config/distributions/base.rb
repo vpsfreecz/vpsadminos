@@ -1,7 +1,5 @@
 require 'osctld/dist_config/configurator'
 require 'libosctl'
-require 'shellwords'
-require 'tempfile'
 
 module OsCtld
   class DistConfig::Distributions::Base
@@ -217,18 +215,10 @@ module OsCtld
     # @option opts [String] user
     # @option opts [String] password
     def passwd(opts)
-      input = nil
-      input = Tempfile.create(['.osctld-passwd', '.input'], ct.get_run_conf.rootfs)
-      input.chmod(0o600)
-      input.write("#{opts[:user]}:#{opts[:password]}\n")
-      input.close
-
-      shell = File.join(bin_path, 'sh')
-      container_path = File.join('/', File.basename(input.path))
-
       ret = ct_syscmd(
         ct,
-        [shell, '-c', "#{Shellwords.join(chpasswd_command)} < #{Shellwords.escape(container_path)}"],
+        chpasswd_command,
+        stdin: "#{opts[:user]}:#{opts[:password]}\n",
         run: true,
         valid_rcs: :all
       )
@@ -236,12 +226,6 @@ module OsCtld
       return true if ret.success?
 
       log(:warn, ct, "Unable to set password: #{ret.output}")
-    ensure
-      begin
-        File.unlink(input.path) if input
-      rescue SystemCallError
-        nil
-      end
     end
 
     # Return path to `/bin` or an alternative, where a shell is looked up
