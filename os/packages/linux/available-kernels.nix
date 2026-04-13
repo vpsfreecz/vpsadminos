@@ -1,4 +1,4 @@
-{ lib ? import <nixpkgs/lib> { } }:
+{ lib }:
 with lib.kernel;
 {
   stableKernelVersion = "6.12.81";

@@ -33,7 +33,7 @@ jobs:
       - id: set
         shell: bash
         run: |
-          kernelVersions=$(nix eval --json --file os/packages/linux/available-kernels.nix | jq -c '.kernels | keys')
+          kernelVersions=$(nix eval --json .#lib.kernelVersions)
           echo "Detected available kernels: $kernelVersions"
           echo "kernelVersions=$kernelVersions" >> "$GITHUB_OUTPUT"
 

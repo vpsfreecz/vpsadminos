@@ -15,8 +15,8 @@
     let
       supportedSystems = [ "x86_64-linux" ];
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
-      kernelVersions =
-        builtins.attrNames (import ./os/packages/linux/available-kernels.nix { lib = nixpkgs.lib; }).kernels;
+      availableKernels = import ./os/packages/linux/available-kernels.nix { lib = nixpkgs.lib; };
+      kernelVersions = builtins.attrNames availableKernels.kernels;
       ciKernelOutputName =
         kernelVersion:
         "ci-toplevel-kernel-" + nixpkgs.lib.replaceStrings [ "." "-" ] [ "_" "_" ] kernelVersion;
@@ -99,66 +99,72 @@
         );
     in
     {
-      lib.vpsadminosSystem = vpsadminosSystem;
-      lib.testFramework = {
-        mkTests =
-          {
-            system,
-            pkgsPath ? nixpkgs.outPath,
-            testsRoot,
-            suiteArgs ? { },
-            testConfig ? { },
-            configuration ? null,
-          }:
-          let
-            allTests = import (testsRoot + "/all-tests.nix") {
-              pkgs = pkgsPath;
-              inherit
-                system
-                suiteArgs
-                testConfig
-                configuration
-                ;
-            };
-          in
-          builtins.mapAttrs (_: t: t.test.json) allTests;
+      lib = {
+        inherit
+          availableKernels
+          kernelVersions
+          ;
+        vpsadminosSystem = vpsadminosSystem;
+        testFramework = {
+          mkTests =
+            {
+              system,
+              pkgsPath ? nixpkgs.outPath,
+              testsRoot,
+              suiteArgs ? { },
+              testConfig ? { },
+              configuration ? null,
+            }:
+            let
+              allTests = import (testsRoot + "/all-tests.nix") {
+                pkgs = pkgsPath;
+                inherit
+                  system
+                  suiteArgs
+                  testConfig
+                  configuration
+                  ;
+              };
+            in
+            builtins.mapAttrs (_: t: t.test.json) allTests;
 
-        mkTestsMeta =
-          {
-            system,
-            pkgsPath ? nixpkgs.outPath,
-            testsRoot,
-            suiteArgs ? { },
-            testConfig ? { },
-            configuration ? null,
-          }:
-          let
-            nixpkgs' = import pkgsPath { inherit system; };
-            lib' = nixpkgs'.lib;
+          mkTestsMeta =
+            {
+              system,
+              pkgsPath ? nixpkgs.outPath,
+              testsRoot,
+              suiteArgs ? { },
+              testConfig ? { },
+              configuration ? null,
+            }:
+            let
+              nixpkgs' = import pkgsPath { inherit system; };
+              lib' = nixpkgs'.lib;
 
-            testLib = import (self.outPath + "/test-runner/nix/lib.nix") {
-              pkgs = pkgsPath;
-              inherit
-                system
-                configuration
-                testConfig
-                ;
-              lib = lib';
-              suitePath = testsRoot + "/suite";
-              inherit suiteArgs;
-            };
+              testLib = import (self.outPath + "/test-runner/nix/lib.nix") {
+                pkgs = pkgsPath;
+                inherit
+                  system
+                  configuration
+                  testConfig
+                  ;
+                lib = lib';
+                suitePath = testsRoot + "/suite";
+                inherit suiteArgs;
+              };
 
-            allTests = import (testsRoot + "/all-tests.nix") {
-              pkgs = pkgsPath;
-              inherit
-                system
-                suiteArgs
-                testConfig
-                configuration
-                ;
-            };
-          in
-          testLib.metaFromAllTests allTests;
+              allTests = import (testsRoot + "/all-tests.nix") {
+                pkgs = pkgsPath;
+                inherit
+                  system
+                  suiteArgs
+                  testConfig
+                  configuration
+                  ;
+              };
+            in
+            testLib.metaFromAllTests allTests;
+        };
       };
       nixpkgsPath = nixpkgs.outPath;
 
