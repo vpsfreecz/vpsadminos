@@ -17,6 +17,7 @@
 
   boot.zfs.pools.tank = {
     doCreate = true;
+    properties."feature@block_cloning" = "disabled";
     wipe = [
       "sda"
       "sdb"

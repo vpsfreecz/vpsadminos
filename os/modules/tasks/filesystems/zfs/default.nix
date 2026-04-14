@@ -506,7 +506,9 @@ let
               types.int
             ]
           );
-          default = { };
+          default = {
+            "feature@block_cloning" = "disabled";
+          };
           example = {
             readonly = "on";
           };

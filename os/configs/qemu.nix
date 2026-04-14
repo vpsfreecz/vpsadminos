@@ -43,6 +43,7 @@
       ];
       doCreate = true;
       install = true;
+      properties."feature@block_cloning" = "disabled";
     };
   };
 
