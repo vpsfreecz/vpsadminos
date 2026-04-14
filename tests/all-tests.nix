@@ -39,11 +39,7 @@ let
   proactiveSwapEnabled = builtins.getEnv "VPSADMINOS_ENABLE_PROACTIVE_SWAP_TEST" == "1";
   proactiveSwapOnly = builtins.getEnv "VPSADMINOS_ONLY_PROACTIVE_SWAP_TEST" == "1";
 
-  proactiveSwapTests =
-    if proactiveSwapEnabled then
-      [ "kernel/proactive-swap" ]
-    else
-      [ ];
+  proactiveSwapTests = if proactiveSwapEnabled then [ "kernel/proactive-swap" ] else [ ];
 
   selectedTests =
     if proactiveSwapOnly then
@@ -161,9 +157,11 @@ let
           };
         }
         "zfs/full-suite"
+        "zfs/block-cloning-corruption"
         "zfs/mmap-nosync"
         "zfs/overlayfs-deadlock"
         "zfs/ugidmap"
-      ] ++ proactiveSwapTests;
+      ]
+      ++ proactiveSwapTests;
 in
 testLib.makeTests selectedTests
