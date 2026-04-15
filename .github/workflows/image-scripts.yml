@@ -63,10 +63,18 @@ jobs:
       - id: set
         shell: bash
         run: |
-          BASE_SHA=$(jq -r '.before // .pull_request.base.sha' "$GITHUB_EVENT_PATH")
+          BASE_SHA=$(jq -r '.before // .pull_request.base.sha // ""' "$GITHUB_EVENT_PATH")
           HEAD_SHA=$GITHUB_SHA
+          DEFAULT_BRANCH=$(jq -r '.repository.default_branch // ""' "$GITHUB_EVENT_PATH")
+          CURRENT_BRANCH=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
 
-          images=$(BASE_SHA="$BASE_SHA" HEAD_SHA="$HEAD_SHA" ruby .github/workflows/scripts/changed-image-scripts.rb)
+          images=$(
+            BASE_SHA="$BASE_SHA" \
+            HEAD_SHA="$HEAD_SHA" \
+            DEFAULT_BRANCH="$DEFAULT_BRANCH" \
+            CURRENT_BRANCH="$CURRENT_BRANCH" \
+            ruby .github/workflows/scripts/changed-image-scripts.rb
+          )
           echo "Detected images: $images"
           echo "images=$images" >> "$GITHUB_OUTPUT"
 

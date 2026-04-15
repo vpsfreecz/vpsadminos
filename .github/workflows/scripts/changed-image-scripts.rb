@@ -1,16 +1,48 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'open3'
+require 'shellwords'
+
+ZERO_SHA = ('0' * 40).freeze
+EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
 
 base = ENV.fetch('BASE_SHA')
 head = ENV.fetch('HEAD_SHA')
+default_branch = ENV.fetch('DEFAULT_BRANCH')
+current_branch = ENV.fetch('CURRENT_BRANCH')
 
-# Fetch the base commit in case of a force-push
-`git fetch origin #{base}`
+def run!(*cmd)
+  warn "Running #{Shellwords.join(cmd)}"
+  stdout, stderr, status = Open3.capture3(*cmd)
+  warn stderr unless stderr.empty?
+  raise "#{cmd.first} failed" unless status.success?
 
-git_diff = "git diff --name-only #{base} #{head}"
-warn "Running #{git_diff}"
+  stdout
+end
 
-changed_files = `#{git_diff}`.split("\n")
-raise 'git diff failed' if $?.exitstatus != 0
+def commit_exists?(rev)
+  system('git', 'cat-file', '-e', "#{rev}^{commit}", out: File::NULL, err: File::NULL)
+end
+
+def zero_sha?(rev)
+  rev.nil? || rev.empty? || rev == ZERO_SHA
+end
+
+if zero_sha?(base)
+  if current_branch == default_branch
+    base = EMPTY_TREE
+  else
+    run!('git', 'fetch', 'origin', default_branch)
+    base = run!('git', 'merge-base', "origin/#{default_branch}", head).strip
+    raise 'git merge-base returned an empty base revision' if base.empty?
+  end
+elsif !commit_exists?(base)
+  # Fetch the base commit in case of a force-push.
+  run!('git', 'fetch', 'origin', base)
+end
+
+changed_files = run!('git', 'diff', '--name-only', base, head).split("\n")
 
 img_root = 'image-scripts/images'
 include_root = 'image-scripts/include'
