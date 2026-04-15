@@ -30,7 +30,6 @@ INSTALLPKG=
 PKGLIST="$DOWNLOAD/pkglist.txt"
 PKGS="
 aaa_base
-aaa_elflibs
 aaa_glibc-solibs
 aaa_libraries
 aaa_terminfo
@@ -56,7 +55,6 @@ eudev
 file
 findutils
 gawk
-genpower
 glibc-zoneinfo
 gmp
 gnupg
@@ -82,7 +80,6 @@ libpwquality
 libseccomp
 libsigsegv
 libsodium
-libtermcap
 libtirpc
 libunistring
 libusb
@@ -96,6 +93,7 @@ ncurses
 net-tools
 nettle
 network-scripts
+nut
 openssh
 n/openssl
 a/openssl-solibs
@@ -106,7 +104,7 @@ pcre2
 perl
 pkgtools
 procps
-python
+python3
 readline
 sed
 shadow

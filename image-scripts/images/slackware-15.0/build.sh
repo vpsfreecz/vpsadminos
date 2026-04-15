@@ -29,7 +29,6 @@ INSTALLPKG=
 PKGLIST="$DOWNLOAD/pkglist.txt"
 PKGS="
 aaa_base
-aaa_elflibs
 aaa_glibc-solibs
 aaa_libraries
 aaa_terminfo
@@ -81,7 +80,6 @@ libpwquality
 libseccomp
 libsigsegv
 libsodium
-libtermcap
 libtirpc
 libunistring
 libusb
@@ -105,7 +103,7 @@ pcre2
 perl
 pkgtools
 procps
-python
+python3
 readline
 sed
 shadow
