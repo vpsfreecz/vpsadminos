@@ -4,7 +4,7 @@
 
 ;; System configuration
 (use-modules (gnu))
-(use-package-modules certs linux ssh)
+(use-package-modules linux nss ssh)
 (use-service-modules ssh)
 
 (operating-system
