@@ -270,7 +270,14 @@ sed -i -r 's/^(c[2-6]:)/#\1/g' /etc/inittab
 sed -i 's|pf::powerfail:/sbin/genpowerfail start|pf::powerwait:/sbin/halt|' /etc/inittab
 
 # Configure SSH
-sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+#
+# Slackware current ships sshd_config with UsePAM disabled. When PAM is off,
+# sshd rejects locked accounts before public key auth, which breaks the image
+# tests because root is locked at the end of the build.
+sed -i \
+	-e 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' \
+	-e 's/^#UsePAM no/UsePAM yes/' \
+	/etc/ssh/sshd_config
 
 # Mount /run
 sed -i \
