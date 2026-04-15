@@ -42,7 +42,17 @@ elsif !commit_exists?(base)
   run!('git', 'fetch', 'origin', base)
 end
 
-changed_files = run!('git', 'diff', '--name-only', base, head).split("\n")
+diff_base = base
+
+unless diff_base == EMPTY_TREE || zero_sha?(diff_base) \
+       || system('git', 'merge-base', '--is-ancestor', base, head, out: File::NULL, err: File::NULL)
+  diff_base = run!('git', 'merge-base', base, head).strip
+  raise 'git merge-base returned an empty base revision' if diff_base.empty?
+
+  warn "Base #{base} is not an ancestor of #{head}, using merge-base #{diff_base}"
+end
+
+changed_files = run!('git', 'diff', '--name-only', diff_base, head).split("\n")
 
 img_root = 'image-scripts/images'
 include_root = 'image-scripts/include'
