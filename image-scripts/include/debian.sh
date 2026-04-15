@@ -29,10 +29,6 @@ function configure-debian-append {
 }
 
 function configure-debian {
-	local disabled_root_password_hash
-
-	disabled_root_password_hash=$(generate_unusable_password_hash)
-
 	configure-shebang "#!/bin/bash"
 	configure-append <<EOF
 fakefiles="initctl invoke-rc.d restart start stop start-stop-daemon service"
@@ -60,14 +56,7 @@ mkdir /lib/modules
 for pkg in ureadahead eject ntpdate resolvconf ; do
 	PATH=/tmp/:\$PATH apt-get purge -y $pkg
 done
-# Keep root key-based logins working: newer Debian/OpenSSH rejects locked
-# root accounts, so use a per-build high-entropy random password hash
-# instead of usermod -L.
-usermod -p '$disabled_root_password_hash' root
-sed -ri 's/^#?PasswordAuthentication .*/PasswordAuthentication yes/' /etc/ssh/sshd_config
-grep -q '^PasswordAuthentication ' /etc/ssh/sshd_config || echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config
-sed -ri 's/^#?PermitRootLogin .*/PermitRootLogin yes/' /etc/ssh/sshd_config
-grep -q '^PermitRootLogin ' /etc/ssh/sshd_config || echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
+usermod -L root
 rm -f /etc/ssh/ssh_host_*
 
 cat > /etc/systemd/system/sshd-keygen.service <<"KEYGENSVC"

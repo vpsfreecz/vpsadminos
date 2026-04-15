@@ -272,10 +272,7 @@ sed -i -r 's/^(c[2-6]:)/#\1/g' /etc/inittab
 sed -i 's|pf::powerfail:/sbin/genpowerfail start|pf::powerwait:/sbin/halt|' /etc/inittab
 
 # Configure SSH
-sed -ri 's/^#?PasswordAuthentication .*/PasswordAuthentication yes/' /etc/ssh/sshd_config
-grep -q '^PasswordAuthentication ' /etc/ssh/sshd_config || echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config
-sed -ri 's/^#?PermitRootLogin .*/PermitRootLogin yes/' /etc/ssh/sshd_config
-grep -q '^PermitRootLogin ' /etc/ssh/sshd_config || echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
+sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
 
 # Mount /run
 sed -i \

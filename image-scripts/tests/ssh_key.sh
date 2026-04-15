@@ -69,15 +69,6 @@ function wait_for_ssh {
 	return 1
 }
 
-function wait_for_login {
-	for k in {1..60} ; do
-		osctl ct exec $CTID sh -c '[ ! -e /run/nologin ] && [ ! -e /etc/nologin ]' && return
-		sleep 1
-	done
-
-	return 1
-}
-
 function wait_for_network {
 	for i in {1..60} ; do
 		test_network && return
@@ -93,5 +84,4 @@ osctl ct start $CTID || fail "unable to start"
 
 wait_for_network || fail "network unreachable"
 wait_for_ssh || fail "ssh not responding"
-wait_for_login || fail "login not ready"
 test_ssh
