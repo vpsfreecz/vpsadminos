@@ -19,8 +19,22 @@ import ../make-test.nix (
             kernelParams = [ "console=ttyS0" ];
             commands = ''
               echo "Dumping dmesg"
+              if [ -e /proc/vmcore ] ; then
+                ls -l /proc/vmcore
+              else
+                echo "/proc/vmcore is missing"
+              fi
+
               makedumpfile --dump-dmesg /proc/vmcore dmesg.log
-              cat dmesg.log
+              rc=$?
+              echo "makedumpfile exited with $rc"
+
+              if [ -e dmesg.log ] ; then
+                ls -l dmesg.log
+                cat dmesg.log
+              else
+                echo "dmesg.log is missing"
+              fi
 
               # Bring the machine down, so that machine.execute() will raise OsVm::MachineShellClosed
               reboot -f
