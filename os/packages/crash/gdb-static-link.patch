@@ -1,0 +1,51 @@
+--- gdb-16.2/gdb/Makefile.in.orig
++++ gdb-16.2/gdb/Makefile.in
+@@ -148,7 +148,7 @@ MAKEHTMLFLAGS =
+ # Set this up with gcc if you have gnu ld and the loader will print out
+ # line numbers for undefined references.
+ #CC_LD = g++ -static
+-CC_LD = $(LIBTOOL) $(SILENT_FLAG) --mode=link $(CXX) $(CXX_DIALECT)
++CC_LD = $(CXX) $(CXX_DIALECT)
+ 
+ # Where is our "include" directory?  Typically $(srcdir)/../include.
+ # This is essentially the header file directory for the library
+@@ -165,7 +165,7 @@ CTF_DEPS = @CTF_DEPS@
+ 
+ # Where is the BFD library?  Typically in ../bfd.
+ BFD_DIR = ../bfd
+-BFD = $(BFD_DIR)/libbfd.la
++BFD = $(BFD_DIR)/.libs/libbfd.a ../libsframe/.libs/libsframe.a
+ BFD_SRC = $(srcdir)/$(BFD_DIR)
+ BFD_CFLAGS = -I$(BFD_DIR) -I$(BFD_SRC)
+ 
+@@ -506,7 +506,7 @@ LIBSFRAME_CFLAGS = -I$(LIBSFRAME_DIR)
+ # disassemblers?
+ OPCODES_DIR = ../opcodes
+ OPCODES_SRC = $(srcdir)/$(OPCODES_DIR)
+-OPCODES = $(OPCODES_DIR)/libopcodes.la
++OPCODES = $(OPCODES_DIR)/.libs/libopcodes.a
+ # Where are the other opcode tables which only have header file
+ # versions?
+ OP_INCLUDE = $(INCLUDE_DIR)/opcode
+--- gdb-16.2/gdb/configure.orig
++++ gdb-16.2/gdb/configure
+@@ -33069,7 +33069,7 @@ fi
+ 
+ if test "${enable_libbacktrace}" = "yes"; then
+   LIBBACKTRACE_INC="-I$srcdir/../libbacktrace/ -I../libbacktrace/"
+-  LIBBACKTRACE_LIB=../libbacktrace/libbacktrace.la
++  LIBBACKTRACE_LIB=../libbacktrace/.libs/libbacktrace.a
+ 
+ $as_echo "#define HAVE_LIBBACKTRACE 1" >>confdefs.h
+ 
+@@ -33624,8 +33624,8 @@ if test "${enable_libctf}" = yes; then
+ 
+ $as_echo "#define ENABLE_LIBCTF 1" >>confdefs.h
+ 
+-  LIBCTF="../libctf/libctf.la"
+-  CTF_DEPS="../libctf/libctf.la"
++  LIBCTF="../libctf/.libs/libctf.a"
++  CTF_DEPS="../libctf/.libs/libctf.a"
+ else
+   LIBCTF=
+   CTF_DEPS=
