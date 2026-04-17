@@ -68,7 +68,8 @@ let
         }
         "cgroups/system-v1"
         "cgroups/system-v2"
-        "crashdump"
+        "crashdump/default"
+        "crashdump/inspect"
         "ctstartmenu/setup"
         "declarative-containers"
         "defaults"

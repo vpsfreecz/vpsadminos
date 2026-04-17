@@ -1,15 +1,16 @@
-import ../make-test.nix (
+import ../../make-test.nix (
   { pkgs }:
   {
-    name = "crashdump";
+    name = "crashdump-default";
 
     description = ''
-      Test that crash kernel can read kernel log
+      Test that the default crashdump initrd stays lean and the crash kernel can
+      read kernel log
     '';
 
     tags = [ "ci" ];
 
-    machine = import ../machines/vpsadminos/with-tank.nix {
+    machine = import ../../machines/vpsadminos/with-tank.nix {
       inherit pkgs;
       config =
         { config, ... }:
@@ -64,6 +65,21 @@ import ../make-test.nix (
 
       machine.wait_for_service('crashdump')
 
+      _, initrd_real = machine.succeeds('readlink -f /run/current-system/initrd')
+      _, crash_initrd_real = machine.succeeds('readlink -f /run/current-system/crash-initrd')
+      expect(crash_initrd_real.strip).to eq(initrd_real.strip)
+
+      _, base_listing = machine.succeeds(
+        "${pkgs.gzip}/bin/gzip -dc /run/current-system/crash-initrd | ${pkgs.cpio}/bin/cpio -it 2>/dev/null"
+      )
+      expect(base_listing).not_to match(%r{(^|\n)nix/store/.+-extra-utils/bin/crash(\n|$)})
+      expect(base_listing).not_to match(%r{(^|\n)nix/store/.+-extra-utils/bin/crash-vmcore(\n|$)})
+      expect(base_listing).not_to match(%r{(^|\n)nix/store/.+-extra-utils/bin/crash-collect(\n|$)})
+      expect(base_listing).not_to match(%r{(^|\n)nix/store/.+-extra-utils/bin/crash-report(\n|$)})
+      expect(base_listing).not_to match(%r{(^|\n)nix/store/.+-extra-utils/bin/crash-continue(\n|$)})
+
+      machine.fails('test -e /run/crashdump/overlay/.crash/manifest')
+
       _, loaded = machine.succeeds('cat /sys/kernel/kexec_crash_loaded')
       expect(loaded.strip).to eq('1')
 
@@ -84,6 +100,7 @@ import ../make-test.nix (
       machine.wait_for_console_text(/Kernel panic - not syncing: sysrq triggered crash/, timeout:)
       machine.wait_for_console_text(/This is a crash kernel/, timeout:)
       machine.wait_for_console_text(/Dumping dmesg/, timeout:)
+      machine.wait_for_console_text(/makedumpfile exited with 0/, timeout:)
       machine.wait_for_console_text(/#{Regexp.escape(message)}/, timeout:)
     '';
   }
