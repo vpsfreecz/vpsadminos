@@ -147,10 +147,22 @@ import ../../../make-test.nix (
                   expect(@ct_mem['MemTotal']).to eq(@mem_total)
                 end
 
-                %w[SwapTotal SwapFree].each do |v|
-                  it "has virtualized #{v}" do
-                    expect(@ct_mem[v]).to eq(@swap_total)
-                  end
+                it 'has virtualized SwapTotal' do
+                  expect(@ct_mem['SwapTotal']).to eq(@swap_total)
+                end
+
+                it 'has expected SwapFree' do
+                  # Without proactive swap accounting, cgroup v1 /proc/meminfo
+                  # still exposes host-visible free swap instead of the
+                  # container swap limit.
+                  expected_swap_free =
+                    if ${toString cgroupsVersion} == 1 && swap_limit > 0
+                      @host_mem['SwapFree']
+                    else
+                      @swap_total
+                    end
+
+                  expect(@ct_mem['SwapFree']).to eq(expected_swap_free)
                 end
 
                 %w[MemFree MemAvailable Buffers Cached Shmem AnonPages Mapped].each do |v|
