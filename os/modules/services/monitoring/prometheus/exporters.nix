@@ -51,6 +51,7 @@ let
         "ksvcmon"
         "node"
         "osctl"
+        "zfs"
       ]
       (
         name:

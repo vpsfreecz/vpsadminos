@@ -33,6 +33,7 @@ import ../../make-test.nix (
           enable = true;
           names = [ "rtnl_lock-latency" ];
         };
+        services.prometheus.exporters.zfs.enable = true;
       };
     };
 
@@ -83,6 +84,60 @@ import ../../make-test.nix (
 
                 expect(line).not_to be_nil
                 expect(line.split.last.to_f).to be > 0
+              end
+            end
+          end
+        '';
+      };
+
+      zfs = {
+        description = ''
+          Test Prometheus ZFS exporter on the tank pool
+        '';
+        script = helpers + ''
+          before(:suite) do
+            machine.start unless machine.running?
+            machine.wait_until_online
+            machine.wait_for_osctl_pool('tank')
+            machine.wait_for_service('prometheus-zfs-exporter')
+          end
+
+          describe 'Prometheus ZFS exporter' do
+            it 'exports pool metrics for configured pools' do
+              wait_until_block_succeeds(name: 'zfs exporter pool metric') do
+                metrics = fetch_metrics(9134)
+                line = find_metric_line(
+                  metrics,
+                  'zfs_pool_size_bytes',
+                  pool: 'tank'
+                )
+
+                expect(line).not_to be_nil
+              end
+            end
+
+            it 'exports the default filesystem compression metrics' do
+              wait_until_block_succeeds(
+                name: 'zfs exporter filesystem compression metrics'
+              ) do
+                metrics = fetch_metrics(9134)
+                compression = find_metric_line(
+                  metrics,
+                  'zfs_dataset_compression_ratio',
+                  name: 'tank',
+                  pool: 'tank',
+                  type: 'filesystem'
+                )
+                refcompression = find_metric_line(
+                  metrics,
+                  'zfs_dataset_referenced_compression_ratio',
+                  name: 'tank',
+                  pool: 'tank',
+                  type: 'filesystem'
+                )
+
+                expect(compression).not_to be_nil
+                expect(refcompression).not_to be_nil
               end
             end
           end
