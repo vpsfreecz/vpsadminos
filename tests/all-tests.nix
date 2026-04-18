@@ -141,7 +141,7 @@ let
         "osctl/ct-uid-gid"
         "osctl/pool/export-cleanup"
         "osctl-exportfs/mount"
-        "prometheus/ebpf-exporter"
+        "prometheus/exporters"
         "podman/debian-latest"
         "podman/fedora-latest"
         "podman/ubuntu-latest"
