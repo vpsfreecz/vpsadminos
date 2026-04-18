@@ -65,27 +65,52 @@ in
   boot.systemdExecutable = mkDefault "/run/current-system/systemd/lib/systemd/systemd systemd.unified_cgroup_hierarchy=0";
   console.enable = true;
 
-  # Mount paths that are needed for boot (e.g. /var/lib/nixos) earlier.
-  # This fixes UIDs and GIDs changing on reboot when using impermanence.
-  # impermanence mounts them in the initrd, which doesn't exist in a container.
+  # Mount paths that are needed for boot (e.g. /persistent and /var/lib/nixos)
+  # earlier. This fixes UIDs and GIDs changing on reboot when using
+  # impermanence.
+  #
+  # In a VM or on bare metal, impermanence mounts boot-critical bind mounts in
+  # the initrd. vpsAdminOS containers do not have an initrd, so replay those
+  # mounts through boot.specialFileSystems before activation runs.
   boot.specialFileSystems =
-    (lib.pipe config.fileSystems [
-      # nixos supplies utils.fsNeededForBoot (also used by impermanence to find out which directories to mount early)
-      # found here: https://github.com/nix-community/impermanence/blob/4b3e914cdf97a5b536a889e939fb2fd2b043a170/nixos.nix#L727
-      (lib.filterAttrs (_: v: utils.fsNeededForBoot v))
-      # config.boot.specialFileSystems only accepts a subset of the options from config.fileSystems
-      # so filter out the rest.
-      (builtins.mapAttrs (
-        path: v:
-        # throw a warning if some options not known by boot.specialFileSystems are set
-        lib.warnIf (v.autoFormat || v.autoResize || v.encrypted.enable || v.overlay.workdir != null)
-          "fileSystems.${path} has options set that are not supported by boot.specialFileSystems."
+    let
+      bootSpecialFileSystemOpts = options.boot.specialFileSystems.type.getSubOptions { };
 
-          # filter out the unknown options
-          (lib.intersectAttrs (options.boot.specialFileSystems.type.getSubOptions { }) v)
-      ))
-    ])
-    # this is here since 14937d20c0587f1c8a48f7f3a9bce7fcae255785 idk why it is needed
+      bootNeededFileSystems = lib.pipe config.fileSystems [
+        (lib.filterAttrs (_: v: utils.fsNeededForBoot v))
+        (builtins.mapAttrs (
+          path: v:
+          lib.warnIf (v.autoFormat || v.autoResize || v.encrypted.enable || v.overlay.workdir != null)
+            "fileSystems.${path} has options set that are not supported by boot.specialFileSystems."
+            (lib.intersectAttrs bootSpecialFileSystemOpts v)
+        ))
+      ];
+
+      bootNeededBindMounts = builtins.listToAttrs (
+        builtins.map
+          (mount: {
+            name = mount.where;
+            value = lib.intersectAttrs bootSpecialFileSystemOpts {
+              device = mount.what;
+              fsType = mount.type or "none";
+              options = lib.splitString "," (mount.options or "");
+            };
+          })
+          (
+            lib.filter (
+              mount:
+              (mount.enable or true)
+              && mount ? where
+              && mount ? what
+              && (mount.type or null) == "none"
+              && builtins.elem "bind" (lib.splitString "," (mount.options or ""))
+              && builtins.elem mount.where utils.pathsNeededForBoot
+            ) config.systemd.mounts
+          )
+      );
+    in
+    bootNeededFileSystems
+    // bootNeededBindMounts
     // {
       "/run/keys".fsType = mkForce "tmpfs";
     };
