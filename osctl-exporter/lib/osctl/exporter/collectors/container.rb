@@ -21,6 +21,121 @@ module OsCtl::Exporter
       error
     ].freeze
 
+    DATASET_PROPERTY_METRICS = [
+      {
+        property: 'used',
+        variable_name: :dataset_used,
+        metric_name: :osctl_container_dataset_used_bytes,
+        docstring: 'Dataset used space',
+        value_type: :integer
+      },
+      {
+        property: 'referenced',
+        variable_name: :dataset_referenced,
+        metric_name: :osctl_container_dataset_referenced_bytes,
+        docstring: 'Dataset referenced space',
+        value_type: :integer
+      },
+      {
+        property: 'available',
+        variable_name: :dataset_avail,
+        metric_name: :osctl_container_dataset_avail_bytes,
+        docstring: 'Dataset available space',
+        value_type: :integer
+      },
+      {
+        property: 'quota',
+        variable_name: :dataset_quota,
+        metric_name: :osctl_container_dataset_quota_bytes,
+        docstring: 'Dataset quota',
+        value_type: :integer
+      },
+      {
+        property: 'refquota',
+        variable_name: :dataset_refquota,
+        metric_name: :osctl_container_dataset_refquota_bytes,
+        docstring: 'Dataset reference quota',
+        value_type: :integer
+      },
+      {
+        property: 'reservation',
+        variable_name: :dataset_reservation,
+        metric_name: :osctl_container_dataset_reservation_bytes,
+        docstring: 'Dataset reservation',
+        value_type: :integer
+      },
+      {
+        property: 'refreservation',
+        variable_name: :dataset_refreservation,
+        metric_name: :osctl_container_dataset_refreservation_bytes,
+        docstring: 'Dataset reference reservation',
+        value_type: :integer
+      },
+      {
+        property: 'logicalused',
+        variable_name: :dataset_logical_used,
+        metric_name: :osctl_container_dataset_logical_used_bytes,
+        docstring: 'Dataset logical used space',
+        value_type: :integer
+      },
+      {
+        property: 'logicalreferenced',
+        variable_name: :dataset_logical_referenced,
+        metric_name: :osctl_container_dataset_logical_referenced_bytes,
+        docstring: 'Dataset logical referenced space',
+        value_type: :integer
+      },
+      {
+        property: 'usedbydataset',
+        variable_name: :dataset_used_by_dataset,
+        metric_name: :osctl_container_dataset_used_by_dataset_bytes,
+        docstring: 'Dataset space used by the dataset itself',
+        value_type: :integer
+      },
+      {
+        property: 'usedbychildren',
+        variable_name: :dataset_used_by_children,
+        metric_name: :osctl_container_dataset_used_by_children_bytes,
+        docstring: 'Dataset space used by child datasets',
+        value_type: :integer
+      },
+      {
+        property: 'usedbysnapshots',
+        variable_name: :dataset_used_by_snapshots,
+        metric_name: :osctl_container_dataset_used_by_snapshots_bytes,
+        docstring: 'Dataset space used by snapshots',
+        value_type: :integer
+      },
+      {
+        property: 'usedbyrefreservation',
+        variable_name: :dataset_used_by_refreservation,
+        metric_name: :osctl_container_dataset_used_by_refreservation_bytes,
+        docstring: 'Dataset space used by the reference reservation',
+        value_type: :integer
+      },
+      {
+        property: 'written',
+        variable_name: :dataset_written,
+        metric_name: :osctl_container_dataset_written_bytes,
+        docstring: 'Dataset space written since the previous snapshot',
+        value_type: :integer
+      },
+      {
+        property: 'compressratio',
+        variable_name: :dataset_compressratio,
+        metric_name: :osctl_container_dataset_compressratio,
+        docstring: 'Compression ratio achieved for the dataset used space',
+        value_type: :ratio
+      },
+      {
+        property: 'refcompressratio',
+        variable_name: :dataset_refcompressratio,
+        metric_name: :osctl_container_dataset_refcompressratio,
+        docstring: 'Compression ratio achieved for the dataset referenced space',
+        value_type: :ratio
+      }
+    ].freeze
+
     def setup
       @mutex = Mutex.new
       @last_container_data = nil
@@ -74,41 +189,15 @@ module OsCtl::Exporter
         )
       end
 
-      add_metric(
-        :dataset_used,
-        :gauge,
-        :osctl_container_dataset_used_bytes,
-        docstring: 'Dataset used space',
-        labels: %i[pool id dataset relative_name]
-      )
-      add_metric(
-        :dataset_referenced,
-        :gauge,
-        :osctl_container_dataset_referenced_bytes,
-        docstring: 'Dataset referenced space',
-        labels: %i[pool id dataset relative_name]
-      )
-      add_metric(
-        :dataset_avail,
-        :gauge,
-        :osctl_container_dataset_avail_bytes,
-        docstring: 'Dataset available space',
-        labels: %i[pool id dataset relative_name]
-      )
-      add_metric(
-        :dataset_quota,
-        :gauge,
-        :osctl_container_dataset_quota_bytes,
-        docstring: 'Dataset quota',
-        labels: %i[pool id dataset relative_name]
-      )
-      add_metric(
-        :dataset_refquota,
-        :gauge,
-        :osctl_container_dataset_refquota_bytes,
-        docstring: 'Dataset reference quota',
-        labels: %i[pool id dataset relative_name]
-      )
+      DATASET_PROPERTY_METRICS.each do |cfg|
+        add_metric(
+          cfg[:variable_name],
+          :gauge,
+          cfg[:metric_name],
+          docstring: cfg[:docstring],
+          labels: %i[pool id dataset relative_name]
+        )
+      end
       add_metric(
         :dataset_bytes_written,
         :gauge,
@@ -218,7 +307,7 @@ module OsCtl::Exporter
       begin
         tree = propreader.read(
           cts.map { |ct| ct[:dataset] },
-          %i[used referenced available quota refquota],
+          DATASET_PROPERTY_METRICS.map { |cfg| cfg[:property].to_sym },
           recursive: true
         )
       rescue OsCtl::Lib::Exceptions::SystemCommandFailed => e
@@ -272,27 +361,17 @@ module OsCtl::Exporter
 
         tree[ct[:dataset]].each_tree_dataset do |tr_ds|
           ds = tr_ds.as_dataset(base: ct[:dataset])
+          labels = dataset_labels(ct, ds)
 
-          dataset_used.set(
-            tr_ds.properties['used'].to_i,
-            labels: dataset_labels(ct, ds)
-          )
-          dataset_referenced.set(
-            tr_ds.properties['referenced'].to_i,
-            labels: dataset_labels(ct, ds)
-          )
-          dataset_avail.set(
-            tr_ds.properties['available'].to_i,
-            labels: dataset_labels(ct, ds)
-          )
-          dataset_quota.set(
-            tr_ds.properties['quota'].to_i,
-            labels: dataset_labels(ct, ds)
-          )
-          dataset_refquota.set(
-            tr_ds.properties['refquota'].to_i,
-            labels: dataset_labels(ct, ds)
-          )
+          DATASET_PROPERTY_METRICS.each do |cfg|
+            metrics[cfg[:variable_name]].set(
+              parse_dataset_property_value(
+                tr_ds.properties[cfg[:property]],
+                cfg[:value_type]
+              ),
+              labels:
+            )
+          end
 
           objset = objsets[ds.name]
 
@@ -300,19 +379,19 @@ module OsCtl::Exporter
 
           dataset_bytes_written.set(
             objset.write_bytes,
-            labels: dataset_labels(ct, ds)
+            labels:
           )
           dataset_bytes_read.set(
             objset.read_bytes,
-            labels: dataset_labels(ct, ds)
+            labels:
           )
           dataset_ios_written.set(
             objset.write_ios,
-            labels: dataset_labels(ct, ds)
+            labels:
           )
           dataset_ios_read.set(
             objset.read_ios,
-            labels: dataset_labels(ct, ds)
+            labels:
           )
         end
 
@@ -386,6 +465,21 @@ module OsCtl::Exporter
         hostdevice: netif[:veth],
         ctdevice: netif[:name]
       }
+    end
+
+    def parse_dataset_property_value(value, value_type)
+      case value_type
+      when :ratio
+        parse_dataset_ratio(value)
+      else
+        value.nil? ? 0 : value.to_i
+      end
+    end
+
+    def parse_dataset_ratio(value)
+      return 0 if value.nil? || value.empty? || value == '-' || value == 'none'
+
+      value.delete_suffix('x').to_f
     end
 
     def container_pools(cts)
