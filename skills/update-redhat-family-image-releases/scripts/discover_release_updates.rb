@@ -7,6 +7,7 @@ require 'pathname'
 
 ROCKY_ROOT = 'https://ftp.linux.cz/pub/linux/rocky'
 ALMALINUX_ROOT = 'https://repo.almalinux.org/almalinux'
+CENTOS_STREAM_ROOT = 'https://mirror.stream.centos.org'
 FEDORA_RELEASES_ROOT = 'http://ftp.fi.muni.cz/pub/linux/fedora/linux/releases'
 FEDORA_RAWHIDE_PACKAGES = 'http://ftp.fi.muni.cz/pub/linux/fedora/linux/development/rawhide/Everything/x86_64/os/Packages/f/'
 FEDORA_RELEASE_NAMES = %w[
@@ -152,6 +153,43 @@ def almalinux_result(image_name, build_path)
   }
 end
 
+def centos_stream_result(image_name, build_path)
+  match = image_name.match(/\Acentos-(\d+)-stream\z/)
+  raise "unable to parse CentOS Stream image name #{image_name}" if match.nil?
+
+  major = match[1]
+  build_lines = build_path.read.split("\n")
+  current_pointver = parse_assignment(build_lines, 'POINTVER')
+  current_release = current_release_filename(
+    parse_assignment(build_lines, 'RELEASE'),
+    { 'POINTVER' => current_pointver }
+  )
+  packages_url = "#{CENTOS_STREAM_ROOT}/#{major}-stream/BaseOS/x86_64/os/Packages/"
+  latest_release = find_filenames(
+    packages_url,
+    /(centos-stream-release-[0-9]+\.[0-9]+-[^"'<> ]+\.rpm)/
+  ).last
+  latest_pointver = latest_release.match(
+    /\Acentos-stream-release-([0-9]+\.[0-9]+)-/
+  )&.[](1)
+  raise "unable to parse CentOS Stream point version from #{latest_release}" if latest_pointver.nil?
+
+  {
+    image: image_name,
+    file: build_path,
+    status: current_pointver != latest_pointver || current_release != latest_release,
+    current_pointver: current_pointver,
+    latest_pointver: latest_pointver,
+    current_release: current_release,
+    latest_release: latest_release,
+    packages_url: packages_url
+  }
+end
+
+def centos_stream_image?(image_name)
+  image_name.match?(/\Acentos-\d+-stream\z/)
+end
+
 def fedora_stable_result(image_name, build_path)
   relver = image_name.split('-', 2).last
   build_lines = build_path.read.split("\n")
@@ -204,8 +242,11 @@ def select_images(images_dir, scope)
       path.basename.to_s.start_with?('almalinux-')
     when 'fedora'
       path.basename.to_s.start_with?('fedora-')
+    when 'centos-stream', 'centos'
+      centos_stream_image?(path.basename.to_s)
     when 'all'
-      path.basename.to_s.start_with?('rocky-', 'almalinux-', 'fedora-')
+      path.basename.to_s.start_with?('rocky-', 'almalinux-', 'fedora-') ||
+        centos_stream_image?(path.basename.to_s)
     else
       false
     end
@@ -267,9 +308,9 @@ def parse_options(argv)
   parser.parse!(argv)
   scope = argv.shift
 
-  unless %w[rocky almalinux fedora all].include?(scope)
+  unless %w[rocky almalinux centos-stream centos fedora all].include?(scope)
     warn parser.banner
-    warn 'scope must be one of: rocky, almalinux, fedora, all'
+    warn 'scope must be one of: rocky, almalinux, centos-stream, centos, fedora, all'
     exit 1
   end
 
@@ -298,6 +339,8 @@ def main(argv)
         rocky_result(image_dir.basename.to_s, build_path)
       elsif image_dir.basename.to_s.start_with?('almalinux-')
         almalinux_result(image_dir.basename.to_s, build_path)
+      elsif centos_stream_image?(image_dir.basename.to_s)
+        centos_stream_result(image_dir.basename.to_s, build_path)
       elsif image_dir.basename.to_s == 'fedora-rawhide'
         fedora_rawhide_result(image_dir.basename.to_s, build_path)
       else

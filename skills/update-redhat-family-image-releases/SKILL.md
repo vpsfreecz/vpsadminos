@@ -1,13 +1,13 @@
 ---
 name: update-redhat-family-image-releases
-description: Update Rocky Linux, AlmaLinux, Fedora, or all Red Hat-family container image release files in this repository. Use when requests mention `update rocky`, `update almalinux`, `update fedora`, `update redhat-family distributions`, or otherwise ask to bump release RPMs under `image-scripts/images/*`. Follow upstream HTTP repo directory listings, update the matching `build.sh` files, run `./test-runner.sh test image-scripts/test@image-name` for each changed image, and keep commits split per changed image directory.
+description: Update Rocky Linux, AlmaLinux, CentOS Stream, Fedora, or all Red Hat-family container image release files in this repository. Use when requests mention `update rocky`, `update almalinux`, `update centos stream`, `update fedora`, `update redhat-family distributions`, or otherwise ask to bump release RPMs under `image-scripts/images/*`. Follow upstream HTTP repo directory listings, update the matching `build.sh` files, run `./test-runner.sh test image-scripts/test@image-name` for each changed image, and keep commits split per changed image directory.
 ---
 
-# Update Redhat Family Image Releases
+# Update Red Hat Family Image Releases
 
 ## Overview
 
-Update the release-related lines in `image-scripts/images/{rocky-*,almalinux-*,fedora-*}/build.sh` by reading the upstream HTTP package listings and then verify each changed image with its matching `image-scripts/test@...` test.
+Update the release-related lines in `image-scripts/images/{rocky-*,almalinux-*,centos-*-stream,fedora-*}/build.sh` by reading the upstream HTTP package listings and then verify each changed image with its matching `image-scripts/test@...` test.
 
 ## Quick Start
 
@@ -16,7 +16,7 @@ Update the release-related lines in `image-scripts/images/{rocky-*,almalinux-*,f
 3. Run `./test-runner.sh test image-scripts/test@<image-name>` for every changed image.
 4. Keep one commit per changed image directory, for example `image-scripts: update rocky-9 to <ver>`.
 
-Use `rocky`, `almalinux`, `fedora`, or `all` for `<scope>`.
+Use `rocky`, `almalinux`, `centos-stream`, `fedora`, or `all` for `<scope>`.
 
 ## Workflow
 
@@ -24,6 +24,7 @@ Use `rocky`, `almalinux`, `fedora`, or `all` for `<scope>`.
 
 - `rocky`: update every `image-scripts/images/rocky-*`
 - `almalinux`: update every `image-scripts/images/almalinux-*`
+- `centos-stream`: update every `image-scripts/images/centos-*-stream`
 - `fedora`: update every `image-scripts/images/fedora-*`
 - `all`: update all of the above
 
@@ -39,6 +40,7 @@ Use `rocky`, `almalinux`, `fedora`, or `all` for `<scope>`.
 - Rocky: update `POINTVER` and `RELEASE`.
 - AlmaLinux 9/10/future: update `POINTVER` and `RELEASE`.
 - AlmaLinux 8: update `POINTVER` and `RELEASE`, but leave `BASEURL` and `UPDATES` on `${RELVER}` unless the upstream layout changed.
+- CentOS Stream: update `RELEASE` to the highest `centos-stream-release-<POINTVER>-*.rpm` in the major stream's BaseOS packages listing. If the newest RPM embeds a different `<POINTVER>` than the current file, update `POINTVER` to match it. Keep `BASEURL` and `UPDATES` on `<major>-stream` unless the upstream layout changed.
 - Fedora stable: update the shared release suffix in the four `fedora-release*` lines.
 - Fedora rawhide: update `RAWHIDE_RELVER`; keep the four `RELEASE` lines consistent with it.
 
@@ -51,4 +53,4 @@ Use `rocky`, `almalinux`, `fedora`, or `all` for `<scope>`.
 ### Keep Commits Focused
 
 - Make one commit per changed image directory, not one commit for the whole family sweep.
-- Use subjects such as `image-scripts: update rocky-9 to <ver>`, `image-scripts: update almalinux-10 to <ver>`, or `image-scripts: update fedora-rawhide release to <ver>`.
+- Use subjects such as `image-scripts: update rocky-9 to <ver>`, `image-scripts: update centos-9-stream release to <ver>`, `image-scripts: update almalinux-10 to <ver>`, or `image-scripts: update fedora-rawhide release to <ver>`.

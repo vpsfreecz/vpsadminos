@@ -4,6 +4,7 @@
 
 - Rocky images live in `image-scripts/images/rocky-*`.
 - AlmaLinux images live in `image-scripts/images/almalinux-*`.
+- CentOS Stream images live in `image-scripts/images/centos-*-stream`.
 - Fedora images live in `image-scripts/images/fedora-*`.
 - The matching verification test is always `./test-runner.sh test image-scripts/test@<directory-name>`.
 
@@ -22,6 +23,14 @@
 - Select the highest `almalinux-release-<POINTVER>-*.rpm` from that listing.
 - Update `POINTVER` and `RELEASE` in `image-scripts/images/almalinux-*/build.sh`.
 - `almalinux-8` is a special case: keep `BASEURL` and `UPDATES` on `${RELVER}` unless the upstream layout changes, because only the release package name uses `${POINTVER}` there.
+
+## CentOS Stream
+
+- Inspect `https://mirror.stream.centos.org/<MAJOR>-stream/BaseOS/x86_64/os/Packages/`.
+- Select the highest `centos-stream-release-<POINTVER>-*.rpm` from that listing.
+- Update `RELEASE` in `image-scripts/images/centos-*-stream/build.sh` to that exact RPM path.
+- Keep `BASEURL` and `UPDATES` on `http://mirror.stream.centos.org/<MAJOR>-stream/...` unless the upstream layout changes.
+- If the newest RPM embeds a different `<POINTVER>` than the current file, update `POINTVER` to match it. In current CentOS Stream images, history shows `POINTVER` has stayed on `<MAJOR>.0` while only the RPM release suffix changes.
 
 ## Fedora Stable
 
@@ -52,6 +61,7 @@
 ```bash
 ruby skills/update-redhat-family-image-releases/scripts/discover_release_updates.rb rocky
 ruby skills/update-redhat-family-image-releases/scripts/discover_release_updates.rb almalinux
+ruby skills/update-redhat-family-image-releases/scripts/discover_release_updates.rb centos-stream
 ruby skills/update-redhat-family-image-releases/scripts/discover_release_updates.rb fedora
 ruby skills/update-redhat-family-image-releases/scripts/discover_release_updates.rb all
 ```
