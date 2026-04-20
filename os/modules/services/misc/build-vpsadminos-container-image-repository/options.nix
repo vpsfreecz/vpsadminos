@@ -32,6 +32,15 @@ let
           '';
         };
 
+        osvmPackage = mkOption {
+          internal = true;
+          type = types.package;
+          default = pkgs.osvm;
+          description = ''
+            Package providing <command>osvm</command>.
+          '';
+        };
+
         osVm = {
           memory = mkOption {
             internal = true;

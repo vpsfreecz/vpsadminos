@@ -124,7 +124,7 @@ let
                ${repoCfg.logDirectory} \
                ${repoCfg.repositoryDirectory}
 
-      ${pkgs.osvm}/bin/osvm script ${osvmScript repoName repoCfg} "$@"
+      ${repoCfg.osvmPackage}/bin/osvm script ${osvmScript repoName repoCfg} "$@"
       buildRc=$?
 
       ${repoCfg.postRunCommands}

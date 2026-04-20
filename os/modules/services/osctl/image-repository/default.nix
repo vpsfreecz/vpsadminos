@@ -38,6 +38,24 @@ let
         '';
       };
 
+      osctlRepoPackage = mkOption {
+        internal = true;
+        type = types.package;
+        default = pkgs.osctl-repo;
+        description = ''
+          Package providing <command>osctl-repo</command>.
+        '';
+      };
+
+      osctlImagePackage = mkOption {
+        internal = true;
+        type = types.package;
+        default = pkgs.osctl-image;
+        description = ''
+          Package providing <command>osctl-image</command>.
+        '';
+      };
+
       vpsadminosDir = mkOption {
         type = types.nullOr types.str;
         default = null;
@@ -261,8 +279,8 @@ let
     dataset = cfg.buildDataset;
     script_dir = cfg.buildScriptDir;
     vpsadminos_dir = cfg.vpsadminosDir;
-    osctl_repo = pkgs.osctl-repo;
-    osctl_image = pkgs.osctl-image;
+    osctl_repo = cfg.osctlRepoPackage;
+    osctl_image = cfg.osctlImagePackage;
     images = cfg.images;
     rebuild = cfg.rebuildAll;
     keep_failed_tests = cfg.keepAllFailedTests;
