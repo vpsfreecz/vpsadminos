@@ -32,7 +32,7 @@ class Config
     @osctl_image = File.join(@cfg['osctl_image'], 'bin/osctl-image')
   end
 
-  %i[repo_dir cache_dir log_dir dataset script_dir default_vendor_variants
+  %i[repo_dir cache_dir log_dir dataset script_dir vpsadminos_dir default_vendor_variants
      default_vendor post_build gc].each do |m|
     define_method(m) { @cfg[m.to_s] }
   end
@@ -139,11 +139,16 @@ class Builder
       puts "Building #{img.name}"
 
       deploy_args = [
-        '--build-scripts', cfg.script_dir,
+        '--build-scripts', cfg.script_dir
+      ]
+
+      deploy_args.push('--vpsadminos-dir', cfg.vpsadminos_dir) if cfg.vpsadminos_dir
+
+      deploy_args.push(
         'deploy',
         '--build-dataset', cfg.dataset,
         '--output-dir', cfg.cache_dir
-      ]
+      )
 
       if rebuild_image?(options, img)
         deploy_args << '--rebuild'

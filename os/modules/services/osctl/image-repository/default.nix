@@ -38,6 +38,17 @@ let
         '';
       };
 
+      vpsadminosDir = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = ''
+          Optional path to a vpsAdminOS checkout passed to osctl-image using
+          <option>--vpsadminos-dir</option>. This is required for NixOS image
+          builds when <option>buildScriptDir</option> is not located inside the
+          checkout.
+        '';
+      };
+
       buildDataset = mkOption {
         type = types.str;
         description = ''
@@ -249,6 +260,7 @@ let
     log_dir = cfg.logDir;
     dataset = cfg.buildDataset;
     script_dir = cfg.buildScriptDir;
+    vpsadminos_dir = cfg.vpsadminosDir;
     osctl_repo = pkgs.osctl-repo;
     osctl_image = pkgs.osctl-image;
     images = cfg.images;

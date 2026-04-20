@@ -28,6 +28,7 @@ let
     disks = repoCfg.osVm.disks;
     sharedFileSystems = {
       "buildScripts" = repoCfg.buildScripts;
+      "vpsadminos" = repoCfg.vpsadminosSource;
       "cacheDir" = repoCfg.cacheDirectory;
       "logDir" = repoCfg.logDirectory;
       "repoDir" = repoCfg.repositoryDirectory;

@@ -7,6 +7,10 @@
 with lib;
 let
   varDir = "/var/lib/vpsadminos-container-image-repository";
+  vpsadminosSource = builtins.filterSource (
+    path: type:
+    (cleanSourceFilter path type) && (baseNameOf path != "result") && (!hasInfix "/os/result/" path)
+  ) ../../../../..;
 
   repoModule =
     { config, name, ... }:
@@ -105,6 +109,15 @@ let
           default = ../../../../../image-scripts;
           description = ''
             Build scripts for use with osctl-image
+          '';
+        };
+
+        vpsadminosSource = mkOption {
+          type = types.path;
+          default = vpsadminosSource;
+          description = ''
+            Path to a vpsAdminOS source tree made available inside the build VM
+            for NixOS image builds.
           '';
         };
 
@@ -236,6 +249,7 @@ in
               path = "/mnt/repoDir";
               cacheDir = "/mnt/cacheDir";
               buildScriptDir = "/mnt/buildScripts";
+              vpsadminosDir = "/mnt/vpsadminos";
               buildDataset = "tank/image-repository/build-dataset";
               logDir = "/mnt/logDir";
             };
