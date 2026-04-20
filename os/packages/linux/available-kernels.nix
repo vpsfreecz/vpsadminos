@@ -6,7 +6,7 @@ with lib.kernel;
 
   kernels = {
     "6.18" = {
-      rev = "fa226231fe8c1723505a68e16ba3b1f63f7d084d";
+      rev = "15617bb52faa16b353eadc35a91787b036db1054";
       sha256 = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
       structuredExtraConfig = {
         DAMON = yes;
@@ -16,7 +16,7 @@ with lib.kernel;
         DAMON_RECLAIM = yes;
       };
       zfs = {
-        rev = "8860be1f790f06e93cd508f97d52d93324a7cf7f";
+        rev = "cbb49ec73834686d36f393710e8c5391024807af";
         sha256 = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
       };
     };

@@ -17,7 +17,9 @@ runCommand pname { } ''
   ln -s ${app}/bin $out/bin
 
   mkdir $out/share
-  ln -s ${app}/share/man $out/share/man
+  if [ -d ${app}/share/man ]; then
+    ln -s ${app}/share/man $out/share/man
+  fi
 
   ${lib.optionalString bashCompletion ''
     mkdir -p $out/share/bash-completion/completions $out/etc

@@ -106,7 +106,7 @@ let
       # Easier debugging of NFS issues.
       SUNRPC_DEBUG = yes;
       # Provide access to tunables like sched_migration_cost_ns
-      SCHED_DEBUG = yes;
+      SCHED_DEBUG = whenOlder "6.15" yes;
       DEBUG_ATOMIC_SLEEP = no;
       LOCK_STAT = no;
       PROVE_LOCKING = no;
@@ -182,7 +182,7 @@ let
       IP_VS_PROTO_ESP = yes;
       IP_VS_PROTO_AH = yes;
       IP_VS_IPV6 = yes;
-      IP_DCCP_CCID3 = no; # experimental
+      IP_DCCP_CCID3 = whenOlder "6.16" no; # experimental
       CLS_U32_PERF = yes;
       CLS_U32_MARK = yes;
       BPF_JIT = whenPlatformHasEBPFJit yes;
@@ -221,7 +221,7 @@ let
       BONDING = module;
       NET_L3_MASTER_DEV = option yes;
       NET_FOU_IP_TUNNELS = option yes;
-      IP_NF_TARGET_REDIRECT = module;
+      IP_NF_TARGET_REDIRECT = whenOlder "6.17" module;
       INET_AH = yes;
       INET_ESP = yes;
       INET_ESP_OFFLOAD = yes;
@@ -364,8 +364,8 @@ let
       EXT2_FS_POSIX_ACL = yes;
       EXT2_FS_SECURITY = yes;
 
-      EXT3_FS_POSIX_ACL = yes;
-      EXT3_FS_SECURITY = yes;
+      EXT3_FS_POSIX_ACL = option yes;
+      EXT3_FS_SECURITY = option yes;
 
       EXT4_FS_POSIX_ACL = yes;
       EXT4_FS_SECURITY = yes;
@@ -474,8 +474,8 @@ let
       STACKPROTECTOR_STRONG = yes;
       SCHED_STACK_END_CHECK = yes;
       STRICT_KERNEL_RWX = yes;
-      STACKLEAK_METRICS = yes;
-      GCC_PLUGIN_STACKLEAK = yes;
+      STACKLEAK_METRICS = whenOlder "6.18" yes;
+      GCC_PLUGIN_STACKLEAK = whenOlder "6.18" yes;
       RANDOMIZE_MEMORY = yes;
     };
 
