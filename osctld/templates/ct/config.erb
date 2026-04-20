@@ -27,9 +27,20 @@ lxc.idmap = g <%= entry.ns_id %> <%= entry.host_id %> <%= entry.id_count %>
 # Security
 lxc.seccomp.profile = <%= ct.seccomp_profile %>
 <% if AppArmor.enabled? -%>
+<% if AppArmor.lsm_namespace_supported? -%>
+lxc.namespace.clone.lsm = apparmor
+lxc.namespace.clone.lsm.name = <%= ct.apparmor.namespace %>
+<% end -%>
 lxc.apparmor.profile = <%= ct.apparmor.namespace_profile_name %>
 <% end -%>
 lxc.autodev = 1
+
+# Tracing namespace
+<% if File.exist?('/proc/self/ns/tracing') -%>
+lxc.namespace.clone.tracing = 1
+<% else -%>
+# Disabled: tracing namespace support not present
+<% end -%>
 
 # Time namespace
 <% if OsCtld::Daemon.get.config.enable_time_namespace? -%>

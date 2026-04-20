@@ -24,6 +24,12 @@ module OsCtld
       end
     end
 
+    def self.lsm_namespace_supported?
+      enabled? && File.exist?('/proc/self/ns/lsm')
+    rescue Errno::ENOENT
+      false
+    end
+
     # Prepare shared files in `/run/osctl`
     def self.setup
       PATHS.concat(Daemon.get.config.apparmor_paths)
@@ -110,7 +116,7 @@ module OsCtld
     def setup
       generate_profile
       load_profile
-      create_namespace
+      create_namespace unless self.class.lsm_namespace_supported?
     end
 
     # Generate AppArmor profile for the container
@@ -160,6 +166,8 @@ module OsCtld
 
     # Destroy the container's AppArmor namespace
     def destroy_namespace
+      return if self.class.lsm_namespace_supported?
+
       path = namespace_path
       FileUtils.rm_f(path)
     end

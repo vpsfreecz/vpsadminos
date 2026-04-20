@@ -1,10 +1,25 @@
 { lib }:
 with lib.kernel;
 {
-  stableKernelVersion = "6.12.81";
-  unstableKernelVersion = "6.12.81";
+  stableKernelVersion = "6.18";
+  unstableKernelVersion = "6.18";
 
   kernels = {
+    "6.18" = {
+      rev = "fa226231fe8c1723505a68e16ba3b1f63f7d084d";
+      sha256 = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+      structuredExtraConfig = {
+        DAMON = yes;
+        DAMON_VADDR = yes;
+        DAMON_PADDR = yes;
+        DAMON_SYSFS = yes;
+        DAMON_RECLAIM = yes;
+      };
+      zfs = {
+        rev = "8860be1f790f06e93cd508f97d52d93324a7cf7f";
+        sha256 = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+      };
+    };
     "6.12.81" = {
       rev = "5995eccc096f8057fbdf8b53814793201d1526bc";
       sha256 = "sha256-6N6tB2tQUmCjrnBWSdxeZ88godNc67svj0UhtZ0uKiw=";

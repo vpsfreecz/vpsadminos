@@ -16,7 +16,9 @@ module OsCtld
           homedir: ct.user.homedir,
           cgroup_path: ct.entry_cgroup_path,
           prlimits: ct.prlimits.export,
-          syslogns_pid: ct.init_pid
+          syslogns_pid: ct.init_pid,
+          tracingns_pid: ct.init_pid,
+          lsmns_pid: ct.init_pid
         }
       }
     end

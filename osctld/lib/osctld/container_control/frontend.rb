@@ -63,6 +63,8 @@ module OsCtld
       prlimits = ct.prlimits.export
       syslogns_pid = ct.init_pid
       syslogns_tag = syslogns_pid.nil? && ct.syslogns_tag
+      tracingns_pid = ct.init_pid
+      lsmns_pid = ct.init_pid
 
       # Runner configuration
       runner_opts = {
@@ -118,7 +120,9 @@ module OsCtld
           homedir,
           cgroup_path,
           syslogns_pid:,
-          syslogns_tag:
+          syslogns_tag:,
+          tracingns_pid:,
+          lsmns_pid:
         )
         Process.exec(::OsCtld.bin('osctld-ct-runner'))
         exit
