@@ -16,7 +16,7 @@ with lib.kernel;
         DAMON_RECLAIM = yes;
       };
       zfs = {
-        rev = "7fdc92339989b56bd4b931ef5bc97b2a82c1bc2a";
+        rev = "ba5eaebf71922671a6eb75970dcb546ebd48409b";
         sha256 = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
       };
     };
