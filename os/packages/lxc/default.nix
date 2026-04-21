@@ -30,7 +30,7 @@ stdenv.mkDerivation rec {
     owner = "vpsfreecz";
     repo = "lxc";
     rev = "f81046f8c63ea44d3253b7b8fb811fa6b6fae4bd";
-    sha256 = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+    sha256 = "sha256-7qi8Gp65jYGoZwIrYCXx2wiqHVl+QzX9hKLM/lzfJkM=";
   };
 
   nativeBuildInputs = [
