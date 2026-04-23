@@ -3,11 +3,15 @@ require 'osctl/exporter/collectors/base'
 module OsCtl::Exporter
   class Collectors::ZpoolList < Collectors::Base
     def setup
-      @zpool_list_success = registry.gauge(
+      add_metric(
+        :zpool_list_success,
+        :gauge,
         :zpool_list_success,
         docstring: 'Process exit code'
       )
-      @zpool_list_parse_success = registry.gauge(
+      add_metric(
+        :zpool_list_parse_success,
+        :gauge,
         :zpool_list_parse_success,
         docstring: 'Parsing successful'
       )

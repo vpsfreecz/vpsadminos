@@ -13,7 +13,7 @@ RSpec.describe OsCtl::Exporter::Collectors::Sysctl do
     allow(File).to receive(:read).with('/proc/sys/kernel/pty/reserve').and_return("4\n")
     allow(File).to receive(:read).with('/proc/sys/kernel/pty/nr').and_return("5\n")
 
-    collector.run_collect(build_disconnected_osctld_client)
+    collect_with_registry_swap(registry, collector, build_disconnected_osctld_client)
 
     expect(metric_values(registry.get(:sysctl_kernel_keys_maxkeys))).to eq({ {} => 1.0 })
     expect(metric_values(registry.get(:sysctl_kernel_keys_maxbytes))).to eq({ {} => 2.0 })

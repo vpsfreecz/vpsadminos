@@ -20,14 +20,14 @@ RSpec.describe OsCtl::Exporter::Collectors::ZpoolList do
       end
     end
 
-    collector.run_collect(build_disconnected_osctld_client)
+    collect_with_registry_swap(registry, collector, build_disconnected_osctld_client)
     expect(metric_values(registry.get(:zpool_list_success))).to eq({ {} => 1.0 })
     expect(metric_values(registry.get(:zpool_list_parse_success))).to eq({ {} => 1.0 })
     expect(metric_values(registry.get(:zpool_list_health))).to eq(
       { { pool: 'tank' } => 1.0, { pool: 'backup' } => 0.0 }
     )
 
-    collector.run_collect(build_disconnected_osctld_client)
+    collect_with_registry_swap(registry, collector, build_disconnected_osctld_client)
     expect(metric_values(registry.get(:zpool_list_success))).to eq({ {} => 0.0 })
     expect(metric_values(registry.get(:zpool_list_parse_success))).to eq({ {} => 0.0 })
   end

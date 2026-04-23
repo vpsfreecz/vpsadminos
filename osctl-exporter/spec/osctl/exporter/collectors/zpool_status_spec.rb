@@ -38,7 +38,7 @@ RSpec.describe OsCtl::Exporter::Collectors::ZpoolStatus do
     allow(OsCtl::Lib::Zfs::ZpoolStatus).to receive(:new).and_return(status)
     allow(collector).to receive(:log)
 
-    collector.run_collect(build_disconnected_osctld_client)
+    collect_with_registry_swap(registry, collector, build_disconnected_osctld_client)
 
     expect(metric_values(registry.get(:zpool_status_success))).to eq({ {} => 1.0 })
     expect(metric_values(registry.get(:zpool_status_parse_success))).to eq({ {} => 1.0 })
@@ -52,7 +52,7 @@ RSpec.describe OsCtl::Exporter::Collectors::ZpoolStatus do
     )
 
     allow(OsCtl::Lib::Zfs::ZpoolStatus).to receive(:new).and_raise(RuntimeError, 'parse failed')
-    collector.run_collect(build_disconnected_osctld_client)
+    collect_with_registry_swap(registry, collector, build_disconnected_osctld_client)
 
     expect(metric_values(registry.get(:zpool_status_success))).to eq({ {} => 0.0 })
     expect(metric_values(registry.get(:zpool_status_parse_success))).to eq({ {} => 0.0 })

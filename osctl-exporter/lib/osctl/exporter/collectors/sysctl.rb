@@ -3,23 +3,33 @@ require 'osctl/exporter/collectors/base'
 module OsCtl::Exporter
   class Collectors::Sysctl < Collectors::Base
     def setup
-      @kernel_keys_maxkeys = registry.gauge(
+      add_metric(
+        :kernel_keys_maxkeys,
+        :gauge,
         :sysctl_kernel_keys_maxkeys,
         docstring: 'Value of /proc/sys/kernel/keys/maxkeys'
       )
-      @kernel_keys_maxbytes = registry.gauge(
+      add_metric(
+        :kernel_keys_maxbytes,
+        :gauge,
         :sysctl_kernel_keys_maxbytes,
         docstring: 'Value of /proc/sys/kernel/keys/maxbytes'
       )
-      @kernel_pty_max = registry.gauge(
+      add_metric(
+        :kernel_pty_max,
+        :gauge,
         :sysctl_kernel_pty_max,
         docstring: 'Value of /proc/sys/kernel/pty/max'
       )
-      @kernel_pty_reserve = registry.gauge(
+      add_metric(
+        :kernel_pty_reserve,
+        :gauge,
         :sysctl_kernel_pty_reserve,
         docstring: 'Value of /proc/sys/kernel/pty/reserve'
       )
-      @kernel_pty_nr = registry.gauge(
+      add_metric(
+        :kernel_pty_nr,
+        :gauge,
         :sysctl_kernel_pty_nr,
         docstring: 'Value of /proc/sys/kernel/pty/nr'
       )

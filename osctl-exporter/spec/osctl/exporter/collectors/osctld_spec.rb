@@ -9,7 +9,7 @@ RSpec.describe OsCtl::Exporter::Collectors::OsCtld do
   it 'exports zeroed metrics for a disconnected client' do
     client = build_disconnected_osctld_client
 
-    collector.run_collect(client)
+    collect_with_registry_swap(registry, collector, client)
 
     expect(metric_values(registry.get(:osctld_up))).to eq({ {} => 0.0 })
     expect(metric_values(registry.get(:osctld_responsive))).to eq({ {} => 0.0 })
@@ -21,7 +21,7 @@ RSpec.describe OsCtl::Exporter::Collectors::OsCtld do
     client = build_connected_osctld_client
     allow(client).to receive(:ping?).and_raise(RuntimeError, 'timeout')
 
-    collector.run_collect(client)
+    collect_with_registry_swap(registry, collector, client)
 
     expect(metric_values(registry.get(:osctld_up))).to eq({ {} => 1.0 })
     expect(metric_values(registry.get(:osctld_responsive))).to eq({ {} => 0.0 })
@@ -37,7 +37,7 @@ RSpec.describe OsCtl::Exporter::Collectors::OsCtld do
       }
     )
 
-    collector.run_collect(client)
+    collect_with_registry_swap(registry, collector, client)
 
     expect(metric_values(registry.get(:osctld_up))).to eq({ {} => 1.0 })
     expect(metric_values(registry.get(:osctld_responsive))).to eq({ {} => 1.0 })

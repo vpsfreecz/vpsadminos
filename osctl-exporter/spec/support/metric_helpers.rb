@@ -7,6 +7,12 @@ module MetricHelpers
       ret[normalized] = value
     end
   end
+
+  def collect_with_registry_swap(registry, collector, client)
+    registry.atomic_replace do
+      collector.run_collect(client)
+    end
+  end
 end
 
 RSpec.configure do |config|

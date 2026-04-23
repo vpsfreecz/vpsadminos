@@ -12,11 +12,15 @@ module OsCtl::Exporter
     VDEV_STATES = %i[degraded faulted offline online removed avail unavail].freeze
 
     def setup
-      @zpool_status_success = registry.gauge(
+      add_metric(
+        :zpool_status_success,
+        :gauge,
         :zpool_status_success,
         docstring: 'Process exit code'
       )
-      @zpool_status_parse_success = registry.gauge(
+      add_metric(
+        :zpool_status_parse_success,
+        :gauge,
         :zpool_status_parse_success,
         docstring: 'Parsing successful'
       )

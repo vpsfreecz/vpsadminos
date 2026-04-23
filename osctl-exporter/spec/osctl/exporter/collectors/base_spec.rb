@@ -20,17 +20,18 @@ RSpec.describe OsCtl::Exporter::Collectors::Base do
   end
 
   it 'registers auto metrics and refreshes them on each collection' do
-    collector = collector_class.new(instance_double(OsCtl::Exporter::Collector), OsCtl::Exporter::Registry.new)
+    registry = OsCtl::Exporter::Registry.new
+    collector = collector_class.new(instance_double(OsCtl::Exporter::Collector), registry)
 
     expect(collector.send(:metric_configs).keys).to eq([:dynamic_metric])
 
-    collector.run_collect(:client_one)
+    collect_with_registry_swap(registry, collector, :client_one)
     first_metric = collector.instance_variable_get(:@dynamic_metric)
 
     expect(collector.seen_client).to eq(:client_one)
-    expect(metric_values(collector.send(:registry).get(:dynamic_metric))).to eq({ {} => 7.0 })
+    expect(metric_values(registry.get(:dynamic_metric))).to eq({ {} => 7.0 })
 
-    collector.run_collect(:client_two)
+    collect_with_registry_swap(registry, collector, :client_two)
     second_metric = collector.instance_variable_get(:@dynamic_metric)
 
     expect(second_metric).not_to equal(first_metric)
