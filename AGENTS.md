@@ -38,6 +38,8 @@
 ## Commit & Pull Request Guidelines
 - Follow existing history: `<area>: <change>` (e.g., `os: ...`, `tests/distributions: ...`); present tense, scoped subjects.
 - Each commit message must explain what the change does and why the change is necessary.
+- Gem update commits created with `make commit-gems` or `make amend-gems` must
+  contain only the subject line.
 - Limit all commit message lines to 80 characters or fewer.
 - Always write the commit message to a temporary file and commit with `git commit -F <tempfile>` instead of `git commit -m`.
 - Keep commits focused and update docs/man pages when behavior changes.
