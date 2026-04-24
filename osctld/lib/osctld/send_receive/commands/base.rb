@@ -6,7 +6,27 @@ module OsCtld
       SendReceive::Command.register(name, self)
     end
 
+    def base_execute
+      validate_protocol_version!
+      execute
+    end
+
     protected
+
+    def validate_protocol_version!
+      return if SendReceive.supported_protocol_version?(opts[:protocol_version])
+
+      error!(SendReceive.protocol_error(opts[:protocol_version]))
+    end
+
+    def validate_send_log_protocol!(ct)
+      return if ct.send_log&.protocol_version == opts[:protocol_version]
+
+      error!(
+        'send/receive protocol version mismatch, ' \
+        "request=#{opts[:protocol_version]} log=#{ct.send_log&.protocol_version.inspect}"
+      )
+    end
 
     def receive_pipeline_error(mbuffer_status, recv_status)
       failures = []

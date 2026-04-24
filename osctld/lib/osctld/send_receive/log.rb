@@ -1,3 +1,5 @@
+require 'osctld/send_receive'
+
 module OsCtld
   # This class serves as a scratchpad for container send/receive
   #
@@ -37,6 +39,9 @@ module OsCtld
       # @return [Boolean]
       attr_reader :preexisting_datasets
 
+      # @return [Integer]
+      attr_reader :protocol_version
+
       # @param opts [Hash]
       # @option opts [String] :ctid
       # @option opts [Integer] :port
@@ -51,6 +56,7 @@ module OsCtld
         @snapshots = opts.delete(:snapshots)
         @from_snapshot = opts.delete(:from_snapshot)
         @preexisting_datasets = opts.delete(:preexisting_datasets)
+        @protocol_version = opts.delete(:protocol_version) || SendReceive::PROTOCOL_VERSION
 
         return if opts.empty?
 
@@ -75,7 +81,8 @@ module OsCtld
           'key_name' => key_name,
           'snapshots' => snapshots,
           'from_snapshot' => from_snapshot,
-          'preexisting_datasets' => preexisting_datasets
+          'preexisting_datasets' => preexisting_datasets,
+          'protocol_version' => protocol_version
         }
       end
     end
@@ -123,6 +130,10 @@ module OsCtld
         'state_running' => state_running,
         'opts' => opts.dump
       }
+    end
+
+    def protocol_version
+      opts.protocol_version
     end
 
     def can_send_continue?(next_state)

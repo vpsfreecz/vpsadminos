@@ -1,4 +1,5 @@
 require 'osctld/commands/base'
+require 'osctld/send_receive'
 require 'tempfile'
 
 module OsCtld
@@ -41,7 +42,8 @@ module OsCtld
           dst: opts[:dst],
           snapshots: opts.fetch(:snapshots, true),
           from_snapshot:,
-          preexisting_datasets: opts.fetch(:preexisting_datasets, false)
+          preexisting_datasets: opts.fetch(:preexisting_datasets, false),
+          protocol_version: SendReceive::PROTOCOL_VERSION
         }
 
         recv_opts = [

@@ -8,6 +8,7 @@ module OsCtld
 
     extend OsCtl::Lib::Utils::File
 
+    PROTOCOL_VERSION = 2
     USER = 'osctl-ct-receive'.freeze
     UID = Etc.getpwnam(USER).uid
     SOCKET = File.join(RunState::SEND_RECEIVE_DIR, 'control.sock')
@@ -68,6 +69,22 @@ module OsCtld
         yield
       else
         MUTEX.synchronize(&)
+      end
+    end
+
+    def self.protocol_version
+      PROTOCOL_VERSION
+    end
+
+    def self.supported_protocol_version?(version)
+      version == PROTOCOL_VERSION
+    end
+
+    def self.protocol_error(version)
+      if version.nil?
+        "send/receive protocol version missing, expected #{PROTOCOL_VERSION}"
+      else
+        "unsupported send/receive protocol version #{version}, expected #{PROTOCOL_VERSION}"
       end
     end
   end

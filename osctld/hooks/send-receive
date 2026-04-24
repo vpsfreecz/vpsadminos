@@ -26,16 +26,22 @@ class SendReceive
     error! unless cmdline
 
     args = cmdline.split
-    error! if args.count < 2 || args[0] != 'receive' || !COMMANDS.include?(args[1])
+    error! if args.count < 3 || args[0] != 'receive'
 
-    @args = args[2..]
+    @protocol_version = Integer(args[1], exception: false)
+    error! unless @protocol_version
+
+    command = args[2]
+    error! unless COMMANDS.include?(command)
+
+    @args = args[3..]
     connect
-    method(args[1].to_sym).call
+    method(command.to_sym).call
   end
 
   protected
 
-  attr_reader :key_pool, :key_name, :client_ip, :args, :client
+  attr_reader :key_pool, :key_name, :client_ip, :protocol_version, :args, :client
 
   def skel
     to_pool =
@@ -143,7 +149,7 @@ class SendReceive
   end
 
   def send_cmd(cmd, opts = {})
-    client.puts({ cmd:, opts: }.to_json)
+    client.puts({ cmd:, opts: opts.merge(protocol_version:) }.to_json)
   end
 
   def send_stdin
@@ -177,12 +183,12 @@ class SendReceive
   def usage
     warn <<~END
       Usage:
-        receive skel [pool|- [passphrase]]
-        receive base <token> <dataset> [snapshot]
-        receive incremental <token> <dataset> [snapshot]
-        receive transfer <token> [start]
-        receive cleanup <token>
-        receive cancel <token>
+        receive <protocol> skel [pool|- [passphrase]]
+        receive <protocol> base <token> <dataset> [snapshot]
+        receive <protocol> incremental <token> <dataset> [snapshot]
+        receive <protocol> transfer <token> [start]
+        receive <protocol> cleanup <token>
+        receive <protocol> cancel <token>
     END
   end
 

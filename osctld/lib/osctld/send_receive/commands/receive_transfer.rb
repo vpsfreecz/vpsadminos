@@ -25,6 +25,8 @@ module OsCtld
           error!('authentication key mismatch')
         end
 
+        validate_send_log_protocol!(ct)
+
         begin
           ct.state = :complete
 

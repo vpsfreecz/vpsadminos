@@ -8,14 +8,21 @@ require 'osctld/send_receive/commands/receive_cancel'
 
 RSpec.describe OsCtld::SendReceive::Commands::ReceiveCancel do
   def build_send_log(snapshots: [['tank/ct1', 'snap1']])
-    send_log_opts_class = Struct.new(:key_name, keyword_init: true)
+    send_log_opts_class = Struct.new(:key_name, :protocol_version, keyword_init: true)
     Struct.new(:snapshots, :opts, keyword_init: true) do
       def can_receive_cancel?
         true
       end
+
+      def protocol_version
+        opts.protocol_version
+      end
     end.new(
       snapshots:,
-      opts: send_log_opts_class.new(key_name: 'auth-key')
+      opts: send_log_opts_class.new(
+        key_name: 'auth-key',
+        protocol_version: OsCtld::SendReceive::PROTOCOL_VERSION
+      )
     )
   end
 
@@ -46,7 +53,17 @@ RSpec.describe OsCtld::SendReceive::Commands::ReceiveCancel do
   let(:ct) do
     build_ct(pool, build_send_log)
   end
-  let(:command) { described_class.new({ token: 'abc', key_pool: 'tank', key_name: 'rx' }, {}) }
+  let(:command) do
+    described_class.new(
+      {
+        token: 'abc',
+        key_pool: 'tank',
+        key_name: 'rx',
+        protocol_version: OsCtld::SendReceive::PROTOCOL_VERSION
+      },
+      {}
+    )
+  end
 
   before do
     stub_const('OsCtld::SendReceive::Tokens', Class.new do

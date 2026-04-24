@@ -51,4 +51,30 @@ RSpec.describe OsCtl::Lib::Utils::Send do
       ]
     )
   end
+
+  it 'injects the send/receive protocol version into receive commands' do
+    expect(
+      helper.send_ssh_cmd(
+        nil,
+        machine_opts.merge(protocol_version: 2),
+        %w[receive transfer token-1]
+      )
+    ).to eq(
+      [
+        'ssh',
+        '-o', 'StrictHostKeyChecking=no',
+        '-T',
+        '-p', '2222',
+        '-l', 'osctl-ct-receive',
+        'node.example.test',
+        'receive', '2', 'transfer', 'token-1'
+      ]
+    )
+  end
+
+  it 'requires the send/receive protocol version for receive commands' do
+    expect do
+      helper.send_ssh_cmd(nil, machine_opts, %w[receive transfer token-1])
+    end.to raise_error(ArgumentError, 'send/receive protocol version not provided')
+  end
 end
