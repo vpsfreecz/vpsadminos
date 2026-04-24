@@ -133,7 +133,13 @@ RSpec.describe 'container recovery and send wrappers' do
   describe OsCtld::Commands::Container::SendCancel do
     it 'destroys transfer snapshots and closes the send log for local cancels' do
       send_opts = double('SendOpts')
-      send_log = double('SendLog', opts: send_opts, token: 'token-1', snapshots: %w[snap1 snap2])
+      send_log = double(
+        'SendLog',
+        opts: send_opts,
+        token: 'token-1',
+        snapshots: %w[snap1 snap2],
+        state_snapshot: nil
+      )
       allow(send_log).to receive(:can_send_cancel?).with(false).and_return(true)
       ct = build_send_ct(send_log:)
       db = stub_const('OsCtld::DB::Containers', Class.new do
@@ -152,10 +158,23 @@ RSpec.describe 'container recovery and send wrappers' do
   end
 
   describe OsCtld::Commands::Container::SendCleanup do
-    it 'destroys snapshots, closes the send log, and deletes uncloned transfers' do
+    def build_send_cleanup_log(opts:, snapshots:, state_snapshot:, token:, state:)
+      Struct.new(:opts, :snapshots, :state_snapshot, :token, :state) do
+        def can_send_continue?(stage)
+          stage == :cleanup && %i[incremental transfer cleanup].include?(state)
+        end
+      end.new(opts, snapshots, state_snapshot, token, state)
+    end
+
+    it 'finalizes the target, destroys snapshots, and deletes uncloned transfers' do
       send_opts = double('SendOpts', cloned?: false)
-      send_log = double('SendLog', opts: send_opts, snapshots: ['snap1'])
-      allow(send_log).to receive(:can_send_continue?).with(:cleanup).and_return(true)
+      send_log = build_send_cleanup_log(
+        opts: send_opts,
+        snapshots: ['snap1'],
+        state_snapshot: nil,
+        token: 'token-1',
+        state: :transfer
+      )
       ct = build_send_ct(send_log:)
       delete_class = stub_const('OsCtld::Commands::Container::Delete', Class.new)
       db = stub_const('OsCtld::DB::Containers', Class.new do
@@ -165,11 +184,39 @@ RSpec.describe 'container recovery and send wrappers' do
 
       command = described_class.new({ id: 'ct1', pool: 'tank' }, {})
       allow(command).to receive(:zfs)
+      allow(command).to receive(:send_ssh_cmd)
+        .with(nil, send_opts, %w[receive cleanup token-1])
+        .and_return(['sh', '-c', 'exit 0'])
       allow(command).to receive(:call_cmd!).with(delete_class, pool: 'tank', id: 'ct1').and_return(status: true, output: nil)
 
       expect(command.execute).to eq(status: true, output: nil)
+      expect(command).to have_received(:send_ssh_cmd)
+        .with(nil, send_opts, %w[receive cleanup token-1])
       expect(ct.closed_send_log).to be(true)
       expect(command).to have_received(:call_cmd!).with(delete_class, pool: 'tank', id: 'ct1')
+    end
+
+    it 'also destroys a pending cutover snapshot during cleanup' do
+      send_opts = double('SendOpts', cloned?: true)
+      send_log = build_send_cleanup_log(
+        opts: send_opts,
+        snapshots: ['snap1'],
+        state_snapshot: 'snap-cutover',
+        token: 'token-1',
+        state: :incremental
+      )
+      ct = build_send_ct(send_log:)
+      db = stub_const('OsCtld::DB::Containers', Class.new do
+        def self.find(_id, _pool); end
+      end)
+      allow(db).to receive(:find).with('ct1', 'tank').and_return(ct)
+
+      command = described_class.new({ id: 'ct1', pool: 'tank' }, {})
+      allow(command).to receive(:zfs)
+
+      expect(command.execute).to eq(status: true, output: nil)
+      expect(command).to have_received(:zfs).with(:destroy, nil, 'tank/ct1@snap-cutover', valid_rcs: [1])
+      expect(ct.closed_send_log).to be(true)
     end
   end
 

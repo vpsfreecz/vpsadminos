@@ -41,6 +41,7 @@ Usage:
   receive base <token> <dataset> [snapshot]
   receive incremental <token> <dataset> [snapshot]
   receive transfer <token> [start]
+  receive cleanup <token>
   receive cancel <token>
 ```
 
@@ -58,13 +59,19 @@ The container move itself consists of several steps:
  - `osctl ct send sync` optionally synchronizes the source and destination rootfs
  - `osctl ct send state` stops the container on the source node, performs
    another rootfs sync and finally starts the container on the destination node
- - `osctl ct send cleanup` is used to remove the container from the source
-   node
+ - `osctl ct send cleanup` finalizes the transfer on the destination node
+   and removes the container from the source node
 
 Up until `osctl ct send state`, the send can be cancelled using
 `osctl ct send cancel`, which resets the container's send state on the
 source node and removes the partially transfered container from the destination
 node.
+
+If `osctl ct send state` fails after the source container was already stopped,
+it can be retried. The retry preserves whether the original cutover stopped a
+running container, so the usual auto-start and clone restart behavior remains
+the same. Retrying `osctl ct send state` repeats the cutover, including target
+start or clone restart when requested.
 
 `osctl ct send` will perform all necessary steps in succession.
 Use this when you don't care when is a particular send step run. Otherwise,
@@ -87,8 +94,8 @@ source-node $ osctl ct send sync myct01
 # 4) When the downtime will be least unwelcome, finally transfer the container
 source-node $ osctl ct send state myct01
 
-# 5) Cleanup is executed only on the source node, the destination node is already
-#    finished
+# 5) Cleanup is executed from the source node and finalizes the destination node
+#    as well
 source-node $ osctl ct send cleanup myct01
 ```
 

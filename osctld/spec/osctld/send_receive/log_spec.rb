@@ -37,6 +37,8 @@ RSpec.describe OsCtld::SendReceive::Log do
       token: 'token-1',
       state: :base,
       snapshots: %w[snap1 snap2],
+      state_snapshot: 'cutover-snap',
+      state_running: true,
       opts: {
         ctid: '100',
         port: 2222,
