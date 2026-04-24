@@ -105,6 +105,10 @@ let
       distribution = "ubuntu";
       version = "24.04";
     };
+    ubuntu_2604 = {
+      distribution = "ubuntu";
+      version = "26.04";
+    };
     void_glibc = {
       distribution = "void";
       version = "latest-glibc";
@@ -135,6 +139,7 @@ in
     ubuntu_2004
     ubuntu_2204
     ubuntu_2404
+    ubuntu_2604
     void_glibc
     void_musl
   ];
@@ -177,6 +182,7 @@ in
     ubuntu_2004
     ubuntu_2204
     ubuntu_2404
+    ubuntu_2604
   ];
 
   non-systemd = with table; [
