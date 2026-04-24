@@ -5,6 +5,20 @@ require 'socket'
 class SendReceive
   COMMANDS = %w[skel base incremental transfer cancel].freeze
 
+  def self.run(argv: ARGV, env: ENV)
+    if argv.length != 2
+      warn 'Usage: $0 <pool> <key name>'
+      exit(false)
+    end
+
+    new(
+      argv[0],
+      argv[1],
+      env.fetch('SSH_ORIGINAL_COMMAND', nil),
+      env['SSH_CONNECTION'].split
+    )
+  end
+
   def initialize(pool, key_name, cmdline, connection)
     @key_pool = pool
     @key_name = key_name
@@ -131,14 +145,18 @@ class SendReceive
   end
 
   def recv_resp!
-    msg = recv_msg
+    loop do
+      msg = recv_msg
 
-    unless msg[:status]
-      warn "Error: #{msg[:message]}"
-      exit(false)
+      unless msg[:status]
+        warn "Error: #{msg[:message]}"
+        exit(false)
+      end
+
+      next if msg.has_key?(:progress)
+
+      return msg[:response]
     end
-
-    msg[:response]
   end
 
   def parse_token
@@ -163,14 +181,4 @@ class SendReceive
   end
 end
 
-if ARGV.length != 2
-  warn 'Usage: $0 <pool> <key name>'
-  exit(false)
-end
-
-SendReceive.new(
-  ARGV[0],
-  ARGV[1],
-  ENV.fetch('SSH_ORIGINAL_COMMAND', nil),
-  ENV['SSH_CONNECTION'].split
-)
+SendReceive.run if $0 == __FILE__
