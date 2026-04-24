@@ -223,10 +223,17 @@ The container transfer consists of several steps:
  - `ct send sync` optionally syncs rootfs changes, can be called multiple times
  - `ct send state` stops the container on the source node, performs
    another rootfs sync and finally starts the container on the destination node
- - `ct send cleanup` is used to remove the container from the source node
+ - `ct send cleanup` finalizes the transfer on the destination node
+   and removes the container from the source node
 
 Up until `ct send state`, the send can be cancelled using
 `ct send cancel`.
+
+If `ct send state` fails after the source container was already stopped, it can
+be retried. The retry preserves whether the original cutover stopped a running
+container, so the usual auto-start and clone restart behavior remains the same.
+Retrying `ct send state` repeats the cutover, including target start or clone
+restart when requested.
 
 `ct send` will perform all necessary send steps in succession.
 
@@ -1699,7 +1706,11 @@ The following shortcuts are supported:
 `ct send state` [*options*] *ctid*
   This command stops the container if it is running, makes another set of
   snapshots of the container's dataset and sends them to *destination*.
-  The container is then started on the *destination* node.
+  The container is then started on the *destination* node. If the cutover fails
+  after the source was already stopped, `ct send state` can be retried and will
+  preserve the original running-state when deciding whether to start or restart
+  containers. Retrying `ct send state` repeats the cutover, including target
+  start or clone restart when requested.
 
     `--clone`
       Do not move the container to *destination*, but clone it.
@@ -1717,8 +1728,9 @@ The following shortcuts are supported:
       Do not start the container on the target node, keep it stopped.
 
 `ct send cleanup` [*options*] *ctid*
-  Perform a cleanup after container *ctid* was sent to another node. The send
-  state is reset and the container is deleted unless it was cloned.
+  Perform a cleanup after container *ctid* was sent to another node. The
+  destination transfer is finalized, the send state is reset and the container
+  is deleted unless it was cloned.
 
 `ct send cancel` [*options*] *ctid*
   Cancel a send of container *ctid*. The send state is deleted from

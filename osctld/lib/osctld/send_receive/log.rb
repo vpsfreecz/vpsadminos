@@ -81,6 +81,7 @@ module OsCtld
     end
 
     attr_reader :role, :token, :state, :snapshots, :opts
+    attr_accessor :state_snapshot, :state_running
 
     def self.load(cfg)
       new(
@@ -88,6 +89,8 @@ module OsCtld
         token: cfg['token'],
         state: cfg['state'].to_sym,
         snapshots: cfg['snapshots'],
+        state_snapshot: cfg['state_snapshot'],
+        state_running: cfg['state_running'],
         opts: Options.load(cfg['opts'])
       )
     end
@@ -97,12 +100,16 @@ module OsCtld
     # @option opts [String] token
     # @option opts [Symbol] state
     # @option opts [Array<String>] snapshots
+    # @option opts [String, nil] state_snapshot
+    # @option opts [Boolean, nil] state_running
     # @option opts [Options, Hash] opts
     def initialize(opts)
       @role = opts[:role]
       @token = opts[:token]
       @state = opts[:state] || :stage
       @snapshots = opts[:snapshots] || []
+      @state_snapshot = opts[:state_snapshot]
+      @state_running = opts[:state_running]
       @opts = opts[:opts].is_a?(Options) ? opts[:opts] : Options.new(opts[:opts] || {})
     end
 
@@ -112,6 +119,8 @@ module OsCtld
         'token' => token,
         'state' => state.to_s,
         'snapshots' => snapshots,
+        'state_snapshot' => state_snapshot,
+        'state_running' => state_running,
         'opts' => opts.dump
       }
     end
@@ -122,7 +131,8 @@ module OsCtld
 
       if !next_i
         false
-      elsif state == :incremental && next_state == :incremental
+      elsif (state == :cleanup && next_state == :cleanup) || \
+            (state == :incremental && next_state == :incremental)
         true
       else
         next_i > cur_i
@@ -142,7 +152,8 @@ module OsCtld
 
       if !next_i
         false
-      elsif syncs.include?(state) && syncs.include?(next_state)
+      elsif (state == :cleanup && next_state == :cleanup) || \
+            (syncs.include?(state) && syncs.include?(next_state))
         true
       else
         next_i > cur_i

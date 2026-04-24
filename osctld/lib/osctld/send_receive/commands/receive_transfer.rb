@@ -1,11 +1,13 @@
 require 'libosctl'
 require 'osctld/send_receive/commands/base'
+require 'osctld/utils/container'
 
 module OsCtld
   class SendReceive::Commands::Transfer < SendReceive::Commands::Base
     handle :receive_transfer
 
     include Utils::Receive
+    include Utils::Container
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
 
@@ -23,27 +25,52 @@ module OsCtld
           error!('authentication key mismatch')
         end
 
-        ct.state = :complete
+        begin
+          ct.state = :complete
 
-        if opts[:start]
-          call_cmd!(
-            Commands::Container::Start,
-            id: ct.id,
-            pool: ct.pool.name,
-            force: true
-          )
+          if opts[:start]
+            call_cmd!(
+              Commands::Container::Start,
+              id: ct.id,
+              pool: ct.pool.name,
+              force: true
+            )
+          end
+        rescue StandardError
+          rollback_failed_receive_transfer(ct)
+          raise
         end
 
-        ct.send_log.snapshots.each do |v|
-          ds, snap = v
-          zfs(:destroy, nil, "#{ds}@#{snap}")
+        ct.exclusively do
+          ct.send_log.state = :transfer
+          ct.save_config
         end
-
-        SendReceive.stopped_using_key(ct.pool, ct.send_log.opts.key_name)
-        ct.close_send_log
       end
 
       ok
+    end
+
+    protected
+
+    def rollback_failed_receive_transfer(ct)
+      Console.remove(ct)
+      ct.clear_start_menu
+      ct.mounts.shared_dir.remove
+      ct.mounts.prune
+      ct.unmount(force: true)
+      remove_accounting_cgroups(ct)
+
+      if AppArmor.enabled?
+        ct.apparmor.destroy_namespace
+        ct.apparmor.unload_profile
+      end
+
+      ct.stopped
+
+      ct.exclusively do
+        ct.state = :staged
+        ct.save_config
+      end
     end
   end
 end

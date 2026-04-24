@@ -7,14 +7,14 @@ require 'osctld/utils/receive'
 require 'osctld/send_receive/commands/receive_cancel'
 
 RSpec.describe OsCtld::SendReceive::Commands::ReceiveCancel do
-  def build_send_log
+  def build_send_log(snapshots: [['tank/ct1', 'snap1']])
     send_log_opts_class = Struct.new(:key_name, keyword_init: true)
     Struct.new(:snapshots, :opts, keyword_init: true) do
       def can_receive_cancel?
         true
       end
     end.new(
-      snapshots: [['tank/ct1', 'snap1']],
+      snapshots:,
       opts: send_log_opts_class.new(key_name: 'auth-key')
     )
   end
@@ -72,6 +72,22 @@ RSpec.describe OsCtld::SendReceive::Commands::ReceiveCancel do
       pool: 'tank'
     )
     expect(ct.closed).to be(true)
+  end
+
+  it 'cancels a staged receive after snapshot cleanup already ran' do
+    empty_log = build_send_log(snapshots: [])
+    empty_ct = build_ct(pool, empty_log)
+    allow(OsCtld::SendReceive::Tokens).to receive(:find_container).with('abc').and_return(empty_ct)
+
+    expect(command.execute).to eq(status: true, output: nil)
+    expect(command).not_to have_received(:zfs)
+    expect(OsCtld::SendReceive).to have_received(:stopped_using_key).with(pool, 'auth-key')
+    expect(command).to have_received(:call_cmd!).with(
+      OsCtld::Commands::Container::Delete,
+      id: 'ct1',
+      pool: 'tank'
+    )
+    expect(empty_ct.closed).to be(true)
   end
 
   it 'rejects containers that cannot be found' do

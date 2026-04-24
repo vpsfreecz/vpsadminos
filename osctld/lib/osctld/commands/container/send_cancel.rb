@@ -38,16 +38,26 @@ module OsCtld
           end
         end
 
-        ct.each_dataset do |ds|
-          ct.send_log.snapshots.each do |snap|
-            zfs(:destroy, nil, "#{ds}@#{snap}")
-          end
-        end
+        destroy_send_snapshots(ct)
 
         ct.close_send_log
       end
 
       ok
+    end
+
+    protected
+
+    def destroy_send_snapshots(ct)
+      ct.each_dataset do |ds|
+        ct.send_log.snapshots.each do |snap|
+          zfs(:destroy, nil, "#{ds}@#{snap}")
+        end
+
+        next if ct.send_log.state_snapshot.nil?
+
+        zfs(:destroy, nil, "#{ds}@#{ct.send_log.state_snapshot}", valid_rcs: [1])
+      end
     end
   end
 end

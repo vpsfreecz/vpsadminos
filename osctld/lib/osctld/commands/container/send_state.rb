@@ -20,7 +20,12 @@ module OsCtld
             error!('invalid send sequence')
           end
 
-          running = ct.state == :running
+          if ct.send_log.state_running.nil?
+            ct.send_log.state_running = ct.state == :running
+            ct.save_config
+          end
+
+          running = ct.send_log.state_running
         end
 
         if !opts[:clone] || opts[:consistent]
@@ -37,11 +42,13 @@ module OsCtld
           end
         end
 
+        clear_failed_state_snapshot(ct)
+
         snap = "osctl-send-incr-#{Time.now.to_i}"
         zfs(:snapshot, '-r', "#{ct.dataset}@#{snap}")
 
         ct.exclusively do
-          ct.send_log.snapshots << snap
+          ct.send_log.state_snapshot = snap
           ct.save_config
         end
 
@@ -90,11 +97,27 @@ module OsCtld
 
     protected
 
+    def clear_failed_state_snapshot(ct)
+      snap = ct.send_log.state_snapshot
+      return if snap.nil?
+
+      progress("Removing failed cutover snapshot #{snap}")
+
+      ct.each_dataset do |ds|
+        zfs(:destroy, nil, "#{ds}@#{snap}", valid_rcs: [1])
+      end
+
+      ct.exclusively do
+        ct.send_log.state_snapshot = nil
+        ct.save_config
+      end
+    end
+
     def send_dataset(ct, ds, snap)
       stream = OsCtl::Lib::Zfs::Stream.new(
         ds,
         snap,
-        ct.send_log.snapshots[-2],
+        ct.send_log.snapshots.last,
         intermediary: ct.send_log.opts.snapshots
       )
       stream.progress do |total, _transfered, changed|

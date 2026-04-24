@@ -29,6 +29,111 @@ let
       };
     };
   };
+
+  commonScript = ''
+    def self.ensure_cluster_ready
+      machines.each_value do |machine|
+        machine.start unless machine.running?
+        machine.wait_for_osctl_pool('tank')
+        machine.wait_until_online
+      end
+
+      node1.wait_until_succeeds('ping -c 1 node2', timeout: 60)
+      node2.wait_until_succeeds('ping -c 1 node1', timeout: 60)
+    end
+
+    def self.refresh_send_keys
+      pubkeys = {}
+
+      {
+        'node1' => node1,
+        'node2' => node2,
+      }.each do |name, machine|
+        machine.succeeds('osctl send key gen -f -t ed25519')
+        pubkeys[name] = machine.succeeds('cat $(osctl send key path public)')[1].strip
+      end
+
+      node1.succeeds('osctl receive authorized-keys del node2 >/dev/null 2>&1 || true')
+      node2.succeeds('osctl receive authorized-keys del node1 >/dev/null 2>&1 || true')
+
+      node1.succeeds(
+        %Q{printf '%s\n' "#{pubkeys['node2']}" | osctl receive authorized-keys add node2}
+      )
+      node2.succeeds(
+        %Q{printf '%s\n' "#{pubkeys['node1']}" | osctl receive authorized-keys add node1}
+      )
+    end
+
+    def self.ct_state(machine, ctid)
+      machine.osctl_json("ct show #{ctid}")['state']
+    end
+
+    def self.ct_config_path(ctid)
+      "/tank/conf/ct/#{ctid}.yml"
+    end
+
+    def self.send_log_present?(machine, ctid)
+      status, = machine.execute("grep -q '^send_log:' #{ct_config_path(ctid)}")
+      status == 0
+    end
+
+    def self.hook_path(ctid, hook_name)
+      "/tank/hook/ct/#{ctid}/#{hook_name}"
+    end
+
+    def self.install_hook(machine, ctid, hook_name, script)
+      path = hook_path(ctid, hook_name)
+
+      machine.succeeds(<<~CMD)
+        install -d -m 700 #{File.dirname(path)}
+        cat > #{path} <<'EOF'
+        #{script}
+        EOF
+        chmod 700 #{path}
+      CMD
+    end
+
+    def self.remove_hook(machine, ctid, hook_name)
+      machine.succeeds("rm -f #{hook_path(ctid, hook_name)}")
+    end
+
+    def self.prepare_send(ctid)
+      node1.all_succeed(
+        "osctl ct send config #{ctid} node2",
+        "osctl ct send rootfs #{ctid}"
+      )
+    end
+
+    def self.wait_ct_running(machine, ctid)
+      wait_for_block(name: "#{ctid} becomes running", timeout: 120) do
+        state = ct_state(machine, ctid)
+        next false unless state == 'running'
+
+        state
+      end
+
+      machine.wait_until_succeeds("osctl ct exec #{ctid} true", timeout: 120)
+    end
+
+    def self.expect_ct_absent(machine, ctid, timeout: 60)
+      wait_until_block_fails(name: "#{ctid} disappears", timeout: timeout) do
+        machine.succeeds("osctl ct show #{ctid}")
+      end
+    end
+
+    def self.cleanup_container_everywhere(ctid)
+      {
+        'node1' => node1,
+        'node2' => node2,
+      }.each_value do |machine|
+        machine.succeeds("osctl ct del -f --prune #{ctid} >/dev/null 2>&1 || true")
+      end
+    end
+
+    configure_examples do |config|
+      config.default_order = :defined
+    end
+  '';
 in
 import ../../make-test.nix (
   { pkgs }:
@@ -47,69 +152,243 @@ import ../../make-test.nix (
       node2 = makeMachine "192.168.10.12";
     };
 
-    testScript = ''
-      machines.each_value(&:start)
-      machines.each_value { |m| m.wait_for_osctl_pool('tank') }
-      machines.each_value(&:wait_until_online)
+    testScripts = {
+      "happy-path" = {
+        description = ''
+          Container send and receive works in both directions
+        '';
 
-      node1.wait_until_succeeds('ping -c 1 node2', timeout: 60)
-      node2.wait_until_succeeds('ping -c 1 node1', timeout: 60)
+        script = ''
+          ctid = get_container_id
 
-      pubkeys = {}
+          ${commonScript}
 
-      machines.each do |name, m|
-        m.succeeds("osctl send key gen -t ed25519")
+          before(:suite) do
+            ensure_cluster_ready
+            refresh_send_keys
 
-        _, pubkey = m.succeeds("cat $(osctl send key path public)")
-        pubkeys[name] = pubkey.strip
-      end
+            node2.fails("osctl ct show #{ctid}")
 
-      node1.succeeds("echo \"#{pubkeys['node2']}\" | osctl receive authorized-keys add node2")
-      node2.succeeds("echo \"#{pubkeys['node1']}\" | osctl receive authorized-keys add node1")
+            node1.all_succeed(
+              "osctl ct new --distribution alpine #{ctid}",
+              "osctl ct unset start-menu #{ctid}",
+              "osctl ct start #{ctid}"
+            )
 
-      ctid = get_container_id
+            wait_ct_running(node1, ctid)
+          end
 
-      # Send ctid from node1 to node2
-      node2.fails("osctl ct show #{ctid}")
+          after(:suite) do
+            cleanup_container_everywhere(ctid)
+          end
 
-      node1.all_succeed(
-        "osctl ct new --distribution alpine #{ctid}",
-        "osctl ct start #{ctid}",
-        "osctl ct send #{ctid} node2"
-      )
+          describe 'happy path' do
+            it 'moves the container to node2 and back to node1' do
+              node1.succeeds("osctl ct send #{ctid} node2")
 
-      state_on_node2 = 'unknown'
+              wait_ct_running(node2, ctid)
+              expect_ct_absent(node1, ctid)
+              expect(ct_state(node2, ctid)).to eq('running')
+              expect(send_log_present?(node2, ctid)).to be(false)
 
-      30.times do
-        state_on_node2 = node2.osctl_json("ct show #{ctid}")['state']
-        break if state_on_node2 == 'running'
+              node2.succeeds("osctl ct send #{ctid} node1")
 
-        sleep(1)
-      end
+              wait_ct_running(node1, ctid)
+              expect_ct_absent(node2, ctid)
+              expect(ct_state(node1, ctid)).to eq('running')
+              expect(send_log_present?(node1, ctid)).to be(false)
+            end
+          end
+        '';
+      };
 
-      if state_on_node2 != 'running'
-        raise "#{ctid} is not running on node2, current state is #{state_on_node2.inspect}"
-      end
+      "source-stop-failure" = {
+        description = ''
+          A failed source stop keeps the cutover retryable
+        '';
 
-      node1.fails("osctl ct show #{ctid}")
+        script = ''
+          ctid = get_container_id
 
-      # Send ctid back to node1
-      node2.succeeds("osctl ct send #{ctid} node1")
+          ${commonScript}
 
-      state_on_node1 = 'unknown'
+          before(:suite) do
+            ensure_cluster_ready
+            refresh_send_keys
 
-      30.times do
-        state_on_node1 = node1.osctl_json("ct show #{ctid}")['state']
-        break if state_on_node1 == 'running'
+            node1.all_succeed(
+              "osctl ct new --distribution alpine #{ctid}",
+              "osctl ct unset start-menu #{ctid}",
+              "osctl ct start #{ctid}"
+            )
 
-        sleep(1)
-      end
+            wait_ct_running(node1, ctid)
+            prepare_send(ctid)
 
-      if state_on_node1 != 'running'
-        raise "#{ctid} is not running on node1, current state is #{state_on_node1.inspect}"
-      end
+            install_hook(node1, ctid, 'pre-stop', <<~HOOK)
+              #!/bin/sh
+              exit 1
+            HOOK
 
-      node2.fails("osctl ct show #{ctid}")
-    '';
+            node1.fails("osctl ct send state #{ctid}")
+          end
+
+          after(:suite) do
+            remove_hook(node1, ctid, 'pre-stop')
+            cleanup_container_everywhere(ctid)
+          end
+
+          describe 'source stop failure' do
+            it 'keeps the container on the source node' do
+              expect(ct_state(node1, ctid)).to eq('running')
+            end
+
+            it 'keeps the send state on the source' do
+              expect(send_log_present?(node1, ctid)).to be(true)
+            end
+
+            it 'keeps the staged target container' do
+              expect(ct_state(node2, ctid)).to eq('staged')
+            end
+
+            it 'can complete the migration with another send state attempt' do
+              remove_hook(node1, ctid, 'pre-stop')
+
+              node1.succeeds("osctl ct send state #{ctid}")
+              node1.succeeds("osctl ct send cleanup #{ctid}")
+
+              wait_ct_running(node2, ctid)
+              expect_ct_absent(node1, ctid)
+              expect(send_log_present?(node2, ctid)).to be(false)
+            end
+          end
+        '';
+      };
+
+      "source-restart-failure" = {
+        description = ''
+          A failed source restart in clone mode keeps the cutover retryable
+        '';
+
+        script = ''
+          ctid = get_container_id
+
+          ${commonScript}
+
+          before(:suite) do
+            ensure_cluster_ready
+            refresh_send_keys
+
+            node1.all_succeed(
+              "osctl ct new --distribution alpine #{ctid}",
+              "osctl ct unset start-menu #{ctid}",
+              "osctl ct start #{ctid}"
+            )
+
+            wait_ct_running(node1, ctid)
+            prepare_send(ctid)
+
+            install_hook(node1, ctid, 'pre-start', <<~HOOK)
+              #!/bin/sh
+              exit 1
+            HOOK
+
+            node1.fails("osctl ct send state --clone #{ctid}")
+          end
+
+          after(:suite) do
+            remove_hook(node1, ctid, 'pre-start')
+            cleanup_container_everywhere(ctid)
+          end
+
+          describe 'source restart failure' do
+            it 'keeps the source container stopped on node1' do
+              expect(ct_state(node1, ctid)).to eq('stopped')
+            end
+
+            it 'keeps the transfer state open' do
+              expect(send_log_present?(node1, ctid)).to be(true)
+              expect(ct_state(node2, ctid)).to eq('staged')
+            end
+
+            it 'can finish with another send state attempt' do
+              remove_hook(node1, ctid, 'pre-start')
+
+              node1.succeeds("osctl ct send state --clone #{ctid}")
+              node1.succeeds("osctl ct send cleanup #{ctid}")
+
+              wait_ct_running(node1, ctid)
+              wait_ct_running(node2, ctid)
+
+              expect(ct_state(node1, ctid)).to eq('running')
+              expect(ct_state(node2, ctid)).to eq('running')
+              expect(send_log_present?(node1, ctid)).to be(false)
+              expect(send_log_present?(node2, ctid)).to be(false)
+            end
+          end
+        '';
+      };
+
+      "target-start-failure" = {
+        description = ''
+          A failed target start keeps the cutover retryable
+        '';
+
+        script = ''
+          ctid = get_container_id
+
+          ${commonScript}
+
+          before(:suite) do
+            ensure_cluster_ready
+            refresh_send_keys
+
+            node1.all_succeed(
+              "osctl ct new --distribution alpine #{ctid}",
+              "osctl ct unset start-menu #{ctid}",
+              "osctl ct start #{ctid}"
+            )
+
+            wait_ct_running(node1, ctid)
+            prepare_send(ctid)
+
+            install_hook(node2, ctid, 'pre-start', <<~HOOK)
+              #!/bin/sh
+              exit 1
+            HOOK
+
+            node1.fails("osctl ct send state #{ctid}")
+          end
+
+          after(:suite) do
+            remove_hook(node2, ctid, 'pre-start')
+            cleanup_container_everywhere(ctid)
+          end
+
+          describe 'target start failure' do
+            it 'keeps the source container on node1' do
+              expect(ct_state(node1, ctid)).to eq('stopped')
+            end
+
+            it 'keeps the transfer state open' do
+              expect(send_log_present?(node1, ctid)).to be(true)
+              expect(ct_state(node2, ctid)).to eq('staged')
+            end
+
+            it 'can finish with another send state attempt' do
+              remove_hook(node2, ctid, 'pre-start')
+
+              node1.succeeds("osctl ct send state #{ctid}")
+              wait_ct_running(node2, ctid)
+              node1.succeeds("osctl ct send cleanup #{ctid}")
+
+              expect_ct_absent(node1, ctid)
+              expect(send_log_present?(node2, ctid)).to be(false)
+            end
+          end
+        '';
+      };
+
+    };
   }
 )

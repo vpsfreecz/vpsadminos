@@ -3,7 +3,7 @@ require 'json'
 require 'socket'
 
 class SendReceive
-  COMMANDS = %w[skel base incremental transfer cancel].freeze
+  COMMANDS = %w[skel base incremental transfer cleanup cancel].freeze
 
   def self.run(argv: ARGV, env: ENV)
     if argv.length != 2
@@ -118,6 +118,16 @@ class SendReceive
     recv_resp!
   end
 
+  def cleanup
+    send_cmd(
+      :receive_cleanup,
+      key_pool:,
+      key_name:,
+      token: parse_token
+    )
+    recv_resp!
+  end
+
   def cancel
     send_cmd(
       :receive_cancel,
@@ -171,6 +181,7 @@ class SendReceive
         receive base <token> <dataset> [snapshot]
         receive incremental <token> <dataset> [snapshot]
         receive transfer <token> [start]
+        receive cleanup <token>
         receive cancel <token>
     END
   end
