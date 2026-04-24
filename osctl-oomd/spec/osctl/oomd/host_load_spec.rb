@@ -38,33 +38,54 @@ RSpec.describe OsCtl::Oomd::HostLoad do
     end
   end
 
-  it 'sorts samples as they are appended' do
+  it 'keeps samples in append order' do
     with_tmpdir do |dir|
       host_load = build_host_load(interval: 60, state_file: File.join(dir, 'state.yml'))
       host_load.instance_variable_set(:@last_save, Time.now)
 
       [5, 1, 3].each { |value| host_load << value }
 
-      expect(host_load.instance_variable_get(:@loads)).to eq([1, 3, 5])
+      expect(host_load.instance_variable_get(:@loads)).to eq([5, 1, 3])
     end
   end
 
-  it 'trims history to one day worth of intervals' do
+  it 'trims oldest samples beyond one day worth of intervals' do
     with_tmpdir do |dir|
-      host_load = build_host_load(interval: 60, state_file: File.join(dir, 'state.yml'))
+      host_load = build_host_load(interval: 28_800, state_file: File.join(dir, 'state.yml'))
       host_load.instance_variable_set(:@last_save, Time.now)
       allow(host_load).to receive(:save_state)
 
-      1441.times { |i| host_load << i }
+      [10, 1, 7, 2].each { |value| host_load << value }
 
-      expect(host_load.instance_variable_get(:@loads).length).to eq(1440)
-      expect(host_load.instance_variable_get(:@loads).first).to eq(1)
+      expect(host_load.instance_variable_get(:@loads)).to eq([1, 7, 2])
+      expect(host_load.median).to eq(2)
     end
   end
 
   it 'initializes an empty list when the state file is missing' do
     with_tmpdir do |dir|
       host_load = build_host_load(interval: 60, state_file: File.join(dir, 'missing.yml'))
+
+      expect(host_load.instance_variable_get(:@loads)).to eq([])
+    end
+  end
+
+  it 'loads versioned state' do
+    with_tmpdir do |dir|
+      state_file = File.join(dir, 'state.yml')
+      File.write(state_file, "---\nversion: 2\nloads:\n- 5\n- 1\n- 3\n")
+      host_load = build_host_load(interval: 60, state_file:)
+
+      expect(host_load.instance_variable_get(:@loads)).to eq([5, 1, 3])
+      expect(host_load.median).to eq(3)
+    end
+  end
+
+  it 'discards legacy unversioned state' do
+    with_tmpdir do |dir|
+      state_file = File.join(dir, 'state.yml')
+      File.write(state_file, "---\nloads:\n- 316.16\n- 395.23\n- 2913.93\n")
+      host_load = build_host_load(interval: 60, state_file:)
 
       expect(host_load.instance_variable_get(:@loads)).to eq([])
     end
@@ -79,6 +100,7 @@ RSpec.describe OsCtl::Oomd::HostLoad do
       host_load << 5
 
       expect(host_load).to have_received(:regenerate_file).with(state_file, 0o600)
+      expect(File.read(state_file)).to include('version: 2')
       expect(File.read(state_file)).to include('loads')
       expect(File.read(state_file)).to include('- 5')
     end

@@ -39,7 +39,7 @@ module OsCtl::Oomd
         @host_load << lavg
 
         median = @host_load.median
-        threshold = @host_load.median * @load_multiplier
+        threshold = median * @load_multiplier
 
         if @verbose
           log(:debug, "Load=#{lavg}, median=#{median}, threshold=#{threshold}")
