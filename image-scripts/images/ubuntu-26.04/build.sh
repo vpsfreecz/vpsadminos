@@ -3,6 +3,7 @@ RELNAME=resolute
 BASEURL=http://cz.archive.ubuntu.com/ubuntu/
 
 . $INCLUDE/debian.sh
+. $INCLUDE/systemd.sh
 
 bootstrap
 configure-common
@@ -19,5 +20,7 @@ rm -f /etc/resolv.conf
 EOF
 
 configure-debian
+
+configure-systemd-console-getty
 
 run-configure
