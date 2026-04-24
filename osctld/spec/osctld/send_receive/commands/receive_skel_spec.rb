@@ -85,7 +85,8 @@ RSpec.describe OsCtld::SendReceive::Commands::ReceiveSkel do
         key_name: 'rx',
         pool: 'dst',
         client_ip: '192.0.2.10',
-        passphrase: 'secret'
+        passphrase: 'secret',
+        protocol_version: OsCtld::SendReceive::PROTOCOL_VERSION
       },
       { handler: }
     )
@@ -270,11 +271,37 @@ RSpec.describe OsCtld::SendReceive::Commands::ReceiveSkel do
       expect(command).to have_received(:zfs).with(:umount, '', 'dst/ct1/rootfs', valid_rcs: [1])
       expect(OsCtld::SendReceive).to have_received(:started_using_key).with(pool, 'dst-rx')
       expect(ct_with_netifs.open_send_log_calls).to eq([
-                                                         [[:destination, 'token-123'], { key_name: 'dst-rx' }]
+                                                         [
+                                                           [:destination, 'token-123'],
+                                                           {
+                                                             key_name: 'dst-rx',
+                                                             protocol_version: OsCtld::SendReceive::PROTOCOL_VERSION
+                                                           }
+                                                         ]
                                                        ])
       expect(importer).to have_received(:install_user_hook_scripts).with(ct_with_netifs)
       expect(builder).to have_received(:monitor)
       expect(command).to have_received(:call_cmd).with(OsCtld::Commands::User::LxcUsernet)
+    end
+
+    it 'rejects unsupported protocol versions before receiving the archive' do
+      incompatible = described_class.new(
+        {
+          key_pool: 'src',
+          key_name: 'rx',
+          pool: 'dst',
+          client_ip: '192.0.2.10',
+          passphrase: 'secret',
+          protocol_version: OsCtld::SendReceive::PROTOCOL_VERSION - 1
+        },
+        { handler: }
+      )
+
+      expect do
+        incompatible.base_execute
+      end.to raise_error(OsCtld::CommandFailed, %r{unsupported send/receive protocol version})
+
+      expect(client).not_to have_received(:send)
     end
   end
 end

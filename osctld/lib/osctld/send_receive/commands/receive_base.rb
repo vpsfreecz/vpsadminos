@@ -19,6 +19,8 @@ module OsCtld
           error!('authentication key mismatch')
         end
 
+        validate_send_log_protocol!(ct)
+
         ds = OsCtl::Lib::Zfs::Dataset.new(dataset_name(ct), base: ct.dataset.name)
         error!('dataset does not exist') unless ds.exist?
 

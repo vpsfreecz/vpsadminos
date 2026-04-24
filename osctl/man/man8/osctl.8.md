@@ -1696,7 +1696,9 @@ The following shortcuts are supported:
 `ct send rootfs` *ctid*
   Continue sending of container *ctid* to previously configured
   *destination*. `ct send rootfs` takes snapshots of the container's datasets
-  and sends them to the *destination*.
+  and sends them to the *destination*. The source and destination nodes must
+  support the same send/receive protocol version, otherwise the send is
+  refused before staging begins on the destination node.
 
 `ct send sync` *ctid*
   Send rootfs changes since `ct send rootfs` or the previous `ct send sync`.

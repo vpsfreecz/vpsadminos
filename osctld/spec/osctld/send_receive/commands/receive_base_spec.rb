@@ -26,10 +26,17 @@ RSpec.describe OsCtld::SendReceive::Commands::ReceiveBase do
   end
 
   def build_ct
-    send_log_opts = Struct.new(:key_name).new('auth-key')
+    send_log_opts = Struct.new(:key_name, :protocol_version).new(
+      'auth-key',
+      OsCtld::SendReceive::PROTOCOL_VERSION
+    )
     send_log = Struct.new(:state, :snapshots, :opts) do
       def can_receive_continue?(stage)
         stage == :base
+      end
+
+      def protocol_version
+        opts.protocol_version
       end
     end.new(nil, [], send_log_opts)
     dataset = instance_double(OsCtl::Lib::Zfs::Dataset, name: 'tank/ct1')
@@ -60,7 +67,8 @@ RSpec.describe OsCtld::SendReceive::Commands::ReceiveBase do
         key_pool: 'tank',
         key_name: 'rx',
         dataset: '/',
-        snapshot: 'snap1'
+        snapshot: 'snap1',
+        protocol_version: OsCtld::SendReceive::PROTOCOL_VERSION
       },
       { handler: }
     )
@@ -123,6 +131,14 @@ RSpec.describe OsCtld::SendReceive::Commands::ReceiveBase do
     )
 
     expect(nested.send(:dataset_name, ct)).to eq('tank/ct1/rootfs/var')
+  end
+
+  it 'rejects send-log protocol mismatches' do
+    ct.send_log.opts.protocol_version = OsCtld::SendReceive::PROTOCOL_VERSION - 1
+
+    expect do
+      command.base_execute
+    end.to raise_error(OsCtld::CommandFailed, %r{send/receive protocol version mismatch})
   end
 end
 

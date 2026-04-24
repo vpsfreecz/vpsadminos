@@ -246,7 +246,11 @@ RSpec.describe 'container recovery and send wrappers' do
       expect(command.execute).to eq(status: true, output: nil)
       expect(ct.opened_send_log[0]).to eq(:source)
       expect(ct.opened_send_log[1]).to eq('token-1')
-      expect(ct.opened_send_log[2]).to include(dst: 'example.org', from_snapshot: 'base-snap')
+      expect(ct.opened_send_log[2]).to include(
+        dst: 'example.org',
+        from_snapshot: 'base-snap',
+        protocol_version: OsCtld::SendReceive::PROTOCOL_VERSION
+      )
     end
   end
 

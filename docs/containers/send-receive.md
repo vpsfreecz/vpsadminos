@@ -37,18 +37,22 @@ You can verify that by running SSH directly:
 ```shell
 source-node $ ssh -T -i `osctl send key path private` -l osctl-ct-receive destination-node
 Usage:
-  receive skel [pool|- [passphrase]]
-  receive base <token> <dataset> [snapshot]
-  receive incremental <token> <dataset> [snapshot]
-  receive transfer <token> [start]
-  receive cleanup <token>
-  receive cancel <token>
+  receive <protocol> skel [pool|- [passphrase]]
+  receive <protocol> base <token> <dataset> [snapshot]
+  receive <protocol> incremental <token> <dataset> [snapshot]
+  receive <protocol> transfer <token> [start]
+  receive <protocol> cleanup <token>
+  receive <protocol> cancel <token>
 ```
 
 As you can see, the SSH connection is limited to several commands that are
 handled by *osctld*. The meaning of those commands will become clearer once you
 read the section below, but it's enough to know the shell is restricted for
 container send/receive only.
+
+The source and destination nodes must support the same send/receive protocol
+version. Mixed old/new *osctld* versions are refused before the transfer is
+staged on the destination node.
 
 ## Moving containers
 The container move itself consists of several steps:

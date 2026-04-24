@@ -72,7 +72,8 @@ module OsCtld
         ct.open_send_log(
           :destination,
           token,
-          key_name: auth_key.name
+          key_name: auth_key.name,
+          protocol_version: opts[:protocol_version]
         )
 
         builder.setup_lxc_configs

@@ -21,6 +21,8 @@ module OsCtld
           error!('authentication key mismatch')
         end
 
+        validate_send_log_protocol!(ct)
+
         ct.send_log.snapshots.each do |v|
           ds, snap = v
           zfs(:destroy, nil, "#{ds}@#{snap}")
@@ -58,6 +60,8 @@ module OsCtld
         elsif !check_auth_pubkey(opts[:key_pool], opts[:key_name], ct)
           error!('authentication key mismatch')
         end
+
+        validate_send_log_protocol!(ct)
 
         ct.exclusively do
           ct.send_log.state = :cleanup

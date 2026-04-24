@@ -21,6 +21,8 @@ module OsCtld
           end
         end
 
+        validate_send_log_protocol!(ct)
+
         ds = OsCtl::Lib::Zfs::Dataset.new(dataset_name(ct), base: ct.dataset.name)
         # don't check its existence now to save time
 

@@ -10,16 +10,23 @@ require 'osctld/send_receive/commands/receive_transfer'
 RSpec.describe OsCtld::SendReceive::Commands::Transfer do
   describe 'command behavior' do
     def build_send_log
-      send_log_opts_class = Struct.new(:key_name, keyword_init: true)
+      send_log_opts_class = Struct.new(:key_name, :protocol_version, keyword_init: true)
 
       Struct.new(:state, :snapshots, :opts, keyword_init: true) do
         def can_receive_continue?(stage)
           stage == :transfer
         end
+
+        def protocol_version
+          opts.protocol_version
+        end
       end.new(
         state: :incremental,
         snapshots: [['tank/ct1', 'snap1']],
-        opts: send_log_opts_class.new(key_name: 'auth-key')
+        opts: send_log_opts_class.new(
+          key_name: 'auth-key',
+          protocol_version: OsCtld::SendReceive::PROTOCOL_VERSION
+        )
       )
     end
 
@@ -123,7 +130,13 @@ RSpec.describe OsCtld::SendReceive::Commands::Transfer do
     let(:ct) { build_ct(pool, send_log) }
     let(:command) do
       described_class.new(
-        { token: 'abc', key_pool: 'tank', key_name: 'rx', start: start_container },
+        {
+          token: 'abc',
+          key_pool: 'tank',
+          key_name: 'rx',
+          start: start_container,
+          protocol_version: OsCtld::SendReceive::PROTOCOL_VERSION
+        },
         {}
       )
     end
@@ -173,7 +186,13 @@ RSpec.describe OsCtld::SendReceive::Commands::Transfer do
       end
 
       command_with_start = described_class.new(
-        { token: 'abc', key_pool: 'tank', key_name: 'rx', start: true },
+        {
+          token: 'abc',
+          key_pool: 'tank',
+          key_name: 'rx',
+          start: true,
+          protocol_version: OsCtld::SendReceive::PROTOCOL_VERSION
+        },
         {}
       )
       allow(command_with_start).to receive(:check_auth_pubkey).and_return(true)
@@ -200,7 +219,13 @@ RSpec.describe OsCtld::SendReceive::Commands::Transfer do
 
     it 'rolls the target back to staged when start fails' do
       command_with_start = described_class.new(
-        { token: 'abc', key_pool: 'tank', key_name: 'rx', start: true },
+        {
+          token: 'abc',
+          key_pool: 'tank',
+          key_name: 'rx',
+          start: true,
+          protocol_version: OsCtld::SendReceive::PROTOCOL_VERSION
+        },
         {}
       )
       allow(command_with_start).to receive(:check_auth_pubkey).and_return(true)
@@ -259,20 +284,35 @@ RSpec.describe OsCtld::SendReceive::Commands::Transfer do
         command.execute
       end.to raise_error(OsCtld::CommandFailed, 'authentication key mismatch')
     end
+
+    it 'rejects send-log protocol mismatches' do
+      send_log.opts.protocol_version = OsCtld::SendReceive::PROTOCOL_VERSION - 1
+
+      expect do
+        command.base_execute
+      end.to raise_error(OsCtld::CommandFailed, %r{send/receive protocol version mismatch})
+    end
   end
 
   describe OsCtld::SendReceive::Commands::Cleanup do
     def build_send_log
-      send_log_opts_class = Struct.new(:key_name, keyword_init: true)
+      send_log_opts_class = Struct.new(:key_name, :protocol_version, keyword_init: true)
 
       Struct.new(:state, :snapshots, :opts, keyword_init: true) do
         def can_receive_continue?(stage)
           stage == :cleanup && %i[transfer cleanup].include?(state)
         end
+
+        def protocol_version
+          opts.protocol_version
+        end
       end.new(
         state: :transfer,
         snapshots: [['tank/ct1', 'snap1']],
-        opts: send_log_opts_class.new(key_name: 'auth-key')
+        opts: send_log_opts_class.new(
+          key_name: 'auth-key',
+          protocol_version: OsCtld::SendReceive::PROTOCOL_VERSION
+        )
       )
     end
 
@@ -319,7 +359,13 @@ RSpec.describe OsCtld::SendReceive::Commands::Transfer do
     let(:ct) { build_ct(pool, send_log) }
     let(:command) do
       described_class.new(
-        { token: 'abc', key_pool: 'tank', key_name: 'rx', start: start_container },
+        {
+          token: 'abc',
+          key_pool: 'tank',
+          key_name: 'rx',
+          start: start_container,
+          protocol_version: OsCtld::SendReceive::PROTOCOL_VERSION
+        },
         {}
       )
     end

@@ -25,10 +25,17 @@ RSpec.describe OsCtld::SendReceive::Commands::ReceiveIncremental do
   end
 
   def build_ct
-    send_log_opts = Struct.new(:key_name).new('auth-key')
+    send_log_opts = Struct.new(:key_name, :protocol_version).new(
+      'auth-key',
+      OsCtld::SendReceive::PROTOCOL_VERSION
+    )
     send_log = Struct.new(:state, :snapshots, :opts) do
       def can_receive_continue?(stage)
         stage == :incremental
+      end
+
+      def protocol_version
+        opts.protocol_version
       end
     end.new(nil, [], send_log_opts)
     dataset = instance_double(OsCtl::Lib::Zfs::Dataset, name: 'tank/ct1')
@@ -59,7 +66,8 @@ RSpec.describe OsCtld::SendReceive::Commands::ReceiveIncremental do
         key_pool: 'tank',
         key_name: 'rx',
         dataset: '/',
-        snapshot: 'snap2'
+        snapshot: 'snap2',
+        protocol_version: OsCtld::SendReceive::PROTOCOL_VERSION
       },
       { handler: }
     )

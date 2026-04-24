@@ -23,11 +23,13 @@ RSpec.describe OsCtld::SendReceive::Log do
       'key_name' => 'main',
       'snapshots' => true,
       'from_snapshot' => 'snap1',
-      'preexisting_datasets' => false
+      'preexisting_datasets' => false,
+      'protocol_version' => OsCtld::SendReceive::PROTOCOL_VERSION
     )
 
     expect(options[:ctid]).to eq('100')
     expect(options.cloned?).to be(true)
+    expect(options.protocol_version).to eq(OsCtld::SendReceive::PROTOCOL_VERSION)
     expect(described_class::Options.load(options.dump).dump).to eq(options.dump)
   end
 
@@ -47,6 +49,16 @@ RSpec.describe OsCtld::SendReceive::Log do
     )
 
     expect(described_class.load(log.dump).dump).to eq(log.dump)
+  end
+
+  it 'defaults missing protocol versions to the current version' do
+    options = described_class::Options.load(
+      'ctid' => '100',
+      'port' => 2222,
+      'dst' => 'node'
+    )
+
+    expect(options.protocol_version).to eq(OsCtld::SendReceive::PROTOCOL_VERSION)
   end
 
   it 'validates send and receive state transitions' do
