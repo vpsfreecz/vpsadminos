@@ -6,8 +6,8 @@ with lib.kernel;
 
   kernels = {
     "6.18" = {
-      rev = "9f26db42a4e442fa74b1bc78e68b1c6e79ccae11";
-      sha256 = "sha256-OVoIGNHU61llKKs4KF2Vnth9Z99NBnuiH/dw9RmcFyI=";
+      rev = "dbc2b72c88787e729822020caff5123a1c5e2fd8";
+      sha256 = "sha256-RPOj5RaBJ9nfaFmcRDQ7QMiuVzXIJaKsxMHCmmk8ZPQ=";
       structuredExtraConfig = {
         DAMON = yes;
         DAMON_VADDR = yes;
@@ -16,8 +16,8 @@ with lib.kernel;
         DAMON_RECLAIM = yes;
       };
       zfs = {
-        rev = "a006e2ddc5d6d04ca9adb56053e1d7fe6058f83f";
-        sha256 = "sha256-iG9RQhUx8jU0WXK5OE4Fd4EMq+FqUbDBPhjfx4IEg8E=";
+        rev = "5358b597704db4fc300d22874a385d572975a50e";
+        sha256 = "sha256-2EeIZs+EYPfVfa/A2JB9G3HfniCC4d2WVTV7Y0UaN08=";
       };
     };
     "6.12.81" = {
