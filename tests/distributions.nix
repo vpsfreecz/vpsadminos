@@ -139,7 +139,6 @@ in
     ubuntu_2004
     ubuntu_2204
     ubuntu_2404
-    ubuntu_2604
     void_glibc
     void_musl
   ];
@@ -154,6 +153,7 @@ in
     gentoo_systemd
     nixos_stable
     nixos_unstable
+    ubuntu_2604
   ];
 
   # Distributions that support only cgroups v1 and do not boot on hosts
