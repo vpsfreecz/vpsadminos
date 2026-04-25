@@ -289,11 +289,23 @@ RSpec.describe 'container limits and device commands' do
       expect(ct.prlimits).to have_received(:set).with('nofile', 1024, 2048)
     end
 
-    it 'rejects mixed unlimited and integer limits' do
+    it 'accepts a finite soft limit with an unlimited hard limit' do
+      ct = build_ct
+      ct.prlimits = Struct.new do
+        def set(*); end
+      end.new
+      allow(ct.prlimits).to receive(:set).with('nofile', 1024, 'unlimited')
+      command = described_class.new({ name: 'nofile', soft: 1024, hard: 'unlimited' }, {})
+
+      expect(command.execute(ct)).to eq(status: true, output: nil)
+      expect(ct.prlimits).to have_received(:set).with('nofile', 1024, 'unlimited')
+    end
+
+    it 'rejects an unlimited soft limit with a finite hard limit' do
       command = described_class.new({ name: 'nofile', soft: 'unlimited', hard: 2048 }, {})
 
       expect { command.execute(build_ct) }
-        .to raise_error(RuntimeError, 'either both soft and hard are unlimited, or neither is')
+        .to raise_error(OsCtld::CommandFailed, 'soft cannot be unlimited when hard is finite')
     end
 
     it 'stores unlimited as a string for downstream prlimit consumers' do

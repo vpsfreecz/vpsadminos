@@ -40,20 +40,19 @@ module OsCtld
 
     def parse(v)
       return v if v.is_a?(Integer)
-      raise "a limit must be an integer or 'unlimited'" if v != 'unlimited'
+
+      error!("a limit must be an integer or 'unlimited'") if v != 'unlimited'
 
       v
     end
 
     def validate(name, soft, hard)
-      raise "'#{name}' is not supported" unless LIMITS.include?(name)
+      error!("'#{name}' is not supported") unless LIMITS.include?(name)
 
-      if soft.is_a?(Integer) && hard.is_a?(Integer) && soft > hard
-        raise 'soft has to be lower than hard'
+      return if hard == 'unlimited'
 
-      elsif (soft == 'unlimited' || hard == 'unlimited') && soft != hard
-        raise 'either both soft and hard are unlimited, or neither is'
-      end
+      error!('soft cannot be unlimited when hard is finite') if soft == 'unlimited'
+      error!('soft has to be lower than or equal to hard') if soft > hard
     end
   end
 end
