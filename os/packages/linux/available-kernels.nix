@@ -6,8 +6,8 @@ with lib.kernel;
 
   kernels = {
     "6.18" = {
-      rev = "da13b907a93da5eefc999b36b47e2fa93fd9ab20";
-      sha256 = "sha256-NLG1Hjjgu251mzoyLmrilulX76v1U6WsZkUG71h5o2I=";
+      rev = "2aa4be9c98fc604821370ea0b6a1782b7defcb74";
+      sha256 = "sha256-rV1ETaHGiMVe2JWaZLX0BgH+2mR0k/dN0y8IoEyGsmI=";
       structuredExtraConfig = {
         DAMON = yes;
         DAMON_VADDR = yes;
