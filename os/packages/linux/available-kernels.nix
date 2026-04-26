@@ -6,14 +6,19 @@ with lib.kernel;
 
   kernels = {
     "6.18" = {
-      rev = "dad43e8a04cf294886b291f94c214a64656f508f";
-      sha256 = "sha256-c9tmSbZt+T2uXmido9yqVs3vruH9Z2f1ueC5WjGPEcM=";
+      rev = "da13b907a93da5eefc999b36b47e2fa93fd9ab20";
+      sha256 = "sha256-NLG1Hjjgu251mzoyLmrilulX76v1U6WsZkUG71h5o2I=";
       structuredExtraConfig = {
         DAMON = yes;
         DAMON_VADDR = yes;
         DAMON_PADDR = yes;
         DAMON_SYSFS = yes;
         DAMON_RECLAIM = yes;
+        TRACING_NS = yes;
+        SECURITY_SELINUX = lib.mkForce yes;
+        SECURITY_APPARMOR = lib.mkForce yes;
+        SECURITY_VPSADMIN_STACK_SELINUX_APPARMOR = yes;
+        SECURITY_LSM_NAMESPACE = yes;
       };
       zfs = {
         rev = "f566e760bd9ce48079ba8c4d5ce00822526706a8";

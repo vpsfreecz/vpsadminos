@@ -124,6 +124,14 @@ in
   };
 
   config = {
+    security.lsm = mkIf (versionAtLeast config.boot.kernelVersion "6.18") (mkForce [
+      "landlock"
+      "yama"
+      "selinux"
+      "apparmor"
+      "bpf"
+    ]);
+
     boot.kernelParams = [
       "net.ifnames=0"
       "cgroup.memory=nokmem"
