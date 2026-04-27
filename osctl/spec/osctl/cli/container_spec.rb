@@ -178,4 +178,95 @@ RSpec.describe OsCtl::Cli::Container do
     show_command.show
     expect(show_client.calls).to include([:cmd_data!, :ct_show, { id: 'ct1', pool: nil, read_hostname: true }])
   end
+
+  it 'dispatches copy actions through with_progress' do
+    {
+      copy: [:ct_copy, %w[ct1 tank2:ct2], { consistent: true, restart: false }],
+      copy_config: [:ct_copy_config, %w[ct1 tank2:ct2], {}],
+      copy_rootfs: [:ct_copy_rootfs, ['ct1'], {}],
+      copy_sync: [:ct_copy_sync, ['ct1'], {}],
+      copy_state: [:ct_copy_state, ['ct1'], { consistent: false, restart: true }],
+      copy_cleanup: [:ct_copy_cleanup, ['ct1'], {}],
+      copy_cancel: [:ct_copy_cancel, ['ct1'], {}]
+    }.each do |method_name, (osctld_cmd, args, opts)|
+      command = cmd(args:, opts: { 'network-interfaces' => true }.merge(opts), gopts: { pool: 'tank' })
+
+      expect(command).to receive(:with_progress)
+        .with(osctld_cmd, hash_including(pool: 'tank', id: 'ct1'))
+      command.public_send(method_name)
+    end
+  end
+
+  it 'parses copy targets and forwards state options' do
+    command = cmd(
+      args: %w[ct1 tank2:ct2],
+      opts: {
+        user: 'bob',
+        group: 'web',
+        dataset: 'tank2/custom/ct2',
+        consistent: false,
+        restart: false,
+        'network-interfaces' => false
+      },
+      gopts: { pool: 'tank' }
+    )
+
+    expect(command).to receive(:with_progress).with(
+      :ct_copy,
+      hash_including(
+        pool: 'tank',
+        id: 'ct1',
+        target_pool: 'tank2',
+        target_id: 'ct2',
+        target_user: 'bob',
+        target_group: 'web',
+        target_dataset: 'tank2/custom/ct2',
+        network_interfaces: false,
+        consistent: false,
+        restart: false
+      )
+    )
+
+    command.copy
+  end
+
+  it 'dispatches move actions through with_progress' do
+    {
+      move: [:ct_move, %w[ct1 tank2:ct2], { start: false }],
+      move_config: [:ct_move_config, %w[ct1 tank2:ct2], {}],
+      move_rootfs: [:ct_move_rootfs, ['ct1'], {}],
+      move_sync: [:ct_move_sync, ['ct1'], {}],
+      move_state: [:ct_move_state, ['ct1'], { start: false }],
+      move_cleanup: [:ct_move_cleanup, ['ct1'], {}],
+      move_cancel: [:ct_move_cancel, ['ct1'], {}]
+    }.each do |method_name, (osctld_cmd, args, opts)|
+      command = cmd(args:, opts:, gopts: { pool: 'tank' })
+
+      expect(command).to receive(:with_progress)
+        .with(osctld_cmd, hash_including(pool: 'tank', id: 'ct1'))
+      command.public_send(method_name)
+    end
+  end
+
+  it 'parses same-pool move targets and forwards start' do
+    command = cmd(
+      args: %w[ct1 ct2],
+      opts: { pool: 'tank2', start: true },
+      gopts: { pool: 'tank' }
+    )
+
+    expect(command).to receive(:with_progress).with(
+      :ct_move,
+      hash_including(
+        pool: 'tank',
+        id: 'ct1',
+        target_pool: 'tank2',
+        target_id: 'ct2',
+        network_interfaces: true,
+        start: true
+      )
+    )
+
+    command.move
+  end
 end

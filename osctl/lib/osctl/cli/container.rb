@@ -8,6 +8,7 @@ require 'osctl/cli/cgroup_params'
 require 'osctl/cli/zfs_properties'
 require 'osctl/cli/devices'
 require 'osctl/cli/assets'
+require 'osctl/cli/transfer_progress'
 
 module OsCtl::Cli
   class Container < Command
@@ -15,6 +16,7 @@ module OsCtl::Cli
     include Devices
     include Assets
     include Attributes
+    include TransferProgress
 
     FIELDS = %i[
       pool
@@ -824,53 +826,105 @@ module OsCtl::Cli
     end
 
     def copy
-      require_args!('id', 'new-id')
+      with_progress(
+        :ct_copy,
+        progress_title: 'Copying',
+        **copy_config_opts,
+        consistent: opts[:consistent],
+        restart: opts[:restart]
+      )
+    end
 
-      if args[1].include?(':')
-        target_pool, target_id = args[1].split(':')
-      else
-        target_pool = opts[:pool]
-        target_id = args[1]
-      end
+    def copy_config
+      with_progress(:ct_copy_config, progress_title: 'Copying', **copy_config_opts)
+    end
 
-      cmd_opts = {
+    def copy_rootfs
+      require_args!('id')
+      with_progress(:ct_copy_rootfs, progress_title: 'Copying', pool: gopts[:pool], id: args[0])
+    end
+
+    def copy_sync
+      require_args!('id')
+      with_progress(:ct_copy_sync, progress_title: 'Copying', pool: gopts[:pool], id: args[0])
+    end
+
+    def copy_state
+      require_args!('id')
+      with_progress(
+        :ct_copy_state,
+        progress_title: 'Copying',
         pool: gopts[:pool],
         id: args[0],
-        target_pool:,
-        target_id:,
         consistent: opts[:consistent],
-        network_interfaces: opts['network-interfaces']
-      }
+        restart: opts[:restart]
+      )
+    end
 
-      cmd_opts[:target_user] = opts[:user] if opts[:user]
-      cmd_opts[:target_group] = opts[:group] if opts[:group]
-      cmd_opts[:target_dataset] = opts[:dataset] if opts[:dataset]
+    def copy_cleanup
+      require_args!('id')
+      with_progress(:ct_copy_cleanup, progress_title: 'Copying', pool: gopts[:pool], id: args[0])
+    end
 
-      osctld_fmt(:ct_copy, cmd_opts:)
+    def copy_cancel
+      require_args!('id')
+      with_progress(
+        :ct_copy_cancel,
+        progress_title: 'Copying',
+        pool: gopts[:pool],
+        id: args[0],
+        force: opts[:force]
+      )
     end
 
     def move
-      require_args!('id', 'new-id')
+      with_progress(
+        :ct_move,
+        progress_title: 'Moving',
+        **move_config_opts,
+        start: opts[:start]
+      )
+    end
 
-      if args[1].include?(':')
-        target_pool, target_id = args[1].split(':')
-      else
-        target_pool = opts[:pool]
-        target_id = args[1]
-      end
+    def move_config
+      with_progress(:ct_move_config, progress_title: 'Moving', **move_config_opts)
+    end
 
-      cmd_opts = {
+    def move_rootfs
+      require_args!('id')
+      with_progress(:ct_move_rootfs, progress_title: 'Moving', pool: gopts[:pool], id: args[0])
+    end
+
+    def move_sync
+      require_args!('id')
+      with_progress(:ct_move_sync, progress_title: 'Moving', pool: gopts[:pool], id: args[0])
+    end
+
+    def move_state
+      require_args!('id')
+      with_progress(
+        :ct_move_state,
+        progress_title: 'Moving',
         pool: gopts[:pool],
         id: args[0],
-        target_pool:,
-        target_id:
-      }
+        start: opts[:start]
+      )
+    end
 
-      cmd_opts[:target_user] = opts[:user] if opts[:user]
-      cmd_opts[:target_group] = opts[:group] if opts[:group]
-      cmd_opts[:target_dataset] = opts[:dataset] if opts[:dataset]
+    def move_cleanup
+      require_args!('id')
+      with_progress(:ct_move_cleanup, progress_title: 'Moving', pool: gopts[:pool], id: args[0])
+    end
 
-      osctld_fmt(:ct_move, cmd_opts:)
+    def move_cancel
+      require_args!('id')
+      with_progress(
+        :ct_move_cancel,
+        progress_title: 'Moving',
+        pool: gopts[:pool],
+        id: args[0],
+        force: opts[:force]
+      )
     end
 
     def chown
@@ -1635,6 +1689,53 @@ module OsCtl::Cli
         force: opts[:force],
         cleanup:
       })
+    end
+
+    def parse_target_arg
+      require_args!('id', 'new-id')
+
+      if args[1].include?(':')
+        target_pool, target_id = args[1].split(':', 2)
+      else
+        target_pool = opts[:pool]
+        target_id = args[1]
+      end
+
+      [target_pool, target_id]
+    end
+
+    def copy_config_opts
+      target_pool, target_id = parse_target_arg
+
+      cmd_opts = {
+        pool: gopts[:pool],
+        id: args[0],
+        target_pool:,
+        target_id:,
+        network_interfaces: opts['network-interfaces']
+      }
+
+      cmd_opts[:target_user] = opts[:user] if opts[:user]
+      cmd_opts[:target_group] = opts[:group] if opts[:group]
+      cmd_opts[:target_dataset] = opts[:dataset] if opts[:dataset]
+      cmd_opts
+    end
+
+    def move_config_opts
+      target_pool, target_id = parse_target_arg
+
+      cmd_opts = {
+        pool: gopts[:pool],
+        id: args[0],
+        target_pool:,
+        target_id:,
+        network_interfaces: true
+      }
+
+      cmd_opts[:target_user] = opts[:user] if opts[:user]
+      cmd_opts[:target_group] = opts[:group] if opts[:group]
+      cmd_opts[:target_dataset] = opts[:dataset] if opts[:dataset]
+      cmd_opts
     end
 
     protected

@@ -1065,11 +1065,14 @@ module OsCtl::Cli
           unset_limits(unset, Container, 'ctid')
         end
 
-        ct.desc 'Copy container'
+        ct.desc 'Copy container at once'
         ct.arg_name '<ctid> [pool:]<new-id>'
         ct.command %i[cp copy] do |c|
-          c.desc 'Stop the container during the copy'
+          c.desc 'Stop the container during the final copy state step'
           c.switch :consistent, default_value: true
+
+          c.desc 'Restart the source container after final copy snapshot'
+          c.switch :restart, default_value: true
 
           c.desc 'Target pool'
           c.flag :pool, arg_name: 'pool'
@@ -1087,11 +1090,71 @@ module OsCtl::Cli
           c.switch 'network-interfaces', default_value: true
 
           c.action(&Command.run(Container, :copy))
+
+          c.desc 'Step 1., prepare target container and datasets'
+          c.arg_name '<ctid> [pool:]<new-id>'
+          c.command %i[config prepare] do |s|
+            s.desc 'Target pool'
+            s.flag :pool, arg_name: 'pool'
+
+            s.desc 'Target user'
+            s.flag :user, arg_name: 'user'
+
+            s.desc 'Target group'
+            s.flag :group, arg_name: 'group'
+
+            s.desc 'Target dataset'
+            s.flag :dataset, arg_name: 'dataset'
+
+            s.desc 'Copy network interfaces'
+            s.switch 'network-interfaces', default_value: true
+
+            s.action(&Command.run(Container, :copy_config))
+          end
+
+          c.desc 'Step 2., copy initial rootfs'
+          c.arg_name '<ctid>'
+          c.command :rootfs do |s|
+            s.action(&Command.run(Container, :copy_rootfs))
+          end
+
+          c.desc 'Optional step 3., copy rootfs changes'
+          c.arg_name '<ctid>'
+          c.command :sync do |s|
+            s.action(&Command.run(Container, :copy_sync))
+          end
+
+          c.desc 'Step 4., final copy state sync'
+          c.arg_name '<ctid>'
+          c.command :state do |s|
+            s.desc 'Stop the source container during final snapshot'
+            s.switch :consistent, default_value: true
+
+            s.desc 'Restart the source container after final snapshot'
+            s.switch :restart, default_value: true
+
+            s.action(&Command.run(Container, :copy_state))
+          end
+
+          c.desc 'Step 5., cleanup local copy transfer'
+          c.arg_name '<ctid>'
+          c.command :cleanup do |s|
+            s.action(&Command.run(Container, :copy_cleanup))
+          end
+
+          c.desc 'Cancel ongoing local copy transfer'
+          c.arg_name '<ctid>'
+          c.command :cancel do |s|
+            s.action(&Command.run(Container, :copy_cancel))
+          end
         end
 
-        ct.desc 'Move container'
+        ct.desc 'Move container at once'
         ct.arg_name '<ctid> [pool:]<new-id>'
         ct.command %i[mv move] do |c|
+          c.desc 'Start the target container when the source was running'
+          c.switch :start, default_value: true
+
           c.desc 'Target pool'
           c.flag :pool, arg_name: 'pool'
 
@@ -1105,6 +1168,57 @@ module OsCtl::Cli
           c.flag :dataset, arg_name: 'dataset'
 
           c.action(&Command.run(Container, :move))
+
+          c.desc 'Step 1., prepare target container and datasets'
+          c.arg_name '<ctid> [pool:]<new-id>'
+          c.command %i[config prepare] do |s|
+            s.desc 'Target pool'
+            s.flag :pool, arg_name: 'pool'
+
+            s.desc 'Target user'
+            s.flag :user, arg_name: 'user'
+
+            s.desc 'Target group'
+            s.flag :group, arg_name: 'group'
+
+            s.desc 'Target dataset'
+            s.flag :dataset, arg_name: 'dataset'
+
+            s.action(&Command.run(Container, :move_config))
+          end
+
+          c.desc 'Step 2., copy initial rootfs'
+          c.arg_name '<ctid>'
+          c.command :rootfs do |s|
+            s.action(&Command.run(Container, :move_rootfs))
+          end
+
+          c.desc 'Optional step 3., copy rootfs changes'
+          c.arg_name '<ctid>'
+          c.command :sync do |s|
+            s.action(&Command.run(Container, :move_sync))
+          end
+
+          c.desc 'Step 4., final move state sync'
+          c.arg_name '<ctid>'
+          c.command :state do |s|
+            s.desc 'Start the target container when the source was running'
+            s.switch :start, default_value: true
+
+            s.action(&Command.run(Container, :move_state))
+          end
+
+          c.desc 'Step 5., cleanup local move transfer'
+          c.arg_name '<ctid>'
+          c.command :cleanup do |s|
+            s.action(&Command.run(Container, :move_cleanup))
+          end
+
+          c.desc 'Cancel ongoing local move transfer'
+          c.arg_name '<ctid>'
+          c.command :cancel do |s|
+            s.action(&Command.run(Container, :move_cancel))
+          end
         end
 
         ct.desc 'Move the container to another user namespace'

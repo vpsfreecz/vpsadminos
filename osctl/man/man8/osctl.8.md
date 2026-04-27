@@ -1290,13 +1290,18 @@ The following shortcuts are supported:
   Unset memory limits. This command is a shortcut to `ct cgparams unset`.
 
 `ct cp` *ctid* *new-id*
-  Copy container *ctid* to *new-id*.
+  Copy container *ctid* to *new-id*. This is equal to running
+  `ct cp config`, `ct cp rootfs`, `ct cp state` and `ct cp cleanup`
+  in succession. No automatic `sync` step is performed.
 
     `--[no-]consistent`
-      When cloning a running container, it has to be stopped if the copy is to
-      be consitent. Inconsistent copy will not contain data that the running
-      container has in memory and have not yet been saved to disk by its
-      applications. Enabled by default.
+      When copying a running container, it has to be stopped during the final
+      state step if the copy is to be consistent. Inconsistent copy will not
+      contain data that the running container has in memory and has not yet
+      been saved to disk by its applications. Enabled by default.
+
+    `--no-restart`
+      Do not restart the source container after the final copy snapshot.
 
     `--pool` *pool*
       Name of the target pool. By default, container *new-id* is created on
@@ -1320,9 +1325,53 @@ The following shortcuts are supported:
       Remove network interfaces from the new container config. This is useful
       for cloning containers without duplicating network configuration.
 
+`ct cp config` [*options*] *ctid* *new-id*
+  Prepare a split local copy. A staged target container, target datasets,
+  copied config files and a `local_transfer_log` are created. The target config
+  is copied at this point; if the source config changes before `ct cp state`,
+  cancel the transfer and start again.
+
+  Options are the same target options as `ct cp`: `--pool`, `--user`,
+  `--group`, `--dataset` and `--[no-]network-interfaces`. If `--dataset`
+  is used, `ct cp cancel` will not destroy the custom dataset automatically.
+
+`ct cp rootfs` *ctid*
+  Take a base snapshot of the source datasets and copy it locally to the
+  staged target container.
+
+`ct cp sync` *ctid*
+  Copy rootfs changes since `ct cp rootfs` or the previous `ct cp sync`.
+  This step is optional and can be repeated before the final state step.
+
+`ct cp state` [*options*] *ctid*
+  Perform the final copy snapshot and sync. With `--consistent`, a running
+  source is stopped only long enough to flush state and create the final
+  snapshot. With `--restart`, the source is restarted immediately after that
+  snapshot, before the final data is received into the target. The copied
+  target is not started automatically.
+
+    `--no-consistent`
+      Do not stop a running source for the final snapshot.
+
+    `--no-restart`
+      Do not restart the source after the final snapshot.
+
+`ct cp cleanup` *ctid*
+  Destroy temporary local-transfer snapshots and close `local_transfer_log`.
+
+`ct cp cancel` *ctid*
+  Cancel a prepared copy before `ct cp state`. Temporary snapshots are
+  destroyed, the staged target container is removed and `local_transfer_log`
+  is closed.
+
 `ct mv` *ctid* *new-id*
   Move container *ctid* to *new-id*. Can be used to move containers between pools
-  or just to rename containers.
+  or just to rename containers. This is equal to running `ct mv config`,
+  `ct mv rootfs`, `ct mv state` and `ct mv cleanup` in succession. No automatic
+  `sync` step is performed.
+
+    `--no-start`
+      Do not start the target container after the final state step.
 
     `--pool` *pool*
       Name of the target pool. By default, container *new-id* is created on
@@ -1330,17 +1379,57 @@ The following shortcuts are supported:
 
     `--user` *user*
       Name of the target user. By default, the user of container *ctid* is used.
-      When copying to a different pool, the target user has to exist before
-      `ct cp` is run.
+      When moving to a different pool, the target user has to exist before
+      `ct mv` is run.
 
     `--group` *group*
       Name of the target group. By default, the group of container *ctid* is used.
-      When copying to a different pool, the target group has to exist before
-      `ct cp` is run.
+      When moving to a different pool, the target group has to exist before
+      `ct mv` is run.
 
     `--dataset` *name*
       Custom name of a dataset from the target pool, where the new container's
       root filesystem will be stored.
+
+`ct mv config` [*options*] *ctid* *new-id*
+  Prepare a split local move. A staged target container, target datasets,
+  copied config files and a `local_transfer_log` are created. The target config
+  is copied at this point; if the source config changes before `ct mv state`,
+  cancel the transfer and start again.
+
+  Options are the same target options as `ct mv`: `--pool`, `--user`,
+  `--group` and `--dataset`. If `--dataset` is used, `ct mv cancel` will not
+  destroy the custom dataset automatically.
+
+`ct mv rootfs` *ctid*
+  Take a base snapshot of the source datasets and copy it locally to the
+  staged target container.
+
+`ct mv sync` *ctid*
+  Copy rootfs changes since `ct mv rootfs` or the previous `ct mv sync`.
+  This step is optional and can be repeated before the final state step.
+
+`ct mv state` [*options*] *ctid*
+  Stop the source if it was running, flush state, take the final snapshot,
+  receive the final data into the target and mark the target complete. If the
+  source was running, the target is started by default. The old source is not
+  deleted until `ct mv cleanup`.
+
+    `--no-start`
+      Do not start the target container after the final receive.
+
+`ct mv cleanup` *ctid*
+  Destroy temporary local-transfer snapshots and delete the old source
+  container.
+
+`ct mv cancel` *ctid*
+  Cancel a prepared move before `ct mv state`. Temporary snapshots are
+  destroyed, the staged target container is removed and `local_transfer_log`
+  is closed.
+
+For split `ct cp` and `ct mv`, the source dataset layout must not change between
+`config` and `state`. If a child dataset is added or removed, cancel the
+transfer and start again.
 
 `ct chown` *ctid* *user*
   Move container *ctid* to user namespace *user*. The container has to be stopped
