@@ -21,7 +21,7 @@ module OsCtld
                       end
 
       manipulate(ct) do
-        next error('this container is already being sent') if ct.send_log
+        next error('this container already has a transfer in progress') if ct.transfer_in_progress?
 
         ctid = opts[:as_id] || ct.id
 

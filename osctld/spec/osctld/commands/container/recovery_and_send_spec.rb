@@ -55,6 +55,10 @@ RSpec.describe 'container recovery and send wrappers' do
         self.opened_send_log = [type, token, opts]
       end
 
+      def transfer_in_progress?
+        !!send_log
+      end
+
       def save_config
         self.save_config_calls += 1
       end

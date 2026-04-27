@@ -2,6 +2,7 @@ require 'libosctl'
 require 'osctld/lockable'
 require 'osctld/manipulable'
 require 'osctld/assets/definition'
+require 'osctld/local_transfer/log'
 
 module OsCtld
   class Container
@@ -25,8 +26,9 @@ module OsCtld
 
     attr_inclusive_reader :pool, :id, :user, :dataset, :group, :distribution, :version, :arch,
                           :vendor, :variant, :autostart, :ephemeral, :hostname, :dns_resolvers,
-                          :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams, :cpu_package,
-                          :devices, :seccomp_profile, :apparmor, :attrs, :state, :lxc_config,
+                          :nesting, :prlimits, :mounts, :send_log, :local_transfer_log, :netifs,
+                          :cgparams, :cpu_package, :devices, :seccomp_profile, :apparmor, :attrs,
+                          :state, :lxc_config,
                           :init_cmd, :start_menu, :impermanence, :raw_configs, :run_conf, :next_run_conf,
                           :hints, :map_mode
 
@@ -61,6 +63,7 @@ module OsCtld
       @dataset = dataset
       @map_mode = opts[:map_mode]
       @state = opts[:staged] ? :staged : :unknown
+      @local_transfer_log = nil
       @ephemeral = false
       @netifs = NetInterface::Manager.new(self)
       @cgparams = nil
@@ -705,6 +708,29 @@ module OsCtld
       end
     end
 
+    def open_local_transfer_log(role, opts = {})
+      exclusively do
+        self.local_transfer_log = LocalTransfer::Log.new(role:, opts:)
+        save_config
+      end
+    end
+
+    def close_local_transfer_log(save: true)
+      exclusively do
+        local_transfer_log.close
+        self.local_transfer_log = nil
+        save_config if save
+      end
+    end
+
+    def transfer_log
+      inclusively { send_log || local_transfer_log }
+    end
+
+    def transfer_in_progress?
+      inclusively { !!send_log || !!local_transfer_log }
+    end
+
     # Unregister the container from internal uses in osctld, e.g. on pool export
     def unregister
       exclusively do
@@ -800,6 +826,7 @@ module OsCtld
 
         data['state'] = 'staged' if state == :staged
         data['send_log'] = send_log.dump if send_log
+        data['local_transfer_log'] = local_transfer_log.dump if local_transfer_log
 
         data
       end
@@ -882,9 +909,9 @@ module OsCtld
 
     attr_exclusive_writer :pool, :id, :user, :dataset, :group, :distribution, :version, :arch,
                           :vendor, :variant, :autostart, :ephemeral, :hostname, :dns_resolvers,
-                          :nesting, :prlimits, :mounts, :send_log, :netifs, :cgparams, :cpu_package,
-                          :devices, :seccomp_profile, :apparmor, :attrs, :lxc_config, :init_cmd,
-                          :start_menu, :impermanence
+                          :nesting, :prlimits, :mounts, :send_log, :local_transfer_log, :netifs,
+                          :cgparams, :cpu_package, :devices, :seccomp_profile, :apparmor, :attrs,
+                          :lxc_config, :init_cmd, :start_menu, :impermanence
     attr_synchronized_accessor :mounted
 
     def load_config_file(path = nil, **)
@@ -960,6 +987,10 @@ module OsCtld
           SendReceive::Tokens.register(@send_log.token)
         end
 
+        if cfg['local_transfer_log']
+          @local_transfer_log = LocalTransfer::Log.load(cfg['local_transfer_log'])
+        end
+
         @cgparams = CGroup::ContainerParams.load(self, cfg['cgparams'])
         @prlimits = PrLimits::Manager.load(self, cfg['prlimits'] || {})
         @raw_configs = Container::RawConfigs.new(cfg['raw'] || {})
@@ -999,6 +1030,7 @@ module OsCtld
       @group = opts[:group] if opts[:group]
       @state = :staged
       @send_log = nil
+      @local_transfer_log = nil
 
       @dataset = if opts[:dataset]
                    OsCtl::Lib::Zfs::Dataset.new(

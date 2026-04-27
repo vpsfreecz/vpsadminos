@@ -162,6 +162,97 @@ RSpec.describe OsCtld::Container do
     end
   end
 
+  describe 'transfer log persistence' do
+    let(:local_transfer_opts) do
+      {
+        operation: :copy,
+        target_pool: 'tank',
+        target_id: 'ct1-copy',
+        target_dataset: 'tank/ct/ct1-copy',
+        target_dataset_custom: false,
+        target_user: 'alice',
+        target_group: '/default',
+        network_interfaces: true,
+        datasets: [
+          OsCtld::LocalTransfer::Log::Dataset.new(
+            relative_name: '/',
+            source: 'tank/ct/ct1',
+            target: 'tank/ct/ct1-copy'
+          )
+        ]
+      }
+    end
+
+    it 'saves and loads local transfer logs' do
+      with_tmpdir do |dir|
+        pool = build_container_pool(root: dir)
+        ct = build_configured_container(root: dir, pool:)
+
+        ct.open_local_transfer_log(:source, local_transfer_opts)
+
+        cfg = load_yaml_file(ct.config_path)
+        expect(cfg['local_transfer_log']['opts']).to include(
+          'operation' => 'copy',
+          'target_id' => 'ct1-copy'
+        )
+
+        loaded = build_container(
+          root: dir,
+          pool:,
+          load: true,
+          load_from: dump_yaml(cfg),
+          devices: false
+        )
+
+        expect(loaded.local_transfer_log.dump).to eq(ct.local_transfer_log.dump)
+      end
+    end
+
+    it 'clears local transfer logs and reports transfer state' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+
+        expect(ct.transfer_in_progress?).to be(false)
+        expect(ct.transfer_log).to be_nil
+
+        ct.open_local_transfer_log(:source, local_transfer_opts)
+
+        expect(ct.transfer_in_progress?).to be(true)
+        expect(ct.transfer_log).to eq(ct.local_transfer_log)
+
+        ct.close_local_transfer_log
+
+        expect(ct.local_transfer_log).to be_nil
+        expect(load_yaml_file(ct.config_path)).not_to have_key('local_transfer_log')
+      end
+    end
+
+    it 'reports send logs through transfer helpers' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+
+        ct.open_send_log(:source, 'token-1', ctid: 'ct1', port: 22, dst: 'node')
+
+        expect(ct.transfer_in_progress?).to be(true)
+        expect(ct.transfer_log).to eq(ct.send_log)
+      end
+    end
+
+    it 'clears send and local transfer logs on clone' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+
+        ct.open_send_log(:source, 'token-1', ctid: 'ct1', port: 22, dst: 'node')
+        ct.open_local_transfer_log(:source, local_transfer_opts)
+
+        clone = ct.dup('ct1-copy')
+
+        expect(clone.send_log).to be_nil
+        expect(clone.local_transfer_log).to be_nil
+      end
+    end
+  end
+
   describe 'run configuration lifecycle' do
     it 'creates new runtime configurations on demand' do
       with_tmpdir do |dir|
