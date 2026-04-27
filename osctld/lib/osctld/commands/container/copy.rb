@@ -1,11 +1,12 @@
 require 'osctld/commands/logged'
+require 'osctld/commands/container/copy_config'
+require 'osctld/commands/container/copy_rootfs'
+require 'osctld/commands/container/copy_state'
+require 'osctld/commands/container/copy_cleanup'
 
 module OsCtld
   class Commands::Container::Copy < Commands::Logged
     handle :ct_copy
-
-    include OsCtl::Lib::Utils::Log
-    include OsCtl::Lib::Utils::System
 
     def find
       ct = DB::Containers.find(opts[:id], opts[:pool])
@@ -13,124 +14,42 @@ module OsCtld
     end
 
     def execute(ct)
-      target_pool = opts[:target_pool] ? DB::Pools.find(opts[:target_pool]) : ct.pool
-      error!('pool not found') unless target_pool
+      manipulate(ct) do
+        progress(type: :step, title: 'Preparing copy')
+        call_cmd!(Commands::Container::CopyConfig, **config_opts(ct))
 
-      if target_pool == ct.pool
-        target_user = nil
-        target_group = nil
+        progress(type: :step, title: 'Copying rootfs')
+        call_cmd!(Commands::Container::CopyRootfs, id: ct.id, pool: ct.pool.name)
 
-      else
-        target_user = DB::Users.find(opts[:target_user] || ct.user.name, target_pool)
-        error!('target user not found') unless target_user
-
-        target_group = DB::Groups.find(opts[:target_group] || ct.group.name, target_pool)
-        error!('target group not found') unless target_group
-      end
-
-      if DB::Containers.contains?(opts[:target_id], target_pool)
-        error!("container #{target_pool.name}:#{opts[:target_id]} already exists")
-      end
-
-      new_ct = ct.exclusively do
-        ct.dup(
-          opts[:target_id],
-          pool: target_pool,
-          user: target_user,
-          group: target_group,
-          dataset: opts[:target_dataset],
-          network_interfaces: opts[:network_interfaces]
+        progress(type: :step, title: 'Copying state')
+        call_cmd!(
+          Commands::Container::CopyState,
+          id: ct.id,
+          pool: ct.pool.name,
+          consistent: opts.fetch(:consistent, true),
+          restart: opts.fetch(:restart, true)
         )
+
+        progress(type: :step, title: 'Cleaning up')
+        call_cmd!(Commands::Container::CopyCleanup, id: ct.id, pool: ct.pool.name)
       end
 
-      builder = Container::Builder.new(new_ct.new_run_conf, cmd: self)
-      error!(builder.errors.join('; ')) unless builder.valid?
-
-      manipulate([ct, new_ct]) do
-        unless builder.register
-          error!("container #{new_ct.pool.name}:#{new_ct.id} already exists")
-        end
-
-        begin
-          copy_datasets_from(builder, ct)
-          new_ct.save_config
-          builder.setup_ct_dir
-          builder.setup_lxc_home
-          builder.setup_lxc_configs
-          builder.setup_log_file
-          builder.setup_user_hook_script_dir
-          builder.monitor
-          new_ct.state = :complete
-        rescue StandardError
-          progress('Error occurred, cleaning up')
-          builder.cleanup(dataset: !opts[:target_dataset])
-          raise
-        end
-      end
-
-      call_cmd!(Commands::User::LxcUsernet)
       ok
     end
 
     protected
 
-    def copy_datasets_from(builder, ct)
-      snaps = []
-      src_datasets = ct.datasets
-      dst_datasets = [builder.ctrc.dataset] + ct.dataset.descendants.map do |ds|
-        OsCtl::Lib::Zfs::Dataset.new(
-          File.join(builder.ctrc.dataset.name, ds.relative_name),
-          base: builder.ctrc.dataset.name
-        )
-      end
-
-      # Create datasets
-      dst_datasets.each do |ds|
-        builder.create_dataset(ds, mapping: builder.ctrc.map_mode == 'zfs')
-      end
-
-      # Copy data
-      snaps << builder.copy_datasets(src_datasets, dst_datasets)
-
-      if ct.running? && opts[:consistent]
-        call_cmd!(Commands::Container::Stop, id: ct.id, pool: ct.pool.name)
-
-        # Force write-out of dirtied pages
-        if Daemon.get.config.writeout_dirtied_pages?
-          begin
-            ct.unmount(force: true)
-          rescue SystemCommandFailed => e
-            log(:warn, ct, "Unable to unmount dataset for writeback: #{e.message}")
-            ct.mount(force: true)
-          end
-        end
-
-        snaps << builder.copy_datasets(src_datasets, dst_datasets, from: snaps.last)
-
-        if opts[:restart].nil? || opts[:restart]
-          call_cmd!(
-            Commands::Container::Start,
-            id: ct.id,
-            pool: ct.pool.name,
-            force: true,
-            wait: false
-          )
-        end
-      end
-    ensure
-      cleanup_copy_snapshots(src_datasets, dst_datasets, snaps, ct)
-    end
-
-    def cleanup_copy_snapshots(src_datasets, dst_datasets, snaps, ct)
-      return if snaps.empty?
-
-      (src_datasets + dst_datasets).each do |ds|
-        snaps.reverse_each do |snap|
-          zfs(:destroy, nil, "#{ds.name}@#{snap}")
-        rescue StandardError => e
-          log(:warn, ct, "Unable to destroy copy snapshot #{ds.name}@#{snap}: #{e.message}")
-        end
-      end
+    def config_opts(ct)
+      {
+        id: ct.id,
+        pool: ct.pool.name,
+        target_pool: opts[:target_pool],
+        target_id: opts[:target_id],
+        target_user: opts[:target_user],
+        target_group: opts[:target_group],
+        target_dataset: opts[:target_dataset],
+        network_interfaces: opts[:network_interfaces]
+      }
     end
   end
 end

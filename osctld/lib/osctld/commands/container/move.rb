@@ -1,4 +1,8 @@
 require 'osctld/commands/logged'
+require 'osctld/commands/container/move_config'
+require 'osctld/commands/container/move_rootfs'
+require 'osctld/commands/container/move_state'
+require 'osctld/commands/container/move_cleanup'
 
 module OsCtld
   class Commands::Container::Move < Commands::Logged
@@ -10,30 +14,41 @@ module OsCtld
     end
 
     def execute(ct)
-      state = ct.exclusively { ct.state }
-
       manipulate(ct) do
+        progress(type: :step, title: 'Preparing move')
+        call_cmd!(Commands::Container::MoveConfig, **config_opts(ct))
+
+        progress(type: :step, title: 'Copying rootfs')
+        call_cmd!(Commands::Container::MoveRootfs, id: ct.id, pool: ct.pool.name)
+
+        progress(type: :step, title: 'Moving state')
         call_cmd!(
-          Commands::Container::Copy,
-          **opts, consistent: true, restart: false
+          Commands::Container::MoveState,
+          id: ct.id,
+          pool: ct.pool.name,
+          start: opts.fetch(:start, true)
         )
 
-        if state == :running
-          call_cmd!(
-            Commands::Container::Start,
-            id: opts[:target_id],
-            pool: opts[:target_pool] || ct.pool.name,
-            force: true
-          )
-        end
-
-        call_cmd!(
-          Commands::Container::Delete,
-          id: opts[:id],
-          pool: opts[:pool],
-          force: true
-        )
+        progress(type: :step, title: 'Cleaning up')
+        call_cmd!(Commands::Container::MoveCleanup, id: ct.id, pool: ct.pool.name)
       end
+
+      ok
+    end
+
+    protected
+
+    def config_opts(ct)
+      {
+        id: ct.id,
+        pool: ct.pool.name,
+        target_pool: opts[:target_pool],
+        target_id: opts[:target_id],
+        target_user: opts[:target_user],
+        target_group: opts[:target_group],
+        target_dataset: opts[:target_dataset],
+        network_interfaces: true
+      }
     end
   end
 end

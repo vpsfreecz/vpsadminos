@@ -378,23 +378,20 @@ RSpec.describe 'container provisioning commands' do
   end
 
   describe OsCtld::Commands::Container::Move do
-    it 'copies, starts the target when the source was running, and deletes the source' do
-      copy_class = stub_const('OsCtld::Commands::Container::Copy', Class.new)
-      start_class = stub_const('OsCtld::Commands::Container::Start', Class.new)
-      delete_class = stub_const('OsCtld::Commands::Container::Delete', Class.new)
-      ct = Struct.new(:pool) do
+    it 'runs split move steps from config through cleanup' do
+      config_class = stub_const('OsCtld::Commands::Container::MoveConfig', Class.new)
+      rootfs_class = stub_const('OsCtld::Commands::Container::MoveRootfs', Class.new)
+      state_class = stub_const('OsCtld::Commands::Container::MoveState', Class.new)
+      cleanup_class = stub_const('OsCtld::Commands::Container::MoveCleanup', Class.new)
+      ct = Struct.new(:id, :pool) do
         def exclusively(&block)
           block.call
-        end
-
-        def state
-          :running
         end
 
         def manipulate(_holder, block:, &)
           yield
         end
-      end.new(build_pool)
+      end.new('ct1', build_pool)
       command = described_class.new(
         {
           id: 'ct1',
@@ -405,25 +402,31 @@ RSpec.describe 'container provisioning commands' do
         {}
       )
       allow(command).to receive(:call_cmd!).with(
-        copy_class,
+        config_class,
         id: 'ct1',
         pool: 'tank',
         target_id: 'ct2',
         target_pool: 'dst',
-        consistent: true,
-        restart: false
+        target_user: nil,
+        target_group: nil,
+        target_dataset: nil,
+        network_interfaces: true
       ).and_return(status: true, output: nil)
       allow(command).to receive(:call_cmd!).with(
-        start_class,
-        id: 'ct2',
-        pool: 'dst',
-        force: true
+        rootfs_class,
+        id: 'ct1',
+        pool: 'tank'
       ).and_return(status: true, output: nil)
       allow(command).to receive(:call_cmd!).with(
-        delete_class,
+        state_class,
         id: 'ct1',
         pool: 'tank',
-        force: true
+        start: true
+      ).and_return(status: true, output: nil)
+      allow(command).to receive(:call_cmd!).with(
+        cleanup_class,
+        id: 'ct1',
+        pool: 'tank'
       ).and_return(status: true, output: nil)
 
       expect(command.execute(ct)).to eq(status: true, output: nil)

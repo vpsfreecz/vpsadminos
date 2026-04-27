@@ -22,7 +22,7 @@ require 'osctld/commands/container/send_rootfs'
 require 'osctld/commands/container/send_sync'
 
 RSpec.describe 'container recovery and send wrappers' do
-  def build_send_ct(state: :stopped, send_log: nil, descendants: [])
+  def build_send_ct(state: :stopped, send_log: nil, local_transfer_log: nil, descendants: [])
     dataset = Struct.new(:name, :descendants, :relative_name) do
       def to_s
         name
@@ -30,8 +30,8 @@ RSpec.describe 'container recovery and send wrappers' do
     end.new('tank/ct1', descendants, 'ct1')
 
     Struct.new(
-      :id, :pool, :state, :send_log, :dataset, :user, :group,
-      :opened_send_log, :closed_send_log, :save_config_calls,
+      :id, :pool, :state, :send_log, :local_transfer_log, :dataset, :user,
+      :group, :opened_send_log, :closed_send_log, :save_config_calls,
       keyword_init: true
     ) do
       def manipulate(_holder, block:, &)
@@ -56,7 +56,7 @@ RSpec.describe 'container recovery and send wrappers' do
       end
 
       def transfer_in_progress?
-        !!send_log
+        !!send_log || !!local_transfer_log
       end
 
       def save_config
@@ -75,6 +75,7 @@ RSpec.describe 'container recovery and send wrappers' do
       pool: Struct.new(:name, :send_receive_key_chain).new('tank', nil),
       state:,
       send_log:,
+      local_transfer_log:,
       dataset:,
       user: Struct.new(:name, :config_path).new('alice', '/configs/user.yml'),
       group: Struct.new(:name, :config_path).new('default', '/configs/group.yml'),
@@ -225,6 +226,36 @@ RSpec.describe 'container recovery and send wrappers' do
   end
 
   describe OsCtld::Commands::Container::SendConfig do
+    it 'refuses to start when a send transfer is in progress' do
+      ct = build_send_ct(send_log: double('SendLog'))
+      db = stub_const('OsCtld::DB::Containers', Class.new do
+        def self.find(_id, _pool); end
+      end)
+      allow(db).to receive(:find).with('ct1', 'tank').and_return(ct)
+
+      command = described_class.new({ id: 'ct1', pool: 'tank', dst: 'example.org' }, {})
+
+      expect(command.execute).to eq(
+        status: false,
+        message: 'this container already has a transfer in progress'
+      )
+    end
+
+    it 'refuses to start when a local transfer is in progress' do
+      ct = build_send_ct(local_transfer_log: double('LocalTransferLog'))
+      db = stub_const('OsCtld::DB::Containers', Class.new do
+        def self.find(_id, _pool); end
+      end)
+      allow(db).to receive(:find).with('ct1', 'tank').and_return(ct)
+
+      command = described_class.new({ id: 'ct1', pool: 'tank', dst: 'example.org' }, {})
+
+      expect(command.execute).to eq(
+        status: false,
+        message: 'this container already has a transfer in progress'
+      )
+    end
+
     it 'strips @ from from_snapshot and opens the send log on success' do
       ct = build_send_ct(send_log: nil)
       hook_manager = stub_const('OsCtld::Hook::Manager', Class.new do
