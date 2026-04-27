@@ -134,6 +134,7 @@ let
         "osctl/ct-exec-v1"
         "osctl/ct-exec-v2"
         "osctl/ct-image-fetch"
+        "osctl/ct-local-transfer"
         "osctl/image-repository-build-service"
         "osctl/ct-map-mode"
         "osctl/ct-mounts"
