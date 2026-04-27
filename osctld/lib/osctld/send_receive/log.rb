@@ -1,4 +1,5 @@
 require 'osctld/send_receive'
+require 'osctld/transfer/log'
 
 module OsCtld
   # This class serves as a scratchpad for container send/receive
@@ -7,9 +8,7 @@ module OsCtld
   # per container. This class determines whether the next step of the send
   # can proceed, stores names of snapshots created during the send and
   # other settings.
-  class SendReceive::Log
-    STATES = %i[stage base incremental transfer cleanup].freeze
-
+  class SendReceive::Log < Transfer::Log
     class Options
       def self.load(cfg)
         new(cfg.transform_keys(&:to_sym))
@@ -87,8 +86,7 @@ module OsCtld
       end
     end
 
-    attr_reader :role, :token, :state, :snapshots, :opts
-    attr_accessor :state_snapshot, :state_running
+    attr_reader :token
 
     def self.load(cfg)
       new(
@@ -111,13 +109,8 @@ module OsCtld
     # @option opts [Boolean, nil] state_running
     # @option opts [Options, Hash] opts
     def initialize(opts)
-      @role = opts[:role]
       @token = opts[:token]
-      @state = opts[:state] || :stage
-      @snapshots = opts[:snapshots] || []
-      @state_snapshot = opts[:state_snapshot]
-      @state_running = opts[:state_running]
-      @opts = opts[:opts].is_a?(Options) ? opts[:opts] : Options.new(opts[:opts] || {})
+      super(opts.merge(opts: opts[:opts].is_a?(Options) ? opts[:opts] : Options.new(opts[:opts] || {})))
     end
 
     def dump
@@ -137,48 +130,19 @@ module OsCtld
     end
 
     def can_send_continue?(next_state)
-      cur_i = STATES.index(state)
-      next_i = STATES.index(next_state)
-
-      if !next_i
-        false
-      elsif (state == :cleanup && next_state == :cleanup) || \
-            (state == :incremental && next_state == :incremental)
-        true
-      else
-        next_i > cur_i
-      end
+      can_continue?(next_state, sync_states: %i[incremental])
     end
 
     def can_send_cancel?(force)
-      cancellable = %i[stage base incremental]
-      cancellable << :transfer if force
-      cancellable.include?(state)
+      can_cancel?(force)
     end
 
     def can_receive_continue?(next_state)
-      syncs = %i[base incremental]
-      cur_i = STATES.index(state)
-      next_i = STATES.index(next_state)
-
-      if !next_i
-        false
-      elsif (state == :cleanup && next_state == :cleanup) || \
-            (syncs.include?(state) && syncs.include?(next_state))
-        true
-      else
-        next_i > cur_i
-      end
+      can_continue?(next_state, sync_states: %i[base incremental])
     end
 
     def can_receive_cancel?
-      %i[stage base incremental].include?(state)
-    end
-
-    def state=(v)
-      raise "invalid state '#{v}'" unless STATES.include?(v)
-
-      @state = v
+      can_cancel?(false)
     end
 
     def close

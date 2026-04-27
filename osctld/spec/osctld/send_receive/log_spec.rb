@@ -61,18 +61,44 @@ RSpec.describe OsCtld::SendReceive::Log do
     expect(options.protocol_version).to eq(OsCtld::SendReceive::PROTOCOL_VERSION)
   end
 
-  it 'validates send and receive state transitions' do
-    log = described_class.new(role: :source, token: 'token-1', state: :incremental, opts: { ctid: '100', port: 2222, dst: 'node' })
+  it 'preserves send-side transition behavior' do
+    log = described_class.new(role: :source, token: 'token-1', opts: { ctid: '100', port: 2222, dst: 'node' })
 
+    expect(log.can_send_continue?(:base)).to be(true)
+    log.state = :base
+    expect(log.can_send_continue?(:base)).to be(false)
+    expect(log.can_send_continue?(:incremental)).to be(true)
+    log.state = :incremental
     expect(log.can_send_continue?(:incremental)).to be(true)
     expect(log.can_send_continue?(:transfer)).to be(true)
+    log.state = :transfer
+    expect(log.can_send_continue?(:cleanup)).to be(true)
     expect(log.can_send_continue?(:unknown)).to be(false)
-    expect(log.can_send_cancel?(false)).to be(true)
-    expect(log.can_send_cancel?(true)).to be(true)
+  end
+
+  it 'preserves receive-side transition behavior' do
+    log = described_class.new(role: :destination, token: 'token-1', opts: { ctid: '100', port: 2222, dst: 'node' })
+
+    log.state = :base
+    expect(log.can_receive_continue?(:base)).to be(true)
+    expect(log.can_receive_continue?(:incremental)).to be(true)
+    log.state = :incremental
     expect(log.can_receive_continue?(:base)).to be(true)
     expect(log.can_receive_continue?(:cleanup)).to be(true)
     expect(log.can_receive_continue?(:unknown)).to be(false)
+  end
+
+  it 'preserves cancel behavior' do
+    log = described_class.new(role: :source, token: 'token-1', state: :incremental, opts: { ctid: '100', port: 2222, dst: 'node' })
+
+    expect(log.can_send_cancel?(false)).to be(true)
+    expect(log.can_send_cancel?(true)).to be(true)
     expect(log.can_receive_cancel?).to be(true)
+
+    log.state = :transfer
+    expect(log.can_send_cancel?(false)).to be(false)
+    expect(log.can_send_cancel?(true)).to be(true)
+    expect(log.can_receive_cancel?).to be(false)
   end
 
   it 'rejects invalid states' do
