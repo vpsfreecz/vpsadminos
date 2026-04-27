@@ -21,8 +21,8 @@ with lib.kernel;
         SECURITY_LSM_NAMESPACE = yes;
       };
       zfs = {
-        rev = "f566e760bd9ce48079ba8c4d5ce00822526706a8";
-        sha256 = "sha256-3+9gKKde/XYRbJs4LAI0JggNh3fMvqV4KU2Cg0MImuQ=";
+        rev = "d53ca66f19d75abd316dfc5f24b3cbc54637cd8b";
+        sha256 = "sha256-7+fQ46IOxLAD30okY2kCTZuu9kayOAp57A3XYneolcM=";
       };
     };
     "6.12.81" = {
