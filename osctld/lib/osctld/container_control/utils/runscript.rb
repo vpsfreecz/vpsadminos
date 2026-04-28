@@ -126,14 +126,14 @@ module OsCtld
         # Wait for the container to be started
         if out_r.readline.strip == 'ready'
           # Configure network
-          pid = lxc_ct.attach do
+          net_exit_status = lxc_attach_wait do
             setup_exec_env
             ENV['HOME'] = '/root'
             ENV['USER'] = 'root'
             NetConfig.import(opts[:net_config]).setup
           end
 
-          Process.wait2(pid)
+          return error("network setup failed with exit status #{net_exit_status}") if net_exit_status != 0
 
           # Execute user command
           ret = yield

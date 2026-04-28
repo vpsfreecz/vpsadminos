@@ -1,8 +1,13 @@
 require 'lxc'
+require 'tempfile'
 
 module OsCtld
   # Runner is run in a forked&execed process and under the container's user
   class ContainerControl::Runner
+    # osctld has already placed this runner in the container cgroup. Letting
+    # unprivileged LXC attach move the transient process again fails on cgroup v2.
+    LXC_ATTACH_FLAGS = LXC::LXC_ATTACH_DEFAULT & ~LXC::LXC_ATTACH_MOVE_TO_CGROUP
+
     attr_reader :pool, :ctid, :lxc_home, :user_home, :log_file
 
     # @param opts [Hash] container options
@@ -49,6 +54,16 @@ module OsCtld
       @lxc_ct ||= LXC::Container.new(ctid, lxc_home)
     end
 
+    def prepare_lxc_attach_config
+      return if @lxc_attach_config_prepared
+
+      # The runner already inherited the container prlimits before switching to
+      # the container user. Reapplying them from unprivileged LXC attach can fail
+      # on prlimit(2) before the requested command is reached.
+      lxc_ct.clear_config_item('lxc.prlimit')
+      @lxc_attach_config_prepared = true
+    end
+
     def system_path
       SwitchUser::SYSTEM_PATH
     end
@@ -63,5 +78,87 @@ module OsCtld
       setup_exec_env
       ENV['PATH'] = ['/run/wrappers/bin', ENV.fetch('PATH', nil)].join(':')
     end
+
+    def lxc_attach_wait(**opts, &block)
+      prepare_lxc_attach_config
+
+      attach_opts = { wait: true, flags: LXC_ATTACH_FLAGS }.merge(opts)
+
+      exitstatus(lxc_ct.attach(attach_opts, &block))
+    end
+
+    def lxc_attach_command(cmd, stdin: nil, stdout:, stderr:)
+      config = lxc_attach_config_without_prlimits
+
+      pid = Process.fork do
+        if stdin
+          $stdin.reopen(stdin)
+        else
+          $stdin.close
+        end
+
+        $stdout.reopen(stdout)
+        $stderr.reopen(stderr)
+
+        setup_exec_env
+
+        Process.exec(
+          'lxc-attach',
+          '-P', lxc_home,
+          '-n', ctid,
+          '-f', config.path,
+          '--elevated-privileges=CGROUP',
+          '--clear-env',
+          "--set-var=PATH=#{system_path.join(':')}",
+          '--set-var=HOME=/root',
+          '--set-var=USER=root',
+          '--',
+          *Array(cmd)
+        )
+      end
+
+      _, status = Process.wait2(pid)
+      exitstatus(status)
+    ensure
+      if config
+        config.close
+        File.unlink(config.path)
+      end
+    end
+
+    def lxc_attach_config_without_prlimits
+      config = Tempfile.create([".#{ctid}.lxc-attach", '.conf'])
+      source = File.join(lxc_home, ctid, 'config')
+
+      File.foreach(source) do |line|
+        config.write(line) unless line.start_with?('lxc.prlimit.')
+      end
+
+      config.close
+      config
+    end
+
+    def exitstatus(status)
+      return wait_status_exitstatus(status) if status.is_a?(Integer)
+      return status.exitstatus if status.exited?
+      return 128 + status.termsig if status.signaled?
+
+      1
+    end
+
+    def wait_status_exitstatus(status)
+      return 1 if status < 0
+
+      term_sig = status & 0x7f
+
+      if term_sig == 0
+        (status >> 8) & 0xff
+      elsif term_sig == 0x7f
+        1
+      else
+        128 + term_sig
+      end
+    end
+
   end
 end

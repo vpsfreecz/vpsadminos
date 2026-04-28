@@ -146,7 +146,7 @@ module OsCtld
 
     def to_abs_paths(rel_paths)
       rel_paths.map do |path, req, *args|
-        [File.join(CGroup::FS, CGroup.real_subsystem('devices'), path), req, *args]
+        [File.join(CGroup.fs, CGroup.real_subsystem('devices'), path), req, *args]
       end
     end
 

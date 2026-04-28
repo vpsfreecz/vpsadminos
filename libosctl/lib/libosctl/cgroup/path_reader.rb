@@ -440,7 +440,7 @@ module OsCtl::Lib
         if CGroup.v1?
           V1.new(subsystems, path)
         else
-          V2.new(CGroup::FS, path)
+          V2.new(CGroup.fs, path)
         end
     end
 

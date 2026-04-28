@@ -122,7 +122,7 @@ module OsCtld
       ct.state = st.state
 
       if st.init_pid
-        ct.ensure_run_conf.init_pid = st.init_pid
+        ct.set_init_pid(st.init_pid)
         Eventd.report(:ct_init_pid, pool: ct.pool.name, id: ct.id, init_pid: st.init_pid)
       end
     rescue ContainerControl::Error => e

@@ -4,7 +4,9 @@ module OsCtld
   module CGroup
     include OsCtl::Lib::Utils::Log
 
-    FS = '/sys/fs/cgroup'.freeze
+    DEFAULT_FS = '/sys/fs/cgroup'.freeze
+    RUNSTATE_FS = '/run/osctl/cgroup'.freeze
+    FS = DEFAULT_FS
 
     ROOT_GROUP = 'osctl'.freeze
 
@@ -21,9 +23,11 @@ module OsCtld
 
       @version = 1 unless [1, 2].include?(@version)
 
+      @fs = detect_fs(@version)
+
       @subsystems =
         if @version == 1
-          Dir.entries(FS) - ['.', '..']
+          Dir.entries(fs) - ['.', '..']
         else
           ['']
         end
@@ -40,6 +44,14 @@ module OsCtld
 
     def self.v2?
       @version == 2
+    end
+
+    # Absolute path to the cgroup hierarchy used by osctld.
+    #
+    # vpsAdminOS keeps a private bind mount in /run/osctl/cgroup so daemon
+    # helpers do not depend on /sys visibility after kernfs filtering.
+    def self.fs
+      @fs ||= detect_fs(@version)
     end
 
     # Convert a single subsystem name to the mountpoint name, because some
@@ -70,9 +82,9 @@ module OsCtld
     # @return [String]
     def self.abs_cgroup_path(subsys, *path)
       if v1?
-        File.join(FS, real_subsystem(subsys), *path)
+        File.join(fs, real_subsystem(subsys), *path)
       else
-        File.join(FS, *path)
+        File.join(fs, *path)
       end
     end
 
@@ -500,5 +512,27 @@ module OsCtld
         MUTEX.synchronize(&block)
       end
     end
+
+    def self.detect_fs(version)
+      [RUNSTATE_FS, DEFAULT_FS].find do |path|
+        usable_fs?(path, version)
+      end || DEFAULT_FS
+    end
+    private_class_method :detect_fs
+
+    def self.usable_fs?(path, version)
+      return false unless Dir.exist?(path)
+
+      if version == 2
+        File.exist?(File.join(path, 'cgroup.procs'))
+      elsif version == 1
+        Dir.children(path).any?
+      else
+        File.exist?(File.join(path, 'cgroup.procs')) || Dir.children(path).any?
+      end
+    rescue SystemCallError
+      false
+    end
+    private_class_method :usable_fs?
   end
 end

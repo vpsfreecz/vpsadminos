@@ -15,12 +15,15 @@ Gem::Specification.new do |s|
     s.description = 'Create and use vpsAdminOS image repositories'
   s.authors     = 'Jakub Skokan'
   s.email       = 'jakub.skokan@vpsfree.cz'
-  s.files       = `git ls-files -z`.split("\x0")
+  s.files       = `git ls-files -z 2>/dev/null`.split("\x0")
+  s.files       = Dir.glob(%w[bin/**/* configs/**/* ext/**/* hooks/**/* lib/**/* man/**/* migrations/**/* templates/**/*]).select { |f| File.file?(f) } if s.files.empty?
   s.files      += Dir['man/man?/*.?']
   s.executables = s.files.grep(%r{^bin/}) { |f| File.basename(f) }
   s.license     = 'MIT'
 
-  s.required_ruby_version = ">= #{File.read('../.ruby-version').strip}"
+  ruby_version_file = File.expand_path('../.ruby-version', __dir__)
+  ruby_version = File.exist?(ruby_version_file) ? File.read(ruby_version_file).strip : '3.4.0'
+  s.required_ruby_version = ">= #{ruby_version}"
 
   s.add_dependency 'filelock'
   s.add_dependency 'gli', '~> 2.22.0'

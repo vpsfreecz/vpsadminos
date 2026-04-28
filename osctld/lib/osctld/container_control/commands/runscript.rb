@@ -60,6 +60,7 @@ module OsCtld
           stdin: opts[:script].nil? ? nil : opts[:stdin],
           stdout: opts[:stdout],
           stderr: opts[:stderr],
+          switch_extra_namespaces: mode != :running,
           reset_subtree_control: mode != :running
         )
 
@@ -112,7 +113,7 @@ module OsCtld
       protected
 
       def runscript_running(opts)
-        pid = lxc_ct.attach(
+        exit_status = lxc_attach_wait(
           stdin:,
           stdout:,
           stderr:
@@ -139,8 +140,7 @@ module OsCtld
           raise last_error if last_error
         end
 
-        _, status = Process.wait2(pid)
-        ok(status.exitstatus)
+        ok(exit_status)
       end
 
       def runscript_run_network(opts)

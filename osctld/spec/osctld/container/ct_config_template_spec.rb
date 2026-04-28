@@ -78,7 +78,7 @@ RSpec.describe 'ct/config template' do
     )
     apparmor = double(
       namespace: 'lxc-ct-tank-demo',
-      namespace_profile_name: 'ct-tank-demo//&:lxc-ct-tank-demo:'
+      lxc_profile_name: lsm_namespace_supported ? 'unchanged' : 'ct-tank-demo//&:lxc-ct-tank-demo:'
     )
     pool = double(hook_dir: '/run/osctl/pool.tank/hooks')
     ct = double(
@@ -109,7 +109,7 @@ RSpec.describe 'ct/config template' do
     )
   end
 
-  it 'requests tracing and LSM namespaces when the host supports them' do
+  it 'requests tracing and AppArmor LSM namespaces when supported' do
     rendered = render_config(
       apparmor_enabled: true,
       lsm_namespace_supported: true,
@@ -118,7 +118,7 @@ RSpec.describe 'ct/config template' do
 
     expect(rendered).to include("lxc.namespace.clone.lsm = apparmor\n")
     expect(rendered).to include("lxc.namespace.clone.lsm.name = lxc-ct-tank-demo\n")
-    expect(rendered).to include("lxc.apparmor.profile = ct-tank-demo//&:lxc-ct-tank-demo:\n")
+    expect(rendered).to include("lxc.apparmor.profile = unchanged\n")
     expect(rendered).to include("lxc.namespace.clone.tracing = 1\n")
   end
 
@@ -132,6 +132,19 @@ RSpec.describe 'ct/config template' do
     expect(rendered).not_to include('lxc.namespace.clone.lsm =')
     expect(rendered).not_to include('lxc.namespace.clone.lsm.name =')
     expect(rendered).not_to include('lxc.namespace.clone.tracing = 1')
+    expect(rendered).to include("lxc.apparmor.profile = ct-tank-demo//&:lxc-ct-tank-demo:\n")
     expect(rendered).to include('# Disabled: tracing namespace support not present')
+  end
+
+  it 'disables LXC AppArmor defaults when osctld AppArmor support is disabled' do
+    rendered = render_config(
+      apparmor_enabled: false,
+      lsm_namespace_supported: false,
+      tracing_namespace_supported: true
+    )
+
+    expect(rendered).to include("lxc.apparmor.profile = unconfined\n")
+    expect(rendered).not_to include('lxc.namespace.clone.lsm =')
+    expect(rendered).not_to include('lxc.namespace.clone.lsm.name =')
   end
 end

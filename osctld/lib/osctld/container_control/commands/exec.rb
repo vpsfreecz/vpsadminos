@@ -58,6 +58,7 @@ module OsCtld
           stdin: opts[:stdin],
           stdout: opts[:stdout],
           stderr: opts[:stderr],
+          switch_extra_namespaces: mode != :running,
           reset_subtree_control: mode != :running
         )
 
@@ -89,19 +90,13 @@ module OsCtld
       protected
 
       def exec_running(opts)
-        pid = lxc_ct.attach(
+        exit_status = lxc_attach_command(
+          opts[:cmd],
           stdin:,
           stdout:,
           stderr:
-        ) do
-          setup_exec_env
-          ENV['HOME'] = '/root'
-          ENV['USER'] = 'root'
-          LXC.run_command(opts[:cmd])
-        end
-
-        _, status = Process.wait2(pid)
-        ok(status.exitstatus)
+        )
+        ok(exit_status)
       end
 
       def exec_run(opts)
@@ -130,7 +125,7 @@ module OsCtld
 
         _, status = Process.wait2(pid)
 
-        ok(status.exitstatus)
+        ok(exitstatus(status))
       end
 
       def exec_run_network(opts)

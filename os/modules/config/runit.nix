@@ -68,6 +68,8 @@ in
     mkdir -p /var/lib/lxc/rootfs
 
     # CGroups
+    mkdir -p /run/osctl
+
     case "$cgroupv" in
       1) ;;
       2) ;;
@@ -148,7 +150,9 @@ in
         ;;
     esac
 
-    mkdir -p /run/osctl
+    mkdir -p /run/osctl/cgroup
+    mount --rbind /sys/fs/cgroup /run/osctl/cgroup
+    mount --make-rprivate /run/osctl/cgroup
     echo "$cgroupv" > /run/osctl/cgroup.version
 
     # BPF FS

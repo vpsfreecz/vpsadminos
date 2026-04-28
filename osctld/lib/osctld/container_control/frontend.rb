@@ -54,17 +54,25 @@ module OsCtld
       stdin = opts[:stdin]
       stdout = opts.fetch(:stdout, $stdout)
       stderr = opts.fetch(:stderr, $stderr)
-
       # User configuration
       sysuser = ct.user.sysusername
       ugid = ct.user.ugid
       homedir = ct.user.homedir
       cgroup_path = ct.entry_cgroup_path
       prlimits = ct.prlimits.export
-      syslogns_pid = ct.init_pid
-      syslogns_tag = syslogns_pid.nil? && ct.syslogns_tag
-      tracingns_pid = ct.init_pid
-      lsmns_pid = ct.init_pid
+      switch_extra_namespaces = opts.fetch(:switch_extra_namespaces, true)
+
+      if switch_extra_namespaces
+        syslogns_pid = ct.init_pid
+        syslogns_tag = syslogns_pid.nil? && ct.syslogns_tag(run_id: ct.run_conf&.run_id)
+        tracingns_pid = ct.init_pid
+        lsmns_pid = ct.init_pid
+      else
+        syslogns_pid = nil
+        syslogns_tag = nil
+        tracingns_pid = nil
+        lsmns_pid = nil
+      end
 
       # Runner configuration
       runner_opts = {

@@ -29,7 +29,7 @@ RSpec.describe OsCtld::Container do
     stub_const('OsCtld::ContainerControl::Commands', Module.new)
     stub_const('OsCtld::ContainerControl::Commands::State', Class.new do
       def self.run!(_ct)
-        Struct.new(:state).new(:running)
+        Struct.new(:state, :init_pid).new(:running, nil)
       end
     end)
   end
@@ -131,6 +131,28 @@ RSpec.describe OsCtld::Container do
         expect(ct.user).to eq(user)
         expect(ct.group).to eq(group)
         expect(ct.start_menu).to be_a(OsCtld::Container::StartMenu)
+      end
+    end
+  end
+
+  describe '#syslogns_tag' do
+    it 'keeps the legacy stable tag by default' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir, id: 'ct1')
+
+        expect(ct.syslogns_tag).to eq('    tank:ct1')
+      end
+    end
+
+    it 'adds a run-specific suffix when a run id is provided' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir, id: 'long-container-name')
+        run_id = double(to_s: 'tank:long-container-name:123.45')
+
+        tag = ct.syslogns_tag(run_id:)
+
+        expect(tag.bytesize).to eq(OsCtl::Lib::Sys::SYSLOGNS_MAX_TAG_BYTESIZE)
+        expect(tag).to match(/\Along-co:[0-9a-f]{4}\z/)
       end
     end
   end
@@ -402,7 +424,7 @@ RSpec.describe OsCtld::Container do
       with_tmpdir do |dir|
         ct = build_container(root: dir)
         allow(OsCtld::ContainerControl::Commands::State).to receive(:run!).and_return(
-          Struct.new(:state).new(:running)
+          Struct.new(:state, :init_pid).new(:running, nil)
         )
 
         expect(ct.fresh_state).to eq(:running)
@@ -411,6 +433,30 @@ RSpec.describe OsCtld::Container do
         ct.state = :stopped
         expect(ct.fresh_state).to eq(:stopped)
         expect(OsCtld::ContainerControl::Commands::State).to have_received(:run!).once
+      end
+    end
+
+    it 'stores init_pid returned while refreshing runtime state' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        allow(OsCtld::ContainerControl::Commands::State).to receive(:run!).and_return(
+          Struct.new(:state, :init_pid).new(:running, 4321)
+        )
+
+        expect(ct.current_state).to eq(:running)
+        expect(ct.init_pid).to eq(4321)
+      end
+    end
+
+    it 'recovers a missing init_pid when exporting a running container' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+        ct.state = :running
+        allow(OsCtld::ContainerControl::Commands::State).to receive(:run!).and_return(
+          Struct.new(:state, :init_pid).new(:running, 5678)
+        )
+
+        expect(ct.export[:init_pid]).to eq(5678)
       end
     end
 
@@ -451,6 +497,19 @@ RSpec.describe OsCtld::Container do
         expect(ct.find_memory_limit(parents: false)).to be_nil
         expect(ct.find_swap_limit(parents: false)).to be_nil
         expect(ct.find_cpu_limit(parents: false)).to be_nil
+      end
+    end
+
+    it 'handles containers before cgroup params are configured' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        ct.group.memory_limit = 1_024
+
+        expect(ct.cgparams).to be_nil
+        expect(ct.find_memory_limit).to eq(1_024)
+        expect(ct.find_memory_limit(parents: false)).to be_nil
+        expect(ct.find_swap_limit).to be_nil
+        expect(ct.find_cpu_limit).to be_nil
       end
     end
   end

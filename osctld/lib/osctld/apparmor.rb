@@ -9,32 +9,46 @@ module OsCtld
 
     # Paths where `apparmor_parser` searches for configuration files
     PATHS = [RunState::APPARMOR_DIR].freeze
+    SECURITYFS_APPARMOR = '/sys/kernel/security/apparmor'.freeze
+    APPARMOR_ENABLED = '/sys/module/apparmor/parameters/enabled'.freeze
+
+    def self.paths
+      PATHS + Daemon.get.config.apparmor_paths
+    end
 
     def self.enabled?
       if @enabled.nil?
-        begin
-          @enabled = Daemon.get.config.apparmor_paths.any? \
-            && Dir.exist?('/sys/kernel/security/apparmor') \
-            && File.read('/sys/module/apparmor/parameters/enabled').strip.downcase == 'y'
-        rescue Errno::ENOENT
-          @enabled = false
-        end
+        @enabled = configured? && kernel_enabled? && (profilefs_available? || lsm_namespace_available?)
       else
         @enabled
       end
     end
 
     def self.lsm_namespace_supported?
-      enabled? && File.exist?('/proc/self/ns/lsm')
+      configured? && kernel_enabled? && lsm_namespace_available?
+    end
+
+    def self.configured?
+      Daemon.get.config.apparmor_paths.any?
+    end
+
+    def self.kernel_enabled?
+      File.read(APPARMOR_ENABLED).strip.downcase == 'y'
     rescue Errno::ENOENT
       false
     end
 
+    def self.profilefs_available?
+      Dir.exist?(SECURITYFS_APPARMOR)
+    end
+
+    def self.lsm_namespace_available?
+      File.exist?('/proc/self/ns/lsm')
+    end
+
     # Prepare shared files in `/run/osctl`
     def self.setup
-      PATHS.concat(Daemon.get.config.apparmor_paths)
-
-      base = File.join(RunState::APPARMOR_DIR, 'osctl')
+      base = File.join(PATHS.fetch(0), 'osctl')
       features = File.join(base, 'features')
 
       [base, features].each do |dir|
@@ -51,6 +65,9 @@ module OsCtld
     # Load profiles of running containers from `pool`
     # @param pool [Pool]
     def self.setup_pool(pool)
+      return if lsm_namespace_supported?
+      return unless profilefs_available?
+
       [profile_dir(pool), cache_dir(pool)].each do |dir|
         FileUtils.mkdir_p(dir, mode: 0o700)
       end
@@ -101,7 +118,7 @@ module OsCtld
     # @param opts [Hash] options for `syscmd`
     def self.apparmor_parser(pool, cmd, profiles, opts = {})
       syscmd(
-        "apparmor_parser -#{cmd} -W -v #{PATHS.map { |v| "-I #{v}" }.join(' ')} " \
+        "apparmor_parser -#{cmd} -W -v #{paths.map { |v| "-I #{v}" }.join(' ')} " \
         "-L #{cache_dir(pool)} #{profiles.join(' ')}",
         opts
       )
@@ -114,9 +131,12 @@ module OsCtld
 
     # Generate container profile, load it and create a namespace
     def setup
+      return if self.class.lsm_namespace_supported?
+      return unless self.class.profilefs_available?
+
       generate_profile
       load_profile
-      create_namespace unless self.class.lsm_namespace_supported?
+      create_namespace
     end
 
     # Generate AppArmor profile for the container
@@ -138,11 +158,15 @@ module OsCtld
 
     # Load the container's profile into the kernel
     def load_profile
+      return if self.class.lsm_namespace_supported?
+
       apparmor_parser('r')
     end
 
     # Remove the container's profile from the kernel
     def unload_profile
+      return if self.class.lsm_namespace_supported?
+
       apparmor_parser('R', valid_rcs: [254])
     end
 
@@ -188,6 +212,10 @@ module OsCtld
 
     def namespace_profile_name
       "#{profile_name}//&:#{namespace}:"
+    end
+
+    def lxc_profile_name
+      self.class.lsm_namespace_supported? ? 'unchanged' : namespace_profile_name
     end
 
     def dup(new_ct)
