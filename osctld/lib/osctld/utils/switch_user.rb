@@ -3,7 +3,7 @@ require 'tempfile'
 
 module OsCtld
   module Utils::SwitchUser
-    def ct_attach(ct, *args, lxc_attach_config_without_prlimits: nil)
+    def ct_attach(ct, *args)
       CGroup.mkpath_all(ct.entry_cgroup_path.split('/'), chown: ct.user.ugid)
 
       {
@@ -16,11 +16,7 @@ module OsCtld
           homedir: ct.user.homedir,
           cgroup_path: ct.entry_cgroup_path,
           prlimits: ct.prlimits.export
-        }.tap do |settings|
-          if lxc_attach_config_without_prlimits
-            settings[:lxc_attach_config_without_prlimits] = lxc_attach_config_without_prlimits
-          end
-        end
+        }
       }
     end
 

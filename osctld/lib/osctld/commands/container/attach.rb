@@ -28,11 +28,7 @@ module OsCtld
       ]
 
       if opts[:user_shell]
-        ok(ct_attach(
-             ct,
-             *base_args,
-             lxc_attach_config_without_prlimits: File.join(ct.lxc_dir, 'config')
-           ))
+        ok(ct_attach(ct, *base_args))
 
       else
         shell = find_shell(ct)
@@ -44,8 +40,7 @@ module OsCtld
              '--keep-var', 'LANG',
              '-v', "PS1=#{prompt(ct, shell)}",
              '--',
-             *shell_args(shell),
-             lxc_attach_config_without_prlimits: File.join(ct.lxc_dir, 'config')
+             *shell_args(shell)
            ))
       end
     end
