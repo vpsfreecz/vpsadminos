@@ -68,13 +68,13 @@ module OsCtld
       ENV['PATH'] = ['/run/wrappers/bin', ENV.fetch('PATH', nil)].join(':')
     end
 
-    def lxc_attach_wait(**opts, &block)
+    def lxc_attach_wait(**opts, &)
       attach_opts = { wait: true, flags: LXC_ATTACH_FLAGS }.merge(opts)
 
-      exitstatus(lxc_ct.attach(attach_opts, &block))
+      exitstatus(lxc_ct.attach(attach_opts, &))
     end
 
-    def lxc_attach_command(cmd, stdin: nil, stdout:, stderr:)
+    def lxc_attach_command(cmd, stdout:, stderr:, stdin: nil)
       pid = Process.fork do
         if stdin
           $stdin.reopen(stdin)
@@ -126,6 +126,5 @@ module OsCtld
         128 + term_sig
       end
     end
-
   end
 end

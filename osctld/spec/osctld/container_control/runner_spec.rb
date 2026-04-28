@@ -10,8 +10,8 @@ require 'osctld/container_control/runner'
 RSpec.describe OsCtld::ContainerControl::Runner do
   let(:runner_class) do
     Class.new(described_class) do
-      def public_lxc_attach_wait(**opts, &block)
-        lxc_attach_wait(**opts, &block)
+      def public_lxc_attach_wait(**opts, &)
+        lxc_attach_wait(**opts, &)
       end
 
       def public_exitstatus(status)
@@ -51,11 +51,11 @@ RSpec.describe OsCtld::ContainerControl::Runner do
   end
 
   it 'runs LXC attach in wait mode and returns its exit status' do
-    lxc_ct = double('lxc container')
+    lxc_ct = instance_double(LXC::Container)
     block_called = false
 
     allow(runner).to receive(:lxc_ct).and_return(lxc_ct)
-    expect(lxc_ct).to receive(:attach) do |opts, &block|
+    allow(lxc_ct).to receive(:attach) do |opts, &block|
       expect(opts).to include(wait: true, stdout: :out)
       expect(opts[:flags] & LXC::LXC_ATTACH_MOVE_TO_CGROUP).to eq(0)
       block.call
@@ -67,7 +67,7 @@ RSpec.describe OsCtld::ContainerControl::Runner do
     end
 
     expect(block_called).to be(true)
+    expect(lxc_ct).to have_received(:attach)
     expect(exit_status).to eq(3)
   end
-
 end
