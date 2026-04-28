@@ -164,12 +164,14 @@ RSpec.describe 'local container transfer commands' do
     )
   end
 
-  def target_ct(id: 'ct1-copy', state: :staged)
+  def target_ct(id: 'ct1-copy', state: :staged, pool_name: 'tank')
+    pool = LocalTransferSpec::Pool.new(pool_name, "#{pool_name}/ct")
+
     LocalTransferSpec::FakeCt.new(
       id:,
-      pool: LocalTransferSpec::Pool.new('tank', 'tank/ct'),
+      pool:,
       state:,
-      dataset: LocalTransferSpec::Dataset.new("tank/ct/#{id}", '/', []),
+      dataset: LocalTransferSpec::Dataset.new("#{pool.ct_ds}/#{id}", '/', []),
       user: LocalTransferSpec::User.new('alice'),
       group: LocalTransferSpec::Group.new('/default'),
       send_log: nil,
@@ -189,7 +191,7 @@ RSpec.describe 'local container transfer commands' do
       def self.contains?(_id, _pool); end
     end)
 
-    allow(pools).to receive(:find).with('tank').and_return(target.pool)
+    allow(pools).to receive(:find).with(target.pool.name).and_return(target.pool)
     allow(containers).to receive(:find).with(target.id, target.pool).and_return(target)
     allow(containers).to receive(:contains?).and_return(false)
 
@@ -305,7 +307,7 @@ RSpec.describe 'local container transfer commands' do
   end
 
   describe OsCtld::Commands::Container::MoveConfig do
-    it 'opens a move transfer log' do
+    it 'keeps the target on the source pool when no target pool is specified' do
       source = source_ct
       target = target_ct
       _pools, containers = stub_target_lookup(target)
@@ -334,6 +336,58 @@ RSpec.describe 'local container transfer commands' do
 
       expect(command.execute(source)).to eq(status: true, output: nil)
       expect(source.local_transfer_log.opts.operation).to eq(:move)
+      expect(source.local_transfer_log.opts.target_pool).to eq('tank')
+      expect(source.local_transfer_log.opts.target_dataset).to eq('tank/ct/ct1-copy')
+    end
+
+    it 'uses the requested target pool' do
+      source = source_ct
+      target = target_ct(pool_name: 'dozer')
+      pools, containers = stub_target_lookup(target)
+      users = stub_const('OsCtld::DB::Users', Class.new do
+        def self.find(_name, _pool); end
+      end)
+      groups = stub_const('OsCtld::DB::Groups', Class.new do
+        def self.find(_name, _pool); end
+      end)
+      builder = double(
+        'Builder',
+        valid?: true,
+        errors: [],
+        register: true,
+        ctrc: double(dataset: target.dataset, map_mode: 'zfs'),
+        setup_ct_dir: nil,
+        setup_lxc_home: nil,
+        setup_lxc_configs: nil,
+        setup_log_file: nil,
+        setup_user_hook_script_dir: nil,
+        monitor: nil
+      )
+      builder_class = stub_const('OsCtld::Container::Builder', Class.new do
+        def initialize(*, **); end
+      end)
+
+      allow(pools).to receive(:find).with('dozer').and_return(target.pool)
+      allow(containers).to receive(:find).with('ct1', 'tank').and_return(source)
+      allow(users).to receive(:find).with('alice', target.pool).and_return(target.user)
+      allow(groups).to receive(:find).with('/default', target.pool).and_return(target.group)
+      allow(builder_class).to receive(:new).and_return(builder)
+      allow(builder).to receive(:create_dataset)
+
+      command = described_class.new(
+        {
+          id: 'ct1',
+          pool: 'tank',
+          target_pool: 'dozer',
+          target_id: 'ct1-copy'
+        },
+        {}
+      )
+
+      expect(command.execute(source)).to eq(status: true, output: nil)
+      expect(source.local_transfer_log.opts.operation).to eq(:move)
+      expect(source.local_transfer_log.opts.target_pool).to eq('dozer')
+      expect(source.local_transfer_log.opts.target_dataset).to eq('dozer/ct/ct1-copy')
     end
 
     it 'refuses to start when a send transfer is in progress' do
