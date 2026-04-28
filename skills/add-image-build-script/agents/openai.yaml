@@ -1,0 +1,4 @@
+interface:
+  display_name: "Add Image Build Script"
+  short_description: "Add and verify vpsAdminOS images"
+  default_prompt: "Use $add-image-build-script to add a vpsAdminOS image build script, update repository and distribution-test config, and run the matching image-scripts test."
