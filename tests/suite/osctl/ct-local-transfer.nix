@@ -195,6 +195,36 @@ import ../../make-test.nix (
         end
       end
 
+      describe 'all-in-one local copy' do
+        ctid = "#{get_container_id}-copy-once-src"
+        target = "#{ctid}-dst"
+
+        before(:context) do
+          cleanup_ct(ctid, target)
+          machine.all_succeed(
+            "osctl --pool tank ct new --distribution alpine #{ctid}",
+            "osctl --pool tank ct unset start-menu #{ctid}"
+          )
+        end
+
+        after(:context) do
+          cleanup_ct(ctid, target)
+        end
+
+        it 'runs all split phases and leaves no transfer state behind' do
+          write_file(ctid, 'tmp/local-transfer/all-in-one-copy', 'copied')
+
+          machine.succeeds("osctl --pool tank ct cp #{ctid} #{target}")
+
+          expect(ct_state(ctid)).to eq('stopped')
+          expect(ct_state(target)).to eq('stopped')
+          expect_file(target, 'tmp/local-transfer/all-in-one-copy', 'copied')
+          expect(local_transfer_log_present?(ctid)).to be(false)
+          expect_no_transfer_snapshots(ctid)
+          expect_no_transfer_snapshots(target)
+        end
+      end
+
       describe 'running split local copy' do
         ctid = "#{get_container_id}-run-copy"
         target = "#{ctid}-dst"
@@ -273,6 +303,34 @@ import ../../make-test.nix (
           expect(ct_state(target)).to eq('running')
           expect_file(target, 'tmp/local-transfer/data', 'moved')
           expect_file(target, 'tmp/local-transfer/final', 'final')
+          expect_no_transfer_snapshots(target)
+        end
+      end
+
+      describe 'all-in-one local move' do
+        ctid = "#{get_container_id}-move-once-src"
+        target = "#{ctid}-dst"
+
+        before(:context) do
+          cleanup_ct(ctid, target)
+          machine.all_succeed(
+            "osctl --pool tank ct new --distribution alpine #{ctid}",
+            "osctl --pool tank ct unset start-menu #{ctid}"
+          )
+        end
+
+        after(:context) do
+          cleanup_ct(ctid, target)
+        end
+
+        it 'runs all split phases and deletes the source' do
+          write_file(ctid, 'tmp/local-transfer/all-in-one-move', 'moved')
+
+          machine.succeeds("osctl --pool tank ct mv #{ctid} #{target}")
+
+          expect_ct_absent(ctid)
+          expect(ct_state(target)).to eq('stopped')
+          expect_file(target, 'tmp/local-transfer/all-in-one-move', 'moved')
           expect_no_transfer_snapshots(target)
         end
       end
