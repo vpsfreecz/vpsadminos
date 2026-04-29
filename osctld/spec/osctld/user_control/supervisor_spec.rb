@@ -26,7 +26,7 @@ RSpec.describe OsCtld::UserControl::Supervisor do
   let(:servers) do
     {
       namespaced: namespaced_server,
-      'alice' => user_server
+      'tank:alice' => user_server
     }
   end
 
@@ -51,9 +51,11 @@ RSpec.describe OsCtld::UserControl::Supervisor do
 
   describe '#start_server' do
     let(:user_class) do
-      Struct.new(:name, :ugid, keyword_init: true)
+      Struct.new(:name, :ugid, :pool, keyword_init: true) do
+        def ident = "#{pool}:#{name}"
+      end
     end
-    let(:user) { user_class.new(name: 'alice', ugid: 12_345) }
+    let(:user) { user_class.new(name: 'alice', ugid: 12_345, pool: 'tank') }
 
     it 'creates, chmods, and stores a user control socket server' do
       socket = instance_double(UNIXServer)
@@ -75,21 +77,23 @@ RSpec.describe OsCtld::UserControl::Supervisor do
 
       expect(File).to have_received(:chown).with(0, 12_345, '/run/osctl/user-control/12345.sock')
       expect(File).to have_received(:chmod).with(0o660, '/run/osctl/user-control/12345.sock')
-      expect(supervisor.instance_variable_get('@servers')['alice']).to eq([generic_server, thread])
+      expect(supervisor.instance_variable_get('@servers')['tank:alice']).to eq([generic_server, thread])
     end
   end
 
   describe '#stop_server' do
     let(:user_class) do
-      Struct.new(:name, :ugid, keyword_init: true)
+      Struct.new(:name, :ugid, :pool, keyword_init: true) do
+        def ident = "#{pool}:#{name}"
+      end
     end
-    let(:user) { user_class.new(name: 'alice', ugid: 12_345) }
+    let(:user) { user_class.new(name: 'alice', ugid: 12_345, pool: 'tank') }
 
     it 'stops, joins, and unlinks the user control socket' do
       server = build_service_pair
 
       stub_const('OsCtld::RunState::USER_CONTROL_DIR', '/run/osctl/user-control')
-      supervisor.instance_variable_set('@servers', { 'alice' => server })
+      supervisor.instance_variable_set('@servers', { 'tank:alice' => server })
       allow(File).to receive(:unlink)
 
       supervisor.stop_server(user)
@@ -97,6 +101,34 @@ RSpec.describe OsCtld::UserControl::Supervisor do
       expect(server[0]).to have_received(:stop).once
       expect(server[1]).to have_received(:join).once
       expect(File).to have_received(:unlink).with('/run/osctl/user-control/12345.sock')
+    end
+
+    it 'distinguishes users with the same name on different pools' do
+      tank_server = build_service_pair
+      dozer_server = build_service_pair
+      dozer_user = user_class.new(name: 'alice', ugid: 54_321, pool: 'dozer')
+
+      stub_const('OsCtld::RunState::USER_CONTROL_DIR', '/run/osctl/user-control')
+      supervisor.instance_variable_set(
+        '@servers',
+        {
+          'tank:alice' => tank_server,
+          dozer_user.ident => dozer_server
+        }
+      )
+      allow(File).to receive(:unlink)
+
+      supervisor.stop_server(user)
+
+      expect(tank_server[0]).to have_received(:stop).once
+      expect(tank_server[1]).to have_received(:join).once
+      expect(dozer_server[0]).not_to have_received(:stop)
+      expect(dozer_server[1]).not_to have_received(:join)
+      expect(File).to have_received(:unlink).with('/run/osctl/user-control/12345.sock')
+      expect(File).not_to have_received(:unlink).with('/run/osctl/user-control/54321.sock')
+      expect(supervisor.instance_variable_get('@servers')).to include(
+        'dozer:alice' => dozer_server
+      )
     end
   end
 

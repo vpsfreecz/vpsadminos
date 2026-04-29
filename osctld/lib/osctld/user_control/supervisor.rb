@@ -117,13 +117,13 @@ module OsCtld
         })
         t = Thread.new { s.start }
 
-        @servers[user.name] = [s, t]
+        @servers[server_key(user)] = [s, t]
       end
     end
 
     def stop_server(user)
       sync do
-        s, t = @servers[user.name]
+        s, t = @servers[server_key(user)]
         s.stop
         t.join
         File.unlink(socket_path(user))
@@ -160,6 +160,10 @@ module OsCtld
 
     def socket_path(user)
       File.join(RunState::USER_CONTROL_DIR, "#{user.ugid}.sock")
+    end
+
+    def server_key(user)
+      user.ident
     end
   end
 end
