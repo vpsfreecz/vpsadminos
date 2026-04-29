@@ -122,8 +122,6 @@ in
         mount -t cgroup2 cgroup2 /sys/fs/cgroup/unified
 
         mkdir -p /sys/fs/cgroup/systemd/runit
-        ln -sf /sys/fs/cgroup/systemd/runit /run/runit/cgroup.system
-        ln -sf /sys/fs/cgroup/systemd/runit /run/runit/cgroup.service
         ;;
       2)
         mount -t cgroup2 cgroup2 /sys/fs/cgroup
@@ -144,9 +142,6 @@ in
         for c in `cat /sys/fs/cgroup/system//service/cgroup.controllers` ; do
           echo "+$c" >> /sys/fs/cgroup/system/service/cgroup.subtree_control
         done
-
-        ln -sf /sys/fs/cgroup/system /run/runit/cgroup.system
-        ln -sf /sys/fs/cgroup/system/service /run/runit/cgroup.service
         ;;
     esac
 
@@ -155,8 +150,26 @@ in
     mount --make-rprivate /run/osctl/cgroup
     echo "$cgroupv" > /run/osctl/cgroup.version
 
-    # BPF FS
-    mount -t bpf bpf /sys/fs/bpf
+    case "$cgroupv" in
+      1)
+        ln -sf /run/osctl/cgroup/systemd/runit /run/runit/cgroup.system
+        ln -sf /run/osctl/cgroup/systemd/runit /run/runit/cgroup.service
+        ;;
+      2)
+        # Kernfs filtering can hide sibling cgroups through /sys/fs/cgroup from
+        # runit service wrappers. Use the private host view exported for osctld.
+        ln -sf /run/osctl/cgroup/system /run/runit/cgroup.system
+        ln -sf /run/osctl/cgroup/system/service /run/runit/cgroup.service
+        ;;
+    esac
+
+    # BPF FS. Keep osctld's authoritative BPF mount under /run so container
+    # mount namespace teardown cannot remove the daemon's pin filesystem.
+    mkdir -p /run/osctl/bpf
+    mount -t bpf bpf /run/osctl/bpf
+    mount --make-rprivate /run/osctl/bpf
+    mount --rbind /run/osctl/bpf /sys/fs/bpf
+    mount --make-rprivate /sys/fs/bpf
 
     # securityfs
     mount -t securityfs securityfs /sys/kernel/security

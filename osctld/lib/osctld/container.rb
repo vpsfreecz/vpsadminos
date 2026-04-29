@@ -497,6 +497,14 @@ module OsCtld
       File.join(cgroup_path, "lxc.monitor.#{id}")
     end
 
+    def payload_cgroup_path
+      File.join(cgroup_path, "lxc.payload.#{id}")
+    end
+
+    def attach_cgroup_path
+      File.join(payload_cgroup_path, 'osctl.attach')
+    end
+
     def abs_cgroup_path(subsystem)
       CGroup.abs_cgroup_path(subsystem, cgroup_path)
     end

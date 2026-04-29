@@ -67,6 +67,8 @@ RSpec.describe OsCtld::Container do
         expect(ct.base_cgroup_path).to eq('/osctl/pool.tank/group.default/user.alice/ct.ct1')
         expect(ct.cgroup_path).to eq('/osctl/pool.tank/group.default/user.alice/ct.ct1/user-owned')
         expect(ct.entry_cgroup_path).to eq('/osctl/pool.tank/group.default/user.alice/ct.ct1/user-owned/lxc.monitor.ct1')
+        expect(ct.payload_cgroup_path).to eq('/osctl/pool.tank/group.default/user.alice/ct.ct1/user-owned/lxc.payload.ct1')
+        expect(ct.attach_cgroup_path).to eq('/osctl/pool.tank/group.default/user.alice/ct.ct1/user-owned/lxc.payload.ct1/osctl.attach')
       end
     end
 

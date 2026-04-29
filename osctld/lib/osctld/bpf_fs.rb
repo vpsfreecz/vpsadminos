@@ -6,7 +6,7 @@ module OsCtld
   class BpfFs
     include Singleton
 
-    FS = '/sys/fs/bpf'.freeze
+    FS = '/run/osctl/bpf'.freeze
 
     ROOT_DIR = File.join(FS, 'osctl')
 
