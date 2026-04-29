@@ -119,7 +119,7 @@ module OsCtld
 
       loop do
         init_pid = lxc_ct.init_pid
-        return true if lxc_ct.running? && init_pid && init_pid > 0
+        return init_pid if lxc_ct.running? && init_pid && init_pid > 0
         return false if Time.now >= deadline
 
         sleep(0.1)

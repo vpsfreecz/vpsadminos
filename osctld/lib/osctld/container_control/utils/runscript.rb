@@ -144,9 +144,11 @@ module OsCtld
 
         # Wait for the container to be started
         if out_r.readline.strip == 'ready'
+          init_pid = wait_for_lxc_attachable
+
           ret =
-            if wait_for_lxc_attachable
-              setup_network(opts) || yield
+            if init_pid
+              setup_network(opts, init_pid) || yield
             else
               error('network setup failed: container is not attachable')
             end
@@ -161,39 +163,34 @@ module OsCtld
         ret || ok(status.exitstatus)
       end
 
-      def setup_network(opts)
-        net_error = +''
-        err_r, err_w = IO.pipe
+      def setup_network(opts, init_pid)
+        osctld_netns_setup(init_pid:, net_config: opts[:net_config])
+        nil
+      rescue StandardError => e
+        error("network setup failed: #{e.message}")
+      end
 
-        begin
-          net_exit_status = lxc_attach_wait(stderr: err_w) do
-            err_r.close
+      def osctld_netns_setup(init_pid:, net_config:)
+        s = UNIXSocket.new("/run/osctl/user-control/#{Process.uid}.sock")
 
-            begin
-              setup_exec_env
-              ENV['HOME'] = '/root'
-              ENV['USER'] = 'root'
-              NetConfig.import(opts[:net_config]).setup
-            rescue StandardError => e
-              warn "#{e.class}: #{e.message}"
-              e.backtrace&.first(5)&.each { |line| warn line }
-              exit(1)
-            end
-          end
-        ensure
-          err_w.close unless err_w.closed?
-        end
+        payload = {
+          cmd: :ct_netns_setup,
+          opts: {
+            id: ctid,
+            pool:,
+            init_pid:,
+            net_config:
+          }
+        }
 
-        net_error = err_r.read
-        err_r.close
+        s.send("#{payload.to_json}\n", 0)
 
-        return if net_exit_status == 0
+        ret = JSON.parse(s.readline, symbolize_names: true)
+        s.close
 
-        msg = "network setup failed with exit status #{net_exit_status}"
-        detail = net_error.lines.map(&:strip).reject(&:empty?).first
-        msg = "#{msg}: #{detail}" if detail
+        return if ret[:status]
 
-        error(msg)
+        raise "Error during ct_netns_setup callback: #{ret[:message]}"
       end
 
       # Callback to osctld to relocate self-process from container's wrapper cgroup

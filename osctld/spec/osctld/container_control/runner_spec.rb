@@ -80,7 +80,7 @@ RSpec.describe OsCtld::ContainerControl::Runner do
 
     allow(runner).to receive(:lxc_ct).and_return(lxc_ct)
 
-    expect(runner.public_wait_for_lxc_attachable).to be(true)
+    expect(runner.public_wait_for_lxc_attachable).to eq(123)
   end
 
   it 'times out when LXC has no attachable init process' do
