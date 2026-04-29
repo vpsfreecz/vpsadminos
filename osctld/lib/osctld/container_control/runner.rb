@@ -5,7 +5,12 @@ module OsCtld
   class ContainerControl::Runner
     # osctld has already placed this runner in the container cgroup. Letting
     # unprivileged LXC attach move the transient process again fails on cgroup v2.
-    LXC_ATTACH_FLAGS = LXC::LXC_ATTACH_DEFAULT & ~LXC::LXC_ATTACH_MOVE_TO_CGROUP
+    #
+    # Keep capabilities for osctld maintenance blocks executed through ruby-lxc
+    # attach, e.g. transient network setup needs CAP_NET_ADMIN.
+    LXC_ATTACH_FLAGS = LXC::LXC_ATTACH_DEFAULT \
+                       & ~LXC::LXC_ATTACH_MOVE_TO_CGROUP \
+                       & ~LXC::LXC_ATTACH_DROP_CAPABILITIES
 
     attr_reader :pool, :ctid, :lxc_home, :user_home, :log_file
 
