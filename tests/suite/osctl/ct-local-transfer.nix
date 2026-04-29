@@ -99,6 +99,53 @@ import ../../make-test.nix (
         expect(out.strip).to eq(value)
       end
 
+      def self.ct_exec(ctid, command, pool: nil)
+        machine.succeeds(
+          "osctl #{osctl_pool_arg(pool)}ct exec #{ctid} /bin/sh -c #{command.inspect}"
+        )
+      end
+
+      def self.wait_ct_exec(ctid, command, pool: nil, timeout: 120)
+        machine.wait_until_succeeds(
+          "osctl #{osctl_pool_arg(pool)}ct exec #{ctid} /bin/sh -c #{command.inspect}",
+          timeout:
+        )
+      end
+
+      def self.expect_ct_file(ctid, path, value, pool: nil)
+        _, out = ct_exec(ctid, "cat /#{path}", pool:)
+        expect(out.strip).to eq(value)
+      end
+
+      def self.install_test_service(ctid, value, pool: nil)
+        rootfs = ct_rootfs(ctid, pool:)
+
+        machine.succeeds(<<~CMD)
+          cat > #{rootfs}/etc/init.d/transfer-service <<'EOF'
+          #!/sbin/openrc-run
+          command="/bin/sleep"
+          command_args="2147483647"
+          command_background="yes"
+          pidfile="/run/transfer-service.pid"
+
+          start_pre() {
+            printf '%s\\n' #{value.inspect} > /run/transfer-service.value
+          }
+          EOF
+          chmod +x #{rootfs}/etc/init.d/transfer-service
+        CMD
+
+        ct_exec(ctid, 'rc-update add transfer-service default', pool:)
+        ct_exec(ctid, 'rc-service transfer-service start', pool:)
+        expect_test_service(ctid, value, pool:)
+      end
+
+      def self.expect_test_service(ctid, value, pool: nil)
+        wait_ct_exec(ctid, 'rc-service transfer-service status', pool:, timeout: 60)
+        _, out = wait_ct_exec(ctid, 'cat /run/transfer-service.value', pool:, timeout: 60)
+        expect(out.strip).to eq(value)
+      end
+
       def self.transfer_snapshots(dataset)
         machine.succeeds(
           "zfs list -H -t snapshot -o name -r #{dataset} " \
@@ -189,6 +236,11 @@ import ../../make-test.nix (
           expect_file(target, 'tmp/local-transfer/base', 'base')
           expect_file(target, 'tmp/local-transfer/sync', 'sync')
           expect_file(target, 'tmp/local-transfer/state', 'state')
+          machine.succeeds("osctl --pool tank ct start #{target}")
+          wait_ct_running(target)
+          expect_ct_file(target, 'tmp/local-transfer/base', 'base')
+          expect_ct_file(target, 'tmp/local-transfer/sync', 'sync')
+          expect_ct_file(target, 'tmp/local-transfer/state', 'state')
           expect(local_transfer_log_present?(ctid)).to be(false)
           expect_no_transfer_snapshots(ctid)
           expect_no_transfer_snapshots(target)
@@ -219,6 +271,9 @@ import ../../make-test.nix (
           expect(ct_state(ctid)).to eq('stopped')
           expect(ct_state(target)).to eq('stopped')
           expect_file(target, 'tmp/local-transfer/all-in-one-copy', 'copied')
+          machine.succeeds("osctl --pool tank ct start #{target}")
+          wait_ct_running(target)
+          expect_ct_file(target, 'tmp/local-transfer/all-in-one-copy', 'copied')
           expect(local_transfer_log_present?(ctid)).to be(false)
           expect_no_transfer_snapshots(ctid)
           expect_no_transfer_snapshots(target)
@@ -237,6 +292,7 @@ import ../../make-test.nix (
             "osctl --pool tank ct start #{ctid}"
           )
           wait_ct_running(ctid)
+          install_test_service(ctid, 'copy-service')
         end
 
         after(:context) do
@@ -257,6 +313,11 @@ import ../../make-test.nix (
           wait_ct_running(ctid)
           machine.succeeds("osctl --pool tank ct cp cleanup #{ctid}")
           expect(ct_state(ctid)).to eq('running')
+          expect_test_service(ctid, 'copy-service')
+
+          machine.succeeds("osctl --pool tank ct start #{target}")
+          wait_ct_running(target)
+          expect_test_service(target, 'copy-service')
         end
       end
 
@@ -272,6 +333,7 @@ import ../../make-test.nix (
             "osctl --pool tank ct start #{ctid}"
           )
           wait_ct_running(ctid)
+          install_test_service(ctid, 'move-service')
         end
 
         after(:context) do
@@ -281,19 +343,19 @@ import ../../make-test.nix (
         it 'starts the target and deletes the source during cleanup' do
           machine.succeeds(
             "osctl --pool tank ct exec #{ctid} /bin/sh -c " \
-            "'mkdir -p /tmp/local-transfer && echo moved > /tmp/local-transfer/data'"
+            "'mkdir -p /tmp/local-transfer && echo before > /tmp/local-transfer/before'"
           )
+          expect_test_service(ctid, 'move-service')
 
           machine.all_succeed(
             "osctl --pool tank ct mv config #{ctid} #{target}",
-            "osctl --pool tank ct mv rootfs #{ctid}",
-            "osctl --pool tank ct mv sync #{ctid}"
+            "osctl --pool tank ct mv rootfs #{ctid}"
           )
 
-          machine.succeeds(
-            "osctl --pool tank ct exec #{ctid} /bin/sh -c " \
-            "'echo final > /tmp/local-transfer/final'"
-          )
+          ct_exec(ctid, 'echo after-rootfs > /tmp/local-transfer/after-rootfs')
+          machine.succeeds("osctl --pool tank ct mv sync #{ctid}")
+
+          ct_exec(ctid, 'echo after-sync > /tmp/local-transfer/after-sync')
 
           machine.succeeds("osctl --pool tank ct mv state #{ctid}")
           wait_ct_running(target)
@@ -301,8 +363,10 @@ import ../../make-test.nix (
 
           expect_ct_absent(ctid)
           expect(ct_state(target)).to eq('running')
-          expect_file(target, 'tmp/local-transfer/data', 'moved')
-          expect_file(target, 'tmp/local-transfer/final', 'final')
+          expect_ct_file(target, 'tmp/local-transfer/before', 'before')
+          expect_ct_file(target, 'tmp/local-transfer/after-rootfs', 'after-rootfs')
+          expect_ct_file(target, 'tmp/local-transfer/after-sync', 'after-sync')
+          expect_test_service(target, 'move-service')
           expect_no_transfer_snapshots(target)
         end
       end
@@ -331,6 +395,9 @@ import ../../make-test.nix (
           expect_ct_absent(ctid)
           expect(ct_state(target)).to eq('stopped')
           expect_file(target, 'tmp/local-transfer/all-in-one-move', 'moved')
+          machine.succeeds("osctl --pool tank ct start #{target}")
+          wait_ct_running(target)
+          expect_ct_file(target, 'tmp/local-transfer/all-in-one-move', 'moved')
           expect_no_transfer_snapshots(target)
         end
       end
@@ -368,6 +435,9 @@ import ../../make-test.nix (
           expect(ct_state(target, pool: 'dozer')).to eq('stopped')
           expect(ct_dataset(target, pool: 'dozer')).to start_with('dozer/')
           expect_file(target, 'tmp/local-transfer/cross-pool', 'dozer', pool: 'dozer')
+          machine.succeeds("osctl --pool dozer ct start #{target}")
+          wait_ct_running(target, pool: 'dozer')
+          expect_ct_file(target, 'tmp/local-transfer/cross-pool', 'dozer', pool: 'dozer')
           expect_no_transfer_snapshots(target, pool: 'dozer')
         end
       end

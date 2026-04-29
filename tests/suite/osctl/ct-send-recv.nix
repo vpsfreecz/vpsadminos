@@ -77,6 +77,65 @@ let
       status == 0
     end
 
+    def self.ct_exec(machine, ctid, command)
+      machine.succeeds("osctl ct exec #{ctid} /bin/sh -c #{command.inspect}")
+    end
+
+    def self.wait_ct_exec(machine, ctid, command, timeout: 120)
+      machine.wait_until_succeeds(
+        "osctl ct exec #{ctid} /bin/sh -c #{command.inspect}",
+        timeout:
+      )
+    end
+
+    def self.write_ct_file(machine, ctid, path, value)
+      ct_exec(
+        machine,
+        ctid,
+        "mkdir -p /#{File.dirname(path)} && printf '%s\\n' #{value.inspect} > /#{path}"
+      )
+    end
+
+    def self.expect_ct_file(machine, ctid, path, value)
+      _, out = ct_exec(machine, ctid, "cat /#{path}")
+      expect(out.strip).to eq(value)
+    end
+
+    def self.expect_ct_files(machine, ctid, files)
+      files.each do |path, value|
+        expect_ct_file(machine, ctid, path, value)
+      end
+    end
+
+    def self.install_test_service(machine, ctid, value)
+      rootfs = machine.succeeds("osctl ct show -H -o rootfs #{ctid}")[1].strip
+
+      machine.succeeds(<<~CMD)
+        cat > #{rootfs}/etc/init.d/transfer-service <<'EOF'
+        #!/sbin/openrc-run
+        command="/bin/sleep"
+        command_args="2147483647"
+        command_background="yes"
+        pidfile="/run/transfer-service.pid"
+
+        start_pre() {
+          printf '%s\\n' #{value.inspect} > /run/transfer-service.value
+        }
+        EOF
+        chmod +x #{rootfs}/etc/init.d/transfer-service
+      CMD
+
+      ct_exec(machine, ctid, 'rc-update add transfer-service default')
+      ct_exec(machine, ctid, 'rc-service transfer-service start')
+      expect_test_service(machine, ctid, value)
+    end
+
+    def self.expect_test_service(machine, ctid, value)
+      wait_ct_exec(machine, ctid, 'rc-service transfer-service status', timeout: 60)
+      _, out = wait_ct_exec(machine, ctid, 'cat /run/transfer-service.value', timeout: 60)
+      expect(out.strip).to eq(value)
+    end
+
     def self.hook_path(ctid, hook_name)
       "/tank/hook/ct/#{ctid}/#{hook_name}"
     end
@@ -176,6 +235,7 @@ import ../../make-test.nix (
             )
 
             wait_ct_running(node1, ctid)
+            install_test_service(node1, ctid, 'send-service')
           end
 
           after(:suite) do
@@ -184,12 +244,36 @@ import ../../make-test.nix (
 
           describe 'happy path' do
             it 'moves the container to node2 and back to node1' do
-              node1.succeeds("osctl ct send #{ctid} node2")
+              transfer_files = {
+                'tmp/send-transfer/before-rootfs' => 'before-rootfs',
+                'tmp/send-transfer/after-rootfs' => 'after-rootfs',
+                'tmp/send-transfer/after-sync' => 'after-sync'
+              }
+
+              write_ct_file(node1, ctid, 'tmp/send-transfer/before-rootfs', 'before-rootfs')
+
+              node1.all_succeed(
+                "osctl ct send config #{ctid} node2",
+                "osctl ct send rootfs #{ctid}"
+              )
+
+              write_ct_file(node1, ctid, 'tmp/send-transfer/after-rootfs', 'after-rootfs')
+              node1.succeeds("osctl ct send sync #{ctid}")
+
+              write_ct_file(node1, ctid, 'tmp/send-transfer/after-sync', 'after-sync')
+              node1.all_succeed(
+                "osctl ct send state #{ctid}",
+                "osctl ct send cleanup #{ctid}"
+              )
 
               wait_ct_running(node2, ctid)
               expect_ct_absent(node1, ctid)
               expect(ct_state(node2, ctid)).to eq('running')
               expect(send_log_present?(node2, ctid)).to be(false)
+              expect_ct_files(node2, ctid, transfer_files)
+              expect_test_service(node2, ctid, 'send-service')
+
+              write_ct_file(node2, ctid, 'tmp/send-transfer/before-return', 'before-return')
 
               node2.succeeds("osctl ct send #{ctid} node1")
 
@@ -197,6 +281,12 @@ import ../../make-test.nix (
               expect_ct_absent(node2, ctid)
               expect(ct_state(node1, ctid)).to eq('running')
               expect(send_log_present?(node1, ctid)).to be(false)
+              expect_ct_files(
+                node1,
+                ctid,
+                transfer_files.merge('tmp/send-transfer/before-return' => 'before-return')
+              )
+              expect_test_service(node1, ctid, 'send-service')
             end
           end
         '';
