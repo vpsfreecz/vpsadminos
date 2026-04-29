@@ -105,6 +105,12 @@ module OsCtld
       exitstatus(status)
     end
 
+    def wait_for_lxc_stopped(timeout: 10)
+      deadline = Time.now + timeout
+
+      sleep(0.1) while lxc_ct.running? && Time.now < deadline
+    end
+
     def exitstatus(status)
       return wait_status_exitstatus(status) if status.is_a?(Integer)
       return status.exitstatus if status.exited?

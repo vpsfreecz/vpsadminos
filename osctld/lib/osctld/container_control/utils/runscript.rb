@@ -86,6 +86,7 @@ module OsCtld
           pid
         else
           _, status = Process.wait2(pid)
+          wait_for_lxc_stopped
           ok(status.exitstatus)
         end
       end
@@ -144,6 +145,7 @@ module OsCtld
         out_r.close
 
         _, status = Process.wait2(init_pid)
+        wait_for_lxc_stopped
         ret || ok(status.exitstatus)
       end
 
