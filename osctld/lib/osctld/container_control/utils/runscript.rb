@@ -129,7 +129,7 @@ module OsCtld
         out_r, out_w = IO.pipe
 
         # Start the container with lxc-init
-        init_pid = runscript_run(
+        runner_pid = runscript_run(
           id: ctid,
           script: opts[:init_script],
           stdin: in_r,
@@ -144,11 +144,11 @@ module OsCtld
 
         # Wait for the container to be started
         if out_r.readline.strip == 'ready'
-          init_pid = wait_for_lxc_attachable
+          ct_init_pid = wait_for_lxc_attachable
 
           ret =
-            if init_pid
-              setup_network(opts, init_pid) || yield
+            if ct_init_pid
+              setup_network(opts, ct_init_pid) || yield
             else
               error('network setup failed: container is not attachable')
             end
@@ -158,7 +158,7 @@ module OsCtld
         in_w.close
         out_r.close
 
-        _, status = Process.wait2(init_pid)
+        _, status = Process.wait2(runner_pid)
         wait_for_lxc_stopped
         ret || ok(status.exitstatus)
       end
