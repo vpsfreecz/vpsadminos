@@ -29,16 +29,7 @@ module OsCtld
           args: opts[:args]
         }
 
-        mode =
-          if ct.running?
-            :running
-          elsif !ct.running? && opts[:run] && opts[:network]
-            :run_network
-          elsif !ct.running? && opts[:run]
-            :run
-          else
-            raise ContainerControl::Error, 'container not running'
-          end
+        mode = runscript_mode(run: opts[:run], network: opts[:network])
 
         add_network_opts(runner_opts) if opts[:network]
 
@@ -66,6 +57,8 @@ module OsCtld
 
         ret.ok? ? ret.data : ret
       ensure
+        sync_state_after_transient_run(mode) if mode
+
         if script
           script.close
           unlink_file(script.path)

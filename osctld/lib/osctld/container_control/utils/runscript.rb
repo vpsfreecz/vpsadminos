@@ -4,6 +4,24 @@ require 'socket'
 module OsCtld
   module ContainerControl::Utils::Runscript
     module Frontend
+      def runscript_mode(run:, network:)
+        running = run ? ct.current_state == :running : ct.running?
+
+        if running
+          :running
+        elsif run && network
+          :run_network
+        elsif run
+          :run
+        else
+          raise ContainerControl::Error, 'container not running'
+        end
+      end
+
+      def sync_state_after_transient_run(mode)
+        ct.current_state if %i[run run_network].include?(mode)
+      end
+
       def add_network_opts(opts)
         opts.update(
           init_script: File.join('/', File.basename(init_script.path)),
