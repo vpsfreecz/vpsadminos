@@ -116,6 +116,18 @@ module OsCtld
       sleep(0.1) while lxc_ct.running? && Time.now < deadline
     end
 
+    def wait_for_lxc_attachable(timeout: 10)
+      deadline = Time.now + timeout
+
+      loop do
+        init_pid = lxc_ct.init_pid
+        return true if lxc_ct.running? && init_pid && init_pid > 0
+        return false if Time.now >= deadline
+
+        sleep(0.1)
+      end
+    end
+
     def exitstatus(status)
       return wait_status_exitstatus(status) if status.is_a?(Integer)
       return status.exitstatus if status.exited?

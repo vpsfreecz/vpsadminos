@@ -144,18 +144,12 @@ module OsCtld
 
         # Wait for the container to be started
         if out_r.readline.strip == 'ready'
-          # Configure network
-          net_exit_status = lxc_attach_wait do
-            setup_exec_env
-            ENV['HOME'] = '/root'
-            ENV['USER'] = 'root'
-            NetConfig.import(opts[:net_config]).setup
-          end
-
-          return error("network setup failed with exit status #{net_exit_status}") if net_exit_status != 0
-
-          # Execute user command
-          ret = yield
+          ret =
+            if wait_for_lxc_attachable
+              setup_network(opts) || yield
+            else
+              error('network setup failed: container is not attachable')
+            end
         end
 
         # Closing in_w will bring down opts[:init_script] and stop the container
@@ -165,6 +159,41 @@ module OsCtld
         _, status = Process.wait2(init_pid)
         wait_for_lxc_stopped
         ret || ok(status.exitstatus)
+      end
+
+      def setup_network(opts)
+        net_error = +''
+        err_r, err_w = IO.pipe
+
+        begin
+          net_exit_status = lxc_attach_wait(stderr: err_w) do
+            err_r.close
+
+            begin
+              setup_exec_env
+              ENV['HOME'] = '/root'
+              ENV['USER'] = 'root'
+              NetConfig.import(opts[:net_config]).setup
+            rescue StandardError => e
+              warn "#{e.class}: #{e.message}"
+              e.backtrace&.first(5)&.each { |line| warn line }
+              exit(1)
+            end
+          end
+        ensure
+          err_w.close unless err_w.closed?
+        end
+
+        net_error = err_r.read
+        err_r.close
+
+        return if net_exit_status == 0
+
+        msg = "network setup failed with exit status #{net_exit_status}"
+        detail = net_error.lines.map(&:strip).reject(&:empty?).first
+        msg = "#{msg}: #{detail}" if detail
+
+        error(msg)
       end
 
       # Callback to osctld to relocate self-process from container's wrapper cgroup
