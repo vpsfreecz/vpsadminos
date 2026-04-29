@@ -49,4 +49,6 @@ self: super: {
   sysinfo-to-json = super.callPackage ../packages/sysinfo-to-json { };
 
   vdevlog = super.callPackage ../packages/vdevlog { };
+
+  write-boot-utmp = super.callPackage ../packages/write-boot-utmp { };
 }

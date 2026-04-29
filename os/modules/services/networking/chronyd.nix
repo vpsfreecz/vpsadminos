@@ -67,6 +67,7 @@ in
 
           if set_clock ; then
             echo "System clock set"
+            ${pkgs.write-boot-utmp}/bin/write-boot-utmp /run/utmp
           else
             echo "Unable to set clock"
           fi

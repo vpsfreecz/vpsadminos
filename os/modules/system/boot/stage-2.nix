@@ -86,6 +86,7 @@ in
         inherit (config.boot) procHidePid;
         nixStoreMountOpts = concatStringsSep " " (map escapeShellArg config.boot.nixStoreMountOpts);
         inherit postBootCommands;
+        writeBootUtmp = pkgs.write-boot-utmp;
         parentWrapperDir = dirOf config.security.wrapperDir;
         wrapperDirSize = config.security.wrapperDirSize;
       };

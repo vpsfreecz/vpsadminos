@@ -152,6 +152,7 @@ let
         "snap/hello-ubuntu"
         "snap/lxd-fedora"
         "snap/lxd-ubuntu"
+        "system/boot/stage-2"
         "systemd/credentials"
         {
           test = "systemd/device-units";

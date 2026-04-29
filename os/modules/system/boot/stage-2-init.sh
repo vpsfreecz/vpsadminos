@@ -25,6 +25,7 @@ ln -sfn /run /var/run
 ln -sf /proc/mounts /etc/mtab
 
 touch /run/{u,w}tmp
+@writeBootUtmp@/bin/write-boot-utmp /run/utmp
 mkdir /run/lock
 
 mkdir @parentWrapperDir@
