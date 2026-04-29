@@ -3,14 +3,12 @@ require 'lxc'
 module OsCtld
   # Runner is run in a forked&execed process and under the container's user
   class ContainerControl::Runner
-    # osctld has already placed this runner in the container cgroup. Letting
-    # unprivileged LXC attach move the transient process again fails on cgroup v2.
-    #
-    # Keep capabilities for osctld maintenance blocks executed through ruby-lxc
-    # attach, e.g. transient network setup needs CAP_NET_ADMIN.
-    LXC_ATTACH_FLAGS = LXC::LXC_ATTACH_DEFAULT \
-                       & ~LXC::LXC_ATTACH_MOVE_TO_CGROUP \
-                       & ~LXC::LXC_ATTACH_DROP_CAPABILITIES
+    # osctld uses ruby-lxc attach for in-process maintenance blocks, not for
+    # launching untrusted commands. Keep only personality setup: cgroup moves
+    # fail from the already-placed runner on cgroup v2, dropped capabilities
+    # break netns maintenance, and LSM exec transitions are irrelevant without
+    # execve().
+    LXC_ATTACH_FLAGS = LXC::LXC_ATTACH_SET_PERSONALITY
 
     attr_reader :pool, :ctid, :lxc_home, :user_home, :log_file
 

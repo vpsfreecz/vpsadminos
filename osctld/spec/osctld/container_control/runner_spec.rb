@@ -61,8 +61,7 @@ RSpec.describe OsCtld::ContainerControl::Runner do
     allow(runner).to receive(:lxc_ct).and_return(lxc_ct)
     allow(lxc_ct).to receive(:attach) do |opts, &block|
       expect(opts).to include(wait: true, stdout: :out)
-      expect(opts[:flags] & LXC::LXC_ATTACH_MOVE_TO_CGROUP).to eq(0)
-      expect(opts[:flags] & LXC::LXC_ATTACH_DROP_CAPABILITIES).to eq(0)
+      expect(opts[:flags]).to eq(LXC::LXC_ATTACH_SET_PERSONALITY)
       block.call
       3 << 8
     end
