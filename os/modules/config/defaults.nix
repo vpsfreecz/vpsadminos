@@ -69,7 +69,7 @@
     # Needed for overlayfs metadata xattrs in first-level user namespaces.
     "zfs_xattr_trusted_userns_enable" = lib.mkDefault 1;
     # Hide ZFS from some container runtimes by spoofing statfs f_type.
-    "zfs_statfs_shack_enabled" = lib.mkDefault 1;
+    "zfs_container_statfs_enabled" = lib.mkDefault 1;
   };
 
   environment.systemPackages = with pkgs; [
