@@ -49,6 +49,13 @@ import ../../../make-test.nix (
           expect(parse_uptime_command(uptime)).to be_within(1).of(proc_uptime_minutes)
         end
       end
+
+      describe 'wtmp log' do
+        it 'exists for last' do
+          machine.succeeds('test -f /var/log/wtmp')
+          machine.succeeds('last >/dev/null')
+        end
+      end
     '';
   }
 )

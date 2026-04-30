@@ -24,7 +24,7 @@ mount -t tmpfs tmpfs /dev/shm
 ln -sfn /run /var/run
 ln -sf /proc/mounts /etc/mtab
 
-touch /run/{u,w}tmp
+touch /run/{u,w}tmp /var/log/wtmp
 @writeBootUtmp@/bin/write-boot-utmp /run/utmp
 mkdir /run/lock
 
