@@ -2,13 +2,13 @@ import ../../make-test.nix (
   { pkgs }:
   let
     makeMachine =
-      moduleAutoload:
+      moduleAutoloadEnable:
       import ../../machines/vpsadminos/with-tank.nix {
         inherit pkgs;
         config =
           { ... }:
           {
-            boot.kernel.moduleAutoload = moduleAutoload;
+            boot.kernel.moduleAutoload.enable = moduleAutoloadEnable;
           };
       };
   in
@@ -39,6 +39,7 @@ import ../../make-test.nix (
         machine.start(kernel_params:) unless machine.running?
         machine.wait_for_osctl_pool("tank")
         machine.wait_until_online
+        machine.wait_for_service("rsyslog")
       end
 
       def self.modprobe_path(machine)
@@ -54,6 +55,18 @@ import ../../make-test.nix (
 
       def self.module_loaded?(machine, mod)
         machine.execute("test -d /sys/module/#{mod}")[0] == 0
+      end
+
+      def self.expect_logged_modprobe(machine, text)
+        machine.wait_until_succeeds(
+          "grep -F #{Shellwords.escape(text)} /var/log/messages",
+          timeout: 30
+        )
+
+        _, messages = machine.succeeds("cat /var/log/messages")
+        lines = messages.lines.select { |line| line.include?(text) }
+
+        expect(lines.any? { |line| line.include?("kernel.modprobe") }).to be(true), messages
       end
 
       def self.cleanup_probe(machine, ctid, probe)
@@ -211,21 +224,43 @@ import ../../make-test.nix (
         end
 
         it 'configures kernel.modprobe from boot.kernel.moduleAutoload' do
-          expect(modprobe_path(autoload_disabled)).to be_empty
-
+          disabled_path = modprobe_path(autoload_disabled)
           enabled_path = modprobe_path(autoload_enabled)
+
+          expect(disabled_path).not_to be_empty
           expect(enabled_path).not_to be_empty
+          expect(disabled_path).not_to eq(enabled_path)
+
+          autoload_disabled.succeeds("test -x #{Shellwords.escape(disabled_path)}")
           autoload_enabled.succeeds("test -x #{Shellwords.escape(enabled_path)}")
         end
 
-        it 'keeps kernel.modprobe empty after activation when autoload is disabled' do
+        it 'keeps kernel.modprobe wrappers after activation' do
+          disabled_path = modprobe_path(autoload_disabled)
           enabled_path = modprobe_path(autoload_enabled)
 
           autoload_disabled.succeeds("/run/current-system/activate")
           autoload_enabled.succeeds("/run/current-system/activate")
 
-          expect(modprobe_path(autoload_disabled)).to be_empty
+          expect(modprobe_path(autoload_disabled)).to eq(disabled_path)
           expect(modprobe_path(autoload_enabled)).to eq(enabled_path)
+        end
+
+        it 'logs module requests through kernel.modprobe wrappers' do
+          disabled_path = modprobe_path(autoload_disabled)
+          enabled_path = modprobe_path(autoload_enabled)
+
+          unload_probe_module(autoload_disabled, "bonding")
+          status, output = autoload_disabled.execute("#{Shellwords.escape(disabled_path)} bonding")
+          expect(status).not_to eq(0), output
+          expect(module_loaded?(autoload_disabled, "bonding")).to be(false)
+          expect_logged_modprobe(autoload_disabled, "bonding")
+
+          unload_probe_module(autoload_enabled, "bonding")
+          autoload_enabled.succeeds("#{Shellwords.escape(enabled_path)} bonding")
+          expect(module_loaded?(autoload_enabled, "bonding")).to be(true)
+          expect_logged_modprobe(autoload_enabled, "bonding")
+          autoload_enabled.succeeds("modprobe -r bonding")
         end
 
         it 'keeps explicit host modprobe working' do

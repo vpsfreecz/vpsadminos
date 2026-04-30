@@ -9,8 +9,28 @@ let
   origKernel = config.boot.kernelPackage;
   zfsBuiltin = config.boot.zfsBuiltin;
   kernelForBuiltinsConfig = config.boot.kernelForBuiltinsConfig;
+  moduleAutoload = config.boot.kernel.moduleAutoload;
 
   kernelPackages = import ../../packages/linux/packages.nix { inherit config pkgs lib; };
+
+  modprobeWrapper = pkgs.writeScript "kernel-modprobe-wrapper" ''
+    #!${pkgs.runtimeShell}
+    ${pkgs.util-linux}/bin/logger -t kernel.modprobe -- "$@"
+    ${
+      if moduleAutoload.enable then
+        ''
+          exec ${pkgs.kmod}/bin/modprobe "$@"
+        ''
+      else
+        ''
+          exit 1
+        ''
+    }
+  '';
+
+  kernelModprobe = if moduleAutoload.log then "${modprobeWrapper}" else "";
+
+  overrideKernelModprobe = moduleAutoload.log || !moduleAutoload.enable;
 
   # we also need to override zfs/spl via linuxPackagesFor
   myLinuxPackages = (pkgs.linuxPackagesFor origKernel).extend (
@@ -123,12 +143,24 @@ in
       default = kernelPackages.genZfsBuiltinPackage kernelForBuiltinsConfig;
     };
 
-    boot.kernel.moduleAutoload = mkOption {
-      type = types.bool;
-      default = false;
-      description = ''
-        Enable kernel module autoloading through /proc/sys/kernel/modprobe.
-      '';
+    boot.kernel.moduleAutoload = {
+      enable = mkOption {
+        type = types.bool;
+        default = false;
+        description = ''
+          Enable kernel module autoloading through /proc/sys/kernel/modprobe.
+        '';
+      };
+
+      log = mkOption {
+        type = types.bool;
+        default = true;
+        description = ''
+          Log kernel module autoload requests through a kernel.modprobe wrapper.
+          When module autoloading is disabled, the wrapper logs the request
+          and exits without loading the module.
+        '';
+      };
     };
   };
 
@@ -390,15 +422,15 @@ in
 
     boot.initrd.kernelModules = lib.optionals config.boot.initrd.withHwSupport hwSupportModules;
 
-    boot.kernel.sysctl."kernel.modprobe" = mkIf (!config.boot.kernel.moduleAutoload) "";
+    boot.kernel.sysctl."kernel.modprobe" = mkIf overrideKernelModprobe kernelModprobe;
 
-    system.activationScripts.modprobe = mkIf (!config.boot.kernel.moduleAutoload) (
+    system.activationScripts.modprobe = mkIf overrideKernelModprobe (
       mkForce (
         stringAfter [ "specialfs" ] ''
-          # NixOS' modprobe activation script writes a kmod path here before
-          # sysctl is applied. Keep module autoloading disabled throughout
-          # activation and early boot, not only after sysctl -w --system.
-          echo > /proc/sys/kernel/modprobe
+          # NixOS' modprobe activation script writes the plain kmod path here
+          # before sysctl is applied. Override it whenever module autoloading
+          # should be denied or logged during activation and early boot.
+          printf '%s\n' ${escapeShellArg kernelModprobe} > /proc/sys/kernel/modprobe
         ''
       )
     );
