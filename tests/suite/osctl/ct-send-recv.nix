@@ -31,6 +31,8 @@ let
   };
 
   commonScript = ''
+    require 'shellwords'
+
     def self.ensure_cluster_ready
       machines.each_value do |machine|
         machine.start unless machine.running?
@@ -42,7 +44,58 @@ let
       node2.wait_until_succeeds('ping -c 1 node1', timeout: 60)
     end
 
-    def self.refresh_send_keys
+    def self.delete_authorized_key(machine, name)
+      machine.succeeds(
+        "osctl receive authorized-keys del #{Shellwords.escape(name)} >/dev/null 2>&1 || true"
+      )
+    end
+
+    def self.delete_authorized_keys(machine, *names)
+      names.each { |name| delete_authorized_key(machine, name) }
+    end
+
+    def self.authorize_send_key(
+      machine,
+      name,
+      pubkey,
+      from: nil,
+      ctid: nil,
+      passphrase: nil,
+      single_use: false
+    )
+      opts = []
+      opts << "--from #{Shellwords.escape(from)}" if from
+      opts << "--ctid #{Shellwords.escape(ctid)}" if ctid
+      opts << "--passphrase #{Shellwords.escape(passphrase)}" if passphrase
+      opts << '--single-use' if single_use
+      opts << Shellwords.escape(name)
+
+      machine.succeeds(
+        "printf '%s\\n' #{Shellwords.escape(pubkey)} | osctl receive authorized-keys add #{opts.join(' ')}"
+      )
+    end
+
+    def self.authorized_keys(machine)
+      machine.osctl_json('receive authorized-keys ls')
+    end
+
+    def self.authorized_key(machine, name)
+      authorized_keys(machine).detect { |key| key['name'] == name }
+    end
+
+    def self.authorized_key_names(machine)
+      authorized_keys(machine).map { |key| key['name'] }
+    end
+
+    def self.expect_authorized_key(machine, name, present: true)
+      if present
+        expect(authorized_key_names(machine)).to include(name)
+      else
+        expect(authorized_key_names(machine)).not_to include(name)
+      end
+    end
+
+    def self.refresh_send_keys(authorize_defaults: true)
       pubkeys = {}
 
       {
@@ -53,15 +106,15 @@ let
         pubkeys[name] = machine.succeeds('cat $(osctl send key path public)')[1].strip
       end
 
-      node1.succeeds('osctl receive authorized-keys del node2 >/dev/null 2>&1 || true')
-      node2.succeeds('osctl receive authorized-keys del node1 >/dev/null 2>&1 || true')
+      delete_authorized_key(node1, 'node2')
+      delete_authorized_key(node2, 'node1')
 
-      node1.succeeds(
-        %Q{printf '%s\n' "#{pubkeys['node2']}" | osctl receive authorized-keys add node2}
-      )
-      node2.succeeds(
-        %Q{printf '%s\n' "#{pubkeys['node1']}" | osctl receive authorized-keys add node1}
-      )
+      if authorize_defaults
+        authorize_send_key(node1, 'node2', pubkeys['node2'])
+        authorize_send_key(node2, 'node1', pubkeys['node1'])
+      end
+
+      pubkeys
     end
 
     def self.ct_state(machine, ctid)
@@ -161,6 +214,10 @@ let
         "osctl ct send config #{ctid} node2",
         "osctl ct send rootfs #{ctid}"
       )
+    end
+
+    def self.cancel_send(machine, ctid)
+      machine.succeeds("osctl ct send cancel #{ctid} >/dev/null 2>&1 || true")
     end
 
     def self.wait_ct_running(machine, ctid)
@@ -287,6 +344,133 @@ import ../../make-test.nix (
                 transfer_files.merge('tmp/send-transfer/before-return' => 'before-return')
               )
               expect_test_service(node1, ctid, 'send-service')
+            end
+          end
+        '';
+      };
+
+      "authorization" = {
+        description = ''
+          Container send authorization respects passphrases, single-use keys, and source restrictions
+        '';
+
+        script = ''
+          ctid = get_container_id
+          node1_pubkey = nil
+          auth_key_names = %w[
+            node1-repeat
+            node1-once
+            node1-from-ok
+            node1-from-bad
+          ]
+
+          ${commonScript}
+
+          def self.reset_authorization_state(ctid, auth_key_names)
+            cancel_send(node1, ctid)
+            node2.succeeds("osctl ct del -f --prune #{ctid} >/dev/null 2>&1 || true")
+            delete_authorized_keys(node2, *auth_key_names)
+          end
+
+          before(:suite) do
+            ensure_cluster_ready
+            node1_pubkey = refresh_send_keys(authorize_defaults: false)['node1']
+            reset_authorization_state(ctid, auth_key_names)
+
+            node1.all_succeed(
+              "osctl ct new --distribution alpine #{ctid}",
+              "osctl ct unset start-menu #{ctid}",
+              "osctl ct start #{ctid}"
+            )
+
+            wait_ct_running(node1, ctid)
+          end
+
+          after(:suite) do
+            reset_authorization_state(ctid, auth_key_names)
+            cleanup_container_everywhere(ctid)
+          end
+
+          describe 'authorization' do
+            it 'allows reusable keys to authorize subsequent sends' do
+              reset_authorization_state(ctid, auth_key_names)
+              authorize_send_key(node2, 'node1-repeat', node1_pubkey, passphrase: 'repeat')
+
+              node1.succeeds("osctl ct send --clone --passphrase repeat #{ctid} node2")
+              expect_authorized_key(node2, 'node1-repeat')
+
+              node2.succeeds("osctl ct del -f --prune #{ctid}")
+              node1.succeeds("osctl ct send config --passphrase repeat #{ctid} node2")
+              expect_authorized_key(node2, 'node1-repeat')
+
+              node1.succeeds("osctl ct send cancel #{ctid}")
+              expect_ct_absent(node2, ctid)
+            end
+
+            it 'consumes single-use keys and rejects later sends' do
+              reset_authorization_state(ctid, auth_key_names)
+              authorize_send_key(
+                node2,
+                'node1-once',
+                node1_pubkey,
+                passphrase: 'once',
+                single_use: true
+              )
+
+              node1.succeeds("osctl ct send --clone --passphrase once #{ctid} node2")
+              expect_authorized_key(node2, 'node1-once', present: false)
+
+              node2.succeeds("osctl ct del -f --prune #{ctid}")
+              node1.fails("osctl ct send config --passphrase once #{ctid} node2")
+              expect_ct_absent(node2, ctid)
+            end
+
+            it 'disambiguates duplicate public keys by passphrase' do
+              reset_authorization_state(ctid, auth_key_names)
+              authorize_send_key(
+                node2,
+                'node1-once',
+                node1_pubkey,
+                passphrase: 'once',
+                single_use: true
+              )
+              authorize_send_key(node2, 'node1-repeat', node1_pubkey, passphrase: 'repeat')
+
+              node1.succeeds("osctl ct send --clone --passphrase repeat #{ctid} node2")
+              expect_authorized_key(node2, 'node1-repeat')
+              expect_authorized_key(node2, 'node1-once')
+              expect(authorized_key(node2, 'node1-once')['in_use']).to be(false)
+
+              node2.succeeds("osctl ct del -f --prune #{ctid}")
+              node1.succeeds("osctl ct send --clone --passphrase once #{ctid} node2")
+              expect_authorized_key(node2, 'node1-repeat')
+              expect_authorized_key(node2, 'node1-once', present: false)
+            end
+
+            it 'enforces source address restrictions' do
+              reset_authorization_state(ctid, auth_key_names)
+              authorize_send_key(
+                node2,
+                'node1-from-ok',
+                node1_pubkey,
+                from: '192.168.10.11',
+                passphrase: 'from-ok'
+              )
+
+              node1.succeeds("osctl ct send config --passphrase from-ok #{ctid} node2")
+              node1.succeeds("osctl ct send cancel #{ctid}")
+              expect_ct_absent(node2, ctid)
+
+              authorize_send_key(
+                node2,
+                'node1-from-bad',
+                node1_pubkey,
+                from: '203.0.113.*',
+                passphrase: 'from-bad'
+              )
+
+              node1.fails("osctl ct send config --passphrase from-bad #{ctid} node2")
+              expect_ct_absent(node2, ctid)
             end
           end
         '';

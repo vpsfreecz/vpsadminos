@@ -162,6 +162,17 @@ RSpec.describe OsCtld::SendReceive::Commands::ReceiveSkel do
       end.to raise_error(OsCtld::CommandFailed, 'invalid authentication key')
     end
 
+    it 'resolves the destination key using the selected public key, client hosts, and passphrase' do
+      allow(target_chain).to receive(:find_key).and_return(matched_key)
+
+      pool, key = command.send(:find_pool_and_key)
+
+      expect(target_chain).to have_received(:find_key)
+        .with('ssh-rsa AAA', ['192.0.2.10', 'sender.example.test'], 'secret')
+      expect(pool).to equal(target_pool)
+      expect(key).to equal(matched_key)
+    end
+
     it 'returns the resolved destination pool and matching key' do
       pool, key = command.send(:find_pool_and_key)
 
@@ -282,6 +293,13 @@ RSpec.describe OsCtld::SendReceive::Commands::ReceiveSkel do
       expect(importer).to have_received(:install_user_hook_scripts).with(ct_with_netifs)
       expect(builder).to have_received(:monitor)
       expect(command).to have_received(:call_cmd).with(OsCtld::Commands::User::LxcUsernet)
+    end
+
+    it 'marks and records the resolved destination key' do
+      expect(command.execute).to eq(status: true, output: 'token-123')
+      expect(OsCtld::SendReceive).to have_received(:started_using_key).with(pool, 'dst-rx')
+      expect(OsCtld::SendReceive).not_to have_received(:started_using_key).with(pool, 'rx')
+      expect(ct.open_send_log_calls.first.last[:key_name]).to eq('dst-rx')
     end
 
     it 'rejects unsupported protocol versions before receiving the archive' do

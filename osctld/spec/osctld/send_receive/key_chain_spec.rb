@@ -138,6 +138,34 @@ RSpec.describe OsCtld::SendReceive::KeyChain do
     expect(key_chain.find_key('ssh-ed25519 AAAA', ['other.example.com'], 'secret')).to be_nil
   end
 
+  it 'disambiguates duplicate public keys by passphrase' do
+    key_chain.authorize_key('repeat', 'ssh-ed25519 AAAA', passphrase: 'repeat')
+    key_chain.authorize_key('once', 'ssh-ed25519 AAAA', passphrase: 'once')
+
+    expect(key_chain.find_key('ssh-ed25519 AAAA', ['192.0.2.10'], 'repeat').name).to eq('repeat')
+    expect(key_chain.find_key('ssh-ed25519 AAAA', ['192.0.2.10'], 'once').name).to eq('once')
+  end
+
+  it 'requires an exact passphrase match for passphrase-protected keys' do
+    key_chain.authorize_key('main', 'ssh-ed25519 AAAA', passphrase: 'secret')
+
+    expect(key_chain.find_key('ssh-ed25519 AAAA', ['192.0.2.10'], nil)).to be_nil
+    expect(key_chain.find_key('ssh-ed25519 AAAA', ['192.0.2.10'], 'wrong')).to be_nil
+  end
+
+  it 'matches from restrictions against client addresses and hostnames' do
+    key_chain.authorize_key(
+      'main',
+      'ssh-ed25519 AAAA',
+      from: '192.168.10.11,sender.example.test',
+      passphrase: 'secret'
+    )
+
+    expect(key_chain.find_key('ssh-ed25519 AAAA', ['192.168.10.11'], 'secret').name).to eq('main')
+    expect(key_chain.find_key('ssh-ed25519 AAAA', ['192.168.10.12'], 'secret')).to be_nil
+    expect(key_chain.find_key('ssh-ed25519 AAAA', ['192.168.10.12', 'sender.example.test'], 'secret').name).to eq('main')
+  end
+
   it 'rejects duplicate key names' do
     key_chain.authorize_key('main', 'ssh-ed25519 AAAA')
 
