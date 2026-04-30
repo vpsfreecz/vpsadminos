@@ -25,7 +25,7 @@ module OsCtld
     end
 
     def self.lsm_namespace_supported?
-      configured? && kernel_enabled? && lsm_namespace_available?
+      kernel_enabled? && lsm_namespace_available?
     end
 
     def self.configured?
@@ -215,7 +215,13 @@ module OsCtld
     end
 
     def lxc_profile_name
-      self.class.lsm_namespace_supported? ? 'unchanged' : namespace_profile_name
+      if self.class.lsm_namespace_supported?
+        'unchanged'
+      elsif self.class.enabled?
+        namespace_profile_name
+      else
+        'unconfined'
+      end
     end
 
     def dup(new_ct)

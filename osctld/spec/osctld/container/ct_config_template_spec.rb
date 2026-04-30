@@ -104,9 +104,18 @@ RSpec.describe OsCtld::ErbTemplate do
       uid_map: [map_entry.new(0, 100_000, 65_536)],
       gid_map: [map_entry.new(0, 100_000, 65_536)]
     )
+    apparmor_profile =
+      if lsm_namespace_supported
+        'unchanged'
+      elsif apparmor_enabled
+        'ct-tank-demo//&:lxc-ct-tank-demo:'
+      else
+        'unconfined'
+      end
+
     apparmor_obj = apparmor.new(
       namespace: 'lxc-ct-tank-demo',
-      lxc_profile_name: lsm_namespace_supported ? 'unchanged' : 'ct-tank-demo//&:lxc-ct-tank-demo:'
+      lxc_profile_name: apparmor_profile
     )
     pool_obj = pool.new(hook_dir: '/run/osctl/pool.tank/hooks')
     ct = container.new(
@@ -174,5 +183,17 @@ RSpec.describe OsCtld::ErbTemplate do
     expect(rendered).to include("lxc.apparmor.profile = unconfined\n")
     expect(rendered).not_to include('lxc.namespace.clone.lsm =')
     expect(rendered).not_to include('lxc.namespace.clone.lsm.name =')
+  end
+
+  it 'requests AppArmor LSM namespace even when profile management is disabled' do
+    rendered = render_config(
+      apparmor_enabled: false,
+      lsm_namespace_supported: true,
+      tracing_namespace_supported: true
+    )
+
+    expect(rendered).to include("lxc.namespace.clone.lsm = apparmor\n")
+    expect(rendered).to include("lxc.namespace.clone.lsm.name = lxc-ct-tank-demo\n")
+    expect(rendered).to include("lxc.apparmor.profile = unchanged\n")
   end
 end

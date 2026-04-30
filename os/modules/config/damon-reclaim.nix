@@ -326,6 +326,18 @@ in
           fi
         }
 
+        write_scope() {
+          value="${if cfg.scope == "perNode" then "per-node" else "global"}"
+          path="$params/scope"
+
+          if [ -e "$path" ]; then
+            write_param scope "$value"
+          elif [ "$value" != "global" ]; then
+            echo "damon_reclaim scope parameter is not available"
+            exit 1
+          fi
+        }
+
         if [ ! -d "$params" ] && [ "$target_enabled" = "Y" ]; then
           modprobe damon_reclaim 2>/dev/null || true
         fi
@@ -340,7 +352,7 @@ in
         fi
 
         write_param min_age "${toString cfg.minAge}"
-        write_param scope "${if cfg.scope == "perNode" then "per-node" else "global"}"
+        write_scope
         write_param quota_ms "${toString cfg.quota.ms}"
         write_param quota_sz "${toString cfg.quota.size}"
         write_param quota_reset_interval_ms "${toString cfg.quota.resetIntervalMs}"

@@ -27,6 +27,34 @@ let
       '';
 
   testConfig = if testConfigPath == null then null else import testConfigPath;
+  effectiveTestConfig = if testConfig == null then { } else testConfig;
+  testsRoot = repoRoot + "/tests";
+  directSingleTestAvailable =
+    testPath != null && builtins.pathExists (testsRoot + "/suite/${testPath}.nix");
+
+  directTestLib =
+    let
+      pkgsPath =
+        if builtins.pathExists (repoRoot + "/nixpkgs") then
+          repoRoot + "/nixpkgs"
+        else
+          <nixpkgs>;
+      nixpkgs' = import pkgsPath { inherit system; };
+    in
+    import (repoRoot + "/test-runner/nix/lib.nix") {
+      pkgs = pkgsPath;
+      inherit system;
+      lib = nixpkgs'.lib;
+      suitePath = testsRoot + "/suite";
+      configuration = null;
+      testConfig = effectiveTestConfig;
+    };
+
+  directTest =
+    (directTestLib.makeSingleTest {
+      test = testPath;
+      args = { };
+    }).value;
 
   tests =
     if testConfigPath == null then
@@ -51,8 +79,14 @@ in
 if mode == "testsMetaAll" then
   testsMeta
 else if mode == "testsMetaOne" then
-  builtins.getAttr testPath testsMeta
+  if directSingleTestAvailable then
+    directTestLib.testMeta directTest
+  else
+    builtins.getAttr testPath testsMeta
 else if mode == "testJson" then
-  builtins.getAttr testPath tests
+  if directSingleTestAvailable then
+    directTest.test.json
+  else
+    builtins.getAttr testPath tests
 else
   builtins.throw "Unsupported mode '${mode}'"

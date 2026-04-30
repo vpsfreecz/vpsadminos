@@ -215,6 +215,29 @@ import ../../make-test.nix (
         SH
       end
 
+      def self.sysctl_available?(machine, name)
+        machine.execute("test -r /proc/sys/#{name}")[0] == 0
+      end
+
+      def self.sysctl_value(machine, name)
+        machine.succeeds("cat /proc/sys/#{name}")[1].strip
+      end
+
+      def self.kernfs_filter_supported?(machine)
+        machine.execute(<<~'SH')[0] == 0
+          test -r /proc/vpsadminos/kernfs_filter/active &&
+            test -w /proc/vpsadminos/kernfs_filter/replace &&
+            test -r /proc/vpsadminos/kernfs_filter/stats
+        SH
+      end
+
+      def self.restricted_userns_supported?(machine)
+        machine.execute(<<~'SH')[0] == 0
+          command -v unshare >/dev/null 2>&1 &&
+            unshare -Ur true
+        SH
+      end
+
       def self.apparmor_lsm_support_report(machine)
         machine.execute(<<~'SH', timeout: 60)[1]
           set +e
@@ -244,12 +267,59 @@ import ../../make-test.nix (
           @tracing_supported = tracing_supported?(plain)
           @syslog_supported = syslog_supported?(plain)
           @lsm_supported = apparmor_lsm_supported?(plain)
+          @kernfs_filter_supported = kernfs_filter_supported?(plain)
         end
 
-        it 'disables LXC AppArmor defaults even when kernel AppArmor is present' do
+        it 'uses AppArmor LSM namespaces without osctld profile management' do
           skip 'AppArmor LSM is not present on this kernel' unless @lsm_supported
 
-          expect(lxc_config(plain, @testct)).to include("lxc.apparmor.profile = unconfined\n")
+          config = lxc_config(plain, @testct)
+
+          expect(config).to include("lxc.namespace.clone.lsm = apparmor\n")
+          expect(config).to include("lxc.namespace.clone.lsm.name = lxc-ct-tank-plain-ns\n")
+          expect(config).to include("lxc.apparmor.profile = unchanged\n")
+        end
+
+        it 'enables constrained container BPF tracing when supported' do
+          skip 'tracing namespace is not supported by this kernel' unless @tracing_supported
+          skip 'container BPF tracing sysctl is not present' unless sysctl_available?(plain, 'kernel/bpf_container_tracing_enabled')
+          skip 'unprivileged BPF sysctl is not present' unless sysctl_available?(plain, 'kernel/unprivileged_bpf_disabled')
+
+          expect(sysctl_value(plain, 'kernel/bpf_container_tracing_enabled')).to eq('1')
+          expect(sysctl_value(plain, 'kernel/unprivileged_bpf_disabled')).to eq('1')
+        end
+
+        it 'installs the boot proc/sysfs kernfs_filter policy when supported' do
+          skip 'kernfs_filter control plane is not supported by this kernel' unless @kernfs_filter_supported
+
+          active = plain.succeeds('cat /proc/vpsadminos/kernfs_filter/active')[1]
+          stats = plain.succeeds('cat /proc/vpsadminos/kernfs_filter/stats')[1]
+
+          expect(active).to include("version 1\n")
+          expect(active).to include("scope noninit-userns\n")
+          expect(active).to include("proc hide any /interrupts/**\n")
+          expect(active).to include("sysfs hide any /block/**\n")
+          expect(active).to include("sysfs allow any /class/net/**\n")
+          expect(stats).to include("scope noninit-userns\n")
+          expect(stats).to match(/^replace_successes [1-9]\d*$/)
+          expect(stats).to match(/^last_errno 0$/)
+          expect(stats).to match(/^last_error ok$/)
+        end
+
+        it 'hides restricted proc/sysfs paths from non-init user namespaces when supported' do
+          skip 'kernfs_filter control plane is not supported by this kernel' unless @kernfs_filter_supported
+          skip 'restricted user namespace cannot be created in this VM' unless restricted_userns_supported?(plain)
+
+          plain.succeeds(<<~'SH', timeout: 60)
+            test -e /proc/interrupts
+            test -e /sys/block
+            test -e /sys/class/net
+            unshare -Ur sh -c '
+              test ! -e /proc/interrupts &&
+              test ! -e /sys/block &&
+              test -e /sys/class/net
+            '
+          SH
         end
 
         it 'creates a dedicated tracing namespace when supported' do

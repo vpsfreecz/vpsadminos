@@ -39,6 +39,17 @@ RSpec.describe OsCtld::AppArmor do
     expect(described_class.lsm_namespace_supported?).to be(true)
   end
 
+  it 'detects LSM namespace support without profile management' do
+    daemon = double(config: double(apparmor_paths: []))
+    allow(OsCtld::Daemon).to receive(:get).and_return(daemon)
+    allow(Dir).to receive(:exist?).with(described_class::SECURITYFS_APPARMOR).and_return(false)
+    allow(File).to receive(:exist?).with('/proc/self/ns/lsm').and_return(true)
+    allow(File).to receive(:read).with(described_class::APPARMOR_ENABLED).and_return("Y\n")
+
+    expect(described_class.enabled?).to be(false)
+    expect(described_class.lsm_namespace_supported?).to be(true)
+  end
+
   it 'sets up shared AppArmor files with configured parser include paths' do
     with_tmpdir do |dir|
       apparmor_dir = File.join(dir, 'apparmor')
@@ -80,9 +91,24 @@ RSpec.describe OsCtld::AppArmor do
     ct = double(pool:, id: 'ct1')
     apparmor = described_class.new(ct)
 
-    allow(described_class).to receive(:lsm_namespace_supported?).and_return(false)
+    allow(described_class).to receive_messages(
+      lsm_namespace_supported?: false,
+      enabled?: true
+    )
 
     expect(apparmor.lxc_profile_name).to eq('ct-tank-ct1//&:lxc-ct-tank-ct1:')
+  end
+
+  it 'uses an unconfined profile when AppArmor management is disabled' do
+    ct = double(pool:, id: 'ct1')
+    apparmor = described_class.new(ct)
+
+    allow(described_class).to receive_messages(
+      lsm_namespace_supported?: false,
+      enabled?: false
+    )
+
+    expect(apparmor.lxc_profile_name).to eq('unconfined')
   end
 end
 # rubocop:enable RSpec/VerifiedDoubles

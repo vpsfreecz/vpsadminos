@@ -171,8 +171,13 @@ in
     mount --rbind /run/osctl/bpf /sys/fs/bpf
     mount --make-rprivate /sys/fs/bpf
 
-    # securityfs
-    mount -t securityfs securityfs /sys/kernel/security
+    # securityfs. Keep a private source under /run so LXC mount entries can
+    # bind it after container /sys has been mounted.
+    mkdir -p /run/osctl/securityfs
+    mount -t securityfs securityfs /run/osctl/securityfs
+    mount --make-rprivate /run/osctl/securityfs
+    mount --rbind /run/osctl/securityfs /sys/kernel/security
+    mount --make-rprivate /sys/kernel/security
 
     ${optionalString (config.security.apparmor.enable && config.security.apparmor.enableOnBoot) ''
       # AppArmor
