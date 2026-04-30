@@ -547,22 +547,11 @@ module OsCtl::Cli::Top
       Curses.attroff(Curses.color_pair(1))
 
       ct_count = @containers.length
-      offset = 0
-      view_ct_count = Curses.lines - stats_rows - i
+      @view_offset, view_ct_count, @view_page_max, @view_page =
+        view_window(ct_count, Curses.lines - stats_rows - i, view_page)
+      shown_ct_count = [view_ct_count, ct_count - @view_offset].min
 
-      @view_page_max = ((ct_count - view_ct_count) / (view_ct_count / 2).to_f).ceil
-
-      if view_page > 0
-        @view_offset = (view_ct_count / 2) * view_page
-
-        if offset >= ct_count - view_ct_count
-          @view_offset = ct_count - view_ct_count
-        end
-      else
-        @view_offset = 0
-      end
-
-      @containers[@view_offset..].each do |ct|
+      @containers[@view_offset, shown_ct_count].each do |ct|
         Curses.setpos(i, 0)
 
         attr = if current_row == j && highlighted_cts.include?(ct[:id])
@@ -586,9 +575,22 @@ module OsCtl::Cli::Top
         break if i >= (Curses.lines - stats_rows)
       end
 
-      stats(data, [offset, view_ct_count, ct_count]) if Curses.lines >= MIN_STATS_LINES
+      stats(data, [@view_offset, shown_ct_count, ct_count]) if Curses.lines >= MIN_STATS_LINES
 
       Curses.refresh
+    end
+
+    def view_window(ct_count, row_count, page)
+      row_count = [row_count, 0].max
+
+      return [0, row_count, 0, 0] if row_count == 0 || ct_count <= row_count
+
+      page_step = [row_count / 2, 1].max
+      page_max = (ct_count - row_count).fdiv(page_step).ceil
+      page = page.clamp(0, page_max)
+      offset = [page_step * page, ct_count - row_count].min
+
+      [offset, row_count, page_max, page]
     end
 
     def status_bar(orig_pos, t, procs_stats, data)
@@ -856,7 +858,8 @@ module OsCtl::Cli::Top
       end
 
       offset, view_count, ct_count = ct_view
-      page = format('[%d-%d/%d]', offset + 1, offset + view_count, ct_count)
+      view_from = view_count > 0 ? offset + 1 : 0
+      page = format('[%d-%d/%d]', view_from, offset + view_count, ct_count)
 
       Curses.setpos(Curses.lines - pos, Curses.cols - page.length)
       Curses.addstr(page)
