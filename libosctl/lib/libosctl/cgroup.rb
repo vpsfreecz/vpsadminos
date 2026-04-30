@@ -28,7 +28,7 @@ module OsCtl::Lib
 
     def self.runstate_version
       version = Integer(File.read(RUNSTATE_VERSION).strip)
-      return version if [1, 2].include?(version)
+      version if [1, 2].include?(version)
     rescue Errno::ENOENT, Errno::EACCES, ArgumentError
       nil
     end
