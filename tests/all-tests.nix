@@ -124,6 +124,7 @@ let
         "kernel/memory-view/cgroups-v1"
         "kernel/memory-view/cgroups-v2"
         "kernel/misc"
+        "kernel/module-autoload"
         "kernel/syslogns"
         "kernel/tmpfs/cgroups-v1"
         "kernel/tmpfs/cgroups-v2"
