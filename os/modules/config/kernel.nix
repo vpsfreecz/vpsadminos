@@ -192,6 +192,7 @@ in
       "nft_reject"
       "nft_reject_inet"
       "overlay"
+      "sch_cake"
       "veth"
       "wireguard"
     ];
