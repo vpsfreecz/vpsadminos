@@ -28,16 +28,7 @@ module OsCtld
           cmd: opts[:cmd]
         }
 
-        mode =
-          if ct.running?
-            :running
-          elsif !ct.running? && opts[:run] && opts[:network]
-            :run_network
-          elsif !ct.running? && opts[:run]
-            :run
-          else
-            raise ContainerControl::Error, 'container not running'
-          end
+        mode = runscript_mode(run: opts[:run], network: opts[:network])
 
         if opts[:network]
           add_network_opts(runner_opts)
@@ -64,6 +55,7 @@ module OsCtld
 
         ret.ok? ? ret.data : ret
       ensure
+        sync_state_after_transient_run(mode) if mode
         cleanup_init_script
       end
     end
@@ -124,6 +116,7 @@ module OsCtld
         end
 
         _, status = Process.wait2(pid)
+        wait_for_lxc_stopped
 
         ok(exitstatus(status))
       end

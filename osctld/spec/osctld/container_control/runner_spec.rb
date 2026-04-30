@@ -17,6 +17,10 @@ RSpec.describe OsCtld::ContainerControl::Runner do
       def public_exitstatus(status)
         exitstatus(status)
       end
+
+      def public_wait_for_lxc_attachable(**opts)
+        wait_for_lxc_attachable(**opts)
+      end
     end
   end
 
@@ -57,7 +61,7 @@ RSpec.describe OsCtld::ContainerControl::Runner do
     allow(runner).to receive(:lxc_ct).and_return(lxc_ct)
     allow(lxc_ct).to receive(:attach) do |opts, &block|
       expect(opts).to include(wait: true, stdout: :out)
-      expect(opts[:flags] & LXC::LXC_ATTACH_MOVE_TO_CGROUP).to eq(0)
+      expect(opts[:flags]).to eq(LXC::LXC_ATTACH_SET_PERSONALITY)
       block.call
       3 << 8
     end
@@ -69,5 +73,21 @@ RSpec.describe OsCtld::ContainerControl::Runner do
     expect(block_called).to be(true)
     expect(lxc_ct).to have_received(:attach)
     expect(exit_status).to eq(3)
+  end
+
+  it 'waits until LXC reports an attachable init process' do
+    lxc_ct = instance_double(LXC::Container, running?: true, init_pid: 123)
+
+    allow(runner).to receive(:lxc_ct).and_return(lxc_ct)
+
+    expect(runner.public_wait_for_lxc_attachable).to eq(123)
+  end
+
+  it 'times out when LXC has no attachable init process' do
+    lxc_ct = instance_double(LXC::Container, running?: true, init_pid: nil)
+
+    allow(runner).to receive(:lxc_ct).and_return(lxc_ct)
+
+    expect(runner.public_wait_for_lxc_attachable(timeout: 0)).to be(false)
   end
 end

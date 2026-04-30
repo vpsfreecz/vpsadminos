@@ -3,9 +3,12 @@ require 'lxc'
 module OsCtld
   # Runner is run in a forked&execed process and under the container's user
   class ContainerControl::Runner
-    # osctld has already placed this runner in the container cgroup. Letting
-    # unprivileged LXC attach move the transient process again fails on cgroup v2.
-    LXC_ATTACH_FLAGS = LXC::LXC_ATTACH_DEFAULT & ~LXC::LXC_ATTACH_MOVE_TO_CGROUP
+    # osctld uses ruby-lxc attach for in-process maintenance blocks, not for
+    # launching untrusted commands. Keep only personality setup: cgroup moves
+    # fail from the already-placed runner on cgroup v2, dropped capabilities
+    # break netns maintenance, and LSM exec transitions are irrelevant without
+    # execve().
+    LXC_ATTACH_FLAGS = LXC::LXC_ATTACH_SET_PERSONALITY
 
     attr_reader :pool, :ctid, :lxc_home, :user_home, :log_file
 
@@ -103,6 +106,24 @@ module OsCtld
 
       _, status = Process.wait2(pid)
       exitstatus(status)
+    end
+
+    def wait_for_lxc_stopped(timeout: 10)
+      deadline = Time.now + timeout
+
+      sleep(0.1) while lxc_ct.running? && Time.now < deadline
+    end
+
+    def wait_for_lxc_attachable(timeout: 10)
+      deadline = Time.now + timeout
+
+      loop do
+        init_pid = lxc_ct.init_pid
+        return init_pid if lxc_ct.running? && init_pid && init_pid > 0
+        return false if Time.now >= deadline
+
+        sleep(0.1)
+      end
     end
 
     def exitstatus(status)

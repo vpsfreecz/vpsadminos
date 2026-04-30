@@ -29,16 +29,7 @@ module OsCtld
           args: opts[:args]
         }
 
-        mode =
-          if ct.running?
-            :running
-          elsif !ct.running? && opts[:run] && opts[:network]
-            :run_network
-          elsif !ct.running? && opts[:run]
-            :run
-          else
-            raise ContainerControl::Error, 'container not running'
-          end
+        mode = runscript_mode(run: opts[:run], network: opts[:network])
 
         add_network_opts(runner_opts) if opts[:network]
 
@@ -66,6 +57,8 @@ module OsCtld
 
         ret.ok? ? ret.data : ret
       ensure
+        sync_state_after_transient_run(mode) if mode
+
         if script
           script.close
           unlink_file(script.path)
@@ -113,32 +106,12 @@ module OsCtld
       protected
 
       def runscript_running(opts)
-        exit_status = lxc_attach_wait(
+        exit_status = lxc_attach_command(
+          [opts[:script]] + Array(opts[:args]),
           stdin:,
           stdout:,
           stderr:
-        ) do
-          setup_exec_env
-          ENV['HOME'] = '/root'
-          ENV['USER'] = 'root'
-
-          # FIXME: *something* must be keeping opts[:script] open, because when
-          # runscript is run in parallel, 1-2 out of 10 calls fail with ETXTBSY,
-          # which LXC translates to LXC::Error. So we try to call the script
-          # multiple times, until *something* releases the file.
-          last_error = nil
-
-          10.times do
-            LXC.run_command([opts[:script]] + opts[:args])
-            last_error = nil
-            break
-          rescue LXC::Error => e
-            last_error = e
-            sleep(0.1)
-          end
-
-          raise last_error if last_error
-        end
+        )
 
         ok(exit_status)
       end
