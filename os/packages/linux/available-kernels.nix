@@ -1,10 +1,30 @@
 { lib }:
 with lib.kernel;
 {
-  stableKernelVersion = "6.12.81";
-  unstableKernelVersion = "6.12.81";
+  stableKernelVersion = "6.18";
+  unstableKernelVersion = "6.18";
 
   kernels = {
+    "6.18" = {
+      rev = "f86d9da6fdba0c6cf1a7378d90bc80faa4d09a5c";
+      sha256 = "sha256-U4qKPcZGKBeOH9pTtz7Rb7r0Bty7Z4+vv4JWY9C6Kj8=";
+      structuredExtraConfig = {
+        DAMON = yes;
+        DAMON_VADDR = yes;
+        DAMON_PADDR = yes;
+        DAMON_SYSFS = yes;
+        DAMON_RECLAIM = yes;
+        TRACING_NS = yes;
+        SECURITY_SELINUX = lib.mkForce yes;
+        SECURITY_APPARMOR = lib.mkForce yes;
+        SECURITY_VPSADMIN_STACK_SELINUX_APPARMOR = yes;
+        SECURITY_LSM_NAMESPACE = yes;
+      };
+      zfs = {
+        rev = "22f04616aae29f55416f89cfa15edcb3ab9d496e";
+        sha256 = "sha256-7rFBOpy7S0k5o64DshG95HrVv+U939rGTi7UkHveHeU=";
+      };
+    };
     "6.12.81" = {
       rev = "5995eccc096f8057fbdf8b53814793201d1526bc";
       sha256 = "sha256-6N6tB2tQUmCjrnBWSdxeZ88godNc67svj0UhtZ0uKiw=";
