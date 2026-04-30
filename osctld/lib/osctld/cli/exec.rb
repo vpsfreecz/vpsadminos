@@ -19,7 +19,9 @@ module OsCtld
         cfg[:ugid],
         cfg[:homedir],
         cfg[:cgroup_path],
-        syslogns_pid: cfg[:syslogns_pid]
+        syslogns_pid: cfg[:syslogns_pid],
+        tracingns_pid: cfg[:tracingns_pid],
+        lsmns_pid: cfg[:lsmns_pid]
       )
       Process.exec(*ARGV[2..])
     end

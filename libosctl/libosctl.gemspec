@@ -15,12 +15,15 @@ Gem::Specification.new do |s|
     s.description = 'Shared library for osctl from vpsAdminOS'
   s.authors     = 'Jakub Skokan'
   s.email       = 'jakub.skokan@vpsfree.cz'
-  s.files       = `git ls-files -z`.split("\x0")
+  s.files       = `git ls-files -z 2>/dev/null`.split("\x0")
+  s.files       = Dir.glob(%w[bin/**/* configs/**/* ext/**/* hooks/**/* lib/**/* man/**/* migrations/**/* templates/**/*]).select { |f| File.file?(f) } if s.files.empty?
   s.executables = s.files.grep(%r{^bin/}) { |f| File.basename(f) }
   s.extensions << 'ext/libosctl/extconf.rb'
   s.license     = 'MIT'
 
-  s.required_ruby_version = ">= #{File.read('../.ruby-version').strip}"
+  ruby_version_file = File.expand_path('../.ruby-version', __dir__)
+  ruby_version = File.exist?(ruby_version_file) ? File.read(ruby_version_file).strip : '3.4.0'
+  s.required_ruby_version = ">= #{ruby_version}"
 
   s.add_dependency 'fiddle'
   s.add_dependency 'logger'
