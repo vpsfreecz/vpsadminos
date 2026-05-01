@@ -53,6 +53,8 @@ module OsCtl::ExportFS
     # Propagate the directory from the host to the server using the shared
     # directory and then export it
     def enable_share(propagate: true)
+      exportfs = find_executable!('exportfs')
+
       if propagate
         hash = Digest::SHA2.hexdigest(export.dir)
         shared = File.join(server.shared_dir, hash)
@@ -75,7 +77,7 @@ module OsCtl::ExportFS
             Operations::Exportfs::Generate.run(server)
           end
 
-          syscmd("exportfs -i -o \"#{export.options}\" \"#{export.host}:#{export.as}\"")
+          syscmd_argv([exportfs, '-i', '-o', export.options, "#{export.host}:#{export.as}"])
         end
       ensure
         if propagate

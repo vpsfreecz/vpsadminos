@@ -42,10 +42,12 @@ module OsCtl::ExportFS
 
     # Unexport and unmount the directory from the server namespace
     def disable_share(unmount: true)
+      exportfs = find_executable!('exportfs')
+
       Operations::Server::Exec.run(server) do
         server.enter_ns
         Operations::Exportfs::Generate.run(server)
-        syscmd("exportfs -u \"#{export.host}:#{export.as}\"")
+        syscmd_argv([exportfs, '-u', "#{export.host}:#{export.as}"])
         sys.unmount(export.as) if unmount
       end
     end

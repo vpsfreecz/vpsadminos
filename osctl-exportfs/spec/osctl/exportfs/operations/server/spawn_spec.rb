@@ -71,6 +71,51 @@ RSpec.describe OsCtl::ExportFS::Operations::Server::Spawn do
     end
   end
 
+  it 'bind-mounts system profiles read-only' do
+    with_tmpdir do |tmpdir|
+      prepare_exportfs_runstate(tmpdir)
+
+      op = described_class.new('srv')
+      op.send(:mount_nix_paths)
+
+      expect(sys).to have_received(:bind_mount)
+        .with('/nix/store', File.join(OsCtl::ExportFS::RunState::ROOTFS, 'nix/store'))
+      expect(sys).to have_received(:bind_mount_readonly)
+        .with('/nix/var/nix/profiles', File.join(OsCtl::ExportFS::RunState::ROOTFS, 'nix/var/nix/profiles'))
+    end
+  end
+
+  it 'links system paths through the live system profile' do
+    with_tmpdir do |tmpdir|
+      prepare_exportfs_runstate(tmpdir)
+      %w[run bin usr/bin etc].each do |dir|
+        FileUtils.mkdir_p(File.join(OsCtl::ExportFS::RunState::ROOTFS, dir))
+      end
+
+      old_path = ENV.fetch('PATH', nil)
+
+      begin
+        op = described_class.new('srv')
+        op.send(:setup_system_paths)
+
+        rootfs = OsCtl::ExportFS::RunState::ROOTFS
+        system_path = described_class::SYSTEM_PATH
+
+        expect(File.readlink(File.join(rootfs, 'run/current-system')))
+          .to eq(described_class::SYSTEM_PROFILE)
+        expect(File.readlink(File.join(rootfs, 'bin/sh')))
+          .to eq(File.join(system_path, 'sh'))
+        expect(File.readlink(File.join(rootfs, 'usr/bin/env')))
+          .to eq(File.join(system_path, 'env'))
+        expect(File.readlink(File.join(rootfs, 'etc/static')))
+          .to eq('/run/current-system/etc')
+        expect(ENV.fetch('PATH', nil)).to eq(system_path)
+      ensure
+        ENV['PATH'] = old_path
+      end
+    end
+  end
+
   it 'cleans up after a successful child run' do
     allow(Process).to receive(:fork).and_return(123)
     allow(Process).to receive(:wait2).with(123).and_return([123, build_wait_status(0)])

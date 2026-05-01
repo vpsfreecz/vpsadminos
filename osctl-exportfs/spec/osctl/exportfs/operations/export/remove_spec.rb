@@ -38,11 +38,14 @@ RSpec.describe OsCtl::ExportFS::Operations::Export::Remove do
     allow(OsCtl::ExportFS::Operations::Exportfs::Generate).to receive(:run)
 
     op = described_class.new(server, '/exports/data', '*')
-    allow(op).to receive(:syscmd)
+    allow(op).to receive(:find_executable!).with('exportfs').and_return('/nix/store/exportfs/bin/exportfs')
+    allow(op).to receive(:syscmd_argv)
     op.execute
 
     expect(OsCtl::ExportFS::Operations::Exportfs::Generate).to have_received(:run).with(server)
-    expect(op).to have_received(:syscmd).with(%(exportfs -u "*:/exports/data"))
+    expect(op).to have_received(:syscmd_argv).with(
+      ['/nix/store/exportfs/bin/exportfs', '-u', '*:/exports/data']
+    )
     expect(sys).to have_received(:unmount).with('/exports/data')
   end
 
@@ -59,10 +62,38 @@ RSpec.describe OsCtl::ExportFS::Operations::Export::Remove do
     allow(OsCtl::ExportFS::Operations::Exportfs::Generate).to receive(:run)
 
     op = described_class.new(server, '/exports/data', '*')
-    allow(op).to receive(:syscmd)
+    allow(op).to receive(:find_executable!).with('exportfs').and_return('/nix/store/exportfs/bin/exportfs')
+    allow(op).to receive(:syscmd_argv)
     op.execute
 
     expect(sys).not_to have_received(:unmount)
-    expect(op).to have_received(:syscmd).with(%(exportfs -u "*:/exports/data"))
+    expect(op).to have_received(:syscmd_argv).with(
+      ['/nix/store/exportfs/bin/exportfs', '-u', '*:/exports/data']
+    )
+  end
+
+  it 'runs exportfs from the caller path when removing a running export' do
+    export = OsCtl::ExportFS::Export.new(dir: '/srv/data', as: '/exports/data', host: '*', options: 'rw')
+    exports_cfg << export
+    allow(server).to receive(:running?).and_return(true)
+    allow(server).to receive(:enter_ns)
+    allow(OsCtl::ExportFS::Operations::Server::Exec).to receive(:run) do |_server, &block|
+      block.call
+    end
+    allow(OsCtl::ExportFS::Operations::Exportfs::Generate).to receive(:run)
+
+    with_fake_path_command('exportfs') do |path, marker|
+      op = described_class.new(server, '/exports/data', '*')
+      allow(op).to receive(:log)
+      op.execute
+
+      expect(path).to include('/nix/store/')
+      expect(File.read(marker)).to include(
+        "#{File.join(path, 'exportfs')} -u *:/exports/data"
+      )
+    end
+
+    expect(exports_cfg.lookup('/exports/data', '*')).to be_nil
+    expect(sys).to have_received(:unmount).with('/exports/data')
   end
 end

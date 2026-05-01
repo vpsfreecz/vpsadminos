@@ -18,6 +18,9 @@ module OsCtl::ExportFS
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
 
+    SYSTEM_PROFILE = '/nix/var/nix/profiles/system'.freeze
+    SYSTEM_PATH = '/run/current-system/sw/bin'.freeze
+
     # @param name [String]
     def initialize(name)
       super()
@@ -119,33 +122,18 @@ module OsCtl::ExportFS
         File.chmod(0o750, File.join(RunState::ROOTFS, RunState::DIR))
         FileUtils.mkdir_p(File.join(RunState::ROOTFS, RunState::CURRENT_SERVER))
         FileUtils.mkdir_p(File.join(RunState::ROOTFS, 'nix/store'))
+        FileUtils.mkdir_p(File.join(RunState::ROOTFS, 'nix/var/nix/profiles'))
         FileUtils.mkdir_p(File.join(RunState::ROOTFS, 'sys'))
         FileUtils.mkdir_p(File.join(RunState::ROOTFS, 'var/lib/nfs'))
         FileUtils.mkdir_p(File.join(RunState::ROOTFS, 'usr/bin'))
 
-        # Mount /proc, /dev, /sys and /nix/store
+        # Mount /proc, /dev, /sys, /nix/store and system profiles
         sys.mount_proc(File.join(RunState::ROOTFS, 'proc'))
         sys.bind_mount('/dev', File.join(RunState::ROOTFS, 'dev'))
-        sys.bind_mount('/nix/store', File.join(RunState::ROOTFS, 'nix/store'))
+        mount_nix_paths
         sys.bind_mount('/sys', File.join(RunState::ROOTFS, 'sys'))
 
-        # Symlinks for $PATH and /etc
-        File.symlink(
-          File.readlink('/run/current-system'),
-          File.join(RunState::ROOTFS, 'run/current-system')
-        )
-        File.symlink(
-          File.readlink('/bin/sh'),
-          File.join(RunState::ROOTFS, 'bin/sh')
-        )
-        File.symlink(
-          File.readlink('/usr/bin/env'),
-          File.join(RunState::ROOTFS, 'usr/bin/env')
-        )
-        File.symlink(
-          File.readlink('/etc/static'),
-          File.join(RunState::ROOTFS, 'etc/static')
-        )
+        setup_system_paths
 
         %w[group passwd shadow].each do |v|
           dst = File.join(RunState::ROOTFS, 'etc', v)
@@ -250,6 +238,35 @@ module OsCtl::ExportFS
       rescue Errno::ENOENT
         next
       end
+    end
+
+    def setup_system_paths
+      File.symlink(
+        SYSTEM_PROFILE,
+        File.join(RunState::ROOTFS, 'run/current-system')
+      )
+      File.symlink(
+        File.join(SYSTEM_PATH, 'sh'),
+        File.join(RunState::ROOTFS, 'bin/sh')
+      )
+      File.symlink(
+        File.join(SYSTEM_PATH, 'env'),
+        File.join(RunState::ROOTFS, 'usr/bin/env')
+      )
+      File.symlink(
+        '/run/current-system/etc',
+        File.join(RunState::ROOTFS, 'etc/static')
+      )
+
+      ENV['PATH'] = SYSTEM_PATH
+    end
+
+    def mount_nix_paths
+      sys.bind_mount('/nix/store', File.join(RunState::ROOTFS, 'nix/store'))
+      sys.bind_mount_readonly(
+        '/nix/var/nix/profiles',
+        File.join(RunState::ROOTFS, 'nix/var/nix/profiles')
+      )
     end
 
     def add_exports

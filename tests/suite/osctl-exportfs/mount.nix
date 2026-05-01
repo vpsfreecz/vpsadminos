@@ -61,10 +61,18 @@ import ../../make-test.nix (
             "osctl-exportfs server start server1",
           )
 
+          machine.wait_until_succeeds("test -s /run/osctl/exportfs/servers/server1/pid")
+          @server_pid = machine.succeeds("cat /run/osctl/exportfs/servers/server1/pid")[1].strip
+
           sleep(10)
         end
 
         after(:context) do
+          machine.execute(
+            "pid=$(cat /run/osctl/exportfs/servers/server1/pid 2>/dev/null) && " \
+            "rm -f /proc/$pid/root/run/current-system && " \
+            "ln -s /nix/var/nix/profiles/system /proc/$pid/root/run/current-system || true"
+          )
           machine.all_succeed(
             "osctl-exportfs server stop server1",
             "osctl-exportfs server del server1",
@@ -78,6 +86,35 @@ import ../../make-test.nix (
           )
 
           expect(machine.succeeds("osctl ct exec testct1 cat /mnt/server1/server1.txt")[1].strip).to eq("hello")
+        end
+
+        it "keeps serving when current-system is broken" do
+          # A running export server must not depend on the system generation
+          # that was current when it started, because that generation can be
+          # garbage-collected while existing NFS clients keep using the server.
+          machine.all_succeed(
+            "rm /proc/#{@server_pid}/root/run/current-system",
+            "ln -s /nix/store/missing-system /proc/#{@server_pid}/root/run/current-system",
+          )
+
+          expect(machine.succeeds("readlink /proc/#{@server_pid}/root/run/current-system")[1].strip)
+            .to eq("/nix/store/missing-system")
+          expect(machine.succeeds("osctl ct exec testct1 cat /mnt/server1/server1.txt")[1].strip).to eq("hello")
+        end
+
+        it "updates exports when current-system is broken" do
+          # Management commands enter the existing server namespace. They must
+          # still resolve commands from the caller's packaged PATH even when
+          # the server's /run/current-system link is stale.
+          machine.all_succeed(
+            "mkdir -p /srv/server2",
+            "echo second > /srv/server2/server2.txt",
+            "osctl-exportfs export add --directory /srv/server2 --host 192.168.1.21/32 --options fsid=5678 server1",
+            "osctl ct exec testct1 mkdir -p /mnt/server2",
+            "osctl ct exec testct1 mount -v -t nfs 10.0.0.10:/srv/server2 /mnt/server2",
+          )
+
+          expect(machine.succeeds("osctl ct exec testct1 cat /mnt/server2/server2.txt")[1].strip).to eq("second")
         end
 
         it "rejects mounts from disallowed hosts" do

@@ -4,6 +4,7 @@ module FakeSysHelpers
   def build_fake_sys(**overrides)
     defaults = {
       bind_mount: nil,
+      bind_mount_readonly: nil,
       rbind_mount: nil,
       move_mount: nil,
       make_shared: nil,

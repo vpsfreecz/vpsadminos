@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-export PATH="<%= ENV['PATH'] %>"
+export PATH=/run/current-system/sw/bin
 
 until rpcinfo -s > /dev/null 2>&1 ; do
   echo "Waiting for rpcbind to start"

@@ -101,7 +101,8 @@ RSpec.describe OsCtl::ExportFS::Operations::Export::Add do
       allow(OsCtl::ExportFS::Operations::Exportfs::Generate).to receive(:run)
 
       op = described_class.new(server, export)
-      allow(op).to receive(:syscmd)
+      allow(op).to receive(:find_executable!).with('exportfs').and_return('/nix/store/exportfs/bin/exportfs')
+      allow(op).to receive(:syscmd_argv)
       op.execute
 
       shared = File.join(shared_dir, Digest::SHA2.hexdigest(export.dir))
@@ -111,7 +112,9 @@ RSpec.describe OsCtl::ExportFS::Operations::Export::Add do
         export.as
       )
       expect(OsCtl::ExportFS::Operations::Exportfs::Generate).to have_received(:run).with(server)
-      expect(op).to have_received(:syscmd).with(%(exportfs -i -o "rw" "*:#{export.as}"))
+      expect(op).to have_received(:syscmd_argv).with(
+        ['/nix/store/exportfs/bin/exportfs', '-i', '-o', 'rw', "*:#{export.as}"]
+      )
       expect(sys).to have_received(:unmount).with(shared)
       expect(Dir.exist?(shared)).to be(false)
     end
@@ -139,13 +142,52 @@ RSpec.describe OsCtl::ExportFS::Operations::Export::Add do
         options: 'rw'
       )
       op = described_class.new(server, added)
-      allow(op).to receive(:syscmd)
+      allow(op).to receive(:find_executable!).with('exportfs').and_return('/nix/store/exportfs/bin/exportfs')
+      allow(op).to receive(:syscmd_argv)
       op.execute
 
       expect(sys).not_to have_received(:bind_mount)
       expect(sys).not_to have_received(:move_mount)
       expect(OsCtl::ExportFS::Operations::Exportfs::Generate).not_to have_received(:run)
-      expect(op).to have_received(:syscmd).with(%(exportfs -i -o "rw" "10.0.0.0/24:/exports/data"))
+      expect(op).to have_received(:syscmd_argv).with(
+        ['/nix/store/exportfs/bin/exportfs', '-i', '-o', 'rw', '10.0.0.0/24:/exports/data']
+      )
+    end
+  end
+
+  it 'runs exportfs from the caller path for already mounted targets' do
+    with_tmpdir do |tmpdir|
+      original = OsCtl::ExportFS::Export.new(
+        dir: File.join(tmpdir, 'src'),
+        as: '/exports/data',
+        host: '*',
+        options: 'rw'
+      )
+      FileUtils.mkdir_p(original.dir)
+      exports_cfg << original
+      allow(server).to receive(:running?).and_return(true)
+      allow(server).to receive(:enter_ns)
+      allow(OsCtl::ExportFS::Operations::Server::Exec).to receive(:run) { |_server, &block| block.call }
+
+      added = OsCtl::ExportFS::Export.new(
+        dir: original.dir,
+        as: '/exports/data',
+        host: '10.0.0.0/24',
+        options: 'rw'
+      )
+
+      with_fake_path_command('exportfs') do |path, marker|
+        op = described_class.new(server, added)
+        allow(op).to receive(:log)
+        op.execute
+
+        expect(path).to include('/nix/store/')
+        expect(File.read(marker)).to include(
+          "#{File.join(path, 'exportfs')} -i -o rw 10.0.0.0/24:/exports/data"
+        )
+      end
+
+      expect(exports_cfg.lookup('/exports/data', '10.0.0.0/24')).to eq(added)
     end
   end
 
@@ -164,8 +206,11 @@ RSpec.describe OsCtl::ExportFS::Operations::Export::Add do
       allow(OsCtl::ExportFS::Operations::Server::Exec).to receive(:run)
         .and_raise(RuntimeError, 'server exec failed with exit status 7')
 
+      op = described_class.new(server, export)
+      allow(op).to receive(:find_executable!).with('exportfs').and_return('/nix/store/exportfs/bin/exportfs')
+
       expect do
-        described_class.new(server, export).execute
+        op.execute
       end.to raise_error(RuntimeError, 'server exec failed with exit status 7')
 
       shared = File.join(shared_dir, Digest::SHA2.hexdigest(export.dir))

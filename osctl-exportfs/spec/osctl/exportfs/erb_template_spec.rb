@@ -10,6 +10,28 @@ RSpec.describe OsCtl::ExportFS::ErbTemplate do
       end
     end.new
   end
+  let(:nfsd_config) do
+    instance_double(
+      OsCtl::ExportFS::Config::Nfsd,
+      port: nil,
+      tcp: true,
+      udp: false,
+      allowed_versions: [],
+      disallowed_versions: [],
+      syslog: false,
+      nproc: 8
+    )
+  end
+  let(:config) do
+    instance_double(
+      OsCtl::ExportFS::Config::TopLevel,
+      nfsd: nfsd_config,
+      mountd_port: nil,
+      statd_port: nil,
+      lockd_port: nil
+    )
+  end
+  let(:server) { instance_double(OsCtl::ExportFS::Server, nfs_state: '/var/lib/nfs') }
 
   it 'renders templates with plain values, procs, and methods' do
     plain = described_class.render('runsv', name: 'alpha')
@@ -35,6 +57,21 @@ RSpec.describe OsCtl::ExportFS::ErbTemplate do
 
       described_class.render_to_if_changed('runsv', { name: 'beta' }, path)
       expect(File.read(path)).to include('server spawn beta')
+    end
+  end
+
+  it 'renders runit service scripts with the server system path' do
+    {
+      'runit/1' => {},
+      'runit/2' => {},
+      'runit/3' => {},
+      'runsvdir/rpcbind' => {},
+      'runsvdir/nfsd' => { server:, config: },
+      'runsvdir/statd' => { server:, config: }
+    }.each do |template, vars|
+      expect(described_class.render(template, vars)).to include(
+        'export PATH=/run/current-system/sw/bin'
+      )
     end
   end
 end
