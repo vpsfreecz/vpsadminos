@@ -57,14 +57,16 @@ import ../../make-test.nix (
         machine.execute("test -d /sys/module/#{mod}")[0] == 0
       end
 
-      def self.expect_logged_modprobe(machine, text)
+      def self.expect_logged_modprobe(machine, action, text)
+        log_message = "action=#{action} #{text}"
+
         machine.wait_until_succeeds(
-          "grep -F #{Shellwords.escape(text)} /var/log/messages",
+          "grep -F #{Shellwords.escape(log_message)} /var/log/messages",
           timeout: 30
         )
 
         _, messages = machine.succeeds("cat /var/log/messages")
-        lines = messages.lines.select { |line| line.include?(text) }
+        lines = messages.lines.select { |line| line.include?(log_message) }
 
         expect(lines.any? { |line| line.include?("kernel.modprobe") }).to be(true), messages
       end
@@ -270,12 +272,12 @@ import ../../make-test.nix (
           status, output = autoload_disabled.execute("#{Shellwords.escape(disabled_path)} bonding")
           expect(status).not_to eq(0), output
           expect(module_loaded?(autoload_disabled, "bonding")).to be(false)
-          expect_logged_modprobe(autoload_disabled, "bonding")
+          expect_logged_modprobe(autoload_disabled, "deny", "bonding")
 
           unload_probe_module(autoload_enabled, "bonding")
           autoload_enabled.succeeds("#{Shellwords.escape(enabled_path)} bonding")
           expect(module_loaded?(autoload_enabled, "bonding")).to be(true)
-          expect_logged_modprobe(autoload_enabled, "bonding")
+          expect_logged_modprobe(autoload_enabled, "load", "bonding")
           autoload_enabled.succeeds("modprobe -r bonding")
         end
 

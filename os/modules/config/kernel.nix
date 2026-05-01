@@ -10,12 +10,13 @@ let
   zfsBuiltin = config.boot.zfsBuiltin;
   kernelForBuiltinsConfig = config.boot.kernelForBuiltinsConfig;
   moduleAutoload = config.boot.kernel.moduleAutoload;
+  modprobeAction = if moduleAutoload.enable then "load" else "deny";
 
   kernelPackages = import ../../packages/linux/packages.nix { inherit config pkgs lib; };
 
   modprobeWrapper = pkgs.writeScript "kernel-modprobe-wrapper" ''
     #!${pkgs.runtimeShell}
-    ${pkgs.util-linux}/bin/logger -t kernel.modprobe -- "$@"
+    ${pkgs.util-linux}/bin/logger -t kernel.modprobe -- "action=${modprobeAction}" "$@"
     ${
       if moduleAutoload.enable then
         ''
@@ -156,9 +157,9 @@ in
         type = types.bool;
         default = true;
         description = ''
-          Log kernel module autoload requests through a kernel.modprobe wrapper.
-          When module autoloading is disabled, the wrapper logs the request
-          and exits without loading the module.
+          Log kernel module autoload requests and the action taken through a
+          kernel.modprobe wrapper. When module autoloading is disabled, the
+          wrapper logs the request and exits without loading the module.
         '';
       };
     };
