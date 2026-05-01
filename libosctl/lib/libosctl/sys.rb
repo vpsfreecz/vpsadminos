@@ -13,9 +13,11 @@ module OsCtl::Lib
     CLONE_NEWIPC = 0x08000000
 
     MS_MGC_VAL = 0xc0ed0000
+    MS_RDONLY = 1
     MS_NOSUID = 2
     MS_NODEV = 4
     MS_NOEXEC = 8
+    MS_REMOUNT = 32
     MS_BIND = 4096
     MS_MOVE = 8192
     MS_REC = 16_384
@@ -66,6 +68,15 @@ module OsCtl::Lib
 
     def bind_mount(src, dst)
       ret = Int.mount(src, dst, 0, MS_MGC_VAL | MS_BIND, 0)
+      raise SystemCallError, Fiddle.last_error if ret != 0
+
+      ret
+    end
+
+    def bind_mount_readonly(src, dst)
+      bind_mount(src, dst)
+
+      ret = Int.mount('none', dst, 0, MS_MGC_VAL | MS_BIND | MS_REMOUNT | MS_RDONLY, 0)
       raise SystemCallError, Fiddle.last_error if ret != 0
 
       ret

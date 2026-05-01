@@ -48,6 +48,25 @@ RSpec.describe OsCtl::Lib::Sys do
                   ['/src', '/dst'], {},
                   ['/src', '/dst', 0, described_class::MS_MGC_VAL | described_class::MS_BIND, 0]
 
+  it 'bind-mounts read-only using a bind followed by a remount' do
+    allow(described_class::Int).to receive(:mount).and_return(0)
+
+    expect(sys.bind_mount_readonly('/src', '/dst')).to eq(0)
+
+    expect(described_class::Int).to have_received(:mount)
+      .with('/src', '/dst', 0, described_class::MS_MGC_VAL | described_class::MS_BIND, 0)
+      .ordered
+    expect(described_class::Int).to have_received(:mount)
+      .with(
+        'none',
+        '/dst',
+        0,
+        described_class::MS_MGC_VAL | described_class::MS_BIND | described_class::MS_REMOUNT | described_class::MS_RDONLY,
+        0
+      )
+      .ordered
+  end
+
   it_behaves_like 'simple Int wrapper',
                   :rbind_mount, :mount,
                   ['/src', '/dst'], {},
