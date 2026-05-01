@@ -1,3 +1,5 @@
+require 'open3'
+require 'shellwords'
 require 'timeout'
 
 module OsCtl::Lib
@@ -57,6 +59,58 @@ module OsCtl::Lib
       SystemCommandResult.new($?.exitstatus, out)
     end
 
+    # Run a command without a shell.
+    #
+    # @param argv [Array<String>] command and arguments
+    # @param opts [Hash]
+    # @option opts [Array<Integer>, :all] :valid_rcs valid exit codes
+    # @option opts [Boolean] :stderr include stderr in output?
+    # @option opts [Integer] :timeout in seconds
+    # @option opts [Proc] :on_timeout
+    # @option opts [String] :input data written to the process's stdin
+    # @option opts [Hash] :env environment variables
+    # @return [SystemCommandResult]
+    def syscmd_argv(argv, opts = {})
+      valid_rcs = opts[:valid_rcs] || []
+      stderr = opts[:stderr].nil? ? true : opts[:stderr]
+      cmd = argv.shelljoin
+      out = ''
+      status = nil
+
+      log(:work, cmd)
+
+      if stderr
+        Open3.popen2e(opts[:env] || ENV, *argv) do |stdin, stdout_err, wait_thr|
+          write_stdin(stdin, opts[:input])
+          out = read_process_output(stdout_err, wait_thr, cmd, opts)
+          status = wait_thr.value
+        end
+      else
+        Open3.popen2(opts[:env] || ENV, *argv, err: File::NULL) do |stdin, stdout, wait_thr|
+          write_stdin(stdin, opts[:input])
+          out = read_process_output(stdout, wait_thr, cmd, opts)
+          status = wait_thr.value
+        end
+      end
+
+      if status.exitstatus != 0 && valid_rcs != :all && !valid_rcs.include?(status.exitstatus)
+        raise Exceptions::SystemCommandFailed.new(cmd, status.exitstatus, out)
+      end
+
+      SystemCommandResult.new(status.exitstatus, out)
+    end
+
+    def find_executable!(cmd)
+      ENV.fetch('PATH', '').split(File::PATH_SEPARATOR).each do |dir|
+        path = File.join(dir, cmd)
+        next unless File.file?(path) && File.executable?(path)
+
+        return File.realpath(path)
+      end
+
+      raise Errno::ENOENT, cmd
+    end
+
     # @param cmd [String] zfs command
     # @param opts [String] zfs options
     # @param component [String] zfs dataset
@@ -100,6 +154,31 @@ module OsCtl::Lib
       end
 
       [false, ret]
+    end
+
+    protected
+
+    def write_stdin(io, input)
+      io.write(input) if input
+      io.close
+    end
+
+    def read_process_output(io, wait_thr, cmd, opts)
+      if opts[:timeout]
+        begin
+          timeout(opts[:timeout]) { io.read }
+        rescue Timeout::Error
+          if opts[:on_timeout]
+            opts[:on_timeout].call(wait_thr)
+            ''
+          else
+            Process.kill('TERM', wait_thr.pid)
+            raise Exceptions::SystemCommandFailed.new(cmd, 1, '')
+          end
+        end
+      else
+        io.read
+      end
     end
   end
 end

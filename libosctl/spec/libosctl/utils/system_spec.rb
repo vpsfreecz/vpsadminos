@@ -6,6 +6,7 @@ require 'libosctl/logger'
 require 'libosctl/system_command_result'
 require 'libosctl/utils/log'
 require 'libosctl/utils/system'
+require 'rbconfig'
 
 RSpec.describe OsCtl::Lib::Utils::System do
   let(:helper_class) do
@@ -53,6 +54,88 @@ RSpec.describe OsCtl::Lib::Utils::System do
     )
 
     expect(env_and_input.output).to eq('env::payload')
+  end
+
+  describe '#syscmd_argv' do
+    it 'runs commands without a shell' do
+      result = helper.syscmd_argv(
+        [
+          RbConfig.ruby,
+          '-e',
+          'STDOUT.write [ARGV.fetch(0), ARGV.fetch(1)].join("\n")',
+          'value with spaces',
+          'literal *'
+        ]
+      )
+
+      expect(result).to be_success
+      expect(result.output).to eq("value with spaces\nliteral *")
+    end
+
+    it 'raises on non-zero exit status unless the status is valid' do
+      expect do
+        helper.syscmd_argv([RbConfig.ruby, '-e', 'STDERR.write "boom"; exit 5'])
+      end.to raise_error(OsCtl::Lib::Exceptions::SystemCommandFailed, /exited with code '5'/)
+
+      result = helper.syscmd_argv([RbConfig.ruby, '-e', 'exit 4'], valid_rcs: [4])
+
+      expect(result.exitstatus).to eq(4)
+    end
+
+    it 'supports stderr suppression, stdin input, and environment variables' do
+      stdout_only = helper.syscmd_argv(
+        [RbConfig.ruby, '-e', 'STDOUT.write "out"; STDERR.write "err"'],
+        stderr: false
+      )
+
+      expect(stdout_only.output).to eq('out')
+
+      env_and_input = helper.syscmd_argv(
+        [RbConfig.ruby, '-e', 'print [ENV.fetch("FOO"), STDIN.read].join("::")'],
+        env: { 'FOO' => 'env' },
+        input: 'payload'
+      )
+
+      expect(env_and_input.output).to eq('env::payload')
+    end
+  end
+
+  describe '#find_executable!' do
+    it 'resolves executables to real paths' do
+      with_tmpdir do |tmpdir|
+        store_bin = File.join(tmpdir, 'nix/store/fake-package/bin')
+        path_bin = File.join(tmpdir, 'profile/bin')
+        executable = File.join(store_bin, 'tool')
+
+        FileUtils.mkdir_p(store_bin)
+        FileUtils.mkdir_p(path_bin)
+        File.write(executable, "#!/bin/sh\nexit 0\n")
+        File.chmod(0o755, executable)
+        File.symlink(executable, File.join(path_bin, 'tool'))
+
+        old_path = ENV.fetch('PATH', nil)
+
+        begin
+          ENV['PATH'] = path_bin
+
+          expect(helper.find_executable!('tool')).to eq(executable)
+        ensure
+          ENV['PATH'] = old_path
+        end
+      end
+    end
+
+    it 'raises when the executable is absent' do
+      old_path = ENV.fetch('PATH', nil)
+
+      begin
+        ENV['PATH'] = ''
+
+        expect { helper.find_executable!('missing') }.to raise_error(Errno::ENOENT)
+      ensure
+        ENV['PATH'] = old_path
+      end
+    end
   end
 
   it 'handles timeouts with and without an on_timeout callback' do
