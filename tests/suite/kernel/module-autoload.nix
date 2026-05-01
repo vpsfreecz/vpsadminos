@@ -70,7 +70,7 @@ import ../../make-test.nix (
       end
 
       def self.cleanup_probe(machine, ctid, probe)
-        run_command(machine, ctid, probe, probe[:cleanup])
+        ct_exec(machine, ctid, probe[:cleanup])
       end
 
       def self.unload_probe_module(machine, mod)
@@ -78,28 +78,12 @@ import ../../make-test.nix (
         expect(module_loaded?(machine, mod)).to be(false)
       end
 
-      def self.nsenter(machine, ctid, command)
-        init_pid = machine.osctl_json("ct show #{ctid}")['init_pid'].to_i
-        machine.execute(
-          "nsenter -t #{init_pid} -U -n -- " \
-          "/run/current-system/sw/bin/bash -lc #{Shellwords.escape(command)}"
-        )
-      end
-
       def self.ct_exec(machine, ctid, command)
         machine.execute("osctl ct exec #{ctid} sh -lc #{Shellwords.escape(command)}")
       end
 
-      def self.run_command(machine, ctid, probe, command)
-        if probe[:exec] == :ct
-          ct_exec(machine, ctid, command)
-        else
-          nsenter(machine, ctid, command)
-        end
-      end
-
       def self.run_probe(machine, ctid, probe)
-        run_command(machine, ctid, probe, probe[:command])
+        ct_exec(machine, ctid, probe[:command])
       end
 
       def self.expect_enabled_probe(machine, ctid, probe)
@@ -151,16 +135,21 @@ import ../../make-test.nix (
         expect(ifb_qdisc).to include("cake")
       end
 
-      def self.setup_container(machine, ctid, ip)
+      def self.setup_container(machine, ctid)
         machine.succeeds("osctl ct del -f --prune #{ctid} >/dev/null 2>&1 || true")
         machine.all_succeed(
           "osctl ct new --distribution alpine --version latest #{ctid}",
           "osctl ct unset start-menu #{ctid}",
-          "osctl ct netif new routed --max-tx 10M --max-rx 20M #{ctid} eth0",
-          "osctl ct netif ip add #{ctid} eth0 #{ip}/32",
+          "osctl ct netif new bridge --link lxcbr0 --max-tx 10M --max-rx 20M #{ctid} eth0",
+          "osctl ct set dns-resolver #{ctid} 1.1.1.1",
           "osctl ct start #{ctid}",
         )
         machine.wait_until_succeeds("osctl ct exec #{ctid} sh -lc true", timeout: 180)
+        machine.wait_until_succeeds(
+          "osctl ct exec #{ctid} sh -lc " \
+          "#{Shellwords.escape('apk add --no-cache iproute2 iproute2-tc iptables iptables-legacy nftables python3')}",
+          timeout: 180
+        )
       end
 
       def self.cleanup_container(machine, ctid)
@@ -172,25 +161,32 @@ import ../../make-test.nix (
 
       def self.iptables_command(command)
         "set -e; " \
-        "iptables=/run/current-system/sw/bin/iptables-legacy; " \
-        "test -x \"$iptables\"; " \
+        "iptables=$(command -v iptables-legacy); " \
+        "test -n \"$iptables\"; " \
         "export XTABLES_LOCKFILE=/tmp/module-autoload-xtables.lock; " \
         "#{command}"
+      end
+
+      def self.nft_command(*lines)
+        "printf '%s\n' #{lines.map { |line| Shellwords.escape(line) }.join(' ')} | nft -f -"
+      end
+
+      def self.python_command(script)
+        "python3 -c #{Shellwords.escape(script)}"
       end
 
       probes = [
         {
           name: "rtnetlink dummy",
           module: "dummy",
-          exec: :ct,
           command: "ip link add modauto0 type dummy",
           cleanup: "ip link del modauto0 >/dev/null 2>&1 || true",
         },
         {
           name: "tc netem",
           module: "sch_netem",
-          command: "/run/current-system/sw/bin/tc qdisc replace dev eth0 root netem delay 1ms",
-          cleanup: "/run/current-system/sw/bin/tc qdisc del dev eth0 root >/dev/null 2>&1 || true",
+          command: "tc qdisc replace dev eth0 root netem delay 1ms",
+          cleanup: "tc qdisc del dev eth0 root >/dev/null 2>&1 || true",
         },
         {
           name: "iptables xt_recent",
@@ -204,12 +200,32 @@ import ../../make-test.nix (
             "\"$iptables\" -w -X MODAUTO_TEST >/dev/null 2>&1 || true"
           ),
         },
+        {
+          name: "nftables limit",
+          module: "nft_limit",
+          command: nft_command(
+            "add table inet MODAUTO_TEST",
+            "add chain inet MODAUTO_TEST input { type filter hook input priority 0; policy accept; }",
+            "add rule inet MODAUTO_TEST input limit rate 1/second accept"
+          ),
+          cleanup: "nft delete table inet MODAUTO_TEST >/dev/null 2>&1 || true",
+        },
+        {
+          name: "AF_ALG AEAD socket",
+          module: "algif_aead",
+          command: python_command(
+            "import socket; " \
+            "s = socket.socket(socket.AF_ALG, socket.SOCK_SEQPACKET, 0); " \
+            "s.bind(('aead', 'gcm(aes)')); " \
+            "s.close()"
+          ),
+          cleanup: "true",
+        },
       ]
 
       describe 'alpine-latest', order: :defined do
         before(:suite) do
           @ctid = get_container_id
-          @ip = "1.2.3.4"
 
           machines.each do |_, machine|
             ensure_machine(machine, kernel_params)
@@ -273,9 +289,9 @@ import ../../make-test.nix (
           end
         end
 
-        it 'starts containers with shaped routed interfaces' do
-          setup_container(autoload_disabled, @ctid, @ip)
-          setup_container(autoload_enabled, @ctid, @ip)
+        it 'starts containers with shaped bridge interfaces' do
+          setup_container(autoload_disabled, @ctid)
+          setup_container(autoload_enabled, @ctid)
 
           verify_shaper(autoload_disabled, @ctid)
           verify_shaper(autoload_enabled, @ctid)
