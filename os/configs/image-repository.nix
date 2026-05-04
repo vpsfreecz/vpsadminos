@@ -128,10 +128,12 @@
             "stable-systemd"
           ];
         };
-        musl = {
+        "musl-openrc" = {
           tags = [
             "latest-musl"
             "stable-musl"
+            "latest-musl-openrc"
+            "stable-musl-openrc"
           ];
         };
       };
@@ -285,6 +287,11 @@
       {
         distribution = "gentoo";
         version = "musl-\\d+";
+        keep = 4;
+      }
+      {
+        distribution = "gentoo";
+        version = "musl-openrc-\\d+";
         keep = 4;
       }
       {

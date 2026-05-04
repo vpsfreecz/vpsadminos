@@ -61,9 +61,9 @@ let
       distribution = "gentoo";
       version = "latest-systemd";
     };
-    gentoo_musl = {
+    gentoo_musl_openrc = {
       distribution = "gentoo";
-      version = "latest-musl";
+      version = "latest-musl-openrc";
     };
     nixos_stable = {
       distribution = "nixos";
@@ -190,7 +190,7 @@ in
     chimera
     devuan
     gentoo_openrc
-    gentoo_musl
+    gentoo_musl_openrc
     slackware
     void_glibc
     void_musl
