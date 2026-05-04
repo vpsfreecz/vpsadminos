@@ -65,6 +65,10 @@ let
       distribution = "gentoo";
       version = "latest-musl-openrc";
     };
+    gentoo_musl_systemd = {
+      distribution = "gentoo";
+      version = "latest-musl-systemd";
+    };
     nixos_stable = {
       distribution = "nixos";
       version = "stable";
@@ -150,6 +154,7 @@ in
     arch
     debian_testing
     fedora
+    gentoo_musl_systemd
     gentoo_systemd
     nixos_stable
     nixos_unstable
@@ -172,6 +177,7 @@ in
     debian_stable
     debian_testing
     fedora
+    gentoo_musl_systemd
     gentoo_systemd
     nixos_stable
     nixos_unstable

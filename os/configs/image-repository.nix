@@ -136,6 +136,12 @@
             "stable-musl-openrc"
           ];
         };
+        "musl-systemd" = {
+          tags = [
+            "latest-musl-systemd"
+            "stable-musl-systemd"
+          ];
+        };
       };
 
       guix.rolling = {
@@ -292,6 +298,11 @@
       {
         distribution = "gentoo";
         version = "musl-openrc-\\d+";
+        keep = 4;
+      }
+      {
+        distribution = "gentoo";
+        version = "musl-systemd-\\d+";
         keep = 4;
       }
       {
