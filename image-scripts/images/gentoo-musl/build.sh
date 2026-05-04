@@ -1,4 +1,4 @@
-VARIANT=musl
+VARIANT=musl-openrc
 . "$IMAGEDIR/config.sh"
 . "$INCLUDE/gentoo.sh"
 

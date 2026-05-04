@@ -7,7 +7,14 @@ STAGE3_TARBALL_URL=
 STAGE3_TARBALL=
 
 fetch() {
-	STAGE3_TARBALL_URL="${STAGE3_BASE_URL}/$(curl "${STAGE3_BASE_URL}/latest-stage3-amd64-${VARIANT}.txt" | grep -o -m 1 -P "^[\dTZ]+/stage3-amd64-${VARIANT}-[\dTZ]+.tar.xz")"
+	local stage3_path
+
+	stage3_path="$(curl -f "${STAGE3_BASE_URL}/latest-stage3-amd64-${VARIANT}.txt" | grep -o -m 1 -P "^[0-9TZ]+/stage3-amd64-${VARIANT}-[0-9TZ]+.tar.xz")"
+	if [ -z "$stage3_path" ]; then
+		fail "Unable to find stage3-amd64-${VARIANT} in latest stage3 list"
+	fi
+
+	STAGE3_TARBALL_URL="${STAGE3_BASE_URL}/${stage3_path}"
 	STAGE3_TARBALL="$(basename $STAGE3_TARBALL_URL)"
 
 	wget -P "$DOWNLOAD" ${STAGE3_TARBALL_URL}{.CONTENTS.gz,.DIGESTS,}
