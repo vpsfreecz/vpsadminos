@@ -1,6 +1,8 @@
 #!/bin/bash
 require_cmd zypper
 
+. "$INCLUDE/systemd.sh"
+
 if [ "$SPIN" == "leap" ]; then
 	REPOSITORY=http://download.opensuse.org/distribution/leap/$SPINVER/repo/oss/
 	[[ "$SPINVER" == 15.* ]] && UPDATES=http://download.opensuse.org/update/leap/$SPINVER/oss/
@@ -65,4 +67,6 @@ EOT
 
 echo > /etc/machine-id
 EOF
+
+	configure-systemd-console-getty
 }
