@@ -57,6 +57,7 @@ module TestRunner
             ts_name,
             description: ts_opts['description'],
             expect_failure: ts_opts['expectFailure'],
+            attempts: ts_opts['attempts'],
             tags: ts_opts.fetch('tags', []),
             labels: ts_opts.fetch('labels', {})
           )

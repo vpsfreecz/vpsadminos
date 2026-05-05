@@ -16,6 +16,7 @@ RSpec.describe TestRunner::TestScript do
         'smoke' => {
           'description' => nil,
           'expectFailure' => nil,
+          'attempts' => 2,
           'tags' => ['fast'],
           'labels' => { 'distro' => 'nixos' }
         }
@@ -30,6 +31,10 @@ RSpec.describe TestRunner::TestScript do
   it 'inherits description and expect_failure when not overridden' do
     expect(script.description).to eq('Parent description')
     expect(script.expect_failure).to be(true)
+  end
+
+  it 'uses script attempts when configured' do
+    expect(script.attempts).to eq(2)
   end
 
   it 'merges tags and labels' do
