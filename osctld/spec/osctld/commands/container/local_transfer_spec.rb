@@ -636,6 +636,31 @@ RSpec.describe 'local container transfer commands' do
       expect(command).not_to have_received(:transfer_dataset)
     end
 
+    it 'keeps a retryable state snapshot when transfer fails' do
+      stub_daemon
+      log = local_log(state: :base, snapshots: ['snap-base'])
+      source = source_ct(state: :stopped, log:)
+      target = target_ct
+      stub_target_lookup(target)
+      command = described_class.new(
+        { id: 'ct1', pool: 'tank', consistent: true, restart: false },
+        {}
+      )
+
+      allow(command).to receive(:snapshot_name).and_return('snap-state')
+      allow(command).to receive(:zfs)
+      allow(command).to receive(:transfer_dataset)
+        .and_raise(OsCtld::CommandFailed, 'transfer failed')
+
+      expect do
+        command.execute(source)
+      end.to raise_error(OsCtld::CommandFailed, 'transfer failed')
+
+      expect(log.state_snapshot).to eq('snap-state')
+      expect(log.state).to eq(:base)
+      expect(target.state).to eq(:staged)
+    end
+
     it 'clears a failed state snapshot before retrying' do
       stub_daemon
       log = local_log(
@@ -666,6 +691,27 @@ RSpec.describe 'local container transfer commands' do
   end
 
   describe OsCtld::Commands::Container::MoveState do
+    it 'keeps the log open when stop fails' do
+      stub_daemon
+      log = local_log(operation: :move, state: :base, snapshots: ['snap-base'])
+      source = source_ct(state: :running, log:)
+      target = target_ct
+      stub_target_lookup(target)
+      command = described_class.new({ id: 'ct1', pool: 'tank', start: true }, {})
+
+      allow(command).to receive(:call_cmd!)
+        .with(OsCtld::Commands::Container::Stop, id: 'ct1', pool: 'tank')
+        .and_raise(OsCtld::CommandFailed, 'stop failed')
+
+      expect do
+        command.execute(source)
+      end.to raise_error(OsCtld::CommandFailed, 'stop failed')
+
+      expect(source.local_transfer_log).to eq(log)
+      expect(log.state_snapshot).to be_nil
+      expect(log.state_running).to be(true)
+    end
+
     it 'stops the source and starts the completed target when requested' do
       stub_daemon
       log = local_log(operation: :move, state: :base, snapshots: ['snap-base'])
@@ -684,6 +730,96 @@ RSpec.describe 'local container transfer commands' do
       expect(events).to include([OsCtld::Commands::Container::Stop, { id: 'ct1', pool: 'tank' }])
       expect(events).to include([OsCtld::Commands::Container::Start, { id: 'ct1-copy', pool: 'tank', force: true }])
       expect(events).not_to include([OsCtld::Commands::Container::Start, hash_including(id: 'ct1')])
+    end
+
+    it 'keeps a retryable state snapshot when transfer fails' do
+      stub_daemon
+      log = local_log(operation: :move, state: :base, snapshots: ['snap-base'])
+      source = source_ct(state: :stopped, log:)
+      target = target_ct
+      stub_target_lookup(target)
+      command = described_class.new(
+        { id: 'ct1', pool: 'tank', start: true },
+        {}
+      )
+
+      allow(command).to receive(:snapshot_name).and_return('snap-state')
+      allow(command).to receive(:zfs)
+      allow(command).to receive(:transfer_dataset)
+        .and_raise(OsCtld::CommandFailed, 'transfer failed')
+
+      expect do
+        command.execute(source)
+      end.to raise_error(OsCtld::CommandFailed, 'transfer failed')
+
+      expect(log.state_snapshot).to eq('snap-state')
+      expect(log.state).to eq(:base)
+      expect(target.state).to eq(:staged)
+    end
+
+    it 'keeps a retryable state snapshot when target start fails' do
+      stub_daemon
+      log = local_log(operation: :move, state: :base, snapshots: ['snap-base'])
+      source = source_ct(state: :running, log:)
+      target = target_ct
+      stub_target_lookup(target)
+      command = described_class.new({ id: 'ct1', pool: 'tank', start: true }, {})
+
+      allow(command).to receive(:snapshot_name).and_return('snap-state')
+      allow(command).to receive(:zfs)
+      allow(command).to receive(:transfer_dataset)
+      allow(command).to receive(:call_cmd!)
+        .with(OsCtld::Commands::Container::Stop, id: 'ct1', pool: 'tank')
+        .and_return(status: true, output: nil)
+      allow(command).to receive(:call_cmd!)
+        .with(
+          OsCtld::Commands::Container::Start,
+          id: 'ct1-copy',
+          pool: 'tank',
+          force: true
+        )
+        .and_raise(OsCtld::CommandFailed, 'start failed')
+
+      expect do
+        command.execute(source)
+      end.to raise_error(OsCtld::CommandFailed, 'start failed')
+
+      expect(log.state_snapshot).to eq('snap-state')
+      expect(log.state).to eq(:base)
+      expect(target.state).to eq(:stopped)
+    end
+
+    it 'clears a failed state snapshot before retrying' do
+      stub_daemon
+      log = local_log(
+        operation: :move,
+        state: :base,
+        snapshots: ['snap-base'],
+        state_snapshot: 'snap-failed',
+        state_running: true
+      )
+      source = source_ct(state: :stopped, log:)
+      target = target_ct(state: :stopped)
+      stub_target_lookup(target)
+      command = described_class.new({ id: 'ct1', pool: 'tank', start: false }, {})
+      destroys = []
+
+      allow(command).to receive(:snapshot_name).and_return('snap-state')
+      allow(command).to receive(:call_cmd!)
+        .with(OsCtld::Commands::Container::Stop, id: 'ct1', pool: 'tank')
+        .and_return(status: true, output: nil)
+      allow(command).to receive(:zfs) do |op, _opts, target_name, **|
+        destroys << target_name if op == :destroy
+      end
+      allow(command).to receive(:transfer_dataset)
+
+      expect(command.execute(source)).to eq(status: true, output: nil)
+      expect(destroys).to include(
+        'tank/ct/ct1@snap-failed',
+        'tank/ct/ct1-copy@snap-failed'
+      )
+      expect(log.state_snapshot).to eq('snap-state')
+      expect(log.state).to eq(:transfer)
     end
 
     it 'does not start the target with start disabled' do

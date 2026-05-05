@@ -125,6 +125,10 @@ let
       "/tank/conf/ct/#{ctid}.yml"
     end
 
+    def self.send_public_key(machine)
+      machine.succeeds('cat $(osctl send key path public)')[1].strip
+    end
+
     def self.send_log_present?(machine, ctid)
       status, = machine.execute("grep -q '^send_log:' #{ct_config_path(ctid)}")
       status == 0
@@ -658,6 +662,76 @@ import ../../make-test.nix (
 
               expect_ct_absent(node1, ctid)
               expect(send_log_present?(node2, ctid)).to be(false)
+            end
+          end
+        '';
+      };
+
+      "incremental-receive-failure" = {
+        description = ''
+          A failed final incremental receive keeps the cutover retryable
+        '';
+
+        script = ''
+          ctid = get_container_id
+
+          ${commonScript}
+
+          before(:suite) do
+            ensure_cluster_ready
+            refresh_send_keys
+
+            node1.all_succeed(
+              "osctl ct new --distribution alpine #{ctid}",
+              "osctl ct unset start-menu #{ctid}",
+              "osctl ct start #{ctid}"
+            )
+
+            wait_ct_running(node1, ctid)
+            prepare_send(ctid)
+            write_ct_file(
+              node1,
+              ctid,
+              'tmp/send-transfer/before-failed-state',
+              'before-failed-state'
+            )
+
+            delete_authorized_key(node2, 'node1')
+            node1.fails("osctl ct send state #{ctid}")
+          end
+
+          after(:suite) do
+            delete_authorized_key(node2, 'node1')
+            authorize_send_key(node2, 'node1', send_public_key(node1))
+            cleanup_container_everywhere(ctid)
+          end
+
+          describe 'incremental receive failure' do
+            it 'keeps the source stopped with an open send state' do
+              expect(ct_state(node1, ctid)).to eq('stopped')
+              expect(send_log_present?(node1, ctid)).to be(true)
+            end
+
+            it 'keeps the staged target container' do
+              expect(ct_state(node2, ctid)).to eq('staged')
+            end
+
+            it 'can complete the migration with another send state attempt' do
+              delete_authorized_key(node2, 'node1')
+              authorize_send_key(node2, 'node1', send_public_key(node1))
+
+              node1.succeeds("osctl ct send state #{ctid}")
+              node1.succeeds("osctl ct send cleanup #{ctid}")
+
+              wait_ct_running(node2, ctid)
+              expect_ct_absent(node1, ctid)
+              expect(send_log_present?(node2, ctid)).to be(false)
+              expect_ct_file(
+                node2,
+                ctid,
+                'tmp/send-transfer/before-failed-state',
+                'before-failed-state'
+              )
             end
           end
         '';

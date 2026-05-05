@@ -314,6 +314,47 @@ RSpec.describe 'container transfer commands' do
       expect(ct.send_log.state_running).to be(true)
     end
 
+    it 'keeps the cutover retryable when the final sync fails' do
+      ct = build_send_ct
+      command = described_class.new(
+        {
+          id: 'ct1',
+          pool: 'tank',
+          clone: false,
+          consistent: true,
+          restart: true,
+          start: false
+        },
+        {}
+      )
+      zfs_calls = []
+
+      allow(OsCtld::DB::Containers).to receive(:find)
+        .with('ct1', 'tank')
+        .and_return(ct)
+      allow(command).to receive(:call_cmd!)
+        .with(OsCtld::Commands::Container::Stop, id: 'ct1', pool: 'tank')
+        .and_return(status: true, output: nil)
+      allow(command).to receive(:send_dataset)
+        .and_raise(OsCtld::CommandFailed, 'sync failed')
+      allow(command).to receive(:zfs) do |op, _flag, target|
+        zfs_calls << [op, target]
+      end
+
+      expect do
+        command.execute
+      end.to raise_error(OsCtld::CommandFailed, 'sync failed')
+
+      snap = zfs_calls.detect { |op, _target| op == :snapshot }[1].split('@', 2).last
+
+      expect(command).to have_received(:send_dataset).with(ct, ct.dataset, snap)
+      expect(ct.closed_send_log).to be(false)
+      expect(ct.send_log.snapshots).to eq(['snap-base'])
+      expect(ct.send_log.state_snapshot).to eq(snap)
+      expect(ct.send_log.state).to eq(:base)
+      expect(ct.send_log.state_running).to be(true)
+    end
+
     it 'drops the failed cutover snapshot before retrying' do
       ct = build_send_ct(state_snapshot: 'snap-failed')
       command = described_class.new(

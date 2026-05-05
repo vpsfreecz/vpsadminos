@@ -51,6 +51,8 @@ import ../../make-test.nix (
     };
 
     testScript = ''
+      require 'shellwords'
+
       def self.ensure_ready
         machine.start
         machine.wait_for_osctl_pool('tank')
@@ -144,6 +146,26 @@ import ../../make-test.nix (
         wait_ct_exec(ctid, 'rc-service transfer-service status', pool:, timeout: 60)
         _, out = wait_ct_exec(ctid, 'cat /run/transfer-service.value', pool:, timeout: 60)
         expect(out.strip).to eq(value)
+      end
+
+      def self.hook_path(ctid, hook_name, pool: 'tank')
+        "/#{pool}/hook/ct/#{ctid}/#{hook_name}"
+      end
+
+      def self.install_hook(ctid, hook_name, script, pool: 'tank')
+        path = hook_path(ctid, hook_name, pool:)
+
+        machine.succeeds(<<~CMD)
+          install -d -m 700 #{Shellwords.escape(File.dirname(path))}
+          cat > #{Shellwords.escape(path)} <<'EOF'
+          #{script}
+          EOF
+          chmod 700 #{Shellwords.escape(path)}
+        CMD
+      end
+
+      def self.remove_hook(ctid, hook_name, pool: 'tank')
+        machine.succeeds("rm -f #{Shellwords.escape(hook_path(ctid, hook_name, pool:))}")
       end
 
       def self.transfer_snapshots(dataset)
@@ -321,6 +343,64 @@ import ../../make-test.nix (
         end
       end
 
+      describe 'running local copy state retry' do
+        ctid = "#{get_container_id}-copy-retry"
+        target = "#{ctid}-dst"
+
+        before(:context) do
+          cleanup_ct(ctid, target)
+          machine.all_succeed(
+            "osctl --pool tank ct new --distribution alpine #{ctid}",
+            "osctl --pool tank ct unset start-menu #{ctid}",
+            "osctl --pool tank ct start #{ctid}"
+          )
+          wait_ct_running(ctid)
+          install_test_service(ctid, 'copy-retry-service')
+          machine.all_succeed(
+            "osctl --pool tank ct cp config #{ctid} #{target}",
+            "osctl --pool tank ct cp rootfs #{ctid}",
+            "osctl --pool tank ct cp sync #{ctid}"
+          )
+          install_hook(ctid, 'pre-stop', <<~HOOK)
+            #!/bin/sh
+            exit 1
+          HOOK
+        end
+
+        after(:context) do
+          remove_hook(ctid, 'pre-stop')
+          cleanup_ct(ctid, target)
+        end
+
+        it 'can retry after source stop fails' do
+          ct_exec(
+            ctid,
+            'mkdir -p /tmp/local-transfer && echo before-retry > /tmp/local-transfer/before-retry'
+          )
+
+          machine.fails("osctl --pool tank ct cp state #{ctid}")
+
+          expect(ct_state(ctid)).to eq('running')
+          expect(ct_state(target)).to eq('staged')
+          expect(local_transfer_log_present?(ctid)).to be(true)
+
+          remove_hook(ctid, 'pre-stop')
+          machine.succeeds("osctl --pool tank ct cp state #{ctid}")
+
+          wait_ct_running(ctid)
+          expect_test_service(ctid, 'copy-retry-service')
+          machine.succeeds("osctl --pool tank ct cp cleanup #{ctid}")
+
+          machine.succeeds("osctl --pool tank ct start #{target}")
+          wait_ct_running(target)
+          expect_ct_file(target, 'tmp/local-transfer/before-retry', 'before-retry')
+          expect_test_service(target, 'copy-retry-service')
+          expect(local_transfer_log_present?(ctid)).to be(false)
+          expect_no_transfer_snapshots(ctid)
+          expect_no_transfer_snapshots(target)
+        end
+      end
+
       describe 'split local move' do
         ctid = "#{get_container_id}-move-src"
         target = "#{ctid}-dst"
@@ -367,6 +447,61 @@ import ../../make-test.nix (
           expect_ct_file(target, 'tmp/local-transfer/after-rootfs', 'after-rootfs')
           expect_ct_file(target, 'tmp/local-transfer/after-sync', 'after-sync')
           expect_test_service(target, 'move-service')
+          expect_no_transfer_snapshots(target)
+        end
+      end
+
+      describe 'running local move state retry' do
+        ctid = "#{get_container_id}-move-retry"
+        target = "#{ctid}-dst"
+
+        before(:context) do
+          cleanup_ct(ctid, target)
+          machine.all_succeed(
+            "osctl --pool tank ct new --distribution alpine #{ctid}",
+            "osctl --pool tank ct unset start-menu #{ctid}",
+            "osctl --pool tank ct start #{ctid}"
+          )
+          wait_ct_running(ctid)
+          install_test_service(ctid, 'move-retry-service')
+          machine.all_succeed(
+            "osctl --pool tank ct mv config #{ctid} #{target}",
+            "osctl --pool tank ct mv rootfs #{ctid}",
+            "osctl --pool tank ct mv sync #{ctid}"
+          )
+          install_hook(target, 'pre-start', <<~HOOK)
+            #!/bin/sh
+            exit 1
+          HOOK
+        end
+
+        after(:context) do
+          remove_hook(target, 'pre-start')
+          cleanup_ct(ctid, target)
+        end
+
+        it 'can retry after target start fails' do
+          ct_exec(
+            ctid,
+            'mkdir -p /tmp/local-transfer && echo before-retry > /tmp/local-transfer/before-retry'
+          )
+
+          machine.fails("osctl --pool tank ct mv state #{ctid}")
+
+          expect(ct_state(ctid)).to eq('stopped')
+          expect(ct_state(target)).to eq('stopped')
+          expect(local_transfer_log_present?(ctid)).to be(true)
+
+          remove_hook(target, 'pre-start')
+          machine.succeeds("osctl --pool tank ct mv state #{ctid}")
+
+          wait_ct_running(target)
+          machine.succeeds("osctl --pool tank ct mv cleanup #{ctid}")
+
+          expect_ct_absent(ctid)
+          expect(ct_state(target)).to eq('running')
+          expect_ct_file(target, 'tmp/local-transfer/before-retry', 'before-retry')
+          expect_test_service(target, 'move-retry-service')
           expect_no_transfer_snapshots(target)
         end
       end
