@@ -1,24 +1,41 @@
 {
   distribution,
-  version,
-  setupScript,
+  tests,
 }:
 import ../../make-test.nix (
   { pkgs }:
-  {
-    name = "incus-${distribution}-${version}";
-
-    description = ''
-      Test Incus on ${distribution} ${version}
-    '';
-
-    tags = [ "ci" ];
-
-    machine = import ../../machines/vpsadminos/tank.nix pkgs;
-
-    testScript = ''
+  let
+    common = ''
       require 'json'
       require 'shellwords'
+
+      def ensure_machine
+        machine.start unless machine.running?
+        machine.wait_for_osctl_pool('tank')
+        machine.wait_until_online
+      end
+
+      def cleanup_container(ct)
+        return unless machine.running?
+
+        begin
+          machine.succeeds("osctl ct del -f --prune #{ct}")
+        rescue OsVm::CommandFailed
+          # Best effort cleanup after failed setup.
+        end
+
+        begin
+          machine.succeeds("osctl user del #{ct}")
+        rescue OsVm::CommandFailed
+          # The user may have been removed with the container.
+        end
+
+        begin
+          machine.succeeds('osctl repository images prune')
+        rescue OsVm::CommandFailed
+          # Best effort cleanup after failed setup.
+        end
+      end
 
       def ct_shell(ct, script, timeout: 600)
         machine.succeeds(
@@ -135,100 +152,132 @@ import ../../make-test.nix (
         candidates.max_by { |candidate| candidate[:sort_key] }.fetch(:alias)
       end
 
-      machine.start
-      machine.wait_for_osctl_pool("tank")
-      machine.wait_until_online
+      def create_incus_container(ct, distribution, version, map_base)
+        machine.succeeds("osctl user new --no-standalone --map 0:#{map_base}:524288 #{ct}")
 
-      machine.succeeds("osctl user new --map 0:100000:524288 incusct")
+        machine.all_succeed(
+          "osctl ct new --user #{ct} --distribution #{distribution} --version #{version} #{ct}",
+          "osctl ct unset start-menu #{ct}",
+          "osctl ct set nesting #{ct}",
+          "osctl ct netif new bridge --link lxcbr0 #{ct} eth0",
 
-      machine.all_succeed(
-        "osctl ct new --distribution ${distribution} --version ${version} incusct",
-        "osctl ct unset start-menu incusct",
-        "osctl ct set nesting incusct",
-        "osctl ct netif new bridge --link lxcbr0 incusct eth0",
+          # TODO: why is this needed?
+          "osctl ct set dns-resolver #{ct} 1.1.1.1",
 
-        # TODO: why is this needed?
-        "osctl ct set dns-resolver incusct 1.1.1.1",
+          "osctl ct start #{ct}",
+        )
 
-        "osctl ct start incusct",
-      )
-
-      machine.wait_until_container_online('incusct')
-
-      ${setupScript}
-
-      # Nested Incus needs a dedicated ID-mapped range for containers.
-      ct_shell(
-        'incusct',
-        <<~SH
-          printf '%s\n' 'root:100000:65536' > /etc/subuid
-          printf '%s\n' 'root:100000:65536' > /etc/subgid
-        SH
-      )
-
-      ct_shell(
-        'incusct',
-        <<~SH
-          systemctl stop incus.service incus.socket 2>/dev/null || true
-          systemctl enable --now incus.socket || systemctl enable --now incus.service
-        SH
-      )
-
-      machine.wait_until_succeeds(
-        "osctl ct exec incusct sh -c 'systemctl is-active --quiet incus.socket || systemctl is-active --quiet incus.service'",
-        timeout: 120
-      )
-
-      ct_shell('incusct', <<~SH, timeout: 300)
-        cat <<'EOF' | incus admin init --preseed
-        storage_pools:
-        - name: default
-          driver: dir
-        profiles:
-        - name: default
-          devices:
-            root:
-              path: /
-              pool: default
-              type: disk
-        EOF
-      SH
-
-      debian_image = latest_debian_image('incusct')
-      init_job = ct_background('incusct', 'incus-init', "incus init images:#{debian_image} i1")
-
-      wait_for_ct_job(
-        'incusct',
-        init_job,
-        check_cmd: "osctl ct exec incusct incus info i1",
-        timeout: 900
-      )
-
-      start_job = ct_background('incusct', 'incus-start', 'incus start i1')
-
-      wait_for_ct_job(
-        'incusct',
-        start_job,
-        check_cmd: "osctl ct exec incusct sh -c \"incus info i1 | grep -q 'Status: RUNNING'\"",
-        timeout: 300
-      )
-
-      machine.wait_until_succeeds(
-        "osctl ct exec incusct sh -c \"incus info i1 | grep -q 'Status: RUNNING'\"",
-        timeout: 300
-      )
-
-      _, output = machine.succeeds("osctl ct exec incusct incus info i1")
-
-      if /Status: RUNNING/ !~ output
-        fail "incus container not running, incus info output: #{output.inspect}"
+        machine.wait_until_container_online(ct)
       end
 
-      if /Type: container/ !~ output
-        fail "expected type container, incus info output: #{output.inspect}"
-      end
+      def check_incus(ct)
+        # Nested Incus needs a dedicated ID-mapped range for containers.
+        ct_shell(
+          ct,
+          <<~SH
+            printf '%s\n' 'root:100000:65536' > /etc/subuid
+            printf '%s\n' 'root:100000:65536' > /etc/subgid
+          SH
+        )
 
-      machine.succeeds("osctl ct exec incusct incus exec i1 -- true", timeout: 300)
+        ct_shell(
+          ct,
+          <<~SH
+            systemctl stop incus.service incus.socket 2>/dev/null || true
+            systemctl enable --now incus.socket || systemctl enable --now incus.service
+          SH
+        )
+
+        machine.wait_until_succeeds(
+          "osctl ct exec #{ct} sh -c 'systemctl is-active --quiet incus.socket || systemctl is-active --quiet incus.service'",
+          timeout: 120
+        )
+
+        ct_shell(ct, <<~SH, timeout: 300)
+          cat <<'EOF' | incus admin init --preseed
+          storage_pools:
+          - name: default
+            driver: dir
+          profiles:
+          - name: default
+            devices:
+              root:
+                path: /
+                pool: default
+                type: disk
+          EOF
+        SH
+
+        debian_image = latest_debian_image(ct)
+        init_job = ct_background(ct, 'incus-init', "incus init images:#{debian_image} i1")
+
+        wait_for_ct_job(
+          ct,
+          init_job,
+          check_cmd: "osctl ct exec #{ct} incus info i1",
+          timeout: 900
+        )
+
+        start_job = ct_background(ct, 'incus-start', 'incus start i1')
+
+        wait_for_ct_job(
+          ct,
+          start_job,
+          check_cmd: "osctl ct exec #{ct} sh -c \"incus info i1 | grep -q 'Status: RUNNING'\"",
+          timeout: 300
+        )
+
+        machine.wait_until_succeeds(
+          "osctl ct exec #{ct} sh -c \"incus info i1 | grep -q 'Status: RUNNING'\"",
+          timeout: 300
+        )
+
+        _, output = machine.succeeds("osctl ct exec #{ct} incus info i1")
+
+        if /Status: RUNNING/ !~ output
+          fail "incus container not running, incus info output: #{output.inspect}"
+        end
+
+        if /Type: container/ !~ output
+          fail "expected type container, incus info output: #{output.inspect}"
+        end
+
+        machine.succeeds("osctl ct exec #{ct} incus exec i1 -- true", timeout: 300)
+      end
     '';
+  in
+  {
+    name = "incus-${distribution}";
+
+    description = ''
+      Test Incus on ${distribution}
+    '';
+
+    tags = [ "ci" ];
+
+    machine = import ../../machines/vpsadminos/tank.nix pkgs;
+
+    testScripts = builtins.listToAttrs (
+      map (test: {
+        name = test.version;
+        value = {
+          description = ''
+            Test Incus on ${distribution} ${test.version}
+          '';
+          script = common + ''
+            ct = get_container_id('incus')
+
+            begin
+              ensure_machine
+              create_incus_container(ct, '${distribution}', '${test.version}', ${toString test.mapBase})
+              ${test.setup}
+              check_incus(ct)
+            ensure
+              cleanup_container(ct)
+            end
+          '';
+        };
+      }) tests
+    );
   }
 )
