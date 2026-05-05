@@ -86,10 +86,10 @@
     platforms = [ ];
     source = {
       remotes = [ "https://rubygems.org" ];
-      sha256 = "1b1rabz30grash5wh0lcv109w2ggggmmbclwnajqrcdk7wrps2k7";
+      sha256 = "0n9ch455pnvl9vxs2f3j77bpdmxg5g3mn3vyr9wxa0a87raii2i1";
       type = "gem";
     };
-    version = "2.19.4";
+    version = "2.19.5";
   };
   libosctl = {
     dependencies = [
@@ -103,10 +103,10 @@
     platforms = [ ];
     source = {
       remotes = [ "https://rubygems.vpsfree.cz" ];
-      sha256 = "0f57hjqy2kz2cgm9rp4iz2d46jxhmmdb4jczq8b31npdd6mp6qlx";
+      sha256 = "13crx12aigh9a4jjgprcs9919ih36vfy115qyf2v3lwprkwzihjs";
       type = "gem";
     };
-    version = "25.11.0.build20260501145753";
+    version = "25.11.0.build20260505153528";
   };
   logger = {
     groups = [ "default" ];
@@ -136,10 +136,10 @@
     platforms = [ ];
     source = {
       remotes = [ "https://rubygems.vpsfree.cz" ];
-      sha256 = "10yvcr9chcg6w041q7x66h229d9mis38cgp3v1maybclcl6nhg01";
+      sha256 = "1ddaknzl5kmk66n5rb0wk7j4qhsqsmqbzzcf5k3znll6rasa8i54";
       type = "gem";
     };
-    version = "25.11.0.build20260501145753";
+    version = "25.11.0.build20260505153528";
   };
   osctl-image = {
     dependencies = [
@@ -155,10 +155,10 @@
     platforms = [ ];
     source = {
       remotes = [ "https://rubygems.vpsfree.cz" ];
-      sha256 = "1bw1azs8z9danjr75fwwxkwa23acp3m3mbylxdxk9i6j4n5kkwnh";
+      sha256 = "1mxqsv6ddgnssx1la9vaqj253b4fii5734cck76c247b9yqr71rj";
       type = "gem";
     };
-    version = "25.11.0.build20260501145753";
+    version = "25.11.0.build20260505153528";
   };
   osctl-repo = {
     dependencies = [
@@ -172,10 +172,10 @@
     platforms = [ ];
     source = {
       remotes = [ "https://rubygems.vpsfree.cz" ];
-      sha256 = "06b1bhwkzj7pycsz6lwmhfv2f6ihhh8a1qcxpfdk5mz1fs00z85q";
+      sha256 = "0dbxcrb2lbcijq667hriync2588lq96f9ss8ngd25f5p0qdfix09";
       type = "gem";
     };
-    version = "25.11.0.build20260501145753";
+    version = "25.11.0.build20260505153528";
   };
   ostruct = {
     groups = [ "default" ];
