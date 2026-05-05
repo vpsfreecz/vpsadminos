@@ -44,6 +44,19 @@ let
       node2.wait_until_succeeds('ping -c 1 node1', timeout: 60)
     end
 
+    def self.restart_osctld(machine)
+      machine.succeeds('sv -w 60 restart osctld')
+      machine.wait_for_service('osctld')
+      machine.wait_for_osctl_pool('tank')
+    end
+
+    def self.restart_transfer_daemons
+      machines.each_value { |machine| restart_osctld(machine) }
+
+      node1.wait_until_succeeds('ping -c 1 node2', timeout: 60)
+      node2.wait_until_succeeds('ping -c 1 node1', timeout: 60)
+    end
+
     def self.delete_authorized_key(machine, name)
       machine.succeeds(
         "osctl receive authorized-keys del #{Shellwords.escape(name)} >/dev/null 2>&1 || true"
@@ -348,6 +361,97 @@ import ../../make-test.nix (
                 transfer_files.merge('tmp/send-transfer/before-return' => 'before-return')
               )
               expect_test_service(node1, ctid, 'send-service')
+            end
+          end
+        '';
+      };
+
+      "restart-between-steps" = {
+        description = ''
+          Split send survives osctld restarts between transfer phases
+        '';
+
+        script = ''
+          ctid = get_container_id
+
+          ${commonScript}
+
+          before(:suite) do
+            ensure_cluster_ready
+            refresh_send_keys
+
+            node1.all_succeed(
+              "osctl ct new --distribution alpine #{ctid}",
+              "osctl ct unset start-menu #{ctid}",
+              "osctl ct start #{ctid}"
+            )
+
+            wait_ct_running(node1, ctid)
+            install_test_service(node1, ctid, 'send-restart-service')
+          end
+
+          after(:suite) do
+            cleanup_container_everywhere(ctid)
+          end
+
+          describe 'restart between split send steps' do
+            it 'persists and reloads source and destination transfer state' do
+              transfer_files = {
+                'tmp/send-transfer/restart-base' => 'restart-base',
+                'tmp/send-transfer/restart-sync' => 'restart-sync',
+                'tmp/send-transfer/restart-state' => 'restart-state'
+              }
+
+              write_ct_file(
+                node1,
+                ctid,
+                'tmp/send-transfer/restart-base',
+                'restart-base'
+              )
+
+              node1.succeeds("osctl ct send config #{ctid} node2")
+              restart_transfer_daemons
+
+              expect(send_log_present?(node1, ctid)).to be(true)
+              expect(ct_state(node2, ctid)).to eq('staged')
+
+              node1.succeeds("osctl ct send rootfs #{ctid}")
+              restart_transfer_daemons
+
+              expect(send_log_present?(node1, ctid)).to be(true)
+              expect(ct_state(node2, ctid)).to eq('staged')
+
+              write_ct_file(
+                node1,
+                ctid,
+                'tmp/send-transfer/restart-sync',
+                'restart-sync'
+              )
+              node1.succeeds("osctl ct send sync #{ctid}")
+              restart_transfer_daemons
+
+              expect(send_log_present?(node1, ctid)).to be(true)
+              expect(ct_state(node2, ctid)).to eq('staged')
+
+              write_ct_file(
+                node1,
+                ctid,
+                'tmp/send-transfer/restart-state',
+                'restart-state'
+              )
+              node1.succeeds("osctl ct send state #{ctid}")
+              restart_transfer_daemons
+
+              expect(send_log_present?(node1, ctid)).to be(true)
+              wait_ct_running(node2, ctid)
+
+              node1.succeeds("osctl ct send cleanup #{ctid}")
+
+              expect_ct_absent(node1, ctid)
+              expect(ct_state(node2, ctid)).to eq('running')
+              expect(send_log_present?(node2, ctid)).to be(false)
+              expect_ct_files(node2, ctid, transfer_files)
+              expect_test_service(node2, ctid, 'send-restart-service')
             end
           end
         '';

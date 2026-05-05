@@ -60,6 +60,13 @@ import ../../make-test.nix (
         machine.wait_until_online
       end
 
+      def self.restart_osctld
+        machine.succeeds('sv -w 60 restart osctld')
+        machine.wait_for_service('osctld')
+        machine.wait_for_osctl_pool('tank')
+        machine.wait_for_osctl_pool('dozer')
+      end
+
       def self.osctl_pool_arg(pool)
         pool ? "--pool #{pool} " : ""
       end
@@ -93,6 +100,14 @@ import ../../make-test.nix (
         rootfs = ct_rootfs(ctid, pool:)
         machine.succeeds("install -d #{File.dirname(File.join(rootfs, path))}")
         machine.succeeds("printf '%s\n' #{value} > #{File.join(rootfs, path)}")
+      end
+
+      def self.write_ct_file(ctid, path, value, pool: nil)
+        ct_exec(
+          ctid,
+          "mkdir -p /#{File.dirname(path)} && printf '%s\\n' #{value.inspect} > /#{path}",
+          pool:
+        )
       end
 
       def self.expect_file(ctid, path, value, pool: nil)
@@ -343,6 +358,84 @@ import ../../make-test.nix (
         end
       end
 
+      describe 'running split local copy with osctld restarts' do
+        ctid = "#{get_container_id}-copy-restart"
+        target = "#{ctid}-dst"
+
+        before(:context) do
+          cleanup_ct(ctid, target)
+          machine.all_succeed(
+            "osctl --pool tank ct new --distribution alpine #{ctid}",
+            "osctl --pool tank ct unset start-menu #{ctid}",
+            "osctl --pool tank ct start #{ctid}"
+          )
+          wait_ct_running(ctid)
+          install_test_service(ctid, 'copy-restart-service')
+        end
+
+        after(:context) do
+          cleanup_ct(ctid, target)
+        end
+
+        it 'persists and reloads the local copy state between phases' do
+          transfer_files = {
+            'tmp/local-transfer/copy-restart-base' => 'copy-restart-base',
+            'tmp/local-transfer/copy-restart-sync' => 'copy-restart-sync',
+            'tmp/local-transfer/copy-restart-state' => 'copy-restart-state'
+          }
+
+          write_ct_file(ctid, 'tmp/local-transfer/copy-restart-base', 'copy-restart-base')
+
+          machine.succeeds("osctl --pool tank ct cp config #{ctid} #{target}")
+          restart_osctld
+
+          wait_ct_running(ctid)
+          expect(ct_state(target)).to eq('staged')
+          expect(local_transfer_log_present?(ctid)).to be(true)
+
+          machine.succeeds("osctl --pool tank ct cp rootfs #{ctid}")
+          restart_osctld
+
+          wait_ct_running(ctid)
+          expect(ct_state(target)).to eq('staged')
+          expect(local_transfer_log_present?(ctid)).to be(true)
+
+          write_ct_file(ctid, 'tmp/local-transfer/copy-restart-sync', 'copy-restart-sync')
+          machine.succeeds("osctl --pool tank ct cp sync #{ctid}")
+          restart_osctld
+
+          wait_ct_running(ctid)
+          expect(ct_state(target)).to eq('staged')
+          expect(local_transfer_log_present?(ctid)).to be(true)
+
+          write_ct_file(ctid, 'tmp/local-transfer/copy-restart-state', 'copy-restart-state')
+          machine.succeeds("osctl --pool tank ct cp state #{ctid}")
+          restart_osctld
+
+          expect(ct_state(target)).to eq('stopped')
+          expect(local_transfer_log_present?(ctid)).to be(true)
+
+          machine.succeeds("osctl --pool tank ct cp cleanup #{ctid}")
+
+          if ct_state(ctid) != 'running'
+            machine.succeeds("osctl --pool tank ct start #{ctid}")
+          end
+
+          wait_ct_running(ctid)
+          expect_test_service(ctid, 'copy-restart-service')
+
+          machine.succeeds("osctl --pool tank ct start #{target}")
+          wait_ct_running(target)
+          expect_ct_file(target, 'tmp/local-transfer/copy-restart-base', 'copy-restart-base')
+          expect_ct_file(target, 'tmp/local-transfer/copy-restart-sync', 'copy-restart-sync')
+          expect_ct_file(target, 'tmp/local-transfer/copy-restart-state', 'copy-restart-state')
+          expect_test_service(target, 'copy-restart-service')
+          expect(local_transfer_log_present?(ctid)).to be(false)
+          expect_no_transfer_snapshots(ctid)
+          expect_no_transfer_snapshots(target)
+        end
+      end
+
       describe 'running local copy state retry' do
         ctid = "#{get_container_id}-copy-retry"
         target = "#{ctid}-dst"
@@ -447,6 +540,70 @@ import ../../make-test.nix (
           expect_ct_file(target, 'tmp/local-transfer/after-rootfs', 'after-rootfs')
           expect_ct_file(target, 'tmp/local-transfer/after-sync', 'after-sync')
           expect_test_service(target, 'move-service')
+          expect_no_transfer_snapshots(target)
+        end
+      end
+
+      describe 'running split local move with osctld restarts' do
+        ctid = "#{get_container_id}-move-restart"
+        target = "#{ctid}-dst"
+
+        before(:context) do
+          cleanup_ct(ctid, target)
+          machine.all_succeed(
+            "osctl --pool tank ct new --distribution alpine #{ctid}",
+            "osctl --pool tank ct unset start-menu #{ctid}",
+            "osctl --pool tank ct start #{ctid}"
+          )
+          wait_ct_running(ctid)
+          install_test_service(ctid, 'move-restart-service')
+        end
+
+        after(:context) do
+          cleanup_ct(ctid, target)
+        end
+
+        it 'persists and reloads the local move state between phases' do
+          write_ct_file(ctid, 'tmp/local-transfer/move-restart-base', 'move-restart-base')
+
+          machine.succeeds("osctl --pool tank ct mv config #{ctid} #{target}")
+          restart_osctld
+
+          wait_ct_running(ctid)
+          expect(ct_state(target)).to eq('staged')
+          expect(local_transfer_log_present?(ctid)).to be(true)
+
+          machine.succeeds("osctl --pool tank ct mv rootfs #{ctid}")
+          restart_osctld
+
+          wait_ct_running(ctid)
+          expect(ct_state(target)).to eq('staged')
+          expect(local_transfer_log_present?(ctid)).to be(true)
+
+          write_ct_file(ctid, 'tmp/local-transfer/move-restart-sync', 'move-restart-sync')
+          machine.succeeds("osctl --pool tank ct mv sync #{ctid}")
+          restart_osctld
+
+          wait_ct_running(ctid)
+          expect(ct_state(target)).to eq('staged')
+          expect(local_transfer_log_present?(ctid)).to be(true)
+
+          write_ct_file(ctid, 'tmp/local-transfer/move-restart-state', 'move-restart-state')
+          machine.succeeds("osctl --pool tank ct mv state #{ctid}")
+          restart_osctld
+
+          wait_ct_running(target)
+          expect(ct_state(ctid)).to eq('stopped')
+          expect(local_transfer_log_present?(ctid)).to be(true)
+
+          machine.succeeds("osctl --pool tank ct mv cleanup #{ctid}")
+
+          expect_ct_absent(ctid)
+          expect(ct_state(target)).to eq('running')
+          expect_ct_file(target, 'tmp/local-transfer/move-restart-base', 'move-restart-base')
+          expect_ct_file(target, 'tmp/local-transfer/move-restart-sync', 'move-restart-sync')
+          expect_ct_file(target, 'tmp/local-transfer/move-restart-state', 'move-restart-state')
+          expect_test_service(target, 'move-restart-service')
           expect_no_transfer_snapshots(target)
         end
       end
