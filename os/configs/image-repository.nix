@@ -247,99 +247,99 @@
     garbageCollection = [
       {
         distribution = "arch";
-        version = "\\d+";
+        version = "^\\d+$";
         keep = 4;
       }
       {
         distribution = "centos";
-        version = "9-stream-\\d+";
+        version = "^9-stream-\\d+$";
         keep = 4;
       }
       {
         distribution = "centos";
-        version = "10-stream-\\d+";
+        version = "^10-stream-\\d+$";
         keep = 4;
       }
       {
         distribution = "chimera";
-        version = "\\d+";
+        version = "^\\d+$";
         keep = 4;
       }
       {
         distribution = "debian";
-        version = "testing-\\d+";
+        version = "^testing-\\d+$";
         keep = 4;
       }
       {
         distribution = "debian";
-        version = "unstable-\\d+";
+        version = "^unstable-\\d+$";
         keep = 4;
       }
       {
         distribution = "fedora";
-        version = "rawhide-\\d+";
+        version = "^rawhide-\\d+$";
         keep = 4;
       }
       {
         distribution = "gentoo";
-        version = "openrc-\\d+";
+        version = "^openrc-\\d+$";
         keep = 4;
       }
       {
         distribution = "gentoo";
-        version = "systemd-\\d+";
+        version = "^systemd-\\d+$";
         keep = 4;
       }
       {
         distribution = "gentoo";
-        version = "musl-\\d+";
+        version = "^musl-\\d+$";
         keep = 4;
       }
       {
         distribution = "gentoo";
-        version = "musl-openrc-\\d+";
+        version = "^musl-openrc-\\d+$";
         keep = 4;
       }
       {
         distribution = "gentoo";
-        version = "musl-systemd-\\d+";
+        version = "^musl-systemd-\\d+$";
         keep = 4;
       }
       {
         distribution = "guix";
-        version = "\\d+";
+        version = "^\\d+$";
         keep = 4;
       }
       {
         distribution = "nixos";
-        version = "unstable-\\d+";
+        version = "^unstable-\\d+$";
         variant = "impermanence";
         keep = 4;
       }
       {
         distribution = "nixos";
-        version = "unstable-\\d+";
+        version = "^unstable-\\d+$";
         variant = "minimal";
         keep = 4;
       }
       {
         distribution = "opensuse";
-        version = "tumbleweed-\\d+";
+        version = "^tumbleweed-\\d+$";
         keep = 4;
       }
       {
         distribution = "slackware";
-        version = "current-\\d+";
+        version = "^current-\\d+$";
         keep = 4;
       }
       {
         distribution = "void";
-        version = "glibc-\\d+";
+        version = "^glibc-\\d+$";
         keep = 4;
       }
       {
         distribution = "void";
-        version = "musl-\\d+";
+        version = "^musl-\\d+$";
         keep = 4;
       }
     ];

@@ -27,7 +27,7 @@ import ../../make-test.nix (
             # Gentoo with musl/openrc has problems mounting joined cpu,cpuacct cgroup
             # and possibly others.
             expectFailure =
-              distribution == "gentoo" && (version == "latest-openrc" || version == "latest-musl");
+              distribution == "gentoo" && (version == "latest-openrc" || version == "latest-musl-openrc");
 
             script = ''
               machine.wait_for_osctl_pool("tank")
