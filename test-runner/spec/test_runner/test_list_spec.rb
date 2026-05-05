@@ -97,7 +97,7 @@ RSpec.describe TestRunner::TestList do
         'tags' => [],
         'labels' => {},
         'testScripts' => {
-          'smoke' => { 'description' => 'Smoke' }
+          'smoke' => { 'description' => 'Smoke', 'attempts' => 3 }
         }
       )
     )
@@ -105,5 +105,6 @@ RSpec.describe TestRunner::TestList do
     test = described_class.new.by_path('suite/a')
 
     expect(test.test_scripts['smoke'].description).to eq('Smoke')
+    expect(test.test_scripts['smoke'].attempts).to eq(3)
   end
 end

@@ -15,18 +15,22 @@ module TestRunner
     # @return [Boolean, nil]
     attr_reader :expect_failure
 
+    # @return [Integer]
+    attr_reader :attempts
+
     # @return [Array<String>]
     attr_reader :tags
 
     # @return [Hash<String, String>]
     attr_reader :labels
 
-    def initialize(test, name, description:, expect_failure:, tags:, labels:)
+    def initialize(test, name, description:, expect_failure:, attempts:, tags:, labels:)
       @test = test
       @name = name
       @path = "#{test.path}##{name}"
       @description = description || test.description
       @expect_failure = expect_failure.nil? ? test.expect_failure : expect_failure
+      @attempts = attempts || test.attempts || 1
       @tags = test.tags + tags
       @labels = test.labels.merge(labels)
       @singleton = false

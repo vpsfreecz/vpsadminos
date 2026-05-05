@@ -92,6 +92,7 @@ let
     l.mapAttrs (name: ts: {
       description = ts.description or null;
       expectFailure = ts.expectFailure or null;
+      attempts = ts.attempts or null;
       tags = ts.tags or [ ];
       labels = ts.labels or { };
     }) testCfg.testScripts;

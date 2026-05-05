@@ -83,8 +83,20 @@ RSpec.describe TestRunner::Executor do
   it 'retries test attempts until the result matches expectations' do
     test = build_test(attempts: 3)
     script = test.test_scripts['default']
-    unexpected = instance_double(TestRunner::TestResult, expected_result?: false)
-    expected = instance_double(TestRunner::TestResult, expected_result?: true)
+    unexpected = TestRunner::TestResult.new(
+      test,
+      [TestRunner::TestScriptResult.new(script, false, 0.1)],
+      true,
+      0.1,
+      '/tmp/state'
+    )
+    expected = TestRunner::TestResult.new(
+      test,
+      [TestRunner::TestScriptResult.new(script, true, 0.2)],
+      true,
+      0.2,
+      '/tmp/state'
+    )
     executor = build_executor([script])
     queue = Queue.new
     queue << [0, test, [script]]
@@ -95,7 +107,49 @@ RSpec.describe TestRunner::Executor do
     executor.send(:run_worker, 0)
 
     expect(executor).to have_received(:run_test_attempt).twice
-    expect(executor.results).to eq([expected])
+    expect(executor.results.first).to be_successful
+    expect(executor.results.first.elapsed_time).to be_within(0.001).of(0.3)
+  end
+
+  it 'retries only scripts with unexpected results' do
+    test = build_test(
+      scripts: {
+        'stable' => {},
+        'flaky' => { 'attempts' => 3 }
+      }
+    )
+    stable = test.test_scripts['stable']
+    flaky = test.test_scripts['flaky']
+    first = TestRunner::TestResult.new(
+      test,
+      [
+        TestRunner::TestScriptResult.new(stable, true, 0.1),
+        TestRunner::TestScriptResult.new(flaky, false, 0.2)
+      ],
+      true,
+      0.3,
+      '/tmp/state'
+    )
+    second = TestRunner::TestResult.new(
+      test,
+      [TestRunner::TestScriptResult.new(flaky, true, 0.4)],
+      true,
+      0.4,
+      '/tmp/state'
+    )
+    executor = build_executor([stable, flaky])
+    queue = Queue.new
+    queue << [0, test, [stable, flaky]]
+    executor.instance_variable_set(:@queue, queue)
+    allow(executor).to receive(:run_test_attempt).and_return(first, second)
+    allow(executor).to receive(:sleep)
+
+    executor.send(:run_worker, 0)
+
+    expect(executor).to have_received(:run_test_attempt).with(0, test, [stable, flaky], 0)
+    expect(executor).to have_received(:run_test_attempt).with(0, test, [flaky], 1)
+    expect(executor.results.first.script_results.map(&:test_script)).to eq([stable, flaky])
+    expect(executor.results.first).to be_successful
   end
 
   it 'stops work after unexpected results when stop_on_failure is enabled' do

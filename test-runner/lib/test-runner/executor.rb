@@ -147,25 +147,57 @@ module TestRunner
           return
         end
 
-        result = nil
-
-        test.attempts.times do |attempt|
-          result = run_test_attempt(i, test, scripts, attempt)
-          break if result.expected_result? || stop_work?
-
-          sleep(5)
-        end
+        result = run_test_with_retries(i, test, scripts)
 
         mutex.synchronize { results << result }
       end
     end
 
+    def run_test_with_retries(i, test, scripts)
+      latest_script_results = {}
+      remaining_scripts = scripts
+      elapsed_time = 0
+      last_result = nil
+      attempt = 0
+
+      loop do
+        last_result = run_test_attempt(i, test, remaining_scripts, attempt)
+        elapsed_time += last_result.elapsed_time
+
+        last_result.script_results.each do |script_result|
+          latest_script_results[script_result.test_script] = script_result
+        end
+
+        break if stop_work?
+
+        remaining_scripts = remaining_scripts.select do |script|
+          script_result = latest_script_results.fetch(script)
+
+          script_result.unexpected_result? && attempt + 1 < script.attempts
+        end
+
+        break if remaining_scripts.empty?
+
+        sleep(5)
+        attempt += 1
+      end
+
+      build_accumulated_test_result(
+        test,
+        scripts,
+        latest_script_results,
+        elapsed_time,
+        last_result
+      )
+    end
+
     def run_test_attempt(i, test, scripts, attempt)
       prefix = "[#{i + 1}/#{@test_count}]"
       script_list = scripts.map { |v| "##{v.name}" }.join(', ')
+      max_attempts = scripts.map(&:attempts).max
 
       if attempt > 0
-        log("#{prefix} Retrying test '#{test.path}' (#{script_list}) (attempt #{attempt + 1}/#{test.attempts})")
+        log("#{prefix} Retrying test '#{test.path}' (#{script_list}) (attempt #{attempt + 1}/#{max_attempts})")
       else
         log("#{prefix} Running test '#{test.path}' (#{script_list})")
       end
@@ -191,6 +223,20 @@ module TestRunner
       end
 
       result
+    end
+
+    def build_accumulated_test_result(test, scripts, latest_script_results, elapsed_time, last_result)
+      script_results = scripts.map do |script|
+        latest_script_results.fetch(script) { TestScriptResult.new(script, false, -1) }
+      end
+
+      TestResult.new(
+        test,
+        script_results,
+        last_result&.successful? || false,
+        elapsed_time,
+        last_result&.state_dir || test_state_dir(test)
+      )
     end
 
     def run_test(test, scripts, prefix:)

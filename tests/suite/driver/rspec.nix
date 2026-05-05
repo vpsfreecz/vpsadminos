@@ -314,6 +314,24 @@ import ../../make-test.nix (
           end
         '';
       };
+
+      script-attempts = {
+        description = ''
+          Test that individual test scripts can be retried
+        '';
+        attempts = 2;
+        script = ''
+          state_dir = File.dirname(machine.send(:console_log_path))
+          marker = File.join(state_dir, 'script-attempts.marker')
+
+          if File.exist?(marker)
+            File.delete(marker)
+          else
+            File.write(marker, "retry\n")
+            fail 'intentional first failure'
+          end
+        '';
+      };
     };
   }
 )
