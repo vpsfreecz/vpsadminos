@@ -25,6 +25,10 @@ RSpec.describe OsCtld::Generic::ClientHandler do
         case req[:cmd]
         when 'ping'
           ok('pong')
+        when 'block'
+          command_started << true
+          finish_command.pop
+          ok('done')
         when 'progress'
           send_update('step 1')
           ok('done')
@@ -49,6 +53,14 @@ RSpec.describe OsCtld::Generic::ClientHandler do
 
       def denixstorify(backtrace)
         backtrace || []
+      end
+
+      def command_started
+        @command_started ||= Queue.new
+      end
+
+      def finish_command
+        @finish_command ||= Queue.new
       end
     end
   end
@@ -183,6 +195,42 @@ RSpec.describe OsCtld::Generic::ClientHandler do
       join_thread!(thread)
       expect(thread).not_to be_alive
       expect { read_json_line(client_sock, timeout: 0.1) }.to raise_error(/socket read timed out/)
+    end
+  end
+
+  it 'stops an idle client thread' do
+    with_socket_pair do |server_sock, client_sock|
+      handler = handler_class.new(server_sock, {})
+      thread = Thread.new { handler.communicate }
+
+      write_json_line(client_sock, { cmd: 'ping', opts: {} })
+      expect(read_json_line(client_sock)).to eq(status: true, response: 'pong')
+
+      handler.request_stop
+
+      join_thread!(thread)
+      expect(thread).not_to be_alive
+      expect(server_sock).to be_closed
+    end
+  end
+
+  it 'lets a running command finish after stop is requested' do
+    with_socket_pair do |server_sock, client_sock|
+      handler = handler_class.new(server_sock, {})
+      thread = Thread.new { handler.communicate }
+
+      write_json_line(client_sock, { cmd: 'block', opts: {} })
+      handler.command_started.pop
+
+      handler.request_stop
+      expect(server_sock).not_to be_closed
+
+      handler.finish_command << true
+      expect(read_json_line(client_sock)).to eq(status: true, response: 'done')
+
+      join_thread!(thread)
+      expect(thread).not_to be_alive
+      expect(server_sock).to be_closed
     end
   end
 end

@@ -39,6 +39,7 @@ module OsCtld
 
       def request_stop
         @cmd && @cmd.request_stop
+        super
       end
 
       def server_version

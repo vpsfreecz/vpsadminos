@@ -1,4 +1,5 @@
 require 'libosctl'
+require 'io/wait'
 
 module OsCtld
   # Generic client handler for {Generic::Server}
@@ -48,6 +49,7 @@ module OsCtld
     def initialize(socket, opts)
       @sock = socket
       @opts = opts
+      @stop_requested = false
     end
 
     def communicate
@@ -55,18 +57,16 @@ module OsCtld
       send_data({ version: v }) if v
 
       loop do
-        buf = ''
+        buf = read_request
 
-        while (m = @sock.recv(1024))
-          buf += m
-          break if m.empty? || m.end_with?("\n")
-        end
-
-        break if buf.empty?
+        break if buf.nil? || buf.empty?
         break if parse(buf) == :handled
+        break if stop_requested?
       end
-    rescue Errno::ECONNRESET
+    rescue Errno::ECONNRESET, IOError
       # pass
+    ensure
+      close_socket if stop_requested?
     end
 
     # Return the server version that is sent to the client in the first message.
@@ -93,7 +93,9 @@ module OsCtld
     #
     # This method is not called from the client thread, so the implementation
     # has to communicate with the thread and tell it to quit.
-    def request_stop; end
+    def request_stop
+      @stop_requested = true
+    end
 
     # Signal command success, send `output` to the client
     def ok(output = nil)
@@ -127,6 +129,27 @@ module OsCtld
     end
 
     protected
+
+    def stop_requested?
+      @stop_requested
+    end
+
+    def read_request
+      buf = +''
+
+      loop do
+        return if stop_requested?
+
+        readable = @sock.wait_readable(0.2)
+        next unless readable
+
+        m = @sock.recv(1024)
+        return buf if m.nil? || m.empty?
+
+        buf += m
+        return buf if m.end_with?("\n")
+      end
+    end
 
     def parse(data)
       begin
@@ -187,6 +210,12 @@ module OsCtld
       true
     rescue Errno::EPIPE
       false
+    end
+
+    def close_socket
+      @sock.close unless @sock.closed?
+    rescue IOError
+      # pass
     end
   end
 end

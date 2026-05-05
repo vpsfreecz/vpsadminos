@@ -27,4 +27,23 @@ RSpec.describe OsCtld::Daemon do
       expect(described_class).to have_received(:new).once
     end
   end
+
+  describe OsCtld::Daemon::ClientHandler do
+    it 'requests the active command to stop without closing the client socket' do
+      with_socket_pair do |server_sock, _client_sock|
+        handler = described_class.new(server_sock, {})
+        cmd_class = Class.new do
+          def request_stop; end
+        end
+        cmd = instance_double(cmd_class, request_stop: nil)
+
+        handler.instance_variable_set(:@cmd, cmd)
+
+        handler.request_stop
+
+        expect(cmd).to have_received(:request_stop).once
+        expect(server_sock).not_to be_closed
+      end
+    end
+  end
 end
