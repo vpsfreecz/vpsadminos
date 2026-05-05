@@ -98,16 +98,7 @@ let
           };
         }
         "dist-config/systemd-rundir-limits"
-        "docker/almalinux-8"
-        "docker/almalinux-9"
-        "docker/almalinux-10"
-        "docker/alpine-latest"
-        "docker/arch-latest"
-        "docker/debian-latest"
-        "docker/fedora-latest"
-        "docker/ubuntu-20.04"
-        "docker/ubuntu-22.04"
-        "docker/ubuntu-24.04"
+        "docker"
         "driver/nixos"
         "driver/rspec"
         "driver/vpsadminos"
@@ -115,9 +106,7 @@ let
           template = "image-scripts/test";
           instances = imageScripts;
         }
-        "incus/arch-latest"
-        "incus/debian-latest"
-        "incus/fedora-latest"
+        "incus"
         "kernel/cpu-view/cgroups-v1"
         "kernel/cpu-view/cgroups-v2"
         "kernel/loadavg"
@@ -146,14 +135,9 @@ let
         "osctl/pool/export-cleanup"
         "osctl-exportfs/mount"
         "prometheus/exporters"
-        "podman/debian-latest"
-        "podman/fedora-latest"
-        "podman/ubuntu-latest"
+        "podman"
         "secrets"
-        "snap/hello-fedora"
-        "snap/hello-ubuntu"
-        "snap/lxd-fedora"
-        "snap/lxd-ubuntu"
+        "snap"
         "system/boot/stage-2"
         "systemd/credentials"
         {
