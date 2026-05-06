@@ -86,6 +86,40 @@ RSpec.describe OsCtld::ThreadReaper do
     expect(reaper.export).to be_empty
   end
 
+  it 'waits for active threads to finish after requesting stop' do
+    worker_started = Queue.new
+    finish_worker = Queue.new
+    stop_requested = Queue.new
+    manager = Struct.new(:stop_requested) do
+      def request_stop
+        stop_requested << true
+      end
+    end.new(stop_requested)
+
+    worker = Thread.new do
+      worker_started << true
+      finish_worker.pop
+    end
+
+    reaper.start
+    reaper.add(worker, manager)
+    worker_started.pop
+    wait_until { reaper.export == [[worker, manager]] }
+
+    stop_thread = Thread.new { reaper.stop }
+    stop_requested.pop
+
+    expect(stop_thread).to be_alive
+
+    finish_worker << true
+    join_thread!(stop_thread)
+
+    expect(reaper.export).to be_empty
+  ensure
+    finish_worker << true if worker&.alive?
+    join_thread!(worker) if worker
+  end
+
   it 'raises on unknown queue commands' do
     reaper.instance_variable_get(:@queue) << :bogus
 

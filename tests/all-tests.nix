@@ -145,6 +145,7 @@ let
         "osctl/ct-uid-gid"
         "osctl/pool/export-cleanup"
         "osctl-exportfs/mount"
+        "osctld/restart"
         "prometheus/exporters"
         "podman/debian-latest"
         "podman/fedora-latest"
