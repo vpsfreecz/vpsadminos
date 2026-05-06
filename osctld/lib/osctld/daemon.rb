@@ -35,6 +35,8 @@ module OsCtld
       rescue StandardError => e
         Eventd.report(:management, id:, state: :failed, cmd: req[:cmd], opts: req[:opts])
         raise
+      ensure
+        @cmd = nil
       end
 
       def request_stop
@@ -210,15 +212,15 @@ module OsCtld
     def stop
       @stopping = true
       log(:info, 'Stopping daemon')
-      Eventd.shutdown
       @server.stop if @server
       FileUtils.rm_f(SOCKET)
+      ThreadReaper.stop
+      Eventd.shutdown
       UserControl.stop
       SendReceive.stop
       DB::Repositories.each(&:stop)
       DB::Pools.get.each(&:stop)
       CpuScheduler.shutdown
-      ThreadReaper.stop
       Monitor::Master.stop
       LockRegistry.stop
       log(:info, 'Daemon stopped successfully')
