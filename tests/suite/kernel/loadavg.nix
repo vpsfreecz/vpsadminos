@@ -146,6 +146,22 @@ import ../../make-test.nix (
         JSON.parse(machine.succeeds("osctl ct exec #{testct} sysinfo-to-json")[1])
       end
 
+      def self.wait_for_load_at_least(name, target_load, timeout: 60, interval: 5)
+        deadline = Time.now + timeout
+        cur_load = nil
+
+        loop do
+          cur_load = yield
+
+          return cur_load if cur_load >= target_load
+          break if Time.now >= deadline
+
+          sleep(interval)
+        end
+
+        fail "#{name} did not reach #{target_load} within #{timeout}s, last load was #{cur_load.inspect}"
+      end
+
       configure_examples do |config|
         config.default_order = :defined
       end
@@ -241,13 +257,23 @@ import ../../make-test.nix (
 
                 loadavgs.each_with_index do |lavg, i|
                   it "is included in #{lavg} host load in /proc/loadavg" do
-                    host_load = read_host_load
+                    target_load = load_config.values.sum / increase_ratio
 
-                    expect(host_load[i]).to be >= (load_config.values.sum / increase_ratio)
+                    host_load = wait_for_load_at_least("host #{lavg} load in /proc/loadavg", target_load) do
+                      read_host_load[i]
+                    end
+
+                    expect(host_load).to be >= target_load
                   end
 
                   it "is included in #{lavg} host load in sysinfo()" do
-                    expect(host_sysinfo['loads'][i]).to be >= (load_config.values.sum / increase_ratio)
+                    target_load = load_config.values.sum / increase_ratio
+
+                    host_load = wait_for_load_at_least("host #{lavg} load in sysinfo()", target_load) do
+                      host_sysinfo['loads'][i]
+                    end
+
+                    expect(host_load).to be >= target_load
                   end
                 end
 
