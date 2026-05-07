@@ -261,6 +261,7 @@ import ../../make-test.nix (
       map (test: {
         name = test.version;
         value = {
+          expectFailure = test.expectFailure or false;
           description = ''
             Test Incus on ${distribution} ${test.version}
           '';
