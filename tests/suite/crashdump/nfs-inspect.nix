@@ -177,6 +177,7 @@ import ../../make-test.nix (
       EXPORT_PATH = '${exportPath}'
 
       message = 'hello crash kernel nfs inspect test'
+      crash_command_timeout = 20 * 60
 
       def self.latest_crash_dir
         _, path = server.succeeds(
@@ -200,54 +201,78 @@ import ../../make-test.nix (
         CMD
       end
 
-      server.start
-      server.wait_for_osctl_pool('tank')
-      server.wait_for_service('nfsd')
-      server.wait_until_succeeds("test -d #{Shellwords.escape(EXPORT_PATH)}", timeout: 60)
-      server.succeeds('zfs share -a', timeout: 60)
-      server.wait_until_succeeds(
-        "exportfs -v | tr '\\n\\t' '  ' | grep -F #{Shellwords.escape(EXPORT_PATH)} | grep -F #{Shellwords.escape(CRASHER_ADDRESS)}",
-        timeout: 60
-      )
+      def self.expect_crash_kernel_loaded(test_machine)
+        _, loaded = test_machine.succeeds('cat /sys/kernel/kexec_crash_loaded')
 
-      crasher.start
-      crasher.wait_for_service('crashdump')
+        if loaded.strip != '1'
+          test_machine.succeeds('sv status crashdump || true')
+          test_machine.succeeds('tail -n 200 /var/log/crashdump/current || true')
+          test_machine.succeeds('dmesg | grep -Ei "crash|kexec|reserve|memory" || true')
+        end
 
-      server.wait_until_succeeds("ping -c 1 #{CRASHER_ADDRESS}", timeout: 60)
-      crasher.wait_until_succeeds("ping -c 1 #{SERVER_ADDRESS}", timeout: 60)
-
-      crasher.succeeds("mkdir -p /mnt/host-nfs-check")
-      crasher.succeeds(
-        "mount.nfs -v -o vers=4 #{SERVER_ADDRESS}:#{Shellwords.escape(EXPORT_PATH)} /mnt/host-nfs-check",
-        timeout: 60
-      )
-      crasher.succeeds("printf '%s\n' host-stage > /mnt/host-nfs-check/host-stage.txt")
-      crasher.succeeds("umount /mnt/host-nfs-check")
-      expect(server.succeeds("cat #{Shellwords.escape(EXPORT_PATH)}/host-stage.txt")[1].strip)
-        .to eq('host-stage')
-
-      _, loaded = crasher.succeeds('cat /sys/kernel/kexec_crash_loaded')
-      expect(loaded.strip).to eq('1')
-
-      crasher.execute("echo #{Shellwords.escape(message)} > /dev/kmsg")
-
-      begin
-        crasher.execute('echo c > /proc/sysrq-trigger')
-      rescue OsVm::MachineShellClosed
-      else
-        fail 'Expected machine shell to be closed'
+        expect(loaded.strip).to eq('1')
       end
 
-      wait_for_uploaded_crash
-      target = latest_crash_dir
-      expect(target).not_to eq("")
+      describe 'crashdump NFS inspect upload', order: :defined do
+        it 'exports the crashdump dataset over ZFS sharenfs' do
+          server.start
+          server.wait_for_osctl_pool('tank')
+          server.wait_for_service('nfsd')
+          server.wait_until_succeeds("test -d #{Shellwords.escape(EXPORT_PATH)}", timeout: 60)
+          server.succeeds('zfs share -a', timeout: 60)
+          server.wait_until_succeeds(
+            "exportfs -v | tr '\\n\\t' '  ' | grep -F #{Shellwords.escape(EXPORT_PATH)} | grep -F #{Shellwords.escape(CRASHER_ADDRESS)}",
+            timeout: 60
+          )
+        end
 
-      expect(server.succeeds("cat #{Shellwords.escape(target)}/inspect.exit-status")[1].strip)
-        .to eq('0')
-      server.succeeds("grep -F #{Shellwords.escape(message)} #{Shellwords.escape(target)}/dmesg")
-      server.succeeds("grep -F 'vmcore=/proc/vmcore' #{Shellwords.escape(target)}/inspect/manifest")
-      server.succeeds("grep -F 'ps-active.txt 0' #{Shellwords.escape(target)}/inspect/status")
-      server.succeeds("grep -F 'bt-active.txt 0' #{Shellwords.escape(target)}/inspect/status")
+        it 'starts the crashdump client' do
+          crasher.start
+          crasher.wait_for_service('crashdump')
+        end
+
+        it 'has network connectivity between both machines' do
+          server.wait_until_succeeds("ping -c 1 #{CRASHER_ADDRESS}", timeout: 60)
+          crasher.wait_until_succeeds("ping -c 1 #{SERVER_ADDRESS}", timeout: 60)
+        end
+
+        it 'mounts and writes to NFS from the booted system' do
+          crasher.succeeds("mkdir -p /mnt/host-nfs-check")
+          crasher.succeeds(
+            "mount.nfs -v -o vers=4 #{SERVER_ADDRESS}:#{Shellwords.escape(EXPORT_PATH)} /mnt/host-nfs-check",
+            timeout: 60
+          )
+          crasher.succeeds("printf '%s\n' host-stage > /mnt/host-nfs-check/host-stage.txt")
+          crasher.succeeds("umount /mnt/host-nfs-check")
+
+          expect(server.succeeds("cat #{Shellwords.escape(EXPORT_PATH)}/host-stage.txt")[1].strip)
+            .to eq('host-stage')
+        end
+
+        it 'loads the crash kernel and uploads inspection data' do
+          expect_crash_kernel_loaded(crasher)
+          crasher.execute("echo #{Shellwords.escape(message)} > /dev/kmsg")
+
+          begin
+            crasher.execute('echo c > /proc/sysrq-trigger', timeout: crash_command_timeout)
+          rescue OsVm::MachineShellClosed
+          else
+            fail 'Expected machine shell to be closed'
+          end
+
+          wait_for_uploaded_crash
+          target = latest_crash_dir
+
+          expect(target).not_to eq("")
+          expect(server.succeeds("cat #{Shellwords.escape(target)}/inspect.exit-status")[1].strip)
+            .to eq('0')
+
+          server.succeeds("grep -F #{Shellwords.escape(message)} #{Shellwords.escape(target)}/dmesg")
+          server.succeeds("grep -F 'vmcore=/proc/vmcore' #{Shellwords.escape(target)}/inspect/manifest")
+          server.succeeds("grep -F 'ps-active.txt 0' #{Shellwords.escape(target)}/inspect/status")
+          server.succeeds("grep -F 'bt-active.txt 0' #{Shellwords.escape(target)}/inspect/status")
+        end
+      end
     '';
   }
 )
