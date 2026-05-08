@@ -16,7 +16,7 @@ let
       name = "override_uname";
       description = "Override uname(2) syscall to report spoofed kernel identity";
       sinceKernel = "5.4";
-      enable = true;
+      enable = false;
     }
     {
       name = "lsm_example";
