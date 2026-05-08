@@ -70,6 +70,7 @@ let
         "cgroups/system-v2"
         "crashdump/default"
         "crashdump/inspect"
+        "crashdump/nfs-inspect"
         "ctstartmenu/setup"
         "declarative-containers"
         "defaults"
