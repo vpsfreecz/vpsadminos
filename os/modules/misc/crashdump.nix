@@ -73,6 +73,12 @@ in
         kernelParams = mkOption {
           type = types.listOf types.str;
           default = [
+            # Crash kernels on multi-socket hosts can boot with most reserved
+            # memory exposed on a non-boot NUMA node. NFSv4 then may fail to
+            # create its callback service thread with ENOMEM even though
+            # global free memory is plentiful. Use one allocation domain in
+            # the crash kernel, where preserving NUMA locality is irrelevant.
+            "numa=off"
             "1"
             "boot.shell_on_fail"
             "loglevel=8"
