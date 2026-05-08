@@ -63,6 +63,14 @@ let
       ZFS = yes;
     };
 
+    damon = {
+      DAMON = whenAtLeast "5.19" yes;
+      DAMON_VADDR = whenAtLeast "5.19" yes;
+      DAMON_PADDR = whenAtLeast "5.19" yes;
+      DAMON_SYSFS = whenAtLeast "5.19" yes;
+      DAMON_RECLAIM = whenAtLeast "5.19" yes;
+    };
+
     performance = {
       BLK_WBT = no;
       HW_RANDOM = yes;
