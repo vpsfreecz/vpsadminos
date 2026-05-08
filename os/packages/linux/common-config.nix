@@ -64,11 +64,11 @@ let
     };
 
     damon = {
-      DAMON = whenAtLeast "5.19" yes;
-      DAMON_VADDR = whenAtLeast "5.19" yes;
-      DAMON_PADDR = whenAtLeast "5.19" yes;
-      DAMON_SYSFS = whenAtLeast "5.19" yes;
-      DAMON_RECLAIM = whenAtLeast "5.19" yes;
+      DAMON = whenAtLeast "6.12.87" yes;
+      DAMON_VADDR = whenAtLeast "6.12.87" yes;
+      DAMON_PADDR = whenAtLeast "6.12.87" yes;
+      DAMON_SYSFS = whenAtLeast "6.12.87" yes;
+      DAMON_RECLAIM = whenAtLeast "6.12.87" yes;
     };
 
     performance = {
