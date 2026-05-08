@@ -8,6 +8,14 @@ with lib;
 let
 
   availablePatches = [
+    # The uname patch is the canonical livepatch example.
+    # It changes init_uts_ns.name.release to "<kernelVer>.<patchVer>"
+    # so that `uname -r` shows the livepatch is active.
+    # Uncomment to enable:
+    # {
+    #   name = "uname";
+    #   filterFn = availableForAllKernels;
+    # }
   ];
 
   availableForAllKernels = kernelVersion: true;
