@@ -27,6 +27,7 @@
   ./services/hardware/eudev.nix
   ./services/hardware/irqbalance.nix
   ./services/livepatches/default.nix
+  ./services/ebpf-livepatch/default.nix
   ./services/logging/logrotate.nix
   ./services/logging/rsyslog.nix
   ./services/mail/opensmtpd.nix
