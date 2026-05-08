@@ -73,13 +73,13 @@ in
     runit.services.ebpf-livepatch = mkIf cfg.autoLoad {
       run = ''
         echo "ebpf-livepatch: loading BPF programs..."
-        ${ebpfPkg.loader}/bin/ebpf-loader load all || echo "ebpf-livepatch: some programs failed to load"
+        ${ebpfPkg.loader}/bin/ebpf-loader run all || echo "ebpf-livepatch: some programs failed to load"
         echo "ebpf-livepatch: programs loaded, keeping service alive"
         sleep inf
       '';
       finish = ''
         echo "ebpf-livepatch: unloading BPF programs..."
-        ${ebpfPkg.loader}/bin/ebpf-loader unload all || true
+        echo "ebpf-livepatch: programs detached (on process exit)"
       '';
       runlevels = [ "default" ];
       onChange = "restart";

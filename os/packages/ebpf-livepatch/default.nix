@@ -14,7 +14,7 @@
 }:
 
 let
-  inherit (pkgs) llvm;
+  inherit (pkgs) clang;
 
   progNames = builtins.attrNames programs;
 
@@ -35,7 +35,8 @@ let
       name = "ebpf-${name}-bpf-o-${kernel.modDirVersion}";
       src = ../../../os/ebpf/programs;
 
-      nativeBuildInputs = [ llvm ];
+      hardeningDisable = [ "all" ];
+      nativeBuildInputs = [ clang ];
 
       buildPhase = ''
         mkdir -p out
@@ -115,7 +116,7 @@ let
     + lib.concatMapStrings (name: ''
       cp ${bpfObjs.${name}}/${name}.bpf.o $out/bpf/
     '') progNames
-    + '';
+    + "";
 
     meta.description = "eBPF livepatch loader for vpsAdminOS";
   };

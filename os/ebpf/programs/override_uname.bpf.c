@@ -2,8 +2,10 @@
 /*
  * override_uname.bpf.c - eBPF livepatch: override uname syscall output.
  *
- * Attaches a kprobe/kretprobe pair on __do_sys_newuname.
- * On return, overwrites the userspace buffer with spoofed utsname fields.
+ * Uses fentry/fexit on __x64_sys_newuname (x86_64 syscall entry wrapper).
+ * __do_sys_newuname is notrace, so we target the traceable wrapper.
+ *
+ * BPF trampoline links (fentry/fexit) support pinning for persistence.
  */
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
@@ -12,7 +14,6 @@
 
 char LICENSE[] SEC("license") = "GPL";
 
-/* Keyed by tid, stores the userspace buffer pointer passed to uname. */
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 256);
@@ -20,23 +21,26 @@ struct {
     __type(value, __u64);
 } uname_buf_map SEC(".maps");
 
-SEC("kprobe/__do_sys_newuname")
-int BPF_KPROBE(kprobe__do_sys_newuname, struct new_utsname __user *buf)
+SEC("fentry/__x64_sys_newuname")
+int BPF_PROG(fentry__x64_sys_newuname, struct pt_regs *regs)
 {
-    __u32 tid = bpf_get_current_pid_tgid() & 0xFFFFFFFF;
-    __u64 ptr = (__u64)buf;
+    __u32 tid = bpf_get_current_pid_tgid();
+    __u64 buf_ptr;
+    int err;
 
-    if (!buf)
+    /* regs->di = first syscall argument (the userspace buffer) */
+    err = bpf_probe_read_kernel(&buf_ptr, sizeof(buf_ptr), &regs->di);
+    if (err || !buf_ptr)
         return 0;
 
-    bpf_map_update_elem(&uname_buf_map, &tid, &ptr, BPF_ANY);
+    bpf_map_update_elem(&uname_buf_map, &tid, &buf_ptr, BPF_ANY);
     return 0;
 }
 
-SEC("kretprobe/__do_sys_newuname")
-int BPF_KRETPROBE(kretprobe__do_sys_newuname, int ret)
+SEC("fexit/__x64_sys_newuname")
+int BPF_PROG(fexit__x64_sys_newuname, struct pt_regs *regs, long ret)
 {
-    __u32 tid = bpf_get_current_pid_tgid() & 0xFFFFFFFF;
+    __u32 tid = bpf_get_current_pid_tgid();
     __u64 *ptrp;
     struct new_utsname *buf;
 
@@ -47,22 +51,16 @@ int BPF_KRETPROBE(kretprobe__do_sys_newuname, int ret)
     if (!ptrp)
         goto cleanup;
 
-    buf = (struct new_utsname *)*ptrp;
+    buf = (struct new_utsname *)(unsigned long)*ptrp;
     if (!buf)
         goto cleanup;
 
-    /*
-     * Overwrite the userspace buffer with spoofed values.
-     * Use bpf_probe_write_user to write to userspace memory.
-     */
-    bpf_probe_write_user(&buf->sysname,  "vpsAdminOS",  sizeof("vpsAdminOS"));
-    bpf_probe_write_user(&buf->nodename, "ebpf-patched", sizeof("ebpf-patched"));
-    bpf_probe_write_user(&buf->release,  "6.6.6-ebpf-livepatch", sizeof("6.6.6-ebpf-livepatch"));
-    bpf_probe_write_user(&buf->version,  "#1-ebpf-livepatch SMP PREEMPT_DYNAMIC", sizeof("#1-ebpf-livepatch SMP PREEMPT_DYNAMIC"));
-    bpf_probe_write_user(&buf->machine,  "x86_64", sizeof("x86_64"));
-    bpf_probe_write_user(&buf->domainname, "(none)", sizeof("(none)"));
-
-    bpf_printk("ebpf-livepatch: overrode uname for tid %u\n", tid);
+    bpf_probe_write_user(&buf->sysname,    "vpsAdminOS", 11);
+    bpf_probe_write_user(&buf->nodename,   "ebpf-patched", 13);
+    bpf_probe_write_user(&buf->release,    "6.6.6-ebpf", 11);
+    bpf_probe_write_user(&buf->version,    "#1-ebpf-poc", 12);
+    bpf_probe_write_user(&buf->machine,    "x86_64", 7);
+    bpf_probe_write_user(&buf->domainname, "(none)", 7);
 
 cleanup:
     bpf_map_delete_elem(&uname_buf_map, &tid);
