@@ -42,7 +42,7 @@ in
         };
         description = ''
           BPF programs to load. Keys are program names matching
-          .bpf.c files in os/ebpf/programs/. Values are per-program
+          .bpf.c files in os/livepatches/ebpf/programs/. Values are per-program
           configuration (reserved for future use).
         '';
       };

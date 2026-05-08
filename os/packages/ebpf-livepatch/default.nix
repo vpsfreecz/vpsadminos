@@ -33,7 +33,7 @@ let
     name:
     stdenv.mkDerivation {
       name = "ebpf-${name}-bpf-o-${kernel.modDirVersion}";
-      src = ../../../os/ebpf/programs;
+      src = ../../../os/livepatches/ebpf/programs;
 
       hardeningDisable = [ "all" ];
       nativeBuildInputs = [ clang ];
