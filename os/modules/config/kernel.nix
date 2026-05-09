@@ -271,9 +271,6 @@ in
       "netlink_diag"
       "nf_conncount"
       "nf_conntrack"
-      # nf_conntrack_amanda asks the kernel to autoload ts_kmp during
-      # module init. Load it first because module autoloading is disabled.
-      "ts_kmp"
       "nf_conntrack_amanda"
       "nf_conntrack_broadcast"
       "nf_conntrack_ftp"
@@ -359,6 +356,7 @@ in
       "sunrpc"
       "tcp_bbr"
       "tcp_diag"
+      "ts_kmp"
       "tun"
       "twofish_common"
       "twofish_generic"
@@ -422,6 +420,13 @@ in
       "xt_time"
       "xt_u32"
     ];
+
+    boot.extraModprobeConfig = ''
+      # nf_conntrack_amanda asks the kernel to autoload ts_kmp during module
+      # init. Make the dependency explicit because module autoloading is
+      # disabled, and boot.kernelModules is sorted by the NixOS option type.
+      softdep nf_conntrack_amanda pre: ts_kmp
+    '';
 
     boot.initrd.kernelModules = lib.optionals config.boot.initrd.withHwSupport hwSupportModules;
 
