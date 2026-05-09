@@ -27,8 +27,15 @@ import ../../../make-test.nix (
         (machine.succeeds('cat /proc/uptime')[1].split.first.to_f / 60).floor
       end
 
+      def self.console_modprobe_errors
+        machine.console_output.lines.select do |line|
+          line.match?(/\bmodprobe:\s+(?:ERROR|FATAL):/)
+        end
+      end
+
       before(:suite) do
         machine.start
+        machine.wait_for_console_text(/vpsadminos login:/)
         machine.wait_for_service('set-clock')
       end
 
@@ -54,6 +61,13 @@ import ../../../make-test.nix (
         it 'exists for last' do
           machine.succeeds('test -f /var/log/wtmp')
           machine.succeeds('last >/dev/null')
+        end
+      end
+
+      describe 'boot kernel modules' do
+        it 'does not print modprobe errors on the console' do
+          errors = console_modprobe_errors
+          expect(errors).to be_empty, "modprobe errors on console:\n#{errors.join}"
         end
       end
     '';
