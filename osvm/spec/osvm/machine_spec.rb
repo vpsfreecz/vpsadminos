@@ -224,6 +224,15 @@ RSpec.describe OsVm::Machine do
     end
   end
 
+  it 'returns captured console output' do
+    with_tmpdir do |dir|
+      machine = build_machine(dir:)
+      machine.instance_variable_set(:@console_output, "system booted\nready\n")
+
+      expect(machine.console_output).to eq("system booted\nready\n")
+    end
+  end
+
   it 'times out waiting for console text' do
     with_tmpdir do |dir|
       machine = build_machine(dir:)

@@ -392,6 +392,12 @@ module OsVm
       self
     end
 
+    # Return text captured from the machine's console so far
+    # @return [String]
+    def console_output
+      @mutex.synchronize { (@console_output || '').dup }
+    end
+
     # Wait for text to appear in console output
     # @param regex [Regexp]
     # @return [Machine]
@@ -402,7 +408,7 @@ module OsVm
       log.console_wait_begin(regex)
 
       loop do
-        if regex =~ @console_output
+        if regex =~ console_output
           log.console_wait_end(true)
           return self
         end
@@ -625,7 +631,7 @@ module OsVm
             next unless rs
 
             data = read_nonblock(qemu_read)
-            @console_output << data
+            @mutex.synchronize { @console_output << data }
 
             console_log.write(data)
             console_log.flush
