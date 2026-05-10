@@ -1,6 +1,7 @@
 {
   lib,
   stdenv,
+  gnutar,
   squashfsTools,
   closureInfo,
 
@@ -12,14 +13,17 @@
   # store. The directory's basename has to be `secrets`.
   secretsDir ? null,
 
-  # Add -no-strip to mksquashfs
+  # Preserve source pathnames in the generated filesystem.
   noStrip ? false,
 }:
 
 stdenv.mkDerivation {
   name = "squashfs.img";
 
-  nativeBuildInputs = [ squashfsTools ];
+  nativeBuildInputs = [
+    squashfsTools
+  ]
+  ++ lib.optional noStrip gnutar;
 
   buildCommand = ''
     closureInfo=${closureInfo { rootPaths = storeContents; }}
@@ -34,9 +38,38 @@ stdenv.mkDerivation {
     ''}
 
     # Generate the squashfs image.
-    mksquashfs nix-path-registration $(cat $closureInfo/store-paths) \
-      ${lib.optionalString (secretsDir != null) "secrets"} \
-      $out -keep-as-directory -all-root -b 1048576 -comp xz -Xdict-size 100% \
-      ${lib.optionalString noStrip "-no-strip"}
-  '';
+  ''
+  + (
+    if noStrip then
+      ''
+        set -o pipefail
+
+        # mksquashfs -no-strip would repeatedly traverse the live /nix/store
+        # parent directory and can race with concurrent Nix builds changing its
+        # metadata.  Stream a tar archive into sqfstar instead, preserving the
+        # /nix/store paths without asking mksquashfs to scan their parents.
+        mkdir -p sqfs-root/nix/store
+        chmod 0755 sqfs-root/nix
+        chmod 1775 sqfs-root/nix/store
+
+        tar --create --file - \
+          --absolute-names \
+          --transform='s#^/##S' \
+          --numeric-owner --owner=0 --group=0 \
+          --xattrs --xattrs-include='*' \
+          -C "$PWD" nix-path-registration ${lib.optionalString (secretsDir != null) "secrets"} \
+          -C sqfs-root nix \
+          --files-from "$closureInfo/store-paths" \
+        | sqfstar \
+          -all-root -root-uid 0 -root-gid 0 -root-mode 0755 \
+          -b 1048576 -comp xz -Xdict-size 100% \
+          "$out"
+      ''
+    else
+      ''
+        mksquashfs nix-path-registration $(cat $closureInfo/store-paths) \
+          ${lib.optionalString (secretsDir != null) "secrets"} \
+          $out -keep-as-directory -all-root -b 1048576 -comp xz -Xdict-size 100%
+      ''
+  );
 }

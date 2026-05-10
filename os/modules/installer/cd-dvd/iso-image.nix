@@ -276,7 +276,7 @@ in
     ++ optional config.isoImage.includeSystemBuildDependencies config.system.build.toplevel.drvPath;
 
     # Create the squashfs image that contains the Nix store.
-    system.build.squashfsStore = pkgs.callPackage (nixpkgsPath + "/nixos/lib/make-squashfs.nix") {
+    system.build.squashfsStore = pkgs.callPackage ../../../lib/make-squashfs.nix {
       #inherit (pkgs) stdenv squashfsTools perl pathsFromGraph;
       storeContents = config.isoImage.storeContents;
       noStrip = true;
