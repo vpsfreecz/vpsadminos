@@ -138,6 +138,25 @@ in
       '';
     };
 
+    system.squashfsCompression = mkOption {
+      default = [
+        "zstd"
+        "-Xcompression-level"
+        "10"
+      ];
+      type = types.nullOr (types.listOf types.str);
+      description = lib.mdDoc ''
+        Compression settings to pass to `mksquashfs` and `sqfstar` for
+        the squashfs rootfs. The first item is the compressor name.
+        `null` disables compression.
+      '';
+      example = [
+        "xz"
+        "-Xdict-size"
+        "100%"
+      ];
+    };
+
     system.build = {
       toplevel = mkOption {
         type = types.package;
@@ -405,6 +424,7 @@ in
       storeContents = [ config.system.build.toplevel ];
       secretsDir = config.system.secretsDir;
       noStrip = true;
+      comp = config.system.squashfsCompression;
     };
 
     system.build.dist = pkgs.runCommand "vpsadminos-dist" { } ''

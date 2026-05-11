@@ -15,8 +15,21 @@
 
   # Preserve source pathnames in the generated filesystem.
   noStrip ? false,
+
+  # Compression parameters.
+  # For zstd compression you can use [ "zstd" "-Xcompression-level" "10" ].
+  comp ? [
+    "zstd"
+    "-Xcompression-level"
+    "10"
+  ],
 }:
 
+let
+  compFlags = lib.escapeShellArgs (
+    if comp == null then [ "-no-compression" ] else [ "-comp" ] ++ comp
+  );
+in
 stdenv.mkDerivation {
   name = "squashfs.img";
 
@@ -62,14 +75,14 @@ stdenv.mkDerivation {
           --files-from "$closureInfo/store-paths" \
         | sqfstar \
           -all-root -root-uid 0 -root-gid 0 -root-mode 0755 \
-          -b 1048576 -comp xz -Xdict-size 100% \
+          -b 1048576 ${compFlags} \
           "$out"
       ''
     else
       ''
         mksquashfs nix-path-registration $(cat $closureInfo/store-paths) \
           ${lib.optionalString (secretsDir != null) "secrets"} \
-          $out -keep-as-directory -all-root -b 1048576 -comp xz -Xdict-size 100%
+          $out -keep-as-directory -all-root -b 1048576 ${compFlags}
       ''
   );
 }

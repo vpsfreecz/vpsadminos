@@ -280,6 +280,7 @@ in
       #inherit (pkgs) stdenv squashfsTools perl pathsFromGraph;
       storeContents = config.isoImage.storeContents;
       noStrip = true;
+      comp = config.system.squashfsCompression;
     };
 
     # Individual files to be included on the CD, outside of the Nix

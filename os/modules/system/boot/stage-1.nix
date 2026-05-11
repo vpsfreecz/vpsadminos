@@ -199,8 +199,11 @@ let
   };
 
   initialRamdisk = pkgs.makeInitrd {
-    compressor = "pigz";
-    inherit (config.boot.initrd) prepend;
+    inherit (config.boot.initrd)
+      compressor
+      compressorArgs
+      prepend
+      ;
 
     contents = [
       {
@@ -305,6 +308,25 @@ in
       description = lib.mdDoc ''
         Other initrd files to prepend to the final initrd we are building.
       '';
+    };
+    boot.initrd.compressor = mkOption {
+      default = "zstd";
+      type = types.either types.str (types.functionTo types.str);
+      description = lib.mdDoc ''
+        The compressor to use for the initrd image.
+      '';
+      example = "pigz";
+    };
+    boot.initrd.compressorArgs = mkOption {
+      default = null;
+      type = types.nullOr (types.listOf types.str);
+      description = lib.mdDoc ''
+        Arguments to pass to the initrd compressor, or `null` to use the
+        compressor's defaults.
+      '';
+      example = [
+        "-9n"
+      ];
     };
     boot.initrd.extraFirmwarePaths = mkOption {
       default = [ ];
