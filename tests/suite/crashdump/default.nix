@@ -90,7 +90,7 @@ import ../../make-test.nix (
 
         it 'does not include crash inspection helpers' do
           _, base_listing = machine.succeeds(
-            "${pkgs.gzip}/bin/gzip -dc /run/current-system/crash-initrd | ${pkgs.cpio}/bin/cpio -it 2>/dev/null"
+            "${pkgs.coreutils}/bin/cat /run/current-system/crash-initrd | ${pkgs.zstd}/bin/zstd -dc | ${pkgs.cpio}/bin/cpio -it 2>/dev/null"
           )
 
           expect(base_listing).not_to match(%r{(^|\n)nix/store/.+-extra-utils/bin/crash(\n|$)})
