@@ -97,6 +97,15 @@ let
         '';
       };
 
+      restartTriggers = mkOption {
+        type = types.listOf types.unspecified;
+        default = [ ];
+        description = ''
+          An arbitrary list of string-coercible items. If any item in the list
+          changes between configurations, the service will be restarted.
+        '';
+      };
+
       reloadMethod = mkOption {
         type = types.str;
         default = "reload";

@@ -151,6 +151,7 @@ let
         "snap/fedora"
         "snap/ubuntu"
         "system/boot/stage-2"
+        "system/switch-to-configuration"
         "systemd/credentials"
         {
           test = "systemd/device-units";

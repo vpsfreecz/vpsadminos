@@ -183,17 +183,22 @@ class Services
   end
 
   Service = Struct.new(:name, :etc_path, :cfg, :opts) do
-    attr_reader :run_path, :on_change, :reload_method
+    attr_reader :run_path, :on_change, :reload_method, :restart_triggers
 
     def initialize(*_)
       super
       @run_path = File.realpath(File.join(etc_path, 'runit/services', name, 'run'))
       @on_change = cfg['onChange'].to_sym
       @reload_method = cfg['reloadMethod']
+      @restart_triggers = cfg.fetch('restartTriggers', [])
     end
 
     def ==(other)
-      run_path == other.run_path
+      run_path == other.run_path && restart_triggers == other.restart_triggers
+    end
+
+    def restart_triggers_changed?(other)
+      restart_triggers != other.restart_triggers
     end
 
     %i[start stop restart].each do |m|
@@ -264,7 +269,11 @@ class Services
   # @return [Array<Service>]
   def restart
     (old_services.keys & new_services.keys).select do |s|
-      old_services[s] != new_services[s] && new_services[s].on_change == :restart
+      old_service = old_services[s]
+      new_service = new_services[s]
+
+      new_service.restart_triggers_changed?(old_service) \
+        || (old_service != new_service && new_service.on_change == :restart)
     end.map { |s| new_services[s] }
   end
 
@@ -272,7 +281,12 @@ class Services
   # @return [Array<Service>]
   def reload
     (old_services.keys & new_services.keys).select do |s|
-      old_services[s] != new_services[s] && new_services[s].on_change == :reload
+      old_service = old_services[s]
+      new_service = new_services[s]
+
+      !new_service.restart_triggers_changed?(old_service) \
+        && old_service != new_service \
+        && new_service.on_change == :reload
     end.map { |s| new_services[s] }
   end
 

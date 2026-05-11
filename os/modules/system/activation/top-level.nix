@@ -16,6 +16,7 @@ let
 
           services = lib.mapAttrs (k: v: {
             inherit (v) runlevels onChange reloadMethod;
+            restartTriggers = map toString (lib.flatten v.restartTriggers);
           }) config.runit.services;
         }
       );
