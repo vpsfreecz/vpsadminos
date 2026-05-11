@@ -19,6 +19,7 @@ RSpec.describe OsCtld::Config do
       expect(config.enable_time_namespace?).to be(true)
       expect(config.enable_lock_registry?).to be(false)
       expect(config.writeout_dirtied_pages?).to be(true)
+      expect(config.ct_wrapper).to eq('osctld-ct-wrapper')
     end
   end
 
@@ -94,6 +95,7 @@ RSpec.describe OsCtld::Config do
       'apparmor_paths' => %w[/a /b],
       'enable_time_namespace' => false,
       'lock_registry' => true,
+      'ct_wrapper' => '/run/current-system/sw/bin/osctld-ct-wrapper',
       'writeout_dirtied_pages' => false,
       'send_receive' => {
         'send_mbuffer' => {
@@ -114,6 +116,7 @@ RSpec.describe OsCtld::Config do
       expect(config.apparmor_paths).to eq(%w[/a /b])
       expect(config.enable_time_namespace?).to be(false)
       expect(config.enable_lock_registry?).to be(true)
+      expect(config.ct_wrapper).to eq('/run/current-system/sw/bin/osctld-ct-wrapper')
       expect(config.writeout_dirtied_pages?).to be(false)
       expect(config.send_receive.send_mbuffer.command).to eq('custom-mbuffer')
       expect(config.send_receive.send_mbuffer.as_cli_options).to eq(['-s', '64k', '-m', '128M', '-P', '10'])

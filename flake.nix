@@ -353,6 +353,7 @@
               templateStableImpermanenceSystem.config.system.build.impermanenceTarball;
             template-impermanence-unstable =
               templateUnstableImpermanenceSystem.config.system.build.impermanenceTarball;
+            ctptywrapper = pkgsWithOverlays.ctptywrapper;
             test-runner = import ./test-runner/nix/package.nix {
               pkgs = pkgsWithOverlays;
             };
@@ -480,8 +481,9 @@
             name = "ctptywrapper";
             packages = with pkgsBase; [
               git
-              go
-              gotools
+              cargo
+              rustc
+              rustfmt
             ];
             shellHook = devShellPrompt "ctptywrapper";
           };

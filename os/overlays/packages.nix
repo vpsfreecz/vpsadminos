@@ -3,6 +3,8 @@ self: super: {
     patches = super.bird2.patches ++ [ ../packages/bird2/disable-kif-warnings-osrtr0.patch ];
   });
 
+  ctptywrapper = super.callPackage ../packages/ctptywrapper { };
+
   devcgprog = super.callPackage ../packages/devcgprog { };
 
   goresheat = super.callPackage ../packages/goresheat { };

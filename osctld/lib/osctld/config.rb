@@ -141,6 +141,9 @@ module OsCtld
     # @return [String]
     attr_reader :ctstartmenu
 
+    # @return [String]
+    attr_reader :ct_wrapper
+
     # @return [Boolean]
     attr_reader :enable_lock_registry
     alias enable_lock_registry? enable_lock_registry
@@ -169,6 +172,7 @@ module OsCtld
       @apparmor_paths = cfg.fetch('apparmor_paths', [])
       @enable_time_namespace = cfg.fetch('enable_time_namespace', true)
       @ctstartmenu = cfg['ctstartmenu']
+      @ct_wrapper = cfg.fetch('ct_wrapper', 'osctld-ct-wrapper')
       @enable_lock_registry = cfg.fetch('lock_registry', false)
       @writeout_dirtied_pages = cfg.fetch('writeout_dirtied_pages', true)
       @cpu_scheduler = CpuScheduler.new(cfg.fetch('cpu_scheduler', {}))
