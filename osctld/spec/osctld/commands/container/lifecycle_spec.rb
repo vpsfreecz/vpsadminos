@@ -281,6 +281,11 @@ RSpec.describe 'container lifecycle commands' do
         cpu_scheduler = stub_const('OsCtld::CpuScheduler', Class.new do
           def self.schedule_ct(*); end
         end)
+        daemon = stub_const('OsCtld::Daemon', Class.new do
+          def self.get; end
+        end)
+        daemon_config = Struct.new(:ct_wrapper).new('/run/wrappers/osctld-ct-wrapper')
+        daemon_instance = Struct.new(:config).new(daemon_config)
         allow(OsCtld::SwitchUser).to receive(:clear_ruby_env)
         allow(OsCtld::SwitchUser).to receive(:fork_and_switch_to) do |*_, **_, &block|
           block.call
@@ -290,9 +295,14 @@ RSpec.describe 'container lifecycle commands' do
         allow(console).to receive(:connect_tty0).and_raise(Errno::ENOENT)
         allow(dist_config).to receive(:run)
         allow(cpu_scheduler).to receive(:schedule_ct)
+        allow(daemon).to receive(:get).and_return(daemon_instance)
         OsCtld.define_singleton_method(:bin) { |_name| '/bin/true' } unless OsCtld.respond_to?(:bin)
         allow(OsCtld).to receive(:bin).and_return('/bin/true')
-        allow(Process).to receive(:spawn).and_return(202)
+        spawn_args = nil
+        allow(Process).to receive(:spawn) do |*args|
+          spawn_args = args
+          202
+        end
         allow(Process).to receive(:wait).with(101)
         allow(File).to receive(:chmod)
         allow(File).to receive(:chown)
@@ -310,6 +320,7 @@ RSpec.describe 'container lifecycle commands' do
         allow(command).to receive(:log)
 
         expect(command.send(:start_now, container)).to eq(:wait)
+        expect(spawn_args[0]).to eq('/run/wrappers/osctld-ct-wrapper')
         expect(command).to have_received(:log).with(:warn, container, 'Unable to connect to tty0')
       end
     end

@@ -59,6 +59,7 @@ in
         map (s: "${s}/etc/apparmor.d") apparmorPaths
       );
 
+      ct_wrapper = "${pkgs.ctptywrapper}/bin/osctld-ct-wrapper";
       ctstartmenu = "${pkgs.ctstartmenu}/bin/ctstartmenu";
     };
 
