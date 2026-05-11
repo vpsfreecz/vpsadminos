@@ -1,5 +1,49 @@
 import ../../make-test.nix (
   { pkgs }:
+  let
+    crashdumpConfig = {
+      boot.crashDump = {
+        enable = true;
+        kernelParams = [ "console=ttyS0" ];
+        commands = ''
+          echo "Dumping dmesg"
+          if [ -e /proc/vmcore ] ; then
+            ls -l /proc/vmcore
+          else
+            echo "/proc/vmcore is missing"
+          fi
+
+          makedumpfile --dump-dmesg /proc/vmcore dmesg.log
+          rc=$?
+          echo "makedumpfile exited with $rc"
+
+          if [ -e dmesg.log ] ; then
+            ls -l dmesg.log
+            cat dmesg.log
+          else
+            echo "dmesg.log is missing"
+          fi
+
+          # Bring the machine down, so that machine.execute() will raise OsVm::MachineShellClosed
+          reboot -f
+        '';
+      };
+    };
+
+    pigzSystem =
+      (import ../../../os {
+        importedPkgs = pkgs;
+        system = pkgs.system;
+        modules = [
+          ../../configs/vpsadminos/base.nix
+          ../../configs/vpsadminos/pool-tank.nix
+          crashdumpConfig
+          {
+            boot.initrd.compressor = "pigz";
+          }
+        ];
+      }).config.system.build.toplevel;
+  in
   {
     name = "crashdump-default";
 
@@ -12,36 +56,9 @@ import ../../make-test.nix (
 
     machine = import ../../machines/vpsadminos/with-tank.nix {
       inherit pkgs;
-      config =
-        { config, ... }:
-        {
-          boot.crashDump = {
-            enable = true;
-            kernelParams = [ "console=ttyS0" ];
-            commands = ''
-              echo "Dumping dmesg"
-              if [ -e /proc/vmcore ] ; then
-                ls -l /proc/vmcore
-              else
-                echo "/proc/vmcore is missing"
-              fi
-
-              makedumpfile --dump-dmesg /proc/vmcore dmesg.log
-              rc=$?
-              echo "makedumpfile exited with $rc"
-
-              if [ -e dmesg.log ] ; then
-                ls -l dmesg.log
-                cat dmesg.log
-              else
-                echo "dmesg.log is missing"
-              fi
-
-              # Bring the machine down, so that machine.execute() will raise OsVm::MachineShellClosed
-              reboot -f
-            '';
-          };
-        };
+      config = crashdumpConfig // {
+        system.extraDependencies = [ pigzSystem ];
+      };
     };
 
     testScript = ''
@@ -86,6 +103,23 @@ import ../../make-test.nix (
           _, crash_initrd_real = machine.succeeds('readlink -f /run/current-system/crash-initrd')
 
           expect(crash_initrd_real.strip).to eq(initrd_real.strip)
+        end
+
+        it 'restarts crashdump when the crash initrd changes' do
+          _, current_run = machine.succeeds('readlink -f /etc/runit/services/crashdump/run')
+          _, pigz_run = machine.succeeds('readlink -f ${pigzSystem}/etc/runit/services/crashdump/run')
+
+          expect(pigz_run.strip).to eq(current_run.strip)
+
+          _, current_initrd = machine.succeeds('readlink -f /run/current-system/crash-initrd')
+          _, pigz_initrd = machine.succeeds('readlink -f ${pigzSystem}/crash-initrd')
+
+          expect(pigz_initrd.strip).not_to eq(current_initrd.strip)
+
+          _, output = machine.succeeds('${pigzSystem}/bin/switch-to-configuration dry-activate')
+
+          expect(output).to include('> sv stop crashdump')
+          expect(output).to include('> sv start crashdump')
         end
 
         it 'does not include crash inspection helpers' do

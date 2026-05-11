@@ -339,6 +339,12 @@ in
     };
 
     runit.services.crashdump = {
+      restartTriggers = [
+        config.system.build.kernel
+        config.system.build.crashInitialRamdisk
+        config.system.build.bootStage2
+      ];
+
       run = ''
         crashdumpParams="${concatStringsSep " " filteredParams} init=$(readlink -f /run/current-system/init) reset_devices irqpoll modprobe.blacklist=zfs,spl this_is_a_crash_kernel ${kernelParams}"
 
