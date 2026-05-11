@@ -97,6 +97,10 @@ import ../../make-test.nix (
           "osctl ct unset start-menu #{ct}",
           "osctl ct netif new bridge --link lxcbr0 #{ct} eth0",
 
+          # Podman builds use pasta for build container networking by default,
+          # which needs /dev/net/tun.
+          "osctl ct devices add -p #{ct} char 10 200 rwm /dev/net/tun",
+
           # TODO: why is this needed?
           "osctl ct set dns-resolver #{ct} 1.1.1.1",
 
@@ -142,6 +146,30 @@ import ../../make-test.nix (
         # docker's hello world...
         if /Hello Podman World/ !~ output && /Hello from Docker/ !~ output
           fail "podman hello-world not working, output:\n#{output}"
+        end
+
+        ct_write_file(
+          ct,
+          '/tmp/podman-build-test/Dockerfile',
+          <<~DOCKERFILE
+            FROM docker.io/library/alpine:latest
+            RUN echo "Podman build works!" > /message.txt
+            CMD ["cat", "/message.txt"]
+          DOCKERFILE
+        )
+
+        ct_shell(
+          ct,
+          'podman build -t localhost/podman-build-test:latest /tmp/podman-build-test',
+          timeout: 600
+        )
+
+        _, output = machine.succeeds(
+          "osctl ct exec #{ct} podman run --rm localhost/podman-build-test:latest"
+        )
+
+        if output.strip != 'Podman build works!'
+          fail "podman build produced unexpected output:\n#{output}"
         end
       end
     '';
