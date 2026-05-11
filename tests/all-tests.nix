@@ -122,6 +122,7 @@ let
         "kernel/module-autoload"
         "osctl/ct-cat"
         "osctl/ct-chown-filecaps"
+        "osctl/ct-console"
         "osctl/ct-exec-v1"
         "osctl/ct-exec-v2"
         "osctl/ct-image-fetch"
