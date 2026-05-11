@@ -120,6 +120,61 @@ RSpec.describe OsCtld::ThreadReaper do
     join_thread!(worker) if worker
   end
 
+  it 'requests stop from managers added after stop begins' do
+    first_worker_started = Queue.new
+    finish_first_worker = Queue.new
+    first_stop_requested = Queue.new
+    first_manager = Struct.new(:stop_requested) do
+      def request_stop
+        stop_requested << true
+      end
+    end.new(first_stop_requested)
+
+    first_worker = Thread.new do
+      first_worker_started << true
+      finish_first_worker.pop
+    end
+
+    late_worker_started = Queue.new
+    finish_late_worker = Queue.new
+    late_stop_requested = Queue.new
+    late_manager = Struct.new(:stop_requested, :finish_worker) do
+      def request_stop
+        stop_requested << true
+        finish_worker << true
+      end
+    end.new(late_stop_requested, finish_late_worker)
+
+    late_worker = Thread.new do
+      late_worker_started << true
+      finish_late_worker.pop
+    end
+
+    reaper.start
+    reaper.add(first_worker, first_manager)
+    first_worker_started.pop
+    late_worker_started.pop
+    wait_until { reaper.export == [[first_worker, first_manager]] }
+
+    stop_thread = Thread.new { reaper.stop }
+    first_stop_requested.pop
+
+    reaper.add(late_worker, late_manager)
+    late_stop_requested.pop
+
+    expect(stop_thread).to be_alive
+
+    finish_first_worker << true
+    join_thread!(stop_thread)
+
+    expect(reaper.export).to be_empty
+  ensure
+    finish_first_worker << true if first_worker&.alive?
+    finish_late_worker << true if late_worker&.alive?
+    join_thread!(first_worker) if first_worker
+    join_thread!(late_worker) if late_worker
+  end
+
   it 'raises on unknown queue commands' do
     reaper.instance_variable_get(:@queue) << :bogus
 

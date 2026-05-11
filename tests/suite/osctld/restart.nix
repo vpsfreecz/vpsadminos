@@ -18,15 +18,19 @@ import ../../make-test.nix (
 
       def self.ensure_ready
         machine.start
-        machine.wait_for_service('osctld')
-        machine.wait_for_osctl_pool('tank')
+        wait_osctld_ready
         machine.wait_until_online
+      end
+
+      def self.wait_osctld_ready
+        machine.wait_for_service('osctld')
+        machine.wait_until_succeeds("test -S #{OSCTLD_SOCKET}", timeout: 60)
+        machine.wait_for_osctl_pool('tank')
       end
 
       def self.restart_osctld
         machine.succeeds('sv -w 60 restart osctld')
-        machine.wait_for_service('osctld')
-        machine.wait_for_osctl_pool('tank')
+        wait_osctld_ready
       end
 
       def self.ct_state(ctid)
@@ -116,6 +120,13 @@ import ../../make-test.nix (
       def self.release_block(label)
         paths = block_paths(label)
         machine.succeeds("touch #{Shellwords.escape(paths[:release])}")
+      end
+
+      def self.release_block_if_present(label)
+        paths = block_paths(label)
+        machine.execute(
+          "test ! -d #{Shellwords.escape(paths[:dir])} || touch #{Shellwords.escape(paths[:release])}"
+        )
       end
 
       def self.host_job(name, script)
@@ -212,6 +223,7 @@ import ../../make-test.nix (
         ctid = "#{get_container_id}-start-restart"
 
         before(:context) do
+          wait_osctld_ready
           cleanup_ct(ctid)
           machine.all_succeed(
             "osctl ct new --distribution alpine #{ctid}",
@@ -220,6 +232,7 @@ import ../../make-test.nix (
         end
 
         after(:context) do
+          release_block_if_present('ct-start')
           remove_hook(ctid, 'pre-start')
           cleanup_ct(ctid)
         end
@@ -235,8 +248,7 @@ import ../../make-test.nix (
           release_block('ct-start')
           wait_host_job(start_job)
           wait_host_job(restart_job, timeout: 240)
-          machine.wait_for_service('osctld')
-          machine.wait_for_osctl_pool('tank')
+          wait_osctld_ready
           wait_ct_running(ctid)
         end
       end
@@ -246,6 +258,7 @@ import ../../make-test.nix (
         target = "#{ctid}-dst"
 
         before(:context) do
+          wait_osctld_ready
           cleanup_ct(ctid, target)
           machine.all_succeed(
             "osctl ct new --distribution alpine #{ctid}",
@@ -260,6 +273,7 @@ import ../../make-test.nix (
         end
 
         after(:context) do
+          release_block_if_present('ct-copy-state')
           remove_hook(ctid, 'pre-stop')
           cleanup_ct(ctid, target)
         end
@@ -277,8 +291,7 @@ import ../../make-test.nix (
           release_block('ct-copy-state')
           wait_host_job(state_job, timeout: 180)
           wait_host_job(restart_job, timeout: 240)
-          machine.wait_for_service('osctld')
-          machine.wait_for_osctl_pool('tank')
+          wait_osctld_ready
 
           machine.succeeds("osctl ct cp cleanup #{ctid}")
           machine.succeeds("osctl ct start #{target}")

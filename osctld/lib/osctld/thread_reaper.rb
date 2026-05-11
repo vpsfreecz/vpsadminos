@@ -64,6 +64,7 @@ module OsCtld
           request_stop_threads
 
         elsif v.is_a?(Array)
+          request_stop_thread(*v) if do_stop
           sync { threads << v }
 
         else
@@ -82,8 +83,12 @@ module OsCtld
 
     def request_stop_threads
       sync do
-        threads.each { |t, m| t.alive? && m && m.request_stop }
+        threads.each { |v| request_stop_thread(*v) }
       end
+    end
+
+    def request_stop_thread(thread, manager)
+      thread.alive? && manager && manager.request_stop
     end
 
     def can_stop?

@@ -224,7 +224,10 @@ module OsCtld
       Monitor::Master.stop
       LockRegistry.stop
       log(:info, 'Daemon stopped successfully')
-      exit(false)
+      # Stop can run from a signal helper thread while other background threads
+      # are still reacting to shutdown. The graceful cleanup above is complete,
+      # so terminate the process without waiting for unmanaged threads.
+      exit!
     end
 
     def stopping?
