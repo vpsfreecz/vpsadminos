@@ -106,6 +106,30 @@ import ../../make-test.nix (
           fail "docker hello-world not working, output:\n#{output}"
         end
 
+        ct_write_file(
+          ct,
+          '/tmp/docker-build-test/Dockerfile',
+          <<~DOCKERFILE
+            # syntax=docker/dockerfile:1
+
+            FROM alpine:latest
+            RUN echo "Docker build works!" > /message.txt
+            CMD ["cat", "/message.txt"]
+          DOCKERFILE
+        )
+
+        ct_shell(
+          ct,
+          'docker build -t docker-build-test /tmp/docker-build-test',
+          timeout: 600
+        )
+
+        _, output = machine.succeeds("osctl ct exec #{ct} docker run --rm docker-build-test")
+
+        if output.strip != 'Docker build works!'
+          fail "docker build produced unexpected output:\n#{output}"
+        end
+
         machine.succeeds("osctl ct exec #{ct} docker pull gitlab/gitlab-ee:latest", timeout: 900)
         machine.succeeds("osctl ct exec #{ct} docker image inspect gitlab/gitlab-ee:latest")
       end

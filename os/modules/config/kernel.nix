@@ -426,6 +426,12 @@ in
       # init. Make the dependency explicit because module autoloading is
       # disabled, and boot.kernelModules is sorted by the NixOS option type.
       softdep nf_conntrack_amanda pre: ts_kmp
+
+      # Docker/BuildKit mounts overlayfs with userxattr,redirect_dir=off in
+      # first-level user namespaces. The kernel default redirect_always_follow
+      # turns redirect_dir=off into redirect_dir=follow, which conflicts with
+      # userxattr and makes docker build fail.
+      options overlay redirect_always_follow=0
     '';
 
     boot.initrd.kernelModules = lib.optionals config.boot.initrd.withHwSupport hwSupportModules;
