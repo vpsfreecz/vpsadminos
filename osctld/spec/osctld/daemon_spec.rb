@@ -2,6 +2,8 @@
 
 require 'osctld/daemon'
 require 'osctld/command'
+require 'osctld/eventd'
+require 'osctld/thread_reaper'
 
 RSpec.describe OsCtld::Daemon do
   before do
@@ -67,7 +69,7 @@ RSpec.describe OsCtld::Daemon do
 
       daemon.instance_variable_set(:@server, server)
       allow(daemon).to receive(:log)
-      allow(daemon).to receive(:exit).with(false).and_raise(SystemExit)
+      allow(daemon).to receive(:exit!).and_raise(SystemExit)
       allow(FileUtils).to receive(:rm_f)
       allow(OsCtld::UserControl).to receive(:stop)
       allow(OsCtld::SendReceive).to receive(:stop)
