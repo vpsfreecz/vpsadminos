@@ -47,9 +47,21 @@ module OsCtl::ExportFS
       Operations::Server::Exec.run(server) do
         server.enter_ns
         Operations::Exportfs::Generate.run(server)
-        syscmd_argv([exportfs, '-u', "#{export.host}:#{export.as}"])
+        unexport(exportfs)
         sys.unmount(export.as) if unmount
       end
+    end
+
+    def unexport(exportfs)
+      target = "#{export.host}:#{export.as}"
+
+      syscmd_argv([exportfs, '-u', target])
+    rescue OsCtl::Lib::Exceptions::SystemCommandFailed => e
+      raise unless missing_export?(e, target)
+    end
+
+    def missing_export?(error, target)
+      error.rc == 1 && error.output.include?("Could not find '#{target}' to unexport")
     end
   end
 end

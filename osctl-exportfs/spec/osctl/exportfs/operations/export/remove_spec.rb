@@ -72,6 +72,57 @@ RSpec.describe OsCtl::ExportFS::Operations::Export::Remove do
     )
   end
 
+  it 'ignores missing active exports reported by exportfs and unmounts the last target' do
+    export = OsCtl::ExportFS::Export.new(dir: '/srv/data', as: '/exports/data', host: '*', options: 'rw')
+    exports_cfg << export
+    allow(server).to receive(:running?).and_return(true)
+    allow(server).to receive(:enter_ns)
+    allow(OsCtl::ExportFS::Operations::Server::Exec).to receive(:run) do |_server, &block|
+      block.call
+    end
+    allow(OsCtl::ExportFS::Operations::Exportfs::Generate).to receive(:run)
+
+    op = described_class.new(server, '/exports/data', '*')
+    allow(op).to receive(:find_executable!).with('exportfs').and_return('/nix/store/exportfs/bin/exportfs')
+    allow(op).to receive(:syscmd_argv).and_raise(
+      OsCtl::Lib::Exceptions::SystemCommandFailed.new(
+        '/nix/store/exportfs/bin/exportfs -u *:/exports/data',
+        1,
+        "exportfs: Could not find '*:/exports/data' to unexport.\n"
+      )
+    )
+
+    expect { op.execute }.not_to raise_error
+
+    expect(exports_cfg.lookup('/exports/data', '*')).to be_nil
+    expect(cfg).to have_received(:save)
+    expect(OsCtl::ExportFS::Operations::Exportfs::Generate).to have_received(:run).with(server)
+    expect(sys).to have_received(:unmount).with('/exports/data')
+  end
+
+  it 'raises other exportfs failures and does not unmount the target' do
+    export = OsCtl::ExportFS::Export.new(dir: '/srv/data', as: '/exports/data', host: '*', options: 'rw')
+    exports_cfg << export
+    allow(server).to receive(:running?).and_return(true)
+    allow(server).to receive(:enter_ns)
+    allow(OsCtl::ExportFS::Operations::Server::Exec).to receive(:run) do |_server, &block|
+      block.call
+    end
+    allow(OsCtl::ExportFS::Operations::Exportfs::Generate).to receive(:run)
+
+    error = OsCtl::Lib::Exceptions::SystemCommandFailed.new(
+      '/nix/store/exportfs/bin/exportfs -u *:/exports/data',
+      1,
+      "exportfs: failed to write /var/lib/nfs/etab\n"
+    )
+    op = described_class.new(server, '/exports/data', '*')
+    allow(op).to receive(:find_executable!).with('exportfs').and_return('/nix/store/exportfs/bin/exportfs')
+    allow(op).to receive(:syscmd_argv).and_raise(error)
+
+    expect { op.execute }.to raise_error(error)
+    expect(sys).not_to have_received(:unmount)
+  end
+
   it 'runs exportfs from the caller path when removing a running export' do
     export = OsCtl::ExportFS::Export.new(dir: '/srv/data', as: '/exports/data', host: '*', options: 'rw')
     exports_cfg << export

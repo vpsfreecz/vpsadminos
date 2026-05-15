@@ -117,6 +117,21 @@ import ../../make-test.nix (
           expect(machine.succeeds("osctl ct exec testct1 cat /mnt/server2/server2.txt")[1].strip).to eq("second")
         end
 
+        it "removes exports that are already missing from the running server" do
+          machine.all_succeed(
+            "mkdir -p /srv/server3",
+            "echo third > /srv/server3/server3.txt",
+            "osctl-exportfs export add --directory /srv/server3 --host 192.168.1.21/32 --options fsid=9012 server1",
+            "exportfs=$(readlink -f $(command -v exportfs)) && " \
+              "nsenter -t #{@server_pid} -m -n -r --wd=/ -- " \
+              "$exportfs -u 192.168.1.21/32:/srv/server3",
+            "osctl-exportfs export del --as /srv/server3 --host 192.168.1.21/32 server1",
+            "! osctl-exportfs export ls server1 | grep -F 'as      = /srv/server3'",
+            "mountpoint=$(readlink -f $(command -v mountpoint)) && " \
+              "! nsenter -t #{@server_pid} -m -r --wd=/ -- $mountpoint -q /srv/server3",
+          )
+        end
+
         it "rejects mounts from disallowed hosts" do
           machine.succeeds("osctl ct exec testct2 mkdir -p /mnt/server1")
 
