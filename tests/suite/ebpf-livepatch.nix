@@ -113,7 +113,9 @@ import ../make-test.nix (
                 hasSinceKernel = program ? sinceKernel;
                 hasEnable = program ? enable;
                 hasBpfPrograms = program ? bpfPrograms;
+                hasLinkFields = program ? linkFields;
                 bpfPrograms = program.bpfPrograms or [ ];
+                linkFields = currentAvailable.programLinkFields program;
                 bpfProgramNamesValid =
                   (program ? bpfPrograms)
                   && program.bpfPrograms != [ ]
@@ -121,6 +123,10 @@ import ../make-test.nix (
                 bpfProgramNamesUnique =
                   (program ? bpfPrograms)
                   && lib.unique program.bpfPrograms == program.bpfPrograms;
+                linkFieldsValid = currentAvailable.programHasValidLinkFields program;
+                linkFieldsUnique =
+                  lib.unique (currentAvailable.programLinkFields program)
+                  == currentAvailable.programLinkFields program;
                 sourceExists =
                   (program ? name)
                   && builtins.pathExists (
@@ -136,6 +142,7 @@ import ../make-test.nix (
                 kernelVersion,
                 programs ? null,
                 enable ? true,
+                autoLoad ? false,
               }:
               lib.evalModules {
                 specialArgs = { inherit pkgs; };
@@ -183,7 +190,7 @@ import ../make-test.nix (
                           };
                           services.ebpf-livepatch = {
                             inherit enable;
-                            autoLoad = false;
+                            inherit autoLoad;
                           } // programConfig;
                         };
                     }
@@ -206,6 +213,10 @@ import ../make-test.nix (
               programs = {
                 lsm_example = { };
               };
+            };
+            serviceEval = evalModule {
+              kernelVersion = currentKernelVersion;
+              autoLoad = true;
             };
             unknownEval = evalModule {
               kernelVersion = currentKernelVersion;
@@ -242,6 +253,12 @@ import ../make-test.nix (
                 empty = currentAvailable.validBpfName "";
                 tooLong = currentAvailable.validBpfName "1234567890123456";
                 invalidCharacter = currentAvailable.validBpfName "bad-name";
+              };
+              linkFieldValidation = {
+                valid = currentAvailable.validLinkField "abc_123";
+                empty = currentAvailable.validLinkField "";
+                startsWithDigit = currentAvailable.validLinkField "1abc";
+                dotted = currentAvailable.validLinkField "abc.def";
               };
             };
 
@@ -315,6 +332,24 @@ import ../make-test.nix (
               unknownFailures = failedMessages unknownEval;
               outOfRangeFailures = failedMessages outOfRangeEval;
               invalidProgramOptionsAccepted = invalidProgramOptionsResult.success;
+              autoLoadService =
+                let
+                  service = serviceEval.config.runit.services.ebpf-livepatch;
+                in
+                {
+                  inherit (service) onChange reloadMethod;
+                  hasUsr1Control = service ? control && service.control ? usr1;
+                  runUsesPinnedGeneration =
+                    lib.hasInfix "activating pinned generation" service.run
+                    && lib.hasInfix "sleep inf" service.run;
+                  usr1ActivatesPinnedGeneration =
+                    service ? control
+                    && service.control ? usr1
+                    && lib.hasInfix "ebpf-livepatch-reload" service.control.usr1;
+                  finishPreservesPinnedHandoff =
+                    lib.hasInfix "preserve-pins-on-finish" service.finish
+                    && lib.hasInfix "programs detached" service.finish;
+                };
             };
           }
         NIX
@@ -334,6 +369,7 @@ import ../make-test.nix (
             expect(program.fetch('hasSinceKernel')).to be(true)
             expect(program.fetch('hasEnable')).to be(true)
             expect(program.fetch('hasBpfPrograms')).to be(true)
+            expect(program.fetch('hasLinkFields')).to be(true)
           end
         end
 
@@ -344,6 +380,13 @@ import ../make-test.nix (
           end
         end
 
+        it 'defines valid BPF skeleton link field names' do
+          @facts.fetch('registry').fetch('programs').each do |program|
+            expect(program.fetch('linkFieldsValid')).to be(true)
+            expect(program.fetch('linkFieldsUnique')).to be(true)
+          end
+        end
+
         it 'validates BPF names using kernel object name rules' do
           validation = @facts.fetch('registry').fetch('bpfNameValidation')
 
@@ -351,6 +394,15 @@ import ../make-test.nix (
           expect(validation.fetch('empty')).to be(false)
           expect(validation.fetch('tooLong')).to be(false)
           expect(validation.fetch('invalidCharacter')).to be(false)
+        end
+
+        it 'validates link fields as C identifiers' do
+          validation = @facts.fetch('registry').fetch('linkFieldValidation')
+
+          expect(validation.fetch('valid')).to be(true)
+          expect(validation.fetch('empty')).to be(false)
+          expect(validation.fetch('startsWithDigit')).to be(false)
+          expect(validation.fetch('dotted')).to be(false)
         end
 
         it 'does not define untilKernel below sinceKernel' do
@@ -465,6 +517,17 @@ import ../make-test.nix (
           expect(program.fetch('bpfPrograms')).to eq(
             %w[lsm_cred_prep lsm_task_prctl lsm_sysctl]
           )
+        end
+
+        it 'reloads the autoload service using a pinned generation handoff' do
+          service = @facts.fetch('module').fetch('autoLoadService')
+
+          expect(service.fetch('onChange')).to eq('reload')
+          expect(service.fetch('reloadMethod')).to eq('1')
+          expect(service.fetch('hasUsr1Control')).to be(true)
+          expect(service.fetch('runUsesPinnedGeneration')).to be(true)
+          expect(service.fetch('usr1ActivatesPinnedGeneration')).to be(true)
+          expect(service.fetch('finishPreservesPinnedHandoff')).to be(true)
         end
 
         it 'rejects unknown per-program options' do

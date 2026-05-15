@@ -195,6 +195,28 @@ import ../../make-test.nix (
               end
             end
 
+            it 'keeps BPF livepatch programs pinned across service reload' do
+              pin = '/sys/fs/bpf/vpsadminos/ebpf-livepatch/generations'
+              count_pins = "test \"$(find #{pin} -name ptrace_mm_guard__ptrace_mm_guard -printf .)\" = ."
+
+              machine.succeeds(count_pins)
+              machine.succeeds('sv 1 ebpf-livepatch')
+
+              wait_until_block_succeeds(name: 'BPF livepatch reload') do
+                machine.succeeds(count_pins)
+
+                metrics = fetch_metrics(9101)
+                loaded = find_metric_line(
+                  metrics,
+                  'kernel_bpf_program_loaded',
+                  program: 'ptrace_mm_guard'
+                )
+
+                expect(loaded).not_to be_nil
+                expect(loaded.split.last.to_f).to eq(1.0)
+              end
+            end
+
             it 'exports required but unloaded kernel livepatches' do
               wait_until_block_succeeds(name: 'kernel livepatch metrics') do
                 metrics = fetch_metrics(9101)

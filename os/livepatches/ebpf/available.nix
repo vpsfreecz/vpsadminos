@@ -21,6 +21,10 @@ let
         "uname_fentry"
         "uname_fexit"
       ];
+      linkFields = [
+        "uname_fentry"
+        "uname_fexit"
+      ];
       enable = false;
     }
     {
@@ -28,6 +32,11 @@ let
       description = "Demonstrate eBPF LSM hooks on task_prctl and sysctl";
       sinceKernel = "5.7";
       bpfPrograms = [
+        "lsm_cred_prep"
+        "lsm_task_prctl"
+        "lsm_sysctl"
+      ];
+      linkFields = [
         "lsm_cred_prep"
         "lsm_task_prctl"
         "lsm_sysctl"
@@ -42,6 +51,7 @@ let
       sinceKernel = "5.7";
       untilKernel = "6.12.88";
       bpfPrograms = [ "ptrace_mm_guard" ];
+      linkFields = [ "ptrace_mm_guard" ];
       enable = true;
     }
   ];
@@ -66,12 +76,24 @@ let
     && builtins.stringLength name <= 15
     && builtins.match "[A-Za-z0-9_.]+" name != null;
 
+  validLinkField =
+    name: builtins.isString name && name != "" && builtins.match "[A-Za-z_][A-Za-z0-9_]*" name != null;
+
+  programLinkFields = program: program.linkFields or program.bpfPrograms;
+
   programHasValidBpfPrograms =
     program:
     program ? bpfPrograms
     && builtins.isList program.bpfPrograms
     && program.bpfPrograms != [ ]
     && all validBpfName program.bpfPrograms;
+
+  programHasValidLinkFields =
+    program:
+    programHasValidBpfPrograms program
+    && builtins.isList (programLinkFields program)
+    && programLinkFields program != [ ]
+    && all validLinkField (programLinkFields program);
 
   programMatchesKernel =
     kernelVer: program:
@@ -106,9 +128,12 @@ in
     programMatchesKernel
     programAvailableForKernel
     programHasValidBpfPrograms
+    programHasValidLinkFields
+    programLinkFields
     programsForVersion
     programNames
     programsAttrset
+    validLinkField
     validBpfName
     ;
   enabledPrograms = enabledPrograms kernelVersion;

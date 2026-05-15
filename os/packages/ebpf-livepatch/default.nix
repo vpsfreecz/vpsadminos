@@ -8,8 +8,19 @@
   elfutils ? pkgs.elfutils,
   zlib ? pkgs.zlib,
   programs ? {
-    override_uname = { };
-    lsm_example = { };
+    override_uname = {
+      linkFields = [
+        "uname_fentry"
+        "uname_fexit"
+      ];
+    };
+    lsm_example = {
+      linkFields = [
+        "lsm_cred_prep"
+        "lsm_task_prctl"
+        "lsm_sysctl"
+      ];
+    };
   },
 }:
 
@@ -17,6 +28,13 @@ let
   inherit (pkgs) clang;
 
   progNames = builtins.attrNames programs;
+  programConfigs = lib.mapAttrs (
+    name: program:
+    program
+    // {
+      linkFields = program.linkFields or [ name ];
+    }
+  ) programs;
 
   # Generate vmlinux.h from kernel BTF
   vmlinux_h = stdenv.mkDerivation {
@@ -92,6 +110,14 @@ let
         skelIncludes = lib.concatMapStrings (name: ''
           cp ${skelHeaders.${name}}/${name}.skel.h .
         '') progNames;
+        pinLinkCalls =
+          name:
+          lib.concatMapStrings (linkField: ''
+            err = pin_link(skel->links.${linkField}, pin_dir, "${name}", "${linkField}");
+            if (err != 0) {
+              goto out;
+            }
+          '') programConfigs.${name}.linkFields;
         programLoaders = lib.concatMapStrings (name: ''
           cat >> enabled_programs.h <<'PROGRAM_LOADER_${name}'
           #include "${name}.skel.h"
@@ -117,10 +143,36 @@ let
             fprintf(stderr, "ebpf-livepatch: ${name} loaded and attached\n");
             return 0;
           }
+
+          static int pin_${name}(const char *pin_dir)
+          {
+            struct ${name}_bpf *skel;
+            int err;
+
+            skel = ${name}_bpf__open_and_load();
+            if (!skel) {
+              fprintf(stderr, "ebpf-livepatch: failed to open/load ${name}\n");
+              return -1;
+            }
+
+            err = ${name}_bpf__attach(skel);
+            if (err < 0) {
+              fprintf(stderr, "ebpf-livepatch: failed to attach ${name}: %d\n", err);
+              ${name}_bpf__destroy(skel);
+              return -1;
+            }
+
+          ${pinLinkCalls name}
+            fprintf(stderr, "ebpf-livepatch: ${name} pinned in %s\n", pin_dir);
+
+          out:
+            ${name}_bpf__destroy(skel);
+            return err == 0 ? 0 : -1;
+          }
           PROGRAM_LOADER_${name}
         '') progNames;
         programTableEntries = lib.concatMapStrings (name: ''
-          { "${name}", load_and_attach_${name} },
+          { "${name}", load_and_attach_${name}, pin_${name} },
         '') progNames;
       in
       ''
