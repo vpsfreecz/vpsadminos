@@ -108,6 +108,7 @@ let
         "driver/nixos"
         "driver/rspec"
         "driver/vpsadminos"
+        "ebpf-livepatch"
         {
           template = "image-scripts/test";
           instances = imageScripts;
