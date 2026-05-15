@@ -26,11 +26,15 @@ let
       # enable after building with matching kernel BTF.
       enable = false;
     }
+    {
+      name = "ptrace_mm_guard";
+      description = "Deny ptrace access to mm-less tasks without init-ns CAP_SYS_PTRACE";
+      sinceKernel = "5.7";
+      enable = true;
+    }
   ];
 
-  programsForVersion =
-    kernelVer:
-    filter (p: versionAtLeast kernelVer p.sinceKernel) allPrograms;
+  programsForVersion = kernelVer: filter (p: versionAtLeast kernelVer p.sinceKernel) allPrograms;
 
   enabledPrograms = kernelVer: filter (p: p.enable) (programsForVersion kernelVer);
 
@@ -47,7 +51,12 @@ let
     );
 in
 {
-  inherit allPrograms programsForVersion programNames programsAttrset;
+  inherit
+    allPrograms
+    programsForVersion
+    programNames
+    programsAttrset
+    ;
   enabledPrograms = enabledPrograms kernelVersion;
   programNames' = programNames kernelVersion;
   programs' = programsAttrset kernelVersion;
