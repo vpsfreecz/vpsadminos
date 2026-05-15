@@ -16,12 +16,21 @@ let
       name = "override_uname";
       description = "Override uname(2) syscall to report spoofed kernel identity";
       sinceKernel = "5.4";
+      bpfPrograms = [
+        "uname_fentry"
+        "uname_fexit"
+      ];
       enable = false;
     }
     {
       name = "lsm_example";
       description = "Demonstrate eBPF LSM hooks on task_prctl and sysctl";
       sinceKernel = "5.7";
+      bpfPrograms = [
+        "lsm_cred_prep"
+        "lsm_task_prctl"
+        "lsm_sysctl"
+      ];
       # Requires per-target-kernel vmlinux.h for CO-RE LSM type compatibility;
       # enable after building with matching kernel BTF.
       enable = false;
@@ -30,6 +39,7 @@ let
       name = "ptrace_mm_guard";
       description = "Deny ptrace access to mm-less tasks without init-ns CAP_SYS_PTRACE";
       sinceKernel = "5.7";
+      bpfPrograms = [ "ptrace_mm_guard" ];
       enable = true;
     }
   ];
@@ -44,6 +54,15 @@ let
   );
 
   versionUpTo = kernelVer: untilKernel: builtins.compareVersions kernelVer untilKernel <= 0;
+
+  validBpfName = name: builtins.isString name && name != "" && builtins.stringLength name <= 15;
+
+  programHasValidBpfPrograms =
+    program:
+    program ? bpfPrograms
+    && builtins.isList program.bpfPrograms
+    && program.bpfPrograms != [ ]
+    && all validBpfName program.bpfPrograms;
 
   programMatchesKernel =
     kernelVer: program:
@@ -77,9 +96,11 @@ in
     programsByName
     programMatchesKernel
     programAvailableForKernel
+    programHasValidBpfPrograms
     programsForVersion
     programNames
     programsAttrset
+    validBpfName
     ;
   enabledPrograms = enabledPrograms kernelVersion;
   programNames' = programNames kernelVersion;

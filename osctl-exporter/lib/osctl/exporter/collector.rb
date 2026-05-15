@@ -39,6 +39,7 @@ module OsCtl::Exporter
         CollectorConfig.new(Collectors::Container, true, 30),
         CollectorConfig.new(Collectors::Exportfs, false, 60),
         CollectorConfig.new(Collectors::KernelKeyring, false, 60),
+        CollectorConfig.new(Collectors::KernelProtection, false, 30),
         CollectorConfig.new(Collectors::Sysctl, false, 60),
         CollectorConfig.new(Collectors::ZpoolList, false, 60),
         CollectorConfig.new(Collectors::ZpoolStatus, false, 60),

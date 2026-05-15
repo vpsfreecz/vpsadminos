@@ -29,10 +29,19 @@ import ../../make-test.nix (
     machine = import ../../machines/vpsadminos/with-tank.nix {
       inherit pkgs;
       config = {
+        environment.etc."vpsadminos/livepatch-monitor.json".text = builtins.toJSON {
+          module = "missing_livepatch_test";
+          patchVersion = 999;
+        };
+
+        services.ebpf-livepatch.enable = true;
+        services.live-patches.enable = false;
+
         services.prometheus.exporters.ebpf = {
           enable = true;
           names = [ "rtnl_lock-latency" ];
         };
+        services.prometheus.exporters.osctl.enable = true;
         services.prometheus.exporters.zfs.enable = true;
       };
     };
@@ -138,6 +147,81 @@ import ../../make-test.nix (
 
                 expect(compression).not_to be_nil
                 expect(refcompression).not_to be_nil
+              end
+            end
+          end
+        '';
+      };
+
+      kernel_protection = {
+        description = ''
+          Test vpsAdminOS kernel protection metrics from osctl-exporter
+        '';
+        script = helpers + ''
+          before(:suite) do
+            machine.start unless machine.running?
+            machine.wait_until_online
+            machine.wait_for_osctl_pool('tank')
+            machine.wait_for_service('ebpf-livepatch')
+            machine.wait_for_service('prometheus-osctl-exporter')
+          end
+
+          describe 'vpsAdminOS kernel protection metrics' do
+            it 'exports required and loaded BPF livepatch programs' do
+              wait_until_block_succeeds(name: 'BPF livepatch metrics') do
+                metrics = fetch_metrics(9101)
+                required = find_metric_line(
+                  metrics,
+                  'kernel_bpf_program_required',
+                  program: 'ptrace_mm_guard'
+                )
+                loaded = find_metric_line(
+                  metrics,
+                  'kernel_bpf_program_loaded',
+                  program: 'ptrace_mm_guard'
+                )
+                success = find_metric_line(
+                  metrics,
+                  'kernel_protection_monitoring_success',
+                  component: 'bpf'
+                )
+
+                expect(required).not_to be_nil
+                expect(required.split.last.to_f).to eq(1.0)
+                expect(loaded).not_to be_nil
+                expect(loaded.split.last.to_f).to eq(1.0)
+                expect(success).not_to be_nil
+                expect(success.split.last.to_f).to eq(1.0)
+              end
+            end
+
+            it 'exports required but unloaded kernel livepatches' do
+              wait_until_block_succeeds(name: 'kernel livepatch metrics') do
+                metrics = fetch_metrics(9101)
+                required = find_metric_line(
+                  metrics,
+                  'kernel_livepatch_required',
+                  module: 'missing_livepatch_test',
+                  patch_version: '999'
+                )
+                loaded = find_metric_line(
+                  metrics,
+                  'kernel_livepatch_loaded',
+                  module: 'missing_livepatch_test',
+                  patch_version: '999'
+                )
+                success = find_metric_line(
+                  metrics,
+                  'kernel_protection_monitoring_success',
+                  component: 'livepatch'
+                )
+
+                expect(required).not_to be_nil
+                expect(required.split.last.to_f).to eq(1.0)
+                expect(loaded).not_to be_nil
+                expect(loaded.split.last.to_f).to eq(0.0)
+                expect(success).not_to be_nil
+                expect(success.split.last.to_f).to eq(1.0)
               end
             end
           end

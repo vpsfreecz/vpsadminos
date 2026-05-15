@@ -303,15 +303,29 @@ in
       '';
     };
   };
-  config = {
-    environment.etc."livepatch-store-path".text =
-      "" + (optionalString (buildEnable) (toString patches));
-    environment.systemPackages = [ live-patches-util ];
-    runit.services.live-patches = {
-      run = (optionalString (buildEnable) "live-patches load && ") + "sleep inf";
-      finish = optionalString (buildEnable) "live-patches unload";
-      runlevels = [ "default" ];
-      onChange = "ignore";
-    };
-  };
+  config = mkMerge [
+    {
+      environment.etc."livepatch-store-path".text =
+        "" + (optionalString (buildEnable) (toString patches));
+      environment.systemPackages = [ live-patches-util ];
+      runit.services.live-patches = {
+        run = (optionalString (buildEnable) "live-patches load && ") + "sleep inf";
+        finish = optionalString (buildEnable) "live-patches unload";
+        runlevels = [ "default" ];
+        onChange = "ignore";
+      };
+    }
+
+    (mkIf buildEnable {
+      environment.etc."vpsadminos/livepatch-monitor.json".text = builtins.toJSON {
+        kernelVersion = config.boot.kernelVersion;
+        module = patchModuleName;
+        inherit patchVersion;
+        patches = map (patch: {
+          inherit (patch) name;
+          version = availablePatches.getPatchVersion patch;
+        }) availablePatches.filteredPatches;
+      };
+    })
+  ];
 }

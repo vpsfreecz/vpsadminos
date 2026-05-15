@@ -22,7 +22,7 @@ struct {
 } uname_buf_map SEC(".maps");
 
 SEC("fentry/__x64_sys_newuname")
-int BPF_PROG(fentry__x64_sys_newuname, struct pt_regs *regs)
+int BPF_PROG(uname_fentry, struct pt_regs *regs)
 {
     __u32 tid = bpf_get_current_pid_tgid();
     __u64 buf_ptr;
@@ -38,7 +38,7 @@ int BPF_PROG(fentry__x64_sys_newuname, struct pt_regs *regs)
 }
 
 SEC("fexit/__x64_sys_newuname")
-int BPF_PROG(fexit__x64_sys_newuname, struct pt_regs *regs, long ret)
+int BPF_PROG(uname_fexit, struct pt_regs *regs, long ret)
 {
     __u32 tid = bpf_get_current_pid_tgid();
     __u64 *ptrp;

@@ -23,6 +23,7 @@ RSpec.describe OsCtl::Exporter::Collector do
         OsCtl::Exporter::Collectors::Container,
         OsCtl::Exporter::Collectors::Exportfs,
         OsCtl::Exporter::Collectors::KernelKeyring,
+        OsCtl::Exporter::Collectors::KernelProtection,
         OsCtl::Exporter::Collectors::Sysctl,
         OsCtl::Exporter::Collectors::ZpoolList,
         OsCtl::Exporter::Collectors::ZpoolStatus,

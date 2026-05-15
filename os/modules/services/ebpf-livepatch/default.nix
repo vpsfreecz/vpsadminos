@@ -24,6 +24,11 @@ let
     name:
     hasAttr name available.programsByName && !(available.programAvailableForKernel kernelVersion name)
   ) requestedProgramNames;
+  invalidProgramBpfNames = filter (
+    name:
+    hasAttr name available.programsByName
+    && !(available.programHasValidBpfPrograms available.programsByName.${name})
+  ) requestedProgramNames;
 
   programKernelRange =
     program:
@@ -39,6 +44,20 @@ let
     bpftool = pkgs.bpftools;
     programs = cfg.programs;
   };
+
+  programMetadata = map (
+    name:
+    let
+      program = available.programsByName.${name};
+    in
+    {
+      inherit name;
+      description = program.description;
+      sinceKernel = program.sinceKernel;
+      untilKernel = program.untilKernel or null;
+      bpfPrograms = program.bpfPrograms;
+    }
+  ) (filter (name: hasAttr name available.programsByName) requestedProgramNames);
 in
 {
   options = {
@@ -105,7 +124,21 @@ in
             + "not available for kernel ${kernelVersion}: "
             + concatStringsSep ", " (map unavailableProgramDescription unavailableProgramNames);
         }
+        {
+          assertion = invalidProgramBpfNames == [ ];
+          message =
+            "services.ebpf-livepatch.programs contains eBPF livepatch program(s) "
+            + "with invalid BPF program names: "
+            + concatStringsSep ", " invalidProgramBpfNames
+            + ". BPF program names must be non-empty and at most 15 characters.";
+        }
       ];
+
+      environment.etc."vpsadminos/ebpf-livepatch-monitor.json".text = builtins.toJSON {
+        bpftool = "${pkgs.bpftools}/bin/bpftool";
+        inherit kernelVersion;
+        programs = programMetadata;
+      };
 
       environment.systemPackages = [ ebpfPkg.loader ];
     }

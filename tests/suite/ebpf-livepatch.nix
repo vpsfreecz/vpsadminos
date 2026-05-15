@@ -112,6 +112,20 @@ import ../make-test.nix (
                 hasDescription = program ? description;
                 hasSinceKernel = program ? sinceKernel;
                 hasEnable = program ? enable;
+                hasBpfPrograms = program ? bpfPrograms;
+                bpfPrograms = program.bpfPrograms or [ ];
+                bpfProgramNamesValid =
+                  (program ? bpfPrograms)
+                  && program.bpfPrograms != [ ]
+                  && lib.all (
+                    name:
+                    builtins.isString name
+                    && name != ""
+                    && builtins.stringLength name <= 15
+                  ) program.bpfPrograms;
+                bpfProgramNamesUnique =
+                  (program ? bpfPrograms)
+                  && lib.unique program.bpfPrograms == program.bpfPrograms;
                 sourceExists =
                   (program ? name)
                   && builtins.pathExists (
@@ -145,6 +159,10 @@ import ../make-test.nix (
                         environment.systemPackages = lib.mkOption {
                           type = lib.types.listOf lib.types.anything;
                           default = [ ];
+                        };
+                        environment.etc = lib.mkOption {
+                          type = lib.types.attrsOf lib.types.anything;
+                          default = { };
                         };
                         runit.services = lib.mkOption {
                           type = lib.types.attrsOf lib.types.anything;
@@ -270,6 +288,9 @@ import ../make-test.nix (
               registryDefaultPrograms = currentAvailable.programNames currentKernelVersion;
               manualDisabledPrograms =
                 builtins.attrNames manualDisabledEval.config.services.ebpf-livepatch.programs;
+              manualDisabledMonitorConfig = builtins.fromJSON (
+                builtins.unsafeDiscardStringContext manualDisabledEval.config.environment.etc."vpsadminos/ebpf-livepatch-monitor.json".text
+              );
               manualDisabledFailures = failedMessages manualDisabledEval;
               unknownFailures = failedMessages unknownEval;
               outOfRangeFailures = failedMessages outOfRangeEval;
@@ -292,6 +313,14 @@ import ../make-test.nix (
             expect(program.fetch('hasDescription')).to be(true)
             expect(program.fetch('hasSinceKernel')).to be(true)
             expect(program.fetch('hasEnable')).to be(true)
+            expect(program.fetch('hasBpfPrograms')).to be(true)
+          end
+        end
+
+        it 'defines valid kernel-visible BPF program names' do
+          @facts.fetch('registry').fetch('programs').each do |program|
+            expect(program.fetch('bpfProgramNamesValid')).to be(true)
+            expect(program.fetch('bpfProgramNamesUnique')).to be(true)
           end
         end
 
@@ -368,6 +397,17 @@ import ../make-test.nix (
 
           expect(mod.fetch('manualDisabledPrograms')).to eq(['lsm_example'])
           expect(mod.fetch('manualDisabledFailures')).to eq([])
+        end
+
+        it 'exports monitoring metadata for selected programs' do
+          config = @facts.fetch('module').fetch('manualDisabledMonitorConfig')
+          program = config.fetch('programs').first
+
+          expect(config.fetch('bpftool')).to end_with('/bin/bpftool')
+          expect(program.fetch('name')).to eq('lsm_example')
+          expect(program.fetch('bpfPrograms')).to eq(
+            %w[lsm_cred_prep lsm_task_prctl lsm_sysctl]
+          )
         end
 
         it 'rejects unknown per-program options' do

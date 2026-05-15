@@ -14,7 +14,7 @@
 char LICENSE[] SEC("license") = "GPL";
 
 SEC("lsm/cred_prepare")
-int BPF_PROG(lsm_cred_prepare, struct cred *new, const struct cred *old, gfp_t gfp)
+int BPF_PROG(lsm_cred_prep, struct cred *new, const struct cred *old, gfp_t gfp)
 {
     /*
      * This hook is called when credentials are being prepared for
