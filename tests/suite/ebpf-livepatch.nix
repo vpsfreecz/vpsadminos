@@ -117,12 +117,7 @@ import ../make-test.nix (
                 bpfProgramNamesValid =
                   (program ? bpfPrograms)
                   && program.bpfPrograms != [ ]
-                  && lib.all (
-                    name:
-                    builtins.isString name
-                    && name != ""
-                    && builtins.stringLength name <= 15
-                  ) program.bpfPrograms;
+                  && lib.all currentAvailable.validBpfName program.bpfPrograms;
                 bpfProgramNamesUnique =
                   (program ? bpfPrograms)
                   && lib.unique program.bpfPrograms == program.bpfPrograms;
@@ -242,6 +237,12 @@ import ../make-test.nix (
             registry = {
               programs = map summarizeProgram currentAvailable.allPrograms;
               allProgramNames = currentAvailable.allProgramNames;
+              bpfNameValidation = {
+                valid = currentAvailable.validBpfName "abc_123.foo";
+                empty = currentAvailable.validBpfName "";
+                tooLong = currentAvailable.validBpfName "1234567890123456";
+                invalidCharacter = currentAvailable.validBpfName "bad-name";
+              };
             };
 
             synthetic = {
@@ -292,6 +293,7 @@ import ../make-test.nix (
                 builtins.unsafeDiscardStringContext manualDisabledEval.config.environment.etc."vpsadminos/ebpf-livepatch-monitor.json".text
               );
               manualDisabledFailures = failedMessages manualDisabledEval;
+              assertionMessages = map (assertion: assertion.message) manualDisabledEval.config.assertions;
               unknownFailures = failedMessages unknownEval;
               outOfRangeFailures = failedMessages outOfRangeEval;
               invalidProgramOptionsAccepted = invalidProgramOptionsResult.success;
@@ -322,6 +324,15 @@ import ../make-test.nix (
             expect(program.fetch('bpfProgramNamesValid')).to be(true)
             expect(program.fetch('bpfProgramNamesUnique')).to be(true)
           end
+        end
+
+        it 'validates BPF names using kernel object name rules' do
+          validation = @facts.fetch('registry').fetch('bpfNameValidation')
+
+          expect(validation.fetch('valid')).to be(true)
+          expect(validation.fetch('empty')).to be(false)
+          expect(validation.fetch('tooLong')).to be(false)
+          expect(validation.fetch('invalidCharacter')).to be(false)
         end
 
         it 'does not define untilKernel below sinceKernel' do
@@ -384,6 +395,15 @@ import ../make-test.nix (
           expect(description).to include('sinceKernel is an inclusive lower bound')
           expect(description).to include('untilKernel')
           expect(description).to include('untilKernel is an inclusive upper bound')
+        end
+
+        it 'documents BPF program name requirements in assertions' do
+          messages = @facts.fetch('module').fetch('assertionMessages')
+          message = messages.find { |v| v.include?('BPF program names must be') }
+
+          expect(message).to include('non-empty')
+          expect(message).to include('at most 15 characters')
+          expect(message).to include("ASCII letters, digits, '_', or '.'")
         end
 
         it 'defaults to registry-enabled programs for the current kernel' do

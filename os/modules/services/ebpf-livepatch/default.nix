@@ -130,7 +130,8 @@ in
             "services.ebpf-livepatch.programs contains eBPF livepatch program(s) "
             + "with invalid BPF program names: "
             + concatStringsSep ", " invalidProgramBpfNames
-            + ". BPF program names must be non-empty and at most 15 characters.";
+            + ". BPF program names must be non-empty, at most 15 characters, "
+            + "and contain only ASCII letters, digits, '_', or '.'.";
         }
       ];
 

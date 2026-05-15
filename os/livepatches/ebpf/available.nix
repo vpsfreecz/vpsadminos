@@ -16,6 +16,7 @@ let
       name = "override_uname";
       description = "Override uname(2) syscall to report spoofed kernel identity";
       sinceKernel = "5.4";
+      # Kernel-visible BPF object names reported by bpftool.
       bpfPrograms = [
         "uname_fentry"
         "uname_fexit"
@@ -55,7 +56,14 @@ let
 
   versionUpTo = kernelVer: untilKernel: builtins.compareVersions kernelVer untilKernel <= 0;
 
-  validBpfName = name: builtins.isString name && name != "" && builtins.stringLength name <= 15;
+  # BPF_OBJ_NAME_LEN is 16 including the trailing NUL. The kernel accepts
+  # only isalnum(), '_' and '.' in bpf_obj_name_cpy().
+  validBpfName =
+    name:
+    builtins.isString name
+    && name != ""
+    && builtins.stringLength name <= 15
+    && builtins.match "[A-Za-z0-9_.]+" name != null;
 
   programHasValidBpfPrograms =
     program:
