@@ -40,6 +40,7 @@ let
       name = "ptrace_mm_guard";
       description = "Deny ptrace access to mm-less tasks without init-ns CAP_SYS_PTRACE";
       sinceKernel = "5.7";
+      untilKernel = "6.12.88";
       bpfPrograms = [ "ptrace_mm_guard" ];
       enable = true;
     }

@@ -274,12 +274,30 @@ import ../make-test.nix (
                 untilKernel = "6.0";
                 enable = true;
               };
+              patchAtUntil = currentAvailable.programMatchesKernel "6.12.88" {
+                name = "synthetic";
+                description = "Synthetic test program";
+                sinceKernel = "6.12.0";
+                untilKernel = "6.12.88";
+                enable = true;
+              };
+              patchAboveUntil = currentAvailable.programMatchesKernel "6.12.89" {
+                name = "synthetic";
+                description = "Synthetic test program";
+                sinceKernel = "6.12.0";
+                untilKernel = "6.12.88";
+                enable = true;
+              };
             };
 
             defaults = {
               beforeSince = (availableFor "5.6").programNames "5.6";
               atSince = (availableFor "5.7").programNames "5.7";
               current = currentAvailable.programNames currentKernelVersion;
+              currentHasPtrace =
+                currentAvailable.programAvailableForKernel currentKernelVersion "ptrace_mm_guard";
+              atPtraceUntil = (availableFor "6.12.88").programNames "6.12.88";
+              afterPtraceUntil = (availableFor "6.12.89").programNames "6.12.89";
             };
 
             module = {
@@ -364,6 +382,13 @@ import ../make-test.nix (
         it 'excludes kernels above untilKernel' do
           expect(@facts.fetch('synthetic').fetch('aboveUntil')).to be(false)
         end
+
+        it 'supports patch versions in untilKernel' do
+          synthetic = @facts.fetch('synthetic')
+
+          expect(synthetic.fetch('patchAtUntil')).to be(true)
+          expect(synthetic.fetch('patchAboveUntil')).to be(false)
+        end
       end
 
       describe 'default programs' do
@@ -375,8 +400,20 @@ import ../make-test.nix (
           expect(@facts.fetch('defaults').fetch('atSince')).to include('ptrace_mm_guard')
         end
 
-        it 'includes ptrace_mm_guard on the current kernel' do
-          expect(@facts.fetch('defaults').fetch('current')).to include('ptrace_mm_guard')
+        it 'includes ptrace_mm_guard through kernel 6.12.88' do
+          expect(@facts.fetch('defaults').fetch('atPtraceUntil')).to include('ptrace_mm_guard')
+        end
+
+        it 'excludes ptrace_mm_guard after kernel 6.12.88' do
+          expect(@facts.fetch('defaults').fetch('afterPtraceUntil')).not_to include('ptrace_mm_guard')
+        end
+
+        it 'matches ptrace_mm_guard default to current kernel eligibility' do
+          defaults = @facts.fetch('defaults')
+
+          expect(defaults.fetch('current').include?('ptrace_mm_guard')).to eq(
+            defaults.fetch('currentHasPtrace')
+          )
         end
 
         it 'does not include disabled programs by default' do
