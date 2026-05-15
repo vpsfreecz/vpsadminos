@@ -43,7 +43,11 @@ in
       };
 
       programs = mkOption {
-        type = types.attrsOf types.attrs;
+        type = types.attrsOf (
+          types.submodule {
+            options = { };
+          }
+        );
         default = programsEnabled;
         description = ''
           eBPF programs to load, keyed by program name.
