@@ -311,6 +311,8 @@ in
       runit.services.live-patches = {
         run = (optionalString (buildEnable) "live-patches load && ") + "sleep inf";
         finish = optionalString (buildEnable) "live-patches unload";
+        log.enable = true;
+        log.sendTo = "127.0.0.1";
         runlevels = [ "default" ];
         onChange = "ignore";
       };
