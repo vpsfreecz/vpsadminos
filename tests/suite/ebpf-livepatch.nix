@@ -339,6 +339,8 @@ import ../make-test.nix (
                 {
                   inherit (service) onChange reloadMethod;
                   hasUsr1Control = service ? control && service.control ? usr1;
+                  logEnabled = service.log.enable;
+                  logSendTo = service.log.sendTo;
                   runUsesPinnedGeneration =
                     lib.hasInfix "activating pinned generation" service.run
                     && lib.hasInfix "sleep inf" service.run;
@@ -525,6 +527,8 @@ import ../make-test.nix (
           expect(service.fetch('onChange')).to eq('reload')
           expect(service.fetch('reloadMethod')).to eq('1')
           expect(service.fetch('hasUsr1Control')).to be(true)
+          expect(service.fetch('logEnabled')).to be(true)
+          expect(service.fetch('logSendTo')).to eq('127.0.0.1')
           expect(service.fetch('runUsesPinnedGeneration')).to be(true)
           expect(service.fetch('usr1ActivatesPinnedGeneration')).to be(true)
           expect(service.fetch('finishPreservesPinnedHandoff')).to be(true)

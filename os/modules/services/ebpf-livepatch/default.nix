@@ -297,6 +297,8 @@ in
             echo "ebpf-livepatch: programs detached"
           fi
         '';
+        log.enable = true;
+        log.sendTo = "127.0.0.1";
         runlevels = [ "default" ];
         onChange = "reload";
         reloadMethod = "1";
