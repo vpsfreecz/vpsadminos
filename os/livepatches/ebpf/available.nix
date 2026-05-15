@@ -34,7 +34,27 @@ let
     }
   ];
 
-  programsForVersion = kernelVer: filter (p: versionAtLeast kernelVer p.sinceKernel) allPrograms;
+  allProgramNames = map (p: p.name) allPrograms;
+
+  programsByName = builtins.listToAttrs (
+    map (p: {
+      name = p.name;
+      value = p;
+    }) allPrograms
+  );
+
+  versionUpTo = kernelVer: untilKernel: builtins.compareVersions kernelVer untilKernel <= 0;
+
+  programMatchesKernel =
+    kernelVer: program:
+    versionAtLeast kernelVer program.sinceKernel
+    && (!(program ? untilKernel) || versionUpTo kernelVer program.untilKernel);
+
+  programAvailableForKernel =
+    kernelVer: name:
+    hasAttr name programsByName && programMatchesKernel kernelVer programsByName.${name};
+
+  programsForVersion = kernelVer: filter (programMatchesKernel kernelVer) allPrograms;
 
   enabledPrograms = kernelVer: filter (p: p.enable) (programsForVersion kernelVer);
 
@@ -53,6 +73,10 @@ in
 {
   inherit
     allPrograms
+    allProgramNames
+    programsByName
+    programMatchesKernel
+    programAvailableForKernel
     programsForVersion
     programNames
     programsAttrset

@@ -18,6 +18,21 @@ let
 
   programsEnabled = available.programs';
 
+  requestedProgramNames = attrNames cfg.programs;
+  unknownProgramNames = filter (name: !(hasAttr name available.programsByName)) requestedProgramNames;
+  unavailableProgramNames = filter (
+    name:
+    hasAttr name available.programsByName && !(available.programAvailableForKernel kernelVersion name)
+  ) requestedProgramNames;
+
+  programKernelRange =
+    program:
+    "kernel >= ${program.sinceKernel} (inclusive)"
+    + optionalString (program ? untilKernel) " and <= ${program.untilKernel} (inclusive)";
+
+  unavailableProgramDescription =
+    name: "${name} (${programKernelRange available.programsByName.${name}})";
+
   ebpfPkg = pkgs.callPackage ../../../packages/ebpf-livepatch {
     inherit kernel;
     inherit (pkgs) libbpf elfutils zlib;
@@ -51,8 +66,12 @@ in
         default = programsEnabled;
         description = ''
           eBPF programs to load, keyed by program name.
+
           Defaults to the complete list from available.nix filtered
-          by kernel version requirements.
+          by kernel version requirements. In the program registry, sinceKernel
+          is an inclusive lower bound and untilKernel is an inclusive upper
+          bound when set. Programs can be selected only when the current
+          boot.kernelVersion is within those bounds.
         '';
       };
 
@@ -70,6 +89,24 @@ in
 
   config = mkIf cfg.enable (mkMerge [
     {
+      assertions = [
+        {
+          assertion = unknownProgramNames == [ ];
+          message =
+            "services.ebpf-livepatch.programs contains unknown eBPF livepatch program(s): "
+            + concatStringsSep ", " unknownProgramNames
+            + ". Known programs: "
+            + concatStringsSep ", " available.allProgramNames;
+        }
+        {
+          assertion = unavailableProgramNames == [ ];
+          message =
+            "services.ebpf-livepatch.programs contains eBPF livepatch program(s) "
+            + "not available for kernel ${kernelVersion}: "
+            + concatStringsSep ", " (map unavailableProgramDescription unavailableProgramNames);
+        }
+      ];
+
       environment.systemPackages = [ ebpfPkg.loader ];
     }
 
