@@ -22,7 +22,7 @@ let
     inherit kernel;
     inherit (pkgs) libbpf elfutils zlib;
     bpftool = pkgs.bpftools;
-    programs = programsEnabled;
+    programs = cfg.programs;
   };
 in
 {
