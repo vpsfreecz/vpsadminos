@@ -145,6 +145,35 @@ Selected tests can be pattern-matched, e.g.:
 ./test-runner.sh test 'docker/*'
 ```
 
+Tests can also be selected by tags, labels and metadata expressions. Tags are
+listed in the test definition using `tags = [ ... ];`; labels are listed using
+`labels = { ... };`. Test scripts inherit test-level tags and labels, and can
+add or override their own metadata.
+
+Existing tag and label filters are simple AND filters:
+
+```
+./test-runner.sh test -t ci
+./test-runner.sh test -t ci -t docker
+./test-runner.sh test -t ^manual
+./test-runner.sh test -l runtime=long
+./test-runner.sh test -l runtime!=long
+```
+
+For more advanced selection, use `--filter` with a metadata expression. The
+virtual label `tag` matches tags; other names match labels. Expressions use
+`&&` for AND, `||` for OR and parentheses for grouping:
+
+```
+./test-runner.sh ls --filter 'tag=ci && tag!=manual'
+./test-runner.sh ls --filter 'tag=ci && runtime!=long'
+./test-runner.sh test -t ci --filter 'tag=vps || tag=storage'
+./test-runner.sh test --filter 'tag=ci && (tag=docker || tag=podman)'
+./test-runner.sh test -t ci --filter 'runtime!=long && (tag=docker || tag=podman)'
+```
+
+Shell quoting is required for expressions containing `&&`, `||` or parentheses.
+
 While developing a test, it is possible to start it with an interactive Ruby REPL:
 
 ```

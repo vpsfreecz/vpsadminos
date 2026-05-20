@@ -22,6 +22,12 @@ selected tests and reporting results.
       Filter tests that have *tag* set. If the tag begins with `^`, then
       filter tests that do not have *tag* set.
 
+    `--filter` *expr*
+      Filter tests by metadata expression. Expressions can test tags and labels,
+      combine conditions with `&&` and `||`, and group them with parentheses.
+      Use `tag=`*value* to require a tag and `tag!=`*value* to reject a tag.
+      Other keys are treated as labels, e.g. `runtime!=long`.
+
     `--system` *system*
       Nix system to evaluate tests for. Defaults to `x86_64-linux`.
 
@@ -40,6 +46,12 @@ selected tests and reporting results.
     `-t`, `--tag` *tag*|`^`*tag*
       Filter tests that have *tag* set. If the tag begins with `^`, then
       filter tests that do not have *tag* set.
+
+    `--filter` *expr*
+      Filter tests by metadata expression. Expressions can test tags and labels,
+      combine conditions with `&&` and `||`, and group them with parentheses.
+      Use `tag=`*value* to require a tag and `tag!=`*value* to reject a tag.
+      Other keys are treated as labels, e.g. `runtime!=long`.
 
     `-j`, `--jobs`
       Number of tests to run in parallel.
@@ -77,6 +89,30 @@ selected tests and reporting results.
 
     `--test-config` *path*
       Path to a Nix file returning additional test framework configuration.
+
+## FILTER EXPRESSIONS
+`--filter` accepts boolean expressions over test script metadata:
+
+- `tag=ci` matches scripts tagged `ci`.
+- `tag!=manual` matches scripts without tag `manual`.
+- `runtime=long` matches scripts with label `runtime` set to `long`.
+- `runtime!=long` matches scripts whose `runtime` label is not `long`.
+
+Use `&&` for AND, `||` for OR and parentheses for grouping. `&&` binds more
+strongly than `||`. Multiple `--filter`, `--tag` and `--label` options are
+combined with AND.
+
+Examples:
+
+```
+test-runner ls --filter 'tag=ci && tag!=manual'
+test-runner test --filter 'tag=ci && (tag=vps || tag=storage)'
+test-runner test -t ci --filter 'runtime!=long && (tag=vps || tag=storage)'
+./test-runner.sh test -t ci --filter 'tag=vps || tag=storage'
+./test-runner.sh ls --filter 'tag=ci && runtime!=long'
+```
+
+Shell quoting is required for expressions containing `&&`, `||` or parentheses.
 
 `debug` *test*
   Run test interactively. The test script is not run, instead Ruby REPL is opened.

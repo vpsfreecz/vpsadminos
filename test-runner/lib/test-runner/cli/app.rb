@@ -31,6 +31,9 @@ module TestRunner::Cli
         c.desc 'Filter by tag'
         c.flag %w[t tag], multiple: true
 
+        c.desc 'Filter by metadata expression'
+        c.flag 'filter', multiple: true
+
         c.desc 'Nix system to evaluate tests for'
         c.flag 'system', default_value: TestRunner::NixCli::DEFAULT_SYSTEM
 
@@ -48,6 +51,9 @@ module TestRunner::Cli
 
         c.desc 'Filter by tag'
         c.flag %w[t tag], multiple: true
+
+        c.desc 'Filter by metadata expression'
+        c.flag 'filter', multiple: true
 
         c.desc 'How many tests to run in parallel'
         c.flag %w[j jobs], type: Integer, default_value: 1

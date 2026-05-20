@@ -70,11 +70,13 @@ module TestRunner
 
       attr_filters = Cli::LabelFilters.new(opts['label'])
       tag_filters = Cli::TagFilters.new(opts['tag'])
+      expr_filters = Array(opts['filter']).map { |expr| Cli::FilterExpression.new(expr) }
 
       tsl.filter do |ts|
         (pattern.nil? || ts.path_matches?(pattern)) \
         && attr_filters.pass?(ts) \
-        && tag_filters.pass?(ts)
+        && tag_filters.pass?(ts) \
+        && expr_filters.all? { |expr| expr.pass?(ts) }
       end
     end
 

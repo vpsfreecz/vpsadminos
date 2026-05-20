@@ -260,7 +260,15 @@ Invoke the wrapper with the usual runner commands:
 - `./test-runner.sh ls` to list available tests.
 - `./test-runner.sh test hello/boot` to run a single test.
 - `./test-runner.sh test 'hello/*'` to run selected tests.
+- `./test-runner.sh test -t ci --filter 'tag=vps || tag=storage'` to combine
+  simple tag filters with a metadata expression.
+- `./test-runner.sh ls --filter 'tag=ci && runtime!=long'` to list tests
+  selected by a boolean metadata expression.
 - `./test-runner.sh debug hello/boot` to open the interactive REPL.
+
+`--filter` expressions can match tags through the virtual `tag` key and labels
+through their label name. Use `&&` for AND, `||` for OR and parentheses for
+grouping, for example `tag=ci && (component=web || component=api)`.
 
 ### 6) Extend the runner when needed (optional)
 Custom helpers can be added under `tests/runner/extensions/`. vpsAdmin adds

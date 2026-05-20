@@ -23,6 +23,7 @@ RSpec.describe TestRunner::Cli::Command do
       'fresh' => false,
       'system' => 'x86_64-linux',
       'test-config' => nil,
+      'filter' => [],
       'state-dir' => nil
     }
   end
@@ -111,6 +112,36 @@ RSpec.describe TestRunner::Cli::Command do
       :select_test_scripts,
       'suite/*'
     )
+
+    expect(filtered).to eq([matching])
+  end
+
+  it 'filters scripts by metadata expression' do
+    matching = instance_double(
+      TestRunner::TestScript,
+      path: 'suite/example#default',
+      labels: { 'runtime' => 'short' },
+      tags: %w[ci storage]
+    )
+    nonmatching = instance_double(
+      TestRunner::TestScript,
+      path: 'suite/other#default',
+      labels: { 'runtime' => 'long' },
+      tags: %w[ci manual]
+    )
+    allow(matching).to receive(:path_matches?).with('suite/*').and_return(true)
+    allow(nonmatching).to receive(:path_matches?).with('suite/*').and_return(true)
+    list = instance_double(TestRunner::TestScriptList)
+    allow(TestRunner::TestScriptList).to receive(:new).and_return(list)
+    allow(list).to receive(:filter) do |&block|
+      [matching, nonmatching].select(&block)
+    end
+
+    filtered = described_class.new(
+      {},
+      opts.merge('filter' => ['tag=ci && (tag=vps || tag=storage) && runtime!=long']),
+      []
+    ).send(:select_test_scripts, 'suite/*')
 
     expect(filtered).to eq([matching])
   end
