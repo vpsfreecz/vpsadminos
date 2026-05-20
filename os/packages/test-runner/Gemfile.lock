@@ -29,20 +29,20 @@ GEM
 GEM
   remote: https://rubygems.vpsfree.cz/
   specs:
-    libosctl (25.11.0.build20260515205005)
+    libosctl (25.11.0.build20260520110923)
       fiddle
       logger
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
       syslog
-    osvm (25.11.0.build20260515205005)
+    osvm (25.11.0.build20260520110923)
       base64
       gli (~> 2.22.0)
-      libosctl (= 25.11.0.build20260515205005)
-    test-runner (25.11.0.build20260515205005)
+      libosctl (= 25.11.0.build20260520110923)
+    test-runner (25.11.0.build20260520110923)
       gli (~> 2.22.0)
-      libosctl (= 25.11.0.build20260515205005)
-      osvm (= 25.11.0.build20260515205005)
+      libosctl (= 25.11.0.build20260520110923)
+      osvm (= 25.11.0.build20260520110923)
       pry (~> 0.16.0)
       rspec-expectations (~> 3.13)
 
@@ -50,7 +50,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  test-runner (= 25.11.0.build20260515205005)!
+  test-runner (= 25.11.0.build20260520110923)!
 
 BUNDLED WITH
    2.7.2
