@@ -36,6 +36,16 @@ RSpec.describe SendReceive do
     )
   end
 
+  it 'requires the authorized key public-key hash in forced command arguments' do
+    expect do
+      described_class.run(argv: %w[tank chain-1-token], env: {})
+    end.to(
+      output("Usage: $0 <pool> <key name> <key pubkey hash>\n").to_stderr.and(
+        raise_error(SystemExit)
+      )
+    )
+  end
+
   it 'passes the authorized key public-key hash to cleanup commands' do
     hook.instance_variable_set('@key_pool', 'tank')
     hook.instance_variable_set('@key_name', 'chain-1-token')

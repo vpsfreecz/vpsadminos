@@ -6,8 +6,8 @@ class SendReceive
   COMMANDS = %w[skel base incremental transfer cleanup cancel].freeze
 
   def self.run(argv: ARGV, env: ENV)
-    unless [2, 3].include?(argv.length)
-      warn 'Usage: $0 <pool> <key name> [key pubkey hash]'
+    if argv.length != 3
+      warn 'Usage: $0 <pool> <key name> <key pubkey hash>'
       exit(false)
     end
 

@@ -18,7 +18,7 @@ RSpec.describe OsCtld::Utils::Receive do
     end.new
   end
 
-  it 'matches authentication keys by public key' do
+  it 'matches authentication keys by public-key hash' do
     key_chain_class = Class.new do
       def get_key(_name); end
     end
@@ -34,12 +34,14 @@ RSpec.describe OsCtld::Utils::Receive do
       Struct.new(:opts).new(Struct.new(:key_name).new('used'))
     )
 
-    stub_const('OsCtld::DB::Pools', Class.new do
-      def self.find(_name); end
-    end)
-    allow(OsCtld::DB::Pools).to receive(:find).with('tank').and_return(pool)
-
-    expect(host.check_auth_pubkey('tank', 'rx', ct)).to be(true)
+    expect(
+      host.check_auth_pubkey(
+        'tank',
+        'rx',
+        ct,
+        key_pubkey_hash: Digest::SHA256.hexdigest('pub')
+      )
+    ).to be(true)
   end
 
   it 'matches authentication by public key hash when the selected key name was removed' do
@@ -59,11 +61,6 @@ RSpec.describe OsCtld::Utils::Receive do
       Struct.new(:opts).new(Struct.new(:key_name).new('used'))
     )
 
-    stub_const('OsCtld::DB::Pools', Class.new do
-      def self.find(_name); end
-    end)
-    allow(OsCtld::DB::Pools).to receive(:find).with('tank').and_return(pool)
-
     expect(
       host.check_auth_pubkey(
         'tank',
@@ -74,12 +71,14 @@ RSpec.describe OsCtld::Utils::Receive do
     ).to be(true)
   end
 
-  it 'errors when the key pool does not exist' do
-    stub_const('OsCtld::DB::Pools', Class.new do
-      def self.find(_name); end
-    end)
-    allow(OsCtld::DB::Pools).to receive(:find).with('tank').and_return(nil)
-
-    expect { host.check_auth_pubkey('tank', 'rx', Object.new) }.to raise_error('key pool not found')
+  it 'rejects authentication without a public-key hash' do
+    expect(
+      host.check_auth_pubkey(
+        'tank',
+        'rx',
+        Object.new,
+        key_pubkey_hash: nil
+      )
+    ).to be(false)
   end
 end
