@@ -1,3 +1,4 @@
+require 'digest'
 require 'libosctl'
 require 'osctld/lockable'
 
@@ -35,6 +36,10 @@ module OsCtld
 
       def in_use?
         in_use
+      end
+
+      def pubkey_hash
+        Digest::SHA256.hexdigest(pubkey)
       end
 
       def dump
@@ -102,7 +107,7 @@ module OsCtld
       inclusively do
         keys.each do |key|
           options = [
-            "command=\"#{File.join(SendReceive::HOOK)} #{pool.name} #{key.name}\"",
+            "command=\"#{File.join(SendReceive::HOOK)} #{pool.name} #{key.name} #{key.pubkey_hash}\"",
             'restrict'
           ]
 

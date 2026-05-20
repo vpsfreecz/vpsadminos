@@ -17,7 +17,12 @@ module OsCtld
 
         if !ct.send_log || !ct.send_log.can_receive_cancel?
           error!('invalid send sequence')
-        elsif !check_auth_pubkey(opts[:key_pool], opts[:key_name], ct)
+        elsif !check_auth_pubkey(
+          opts[:key_pool],
+          opts[:key_name],
+          ct,
+          key_pubkey_hash: opts[:key_pubkey_hash]
+        )
           error!('authentication key mismatch')
         end
 
@@ -57,7 +62,12 @@ module OsCtld
       ct.manipulate(self, block: true) do
         if !ct.send_log || !ct.send_log.can_receive_continue?(:cleanup)
           error!('invalid send sequence')
-        elsif !check_auth_pubkey(opts[:key_pool], opts[:key_name], ct)
+        elsif !check_auth_pubkey(
+          opts[:key_pool],
+          opts[:key_name],
+          ct,
+          key_pubkey_hash: opts[:key_pubkey_hash]
+        )
           error!('authentication key mismatch')
         end
 

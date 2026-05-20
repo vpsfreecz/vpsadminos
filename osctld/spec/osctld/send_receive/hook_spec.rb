@@ -35,4 +35,31 @@ RSpec.describe SendReceive do
       )
     )
   end
+
+  it 'passes the authorized key public-key hash to cleanup commands' do
+    hook.instance_variable_set('@key_pool', 'tank')
+    hook.instance_variable_set('@key_name', 'chain-1-token')
+    hook.instance_variable_set('@key_pubkey_hash', 'pubkey-hash')
+    hook.instance_variable_set('@protocol_version', 2)
+    hook.instance_variable_set('@args', ['receive-token'])
+
+    allow(client).to receive(:puts)
+    allow(client).to receive(:readline).and_return(
+      "#{({ status: true, response: 'done' }).to_json}\n"
+    )
+
+    expect(hook.send(:cleanup)).to eq('done')
+    expect(client).to have_received(:puts) do |payload|
+      expect(JSON.parse(payload, symbolize_names: true)).to eq(
+        cmd: 'receive_cleanup',
+        opts: {
+          key_pool: 'tank',
+          key_name: 'chain-1-token',
+          key_pubkey_hash: 'pubkey-hash',
+          token: 'receive-token',
+          protocol_version: 2
+        }
+      )
+    end
+  end
 end

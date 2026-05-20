@@ -16,7 +16,12 @@ module OsCtld
         ct.exclusively do
           if !ct.send_log || !ct.send_log.can_receive_continue?(:incremental)
             error!('invalid send sequence')
-          elsif !check_auth_pubkey(opts[:key_pool], opts[:key_name], ct)
+          elsif !check_auth_pubkey(
+            opts[:key_pool],
+            opts[:key_name],
+            ct,
+            key_pubkey_hash: opts[:key_pubkey_hash]
+          )
             error!('authentication key mismatch')
           end
         end

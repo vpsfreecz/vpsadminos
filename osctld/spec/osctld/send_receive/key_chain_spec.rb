@@ -2,6 +2,7 @@
 
 require 'stringio'
 require 'yaml'
+require 'digest'
 require 'libosctl'
 require 'osctld/lock_registry'
 require 'osctld/send_receive/key_chain'
@@ -114,8 +115,10 @@ RSpec.describe OsCtld::SendReceive::KeyChain do
     key_chain.authorize_key('main', 'ssh-ed25519 AAAA')
     key_chain.deploy(io)
 
+    pubkey_hash = Digest::SHA256.hexdigest('ssh-ed25519 AAAA')
+
     expect(io.string).to include(
-      'command="/run/osctl/send-receive/run tank main",restrict ssh-ed25519 AAAA'
+      "command=\"/run/osctl/send-receive/run tank main #{pubkey_hash}\",restrict ssh-ed25519 AAAA"
     )
   end
 

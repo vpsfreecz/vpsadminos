@@ -6,22 +6,24 @@ class SendReceive
   COMMANDS = %w[skel base incremental transfer cleanup cancel].freeze
 
   def self.run(argv: ARGV, env: ENV)
-    if argv.length != 2
-      warn 'Usage: $0 <pool> <key name>'
+    unless [2, 3].include?(argv.length)
+      warn 'Usage: $0 <pool> <key name> [key pubkey hash]'
       exit(false)
     end
 
     new(
       argv[0],
       argv[1],
+      argv[2],
       env.fetch('SSH_ORIGINAL_COMMAND', nil),
       env['SSH_CONNECTION'].split
     )
   end
 
-  def initialize(pool, key_name, cmdline, connection)
+  def initialize(pool, key_name, key_pubkey_hash, cmdline, connection)
     @key_pool = pool
     @key_name = key_name
+    @key_pubkey_hash = key_pubkey_hash
     @client_ip, = connection
     error! unless cmdline
 
@@ -41,7 +43,7 @@ class SendReceive
 
   protected
 
-  attr_reader :key_pool, :key_name, :client_ip, :protocol_version, :args, :client
+  attr_reader :key_pool, :key_name, :key_pubkey_hash, :client_ip, :protocol_version, :args, :client
 
   def skel
     to_pool =
@@ -58,7 +60,8 @@ class SendReceive
       passphrase: args[1],
       client_ip:,
       key_pool:,
-      key_name:
+      key_name:,
+      key_pubkey_hash:
     )
 
     if recv_resp! != 'continue'
@@ -79,6 +82,7 @@ class SendReceive
       :receive_base,
       key_pool:,
       key_name:,
+      key_pubkey_hash:,
       token: parse_token,
       dataset: args[1],
       snapshot: args[2]
@@ -99,6 +103,7 @@ class SendReceive
       :receive_incremental,
       key_pool:,
       key_name:,
+      key_pubkey_hash:,
       token: parse_token,
       dataset: args[1],
       snapshot: args[2]
@@ -118,6 +123,7 @@ class SendReceive
       :receive_transfer,
       key_pool:,
       key_name:,
+      key_pubkey_hash:,
       token: parse_token,
       start: args[1] == 'start'
     )
@@ -129,6 +135,7 @@ class SendReceive
       :receive_cleanup,
       key_pool:,
       key_name:,
+      key_pubkey_hash:,
       token: parse_token
     )
     recv_resp!
@@ -139,6 +146,7 @@ class SendReceive
       :receive_cancel,
       key_pool:,
       key_name:,
+      key_pubkey_hash:,
       token: parse_token
     )
     recv_resp!
