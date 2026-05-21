@@ -1,6 +1,12 @@
 import ../../make-test.nix (
   { pkgs }:
   let
+    bpfLivepatchProgram = "override_uname";
+    bpfLivepatchPins = [
+      "override_uname__uname_fentry"
+      "override_uname__uname_fexit"
+    ];
+
     helpers = ''
       def fetch_metrics(port)
         machine.succeeds("curl -sSf http://127.0.0.1:#{port}/metrics")[1]
@@ -34,7 +40,12 @@ import ../../make-test.nix (
           patchVersion = 999;
         };
 
-        services.ebpf-livepatch.enable = true;
+        services.ebpf-livepatch = {
+          enable = true;
+          # Select a non-expiring program explicitly. The default set can be
+          # empty after a mitigation ages out for the current kernel.
+          programs.${bpfLivepatchProgram} = { };
+        };
         services.live-patches.enable = false;
 
         services.prometheus.exporters.ebpf = {
@@ -158,6 +169,9 @@ import ../../make-test.nix (
           Test vpsAdminOS kernel protection metrics from osctl-exporter
         '';
         script = helpers + ''
+          BPF_LIVEPATCH_PROGRAM = ${builtins.toJSON bpfLivepatchProgram}
+          BPF_LIVEPATCH_PINS = ${builtins.toJSON bpfLivepatchPins}
+
           before(:suite) do
             machine.start unless machine.running?
             machine.wait_until_online
@@ -173,12 +187,12 @@ import ../../make-test.nix (
                 required = find_metric_line(
                   metrics,
                   'kernel_bpf_program_required',
-                  program: 'ptrace_mm_guard'
+                  program: BPF_LIVEPATCH_PROGRAM
                 )
                 loaded = find_metric_line(
                   metrics,
                   'kernel_bpf_program_loaded',
-                  program: 'ptrace_mm_guard'
+                  program: BPF_LIVEPATCH_PROGRAM
                 )
                 success = find_metric_line(
                   metrics,
@@ -197,7 +211,9 @@ import ../../make-test.nix (
 
             it 'keeps BPF livepatch programs pinned across service reload' do
               pin = '/sys/fs/bpf/vpsadminos/ebpf-livepatch/generations'
-              count_pins = "test \"$(find #{pin} -name ptrace_mm_guard__ptrace_mm_guard -printf .)\" = ."
+              count_pins = BPF_LIVEPATCH_PINS.map do |pin_name|
+                "test \"$(find #{pin} -name '#{pin_name}' -printf .)\" = ."
+              end.join('; ')
 
               machine.succeeds(count_pins)
               machine.succeeds('sv 1 ebpf-livepatch')
@@ -209,7 +225,7 @@ import ../../make-test.nix (
                 loaded = find_metric_line(
                   metrics,
                   'kernel_bpf_program_loaded',
-                  program: 'ptrace_mm_guard'
+                  program: BPF_LIVEPATCH_PROGRAM
                 )
 
                 expect(loaded).not_to be_nil
