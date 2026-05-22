@@ -110,6 +110,111 @@ import ../../make-test.nix (
         machine.wait_until_container_online(ct)
       end
 
+      def resource_limit_cases
+        [
+          {
+            name: 'mem64-cpu0_5',
+            memory: '64m',
+            memory_bytes: 64 * 1024 * 1024,
+            cpuset_cpus: '0',
+            cpu_quota: 50_000,
+          },
+          {
+            name: 'mem128-cpu1',
+            memory: '128m',
+            memory_bytes: 128 * 1024 * 1024,
+            cpuset_cpus: '0',
+            cpu_quota: 100_000,
+          },
+          {
+            name: 'mem256-cpu2',
+            memory: '256m',
+            memory_bytes: 256 * 1024 * 1024,
+            cpuset_cpus: '0-1',
+            cpu_quota: 200_000,
+          },
+        ]
+      end
+
+      def resource_limits_script(memory_bytes:, cpu_quota:)
+        <<~SH
+          set -eu
+
+          expected_memory=#{memory_bytes}
+          expected_cpu_quota=#{cpu_quota}
+          expected_cpu_period=100000
+
+          if [ -f /sys/fs/cgroup/memory.max ]; then
+            actual_memory=$(cat /sys/fs/cgroup/memory.max)
+          elif [ -f /sys/fs/cgroup/memory/memory.limit_in_bytes ]; then
+            actual_memory=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes)
+          else
+            echo "memory limit file not found" >&2
+            exit 1
+          fi
+
+          if [ "$actual_memory" != "$expected_memory" ]; then
+            echo "expected memory limit $expected_memory, got $actual_memory" >&2
+            exit 1
+          fi
+
+          if [ -f /sys/fs/cgroup/cpu.max ]; then
+            set -- $(cat /sys/fs/cgroup/cpu.max)
+            actual_cpu_quota=$1
+            actual_cpu_period=$2
+          elif [ -f /sys/fs/cgroup/cpu,cpuacct/cpu.cfs_quota_us ]; then
+            actual_cpu_quota=$(cat /sys/fs/cgroup/cpu,cpuacct/cpu.cfs_quota_us)
+            actual_cpu_period=$(cat /sys/fs/cgroup/cpu,cpuacct/cpu.cfs_period_us)
+          elif [ -f /sys/fs/cgroup/cpu/cpu.cfs_quota_us ]; then
+            actual_cpu_quota=$(cat /sys/fs/cgroup/cpu/cpu.cfs_quota_us)
+            actual_cpu_period=$(cat /sys/fs/cgroup/cpu/cpu.cfs_period_us)
+          else
+            echo "CPU limit file not found" >&2
+            exit 1
+          fi
+
+          if [ "$actual_cpu_quota" != "$expected_cpu_quota" ] \
+            || [ "$actual_cpu_period" != "$expected_cpu_period" ]; then
+            echo "expected CPU limit $expected_cpu_quota $expected_cpu_period, got $actual_cpu_quota $actual_cpu_period" >&2
+            exit 1
+          fi
+
+          echo "resource limits work"
+        SH
+      end
+
+      def check_podman_resource_limits(ct)
+        resource_limit_cases.each do |limit|
+          container = "resource-limit-#{limit.fetch(:name)}"
+
+          begin
+            ct_shell(ct, "podman rm -f #{container} >/dev/null 2>&1 || true")
+
+            script = resource_limits_script(
+              memory_bytes: limit.fetch(:memory_bytes),
+              cpu_quota: limit.fetch(:cpu_quota)
+            )
+
+            ct_shell(
+              ct,
+              "podman create --name #{container} --memory #{limit.fetch(:memory)} " \
+                "--cpu-period 100000 --cpu-quota #{limit.fetch(:cpu_quota)} " \
+                "--cpuset-cpus #{limit.fetch(:cpuset_cpus)} " \
+                "localhost/podman-build-test:latest " \
+                "sh -c #{Shellwords.escape(script)}"
+            )
+
+            _, output = ct_shell(ct, "podman start --attach #{container}")
+
+            unless output.include?('resource limits work')
+              fail "podman resource limits check #{limit.fetch(:name)} produced unexpected output:\n#{output}"
+            end
+          ensure
+            ct_shell(ct, "podman rm -f #{container} >/dev/null 2>&1 || true")
+          end
+        end
+      end
+
       def check_podman(ct)
         unless podman_docker_io_mirrors.empty? && podman_aliases.empty?
           _, registries_conf = machine.succeeds(
@@ -171,6 +276,8 @@ import ../../make-test.nix (
         if output.strip != 'Podman build works!'
           fail "podman build produced unexpected output:\n#{output}"
         end
+
+        check_podman_resource_limits(ct)
       end
     '';
   in
