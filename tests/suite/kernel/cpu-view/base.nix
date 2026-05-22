@@ -2,6 +2,8 @@
 import ../../../make-test.nix (
   { pkgs }:
   let
+    vmCpuCount = 8;
+
     getAffinity = pkgs.writeScript "sched_getaffinity.py" ''
       #!/usr/bin/env python3
       import os
@@ -24,6 +26,44 @@ import ../../../make-test.nix (
       os.sched_setaffinity(0, (int(v) for v in sys.argv[1].split(',')))
     '';
 
+    setAffinityAndGet = pkgs.writeScript "sched_setaffinity_and_get.py" ''
+      #!/usr/bin/env python3
+      import ctypes
+      import ctypes.util
+      import os
+      import sys
+
+
+      def parse_cpus(spec):
+        cpus = []
+
+        for part in spec.split(','):
+          if '-' in part:
+            start, end = (int(v) for v in part.split('-', 1))
+            cpus.extend(range(start, end + 1))
+          else:
+            cpus.append(int(part))
+
+        return cpus
+
+
+      if len(sys.argv) != 2:
+        print(f'Usage: {sys.argv[0]} <cpu>[,cpu...|cpu-cpu]')
+        sys.exit(1)
+
+      libc = ctypes.CDLL(ctypes.util.find_library('c'), use_errno=True)
+      CLONE_NEWCGROUP = 0x02000000
+
+      if libc.unshare(CLONE_NEWCGROUP) != 0:
+        err = ctypes.get_errno()
+        raise OSError(err, os.strerror(err))
+
+      os.sched_setaffinity(0, parse_cpus(sys.argv[1]))
+
+      cpus = os.sched_getaffinity(0)
+      print(','.join(str(v) for v in sorted(cpus)))
+    '';
+
     mkScript = script: ''
       def self.testct
         @testct ||= get_container_id
@@ -36,6 +76,10 @@ import ../../../make-test.nix (
         machine.mkdir_p('/scripts')
         machine.push_file('${getAffinity}', '/scripts/sched_getaffinity.py')
         machine.push_file('${setAffinity}', '/scripts/sched_setaffinity.py')
+        machine.push_file(
+          '${setAffinityAndGet}',
+          '/scripts/sched_setaffinity_and_get.py'
+        )
 
         machine.all_succeed(
           "osctl ct new --distribution alpine #{testct}",
@@ -70,7 +114,7 @@ import ../../../make-test.nix (
         { config, pkgs, ... }:
         {
           boot.qemu = {
-            cpus = 8;
+            cpus = vmCpuCount;
             cpu.sockets = 2;
             cpu.cores = 4;
           };
@@ -258,6 +302,30 @@ import ../../../make-test.nix (
               expect(limit_affinity.strip).to eq(cpu_list)
 
               machine.succeeds("osctl ct runscript #{testct} /scripts/sched_setaffinity.py #{limit_affinity.strip}")
+
+              _, clipped_wide_affinity = machine.succeeds(
+                "osctl ct runscript #{testct} " \
+                  "/scripts/sched_setaffinity_and_get.py 0-1023"
+              )
+
+              expect(clipped_wide_affinity.strip).to eq(cpu_list)
+
+              if cpu_count < ${toString vmCpuCount}
+                extra_cpu = cpu_count
+                _, clipped_affinity = machine.succeeds(
+                  "osctl ct runscript #{testct} " \
+                    "/scripts/sched_setaffinity_and_get.py " \
+                    "#{cpu_list},#{extra_cpu}"
+                )
+
+                expect(clipped_affinity.strip).to eq(cpu_list)
+
+                machine.fails(
+                  "osctl ct runscript #{testct} " \
+                    "/scripts/sched_setaffinity_and_get.py " \
+                    "#{extra_cpu}"
+                )
+              end
             end
           end
 
