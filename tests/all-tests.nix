@@ -145,6 +145,8 @@ let
         "osctl-exportfs/mount"
         "osctld/restart"
         "prometheus/exporters"
+        "podman/almalinux"
+        "podman/arch"
         "podman/debian"
         "podman/fedora"
         "podman/ubuntu"
