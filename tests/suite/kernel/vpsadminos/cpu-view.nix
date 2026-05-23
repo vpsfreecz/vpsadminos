@@ -36,7 +36,7 @@ let
             )
 
             machine.wait_until_container_online(testct, timeout: 60)
-            machine.succeeds("osctl ct exec #{testct} apk add python3")
+            ct_apk_add(testct, 'python3')
           end
 
           after(:suite) do

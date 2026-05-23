@@ -92,7 +92,7 @@ let
               "osctl ct start #{testct}"
             )
             machine.wait_until_container_online(testct)
-            machine.succeeds("osctl ct exec #{testct} apk add findmnt")
+            ct_apk_add(testct, 'findmnt')
           end
 
           after(:suite) do

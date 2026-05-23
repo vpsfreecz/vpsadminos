@@ -22,6 +22,8 @@ import ../../make-test.nix (
 
     tags = [ "ci" ];
 
+    testScriptJobs = 6;
+
     machines = {
       cgv1 = common.mkMachine { cgroupsVersion = 1; };
       cgv2 = common.mkMachine {
