@@ -277,6 +277,25 @@ Tests can opt into parallel test script execution with `testScriptJobs`:
 Parallel scripts share the same VM state, so they must avoid conflicting
 changes to the machine. Each running script gets its own test shell.
 
+Machines can declare named extra shells for commands that should be able to
+run without blocking the script's default shell:
+
+```nix
+{
+  machine = {
+    shells = [ "first" "second" ];
+  };
+
+  testScript = ''
+    machine.shells['first'].succeeds("sleep 10")
+    machine.succeeds("uptime", shell: "second")
+  '';
+}
+```
+
+Named shells share the same VM state as the default shell. Shell names can be
+looked up as strings or symbols, e.g. `machine.shells[:first]`.
+
 ## Test templates
 Templates can be used to create multiple instances of a test. The difference between
 templates and multiple test scripts is that tests created by templates are isolated,

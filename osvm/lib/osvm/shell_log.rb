@@ -1,9 +1,14 @@
 module OsVm
   class ShellLog
-    def initialize(path)
+    def initialize(path, shell_index: nil, shell_name: nil)
       @path = path
       @file = File.open(path, 'w')
       @mutex = Mutex.new
+
+      return unless shell_name || shell_index
+
+      file.puts("SHELL: #{shell_name || shell_index}")
+      file.puts
     end
 
     def execute_begin(command)

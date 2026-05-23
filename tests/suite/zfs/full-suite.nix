@@ -151,6 +151,7 @@ import ../../make-test.nix (
             size = "64G";
           }
         ];
+        shells = [ "zfs-run" ];
       };
 
     testScript = ''
@@ -327,7 +328,7 @@ import ../../make-test.nix (
 
       run_thread = Thread.new do
         begin
-          machine.succeeds("su - zfstest -c #{cmd.inspect}", timeout: timeout)
+          machine.shells['zfs-run'].succeeds("su - zfstest -c #{cmd.inspect}", timeout: timeout)
         rescue StandardError => e
           run_error = e
         end

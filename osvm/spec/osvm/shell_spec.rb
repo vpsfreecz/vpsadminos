@@ -49,4 +49,49 @@ RSpec.describe OsVm::Shell do
       expect(shell).not_to be_up
     end
   end
+
+  it 'checks successful and failed commands' do
+    with_tmpdir do |dir|
+      shell = build_shell(dir:)
+
+      allow(shell).to receive(:execute).with('true', timeout: 10).and_return([0, "ok\n"])
+      allow(shell).to receive(:execute).with('false', timeout: 10).and_return([1, "fail\n"])
+
+      expect(shell.succeeds('true')).to eq([0, "ok\n"])
+      expect(shell.fails('false')).to eq([1, "fail\n"])
+    end
+  end
+
+  it 'raises when success expectations are not met' do
+    with_tmpdir do |dir|
+      shell = build_shell(dir:)
+
+      allow(shell).to receive(:execute).with('false', timeout: 10).and_return([1, "fail\n"])
+      allow(shell).to receive(:execute).with('true', timeout: 10).and_return([0, "ok\n"])
+
+      expect do
+        shell.succeeds('false')
+      end.to raise_error(OsVm::CommandFailed, /failed with status 1/)
+
+      expect do
+        shell.fails('true')
+      end.to raise_error(OsVm::CommandSucceeded, /succeeds with status 0/)
+    end
+  end
+
+  it 'waits until commands succeed or fail' do
+    with_tmpdir do |dir|
+      shell = build_shell(dir:)
+      allow(shell).to receive(:sleep)
+      allow(shell).to receive(:execute)
+        .with('ready', timeout: anything)
+        .and_return([1, 'not yet'], [0, 'ready'])
+      allow(shell).to receive(:execute)
+        .with('down', timeout: anything)
+        .and_return([0, 'still up'], [1, 'down'])
+
+      expect(shell.wait_until_succeeds('ready')).to eq([0, 'ready'])
+      expect(shell.wait_until_fails('down')).to eq([1, 'down'])
+    end
+  end
 end

@@ -71,6 +71,24 @@ RSpec.describe OsVm::MachineConfig do
     end.to raise_error(ArgumentError, /testShells must be an integer/)
   end
 
+  it 'loads and validates named shells' do
+    config = build_machine_config('testShells' => 3, 'shells' => %w[first second])
+
+    expect(config.shell_names).to eq(%w[first second])
+
+    expect do
+      build_machine_config('shells' => [''])
+    end.to raise_error(ArgumentError, /shells must be an array of non-empty strings/)
+
+    expect do
+      build_machine_config('shells' => %w[first first])
+    end.to raise_error(ArgumentError, /shell names must be unique/)
+
+    expect do
+      build_machine_config('testShells' => 2, 'shells' => %w[first second])
+    end.to raise_error(ArgumentError, /testShells must be greater than/)
+  end
+
   it 'creates the correct network subclasses from config' do
     config = build_machine_config(
       'networks' => [

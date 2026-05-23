@@ -50,14 +50,20 @@ module OsVm
       FileUtils.mkdir_p(tmpdir)
       FileUtils.mkdir_p(sockdir)
       @log = MachineLog.new(File.join(tmpdir, "#{name}-log.log"))
-      @shells = Array.new(config.test_shells) do |i|
-        Shell.new(self, i, shell_socket_path(i), shell_log_path(i), default_timeout:)
+      named_shells = {}
+      worker_shell_count = config.test_shells - config.shell_names.length
+      @shell_instances = Array.new(config.test_shells) do |i|
+        shell_name = i >= worker_shell_count ? config.shell_names[i - worker_shell_count] : nil
+        shell = Shell.new(self, i, shell_socket_path(i), shell_log_path(i), default_timeout:, name: shell_name)
+        named_shells[shell_name] = shell if shell_name
+        shell
       end
+      @shell_collection = ShellCollection.new(self, named_shells)
     end
 
     def finalize
       log.close
-      shells.each(&:finalize)
+      shell_instances.each(&:finalize)
     end
 
     # Start the machine
@@ -87,7 +93,7 @@ module OsVm
         log.start
         prepare_disks
 
-        shells.each(&:prepare)
+        shell_instances.each(&:prepare)
 
         shared_dir.setup
         @shared_dir_mounted = false
@@ -212,7 +218,7 @@ module OsVm
     # Cleanup machine state
     # @return [Machine]
     def cleanup
-      shells.each(&:cleanup)
+      shell_instances.each(&:cleanup)
 
       shared_filesystems.each_key do |fs_name|
         File.unlink(virtiofs_socket_path(fs_name))
@@ -235,7 +241,7 @@ module OsVm
 
     # @return [Boolean]
     def can_execute?
-      shells.any?(&:up?)
+      shell_instances.any?(&:up?)
     end
 
     # Wait until the system has booted
@@ -249,84 +255,50 @@ module OsVm
     # @param timeout [Integer]
     # @raise [MachineShellClosed]
     # @return [Array<Integer, String>] exit status and output
-    def execute(cmd, timeout: @default_timeout)
-      current_shell.execute(cmd, timeout:)
+    def execute(cmd, timeout: @default_timeout, shell: nil)
+      command_shell(shell).execute(cmd, timeout:)
     end
 
     # Execute command and check that it succeeds
     # @param cmd [String]
     # @param timeout [Integer]
     # @return [Array<Integer, String>]
-    def succeeds(cmd, timeout: @default_timeout)
-      status, output = execute(cmd, timeout:)
-
-      if status != 0
-        raise CommandFailed, "Command '#{cmd}' failed with status #{status}. Output:\n #{output}"
-      end
-
-      [status, output]
+    def succeeds(cmd, timeout: @default_timeout, shell: nil)
+      command_shell(shell).succeeds(cmd, timeout:)
     end
 
     # Execute command and check that it fails
     # @param cmd [String]
     # @param timeout [Integer]
     # @return [Array<Integer, String>]
-    def fails(cmd, timeout: @default_timeout)
-      status, output = execute(cmd, timeout:)
-
-      if status == 0
-        raise CommandSucceeded, "Command '#{cmd}' succeeds with status #{status}. Output:\n #{output}"
-      end
-
-      [status, output]
+    def fails(cmd, timeout: @default_timeout, shell: nil)
+      command_shell(shell).fails(cmd, timeout:)
     end
 
     # Execute all commands and check that they all succeed
     # @param cmds [String]
     # @return [Array<Array<[Integer, String]>>]
-    def all_succeed(*cmds)
-      cmds.map { |cmd| succeeds(cmd) }
+    def all_succeed(*cmds, shell: nil)
+      command_shell(shell).all_succeed(*cmds)
     end
 
     # Execute all commands and check that they all fail
     # @param cmds [String]
     # @return [Array<Array<[Integer, String]>>]
-    def all_fail(*cmds)
-      cmds.map { |cmd| fails(cmd) }
+    def all_fail(*cmds, shell: nil)
+      command_shell(shell).all_fail(*cmds)
     end
 
     # Wait until command succeeds
     # @return [Array<Integer, String>]
-    def wait_until_succeeds(cmd, timeout: @default_timeout)
-      t1 = Time.now
-      cur_timeout = timeout
-
-      loop do
-        status, output = execute(cmd, timeout: cur_timeout)
-        return [status, output] if status == 0
-
-        cur_timeout = timeout - (Time.now - t1)
-        raise TimeoutError, "Timeout occurred while running command '#{cmd}'" if cur_timeout <= 0
-
-        sleep(1)
-      end
+    def wait_until_succeeds(cmd, timeout: @default_timeout, shell: nil)
+      command_shell(shell).wait_until_succeeds(cmd, timeout:)
     end
 
     # Wait until command fails
     # @return [Array<Integer, String>]
-    def wait_until_fails(cmd, timeout: @default_timeout)
-      t1 = Time.now
-      cur_timeout = timeout
-
-      loop do
-        status, output = execute(cmd, timeout: cur_timeout)
-        return [status, output] if status != 0
-
-        cur_timeout = timeout - (Time.now - t1)
-        raise TimeoutError, "Timeout occurred while running command '#{cmd}'" if cur_timeout <= 0
-
-        sleep(1)
-      end
+    def wait_until_fails(cmd, timeout: @default_timeout, shell: nil)
+      command_shell(shell).wait_until_fails(cmd, timeout:)
     end
 
     # Wait until network is operational, including DNS
@@ -436,6 +408,11 @@ module OsVm
       shared_dir.pull_file(src, preserve:)
     end
 
+    # @return [ShellCollection]
+    def shells
+      @shell_collection
+    end
+
     def inspect
       "#<#{self.class.name}:#{object_id} name=#{name}>"
     end
@@ -443,7 +420,7 @@ module OsVm
     protected
 
     attr_reader :config, :tmpdir, :sockdir, :qemu_pid, :qemu_read, :qemu_reaper,
-                :console_thread, :shells, :log, :virtiofsd_pids, :shared_dir,
+                :console_thread, :shell_instances, :log, :virtiofsd_pids, :shared_dir,
                 :hash_base, :shared_filesystems
 
     def qemu_command(kernel_params: [])
@@ -482,7 +459,7 @@ module OsVm
     def qemu_shell_options
       ret = ['-device', 'virtio-serial']
 
-      shells.each do |shell|
+      shell_instances.each do |shell|
         ret += shell.qemu_options
       end
 
@@ -582,7 +559,7 @@ module OsVm
           @console_thread = nil
         end
 
-        shells.each(&:close)
+        shell_instances.each(&:close)
 
         stop_virtiofs
 
@@ -678,9 +655,13 @@ module OsVm
       shell_for(current_shell_index)
     end
 
+    def command_shell(name)
+      name.nil? ? current_shell : shells.fetch(name)
+    end
+
     def shell_for(index)
       validate_shell_index(index)
-      @shells[index]
+      @shell_instances[index]
     end
 
     def validate_shell_index(index)

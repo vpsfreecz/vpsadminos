@@ -171,8 +171,9 @@ RSpec.describe OsVm::Machine do
   it 'waits until commands succeed' do
     with_tmpdir do |dir|
       machine = build_machine(dir:)
-      allow(machine).to receive(:execute).and_return([1, 'not yet'], [0, 'ready'])
-      allow(machine).to receive(:sleep)
+      shell = machine.send(:current_shell)
+      allow(shell).to receive(:execute).and_return([1, 'not yet'], [0, 'ready'])
+      allow(shell).to receive(:sleep)
 
       expect(machine.wait_until_succeeds('true')).to eq([0, 'ready'])
     end
@@ -181,7 +182,8 @@ RSpec.describe OsVm::Machine do
   it 'times out while waiting for commands to succeed' do
     with_tmpdir do |dir|
       machine = build_machine(dir:)
-      allow(machine).to receive(:execute).and_return([1, 'not yet'])
+      shell = machine.send(:current_shell)
+      allow(shell).to receive(:execute).and_return([1, 'not yet'])
 
       expect do
         machine.wait_until_succeeds('true', timeout: 0)
@@ -192,8 +194,9 @@ RSpec.describe OsVm::Machine do
   it 'waits until commands fail' do
     with_tmpdir do |dir|
       machine = build_machine(dir:)
-      allow(machine).to receive(:execute).and_return([0, 'still up'], [1, 'failed'])
-      allow(machine).to receive(:sleep)
+      shell = machine.send(:current_shell)
+      allow(shell).to receive(:execute).and_return([0, 'still up'], [1, 'failed'])
+      allow(shell).to receive(:sleep)
 
       expect(machine.wait_until_fails('false')).to eq([1, 'failed'])
     end
@@ -202,7 +205,8 @@ RSpec.describe OsVm::Machine do
   it 'times out while waiting for commands to fail' do
     with_tmpdir do |dir|
       machine = build_machine(dir:)
-      allow(machine).to receive(:execute).and_return([0, 'still up'])
+      shell = machine.send(:current_shell)
+      allow(shell).to receive(:execute).and_return([0, 'still up'])
 
       expect do
         machine.wait_until_fails('false', timeout: 0)
@@ -279,6 +283,50 @@ RSpec.describe OsVm::Machine do
           '-device', 'virtconsole,chardev=shell1'
         ]
       )
+    end
+  end
+
+  it 'exposes named shells after worker shells' do
+    with_tmpdir do |dir|
+      machine = build_machine(
+        dir:,
+        config: build_machine_config('testShells' => 4, 'shells' => %w[first second])
+      )
+
+      expect(machine.shells.keys).to eq(%w[first second])
+      expect(machine.shells['first'].index).to eq(2)
+      expect(machine.shells[:second].index).to eq(3)
+      expect(machine.shells['first'].name).to eq('first')
+      expect(machine.shells.include?(:second)).to be(true)
+
+      expect do
+        machine.shells['missing']
+      end.to raise_error(KeyError, /unknown shell "missing" for machine test/)
+    end
+  end
+
+  it 'forwards command helpers to named shells' do
+    with_tmpdir do |dir|
+      machine = build_machine(
+        dir:,
+        config: build_machine_config('testShells' => 2, 'shells' => ['aux'])
+      )
+      aux_shell = machine.shells['aux']
+      allow(aux_shell).to receive(:execute).with('echo aux', timeout: 10).and_return([0, "aux\n"])
+      allow(aux_shell).to receive(:succeeds).with('true', timeout: 7).and_return([0, ''])
+      allow(aux_shell).to receive(:fails).with('false', timeout: 8).and_return([1, ''])
+      allow(aux_shell).to receive(:all_succeed).with('a', 'b').and_return([[0, 'a'], [0, 'b']])
+      allow(aux_shell).to receive(:all_fail).with('a', 'b').and_return([[1, 'a'], [1, 'b']])
+      allow(aux_shell).to receive(:wait_until_succeeds).with('ready', timeout: 9).and_return([0, 'ready'])
+      allow(aux_shell).to receive(:wait_until_fails).with('down', timeout: 6).and_return([1, 'down'])
+
+      expect(machine.execute('echo aux', shell: 'aux')).to eq([0, "aux\n"])
+      expect(machine.succeeds('true', timeout: 7, shell: :aux)).to eq([0, ''])
+      expect(machine.fails('false', timeout: 8, shell: 'aux')).to eq([1, ''])
+      expect(machine.all_succeed('a', 'b', shell: 'aux')).to eq([[0, 'a'], [0, 'b']])
+      expect(machine.all_fail('a', 'b', shell: 'aux')).to eq([[1, 'a'], [1, 'b']])
+      expect(machine.wait_until_succeeds('ready', timeout: 9, shell: 'aux')).to eq([0, 'ready'])
+      expect(machine.wait_until_fails('down', timeout: 6, shell: 'aux')).to eq([1, 'down'])
     end
   end
 

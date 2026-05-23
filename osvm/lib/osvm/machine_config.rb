@@ -220,6 +220,9 @@ module OsVm
     # @return [Integer]
     attr_reader :test_shells
 
+    # @return [Array<String>]
+    attr_reader :shell_names
+
     # @return [String] path to virtiofsd package
     attr_reader :virtiofsd
 
@@ -267,6 +270,7 @@ module OsVm
       @boot_order = cfg['bootOrder']
       @extra_qemu_options = cfg.fetch('extraQemuOptions', [])
       @test_shells = cfg.fetch('testShells', 1)
+      @shell_names = cfg.fetch('shells', [])
       @virtiofsd = cfg.fetch('virtiofsd')
       @kernel = cfg['kernel']
       @initrd = cfg['initrd']
@@ -289,6 +293,18 @@ module OsVm
 
       unless @test_shells.is_a?(Integer) && @test_shells >= 1
         raise ArgumentError, 'testShells must be an integer greater than or equal to 1'
+      end
+
+      unless @shell_names.is_a?(Array) && @shell_names.all? { |v| v.is_a?(String) && !v.empty? }
+        raise ArgumentError, 'shells must be an array of non-empty strings'
+      end
+
+      if @shell_names.uniq.length != @shell_names.length
+        raise ArgumentError, 'shell names must be unique'
+      end
+
+      if @test_shells <= @shell_names.length
+        raise ArgumentError, 'testShells must be greater than the number of named shells'
       end
 
       return unless @boot_mode == 'direct'

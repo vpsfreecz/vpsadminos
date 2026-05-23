@@ -56,9 +56,14 @@ let
   testAttrs = testFn ({ pkgs = nixpkgs; } // forwardedArgs // effectiveTestArgs);
 
   testScriptJobs = testAttrs.testScriptJobs or 1;
+  machineShellNames = machine: machine.shells or [ ];
+  machineTestShells = machine: testScriptJobs + builtins.length (machineShellNames machine);
 
   vpsadminosSystem =
     cfg:
+    let
+      testShells = machineTestShells cfg;
+    in
     import ../os {
       inherit
         configuration
@@ -71,11 +76,14 @@ let
         ++ (cfg.modules or [ ])
         ++ [ ./configs/vpsadminos/base.nix ]
         ++ [ cfg.config or { } ]
-        ++ [ { osctl.test-shell.shells = testScriptJobs; } ];
+        ++ [ { osctl.test-shell.shells = testShells; } ];
     };
 
   nixosSystem =
     name: machine:
+    let
+      testShells = machineTestShells machine;
+    in
     nixosSystemFn {
       inherit system;
       specialArgs = extraArgs;
@@ -85,7 +93,7 @@ let
         ++ (machine.modules or [ ])
         ++ [ ./configs/nixos/base.nix ]
         ++ [ machine.config or { } ]
-        ++ [ { osvm.testShells = testScriptJobs; } ];
+        ++ [ { osvm.testShells = testShells; } ];
     };
 
   machineAttrs =
@@ -131,7 +139,8 @@ let
       labels = machine.labels or { };
       bootMode = "firmware";
       bootOrder = machine.bootOrder or "n";
-      testShells = testScriptJobs;
+      testShells = machineTestShells machine;
+      shells = machineShellNames machine;
       kernelParams = machine.kernelParams or [ ];
       extraQemuOptions = machine.extraQemuOptions or [ ];
     };
@@ -164,7 +173,8 @@ let
       cpus = qemuCfg.cpus;
       cpu = qemuCfg.cpu;
       disks = machine.disks or [ ];
-      testShells = testScriptJobs;
+      testShells = machineTestShells machine;
+      shells = machineShellNames machine;
       networks = machine.networks or defaultNetworks;
       sharedFileSystems = machine.sharedFileSystems or { };
       tags = machine.tags or [ ];
@@ -223,7 +233,8 @@ let
       cpu = cpuCfg;
       diskImage = diskImagePath;
       disks = machine.disks or [ ];
-      testShells = testScriptJobs;
+      testShells = machineTestShells machine;
+      shells = machineShellNames machine;
       networks = machine.networks or defaultNetworks;
       sharedFileSystems = machine.sharedFileSystems or { };
       tags = machine.tags or [ ];

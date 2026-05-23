@@ -105,6 +105,7 @@ let
         "docker/debian"
         "docker/fedora"
         "docker/ubuntu"
+        "driver/named-shells"
         "driver/nixos"
         "driver/parallel-test-scripts"
         "driver/rspec"

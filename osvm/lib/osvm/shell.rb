@@ -10,20 +10,25 @@ module OsVm
     # @return [Integer]
     attr_reader :index
 
+    # @return [String, nil]
+    attr_reader :name
+
     # @return [String]
     attr_reader :socket_path
 
     # @param machine [Machine]
     # @param index [Integer]
+    # @param name [String, nil]
     # @param socket_path [String]
     # @param log_path [String]
     # @param default_timeout [Integer]
-    def initialize(machine, index, socket_path, log_path, default_timeout:)
+    def initialize(machine, index, socket_path, log_path, default_timeout:, name: nil)
       @machine = machine
       @index = index
+      @name = name
       @socket_path = socket_path
       @default_timeout = default_timeout
-      @log = ShellLog.new(log_path)
+      @log = ShellLog.new(log_path, shell_index: index, shell_name: name)
       @mutex = Mutex.new
       @up = false
       @server = nil
@@ -129,6 +134,82 @@ module OsVm
       mutex.synchronize do
         wait
         execute_command(cmd, timeout:)
+      end
+    end
+
+    # Execute command and check that it succeeds
+    # @param cmd [String]
+    # @param timeout [Integer]
+    # @return [Array<Integer, String>]
+    def succeeds(cmd, timeout: @default_timeout)
+      status, output = execute(cmd, timeout:)
+
+      if status != 0
+        raise CommandFailed, "Command '#{cmd}' failed with status #{status}. Output:\n #{output}"
+      end
+
+      [status, output]
+    end
+
+    # Execute command and check that it fails
+    # @param cmd [String]
+    # @param timeout [Integer]
+    # @return [Array<Integer, String>]
+    def fails(cmd, timeout: @default_timeout)
+      status, output = execute(cmd, timeout:)
+
+      if status == 0
+        raise CommandSucceeded, "Command '#{cmd}' succeeds with status #{status}. Output:\n #{output}"
+      end
+
+      [status, output]
+    end
+
+    # Execute all commands and check that they all succeed
+    # @param cmds [String]
+    # @return [Array<Array<[Integer, String]>>]
+    def all_succeed(*cmds)
+      cmds.map { |cmd| succeeds(cmd) }
+    end
+
+    # Execute all commands and check that they all fail
+    # @param cmds [String]
+    # @return [Array<Array<[Integer, String]>>]
+    def all_fail(*cmds)
+      cmds.map { |cmd| fails(cmd) }
+    end
+
+    # Wait until command succeeds
+    # @return [Array<Integer, String>]
+    def wait_until_succeeds(cmd, timeout: @default_timeout)
+      t1 = Time.now
+      cur_timeout = timeout
+
+      loop do
+        status, output = execute(cmd, timeout: cur_timeout)
+        return [status, output] if status == 0
+
+        cur_timeout = timeout - (Time.now - t1)
+        raise TimeoutError, "Timeout occurred while running command '#{cmd}'" if cur_timeout <= 0
+
+        sleep(1)
+      end
+    end
+
+    # Wait until command fails
+    # @return [Array<Integer, String>]
+    def wait_until_fails(cmd, timeout: @default_timeout)
+      t1 = Time.now
+      cur_timeout = timeout
+
+      loop do
+        status, output = execute(cmd, timeout: cur_timeout)
+        return [status, output] if status != 0
+
+        cur_timeout = timeout - (Time.now - t1)
+        raise TimeoutError, "Timeout occurred while running command '#{cmd}'" if cur_timeout <= 0
+
+        sleep(1)
       end
     end
 
