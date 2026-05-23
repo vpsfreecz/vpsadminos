@@ -9,6 +9,8 @@ import ../../make-test.nix (
 
     tags = [ "ci" ];
 
+    testScriptJobs = 5;
+
     machine = import ../../machines/vpsadminos/tank.nix pkgs;
 
     testScripts = {

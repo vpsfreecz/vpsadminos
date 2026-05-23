@@ -33,6 +33,8 @@ import ../../make-test.nix (
 
     tags = [ "ci" ];
 
+    testScriptJobs = 5;
+
     machine = import ../../machines/vpsadminos/tank.nix pkgs;
 
     testScripts = builtins.listToAttrs (
@@ -59,8 +61,10 @@ import ../../make-test.nix (
                 machine.succeeds("osctl ct stop #{testct}")
               ''}
 
-              machine.push_file("${runScript}", "/tmp/test-script.sh")
-              machine.succeeds("osctl ct runscript -r #{testct} /tmp/test-script.sh")
+              run_script_path = "/tmp/#{testct}-test-script.sh"
+
+              machine.push_file("${runScript}", run_script_path)
+              machine.succeeds("osctl ct runscript -r #{testct} #{run_script_path}")
               machine.all_succeed(
                 "osctl ct del -f --prune #{testct}",
                 "osctl repository images prune"

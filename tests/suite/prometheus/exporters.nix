@@ -32,6 +32,8 @@ import ../../make-test.nix (
 
     tags = [ "ci" ];
 
+    testScriptJobs = 5;
+
     machine = import ../../machines/vpsadminos/with-tank.nix {
       inherit pkgs;
       config = {
