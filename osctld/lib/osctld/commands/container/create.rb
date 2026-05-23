@@ -44,19 +44,19 @@ module OsCtld
       end
 
       progress('Fetching image')
-      tpl_path = get_image_path!(get_repositories(pool), opts[:image])
-
-      call_cmd!(
-        Commands::Container::Import,
-        pool: pool.name,
-        as_id: opts[:id],
-        as_user: opts[:user],
-        as_group: opts[:group],
-        dataset: opts[:dataset],
-        zfs_properties: opts[:zfs_properties],
-        map_mode: opts[:map_mode],
-        file: tpl_path
-      )
+      with_repository_image_path!(get_repositories(pool), opts[:image]) do |tpl_path|
+        call_cmd!(
+          Commands::Container::Import,
+          pool: pool.name,
+          as_id: opts[:id],
+          as_user: opts[:user],
+          as_group: opts[:group],
+          dataset: opts[:dataset],
+          zfs_properties: opts[:zfs_properties],
+          map_mode: opts[:map_mode],
+          file: tpl_path
+        )
+      end
     end
   end
 end

@@ -107,9 +107,11 @@ RSpec.describe 'container provisioning commands' do
       allow(OsCtld::DB::Users).to receive(:find).with('alice', pool).and_return(Object.new)
       allow(OsCtld::DB::Groups).to receive(:find).with('/default', pool).and_return(Object.new)
       allow(command).to receive(:get_repositories).with(pool).and_return([:default])
-      allow(command).to receive(:get_image_path!)
-        .with([:default], command.opts[:image])
-        .and_return('/tmp/image.tar')
+      allow(command).to receive(:with_repository_image_path!) do |repos, image, &block|
+        expect(repos).to eq([:default])
+        expect(image).to eq(command.opts[:image])
+        block.call('/tmp/image.tar')
+      end
       allow(command).to receive(:call_cmd!).with(
         import_class,
         pool: 'tank',
@@ -517,17 +519,19 @@ RSpec.describe 'container provisioning commands' do
       end.new('ct1', build_pool, 'almalinux', '9', 'x86_64', 'custom-vendor', 'special')
       allow(builder_class).to receive(:new).and_return(Object.new)
       command = described_class.new({ type: 'remote', image: {} }, {})
-      allow(command).to receive(:get_repositories).with(ct.pool).and_return([:default])
-      allow(command).to receive(:get_image_path!).with(
-        [:default],
-        {
+      allow(command).to receive(:with_image_path) do |pool, type:, path:, image:, &block|
+        expect(pool).to eq(ct.pool)
+        expect(type).to eq('remote')
+        expect(path).to be_nil
+        expect(image).to eq(
           distribution: 'almalinux',
           version: '9',
           arch: 'x86_64',
           vendor: 'custom-vendor',
           variant: 'special'
-        }
-      ).and_return('/tmp/image.tar')
+        )
+        block.call('/tmp/image.tar')
+      end
       allow(command).to receive(:snapshots).with(ct).and_return(['tank/ct1@snap'])
 
       expect { command.execute(ct) }

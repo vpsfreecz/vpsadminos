@@ -24,6 +24,7 @@ RSpec.describe OsCtld::Repository do
       expect(repository.ident).to eq('tank:default')
       expect(repository.config_path).to eq(File.join(pool.conf_path, 'repository', 'default.yml'))
       expect(repository.cache_path).to eq(File.join(pool.repo_path, 'default'))
+      expect(repository.cache_lock_path).to eq(File.join(pool.repo_path, 'default', '.osctld-cache.lock'))
       expect(repository.manipulation_resource).to eq(['repository', 'tank:default'])
     end
   end
@@ -136,17 +137,28 @@ RSpec.describe OsCtld::Repository do
     end
   end
 
-  it 'delegates prune_images to OsCtlRepo' do
+  it 'delegates prune_images to OsCtlRepo while holding the cache lock' do
     with_tmpdir do |dir|
       _pool, repository = build_repository(root: dir)
       repository.configure('https://example.invalid/repo')
+      locked = false
 
       osctl_repo = double
       stub_const('OsCtld::OsCtlRepo', Class.new do
         def initialize(*); end
       end)
       allow(OsCtld::OsCtlRepo).to receive(:new).with(repository).and_return(osctl_repo)
-      allow(osctl_repo).to receive(:prune_images).with(older_than_days: 7).and_return([true, ['/x.tar']])
+      allow(repository).to receive(:with_cache_lock) do |&block|
+        locked = true
+        block.call
+      ensure
+        locked = false
+      end
+      allow(osctl_repo).to receive(:prune_images) do |older_than_days:|
+        expect(locked).to be(true)
+        expect(older_than_days).to eq(7)
+        [true, ['/x.tar']]
+      end
 
       expect(repository.prune_images(older_than_days: 7)).to eq([true, ['/x.tar']])
     end

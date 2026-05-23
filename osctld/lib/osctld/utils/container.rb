@@ -65,6 +65,50 @@ module OsCtld
       error!(image_not_found_message(tpl, repos))
     end
 
+    def with_repository_image_path!(repos, tpl)
+      if repos.empty?
+        error!('no enabled repositories are available for container images')
+      end
+
+      unavailable = {}
+
+      repos.each do |repo|
+        osctl_repo = OsCtlRepo.new(repo)
+
+        begin
+          repo.with_cache_lock do
+            %i[zfs tar].each do |format|
+              path = osctl_repo.get_image_path(tpl, format)
+              return yield(path) if path
+            end
+          end
+        rescue ImageNotFound
+          next
+        rescue ImageRepositoryUnavailable => e
+          unavailable[repo.name] = e.message
+          next
+        end
+      end
+
+      if unavailable.any?
+        error!(image_unavailable_message(tpl, unavailable))
+      end
+
+      error!(image_not_found_message(tpl, repos))
+    end
+
+    def with_image_path(pool, type:, path:, image:, &block)
+      case type
+      when 'image'
+        block.call(path)
+      when 'remote'
+        progress('Fetching image')
+        with_repository_image_path!(get_repositories(pool), image) { |tpl_path| block.call(tpl_path) }
+      else
+        error!('invalid type')
+      end
+    end
+
     def image_not_found_message(tpl, repos)
       "container image #{image_spec(tpl)} not found in repositories: " \
         "#{repos.map(&:name).join(', ')}"

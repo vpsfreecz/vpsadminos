@@ -264,17 +264,19 @@ RSpec.describe 'container configuration commands' do
           },
           {}
         )
-        allow(command).to receive(:get_repositories).with(ct.pool).and_return([:default])
-        allow(command).to receive(:get_image_path!).with(
-          [:default],
-          {
+        allow(command).to receive(:with_image_path) do |pool, type:, path:, image:, &block|
+          expect(pool).to eq(ct.pool)
+          expect(type).to eq('remote')
+          expect(path).to be_nil
+          expect(image).to eq(
             distribution: 'almalinux',
             version: '10',
             arch: 'x86_64',
             vendor: 'default',
             variant: 'default'
-          }
-        ).and_return(image_path)
+          )
+          block.call(image_path)
+        end
 
         expect(command.execute(ct)).to eq(status: true, output: nil)
       end

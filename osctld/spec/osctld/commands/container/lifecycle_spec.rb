@@ -748,16 +748,19 @@ RSpec.describe 'container lifecycle commands' do
           },
           {}
         )
-        allow(command).to receive(:get_repositories).with(pool).and_return([:default])
-        allow(command).to receive(:get_image_path!)
-          .with([:default], {
+        allow(command).to receive(:with_image_path) do |pool_arg, type:, path:, image:, &block|
+          expect(pool_arg).to eq(pool)
+          expect(type).to eq('remote')
+          expect(path).to be_nil
+          expect(image).to eq(
             distribution: 'almalinux',
             version: '9',
             arch: 'x86_64',
             vendor: 'custom-vendor',
             variant: 'special'
-          })
-          .and_return(image_path)
+          )
+          block.call(image_path)
+        end
         allow(command).to receive(:call_cmd!).with(
           OsCtld::Commands::Container::Stop,
           pool: 'tank',

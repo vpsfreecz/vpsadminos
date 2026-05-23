@@ -1,4 +1,6 @@
 require 'etc'
+require 'fileutils'
+require 'filelock'
 require 'libosctl'
 require 'osctld/lockable'
 require 'osctld/manipulable'
@@ -17,6 +19,7 @@ module OsCtld
 
     DEFAULT_PRUNE_INTERVAL = 24 * 60 * 60
     DEFAULT_PRUNE_OLDER_THAN_DAYS = 90
+    CACHE_LOCK_TIMEOUT = 60 * 60
 
     # @return [Pool]
     attr_reader :pool
@@ -155,7 +158,9 @@ module OsCtld
 
     # @return [Array(Boolean, Array<String>)] status and a list of deleted image files, if any
     def prune_images(older_than_days: nil)
-      OsCtlRepo.new(self).prune_images(older_than_days:)
+      with_cache_lock do
+        OsCtlRepo.new(self).prune_images(older_than_days:)
+      end
     end
 
     def images
@@ -188,6 +193,15 @@ module OsCtld
 
     def cache_path
       File.join(pool.repo_path, name)
+    end
+
+    def cache_lock_path
+      File.join(cache_path, '.osctld-cache.lock')
+    end
+
+    def with_cache_lock(&)
+      FileUtils.mkdir_p(cache_path)
+      Filelock(cache_lock_path, timeout: CACHE_LOCK_TIMEOUT, &)
     end
 
     def manipulation_resource

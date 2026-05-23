@@ -45,75 +45,68 @@ module OsCtld
           end
         end
 
-        # Prepare the image
-        if opts[:type] == 'image'
-          tpl_path = opts[:path]
-        elsif opts[:type] == 'remote'
-          progress('Fetching image')
-
-          tpl = opts[:image]
+        tpl = opts[:image]
+        if opts[:type] == 'remote'
           tpl[:distribution] ||= ct.distribution
           tpl[:version] ||= ct.version
           tpl[:arch] ||= ct.arch
           tpl[:vendor] ||= ct.vendor
           tpl[:variant] ||= ct.variant
-
-          tpl_path = get_image_path!(get_repositories(ct.pool), tpl)
-        else
-          error!('invalid type')
         end
 
-        # Prepare a new, temporary dataset
-        tmp_name = "#{ct.dataset}.boot-#{SecureRandom.hex(3)}"
-        tmp_ds = OsCtl::Lib::Zfs::Dataset.new(
-          tmp_name,
-          base: tmp_name
-        )
-        tmp_ds.create!(properties: {
-          canmount: 'noauto'
-        }.merge(opts[:zfs_properties] || {}))
+        with_image_path(ct.pool, type: opts[:type], path: opts[:path], image: tpl) do |tpl_path|
+          # Prepare a new, temporary dataset
+          tmp_name = "#{ct.dataset}.boot-#{SecureRandom.hex(3)}"
+          tmp_ds = OsCtl::Lib::Zfs::Dataset.new(
+            tmp_name,
+            base: tmp_name
+          )
+          tmp_ds.create!(properties: {
+            canmount: 'noauto'
+          }.merge(opts[:zfs_properties] || {}))
 
-        ctrc = ct.new_run_conf
-        builder = Container::Builder.new(ctrc, cmd: self)
+          ctrc = ct.new_run_conf
+          builder = Container::Builder.new(ctrc, cmd: self)
 
-        # Open the image
-        fh = File.open(tpl_path, 'r')
-        importer = Container::Importer.new(ct.pool, fh, ct_id: ct.id, image_file: tpl_path)
-        importer.load_metadata
+          # Open the image
+          fh = File.open(tpl_path, 'r')
+          importer = Container::Importer.new(ct.pool, fh, ct_id: ct.id, image_file: tpl_path)
+          importer.load_metadata
 
-        # Reconfigure the container for boot
-        ct_cfg = importer.get_container_config
+          # Reconfigure the container for boot
+          ct_cfg = importer.get_container_config
 
-        ctrc.boot_from(
-          dataset: tmp_ds,
-          distribution: ct_cfg['distribution'] || ct.distribution,
-          version: ct_cfg['version'] || ct.version,
-          arch: ct_cfg['arch'] || ct.arch,
-          vendor: ct_cfg['vendor'] || ct.vendor,
-          variant: ct_cfg['variant'] || ct.variant,
-          destroy_dataset_on_stop: true
-        )
+          ctrc.boot_from(
+            dataset: tmp_ds,
+            distribution: ct_cfg['distribution'] || ct.distribution,
+            version: ct_cfg['version'] || ct.version,
+            arch: ct_cfg['arch'] || ct.arch,
+            vendor: ct_cfg['vendor'] || ct.vendor,
+            variant: ct_cfg['variant'] || ct.variant,
+            destroy_dataset_on_stop: true
+          )
 
-        # Apply the image
-        importer.import_root_dataset(builder)
+          # Apply the image
+          importer.import_root_dataset(builder)
 
-        builder.shift_or_mount_dataset
-        builder.setup_ct_dir
-        builder.setup_rootfs
+          builder.shift_or_mount_dataset
+          builder.setup_ct_dir
+          builder.setup_rootfs
 
-        # Ensure the container is stopped
-        call_cmd!(
-          Commands::Container::Stop,
-          pool: ct.pool.name,
-          id: ct.id
-        )
+          # Ensure the container is stopped
+          call_cmd!(
+            Commands::Container::Stop,
+            pool: ct.pool.name,
+            id: ct.id
+          )
 
-        # Apply run configuration
-        ct.set_next_run_conf(ctrc)
-        GarbageCollector.add_container_run_dataset(ctrc, tmp_ds)
+          # Apply run configuration
+          ct.set_next_run_conf(ctrc)
+          GarbageCollector.add_container_run_dataset(ctrc, tmp_ds)
 
-        # Boot it
-        start_ct(ct, root_mnt) unless opts[:queue]
+          # Boot it
+          start_ct(ct, root_mnt) unless opts[:queue]
+        end
       end
 
       # When starting as queued, we can't be holding the manipulation lock

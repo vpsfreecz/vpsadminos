@@ -19,70 +19,64 @@ module OsCtld
       manipulate(ct) do
         error!('container is running') if ct.running?
 
-        if opts[:type] == 'image'
-          tpl_path = opts[:path]
-        elsif opts[:type] == 'remote'
-          progress('Fetching image')
-
-          tpl = opts[:image]
+        tpl = opts[:image]
+        if opts[:type] == 'remote'
           tpl[:distribution] ||= ct.distribution
           tpl[:version] ||= ct.version
           tpl[:arch] ||= ct.arch
           tpl[:vendor] ||= ct.vendor
           tpl[:variant] ||= ct.variant
-
-          tpl_path = get_image_path!(get_repositories(ct.pool), tpl)
-        else
-          error!('invalid type')
         end
 
-        builder = Container::Builder.new(ct.new_run_conf, cmd: self)
+        with_image_path(ct.pool, type: opts[:type], path: opts[:path], image: tpl) do |tpl_path|
+          builder = Container::Builder.new(ct.new_run_conf, cmd: self)
 
-        # Remove all snapshots
-        snaps = snapshots(ct)
+          # Remove all snapshots
+          snaps = snapshots(ct)
 
-        if snaps.any? && !opts[:remove_snapshots]
-          error!("the dataset has snapshots:\n  #{snaps.join("\n  ")}")
+          if snaps.any? && !opts[:remove_snapshots]
+            error!("the dataset has snapshots:\n  #{snaps.join("\n  ")}")
+          end
+
+          snaps.each { |snap| zfs(:destroy, nil, snap) }
+
+          # Unmount all datasets
+          ct.dataset.unmount(recursive: true)
+
+          # Create a new rootfs dataset with temporary name
+          props = OsCtl::Lib::Zfs::PropertyState.new
+          props.read_from(ct.dataset)
+
+          new_ds = OsCtl::Lib::Zfs::Dataset.new("#{ct.dataset}.reinstall")
+          new_ds.create!(properties: props.options)
+
+          # Move subdatasets to the new dataset
+          ct.dataset.children.each do |ds|
+            new_subds = File.join(new_ds.name, ds.relative_name)
+            zfs(:rename, nil, "#{ds} #{new_subds}")
+          end
+
+          # Destroy the original rootfs dataset
+          TrashBin.add_dataset(ct.pool, ct.dataset)
+
+          # Replace the original dataset with the new one
+          zfs(:rename, nil, "#{new_ds} #{ct.dataset}")
+
+          # Apply new image
+          fh = File.open(tpl_path, 'r')
+          importer = Container::Importer.new(ct.pool, fh, ct_id: ct.id, image_file: tpl_path)
+          importer.load_metadata
+          importer.import_root_dataset(builder)
+
+          # Update image-specific config
+          ct.patch_config(importer.get_container_config)
+
+          # Remount all datasets
+          ct.dataset.mount(recursive: true)
+
+          builder.setup_ct_dir
+          builder.setup_rootfs
         end
-
-        snaps.each { |snap| zfs(:destroy, nil, snap) }
-
-        # Unmount all datasets
-        ct.dataset.unmount(recursive: true)
-
-        # Create a new rootfs dataset with temporary name
-        props = OsCtl::Lib::Zfs::PropertyState.new
-        props.read_from(ct.dataset)
-
-        new_ds = OsCtl::Lib::Zfs::Dataset.new("#{ct.dataset}.reinstall")
-        new_ds.create!(properties: props.options)
-
-        # Move subdatasets to the new dataset
-        ct.dataset.children.each do |ds|
-          new_subds = File.join(new_ds.name, ds.relative_name)
-          zfs(:rename, nil, "#{ds} #{new_subds}")
-        end
-
-        # Destroy the original rootfs dataset
-        TrashBin.add_dataset(ct.pool, ct.dataset)
-
-        # Replace the original dataset with the new one
-        zfs(:rename, nil, "#{new_ds} #{ct.dataset}")
-
-        # Apply new image
-        fh = File.open(tpl_path, 'r')
-        importer = Container::Importer.new(ct.pool, fh, ct_id: ct.id, image_file: tpl_path)
-        importer.load_metadata
-        importer.import_root_dataset(builder)
-
-        # Update image-specific config
-        ct.patch_config(importer.get_container_config)
-
-        # Remount all datasets
-        ct.dataset.mount(recursive: true)
-
-        builder.setup_ct_dir
-        builder.setup_rootfs
 
         ok
       end
