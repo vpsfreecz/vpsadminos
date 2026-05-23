@@ -1,33 +1,11 @@
-import ../../make-test.nix (
-  { pkgs }:
-  let
-    containerSysinfo = pkgs.runCommand "sysinfo-to-json.py" { } ''
-      echo "#!/usr/bin/env python3" > $out
-      cat ${pkgs.sysinfo-to-json}/bin/sysinfo-to-json >> $out
-    '';
-  in
-  {
-    name = "kernel-uptime";
-
+{ common }:
+{
+  uptime = {
     description = ''
       Test uptime virtualization using time namespace
-
-      This functionality is provided by the upstream kernel and time namespace
-      is set up on the containers by osctld.
     '';
 
-    tags = [ "ci" ];
-
-    machine = import ../../machines/vpsadminos/with-tank.nix {
-      inherit pkgs;
-      config =
-        { config, pkgs, ... }:
-        {
-          environment.systemPackages = with pkgs; [ sysinfo-to-json ];
-        };
-    };
-
-    testScript = ''
+    script = common.useMachine 2 + ''
       def self.parse_sysinfo(content)
         JSON.parse(content)
       end
@@ -53,18 +31,17 @@ import ../../make-test.nix (
         parse_uptime(machine.succeeds("osctl ct exec #{testct} cat /proc/uptime")[1])
       end
 
-      testcts = %w[testct1 testct2 testct3]
+      prefix = 'kuptime'
+      testcts = 3.times.map { get_container_id(prefix) }
 
       configure_examples do |config|
         config.default_order = :defined
       end
 
       before(:suite) do
-        machine.wait_for_osctl_pool('tank')
-        machine.wait_until_online
-
-        machine.mkdir('/scripts')
-        machine.push_file('${containerSysinfo}', '/scripts/sysinfo.py')
+        ensure_kernel_machine
+        cleanup_containers_with_prefix(prefix)
+        push_sysinfo_script
 
         testcts.each do |testct|
           machine.all_succeed(
@@ -75,6 +52,10 @@ import ../../make-test.nix (
           machine.wait_until_container_online(testct)
           machine.succeeds("osctl ct exec #{testct} apk add python3")
         end
+      end
+
+      after(:suite) do
+        cleanup_containers_with_prefix(prefix)
       end
 
       describe 'container' do
@@ -139,5 +120,5 @@ import ../../make-test.nix (
         end
       end
     '';
-  }
-)
+  };
+}

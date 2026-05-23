@@ -1,137 +1,48 @@
-{ cgroupsVersion }:
-import ../../../make-test.nix (
-  { pkgs }:
-  let
-    vmCpuCount = 8;
-
-    getAffinity = pkgs.writeScript "sched_getaffinity.py" ''
-      #!/usr/bin/env python3
-      import os
-
-
-      cpus = os.sched_getaffinity(0)
-      print(','.join(str(v) for v in sorted(cpus)))
-    '';
-
-    setAffinity = pkgs.writeScript "sched_setaffinity.py" ''
-      #!/usr/bin/env python3
-      import os
-      import sys
-
-
-      if len(sys.argv) != 2:
-        print(f'Usage: {sys.argv[0]} <cpu>[,cpu...]')
-        sys.exit(1)
-
-      os.sched_setaffinity(0, (int(v) for v in sys.argv[1].split(',')))
-    '';
-
-    setAffinityAndGet = pkgs.writeScript "sched_setaffinity_and_get.py" ''
-      #!/usr/bin/env python3
-      import ctypes
-      import ctypes.util
-      import os
-      import sys
-
-
-      def parse_cpus(spec):
-        cpus = []
-
-        for part in spec.split(','):
-          if '-' in part:
-            start, end = (int(v) for v in part.split('-', 1))
-            cpus.extend(range(start, end + 1))
-          else:
-            cpus.append(int(part))
-
-        return cpus
-
-
-      if len(sys.argv) != 2:
-        print(f'Usage: {sys.argv[0]} <cpu>[,cpu...|cpu-cpu]')
-        sys.exit(1)
-
-      libc = ctypes.CDLL(ctypes.util.find_library('c'), use_errno=True)
-      CLONE_NEWCGROUP = 0x02000000
-
-      if libc.unshare(CLONE_NEWCGROUP) != 0:
-        err = ctypes.get_errno()
-        raise OSError(err, os.strerror(err))
-
-      os.sched_setaffinity(0, parse_cpus(sys.argv[1]))
-
-      cpus = os.sched_getaffinity(0)
-      print(','.join(str(v) for v in sorted(cpus)))
-    '';
-
-    mkScript = script: ''
-      def self.testct
-        @testct ||= get_container_id
-      end
-
-      before(:suite) do
-        machine.wait_for_osctl_pool("tank")
-        machine.wait_until_online
-
-        machine.mkdir_p('/scripts')
-        machine.push_file('${getAffinity}', '/scripts/sched_getaffinity.py')
-        machine.push_file('${setAffinity}', '/scripts/sched_setaffinity.py')
-        machine.push_file(
-          '${setAffinityAndGet}',
-          '/scripts/sched_setaffinity_and_get.py'
-        )
-
-        machine.all_succeed(
-          "osctl ct new --distribution alpine #{testct}",
-          "osctl ct unset start-menu #{testct}",
-          "osctl ct netif new bridge --link lxcbr0 #{testct} eth0",
-          "osctl ct start #{testct}"
-        )
-
-        machine.wait_until_container_online(testct, timeout: 60)
-        machine.succeeds("osctl ct exec #{testct} apk add python3")
-      end
-
-      ${script}
-
-      after(:suite) do
-        machine.succeeds("osctl ct del -f --prune #{testct}")
-      end
-    '';
-  in
-  {
-    name = "kernel-cpu-view-cgroups-v${toString cgroupsVersion}";
-
-    description = ''
-      Test CPU view virtualization with cgroups v${toString cgroupsVersion}
-    '';
-
-    tags = [ "ci" ];
-
-    machine = import ../../../machines/vpsadminos/with-tank.nix {
-      inherit pkgs;
-      config =
-        { config, pkgs, ... }:
-        {
-          boot.qemu = {
-            cpus = vmCpuCount;
-            cpu.sockets = 2;
-            cpu.cores = 4;
-          };
-
-          boot.enableUnifiedCgroupHierarchy = cgroupsVersion == 2;
-
-          environment.systemPackages = with pkgs; [ python3 ];
-        };
-    };
-
-    testScripts = {
-      unlimited = {
+{ common }:
+let
+  mkCpuViewScript =
+    cgroupsVersion:
+    let
+      version = toString cgroupsVersion;
+      prefix = "kcpuv${version}";
+    in
+    {
+      "cpu-view-cgroups-v${version}" = {
         description = ''
-          Test CPU view with cgroups v${toString cgroupsVersion} in containers when no CPU limit is set
+          Test CPU view virtualization with cgroups v${version}
         '';
 
-        script = mkScript ''
+        script = common.useMachine cgroupsVersion + ''
+          @cpu_view_testct = nil
+
+          def self.testct
+            @cpu_view_testct ||= get_container_id('${prefix}')
+          end
+
+          configure_examples do |config|
+            config.default_order = :defined
+          end
+
+          before(:suite) do
+            ensure_kernel_machine
+            cleanup_containers_with_prefix('${prefix}')
+            push_cpu_view_scripts
+
+            machine.all_succeed(
+              "osctl ct new --distribution alpine #{testct}",
+              "osctl ct unset start-menu #{testct}",
+              "osctl ct netif new bridge --link lxcbr0 #{testct} eth0",
+              "osctl ct start #{testct}"
+            )
+
+            machine.wait_until_container_online(testct, timeout: 60)
+            machine.succeeds("osctl ct exec #{testct} apk add python3")
+          end
+
+          after(:suite) do
+            cleanup_containers_with_prefix('${prefix}')
+          end
+
           # Containers without limits and without cpuset have the same view as the host
           def self.compare_exec(command)
             _, host_output = machine.succeeds(command)
@@ -167,6 +78,7 @@ import ../../../make-test.nix (
 
           describe 'Unlimited CPU view without cpuset' do
             before(:context) do
+              machine.succeeds("osctl ct unset cpu-limit #{testct}")
               machine.succeeds("osctl ct cgparams unset #{testct} cpuset.cpus")
             end
 
@@ -195,6 +107,7 @@ import ../../../make-test.nix (
 
           describe 'Unlimited CPU view with cpuset' do
             before(:context) do
+              machine.succeeds("osctl ct unset cpu-limit #{testct}")
               machine.succeeds("osctl ct cgparams set #{testct} cpuset.cpus #{cpu_mask}")
             end
 
@@ -235,15 +148,7 @@ import ../../../make-test.nix (
               machine.succeeds("osctl ct runscript #{testct} /scripts/sched_setaffinity.py #{cpuset_affinity.strip}")
             end
           end
-        '';
-      };
 
-      limited = {
-        description = ''
-          Test CPU view with cgroups v${toString cgroupsVersion} in containers with CPU limit
-        '';
-
-        script = mkScript ''
           def self.check_cpus(limit, cpu_count)
             before(:context) do
               if limit
@@ -310,7 +215,7 @@ import ../../../make-test.nix (
 
               expect(clipped_wide_affinity.strip).to eq(cpu_list)
 
-              if cpu_count < ${toString vmCpuCount}
+              if cpu_count < ${toString common.vmCpuCount}
                 extra_cpu = cpu_count
                 _, clipped_affinity = machine.succeeds(
                   "osctl ct runscript #{testct} " \
@@ -425,5 +330,5 @@ import ../../../make-test.nix (
         '';
       };
     };
-  }
-)
+in
+(mkCpuViewScript 1) // (mkCpuViewScript 2)

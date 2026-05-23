@@ -1,25 +1,20 @@
-import ../../make-test.nix (
-  { pkgs }:
-  {
-    name = "kernel-syslogns";
-
+{ common }:
+{
+  syslogns = {
     description = ''
       Test syslog namespace
     '';
 
-    tags = [ "ci" ];
-
-    machine = import ../../machines/vpsadminos/tank.nix pkgs;
-
-    testScript = ''
-      testct1 = get_container_id
-      testct2 = get_container_id
+    script = common.useMachine 2 + ''
+      prefix = 'ksyslog'
+      testct1 = get_container_id(prefix)
+      testct2 = get_container_id(prefix)
       testcts = [testct1, testct2]
-      host_message = 'host-only message'
+      host_message = "host-only message #{testcts.join('-')}"
 
       before(:suite) do
-        machine.wait_for_osctl_pool('tank')
-        machine.wait_until_online
+        ensure_kernel_machine
+        cleanup_containers_with_prefix(prefix)
 
         testcts.each do |testct|
           machine.all_succeed(
@@ -27,6 +22,10 @@ import ../../make-test.nix (
             "osctl ct start #{testct}"
           )
         end
+      end
+
+      after(:suite) do
+        cleanup_containers_with_prefix(prefix)
       end
 
       describe 'syslogns' do
@@ -72,7 +71,7 @@ import ../../make-test.nix (
 
         context 'on the host' do
           it 'sees host-only message' do
-              _, output = machine.succeeds('dmesg')
+            _, output = machine.succeeds('dmesg')
             expect(output).to include(host_message)
           end
 
@@ -88,5 +87,5 @@ import ../../make-test.nix (
         end
       end
     '';
-  }
-)
+  };
+}
