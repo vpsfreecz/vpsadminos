@@ -102,12 +102,10 @@ module OsVm
         '-smp', "cpus=#{config.cpus},cores=#{config.cpu.cores},threads=#{config.cpu.threads},sockets=#{config.cpu.sockets}",
         '--no-reboot',
         '-device', 'ahci,id=ahci'
-      ] + config.networks.map(&:qemu_options).flatten + qemu_boot_media_options + [
-        '-chardev', "socket,id=shell,path=#{shell_socket_path}",
-        '-device', 'virtio-serial',
-        '-device', 'virtconsole,chardev=shell',
-        '-nographic'
-      ] + qemu_boot_options(kernel_params) + qemu_disk_options + qemu_virtiofs_options + config.extra_qemu_options
+      ] + config.networks.map(&:qemu_options).flatten + qemu_boot_media_options \
+        + qemu_shell_options + [
+          '-nographic'
+        ] + qemu_boot_options(kernel_params) + qemu_disk_options + qemu_virtiofs_options + config.extra_qemu_options
     end
 
     def qemu_boot_media_options

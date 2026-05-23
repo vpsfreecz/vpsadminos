@@ -33,6 +33,7 @@ module OsvmTestHelpers
       'toplevel' => '/run/current-system',
       'squashfs' => '/images/system.squashfs',
       'disks' => [],
+      'testShells' => 1,
       'memory' => 512,
       'cpus' => 2,
       'cpu' => {
@@ -67,6 +68,7 @@ module OsvmTestHelpers
       'toplevel' => '/run/current-system',
       'diskImage' => '/images/root.img',
       'disks' => [],
+      'testShells' => 1,
       'memory' => 512,
       'cpus' => 2,
       'cpu' => {

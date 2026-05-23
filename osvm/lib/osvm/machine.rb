@@ -1,11 +1,18 @@
-require 'base64'
 require 'digest'
 require 'fileutils'
-require 'shellwords'
-require 'socket'
 
 module OsVm
   class Machine
+    SHELL_INDEX_KEY = :osvm_machine_shell_index
+
+    def self.with_shell(index)
+      original_index = Thread.current[SHELL_INDEX_KEY]
+      Thread.current[SHELL_INDEX_KEY] = index
+      yield
+    ensure
+      Thread.current[SHELL_INDEX_KEY] = original_index
+    end
+
     # @return [String]
     attr_reader :name
 
@@ -30,82 +37,91 @@ module OsVm
       @interactive_console = interactive_console
       @start_kernel_params = []
       @running = false
-      @shell_up = false
       @shared_dir = SharedDir.new(self)
       @shared_filesystems = {
         shared_dir.fs_name => shared_dir.host_path
       }.merge(config.shared_filesystems)
       @virtiofsd_pids = []
       @mutex = Mutex.new
+      @start_mutex = Mutex.new
+      @shared_dir_mutex = Mutex.new
+      @shared_dir_mounted = false
 
       FileUtils.mkdir_p(tmpdir)
       FileUtils.mkdir_p(sockdir)
       @log = MachineLog.new(File.join(tmpdir, "#{name}-log.log"))
+      @shells = Array.new(config.test_shells) do |i|
+        Shell.new(self, i, shell_socket_path(i), shell_log_path(i), default_timeout:)
+      end
     end
 
     def finalize
       log.close
+      shells.each(&:finalize)
     end
 
     # Start the machine
     # @param kernel_params [Array<String>]
     # @param wait_for_boot [Boolean]
     # @return [Machine]
-    def start(kernel_params: [], wait_for_boot: true)
-      raise 'Machine already started' if running?
+    def start(kernel_params: [], wait_for_boot: false)
+      @start_mutex.synchronize do
+        if running?
+          unless start_kernel_params == kernel_params
+            raise 'Machine already started with different kernel parameters'
+          end
 
-      # virtiofsd cannot be relaunched right away, it needs some time settle
-      # for unknown reasons, so we ensure there's a 5 second gap between stop
-      # and start of this machine
-      if @stopped_at
-        diff = Time.now - @stopped_at
-        delay = 5
-        sleep([delay - diff, delay].min) if diff <= delay
+          self.wait_for_boot if wait_for_boot
+          return self
+        end
+
+        # virtiofsd cannot be relaunched right away, it needs some time settle
+        # for unknown reasons, so we ensure there's a 5 second gap between stop
+        # and start of this machine
+        if @stopped_at
+          diff = Time.now - @stopped_at
+          delay = 5
+          sleep([delay - diff, delay].min) if diff <= delay
+        end
+
+        log.start
+        prepare_disks
+
+        shells.each(&:prepare)
+
+        shared_dir.setup
+        @shared_dir_mounted = false
+        start_virtiofs
+        sleep(1)
+
+        qemu_kwargs = {}
+
+        unless @interactive_console
+          @qemu_read, w = IO.pipe
+
+          qemu_kwargs = {
+            in: :close,
+            out: w,
+            err: w
+          }
+        end
+
+        @start_kernel_params = kernel_params
+
+        @qemu_pid = Process.spawn(
+          *qemu_command(kernel_params:),
+          **qemu_kwargs
+        )
+        w.close unless @interactive_console
+        run_qemu_reaper(qemu_pid)
+
+        @running = true
+
+        run_console_thread unless @interactive_console
+
+        self.wait_for_boot if wait_for_boot
+        self
       end
-
-      log.start
-      prepare_disks
-
-      # Clear-out left-over socket
-      begin
-        File.unlink(shell_socket_path)
-      rescue Errno::ENOENT
-        # ignore
-      end
-
-      @shell_server = UNIXServer.new(shell_socket_path)
-
-      shared_dir.setup
-      start_virtiofs
-      sleep(1)
-
-      qemu_kwargs = {}
-
-      unless @interactive_console
-        @qemu_read, w = IO.pipe
-
-        qemu_kwargs = {
-          in: :close,
-          out: w,
-          err: w
-        }
-      end
-
-      @start_kernel_params = kernel_params
-
-      @qemu_pid = Process.spawn(
-        *qemu_command(kernel_params:),
-        **qemu_kwargs
-      )
-      w.close unless @interactive_console
-      run_qemu_reaper(qemu_pid)
-
-      @running = true
-
-      run_console_thread unless @interactive_console
-
-      accept_shell if wait_for_boot
-      self
     end
 
     # Block until the machine stops
@@ -122,7 +138,7 @@ module OsVm
       begin
         execute(poweroff_command)
       rescue MachineShellClosed
-        log.execute_end(-1, '[machine shell closed]')
+        # The shell logs the failed command.
       end
 
       if qemu_reaper && qemu_reaper.join(timeout).nil?
@@ -196,11 +212,7 @@ module OsVm
     # Cleanup machine state
     # @return [Machine]
     def cleanup
-      begin
-        File.unlink(shell_socket_path)
-      rescue Errno::ENOENT
-        # ignore
-      end
+      shells.each(&:cleanup)
 
       shared_filesystems.each_key do |fs_name|
         File.unlink(virtiofs_socket_path(fs_name))
@@ -218,18 +230,18 @@ module OsVm
 
     # @return [Boolean]
     def booted?
-      shell_up?
+      current_shell.up?
     end
 
     # @return [Boolean]
     def can_execute?
-      shell_up?
+      shells.any?(&:up?)
     end
 
     # Wait until the system has booted
     # @param timeout [Integer]
     def wait_for_boot(timeout: @default_timeout)
-      wait_for_shell(timeout:)
+      current_shell.wait(timeout:)
     end
 
     # Execute a command
@@ -238,47 +250,7 @@ module OsVm
     # @raise [MachineShellClosed]
     # @return [Array<Integer, String>] exit status and output
     def execute(cmd, timeout: @default_timeout)
-      start unless running?
-      wait_for_shell
-
-      real_timeout = [timeout, 5].max
-      vm_command = "set -euo pipefail; #{cmd}"
-      timeout_command = "timeout #{real_timeout}"
-
-      # For unknown reason, the first character written to the shell is cut. Sometimes
-      # more characters are lost. We therefore prefix the executed command with whitespace
-      # which can be lost.
-      workaround = ' ' * 10
-
-      shell.write("#{workaround}#{timeout_command} bash -c #{Shellwords.escape(vm_command)} 2>&1 | (base64 -w 0; echo)\n")
-      log.execute_begin(cmd)
-
-      begin
-        raw_output = read_shell_output(timeout: real_timeout + 5, command: vm_command)
-      rescue MachineShellClosed
-        log.execute_end(-1, '[machine shell closed]')
-        raise
-      end
-
-      output = Base64.decode64(raw_output)
-
-      shell.write("#{workaround}echo ${PIPESTATUS[0]}\n")
-
-      begin
-        status = read_shell_output(timeout: 60, command: 'echo ${PIPESTATUS[0]}').strip.to_i
-      rescue MachineShellClosed
-        log.execute_end(-1, output)
-        raise
-      end
-
-      if timeout && status == 124
-        log.execute_end(-1, output)
-        raise TimeoutError, "Timeout occurred while running command '#{cmd}', " \
-                            "output: #{output.inspect}"
-      end
-
-      log.execute_end(status, output)
-      [status, output]
+      current_shell.execute(cmd, timeout:)
     end
 
     # Execute command and check that it succeeds
@@ -405,21 +377,21 @@ module OsVm
       t1 = Time.now
       cur_timeout = timeout
 
-      log.console_wait_begin(regex)
+      log_started_at = log.console_wait_begin(regex)
 
       loop do
         if regex =~ console_output
-          log.console_wait_end(true)
+          log.console_wait_end(true, nil, log_started_at)
           return self
         end
 
         cur_timeout = timeout - (Time.now - t1)
 
         if cur_timeout <= 0
-          log.console_wait_end(false, 'timeout')
+          log.console_wait_end(false, 'timeout', log_started_at)
           raise TimeoutError, "Timeout occurred while waiting for #{regex.inspect} on the console"
         elsif !running?
-          log.console_wait_end(false, 'machine not running')
+          log.console_wait_end(false, 'machine not running', log_started_at)
           raise Error, 'Machine is not running'
         end
 
@@ -471,7 +443,7 @@ module OsVm
     protected
 
     attr_reader :config, :tmpdir, :sockdir, :qemu_pid, :qemu_read, :qemu_reaper,
-                :console_thread, :shell_server, :shell, :log, :virtiofsd_pids, :shared_dir,
+                :console_thread, :shells, :log, :virtiofsd_pids, :shared_dir,
                 :hash_base, :shared_filesystems
 
     def qemu_command(kernel_params: [])
@@ -505,6 +477,16 @@ module OsVm
         ret += ['-boot', "order=#{config.boot_order}"] if config.boot_order
         ret
       end
+    end
+
+    def qemu_shell_options
+      ret = ['-device', 'virtio-serial']
+
+      shells.each do |shell|
+        ret += shell.qemu_options
+      end
+
+      ret
     end
 
     def qemu_disk_options
@@ -600,20 +582,13 @@ module OsVm
           @console_thread = nil
         end
 
-        shell_server.close
-        @shell_server = nil
-
-        if shell
-          shell.close
-          @shell = nil
-        end
+        shells.each(&:close)
 
         stop_virtiofs
 
         cleanup
 
         @qemu_reaper = nil
-        @shell_up = false
         @running = false
         @stopped_at = Time.now
       end
@@ -652,67 +627,18 @@ module OsVm
       end
     end
 
-    def wait_for_shell(timeout: @default_timeout)
-      raise "machine #{name} is not running" unless running?
-      return if shell_up?
-
-      t1 = Time.now
-      buffer = ''
-
-      loop do
-        if t1 + timeout < Time.now
-          raise TimeoutError, 'Timeout occurred while waiting for shell'
-        end
-
-        reset_shell if shell&.closed?
-        accept_shell(timeout: t1 + timeout - Time.now) if shell.nil?
-
-        rs = shell.wait_readable(1)
-        next unless rs
-
-        begin
-          buffer << read_nonblock(shell)
-        rescue EOFError
-          reset_shell
-          buffer = ''
-          next
-        end
-
-        next unless buffer.include?("test-shell-ready\n")
-
-        @shell_up = true
-        shared_dir.mount
-        return
-      end
+    def shell_chardev_id(index)
+      shell_for(index).chardev_id
     end
 
-    def accept_shell(timeout: @default_timeout)
-      raise "machine #{name} is not running" unless running?
-      return shell unless shell.nil?
-
-      t1 = Time.now
-
-      loop do
-        if t1 + timeout < Time.now
-          raise TimeoutError, 'Timeout occurred while waiting for shell connection'
-        elsif !running?
-          raise Error, 'Machine is not running'
-        end
-
-        rs = @shell_server.wait_readable(1)
-        next unless rs
-
-        begin
-          @shell = @shell_server.accept_nonblock
-          return shell
-        rescue IO::WaitReadable, Errno::EINTR
-          next
-        end
-      end
+    def shell_socket_path(index = 0)
+      suffix = index == 0 ? 'shell' : "shell#{index}"
+      socket_path("#{name}-#{suffix}.sock")
     end
 
-    def shell_socket_path
-      socket_path("#{name}-shell.sock")
+    def shell_log_path(index = 0)
+      suffix = index == 0 ? 'shell' : "shell#{index}"
+      File.join(tmpdir, "#{name}-#{suffix}.log")
     end
 
     def console_log_path
@@ -742,46 +668,36 @@ module OsVm
       File.join(sockdir, "#{@socket_hash}-#{socket}")
     end
 
-    def shell_up?
-      @shell_up
+    def current_shell_index
+      index = Thread.current[SHELL_INDEX_KEY] || 0
+      validate_shell_index(index)
+      index
     end
 
-    def read_shell_output(timeout:, command:)
-      t1 = Time.now
-      buffer = ''
+    def current_shell
+      shell_for(current_shell_index)
+    end
 
-      loop do
-        if t1 + timeout < Time.now
-          raise UnrecoverableTimeoutError, "Timeout occurred while running command '#{command}', " \
-                                           "buffer contents: #{buffer.inspect}"
-        end
+    def shell_for(index)
+      validate_shell_index(index)
+      @shells[index]
+    end
 
-        rs = shell.wait_readable(1)
-        next unless rs
+    def validate_shell_index(index)
+      return if index.is_a?(Integer) && index >= 0 && index < config.test_shells
 
-        begin
-          buffer << read_nonblock(shell)
-        rescue EOFError
-          reset_shell
-          raise MachineShellClosed
-        end
+      raise ArgumentError, "invalid shell index #{index.inspect}"
+    end
 
-        break if buffer.end_with?("\n")
+    def mount_shared_dir_once
+      return if @shared_dir_mounted
+
+      @shared_dir_mutex.synchronize do
+        return if @shared_dir_mounted
+
+        shared_dir.mount
+        @shared_dir_mounted = true
       end
-
-      buffer
-    end
-
-    def reset_shell
-      @shell_up = false
-
-      return if shell.nil?
-
-      shell.close unless shell.closed?
-    rescue IOError
-      # ignore
-    ensure
-      @shell = nil
     end
 
     def read_nonblock(io)

@@ -14,6 +14,17 @@ module TestRunner
   class TestEvaluator
     include RSpec::Matchers
 
+    SCRIPT_STATE_KEY = :test_runner_script_state
+    ScriptState = Struct.new(
+      :example_config,
+      :before,
+      :after,
+      :example_groups,
+      :group_stack,
+      :current_example,
+      keyword_init: true
+    )
+
     # @return [Hash<String, OsVm::Machine>]
     attr_reader :machines
 
@@ -44,6 +55,8 @@ module TestRunner
       @machines = {}
       @default_timeout = opts.fetch(:default_timeout)
       @used_container_ids = []
+      @used_container_ids_mutex = Mutex.new
+      @log_mutex = Mutex.new
 
       @config['machines'].each do |name, cfg|
         var = :"@#{name}"
@@ -80,47 +93,30 @@ module TestRunner
     # @return [Hash<String, TestScriptResult>] script name => result
     def run
       ret = {}
-      script_results = []
+      script_results_by_name = {}
       test_started_at = Time.now
+      event_mutex = Mutex.new
+      result_mutex = Mutex.new
 
       do_run do
-        @scripts.each do |script|
-          success = false
-          t1 = Time.now
-
-          begin
-            log "Running script #{script.name}"
-
-            test_script(script.name) do |progress|
-              if progress[:type] == :example
-                example_result = progress[:result].to_h(
-                  script: script.name,
-                  progress: progress[:progress],
-                  total: progress[:total]
-                )
-
-                yield(example_result) if block_given?
-              end
+        run_script_workers do |script, worker_i|
+          OsVm::Machine.with_shell(worker_i) do
+            script_result = run_script(script) do |event|
+              event_mutex.synchronize { yield(event) } if block_given?
             end
 
-            t2 = Time.now
-            log "Script #{script.name} finished in #{(t2 - t1).round(2)}s"
-          rescue Exception => e # rubocop:disable Lint/RescueException
-            t2 = Time.now
-            log "Exception occurred while running script #{script.name} in #{(t2 - t1).round(2)}s"
-            log e.full_message
-          else
-            success = true
+            call_after_test_script_hook(script_result)
+
+            result_mutex.synchronize do
+              ret[script.name] = script_result
+              script_results_by_name[script.name] = script_result
+            end
+
+            event_mutex.synchronize { yield(script_result) } if block_given?
           end
-
-          script_result = TestScriptResult.new(script, success, t2 - t1)
-
-          ret[script.name] = script_result
-          script_results << script_result
-          call_after_test_script_hook(script_result)
-          yield(script_result) if block_given?
         end
 
+        script_results = @scripts.map { |script| script_results_by_name.fetch(script.name) }
         test_result = build_test_result(script_results, Time.now - test_started_at)
         call_after_test_run_hook(test_result)
       end
@@ -137,7 +133,8 @@ module TestRunner
 
     # Start all machines
     def start_all
-      machines.each_value(&:start)
+      machines.each_value { |machine| machine.start(wait_for_boot: false) }
+      machines.each_value(&:wait_for_boot)
     end
 
     # Invoke interactive shell from within a test
@@ -148,7 +145,7 @@ module TestRunner
     # Configure default settings for example groups
     # @yieldparam [ExampleConfiguration]
     def configure_examples
-      yield(@example_config)
+      yield(current_script_state.example_config)
     end
 
     # Create an example group
@@ -161,19 +158,20 @@ module TestRunner
     # @param obj [#to_s]
     # @param order [nil, :defined, :rand, Random, Integer] order in which examples and subgroups are evaluated
     def describe(obj, order: nil, &)
-      grp = ExampleGroup.new(obj, parent: @group_stack.last, order:, config: @example_config, &)
+      state = current_script_state
+      grp = ExampleGroup.new(obj, parent: state.group_stack.last, order:, config: state.example_config, &)
 
-      if @group_stack.any?
-        @group_stack.last.add_group(grp)
+      if state.group_stack.any?
+        state.group_stack.last.add_group(grp)
       else
-        @example_groups << grp
+        state.example_groups << grp
       end
 
-      @group_stack << grp
+      state.group_stack << grp
 
       grp.load
 
-      @group_stack = @group_stack[0..-2]
+      state.group_stack = state.group_stack[0..-2]
       nil
     end
 
@@ -182,27 +180,31 @@ module TestRunner
     # Code block executed before suite, context or example
     # @param type [:suite, :context, :example]
     def before(type, &block)
+      state = current_script_state
+
       if type == :suite
-        @before << block
+        state.before << block
         return
       end
 
-      raise 'Called outside of an example group, use from #describe block' if @group_stack.empty?
+      raise 'Called outside of an example group, use from #describe block' if state.group_stack.empty?
 
-      @group_stack.last.add_before(type, block)
+      state.group_stack.last.add_before(type, block)
     end
 
     # Code block executed after suite, context or example
     # @param type [:suite, :context, :example]
     def after(type, &block)
+      state = current_script_state
+
       if type == :suite
-        @after << block
+        state.after << block
         return
       end
 
-      raise 'Called outside of an example group, use from #describe block' if @group_stack.empty?
+      raise 'Called outside of an example group, use from #describe block' if state.group_stack.empty?
 
-      @group_stack.last.add_after(type, block)
+      state.group_stack.last.add_after(type, block)
     end
 
     # Create a test example
@@ -214,9 +216,10 @@ module TestRunner
     # @param pending [Boolean]
     # @param skip [Boolean]
     def example(message, pending: false, skip: false, &block)
-      raise 'Called outside of an example group, use from #describe block' if @group_stack.empty?
+      state = current_script_state
+      raise 'Called outside of an example group, use from #describe block' if state.group_stack.empty?
 
-      grp = @group_stack.last
+      grp = state.group_stack.last
       grp.add_example(Example.new(grp, message, pending:, skip: skip || block.nil?, &block))
       nil
     end
@@ -227,20 +230,24 @@ module TestRunner
     # @param message [String]
     # @param skip [Boolean]
     def pending(message = '', skip: false, &block)
-      if block || @current_example.nil?
+      state = current_script_state
+
+      if block || state.current_example.nil?
         it(message, pending: true, skip:, &block)
       else
-        @current_example.send(:set_pending)
+        state.current_example.send(:set_pending)
       end
     end
 
     # Create a skipped example or mark the currently evaluated example as pending
     # @param message [String]
     def skip(message = '', &block)
-      if block || @current_example.nil?
+      state = current_script_state
+
+      if block || state.current_example.nil?
         it(message, skip: true, &block)
       else
-        @current_example.send(:set_skip)
+        state.current_example.send(:set_skip)
         throw :skip
       end
     end
@@ -248,16 +255,18 @@ module TestRunner
     # Generate container id that is unique to the test run
     # @return [String]
     def get_container_id(base = 'testct')
-      10.times do
-        new_id = "#{base}-#{SecureRandom.hex(2)}"
+      @used_container_ids_mutex.synchronize do
+        10.times do
+          new_id = "#{base}-#{SecureRandom.hex(2)}"
 
-        if @used_container_ids.include?(new_id)
-          sleep(0.05)
-          next
+          if @used_container_ids.include?(new_id)
+            sleep(0.05)
+            next
+          end
+
+          @used_container_ids << new_id
+          return new_id
         end
-
-        @used_container_ids << new_id
-        return new_id
       end
 
       raise 'Unable to generate unique container id'
@@ -413,33 +422,96 @@ module TestRunner
       )
     end
 
+    def run_script_workers
+      worker_count = [@test.test_script_jobs, @scripts.length].min
+      return if worker_count <= 0
+
+      queue = Queue.new
+      @scripts.each { |script| queue << script }
+
+      workers = worker_count.times.map do |worker_i|
+        Thread.new do
+          loop do
+            script =
+              begin
+                queue.pop(true)
+              rescue ThreadError
+                break
+              end
+
+            yield(script, worker_i)
+          end
+        end
+      end
+
+      workers.each(&:join)
+    end
+
+    def run_script(script)
+      success = false
+      t1 = Time.now
+
+      begin
+        log "Running script #{script.name}"
+
+        script_context = clone
+        script_context.send(:test_script, script.name) do |progress|
+          next unless progress[:type] == :example
+
+          example_result = progress[:result].to_h(
+            script: script.name,
+            progress: progress[:progress],
+            total: progress[:total]
+          )
+
+          yield(example_result) if block_given?
+        end
+
+        t2 = Time.now
+        log "Script #{script.name} finished in #{(t2 - t1).round(2)}s"
+      rescue Exception => e # rubocop:disable Lint/RescueException
+        t2 = Time.now
+        log "Exception occurred while running script #{script.name} in #{(t2 - t1).round(2)}s"
+        log e.full_message
+      else
+        success = true
+      end
+
+      TestScriptResult.new(script, success, t2 - t1)
+    end
+
     def test_script(name, &)
-      @example_config = ExampleConfiguration.new
-      @before = []
-      @after = []
-      @example_groups = []
-      @group_stack = []
+      state = ScriptState.new(
+        example_config: ExampleConfiguration.new,
+        before: [],
+        after: [],
+        example_groups: [],
+        group_stack: []
+      )
 
-      binding.eval(@config['testScripts'][name]['script']) # rubocop:disable Security/Eval
+      with_script_state(state) do
+        binding.eval(@config['testScripts'][name]['script']) # rubocop:disable Security/Eval
 
-      return if @example_groups.empty?
+        return if state.example_groups.empty?
 
-      run_examples(&)
+        run_examples(&)
+      end
     end
 
     def run_examples
+      state = current_script_state
       example_count = get_example_count
       i = 1
 
       log 'Evaluating examples'
 
-      @before.each(&:call)
+      state.before.each(&:call)
 
-      results = ExampleOrdering.sort_by_order(@example_groups, @example_config.default_order).map do |grp|
+      results = ExampleOrdering.sort_by_order(state.example_groups, state.example_config.default_order).map do |grp|
         grp.evaluate do |type, example_or_result|
           if type == :before
             log "[#{i}/#{example_count}] Evaluating '#{example_or_result.full_message}'"
-            @current_example = example_or_result
+            state.current_example = example_or_result
           else
             result = example_or_result
 
@@ -465,14 +537,14 @@ module TestRunner
               yield({ type: :example, progress: i, total: example_count, result: result })
             end
 
-            @current_example = nil
+            state.current_example = nil
 
             i += 1
           end
         end
       end.flatten
 
-      @after.each(&:call)
+      state.after.each(&:call)
 
       failed = results.select(&:failure?)
       return if failed.empty?
@@ -491,7 +563,7 @@ module TestRunner
     def get_example_count(groups: nil)
       cnt = 0
 
-      (groups || @example_groups).each do |grp|
+      (groups || current_script_state.example_groups).each do |grp|
         cnt += grp.examples.count(&:evaluate?)
         cnt += get_example_count(groups: grp.groups)
       end
@@ -500,7 +572,21 @@ module TestRunner
     end
 
     def log(msg)
-      warn "[#{Time.now}] #{msg}"
+      @log_mutex.synchronize do
+        warn "[#{Time.now}] #{msg}"
+      end
+    end
+
+    def current_script_state
+      Thread.current[SCRIPT_STATE_KEY] || (raise 'No test script is running')
+    end
+
+    def with_script_state(state)
+      previous_state = Thread.current[SCRIPT_STATE_KEY]
+      Thread.current[SCRIPT_STATE_KEY] = state
+      yield
+    ensure
+      Thread.current[SCRIPT_STATE_KEY] = previous_state
     end
 
     def do_run

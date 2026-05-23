@@ -124,17 +124,23 @@ RSpec.describe OsVm::Machine do
 
   it 'cleans up shell and virtiofs sockets' do
     with_tmpdir do |dir|
-      machine = build_machine(dir:)
-      shell_socket = machine.send(:shell_socket_path)
+      machine = build_machine(
+        dir:,
+        config: build_machine_config('testShells' => 2)
+      )
+      shell_sockets = [
+        machine.send(:shell_socket_path, 0),
+        machine.send(:shell_socket_path, 1)
+      ]
       virtio_sockets = machine.send(:shared_filesystems).keys.map do |fs_name|
         machine.send(:virtiofs_socket_path, fs_name)
       end
 
-      FileUtils.touch(shell_socket)
+      shell_sockets.each { |path| FileUtils.touch(path) }
       virtio_sockets.each { |path| FileUtils.touch(path) }
 
       expect(machine.cleanup).to eq(machine)
-      expect(File.exist?(shell_socket)).to be(false)
+      expect(shell_sockets.any? { |path| File.exist?(path) }).to be(false)
       expect(virtio_sockets.any? { |path| File.exist?(path) }).to be(false)
     end
   end
@@ -257,20 +263,22 @@ RSpec.describe OsVm::Machine do
     end
   end
 
-  it 'resets the shell and raises when shell output hits eof' do
+  it 'renders qemu options for multiple test shells' do
     with_tmpdir do |dir|
-      machine = build_machine(dir:)
-      shell = instance_double(IO, wait_readable: true, closed?: false, close: nil)
-      machine.instance_variable_set(:@shell, shell)
-      machine.instance_variable_set(:@shell_up, true)
-      allow(machine).to receive(:read_nonblock).and_raise(EOFError)
+      machine = build_machine(
+        dir:,
+        config: build_machine_config('testShells' => 2)
+      )
 
-      expect do
-        machine.send(:read_shell_output, timeout: 1, command: 'echo test')
-      end.to raise_error(OsVm::MachineShellClosed)
-
-      expect(machine.instance_variable_get(:@shell)).to be_nil
-      expect(machine.instance_variable_get(:@shell_up)).to be(false)
+      expect(machine.send(:qemu_shell_options)).to eq(
+        [
+          '-device', 'virtio-serial',
+          '-chardev', "socket,id=shell,path=#{machine.send(:shell_socket_path, 0)}",
+          '-device', 'virtconsole,chardev=shell',
+          '-chardev', "socket,id=shell1,path=#{machine.send(:shell_socket_path, 1)}",
+          '-device', 'virtconsole,chardev=shell1'
+        ]
+      )
     end
   end
 

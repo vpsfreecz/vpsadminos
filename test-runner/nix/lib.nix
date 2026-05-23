@@ -110,6 +110,7 @@ let
           tags
           labels
           ;
+        testScriptJobs = t.test.config.testScriptJobs or 1;
         testScripts = testScriptsMeta t.test.config;
       }
     else if t.type == "template" then
@@ -123,6 +124,7 @@ let
           tags
           labels
           ;
+        testScriptJobs = t.test.config.testScriptJobs or 1;
         testScripts = testScriptsMeta t.test.config;
       }
     else

@@ -10,6 +10,7 @@ RSpec.describe TestRunner::Test do
       description: 'An example',
       attempts: 2,
       expect_failure: true,
+      test_script_jobs: 3,
       tags: ['smoke'],
       labels: { 'tier' => '1' }
     )
@@ -19,6 +20,7 @@ RSpec.describe TestRunner::Test do
     expect(test.description).to eq('An example')
     expect(test.attempts).to eq(2)
     expect(test.expect_failure).to be(true)
+    expect(test.test_script_jobs).to eq(3)
     expect(test.tags).to eq(['smoke'])
     expect(test.labels).to eq('tier' => '1')
   end

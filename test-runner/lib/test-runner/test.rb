@@ -27,6 +27,9 @@ module TestRunner
     # @return [Boolean]
     attr_reader :expect_failure
 
+    # @return [Integer]
+    attr_reader :test_script_jobs
+
     # @return [Array<String>]
     attr_reader :tags
 
@@ -47,6 +50,7 @@ module TestRunner
       @description = opts[:description]
       @attempts = opts[:attempts]
       @expect_failure = opts[:expect_failure]
+      @test_script_jobs = opts[:test_script_jobs] || 1
       @tags = opts[:tags]
       @labels = opts[:labels]
       @test_scripts = opts[:test_scripts].to_h do |ts_name, ts_opts|

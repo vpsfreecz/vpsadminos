@@ -217,6 +217,9 @@ module OsVm
     # @return [Array<String>]
     attr_reader :extra_qemu_options
 
+    # @return [Integer]
+    attr_reader :test_shells
+
     # @return [String] path to virtiofsd package
     attr_reader :virtiofsd
 
@@ -263,6 +266,7 @@ module OsVm
       @boot_mode = cfg.fetch('bootMode', 'direct')
       @boot_order = cfg['bootOrder']
       @extra_qemu_options = cfg.fetch('extraQemuOptions', [])
+      @test_shells = cfg.fetch('testShells', 1)
       @virtiofsd = cfg.fetch('virtiofsd')
       @kernel = cfg['kernel']
       @initrd = cfg['initrd']
@@ -281,6 +285,10 @@ module OsVm
 
       unless %w[direct firmware].include?(@boot_mode)
         raise ArgumentError, "unsupported boot mode #{@boot_mode.inspect}"
+      end
+
+      unless @test_shells.is_a?(Integer) && @test_shells >= 1
+        raise ArgumentError, 'testShells must be an integer greater than or equal to 1'
       end
 
       return unless @boot_mode == 'direct'

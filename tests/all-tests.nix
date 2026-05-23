@@ -106,6 +106,7 @@ let
         "docker/fedora"
         "docker/ubuntu"
         "driver/nixos"
+        "driver/parallel-test-scripts"
         "driver/rspec"
         "driver/vpsadminos"
         "ebpf-livepatch"

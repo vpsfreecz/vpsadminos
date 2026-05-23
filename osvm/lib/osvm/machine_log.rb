@@ -3,6 +3,7 @@ module OsVm
     def initialize(path)
       @path = path
       @file = File.open(path, 'w')
+      @mutex = Mutex.new
     end
 
     %i[start stop destroy].each do |m|
@@ -27,25 +28,6 @@ module OsVm
       end
     end
 
-    def execute_begin(command)
-      log_begin do |io|
-        io.puts("COMMAND: #{command}")
-      end
-    end
-
-    def execute_end(status, output)
-      log_end do |io|
-        io.puts("STATUS: #{status}")
-        io.puts('OUTPUT:')
-        io.puts(output)
-      end
-    end
-
-    def execute(command, status, output)
-      execute_begin(command)
-      execute_end(status, output)
-    end
-
     def console_wait_begin(regex)
       log_begin do |io|
         io.puts('ACTION: console-wait')
@@ -53,8 +35,8 @@ module OsVm
       end
     end
 
-    def console_wait_end(status, error = nil)
-      log_end do |io|
+    def console_wait_end(status, error = nil, begun_at = nil)
+      log_end(begun_at) do |io|
         io.puts("MATCH: #{status}")
         io.puts("ERROR: #{error}") if error
       end
@@ -66,35 +48,48 @@ module OsVm
 
     protected
 
-    attr_reader :path, :file
+    attr_reader :path, :file, :mutex
 
     def log(&)
-      log_begin
+      begun_at = log_begin
       log_cont(&)
-      log_end
+      log_end(begun_at)
     end
 
     def log_begin
-      @log_begun_at = Time.now
-      file.puts("START: #{@log_begun_at}")
-      yield(file) if block_given?
-      file.flush
+      begun_at = Time.now
+
+      mutex.synchronize do
+        file.puts("START: #{begun_at}")
+        yield(file) if block_given?
+        file.flush
+      end
+
+      begun_at
     end
 
     def log_cont
-      yield(file)
-      file.flush
+      mutex.synchronize do
+        yield(file)
+        file.flush
+      end
     end
 
-    def log_end(&block)
+    def log_end(begun_at = nil, &block)
       t = Time.now
-      file.puts("END: #{t}")
-      file.puts("ELAPSED: #{(t - @log_begun_at).round(2)}s")
-      file.flush
-      log_cont(&block) if block
-      file.puts('---')
-      file.puts
-      file.flush
+      started_at = begun_at || t
+
+      mutex.synchronize do
+        file.puts("END: #{t}")
+        file.puts("ELAPSED: #{(t - started_at).round(2)}s")
+        if block
+          yield(file)
+          file.flush
+        end
+        file.puts('---')
+        file.puts
+        file.flush
+      end
     end
   end
 end

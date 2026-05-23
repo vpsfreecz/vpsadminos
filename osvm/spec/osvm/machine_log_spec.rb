@@ -3,7 +3,7 @@
 require 'spec_helper'
 
 RSpec.describe OsVm::MachineLog do
-  it 'records lifecycle actions and structured command events' do
+  it 'records lifecycle actions and console waits' do
     with_tmpdir do |dir|
       path = File.join(dir, 'machine.log')
       log = described_class.new(path)
@@ -13,10 +13,8 @@ RSpec.describe OsVm::MachineLog do
       log.destroy
       log.kill('TERM')
       log.exit(0)
-      log.execute_begin('echo hello')
-      log.execute_end(0, "hello\n")
-      log.console_wait_begin(/ready/)
-      log.console_wait_end(true)
+      begun_at = log.console_wait_begin(/ready/)
+      log.console_wait_end(true, nil, begun_at)
       log.close
 
       output = File.read(path)
@@ -27,8 +25,6 @@ RSpec.describe OsVm::MachineLog do
       expect(output).to include('SIGNAL: TERM')
       expect(output).to include('ACTION: qemu_exit')
       expect(output).to include('STATUS: 0')
-      expect(output).to include('COMMAND: echo hello')
-      expect(output).to include('OUTPUT:')
       expect(output).to include('ACTION: console-wait')
       expect(output).to include('MATCH: true')
       expect(output).to include('START:')

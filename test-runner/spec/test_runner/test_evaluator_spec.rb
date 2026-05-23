@@ -114,6 +114,52 @@ RSpec.describe TestRunner::TestEvaluator do
     expect(events.last).to be_a(TestRunner::TestScriptResult)
   end
 
+  it 'runs test scripts in parallel up to test_script_jobs' do
+    with_tmpdir do |dir|
+      test = build_test(
+        test_script_jobs: 2,
+        scripts: {
+          'a' => {},
+          'b' => {}
+        }
+      )
+      scripts = [test.test_scripts['a'], test.test_scripts['b']]
+      ready_a = File.join(dir, 'a.ready')
+      ready_b = File.join(dir, 'b.ready')
+      observed_shells = File.join(dir, 'shells.log')
+      script = lambda do |name, ready|
+        <<~RUBY
+          @script_private = #{name.inspect}
+          File.write(#{ready.inspect}, "ready\\n")
+          File.open(#{observed_shells.inspect}, 'a') do |f|
+            f.puts(Thread.current[OsVm::Machine::SHELL_INDEX_KEY])
+          end
+          wait_for_block(name: 'parallel scripts', timeout: 2) do
+            File.exist?(#{ready_a.inspect}) && File.exist?(#{ready_b.inspect})
+          end
+          raise 'script context leaked' unless @script_private == #{name.inspect}
+        RUBY
+      end
+      evaluator = build_evaluator(
+        test:,
+        scripts:,
+        config_data: {
+          'machines' => {},
+          'framework' => {},
+          'testScripts' => {
+            'a' => { 'script' => script.call('a', ready_a) },
+            'b' => { 'script' => script.call('b', ready_b) }
+          }
+        }
+      )
+
+      results = evaluator.run
+
+      expect(results.values).to all(be_successful)
+      expect(File.readlines(observed_shells, chomp: true).sort).to eq(%w[0 1])
+    end
+  end
+
   it 'calls after_test_script_run and after_test_run hooks' do
     script_events = []
     test_events = []

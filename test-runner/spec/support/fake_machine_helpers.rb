@@ -9,8 +9,12 @@ class FakeMachine
     @calls = []
   end
 
-  def start
+  def start(**_opts)
     calls << :start
+  end
+
+  def wait_for_boot
+    calls << :wait_for_boot
   end
 
   def stop

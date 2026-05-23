@@ -63,6 +63,14 @@ RSpec.describe OsVm::MachineConfig do
     end.to raise_error(ArgumentError, /unsupported disk type/)
   end
 
+  it 'loads and validates test shell count' do
+    expect(build_machine_config('testShells' => 3).test_shells).to eq(3)
+
+    expect do
+      build_machine_config('testShells' => 0)
+    end.to raise_error(ArgumentError, /testShells must be an integer/)
+  end
+
   it 'creates the correct network subclasses from config' do
     config = build_machine_config(
       'networks' => [

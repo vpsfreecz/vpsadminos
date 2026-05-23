@@ -21,6 +21,7 @@ RSpec.describe TestRunner::TestList do
           'description' => 'A',
           'attempts' => 1,
           'expectFailure' => false,
+          'testScriptJobs' => 2,
           'tags' => [],
           'labels' => {},
           'testScripts' => { 'default' => {} }
@@ -31,6 +32,7 @@ RSpec.describe TestRunner::TestList do
     tests = described_class.new.all
 
     expect(tests.map(&:path)).to eq(['suite/a'])
+    expect(tests.first.test_script_jobs).to eq(2)
   end
 
   it 'parses one test from json' do

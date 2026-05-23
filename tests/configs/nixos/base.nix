@@ -5,30 +5,71 @@
   ...
 }:
 let
-  testShell = pkgs.writeShellScript "osvm-test-shell" ''
-    until [ -c /dev/hvc0 ]; do
-      echo "Waiting for /dev/hvc0"
-      sleep 1
-    done
+  shellIndexes = lib.range 0 (config.osvm.testShells - 1);
 
-    export USER=root
-    export HOME=/root
+  testShell =
+    i:
+    let
+      device = "/dev/hvc${toString i}";
+    in
+    pkgs.writeShellScript "osvm-test-shell-${toString i}" ''
+      until [ -c ${device} ]; do
+        echo "Waiting for ${device}"
+        sleep 1
+      done
 
-    if [ -e /etc/profile ]; then
-      source /etc/profile
-    fi
+      export USER=root
+      export HOME=/root
 
-    export PAGER=
-    export PS1=
+      if [ -e /etc/profile ]; then
+        source /etc/profile
+      fi
 
-    stty -F /dev/hvc0 raw -echo
+      export PAGER=
+      export PS1=
 
-    echo test-shell-ready > /dev/hvc0
+      stty -F ${device} raw -echo
 
-    exec ${pkgs.bash}/bin/bash --norc /dev/hvc0
-  '';
+      echo test-shell-ready > ${device}
+
+      exec ${pkgs.bash}/bin/bash --norc ${device}
+    '';
+
+  serviceName = i: if i == 0 then "test-shell" else "test-shell-${toString i}";
+
+  shellService =
+    i:
+    let
+      device = "/dev/hvc${toString i}";
+    in
+    {
+      description = "osvm test shell";
+      wantedBy = [ "multi-user.target" ];
+      after = [ "dev-hvc${toString i}.device" ];
+      restartIfChanged = false;
+      stopIfChanged = false;
+      reloadIfChanged = false;
+      serviceConfig = {
+        Type = "simple";
+        StandardInput = "tty";
+        StandardOutput = "tty";
+        StandardError = "tty";
+        TTYPath = device;
+        TTYReset = "yes";
+        TTYVHangup = "yes";
+        ExecStart = testShell i;
+        Restart = "always";
+        RestartSec = 1;
+      };
+    };
 in
 {
+  options.osvm.testShells = lib.mkOption {
+    type = lib.types.ints.positive;
+    default = 1;
+    description = "Number of test shells to run.";
+  };
+
   boot.loader.grub.enable = false;
   boot.loader.generic-extlinux-compatible.enable = false;
   boot.loader.systemd-boot.enable = false;
@@ -72,7 +113,6 @@ in
   services.getty.helpLine = "";
   services.getty.autologinUser = lib.mkDefault "root";
   services.qemuGuest.enable = true;
-  systemd.services."serial-getty@hvc0".enable = false;
 
   environment.systemPackages = with pkgs; [
     bash
@@ -85,26 +125,16 @@ in
 
   system.stateVersion = lib.trivial.release;
 
-  systemd.services.test-shell = {
-    description = "osvm test shell";
-    wantedBy = [ "multi-user.target" ];
-    after = [ "dev-hvc0.device" ];
-    restartIfChanged = false;
-    stopIfChanged = false;
-    reloadIfChanged = false;
-    serviceConfig = {
-      Type = "simple";
-      StandardInput = "tty";
-      StandardOutput = "tty";
-      StandardError = "tty";
-      TTYPath = "/dev/hvc0";
-      TTYReset = "yes";
-      TTYVHangup = "yes";
-      ExecStart = testShell;
-      Restart = "always";
-      RestartSec = 1;
+  systemd.services =
+    builtins.listToAttrs (
+      map (i: {
+        name = serviceName i;
+        value = shellService i;
+      }) shellIndexes
+    )
+    // {
+      "serial-getty@hvc0".enable = false;
     };
-  };
 
   virtualisation.memorySize = lib.mkDefault 2048;
   virtualisation.cores = lib.mkDefault 2;

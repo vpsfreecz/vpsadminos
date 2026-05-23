@@ -253,8 +253,29 @@ my-test#script2
 ```
 
 Script name is separated from test name by a hash (`#`). Test scripts of
-one test are run in the same environment one after the other -- they share
-the same virtual machines, etc. Test scripts are executed in random order.
+one test are run in the same environment and share the same virtual machines.
+By default, they run one after the other in random order.
+
+Tests can opt into parallel test script execution with `testScriptJobs`:
+
+```nix
+{
+  testScriptJobs = 2;
+
+  testScripts = {
+    script1.script = ''
+      machine.succeeds("uptime")
+    '';
+
+    script2.script = ''
+      machine.succeeds("ps aux")
+    '';
+  };
+}
+```
+
+Parallel scripts share the same VM state, so they must avoid conflicting
+changes to the machine. Each running script gets its own test shell.
 
 ## Test templates
 Templates can be used to create multiple instances of a test. The difference between

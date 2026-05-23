@@ -11,6 +11,7 @@ module FakeTestHelpers
     description: 'Example test',
     attempts: 1,
     expect_failure: false,
+    test_script_jobs: 1,
     tags: [],
     labels: {},
     scripts: { 'default' => {} }
@@ -25,6 +26,7 @@ module FakeTestHelpers
       description:,
       attempts:,
       expect_failure:,
+      test_script_jobs:,
       tags:,
       labels:,
       test_scripts: scripts

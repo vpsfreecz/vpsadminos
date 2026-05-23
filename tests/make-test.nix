@@ -55,6 +55,8 @@ let
 
   testAttrs = testFn ({ pkgs = nixpkgs; } // forwardedArgs // effectiveTestArgs);
 
+  testScriptJobs = testAttrs.testScriptJobs or 1;
+
   vpsadminosSystem =
     cfg:
     import ../os {
@@ -65,7 +67,11 @@ let
         system
         ;
       modules =
-        modules ++ (cfg.modules or [ ]) ++ [ ./configs/vpsadminos/base.nix ] ++ [ cfg.config or { } ];
+        modules
+        ++ (cfg.modules or [ ])
+        ++ [ ./configs/vpsadminos/base.nix ]
+        ++ [ cfg.config or { } ]
+        ++ [ { osctl.test-shell.shells = testScriptJobs; } ];
     };
 
   nixosSystem =
@@ -78,7 +84,8 @@ let
         ++ [ (nixpkgs.path + "/nixos/modules/virtualisation/qemu-vm.nix") ]
         ++ (machine.modules or [ ])
         ++ [ ./configs/nixos/base.nix ]
-        ++ [ machine.config or { } ];
+        ++ [ machine.config or { } ]
+        ++ [ { osvm.testShells = testScriptJobs; } ];
     };
 
   machineAttrs =
@@ -124,6 +131,7 @@ let
       labels = machine.labels or { };
       bootMode = "firmware";
       bootOrder = machine.bootOrder or "n";
+      testShells = testScriptJobs;
       kernelParams = machine.kernelParams or [ ];
       extraQemuOptions = machine.extraQemuOptions or [ ];
     };
@@ -156,6 +164,7 @@ let
       cpus = qemuCfg.cpus;
       cpu = qemuCfg.cpu;
       disks = machine.disks or [ ];
+      testShells = testScriptJobs;
       networks = machine.networks or defaultNetworks;
       sharedFileSystems = machine.sharedFileSystems or { };
       tags = machine.tags or [ ];
@@ -214,6 +223,7 @@ let
       cpu = cpuCfg;
       diskImage = diskImagePath;
       disks = machine.disks or [ ];
+      testShells = testScriptJobs;
       networks = machine.networks or defaultNetworks;
       sharedFileSystems = machine.sharedFileSystems or { };
       tags = machine.tags or [ ];
@@ -247,6 +257,7 @@ let
     inherit (testAttrs) name description;
     expectFailure = testAttrs.expectFailure or false;
     attempts = testAttrs.attempts or 1;
+    inherit testScriptJobs;
     machines = machineTestConfigs;
     tags = testAttrs.tags or [ ];
     labels = testAttrs.labels or { };
