@@ -1,3 +1,5 @@
+require 'libosctl/exceptions'
+
 module OsCtl::Lib
   # Class representing a single ZFS dataset
   class Zfs::Dataset
@@ -183,6 +185,8 @@ module OsCtl::Lib
         next if mounted == 'yes'
 
         zfs(:mount, nil, ds)
+      rescue Exceptions::SystemCommandFailed => e
+        raise unless e.output.include?('filesystem already mounted')
       end
     end
 
@@ -198,6 +202,8 @@ module OsCtl::Lib
         next if mounted != 'yes'
 
         zfs(:unmount, nil, ds)
+      rescue Exceptions::SystemCommandFailed => e
+        raise unless e.output.include?('not currently mounted')
       end
     end
 

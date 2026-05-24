@@ -121,6 +121,37 @@ RSpec.describe OsCtl::Lib::Zfs::Dataset do
     expect(dataset.mounted?(recursive: true)).to be(true)
   end
 
+  it 'ignores concurrent ZFS mount and unmount state changes' do
+    allow(dataset).to receive(:zfs).and_return(command_result(output: ''))
+    allow(dataset).to receive(:zfs).with(
+      :list,
+      '-H -o name,mounted -t filesystem ',
+      'tank/ct/test/root'
+    ).and_return(command_result(output: "tank/ct/test/root no\n"))
+    allow(dataset).to receive(:zfs).with(:mount, nil, 'tank/ct/test/root')
+                                   .and_raise(OsCtl::Lib::Exceptions::SystemCommandFailed.new(
+                                                'zfs mount',
+                                                1,
+                                                "cannot mount 'tank/ct/test/root': filesystem already mounted"
+                                              ))
+
+    expect { dataset.mount }.not_to raise_error
+
+    allow(dataset).to receive(:zfs).with(
+      :list,
+      '-H -o name,mounted -t filesystem -r',
+      'tank/ct/test/root'
+    ).and_return(command_result(output: "tank/ct/test/root yes\n"))
+    allow(dataset).to receive(:zfs).with(:unmount, nil, 'tank/ct/test/root')
+                                   .and_raise(OsCtl::Lib::Exceptions::SystemCommandFailed.new(
+                                                'zfs unmount',
+                                                1,
+                                                "cannot unmount 'tank/ct/test/root': not currently mounted"
+                                              ))
+
+    expect { dataset.unmount(recursive: true) }.not_to raise_error
+  end
+
   it 'derives parent relationships and relative dataset names' do
     expect(dataset.parent.name).to eq('tank/ct/test')
     expect(dataset.parents.map(&:name)).to eq(%w[tank/ct/test tank/ct tank])
