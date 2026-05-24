@@ -82,6 +82,30 @@ RSpec.describe OsCtl::Exporter::Collectors::Container do
     )
   end
 
+  it 'closes inherited file descriptors in the netns reader child' do
+    leaked_r, leaked_w = IO.pipe
+    ct = { pool: 'tank', id: 'ct1', init_pid: Process.pid }
+    sys = build_fake_sys
+
+    allow(OsCtl::Lib::Sys).to receive(:new).and_return(sys)
+    allow(File).to receive(:read).with('/proc/sys/net/netfilter/nf_conntrack_count') do
+      raise 'inherited descriptor leaked into netns child' if File.exist?("/proc/self/fd/#{leaked_w.fileno}")
+
+      "7\n"
+    end
+    allow(File).to receive(:read).with('/proc/sys/net/netfilter/nf_conntrack_max').and_return("70\n")
+    allow(collector).to receive(:collect) { collector.send(:read_from_container_netns, ct) }
+
+    collector.run_collect(build_connected_osctld_client)
+
+    expect(metric_values(registry.get(:osctl_container_nf_conntrack_entries))).to eq(
+      { { pool: 'tank', id: 'ct1' } => 7.0 }
+    )
+  ensure
+    leaked_r&.close unless leaked_r&.closed?
+    leaked_w&.close unless leaked_w&.closed?
+  end
+
   it 'logs and skips metrics when reading the container network namespace exits non-zero' do
     ct = { pool: 'tank', id: 'ct1', init_pid: Process.pid }
     sys = build_fake_sys

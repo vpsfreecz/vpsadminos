@@ -512,14 +512,23 @@ module OsCtl::Exporter
 
       pid = Process.fork do
         r.close
+        reset_child_process(w.fileno)
 
-        sys = OsCtl::Lib::Sys.new
-        sys.setns_path(File.join('/proc', ct[:init_pid].to_s, 'ns/net'), OsCtl::Lib::Sys::CLONE_NEWNET)
+        begin
+          sys = OsCtl::Lib::Sys.new
+          sys.setns_path(File.join('/proc', ct[:init_pid].to_s, 'ns/net'), OsCtl::Lib::Sys::CLONE_NEWNET)
 
-        w.puts({
-          'nf_conntrack_count' => File.read('/proc/sys/net/netfilter/nf_conntrack_count').strip.to_i,
-          'nf_conntrack_max' => File.read('/proc/sys/net/netfilter/nf_conntrack_max').strip.to_i
-        }.to_json)
+          w.puts({
+            'nf_conntrack_count' => File.read('/proc/sys/net/netfilter/nf_conntrack_count').strip.to_i,
+            'nf_conntrack_max' => File.read('/proc/sys/net/netfilter/nf_conntrack_max').strip.to_i
+          }.to_json)
+        rescue StandardError
+          exit!(1)
+        else
+          exit!(0)
+        ensure
+          w.close unless w.closed?
+        end
       end
 
       w.close
@@ -542,6 +551,30 @@ module OsCtl::Exporter
 
       nf_conntrack_entries.set(parsed['nf_conntrack_count'], labels: { pool: ct[:pool], id: ct[:id] })
       nf_conntrack_entries_limit.set(parsed['nf_conntrack_max'], labels: { pool: ct[:pool], id: ct[:id] })
+    end
+
+    def reset_child_process(result_fd)
+      reset_child_signals
+      close_inherited_fds([0, 1, 2, result_fd])
+    end
+
+    def reset_child_signals
+      %w[HUP INT TERM].each do |sig|
+        Signal.trap(sig, 'DEFAULT')
+      rescue ArgumentError
+        # Signal not available on this platform
+      end
+    end
+
+    def close_inherited_fds(keep)
+      Dir.children('/proc/self/fd').each do |fd|
+        fd = fd.to_i
+        next if keep.include?(fd)
+
+        IO.new(fd).close
+      rescue ArgumentError, Errno::EBADF, Errno::ENOENT, IOError
+        # Already closed or raced with /proc/self/fd
+      end
     end
 
     def parse_processes
