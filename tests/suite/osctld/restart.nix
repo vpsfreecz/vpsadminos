@@ -175,6 +175,42 @@ import ../../make-test.nix (
         fail "job #{job[:name]} failed with #{status.strip}: #{log}"
       end
 
+      def self.wait_host_job_exit(job, timeout: 120)
+        wait_until_block_succeeds(name: "#{job[:name]} exits", timeout:) do
+          machine.succeeds("test -f #{Shellwords.escape(job[:status_path])}")
+        end
+
+        _, status = machine.succeeds("cat #{Shellwords.escape(job[:status_path])}")
+        _, log = machine.execute("cat #{Shellwords.escape(job[:log_path])} 2>/dev/null || true")
+
+        [status.to_i, log]
+      end
+
+      def self.wait_host_job_running(job)
+        machine.wait_until_succeeds(
+          "kill -0 $(cat #{Shellwords.escape(job[:pid_path])}) && " \
+          "test ! -f #{Shellwords.escape(job[:status_path])}",
+          timeout: 30
+        )
+
+        sleep(1)
+      end
+
+      def self.kill_osctld
+        machine.succeeds(<<~'SH')
+          pids=$(ps -eo pid=,args= | awk '$0 ~ /^[[:space:]]*[0-9]+ osctld: main$/ {print $1}')
+          test -n "$pids"
+          kill -KILL $pids
+        SH
+      end
+
+      def self.expect_osctl_lost_osctld(job)
+        status, log = wait_host_job_exit(job, timeout: 30)
+
+        expect(status).not_to eq(0)
+        expect(log).to include('osctld closed connection')
+      end
+
       def self.wait_restart_draining_clients(job)
         wait_until_block_succeeds(name: 'osctld restart reaches client drain', timeout: 30) do
           machine.succeeds("test ! -S #{OSCTLD_SOCKET}")
@@ -219,6 +255,32 @@ import ../../make-test.nix (
         end
       end
 
+      describe 'clients after abrupt osctld death' do
+        it 'ct monitor exits instead of spinning' do
+          monitor_job = host_job(
+            'ct-monitor-osctld-killed',
+            'osctl ct monitor'
+          )
+          wait_host_job_running(monitor_job)
+
+          kill_osctld
+          expect_osctl_lost_osctld(monitor_job)
+          wait_osctld_ready
+        end
+
+        it 'ct top exits instead of spinning' do
+          top_job = host_job(
+            'ct-top-osctld-killed',
+            'osctl -j ct top --rate 60'
+          )
+          wait_host_job_running(top_job)
+
+          kill_osctld
+          expect_osctl_lost_osctld(top_job)
+          wait_osctld_ready
+        end
+      end
+
       describe 'active container start' do
         ctid = "#{get_container_id}-start-restart"
 
@@ -250,6 +312,38 @@ import ../../make-test.nix (
           wait_host_job(restart_job, timeout: 240)
           wait_osctld_ready
           wait_ct_running(ctid)
+        end
+      end
+
+      describe 'active container restart after abrupt osctld death' do
+        ctid = "#{get_container_id}-restart-killed"
+
+        before(:context) do
+          wait_osctld_ready
+          cleanup_ct(ctid)
+          machine.all_succeed(
+            "osctl ct new --distribution alpine #{ctid}",
+            "osctl ct unset start-menu #{ctid}",
+            "osctl ct start #{ctid}"
+          )
+          wait_ct_running(ctid)
+        end
+
+        after(:context) do
+          release_block_if_present('ct-restart-killed')
+          remove_hook(ctid, 'pre-stop')
+          cleanup_ct(ctid)
+        end
+
+        it 'ct restart exits instead of spinning' do
+          install_blocking_hook(ctid, 'pre-stop', 'ct-restart-killed')
+          restart_job = host_job('ct-restart-osctld-killed', "osctl ct restart #{ctid}")
+          wait_block_started('ct-restart-killed')
+
+          kill_osctld
+          expect_osctl_lost_osctld(restart_job)
+          release_block('ct-restart-killed')
+          wait_osctld_ready
         end
       end
 
