@@ -25,7 +25,7 @@ index 6cd3862d3c80..3c93c4aeabc6 100644
  	}
  
 diff --git a/kernel/vpsadminos.c b/kernel/vpsadminos.c
-index d3bfe1a22571..45f9629be4ca 100644
+index d3bfe1a22571..297a510cbb3d 100644
 --- a/kernel/vpsadminos.c
 +++ b/kernel/vpsadminos.c
 @@ -10,6 +10,34 @@
@@ -63,8 +63,3 @@ index d3bfe1a22571..45f9629be4ca 100644
  
  struct proc_dir_entry *proc_vpsadminos;
  
-@@ -508,4 +536,3 @@ u64 fake_cputime_readout_idle(u64 timestamp, struct task_struct *p)
- 
- 	return (timestamp * cpus) - user - system;
- }
--

@@ -9,8 +9,8 @@ let
 
   availablePatches = [
     {
-      name = "bp-6.12.79-cumulative";
-      filterFn = availableFor "6.12.79";
+      name = "bp-6.12.48-6.12.89-cumulative";
+      filterFn = availableForRange "6.12.48" "6.12.89";
       version = 1;
     }
     # The uname patch is the canonical livepatch example.
@@ -29,7 +29,7 @@ let
   availableForRange =
     verLow: verHigh: kernelVersion:
     (versionAtLeast kernelVersion verLow && versionUpTo kernelVersion verHigh);
-  versionUpTo = v1: v2: builtins.compareVersions v2 v1 < 1;
+  versionUpTo = v1: v2: builtins.compareVersions v1 v2 < 1;
 
   getPatchVersion = patch: if (hasAttr "version" patch) then patch.version else 1;
   filterPatches = kernelVersion: filter (patch: patch.filterFn kernelVersion) availablePatches;
