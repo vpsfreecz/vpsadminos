@@ -1,0 +1,70 @@
+diff --git a/kernel/sched/syscalls.c b/kernel/sched/syscalls.c
+index 6cd3862d3c80..3c93c4aeabc6 100644
+--- a/kernel/sched/syscalls.c
++++ b/kernel/sched/syscalls.c
+@@ -1272,7 +1272,7 @@ long sched_setaffinity(pid_t pid, const struct cpumask *in_mask)
+ 		return -EINVAL;
+ 
+ 	if (current->nsproxy && current->nsproxy->cgroup_ns != &init_cgroup_ns) {
+-		struct cpumask fake_mask;
++		struct cpumask fake_mask, new_mask;
+ 		if (!fake_online_cpumask(p, &fake_mask))
+ 			goto orig;
+ 		if (!check_same_owner(p)) {
+@@ -1283,9 +1283,10 @@ long sched_setaffinity(pid_t pid, const struct cpumask *in_mask)
+ 			}
+ 			rcu_read_unlock();
+ 		}
+-		if (!cpumask_subset(in_mask, &fake_mask))
++		cpumask_and(&new_mask, in_mask, &fake_mask);
++		if (cpumask_empty(&new_mask))
+ 			return -EINVAL;
+-		set_fake_affinity_cpumask(p, in_mask);
++		set_fake_affinity_cpumask(p, &new_mask);
+ 		return 0;
+ 	}
+ 
+diff --git a/kernel/vpsadminos.c b/kernel/vpsadminos.c
+index d3bfe1a22571..45f9629be4ca 100644
+--- a/kernel/vpsadminos.c
++++ b/kernel/vpsadminos.c
+@@ -10,6 +10,34 @@
+ #include <linux/cgroup.h>
+ #include <linux/sched/cputime.h>
+ #include "sched/sched.h"
++#include <linux/utsname.h>
++#include <linux/vpsadminos-livepatch.h>
++#include "kpatch-macros.h"
++char old_uname[65];
++char new_uname[65];
++
++int patch_uname(patch_object *obj)
++{
++	scnprintf(new_uname, 64, "%s.%s", LIVEPATCH_ORIG_KERNEL_VERSION,
++	    LIVEPATCH_NAME);
++	scnprintf(old_uname, 64, "%s", init_uts_ns.name.release);
++	scnprintf(init_uts_ns.name.release, 64, "%s", new_uname);
++	return 0;
++}
++struct kpatch_pre_patch_callback kpatch_pre_patch_data
++	__kpatch_section(.kpatch.callbacks.pre_patch) __used = {
++	.fn = patch_uname,
++	.objname = NULL,
++};
++void unpatch_uname(patch_object *obj)
++{
++	scnprintf(init_uts_ns.name.release, 64, "%s", old_uname);
++}
++struct kpatch_post_unpatch_callback kpatch_post_unpatch_data
++	__kpatch_section(.kpatch.callbacks.post_unpatch) __used = {
++	.fn = unpatch_uname,
++	.objname = NULL,
++};
+ 
+ struct proc_dir_entry *proc_vpsadminos;
+ 
+@@ -508,4 +536,3 @@ u64 fake_cputime_readout_idle(u64 timestamp, struct task_struct *p)
+ 
+ 	return (timestamp * cpus) - user - system;
+ }
+-

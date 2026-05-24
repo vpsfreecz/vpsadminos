@@ -1,6 +1,6 @@
 --- a/kernel/vpsadminos.c
 +++ b/kernel/vpsadminos.c
-@@ -11,6 +11,28 @@
+@@ -11,6 +11,36 @@
  #include <linux/sched/cputime.h>
  #include "sched/sched.h"
  
@@ -10,7 +10,7 @@
 +char old_uname[65];
 +char new_uname[65];
 +
-+static int patch_uname(patch_object *obj)
++int patch_uname(patch_object *obj)
 +{
 +	scnprintf(new_uname, 64, "%s.%s", LIVEPATCH_ORIG_KERNEL_VERSION,
 +	    LIVEPATCH_NAME);
@@ -18,12 +18,20 @@
 +	scnprintf(init_uts_ns.name.release, 64, "%s", new_uname);
 +	return 0;
 +}
-+KPATCH_PRE_PATCH_CALLBACK(patch_uname);
-+static void unpatch_uname(patch_object *obj)
++struct kpatch_pre_patch_callback kpatch_pre_patch_data
++	__kpatch_section(.kpatch.callbacks.pre_patch) __used = {
++	.fn = patch_uname,
++	.objname = NULL,
++};
++void unpatch_uname(patch_object *obj)
 +{
 +	scnprintf(init_uts_ns.name.release, 64, "%s", old_uname);
 +}
-+KPATCH_POST_UNPATCH_CALLBACK(unpatch_uname);
++struct kpatch_post_unpatch_callback kpatch_post_unpatch_data
++	__kpatch_section(.kpatch.callbacks.post_unpatch) __used = {
++	.fn = unpatch_uname,
++	.objname = NULL,
++};
 +
 +
  struct proc_dir_entry *proc_vpsadminos;

@@ -8,6 +8,11 @@ with lib;
 let
 
   availablePatches = [
+    {
+      name = "bp-6.12.79-cumulative";
+      filterFn = availableFor "6.12.79";
+      version = 1;
+    }
     # The uname patch is the canonical livepatch example.
     # It changes init_uts_ns.name.release to "<kernelVer>.<patchVer>"
     # so that `uname -r` shows the livepatch is active.
