@@ -28,4 +28,16 @@ RSpec.describe OsCtl::Cli::Top::Main do
 
     expect(tui).to have_received(:start)
   end
+
+  it 'rejects zero refresh rate' do
+    expect do
+      cmd(opts: { iostat: true, rate: 0, processes: false }).start
+    end.to raise_error(GLI::BadCommandLine, 'rate must be a positive finite number')
+  end
+
+  it 'rejects infinite refresh rate' do
+    expect do
+      cmd(opts: { iostat: true, rate: Float::INFINITY, processes: false }).start
+    end.to raise_error(GLI::BadCommandLine, 'rate must be a positive finite number')
+  end
 end

@@ -36,17 +36,24 @@ module OsCtl::Lib
     # @param timeout [Integer, nil] how many seconds to wait
     def shift(block: true, timeout: nil)
       sync do
-        if @queue.any?
-          @queue.shift
+        return @queue.shift if @queue.any?
+        return unless block
 
-        elsif block # Wait for something to be pushed
+        if timeout
+          deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+
           loop do
-            @cond.wait(@mutex, timeout)
-            break if @queue.any? || timeout
+            remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+            return if remaining <= 0
+
+            @cond.wait(@mutex, remaining)
+            return @queue.shift if @queue.any?
           end
+        end
 
-          @queue.shift
-
+        loop do
+          @cond.wait(@mutex)
+          return @queue.shift if @queue.any?
         end
       end
     end

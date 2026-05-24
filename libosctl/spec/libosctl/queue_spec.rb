@@ -34,6 +34,32 @@ RSpec.describe OsCtl::Lib::Queue do
     thread.join
   end
 
+  it 'continues waiting after spurious wakeups' do
+    queue = described_class.new
+
+    thread = Thread.new do
+      queue.shift(timeout: 0.5)
+    end
+
+    sleep(0.05)
+
+    queue.instance_variable_get(:@mutex).synchronize do
+      queue.instance_variable_get(:@cond).signal
+    end
+
+    sleep(0.05)
+    queue.push(:value)
+
+    expect(thread.value).to eq(:value)
+  end
+
+  it 'returns nil for expired timeouts' do
+    queue = described_class.new
+
+    expect(queue.shift(timeout: 0)).to be_nil
+    expect(queue.shift(timeout: -1)).to be_nil
+  end
+
   it 'clears the queue' do
     queue = described_class.new
     queue.push(1)
