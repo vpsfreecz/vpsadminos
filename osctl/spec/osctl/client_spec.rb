@@ -58,6 +58,29 @@ RSpec.describe OsCtl::Client do
     expect { client.receive }.to raise_error(OsCtl::Client::Error, 'osctld closed connection')
   end
 
+  it 'raises when the daemon closes the socket with nil EOF' do
+    socket = instance_double(UNIXSocket, recv: nil)
+    client = build_client(socket)
+
+    expect { client.receive }.to raise_error(OsCtl::Client::Error, 'osctld closed connection')
+  end
+
+  it 'raises from response wait when the daemon closes after progress' do
+    socket = instance_double(UNIXSocket)
+    allow(socket).to receive(:recv).and_return(
+      "{\"status\":true,\"progress\":\"step 1\"}\n",
+      nil
+    )
+    client = build_client(socket)
+    progress = []
+
+    expect do
+      client.receive_resp { |msg| progress << msg }
+    end.to raise_error(OsCtl::Client::Error, 'osctld closed connection')
+
+    expect(progress).to eq(['step 1'])
+  end
+
   it 'handles progress updates and buffers extra responses across calls' do
     socket = FakeSocketHelpers::LineSocketDouble.new(
       [
