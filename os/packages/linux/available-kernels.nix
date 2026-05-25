@@ -6,16 +6,8 @@ with lib.kernel;
 
   kernels = {
     "6.12.91" = {
-      rev = "0c513b320de551112c7b8f59b9f3f86d7f7d54b4";
-      sha256 = "sha256-vlvoSI/Vtw7hk4tTibHWpVSQ5FWiqtdU3YJHDjJjv2s=";
-      zfs = {
-        rev = "d4d28949b5a5d774d8677528659e3e84497cc18b";
-        sha256 = "sha256-6EtwS4ONz49Z2oAx31bKHf9c7NiVsoXnIB4ngCqFyd4=";
-      };
-    };
-    "6.12.90" = {
-      rev = "75a0be8d1696f9ce64b6644f89c12d54911ea963";
-      sha256 = "sha256-CV0wdpwLk6VjtBVbM3bzHUKS4s4mGW84VVn6cmXdlMI=";
+      rev = "af3725cb1aaf04ffd59960d110002021e1d90948";
+      sha256 = "sha256-1uameJ6OIag2l4FV65qCOSWzEDgeysQ39z4bvvojDyw=";
       zfs = {
         rev = "d4d28949b5a5d774d8677528659e3e84497cc18b";
         sha256 = "sha256-6EtwS4ONz49Z2oAx31bKHf9c7NiVsoXnIB4ngCqFyd4=";
