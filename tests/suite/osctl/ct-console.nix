@@ -98,12 +98,87 @@ import ../../make-test.nix (
       end
     '';
 
+    resizeConsoleClient = pkgs.writeText "ct-console-resize-client.rb" ''
+      require 'io/console'
+      require 'pty'
+      require 'timeout'
+
+      ctid = ENV.fetch('CTID')
+      rows = Integer(ENV.fetch('ROWS'))
+      cols = Integer(ENV.fetch('COLS'))
+      expected = "CTCONSOLE_SIZE:#{rows} #{cols}"
+      output = String.new
+
+      def read_until(io, output, needle, timeout: 20)
+        Timeout.timeout(timeout) do
+          until output.include?(needle)
+            output << io.readpartial(4096)
+          end
+        end
+      end
+
+      def read_available_for(io, output, seconds)
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + seconds
+
+        loop do
+          remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          break if remaining <= 0
+
+          rs, = IO.select([io], nil, nil, remaining)
+          break if rs.nil?
+
+          output << io.readpartial(4096)
+        end
+      end
+
+      def wait_for_size(read_io, write_io, output, expected)
+        Timeout.timeout(20) do
+          until output.include?(expected)
+            write_io.write("CTCONSOLE_SIZE\n")
+            read_available_for(read_io, output, 0.5)
+          end
+        end
+      end
+
+      PTY.spawn('osctl', 'ct', 'console', ctid) do |r, w, pid|
+        begin
+          read_until(r, output, 'Press Ctrl+a q')
+
+          w.write("resize-ready\n")
+          read_until(r, output, 'CTCONSOLE_ECHO:resize-ready')
+
+          r.winsize = [rows, cols]
+          sleep(0.2)
+          wait_for_size(r, w, output, expected)
+
+          w.write("\x01q")
+          _, status = Timeout.timeout(10) { Process.wait2(pid) }
+
+          unless status.success?
+            warn output
+            abort "console exited with #{status.exitstatus.inspect}"
+          end
+
+          puts output
+        rescue Exception
+          warn output
+          Process.kill('TERM', pid) rescue nil
+          Process.wait(pid) rescue nil
+          raise
+        end
+      end
+    '';
+
     containerInit = pkgs.writeScript "ct-console-init.sh" ''
       #!/bin/sh
       trap 'exit 0' TERM INT HUP PWR
       echo CTCONSOLE_READY
       while IFS= read -r line; do
-        echo "CTCONSOLE_ECHO:$line"
+        if [ "$line" = CTCONSOLE_SIZE ]; then
+          echo "CTCONSOLE_SIZE:$(stty size)"
+        else
+          echo "CTCONSOLE_ECHO:$line"
+        fi
       done
     '';
   in
@@ -123,6 +198,7 @@ import ../../make-test.nix (
 
       CONSOLE_CLIENT = "/tmp/ct-console-client.rb"
       PERSISTENT_CONSOLE_CLIENT = "/tmp/ct-console-persistent-client.rb"
+      RESIZE_CONSOLE_CLIENT = "/tmp/ct-console-resize-client.rb"
 
       def self.output_of(command)
         machine.succeeds(command)[1].strip
@@ -147,6 +223,20 @@ import ../../make-test.nix (
 
         _, output = machine.succeeds(
           "#{env} ruby #{Shellwords.escape(CONSOLE_CLIENT)}"
+        )
+
+        output
+      end
+
+      def self.console_resize(ctid, rows, cols)
+        env = [
+          "CTID=#{Shellwords.escape(ctid)}",
+          "ROWS=#{rows}",
+          "COLS=#{cols}"
+        ].join(' ')
+
+        _, output = machine.succeeds(
+          "#{env} ruby #{Shellwords.escape(RESIZE_CONSOLE_CLIENT)}"
         )
 
         output
@@ -216,6 +306,10 @@ import ../../make-test.nix (
             "${persistentConsoleClient}",
             PERSISTENT_CONSOLE_CLIENT
           )
+          machine.push_file(
+            "${resizeConsoleClient}",
+            RESIZE_CONSOLE_CLIENT
+          )
 
           machine.all_succeed(
             "osctl ct new --distribution alpine #{ctid}",
@@ -256,6 +350,12 @@ import ../../make-test.nix (
           output = console_roundtrip(ctid, "after-restart")
 
           expect(output).to include("CTCONSOLE_ECHO:after-restart")
+        end
+
+        it 'propagates terminal resize to the container console' do
+          output = console_resize(ctid, 37, 132)
+
+          expect(output).to include("CTCONSOLE_SIZE:37 132")
         end
 
         it 'keeps an attached console open across clean stop and start' do

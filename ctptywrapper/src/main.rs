@@ -403,6 +403,161 @@ fn wait_child(pid: libc::pid_t, flags: libc::c_int) -> WaitResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::mem;
+    use std::sync::atomic::{AtomicI32, Ordering};
+
+    static SIGWINCH_PIPE: AtomicI32 = AtomicI32::new(-1);
+
+    extern "C" fn record_sigwinch(_signum: libc::c_int) {
+        let fd = SIGWINCH_PIPE.load(Ordering::Relaxed);
+
+        if fd >= 0 {
+            let byte = [b'w'];
+
+            unsafe {
+                libc::write(fd, byte.as_ptr().cast(), byte.len());
+            }
+        }
+    }
+
+    struct ChildGuard(libc::pid_t);
+
+    impl Drop for ChildGuard {
+        fn drop(&mut self) {
+            unsafe {
+                libc::kill(self.0, libc::SIGKILL);
+            }
+
+            loop {
+                match wait_child(self.0, 0) {
+                    WaitResult::Exited | WaitResult::NoChild => return,
+                    WaitResult::Running | WaitResult::Interrupted => continue,
+                }
+            }
+        }
+    }
+
+    fn spawn_sigwinch_child() -> io::Result<(File, libc::pid_t, File)> {
+        let mut pipe_fds = [-1, -1];
+
+        if unsafe { libc::pipe(pipe_fds.as_mut_ptr()) } < 0 {
+            return Err(io::Error::last_os_error());
+        }
+
+        let mut master_fd: libc::c_int = -1;
+        let pid = unsafe {
+            libc::forkpty(
+                &mut master_fd,
+                std::ptr::null_mut(),
+                std::ptr::null(),
+                std::ptr::null(),
+            )
+        };
+
+        if pid < 0 {
+            let err = io::Error::last_os_error();
+
+            unsafe {
+                libc::close(pipe_fds[0]);
+                libc::close(pipe_fds[1]);
+            }
+
+            return Err(err);
+        }
+
+        if pid == 0 {
+            unsafe {
+                libc::close(pipe_fds[0]);
+                SIGWINCH_PIPE.store(pipe_fds[1], Ordering::Relaxed);
+
+                let mut action: libc::sigaction = mem::zeroed();
+                action.sa_sigaction = record_sigwinch as usize;
+                action.sa_flags = 0;
+                libc::sigemptyset(&mut action.sa_mask);
+
+                if libc::sigaction(libc::SIGWINCH, &action, std::ptr::null_mut()) < 0 {
+                    libc::_exit(1);
+                }
+
+                let ready = [b'r'];
+                libc::write(pipe_fds[1], ready.as_ptr().cast(), ready.len());
+
+                loop {
+                    libc::pause();
+                }
+            }
+        }
+
+        unsafe {
+            libc::close(pipe_fds[1]);
+        }
+
+        let pty = unsafe { File::from_raw_fd(master_fd) };
+        let signal_pipe = unsafe { File::from_raw_fd(pipe_fds[0]) };
+
+        Ok((pty, pid, signal_pipe))
+    }
+
+    fn wait_for_pipe_byte(reader: &mut File, expected: u8) -> io::Result<()> {
+        let start = Instant::now();
+
+        loop {
+            let elapsed = start.elapsed();
+
+            if elapsed >= Duration::from_secs(2) {
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    format!("timed out waiting for byte {expected}"),
+                ));
+            }
+
+            let timeout = (Duration::from_secs(2) - elapsed).as_millis() as libc::c_int;
+            let mut fds = [libc::pollfd {
+                fd: reader.as_raw_fd(),
+                events: libc::POLLIN,
+                revents: 0,
+            }];
+            let ret = unsafe { libc::poll(fds.as_mut_ptr(), fds.len() as libc::nfds_t, timeout) };
+
+            if ret < 0 {
+                let err = io::Error::last_os_error();
+
+                if err.kind() == io::ErrorKind::Interrupted {
+                    continue;
+                }
+
+                return Err(err);
+            } else if ret == 0 {
+                continue;
+            }
+
+            let mut buf = [0_u8];
+
+            match reader.read(&mut buf) {
+                Ok(0) => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::UnexpectedEof,
+                        "signal pipe closed",
+                    ));
+                }
+                Ok(_) if buf[0] == expected => return Ok(()),
+                Ok(_) => {}
+                Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
+                Err(e) => return Err(e),
+            }
+        }
+    }
+
+    fn pty_winsize(fd: RawFd) -> io::Result<(u16, u16)> {
+        let mut winsize: libc::winsize = unsafe { mem::zeroed() };
+        let ret = unsafe { libc::ioctl(fd, libc::TIOCGWINSZ, &mut winsize) };
+
+        if ret < 0 {
+            Err(io::Error::last_os_error())
+        } else {
+            Ok((winsize.ws_row, winsize.ws_col))
+        }
+    }
 
     #[test]
     fn parses_keys_and_size() {
@@ -456,5 +611,44 @@ mod tests {
 
         assert!(buf.push(&large).is_empty());
         assert!(buf.buf.is_empty());
+    }
+
+    #[test]
+    fn resizing_client_command_updates_pty_and_signals_child() {
+        let (mut pty, child_pid, mut signal_pipe) = spawn_sigwinch_child().unwrap();
+        let _guard = ChildGuard(child_pid);
+
+        wait_for_pipe_byte(&mut signal_pipe, b'r').unwrap();
+
+        let mut cmd_buf = LineBuffer::default();
+        let mut current_rows = 25;
+        let mut current_cols = 80;
+
+        process_client_data(
+            br#"{"rows":37,"cols":132}"#,
+            &mut cmd_buf,
+            &mut pty,
+            child_pid,
+            &mut current_rows,
+            &mut current_cols,
+        )
+        .unwrap();
+
+        assert_eq!((current_rows, current_cols), (25, 80));
+
+        process_client_data(
+            b"\n",
+            &mut cmd_buf,
+            &mut pty,
+            child_pid,
+            &mut current_rows,
+            &mut current_cols,
+        )
+        .unwrap();
+
+        wait_for_pipe_byte(&mut signal_pipe, b'w').unwrap();
+
+        assert_eq!((current_rows, current_cols), (37, 132));
+        assert_eq!(pty_winsize(pty.as_raw_fd()).unwrap(), (37, 132));
     }
 }
