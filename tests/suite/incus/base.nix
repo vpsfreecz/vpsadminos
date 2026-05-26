@@ -68,7 +68,7 @@ import ../../make-test.nix (
         { name:, status_path:, log_path:, pid_path: }
       end
 
-      def wait_for_ct_job(ct, job, check_cmd:, timeout:)
+      def wait_for_ct_job(ct, job, check_cmd: nil, timeout:)
         deadline = Time.now + timeout
 
         loop do
@@ -85,15 +85,17 @@ import ../../make-test.nix (
             return
           end
 
-          st, = machine.execute(check_cmd, timeout: 30)
+          unless check_cmd.nil?
+            st, = machine.execute(check_cmd, timeout: 30)
 
-          if st == 0
-            ct_execute(
-              ct,
-              "test -f #{job[:pid_path]} && kill $(cat #{job[:pid_path]}) 2>/dev/null || true",
-              timeout: 30
-            )
-            return
+            if st == 0
+              ct_execute(
+                ct,
+                "test -f #{job[:pid_path]} && kill $(cat #{job[:pid_path]}) 2>/dev/null || true",
+                timeout: 30
+              )
+              return
+            end
           end
 
           if Time.now > deadline
@@ -103,6 +105,10 @@ import ../../make-test.nix (
 
           sleep(2)
         end
+      end
+
+      def wait_for_ct_job_completion(ct, job, timeout:)
+        wait_for_ct_job(ct, job, timeout:)
       end
 
       def latest_debian_image(ct)
@@ -211,12 +217,7 @@ import ../../make-test.nix (
         debian_image = latest_debian_image(ct)
         init_job = ct_background(ct, 'incus-init', "incus init images:#{debian_image} i1")
 
-        wait_for_ct_job(
-          ct,
-          init_job,
-          check_cmd: "osctl ct exec #{ct} incus info i1",
-          timeout: 900
-        )
+        wait_for_ct_job_completion(ct, init_job, timeout: 900)
 
         start_job = ct_background(ct, 'incus-start', 'incus start i1')
 
