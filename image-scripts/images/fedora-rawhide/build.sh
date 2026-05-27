@@ -23,9 +23,10 @@ systemctl mask systemd-hostnamed.service
 systemctl mask kmscon.service
 systemctl mask kmsconvt@.service
 
-# Rawhide presets sshd.socket while this image enables sshd.service. The two
-# units conflict, so keep the service-based startup used by stable Fedora.
-systemctl disable sshd.socket
+# Rawhide defaults to socket-activated sshd. The shared Fedora setup enables
+# sshd.service, so undo that here and keep rawhide on its packaged default.
+systemctl disable sshd.service
+systemctl enable sshd.socket
 
 # Rawhide's sshd-keygen.target wants the host-key units, but does not wait for
 # them before sshd starts.
