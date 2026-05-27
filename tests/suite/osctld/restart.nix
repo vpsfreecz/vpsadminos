@@ -206,9 +206,13 @@ import ../../make-test.nix (
 
       def self.expect_osctl_lost_osctld(job)
         status, log = wait_host_job_exit(job, timeout: 30)
+        expected = [
+          'osctld closed connection',
+          "No such file or directory - connect(2) for #{OSCTLD_SOCKET}"
+        ]
 
         expect(status).not_to eq(0)
-        expect(log).to include('osctld closed connection')
+        expect(log).to satisfy { |v| expected.any? { |msg| v.include?(msg) } }
       end
 
       def self.wait_restart_draining_clients(job)
