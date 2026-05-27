@@ -1,5 +1,5 @@
 . "$IMAGEDIR/config.sh"
-RAWHIDE_RELVER=45-0.5
+RAWHIDE_RELVER=45-0.8
 BASEURL=http://ftp.fi.muni.cz/pub/linux/fedora/linux/development/rawhide/Everything/x86_64/os
 RELEASE="$BASEURL/Packages/f/fedora-release-server-$RAWHIDE_RELVER.noarch.rpm
 $BASEURL/Packages/f/fedora-release-$RAWHIDE_RELVER.noarch.rpm
@@ -22,6 +22,18 @@ configure-append <<'EOF'
 systemctl mask systemd-hostnamed.service
 systemctl mask kmscon.service
 systemctl mask kmsconvt@.service
+
+# Rawhide presets sshd.socket while this image enables sshd.service. The two
+# units conflict, so keep the service-based startup used by stable Fedora.
+systemctl disable sshd.socket
+
+# Rawhide's sshd-keygen.target wants the host-key units, but does not wait for
+# them before sshd starts.
+mkdir -p /etc/systemd/system/sshd-keygen.target.d
+cat <<EOT > /etc/systemd/system/sshd-keygen.target.d/vpsadminos.conf
+[Unit]
+After=sshd-keygen@rsa.service sshd-keygen@ecdsa.service sshd-keygen@ed25519.service
+EOT
 EOF
 
 configure-systemd-console-getty
