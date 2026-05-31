@@ -111,6 +111,7 @@ let
         "driver/rspec"
         "driver/vpsadminos"
         "ebpf-livepatch"
+        "firewall/conntrack"
         {
           template = "image-scripts/test";
           instances = imageScripts;

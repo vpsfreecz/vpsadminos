@@ -213,6 +213,13 @@ in
   };
 
   config = {
+    assertions = [
+      {
+        assertion = !cfg.lxcbr.enable || config.networking.firewall.conntrack.enable;
+        message = "networking.lxcbr.enable requires networking.firewall.conntrack.enable";
+      }
+    ];
+
     environment.etc = {
       # /etc/hosts: Hostname-to-IP mappings.
       "hosts".text =

@@ -42,7 +42,6 @@
   (nixpkgsPath + "/nixos/modules/virtualisation/lxcfs.nix")
   (nixpkgsPath + "/nixos/modules/services/mail/mail.nix")
   (nixpkgsPath + "/nixos/modules/services/networking/firewall.nix")
-  (nixpkgsPath + "/nixos/modules/services/networking/firewall-iptables.nix")
   (nixpkgsPath + "/nixos/modules/services/networking/firewall-nftables.nix")
   (nixpkgsPath + "/nixos/modules/services/networking/nftables.nix")
   (nixpkgsPath + "/nixos/modules/services/networking/ssh/sshd.nix")

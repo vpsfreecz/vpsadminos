@@ -14,6 +14,7 @@
 
   networking.hostName = "vpsadminos";
   networking.lxcbr.enable = true;
+  networking.firewall.conntrack.enable = true;
   networking.useDHCP = true;
 
   tty.autologin.enable = true;
