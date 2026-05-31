@@ -147,6 +147,28 @@ RSpec.describe OsVm::MachineConfig do
     )
   end
 
+  it 'renders bridge qemu options with an explicit helper' do
+    network = build_machine_config(
+      'networks' => [
+        {
+          'type' => 'bridge',
+          'mac' => '52:54:00:00:00:10',
+          'opts' => {
+            'link' => 'br0',
+            'helper' => '/run/wrappers/bin/qemu-bridge-helper'
+          }
+        }
+      ]
+    ).networks.first
+
+    expect(network.qemu_options).to eq(
+      [
+        '-device', 'virtio-net,netdev=net0,mac=52:54:00:00:00:10',
+        '-netdev', 'bridge,id=net0,br=br0,helper=/run/wrappers/bin/qemu-bridge-helper'
+      ]
+    )
+  end
+
   it 'uses explicit mac addresses and auto-generates missing ones' do
     allow(OsVm::MacAddressGenerator).to receive(:register_mac).and_call_original
     allow(OsVm::MacAddressGenerator).to receive(:next_mac).and_return('52:54:00:00:00:ff')

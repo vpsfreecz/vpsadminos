@@ -165,15 +165,22 @@ module OsVm
       # @return [String]
       attr_reader :link
 
+      # @return [String, nil]
+      attr_reader :helper
+
       def initialize(_i, cfg)
         super
         @link = @opts.fetch('link')
+        @helper = @opts['helper']&.to_s
       end
 
       def qemu_options
+        netdev = "bridge,id=net#{index},br=#{link}"
+        netdev << ",helper=#{helper}" unless helper.nil? || helper.empty?
+
         [
           '-device', "#{model},netdev=net#{index},mac=#{mac}",
-          '-netdev', "bridge,id=net#{index},br=#{link}"
+          '-netdev', netdev
         ]
       end
     end
