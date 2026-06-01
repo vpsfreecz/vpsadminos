@@ -257,6 +257,7 @@ in
       "l2tp_core"
       "l2tp_netlink"
       "l2tp_ppp"
+      "l2tp_eth"
       "libceph"
       "libchacha"
       "libchacha20poly1305"
