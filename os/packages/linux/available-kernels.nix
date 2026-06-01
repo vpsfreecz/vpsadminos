@@ -9,8 +9,8 @@ with lib.kernel;
       rev = "af3725cb1aaf04ffd59960d110002021e1d90948";
       sha256 = "sha256-1uameJ6OIag2l4FV65qCOSWzEDgeysQ39z4bvvojDyw=";
       zfs = {
-        rev = "d4d28949b5a5d774d8677528659e3e84497cc18b";
-        sha256 = "sha256-6EtwS4ONz49Z2oAx31bKHf9c7NiVsoXnIB4ngCqFyd4=";
+        rev = "f53469bdcd88043b2bfe9a07ac80447f98b8e1e4";
+        sha256 = "sha256-17msDMKa+STJfTTUfjtHTVXzRObZeh+y+9SN51hklHA=";
       };
     };
     "6.12.89" = {
