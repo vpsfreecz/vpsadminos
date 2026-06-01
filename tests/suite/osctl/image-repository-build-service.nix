@@ -209,6 +209,7 @@ import ../../make-test.nix (
                   networking.hostName = lib.mkDefault "vpsadminos";
                   networking.static.enable = lib.mkDefault true;
                   networking.lxcbr.enable = lib.mkDefault true;
+                  networking.firewall.conntrack.enable = lib.mkDefault true;
                   networking.nameservers = lib.mkDefault [ "10.0.2.3" ];
 
                   osctl.test-shell.enable = true;
