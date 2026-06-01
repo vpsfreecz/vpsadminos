@@ -1,4 +1,9 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 let
   kernelPackages = import ../packages/linux/packages.nix {
     inherit config lib pkgs;
@@ -38,13 +43,9 @@ let
 in
 {
   boot.kernelVersion = lib.mkForce kernelVersion;
-  boot.kernelPackage =
-    lib.mkForce (
-      if localKernel != null then
-        localKernel
-      else
-        kernelPackages.genKernelPackage kernelVersion
-    );
+  boot.kernelPackage = lib.mkForce (
+    if localKernel != null then localKernel else kernelPackages.genKernelPackage kernelVersion
+  );
   boot.zfsBuiltin = lib.mkForce false;
 
   boot.qemu.disks = lib.mkForce [

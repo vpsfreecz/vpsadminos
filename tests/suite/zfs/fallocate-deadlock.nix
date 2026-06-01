@@ -6,10 +6,7 @@ import ../../make-test.nix (
   let
     baseMachine = import ../../machines/vpsadminos/tank.nix pkgs;
     testName =
-      if expectReproduce then
-        "zfs-fallocate-deadlock-reproducer"
-      else
-        "zfs-fallocate-deadlock";
+      if expectReproduce then "zfs-fallocate-deadlock-reproducer" else "zfs-fallocate-deadlock";
     expectReproduceRuby = if expectReproduce then "true" else "false";
 
     reproducer = pkgs.writeScript "fallocate-deadlock-reproducer.py" ''

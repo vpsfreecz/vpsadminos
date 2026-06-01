@@ -14,7 +14,7 @@
 #   ebpf.bpfObjs # attribute set of compiled .bpf.o files
 
 {
-  pkgs ? import <nixpkgs> {},
+  pkgs ? import <nixpkgs> { },
   kernel ? null,
 }:
 

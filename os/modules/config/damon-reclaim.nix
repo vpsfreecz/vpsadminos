@@ -252,8 +252,7 @@ in
         message = "boot.damon.reclaim.watermarks.low must be between 0 and 1000";
       }
       {
-        assertion = cfg.watermarks.high >= cfg.watermarks.mid
-          && cfg.watermarks.mid >= cfg.watermarks.low;
+        assertion = cfg.watermarks.high >= cfg.watermarks.mid && cfg.watermarks.mid >= cfg.watermarks.low;
         message = "boot.damon.reclaim.watermarks must satisfy high >= mid >= low";
       }
       {
