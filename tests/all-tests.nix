@@ -158,7 +158,6 @@ let
         "zfs/full-suite"
         "zfs/block-cloning-corruption"
         "zfs/fallocate-deadlock"
-        "zfs/fallocate-no-deadlock"
         "zfs/mmap-nosync"
         "zfs/overlayfs-deadlock"
         "zfs/ugidmap"

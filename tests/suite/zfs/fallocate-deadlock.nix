@@ -1,11 +1,15 @@
 import ../../make-test.nix (
   {
     pkgs,
-    expectReproduce ? true,
+    expectReproduce ? false,
   }:
   let
     baseMachine = import ../../machines/vpsadminos/tank.nix pkgs;
-    testName = if expectReproduce then "zfs-fallocate-deadlock" else "zfs-fallocate-no-deadlock";
+    testName =
+      if expectReproduce then
+        "zfs-fallocate-deadlock-reproducer"
+      else
+        "zfs-fallocate-deadlock";
     expectReproduceRuby = if expectReproduce then "true" else "false";
 
     reproducer = pkgs.writeScript "fallocate-deadlock-reproducer.py" ''
@@ -535,11 +539,11 @@ import ../../make-test.nix (
 
           for attempt in range(1, ATTEMPTS + 1):
               if attempt_once(attempt):
-                  return 0
+                  return 2
 
           run(["zfs", "destroy", "-r", DATASET], check=False)
           log("REPRODUCED_ZFS_FALLOCATE_DEADLOCK=0")
-          return 1
+          return 0
 
 
       if __name__ == "__main__":
@@ -556,27 +560,32 @@ import ../../make-test.nix (
       fallocate over the whole file, then forces concurrent mmap page faults in
       the same range. On the unfixed lock order, fallocate holds the ZFS range
       writer while mmap faults hold Linux invalidate_lock_shared and wait for a
-      ZFS range reader. The test treats matching blocked stacks as successful
-      reproduction and kills the VM afterwards.
+      ZFS range reader.
 
-      This is a manual reproducer for vulnerable kernel/ZFS pins. It is kept
-      out of the `ci` tag because fixed kernels are expected not to reproduce
-      the lock inversion.
+      The default regression test runs against fixed ZFS pins and succeeds only
+      when all attempts complete without reproducing the lock inversion.
 
-      The no-deadlock variant runs the same workload against fixed ZFS pins and
-      succeeds only when all attempts complete without reproducing the lock
-      inversion.
+      When `expectReproduce` is set, this becomes a manual reproducer for
+      vulnerable kernel/ZFS pins. In that mode, matching blocked stacks are
+      treated as successful reproduction and the VM is killed afterwards.
     '';
 
-    tags = [
-      "manual"
-      "regression"
-    ];
+    tags =
+      if expectReproduce then
+        [
+          "manual"
+          "regression"
+        ]
+      else
+        [
+          "ci"
+          "regression"
+        ];
 
     labels = {
       component = "zfs";
       runtime = "long";
-      gate = "manual";
+      gate = if expectReproduce then "manual" else "ci";
     };
 
     machine = baseMachine // {
@@ -626,7 +635,7 @@ import ../../make-test.nix (
       end
 
       if ${expectReproduceRuby}
-        fail "reproducer exited with #{status}:\n#{output}" unless status == 0
+        fail "reproducer exited with #{status}:\n#{output}" unless status == 2
 
         expect(output).to include('REPRODUCED_ZFS_FALLOCATE_DEADLOCK=1')
         expect(output).to include('PUNCHER_VULNERABLE_STACK=1')
@@ -635,7 +644,7 @@ import ../../make-test.nix (
         expect(output).to include('zfs_getpage')
         expect(output).to include('zpl_read_folio')
       else
-        fail "reproducer unexpectedly exited with #{status}:\n#{output}" unless status == 1
+        fail "reproducer unexpectedly exited with #{status}:\n#{output}" unless status == 0
 
         expect(output).to include('ATTEMPT=12')
         expect(output).to include('PUNCHER_EXITED status=0')
