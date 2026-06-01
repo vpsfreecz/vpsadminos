@@ -313,6 +313,8 @@ import ../make-test.nix (
               current = currentAvailable.programNames currentKernelVersion;
               currentHasPtrace =
                 currentAvailable.programAvailableForKernel currentKernelVersion "ptrace_mm_guard";
+              currentHasCifsSpnego =
+                currentAvailable.programAvailableForKernel currentKernelVersion "cifs_spnego_guard";
               atPtraceUntil = (availableFor "6.12.88").programNames "6.12.88";
               afterPtraceUntil = (availableFor "6.12.89").programNames "6.12.89";
             };
@@ -468,6 +470,13 @@ import ../make-test.nix (
           expect(defaults.fetch('current').include?('ptrace_mm_guard')).to eq(
             defaults.fetch('currentHasPtrace')
           )
+        end
+
+        it 'includes cifs_spnego_guard for current eligible kernels' do
+          defaults = @facts.fetch('defaults')
+
+          expect(defaults.fetch('currentHasCifsSpnego')).to be(true)
+          expect(defaults.fetch('current')).to include('cifs_spnego_guard')
         end
 
         it 'does not include disabled programs by default' do

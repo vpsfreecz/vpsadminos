@@ -54,6 +54,14 @@ let
       linkFields = [ "ptrace_mm_guard" ];
       enable = true;
     }
+    {
+      name = "cifs_spnego_guard";
+      description = "Deny userspace-created cifs.spnego keys outside CIFS private upcalls";
+      sinceKernel = "5.7";
+      bpfPrograms = [ "cifs_spnego" ];
+      linkFields = [ "cifs_spnego" ];
+      enable = true;
+    }
   ];
 
   allProgramNames = map (p: p.name) allPrograms;
