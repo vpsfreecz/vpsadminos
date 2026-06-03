@@ -13,6 +13,14 @@ self: super: {
 
   ksvcmon = super.callPackage ../packages/ksvcmon { };
 
+  libfastjson = super.libfastjson.overrideAttrs (oldAttrs: {
+    postPatch = (oldAttrs.postPatch or "") + ''
+      substituteInPlace Makefile.am \
+        --replace-fail 'libfastjson_la_LIBADD = libfastjson-internal.la' \
+                       'libfastjson_la_LIBADD = libfastjson-internal.la -lm'
+    '';
+  });
+
   prometheus-ebpf-exporter = super.callPackage ../packages/prometheus-ebpf-exporter { };
 
   lxc =

@@ -447,7 +447,7 @@ let
 
       optionList = map (name: { "${name}" = optionFor name; }) limitNames;
     in
-    fold (v: acc: acc // v) { } optionList;
+    foldr (v: acc: acc // v) { } optionList;
 
   mount =
     { lib, pkgs, ... }:

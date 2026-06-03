@@ -17,6 +17,10 @@ pkgs.stdenv.mkDerivation rec {
     gnumake
     numactl
   ];
+  postPatch = ''
+    substituteInPlace irq_heatmap.c \
+      --replace-fail 'init_header(metric_count);' 'init_header();'
+  '';
   buildPhase = ''
     make -j$NIX_BUILD_CORES
   '';

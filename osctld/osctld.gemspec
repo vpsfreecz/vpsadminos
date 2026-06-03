@@ -34,5 +34,5 @@ Gem::Specification.new do |s|
   s.add_dependency 'osctl-repo', s.version
   s.add_dependency 'osup', s.version
   s.add_dependency 'require_all', '~> 2.0.0'
-  s.add_dependency 'ruby-lxc', '1.2.4.vpsadminos.5'
+  s.add_dependency 'ruby-lxc', '1.2.4.vpsadminos.6'
 end

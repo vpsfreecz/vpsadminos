@@ -1,7 +1,7 @@
 {
   description = "vpsAdminOS flake";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
   inputs.nixpkgsUnstable.url = "github:NixOS/nixpkgs/nixos-unstable";
   inputs.impermanence.url = "github:nix-community/impermanence";
 
@@ -42,6 +42,7 @@
       containerStable2411Module = import ./os/lib/nixos-container/stable/vpsadminos-24.11.nix;
       containerStable2505Module = import ./os/lib/nixos-container/stable/vpsadminos-25.05.nix;
       containerStable2511Module = import ./os/lib/nixos-container/stable/vpsadminos-25.11.nix;
+      containerStable2605Module = import ./os/lib/nixos-container/stable/vpsadminos-26.05.nix;
       containerUnstableModule = import ./os/lib/nixos-container/unstable/vpsadminos.nix;
       kernelDevToplevelModule =
         { config, ... }:
@@ -184,6 +185,7 @@
         container_24_11 = containerStable2411Module;
         container_25_05 = containerStable2505Module;
         container_25_11 = containerStable2511Module;
+        container_26_05 = containerStable2605Module;
         containerUnstable = containerUnstableModule;
       };
 
@@ -680,7 +682,7 @@
               (
                 { ... }:
                 {
-                  system.stateVersion = "25.11";
+                  system.stateVersion = "26.05";
                 }
               )
             ];

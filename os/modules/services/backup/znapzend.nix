@@ -88,7 +88,7 @@ let
       tsformat = timestampFormat;
       zend_delay = toString sendDelay;
     }
-    // fold (a: b: a // b) { } (map mkDestAttrs (builtins.attrValues destinations));
+    // foldr (a: b: a // b) { } (map mkDestAttrs (builtins.attrValues destinations));
 
   files = mapAttrs' (
     n: srcCfg:

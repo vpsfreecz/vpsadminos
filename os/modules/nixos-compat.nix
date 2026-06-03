@@ -47,11 +47,19 @@ with lib;
         type = types.bool;
         default = false;
       };
+      howdy.enable = mkOption {
+        type = types.bool;
+        default = false;
+      };
       nscd = mkOption { type = types.unspecified; };
       avahi = mkOption { type = types.unspecified; };
       samba = mkOption { type = types.unspecified; };
       xserver = mkOption { type = types.unspecified; };
       kanidm.enablePam = mkOption {
+        type = types.bool;
+        default = false;
+      };
+      kanidm.unix.enable = mkOption {
         type = types.bool;
         default = false;
       };
@@ -74,6 +82,14 @@ with lib;
     security.pam.mount.enable = mkOption { type = types.unspecified; };
 
     systemd = {
+      generatorEnvironment = mkOption {
+        type = types.attrsOf types.str;
+        default = { };
+      };
+      generatorPath = mkOption {
+        type = types.listOf types.package;
+        default = [ ];
+      };
       globalEnvironment = mkOption { type = types.unspecified; };
       mounts = mkOption { type = types.unspecified; };
       package = mkOption {
