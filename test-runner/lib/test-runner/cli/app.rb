@@ -68,7 +68,7 @@ module TestRunner::Cli
         c.flag 'test-config'
 
         c.desc 'Default timeout for machine commands, in seconds'
-        c.flag %w[timeout], type: Integer, default_value: 600
+        c.flag %w[timeout], type: Integer, default_value: 900
 
         c.desc 'Stop testing when one test fails'
         c.switch 'stop-on-failure', default_value: false
@@ -95,7 +95,7 @@ module TestRunner::Cli
         c.flag 'test-config'
 
         c.desc 'Default timeout for machine commands, in seconds'
-        c.flag %w[t timeout], type: Integer, default_value: 600
+        c.flag %w[t timeout], type: Integer, default_value: 900
 
         c.action(&Command.run(:debug))
       end
