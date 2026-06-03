@@ -74,6 +74,8 @@ module OsCtl
       end
 
       buf.split("\n")
+    rescue Errno::ECONNRESET
+      raise Error, 'osctld closed connection'
     end
 
     def receive_version

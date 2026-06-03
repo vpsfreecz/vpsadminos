@@ -65,6 +65,14 @@ RSpec.describe OsCtl::Client do
     expect { client.receive }.to raise_error(OsCtl::Client::Error, 'osctld closed connection')
   end
 
+  it 'raises when the daemon resets the socket' do
+    socket = instance_double(UNIXSocket)
+    allow(socket).to receive(:recv).and_raise(Errno::ECONNRESET)
+    client = build_client(socket)
+
+    expect { client.receive }.to raise_error(OsCtl::Client::Error, 'osctld closed connection')
+  end
+
   it 'raises from response wait when the daemon closes after progress' do
     socket = instance_double(UNIXSocket)
     allow(socket).to receive(:recv).and_return(
