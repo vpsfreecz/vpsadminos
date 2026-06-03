@@ -2,6 +2,12 @@
 
 . $BASEDIR/include/common.sh
 
+case "$DISTNAME" in
+	almalinux|centos|rocky)
+		EXCLUDEPKGS="${EXCLUDEPKGS:+$EXCLUDEPKGS }*-firmware microcode_ctl"
+		;;
+esac
+
 if [ "$DISTNAME" == "fedora" ]; then
 	require_cmd dnf
 
@@ -42,6 +48,7 @@ obsoletes=1
 gpgcheck=1
 plugins=1
 installonly_limit=3
+${EXCLUDEPKGS:+exclude=$EXCLUDEPKGS}
 
 [install-$DISTNAME]
 name=install-$DISTNAME
