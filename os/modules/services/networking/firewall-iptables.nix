@@ -173,7 +173,7 @@ let
     concatMapStringsSep "\n" (
       iface:
       concatMapStringsSep "\n" (portArg: ''
-        ${iptables} -w -A nixos-fw ${iface} -p ${rule.protocol} ${portArg} ${mkComment rule.comment} -j DROP
+        ${iptables} -w -A nixos-fw ${iface} -p ${rule.protocol} ${portArg} ${mkComment rule.comment} -j nixos-fw-log-refuse
       '') (mkPortArgs rule)
     ) (mkIfaceArgs rule);
 
@@ -464,6 +464,7 @@ in
     '';
 
     networking.firewall.checkReversePath = mkIf (!kernelHasRPFilter) (mkDefault false);
+    networking.firewall.logRefusedConnections = mkDefault false;
 
     environment.systemPackages = [ pkgs.nixos-firewall-tool ];
 

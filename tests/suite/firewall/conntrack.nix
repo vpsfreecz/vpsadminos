@@ -9,6 +9,8 @@ let
 
   conntrackServerAddress = "192.168.11.10";
   conntrackClientAddress = "192.168.11.11";
+
+  loggingServerAddress = "192.168.12.10";
 in
 import ../../make-test.nix (
   { pkgs }:
@@ -116,6 +118,13 @@ import ../../make-test.nix (
       expect_command_to_fail = lambda do |machine, command|
         status, output = machine.execute(command)
         expect(status).not_to eq(0), output
+      end
+
+      refuse_log_rule_count = lambda do |machine|
+        command_output.call(
+          machine,
+          'iptables-save | grep -- "^-A nixos-fw-log-refuse " | { grep -c -- " -j LOG" || true; }'
+        )
       end
 
       tcp_command = lambda do |port, source_address|
@@ -247,6 +256,16 @@ import ../../make-test.nix (
               };
             }
           );
+
+      logging_server = mkMachine "firewall-logging-server" loggingServerAddress [ ] (
+        { ... }:
+        {
+          networking.firewall = {
+            conntrack.enable = true;
+            logRefusedConnections = true;
+          };
+        }
+      );
     };
 
     testScripts = {
@@ -310,6 +329,25 @@ import ../../make-test.nix (
                 no_conntrack_server,
                 "timeout 4s " + udp_command.call(5353, "${noConntrackDeniedAddress}")
               )
+            end
+
+            it 'uses the compatibility refuse chain for protected denials' do
+              expect(
+                command_output.call(
+                  no_conntrack_server,
+                  'iptables-save | grep -- "--comment firewall-test-protected-tcp" | grep -c -- "-j nixos-fw-log-refuse"'
+                )
+              ).to eq('1')
+              expect(
+                command_output.call(
+                  no_conntrack_server,
+                  'iptables-save | grep -- "--comment firewall-test-protected-udp" | grep -c -- "-j nixos-fw-log-refuse"'
+                )
+              ).to eq('1')
+            end
+
+            it 'does not log refused traffic by default' do
+              expect(refuse_log_rule_count.call(no_conntrack_server)).to eq('0')
             end
 
             it 'does not duplicate notrack rules on reload' do
@@ -384,6 +422,15 @@ import ../../make-test.nix (
               )
             end
 
+            it 'uses a silent refuse chain by default' do
+              conntrack_server.wait_until_succeeds(
+                'iptables-save | grep -q -- "^-A nixos-fw -j nixos-fw-log-refuse"',
+                timeout: 60
+              )
+
+              expect(refuse_log_rule_count.call(conntrack_server)).to eq('0')
+            end
+
             it 'creates conntrack entries for active connections' do
               status, output = conntrack_server.execute(
                 tcp_hold_command.call(8080, "${conntrackClientAddress}")
@@ -394,6 +441,30 @@ import ../../make-test.nix (
                 'conntrack -L -p tcp 2>/dev/null | grep -q "dport=8080"',
                 timeout: 20
               )
+            end
+          end
+        '';
+      };
+
+      logging = {
+        description = ''
+          Check explicit refuse logging opt-in
+        '';
+
+        script = commonScript loggingServerAddress + ''
+          describe 'firewall refuse logging opt-in' do
+            before(:context) do
+              logging_server.start
+              logging_server.wait_for_service('firewall')
+            end
+
+            it 'adds LOG rules when refused connection logging is enabled' do
+              logging_server.wait_until_succeeds(
+                'iptables-save | grep -- "^-A nixos-fw-log-refuse " | grep -- "-j LOG" | grep -q -- "refused connection"',
+                timeout: 60
+              )
+
+              expect(refuse_log_rule_count.call(logging_server)).to eq('1')
             end
           end
         '';
