@@ -1,4 +1,4 @@
-# svctl 8                         2025-11-30                               25.11
+# svctl 8                         2026-06-03                               26.05
 
 ## NAME
 `svctl` - `runit` service and runlevel manager
