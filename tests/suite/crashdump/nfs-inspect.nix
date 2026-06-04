@@ -78,6 +78,14 @@ import ../../make-test.nix (
                 ip link set eth1 up
               '';
 
+              boot.kernelModules = [
+                "lockd"
+                "netfs"
+                "nfs"
+                "nfsv4"
+                "sunrpc"
+              ];
+
               boot.initrd = {
                 kernelModules = [
                   "lockd"
