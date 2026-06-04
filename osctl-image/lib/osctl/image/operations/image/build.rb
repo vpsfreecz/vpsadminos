@@ -1,6 +1,7 @@
 require 'libosctl'
 require 'osctl/image/operations/base'
 require 'fileutils'
+require 'open3'
 require 'securerandom'
 require 'tmpdir'
 
@@ -286,7 +287,9 @@ module OsCtl::Image
     def build_environment
       return {} unless vpsadminos_dir
 
-      { 'OSCTL_IMAGE_VPSADMINOS_DIR' => builder_vpsadminos_dir }
+      ret = { 'OSCTL_IMAGE_VPSADMINOS_DIR' => builder_vpsadminos_dir }
+      ret['OSCTL_IMAGE_VPSADMINOS_REV'] = vpsadminos_revision if vpsadminos_revision
+      ret
     end
 
     def prepare_vpsadminos_dir
@@ -295,6 +298,7 @@ module OsCtl::Image
 
       dir = Dir.mktmpdir('osctl-image-vpsadminos.')
       FileUtils.cp_r(File.join(vpsadminos_dir, '.'), dir, preserve: true)
+      write_vpsadminos_revision(dir)
       FileUtils.rm_rf([File.join(dir, '.git'), File.join(dir, 'result')])
       FileUtils.chmod_R('u+rwX,go+rX', dir)
 
@@ -302,6 +306,32 @@ module OsCtl::Image
     rescue StandardError
       FileUtils.rm_rf(dir) if dir
       raise
+    end
+
+    def write_vpsadminos_revision(dir)
+      return unless vpsadminos_revision
+
+      File.write(File.join(dir, '.vpsadminos-git-rev'), "#{vpsadminos_revision}\n")
+    end
+
+    def vpsadminos_revision
+      return @vpsadminos_revision if defined?(@vpsadminos_revision)
+
+      if ENV['OSCTL_IMAGE_VPSADMINOS_REV'] && !ENV['OSCTL_IMAGE_VPSADMINOS_REV'].empty?
+        return @vpsadminos_revision = ENV['OSCTL_IMAGE_VPSADMINOS_REV']
+      end
+
+      output, status = Open3.capture2e(
+        'git',
+        '-C',
+        vpsadminos_dir,
+        'rev-parse',
+        '--verify',
+        'HEAD'
+      )
+      @vpsadminos_revision = status.success? ? output.strip : nil
+    rescue Errno::ENOENT
+      @vpsadminos_revision = nil
     end
 
     def cleanup_vpsadminos_dir

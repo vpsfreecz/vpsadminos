@@ -1,5 +1,10 @@
 import ../../make-template.nix (
   { image-script }:
+  let
+    testRunnerRepoRoot = builtins.getEnv "TEST_RUNNER_REPO_ROOT";
+    testRunnerRepoRev = builtins.getEnv "TEST_RUNNER_REPO_REV";
+    vpsadminosSource = if testRunnerRepoRoot == "" then ../../.. else testRunnerRepoRoot;
+  in
   rec {
     instance = image-script;
 
@@ -31,19 +36,24 @@ import ../../make-template.nix (
           })
           // {
             sharedFileSystems = {
-              hostOs = ../../..;
+              hostOs = vpsadminosSource;
             };
           };
 
-        testScript = ''
-          machine.wait_for_osctl_pool("tank")
-          machine.wait_until_online
-          machine.succeeds("mkdir -p /mnt/vpsadminos && mount -t virtiofs hostOs /mnt/vpsadminos")
-          machine.succeeds(
-            "osctl-image --vpsadminos-dir /mnt/vpsadminos test --build-dataset tank/image-scripts/build --output-dir /tank/image-scripts/output ${image-script}",
-            timeout: 3 * 60 * 60
-          )
-        '';
+        testScript =
+          let
+            osctlImageEnv =
+              if testRunnerRepoRev == "" then "" else "OSCTL_IMAGE_VPSADMINOS_REV=${testRunnerRepoRev} ";
+          in
+          ''
+            machine.wait_for_osctl_pool("tank")
+            machine.wait_until_online
+            machine.succeeds("mkdir -p /mnt/vpsadminos && mount -t virtiofs hostOs /mnt/vpsadminos")
+            machine.succeeds(
+              "${osctlImageEnv}osctl-image --vpsadminos-dir /mnt/vpsadminos test --build-dataset tank/image-scripts/build --output-dir /tank/image-scripts/output ${image-script}",
+              timeout: 3 * 60 * 60
+            )
+          '';
       };
   }
 )

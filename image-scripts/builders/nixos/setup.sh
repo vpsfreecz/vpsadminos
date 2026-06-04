@@ -5,10 +5,20 @@
 
 vpsadminos=$(mktemp -d /tmp/vpsadminos.XXXXXXXX)
 trap 'rm -rf "$vpsadminos"' EXIT
+vpsadminos_rev="${OSCTL_IMAGE_VPSADMINOS_REV-}"
+if [ -z "$vpsadminos_rev" ]; then
+  vpsadminos_rev=$(
+    git -C "$OSCTL_IMAGE_VPSADMINOS_DIR" rev-parse --verify HEAD 2>/dev/null \
+      || true
+  )
+fi
 
 cp -a "$OSCTL_IMAGE_VPSADMINOS_DIR/." "$vpsadminos" \
   || { echo "unable to copy vpsadminos from $OSCTL_IMAGE_VPSADMINOS_DIR" >&2; exit 1; }
 chmod -R u+rwX,go+rX "$vpsadminos"
+if [ -n "$vpsadminos_rev" ]; then
+  printf '%s\n' "$vpsadminos_rev" > "$vpsadminos/.vpsadminos-git-rev"
+fi
 rm -rf "$vpsadminos/.git" "$vpsadminos/result"
 
 vpsadminos_input_url="path:${vpsadminos}"

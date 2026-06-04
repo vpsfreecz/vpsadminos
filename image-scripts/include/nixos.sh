@@ -1,5 +1,6 @@
 function build-nixos {
 	local vpsadminos=
+	local vpsadminos_rev=
 	local nix_config=
 
 	[ -n "${OSCTL_IMAGE_VPSADMINOS_DIR-}" ] \
@@ -7,11 +8,19 @@ function build-nixos {
 	[ -d "$OSCTL_IMAGE_VPSADMINOS_DIR/os" ] \
 		|| fail "invalid vpsadminos checkout: $OSCTL_IMAGE_VPSADMINOS_DIR"
 
+	vpsadminos_rev="${OSCTL_IMAGE_VPSADMINOS_REV-}"
+	if [ -z "$vpsadminos_rev" ]; then
+		vpsadminos_rev="$(git -C "$OSCTL_IMAGE_VPSADMINOS_DIR" rev-parse --verify HEAD 2>/dev/null || true)"
+	fi
+
 	cp -a "$OSCTL_IMAGE_VPSADMINOS_DIR" "$PWD/vpsadminos" \
 		|| fail "unable to copy vpsadminos from $OSCTL_IMAGE_VPSADMINOS_DIR"
 
 	vpsadminos="$PWD/vpsadminos"
 	chmod -R u+rwX,go+rX "$vpsadminos"
+	if [ -n "$vpsadminos_rev" ]; then
+		printf '%s\n' "$vpsadminos_rev" > "$vpsadminos/.vpsadminos-git-rev"
+	fi
 	rm -rf "$vpsadminos/.git" "$vpsadminos/result"
 
 	cd "$vpsadminos/os"

@@ -27,11 +27,14 @@
       impermanenceNode = flakeLock.nodes.${flakeLock.nodes.root.inputs.impermanence};
       impermanenceNixpkgsNode = flakeLock.nodes.${impermanenceNode.inputs.nixpkgs};
       homeManagerNode = flakeLock.nodes.${impermanenceNode.inputs."home-manager"};
+      vpsadminosGithubRevFile = ./.vpsadminos-git-rev;
       vpsadminosGithubRev =
         if self ? rev then
           self.rev
         else if self ? dirtyRev then
           builtins.substring 0 40 self.dirtyRev
+        else if builtins.pathExists vpsadminosGithubRevFile then
+          nixpkgs.lib.removeSuffix "\n" (builtins.readFile vpsadminosGithubRevFile)
         else
           null;
       containerStableModule = import ./os/lib/nixos-container/stable/vpsadminos.nix;

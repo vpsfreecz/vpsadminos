@@ -304,6 +304,45 @@ RSpec.describe OsCtl::Image::Operations::Image::Build do
       end
     end
 
+    it 'uses an explicit vpsadminos revision when staging source' do
+      old_rev = ENV.fetch('OSCTL_IMAGE_VPSADMINOS_REV', nil)
+      ENV['OSCTL_IMAGE_VPSADMINOS_REV'] = '0123456789abcdef0123456789abcdef01234567'
+
+      Dir.mktmpdir do |tmpdir|
+        src = File.join(tmpdir, 'src')
+        FileUtils.mkdir_p(File.join(src, 'os'))
+        File.write(File.join(src, 'os', 'flake.nix'), "# test\n")
+
+        image = build_image
+        builder = build_builder(rootfs: File.join(tmpdir, 'rootfs'))
+        client = instance_double(OsCtl::Image::OsCtldClient)
+        build = new_build(
+          image:,
+          builder:,
+          client:,
+          opts: build_opts(vpsadminos_dir: src)
+        )
+
+        prepared = build.send(:prepare_vpsadminos_dir)
+
+        expect(File.read(File.join(prepared, '.vpsadminos-git-rev'))).to eq(
+          "0123456789abcdef0123456789abcdef01234567\n"
+        )
+        expect(build.send(:build_environment)).to eq(
+          'OSCTL_IMAGE_VPSADMINOS_DIR' => build.send(:builder_vpsadminos_dir),
+          'OSCTL_IMAGE_VPSADMINOS_REV' => '0123456789abcdef0123456789abcdef01234567'
+        )
+
+        build.send(:cleanup_vpsadminos_dir)
+      ensure
+        if old_rev
+          ENV['OSCTL_IMAGE_VPSADMINOS_REV'] = old_rev
+        else
+          ENV.delete('OSCTL_IMAGE_VPSADMINOS_REV')
+        end
+      end
+    end
+
     it 'cleans up mounts, temporary directories and datasets' do
       build_class = Class.new(described_class) do
         attr_accessor :zfs_handler
