@@ -1,5 +1,5 @@
 source 'https://rubygems.org'
 
 source 'https://rubygems.vpsfree.cz' do
-  gem 'osctl-env-exec', '25.11.0.build20251201154349'
+  gem 'osctl-env-exec', '26.05.0.build20260604154538'
 end

@@ -92,10 +92,10 @@
     platforms = [ ];
     source = {
       remotes = [ "https://rubygems.vpsfree.cz" ];
-      sha256 = "0vywhhy863l1mrnrxxp9hvb17x9xr19pk50b7zmj0zha1bklgfzz";
+      sha256 = "0sxl3bghmjbx0n0bikxv0w9xnp69ly3n4w0v8nawapakchwbpaf9";
       type = "gem";
     };
-    version = "25.11.0.build20260603210657";
+    version = "26.05.0.build20260604154538";
   };
   logger = {
     groups = [ "default" ];
@@ -129,10 +129,10 @@
     platforms = [ ];
     source = {
       remotes = [ "https://rubygems.vpsfree.cz" ];
-      sha256 = "185dscba271n77nk8r3w4pzmdp9vnzp69yiwzk3hvmly7l6dvmkd";
+      sha256 = "1ld6iic9yc83lp07wa9lkwyznfdy7pdnrxsdssk02h00n91jq0pa";
       type = "gem";
     };
-    version = "25.11.0.build20260603210657";
+    version = "26.05.0.build20260604154538";
   };
   osctld = {
     dependencies = [
@@ -153,10 +153,10 @@
     platforms = [ ];
     source = {
       remotes = [ "https://rubygems.vpsfree.cz" ];
-      sha256 = "11gjq0229pr7igl21k3n4qizbvyl1qhr54mxhygya7nb6lm0iz0g";
+      sha256 = "1y1dlkwp54wk8pcryfhfhc0a1f8137i8za7zgnc25ndcqrh9j4sp";
       type = "gem";
     };
-    version = "25.11.0.build20260603210657";
+    version = "26.05.0.build20260604154538";
   };
   ostruct = {
     groups = [ "default" ];
@@ -179,10 +179,10 @@
     platforms = [ ];
     source = {
       remotes = [ "https://rubygems.vpsfree.cz" ];
-      sha256 = "013ikf6jfh35qdwy1i7cc9v3x9i52722sbnx8kvynwfyp9k848gf";
+      sha256 = "17fk0lnwl9kqs8la75ki3mkr9kr0m0n7xhls52gkfmcv68a70ww0";
       type = "gem";
     };
-    version = "25.11.0.build20260603210657";
+    version = "26.05.0.build20260604154538";
   };
   rainbow = {
     groups = [ "default" ];
@@ -209,10 +209,10 @@
     platforms = [ ];
     source = {
       remotes = [ "https://rubygems.vpsfree.cz" ];
-      sha256 = "08db047sg211i8agjmc6h9h0li1l16qf9bnmqlgbgbxdsjfddkrj";
+      sha256 = "1vsnxxj2ah6n026bxkql2dh7r4q4kgcay7r954h5dd4pfsj93jg6";
       type = "gem";
     };
-    version = "1.2.4.vpsadminos.5";
+    version = "1.2.4.vpsadminos.6";
   };
   syslog = {
     dependencies = [ "logger" ];
