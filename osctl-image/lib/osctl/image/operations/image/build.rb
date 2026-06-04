@@ -1,6 +1,8 @@
 require 'libosctl'
 require 'osctl/image/operations/base'
+require 'fileutils'
 require 'securerandom'
+require 'tmpdir'
 
 module OsCtl::Image
   class Operations::Image::Build < Operations::Base
@@ -128,7 +130,13 @@ module OsCtl::Image
     attr_reader :client, :build_dataset, :work_dir, :opts
 
     def build
-      Operations::Builder::UseOrCreate.run(builder, base_dir, vpsadminos_dir:)
+      prepared_vpsadminos_dir = prepare_vpsadminos_dir
+
+      Operations::Builder::UseOrCreate.run(
+        builder,
+        base_dir,
+        vpsadminos_dir: prepared_vpsadminos_dir
+      )
 
       root_uid, root_gid = Operations::Builder::GetRootUgid.run(builder)
 
@@ -159,10 +167,10 @@ module OsCtl::Image
         client.bind_mount(builder.ctid, work_dir, builder_work_dir)
         client.bind_mount(builder.ctid, install_dir, builder_install_dir)
 
-        if vpsadminos_dir
+        if prepared_vpsadminos_dir
           client.bind_mount(
             builder.ctid,
-            vpsadminos_dir,
+            prepared_vpsadminos_dir,
             builder_vpsadminos_dir,
             map_ids: false
           )
@@ -171,7 +179,7 @@ module OsCtl::Image
         client.activate_mount(builder.ctid, builder_base_dir)
         client.activate_mount(builder.ctid, builder_work_dir)
         client.activate_mount(builder.ctid, builder_install_dir)
-        client.activate_mount(builder.ctid, builder_vpsadminos_dir) if vpsadminos_dir
+        client.activate_mount(builder.ctid, builder_vpsadminos_dir) if prepared_vpsadminos_dir
 
         image.datasets.sort { |a, b| a[0] <=> b[0] }.each do |dataset, mountpoint|
           install_mountpoint = File.join(builder_install_dir, mountpoint)
@@ -255,6 +263,8 @@ module OsCtl::Image
 
       zfs(:destroy, '-r', output_dataset, valid_rcs: :all)
       zfs(:destroy, nil, build_dataset, valid_rcs: :all)
+    ensure
+      cleanup_vpsadminos_dir
     end
 
     def builder_base_dir
@@ -277,6 +287,28 @@ module OsCtl::Image
       return {} unless vpsadminos_dir
 
       { 'OSCTL_IMAGE_VPSADMINOS_DIR' => builder_vpsadminos_dir }
+    end
+
+    def prepare_vpsadminos_dir
+      return unless vpsadminos_dir
+      return @prepared_vpsadminos_dir if @prepared_vpsadminos_dir
+
+      dir = Dir.mktmpdir('osctl-image-vpsadminos.')
+      FileUtils.cp_r(File.join(vpsadminos_dir, '.'), dir, preserve: true)
+      FileUtils.rm_rf([File.join(dir, '.git'), File.join(dir, 'result')])
+      FileUtils.chmod_R('u+rwX,go+rX', dir)
+
+      @prepared_vpsadminos_dir = dir
+    rescue StandardError
+      FileUtils.rm_rf(dir) if dir
+      raise
+    end
+
+    def cleanup_vpsadminos_dir
+      return unless @prepared_vpsadminos_dir
+
+      FileUtils.rm_rf(@prepared_vpsadminos_dir)
+      @prepared_vpsadminos_dir = nil
     end
   end
 end

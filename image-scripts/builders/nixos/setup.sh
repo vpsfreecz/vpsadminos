@@ -3,7 +3,15 @@
 [ -d "$OSCTL_IMAGE_VPSADMINOS_DIR/os" ] \
   || { echo "invalid vpsadminos checkout: $OSCTL_IMAGE_VPSADMINOS_DIR" >&2; exit 1; }
 
-vpsadminos_input_url="path:${OSCTL_IMAGE_VPSADMINOS_DIR}"
+vpsadminos=$(mktemp -d /tmp/vpsadminos.XXXXXXXX)
+trap 'rm -rf "$vpsadminos"' EXIT
+
+cp -a "$OSCTL_IMAGE_VPSADMINOS_DIR/." "$vpsadminos" \
+  || { echo "unable to copy vpsadminos from $OSCTL_IMAGE_VPSADMINOS_DIR" >&2; exit 1; }
+chmod -R u+rwX,go+rX "$vpsadminos"
+rm -rf "$vpsadminos/.git" "$vpsadminos/result"
+
+vpsadminos_input_url="path:${vpsadminos}"
 
 cat <<EOF > /etc/nixos/flake.nix
 {

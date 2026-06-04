@@ -11,6 +11,7 @@ function build-nixos {
 		|| fail "unable to copy vpsadminos from $OSCTL_IMAGE_VPSADMINOS_DIR"
 
 	vpsadminos="$PWD/vpsadminos"
+	chmod -R u+rwX,go+rX "$vpsadminos"
 	rm -rf "$vpsadminos/.git" "$vpsadminos/result"
 
 	cd "$vpsadminos/os"

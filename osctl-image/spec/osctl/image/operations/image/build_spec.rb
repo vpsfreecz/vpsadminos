@@ -158,6 +158,10 @@ RSpec.describe OsCtl::Image::Operations::Image::Build do
         def zfs(*args, **kwargs)
           @zfs_handler.call(*args, **kwargs)
         end
+
+        def prepare_vpsadminos_dir
+          '/prepared-repo'
+        end
       end
 
       Dir.mktmpdir do |tmpdir|
@@ -210,7 +214,7 @@ RSpec.describe OsCtl::Image::Operations::Image::Build do
         expect(OsCtl::Image::Operations::Builder::UseOrCreate).to have_received(:run).with(
           builder,
           '/scripts',
-          vpsadminos_dir: '/repo'
+          vpsadminos_dir: '/prepared-repo'
         )
         expect(OsCtl::Image::Operations::Builder::GetRootUgid).to have_received(:run).with(builder)
         expect(client).to have_received(:bind_mount).with(
@@ -231,7 +235,7 @@ RSpec.describe OsCtl::Image::Operations::Image::Build do
         )
         expect(client).to have_received(:bind_mount).with(
           'builder-1',
-          '/repo',
+          '/prepared-repo',
           build.send(:builder_vpsadminos_dir),
           map_ids: false
         )
@@ -264,6 +268,39 @@ RSpec.describe OsCtl::Image::Operations::Image::Build do
           File.join(output_mount, 'private')
         )
         expect(OsCtl::Image::Operations::Image::Export).to have_received(:run).with(build)
+      end
+    end
+
+    it 'copies the vpsadminos source before mounting it into builders' do
+      Dir.mktmpdir do |tmpdir|
+        src = File.join(tmpdir, 'src')
+        FileUtils.mkdir_p(File.join(src, 'os'))
+        FileUtils.mkdir_p(File.join(src, '.git'))
+        FileUtils.mkdir_p(File.join(src, 'result'))
+        File.write(File.join(src, 'os', 'flake.nix'), "# test\n")
+        File.write(File.join(src, '.git', 'config'), "# git\n")
+        File.write(File.join(src, 'result', 'path'), "result\n")
+
+        image = build_image
+        builder = build_builder(rootfs: File.join(tmpdir, 'rootfs'))
+        client = instance_double(OsCtl::Image::OsCtldClient)
+        build = new_build(
+          image:,
+          builder:,
+          client:,
+          opts: build_opts(vpsadminos_dir: src)
+        )
+
+        prepared = build.send(:prepare_vpsadminos_dir)
+
+        expect(prepared).not_to eq(src)
+        expect(File.exist?(File.join(prepared, 'os', 'flake.nix'))).to be(true)
+        expect(File.exist?(File.join(prepared, '.git'))).to be(false)
+        expect(File.exist?(File.join(prepared, 'result'))).to be(false)
+        expect(File.stat(File.join(prepared, 'os')).mode & 0o005).to eq(0o005)
+
+        build.send(:cleanup_vpsadminos_dir)
+        expect(File.exist?(prepared)).to be(false)
       end
     end
 
