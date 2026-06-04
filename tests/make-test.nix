@@ -242,14 +242,7 @@ let
       kernel = "${nixos.config.system.build.kernel}/bzImage";
       initrd = "${nixos.config.system.build.initialRamdisk}/initrd";
       toplevel = nixos.config.system.build.toplevel;
-      kernelParams =
-        nixos.config.boot.kernelParams
-        ++ [
-          "panic=-1"
-          "root=/dev/disk/by-label/${diskLabel}"
-          "rootfstype=${fsType}"
-        ]
-        ++ (machine.kernelParams or [ ]);
+      kernelParams = nixos.config.boot.kernelParams ++ [ "panic=-1" ] ++ (machine.kernelParams or [ ]);
       extraQemuOptions = machine.extraQemuOptions or [ ];
     };
 
