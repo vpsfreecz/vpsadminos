@@ -402,9 +402,12 @@ let
       NFSD_V3_ACL = yes;
       NFSD_V4 = yes;
 
+      NFS_FS = yes;
       NFS_FSCACHE = yes;
       NFS_SWAP = yes;
       NFS_V3_ACL = yes;
+      NFS_V4_1 = yes;
+      NFS_V4_2 = yes;
 
       CIFS_XATTR = yes;
       CIFS_POSIX = option yes;
