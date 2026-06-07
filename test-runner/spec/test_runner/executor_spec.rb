@@ -8,6 +8,10 @@ RSpec.describe TestRunner::Executor do
       test_scripts,
       state_dir: '/tmp/os-test-runner',
       jobs: 1,
+      max_memory_mib: nil,
+      max_shm_mib: nil,
+      memory_reserve_mib: nil,
+      shm_reserve_mib: nil,
       default_timeout: 60,
       stop_on_failure: false,
       destructive: false,
@@ -45,19 +49,13 @@ RSpec.describe TestRunner::Executor do
     [result, logs, dir]
   end
 
-  it 'fills the queue with scripts grouped by test' do
+  it 'fills the pending queue with scripts grouped by test' do
     test_a = build_test(path: 'suite/a', name: 'a', scripts: { 'smoke' => {}, 'full' => {} })
     test_b = build_test(path: 'suite/b', name: 'b')
     executor = build_executor(
       [test_a.test_scripts['smoke'], test_a.test_scripts['full'], test_b.test_scripts['default']]
     )
-    queued = []
-
-    loop do
-      queued << executor.send(:queue).pop(true)
-    rescue ThreadError
-      break
-    end
+    queued = executor.send(:pending)
 
     grouped = queued.to_h { |_index, test, scripts| [test.path, scripts.map(&:name).sort] }
     expect(grouped).to eq(
@@ -98,9 +96,7 @@ RSpec.describe TestRunner::Executor do
       '/tmp/state'
     )
     executor = build_executor([script])
-    queue = Queue.new
-    queue << [0, test, [script]]
-    executor.instance_variable_set(:@queue, queue)
+    executor.instance_variable_set(:@pending, [[0, test, [script]]])
     allow(executor).to receive(:run_test_attempt).and_return(unexpected, expected)
     allow(executor).to receive(:sleep)
 
@@ -138,9 +134,7 @@ RSpec.describe TestRunner::Executor do
       '/tmp/state'
     )
     executor = build_executor([stable, flaky])
-    queue = Queue.new
-    queue << [0, test, [stable, flaky]]
-    executor.instance_variable_set(:@queue, queue)
+    executor.instance_variable_set(:@pending, [[0, test, [stable, flaky]]])
     allow(executor).to receive(:run_test_attempt).and_return(first, second)
     allow(executor).to receive(:sleep)
 
@@ -150,6 +144,112 @@ RSpec.describe TestRunner::Executor do
     expect(executor).to have_received(:run_test_attempt).with(0, test, [flaky], 1)
     expect(executor.results.first.script_results.map(&:test_script)).to eq([stable, flaky])
     expect(executor.results.first).to be_successful
+  end
+
+  it 'runs a smaller pending test when the first pending test does not fit resources' do
+    large = build_test(
+      path: 'suite/large',
+      resources: {
+        'machines' => 2,
+        'memoryMiB' => 12_000,
+        'shmMiB' => 12_000,
+        'maxMachineMemoryMiB' => 6000,
+        'cpus' => 8
+      }
+    )
+    small = build_test(
+      path: 'suite/small',
+      resources: {
+        'machines' => 1,
+        'memoryMiB' => 1000,
+        'shmMiB' => 1000,
+        'maxMachineMemoryMiB' => 1000,
+        'cpus' => 1
+      }
+    )
+    executor = build_executor(
+      [large.test_scripts['default'], small.test_scripts['default']],
+      max_memory_mib: 10_000,
+      max_shm_mib: 10_000,
+      memory_reserve_mib: 0,
+      shm_reserve_mib: 0
+    )
+    pool = executor.send(:resource_pool)
+    pool.reserve(TestRunner::TestResources.new(memory_mib: 9000, shm_mib: 9000))
+    executor.instance_variable_set(
+      :@pending,
+      [
+        [0, large, [large.test_scripts['default']]],
+        [1, small, [small.test_scripts['default']]]
+      ]
+    )
+    allow(executor).to receive(:log)
+
+    _i, test, = executor.send(:reserve_next_test)
+
+    expect(test).to eq(small)
+    expect(pool.used.memory_mib).to eq(10_000)
+  end
+
+  it 'runs an oversized pending test alone to avoid scheduler deadlock' do
+    large = build_test(
+      path: 'suite/large',
+      resources: {
+        'machines' => 1,
+        'memoryMiB' => 12_000,
+        'shmMiB' => 12_000,
+        'maxMachineMemoryMiB' => 12_000,
+        'cpus' => 4
+      }
+    )
+    executor = build_executor(
+      [large.test_scripts['default']],
+      max_memory_mib: 10_000,
+      max_shm_mib: 10_000,
+      memory_reserve_mib: 0,
+      shm_reserve_mib: 0
+    )
+    allow(executor).to receive(:log)
+
+    _i, test, = executor.send(:reserve_next_test)
+
+    expect(test).to eq(large)
+    expect(executor.send(:resource_pool).used.memory_mib).to eq(12_000)
+  end
+
+  it 'releases reserved resources after a test finishes' do
+    test = build_test(
+      resources: {
+        'machines' => 1,
+        'memoryMiB' => 1000,
+        'shmMiB' => 1000,
+        'maxMachineMemoryMiB' => 1000,
+        'cpus' => 1
+      }
+    )
+    script = test.test_scripts['default']
+    result = TestRunner::TestResult.new(
+      test,
+      [TestRunner::TestScriptResult.new(script, true, 0.1)],
+      true,
+      0.1,
+      '/tmp/state'
+    )
+    executor = build_executor(
+      [script],
+      max_memory_mib: 1000,
+      max_shm_mib: 1000,
+      memory_reserve_mib: 0,
+      shm_reserve_mib: 0
+    )
+    allow(executor).to receive(:run_test_with_retries).and_return(result)
+    allow(executor).to receive(:log)
+
+    executor.send(:run_worker, 0)
+
+    expect(executor.send(:resource_pool).used.memory_mib).to eq(0)
+    expect(executor.send(:resource_pool).used.shm_mib).to eq(0)
+    expect(executor.send(:resource_pool).running).to eq(0)
   end
 
   it 'stops work after unexpected results when stop_on_failure is enabled' do

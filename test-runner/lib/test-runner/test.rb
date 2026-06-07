@@ -30,6 +30,9 @@ module TestRunner
     # @return [Integer]
     attr_reader :test_script_jobs
 
+    # @return [TestResources]
+    attr_reader :resources
+
     # @return [Array<String>]
     attr_reader :tags
 
@@ -51,6 +54,7 @@ module TestRunner
       @attempts = opts[:attempts]
       @expect_failure = opts[:expect_failure]
       @test_script_jobs = opts[:test_script_jobs] || 1
+      @resources = TestResources.from_h(opts[:resources])
       @tags = opts[:tags]
       @labels = opts[:labels]
       @test_scripts = opts[:test_scripts].to_h do |ts_name, ts_opts|

@@ -58,6 +58,18 @@ module TestRunner::Cli
         c.desc 'How many tests to run in parallel'
         c.flag %w[j jobs], type: Integer, default_value: 1
 
+        c.desc 'Maximum memory available to running test VMs, in MiB'
+        c.flag 'max-memory-mib', type: Integer
+
+        c.desc 'Maximum /dev/shm space available to running test VMs, in MiB'
+        c.flag 'max-shm-mib', type: Integer
+
+        c.desc 'Memory to reserve from detected capacity, in MiB'
+        c.flag 'memory-reserve-mib', type: Integer
+
+        c.desc '/dev/shm space to reserve from detected capacity, in MiB'
+        c.flag 'shm-reserve-mib', type: Integer
+
         c.desc 'Recreate disk files'
         c.switch %w[f fresh], default_value: false
 

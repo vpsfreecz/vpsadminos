@@ -1,6 +1,7 @@
 require 'fileutils'
 require 'json'
 require 'digest'
+require 'test-runner/resource_pool'
 
 module TestRunner
   class Executor
@@ -25,10 +26,14 @@ module TestRunner
       @test_scripts = test_scripts
       @opts = opts
       @workers = []
-      @queue = Queue.new
+      @pending = []
       @results = []
       @stop_work = false
       @mutex = Mutex.new
+      @scheduler_mutex = Mutex.new
+      @scheduler_cv = ConditionVariable.new
+      @resource_pool = ResourcePool.from_options(opts)
+      @last_resource_wait_log_at = nil
 
       fill_queue
     end
@@ -36,6 +41,7 @@ module TestRunner
     # @return [Array<TestResult>]
     def run
       log("Running #{test_scripts.length} scripts of #{@test_count} tests, #{opts[:jobs]} tests at a time")
+      log("Resource limits: #{resource_pool.status}")
       log("State directory is #{state_dir}")
       t1 = Time.now
 
@@ -112,7 +118,7 @@ module TestRunner
 
     protected
 
-    attr_reader :workers, :queue, :mutex
+    attr_reader :workers, :pending, :mutex, :scheduler_mutex, :scheduler_cv, :resource_pool
 
     def fill_queue
       tests = {}
@@ -123,7 +129,7 @@ module TestRunner
       end
 
       tests.to_a.shuffle!.each_with_index do |(test, scripts), i|
-        @queue << [i, test, scripts.shuffle!]
+        @pending << [i, test, scripts.shuffle!]
       end
 
       @test_count = tests.length
@@ -141,16 +147,86 @@ module TestRunner
       loop do
         return if stop_work?
 
+        reserved_test = reserve_next_test
+        return if reserved_test.nil?
+
+        i, test, scripts, resources = reserved_test
+        result = nil
+
         begin
-          i, test, scripts = queue.pop(true)
-        rescue ThreadError
-          return
+          result = run_test_with_retries(i, test, scripts)
+        ensure
+          release_test_resources(resources)
         end
 
-        result = run_test_with_retries(i, test, scripts)
-
-        mutex.synchronize { results << result }
+        mutex.synchronize { results << result } unless result.nil?
       end
+    end
+
+    def reserve_next_test
+      scheduler_mutex.synchronize do
+        loop do
+          return nil if stop_work?
+          return nil if pending.empty?
+
+          i = schedulable_test_index
+
+          if i
+            item = pending.delete_at(i)
+            _test_i, test, = item
+            resources = test.resources
+
+            resource_pool.reserve(resources)
+            log_reserved_resources(test, resources)
+
+            return [*item, resources]
+          end
+
+          log_resource_wait
+          scheduler_cv.wait(scheduler_mutex, 5)
+        end
+      end
+    end
+
+    def schedulable_test_index
+      i = pending.index do |_test_i, test, _scripts|
+        resource_pool.can_reserve?(test.resources)
+      end
+
+      return i unless i.nil?
+
+      # Never deadlock the suite just because one test is larger than the
+      # detected capacity. Run it alone and let QEMU or the host enforce the
+      # real limit.
+      return 0 if resource_pool.running == 0
+
+      nil
+    end
+
+    def release_test_resources(resources)
+      scheduler_mutex.synchronize do
+        resource_pool.release(resources)
+        scheduler_cv.broadcast
+      end
+    end
+
+    def log_reserved_resources(test, resources)
+      log(
+        "Reserved resources for '#{test.path}': #{resources.summary}; " \
+        "pool: #{resource_pool.status}"
+      )
+    end
+
+    def log_resource_wait
+      now = Time.now
+      return if @last_resource_wait_log_at && now - @last_resource_wait_log_at < 60
+
+      @last_resource_wait_log_at = now
+      waiting = pending.first(3).map do |_test_i, test, _scripts|
+        "#{test.path} (#{test.resources.summary})"
+      end.join(', ')
+
+      log("Waiting for resources: pool: #{resource_pool.status}; pending: #{waiting}")
     end
 
     def run_test_with_retries(i, test, scripts)
@@ -399,6 +475,7 @@ module TestRunner
 
     def stop_work!
       @stop_work = true
+      scheduler_mutex.synchronize { scheduler_cv.broadcast }
     end
 
     def stop_work?

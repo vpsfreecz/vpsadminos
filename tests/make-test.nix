@@ -257,6 +257,23 @@ let
 
   machineTestConfigs = lib.mapAttrs machineTestConfig machineAttrs;
 
+  machineResources =
+    let
+      values = lib.attrValues machineTestConfigs;
+      memories = map (machine: machine.memory or 0) values;
+      cpus = map (machine: machine.cpus or 0) values;
+      sum = list: lib.foldl' (acc: v: acc + v) 0 list;
+      max = list: lib.foldl' (acc: v: if v > acc then v else acc) 0 list;
+      memoryMiB = sum memories;
+    in
+    {
+      machines = builtins.length values;
+      inherit memoryMiB;
+      shmMiB = memoryMiB;
+      maxMachineMemoryMiB = max memories;
+      cpus = sum cpus;
+    };
+
   testScripts =
     testAttrs.testScripts or {
       default = {
@@ -274,6 +291,7 @@ let
     machines = machineTestConfigs;
     tags = testAttrs.tags or [ ];
     labels = testAttrs.labels or { };
+    resources = machineResources;
     inherit testScripts;
     framework = {
       inherit testConfig;

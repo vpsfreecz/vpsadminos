@@ -12,6 +12,7 @@ module FakeTestHelpers
     attempts: 1,
     expect_failure: false,
     test_script_jobs: 1,
+    resources: nil,
     tags: [],
     labels: {},
     scripts: { 'default' => {} }
@@ -27,6 +28,7 @@ module FakeTestHelpers
       attempts:,
       expect_failure:,
       test_script_jobs:,
+      resources:,
       tags:,
       labels:,
       test_scripts: scripts

@@ -22,6 +22,13 @@ RSpec.describe TestRunner::TestList do
           'attempts' => 1,
           'expectFailure' => false,
           'testScriptJobs' => 2,
+          'resources' => {
+            'machines' => 1,
+            'memoryMiB' => 2048,
+            'shmMiB' => 2048,
+            'maxMachineMemoryMiB' => 2048,
+            'cpus' => 2
+          },
           'tags' => [],
           'labels' => {},
           'testScripts' => { 'default' => {} }
@@ -33,6 +40,7 @@ RSpec.describe TestRunner::TestList do
 
     expect(tests.map(&:path)).to eq(['suite/a'])
     expect(tests.first.test_script_jobs).to eq(2)
+    expect(tests.first.resources.memory_mib).to eq(2048)
   end
 
   it 'parses one test from json' do

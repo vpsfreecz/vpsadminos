@@ -57,6 +57,7 @@ module TestRunner
         attempts: data['attempts'],
         expect_failure: data['expectFailure'],
         test_script_jobs: data['testScriptJobs'],
+        resources: data['resources'],
         tags: data['tags'],
         labels: data['labels'],
         test_scripts: data['testScripts']

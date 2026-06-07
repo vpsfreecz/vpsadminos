@@ -97,6 +97,16 @@ let
       labels = ts.labels or { };
     }) testCfg.testScripts;
 
+  testResources =
+    testCfg:
+    testCfg.resources or {
+      machines = 0;
+      memoryMiB = 0;
+      shmMiB = 0;
+      maxMachineMemoryMiB = 0;
+      cpus = 0;
+    };
+
   testMeta =
     t:
     if t.type == "single" then
@@ -111,6 +121,7 @@ let
           labels
           ;
         testScriptJobs = t.test.config.testScriptJobs or 1;
+        resources = testResources t.test.config;
         testScripts = testScriptsMeta t.test.config;
       }
     else if t.type == "template" then
@@ -125,6 +136,7 @@ let
           labels
           ;
         testScriptJobs = t.test.config.testScriptJobs or 1;
+        resources = testResources t.test.config;
         testScripts = testScriptsMeta t.test.config;
       }
     else
