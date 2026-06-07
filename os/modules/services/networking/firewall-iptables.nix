@@ -14,6 +14,32 @@ let
     ((kernel.config.isEnabled or (x: false)) "IP_NF_MATCH_RPFILTER")
     || (kernel.features.netfilterRPFilter or false);
 
+  firewallKernelModules = [
+    "nf_conntrack"
+    "nf_tables"
+    "nft_compat"
+    "nft_ct"
+    "xt_comment"
+    "xt_pkttype"
+    "xt_tcpudp"
+  ]
+  ++ optional cfg.conntrack.enable "xt_conntrack"
+  ++ optional (!cfg.conntrack.enable) "xt_CT"
+  ++ optionals (cfg.checkReversePath != false && kernelHasRPFilter) (
+    [
+      "ipt_rpfilter"
+    ]
+    ++ optional config.networking.enableIPv6 "ip6t_rpfilter"
+  )
+  ++ optionals cfg.rejectPackets (
+    [
+      "ipt_REJECT"
+    ]
+    ++ optional config.networking.enableIPv6 "ip6t_REJECT"
+  )
+  ++ optional (cfg.logRefusedConnections || cfg.logRefusedPackets || cfg.logReversePathDrops) "xt_LOG"
+  ++ optional (cfg.pingLimit != null) "xt_limit";
+
   portRange = types.submodule {
     options = {
       from = mkOption {
@@ -468,16 +494,21 @@ in
 
     environment.systemPackages = [ pkgs.nixos-firewall-tool ];
 
+    boot.kernelModules = firewallKernelModules;
+
     runit.services.firewall = {
       path = [ cfg.package ] ++ cfg.extraPackages;
 
       run = ''
         ensureServiceStarted eudev-trigger
+        waitForService kernel-modules 60 || exit 1
         ${startScript} || exit 1
         exec sleep inf
       '';
 
       control.usr1 = ''
+        source ./helpers
+        waitForService kernel-modules 60 || exit 1
         exec ${reloadScript}
       '';
 
@@ -488,6 +519,7 @@ in
 
       onChange = "reload";
       reloadMethod = "1";
+      restartTriggers = [ firewallKernelModules ];
     };
   };
 }

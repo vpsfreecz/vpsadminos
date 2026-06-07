@@ -297,6 +297,12 @@ import ../../make-test.nix (
               )
             end
 
+            it 'declares the notrack target kernel module' do
+              expect(
+                command_output.call(no_conntrack_server, 'test -d /sys/module/xt_CT && echo present')
+              ).to eq('present')
+            end
+
             it 'leaves unprotected ports open' do
               no_conntrack_server.wait_until_succeeds(
                 tcp_command.call(8081, "${noConntrackDeniedAddress}"),
