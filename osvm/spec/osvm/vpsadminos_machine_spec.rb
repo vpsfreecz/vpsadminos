@@ -25,17 +25,41 @@ RSpec.describe OsVm::VpsadminosMachine do
   it 'waits for osctl pools to become active' do
     with_tmpdir do |dir|
       machine = build_vpsadminos_machine(dir:)
-      allow(machine).to receive(:wait_until_succeeds).and_return([0, "importing\n"], [0, "active\n"])
+      allow(machine).to receive(:execute).and_return([0, "importing\n"], [0, "active\n"])
       allow(machine).to receive(:sleep)
 
-      expect(machine.wait_for_osctl_pool('tank', timeout: 10)).to eq(machine)
+      expect(machine.wait_for_osctl_pool('tank', timeout: 20)).to eq(machine)
+      expect(machine).to have_received(:execute).with(
+        'osctl pool show -H -o state tank',
+        timeout: 10
+      ).twice
+    end
+  end
+
+  it 'retries timed out osctl pool probes' do
+    with_tmpdir do |dir|
+      machine = build_vpsadminos_machine(dir:)
+      calls = 0
+      allow(machine).to receive(:execute) do
+        calls += 1
+        raise OsVm::TimeoutError, 'timed out' if calls == 1
+
+        [0, "active\n"]
+      end
+      allow(machine).to receive(:sleep)
+
+      expect(machine.wait_for_osctl_pool('tank', timeout: 20)).to eq(machine)
+      expect(machine).to have_received(:execute).with(
+        'osctl pool show -H -o state tank',
+        timeout: 10
+      ).twice
     end
   end
 
   it 'times out while waiting for an osctl pool to become active' do
     with_tmpdir do |dir|
       machine = build_vpsadminos_machine(dir:)
-      allow(machine).to receive(:wait_until_succeeds).and_return([0, "importing\n"])
+      allow(machine).to receive(:execute).and_return([0, "importing\n"])
 
       expect do
         machine.wait_for_osctl_pool('tank', timeout: 0)
@@ -105,11 +129,12 @@ RSpec.describe OsVm::VpsadminosMachine do
 
   it 'builds qemu commands with boot media and shared options' do
     with_tmpdir do |dir|
-      machine = build_vpsadminos_machine(dir:)
+      machine = build_vpsadminos_machine(dir:, config: build_machine_config('iso' => '/images/install.iso'))
 
       command = machine.send(:qemu_command, kernel_params: ['debug'])
 
       expect(command).to include('/nix/store/qemu/bin/qemu-kvm')
+      expect(command).to include('-cdrom', '/images/install.iso')
       expect(command).to include('-drive', 'index=0,id=drive1,file=/images/system.squashfs,readonly=on,media=cdrom,format=raw,if=virtio')
       expect(command.grep(/path=.*shell\.sock/).first).not_to be_nil
       expect(command.grep(/tag=vmSharedDir/).first).not_to be_nil

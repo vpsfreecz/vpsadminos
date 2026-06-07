@@ -143,6 +143,9 @@ let
       shells = machineShellNames machine;
       kernelParams = machine.kernelParams or [ ];
       extraQemuOptions = machine.extraQemuOptions or [ ];
+    }
+    // lib.optionalAttrs (machine ? iso) {
+      iso = machine.iso;
     };
 
   machineTestConfig =
@@ -191,6 +194,9 @@ let
         ]
         ++ (machine.kernelParams or [ ]);
       extraQemuOptions = machine.extraQemuOptions or qemuCfg.extraQemuOptions or [ ];
+    }
+    // lib.optionalAttrs (machine ? iso) {
+      iso = machine.iso;
     };
 
   nixosMachineTestConfig =
@@ -244,6 +250,9 @@ let
       toplevel = nixos.config.system.build.toplevel;
       kernelParams = nixos.config.boot.kernelParams ++ [ "panic=-1" ] ++ (machine.kernelParams or [ ]);
       extraQemuOptions = machine.extraQemuOptions or [ ];
+    }
+    // lib.optionalAttrs (machine ? iso) {
+      iso = machine.iso;
     };
 
   machineTestConfigs = lib.mapAttrs machineTestConfig machineAttrs;

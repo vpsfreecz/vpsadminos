@@ -66,6 +66,16 @@ RSpec.describe OsVm::Machine do
     end
   end
 
+  it 'renders qemu boot media for configured ISO images' do
+    with_tmpdir do |dir|
+      machine = build_machine(dir:, config: build_machine_config('iso' => '/images/install.iso'))
+      no_media_machine = build_machine(dir:)
+
+      expect(machine.send(:qemu_boot_media_options)).to eq(['-cdrom', '/images/install.iso'])
+      expect(no_media_machine.send(:qemu_boot_media_options)).to eq([])
+    end
+  end
+
   it 'renders qemu disk options for configured disks' do
     with_tmpdir do |dir|
       config = build_machine_config(

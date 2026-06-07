@@ -456,6 +456,12 @@ module OsVm
       end
     end
 
+    def qemu_boot_media_options
+      return [] if config.iso.nil?
+
+      ['-cdrom', config.iso]
+    end
+
     def qemu_shell_options
       ret = ['-device', 'virtio-serial']
 

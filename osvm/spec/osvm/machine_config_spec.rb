@@ -63,6 +63,14 @@ RSpec.describe OsVm::MachineConfig do
     end.to raise_error(ArgumentError, /unsupported disk type/)
   end
 
+  it 'loads and validates boot ISO paths' do
+    expect(build_machine_config('iso' => '/images/install.iso').iso).to eq('/images/install.iso')
+
+    expect do
+      build_machine_config('iso' => '')
+    end.to raise_error(ArgumentError, /iso must be a non-empty string/)
+  end
+
   it 'loads and validates test shell count' do
     expect(build_machine_config('testShells' => 3).test_shells).to eq(3)
 

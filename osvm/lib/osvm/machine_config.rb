@@ -221,6 +221,9 @@ module OsVm
     # @return [String, nil]
     attr_reader :boot_order
 
+    # @return [String, nil] path to a bootable ISO image
+    attr_reader :iso
+
     # @return [Array<String>]
     attr_reader :extra_qemu_options
 
@@ -275,6 +278,7 @@ module OsVm
       @qemu = cfg.fetch('qemu')
       @boot_mode = cfg.fetch('bootMode', 'direct')
       @boot_order = cfg['bootOrder']
+      @iso = cfg['iso']
       @extra_qemu_options = cfg.fetch('extraQemuOptions', [])
       @test_shells = cfg.fetch('testShells', 1)
       @shell_names = cfg.fetch('shells', [])
@@ -296,6 +300,10 @@ module OsVm
 
       unless %w[direct firmware].include?(@boot_mode)
         raise ArgumentError, "unsupported boot mode #{@boot_mode.inspect}"
+      end
+
+      unless @iso.nil? || (@iso.is_a?(String) && !@iso.empty?)
+        raise ArgumentError, 'iso must be a non-empty string'
       end
 
       unless @test_shells.is_a?(Integer) && @test_shells >= 1

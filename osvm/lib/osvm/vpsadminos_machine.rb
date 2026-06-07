@@ -24,23 +24,38 @@ module OsVm
     # @param name [String]
     # @param timeout [Integer]
     # @return [Machine]
-    def wait_for_osctl_pool(name, timeout: @default_timeout)
+    def wait_for_osctl_pool(name, timeout: @default_timeout, poll_timeout: 10)
       t1 = Time.now
       cur_timeout = timeout
+      last_state = nil
+      last_error = nil
 
       loop do
-        status, output = wait_until_succeeds(
-          "osctl pool show -H -o state #{name}",
-          timeout: cur_timeout
-        )
-
-        return self if output.strip == 'active'
-
-        cur_timeout = timeout - (Time.now - t1)
+        status = nil
 
         if cur_timeout <= 0
-          raise TimeoutError, "Timeout occurred while waiting for pool #{name.inspect} to become active"
+          message = "Timeout occurred while waiting for pool #{name.inspect} to become active"
+          message += ", last state: #{last_state.inspect}" if last_state
+          message += ", last error: #{last_error.message.inspect}" if last_error
+          raise TimeoutError, message
         end
+
+        begin
+          status, output = execute(
+            "osctl pool show -H -o state #{name}",
+            timeout: [poll_timeout, cur_timeout].min
+          )
+          last_state = output.strip
+          last_error = nil
+        rescue TimeoutError => e
+          raise if e.is_a?(UnrecoverableTimeoutError)
+
+          last_error = e
+        end
+
+        return self if status == 0 && last_state == 'active'
+
+        cur_timeout = timeout - (Time.now - t1)
 
         sleep(1)
       end
@@ -109,9 +124,10 @@ module OsVm
     end
 
     def qemu_boot_media_options
-      return [] if config.squashfs.nil?
+      ret = super
+      return ret if config.squashfs.nil?
 
-      [
+      ret + [
         '-drive', "index=0,id=drive1,file=#{config.squashfs},readonly=on,media=cdrom,format=raw,if=virtio"
       ]
     end
