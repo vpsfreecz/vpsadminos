@@ -68,6 +68,16 @@ sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/ssh
 
 > /etc/resolv.conf
 
-rm -f /usr/portage/distfiles/*
+rm -rf \
+  /usr/portage/distfiles/* \
+  /var/cache/binhost/* \
+  /var/cache/binpkgs/* \
+  /var/cache/distfiles/* \
+  /var/tmp/portage/*
+mkdir -p \
+  /var/cache/binhost \
+  /var/cache/binpkgs \
+  /var/cache/distfiles \
+  /var/tmp/portage
 EOF
 }
