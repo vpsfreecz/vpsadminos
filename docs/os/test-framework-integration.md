@@ -95,8 +95,8 @@ helpers:
 
 ```nix
 {
-  pkgs ? <nixpkgs>,
-  system ? builtins.currentSystem,
+  pkgs,
+  system,
   suiteArgs ? { },
 }:
 let

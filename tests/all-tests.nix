@@ -149,6 +149,7 @@ let
         "snap/fedora"
         "snap/ubuntu"
         "system/boot/stage-2"
+        "system/install"
         "system/switch-to-configuration"
         "systemd/credentials"
         {

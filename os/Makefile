@@ -88,11 +88,13 @@ template-impermanence:
 	 --cores $(CORES) $(TRACE) \
 	 $(ROOT)#template-impermanence-$(TEMPLATE_CHANNEL)
 
-os-rebuild:
+vpsadminos-rebuild:
 	$(NIX) build $(NIX_IMPURE) \
-	 --out-link result/os-rebuild \
+	 --out-link result/vpsadminos-rebuild \
 	 --cores $(CORES) $(TRACE) \
-	 $(ROOT)#os-rebuild
+	 $(ROOT)#vpsadminos-rebuild
+
+os-rebuild: vpsadminos-rebuild
 
 result:
 	mkdir -p result

@@ -347,6 +347,7 @@
             ci-toplevel = ciQemuSystem.config.system.build.toplevel;
             qemu-script = qemuSystem.config.system.build.runvmScript;
             qemu-script-proactive-swap = proactiveSwapQemuSystem.config.system.build.runvmScript;
+            vpsadminos-rebuild = qemuSystem.config.system.build.vpsadminos-rebuild;
             os-rebuild = qemuSystem.config.system.build.os-rebuild;
             iso = isoSystem.config.system.build.isoImage;
             iso-local = isoLocalSystem.config.system.build.runvm;
@@ -641,7 +642,7 @@
             packages = with pkgs; [
               libffi
               git
-              ruby
+              ruby_vpsadminos
               zlib
             ];
             shellHook = ''
@@ -660,7 +661,7 @@
               BUNDLE="$GEM_HOME/bin/bundle"
 
               if [ ! -x "$BUNDLE" ]; then
-                ${pkgs.ruby}/bin/gem install bundler --no-document
+                ${pkgs.ruby_vpsadminos}/bin/gem install bundler --no-document
               fi
 
               export BUNDLE_PATH="$GEM_HOME"

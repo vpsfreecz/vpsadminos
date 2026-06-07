@@ -5,8 +5,8 @@ to [patch them](#patching).
 
 vpsAdminOS can be built from its repository using `make`, which calls
 `nix build` under the hood. Check the [Makefile] for more information. Another
-approach is to use `os-rebuild`, an alternative to `nixos-rebuild`, from
-an already installed system.
+approach is to use `vpsadminos-rebuild` from an already installed system with a
+flake-based `/etc/vpsadminos` configuration.
 
 At vpsFree.cz, we use our own tool for deploying vpsAdminOS and NixOS called
 [confctl].
@@ -22,11 +22,11 @@ contains modules to build a PXE server to boot vpsAdminOS systems over network.
 If you'd like to deploy vpsAdminOS systems using [NixOps] or [morph], it is
 not too hard to patch them. We used them before we moved to [confctl](#confctl).
 
-The main difference between building NixOS and vpsAdminOS is that when building
-NixOS, you import module `<nixpkgs/nixos/lib/eval-config.nix>`. To build
-vpsAdminOS, you need to import `<vpsadminos/os/default.nix>`. Examples of the
-necessary changes can be found at our deprecated forks that include vpsAdminOS
-support:
+The main difference between building NixOS and vpsAdminOS is the flake output
+used for system configurations. vpsAdminOS systems are exposed as
+`vpsadminosConfigurations.<name>` through `vpsadminos.lib.vpsadminosSystem`.
+Examples of the older non-flake integration patches can be found at our
+deprecated forks:
 
  - [old NixOps fork](https://github.com/vpsfreecz/nixops)
  - [old morph fork](https://github.com/vpsfreecz/morph)

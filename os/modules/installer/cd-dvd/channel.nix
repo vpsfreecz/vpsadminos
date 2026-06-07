@@ -1,5 +1,5 @@
-# Provide an initial copy of the NixOS/vpsAdminOS channel(s) so that the user
-# doesn't need to run "nix-channel --update" first.
+# Provide initial local Nixpkgs/vpsAdminOS source paths so the installer can
+# build flake-based configurations without fetching the sources first.
 
 {
   config,
@@ -28,6 +28,10 @@ let
     path: type: (lib.cleanSourceFilter path type) && (baseNameOf path != "ctstartmenu") # exclude the locally-built binary
   ) ../../../../ctstartmenu;
 
+  ctPtyWrapper = builtins.filterSource (
+    path: type: (lib.cleanSourceFilter path type)
+  ) ../../../../ctptywrapper;
+
   imageScripts = builtins.filterSource (
     path: type: (lib.cleanSourceFilter path type)
   ) ../../../../image-scripts;
@@ -43,7 +47,10 @@ let
 
   vpsadminosChannel = pkgs.runCommand "vpsadminos-${config.system.vpsadminos.version}" { } ''
     mkdir -p $out $out/vpsadminos $out/vpsadminos/artwork
+    cp -prd ${../../../../flake.nix} $out/vpsadminos/flake.nix
+    cp -prd ${../../../../flake.lock} $out/vpsadminos/flake.lock
     cp -prd ${ctStartMenu} $out/vpsadminos/ctstartmenu
+    cp -prd ${ctPtyWrapper} $out/vpsadminos/ctptywrapper
     cp -prd ${imageScripts} $out/vpsadminos/image-scripts
     cp -prd ${os} $out/vpsadminos/os
     cp -prd ${../../../../artwork/boot.png} $out/vpsadminos/artwork/boot.png
@@ -65,20 +72,17 @@ in
   };
 
   config = mkIf config.os.channel-registration.enable {
-    # Provide the vpsAdminOS/Nixpkgs sources. This is required
-    # for os-install.
+    # Provide the vpsAdminOS/Nixpkgs sources. This is required by the installer
+    # to generate local flake inputs on offline systems.
     runit.services.channel-registration = {
       run = ''
         ensureServiceStarted eudev-trigger
         set -e
         if ! [ -e /var/lib/nixos/did-channel-init ]; then
-          echo "unpacking the NixOS/Nixpkgs sources..."
-          mkdir -p /nix/var/nix/profiles/per-user/root
-          ${config.nix.package.out}/bin/nix-env \
-            -p /nix/var/nix/profiles/per-user/root/channels \
-            --install ${nixosChannel} ${vpsadminosChannel} \
-            --quiet \
-            --option build-use-substitutes false
+          echo "registering local Nixpkgs/vpsAdminOS sources..."
+          mkdir -p /nix/var/nix/profiles/per-user/root/channels
+          ln -sfn ${nixosChannel}/nixos /nix/var/nix/profiles/per-user/root/channels/nixos
+          ln -sfn ${vpsadminosChannel}/vpsadminos /nix/var/nix/profiles/per-user/root/channels/vpsadminos
           mkdir -m 0700 -p /root/.nix-defexpr
           ln -sfn /nix/var/nix/profiles/per-user/root/channels /root/.nix-defexpr/channels
           mkdir -m 0755 -p /var/lib/nixos

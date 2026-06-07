@@ -773,10 +773,15 @@ in
 
       system.build.installBootLoader =
         let
-          install-grub-pl = pkgs.replaceVars ./install-grub.pl {
-            utillinux = pkgs.util-linux;
-            btrfsprogs = pkgs.btrfs-progs;
-            inherit (config.system.vpsadminos) distroName;
+          install-grub-pl = pkgs.replaceVarsWith {
+            src = ./install-grub.pl;
+            replacements = {
+              utillinux = pkgs.util-linux;
+              btrfsprogs = pkgs.btrfs-progs;
+              inherit (config.system.vpsadminos) distroName;
+              bootRoot = null;
+              bootPath = null;
+            };
           };
           perl = pkgs.perl.withPackages (
             p: with p; [
