@@ -1,5 +1,5 @@
 source 'https://rubygems.org'
 
 source 'https://rubygems.vpsfree.cz' do
-  gem 'osctl-image', '26.05.0.build20260604154538'
+  gem 'osctl-image', '26.05.0.build20260607221541'
 end
