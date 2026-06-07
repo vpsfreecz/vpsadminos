@@ -21,8 +21,7 @@ module OsCtld
         Commands::Container::Start,
         id: ct.id,
         pool: ct.pool.name,
-        force: true,
-        wait: false
+        force: true
       )
     end
   end

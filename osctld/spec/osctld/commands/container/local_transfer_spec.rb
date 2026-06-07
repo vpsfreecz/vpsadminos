@@ -552,8 +552,10 @@ RSpec.describe 'local container transfer commands' do
         event[0] == :cmd && event[1] == OsCtld::Commands::Container::Start
       end
       transfer_idx = events.index { |event| event[0] == :transfer }
+      start_event = events[start_idx]
 
       expect(start_idx).to be < transfer_idx
+      expect(start_event[2]).to eq(id: 'ct1', pool: 'tank', force: true)
       expect(log.state_snapshot).to eq('snap-state')
       expect(log.state).to eq(:transfer)
       expect(target.state).to eq(:stopped)
@@ -624,8 +626,7 @@ RSpec.describe 'local container transfer commands' do
           OsCtld::Commands::Container::Start,
           id: 'ct1',
           pool: 'tank',
-          force: true,
-          wait: false
+          force: true
         ).and_raise(OsCtld::CommandFailed, 'start failed')
       allow(command).to receive(:transfer_dataset)
 
