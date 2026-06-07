@@ -5,12 +5,16 @@ module TestRunner
   class ResourcePool
     DEFAULT_MEMORY_RESERVE_MIB = 4096
     DEFAULT_SHM_RESERVE_MIB = 4096
+    DEFAULT_CPU_RESERVE = 0
 
     # @return [Integer, nil]
     attr_reader :memory_mib
 
     # @return [Integer, nil]
     attr_reader :shm_mib
+
+    # @return [Integer, nil]
+    attr_reader :cpus
 
     # @return [TestResources]
     attr_reader :used
@@ -29,6 +33,11 @@ module TestRunner
         env['TEST_RUNNER_SHM_RESERVE_MIB'],
         DEFAULT_SHM_RESERVE_MIB
       )
+      cpu_reserve = integer_option(
+        opts[:cpu_reserve],
+        env['TEST_RUNNER_CPU_RESERVE'],
+        DEFAULT_CPU_RESERVE
+      )
 
       new(
         memory_mib: capacity(
@@ -40,6 +49,11 @@ module TestRunner
           integer_option(opts[:max_shm_mib], env['TEST_RUNNER_MAX_SHM_MIB'], nil) ||
             detect_shm_available_mib,
           shm_reserve_mib
+        ),
+        cpus: capacity(
+          integer_option(opts[:max_cpus], env['TEST_RUNNER_MAX_CPUS'], nil) ||
+            detect_cpus,
+          cpu_reserve
         )
       )
     end
@@ -80,16 +94,27 @@ module TestRunner
       nil
     end
 
-    def initialize(memory_mib:, shm_mib:)
+    def self.detect_cpus
+      out, status = Open3.capture2('nproc')
+      return nil unless status.success?
+
+      Integer(out.strip)
+    rescue Errno::ENOENT, ArgumentError
+      nil
+    end
+
+    def initialize(memory_mib:, shm_mib:, cpus:)
       @memory_mib = memory_mib
       @shm_mib = shm_mib
+      @cpus = cpus
       @used = TestResources.new
       @running = 0
     end
 
     def can_reserve?(resources)
       fits?(memory_mib, used.memory_mib + resources.memory_mib) &&
-        fits?(shm_mib, used.shm_mib + resources.shm_mib)
+        fits?(shm_mib, used.shm_mib + resources.shm_mib) &&
+        fits?(cpus, used.cpus + resources.cpus)
     end
 
     def reserve(resources)
@@ -104,7 +129,8 @@ module TestRunner
 
     def status
       "memory=#{format_used(memory_mib, used.memory_mib)}, " \
-        "shm=#{format_used(shm_mib, used.shm_mib)}, running=#{running}"
+        "shm=#{format_used(shm_mib, used.shm_mib)}, " \
+        "cpus=#{format_used(cpus, used.cpus, unit: false)}, running=#{running}"
     end
 
     protected
@@ -113,10 +139,17 @@ module TestRunner
       capacity.nil? || value <= capacity
     end
 
-    def format_used(capacity, value)
-      return "#{format_mib(value)}/unlimited" if capacity.nil?
+    def format_used(capacity, value, unit: true)
+      if capacity.nil?
+        formatted = unit ? format_mib(value) : value
+        return "#{formatted}/unlimited"
+      end
 
-      "#{format_mib(value)}/#{format_mib(capacity)}"
+      if unit
+        "#{format_mib(value)}/#{format_mib(capacity)}"
+      else
+        "#{value}/#{capacity}"
+      end
     end
 
     def format_mib(value)

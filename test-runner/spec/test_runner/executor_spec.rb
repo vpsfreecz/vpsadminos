@@ -10,8 +10,10 @@ RSpec.describe TestRunner::Executor do
       jobs: 1,
       max_memory_mib: nil,
       max_shm_mib: nil,
+      max_cpus: nil,
       memory_reserve_mib: nil,
       shm_reserve_mib: nil,
+      cpu_reserve: nil,
       default_timeout: 60,
       stop_on_failure: false,
       destructive: false,
@@ -189,6 +191,53 @@ RSpec.describe TestRunner::Executor do
 
     expect(test).to eq(small)
     expect(pool.used.memory_mib).to eq(10_000)
+  end
+
+  it 'runs a smaller pending test when the first pending test exceeds the cpu cap' do
+    cpu_heavy = build_test(
+      path: 'suite/cpu-heavy',
+      resources: {
+        'machines' => 2,
+        'memoryMiB' => 2000,
+        'shmMiB' => 2000,
+        'maxMachineMemoryMiB' => 1000,
+        'cpus' => 8
+      }
+    )
+    small = build_test(
+      path: 'suite/small',
+      resources: {
+        'machines' => 1,
+        'memoryMiB' => 1000,
+        'shmMiB' => 1000,
+        'maxMachineMemoryMiB' => 1000,
+        'cpus' => 2
+      }
+    )
+    executor = build_executor(
+      [cpu_heavy.test_scripts['default'], small.test_scripts['default']],
+      max_memory_mib: 16_000,
+      max_shm_mib: 16_000,
+      max_cpus: 4,
+      memory_reserve_mib: 0,
+      shm_reserve_mib: 0,
+      cpu_reserve: 0
+    )
+    pool = executor.send(:resource_pool)
+    pool.reserve(TestRunner::TestResources.new(cpus: 2))
+    executor.instance_variable_set(
+      :@pending,
+      [
+        [0, cpu_heavy, [cpu_heavy.test_scripts['default']]],
+        [1, small, [small.test_scripts['default']]]
+      ]
+    )
+    allow(executor).to receive(:log)
+
+    _i, test, = executor.send(:reserve_next_test)
+
+    expect(test).to eq(small)
+    expect(pool.used.cpus).to eq(4)
   end
 
   it 'runs an oversized pending test alone to avoid scheduler deadlock' do

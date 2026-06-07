@@ -64,11 +64,17 @@ module TestRunner::Cli
         c.desc 'Maximum /dev/shm space available to running test VMs, in MiB'
         c.flag 'max-shm-mib', type: Integer
 
+        c.desc 'Maximum CPUs available to running test VMs'
+        c.flag 'max-cpus', type: Integer
+
         c.desc 'Memory to reserve from detected capacity, in MiB'
         c.flag 'memory-reserve-mib', type: Integer
 
         c.desc '/dev/shm space to reserve from detected capacity, in MiB'
         c.flag 'shm-reserve-mib', type: Integer
+
+        c.desc 'CPUs to reserve from detected capacity'
+        c.flag 'cpu-reserve', type: Integer
 
         c.desc 'Recreate disk files'
         c.switch %w[f fresh], default_value: false
