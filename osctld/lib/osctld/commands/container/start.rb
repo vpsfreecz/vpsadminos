@@ -232,16 +232,29 @@ module OsCtld
         else
           Time.now + (opts[:wait] || Container::DEFAULT_START_TIMEOUT)
         end
+      shutdown_wait_until = nil
 
       loop do
+        if Daemon.get.stopping?
+          shutdown_wait_until ||= Time.now + 15
+
+          if Time.now >= shutdown_wait_until
+            log(:info, ct, 'osctld is shutting down, giving up waiting')
+            return [:error, 'osctld is shutting down']
+          end
+        end
+
         if wait_until
           timeout = wait_until - Time.now
           return [:timeout] if timeout < 0
         end
 
-        if timeout.nil? || timeout > 15
-          timeout = 15
+        if shutdown_wait_until
+          shutdown_timeout = shutdown_wait_until - Time.now
+          timeout = timeout.nil? ? shutdown_timeout : [timeout, shutdown_timeout].min
         end
+
+        timeout = 15 if timeout.nil? || timeout > 15
 
         event = event_queue.pop(timeout:)
 

@@ -188,6 +188,10 @@ RSpec.describe 'container lifecycle commands' do
       end.new(
         [Event.new(type: :state_recovery, opts: { pool: 'tank', id: 'ct1', state: :stopped })]
       )
+      daemon = stub_const('OsCtld::Daemon', Class.new do
+        def self.get; end
+      end)
+      allow(daemon).to receive(:get).and_return(double(stopping?: false))
       command = described_class.new({ wait: 5 }, {})
       allow(command).to receive(:log)
 
@@ -202,12 +206,39 @@ RSpec.describe 'container lifecycle commands' do
           events.shift
         end
       end.new([Event.new(type: :osctld_shutdown, opts: {})])
+      daemon = stub_const('OsCtld::Daemon', Class.new do
+        def self.get; end
+      end)
+      allow(daemon).to receive(:get).and_return(double(stopping?: false))
       command = described_class.new({ wait: 5 }, {})
       allow(command).to receive(:log)
 
       expect(command.send(:wait_for_ct, queue, ct)).to eq(
         [:error, 'osctld is shutting down']
       )
+    end
+
+    it 'bounds shutdown waiting even when unrelated events keep arriving' do
+      queue = Struct.new(:calls) do
+        def pop(timeout:)
+          self.calls += 1
+          Event.new(type: :state, opts: { pool: 'other', id: 'ct1', state: :running })
+        end
+      end.new(0)
+      daemon = stub_const('OsCtld::Daemon', Class.new do
+        def self.get; end
+      end)
+      now = Time.now
+
+      allow(daemon).to receive(:get).and_return(double(stopping?: true))
+      allow(Time).to receive(:now).and_return(now, now, now, now + 16)
+      command = described_class.new({ wait: 'infinity' }, {})
+      allow(command).to receive(:log)
+
+      expect(command.send(:wait_for_ct, queue, ct)).to eq(
+        [:error, 'osctld is shutting down']
+      )
+      expect(queue.calls).to eq(1)
     end
 
     it 'tolerates tty socket races and console reconnect failures' do

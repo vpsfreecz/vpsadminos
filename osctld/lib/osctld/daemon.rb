@@ -2,6 +2,9 @@ require 'json'
 require 'libosctl'
 require 'socket'
 require 'osctld/assets/definition'
+require 'osctld/exceptions'
+require 'osctld/hook'
+require 'osctld/hook/base'
 require 'osctld/run_state'
 require 'osctld/generic/client_handler'
 
@@ -216,6 +219,7 @@ module OsCtld
     def stop
       @stopping = true
       log(:info, 'Stopping daemon')
+      run_pre_stop_hooks
       @server.stop if @server
       join_server if @server_thread && @server_thread != Thread.current
       FileUtils.rm_f(SOCKET)
@@ -238,6 +242,10 @@ module OsCtld
 
     def stopping?
       @stopping
+    end
+
+    def user_hook_script_dir
+      RunState::DAEMON_HOOK_DIR
     end
 
     def begin_shutdown
@@ -273,6 +281,30 @@ module OsCtld
 
     def log_type
       'daemon'
+    end
+
+    protected
+
+    def run_pre_stop_hooks
+      Hook.run(self, :pre_stop)
+    rescue HookFailed => e
+      log(:warn, "Daemon pre-stop hook failed: #{e.message}")
+    end
+
+    module Hooks
+      class PreStop < Hook::Base
+        hook(OsCtld::Daemon, :pre_stop, self)
+        blocking true
+
+        protected
+
+        def environment
+          super.merge({
+                        'OSCTL_DAEMON_STATE' => 'stopping',
+                        'OSCTL_DAEMON_PID' => Process.pid.to_s
+                      })
+        end
+      end
     end
   end
 end

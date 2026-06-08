@@ -257,6 +257,19 @@ import ../../make-test.nix (
           restart_osctld
           wait_host_job(idle_job)
         end
+
+        it 'notifies monitor clients during graceful restart' do
+          monitor_job = host_job(
+            'ct-monitor-osctld-graceful-restart',
+            'osctl -j monitor'
+          )
+          wait_host_job_running(monitor_job)
+
+          restart_osctld
+
+          _status, log = wait_host_job_exit(monitor_job, timeout: 30)
+          expect(log).to include('"type":"osctld_shutdown"')
+        end
       end
 
       describe 'clients after abrupt osctld death' do

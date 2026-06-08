@@ -3243,14 +3243,17 @@ shown. `-o +`*parameters* can be used to extend the parameters shown by default.
 
 ## SCRIPT HOOKS
 `osctld` can execute user-defined scripts on certain events. User scripts can
-be placed into directory `/<pool>/hook`. The exact location and script name
-depend on the event, e.g.:
+be placed into directory `/<pool>/hook` for pool and container events, or into
+`/run/osctl/hooks` for daemon lifecycle events. The exact location and script
+name depend on the event, e.g.:
 
   - `/<pool>/hook/pool/<hook name>` for pool script hooks
   - `/<pool>/hook/ct/<ctid>/<hook name>` for container script hooks
+  - `/run/osctl/hooks/daemon/<hook name>` for daemon script hooks
 
-Use `osctl pool|ct assets` to get the exact paths. The user script can be
-a single executable file, or it can be a directory `<hook name>.d`.
+Use `osctl assets`, `osctl pool assets` and `osctl ct assets` to get the exact
+paths. The user script can be a single executable file, or it can be a directory
+`<hook name>.d`.
 
 If it is a directory, all executable files within it are called in order by their
 name. In case the script hook's exit status is evaluated, a non-zero exit status
@@ -3262,6 +3265,23 @@ differ, see below.
 Note that many `osctl` commands called from script hooks may not work. Some hooks
 are run when the pool or the container is locked within `osctld`, so another
 `osctl` command on the same pool/container may be rejected.
+
+Daemon script hooks are runtime-only. The directory `/run/osctl/hooks/daemon`
+is created by `osctld` on startup and can be used by other host services to
+register hooks during boot or service start.
+
+## DAEMON SCRIPT HOOKS
+`pre-stop`
+  `pre-stop` is run after `osctld` enters the stopping state, but before it
+  stops accepting management clients. The hook is blocking, but its exit status
+  is only logged and does not abort daemon shutdown.
+
+### Daemon script environment variables
+All daemon script hooks have the following environment variables set:
+
+- `OSCTL_HOOK_NAME`
+- `OSCTL_DAEMON_STATE`
+- `OSCTL_DAEMON_PID`
 
 ## POOL SCRIPT HOOKS
 `pre-import`

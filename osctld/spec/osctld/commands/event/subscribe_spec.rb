@@ -146,13 +146,13 @@ RSpec.describe OsCtld::Commands::Event::Subscribe do
     )
   end
 
-  it 'returns a shutdown error when stop is requested' do
+  it 'sends a shutdown event before returning a shutdown error when stop is requested' do
     queue = build_queue
     handler = build_handler
 
     allow(OsCtld::Eventd).to receive(:subscribe).and_return(queue)
     allow(OsCtld::Eventd).to receive(:unsubscribe)
-    allow(queue).to receive(:pop).with(timeout: 0.2).and_return(nil)
+    allow(queue).to receive(:pop)
     allow(handler).to receive(:reply_ok).and_return(true)
     allow(handler).to receive(:reply_ok).with('subscribed').and_return(true)
 
@@ -162,6 +162,39 @@ RSpec.describe OsCtld::Commands::Event::Subscribe do
     ret = cmd.execute
 
     expect(ret).to eq(status: false, message: 'osctld is shutting down')
+    expect(handler).to have_received(:reply_ok).with(
+      {
+        type: :osctld_shutdown,
+        opts: {}
+      }
+    ).once
+    expect(queue).not_to have_received(:pop)
+    expect(OsCtld::Eventd).to have_received(:unsubscribe).with(queue).once
+  end
+
+  it 'does not send the shutdown event when filters reject it' do
+    queue = build_queue
+    handler = build_handler
+
+    allow(OsCtld::Eventd).to receive(:subscribe).and_return(queue)
+    allow(OsCtld::Eventd).to receive(:unsubscribe)
+    allow(queue).to receive(:pop)
+    allow(handler).to receive(:reply_ok).and_return(true)
+    allow(handler).to receive(:reply_ok).with('subscribed').and_return(true)
+
+    cmd = command_class.new({ type: 'state' }, { id: 1, handler: })
+    cmd.request_stop
+
+    ret = cmd.execute
+
+    expect(ret).to eq(status: false, message: 'osctld is shutting down')
+    expect(handler).not_to have_received(:reply_ok).with(
+      {
+        type: :osctld_shutdown,
+        opts: {}
+      }
+    )
+    expect(queue).not_to have_received(:pop)
     expect(OsCtld::Eventd).to have_received(:unsubscribe).with(queue).once
   end
 end

@@ -7,6 +7,8 @@ module OsCtld
     USER_CONTROL_DIR = File.join(RUNDIR, 'user-control')
     SEND_RECEIVE_DIR = File.join(RUNDIR, 'send-receive')
     REPOSITORY_DIR = File.join(RUNDIR, 'repository')
+    HOOK_DIR = File.join(RUNDIR, 'hooks')
+    DAEMON_HOOK_DIR = File.join(HOOK_DIR, 'daemon')
     CONFIG_DIR = File.join(RUNDIR, 'configs')
     OSCTLD_CONFIG_DIR = File.join(CONFIG_DIR, 'osctld')
     LXC_CONFIG_DIR = File.join(CONFIG_DIR, 'lxc')
@@ -20,6 +22,8 @@ module OsCtld
       mkdir_p(POOL_DIR, 0o711)
       mkdir_p(USER_CONTROL_DIR, 0o711)
       mkdir_p(SEND_RECEIVE_DIR, 0o100, uid: SendReceive::UID, gid: 0)
+      mkdir_p(HOOK_DIR, 0o755)
+      mkdir_p(DAEMON_HOOK_DIR, 0o755)
 
       # Bundler needs to have some place to store its temp files
       mkdir_p(REPOSITORY_DIR, 0o700, uid: Repository::UID, gid: 0)
@@ -78,6 +82,20 @@ module OsCtld
         user: Repository::UID,
         group: 0,
         mode: 0o700
+      )
+      add.directory(
+        RunState::HOOK_DIR,
+        desc: 'Runtime hooks',
+        user: 0,
+        group: 0,
+        mode: 0o755
+      )
+      add.directory(
+        RunState::DAEMON_HOOK_DIR,
+        desc: 'Daemon lifecycle hooks',
+        user: 0,
+        group: 0,
+        mode: 0o755
       )
       add.directory(
         RunState::CONFIG_DIR,

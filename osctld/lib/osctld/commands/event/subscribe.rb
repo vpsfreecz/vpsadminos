@@ -1,4 +1,5 @@
 require 'osctld/commands/base'
+require 'osctld/eventd/event'
 
 module OsCtld
   class Commands::Event::Subscribe < Commands::Base
@@ -14,18 +15,17 @@ module OsCtld
       opts.delete(:cli)
 
       loop do
+        if @do_stop
+          send_shutdown_event
+          Eventd.unsubscribe(queue)
+          return error('osctld is shutting down')
+        end
+
         event = queue.pop(timeout: 0.2)
 
-        if event.nil?
-          if @do_stop
-            Eventd.unsubscribe(queue)
-            return error('osctld is shutting down')
-          end
-        elsif !filter?(event)
-          next
-        elsif !client_handler.reply_ok(export_event(event))
-          break
-        end
+        next if event.nil? || !filter?(event)
+
+        break unless client_handler.reply_ok(export_event(event))
       end
 
       log(:info, :eventd, 'Unsubscribing client')
@@ -38,6 +38,14 @@ module OsCtld
     end
 
     protected
+
+    def send_shutdown_event
+      event = Eventd::Event.new(:osctld_shutdown, {})
+
+      return unless filter?(event)
+
+      client_handler.reply_ok(export_event(event))
+    end
 
     def filter?(event)
       if opts[:type]

@@ -13,6 +13,8 @@ RSpec.describe OsCtld::RunState do
       user_control_dir: File.join(root, 'run', 'osctl', 'user-control'),
       send_receive_dir: File.join(root, 'run', 'osctl', 'send-receive'),
       repository_dir: File.join(root, 'run', 'osctl', 'repository'),
+      hook_dir: File.join(root, 'run', 'osctl', 'hooks'),
+      daemon_hook_dir: File.join(root, 'run', 'osctl', 'hooks', 'daemon'),
       config_dir: File.join(root, 'run', 'osctl', 'configs'),
       osctld_config_dir: File.join(root, 'run', 'osctl', 'configs', 'osctld'),
       lxc_config_dir: File.join(root, 'run', 'osctl', 'configs', 'lxc'),
@@ -58,6 +60,8 @@ RSpec.describe OsCtld::RunState do
     stub_const('OsCtld::RunState::USER_CONTROL_DIR', paths[:user_control_dir])
     stub_const('OsCtld::RunState::SEND_RECEIVE_DIR', paths[:send_receive_dir])
     stub_const('OsCtld::RunState::REPOSITORY_DIR', paths[:repository_dir])
+    stub_const('OsCtld::RunState::HOOK_DIR', paths[:hook_dir])
+    stub_const('OsCtld::RunState::DAEMON_HOOK_DIR', paths[:daemon_hook_dir])
     stub_const('OsCtld::RunState::CONFIG_DIR', paths[:config_dir])
     stub_const('OsCtld::RunState::OSCTLD_CONFIG_DIR', paths[:osctld_config_dir])
     stub_const('OsCtld::RunState::LXC_CONFIG_DIR', paths[:lxc_config_dir])
@@ -79,6 +83,8 @@ RSpec.describe OsCtld::RunState do
              :user_control_dir,
              :send_receive_dir,
              :repository_dir,
+             :hook_dir,
+             :daemon_hook_dir,
              :config_dir,
              :osctld_config_dir,
              :lxc_config_dir,
@@ -117,6 +123,8 @@ RSpec.describe OsCtld::RunState do
       [paths[:user_control_dir], hash_including(desc: 'Runtime user configuration', mode: 0o711)],
       [paths[:send_receive_dir], hash_including(desc: 'Send/Receive configuration', user: 1234, mode: 0o100)],
       [paths[:repository_dir], hash_including(desc: 'Home directory for the repository user', user: 2345, mode: 0o700)],
+      [paths[:hook_dir], hash_including(desc: 'Runtime hooks', mode: 0o755)],
+      [paths[:daemon_hook_dir], hash_including(desc: 'Daemon lifecycle hooks', mode: 0o755)],
       [paths[:config_dir], hash_including(desc: 'Global LXC configuration files', mode: 0o755)],
       [paths[:apparmor_dir], hash_including(desc: 'Shared AppArmor files', mode: 0o755)]
     )

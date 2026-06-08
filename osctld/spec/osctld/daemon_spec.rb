@@ -77,6 +77,7 @@ RSpec.describe OsCtld::Daemon do
       allow(OsCtld::SendReceive).to receive(:stop)
       allow(OsCtld::DB::Repositories).to receive(:each).and_yield(repo)
       allow(OsCtld::DB::Pools).to receive(:get).and_return([pool])
+      allow(OsCtld::Hook).to receive(:run)
       allow(OsCtld::ThreadReaper).to receive(:drain)
       allow(OsCtld::ThreadReaper).to receive(:stop)
       allow(OsCtld::Eventd).to receive(:shutdown)
@@ -86,6 +87,7 @@ RSpec.describe OsCtld::Daemon do
 
       expect { daemon.stop }.to raise_error(SystemExit)
 
+      expect(OsCtld::Hook).to have_received(:run).with(daemon, :pre_stop).ordered
       expect(server).to have_received(:stop).ordered
       expect(server_thread).to have_received(:join).ordered
       expect(OsCtld::ThreadReaper).to have_received(:drain).with(group: :management).ordered
@@ -97,6 +99,44 @@ RSpec.describe OsCtld::Daemon do
       expect(pool).to have_received(:stop).ordered
       expect(OsCtld::CpuScheduler).to have_received(:shutdown).ordered
       expect(OsCtld::Monitor::Master).to have_received(:stop).ordered
+    end
+
+    it 'logs daemon pre-stop hook failures and continues stopping' do
+      daemon = described_class.allocate
+      hook_class = Class.new do
+        def self.hook_name
+          :pre_stop
+        end
+      end
+
+      allow(OsCtld::Hook).to receive(:run).and_raise(OsCtld::HookFailed.new(
+                                                       hook_class.new,
+                                                       '/run/osctl/hooks/daemon/pre-stop',
+                                                       1
+                                                     ))
+      allow(daemon).to receive(:log)
+
+      expect(daemon.send(:run_pre_stop_hooks)).to be_nil
+      expect(daemon).to have_received(:log).with(
+        :warn,
+        include('Daemon pre-stop hook failed')
+      )
+    end
+
+    it 'exposes the daemon lifecycle hook directory' do
+      daemon = described_class.allocate
+
+      expect(daemon.user_hook_script_dir).to eq(OsCtld::RunState::DAEMON_HOOK_DIR)
+    end
+
+    it 'builds daemon pre-stop hook environments' do
+      hook = described_class::Hooks::PreStop.new(described_class.allocate, {})
+
+      expect(hook.send(:environment)).to include(
+        'OSCTL_HOOK_NAME' => 'pre-stop',
+        'OSCTL_DAEMON_STATE' => 'stopping',
+        'OSCTL_DAEMON_PID' => Process.pid.to_s
+      )
     end
   end
 
