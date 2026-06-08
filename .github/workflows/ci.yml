@@ -81,10 +81,6 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Determine job count
-        id: determine-test-jobs
-        uses: vpsfreecz/vpsadminos/.github/actions/determine-test-jobs@staging
-
       - name: Run tests
         id: run-tests
         timeout-minutes: 260
@@ -93,7 +89,7 @@ jobs:
           ./test-runner.sh test \
             --test-config tests/test-configs/ci.nix \
             -f \
-            -j "${{ steps.determine-test-jobs.outputs.jobs }}" \
+            --jobs auto \
             -t ci | tee test.log
 
       - name: Evaluate test results

@@ -55,8 +55,8 @@ module TestRunner::Cli
         c.desc 'Filter by metadata expression'
         c.flag 'filter', multiple: true
 
-        c.desc 'How many tests to run in parallel'
-        c.flag %w[j jobs], type: Integer, default_value: 1
+        c.desc 'How many tests to run in parallel, or auto'
+        c.flag %w[j jobs], default_value: '1'
 
         c.desc 'Maximum memory available to running test VMs, in MiB'
         c.flag 'max-memory-mib', type: Integer
@@ -75,6 +75,15 @@ module TestRunner::Cli
 
         c.desc 'CPUs to reserve from detected capacity'
         c.flag 'cpu-reserve', type: Integer
+
+        c.desc 'Memory overcommit factor for detected capacity'
+        c.flag 'memory-overcommit'
+
+        c.desc '/dev/shm overcommit factor for detected capacity'
+        c.flag 'shm-overcommit'
+
+        c.desc 'CPU overcommit factor for detected capacity'
+        c.flag 'cpu-overcommit'
 
         c.desc 'Recreate disk files'
         c.switch %w[f fresh], default_value: false

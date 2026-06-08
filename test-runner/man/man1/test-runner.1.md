@@ -53,8 +53,10 @@ selected tests and reporting results.
       Use `tag=`*value* to require a tag and `tag!=`*value* to reject a tag.
       Other keys are treated as labels, e.g. `runtime!=long`.
 
-    `-j`, `--jobs`
-      Number of tests to run in parallel.
+    `-j`, `--jobs` *n*|`auto`
+      Maximum number of tests to run in parallel. When set to `auto`, the
+      runner starts enough scheduler workers for all selected tests and lets
+      resource reservations decide how many VMs can actually run.
 
     `--max-memory-mib` *n*
       Maximum memory available to running test VMs, in MiB. Detected memory
@@ -70,6 +72,18 @@ selected tests and reporting results.
       Maximum CPUs available to running test VMs. Detected CPU capacity is
       refreshed during the run; this value is an upper bound and is used as a
       fallback when detection is unavailable.
+
+    `--memory-overcommit` *factor*
+      Multiply detected memory capacity by *factor* before applying the
+      configured reserve and maximum. Defaults to `1.0`.
+
+    `--shm-overcommit` *factor*
+      Multiply detected `/dev/shm` capacity by *factor* before applying the
+      configured reserve and maximum. Defaults to `1.0`.
+
+    `--cpu-overcommit` *factor*
+      Multiply detected CPU capacity by *factor* before applying the configured
+      reserve and maximum. Defaults to `1.5`.
 
     `--memory-reserve-mib` *n*
       Memory to keep reserved from detected or configured capacity, in MiB.

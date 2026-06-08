@@ -18,6 +18,7 @@ module TestRunner
     # @param opts [Hash]
     # @option opts [String] :state_dir
     # @option opts [Integer] :jobs
+    # @option opts [Boolean] :jobs_auto
     # @option opts [Integer] :default_timeout
     # @option opts [Boolean] :stop_on_failure
     # @option opts [Boolean] :destructive
@@ -40,7 +41,10 @@ module TestRunner
 
     # @return [Array<TestResult>]
     def run
-      log("Running #{test_scripts.length} scripts of #{@test_count} tests, #{opts[:jobs]} tests at a time")
+      log(
+        "Running #{test_scripts.length} scripts of #{@test_count} tests, " \
+        "at most #{opts[:jobs]} tests at a time#{opts[:jobs_auto] ? ' (auto)' : ''}"
+      )
       log("Resource limits: #{resource_pool.status}")
       log("State directory is #{state_dir}")
       t1 = Time.now

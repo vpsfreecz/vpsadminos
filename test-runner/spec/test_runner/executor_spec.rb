@@ -8,6 +8,7 @@ RSpec.describe TestRunner::Executor do
       test_scripts,
       state_dir: '/tmp/os-test-runner',
       jobs: 1,
+      jobs_auto: false,
       max_memory_mib: nil,
       max_shm_mib: nil,
       max_cpus: nil,

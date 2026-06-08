@@ -23,6 +23,9 @@ RSpec.describe TestRunner::Cli::Command do
       'memory-reserve-mib' => nil,
       'shm-reserve-mib' => nil,
       'cpu-reserve' => nil,
+      'memory-overcommit' => nil,
+      'shm-overcommit' => nil,
+      'cpu-overcommit' => nil,
       'timeout' => 60,
       'stop-on-failure' => false,
       'destructive' => true,
@@ -61,18 +64,47 @@ RSpec.describe TestRunner::Cli::Command do
       scripts,
       state_dir: '/tmp/os-test-runner',
       jobs: 2,
+      jobs_auto: false,
       max_memory_mib: nil,
       max_shm_mib: nil,
       max_cpus: nil,
       memory_reserve_mib: nil,
       shm_reserve_mib: nil,
       cpu_reserve: nil,
+      memory_overcommit: nil,
+      shm_overcommit: nil,
+      cpu_overcommit: nil,
       default_timeout: 60,
       stop_on_failure: false,
       destructive: true,
       recreate_disks: false,
       system: 'x86_64-linux',
       test_config_path: nil
+    )
+  end
+
+  it 'resolves automatic jobs to the selected test count' do
+    test = build_test(
+      scripts: {
+        'smoke' => {},
+        'full' => {}
+      }
+    )
+    other_test = build_test(path: 'suite/other', name: 'other')
+    scripts = [
+      test.test_scripts['smoke'],
+      test.test_scripts['full'],
+      other_test.test_scripts['default']
+    ]
+    executor = instance_double(TestRunner::Executor, run: [])
+    stub_test_script_list(scripts)
+    allow(TestRunner::Executor).to receive(:new).and_return(executor)
+
+    described_class.new({}, opts.merge('jobs' => 'auto'), []).test
+
+    expect(TestRunner::Executor).to have_received(:new).with(
+      scripts,
+      hash_including(jobs: 2, jobs_auto: true)
     )
   end
 

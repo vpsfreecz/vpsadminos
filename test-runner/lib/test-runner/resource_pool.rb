@@ -6,6 +6,9 @@ module TestRunner
     DEFAULT_MEMORY_RESERVE_MIB = 4096
     DEFAULT_SHM_RESERVE_MIB = 4096
     DEFAULT_CPU_RESERVE = 0
+    DEFAULT_MEMORY_OVERCOMMIT = 1.0
+    DEFAULT_SHM_OVERCOMMIT = 1.0
+    DEFAULT_CPU_OVERCOMMIT = 1.5
 
     class HostResourceDetector
       def memory_available_mib
@@ -22,23 +25,30 @@ module TestRunner
     end
 
     class CapacitySource
-      def initialize(max_value:, reserve:, detector:, add_used:)
+      def initialize(max_value:, reserve:, detector:, add_used:, overcommit:)
         @max_value = max_value
         @reserve = reserve
         @detector = detector
         @add_used = add_used
+        @overcommit = overcommit
       end
 
       def current(used:)
         detected = @detector.call
         detected += used if detected && @add_used
 
-        ResourcePool.capacity(limit(detected), @reserve)
+        ResourcePool.capacity(limit(overcommit(detected)), @reserve)
       end
 
       protected
 
       attr_reader :max_value
+
+      def overcommit(detected)
+        return nil if detected.nil?
+
+        (detected * @overcommit).floor
+      end
 
       def limit(detected)
         if detected && max_value
@@ -82,6 +92,21 @@ module TestRunner
         env['TEST_RUNNER_CPU_RESERVE'],
         DEFAULT_CPU_RESERVE
       )
+      memory_overcommit = factor_option(
+        opts[:memory_overcommit],
+        env['TEST_RUNNER_MEMORY_OVERCOMMIT'],
+        DEFAULT_MEMORY_OVERCOMMIT
+      )
+      shm_overcommit = factor_option(
+        opts[:shm_overcommit],
+        env['TEST_RUNNER_SHM_OVERCOMMIT'],
+        DEFAULT_SHM_OVERCOMMIT
+      )
+      cpu_overcommit = factor_option(
+        opts[:cpu_overcommit],
+        env['TEST_RUNNER_CPU_OVERCOMMIT'],
+        DEFAULT_CPU_OVERCOMMIT
+      )
       detector = opts[:resource_detector] || HostResourceDetector.new
 
       new(
@@ -92,19 +117,22 @@ module TestRunner
           max_value: integer_option(opts[:max_memory_mib], env['TEST_RUNNER_MAX_MEMORY_MIB'], nil),
           reserve: memory_reserve_mib,
           detector: -> { detector.memory_available_mib },
-          add_used: true
+          add_used: true,
+          overcommit: memory_overcommit
         ),
         shm_capacity: CapacitySource.new(
           max_value: integer_option(opts[:max_shm_mib], env['TEST_RUNNER_MAX_SHM_MIB'], nil),
           reserve: shm_reserve_mib,
           detector: -> { detector.shm_available_mib },
-          add_used: true
+          add_used: true,
+          overcommit: shm_overcommit
         ),
         cpu_capacity: CapacitySource.new(
           max_value: integer_option(opts[:max_cpus], env['TEST_RUNNER_MAX_CPUS'], nil),
           reserve: cpu_reserve,
           detector: -> { detector.cpus },
-          add_used: false
+          add_used: false,
+          overcommit: cpu_overcommit
         )
       )
     end
@@ -114,6 +142,16 @@ module TestRunner
       return nil if value.nil?
 
       Integer(value)
+    end
+
+    def self.factor_option(*values)
+      value = values.detect { |v| !v.nil? && v.to_s != '' }
+      return nil if value.nil?
+
+      ret = Float(value)
+      raise ArgumentError, 'overcommit factors must be positive' if ret <= 0
+
+      ret
     end
 
     def self.capacity(value, reserve)

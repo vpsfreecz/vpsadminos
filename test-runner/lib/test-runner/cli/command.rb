@@ -28,13 +28,17 @@ module TestRunner
       exec = TestRunner::Executor.new(
         test_scripts,
         state_dir:,
-        jobs: opts['jobs'],
+        jobs: test_jobs(test_scripts),
+        jobs_auto: jobs_auto?,
         max_memory_mib: opts['max-memory-mib'],
         max_shm_mib: opts['max-shm-mib'],
         max_cpus: opts['max-cpus'],
         memory_reserve_mib: opts['memory-reserve-mib'],
         shm_reserve_mib: opts['shm-reserve-mib'],
         cpu_reserve: opts['cpu-reserve'],
+        memory_overcommit: opts['memory-overcommit'],
+        shm_overcommit: opts['shm-overcommit'],
+        cpu_overcommit: opts['cpu-overcommit'],
         default_timeout: opts['timeout'],
         stop_on_failure: opts['stop-on-failure'],
         destructive: opts['destructive'],
@@ -69,6 +73,19 @@ module TestRunner
     end
 
     protected
+
+    def test_jobs(test_scripts)
+      return test_scripts.map(&:test).uniq.length if jobs_auto?
+
+      ret = Integer(opts['jobs'])
+      raise 'jobs must be positive' if ret <= 0
+
+      ret
+    end
+
+    def jobs_auto?
+      opts['jobs'].to_s == 'auto'
+    end
 
     # @return [Array<TestScript>]
     def select_test_scripts(pattern)
