@@ -56,6 +56,31 @@ selected tests and reporting results.
     `-j`, `--jobs`
       Number of tests to run in parallel.
 
+    `--max-memory-mib` *n*
+      Maximum memory available to running test VMs, in MiB. Detected memory
+      capacity is refreshed during the run; this value is an upper bound and is
+      used as a fallback when detection is unavailable.
+
+    `--max-shm-mib` *n*
+      Maximum `/dev/shm` space available to running test VMs, in MiB. Detected
+      capacity is refreshed during the run; this value is an upper bound and is
+      used as a fallback when detection is unavailable.
+
+    `--max-cpus` *n*
+      Maximum CPUs available to running test VMs. Detected CPU capacity is
+      refreshed during the run; this value is an upper bound and is used as a
+      fallback when detection is unavailable.
+
+    `--memory-reserve-mib` *n*
+      Memory to keep reserved from detected or configured capacity, in MiB.
+
+    `--shm-reserve-mib` *n*
+      `/dev/shm` space to keep reserved from detected or configured capacity,
+      in MiB.
+
+    `--cpu-reserve` *n*
+      CPUs to keep reserved from detected or configured capacity.
+
     `-f`, `--fresh`
       Recreate disk files for virtual machines if they already exist.
 

@@ -7,6 +7,50 @@ module TestRunner
     DEFAULT_SHM_RESERVE_MIB = 4096
     DEFAULT_CPU_RESERVE = 0
 
+    class HostResourceDetector
+      def memory_available_mib
+        ResourcePool.detect_memory_available_mib
+      end
+
+      def shm_available_mib
+        ResourcePool.detect_shm_available_mib
+      end
+
+      def cpus
+        ResourcePool.detect_cpus
+      end
+    end
+
+    class CapacitySource
+      def initialize(max_value:, reserve:, detector:, add_used:)
+        @max_value = max_value
+        @reserve = reserve
+        @detector = detector
+        @add_used = add_used
+      end
+
+      def current(used:)
+        detected = @detector.call
+        detected += used if detected && @add_used
+
+        ResourcePool.capacity(limit(detected), @reserve)
+      end
+
+      protected
+
+      attr_reader :max_value
+
+      def limit(detected)
+        if detected && max_value
+          [detected, max_value].min
+        elsif detected
+          detected
+        else
+          max_value
+        end
+      end
+    end
+
     # @return [Integer, nil]
     attr_reader :memory_mib
 
@@ -38,22 +82,29 @@ module TestRunner
         env['TEST_RUNNER_CPU_RESERVE'],
         DEFAULT_CPU_RESERVE
       )
+      detector = opts[:resource_detector] || HostResourceDetector.new
 
       new(
-        memory_mib: capacity(
-          integer_option(opts[:max_memory_mib], env['TEST_RUNNER_MAX_MEMORY_MIB'], nil) ||
-            detect_memory_available_mib,
-          memory_reserve_mib
+        memory_mib: nil,
+        shm_mib: nil,
+        cpus: nil,
+        memory_capacity: CapacitySource.new(
+          max_value: integer_option(opts[:max_memory_mib], env['TEST_RUNNER_MAX_MEMORY_MIB'], nil),
+          reserve: memory_reserve_mib,
+          detector: -> { detector.memory_available_mib },
+          add_used: true
         ),
-        shm_mib: capacity(
-          integer_option(opts[:max_shm_mib], env['TEST_RUNNER_MAX_SHM_MIB'], nil) ||
-            detect_shm_available_mib,
-          shm_reserve_mib
+        shm_capacity: CapacitySource.new(
+          max_value: integer_option(opts[:max_shm_mib], env['TEST_RUNNER_MAX_SHM_MIB'], nil),
+          reserve: shm_reserve_mib,
+          detector: -> { detector.shm_available_mib },
+          add_used: true
         ),
-        cpus: capacity(
-          integer_option(opts[:max_cpus], env['TEST_RUNNER_MAX_CPUS'], nil) ||
-            detect_cpus,
-          cpu_reserve
+        cpu_capacity: CapacitySource.new(
+          max_value: integer_option(opts[:max_cpus], env['TEST_RUNNER_MAX_CPUS'], nil),
+          reserve: cpu_reserve,
+          detector: -> { detector.cpus },
+          add_used: false
         )
       )
     end
@@ -103,12 +154,27 @@ module TestRunner
       nil
     end
 
-    def initialize(memory_mib:, shm_mib:, cpus:)
+    def initialize(memory_mib:, shm_mib:, cpus:, memory_capacity: nil, shm_capacity: nil, cpu_capacity: nil)
+      @memory_capacity = memory_capacity
+      @shm_capacity = shm_capacity
+      @cpu_capacity = cpu_capacity
       @memory_mib = memory_mib
       @shm_mib = shm_mib
       @cpus = cpus
       @used = TestResources.new
       @running = 0
+
+      refresh_capacity
+    end
+
+    def refresh_capacity
+      previous = capacities
+
+      @memory_mib = @memory_capacity.current(used: used.memory_mib) if @memory_capacity
+      @shm_mib = @shm_capacity.current(used: used.shm_mib) if @shm_capacity
+      @cpus = @cpu_capacity.current(used: 0) if @cpu_capacity
+
+      previous != capacities
     end
 
     def can_reserve?(resources)
@@ -134,6 +200,10 @@ module TestRunner
     end
 
     protected
+
+    def capacities
+      [memory_mib, shm_mib, cpus]
+    end
 
     def fits?(capacity, value)
       capacity.nil? || value <= capacity

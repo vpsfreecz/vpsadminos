@@ -14,6 +14,7 @@ RSpec.describe TestRunner::Executor do
       memory_reserve_mib: nil,
       shm_reserve_mib: nil,
       cpu_reserve: nil,
+      resource_detector: resource_detector,
       default_timeout: 60,
       stop_on_failure: false,
       destructive: false,
@@ -238,6 +239,76 @@ RSpec.describe TestRunner::Executor do
 
     expect(test).to eq(small)
     expect(pool.used.cpus).to eq(4)
+  end
+
+  it 'runs a pending test when refreshed memory capacity increases' do
+    large = build_test(
+      path: 'suite/large',
+      resources: {
+        'machines' => 1,
+        'memoryMiB' => 5000,
+        'shmMiB' => 1000,
+        'maxMachineMemoryMiB' => 5000,
+        'cpus' => 1
+      }
+    )
+    executor = build_executor(
+      [large.test_scripts['default']],
+      memory_reserve_mib: 0,
+      shm_reserve_mib: 0,
+      resource_detector: resource_detector(
+        memory_available_mib: [4000, 6000],
+        shm_available_mib: 2000,
+        cpus: 2
+      )
+    )
+    allow(executor).to receive(:log)
+
+    _i, test, = executor.send(:reserve_next_test)
+
+    expect(test).to eq(large)
+    expect(executor.send(:resource_pool).used.memory_mib).to eq(5000)
+  end
+
+  it 'does not start another test when refreshed cpu capacity decreases below current usage' do
+    small = build_test(
+      path: 'suite/small',
+      resources: {
+        'machines' => 1,
+        'memoryMiB' => 1000,
+        'shmMiB' => 1000,
+        'maxMachineMemoryMiB' => 1000,
+        'cpus' => 1
+      }
+    )
+    executor = build_executor(
+      [small.test_scripts['default']],
+      resource_detector: resource_detector(cpus: [8, 2])
+    )
+    pool = executor.send(:resource_pool)
+    pool.reserve(TestRunner::TestResources.new(cpus: 4))
+    allow(executor).to receive(:log)
+
+    executor.send(:refresh_resource_capacity)
+
+    expect(executor.send(:schedulable_test_index)).to be_nil
+  end
+
+  it 'logs refreshed resource limits only when formatted limits change' do
+    test = build_test
+    executor = build_executor(
+      [test.test_scripts['default']],
+      memory_reserve_mib: 0,
+      resource_detector: resource_detector(memory_available_mib: [4000, 4000, 8000, 8000])
+    )
+    logs = []
+    allow(executor).to receive(:log) { |msg| logs << msg }
+
+    3.times { executor.send(:refresh_resource_capacity) }
+
+    expect(logs).to contain_exactly(
+      a_string_starting_with('Resource limits updated: memory=0 MiB/7.8 GiB')
+    )
   end
 
   it 'runs an oversized pending test alone to avoid scheduler deadlock' do

@@ -169,6 +169,7 @@ module TestRunner
           return nil if stop_work?
           return nil if pending.empty?
 
+          refresh_resource_capacity
           i = schedulable_test_index
 
           if i
@@ -208,6 +209,16 @@ module TestRunner
         resource_pool.release(resources)
         scheduler_cv.broadcast
       end
+    end
+
+    def refresh_resource_capacity
+      previous_status = resource_pool.status
+      return unless resource_pool.refresh_capacity
+
+      current_status = resource_pool.status
+      return if previous_status == current_status
+
+      log("Resource limits updated: #{current_status}")
     end
 
     def log_reserved_resources(test, resources)
