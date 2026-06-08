@@ -200,7 +200,11 @@ module OsCtld
         socket = UNIXServer.new(SOCKET)
         File.chmod(0o600, SOCKET)
 
-        @server = Generic::Server.new(socket, Daemon::ClientHandler)
+        @server = Generic::Server.new(
+          socket,
+          Daemon::ClientHandler,
+          thread_group: :management
+        )
         @server.start
       end
     end
@@ -213,10 +217,12 @@ module OsCtld
       @stopping = true
       log(:info, 'Stopping daemon')
       @server.stop if @server
+      join_server if @server_thread && @server_thread != Thread.current
       FileUtils.rm_f(SOCKET)
+      ThreadReaper.drain(group: :management)
+      UserControl.stop
       ThreadReaper.stop
       Eventd.shutdown
-      UserControl.stop
       SendReceive.stop
       DB::Repositories.each(&:stop)
       DB::Pools.get.each(&:stop)

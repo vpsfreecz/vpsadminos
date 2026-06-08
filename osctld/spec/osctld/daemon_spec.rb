@@ -44,6 +44,7 @@ RSpec.describe OsCtld::Daemon do
         def stop; end
       end
       server = instance_spy(server_class)
+      server_thread = instance_double(Thread, join: nil)
       repo = instance_spy(repo_class)
       pool = instance_spy(pool_class)
 
@@ -68,6 +69,7 @@ RSpec.describe OsCtld::Daemon do
       end)
 
       daemon.instance_variable_set(:@server, server)
+      daemon.instance_variable_set(:@server_thread, server_thread)
       allow(daemon).to receive(:log)
       allow(daemon).to receive(:exit!).and_raise(SystemExit)
       allow(FileUtils).to receive(:rm_f)
@@ -75,6 +77,7 @@ RSpec.describe OsCtld::Daemon do
       allow(OsCtld::SendReceive).to receive(:stop)
       allow(OsCtld::DB::Repositories).to receive(:each).and_yield(repo)
       allow(OsCtld::DB::Pools).to receive(:get).and_return([pool])
+      allow(OsCtld::ThreadReaper).to receive(:drain)
       allow(OsCtld::ThreadReaper).to receive(:stop)
       allow(OsCtld::Eventd).to receive(:shutdown)
       allow(OsCtld::CpuScheduler).to receive(:shutdown)
@@ -84,9 +87,11 @@ RSpec.describe OsCtld::Daemon do
       expect { daemon.stop }.to raise_error(SystemExit)
 
       expect(server).to have_received(:stop).ordered
+      expect(server_thread).to have_received(:join).ordered
+      expect(OsCtld::ThreadReaper).to have_received(:drain).with(group: :management).ordered
+      expect(OsCtld::UserControl).to have_received(:stop).ordered
       expect(OsCtld::ThreadReaper).to have_received(:stop).ordered
       expect(OsCtld::Eventd).to have_received(:shutdown).ordered
-      expect(OsCtld::UserControl).to have_received(:stop).ordered
       expect(OsCtld::SendReceive).to have_received(:stop).ordered
       expect(repo).to have_received(:stop).ordered
       expect(pool).to have_received(:stop).ordered

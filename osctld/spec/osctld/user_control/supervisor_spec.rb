@@ -77,7 +77,43 @@ RSpec.describe OsCtld::UserControl::Supervisor do
 
       expect(File).to have_received(:chown).with(0, 12_345, '/run/osctl/user-control/12345.sock')
       expect(File).to have_received(:chmod).with(0o660, '/run/osctl/user-control/12345.sock')
+      expect(OsCtld::Generic::Server).to have_received(:new).with(
+        socket,
+        described_class::ClientHandler,
+        opts: { user: },
+        thread_group: :user_control
+      )
       expect(supervisor.instance_variable_get('@servers')['tank:alice']).to eq([generic_server, thread])
+    end
+  end
+
+  describe '#start_namespaced' do
+    it 'creates the namespaced socket server in the user-control thread group' do
+      socket = instance_double(UNIXServer)
+      generic_server_class = Class.new do
+        def initialize(*); end
+      end
+      generic_server = instance_double(generic_server_class)
+      thread = instance_double(Thread)
+
+      stub_const('OsCtld::RunState::USER_CONTROL_DIR', '/run/osctl/user-control')
+      stub_const('OsCtld::Generic::Server', generic_server_class)
+      allow(UNIXServer).to receive(:new).with('/run/osctl/user-control/namespaced.sock').and_return(socket)
+      allow(File).to receive(:chown)
+      allow(File).to receive(:chmod)
+      allow(OsCtld::Generic::Server).to receive(:new).and_return(generic_server)
+      allow(Thread).to receive(:new).and_return(thread)
+
+      supervisor.send(:start_namespaced)
+
+      expect(File).to have_received(:chown).with(0, 0, '/run/osctl/user-control/namespaced.sock')
+      expect(File).to have_received(:chmod).with(0o666, '/run/osctl/user-control/namespaced.sock')
+      expect(OsCtld::Generic::Server).to have_received(:new).with(
+        socket,
+        described_class::NamespacedClientHandler,
+        thread_group: :user_control
+      )
+      expect(supervisor.instance_variable_get('@servers')[:namespaced]).to eq([generic_server, thread])
     end
   end
 

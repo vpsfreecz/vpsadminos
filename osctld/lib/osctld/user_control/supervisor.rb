@@ -112,9 +112,14 @@ module OsCtld
         File.chown(0, user.ugid, path)
         File.chmod(0o660, path)
 
-        s = Generic::Server.new(socket, ClientHandler, opts: {
-          user:
-        })
+        s = Generic::Server.new(
+          socket,
+          ClientHandler,
+          opts: {
+            user:
+          },
+          thread_group: :user_control
+        )
         t = Thread.new { s.start }
 
         @servers[server_key(user)] = [s, t]
@@ -138,7 +143,11 @@ module OsCtld
         File.chown(0, 0, path)
         File.chmod(0o666, path)
 
-        s = Generic::Server.new(socket, NamespacedClientHandler)
+        s = Generic::Server.new(
+          socket,
+          NamespacedClientHandler,
+          thread_group: :user_control
+        )
         t = Thread.new { s.start }
 
         @servers[:namespaced] = [s, t]

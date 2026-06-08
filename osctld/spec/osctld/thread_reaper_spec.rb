@@ -24,6 +24,24 @@ RSpec.describe OsCtld::ThreadReaper do
     raise "condition not met after #{timeout}s"
   end
 
+  it 'forwards keyword arguments through class helpers' do
+    instance = instance_double(described_class)
+
+    allow(described_class).to receive(:instance).and_return(instance)
+    allow(instance).to receive(:add)
+    allow(instance).to receive(:drain)
+
+    described_class.add(:thread, :manager, group: :management)
+    described_class.drain(group: :management)
+
+    expect(instance).to have_received(:add).with(
+      :thread,
+      :manager,
+      group: :management
+    )
+    expect(instance).to have_received(:drain).with(group: :management)
+  end
+
   it 'adds threads and managers through the work queue' do
     alive = true
     thread = instance_double(Thread)
@@ -173,6 +191,73 @@ RSpec.describe OsCtld::ThreadReaper do
     finish_late_worker << true if late_worker&.alive?
     join_thread!(first_worker) if first_worker
     join_thread!(late_worker) if late_worker
+  end
+
+  it 'drains selected groups without stopping other groups' do
+    management_worker_started = Queue.new
+    finish_management_worker = Queue.new
+    management_stop_requested = Queue.new
+    management_manager = Struct.new(:stop_requested) do
+      def request_stop
+        stop_requested << true
+      end
+    end.new(management_stop_requested)
+
+    management_worker = Thread.new do
+      management_worker_started << true
+      finish_management_worker.pop
+    end
+
+    user_control_worker_started = Queue.new
+    finish_user_control_worker = Queue.new
+    user_control_stop_requested = Queue.new
+    user_control_manager = Struct.new(:stop_requested, :finish_worker) do
+      def request_stop
+        stop_requested << true
+        finish_worker << true
+      end
+    end.new(user_control_stop_requested, finish_user_control_worker)
+
+    user_control_worker = Thread.new do
+      user_control_worker_started << true
+      finish_user_control_worker.pop
+    end
+
+    reaper.start
+    reaper.add(management_worker, management_manager, group: :management)
+    management_worker_started.pop
+    user_control_worker_started.pop
+    wait_until { reaper.export == [[management_worker, management_manager]] }
+
+    drain_thread = Thread.new { reaper.drain(group: :management) }
+    management_stop_requested.pop
+
+    reaper.add(user_control_worker, user_control_manager, group: :user_control)
+    wait_until do
+      reaper.export == [
+        [management_worker, management_manager],
+        [user_control_worker, user_control_manager]
+      ]
+    end
+
+    expect(drain_thread).to be_alive
+    expect(user_control_stop_requested).to be_empty
+
+    finish_management_worker << true
+    join_thread!(drain_thread)
+
+    expect(user_control_worker).to be_alive
+    expect(user_control_stop_requested).to be_empty
+
+    reaper.stop
+
+    expect(user_control_stop_requested).not_to be_empty
+    expect(reaper.export).to be_empty
+  ensure
+    finish_management_worker << true if management_worker&.alive?
+    finish_user_control_worker << true if user_control_worker&.alive?
+    join_thread!(management_worker) if management_worker
+    join_thread!(user_control_worker) if user_control_worker
   end
 
   it 'raises on unknown queue commands' do

@@ -1,3 +1,5 @@
+require 'osctld/thread_reaper'
+
 module OsCtld
   # Generic socket server
   #
@@ -9,10 +11,12 @@ module OsCtld
     #   be instantiated for every client
     # @param opts [Hash] options
     # @option opts [Hash] opts options passed to the client handler
+    # @option opts [Symbol] thread_group group used by {ThreadReaper}
     def initialize(socket, client_handler, opts = {})
       @socket = socket
       @client_handler = client_handler
       @opts = opts
+      @thread_group = opts[:thread_group] || ThreadReaper::DEFAULT_GROUP
     end
 
     def start
@@ -34,7 +38,7 @@ module OsCtld
     def handle_client(socket)
       c = @client_handler.new(socket, @opts[:opts] || {})
       t = Thread.new { c.communicate }
-      ThreadReaper.add(t, c)
+      ThreadReaper.add(t, c, group: @thread_group)
     end
   end
 end
