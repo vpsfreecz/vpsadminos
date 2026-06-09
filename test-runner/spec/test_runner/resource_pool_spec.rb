@@ -27,8 +27,8 @@ RSpec.describe TestRunner::ResourcePool do
       cpu_reserve: 1,
       cpu_overcommit: 1.0,
       resource_detector: resource_detector(
-        memory_available_mib: [32_000, 40_000],
-        shm_available_mib: [16_000, 18_000],
+        memory_mib: [32_000, 40_000],
+        shm_mib: [16_000, 18_000],
         cpus: [8, 12]
       )
     )
@@ -61,8 +61,8 @@ RSpec.describe TestRunner::ResourcePool do
   it 'overcommits detected cpu capacity by default' do
     pool = build_pool(
       resource_detector: resource_detector(
-        memory_available_mib: 8000,
-        shm_available_mib: 4000,
+        memory_mib: 8000,
+        shm_mib: 4000,
         cpus: 40
       )
     )
@@ -84,8 +84,8 @@ RSpec.describe TestRunner::ResourcePool do
       shm_overcommit: 1.5,
       cpu_overcommit: 2.0,
       resource_detector: resource_detector(
-        memory_available_mib: 8000,
-        shm_available_mib: 3000,
+        memory_mib: 8000,
+        shm_mib: 3000,
         cpus: 8
       )
     )
@@ -109,8 +109,8 @@ RSpec.describe TestRunner::ResourcePool do
         'TEST_RUNNER_CPU_OVERCOMMIT' => '3.0'
       },
       resource_detector: resource_detector(
-        memory_available_mib: 4000,
-        shm_available_mib: 2000,
+        memory_mib: 4000,
+        shm_mib: 2000,
         cpus: 2
       )
     )
@@ -128,11 +128,11 @@ RSpec.describe TestRunner::ResourcePool do
     expect(pool.cpus).to be_nil
   end
 
-  it 'adds already reserved memory and shm to refreshed available capacity' do
+  it 'does not add already reserved memory and shm to refreshed capacity' do
     pool = build_pool(
       resource_detector: resource_detector(
-        memory_available_mib: [16_000, 12_000],
-        shm_available_mib: [8000, 6000],
+        memory_mib: [16_000, 12_000],
+        shm_mib: [8000, 6000],
         cpus: 8
       ),
       cpu_overcommit: 1.0
@@ -140,9 +140,9 @@ RSpec.describe TestRunner::ResourcePool do
 
     pool.reserve(TestRunner::TestResources.new(memory_mib: 4000, shm_mib: 2000, cpus: 4))
 
-    expect(pool.refresh_capacity).to be(false)
-    expect(pool.memory_mib).to eq(16_000)
-    expect(pool.shm_mib).to eq(8000)
+    expect(pool.refresh_capacity).to be(true)
+    expect(pool.memory_mib).to eq(12_000)
+    expect(pool.shm_mib).to eq(6000)
     expect(pool.cpus).to eq(8)
   end
 
@@ -156,5 +156,44 @@ RSpec.describe TestRunner::ResourcePool do
 
     expect(pool.refresh_capacity).to be(true)
     expect(pool.cpus).to eq(6)
+  end
+
+  it 'uses cgroup memory limits as a ceiling for detected memory capacity' do
+    allow(described_class).to receive(:detect_meminfo_mib).with('MemTotal:').and_return(128_000)
+    allow(described_class).to receive(:detect_cgroup_memory_limit_mib).and_return(64_000)
+
+    expect(described_class.detect_memory_mib).to eq(64_000)
+  end
+
+  it 'falls back to total system memory without a cgroup memory limit' do
+    allow(described_class).to receive(:detect_meminfo_mib).with('MemTotal:').and_return(128_000)
+    allow(described_class).to receive(:detect_cgroup_memory_limit_mib).and_return(nil)
+
+    expect(described_class.detect_memory_mib).to eq(128_000)
+  end
+
+  it 'uses the smallest numeric cgroup v2 memory limit from current cgroup ancestors' do
+    allow(described_class).to receive(:current_cgroup_path).with(nil).and_return('/machine.slice/runner')
+    allow(described_class).to receive(:detect_cgroup_memory_limit_file) do |path|
+      {
+        '/sys/fs/cgroup/machine.slice/runner/memory.max' => nil,
+        '/sys/fs/cgroup/machine.slice/memory.max' => 96_000,
+        '/sys/fs/cgroup/memory.max' => 128_000
+      }[path]
+    end
+
+    expect(described_class.detect_cgroup_v2_memory_limit_mib).to eq(96_000)
+  end
+
+  it 'detects /dev/shm capacity from total blocks, not available blocks' do
+    status = instance_double(Process::Status, success?: true)
+    output = <<~DF
+      Filesystem     1024-blocks  Used Available Capacity Mounted on
+      tmpfs              1048576  1024    262144       1% /dev/shm
+    DF
+    allow(Open3).to receive(:capture2).with('df', '-Pk', '/dev/shm').and_return([output, status])
+
+    expect(described_class.detect_shm_mib).to eq(1024)
+    expect(described_class.detect_shm_available_mib).to eq(256)
   end
 end

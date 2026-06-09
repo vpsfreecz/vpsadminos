@@ -85,6 +85,9 @@ module TestRunner::Cli
         c.desc 'CPU overcommit factor for detected capacity'
         c.flag 'cpu-overcommit'
 
+        c.desc 'Seconds between detected resource capacity refreshes'
+        c.flag 'resource-refresh-interval'
+
         c.desc 'Recreate disk files'
         c.switch %w[f fresh], default_value: false
 

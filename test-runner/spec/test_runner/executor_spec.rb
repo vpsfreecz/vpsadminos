@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'timeout'
 
 RSpec.describe TestRunner::Executor do
   def build_executor(test_scripts, **opts)
@@ -242,33 +243,80 @@ RSpec.describe TestRunner::Executor do
     expect(pool.used.cpus).to eq(4)
   end
 
-  it 'runs a pending test when refreshed memory capacity increases' do
-    large = build_test(
-      path: 'suite/large',
+  it 'does not refresh resource capacity from waiting scheduler workers' do
+    pending_test = build_test(
+      path: 'suite/pending',
       resources: {
         'machines' => 1,
-        'memoryMiB' => 5000,
+        'memoryMiB' => 2000,
         'shmMiB' => 1000,
-        'maxMachineMemoryMiB' => 5000,
+        'maxMachineMemoryMiB' => 2000,
         'cpus' => 1
       }
     )
     executor = build_executor(
-      [large.test_scripts['default']],
+      [pending_test.test_scripts['default']],
       memory_reserve_mib: 0,
       shm_reserve_mib: 0,
       resource_detector: resource_detector(
-        memory_available_mib: [4000, 6000],
-        shm_available_mib: 2000,
+        memory_mib: [4000, 6000],
+        shm_mib: 2000,
         cpus: 2
       )
     )
+    pool = executor.send(:resource_pool)
+    pool.reserve(TestRunner::TestResources.new(memory_mib: 3000, shm_mib: 0))
+    cv = instance_double(ConditionVariable)
+    allow(executor).to receive(:log)
+    allow(cv).to receive(:wait) do
+      executor.instance_variable_set(:@stop_work, true)
+    end
+    executor.instance_variable_set(:@scheduler_cv, cv)
+
+    reserved = executor.send(:reserve_next_test)
+
+    expect(reserved).to be_nil
+    expect(pool.memory_mib).to eq(4000)
+  end
+
+  it 'runs a pending test after the resource monitor refreshes capacity' do
+    pending_test = build_test(
+      path: 'suite/pending',
+      resources: {
+        'machines' => 1,
+        'memoryMiB' => 2000,
+        'shmMiB' => 1000,
+        'maxMachineMemoryMiB' => 2000,
+        'cpus' => 1
+      }
+    )
+    executor = build_executor(
+      [pending_test.test_scripts['default']],
+      memory_reserve_mib: 0,
+      shm_reserve_mib: 0,
+      resource_refresh_interval: 0.01,
+      resource_detector: resource_detector(
+        memory_mib: [4000, 6000],
+        shm_mib: 2000,
+        cpus: 2
+      )
+    )
+    pool = executor.send(:resource_pool)
+    pool.reserve(TestRunner::TestResources.new(memory_mib: 3000, shm_mib: 0))
     allow(executor).to receive(:log)
 
-    _i, test, = executor.send(:reserve_next_test)
+    thread = Thread.new { executor.send(:reserve_next_test) }
+    begin
+      executor.send(:start_resource_monitor)
+      _i, test, = Timeout.timeout(1) { thread.value }
+    ensure
+      executor.send(:stop_resource_monitor)
+      executor.send(:stop_work!)
+      thread.join
+    end
 
-    expect(test).to eq(large)
-    expect(executor.send(:resource_pool).used.memory_mib).to eq(5000)
+    expect(test).to eq(pending_test)
+    expect(pool.used.memory_mib).to eq(5000)
   end
 
   it 'does not start another test when refreshed cpu capacity decreases below current usage' do
@@ -300,7 +348,7 @@ RSpec.describe TestRunner::Executor do
     executor = build_executor(
       [test.test_scripts['default']],
       memory_reserve_mib: 0,
-      resource_detector: resource_detector(memory_available_mib: [4000, 4000, 8000, 8000])
+      resource_detector: resource_detector(memory_mib: [4000, 4000, 8000, 8000])
     )
     logs = []
     allow(executor).to receive(:log) { |msg| logs << msg }

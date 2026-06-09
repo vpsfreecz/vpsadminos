@@ -5,6 +5,8 @@ require 'test-runner/resource_pool'
 
 module TestRunner
   class Executor
+    DEFAULT_RESOURCE_REFRESH_INTERVAL = 15
+
     # @return [Array<TestScript>]
     attr_reader :test_scripts
 
@@ -23,6 +25,7 @@ module TestRunner
     # @option opts [Boolean] :stop_on_failure
     # @option opts [Boolean] :destructive
     # @option opts [Boolean] :recreate_disks
+    # @option opts [Numeric] :resource_refresh_interval
     def initialize(test_scripts, **opts)
       @test_scripts = test_scripts
       @opts = opts
@@ -35,6 +38,11 @@ module TestRunner
       @scheduler_cv = ConditionVariable.new
       @resource_pool = ResourcePool.from_options(opts)
       @last_resource_wait_log_at = nil
+      @resource_refresh_interval = parse_resource_refresh_interval(opts[:resource_refresh_interval])
+      @resource_monitor_mutex = Mutex.new
+      @resource_monitor_cv = ConditionVariable.new
+      @resource_monitor_stop = false
+      @resource_monitor = nil
 
       fill_queue
     end
@@ -49,11 +57,17 @@ module TestRunner
       log("State directory is #{state_dir}")
       t1 = Time.now
 
-      opts[:jobs].times do |i|
-        start_worker(i)
-      end
+      begin
+        start_resource_monitor
 
-      wait_for_workers
+        opts[:jobs].times do |i|
+          start_worker(i)
+        end
+
+        wait_for_workers
+      ensure
+        stop_resource_monitor
+      end
 
       log("Run #{results.inject(0) { |acc, r| acc + r.script_results.length }} test scripts of #{@test_count} tests in #{(Time.now - t1).round(2)} seconds")
 
@@ -122,7 +136,15 @@ module TestRunner
 
     protected
 
-    attr_reader :workers, :pending, :mutex, :scheduler_mutex, :scheduler_cv, :resource_pool
+    attr_reader :workers,
+                :pending,
+                :mutex,
+                :scheduler_mutex,
+                :scheduler_cv,
+                :resource_pool,
+                :resource_refresh_interval,
+                :resource_monitor_mutex,
+                :resource_monitor_cv
 
     def fill_queue
       tests = {}
@@ -173,7 +195,6 @@ module TestRunner
           return nil if stop_work?
           return nil if pending.empty?
 
-          refresh_resource_capacity
           i = schedulable_test_index
 
           if i
@@ -188,7 +209,7 @@ module TestRunner
           end
 
           log_resource_wait
-          scheduler_cv.wait(scheduler_mutex, 5)
+          scheduler_cv.wait(scheduler_mutex)
         end
       end
     end
@@ -216,13 +237,61 @@ module TestRunner
     end
 
     def refresh_resource_capacity
+      scheduler_mutex.synchronize do
+        refresh_resource_capacity_locked
+      end
+    end
+
+    def refresh_resource_capacity_locked
       previous_status = resource_pool.status
       return unless resource_pool.refresh_capacity
 
       current_status = resource_pool.status
-      return if previous_status == current_status
+      scheduler_cv.broadcast
 
-      log("Resource limits updated: #{current_status}")
+      log("Resource limits updated: #{current_status}") if previous_status != current_status
+    end
+
+    def start_resource_monitor
+      @resource_monitor_stop = false
+      @resource_monitor = Thread.new { run_resource_monitor }
+    end
+
+    def stop_resource_monitor
+      thread = @resource_monitor
+      return if thread.nil?
+
+      resource_monitor_mutex.synchronize do
+        @resource_monitor_stop = true
+        resource_monitor_cv.signal
+      end
+
+      thread.join
+      @resource_monitor = nil
+    end
+
+    def run_resource_monitor
+      loop do
+        resource_monitor_mutex.synchronize do
+          return if @resource_monitor_stop
+
+          resource_monitor_cv.wait(resource_monitor_mutex, resource_refresh_interval)
+          return if @resource_monitor_stop
+        end
+
+        refresh_resource_capacity
+      rescue StandardError => e
+        log("Resource monitor failed: #{e.class}: #{e.message}")
+      end
+    end
+
+    def parse_resource_refresh_interval(value)
+      value = DEFAULT_RESOURCE_REFRESH_INTERVAL if value.nil? || value.to_s == ''
+
+      ret = Float(value)
+      raise ArgumentError, 'resource refresh interval must be positive' if ret <= 0
+
+      ret
     end
 
     def log_reserved_resources(test, resources)

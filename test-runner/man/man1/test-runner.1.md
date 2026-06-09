@@ -85,6 +85,10 @@ selected tests and reporting results.
       Multiply detected CPU capacity by *factor* before applying the configured
       reserve and maximum. Defaults to `1.5`.
 
+    `--resource-refresh-interval` *seconds*
+      How often to refresh detected resource capacity while scheduling tests.
+      Defaults to `15`.
+
     `--memory-reserve-mib` *n*
       Memory to keep reserved from detected or configured capacity, in MiB.
 
