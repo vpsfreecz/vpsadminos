@@ -163,6 +163,51 @@ import ../../make-test.nix (
         machine.execute("test -f #{Shellwords.escape(job[:status_path])}")[0] == 0
       end
 
+      def self.event_monitor_job(name)
+        ready_path = "/tmp/osctld-restart-jobs/#{name}.ready"
+        machine.succeeds("rm -f #{Shellwords.escape(ready_path)}")
+
+        job = host_job(
+          name,
+          <<~SH
+            ruby <<'RUBY'
+              require 'json'
+              require 'socket'
+
+              socket = UNIXSocket.new(#{OSCTLD_SOCKET.inspect})
+              socket.gets
+              socket.puts({ cmd: :event_subscribe, opts: {} }.to_json)
+
+              response = JSON.parse(socket.gets, symbolize_names: true)
+
+              unless response[:status] && response[:response] == 'subscribed'
+                raise(response[:message] || "unexpected response: " + response.inspect)
+              end
+
+              File.write(#{ready_path.inspect}, "1\\n")
+
+              socket.each_line do |line|
+                response = JSON.parse(line, symbolize_names: true)
+
+                unless response[:status]
+                  warn "error: " + response[:message].to_s
+                  exit(1)
+                end
+
+                event = response[:response]
+                break if event.nil?
+
+                puts event.to_json
+                STDOUT.flush
+              end
+            RUBY
+          SH
+        )
+
+        job[:ready_path] = ready_path
+        job
+      end
+
       def self.wait_host_job(job, timeout: 120)
         wait_until_block_succeeds(name: "#{job[:name]} finishes", timeout:) do
           machine.succeeds("test -f #{Shellwords.escape(job[:status_path])}")
@@ -192,8 +237,20 @@ import ../../make-test.nix (
           "test ! -f #{Shellwords.escape(job[:status_path])}",
           timeout: 30
         )
+      end
 
-        sleep(1)
+      def self.wait_host_job_ready(job, timeout: 30)
+        wait_host_job_running(job)
+
+        wait_until_block_succeeds(name: "#{job[:name]} becomes ready", timeout:) do
+          if host_job_finished?(job)
+            _, status = machine.succeeds("cat #{Shellwords.escape(job[:status_path])}")
+            _, log = machine.execute("cat #{Shellwords.escape(job[:log_path])} 2>/dev/null || true")
+            fail "job #{job[:name]} exited before becoming ready with #{status.strip}: #{log}"
+          end
+
+          machine.succeeds("test -f #{Shellwords.escape(job.fetch(:ready_path))}")
+        end
       end
 
       def self.kill_osctld
@@ -259,11 +316,8 @@ import ../../make-test.nix (
         end
 
         it 'notifies monitor clients during graceful restart' do
-          monitor_job = host_job(
-            'ct-monitor-osctld-graceful-restart',
-            'osctl -j monitor'
-          )
-          wait_host_job_running(monitor_job)
+          monitor_job = event_monitor_job('ct-monitor-osctld-graceful-restart')
+          wait_host_job_ready(monitor_job)
 
           restart_osctld
 
