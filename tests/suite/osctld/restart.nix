@@ -9,12 +9,18 @@ import ../../make-test.nix (
 
     tags = [ "ci" ];
 
-    machine = import ../../machines/vpsadminos/tank.nix pkgs;
+    machine = (import ../../machines/vpsadminos/tank.nix pkgs) // {
+      shells = [
+        "client"
+        "restart"
+      ];
+    };
 
     testScript = ''
       require 'shellwords'
 
       OSCTLD_SOCKET = '/run/osctl/osctld.sock'
+      JOB_DIR = '/tmp/osctld-restart-jobs'
 
       def self.ensure_ready
         machine.start
@@ -129,47 +135,76 @@ import ../../make-test.nix (
         )
       end
 
-      def self.host_job(name, script)
-        dir = '/tmp/osctld-restart-jobs'
-        log_path = "#{dir}/#{name}.log"
-        status_path = "#{dir}/#{name}.status"
-        pid_path = "#{dir}/#{name}.pid"
-        runner = <<~SH
-          (
-            set -e
-            #{script}
-          )
-          rc=$?
-          printf '%s\\n' "$rc" > #{status_path}
-          exit "$rc"
-        SH
-
-        machine.succeeds(<<~CMD)
-          install -d -m 755 #{dir}
-          rm -f #{log_path} #{status_path} #{pid_path}
-          nohup sh -c #{Shellwords.escape(runner)} > #{log_path} 2>&1 &
-          echo $! > #{pid_path}
-        CMD
-
-        {
-          name:,
-          log_path:,
-          status_path:,
-          pid_path:
-        }
+      def self.job_ready_path(name)
+        "#{JOB_DIR}/#{name}.ready"
       end
 
-      def self.host_job_finished?(job)
-        machine.execute("test -f #{Shellwords.escape(job[:status_path])}")[0] == 0
+      def self.prepare_job(name)
+        ready_path = job_ready_path(name)
+        machine.succeeds("install -d -m 755 #{JOB_DIR} && rm -f #{Shellwords.escape(ready_path)}")
+        ready_path
+      end
+
+      def self.shell_job(name, script, shell:, timeout: 120, mark_ready: true)
+        ready_path = prepare_job(name)
+        command = mark_ready ? ": > #{Shellwords.escape(ready_path)}\n#{script}" : script
+
+        thread = Thread.new do
+          machine.execute(command, shell:, timeout:)
+        end
+
+        job = {
+          name:,
+          ready_path:,
+          shell:,
+          thread:
+        }
+
+        wait_shell_job_ready(job) if mark_ready
+        job
+      end
+
+      def self.shell_job_finished?(job)
+        !job[:thread].alive?
+      end
+
+      def self.shell_job_result(job)
+        job[:thread].value
+      rescue StandardError => e
+        fail "job #{job[:name]} raised #{e.class}: #{e.message}"
+      end
+
+      def self.wait_shell_job(job, timeout: 120)
+        status, output = wait_shell_job_exit(job, timeout:)
+        return if status == 0
+
+        fail "job #{job[:name]} failed with #{status}: #{output}"
+      end
+
+      def self.wait_shell_job_exit(job, timeout: 120)
+        wait_for_block(name: "#{job[:name]} exits", timeout:) do
+          shell_job_finished?(job)
+        end
+
+        shell_job_result(job)
+      end
+
+      def self.wait_shell_job_ready(job, timeout: 30)
+        wait_until_block_succeeds(name: "#{job[:name]} becomes ready", timeout:) do
+          if shell_job_finished?(job)
+            status, output = shell_job_result(job)
+            fail "job #{job[:name]} exited before becoming ready with #{status}: #{output}"
+          end
+
+          machine.succeeds("test -f #{Shellwords.escape(job.fetch(:ready_path))}")
+        end
       end
 
       def self.event_monitor_job(name)
-        ready_path = "/tmp/osctld-restart-jobs/#{name}.ready"
-        machine.succeeds("rm -f #{Shellwords.escape(ready_path)}")
-
-        job = host_job(
+        ready_path = job_ready_path(name)
+        shell_job(
           name,
-          <<~SH
+          <<~SH,
             ruby <<'RUBY'
               require 'json'
               require 'socket'
@@ -202,55 +237,9 @@ import ../../make-test.nix (
               end
             RUBY
           SH
+          shell: 'client',
+          mark_ready: false
         )
-
-        job[:ready_path] = ready_path
-        job
-      end
-
-      def self.wait_host_job(job, timeout: 120)
-        wait_until_block_succeeds(name: "#{job[:name]} finishes", timeout:) do
-          machine.succeeds("test -f #{Shellwords.escape(job[:status_path])}")
-        end
-
-        _, status = machine.succeeds("cat #{Shellwords.escape(job[:status_path])}")
-        return if status.to_i == 0
-
-        _, log = machine.execute("cat #{Shellwords.escape(job[:log_path])} 2>/dev/null || true")
-        fail "job #{job[:name]} failed with #{status.strip}: #{log}"
-      end
-
-      def self.wait_host_job_exit(job, timeout: 120)
-        wait_until_block_succeeds(name: "#{job[:name]} exits", timeout:) do
-          machine.succeeds("test -f #{Shellwords.escape(job[:status_path])}")
-        end
-
-        _, status = machine.succeeds("cat #{Shellwords.escape(job[:status_path])}")
-        _, log = machine.execute("cat #{Shellwords.escape(job[:log_path])} 2>/dev/null || true")
-
-        [status.to_i, log]
-      end
-
-      def self.wait_host_job_running(job)
-        machine.wait_until_succeeds(
-          "kill -0 $(cat #{Shellwords.escape(job[:pid_path])}) && " \
-          "test ! -f #{Shellwords.escape(job[:status_path])}",
-          timeout: 30
-        )
-      end
-
-      def self.wait_host_job_ready(job, timeout: 30)
-        wait_host_job_running(job)
-
-        wait_until_block_succeeds(name: "#{job[:name]} becomes ready", timeout:) do
-          if host_job_finished?(job)
-            _, status = machine.succeeds("cat #{Shellwords.escape(job[:status_path])}")
-            _, log = machine.execute("cat #{Shellwords.escape(job[:log_path])} 2>/dev/null || true")
-            fail "job #{job[:name]} exited before becoming ready with #{status.strip}: #{log}"
-          end
-
-          machine.succeeds("test -f #{Shellwords.escape(job.fetch(:ready_path))}")
-        end
       end
 
       def self.kill_osctld
@@ -262,7 +251,7 @@ import ../../make-test.nix (
       end
 
       def self.expect_osctl_lost_osctld(job)
-        status, log = wait_host_job_exit(job, timeout: 30)
+        status, log = wait_shell_job_exit(job, timeout: 30)
         expected = [
           'osctld closed connection',
           "No such file or directory - connect(2) for #{OSCTLD_SOCKET}"
@@ -277,10 +266,9 @@ import ../../make-test.nix (
           machine.succeeds("test ! -S #{OSCTLD_SOCKET}")
         end
 
-        if host_job_finished?(job)
-          _, status = machine.succeeds("cat #{Shellwords.escape(job[:status_path])}")
-          _, log = machine.execute("cat #{Shellwords.escape(job[:log_path])} 2>/dev/null || true")
-          fail "restart finished before blocked command was released: #{status.strip}: #{log}"
+        if shell_job_finished?(job)
+          status, output = shell_job_result(job)
+          fail "restart finished before blocked command was released: #{status}: #{output}"
         end
       end
 
@@ -292,11 +280,10 @@ import ../../make-test.nix (
 
       describe 'idle clients' do
         it 'do not keep osctld restart hanging' do
-          ready = '/tmp/osctld-restart-idle.ready'
-          machine.succeeds("rm -f #{ready}")
-          idle_job = host_job(
+          ready = job_ready_path('idle-clients')
+          idle_job = shell_job(
             'idle-clients',
-            <<~'SH'
+            <<~SH,
               ruby -rsocket -e '
                 sockets = Array.new(8) do
                   s = UNIXSocket.new("/run/osctl/osctld.sock")
@@ -304,35 +291,38 @@ import ../../make-test.nix (
                   s
                 end
 
-                File.write("/tmp/osctld-restart-idle.ready", "1\n")
+                File.write(#{ready.inspect}, "1\n")
                 sockets.each(&:read)
               '
             SH
+            shell: 'client',
+            mark_ready: false
           )
 
-          machine.wait_until_succeeds("test -e #{ready}", timeout: 60)
+          idle_job[:ready_path] = ready
+          wait_shell_job_ready(idle_job, timeout: 60)
           restart_osctld
-          wait_host_job(idle_job)
+          wait_shell_job(idle_job)
         end
 
         it 'notifies monitor clients during graceful restart' do
           monitor_job = event_monitor_job('ct-monitor-osctld-graceful-restart')
-          wait_host_job_ready(monitor_job)
+          wait_shell_job_ready(monitor_job)
 
           restart_osctld
 
-          _status, log = wait_host_job_exit(monitor_job, timeout: 30)
+          _status, log = wait_shell_job_exit(monitor_job, timeout: 30)
           expect(log).to include('"type":"osctld_shutdown"')
         end
       end
 
       describe 'clients after abrupt osctld death' do
         it 'ct monitor exits instead of spinning' do
-          monitor_job = host_job(
+          monitor_job = shell_job(
             'ct-monitor-osctld-killed',
-            'osctl ct monitor'
+            'osctl ct monitor',
+            shell: 'client'
           )
-          wait_host_job_running(monitor_job)
 
           kill_osctld
           expect_osctl_lost_osctld(monitor_job)
@@ -340,11 +330,11 @@ import ../../make-test.nix (
         end
 
         it 'ct top exits instead of spinning' do
-          top_job = host_job(
+          top_job = shell_job(
             'ct-top-osctld-killed',
-            'osctl -j ct top --rate 60'
+            'osctl -j ct top --rate 60',
+            shell: 'client'
           )
-          wait_host_job_running(top_job)
 
           kill_osctld
           expect_osctl_lost_osctld(top_job)
@@ -372,15 +362,20 @@ import ../../make-test.nix (
 
         it 'continues through a concurrent osctld restart' do
           install_blocking_hook(ctid, 'pre-start', 'ct-start')
-          start_job = host_job('ct-start', "osctl ct start #{ctid}")
+          start_job = shell_job('ct-start', "osctl ct start #{ctid}", shell: 'client')
           wait_block_started('ct-start')
 
-          restart_job = host_job('restart-during-ct-start', 'sv -w 180 restart osctld')
+          restart_job = shell_job(
+            'restart-during-ct-start',
+            'sv -w 180 restart osctld',
+            shell: 'restart',
+            timeout: 240
+          )
           wait_restart_draining_clients(restart_job)
 
           release_block('ct-start')
-          wait_host_job(start_job)
-          wait_host_job(restart_job, timeout: 240)
+          wait_shell_job(start_job)
+          wait_shell_job(restart_job, timeout: 240)
           wait_osctld_ready
           wait_ct_running(ctid)
         end
@@ -408,7 +403,11 @@ import ../../make-test.nix (
 
         it 'ct restart exits instead of spinning' do
           install_blocking_hook(ctid, 'pre-stop', 'ct-restart-killed')
-          restart_job = host_job('ct-restart-osctld-killed', "osctl ct restart #{ctid}")
+          restart_job = shell_job(
+            'ct-restart-osctld-killed',
+            "osctl ct restart #{ctid}",
+            shell: 'client'
+          )
           wait_block_started('ct-restart-killed')
 
           kill_osctld
@@ -447,15 +446,25 @@ import ../../make-test.nix (
           write_ct_file(ctid, 'tmp/osctld-restart-copy/state', 'state-after-restart')
           install_blocking_hook(ctid, 'pre-stop', 'ct-copy-state')
 
-          state_job = host_job('ct-copy-state', "osctl ct cp state #{ctid}")
+          state_job = shell_job(
+            'ct-copy-state',
+            "osctl ct cp state #{ctid}",
+            shell: 'client',
+            timeout: 180
+          )
           wait_block_started('ct-copy-state')
 
-          restart_job = host_job('restart-during-copy-state', 'sv -w 180 restart osctld')
+          restart_job = shell_job(
+            'restart-during-copy-state',
+            'sv -w 180 restart osctld',
+            shell: 'restart',
+            timeout: 240
+          )
           wait_restart_draining_clients(restart_job)
 
           release_block('ct-copy-state')
-          wait_host_job(state_job, timeout: 180)
-          wait_host_job(restart_job, timeout: 240)
+          wait_shell_job(state_job, timeout: 180)
+          wait_shell_job(restart_job, timeout: 240)
           wait_osctld_ready
 
           machine.succeeds("osctl ct cp cleanup #{ctid}")
