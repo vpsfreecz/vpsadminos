@@ -63,12 +63,18 @@ RSpec.describe OsCtld::Console::Console do
     expect(console.open).to be_nil
   end
 
-  it 'retries UNIX socket connections until they succeed' do
+  it 'retries UNIX socket connection races until they succeed' do
     console = described_class.new(build_ct, 0)
     socket = instance_double(UNIXSocket)
+    attempts = [Errno::ENOENT, Errno::ECONNREFUSED, socket]
     allow(console).to receive(:wake)
     allow(console).to receive(:sleep)
-    allow(UNIXSocket).to receive(:new).and_raise(Errno::ENOENT).once.and_return(socket)
+    allow(UNIXSocket).to receive(:new) do
+      ret = attempts.shift
+      raise ret if ret.is_a?(Class)
+
+      ret
+    end
 
     console.connect(123, '/tmp/tty0.sock')
 
@@ -77,6 +83,7 @@ RSpec.describe OsCtld::Console::Console do
     expect(console.send(:tty_in_io)).to equal(socket)
     expect(console.send(:tty_out_io)).to equal(socket)
     expect(console).to have_received(:wake)
+    expect(console).to have_received(:sleep).twice
   end
 
   it 'raises when tty0 never becomes available' do
@@ -85,6 +92,14 @@ RSpec.describe OsCtld::Console::Console do
     allow(UNIXSocket).to receive(:new).and_raise(Errno::ENOENT)
 
     expect { console.connect(123, '/tmp/tty0.sock') }.to raise_error(Errno::ENOENT)
+  end
+
+  it 'raises when tty0 keeps refusing connections' do
+    console = described_class.new(build_ct, 0)
+    allow(console).to receive(:sleep)
+    allow(UNIXSocket).to receive(:new).and_raise(Errno::ECONNREFUSED)
+
+    expect { console.connect(123, '/tmp/tty0.sock') }.to raise_error(Errno::ECONNREFUSED)
   end
 
   it 'schedules container stop handling through ThreadReaper when the console closes' do

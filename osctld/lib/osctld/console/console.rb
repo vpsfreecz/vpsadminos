@@ -11,6 +11,10 @@ module OsCtld
   class Console::Console < Console::TTY
     include OsCtl::Lib::Utils::Exception
 
+    CONNECT_RETRY_ERRORS = [Errno::ENOENT, Errno::ECONNREFUSED].freeze
+    CONNECT_RETRY_LIMIT = 100
+    CONNECT_RETRY_INTERVAL = 0.2
+
     def open
       # Does nothing for tty0, it is opened automatically on ct start
     end
@@ -20,11 +24,11 @@ module OsCtld
 
       begin
         c = UNIXSocket.new(socket)
-      rescue Errno::ENOENT
-        raise if tries >= (0.2 * 50 * 10) # try for 10 seconds
+      rescue *CONNECT_RETRY_ERRORS
+        raise if tries >= CONNECT_RETRY_LIMIT
 
         tries += 1
-        sleep(0.2)
+        sleep(CONNECT_RETRY_INTERVAL)
         retry
       end
 

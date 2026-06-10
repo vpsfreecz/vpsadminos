@@ -323,7 +323,7 @@ RSpec.describe 'container lifecycle commands' do
           101
         end
         allow(console).to receive(:socket_path).with(container).and_return(sock_path)
-        allow(console).to receive(:connect_tty0).and_raise(Errno::ENOENT)
+        allow(console).to receive(:connect_tty0).and_raise(Errno::ECONNREFUSED)
         allow(dist_config).to receive(:run)
         allow(cpu_scheduler).to receive(:schedule_ct)
         allow(daemon).to receive(:get).and_return(daemon_instance)

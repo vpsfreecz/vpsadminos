@@ -209,7 +209,7 @@ module OsCtld
 
       begin
         Console.connect_tty0(ct, wrapper_pid)
-      rescue Errno::ENOENT
+      rescue Errno::ENOENT, Errno::ECONNREFUSED
         log(:warn, ct, 'Unable to connect to tty0')
       end
 
