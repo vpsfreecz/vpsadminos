@@ -9,9 +9,9 @@ lxc.include = <%= File.join(Lxc::CONFIGS, 'nesting.conf') %>
 
 lxc.log.syslog = local4
 <% if ct.map_mode == 'native' -%>
-lxc.rootfs.path = dir:<%= ct.mounts.shared_dir.host_path_for(ct.get_run_conf.rootfs) %>
+lxc.rootfs.path = dir:<%= ct.mounts.shared_dir.host_path_for(rootfs) %>
 <% elsif ct.map_mode == 'zfs' -%>
-lxc.rootfs.path = dir:<%= ct.get_run_conf.rootfs %>
+lxc.rootfs.path = dir:<%= rootfs %>
 <% end -%>
 lxc.arch = <%= ct.arch %>
 lxc.uts.name = <%= ct.hostname || ct.id %>
