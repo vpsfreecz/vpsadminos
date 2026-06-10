@@ -108,6 +108,8 @@ module OsCtld
         return
       end
 
+      return if ct.state == :error
+
       # When transitioning to `running`, send the event only after init_pid was set
       # below, so that when {Commands::Container::Start} finishes waiting and returns,
       # the init_pid is not nil.

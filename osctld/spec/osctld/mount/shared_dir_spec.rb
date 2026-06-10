@@ -21,7 +21,7 @@ RSpec.describe OsCtld::Mount::SharedDir do
       def self.run!(*); end
     end)
     allow(OsCtld::ContainerControl::Commands::Mount).to receive(:run!)
-    allow(shared_dir).to receive(:syscmd)
+    allow(shared_dir).to receive(:syscmd).and_return(OsCtl::Lib::SystemCommandResult.new(0, ''))
   end
 
   after do
@@ -51,7 +51,97 @@ RSpec.describe OsCtld::Mount::SharedDir do
 
     shared_dir.remove
 
-    expect(shared_dir).to have_received(:syscmd).with("umount -f \"#{shared_dir.path}\"", valid_rcs: [32])
+    expect(shared_dir).to have_received(:syscmd).with("umount -f \"#{shared_dir.path}\"", valid_rcs: :all)
+    expect(File).not_to exist(shared_dir.path)
+  end
+
+  it 'removes stale directories left in the shared directory' do
+    stale_dir = File.join(shared_dir.path, 'stale')
+    FileUtils.mkdir_p(stale_dir)
+    allow(shared_dir).to receive(:log)
+
+    shared_dir.remove
+
+    expect(File).not_to exist(shared_dir.path)
+    expect(shared_dir).to have_received(:log).with(
+      :warn,
+      ct,
+      "Removed stale empty shared mount directory #{stale_dir}"
+    )
+  end
+
+  it 'does not recurse into stale directories' do
+    nested_dir = File.join(shared_dir.path, 'stale', 'nested')
+    FileUtils.mkdir_p(nested_dir)
+
+    expect { shared_dir.remove }.to raise_error(Errno::ENOTEMPTY)
+    expect(File).to exist(nested_dir)
+  end
+
+  it 'does not remove non-empty stale directories' do
+    data_path = File.join(shared_dir.path, 'stale', 'data')
+    FileUtils.mkdir_p(File.dirname(data_path))
+    File.write(data_path, 'data')
+
+    expect { shared_dir.remove }.to raise_error(Errno::ENOTEMPTY)
+    expect(File).to exist(data_path)
+  end
+
+  it 'removes the shared directory when umount reports that it is not mounted' do
+    FileUtils.mkdir_p(File.join(shared_dir.path, 'stale'))
+    result = OsCtl::Lib::SystemCommandResult.new(
+      1,
+      "umount: #{shared_dir.path}: not mounted\n"
+    )
+
+    allow(shared_dir).to receive(:syscmd).with(
+      "umount -f \"#{shared_dir.path}\"",
+      valid_rcs: :all
+    ).and_return(result)
+
+    shared_dir.remove
+
+    expect(File).not_to exist(shared_dir.path)
+  end
+
+  it 'removes the shared directory when umount reports that it was not found' do
+    FileUtils.mkdir_p(shared_dir.path)
+    result = OsCtl::Lib::SystemCommandResult.new(
+      1,
+      "umount: #{shared_dir.path}: not found\n"
+    )
+
+    allow(shared_dir).to receive(:syscmd).with(
+      "umount -f \"#{shared_dir.path}\"",
+      valid_rcs: :all
+    ).and_return(result)
+
+    shared_dir.remove
+
+    expect(File).not_to exist(shared_dir.path)
+  end
+
+  it 'removes the shared directory when umount reports no mount point' do
+    FileUtils.mkdir_p(shared_dir.path)
+    result = OsCtl::Lib::SystemCommandResult.new(
+      32,
+      "umount: #{shared_dir.path}: no mount point specified.\n"
+    )
+
+    allow(shared_dir).to receive(:syscmd).with(
+      "umount -f \"#{shared_dir.path}\"",
+      valid_rcs: :all
+    ).and_return(result)
+
+    shared_dir.remove
+
+    expect(File).not_to exist(shared_dir.path)
+  end
+
+  it 'does not unmount when the shared directory is already missing' do
+    shared_dir.remove
+
+    expect(shared_dir).not_to have_received(:syscmd)
     expect(File).not_to exist(shared_dir.path)
   end
 
@@ -81,7 +171,7 @@ RSpec.describe OsCtld::Mount::SharedDir do
     src = Dir.mktmpdir('mnt-src')
     native_ct = FakeObjects::FakeRuntimeContainer.new(pool:, id: 'ct1', map_mode: 'native', init_pid: 555)
     native_shared_dir = described_class.new(native_ct)
-    allow(native_shared_dir).to receive(:syscmd)
+    allow(native_shared_dir).to receive(:syscmd).and_return(OsCtl::Lib::SystemCommandResult.new(0, ''))
     allow(OsCtld::ContainerControl::Commands::Mount).to receive(:run!)
     mnt = OsCtld::Mount::Entry.new(src, '/data', 'bind', 'bind', true, map_ids: true)
 

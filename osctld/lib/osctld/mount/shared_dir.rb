@@ -28,8 +28,9 @@ module OsCtld
     # Remove the shared mount directory from the host
     def remove
       dir = Pathname.new(path)
-      syscmd("umount -f \"#{dir}\"", valid_rcs: [32]) # 32 = not mounted
+      unmount(dir)
       FileUtils.rm_f(readme_path)
+      prune_empty_child_directories(dir) if dir.exist?
       dir.rmdir if dir.exist?
     end
 
@@ -118,6 +119,31 @@ module OsCtld
     protected
 
     attr_reader :ct
+
+    def unmount(dir)
+      return unless dir.exist?
+
+      cmd = "umount -f \"#{dir}\""
+      ret = syscmd(cmd, valid_rcs: :all)
+
+      return if ret.success?
+      return if ret.output.include?('not mounted')
+      return if ret.output.include?('not found')
+      return if ret.output.include?('no mount point specified')
+
+      raise SystemCommandFailed.new(cmd, ret.exitstatus, ret.output)
+    end
+
+    def prune_empty_child_directories(dir)
+      dir.children.each do |child|
+        next unless File.lstat(child).directory?
+
+        child.rmdir
+        log(:warn, ct, "Removed stale empty shared mount directory #{child}")
+      rescue Errno::ENOENT, Errno::ENOTEMPTY
+        next
+      end
+    end
 
     def readme_path
       File.join(path, 'README.txt')

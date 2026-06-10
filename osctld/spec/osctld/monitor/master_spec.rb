@@ -102,6 +102,26 @@ RSpec.describe OsCtld::Monitor::Master do
     )
   end
 
+  it 'does not clear an existing error state from container-control state' do
+    ct = build_ct(id: 'ct1')
+    ct.state = :error
+    state = Struct.new(:state, :init_pid).new(:running, 4321)
+    state_class = stub_const('OsCtld::ContainerControl::Commands::State', Class.new do
+      def self.run!(_ct); end
+    end)
+    eventd = stub_const('OsCtld::Eventd', Class.new do
+      def self.report(*); end
+    end)
+    allow(state_class).to receive(:run!).with(ct).and_return(state)
+    allow(eventd).to receive(:report)
+
+    master.send(:update_state, ct)
+
+    expect(ct.state).to eq(:error)
+    expect(ct.ensure_run_conf.init_pid).to be_nil
+    expect(eventd).not_to have_received(:report)
+  end
+
   it 'logs container-control failures instead of raising from update_state' do
     ct = build_ct(id: 'ct1')
     state_class = stub_const('OsCtld::ContainerControl::Commands::State', Class.new do
