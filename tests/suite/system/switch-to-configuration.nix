@@ -36,6 +36,20 @@ import ../../make-test.nix (
           }
         ];
       }).config.system.build.toplevel;
+
+    nextFirewallSystem =
+      (import ../../../os {
+        importedPkgs = pkgs;
+        system = pkgs.system;
+        modules = [
+          ../../configs/vpsadminos/base.nix
+          ../../configs/vpsadminos/pool-tank.nix
+          (testService triggerA)
+          {
+            networking.firewall.logRefusedConnections = true;
+          }
+        ];
+      }).config.system.build.toplevel;
   in
   {
     name = "system-switch-to-configuration";
@@ -55,7 +69,10 @@ import ../../make-test.nix (
           keptModule
           failedModule
         ];
-        system.extraDependencies = [ nextSystem ];
+        system.extraDependencies = [
+          nextSystem
+          nextFirewallSystem
+        ];
       };
     };
 
@@ -132,6 +149,14 @@ import ../../make-test.nix (
 
           expect(output).to include('> sv stop restart-trigger-test')
           expect(output).to include('> sv start restart-trigger-test')
+        end
+
+        it 'reloads the firewall when its kernel module requirements change' do
+          _, output = machine.succeeds('${nextFirewallSystem}/bin/switch-to-configuration dry-activate')
+
+          expect(output).to include('> sv 1 firewall')
+          expect(output).not_to include('> sv stop firewall')
+          expect(output).not_to include('> sv start firewall')
         end
 
         it 'updates loaded modules to match boot.kernelModules' do

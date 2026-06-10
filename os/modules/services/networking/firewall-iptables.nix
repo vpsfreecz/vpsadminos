@@ -519,7 +519,6 @@ in
 
       onChange = "reload";
       reloadMethod = "1";
-      restartTriggers = [ firewallKernelModules ];
     };
   };
 }
