@@ -115,13 +115,18 @@ module OsCtld
       path.each_with_index do |name, i|
         tmp << name
         cgroup = File.join(base, *tmp)
+        delegate = i + 1 < path.length || (!leaf && !attach)
 
         created = create(
           cgroup,
-          delegate: i + 1 < path.length || (!leaf && !attach),
+          delegate:,
           type:,
           base:
         )
+
+        if !created && v2? && delegate && File.expand_path(cgroup) != File.expand_path(base)
+          CGroup.delegate_available_controllers(cgroup)
+        end
       end
 
       if chown
@@ -270,9 +275,12 @@ module OsCtld
     # Enable all available controllers on cgroup
     # @param cgroup [String] absolute path of the cgroup
     def self.delegate_available_controllers(cgroup)
-      cmd = available_controllers(cgroup).map do |controller|
+      delegated = subtree_control(cgroup)
+      cmd = (available_controllers(cgroup) - delegated).map do |controller|
         "+#{controller}"
       end.join(' ')
+
+      return if cmd.empty?
 
       File.write(File.join(cgroup, 'cgroup.subtree_control'), cmd)
     end

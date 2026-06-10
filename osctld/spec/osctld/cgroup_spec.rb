@@ -151,6 +151,42 @@ RSpec.describe OsCtld::CGroup do
     end
   end
 
+  it 'delegates existing cgroup v2 paths when leaf is false' do
+    with_tmpdir do |tmpdir|
+      stub_const('OsCtld::CGroup::FS', tmpdir)
+      force_cgroup(2, [''])
+      path = %w[osctl pool.tank user.4220 ct.27687]
+      FileUtils.mkdir_p(File.join(tmpdir, *path))
+      delegated = []
+
+      allow(described_class).to receive(:delegate_available_controllers) do |cgroup|
+        delegated << File.expand_path(cgroup)
+      end
+
+      expect(described_class.mkpath('cpuset', [''] + path, leaf: false)).to be(false)
+      expect(delegated).to eq(
+        path.each_index.map { |i| File.join(tmpdir, *path[0..i]) }
+      )
+    end
+  end
+
+  it 'delegates only missing cgroup v2 controllers' do
+    with_tmpdir do |tmpdir|
+      cgroup = mkdir_cgroup(tmpdir, 'osctl')
+      write_cgroup_file(cgroup, 'cgroup.controllers', content: "cpuset cpu memory\n")
+      write_cgroup_file(cgroup, 'cgroup.subtree_control', content: "cpu\n")
+
+      allow(File).to receive(:write).and_call_original
+
+      described_class.delegate_available_controllers(cgroup)
+
+      expect(File).to have_received(:write).with(
+        File.join(cgroup, 'cgroup.subtree_control'),
+        '+cpuset +memory'
+      )
+    end
+  end
+
   it 'falls back to tasks when cgroup.procs is unavailable' do
     with_tmpdir do |tmpdir|
       stub_const('OsCtld::CGroup::FS', tmpdir)
