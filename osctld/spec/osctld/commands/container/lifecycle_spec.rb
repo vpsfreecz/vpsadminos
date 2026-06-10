@@ -887,6 +887,8 @@ RSpec.describe 'container lifecycle commands' do
           self.clear_start_menu_calls += 1
         end
 
+        def log(*); end
+
         def manipulate(_holder, block:, &)
           yield
         end
@@ -956,6 +958,24 @@ RSpec.describe 'container lifecycle commands' do
       allow(OsCtld::DB::Containers).to receive(:remove)
     end
 
+    def stub_successful_delete_commands(command, message: nil)
+      allow(command).to receive(:call_cmd!).with(
+        stop_class,
+        pool: 'tank',
+        id: 'ct1',
+        manipulation_lock: nil,
+        progress: nil,
+        message:
+      ).and_return(status: true, output: nil)
+      allow(command).to receive(:call_cmd!).with(
+        user_delete_class,
+        pool: 'tank',
+        name: 'alice'
+      ).and_return(status: true, output: nil)
+      allow(command).to receive(:call_cmd).with(lxc_usernet_class).and_return(status: true, output: nil)
+      allow(command).to receive(:syscmd)
+    end
+
     it 'rejects running containers unless force is set' do
       with_tmpdir do |tmpdir|
         ct = build_delete_container(root: tmpdir)
@@ -971,21 +991,7 @@ RSpec.describe 'container lifecycle commands' do
         ct = build_delete_container(root: tmpdir)
         command = described_class.new({ prune: true, message: 'bye' }, {})
         allow(ct.pool.trash_bin).to receive(:prune)
-        allow(command).to receive(:call_cmd!).with(
-          stop_class,
-          pool: 'tank',
-          id: 'ct1',
-          manipulation_lock: nil,
-          progress: nil,
-          message: 'bye'
-        ).and_return(status: true, output: nil)
-        allow(command).to receive(:call_cmd!).with(
-          user_delete_class,
-          pool: 'tank',
-          name: 'alice'
-        ).and_return(status: true, output: nil)
-        allow(command).to receive(:call_cmd).with(lxc_usernet_class).and_return(status: true, output: nil)
-        allow(command).to receive(:syscmd)
+        stub_successful_delete_commands(command, message: 'bye')
 
         expect(command.execute(ct)).to eq(status: true, output: nil)
         expect(OsCtld::SendReceive).to have_received(:stopped_using_key).with(ct.pool, 'tx')
@@ -998,6 +1004,25 @@ RSpec.describe 'container lifecycle commands' do
         expect(ct.mounts.shared_dir.removed).to be(true)
         expect(ct.pool.autostart_plan.cleared).to equal(ct)
         expect(ct.pool.trash_bin).to have_received(:prune)
+      end
+    end
+
+    it 'unregisters the container when its dataset is already missing' do
+      with_tmpdir do |tmpdir|
+        ct = build_delete_container(root: tmpdir)
+        command = described_class.new({}, {})
+        stub_successful_delete_commands(command)
+        allow(OsCtld::TrashBin).to receive(:add_dataset).and_raise(
+          OsCtld::SystemCommandFailed.new(
+            'zfs list tank/ct1',
+            1,
+            "cannot open 'tank/ct1': dataset does not exist\n"
+          )
+        )
+
+        expect(command.execute(ct)).to eq(status: true, output: nil)
+        expect(OsCtld::DB::Containers).to have_received(:remove).with(ct)
+        expect(OsCtld::Monitor::Master).to have_received(:demonitor).with(ct)
       end
     end
   end

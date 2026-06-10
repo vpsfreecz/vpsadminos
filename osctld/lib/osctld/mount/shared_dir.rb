@@ -28,9 +28,8 @@ module OsCtld
     # Remove the shared mount directory from the host
     def remove
       dir = Pathname.new(path)
-      syscmd("umount -f \"#{dir}\"", valid_rcs: [32]) # 32 = not mounted
-      FileUtils.rm_f(readme_path)
-      dir.rmdir if dir.exist?
+      unmount(dir)
+      FileUtils.rm_rf(path, secure: true) if dir.exist?
     end
 
     # Propagate a new mount inside the container via the shared directory
@@ -118,6 +117,16 @@ module OsCtld
     protected
 
     attr_reader :ct
+
+    def unmount(dir)
+      cmd = "umount -R -f \"#{dir}\""
+      ret = syscmd(cmd, valid_rcs: :all)
+
+      return if ret.success?
+      return if ret.output.include?('not mounted')
+
+      raise SystemCommandFailed.new(cmd, ret.exitstatus, ret.output)
+    end
 
     def readme_path
       File.join(path, 'README.txt')

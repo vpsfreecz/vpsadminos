@@ -111,6 +111,35 @@ RSpec.describe OsCtld::Monitor::Process do
     expect(hook).to have_received(:run).with(ct, :post_start, init_pid: 5678)
   end
 
+  it 'does not clear an existing error state from lxc-monitor events' do
+    ct = build_ct
+    ct.state = :error
+    db = stub_const('OsCtld::DB::Containers', Class.new do
+      def self.find(_id, _pool); end
+    end)
+    eventd = stub_const('OsCtld::Eventd', Class.new do
+      def self.report(*); end
+    end)
+    hook = stub_const('OsCtld::Hook', Class.new do
+      def self.run(*, **); end
+    end)
+    state_class = stub_const('OsCtld::ContainerControl::Commands::State', Class.new do
+      def self.run!(_ct); end
+    end)
+    allow(db).to receive(:find).with('ct1', 'tank').and_return(ct)
+    allow(eventd).to receive(:report)
+    allow(hook).to receive(:run)
+    allow(state_class).to receive(:run!)
+
+    process.send(:update_state, pool: 'tank', ctid: 'ct1', state: :running)
+
+    expect(ct.state).to eq(:error)
+    expect(ct.ensure_run_conf.init_pid).to be_nil
+    expect(eventd).not_to have_received(:report)
+    expect(hook).not_to have_received(:run)
+    expect(state_class).not_to have_received(:run!)
+  end
+
   it 'marks aborting containers as aborted and prunes mounts on aborted and stopped transitions' do
     ct = build_ct
     db = stub_const('OsCtld::DB::Containers', Class.new do

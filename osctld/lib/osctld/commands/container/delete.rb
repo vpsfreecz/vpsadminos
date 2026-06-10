@@ -43,7 +43,7 @@ module OsCtld
         ct.mounts.shared_dir.remove
 
         progress('Moving dataset to trash')
-        TrashBin.add_dataset(ct.pool, ct.dataset)
+        trash_dataset(ct)
 
         progress('Removing LXC configuration and script hooks')
         Monitor::Master.demonitor(ct)
@@ -99,6 +99,22 @@ module OsCtld
       ct.pool.trash_bin.prune if opts[:prune]
 
       ok
+    end
+
+    protected
+
+    def trash_dataset(ct)
+      TrashBin.add_dataset(ct.pool, ct.dataset)
+    rescue SystemCommandFailed => e
+      raise unless dataset_missing?(e, ct.dataset)
+
+      ct.log(:warn, "Unable to move dataset #{ct.dataset} to trash: dataset does not exist")
+    end
+
+    def dataset_missing?(error, dataset)
+      output = error.output.to_s
+
+      output.include?(dataset.to_s) && output.include?('dataset does not exist')
     end
   end
 end
