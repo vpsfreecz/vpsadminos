@@ -185,6 +185,19 @@ import ../../make-test.nix (
             '${failedModule}' => 'absent',
           )
         end
+
+        it 'does not unload modules when kernel-modules is stopped' do
+          machine.succeeds('sv stop kernel-modules')
+          log_not_contains.call('unloading module ${addedModule}')
+          log_not_contains.call('unloading module ${keptModule}')
+
+          expect(tracked_module_state.call).to eq(
+            '${removedModule}' => 'absent',
+            '${addedModule}' => 'loaded',
+            '${keptModule}' => 'loaded',
+            '${failedModule}' => 'absent',
+          )
+        end
       end
     '';
   }

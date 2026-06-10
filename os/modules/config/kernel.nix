@@ -93,21 +93,6 @@ let
       done
     }
 
-    unload_modules() {
-      [ -s "$state_file" ] || return 0
-
-      ${pkgs.coreutils}/bin/tac "$state_file" | while IFS= read -r module; do
-        [ -n "$module" ] || continue
-
-        log "unloading module $module"
-        if ! ${pkgs.kmod}/bin/modprobe -r "$module"; then
-          log "kept module $module"
-        fi
-      done
-
-      rm -f "$state_file"
-    }
-
     reload_modules() {
       log "loading configured kernel modules"
       load_modules
@@ -122,7 +107,6 @@ let
     }
 
     handle_exit() {
-      unload_modules
       stop_sleep
       exit 0
     }
