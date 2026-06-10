@@ -20,36 +20,36 @@ GEM
 GEM
   remote: https://rubygems.vpsfree.cz/
   specs:
-    libosctl (26.05.0.build20260609152612)
+    libosctl (26.05.0.build20260610185909)
       fiddle
       logger
       rainbow (~> 3.1.1)
       require_all (~> 2.0.0)
       syslog
     netlinkrb (0.18.vpsadminos.0)
-    osctl-repo (26.05.0.build20260609152612)
+    osctl-repo (26.05.0.build20260610185909)
       filelock
       gli (~> 2.22.0)
       json
-      libosctl (= 26.05.0.build20260609152612)
+      libosctl (= 26.05.0.build20260610185909)
       require_all (~> 2.0.0)
-    osctld (26.05.0.build20260609152612)
+    osctld (26.05.0.build20260610185909)
       base64
       bindata (~> 2.5.0)
       concurrent-ruby (~> 1.3.4)
       fiddle
       ipaddress (~> 0.8.3)
       json
-      libosctl (= 26.05.0.build20260609152612)
+      libosctl (= 26.05.0.build20260610185909)
       netlinkrb (= 0.18.vpsadminos.0)
-      osctl-repo (= 26.05.0.build20260609152612)
-      osup (= 26.05.0.build20260609152612)
+      osctl-repo (= 26.05.0.build20260610185909)
+      osup (= 26.05.0.build20260610185909)
       require_all (~> 2.0.0)
       ruby-lxc (= 1.2.4.vpsadminos.6)
-    osup (26.05.0.build20260609152612)
+    osup (26.05.0.build20260610185909)
       gli (~> 2.22.0)
       json
-      libosctl (= 26.05.0.build20260609152612)
+      libosctl (= 26.05.0.build20260610185909)
       require_all (~> 2.0.0)
     ruby-lxc (1.2.4.vpsadminos.6)
 
@@ -61,7 +61,7 @@ DEPENDENCIES
   libosctl!
   netlinkrb!
   osctl-repo!
-  osctld (= 26.05.0.build20260609152612)!
+  osctld (= 26.05.0.build20260610185909)!
   osup!
   ruby-lxc!
 
