@@ -1,9 +1,11 @@
+require 'libosctl'
 require 'osctld/lockable'
 
 module OsCtld
   # LXC configuration generator
   class Container::LxcConfig
     include Lockable
+    include OsCtl::Lib::Utils::Log
 
     def initialize(ct)
       init_lock
@@ -22,10 +24,25 @@ module OsCtld
 
     def configure
       exclusively do
+        run_conf = ct.get_run_conf
+        rootfs = run_conf.rootfs
+
+        unless rootfs
+          if ct.state == :staged
+            log(:warn, ct, 'Skipping LXC config generation: rootfs path is not available')
+          else
+            ct.state = :error
+            log(:warn, ct, 'Unable to generate LXC config: rootfs path is not available')
+          end
+
+          next false
+        end
+
         ErbTemplate.render_to('ct/config', {
-          distribution: ct.get_run_conf.distribution,
-          version: ct.get_run_conf.version,
+          distribution: run_conf.distribution,
+          version: run_conf.version,
           ct:,
+          rootfs:,
           cgparams: ct.cgparams,
           prlimits: ct.prlimits,
           netifs: ct.netifs,
