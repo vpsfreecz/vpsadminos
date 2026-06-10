@@ -62,6 +62,15 @@ let
       linkFields = [ "cifs_spnego" ];
       enable = true;
     }
+    {
+      name = "nft_cve23111_guard";
+      description = "Deny risky nf_tables verdict-map delete batches from user namespaces";
+      sinceKernel = "6.12.33";
+      untilKernel = "6.12.69";
+      bpfPrograms = [ "nft23111_guard" ];
+      linkFields = [ "nft23111_guard" ];
+      enable = true;
+    }
   ];
 
   allProgramNames = map (p: p.name) allPrograms;

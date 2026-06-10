@@ -317,6 +317,9 @@ import ../make-test.nix (
                 currentAvailable.programAvailableForKernel currentKernelVersion "cifs_spnego_guard";
               atPtraceUntil = (availableFor "6.12.88").programNames "6.12.88";
               afterPtraceUntil = (availableFor "6.12.89").programNames "6.12.89";
+              atNftGuardSince = (availableFor "6.12.33").programNames "6.12.33";
+              atNftGuardUntil = (availableFor "6.12.69").programNames "6.12.69";
+              afterNftGuardUntil = (availableFor "6.12.70").programNames "6.12.70";
             };
 
             module = {
@@ -479,11 +482,20 @@ import ../make-test.nix (
           expect(defaults.fetch('current')).to include('cifs_spnego_guard')
         end
 
+        it 'includes nft_cve23111_guard only for vulnerable vpsAdminOS kernels' do
+          defaults = @facts.fetch('defaults')
+
+          expect(defaults.fetch('atNftGuardSince')).to include('nft_cve23111_guard')
+          expect(defaults.fetch('atNftGuardUntil')).to include('nft_cve23111_guard')
+          expect(defaults.fetch('afterNftGuardUntil')).not_to include('nft_cve23111_guard')
+        end
+
         it 'does not include disabled programs by default' do
           defaults = @facts.fetch('defaults').fetch('current')
 
           expect(defaults).not_to include('override_uname')
           expect(defaults).not_to include('lsm_example')
+          expect(defaults).not_to include('nft_cve23111_guard')
         end
       end
 
