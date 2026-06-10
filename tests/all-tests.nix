@@ -38,14 +38,32 @@ let
 
   proactiveSwapEnabled = builtins.getEnv "VPSADMINOS_ENABLE_PROACTIVE_SWAP_TEST" == "1";
   proactiveSwapOnly = builtins.getEnv "VPSADMINOS_ONLY_PROACTIVE_SWAP_TEST" == "1";
+  schedProxyExecEnabled = builtins.getEnv "VPSADMINOS_ENABLE_SCHED_PROXY_EXEC_TEST" == "1";
+  schedProxyExecOnly = builtins.getEnv "VPSADMINOS_ONLY_SCHED_PROXY_EXEC_TEST" == "1";
+  schedProxyExecLockBadneighborEnabled =
+    builtins.getEnv "VPSADMINOS_ENABLE_SCHED_PROXY_EXEC_LOCK_BADNEIGHBOR_TEST" == "1";
+  schedProxyExecLockBadneighborOnly =
+    builtins.getEnv "VPSADMINOS_ONLY_SCHED_PROXY_EXEC_LOCK_BADNEIGHBOR_TEST" == "1";
 
-  proactiveSwapTests = if proactiveSwapEnabled then [ "kernel/proactive-swap" ] else [ ];
+  proactiveSwapTests = if proactiveSwapEnabled || proactiveSwapOnly then [ "kernel/proactive-swap" ] else [ ];
+  schedProxyExecTests = if schedProxyExecEnabled || schedProxyExecOnly then [ "kernel/sched-proxy-exec" ] else [ ];
+  schedProxyExecLockBadneighborTests =
+    if schedProxyExecLockBadneighborEnabled || schedProxyExecLockBadneighborOnly then
+      [ "kernel/sched-proxy-exec-lock-badneighbor" ]
+    else
+      [ ];
+  localOnlyTests = lib.unique (
+    proactiveSwapTests
+    ++ schedProxyExecTests
+    ++ schedProxyExecLockBadneighborTests
+  );
 
   selectedTests =
-    if proactiveSwapOnly then
-      proactiveSwapTests
+    if proactiveSwapOnly || schedProxyExecOnly || schedProxyExecLockBadneighborOnly then
+      localOnlyTests
     else
-      [
+      lib.unique (
+        [
         "cgroups/devices-v1"
         "cgroups/devices-v2"
         {
@@ -124,6 +142,7 @@ let
         "kernel/memory-view/cgroups-v2"
         "kernel/misc"
         "kernel/namespaces"
+        "kernel/sched-proxy-exec-lock-badneighbor"
         "kernel/syslogns"
         "kernel/tmpfs/cgroups-v1"
         "kernel/tmpfs/cgroups-v2"
@@ -162,7 +181,8 @@ let
         "zfs/mmap-nosync"
         "zfs/overlayfs-deadlock"
         "zfs/ugidmap"
-      ]
-      ++ proactiveSwapTests;
+        ]
+        ++ localOnlyTests
+      );
 in
 testLib.makeTests selectedTests

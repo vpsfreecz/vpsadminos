@@ -4,6 +4,7 @@
   testConfigPath ? null,
   mode ? "testsMetaAll",
   testPath ? null,
+  testArgsJson ? null,
 }:
 let
   flake = builtins.getFlake (builtins.toString repoRoot);
@@ -31,12 +32,20 @@ let
   testsRoot = repoRoot + "/tests";
   directSingleTestAvailable =
     testPath != null && builtins.pathExists (testsRoot + "/suite/${testPath}.nix");
+  directTestArgs = if testArgsJson == null then { } else builtins.fromJSON testArgsJson;
 
   directTestLib =
     let
+      flakeNixpkgsPath =
+        if flake ? inputs && flake.inputs ? nixpkgs && flake.inputs.nixpkgs ? outPath then
+          flake.inputs.nixpkgs.outPath
+        else
+          null;
       pkgsPath =
         if builtins.pathExists (repoRoot + "/nixpkgs") then
           repoRoot + "/nixpkgs"
+        else if flakeNixpkgsPath != null then
+          flakeNixpkgsPath
         else
           <nixpkgs>;
       nixpkgs' = import pkgsPath { inherit system; };
@@ -53,7 +62,7 @@ let
   directTest =
     (directTestLib.makeSingleTest {
       test = testPath;
-      args = { };
+      args = directTestArgs;
     }).value;
 
   tests =
@@ -79,14 +88,13 @@ in
 if mode == "testsMetaAll" then
   testsMeta
 else if mode == "testsMetaOne" then
-  if directSingleTestAvailable then
+  if testPath != null && builtins.hasAttr testPath testsMeta then
+    builtins.getAttr testPath testsMeta
+  else if directSingleTestAvailable then
     directTestLib.testMeta directTest
   else
     builtins.getAttr testPath testsMeta
 else if mode == "testJson" then
-  if directSingleTestAvailable then
-    directTest.test.json
-  else
-    builtins.getAttr testPath tests
+  if directSingleTestAvailable then directTest.test.json else builtins.getAttr testPath tests
 else
   builtins.throw "Unsupported mode '${mode}'"
