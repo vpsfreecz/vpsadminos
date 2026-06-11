@@ -109,6 +109,7 @@ let
       modules =
         modules
         ++ [ (nixpkgs.path + "/nixos/modules/virtualisation/qemu-vm.nix") ]
+        ++ [ ./configs/nixos/test-vm.nix ]
         ++ (machine.modules or [ ])
         ++ [ ./configs/nixos/base.nix ]
         ++ [ machine.config or { } ]
