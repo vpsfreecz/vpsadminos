@@ -4,33 +4,36 @@ import ../../make-test.nix (
     rootDisk = "system-install-root.img";
     poolDisk = "system-install-pool.img";
 
-    isoSystem = import ../../../os {
-      importedPkgs = pkgs;
-      system = pkgs.system;
-      modules = [
-        ../../../os/configs/iso.nix
-        {
-          boot.initrd.kernelModules = [
-            "ahci"
-            "sd_mod"
-            "ext4"
-            "virtio"
-            "virtio_pci"
-            "virtio_console"
-          ];
-          boot.initrd.supportedFilesystems.ext4 = true;
-          boot.kernelParams = [ "console=ttyS0" ];
-          boot.kernelModules = [ "ext4" ];
-          boot.loader.timeout = pkgs.lib.mkForce 1;
-          boot.supportedFilesystems.ext4 = true;
-          os.channel-registration.enable = true;
-          osctl.test-shell = {
-            enable = true;
-            shells = 1;
-          };
-        }
-      ];
-    };
+    isoSystem = import ../../../os (
+      {
+        importedPkgs = pkgs;
+        system = pkgs.system;
+        modules = [
+          ../../../os/configs/iso.nix
+          {
+            boot.initrd.kernelModules = [
+              "ahci"
+              "sd_mod"
+              "ext4"
+              "virtio"
+              "virtio_pci"
+              "virtio_console"
+            ];
+            boot.initrd.supportedFilesystems.ext4 = true;
+            boot.kernelParams = [ "console=ttyS0" ];
+            boot.kernelModules = [ "ext4" ];
+            boot.loader.timeout = pkgs.lib.mkForce 1;
+            boot.supportedFilesystems.ext4 = true;
+            os.channel-registration.enable = true;
+            osctl.test-shell = {
+              enable = true;
+              shells = 1;
+            };
+          }
+        ];
+      }
+      // (pkgs.vpsadminosTestFrameworkInputs or { })
+    );
 
     isoPath = "${isoSystem.config.system.build.isoImage}/iso/${isoSystem.config.isoImage.isoName}";
 

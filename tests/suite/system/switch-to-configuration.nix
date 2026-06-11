@@ -20,36 +20,42 @@ import ../../make-test.nix (
     };
 
     nextSystem =
-      (import ../../../os {
-        importedPkgs = pkgs;
-        system = pkgs.system;
-        modules = [
-          ../../configs/vpsadminos/base.nix
-          ../../configs/vpsadminos/pool-tank.nix
-          (testService triggerB)
-          {
-            boot.kernelModules = [
-              addedModule
-              keptModule
-              failedModule
-            ];
-          }
-        ];
-      }).config.system.build.toplevel;
+      (import ../../../os (
+        {
+          importedPkgs = pkgs;
+          system = pkgs.system;
+          modules = [
+            ../../configs/vpsadminos/base.nix
+            ../../configs/vpsadminos/pool-tank.nix
+            (testService triggerB)
+            {
+              boot.kernelModules = [
+                addedModule
+                keptModule
+                failedModule
+              ];
+            }
+          ];
+        }
+        // (pkgs.vpsadminosTestFrameworkInputs or { })
+      )).config.system.build.toplevel;
 
     nextFirewallSystem =
-      (import ../../../os {
-        importedPkgs = pkgs;
-        system = pkgs.system;
-        modules = [
-          ../../configs/vpsadminos/base.nix
-          ../../configs/vpsadminos/pool-tank.nix
-          (testService triggerA)
-          {
-            networking.firewall.logRefusedConnections = true;
-          }
-        ];
-      }).config.system.build.toplevel;
+      (import ../../../os (
+        {
+          importedPkgs = pkgs;
+          system = pkgs.system;
+          modules = [
+            ../../configs/vpsadminos/base.nix
+            ../../configs/vpsadminos/pool-tank.nix
+            (testService triggerA)
+            {
+              networking.firewall.logRefusedConnections = true;
+            }
+          ];
+        }
+        // (pkgs.vpsadminosTestFrameworkInputs or { })
+      )).config.system.build.toplevel;
   in
   {
     name = "system-switch-to-configuration";

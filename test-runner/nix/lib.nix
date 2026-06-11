@@ -4,12 +4,24 @@
   lib ? null,
   suitePath ? ./suite,
   suiteArgs ? { },
+  testFramework ? null,
   configuration ? null,
   testConfig ? { },
 }:
 let
   nixpkgs = import pkgs { inherit system; };
   l = if lib == null then nixpkgs.lib else lib;
+  baseSuiteArgs = {
+    inherit
+      pkgs
+      system
+      configuration
+      testConfig
+      ;
+  }
+  // l.optionalAttrs (testFramework != null) {
+    inherit testFramework;
+  };
 
   makeSingleTest =
     {
@@ -18,14 +30,7 @@ let
     }:
     let
       testModule = import (suitePath + "/${test}.nix") (
-        {
-          inherit
-            pkgs
-            system
-            configuration
-            testConfig
-            ;
-        }
+        baseSuiteArgs
         // suiteArgs
         // {
           testArgs = args;
@@ -47,14 +52,7 @@ let
       args:
       let
         t = import (suitePath + "/${template}.nix") (
-          {
-            inherit
-              pkgs
-              system
-              configuration
-              testConfig
-              ;
-          }
+          baseSuiteArgs
           // suiteArgs
           // {
             templateArgs = args;

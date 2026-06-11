@@ -4,11 +4,12 @@
   suiteArgs ? { },
   configuration ? null,
   testConfig ? { },
+  testFramework ? null,
 }:
 let
   nixpkgs = import pkgs { inherit system; };
   lib = nixpkgs.lib;
-  testLib = import ../test-runner/nix/lib.nix {
+  testLibArgs = {
     inherit
       pkgs
       system
@@ -19,6 +20,11 @@ let
       ;
     suitePath = ./suite;
   };
+  testLib =
+    if testFramework == null then
+      import ../test-runner/nix/lib.nix testLibArgs
+    else
+      testFramework.makeTestLib testLibArgs;
 
   distributions = import ./distributions.nix { inherit lib; };
 

@@ -13,6 +13,7 @@ templateFn:
   # extra arguments to be passed to modules
   extraArgs ? { },
   testConfig ? { },
+  testFramework ? null,
   # target system
   system ? builtins.currentSystem,
 }:
@@ -29,16 +30,26 @@ let
 
   testFn = import ./make-test.nix (templateAttrs.test);
 
-  testAttrs = testFn {
-    inherit
-      configuration
-      pkgs
-      modules
-      extraArgs
-      system
-      testConfig
-      ;
-  };
+  testAttrs = testFn (
+    {
+      inherit
+        configuration
+        pkgs
+        modules
+        extraArgs
+        system
+        testConfig
+        ;
+    }
+    // (
+      if testFramework != null then
+        {
+          inherit testFramework;
+        }
+      else
+        { }
+    )
+  );
 in
 {
   instance = templateAttrs.instance;

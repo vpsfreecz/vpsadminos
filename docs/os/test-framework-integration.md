@@ -78,14 +78,16 @@ each suite file imports):
 
 ```nix
 testFn:
-{ vpsadminosPath, ... }@args:
+{ testFramework, ... }@args:
 let
-  upstream = import (vpsadminosPath + "/tests/make-test.nix") testFn;
+  upstream = testFramework.makeTest testFn;
 
   # Optional: pass extra args to NixOS/vpsAdminOS modules as `specialArgs`.
   # The vpsAdmin repo uses this to make the vpsAdminOS checkout available as
   # `vpsadminos` inside NixOS module evaluation.
-  mergedExtraArgs = { vpsadminos = vpsadminosPath; } // (args.extraArgs or { });
+  mergedExtraArgs = {
+    vpsadminos = testFramework.sourcePath;
+  } // (args.extraArgs or { });
 in
 upstream (args // { extraArgs = mergedExtraArgs; })
 ```
@@ -97,15 +99,14 @@ helpers:
 {
   pkgs,
   system,
+  testFramework,
   suiteArgs ? { },
 }:
 let
-  vpsadminosPath = suiteArgs.vpsadminosPath or (throw "suiteArgs.vpsadminosPath is required");
-
   nixpkgs = import pkgs { inherit system; };
   lib = nixpkgs.lib;
 
-  testLib = import (vpsadminosPath + "/test-runner/nix/lib.nix") {
+  testLib = testFramework.makeTestLib {
     inherit pkgs system lib suiteArgs;
     suitePath = ./suite;
   };
@@ -159,14 +160,12 @@ tests via `nix eval`/`nix build`:
       vpsadminos.lib.testFramework.mkTests {
         inherit system;
         testsRoot = ./tests;
-        suiteArgs = { vpsadminosPath = vpsadminos.outPath; };
       });
 
     testsMeta = forAllSystems (system:
       vpsadminos.lib.testFramework.mkTestsMeta {
         inherit system;
         testsRoot = ./tests;
-        suiteArgs = { vpsadminosPath = vpsadminos.outPath; };
       });
   };
 }
@@ -187,10 +186,9 @@ provided Nix configuration.
   outputs = { self, nixpkgs, vpsadminos, ... }:
   let
     withTestFrameworkDefaults = args:
-      args // {
+      {
         pkgsPath = args.pkgsPath or nixpkgs.outPath;
-        suiteArgs = { vpsadminosPath = vpsadminos.outPath; } // (args.suiteArgs or { });
-      };
+      } // args;
   in
   {
     lib.testFramework = {
@@ -302,8 +300,9 @@ end
 ## Common gotchas
 - `nix eval testsMeta failed`: the runner must be executed from the directory
   that contains your `flake.nix` and exports `testsMeta`.
-- `suiteArgs.vpsadminosPath is required`: ensure `suiteArgs = { vpsadminosPath =
-  vpsadminos.outPath; };` is passed in both `mkTests` and `mkTestsMeta`.
+- `testFramework is missing`: ensure `tests/all-tests.nix` accepts
+  `testFramework` and uses `testFramework.makeTestLib`, and
+  `tests/make-test.nix` uses `testFramework.makeTest`.
 - `--test-config` fails with a `lib.testFramework` error`: export
   `lib.testFramework.mkTests` and `lib.testFramework.mkTestsMeta` if you want
   the runner to re-evaluate your suite with `--test-config`. Repositories that

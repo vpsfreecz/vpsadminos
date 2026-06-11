@@ -14,15 +14,30 @@ args@{
   testArgs ? null,
   testArgsInJson ? null,
   testConfig ? { },
+  testFramework ? null,
   # target system
   system ? builtins.currentSystem,
   ...
 }:
 let
+  osInputNames = {
+    netlinkrb = null;
+    ruby-lxc = null;
+  };
+  osInputArgs =
+    if testFramework != null && testFramework ? sourceInputs then
+      builtins.intersectAttrs osInputNames testFramework.sourceInputs
+    else
+      { };
   nixpkgs = import pkgs {
     inherit system;
     config = { };
-    overlays = [ (import ../os/overlays/packages.nix) ];
+    overlays = [
+      (import ../os/overlays/packages.nix)
+      (_final: _prev: {
+        vpsadminosTestFrameworkInputs = osInputArgs;
+      })
+    ];
   };
 
   lib = nixpkgs.lib;
@@ -51,6 +66,7 @@ let
     "testArgsInJson"
     "system"
     "testConfig"
+    "testFramework"
   ];
 
   testAttrs = testFn ({ pkgs = nixpkgs; } // forwardedArgs // effectiveTestArgs);
@@ -64,20 +80,23 @@ let
     let
       testShells = machineTestShells cfg;
     in
-    import ../os {
-      inherit
-        configuration
-        pkgs
-        extraArgs
-        system
-        ;
-      modules =
-        modules
-        ++ (cfg.modules or [ ])
-        ++ [ ./configs/vpsadminos/base.nix ]
-        ++ [ cfg.config or { } ]
-        ++ [ { osctl.test-shell.shells = testShells; } ];
-    };
+    import ../os (
+      {
+        inherit
+          configuration
+          pkgs
+          extraArgs
+          system
+          ;
+        modules =
+          modules
+          ++ (cfg.modules or [ ])
+          ++ [ ./configs/vpsadminos/base.nix ]
+          ++ [ cfg.config or { } ]
+          ++ [ { osctl.test-shell.shells = testShells; } ];
+      }
+      // osInputArgs
+    );
 
   nixosSystem =
     name: machine:

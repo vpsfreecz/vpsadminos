@@ -31,18 +31,21 @@ import ../../make-test.nix (
     };
 
     pigzSystem =
-      (import ../../../os {
-        importedPkgs = pkgs;
-        system = pkgs.system;
-        modules = [
-          ../../configs/vpsadminos/base.nix
-          ../../configs/vpsadminos/pool-tank.nix
-          crashdumpConfig
-          {
-            boot.initrd.compressor = "pigz";
-          }
-        ];
-      }).config.system.build.toplevel;
+      (import ../../../os (
+        {
+          importedPkgs = pkgs;
+          system = pkgs.system;
+          modules = [
+            ../../configs/vpsadminos/base.nix
+            ../../configs/vpsadminos/pool-tank.nix
+            crashdumpConfig
+            {
+              boot.initrd.compressor = "pigz";
+            }
+          ];
+        }
+        // (pkgs.vpsadminosTestFrameworkInputs or { })
+      )).config.system.build.toplevel;
   in
   {
     name = "crashdump-default";

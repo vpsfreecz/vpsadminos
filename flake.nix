@@ -55,6 +55,82 @@
       containerStable2511Module = import ./os/lib/nixos-container/stable/vpsadminos-25.11.nix;
       containerStable2605Module = import ./os/lib/nixos-container/stable/vpsadminos-26.05.nix;
       containerUnstableModule = import ./os/lib/nixos-container/unstable/vpsadminos.nix;
+      testFramework =
+        let
+          framework = rec {
+            sourcePath = self.outPath;
+            sourceInputs = {
+              inherit (inputs) netlinkrb ruby-lxc;
+            };
+
+            makeTest = testFn: args: import (sourcePath + "/tests/make-test.nix") testFn args;
+            makeTemplate = templateFn: args: import (sourcePath + "/tests/make-template.nix") templateFn args;
+            makeTestLib =
+              args: import (sourcePath + "/test-runner/nix/lib.nix") (args // { testFramework = framework; });
+
+            mkTests =
+              {
+                system,
+                pkgsPath ? nixpkgs.outPath,
+                testsRoot,
+                suiteArgs ? { },
+                testConfig ? { },
+                configuration ? null,
+              }:
+              let
+                allTests = import (testsRoot + "/all-tests.nix") {
+                  pkgs = pkgsPath;
+                  inherit
+                    system
+                    suiteArgs
+                    testConfig
+                    configuration
+                    ;
+                  testFramework = framework;
+                };
+              in
+              builtins.mapAttrs (_: t: t.test.json) allTests;
+
+            mkTestsMeta =
+              {
+                system,
+                pkgsPath ? nixpkgs.outPath,
+                testsRoot,
+                suiteArgs ? { },
+                testConfig ? { },
+                configuration ? null,
+              }:
+              let
+                nixpkgs' = import pkgsPath { inherit system; };
+                lib' = nixpkgs'.lib;
+
+                testLib = makeTestLib {
+                  pkgs = pkgsPath;
+                  inherit
+                    system
+                    configuration
+                    testConfig
+                    ;
+                  lib = lib';
+                  suitePath = testsRoot + "/suite";
+                  inherit suiteArgs;
+                };
+
+                allTests = import (testsRoot + "/all-tests.nix") {
+                  pkgs = pkgsPath;
+                  inherit
+                    system
+                    suiteArgs
+                    testConfig
+                    configuration
+                    ;
+                  testFramework = framework;
+                };
+              in
+              testLib.metaFromAllTests allTests;
+          };
+        in
+        framework;
       kernelDevToplevelModule =
         { config, ... }:
         {
@@ -118,66 +194,7 @@
           kernelVersions
           ;
         vpsadminosSystem = vpsadminosSystem;
-        testFramework = {
-          mkTests =
-            {
-              system,
-              pkgsPath ? nixpkgs.outPath,
-              testsRoot,
-              suiteArgs ? { },
-              testConfig ? { },
-              configuration ? null,
-            }:
-            let
-              allTests = import (testsRoot + "/all-tests.nix") {
-                pkgs = pkgsPath;
-                inherit
-                  system
-                  suiteArgs
-                  testConfig
-                  configuration
-                  ;
-              };
-            in
-            builtins.mapAttrs (_: t: t.test.json) allTests;
-
-          mkTestsMeta =
-            {
-              system,
-              pkgsPath ? nixpkgs.outPath,
-              testsRoot,
-              suiteArgs ? { },
-              testConfig ? { },
-              configuration ? null,
-            }:
-            let
-              nixpkgs' = import pkgsPath { inherit system; };
-              lib' = nixpkgs'.lib;
-
-              testLib = import (self.outPath + "/test-runner/nix/lib.nix") {
-                pkgs = pkgsPath;
-                inherit
-                  system
-                  configuration
-                  testConfig
-                  ;
-                lib = lib';
-                suitePath = testsRoot + "/suite";
-                inherit suiteArgs;
-              };
-
-              allTests = import (testsRoot + "/all-tests.nix") {
-                pkgs = pkgsPath;
-                inherit
-                  system
-                  suiteArgs
-                  testConfig
-                  configuration
-                  ;
-              };
-            in
-            testLib.metaFromAllTests allTests;
-        };
+        inherit testFramework;
       };
       nixpkgsPath = nixpkgs.outPath;
 
@@ -216,6 +233,7 @@
             suiteArgs = { };
             testConfig = { };
             configuration = null;
+            inherit testFramework;
           };
         in
         builtins.mapAttrs (_: t: t.test.json) allTests
@@ -228,7 +246,7 @@
           nixpkgs' = import pkgsPath { inherit system; };
           lib' = nixpkgs'.lib;
 
-          testLib = import ./test-runner/nix/lib.nix {
+          testLib = testFramework.makeTestLib {
             pkgs = pkgsPath;
             inherit system;
             lib = lib';
@@ -244,6 +262,7 @@
             suiteArgs = { };
             testConfig = { };
             configuration = null;
+            inherit testFramework;
           };
         in
         testLib.metaFromAllTests allTests
