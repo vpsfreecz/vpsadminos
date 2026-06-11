@@ -3,12 +3,15 @@
   lib,
   bundlerApp,
   ruby,
+  defaultGemConfig,
+  gemConfig ? defaultGemConfig,
 }:
 
 bundlerApp {
   pname = "osctl-repo";
   gemdir = ./.;
   inherit ruby;
+  inherit gemConfig;
   exes = [ "osctl-repo" ];
 
   meta = with lib; {

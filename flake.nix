@@ -4,6 +4,14 @@
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
   inputs.nixpkgsUnstable.url = "github:NixOS/nixpkgs/nixos-unstable";
   inputs.impermanence.url = "github:nix-community/impermanence";
+  inputs.netlinkrb = {
+    url = "github:vpsfreecz/netlinkrb";
+    flake = false;
+  };
+  inputs.ruby-lxc = {
+    url = "github:vpsfreecz/ruby-lxc/2026-06-03-nixos-26-05-port";
+    flake = false;
+  };
 
   outputs =
     {
@@ -98,6 +106,7 @@
             nixpkgsPath = pkgs.path;
             modules = modules ++ [ flakeVersionInfoModule ];
             extraArgs = specialArgs;
+            inherit (inputs) netlinkrb ruby-lxc;
           }
           // nixpkgs.lib.optionalAttrs (configuration != null) { inherit configuration; }
         );
@@ -244,7 +253,9 @@
         system:
         let
           pkgsBase = nixpkgs.legacyPackages.${system};
-          overlays = import ./os/overlays;
+          overlays = import ./os/overlays {
+            inherit (inputs) netlinkrb ruby-lxc;
+          };
           pkgsWithOverlays = pkgsBase.extend (nixpkgs.lib.composeManyExtensions overlays);
 
           mkQemuSystem =
@@ -373,7 +384,9 @@
         let
           pkgsBase = nixpkgs.legacyPackages.${system};
           lib = pkgsBase.lib;
-          overlays = import ./os/overlays;
+          overlays = import ./os/overlays {
+            inherit (inputs) netlinkrb ruby-lxc;
+          };
           pkgs = pkgsBase.extend (lib.composeManyExtensions overlays);
 
           devShellPrompt = name: ''
@@ -405,6 +418,8 @@
 
                 export BUNDLE_PATH="$GEM_HOME"
                 export BUNDLE_GEMFILE="$PWD/Gemfile"
+                export NETLINKRB_PATH="''${NETLINKRB_PATH:-${inputs.netlinkrb}}"
+                export RUBY_LXC_PATH="''${RUBY_LXC_PATH:-${inputs.ruby-lxc}}"
 
                 $BUNDLE install
 
@@ -455,7 +470,7 @@
               lxc
               mkdocs
               ncurses
-              nixfmt-rfc-style
+              nixfmt
               nixfmt-tree
               ruby_vpsadminos
             ];
@@ -466,6 +481,8 @@
               export GEM_HOME="$(pwd)/.gems"
               export PATH="$(ruby -e 'puts Gem.bindir'):$PATH"
               export RUBYLIB="$GEM_HOME"
+              export NETLINKRB_PATH="''${NETLINKRB_PATH:-${inputs.netlinkrb}}"
+              export RUBY_LXC_PATH="''${RUBY_LXC_PATH:-${inputs.ruby-lxc}}"
               gem install --no-document bundler
 
               # Purity disabled because of prism gem, which has a native extension.

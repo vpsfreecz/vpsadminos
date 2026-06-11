@@ -5,18 +5,23 @@ require 'vpsadminos-converter/version'
 Gem::Specification.new do |s|
   s.name = 'vpsadminos-converter'
 
-  s.version = if ENV['OS_BUILD_ID']
-                "#{VpsAdminOS::Converter::VERSION}.build#{ENV['OS_BUILD_ID']}"
-              else
-                VpsAdminOS::Converter::VERSION
-              end
+  s.version = VpsAdminOS::Converter::VERSION
 
   s.summary     =
     s.description = 'Convert OpenVZ containers into vpsAdminOS'
   s.authors     = 'Jakub Skokan'
   s.email       = 'jakub.skokan@vpsfree.cz'
-  s.files       = `git ls-files -z`.split("\x0")
-  s.files      += Dir['man/man?/*.?']
+  s.files       = Dir[
+    'bin/*',
+    'configs/**/*',
+    'ext/**/*',
+    'hooks/**/*',
+    'lib/**/*',
+    'man/man?/*.?',
+    'migrations/**/*',
+    'nix/**/*.nix',
+    'templates/**/*'
+  ].select { |f| File.file?(f) }
   s.executables = s.files.grep(%r{^bin/}) { |f| File.basename(f) }
   s.license     = 'MIT'
 

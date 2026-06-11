@@ -1,25 +1,14 @@
 source 'https://rubygems.org'
 gemspec
 
-source 'https://rubygems.vpsfree.cz' do
-  gem 'netlinkrb'
-  gem 'ruby-lxc'
-end
-
-if ENV.has_key?('OS_BUILD_ID')
-  source 'https://rubygems.vpsfree.cz' do
-    gem 'libosctl'
-    gem 'osctl-repo'
-    gem 'osup'
-  end
-else
-  gem 'libosctl', path: '../libosctl'
-  gem 'memory_profiler'
-  gem 'osctl-repo', path: '../osctl-repo'
-  gem 'osup', path: '../osup'
-end
+gem 'libosctl', path: '../libosctl'
+gem 'netlinkrb', path: ENV.fetch('NETLINKRB_PATH')
+gem 'osctl-repo', path: '../osctl-repo'
+gem 'osup', path: '../osup'
+gem 'ruby-lxc', path: ENV.fetch('RUBY_LXC_PATH')
 
 group :development do
+  gem 'memory_profiler'
   gem 'rake'
   gem 'rake-compiler'
   gem 'yard'

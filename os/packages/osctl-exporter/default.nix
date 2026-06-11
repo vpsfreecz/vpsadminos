@@ -3,12 +3,15 @@
   ruby,
   stdenv,
   lib,
+  defaultGemConfig,
+  gemConfig ? defaultGemConfig,
 }:
 let
   env = bundlerEnv {
     name = "osctl-exporter";
     gemdir = ./.;
     inherit ruby;
+    inherit gemConfig;
   };
 in
 stdenv.mkDerivation rec {

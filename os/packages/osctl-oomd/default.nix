@@ -3,12 +3,15 @@
   lib,
   bundlerApp,
   ruby,
+  defaultGemConfig,
+  gemConfig ? defaultGemConfig,
 }:
 
 bundlerApp {
   pname = "osctl-oomd";
   gemdir = ./.;
   inherit ruby;
+  inherit gemConfig;
   exes = [ "osctl-oomd" ];
 
   meta = with lib; {

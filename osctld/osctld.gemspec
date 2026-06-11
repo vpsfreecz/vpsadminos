@@ -5,17 +5,23 @@ require 'osctld/version'
 Gem::Specification.new do |s|
   s.name = 'osctld'
 
-  s.version = if ENV['OS_BUILD_ID']
-                "#{OsCtld::VERSION}.build#{ENV['OS_BUILD_ID']}"
-              else
-                OsCtld::VERSION
-              end
+  s.version = OsCtld::VERSION
 
   s.summary       =
     s.description = 'Management daemon for vpsAdminOS'
   s.authors       = 'Jakub Skokan'
   s.email         = 'jakub.skokan@vpsfree.cz'
-  s.files         = `git ls-files -z`.split("\x0")
+  s.files = Dir[
+    'bin/*',
+    'configs/**/*',
+    'ext/**/*',
+    'hooks/**/*',
+    'lib/**/*',
+    'man/man?/*.?',
+    'migrations/**/*',
+    'nix/**/*.nix',
+    'templates/**/*'
+  ].select { |f| File.file?(f) }
   s.executables   = s.files.grep(%r{^bin/}) { |f| File.basename(f) }
   s.extensions   << 'ext/osctld/extconf.rb'
   s.require_paths = %w[lib ext]

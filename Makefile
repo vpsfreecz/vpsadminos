@@ -1,4 +1,3 @@
-BUILD_ID := $(shell date +%Y%m%d%H%M%S)
 VERSION := $(shell cat .version)
 GEM_VERSION := $(VERSION).0
 RELEASE_DATE := $(shell date +%Y-%m-%d)
@@ -24,63 +23,65 @@ build-qemu-proactive-swap:
 qemu-proactive-swap:
 	$(MAKE) -C os qemu-proactive-swap
 
-gems: libosctl osctl-repo osctl osctld osup osctl-image osctl-exporter osctl-exportfs osctl-oomd converter svctl test-runner osvm
-	echo "$(GEM_VERSION).build$(BUILD_ID)" > .build_id
+gems: osctl-repo osctl osctld osup osctl-image osctl-exporter osctl-exportfs osctl-oomd svctl test-runner osvm osctl-env-exec
 	nixfmt os/packages/*/gemset.nix
 
 commit-gems:
-	git commit -e -m "os: update gems to $(shell cat .build_id)" .build_id os/packages/*/{Gemfile,Gemfile.lock,gemset.nix}
+	@msg=$$(mktemp); \
+	printf '%s\n' 'os: update packaged gem dependencies' > "$$msg"; \
+	git commit -e -F "$$msg" os/packages/*/Gemfile os/packages/*/Gemfile.lock os/packages/*/gemset.nix; \
+	rm -f "$$msg"
 
 build-commit-gems: gems
 	$(MAKE) commit-gems
 
 amend-gems:
-	git commit --amend -e -m "os: update gems to $(shell cat .build_id)" --date=now .build_id os/packages/*/{Gemfile,Gemfile.lock,gemset.nix}
+	@msg=$$(mktemp); \
+	printf '%s\n' 'os: update packaged gem dependencies' > "$$msg"; \
+	git commit --amend -e -F "$$msg" --date=now os/packages/*/Gemfile os/packages/*/Gemfile.lock os/packages/*/gemset.nix; \
+	rm -f "$$msg"
 
 build-amend-gems: gems
 	$(MAKE) amend-gems
 
-libosctl:
-	./tools/update_gem.sh _nopkg libosctl $(BUILD_ID)
+osctl:
+	./tools/update_gem.rb os/packages osctl
 
-osctl: libosctl
-	./tools/update_gem.sh os/packages osctl $(BUILD_ID)
+osctld:
+	./tools/update_gem.rb os/packages osctld
 
-osctld: libosctl osctl-repo osup
-	./tools/update_gem.sh os/packages osctld $(BUILD_ID)
+osctl-repo:
+	./tools/update_gem.rb os/packages osctl-repo
 
-osctl-repo: libosctl
-	./tools/update_gem.sh os/packages osctl-repo $(BUILD_ID)
+osctl-image:
+	./tools/update_gem.rb os/packages osctl-image
 
-osctl-image: libosctl osctl osctl-repo
-	./tools/update_gem.sh os/packages osctl-image $(BUILD_ID)
+osctl-exporter:
+	./tools/update_gem.rb os/packages osctl-exporter
 
-osctl-exporter: libosctl osctl osctl-exportfs
-	./tools/update_gem.sh os/packages osctl-exporter $(BUILD_ID)
+osctl-exportfs:
+	./tools/update_gem.rb os/packages osctl-exportfs
 
-osctl-exportfs: libosctl
-	./tools/update_gem.sh os/packages osctl-exportfs $(BUILD_ID)
+osctl-oomd:
+	./tools/update_gem.rb os/packages osctl-oomd
 
-osctl-oomd: libosctl osctl
-	./tools/update_gem.sh os/packages osctl-oomd $(BUILD_ID)
+osup:
+	./tools/update_gem.rb os/packages osup
 
-osup: libosctl
-	./tools/update_gem.sh os/packages osup $(BUILD_ID)
+libosctl converter:
+	@echo "$@ is built from source by dependent package metadata"
 
-converter: libosctl
-	./tools/update_gem.sh _nopkg converter $(BUILD_ID)
+svctl:
+	./tools/update_gem.rb os/packages svctl
 
-svctl: libosctl
-	./tools/update_gem.sh os/packages svctl $(BUILD_ID)
+test-runner:
+	./tools/update_gem.rb os/packages test-runner
 
-test-runner: libosctl osvm
-	./tools/update_gem.sh os/packages test-runner $(BUILD_ID)
-
-osvm: libosctl
-	./tools/update_gem.sh os/packages osvm $(BUILD_ID)
+osvm:
+	./tools/update_gem.rb os/packages osvm
 
 osctl-env-exec:
-	./tools/update_gem.sh os/packages tools/osctl-env-exec $(BUILD_ID)
+	./tools/update_gem.rb os/packages osctl-env-exec
 
 doc:
 	mkdocs build

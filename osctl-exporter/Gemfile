@@ -1,17 +1,9 @@
 source 'https://rubygems.org'
 gemspec
 
-if ENV.has_key?('OS_BUILD_ID')
-  source 'https://rubygems.vpsfree.cz' do
-    gem 'libosctl'
-    gem 'osctl'
-    gem 'osctl-exportfs'
-  end
-else
-  gem 'libosctl', path: '../libosctl'
-  gem 'osctl', path: '../osctl'
-  gem 'osctl-exportfs', path: '../osctl-exportfs'
-end
+gem 'libosctl', path: '../libosctl'
+gem 'osctl', path: '../osctl'
+gem 'osctl-exportfs', path: '../osctl-exportfs'
 
 group :development do
   gem 'rackup'

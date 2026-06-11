@@ -5,17 +5,23 @@ require 'osctl/exporter/version'
 Gem::Specification.new do |s|
   s.name = 'osctl-exporter'
 
-  s.version = if ENV['OS_BUILD_ID']
-                "#{OsCtl::Exporter::VERSION}.build#{ENV['OS_BUILD_ID']}"
-              else
-                OsCtl::Exporter::VERSION
-              end
+  s.version = OsCtl::Exporter::VERSION
 
   s.summary     =
     s.description = 'Export osctl metrics to prometheus'
   s.authors     = 'Jakub Skokan'
   s.email       = 'jakub.skokan@vpsfree.cz'
-  s.files       = `git ls-files -z`.split("\x0")
+  s.files       = Dir[
+    'bin/*',
+    'configs/**/*',
+    'ext/**/*',
+    'hooks/**/*',
+    'lib/**/*',
+    'man/man?/*.?',
+    'migrations/**/*',
+    'nix/**/*.nix',
+    'templates/**/*'
+  ].select { |f| File.file?(f) }
   s.executables = s.files.grep(%r{^bin/}) { |f| File.basename(f) }
   s.license     = 'MIT'
 

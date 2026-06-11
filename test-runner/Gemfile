@@ -1,15 +1,8 @@
 source 'https://rubygems.org'
 gemspec
 
-if ENV.has_key?('OS_BUILD_ID')
-  source 'https://rubygems.vpsfree.cz' do
-    gem 'libosctl'
-    gem 'osvm'
-  end
-else
-  gem 'libosctl', path: '../libosctl'
-  gem 'osvm', path: '../osvm'
-end
+gem 'libosctl', path: '../libosctl'
+gem 'osvm', path: '../osvm'
 
 group :development do
   gem 'md2man'

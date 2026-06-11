@@ -5,17 +5,23 @@ require 'libosctl/version'
 Gem::Specification.new do |s|
   s.name = 'libosctl'
 
-  s.version = if ENV['OS_BUILD_ID']
-                "#{OsCtl::Lib::VERSION}.build#{ENV['OS_BUILD_ID']}"
-              else
-                OsCtl::Lib::VERSION
-              end
+  s.version = OsCtl::Lib::VERSION
 
   s.summary     =
     s.description = 'Shared library for osctl from vpsAdminOS'
   s.authors     = 'Jakub Skokan'
   s.email       = 'jakub.skokan@vpsfree.cz'
-  s.files       = `git ls-files -z`.split("\x0")
+  s.files       = Dir[
+    'bin/*',
+    'configs/**/*',
+    'ext/**/*',
+    'hooks/**/*',
+    'lib/**/*',
+    'man/man?/*.?',
+    'migrations/**/*',
+    'nix/**/*.nix',
+    'templates/**/*'
+  ].select { |f| File.file?(f) }
   s.executables = s.files.grep(%r{^bin/}) { |f| File.basename(f) }
   s.extensions << 'ext/libosctl/extconf.rb'
   s.license     = 'MIT'

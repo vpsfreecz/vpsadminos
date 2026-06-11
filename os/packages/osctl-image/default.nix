@@ -3,12 +3,15 @@
   lib,
   bundlerApp,
   ruby,
+  defaultGemConfig,
+  gemConfig ? defaultGemConfig,
 }:
 
 bundlerApp {
   pname = "osctl-image";
   gemdir = ./.;
   inherit ruby;
+  inherit gemConfig;
   exes = [ "osctl-image" ];
 
   meta = with lib; {

@@ -12,12 +12,15 @@
   ruby,
   runit,
   util-linux,
+  defaultGemConfig,
+  gemConfig ? defaultGemConfig,
 }:
 let
   app = bundlerApp {
     pname = "osctl-exportfs";
     gemdir = ./.;
     inherit ruby;
+    inherit gemConfig;
     exes = [ "osctl-exportfs" ];
 
     meta = with lib; {

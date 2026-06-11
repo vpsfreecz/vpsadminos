@@ -5,18 +5,23 @@ require 'osctl/version'
 Gem::Specification.new do |s|
   s.name = 'osctl'
 
-  s.version = if ENV['OS_BUILD_ID']
-                "#{OsCtl::VERSION}.build#{ENV['OS_BUILD_ID']}"
-              else
-                OsCtl::VERSION
-              end
+  s.version = OsCtl::VERSION
 
   s.summary     =
     s.description = 'Management utility for vpsAdminOS'
   s.authors     = 'Jakub Skokan'
   s.email       = 'jakub.skokan@vpsfree.cz'
-  s.files       = `git ls-files -z`.split("\x0")
-  s.files      += Dir['man/man?/*.?']
+  s.files       = Dir[
+    'bin/*',
+    'configs/**/*',
+    'ext/**/*',
+    'hooks/**/*',
+    'lib/**/*',
+    'man/man?/*.?',
+    'migrations/**/*',
+    'nix/**/*.nix',
+    'templates/**/*'
+  ].select { |f| File.file?(f) }
   s.executables = s.files.grep(%r{^bin/}) { |f| File.basename(f) }
   s.license     = 'MIT'
 

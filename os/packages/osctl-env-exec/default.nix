@@ -3,6 +3,7 @@
   bundlerApp,
   defaultGemConfig,
   ruby,
+  gemConfig ? defaultGemConfig,
 }:
 
 bundlerApp {
@@ -10,7 +11,7 @@ bundlerApp {
   gemdir = ./.;
   inherit ruby;
   exes = [ "osctl-env-exec" ];
-  gemConfig = lib.mergeAttrs defaultGemConfig {
+  gemConfig = lib.mergeAttrs gemConfig {
     binman = attrs: {
       dontInstallManpages = true;
     };

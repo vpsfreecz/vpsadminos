@@ -3,17 +3,23 @@ VERSION = '26.05.0'.freeze
 Gem::Specification.new do |s|
   s.name = 'osctl-env-exec'
 
-  s.version = if ENV['OS_BUILD_ID']
-                "#{VERSION}.build#{ENV['OS_BUILD_ID']}"
-              else
-                VERSION
-              end
+  s.version = VERSION
 
   s.summary     =
     s.description = "Gem for bootstraping Ruby environment will all osctl's dependencies"
   s.authors     = 'Jakub Skokan'
   s.email       = 'jakub.skokan@vpsfree.cz'
-  s.files       = `git ls-files -z`.split("\x0")
+  s.files       = Dir[
+    'bin/*',
+    'configs/**/*',
+    'ext/**/*',
+    'hooks/**/*',
+    'lib/**/*',
+    'man/man?/*.?',
+    'migrations/**/*',
+    'nix/**/*.nix',
+    'templates/**/*'
+  ].select { |f| File.file?(f) }
   s.executables = s.files.grep(%r{^bin/}) { |f| File.basename(f) }
   s.license     = 'MIT'
 

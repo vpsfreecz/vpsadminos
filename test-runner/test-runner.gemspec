@@ -5,19 +5,23 @@ require 'test-runner/version'
 Gem::Specification.new do |s|
   s.name = 'test-runner'
 
-  s.version = if ENV['OS_BUILD_ID']
-                "#{TestRunner::VERSION}.build#{ENV['OS_BUILD_ID']}"
-              else
-                TestRunner::VERSION
-              end
+  s.version = TestRunner::VERSION
 
   s.summary     =
     s.description = 'vpsAdminOS test suite evaluator'
   s.authors     = 'Jakub Skokan'
   s.email       = 'jakub.skokan@vpsfree.cz'
-  s.files       = `git ls-files -z`.split("\x0")
-  s.files      += Dir['man/man?/*.?']
-  s.files      += Dir['nix/**/*.nix']
+  s.files       = Dir[
+    'bin/*',
+    'configs/**/*',
+    'ext/**/*',
+    'hooks/**/*',
+    'lib/**/*',
+    'man/man?/*.?',
+    'migrations/**/*',
+    'nix/**/*.nix',
+    'templates/**/*'
+  ].select { |f| File.file?(f) }
   s.executables = s.files.grep(%r{^bin/}) { |f| File.basename(f) }
   s.license     = 'MIT'
 

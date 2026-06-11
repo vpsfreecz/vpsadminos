@@ -8,6 +8,7 @@ let
     gemset = ../../os/packages/test-runner/gemset.nix;
     groups = [ "default" ];
     inherit ruby;
+    gemConfig = pkgs.vpsadminosRubyGemConfig;
   };
 
   testRunnerSrc = ../.;

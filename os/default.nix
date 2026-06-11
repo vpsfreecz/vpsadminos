@@ -14,6 +14,9 @@
   # target system
   system ? builtins.currentSystem,
   platform ? null,
+  flakeInputs ? (builtins.getFlake (toString ../.)).inputs,
+  netlinkrb ? flakeInputs.netlinkrb,
+  ruby-lxc ? flakeInputs.ruby-lxc,
 }:
 
 let
@@ -44,7 +47,7 @@ let
         check = true;
       };
       nixpkgs.system = pkgs_.lib.mkDefault system;
-      nixpkgs.overlays = import ./overlays;
+      nixpkgs.overlays = import ./overlays { inherit netlinkrb ruby-lxc; };
     };
   };
   baseModules = import ./modules/module-list.nix { nixpkgsPath = pkgsPath; };
