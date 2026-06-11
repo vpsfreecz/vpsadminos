@@ -1,0 +1,44 @@
+name: Daily update
+
+on:
+  schedule:
+    - cron: '20 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    name: Update gem dependencies
+    if: github.repository == 'vpsfreecz/vpsadminos'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: cachix/install-nix-action@v31
+
+      - name: Setup git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Update gem dependencies
+        run: |
+          nix develop .#vpsadminos --command bash -lc 'make gems'
+
+          git add os/packages/*/Gemfile os/packages/*/Gemfile.lock os/packages/*/gemset.nix
+          git diff --cached --quiet && exit 0
+
+          msg=$(mktemp)
+          printf '%s\n' "os: update packaged gem dependencies" > "$msg"
+          git commit -F "$msg"
+          rm -f "$msg"
+
+      - name: Push updates
+        run: |
+          git push origin "HEAD:${GITHUB_REF_NAME}"
