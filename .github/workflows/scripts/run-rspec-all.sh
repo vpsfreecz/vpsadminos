@@ -55,6 +55,31 @@ ensure_osctld_native() {
   fi
 }
 
+ensure_ruby_lxc_native() {
+  local source_path="${RUBY_LXC_PATH:?}"
+  local target_dir="${workspace}/.native/ruby-lxc"
+  local target_path="${target_dir}/lxc/lxc.so"
+  local build_dir
+
+  if [ -f "$target_path" ]; then
+    return
+  fi
+
+  build_dir=$(mktemp -d)
+  cp -R "$source_path" "${build_dir}/ruby-lxc"
+  chmod -R u+w "${build_dir}/ruby-lxc"
+
+  (
+    cd "${build_dir}/ruby-lxc/ext/lxc"
+    ruby extconf.rb
+    make
+    mkdir -p "${target_dir}/lxc"
+    cp lxc.so "$target_path"
+  )
+
+  rm -rf "$build_dir"
+}
+
 run_suite() {
   local name="$1"
   local dir="$2"
@@ -81,11 +106,14 @@ run_suite() {
       osctld)
         ensure_libosctl_native
         ensure_osctld_native
+        ensure_ruby_lxc_native
         ;;
       converter|osctl|osctl-exporter|osctl-exportfs|osctl-image|osctl-oomd|osctl-repo|osup|osvm|svctl|test-runner)
         ensure_libosctl_native
         ;;
     esac
+
+    export RUBYLIB="${workspace}/.native/ruby-lxc:${RUBYLIB:-}"
 
     bundle exec rspec \
       --format progress \
