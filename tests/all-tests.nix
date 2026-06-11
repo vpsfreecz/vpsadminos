@@ -149,6 +149,7 @@ let
         "secrets"
         "snap/fedora"
         "snap/ubuntu"
+        "system/boot/runit"
         "system/boot/stage-2"
         "system/install"
         "system/switch-to-configuration"

@@ -301,7 +301,16 @@ let
   mkServiceCheck =
     name: service:
     mkService name "check" ''
-      test -f "/run/service/${name}/done"
+      ${setPath service}
+      ${setEnvironment service}
+      ${
+        if service.check != "" then
+          service.check
+        else
+          ''
+            test -f "/run/service/${name}/done"
+          ''
+      }
     '';
 
   killCGroup = pkgs.writeScript "kill-cgroup" ''
@@ -403,8 +412,7 @@ let
           })
 
           (mkIf (service.check != "" || service.oneShot) {
-            "runit/services/${name}/check".source =
-              if service.check != "" then mkService name "check" service.check else mkServiceCheck name service;
+            "runit/services/${name}/check".source = mkServiceCheck name service;
           })
 
           (mkIf service.includeHelpers {
