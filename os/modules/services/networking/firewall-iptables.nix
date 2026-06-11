@@ -499,6 +499,16 @@ in
     runit.services.firewall = {
       path = [ cfg.package ] ++ cfg.extraPackages;
 
+      check = ''
+        set -e
+        iptables -w -C INPUT -j nixos-fw
+        ! iptables -w -C INPUT -j nixos-drop 2>/dev/null
+        ${optionalString config.networking.enableIPv6 ''
+          ip6tables -w -C INPUT -j nixos-fw
+          ! ip6tables -w -C INPUT -j nixos-drop 2>/dev/null
+        ''}
+      '';
+
       run = ''
         ensureServiceStarted eudev-trigger
         waitForService kernel-modules 60 || exit 1
