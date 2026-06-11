@@ -82,24 +82,14 @@ Then you can start it from the source code:
 ```
 
 ## Deployment
-When you have your work finished and want to commit, you need to build gems
-and deploy them to the rubygems repository. CI and other people will then be
-able to build the OS with your changes, without the need to setup the development
-environment themselves.
+When you have your work finished and want to commit, refresh the packaged gem
+metadata so Nix builds use the Ruby sources from the repository and flake
+inputs. No build IDs or remote gem uploads are used.
 
-By default, the gems are pushed and installed from <https://rubygems.vpsfree.cz>.
-Pushing requires authentication, you'll have to ask for credentials.
-Use `nix develop` to enter a prepared environment.
+Within `nix develop`, use `make` to refresh metadata and build the OS:
 
 ```shell
-# Configure remote repository for geminabox
-$ gem inabox -c
-```
-
-Within `nix develop`, you can use `make` to build gems and the OS:
-
-```shell
-# Build and push gems
+# Refresh packaged gem metadata
 $ make gems
 
 # Rebuild OS with updated gems

@@ -11,11 +11,13 @@ not building the images, it only accepts pre-built images and places them
 into the repository, ready to be served to clients by your web server. See
 [creating images](creating.md) to learn how to build container images.
 
-*osctl-repo* is a part of vpsAdminOS, but it can be installed to other
-distributions as well as a Ruby gem:
+*osctl-repo* is a part of vpsAdminOS. On vpsAdminOS it is available in the
+system package set; for development or one-off repository maintenance, enter a
+vpsAdminOS checkout and use the Nix development environment:
 
 ```shell
-gem install --source https://rubygems.vpsfree.cz --prerelease osctl-repo libosctl
+nix develop .#vpsadminos
+osctl-repo --help
 ```
 
 To create a repository, you have to prepare a directory that is served by a web
