@@ -1,10 +1,8 @@
 source 'https://rubygems.org'
 
-source 'https://rubygems.vpsfree.cz' do
-  gem 'libosctl'
-  gem 'netlinkrb'
-  gem 'osctld', '26.05.0.build20260610185909'
-  gem 'osctl-repo'
-  gem 'osup'
-  gem 'ruby-lxc'
-end
+gem 'libosctl'
+gem 'netlinkrb'
+gem 'osctld', '26.05.0'
+gem 'osctl-repo'
+gem 'osup'
+gem 'ruby-lxc'
