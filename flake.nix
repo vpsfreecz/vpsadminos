@@ -35,6 +35,9 @@
       impermanenceNode = flakeLock.nodes.${flakeLock.nodes.root.inputs.impermanence};
       impermanenceNixpkgsNode = flakeLock.nodes.${impermanenceNode.inputs.nixpkgs};
       homeManagerNode = flakeLock.nodes.${impermanenceNode.inputs."home-manager"};
+      osOverlays = import ./os/overlays {
+        inherit (inputs) netlinkrb ruby-lxc;
+      };
       vpsadminosGithubRevFile = ./.vpsadminos-git-rev;
       vpsadminosGithubRev =
         if self ? rev then
@@ -198,6 +201,17 @@
       };
       nixpkgsPath = nixpkgs.outPath;
 
+      overlays = {
+        all = osOverlays;
+        default = nixpkgs.lib.composeManyExtensions osOverlays;
+        minify = import ./os/overlays/minify.nix;
+        osctl = import ./os/overlays/osctl.nix {
+          inherit (inputs) netlinkrb ruby-lxc;
+        };
+        packages = import ./os/overlays/packages.nix;
+        ruby = import ./os/overlays/ruby.nix;
+      };
+
       nixosModules = {
         vpsadminos =
           { pkgs, ... }:
@@ -272,10 +286,7 @@
         system:
         let
           pkgsBase = nixpkgs.legacyPackages.${system};
-          overlays = import ./os/overlays {
-            inherit (inputs) netlinkrb ruby-lxc;
-          };
-          pkgsWithOverlays = pkgsBase.extend (nixpkgs.lib.composeManyExtensions overlays);
+          pkgsWithOverlays = pkgsBase.extend (nixpkgs.lib.composeManyExtensions osOverlays);
 
           mkQemuSystem =
             extraModules:
@@ -403,10 +414,7 @@
         let
           pkgsBase = nixpkgs.legacyPackages.${system};
           lib = pkgsBase.lib;
-          overlays = import ./os/overlays {
-            inherit (inputs) netlinkrb ruby-lxc;
-          };
-          pkgs = pkgsBase.extend (lib.composeManyExtensions overlays);
+          pkgs = pkgsBase.extend (lib.composeManyExtensions osOverlays);
 
           devShellPrompt = name: ''
             export VPSADMINOS_DEV_SHELL=1
