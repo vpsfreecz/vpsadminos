@@ -1,23 +1,27 @@
 # Development
 When developing *osctl*, *osctld* or other components, it is necessary to have
 a fast way to change the code and see the results. The standard deployment
-process forces you to build all gems, even those without changes, push the gems
-to rubygems repository, then build the OS, boot it and finally test the program.
-Rinse and repeat.
+process still requires rebuilding the OS, booting it and testing the changed
+program. For development, the daemon and tools can be run directly from the
+source tree without rebuilding the OS after every change.
 
-To make the process faster, there is a way to mount the source codes into the OS
-running within VM. The repository flake exports development shells for the
-individual components, which makes it possible to use `nix develop` to
-automatically setup the environment in which you can test the changed code
+To do that, mount the source tree into the OS running within a VM. The
+repository flake exports development shells for the individual components,
+which makes it possible to use `nix develop` to
+automatically set up the environment in which you can test the changed code
 immediately.
+
+First-party Ruby components are packaged from sources in this repository and
+from flake inputs. They are not uploaded to a RubyGems repository and do not use
+build IDs; the source commit identifies the build.
 
 While this text assumes you're developing in a VM run with `make qemu`, you can
 use this method to develop on any machine running vpsAdminOS. The difference
-would be only in how you make the source codes available, e.g. mount over NFS
+would be only in how you make the source tree available, e.g. mount over NFS
 or clone the git repository locally.
 
 ## Configuration
-To make the source codes available in the VM, you have to configure qemu to
+To make the source tree available in the VM, you have to configure qemu to
 share those directories and then mount them within the VM. For `nix develop` to
 work, you also need to mount the vpsAdminOS repository from the host. Change your
 `os/configs/local.nix` to include `os/configs/devel.nix`:
@@ -59,8 +63,8 @@ $ ssh -p 2222 root@localhost
 /tmp/dev-ruby-gems/bin/osctl
 ```
 
-Edit sources on the host, then launch *osctl* within the `nix develop` shell in the VM
-and the changed code will be run.
+Edit sources on the host, then launch *osctl* within the `nix develop` shell in
+the VM and the changed code will be run.
 
 If you'd like to work on *osctld*, you'll need to stop it as a system service
 first:
@@ -82,18 +86,28 @@ Then you can start it from the source code:
 ```
 
 ## Deployment
-When you have your work finished and want to commit, refresh the packaged gem
-metadata so Nix builds use the Ruby sources from the repository and flake
-inputs. No build IDs or remote gem uploads are used.
+When your change affects packaged Ruby components or their dependencies, refresh
+the packaged gem metadata before committing. The metadata lives in
+`os/packages/*/Gemfile`, `os/packages/*/Gemfile.lock` and
+`os/packages/*/gemset.nix`. It records third-party gem dependencies and points
+first-party gems at sources in this repository and at flake inputs such as
+`netlinkrb` and `ruby-lxc`.
 
-Within `nix develop`, use `make` to refresh metadata and build the OS:
+Within `nix develop`, refresh metadata and rebuild the OS:
 
 ```shell
 # Refresh packaged gem metadata
 $ make gems
 
-# Rebuild OS with updated gems
+# Rebuild the OS with updated package definitions
 $ make
 ```
 
-Now you can commit and make a pull request.
+For a focused update, use the package target directly, e.g. `make osctld` or
+`make osctl`. If `make gems` changes only packaged gem metadata, keep those
+changes in a separate generated commit using `make commit-gems`, or update an
+existing generated metadata commit with `make amend-gems`.
+
+If the refresh produces no diff, there is no gem metadata to commit. In all
+cases, no build IDs are created and no first-party gems are pushed to a remote
+RubyGems repository.
