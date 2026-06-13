@@ -4,7 +4,7 @@ GEM
     fiddle (1.1.8)
     gli (2.22.2)
       ostruct
-    json (2.19.8)
+    json (2.19.9)
     libosctl (26.05.0)
       fiddle
       logger
