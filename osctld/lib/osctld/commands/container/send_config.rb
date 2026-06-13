@@ -49,9 +49,9 @@ module OsCtld
         recv_opts = [
           'receive', 'skel',
           opts[:to_pool] || '-'
-        ]
-
-        recv_opts << opts[:passphrase] if opts[:passphrase]
+        ].tap do |v|
+          v << opts[:passphrase] if opts[:passphrase]
+        end
 
         ssh = send_ssh_cmd(
           ct.pool.send_receive_key_chain,

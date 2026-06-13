@@ -10,6 +10,7 @@ module OsCtld
         error!("container #{target_pool.name}:#{opts[:target_id]} already exists")
       end
 
+      from_snapshot = normalize_from_snapshot(opts[:from_snapshot])
       new_ct = ct.exclusively do
         if ct.transfer_in_progress?
           error!('this container already has a transfer in progress')
@@ -55,6 +56,7 @@ module OsCtld
             target_user: new_ct.user.name,
             target_group: new_ct.group.name,
             network_interfaces: opts[:network_interfaces],
+            from_snapshot:,
             datasets: dataset_map
           )
         rescue StandardError
@@ -96,6 +98,12 @@ module OsCtld
           mapping: builder.ctrc.map_mode == 'zfs'
         )
       end
+    end
+
+    def normalize_from_snapshot(snapshot)
+      return if snapshot.nil?
+
+      snapshot.start_with?('@') ? snapshot[1..] : snapshot
     end
   end
 end

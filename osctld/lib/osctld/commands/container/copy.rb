@@ -48,7 +48,8 @@ module OsCtld
         target_user: opts[:target_user],
         target_group: opts[:target_group],
         target_dataset: opts[:target_dataset],
-        network_interfaces: opts[:network_interfaces]
+        network_interfaces: opts[:network_interfaces],
+        from_snapshot: opts[:from_snapshot]
       }
     end
   end

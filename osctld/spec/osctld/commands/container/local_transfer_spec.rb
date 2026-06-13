@@ -137,14 +137,15 @@ RSpec.describe 'local container transfer commands' do
     }
   end
 
-  def local_log(operation: :copy, state: :stage, snapshots: [], state_snapshot: nil, state_running: nil, datasets: nil)
+  def local_log(operation: :copy, state: :stage, snapshots: [], state_snapshot: nil, state_running: nil, datasets: nil,
+                from_snapshot: nil)
     OsCtld::LocalTransfer::Log.new(
       role: :source,
       state:,
       snapshots: snapshots.dup,
       state_snapshot:,
       state_running:,
-      opts: transfer_opts(operation:, datasets:)
+      opts: transfer_opts(operation:, datasets:).merge(from_snapshot:)
     )
   end
 
@@ -261,6 +262,7 @@ RSpec.describe 'local container transfer commands' do
           id: 'ct1',
           pool: 'tank',
           target_id: 'ct1-copy',
+          from_snapshot: '@vpsadmin-replace',
           network_interfaces: true
         },
         {}
@@ -272,6 +274,7 @@ RSpec.describe 'local container transfer commands' do
       expect(source.local_transfer_log.opts.datasets.map(&:source)).to eq(
         %w[tank/ct/ct1 tank/ct/ct1/data]
       )
+      expect(source.local_transfer_log.opts.from_snapshot).to eq('vpsadmin-replace')
       expect(created).to eq(%w[tank/ct/ct1-copy tank/ct/ct1-copy/data])
       expect(target.state).to eq(:staged)
     end
@@ -447,6 +450,30 @@ RSpec.describe 'local container transfer commands' do
       expect(transfers).to eq([['/', 'snap-base'], ['data', 'snap-base']])
       expect(log.snapshots).to eq(['snap-base'])
       expect(log.state).to eq(:base)
+    end
+
+    it 'transfers from a selected snapshot before the base snapshot without owning it' do
+      log = local_log(from_snapshot: 'vpsadmin-replace')
+      source = source_ct(log:)
+      target = target_ct
+      stub_target_lookup(target)
+      command = described_class.new({ id: 'ct1', pool: 'tank' }, {})
+      transfers = []
+
+      allow(command).to receive(:snapshot_name).with(:base).and_return('snap-base')
+      allow(command).to receive(:zfs)
+      allow(command).to receive(:transfer_dataset) do |pair, snap, from_snapshot: nil|
+        transfers << [pair.relative_name, snap, from_snapshot]
+      end
+
+      expect(command.execute(source)).to eq(status: true, output: nil)
+      expect(transfers).to eq(
+        [
+          ['/', 'vpsadmin-replace', nil],
+          ['/', 'snap-base', 'vpsadmin-replace']
+        ]
+      )
+      expect(log.snapshots).to eq(['snap-base'])
     end
 
     it 'fails when a copy command sees a move transfer log' do

@@ -1089,6 +1089,9 @@ module OsCtl::Cli
           c.desc 'Copy network interfaces'
           c.switch 'network-interfaces', default_value: true
 
+          c.desc 'Start the copy from selected snapshot'
+          c.flag 'from-snapshot'
+
           c.action(&Command.run(Container, :copy))
 
           c.desc 'Step 1., prepare target container and datasets'
@@ -1108,6 +1111,9 @@ module OsCtl::Cli
 
             s.desc 'Copy network interfaces'
             s.switch 'network-interfaces', default_value: true
+
+            s.desc 'Start the copy from selected snapshot'
+            s.flag 'from-snapshot'
 
             s.action(&Command.run(Container, :copy_config))
           end

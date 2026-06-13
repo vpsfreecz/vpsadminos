@@ -21,9 +21,7 @@ module OsCtld
           ct.save_config
         end
 
-        log.opts.datasets.each do |pair|
-          transfer_dataset(pair, snap)
-        end
+        transfer_rootfs_snapshots(log, snap)
 
         ct.exclusively do
           ct.local_transfer_log.state = :base
@@ -32,6 +30,21 @@ module OsCtld
       end
 
       ok
+    end
+
+    protected
+
+    def transfer_rootfs_snapshots(log, base_snap)
+      from_snapshot = log.opts.from_snapshot
+
+      log.opts.datasets.each do |pair|
+        if from_snapshot
+          transfer_dataset(pair, from_snapshot)
+          transfer_dataset(pair, base_snap, from_snapshot:)
+        else
+          transfer_dataset(pair, base_snap)
+        end
+      end
     end
   end
 end

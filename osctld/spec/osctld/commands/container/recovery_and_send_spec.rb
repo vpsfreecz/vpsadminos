@@ -345,7 +345,16 @@ RSpec.describe 'container recovery and send wrappers' do
         def can_send_continue?(stage)
           stage == :base
         end
-      end.new(nil, [], double('SendOpts', from_snapshot: nil, preexisting_datasets: false, snapshots: false))
+      end.new(
+        nil,
+        [],
+        double(
+          'SendOpts',
+          from_snapshot: nil,
+          preexisting_datasets: false,
+          snapshots: false
+        )
+      )
       child = Struct.new(:name, :descendants, :relative_name) do
         def to_s
           name
@@ -366,6 +375,45 @@ RSpec.describe 'container recovery and send wrappers' do
       expect(command).to have_received(:send_dataset).with(ct, child, kind_of(String))
       expect(send_log.state).to eq(:base)
       expect(ct.save_config_calls).to eq(2)
+    end
+
+    it 'sends from a selected snapshot before the temporary base snapshot' do
+      send_log = Struct.new(:state, :snapshots, :opts) do
+        def can_send_continue?(stage)
+          stage == :base
+        end
+      end.new(
+        nil,
+        [],
+        double(
+          'SendOpts',
+          from_snapshot: 'vpsadmin-replace',
+          preexisting_datasets: false,
+          snapshots: false
+        )
+      )
+      ct = build_send_ct(send_log:)
+      db = stub_const('OsCtld::DB::Containers', Class.new do
+        def self.find(_id, _pool); end
+      end)
+      allow(db).to receive(:find).with('ct1', 'tank').and_return(ct)
+
+      command = described_class.new({ id: 'ct1', pool: 'tank' }, {})
+      transfers = []
+
+      allow(command).to receive(:zfs)
+      allow(command).to receive(:send_snapshot) do |_ct, ds, base_snap, snap, from_snap = nil|
+        transfers << [ds.relative_name, base_snap, snap, from_snap]
+      end
+
+      expect(command.execute).to eq(status: true, output: nil)
+      expect(transfers).to match(
+        [
+          ['ct1', kind_of(String), 'vpsadmin-replace', nil],
+          ['ct1', kind_of(String), kind_of(String), 'vpsadmin-replace']
+        ]
+      )
+      expect(send_log.snapshots.count).to eq(1)
     end
   end
 

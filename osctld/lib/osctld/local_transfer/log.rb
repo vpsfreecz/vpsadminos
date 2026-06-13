@@ -32,7 +32,7 @@ module OsCtld
     class Options
       attr_reader :operation, :target_pool, :target_id, :target_dataset,
                   :target_dataset_custom, :target_user, :target_group,
-                  :network_interfaces, :datasets
+                  :network_interfaces, :from_snapshot, :datasets
 
       def self.load(cfg)
         new(cfg.transform_keys(&:to_sym))
@@ -49,6 +49,7 @@ module OsCtld
         @target_user = opts.delete(:target_user)
         @target_group = opts.delete(:target_group)
         @network_interfaces = opts.delete(:network_interfaces)
+        @from_snapshot = opts.delete(:from_snapshot)
         @datasets = (opts.delete(:datasets) || []).map do |v|
           v.is_a?(Dataset) ? v : Dataset.load(v)
         end
@@ -76,6 +77,7 @@ module OsCtld
           'target_user' => target_user,
           'target_group' => target_group,
           'network_interfaces' => network_interfaces,
+          'from_snapshot' => from_snapshot,
           'datasets' => datasets.map(&:dump)
         }
       end

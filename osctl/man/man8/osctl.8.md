@@ -1325,6 +1325,11 @@ The following shortcuts are supported:
       Remove network interfaces from the new container config. This is useful
       for cloning containers without duplicating network configuration.
 
+    `--from-snapshot` *snapshot*
+      Start the copy from *snapshot*. *snapshot* must be in the short form,
+      without dataset name. The at sign is optional, e.g. `@my-snapshot` or
+      `my-snapshot`. This snapshot must exist on all container datasets.
+
 `ct cp config` [*options*] *ctid* *new-id*
   Prepare a split local copy. A staged target container, target datasets,
   copied config files and a `local_transfer_log` are created. The target config
@@ -1332,8 +1337,9 @@ The following shortcuts are supported:
   cancel the transfer and start again.
 
   Options are the same target options as `ct cp`: `--pool`, `--user`,
-  `--group`, `--dataset` and `--[no-]network-interfaces`. If `--dataset`
-  is used, `ct cp cancel` will not destroy the custom dataset automatically.
+  `--group`, `--dataset`, `--from-snapshot` and
+  `--[no-]network-interfaces`. If `--dataset` is used, `ct cp cancel` will
+  not destroy the custom dataset automatically.
 
 `ct cp rootfs` *ctid*
   Take a base snapshot of the source datasets and copy it locally to the

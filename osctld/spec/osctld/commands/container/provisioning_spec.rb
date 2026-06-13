@@ -419,6 +419,7 @@ RSpec.describe 'container provisioning commands' do
         target_user: 'bob',
         target_group: 'web',
         target_dataset: 'dst/custom/ct2',
+        from_snapshot: nil,
         network_interfaces: false
       ).and_return(status: true, output: nil)
       allow(command).to receive(:call_cmd!).with(

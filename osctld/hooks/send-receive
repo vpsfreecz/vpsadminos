@@ -54,15 +54,16 @@ class SendReceive
         args[0]
       end
 
-    send_cmd(
-      :receive_skel,
+    opts = {
       pool: to_pool,
       passphrase: args[1],
       client_ip:,
       key_pool:,
       key_name:,
       key_pubkey_hash:
-    )
+    }
+
+    send_cmd(:receive_skel, opts)
 
     if recv_resp! != 'continue'
       warn 'Error: invalid response'

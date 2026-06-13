@@ -1718,6 +1718,7 @@ module OsCtl::Cli
       cmd_opts[:target_user] = opts[:user] if opts[:user]
       cmd_opts[:target_group] = opts[:group] if opts[:group]
       cmd_opts[:target_dataset] = opts[:dataset] if opts[:dataset]
+      cmd_opts[:from_snapshot] = opts['from-snapshot'] if opts['from-snapshot']
       cmd_opts
     end
 

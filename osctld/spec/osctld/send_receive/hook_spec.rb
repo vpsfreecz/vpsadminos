@@ -72,4 +72,39 @@ RSpec.describe SendReceive do
       )
     end
   end
+
+  it 'passes skeleton receive options' do
+    hook.instance_variable_set('@key_pool', 'tank')
+    hook.instance_variable_set('@key_name', 'chain-1-token')
+    hook.instance_variable_set('@key_pubkey_hash', 'pubkey-hash')
+    hook.instance_variable_set('@client_ip', '192.0.2.10')
+    hook.instance_variable_set('@protocol_version', 2)
+    hook.instance_variable_set('@args', %w[dst secret])
+
+    allow(client).to receive(:puts)
+    allow(client).to receive(:send_io)
+    allow(client).to receive(:readline).and_return(
+      "#{({ status: true, response: 'continue' }).to_json}\n",
+      "#{({ status: true, response: 'token-1' }).to_json}\n"
+    )
+
+    expect do
+      hook.send(:skel)
+    end.to output("token-1\n").to_stdout
+
+    expect(client).to have_received(:puts) do |payload|
+      expect(JSON.parse(payload, symbolize_names: true)).to eq(
+        cmd: 'receive_skel',
+        opts: {
+          pool: 'dst',
+          passphrase: 'secret',
+          client_ip: '192.0.2.10',
+          key_pool: 'tank',
+          key_name: 'chain-1-token',
+          key_pubkey_hash: 'pubkey-hash',
+          protocol_version: 2
+        }
+      )
+    end
+  end
 end

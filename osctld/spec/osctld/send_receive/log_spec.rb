@@ -29,6 +29,7 @@ RSpec.describe OsCtld::SendReceive::Log do
 
     expect(options[:ctid]).to eq('100')
     expect(options.cloned?).to be(true)
+    expect(options.from_snapshot).to eq('snap1')
     expect(options.protocol_version).to eq(OsCtld::SendReceive::PROTOCOL_VERSION)
     expect(described_class::Options.load(options.dump).dump).to eq(options.dump)
   end

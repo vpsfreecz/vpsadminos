@@ -46,4 +46,18 @@ RSpec.describe OsCtl::Cli::Send do
       command.public_send(method_name)
     end
   end
+
+  it 'passes from snapshot to remote send config' do
+    command = cmd(
+      args: %w[ct1 user@dst],
+      opts: { 'from-snapshot' => 'vpsadmin-replace' },
+      gopts: { pool: 'tank' }
+    )
+
+    expect(command).to receive(:with_progress).with(
+      :ct_send_config,
+      hash_including(from_snapshot: 'vpsadmin-replace')
+    )
+    command.config
+  end
 end

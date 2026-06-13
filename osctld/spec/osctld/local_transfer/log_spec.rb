@@ -28,6 +28,7 @@ RSpec.describe OsCtld::LocalTransfer::Log do
       target_user: 'alice',
       target_group: '/default',
       network_interfaces: true,
+      from_snapshot: 'keep-me',
       datasets: dataset_map
     }
   end
@@ -57,6 +58,7 @@ RSpec.describe OsCtld::LocalTransfer::Log do
 
     expect(copy.copy?).to be(true)
     expect(copy.move?).to be(false)
+    expect(copy.from_snapshot).to eq('keep-me')
     expect(move.copy?).to be(false)
     expect(move.move?).to be(true)
   end

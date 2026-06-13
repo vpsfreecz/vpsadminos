@@ -210,8 +210,10 @@ RSpec.describe OsCtld::SendReceive::Commands::ReceiveSkel do
       allow(importer_class).to receive(:new).and_return(importer)
       allow(builder_class).to receive(:new).with(:run_conf).and_return(builder)
       allow(tokens).to receive(:get).and_return('token-123')
-      allow(importer).to receive(:load_metadata).and_return('type' => archive_type)
-      allow(importer).to receive(:load_ct).with(ct_opts: { staged: true, devices: false }).and_return(ct)
+      allow(importer).to receive_messages(
+        load_metadata: { 'type' => archive_type },
+        load_ct: ct
+      )
       allow(importer).to receive(:create_datasets)
       allow(importer).to receive(:install_user_hook_scripts)
       allow(builder).to receive_messages(valid?: builder_valid, id_chars: '[a-z0-9]+', register: builder_registered)
@@ -277,6 +279,7 @@ RSpec.describe OsCtld::SendReceive::Commands::ReceiveSkel do
       allow(importer).to receive(:load_ct).and_return(ct_with_netifs)
 
       expect(command.execute).to eq(status: true, output: 'token-123')
+      expect(importer).to have_received(:load_ct).with(ct_opts: { staged: true, devices: false })
       expect(importer).to have_received(:create_datasets).with(builder, accept_existing: true)
       expect(command).to have_received(:zfs).with(:umount, '', 'dst/ct1/var', valid_rcs: [1])
       expect(command).to have_received(:zfs).with(:umount, '', 'dst/ct1/rootfs', valid_rcs: [1])

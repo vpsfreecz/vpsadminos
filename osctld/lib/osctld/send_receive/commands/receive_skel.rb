@@ -69,12 +69,12 @@ module OsCtld
 
         SendReceive.started_using_key(pool, auth_key.name)
         token = SendReceive::Tokens.get
-        ct.open_send_log(
-          :destination,
-          token,
+        log_opts = {
           key_name: auth_key.name,
           protocol_version: opts[:protocol_version]
-        )
+        }
+
+        ct.open_send_log(:destination, token, **log_opts)
 
         builder.setup_lxc_configs
         builder.setup_log_file

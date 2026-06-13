@@ -197,6 +197,20 @@ RSpec.describe OsCtl::Cli::Container do
     end
   end
 
+  it 'passes from snapshot to copy config' do
+    command = cmd(
+      args: %w[ct1 dozer:ct2],
+      opts: { 'from-snapshot' => 'vpsadmin-replace' },
+      gopts: { pool: 'tank' }
+    )
+
+    expect(command).to receive(:with_progress).with(
+      :ct_copy_config,
+      hash_including(from_snapshot: 'vpsadmin-replace')
+    )
+    command.copy_config
+  end
+
   it 'parses copy targets and forwards state options' do
     command = cmd(
       args: %w[ct1 dozer:ct2],
