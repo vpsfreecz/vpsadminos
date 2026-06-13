@@ -360,8 +360,14 @@ import ../../make-test.nix (
               status, output = no_conntrack_server.execute('sv 1 firewall')
               expect(status).to eq(0), output
 
-              no_conntrack_server.wait_until_succeeds(
+              reload_ready_command = [
                 'test "$(iptables-save -t raw | grep -c -- "--comment nixos-fw-notrack")" = 2',
+                'iptables-save | grep -- "--comment firewall-test-protected-tcp" | grep -q -- "-j nixos-fw-log-refuse"',
+                'iptables-save | grep -- "--comment firewall-test-protected-udp" | grep -q -- "-j nixos-fw-log-refuse"',
+              ].join(' && ')
+
+              no_conntrack_server.wait_until_succeeds(
+                reload_ready_command,
                 timeout: 60
               )
             end
