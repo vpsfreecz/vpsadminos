@@ -5,6 +5,17 @@
 - `osctl`, `osctld`, `libosctl`, `osctl-*`, `osup`, `svctl`, `osvm`, `test-runner`: Ruby gems/CLIs that back container management.
 - `image-scripts/`: install media helpers; `tools/`: maintenance scripts (e.g., gem updates); `docs/`: MkDocs sources; `tests/`: Nix VM test suites plus machines/configs.
 
+## Relationship With vpsAdmin
+- vpsAdminOS is an independent container host platform. vpsAdmin is its main
+  consumer, but not the only intended consumer.
+- When vpsAdmin needs new vpsAdminOS behavior, design the vpsAdminOS side as a
+  general-purpose primitive or interface that makes sense without vpsAdmin on
+  top of it.
+- Avoid encoding vpsAdmin-specific concepts, database IDs, backup workflows, or
+  naming assumptions in osctld/osctl APIs unless they belong in an explicit
+  integration boundary. Keep vpsAdmin-specific orchestration in vpsAdmin or its
+  node-facing integration layer.
+
 ## Development Environment
 - Enter via `nix develop` to pull Ruby, Nix, mkdocs, and ccache.
 - Keep ccache available for kernel builds; build/test commands create `result/` symlinks in the repo root.
