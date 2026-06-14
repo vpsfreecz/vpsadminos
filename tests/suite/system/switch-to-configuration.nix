@@ -43,6 +43,23 @@ import ../../make-test.nix (
       ];
     };
 
+    unloadSystem = switchedSystem {
+      boot.kernelModules = [
+        keptModule
+        failedModule
+      ];
+      boot.kernel.unloadRemovedModules = true;
+    };
+
+    loadDisabledSystem = switchedSystem {
+      boot.kernelModules = [
+        addedModule
+        keptModule
+        failedModule
+      ];
+      boot.kernel.loadNewModules = false;
+    };
+
     moduleAndFirewallSystem = switchedSystem {
       boot.kernelModules = [
         addedModule
@@ -89,6 +106,8 @@ import ../../make-test.nix (
         ];
         system.extraDependencies = [
           nextSystem
+          unloadSystem
+          loadDisabledSystem
           moduleAndFirewallSystem
           nextFirewallSystem
         ];
@@ -203,7 +222,7 @@ import ../../make-test.nix (
           expect(output).not_to include('> sv start firewall')
         end
 
-        it 'updates loaded modules to match boot.kernelModules' do
+        it 'loads added modules without unloading removed modules by default' do
           expect(tracked_module_state.call).to eq(
             '${removedModule}' => 'loaded',
             '${addedModule}' => 'absent',
@@ -223,12 +242,52 @@ import ../../make-test.nix (
           machine.wait_for_service('kernel-modules')
           log_contains.call('reloading kernel modules from service control')
           log_contains.call('loading module ${addedModule}')
-          log_contains.call('unloading removed module ${removedModule}')
+          log_contains.call('not unloading removed kernel modules because boot.kernel.unloadRemovedModules is false')
+          log_not_contains.call('unloading removed module ${removedModule}')
           log_not_contains.call('unloading removed module ${addedModule}')
           log_not_contains.call('unloading removed module ${keptModule}')
           expect(tracked_module_state.call).to eq(
-            '${removedModule}' => 'absent',
+            '${removedModule}' => 'loaded',
             '${addedModule}' => 'loaded',
+            '${keptModule}' => 'loaded',
+            '${failedModule}' => 'absent',
+          )
+        end
+
+        it 'unloads removed modules when enabled' do
+          clear_kernel_module_logs.call
+
+          _, output = machine.succeeds('${unloadSystem}/bin/switch-to-configuration test')
+
+          expect(output).to include('> sv reload kernel-modules')
+          expect(output).not_to include('> sv stop kernel-modules')
+          expect(output).not_to include('> sv start kernel-modules')
+          machine.wait_for_service('kernel-modules')
+          log_contains.call('reloading kernel modules from service control')
+          log_contains.call('unloading removed module ${addedModule}')
+          expect(tracked_module_state.call).to eq(
+            '${removedModule}' => 'loaded',
+            '${addedModule}' => 'absent',
+            '${keptModule}' => 'loaded',
+            '${failedModule}' => 'absent',
+          )
+        end
+
+        it 'does not load modules when loading is disabled' do
+          clear_kernel_module_logs.call
+
+          _, output = machine.succeeds('${loadDisabledSystem}/bin/switch-to-configuration test')
+
+          expect(output).to include('> sv reload kernel-modules')
+          expect(output).not_to include('> sv stop kernel-modules')
+          expect(output).not_to include('> sv start kernel-modules')
+          machine.wait_for_service('kernel-modules')
+          log_contains.call('reloading kernel modules from service control')
+          log_contains.call('not loading new kernel modules because boot.kernel.loadNewModules is false')
+          log_not_contains.call('loading module ${addedModule}')
+          expect(tracked_module_state.call).to eq(
+            '${removedModule}' => 'loaded',
+            '${addedModule}' => 'absent',
             '${keptModule}' => 'loaded',
             '${failedModule}' => 'absent',
           )
@@ -240,8 +299,8 @@ import ../../make-test.nix (
           log_not_contains.call('unloading module ${keptModule}')
 
           expect(tracked_module_state.call).to eq(
-            '${removedModule}' => 'absent',
-            '${addedModule}' => 'loaded',
+            '${removedModule}' => 'loaded',
+            '${addedModule}' => 'absent',
             '${keptModule}' => 'loaded',
             '${failedModule}' => 'absent',
           )

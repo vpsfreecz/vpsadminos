@@ -6,6 +6,8 @@
 }:
 with lib;
 let
+  cfg = config.boot.kernel;
+
   kernelModuleList = pkgs.writeText "kernel-modules" (
     concatStringsSep "\n" config.boot.kernelModules + "\n"
   );
@@ -67,9 +69,21 @@ let
     }
 
     reload_modules() {
-      log "loading configured kernel modules"
-      load_modules
-      unload_removed_modules
+      mkdir -p "$state_dir"
+
+      if ${boolToString cfg.loadNewModules}; then
+        log "loading configured kernel modules"
+        load_modules
+      else
+        log "not loading new kernel modules because boot.kernel.loadNewModules is false"
+      fi
+
+      if ${boolToString cfg.unloadRemovedModules}; then
+        unload_removed_modules
+      else
+        log "not unloading removed kernel modules because boot.kernel.unloadRemovedModules is false"
+      fi
+
       cp "$module_list" "$state_file"
       log "configured kernel modules loaded"
     }
@@ -87,6 +101,26 @@ let
   '';
 in
 {
+  options = {
+    boot.kernel.loadNewModules = mkOption {
+      type = types.bool;
+      default = true;
+      description = ''
+        Load configured kernel modules when the kernel-modules service starts
+        or reloads.
+      '';
+    };
+
+    boot.kernel.unloadRemovedModules = mkOption {
+      type = types.bool;
+      default = false;
+      description = ''
+        Unload kernel modules that were loaded from an earlier configuration
+        and are no longer listed in boot.kernelModules.
+      '';
+    };
+  };
+
   config = {
     environment.etc."kernel-modules".source = kernelModuleList;
 
