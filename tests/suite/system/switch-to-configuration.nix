@@ -19,7 +19,8 @@ import ../../make-test.nix (
       };
     };
 
-    nextSystem =
+    switchedSystem =
+      module:
       (import ../../../os (
         {
           importedPkgs = pkgs;
@@ -28,17 +29,28 @@ import ../../make-test.nix (
             ../../configs/vpsadminos/base.nix
             ../../configs/vpsadminos/pool-tank.nix
             (testService triggerB)
-            {
-              boot.kernelModules = [
-                addedModule
-                keptModule
-                failedModule
-              ];
-            }
+            module
           ];
         }
         // (pkgs.vpsadminosTestFrameworkInputs or { })
       )).config.system.build.toplevel;
+
+    nextSystem = switchedSystem {
+      boot.kernelModules = [
+        addedModule
+        keptModule
+        failedModule
+      ];
+    };
+
+    moduleAndFirewallSystem = switchedSystem {
+      boot.kernelModules = [
+        addedModule
+        keptModule
+        failedModule
+      ];
+      networking.firewall.logRefusedConnections = true;
+    };
 
     nextFirewallSystem =
       (import ../../../os (
@@ -77,6 +89,7 @@ import ../../make-test.nix (
         ];
         system.extraDependencies = [
           nextSystem
+          moduleAndFirewallSystem
           nextFirewallSystem
         ];
       };
@@ -136,6 +149,16 @@ import ../../make-test.nix (
           syslog_not_contains.call(pattern)
         end
 
+        clear_kernel_module_logs = lambda do
+          machine.succeeds(<<~CMD)
+            set -e
+            if [ -d /var/log/kernel-modules ]; then
+              find /var/log/kernel-modules -type f -exec truncate -s 0 {} +
+            fi
+            [ ! -e /var/log/messages ] || truncate -s 0 /var/log/messages
+          CMD
+        end
+
         before(:context) do
           machine.start
           machine.wait_for_service('rsyslog')
@@ -165,6 +188,21 @@ import ../../make-test.nix (
           expect(output).not_to include('> sv start firewall')
         end
 
+        it 'keeps kernel-modules available while reloading firewall' do
+          _, output = machine.succeeds('${moduleAndFirewallSystem}/bin/switch-to-configuration dry-activate')
+
+          kernel_modules_reload = output.index('> sv reload kernel-modules')
+          firewall_reload = output.index('> sv 1 firewall')
+
+          expect(kernel_modules_reload).not_to be_nil
+          expect(firewall_reload).not_to be_nil
+          expect(kernel_modules_reload).to be < firewall_reload
+          expect(output).not_to include('> sv stop kernel-modules')
+          expect(output).not_to include('> sv start kernel-modules')
+          expect(output).not_to include('> sv stop firewall')
+          expect(output).not_to include('> sv start firewall')
+        end
+
         it 'updates loaded modules to match boot.kernelModules' do
           expect(tracked_module_state.call).to eq(
             '${removedModule}' => 'loaded',
@@ -175,11 +213,15 @@ import ../../make-test.nix (
           log_contains.call('loading module ${removedModule}')
           log_contains.call('loading module ${keptModule}')
           log_contains.call('failed to load module ${failedModule}')
+          clear_kernel_module_logs.call
 
           _, output = machine.succeeds('${nextSystem}/bin/switch-to-configuration test')
 
           expect(output).to include('> sv reload kernel-modules')
+          expect(output).not_to include('> sv stop kernel-modules')
+          expect(output).not_to include('> sv start kernel-modules')
           machine.wait_for_service('kernel-modules')
+          log_contains.call('reloading kernel modules from service control')
           log_contains.call('loading module ${addedModule}')
           log_contains.call('unloading removed module ${removedModule}')
           log_not_contains.call('unloading removed module ${addedModule}')

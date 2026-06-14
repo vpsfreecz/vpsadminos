@@ -280,7 +280,7 @@ class Services
   # Services that have been changed and should be reloaded
   # @return [Array<Service>]
   def reload
-    (old_services.keys & new_services.keys).select do |s|
+    services = (old_services.keys & new_services.keys).select do |s|
       old_service = old_services[s]
       new_service = new_services[s]
 
@@ -288,6 +288,9 @@ class Services
         && old_service != new_service \
         && new_service.on_change == :reload
     end.map { |s| new_services[s] }
+
+    kernel_modules, other = services.partition { |svc| svc.name == 'kernel-modules' }
+    kernel_modules + other
   end
 
   def switch_runlevel

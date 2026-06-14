@@ -75,8 +75,9 @@ let
     }
 
     handle_hangup() {
-      reload_modules
       stop_sleep
+      log "reloading kernel-modules service script"
+      exec /etc/runit/services/kernel-modules/run
     }
 
     handle_exit() {
@@ -109,6 +110,11 @@ in
           sleep_pid=$!
           wait "$sleep_pid" || true
         done
+      '';
+      control.hangup = ''
+        ${kernelModuleServiceShell}
+        log "reloading kernel modules from service control"
+        reload_modules
       '';
       includeHelpers = true;
       log.enable = true;
