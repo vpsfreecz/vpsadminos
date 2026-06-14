@@ -2,6 +2,7 @@
   ./config/defaults.nix
   ./config/damon-reclaim.nix
   ./config/kernel.nix
+  ./config/kernel-modules.nix
   ./config/runit.nix
   ./config/system-path.nix
   ./config/swap.nix
