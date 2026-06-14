@@ -37,6 +37,11 @@
 ## Testing Guidelines
 - Add tests in `tests/suite/*.nix` and register them in `tests/all-tests.nix`; reuse machines from `tests/machines/*.nix` and configs from `tests/configs/`.
 - Use `my-test#script` for multi-script cases; set `expectFailure = true` when capturing known failures.
+- Tests that transfer, copy, move, send, receive, back up, or restore
+  containers or datasets must verify data integrity when the operation is
+  expected to preserve data. Create a file at a known path with known contents,
+  or an equivalent payload checksum, before the operation and assert that it
+  survives intact on the destination or restored dataset.
 - While developing, run `./test-runner.sh ls '<pattern>'` to explore cases and `./test-runner.sh debug <name>` for stepwise checks; per-test state lives under `result/`.
 
 ### Test runner tips
