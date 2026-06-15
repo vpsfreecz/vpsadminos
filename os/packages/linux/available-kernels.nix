@@ -13,6 +13,14 @@ with lib.kernel;
         sha256 = "sha256-4WQWL4wd3TYaTfqEqQ6ZDYLXmqnHW7XQz2DP0FpwsRQ=";
       };
     };
+    "6.12.91" = {
+      rev = "af3725cb1aaf04ffd59960d110002021e1d90948";
+      sha256 = "sha256-1uameJ6OIag2l4FV65qCOSWzEDgeysQ39z4bvvojDyw=";
+      zfs = {
+        rev = "d4d28949b5a5d774d8677528659e3e84497cc18b";
+        sha256 = "sha256-6EtwS4ONz49Z2oAx31bKHf9c7NiVsoXnIB4ngCqFyd4=";
+      };
+    };
     "6.12.89" = {
       rev = "a42c7bacf76cd80077fc5118e40d6954c37ffccb";
       sha256 = "sha256-zzvj+N4G/tb2H8or6fLQ9Huti7+FMST8bOryjld3cLM=";
