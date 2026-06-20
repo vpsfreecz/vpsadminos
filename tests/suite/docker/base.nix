@@ -73,6 +73,33 @@ import ../../make-test.nix (
         )
       end
 
+      def configure_docker_iptables_nft(ct)
+        ct_shell(
+          ct,
+          <<~'SH'
+            if command -v update-alternatives >/dev/null 2>&1; then
+              for name in iptables ip6tables arptables ebtables; do
+                target="/usr/sbin/''${name}-nft"
+                if [ -x "$target" ] && update-alternatives --list "$name" 2>/dev/null | grep -Fxq "$target"; then
+                  update-alternatives --set "$name" "$target"
+                fi
+              done
+            fi
+          SH
+        )
+      end
+
+      def restart_docker(ct)
+        escaped_ct = Shellwords.escape(ct)
+
+        machine.succeeds("osctl ct exec #{escaped_ct} systemctl reset-failed docker || true")
+        machine.succeeds("osctl ct exec #{escaped_ct} systemctl restart docker")
+      rescue OsVm::CommandFailed
+        machine.succeeds("osctl ct exec #{escaped_ct} systemctl --no-pager --full status docker || true")
+        machine.succeeds("osctl ct exec #{escaped_ct} journalctl --no-pager -u docker -n 100 || true")
+        raise
+      end
+
       def dump_host_network_state(ct, label)
         escaped_ct = Shellwords.escape(ct)
 
@@ -341,7 +368,7 @@ import ../../make-test.nix (
 
         check_docker_resource_limits(ct)
 
-        machine.succeeds("osctl ct exec #{ct} docker pull gitlab/gitlab-ee:latest", timeout: 900)
+        machine.succeeds("osctl ct exec #{ct} docker pull gitlab/gitlab-ee:latest", timeout: 2400)
         machine.succeeds("osctl ct exec #{ct} docker image inspect gitlab/gitlab-ee:latest")
       end
     '';
@@ -366,14 +393,22 @@ import ../../make-test.nix (
           '';
           script = common + ''
             ct = get_container_id('docker')
+            completed = false
 
             begin
               ensure_machine
               create_docker_container(ct, '${distribution}', '${test.version}')
               ${test.setup}
               check_docker(ct)
+              completed = true
             ensure
               cleanup_container(ct)
+              ${pkgs.lib.optionalString (builtins.length tests > 1) ''
+                if completed
+                  machine.stop if machine.running?
+                  machine.destroy_disks
+                end
+              ''}
             end
           '';
         };
