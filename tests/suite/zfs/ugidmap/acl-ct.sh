@@ -54,7 +54,7 @@ setfacl -b /acl/user
 setfacl -b /acl/group
 
 su testuser -c "ls -l /acl/user" && fail "user acl wasn't unset"
-su testuser -c "ls -l /acl/group" && fal "group acl wasn't unset"
+su testuser -c "ls -l /acl/group" && fail "group acl wasn't unset"
 
 setfacl -m user:testuser:rx /acl/user
 setfacl -m group:testgroup:rx /acl/group
@@ -90,10 +90,10 @@ setfacl -m user:$(($TEST_UID + $CT_USER_UID)):rx $CT_ROOTFS/acl/old-preexisting
 setfacl -m group:$(($TEST_GID + $CT_GROUP_GID)):rx $CT_ROOTFS/acl/old-preexisting
 
 must_have_acl default:user:$CT_USER_UID:r-x $CT_ROOTFS/acl/default-user
-must_have_acl default:group:$CT_GROUP_UID:r-x $CT_ROOTFS/acl/default-group
+must_have_acl default:group:$CT_GROUP_GID:r-x $CT_ROOTFS/acl/default-group
 
 must_have_acl user:$CT_USER_UID:r-x $CT_ROOTFS/acl/default-user/dir
-must_have_acl group:$CT_GROUP_UID:r-x $CT_ROOTFS/acl/default-group/dir
+must_have_acl group:$CT_GROUP_GID:r-x $CT_ROOTFS/acl/default-group/dir
 
 # Set the map again, start the container and re-check
 log_must zfs umount $CT_DS
