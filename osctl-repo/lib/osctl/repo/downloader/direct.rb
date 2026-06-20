@@ -1,4 +1,5 @@
 require 'net/http'
+require 'tempfile'
 require 'osctl/repo/downloader/base'
 
 module OsCtl::Repo
@@ -13,7 +14,7 @@ module OsCtl::Repo
           request_get(http, index_uri) do |res|
             raise BadHttpResponse, res.code if res.code != '200'
 
-            res.read_body do |fragment|
+            read_response_body(res) do |fragment|
               body << fragment
             end
           end
@@ -32,7 +33,7 @@ module OsCtl::Repo
           request_get(http, index_uri) do |res|
             raise BadHttpResponse, res.code if res.code != '200'
 
-            res.read_body do |fragment|
+            read_response_body(res) do |fragment|
               body << fragment
             end
           end
@@ -46,8 +47,28 @@ module OsCtl::Repo
           request_get(http, URI(t.abs_image_url(format))) do |res|
             raise BadHttpResponse, res.code if res.code != '200'
 
-            res.read_body(&block)
+            stream_response_body(res, &block)
           end
+        end
+      end
+    end
+
+    protected
+
+    def stream_response_body(res)
+      raise ArgumentError, 'stream block is required' unless block_given?
+
+      Tempfile.create('osctl-repo-direct-download') do |f|
+        f.binmode
+
+        read_response_body(res) do |fragment|
+          f.write(fragment)
+        end
+
+        f.rewind
+
+        while (fragment = f.read(32 * 1024))
+          yield fragment
         end
       end
     end
