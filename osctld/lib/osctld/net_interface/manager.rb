@@ -8,16 +8,22 @@ module OsCtld
     # Load interfaces from config
     # @param ct [Container]
     # @param cfg [Array]
-    def self.load(ct, cfg)
-      new(
-        ct,
-        entries: cfg.each_with_index.map do |v, i|
+    def self.load(ct, cfg, discover_host_links: true)
+      NetInterface.sync_host_link_registry do
+        entries = cfg.each_with_index.map do |v, i|
           netif = NetInterface.for(v['type'].to_sym).new(ct, i)
           netif.load(v)
-          netif.setup
+          netif.setup(discover_host_links:)
           netif
         end
-      )
+
+        NetInterface.validate_container_host_link_claims!(
+          ct,
+          owner_netifs: entries
+        )
+
+        new(ct, entries:)
+      end
     end
 
     # @param ct [Container]
@@ -35,36 +41,67 @@ module OsCtld
 
     # @param netif [NetInterface::Base]
     def add(netif)
-      exclusively { netifs << netif }
-      ct.save_config
+      NetInterface.sync_host_link_registry do
+        NetInterface.validate_host_link_owner!(
+          owner_ct: ct,
+          owner_netif: netif
+        )
+        exclusively { netifs << netif }
+        ct.save_config
 
-      Eventd.report(
-        :ct_netif,
-        action: :add,
-        pool: ct.pool.name,
-        id: ct.id,
-        name: netif.name
-      )
+        Eventd.report(
+          :ct_netif,
+          action: :add,
+          pool: ct.pool.name,
+          id: ct.id,
+          name: netif.name
+        )
+      end
     end
 
     # @param netif [NetInterface::Base]
     def delete(netif)
-      exclusively { netifs.delete(netif) }
-      ct.save_config
+      NetInterface.sync_host_link_registry do
+        if netif.respond_to?(:host_link_identity) &&
+           netif.host_link_identity.any?
+          raise NetInterface::HostLinkClaimError,
+                "network interface #{netif.name.inspect} still owns a host link; " \
+                'complete lifecycle cleanup before removing it'
+        end
 
-      Eventd.report(
-        :ct_netif,
-        action: :remove,
-        pool: ct.pool.name,
-        id: ct.id,
-        name: netif.name
-      )
+        exclusively { netifs.delete(netif) }
+        ct.save_config
+
+        Eventd.report(
+          :ct_netif,
+          action: :remove,
+          pool: ct.pool.name,
+          id: ct.id,
+          name: netif.name
+        )
+      end
     end
 
     def take_down
-      inclusively do
-        netifs.each do |n|
+      NetInterface.sync_host_link_registry do
+        get.each do |n|
           n.down if n.is_created?
+        end
+      end
+    end
+
+    def recovery_tainted?
+      inclusively do
+        netifs.any? do |netif|
+          netif.respond_to?(:host_link_tainted?) && netif.host_link_tainted?
+        end
+      end
+    end
+
+    def setup_state_changed?
+      inclusively do
+        netifs.any? do |netif|
+          netif.respond_to?(:setup_state_changed?) && netif.setup_state_changed?
         end
       end
     end

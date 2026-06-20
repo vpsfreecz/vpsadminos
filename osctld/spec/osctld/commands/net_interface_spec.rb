@@ -327,6 +327,34 @@ RSpec.describe 'net_interface commands' do
       expect(ct.saved).to be(true)
       expect(ct.lxc_config.configured).to be(true)
     end
+
+    it 'reports host-link validation failures without persisting changes' do
+      netif = build_netif(name: 'eth0', type: :routed)
+      ct = build_ct(id: 'ct1', pool_name: 'tank', netifs: [netif], state: :running)
+      db = stub_const('OsCtld::DB::Containers', Class.new do
+        def self.find(_id, _pool); end
+      end)
+      allow(db).to receive(:find).with('ct1', 'tank').and_return(ct)
+      allow(netif).to receive(:set).and_raise(
+        OsCtld::NetInterface::HostLinkClaimError,
+        'host veth "veth0" changed identity'
+      )
+
+      expect(
+        described_class.run(
+          id: 'ct1',
+          pool: 'tank',
+          name: 'eth0',
+          max_rx: 100
+        )
+      ).to eq(
+        status: false,
+        message: 'host veth "veth0" changed identity'
+      )
+      expect(ct.saved).to be(false)
+      expect(ct.lxc_config.configured).to be(false)
+      expect(OsCtld::DistConfig).not_to have_received(:run)
+    end
   end
 
   describe OsCtld::Commands::NetInterface::Show do
@@ -405,6 +433,32 @@ RSpec.describe 'net_interface commands' do
       expect(ct.netifs['eth0']).to be_nil
       expect(OsCtld::DistConfig).to have_received(:run).with(:run_conf, :remove_netif, netif:)
     end
+
+    it 'reports a retained host-link owner without changing network state' do
+      usernet = stub_const('OsCtld::Commands::User::LxcUsernet', Class.new)
+      netif = build_netif(name: 'eth0', type: :bridge)
+      ct = build_ct(id: 'ct1', pool_name: 'tank', netifs: [netif], state: :stopped)
+      db = stub_const('OsCtld::DB::Containers', Class.new do
+        def self.find(_id, _pool); end
+      end)
+      allow(db).to receive(:find).with('ct1', 'tank').and_return(ct)
+      allow(ct.netifs).to receive(:delete).and_raise(
+        OsCtld::NetInterface::HostLinkClaimError,
+        'network interface "eth0" still owns a host link'
+      )
+
+      command = described_class.new({ id: 'ct1', pool: 'tank', name: 'eth0' }, {})
+      allow(command).to receive(:call_cmd).with(usernet)
+
+      expect(command.base_execute).to eq(
+        status: false,
+        message: 'network interface "eth0" still owns a host link'
+      )
+      expect(ct.netifs['eth0']).to be(netif)
+      expect(ct.lxc_config.configured).to be(false)
+      expect(OsCtld::DistConfig).not_to have_received(:run)
+      expect(command).not_to have_received(:call_cmd)
+    end
   end
 
   describe OsCtld::Commands::NetInterface::Rename do
@@ -430,6 +484,35 @@ RSpec.describe 'net_interface commands' do
         netif:,
         original_name: 'eth0'
       )
+    end
+
+    it 'reports a retained host-link owner without renaming the interface' do
+      netif = build_netif(name: 'eth0', type: :bridge)
+      ct = build_ct(id: 'ct1', pool_name: 'tank', netifs: [netif], state: :stopped)
+      db = stub_const('OsCtld::DB::Containers', Class.new do
+        def self.find(_id, _pool); end
+      end)
+      allow(db).to receive(:find).with('ct1', 'tank').and_return(ct)
+      allow(netif).to receive(:rename).and_raise(
+        OsCtld::NetInterface::HostLinkClaimError,
+        'network interface "eth0" still owns a host link'
+      )
+
+      expect(
+        described_class.run(
+          id: 'ct1',
+          pool: 'tank',
+          old_name: 'eth0',
+          new_name: 'eth1'
+        )
+      ).to eq(
+        status: false,
+        message: 'network interface "eth0" still owns a host link'
+      )
+      expect(netif.name).to eq('eth0')
+      expect(ct.saved).to be(false)
+      expect(ct.lxc_config.configured).to be(false)
+      expect(OsCtld::DistConfig).not_to have_received(:run)
     end
   end
 
