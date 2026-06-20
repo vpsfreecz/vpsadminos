@@ -46,37 +46,58 @@ import ../../make-test.nix (
               # system
               sleep(10)
 
-              _, output = machine.succeeds("osctl ct exec #{testct} cat /proc/mounts")
+              _, mounts = machine.succeeds("osctl ct exec #{testct} cat /proc/mounts")
 
-              if /^\w+ #{Regexp.escape("/sys/fs/cgroup cgroup2 ")}/ !~ output
-                fail "unified cgroup not mounted"
+              # On a cgroups v1 host LXC mounts a cgroup2 root on /sys/fs/cgroup and
+              # then the legacy v1 layout over it, while a guest init that mounts
+              # unified itself (systemd since v258) replaces that legacy layout. Only
+              # the last entry for the path is what the container actually sees, so
+              # matching the first would accept a mount that is shadowed.
+              effective = mounts.lines.reverse.find do |line|
+                fields = line.split
+                fields.length >= 3 && fields[1] == "/sys/fs/cgroup"
               end
 
-              _, output = machine.succeeds("osctl ct exec #{testct} cat /sys/fs/cgroup/cgroup.controllers")
-              enabled_controllers = output.strip.split(" ")
-
-              if enabled_controllers.any?
-                fail "Did not expect any controllers, got #{enabled_controllers.inspect}"
+              if effective.nil?
+                fail "No mount on /sys/fs/cgroup"
               end
 
-              # Check that the system does not try to use the unified cgroup as if it
-              # was a hybrid hierarchy
-              hybrid_controllers = %w(
-                cpu,cpuacct
-                cpuset
-                devices
-                freezer
-                hugetlb
-                memory
-                net_cls,net_prio
-                perf_event
-                pids
-                rdma
-                systemd
-              )
+              if effective.split[2] != "cgroup2"
+                # The container kept the legacy layout, which is what a guest that
+                # still supports cgroups v1 uses on a v1 host: there is no unified
+                # hierarchy here, so the v1 controllers must be the mounted ones.
+                machine.fails("osctl ct exec #{testct} cat /sys/fs/cgroup/cgroup.controllers")
 
-              hybrid_controllers.each do |v|
-                machine.fails("osctl ct exec #{testct} ls /sys/fs/cgroup/#{v}")
+                legacy_mounts = mounts.lines.select do |line|
+                  fields = line.split
+                  fields.length >= 3 &&
+                    fields[1].start_with?("/sys/fs/cgroup/") &&
+                    fields[2] == "cgroup"
+                end
+
+                if legacy_mounts.empty?
+                  fail "Expected legacy cgroup mounts on a cgroups v1 host"
+                end
+              else
+                _, output = machine.succeeds("osctl ct exec #{testct} cat /sys/fs/cgroup/cgroup.controllers")
+                enabled_controllers = output.strip.split(" ")
+
+                if enabled_controllers.any?
+                  fail "Did not expect any controllers, got #{enabled_controllers.inspect}"
+                end
+
+                # A v2 child can use a controller name, so detect actual nested v1
+                # mounts instead of checking whether controller-named paths exist.
+                hybrid_mounts = mounts.lines.select do |line|
+                  fields = line.split
+                  fields.length >= 3 &&
+                    fields[1].start_with?("/sys/fs/cgroup/") &&
+                    fields[2] == "cgroup"
+                end
+
+                if hybrid_mounts.any?
+                  fail "Unexpected hybrid cgroup mounts:\n#{hybrid_mounts.join}"
+                end
               end
 
               machine.all_succeed(
