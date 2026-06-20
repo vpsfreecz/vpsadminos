@@ -27,7 +27,10 @@ in
         type = types.lines;
         default = builtins.readFile ./config.txt;
         description = ''
-          Config passed to ./restrict-dirs.rb
+          Config passed to ./restrict-dirs.rb. On kernels with
+          /proc/vpsadminos/kernfs_filter, rules are installed as a
+          noninit-userns proc/sysfs visibility policy. Older kernels fall back
+          to chmod-based restrictions.
 
           Each line represents a rule for a path. The first word is a command,
           the second word is the path. The command can be one of: restrict, skip
