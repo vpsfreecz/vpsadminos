@@ -2,6 +2,6 @@ import ../../make-test.nix (
   { pkgs }:
   import ./proactive-swap-common.nix {
     inherit pkgs;
-    cgroupsVersion = 2;
+    cgroupsVersion = 1;
   }
 )
