@@ -5,6 +5,11 @@
   mode ? "testsMetaAll",
   testPath ? null,
   testArgsJson ? null,
+  configuration ?
+    let
+      cfg = builtins.getEnv "VPSADMINOS_CONFIG";
+    in
+    if cfg == "" then null else import cfg,
 }:
 let
   flake = builtins.getFlake (builtins.toString repoRoot);
@@ -55,7 +60,7 @@ let
       inherit system;
       lib = nixpkgs'.lib;
       suitePath = testsRoot + "/suite";
-      configuration = null;
+      inherit configuration;
       testConfig = effectiveTestConfig;
     };
 
@@ -72,7 +77,7 @@ let
       testFramework.mkTests {
         inherit system testConfig;
         testsRoot = repoRoot + "/tests";
-        configuration = null;
+        inherit configuration;
       };
 
   testsMeta =
@@ -82,7 +87,7 @@ let
       testFramework.mkTestsMeta {
         inherit system testConfig;
         testsRoot = repoRoot + "/tests";
-        configuration = null;
+        inherit configuration;
       };
 in
 if mode == "testsMetaAll" then

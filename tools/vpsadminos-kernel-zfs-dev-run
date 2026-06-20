@@ -27,6 +27,9 @@ Environment is passed through to the lower-level tools. Important variables:
                                   Kernel config module. Defaults to
                                   proxy-exec-qemu.nix for proxy-exec tests
                                   and kernel-dev-qemu.nix otherwise.
+  VPSADMINOS_TEST_CONFIG_MODULE   Test evaluation module. Defaults to
+                                  local-dev-qemu.nix for kernel-dev-qemu.nix
+                                  and to the kernel config module otherwise.
   VPSADMINOS_KERNEL_DEV_MODULES  always, auto, or skip; default is safe refresh
   VPSADMINOS_KERNEL_DEV_DEV      always, auto, or skip; default is safe refresh
   VPSADMINOS_ZFS_DEV_KERNEL      always or skip; default is safe refresh
@@ -57,6 +60,15 @@ build_stages() {
         export VPSADMINOS_KERNEL_CONFIG_MODULE="$repo_root/os/configs/kernel-dev-qemu.nix"
         ;;
     esac
+  fi
+  if [[ -z "${VPSADMINOS_CONFIG:-}" ]]; then
+    if [[ -n "${VPSADMINOS_TEST_CONFIG_MODULE:-}" ]]; then
+      export VPSADMINOS_CONFIG="$VPSADMINOS_TEST_CONFIG_MODULE"
+    elif [[ "$VPSADMINOS_KERNEL_CONFIG_MODULE" == "$repo_root/os/configs/kernel-dev-qemu.nix" ]]; then
+      export VPSADMINOS_CONFIG="$repo_root/os/configs/local-dev-qemu.nix"
+    else
+      export VPSADMINOS_CONFIG="$VPSADMINOS_KERNEL_CONFIG_MODULE"
+    fi
   fi
 
   log "building/staging local kernel"
