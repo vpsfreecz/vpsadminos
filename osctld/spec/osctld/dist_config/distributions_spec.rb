@@ -38,6 +38,34 @@ RSpec.describe 'DistConfig distributions' do
     expect(other.configurator_class).to eq(OsCtld::DistConfig::Configurator)
   end
 
+  it 'applies runtime defaults at start without hostname, DNS, or network changes' do
+    ct = double(
+      id: 'ct1',
+      distribution: 'debian',
+      version: '12',
+      hostname: nil,
+      dns_resolvers: nil
+    )
+    ctrc = double(
+      ct:,
+      distribution: 'debian',
+      version: '12',
+      dist_configure_network?: false
+    )
+    dist = OsCtld::DistConfig::Distributions::Debian.new(ctrc)
+    configurator = instance_double(
+      OsCtld::DistConfig::Distributions::Debian::Configurator,
+      container_runtime_defaults: nil
+    )
+
+    dist.instance_variable_set(:@configurator, configurator)
+    allow(dist).to receive(:with_rootfs).and_yield
+
+    dist.start
+
+    expect(configurator).to have_received(:container_runtime_defaults)
+  end
+
   it 'logs warnings for unsupported operations on Other' do
     ct = double
     dist = OsCtld::DistConfig::Distributions::Other.new(double(ct: ct, distribution: 'mystery', version: '1'))

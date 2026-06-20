@@ -51,14 +51,25 @@ import ../../make-test.nix (
         Array(test_config.dig('docker', 'registryMirrors'))
       end
 
+      def docker_daemon_config(ct)
+        status, output = machine.execute(
+          "osctl ct exec #{ct} sh -c 'test -s /etc/docker/daemon.json && cat /etc/docker/daemon.json'",
+          timeout: 60
+        )
+        status == 0 ? JSON.parse(output) : {}
+      end
+
       def configure_docker_registry_mirrors(ct)
         mirrors = docker_registry_mirrors
         return if mirrors.empty?
 
+        config = docker_daemon_config(ct)
+        config['registry-mirrors'] = mirrors
+
         ct_write_file(
           ct,
           '/etc/docker/daemon.json',
-          JSON.pretty_generate('registry-mirrors' => mirrors) + "\n"
+          JSON.pretty_generate(config) + "\n"
         )
       end
 
@@ -111,10 +122,12 @@ import ../../make-test.nix (
           expected_cpu_quota=#{cpu_quota}
           expected_cpu_period=100000
 
-          if [ -f /sys/fs/cgroup/memory.max ]; then
-            actual_memory=$(cat /sys/fs/cgroup/memory.max)
+          if [ -f /sys/fs/cgroup/cgroup.controllers ]; then
+            current_cgroup=$(awk -F: '$1 == "0" { print $3 }' /proc/self/cgroup)
+            actual_memory=$(cat "/sys/fs/cgroup$current_cgroup/memory.max")
           elif [ -f /sys/fs/cgroup/memory/memory.limit_in_bytes ]; then
-            actual_memory=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes)
+            current_memory_cgroup=$(awk -F: '$2 ~ /(^|,)memory(,|$)/ { print $3 }' /proc/self/cgroup)
+            actual_memory=$(cat "/sys/fs/cgroup/memory$current_memory_cgroup/memory.limit_in_bytes")
           else
             echo "memory limit file not found" >&2
             exit 1
@@ -125,16 +138,18 @@ import ../../make-test.nix (
             exit 1
           fi
 
-          if [ -f /sys/fs/cgroup/cpu.max ]; then
-            set -- $(cat /sys/fs/cgroup/cpu.max)
+          if [ -f /sys/fs/cgroup/cgroup.controllers ]; then
+            set -- $(cat "/sys/fs/cgroup$current_cgroup/cpu.max")
             actual_cpu_quota=$1
             actual_cpu_period=$2
           elif [ -f /sys/fs/cgroup/cpu,cpuacct/cpu.cfs_quota_us ]; then
-            actual_cpu_quota=$(cat /sys/fs/cgroup/cpu,cpuacct/cpu.cfs_quota_us)
-            actual_cpu_period=$(cat /sys/fs/cgroup/cpu,cpuacct/cpu.cfs_period_us)
+            current_cpu_cgroup=$(awk -F: '$2 ~ /(^|,)cpu(,|$)/ { print $3 }' /proc/self/cgroup)
+            actual_cpu_quota=$(cat "/sys/fs/cgroup/cpu,cpuacct$current_cpu_cgroup/cpu.cfs_quota_us")
+            actual_cpu_period=$(cat "/sys/fs/cgroup/cpu,cpuacct$current_cpu_cgroup/cpu.cfs_period_us")
           elif [ -f /sys/fs/cgroup/cpu/cpu.cfs_quota_us ]; then
-            actual_cpu_quota=$(cat /sys/fs/cgroup/cpu/cpu.cfs_quota_us)
-            actual_cpu_period=$(cat /sys/fs/cgroup/cpu/cpu.cfs_period_us)
+            current_cpu_cgroup=$(awk -F: '$2 ~ /(^|,)cpu(,|$)/ { print $3 }' /proc/self/cgroup)
+            actual_cpu_quota=$(cat "/sys/fs/cgroup/cpu$current_cpu_cgroup/cpu.cfs_quota_us")
+            actual_cpu_period=$(cat "/sys/fs/cgroup/cpu$current_cpu_cgroup/cpu.cfs_period_us")
           else
             echo "CPU limit file not found" >&2
             exit 1
@@ -182,13 +197,28 @@ import ../../make-test.nix (
         end
       end
 
-      def check_docker(ct)
-        unless docker_registry_mirrors.empty?
-          _, daemon_json = machine.succeeds("osctl ct exec #{ct} cat /etc/docker/daemon.json")
-          parsed_daemon_json = JSON.parse(daemon_json)
+      def docker_runtime_defaults_expected?
+        %w[almalinux arch centos debian fedora rocky ubuntu].include?('${distribution}')
+      end
 
-          unless parsed_daemon_json.fetch('registry-mirrors', []) == docker_registry_mirrors
-            fail "unexpected docker registry mirrors: #{parsed_daemon_json.inspect}"
+      def check_docker(ct)
+        if docker_runtime_defaults_expected? || !docker_registry_mirrors.empty?
+          parsed_daemon_json = docker_daemon_config(ct)
+
+          if docker_runtime_defaults_expected? &&
+              !parsed_daemon_json.fetch('exec-opts', []).include?('native.cgroupdriver=cgroupfs')
+            fail "docker cgroupfs default not present in daemon.json: #{parsed_daemon_json.inspect}"
+          end
+
+          if docker_runtime_defaults_expected? &&
+              parsed_daemon_json.fetch('default-cgroupns-mode', nil) != 'host'
+            fail "docker cgroup namespace default not present in daemon.json: #{parsed_daemon_json.inspect}"
+          end
+
+          unless docker_registry_mirrors.empty?
+            unless parsed_daemon_json.fetch('registry-mirrors', []) == docker_registry_mirrors
+              fail "unexpected docker registry mirrors: #{parsed_daemon_json.inspect}"
+            end
           end
         end
 
@@ -202,6 +232,14 @@ import ../../make-test.nix (
           end
         else
           fail "unable to find storage driver in docker info, output:\n#{output}"
+        end
+
+        if /Cgroup Driver: ([^\s]+)\s/ =~ output
+          if $1.strip != 'cgroupfs'
+            fail "using '#{$1}' cgroup driver instead of cgroupfs"
+          end
+        else
+          fail "unable to find cgroup driver in docker info, output:\n#{output}"
         end
 
         _, output = machine.succeeds("osctl ct exec #{ct} docker run hello-world")

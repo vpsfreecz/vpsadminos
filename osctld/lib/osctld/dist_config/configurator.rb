@@ -1,4 +1,5 @@
 require 'libosctl'
+require 'json'
 require 'osctld/dist_config/helpers/common'
 
 module OsCtld
@@ -107,12 +108,134 @@ module OsCtld
       end
     end
 
+    def container_runtime_defaults
+      return unless container_runtime_defaults_distribution?
+
+      docker_cgroupfs_default
+      podman_cgroupfs_default
+    end
+
     def log_type
       ctid
     end
 
+    RUNTIME_DEFAULT_DISTRIBUTIONS = %w[
+      almalinux
+      arch
+      centos
+      debian
+      fedora
+      rocky
+      ubuntu
+    ].freeze
+
+    def self.container_runtime_defaults_distribution?(distribution)
+      RUNTIME_DEFAULT_DISTRIBUTIONS.include?(distribution)
+    end
+
     protected
 
+    DOCKER_CGROUP_DRIVER_OPT = 'native.cgroupdriver=cgroupfs'.freeze
+    DOCKER_CGROUPNS_MODE_KEY = 'default-cgroupns-mode'.freeze
+    DOCKER_CGROUPNS_MODE = 'host'.freeze
+    PODMAN_CGROUP_MANAGER_KEY = /\A\s*["']?cgroup_manager["']?\s*=/
+    PODMAN_DOTTED_CGROUP_MANAGER_KEY =
+      /\A\s*["']?engine["']?\s*\.\s*["']?cgroup_manager["']?\s*=/
+    PODMAN_CGROUPFS_DROPIN = '10-vpsadminos-cgroupfs.conf'.freeze
+    PODMAN_CGROUPFS_CONFIG = "[engine]\ncgroup_manager = \"cgroupfs\"\n".freeze
+
+    def container_runtime_defaults_distribution?
+      self.class.container_runtime_defaults_distribution?(distribution)
+    end
+
+    def docker_cgroupfs_default
+      path = File.join(rootfs, 'etc', 'docker', 'daemon.json')
+      return unless writable?(path)
+
+      config = read_docker_daemon_config(path)
+      return if config.nil?
+
+      exec_opts = Array(config.fetch('exec-opts', []))
+      cgroup_driver = exec_opts.find { |opt| opt.start_with?('native.cgroupdriver=') }
+
+      unless cgroup_driver
+        config['exec-opts'] = exec_opts + [DOCKER_CGROUP_DRIVER_OPT]
+        cgroup_driver = DOCKER_CGROUP_DRIVER_OPT
+      end
+
+      config[DOCKER_CGROUPNS_MODE_KEY] ||= DOCKER_CGROUPNS_MODE if cgroup_driver == DOCKER_CGROUP_DRIVER_OPT
+      write_json_config(path, config)
+    end
+
+    def read_docker_daemon_config(path)
+      if File.exist?(path)
+        JSON.parse(File.read(path))
+      else
+        {}
+      end
+    rescue JSON::ParserError => e
+      log(:warn, "Unable to parse #{path}: #{e.message}")
+      nil
+    end
+
+    def write_json_config(path, config)
+      FileUtils.mkdir_p(File.dirname(path))
+      File.write(path, "#{JSON.pretty_generate(config)}\n")
+    end
+
+    def podman_cgroupfs_default
+      path = File.join(
+        rootfs,
+        'etc',
+        'containers',
+        'containers.conf.d',
+        PODMAN_CGROUPFS_DROPIN
+      )
+
+      if podman_cgroup_manager_configured?(generated_path: path)
+        if File.file?(path) && File.binread(path) == PODMAN_CGROUPFS_CONFIG
+          File.unlink(path)
+        end
+        return
+      end
+
+      # The reserved path is either our already-correct seed or an unknown
+      # administrator/image file which must not be overwritten.
+      return if File.exist?(path)
+      return unless writable?(path)
+
+      FileUtils.mkdir_p(File.dirname(path))
+      File.write(path, PODMAN_CGROUPFS_CONFIG)
+    end
+
+    def podman_cgroup_manager_configured?(generated_path:)
+      config_dir = File.join(rootfs, 'etc', 'containers')
+      paths = [File.join(config_dir, 'containers.conf')]
+      paths.concat(Dir.glob(File.join(config_dir, 'containers.conf.d', '*.conf')))
+
+      paths.any? do |path|
+        path != generated_path && File.file?(path) && podman_config_sets_cgroup_manager?(path)
+      end
+    end
+
+    def podman_config_sets_cgroup_manager?(path)
+      section = nil
+
+      File.foreach(path) do |line|
+        if (match = line.match(/\A\s*\[\s*([^\]]+)\s*\]\s*(?:#.*)?\z/))
+          section = match[1].strip.gsub(/\A["']|["']\z/, '')
+          next
+        end
+
+        return true if section == 'engine' && line.match?(PODMAN_CGROUP_MANAGER_KEY)
+        return true if section.nil? && line.match?(PODMAN_DOTTED_CGROUP_MANAGER_KEY)
+      end
+
+      false
+    rescue SystemCallError => e
+      log(:warn, "Unable to inspect #{path}: #{e.message}")
+      true
+    end
     # @return [DistConfig::Network::Base, nil]
     attr_reader :network_backend
 

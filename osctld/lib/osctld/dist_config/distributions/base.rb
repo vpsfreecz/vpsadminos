@@ -103,13 +103,14 @@ module OsCtld
 
     # Run just before the container is started
     def start(_opts = {})
-      return unless ct.hostname || ct.dns_resolvers || ctrc.dist_configure_network?
+      return unless start_configures_rootfs?
 
       net_configured = with_rootfs do
         ret = false
 
         set_hostname if ct.hostname
         dns_resolvers if ct.dns_resolvers
+        configurator.container_runtime_defaults
 
         if ctrc.dist_configure_network?
           network
@@ -246,6 +247,13 @@ module OsCtld
     protected
 
     attr_reader :configurator
+
+    def start_configures_rootfs?
+      ct.hostname ||
+        ct.dns_resolvers ||
+        ctrc.dist_configure_network? ||
+        configurator_class.container_runtime_defaults_distribution?(distribution)
+    end
 
     def with_rootfs(&block)
       if @within_rootfs
