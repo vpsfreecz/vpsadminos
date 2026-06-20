@@ -10,7 +10,7 @@ module OsCtld
       # @param mountpoint [String]
       # @return [true]
       def execute(mountpoint)
-        ret = exec_runner(args: [mountpoint])
+        ret = exec_runner(args: [mountpoint], switch_extra_namespaces: false)
         ret.ok? || ret
       end
     end
@@ -22,7 +22,7 @@ module OsCtld
       def execute(mountpoint)
         ct = lxc_ct
 
-        pid = ct.attach do
+        exit_status = lxc_attach_wait do
           next unless Dir.exist?(mountpoint)
 
           begin
@@ -33,12 +33,10 @@ module OsCtld
           end
         end
 
-        Process.wait(pid)
-
-        if $?.exitstatus == 0
+        if exit_status == 0
           ok
         else
-          log(:warn, ct, "Unmounter exited with #{$?.exitstatus}")
+          log(:warn, ct, "Unmounter exited with #{exit_status}")
           error('unmount failed')
         end
       end

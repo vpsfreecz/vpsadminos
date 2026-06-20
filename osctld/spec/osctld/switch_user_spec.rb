@@ -9,6 +9,20 @@ RSpec.describe OsCtld::SwitchUser do
     ENV.replace(original_env)
   end
 
+  def namespace_sys
+    Class.new do
+      attr_reader :setns_paths
+
+      def initialize
+        @setns_paths = []
+      end
+
+      def setns_path(path, flags)
+        setns_paths << [path, flags]
+      end
+    end.new
+  end
+
   it 'keeps requested descriptors and stdfds by default when forking' do
     closed = nil
     ran = false
@@ -89,7 +103,9 @@ RSpec.describe OsCtld::SwitchUser do
     allow(Process).to receive(:groups=)
     allow(OsCtl::Lib::Sys).to receive(:new).and_return(sys)
 
-    described_class.switch_to('alice', 12_345, '/home/alice', '/sys/fs/cgroup/osctl')
+    described_class.switch_to(
+      'alice', 12_345, '/home/alice', '/sys/fs/cgroup/osctl', syslogns_tag: 'ct1-1234'
+    )
 
     expect(ENV.to_h.fetch('HOME')).to eq('/home/alice')
     expect(ENV.to_h.fetch('USER')).to eq('alice')
@@ -98,6 +114,7 @@ RSpec.describe OsCtld::SwitchUser do
       ['', 'sys', 'fs', 'cgroup', 'osctl']
     )
     expect(Process).to have_received(:groups=).with([12_345])
+    expect(sys).to have_received(:create_syslogns).with('ct1-1234').once
     expect(sys).to have_received(:setresgid).with(12_345, 12_345, 12_345)
     expect(sys).to have_received(:setresuid).with(12_345, 12_345, 12_345)
   end
@@ -120,5 +137,95 @@ RSpec.describe OsCtld::SwitchUser do
     expect(Process).to have_received(:groups=).with([23_456])
     expect(sys).to have_received(:setresgid).with(23_456, 23_456, 23_456)
     expect(sys).to have_received(:setresuid).with(12_345, 12_345, 12_345)
+  end
+
+  describe '.create_syslogns' do
+    let(:sys) { instance_double(OsCtl::Lib::Sys) }
+
+    it 'keeps the requested tag when it is available' do
+      allow(sys).to receive(:create_syslogns).with('ct1-1234').and_return(0)
+      allow(SecureRandom).to receive(:hex)
+
+      expect(described_class.send(:create_syslogns, sys, 'ct1-1234')).to eq(0)
+      expect(SecureRandom).not_to have_received(:hex)
+    end
+
+    it 'creates a fresh namespace after each name collision' do
+      tags = []
+      allow(SecureRandom).to receive(:hex).with(2).and_return('0123', 'abcd')
+      allow(sys).to receive(:create_syslogns) do |tag|
+        tags << tag
+        raise Errno::EEXIST if tags.length < 3
+
+        0
+      end
+
+      expect(described_class.send(:create_syslogns, sys, 'ct1-1234')).to eq(0)
+      expect(tags).to eq(%w[ct1-1234 ct1-0123 ct1-abcd])
+      tags.each do |tag|
+        expect(tag.bytesize).to be <= OsCtl::Lib::Sys::SYSLOGNS_MAX_TAG_BYTESIZE
+        expect(tag).to match(/\A[A-Za-z0-9](?:[A-Za-z0-9_.-]*[A-Za-z0-9])?\z/)
+      end
+    end
+
+    it 'bounds repeated collisions without attaching to an existing namespace' do
+      allow(sys).to receive(:create_syslogns).and_raise(Errno::EEXIST)
+      allow(sys).to receive(:attach_syslogns)
+      allow(SecureRandom).to receive(:hex).with(2).and_return('0123')
+
+      expect do
+        described_class.send(:create_syslogns, sys, 'ct1-1234')
+      end.to raise_error(Errno::EEXIST)
+
+      expect(sys).to have_received(:create_syslogns).exactly(8).times
+      expect(sys).not_to have_received(:attach_syslogns)
+      expect(SecureRandom).to have_received(:hex).exactly(7).times
+    end
+
+    [Errno::EPERM, Errno::EACCES, Errno::EINVAL, Errno::EAGAIN].each do |error|
+      it "preserves #{error} without retrying" do
+        allow(sys).to receive(:create_syslogns).and_raise(error)
+        allow(SecureRandom).to receive(:hex)
+
+        expect do
+          described_class.send(:create_syslogns, sys, 'ct1-1234')
+        end.to raise_error(error)
+
+        expect(sys).to have_received(:create_syslogns).once
+        expect(SecureRandom).not_to have_received(:hex)
+      end
+    end
+  end
+
+  describe '.attach_namespace_if_present' do
+    it 'joins an existing namespace path' do
+      sys = namespace_sys
+
+      allow(File).to receive(:exist?).and_call_original
+      allow(File).to receive(:exist?).with('/proc/123/ns/tracing').and_return(true)
+
+      described_class.send(:attach_namespace_if_present, sys, 123, 'tracing')
+
+      expect(sys.setns_paths).to eq([['/proc/123/ns/tracing', 0]])
+    end
+
+    it 'ignores missing tracing namespace paths for compatibility with older kernels' do
+      sys = namespace_sys
+
+      allow(File).to receive(:exist?).and_call_original
+      allow(File).to receive(:exist?).with('/proc/123/ns/tracing').and_return(false)
+
+      described_class.send(:attach_namespace_if_present, sys, 123, 'tracing')
+
+      expect(sys.setns_paths).to be_empty
+    end
+
+    it 'does nothing when no pid is provided' do
+      sys = namespace_sys
+
+      described_class.send(:attach_namespace_if_present, sys, nil, 'tracing')
+
+      expect(sys.setns_paths).to be_empty
+    end
   end
 end

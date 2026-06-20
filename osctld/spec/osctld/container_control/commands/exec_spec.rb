@@ -24,6 +24,10 @@ RSpec.describe OsCtld::ContainerControl::Commands::Exec do
         running
       end
 
+      def current_state
+        running? ? :running : :stopped
+      end
+
       def ensure_run_conf
         self.ensure_calls += 1
       end

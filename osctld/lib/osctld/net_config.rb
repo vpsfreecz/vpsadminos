@@ -69,6 +69,7 @@ module OsCtld
     # Apply configuration using netlink
     def setup
       nl = Linux::Netlink::Route::Socket.new
+      wait_for_netifs(nl)
 
       netifs.each do |netif|
         netif.ips.each do |ip|
@@ -115,6 +116,25 @@ module OsCtld
     end
 
     protected
+
+    def wait_for_netifs(nl, timeout: 10)
+      names = netifs.map(&:name).uniq
+      return if names.empty?
+
+      deadline = Time.now + timeout
+      missing = []
+
+      loop do
+        existing = nl.link.list.map(&:ifname)
+        missing = names - existing
+        return if missing.empty?
+        break if Time.now >= deadline
+
+        sleep(0.1)
+      end
+
+      raise "network interfaces not found: #{missing.join(', ')}"
+    end
 
     def default_route_addr(ip_v)
       ip_v == 4 ? '0.0.0.0' : '::'
