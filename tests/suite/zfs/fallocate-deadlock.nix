@@ -41,6 +41,21 @@ import ../../make-test.nix (
       READER_READY_TIMEOUT = int(os.environ.get("ZFS_FALLOCATE_DEADLOCK_READER_READY_TIMEOUT", "30"))
       KILL_WAIT_SECONDS = float(os.environ.get("ZFS_FALLOCATE_DEADLOCK_KILL_WAIT_SECONDS", "5"))
 
+      OUTCOME_REPRODUCED = "reproduced"
+      OUTCOME_COMPLETED = "completed"
+      OUTCOME_READER_SETUP_FAILED = "reader-setup-failed"
+      OUTCOME_EARLY_EXIT = "puncher-exited-before-reader-release"
+      OUTCOME_PUNCHER_ERROR = "puncher-error"
+      OUTCOME_TIMEOUT = "attempt-timeout"
+      TERMINAL_OUTCOMES = (
+          OUTCOME_REPRODUCED,
+          OUTCOME_COMPLETED,
+          OUTCOME_READER_SETUP_FAILED,
+          OUTCOME_EARLY_EXIT,
+          OUTCOME_PUNCHER_ERROR,
+          OUTCOME_TIMEOUT,
+      )
+
       FALLOC_FL_KEEP_SIZE = 0x01
       FALLOC_FL_PUNCH_HOLE = 0x02
       POSIX_FADV_DONTNEED = 4
@@ -434,12 +449,83 @@ import ../../make-test.nix (
           while time.monotonic() < deadline:
               done_pid, status = os.waitpid(punch_pid, os.WNOHANG)
               if done_pid == punch_pid:
-                  log("PUNCHER_EXITED_BEFORE_READERS status=%d" % status)
-                  return False
+                  exit_code = os.waitstatus_to_exitcode(status)
+                  log(
+                      "PUNCHER_EXITED_BEFORE_READERS status=%d exit_code=%d"
+                      % (status, exit_code)
+                  )
+                  return exit_code
 
               time.sleep(min(0.005, max(0.0, deadline - time.monotonic())))
 
-          return True
+          return None
+
+
+      def puncher_exit_outcome(exit_code, readers_released):
+          if exit_code != 0:
+              return OUTCOME_PUNCHER_ERROR
+
+          if not readers_released:
+              return OUTCOME_EARLY_EXIT
+
+          return OUTCOME_COMPLETED
+
+
+      def results_exit_status(results, expected_attempts):
+          if OUTCOME_REPRODUCED in results:
+              return 2
+
+          if len(results) != expected_attempts:
+              return 3
+
+          accepted_outcomes = (OUTCOME_COMPLETED, OUTCOME_EARLY_EXIT)
+          if (
+              OUTCOME_COMPLETED in results
+              and all(outcome in accepted_outcomes for outcome in results)
+          ):
+              return 0
+
+          return 3
+
+
+      def log_attempt_summary(results):
+          log("ATTEMPTS_REQUESTED=%d" % ATTEMPTS)
+          log("ATTEMPTS_EXECUTED=%d" % len(results))
+          log(
+              "ATTEMPTS_COMPLETED=%d"
+              % sum(outcome == OUTCOME_COMPLETED for outcome in results)
+          )
+
+          for outcome in TERMINAL_OUTCOMES:
+              log(
+                  "ATTEMPT_OUTCOME_COUNT outcome=%s count=%d"
+                  % (outcome, results.count(outcome))
+              )
+
+
+      def self_test_outcomes():
+          assert puncher_exit_outcome(0, True) == OUTCOME_COMPLETED
+          assert puncher_exit_outcome(0, False) == OUTCOME_EARLY_EXIT
+          assert puncher_exit_outcome(70, False) == OUTCOME_PUNCHER_ERROR
+          assert puncher_exit_outcome(-signal.SIGKILL, True) == OUTCOME_PUNCHER_ERROR
+          assert results_exit_status([OUTCOME_COMPLETED] * 4, 4) == 0
+          assert results_exit_status(
+              [OUTCOME_COMPLETED, OUTCOME_EARLY_EXIT, OUTCOME_COMPLETED, OUTCOME_EARLY_EXIT],
+              4,
+          ) == 0
+          assert results_exit_status([OUTCOME_EARLY_EXIT] * 4, 4) == 3
+          assert results_exit_status([OUTCOME_COMPLETED] * 3, 4) == 3
+          assert results_exit_status([OUTCOME_REPRODUCED], 4) == 2
+
+          for outcome in TERMINAL_OUTCOMES:
+              if outcome in (OUTCOME_REPRODUCED, OUTCOME_COMPLETED, OUTCOME_EARLY_EXIT):
+                  continue
+
+              results = [OUTCOME_COMPLETED, outcome, OUTCOME_COMPLETED, OUTCOME_COMPLETED]
+              assert results_exit_status(results, 4) == 3
+
+          log("FALLOCATE_OUTCOME_SELF_TEST=ok")
+          return 0
 
 
       def attempt_once(attempt):
@@ -456,14 +542,15 @@ import ../../make-test.nix (
           if not wait_for_readers(readers):
               release_readers(readers)
               kill_children(reader_pids)
-              return False
+              return OUTCOME_READER_SETUP_FAILED
 
           tune_zfs_for_free()
           punch_pid = fork_child(puncher)
           log("PUNCHER_PID=%d" % punch_pid)
-          if not wait_before_reader_release(punch_pid, release_delay):
+          early_exit_code = wait_before_reader_release(punch_pid, release_delay)
+          if early_exit_code is not None:
               kill_children(reader_pids)
-              return False
+              return puncher_exit_outcome(early_exit_code, False)
 
           release_readers(readers)
           pids = [punch_pid] + reader_pids
@@ -474,9 +561,10 @@ import ../../make-test.nix (
           while time.monotonic() - started < ATTEMPT_TIMEOUT:
               done_pid, status = os.waitpid(punch_pid, os.WNOHANG)
               if done_pid == punch_pid:
-                  log("PUNCHER_EXITED status=%d" % status)
+                  exit_code = os.waitstatus_to_exitcode(status)
+                  log("PUNCHER_EXITED status=%d exit_code=%d" % (status, exit_code))
                   kill_children(reader_pids)
-                  return False
+                  return puncher_exit_outcome(exit_code, True)
 
               punch_stack = proc_stack(punch_pid)
               reader_matches = []
@@ -515,7 +603,7 @@ import ../../make-test.nix (
                           "READER_STUCK_PIDS="
                           + ",".join(str(pid) for pid, _ in reader_matches)
                       )
-                      return True
+                      return OUTCOME_REPRODUCED
               else:
                   stable_since = None
 
@@ -524,7 +612,7 @@ import ../../make-test.nix (
 
           dump_attempt_timeout(punch_pid, reader_pids)
           kill_children(pids)
-          return False
+          return OUTCOME_TIMEOUT
 
 
       def main():
@@ -534,16 +622,30 @@ import ../../make-test.nix (
           setup_dataset()
           prepare_seed_file()
 
+          results = []
           for attempt in range(1, ATTEMPTS + 1):
-              if attempt_once(attempt):
+              outcome = attempt_once(attempt)
+              results.append(outcome)
+              log("ATTEMPT_RESULT attempt=%d outcome=%s" % (attempt, outcome))
+
+              if outcome == OUTCOME_REPRODUCED:
+                  log_attempt_summary(results)
                   return 2
 
           run(["zfs", "destroy", "-r", DATASET], check=False)
           log("REPRODUCED_ZFS_FALLOCATE_DEADLOCK=0")
-          return 0
+          log_attempt_summary(results)
+          return results_exit_status(results, ATTEMPTS)
 
 
       if __name__ == "__main__":
+          if sys.argv[1:] == ["--self-test-outcomes"]:
+              raise SystemExit(self_test_outcomes())
+
+          if len(sys.argv) != 1:
+              log("usage: %s [--self-test-outcomes]" % sys.argv[0])
+              raise SystemExit(2)
+
           raise SystemExit(main())
     '';
   in
@@ -551,7 +653,7 @@ import ../../make-test.nix (
     name = testName;
 
     description = ''
-      Reproduce the Linux 6.12 ZFS fallocate/page-fault lock inversion.
+      Reproduce the ZFS fallocate/page-fault lock inversion.
 
       The reproducer creates a 4K-recordsize ZFS file, starts a hole-punching
       fallocate over the whole file, then forces concurrent mmap page faults in
@@ -560,7 +662,10 @@ import ../../make-test.nix (
       ZFS range reader.
 
       The default regression test runs against fixed ZFS pins and succeeds only
-      when all attempts complete without reproducing the lock inversion.
+      when every attempt is accounted for, at least one attempt overlaps the
+      readers, and no attempt reproduces the lock inversion or reports an error.
+      A successful hole punch that finishes before a deliberately delayed reader
+      release is benign but does not by itself satisfy the overlap requirement.
 
       When `expectReproduce` is set, this becomes a manual reproducer for
       vulnerable kernel/ZFS pins. In that mode, matching blocked stacks are
@@ -611,6 +716,8 @@ import ../../make-test.nix (
 
       machine.mkdir('/scripts')
       machine.push_file("${reproducer}", "/scripts/reproducer.py")
+      _, self_test_output = machine.succeeds('/scripts/reproducer.py --self-test-outcomes')
+      expect(self_test_output).to include('FALLOCATE_OUTCOME_SELF_TEST=ok')
 
       status = nil
       output = ""
@@ -635,6 +742,7 @@ import ../../make-test.nix (
         fail "reproducer exited with #{status}:\n#{output}" unless status == 2
 
         expect(output).to include('REPRODUCED_ZFS_FALLOCATE_DEADLOCK=1')
+        expect(output).to include('outcome=reproduced')
         expect(output).to include('PUNCHER_VULNERABLE_STACK=1')
         expect(output).to include('zfs_freesp+0x37f')
         expect(output).to include('zfs_rangelock_enter_impl')
@@ -643,8 +751,21 @@ import ../../make-test.nix (
       else
         fail "reproducer unexpectedly exited with #{status}:\n#{output}" unless status == 0
 
-        expect(output).to include('ATTEMPT=12')
-        expect(output).to include('PUNCHER_EXITED status=0')
+        attempt_results = output.scan(/^ATTEMPT_RESULT attempt=(\d+) outcome=(\S+)$/)
+        expect(attempt_results.map(&:first)).to eq((1..12).map(&:to_s))
+        outcomes = attempt_results.map(&:last)
+        expect(outcomes - ['completed', 'puncher-exited-before-reader-release']).to be_empty
+        expect(outcomes.count('completed')).to be > 0
+        expect(output).to include('ATTEMPTS_REQUESTED=12')
+        expect(output).to include('ATTEMPTS_EXECUTED=12')
+        expect(output).to include("ATTEMPTS_COMPLETED=#{outcomes.count('completed')}")
+        [
+          'reader-setup-failed',
+          'puncher-error',
+          'attempt-timeout',
+        ].each do |outcome|
+          expect(output).to include("ATTEMPT_OUTCOME_COUNT outcome=#{outcome} count=0")
+        end
         expect(output).to include('REPRODUCED_ZFS_FALLOCATE_DEADLOCK=0')
         expect(output).not_to include('REPRODUCED_ZFS_FALLOCATE_DEADLOCK=1')
         expect(output).not_to include('stable-lock-inversion')
