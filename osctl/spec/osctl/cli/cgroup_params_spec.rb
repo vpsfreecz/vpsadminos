@@ -138,11 +138,14 @@ RSpec.describe OsCtl::Cli::CGroupParams do
 
   it 'initializes cgroup subsystems from libosctl on v2' do
     command = cmd
-    allow(OsCtl::Lib::CGroup).to receive(:v2?).and_return(true)
+    allow(OsCtl::Lib::CGroup).to receive_messages(
+      v2?: true,
+      fs: '/run/osctl/cgroup'
+    )
 
     command.cg_init_subsystems(double('client'))
 
-    expect(command.instance_variable_get(:@cg_subsystems)).to eq(nil => OsCtl::Lib::CGroup::FS)
+    expect(command.instance_variable_get(:@cg_subsystems)).to eq(nil => '/run/osctl/cgroup')
   end
 
   it 'initializes cgroup subsystems through the client on v1' do
