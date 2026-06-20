@@ -1,4 +1,5 @@
 require 'osctld/commands/logged'
+require 'osctld/bpf_fs'
 
 module OsCtld
   class Commands::Container::Delete < Commands::Logged
@@ -41,6 +42,7 @@ module OsCtld
         progress('Removing shared mount directory')
         ct.clear_start_menu
         ct.mounts.shared_dir.remove
+        BpfFs.remove_ct(ct.pool.name, ct.id)
 
         progress('Moving dataset to trash')
         TrashBin.add_dataset(ct.pool, ct.dataset)

@@ -1,0 +1,53 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: vpsAdminOS maintainers <maintainers@vpsadminos.org>
+Date: Wed, 17 Jun 2026 21:00:00 +0200
+Subject: [PATCH] apparmor: allow container-local bpffs at /sys/fs/bpf
+
+vpsAdminOS mounts a per-container bpffs at /sys/fs/bpf so stock tools such as
+systemd and bpftool can use normal pin paths without exposing the host bpffs.
+The BPF/token/tracing namespace kernel checks remain the security boundary.
+The LXC AppArmor profile should therefore allow this mount point, while keeping
+the existing /sys write restrictions for unrelated sysfs content.
+---
+ src/lxc/lsm/apparmor.c | 13 +++++++++----
+ 1 file changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/src/lxc/lsm/apparmor.c b/src/lxc/lsm/apparmor.c
+index 9a2997ec9..39afe2589 100644
+--- a/src/lxc/lsm/apparmor.c
++++ b/src/lxc/lsm/apparmor.c
+@@ -96,6 +96,6 @@ static const char AA_PROFILE_BASE[] =
+ "  deny @{PROC}/acpi/** rwklx,\n"
+ "\n"
+-"  # deny writes in /sys except for /sys/fs/cgroup, also allow\n"
++"  # deny writes in /sys except for /sys/fs/cgroup and /sys/fs/bpf, also allow\n"
+ "  # fusectl, securityfs and debugfs to be mounted there (read-only)\n"
+ "  mount fstype=fusectl -> /sys/fs/fuse/connections/,\n"
+ "  mount fstype=securityfs -> /sys/kernel/security/,\n"
+@@ -109,6 +109,8 @@ static const char AA_PROFILE_BASE[] =
+ "  deny /sys/firmware/efi/efivars/** rwklx,\n"
+ "  # note, /sys/kernel/security/** handled below\n"
+ "  mount options=(ro, nosuid, nodev, noexec, remount, strictatime) -> /sys/fs/cgroup/,\n"
++"  mount fstype=bpf -> /sys/fs/bpf/,\n"
++"  mount options=(rw,bind) -> /sys/fs/bpf/,\n"
+ "\n"
+ "  # deny reads from debugfs\n"
+ "  deny /sys/kernel/debug/{,**} rwklx,\n"
+@@ -242,9 +244,12 @@ static const char AA_PROFILE_BASE[] =
+ "  deny /sys/devices/virtual?*{,/**} wklx,\n"
+ "  deny /sys/devices?*{,/**} wklx,\n"
+ "  deny /sys/f[^s]*{,/**} wklx,\n"
+-"  deny /sys/fs/[^c]*{,/**} wklx,\n"
+-"  deny /sys/fs/c[^g]*{,/**} wklx,\n"
+-"  deny /sys/fs/cg[^r]*{,/**} wklx,\n"
++"  deny /sys/fs/[^bc]*{,/**} wklx,\n"
++"  deny /sys/fs/b[^p]*{,/**} wklx,\n"
++"  deny /sys/fs/bp[^f]*{,/**} wklx,\n"
++"  deny /sys/fs/bpf?*{,/**} wklx,\n"
++"  deny /sys/fs/c[^g]*{,/**} wklx,\n"
++"  deny /sys/fs/cg[^r]*{,/**} wklx,\n"
+ "  deny /sys/fs/cgr[^o]*{,/**} wklx,\n"
+ "  deny /sys/fs/cgro[^u]*{,/**} wklx,\n"
+ "  deny /sys/fs/cgrou[^p]*{,/**} wklx,\n"
+--
+2.50.0

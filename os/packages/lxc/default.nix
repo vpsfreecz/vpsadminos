@@ -53,6 +53,10 @@ stdenv.mkDerivation rec {
   ];
 
   patchPhase = ''
+    runHook prePatch
+
+    patch -p1 < ${./allow-sys-fs-bpf-apparmor.patch}
+
     # Do not create empty directories in localstatedir
     sed -i '/install_emptydir/d' meson.build
 
@@ -61,6 +65,8 @@ stdenv.mkDerivation rec {
 
     # Prevent installation of README into rootfs mount path in /var
     sed -i 's/install: true/install: false/' doc/rootfs/meson.build
+
+    runHook postPatch
   '';
 
   mesonFlags = [
