@@ -96,7 +96,7 @@ module OsCtld
     end
 
     # Initialize the interface on creation / osctld restart
-    def setup; end
+    def setup(**); end
 
     # Return variables for template generating LXC configuration for this
     # interface
