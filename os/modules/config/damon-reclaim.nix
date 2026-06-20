@@ -71,14 +71,6 @@ in
         '';
       };
 
-      memPressureUs = mkOption {
-        type = types.int;
-        default = 0;
-        description = ''
-          PSI memory pressure target in microseconds per reset interval.
-        '';
-      };
-
       freeMemRate = mkOption {
         type = types.int;
         default = 0;
@@ -220,10 +212,6 @@ in
         message = "boot.damon.reclaim.quota.resetIntervalMs must be non-negative";
       }
       {
-        assertion = cfg.quota.memPressureUs >= 0;
-        message = "boot.damon.reclaim.quota.memPressureUs must be non-negative";
-      }
-      {
         assertion = cfg.quota.freeMemRate >= 0 && cfg.quota.freeMemRate <= 1000;
         message = "boot.damon.reclaim.quota.freeMemRate must be between 0 and 1000";
       }
@@ -325,6 +313,18 @@ in
           fi
         }
 
+        write_scope() {
+          value="${if cfg.scope == "perNode" then "per-node" else "global"}"
+          path="$params/scope"
+
+          if [ -e "$path" ]; then
+            write_param scope "$value"
+          elif [ "$value" != "global" ]; then
+            echo "damon_reclaim scope parameter is not available"
+            exit 1
+          fi
+        }
+
         if [ ! -d "$params" ] && [ "$target_enabled" = "Y" ]; then
           modprobe damon_reclaim 2>/dev/null || true
         fi
@@ -339,11 +339,10 @@ in
         fi
 
         write_param min_age "${toString cfg.minAge}"
-        write_param scope "${if cfg.scope == "perNode" then "per-node" else "global"}"
+        write_scope
         write_param quota_ms "${toString cfg.quota.ms}"
         write_param quota_sz "${toString cfg.quota.size}"
         write_param quota_reset_interval_ms "${toString cfg.quota.resetIntervalMs}"
-        write_param quota_mem_pressure_us "${toString cfg.quota.memPressureUs}"
         write_param quota_free_mem_rate "${toString cfg.quota.freeMemRate}"
         write_param quota_free_mem_bytes "${toString cfg.quota.freeMemBytes}"
         write_param quota_autotune_feedback "${toString cfg.quota.autotuneFeedback}"
