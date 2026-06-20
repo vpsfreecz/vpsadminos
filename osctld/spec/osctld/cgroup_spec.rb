@@ -7,12 +7,15 @@ require 'osctld/cgroup'
 
 RSpec.describe OsCtld::CGroup do
   around do |example|
+    fs = described_class.instance_variable_get(:@fs)
     version = described_class.instance_variable_get(:@version)
     subsystems = described_class.instance_variable_get(:@subsystems)
+    described_class.instance_variable_set(:@fs, nil)
     described_class.instance_variable_set(:@version, nil)
     described_class.instance_variable_set(:@subsystems, nil)
     example.run
   ensure
+    described_class.instance_variable_set(:@fs, fs)
     described_class.instance_variable_set(:@version, version)
     described_class.instance_variable_set(:@subsystems, subsystems)
   end
@@ -27,16 +30,28 @@ RSpec.describe OsCtld::CGroup do
     allow(File).to receive(:read).with(OsCtld::RunState::CGROUP_VERSION).and_raise(Errno::ENOENT)
   end
 
-  def force_cgroup(version, subsystems)
+  def stub_cgroup_filesystems(default_fs:, runstate_fs: File.join(default_fs, 'runstate-missing'))
+    stub_const("#{described_class}::RUNSTATE_FS", runstate_fs)
+    stub_const("#{described_class}::DEFAULT_FS", default_fs)
+  end
+
+  def force_cgroup(version, subsystems, fs:)
+    described_class.instance_variable_set(:@fs, fs)
     described_class.instance_variable_set(:@version, version)
     described_class.instance_variable_set(:@subsystems, subsystems)
   end
 
+  def reset_cgroup(version:)
+    described_class.instance_variable_set(:@fs, nil)
+    described_class.instance_variable_set(:@version, version)
+    described_class.instance_variable_set(:@subsystems, nil)
+  end
+
   it 'defaults to cgroup v1 when the version file is missing' do
     with_tmpdir do |tmpdir|
-      stub_const('OsCtld::CGroup::FS', tmpdir)
+      FileUtils.mkdir_p(File.join(tmpdir, 'cpu'))
+      stub_cgroup_filesystems(default_fs: tmpdir)
       stub_missing_cgroup_version
-      allow(Dir).to receive(:entries).with(tmpdir).and_return(%w[. .. cpu])
 
       described_class.init
 
@@ -45,10 +60,14 @@ RSpec.describe OsCtld::CGroup do
     end
   end
 
+  it 'does not expose a stale fixed cgroupfs alias' do
+    expect(described_class.const_defined?(:FS, false)).to be(false)
+  end
+
   it 'clamps invalid cgroup versions to v1' do
     with_tmpdir do |tmpdir|
-      stub_const('OsCtld::CGroup::FS', tmpdir)
-      allow(Dir).to receive(:entries).with(tmpdir).and_return(%w[. .. cpu])
+      FileUtils.mkdir_p(File.join(tmpdir, 'cpu'))
+      stub_cgroup_filesystems(default_fs: tmpdir)
       set_cgroup_version(99)
 
       described_class.init
@@ -66,9 +85,10 @@ RSpec.describe OsCtld::CGroup do
 
   it 'builds v1 and v2 absolute cgroup paths' do
     with_tmpdir do |tmpdir|
-      stub_const('OsCtld::CGroup::FS', tmpdir)
+      stub_cgroup_filesystems(default_fs: tmpdir)
 
-      allow(Dir).to receive(:entries).with(tmpdir).and_return(%w[. .. cpu,cpuacct])
+      FileUtils.mkdir_p(File.join(tmpdir, 'cpu,cpuacct'))
+      FileUtils.touch(File.join(tmpdir, 'cgroup.procs'))
       set_cgroup_version(1)
       described_class.init
       expect(described_class.abs_cgroup_path('cpu', 'osctl', 'ct.ct1')).to eq(
@@ -79,6 +99,27 @@ RSpec.describe OsCtld::CGroup do
       described_class.init
       expect(described_class.abs_cgroup_path('cpu', 'osctl', 'ct.ct1')).to eq(
         File.join(tmpdir, 'osctl', 'ct.ct1')
+      )
+    end
+  end
+
+  it 'prefers the runstate cgroupfs bind mount on cgroup v2' do
+    Dir.mktmpdir do |dir|
+      runstate_fs = File.join(dir, 'runstate')
+      default_fs = File.join(dir, 'default')
+
+      FileUtils.mkdir_p(runstate_fs)
+      FileUtils.mkdir_p(default_fs)
+      FileUtils.touch(File.join(runstate_fs, 'cgroup.procs'))
+      FileUtils.touch(File.join(default_fs, 'cgroup.procs'))
+
+      stub_const("#{described_class}::RUNSTATE_FS", runstate_fs)
+      stub_const("#{described_class}::DEFAULT_FS", default_fs)
+      reset_cgroup(version: 2)
+
+      expect(described_class.fs).to eq(runstate_fs)
+      expect(described_class.abs_cgroup_path(nil, 'osctl')).to eq(
+        File.join(runstate_fs, 'osctl')
       )
     end
   end
@@ -98,8 +139,7 @@ RSpec.describe OsCtld::CGroup do
 
   it 'creates nested cgroups and reports whether the leaf was newly created' do
     with_tmpdir do |tmpdir|
-      stub_const('OsCtld::CGroup::FS', tmpdir)
-      force_cgroup(1, ['cpu,cpuacct'])
+      force_cgroup(1, ['cpu,cpuacct'], fs: tmpdir)
       FileUtils.mkdir_p(File.join(tmpdir, 'cpu,cpuacct'))
       allow(described_class).to receive(:init_cgroup)
 
@@ -138,8 +178,7 @@ RSpec.describe OsCtld::CGroup do
 
   it 'swallows EEXIST and initializes created cgroups only once' do
     with_tmpdir do |tmpdir|
-      stub_const('OsCtld::CGroup::FS', tmpdir)
-      force_cgroup(2, [''])
+      force_cgroup(2, [''], fs: tmpdir)
       allow(described_class).to receive(:delegate_available_controllers)
       allow(described_class).to receive(:init_cgroup)
       cgroup = File.join(tmpdir, 'osctl')
@@ -153,8 +192,7 @@ RSpec.describe OsCtld::CGroup do
 
   it 'delegates existing cgroup v2 paths when leaf is false' do
     with_tmpdir do |tmpdir|
-      stub_const('OsCtld::CGroup::FS', tmpdir)
-      force_cgroup(2, [''])
+      force_cgroup(2, [''], fs: tmpdir)
       path = %w[osctl pool.tank user.4220 ct.27687]
       FileUtils.mkdir_p(File.join(tmpdir, *path))
       delegated = []
@@ -189,8 +227,7 @@ RSpec.describe OsCtld::CGroup do
 
   it 'falls back to tasks when cgroup.procs is unavailable' do
     with_tmpdir do |tmpdir|
-      stub_const('OsCtld::CGroup::FS', tmpdir)
-      force_cgroup(1, ['cpu,cpuacct'])
+      force_cgroup(1, ['cpu,cpuacct'], fs: tmpdir)
       FileUtils.mkdir_p(File.join(tmpdir, 'cpu,cpuacct'))
 
       cgroup = File.join(tmpdir, 'cpu,cpuacct', 'osctl', 'ct.ct1')
@@ -226,8 +263,7 @@ RSpec.describe OsCtld::CGroup do
 
   it 'returns only positive integer pids from cgroup.procs' do
     with_tmpdir do |tmpdir|
-      stub_const('OsCtld::CGroup::FS', tmpdir)
-      force_cgroup(1, ['memory'])
+      force_cgroup(1, ['memory'], fs: tmpdir)
       FileUtils.mkdir_p(File.join(tmpdir, 'memory'))
 
       write_cgroup_file(tmpdir, 'memory', 'osctl', 'ct.ct1', 'cgroup.procs', content: "1\n0\n12\n-1\n")
@@ -247,5 +283,21 @@ RSpec.describe OsCtld::CGroup do
     end
 
     expect(calls).to eq(%i[outer inner])
+  end
+
+  it 'falls back to the default cgroupfs path when runstate is unavailable' do
+    Dir.mktmpdir do |dir|
+      runstate_fs = File.join(dir, 'missing')
+      default_fs = File.join(dir, 'default')
+
+      FileUtils.mkdir_p(default_fs)
+      FileUtils.touch(File.join(default_fs, 'cgroup.procs'))
+
+      stub_const("#{described_class}::RUNSTATE_FS", runstate_fs)
+      stub_const("#{described_class}::DEFAULT_FS", default_fs)
+      reset_cgroup(version: 2)
+
+      expect(described_class.fs).to eq(default_fs)
+    end
   end
 end
