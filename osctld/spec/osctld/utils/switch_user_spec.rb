@@ -37,7 +37,8 @@ RSpec.describe OsCtld::Utils::SwitchUser do
     expect(ret[:settings][:user]).to eq('u-alice')
     expect(OsCtld::CGroup).to have_received(:mkpath_all).with(
       ['', 'osctl', 'pool.tank', 'ct.ct1'],
-      chown: 12_345
+      chown: 12_345,
+      delegate_existing: false
     )
   end
 
