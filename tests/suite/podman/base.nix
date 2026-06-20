@@ -144,10 +144,12 @@ import ../../make-test.nix (
           expected_cpu_quota=#{cpu_quota}
           expected_cpu_period=100000
 
-          if [ -f /sys/fs/cgroup/memory.max ]; then
-            actual_memory=$(cat /sys/fs/cgroup/memory.max)
+          if [ -f /sys/fs/cgroup/cgroup.controllers ]; then
+            current_cgroup=$(awk -F: '$1 == "0" { print $3 }' /proc/self/cgroup)
+            actual_memory=$(cat "/sys/fs/cgroup$current_cgroup/memory.max")
           elif [ -f /sys/fs/cgroup/memory/memory.limit_in_bytes ]; then
-            actual_memory=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes)
+            current_memory_cgroup=$(awk -F: '$2 ~ /(^|,)memory(,|$)/ { print $3 }' /proc/self/cgroup)
+            actual_memory=$(cat "/sys/fs/cgroup/memory$current_memory_cgroup/memory.limit_in_bytes")
           else
             echo "memory limit file not found" >&2
             exit 1
@@ -158,16 +160,18 @@ import ../../make-test.nix (
             exit 1
           fi
 
-          if [ -f /sys/fs/cgroup/cpu.max ]; then
-            set -- $(cat /sys/fs/cgroup/cpu.max)
+          if [ -f /sys/fs/cgroup/cgroup.controllers ]; then
+            set -- $(cat "/sys/fs/cgroup$current_cgroup/cpu.max")
             actual_cpu_quota=$1
             actual_cpu_period=$2
           elif [ -f /sys/fs/cgroup/cpu,cpuacct/cpu.cfs_quota_us ]; then
-            actual_cpu_quota=$(cat /sys/fs/cgroup/cpu,cpuacct/cpu.cfs_quota_us)
-            actual_cpu_period=$(cat /sys/fs/cgroup/cpu,cpuacct/cpu.cfs_period_us)
+            current_cpu_cgroup=$(awk -F: '$2 ~ /(^|,)cpu(,|$)/ { print $3 }' /proc/self/cgroup)
+            actual_cpu_quota=$(cat "/sys/fs/cgroup/cpu,cpuacct$current_cpu_cgroup/cpu.cfs_quota_us")
+            actual_cpu_period=$(cat "/sys/fs/cgroup/cpu,cpuacct$current_cpu_cgroup/cpu.cfs_period_us")
           elif [ -f /sys/fs/cgroup/cpu/cpu.cfs_quota_us ]; then
-            actual_cpu_quota=$(cat /sys/fs/cgroup/cpu/cpu.cfs_quota_us)
-            actual_cpu_period=$(cat /sys/fs/cgroup/cpu/cpu.cfs_period_us)
+            current_cpu_cgroup=$(awk -F: '$2 ~ /(^|,)cpu(,|$)/ { print $3 }' /proc/self/cgroup)
+            actual_cpu_quota=$(cat "/sys/fs/cgroup/cpu$current_cpu_cgroup/cpu.cfs_quota_us")
+            actual_cpu_period=$(cat "/sys/fs/cgroup/cpu$current_cpu_cgroup/cpu.cfs_period_us")
           else
             echo "CPU limit file not found" >&2
             exit 1
@@ -242,6 +246,14 @@ import ../../make-test.nix (
           end
         else
           fail "unable to find storage driver in podman info, output:\n#{output}"
+        end
+
+        if /cgroupManager: ([^\s]+)\s/ =~ output
+          if $1.strip != 'cgroupfs'
+            fail "using '#{$1}' cgroup manager instead of cgroupfs"
+          end
+        else
+          fail "unable to find cgroup manager in podman info, output:\n#{output}"
         end
 
         _, output = machine.succeeds("osctl ct exec #{ct} podman run hello-world")
