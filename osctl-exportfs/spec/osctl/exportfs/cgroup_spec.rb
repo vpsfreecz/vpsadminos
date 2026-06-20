@@ -4,21 +4,21 @@ require 'spec_helper'
 
 RSpec.describe OsCtl::ExportFS::CGroup do
   it 'builds v1 and v2 cgroup paths' do
+    allow(OsCtl::Lib::CGroup).to receive(:fs).and_return('/run/osctl/cgroup')
     allow(OsCtl::Lib::CGroup).to receive(:v2?).and_return(false)
     expect(described_class.new('grp').send(:abs_cgroup_path, 'payload')).to eq(
-      '/sys/fs/cgroup/systemd/grp/payload'
+      '/run/osctl/cgroup/systemd/grp/payload'
     )
 
     allow(OsCtl::Lib::CGroup).to receive(:v2?).and_return(true)
     expect(described_class.new('grp').send(:abs_cgroup_path, 'payload')).to eq(
-      '/sys/fs/cgroup/grp/payload'
+      '/run/osctl/cgroup/grp/payload'
     )
   end
 
   it 'creates, destroys, and enters cgroups' do
     with_tmpdir do |tmpdir|
-      stub_const('OsCtl::ExportFS::CGroup::FS', tmpdir)
-      allow(OsCtl::Lib::CGroup).to receive(:v2?).and_return(true)
+      allow(OsCtl::Lib::CGroup).to receive_messages(fs: tmpdir, v2?: true)
 
       cg = described_class.new('grp')
       cg.create('payload')
@@ -35,8 +35,7 @@ RSpec.describe OsCtl::ExportFS::CGroup do
 
   it 'counts only successfully signalled processes in kill_all' do
     with_tmpdir do |tmpdir|
-      stub_const('OsCtl::ExportFS::CGroup::FS', tmpdir)
-      allow(OsCtl::Lib::CGroup).to receive(:v2?).and_return(true)
+      allow(OsCtl::Lib::CGroup).to receive_messages(fs: tmpdir, v2?: true)
 
       path = File.join(tmpdir, 'grp', 'payload')
       FileUtils.mkdir_p(path)
