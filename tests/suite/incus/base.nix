@@ -67,7 +67,15 @@ import ../../make-test.nix (
         { name:, status_path:, log_path:, pid_path: }
       end
 
-      def wait_for_ct_job(ct, job, check_cmd: nil, timeout:)
+      def ct_job_failure_output(ct, job, diagnostic_cmd:)
+        _, log_output = ct_execute(ct, "cat #{job[:log_path]} 2>/dev/null || true", timeout: 30)
+        return log_output if diagnostic_cmd.nil?
+
+        _, diagnostic_output = ct_execute(ct, "#{diagnostic_cmd} 2>&1 || true", timeout: 30)
+        "#{log_output}\n--- diagnostic output ---\n#{diagnostic_output}"
+      end
+
+      def wait_for_ct_job(ct, job, check_cmd: nil, timeout:, diagnostic_cmd: nil)
         deadline = Time.now + timeout
 
         loop do
@@ -77,7 +85,7 @@ import ../../make-test.nix (
             rc = output.strip
 
             if rc != '0'
-              _, log_output = ct_execute(ct, "cat #{job[:log_path]} 2>/dev/null || true", timeout: 30)
+              log_output = ct_job_failure_output(ct, job, diagnostic_cmd:)
               fail "#{job[:name]} failed with status #{rc}, log: #{log_output.inspect}"
             end
 
@@ -98,7 +106,7 @@ import ../../make-test.nix (
           end
 
           if Time.now > deadline
-            _, log_output = ct_execute(ct, "cat #{job[:log_path]} 2>/dev/null || true", timeout: 30)
+            log_output = ct_job_failure_output(ct, job, diagnostic_cmd:)
             fail "timed out waiting for #{job[:name]}, log: #{log_output.inspect}"
           end
 
@@ -116,45 +124,30 @@ import ../../make-test.nix (
           timeout: 300
         )
 
-        candidates = JSON.parse(output).filter_map do |image|
+        aliases = JSON.parse(output).filter_map do |image|
           next unless image['type'] == 'container'
 
-          aliases = Array(image['aliases']).filter_map do |al|
+          Array(image['aliases']).filter_map do |al|
             al.is_a?(Hash) ? al['name'] : nil
           end
-          numeric_aliases = aliases.filter_map do |name|
-            match = %r{\Adebian/(\d+)\z}.match(name)
-            next if match.nil?
+        end.flatten
 
-            { alias: name, release: match[1].to_i }
-          end
+        # Avoid future/testing aliases when they are published before becoming
+        # stable releases.
+        stable_alias = %w[
+          debian/13
+          debian/trixie
+          debian/12
+          debian/bookworm
+          debian/11
+          debian/bullseye
+        ].find { |name| aliases.include?(name) }
 
-          alias_name =
-            if numeric_aliases.empty?
-              aliases.find { |name| %r{\Adebian/[^/]+\z}.match?(name) }
-            else
-              numeric_aliases.max_by { |v| v[:release] }.fetch(:alias)
-            end
-          next if alias_name.nil?
-
-          release =
-            numeric_aliases.empty? ? -1 : numeric_aliases.max_by { |v| v[:release] }.fetch(:release)
-
-          {
-            alias: alias_name,
-            sort_key: [
-              release,
-              image['uploaded_at'].to_s,
-              alias_name,
-            ],
-          }
+        if stable_alias.nil?
+          fail "unable to find a supported stable Debian container image, incus image list output: #{output.inspect}"
         end
 
-        if candidates.empty?
-          fail "unable to find a Debian container image, incus image list output: #{output.inspect}"
-        end
-
-        candidates.max_by { |candidate| candidate[:sort_key] }.fetch(:alias)
+        stable_alias
       end
 
       def create_incus_container(ct, distribution, version, map_base)
@@ -175,7 +168,7 @@ import ../../make-test.nix (
         machine.wait_until_container_online(ct)
       end
 
-      def check_incus(ct)
+      def check_incus(ct, pre_start: nil)
         # Nested Incus needs a dedicated ID-mapped range for containers.
         ct_shell(
           ct,
@@ -218,13 +211,16 @@ import ../../make-test.nix (
 
         wait_for_ct_job_completion(ct, init_job, timeout: 900)
 
+        pre_start&.call
+
         start_job = ct_background(ct, 'incus-start', 'incus start i1')
 
         wait_for_ct_job(
           ct,
           start_job,
           check_cmd: "osctl ct exec #{ct} sh -c \"incus info i1 | grep -q 'Status: RUNNING'\"",
-          timeout: 300
+          timeout: 300,
+          diagnostic_cmd: 'incus info --show-log i1'
         )
 
         machine.wait_until_succeeds(
@@ -272,7 +268,10 @@ import ../../make-test.nix (
               ensure_machine
               create_incus_container(ct, '${distribution}', '${test.version}', ${toString test.mapBase})
               ${test.setup}
-              check_incus(ct)
+              pre_start = proc do
+                ${test.preStart or ""}
+              end
+              check_incus(ct, pre_start:)
             ensure
               cleanup_container(ct)
             end
