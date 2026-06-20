@@ -17,11 +17,13 @@ end
 
 pool = Regexp.last_match(1)
 
-s = UNIXSocket.new("/run/osctl/user-control/#{Process.uid}.sock")
-s.puts({ cmd: :ct_on_start, opts: {
+opts = {
   id: ctid,
   pool:
-} }.to_json)
+}
+
+s = UNIXSocket.new("/run/osctl/user-control/#{Process.uid}.sock")
+s.puts({ cmd: :ct_on_start, opts: }.to_json)
 ret = JSON.parse(s.readline, symbolize_names: true)
 s.close
 
