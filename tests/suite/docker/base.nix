@@ -73,6 +73,33 @@ import ../../make-test.nix (
         )
       end
 
+      def configure_docker_iptables_nft(ct)
+        ct_shell(
+          ct,
+          <<~'SH'
+            if command -v update-alternatives >/dev/null 2>&1; then
+              for name in iptables ip6tables arptables ebtables; do
+                target="/usr/sbin/''${name}-nft"
+                if [ -x "$target" ] && update-alternatives --list "$name" 2>/dev/null | grep -Fxq "$target"; then
+                  update-alternatives --set "$name" "$target"
+                fi
+              done
+            fi
+          SH
+        )
+      end
+
+      def restart_docker(ct)
+        escaped_ct = Shellwords.escape(ct)
+
+        machine.succeeds("osctl ct exec #{escaped_ct} systemctl reset-failed docker || true")
+        machine.succeeds("osctl ct exec #{escaped_ct} systemctl restart docker")
+      rescue OsVm::CommandFailed
+        machine.succeeds("osctl ct exec #{escaped_ct} systemctl --no-pager --full status docker || true")
+        machine.succeeds("osctl ct exec #{escaped_ct} journalctl --no-pager -u docker -n 100 || true")
+        raise
+      end
+
       def dump_host_network_state(ct, label)
         escaped_ct = Shellwords.escape(ct)
 
