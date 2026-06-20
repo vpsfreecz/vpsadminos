@@ -1,6 +1,10 @@
 require 'osctld/container_control/result'
 
 module OsCtld
+  module ContainerControl
+    module Commands; end
+  end
+
   class ContainerControl::Error < StandardError; end
 
   class ContainerControl::UserRunnerError < ContainerControl::Error; end
