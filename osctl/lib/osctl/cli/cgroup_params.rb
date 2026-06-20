@@ -274,7 +274,7 @@ module OsCtl
     # @param client [OsCtl::Client]
     def cg_init_subsystems(client)
       @cg_subsystems ||= if OsCtl::Lib::CGroup.v2?
-                           { nil => OsCtl::Lib::CGroup::FS }
+                           { nil => OsCtl::Lib::CGroup.fs }
                          else
                            client.cmd_data!(:group_cgsubsystems)
                          end
