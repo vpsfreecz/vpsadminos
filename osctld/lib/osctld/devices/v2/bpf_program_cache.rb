@@ -89,24 +89,26 @@ module OsCtld
     # @return [String] program name
     def set(pool_name, devices, cgroup_path, prog_name: nil)
       sync do
+        BpfFs.setup
+        BpfFs.add_pool(pool_name)
+
         new_prog_name = get_prog_name(devices)
 
-        prog =
-          if @programs.has_key?(new_prog_name)
-            @programs[new_prog_name]
-          else
-            @programs[new_prog_name] = Devices::V2::BpfProgram.new(
-              new_prog_name,
-              devices
-            )
-          end
+        prog = @programs[new_prog_name]
 
-        prog.create unless prog.exist?
+        unless prog&.exist?
+          prog = @programs[new_prog_name] = Devices::V2::BpfProgram.new(
+            new_prog_name,
+            devices
+          )
+          prog.create
+        end
 
         link = Devices::V2::BpfLink.new(new_prog_name, pool_name, cgroup_path)
 
         if prog_name && prog_name != new_prog_name && @links[prog_name] && @links[prog_name][cgroup_path]
           old_link = @links[prog_name].delete(cgroup_path)
+          old_link = nil unless BpfFs.link_pinned?(old_link.pool_name, old_link.name)
         end
 
         unless prog.attached?(link)
