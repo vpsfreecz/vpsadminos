@@ -10,10 +10,11 @@ let
   };
 
   linuxSnapshot = builtins.getEnv "VPSADMINOS_LINUX_SNAPSHOT";
+  localKernelStage = builtins.getEnv "VPSADMINOS_LOCAL_KERNEL_STAGE";
   kernelVersionEnv = builtins.getEnv "VPSADMINOS_PROACTIVE_SWAP_KERNEL_VERSION";
   diskPathEnv = builtins.getEnv "VPSADMINOS_PROACTIVE_SWAP_DISK";
 
-  kernelVersion = if kernelVersionEnv == "" then "6.12.95" else kernelVersionEnv;
+  kernelVersion = if kernelVersionEnv == "" then kernelPackages.defaultVersion else kernelVersionEnv;
   diskPath = if diskPathEnv == "" then "/root/ai/tmp/proactive-swap-sda.img" else diskPathEnv;
 
   localKernel =
@@ -42,9 +43,11 @@ let
       });
 in
 {
-  boot.kernelVersion = lib.mkForce kernelVersion;
-  boot.kernelPackage = lib.mkForce (
-    if localKernel != null then localKernel else kernelPackages.genKernelPackage kernelVersion
+  boot.kernelVersion = lib.mkIf (localKernelStage == "") (lib.mkForce kernelVersion);
+  boot.kernelPackage = lib.mkIf (localKernelStage == "") (
+    lib.mkForce (
+      if localKernel != null then localKernel else kernelPackages.genKernelPackage kernelVersion
+    )
   );
   boot.zfsBuiltin = lib.mkForce false;
 
