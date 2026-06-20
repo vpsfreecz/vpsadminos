@@ -7,6 +7,14 @@ end
 require 'osctld/cli/runner'
 
 RSpec.describe OsCtld::Cli::Runner do
+  def with_argv(*args)
+    old_argv = ARGV.dup
+    ARGV.replace(args)
+    yield
+  ensure
+    ARGV.replace(old_argv)
+  end
+
   it 'prints usage and exits when argv is not empty' do
     with_argv('unexpected') do
       expect do
@@ -97,5 +105,62 @@ RSpec.describe OsCtld::Cli::Runner do
     expect(runner.stdout).to equal(stdout)
     expect(runner.stderr).to equal(stderr)
     expect(ret).to have_received(:puts).with({ status: true, output: 'done' }.to_json)
+  end
+
+  it 'reports runner exceptions through the return pipe' do
+    ret = instance_double(IO, puts: nil)
+    stdout = instance_double(IO)
+    stderr = instance_double(IO)
+    [ret, stdout, stderr].each do |io|
+      allow(io).to receive(:close_on_exec=)
+    end
+
+    runner_class = Class.new do
+      def initialize(pool:, id:, lxc_home:, user_home:, log_file:, stdin:, stdout:, stderr:); end
+
+      def execute(*, **)
+        raise 'runner exploded'
+      end
+    end
+    command_module = Module.new
+    command_module.const_set(:Runner, runner_class)
+    container_commands = Module.new
+    container_commands.const_set(:Sample, command_module)
+    stub_const('OsCtld::ContainerControl::Commands', container_commands)
+    stub_const('OsCtld::CGroup', Class.new do
+      def self.init; end
+    end)
+    allow(OsCtl::Lib::Logger).to receive(:setup)
+    allow(Process).to receive(:setproctitle)
+    allow(IO).to receive(:new).with(10).and_return(ret)
+    allow(IO).to receive(:new).with(12).and_return(stdout)
+    allow(IO).to receive(:new).with(13).and_return(stderr)
+    allow($stdin).to receive(:readline).and_return({
+      pool: 'tank',
+      id: 'ct1',
+      name: 'Sample',
+      lxc_home: '/var/lib/lxc/ct1',
+      user_home: '/home/alice',
+      log_file: '/var/log/ct1.log',
+      return: 10,
+      stdin: nil,
+      stdout: 12,
+      stderr: 13,
+      args: [],
+      kwargs: {}
+    }.to_json)
+
+    expect do
+      with_argv do
+        described_class.run
+      end
+    end.to raise_error(SystemExit)
+
+    expect(ret).to have_received(:puts) do |payload|
+      data = JSON.parse(payload)
+      expect(data.fetch('status')).to be(false)
+      expect(data.fetch('message')).to include('RuntimeError: runner exploded')
+      expect(data.fetch('user_runner')).to be(true)
+    end
   end
 end
