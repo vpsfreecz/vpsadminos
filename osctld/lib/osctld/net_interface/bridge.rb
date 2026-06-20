@@ -4,6 +4,9 @@ module OsCtld
   class NetInterface::Bridge < NetInterface::Veth
     type :bridge
 
+    AUTO_GATEWAY_WAIT_TIMEOUT = 10
+    AUTO_GATEWAY_WAIT_INTERVAL = 0.1
+
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::System
     include Utils::Ip
@@ -21,7 +24,7 @@ module OsCtld
 
       @link = opts[:link]
       @dhcp = opts.has_key?(:dhcp) ? opts[:dhcp] : true
-      @gateways = opts[:gateways] || { 4 => 'auto', 6 => 'auto' }
+      @gateways = normalize_gateways(opts[:gateways], default: { 4 => 'auto', 6 => 'auto' })
     end
 
     def load(cfg)
@@ -30,13 +33,7 @@ module OsCtld
       @link = cfg['link']
       @dhcp = cfg.has_key?('dhcp') ? cfg['dhcp'] : true
 
-      @gateways = if cfg['gateways']
-                    [4, 6].to_h do |ip_v|
-                      [ip_v, cfg['gateways']["v#{ip_v}"] || 'auto']
-                    end
-                  else
-                    { 4 => 'auto', 6 => 'auto' }
-                  end
+      @gateways = normalize_gateways(cfg['gateways'], default: { 4 => 'auto', 6 => 'auto' })
     end
 
     def save
@@ -62,8 +59,7 @@ module OsCtld
           @dhcp = opts[:dhcp] if opts.has_key?(:dhcp)
 
           if opts[:gateways]
-            @gateways.update(opts[:gateways])
-            @gateway_cache = nil
+            @gateways.update(normalize_gateways(opts[:gateways], default: {}))
           end
         end
       end
@@ -112,48 +108,75 @@ module OsCtld
     end
 
     # @param v [Integer] IP version
+    # @param wait [Boolean] wait briefly for auto gateway resolution
     # @return [Boolean]
-    def has_gateway?(v)
-      !get_gateway(v).nil?
+    def has_gateway?(v, wait: false)
+      !gateway_or_nil(v, wait:).nil?
     end
 
     # @param v [Integer] IP version
+    # @param wait [Boolean] wait briefly for auto gateway resolution
+    # @return [String, nil]
+    def gateway_or_nil(v, wait: false)
+      get_gateway(v, wait:)
+    end
+
+    # @param v [Integer] IP version
+    # @param wait [Boolean] wait briefly for auto gateway resolution
     # @return [String]
-    def gateway(v)
-      get_gateway(v) || (raise 'no gateway set')
+    def gateway(v, wait: false)
+      get_gateway(v, wait:) || (raise 'no gateway set')
     end
 
     def dup(new_ct)
       ret = super
       ret.instance_variable_set('@gateways', gateways.dup)
-      ret.instance_variable_set('@gateway_cache', nil)
       ret
     end
 
     protected
 
-    def get_gateway(v)
-      inclusively do
-        @gateway_cache ||= {}
-        return @gateway_cache[v] if @gateway_cache.has_key?(v)
+    def normalize_gateways(gateways, default:)
+      return default unless gateways
 
-        gw = case gateways[v]
-             when nil, 'auto'
-               any_ifaddr = Socket.getifaddrs.detect do |ifaddr|
-                 ifaddr.name == link && ifaddr.addr.ip? && ifaddr.addr.send(:"ipv#{v}?")
-               end
-
-               any_ifaddr ? any_ifaddr.addr.ip_address : nil
-
-             when 'none'
-               nil
-
-             else
-               gateways[v]
-             end
-
-        @gateway_cache[v] = gw
+      [4, 6].each_with_object({}) do |ip_v, ret|
+        value = gateways[ip_v] || gateways[ip_v.to_s] || gateways["v#{ip_v}"]
+        ret[ip_v] = value unless value.nil?
       end
+    end
+
+    def get_gateway(v, wait: false)
+      inclusively do
+        case gateways[v]
+        when nil, 'auto'
+          wait ? wait_for_auto_gateway(v) : detect_auto_gateway(v)
+
+        when 'none'
+          nil
+
+        else
+          gateways[v]
+        end
+      end
+    end
+
+    def wait_for_auto_gateway(v)
+      deadline = Time.now + AUTO_GATEWAY_WAIT_TIMEOUT
+
+      loop do
+        gateway = detect_auto_gateway(v)
+        return gateway if gateway || Time.now >= deadline
+
+        sleep(AUTO_GATEWAY_WAIT_INTERVAL)
+      end
+    end
+
+    def detect_auto_gateway(v)
+      any_ifaddr = Socket.getifaddrs.detect do |ifaddr|
+        ifaddr.name == link && ifaddr.addr.ip? && ifaddr.addr.send(:"ipv#{v}?")
+      end
+
+      any_ifaddr ? any_ifaddr.addr.ip_address : nil
     end
   end
 end
