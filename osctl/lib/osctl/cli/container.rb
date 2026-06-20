@@ -1943,6 +1943,9 @@ module OsCtl::Cli
       if resp.error?
         raise(resp.message || 'exec failed')
 
+      elsif !resp.data || !resp.data.has_key?(:exitstatus)
+        raise 'exec failed: osctld returned no exit status'
+
       elsif resp[:exitstatus] && resp[:exitstatus] > 0
         raise GLI::CustomExit.new('executed command failed', resp[:exitstatus])
       end
@@ -1961,7 +1964,15 @@ module OsCtl::Cli
         Process.exec(cmd[:cmd], f.path, '--', *cmd[:args])
       end
 
-      Process.wait(pid)
+      _, status = Process.wait2(pid)
+
+      if status.exited?
+        exit(status.exitstatus)
+      elsif status.signaled?
+        exit(128 + status.termsig)
+      else
+        exit(1)
+      end
     ensure
       begin
         f && File.unlink(f.path)
