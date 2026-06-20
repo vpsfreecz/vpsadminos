@@ -179,6 +179,7 @@ let
           "kernel/tmpfs/cgroups-v1"
           "kernel/tmpfs/cgroups-v2"
           "kernel/uptime"
+          "kernel/vpsadminos-selftests"
           "osctl/ct-cat"
           "osctl/ct-chown-filecaps"
           "osctl/ct-console"
