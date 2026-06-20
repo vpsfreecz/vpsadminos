@@ -171,6 +171,7 @@ let
         "snap/lxd-fedora"
         "snap/lxd-ubuntu"
         "systemd/credentials"
+        "systemd/ebpf"
         {
           test = "systemd/device-units";
           args = {
