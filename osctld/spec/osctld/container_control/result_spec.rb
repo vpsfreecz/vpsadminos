@@ -16,4 +16,12 @@ RSpec.describe OsCtld::ContainerControl::Result do
     expect(result.ok?).to be(false)
     expect(result.message).to eq('failed')
   end
+
+  it 'preserves the user runner marker from failed runner results' do
+    result = described_class.from_runner(status: false, message: 'failed', user_runner: true)
+
+    expect(result.ok?).to be(false)
+    expect(result.message).to eq('failed')
+    expect(result.user_runner?).to be(true)
+  end
 end
