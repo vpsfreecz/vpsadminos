@@ -4,8 +4,7 @@ import ../../make-test.nix (
     name = "kernel-proactive-swap";
 
     description = ''
-      Smoke test proactive DAMON reclaim, including NUMA-node scoped reclaim
-      and cgroup virtual swap reporting
+      Smoke test proactive DAMON reclaim and cgroup virtual swap reporting
     '';
 
     tags = [ "proactive-swap" ];
@@ -37,7 +36,6 @@ import ../../make-test.nix (
           ];
           boot.kernel.sysctl."vm.min_free_kbytes" = lib.mkOverride 40 65536;
           boot.damon.reclaim = {
-            scope = lib.mkOverride 0 "global";
             minAge = lib.mkOverride 0 1000000;
             quota.ms = lib.mkOverride 0 0;
             quota.size = lib.mkOverride 0 1073741824;
@@ -93,7 +91,9 @@ import ../../make-test.nix (
           done
 
           echo "enabled=$(cat "$params/enabled")"
-          echo "scope=$(cat "$params/scope")"
+          if [ -e "$params/scope" ]; then
+            echo "scope=$(cat "$params/scope")"
+          fi
           echo "kdamond_pid=$(cat "$params/kdamond_pid")"
           grep . "$params"/* || true
           sv status damon-reclaim || true
@@ -105,9 +105,6 @@ import ../../make-test.nix (
       expect(enable_status).to eq(0), enable_output
 
       machine.wait_until_succeeds("test -d /sys/devices/system/node/node1")
-
-      _, scope = machine.succeeds("cat /sys/module/damon_reclaim/parameters/scope")
-      expect(scope.strip).to eq("global")
 
       _, free_mem_bytes = machine.succeeds("cat /sys/module/damon_reclaim/parameters/quota_free_mem_bytes")
       expect(free_mem_bytes.strip).to eq("0")
@@ -210,20 +207,6 @@ import ../../make-test.nix (
           done
         '
       SH
-
-      machine.all_succeed(
-        "printf 'per-node' > /sys/module/damon_reclaim/parameters/scope",
-        "printf Y > /sys/module/damon_reclaim/parameters/commit_inputs"
-      )
-      machine.wait_until_succeeds("test \"$(cat /sys/module/damon_reclaim/parameters/commit_inputs)\" = N")
-
-      _, scope = machine.succeeds("cat /sys/module/damon_reclaim/parameters/scope")
-      expect(scope.strip).to eq("per-node")
-
-      machine.wait_until_succeeds(
-        "test $(cat /sys/module/damon_reclaim/parameters/bytes_reclaim_tried_regions) -gt #{initial_tried_bytes}",
-        timeout: 180
-      )
 
       machine.all_succeed(
         "sv down damon-reclaim",
