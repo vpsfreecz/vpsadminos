@@ -115,7 +115,7 @@ module OsCtl::Repo
 
           t.lock(format) do
             path = fetch_image(http, t, format)
-            fh = File.open(path, 'r') if open
+            fh = File.open(path, 'rb') if open
           end
         end
       end
@@ -132,7 +132,7 @@ module OsCtl::Repo
         end
 
         path = t.abs_cache_path(format)
-        fh = File.open(path, 'r')
+        fh = File.open(path, 'rb')
       end
 
       [path, fh]
@@ -213,11 +213,7 @@ module OsCtl::Repo
         request_get(http, uri, headers) do |res|
           case res.code
           when '200'
-            File.open(t_tmp_path, 'w') do |f|
-              res.read_body do |fragment|
-                f.write(fragment)
-              end
-            end
+            write_body(t_tmp_path, res)
 
             if res['last-modified']
               # Save the modtime for later requests
@@ -237,13 +233,9 @@ module OsCtl::Repo
 
       else # download it
         request_get(http, uri) do |res|
-          File.open(t_tmp_path, 'w') do |f|
-            raise BadHttpResponse, res.code if res.code != '200'
+          raise BadHttpResponse, res.code if res.code != '200'
 
-            res.read_body do |fragment|
-              f.write(fragment)
-            end
-          end
+          write_body(t_tmp_path, res)
 
           if res['last-modified']
             # Save the modtime for later requests
@@ -257,13 +249,24 @@ module OsCtl::Repo
       t_path
     end
 
+    def write_body(path, res)
+      File.open(path, 'wb') do |f|
+        read_response_body(res) do |fragment|
+          f.write(fragment)
+        end
+      end
+    rescue StandardError
+      FileUtils.rm_f(path)
+      raise
+    end
+
     def ensure_cache_dir
       FileUtils.mkpath(repo.path)
     end
 
     def write_index(path, res)
-      File.open(path, 'w') do |f|
-        res.read_body do |fragment|
+      File.open(path, 'wb') do |f|
+        read_response_body(res) do |fragment|
           f.write(fragment)
         end
       end
