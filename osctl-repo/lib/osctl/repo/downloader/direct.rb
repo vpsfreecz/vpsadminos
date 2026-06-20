@@ -13,7 +13,7 @@ module OsCtl::Repo
           request_get(http, index_uri) do |res|
             raise BadHttpResponse, res.code if res.code != '200'
 
-            res.read_body do |fragment|
+            read_response_body(res) do |fragment|
               body << fragment
             end
           end
@@ -23,16 +23,20 @@ module OsCtl::Repo
       end
     end
 
+    # Streams fragments as they arrive. A failed transfer may have yielded a
+    # prefix; callers must discard it. Never replay that prefix on retry.
     # yieldparam [String] downloaded data
     def get(vendor, variant, arch, dist, vtag, format, _opts = {}, &block)
-      with_retries do
+      stream_started = false
+
+      with_retries(retry_if: -> { !stream_started }) do
         connect do |http|
           body = +''
 
           request_get(http, index_uri) do |res|
             raise BadHttpResponse, res.code if res.code != '200'
 
-            res.read_body do |fragment|
+            read_response_body(res) do |fragment|
               body << fragment
             end
           end
@@ -46,7 +50,12 @@ module OsCtl::Repo
           request_get(http, URI(t.abs_image_url(format))) do |res|
             raise BadHttpResponse, res.code if res.code != '200'
 
-            res.read_body(&block)
+            raise ArgumentError, 'stream block is required' unless block
+
+            read_response_body(res) do |fragment|
+              stream_started = true
+              block.call(fragment)
+            end
           end
         end
       end
