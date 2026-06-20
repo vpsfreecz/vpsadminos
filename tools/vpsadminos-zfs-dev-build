@@ -1,0 +1,293 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_path=$(readlink -f "$0")
+repo_root=$(readlink -f "$(dirname "$script_path")/..")
+state_base=${XDG_STATE_HOME:-$HOME/.local/state}/vpsadminos
+
+usage() {
+  cat <<'EOF'
+Usage: tools/vpsadminos-zfs-dev-build [build|print-env]
+
+Build and stage OpenZFS from persistent local build directories.
+
+Environment:
+  VPSADMINOS_ZFS_DEV_NAME          State name, default: basename of repo root
+  VPSADMINOS_ZFS_SRC               Editable ZFS worktree, default: ../zfs
+  VPSADMINOS_KERNEL_STAGE          Staged local kernel. If unset, defaults to
+                                   VPSADMINOS_LOCAL_KERNEL_STAGE, then the
+                                   repo-local kernel-dev stage path.
+  VPSADMINOS_ZFS_DEV_ROOT          State root, default:
+                                   $XDG_STATE_HOME/vpsadminos/zfs-dev/$name
+  VPSADMINOS_ZFS_DEV_JOBS          make -j value, default: nproc
+  VPSADMINOS_ZFS_DEV_KERNEL        always or skip, default: always
+  VPSADMINOS_ZFS_DEV_USER          always or skip, default: skip
+
+The Nix development configuration consumes the staged output through
+VPSADMINOS_LOCAL_ZFS_STAGE. Compile work happens in this persistent state tree,
+not in the Nix sandbox.
+EOF
+}
+
+log() {
+  printf '[vpsadminos-zfs-dev] %s\n' "$*" >&2
+}
+
+die() {
+  log "ERROR: $*"
+  exit 1
+}
+
+kernel_stage_fingerprint() {
+  local stage=$1
+  local records=()
+
+  records+=("$stage/meta.env")
+  records+=("$stage/dev-input/config")
+  records+=("$stage/dev-input/Module.symvers")
+  records+=("$stage/dev-input/vmlinux")
+
+  if [[ -f "$stage/applied-kernel-patches.tsv" ]]; then
+    records+=("$stage/applied-kernel-patches.tsv")
+  fi
+
+  sha256sum "${records[@]}" | sha256sum | awk '{ print $1 }'
+}
+
+abs_path() {
+  local path=$1
+  if [[ -e "$path" ]]; then
+    readlink -f "$path"
+  else
+    mkdir -p "$(dirname "$path")"
+    printf '%s/%s\n' "$(readlink -f "$(dirname "$path")")" "$(basename "$path")"
+  fi
+}
+
+cmd=${1:-build}
+case "$cmd" in
+  build|print-env) ;;
+  -h|--help|help)
+    usage
+    exit 0
+    ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac
+
+name=${VPSADMINOS_ZFS_DEV_NAME:-$(basename "$repo_root")}
+src=$(abs_path "${VPSADMINOS_ZFS_SRC:-$repo_root/../zfs}")
+default_kernel_stage=${VPSADMINOS_LOCAL_KERNEL_STAGE:-$state_base/kernel-dev/$name/stage}
+kernel_stage=$(abs_path "${VPSADMINOS_KERNEL_STAGE:-$default_kernel_stage}")
+root=$(abs_path "${VPSADMINOS_ZFS_DEV_ROOT:-$state_base/zfs-dev/$name}")
+prepared_src=${VPSADMINOS_ZFS_PREPARED_SRC:-$root/source}
+kernel_build_dir=${VPSADMINOS_ZFS_KERNEL_BUILD_DIR:-$root/build-kernel}
+user_build_dir=${VPSADMINOS_ZFS_USER_BUILD_DIR:-$root/build-user}
+stage_dir=${VPSADMINOS_ZFS_STAGE_DIR:-$root/stage}
+jobs=${VPSADMINOS_ZFS_DEV_JOBS:-$(nproc)}
+kernel_mode=${VPSADMINOS_ZFS_DEV_KERNEL:-always}
+user_mode=${VPSADMINOS_ZFS_DEV_USER:-skip}
+
+case "$kernel_mode" in always|skip) ;; *) die "VPSADMINOS_ZFS_DEV_KERNEL must be always or skip" ;; esac
+case "$user_mode" in always|skip) ;; *) die "VPSADMINOS_ZFS_DEV_USER must be always or skip" ;; esac
+
+if [[ "$cmd" == print-env ]]; then
+  [[ -f "$stage_dir/meta.env" ]] || die "missing $stage_dir/meta.env; run build first"
+  # shellcheck disable=SC1090
+  source "$stage_dir/meta.env"
+  cat <<EOF
+export VPSADMINOS_LOCAL_ZFS_STAGE=$stage_dir
+export VPSADMINOS_LOCAL_ZFS_VERSION=$version
+export VPSADMINOS_LOCAL_ZFS_KERNEL_MODDIR_VERSION=$kernelModDirVersion
+EOF
+  exit 0
+fi
+
+[[ -d "$src" ]] || die "ZFS source not found: $src"
+[[ -d "$kernel_stage" ]] || die "kernel stage not found: $kernel_stage"
+[[ -f "$kernel_stage/meta.env" ]] || die "kernel stage metadata not found: $kernel_stage/meta.env"
+
+# shellcheck disable=SC1090
+source "$kernel_stage/meta.env"
+kernel_source=${preparedSource:-$kernel_stage/dev-input/source}
+kernel_build=${build:-}
+kernel_moddir=${modDirVersion:-}
+[[ -n "$kernel_moddir" ]] || die "kernel stage did not define modDirVersion"
+[[ -d "$kernel_source" ]] || die "kernel prepared source not found: $kernel_source"
+[[ -d "$kernel_build" ]] || die "kernel build dir not found: $kernel_build"
+[[ -f "$kernel_build/include/config/kernel.release" ]] || die "kernel build dir is not prepared: $kernel_build"
+kernel_fingerprint=$(kernel_stage_fingerprint "$kernel_stage")
+
+mkdir -p "$root" "$kernel_build_dir" "$user_build_dir"
+
+log "syncing ZFS source"
+rm -rf "$prepared_src"
+mkdir -p "$prepared_src"
+file_list=$(mktemp "$root/zfs-files.XXXXXX")
+tmp_stage=""
+trap 'rm -f "$file_list"; if [[ -n "${tmp_stage:-}" ]]; then rm -rf "$tmp_stage"; fi' EXIT
+if git -C "$src" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  git -C "$src" ls-files -co --exclude-standard -z >"$file_list"
+  rsync -a --from0 --files-from="$file_list" "$src"/ "$prepared_src"/
+else
+  rsync -a --delete \
+    --exclude=.git \
+    --exclude=.tmp_versions \
+    "$src"/ "$prepared_src"/
+fi
+
+log "refreshing autotools files"
+(cd "$prepared_src" && ./autogen.sh)
+
+zfs_version=$(
+  git -C "$src" describe --tags --dirty --always 2>/dev/null \
+    || awk -F'[][]' '/AC_INIT/ { print $4; exit }' "$prepared_src/configure.ac" \
+    || printf '2.3-vpsadminos'
+)
+
+tmp_stage=$(mktemp -d "$root/stage.tmp.XXXXXX")
+cleanup() {
+  rm -f "$file_list"
+  rm -rf "${tmp_stage:-}"
+}
+trap cleanup EXIT
+
+if [[ "$kernel_mode" == always ]]; then
+  log "configuring ZFS kernel modules against $kernel_moddir"
+  (
+    cd "$kernel_build_dir"
+    "$prepared_src/configure" \
+      --with-config=kernel \
+      --with-linux="$kernel_source" \
+      --with-linux-obj="$kernel_build" \
+      --enable-debug
+    make -j"$jobs"
+    make -C "$kernel_build" \
+      M="$kernel_build_dir/module" \
+      modules_install \
+      INSTALL_MOD_PATH="$tmp_stage/kernel/out" \
+      INSTALL_MOD_DIR=extra \
+      KERNELRELEASE="$kernel_moddir" \
+      DEPMOD=true
+  )
+
+  if [[ -d "$tmp_stage/kernel/out/lib/modules/$kernel_moddir/extra" ]]; then
+    find "$tmp_stage/kernel/out/lib/modules/$kernel_moddir/extra" -type f -name '*.ko' -print0 \
+      | xargs -0 -r xz -T0 -f
+  fi
+else
+  log "reusing previously staged ZFS kernel output"
+  [[ -d "$stage_dir/kernel/out" ]] || die "kernel reuse requested but $stage_dir/kernel/out is missing"
+  [[ -f "$stage_dir/meta.env" ]] || die "kernel reuse requested but previous stage metadata is missing"
+  previous_kernel_fingerprint=$(
+    sed -n 's/^kernelStageFingerprint=//p' "$stage_dir/meta.env" | tail -1
+  )
+  [[ -n "$previous_kernel_fingerprint" ]] \
+    || die "kernel reuse requested but previous stage has no kernelStageFingerprint"
+  [[ "$previous_kernel_fingerprint" == "$kernel_fingerprint" ]] \
+    || die "kernel reuse requested but kernel stage fingerprint changed; rebuild ZFS kernel modules"
+  mkdir -p "$tmp_stage/kernel"
+  rsync -a "$stage_dir/kernel/out" "$tmp_stage/kernel/"
+fi
+
+find "$tmp_stage/kernel/out/lib/modules/$kernel_moddir" \
+  -maxdepth 1 -type f -name 'modules.*' -delete
+
+if [[ "$user_mode" == always ]]; then
+  # OpenZFS defaults to the FHS-only /usr/sbin/exportfs path. The staged
+  # userspace is consumed by vpsAdminOS after activation, where nfs-utils is
+  # exposed through the system profile instead. Adapt the prepared copy before
+  # compiling so libzfs never retains a host-only helper path.
+  nfs_source="$prepared_src/lib/libshare/os/linux/nfs.c"
+  [[ -f "$nfs_source" ]] || die "OpenZFS NFS share source not found: $nfs_source"
+  sed -i \
+    's|/usr/sbin/exportfs|/run/current-system/sw/bin/exportfs|g' \
+    "$nfs_source"
+  grep -Fq '/run/current-system/sw/bin/exportfs' "$nfs_source" \
+    || die "failed to adapt the OpenZFS exportfs helper path"
+  if grep -Fq '/usr/sbin/exportfs' "$nfs_source"; then
+    die "host OpenZFS exportfs helper path remains after adaptation"
+  fi
+
+  log "configuring ZFS userspace"
+  (
+    cd "$user_build_dir"
+    "$prepared_src/configure" \
+      --with-config=user \
+      --prefix=/ \
+      --with-tirpc=1 \
+      --with-dracutdir=/lib/dracut \
+      --with-udevdir=/lib/udev \
+      --with-mounthelperdir=/bin \
+      --libexecdir=/libexec \
+      --sysconfdir=/etc \
+      --localstatedir=/var
+    make -j"$jobs"
+
+    python_site=$(
+      make -s --no-print-directory \
+        --eval 'vpsadminos-print-python-site:;@printf "%s\n" "$(pythonsitedir)"' \
+        vpsadminos-print-python-site
+    )
+    while [[ "$python_site" == //* ]]; do
+      python_site=${python_site#/}
+    done
+    [[ "$python_site" == /* ]] \
+      || die "configured Python site directory is not absolute: $python_site"
+
+    make install DESTDIR="$tmp_stage/user/out" \
+      pythonsitedir="$python_site" \
+      sysconfdir=/etc \
+      hooksdir=/usr/share/initramfs-tools/hooks \
+      scriptsdir=/usr/share/initramfs-tools/scripts \
+      localtopdir=/usr/share/initramfs-tools/scripts/local-top \
+      initrddir=/usr/share/initramfs-tools \
+      DEFAULT_INIT_DIR=/etc/init.d \
+      DEFAULT_INITCONF_DIR=/etc/default
+  )
+else
+  log "skipping ZFS userspace build"
+fi
+
+[[ -f "$tmp_stage/kernel/out/lib/modules/$kernel_moddir/extra/zfs.ko.xz" ]] \
+  || die "staged zfs.ko.xz is missing"
+[[ -f "$tmp_stage/kernel/out/lib/modules/$kernel_moddir/extra/spl.ko.xz" ]] \
+  || die "staged spl.ko.xz is missing"
+
+git_head=$(git -C "$src" rev-parse HEAD 2>/dev/null || true)
+git_status=$(git -C "$src" status --short 2>/dev/null | wc -l | tr -d ' ' || true)
+mkdir -p "$tmp_stage"
+cat >"$tmp_stage/meta.nix" <<EOF
+{
+  version = "$zfs_version";
+  kernelModDirVersion = "$kernel_moddir";
+}
+EOF
+cat >"$tmp_stage/meta.env" <<EOF
+version=$zfs_version
+kernelModDirVersion=$kernel_moddir
+source=$src
+preparedSource=$prepared_src
+kernelBuild=$kernel_build_dir
+userBuild=$user_build_dir
+kernelStage=$kernel_stage
+kernelStageFingerprint=$kernel_fingerprint
+gitHead=$git_head
+gitStatusLines=$git_status
+builtKernel=$kernel_mode
+builtUser=$user_mode
+builtAt=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+EOF
+
+rm -rf "$stage_dir.previous"
+if [[ -d "$stage_dir" ]]; then
+  mv "$stage_dir" "$stage_dir.previous"
+fi
+mv "$tmp_stage" "$stage_dir"
+rm -f "$file_list"
+trap - EXIT
+
+log "staged local ZFS at $stage_dir"
+"$0" print-env
