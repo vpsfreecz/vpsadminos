@@ -1,0 +1,1964 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_path=$(readlink -f "$0")
+repo_root=$(readlink -f "$(dirname "$script_path")/..")
+state_base=${XDG_STATE_HOME:-$HOME/.local/state}/vpsadminos
+
+usage() {
+  cat <<'EOF'
+Usage: tools/vpsadminos-test-json-offload <command> [test-path]
+
+Build a focused vpsAdminOS test JSON locally, copy the JSON and test-runner
+closure to a remote KVM host, run N independent systemd lanes there, and
+collect machine-readable result rows from the test-runner logs.
+
+Commands:
+  build-json   Build the focused test JSON and package the direct JSON runner
+  copy         Copy the JSON and runner closures to the offload host
+  launch       Launch remote systemd lanes
+  status       Show remote lane systemd states
+  watch        Show lane progress/load, wait for completion, then collect
+  wait         Wait until all launched lane units have stopped
+  collect      Collect proxy-exec result rows and write a local summary
+  summary      Print a compact classification table from collected artifacts
+  classify     Alias for summary
+  run          build-json, copy, launch, wait, and collect
+  run-watch    build-json, copy, launch, watch, and collect
+
+Environment:
+  VPSADMINOS_TEST_PATH                 Test path, e.g. kernel/sched-proxy-exec-lock-badneighbor
+  VPSADMINOS_TEST_RUN_ID               Stable run id. Defaults to a timestamped id
+  VPSADMINOS_TEST_OFFLOAD_STATE_DIR    Local state dir for manifest/results
+  VPSADMINOS_TEST_OFFLOAD_HOST         SSH host, e.g. root@172.16.9.33
+  VPSADMINOS_TEST_OFFLOAD_SSH_KEY      Optional SSH key
+  VPSADMINOS_TEST_OFFLOAD_KNOWN_HOSTS  Optional known_hosts file
+  VPSADMINOS_TEST_OFFLOAD_LANES        Number of remote lanes, default: 4
+  VPSADMINOS_TEST_OFFLOAD_TIMEOUT      Wait timeout in seconds, default: 10800
+  VPSADMINOS_TEST_OFFLOAD_SSH_CONNECT_TIMEOUT
+                                       SSH connect timeout in seconds,
+                                       default: 15
+  VPSADMINOS_TEST_OFFLOAD_SSH_SERVER_ALIVE_INTERVAL
+                                       SSH keepalive interval in seconds,
+                                       default: 30
+  VPSADMINOS_TEST_OFFLOAD_SSH_SERVER_ALIVE_COUNT_MAX
+                                       Missed keepalives before SSH exits,
+                                       default: 4
+  VPSADMINOS_TEST_OFFLOAD_SSH_COMMAND_TIMEOUT
+                                       Local timeout for SSH launch/collect/stop
+                                       commands, default: 120; 0 disables
+  VPSADMINOS_TEST_OFFLOAD_SSH_POLL_TIMEOUT
+                                       Local timeout for SSH status/progress
+                                       polling commands, default: 30; 0 disables
+  VPSADMINOS_TEST_OFFLOAD_SSH_DIAG_TIMEOUT
+                                       Local timeout for stale diagnostic
+                                       capture, default: 240; 0 disables
+  VPSADMINOS_TEST_OFFLOAD_WATCH_INTERVAL
+                                       Watch refresh interval in seconds,
+                                       default: wait interval
+  VPSADMINOS_TEST_OFFLOAD_STALE_TIMEOUT
+                                       Stop this run's active lane unit after
+                                       this many seconds with no new
+                                       proxy-exec progress/result/summary row
+                                       and no lane log activity.
+                                       Defaults to 900
+                                       for lock-badneighbor, otherwise 0
+                                       (disabled)
+  VPSADMINOS_TEST_OFFLOAD_STALE_STOP_GRACE
+                                       Seconds to wait for a stale unit to
+                                       stop before SIGKILL, default: 30
+  VPSADMINOS_TEST_OFFLOAD_STALE_DIAG_LINES
+                                       Lines of journal/test log captured
+                                       before stopping a stale lane, default:
+                                       400
+  VPSADMINOS_TEST_OFFLOAD_REMOTE_BASE  Remote state base, default: /r/vpsadminos-test-json
+  VPSADMINOS_TEST_OFFLOAD_REMOTE_RUN_ID
+                                       Optional remote state id. Defaults to a
+                                       short generated id to keep QEMU UNIX
+                                       socket paths below their length limit
+  VPSADMINOS_TEST_OFFLOAD_REQUIRE_EVENTS
+                                       Require at least one proxy-exec result
+                                       row during collect, default: 1
+  VPSADMINOS_TEST_OFFLOAD_FORWARD_ENV_PREFIXES
+                                       Space/comma separated prefixes forwarded
+                                       to remote lanes, default: VPSADMINOS_PROXY_
+  VPSADMINOS_TEST_OFFLOAD_FORWARD_ENV_NAMES
+                                       Space/comma separated exact env names to
+                                       forward to remote lanes
+  VPSADMINOS_LOCAL_KERNEL_STAGE        Optional staged kernel consumed by Nix eval
+  VPSADMINOS_LOCAL_ZFS_STAGE           Optional staged ZFS consumed by Nix eval
+
+The command does not invoke qemu directly. It runs vpsAdminOS test-runner JSON
+through the packaged test-json-runner on the remote host.
+EOF
+}
+
+log() {
+  printf '[vpsadminos-test-json-offload] %s\n' "$*" >&2
+}
+
+die() {
+  log "ERROR: $*"
+  exit 1
+}
+
+resolve_cmd() {
+  local var=$1
+  local name=$2
+  local value=${!var:-}
+
+  if [[ -n "$value" ]]; then
+    [[ -x "$value" ]] || die "$var is set to non-executable path: $value"
+    printf '%s\n' "$value"
+  elif command -v "$name" >/dev/null 2>&1; then
+    command -v "$name"
+  elif [[ -x "/root/.nix-profile/bin/$name" ]]; then
+    printf '/root/.nix-profile/bin/%s\n' "$name"
+  else
+    die "$name not found; set $var"
+  fi
+}
+
+slugify() {
+  local value
+  value=$(printf '%s' "$1" | tr -c 'A-Za-z0-9_.-' '-' | sed -E 's/^-+|-+$//g; s/-+/-/g')
+  if [[ -z "$value" ]]; then
+    value=run
+  fi
+  printf '%s\n' "$value"
+}
+
+env_line() {
+  printf '%s=%q\n' "$1" "$2"
+}
+
+remote_quote() {
+  printf '%q' "$1"
+}
+
+setup_ssh_opts() {
+  SSH_KEY=${VPSADMINOS_TEST_OFFLOAD_SSH_KEY:-${VPSADMINOS_OFFLOAD_SSH_KEY:-}}
+  KNOWN_HOSTS=${VPSADMINOS_TEST_OFFLOAD_KNOWN_HOSTS:-${VPSADMINOS_OFFLOAD_KNOWN_HOSTS:-}}
+  STRICT_HOST_KEY_CHECKING=${VPSADMINOS_TEST_OFFLOAD_STRICT_HOST_KEY_CHECKING:-yes}
+  ssh_opts=()
+
+  if [[ -n "$SSH_KEY" ]]; then
+    ssh_opts+=(-i "$SSH_KEY" -o IdentitiesOnly=yes)
+  fi
+
+  if [[ -n "$KNOWN_HOSTS" ]]; then
+    ssh_opts+=(-o "UserKnownHostsFile=$KNOWN_HOSTS")
+  fi
+
+  if [[ -n "$STRICT_HOST_KEY_CHECKING" ]]; then
+    ssh_opts+=(-o "StrictHostKeyChecking=$STRICT_HOST_KEY_CHECKING")
+  fi
+
+  ssh_opts+=(
+    -o BatchMode=yes
+    -o "ConnectTimeout=$SSH_CONNECT_TIMEOUT"
+    -o "ServerAliveInterval=$SSH_SERVER_ALIVE_INTERVAL"
+    -o "ServerAliveCountMax=$SSH_SERVER_ALIVE_COUNT_MAX"
+  )
+}
+
+ssh_opts_string() {
+  local out=()
+  local opt
+  for opt in "${ssh_opts[@]}"; do
+    out+=("$opt")
+  done
+  printf '%s' "${out[*]}"
+}
+
+ssh_run() {
+  ssh_with_timeout "$SSH_COMMAND_TIMEOUT" -n "${ssh_opts[@]}" "$OFFLOAD_HOST" "$@"
+}
+
+ssh_poll() {
+  ssh_with_timeout "$SSH_POLL_TIMEOUT" -n "${ssh_opts[@]}" "$OFFLOAD_HOST" "$@"
+}
+
+ssh_with_timeout() {
+  local limit=$1
+  shift
+
+  if (( limit > 0 )); then
+    timeout --foreground "$limit" ssh "$@"
+  else
+    ssh "$@"
+  fi
+}
+
+ssh_stdin() {
+  local limit=$1
+  shift
+
+  ssh_with_timeout "$limit" "${ssh_opts[@]}" "$OFFLOAD_HOST" "$@"
+}
+
+ssh_poll_stdin() {
+  ssh_with_timeout "$SSH_POLL_TIMEOUT" "${ssh_opts[@]}" "$OFFLOAD_HOST" "$@"
+}
+
+save_manifest() {
+  mkdir -p "$STATE_DIR"
+  {
+    env_line TEST_PATH "$TEST_PATH"
+    env_line TEST_SLUG "$TEST_SLUG"
+    env_line RUN_ID "$RUN_ID"
+    env_line STATE_DIR "$STATE_DIR"
+    env_line JSON_LINK "$JSON_LINK"
+    env_line JSON_STORE "${JSON_STORE:-}"
+    env_line RUNNER_LINK "$RUNNER_LINK"
+    env_line RUNNER_STORE "${RUNNER_STORE:-}"
+    env_line OFFLOAD_HOST "${OFFLOAD_HOST:-}"
+    env_line LANES "$LANES"
+    env_line UNIT_PREFIX "$UNIT_PREFIX"
+    env_line REMOTE_RUN_ID "$REMOTE_RUN_ID"
+    env_line REMOTE_STATE_BASE "$REMOTE_STATE_BASE"
+    env_line SYSTEM "$SYSTEM"
+    env_line TEST_TIMEOUT "$TEST_TIMEOUT"
+    env_line TEST_JOBS "$TEST_JOBS"
+    env_line STALE_TIMEOUT "$STALE_TIMEOUT"
+    env_line STALE_STOP_GRACE "$STALE_STOP_GRACE"
+    env_line STALE_DIAG_LINES "$STALE_DIAG_LINES"
+    env_line STALE_DIAG_DIR "$STALE_DIAG_DIR"
+    env_line STALE_TSV "$STALE_TSV"
+    env_line PROGRESS_TSV "$PROGRESS_TSV"
+    env_line SSH_CONNECT_TIMEOUT "$SSH_CONNECT_TIMEOUT"
+    env_line SSH_SERVER_ALIVE_INTERVAL "$SSH_SERVER_ALIVE_INTERVAL"
+    env_line SSH_SERVER_ALIVE_COUNT_MAX "$SSH_SERVER_ALIVE_COUNT_MAX"
+    env_line SSH_COMMAND_TIMEOUT "$SSH_COMMAND_TIMEOUT"
+    env_line SSH_POLL_TIMEOUT "$SSH_POLL_TIMEOUT"
+    env_line SSH_DIAG_TIMEOUT "$SSH_DIAG_TIMEOUT"
+    env_line REMOTE_PATH "$REMOTE_PATH"
+    env_line REQUIRE_EVENTS "$REQUIRE_EVENTS"
+    env_line FORWARDED_ENV_NAMES "$FORWARDED_ENV_NAMES"
+  } >"$MANIFEST"
+}
+
+load_manifest() {
+  [[ -f "$MANIFEST" ]] || die "missing manifest: $MANIFEST"
+  # shellcheck disable=SC1090
+  source "$MANIFEST"
+}
+
+require_test_path() {
+  [[ -n "$TEST_PATH" ]] || die "test path is required"
+}
+
+require_offload_host() {
+  [[ -n "$OFFLOAD_HOST" ]] || die "set VPSADMINOS_TEST_OFFLOAD_HOST"
+}
+
+require_lanes_file() {
+  [[ -f "$LANES_FILE" ]] || die "missing lanes file: $LANES_FILE"
+}
+
+split_words() {
+  tr ',:' '  ' <<<"$1"
+}
+
+name_in_forward_list() {
+  local needle=$1
+  local name
+
+  for name in $(split_words "$FORWARD_ENV_NAMES_REQUESTED"); do
+    [[ "$name" == "$needle" ]] && return 0
+  done
+
+  return 1
+}
+
+name_matches_forward_prefix() {
+  local needle=$1
+  local prefix
+
+  for prefix in $(split_words "$FORWARD_ENV_PREFIXES"); do
+    [[ -n "$prefix" ]] || continue
+    [[ "$needle" == "$prefix"* ]] && return 0
+  done
+
+  return 1
+}
+
+collect_forward_env() {
+  local line name value include
+
+  FORWARDED_ENV_SPEC=
+  FORWARDED_ENV_NAMES=
+
+  while IFS='=' read -r name value; do
+    [[ "$name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+
+    include=0
+    if name_in_forward_list "$name" || name_matches_forward_prefix "$name"; then
+      include=1
+    fi
+
+    if [[ "$include" == 1 ]]; then
+      FORWARDED_ENV_SPEC+="${name}=${value}"$'\n'
+      if [[ -n "$FORWARDED_ENV_NAMES" ]]; then
+        FORWARDED_ENV_NAMES+=","
+      fi
+      FORWARDED_ENV_NAMES+="$name"
+    fi
+  done < <(env | LC_ALL=C sort)
+}
+
+build_json() {
+  require_test_path
+  mkdir -p "$STATE_DIR"
+
+  log "building focused JSON for $TEST_PATH"
+  "$NIX_BUILD" "$repo_root/test-runner/nix/evaluate-tests.nix" \
+    --arg repoRoot "$repo_root" \
+    --argstr system "$SYSTEM" \
+    --argstr mode testJson \
+    --argstr testPath "$TEST_PATH" \
+    --out-link "$JSON_LINK"
+
+  JSON_STORE=$(readlink -f "$JSON_LINK")
+  [[ "$JSON_STORE" == /nix/store/* ]] || die "JSON out-link did not resolve to a Nix store path: $JSON_STORE"
+
+  log "building packaged test JSON runner"
+  "$NIX" --extra-experimental-features 'nix-command flakes' build \
+    --out-link "$RUNNER_LINK" \
+    "$repo_root#test-runner" >/dev/null
+
+  RUNNER_STORE=$(readlink -f "$RUNNER_LINK")
+  [[ -x "$RUNNER_STORE/bin/test-json-runner" ]] \
+    || die "packaged test-json-runner missing from $RUNNER_STORE"
+
+  save_manifest
+  log "state: $STATE_DIR"
+  log "json: $JSON_STORE"
+  log "runner: $RUNNER_STORE"
+}
+
+copy_closures() {
+  load_manifest
+  require_offload_host
+  [[ -n "$JSON_STORE" && -e "$JSON_STORE" ]] || die "JSON store path missing; run build-json first"
+  [[ -n "$RUNNER_STORE" && -e "$RUNNER_STORE" ]] || die "runner store path missing; run build-json first"
+
+  log "copying JSON and runner closures to $OFFLOAD_HOST"
+  NIX_SSHOPTS="$(ssh_opts_string)" "$NIX_COPY_CLOSURE" --to "$OFFLOAD_HOST" "$JSON_STORE" "$RUNNER_STORE"
+}
+
+launch_lanes() {
+  load_manifest
+  require_offload_host
+  [[ "$LANES" =~ ^[1-9][0-9]*$ ]] || die "VPSADMINOS_TEST_OFFLOAD_LANES must be a positive integer"
+  collect_forward_env
+  FORWARDED_ENV_SPEC_B64=$(printf '%s' "$FORWARDED_ENV_SPEC" | base64 | tr -d '\n')
+
+  log "launching $LANES lane(s) on $OFFLOAD_HOST"
+  ssh_stdin "$SSH_COMMAND_TIMEOUT" \
+    env JSON_STORE="$JSON_STORE" \
+        RUNNER="$RUNNER_STORE/bin/test-json-runner" \
+        TEST_PATH="$TEST_PATH" \
+        TEST_TIMEOUT="$TEST_TIMEOUT" \
+        TEST_JOBS="$TEST_JOBS" \
+        TEST_SYSTEM="$SYSTEM" \
+        LANES="$LANES" \
+        UNIT_PREFIX="$UNIT_PREFIX" \
+        REMOTE_RUN_ID="$REMOTE_RUN_ID" \
+        REMOTE_STATE_BASE="$REMOTE_STATE_BASE" \
+        REMOTE_PATH="$REMOTE_PATH" \
+        FORWARDED_ENV_SPEC_B64="$FORWARDED_ENV_SPEC_B64" \
+        bash -s >"$LANES_FILE.tmp" <<'REMOTE'
+set -euo pipefail
+
+test -e "$JSON_STORE"
+test -x "$RUNNER"
+mkdir -p "$REMOTE_STATE_BASE/$REMOTE_RUN_ID"
+
+FORWARDED_ENV_SPEC=$(printf '%s' "$FORWARDED_ENV_SPEC_B64" | base64 -d)
+forwarded_env_args=()
+while IFS= read -r env_line; do
+  [ -n "$env_line" ] || continue
+  forwarded_env_args+=(--setenv="$env_line")
+done <<<"${FORWARDED_ENV_SPEC:-}"
+
+for lane in $(seq 1 "$LANES"); do
+  state="$REMOTE_STATE_BASE/$REMOTE_RUN_ID/lane${lane}"
+  unit="${UNIT_PREFIX}-lane${lane}"
+  launched_epoch="$(date +%s)"
+  mkdir -p "$state"
+  touch "$state/.vpsadminos-test-json-offload"
+  systemctl reset-failed "${unit}.service" >/dev/null 2>&1 || true
+  systemd-run \
+    --unit="$unit" \
+    --collect \
+    --no-block \
+    --property=WorkingDirectory=/root \
+    --setenv=PATH="$REMOTE_PATH" \
+    --setenv=TEST_PATH="$TEST_PATH" \
+    --setenv=TEST_TIMEOUT="$TEST_TIMEOUT" \
+    --setenv=TEST_JOBS="$TEST_JOBS" \
+    --setenv=TEST_SYSTEM="$TEST_SYSTEM" \
+    "${forwarded_env_args[@]}" \
+    "$RUNNER" "$JSON_STORE" "$state" >/dev/null
+  printf '%s\t%s\t%s\t%s\n' "$lane" "$unit" "$state" "$launched_epoch"
+done
+REMOTE
+
+  mv "$LANES_FILE.tmp" "$LANES_FILE"
+  save_manifest
+  log "lanes: $LANES_FILE"
+}
+
+status_lanes() {
+  load_manifest
+  require_offload_host
+  require_lanes_file
+
+  while IFS=$'\t' read -r lane unit state launched_epoch _; do
+    [[ -n "$lane" ]] || continue
+    quoted_unit=$(remote_quote "${unit}.service")
+    status=$(
+      ssh_poll "systemctl show $quoted_unit --no-page --property=ActiveState --property=SubState --property=Result --property=ExecMainCode --property=ExecMainStatus 2>/dev/null || true"
+    )
+    printf 'lane=%s unit=%s state=%s\n%s\n' "$lane" "$unit" "$state" "$status"
+  done <"$LANES_FILE"
+}
+
+print_monitor_snapshot() {
+  load_manifest
+  require_offload_host
+  require_lanes_file
+
+  local now now_epoch host_stats lane unit state quoted_unit status active sub result exec_status
+  local progress rows log_bytes log_mtime log_kib log_age event label lock timeout classification log_path
+
+  now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  now_epoch=$(remote_epoch)
+  host_stats=$(
+    ssh_poll "printf 'loadavg='; cat /proc/loadavg; printf 'nproc='; nproc" 2>/dev/null || true
+  )
+
+  printf '\n[%s] %s\n' "$now" "$OFFLOAD_HOST"
+  if [[ -n "$host_stats" ]]; then
+    printf '%s\n' "$host_stats"
+  fi
+  printf '%-5s %-11s %-10s %-8s %-5s %-7s %-8s %-28s %-18s %-9s %-22s %s\n' \
+    lane active sub result rows logKB logAge event label lock timeout classification
+
+  while IFS=$'\t' read -r lane unit state launched_epoch _; do
+    [[ -n "$lane" ]] || continue
+    quoted_unit=$(remote_quote "${unit}.service")
+    status=$(
+      ssh_poll "systemctl show $quoted_unit --no-page --property=ActiveState --property=SubState --property=Result --property=ExecMainStatus 2>/dev/null || true"
+    )
+    active=$(sed -n 's/^ActiveState=//p' <<<"$status")
+    sub=$(sed -n 's/^SubState=//p' <<<"$status")
+    result=$(sed -n 's/^Result=//p' <<<"$status")
+    exec_status=$(sed -n 's/^ExecMainStatus=//p' <<<"$status")
+    [[ -n "$active" ]] || active=unknown
+    [[ -n "$sub" ]] || sub=unknown
+    [[ -n "$result" ]] || result=unknown
+    [[ -n "$exec_status" ]] || exec_status=unknown
+
+    progress=$(
+      ssh_poll_stdin \
+        env STATE="$state" bash -s <<'REMOTE' 2>/dev/null || true
+set -euo pipefail
+
+rows=0
+log_bytes=0
+log_mtime=0
+latest=""
+while IFS= read -r -d '' logfile; do
+  size="$(stat -c %s "$logfile" 2>/dev/null || printf 0)"
+  mtime="$(stat -c %Y "$logfile" 2>/dev/null || printf 0)"
+  case "$size" in
+    ''|*[!0-9]*) size=0 ;;
+  esac
+  case "$mtime" in
+    ''|*[!0-9]*) mtime=0 ;;
+  esac
+  log_bytes=$((log_bytes + size))
+  if [ "$mtime" -gt "$log_mtime" ]; then
+    log_mtime=$mtime
+  fi
+  scan="$(
+    awk '
+      {
+        line = $0
+        if (match(line, /(proxy-lock-badneighbor-(progress|result|summary)) /)) {
+          rows += 1
+          latest = line
+        }
+      }
+      END {
+        if (latest != "") {
+          print rows "\t" latest
+        } else {
+          print rows "\t"
+        }
+      }
+    ' "$logfile"
+  )"
+  file_rows="${scan%%	*}"
+  file_latest="${scan#*	}"
+  case "$file_rows" in
+    ''|*[!0-9]*) file_rows=0 ;;
+  esac
+  rows=$((rows + file_rows))
+  if [ -n "$file_latest" ]; then
+    latest="$file_latest"
+  fi
+done < <(find "$STATE" -maxdepth 5 -type f \( -name test-runner.log -o -name 'machine-*.log' \) -print0 2>/dev/null)
+
+event="-"
+label="-"
+lock="-"
+timeout="-"
+classification="-"
+log_path="-"
+if [ -n "$latest" ]; then
+  event="$(printf '%s\n' "$latest" | sed -nE 's/.*(proxy-lock-badneighbor-(progress|result|summary)) .*/\1/p')"
+  label="$(printf '%s\n' "$latest" | sed -nE 's/.*"label":"([^"]+)".*/\1/p')"
+  lock="$(printf '%s\n' "$latest" | sed -nE 's/.*"(lock_class|lock_type|operation)":"([^"]+)".*/\2/p')"
+  timeout="$(printf '%s\n' "$latest" | sed -nE 's/.*"timeout":(true|false).*/\1/p')"
+  classification="$(printf '%s\n' "$latest" | sed -nE 's/.*"classification":"([^"]+)".*/\1/p')"
+  phase="$(printf '%s\n' "$latest" | sed -nE 's/.*"phase":"([^"]+)".*/\1/p')"
+  [ -n "$event" ] || event="-"
+  [ -n "$label" ] || label="-"
+  [ -n "$lock" ] || lock="-"
+  [ -n "$timeout" ] || timeout="-"
+  [ -n "$classification" ] || classification="$phase"
+  [ -n "$classification" ] || classification="-"
+fi
+printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$rows" "$log_bytes" "$log_mtime" "$event" "$label" "$lock" "$timeout" "$classification"
+REMOTE
+    )
+
+    IFS=$'\t' read -r rows log_bytes log_mtime event label lock timeout classification _ <<<"$progress"
+    [[ -n "$rows" ]] || rows=0
+    case "$log_bytes" in
+      ''|*[!0-9]*) log_kib=- ;;
+      *) log_kib=$(((log_bytes + 1023) / 1024)) ;;
+    esac
+    case "$log_mtime" in
+      ''|*[!0-9]*|0) log_age=- ;;
+      *)
+        log_age=$((now_epoch - log_mtime))
+        if (( log_age < 0 )); then
+          log_age=0
+        fi
+        ;;
+    esac
+    [[ -n "$event" ]] || event=-
+    [[ -n "$label" ]] || label=-
+    [[ -n "$lock" ]] || lock=-
+    [[ -n "$timeout" ]] || timeout=-
+    [[ -n "$classification" ]] || classification=-
+    log_path=$state
+
+    printf '%-5s %-11s %-10s %-8s %-5s %-7s %-8s %-28s %-18s %-9s %-22s %s\n' \
+      "$lane" "$active" "$sub" "${result}/${exec_status}" "$rows" "$log_kib" "$log_age" \
+      "$event" "$label" "$lock" "$timeout" "$classification"
+  done <"$LANES_FILE"
+}
+
+lane_row_count() {
+  local state=$1
+  local rows
+
+  if ! rows=$(
+    ssh_poll_stdin \
+      env STATE="$state" bash -s <<'REMOTE' 2>/dev/null
+set -euo pipefail
+
+rows=0
+while IFS= read -r -d '' logfile; do
+  file_rows="$(
+    awk '
+      /proxy-lock-badneighbor-(progress|result|summary) / {
+        rows += 1
+      }
+      END {
+        print rows + 0
+      }
+    ' "$logfile"
+  )"
+  case "$file_rows" in
+    ''|*[!0-9]*) file_rows=0 ;;
+  esac
+  rows=$((rows + file_rows))
+done < <(find "$STATE" -maxdepth 5 -type f \( -name test-runner.log -o -name 'machine-*.log' \) -print0 2>/dev/null)
+
+printf '%s\n' "$rows"
+REMOTE
+  ); then
+    printf -- '-1\n'
+    return 0
+  fi
+
+  case "$rows" in
+    ''|*[!0-9]*) rows=-1 ;;
+  esac
+  printf '%s\n' "$rows"
+}
+
+lane_activity_stats() {
+  local state=$1
+  local stats rows log_bytes log_mtime fatal_reason
+
+  if ! stats=$(
+    ssh_poll_stdin \
+      env STATE="$state" bash -s <<'REMOTE' 2>/dev/null
+set -euo pipefail
+
+rows=0
+log_bytes=0
+log_mtime=0
+fatal_reason=""
+while IFS= read -r -d '' logfile; do
+  size="$(stat -c %s "$logfile" 2>/dev/null || printf 0)"
+  mtime="$(stat -c %Y "$logfile" 2>/dev/null || printf 0)"
+  case "$size" in
+    ''|*[!0-9]*) size=0 ;;
+  esac
+  case "$mtime" in
+    ''|*[!0-9]*) mtime=0 ;;
+  esac
+  log_bytes=$((log_bytes + size))
+  if [ "$mtime" -gt "$log_mtime" ]; then
+    log_mtime=$mtime
+  fi
+  file_rows="$(
+    awk '
+      /proxy-lock-badneighbor-(progress|result|summary) / {
+        rows += 1
+      }
+      END {
+        print rows + 0
+      }
+    ' "$logfile"
+  )"
+  case "$file_rows" in
+    ''|*[!0-9]*) file_rows=0 ;;
+  esac
+  rows=$((rows + file_rows))
+  if [ -z "$fatal_reason" ]; then
+    fatal_reason="$(
+      tail -n 2000 "$logfile" 2>/dev/null |
+        awk '
+          /Kernel panic|watchdog: BUG: soft lockup|BUG: unable to handle|Oops:|general protection fault|INFO: task .* blocked for more than|rcu: INFO: .*detected stalls|modprobe: ERROR: could not insert|Can.t mount root|VFS: Cannot open root device/ {
+            line = $0
+          }
+          END {
+            if (line != "") {
+              gsub(/[[:space:]]+/, " ", line)
+              print substr(line, 1, 180)
+            }
+          }
+        '
+    )"
+  fi
+done < <(find "$STATE" -maxdepth 5 -type f \( -name test-runner.log -o -name 'machine-*.log' \) -print0 2>/dev/null)
+
+printf '%s\t%s\t%s\t%s\n' "$rows" "$log_bytes" "$log_mtime" "$fatal_reason"
+REMOTE
+  ); then
+    printf -- '-1\t-1\t-1\t\n'
+    return 0
+  fi
+
+  IFS=$'\t' read -r rows log_bytes log_mtime fatal_reason _ <<<"$stats"
+  case "$rows" in
+    ''|*[!0-9]*) rows=-1 ;;
+  esac
+  case "$log_bytes" in
+    ''|*[!0-9]*) log_bytes=-1 ;;
+  esac
+  case "$log_mtime" in
+    ''|*[!0-9]*) log_mtime=-1 ;;
+  esac
+  fatal_reason=${fatal_reason//$'\t'/ }
+
+  printf '%s\t%s\t%s\t%s\n' "$rows" "$log_bytes" "$log_mtime" "$fatal_reason"
+}
+
+watch_remote_snapshot() {
+  local lanes_b64
+
+  lanes_b64=$(base64 <"$LANES_FILE" | tr -d '\n')
+  ssh_poll_stdin env LANES_B64="$lanes_b64" bash -s <<'REMOTE'
+set -euo pipefail
+
+printf '__meta__\tremote_epoch\t%s\n' "$(date +%s 2>/dev/null || printf 0)"
+printf '__meta__\tloadavg\t%s\n' "$(cat /proc/loadavg 2>/dev/null || true)"
+printf '__meta__\tnproc\t%s\n' "$(nproc 2>/dev/null || true)"
+
+printf '%s' "$LANES_B64" | base64 -d |
+  while IFS=$'\t' read -r lane unit state launched_epoch _; do
+    [ -n "$lane" ] || continue
+
+    svc="${unit}.service"
+    status="$(
+      timeout 8 systemctl show "$svc" --no-page \
+        --property=ActiveState \
+        --property=SubState \
+        --property=Result \
+        --property=ExecMainStatus \
+        --property=ActiveEnterTimestamp 2>/dev/null || true
+    )"
+    active="$(printf '%s\n' "$status" | sed -n 's/^ActiveState=//p')"
+    sub="$(printf '%s\n' "$status" | sed -n 's/^SubState=//p')"
+    result="$(printf '%s\n' "$status" | sed -n 's/^Result=//p')"
+    exec_status="$(printf '%s\n' "$status" | sed -n 's/^ExecMainStatus=//p')"
+    active_ts="$(printf '%s\n' "$status" | sed -n 's/^ActiveEnterTimestamp=//p')"
+    active_since_epoch=""
+    if [ -n "$active_ts" ] && [ "$active_ts" != n/a ]; then
+      active_since_epoch="$(timeout 3 date -d "$active_ts" +%s 2>/dev/null || true)"
+    fi
+
+    rows=0
+    log_bytes=0
+    log_mtime=0
+    latest=""
+    fatal_reason=""
+    while IFS= read -r -d '' logfile; do
+      size="$(stat -c %s "$logfile" 2>/dev/null || printf 0)"
+      mtime="$(stat -c %Y "$logfile" 2>/dev/null || printf 0)"
+      case "$size" in
+        ''|*[!0-9]*) size=0 ;;
+      esac
+      case "$mtime" in
+        ''|*[!0-9]*) mtime=0 ;;
+      esac
+      log_bytes=$((log_bytes + size))
+      if [ "$mtime" -gt "$log_mtime" ]; then
+        log_mtime=$mtime
+      fi
+      scan="$(
+        awk '
+          {
+            line = $0
+            if (match(line, /(proxy-lock-badneighbor-(progress|result|summary)) /)) {
+              rows += 1
+              latest = line
+            }
+          }
+          END {
+            if (latest != "") {
+              print rows "\t" latest
+            } else {
+              print rows "\t"
+            }
+          }
+        ' "$logfile"
+      )"
+      file_rows="${scan%%	*}"
+      file_latest="${scan#*	}"
+      case "$file_rows" in
+        ''|*[!0-9]*) file_rows=0 ;;
+      esac
+      rows=$((rows + file_rows))
+      if [ -n "$file_latest" ]; then
+        latest="$file_latest"
+      fi
+      if [ -z "$fatal_reason" ]; then
+        fatal_reason="$(
+          tail -n 2000 "$logfile" 2>/dev/null |
+            awk '
+              /Kernel panic|watchdog: BUG: soft lockup|BUG: unable to handle|Oops:|general protection fault|INFO: task .* blocked for more than|rcu: INFO: .*detected stalls|modprobe: ERROR: could not insert|Can.t mount root|VFS: Cannot open root device/ {
+                line = $0
+              }
+              END {
+                if (line != "") {
+                  gsub(/[[:space:]]+/, " ", line)
+                  print substr(line, 1, 180)
+                }
+              }
+            '
+        )"
+      fi
+    done < <(find "$state" -maxdepth 5 -type f \( -name test-runner.log -o -name 'machine-*.log' \) -print0 2>/dev/null)
+
+    event="-"
+    label="-"
+    lock="-"
+    timeout_value="-"
+    classification="-"
+    if [ -n "$latest" ]; then
+      event="$(printf '%s\n' "$latest" | sed -nE 's/.*(proxy-lock-badneighbor-(progress|result|summary)) .*/\1/p')"
+      label="$(printf '%s\n' "$latest" | sed -nE 's/.*"label":"([^"]+)".*/\1/p')"
+      lock="$(printf '%s\n' "$latest" | sed -nE 's/.*"(lock_class|lock_type|operation)":"([^"]+)".*/\2/p')"
+      timeout_value="$(printf '%s\n' "$latest" | sed -nE 's/.*"timeout":(true|false).*/\1/p')"
+      classification="$(printf '%s\n' "$latest" | sed -nE 's/.*"classification":"([^"]+)".*/\1/p')"
+      phase="$(printf '%s\n' "$latest" | sed -nE 's/.*"phase":"([^"]+)".*/\1/p')"
+      [ -n "$event" ] || event="-"
+      [ -n "$label" ] || label="-"
+      [ -n "$lock" ] || lock="-"
+      [ -n "$timeout_value" ] || timeout_value="-"
+      [ -n "$classification" ] || classification="$phase"
+      [ -n "$classification" ] || classification="-"
+    fi
+
+    fatal_reason="$(printf '%s' "$fatal_reason" | tr '\t\n' '  ')"
+    printf '__lane__\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "$lane" "$unit" "$state" "${launched_epoch:-}" "${active:-unknown}" \
+      "${sub:-unknown}" "${result:-unknown}" "${exec_status:-unknown}" \
+      "${active_since_epoch:-}" "$rows" "$log_bytes" "$log_mtime" \
+      "$event" "$label" "$lock" "$timeout_value" "$classification" \
+      "$fatal_reason"
+  done
+REMOTE
+}
+
+remote_epoch() {
+  local epoch
+
+  epoch=$(ssh_poll "date +%s" 2>/dev/null || true)
+  case "$epoch" in
+    ''|*[!0-9]*)
+      date +%s
+      ;;
+    *)
+      printf '%s\n' "$epoch"
+      ;;
+  esac
+}
+
+lane_active_since_epoch() {
+  local unit=$1
+  local quoted_unit ts epoch
+
+  quoted_unit=$(remote_quote "${unit}.service")
+  ts=$(
+    ssh_poll "systemctl show $quoted_unit --no-page --property=ActiveEnterTimestamp 2>/dev/null | sed -n 's/^ActiveEnterTimestamp=//p' || true"
+  )
+  [[ -n "$ts" && "$ts" != n/a ]] || return 1
+
+  epoch=$(
+    ssh_poll "date -d $(remote_quote "$ts") +%s 2>/dev/null || true"
+  )
+  case "$epoch" in
+    ''|*[!0-9]*)
+      return 1
+      ;;
+    *)
+      printf '%s\n' "$epoch"
+      ;;
+  esac
+}
+
+stop_stale_lane() {
+  local lane=$1
+  local unit=$2
+  local state=$3
+  local reason=$4
+  local now diag_stamp diag_file
+
+  now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  diag_stamp=$(date -u +%Y%m%dT%H%M%SZ)
+  mkdir -p "$STALE_DIAG_DIR"
+  diag_file="$STALE_DIAG_DIR/lane${lane}-${diag_stamp}.txt"
+
+  log "capturing stale lane diagnostics for lane $lane ($unit): $diag_file"
+  if ! ssh_stdin "$SSH_DIAG_TIMEOUT" \
+    env UNIT="$unit" STATE="$state" DIAG_LINES="$STALE_DIAG_LINES" bash -s \
+      >"${diag_file}.tmp" 2>&1 <<'REMOTE'
+set +e
+
+svc="${UNIT}.service"
+lines="${DIAG_LINES:-400}"
+case "$lines" in
+  ''|*[!0-9]*) lines=400 ;;
+esac
+
+section() {
+  printf '\n### %s\n' "$*"
+}
+
+section "capture"
+date -u +%Y-%m-%dT%H:%M:%SZ
+printf 'unit=%s\nstate=%s\n' "$svc" "$STATE"
+
+section "host"
+printf 'loadavg='
+cat /proc/loadavg 2>/dev/null || true
+printf 'nproc='
+nproc 2>/dev/null || true
+free -h 2>/dev/null || true
+uptime 2>/dev/null || true
+
+section "systemctl-show"
+timeout 20 systemctl show "$svc" --no-page \
+  --property=ActiveState \
+  --property=SubState \
+  --property=Result \
+  --property=ExecMainCode \
+  --property=ExecMainStatus \
+  --property=MainPID \
+  --property=ControlGroup \
+  --property=ActiveEnterTimestamp \
+  --property=StateChangeTimestamp || true
+
+section "systemctl-status"
+timeout 20 systemctl status "$svc" --no-pager -n "$lines" || true
+
+section "journal"
+timeout 30 journalctl -u "$svc" --no-pager -n "$lines" -o short-iso || true
+
+section "lane-state-files"
+timeout 20 find "$STATE" -maxdepth 5 -type f \
+  -printf '%TY-%Tm-%TdT%TH:%TM:%TS %s %p\n' 2>/dev/null | sort || true
+
+while IFS= read -r -d '' logfile; do
+  section "lane-log $logfile"
+  timeout 20 tail -n "$lines" "$logfile" || true
+done < <(find "$STATE" -maxdepth 5 -type f \( -name test-runner.log -o -name 'machine-*.log' \) -print0 2>/dev/null)
+
+while IFS= read -r -d '' result_file; do
+  section "test-result $result_file"
+  timeout 10 cat "$result_file" || true
+done < <(find "$STATE" -maxdepth 5 -type f -name test-result.txt -print0 2>/dev/null)
+
+section "unit-cgroup"
+cg="$(systemctl show "$svc" --no-page --property=ControlGroup --value 2>/dev/null || true)"
+if [ -n "$cg" ] && [ "$cg" != "/" ]; then
+  timeout 20 systemd-cgls --no-pager "$cg" || true
+fi
+
+section "matching-processes"
+timeout 20 ps -eo pid,ppid,stat,pcpu,pmem,etimes,wchan:32,comm,args --sort=pid |
+  grep -E "(${UNIT}|test-json-runner|test-runner|osvm|qemu|ruby)" || true
+
+section "host-dmesg-tail"
+timeout 20 dmesg -T 2>/dev/null | tail -n "$lines" || true
+REMOTE
+  then
+    log "stale lane diagnostic capture returned non-zero for lane $lane"
+  fi
+  mv "${diag_file}.tmp" "$diag_file"
+
+  log "stopping stale lane $lane ($unit): $reason"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "$now" "$lane" "$unit" "$state" "$reason" "$diag_file" >>"$STALE_TSV"
+
+  ssh_stdin "$SSH_COMMAND_TIMEOUT" \
+    env UNIT="$unit" GRACE="$STALE_STOP_GRACE" bash -s <<'REMOTE' || true
+set -euo pipefail
+
+svc="${UNIT}.service"
+systemctl show "$svc" --no-page \
+  --property=ActiveState \
+  --property=SubState \
+  --property=Result \
+  --property=ExecMainStatus >&2 || true
+
+systemctl kill --kill-whom=all --signal=TERM "$svc" >/dev/null 2>&1 || true
+timeout "$GRACE" systemctl stop "$svc" >/dev/null 2>&1 || true
+
+active="$(
+  systemctl show "$svc" --no-page --property=ActiveState 2>/dev/null |
+    sed -n 's/^ActiveState=//p'
+)"
+case "$active" in
+  active|activating|deactivating|reloading)
+    systemctl kill --kill-whom=all --signal=KILL "$svc" >/dev/null 2>&1 || true
+    timeout 15 systemctl stop "$svc" >/dev/null 2>&1 || true
+    ;;
+esac
+REMOTE
+}
+
+lanes_finished() {
+  local lane unit state quoted_unit active
+
+  while IFS=$'\t' read -r lane unit state launched_epoch _; do
+    [[ -n "$lane" ]] || continue
+    quoted_unit=$(remote_quote "${unit}.service")
+    active=$(
+      ssh_poll "systemctl show $quoted_unit --no-page --property=ActiveState 2>/dev/null | sed -n 's/^ActiveState=//p' || true"
+    )
+
+    case "$active" in
+      active|activating|deactivating|reloading)
+        return 1
+        ;;
+    esac
+  done <"$LANES_FILE"
+
+  return 0
+}
+
+load_watch_progress() {
+  local lane rows progress log_bytes log_mtime activity_epoch activity_reason _rest
+
+  [[ -f "$PROGRESS_TSV" ]] || return 0
+
+  while IFS=$'\t' read -r lane rows progress log_bytes log_mtime activity_epoch activity_reason _rest; do
+    [[ "$lane" != lane && -n "$lane" ]] || continue
+    case "$rows" in
+      ''|*[!0-9]*) continue ;;
+    esac
+    case "$progress" in
+      ''|*[!0-9]*) continue ;;
+    esac
+    case "$log_bytes" in
+      ''|*[!0-9]*) log_bytes=0 ;;
+    esac
+    case "$log_mtime" in
+      ''|*[!0-9]*) log_mtime=0 ;;
+    esac
+    case "$activity_epoch" in
+      ''|*[!0-9]*) activity_epoch=$progress ;;
+    esac
+    [[ -n "$activity_reason" ]] || activity_reason=progress
+    last_rows[$lane]=$rows
+    last_progress[$lane]=$progress
+    last_log_bytes[$lane]=$log_bytes
+    last_log_mtime[$lane]=$log_mtime
+    last_activity[$lane]=$activity_epoch
+    last_activity_reason[$lane]=$activity_reason
+  done <"$PROGRESS_TSV"
+}
+
+save_watch_progress() {
+  local lane
+
+  {
+    printf 'lane\trows\tlast_progress_epoch\tlog_bytes\tnewest_log_mtime\tlast_activity_epoch\tactivity_reason\n'
+    for lane in "${!last_rows[@]}"; do
+      [[ -n "${last_progress[$lane]:-}" ]] || continue
+      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$lane" \
+        "${last_rows[$lane]}" \
+        "${last_progress[$lane]}" \
+        "${last_log_bytes[$lane]:-0}" \
+        "${last_log_mtime[$lane]:-0}" \
+        "${last_activity[$lane]:-${last_progress[$lane]}}" \
+        "${last_activity_reason[$lane]:-progress}"
+    done
+  } >"${PROGRESS_TSV}.tmp"
+  mv "${PROGRESS_TSV}.tmp" "$PROGRESS_TSV"
+}
+
+watch_lanes() {
+  load_manifest
+  require_offload_host
+  require_lanes_file
+
+  local deadline now now_epoch lane unit state launched_epoch active rows age
+  local active_since progress_changed activity log_bytes log_mtime fatal_reason base_epoch reason
+  local snapshot record key value loadavg nproc_value snapshot_ok all_finished
+  local lane_field unit_field state_field launched_field active_field sub_field result_field
+  local exec_status_field active_since_field rows_field log_bytes_field log_mtime_field
+  local event_field label_field lock_field timeout_field classification_field fatal_field
+  local log_kib log_age now_iso
+  declare -A last_rows=()
+  declare -A last_progress=()
+  declare -A last_log_bytes=()
+  declare -A last_log_mtime=()
+  declare -A last_activity=()
+  declare -A last_activity_reason=()
+  declare -A stale_stopped=()
+  declare -A snap_unit=()
+  declare -A snap_state=()
+  declare -A snap_launched=()
+  declare -A snap_active=()
+  declare -A snap_sub=()
+  declare -A snap_result=()
+  declare -A snap_exec_status=()
+  declare -A snap_active_since=()
+  declare -A snap_rows=()
+  declare -A snap_log_bytes=()
+  declare -A snap_log_mtime=()
+  declare -A snap_event=()
+  declare -A snap_label=()
+  declare -A snap_lock=()
+  declare -A snap_timeout=()
+  declare -A snap_classification=()
+  declare -A snap_fatal=()
+
+  load_watch_progress
+
+  if (( STALE_TIMEOUT > 0 )) && [[ ! -f "$STALE_TSV" ]]; then
+    printf 'time_utc\tlane\tunit\tstate\treason\tdiagnostic_file\n' >"$STALE_TSV"
+  fi
+
+  deadline=$((SECONDS + WAIT_TIMEOUT))
+
+  while true; do
+    now_iso=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    now=$SECONDS
+    now_epoch=$(date +%s)
+    loadavg=
+    nproc_value=
+    snapshot_ok=0
+    snap_unit=()
+    snap_state=()
+    snap_launched=()
+    snap_active=()
+    snap_sub=()
+    snap_result=()
+    snap_exec_status=()
+    snap_active_since=()
+    snap_rows=()
+    snap_log_bytes=()
+    snap_log_mtime=()
+    snap_event=()
+    snap_label=()
+    snap_lock=()
+    snap_timeout=()
+    snap_classification=()
+    snap_fatal=()
+
+    if snapshot=$(watch_remote_snapshot 2>/dev/null); then
+      snapshot_ok=1
+      while IFS=$'\t' read -r record key value unit_field state_field launched_field \
+          active_field sub_field result_field exec_status_field active_since_field \
+          rows_field log_bytes_field log_mtime_field event_field label_field \
+          lock_field timeout_field classification_field fatal_field _; do
+        case "$record" in
+          __meta__)
+            case "$key" in
+              remote_epoch)
+                case "$value" in
+                  ''|*[!0-9]*) ;;
+                  *) now_epoch=$value ;;
+                esac
+                ;;
+              loadavg)
+                loadavg=$value
+                ;;
+              nproc)
+                nproc_value=$value
+                ;;
+            esac
+            ;;
+          __lane__)
+            lane_field=$key
+            snap_unit[$lane_field]=$value
+            snap_state[$lane_field]=$unit_field
+            snap_launched[$lane_field]=$state_field
+            snap_active[$lane_field]=$launched_field
+            snap_sub[$lane_field]=$active_field
+            snap_result[$lane_field]=$sub_field
+            snap_exec_status[$lane_field]=$result_field
+            snap_active_since[$lane_field]=$exec_status_field
+            snap_rows[$lane_field]=$active_since_field
+            snap_log_bytes[$lane_field]=$rows_field
+            snap_log_mtime[$lane_field]=$log_bytes_field
+            snap_event[$lane_field]=$log_mtime_field
+            snap_label[$lane_field]=$event_field
+            snap_lock[$lane_field]=$label_field
+            snap_timeout[$lane_field]=$lock_field
+            snap_classification[$lane_field]=$timeout_field
+            snap_fatal[$lane_field]=${classification_field:-}
+            ;;
+        esac
+      done <<<"$snapshot"
+    fi
+
+    printf '\n[%s] %s\n' "$now_iso" "$OFFLOAD_HOST"
+    if (( snapshot_ok )); then
+      [[ -n "$loadavg" ]] && printf 'loadavg=%s\n' "$loadavg"
+      [[ -n "$nproc_value" ]] && printf 'nproc=%s\n' "$nproc_value"
+    else
+      printf 'snapshot=unavailable poll_timeout=%ss\n' "$SSH_POLL_TIMEOUT"
+    fi
+    printf '%-5s %-11s %-10s %-8s %-5s %-7s %-8s %-28s %-18s %-9s %-22s %s\n' \
+      lane active sub result rows logKB logAge event label lock timeout classification
+
+    while IFS=$'\t' read -r lane unit state launched_epoch _; do
+      [[ -n "$lane" ]] || continue
+      active=${snap_active[$lane]:-unknown}
+      rows=${snap_rows[$lane]:-0}
+      log_bytes=${snap_log_bytes[$lane]:-0}
+      log_mtime=${snap_log_mtime[$lane]:-0}
+      case "$log_bytes" in
+        ''|*[!0-9]*) log_kib=- ;;
+        *) log_kib=$(((log_bytes + 1023) / 1024)) ;;
+      esac
+      case "$log_mtime" in
+        ''|*[!0-9]*|0) log_age=- ;;
+        *)
+          log_age=$((now_epoch - log_mtime))
+          (( log_age < 0 )) && log_age=0
+          ;;
+      esac
+      printf '%-5s %-11s %-10s %-8s %-5s %-7s %-8s %-28s %-18s %-9s %-22s %s\n' \
+        "$lane" \
+        "$active" \
+        "${snap_sub[$lane]:-unknown}" \
+        "${snap_result[$lane]:-unknown}/${snap_exec_status[$lane]:-unknown}" \
+        "$rows" \
+        "$log_kib" \
+        "$log_age" \
+        "${snap_event[$lane]:--}" \
+        "${snap_label[$lane]:--}" \
+        "${snap_lock[$lane]:--}" \
+        "${snap_timeout[$lane]:--}" \
+        "${snap_classification[$lane]:--}"
+    done <"$LANES_FILE"
+
+    all_finished=0
+    if (( snapshot_ok )); then
+      all_finished=1
+    fi
+
+    if (( snapshot_ok && STALE_TIMEOUT > 0 )); then
+      progress_changed=0
+      while IFS=$'\t' read -r lane unit state launched_epoch _; do
+        [[ -n "$lane" ]] || continue
+        active=${snap_active[$lane]:-unknown}
+        case "$active" in
+          active|activating|deactivating|reloading)
+            all_finished=0
+            ;;
+          ''|unknown)
+            all_finished=0
+            continue
+            ;;
+          *)
+            continue
+            ;;
+        esac
+
+        rows=${snap_rows[$lane]:--1}
+        if [[ "$rows" == -1 ]]; then
+          continue
+        fi
+        log_bytes=${snap_log_bytes[$lane]:-0}
+        log_mtime=${snap_log_mtime[$lane]:-0}
+        case "$log_bytes" in
+          ''|*[!0-9]*) log_bytes=0 ;;
+        esac
+        case "$log_mtime" in
+          ''|*[!0-9]*) log_mtime=0 ;;
+        esac
+        fatal_reason=${snap_fatal[$lane]:-}
+        if [[ -n "${fatal_reason:-}" && -z "${stale_stopped[$lane]:-}" ]]; then
+          stale_stopped[$lane]=1
+          stop_stale_lane "$lane" "$unit" "$state" \
+            "fatal guest log pattern after rows=${rows}: ${fatal_reason}"
+          continue
+        fi
+
+        if [[ -z "${last_rows[$lane]+set}" ]]; then
+          last_rows[$lane]=$rows
+          last_log_bytes[$lane]=$log_bytes
+          last_log_mtime[$lane]=$log_mtime
+          case "$launched_epoch" in
+            ''|*[!0-9]*)
+              active_since=${snap_active_since[$lane]:-}
+              ;;
+            *)
+              active_since=$launched_epoch
+              ;;
+          esac
+          case "${active_since:-}" in
+            ''|*[!0-9]*) active_since=$now_epoch ;;
+          esac
+          if (( log_mtime > 0 )); then
+            base_epoch=$log_mtime
+          else
+            base_epoch=$active_since
+          fi
+          last_progress[$lane]=$base_epoch
+          last_activity[$lane]=$base_epoch
+          if (( rows > 0 )); then
+            last_activity_reason[$lane]=existing-row-log
+          elif (( log_bytes > 0 || log_mtime > 0 )); then
+            last_activity_reason[$lane]=existing-log
+          else
+            last_activity_reason[$lane]=launch
+          fi
+          progress_changed=1
+        elif [[ "${last_rows[$lane]}" != "$rows" ]]; then
+          last_rows[$lane]=$rows
+          last_progress[$lane]=$now_epoch
+          last_log_bytes[$lane]=$log_bytes
+          last_log_mtime[$lane]=$log_mtime
+          last_activity[$lane]=$now_epoch
+          last_activity_reason[$lane]=row
+          progress_changed=1
+        elif [[ "${last_log_bytes[$lane]:-0}" != "$log_bytes" || "${last_log_mtime[$lane]:-0}" != "$log_mtime" ]]; then
+          last_log_bytes[$lane]=$log_bytes
+          last_log_mtime[$lane]=$log_mtime
+          last_activity[$lane]=$now_epoch
+          last_activity_reason[$lane]=log
+          progress_changed=1
+        fi
+
+        if (( progress_changed )); then
+          save_watch_progress
+          progress_changed=0
+        fi
+
+        activity=${last_activity[$lane]:-${last_progress[$lane]:-$now_epoch}}
+        age=$((now_epoch - activity))
+        if (( age < 0 )); then
+          last_activity[$lane]=$now_epoch
+          last_activity_reason[$lane]=clock-reset
+          save_watch_progress
+          continue
+        fi
+
+        if (( age >= STALE_TIMEOUT )) && [[ -z "${stale_stopped[$lane]:-}" ]]; then
+          stale_stopped[$lane]=1
+          reason=${last_activity_reason[$lane]:-unknown}
+          stop_stale_lane "$lane" "$unit" "$state" \
+            "no proxy-exec progress/result/summary row or lane log activity for ${age}s (rows=${rows} log_bytes=${log_bytes} log_mtime=${log_mtime} last_activity=${reason})"
+        fi
+      done <"$LANES_FILE"
+    elif (( snapshot_ok )); then
+      while IFS=$'\t' read -r lane unit state launched_epoch _; do
+        [[ -n "$lane" ]] || continue
+        active=${snap_active[$lane]:-unknown}
+        case "$active" in
+          active|activating|deactivating|reloading)
+            all_finished=0
+            ;;
+          ''|unknown)
+            all_finished=0
+            ;;
+        esac
+      done <"$LANES_FILE"
+    fi
+
+    if (( snapshot_ok && all_finished )); then
+      log "all lanes stopped; collecting artifacts"
+      collect_results
+      return 0
+    fi
+
+    if (( now >= deadline )); then
+      status_lanes || true
+      die "timed out watching remote lanes after ${WAIT_TIMEOUT}s"
+    fi
+
+    sleep "$WATCH_INTERVAL"
+  done
+}
+
+wait_lanes() {
+  load_manifest
+  require_offload_host
+  require_lanes_file
+
+  local deadline now
+  deadline=$((SECONDS + WAIT_TIMEOUT))
+
+  while true; do
+    if lanes_finished; then
+      log "all lanes stopped"
+      return 0
+    fi
+
+    now=$SECONDS
+    if (( now >= deadline )); then
+      status_lanes || true
+      die "timed out waiting for remote lanes after ${WAIT_TIMEOUT}s"
+    fi
+
+    sleep "$WAIT_INTERVAL"
+  done
+}
+
+collect_results() {
+  load_manifest
+  require_offload_host
+  require_lanes_file
+
+  : >"$EVENTS_TSV"
+  : >"$LANE_RESULTS_TSV"
+
+  while IFS=$'\t' read -r lane unit state launched_epoch _; do
+    [[ -n "$lane" ]] || continue
+    log "collecting lane $lane from $state"
+    ssh_stdin "$SSH_COMMAND_TIMEOUT" \
+      env LANE="$lane" UNIT="$unit" STATE="$state" bash -s <<'REMOTE' >>"$LANE_RESULTS_TSV"
+set -euo pipefail
+
+found=0
+while IFS= read -r -d '' result_file; do
+  found=1
+  result="$(tr '\n\t' '  ' <"$result_file" | sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//')"
+  log_file="$(dirname "$result_file")/test-runner.log"
+  diagnostic_line=""
+  if [ -f "$log_file" ]; then
+    diagnostic_line="$(
+      awk '
+        /Exception occurred|Timeout occurred|Test .* failed after|tests should have succeeded|Unexpectedly failed/ {
+          line=$0
+        }
+        NF {
+          last=$0
+        }
+        END {
+          if (line != "") {
+            print line
+          } else {
+            print last
+          }
+        }
+      ' "$log_file" | tr '\t' ' '
+    )"
+  fi
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$LANE" "$UNIT" "$result_file" "$result" "$log_file" "$diagnostic_line"
+done < <(find "$STATE" -maxdepth 5 -type f -name test-result.txt -print0 2>/dev/null)
+
+if [ "$found" -eq 0 ]; then
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$LANE" "$UNIT" "$STATE" "missing" "" "no test-result.txt under lane state"
+fi
+REMOTE
+
+    ssh_stdin "$SSH_COMMAND_TIMEOUT" \
+      env LANE="$lane" UNIT="$unit" STATE="$state" bash -s <<'REMOTE' >>"$EVENTS_TSV"
+set -euo pipefail
+
+find "$STATE" -maxdepth 5 -type f -name test-runner.log -print0 2>/dev/null |
+  while IFS= read -r -d '' logfile; do
+    awk -v lane="$LANE" -v unit="$UNIT" -v logfile="$logfile" '
+      {
+        line = $0
+        if (match(line, /(proxy-lock-badneighbor-(result|summary)) /)) {
+          event = substr(line, RSTART, RLENGTH - 1)
+          payload = substr(line, RSTART + RLENGTH)
+          printf "%s\t%s\t%s\t%s\t%s\n", lane, unit, logfile, event, payload
+        }
+      }
+    ' "$logfile"
+  done
+REMOTE
+  done <"$LANES_FILE"
+
+  summarize_events
+  classify_results || true
+  log "events: $EVENTS_TSV"
+  log "lane results: $LANE_RESULTS_TSV"
+  log "summary: $SUMMARY_JSON"
+  log "classification: $CLASSIFICATION_TSV"
+  if [[ -f "$STALE_TSV" ]]; then
+    log "stale lanes: $STALE_TSV"
+  fi
+
+  if [[ "$REQUIRE_EVENTS" == 1 && ! -s "$EVENTS_TSV" ]]; then
+    die "no proxy-exec result rows collected; see $LANE_RESULTS_TSV and remote lane logs"
+  fi
+}
+
+summarize_events() {
+  if ! command -v ruby >/dev/null 2>&1; then
+    log "ruby not found; skipping JSON summary"
+    return 0
+  fi
+
+  ruby -rjson - "$EVENTS_TSV" "$LANE_RESULTS_TSV" "$SUMMARY_JSON" <<'RUBY'
+events_tsv, lane_results_tsv, summary_json = ARGV
+events = []
+lane_results = []
+
+def first_json_object(text)
+  start = text.index('{')
+  return text if start.nil?
+
+  depth = 0
+  in_string = false
+  escaped = false
+
+  text.chars.each_with_index do |ch, index|
+    next if index < start
+
+    if in_string
+      if escaped
+        escaped = false
+      elsif ch == '\\'
+        escaped = true
+      elsif ch == '"'
+        in_string = false
+      end
+      next
+    end
+
+    case ch
+    when '"'
+      in_string = true
+    when '{'
+      depth += 1
+    when '}'
+      depth -= 1
+      return text[start..index] if depth == 0
+    end
+  end
+
+  text[start..]
+end
+
+File.readlines(events_tsv, chomp: true).each do |line|
+  lane, unit, log, event, payload = line.split("\t", 5)
+  next if payload.nil?
+
+  begin
+    data = JSON.parse(first_json_object(payload))
+  rescue JSON::ParserError
+    next
+  end
+
+  events << {
+    'lane' => lane,
+    'unit' => unit,
+    'log' => log,
+    'event' => event,
+    'data' => data,
+  }
+end
+
+File.readlines(lane_results_tsv, chomp: true).each do |line|
+  lane, unit, result_file, result, log, diagnostic_line = line.split("\t", 6)
+  lane_results << {
+    'lane' => lane,
+    'unit' => unit,
+    'result_file' => result_file,
+    'result' => result,
+    'log' => log,
+    'diagnostic_line' => diagnostic_line,
+  }
+end
+
+def diag(data)
+  data['sched_proxy_exec_diag_measure_delta'] || {}
+end
+
+def contended(data)
+  data['contended'] || {}
+end
+
+summary_events = events.select { |e| e['event'].end_with?('-summary') }
+
+out = {
+  'lane_results' => lane_results,
+  'event_counts' => events.group_by { |e| e['event'] }.transform_values(&:length),
+  'summaries' => summary_events.map do |e|
+    {
+      'lane' => e['lane'],
+      'event' => e['event'],
+      'classification' => e['data']['classification'],
+      'production_objective_validated' => e['data']['production_objective_validated'],
+      'data' => e['data'],
+    }
+  end,
+  'lock_badneighbor' => events.select { |e| e['event'] == 'proxy-lock-badneighbor-result' }.map do |e|
+    d = e['data']
+    c = contended(d)
+    x = diag(d)
+    {
+      'lane' => e['lane'],
+      'label' => d['label'],
+      'lock_class' => d['lock_class'],
+      'lock_operation' => d['lock_operation'],
+      'proxy_scope' => d['proxy_scope'],
+      'p99_ms' => c['p99_ms'],
+      'max_ms' => c['max_ms'],
+      'timeout' => c['timeout'],
+      'timeout_reason' => c['timeout_reason'],
+      'baseline_errors' => d.dig('baseline', 'errors'),
+      'contended_samples' => c['samples'],
+      'contended_errors' => c['errors'],
+      'contended_active_sync' => c['active_sync'],
+      'contended_active_min_age_ms' => c['active_min_age_ms'],
+      'contended_active_min_offcpu_ms' => c['active_min_offcpu_ms'],
+      'contended_active_waits' => c['active_waits'],
+      'contended_active_wait_errors' => c['active_wait_errors'],
+      'pressure_mode' => d['pressure_mode'],
+      'vm_cpus' => d['vm_cpus'],
+      'bully_cpu_limit' => d['bully_cpu_limit'],
+      'bully_cpu_weight' => d['bully_cpu_weight'],
+      'bully_cpu_shares' => d['bully_cpu_shares'],
+      'bully_cpu_workers' => d['bully_cpu_workers'],
+      'bully_lock_workers' => d['bully_lock_workers'],
+      'bully_lock_hold_reps' => d['bully_lock_hold_reps'],
+      'bully_lock_hold_yield_us' => d['bully_lock_hold_yield_us'],
+      'victim_measure_timeout_sec' => d['victim_measure_timeout_sec'],
+      'victim_measure_count' => d['victim_measure_count'],
+      'throttle_delta' => d['throttle_delta'],
+      'throttled_usec_delta' => d['throttled_usec_delta'],
+      'usage_usec_delta' => d['usage_usec_delta'],
+      'measure_throttle_delta' => d['measure_throttle_delta'],
+      'measure_throttled_usec_delta' => d['measure_throttled_usec_delta'],
+      'measure_usage_usec_delta' => d['measure_usage_usec_delta'],
+      'holder_hold_runs_delta' => d['holder_hold_runs_delta'],
+      'holder_hold_runtime_us_delta' => d['holder_hold_runtime_us_delta'],
+      'holder_hold_offcpu_us_delta' => d['holder_hold_offcpu_us_delta'],
+      'holder_hold_yields_delta' => d['holder_hold_yields_delta'],
+      'donated_runtime_events_delta' => d['donated_runtime_events_delta'],
+      'donated_runtime_ns_delta' => d['donated_runtime_ns_delta'],
+      'donated_runtime_owner_hierarchy_throttled_ns_delta' => d['donated_runtime_owner_hierarchy_throttled_ns_delta'],
+      'attempts' => x['attempts'],
+      'success' => x['success'],
+      'chain_lock_busy' => x['chain_lock_busy'],
+      'chain_rwsem_writer' => x['chain_rwsem_writer'],
+      'chain_rwsem_reader_single' => x['chain_rwsem_reader_single'],
+      'chain_rwsem_reader_representative' => x['chain_rwsem_reader_representative'],
+      'chain_percpu_rwsem_writer' => x['chain_percpu_rwsem_writer'],
+      'chain_percpu_rwsem_reader_representative' => x['chain_percpu_rwsem_reader_representative'],
+      'chain_percpu_rwsem_reader_untracked' => x['chain_percpu_rwsem_reader_untracked'],
+      'chain_rtmutex_owner' => x['chain_rtmutex_owner'],
+      'success_owner_hierarchy_throttled' => x['success_owner_hierarchy_throttled'],
+      'donated_runtime_events' => x['donated_runtime_events'],
+      'donated_runtime_ns' => x['donated_runtime_ns'],
+      'donated_runtime_owner_hierarchy_throttled_ns' => x['donated_runtime_owner_hierarchy_throttled_ns'],
+      'owner_not_on_rq' => x['owner_not_on_rq'],
+      'owner_not_on_rq_throttled' => x['owner_not_on_rq_throttled'],
+      'mutex_donor_selected' => x['mutex_donor_selected'],
+      'mutex_chain_selected' => x['mutex_chain_selected'],
+      'diag' => x,
+    }
+  end,
+}
+
+File.write(summary_json, JSON.pretty_generate(out) + "\n")
+RUBY
+}
+
+classify_results() {
+  if ! command -v ruby >/dev/null 2>&1; then
+    log "ruby not found; skipping classification table"
+    return 0
+  fi
+
+  if [[ ! -f "$SUMMARY_JSON" && -s "$EVENTS_TSV" && -f "$LANE_RESULTS_TSV" ]]; then
+    summarize_events
+  fi
+
+  if [[ ! -f "$SUMMARY_JSON" ]]; then
+    log "summary missing; run collect first: $SUMMARY_JSON"
+    return 1
+  fi
+
+  ruby -rjson - "$SUMMARY_JSON" "$CLASSIFICATION_TSV" <<'RUBY'
+summary_json, classification_tsv = ARGV
+summary = JSON.parse(File.read(summary_json))
+rows = []
+
+def truthy?(value)
+  value == true || value.to_s == 'true'
+end
+
+def metric(value)
+  return '-' if value.nil?
+
+  value
+end
+
+def activity_observed?(row)
+  %w[
+    attempts
+    success
+    mutex_donor_selected
+    mutex_chain_selected
+    chain_rtmutex_owner
+    chain_rwsem_writer
+    chain_rwsem_reader_single
+    chain_rwsem_reader_representative
+    chain_percpu_rwsem_writer
+    chain_percpu_rwsem_reader_representative
+    donated_runtime_events
+  ].any? { |key| row.fetch(key, 0).to_i > 0 }
+end
+
+def enabled_result_classification(row)
+  if truthy?(row['timeout'])
+    activity_observed?(row) ? 'proxy-active-but-timeout' : 'proxy-enabled-timeout'
+  elsif !activity_observed?(row)
+    'proxy-activity-not-observed'
+  else
+    'enabled-result-no-summary'
+  end
+end
+
+def display_classification(classification, data)
+  if classification == 'proxy-enabled-timeout' &&
+     truthy?(data['enabled_proxy_activity_observed'])
+    'proxy-active-but-timeout'
+  else
+    classification || '-'
+  end
+end
+
+(summary['summaries'] || []).each do |entry|
+  data = entry['data'] || {}
+  lane = entry['lane'] || '-'
+
+  case entry['event']
+  when 'proxy-lock-badneighbor-summary'
+    (data['classes'] || {}).sort.each do |lock_class, item|
+      rows << {
+        family: 'lock-badneighbor',
+        lane: lane,
+        label: 'summary',
+        object: lock_class,
+        classification: display_classification(item['classification'], item),
+        validated: item['production_objective_validated'],
+        p99_ms: item['enabled_p99_ms'],
+        max_ms: item['enabled_max_ms'],
+        attempts: item['enabled_proxy_attempts'],
+        success: item['enabled_proxy_success'],
+        notes: "scope=#{item['proxy_scope']} pressure=#{metric(item['pressure_mode'])} vm_cpus=#{metric(item['vm_cpus'])} cpu_limit=#{metric(item['bully_cpu_limit'])} cpu_weight=#{metric(item['bully_cpu_weight'])} cpu_shares=#{metric(item['bully_cpu_shares'])} cpu_workers=#{metric(item['bully_cpu_workers'])} lock_workers=#{metric(item['bully_lock_workers'])} hold_yield_us=#{metric(item['bully_lock_hold_yield_us'])} punishment=#{metric(item['enabled_punishment_observed'])} donated_ns=#{metric(item['enabled_donated_runtime_ns'])} measure_usage_us=#{metric(item['enabled_measure_usage_usec_delta'])} measure_throttle=#{metric(item['enabled_measure_throttle_delta'])} measure_throttled_us=#{metric(item['enabled_measure_throttled_usec_delta'])} usage_us=#{metric(item['enabled_usage_usec_delta'])} holder_runtime_us=#{metric(item['enabled_holder_hold_runtime_us_delta'])} holder_yields=#{metric(item['enabled_holder_hold_yields_delta'])} disabled_p99=#{metric(item['disabled_p99_ms'])} disabled_max=#{metric(item['disabled_max_ms'])}",
+      }
+    end
+  else
+    rows << {
+      family: entry['event'] || 'summary',
+      lane: lane,
+      label: 'summary',
+      object: '-',
+      classification: display_classification(data['classification'], data),
+      validated: data['production_objective_validated'],
+      p99_ms: '-',
+      max_ms: '-',
+      attempts: '-',
+      success: '-',
+      notes: '-',
+    }
+  end
+end
+
+if rows.empty?
+  (summary['lock_badneighbor'] || []).each do |row|
+    enabled = row['label'] == 'enabled'
+    rows << {
+      family: 'lock-badneighbor',
+      lane: row['lane'],
+      label: row['label'],
+      object: row['lock_class'],
+      classification: enabled ? enabled_result_classification(row) : 'control-row',
+      validated: false,
+      p99_ms: row['p99_ms'],
+      max_ms: row['max_ms'],
+      attempts: row['attempts'],
+      success: row['success'],
+      notes: "scope=#{row['proxy_scope']} op=#{metric(row['lock_operation'])} pressure=#{metric(row['pressure_mode'])} vm_cpus=#{metric(row['vm_cpus'])} cpu_limit=#{metric(row['bully_cpu_limit'])} cpu_weight=#{metric(row['bully_cpu_weight'])} cpu_shares=#{metric(row['bully_cpu_shares'])} cpu_workers=#{metric(row['bully_cpu_workers'])} lock_workers=#{metric(row['bully_lock_workers'])} hold_yield_us=#{metric(row['bully_lock_hold_yield_us'])} measure_count=#{metric(row['victim_measure_count'])} timeout=#{metric(row['timeout'])} reason=#{metric(row['timeout_reason'])} samples=#{metric(row['contended_samples'])} active_sync=#{metric(row['contended_active_sync'])} active_min_age_ms=#{metric(row['contended_active_min_age_ms'])} active_min_offcpu_ms=#{metric(row['contended_active_min_offcpu_ms'])} active_wait_errors=#{metric(row['contended_active_wait_errors'])} errors=#{metric(row['contended_errors'])} measure_usage_us=#{metric(row['measure_usage_usec_delta'])} measure_throttle=#{metric(row['measure_throttle_delta'])} measure_throttled_us=#{metric(row['measure_throttled_usec_delta'])} donated_ns=#{metric(row['donated_runtime_ns_delta'])} holder_runtime_us=#{metric(row['holder_hold_runtime_us_delta'])} holder_yields=#{metric(row['holder_hold_yields_delta'])}",
+    }
+  end
+end
+
+if rows.empty?
+  (summary['lane_results'] || []).each do |row|
+    rows << {
+      family: 'lane-result',
+      lane: row['lane'],
+      label: '-',
+      object: row['unit'],
+      classification: row['result'],
+      validated: false,
+      p99_ms: '-',
+      max_ms: '-',
+      attempts: '-',
+      success: '-',
+      notes: row['diagnostic_line'],
+    }
+  end
+end
+
+File.open(classification_tsv, 'w') do |f|
+  f.puts %w[family lane label object classification validated p99_ms max_ms attempts success notes].join("\t")
+  rows.each do |row|
+    f.puts [
+      row[:family],
+      row[:lane],
+      row[:label],
+      row[:object],
+      row[:classification],
+      truthy?(row[:validated]),
+      metric(row[:p99_ms]),
+      metric(row[:max_ms]),
+      metric(row[:attempts]),
+      metric(row[:success]),
+      row[:notes],
+    ].map { |value| value.to_s.gsub(/\s+/, ' ') }.join("\t")
+  end
+end
+
+puts format(
+  '%-18s %-5s %-16s %-18s %-39s %-9s %-10s %-10s %-9s %-9s %s',
+  'family', 'lane', 'label', 'object', 'classification', 'validated',
+  'p99_ms', 'max_ms', 'attempts', 'success', 'notes'
+)
+rows.each do |row|
+  puts format(
+    '%-18s %-5s %-16s %-18s %-39s %-9s %-10s %-10s %-9s %-9s %s',
+    row[:family],
+    row[:lane],
+    row[:label],
+    row[:object],
+    row[:classification],
+    truthy?(row[:validated]),
+    metric(row[:p99_ms]),
+    metric(row[:max_ms]),
+    metric(row[:attempts]),
+    metric(row[:success]),
+    row[:notes]
+  )
+end
+RUBY
+}
+
+cmd=${1:-run}
+if [[ $# -gt 0 ]]; then
+  shift
+fi
+
+case "$cmd" in
+  build-json|copy|launch|status|watch|wait|collect|summary|classify|run|run-watch|-h|--help|help) ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac
+
+if [[ "$cmd" == "-h" || "$cmd" == "--help" || "$cmd" == "help" ]]; then
+  usage
+  exit 0
+fi
+
+TEST_PATH=${VPSADMINOS_TEST_PATH:-${1:-}}
+RUN_NAME=${VPSADMINOS_TEST_RUN_NAME:-$(basename "$repo_root")}
+SYSTEM=${VPSADMINOS_TEST_SYSTEM:-x86_64-linux}
+TEST_TIMEOUT=${VPSADMINOS_TEST_TIMEOUT:-7200}
+TEST_JOBS=${VPSADMINOS_TEST_JOBS:-1}
+LANES=${VPSADMINOS_TEST_OFFLOAD_LANES:-4}
+WAIT_TIMEOUT=${VPSADMINOS_TEST_OFFLOAD_TIMEOUT:-10800}
+WAIT_INTERVAL=${VPSADMINOS_TEST_OFFLOAD_WAIT_INTERVAL:-15}
+WATCH_INTERVAL=${VPSADMINOS_TEST_OFFLOAD_WATCH_INTERVAL:-$WAIT_INTERVAL}
+SSH_CONNECT_TIMEOUT=${VPSADMINOS_TEST_OFFLOAD_SSH_CONNECT_TIMEOUT:-15}
+SSH_SERVER_ALIVE_INTERVAL=${VPSADMINOS_TEST_OFFLOAD_SSH_SERVER_ALIVE_INTERVAL:-30}
+SSH_SERVER_ALIVE_COUNT_MAX=${VPSADMINOS_TEST_OFFLOAD_SSH_SERVER_ALIVE_COUNT_MAX:-4}
+SSH_COMMAND_TIMEOUT=${VPSADMINOS_TEST_OFFLOAD_SSH_COMMAND_TIMEOUT:-120}
+SSH_POLL_TIMEOUT=${VPSADMINOS_TEST_OFFLOAD_SSH_POLL_TIMEOUT:-30}
+SSH_DIAG_TIMEOUT=${VPSADMINOS_TEST_OFFLOAD_SSH_DIAG_TIMEOUT:-240}
+OFFLOAD_HOST=${VPSADMINOS_TEST_OFFLOAD_HOST:-${VPSADMINOS_OFFLOAD_HOST:-}}
+REMOTE_STATE_BASE=${VPSADMINOS_TEST_OFFLOAD_REMOTE_BASE:-/r/vpsadminos-test-json}
+REMOTE_PATH=${VPSADMINOS_TEST_OFFLOAD_REMOTE_PATH:-/run/wrappers/bin:/root/.nix-profile/bin:/nix/profile/bin:/root/.local/state/nix/profile/bin:/etc/profiles/per-user/root/bin:/nix/var/nix/profiles/default/bin:/run/current-system/sw/bin}
+REQUIRE_EVENTS=${VPSADMINOS_TEST_OFFLOAD_REQUIRE_EVENTS:-1}
+FORWARD_ENV_PREFIXES=${VPSADMINOS_TEST_OFFLOAD_FORWARD_ENV_PREFIXES:-VPSADMINOS_PROXY_}
+FORWARD_ENV_NAMES_REQUESTED=${VPSADMINOS_TEST_OFFLOAD_FORWARD_ENV_NAMES:-}
+FORWARDED_ENV_SPEC=
+FORWARDED_ENV_NAMES=
+
+for timeout_value_name in \
+  SSH_CONNECT_TIMEOUT \
+  SSH_SERVER_ALIVE_INTERVAL \
+  SSH_SERVER_ALIVE_COUNT_MAX \
+  SSH_COMMAND_TIMEOUT \
+  SSH_POLL_TIMEOUT \
+  SSH_DIAG_TIMEOUT; do
+  timeout_value=${!timeout_value_name}
+  case "$timeout_value" in
+    ''|*[!0-9]*)
+      die "${timeout_value_name} must be a non-negative integer"
+      ;;
+  esac
+done
+
+if [[ -z "$TEST_PATH" && -n "${VPSADMINOS_TEST_OFFLOAD_STATE_DIR:-}" && -f "${VPSADMINOS_TEST_OFFLOAD_STATE_DIR}/manifest.env" ]]; then
+  # shellcheck disable=SC1090
+  source "${VPSADMINOS_TEST_OFFLOAD_STATE_DIR}/manifest.env"
+fi
+
+require_test_path
+
+TEST_SLUG=$(slugify "$TEST_PATH")
+if [[ -n "${VPSADMINOS_TEST_OFFLOAD_STALE_TIMEOUT+x}" ]]; then
+  STALE_TIMEOUT=$VPSADMINOS_TEST_OFFLOAD_STALE_TIMEOUT
+else
+  case "$TEST_PATH" in
+    kernel/sched-proxy-exec-lock-badneighbor)
+      STALE_TIMEOUT=900
+      ;;
+    *)
+      STALE_TIMEOUT=0
+      ;;
+  esac
+fi
+STALE_STOP_GRACE=${VPSADMINOS_TEST_OFFLOAD_STALE_STOP_GRACE:-30}
+STALE_DIAG_LINES=${VPSADMINOS_TEST_OFFLOAD_STALE_DIAG_LINES:-400}
+case "$STALE_TIMEOUT" in
+  ''|*[!0-9]*)
+    die "VPSADMINOS_TEST_OFFLOAD_STALE_TIMEOUT must be a non-negative integer"
+    ;;
+esac
+case "$STALE_STOP_GRACE" in
+  ''|*[!0-9]*)
+    die "VPSADMINOS_TEST_OFFLOAD_STALE_STOP_GRACE must be a non-negative integer"
+    ;;
+esac
+case "$STALE_DIAG_LINES" in
+  ''|*[!0-9]*)
+    die "VPSADMINOS_TEST_OFFLOAD_STALE_DIAG_LINES must be a non-negative integer"
+    ;;
+esac
+RUN_STAMP=${VPSADMINOS_TEST_RUN_STAMP:-$(date -u +%Y%m%dT%H%M%SZ)}
+RUN_ID=${VPSADMINOS_TEST_RUN_ID:-${TEST_SLUG}-${RUN_STAMP}}
+REMOTE_RUN_ID_DEFAULT=$(slugify "r-${RUN_STAMP}-$$")
+STATE_DIR=${VPSADMINOS_TEST_OFFLOAD_STATE_DIR:-$state_base/test-offload/$RUN_NAME/$RUN_ID}
+JSON_LINK=${VPSADMINOS_TEST_JSON_OUT_LINK:-$STATE_DIR/test.json}
+RUNNER_LINK=${VPSADMINOS_TEST_RUNNER_OUT_LINK:-$STATE_DIR/test-runner}
+MANIFEST=$STATE_DIR/manifest.env
+LANES_FILE=$STATE_DIR/lanes.tsv
+EVENTS_TSV=$STATE_DIR/events.tsv
+LANE_RESULTS_TSV=$STATE_DIR/lane-results.tsv
+SUMMARY_JSON=$STATE_DIR/summary.json
+CLASSIFICATION_TSV=$STATE_DIR/classification.tsv
+STALE_TSV=$STATE_DIR/stale-lanes.tsv
+PROGRESS_TSV=$STATE_DIR/watch-progress.tsv
+STALE_DIAG_DIR=$STATE_DIR/stale-diagnostics
+UNIT_PREFIX=${VPSADMINOS_TEST_OFFLOAD_UNIT_PREFIX:-vpsadminos-${TEST_SLUG:0:48}-${RUN_STAMP}}
+REMOTE_RUN_ID=${VPSADMINOS_TEST_OFFLOAD_REMOTE_RUN_ID:-$REMOTE_RUN_ID_DEFAULT}
+JSON_STORE=${JSON_STORE:-}
+RUNNER_STORE=${RUNNER_STORE:-}
+
+NIX=$(resolve_cmd VPSADMINOS_NIX nix)
+NIX_BUILD=$(resolve_cmd VPSADMINOS_NIX_BUILD nix-build)
+NIX_COPY_CLOSURE=$(resolve_cmd VPSADMINOS_NIX_COPY_CLOSURE nix-copy-closure)
+setup_ssh_opts
+
+case "$cmd" in
+  build-json)
+    build_json
+    ;;
+  copy)
+    copy_closures
+    ;;
+  launch)
+    launch_lanes
+    ;;
+  status)
+    status_lanes
+    ;;
+  watch)
+    watch_lanes
+    ;;
+  wait)
+    wait_lanes
+    ;;
+  collect)
+    collect_results
+    ;;
+  summary|classify)
+    classify_results
+    ;;
+  run)
+    build_json
+    copy_closures
+    launch_lanes
+    wait_lanes
+    collect_results
+    ;;
+  run-watch)
+    build_json
+    copy_closures
+    launch_lanes
+    watch_lanes
+    ;;
+esac

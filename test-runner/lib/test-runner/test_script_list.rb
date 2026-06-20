@@ -17,6 +17,25 @@ module TestRunner
       all.select(&)
     end
 
+    # Return scripts matching path pattern.
+    #
+    # Exact paths can be resolved without evaluating metadata for the whole
+    # suite.
+    #
+    # @param pattern [String, nil]
+    # @return [Array<TestScript>]
+    def matching(pattern)
+      if exact_path_pattern?(pattern)
+        begin
+          [by_path(pattern)]
+        rescue KeyError
+          []
+        end
+      else
+        filter { |ts| pattern.nil? || ts.path_matches?(pattern) }
+      end
+    end
+
     # Return one test script specified by path
     # @return [TestScript]
     def by_path(path)
@@ -34,6 +53,10 @@ module TestRunner
     end
 
     protected
+
+    def exact_path_pattern?(pattern)
+      !pattern.nil? && !pattern.match?(/[*?\[{\]]/)
+    end
 
     def expand_scripts(test_list)
       ret = []

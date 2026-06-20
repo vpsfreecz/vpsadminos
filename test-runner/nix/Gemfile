@@ -1,0 +1,11 @@
+source 'https://rubygems.org'
+
+gem 'base64'
+gem 'fiddle'
+gem 'gli', '~> 2.22.0'
+gem 'logger'
+gem 'pry', '~> 0.16.0'
+gem 'rainbow', '~> 3.1.1'
+gem 'require_all', '~> 2.0.0'
+gem 'rspec-expectations', '~> 3.13'
+gem 'syslog'
