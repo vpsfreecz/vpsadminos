@@ -14,12 +14,13 @@ import ../../make-test.nix (
         machine.wait_until_online
       end
 
-      def cleanup_container(ct)
+      def cleanup_container(ct, ignore_failure:)
         return unless machine.running?
 
         machine.succeeds("osctl ct del -f --prune #{ct}")
       rescue OsVm::CommandFailed
-        # Best effort cleanup after failed setup.
+        # Do not mask an earlier setup or test failure with a cleanup failure.
+        raise unless ignore_failure
       ensure
         begin
           machine.succeeds('osctl repository images prune') if machine.running?
@@ -33,6 +34,48 @@ import ../../make-test.nix (
           "osctl ct exec #{ct} sh -c #{Shellwords.escape(script)}",
           timeout:
         )
+      end
+
+      def collect_container_diagnostics(ct)
+        return unless machine.running?
+
+        commands = [
+          "osctl ct show #{ct.shellescape}",
+          <<~'HOST',
+            ip address show dev lxcbr0
+            ip route show
+            ip -6 route show
+            bridge link show
+            for leases in /var/lib/misc/dnsmasq.leases /var/lib/dnsmasq/dnsmasq.leases; do
+              [ ! -f "$leases" ] || cat "$leases"
+            done
+            tail -n 100 /var/log/messages
+          HOST
+          "osctl ct exec #{ct.shellescape} sh -c #{<<~'GUEST'.shellescape}",
+            cat /etc/os-release
+            ip address show
+            ip route show
+            ip -6 route show
+            ls -l /etc/resolv.conf
+            cat /etc/resolv.conf
+            cat /etc/network/interfaces /etc/network/interfaces.d/* /etc/systemd/network/*
+            systemctl --failed --plain --no-legend --no-pager
+            systemctl --no-pager --full status networking systemd-networkd systemd-resolved NetworkManager
+            journalctl -b --no-pager -n 100 -u networking -u systemd-networkd -u systemd-resolved -u NetworkManager
+          GUEST
+        ]
+
+        commands.each do |command|
+          begin
+            # Bound output and time before mandatory cleanup destroys the guest.
+            status, output = machine.execute("{ #{command}\n} 2>&1 | head -c 32768", timeout: 30)
+            warn "Podman guest #{ct} diagnostic (#{status}): #{command}\n#{output}"
+          rescue StandardError => e
+            warn "Podman guest #{ct} diagnostic failed: #{e.class}: #{e.message}"
+          end
+        end
+      rescue StandardError => e
+        warn "Podman guest #{ct} diagnostics unavailable: #{e.class}: #{e.message}"
       end
 
       def ct_write_file(ct, path, contents)
@@ -308,7 +351,16 @@ import ../../make-test.nix (
               ${test.setup}
               check_podman(ct)
             ensure
-              cleanup_container(ct)
+              primary_error = $!
+              collect_container_diagnostics(ct) if primary_error
+
+              begin
+                cleanup_container(ct, ignore_failure: !primary_error.nil?)
+              rescue StandardError => cleanup_error
+                raise unless primary_error
+
+                warn "Podman guest #{ct} cleanup failed after #{primary_error.class}: #{cleanup_error.class}: #{cleanup_error.message}"
+              end
             end
           '';
         };
