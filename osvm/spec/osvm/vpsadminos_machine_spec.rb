@@ -241,15 +241,31 @@ RSpec.describe OsVm::VpsadminosMachine do
 
   it 'builds qemu commands with boot media and shared options' do
     with_tmpdir do |dir|
-      machine = build_vpsadminos_machine(dir:, config: build_machine_config('iso' => '/images/install.iso'))
+      machine = build_vpsadminos_machine(
+        dir:,
+        config: build_machine_config(
+          'iso' => '/images/install.iso',
+          'extraQemuOptions' => [
+            '-fw_cfg',
+            'name=opt/osvm/runtime,string=@OSVM_TMPDIR@/marker'
+          ]
+        )
+      )
 
       command = machine.send(:qemu_command, kernel_params: ['debug'])
 
       expect(command).to include('/nix/store/qemu/bin/qemu-kvm')
+      expect(command).to include('-nographic')
+      expect(command.each_cons(2).to_a).to include(['-vga', 'none'])
       expect(command).to include('-cdrom', '/images/install.iso')
       expect(command).to include('-drive', 'index=0,id=drive1,file=/images/system.squashfs,readonly=on,media=cdrom,format=raw,if=virtio')
       expect(command.grep(/path=.*shell\.sock/).first).not_to be_nil
       expect(command.grep(/tag=vmSharedDir/).first).not_to be_nil
+      expect(command).to include(
+        '-fw_cfg',
+        "name=opt/osvm/runtime,string=#{File.join(dir, 'tmp', 'marker')}"
+      )
+      expect(command.join(' ')).not_to include('@OSVM_TMPDIR@')
     end
   end
 end
