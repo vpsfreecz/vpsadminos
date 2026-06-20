@@ -35,26 +35,40 @@ import ../../make-test.nix (
         machine.wait_for_osctl_pool("tank")
         machine.wait_until_online
 
+        testct = "#{name}-testct"
+        parent_group = "/#{name}-rundir"
+        child_group = "#{parent_group}/child"
+
         # We expect tmpfs size to be a half of the memory limit
-        machine.all_succeed(
-          "osctl ct new --distribution arch #{name}-testct",
+        begin
+          machine.all_succeed(
+            "osctl group new -p #{child_group}",
+            "osctl ct new --distribution arch #{testct}",
+            "osctl ct chgrp #{testct} #{child_group}",
 
-          # No limit, just expect /run to be tmpfs
-          "osctl ct exec -r #{name}-testct df -t tmpfs --output=size /run",
+            # No limit, just expect /run to be tmpfs
+            "osctl ct exec -r #{testct} df -t tmpfs --output=size /run",
 
-          # Container limit
-          "osctl ct set memory #{name}-testct 1G",
-          "osctl ct exec -r #{name}-testct df -t tmpfs --output=size /run | grep 524288",
-          "osctl ct unset memory #{name}-testct",
+            # Container limit
+            "osctl ct set memory #{testct} 1G",
+            "osctl ct exec -r #{testct} df -t tmpfs --output=size /run | grep 524288",
+            "osctl ct unset memory #{testct}",
 
-          # Group limits
-          "osctl group set memory /default 512M",
-          "osctl ct exec -r #{name}-testct df -t tmpfs --output=size /run | grep 262144",
-          "osctl group unset memory /default",
+            # Group limit
+            "osctl group set memory #{child_group} 512M",
+            "osctl ct exec -r #{testct} df -t tmpfs --output=size /run | grep 262144",
+            "osctl group unset memory #{child_group}",
 
-          "osctl group set memory / 1G",
-          "osctl ct exec -r #{name}-testct df -t tmpfs --output=size /run | grep 524288",
-        )
+            # Parent group limit
+            "osctl group set memory #{parent_group} 1G",
+            "osctl ct exec -r #{testct} df -t tmpfs --output=size /run | grep 524288",
+            "osctl group unset memory #{parent_group}",
+          )
+        ensure
+          machine.execute("osctl ct del -f --prune #{testct}", timeout: 300)
+          machine.execute("osctl group del #{child_group}", timeout: 60)
+          machine.execute("osctl group del #{parent_group}", timeout: 60)
+        end
 
         machine.stop
       end
