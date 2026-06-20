@@ -46,9 +46,9 @@ import ../../make-test.nix (
               # system
               sleep(10)
 
-              _, output = machine.succeeds("osctl ct exec #{testct} cat /proc/mounts")
+              _, mounts = machine.succeeds("osctl ct exec #{testct} cat /proc/mounts")
 
-              if /^\w+ #{Regexp.escape("/sys/fs/cgroup cgroup2 ")}/ !~ output
+              if /^\w+ #{Regexp.escape("/sys/fs/cgroup cgroup2 ")}/ !~ mounts
                 fail "unified cgroup not mounted"
               end
 
@@ -59,24 +59,17 @@ import ../../make-test.nix (
                 fail "Did not expect any controllers, got #{enabled_controllers.inspect}"
               end
 
-              # Check that the system does not try to use the unified cgroup as if it
-              # was a hybrid hierarchy
-              hybrid_controllers = %w(
-                cpu,cpuacct
-                cpuset
-                devices
-                freezer
-                hugetlb
-                memory
-                net_cls,net_prio
-                perf_event
-                pids
-                rdma
-                systemd
-              )
+              # A v2 child can use a controller name, so detect actual nested v1
+              # mounts instead of checking whether controller-named paths exist.
+              hybrid_mounts = mounts.lines.select do |line|
+                fields = line.split
+                fields.length >= 3 &&
+                  fields[1].start_with?("/sys/fs/cgroup/") &&
+                  fields[2] == "cgroup"
+              end
 
-              hybrid_controllers.each do |v|
-                machine.fails("osctl ct exec #{testct} ls /sys/fs/cgroup/#{v}")
+              if hybrid_mounts.any?
+                fail "Unexpected hybrid cgroup mounts:\n#{hybrid_mounts.join}"
               end
 
               machine.all_succeed(
