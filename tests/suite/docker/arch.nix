@@ -13,7 +13,8 @@ import ./base.nix {
         machine.succeeds("osctl ct exec #{ct} systemctl enable docker.service")
 
         configure_docker_registry_mirrors(ct)
-        machine.succeeds("osctl ct exec #{ct} systemctl start docker.service")
+        configure_docker_iptables_nft(ct)
+        restart_docker(ct)
       '';
     }
   ];
