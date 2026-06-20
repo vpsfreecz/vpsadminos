@@ -342,11 +342,58 @@ RSpec.describe OsCtld::Container do
         active = run_conf_class.new(ct, load_conf: false)
         ct.instance_variable_set('@run_conf', active)
 
-        ct.stopped
+        expect(ct.stopped(active)).to be(true)
 
         expect(active.destroy_calls).to eq(1)
+        expect(active.retirement_calls).to eq(1)
         expect(ct.run_conf).to be_nil
         expect(ct.get_past_run_conf).to eq(active)
+      end
+    end
+
+    it 'detaches a retiring run before waiting for its active leases' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        active = run_conf_class.new(ct, load_conf: false)
+        destroy_started = Queue.new
+        release_destroy = Queue.new
+        active.define_singleton_method(:destroy) do
+          super()
+          destroy_started << true
+          release_destroy.pop
+        end
+        ct.instance_variable_set('@run_conf', active)
+
+        stop_thread = Thread.new { ct.stopped(active) }
+        destroy_started.pop
+        read_result = Queue.new
+        read_thread = Thread.new { read_result << ct.run_conf }
+
+        expect(read_thread.join(1)).to be(read_thread)
+        expect(read_result.pop).to be_nil
+        expect(stop_thread).to be_alive
+
+        release_destroy << true
+        expect(stop_thread.join(1)).to be(stop_thread)
+        expect(stop_thread.value).to be(true)
+      ensure
+        release_destroy&.push(true) if stop_thread&.alive?
+        read_thread&.join(1)
+        stop_thread&.join(1)
+      end
+    end
+
+    it 'does not stop a replacement run' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        authenticated = run_conf_class.new(ct, load_conf: false)
+        replacement = run_conf_class.new(ct, load_conf: false)
+        ct.instance_variable_set('@run_conf', replacement)
+
+        expect(ct.stopped(authenticated)).to be(false)
+        expect(replacement.destroy_calls).to eq(0)
+        expect(ct.run_conf).to be(replacement)
+        expect(ct.get_past_run_conf).to be_nil
       end
     end
 
@@ -541,6 +588,17 @@ RSpec.describe OsCtld::Container do
       end
     end
 
+    it 'ignores an init pid which exits before its identity can be pinned' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        run_conf = ct.ensure_run_conf
+        allow(run_conf).to receive(:init_pid=).and_raise(Errno::ESRCH)
+
+        expect(ct.set_init_pid(4321)).to be_nil
+        expect(ct.init_pid).to be_nil
+      end
+    end
+
     it 'recovers a missing init_pid when exporting a running container' do
       with_tmpdir do |dir|
         ct = build_configured_container(root: dir)
@@ -550,6 +608,27 @@ RSpec.describe OsCtld::Container do
         )
 
         expect(ct.export[:init_pid]).to eq(5678)
+      end
+    end
+
+    it 'does not install a refreshed PID into a replacement run' do
+      with_tmpdir do |dir|
+        ct = build_container(root: dir)
+        old_run_conf = ct.ensure_run_conf
+        ct.state = :running
+        replacement = nil
+        allow(OsCtld::ContainerControl::Commands::State).to receive(:run!) do
+          expect(ct.stopped(old_run_conf)).to be(true)
+          replacement = ct.ensure_run_conf
+          ct.state = :running
+          Struct.new(:state, :init_pid).new(:running, 5678)
+        end
+
+        expect(
+          ct.refresh_init_pid(expected_run_conf: old_run_conf)
+        ).to be_nil
+        expect(ct.run_conf).to be(replacement)
+        expect(replacement.init_pid).to be_nil
       end
     end
 
