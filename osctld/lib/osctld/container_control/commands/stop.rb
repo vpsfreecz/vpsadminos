@@ -3,6 +3,7 @@ require 'osctld/container_control/frontend'
 require 'osctld/container_control/runner'
 require 'osctld/container_control/utils/wall'
 require 'libosctl'
+require 'timeout'
 
 module OsCtld
   # Stop/shutdown/kill container
@@ -36,7 +37,10 @@ module OsCtld
 
         ret =
           if %i[stop shutdown].include?(mode) && ct.running?
-            exec_runner(args: [mode, opts.merge(halt_from_inside: true)])
+            exec_runner(
+              args: [mode, opts.merge(halt_from_inside: true)],
+              switch_extra_namespaces: false
+            )
           else
             fork_runner(args: [mode, opts])
           end
@@ -104,30 +108,23 @@ module OsCtld
 
       # @return [Integer] halt duration in seconds
       def run_halt(timeout)
-        queue = OsCtl::Lib::Queue.new
         t1 = Time.now
 
-        pid = lxc_ct.attach do
-          setup_exec_env
+        begin
+          Timeout.timeout(timeout) do
+            lxc_attach_wait do
+              setup_exec_env
 
-          %w[halt poweroff shutdown].each do |cmd|
-            LXC.run_command(cmd)
-          rescue LXC::Error
-            next
+              %w[halt poweroff shutdown].each do |cmd|
+                LXC.run_command(cmd)
+              rescue LXC::Error
+                next
+              end
+            end
           end
+        rescue Timeout::Error
+          nil
         end
-
-        timeout_thread = Thread.new do
-          next if queue.pop(timeout:) == :done
-
-          Process.kill('KILL', pid) if pid && pid > 1
-        rescue Errno::ESRCH
-          next
-        end
-
-        Process.wait(pid) if pid && pid > 1
-        queue << :done
-        timeout_thread.join
 
         Time.now - t1
       end

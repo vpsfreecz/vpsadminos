@@ -1,4 +1,5 @@
 require 'libosctl'
+require 'digest'
 require 'osctld/lockable'
 require 'osctld/manipulable'
 require 'osctld/assets/definition'
@@ -347,7 +348,10 @@ module OsCtld
     # Fetch current container state by forking into it
     # @return [Symbol]
     def current_state
-      self.state = ContainerControl::Commands::State.run!(self).state
+      st = ContainerControl::Commands::State.run!(self)
+      self.state = st.state
+      set_init_pid(st.init_pid) if st.init_pid
+      st.state
     rescue ContainerControl::Error
       self.state = :error
     end
@@ -374,6 +378,23 @@ module OsCtld
       inclusively do
         @run_conf ? run_conf.init_pid : nil
       end
+    end
+
+    def refresh_init_pid
+      return init_pid unless running?
+
+      st = ContainerControl::Commands::State.run!(self)
+      self.state = st.state
+      set_init_pid(st.init_pid) if st.init_pid
+      st.init_pid
+    rescue ContainerControl::Error
+      nil
+    end
+
+    def set_init_pid(pid)
+      return unless pid
+
+      ensure_run_conf.init_pid = pid
     end
 
     def starting
@@ -476,6 +497,14 @@ module OsCtld
       File.join(cgroup_path, "lxc.monitor.#{id}")
     end
 
+    def payload_cgroup_path
+      File.join(cgroup_path, "lxc.payload.#{id}")
+    end
+
+    def attach_cgroup_path
+      File.join(payload_cgroup_path, 'osctl.attach')
+    end
+
     def abs_cgroup_path(subsystem)
       CGroup.abs_cgroup_path(subsystem, cgroup_path)
     end
@@ -486,7 +515,7 @@ module OsCtld
 
     # @return [Integer, nil] memory limit in bytes
     def find_memory_limit(parents: true)
-      limit = cgparams.find_memory_limit
+      limit = cgparams&.find_memory_limit
 
       if limit
         return limit
@@ -499,7 +528,7 @@ module OsCtld
 
     # @return [Integer, nil] swap limit in bytes
     def find_swap_limit(parents: true)
-      limit = cgparams.find_swap_limit
+      limit = cgparams&.find_swap_limit
 
       if limit
         return limit
@@ -512,7 +541,7 @@ module OsCtld
 
     # @return [Integer, nil] CPU limit in percent (100 % for one CPU)
     def find_cpu_limit(parents: true)
-      limit = cgparams.find_cpu_limit
+      limit = cgparams&.find_cpu_limit
 
       if limit
         return limit
@@ -714,6 +743,8 @@ module OsCtld
 
     # Export to clients
     def export
+      refresh_init_pid if running? && init_pid.nil?
+
       inclusively do
         {
           pool: pool.name,
@@ -851,8 +882,17 @@ module OsCtld
       end.join(' ')
     end
 
-    def syslogns_tag
+    def syslogns_tag(run_id: nil)
       max_size = OsCtl::Lib::Sys::SYSLOGNS_MAX_TAG_BYTESIZE
+
+      if run_id
+        digest = Digest::SHA256.hexdigest(run_id.to_s)[0, 4]
+        prefix = id.gsub(/[^A-Za-z0-9_.-]/, '_')
+        prefix = 'ct' if prefix.empty?
+        prefix = prefix.byteslice(0, max_size - digest.bytesize - 1)
+
+        return "#{prefix}:#{digest}".rjust(max_size)
+      end
 
       tag =
         if id.bytesize >= max_size - 1 # -1 for colon used as a separator
