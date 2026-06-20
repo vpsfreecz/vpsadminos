@@ -28,12 +28,7 @@ module OsCtld
         status = 0
 
         begin
-          sys = OsCtl::Lib::Sys.new
-          sys.setns_path(
-            File.join('/proc', init_pid.to_s, 'ns/net'),
-            OsCtl::Lib::Sys::CLONE_NEWNET
-          )
-          NetConfig.import(net_config).setup
+          NetConfig.setup_in_netns(init_pid, net_config)
         rescue StandardError => e
           msg = "#{e.class}: #{e.message}"
           status = 1

@@ -23,6 +23,21 @@ module OsCtld
       cfg
     end
 
+    def self.setup_in_netns(init_pid, net_config)
+      sys = OsCtl::Lib::Sys.new
+      sys.setns_path(
+        File.join('/proc', init_pid.to_s, 'ns/net'),
+        OsCtl::Lib::Sys::CLONE_NEWNET
+      )
+      import(net_config).setup
+    end
+
+    def self.setup_in_netns_io(net_ns, net_config)
+      sys = OsCtl::Lib::Sys.new
+      sys.setns_io(net_ns, OsCtl::Lib::Sys::CLONE_NEWNET)
+      import(net_config).setup
+    end
+
     def self.import(data)
       cfg = new
       cfg.import(data)
@@ -46,8 +61,11 @@ module OsCtld
 
         case netif.type
         when :bridge
-          if netif.has_gateway?(ip_v)
-            n.routes << Route.new(ip_v, default_route_addr(ip_v), 0, netif.gateway(ip_v))
+          next unless static_bridge?(netif)
+
+          gateway = static_bridge_gateway(netif, ip_v)
+          if gateway
+            n.routes << Route.new(ip_v, default_route_addr(ip_v), 0, gateway)
           end
 
         when :routed
@@ -64,6 +82,10 @@ module OsCtld
       end
 
       netifs << n
+    end
+
+    def empty?
+      netifs.all? { |netif| empty_netif?(netif) }
     end
 
     # Apply configuration using netlink
@@ -91,8 +113,15 @@ module OsCtld
       end
     end
 
-    def export
-      netifs.map do |netif|
+    def export(configured_only: false)
+      exported_netifs =
+        if configured_only
+          netifs.reject { |netif| empty_netif?(netif) }
+        else
+          netifs
+        end
+
+      exported_netifs.map do |netif|
         {
           name: netif.name,
           ips: netif.ips.map(&:to_h),
@@ -138,6 +167,22 @@ module OsCtld
 
     def default_route_addr(ip_v)
       ip_v == 4 ? '0.0.0.0' : '::'
+    end
+
+    def static_bridge?(netif)
+      !netif.respond_to?(:dhcp) || !netif.dhcp
+    end
+
+    def static_bridge_gateway(netif, ip_v)
+      if netif.respond_to?(:gateway_or_nil)
+        netif.gateway_or_nil(ip_v, wait: true)
+      elsif netif.has_gateway?(ip_v)
+        netif.gateway(ip_v)
+      end
+    end
+
+    def empty_netif?(netif)
+      netif.ips.empty? && netif.routes.empty?
     end
   end
 end

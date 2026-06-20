@@ -6,6 +6,7 @@ require 'osctld/dist_config'
 require 'osctld/erb_template'
 require 'osctld/dist_config/network/ifupdown'
 require 'osctld/dist_config/network/network_manager'
+require 'osctld/dist_config/network/redhat_network_manager'
 require 'osctld/dist_config/network/systemd_networkd'
 
 RSpec.describe 'DistConfig network backends' do
@@ -56,6 +57,7 @@ RSpec.describe 'DistConfig network backends' do
     FileUtils.mkdir_p(File.join(rootfs, 'etc/NetworkManager/system-connections'))
     FileUtils.mkdir_p(File.join(rootfs, 'etc/systemd/system/multi-user.target.wants'))
     FileUtils.mkdir_p(File.join(rootfs, 'etc/udev/rules.d'))
+    File.write(File.join(rootfs, 'etc/sysconfig/network-scripts/ifcfg-lo'), 'DEVICE=lo')
     File.write(
       File.join(rootfs, 'etc/systemd/system/multi-user.target.wants/NetworkManager.service'),
       ''
@@ -82,6 +84,41 @@ RSpec.describe 'DistConfig network backends' do
       anything,
       File.join(rootfs, 'etc/udev/rules.d/86-osctl.rules')
     )
+  end
+
+  it 'does not use NetworkManager keyfiles when interface ifcfg files exist' do
+    FileUtils.mkdir_p(File.join(rootfs, 'etc/sysconfig/network-scripts'))
+    FileUtils.mkdir_p(File.join(rootfs, 'etc/NetworkManager/conf.d'))
+    FileUtils.mkdir_p(File.join(rootfs, 'etc/NetworkManager/system-connections'))
+    FileUtils.mkdir_p(File.join(rootfs, 'etc/systemd/system/multi-user.target.wants'))
+    File.write(
+      File.join(rootfs, 'etc/systemd/system/multi-user.target.wants/NetworkManager.service'),
+      ''
+    )
+    File.write(File.join(rootfs, 'etc/sysconfig/network-scripts/ifcfg-eth0'), 'DEVICE=eth0')
+
+    backend = OsCtld::DistConfig::Network::NetworkManager.new(configurator)
+
+    expect(backend.usable?).to be(false)
+  end
+
+  it 'does not use NetworkManager keyfiles when ifcfg-rh is configured' do
+    FileUtils.mkdir_p(File.join(rootfs, 'etc/sysconfig/network-scripts'))
+    FileUtils.mkdir_p(File.join(rootfs, 'etc/NetworkManager/conf.d'))
+    FileUtils.mkdir_p(File.join(rootfs, 'etc/NetworkManager/system-connections'))
+    FileUtils.mkdir_p(File.join(rootfs, 'etc/systemd/system/multi-user.target.wants'))
+    File.write(
+      File.join(rootfs, 'etc/systemd/system/multi-user.target.wants/NetworkManager.service'),
+      ''
+    )
+    File.write(File.join(rootfs, 'etc/sysconfig/network-scripts/ifcfg-lo'), 'DEVICE=lo')
+    File.write(
+      File.join(rootfs, 'etc/NetworkManager/conf.d/vpsadminos.conf'),
+      "[main]\nplugins+=ifcfg-rh\n"
+    )
+
+    expect(OsCtld::DistConfig::Network::NetworkManager.new(configurator).usable?).to be(false)
+    expect(OsCtld::DistConfig::Network::RedHatNetworkManager.new(configurator).usable?).to be(true)
   end
 
   it 'renames systemd-networkd configs by removing the old file and rendering the new one' do
