@@ -29,6 +29,25 @@ import ../../make-test.nix (
             ...
           }:
           let
+            zfsVmMemoryEnv = builtins.getEnv "VPSADMINOS_ZFS_FULL_VM_MEMORY";
+            zfsVmCpusEnv = builtins.getEnv "VPSADMINOS_ZFS_FULL_VM_CPUS";
+            zfsUseBuiltinEnv = builtins.getEnv "VPSADMINOS_ZFS_FULL_USE_BUILTIN";
+            localZfsStageEnv = builtins.getEnv "VPSADMINOS_LOCAL_ZFS_STAGE";
+            localZfsStage = if localZfsStageEnv == "" then null else /. + localZfsStageEnv;
+            localZfsUserOut = if localZfsStage == null then null else localZfsStage + "/user/out";
+            zfsVmMemory = if zfsVmMemoryEnv != "" then lib.toInt zfsVmMemoryEnv else 12288;
+            zfsVmCpus = if zfsVmCpusEnv != "" then lib.toInt zfsVmCpusEnv else 4;
+            zfsUseBuiltin = zfsUseBuiltinEnv == "1";
+            useLocalZfsUser = !zfsUseBuiltin && localZfsUserOut != null && builtins.pathExists localZfsUserOut;
+            adaptedLocalZfsUser =
+              if useLocalZfsUser then
+                import ../../../os/lib/dev/local-zfs-package.nix {
+                  inherit pkgs lib;
+                  stage = localZfsStage;
+                  kind = "user";
+                }
+              else
+                null;
             kernelPackages = import ../../../os/packages/linux/packages.nix {
               inherit
                 config
@@ -37,66 +56,85 @@ import ../../make-test.nix (
                 ;
             };
 
+            zfsTestPostInstall = ''
+              # vpsAdminOS exposes most commands under /run/current-system/sw.
+              substituteInPlace $out/usr/share/initramfs-tools/scripts/zfs-tests.sh \
+                --replace 'SYSTEM_DIRS="/usr/local/bin /usr/local/sbin"' \
+                          'SYSTEM_DIRS="/run/wrappers/bin /usr/local/bin /usr/local/sbin /run/current-system/sw/bin /run/current-system/sw/sbin"'
+              # Single-test mode (`-t`) writes an ad-hoc runfile with a fixed
+              # 10-minute timeout. Raise it for our slower VM test environment.
+              substituteInPlace $out/usr/share/initramfs-tools/scripts/zfs-tests.sh \
+                --replace 'timeout = 600' 'timeout = 1800'
+
+              # Full-suite runfiles also inherit a 10-minute default timeout.
+              # Override slow groups to avoid false KILLED results.
+              awk '
+                { print }
+                /^\[tests\/functional\/cli_root\/zpool_prefetch\]$/ { print "timeout = 1800" }
+                /^\[tests\/functional\/direct\]$/ { print "timeout = 1800" }
+              ' $out/share/zfs/runfiles/common.run > $out/share/zfs/runfiles/common.run.new
+              mv $out/share/zfs/runfiles/common.run.new $out/share/zfs/runfiles/common.run
+
+              awk '
+                { print }
+                /^\[tests\/functional\/direct:Linux\]$/ { print "timeout = 1800" }
+              ' $out/share/zfs/runfiles/linux.run > $out/share/zfs/runfiles/linux.run.new
+              mv $out/share/zfs/runfiles/linux.run.new $out/share/zfs/runfiles/linux.run
+
+              # Some test helper binaries are optional in our build, don't report
+              # them as missing when they are not installed.
+              if [ ! -x "$out/share/zfs/zfs-tests/bin/devname2devid" ]; then
+                sed -i '/^[[:space:]]*devname2devid$/d' \
+                  "$out/share/zfs/zfs-tests/include/commands.cfg"
+              fi
+
+              if [ ! -x "$out/share/zfs/zfs-tests/bin/mmap_libaio" ]; then
+                sed -i '/^[[:space:]]*mmap_libaio$/d' \
+                  "$out/share/zfs/zfs-tests/include/commands.cfg"
+              fi
+            '';
+
             # Keep OpenZFS test-suite files in the userspace package for this test only.
             zfsUserWithTests =
-              (kernelPackages.genZfsUserPackage config.boot.kernelVersion).overrideAttrs
-                (old: {
+              if useLocalZfsUser then
+                pkgs.runCommand "zfs-user-local-dev-with-tests" { } ''
+                  mkdir -p "$out"
+                  cp -a --no-preserve=ownership ${adaptedLocalZfsUser}/. "$out"/
+                  chmod -R u+w "$out"
+                  ${zfsTestPostInstall}
+                ''
+              else
+                (kernelPackages.genZfsUserPackage config.boot.kernelVersion).overrideAttrs (old: {
                   postInstall =
                     (lib.replaceStrings
                       [ "rm -rf $out/share/zfs/zfs-tests" ]
                       [ "echo 'keeping zfs-tests for zfs-full-suite'" ]
                       (old.postInstall or "")
                     )
-                    + ''
-                      # vpsAdminOS exposes most commands under /run/current-system/sw.
-                      substituteInPlace $out/usr/share/initramfs-tools/scripts/zfs-tests.sh \
-                        --replace 'SYSTEM_DIRS="/usr/local/bin /usr/local/sbin"' \
-                                  'SYSTEM_DIRS="/run/wrappers/bin /usr/local/bin /usr/local/sbin /run/current-system/sw/bin /run/current-system/sw/sbin"'
-                      # Single-test mode (`-t`) writes an ad-hoc runfile with a fixed
-                      # 10-minute timeout. Raise it for our slower VM test environment.
-                      substituteInPlace $out/usr/share/initramfs-tools/scripts/zfs-tests.sh \
-                        --replace 'timeout = 600' 'timeout = 1800'
-
-                      # Full-suite runfiles also inherit a 10-minute default timeout.
-                      # Override the direct test group to avoid false KILLED results.
-                      awk '
-                        { print }
-                        /^\[tests\/functional\/direct\]$/ { print "timeout = 1800" }
-                      ' $out/share/zfs/runfiles/common.run > $out/share/zfs/runfiles/common.run.new
-                      mv $out/share/zfs/runfiles/common.run.new $out/share/zfs/runfiles/common.run
-
-                      awk '
-                        { print }
-                        /^\[tests\/functional\/direct:Linux\]$/ { print "timeout = 1800" }
-                      ' $out/share/zfs/runfiles/linux.run > $out/share/zfs/runfiles/linux.run.new
-                      mv $out/share/zfs/runfiles/linux.run.new $out/share/zfs/runfiles/linux.run
-
-                      # Some test helper binaries are optional in our build, don't report
-                      # them as missing when they are not installed.
-                      if [ ! -x "$out/share/zfs/zfs-tests/bin/devname2devid" ]; then
-                        sed -i '/^[[:space:]]*devname2devid$/d' \
-                          "$out/share/zfs/zfs-tests/include/commands.cfg"
-                      fi
-
-                      if [ ! -x "$out/share/zfs/zfs-tests/bin/mmap_libaio" ]; then
-                        sed -i '/^[[:space:]]*mmap_libaio$/d' \
-                          "$out/share/zfs/zfs-tests/include/commands.cfg"
-                      fi
-                    '';
+                    + zfsTestPostInstall;
                 });
           in
           {
-            # Keep bisect/repro runs fast: avoid rebuilding kernel with ZFS built-in.
-            boot.zfsBuiltin = lib.mkForce false;
-            boot.zfsUserPackage = lib.mkForce zfsUserWithTests;
+            # Keep bisect/repro runs fast by default, while allowing release
+            # gates to test the shipped built-in ZFS kernel closure.
+            boot.zfsBuiltin = lib.mkForce zfsUseBuiltin;
+            # local-dev-qemu selects the raw staged userspace with mkForce.
+            # This test's wrapped package must win so it retains and adjusts
+            # the exact staged test suite rather than falling back to the pin.
+            boot.zfsUserPackage =
+              if useLocalZfsUser then lib.mkOverride 40 zfsUserWithTests else lib.mkForce zfsUserWithTests;
             # Prevent fd0 probing noise/stalls during long ZFS test runs.
             boot.blacklistedKernelModules = [ "floppy" ];
+            # The production kernel carries ext4 as a module and disables
+            # implicit module autoloading. The suite uses an ext4 loop image
+            # for its VM-local work directory, so load it explicitly.
+            boot.kernelModules = [ "ext4" ];
             boot.kernelParams = [ "floppy=off" ];
             boot.qemu = {
-              memory = lib.mkForce 12288;
-              cpus = lib.mkForce 4;
+              memory = lib.mkForce zfsVmMemory;
+              cpus = lib.mkForce zfsVmCpus;
               cpu = {
-                cores = lib.mkForce 4;
+                cores = lib.mkForce zfsVmCpus;
                 threads = lib.mkForce 1;
                 sockets = lib.mkForce 1;
               };
@@ -156,6 +194,7 @@ import ../../make-test.nix (
 
     testScript = ''
       require 'fileutils'
+      require 'shellwords'
 
       machine.start
       # Under heavy parallel test load, osctld/pool activation can exceed the
@@ -227,6 +266,7 @@ import ../../make-test.nix (
         "mkdir -p /tank/zfs-full-suite",
         "chown zfstest /tank/zfs-full-suite",
         "chmod 1777 /tank/zfs-full-suite",
+        "chmod 0711 /run/osvm/shared-dir",
         "mkdir -p /run/osvm/shared-dir/zfs-full-suite",
         "chown zfstest /run/osvm/shared-dir/zfs-full-suite",
         "chmod 1777 /run/osvm/shared-dir/zfs-full-suite"
@@ -251,6 +291,8 @@ import ../../make-test.nix (
 
       profile = ENV.fetch('VPSADMINOS_ZFS_FULL_PROFILE', 'full')
       single_test = ENV['VPSADMINOS_ZFS_FULL_TEST']
+      full_runfiles = Shellwords.escape(ENV.fetch('VPSADMINOS_ZFS_FULL_RUNFILES', 'common.run,linux.run'))
+      full_tags = Shellwords.escape(ENV.fetch('VPSADMINOS_ZFS_FULL_TAGS', 'functional'))
       live_root = "/run/osvm/shared-dir/zfs-full-suite"
       live_log = "#{live_root}/zfs-tests-#{profile}.log"
       vm_work_root = "/tank/zfs-full-suite"
@@ -305,7 +347,7 @@ import ../../make-test.nix (
       else
         case profile
         when 'full'
-          cmd = "set -o pipefail; cd #{work_dir} && LOSETUP=$(command -v losetup) DMSETUP=$(command -v dmsetup) SCRIPT_COMMON=#{script_common} ZPOOL_IMPORT_PATH=#{zpool_import_path} #{zfs_tests_path} -v -x -d #{work_dir} -r common.run,linux.run -T functional 2>&1 | tee #{live_log}"
+          cmd = "set -o pipefail; cd #{work_dir} && LOSETUP=$(command -v losetup) DMSETUP=$(command -v dmsetup) SCRIPT_COMMON=#{script_common} ZPOOL_IMPORT_PATH=#{zpool_import_path} #{zfs_tests_path} -v -x -d #{work_dir} -r #{full_runfiles} -T #{full_tags} 2>&1 | tee #{live_log}"
           timeout = 12 * 60 * 60
         when 'sanity'
           cmd = "set -o pipefail; cd #{work_dir} && LOSETUP=$(command -v losetup) DMSETUP=$(command -v dmsetup) SCRIPT_COMMON=#{script_common} ZPOOL_IMPORT_PATH=#{zpool_import_path} #{zfs_tests_path} -v -x -d #{work_dir} -r sanity.run -T functional 2>&1 | tee #{live_log}"
