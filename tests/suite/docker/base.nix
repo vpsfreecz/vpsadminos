@@ -73,11 +73,74 @@ import ../../make-test.nix (
         )
       end
 
+      def dump_host_network_state(ct, label)
+        escaped_ct = Shellwords.escape(ct)
+
+        machine.succeeds(
+          <<~SH,
+            set -eu
+            echo "=== host network state: #{label} #{ct} ==="
+            echo "--- container"
+            osctl ct show #{escaped_ct} || true
+            osctl ct netif ls #{escaped_ct} || true
+            osctl ct netif ip ls #{escaped_ct} || true
+            osctl ct netif route ls #{escaped_ct} || true
+            echo "--- lxcbr0"
+            ip addr show lxcbr0 || true
+            ip link show lxcbr0 || true
+            echo "--- routes"
+            ip route show || true
+            ip -6 route show || true
+            echo "--- dnsmasq"
+            sv status lxcbr-dnsmasq || true
+            pgrep -a dnsmasq || true
+            echo "--- lxcbr-dnsmasq leases"
+            cat /var/lib/lxcbr-dnsmasq/dnsmasq.leases 2>/dev/null || true
+          SH
+          timeout: 60
+        )
+      end
+
+      def dump_container_network_state(ct, label)
+        ct_shell(
+          ct,
+          <<~SH,
+            set -eu
+            echo "=== container network state: #{label} #{ct} ==="
+            echo "--- /etc/resolv.conf"
+            ls -l /etc/resolv.conf 2>/dev/null || true
+            cat /etc/resolv.conf 2>/dev/null || true
+            echo "--- addresses"
+            ip addr show || true
+            echo "--- routes"
+            ip route show || true
+            ip -6 route show || true
+            echo "--- link"
+            ip link show || true
+            echo "--- resolver probe"
+            getent hosts check-online.vpsadminos.org || true
+            ping -c 1 1.1.1.1 || true
+            ping -c 1 check-online.vpsadminos.org || true
+          SH
+          timeout: 60
+        )
+      end
+
+      def docker_static_ipv4(distribution, version)
+        key = "#{distribution}-#{version}"
+        octet = 2 + key.bytes.sum % 98
+
+        "192.168.1.#{octet}"
+      end
+
       def create_docker_container(ct, distribution, version)
+        ipv4 = docker_static_ipv4(distribution, version)
+
         machine.all_succeed(
           "osctl ct new --distribution #{distribution} --version #{version} #{ct}",
           "osctl ct unset start-menu #{ct}",
-          "osctl ct netif new bridge --link lxcbr0 #{ct} eth0",
+          "osctl ct netif new bridge --link lxcbr0 --no-dhcp --gateway-v4 auto --gateway-v6 none #{ct} eth0",
+          "osctl ct netif ip add #{ct} eth0 #{ipv4}/24",
 
           # TODO: why is this needed?
           "osctl ct set dns-resolver #{ct} 1.1.1.1",
@@ -86,6 +149,10 @@ import ../../make-test.nix (
         )
 
         machine.wait_until_container_online(ct)
+      rescue OsVm::CommandFailed, OsVm::TimeoutError
+        dump_host_network_state(ct, 'after online wait failure') rescue nil
+        dump_container_network_state(ct, 'after online wait failure') rescue nil
+        raise
       end
 
       def resource_limit_cases
