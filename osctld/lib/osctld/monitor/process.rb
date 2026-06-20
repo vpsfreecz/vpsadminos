@@ -124,8 +124,9 @@ module OsCtld
       when :running
         begin
           init_pid = wait_for_init_pid(ct)
-          ct.set_init_pid(init_pid) if init_pid
-        rescue ContainerControl::Error => e
+          init_pid = ct.set_init_pid(init_pid) if init_pid
+        rescue ContainerControl::Error, Errno::ESRCH => e
+          init_pid = nil
           log(:warn, :monitor, "Unable to get state of container #{ct.ident}: #{e.message}")
         end
 

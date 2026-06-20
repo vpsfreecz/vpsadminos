@@ -1,5 +1,6 @@
 require 'fiddle'
 require 'fiddle/import'
+require 'io/wait'
 require 'tempfile'
 require 'libosctl/native'
 
@@ -12,6 +13,8 @@ module OsCtl::Lib
     CLONE_NEWNET = 0x40000000
     CLONE_NEWIPC = 0x08000000
 
+    O_CLOEXEC = 0x0008_0000
+
     MS_MGC_VAL = 0xc0ed0000
     MS_RDONLY = 1
     MS_NOSUID = 2
@@ -21,6 +24,7 @@ module OsCtl::Lib
     MS_BIND = 4096
     MS_MOVE = 8192
     MS_REC = 16_384
+    MS_PRIVATE = 1 << 18
     MS_SLAVE = 1 << 19
     MS_SHARED = 1 << 20
 
@@ -41,8 +45,11 @@ module OsCtl::Lib
       extern 'int umount2(const char *target, int flags)'
       extern 'int unshare(int flags)'
       extern 'int chroot(const char *path)'
+      extern 'int fchdir(int fd)'
       extern 'int syncfs(int fd)'
       extern 'int klogctl(int type, char *bufp, int len)'
+      extern 'int pidfd_open(int pid, unsigned int flags)'
+      extern 'int openat(int dirfd, const char *pathname, int flags, unsigned int mode)'
     end
 
     def setresuid(ruid, euid, suid)
@@ -57,6 +64,33 @@ module OsCtl::Lib
       raise SystemCallError, Fiddle.last_error if ret != 0
 
       ret
+    end
+
+    def pidfd_open(pid)
+      fd = Int.pidfd_open(pid, 0)
+      raise SystemCallError, Fiddle.last_error if fd < 0
+
+      IO.for_fd(fd, autoclose: true)
+    end
+
+    def pidfd_alive?(pidfd)
+      pidfd.wait_readable(0).nil?
+    end
+
+    # Open a procfs path relative to an already-open /proc/<pid> directory.
+    # This deliberately permits procfs magic links so the retained directory,
+    # rather than a reused numeric PID, remains the resolution authority.
+    def openat_io(dir, path, flags: File::RDONLY, mode: 0)
+      relative_path = path.to_s
+      if relative_path.empty? || relative_path.start_with?('/') || relative_path.include?("\0") ||
+         relative_path.split('/').include?('..')
+        raise ArgumentError, 'path has to be a safe relative path'
+      end
+
+      fd = Int.openat(dir.fileno, relative_path, Integer(flags) | O_CLOEXEC, Integer(mode))
+      raise SystemCallError, Fiddle.last_error if fd < 0
+
+      IO.for_fd(fd, autoclose: true).tap { |io| io.close_on_exec = true }
     end
 
     def move_mount(src, dst)
@@ -105,6 +139,13 @@ module OsCtl::Lib
 
     def make_shared(dst)
       ret = Int.mount('none', dst, 0, MS_SHARED, 0)
+      raise SystemCallError, Fiddle.last_error if ret != 0
+
+      ret
+    end
+
+    def make_private(dst)
+      ret = Int.mount('none', dst, 0, MS_PRIVATE, 0)
       raise SystemCallError, Fiddle.last_error if ret != 0
 
       ret
@@ -166,6 +207,13 @@ module OsCtl::Lib
 
     def chroot(path)
       ret = Int.chroot(path)
+      raise SystemCallError, Fiddle.last_error if ret != 0
+
+      ret
+    end
+
+    def fchdir_io(io)
+      ret = Int.fchdir(io.fileno)
       raise SystemCallError, Fiddle.last_error if ret != 0
 
       ret

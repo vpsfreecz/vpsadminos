@@ -38,6 +38,46 @@ RSpec.describe OsCtl::Lib::Sys do
                   [1000, 1001, 1002], {},
                   [1000, 1001, 1002]
 
+  it 'opens pidfds and reports whether the process is still alive' do
+    pidfd = instance_double(IO)
+    allow(described_class::Int).to receive(:pidfd_open).with(123, 0).and_return(7)
+    allow(IO).to receive(:for_fd).with(7, autoclose: true).and_return(pidfd)
+    allow(pidfd).to receive(:wait_readable).with(0).and_return(nil, pidfd)
+
+    expect(sys.pidfd_open(123)).to be(pidfd)
+    expect(sys.pidfd_alive?(pidfd)).to be(true)
+    expect(sys.pidfd_alive?(pidfd)).to be(false)
+  end
+
+  it 'raises when pidfd_open fails' do
+    allow(described_class::Int).to receive(:pidfd_open).with(123, 0).and_return(-1)
+    allow(Fiddle).to receive(:last_error).and_return(Errno::ESRCH::Errno)
+
+    expect { sys.pidfd_open(123) }.to raise_error(SystemCallError)
+  end
+
+  it 'opens proc magic links relative to a retained directory' do
+    dir = instance_double(File, fileno: 9)
+    opened = instance_double(IO)
+    allow(described_class::Int).to receive(:openat)
+      .with(9, 'ns/mnt', File::RDONLY | described_class::O_CLOEXEC, 0)
+      .and_return(12)
+    allow(IO).to receive(:for_fd).with(12, autoclose: true).and_return(opened)
+    allow(opened).to receive(:close_on_exec=).with(true)
+
+    expect(sys.openat_io(dir, 'ns/mnt')).to be(opened)
+    expect(opened).to have_received(:close_on_exec=).with(true)
+  end
+
+  it 'rejects escaping relative paths before calling openat' do
+    dir = instance_double(File, fileno: 9)
+    allow(described_class::Int).to receive(:openat)
+
+    expect { sys.openat_io(dir, '../root') }
+      .to raise_error(ArgumentError, /safe relative path/)
+    expect(described_class::Int).not_to have_received(:openat)
+  end
+
   it_behaves_like 'simple Int wrapper',
                   :move_mount, :mount,
                   ['/src', '/dst'], {},
