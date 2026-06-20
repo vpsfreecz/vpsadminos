@@ -5,6 +5,10 @@ require 'timeout'
 module OsVm
   class Machine
     SHELL_INDEX_KEY = :osvm_machine_shell_index
+    SOCKET_HASH_LENGTH = 16
+    # Process-wide collision registry; all access is serialized by the mutex.
+    SOCKET_HASH_IDENTITIES = {} # rubocop:disable Style/MutableConstant
+    SOCKET_HASH_MUTEX = Mutex.new
 
     # Owns all wait and signal operations for one QEMU child. A nonblocking
     # wait is always performed before pending signals are sent. If the child
@@ -746,7 +750,7 @@ module OsVm
       end
 
       if ret.any? && !custom_qemu_numa_memory_backend?
-        ret << '-object' << "memory-backend-file,id=m0,size=#{config.memory}M,mem-path=/dev/shm,share=on"
+        ret << '-object' << "memory-backend-file,id=m0,size=#{config.memory}M,mem-path=#{tmpdir},share=on"
         ret << '-numa' << 'node,memdev=m0'
       end
 
@@ -767,6 +771,12 @@ module OsVm
       end
 
       has_memory_backend && has_numa_memdev
+    end
+
+    def expanded_extra_qemu_options
+      config.extra_qemu_options.map do |arg|
+        arg.gsub('@OSVM_TMPDIR@', tmpdir)
+      end
     end
 
     def start_virtiofs
@@ -939,7 +949,7 @@ module OsVm
 
     def shell_socket_path(index = 0)
       suffix = index == 0 ? 'shell' : "shell#{index}"
-      socket_path("#{name}-#{suffix}.sock")
+      socket_path("#{suffix}.sock")
     end
 
     def shell_log_path(index = 0)
@@ -962,7 +972,7 @@ module OsVm
     end
 
     def virtiofs_socket_path(mount_name)
-      socket_path("#{name}-fs-#{mount_name}.sock")
+      socket_path("fs-#{mount_name}.sock")
     end
 
     def virtiofs_log_path(mount_name)
@@ -970,8 +980,38 @@ module OsVm
     end
 
     def socket_path(socket)
-      @socket_hash ||= Digest::SHA256.hexdigest([hash_base, name].join)[0..7]
-      File.join(sockdir, "#{@socket_hash}-#{socket}")
+      File.join(sockdir, "#{socket_hash}-#{socket}")
+    end
+
+    def socket_hash
+      @socket_hash ||= begin
+        identity = [hash_base.to_s.b, name.to_s.b].map(&:freeze).freeze
+        digest = socket_identity_digest(identity)[0, SOCKET_HASH_LENGTH]
+        key = [File.expand_path(sockdir), digest].freeze
+
+        SOCKET_HASH_MUTEX.synchronize do
+          registered_identity = SOCKET_HASH_IDENTITIES[key]
+
+          if registered_identity && registered_identity != identity
+            raise Error, "Socket hash collision for #{digest} in #{sockdir}"
+          end
+
+          SOCKET_HASH_IDENTITIES[key] ||= identity
+        end
+
+        digest
+      end
+    end
+
+    def socket_identity_digest(identity)
+      digest = Digest::SHA256.new
+
+      identity.each do |field|
+        digest << [field.bytesize].pack('Q>')
+        digest << field
+      end
+
+      digest.hexdigest
     end
 
     def current_shell_index
