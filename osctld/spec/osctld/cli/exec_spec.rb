@@ -56,7 +56,8 @@ RSpec.describe OsCtld::Cli::Exec do
         1234,
         '/home/alice',
         '/osctl/pool.tank/ct.ct1',
-        syslogns_pid: 55
+        syslogns_pid: 55,
+        tracingns_pid: nil
       )
       expect(Process).to have_received(:exec).with('echo', 'hello')
     end

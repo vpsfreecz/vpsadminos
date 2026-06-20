@@ -1,4 +1,6 @@
 module OsCtld
+  module ContainerControl; end
+
   class ContainerControl::Result
     # Create result from the runner's output
     # @return [ContainerControl::Result]

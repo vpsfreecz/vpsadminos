@@ -218,6 +218,7 @@ RSpec.describe 'container io commands' do
         ct,
         'lxc-attach', '-P', '/var/lib/lxc/ct1',
         '-n', 'ct1',
+        '--elevated-privileges=CGROUP',
         '--clear-env',
         '--keep-var', 'TERM',
         '-v', 'USER=root',

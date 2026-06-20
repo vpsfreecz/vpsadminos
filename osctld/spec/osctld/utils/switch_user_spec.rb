@@ -19,8 +19,8 @@ RSpec.describe OsCtld::Utils::SwitchUser do
     cgroup = stub_const('OsCtld::CGroup', Module.new)
     cgroup.define_singleton_method(:mkpath_all) { |*_args, **_kwargs| nil }
     allow(OsCtld::CGroup).to receive(:mkpath_all)
-    ct = Struct.new(:entry_cgroup_path, :user, :prlimits, :init_pid, keyword_init: true).new(
-      entry_cgroup_path: '/osctl/pool.tank/ct.ct1',
+    ct = Struct.new(:attach_cgroup_path, :user, :prlimits, :init_pid, keyword_init: true).new(
+      attach_cgroup_path: '/osctl/pool.tank/ct.ct1',
       user: Struct.new(:sysusername, :ugid, :homedir, keyword_init: true).new(
         sysusername: 'u-alice',
         ugid: 12_345,
