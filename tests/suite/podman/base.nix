@@ -14,12 +14,13 @@ import ../../make-test.nix (
         machine.wait_until_online
       end
 
-      def cleanup_container(ct)
+      def cleanup_container(ct, ignore_failure:)
         return unless machine.running?
 
         machine.succeeds("osctl ct del -f --prune #{ct}")
       rescue OsVm::CommandFailed
-        # Best effort cleanup after failed setup.
+        # Do not mask an earlier setup or test failure with a cleanup failure.
+        raise unless ignore_failure
       ensure
         begin
           machine.succeeds('osctl repository images prune') if machine.running?
@@ -308,7 +309,7 @@ import ../../make-test.nix (
               ${test.setup}
               check_podman(ct)
             ensure
-              cleanup_container(ct)
+              cleanup_container(ct, ignore_failure: !$!.nil?)
             end
           '';
         };
