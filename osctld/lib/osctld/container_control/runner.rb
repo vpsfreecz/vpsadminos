@@ -126,6 +126,17 @@ module OsCtld
       end
     end
 
+    def wait_for_path(path, timeout: 10, interval: 0.1)
+      deadline = Time.now + timeout
+
+      loop do
+        return true if File.exist?(path)
+        return false if Time.now >= deadline
+
+        sleep(interval)
+      end
+    end
+
     def exitstatus(status)
       return wait_status_exitstatus(status) if status.is_a?(Integer)
       return status.exitstatus if status.exited?
