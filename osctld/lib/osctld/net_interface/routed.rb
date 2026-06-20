@@ -46,63 +46,79 @@ module OsCtld
     end
 
     def set(opts)
-      orig_enable = enable
+      route_mutation_started = false
 
-      super
+      NetInterface.sync_host_link_registry do
+        orig_enable = enable
 
-      # rubocop:disable Style/GuardClause
+        super
 
-      if veth && opts.has_key?(:enable) && opts[:enable] && !orig_enable
-        [4, 6].each do |v|
-          next if @routes.empty?(v)
+        if veth && opts.has_key?(:enable) && opts[:enable] && !orig_enable
+          [4, 6].each do |v|
+            next if @routes.empty?(v)
 
-          @routes.each_version(v) do |route|
-            ip(v, %i[route add] + route.ip_spec + [:dev, veth])
+            @routes.each_version(v) do |route|
+              route_mutation_started = true
+              ip(v, %i[route add] + route.ip_spec + [:dev, veth])
+            end
           end
         end
       end
-
-      # rubocop:enable Style/GuardClause
+    rescue StandardError
+      taint_host_link! if route_mutation_started
+      raise
     end
 
-    def setup
-      super
+    def setup(discover_host_links: true)
+      NetInterface.sync_host_link_registry do
+        super
 
-      return if ct.fresh_state != :running
+        return unless discover_host_links
+        # A persisted taint is a fail-closed recovery record. In particular, do
+        # not run even read-only name-based host operations against a name which
+        # may now belong to an unrelated link.
+        return if host_link_tainted?
+        return if ct.fresh_state != :running
 
-      iplist = ip(:all, [:addr, :show, :dev, veth], valid_rcs: [1])
+        iplist = ip(:all, [:addr, :show, :dev, veth], valid_rcs: [1])
 
-      return unless iplist.exitstatus == 1
+        return unless iplist.exitstatus == 1
 
-      log(
-        :info,
-        ct,
-        "veth '#{veth}' of container '#{ct.id}' no longer exists, " \
-        'ignoring'
-      )
-      @veth = nil
-      nil
+        log(
+          :info,
+          ct,
+          "veth '#{veth}' of container '#{ct.id}' no longer exists, " \
+          'ignoring'
+        )
+        taint_host_link_on_setup!
+        nil
+      end
     end
 
     def up(veth)
-      super
+      NetInterface.sync_host_link_registry do
+        super
 
-      if enable
-        [4, 6].each do |v|
-          next if @routes.empty?(v)
+        if enable
+          [4, 6].each do |v|
+            next if @routes.empty?(v)
 
-          @routes.each_version(v) do |route|
-            ip(v, %i[route add] + route.ip_spec + [:dev, veth])
+            @routes.each_version(v) do |route|
+              ip(v, %i[route add] + route.ip_spec + [:dev, veth])
+            end
           end
         end
-      end
 
-      File.write(File.join('/proc/sys/net/ipv4/conf', veth, 'rp_filter'), '1')
+        File.write(File.join('/proc/sys/net/ipv4/conf', veth, 'rp_filter'), '1')
+      rescue StandardError
+        taint_host_link!
+        raise
+      end
     end
 
     # DistConfig can be run only after the interface has been created
     def can_run_distconfig?
-      exclusively { !veth.nil? }
+      exclusively { !veth.nil? && !@host_link_tainted }
     end
 
     def add_ip(addr, route)
