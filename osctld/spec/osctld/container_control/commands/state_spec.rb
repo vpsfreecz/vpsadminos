@@ -86,6 +86,15 @@ RSpec.describe OsCtld::ContainerControl::Commands::State::Frontend do
     expect(state.init_pid).to be_nil
   end
 
+  it 'queries LXC for explicit recovery even without a run config or visible cgroup' do
+    allow(frontend).to receive(:fork_runner).and_return(
+      OsCtld::ContainerControl::Result.new(true, data: { state: 'running', init_pid: 1234 })
+    )
+
+    expect(frontend.execute(force: true).state).to eq(:running)
+    expect(frontend).to have_received(:fork_runner)
+  end
+
   it 'returns runner errors unchanged' do
     error = OsCtld::ContainerControl::Result.new(false, message: 'boom')
     allow(ct).to receive(:run_conf).and_return(Object.new)

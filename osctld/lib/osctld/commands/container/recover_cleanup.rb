@@ -13,11 +13,17 @@ module OsCtld
       return error('container not found') unless ct
 
       manipulate(ct) do
+        recovery = Container::Recovery.new(ct)
+
+        if opts[:cleanup] == 'all' && ct.recovery_tainted?
+          recovery.ensure_stopped!
+          error!('recovery cleanup is incomplete') unless recovery.cleanup_or_taint
+          return ok
+        end
+
         if ct.state != :stopped && !opts[:force]
           error!('the container has to be stopped')
         end
-
-        recovery = Container::Recovery.new(ct)
 
         if opts[:cleanup] == 'all' || opts[:cleanup].include?('cgroups')
           recovery.cleanup_cgroups
@@ -35,6 +41,8 @@ module OsCtld
 
         ok
       end
+    rescue Container::Recovery::InvalidNetifIdentity => e
+      error(e.message)
     end
   end
 end
