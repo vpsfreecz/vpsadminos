@@ -27,6 +27,10 @@ RSpec.describe OsCtld::ContainerControl::Runner do
       def public_wait_for_lxc_attachable(**opts)
         wait_for_lxc_attachable(**opts)
       end
+
+      def public_wait_for_path(*args, **opts)
+        wait_for_path(*args, **opts)
+      end
     end
   end
 
@@ -130,5 +134,19 @@ RSpec.describe OsCtld::ContainerControl::Runner do
     allow(runner).to receive(:lxc_ct).and_return(lxc_ct)
 
     expect(runner.public_wait_for_lxc_attachable(timeout: 0)).to be(false)
+  end
+
+  it 'waits for paths to appear' do
+    Dir.mktmpdir('runner-wait-path') do |dir|
+      expect(runner.public_wait_for_path(dir, timeout: 0)).to be(true)
+    end
+  end
+
+  it 'times out when a path does not appear' do
+    Dir.mktmpdir('runner-wait-path') do |dir|
+      path = File.join(dir, 'missing')
+
+      expect(runner.public_wait_for_path(path, timeout: 0)).to be(false)
+    end
   end
 end
