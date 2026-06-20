@@ -124,10 +124,10 @@ module OsCtld
       ct.state = st.state
 
       if st.init_pid
-        ct.set_init_pid(st.init_pid)
-        Eventd.report(:ct_init_pid, pool: ct.pool.name, id: ct.id, init_pid: st.init_pid)
+        init_pid = ct.set_init_pid(st.init_pid)
+        Eventd.report(:ct_init_pid, pool: ct.pool.name, id: ct.id, init_pid:) if init_pid
       end
-    rescue ContainerControl::Error => e
+    rescue ContainerControl::Error, Errno::ESRCH => e
       log(:warn, :monitor, "Unable to get state of container #{ct.ident}: #{e.message}")
     end
 

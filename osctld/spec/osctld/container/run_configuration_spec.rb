@@ -166,10 +166,108 @@ RSpec.describe OsCtld::Container::RunConfiguration do
   it 'builds the runtime rootfs from the init pid' do
     with_tmpdir do |dir|
       _ct, rc = build_run_configuration(root: dir)
+      identity = instance_double(OsCtld::ProcessIdentity, pid: 4321, close: nil)
+      allow(OsCtld::ProcessIdentity).to receive(:new).with(4321).and_return(identity)
 
       rc.init_pid = 4321
 
       expect(rc.runtime_rootfs).to eq('/proc/4321/root')
+    end
+  end
+
+  it 'anchors and leases the exact init identity for the run' do
+    with_tmpdir do |dir|
+      _ct, rc = build_run_configuration(root: dir)
+      retained = instance_double(OsCtld::ProcessIdentity, pid: 4321, close: nil)
+      copy = instance_double(OsCtld::ProcessIdentity, close: nil)
+      allow(retained).to receive(:duplicate)
+        .with(namespaces: [:mnt], root: true)
+        .and_return(copy)
+      allow(OsCtld::ProcessIdentity).to receive(:new).with(4321).and_return(retained)
+
+      rc.init_pid = 4321
+      lease = rc.acquire_init_lease(namespaces: [:mnt], root: true)
+
+      expect(lease.identity).to be(copy)
+      expect(copy).not_to have_received(:close)
+      lease.close
+      expect(copy).to have_received(:close)
+    end
+  end
+
+  it 'waits for active leases during retirement without holding the run lock' do
+    with_tmpdir do |dir|
+      _ct, rc = build_run_configuration(root: dir)
+      retained = instance_double(OsCtld::ProcessIdentity, pid: 4321, close: nil)
+      copy = instance_double(OsCtld::ProcessIdentity, close: nil)
+      allow(retained).to receive(:duplicate).and_return(copy)
+      allow(OsCtld::ProcessIdentity).to receive(:new).with(4321).and_return(retained)
+      rc.init_pid = 4321
+      lease = rc.acquire_init_lease
+      rc.begin_retirement
+      completed = Queue.new
+
+      destroy_thread = Thread.new do
+        rc.destroy
+        completed << true
+      end
+
+      10_000.times do
+        break if destroy_thread.status == 'sleep'
+
+        Thread.pass
+      end
+
+      expect(destroy_thread.status).to eq('sleep')
+      expect(rc.init_pid).to eq(4321)
+      expect { completed.pop(true) }.to raise_error(ThreadError)
+      expect { rc.acquire_init_lease }
+        .to raise_error(described_class::LifecycleError, 'container run is retiring')
+
+      lease.close
+      expect(destroy_thread.join(1)).to be(destroy_thread)
+      expect(completed.pop).to be(true)
+      expect(retained).to have_received(:close)
+    ensure
+      lease&.close
+      destroy_thread&.join(1)
+    end
+  end
+
+  it 'closes a replaced init identity' do
+    with_tmpdir do |dir|
+      _ct, rc = build_run_configuration(root: dir)
+      first = instance_double(OsCtld::ProcessIdentity, pid: 4321, close: nil)
+      second = instance_double(OsCtld::ProcessIdentity, pid: 4322, close: nil)
+      allow(OsCtld::ProcessIdentity).to receive(:new).and_return(first, second)
+
+      rc.init_pid = 4321
+      rc.init_pid = 4322
+
+      expect(rc.init_pid).to eq(4322)
+      expect(first).to have_received(:close)
+      expect(second).not_to have_received(:close)
+    end
+  end
+
+  it 'retires the init identity and prevents late installation after destroy' do
+    with_tmpdir do |dir|
+      _ct, rc = build_run_configuration(root: dir)
+      identity = instance_double(OsCtld::ProcessIdentity, pid: 4321, close: nil)
+      allow(OsCtld::ProcessIdentity).to receive(:new).with(4321).and_return(identity)
+
+      rc.init_pid = 4321
+      rc.destroy
+
+      expect(rc.init_pid).to be_nil
+      expect(identity).to have_received(:close)
+      expect do
+        rc.init_pid = 4322
+      end.to raise_error(
+        described_class::LifecycleError,
+        'container run is retiring'
+      )
+      expect(OsCtld::ProcessIdentity).not_to have_received(:new).with(4322)
     end
   end
 
