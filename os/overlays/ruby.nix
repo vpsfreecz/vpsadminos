@@ -14,17 +14,55 @@ let
       rm $out/lib/ruby/gems/*/specifications/{debug*,rbs*,racc*}.gemspec
     '';
   });
+
 in
 {
   inherit ruby_vpsadminos;
 
   defaultGemConfig = super.callPackage (
     { lib, apparmor-parser }:
+    let
+      localGemSrc = src:
+        lib.cleanSourceWith {
+          inherit src;
+          filter = path: type:
+            let
+              name = baseNameOf path;
+            in
+            (lib.cleanSourceFilter path type)
+            && !(type == "directory" && builtins.elem name [
+              ".bundle"
+              ".gems"
+              "pkg"
+              "tmp"
+            ])
+            && !(type == "symlink" && (name == "result" || lib.hasPrefix "result-" name))
+            && !(lib.hasSuffix ".gem" name);
+        };
+
+      localGem = src: attrs:
+        let
+          buildIdMatch = builtins.match ".*\\.build([0-9]+)" attrs.version;
+        in
+        {
+          src = localGemSrc src;
+          env = (attrs.env or { }) // (
+            if buildIdMatch == null then
+              { }
+            else
+              { OS_BUILD_ID = builtins.elemAt buildIdMatch 0; }
+          );
+        };
+    in
 
     lib.mergeAttrs super.defaultGemConfig {
+      libosctl = localGem ../../libosctl;
+      osctl-repo = localGem ../../osctl-repo;
+      osctl = localGem ../../osctl;
       osctld = attrs: {
-        buildInputs = [ apparmor-parser ];
-      };
+        buildInputs = (attrs.buildInputs or [ ]) ++ [ apparmor-parser ];
+      } // localGem ../../osctld attrs;
+      osup = localGem ../../osup;
     }
   ) { };
 
