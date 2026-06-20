@@ -3,6 +3,39 @@ require 'osctld/lockable'
 
 module OsCtld
   class Container::RunConfiguration
+    class LifecycleError < StandardError; end
+
+    # A short-lived reference to one descriptor-authenticated init identity.
+    # Retirement rejects new leases and waits for existing leases to close, so
+    # callers can release ordinary container/run locks before blocking work.
+    class InitLease
+      attr_reader :identity
+
+      def initialize(run_conf, identity)
+        @run_conf = run_conf
+        @identity = identity
+        @mutex = Mutex.new
+        @closed = false
+      end
+
+      def close
+        release = @mutex.synchronize do
+          next false if @closed
+
+          @closed = true
+          true
+        end
+        return unless release
+
+        begin
+          @identity.close
+        ensure
+          @run_conf.send(:release_init_lease)
+          @identity = nil
+        end
+      end
+    end
+
     include Lockable
     include OsCtl::Lib::Utils::Log
     include OsCtl::Lib::Utils::File
@@ -24,8 +57,8 @@ module OsCtld
     attr_reader :ct
 
     attr_inclusive_reader :dataset, :distribution, :version, :arch, :vendor, :variant
-    attr_synchronized_accessor :cpu_package, :init_pid,
-                               :dist_network_configured
+    attr_synchronized_accessor :cpu_package, :dist_network_configured
+    attr_inclusive_reader :init_pid
 
     # @param ct [Container]
     def initialize(ct, load_conf: true)
@@ -33,6 +66,12 @@ module OsCtld
       @ct = ct
       @cpu_package = nil
       @init_pid = nil
+      @init_identity = nil
+      @init_lease_mutex = Mutex.new
+      @init_lease_cond = ConditionVariable.new
+      @init_lease_count = 0
+      @retiring = false
+      @destroyed = false
       @aborted = false
       @do_reboot = false
       @exit_promise = Promise.new
@@ -135,6 +174,75 @@ module OsCtld
       File.join('/proc', pid.to_s, 'root')
     end
 
+    def init_pid=(pid)
+      identity = nil
+      old_identity = nil
+
+      @init_lease_mutex.synchronize do
+        raise LifecycleError, 'container run is retiring' if @retiring || @destroyed
+      end
+
+      identity = ProcessIdentity.new(pid)
+
+      @init_lease_mutex.synchronize do
+        @init_lease_cond.wait(@init_lease_mutex) while @init_lease_count > 0 && !@retiring
+
+        raise LifecycleError, 'container run is retiring' if @retiring || @destroyed
+
+        exclusively do
+          old_identity = @init_identity
+          @init_identity = identity
+          @init_pid = identity.pid
+          identity = nil
+        end
+      end
+
+      old_identity&.close
+      @init_pid
+    ensure
+      identity&.close
+    end
+
+    # Acquire a descriptor-authenticated identity lease. Ordinary run locks are
+    # held only while the descriptors are duplicated. Retirement and identity
+    # replacement then coordinate through the lease condition instead of
+    # holding shared state locks across external work.
+    def acquire_init_lease(namespaces: [], root: false)
+      identity = nil
+      leased = false
+
+      @init_lease_mutex.synchronize do
+        raise LifecycleError, 'container run is retiring' if @retiring || @destroyed
+
+        identity = inclusively do
+          @init_identity&.duplicate(namespaces:, root:)
+        end
+        return unless identity
+
+        @init_lease_count += 1
+        leased = true
+      end
+
+      InitLease.new(self, identity)
+    rescue StandardError
+      identity&.close
+      release_init_lease if leased
+      raise
+    end
+
+    # Prevent new init leases without waiting for current holders. This is
+    # called while the container still points at this run, making detachment
+    # atomic with respect to lease acquisition.
+    def begin_retirement
+      @init_lease_mutex.synchronize do
+        return false if @retiring
+
+        @retiring = true
+        @init_lease_cond.broadcast
+        true
+      end
+    end
+
     attr_writer :aborted
 
     def aborted?
@@ -232,12 +340,44 @@ module OsCtld
     end
 
     def destroy
+      begin_retirement
+      wait_for_init_leases
       File.unlink(file_path)
     rescue Errno::ENOENT
       # ignore
+    ensure
+      close_init_identity
     end
 
     protected
+
+    def wait_for_init_leases
+      @init_lease_mutex.synchronize do
+        @init_lease_cond.wait(@init_lease_mutex) while @init_lease_count > 0
+        @destroyed = true
+      end
+    end
+
+    def release_init_lease
+      @init_lease_mutex.synchronize do
+        raise LifecycleError, 'init identity lease underflow' unless @init_lease_count > 0
+
+        @init_lease_count -= 1
+        @init_lease_cond.broadcast if @init_lease_count == 0
+      end
+    end
+
+    def close_init_identity
+      identity = nil
+
+      exclusively do
+        identity = @init_identity
+        @init_identity = nil
+        @init_pid = nil
+      end
+
+      identity&.close
+    end
 
     attr_synchronized_accessor :mounted
 
