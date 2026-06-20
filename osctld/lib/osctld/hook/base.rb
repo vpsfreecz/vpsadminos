@@ -57,6 +57,7 @@ module OsCtld
       pid = Process.fork do
         ENV.delete_if { |k, _| k != 'PATH' }
         env.each { |k, v| ENV[k] = v }
+        inherited_files.each { |io| io.close_on_exec = false }
 
         Process.exec(*executable(hook_path))
       end
@@ -94,6 +95,12 @@ module OsCtld
       {
         'OSCTL_HOOK_NAME' => self.class.user_hook_name
       }
+    end
+
+    # Files which must remain open in the execed hook helper.
+    # @return [Array<IO>]
+    def inherited_files
+      []
     end
 
     # Override this method to define the program and its arguments that will be
