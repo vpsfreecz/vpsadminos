@@ -12,8 +12,43 @@ let
   linuxSnapshot = builtins.getEnv "VPSADMINOS_LINUX_SNAPSHOT";
   localKernelStage = builtins.getEnv "VPSADMINOS_LOCAL_KERNEL_STAGE";
   kernelVersionEnv = builtins.getEnv "VPSADMINOS_PROXY_EXEC_KERNEL_VERSION";
+  linuxSource = /. + linuxSnapshot;
+  linuxMakefile =
+    if linuxSnapshot == "" then
+      [ ]
+    else
+      lib.splitString "\n" (builtins.readFile (linuxSource + "/Makefile"));
+  linuxMakeVariable =
+    name:
+    let
+      line = lib.findFirst (line: lib.hasPrefix "${name} =" line) null linuxMakefile;
+    in
+    if line == null then
+      throw "Linux snapshot Makefile does not define ${name}"
+    else
+      lib.removePrefix " " (lib.removePrefix "${name} =" line);
+  snapshotKernelVersion =
+    if linuxSnapshot == "" then
+      null
+    else
+      "${linuxMakeVariable "VERSION"}.${linuxMakeVariable "PATCHLEVEL"}.${linuxMakeVariable "SUBLEVEL"}${linuxMakeVariable "EXTRAVERSION"}";
+  snapshotKernelBranch =
+    if snapshotKernelVersion == null then
+      null
+    else
+      lib.concatStringsSep "." (lib.take 2 (lib.splitString "." snapshotKernelVersion));
 
-  kernelVersion = if kernelVersionEnv == "" then kernelPackages.defaultVersion else kernelVersionEnv;
+  requestedKernelVersion =
+    if kernelVersionEnv == "" then kernelPackages.defaultVersion else kernelVersionEnv;
+  kernelVersion =
+    if snapshotKernelVersion == null then
+      requestedKernelVersion
+    else if builtins.hasAttr snapshotKernelVersion kernelPackages.kernels then
+      snapshotKernelVersion
+    else if builtins.hasAttr snapshotKernelBranch kernelPackages.kernels then
+      snapshotKernelBranch
+    else
+      throw "Linux snapshot ${snapshotKernelVersion} has no maintained kernel configuration";
   kernelDef = kernelPackages.kernels.${kernelVersion};
 
   baseStructuredExtraConfig =
@@ -22,7 +57,7 @@ let
   proxyStructuredExtraConfig =
     baseStructuredExtraConfig
     // (with lib.kernel; {
-      PSI = lib.mkForce yes;
+      PSI = lib.mkForce no;
       SCHED_CLASS_EXT = lib.mkForce no;
       SCHED_PROXY_EXEC = yes;
       LOCK_TORTURE_TEST = lib.mkForce module;
@@ -35,10 +70,10 @@ let
       null
     else
       pkgs.callPackage ../packages/linux/generic.nix (rec {
-        version = kernelVersion;
-        modDirVersion = lib.concatStringsSep "." (lib.take 3 (lib.splitString "." "${version}.0"));
+        version = snapshotKernelVersion;
+        modDirVersion = version;
         extraMeta.branch = lib.concatStringsSep "." (lib.take 2 (lib.splitString "." version));
-        src = /. + linuxSnapshot;
+        src = linuxSource;
         kernelPatches = [ pkgs.kernelPatches.bridge_stp_helper ];
         structuredExtraConfig = proxyStructuredExtraConfig;
         features = kernelFeatures;
@@ -58,7 +93,7 @@ in
 {
   imports = [ ./local-dev-qemu.nix ];
 
-  boot.kernelVersion = lib.mkIf (localKernelStage == "") (lib.mkForce kernelVersion);
+  boot.kernelVersion = lib.mkIf (localKernelStage == "") (lib.mkForce selectedKernel.version);
   boot.kernelPackage = lib.mkIf (localKernelStage == "") (lib.mkForce selectedKernel);
   boot.zfsBuiltin = lib.mkForce false;
 
