@@ -134,7 +134,9 @@ module OsCtld
           tracingns_pid:
         )
         Process.exec(::OsCtld.bin('osctld-ct-runner'))
-        exit
+      rescue StandardError => e
+        write_runner_failure(ret_w, e)
+        exit(false)
       end
 
       stdin.close if stdin
@@ -228,8 +230,9 @@ module OsCtld
         runner = command_class::Runner.new(**runner_opts)
         ret = runner.execute(*args, **kwargs)
         w.write("#{ret.to_json}\n")
-
-        exit
+      rescue StandardError => e
+        write_runner_failure(w, e)
+        exit(false)
       end
 
       w.close
@@ -246,6 +249,22 @@ module OsCtld
           user_runner: true
         )
       end
+    end
+
+    def write_runner_failure(io, error)
+      io.write("#{runner_failure_payload(error).to_json}\n")
+    rescue SystemCallError, IOError
+      nil
+    end
+
+    def runner_failure_payload(error)
+      { status: false, message: runner_failure_message(error), user_runner: true }
+    end
+
+    def runner_failure_message(error)
+      message = [error.class.name, error.message].join(': ')
+      backtrace = Array(error.backtrace).take(20)
+      backtrace.empty? ? message : ([message] + backtrace).join("\n")
     end
   end
 end

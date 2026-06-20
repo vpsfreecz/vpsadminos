@@ -4,6 +4,8 @@ require 'json'
 module OsCtld
   class Cli::Runner
     def self.run
+      ret = nil
+
       unless ARGV.empty?
         warn "Usage: #{$0}"
         exit(false)
@@ -39,6 +41,18 @@ module OsCtld
       )
       val = runner.execute(*cfg[:args], **cfg[:kwargs])
       ret.puts(val.to_json)
+    rescue StandardError => e
+      message = [e.class.name, e.message].join(': ')
+      backtrace = Array(e.backtrace).take(20)
+      message = ([message] + backtrace).join("\n") if backtrace.any?
+
+      if ret
+        ret.puts({ status: false, message:, user_runner: true }.to_json)
+      else
+        warn message
+      end
+
+      exit(false)
     end
   end
 end
