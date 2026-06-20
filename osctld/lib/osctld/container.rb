@@ -4,6 +4,7 @@ require 'osctld/lockable'
 require 'osctld/manipulable'
 require 'osctld/assets/definition'
 require 'osctld/local_transfer/log'
+require 'osctld/net_interface'
 
 module OsCtld
   class Container
@@ -91,11 +92,12 @@ module OsCtld
         dataset_cache: opts[:dataset_cache]
       }
 
-      if opts[:load_from]
-        load_config_string(opts[:load_from], **load_opts)
-      else
-        load_config_file(config_path, **load_opts)
-      end
+      setup_state_changed = if opts[:load_from]
+                              load_config_string(opts[:load_from], **load_opts)
+                            else
+                              load_config_file(**load_opts)
+                            end
+      save_config if setup_state_changed
     end
 
     def ident
@@ -374,7 +376,9 @@ module OsCtld
     end
 
     def can_start?
-      inclusively { state != :staged && state != :error && pool.active? }
+      inclusively do
+        state != :staged && state != :error && !netifs.recovery_tainted? && pool.active?
+      end
     end
 
     def init_pid
@@ -882,7 +886,7 @@ module OsCtld
           'hints' => hints.dump
         }
 
-        data['state'] = 'staged' if state == :staged
+        data['state'] = state.to_s if %i[staged error].include?(state)
         data['send_log'] = send_log.dump if send_log
         data['local_transfer_log'] = local_transfer_log.dump if local_transfer_log
 
@@ -901,19 +905,23 @@ module OsCtld
     end
 
     def reload_config
-      load_config_file
+      sync_host_link_configuration do
+        save_config if load_config_file
+      end
     end
 
     # @param config [String]
     def replace_config(config)
-      load_config_string(config)
-      save_config
+      sync_host_link_configuration do
+        load_config_string(config)
+        save_config
+      end
     end
 
     # Update keys/values from `new_config` in the container's config
     # @param new_config [Hash]
     def patch_config(new_config)
-      exclusively do
+      sync_host_link_configuration do
         tmp = dump_config
         tmp.update(new_config)
         load_config_hash(tmp)
@@ -981,12 +989,18 @@ module OsCtld
                           :lxc_config, :init_cmd, :start_menu, :impermanence
     attr_synchronized_accessor :mounted
 
-    def load_config_file(path = nil, **)
+    # Keep this ordering consistent with recovery, which holds the global
+    # registry while reading the container's installed netif manager.
+    def sync_host_link_configuration(&block)
+      NetInterface.sync_host_link_registry { exclusively(&block) }
+    end
+
+    def load_config_file(**)
       cfg = parse_yaml do
-        OsCtl::Lib::ConfigFile.load_yaml_file(path || config_path)
+        OsCtl::Lib::ConfigFile.load_yaml_file(config_path)
       end
 
-      load_config_hash(cfg, **)
+      load_config_hash(cfg, trusted_runtime: true, **)
     end
 
     def load_config_string(str, **)
@@ -1000,10 +1014,12 @@ module OsCtld
       raise ConfigError.new("Unable to load config of container #{id}", e)
     end
 
-    def load_config_hash(cfg, init_devices: true, dataset_cache: nil)
+    def load_config_hash(cfg, init_devices: true, dataset_cache: nil, trusted_runtime: false)
       cfg = Container::Adaptor.adapt(self, cfg)
+      setup_state_changed = false
 
-      exclusively do
+      sync_host_link_configuration do
+        cfg = sanitize_external_runtime_state(cfg) unless trusted_runtime
         @state = cfg['state'].to_sym if cfg['state']
         @user ||= DB::Users.find(cfg['user'], pool) || (raise ConfigError, "container #{id}: user '#{cfg['user']}' not found")
         @group ||= DB::Groups.find(cfg['group'], pool) || (raise ConfigError, "container #{id}: group '#{cfg['group']}' not found")
@@ -1071,11 +1087,80 @@ module OsCtld
         @devices = Devices::Manager.load(self, cfg['devices'] || [])
         @devices.init if init_devices
 
-        @netifs = NetInterface::Manager.load(self, cfg['net_interfaces'] || [])
+        @netifs = NetInterface::Manager.load(
+          self,
+          cfg['net_interfaces'] || [],
+          discover_host_links: trusted_runtime
+        )
+        setup_state_changed = @netifs.setup_state_changed?
+        if @netifs.recovery_tainted?
+          setup_state_changed ||= @state != :error
+          @state = :error
+        end
         @mounts = Mount::Manager.load(self, cfg['mounts'] || [])
 
         @hints = Container::Hints.load(self, cfg['hints'] || {})
       end
+
+      setup_state_changed
+    end
+
+    # Runtime state and host-side link identities are daemon-owned metadata and
+    # therefore cannot come from imported/replaced/patched container YAML.
+    # Preserve only records already owned by this daemon, matched to the exact
+    # configured type/name. Every retained identity, clean or tainted, must be
+    # cleared by deliberate lifecycle cleanup before an external edit can
+    # discard or rename its owner.
+    def sanitize_external_runtime_state(cfg)
+      current = {}
+      @netifs&.each do |netif|
+        next unless netif.respond_to?(:host_link_identity)
+
+        name, ifindex, ifb_ifindex = netif.host_link_identity
+        next unless name
+
+        key = [netif.type.to_s, netif.name]
+        if current.has_key?(key)
+          raise ConfigError, "duplicate internal host-link owner #{key.join('/')}"
+        end
+
+        current[key] = {
+          'name' => name,
+          'ifindex' => ifindex,
+          'ifb_ifindex' => ifb_ifindex,
+          'tainted' => netif.respond_to?(:host_link_tainted?) && netif.host_link_tainted?
+        }
+      end
+
+      owner_keys = current.keys
+      seen = Hash.new(0)
+      netifs = Array(cfg['net_interfaces']).map do |netif_cfg|
+        next netif_cfg unless netif_cfg.is_a?(Hash)
+
+        sanitized = netif_cfg.dup
+        sanitized.delete('host_link')
+        key = [sanitized['type'].to_s, sanitized['name']]
+        seen[key] += 1
+        if seen[key] > 1 && owner_keys.include?(key)
+          raise ConfigError,
+                "external config duplicates internal host-link owner #{key.join('/')}"
+        end
+        sanitized['host_link'] = current.delete(key) if seen[key] == 1 && current.has_key?(key)
+        sanitized
+      end
+
+      unless current.empty?
+        owners = current.keys.map { |type, name| "#{type}/#{name}" }.join(', ')
+        raise ConfigError, "external config cannot discard internal host-link owners: #{owners}"
+      end
+
+      sanitized = cfg.merge('net_interfaces' => netifs)
+      if %i[staged error].include?(@state)
+        sanitized['state'] = @state.to_s
+      else
+        sanitized.delete('state')
+      end
+      sanitized
     end
 
     # Change the container so that it becomes a clone of `ct` with a different id

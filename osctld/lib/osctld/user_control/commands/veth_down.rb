@@ -18,7 +18,10 @@ module OsCtld
         ct,
         "veth interface coming down: ct=#{opts[:interface]}, host=#{opts[:veth]}"
       )
-      ct.netifs[opts[:interface]].down(opts[:veth])
+      netif = ct.netifs[opts[:interface]]
+      return error('network interface not found') unless netif.is_a?(NetInterface::Veth)
+
+      netif.down(opts[:veth])
 
       Hook.run(
         ct,
@@ -27,7 +30,7 @@ module OsCtld
         host_veth: opts[:veth]
       )
       ok
-    rescue HookFailed => e
+    rescue HookFailed, NetInterface::Veth::InvalidHostLink => e
       error(e.message)
     end
   end
