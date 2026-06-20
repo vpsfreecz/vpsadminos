@@ -47,16 +47,19 @@ log_must zfs mount $TESTPOOL/$TESTFS/both
 [ $(get_prop gidmap $TESTPOOL/$TESTFS/both/child) == "0:200000:65536" ] || \
     log_fail "gidmap is not inherited"
 
-# accessing the fs with a user with uid/gid outside the map
+# Initial-user-namespace root creates through the narrow ID-0 management
+# exception. Nonzero IDs supplied here are host-domain IDs: reject values
+# outside the configured host ranges and accept the corresponding mapped IDs.
 log_must touch "$FSDIR/both/test.txt"
 owner=$(stat -c %u:%g "$FSDIR/both/test.txt")
 [ "$owner" == "100000:200000" ] || \
     log_fail "does not map UIDs/GIDs for new files: expected 100000:200000, got $owner"
 
-log_must chown 500:600 "$FSDIR/both/test.txt"
+log_mustnot chown 500:600 "$FSDIR/both/test.txt"
+log_must chown $((500+TEST_UID)):$((600+TEST_GID)) "$FSDIR/both/test.txt"
 owner=$(stat -c %u:%g "$FSDIR/both/test.txt")
-[ "$owner" == "$((500+100000)):$((600+200000))" ] || \
-    log_fail "maps UIDs/GIDs in setattr: expected $((500+100000)):$((600+200000)), got $owner"
+[ "$owner" == "$((500+TEST_UID)):$((600+TEST_GID))" ] || \
+    log_fail "maps UIDs/GIDs in setattr: expected $((500+TEST_UID)):$((600+TEST_GID)), got $owner"
 
 # accessing the fs with a user with uid/gid from the map
 log_must mkdir "$FSDIR/both/userdir"
