@@ -124,8 +124,9 @@ module OsVm
         '-device', 'ahci,id=ahci'
       ] + config.networks.map(&:qemu_options).flatten + qemu_boot_media_options \
         + qemu_shell_options + [
-          '-nographic'
-        ] + qemu_boot_options(kernel_params) + qemu_disk_options + qemu_virtiofs_options + config.extra_qemu_options
+          '-nographic',
+          '-vga', 'none'
+        ] + qemu_boot_options(kernel_params) + qemu_disk_options + qemu_virtiofs_options + expanded_extra_qemu_options
     end
 
     def qemu_boot_media_options
