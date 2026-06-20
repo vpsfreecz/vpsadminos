@@ -163,8 +163,13 @@ in
         ;;
     esac
 
-    # BPF FS
-    mount -t bpf bpf /sys/fs/bpf
+    # BPF FS. Keep osctld's authoritative BPF mount under /run so container
+    # mount namespace teardown cannot remove the daemon's pin filesystem.
+    mkdir -p /run/osctl/bpf
+    mount -t bpf bpf /run/osctl/bpf
+    mount --make-rprivate /run/osctl/bpf
+    mount --rbind /run/osctl/bpf /sys/fs/bpf
+    mount --make-rprivate /sys/fs/bpf
 
     # securityfs
     mount -t securityfs securityfs /sys/kernel/security
