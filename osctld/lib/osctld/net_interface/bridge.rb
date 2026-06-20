@@ -54,14 +54,17 @@ module OsCtld
     # @option opts [Boolean] :dhcp
     # @option opts [Hash<Integer, String>] :gateways
     def set(opts)
-      exclusively do
+      NetInterface.sync_host_link_registry do
         super
-        @link = opts[:link] if opts[:link]
-        @dhcp = opts[:dhcp] if opts.has_key?(:dhcp)
 
-        if opts[:gateways]
-          @gateways.update(opts[:gateways])
-          @gateway_cache = nil
+        exclusively do
+          @link = opts[:link] if opts[:link]
+          @dhcp = opts[:dhcp] if opts.has_key?(:dhcp)
+
+          if opts[:gateways]
+            @gateways.update(opts[:gateways])
+            @gateway_cache = nil
+          end
         end
       end
     end

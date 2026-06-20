@@ -1674,6 +1674,13 @@ module OsCtl::Cli
       })
     end
 
+    def recover_forget_host_link
+      require_args!('id', 'interface')
+      osctld_fmt(:ct_recover_forget_host_link, cmd_opts: {
+        id: args[0], pool: gopts[:pool], netif: args[1]
+      })
+    end
+
     def recover_cleanup
       require_args!('id')
 
