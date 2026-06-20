@@ -3,6 +3,32 @@
 require 'spec_helper'
 
 RSpec.describe OsVm::NixosMachine do
+  it 'builds headless qemu commands without an emulated display' do
+    with_tmpdir do |dir|
+      machine = build_nixos_machine(
+        dir:,
+        config: build_machine_config(
+          {
+            'extraQemuOptions' => [
+              '-fw_cfg',
+              'name=opt/osvm/runtime,string=@OSVM_TMPDIR@/marker'
+            ]
+          },
+          spin: 'nixos'
+        )
+      )
+      command = machine.send(:qemu_command)
+
+      expect(command).to include('-nographic')
+      expect(command.each_cons(2).to_a).to include(['-vga', 'none'])
+      expect(command).to include(
+        '-fw_cfg',
+        "name=opt/osvm/runtime,string=#{File.join(dir, 'tmp', 'marker')}"
+      )
+      expect(command.join(' ')).not_to include('@OSVM_TMPDIR@')
+    end
+  end
+
   it 'returns the systemd service check command' do
     with_tmpdir do |dir|
       machine = build_nixos_machine(dir:)
