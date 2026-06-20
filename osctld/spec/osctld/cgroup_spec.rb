@@ -163,6 +163,7 @@ RSpec.describe OsCtld::CGroup do
       attach: true,
       leaf: false,
       pid: 123,
+      delegate_existing: true,
       debug: false
     )
     expect(described_class).to have_received(:mkpath).with(
@@ -172,6 +173,7 @@ RSpec.describe OsCtld::CGroup do
       attach: true,
       leaf: false,
       pid: 123,
+      delegate_existing: true,
       debug: false
     )
   end
@@ -208,20 +210,122 @@ RSpec.describe OsCtld::CGroup do
     end
   end
 
+  it 'can skip delegation on existing cgroup v2 ancestors' do
+    with_tmpdir do |tmpdir|
+      force_cgroup(2, [''], fs: tmpdir)
+      path = %w[osctl pool.tank user.4220 ct.27687 user-owned lxc.payload.ct1]
+      FileUtils.mkdir_p(File.join(tmpdir, *path))
+      delegated = []
+
+      allow(described_class).to receive(:delegate_available_controllers) do |cgroup|
+        delegated << File.expand_path(cgroup)
+      end
+
+      expect(
+        described_class.mkpath(
+          'cpuset',
+          [''] + path + ['osctl.attach'],
+          delegate_existing: false
+        )
+      ).to be(true)
+      expect(Dir.exist?(File.join(tmpdir, *path, 'osctl.attach'))).to be(true)
+      expect(delegated).to eq([])
+    end
+  end
+
+  it 'still delegates newly-created non-leaf cgroups when existing delegation is skipped' do
+    with_tmpdir do |tmpdir|
+      force_cgroup(2, [''], fs: tmpdir)
+      path = %w[osctl pool.tank user.4220 ct.27687]
+      FileUtils.mkdir_p(File.join(tmpdir, *path))
+      delegated = []
+
+      allow(described_class).to receive(:delegate_available_controllers) do |cgroup|
+        delegated << File.expand_path(cgroup)
+      end
+
+      expect(
+        described_class.mkpath(
+          'cpuset',
+          [''] + path + %w[user-owned leaf],
+          delegate_existing: false
+        )
+      ).to be(true)
+      expect(delegated).to eq([File.join(tmpdir, *path, 'user-owned')])
+    end
+  end
+
   it 'delegates only missing cgroup v2 controllers' do
     with_tmpdir do |tmpdir|
       cgroup = mkdir_cgroup(tmpdir, 'osctl')
       write_cgroup_file(cgroup, 'cgroup.controllers', content: "cpuset cpu memory\n")
       write_cgroup_file(cgroup, 'cgroup.subtree_control', content: "cpu\n")
+      events = []
 
-      allow(File).to receive(:write).and_call_original
+      allow(File).to receive(:write).and_wrap_original do |method, *args|
+        events << :write
+        method.call(*args)
+      end
 
-      described_class.delegate_available_controllers(cgroup)
+      described_class.delegate_available_controllers(cgroup) do
+        events << :prepare
+      end
 
       expect(File).to have_received(:write).with(
         File.join(cgroup, 'cgroup.subtree_control'),
         '+cpuset +memory'
       )
+      expect(events).to eq(%i[prepare write])
+    end
+  end
+
+  it 'does not prepare or write when all cgroup v2 controllers are delegated' do
+    with_tmpdir do |tmpdir|
+      cgroup = mkdir_cgroup(tmpdir, 'osctl')
+      write_cgroup_file(cgroup, 'cgroup.controllers', content: "cpu memory\n")
+      write_cgroup_file(cgroup, 'cgroup.subtree_control', content: "cpu memory\n")
+      preparation = proc {}
+
+      allow(File).to receive(:write).and_call_original
+      allow(preparation).to receive(:call)
+
+      described_class.delegate_available_controllers(cgroup) do
+        preparation.call
+      end
+
+      expect(preparation).not_to have_received(:call)
+      expect(File).not_to have_received(:write)
+    end
+  end
+
+  it 'chowns the cgroup and every available v2 delegation file' do
+    with_tmpdir do |tmpdir|
+      force_cgroup(2, [''], fs: tmpdir)
+      cgroup = mkdir_cgroup(tmpdir, 'osctl')
+      delegated = %w[cgroup.procs cgroup.threads]
+      stub_const("#{described_class}::DELEGATE_FILES", delegated)
+
+      delegated.each { |file| write_cgroup_file(cgroup, file) }
+      allow(File).to receive(:chown).and_call_original
+
+      described_class.chown_delegated(cgroup, uid: Process.uid, gid: Process.gid)
+
+      expected = [cgroup]
+      expected.concat(delegated.map { |file| File.join(cgroup, file) })
+      expected.each do |path|
+        expect(File).to have_received(:chown).once.with(Process.uid, Process.gid, path)
+      end
+    end
+  end
+
+  it 'ignores missing optional cgroup delegation files' do
+    with_tmpdir do |tmpdir|
+      force_cgroup(2, [''], fs: tmpdir)
+      cgroup = mkdir_cgroup(tmpdir, 'osctl')
+
+      expect do
+        described_class.chown_delegated(cgroup, uid: Process.uid, gid: Process.gid)
+      end.not_to raise_error
     end
   end
 
