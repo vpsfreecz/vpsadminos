@@ -58,7 +58,13 @@ RSpec.describe OsCtld::NetInterface::Routed do
     FileUtils.mkdir_p(File.join(root, 'hooks-src'))
     allow(routed).to receive(:ip)
     allow(routed).to receive(:ct_syscmd)
+    allow(routed).to receive_messages(
+      host_veth_ifindex: 10,
+      host_veth_ifindex!: 10
+    )
     allow(File).to receive(:write).and_return(1)
+    ct.netifs = [routed]
+    stub_containers_registry([ct])
   end
 
   after do
@@ -92,7 +98,7 @@ RSpec.describe OsCtld::NetInterface::Routed do
     expect(loaded.save['routes']).to eq('v4' => ['192.0.2.0/24'], 'v6' => [])
   end
 
-  it 'drops stale host veths during setup and reports distconfig readiness' do
+  it 'taints a newly discovered host veth which disappears during setup' do
     routed.create(name: 'eth0', hwaddr: nil)
     cmd_result_class = Class.new do
       def exitstatus
@@ -106,7 +112,29 @@ RSpec.describe OsCtld::NetInterface::Routed do
 
     routed.setup
 
-    expect(routed.veth).to be_nil
+    expect(routed.host_link_identity).to eq(['veth0', 10, nil])
+    expect(routed.host_link_tainted?).to be(true)
+    expect(routed.setup_state_changed?).to be(true)
+    expect(routed.can_run_distconfig?).to be(false)
+  end
+
+  it 'performs no host lookup for a persisted cleanup-tainted identity' do
+    routed.load(
+      'name' => 'eth0',
+      'hwaddr' => nil,
+      'host_link' => {
+        'name' => 'veth0',
+        'ifindex' => 10,
+        'ifb_ifindex' => nil,
+        'tainted' => true
+      }
+    )
+
+    routed.setup
+
+    expect(routed).not_to have_received(:ip)
+    expect(routed.host_link_identity).to eq(['veth0', 10, nil])
+    expect(routed.host_link_tainted?).to be(true)
     expect(routed.can_run_distconfig?).to be(false)
   end
 
@@ -132,6 +160,51 @@ RSpec.describe OsCtld::NetInterface::Routed do
     expect(routed.default_via(4).to_string).to eq('255.255.255.254/32')
     expect(routed.default_via(6).to_s).to eq('fe80::1')
     expect(routed.has_route?(IPAddress.parse('192.0.2.0/24'))).to be(false)
+  end
+
+  it 'holds the host-link registry through routed up completion' do
+    extension_entered = Queue.new
+    release_extension = Queue.new
+    waiter_entered = Queue.new
+    routed.create(name: 'eth0', hwaddr: nil)
+    allow(File).to receive(:write) do
+      extension_entered << true
+      release_extension.pop
+      1
+    end
+
+    publisher = Thread.new { routed.up('veth0') }
+    extension_entered.pop
+    waiter = Thread.new do
+      OsCtld::NetInterface.sync_host_link_registry { waiter_entered << true }
+    end
+
+    expect(waiter.join(0.05)).to be_nil
+    expect { waiter_entered.pop(true) }.to raise_error(ThreadError)
+
+    release_extension << true
+    publisher.join
+    waiter.join
+
+    expect(waiter_entered.pop).to be(true)
+  ensure
+    release_extension << true if publisher&.alive?
+    publisher&.join
+    waiter&.join
+  end
+
+  it 'taints a partial runtime route enable failure' do
+    routed.create(name: 'eth0', hwaddr: nil, enable: false)
+    routed.add_route(IPAddress.parse('192.0.2.0/24'))
+    routed.up('veth0')
+    allow(routed).to receive(:ip) do |_version, args, **|
+      raise Errno::EPERM if args.first(2) == %i[route add]
+    end
+
+    expect { routed.set(enable: true) }.to raise_error(Errno::EPERM)
+
+    expect(routed.host_link_tainted?).to be(true)
+    expect(ct.state).to eq(:error)
   end
 
   it 'removes addresses, clears routes, and isolates duplicated route tables' do
