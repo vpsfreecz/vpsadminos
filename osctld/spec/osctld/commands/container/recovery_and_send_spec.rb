@@ -13,6 +13,7 @@ module OsCtld
 end
 
 require 'osctld/commands/container/recover_cleanup'
+require 'osctld/commands/container/recover_forget_host_link'
 require 'osctld/commands/container/recover_state'
 require 'osctld/commands/container/send_cancel'
 require 'osctld/commands/container/send_cleanup'
@@ -61,6 +62,10 @@ RSpec.describe 'container recovery and send wrappers' do
 
       def save_config
         self.save_config_calls += 1
+      end
+
+      def recovery_tainted?
+        false
       end
 
       def dump_config
@@ -114,6 +119,91 @@ RSpec.describe 'container recovery and send wrappers' do
       expect(recovery).to have_received(:cleanup_cgroups)
       expect(command).to have_received(:progress).with('Searching for stray network interfaces')
       expect(command).to have_received(:progress).with('veth0: 192.0.2.0/24')
+    end
+
+    context 'with recovery taint' do
+      let(:ct) { build_send_ct(state: :error) }
+      let(:recovery) { instance_double(OsCtld::Container::Recovery) }
+
+      before do
+        allow(ct).to receive(:recovery_tainted?).and_return(true)
+        db = stub_const('OsCtld::DB::Containers', Class.new do
+          def self.find(_id, _pool); end
+        end)
+        allow(db).to receive(:find).and_return(ct)
+        allow(OsCtld::Container::Recovery).to receive(:new).with(ct).and_return(recovery)
+        allow(recovery).to receive(:ensure_stopped!)
+        allow(recovery).to receive(:cleanup_or_taint).and_return(true)
+      end
+
+      it 'requires a stopped container and the complete recovery pass' do
+        expect(described_class.run(id: 'ct1', pool: 'tank', cleanup: 'all'))
+          .to eq(status: true, output: nil)
+        expect(recovery).to have_received(:ensure_stopped!).once
+        expect(recovery).to have_received(:cleanup_or_taint).once
+        expect(ct.state).to eq(:error)
+      end
+
+      it 'reports incomplete cleanup instead of a successful acknowledgment' do
+        allow(recovery).to receive(:cleanup_or_taint).and_return(false)
+
+        expect do
+          described_class.run(id: 'ct1', pool: 'tank', cleanup: 'all')
+        end.to raise_error(OsCtld::CommandFailed, 'recovery cleanup is incomplete')
+        expect(ct.state).to eq(:error)
+      end
+
+      it 'does not allow force to skip the stopped check' do
+        allow(recovery).to receive(:ensure_stopped!)
+          .and_raise(OsCtld::Container::Recovery::InvalidNetifIdentity, 'the container has to be stopped')
+
+        expect(described_class.run(id: 'ct1', pool: 'tank', cleanup: 'all', force: true))
+          .to include(status: false, message: 'the container has to be stopped')
+        expect(recovery).not_to have_received(:cleanup_or_taint)
+      end
+    end
+  end
+
+  describe OsCtld::Commands::Container::RecoverForgetHostLink do
+    it 'acknowledges only the named interface while holding the manipulation lock' do
+      ct = build_send_ct
+      locked = false
+      allow(ct).to receive(:manipulate) do |*_args, **_opts, &block|
+        locked = true
+        block.call
+      ensure
+        locked = false
+      end
+      db = stub_const('OsCtld::DB::Containers', Class.new do
+        def self.find(_id, _pool); end
+      end)
+      allow(db).to receive(:find).with('ct1', 'tank').and_return(ct)
+      recovery = instance_double(OsCtld::Container::Recovery)
+      allow(OsCtld::Container::Recovery).to receive(:new).with(ct).and_return(recovery)
+      allow(recovery).to receive(:forget_host_link).with('eth0') do
+        expect(locked).to be(true)
+      end
+
+      expect(described_class.run(id: 'ct1', pool: 'tank', netif: 'eth0'))
+        .to eq(status: true, output: nil)
+      expect(recovery).to have_received(:forget_host_link).with('eth0').once
+    end
+
+    it 'returns a refused acknowledgment without bypassing the stopped check' do
+      ct = build_send_ct(state: :error)
+      db = stub_const('OsCtld::DB::Containers', Class.new do
+        def self.find(_id, _pool); end
+      end)
+      allow(db).to receive(:find).and_return(ct)
+      recovery = instance_double(OsCtld::Container::Recovery)
+      allow(OsCtld::Container::Recovery).to receive(:new).with(ct).and_return(recovery)
+      allow(recovery).to receive(:forget_host_link)
+        .with('eth0')
+        .and_raise(OsCtld::Container::Recovery::InvalidNetifIdentity, 'the container has to be stopped')
+
+      expect(described_class.run(id: 'ct1', pool: 'tank', netif: 'eth0', force: true))
+        .to eq(status: false, message: 'the container has to be stopped')
+      expect(ct.state).to eq(:error)
     end
   end
 

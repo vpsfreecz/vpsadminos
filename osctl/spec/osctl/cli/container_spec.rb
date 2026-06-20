@@ -32,6 +32,18 @@ RSpec.describe OsCtl::Cli::Container do
     end
   end
 
+  it 'sends an explicit host-link acknowledgment for one configured interface' do
+    command = cmd(args: %w[ct1 eth0], gopts: { pool: 'tank' })
+    expect(command).to receive(:osctld_fmt).with(
+      :ct_recover_forget_host_link, cmd_opts: { id: 'ct1', pool: 'tank', netif: 'eth0' }
+    )
+    command.recover_forget_host_link
+  end
+
+  it 'requires an interface for host-link acknowledgment' do
+    expect { cmd(args: ['ct1']).recover_forget_host_link }.to raise_error(GLI::BadCommandLine)
+  end
+
   it 'initializes cgroup subsystems in bisect using the open client connection' do
     client = FakeClientHelpers::ClientDouble.new(
       cmd_data: { ct_list: [[{ pool: 'tank', id: 'ct1', group_path: '/grp', state: 'running' }]] }

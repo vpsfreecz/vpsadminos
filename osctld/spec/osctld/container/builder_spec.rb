@@ -162,6 +162,24 @@ RSpec.describe OsCtld::Container::Builder do
     )
   end
 
+  it 'registers under the host-link registry before locking the container list' do
+    events = []
+    allow(OsCtld::NetInterface).to receive(:sync_host_link_registry) do |&block|
+      events << :host_links
+      block.call
+    end
+    allow(OsCtld::DB::Containers).to receive(:sync) do |&block|
+      events << :containers
+      block.call
+    end
+    allow(OsCtld::DB::Containers).to receive(:add) { events << :add }
+
+    expect(builder.register).to be(true)
+    expect(events).to eq(%i[host_links containers add])
+    expect(OsCtld::DB::Containers).to have_received(:contains?).with('ct1', pool)
+    expect(OsCtld::DB::Containers).to have_received(:add).with(ct)
+  end
+
   it 'shifts zfs datasets and mounts non-zfs datasets' do
     allow(ds_builder).to receive(:shift_dataset)
 
