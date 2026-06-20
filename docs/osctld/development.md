@@ -96,6 +96,20 @@ Use `nix develop` to enter a prepared environment.
 $ gem inabox -c
 ```
 
+For local-only integration builds, the development shell can start a local
+geminabox instance and `tools/update_gem.sh` will publish gems to it while
+mirroring `https://rubygems.vpsfree.cz` through it. The generated Gemfiles and
+gemsets still refer to the canonical remote, so this is only a build-time
+override.
+
+```shell
+# Start local geminabox automatically when entering the shell
+$ VPSADMINOS_LOCAL_GEMINABOX=1 nix develop
+
+# Or start it from an already entered dev shell
+$ vpsadminos-use-local-geminabox
+```
+
 Within `nix develop`, you can use `make` to build gems and the OS:
 
 ```shell

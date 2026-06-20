@@ -451,6 +451,7 @@
               nixfmt-rfc-style
               nixfmt-tree
               ruby_vpsadminos
+              curl
             ];
             shellHook = ''
               # Work around TMPDIR not being set correctly in development shells
@@ -466,6 +467,84 @@
               # cc wrapper in Nix. Without NIX_ENFORCE_PURITY=0, we get prism.h not found
               # error.
               NIX_ENFORCE_PURITY=0 bundle install
+
+              export VPSADMINOS_GEM_SOURCE_URL="''${VPSADMINOS_GEM_SOURCE_URL:-https://rubygems.vpsfree.cz}"
+              export VPSADMINOS_LOCAL_GEMINABOX_HOST="''${VPSADMINOS_LOCAL_GEMINABOX_HOST:-127.0.0.1}"
+              export VPSADMINOS_LOCAL_GEMINABOX_PORT="''${VPSADMINOS_LOCAL_GEMINABOX_PORT:-9292}"
+              export VPSADMINOS_GEMINABOX_URL="''${VPSADMINOS_GEMINABOX_URL:-http://''${VPSADMINOS_LOCAL_GEMINABOX_HOST}:''${VPSADMINOS_LOCAL_GEMINABOX_PORT}}"
+              export VPSADMINOS_LOCAL_GEMINABOX_DATA="''${VPSADMINOS_LOCAL_GEMINABOX_DATA:-$(pwd)/.gems/geminabox-data}"
+              export VPSADMINOS_LOCAL_GEMINABOX_LOG="''${VPSADMINOS_LOCAL_GEMINABOX_LOG:-$(pwd)/.gems/geminabox.log}"
+              export VPSADMINOS_LOCAL_GEMINABOX_PID="''${VPSADMINOS_LOCAL_GEMINABOX_PID:-$(pwd)/.gems/geminabox.pid}"
+
+              vpsadminos-start-local-geminabox() {
+                mkdir -p "$(dirname "$VPSADMINOS_LOCAL_GEMINABOX_LOG")" "$VPSADMINOS_LOCAL_GEMINABOX_DATA"
+
+                if curl -fsS "$VPSADMINOS_GEMINABOX_URL/" >/dev/null 2>&1; then
+                  echo "local geminabox already running at $VPSADMINOS_GEMINABOX_URL"
+                  return 0
+                fi
+
+                rm -f "$VPSADMINOS_LOCAL_GEMINABOX_PID"
+                env \
+                  VPSADMINOS_LOCAL_GEMINABOX_DATA="$VPSADMINOS_LOCAL_GEMINABOX_DATA" \
+                  VPSADMINOS_LOCAL_GEMINABOX_UPSTREAM="$VPSADMINOS_GEM_SOURCE_URL" \
+                  bundle exec rackup tools/local_geminabox.ru \
+                    --host "$VPSADMINOS_LOCAL_GEMINABOX_HOST" \
+                    --port "$VPSADMINOS_LOCAL_GEMINABOX_PORT" \
+                    >"$VPSADMINOS_LOCAL_GEMINABOX_LOG" 2>&1 &
+                echo "$!" > "$VPSADMINOS_LOCAL_GEMINABOX_PID"
+
+                for _ in $(seq 1 50); do
+                  if curl -fsS "$VPSADMINOS_GEMINABOX_URL/" >/dev/null 2>&1; then
+                    echo "local geminabox running at $VPSADMINOS_GEMINABOX_URL"
+                    return 0
+                  fi
+                  sleep 0.1
+                done
+
+                echo "local geminabox failed to start; see $VPSADMINOS_LOCAL_GEMINABOX_LOG" >&2
+                return 1
+              }
+
+              vpsadminos-stop-local-geminabox() {
+                if [ ! -f "$VPSADMINOS_LOCAL_GEMINABOX_PID" ]; then
+                  echo "no local geminabox pid file at $VPSADMINOS_LOCAL_GEMINABOX_PID"
+                  return 0
+                fi
+
+                local pid
+                pid="$(cat "$VPSADMINOS_LOCAL_GEMINABOX_PID")"
+
+                if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+                  local cmd
+                  cmd="$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null || true)"
+                  case "$cmd" in
+                    *tools/local_geminabox.ru*)
+                      kill "$pid"
+                      ;;
+                    *)
+                      echo "refusing to stop pid $pid; command is not local geminabox" >&2
+                      return 1
+                      ;;
+                  esac
+                fi
+
+                rm -f "$VPSADMINOS_LOCAL_GEMINABOX_PID"
+              }
+
+              vpsadminos-use-local-geminabox() {
+                vpsadminos-start-local-geminabox
+                echo "tools/update_gem.sh will upload to $VPSADMINOS_GEMINABOX_URL"
+                echo "Bundler will mirror $VPSADMINOS_GEM_SOURCE_URL through local geminabox during gem updates"
+              }
+
+              export -f vpsadminos-start-local-geminabox
+              export -f vpsadminos-stop-local-geminabox
+              export -f vpsadminos-use-local-geminabox
+
+              if [ "''${VPSADMINOS_LOCAL_GEMINABOX:-0}" = "1" ]; then
+                vpsadminos-use-local-geminabox
+              fi
 
               [ -f shellhook.local.sh ] && . shellhook.local.sh
             ''
