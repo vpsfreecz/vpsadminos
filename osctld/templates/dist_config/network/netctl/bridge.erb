@@ -16,11 +16,17 @@ IP=dhcp
 <% if v == 4 -%>
 IP=static
 Address=( <%= all_ips.map { |addr| "\"#{addr.to_string}\"" }.join(' ') %> )
-Routes=( <% if netif.has_gateway?(v) %>"default via <%= netif.gateway(v) %> dev <%= netif.name %>"<% end %> )
+<% gateway = netif.gateway_or_nil(v, wait: true) -%>
+<% if gateway -%>
+Gateway=<%= gateway %>
+<% end -%>
 <% elsif v == 6 -%>
 IP6=static
 Address6=( <%= all_ips.map { |addr| "\"#{addr.to_string}\"" }.join(' ') %> )
-Routes6=( <% if netif.has_gateway?(v) %>"default via <%= netif.gateway(v) %> dev <%= netif.name %>"<% end %> )
+<% gateway = netif.gateway_or_nil(v, wait: true) -%>
+<% if gateway -%>
+Gateway6=<%= gateway %>
+<% end -%>
 <% end %>
 <% end -%>
 <% end -%>

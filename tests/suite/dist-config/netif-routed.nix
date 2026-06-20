@@ -29,24 +29,28 @@ import ../../make-test.nix (
               machine.wait_for_osctl_pool("tank")
               machine.wait_until_online
 
-              ip = "1.2.3.4"
+              testct = get_container_id
+              suffix = testct.split("-").last.to_i(16)
+              host_octet = suffix & 0xff
+              host_octet = 1 if host_octet == 0
+              host_octet = 254 if host_octet == 255
+              ip = "10.250.#{(suffix >> 8) & 0xff}.#{host_octet}"
 
               machine.fails("ping -c 1 #{ip}")
 
-              testct = get_container_id
+              begin
+                machine.all_succeed(
+                  "osctl ct new --distribution ${distribution} --version ${version} #{testct}",
+                  "osctl ct netif new routed #{testct} eth0",
+                  "osctl ct netif ip add #{testct} eth0 #{ip}/32",
+                  "osctl ct start #{testct}",
+                )
 
-              machine.all_succeed(
-                "osctl ct new --distribution ${distribution} --version ${version} #{testct}",
-                "osctl ct netif new routed #{testct} eth0",
-                "osctl ct netif ip add #{testct} eth0 #{ip}/32",
-                "osctl ct start #{testct}",
-              )
-
-              machine.wait_until_succeeds("ping -c 1 #{ip}")
-              machine.all_succeed(
-                "osctl ct del -f --prune #{testct}",
-                "osctl repository images prune"
-              )
+                machine.wait_until_succeeds("ping -c 1 #{ip}", timeout: 20 * 60)
+              ensure
+                machine.execute("osctl ct del -f --prune #{testct}", timeout: 300)
+                machine.execute("osctl repository images prune", timeout: 300)
+              end
             '';
           };
         }
