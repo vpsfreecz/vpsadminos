@@ -16,7 +16,8 @@ import ./base.nix {
         )
 
         configure_docker_registry_mirrors(ct)
-        machine.succeeds("osctl ct exec #{ct} systemctl restart docker")
+        configure_docker_iptables_nft(ct)
+        restart_docker(ct)
       '';
     }
     {
@@ -34,7 +35,8 @@ import ./base.nix {
         )
 
         configure_docker_registry_mirrors(ct)
-        machine.succeeds("osctl ct exec #{ct} systemctl restart docker")
+        configure_docker_iptables_nft(ct)
+        restart_docker(ct)
       '';
     }
     {
@@ -52,7 +54,8 @@ import ./base.nix {
         )
 
         configure_docker_registry_mirrors(ct)
-        machine.succeeds("osctl ct exec #{ct} systemctl restart docker")
+        configure_docker_iptables_nft(ct)
+        restart_docker(ct)
       '';
     }
   ];
