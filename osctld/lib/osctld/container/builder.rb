@@ -1,6 +1,7 @@
 require 'fileutils'
 require 'libosctl'
 require 'tempfile'
+require 'osctld/net_interface'
 
 module OsCtld
   class Container::Builder
@@ -201,12 +202,17 @@ module OsCtld
     end
 
     def register
-      DB::Containers.sync do
-        if DB::Containers.contains?(ctrc.id, ctrc.pool)
-          false
-        else
-          DB::Containers.add(ctrc.ct)
-          true
+      # Keep the host-link registry lock outside the container-list lock.
+      # Recovery takes these locks in the same order while freezing the set of
+      # daemon records for its all-record preflight.
+      NetInterface.sync_host_link_registry do
+        DB::Containers.sync do
+          if DB::Containers.contains?(ctrc.id, ctrc.pool)
+            false
+          else
+            DB::Containers.add(ctrc.ct)
+            true
+          end
         end
       end
     end

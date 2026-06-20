@@ -138,6 +138,49 @@ import ../../make-test.nix (
         end
       end
 
+      describe 'explicit recovery after host-link ownership is lost' do
+        it 'preserves replacement links and acknowledges absence without rebooting' do
+          recover_ct = get_container_id('host-link-recovery')
+          machine.all_succeed(
+            "osctl ct new --distribution alpine #{recover_ct}",
+            "osctl ct unset start-menu #{recover_ct}",
+            "osctl ct netif new routed #{recover_ct} eth0",
+            "osctl ct netif ip add #{recover_ct} eth0 192.0.2.70/32",
+            "osctl ct start #{recover_ct}",
+          )
+          wait_ct_running(recover_ct)
+          netif = machine.osctl_json("ct netif ls #{recover_ct}").find { |v| v.fetch('name') == 'eth0' }
+          veth = netif.fetch('veth')
+          machine.fails("osctl ct recover forget-host-link #{recover_ct} eth0")
+
+          # Simulate host-side loss while osctld still owns the recorded link.
+          machine.succeeds("ip link delete #{veth}")
+          machine.succeeds("osctl ct stop #{recover_ct}")
+          expect(ct_state(recover_ct)).to eq('stopped')
+          expect(ct_info(recover_ct).fetch('recovery_tainted')).to be(true)
+          machine.fails("osctl ct start #{recover_ct}")
+          restart_osctld
+          expect(ct_info(recover_ct).fetch('recovery_tainted')).to be(true)
+
+          machine.succeeds("ip link add #{veth} type dummy")
+          replacement_index = output_of("cat /sys/class/net/#{veth}/ifindex")
+          machine.fails("osctl ct recover forget-host-link #{recover_ct} eth0")
+          expect(output_of("cat /sys/class/net/#{veth}/ifindex")).to eq(replacement_index)
+          machine.fails("osctl ct recover cleanup #{recover_ct}")
+          expect(output_of("cat /sys/class/net/#{veth}/ifindex")).to eq(replacement_index)
+
+          machine.succeeds("ip link delete #{veth}")
+          machine.succeeds("osctl ct recover forget-host-link #{recover_ct} eth0")
+          expect(ct_info(recover_ct).fetch('recovery_tainted')).to be(true)
+          machine.succeeds("osctl ct recover cleanup #{recover_ct}")
+          expect(ct_info(recover_ct).fetch('recovery_tainted')).to be(false)
+          expect(ct_state(recover_ct)).to eq('stopped')
+          machine.succeeds("osctl ct start #{recover_ct}")
+          wait_ct_running(recover_ct)
+          machine.succeeds("osctl ct del -f --prune #{recover_ct}")
+        end
+      end
+
       describe 'container delete with a stale shared directory', order: :defined do
         delete_ctid = get_container_id('stale-shared-dir')
 

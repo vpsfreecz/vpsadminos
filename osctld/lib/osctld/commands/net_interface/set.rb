@@ -35,6 +35,8 @@ module OsCtld
 
         ok
       end
+    rescue NetInterface::HostLinkClaimError => e
+      error(e.message)
     end
 
     protected

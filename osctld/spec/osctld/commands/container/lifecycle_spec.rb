@@ -848,6 +848,13 @@ RSpec.describe 'container lifecycle commands' do
         end
       end.new
       mounts = Struct.new(:shared_dir).new(shared_dir)
+      netifs = Struct.new do
+        attr_reader :taken_down
+
+        def take_down
+          @taken_down = true
+        end
+      end.new
       send_log = Struct.new(:opts).new(Struct.new(:key_name).new('tx'))
       user = Struct.new(:standalone, :pool, :name) do
         def has_containers?
@@ -868,6 +875,7 @@ RSpec.describe 'container lifecycle commands' do
         :id,
         :pool,
         :mounts,
+        :netifs,
         :send_log,
         :dataset,
         :lxc_dir,
@@ -902,6 +910,7 @@ RSpec.describe 'container lifecycle commands' do
         id: 'ct1',
         pool:,
         mounts:,
+        netifs:,
         send_log:,
         dataset: 'tank/ct1',
         lxc_dir:,
@@ -931,6 +940,16 @@ RSpec.describe 'container lifecycle commands' do
 
     before do
       build_db_containers
+      stub_const('OsCtld::Container::Recovery', Class.new do
+        def initialize(ct)
+          @ct = ct
+        end
+
+        def cleanup_or_taint
+          @ct.netifs.take_down
+          true
+        end
+      end)
       send_receive = stub_const('OsCtld::SendReceive', Class.new do
         def self.stopped_using_key(*); end
       end)
@@ -1004,6 +1023,7 @@ RSpec.describe 'container lifecycle commands' do
         expect(OsCtld::CGroup).to have_received(:rmpath_all).with('/sys/fs/cgroup/osctl/user.alice')
         expect(ct.clear_start_menu_calls).to eq(1)
         expect(ct.mounts.shared_dir.removed).to be(true)
+        expect(ct.netifs.taken_down).to be(true)
         expect(ct.pool.autostart_plan.cleared).to equal(ct)
         expect(ct.pool.trash_bin).to have_received(:prune)
       end
