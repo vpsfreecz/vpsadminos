@@ -30,6 +30,87 @@ RSpec.describe OsCtl::Repo::Downloader::Direct do
     end
   end
 
+  describe 'streaming response handling' do
+    let(:response) { http_response(code: 200, body: %w[first second]) }
+
+    def image_path
+      '/v1/vendor/variant/x86_64/alpine/3.20/image-archive.tar'
+    end
+
+    before do
+      index = http_response(
+        code: 200,
+        body: index_json(images: [image_record(
+          vendor: 'vendor', variant: 'variant', arch: 'x86_64',
+          distribution: 'alpine', version: '3.20', tags: ['stable']
+        )])
+      )
+      request_get_responses['/v1/INDEX.json'] = [index, index, index]
+      request_get_responses[image_path] = [response, response, response]
+    end
+
+    def download(&block)
+      downloader.get('vendor', 'variant', 'x86_64', 'alpine', 'stable', 'tar', &block)
+    end
+
+    it 'yields each fragment before reading the next fragment' do
+      output = +''
+      allow(response).to receive(:read_body) do |&consume|
+        consume.call('first')
+        expect(output).to eq('first')
+        consume.call('second')
+        expect(output).to eq('firstsecond')
+      end
+
+      download { |fragment| output << fragment }
+      expect(output).to eq('firstsecond')
+    end
+
+    it 'rejects a short response without retrying an already yielded prefix' do
+      output = +''
+      response = http_response(code: 200, body: ['abc'], headers: { 'Content-Length' => '4' })
+      request_get_responses[image_path] = [response, response, response]
+
+      expect { download { |fragment| output << fragment } }
+        .to raise_error(OsCtl::Repo::NetworkError, /downloaded 3 bytes, expected 4/)
+      expect(output).to eq('abc')
+      expect(http.request_get_requests.count { |path, _| path == image_path }).to eq(1)
+      expect(downloader.sleep_calls).to be_nil
+    end
+
+    it 'does not replay a prefix after a connection fails during the body' do
+      output = +''
+      allow(response).to receive(:read_body) do |&consume|
+        consume.call('first')
+        raise EOFError, 'connection closed'
+      end
+
+      expect { download { |fragment| output << fragment } }
+        .to raise_error(OsCtl::Repo::NetworkError, 'connection closed')
+      expect(output).to eq('first')
+      expect(http.request_get_requests.count { |path, _| path == image_path }).to eq(1)
+      expect(downloader.sleep_calls).to be_nil
+    end
+
+    it 'can retry a failure before the first fragment is yielded' do
+      output = +''
+      request_get_responses[image_path] = [-> { raise EOFError }, response]
+
+      download { |fragment| output << fragment }
+      expect(output).to eq('firstsecond')
+      expect(downloader.sleep_calls).to eq([5])
+    end
+
+    it 'propagates a consumer error without replaying the stream' do
+      error = OsCtl::Repo::NetworkError.new('consumer failure')
+
+      expect { download { raise error } }
+        .to raise_error(OsCtl::Repo::NetworkError) { |raised| expect(raised).to equal(error) }
+      expect(http.request_get_requests.count { |path, _| path == image_path }).to eq(1)
+      expect(downloader.sleep_calls).to be_nil
+    end
+  end
+
   it 'lists images from the remote index' do
     request_get_responses['/v1/INDEX.json'] = [
       http_response(
