@@ -95,7 +95,11 @@ module OsCtld
         stderr: stderr.fileno
       }
 
-      CGroup.mkpath_all(cgroup_path.split('/'), chown: ugid)
+      CGroup.mkpath_all(
+        cgroup_path.split('/'),
+        chown: ugid,
+        delegate_existing: false
+      )
 
       # On cgroup v2, we must reset subtree control for lxc-execute to work.
       # The subtree control is configured by osctld when creating the entry_cgroup_path,

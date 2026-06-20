@@ -5,7 +5,11 @@ module OsCtld
   module Utils::SwitchUser
     def ct_attach(ct, *args)
       cgroup_path = ct.attach_cgroup_path
-      CGroup.mkpath_all(cgroup_path.split('/'), chown: ct.user.ugid)
+      CGroup.mkpath_all(
+        cgroup_path.split('/'),
+        chown: ct.user.ugid,
+        delegate_existing: false
+      )
 
       {
         cmd: ::OsCtld.bin('osctld-ct-exec'),
