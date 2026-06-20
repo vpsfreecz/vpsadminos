@@ -25,7 +25,7 @@ module TestRunner
 
     def build
       FileUtils.mkdir_p(File.dirname(config_path))
-      @nix.build_test_json(test.path, config_path)
+      @nix.build_test_json(test.path, config_path, test_args: test.test_args)
       @config = JSON.parse(File.read(config_path))
     end
 
