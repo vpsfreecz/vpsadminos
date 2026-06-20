@@ -8,7 +8,7 @@ log_must zfs set gidmap="0:200000:65536" $TESTPOOL/$TESTFS/both
 log_must zfs mount $TESTPOOL/$TESTFS/both
 
 log_must touch "$FSDIR/both/test.txt"
-log_must chown 500:600 "$FSDIR/both/test.txt"
+log_must chown $((500+TEST_UID)):$((600+TEST_GID)) "$FSDIR/both/test.txt"
 log_must mkdir "$FSDIR/both/userdir"
 log_must chown $TEST_UID:$TEST_GID "$FSDIR/both/userdir"
 log_must su $ZFS_USER -c "touch '$FSDIR/both/userdir/test.txt'"

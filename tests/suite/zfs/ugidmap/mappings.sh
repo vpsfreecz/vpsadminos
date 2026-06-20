@@ -10,16 +10,17 @@ log_must zfs set uidmap="$UIDMAP" $TESTPOOL/$TESTFS/multimap
 log_must zfs set gidmap="$GIDMAP" $TESTPOOL/$TESTFS/multimap
 log_must zfs mount $TESTPOOL/$TESTFS/multimap
 
-### Accessing the fs with a user with uid/gid outside the map
+### Initial-user-namespace access uses host-domain IDs
 log_must touch "$FSDIR/f01.txt"
 owner=$(stat -c %u:%g "$FSDIR/f01.txt")
 [ "$owner" == "100000:200000" ] || \
     log_fail "does not map UIDs/GIDs for new files: expected 100000:200000, got $owner"
 
-log_must chown 500:600 "$FSDIR/f01.txt"
+log_mustnot chown 500:600 "$FSDIR/f01.txt"
+log_must chown 100500:200600 "$FSDIR/f01.txt"
 owner=$(stat -c %u:%g "$FSDIR/f01.txt")
-[ "$owner" == "$((500+100000)):$((600+200000))" ] || \
-    log_fail "maps UIDs/GIDs in setattr: expected $((500+100000)):$((600+200000)), got $owner"
+[ "$owner" == "100500:200600" ] || \
+    log_fail "maps UIDs/GIDs in setattr: expected 100500:200600, got $owner"
 
 ### Accessing the fs with a user with uid/gid from the map, testing boundaries
 #### of all map entries
@@ -69,13 +70,13 @@ owner=$(stat -c %u:%g "$FSDIR/dir/third_end.txt")
 
 # Last map entry
 log_must touch $FSDIR/dir/last_start.txt
-log_must chown 30000:30000 $FSDIR/dir/last_start.txt
+log_must chown 120000:220000 $FSDIR/dir/last_start.txt
 owner=$(stat -c %u:%g "$FSDIR/dir/last_start.txt")
 [ "$owner" == "120000:220000" ] || \
     log_fail "does not map UIDs/GIDs: expected 120000:220000, got $owner"
 
 log_must touch $FSDIR/dir/last_end.txt
-log_must chown 65535:65535 $FSDIR/dir/last_end.txt
+log_must chown 155535:255535 $FSDIR/dir/last_end.txt
 owner=$(stat -c %u:%g "$FSDIR/dir/last_end.txt")
 [ "$owner" == "155535:255535" ] || \
     log_fail "does not map UIDs/GIDs: expected 155535:255535, got $owner"
