@@ -54,15 +54,27 @@ module OsCtld
       stdin = opts[:stdin]
       stdout = opts.fetch(:stdout, $stdout)
       stderr = opts.fetch(:stderr, $stderr)
-
       # User configuration
       sysuser = ct.user.sysusername
       ugid = ct.user.ugid
       homedir = ct.user.homedir
-      cgroup_path = ct.entry_cgroup_path
       prlimits = ct.prlimits.export
-      syslogns_pid = ct.init_pid
-      syslogns_tag = syslogns_pid.nil? && ct.syslogns_tag
+      switch_extra_namespaces = opts.fetch(:switch_extra_namespaces, true)
+      cgroup_path = opts.fetch(
+        :cgroup_path,
+        switch_extra_namespaces ? ct.entry_cgroup_path : ct.attach_cgroup_path
+      )
+      cleanup_cgroup_path = !switch_extra_namespaces && cgroup_path == ct.attach_cgroup_path
+
+      if switch_extra_namespaces
+        syslogns_pid = ct.init_pid
+        syslogns_tag = syslogns_pid.nil? && ct.syslogns_tag(run_id: ct.run_conf&.run_id)
+        tracingns_pid = ct.init_pid
+      else
+        syslogns_pid = nil
+        syslogns_tag = nil
+        tracingns_pid = nil
+      end
 
       # Runner configuration
       runner_opts = {
@@ -118,7 +130,8 @@ module OsCtld
           homedir,
           cgroup_path,
           syslogns_pid:,
-          syslogns_tag:
+          syslogns_tag:,
+          tracingns_pid:
         )
         Process.exec(::OsCtld.bin('osctld-ct-runner'))
         exit
@@ -135,16 +148,26 @@ module OsCtld
 
       begin
         ret = JSON.parse(ret_r.readline, symbolize_names: true)
-        Process.wait(pid)
         ContainerControl::Result.from_runner(ret)
       rescue EOFError
-        Process.wait(pid)
         ContainerControl::Result.new(
           false,
           message: 'user runner failed',
           user_runner: true
         )
+      ensure
+        begin
+          Process.wait(pid)
+        ensure
+          cleanup_runner_cgroup(cgroup_path) if cleanup_cgroup_path
+        end
       end
+    end
+
+    def cleanup_runner_cgroup(cgroup_path)
+      CGroup.rmpath_all(cgroup_path)
+    rescue SystemCallError => e
+      ct.log(:warn, "Unable to remove runner cgroup #{cgroup_path}: #{e.message}")
     end
 
     # Fork to the container user and invoke the runner.
