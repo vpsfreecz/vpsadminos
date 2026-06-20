@@ -4,6 +4,12 @@
   testConfigPath ? null,
   mode ? "testsMetaAll",
   testPath ? null,
+  testArgsJson ? null,
+  configuration ?
+    let
+      cfg = builtins.getEnv "VPSADMINOS_CONFIG";
+    in
+    if cfg == "" then null else import cfg,
 }:
 let
   flake = builtins.getFlake (builtins.toString repoRoot);
@@ -27,6 +33,42 @@ let
       '';
 
   testConfig = if testConfigPath == null then null else import testConfigPath;
+  effectiveTestConfig = if testConfig == null then { } else testConfig;
+  testsRoot = repoRoot + "/tests";
+  directSingleTestAvailable =
+    testPath != null && builtins.pathExists (testsRoot + "/suite/${testPath}.nix");
+  directTestArgs = if testArgsJson == null then { } else builtins.fromJSON testArgsJson;
+
+  directTestLib =
+    let
+      flakeNixpkgsPath =
+        if flake ? inputs && flake.inputs ? nixpkgs && flake.inputs.nixpkgs ? outPath then
+          flake.inputs.nixpkgs.outPath
+        else
+          null;
+      pkgsPath =
+        if builtins.pathExists (repoRoot + "/nixpkgs") then
+          repoRoot + "/nixpkgs"
+        else if flakeNixpkgsPath != null then
+          flakeNixpkgsPath
+        else
+          <nixpkgs>;
+      nixpkgs' = import pkgsPath { inherit system; };
+    in
+    import (repoRoot + "/test-runner/nix/lib.nix") {
+      pkgs = pkgsPath;
+      inherit system;
+      lib = nixpkgs'.lib;
+      suitePath = testsRoot + "/suite";
+      inherit configuration;
+      testConfig = effectiveTestConfig;
+    };
+
+  directTest =
+    (directTestLib.makeSingleTest {
+      test = testPath;
+      args = directTestArgs;
+    }).value;
 
   tests =
     if testConfigPath == null then
@@ -35,7 +77,7 @@ let
       testFramework.mkTests {
         inherit system testConfig;
         testsRoot = repoRoot + "/tests";
-        configuration = null;
+        inherit configuration;
       };
 
   testsMeta =
@@ -45,14 +87,19 @@ let
       testFramework.mkTestsMeta {
         inherit system testConfig;
         testsRoot = repoRoot + "/tests";
-        configuration = null;
+        inherit configuration;
       };
 in
 if mode == "testsMetaAll" then
   testsMeta
 else if mode == "testsMetaOne" then
-  builtins.getAttr testPath testsMeta
+  if testPath != null && builtins.hasAttr testPath testsMeta then
+    builtins.getAttr testPath testsMeta
+  else if directSingleTestAvailable then
+    directTestLib.testMeta directTest
+  else
+    builtins.getAttr testPath testsMeta
 else if mode == "testJson" then
-  builtins.getAttr testPath tests
+  if directSingleTestAvailable then directTest.test.json else builtins.getAttr testPath tests
 else
   builtins.throw "Unsupported mode '${mode}'"
