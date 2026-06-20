@@ -10,16 +10,16 @@ import ./base.nix {
           ct,
           'install',
           '-y',
-          'apt-transport-https',
           'ca-certificates',
           'curl',
-          'software-properties-common',
           name: "APT prerequisite installation in #{ct}",
         )
 
         machine.all_succeed(
-          "osctl ct exec #{ct} bash -c \"curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -\"",
-          "osctl ct exec #{ct} add-apt-repository \"deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable\"",
+          "osctl ct exec #{ct} install -m 0755 -d /etc/apt/keyrings",
+          "osctl ct exec #{ct} curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc",
+          "osctl ct exec #{ct} chmod a+r /etc/apt/keyrings/docker.asc",
+          "osctl ct exec #{ct} bash -c 'echo \"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable\" > /etc/apt/sources.list.d/docker.list'",
         )
 
         container_apt_get(machine, ct, 'update', '-y', name: "Docker APT metadata refresh in #{ct}")
@@ -29,6 +29,8 @@ import ./base.nix {
           'install',
           '-y',
           'docker-ce',
+          'docker-ce-cli',
+          'containerd.io',
           name: "Docker APT package installation in #{ct}",
         )
 
@@ -45,16 +47,16 @@ import ./base.nix {
           ct,
           'install',
           '-y',
-          'apt-transport-https',
           'ca-certificates',
           'curl',
-          'software-properties-common',
           name: "APT prerequisite installation in #{ct}",
         )
 
         machine.all_succeed(
-          "osctl ct exec #{ct} bash -c \"curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -\"",
-          "osctl ct exec #{ct} add-apt-repository \"deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable\"",
+          "osctl ct exec #{ct} install -m 0755 -d /etc/apt/keyrings",
+          "osctl ct exec #{ct} curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc",
+          "osctl ct exec #{ct} chmod a+r /etc/apt/keyrings/docker.asc",
+          "osctl ct exec #{ct} bash -c 'echo \"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable\" > /etc/apt/sources.list.d/docker.list'",
         )
 
         container_apt_get(machine, ct, 'update', '-y', name: "Docker APT metadata refresh in #{ct}")
@@ -64,6 +66,8 @@ import ./base.nix {
           'install',
           '-y',
           'docker-ce',
+          'docker-ce-cli',
+          'containerd.io',
           name: "Docker APT package installation in #{ct}",
         )
 
@@ -80,16 +84,16 @@ import ./base.nix {
           ct,
           'install',
           '-y',
-          'apt-transport-https',
           'ca-certificates',
           'curl',
-          'software-properties-common',
           name: "APT prerequisite installation in #{ct}",
         )
 
         machine.all_succeed(
-          "osctl ct exec #{ct} bash -c \"curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -\"",
-          "osctl ct exec #{ct} add-apt-repository \"deb [arch=amd64] https://download.docker.com/linux/ubuntu noble stable\"",
+          "osctl ct exec #{ct} install -m 0755 -d /etc/apt/keyrings",
+          "osctl ct exec #{ct} curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc",
+          "osctl ct exec #{ct} chmod a+r /etc/apt/keyrings/docker.asc",
+          "osctl ct exec #{ct} bash -c 'echo \"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable\" > /etc/apt/sources.list.d/docker.list'",
         )
 
         container_apt_get(machine, ct, 'update', '-y', name: "Docker APT metadata refresh in #{ct}")
@@ -99,6 +103,8 @@ import ./base.nix {
           'install',
           '-y',
           'docker-ce',
+          'docker-ce-cli',
+          'containerd.io',
           name: "Docker APT package installation in #{ct}",
         )
 
