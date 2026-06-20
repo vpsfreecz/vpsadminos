@@ -1,5 +1,21 @@
 import ../../make-test.nix (
   { pkgs }:
+  let
+    mkSystemdContainer = {
+      user = "testuser";
+
+      shareStore = true;
+
+      autostart.enable = true;
+
+      startMenu.enable = false;
+
+      config = { ... }: {
+        documentation.enable = false;
+        documentation.nixos.enable = false;
+      };
+    };
+  in
   {
     name = "systemd-credentials";
 
@@ -9,23 +25,32 @@ import ../../make-test.nix (
 
     tags = [ "ci" ];
 
-    machine = import ../../machines/vpsadminos/tank.nix pkgs;
+    machine = import ../../machines/vpsadminos/with-tank.nix {
+      inherit pkgs;
+      config = {
+        osctl.pools.tank = {
+          users.testuser = {
+            uidMap = [ "0:500000:65536" ];
+            gidMap = [ "0:600000:65536" ];
+          };
+
+          containers.testct = mkSystemdContainer;
+        };
+      };
+    };
 
     testScript = ''
       machine.start
       machine.wait_for_osctl_pool("tank")
       machine.wait_until_online
-      machine.all_succeed(
-        "osctl ct new --distribution arch testct",
-        "osctl ct unset start-menu testct",
-        "osctl ct start testct",
-      )
+      machine.wait_for_osctl_container("testct")
+      machine.wait_until_succeeds("osctl ct exec testct systemctl is-system-running", timeout: 120)
 
       # LoadCredential
       _, output = machine.all_succeed(
         "osctl ct exec testct bash -c 'echo mysecretcontent > /mysecretfile'",
         "osctl ct exec testct chmod og-rwx /mysecretfile",
-        "osctl ct exec testct systemd-run --quiet --pipe --property LoadCredential=mysecret:/mysecretfile /bin/bash -c 'cat $CREDENTIALS_DIRECTORY/mysecret'",
+        "osctl ct exec testct systemd-run --quiet --pipe --property LoadCredential=mysecret:/mysecretfile /run/current-system/sw/bin/bash -c '/run/current-system/sw/bin/cat $CREDENTIALS_DIRECTORY/mysecret'",
       ).last
 
       if output.strip != "mysecretcontent"
