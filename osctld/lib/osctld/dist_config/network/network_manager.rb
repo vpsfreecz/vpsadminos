@@ -4,15 +4,8 @@ module OsCtld
   # Configure network using NetworkManager keyfiles
   class DistConfig::Network::NetworkManager < DistConfig::Network::Base
     def usable?
-      begin
-        network_scripts = File.join(rootfs, 'etc/sysconfig/network-scripts')
-
-        Dir.entries(network_scripts).each do |entry|
-          return false if entry.start_with?('ifcfg-')
-        end
-      rescue Errno::ENOENT, Errno::ENOTDIR
-        # pass
-      end
+      return false if network_scripts_configured?
+      return false if ifcfg_rh_plugin_configured?
 
       return false unless Dir.exist?(File.join(rootfs, 'etc/NetworkManager/conf.d'))
       return false unless Dir.exist?(File.join(rootfs, 'etc/NetworkManager/system-connections'))
@@ -50,6 +43,48 @@ module OsCtld
     end
 
     protected
+
+    def network_scripts_configured?
+      network_scripts = File.join(rootfs, 'etc/sysconfig/network-scripts')
+
+      Dir.entries(network_scripts).any? do |entry|
+        entry.start_with?('ifcfg-') && !entry.match?(/\Aifcfg-lo(?::\d+)?\z/)
+      end
+    rescue Errno::ENOENT, Errno::ENOTDIR
+      false
+    end
+
+    def ifcfg_rh_plugin_configured?
+      network_manager_config_paths.any? do |path|
+        nm_config_enables_ifcfg_rh?(path)
+      end
+    end
+
+    def network_manager_config_paths
+      ret = [
+        File.join(rootfs, 'etc/NetworkManager/NetworkManager.conf')
+      ]
+
+      conf_d = File.join(rootfs, 'etc/NetworkManager/conf.d')
+      ret.concat(
+        Dir.children(conf_d).sort.map { |entry| File.join(conf_d, entry) }
+      )
+    rescue Errno::ENOENT, Errno::ENOTDIR
+      ret
+    end
+
+    def nm_config_enables_ifcfg_rh?(path)
+      File.foreach(path).any? do |line|
+        key, value = line.sub(/[;#].*\z/, '').strip.split('=', 2)
+
+        next false if key.nil? || value.nil?
+        next false unless %w[plugins plugins+].include?(key.strip)
+
+        value.split(/[,\s]+/).include?('ifcfg-rh')
+      end
+    rescue Errno::ENOENT, Errno::ENOTDIR, Errno::EACCES
+      false
+    end
 
     def do_create_connection(netif)
       tpl_base = File.join('dist_config/network/network_manager')
