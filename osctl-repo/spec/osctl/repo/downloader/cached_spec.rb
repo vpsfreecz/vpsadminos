@@ -107,7 +107,15 @@ RSpec.describe OsCtl::Repo::Downloader::Cached do
       expect(downloader.list.map(&:version)).to eq(%w[3.19])
       expect(File.read(repo.index_path)).to eq(old_index)
       expect(http.request_get_requests).to eq(
-        [['/v1/INDEX.json', { 'If-Modified-Since' => File.stat(repo.index_path).mtime.httpdate }]]
+        [
+          [
+            '/v1/INDEX.json',
+            {
+              'Accept-Encoding' => 'identity',
+              'If-Modified-Since' => File.stat(repo.index_path).mtime.httpdate
+            }
+          ]
+        ]
       )
     end
   end
