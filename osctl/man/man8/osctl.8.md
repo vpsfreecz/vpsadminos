@@ -2619,6 +2619,19 @@ transfer and start again.
     Use with caution. Can be used e.g. to wake up `osctl ct start` from waiting
     on a dead container.
 
+`ct recover forget-host-link` *ctid* *interface*
+  Explicitly acknowledge and discard an absent host-link ownership record,
+  including a tainted record, for one configured interface. This privileged
+  operation verifies that LXC reports the container stopped and then checks
+  both the recorded host-link name and ifindex. If an IFB is recorded, its
+  name and ifindex must also be absent. It never deletes a live link, and
+  refuses mismatched/replacement links and failed kernel queries.
+
+  After acknowledging the missing links, run `ct recover cleanup` to finish
+  cleanup and clear the separate recovery taint. This does not clear unrelated
+  container configuration/runtime errors. Neither command requires a reboot,
+  draining other containers, or manual changes to osctld state.
+
 `ct recover cleanup` [`-f`] *ctid*
   Remove any leftover cgroups and network interfaces that might have belonged
   to container *ctid*. This is useful when the container's management process
