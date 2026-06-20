@@ -49,7 +49,9 @@ log_must touch $DEFAULT_FILE
 must_have_acl user:$CORRECT_UID:rw- $DEFAULT_FILE
 must_have_acl group:$CORRECT_GID:rw- $DEFAULT_FILE
 
-### With uidmap/gidmap, both should now appear ok
+### With uidmap/gidmap, valid namespace IDs are projected. Legacy ACLs that
+### already persisted host IDs fall outside the namespace domain and fail
+### closed until the map is removed.
 log_must zfs umount $TESTDS
 log_must zfs set uidmap=$UIDMAP gidmap=$GIDMAP $TESTDS
 log_must zfs mount $TESTDS
@@ -57,8 +59,7 @@ log_must zfs mount $TESTDS
 must_have_acl user:$MAPPED_UID:rwx $CORRECT_FILE
 must_have_acl group:$MAPPED_GID:rwx $CORRECT_FILE
 
-must_have_acl user:$MAPPED_UID:rwx $WRONG_FILE
-must_have_acl group:$MAPPED_GID:rwx $WRONG_FILE
+log_mustnot getfacl $WRONG_FILE
 
 must_have_acl default:user:$MAPPED_UID:rw- $DEFAULT_DIR
 must_have_acl default:group:$MAPPED_GID:rw- $DEFAULT_DIR
@@ -70,13 +71,15 @@ must_have_acl group:$MAPPED_GID:rw- $DEFAULT_FILE
 touch $NEW_HOST_FILE
 touch $NEW_MAPPED_FILE
 
-log_must setfacl -m user:$CORRECT_UID:rwx $NEW_HOST_FILE
+log_mustnot setfacl -m user:$CORRECT_UID:rwx $NEW_HOST_FILE
+log_mustnot setfacl -m group:$CORRECT_GID:rwx $NEW_HOST_FILE
+log_must setfacl -m user:$MAPPED_UID:rwx $NEW_HOST_FILE
 must_have_acl user:$MAPPED_UID:rwx $NEW_HOST_FILE
-log_must setfacl -m group:$CORRECT_GID:rwx $NEW_HOST_FILE
+log_must setfacl -m group:$MAPPED_GID:rwx $NEW_HOST_FILE
 must_have_acl group:$MAPPED_GID:rwx $NEW_HOST_FILE
 
-log_must su $ZFS_USER -c "setfacl -m user:$CORRECT_UID:rwx $NEW_MAPPED_FILE"
-log_must su $ZFS_USER -c "setfacl -m group:$CORRECT_GID:rwx $NEW_MAPPED_FILE"
+log_must su $ZFS_USER -c "setfacl -m user:$MAPPED_UID:rwx $NEW_MAPPED_FILE"
+log_must su $ZFS_USER -c "setfacl -m group:$MAPPED_GID:rwx $NEW_MAPPED_FILE"
 
 must_have_acl user:$MAPPED_UID:rwx $NEW_MAPPED_FILE
 must_have_acl group:$MAPPED_GID:rwx $NEW_MAPPED_FILE
