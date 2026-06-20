@@ -228,6 +228,7 @@ let
           "zfs/full-suite"
           "zfs/block-cloning-corruption"
           "zfs/fallocate-deadlock"
+          "zfs/large-folios"
           "zfs/mmap-nosync"
           "zfs/mmap-write-truncate"
           "zfs/overlayfs-deadlock"
