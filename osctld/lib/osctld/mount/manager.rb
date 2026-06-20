@@ -1,4 +1,5 @@
 require 'libosctl'
+require 'osctld/bpf_fs'
 require 'osctld/lockable'
 
 module OsCtld
@@ -126,6 +127,12 @@ module OsCtld
           shared_dir.mountpoint,
           'none',
           'bind,create=dir,ro',
+          true
+        ), Mount::Entry.new(
+          BpfFs.ct_mount_path(ct.pool.name, ct.id),
+          '/sys/fs/bpf',
+          'none',
+          'bind,create=dir,rw',
           true
         )] + entries.select { |m| m.in_config? || (m.automount? && !m.temp?) }
       end
