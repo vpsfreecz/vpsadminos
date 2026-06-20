@@ -52,6 +52,28 @@ RSpec.describe 'DistConfig distributions' do
     expect(other.configurator_class).to eq(OsCtld::DistConfig::Configurator)
   end
 
+  it 'does not configure guest files at start without hostname, DNS, or network changes' do
+    ct = double(
+      id: 'ct1',
+      distribution: 'debian',
+      version: '12',
+      hostname: nil,
+      dns_resolvers: nil
+    )
+    ctrc = double(
+      ct:,
+      distribution: 'debian',
+      version: '12',
+      dist_configure_network?: false
+    )
+    dist = OsCtld::DistConfig::Distributions::Debian.new(ctrc)
+    allow(dist).to receive(:with_rootfs)
+
+    dist.start
+
+    expect(dist).not_to have_received(:with_rootfs)
+  end
+
   it 'logs warnings for unsupported operations on Other' do
     ct = double
     dist = OsCtld::DistConfig::Distributions::Other.new(double(ct: ct, distribution: 'mystery', version: '1'))
