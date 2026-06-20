@@ -2062,6 +2062,12 @@ module OsCtl::Cli
 
         ct.desc 'Recover container from errors'
         ct.command :recover do |r|
+          r.desc 'Forget absent host-link ownership for a stopped container'
+          r.arg_name '<ctid> <interface>'
+          r.command :'forget-host-link' do |c|
+            c.action(&Command.run(Container, :recover_forget_host_link))
+          end
+
           r.desc 'Kill all container processes'
           r.arg_name '<ctid> [signal]'
           r.command :kill do |c|

@@ -26,6 +26,22 @@ module ContainerHelpers
     end
   end
 
+  class FakeHostLinkNetInterface
+    attr_reader :type, :name
+
+    def initialize(type:, name:, identity:, tainted:, saved:)
+      @type = type
+      @name = name
+      @identity = identity
+      @tainted = tainted
+      @saved = saved
+    end
+
+    def host_link_identity = @identity
+    def host_link_tainted? = @tainted
+    def save = @saved
+  end
+
   class FakeRunConfigContainer
     attr_accessor :distribution, :version, :arch, :vendor, :variant
     attr_reader :pool, :id, :dataset, :user, :group, :uid_map, :gid_map, :map_mode,
@@ -265,7 +281,7 @@ module ContainerHelpers
 
       attr_reader :ct
 
-      def self.load(ct, cfg)
+      def self.load(ct, cfg, **_opts)
         entries = Array(cfg).map do |entry|
           if entry.respond_to?(:can_run_distconfig?)
             entry
@@ -290,6 +306,14 @@ module ContainerHelpers
 
       def dump
         @entries.map(&:save)
+      end
+
+      def recovery_tainted?
+        false
+      end
+
+      def setup_state_changed?
+        false
       end
 
       def dup(new_ct)

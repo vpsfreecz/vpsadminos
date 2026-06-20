@@ -229,6 +229,7 @@ module FakeObjects
       @netifs = netifs
       @cpu_package = cpu_package
       @save_config_calls = 0
+      @recovery_tainted = false
     end
 
     def can_start?
@@ -251,6 +252,20 @@ module FakeObjects
 
     def save_config
       @save_config_calls += 1
+    end
+
+    def recovery_tainted?
+      @recovery_tainted
+    end
+
+    def taint_recovery!
+      @recovery_tainted = true
+      save_config
+    end
+
+    def clear_recovery_taint!
+      @recovery_tainted = false
+      save_config
     end
 
     def exclusively(&block)

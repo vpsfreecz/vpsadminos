@@ -101,8 +101,9 @@ module OsCtld
 
     def handle_improper_ct_stop
       # In this scenario, it is possible that the veth-down hooks weren't
-      # run either. Cleanup interfaces that may have been left behind.
-      ct.netifs.take_down
+      # run either. Use the same all-record preflight and durable taint gate as
+      # forced deletion; never perform an unchecked direct teardown.
+      Container::Recovery.new(ct).cleanup_or_taint
     end
 
     def handle_ct_stop(ctrc)

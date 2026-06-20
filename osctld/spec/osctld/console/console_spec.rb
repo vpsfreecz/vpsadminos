@@ -144,6 +144,21 @@ RSpec.describe OsCtld::Console::Console do
     expect(ctrc).to have_received(:fulfil_exit)
   end
 
+  it 'uses the recovery taint gate after an improper stop' do
+    ct = build_ct
+    console = described_class.new(ct, 0)
+    recovery_class = stub_const('OsCtld::Container::Recovery', Class.new do
+      def initialize(*); end
+    end)
+    recovery = instance_double(recovery_class, cleanup_or_taint: false)
+    allow(recovery_class).to receive(:new).with(ct).and_return(recovery)
+
+    console.send(:handle_improper_ct_stop)
+
+    expect(recovery_class).to have_received(:new).with(ct)
+    expect(recovery).to have_received(:cleanup_or_taint)
+  end
+
   it 'writes back dirtied pages for persistent containers when configured' do
     stub_writeout_daemon(true)
     ct = build_ct
