@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'timeout'
 require 'osctld/exceptions'
 require 'osctld/attributes'
 require 'osctld/auto_start/config'
@@ -133,6 +134,395 @@ RSpec.describe OsCtld::Container do
         expect(ct.user).to eq(user)
         expect(ct.group).to eq(group)
         expect(ct.start_menu).to be_a(OsCtld::Container::StartMenu)
+      end
+    end
+
+    it 'persists a running old-config host-link migration after installing the manager' do
+      with_tmpdir do |dir|
+        pool = build_container_pool(root: dir)
+        user = FakeObjects::FakeUser.new(name: 'alice', userdir: File.join(pool.user_dir, 'alice'))
+        group = FakeObjects::FakeGroup.new(name: '/default', cgroup_path: '/osctl/pool.tank/group.default')
+        stub_users_registry([user])
+        stub_groups_registry([group], root: group)
+        manager_class = runtime[:net_interface_manager_class]
+        allow(manager_class).to receive(:load) do |ct, _cfg, discover_host_links:|
+          expect(discover_host_links).to be(true)
+          manager = manager_class.new(ct)
+          manager.define_singleton_method(:setup_state_changed?) { true }
+          manager.define_singleton_method(:dump) do
+            raise 'manager was not installed before migration save' unless ct.netifs.equal?(self)
+
+            [
+              {
+                'type' => 'bridge',
+                'name' => 'eth0',
+                'host_link' => {
+                  'name' => 'veth0',
+                  'ifindex' => 10,
+                  'ifb_ifindex' => nil,
+                  'tainted' => false
+                }
+              }
+            ]
+          end
+          manager
+        end
+
+        config = {
+          'user' => 'alice',
+          'group' => '/default',
+          'dataset' => 'tank/ct/ct1',
+          'map_mode' => 'zfs',
+          'distribution' => 'almalinux',
+          'version' => '9',
+          'arch' => 'x86_64',
+          'net_interfaces' => [{ 'type' => 'bridge', 'name' => 'eth0' }],
+          'cgparams' => {},
+          'devices' => [],
+          'prlimits' => {},
+          'mounts' => {},
+          'attrs' => {}
+        }
+        write_yaml_file(File.join(pool.conf_path, 'ct', 'ct1.yml'), config)
+
+        ct = described_class.new(
+          pool,
+          'ct1',
+          nil,
+          nil,
+          nil,
+          devices: false
+        )
+
+        expect(load_yaml_file(ct.config_path).dig('net_interfaces', 0, 'host_link')).to eq(
+          'name' => 'veth0',
+          'ifindex' => 10,
+          'ifb_ifindex' => nil,
+          'tainted' => false
+        )
+      end
+    end
+
+    it 'strips an imported host-link identity before manager load' do
+      with_tmpdir do |dir|
+        pool = build_container_pool(root: dir)
+        user = FakeObjects::FakeUser.new(name: 'alice', userdir: File.join(pool.user_dir, 'alice'))
+        group = FakeObjects::FakeGroup.new(name: '/default', cgroup_path: '/osctl/pool.tank/group.default')
+        stub_users_registry([user])
+        stub_groups_registry([group], root: group)
+        manager_class = runtime[:net_interface_manager_class]
+        loaded_netifs = nil
+        allow(manager_class).to receive(:load) do |ct, cfg, discover_host_links:|
+          expect(discover_host_links).to be(false)
+          loaded_netifs = cfg
+          manager_class.new(ct)
+        end
+
+        imported = described_class.new(
+          pool,
+          'ct1',
+          nil,
+          nil,
+          nil,
+          load_from: dump_yaml(
+            'user' => 'alice',
+            'group' => '/default',
+            'dataset' => 'tank/ct/ct1',
+            'map_mode' => 'zfs',
+            'distribution' => 'almalinux',
+            'version' => '9',
+            'arch' => 'x86_64',
+            'state' => 'error',
+            'net_interfaces' => [
+              {
+                'type' => 'bridge',
+                'name' => 'eth0',
+                'host_link' => {
+                  'name' => 'foreign0',
+                  'ifindex' => 42,
+                  'ifb_ifindex' => 43,
+                  'tainted' => false
+                }
+              }
+            ],
+            'cgparams' => {},
+            'devices' => [],
+            'prlimits' => {},
+            'mounts' => {},
+            'attrs' => {}
+          ),
+          devices: false
+        )
+
+        expect(loaded_netifs.first).not_to have_key('host_link')
+        expect(imported.state).to eq(:unknown)
+      end
+    end
+
+    it 'trusts runtime metadata only from the exact daemon config path' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+        other_path = File.join(dir, 'other-container.yml')
+        write_yaml_file(other_path, ct.dump_config.merge('state' => 'error'))
+
+        expect do
+          ct.send(:load_config_file, other_path)
+        end.to raise_error(ArgumentError)
+        allow(OsCtl::Lib::ConfigFile).to receive(:load_yaml_file).and_call_original
+
+        ct.reload_config
+
+        expect(OsCtl::Lib::ConfigFile).to have_received(:load_yaml_file).with(ct.config_path)
+        expect(ct.state).not_to eq(:error)
+      end
+    end
+
+    it 'ignores replacement host-link authority and preserves the daemon record' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+        manager_class = runtime[:net_interface_manager_class]
+        internal_host_link = {
+          'name' => 'veth0',
+          'ifindex' => 10,
+          'ifb_ifindex' => 20,
+          'tainted' => true
+        }
+        current_netif = ContainerHelpers::FakeHostLinkNetInterface.new(
+          type: :bridge,
+          name: 'eth0',
+          identity: ['veth0', 10, 20],
+          tainted: true,
+          saved: {
+            'type' => 'bridge',
+            'name' => 'eth0',
+            'host_link' => internal_host_link
+          }
+        )
+        ct.instance_variable_set(
+          :@netifs,
+          manager_class.new(ct, entries: [current_netif])
+        )
+        ct.state = :error
+        replacement = ct.dump_config
+        replacement['state'] = 'running'
+        replacement['net_interfaces'].first['host_link'] = {
+          'name' => 'foreign0',
+          'ifindex' => 42,
+          'ifb_ifindex' => 43,
+          'tainted' => false
+        }
+        loaded_netifs = nil
+        allow(manager_class).to receive(:load) do |owner, cfg, discover_host_links:|
+          expect(discover_host_links).to be(false)
+          loaded_netifs = cfg
+          manager_class.new(owner)
+        end
+
+        ct.replace_config(dump_yaml(replacement))
+
+        expect(loaded_netifs.first['host_link']).to eq(internal_host_link)
+        expect(ct.state).to eq(:error)
+      end
+    end
+
+    it 'rejects discarding or renaming a clean stopped host-link owner' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+        manager_class = runtime[:net_interface_manager_class]
+        current_netif = ContainerHelpers::FakeHostLinkNetInterface.new(
+          type: :bridge,
+          name: 'eth0',
+          identity: ['veth0', 10, nil],
+          tainted: false,
+          saved: {
+            'type' => 'bridge',
+            'name' => 'eth0',
+            'host_link' => {
+              'name' => 'veth0',
+              'ifindex' => 10,
+              'ifb_ifindex' => nil,
+              'tainted' => false
+            }
+          }
+        )
+        manager = manager_class.new(ct, entries: [current_netif])
+        ct.instance_variable_set(:@netifs, manager)
+        ct.state = :stopped
+
+        removed = ct.dump_config.merge('net_interfaces' => [])
+        renamed = ct.dump_config
+        renamed['net_interfaces'].first['name'] = 'eth1'
+
+        expect do
+          ct.replace_config(dump_yaml(removed))
+        end.to raise_error(
+          OsCtld::ConfigError,
+          %r{cannot discard internal host-link owners: bridge/eth0}
+        )
+        expect do
+          ct.replace_config(dump_yaml(renamed))
+        end.to raise_error(
+          OsCtld::ConfigError,
+          %r{cannot discard internal host-link owners: bridge/eth0}
+        )
+        expect(ct.netifs).to be(manager)
+        expect(ct.state).to eq(:stopped)
+      end
+    end
+
+    it 'rejects duplicating a retained host-link owner in external config' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+        manager_class = runtime[:net_interface_manager_class]
+        current_netif = ContainerHelpers::FakeHostLinkNetInterface.new(
+          type: :bridge,
+          name: 'eth0',
+          identity: ['veth0', 10, nil],
+          tainted: false,
+          saved: {
+            'type' => 'bridge',
+            'name' => 'eth0',
+            'host_link' => {
+              'name' => 'veth0',
+              'ifindex' => 10,
+              'ifb_ifindex' => nil,
+              'tainted' => false
+            }
+          }
+        )
+        ct.instance_variable_set(
+          :@netifs,
+          manager_class.new(ct, entries: [current_netif])
+        )
+        replacement = ct.dump_config
+        duplicate = replacement['net_interfaces'].first.dup
+        duplicate['host_link'] = duplicate['host_link'].dup
+        replacement['net_interfaces'] << duplicate
+
+        expect do
+          ct.replace_config(dump_yaml(replacement))
+        end.to raise_error(
+          OsCtld::ConfigError,
+          %r{duplicates internal host-link owner bridge/eth0}
+        )
+      end
+    end
+
+    it 'serializes replacement authority snapshots with lifecycle state changes' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+        manager_class = runtime[:net_interface_manager_class]
+        identity_read = Queue.new
+        release_identity = Queue.new
+        state_changed = Queue.new
+        current_netif = ContainerHelpers::FakeHostLinkNetInterface.new(
+          type: :bridge,
+          name: 'eth0',
+          identity: ['veth0', 10, nil],
+          tainted: false,
+          saved: {
+            'type' => 'bridge',
+            'name' => 'eth0',
+            'host_link' => {
+              'name' => 'veth0',
+              'ifindex' => 10,
+              'ifb_ifindex' => nil,
+              'tainted' => false
+            }
+          }
+        )
+        allow(current_netif).to receive(:host_link_identity) do
+          identity_read << true
+          Timeout.timeout(5) { release_identity.pop }
+          ['veth0', 10, nil]
+        end
+        ct.instance_variable_set(
+          :@netifs,
+          manager_class.new(ct, entries: [current_netif])
+        )
+        replacement = ct.dump_config
+
+        replace_thread = Thread.new { ct.replace_config(dump_yaml(replacement)) }
+        Timeout.timeout(5) { identity_read.pop }
+        state_thread = Thread.new do
+          ct.state = :running
+          state_changed << true
+        end
+
+        expect { state_changed.pop(true) }.to raise_error(ThreadError)
+        expect(state_thread).to be_alive
+
+        release_identity << true
+        expect(replace_thread.join(5)).to be(replace_thread)
+        expect(state_thread.join(5)).to be(state_thread)
+        expect { replace_thread.value }.not_to raise_error
+        expect { state_thread.value }.not_to raise_error
+        expect(state_changed.pop).to be(true)
+        expect(ct.state).to eq(:running)
+      ensure
+        release_identity&.push(true) if replace_thread&.alive?
+        replace_thread&.join(5)
+        state_thread&.join(5)
+      end
+    end
+
+    it 'waits for the host-link registry before locking replacement state' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+        manager_class = runtime[:net_interface_manager_class]
+        current_netif = ContainerHelpers::FakeHostLinkNetInterface.new(
+          type: :bridge,
+          name: 'eth0',
+          identity: ['veth0', 10, nil],
+          tainted: false,
+          saved: {
+            'type' => 'bridge',
+            'name' => 'eth0',
+            'host_link' => {
+              'name' => 'veth0',
+              'ifindex' => 10,
+              'ifb_ifindex' => nil,
+              'tainted' => false
+            }
+          }
+        )
+        ct.instance_variable_set(
+          :@netifs,
+          manager_class.new(ct, entries: [current_netif])
+        )
+        replacement = ct.dump_config
+        allow(manager_class).to receive(:load) do |owner, _cfg, **|
+          OsCtld::NetInterface.sync_host_link_registry { true }
+          manager_class.new(owner)
+        end
+
+        replace_started = Queue.new
+        state_changed = Queue.new
+        replace_thread = nil
+        state_thread = nil
+
+        OsCtld::NetInterface.sync_host_link_registry do
+          replace_thread = Thread.new do
+            replace_started << true
+            ct.replace_config(dump_yaml(replacement))
+          end
+          replace_started.pop
+          expect(replace_thread.join(0.05)).to be_nil
+
+          state_thread = Thread.new do
+            ct.state = :running
+            state_changed << true
+          end
+          expect(state_thread.join(5)).to be(state_thread)
+          expect(state_changed.pop).to be(true)
+        end
+
+        expect(replace_thread.join(5)).to be(replace_thread)
+        expect { replace_thread.value }.not_to raise_error
+        expect(ct.state).to eq(:running)
+      ensure
+        replace_thread&.join(5)
+        state_thread&.join(5)
       end
     end
   end
@@ -557,6 +947,27 @@ RSpec.describe OsCtld::Container do
         expect(staged.can_start?).to be(false)
         expect(errored.can_start?).to be(false)
         expect(inactive.can_start?).to be(false)
+      end
+    end
+
+    it 'persists and reloads the recovery error state' do
+      with_tmpdir do |dir|
+        pool = build_container_pool(root: dir)
+        ct = build_configured_container(root: dir, pool:)
+        ct.state = :error
+        ct.save_config
+        cfg = load_yaml_file(ct.config_path)
+
+        loaded = build_container(
+          root: dir,
+          pool:,
+          load: true,
+          devices: false
+        )
+
+        expect(cfg['state']).to eq('error')
+        expect(loaded.state).to eq(:error)
+        expect(loaded.can_start?).to be(false)
       end
     end
 
