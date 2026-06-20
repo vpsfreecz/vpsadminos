@@ -72,6 +72,44 @@ RSpec.describe OsCtld::NetInterface::Bridge do
     expect(bridge.has_gateway?(6)).to be(false)
   end
 
+  it 'normalizes gateway keys from serialized command options' do
+    bridge.create(name: 'eth0', hwaddr: nil, link: 'br0', gateways: { '4' => 'auto', '6' => 'none' })
+    allow(Socket).to receive(:getifaddrs).and_return(
+      [
+        bridge_ifaddr('br0', '192.0.2.1', 4),
+        bridge_ifaddr('br0', 'fe80::1', 6)
+      ]
+    )
+
+    expect(bridge.gateway(4)).to eq('192.0.2.1')
+    expect(bridge.has_gateway?(6)).to be(false)
+    expect(bridge.save['gateways']).to eq('v4' => 'auto', 'v6' => 'none')
+  end
+
+  it 'does not cache an unresolved auto gateway' do
+    bridge.create(name: 'eth0', hwaddr: nil, link: 'br0', gateways: { 4 => 'auto', 6 => 'none' })
+    allow(Socket).to receive(:getifaddrs).and_return(
+      [],
+      [bridge_ifaddr('br0', '192.0.2.1', 4)]
+    )
+
+    expect(bridge.has_gateway?(4)).to be(false)
+    expect(bridge.gateway(4)).to eq('192.0.2.1')
+  end
+
+  it 'waits for auto gateways when start-time configuration requests it' do
+    bridge.create(name: 'eth0', hwaddr: nil, link: 'br0', gateways: { 4 => 'auto', 6 => 'none' })
+    allow(Socket).to receive(:getifaddrs).and_return(
+      [],
+      [],
+      [bridge_ifaddr('br0', '192.0.2.1', 4)]
+    )
+    allow(bridge).to receive(:sleep)
+
+    expect(bridge.gateway_or_nil(4, wait: true)).to eq('192.0.2.1')
+    expect(bridge).to have_received(:sleep).twice.with(0.1)
+  end
+
   it 'configures container addresses only while running and isolates gateway state on dup' do
     bridge.create(name: 'eth0', hwaddr: nil, link: 'br0', gateways: { 4 => '192.0.2.1', 6 => 'none' })
     bridge.add_ip(IPAddress.parse('192.0.2.10/24'))
