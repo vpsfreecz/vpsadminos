@@ -29,8 +29,39 @@ RSpec.describe OsVm::Machine do
     with_tmpdir do |dir|
       machine = build_machine(dir:, name: 'alpha', hash_base: 'suite')
       socket_path = machine.send(:socket_path, 'console.sock')
+      digest = Digest::SHA256.new
+      %w[suite alpha].each do |field|
+        digest << [field.bytesize].pack('Q>')
+        digest << field
+      end
 
-      expect(socket_path).to eq(File.join(dir, 'sock', "#{Digest::SHA256.hexdigest('suitealpha')[0..7]}-console.sock"))
+      expect(socket_path).to eq(File.join(dir, 'sock', "#{digest.hexdigest[0, 16]}-console.sock"))
+    end
+  end
+
+  it 'length-prefixes socket identity fields before hashing' do
+    with_tmpdir do |dir|
+      first = build_machine(dir:, name: 'c', hash_base: 'ab')
+      second = build_machine(dir:, name: 'bc', hash_base: 'a')
+
+      expect(first.send(:socket_hash)).not_to eq(second.send(:socket_hash))
+    end
+  end
+
+  it 'fails closed when distinct machine identities collide' do
+    with_tmpdir do |dir|
+      first = build_machine(dir:, name: 'first', hash_base: 'suite')
+      second = build_machine(dir:, name: 'second', hash_base: 'suite')
+      allow(first).to receive(:socket_identity_digest).and_return('a' * 64)
+      allow(second).to receive(:socket_identity_digest).and_return('a' * 64)
+      first.instance_variable_set(:@socket_hash, nil)
+      second.instance_variable_set(:@socket_hash, nil)
+
+      first.send(:socket_path, 'shell.sock')
+
+      expect do
+        second.send(:socket_path, 'shell.sock')
+      end.to raise_error(OsVm::Error, /Socket hash collision/)
     end
   end
 
@@ -103,10 +134,33 @@ RSpec.describe OsVm::Machine do
 
       options = machine.send(:qemu_virtiofs_options)
 
-      expect(options).to include('-object', 'memory-backend-file,id=m0,size=512M,mem-path=/dev/shm,share=on')
+      expect(options).to include(
+        '-object',
+        'memory-backend-file,id=m0,size=512M,mem-path=/dev/shm,share=on'
+      )
       expect(options).to include('-numa', 'node,memdev=m0')
       expect(options.grep(/tag=vmSharedDir/).first).not_to be_nil
       expect(options.grep(/tag=extra/).first).not_to be_nil
+    end
+  end
+
+  it 'expands machine runtime paths in extra qemu options without mutating config' do
+    with_tmpdir do |dir|
+      config = build_machine_config(
+        'extraQemuOptions' => [
+          '-object',
+          'memory-backend-file,id=node0,size=512M,mem-path=@OSVM_TMPDIR@/node0.mem,share=on'
+        ]
+      )
+      machine = build_machine(dir:, config:)
+
+      expect(machine.send(:expanded_extra_qemu_options)).to eq(
+        [
+          '-object',
+          "memory-backend-file,id=node0,size=512M,mem-path=#{File.join(dir, 'tmp', 'node0.mem')},share=on"
+        ]
+      )
+      expect(config.extra_qemu_options.last).to include('@OSVM_TMPDIR@')
     end
   end
 
