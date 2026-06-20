@@ -14,6 +14,11 @@ module FakeHttpHelpers
       @headers[key.to_s.downcase]
     end
 
+    def get_fields(key)
+      value = self[key]
+      value.nil? ? nil : Array(value)
+    end
+
     def read_body(&)
       return enum_for(:read_body) unless block_given?
 
