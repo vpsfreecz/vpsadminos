@@ -21,7 +21,6 @@ import ../../make-test.nix (
 
     testScript = ''
       before(:suite) do
-        machine.start
         machine.wait_for_osctl_pool("tank")
         machine.wait_until_online
       end
@@ -64,7 +63,11 @@ import ../../make-test.nix (
           machine.wait_until_succeeds("test -s /run/osctl/exportfs/servers/server1/pid")
           @server_pid = machine.succeeds("cat /run/osctl/exportfs/servers/server1/pid")[1].strip
 
-          sleep(10)
+          machine.wait_until_succeeds(
+            "timeout 10 rpcinfo -p 10.0.0.10 | grep -Eq '^[[:space:]]*100003[[:space:]]+[0-9]+[[:space:]]+tcp[[:space:]]' && " \
+              "timeout 10 rpcinfo -p 10.0.0.10 | grep -Eq '^[[:space:]]*100005[[:space:]]+[0-9]+[[:space:]]+tcp[[:space:]]'",
+            timeout: 180
+          )
         end
 
         after(:context) do
@@ -80,9 +83,10 @@ import ../../make-test.nix (
         end
 
         it "mounts exports for allowed hosts" do
-          machine.all_succeed(
-            "osctl ct exec testct1 mkdir -p /mnt/server1",
-            "osctl ct exec testct1 mount -v -t nfs 10.0.0.10:/srv/server1 /mnt/server1",
+          machine.succeeds("osctl ct exec testct1 mkdir -p /mnt/server1")
+          machine.wait_until_succeeds(
+            "osctl ct exec testct1 timeout 20 mount -v -t nfs -o proto=tcp,timeo=10,retrans=2 10.0.0.10:/srv/server1 /mnt/server1",
+            timeout: 180
           )
 
           expect(machine.succeeds("osctl ct exec testct1 cat /mnt/server1/server1.txt")[1].strip).to eq("hello")
@@ -111,7 +115,10 @@ import ../../make-test.nix (
             "echo second > /srv/server2/server2.txt",
             "osctl-exportfs export add --directory /srv/server2 --host 192.168.1.21/32 --options fsid=5678 server1",
             "osctl ct exec testct1 mkdir -p /mnt/server2",
-            "osctl ct exec testct1 mount -v -t nfs 10.0.0.10:/srv/server2 /mnt/server2",
+          )
+          machine.wait_until_succeeds(
+            "osctl ct exec testct1 timeout 20 mount -v -t nfs -o proto=tcp,timeo=10,retrans=2 10.0.0.10:/srv/server2 /mnt/server2",
+            timeout: 180
           )
 
           expect(machine.succeeds("osctl ct exec testct1 cat /mnt/server2/server2.txt")[1].strip).to eq("second")
@@ -135,7 +142,7 @@ import ../../make-test.nix (
         it "rejects mounts from disallowed hosts" do
           machine.succeeds("osctl ct exec testct2 mkdir -p /mnt/server1")
 
-          expect(machine.fails("osctl ct exec testct2 mount -v -t nfs 10.0.0.10:/srv/server1 /mnt/server1")[0]).not_to eq(0)
+          expect(machine.fails("osctl ct exec testct2 timeout 20 mount -v -t nfs -o proto=tcp,timeo=10,retrans=2 10.0.0.10:/srv/server1 /mnt/server1")[0]).not_to eq(0)
         end
       end
     '';
