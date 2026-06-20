@@ -115,10 +115,21 @@ module OsCtld
     # @param attach [Boolean] attach the current process to the last group
     # @param leaf [Boolean] do not delegate controllers to the last cgroup
     # @param pid [Integer, nil] pid to attach, default to the current process
+    # @param delegate_existing [Boolean] delegate controllers on already-existing
+    #   non-leaf cgroups
     # @param debug [Boolean] enable extra logging
     # @return [Boolean] `true` if the last component was created, `false` if it
     #                   already existed
-    def self.mkpath(type, path, chown: nil, attach: false, leaf: true, pid: nil, debug: false)
+    def self.mkpath(
+      type,
+      path,
+      chown: nil,
+      attach: false,
+      leaf: true,
+      pid: nil,
+      delegate_existing: true,
+      debug: false
+    )
       base = abs_cgroup_path(type)
       tmp = []
       created = false
@@ -135,24 +146,18 @@ module OsCtld
           base:
         )
 
-        if !created && v2? && delegate && File.expand_path(cgroup) != File.expand_path(base)
-          CGroup.delegate_available_controllers(cgroup)
-        end
+        next unless delegate_existing &&
+                    !created &&
+                    v2? &&
+                    delegate &&
+                    File.expand_path(cgroup) != File.expand_path(base)
+
+        CGroup.delegate_available_controllers(cgroup)
       end
 
       if chown
         cgroup = File.join(base, *path)
-
-        File.chown(chown, chown, cgroup)
-        File.chown(chown, chown, File.join(cgroup, 'cgroup.procs'))
-
-        if v2? || type == 'unified'
-          DELEGATE_FILES.each do |f|
-            File.chown(chown, chown, File.join(cgroup, f))
-          rescue Errno::ENOENT
-            # ignore
-          end
-        end
+        chown_delegated(cgroup, uid: chown, gid: chown, unified: type == 'unified')
       end
 
       attach_to(type, path, pid:, debug:) if attach
@@ -166,10 +171,20 @@ module OsCtld
     # @param attach [Boolean] attach the current process to the last group
     # @param leaf [Boolean] do not delegate controllers to the last cgroup
     # @param pid [Integer, nil] pid to attach, default to the current process
+    # @param delegate_existing [Boolean] delegate controllers on already-existing
+    #   non-leaf cgroups
     # @param debug [Boolean] enable extra logging
-    def self.mkpath_all(path, chown: nil, attach: false, leaf: true, pid: nil, debug: false)
+    def self.mkpath_all(
+      path,
+      chown: nil,
+      attach: false,
+      leaf: true,
+      pid: nil,
+      delegate_existing: true,
+      debug: false
+    )
       subsystems.each do |subsys|
-        mkpath(subsys, path, chown:, attach:, leaf:, pid:, debug:)
+        mkpath(subsys, path, chown:, attach:, leaf:, pid:, delegate_existing:, debug:)
       end
     end
 
@@ -198,6 +213,27 @@ module OsCtld
       end
 
       created
+    end
+
+    # Give a user ownership of the cgroup files that the kernel designates for
+    # delegation. Files from /sys/kernel/cgroup/delegate are optional because
+    # their availability depends on the hierarchy version and kernel config.
+    #
+    # @param cgroup [String] absolute path of the delegated cgroup
+    # @param uid [Integer] owner uid
+    # @param gid [Integer] owner gid
+    # @param unified [Boolean] treat a named v1 unified hierarchy like v2
+    def self.chown_delegated(cgroup, uid:, gid:, unified: false)
+      File.chown(uid, gid, cgroup)
+      File.chown(uid, gid, File.join(cgroup, 'cgroup.procs'))
+
+      return unless v2? || unified
+
+      (DELEGATE_FILES - ['cgroup.procs']).uniq.each do |file|
+        File.chown(uid, gid, File.join(cgroup, file))
+      rescue Errno::ENOENT
+        # A kernel can omit delegation files that do not apply to its setup.
+      end
     end
 
     # Attach process to a cgroup
@@ -283,7 +319,8 @@ module OsCtld
       v
     end
 
-    # Enable all available controllers on cgroup
+    # Enable all available controllers on cgroup. If a block is given, call it
+    # only when a controller write is needed and immediately before that write.
     # @param cgroup [String] absolute path of the cgroup
     def self.delegate_available_controllers(cgroup)
       delegated = subtree_control(cgroup)
@@ -293,6 +330,7 @@ module OsCtld
 
       return if cmd.empty?
 
+      yield if block_given?
       File.write(File.join(cgroup, 'cgroup.subtree_control'), cmd)
     end
 
