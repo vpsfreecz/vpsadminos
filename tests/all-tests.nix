@@ -142,6 +142,7 @@ let
         "kernel/memory-view/cgroups-v2"
         "kernel/misc"
         "kernel/namespaces"
+        "kernel/tracing-tools"
         "kernel/sched-proxy-exec-lock-badneighbor"
         "kernel/syslogns"
         "kernel/tmpfs/cgroups-v1"
