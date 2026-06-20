@@ -173,7 +173,8 @@ module ContainerHelpers
         end
       end
 
-      attr_reader :ct, :rootfs, :destroy_calls, :save_calls, :distribution_updates
+      attr_reader :ct, :rootfs, :destroy_calls, :retirement_calls, :save_calls,
+                  :distribution_updates
       attr_accessor :dataset, :distribution, :version, :arch, :vendor, :variant,
                     :cpu_package, :init_pid
 
@@ -189,6 +190,7 @@ module ContainerHelpers
         @cpu_package = nil
         @save_calls = 0
         @destroy_calls = 0
+        @retirement_calls = 0
         @distribution_updates = []
         @load_conf = load_conf
       end
@@ -199,6 +201,10 @@ module ContainerHelpers
 
       def destroy
         @destroy_calls += 1
+      end
+
+      def begin_retirement
+        @retirement_calls += 1
       end
 
       def set_distribution(distribution:, version:, arch:, vendor:, variant:)
@@ -217,6 +223,7 @@ module ContainerHelpers
         save
       end
     end.tap do |klass|
+      klass.const_set(:LifecycleError, Class.new(StandardError))
       klass.load_return = load_return
     end
   end
