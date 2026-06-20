@@ -8,7 +8,18 @@ the hybrid hierarchy by setting `boot.enableUnifiedCgroupHierarchy = false;`.
 Cgroup mode can also be changed using kernel parameter
 [osctl.cgroupv](kernel-parameters.md#osctlcgroupv).
 
+## Host control-plane access
+
+On hosts with filtered proc/sysfs visibility, osctld uses its private cgroup
+mount under `/run/osctl/cgroup`. Ruby integrations performing daemon-side
+cgroup operations should use `OsCtl::Lib::CGroup.fs` (or `OsCtld::CGroup.fs`
+within the daemon) to obtain the selected mount. The legacy `CGroup::FS`
+constant in both modules remains `/sys/fs/cgroup` for source compatibility
+with callers referring to that public hierarchy. It is not an alias for the
+selected private control-plane mount.
+
 ## Container cgroups
+
 Available cgroups hierarchies in the containers depend on the host system. If
 the host uses the unified hierarchy, then containers must use it as well. If, on
 the other hand, the host uses hybrid hierarchy, then containers must use it, too.

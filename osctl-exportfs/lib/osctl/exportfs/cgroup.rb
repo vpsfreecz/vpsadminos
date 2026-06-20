@@ -3,10 +3,13 @@ require 'libosctl'
 
 module OsCtl::ExportFS
   class CGroup
-    FS = '/sys/fs/cgroup'.freeze
-
     # @return [String]
     attr_reader :path
+
+    # @return [String]
+    def self.fs
+      OsCtl::Lib::CGroup.fs
+    end
 
     # @param path [String] cgroup name
     def initialize(path)
@@ -65,7 +68,7 @@ module OsCtl::ExportFS
     end
 
     def abs_cgroup_path(*names)
-      args = [FS]
+      args = [self.class.fs]
       args << 'systemd' unless OsCtl::Lib::CGroup.v2?
       args << path
       args.concat(names)
