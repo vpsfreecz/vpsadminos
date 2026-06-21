@@ -674,6 +674,7 @@ module OsCtld
 
         when :dns_resolvers
           self.dns_resolvers = nil
+          DistConfig.run(get_run_conf, :unset_dns_resolvers)
 
         when :nesting
           self.nesting = false
