@@ -207,10 +207,24 @@ module OsCtld
       end
     end
 
-    def dns_resolvers(_opts = {})
-      with_rootfs do
-        configurator.dns_resolvers(ct.dns_resolvers)
+    def dns_resolvers(opts = {})
+      resolvers = opts.fetch(:resolvers) { ct.dns_resolvers }
+
+      # The start hook is already inside a rootfs helper, before guest init.
+      # Live reload must run from the host frontend, not from that chroot.
+      if @within_rootfs || !ct.running?
+        with_rootfs { configurator.dns_resolvers(resolvers) }
+        return
       end
+
+      reload = with_rootfs { configurator.prepare_dns_resolvers }
+      reload_network_manager_dns if reload
+      with_rootfs { configurator.write_dns_resolvers(resolvers) }
+    end
+
+    def unset_dns_resolvers(_opts = {})
+      reload = with_rootfs { configurator.unset_dns_resolvers }
+      reload_network_manager_dns if reload && !@within_rootfs && ct.running?
     end
 
     # @param opts [Hash] options
@@ -247,6 +261,13 @@ module OsCtld
     protected
 
     attr_reader :configurator
+
+    def reload_network_manager_dns
+      # The synchronous Reload API applies DNS policy without reactivating
+      # connections. Exit 8 means NM is not running; it will read the files
+      # when started. Every other error must reach the caller.
+      ct_syscmd(ct, %w[nmcli general reload conf,dns-rc], valid_rcs: [0, 8])
+    end
 
     def with_rootfs(&block)
       if @within_rootfs

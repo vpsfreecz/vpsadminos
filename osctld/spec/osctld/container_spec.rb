@@ -1159,6 +1159,42 @@ RSpec.describe OsCtld::Container do
   end
 
   describe '#set and #unset' do
+    it 'does not persist or retain requested resolvers when live application fails' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+        ct.dns_resolvers = ['1.1.1.1']
+        ct.save_config
+        allow(OsCtld::DistConfig).to receive(:run)
+          .with(instance_of(run_conf_class), :dns_resolvers, resolvers: ['8.8.8.8'])
+          .and_raise(OsCtld::CommandFailed, 'DNS apply failed')
+
+        expect { ct.set(dns_resolvers: ['8.8.8.8']) }
+          .to raise_error(OsCtld::CommandFailed, 'DNS apply failed')
+
+        expect(ct.dns_resolvers).to eq(['1.1.1.1'])
+        ct.reload_config
+        expect(ct.dns_resolvers).to eq(['1.1.1.1'])
+      end
+    end
+
+    it 'retains managed resolvers when live unset fails' do
+      with_tmpdir do |dir|
+        ct = build_configured_container(root: dir)
+        ct.dns_resolvers = ['1.1.1.1']
+        ct.save_config
+        allow(OsCtld::DistConfig).to receive(:run)
+          .with(instance_of(run_conf_class), :unset_dns_resolvers)
+          .and_raise(OsCtld::CommandFailed, 'DNS apply failed')
+
+        expect { ct.unset(dns_resolvers: true) }
+          .to raise_error(OsCtld::CommandFailed, 'DNS apply failed')
+
+        expect(ct.dns_resolvers).to eq(['1.1.1.1'])
+        ct.reload_config
+        expect(ct.dns_resolvers).to eq(['1.1.1.1'])
+      end
+    end
+
     it 'sets hostname and dns resolvers and asks dist config to update them' do
       with_tmpdir do |dir|
         ct = build_configured_container(root: dir)
@@ -1179,7 +1215,8 @@ RSpec.describe OsCtld::Container do
         )
         expect(OsCtld::DistConfig).to have_received(:run).with(
           instance_of(run_conf_class),
-          :dns_resolvers
+          :dns_resolvers,
+          resolvers: %w[1.1.1.1 8.8.8.8]
         )
         expect(ct.lxc_config).to have_received(:configure_base)
       end
@@ -1298,6 +1335,7 @@ RSpec.describe OsCtld::Container do
         expect(ct.attrs.dump).to eq({})
         expect(ct.pool.autostart_plan).to have_received(:stop_ct).with(ct)
         expect(OsCtld::DistConfig).to have_received(:run).with(run_conf, :unset_etc_hosts)
+        expect(OsCtld::DistConfig).to have_received(:run).with(run_conf, :unset_dns_resolvers)
         expect(ct.lxc_config).to have_received(:configure_base).twice
       end
     end
