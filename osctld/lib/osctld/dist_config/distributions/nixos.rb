@@ -73,6 +73,10 @@ module OsCtld
       super if ct.impermanence.nil? || ct.running?
     end
 
+    def unset_dns_resolvers(_opts = {})
+      super if ct.impermanence.nil? || ct.running?
+    end
+
     def bin_path(_opts)
       raise "#{ct.ident} not running" unless ct.running?
 
