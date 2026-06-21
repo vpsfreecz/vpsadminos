@@ -106,6 +106,12 @@ module OsCtld
 
         File.rename("#{path}.new", path)
       end
+
+      network_manager_dns_none
+    end
+
+    def unset_dns_resolvers
+      network_manager_dns_default
     end
 
     def container_runtime_defaults
@@ -143,6 +149,12 @@ module OsCtld
       /\A\s*["']?engine["']?\s*\.\s*["']?cgroup_manager["']?\s*=/
     PODMAN_CGROUPFS_DROPIN = '10-vpsadminos-cgroupfs.conf'.freeze
     PODMAN_CGROUPFS_CONFIG = "[engine]\ncgroup_manager = \"cgroupfs\"\n".freeze
+    NETWORK_MANAGER_DNS_LEGACY_CONFIG = "[main]\ndns=none\n".freeze
+    NETWORK_MANAGER_DNS_CONFIG = <<~CONFIG.freeze
+      # Generated and managed by osctld. Do not edit.
+      [main]
+      dns=none
+    CONFIG
 
     def container_runtime_defaults_distribution?
       self.class.container_runtime_defaults_distribution?(distribution)
@@ -236,6 +248,42 @@ module OsCtld
       log(:warn, "Unable to inspect #{path}: #{e.message}")
       true
     end
+
+    def network_manager_dns_none
+      path = File.join(rootfs, 'etc', 'NetworkManager', 'conf.d', '10-osctl-dns.conf')
+      return unless Dir.exist?(File.dirname(path))
+
+      state = network_manager_dns_config_state(path)
+      return if %i[current custom].include?(state)
+      return unless writable?(path)
+
+      File.write(path, NETWORK_MANAGER_DNS_CONFIG)
+    end
+
+    def network_manager_dns_default
+      path = File.join(rootfs, 'etc', 'NetworkManager', 'conf.d', '10-osctl-dns.conf')
+      return unless %i[current legacy].include?(network_manager_dns_config_state(path))
+      return unless writable?(path)
+
+      File.unlink(path)
+    end
+
+    def network_manager_dns_config_state(path)
+      stat = File.lstat(path)
+      return :custom unless stat.file?
+
+      content = File.binread(path)
+      return :current if content == NETWORK_MANAGER_DNS_CONFIG
+      return :legacy if content == NETWORK_MANAGER_DNS_LEGACY_CONFIG
+
+      :custom
+    rescue Errno::ENOENT
+      :absent
+    rescue SystemCallError => e
+      log(:warn, "Unable to inspect #{path}: #{e.message}")
+      :custom
+    end
+
     # @return [DistConfig::Network::Base, nil]
     attr_reader :network_backend
 
