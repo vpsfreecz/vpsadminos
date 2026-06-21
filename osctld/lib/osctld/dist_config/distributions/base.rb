@@ -213,6 +213,12 @@ module OsCtld
       end
     end
 
+    def unset_dns_resolvers(_opts = {})
+      with_rootfs do
+        configurator.unset_dns_resolvers
+      end
+    end
+
     # @param opts [Hash] options
     # @option opts [String] user
     # @option opts [String] password

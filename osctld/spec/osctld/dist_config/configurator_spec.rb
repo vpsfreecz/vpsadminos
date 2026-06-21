@@ -164,6 +164,88 @@ RSpec.describe OsCtld::DistConfig::Configurator do
     )
   end
 
+  it 'keeps NetworkManager from replacing configured resolvers' do
+    FileUtils.mkdir_p(File.join(rootfs, 'etc', 'NetworkManager', 'conf.d'))
+
+    configurator.dns_resolvers(%w[1.1.1.1])
+
+    expect(File.read(File.join(rootfs, 'etc', 'NetworkManager', 'conf.d', '10-osctl-dns.conf'))).to eq(
+      "# Generated and managed by osctld. Do not edit.\n[main]\ndns=none\n"
+    )
+  end
+
+  it 'does not rewrite current NetworkManager resolver policy on repeated set' do
+    path = File.join(rootfs, 'etc', 'NetworkManager', 'conf.d', '10-osctl-dns.conf')
+    FileUtils.mkdir_p(File.dirname(path))
+    configurator.dns_resolvers(%w[1.1.1.1])
+    allow(File).to receive(:write).and_call_original
+
+    configurator.dns_resolvers(%w[8.8.8.8])
+
+    expect(File).not_to have_received(:write).with(path, anything)
+  end
+
+  it 'migrates legacy NetworkManager resolver policy on set' do
+    path = File.join(rootfs, 'etc', 'NetworkManager', 'conf.d', '10-osctl-dns.conf')
+    FileUtils.mkdir_p(File.dirname(path))
+    File.write(path, "[main]\ndns=none\n")
+
+    configurator.dns_resolvers(%w[1.1.1.1])
+
+    expect(File.read(path)).to eq(
+      "# Generated and managed by osctld. Do not edit.\n[main]\ndns=none\n"
+    )
+  end
+
+  it 'preserves custom NetworkManager resolver policy on set' do
+    path = File.join(rootfs, 'etc', 'NetworkManager', 'conf.d', '10-osctl-dns.conf')
+    FileUtils.mkdir_p(File.dirname(path))
+    File.write(path, "[main]\ndns=systemd-resolved\n")
+
+    configurator.dns_resolvers(%w[1.1.1.1])
+
+    expect(File.read(path)).to eq("[main]\ndns=systemd-resolved\n")
+  end
+
+  it 'leaves absent NetworkManager resolver policy absent on unset' do
+    path = File.join(rootfs, 'etc', 'NetworkManager', 'conf.d', '10-osctl-dns.conf')
+
+    configurator.unset_dns_resolvers
+
+    expect(File.exist?(path)).to be(false)
+  end
+
+  it 'removes current NetworkManager resolver policy on unset' do
+    path = File.join(rootfs, 'etc', 'NetworkManager', 'conf.d', '10-osctl-dns.conf')
+    FileUtils.mkdir_p(File.dirname(path))
+    File.write(path, "# Generated and managed by osctld. Do not edit.\n[main]\ndns=none\n")
+
+    configurator.unset_dns_resolvers
+    configurator.unset_dns_resolvers
+
+    expect(File.exist?(path)).to be(false)
+  end
+
+  it 'removes legacy NetworkManager resolver policy on unset' do
+    path = File.join(rootfs, 'etc', 'NetworkManager', 'conf.d', '10-osctl-dns.conf')
+    FileUtils.mkdir_p(File.dirname(path))
+    File.write(path, "[main]\ndns=none\n")
+
+    configurator.unset_dns_resolvers
+
+    expect(File.exist?(path)).to be(false)
+  end
+
+  it 'preserves custom NetworkManager resolver policy on unset' do
+    path = File.join(rootfs, 'etc', 'NetworkManager', 'conf.d', '10-osctl-dns.conf')
+    FileUtils.mkdir_p(File.dirname(path))
+    File.write(path, "[main]\ndns=systemd-resolved\n")
+
+    configurator.unset_dns_resolvers
+
+    expect(File.read(path)).to eq("[main]\ndns=systemd-resolved\n")
+  end
+
   it 'seeds container runtime cgroupfs defaults on supported distributions' do
     FileUtils.mkdir_p(File.join(rootfs, 'etc', 'docker'))
     File.write(

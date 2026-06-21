@@ -1237,6 +1237,7 @@ RSpec.describe OsCtld::Container do
         expect(ct.attrs.dump).to eq({})
         expect(ct.pool.autostart_plan).to have_received(:stop_ct).with(ct)
         expect(OsCtld::DistConfig).to have_received(:run).with(run_conf, :unset_etc_hosts)
+        expect(OsCtld::DistConfig).to have_received(:run).with(run_conf, :unset_dns_resolvers)
         expect(ct.lxc_config).to have_received(:configure_base).twice
       end
     end
