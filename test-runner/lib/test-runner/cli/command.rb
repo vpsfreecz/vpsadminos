@@ -40,6 +40,8 @@ module TestRunner
         shm_overcommit: opts['shm-overcommit'],
         cpu_overcommit: opts['cpu-overcommit'],
         resource_refresh_interval: opts['resource-refresh-interval'],
+        status_interval: opts['status-interval'],
+        verbose: opts['verbose'],
         default_timeout: opts['timeout'],
         stop_on_failure: opts['stop-on-failure'],
         destructive: opts['destructive'],

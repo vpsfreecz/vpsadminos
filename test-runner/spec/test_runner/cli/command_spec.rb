@@ -27,6 +27,8 @@ RSpec.describe TestRunner::Cli::Command do
       'shm-overcommit' => nil,
       'cpu-overcommit' => nil,
       'resource-refresh-interval' => nil,
+      'status-interval' => nil,
+      'verbose' => false,
       'timeout' => 60,
       'stop-on-failure' => false,
       'destructive' => true,
@@ -76,6 +78,8 @@ RSpec.describe TestRunner::Cli::Command do
       shm_overcommit: nil,
       cpu_overcommit: nil,
       resource_refresh_interval: nil,
+      status_interval: nil,
+      verbose: false,
       default_timeout: 60,
       stop_on_failure: false,
       destructive: true,
@@ -107,6 +111,20 @@ RSpec.describe TestRunner::Cli::Command do
     expect(TestRunner::Executor).to have_received(:new).with(
       scripts,
       hash_including(jobs: 2, jobs_auto: true)
+    )
+  end
+
+  it 'passes suite status and verbose options to the executor' do
+    scripts = [instance_double(TestRunner::TestScript, path: 'suite/a')]
+    executor = instance_double(TestRunner::Executor, run: [])
+    stub_test_script_list(scripts)
+    allow(TestRunner::Executor).to receive(:new).and_return(executor)
+
+    described_class.new({}, opts.merge('status-interval' => '60', 'verbose' => true), []).test
+
+    expect(TestRunner::Executor).to have_received(:new).with(
+      scripts,
+      hash_including(status_interval: '60', verbose: true)
     )
   end
 

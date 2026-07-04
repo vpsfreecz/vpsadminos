@@ -88,6 +88,12 @@ module TestRunner::Cli
         c.desc 'Seconds between detected resource capacity refreshes'
         c.flag 'resource-refresh-interval'
 
+        c.desc 'Seconds between suite status messages, or 0 to disable'
+        c.flag 'status-interval'
+
+        c.desc 'Show verbose diagnostic progress messages'
+        c.switch %w[v verbose], default_value: false
+
         c.desc 'Recreate disk files'
         c.switch %w[f fresh], default_value: false
 

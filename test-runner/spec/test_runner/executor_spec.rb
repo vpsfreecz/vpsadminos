@@ -27,7 +27,7 @@ RSpec.describe TestRunner::Executor do
     )
   end
 
-  def run_test_with_output(executor, test, scripts, lines:, exitstatus: 0)
+  def run_test_with_output(executor, test, scripts, lines:, exitstatus: 0, writer_close_delay: 0)
     dir = executor.send(:test_state_dir, test)
     FileUtils.mkdir_p(dir)
 
@@ -36,6 +36,7 @@ RSpec.describe TestRunner::Executor do
     child_pid = fork { exit exitstatus }
     writer_thread = Thread.new do
       lines.each { |line| writer_copy.puts(line) }
+      sleep(writer_close_delay) if writer_close_delay > 0
       writer_copy.close
     end
     actual_wait = Process.method(:wait)
@@ -360,6 +361,111 @@ RSpec.describe TestRunner::Executor do
     )
   end
 
+  it 'logs passing suite status with expected result categories and progress counts' do
+    expected_successful = instance_double(
+      TestRunner::TestResult,
+      expected_to_succeed?: true,
+      successful?: true,
+      expected_to_fail?: false,
+      failed?: false
+    )
+    expected_failed = instance_double(
+      TestRunner::TestResult,
+      expected_to_succeed?: false,
+      successful?: false,
+      expected_to_fail?: true,
+      failed?: true
+    )
+    running_test = build_test(path: 'suite/running', name: 'running')
+    pending_test = build_test(path: 'suite/pending', name: 'pending')
+    executor = build_executor([running_test.test_scripts['default'], pending_test.test_scripts['default']])
+    logs = []
+    allow(executor).to receive(:log) { |msg| logs << msg }
+    executor.instance_variable_set(:@results, [expected_successful, expected_failed])
+    executor.send(:mark_test_running, 0, running_test)
+    executor.instance_variable_set(:@pending, [[1, pending_test, [pending_test.test_scripts['default']]]])
+
+    executor.send(:log_status)
+
+    expect(logs).to contain_exactly(
+      'Status: passing; 1 succeeded as expected, 1 failed as expected, ' \
+      '0 unexpectedly failed, 0 unexpectedly succeeded; 1 running, 1 remaining'
+    )
+  end
+
+  it 'logs failed suite status with unexpected result categories and progress counts' do
+    expected_successful = instance_double(
+      TestRunner::TestResult,
+      expected_to_succeed?: true,
+      successful?: true,
+      expected_to_fail?: false,
+      failed?: false
+    )
+    expected_failed = instance_double(
+      TestRunner::TestResult,
+      expected_to_succeed?: false,
+      successful?: false,
+      expected_to_fail?: true,
+      failed?: true
+    )
+    unexpected_failed = instance_double(
+      TestRunner::TestResult,
+      expected_to_succeed?: true,
+      successful?: false,
+      expected_to_fail?: false,
+      failed?: true
+    )
+    unexpected_successful = instance_double(
+      TestRunner::TestResult,
+      expected_to_succeed?: false,
+      successful?: true,
+      expected_to_fail?: true,
+      failed?: false
+    )
+    running_test = build_test(path: 'suite/running', name: 'running')
+    pending_test = build_test(path: 'suite/pending', name: 'pending')
+    executor = build_executor([running_test.test_scripts['default'], pending_test.test_scripts['default']])
+    logs = []
+    allow(executor).to receive(:log) { |msg| logs << msg }
+    executor.instance_variable_set(
+      :@results,
+      [expected_successful, expected_failed, unexpected_failed, unexpected_successful]
+    )
+    executor.send(:mark_test_running, 0, running_test)
+    executor.instance_variable_set(:@pending, [[1, pending_test, [pending_test.test_scripts['default']]]])
+
+    executor.send(:log_status)
+
+    expect(logs).to contain_exactly(
+      'Status: failed; 1 succeeded as expected, 1 failed as expected, ' \
+      '1 unexpectedly failed, 1 unexpectedly succeeded; 1 running, 1 remaining'
+    )
+  end
+
+  it 'does not start the suite status monitor when the interval is disabled' do
+    test = build_test
+    executor = build_executor([test.test_scripts['default']], status_interval: 0)
+    allow(executor).to receive(:start_worker)
+    allow(executor).to receive(:wait_for_workers)
+    allow(executor).to receive(:log)
+
+    executor.run
+
+    expect(executor.instance_variable_get(:@status_monitor)).to be_nil
+  end
+
+  it 'stops the suite status monitor without waiting for the full interval' do
+    executor = build_executor([], status_interval: 60)
+    allow(executor).to receive(:log_status)
+
+    executor.send(:start_status_monitor)
+
+    expect do
+      Timeout.timeout(1) { executor.send(:stop_status_monitor) }
+    end.not_to raise_error
+    expect(executor.instance_variable_get(:@status_monitor)).to be_nil
+  end
+
   it 'runs an oversized pending test alone to avoid scheduler deadlock' do
     large = build_test(
       path: 'suite/large',
@@ -476,6 +582,40 @@ RSpec.describe TestRunner::Executor do
     expect(result.script_results.first).to be_successful
     expect(logs.any? { |msg| msg.include?("Example [1/1] 'suite/example works' succeeded") }).to be(true)
     expect(File.read(File.join(dir, 'test-result.txt')).strip).to eq('expected_success')
+  end
+
+  it 'hides the per-test heartbeat by default' do
+    test = build_test
+    script = test.test_scripts['default']
+    executor = build_executor([script])
+    stub_const('TestRunner::Executor::TEST_HEARTBEAT_INTERVAL', 0.01)
+
+    _result, logs = run_test_with_output(
+      executor,
+      test,
+      [script],
+      lines: [],
+      writer_close_delay: 0.05
+    )
+
+    expect(logs.grep(/still running after/)).to be_empty
+  end
+
+  it 'logs the per-test heartbeat in verbose mode' do
+    test = build_test
+    script = test.test_scripts['default']
+    executor = build_executor([script], verbose: true)
+    stub_const('TestRunner::Executor::TEST_HEARTBEAT_INTERVAL', 0.01)
+
+    _result, logs = run_test_with_output(
+      executor,
+      test,
+      [script],
+      lines: [],
+      writer_close_delay: 0.05
+    )
+
+    expect(logs.any? { |msg| msg.include?("Test 'suite/example' still running after") }).to be(true)
   end
 
   it 'complements missing script results with failed placeholders' do

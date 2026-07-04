@@ -6,6 +6,8 @@ require 'test-runner/resource_pool'
 module TestRunner
   class Executor
     DEFAULT_RESOURCE_REFRESH_INTERVAL = 15
+    DEFAULT_STATUS_INTERVAL = 300
+    TEST_HEARTBEAT_INTERVAL = 300
 
     # @return [Array<TestScript>]
     attr_reader :test_scripts
@@ -26,12 +28,15 @@ module TestRunner
     # @option opts [Boolean] :destructive
     # @option opts [Boolean] :recreate_disks
     # @option opts [Numeric] :resource_refresh_interval
+    # @option opts [Numeric] :status_interval
+    # @option opts [Boolean] :verbose
     def initialize(test_scripts, **opts)
       @test_scripts = test_scripts
       @opts = opts
       @workers = []
       @pending = []
       @results = []
+      @running_tests = {}
       @stop_work = false
       @mutex = Mutex.new
       @scheduler_mutex = Mutex.new
@@ -43,6 +48,11 @@ module TestRunner
       @resource_monitor_cv = ConditionVariable.new
       @resource_monitor_stop = false
       @resource_monitor = nil
+      @status_interval = parse_status_interval(opts[:status_interval])
+      @status_monitor_mutex = Mutex.new
+      @status_monitor_cv = ConditionVariable.new
+      @status_monitor_stop = false
+      @status_monitor = nil
 
       fill_queue
     end
@@ -59,6 +69,7 @@ module TestRunner
 
       begin
         start_resource_monitor
+        start_status_monitor
 
         opts[:jobs].times do |i|
           start_worker(i)
@@ -66,26 +77,17 @@ module TestRunner
 
         wait_for_workers
       ensure
+        stop_status_monitor
         stop_resource_monitor
       end
 
       log("Run #{results.inject(0) { |acc, r| acc + r.script_results.length }} test scripts of #{@test_count} tests in #{(Time.now - t1).round(2)} seconds")
 
-      expected_successful = results.select do |r|
-        r.expected_to_succeed? && r.successful?
-      end
-
-      expected_failed = results.select do |r|
-        r.expected_to_fail? && r.failed?
-      end
-
-      unexpected_failed = results.select do |r|
-        r.expected_to_succeed? && r.failed?
-      end
-
-      unexpected_successful = results.select do |r|
-        r.expected_to_fail? && r.successful?
-      end
+      result_groups = classify_results(results)
+      expected_successful = result_groups.fetch(:expected_successful)
+      expected_failed = result_groups.fetch(:expected_failed)
+      unexpected_failed = result_groups.fetch(:unexpected_failed)
+      unexpected_successful = result_groups.fetch(:unexpected_successful)
 
       if expected_successful.any?
         log("#{expected_successful.length} tests successful")
@@ -144,7 +146,11 @@ module TestRunner
                 :resource_pool,
                 :resource_refresh_interval,
                 :resource_monitor_mutex,
-                :resource_monitor_cv
+                :resource_monitor_cv,
+                :running_tests,
+                :status_interval,
+                :status_monitor_mutex,
+                :status_monitor_cv
 
     def fill_queue
       tests = {}
@@ -180,12 +186,12 @@ module TestRunner
         result = nil
 
         begin
+          mark_test_running(i, test)
           result = run_test_with_retries(i, test, scripts)
         ensure
           release_test_resources(resources)
+          mark_test_finished(test, result)
         end
-
-        mutex.synchronize { results << result } unless result.nil?
       end
     end
 
@@ -270,6 +276,41 @@ module TestRunner
       @resource_monitor = nil
     end
 
+    def start_status_monitor
+      return unless status_monitor_enabled?
+
+      @status_monitor_stop = false
+      @status_monitor = Thread.new { run_status_monitor }
+    end
+
+    def stop_status_monitor
+      thread = @status_monitor
+      return if thread.nil?
+
+      status_monitor_mutex.synchronize do
+        @status_monitor_stop = true
+        status_monitor_cv.signal
+      end
+
+      thread.join
+      @status_monitor = nil
+    end
+
+    def run_status_monitor
+      loop do
+        status_monitor_mutex.synchronize do
+          return if @status_monitor_stop
+
+          status_monitor_cv.wait(status_monitor_mutex, status_interval)
+          return if @status_monitor_stop
+        end
+
+        log_status
+      rescue StandardError => e
+        log("Status monitor failed: #{e.class}: #{e.message}")
+      end
+    end
+
     def run_resource_monitor
       loop do
         resource_monitor_mutex.synchronize do
@@ -292,6 +333,80 @@ module TestRunner
       raise ArgumentError, 'resource refresh interval must be positive' if ret <= 0
 
       ret
+    end
+
+    def parse_status_interval(value)
+      value = DEFAULT_STATUS_INTERVAL if value.nil? || value.to_s == ''
+
+      ret = Float(value)
+      raise ArgumentError, 'status interval must be non-negative' if ret < 0
+
+      ret
+    end
+
+    def status_monitor_enabled?
+      status_interval > 0
+    end
+
+    def verbose?
+      opts[:verbose]
+    end
+
+    def mark_test_running(i, test)
+      mutex.synchronize do
+        running_tests[test.path] = {
+          index: i,
+          test:,
+          started_at: Time.now
+        }
+      end
+    end
+
+    def mark_test_finished(test, result)
+      mutex.synchronize do
+        running_tests.delete(test.path)
+        results << result unless result.nil?
+      end
+    end
+
+    def classify_results(result_list)
+      {
+        expected_successful: result_list.select { |r| r.expected_to_succeed? && r.successful? },
+        expected_failed: result_list.select { |r| r.expected_to_fail? && r.failed? },
+        unexpected_failed: result_list.select { |r| r.expected_to_succeed? && r.failed? },
+        unexpected_successful: result_list.select { |r| r.expected_to_fail? && r.successful? }
+      }
+    end
+
+    def status_snapshot
+      pending_count = scheduler_mutex.synchronize { pending.length }
+      finished_results, running_count = mutex.synchronize { [results.dup, running_tests.length] }
+      result_groups = classify_results(finished_results)
+      unexpected_failed = result_groups.fetch(:unexpected_failed).length
+      unexpected_successful = result_groups.fetch(:unexpected_successful).length
+
+      {
+        status: unexpected_failed > 0 || unexpected_successful > 0 ? 'failed' : 'passing',
+        expected_successful: result_groups.fetch(:expected_successful).length,
+        expected_failed: result_groups.fetch(:expected_failed).length,
+        unexpected_failed:,
+        unexpected_successful:,
+        running: running_count,
+        remaining: pending_count
+      }
+    end
+
+    def log_status
+      snapshot = status_snapshot
+
+      log(
+        "Status: #{snapshot.fetch(:status)}; " \
+        "#{snapshot.fetch(:expected_successful)} succeeded as expected, " \
+        "#{snapshot.fetch(:expected_failed)} failed as expected, " \
+        "#{snapshot.fetch(:unexpected_failed)} unexpectedly failed, " \
+        "#{snapshot.fetch(:unexpected_successful)} unexpectedly succeeded; " \
+        "#{snapshot.fetch(:running)} running, #{snapshot.fetch(:remaining)} remaining"
+      )
     end
 
     def log_reserved_resources(test, resources)
@@ -439,13 +554,18 @@ module TestRunner
 
       script_results = []
       test_runner_log = File.join(dir, 'test-runner.log')
-      heartbeat_interval = 300
+      heartbeat_interval = TEST_HEARTBEAT_INTERVAL
       next_heartbeat_at = Time.now + heartbeat_interval
 
       begin
         loop do
-          timeout = [next_heartbeat_at - Time.now, 0].max
-          ready = r.wait_readable(timeout)
+          ready =
+            if verbose?
+              timeout = [next_heartbeat_at - Time.now, 0].max
+              r.wait_readable(timeout)
+            else
+              r.wait_readable
+            end
 
           if ready.nil?
             elapsed = (Time.now - t1).round(2)
@@ -460,7 +580,7 @@ module TestRunner
           line = r.gets
           break if line.nil?
 
-          next_heartbeat_at = Time.now + heartbeat_interval
+          next_heartbeat_at = Time.now + heartbeat_interval if verbose?
 
           begin
             result_hash = JSON.parse(line)

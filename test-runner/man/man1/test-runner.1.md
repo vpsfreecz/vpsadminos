@@ -89,6 +89,17 @@ selected tests and reporting results.
       How often to refresh detected resource capacity while scheduling tests.
       Defaults to `15`.
 
+    `--status-interval` *seconds*
+      How often to print suite status while tests are running. The status
+      includes the aggregate passing or failed state, expected successes,
+      expected failures, unexpected failures, unexpected successes, running
+      tests, and remaining tests. Defaults to `300`. Set to `0` to disable
+      periodic suite status messages.
+
+    `-v`, `--verbose`
+      Show verbose diagnostic progress messages, including the per-test
+      heartbeat with the test log path and last test output.
+
     `--memory-reserve-mib` *n*
       Memory to keep reserved from detected or configured capacity, in MiB.
 
