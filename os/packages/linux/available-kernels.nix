@@ -1,10 +1,18 @@
 { lib }:
 with lib.kernel;
 {
-  stableKernelVersion = "6.12.93";
-  unstableKernelVersion = "6.12.93";
+  stableKernelVersion = "6.12.95";
+  unstableKernelVersion = "6.12.95";
 
   kernels = {
+    "6.12.95" = {
+      rev = "a2384967b90f24d2470c9eb15f0e66d938df7e08";
+      sha256 = "sha256-QlwV4uFeX7ZbWHMuU14rFXswmpqpb1hdVmYUAGOWRh8=";
+      zfs = {
+        rev = "6f5f54c3bfd68c1e52b0b6f454ee9679aaa9e83d";
+        sha256 = "sha256-4WQWL4wd3TYaTfqEqQ6ZDYLXmqnHW7XQz2DP0FpwsRQ=";
+      };
+    };
     "6.12.93" = {
       rev = "09a984467872f2ef8022c4e8cabbd260e6f7edcf";
       sha256 = "sha256-UFg1ZnE6BpuCFRrOvS3so0e4isYq3ZAnJrxqI4HVscw=";
