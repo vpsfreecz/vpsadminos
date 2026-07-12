@@ -5,7 +5,7 @@ GEM
     filelock (1.1.1)
     gli (2.22.2)
       ostruct
-    json (2.20.0)
+    json (2.21.0)
     libosctl (26.05.0)
       fiddle
       logger
