@@ -218,6 +218,11 @@ import ../../make-test.nix (
               end.join('; ')
 
               machine.succeeds(count_pins)
+              machine.succeeds(
+                'generation=$(cat /run/ebpf-livepatch/current-generation); ' \
+                'test -s /run/ebpf-livepatch/$generation.attached-at; ' \
+                'date -d "$(cat /run/ebpf-livepatch/$generation.attached-at)" >/dev/null'
+              )
               machine.succeeds('sv 1 ebpf-livepatch')
 
               wait_until_block_succeeds(name: 'BPF livepatch reload') do

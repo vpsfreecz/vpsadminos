@@ -85,6 +85,8 @@ let
       ${pkgs.coreutils}/bin/mkdir "$new_dir"
 
       if "$loader" pin all "$new_dir"; then
+        ${pkgs.coreutils}/bin/date --utc --iso-8601=seconds \
+          > "$state_dir/$generation.attached-at"
         echo "$generation" > "$state_dir/current-generation"
       else
         status=$?
@@ -111,7 +113,10 @@ let
       for dir in "$generations_dir"/*; do
         [ -d "$dir" ] || continue
         [ "$dir" = "$new_dir" ] && continue
-        ${pkgs.coreutils}/bin/rmdir "$dir" 2>/dev/null || true
+        if ${pkgs.coreutils}/bin/rmdir "$dir" 2>/dev/null; then
+          old_generation="$(${pkgs.coreutils}/bin/basename "$dir")"
+          ${pkgs.coreutils}/bin/rm -f "$state_dir/$old_generation.attached-at"
+        fi
       done
     ) 9>"$state_dir/lock"
   '';
@@ -127,7 +132,7 @@ let
     (
       ${pkgs.util-linux}/bin/flock -x 9
       ${pkgs.coreutils}/bin/rm -rf "$generations_dir"
-      ${pkgs.coreutils}/bin/rm -f "$state_dir/current-generation"
+      ${pkgs.coreutils}/bin/rm -f "$state_dir/current-generation" "$state_dir"/*.attached-at
     ) 9>"$state_dir/lock"
   '';
 
@@ -178,6 +183,9 @@ let
       sinceKernel = program.sinceKernel;
       untilKernel = program.untilKernel or null;
       bpfPrograms = program.bpfPrograms;
+      linkFields = available.programLinkFields program;
+      revision = config.system.vpsadminos.revision;
+      digest = builtins.hashFile "sha256" (ebpfDir + "/programs/${name}.bpf.c");
     }
   ) (filter (name: hasAttr name available.programsByName) requestedProgramNames);
 in

@@ -158,6 +158,9 @@ import ../make-test.nix (
                         boot.kernelPackage = lib.mkOption {
                           type = lib.types.attrs;
                         };
+                        system.vpsadminos.revision = lib.mkOption {
+                          type = lib.types.str;
+                        };
                         environment.systemPackages = lib.mkOption {
                           type = lib.types.listOf lib.types.anything;
                           default = [ ];
@@ -188,6 +191,7 @@ import ../make-test.nix (
                             modDirVersion = kernelVersion;
                             dev = repo;
                           };
+                          system.vpsadminos.revision = "test-vpsadminos-revision";
                           services.ebpf-livepatch = {
                             inherit enable;
                             inherit autoLoad;
@@ -528,6 +532,8 @@ import ../make-test.nix (
           expect(program.fetch('bpfPrograms')).to eq(
             %w[lsm_cred_prep lsm_task_prctl lsm_sysctl]
           )
+          expect(program.fetch('revision')).to eq('test-vpsadminos-revision')
+          expect(program.fetch('digest')).to match(/\A[0-9a-f]{64}\z/)
         end
 
         it 'reloads the autoload service using a pinned generation handoff' do
