@@ -8,12 +8,15 @@
 let
   cfg = config.system.vpsadminos;
   opt = config.system.vpsadminos;
+  kernel = config.boot.kernelPackages.kernel;
+  kernelDefinitions = import ../../packages/linux/available-kernels.nix { inherit lib; };
 
   versionFile = ../../../.version;
   suffixFile = ../../../.version-suffix;
   revisionFile = ../../../.git-revision;
   gitRepo = "${toString ../../..}/.git";
   gitCommitId = lib.substring 0 7 (commitIdFromGitRepo gitRepo);
+  sourceRevision = if pathIsDirectory gitRepo then commitIdFromGitRepo gitRepo else cfg.revision;
 
   inherit (lib)
     concatStringsSep
@@ -220,6 +223,19 @@ in
       };
 
       "os-release".text = attrsToText osReleaseContents;
+      # nodectld reads this through /run/booted-system/etc, not /etc.  The
+      # latter follows the most recently activated closure and may describe a
+      # kernel which has not been booted yet.
+      "vpsadminos/security-evidence.json".text = builtins.toJSON {
+        schemaVersion = 1;
+        version = cfg.version;
+        revision = sourceRevision;
+        kernelVersion = config.boot.kernelVersion;
+        kernelModDirVersion = kernel.modDirVersion;
+        kernelSourceRevision = kernelDefinitions.kernels.${config.boot.kernelVersion}.rev or null;
+        kernelConfig = toString kernel.configfile;
+        sysctls = config.boot.kernel.sysctl;
+      };
     };
 
     boot.postBootCommands = ''
