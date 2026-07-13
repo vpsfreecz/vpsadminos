@@ -151,6 +151,13 @@ let
           echo live-patches: loading and applying ${moduleName} FAILED
         fi
       fi
+      if [ -f ${modDetectDir}/enabled ] && [ "$(cat ${modDetectDir}/enabled 2>/dev/null)" = "1" ]; then
+        mkdir -p /run/vpsadminos/livepatches
+        if [ ! -e /run/vpsadminos/livepatches/${moduleName}.applied-at ]; then
+          date --utc +%Y-%m-%dT%H:%M:%SZ \
+            > /run/vpsadminos/livepatches/${moduleName}.applied-at
+        fi
+      fi
     '';
 
   moduleUnloadGen =
@@ -196,6 +203,7 @@ let
         done
         echo
       fi
+      rm -f /run/vpsadminos/livepatches/${moduleName}.applied-at
     '';
 
   moduleListGen =
