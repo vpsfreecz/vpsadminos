@@ -11,7 +11,7 @@ GEM
       reline
     io-console (0.8.2)
     ipaddress (0.8.3)
-    json (2.21.0)
+    json (2.21.1)
     libosctl (26.05.0)
       fiddle
       logger

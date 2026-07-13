@@ -75,10 +75,10 @@
     platforms = [ ];
     source = {
       remotes = [ "https://rubygems.org" ];
-      sha256 = "0s8rvvmsq72d4z3nh15nclr3wgx728882jgxp4a08ick7zjrkqcd";
+      sha256 = "10q54a0dkm0050n0zzqiv2ln8w931wszybbhym1i8r4mbpvkv90k";
       type = "gem";
     };
-    version = "2.21.0";
+    version = "2.21.1";
   };
   libosctl = {
     dependencies = [
