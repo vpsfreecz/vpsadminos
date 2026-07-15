@@ -43,7 +43,7 @@ GEM
     ruby-progressbar (1.13.0)
     syslog (0.4.0)
       logger
-    yard (0.9.44)
+    yard (0.9.45)
 
 PLATFORMS
   ruby
