@@ -105,8 +105,33 @@ in
         else if pathExists revisionFile then
           fileContents revisionFile
         else
-          "staging";
+          null;
       description = lib.mdDoc "The Git revision from which this vpsAdminOS configuration was built.";
+    };
+
+    vpsadminos.revisionDirty = mkOption {
+      internal = true;
+      type = types.bool;
+      default = pathIsDirectory gitRepo;
+      description = lib.mdDoc ''
+        Whether the vpsAdminOS source contained changes outside of the reported
+        Git revision. Direct builds from a Git checkout are conservatively
+        considered dirty unless their caller supplies exact source metadata.
+      '';
+    };
+
+    vpsadminos.nixpkgsVersion = mkOption {
+      internal = true;
+      type = types.str;
+      default = lib.version;
+      description = lib.mdDoc "The nixpkgs version used to build this vpsAdminOS configuration.";
+    };
+
+    vpsadminos.nixpkgsRevision = mkOption {
+      internal = true;
+      type = types.nullOr types.str;
+      default = null;
+      description = lib.mdDoc "The exact nixpkgs revision used to build this vpsAdminOS configuration.";
     };
 
     vpsadminos.codeName = mkOption {
@@ -230,6 +255,9 @@ in
         schemaVersion = 1;
         version = cfg.version;
         revision = sourceRevision;
+        revisionDirty = cfg.revisionDirty;
+        nixpkgsVersion = cfg.nixpkgsVersion;
+        nixpkgsRevision = cfg.nixpkgsRevision;
         kernelVersion = config.boot.kernelVersion;
         kernelModDirVersion = kernel.modDirVersion;
         kernelSourceRevision = kernelDefinitions.kernels.${config.boot.kernelVersion}.rev or null;

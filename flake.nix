@@ -48,6 +48,9 @@
           nixpkgs.lib.removeSuffix "\n" (builtins.readFile vpsadminosGithubRevFile)
         else
           null;
+      nixpkgsRevision = if nixpkgs ? rev then nixpkgs.rev else null;
+      nixpkgsRevisionFor =
+        pkgs: if toString pkgs.path == toString nixpkgs.outPath then nixpkgsRevision else null;
       containerStableModule = import ./os/lib/nixos-container/stable/vpsadminos.nix;
       containerStable2211Module = import ./os/lib/nixos-container/stable/vpsadminos-22.11.nix;
       containerStable2305Module = import ./os/lib/nixos-container/stable/vpsadminos-23.05.nix;
@@ -62,6 +65,8 @@
         let
           framework = rec {
             sourcePath = self.outPath;
+            nixpkgsPath = nixpkgs.outPath;
+            nixpkgsRevision = if nixpkgs ? rev then nixpkgs.rev else null;
             sourceInputs = {
               inherit (inputs) netlinkrb ruby-lxc;
             };
@@ -152,7 +157,14 @@
           platform ? null,
         }:
         let
-          flakeRev = self.rev or (self.dirtyRev or null);
+          flakeDirty = !(self ? rev) && self ? dirtyRev;
+          flakeRev =
+            if self ? rev then
+              self.rev
+            else if self ? dirtyRev then
+              nixpkgs.lib.removeSuffix "-dirty" self.dirtyRev
+            else
+              null;
           flakeShortRev =
             self.shortRev or (
               if self ? dirtyShortRev then
@@ -163,11 +175,16 @@
                 builtins.substring 0 7 flakeRev
             );
           flakeVersionInfoModule =
-            { lib, ... }:
+            { lib, pkgs, ... }:
             {
-              system.vpsadminos = lib.optionalAttrs (flakeRev != null) (
+              system.vpsadminos = {
+                nixpkgsVersion = pkgs.lib.version;
+                nixpkgsRevision = nixpkgsRevisionFor pkgs;
+              }
+              // lib.optionalAttrs (flakeRev != null) (
                 {
                   revision = lib.mkDefault flakeRev;
+                  revisionDirty = lib.mkDefault flakeDirty;
                 }
                 // lib.optionalAttrs (flakeShortRev != null) {
                   versionSuffix = lib.mkDefault ".git.${flakeShortRev}";
@@ -217,6 +234,10 @@
           { pkgs, ... }:
           {
             imports = import ./os/modules/module-list.nix { nixpkgsPath = pkgs.path; };
+            system.vpsadminos = {
+              nixpkgsVersion = pkgs.lib.version;
+              nixpkgsRevision = nixpkgsRevisionFor pkgs;
+            };
           };
 
         container = containerStableModule;

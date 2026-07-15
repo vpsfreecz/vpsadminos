@@ -24,9 +24,16 @@ let
     netlinkrb = null;
     ruby-lxc = null;
   };
+  effectiveTestFramework =
+    if testFramework != null then
+      testFramework
+    else if extraArgs ? vpsadminos && extraArgs.vpsadminos ? lib.testFramework then
+      extraArgs.vpsadminos.lib.testFramework
+    else
+      null;
   osInputArgs =
-    if testFramework != null && testFramework ? sourceInputs then
-      builtins.intersectAttrs osInputNames testFramework.sourceInputs
+    if effectiveTestFramework != null && effectiveTestFramework ? sourceInputs then
+      builtins.intersectAttrs osInputNames effectiveTestFramework.sourceInputs
     else
       { };
   nixpkgs = import pkgs {
@@ -79,6 +86,16 @@ let
     cfg:
     let
       testShells = machineTestShells cfg;
+      exactNixpkgsRevision =
+        if
+          effectiveTestFramework != null
+          && effectiveTestFramework ? nixpkgsPath
+          && effectiveTestFramework ? nixpkgsRevision
+          && toString nixpkgs.path == toString effectiveTestFramework.nixpkgsPath
+        then
+          effectiveTestFramework.nixpkgsRevision
+        else
+          null;
     in
     import ../os (
       {
@@ -92,6 +109,7 @@ let
           modules
           ++ (cfg.modules or [ ])
           ++ [ ./configs/vpsadminos/base.nix ]
+          ++ [ { system.vpsadminos.nixpkgsRevision = exactNixpkgsRevision; } ]
           ++ [ cfg.config or { } ]
           ++ [ { osctl.test-shell.shells = testShells; } ];
       }
