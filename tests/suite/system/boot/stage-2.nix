@@ -35,7 +35,7 @@ import ../../../make-test.nix (
 
       before(:suite) do
         machine.start
-        machine.wait_for_console_text(/vpsadminos login:/)
+        machine.wait_for_boot
         machine.wait_for_service('set-clock')
       end
 
