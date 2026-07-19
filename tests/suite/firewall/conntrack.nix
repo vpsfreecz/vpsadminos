@@ -357,13 +357,22 @@ import ../../make-test.nix (
             end
 
             it 'does not duplicate notrack rules on reload' do
-              status, output = no_conntrack_server.execute('sv 1 firewall')
+              # `sv 1` returns before the control script runs. Make the old
+              # table fail the two-rule completion predicate.
+              reload_command = [
+                'iptables -w -t raw -I PREROUTING 1 -m comment --comment nixos-fw-notrack -j CT --notrack',
+                'sv 1 firewall',
+              ].join(' && ')
+
+              status, output = no_conntrack_server.execute(reload_command)
               expect(status).to eq(0), output
 
               reload_ready_command = [
                 'test "$(iptables-save -t raw | grep -c -- "--comment nixos-fw-notrack")" = 2',
                 'iptables-save | grep -- "--comment firewall-test-protected-tcp" | grep -q -- "-j nixos-fw-log-refuse"',
                 'iptables-save | grep -- "--comment firewall-test-protected-udp" | grep -q -- "-j nixos-fw-log-refuse"',
+                'iptables -w -C INPUT -j nixos-fw',
+                '! iptables -w -C INPUT -j nixos-drop 2>/dev/null',
               ].join(' && ')
 
               no_conntrack_server.wait_until_succeeds(
