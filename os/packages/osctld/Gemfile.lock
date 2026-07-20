@@ -3,7 +3,7 @@ GEM
   specs:
     base64 (0.3.0)
     bindata (2.5.1)
-    concurrent-ruby (1.3.7)
+    concurrent-ruby (1.3.8)
     fiddle (1.1.8)
     filelock (1.1.1)
     gli (2.22.2)
